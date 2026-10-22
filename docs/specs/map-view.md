@@ -53,8 +53,10 @@ through the resource manager (`0x00B43CA8`, slot 3, IID `0xA52160F5`). Its prope
 | `0x4A0B47EA` | string | the plop mode name of the highlighted buildings (`"PlopMode_Police_Existing"` …) |
 | `0x4A0B47EE`, `0x4A0B47EF` | u32 | two highlight colours *[inferred]* |
 | `0x4A0B47F2`, `0x4A0B47F3`, `0x4A0B47F4` | u32 lists | the legend: colours, string ids, title string (§6) |
-| `0x4A0B47E0` | u32 list | occupant types for the 3D view's filter (the non-zero ones) |
-| `0x4A0B47E1`, `0x4A0B47E2`, `0x4A0B47F0` | bool | the 3D view's filter options *[summary; QV1]* |
+| `0x4A0B47E0` | u32 list | occupant types for the 3D view's filter (the non-zero ones; occupant-manager.md §13.2.8) |
+| `0x4A0B47E1` | bool | the filter shows every type but the listed ones; without it, a list shows only its types and no list shows every type |
+| `0x4A0B47E2` | bool | the filter hides the base textures of empty lots, and the signposts and text decals the type test leaves out |
+| `0x4A0B47F0` | bool | passed (false when absent) to the lot developer's `SetForceEmptyLotBaseTextures` (building development simulator slot 36, then lot developer slot 47) |
 | `0x4A0B47E3`, `0x4A0B47F1` | u32 0–2 | terrain view mode 0 → 1, 1 → 3, 2 → 2 (normal, pipes, subway *[inferred]*) |
 | `0x6B7C5CDD` | u32 list | up to eight bytes kept for the source (the travel types of the traffic volume views) |
 | `0x4A0B47E6` | u8 | a zone display option *[summary]* |

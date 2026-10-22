@@ -96,8 +96,8 @@ real. Shift, Ctrl and Alt are passed to the zone developer as its parcel options
    region is used, checkLotInside := T ≠ 0, &cost, &error, &lots)` (zones.md §6), the region being the flood region
    or `R`.
 3. Each lot in `lots` with a building gets its building's occupant highlighted (occupant slot 17 with 5; the
-   highlights are later reset with 0) and counted; when none has a building but one answers lot slot 46 with
-   non-zero, the count is 1.
+   highlights are later reset with 0) and counted; when none has a building but one has a building type other than
+   0 (`GetBuildingType(false)`, lot slot 46), the count is 1.
 4. **Valid:** the valid-preview sound; the zone's texture (zone manager slot 14) and drag colour value (slot 15
    with 0); the terrain selection cleared; `SetCostIndicator(cost)` (slot 43); with a count, the cursor text
    (`0xA9C87CF4`, slot 40) := the string `0xCA711A5E` (group `0x0A419226`) formatted with the count, set only when it
@@ -135,7 +135,7 @@ real. Shift, Ctrl and Alt are passed to the zone developer as its parcel options
 
 ## 6. Open questions
 
-See [questions/zone-tool.md](questions/zone-tool.md): ZT1 (lot slot 46, the drag colour value, the meaning of
+See [questions/zone-tool.md](questions/zone-tool.md): ZT1 (the drag colour value, the meaning of
 terrain view slot 5's values here, and the test `0x004461C0`).
 
 ## 7. Conformance tests

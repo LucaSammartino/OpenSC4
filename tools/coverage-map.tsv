@@ -234,6 +234,9 @@ cSC4SignpostOccupant	occupants and props	simulation	lot-records.md	-	-	-
 cSC4TextDecalOccupant	occupants and props	simulation	lot-records.md	-	-	-
 cSC4Occupant*	occupants and props	simulation	occupant-manager.md, lot-records.md	-	-	-
 cSC4*OccupantFilter	occupants and props	simulation	occupant-manager.md, flora.md, demolition.md	-	-	-
+# the occupant filters' free functions (occupant-manager.md §13.2)
+fn:SC4GetOccupantViewLevel	occupants and props	simulation	occupant-manager.md	-	-	-
+fn:GZCOM_CreatecSC4*Filter*	occupants and props	simulation	occupant-manager.md	-	-	-
 cSC4*Occupant	occupants and props	simulation	occupant-manager.md, lot-records.md, prop-occupant.md, flora.md, landfill.md, disasters.md	-	-	-
 cSC4GameOfLifeSimulator	other simulation	simulation	-	-	-	-
 SC4QuadGrid	other simulation	simulation	-	-	-	-

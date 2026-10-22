@@ -16,27 +16,11 @@
   rows (static vs edit-time colours) and the corner order? [dynamic = row 1]
 
 <!-- from: re-occprops (2026-10-20) -->
-- **OP4:** `cSC4RealisticOccupantFilter` flag bytes `+0xC`/`+0xD`/`+0xE` (creator `0x005EA240` zeroes them; ctor
-  `0x005EB850`?), the meaning of property `0x5001`, the `0x097F6D98` QI + lot slot 0x84==1 exclusion, and who sets
-  the flags (callers of the creator). [include iff byte set for base textures and props]
+- **OP6:** body of `cSC4DummyAutoOccupant` (1 fn, 65 bytes). (The immovability and zoom-and-rotation filter
+  bodies are in occupant-manager.md §13.2.6, re-occfilters 2026-10-21; the dummy occupant's constructor
+  `0x005B2A40` makes a point occupant on the stack of `cSC4ParticlesEffect::UpdateAttractor`, `0x005B6CA5`.)
+  [untraced in this lane]
 
-<!-- from: re-occprops (2026-10-20) -->
-- **OP5:** `cSC4BlockingLotOccupantFilter` slot 3 (`0x004BDF90`, 26 bytes) body and users. [untraced]
-
-<!-- from: re-occprops (2026-10-20) -->
-- **OP6:** bodies of `cSC4OccupantImmovabilityFilter::IsOccupantIncluded`, `cSC4DummyAutoOccupant` (1 fn, 65
-  bytes) and `cSC4ZoomRotationModelChangeOccupantFilter::IsOccupantIncluded`. [untraced in this lane]
-
-
-<!-- from: re-occprops (2026-10-20) -->
-- **OP8:** the `0xCA0E3852` filter (creator `0x007A0420`, vtable `0x00AB7E44`, byte +0x2E = 1, registered at
-  `0x004608AB`), the `0xE9C75EE8` types-set filter body, and the hashed-variant filter bodies (vptrs
-  `0x00A8EE38`/`0x00A8EE20`). [identity untraced]
-
-<!-- from: re-occprops (2026-10-20) -->
-- **OP9:** `cAutomataOccupantFilter` type identities {`0xC7CC75F1`, `0x496E5783`, `0x480E6151`, `0x897F7EC2`}
-  (`0x00562C90`): which occupant classes are these? [`0xC7CC75F1` is the subway-adjacent type per the subway
-  filter; the rest unknown]
 
 <!-- from: re-occprops (2026-10-20) -->
 - **OP10:** `GetOccupantGroups` overload `0x005E9500`: it resolves group IDs through the persist-resource manager

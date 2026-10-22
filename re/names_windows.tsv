@@ -336,6 +336,7 @@ va	name	source	confidence	note
 00424eba	lib::Catch@00424eba	library	medium	Function ID
 00424ec0	std::deque<cSC4MySimDispatch::cLocation,std::allocator<cSC4MySimDispatch::cLocation>>::_M_pop_front_aux	auto:B0	medium	mac 007f283a score 0.814 support 1.0
 00424ee0	__ZThn4_N18cSC4OccupantFilter14QueryInterfaceEmPPv	auto:B0	medium	mac 0061e314 score 0.96 support 1.0
+00424ef0	cSC4OccupantFilter::Release (thunk at +4)	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.1
 00424fe0	SendMySimsChangedMessage	auto:B2	medium	mac 0054133c score 0.932 support 2.5
 00425100	cSC4MySimAdvice::DoLink	auto:B0	medium	mac 00541c28 score 0.949 support 1.0
 004251a0	cSC4MySim::Write	auto:B4	medium	mac 00544118 score 0.938 support 1.0
@@ -1033,11 +1034,14 @@ va	name	source	confidence	note
 004663f0	cSC4ScriptedWindowCOMDirector::GetDirectorID	auto:A	low	mac 007f3b2a score 1.0 support 0
 00466400	SC4GetSC4ScriptedWindowCOMDirector	auto:B0	medium	mac 0048cde0 score 0.896 support 1.0
 00466440	GetSC4GDriversCOMDirector	auto:D	medium	mac 0048ce68 score 0.5 support 1
+00466480	cSC4DefaultOccupantFilter::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; 0xC9C75EAE
 004664a0	cS3DTextureBinding::AddRef	auto:B2	low	mac 000a02b0 score 0.861 support 2.0
 004664b0	cSC4Demolition::QueryInterface	auto:C	high	mac 000ad23c score 1.0 support 1
 00466530	cSC4OccupantImmovabilityFilter::IsOccupantIncluded	auto:B1	medium	mac 00631c86 score 0.984 support 3.5
 004665c0	cSTETerrainView3D::SetWaterColorUpdateRect	manual:terrain-view.tsv	high	terrain-view.md Â§9.2; merges two rectangles (min corner, max corner)
 00466610	SC4CellRegion<long>::IncludesCell	manual:m4zone.tsv	high	zones.md
+004666c0	cSC4RealisticOccupantFilter::cSC4RealisticOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; flags +0xC..+0xE clear
+004666f0	cSC4RealisticOccupantFilter::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; 0x8A7A1C2C, shared with the demolition filter
 00466700	cSC4DemolitionOccupantFilter::cSC4DemolitionOccupantFilter	auto:B5	medium	mac 00632e6c score 0.95 support 1.0
 00466730	cSC4DemolitionOccupantFilter::IsOccupantIncluded	auto:B0	medium	mac 006326f6 score 0.987 support 6.5
 00466920	cSC4Demolition::~cSC4Demolition	auto:C	high	mac 000ad1be score 1.0 support 1
@@ -1469,6 +1473,7 @@ va	name	source	confidence	note
 004902e0	cSC4ModelMaker::AddModel	auto:A	high	mac 00248ce4 score 0.532 support 0
 00490c70	cSC4ModelMaker::LoadModelsCommon	auto:A	high	mac 002490ec score 0.576 support 0
 00491040	cSC4ModelMaker::LoadFoundationModels	auto:A	high	mac 00249518 score 0.816 support 0
+00491210	cSC4OccupantTypesFilter::~cSC4OccupantTypesFilter (body)	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; frees the list
 00491230	cSC4ModelMaker::CreateOccupantShadow	auto:B1	medium	mac 0024696c score 0.994 support 10.0
 00491a30	cSC4ModelMaker::LoadPropModels	auto:B0	medium	mac 00249716 score 0.942 support 2.0
 00491ad0	cSC4ModelMaker::cSC4ModelMaker	auto:D	medium	mac 00247a2a score 0.5 support 1
@@ -1481,6 +1486,8 @@ va	name	source	confidence	note
 00492cc0	cSC4ModelMaker::RebuildDynamicTexture	auto:B5	medium	mac 002471e4 score 0.977 support 2.5
 004930f0	cSC4ModelMaker::DoLightingChanged	auto:B8	medium	mac 00248b50 score 0.898 support 3.5
 00493340	cSC4ModelMaker::RemoveModels	auto:B1	medium	mac 00249834 score 0.932 support 2.0
+00493700	cSC4OccupantTypesFilterHashed::IsOccupantTypeIncluded	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3
+00493720	cSC4OccupantTypesFilterHashed::~cSC4OccupantTypesFilterHashed	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; deleting
 00493750	cSC4ModelMaker::DoOccupantDestroyed	auto:B4	medium	mac 002498c0 score 0.988 support 2.0
 004937d0	cSC4ModelMaker::DoOccupantMoved	auto:B3	medium	mac 00249a7c score 0.958 support 2.0
 00493a00	cSC4ModelMaker::DoOccupantHilighted	auto:B5	medium	mac 00249c86 score 0.973 support 4.0
@@ -1508,6 +1515,7 @@ va	name	source	confidence	note
 00496670	cSC4ModelMakerUtility::GetOccupantOrientationAndState	auto:A	high	mac 0020567e score 0.656 support 0
 00496790	cSC4ZoomRotationModelChangeOccupantFilter::cSC4ZoomRotationModelChangeOccupantFilter	auto:B5	medium	mac 002057a6 score 0.938 support 2.0
 004967b0	cSC4ZoomRotationModelChangeOccupantFilter::SetZoomAndRotation	auto:B2	medium	mac 002057d2 score 0.979 support 2.0
+004967e0	cSC4ZoomRotationModelChangeOccupantFilter::IsOccupantIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.6; placeable object +0x2C
 00496830	cSC4ModelMakerUtility::GetModelInstanceID	auto:D	medium	mac 002059d4 score 0.5 support 1
 00496950	cSC4ModelMakerUtility::GetOccupantModelClass	auto:B0	medium	mac 00205bc2 score 0.993 support 4.0
 00496ac0	cSC4ModelMakerUtility::HasOccupantModelClass	auto:B1	medium	mac 0020582e score 0.998 support 3.0
@@ -1942,6 +1950,7 @@ va	name	source	confidence	note
 004bde30	cSC4ViewInputControlLevelTerrain::OnMouseMove	manual:view-input-controls.tsv	high	view-input-controls.md Â§3
 004bdf00	cSCParticleSimulatorBase::AddRef	auto:D	low	mac 004bcb80 score 0.5 support 1
 004bdf10	icf::cSC4ViewInputControlPlaceLot::QueryInterface	folded	folded	2 names: cSC4ViewInputControlPlaceLot::QueryInterface | cSC4ViewInputControlQuery::QueryInterface
+004bdf90	cSC4OccupantFilter::IsOccupantIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.1; IsOccupantTypeIncluded(GetType())
 004be0a0	cSC4ViewInputControlPlaceLot::DoPlopRingEffectFinished	auto:B1	medium	mac 002d417c score 0.921 support 2.0
 004be0c0	cSC4LotConfigurationFilterMonopoly::cSC4LotConfigurationFilterMonopoly	auto:D	medium	mac 006f8b1e score 0.5 support 1
 004be100	cSC4LotConfigurationFilterByBuildingType::cSC4LotConfigurationFilterByBuildingType	auto:B0	medium	mac 006f8ae4 score 0.945 support 2.0
@@ -4535,16 +4544,59 @@ va	name	source	confidence	note
 005e9350	cSC4Occupant::AddOccupantGroup	auto:A	high	mac 000899ce score 0.523 support 0
 005e9410	cSC4Occupant::GetOccupantGroups	auto:B1	medium	mac 00089902 score 0.959 support 2.5
 005e9500	cSC4Occupant::GetOccupantGroups	auto:B7	medium	mac 00089aa2 score 0.972 support 2.0
+005e95b0	cSC4OccupantFilter::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.1; 0xA9C74DC9
+005e95c0	cSC4OccupantFilter::~cSC4OccupantFilter (body)	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.1
 005e95d0	cSC4OccupantFilter::QueryInterface	auto:C	high	mac 0007939a score 1.0 support 4
 005e9630	cSC4DefaultOccupantFilter::IsOccupantIncluded	auto:A	high	mac 00079460 score 1.0 support 0
 005e96e0	cSC4DefaultOccupantFilter::IsPropertyHolderIncluded	auto:A	high	mac 0007952a score 1.0 support 0
+005e9730	cSC4OccupantTypeFilter::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2; 0xE9C75ED1
+005e9740	cSC4OccupantTypeFilter::IsOccupantTypeIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2; type == +0xC
+005e9760	cSC4OccupantTypesFilter::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; 0xE9C75EE8
+005e9770	cSC4OccupantTypesFilterHashed::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; 0xAA25CB90
+005e9780	cSC4ViewLevelOccupantFilter::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.4; 0xAAC3C01D
+005e9790	cSC4OccupantFilter::~cSC4OccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.1; deleting
+005e97c0	cSC4OccupantFilter::Write	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.1; u16 3
+005e97e0	cSC4OccupantFilter::Read	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.1; u16 3
+005e9810	cSC4DefaultOccupantFilter::Write	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; u16 3, u16 3
+005e9840	cSC4DefaultOccupantFilter::Read	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3
+005e9890	cSC4OccupantTypeFilter::Write	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2; u16 3, u16 3, u32 type
+005e98e0	cSC4OccupantTypeFilter::Read	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2
+005e9950	cSC4OccupantTypesFilter::IsOccupantTypeIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; empty list -> true
 005e9990	cSC4RealisticOccupantFilter::IsOccupantIncluded	auto:A	high	mac 000795c8 score 0.834 support 0
+005e9af0	cSC4RealisticOccupantFilter::Write	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; u16 4, three flag bytes, the default's record
+005e9b50	cSC4RealisticOccupantFilter::Read	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; version 3 copies +0xD into +0xE
+005e9bd0	cSC4NetworkOccupantFilter::IsOccupantIncluded	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; GetNetworkFlag() & mask
+005e9c30	cSC4NetworkOccupantFilter::Write	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; u16 1, u32 mask
+005e9c60	cSC4NetworkOccupantFilter::Read	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3
 005e9ca0	SC4GetOccupantViewLevel	auto:A	high	mac 00079a36 score 0.904 support 0
 005e9e40	cSC4ViewLevelOccupantFilter::IsOccupantIncluded	auto:B0	medium	mac 00079dbe score 0.987 support 1.0
+005e9e60	cSC4ViewLevelOccupantFilter::Write	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.4; u16 1, u8 level
+005e9e90	cSC4ViewLevelOccupantFilter::Read	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.4
+005e9ee0	cSC4StringSpecificationOccupantFilter::GetOccupants	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.5; occupant manager slot 36 with the box
 005e9f20	cSC4StringSpecificationOccupantFilter::IsOccupantIncluded	auto:B0	medium	mac 00079c72 score 0.947 support 1.0
+005ea020	cSC4OccupantGroupFilter::IsOccupantIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; any group, empty list -> false
 005ea080	cRZAutoRefCount<cISC4OccupantFilter>::operator=	auto:B6	medium	mac 00631c4c score 0.875 support 5.0
+005ea0a0	cSC4OccupantTypesFilter::Write	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; u16 3, u16 3, u32 n, n types
+005ea120	cSC4NetworkOccupantFilter::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; 0xEAC3A3D2
+005ea130	GZCOM_CreatecSC4OccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2; 12 bytes
+005ea160	GZCOM_CreatecSC4DefaultOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2, §13.2.3
+005ea190	GZCOM_CreatecSC4OccupantTypeFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2; 16 bytes, type 0; occupant-manager.md §4.4
+005ea1c0	GZCOM_CreatecSC4NetworkOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.2, §13.2.3; mask 0x1FFF
+005ea200	GZCOM_CreatecSC4ViewLevelOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2, §13.2.4; level 1
+005ea240	GZCOM_CreatecSC4RealisticOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2, §13.2.3
+005ea280	cSC4OccupantGroupFilter::cSC4OccupantGroupFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; one group, added when not 0
+005ea2f0	cSC4OccupantGroupFilter::AddGroup	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; slot 7
+005ea330	GZCOM_CreatecSC4OccupantTypesFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2, §13.2.3; 24 bytes
+005ea370	cSC4OccupantTypesFilterHashed::Write	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; u16 3, u16 3, u32 count, the types
+005ea420	cSC4OccupantTypesFilter::~cSC4OccupantTypesFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; deleting; also the group filter's
+005ea490	cSC4OccupantTypesFilter::Read	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3
+005ea550	cSC4OccupantTypesFilterHashed::Read	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3
 005ea610	cSC4StringSpecificationOccupantFilter::BuildSpecification	auto:A	high	mac 0007a3f2 score 0.825 support 0
 005eb850	cSC4StringSpecificationOccupantFilter::cSC4StringSpecificationOccupantFilter	auto:B3	medium	mac 0007b5e4 score 0.97 support 1.0
+005eb8f0	cSC4StringSpecificationOccupantFilter::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.5; 0x0BCEB6C2
+005eb900	cSC4StringSpecificationOccupantFilter::~cSC4StringSpecificationOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.5; deleting
+005eb920	cSC4StringSpecificationOccupantFilter::~cSC4StringSpecificationOccupantFilter (body)	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.5; frees the three lists
+005eb970	GZCOM_CreatecSC4OccupantTypesFilterHashed	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.2, §13.2.3; 32 bytes, hash set hint 100
 005eb9c0	std::vector<cRZString,std::allocator<cRZString>>::vector	auto:B3	medium	mac 0061e540 score 0.902 support 2.0
 005eba70	cSC4StringSpecificationOccupantFilter::BuildSpecification	auto:B2	medium	mac 0007b2ea score 0.987 support 2.0
 005ebb10	cSC4StringSpecificationOccupantFilter::cSC4StringSpecificationOccupantFilter	auto:B3	medium	mac 0007b4ae score 0.998 support 1.5
@@ -5153,6 +5205,7 @@ va	name	source	confidence	note
 0060fc30	cSC4NetworkLotManager::DoMessage	auto:B0	medium	mac 0030f02a score 0.956 support 6.0
 00610020	cSC4NetworkLot::GetLotConfigurationObjectArray	auto:C	high	mac 0030d084 score 1.0 support 1
 00610120	cSC4NetworkLotManager::Init	auto:A	high	mac 0030d6d4 score 0.505 support 0
+006104d0	cSC4WaterOccupantFilter::~cSC4WaterOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.6; deleting
 00610500	cSC4SubwayOccupantFilter::~cSC4SubwayOccupantFilter	auto:C	high	mac 00673768 score 1.0 support 1
 00610540	cSC4NetworkManager::IsOccupantSubwayStation	auto:B1	medium	mac 00110214 score 0.94 support 1.0
 00610550	cSC4NetworkManager::FindPipeOccupant	auto:C	high	mac 0011022a score 1.0 support 1
@@ -5514,6 +5567,7 @@ va	name	source	confidence	note
 00648a90	cSC4PipeOccupant::StaticInit	manual:underground-occupants.tsv	high	underground-occupants.md Â§2.5; five xz lengths from 0x00B0BA68 with index lists 0x00B0BC60 / 0x00B0BC88, ratios to 0x00B46708 and 0x00B46720, flag 0x00B46730
 00648bc0	cSC4PipeOccupant::Init	manual:underground-occupants.tsv	high	underground-occupants.md Â§2.2; slot 3 of the occupant interface 0x00AA9730: StaticInit once, then unless IsInitialized the base Init 0x0065C070 and 0x0065AE80
 00648bf0	cSC4PipeOccupant::Init	manual:underground-occupants.tsv	high	underground-occupants.md Â§2.2; main slot 3, pop 4: StaticInit once, unless IsInitialized the base Init 0x0065C6B0(arg, 0x49C05B9F, 0x00B0BED0), watered := 0
+00648c40	cSC4WaterOccupantFilter::IsOccupantIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.6
 00648cc0	cSC4WaterOccupantFilter::IsPropertyHolderIncluded	auto:A	high	mac 0012cb26 score 1.0 support 0
 00648ec0	cSC4PipeTool::cSC4PipeTool	auto:D	medium	mac 0012cb84 score 0.5 support 1
 00648ef0	cSC4ViewInputControl::OnMouseExit	manual:view-input-controls.tsv	high	city-tools-input.md Â§2; false
@@ -6670,6 +6724,8 @@ va	name	source	confidence	note
 006bfa30	cSC4Lot::GetBuilding	auto:C	high	mac 0011e16c score 1.0 support 1
 006bfac0	cSC4InsideLotOccupantFilter::SetLot	auto:D	medium	mac 0066a490 score 0.5 support 1
 006bfb20	cSC4InsideLotOccupantFilter::cSC4InsideLotOccupantFilter	auto:D	medium	mac 0066a252 score 0.5 support 1
+006bfb80	cSC4InsideLotOccupantFilter::IsOccupantIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.6; inclusive box, default and realistic
+006bfc10	cSC4InsideLotOccupantFilter::~cSC4InsideLotOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.6; deleting
 006bfc40	cSC4Lot::UpdateZoneType	auto:C	high	mac 0011da2e score 1.0 support 1
 006bfc60	cSC4Lot::GetLandValue	auto:C	high	mac 0011dcba score 1.0 support 1
 006bfce0	cSC4Lot::HasJobAccess	auto:C	high	mac 0011e126 score 1.0 support 1
@@ -6744,6 +6800,7 @@ va	name	source	confidence	note
 006c3b10	IsEmptyLotSuitableForZot	manual:development.tsv	high	UpdateLot callee order
 006c3b80	cSC4LotDeveloper::QueryInterface	auto:C	high	mac 000ec4de score 1.0 support 1
 006c3c00	cSC4BlockingLotOccupantFilter::cSC4BlockingLotOccupantFilter	auto:D	medium	mac 0065001a score 0.5 support 1
+006c3c20	cSC4BlockingLotOccupantFilter::IsOccupantTypeIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.6; flora only
 006c3c40	cSC4LotDeveloper::GetSimulatorType	manual:development.tsv	high	slot 5
 006c3c50	cSC4LotDeveloper::ClearLotBuildings	auto:D	medium	mac 000ec5f6 score 0.5 support 3
 006c3cf0	cSC4LotDeveloper::GetPositionForBuilding	auto:C	high	mac 000ec6de score 1.0 support 1
@@ -8601,11 +8658,17 @@ va	name	source	confidence	note
 0079ed90	(anonymous_namespace)::MakeMapColorBuffer<std::vector<std::vector<unsigned_char,std::allocator<unsigned_char>>,std::allocator<std::vector<unsigned_char,std::allocator<unsigned_char>>>>>	auto:B8	medium	mac 006e1130 score 0.997 support 2.0
 0079efd0	(anonymous_namespace)::SC4InterpolateGrid<std::vector<std::vector<signed_char,std::allocator<signed_char>>,std::allocator<std::vector<signed_char,std::allocator<signed_char>>>>,128l>	auto:D	medium	mac 006e1366 score 0.5 support 1
 0079f230	(anonymous_namespace)::MakeMapColorBuffer<std::vector<std::vector<signed_char,std::allocator<signed_char>>,std::allocator<std::vector<signed_char,std::allocator<signed_char>>>>>	auto:B9	medium	mac 006e15f2 score 0.998 support 2.0
+0079f7f0	cSC4DataViewOccupantFilter::IsOccupantIncluded	manual:occupant-filters.tsv	high	occupant-manager.md §13.2.8; descriptive class name (CLSID 0xCA0E3852 is not in the exe's ID table); slot 3 of 0x00AB7E44
 0079fa90	__gnu_cxx::hashtable<unsigned_long,unsigned_long,__gnu_cxx::hash<unsigned_long>,std::_Identity<unsigned_long>,std::equal_to<unsigned_long>,std::allocator<unsigned_long>>::hashtable	auto:D	medium	mac 0061946a score 0.5 support 1
 0079fb20	cSC4WinMapView::UnhookUpdateMessages	manual:map-view.tsv	high	map-view.md Â§3.1, Â§7
+0079fb90	cSC4DataViewOccupantFilter::AddType	manual:occupant-filters.tsv	high	occupant-manager.md §13.2.8; descriptive name; push_back on the type vector +0xC
 0079fc90	cSC4WinMapView::Shutdown	auto:B0	medium	mac 0027c26e score 0.931 support 5.5
+0079fe60	cSC4DataViewOccupantFilter::cSC4DataViewOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md §13.2.8; descriptive name; vtables 0x00AB7E44 / 0x00AB7E2C, +0x2E := 1
 0079fef0	(anonymous_namespace)::BlockMapByLot<std::vector<std::vector<unsigned_char,std::allocator<unsigned_char>>,std::allocator<std::vector<unsigned_char,std::allocator<unsigned_char>>>>,std::vector<std::vector<unsigned_char,std::allocator<unsigned_char>>,std::allocator<std::vector<unsigned_char,std::allocator<unsigned_char>>>>>	manual:map-view.tsv	high	map-view.md Â§4.3 (outline)
 007a03e0	__ZThn8_N14cSC4WinMapViewD0Ev	auto:B0	low	mac 006e1cc6 score 0.96 support 1.0
+007a0420	GZCOM_CreatecSC4DataViewOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md §13.2.2; descriptive name; 0x30 bytes, registered at 0x004608AB
+007a0480	cSC4DataViewOccupantFilter::~cSC4DataViewOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md §13.2.8; descriptive name; slot 6, deleting
+007a04a0	cSC4DataViewOccupantFilter::~cSC4DataViewOccupantFilter (body)	manual:occupant-filters.tsv	high	occupant-manager.md §13.2.8; descriptive name
 007a04f0	cSC4WinMapView::DisplayLegend	manual:map-view.tsv	high	map-view.md Â§6
 007a0f10	cSC4WinMapView::~cSC4WinMapView	auto:C	high	mac 0027a7fc score 1.0 support 1
 007a0f30	cSC4WinMapView::OnViewModeButtonSelected	manual:map-view.tsv	high	map-view.md Â§3.2
@@ -8658,6 +8721,8 @@ va	name	source	confidence	note
 007a77e0	cSC4WinMiniMap::OnCityShutdown	auto:B1	medium	mac 003ff4be score 0.929 support 2.0
 007a7840	cSC4WinMiniMap::InitTZMap	auto:B2	medium	mac 003ff990 score 0.988 support 2.0
 007a7900	cSC4SurfaceNetworkOccupantFilter::cSC4SurfaceNetworkOccupantFilter	auto:B3	medium	mac 0077c758 score 0.937 support 1.0
+007a7930	cSC4SurfaceNetworkOccupantFilter::QueryInterface	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.6; 1, 0x46A80026
+007a7970	cSC4SurfaceNetworkOccupantFilter::IsOccupantIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.6; flag & 0x1F4F
 007a79b0	cSC4WinMiniMap::GZPaint	auto:A	high	mac 003ffa3e score 1.0 support 0
 007a7ff0	cSC4WinMiniMap::UpdateTerrainAndZoneMap	auto:A	high	mac 003fe66e score 0.515 support 0
 007a8640	cSC4WinMiniMap::Update	auto:A	high	mac 003ff536 score 1.0 support 0

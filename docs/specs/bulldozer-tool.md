@@ -19,8 +19,8 @@ picking).
 ## 0. Summary
 
 The bulldozer previews and demolishes what the player clicks or drags over. A click takes the lot, occupant or
-cell under the mouse (a signpost alone); a drag takes the dragged rectangle, grown to whole lots for lots larger
-than a cell that reach out of it. The preview is a dry run of the demolition utility; the cells are drawn by a
+cell under the mouse (a signpost alone); a drag takes the dragged rectangle, grown to whole lots for the developed
+lots that reach out of it. The preview is a dry run of the demolition utility; the cells are drawn by a
 marked-cell view in one colour pair when the demolition is possible and another when not.
 
 ## 1. Making it *[compat]*
@@ -52,10 +52,10 @@ Props (`0xA823821E`) only when they are signposts (prop type `0xAB72FBB3`).
   signpost (`0x4B44FBE2`) is kept (`+0x94`).
 - **Lot** (`DoLotPick(x, y, &rect)`, `0x004B8D10`; false without the city view): an occupant pick gives its
   position, otherwise a terrain pick (false on a miss). With the lot at that cell (lot manager slot 6) when the lot
-  answers its slot 39 and either has no building, or the view filter (city view slot 18) is missing, or the filter
-  accepts the building: `rect` := the lot's rectangle (lot slot 14). Otherwise: a picked network occupant
-  (`0xA8C86142`) gives its cell (its slot 8); another picked occupant its cell rectangle (its slot 11); nothing picked,
-  the cell. True.
+  is in a demolishable state (`IsInDemolishableState`, lot slot 39) and either has no building, or the view filter
+  (city view slot 18) is missing, or the filter accepts the building: `rect` := the lot's rectangle (lot slot 14).
+  Otherwise: a picked power pole (`cISC4PowerPoleOccupant`, `0xA8C86142`) gives its cell (its slot 8); another
+  picked occupant its cell rectangle (its slot 11); nothing picked, the cell. True.
 
 ## 3. Input *[compat]*
 
@@ -81,10 +81,10 @@ Props (`0xA823821E`) only when they are signposts (prop type `0xAB72FBB3`).
 1. **The rectangle:** for a drag (start ≠ end), `R` := the start and end cells' rectangle; for a click, `R` := the
    lot rectangle (§2).
 2. The old region's cell count is kept and the old region dropped; the view filter is taken (city view slot 18).
-3. **Whole lots:** every lot under a cell of `R` that is larger than one cell (lot slot 33 > 1), and whose building,
-   if any, the view filter accepts, and that reaches out of `R` (lot slot 14) grows a union rectangle. Without such a
-   lot the region is `R` with every cell set; with one, the region is the union rectangle with the cells of `R` set
-   and every cell of such a lot set.
+3. **Whole lots:** every lot under a cell of `R` whose state is past ready (`GetState()`, lot slot 33, > 1:
+   constructing or later, lot-developer.md), whose building, if any, the view filter accepts, and that reaches out
+   of `R` (lot slot 14) grows a union rectangle. Without such a lot the region is `R` with every cell set; with one,
+   the region is the union rectangle with the cells of `R` set and every cell of such a lot set.
 4. **The preview:** a picked signpost → `DemolishOccupant(false, o, 1, 1, &cost, false, null)`; otherwise
    `DemolishRegion(false, region, 1, 1, false, null, &cost, null, null, 0, 0)`. The result is the validity (`+0x6C`).
 5. **Highlight:** the previous highlighted occupant is reset (occupant slot 17 with its handle and 0) and dropped.
@@ -105,18 +105,19 @@ dropped.
 
 1. The press sound plays even when the press misses the terrain (§3).
 2. A click on a signpost demolishes only that sign; a click elsewhere demolishes the lot's whole rectangle (§3, §4).
-3. Lots larger than one cell are taken whole as soon as the drag touches them (§4).
+3. A developed lot is taken whole as soon as the drag touches it; an empty (ready) lot is not (§4).
 4. The funds are charged from the preview's cost before the real demolition runs, whatever that costs (§3).
 
 ## 6. Open questions
 
-See [questions/bulldozer-tool.md](questions/bulldozer-tool.md): BT1 (lot slots 33 and 39, occupant slots 11, 16,
+See [questions/bulldozer-tool.md](questions/bulldozer-tool.md): BT1 (occupant slots 11, 16,
 17 here, and the building development simulator object the tool holds).
 
 ## 7. Conformance tests
 
 1. **Drag rectangle:** dragging from cell (5, 5) to (3, 8) previews the rectangle (3, 5)–(5, 8).
-2. **Whole lot:** a 2 × 2 lot at (5, 5)–(6, 6) under a drag of (4, 4)–(5, 5) grows the region to (4, 4)–(6, 6).
+2. **Whole lot:** an occupied 2 × 2 lot (state 3) at (5, 5)–(6, 6) under a drag of (4, 4)–(5, 5) grows the region
+   to (4, 4)–(6, 6); the same lot when ready (state 1) does not.
 3. **Filter:** at view level 3 a road occupant is refused; a pipe is accepted.
 4. **Charge:** a preview cost of 120 with funds 1000 leaves 880 before the real demolition.
 5. **Signpost:** a click on a signpost calls `DemolishOccupant` with it, not `DemolishRegion`.

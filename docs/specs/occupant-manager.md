@@ -927,57 +927,326 @@ at `+0x28` (removal counters) via slot 0x1C; `GetHighlight()` via slot 0x40 → 
 
 ## 13.2 Occupant filters (`cISC4OccupantFilter`, `cSC4OccupantFilter` and the family)
 
-The query slots 20–22, 36–48 all take one of these. The interface:
+The query slots 20–22, 36–48 all take one of these. An occupant filter answers "is this occupant in?" for the
+manager's queries and for the views. Every filter in the game derives from one small base class with a reference
+count and a save record; ten classes, the base among them, can be made by class ID (§13.2.2), and the others are
+made by the code that uses them. The 3D view's view filter is a realistic filter (§13.2.3), and a text form
+(§13.2.5) builds a filter from words such as `Building` or `SubwayLevel`.
 
-**`cISC4OccupantFilter`** IID `0x46A80026`, vtable 7 slots (+0x00…+0x18):
+*Rewritten 2026-10-21 (re-occfilters), from the instruction bytes. It corrects the earlier table of this section:*
+- the default and realistic filters' group tests are occupant slot 22 `IsOccupantGroup` (`+0x58`), not holder
+  properties, and the default filter's holder test is holder slot 3 `HasProperty`, not a QI;
+- the realistic filter drops a lot base texture only when `+0xC` is clear and the lot under it is ready (state 1),
+  and a signpost or text decal only when `+0xE` is clear;
+- `AreModelsAvailableForZoomAndRotation` returns 0 when the first model is **found** and 1 when it is missing, so the
+  missing-plugin-pack filter takes the occupants whose model is missing;
+- the hover filter needs property `0x8A416A99` for props as well as for flora;
+- the demolish-by-networks filter **excludes** the occupants that answer `0xA9764C8C` (`NEG`/`SBB`/`INC`);
+- the inside-lot box is the lot's cell rectangle (lot slot 14), not its centre;
+- the class names are the exe's own ID table's ([re/class_id_table.tsv](../../re/class_id_table.tsv)): `0xE9C75ED1`
+  is `cSC4OccupantTypeFilter`, `0xE9C75EE8` `cSC4OccupantTypesFilter`, `0xAA25CB90` `cSC4OccupantTypesFilterHashed`
+  and `0xEAC3A3D2` `cSC4NetworkOccupantFilter`;
+- the base's deleting destructor is `0x005E9790`; `0x006C4A00` is the one several subclasses share (the one-type
+  filter of §4.4 and the default filter among them).
 
-| Slot | Method | Body (base) |
+It also answers OP8 (the types, hashed and `0xCA0E3852` filter bodies) and OP9 (§13.2.7).
+
+### 13.2.1 The interface and the base class *[compat]*
+
+**`cISC4OccupantFilter`** IID `0x46A80026`, vtable 7 slots (+0x00…+0x18): slot 0 `QueryInterface`, 1 `AddRef`,
+2 `Release`, 3 `IsOccupantIncluded(occ)`, 4 `IsOccupantTypeIncluded(type)`, 5 `IsPropertyHolderIncluded(holder)`
+(each pop 4, result in AL), 6 the deleting destructor.
+
+The base **`cSC4OccupantFilter`** (CLSID `0xA9C74DC9`) is 12 bytes: `+0x00` the filter view, `+0x04` a
+`cIGZSerializable` view (IID `0xE4FDA3D4`), `+0x08` the reference count.
+
+| Part | Address | Behaviour |
 |---|---|---|
-| 0 | `QueryInterface(iid, out)` pop 8 | base `0x005E95D0`: 1 and `0x46A80026` → this; `0xE4FDA3D4` → this+4; else 0 |
-| 1 | `AddRef()` | per class (the shared filter: `0x004BDF00`) |
-| 2 | `Release()` | per class (`0x007CB920` for the shared one) |
-| 3 | `IsOccupantIncluded(occ)` pop 4 | per class, AL |
-| 4 | `IsOccupantTypeIncluded(type)` pop 4 | `0x004FC900` in the base = true |
-| 5 | `IsPropertyHolderIncluded(holder)` pop 4 | per class, AL |
-| 6 | deleting dtor | `0x006C4A00` in the base (body + `GlobalHeapFree 0x005E5620` when flag&1) |
+| constructor | `0x005EA080` | vtables `0x00AA42C8` / `0x00AA42B0`; count 0 |
+| factory | `0x005EA130` | 12 bytes from the global heap; null when the allocation fails |
+| `QueryInterface` | `0x005E95D0` | 1, `0x46A80026` → the object; `0xE4FDA3D4` → `+4`; a reference added; else false |
+| `AddRef` | `0x004BDF00` | count + 1 (a body shared with many classes) |
+| `Release` | `0x007CB920` | count > 1 → count − 1, returned; otherwise the deleting destructor (slot 6), 0 |
+| slot 3 | `0x004BDF90` | `IsOccupantTypeIncluded(occupant.GetType())` (occupant slot 7) |
+| slots 4 and 5 | `0x004FC900` | true |
+| destructor | `0x005E95C0` (body), `0x005E9790` (slot 6) | the vtables set back to the base's; the deleting form frees the object |
+| `Write` / `Read` | `0x005E97C0` / `0x005E97E0` | a u16 version 3; `Read` fails on another version |
+| `GetGZCLSID` | `0x005E95B0` | `0xA9C74DC9` |
 
-Base class `cSC4OccupantFilter` CLSID `0xA9C74DC9` (creator `0x005EA130`, 12 bytes from the global heap: vptrs
-`0x00AA42C8`/`0x00AA42B0`, refcount +8 = 0): base dtor `0x005E95C0`, deleting dtor `0x006C4A00`. Its three test
-methods are the base's: `IsOccupantTypeIncluded` always true; `IsOccupantIncluded`/`IsPropertyHolderIncluded`
-are the per-class work.
+`Write` and `Read` of every filter report success when the stream has no error (stream slot 18). The reference
+count is never saved. The `+4` view's `QueryInterface`, `AddRef` and `Release` lead to the object's (`0x00424EE0`,
+`0x005C0500`, `0x00424EF0`). Most filters reuse the base `Write`, `Read` and `GetGZCLSID`; the ones with their own
+are named below.
 
-The family (each entry: CLSID, size, and what `IsOccupantIncluded` accepts):
+### 13.2.2 The creatable filters *[compat]*
 
-| Class | CLSID | Size | Accepts (IsOccupantIncluded) |
-|---|---|---|---|
-| `cSC4DefaultOccupantFilter` | `0xC9C75EAE` | 0x20 | `0x005E9630`: **excludes** occupants that QI `0x4A10AFC2` (underground occupant) or `0x8A139184` answer, and holders with property `0x4217`, `0x4208` or `0x421D`. Its `IsPropertyHolderIncluded` `0x005E96E0`: **excludes** holders answering QI `0x49512A09` or `0x8A15F1BD`; otherwise includes iff `GetPropertyValue(0xCAA45670)` byte == 0 |
-| `cSC4RealisticOccupantFilter` | `0x8A7A1C2C` | 0x20 | `0x005E9990`: first the Default test (call `0x005E9630`); false → false. Then: if byte `+0xD` is 0 and the holder HasProperty `0x5001` → false. Then a switch on the occupant's type (occupant slot 7): `0x497F6D9D` (lot base texture) → include iff byte `+0xC`; `0x097F6D98` base textures: QI `0x097F6D98` answers → take `GetPosition` (occupant slot 8) and ask the terrain service (`0x00B43CEC` slot 0x17C, then `0x00B43D08` slot 0x18 for the lot at the position): **exclude** when the lot's slot 0x84/4=33 == 1. `0xA823821E` (prop): include iff byte `+0xE`; QI `0x4B44FBE2` (signpost) or `0x2B3B7D86` (text decal) answers → **exclude**; else include. All other types: include |
-| demolition filter | — | 0x30 | `0x00466730` (demolition.md): Realistic test → continue; Default test → **exclude**; `+0x2C` filter slot 3 false → exclude; byte `+0x10` → box-containment test vs `+0x14…+0x20` (FCOMP); byte `+0x24` → `[occ vtable+0x38](+0x28)` continue; type switch `0x68FD0C69` foundation (QI `0xC8FCE101` → lot slot 0x24 == 1), `0x096E763C` construction, `0x278128A0` building, `0x74758926` flora, `0xA823821E` prop, `0xC772BF98` network → accept; else exclude; accept path: `+0x30` filter slot 3 false → exclude; network (`0xC772BF98`): `0x00B43DC4` slot 0x58 == 1 skips the `0xA821EF94` QI + slot 0x24 (`0x1F4F`) test, else that test true → exclude |
-| `cSC4OccupantTypesFilter` | `0xE9C75ED1` (single) | 0x10 | the **shared one-type filter** of §4.4 (`IsOccupantTypeIncluded` `0x005E9740`: t == `+0xC`) |
-| types-set variant | `0xE9C75EE8` | 0x18 | creator `0x005EA330` (vptrs `0x00A8EDBC`/`0x00A8EDA4`): a set of types *[body untraced — OP8]* |
-| hashed variant | `0xAA25CB90` | 0x20 | creator `0x005EB970`: a hash_set (64 buckets) at +0xC, vptrs `0x00A8EE38`/`0x00A8EE20`. Used by `cSC4ModelMaker::CreateOccupantFilters` `0x00493EF0`, which builds two: filter1 with {building `0x278128A0`, foundation `0x68FD0C69`, wall `0x895D1169`, flora `0x74758926`, prop `0xA823821E`, base texture `0x497F6D9D`, network `0xC772BF98`, pole `0x2890D4DE`, `0x2A183167`, `0x8A13918A`, landfill `0x6A11BD2B`}, filter2 with a subset starting {`0x68FD0C69`, `0x497F6D9D`, `0xC772BF98`, `0x2A183167`, `0x8A13918A`} |
-| `cSC4ViewLevelOccupantFilter` | `0xAAC3C01D` | | `0x005E9E40`: `SC4GetOccupantViewLevel(occ) == +0xC` |
-| `cSC4StringSpecificationOccupantFilter` | `0x0BCEB6C2` | 0x48 | `0x005E9F20`: include = (types empty or occ type ∈ vector `+0x24`) ∧ (groups empty or ∃g: occupant slot 22 `IsOccupantGroup(g)`) ∧ (levels empty or `SC4GetOccupantViewLevel(occ)` ∈ vector `+0x3C`). The spec string is parsed by `BuildSpecification` `0x005EA610` (4,670 bytes) from the tokens at `0x00AA4354…0x00AA4408`: `Position:`, `Rect:`, `BBox:`, `Cell:`, `CellRect:`, `PowerPole`, `PowerLine`, `Building`, `Flora`, `Vehicle`, `Pedestrian`, `Aircraft`, `Watercraft`, `Pylon`, `Automaton`, `Construction`, `Foundation`, `LotBaseTexture`, `LotRetainingWall`, `SurfaceLevel`, `SubwayLevel`, `PlumbingLevel` |
-| `cSC4MissingPluginPackOccupantFilter` | — | | `0x0048C4D0`: holder must QI `0x6A871B82`; then `AreModelsAvailable 0x0048C420` must return 1 (the `DEC/NEG/SBB/INC` epilogue maps 1→1, 0/2→0). `AreModelsAvailable` resolves the occupant's models via `0x00B43CA8` slot 0xC (`0xE83A081D`), `GetOccupantOrientationAndState 0x00496670`, and `AreModelsAvailableForZoomAndRotation 0x0048C300` (2 = unknown → 2, any missing model → 0, all present → 1) |
-| `cSC4ZoomRotationModelChangeOccupantFilter` | — | | ctor `0x00496790`, `SetZoomAndRotation` `0x004967B0`; `IsOccupantIncluded` body untraced (OP8) |
-| `cSC4SubwayOccupantFilter` | — | | `0x00653C00`: QI `0xA821EF94` → flags slot 0x30 & `0x1F4F` ≠ 0; QI `0xCA15ED6B` → include; `IsOccupantSubwayStation 0x00653B80` (property `0xE90E25A1` contains byte 0x06) or (type `0xC7CC75F1` ∧ (HasProperty `0x4217` ∨ `0x4208`)) → include; else the base slot 5 test |
-| `cSC4WaterOccupantFilter` | — | | `IsPropertyHolderIncluded 0x00648CC0`: HasProperty `0x88ED3303` or `0x49512A09` → true; else `GetPropertyValue(0xCAA45672)` byte |
-| `cSC4FloraBlockingOccupantFilter` | — | | flora.md §6.4.1 (`IsOccupantIncluded` `0x006AFD10`) |
-| `cSC4ActiveFireOccupantFilter` | — | | `0x0046FD70`: type `0x69D25C5F` ∧ QI `0x69D25C60` → slot 0x14 ≠ 0 |
-| `cSC4QueriableOccupantFilter` | — | | `0x004C46C0`: holder QI `0xCAA9AB92` answers → **exclude**; else `HoverQueriable 0x004C37B0` by type: flora `0x74758926` → holder QI `0x8A416A99` answers; building `0x278128A0`, pole `0x2890D4DE`, landfill `0x6A11BD2B`, prop `0xA823821E`, network `0xC772BF98` → include; else exclude. User: `PickQueriableOccupant 0x004C4C90` |
-| `cSC4DemolishByNetworksOccupantFilter` | — | 0x0C | `0x0061F590`: QI `0xA9764C8C` answers → **exclude**; failed QI → include; release non-null QI output. Full owned contract: [network-routines.md](network-routines.md) §5 |
-| `cSC4InsideLotOccupantFilter` | — | 0x38 | ctor `0x006BFB20` embeds a Default (`+0x1C`) and a Realistic (`+0x28`); `SetLot 0x006BFAC0` fills the box `+0xC…+0x18` from the lot's centre (`0x00B43CEC` slot 0x180 ×2); `IsOccupantIncluded 0x006BFB80`: `GetPosition` box test → Default slot 3 → Realistic slot 3. Created by `cSC4Lot::GetLotOccupants 0x006BFF70` (lot-records.md §3.1): allocate, ctor, SetLot, occmgr slot 40 (`GetOccupantsByStandardCityCells`) with maxCount −1, release |
-| `cSC4BlockingLotOccupantFilter` | — | | ctor `0x006C3C00` (vptrs `0x00AB1B28`/`0x00AB1B10`; slot 3 `0x004BDF90` body untraced — OP8) |
-| `cSC4SurfaceNetworkOccupantFilter` | — | | ctor `0x007A7900` (vptrs `0x00AB8340`, 6 slots); `IsOccupantIncluded 0x007A7970`: QI `0xA821EF94` → flags slot 0x30 & `0x1F4F` ≠ 0 |
-| `cSC4OccupantImmovabilityFilter` | — | | body untraced (OP8) |
+The game's COM director registers these classes (`0x00460863`–`0x00460912`), so a plugin may create them by class
+ID:
 
-Non-class filters that answer the same interface and are specified with their owners: `cAmbienceOccupantFilterIsNature::IsTrueOccupant 0x004E2E10` (QI `0xC83DD057`, cached at +4/+8), `cAutomataOccupantFilter::IsOccupantIncluded 0x00562C90` (type ∈ {`0xC7CC75F1`, `0x496E5783`, `0x480E6151`, `0x897F7EC2`} — type identities: OP9), `tCrimePropOccupantFilter::IsOccupantIncluded 0x0069F490` (type `0xA823821E` ∧ holder HasProperty `0x8AA864D5`).
+| Class ID | Class | Factory | Size | Starts as | Section |
+|---|---|---|---|---|---|
+| `0xA9C74DC9` | `cSC4OccupantFilter` | `0x005EA130` | 12 | accepts every occupant | §13.2.1 |
+| `0xC9C75EAE` | `cSC4DefaultOccupantFilter` | `0x005EA160` | 12 | | §13.2.3 |
+| `0xE9C75ED1` | `cSC4OccupantTypeFilter` | `0x005EA190` | 16 | type 0 | §4.4 |
+| `0xE9C75EE8` | `cSC4OccupantTypesFilter` | `0x005EA330` | 24 | an empty list | §13.2.3 |
+| `0xAA25CB90` | `cSC4OccupantTypesFilterHashed` | `0x005EB970` | 32 | an empty set | §13.2.3 |
+| `0x8A7A1C2C` | `cSC4RealisticOccupantFilter` | `0x005EA240` | 16 | the three flags clear | §13.2.3 |
+| `0xEAC3A3D2` | `cSC4NetworkOccupantFilter` | `0x005EA1C0` | 16 | mask `0x1FFF` | §13.2.3 |
+| `0xAAC3C01D` | `cSC4ViewLevelOccupantFilter` | `0x005EA200` | 16 | level 1 | §13.2.4 |
+| `0x0BCEB6C2` | `cSC4StringSpecificationOccupantFilter` | `0x005EBBD0` | 72 | an empty text | §13.2.5 |
+| `0xCA0E3852` | the data view filter | `0x007A0420` | 48 | the default byte set | §13.2.8 |
 
-**`SC4GetOccupantViewLevel(occ)`** `0x005E9CA0` (401 bytes, free function) — the level the filter compares:
-starts 1; QI `0x49C05B9F` (pipe) or `0xEA0A5ACF` (pipe connection) → 3; holder QI `0x49512A09` → 3; QI
-`0xCA16374F` (subway) or `0xCA15ED6B` (subway connection) → 2; the occupant's `HasProperty` path ([vtable+0x58]
-with `0x4217`, `0x4208`, `0x421D`) → 2; holder QI `0x8A15F1BD` → 2; then from the holder's properties:
-`0xCAA45672` ≠ 0 → 3, `0xCAA45671` ≠ 0 → 2, else stays 1.
+A factory returns null when the allocation fails. The one-type filter's methods are §4.4's, with `Write` / `Read`
+`0x005E9890` / `0x005E98E0` (u16 3, u16 3, u32 type).
+
+### 13.2.3 Content filters *[compat]*
+
+**The default filter** (`cSC4DefaultOccupantFilter`, vtable `0x00A87FC0`).
+- **`IsOccupantIncluded(o)`** (`0x005E9630`) is false when `o` answers `0x4A10AFC2` (the underground occupants) or
+  `0x8A139184` (the underground connection occupants, `kcSC4UndergroundConnectionOccupant` in the SDK), or is in
+  occupant group `0x4217`, `0x4208` or `0x421D` (occupant slot 22, `IsOccupantGroup`). Otherwise it is the filter's
+  own slot 5 with `o`'s property holder (occupant slot 6), so a subclass's slot 5 is used. Each interface answered
+  is released at once.
+- **`IsPropertyHolderIncluded(h)`** (`0x005E96E0`) is false when `h` has property `0x49512A09` or `0x8A15F1BD`
+  (holder slot 3, `HasProperty`); otherwise it is true unless the bool property `0xCAA45670` is true.
+- Record (`0x005E9810` / `0x005E9840`): two u16 of 3. `GetGZCLSID` `0x00466480`.
+
+**The realistic filter** (`cSC4RealisticOccupantFilter`, vtable `0x00A88084`). Three byte flags, all 0 when made
+(constructor `0x004666C0`, factory): `+0xC` keep empty lots' base textures, `+0xD` keep group `0x5001`, `+0xE` keep
+signs and labels *[inferred names, from the tests below]*. **`IsOccupantIncluded(o)`** (`0x005E9990`) is false when
+the default filter's test is false. Then:
+
+1. `+0xD` clear and `o` in occupant group `0x5001` → false.
+2. `o` of type `0x497F6D9D` (a lot base texture) with `+0xC` clear: when `o` answers `0x097F6D98`
+   (`cISC4LotBaseTextureOccupant`), its position (occupant slot 8) gives a cell (the city's slot 95,
+   `PositionToCell`); when the lot manager (`0x00B43D08`) has a lot there (slot 6, with 0) whose `GetState()` (lot
+   slot 33) is 1 (ready, an empty lot), false.
+3. `o` a prop (`0xA823821E`) with `+0xE` clear: a signpost (answers `0x4B44FBE2`) or a text decal (answers
+   `0x2B3B7D86`) → false.
+
+Otherwise true; slot 5 is the default's. Record (`0x005E9AF0` / `0x005E9B50`): u16 4, u8 `+0xC`, u8 `+0xD`, u8
+`+0xE`, then the default's record. `Read` fails below version 3; a version-3 record has no third byte and copies
+`+0xD` into `+0xE`. `GetGZCLSID` `0x004666F0`, which the demolition filter shares. Users: the 3D view's first view
+filter has all three flags set (`DoPreCityInit`, `0x007F42C5`); a 3D-view cheat replaces it with one with all three
+clear (`0x007F365D`) *[inferred: the cheat's word was not traced]*; the inside-lot filter (§13.2.6); the region-view
+thumbnail writer (`0x005DE18C`).
+
+**The demolition filter** (`cSC4DemolitionOccupantFilter`, 0x30 bytes, [demolition.md](demolition.md) §4.2) extends
+the realistic filter. `IsOccupantIncluded` `0x00466730`: Realistic test → continue; Default test → **exclude**;
+`+0x2C` filter slot 3 false → exclude; byte `+0x10` → box-containment test vs `+0x14…+0x20` (FCOMP); byte `+0x24` →
+`[occ vtable+0x38](+0x28)` continue; type switch `0x68FD0C69` foundation (QI `0xC8FCE101` → lot slot 0x24 == 1),
+`0x096E763C` construction, `0x278128A0` building, `0x74758926` flora, `0xA823821E` prop, `0xC772BF98` network →
+accept; else exclude; accept path: `+0x30` filter slot 3 false → exclude; network (`0xC772BF98`): `0x00B43DC4` slot
+0x58 == 1 skips the `0xA821EF94` QI + slot 0x24 (`0x1F4F`) test, else that test true → exclude. Its destructor body
+(`0x00466EC0`) releases the caller and view filters (`+0x2C`, `+0x30`).
+
+**The type list** (`cSC4OccupantTypesFilter`, vtable `0x00A8EDBC` / `0x00A8EDA4`). A vector of u32 types at `+0xC`.
+Slot 3 is the base's; **`IsOccupantTypeIncluded(t)`** (`0x005E9950`) is true for an empty list and otherwise when `t`
+is in it. Only the factory makes one and the class has no setter, so only `Read` fills the list. Record (`0x005EA0A0`
+/ `0x005EA490`): u16 3, u16 3, u32 `n`, `n` u32 types; `Read` needs both versions 3. `GetGZCLSID` `0x005E9760`; the
+destructor (`0x005EA420`, body `0x00491210`) frees the list.
+
+**The hashed type set** (`cSC4OccupantTypesFilterHashed`, vtable `0x00A8EE38` / `0x00A8EE20`). A hash set of u32
+types at `+0xC` (64 buckets; made with a size hint of 100). **`IsOccupantTypeIncluded(t)`** (`0x00493700`): `t` is
+in the set. Record (`0x005EA370` / `0x005EA550`): u16 3, u16 3, u32 count, then the types in the set's order.
+`GetGZCLSID` `0x005E9770`; destructor `0x00493720`. `cSC4ModelMaker::CreateOccupantFilters` (`0x00493EF0`) makes
+two and fills them itself: filter1 with {building `0x278128A0`, foundation `0x68FD0C69`, wall `0x895D1169`, flora
+`0x74758926`, prop `0xA823821E`, base texture `0x497F6D9D`, network `0xC772BF98`, pole `0x2890D4DE`, `0x2A183167`,
+`0x8A13918A`, landfill `0x6A11BD2B`}, filter2 with a subset starting {`0x68FD0C69`, `0x497F6D9D`, `0xC772BF98`,
+`0x2A183167`, `0x8A13918A`}.
+
+**The network filter** (`cSC4NetworkOccupantFilter`, vtable `0x00AA42FC`). A u32 mask at `+0xC`.
+**`IsOccupantIncluded(o)`** (`0x005E9BD0`): `o` answers `cISC4NetworkOccupant` (`0xA821EF94`) and its
+`GetNetworkFlag()` (network occupant slot 12) has a bit of the mask. Record (`0x005E9C30` / `0x005E9C60`): u16 1,
+u32 mask, without the base's record. `GetGZCLSID` `0x005EA120`.
+
+**The group filter** (`cSC4OccupantGroupFilter`, vtable `0x00AA4330`). A vector of group IDs at `+0xC`. The
+constructor (`0x005EA280`) takes one group and adds it when it is not 0; slot 7 `AddGroup(g)` (`0x005EA2F0`) does the
+same. **`IsOccupantIncluded(o)`** (`0x005EA020`): `o` is not null and is in one of the groups, tested in order; an
+empty list includes nothing. A city-situation filter derives from it (`0x00526610`).
+
+### 13.2.4 View levels *[compat]*
+
+**`SC4GetOccupantViewLevel(o)`** (`0x005E9CA0`, 401 bytes, free function): 1 the surface, 2 the subway layer, 3 the
+pipe layer. Starting from 1, these tests run in this order and each later hit replaces the result:
+
+1. `o` answers `0x49C05B9F` (a pipe) → 3; `0xEA0A5ACF` (a pipe connection) → 3.
+2. Its property holder has `0x49512A09` → 3.
+3. `o` answers `0xCA16374F` (a subway) → 2; `0xCA15ED6B` (a subway connection) → 2.
+4. `o` is in group `0x4217`, `0x4208` or `0x421D` (occupant slot 22) → 2.
+5. The holder has `0x8A15F1BD` → 2, and the result is final.
+6. Only when the result is still 1: with the bool properties `p72` = `0xCAA45672`, `p71` = `0xCAA45671`, `p70` =
+   `0xCAA45670` (false when absent): `p72` → 3; then `p71` → 2; then, when `p70` is false, 1 again.
+
+So a prop must have `0xCAA45670` for its `0xCAA45671` or `0xCAA45672` to move it below the surface
+([neighbors.md](neighbors.md)'s connection markers set them in pairs).
+
+**The view-level filter** (`cSC4ViewLevelOccupantFilter`, vtable `0x00A8FAD4`). A level at `+0xC`.
+**`IsOccupantIncluded(o)`** (`0x005E9E40`): `SC4GetOccupantViewLevel(o)` equals it. Record (`0x005E9E60` /
+`0x005E9E90`): u16 1, u8 level (widened when read), without the base's record. `GetGZCLSID` `0x005E9780`. The
+regional city builds one for its connections (`0x004AAE5E`).
+
+### 13.2.5 The string specification filter (`cSC4StringSpecificationOccupantFilter`, vtable `0x00AA442C`) *[compat]*
+
+Fields: `+0x0C`–`+0x14` the box minimum x, y, z (floats), `+0x18`–`+0x20` the box maximum, `+0x24` the type list,
+`+0x30` the group list, `+0x3C` the level list (vectors of u32).
+
+**Building it.** Two constructors: the factory's (`0x005EBB10`), which builds from an empty text, and one from a word
+list (`0x005EB850`). `BuildSpecification(text)` (`0x005EBA70`) splits a text into at most 64 words with
+`RZParseDelimitedText` and a space ([command-system.md](command-system.md) §2), so a word holding spaces must be
+quoted, then calls `BuildSpecification(words)` (`0x005EA610`, 4,670 bytes; the words it knows are at
+`0x00AA4354`…`0x00AA4408`). It sets the six box floats to −FLT_MAX and empties the three lists. Then **every word
+goes through every test below**; a test matches when the word starts with its prefix, ignoring case. The numbers
+after a box prefix are the rest of the word split at spaces, each read as a whole number (`atol`, so `1.5` reads 1)
+and stored as a float:
+
+| Prefix | Numbers | Box |
+|---|---|---|
+| `Position:` | x z | (x, −FLT_MAX, z)–(x, +FLT_MAX, z) |
+| `Rect:` | x0 z0 x1 z1 | (x0, −FLT_MAX, z0)–(x1, +FLT_MAX, z1) |
+| `BBox:` | x0 y0 z0 x1 y1 z1 | as given |
+| `Cell:` | x z | as `Position:`, each number first divided by 16 (whole division toward 0) *[quirk]* |
+| `CellRect:` | x0 z0 x1 z1 | as `Rect:`, each number divided by 16 *[quirk]* |
+
+Then the first type name the word starts with adds its type to the type list: `Network` `0xC772BF98`, `PowerPole`
+`0x2890D4DE`, `PowerLine` `0x0990B2EA`, `Building` `0x278128A0`, `Flora` `0x74758926`, `Prop` `0xA823821E`, `Vehicle`
+`0xC7CC75F1`, `Pedestrian` `0x496E5783`, `Aircraft` `0x480E6151`, `Watercraft` `0x897F7EC2`, `Pylon` `0xA9B6D7DE`,
+`Fire` `0x69D25C5F`, `Automaton` `0x49D57875`, `Construction` `0x096E763C`, `Foundation` `0x68FD0C69`,
+`LotBaseTexture` `0x497F6D9D`, `LotRetainingWall` `0x895D1169` (tested in this order). A word starting with `0x`
+adds a group, but the number read is that of the two-character text `0x` itself, so the group is always 0
+(`0x005EB4EF`) *[quirk]*. `SurfaceLevel`, `SubwayLevel` and `PlumbingLevel` add the levels 1, 2 and 3.
+
+**Using it.**
+- **`IsOccupantIncluded(o)`** (`0x005E9F20`): three tests, all needed: the type list is empty or holds `o`'s type;
+  the group list is empty or `o` is in one of its groups (occupant slot 22); the level list is empty or holds
+  `SC4GetOccupantViewLevel(o)`. The box is not tested here.
+- **`GetOccupants(list, max)`** (`0x005E9EE0`): the occupant manager's `GetOccupantsByBBox(list, min, max, this,
+  max)` (slot 36, §8.2) with the box; false without the manager. Without a box word the box is empty (both corners
+  −FLT_MAX), and nothing is found *[inferred, from the strict overlap test]*.
+- A debug command of the command support object (`0x005C955C`) builds one from its words and calls `GetOccupants`
+  with no limit.
+- Record: u16 1 only (`0x0042E440` / `0x006B8A70`, bodies shared with other classes): the specification is not saved
+  *[quirk]*. `GetGZCLSID` `0x005EB8F0`; destructor `0x005EB900` (body `0x005EB920`, the three lists freed).
+
+### 13.2.6 Purpose filters *[compat]*
+
+These classes are made by their users and keep the base's record and class ID unless noted.
+
+**Inside a lot** (`cSC4InsideLotOccupantFilter`, vtable `0x00AB1830`, 0x38 bytes). The constructor (`0x006BFB20`)
+embeds a default filter at `+0x1C` and a realistic filter at `+0x28` (flags clear). **`SetLot(lot)`**
+(`0x006BFAC0`): the lot's rectangle (lot slot 14, cells `x0, z0, x1, z1`) becomes a world box through the city's
+`CellCornerToPosition` (slot 96, called twice): `(x0, z0)` → minimum (`+0xC`, `+0x10`), `(x1 + 1, z1 + 1)` → maximum
+(`+0x14`, `+0x18`). **`IsOccupantIncluded(o)`** (`0x006BFB80`): `o`'s position (occupant slot 8) lies in the box, all
+four sides inclusive (a NaN coordinate is outside), and the default and the realistic filters both accept `o`.
+`cSC4Lot::GetLotOccupants` (`0x006BFF70`, [lot-records.md](lot-records.md) §3.1) makes one, sets the lot and asks
+the manager's slot 40 (`GetOccupantsByStandardCityCells`) with maxCount −1 (`0x006BFFA7`). Destructor `0x006BFC10`.
+
+Each entry below gives the vtable, the test `IsOccupantIncluded(o)` and the users.
+
+- `cSC4OccupantImmovabilityFilter` (`0x00A88050`, `0x00466530`): a prop, building, power pole or network occupant
+  whose bool property `0x29F013E6` is false or absent. Terrain levelling ([demolition.md](demolition.md) §4.7).
+- `cSC4ActiveFireOccupantFilter` (`0x00A949B8`, `0x0046FD70`): a fire occupant (`0x69D25C5F`) with a target (its
+  interface `0x69D25C60`, slot 5). Fire crews, trucks and planes ([disasters.md](disasters.md) §5.7).
+- `cSC4MissingPluginPackOccupantFilter` (`0x00A8ED08`, `0x0048C4D0`): below. The missing-pack check (`0x0048C13E`).
+- `cSC4ZoomRotationModelChangeOccupantFilter` (`0x00A8EEA0`, constructor `0x00496790`, `0x004967E0`): below. The
+  model maker ([model-maker.md](model-maker.md)) and its loader.
+- `cSC4HoverQueriableOccupantFilter` (`0x00A909B0`, `0x004C37B0`): below. The query tool's hover (`0x004CBCE5`).
+- `cSC4QueriableOccupantFilter` (`0x00A90B18`, `0x004C46C0`): false when the holder has `0xCAA9AB92`, else the hover
+  test. The query tool's pick (`PickQueriableOccupant` `0x004C4C90`, `0x004D42A4`).
+- `cSC4DemolishByNetworksOccupantFilter` (`0x00AA825C`, `0x0061F590`): true unless `o` answers `0xA9764C8C` (the
+  underground occupants and the power poles do); the QI output is released when non-null. The network routines
+  ([network-routines.md](network-routines.md) §5 has the full contract) and the network tool.
+- `cSC4WaterOccupantFilter` (`0x00AA7A54`, `0x00648C40`) and `cSC4SubwayOccupantFilter` (`0x00AA7A88`,
+  `0x00653C00`): below. The network manager's slots 18 and 19 ([network-manager.md](network-manager.md)).
+- `cSC4BlockingLotOccupantFilter` (`0x00AB1B28` / `0x00AB1B10`, constructor `0x006C3C00`): the base's test, with
+  slot 4 true only for flora `0x74758926` (`0x006C3C20`). The lot developer ([lot-developer.md](lot-developer.md)).
+- `cSC4SurfaceNetworkOccupantFilter` (`0x00AB8340`, constructor `0x007A7900`, `0x007A7970`): below. The mini map
+  (`0x007A8765`).
+- `cSC4FloraBlockingOccupantFilter`: [flora.md](flora.md) §6.4.1 (`IsOccupantIncluded` `0x006AFD10`).
+
+The hover and query filters' slot 5 is false (`0x005DEB40`); the water and subway filters have their own (below);
+the others keep the base's true.
+
+**Missing plugin packs.** The filter holds a zoom (`+0xC`) and a rotation (`+0x10`), both 0 when made.
+**`IsOccupantIncluded(o)`**: false when `o`'s holder lacks property `0x6A871B82`; otherwise true exactly when
+`AreModelsAvailable(o)` is 1 (`DEC`/`NEG`/`SBB`/`INC`).
+- **`AreModelsAvailableForZoomAndRotation(o, zoom, rotation, …)`** (`0x0048C300`): the model instances of `o` at that
+  zoom and rotation (`cSC4ModelMakerUtility::GetAllModelInstanceIDs`, graphics-formats.md GF7). No non-zero instance →
+  2. Otherwise the first non-zero one is looked up in the resource manager (`0x00B43CA8`, slot 3, IID
+  `cIGZPersistResource` `0x456B8F1D`) with the type and group the utility returned: found → 0, else 1.
+- **`AreModelsAvailable(o)`** (`0x0048C420`): the lookup above with `o`'s orientation and state
+  (`GetOccupantOrientationAndState` `0x00496670`) and whether the holder has `0xE83A081D`. The filter's zoom and
+  rotation first; on 2, the zooms 4, 3, 2, 1, 0 except the filter's, at rotation 0, until one answer is not 2; 2 when
+  all are.
+
+So the filter takes the occupants marked with `0x6A871B82` whose first listed model is missing.
+
+**Zoom and rotation change.** **`SetZoomAndRotation(z, r)`** (`0x004967B0`): mask := `(1 << (z + 2)) + (1 << (r +
+7))`. **`IsOccupantIncluded(o)`**: false when `o` has a placeable object (occupant slot 19) whose `+0x2C` bits,
+masked, include both a zoom bit (`0x7C`) and a rotation bit (`0x780`); true otherwise, also without an object.
+
+**Hovering and querying.** The hover test (`HoverQueriable` `0x004C37B0`): buildings, power poles, landfill
+(`0x6A11BD2B`) and network occupants are in; flora and props only when their holder has `0x8A416A99` (an item name,
+building-development.md); every other type is out.
+
+**Water and subway views.**
+- **Water** (`0x00648C40`): a network occupant with a flag of `0x1F4F` (the surface networks) or a pipe connection
+  (`0xEA0A5ACF`) is in; otherwise slot 5 (`0x00648CC0`): a holder with property `0x88ED3303` (water production) or
+  `0x49512A09` is in, else the bool `0xCAA45672`.
+- **Subway** (`0x00653C00`): a network occupant with a flag of `0x1F4F`, a subway connection (`0xCA15ED6B`), a subway
+  station (below) or a vehicle (`0xC7CC75F1`) in group `0x4217` or `0x4208` is in; otherwise slot 5 (`0x00653CC0`): a
+  station, else the bool `0xCAA45671`.
+- **`IsOccupantSubwayStation(o)`** (`0x00653B80`): the transit-switch property `0xE90E25A1` of `o`'s holder, read as
+  bytes (traffic-network.md §4.7), has **any** byte equal to 6 *[inferred: 6 the subway travel type]* *[quirk: every
+  byte is compared, not only the from and to bytes]*.
+
+**Surface networks.** `cSC4SurfaceNetworkOccupantFilter` is a separate small class (a reference count at `+4`,
+`QueryInterface` `0x007A7930` answering 1 and `0x46A80026`, 6 slots). **`IsOccupantIncluded(o)`**: `o` answers
+`0xA821EF94` and its network flag has a bit of `0x1F4F`. Slots 4 and 5 are false. The interface is released before
+its flag is read, which is harmless because the caller holds `o` *[quirk]*.
+
+### 13.2.7 Filters outside the family
+
+These answer the same interface and are specified with their owners: `cAmbienceOccupantFilterIsNature::IsTrueOccupant
+0x004E2E10` (QI `0xC83DD057`, cached at +4/+8), `cAutomataOccupantFilter::IsOccupantIncluded 0x00562C90` (type ∈
+{`0xC7CC75F1`, `0x496E5783`, `0x480E6151`, `0x897F7EC2`}: the vehicle, pedestrian, aircraft and watercraft types,
+which is how the string specification of §13.2.5 names them; answers OP9), `tCrimePropOccupantFilter::IsOccupantIncluded
+0x0069F490` (type `0xA823821E` ∧ holder HasProperty `0x8AA864D5`).
+
+### 13.2.8 The data view filter (`0xCA0E3852`) *[compat]*
+
+The data map view ([map-view.md](map-view.md) §2) gives the 3D city view this filter. It is 0x30 bytes, vtables
+`0x00AB7E44` / `0x00AB7E2C` (7 slots: the base's QI, AddRef, Release and slots 4 and 5; slot 3 `0x0079F7F0`; slot 6
+`0x007A0480`, body `0x007A04A0`); the exe's ID table does not name the class *[we call it the data view filter]*.
+The factory (`0x007A0420`) and the constructor (`0x0079FE60`, which the map view calls at `0x007A4C05`) clear every
+field and set `+0x2E` to 1.
+
+| Offset | Field |
+|---|---|
+| `+0x0C`–`+0x14` | a type list (vector of u32; `AddType` `0x0079FB90` appends) |
+| `+0x18`–`+0x20` | a group list (vector of u32) |
+| `+0x24`, `+0x28` | two optional filters |
+| `+0x2C` | invert the type test |
+| `+0x2D` | invert the group test |
+| `+0x2E` | keep empty lots' base textures and the signposts and text decals |
+
+**`IsOccupantIncluded(o)`** (`0x0079F7F0`), with `t` = `o`'s type:
+
+1. `t` = `0x497F6D9D` (a lot base texture): the lot at the low corner of `o`'s cell rectangle (occupant slot 11; lot
+   manager `0x00B43D08` slot 6, with 0). No lot, or a lot whose `GetState()` (lot slot 33) is below 2 (an empty lot)
+   → the answer is `+0x2E`.
+2. `r` := `+0x2C`, inverted when `t` is in the type list.
+3. When `r` is true, `t` is a network (`0xC772BF98`) and `o` answers `0xA821EF94`: `r` := `+0x2D`, inverted when the
+   network occupant's slot 22 is true for a group of the group list (tested in order, the first hit counts).
+4. `r` true → true. Otherwise either optional filter that accepts `o` (slot 3) → true.
+5. With `+0x2E` set, a prop (`0xA823821E`) that answers `cISC4PropOccupant` (`0xE9793A65`) with prop type (prop slot
+   7) `0xAB72FBB3` (a signpost) or `0xCB79919B` (a text decal) → true. Otherwise false.
+
+The map view builds it from the data view exemplar ([map-view.md](map-view.md) §2): the non-zero types of
+`0x4A0B47E0` go to the type list; `+0x2C` is the bool `0x4A0B47E1` when present, else 1 without `0x4A0B47E0` and 0
+with it; `0x4A0B47E2` true clears `+0x2E`. The group list and the two filters stay empty. So a data view without a
+type list shows every occupant, one with a list shows only those types (or, with `0x4A0B47E1`, all but those), and
+the base textures of empty lots and the signs and labels stay unless `0x4A0B47E2` hides them.
 
 The shared one-type filter of §4.4 is the family member the manager itself owns; the typed slots write their type
 into it and pass it on (§10).
@@ -1053,6 +1322,11 @@ deviation, because no shipped callback nests a typed call *[inferred]*.
 17. Slot 32 does not clamp its world cell either (§7), and slot 34 clamps a given max to count − 1 but turns a null
     max into count (OM5).
 18. A box whose low corner wraps below byte 0 is inserted with no nodes and still counts as inserted (§5.7).
+19. A string specification's `0x` word always adds group 0 (§13.2.5).
+20. `Cell:` and `CellRect:` divide their numbers by 16 instead of turning cells into metres (§13.2.5).
+21. String specification box numbers are read as whole numbers (§13.2.5).
+22. A string specification filter saves only its version, not its specification (§13.2.5).
+23. The subway station test looks at every byte of the transit-switch rules (§13.2.6).
 
 ---
 
@@ -1219,3 +1493,14 @@ Unless a test says otherwise, use a 1024 m city: manager counts 16, standard cou
     three occupants, is called three times. The walk then continues with the next cell.
 24. **Shrink precision (OM4).** A box x 100.0…164.0 stores min.x = `float`(100.0 + 0.1f) = 100.09999847… and max.x
     = `float`(164.0 − 0.1f) = 163.89999389….
+25. **Filter release.** A filter with count 2 returns 1 from `Release`; at count 1 it is destroyed and 0 is returned.
+26. **Default filter.** A pipe (answers `0x4A10AFC2`) is excluded; a building with `0xCAA45670` true is excluded.
+27. **Realistic record.** A version-3 record with bytes (1, 0) reads as flags (1, 0, 0).
+28. **View level.** A prop with `0xCAA45670` and `0xCAA45671` true has level 2; with only `0xCAA45671`, level 1.
+29. **Specification.** The words `Building` and `SubwayLevel` include a building whose view level is 2 and exclude
+    a prop at level 2 and a building at level 1.
+30. **Cell box.** `"Cell:32 48"` gives the box (2, −FLT_MAX, 3)–(2, +FLT_MAX, 3); the word `0x1234` adds group 0.
+31. **Inside lot.** For the lot rectangle (2, 3)–(4, 5) with 16 m cells, a building at (80, 96) is inside and one
+    at (80.5, 96) is not.
+32. **Data view filter.** With the type list {building} and `+0x2C` clear, a building is in and a flora occupant is
+    out; with `+0x2C` set, the reverse; a signpost prop is in while `+0x2E` is set.

@@ -62,3 +62,25 @@
   swing, whether "6000" is sfCraneTimeOfFullRotation, and the duration kept by 1 → 2. The core takes min / max / k
   from the caller, starts the target at 0, uses the literal 6000 and keeps the duration.
   **ANSWERED 2026-10-21 (re-construction-answers4):** DIFFERS — lot-developer §6.7.6/§6.7.7: (a) sparks use max(x span, z span) of the scaffold box (record #7, object +0xC0), y excluded; ties 20 → 2, 30 → 3. (b) limits c ± h from AttemptAddOuterCrane (h = π/2 or asin(d/R)); k = 1/(2π) f32 at 0x00AA2098; the multiplier is the tunable sfCraneTimeOfFullRotation global 0x00B0A7EC, not a literal; SetLot starts target = min, previous = max, acc 1, duration 0, state 2; 1 → 2 keeps the duration.
+
+<!-- from: re-occprops (2026-10-20) -->
+- ~~**OP8:** the `0xCA0E3852` filter (creator `0x007A0420`, vtable `0x00AB7E44`, byte +0x2E = 1, registered at
+  `0x004608AB`), the `0xE9C75EE8` types-set filter body, and the hashed-variant filter bodies (vptrs
+  `0x00A8EE38`/`0x00A8EE20`). [identity untraced]~~
+  **ANSWERED 2026-10-21 (re-occfilters):** occupant-manager.md §13.2: the `0xE9C75EE8` filter is `cSC4OccupantTypesFilter`, a type list filled only by `Read` (§13.2.3); the `0xAA25CB90` one is `cSC4OccupantTypesFilterHashed`, a hash set the model maker fills (§13.2.3); the `0xCA0E3852` filter is the data map view's filter for the 3D view (§13.2.8).
+
+<!-- from: re-occprops (2026-10-20) -->
+- ~~**OP9:** `cAutomataOccupantFilter` type identities {`0xC7CC75F1`, `0x496E5783`, `0x480E6151`, `0x897F7EC2`}
+  (`0x00562C90`): which occupant classes are these? [`0xC7CC75F1` is the subway-adjacent type per the subway
+  filter; the rest unknown]~~
+  **ANSWERED 2026-10-21 (re-occfilters):** occupant-manager.md §13.2.7: they are the vehicle, pedestrian, aircraft and watercraft occupant types, the names the string specification filter's parser gives them (§13.2.5: `Vehicle` `0xC7CC75F1`, `Pedestrian` `0x496E5783`, `Aircraft` `0x480E6151`, `Watercraft` `0x897F7EC2`).
+
+<!-- from: re-occprops (2026-10-20) -->
+- ~~**OP4:** `cSC4RealisticOccupantFilter` flag bytes `+0xC`/`+0xD`/`+0xE` (creator `0x005EA240` zeroes them; ctor
+  `0x005EB850`?), the meaning of property `0x5001`, the `0x097F6D98` QI + lot slot 0x84==1 exclusion, and who sets
+  the flags (callers of the creator). [include iff byte set for base textures and props]~~
+  **ANSWERED 2026-10-21 (re-occfilters):** DIFFERS - occupant-manager.md §13.2.3: `+0xC`, `+0xD` and `+0xE` keep, when set, empty lots' base textures, the occupants of group `0x5001` and the signposts and text decals; `0x5001` is an occupant group (occupant slot 22), not a property; a base texture is dropped only when `+0xC` is clear and the lot under it is in state 1 (ready). The 3D view sets all three (`0x007F42C5`), a cheat installs one with all three clear (`0x007F365D`, OM10), the inside-lot filter and the region thumbnail writer use them clear. The group's meaning stays open (OM9).
+
+<!-- from: re-occprops (2026-10-20) -->
+- ~~**OP5:** `cSC4BlockingLotOccupantFilter` slot 3 (`0x004BDF90`, 26 bytes) body and users. [untraced]~~
+  **ANSWERED 2026-10-21 (re-occfilters):** occupant-manager.md §13.2.6: slot 3 `0x004BDF90` is the base's `IsOccupantTypeIncluded(GetType())`; the blocking-lot filter's own slot 4 (`0x006C3C20`) is true only for flora `0x74758926`; the lot developer uses it.
