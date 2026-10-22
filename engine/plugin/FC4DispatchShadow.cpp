@@ -20,11 +20,17 @@
 #include "FC4Log.h"
 #include "FC4Streams.h"
 #include "FC4WriteCapture.h"
+#include "FC4RefAudit.h"
 #include "fc4.h"
 
 #include "cISC4City.h"
 #include "cISC4DispatchManager.h"
 #include "cISC4Simulator.h"
+#include "cIGZSerializable.h"
+#include "cISC4FireProtectionSimulator.h"
+#include "cISC4PoliceSimulator.h"
+#include "cISC4Occupant.h"
+#include "SC4List.h"
 
 #include <string>
 #include <vector>
@@ -53,16 +59,85 @@ std::string g_kinds;
 
 // ---- the read-only host ---------------------------------------------------------------------------------
 //
-// Only `resolve_ref` is wired: the record's station, automaton and pylon
-// references. Every callback that would change the game is NULL (a missing
-// callback reads as 0 / false / none).
+// Source providers come from the city and their saved air-source references,
+// independently of the dispatch manager's outputs. All mutating callbacks
+// remain NULL; station enumeration only balances the references it acquires.
 
 uint64_t ResolveRef(void*, uint64_t token, uint32_t) { return token; }  // the stream reader's reference
+
+void HoldRef(void*, uint64_t token) {
+    auto* object = reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(token));
+    if (object != nullptr) FC4_ADDREF(object);
+}
+
+void DropRef(void*, uint64_t token) {
+    auto* object = reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(token));
+    if (object != nullptr) FC4_RELEASE(object);
+}
+
+bool SourceCanHandle(void*, uint64_t source, uint32_t type) {
+    auto* s = reinterpret_cast<cFC4ISC4DispatchSource*>(static_cast<uintptr_t>(source));
+    return s != nullptr && s->CanHandleDispatchType(type) != 0;
+}
+
+size_t SourceStations(void*, uint64_t source, fc4_station_units* out, size_t capacity) {
+    auto* s = reinterpret_cast<cFC4ISC4DispatchSource*>(static_cast<uintptr_t>(source));
+    if (s == nullptr) return 0;
+    SC4List<cISC4Occupant*> stations;
+    s->GetStations(stations);
+    size_t n = 0;
+    for (auto*& station : stations) {
+        if (out != nullptr && n < capacity) {
+            out[n] = {};
+            out[n].station = TokenOf(station);
+            s->GetDispatchesAtStation(station, &out[n].mask, &out[n].base, &out[n].count);
+        }
+        ++n;
+        // PR8 proves AddRef-on-copy for ground providers only. Air-source
+        // ownership is unpublished (DP13); do not release an unowned pointer.
+        if (station != nullptr && (s->CanHandleDispatchType(0) || s->CanHandleDispatchType(1))) {
+            FC4_ACQUIRED(station, "dispatch shadow GetStations");
+            FC4_RELEASE(station);  // protection.md §15.4: slot 6 AddRefs elements
+        }
+        station = nullptr;  // SC4List's destructor releases non-null elements
+    }
+    return n;
+}
+
+void RegisterSource(cIGZUnknown* object) {
+    cFC4ISC4DispatchSource* source = nullptr;
+    if (object != nullptr && object->QueryInterface(0xC9C00435, reinterpret_cast<void**>(&source)) && source) {
+        FC4_ACQUIRED(source, "dispatch shadow source QI");
+        fc4_dispatch_register_source(g_core, TokenOf(source));
+        FC4_RELEASE(source);  // read-only core retains a token for this synchronous sample
+    }
+}
+
+void RegisterSources(cISC4City* city, CoreDiffs& differences) {
+    cIGZUnknown* simulators[] = {city->GetFireProtectionSimulator(), city->GetPoliceSimulator()};
+    for (auto* simulator : simulators) {
+        RegisterSource(simulator);
+        WriteCapture capture;
+        if (simulator == nullptr || !capture.Capture(simulator)) {
+            differences.Add("source provider record unreadable");
+            continue;
+        }
+        for (uint32_t id = 1; capture.Object(id) != nullptr; ++id) {
+            // protection.md §§8.4, 10: the provider saves its air-source ref.
+            const uint32_t cls = capture.ClassOf(id);
+            if (cls == 0x4C0AE114 || cls == 0x0C0B06E8) RegisterSource(capture.SerializableAt(id));
+        }
+    }
+}
 
 fc4_dispatch_host MakeReadOnlyHost() {
     fc4_dispatch_host h{};
     h.struct_size = sizeof(h);
     h.resolve_ref = &ResolveRef;
+    h.add_ref = &HoldRef;
+    h.release = &DropRef;
+    h.source_can_handle = &SourceCanHandle;
+    h.source_stations = &SourceStations;
     return h;
 }
 
@@ -84,6 +159,17 @@ std::vector<uint8_t> WriteOurs(const WriteCapture& cap, uint32_t* unknownRefs) {
         const void* o = cap.Object(i);
         if (o == nullptr) break;
         out.AddToken(TokenOf(o), i, cap.ClassOf(i));
+        // Saved references resolve to their requested interface, which need not
+        // share the serializable subobject's address (active dispatch records).
+        for (const uint32_t iid : {0x26BB767Eu, 0xA9B40F05u, 0xC9B6D7D6u}) {
+            auto* serializable = cap.SerializableAt(i);
+            cIGZUnknown* typed = nullptr;
+            if (serializable->QueryInterface(iid, reinterpret_cast<void**>(&typed)) && typed != nullptr) {
+                FC4_ACQUIRED(typed, "dispatch shadow record identity QI");
+                out.AddToken(TokenOf(typed), i, cap.ClassOf(i));
+                FC4_RELEASE(typed);
+            }
+        }
     }
     const bool ok = g_core != nullptr && fc4_dispatch_write(g_core, out.Get());
     if (unknownRefs != nullptr) *unknownRefs = out.UnknownRefs();
@@ -112,10 +198,14 @@ void RunStep(void* p) {
         return;
     }
     const std::vector<uint8_t>& orig = g_capture.Bytes();
-    if (g_core == nullptr) {
+    // Read appends by contract (§7); start each sample with an empty core.
+    if (g_core != nullptr) fc4_dispatch_destroy(g_core);
+    g_core = nullptr;
+    {
         g_host = MakeReadOnlyHost();
         g_core = fc4_dispatch_create(&g_host, 0);
     }
+    RegisterSources(r.city, d);
     bool readOk = false;
     if (g_core != nullptr) {
         CaptureIStream in(g_capture);
@@ -132,10 +222,20 @@ void RunStep(void* p) {
               unknownRefs != 0 ? ", refs not in the capture" : "");
     }
 
-    // 2. the count of each type's records (slot 11). NOT GetAvailablePylonCount
-    //    (slot 21): it is the free units of the tool's pylon list, filled by
-    //    BeginDispatchTool from the registered sources (§4.5), not state the
-    //    record carries (the log line at game start names it).
+    // 2. Source selection and free units are independent of saved records (§4.5).
+    std::string sources;
+    for (const int32_t t : kTypes) {
+        const uint64_t originalSource = TokenOf(dm->GetDispatchSource(t));
+        const uint64_t oursSource = fc4_dispatch_get_source(g_core, static_cast<uint32_t>(t));
+        const uint32_t originalFree = dm->GetAvailablePylonCount(t);
+        const uint32_t oursFree = fc4_dispatch_get_available_pylon_count(g_core, static_cast<uint32_t>(t));
+        compared += 2;
+        if (originalSource != oursSource) d.Add("source(%d) identity differs", t);
+        if (originalFree != oursFree) d.Add("free(%d) orig=%u ours=%u", t, originalFree, oursFree);
+        AppendF(sources, " %d:%u/%u", t, originalFree, oursFree);
+    }
+
+    // The count of each type's records (slot 11).
     for (size_t i = 0; i < kTypeCount; ++i) {
         const int32_t t = kTypes[i];
         const uint32_t oc = dm->GetDispatchCount(t);
@@ -174,10 +274,14 @@ void RunStep(void* p) {
             if (!okO) continue;
             // The station, automaton and pylon travel as object identities.
             if (info.type != static_cast<int32_t>(s.dispatch_type) || info.id != s.id || info.callId != s.call_id ||
-                (info.active ? 1 : 0) != s.active || info.viewHandle != s.view_handle ||
+                (info.active ? 1 : 0) != s.active ||
+                info.x != s.target_x || info.y != s.target_y || info.z != s.target_z ||
                 TokenOf(info.station) != s.station || TokenOf(info.automaton) != s.automaton ||
                 TokenOf(info.pylon) != s.pylon) {
                 d.Add("info(%u) fields differ", ids[k]);
+            }
+            if (info.viewHandle != s.view_handle) {
+                d.AddQ("DP10", "info(%u) unsaved viewHandle orig=%u ours=%u", ids[k], info.viewHandle, s.view_handle);
             }
         }
     }
@@ -196,6 +300,7 @@ void RunStep(void* p) {
     std::string body;
     AppendF(body, "record=%u bytes roundtrip=%s", static_cast<unsigned>(orig.size()), same ? "same" : "DIFFERENT");
     AppendF(body, "; compared=%u mismatches=%u first=%s", compared, d.n, d.Str());
+    AppendF(body, "; free(orig/ours)=%s", sources.c_str());
     CoreShadowLine("dispatch shadow (cont.)", "dispatch", r.date, r.event != 0, body);
 
     ++g_tally.lines;
@@ -204,6 +309,9 @@ void RunStep(void* p) {
     g_tally.mismatched += d.n;
     if (d.n != 0) AppendF(g_kinds, "%s%u", g_kinds.empty() ? "" : ",", d.n);
     r.result = static_cast<intptr_t>(d.n);
+    // Release captured references while the native records still own them.
+    fc4_dispatch_destroy(g_core);
+    g_core = nullptr;
 }
 
 intptr_t RunOnce(cISC4City* city, int32_t julian, uint32_t event) {
@@ -241,12 +349,12 @@ void DispatchShadowStartup(bool dispatchReplaced) {
     }
     Log("dispatch shadow: ON (dispatch_shadow from %s): at PostCityInit and each SimNewMonth, the original dispatch "
         "manager's record (its own Write into memory) loaded into FreeCity4's core and written back, byte for byte, "
-        "and its getters (slots 10-12, 18) against the core's",
+        "and its getters (slots 10-12, 15, 18, 21) against the core's; sources independently acquired from city "
+        "protection providers and their saved air-source references",
         src);
     Log("dispatch shadow: NOT readable read-only (so not compared): the automaton events (0x09D92FC3) the manager "
         "gets as the vehicle's event target, the messages it posts (0xE94671EB-ED, 0x894671F6), the tool's pylon "
-        "list and everything derived from it (Begin / End, slots 16, 17, and GetAvailablePylonCount, slot 21: the "
-        "free units of the sources' stations, which a record-only shadow cannot see) and the vehicle view's "
+        "list (Begin / End, slots 16, 17) and the vehicle view's "
         "tracking (slot 22 is presentation)");
 }
 

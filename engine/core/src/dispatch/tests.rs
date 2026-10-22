@@ -15,6 +15,16 @@ use std::rc::Rc;
 use super::*;
 use crate::stream::{ByteReader, ByteWriter, RefResolver, SaveObject, SaveRegistry};
 
+#[test]
+fn dropping_manager_releases_registered_sources() {
+    let world = World::new();
+    let manager = DispatchManager::new(world.clone(), 1);
+    manager.register_dispatch_source(0x123);
+    assert_eq!(world.refs(0x123), 1);
+    drop(manager);
+    assert_eq!(world.refs(0x123), 0);
+}
+
 #[derive(Clone, Debug, Default)]
 struct Source {
     types: Vec<u32>,
