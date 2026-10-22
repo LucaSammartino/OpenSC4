@@ -65,16 +65,15 @@ impl Default for S3dCamera {
             view: Xform::default(),
             projection: [[0.0; 4]; 4],
             inverse_projection: [[0.0; 4]; 4],
-            // CA3: unspecified remembered look-at/up and inferred unit box.
             target: [0.0; 3],
-            up: [0.0, 1.0, 0.0],
-            projection_state: 0,
+            up: [0.0; 3],
+            projection_state: 1,
             projection_type: 0,
             volume: ViewVolume {
-                left: -0.5,
-                right: 0.5,
-                bottom: -0.5,
-                top: 0.5,
+                left: -1.0,
+                right: 1.0,
+                bottom: -1.0,
+                top: 1.0,
                 near: 1.0,
                 far: 2.0,
             },
@@ -181,6 +180,16 @@ impl S3dCamera {
         self.subview_in_use = true;
         self.changed_projection(1);
     }
+    pub fn reset_subview(&mut self) {
+        self.subview = Viewport {
+            x: 0.0,
+            y: 0.0,
+            width: self.viewport[0],
+            height: self.viewport[1],
+        };
+        self.subview_in_use = false;
+        self.changed_projection(1);
+    }
     pub fn set_depth_size(&mut self, size: f32) {
         self.depth_size = size;
         self.changed_projection(1);
@@ -206,8 +215,9 @@ impl S3dCamera {
             },
         );
     }
-    /// CA3: §1.4 defines perspective, but names no setter. This pure-core
-    /// entry applies the same box/counter contract as SetOrtho, with type 2.
+    /// Implementation-only extension to evaluate the documented type-2 state.
+    /// CA3 remains blocked: no native setter, signature or counter contract
+    /// is identified. This entry must never be bound as a native camera slot.
     pub fn set_frustum(&mut self, l: f32, r: f32, b: f32, t: f32, n: f32, f: f32) {
         self.set_volume(
             2,
