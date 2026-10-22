@@ -467,3 +467,44 @@ fn unsigned_size_adjustment_and_zero_line_height_fault() {
     f.line_spacing = 0;
     assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f.width_of_lines(b"a", 1))).is_err());
 }
+
+#[test]
+fn layout_uses_characters_for_newline_space_and_paragraph_trimming() {
+    let utf16 = |s: &str| s.encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<_>>();
+    let mut f = font();
+    f.code_page = 0x10;
+    let mut rect = Rect::default();
+    let lh = f.get_line_height();
+    assert!(f.calculate_text_area_box(&utf16("\u{010A}"), &mut rect, 20, 100, lh));
+    assert_eq!(rect.bottom, lh); // low byte 0x0A is not U+000A
+    let mut text = utf16("ab cd");
+    let l = text.len() as u32;
+    let width = f.get_string_width(&utf16("ab ..."));
+    assert_eq!(
+        f.format_for_ellipsis(
+            &mut text,
+            &utf16("..."),
+            Rect {
+                right: width,
+                ..Rect::default()
+            },
+            false
+        ),
+        l
+    );
+    assert_eq!(text, utf16("ab..."));
+    assert!(f.draw_text_paragraph(
+        None,
+        Rect {
+            right: 100,
+            bottom: lh,
+            ..Rect::default()
+        },
+        &utf16("A\r"),
+        0,
+        1,
+        2,
+        None
+    ));
+    assert_eq!(f.records.iter().map(|r| r.ch).collect::<Vec<_>>(), [0x41]);
+}

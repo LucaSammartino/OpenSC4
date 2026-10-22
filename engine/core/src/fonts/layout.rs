@@ -263,7 +263,8 @@ impl GzFont {
             }
         }
         let mut w = 1i32;
-        let has_nl = s.contains(&10);
+        // The published test is U+000A, not a byte 0x0A embedded in a multibyte unit.
+        let has_nl = self.convert(s).units.contains(&10);
         let set = |rect: &mut Rect, ww: i32, hh: i32| {
             rect.right = rect.left + ww;
             rect.bottom = rect.top + hh;
@@ -316,9 +317,9 @@ impl GzFont {
         if e < w {
             let (fit2, _) = self.chars_to_fit(text, w - e);
             text.truncate(fit2 as usize);
-            while text.last() == Some(&b' ') {
-                text.pop();
-            }
+            let converted = self.convert(text);
+            let keep = converted.units.iter().rposition(|&u| u != 0x20).map_or(0, |i| i + 1);
+            text.truncate(converted.src_len_of(keep) as usize);
             text.extend_from_slice(ellipsis);
         } else {
             text.clear();
@@ -348,13 +349,12 @@ impl GzFont {
                 break;
             }
             let mut line = &text[pos..pos + len as usize];
-            while let Some((&b, rest)) = line.split_last() {
-                if b == b'\r' || b == b'\n' {
-                    line = rest;
-                } else {
-                    break;
-                }
+            let converted = self.convert(line);
+            let mut units = converted.units.len();
+            while units != 0 && matches!(converted.units[units - 1], 13 | 10) {
+                units -= 1;
             }
+            line = &line[..converted.src_len_of(units) as usize];
             let x = match align {
                 1 => rect.left + w / 2 - line_w / 2,
                 2 => rect.right - line_w,

@@ -12,6 +12,9 @@
 - Independent tests now cover full map and aliases, PC boundaries and all rounding controls, fixed/loaded/failure/done-error paths, renderer reference counts, failed-init final release, lock failures/wrap/null/mode edges.
 - Quick retries exposed a missing test-provider method (fixed) and a test oracle assuming distinct codes had distinct names (fixed; normative table shares some names). Final verification pending.
 - Next: sequential quick/fmt, stable final all; full 64-slot checklist/report and wip queue if contract residuals remain.
+- Quick passed: 2380 core tests, dependent crates compiled, CMake 4/4. Tree changed during verification; final all will test latest character-aware layout fixes and new test.
+- fmt passed for all 10 touched Rust files before final layout addition; recheck with final gate.
+- Final audit also corrected character-based U+000A detection, ellipsis space trimming and paragraph CR/LF stripping for UTF-16 (literal published rules).
 - FN18 appended: nonfinite/out-of-i64 `_ftol2` results unspecified; core returns typed conversion errors, font adapters panic rather than invent output.
 - FN19-FN22 appended: paragraph pen/result/trimming, AA precision, incomplete encodings, invalid backing/progress domain. No cGZFont whole-owner or blanket family promotion.
 - No game requests outstanding; no ABI changes allowed; cGZFontSys credit remains separate.

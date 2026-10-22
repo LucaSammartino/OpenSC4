@@ -766,7 +766,7 @@ fn renderer_slots_and_shutdown() {
     let dynr: Arc<dyn FontRenderer> = r.clone();
     f.set_renderer(Some(dynr.clone()));
     f.set_renderer(Some(dynr.clone())); // same: nothing
-    assert!(f.get_renderer().is_some_and(|g| Arc::ptr_eq(&g, &dynr)));
+    assert!(f.get_renderer().is_some_and(|g| Arc::ptr_eq(g, &dynr)));
     // Only the 0→1 and 1→0 edges reach the renderer.
     assert!(f.lock_surface(1));
     assert!(f.lock_surface(1));
