@@ -20,6 +20,7 @@
 #include <cstring>
 #include <map>
 #include <mutex>
+#include <string>
 #include <type_traits>
 #include <vector>
 
@@ -36,6 +37,7 @@ template<class T> T Field(const std::vector<uint8_t>& b, size_t off) {
 }
 struct Shadow {
     uint32_t kind = 0;
+    std::string owner;
     std::vector<uint8_t> record;
     uint64_t comparisons = 0, exact = 0, refused = 0, failures = 0, calls = 0, changed = 0;
     uint64_t get = 0, bulkRead = 0, set = 0, bulkWrite = 0, fill = 0, shutdown = 0;
@@ -72,7 +74,7 @@ struct Shadow {
         if (Capture(obj,b)) Check(b.data(), b.size(), record, "complete-write");
     }
     void Report(const char* source, uint64_t token) const {
-        Log("simgrids-shadow: source=%s owner=power token=%p clsid=%08X exact=%llu/%llu differences=%llu refused=%llu failures=%llu calls=%llu get=%llu bulk_read=%llu set=%llu bulk_write=%llu fill=%llu shutdown=%llu changed=%llu bootstrap=1 resync=0 fallback=0", source, FromToken(token), kind, exact, comparisons, comparisons-exact, refused, failures, calls, get, bulkRead, set, bulkWrite, fill, shutdown, changed);
+        Log("simgrids-shadow: source=%s owner=%s token=%p clsid=%08X exact=%llu/%llu differences=%llu refused=%llu failures=%llu calls=%llu get=%llu bulk_read=%llu set=%llu bulk_write=%llu fill=%llu shutdown=%llu changed=%llu bootstrap=1 resync=0 fallback=0", source, owner.c_str(), FromToken(token), kind, exact, comparisons, comparisons-exact, refused, failures, calls, get, bulkRead, set, bulkWrite, fill, shutdown, changed);
     }
 };
 std::mutex mu;
@@ -209,10 +211,10 @@ void SimGridsShadowFixtures() {
 }
 
 void SimGridsShadowTrack(const char* owner,uint64_t t) {
-    if(!Enabled() || !t || !owner || std::strcmp(owner,"power")!=0) return;
+    if(!Enabled() || !t || !owner || (std::strcmp(owner,"power")!=0 && std::strcmp(owner,"weather")!=0)) return;
     std::lock_guard<std::mutex> lock(mu);
     if(natural.count(t) || rejected.count(t)) return;
-    Shadow s;
+    Shadow s; s.owner=owner;
     if(!s.Capture(FromToken(t),s.record)) { Log("simgrids-shadow: source=natural owner=power bootstrap_failed=1 token=%p",FromToken(t)); return; }
     s.kind=Field<uint32_t>(s.record,3);
     if(FindEnabledClass(s.kind)) { // Public factory provenance, no vtable guesses.
@@ -222,7 +224,7 @@ void SimGridsShadowTrack(const char* owner,uint64_t t) {
     }
     std::vector<uint8_t> roundtrip;
     if(!s.Apply(0,roundtrip) || roundtrip!=s.record) { Log("simgrids-shadow: source=natural owner=power bootstrap_failed=1 kind=%08X",s.kind); return; }
-    Log("simgrids-shadow: source=natural owner=power token=%p clsid=%08X instance=%08X shape=%dx%d bootstrap=1 comparisons=0",FromToken(t),s.kind,Field<uint32_t>(s.record,7),Field<int32_t>(s.record,19),Field<int32_t>(s.record,23));
+    Log("simgrids-shadow: source=natural owner=%s token=%p clsid=%08X instance=%08X shape=%dx%d bootstrap=1 comparisons=0",owner,FromToken(t),s.kind,Field<uint32_t>(s.record,7),Field<int32_t>(s.record,19),Field<int32_t>(s.record,23));
     natural.emplace(t,std::move(s));
 }
 void SimGridsShadowValue(uint64_t t,int32_t x,int32_t z,const void* value,uint32_t size) {
