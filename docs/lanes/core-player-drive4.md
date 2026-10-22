@@ -1,26 +1,36 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-player-drive4 (first portable drive-tool owner) | `Codex` / `core-player-drive4` (engine) | in progress | Audit contracts, fixtures, bounded implementation, required gates |
+| core-player-drive4 (first portable drive-tool owner) | `Codex` / `core-player-drive4` (engine) | WIP: production eab6c1ad; 26 new fixtures unexecuted; baseline Rust 5142/0, clippy clean, CMake build 215/215, full CTest pending; new-file fmt passed, existing lib.rs fmt failed; DR3-DR8 appended; ABI unchanged | (1) Collect active baseline PID37080/PID19568; (2) serial quick and final all on committed source; (3) complete report with measured source results before readiness |
 
-## Handoff
-- Goal: first portable player-drive owner from drive-tool sections 1-10; no native/ABI work.
-- Done: audit/questions/literal fixtures committed as 1ebdc0a1 before implementation.
-- Done: production owner/tests df9c801a; tightening 2c43a25c; explicit callback tool identity bb25fc0e. Module now registered; 26 new tests not yet executed.
-- Next: collect baseline operation (exec session44795/PID37080), then serial quick and final all on this committed production source. Never duplicate an active build.
-- q.py cannot start Bash (E_ACCESSDENIED); use bounded PowerShell commands.
-- Process inventory: native command-line/handle query succeeded: baseline qbuild PID37080 (102 handles), attributable fc4-core test compiler PID8136 (126 handles); compiler later completed. No duplicate check started.
-- Baseline all PID37080 / exec session44795: Rust complete 5142 passed/0 failed across 22 summaries; clippy finished clean (4m32s). CMake configured, build still active; collect it before another build.
-- Formatting: first new-file check failed (wrong formatter config, 985 diff lines); corrected new files using engine/rustfmt.toml via apply_patch. Untouched lib.rs baseline fmt fails 171 diff lines (pre-existing module order); do not broadly reformat it.
-- New-file absolute fmt passed (2 files); baseline lib.rs fmt failure remains separate. No game requests/native probes; no ABI changes. DR1/DR2 retained; appended DR3-DR8.
-- Actual CMake cache: Debug, Ninja, FC4_CHECKED=OFF, compiler cache ON, Rust target i686-pc-windows-msvc; no source/default flags changed.
-- Callback39/40 plans now carry explicit tool identity as well as automaton; commit before registering module/checking it.
-- Registration followed baseline Rust/clippy completion and its native core compilation; active native baseline uses earlier objects and is not an owner-source gate. Final quick/all remain mandatory.
+## Report
+
+Implemented the first bounded portable player-drive owner in `engine/core/src/player_drive`, registered by the single additive declaration at the end of `engine/core/src/lib.rs`. No C API, plugin, other owner, default, map, generated index or ABI export was changed. No game/native probe or shadow was requested; game labels are not applicable.
+
+Milestones: 1ebdc0a1 audited the published methods and committed independent literal fixtures before implementation; df9c801a added the owner and tests; 2c43a25c tightened literal message/domain policies; 0e117e5a recorded the non10-state/lifecycle questions; bb25fc0e made callback registration/removal carry explicit tool identity; eab6c1ad registered the module and completed the 26 fixtures. These are implementation milestones, not claims of executed conformance.
+
+### Measured checks and remaining validation
+
+- Exactly one baseline `qbuild all` was launched. It remains active: qbuild PID37080 (100 handles at last inspection), fc4verify PID19568 (118 handles), initial exec session44795. Its command is `fc4verify.py --wt <WT> build ctest`; no exclusion option was supplied. There is no local CTest result log yet. The observed running CTest PID8452 belongs to another lane, core-ftp4; its result is not credited here.
+- The baseline's top-level Rust log sums **5142 passed, 0 failed across 22 `test result:` summaries**, finishing compilation in 16m30s. Baseline clippy finished clean in 4m32s. Both completed before module registration and do **not** validate the new owner.
+- Baseline CMake configure succeeded; its build reached **215/215**, including DLL/test linking. The release Rust stage finished in 7m17s. Full CTest remains pending; no native pass count is invented. Native core compilation preceded registration, so this build is not credited as validation of the new owner either.
+- Actual native configuration: Debug, Ninja, FC4_CHECKED=OFF, FC4_COMPILER_CACHE=ON, FC4_RUST_TARGET=i686-pc-windows-msvc. The generated `cargo_test` command uses sccache, CARGO_INCREMENTAL=0, CARGO_PROFILE_DEV_DEBUG=0, CARGO_PROFILE_TEST_DEBUG=0, workspace tests, i686-pc-windows-msvc, and the private `engine/build-x86/cargo` target directory. No flag was changed by this lane.
+- Absolute-path fmt on the two new Rust files passed after the last source changes. The pre-existing lib.rs ordering/formatting check failed with 171 diff lines before its declaration and 173 afterward. Only the allowed declaration was added; no broad reformat was made. An earlier new-file fmt check failed with 985 diff lines because the initial formatting helper omitted engine/rustfmt.toml; that was corrected through apply_patch and the new-file check then passed. The path-canonicalization warning remains in wrapper output.
+- **The 26 new tests have not executed. Owner-source quick and final all are unrun.** No passing combined integration gate or readiness is claimed. Existing logs remain at `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-configure.log`, and `fc4verify-build.log`; do not overwrite them before collecting the active operation.
+
+Tooling limitations were retained: q.py could not start Bash (E_ACCESSDENIED), so bounded PowerShell commands were used. CIM/tasklist inspection was denied and psutil unavailable; native process command-line/handle queries subsequently succeeded. Detached commits succeeded despite a packed-refs.lock permission diagnostic; shared refs/config were not modified.
+
+### Exact continuation
+
+1. Inspect/collect PID37080 and PID19568 first. Use `build-runs/player-drive-processes.py` with the Get-Process JSON input shown in prior commands, and `build-runs/summarize-player-drive-gates.py` for bounded actual totals. Do not launch a duplicate baseline/check or terminate another lane's processes. The baseline may complete after this report; consume its actual result rather than discarding it.
+2. Preserve baseline results before the next wrapper overwrites step logs (`capture-player-drive-gate.py baseline` produces an apply_patch edit for a bounded evidence file). Run one serial `python <MAIN>/.claude/lane-bin/qbuild.py --wt <WT> quick` on the committed production source, inspect all new test results/failures and dependent compilation, and fix only this module if needed.
+3. Run final `qbuild all` after quick, inspect actual summed Rust/clippy/CMake/full CTest and source flags, and record every failure. No additional long gate is needed solely for a later documentation commit. Readiness requires completing these owner-source checks; the current merge queue entry must remain WIP.
+4. Retain DR1/DR2 and the explicit unsupported branches; pursue later bounded owner portions only from published contracts. No native wiring, game probing or replacement/default promotion is authorized by this report.
 
 ## Pre-implementation method audit
 
 The published attribution is 40 functions / 12400 bytes; the reported inventory is 32 entries including two foreign junction-view entries. Neither number is implementation credit. The behaviour spec names the following tool methods/handlers; inventory names absent from it cannot acquire invented contracts.
 
-| Method | Planned status | Published portable boundary |
+| Method | Delivered source status (unvalidated) | Published portable boundary |
 |---|---|---|
 | Construction | partial | IDs, raw camera-speed bits, toggles, empty identities/callbacks, cell scales; no native layout/timer construction |
 | Init | unsupported | Native service acquisition, omitted table IDs/counts and DR1 objects unresolved |
