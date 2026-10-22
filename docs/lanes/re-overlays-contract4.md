@@ -16,3 +16,11 @@
 - No game requests or runtime gates required for docs-only work; no verdicts claimed.
 - REA batch (PlaceOverlay/ComputeCellRect/SplitDiscIntoParts/AddDecalFromBinding) failed target_unavailable; export/bytes fallback used.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-overlays-contract4-r1-manifest.json.
+- Done: 1ebda27a adds rotated rounding, defaults, clipping/index rules; OV4/OV5/OV6 archived, OV1/OV7/OV8 narrowed, OV2/OV3/OV9 preserved.
+- Validation: questions.py index/check passed; git diff --check passed at all three milestones. Runtime cargo/clippy/ctest/game n/a (docs only).
+- Guard at 1ebda27a: 144053/150000 measured context; stopping for continuation, no merge-queue record.
+- Exact next step: query 0073c0d0 (model shadow), 0073b3b0 post-placement and 00738a50 Draw camera setup/callees; finish OV1 before OV7/OV8/OV9.
+- Round partition entry 007394b0: shipped globals B0D4D0=.4000000059604645, D4=.20000000298023224, D8=.10000000149011612; A92D28 is double .5. Not yet a proven partition.
+- Native scratch: build-runs/native-data.py (PE constant reader), place-native.txt (only first56 asm lines; do not mistake for full routine). Never commit these.
+- ABI: no export changes, no ABI rows/proposal required in this milestone; docs/abi untouched.
+- Git commits succeed detached despite nonfatal packed-refs.lock permission diagnostic; supervisor must publish branch. No branch/config/ref operations performed.
