@@ -46,14 +46,14 @@ A **property set** is three lists: (boolean index, value), (integer index, value
 | Bit | Name | Source |
 |---|---|---|
 | 0 | `hardwareDriver` | the driver is a hardware driver and `kForceSoftwareDriver` is false |
-| 1 | `DXT` | the driver supports compressed textures *[inferred]* |
-| 2 | `fullscreen` | full-screen mode *[inferred]* |
+| 1 | `DXT` | current driver information record, byte `+0x2C`, nonzero |
+| 2 | `fullscreen` | current driver information record, byte `+0x20`, nonzero |
 | 3 | `MMX` | CPU feature bit 23 |
 | 4 | `FPU` | CPU feature bit 0 |
 | 5 | `backingStore` | a backing store exists (global `0x00B4E1E4` non-null, `0x007C2790`) |
-| 6 | `forcedFSAA` | `0x008D2320` on the driver *[inferred: anti-aliasing forced by the driver]* |
+| 6 | `forcedFSAA` | boolean result of the rendering probe `0x008D2320(currentDriver)` |
 
-**Numbers** (`atLeast` / `atMost`), as floats: 0 `cpuSpeed` (MHz, `0x00891552`), 1 `memory`, 2 `freeMemory`,
+**Numbers** (`atLeast` / `atMost`), as floats: 0 `cpuSpeed` (MHz, `0x00891552`), 1 `memory`, 2 `freeMemory` (MiB),
 3 `screenWidth`, 4 `screenHeight`, 5 `screenBPP`, 6 `videoMemory` and 7 `textureMemory` (MB: the graphic system's
 memory figures shifted right by 20), 8 `textureStages`, 9 `bogoFPS`, 10 `bogoMPPS`.
 The constructor initializes all eleven binary32 numbers to positive zero (`0x007D0D79–0x007D0D86`).
@@ -64,9 +64,51 @@ later gathers. The forced-FSAA probe is a separate rendering test, not a source 
 4 `computerName`, 5 `CPU`, 6 `sglDriverName`, 7 `sglDriverVersion`, 8 `driverName`, 9 `driverVersion`,
 10 `cardName`, 11 `cardVersion`, 12 `cardIdentity`, 13 `soundDriverName`, 14 `soundCardName`, 15 `buildType`.
 
-- 6–11 are the successive tokens of the driver's description string.
+- 6–11 are successive newline-delimited fields of the driver's description string **after discarding its
+  first field** (`0x007CFAF7`, then `0x007CFB26–0x007CFCF5`; delimiter at `0x00A916BC` is byte `0x0A`).
 - 13 and 14 come from the sound system (service `0xE9D27715`), or `Unknown` without one.
 - 15 is `Release`.
+
+### 2.1 Exact provider boundary
+
+The graphics system comes from `RZ::GS()`. Its query for interface `0xC47B747C`, followed by that interface's
+slot 3, supplies the current driver (`0x007CF9AE–0x007CF9E2`). Driver slot 64 (`+0x100`) fills a **0x34-byte
+record**. The DX7 implementation at `0x00886E10` copies thirteen dwords from driver-interface-relative
+`+0x1D4`; the alternative implementation at `0x008DC320` copies thirteen from `+0x3A8`.
+Treat the returned record, not either concrete driver's object layout, as the boundary:
+
+| Record field | Manager consumption | Native evidence |
+|---|---|---|
+| byte `+0x20` | nonzero sets `fullscreen` | `0x007CFA77–0x007CFA8B` |
+| unsigned dword `+0x24` | convert to binary32 `textureStages` | `0x007CF9F6–0x007CFA12` |
+| byte `+0x2C` | nonzero sets `DXT` | `0x007CFA60–0x007CFA74` |
+| byte `+0x30` | nonzero AND render bool index 0 (`kForceSoftwareDriver`) clear sets `hardwareDriver` | `0x007CFA2F–0x007CFA5D` |
+
+These bytes are provider reports, not values recomputed from screen size, card identity, texture formats or
+command-line switches by the rule manager. In particular `forcedFSAA` is not a fourth capability byte or an
+FSAA preference. Its helper fetches this record itself and immediately returns false when byte `+0x30` is
+zero (`0x008D2338–0x008D2358`). On hardware it runs twenty render iterations, obtains a readback surface,
+and samples the 8×8 grid at x,y = 4,12,…,60. Count samples for which R+G+B is nonzero, ignoring alpha;
+the result is true iff that count exceeds one (`0x008D25C1–0x008D25E8`, `0x008D2709–0x008D2756`).
+Without a readback surface the result remains false. This measures a rendering symptom of forced FSAA;
+it is independent of `kForceSoftwareDriver`, which is checked later for flag 0. The manager invokes the
+probe on each gather, even when that render property forces software.
+
+The OS/version provider supplies CPU features, CPU MHz, screen dimensions/BPP, memory, and the first six
+strings. For memory the native version helper first truncates each unsigned byte count to MiB, then rounds
+that integer **up to a multiple of four** with 32-bit wrapping arithmetic: subtract one, OR with 3, add one
+(`0x0089159C–0x008915B9`). Zero maps to zero. Video and texture memory instead use GS slot 23 (`+0x5C`),
+with arguments 2 and 0 respectively; each unsigned byte count is shifted right 20 with **no** four-MiB
+rounding (`0x007CF965–0x007CF99F`). CPU MHz, screen values, memory values and stage count are converted
+from unsigned 32-bit quantities to binary32; the native signed x87 loads add 2^32 for negative signed
+representations before the float store. Do not reinterpret these as signed hardware quantities.
+
+A portable implementation may inject the OS results, capability record, description, sound names,
+backing-store presence and probe result through a provider. It owns the flag assembly, units/conversions,
+fixed field mapping and all parser/evaluator algorithms below. It must keep provider values explicit in
+fixtures; a constant false FSAA result or guessed DXT support is not evidence of native acquisition parity.
+The GPU rendering/readback operation belongs to that provider/renderer boundary; neither bogo value is
+an output of it.
 
 ## 3. Reading the rules (`ParseConfigFile`, `0x007CFE10`) *[compat]*
 
@@ -220,7 +262,7 @@ graphics options dialog uses slots 6 and 7.
 ## 10. Open questions
 
 See [questions/graphics-rules.md](questions/graphics-rules.md) for remaining evidence gaps.
-GR2 (wildcard case behavior) and GR3 (fallback conditions) are resolved in §§4.2 and 7.
+GR1–GR3 are resolved in §§2, 4.2 and 7.
 
 ## 11. Conformance tests
 

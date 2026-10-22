@@ -202,7 +202,7 @@ generated index: the questions live one file per spec, so read only the file for
 | geometry-utilities | 1 | 0 | GU2 | questions/geometry-utilities.md |
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 0 | 35 | FS18, GF19 | - |
-| graphics-rules | 1 | 2 | GR4 | questions/graphics-rules.md |
+| graphics-rules | 0 | 3 | GR4 | questions/graphics-rules.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 1 | 6 | HD8 | questions/html-document.md |
 | landfill | 0 | 36 | LF7, LG31 | - |
@@ -285,4 +285,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **303** | **1158** | | |
+| **total** | **302** | **1159** | | |
