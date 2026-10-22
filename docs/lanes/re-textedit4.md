@@ -13,7 +13,9 @@
 - Done: new layout extension proves large metrics (334B), bar sizing (454B), pixel-hit (387B), word/composed motion (250/224B), bar ranges (241B), drag routing (236B), scroll and index contracts; 44 total vectors.
 - Done: final inventory audit edits prepared; questions.py check and git diff --check PASS; address join still exact; 48 P, 36 P/B, 50 U direct entries and 44 vectors measured.
 - Round 3 milestone: TE1 helper byte tables/malformed and pending outcomes proved; caret-in-view, AddScrollBar and SelectCurrentWord owner paths published; eight new proposed vectors (52 total).
-- Next: audit Page/arrow instructions and composition repair, then remaining thin/U bodies and final proof checklist/queue.
+- Done: a8095773 publishes byte helper/view contracts and TE1 answer (52 proposed vectors).
+- Round 3 milestone: page/arrow arguments and cache retention proved; individual accessors, period/input/lifecycle adapters, LF/composition owner loops published; 60 proposed vectors.
+- Next: count exact final per-body dispositions, park TE5 foreign helpers and TE8 remaining addresses; check docs, final report and queue. No fourth round.
 - Round 2 stopped at its guard; this is the explicitly authorized final third round, with no restart/fourth round.
 - Current substantive commits: eeeaf4ac attribution/history; 1f74cd36 TE3/TE6/TE7; 733c7744 layout/body extension.
 - Latest audit removes superseded TE7 uncertainty and updates ~36 newly proved inventory dispositions; no whole-owner promotion.

@@ -228,9 +228,43 @@ FixInsertionPositionIfBroken, then PutInsertionPositionInView and returns
 true (`0x009BE733-7A9`). It does not invalidate or select punctuation as a
 separate class. Character/composition repair is a distinct helper contract.
 
+## Page and arrow preferred-X behavior (TE5)
+
+The four vertical key paths in GZOnKeyDown first measure the current
+line/column through text +0xF0, obtaining X and an ignored Y. They initialize
+preferred-X W+0x170 to that X only when its current word is 0xFFFFFFFF.
+**Page Up and Page Down nevertheless pass the newly measured X** to text
++0xE8 for the destination column; Up/Down arrows pass the **stored**
+preferred-X instead. These are distinct native argument loads:
+Page Up `0x009C0B7C-0B98`, Page Down `0x009C0DC3-0DE5`, Up
+`0x009C0EBB-0ED3`, Down `0x009C146C-1484`. No page/arrow successful
+path resets the cache. Horizontal/Home/End paths reach the separate cache
+reset at `0x009C10F4`; the vertical success exits bypass it.
+
+With editable bit 1 set and single-line bit 0x200 clear, Page Up subtracts
+visibleRows from insertion line, clamping to zero with an unsigned
+comparison. Page Down uses line+visibleRows when line<lineCount-visibleRows
+(wrapping subtraction), otherwise last line. The normal coherent-range
+effect is to move at most to last; zero/oversized row counts are not given
+an extra normalization. Both obtain the destination index via text +0xF8
+and apply preceding-LF correction. Page Up at line zero and Page Down at
+last line still collapse/extend a nonempty selection to insertion without
+moving line; with empty selection they issue boundary reason 2. Disabled
+or single-line page keys are consumed without the arrow forwarding path.
+Up/Down arrows use one-line changes under the same editing gates, with
+their section-7 forwarding and boundary rules.
+
+Successful vertical movement updates active selection end to insertion;
+without Shift it also sets anchor to insertion. It puts insertion in view
+and invalidates; Page Down also makes the caret visible, as Page Up/Up do
+through their common path (`0x009C0E24-0E32`, `0x009C14AF-14CE`).
+Composition and insertion repair owner loops are specified in
+[text-edit-adapters.md](text-edit-adapters.md#filtering-and-composition-repair).
+
 ## Residuals
 
-TE5 remains open for Page-key versus arrow preferred-X cache use/reset and
-composition-repair helpers. The new sections close owner-side caret-in-view,
-AddScrollBar and word-selection paths; foreign font/bar/resource implementations
-remain call boundaries. No whole-owner promotion follows from this extension.
+The requested TE5 owner paths are specified, including page/arrow cache
+arguments, caret-in-view, AddScrollBar, word selection and composition-repair
+call/erase ordering. Exact foreign composed/UTF16 conversion, Thai levels,
+font/bar/resource implementations remain call boundaries, explicitly parked
+in the public question inventory. No whole-owner promotion follows.

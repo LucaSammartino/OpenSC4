@@ -661,6 +661,20 @@ inputs; unsafe spans are observed by call arguments, not dereferenced.
 | Both bar bits/arguments set; both manager/bar results null | Each direction clears its bit; final recalculate/size/values(true) still occurs; returns true |
 | Text `abc def`, insertion 5, preexisting selection [0,5] | Word selection extends upper end to 7 and retains lower 0, rather than first collapsing to the word `def` |
 
+Additional final-round proposed vectors (53-60), with controlled foreign
+inputs and no claims of execution:
+
+| Independent case | Distinguishing expected behavior |
+|---|---|
+| Cache X=70, current measured X=20; compare Page Down and Down arrow from an interior line | Page uses 20 for destination-column query; arrow uses 70; both retain cache 70 |
+| Byte text `abc`, destination three sentinel bytes, buffer GetText requested count 2 | Copies `ab`, count remains 2, third sentinel untouched; no appended NUL |
+| Selection anchor 1, active 4; both GetSelection output pointers alias one valid external word | Final output 4, return true |
+| Byte text `abc`, coherent line starts [0]; insertion and both endpoints 99; repair | Insertion 3, active end 3, anchor still 99; line/column recomputed |
+| Not initialized; SetCaretPeriod(0), then SetCaretPeriod(0xFFFFFFFF) | Stored periods 250 then 10000; no timer/flag calls |
+| Text `a` + LF + `b`, starts [0,2]; GetCharacterCountOfLine(0), then (99) | Returns byte spans 2 then 1 |
+| Bit 0x200, selector 0; filter CR LF `x` through string overload | Removes only LF; resulting string CR `x`, removed count 1 |
+| Composition candidate `AB`; consumed length 1 for each; level rejects A and accepts B; initial previous P | A erased, B retained; B's level test still receives previous P; removed count 1 |
+
 ## 12. Whole-owner checklist and current limits
 
 The name search contains 146 matching functions including adjusted thunks,
@@ -677,9 +691,16 @@ is claimed while body and foreign-boundary residuals remain.
 | Area | Current evidence disposition |
 |---|---|
 | Identity, state, whole-text replacement, selection, overwrite, character input, high-level insertion, caret timer | Rules above; external helper contracts remain bounded |
-| Raw insertion/deletion, undo/redo, key navigation/clipboard, mouse, focus | Sections 6-10 and layout extension; TE3/TE4 domains/eviction and word/composed motion resolved; exact remaining navigation paths TE5 |
-| Line starts, metrics, painting, hit mapping, scrollbars | Sections 8-9; mixed password coordinates resolved, remaining metrics/scrollbars TE5 |
+| Raw insertion/deletion, undo/redo, key navigation/clipboard, mouse, focus | Sections 6-10 and layout extension; TE3/TE4 domains/eviction and page/arrow arguments resolved; foreign composition results parked TE5 |
+| Line starts, metrics, painting, hit mapping, scrollbars | Sections 8-9 and layout extension; password coordinates, caret-in-view and AddScrollBar owner ordering specified; individual residual bodies remain TE8 |
 | Init/shutdown, images/font ownership, flags/messages | Section 10 specifies owner cleanup, including absent background-image release; foreign resource implementations remain boundaries |
 | Every label, folded alias, thin method and helper | Companion inventory and questions required; no credit beyond documented contracts |
+
+Final round 3/3 adds [byte helper contracts](text-edit-encoding.md) and
+[individual adapters/repair contracts](text-edit-adapters.md). TE1 is
+answered; TE5's exact foreign residual and TE8's remaining per-body gaps
+are **parked**. Preserve the original worktree. **No fourth round or
+automatic restart is authorized.** The 150-body attribution is not a
+150-body behavioral proof, and no whole-widget-family credit is claimed.
 
 Open contracts live in [questions/text-edit.md](questions/text-edit.md).

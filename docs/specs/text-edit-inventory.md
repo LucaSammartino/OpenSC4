@@ -13,23 +13,23 @@ Addresses and byte counts are metadata, not decompiler listings.
 
 | Address | Bytes | Export method label | Contract disposition |
 |---|---:|---|---|
-| 0x0091880E | 26 | GetTextLength | U; TE8 |
-| 0x0099357F | 7 | GetTextGutterX | U; TE8 |
-| 0x00993586 | 7 | GetTextGutterY | U; TE8 |
-| 0x00994A39 | 7 | GetText | U; TE8 |
-| 0x00994E6A | 7 | GetMaximumTextToAllow | U; TE8 |
-| 0x00994E7E | 7 | GetFirstVisibleLine | U; TE8 |
-| 0x00994E85 | 7 | GetLineHeight | U; TE8 |
+| 0x0091880E | 26 | GetTextLength | P; text-edit-adapters.md, output-string call (label is not signature) |
+| 0x0099357F | 7 | GetTextGutterX | P; text-edit-adapters.md, raw T+0x80 |
+| 0x00993586 | 7 | GetTextGutterY | P; text-edit-adapters.md, raw T+0x84 |
+| 0x00994A39 | 7 | GetText | P; text-edit-adapters.md, numeric byte length |
+| 0x00994E6A | 7 | GetMaximumTextToAllow | P; text-edit-adapters.md, raw maximum |
+| 0x00994E7E | 7 | GetFirstVisibleLine | P; text-edit-adapters.md, raw first visible |
+| 0x00994E85 | 7 | GetLineHeight | P; text-edit-adapters.md, raw line height |
 | 0x00994E8C | 45 | SetText | P; sections 2-5 |
-| 0x00994EB9 | 7 | GetCaption | U; TE8 |
-| 0x00994EC0 | 23 | SetCaption | U; TE8 |
+| 0x00994EB9 | 7 | GetCaption | P; text-edit-adapters.md, embedded original-string address |
+| 0x00994EC0 | 23 | SetCaption | P; text-edit-adapters.md, string setter/notify=false |
 | 0x00994ED7 | 13 | SetMaxUndoLevelCount | P; section 6, including no immediate pruning |
-| 0x00994FF2 | 10 | GetLineCount | U; TE8 |
+| 0x00994FF2 | 10 | GetLineCount | P; text-edit-adapters.md, vector count/no minimum |
 | 0x009BC5E1 | 45 | QueryInterface | P; section 1 (constructor sequence bounded) |
 | 0x009BC60E | 39 | ToggleCaretVisibility | P; sections 2-5 |
 | 0x009BC635 | 39 | MakeCaretVisible | P; sections 2-5 |
 | 0x009BC65C | 89 | StartCaretTimer | P; sections 2-5 |
-| 0x009BC6B5 | 35 | GZOnKeyUp | U; TE8 |
+| 0x009BC6B5 | 35 | GZOnKeyUp | P; text-edit-adapters.md, Escape message/return |
 | 0x009BC6D8 | 45 | GZOnMouseDownR | P/B; section 10; TE7 |
 | 0x009BC705 | 88 | GZOnMouseWheel | P/B; section 10; TE7 |
 | 0x009BC75D | 64 | GZOnSetFocus | P/B; section 10; TE7 |
@@ -52,14 +52,14 @@ Addresses and byte counts are metadata, not decompiler listings.
 | 0x009BCA6B | 50 | RemoveText | P/B; sections 6-7; TE3/TE4 |
 | 0x009BCA9D | 97 | RemoveText | P/B; sections 6-7; TE3/TE4 |
 | 0x009BCAFE | 22 | SetInsertMode | P; sections 2-5 |
-| 0x009BCB14 | 12 | GetInsertMode | U; TE8 |
-| 0x009BCB2E | 23 | GetInsertionLineAndColumn | U; TE8 |
-| 0x009BCB45 | 88 | SetCaretPeriod | U; TE8 |
-| 0x009BCB9D | 17 | GetCaretPeriod | U; TE8 |
-| 0x009BCBAE | 23 | GetSelection | U; TE8 |
+| 0x009BCB14 | 12 | GetInsertMode | P; text-edit-adapters.md, inverse overwrite bit |
+| 0x009BCB2E | 23 | GetInsertionLineAndColumn | P; text-edit-adapters.md, ordered unchecked output writes |
+| 0x009BCB45 | 88 | SetCaretPeriod | P; text-edit-adapters.md, unsigned bounds/flag reapply |
+| 0x009BCB9D | 17 | GetCaretPeriod | P; text-edit-adapters.md, unchecked output |
+| 0x009BCBAE | 23 | GetSelection | P; text-edit-adapters.md, stored endpoint write order |
 | 0x009BCBC5 | 73 | CalculateVisibleWidth | P/B; section 8; TE5 |
 | 0x009BCC0E | 73 | CalculateVisibleHeight | P/B; section 8; TE5 |
-| 0x009BCC57 | 29 | SetSoundID | U; TE8 |
+| 0x009BCC57 | 29 | SetSoundID | P; text-edit-adapters.md, signed upper-only index test |
 | 0x009BCC74 | 31 | StartScrollTimer | P; section 10, running-state gate and interval |
 | 0x009BCC93 | 28 | StopScrollTimer | P; section 10, running-state gate |
 | 0x009BCCAF | 31 | ScrollTimerCallback | P; section 10, nullable dispatcher boundary |
@@ -76,7 +76,7 @@ Addresses and byte counts are metadata, not decompiler listings.
 | 0x009BD2F9 | 129 | SetScrollBarImageHorizontal | P; section 10, reference/rectangle/callback order |
 | 0x009BD37A | 31 | SetCaretColor | U; TE8 |
 | 0x009BD399 | 32 | GetCaretColor | U; TE8 |
-| 0x009BD3B9 | 7 | GetFont | U; TE8 |
+| 0x009BD3B9 | 7 | GetFont | P; text-edit-adapters.md, borrowed raw font |
 | 0x009BD3C0 | 33 | SetFontColor | P; section 10, converted default color |
 | 0x009BD3E1 | 37 | SetFontColor | P; section 10, indexed conversion/dispatch |
 | 0x009BD406 | 65 | GetFontColor | P; section 10, success-only output write |
@@ -86,16 +86,16 @@ Addresses and byte counts are metadata, not decompiler listings.
 | 0x009BD4B4 | 48 | SetOutlineUse | P; section 10, bit/color and no invalidation |
 | 0x009BD4E4 | 44 | GetOutlineUse | P; section 10, bit and reverse-converted output |
 | 0x009BD510 | 68 | GetIndexFromPosition | U; TE8 |
-| 0x009BD554 | 63 | GetCharacterCountOfLine | U; TE8 |
+| 0x009BD554 | 63 | GetCharacterCountOfLine | P; text-edit-adapters.md, byte span including LF |
 | 0x009BD593 | 125 | GetLineAndColumnFromIndex | P; text-edit-layout.md, valid-index domain/LF branch |
 | 0x009BD610 | 94 | GetIndexFromLineAndColumn | P; text-edit-layout.md, whole-text clamp/status |
-| 0x009BD66E | 70 | SetInsertionIndex | U; TE8 |
-| 0x009BD6B4 | 102 | SetInsertionLineAndColumn | U; TE8 |
+| 0x009BD66E | 70 | SetInsertionIndex | P; text-edit-adapters.md, clamp/recompute/invalidate |
+| 0x009BD6B4 | 102 | SetInsertionLineAndColumn | P; text-edit-adapters.md, independent line/column clamps |
 | 0x009BD71A | 224 | IncrementInsertionPositionByComposedCharacter | P; text-edit-layout.md, signed selector predicate/helper domain |
 | 0x009BD7FA | 163 | IncrementInsertionPosition | P; text-edit-layout.md, 8/100 stepping and final clamp |
 | 0x009BD89D | 250 | IncrementInsertionPositionByWord | P; text-edit-layout.md, byte whitespace transitions |
 | 0x009BD997 | 91 | SetSelection | P; sections 2-5 |
-| 0x009BDA65 | 155 | FixInsertionPositionIfBroken | U; TE8 |
+| 0x009BDA65 | 155 | FixInsertionPositionIfBroken | P; text-edit-adapters.md, empty reset/active-only clamp |
 | 0x009BDB00 | 131 | GetPixelWidthOfLongestLine | P; text-edit-layout.md, original-text ranges and unsigned maximum |
 | 0x009BDB83 | 334 | GetHorizontalLineMetrics | P; text-edit-layout.md, exact boundary/width loops |
 | 0x009BDCD1 | 241 | SetScrollBarValues | P; text-edit-layout.md, ranges/division/callback order |
@@ -108,25 +108,25 @@ Addresses and byte counts are metadata, not decompiler listings.
 | 0x009BE009 | 90 | ScrollToEnd | U; TE8 |
 | 0x009BE063 | 70 | ScrollPageUp | P; text-edit-layout.md, native status/update domain |
 | 0x009BE0A9 | 104 | ScrollPageDown | P; text-edit-layout.md, signed gate/uncapped increment |
-| 0x009BE111 | 104 | ResizeWindowForExactLineHeights | U; TE8 |
+| 0x009BE111 | 104 | ResizeWindowForExactLineHeights | P; text-edit-adapters.md, unsigned division/minimum-one/zero-height failure |
 | 0x009BE179 | 192 | GetColumnFromPosition | P/B; section 8; TE5 |
 | 0x009BE239 | 162 | GetPositionFromLineAndColumn | P/B; section 8; TE5 |
-| 0x009BE2DB | 39 | GetText | U; TE8 |
+| 0x009BE2DB | 39 | GetText | P; text-edit-adapters.md, bounded copy/count/no NUL |
 | 0x009BE302 | 373 | PutInsertionPositionInView | P; text-edit-layout.md, signed three-quarter stepping/dirty gate |
 | 0x009BE477 | 413 | AddScrollBar | P; text-edit-layout.md, attempt gates/resource/failure/call order |
-| 0x009BE614 | 186 | FixBadCharacterComposition | U; TE8 |
+| 0x009BE614 | 186 | FixBadCharacterComposition | P/B; text-edit-adapters.md, owner erase/previous state; foreign UTF16/Thai (TE5) |
 | 0x009BE6CE | 225 | SelectCurrentWord | P; text-edit-layout.md, byte scans/existing endpoints/unsafe-end domain |
 | 0x009BE7AF | 179 | TestForPossibleScrollBarAdditionOrRemoval | P/B; section 8; TE5 |
 | 0x009BE862 | 227 | GZOnMouseDownL | P/B; section 10; TE7 |
-| 0x009BE945 | 37 | UpdateScrollBarsAndWindowPosition | U; TE8 |
+| 0x009BE945 | 37 | UpdateScrollBarsAndWindowPosition | P; text-edit-adapters.md, initialization gate/unconditional invalidate |
 | 0x009BE96A | 53 | FindText | U; TE8 |
-| 0x009BE99F | 16 | ShowWindow | U; TE8 |
+| 0x009BE99F | 16 | ShowWindow | P; text-edit-adapters.md, update before base show/hide |
 | 0x009BEA28 | 1850 | GZPaint | P/B; section 9; TE6 |
 | 0x009BF162 | 387 | GetLineAndColumnFromPosition | P; section 9, numeric/pixel/password branches |
 | 0x009BF2E5 | 80 | AdjustLinePositionArray | U; TE8 |
-| 0x009BF335 | 171 | RemoveBadCharacters | U; TE8 |
+| 0x009BF335 | 171 | RemoveBadCharacters | P/B; text-edit-adapters.md, LF chunk filtering/copy primitive boundary |
 | 0x009BF3E0 | 312 | CalculateAllLineLengths | P/B; section 8; TE5 |
-| 0x009BF578 | 63 | RemoveBadCharacters | U; TE8 |
+| 0x009BF578 | 63 | RemoveBadCharacters | P; text-edit-adapters.md, buffer delegation/resize |
 | 0x009BF5B7 | 447 | InsertText | P; section 6, lowered-limit selector/failure domains |
 | 0x009BF776 | 306 | RemoveChar | P; section 6, empty/invalid-position boundary |
 | 0x009BF8A8 | 227 | RemoveText | P/B; sections 6-7; TE3/TE4 |
