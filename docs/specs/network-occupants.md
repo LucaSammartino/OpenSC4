@@ -1195,9 +1195,13 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
   - C: all three y < 0: dropped. y = 0 exactly counts as inside (strict compare), so a triangle touching h only
     at vertices with y = 0 is emitted unchanged.
   - D: t is taken from the **outside** vertex. Take out.y = −1, in.y = 2. Then t = 1/3 (f32 0x3EAAAAAB), and
-    in.x = 3, out.x = 0 give x′ = 3·t = 1.0000000298… → f32 1.0. Computing from the inside vertex (t′ = 2/3)
-    instead gives 3 − 3·t′ in other roundings. An implementation must interpolate from the outside end to
-    match bit-for-bit.
+    in.x = 3, out.x = 0 give x′ = (in.x − out.x)·t + out.x = 3·t = 1.0000000298… → f32 1.0 (0x3F800000).
+    Anchoring on the inside vertex instead gives a different bit pattern. With t′ = (plane − in)/(out − in)
+    = f32 2/3 (0x3F2AAAAB), the weighted form in.x·(1 − t′) + out.x·t′ gives 1 − t′ = f32 0x3EAAAAAA, and
+    3 × that = 0.99999994 (0x3F7FFFFF), one ulp below the native 1.0. (The inside delta form 3 + (0 − 3)·t′
+    happens to round to 1.0 for this vector, but it is not the native order either.) To match bit-for-bit,
+    interpolate from the outside end exactly as rule 7 says: t from the outside vertex, stored as f32, then
+    (in − out)·t + out (0x00614490/0x00614170).
 
 ---
 
