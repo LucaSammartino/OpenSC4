@@ -26,3 +26,21 @@
 - **RZ8 - §3.5 ReadBinaryEntry odd length:** "An odd value length fails": the value's own length, or the
   converted count min(length, 2 x size)? (A 5-character value read into a 2-byte buffer.) The core checks the
   converted count in slot 8 and the value length in slot 9. [choice]
+
+<!-- from: core-rzdirectory4 (2026-10-22) -->
+- **RZ9 - §6.5 dot seen state without flag 4:** when flags 1/2 are set but flag 4 is clear, do actual
+  OS directory `.`/`..` matches mark the dot as seen before being skipped? This affects whether the
+  post-search synthesis prepends dots to the caller list. [literal reading implemented: the directory
+  is skipped without flag 4 before seen bookkeeping, so flags 1/2 synthesize dots for filter `*`]
+
+<!-- from: core-rzdirectory4 (2026-10-22) -->
+- **RZ10 - §6.7 SplitDirectoryPath length boundary:** does the 254-byte part limit apply before or
+  after appending a missing trailing separator? A 254-byte last component without its separator is
+  the distinguishing case. [literal resulting-part limit implemented, after adding the separator;
+  both output cells unchanged on failure]
+
+<!-- from: core-rzdirectory4 (2026-10-22) -->
+- **RZ11 - §6.7 CreateDirectory UNC prefix with no third backslash:** for input `\\server/`, the
+  trailing slash prevents appending a backslash, so there is no third backslash delimiting the
+  server prefix. Does scanning skip the entire remaining prefix and return true without any OS
+  find/create, or follow another path? [literal entire-server-prefix skip implemented]
