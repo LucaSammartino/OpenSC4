@@ -389,7 +389,10 @@ mod tests {
         assert_eq!(text_of(A | mem::RZ_CHAR, b"abc", 3), (1, b"abc".to_vec()));
         assert_eq!(text_of(mem::UINT32, &7u32.to_ne_bytes(), 1), (0, b"7".to_vec()));
         assert_eq!(text_of(mem::SINT32, &(-5i32).to_ne_bytes(), 1), (0, b"-5".to_vec()));
-        assert_eq!(text_of(A | mem::UINT32, &[5, 0, 0, 0, 9, 0, 0, 0], 2), (0, b"5".to_vec()));
+        assert_eq!(
+            text_of(A | mem::UINT32, &[5, 0, 0, 0, 9, 0, 0, 0], 2),
+            (0, b"5".to_vec())
+        );
         assert_eq!(text_of(A | mem::CHAR, b"12", 2), (0, b"12".to_vec()));
         assert_eq!(text_of(mem::FLOAT32, &2.75f32.to_ne_bytes(), 1), (0, b"2.75".to_vec()));
         assert_eq!(text_of(mem::EMPTY, &[], 0), (0, Vec::new()));
