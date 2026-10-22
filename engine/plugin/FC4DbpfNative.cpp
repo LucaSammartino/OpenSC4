@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <iterator>
 #include <map>
 #include <string>
 #include <vector>
@@ -31,6 +32,7 @@ struct Counts {
     unsigned files = 0, opened = 0, rejected = 0, refusal = 0, differ = 0;
     unsigned indexes = 0, records = 0, raw = 0, payload = 0, compressed = 0, empty = 0;
     unsigned zero = 0, one = 0, multi = 0, failed = 0;
+    unsigned listFalse = 0, keyDifferences = 0, countDifferences = 0;
 };
 
 // Validate interface table storage and every published method address against
@@ -159,7 +161,9 @@ void CompareFile(cIGZCOM* com, const std::string& path, bool natural, Counts& c)
                 else {
                     const bool listed = segment->GetResourceKeyList(*list);
                     std::vector<Key> actual;
-                    for (uint32_t i = 0; listed && i < list->Size(); ++i) {
+                    const uint32_t listSize = list->Size();
+                    const uint32_t recordCount = segment->GetRecordCount(nullptr);
+                    for (uint32_t i = 0; listed && i < listSize; ++i) {
                         const auto& k = list->GetKey(i); // borrowed reference; copy only
                         actual.push_back({k.type, k.group, k.instance});
                     }
@@ -167,7 +171,33 @@ void CompareFile(cIGZCOM* com, const std::string& path, bool natural, Counts& c)
                     std::vector<Key> expected;
                     for (const auto& pair : first) expected.push_back(pair.first);
                     ++c.indexes;
-                    if (!listed || actual != expected || segment->GetRecordCount(nullptr) != first.size())
+                    // EX55: the spec/SDK do not define empty-list return or DIR
+                    // visibility/count semantics. Keep the literal full index;
+                    // diagnose each predicate without fitting either output.
+                    const bool keysEqual = actual == expected;
+                    const bool countEqual = recordCount == first.size();
+                    c.listFalse += !listed;
+                    c.keyDifferences += !keysEqual;
+                    c.countDifferences += !countEqual;
+                    Log("dbpf native key-list: natural=%d path=%s listed=%d list_size=%u copied=%u expected=%u "
+                        "record_count=%u keys_equal=%d count_equal=%d",
+                        natural, path.c_str(), listed, listSize, static_cast<unsigned>(actual.size()),
+                        static_cast<unsigned>(expected.size()), recordCount, keysEqual, countEqual);
+                    if (!keysEqual) {
+                        std::vector<Key> missing, extra;
+                        std::set_difference(expected.begin(), expected.end(), actual.begin(), actual.end(),
+                                            std::back_inserter(missing));
+                        std::set_difference(actual.begin(), actual.end(), expected.begin(), expected.end(),
+                                            std::back_inserter(extra));
+                        Log("dbpf native key delta: path=%s missing=%u extra=%u", path.c_str(),
+                            static_cast<unsigned>(missing.size()), static_cast<unsigned>(extra.size()));
+                        for (size_t i = 0; i < std::min<size_t>(missing.size(), 4); ++i)
+                            Log("dbpf native missing key: %08X/%08X/%08X", missing[i][0], missing[i][1], missing[i][2]);
+                        for (size_t i = 0; i < std::min<size_t>(extra.size(), 4); ++i)
+                            Log("dbpf native extra key: %08X/%08X/%08X", extra[i][0], extra[i][1], extra[i][2]);
+                    }
+                    // Preserve the previous combined difference count per file.
+                    if (!listed || !keysEqual || !countEqual)
                         Difference(c, path.c_str(), "native-key-list");
                     FC4_RELEASE_CREATED(list);
                 }
@@ -237,9 +267,10 @@ void CompareFile(cIGZCOM* com, const std::string& path, bool natural, Counts& c)
 }
 void Summary(const char* origin, const Counts& c) {
     Log("dbpf native summary: origin=%s files=%u opened=%u rejected=%u zero=%u one=%u multi=%u indexes=%u "
-        "records=%u raw=%u payload=%u compressed=%u empty=%u failed=%u refusals=%u differences=%u fallback=0 resync=0",
+        "records=%u raw=%u payload=%u compressed=%u empty=%u failed=%u refusals=%u differences=%u fallback=0 resync=0 "
+        "list_false=%u key_differences=%u count_differences=%u",
         origin, c.files, c.opened, c.rejected, c.zero, c.one, c.multi, c.indexes, c.records, c.raw, c.payload,
-        c.compressed, c.empty, c.failed, c.refusal, c.differ);
+        c.compressed, c.empty, c.failed, c.refusal, c.differ, c.listFalse, c.keyDifferences, c.countDifferences);
 }
 } // namespace
 
@@ -247,6 +278,8 @@ void DbpfNativeCityLoaded() {
     static bool done = false;
     if (done || SettingInt("dbpf_native", nullptr, 0) == 0) return;
     done = true;
+    Log("dbpf native scope: model=production-Rust-Package transport=SDK-record-adapter "
+        "packed_owner=original-independent file_owner=unclaimed");
     auto* com = RZGetCOMDllDirector() ? GZCOM() : nullptr; // borrowed service
     if (!Interface(com, 4)) { Log("dbpf native refusal: unsupported COM image"); return; }
     const std::string dir = Setting("dbpf_native_fixtures", nullptr);

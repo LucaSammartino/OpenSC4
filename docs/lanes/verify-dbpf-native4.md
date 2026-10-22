@@ -9,7 +9,9 @@
 - Round1 production implementation d25b2ebd; report b3e8d72d; original attempts retained below and in build-runs.
 - Own profile: replacement clock24 only, dbpf_native=1; original packed-segment remains independently owned.
 - Current40: literal coordinator list from round2 brief; no terrain/effects substitutions.
-- Baseline qbuild all started (session60541); next inspect result and split combined list/count diagnostics.
+- Baseline qbuild all PASS cargo4962/clippy0/CTest68/68 (tree changed: handoff documentation); focused quick PASS cargo531/build4/4.
+- Split EX55 list status/key-vector/count diagnostics implemented; combined mismatch counting unchanged; scope log disclaims file ownership.
+- Next: commit diagnostics, freeze DLL/PDB, run own/current40 saved-fixture reload and verifier-off ref controls.
 - No round2 game request outstanding. Unique labels required; wait without qwait.
 - Round1 turbo and normal both natural60440/60440 + constructed10/10; three EX55 combined differences each; refusal0/failed0/fallback0/resync0.
 - No game-attempt cap: originalcap3 meant lane rounds, this is round2/3.
