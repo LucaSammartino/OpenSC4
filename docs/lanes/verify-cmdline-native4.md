@@ -21,10 +21,10 @@
 - Current40-b CLEAN2032-02-01, ref0, 123/123 exact; positive/negative observed for every search/switch/index method. Full SaveCity(full)11094ms on2032-01-06; PostSystemServiceShutdown reached. No other warnings/INCOMPLETE.
 - Immutable-b source92e01745; SHA256053BD7A077A43A31ACB065C3B985D792CD9FEBFADAA82B0E7A343D742621FABC. No engine changes since gate33596de3.
 - Native-b STALLED during scripted full save after2032-01-02, ref0, 123/123 exact, no query differences/failures. End-date separation did not resolve Konradshohe native save stall.
-- Next: documented Spandau native control cmdline4-r2-native-spandau-2032-c with identical immutable-b DLL/schedule. If clean, match current40 there; no watchdog/save code changes.
+- Spandau-c completed STALLED fallback after921s; 123/123 exact, ref0. Final game log shutdown at900s deadline, date before2032, watchdog_stalls1; no full save. Does not qualify as a native lifecycle pass.
 - Preserve CL1 extra slot, CL2 empty name, CL3 high bytes; no full 17-method claim.
-- Native-spandau-c IS OUTSTANDING in slot1 since19:57:02; first bounded wait540s expired without verdict. Do not submit another request or discard a completed result.
-- Next exact action: python build-runs/cmdline4-r2-wait.py build-runs/game-results/cmdline4-r2-native-spandau-2032-c.verdict; request timeout1050s. Current40-b and both native Konradshohe attempts complete.
+- All four requests complete. First Spandau bounded wait540s expired; second wait retained the returned verdict. No result discarded.
+- Next: probe-OFF native Konradshohe control cmdline4-r2-native-probeoff-2032-d, same immutable-b DLL/script, to isolate the native full-save failure from new queries. No source changes or watchdog overrides.
 - Required: immutable native/current40 controls, full save/shutdown to 2032, ref0, supported reload only.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-cmdline-native4-r2-manifest.json.
 
