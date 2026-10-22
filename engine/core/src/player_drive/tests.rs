@@ -74,10 +74,7 @@ impl Foreign {
         if self.fail == Some(name) {
             return Err(Unsupported::ForeignPrimitive);
         }
-        self.objects
-            .get(&a.0)
-            .cloned()
-            .ok_or(Unsupported::ForeignPrimitive)
+        self.objects.get(&a.0).cloned().ok_or(Unsupported::ForeignPrimitive)
     }
     fn clear(&mut self) {
         self.operations.clear();
@@ -90,15 +87,9 @@ impl Primitives for Foreign {
         match op {
             Operation::SimulatorPause => self.paused = true,
             Operation::SimulatorResume => self.paused = false,
-            Operation::State52 { automaton, words } => {
-                self.objects.get_mut(&automaton.0).unwrap().state = words[0]
-            }
-            Operation::State13 { automaton, value } => {
-                self.objects.get_mut(&automaton.0).unwrap().state = value
-            }
-            Operation::DriveByte229 { automaton, value } => {
-                self.objects.get_mut(&automaton.0).unwrap().byte = value
-            }
+            Operation::State52 { automaton, words } => self.objects.get_mut(&automaton.0).unwrap().state = words[0],
+            Operation::State13 { automaton, value } => self.objects.get_mut(&automaton.0).unwrap().state = value,
+            Operation::DriveByte229 { automaton, value } => self.objects.get_mut(&automaton.0).unwrap().byte = value,
             _ => (),
         }
         self.operations.push(op);
@@ -203,10 +194,7 @@ fn construction_has_literal_bits_and_empty_state() {
     assert_eq!(owner.camera_speed_bits(), 0x3D2C_0831);
     assert_eq!(owner.cell_scales(), (0x3F80_0000, 0x3F80_0000));
     assert_eq!(owner.toggles(), [false, false]);
-    assert_eq!(
-        (owner.current(), owner.hover(), owner.selected()),
-        (None, None, None)
-    );
+    assert_eq!((owner.current(), owner.hover(), owner.selected()), (None, None, None));
     assert_eq!(owner.mode(), Mode::Choosing);
     assert_eq!(owner.timer(), TimerState::Constructed);
 }
@@ -268,10 +256,7 @@ fn driving_projection_orders_raw_operations_and_resumes_conditionally() {
                 id: 0x1234,
                 start: true,
             },
-            Operation::EngineEvent {
-                event: 0,
-                start: true,
-            },
+            Operation::EngineEvent { event: 0, start: true },
             Operation::Gap(Unsupported::AudioTable),
             Operation::AcquireDriven(B),
             Operation::State52 {
@@ -330,21 +315,14 @@ fn drivable_form_gate_has_only_disaster_prefix_and_keeps_existing_current() {
 
 #[test]
 fn dashboard_selection_is_id_selection_only_and_preserves_zero_override() {
-    assert_eq!(
-        PlayerDrive::dashboard_selection(0x480E_6151, None),
-        0x6BE8_846C
-    );
+    assert_eq!(PlayerDrive::dashboard_selection(0x480E_6151, None), 0x6BE8_846C);
     assert_eq!(PlayerDrive::dashboard_selection(7, None), 0x0BE8_824F);
     assert_eq!(PlayerDrive::dashboard_selection(0x480E_6151, Some(5)), 5);
     assert_eq!(PlayerDrive::dashboard_selection(7, Some(0)), 0);
     let mut owner = PlayerDrive::new(99);
     let mut f = Foreign::default();
-    let result = owner
-        .enter_driving_mode(&mut f, A, CameraFields::default())
-        .unwrap();
-    assert!(
-        matches!(result, Progress::Partial(gaps) if gaps.contains(&Unsupported::DashboardWindowMissing))
-    );
+    let result = owner.enter_driving_mode(&mut f, A, CameraFields::default()).unwrap();
+    assert!(matches!(result, Progress::Partial(gaps) if gaps.contains(&Unsupported::DashboardWindowMissing)));
     assert!(!f
         .operations
         .iter()
@@ -377,14 +355,8 @@ fn accepted_network_pick_wins_in_choosing_and_driving() {
                 Operation::JunctionSelected(Some(Cell(3, 4)))
             ]
         );
-        assert_eq!(
-            f.queries,
-            ["pick_network", "accept42", "network_position", "cell"]
-        );
-        assert_eq!(
-            owner.current(),
-            if already_driving { Some(A) } else { None }
-        );
+        assert_eq!(f.queries, ["pick_network", "accept42", "network_position", "cell"]);
+        assert_eq!(owner.current(), if already_driving { Some(A) } else { None });
         assert_eq!(owner.selected(), Some(Cell(3, 4)));
     }
 }
@@ -401,15 +373,10 @@ fn rejected_network_pick_falls_back_to_automaton_only_when_not_driving() {
         owner.on_mouse_down_l(&mut f, P, CameraFields::default()),
         Ok(Progress::Partial(_))
     ));
-    assert_eq!(
-        &f.queries[..4],
-        ["pick_network", "accept42", "pick_auto", "form50"]
-    );
+    assert_eq!(&f.queries[..4], ["pick_network", "accept42", "pick_auto", "form50"]);
     assert_eq!(owner.current(), Some(B));
     f.clear();
-    owner
-        .on_mouse_down_l(&mut f, P, CameraFields::default())
-        .unwrap();
+    owner.on_mouse_down_l(&mut f, P, CameraFields::default()).unwrap();
     assert!(!f.queries.contains(&"pick_auto"));
     assert_eq!(
         f.operations,
@@ -419,10 +386,7 @@ fn rejected_network_pick_falls_back_to_automaton_only_when_not_driving() {
                 command: 7,
                 value: 1
             },
-            Operation::EngineEvent {
-                event: 4,
-                start: true
-            }
+            Operation::EngineEvent { event: 4, start: true }
         ]
     );
 }
@@ -444,9 +408,7 @@ fn flags_gate_independently_for_commands_and_mouse_drive_fields() {
         f.clear();
         owner.on_mouse_move(&mut f, P).unwrap();
         assert_eq!(
-            f.operations
-                .iter()
-                .any(|op| matches!(op, Operation::DriveMouse { .. })),
+            f.operations.iter().any(|op| matches!(op, Operation::DriveMouse { .. })),
             valid
         );
         assert_eq!(f.queries.contains(&"pick_auto"), !valid);
@@ -568,10 +530,7 @@ fn command9_toggles_only_boolean_raw_byte_after_command_setter() {
 fn autorepeat_suppresses_all_queries_and_escape_effects() {
     let (mut owner, mut f) = driving();
     for key in [0x41, 0x1B] {
-        assert_eq!(
-            owner.on_key_down(&mut f, key, 0x4000_0000),
-            Ok(Progress::Ignored)
-        );
+        assert_eq!(owner.on_key_down(&mut f, key, 0x4000_0000), Ok(Progress::Ignored));
         assert!(f.operations.is_empty());
         assert!(f.queries.is_empty());
         assert_eq!(owner.current(), Some(A));
@@ -587,9 +546,7 @@ fn mission_predicate_blocks_lookup_mouse_and_direct_commands_but_not_selection_c
     owner.apply_numeric_command(&mut f, 4, true).unwrap();
     owner.on_mouse_down_r(&mut f).unwrap();
     owner.on_mouse_up_r(&mut f).unwrap();
-    owner
-        .on_mouse_down_l(&mut f, P, CameraFields::default())
-        .unwrap();
+    owner.on_mouse_down_l(&mut f, P, CameraFields::default()).unwrap();
     assert!(!f.queries.contains(&"keymap14"));
     assert!(f.operations.is_empty());
     assert_eq!(owner.toggles(), [true, false]);
@@ -602,22 +559,13 @@ fn ordinary_keys_never_falsely_bypass_unpublished_key_effects() {
     let (mut owner, mut f) = driving();
     for command in [0, 4, 9, 13] {
         f.command = command;
-        assert_eq!(
-            owner.on_key_down(&mut f, 0x41, 0),
-            Err(Unsupported::HandleKeyEffects)
-        );
-        assert_eq!(
-            owner.on_key_up(&mut f, 0x41, 0),
-            Err(Unsupported::HandleKeyEffects)
-        );
+        assert_eq!(owner.on_key_down(&mut f, 0x41, 0), Err(Unsupported::HandleKeyEffects));
+        assert_eq!(owner.on_key_up(&mut f, 0x41, 0), Err(Unsupported::HandleKeyEffects));
     }
     assert!(f.queries.contains(&"keymap14"));
     assert!(f.operations.is_empty());
     f.command = 8;
-    assert_eq!(
-        owner.on_key_down(&mut f, 0x41, 0),
-        Err(Unsupported::KeyboardCommand8)
-    );
+    assert_eq!(owner.on_key_down(&mut f, 0x41, 0), Err(Unsupported::KeyboardCommand8));
     assert_eq!(
         owner.on_key_up(&mut f, 0x41, 0x4000_0000),
         Err(Unsupported::ReleaseRepeatPolicy)
@@ -629,9 +577,7 @@ fn mouse_release_and_right_button_keep_numeric_effects() {
     let (mut owner, mut f) = driving();
     f.network = Some(NetworkOccupant(55));
     f.accepted = true;
-    owner
-        .on_mouse_down_l(&mut f, P, CameraFields::default())
-        .unwrap();
+    owner.on_mouse_down_l(&mut f, P, CameraFields::default()).unwrap();
     f.clear();
     owner.on_mouse_up_l(&mut f).unwrap();
     assert_eq!(owner.selected(), None);
@@ -644,10 +590,7 @@ fn mouse_release_and_right_button_keep_numeric_effects() {
                 command: 7,
                 value: 0
             },
-            Operation::EngineEvent {
-                event: 4,
-                start: false
-            }
+            Operation::EngineEvent { event: 4, start: false }
         ]
     );
     f.clear();
@@ -691,10 +634,7 @@ fn stopping_state10_selects_slot13_or_slot53_using_only_published_bits() {
                 Operation::DispatchTrack(None),
                 Operation::VehicleManagerTrack(None),
                 Operation::ZoomLimits(0, 5),
-                Operation::EngineEvent {
-                    event: 0,
-                    start: false
-                },
+                Operation::EngineEvent { event: 0, start: false },
                 Operation::OccupantSound {
                     id: 0x1234,
                     start: false
@@ -702,10 +642,7 @@ fn stopping_state10_selects_slot13_or_slot53_using_only_published_bits() {
                 if special {
                     Operation::Slot53(A)
                 } else {
-                    Operation::State13 {
-                        automaton: A,
-                        value: 0,
-                    }
+                    Operation::State13 { automaton: A, value: 0 }
                 },
                 Operation::ReleaseDriven(A)
             ]
@@ -723,10 +660,7 @@ fn end_input_and_escape_order_callbacks_slot18_cleanup_and_base_stack_removal() 
     let (mut owner, mut f) = driving();
     owner.add_callback_target(CallbackTarget(66)).unwrap();
     f.objects.get_mut(&11).unwrap().slot18 = true;
-    assert!(matches!(
-        owner.on_key_down(&mut f, 0x1B, 0),
-        Ok(Progress::Partial(_))
-    ));
+    assert!(matches!(owner.on_key_down(&mut f, 0x1B, 0), Ok(Progress::Partial(_))));
     assert_eq!(
         f.operations,
         [
@@ -736,18 +670,12 @@ fn end_input_and_escape_order_callbacks_slot18_cleanup_and_base_stack_removal() 
                 tool: 99,
                 values: [RawValue::Known(1), RawValue::Unpublished]
             },
-            Operation::State13 {
-                automaton: A,
-                value: 0
-            },
+            Operation::State13 { automaton: A, value: 0 },
             Operation::Callback40(A),
             Operation::DispatchTrack(None),
             Operation::VehicleManagerTrack(None),
             Operation::ZoomLimits(0, 5),
-            Operation::EngineEvent {
-                event: 0,
-                start: false
-            },
+            Operation::EngineEvent { event: 0, start: false },
             Operation::OccupantSound {
                 id: 0x1234,
                 start: false
@@ -851,10 +779,7 @@ fn hover_terrain_and_valid_drive_mouse_paths_use_individual_foreign_queries() {
     owner.on_mouse_move(&mut f, P).unwrap();
     assert_eq!(
         f.operations,
-        [
-            Operation::JunctionHover(None),
-            Operation::ClearCursorText(0xAB73_510C)
-        ]
+        [Operation::JunctionHover(None), Operation::ClearCursorText(0xAB73_510C)]
     );
     assert_eq!(owner.hover(), None);
     let (mut owner, mut f) = driving();
@@ -864,18 +789,12 @@ fn hover_terrain_and_valid_drive_mouse_paths_use_individual_foreign_queries() {
         f.operations,
         [
             Operation::JunctionHover(Some(Cell(3, 4))),
-            Operation::DriveMouse {
-                automaton: A,
-                at: P
-            }
+            Operation::DriveMouse { automaton: A, at: P }
         ]
     );
     f.clear();
     f.objects.get_mut(&11).unwrap().present = false;
-    assert_eq!(
-        owner.on_mouse_move(&mut f, P),
-        Err(Unsupported::MissingDriveState)
-    );
+    assert_eq!(owner.on_mouse_move(&mut f, P), Err(Unsupported::MissingDriveState));
     assert_eq!(f.operations, [Operation::JunctionHover(Some(Cell(3, 4)))]);
 }
 
@@ -905,7 +824,7 @@ fn raw_buttons_messages_and_unsupported_dashboard_model_policies_are_visible() {
             Operation::WindowEnabled {
                 window: W,
                 id: 0xE992_0494,
-                enabled: false
+                enabled: true
             }
         ]
     );
@@ -915,43 +834,22 @@ fn raw_buttons_messages_and_unsupported_dashboard_model_policies_are_visible() {
         Err(Unsupported::UpdateGauges)
     );
     for id in [0xAC1F_0449, 0xAC1F_045D, 0xCC1F_0457] {
-        assert_eq!(
-            owner.do_message(&mut f, id, None, 0),
-            Err(Unsupported::PanelPolicy)
-        );
+        assert_eq!(owner.do_message(&mut f, id, None, 0), Err(Unsupported::PanelPolicy));
     }
     assert_eq!(
         owner.do_message(&mut f, 0x09D9_2FC3, Some(A), 0xB),
         Err(Unsupported::AlternateModel)
     );
-    assert_eq!(
-        f.operations,
-        [Operation::EngineEvent {
-            event: 0,
-            start: false
-        }]
-    );
+    assert_eq!(f.operations, [Operation::EngineEvent { event: 0, start: false }]);
     assert_eq!(owner.timer(), TimerState::RestartBlocked);
     f.clear();
     owner.do_message(&mut f, 0x09D9_2FC3, Some(A), 0xD).unwrap();
     assert!(f.operations.is_empty());
     f.objects.get_mut(&11).unwrap().present = false;
     owner.do_message(&mut f, 0x09D9_2FC3, Some(A), 0xD).unwrap();
-    assert_eq!(
-        f.operations,
-        [Operation::EngineEvent {
-            event: 0,
-            start: false
-        }]
-    );
-    assert_eq!(
-        owner.do_win_proc_message(&mut f, 0),
-        Err(Unsupported::UnknownButton)
-    );
-    assert_eq!(
-        owner.do_message(&mut f, 0, None, 0),
-        Err(Unsupported::UnknownMessage)
-    );
+    assert_eq!(f.operations, [Operation::EngineEvent { event: 0, start: false }]);
+    assert_eq!(owner.do_win_proc_message(&mut f, 0), Err(Unsupported::UnknownButton));
+    assert_eq!(owner.do_message(&mut f, 0, None, 0), Err(Unsupported::UnknownMessage));
     assert_eq!(owner.init(), Err(Unsupported::NativeInit));
     assert_eq!(owner.shutdown(), Err(Unsupported::NativeShutdown));
 }
@@ -960,10 +858,7 @@ fn raw_buttons_messages_and_unsupported_dashboard_model_policies_are_visible() {
 fn failures_preserve_emitted_prefix_and_never_invent_reference_cleanup() {
     let (mut owner, mut f) = driving();
     f.fail = Some("property");
-    assert_eq!(
-        owner.stop_tracking(&mut f),
-        Err(Unsupported::ForeignPrimitive)
-    );
+    assert_eq!(owner.stop_tracking(&mut f), Err(Unsupported::ForeignPrimitive));
     assert_eq!(owner.current(), Some(A));
     assert_eq!(
         f.operations,
@@ -972,26 +867,20 @@ fn failures_preserve_emitted_prefix_and_never_invent_reference_cleanup() {
             Operation::DispatchTrack(None),
             Operation::VehicleManagerTrack(None),
             Operation::ZoomLimits(0, 5),
-            Operation::EngineEvent {
-                event: 0,
-                start: false
-            }
+            Operation::EngineEvent { event: 0, start: false }
         ]
     );
     // No guessed release or rollback after a failed foreign primitive.
     f.fail = None;
     f.objects.get_mut(&11).unwrap().sound = None;
     f.clear();
-    assert_eq!(
-        owner.stop_tracking(&mut f),
-        Err(Unsupported::MissingSoundProperty)
-    );
+    assert_eq!(owner.stop_tracking(&mut f), Err(Unsupported::MissingSoundProperty));
     assert_eq!(owner.current(), Some(A));
 }
 
 #[test]
 fn raw_camera_values_keep_bits_and_reject_undefined_subtraction_domains() {
-    for zoom in [0, -1, i32::MIN] {
+    for zoom in [0, -1, i32::MIN, i32::MAX, 7] {
         let mut owner = PlayerDrive::new(99);
         let mut f = Foreign::default();
         assert_eq!(
@@ -1025,4 +914,53 @@ fn raw_camera_values_keep_bits_and_reject_undefined_subtraction_domains() {
     assert!(f.operations.contains(&Operation::ZoomLimits(1, 5)));
     assert!(f.operations.contains(&Operation::Zoom(2)));
     assert_eq!(owner.camera_speed_bits(), 0x7FC0_1234); // No float normalization.
+}
+
+#[test]
+fn command_and_window_domains_do_not_invent_missing_resources_or_meanings() {
+    let (mut owner, mut f) = driving();
+    owner.attach_dashboard_window(None);
+    for command in [2, 3] {
+        assert_eq!(
+            owner.apply_numeric_command(&mut f, command, true),
+            Err(Unsupported::DashboardWindowMissing)
+        );
+    }
+    assert!(f.operations.is_empty());
+    assert_eq!(owner.apply_numeric_command(&mut f, 13, true), Ok(Progress::Ignored));
+    assert_eq!(
+        owner.apply_numeric_command(&mut f, 14, false),
+        Err(Unsupported::UnknownCommand)
+    );
+    assert_eq!(
+        owner.do_message(&mut f, 0xA6B7_9602, None, 0),
+        Err(Unsupported::DashboardWindowMissing)
+    );
+    assert!(f.operations.is_empty());
+    f.objects.get_mut(&11).unwrap().group = 0x4003;
+    assert_eq!(
+        owner.on_mouse_down_l(&mut f, P, CameraFields::default()),
+        Ok(Progress::Ignored)
+    );
+    assert!(f.operations.is_empty());
+}
+
+#[test]
+fn choosing_after_driving_finishes_tracking_before_pause_and_drops_hover_identity() {
+    let (mut owner, mut f) = driving();
+    assert!(matches!(owner.enter_choosing_mode(&mut f), Ok(Progress::Partial(_))));
+    assert_eq!(f.operations[7], Operation::ReleaseDriven(A));
+    assert_eq!(
+        &f.operations[8..],
+        [
+            Operation::ClearCursorText(0xAB73_510C),
+            Operation::SimulatorPause,
+            Operation::ManagerPause(43),
+            Operation::ManagerPause(44),
+            Operation::ManagerPause(45),
+            Operation::ManagerPause(46)
+        ]
+    );
+    assert_eq!(owner.current(), None);
+    assert_eq!(owner.hover(), None);
 }

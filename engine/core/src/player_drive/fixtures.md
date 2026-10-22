@@ -18,5 +18,5 @@ Source: drive-tool sections 1-10 only. These are independent expected sequences,
 - Removed identity other than current: nothing. Matching: StopTracking then EndInput. Callback code3 routes same identity gate. CodeB/D for unrelated identity must not stop current audio.
 - Callback plan: target order, message0BB324BD, tool identity and exactly supplied two raw values; no guessed second EndInput value or target ownership. Reentrant delivery unsupported.
 - Buttons: 4C1A5CC9=>CC1F0457; 2C16C9CB=>AC1F0449; 4992046A=>6A935CB7; E9920494=>6A935CBA. Unknown buttons Unsupported.
-- Animation86AD10EE=>Update Unsupported; panel AC1F0449/AC1F045D/CC1F0457 => Unsupported (direction/IDs absent); A6B79602=>known zoom-button enable operations only. CodeB alternate-model argument absent => Unsupported, not guessed.
+- Animation86AD10EE=>Update Unsupported; panel AC1F0449/AC1F045D/CC1F0457 => Unsupported (direction/IDs absent); A6B79602=>both zoom buttons re-enabled literally (DR7), unlike entry's CanZoomIn/Out queries. CodeB alternate-model argument absent => Unsupported, not guessed.
 - No tests claim native lifetime, ShowUI, gauges, state10 implementation, audio engine logic, camera tracking cadence, or complete owner conformance.

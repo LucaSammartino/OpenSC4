@@ -340,11 +340,7 @@ impl PlayerDrive {
 
     pub fn dashboard_selection(kind: u32, property: Option<u32>) -> u32 {
         // DR4: literal presence override, including zero; no resource fallback.
-        property.unwrap_or(if kind == 0x480E_6151 {
-            0x6BE8_846C
-        } else {
-            0x0BE8_824F
-        })
+        property.unwrap_or(if kind == 0x480E_6151 { 0x6BE8_846C } else { 0x0BE8_824F })
     }
 
     /// Executes only the published portable projection. Gaps are emitted at
@@ -390,14 +386,8 @@ impl PlayerDrive {
         let sound = host
             .property(a, SOUND_PROPERTY)?
             .ok_or(Unsupported::MissingSoundProperty)?;
-        host.emit(Operation::OccupantSound {
-            id: sound,
-            start: true,
-        });
-        host.emit(Operation::EngineEvent {
-            event: 0,
-            start: true,
-        });
+        host.emit(Operation::OccupantSound { id: sound, start: true });
+        host.emit(Operation::EngineEvent { event: 0, start: true });
         host.emit(Operation::Gap(Unsupported::AudioTable));
         host.emit(Operation::AcquireDriven(a));
         self.current = Some(a);
@@ -439,10 +429,7 @@ impl PlayerDrive {
         host.emit(Operation::DispatchTrack(None));
         host.emit(Operation::VehicleManagerTrack(None));
         host.emit(Operation::ZoomLimits(0, 5));
-        host.emit(Operation::EngineEvent {
-            event: 0,
-            start: false,
-        });
+        host.emit(Operation::EngineEvent { event: 0, start: false });
         let sound = host
             .property(a, SOUND_PROPERTY)?
             .ok_or(Unsupported::MissingSoundProperty)?;
@@ -452,10 +439,7 @@ impl PlayerDrive {
         });
         if host.state(a)? == 0x10 {
             if host.flags31(a)? & 0x0800_0000 == 0 && host.group(a)? != 0x4003 {
-                host.emit(Operation::State13 {
-                    automaton: a,
-                    value: 0,
-                });
+                host.emit(Operation::State13 { automaton: a, value: 0 });
             } else {
                 host.emit(Operation::Slot53(a));
             }
@@ -483,12 +467,7 @@ impl PlayerDrive {
             });
         }
     }
-    pub fn send_callback_message(
-        &self,
-        host: &mut impl Primitives,
-        first: u32,
-        second: u32,
-    ) -> Result {
+    pub fn send_callback_message(&self, host: &mut impl Primitives, first: u32, second: u32) -> Result {
         self.callback_plans(host, [RawValue::Known(first), RawValue::Known(second)]);
         Ok(Progress::Partial(vec![Unsupported::CallbackDelivery]))
     }
@@ -497,10 +476,7 @@ impl PlayerDrive {
         self.callback_plans(host, [RawValue::Known(1), RawValue::Unpublished]);
         if let Some(a) = self.current {
             if host.slot18(a)? {
-                host.emit(Operation::State13 {
-                    automaton: a,
-                    value: 0,
-                });
+                host.emit(Operation::State13 { automaton: a, value: 0 });
             }
         }
         self.stop_tracking(host)?;
@@ -524,11 +500,7 @@ impl PlayerDrive {
     pub fn pick_automaton(&self, host: &mut impl Primitives, at: Pixel) -> Raw<Option<Automaton>> {
         host.renderer_pick_automaton(at, 0xA9B4_0F05)
     }
-    pub fn pick_network_occupant(
-        &self,
-        host: &mut impl Primitives,
-        at: Pixel,
-    ) -> Raw<Option<NetworkOccupant>> {
+    pub fn pick_network_occupant(&self, host: &mut impl Primitives, at: Pixel) -> Raw<Option<NetworkOccupant>> {
         host.renderer_pick_network(at, 0xA821_EF94)
     }
     pub fn on_mouse_move(&mut self, host: &mut impl Primitives, at: Pixel) -> Result {
@@ -552,12 +524,7 @@ impl PlayerDrive {
             Ok(Progress::Partial(vec![Unsupported::HoverOwnershipAndText]))
         }
     }
-    pub fn on_mouse_down_l(
-        &mut self,
-        host: &mut impl Primitives,
-        at: Pixel,
-        camera: CameraFields,
-    ) -> Result {
+    pub fn on_mouse_down_l(&mut self, host: &mut impl Primitives, at: Pixel, camera: CameraFields) -> Result {
         if let Some(n) = self.pick_network_occupant(host, at)? {
             if host.network_slot42(n)? {
                 let position = host.network_position(n)?;
@@ -607,12 +574,7 @@ impl PlayerDrive {
     /// Owned numeric table, deliberately separate from unpublished key effects.
     /// 8 is exposed for the published mouse path, not asserted as a key row.
     /// The input gate belongs here too so direct numeric use cannot bypass it.
-    pub fn apply_numeric_command(
-        &mut self,
-        host: &mut impl Primitives,
-        command: u32,
-        down: bool,
-    ) -> Result {
+    pub fn apply_numeric_command(&mut self, host: &mut impl Primitives, command: u32, down: bool) -> Result {
         if !self.is_drive_auto_valid(host)? {
             return Ok(Progress::Ignored);
         }
@@ -628,13 +590,7 @@ impl PlayerDrive {
         let a = self.current.expect("validity requires a current automaton");
         self.command_effects(host, a, command, down)
     }
-    fn command_effects(
-        &mut self,
-        host: &mut impl Primitives,
-        a: Automaton,
-        command: u32,
-        down: bool,
-    ) -> Result {
+    fn command_effects(&mut self, host: &mut impl Primitives, a: Automaton, command: u32, down: bool) -> Result {
         let mut value = u32::from(down);
         let mut byte = None;
         if command == 9 && down {
@@ -659,11 +615,7 @@ impl PlayerDrive {
             let window = self.dashboard.ok_or(Unsupported::DashboardWindowMissing)?;
             host.emit(Operation::WindowLight {
                 window,
-                id: if command == 2 {
-                    0x8BCB_93FC
-                } else {
-                    0x6BCB_93F5
-                },
+                id: if command == 2 { 0x8BCB_93FC } else { 0x6BCB_93F5 },
                 on: down,
             });
         }
@@ -673,10 +625,7 @@ impl PlayerDrive {
             value,
         });
         if let Some(value) = byte {
-            host.emit(Operation::DriveByte229 {
-                automaton: a,
-                value,
-            });
+            host.emit(Operation::DriveByte229 { automaton: a, value });
         }
         let sound = match command {
             0 => Some(1),
@@ -751,16 +700,23 @@ impl PlayerDrive {
         });
         Ok(Progress::Applied)
     }
-    pub fn do_message(
-        &mut self,
-        host: &mut impl Primitives,
-        id: u32,
-        sender: Option<Automaton>,
-        code: u32,
-    ) -> Result {
+    fn reenable_zoom_buttons(&self, host: &mut impl Primitives) -> Result {
+        let window = self.dashboard.ok_or(Unsupported::DashboardWindowMissing)?;
+        // DR7: literal "re-enables" in section 7, unlike section 3's queries.
+        for id in [0x4992_046A, 0xE992_0494] {
+            host.emit(Operation::WindowEnabled {
+                window,
+                id,
+                enabled: true,
+            });
+        }
+        Ok(Progress::Applied)
+    }
+
+    pub fn do_message(&mut self, host: &mut impl Primitives, id: u32, sender: Option<Automaton>, code: u32) -> Result {
         match id {
             0x86AD_10EE => self.update(),
-            0xA6B7_9602 => self.enable_zoom_buttons(host),
+            0xA6B7_9602 => self.reenable_zoom_buttons(host),
             0xAC1F_0449 | 0xAC1F_045D | 0xCC1F_0457 => Err(Unsupported::PanelPolicy),
             0x09D9_2FC3 => {
                 // DR6: do not apply another automaton's notification to ours.
@@ -770,10 +726,7 @@ impl PlayerDrive {
                 match code {
                     3 => self.automaton_removed(host, a),
                     0xB => {
-                        host.emit(Operation::EngineEvent {
-                            event: 0,
-                            start: false,
-                        });
+                        host.emit(Operation::EngineEvent { event: 0, start: false });
                         self.timer = TimerState::RestartBlocked;
                         Err(Unsupported::AlternateModel)
                     }
@@ -781,10 +734,7 @@ impl PlayerDrive {
                         if host.drive_state_present(a)? {
                             return Ok(Progress::Ignored);
                         }
-                        host.emit(Operation::EngineEvent {
-                            event: 0,
-                            start: false,
-                        });
+                        host.emit(Operation::EngineEvent { event: 0, start: false });
                         Ok(Progress::Applied)
                     }
                     _ => Err(Unsupported::UnknownMessage),

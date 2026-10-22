@@ -5,11 +5,12 @@
 ## Handoff
 - Goal: first portable player-drive owner from drive-tool sections 1-10; no native/ABI work.
 - Done: audit/questions/literal fixtures committed as 1ebdc0a1 before implementation.
-- Done: production owner and 24 discriminating tests drafted; unregistered until baseline all finishes so it remains a baseline.
+- Done: production owner and discriminating tests committed df9c801a; unregistered until baseline all finishes so it remains a baseline.
 - Next: collect baseline operation (exec session 44795), register module, commit, run absolute fmt and serial quick/final all.
 - q.py cannot start Bash (E_ACCESSDENIED); use bounded PowerShell commands.
-- Process inventory via CIM denied; psutil unavailable; Get-Process measured active process IDs/start times/handles. No existing local qbuild/fc4verify logs before baseline; no duplicate check started.
-- Baseline all started once; local qbuild-test.log shows compilation only at last observation. Do not launch another build while it is active.
+- Process inventory: native command-line/handle query succeeded: baseline qbuild PID37080 (102 handles), attributable fc4-core test compiler PID8136 (126 handles); compiler later completed. No duplicate check started.
+- Baseline all started once; Rust summaries now present; collect operation/logs before any quick/final build. Initial operation exec session44795.
+- Formatting: first new-file check failed (wrong formatter config, 985 diff lines); corrected new files using engine/rustfmt.toml via apply_patch. Untouched lib.rs baseline fmt fails 171 diff lines (pre-existing module order); do not broadly reformat it.
 - No game requests; no ABI changes. DR1/DR2 remain unresolved.
 
 ## Pre-implementation method audit
