@@ -1,0 +1,14 @@
+# glyph-textures.md §§1.4,7.2. Literal inputs and expected stored dimensions.
+# width height texture_width texture_height
+61 13 64 16
+62 14 64 16
+63 15 128 32
+0 0 2 2
+1 1 4 4
+2 2 4 4
+3 3 8 8
+126 30 128 32
+127 31 256 64
+32766 32766 32768 32768
+# GT3 literal u16 field assignment, not an independently confirmed native edge.
+32767 32767 0 0
