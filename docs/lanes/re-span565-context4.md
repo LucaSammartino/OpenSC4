@@ -10,3 +10,7 @@
 - Next: dump context vtable `0x00AC17D0` from bin/SimCity4.exe (build-runs/vt.py), read setter bodies.
 - Facts: shared proof already in span-render-1555.md §1.1 (draw system slot 4 `0x0082BAB0` thiscall RET 8,
   Shutdown `0x0082FF20`, DrawPreclippedSpanList slot 22, SetGradientTransform slot 12).
+
+
+## Coordinator quota pause (2026-10-22)
+Provider weekly limit; resets 18:00 Europe/London. This round stopped. Existing work is preserved as WIP, not ready or verified. Resume only after the provider limit clears and fresh slots/check --resume pass; the round still counts.
