@@ -1,8 +1,21 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-citydetail-reload4: city detail reload validation | `verify-citydetail-reload4` / engine lane | blocked at published capture boundary; CD8 filed; no engine/ABI changes; cargo/clippy/ctest n/a; no game requests or new coverage | 1. Publish the acquisition/call/lifetime boundary requested in CD8. 2. Resume independent reduction and both save/reload directions under a new authorized validation round. |
+| verify-citydetail-reload4: CD7 persistence validation | `verify-citydetail-reload4` / engine lane, detached HEAD | in progress; final logical round 3/3; CD6/CD8 retained; no engine/ABI changes | 1. Locate gated immutable DLL and supported save fixtures. 2. Measure both save/reload directions or precise persistence blocker. 3. Report and park. |
 
-## Result
+## Handoff
+
+- Goal: narrowed CD7 native-save/replacement-reload and replacement-save/native-reload validation; no CD8 reduction work.
+- Start: HEAD 63b0c2bd; previous round stopped at CD8 boundary without runtime checks.
+- Done: reused reserved detached worktree; working tree initially clean; no refs/config changed.
+- Next: inspect persistence spec, harness fixture/save contract, prior immutable DLL/gate evidence and supported fixtures.
+- Reuse already gated immutable DLL if citydetail code unchanged; task explicitly forbids blind baseline rebuild.
+- Preserve actual DBPF SHA256, 8-byte records, original/reference controls, shutdown/ref0; no Documents writes.
+- No new request outstanding. New game labels must be unique; wait without qwait.
+- q.py fails with Bash E_ACCESSDENIED; use capped native PowerShell for read-only shell work.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-citydetail-reload4-r2-manifest.json.
+- No subagents, RE, tools scripts, ABI/default/map edits, merge/push/restart, or fourth round.
+
+## Prior round (superseded scope; evidence retained)
 
 Stopped at the task's initial boundary audit, within 15 tool calls. No plugin change was justified by a fully published safe native reduction capture boundary. The lane preserves the existing implementation and makes no new coverage claim.
 
