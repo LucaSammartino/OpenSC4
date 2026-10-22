@@ -1951,10 +1951,13 @@ va	name	source	confidence	note
 004bde30	cSC4ViewInputControlLevelTerrain::OnMouseMove	manual:view-input-controls.tsv	high	view-input-controls.md Â§3
 004bdf00	cSCParticleSimulatorBase::AddRef	auto:D	low	mac 004bcb80 score 0.5 support 1
 004bdf10	icf::cSC4ViewInputControlPlaceLot::QueryInterface	folded	folded	2 names: cSC4ViewInputControlPlaceLot::QueryInterface | cSC4ViewInputControlQuery::QueryInterface
+004bdf70	cSC4PlaceLotDemolishFilter::cSC4PlaceLotDemolishFilter	manual:plop-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §3.12; keeps power poles and lines
 004bdf90	cSC4OccupantFilter::IsOccupantIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.1; IsOccupantTypeIncluded(GetType())
+004bdfb0	cSC4PlaceLotDemolishFilter::IsOccupantTypeIncluded	manual:plop-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §3.12; not 0x2890D4DE or 0x0990B2EA
 004be0a0	cSC4ViewInputControlPlaceLot::DoPlopRingEffectFinished	auto:B1	medium	mac 002d417c score 0.921 support 2.0
 004be0c0	cSC4LotConfigurationFilterMonopoly::cSC4LotConfigurationFilterMonopoly	auto:D	medium	mac 006f8b1e score 0.5 support 1
 004be100	cSC4LotConfigurationFilterByBuildingType::cSC4LotConfigurationFilterByBuildingType	auto:B0	medium	mac 006f8ae4 score 0.945 support 2.0
+004be150	cSC4ViewInputControlPlaceLot::AddPlopAuraEffect	manual:plop-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §3.12; aura slot 6 with type 2
 004be180	cSC4ViewInputControlPlaceLot::SetPropOccupantDrawAttributes	auto:B0	medium	mac 002d5d4c score 0.947 support 2.0
 004be5d0	cSC4ViewInputControlPlaceLot::GetLotFacingStreetCount	auto:B3	medium	mac 002d4264 score 0.998 support 1.0
 004be750	cSC4ViewInputControlPlaceLot::GetLotCenterAndCellCoverage	auto:B0	medium	mac 002d43d0 score 0.999 support 4.0

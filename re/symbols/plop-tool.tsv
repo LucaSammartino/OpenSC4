@@ -1,0 +1,30 @@
+va	name	evidence	mac_x86
+004bdf70	cSC4PlaceLotDemolishFilter::cSC4PlaceLotDemolishFilter	city-tools-input.md descriptive name, no Mac match; §3.12; keeps power poles and lines	
+004bdfb0	cSC4PlaceLotDemolishFilter::IsOccupantTypeIncluded	city-tools-input.md descriptive name, no Mac match; §3.12; not 0x2890D4DE or 0x0990B2EA	
+004be0a0	cSC4ViewInputControlPlaceLot::DoPlopRingEffectFinished	city-tools-input.md §3.4	
+004be150	cSC4ViewInputControlPlaceLot::AddPlopAuraEffect	city-tools-input.md descriptive name, no Mac match; §3.12; aura slot 6 with type 2	
+004be180	cSC4ViewInputControlPlaceLot::SetPropOccupantDrawAttributes	city-tools-input.md §3.14 (summary)	
+004be5d0	cSC4ViewInputControlPlaceLot::GetLotFacingStreetCount	city-tools-input.md §3.11; avenue 4, road 2, street 1	
+004be750	cSC4ViewInputControlPlaceLot::GetLotCenterAndCellCoverage	city-tools-input.md §3.9; odd sizes centre on the cell, even on the corner	
+004beab0	cSC4ViewInputControlPlaceLot::CanDemolishLot	city-tools-input.md §3.10; dry-run DemolishRegion, flags 0x2800	
+004beb70	cSC4ViewInputControlPlaceLot::GetAutomaticFacingAndCellCoverage	city-tools-input.md §3.11; keep the facing unless 4 points better	
+004beef0	cSC4ViewInputControlPlaceLot::DoUserLotConfigurationTypePick	city-tools-input.md §3.2; 'Lot Plop' list	
+004bf2f0	cSC4ViewInputControlPlaceLot::DoUserBuildingTypePick	city-tools-input.md §3.2	
+004bf6b0	cSC4ViewInputControlPlaceLot::SeekCompatibleNetworks	city-tools-input.md §3.13 (summary)	
+004bfb30	cSC4ViewInputControlPlaceLot::PickTollBoothLotAndOrientation	city-tools-input.md §3.13 (summary); configuration 0xEBF9A440	
+004c0070	cSC4ViewInputControlPlaceLot::~cSC4ViewInputControlPlaceLot	city-tools-input.md §3.1	
+004c0090	cSC4ViewInputControlPlaceLot::ReleaseLotConfigurationEffects	city-tools-input.md §3.3	
+004c0300	cSC4ViewInputControlPlaceLot::Shutdown	city-tools-input.md §3.3	
+004c0430	cSC4ViewInputControlPlaceLot::cSC4ViewInputControlPlaceLot	city-tools-input.md §3.1; cost cache -100000, 1000 plops	
+004c0680	cSC4ViewInputControlPlaceLot::GetBuildingPreviewModel	city-tools-input.md §3.14 (summary)	
+004c1110	cSC4ViewInputControlPlaceLot::CanPlaceLot	city-tools-input.md §3.10; CanCreatePloppedLot, then CanDemolishLot	
+004c1360	cSC4ViewInputControlPlaceLot::ChangeLotConfiguration	city-tools-input.md §3.7	
+004c13e0	cSC4ViewInputControlPlaceLot::Init	city-tools-input.md §3.2; id 0x88F154FB, candidates, plop cost	
+004c1740	cSC4ViewInputControlPlaceLot::PlaceLot	city-tools-input.md §3.12	
+004c2090	cSC4ViewInputControlPlaceLot::SetConstraintFeedback	city-tools-input.md §3.14 (summary)	
+004c2660	cSC4ViewInputControlPlaceLot::SetVisualUserFeedback	city-tools-input.md §3.14 (summary)	
+004c2f20	cSC4ViewInputControlPlaceLot::DoMessage	city-tools-input.md §3.4	
+004c3060	cSC4ViewInputControlPlaceLot::OnKeyDown	city-tools-input.md §3.5; rotate commands 0x6A935CD5, 0x6A935CD1	
+004c3120	cSC4ViewInputControlPlaceLot::OnMouseDownL	city-tools-input.md §3.6; 1000 plops then EndInput	
+004c3300	cSC4ViewInputControlPlaceLot::OnMouseMove	city-tools-input.md §3.7	
+004c36c0	cSC4ViewInputControlPlaceLot::OnMouseExit	city-tools-input.md §3.8	

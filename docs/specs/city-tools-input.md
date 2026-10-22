@@ -10,7 +10,8 @@ with all the evidence, not proven; *[quirk]* original behaviour that looks unint
 
 Outline: §1 scope; §2 the base class `cSC4ViewInputControl` (identity, layout, slot table, lifecycle, cursor,
 capture, stack queries, result sound); §3 the place-lot tool `cSC4ViewInputControlPlaceLot` (construction, Init,
-Shutdown, messages, key, mouse); §4 quirks; §5 open questions; §6 conformance tests; §7 coverage; §8 the query
+Shutdown, messages, key, mouse, the lot's cells, the placement test, the automatic facing, placing, toll booths,
+feedback); §4 quirks; §5 open questions; §6 conformance tests; §7 coverage; §8 the query
 tool `cSC4ViewInputControlQuery` (creation, layout, slots, Init, Shutdown, mouse, messages, pick filters,
 inventory).
 
@@ -26,7 +27,8 @@ input to while a tool is active. The 3D view keeps a stack of them (`SetCurrentV
 the 3D view's (not specified here). This spec covers:
 
 - the shared base `cSC4ViewInputControl` (17 functions), which every tool class derives from;
-- the place-lot tool (plop a building or lot from the catalog), its lifecycle and input dispatch.
+- the place-lot tool (plop a building or lot from the catalog): its lifecycle, input dispatch, placement test,
+  facing and placing.
 
 Not here: the network tools' back end (network-tools.md; `cSC4NetworkToolUI::DoPlacement` §8.2 there), the
 dispatch tool (dispatch.md), the back ends of zone, demolish, disaster, flora tools (their specs), the window and
@@ -157,9 +159,11 @@ class does not call it itself; derived tools call it after an action.
   destructor (`0x004C0070`). Every other slot is the base's (§2.3): right button, mouse up, wheel, `OnKeyUp`,
   `OnCharacter` return false; `ShouldStack` true.
 - Constructor `0x004C0430`: `(buildingType, lotConfigId, buildingExemplar, monopolyFlag)` stored at `+0x2C`,
-  `+0x30`, `+0x34` and the byte `+0x50` respectively *[inferred names, from their use in Init]*. Created by
+  `+0x30`, `+0x34` and the byte `+0x50` respectively *[inferred names, from their use in Init; the first is a mode:
+  0 = by lot configuration, otherwise by building type (re-plop)]*. Created by
   `cSC4View3DWin::InvokeCatalogItemCommand` (`0x007EA49B`), by two cheat codes in `cSC4View3DWin::ProcessCheatCode`
-  (`0x007F35D9`, `0x007F363B`, all arguments 0) and by `cGZToolCommandSystemSupport::DoMessage` (`0x005C5441`).
+  (`LotPlop` `0x007F35D9` with `(0, 0, 0, 0)`, `BuildingPlop` `0x007F363B` with `(1, 0, 0, 0)`, view3d-window.md;
+  corrected 2026-10-22, re-plop: not all 0) and by `cGZToolCommandSystemSupport::DoMessage` (`0x005C5441`).
   The catalog path installs it with the 3D view's `SetCurrentViewInputControl(tool, 2)` (slot 25).
 - Constructor defaults worth matching: rotation `+0x38` = `+0x3C` = 0, last rotation shown `+0x40` = -1, last mouse
   `+0x44`/`+0x48` = 0, last placed rectangle `+0x78..+0x84` = (0, 0, -1, -1), cursor world position
@@ -190,12 +194,22 @@ Only when not initialised (the initialised byte `+0x04`). Steps:
      `+0x64` is zero (an empty set *[inferred]*) `Init` calls the tool's own `Shutdown` and returns false
      *[compat]*. Otherwise start from the 3D
      view's last selected lot (slot 52), let the user pick a lot configuration, store it back (slot 54).
-5. Resolve the building exemplar (directly, or the first building of the chosen lot configuration) and read two
-   dwords at record offsets `+0x30`/`+0x34` from the building-development service (slot 40 `+0xA0`) into
-   `+0x128`/`+0x12C` (Q CT3).
+   - The pickers (`DoUserLotConfigurationTypePick`, `DoUserBuildingTypePick`) build a "Lot Plop" list window of
+     the candidates, each shown as `0x%08x`, and return the chosen one. They therefore appear only on the debug
+     cheats: `LotPlop` (mode 0 without a configuration) and `BuildingPlop` (mode 1: the building picker, as no
+     building is given, then always the configuration picker). The catalog and the tool command pass a
+     configuration in mode 0 (2026-10-22, re-plop).
+5. Resolve the building exemplar (directly, or the first building of the chosen lot configuration) and read the
+   int64 **plop cost** (`BuildingProfile` `+0x30`, exemplar property `0x49CAC341`, building-development.md)
+   from the building-development service's `GetBuildingProfilePtr` (slot 40 `+0xA0`) into `+0x128`/`+0x12C`; a
+   null profile leaves the constructor's −100000. `CanPlaceLot` reads it (§3.10; CT3 answered 2026-10-22,
+   re-plop).
 6. Build the preview model (`GetBuildingPreviewModel`, `0x004C0680`), init the local grid helper `+0xAC`, create
    the ring effect `+0xD8` from the effects manager (`0x00B43D1C`) if absent, and register the coverage view
-   `+0x140` with the view manager (slot 4 `+0x10`) when it is non-zero.
+   `+0x140` with the view manager (slot 4 `+0x10`) when it is non-zero. The preview model sets `+0x140`: `0xA`
+   for a building in occupant group `0x1401` (water), `0xF2` for group `0x1302` (subway), otherwise it keeps its
+   value (0 from the constructor); the view manager is the city view's (slot 6 `GetViewManager`, through
+   `0x00602180`) (re-plop; what the two views show is CT17).
 7. Return true.
 
 ### 3.3 Shutdown (`0x004C0300`) *[compat]*
@@ -213,7 +227,7 @@ Always returns false (the message is not consumed).
 
 | Message | Action |
 |---|---|
-| `0x277A9364` | show or hide the local-grid effect: show when the city's (`0x00B43CF4`) slot 66 object reports slot 20 false |
+| `0x277A9364` | show or hide the local-grid effect: show when the terrain's (`0x00B43CF4`, not the city; corrected 2026-10-22, re-plop) slot 66 object reports slot 20 false |
 | `0x49D5B83F` | `DoPlopRingEffectFinished` (`0x004BE0A0`) |
 | `0x99EF1142`, `0x99EF1143` | unless `+0x118` is set: recalc the 3D view's coverage helper |
 | `0xA6B79602`, `0xC9F775BB` | stop and release the two preview effects `+0xDC`, `+0xE0` (stop with slot 4(0) when slot 5 says running), then `SetVisualUserFeedback(+0x94, +0x95, +0x88)` to rebuild them |
@@ -235,7 +249,8 @@ true. Any other key, or no translation: false.
 1. Pick the terrain under `(x, z)` (3D view slot 36, `PickTerrain(x, z, &pos, 0)`, `pos` preset to 0).
 2. Only if a point was hit **and** the last move said placeable (`+0x94`): `PlaceLot(pos, rotation +0x3C, true,
    &rect)` (`0x004C1740`).
-3. On success: read a float from the city (`0x00B43CF4`, slot 6 `+0x18`; the cell size *[inferred]*) and store the placed rectangle in world
+3. On success: read the cell width from the terrain (`0x00B43CF4`, slot 6 `+0x18`, as in lot-developer.md; corrected
+   2026-10-22, re-plop) and store the placed rectangle in world
    units: `+0x78` = `x0*size`, `+0x7C` = `z0*size`, `+0x80` = `(x1+1)*size`, `+0x84` = `(z1+1)*size`, each
    truncated to an unsigned 32-bit integer (§4 Q4); `SetVisualUserFeedback(true, false, pos)`; stop and release
    the effects `+0xDC` and `+0xE0`; clear the cost indicator (slot 44, true); placeable := false. Then
@@ -271,6 +286,104 @@ Returns the `PlaceLot` result (false when it was not called).
 Flag `+0x95` := false; `SetVisualUserFeedback(+0x94, false, +0x88)`; empty the cursor-text buffer; clear the cursor
 text (`0xE9C877FA`) and the cost indicator (false); return true.
 
+### 3.9 The lot's cells (`GetLotCenterAndCellCoverage`, `0x004BE750`) *[compat]*
+
+*Added 2026-10-22 (re-plop).* `GetLotCenterAndCellCoverage(rotation, x, z, &cx, &cz, &rect)` → bool. The lot
+configuration's size `(sx, sz)` (configuration slot 7) is swapped for rotations 1 and 3. With `w` the terrain's cell
+width (`0x00B43CF4`, slot 6), on each axis with size `s` and coordinate `p`:
+
+- `s` odd: `c := trunc(p / w)` (the cell under the point); the centre is `(c + 0.5) · w`; the cells are
+  `c − s/2 … c + s/2`.
+- `s` even: `c := trunc((p + w/2) / w)` (the nearest cell corner); the centre is `c · w`; the cells are
+  `c − s/2 … c + s/2 − 1`.
+
+(`s/2` is a whole division.) The centre replaces `(x, z)`. The result is true when the rectangle lies inside the
+terrain (`x0 ≥ 0`, `x1 <` terrain slot 7, `z0 ≥ 0`, `z1 <` terrain slot 8: the cell counts).
+
+### 3.10 The placement test (`CanPlaceLot`, `0x004C1110`) *[compat]*
+
+*Added 2026-10-22 (re-plop).* `CanPlaceLot(&point, rotation, &rect, &valid, &cost, &code, &message)` → bool:
+
+1. `rect` := (−1, −1, −1, −1), `valid` := false, `cost` := 0 (int64), `code` := 0, `message` := empty. The lot
+   configuration (manager slot 8 with `+0x30`) must exist, else false.
+2. `valid` := §3.9 for `(rotation, point)`; false → false.
+3. The centre's coordinates, truncated to integers, are compared with the last placed rectangle `+0x78..+0x84`
+   (world units, §3.6): `x0 ≤ cx ≤ x1` and `z0 ≤ cz ≤ z1` → false (the same click does not plop twice).
+4. `cost` := 0 when the plop cost `+0x128` is 0; otherwise the lot developer's (development service slot 36,
+   `GetLotDeveloper`) `GetLotDevelopmentCost(rect)` (its slot 32, lot-developer.md §11.4) plus the plop cost.
+5. `code` := the lot manager's (`0x00B43D08`) `CanCreatePloppedLot(rect, rotation, cfg)` (slot 21, zones.md §8.4.1).
+   Code 8 (free): when `CanDemolishLot` succeeds its cost is added to `cost` and the result is true; otherwise the
+   message is `0x6A711969`. Codes 0–7 give the messages zones.md §8.4.1 lists (group `0x0A419226`); a larger code
+   gives none. False.
+
+**`CanDemolishLot(rect, …, &cost)`** (`0x004BEAB0`): a dry run of `DemolishRegion(false, rect cells, privilege 1,
+flags, …, &cost)` (demolition.md §4.4) with flags `0x2800`, or `0x800` when `+0x140` is `0xF2` (a subway station,
+§3.2 step 6); its result.
+
+### 3.11 The automatic facing *[compat]*
+
+*Added 2026-10-22 (re-plop).*
+
+- **`GetAutomaticFacingAndCellCoverage(cfg, &point, &rotation, &rect)`** (`0x004BEB70`): for each rotation 0–3,
+  when §3.9 is valid, `CanCreatePloppedLot` gives 8 and `CanDemolishLot` succeeds, the rotation's score is the
+  street count below, otherwise −8. The best rotation is the first with the highest score. The player's rotation
+  (`+0x38`) is kept when (its score ≠ 0 or the best score < 1) and its score ≥ best − 4; otherwise the best one is
+  taken. The rectangle and centre are the chosen rotation's; the result is whether any rotation was placeable.
+- **Street count** (`GetLotFacingStreetCount`, `0x004BE5D0`): along the row of cells just outside the lot on its
+  facing side (rotation 0: `z0 − 1`, 1: `x1 + 1`, 2: `z1 + 1`, 3: `x0 − 1`), for each cell inside the city, the
+  network occupant of a road, street, avenue or one-way road (traffic network map slot 8, mask `0x449`) adds 4 for
+  an avenue (flag `0x40`), 2 for a road (flag 1), 1 for a street or one-way road (flags `0x408`).
+
+### 3.12 Placing (`PlaceLot(&point, rotation, effects, &rect)`, `0x004C1740`) *[compat]*
+
+*Added 2026-10-22 (re-plop).*
+
+1. `rect` := (−1, −1, −1, −1). With an unknown cost (`+0x138` is −100000), `CanPlaceLot` runs first (false →
+   false) and fills `+0x138`.
+2. The lot configuration must exist. The lot's cells and centre: in toll-booth mode §3.13 (another configuration
+   swaps the preview: `ReleaseLotConfigurationEffects`, `+0x30` := it, `GetBuildingPreviewModel`; its rotation goes
+   to `+0x3C`), else §3.9.
+3. **Tutorial:** when the city's tutorial system (city slot 82) reports a tutorial (its slot 8, `IsTutorial`) with a
+   current task (slot 10, `GetCurrentTask`), the lot's cell rectangle must equal the task's rectangle (task slot 5;
+   the four-int test `0x00441B20`).
+4. **Funds:** a cost of 0 is free; otherwise the budget's (`0x00B43D64`) `GetTotalFunds` (slot 6) must be at least
+   the cost.
+5. **Clearing:** `DemolishRegion(true, cells, privilege 1, 0x2000, false, filter, …)` with the tool's filter
+   `cSC4PlaceLotDemolishFilter` (`0x004BDF70`; its type test `0x004BDFB0` leaves power poles `0x2890D4DE` and power
+   lines `0x0990B2EA` standing); then `PlaceZone(cells, 0, commit, skipFunds := cost is 0, checkSlope, skipSize, …)`
+   (dezoning, zones.md §6).
+6. **Zoning:** the zone type is 15 (plopped); 11 when the preview building is in occupant group `0x1508`; 12 when it
+   is in group `0x1509` or the configuration is compatible with water (configuration slot 14) *[inferred: airports,
+   seaports]*. `PlaceZone(cells, type, commit, skipFunds, checkSlope, skipSize, …)`.
+7. **The lot:** `CreateLotIfPossible(x0, z0, w, h, rotation, &lot, true, water-compatible, cfg)` (lot manager slot 22).
+8. **The building:** the lot developer's `ConstructDefaultLot(lot, cfg, +0x34, cfg slot 20)` (its slot 7,
+   lot-developer.md §6.4). On success: the cost is withdrawn (`WithdrawFunds`, budget slot 8) when it is not 0; the
+   aura simulator gets a transient effect of type 2 at the building's position (`AddTransientEffect`, aura slot 6;
+   `AddPlopAuraEffect`, `0x004BE150`); a building with property `0x88ED3303` (water production) gets a **pipe
+   connection occupant** at the lot's centre cell, and a subway station (`IsOccupantSubwayStation`) a **subway
+   connection occupant**, each inserted into the occupant manager (underground-occupants.md §6). When the builder
+   fails, the cost is **deposited** (`DepositFunds`, budget slot 7) although nothing was withdrawn *[quirk]*; the lot
+   stays.
+9. **Effects** (when `effects`, also after a failed building): `placement_effects_1x1`, `_2x2`, `_3x3` or `_4x4` for
+   the lot's larger side in cells (1, 2, 3, 4 or more) at the lot's position, and the plop ring effect scaled by the
+   lot's size, which posts `0x49D5B83F` when it ends (§3.4).
+10. The result is whether the building was made.
+
+### 3.13 Toll booths (`PickTollBoothLotAndOrientation`, `0x004BFB30`) *[summary; CT16]*
+
+*Added 2026-10-22 (re-plop).* The configuration is `0xEBF9A440` with rotation 2 by default. The cell under the
+cursor must hold a network occupant of exactly one of road, highway, avenue or ground highway (types 0, 2, 6, 12)
+whose sides form a straight piece (two opposite sides connected, none half-connected); the booth's cells and
+rotation follow the piece's direction, and `SeekCompatibleNetworks` (`0x004BF6B0`) must find, within 2 steps along
+the network (mask `0x1045`), no occupant with another surface network.
+
+### 3.14 Feedback *[summary; CT17]*
+
+*Added 2026-10-22 (re-plop).* `GetBuildingPreviewModel` (`0x004C0680`) builds the preview building (marked with
+property `0x029244DB`, civic-buildings.md) and its props and sets `+0x140` (§3.2 step 6); `SetVisualUserFeedback`
+(`0x004C2660`), `SetConstraintFeedback` (`0x004C2090`) and `SetPropOccupantDrawAttributes` (`0x004BE180`) tint the
+preview and the constraint tiles by validity.
+
 ## 4. Quirks
 
 1. `IsOnTop` and the place-lot handlers use the 3D view pointer without a null test (§2.6).
@@ -286,10 +399,16 @@ text (`0xE9C877FA`) and the cost indicator (false); return true.
    (§8.12.2, §8.13) (re-query).
 7. Query tool: the hospital staff slider's related-id list claims four ids but holds two (§8.12.4) (re-query).
 8. Query tool: a network occupant both tries the neighbour dialog and continues to the query dialog (§8.12.1).
+9. Place-lot: after a successful click no lot is placeable while the lot's centre stays inside the placed lot's
+   world rectangle (§3.6, §3.10) (re-plop).
+10. Place-lot: the automatic facing keeps the player's rotation unless another has at least 4 more street points
+    (§3.11) (re-plop).
+11. Place-lot: a building that fails after its lot was made credits the city with the lot's cost (§3.12)
+    *[quirk]* (re-plop).
 
 ## 5. Open questions
 
-See docs/specs/questions/city-tools-input.md (CT1-CT12).
+See docs/specs/questions/city-tools-input.md (CT1-CT17).
 
 ## 6. Conformance tests
 
@@ -332,11 +451,23 @@ Query tool (re-query, 2026-10-21):
   cost text shows `trunc(80 × 0.01 × c)` (§8.13).
 - A Shift-click that finds no automaton still runs `DescribePick` (§8.6).
 
+Place-lot tool (re-plop, 2026-10-22):
+
+- Odd size: a 3 × 3 lot at point (40, 40) with 16 m cells covers cells 1–3 on both axes, centre (40, 40) (§3.9).
+- Even size: a 2 × 2 lot at (40, 40) snaps to corner 3 (48): cells 2–3, centre (48, 48) (§3.9).
+- Frontage: an avenue cell and two road cells in front give a score of 8 (§3.11).
+- Keep facing: player score 3 with best 6 keeps the player's rotation; best 8 changes it; player score 0 with
+  best 1 changes it (§3.11).
+- A plop on cells (2, 2)–(3, 3) with 16 m cells stores (32, 32, 64, 64); a placement centred at (48, 48) then
+  fails (§3.6, §3.10).
+- A builder that fails on a lot costing 500 deposits 500 and withdraws nothing (§3.12).
+
 ## 7. Coverage
 
 `cSC4ViewInputControl` (all 17 functions) is specified by §2. `cSC4ViewInputControlPlaceLot` is specified for its
-lifecycle and input dispatch (§3); the bodies of `PlaceLot`, `CanPlaceLot`, the facing/coverage helpers, the
-preview model and the visual feedback are not, so it is **not** claimed as specified.
+lifecycle and input dispatch (§3.1–§3.8) and for its cells, placement test, automatic facing and placing
+(§3.9–§3.12; re-plop 2026-10-22), so it is claimed as specified, with `cSC4PlaceLotDemolishFilter`. The toll
+booths (§3.13) and the preview and feedback drawing (§3.14) stay at summary level (CT16, CT17).
 
 `cSC4ViewInputControlQuery` is specified for its creation, lifecycle, input dispatch, message dispatch and pick
 filters (§8.1–§8.9), its tips (§8.11), the query click and every dialog filler (§8.12), the other dialogs (§8.13),

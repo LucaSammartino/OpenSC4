@@ -8,15 +8,8 @@
   anywhere. [top control first, stop on true *[inferred]*]
 - **CT2 - §3.7 step 6, window manager slot 19 (`+0x4C`) after every place-lot mouse move:** which call is it
   (redraw request, cursor refresh)? [unknown]
-- **CT3 - §3.2 step 5, the two dwords `+0x128`/`+0x12C`:** read from the building-development service's record
-  (offsets `+0x30`/`+0x34`) for the chosen building; constructor defaults `0xFFFE7960` (-100000) and -1. What are
-  they and who reads them (`CanPlaceLot` or `PlaceLot`)? [unknown]
 - **CT4 - §2.1, the base constructor:** not re-read; confirm it zeroes `+0x04..+0x20` and the reference count
   starts at 0. [zeroes all *[inferred]*]
-- **CT5 - §3.2 step 4 / §3.7, the bodies of `PlaceLot` (`0x004C1740`), `CanPlaceLot` (`0x004C1110`), the facing
-  helpers (`0x004BE750`, `0x004BEB70`, `0x004BFB30`), `SetVisualUserFeedback` (`0x004C2660`),
-  `SetConstraintFeedback` (`0x004C2090`) and `GetBuildingPreviewModel` (`0x004C0680`):** unspecified; needed
-  before the place-lot tool can be claimed. [next RE round]
 - **CT6 - §8.2, the query tool's `+0x98`:** the constructor stores 3; no function of §8 reads it. Who reads it
   (the dialog or route code)? [unknown]
 - **CT7 - §8.4 step 5, the legend dialog:** the exact script key passed to `SC4CreateWindowFromScript` and the
@@ -45,3 +38,13 @@
 <!-- from: re-query (2026-10-21) -->
 - **CT15 - §8.15:** route mode: `MakeRoutePath`, `GetBuildingOccupantPaths`, `GetNetworkOccupantPaths`,
   `DoesRouteCrossCell`, `GetRouteTravelTypes` and the legend's travel-type toggles in detail. [outline]
+
+<!-- from: re-plop (2026-10-22) -->
+- **CT16 - §3.13, the toll booths:** the side codes the network occupant's slot 38 gives, the booth's cells per
+  direction, and what `SeekCompatibleNetworks` (`0x004BF6B0`) tests (its flag mask `0x400000`). [summary]
+
+<!-- from: re-plop (2026-10-22) -->
+- **CT17 - §3.14, §3.2 step 6, the feedback:** the preview model (`GetBuildingPreviewModel`, `0x004C0680`), the
+  constraint tiles and the colours of `SetVisualUserFeedback`, `SetConstraintFeedback` and
+  `SetPropOccupantDrawAttributes`, and what the views `0xA` and `0xF2` registered with the view manager show
+  (*[inferred]* the water-pipe and subway layers). [summary]
