@@ -11,7 +11,9 @@
 - Focused quick build compiled/linked. Added typed high-bit/resize/version tests, geometry/coordinates/lifetime and literal Read fixtures. fmt new module passed; recursive lib.rs check encounters pre-existing formatting in unrelated child modules (no mass format).
 - Stable full gate at e0522ffd: cargo 4940/0, clippy 0 diagnostics, build PASS, ctest 68/68. Prior overlapping retry failed DLL link while old CTest held DLL; final gate ran after old CTest completed.
 - Frozen DLL/PDB: build-runs/dll-sgv4-r1; DLL SHA256 397C55ADE6EA4698799BF70BC50A18CE544D415128A19FF9F9FC47B249ED9EC5.
-- First request sgv4-r1-native39-20261022a returned; run-sgv4.ps1 stopped on clean-verdict validation. Next: inspect verdict/log, preserve save if clean, continue current40+native reload using unique labels and frozen DLL (no rebuild).
+- First request sgv4-r1-native39-20261022a CORRUPT: 1 foreign exception immediately after original-grid probe (117 captures), before fixture result, no algorithm credit. No RE/dump investigation.
+- Shadow-OFF control39 sgv4-r1-control39-off-20261022b outstanding (qwait session 79227), frozen first DLL. No other game outstanding.
+- Fixture now establishes Init+SetTractSize before capturing a factory object's Write; unsized factory Write is outside published initialized operation contract. Added public-call phase logs. Next: control result, focused+full gate for this correction, freeze new immutable DLL, native shadow retry under NEW label only.
 - Natural domain is all power-owner grid adapter calls; other owners outside scope. Native allocation failure and replacement-factory refusal cannot count as equality.
 - No game request outstanding; no questions filed. SG1 boundaries unchanged.
 - Only published contracts, public SDK and implementation may be read. No RE, tools, subagents or default changes.

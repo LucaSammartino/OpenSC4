@@ -107,15 +107,24 @@ private: const std::vector<uint8_t>& b_; size_t at_=0; bool good_=true;
 
 template<class T> void Fixture(uint32_t kind, const std::vector<uint8_t>& city) {
     Shadow s; s.kind = kind;
+    Log("simgrids-shadow: source=fixture phase=factory clsid=%08X",kind);
     cISC4SimGrid<T>* g = nullptr;
     cIGZCOM* com = GZCOM();
     if (!com || !com->GetClassObject(kind, 0xC9BD939A, reinterpret_cast<void**>(&g)) || !g) {
         Log("simgrids-shadow: source=fixture clsid=%08X allocation_failed=1 comparisons=0",kind); return;
     }
     FC4_ACQUIRED(g,"GetClassObject (simgrids fixture)");
+    // The published contract specifies sized/initialized grids, not a
+    // factory object's uninitialized Write. Establish that precondition before
+    // capturing the input. This is fixture setup, not equality credit.
+    Log("simgrids-shadow: source=fixture phase=initialize clsid=%08X",kind);
+    const bool initialInit=g->Init();
+    g->SetTractSize(8);
+    Log("simgrids-shadow: source=fixture phase=capture-sized clsid=%08X",kind);
     // Bootstrap is an input, excluded from equality numerator/denominator.
     s.Capture(g,s.record);
     auto boolean = [&](bool v, const char* name) { std::vector<uint8_t> expected{1}; uint8_t actual=v?1:0; s.Check(&actual,1,expected,name); };
+    boolean(initialInit,"initial-Init-return");
     boolean(g->Init(),"Init-return"); s.Update(8); s.RecordCheck(g);
     g->SetInstanceID(0x51A00000u + kind); s.Update(10,static_cast<int32_t>(0x51A00000u+kind));
     for (int size : {8, 4, 3, 8, 8}) {
