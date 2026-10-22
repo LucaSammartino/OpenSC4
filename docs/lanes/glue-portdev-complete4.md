@@ -20,8 +20,9 @@
 - Saved records: original/ours exact22-byte payloads each, one stage0/type0; airport saved(7,2), seaport(10,90); build-runs/pdc4-{original,replace}-records.json.
 - Actual saved-city reload pdc4-reload-20261022-a clean2033-01-01/ref0 using saved hash38f234...; both Read ports1 before Init. Native airport37tested/9holders/0matches, seaport20tested/14holders/3matches, states1->0->1->1 on each; unavailable0 throughout.
 - Original saved-city reload pdc4-origreload-shadow-20261022-a clean2033-01-02/ref0; shadow26/26 exact, same native zero/multiple counts and transitions.
-- Outstanding: pdc4-final-shadow-20261022-a (session93818), final DLL on immutable source, script resets props0 before automatic no-access month.
-- Next: inspect final shadow, then submit final replacement with ports-complete4-transition.txt; report/commit/queue ready. No game growth/advice upgrade: fixture has0trips and skipped airport; seaport has no shipped growth advice.
+- Final DLL shadow pdc4-final-shadow-20261022-a clean2032-01-01/ref0, 144/144 exact. Early construction state0 probe found no props yet; later month confirmed three props already1. Actual transitions proved separately on both saved-city reloads.
+- Outstanding: pdc4-final-replace-20261022-a (session63785), final DLL, immutable source + ports-complete4-transition.txt.
+- Next: inspect final replacement; report/commit/queue ready. No game growth/advice upgrade: fixture has0trips and skipped airport; seaport has no shipped growth advice.
 - Required fixture: C:/Users/tlori/FreeCity4/build-runs/fixtures/ports/Konradshohe-864e0a8817e2.sc4 (immutable).
 - Save snapshot must be captured before isolated slot reuse, then actually loaded as fixture_city.
 - Guard: C:/Users/tlori/FreeCity4/build-runs/run4-glue-portdev-complete4-r1-manifest.json; max rounds 1; max calls 100 between milestones; no subagents.
