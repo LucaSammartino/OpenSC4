@@ -78,6 +78,7 @@ generated index: the questions live one file per spec, so read only the file for
 | IN | commercial-industrial |
 | LC | legacy-control |
 | LD | lot-developer |
+| LE | lot-configuration-editor |
 | LF | landfill |
 | LG | landfill |
 | LM | lot-models |
@@ -166,7 +167,7 @@ generated index: the questions live one file per spec, so read only the file for
 | application | 3 | 2 | AP6 | questions/application.md |
 | audio-ambience | 1 | 10 | AA12 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
-| automata | 5 | 37 | A5, AM13, AT25 | questions/automata.md |
+| automata | 4 | 38 | A5, AM13, AT25 | questions/automata.md |
 | automata-managers | 4 | 0 | AD5 | questions/automata-managers.md |
 | automata-support | 2 | 0 | AN3 | questions/automata-support.md |
 | budget | 0 | 8 | BQ9 | - |
@@ -204,7 +205,7 @@ generated index: the questions live one file per spec, so read only the file for
 | geometry-utilities | 1 | 0 | GU2 | questions/geometry-utilities.md |
 | glyph-textures | 6 | 0 | GT7 | questions/glyph-textures.md |
 | graphics-formats | 0 | 35 | FS18, GF19 | - |
-| graphics-rules | 3 | 3 | GR7 | questions/graphics-rules.md |
+| graphics-rules | 2 | 4 | GR7 | questions/graphics-rules.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 1 | 6 | HD8 | questions/html-document.md |
 | landfill | 0 | 36 | LF7, LG31 | - |
@@ -213,11 +214,12 @@ generated index: the questions live one file per spec, so read only the file for
 | legacy-control | 3 | 4 | LC9 | questions/legacy-control.md |
 | lighting | 11 | 0 | LT12 | questions/lighting.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
+| lot-configuration-editor | 3 | 2 | LE6 | questions/lot-configuration-editor.md |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
 | lot-models | 1 | 0 | LM2 | questions/lot-models.md |
 | lot-records | 2 | 7 | LR10 | questions/lot-records.md |
 | map-view | 4 | 0 | QV5 | questions/map-view.md |
-| model-instances | 10 | 0 | MI11 | questions/model-instances.md |
+| model-instances | 2 | 0 | MI3 | questions/model-instances.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
 | mysims | 0 | 16 | MS17 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
@@ -233,7 +235,7 @@ generated index: the questions live one file per spec, so read only the file for
 | occupants-props | 12 | 5 | OP18 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
-| overlay-manager | 5 | 4 | OV10 | questions/overlay-manager.md |
+| overlay-manager | 3 | 6 | OV10 | questions/overlay-manager.md |
 | overlay-views | 1 | 0 | OVV2 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 3 | 4 | PT8 | questions/particles.md |
@@ -265,7 +267,7 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 3 | 4 | SP8 | questions/span-render-4444.md |
 | span-render-565 | 6 | 2 | SR566 | questions/span-render-565.md |
-| span-render-8 | 5 | 2 | SR11 | questions/span-render-8.md |
+| span-render-8 | 3 | 3 | SR11 | questions/span-render-8.md |
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
@@ -280,7 +282,7 @@ generated index: the questions live one file per spec, so read only the file for
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | vehicles | 2 | 0 | VH3 | questions/vehicles.md |
 | view-input-controls | 2 | 0 | VIC3 | questions/view-input-controls.md |
-| view-utilities | 10 | 1 | VU12 | questions/view-utilities.md |
+| view-utilities | 0 | 11 | VU12 | questions/view-utilities.md |
 | view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
 | water-ripples | 3 | 0 | WR4 | questions/water-ripples.md |
 | watercraft | 7 | 0 | WC8 | questions/watercraft.md |
@@ -290,4 +292,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **365** | **1184** | | |
+| **total** | **344** | **1201** | | |
