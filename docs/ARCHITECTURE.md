@@ -67,11 +67,12 @@ Migration path (to all-Rust, or any other rewrite) built in from day one:
 | `docs/ops/` | operating knowledge: rules, running the game, lessons (§5.x), coordinating the merge train, conventions |
 | `docs/lanes/` | one file per lane, and the generated lane table `docs/lanes/INDEX.md` |
 | `docs/manual-checks.md` | log of in-game runs and the remaining human checks |
+| `docs/history/` | superseded docs and old stop notes, kept verbatim; nobody reads them by default |
 | `docs/subsystems/`, `re/`, `tools/` | research material for spec writers |
 
 ## Roadmap
 
-Current status: [PROGRESS.md](PROGRESS.md).
+Current status: [coverage-report.md](coverage-report.md) (measured by `python tools/coverage.py`).
 
 | Milestone | Scope | Exit criteria |
 |---|---|---|
