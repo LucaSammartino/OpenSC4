@@ -21,20 +21,6 @@
   **PARTIAL 2026-10-22 (re-draw-context-contracts4):** §1.3 withdraws the unsupported Begin/End request:
   renderer brackets call registered callback objects, passing the context as an argument. §§1.3–1.5
   publish lifecycle, borrowed references, attributed bodies, foreign driver targets and stack-top replay.
-  Residual: attribute any native stack mutation sites/signatures (or establish that the empty vector is
-  never populated); finish exact raw-matrix body `0x007D4B80` contract before claiming every owner path.
-
-<!-- from: core-draw-context4 (2026-10-22) -->
-- **DC8 - sections 6 and 8-9:** does SetModelShade update default shade and/or shade-override state,
-  and how is default shade initialized/populated? Does grey bit 3 leave a previous mesh's fade multiplier
-  pending? Please specify full texture-transform entries (including z and homogeneous terms), flag-combination
-  details, and rounding at alpha half ties. [literal published multiplier only for SetModelShade; default shade
-  remains constructor-zero until explicitly populated by renderer input; grey does not set transparency;
-  matrix is identity outside the published s/t mapping; normalized alpha uses nearest with positive half up;
-  transform flags combine by OR, with unset rotation/scale/translation interpreted as identity]
-
-  **PARTIAL 2026-10-22 (re-draw-context-contracts4):** §§8.1–8.3 establish white constructor shade,
-  lighting-slot-10 default population, model-light fallback and override mutation, grey's retained alpha,
-  all material matrix entries, and x87 bias rounding. Whole-byte identity tests supersede per-component
-  identity substitution. Residual: publish exact x87 grouping and binary32 spill points for every mixed
-  compact-transform branch and the raw-matrix path `0x007D4B80`, with cancellation/scale/flag vectors.
+  Round 2: §8.4 now proves the raw-matrix receiver, pointer argument, four callers, every matrix entry,
+  arithmetic grouping/spills and driver/failure/retry order. Residual: attribute any native stack mutation
+  sites/signatures (or establish that the empty vector is never populated). No Push/Pop is inferred.

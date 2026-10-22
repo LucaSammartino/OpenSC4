@@ -8,7 +8,8 @@
 - Prior proof: a0a0d989 lifecycle/combiner bytes; a81f458d inventory/cache order; 14f8afbe DC4–DC7/numerics; 44e79acd report.
 - Done: §8.4 attributes raw-matrix receiver/signature and four callers; exact grouped four-term arithmetic, explicit zero products, binary32 stores, transpose/load and failure/retry order.
 - Done: §8.3 proves all nine compact rotation groupings, asymmetric translation spills, scale/flag branches, counter copies, matrix expansion and failure/retry mutation order.
-- Next: add independent numeric/state vectors; finish stack access attribution and update DC3/DC8 question dispositions.
+- Done: DC8 moved to answered with full rule; §13.2 adds DC-V15–V26 cancellation/spill/scale/flag/state/failure vectors (26 total independent vectors).
+- Next: finish stack access attribution, then validate question index and spec diffs. DC3 remains open for stack population only.
 - Raw-matrix callers: 005DCE50 border masks; 006572B0/006573B2 underground connection; 0065B5DA underground occupant.
 - Stack replay is non-popping; no Push/Pop signatures established. Whole-byte compact-transform flag tests already proved.
 - Unsupported context Begin/End request already withdrawn (§1.3); callbacks own renderer brackets. DC4–DC7 stay untouched.

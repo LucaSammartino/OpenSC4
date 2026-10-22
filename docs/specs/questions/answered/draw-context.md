@@ -1,6 +1,27 @@
 # draw-context: answered questions
 
 <!-- from: core-draw-context4 (2026-10-22) -->
+- ~~**DC8 - sections 6 and 8-9:** does SetModelShade update default shade and/or shade-override state,
+  and how is default shade initialized/populated? Does grey bit 3 leave a previous mesh's fade multiplier
+  pending? Please specify full texture-transform entries (including z and homogeneous terms), flag-combination
+  details, and rounding at alpha half ties. [literal published multiplier only for SetModelShade; default shade
+  remains constructor-zero until explicitly populated by renderer input; grey does not set transparency;
+  matrix is identity outside the published s/t mapping; normalized alpha uses nearest with positive half up;
+  transform flags combine by OR, with unset rotation/scale/translation interpreted as identity]~~
+
+  **ANSWERED 2026-10-22 (re-draw-context-contracts4):** DIFFERS — §§8.1–8.4 specify white initial
+  default shade, lighting population/fallback, override and retained-grey-alpha effects, every material
+  matrix entry, x87 bias rounding, whole-byte transform branches, all nine rotation groupings and
+  asymmetric translation spills (x/y after scale, z before scale). Raw-matrix load has distinct grouping,
+  explicit zero products, no compact-scale application, a final transpose and no MatrixMode call.
+  Driver failures returning normally preserve preceding mutations and clear valid; equal retry reloads.
+  §13.2 adds independent cancellation, spill, scale, flag, state and failure/retry vectors DC-V15–V26.
+
+  The round-1 partial finding established shade/material/flag rules; round 2 closes its exact mixed-
+  compact and raw-matrix arithmetic residual. Numeric rules use ambient x87 control, with vectors
+  explicitly selecting nearest/even and 64-bit significand precision; no universal half-up is asserted.
+
+<!-- from: core-draw-context4 (2026-10-22) -->
 - ~~**DC4 - section 1.1, sections 5.2 and 6:** both combiner records have ellipses. What are their complete
   byte lengths and all bytes? Are the records 12 bytes (the space before the next published field)?
   [published bytes remain Option-valued fragments, with no invented zeros; highlight setup and material

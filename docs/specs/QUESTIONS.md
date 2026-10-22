@@ -192,7 +192,7 @@ generated index: the questions live one file per spec, so read only the file for
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 2 | 44 | DS47 | questions/disasters.md |
 | dispatch | 4 | 9 | DP14 | questions/dispatch.md |
-| draw-context | 4 | 4 | DC9 | questions/draw-context.md |
+| draw-context | 3 | 5 | DC9 | questions/draw-context.md |
 | drawing-fonts | 0 | 17 | FN18 | questions/drawing-fonts.md |
 | drive-tool | 2 | 0 | DR3 | questions/drive-tool.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
@@ -294,4 +294,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **392** | **1205** | | |
+| **total** | **391** | **1206** | | |

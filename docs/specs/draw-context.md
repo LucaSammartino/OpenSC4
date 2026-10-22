@@ -671,8 +671,8 @@ terrain view, the ripples and the selection (water-ripples.md) use the state set
 
 ## 12. Open questions
 
-See [questions/draw-context.md](questions/draw-context.md): DC1–DC2 remain; DC3 retains stack-mutation and
-full out-of-line inventory limits; DC8 retains exact mixed-transform arithmetic. DC4–DC7 are answered
+See [questions/draw-context.md](questions/draw-context.md): DC1–DC2 remain; DC3 retains stack-mutation
+attribution limits. DC4–DC8 are answered
 by §§1.2, 1.4 and 7.2–7.4. No runtime conformance result is implied by the source-derived vectors below.
 
 ## 13. Conformance tests
@@ -710,3 +710,28 @@ means driver slot 51; coordinate(n) means slot 52; matrix arguments are in slot-
 | DC-V12 | Texture scale 2, composed tx=3, ty=−4 | Full columns: (0.5,0,0,0), (0,−0.5,0,0), (0,0,0,0), (−1.5,−2,0,0), subject to image-initial Z=0. No z/homogeneous identity entries. |
 | DC-V13 | SetDefaultRenderState with one 8-byte record at stack end−8 | Replays that record without decrementing end. Empty begin=end replays owner +0x88. No push/pop is implied. |
 | DC-V14 | Initialized context; shutdown twice | First clears initialized then properties pointer, no foreign calls. Second does nothing. Stage texture values, stack pointers and camera pointer remain untouched. |
+
+### 13.2 Compact/raw transform vectors (DC3/DC8)
+
+These are source-derived expectations, not game or replacement measurements. Finite numeric examples
+use masked x87 exceptions, 64-bit significand precision and nearest/even rounding, including Q stores.
+They deliberately include non-orthonormal payloads to expose operation order; no normalization occurs
+in these bodies. Unless stated otherwise, valid starts true (so no camera fetch), composed counter=40,
+model counter=7, unspecified translation=0 and scales=1. The input counter never becomes an owner counter.
+All counter arithmetic below is modulo 256. Driver failures below mean a failure-valued return that
+returns normally, not an exception. Hex words describe binary32 bits; NaN payload selection is not asserted.
+
+| ID | Input / prior state | Expected observations |
+|---|---|---|
+| DC-V15 | Compact model flags=0 with dirty model rotation/translation/scale; view flags=2, rotation I, scale=7, translation (10,20,30) | Model record copies all input payload/flags and counter becomes 8. Composed payload/flags/counter stay unchanged at 40. Loaded matrix is 7I with translation (10,20,30); slot 41 once, then valid=false. Dirty model components do not compose. |
+| DC-V16 | Compact view flags=0 with dirty view payload; model flags=0x80, rotation 3I, translation (4,5,6), scale=5, input counter=200 | Copy model payload/flags to composed; composed counter=41, model counter=8. Loaded rotation 3I (bit 2 absent), translation (4,5,6); composed scale remains 5. No arithmetic uses the dirty view payload. |
+| DC-V17 | Compact view flags=0x80, rotation 2I, scale=5, translation (1,2,3); model flags=1, rotation 3I, scale=7, translation (4,5,6) | Compose rotation 6I, translation (41,52,63), scale=35, flags=0x81, counter=41; model counter=8. Loaded rotation is 6I because bit 2 is absent, despite scale participating in composition. No absent component becomes identity. |
+| DC-V18 | Compact flags both 1; all view rotation entries=1; model rows (A,A,A), (−A,−A,−A), (1,1,1), A=2^80 | Composed rotation rows are (0,0,1), (0,1,0), (0,0,0); zeros have bits 00000000, ones 3F800000. Replacing every dot product by one fixed addition order changes these results. Final matrix transposes these rows as §8.3 specifies. |
+| DC-V19 | Compact flags both 1; each view row=(1,1,0), view scale=3, translation (−3,−3,−3); model translation (1,2^−24,0) | Each unspilled Di=1+2^−24. Translation x/y=2^−22 (34800000), z=0 (00000000). x/y spill the scaled product to 3+2^−22 before adding −3; z spills Di to 1 before scaling. A common spill policy for all axes fails. |
+| DC-V20 | Compact flags both 2; view row 0=(1,1,0); model column 0=(1,2^−24,0); view scale=1, model scale=3 | Composed rotation (0,0) first stores 1 (3F800000). Matrix float 0 then stores 3 (40400000). Combining rotation dot product and scale before that store would give 40400001. |
+| DC-V21 | Compact flags both 2; both rotations I; view scale=1+2^−23, model scale=1−2^−24 | The scale product is 1+2^−24−2^−47, which stores as 1 (3F800000) at +0x1A8 before expansion. Loaded rotation is I. |
+| DC-V22 | Raw M=I; composed rotation I, translation (10,20,30), scale=7, flags=2 | Loaded rotation I, translation (10,20,30); composed payload/flags/counter and model record/counter remain unchanged. Slot 41 once, no mode call, then valid=false. In contrast DC-V15's compact path loads 7I. |
+| DC-V23 | Raw view row 0=(0,1,1), t[0]=1; M column 0=(0,A,1,−A), A=2^80; other M entries zero except M[15]=1 | B[0,0], hence matrix float 0, is 1 (3F800000): ((A−A)+1)+0. Accumulating p0,p1,p2,p3 instead yields 0. This independently fixes raw column-0 grouping. |
+| DC-V24 | Raw M[0]=positive infinity, M[4]=M[8]=0, M[12]=9 | Matrix float 3 (B[3,0]) is NaN from infinity×0, rather than a copy of 9. The explicit zero product cannot be eliminated for arbitrary nonfinite input. |
+| DC-V25 | Compact view/model flags both 1; valid=true, counters 40/7; first slot-41 call returns failure, retry same model; camera supplies a nonzero-flag view on refresh | At first driver entry model counter=8, composed counter=41, completed matrix present and valid still true; after return valid=false. Retry fetches camera, increments composed to 42 without copying camera counter, then composes to 43; model counter=9. Two loads, no rollback or silent equal retry. |
+| DC-V26 | Raw valid=true, counters 40/7; first slot-41 call returns failure, retry same M | First entry retains composed counter=40/model counter=7; matrix is complete and valid still true. Return clears valid. Retry refreshes view and increments composed to 41; model counter stays 7. Two loads, no mode calls or failure cleanup. |
