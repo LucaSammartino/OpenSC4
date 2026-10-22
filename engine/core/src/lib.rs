@@ -143,3 +143,4 @@ pub mod animated_sprite;
 pub mod draw_context;
 pub mod gdrivers_director;
 pub mod key_accelerator;
+pub mod view_input_controls;
