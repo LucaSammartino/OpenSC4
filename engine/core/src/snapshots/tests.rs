@@ -103,7 +103,7 @@ fn taker_size_digit_and_four_delivery_fixture() {
     taker.key(Key::Space, Modifiers::default(), true).unwrap();
     assert_eq!(taker.size_index(), 0);
     taker.key(Key::Digit(5), Modifiers::default(), true).unwrap();
-    assert_eq!(taker.percentage(), 60);
+    assert_eq!(taker.percentage(), Some(60));
     assert_eq!(taker.key(Key::Enter, Modifiers::default(), true).unwrap(), KeyResult::PostCapture {
         message: CAPTURE_MESSAGE, counter: 0, close_afterwards: true, lua_event: CAPTURE_LUA_EVENT });
     for counter in [1, 2, 3] {

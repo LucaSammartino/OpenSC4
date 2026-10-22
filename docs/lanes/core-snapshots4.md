@@ -7,7 +7,9 @@
 - Worktree reused at detached HEAD; no branch/ref changes permitted.
 - Done: audited all named spec methods and 157 ABI rows (151 taker / 6 album); inventory in engine/core/src/snapshots/OWNER_INVENTORY.md.
 - Done: independent expected fixtures written before implementation; questions SN3-SN9 appended (SN1-SN2 already open).
-- Baseline qbuild all running (exec session 69967); inspect completion before reporting.
-- Next: implement portable API against fixtures; run focused checks and final qbuild all.
+- Milestone 757008ec: owner audit, questions and independent expected fixtures.
+- Implemented: virtual filesystem/UI primitives, ten-field info codec, album workflows and taker state machine/capture pipeline.
+- Baseline: cargo 4987 passed; clippy/build failed (logs preserved in build-runs/baseline); tree changed during later build phases, so baseline is not a clean final gate.
+- Quick check running (exec session 68359). Next: inspect diagnostics; add pipeline/failure fixtures; format touched files, focused check then stable final all.
 - No game requests: pure core only; no ABI changes or native-exact/full-owner claims.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-snapshots4-r1-manifest.json.
