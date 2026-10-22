@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-ftp4: portable WWW/FTP partial owner | Codex, core-ftp4 (detached reservation) | in progress; FINAL3/3; quick PASS, former all interrupted/unmeasured | Obtain one captured final all on unchanged committed engine; no queue before complete validation |
+| core-ftp4: portable WWW/FTP partial owner | Codex, core-ftp4 (detached reservation) | in progress; FINAL3/3; quick PASS; captured all FAIL (one fixture lint; native incomplete; CTest skipped) | Validate one-line fixture correction serially; preserve failed logs; no queue before complete checks |
 
 ## Handoff
 - Goal: final bounded verification/reporting only; whole owner remains incomplete; FINAL3/3.
@@ -17,14 +17,17 @@
 - Existing complete quick retained: 3043/0/0, 32 WWW fixtures, 3 dependent compile checks,
   native 212/212 edges; wrapper exit 0, 1981.9 s. Do not repeat due documentation-only flags.
 - Six WWW qbuild fmt PASS; seven-file check including lib.rs has 168 preexisting drift lines.
-- EXACT NEXT: run build-runs/final-gate-core-ftp4.py run once on this committed source;
-  it captures qbuild stdout, OS PID, actual exit, start/end HEAD/engine/status in build-runs/final3-all-*.
-- Then inspect workspace summed tests, clippy completion, native/full CTest and artifact provenance.
+- Captured final3 all at 46924013: 22:34:36Z to 22:47:00Z; actual wrapper exit 1; source stayed clean.
+- Tests 5071/0/0 (21 lines, 32 WWW fixtures); clippy exit 101: listing.rs:365 useless_vec in fixture.
+- Native wrapper FAIL 1/4 edges, log ends after unchanged ABI generation; CTest skipped, no pass claim.
+- Only correction: same 19-byte fixture uses &mut [0; 19], no heap Vec; algorithms unchanged.
+- EXACT NEXT: preserve-failed; fmt listing.rs; run final-gate-core-ftp4.py run final3b once serially.
+- Capture stdout/OS PID/exit/source identities; inspect all checks and artifact provenance.
 - Do not repeat a completed genuine full gate solely for a documentation checkpoint flag.
 - Retain 91 C/26757 B, 63 I/22 P/6 U and 57 P/O/7292 B; Q1/Q3/Q7/Q9/Q10 unresolved.
 - Primitive hosts only; owned barriers/unsafe domains Unsupported; leaks/nonjoining remain explicit.
 - No game/network/ABI/glue/default/map/tool/coverage changes, no new family/owner credit.
-- No queue before actual complete required validation; next real combined integration gate required.
+- No queue before actual complete validation; combined integration gate still required; no unrelated retries.
 - Guard: MAIN/build-runs/run4-core-ftp4-r3-manifest.json; obey denial; no fourth continuation.
 
 ## Implementation

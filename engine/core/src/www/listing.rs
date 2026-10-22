@@ -362,7 +362,7 @@ mod tests {
             assert!(parse(&mut text.to_vec(), 317, &mut output).is_err());
         }
         assert!(parse(&mut b"\0".to_vec(), 313, &mut output).is_err());
-        assert!(parse(&mut vec![0; 19], 304, &mut output).is_err());
+        assert!(parse(&mut [0; 19], 304, &mut output).is_err());
         assert!(parse(&mut b"no prefix\0".to_vec(), 315, &mut output).is_err());
         let mut line = vec![b' '; 60];
         line[0] = b'd';
