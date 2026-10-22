@@ -9,7 +9,10 @@
 - Implementation: logical Variant::count unchanged; native_count/raw_count scalar0/arraylen; new CAPI export fc4_variant_get_count; production cFC4Variant GetCount uses installed Rust hook. ABI exports changed (no version/table edit).
 - Verifier compares original vs independently seeded actual production objects, plus literal Rust byte snapshots; all350 observations retained. Count hook absence refuses; all mismatches logged, fallback/resync explicit.
 - Focused quick PASS: cargo3453/0 (core2925+capi528), dependents compile, C++140/140; tree changed during quick, final stable all required. Both new count tests passed; absolute-path fmt PASS2.
-- Next: commit this implementation, stable qbuild all, immutable DLL/PDB snapshot, exact house40 ON/OFF2032/ref0 save/shutdown and supported fixture reload. Request/wait helper build-runs/vv4-r3-run.py checks exact list and uses no qwait.
+- Done1ee5d9b6: production raw-count mapping and comparisons committed. Stable all PASS at this code: cargo4949/0, clippy0, CMake2/2, ctest68/68(84.8s), no tree-changed warning; fmt2 PASS.
+- Immutable DLL/PDB: build-runs/dlls/vv4-r3-production/FreeCity4.dll/.pdb; DLL SHA256 D50E20D91AFB458388A11A03910849B22C439837C149A560753791F4D5016D28.
+- Outstanding: vv4-r3-house40-on-1ee5d9-1930, exact house40 equality validated40keys before atomic submit, variant_shadow1/refaudit1/2032/full-save script. Wait helper running; do not resubmit or discard completed verdict.
+- Next: inspect ON result/counts/save/shutdown, preserve saved .sc4 via supported fixture_city route, then OFF and supported ON/OFF reloads. Request/wait helper build-runs/vv4-r3-run.py checks exact list and uses no qwait.
 - Exact house40 from task excludes terrain/dispatch/effects and includes all default keys; validate equality before submission.
 - Original profile cap exhausted3/3; use corrected house40 only. Unique labels, preserve completed verdict, no qwait.
 - Prior scalar mismatches28 and opt-in profile crashes remain evidence; HG4-HG6 unresolved. HG7 already published.
