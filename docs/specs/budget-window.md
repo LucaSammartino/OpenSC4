@@ -81,7 +81,10 @@ Other panel commands seen in the same handler, for completeness: `0xAA3AC400`/`0
 `ShowWindow` with `+0x194 = 1` hides tab `0xAA3AC000` and shows `0xAA3AC001`; with 0 the reverse; the shown tab also
 gets `SetFlag(0x800, 0)`; then `UpdateBalanceSheetInfo` (`0x00768670`–`0x00768712`). Which tab is "compact" is not
 read from the bytes; `0x0A4C3354` → `RemoveLoanWindow`; `0x2A4C33A6` / `0xAA4C339C` scroll the loan list by 2 (bounded below by 0 and
-above by count − 4); `0xAA4C33E6` takes the loan (§5.2).
+above by count − 4); `0xAA4C33E6` takes the loan (§5.2). `0x4A5BB1B5` and `0x6A5BB0FB` hide the panel (its slot 7,
+`HideWindow`); `0x4A8879CC` / `0x4A8879DC` select the monthly and `0x4A8879CD` / `0x4A8879DD` the yearly period
+`+0x198` (the value step 3 of §2 passes on). The taxes and loan windows are budget-window-bodies.md §9 and §10
+(re-budgetwin, 2026-10-22).
 
 ## 3. `CreateSubBudgetWindow` (`0x00779E50`, thiscall, 4 args, returns bool) *[compat]*
 
@@ -393,9 +396,12 @@ over an empty vector.
 
 ### 5.2 Loan taken (`0xAA4C33E6`, budget panel)
 
-Reads the amount chosen (`+0x188`), asks the budget simulator for the bond terms (slots `+0xC4`, `+0xBC`), builds a
-bond record (amount, months/12 split) and hands it to `FUN_00692110`; then `+0x184 += amount`, `+0x17C += 1`,
-`UpdateLoanDisplay`, refresh, `RemoveLoanWindow`. The bond arithmetic is budget.md §5.4.
+*Rewritten 2026-10-22 (re-budgetwin).* Reads the chosen amount (primary `+0x190`; the handler's `+0x188` is the `+8`
+view), builds a `LoanInfo` record from the bond terms (`GetFullCostOfLoan`, budget slot 49 `+0xC4`;
+`GetLoanTimeInMonths`, slot 47 `+0xBC`) and appends it to the panel's loan list (`0x00692110`); then the amount added
+`+0x18C` grows by the amount and the count `+0x184` by one, `UpdateLoanDisplay` redraws the list, **`IssueNewLoans`**
+(`0x00764BE0`; corrected: not a refresh) issues every loan added since the window opened (`IssueBond`, slot 40), and
+`RemoveLoanWindow` closes the window (budget-window-bodies.md §10). The bond arithmetic is budget.md §5.4.
 
 ### 5.3 Scrolling (`0x451`–`0x454`) *[compat]* (BW7)
 
@@ -589,7 +595,9 @@ many money messages arrive. `ShowWindow` (`0x00768670`) refreshes immediately an
 BW1–BW10 are answered (re-budgetwindow4 and re-budgetwindow-answers4, 2026-10-21; archive
 `questions/answered/budget-window.md`). Still open: **BW11**, whether Alt+Enter / Alt+F4 actually reach the dialog
 at runtime (§4.0). **BW16** (row-visibility ID test, §4.1) is answered from bytes: ID ≤ 100 is always shown, ID > 100
-only with a non-zero amount, the reverse of the earlier text. `+0x2C` ownership (BW15) is settled from bytes. Not covered: pixel layout of the four populate routines, the fill point of
+only with a non-zero amount, the reverse of the earlier text. `+0x2C` ownership (BW15) is settled from bytes. BW17's panel part is narrowed (re-budgetwin, 2026-10-22):
+the balance-sheet drawing, the formatting helpers and the taxes and loan windows are budget-window-bodies.md
+§4.2–§4.3 and §8–§10; the panel's construction labels, `Init` and the loan limits stay at summary level (BW18). Not covered: pixel layout of the four populate routines, the fill point of
 the individual restore records in `initIndividualBudget` (`0x00786690`), and whether the generator's window
 procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
 
@@ -659,3 +667,12 @@ procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
     in order, 99, 100, 99, 100, 101 after the header.
 27. (BW16) Same items as test 26 but every display flag is 4 (bit 0 clear): countA = 1 (header only) and no item row
     is built, for every ID and amount; with flags 1 the result equals test 26.
+28. (re-budgetwin) Monthly view, tab 1, funds −5, income 10, expense 2: `0xAA3AC10E` shows −5 in (0x77, 0, 0);
+    `0xAA3AC111` shows 3 in (0x44, 0x55, 0x66). Yearly view, tab 0: `0xAA3AC101` shows `GetEstIncome()` and
+    `0xAA3AC112` is not written; tab 1: `0xAA3AC112` shows 12 × the monthly residential taxes.
+29. (re-budgetwin) A group `0x4A357B40` record with expense 300 and income 7 shows 300 in `0xAA3AC125`.
+30. (re-budgetwin) Tax edit field 1 with an unparsable text while type 3's rate is 9.0: the slider becomes 90; field
+    10 with an unparsable text: the slider becomes 0.
+31. (re-budgetwin) Loan window opened with 2 loans; accept 50,000: `IssueBond(50000)` is called once and the list
+    holds 3 records.
+32. (re-budgetwin) Pressing `0x4A8879CD` sets `+0x198` to 1; the next sub-budget dialog gets `+0x28` = 1.

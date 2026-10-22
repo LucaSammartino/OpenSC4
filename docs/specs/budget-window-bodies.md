@@ -1,6 +1,7 @@
 # Budget-window native bodies (BW17)
 
-Companion to [budget-window.md](budget-window.md), sections 1, 4, 5.2, 5.6 and 8.
+Companion to [budget-window.md](budget-window.md), sections 1, 4, 5.2, 5.6 and 8. The panel's balance-sheet
+drawing, formatting helpers, taxes and loan windows are §4.2–§4.3 and §8–§10 (re-budgetwin, 2026-10-22).
 Evidence: Windows 1.1.641 export, function inventory, vtables and instruction bytes; decompilation is used only
 as a navigation aid. REA batch decompilation of `0x0077C660` on 2026-10-22 returned `target_unavailable`
 (no app open); that function also fails in the saved decompilation. Its rules below come from instructions.
@@ -58,14 +59,17 @@ the already identified unlabelled owner helpers. An address is a native body, no
 
 | Panel methods | Entries | Contract coverage |
 |---|---|---|
-| constructor; deleting destructor | `007658A0`; `00764CD0` | Construction/base cleanup still needs complete audit |
-| Init; RegisterMessageNotification | `00766E10`; `007648D0` | Initialization/subscriptions gap |
+| constructor; deleting destructor | `007658A0`; `00764CD0` | Construction §8 (summary, BW18); base cleanup still needs complete audit |
+| Init; RegisterMessageNotification | `00766E10`; `007648D0` | §8 (Init at summary level, BW18) |
 | IsVisible; Update; ShowWindow; HideWindow | `00764820`; `00764830`; `00768670`; `00764AD0` | Visibility/tick routing, existing spec; ShowWindow invokes owner refresh |
 | DoMessage; DoWinProcMessage; DoSubBudgetWindow | `00768620`; `00768750`; `00768460` | Existing command/modal/dirty routing |
-| InitBalanceSheet; CalculateValues; UpdateBalanceSheetInfo | `00764DF0`; `00767270`; `00767990` | Section 4 computation; setup/rendering remainder explicit |
-| SetFormattedAmountInTextControl; PrintPercentageString | `00765800`; `00764D50` | Formatting/helper audit needed |
-| DisplayLoanWindow; UpdateLoanDisplay; RemoveLoanWindow | `00765C30`; `00766680`; `00764CF0` | Loan display/body gaps beyond existing take-loan routing |
-| SetTaxes; DisplayTaxesWindow | `00766D00`; `00768130` | Tax edit/window bodies gap |
+| InitBalanceSheet; CalculateValues; UpdateBalanceSheetInfo | `00764DF0`; `00767270`; `00767990` | Section 4 computation and the complete control mapping (§4.2); InitBalanceSheet labels BW18 |
+| SetFormattedAmountInTextControl; PrintPercentageString | `00765800`; `00764D50` | §4.3 |
+| DisplayLoanWindow; UpdateLoanDisplay; RemoveLoanWindow | `00765C30`; `00766680`; `00764CF0` | §10 (the slider limits and the row drawing at summary level, BW18) |
+| SetTaxes; DisplayTaxesWindow | `00766D00`; `00768130` | §9 |
+
+Three unlabelled panel helpers are named by re-budgetwin (2026-10-22): `RestoreTaxRates` (`00764850`, §9),
+`CloseTaxesWindow` (`007680D0`, §9) and `IssueNewLoans` (`00764BE0`, §10).
 
 The executable's contiguous address region also contains unlabelled helpers. These must not disappear from
 an owner-completion audit merely because the name importer omitted them:
@@ -270,20 +274,22 @@ IsIncomeOrdinance here. `INT32_MIN` negates to itself and therefore adds a negat
 The allocated ID array is freed after traversal; no ordinance object reference is acquired or released.
 
 Then call budget slot 29/+0x74 GetAllGroups(&temporaryVector), whose records are 40 bytes. Use the group
-ID at record +0; monthly income at +24 (two words); monthly expense at +32. Process records in returned
+ID at record +0; the monthly **expense** at +24 (two words, `totalExpense`) and the monthly **income** at +32
+(`totalIncome`; SDK `BudgetGroupInfo`, budget.md `GetAllGroups`; corrected 2026-10-22, re-budgetwin: the labels
+were swapped, the offsets and destinations stand). Process records in returned
 order, selecting destinations as follows; other IDs have no effect. Copy the chosen pair and compute its
 annual pair. No clearing of these destinations precedes this loop on the successful-budget path: an absent
 group retains its prior value; a later duplicate overwrites the earlier one. EACB/EA95 share one destination.
 
 | Group ID | Input pair | Monthly; annual destinations |
 |---|---|---|
-| `0x0A5A72D1` | expense | +0xC0; +0xC8 |
-| `0xAA369059` | expense, then income | +0xD0;+0xD8 and +0xE0;+0xE8 |
-| `0x4A357B40` | income | +0xF0; +0xF8 |
-| `0x6A357B7F` | income | +0x100; +0x108 |
-| `0x4A357EAF` | income | +0x110; +0x118 |
-| `0x6A357B96` | income | +0x120; +0x128 |
-| `0xEA357ECB` or `0xEA597195` | income | +0x130; +0x138 |
+| `0x0A5A72D1` | income | +0xC0; +0xC8 |
+| `0xAA369059` | income, then expense | +0xD0;+0xD8 and +0xE0;+0xE8 |
+| `0x4A357B40` | expense | +0xF0; +0xF8 |
+| `0x6A357B7F` | expense | +0x100; +0x108 |
+| `0x4A357EAF` | expense | +0x110; +0x118 |
+| `0x6A357B96` | expense | +0x120; +0x128 |
+| `0xEA357ECB` or `0xEA597195` | expense | +0x130; +0x138 |
 
 Dispatch/copy sites: `0x007675C0`–`0x00767780`. Finally read budget slot 45/+0xB4 into +0x140 and compute
 annual at +0x148; destroy temporary group strings and free the temporary vector (`0x00767786`–`0x00767804`).
@@ -293,21 +299,68 @@ to replace CalculateValues with a host-produced balance-sheet object.
 Discriminators: tax results [2→1,1→2,0→3] produce monthly 6, annual 72. An on ordinance returning
 `0x00000001_FFFFFFFF` contributes expense 1, not income 8589934591; `0x00000001_00000000` contributes zero.
 An income-classified ordinance with low dword -7 contributes expense 7 here but remains an A row in section 2.
-Two returned groups EACB with income 10 followed by EA95 with income 20 leave +0x130=20, annual=240;
+Two returned groups EACB with expense 10 followed by EA95 with expense 20 leave +0x130=20, annual=240;
 an update with neither ID retains that value. Missing budget resets it to zero.
 
-### 4.2 UpdateBalanceSheetInfo (`0x00767990`), proved computation boundary
+### 4.2 UpdateBalanceSheetInfo (`0x00767990`) *[compat]*
 
-First use panel window +0x10 slot 3/+0x0C and then returned object's slot 11/+0x2C, with no null check
-(`0x00767998`–`0x007679A5`). Then always CalculateValues, obtain the two
-GS colors (0x77,0,0) and (0x44,0x55,0x66), then test the dword +0x198. Zero selects the summary rendering
-path, nonzero the detailed path (`0x00767990`–`0x007679EB`). The summary writes funds to controls
-`0xAA3AC100` and `0xAA3AC10E`; color is the second color for signed funds >=0 and the first for negative.
-Byte +0x194 selects monthly versus annual controls. Monthly projection is funds - monthly expense + monthly
-income, using 64-bit subtraction/addition before money formatting (control `0xAA3AC103`,
-`0x00767AC2`–`0x00767ADE`); its sign selects the same positive/negative colors. The detailed control
-mapping and the remainder of summary rendering are still pending; they cannot be represented as an external
-refresh callback. SetFormattedAmountInTextControl remains an owner helper requiring its separate widget audit.
+*Rewritten 2026-10-22 (re-budgetwin): the control mapping is complete. Correction: `+0x198` is the **period** (0
+monthly, otherwise yearly; set by the period buttons, §8), not a summary/detailed switch, and the byte `+0x194` is the
+**tab** (budget-window.md §2.1), which picks the control set, not monthly versus annual (`0x007679E5`,
+`0x00767A29`, `0x00767E5F`; the period buttons write `+0x198` at `0x00768B40` and `0x00768C51` through the `+8` view).*
+
+1. Use panel window `+0x10` slot 3 and then the returned object's slot 11 (the root), with no null check
+   (`0x00767998`–`0x007679A5`). Run `CalculateValues` (§4.1). Get two colours from the graphics system
+   (`0x00913C1A`, slot 34): `neg` = (0x77, 0, 0), `pos` = (0x44, 0x55, 0x66).
+2. With the period's income and expense, `balance := funds − expense + income` (64-bit, before formatting).
+3. **Monthly** (`+0x198` = 0): funds go to both `0xAA3AC100` and `0xAA3AC10E`.
+   - Tab 0 (`+0x194` = 0): `0xAA3AC100` and `0xAA3AC107` are coloured by the funds' sign (`pos` for funds ≥ 0, else
+     `neg`); income `+0x30` → `0xAA3AC101`, expense `+0x40` → `0xAA3AC102`, balance → `0xAA3AC103`; `0xAA3AC103`
+     and `0xAA3AC104` are coloured by the balance's sign. Nothing else is written.
+   - Tab 1: `0xAA3AC10E` and `0xAA3AC10D` are coloured by the funds' sign; income → `0xAA3AC10F`, expense →
+     `0xAA3AC110`, balance → `0xAA3AC111`; `0xAA3AC111` and `0xAA3AC10A` are coloured by the balance's sign; then
+     the parts below (monthly column).
+4. **Yearly** (`+0x198` ≠ 0); no colour is set, so the colours of the last monthly drawing stay *[quirk]*:
+   - Tab 0: funds → `0xAA3AC100`, the estimated income `+0x38` → `0xAA3AC101`, the estimated expense `+0x48` →
+     `0xAA3AC102`, balance → `0xAA3AC103`. Nothing else is written.
+   - Tab 1: funds → `0xAA3AC10E`, `+0x38` → `0xAA3AC10F`, `+0x48` → `0xAA3AC110`, balance → `0xAA3AC111`; then the
+     parts below (annual column).
+
+| Control | Part | Monthly | Annual |
+|---|---|---|---|
+| `0xAA3AC112` | residential taxes | `+0x50` | `+0x58` |
+| `0xAA3AC113` | commercial taxes | `+0x60` | `+0x68` |
+| `0xAA3AC114` | industrial taxes | `+0x70` | `+0x78` |
+| `0xAA3AC115` | ordinance income | `+0x80` | `+0x88` |
+| `0xAA3AC11F` | ordinance expense | `+0x90` | `+0x98` |
+| `0xAA3AC120` | neighbour deal income | `+0xA0` | `+0xB0` |
+| `0xAA3AC121` | neighbour deal expense | `+0xA8` | `+0xB8` |
+| `0xAA3AC122` | group `0x0A5A72D1` income | `+0xC0` | `+0xC8` |
+| `0xAA3AC123` | group `0xAA369059` income | `+0xD0` | `+0xD8` |
+| `0xAA3AC124` | group `0xAA369059` expense | `+0xE0` | `+0xE8` |
+| `0xAA3AC125` | group `0x4A357B40` expense | `+0xF0` | `+0xF8` |
+| `0xAA3AC126` | group `0x6A357B7F` expense | `+0x100` | `+0x108` |
+| `0xAA3AC127` | group `0x4A357EAF` expense | `+0x110` | `+0x118` |
+| `0xAA3AC128` | group `0x6A357B96` expense | `+0x120` | `+0x128` |
+| `0xAA3AC129` | groups `0xEA357ECB` / `0xEA597195` expense | `+0x130` | `+0x138` |
+| `0xAA3AC12A` | bond payments | `+0x140` | `+0x148` |
+
+Every amount goes through `SetFormattedAmountInTextControl` (§4.3). A colour is set by finding the child with the
+root's slot 37 (`(id, 0x212CDC1F, &text)`) and calling the text interface's slot 9 with `(0, colour)`; a missing
+child is skipped and the reference is released. Sites: monthly `0x007679F1`–`0x00767E46`, yearly
+`0x00767E5F`–`0x007680CC`.
+
+### 4.3 The formatting helpers *[compat]*
+
+*Added 2026-10-22 (re-budgetwin).*
+
+- **`SetFormattedAmountInTextControl(id, amount)`** (`0x00765800`, int64 `amount`, `RET 0xC`): the root (as in §4.2;
+  null → nothing) finds the child `id` (slot 35); null → nothing. Its text interface (QueryInterface `0x212CDC1F`)
+  gets the string of `SC4MakeMoneyString(amount)` (`0x005F9AB0`) through its slot 4; without the interface nothing
+  is written. The reference is released.
+- **`PrintPercentageString(out, whole, tenths)`** (`0x00764D50`, `RET 0xC`): `out` := `"%d%s%d"` (`0x00AB4A68`) of
+  `whole`, the locale's decimal separator (the locale service `0x00913D7A`, slot 38 with 0, then slot 15) and
+  `tenths`.
 
 ## 5. Individual enumeration and restore acquisition
 
@@ -417,6 +470,91 @@ temporary-list reference balance and updateNeighborBudget row reuse;
 (2) individual service-query calls, float/amount derivation, remaining individual control reuse, malformed
 initializer fragment `00786F62` and its true-rebuild call at `007875C5`; full group B refresh/slider rebuilding,
 A item rendering and final stale-row cleanup; (3) popup/empty/setup
-failure references, loan-display/tax/setup helpers and remaining balance-sheet control rendering. The inventory
+failure references and setup helpers. (The panel's loan, tax, formatting and balance-sheet rendering bodies are
+§4.2–§4.3 and §8–§10, re-budgetwin 2026-10-22; their summary parts are BW18.) The inventory
 above is the checklist; layout alone may stay presentation, but counts, selection, filtering, arithmetic and
 owned references cannot be delegated as already computed results of these same owners.
+
+## 8. Panel: construction, Init, notifications and the period buttons *[compat]*
+
+*Added 2026-10-22 (re-budgetwin).* Offsets are the primary object's; `DoWinProcMessage` runs on the `+8` view, so
+its instructions read these fields 8 lower (budget-window.md §2.1, BW4).
+
+- **Construction** (`0x007658A0`): the window from the UI script (type 0, group `0x96A006B0`, instance `0xCBC3C2B9`)
+  is made a child of the city view's window (generator `0x5386D516`, id `0xAA3AC000`), aligned with the city view's
+  other children, given this proc, made to refuse the focus, and `InitBalanceSheet` (`0x00764DF0`) fills its labels
+  *[summary; BW18]*.
+- **`Init`** (`0x00766E10`): the panels `0xAA3AC001`, `0xAA3AC002` (taxes), `0xAA3AC000` and `0xCA4C332D` (loans)
+  are hidden; this proc is the notification target of every button below *[summary; BW18]*.
+- **`HideWindow`** (`0x00764AD0`): hides `0xAA3AC001`, `0xAA3AC000`, `0xAA3AC002` and `0xCA4C332D` (window flag 1
+  := 0, slot 68) and clears the visible byte `+0x19D`.
+- **Notifications** (`RegisterMessageNotification(on)`, `0x007648D0`): `on` and not yet subscribed (`+0x19C`):
+  `+0x19C` := 1, the message target (`+0x0C`) subscribes on the message server (`0x00B43CCC`, slot 5) to
+  `0x08DAC3E8`, `0x08DAC3E7` and `0x86AD10EE`, and joins the animation tick manager (`0x00602600`, slot 5) with
+  priority `0xC0`; `on` false and subscribed: the reverse (slot 6 on both). `DoWinProcMessage` calls it with true on
+  `0xA2BF8AD5` and with false on `0xA2BF8AD6` when `+0x19C` is set (`0x00769093`–`0x007690DD`). What the
+  messages do is budget-window.md §7.
+- **Period buttons**: `0x4A8879CC` and `0x4A8879DC` select **monthly** values (`+0x198` := 0); `0x4A8879CD` and
+  `0x4A8879DD` **yearly** values (`+0x198` := 1). Each first updates the four toggles `0x4A8879CC`, `0x4A8879CD`,
+  `0x4A8879DC`, `0x4A8879DD` (each found with root slot 37 and the check-box IID `0x8810`) and then updates the
+  sheet (§4.2) (`0x00768A5A`–`0x00768C5B`). The period is also what the sub-budget dialog gets as its
+  `+0x28` (budget-window.md §2 step 3).
+- **Hide buttons**: `0x4A5BB1B5` and `0x6A5BB0FB` call the panel's slot 7, `HideWindow` (`0x00768C88`).
+
+## 9. Panel: the taxes window *[compat]*
+
+*Added 2026-10-22 (re-budgetwin).*
+
+- **Open** (`DisplayTaxesWindow`, `0x00768130`; buttons `0xAA3AC400`, `0xAA3AC500`): for each tax type `t` = 0–11,
+  its slider (`0x200 + t`, IID `0x612CE0C3`) := `round(10 × GetTaxRate(t))` (tenths of a percent; budget slot 36),
+  kept as the start value (`+0x150 + 4t`); its edit field (`0x100 + t`, IID `0x231A1C57`) shows the value through
+  `PrintPercentageString` (§4.3) with the whole part and the tenths. `SetTaxes` (`0x00766D00`) shows each type's tax
+  income (`0x300 + t`, ×12 in the yearly view) and the totals `0x500` (types 0–2), `0x501` (3–7) and `0x502`
+  (8–11). The panel `0xAA3AC002` is shown, the simulator (`0x00B43D5C`) **hidden-paused** (slot 10), the window
+  location restored (`0x00B43CE0` slot 10 with `(panel, 1)`) and the panel run modally (window manager slot 41).
+  After the loop, if the panel is still visible (flag 1, slot 67): the rates are restored (`RestoreTaxRates`,
+  `0x00764850`), the panel hidden, its modal loop ended (window manager slot 9 with `(0xF, panel, 0)`), the
+  simulator resumed (slot 13) and the sheet updated. Then the focus returns to the city view and the location is
+  saved (`0x00B43CE0` slot 6) (`0x00768389`–`0x0076841A`).
+- **A slider moves** (message `0x682876C9`, data1 `0x200`–`0x20C` inclusive, `t := data1 − 0x200`, data2 the value
+  `v`): the edit field shows `v`, and the budget's `SetTaxRate(t, 0.1 × v)` (slot 37) applies at once
+  (`0x0076884C`–`0x00768865`).
+- **An edit field changes** (`0x9B1552D9`): `i := id − 0x100`. The range test rejects only `i < 0 and i ≥ 12`, which
+  is never true, so every id passes *[quirk]* (`0x007690F6`–`0x00769101`). The text is parsed as a number `x`; a
+  fully parsed text gives `v := round(10 × x)`; otherwise `v := round(10 × GetTaxRate(T[i]))` with
+  `T` = (0, 3, 9, 1, 4, 10, 2, 5, 11) at `0x00B0D9E4` *[quirk]*: the fallback takes another type's rate, and for
+  `i` = 9–11 it reads the pointers that follow the table as tax types, for which `GetTaxRate` returns 0
+  (budget.md). Both roundings add 1.5 · 2²³ (`0x00AB4A18`) to the float, so a half rounds to even. The slider is set
+  to `v` and the text rewritten. **Enter** (`0x9B1552D5` with key 13) moves the focus to the edit field
+  `(id − 0xFF) mod 12 + 0x100`.
+- **OK** (`0xAA4C353B`) and **Cancel** (`0xCA4C352F`): Cancel first restores every type's start rate
+  (`SetTaxRate(t, 0.1 × start)`, `RestoreTaxRates`); both then run `CloseTaxesWindow` (`0x007680D0`): hide the panel,
+  end its modal loop, the simulator's hidden resume (slot 13), update the sheet.
+
+## 10. Panel: the loan window *[compat]*
+
+*Added 2026-10-22 (re-budgetwin).* The loan list is a vector of `LoanInfo` records (SDK: months, years, total amount,
+remaining payment, monthly payment; 0x20 bytes) at `+0x1C`.
+
+- **Open** (`DisplayLoanWindow`, `0x00765C30`; buttons `0xAA3AC40D`, `0xAA3AC50D`): the scroll position `+0x180`,
+  the amount added `+0x18C` and the chosen amount `+0x190` are cleared. The loan amount slider (`0x8A4C34D4`, IID
+  `0x612CE0C3`) gets its range from the bond increment (budget slot 39) and the limits: when the total borrowed
+  (slot 41) equals the current borrowing limit (slot 42) nothing more can be borrowed; otherwise the maximum is the
+  smaller of the remaining borrowing room and the bond limit (slot 43) *[summary; BW18]*. The texts `0xEA4C34A6`,
+  `0xCA4C349D`, the monthly payment `0xCA4C34E2` (slot 48 `GetMonthlyPaymentForLoan`, ×12 in the yearly view) and
+  the loan length (slot 47, months, shown in years) are set; the existing loans (slot 46 `GetAllLoans`) fill the
+  list, and the count is kept twice (`+0x184` and, as the count at opening, `+0x188`). The simulator is
+  hidden-paused, the location restored and the panel `0xCA4C332D` run modally.
+- **The list** (`UpdateLoanDisplay`, `0x00766680`): four rows from the scroll position (ids `0x4A4C33AD`–`0x4A4C33B0`,
+  `0x8A4C33D0`–`0x8A4C33D3`, `0x0A4C3405`–`0x0A4C3408`, `0xCA4C3426`–`0xCA4C3429`) *[summary; BW18]*.
+- **The slider moves** (`0x682876C9`, data1 `0x8A4C34D4`): the amount `0x0A4C3409` and the payment `0xCA4C34E2`
+  (slot 48, ×12 yearly) are shown; the amount is kept (`+0x190`).
+- **Scroll**: `0x2A4C33A6` moves the list up two rows when the position is above 0; `0xAA4C339C` down two rows while
+  the position is below the count − 4; both redraw the list.
+- **Accept** (`0xAA4C33E6`, `0x00768EAD`–`0x00768FA3`): a `LoanInfo` record {months mod 12 and months / 12 of the loan
+  length (slot 47), the amount twice, the monthly payment `GetFullCostOfLoan(amount) / months` (slot 49; the low 32
+  bits divided, unsigned)} is appended; `+0x18C` += the amount, the count `+0x184` += 1; the list is redrawn;
+  `IssueNewLoans` (`0x00764BE0`) issues every record from the count at opening to the count (`IssueBond(amount)`,
+  slot 40); then the window closes (`RemoveLoanWindow`).
+- **Close** (`0x0A4C3354`; `RemoveLoanWindow`, `0x00764CF0`): hide the panel `0xCA4C332D`, end its modal loop
+  (window manager slot 9 with `(0xF, panel, 0)`), clear the list, the simulator's hidden resume (slot 13).

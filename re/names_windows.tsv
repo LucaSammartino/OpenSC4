@@ -8401,8 +8401,10 @@ va	name	source	confidence	note
 00764700	cSC4BudgetUIIncomeWinProc::DoWinProcMessage	auto:A	high	mac 001aa3b2 score 0.662 support 0
 00764820	cSC4BudgetUIWinProc::IsVisible	auto:C	low	mac 00224710 score 1.0 support 1
 00764830	cSC4BudgetUIWinProc::Update	auto:C	high	mac 002247fe score 1.0 support 1
+00764850	cSC4BudgetUIWinProc::RestoreTaxRates	manual:budget-window.tsv	high	budget-window-bodies.md descriptive name, no Mac match; §9; Cancel
 007648d0	cSC4BudgetUIWinProc::RegisterMessageNotification	auto:B1	medium	mac 00224612 score 0.929 support 2.5
 00764ad0	cSC4BudgetUIWinProc::HideWindow	auto:C	high	mac 00224d6a score 1.0 support 1
+00764be0	cSC4BudgetUIWinProc::IssueNewLoans	manual:budget-window.tsv	high	budget-window-bodies.md descriptive name, no Mac match; §10; IssueBond for the loans added
 00764c70	std::vector<cISC4BudgetSimulator::LoanInfo,std::allocator<cISC4BudgetSimulator::LoanInfo>>::~vector	auto:B0	medium	mac 006d03d6 score 0.908 support 1.0
 00764cd0	cSC4BudgetUIWinProc::~cSC4BudgetUIWinProc	auto:C	high	mac 00226fe8 score 1.0 support 1
 00764cf0	cSC4BudgetUIWinProc::RemoveLoanWindow	auto:A	high	mac 00225f22 score 1.0 support 0
@@ -8416,6 +8418,7 @@ va	name	source	confidence	note
 00766e10	cSC4BudgetUIWinProc::Init	auto:A	high	mac 0022a866 score 0.985 support 0
 00767270	cSC4BudgetUIWinProc::CalculateValues	auto:A	high	mac 00225fb4 score 0.918 support 0
 00767990	cSC4BudgetUIWinProc::UpdateBalanceSheetInfo	auto:A	high	mac 00228806 score 0.977 support 0
+007680d0	cSC4BudgetUIWinProc::CloseTaxesWindow	manual:budget-window.tsv	high	budget-window-bodies.md descriptive name, no Mac match; §9; OK
 00768130	cSC4BudgetUIWinProc::DisplayTaxesWindow	auto:B0	medium	mac 00229680 score 0.983 support 3.0
 00768460	cSC4BudgetUIWinProc::DoSubBudgetWindow	auto:B0	medium	mac 002293ae score 0.957 support 2.5
 00768620	cSC4BudgetUIWinProc::DoMessage	auto:B0	medium	mac 00229358 score 0.976 support 2.5
@@ -8556,6 +8559,7 @@ va	name	source	confidence	note
 0077a480	cSC4SubBudgetWindow::SetupWindow	auto:A	high	mac 002655a4 score 0.853 support 0
 0077a6f0	cSC4SubBudgetWindow::SetupWindowBig	auto:A	high	mac 002658fe score 0.853 support 0
 0077a960	cSC4SubBudgetWindow::SetupWindowIndiv	auto:A	high	mac 00265c58 score 0.784 support 0
+0077ab40	cSC4SubBudgetWindow::ApplyDealEdits	manual:budget-window.tsv	high	budget-window.md descriptive name (the spec's ApplyDealEdits), no Mac match; §5.4; OK 0xCF
 0077ad20	std::vector<cSC4SubBudgetWindow::IndividualRestoreInfo,std::allocator<cSC4SubBudgetWindow::IndividualRestoreInfo>>::erase	auto:B6	medium	mac 006de620 score 0.957 support 1.0
 0077ada0	cSC4SubBudgetWindow::updateOrdinanceBudget	auto:A	high	mac 002628da score 0.717 support 0
 0077b7b0	cSC4SubBudgetWindow::add_image_button1	auto:A	high	mac 00261e94 score 0.583 support 0

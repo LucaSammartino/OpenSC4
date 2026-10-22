@@ -1,0 +1,43 @@
+va	name	evidence	mac_x86
+00764850	cSC4BudgetUIWinProc::RestoreTaxRates	budget-window-bodies.md descriptive name, no Mac match; §9; Cancel	
+007648d0	cSC4BudgetUIWinProc::RegisterMessageNotification	budget-window-bodies.md §8; 0x08DAC3E7, 0x08DAC3E8, 0x86AD10EE	
+00764ad0	cSC4BudgetUIWinProc::HideWindow	budget-window-bodies.md §8	
+00764be0	cSC4BudgetUIWinProc::IssueNewLoans	budget-window-bodies.md descriptive name, no Mac match; §10; IssueBond for the loans added	
+00764cf0	cSC4BudgetUIWinProc::RemoveLoanWindow	budget-window-bodies.md §10	
+00764d50	cSC4BudgetUIWinProc::PrintPercentageString	budget-window-bodies.md §4.3	
+00764df0	cSC4BudgetUIWinProc::InitBalanceSheet	budget-window-bodies.md §8 (summary)	
+00765800	cSC4BudgetUIWinProc::SetFormattedAmountInTextControl	budget-window-bodies.md §4.3	
+007658a0	cSC4BudgetUIWinProc::cSC4BudgetUIWinProc	budget-window-bodies.md §8 (summary); window 0x96A006B0/0xCBC3C2B9	
+00765c30	cSC4BudgetUIWinProc::DisplayLoanWindow	budget-window-bodies.md §10	
+00766680	cSC4BudgetUIWinProc::UpdateLoanDisplay	budget-window-bodies.md §10 (summary)	
+00766d00	cSC4BudgetUIWinProc::SetTaxes	budget-window-bodies.md §9	
+00766e10	cSC4BudgetUIWinProc::Init	budget-window-bodies.md §8 (summary)	
+00767270	cSC4BudgetUIWinProc::CalculateValues	budget-window-bodies.md §4.1	
+00767990	cSC4BudgetUIWinProc::UpdateBalanceSheetInfo	budget-window-bodies.md §4.2	
+007680d0	cSC4BudgetUIWinProc::CloseTaxesWindow	budget-window-bodies.md descriptive name, no Mac match; §9; OK	
+00768130	cSC4BudgetUIWinProc::DisplayTaxesWindow	budget-window-bodies.md §9	
+00768460	cSC4BudgetUIWinProc::DoSubBudgetWindow	budget-window.md §2	
+00768620	cSC4BudgetUIWinProc::DoMessage	budget-window.md §7	
+00768670	cSC4BudgetUIWinProc::ShowWindow	budget-window.md §2.1	
+00768750	cSC4BudgetUIWinProc::DoWinProcMessage	budget-window.md §2.1; budget-window-bodies.md §8-§10	
+00779850	cSC4SubBudgetWindow::end_dialog	budget-window.md §6; 0x42B7C353	
+00779e50	cSC4SubBudgetWindow::CreateSubBudgetWindow	budget-window.md §3	
+0077a1a0	cSC4SubBudgetWindow::DestroySubBudgetWindow	budget-window.md §6	
+0077a6f0	cSC4SubBudgetWindow::SetupWindowBig	budget-window.md §4.1	
+0077ab40	cSC4SubBudgetWindow::ApplyDealEdits	budget-window.md descriptive name (the spec's ApplyDealEdits), no Mac match; §5.4; OK 0xCF	
+0077ada0	cSC4SubBudgetWindow::updateOrdinanceBudget	budget-window-bodies.md §2	
+0077bc90	cSC4SubBudgetWindow::SetOccupantFundingLevel	budget-window.md §5.5	
+0077bec0	cSC4SubBudgetWindow::SetEmptyWindow	budget-window.md §4.1	
+0077c5e0	cSC4SubBudgetWindow::RestoreStartSettings	budget-window.md §5.1	
+0077c660	cSC4SubBudgetWindow::initOrdinanceBudget	budget-window-bodies.md §2	
+0077e440	cSC4SubBudgetWindow::on_shutdown	budget-window.md §4	
+0077e600	cSC4SubBudgetWindow::initNeighborBudget	budget-window-bodies.md §3	
+00781c90	cSC4SubBudgetWindow::updateNeighborBudget	budget-window-bodies.md §3	
+00785740	cSC4SubBudgetWindow::updateIndividualBudget	budget-window-bodies.md §5	
+007862b0	cSC4SubBudgetWindow::cSC4SubBudgetWindow	budget-window.md §2	
+00786530	cSC4SubBudgetWindow::DoIndividualBudgetWindow	budget-window.md §2	
+00786690	cSC4SubBudgetWindow::initIndividualBudget	budget-window-bodies.md §5	
+007876b0	cSC4SubBudgetWindow::on_init	budget-window.md §4	
+007898a0	cSC4SubBudgetWindow::UpdateValues	budget-window-bodies.md §6	
+0078b120	cSC4SubBudgetWindow::on_button_activated	budget-window.md §5	
+0078bca0	cSC4SubBudgetWindow::DoWinMsg	budget-window.md §4	
