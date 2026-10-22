@@ -531,6 +531,9 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4IndustrialShadow.cpp
         plugin/FC4IndustrialShadow.h
         plugin/compat/FC4IndustrialCompat.h
+        # Opt-in native language utility verification (production core transport).
+        plugin/FC4LanguageVerify.cpp
+        plugin/FC4LanguageVerify.h
         # Owned cGZFontSys verification (drawing-fonts sections 12/12.1).
         plugin/FC4FontSysVerify.cpp
         plugin/FC4FontSysVerify.h
