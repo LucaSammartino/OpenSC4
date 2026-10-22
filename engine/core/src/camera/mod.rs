@@ -7,7 +7,7 @@
 //! See `README.md` beside this module for the complete method inventory.
 
 mod control;
-mod geometry;
+pub(crate) mod geometry;
 mod s3d;
 
 pub use control::{
