@@ -6,8 +6,9 @@
 - Goal: implement only cRZDirectory owner from framework-rz-files chapter 6, no ABI/glue/runtime edits.
 - Done e8bfee92: chapter 6 owner and 22 independent tests committed before first quick completed.
 - First quick PASS: core 2743/0, dependent crates compiled, native 208/208 edges (tree changed only for added tests during run).
-- Added 3 tests: process-wide depth across threads; 81-level/405-byte traversal; exact dot byte/seen-position handling (25 total).
-- Next: stable quick on expanded tests, then single final all gate; no further source edits planned unless a check fails.
+- Done 5d755808: 3 additional tests committed (25 total), including cross-thread global depth and 81-level/405-byte traversal.
+- Stable quick PASS: core 2746/0 including all 25 directory tests; dependent crates compiled; native 2/2 edges; 49.4 s, tree unchanged.
+- Next: single final all gate on committed source, then replace Handoff with full report/checklist and enqueue; no source edits planned unless checks fail.
 - Absolute-path fmt PASS for all 3 touched Rust files (environment canonicalization warning only).
 - Baseline full build intentionally skipped per task-specific instruction; one final stable all gate required.
 - Preserve native enumeration order, duplicate-dot quirks, caller append/front synthesis, global recursion depth, missing-separator child paths, outer-first rollback.
