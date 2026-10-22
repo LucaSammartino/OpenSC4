@@ -1,20 +1,40 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-variants4 (bounded native variants) | `verify-variants4` / detached engine lane | in progress: round2; retained code e7817958; native322/350,28 HG7; current40 ON/OFF corrupt/ref0 | (1) Resolve owned crash frames. (2) Run preserved train97 identical control. (3) Fix only evidenced owned cause and validate. |
+| verify-variants4 (bounded native variants) | `verify-variants4` / detached engine lane | BLOCKED round2: stable cargo4947/0 clippy0 ctest68/68; same-request train97 corrupt/ref0; candidate minus terrain clean2032/ref0/full save/shutdown; native322/350,28 HG7 unchanged; ABI unchanged | (1) Complete terrain/view compatibility contract. (2) Repeat immutable native/own/current40 ON+OFF2032/ref0, save/shutdown and supported reload. HG4-HG7 remain open; no readiness or coverage credit. |
 
-## Handoff
+## Round2 report: terrain/view integration blocker
 
-- Goal: diagnose current40 ON/OFF foreign exception using preserved train97 gated68/PASS baseline, no RE or core semantic changes.
-- Retained report follows; original report commit6e1f9257, copy build-runs/round1-report.md.
-- Baseline evidence: build-runs/evidence-run4/train97-gated-8a7160ca.dll/.pdb; SHA8a7160cad839f19b8fd9f6d685926a6d07defa11d116b0ff97589a302f17a0c7.
-- OFF owned frames: DLL+DC6841,DC6437,911AB5,91127C,9176A9; resolve with retained PDB next.
-- Same fixture is harness Konradshohe alias; script build-runs/variants-save.txt; exact request in game-queue/done.
-- Initial qbuild all PASS cargo4947/0 clippy0 ctest68/68 (tree changed due to lane report edit); stable final gate still needed.
-- Control vv4-r2-train97-off-1853 completed corrupt/ref0 before date, same request except DLL/label. Baseline success in different setup does not transfer.
-- Retained owned PDB frames resolve SC4String::FromChar+51, constructor+57, Attempt+F5, AutoloadOnTick+37C, observer OnTick+89; raw stack scan may include stale frames, not a proven call chain.
-- Symbol helper build-runs/owned-symbols.py reads only owned image/PDB. Both reports show identical owned frames.
-- Next: inspect owned adapter/string contracts and configuration differences; control failure is reproducible outside variant changes.
-- q.py Bash launch E_ACCESSDENIED; bounded PowerShell used. No guard denial.
+The same-request train97 control reproduces the current40 failure. Disabling only the candidate's terrain replacement reaches2032 clean/ref0, performs the full scripted save, and completes shutdown. This isolates the failure to the terrain replacement boundary on this fixture; it does not establish a corrected current40 candidate. No engine code was changed in round2: a small pointer-only fix cannot satisfy the remaining published initialization and layout requirements. Stop here for a complete terrain compatibility implementation, without disabling coverage or changing defaults.
+
+### Controlled evidence
+
+All requests use Konradshohe, turbo1, end_date2032-01-01, seconds900/timeout1050, refaudit1, and the identical immutable three-action build-runs/variants-save.txt. They use the ordinary harness-mirrored region alias, not fixture_city; no independently hashed city source is claimed. Script SHA256:B421EB88ACC9BED7EDBD737527B1AFDF097FEDA7D33FD9E41998792F5F58F93E. Each label was unique, each wait preserved existing verdicts, and no request remains outstanding.
+
+- vv4-r2-train97-off-1853: corrupt/ref0 before date. Relative to round1 OFF, only DLL path and unique label changed. Preserved baseline SHA256:8A7160CAD839F19B8FD9F6D685926A6D07DEFA11D116B0FF97589A302F17A0C7, verified against build-runs/evidence-run4/run4-train97-dll.json. Its gated68/PASS joint train97-span565-joint-20261022a is a different setup; baseline success does not transfer to this request.
+- vv4-r2-no-citydetail-1858: corrupt/ref0 before date. Relative to round1 OFF, only disable=citydetail and unique label changed. This excludes citydetail removal alone as a remedy.
+- vv4-r2-no-terrain-1901: clean2032-01-01/ref0,145.844s,14.85 days/s. Relative to round1 OFF, only disable=terrain and unique label changed. SaveCity(full) returned ok=1 in11094ms; all three script actions completed; PostSystemServiceShutdown reached. This is a diagnostic exclusion, never full current40 acceptance.
+
+Candidate evidence remains build-runs/dlls/vv4-e78179/FreeCity4.dll/.pdb, DLL SHA256:A7BAE0DBBAF83CA32C22B836704F4D050C1D1C2615E23235E29C0453382E0EFF. Original round1 ON/OFF failures remain valid and unchanged. No reload acceptance was attempted after the integration blocker was isolated.
+
+### Owned symbols and published-contract findings
+
+The matching candidate PDB resolves DLL+DC6841 to SC4String::FromChar+0x51, DC6437 to its constructor+0x57,911AB5 to Attempt+0xF5,91127C to AutoloadOnTick+0x37C,9176A9 to observer OnTick+0x89. The baseline PDB resolves E0CAF1/E0C6E7/92B995/92B15C/9314D9 to identical names/displacements. These are raw stack-scan hits, not proven unwind frames. Logs show successful progression through city load and subsystem Init before the final terrain-view creation milestone. The constructor hits do not prove a string fault. The helper build-runs/owned-symbols.py loads only owned images/PDBs through DbgHelp; no native code bytes or disassembly were read.
+
+Concrete owned gaps against terrain.md:
+
+- Section15.5.1 and15.5.11 require construction, Init(terrain), then viewReady. cFC4Terrain.cpp:848 sets ready first;858-861 creates/stores a view without any view Init.
+- Section15.5.11 item1 requires GetView return the terrain-view interface, not the object base or another interface. The adapter requests GZIID_cIGZUnknown at858 and returns that void pointer cast as cISTETerrainView at541, without QI or adjustment. A cast cannot establish COM interface identity.
+- Section15.5.11 items12-14 require live directly readable terrain vertices at terrain+0x6C and water records at water+0x18. The replacement stores private HostContext/core state instead of establishing that compatibility layout. Calling Init alone is unsafe.
+- Section15.5.11 item15a requires view Shutdown before releasing the terrain's reference. Current teardown releases the created view without that explicit shutdown sequence.
+- Section15.5.13.5 permits dropping the saved reference and creating a fresh view; dropping it alone is not a demonstrated violation. A fresh view still needs Init. Full save/reload validation belongs in the complete fix.
+
+The boundary is experimentally isolated; the exact native fault has not been attributed to one individual gap. Fix identity, complete initialization/layout/lifetime together, then rerun the full matrix. Returning null or removing terrain is not an acceptable fix.
+
+### Gate and scope
+
+Initial qbuild all passed cargo4947/0,clippy0,ctest68/68 but noted a tree change from the lane report. Final qbuild all passed the same counts with no tree-changed warning: CMake build PASS, ctest68/68 in76.35s. Logs:build-runs/qbuild-test.log,qbuild-clippy.log,fc4verify-build.log,fc4verify-ctest.log. No Rust edits, so fmt is inapplicable. q.py could not launch Bash (E_ACCESSDENIED); bounded native PowerShell was used. No lane-guard denial.
+
+No core/count/conversion, ABI/export/table, default, coverage, or generated-file changes. Original322/350 observations and all28 HG7 scalar-count differences remain intact; HG4-HG7 remain open, no new spec question needed for explicit terrain contracts. Native/own/current40 ON+OFF2032/ref0 and supported reload acceptance are still incomplete. No readiness, owner promotion or coverage credit is claimed. Round2 milestones:5e76bba3 retained evidence;f12f9985 same-request baseline failure and owned symbols; this report records the completed exclusion control and stable gate. Detached HEAD only; no merge/rebase/ref update/push or subagent.
 
 ## Retained round1 report
 
