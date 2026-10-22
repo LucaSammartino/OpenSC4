@@ -254,6 +254,48 @@ simulators' next full rebuild (protection.md §8.3 assumes inactive comes first)
   dropping the active pylon on its own station's lot calls `RevokeDispatchByPylon`, elsewhere `CanDispatch` then
   `Dispatch`; afterwards `SetActivePylon(null)`.
 
+#### 4.5.1 Air station enumeration and unit state (DP13) *[compat]*
+
+Both air sources use the object-start dispatch-source interface (IID `0xC9C00435`), not their
+message-target or serializable subobjects. Fire's primary table is `0x00AB1008`; police's is
+`0x00AB22D0` (constructor stores at `0x006ACE19`, `0x006DFF89`). Exported data references
+at `0x00AB1020` / `0x00AB22E8` select **the same** slot-6 function, `0x006E0010`.
+
+| Slot | Arguments, in order | Return and ownership |
+|---|---|---|
+| 6 `GetStations` | writable native occupant-list reference; callee pops 4 bytes | AL = copied count nonzero, **not** a count in EAX. Each copied station has one acquired reference. |
+| 7 `GetDispatchesAtStation` | station occupant pointer, optional `u32* mask`, optional `u32* base`, optional `u32* count`; callee pops 16 bytes | AL success; no acquired reference. Fire `0x006AC710`, police `0x006DF770`. |
+
+Slot 6 passes the source's list at object `+0x1C` to `CopyOccupantList` (`0x006DFC70`). It first
+clears the destination's **nodes only**, without releasing their old element pointers
+(`0x00413E60`); callers must balance any previously acquired elements before reusing the list.
+It walks source order, calls each station's slot 1 AddRef **before** appending the pointer, and
+returns whether at least one was copied (`0x006DFC90`–`0x006DFC97`, `0x006DFD10`–`0x006DFD17`,
+`0x006E001E`–`0x006E0026`). The native list is a dword sentinel pointer; each node contains next,
+previous and occupant at offsets 0, 4 and 8. It is not an output array or an arbitrary STL layout.
+Null station entries and allocation failure have no recoverable path here.
+
+Balance **one** Release per returned station reference. A list wrapper whose destructor releases
+its elements can perform that balance itself; explicit releases followed by that same destructor
+require clearing the nodes first. The earlier crash in the question was corrected as a caller
+cleanup error and supplies no contrary air-source ownership evidence.
+
+Slot 7 reads the station's property holder (occupant slot 6). It always reads count first, even if
+all output pointers are null. It writes count if requested, reads and writes mask only if
+requested, and finally reads and writes base only if requested. The property IDs are:
+
+| Source | Count | Free mask | Base call number |
+|---|---|---|---|
+| Fire plane | `0x0C0AFDD7` | `0xCC0AFDDB` | `0x0C0AFF3F` |
+| Police helicopter | `0xCC0B0705` | `0xEC0B0709` | `0xAC0B070E` |
+
+On a failed property read AL = 0 immediately; earlier output writes remain and later ones are
+untouched. On success the written mask is `rawMask & ((1u << (count & 31)) - 1u)`, with 32-bit
+shift/subtract semantics: count 32 yields mask zero, count 33 retains bit 0. This is verified by
+the CL shift and dword decrement/AND at `0x006AC775`–`0x006AC78B` and
+`0x006DF7D5`–`0x006DF7EB`. No station/source relationship validation or reference operation
+occurs in this getter. See protection.md §8.4 for the matching air-source contract.
+
 ### 4.6 Queries
 
 `CanDispatch(type, x, z)` (slot 5): the source's `CanDispatch`, or false without a source. `GetDispatchInfo(id,
@@ -376,6 +418,17 @@ See QUESTIONS.md, section "From the re-specs10 specs" (DP1–DP3), and the cores
 same section; all answered (DP3 by re-answers19, §4.3).
 
 ## 12. Conformance tests
+
+DP13 independent vectors (specified, not claimed executed):
+
+- Empty air source into an empty native list: AL false, no element AddRef. Two source stations A, B:
+  output A then B, one AddRef each, AL true. Releasing each once and clearing nodes leaves net zero.
+- Destination initially contains an acquired X: slot 6 discards its node without releasing X;
+  this distinguishes node replacement from reference-owning list assignment.
+- Fire count 3, raw mask `0xFFFFFFFF`, base 17: outputs `(7,17,3)`; police uses its own three IDs.
+- Count 32 / 33 with raw mask all ones gives mask 0 / 1. Do not substitute a saturating mask.
+- Missing count leaves all sentinel outputs unchanged; missing mask writes count only; missing base
+  writes count and masked mask. With null mask output, a missing mask property does not cause failure.
 
 1. Empty record: a fresh manager writes `02 00 00000000 00000000 00000000 00000000 08000000`.
 2. Round trip of the 22-byte corpus forms, including `toolType` 4; after `Init`, `toolType` is 8.

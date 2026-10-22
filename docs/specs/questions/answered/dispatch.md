@@ -1,4 +1,11 @@
 # dispatch: answered questions (archive)
+
+<!-- from: glue-dispatch-complete4 (2026-10-22) -->
+- **DP13 - §4.5 and protection §8.4: air-source GetStations ownership and unit-state contract.** Does each air source's slot 6 return borrowed station pointers or AddRef every element? Publish both air sources' slot 6/7 arguments, outputs and ownership explicitly. PR8 proves AddRef-on-copy for ground fire/police sources only. Run gdc4-original-20261022-a1 matched independently acquired sources and free counts (police 4, fire 2, air 0), created a real fire dispatch, then failed while releasing an air-source list element after repeated samples. [Only ground providers receive PR8's acquired-reference release; for air providers, do not Release a reference whose acquisition is not published. This conservative literal ownership choice is not complete replacement credit.]
+  **ANSWERED 2026-10-22 (re-dispatch-completion4):** DIFFERS — both air sources AddRef every copied station through the same slot-6 function `0x006E0010` and copy helper `0x006DFC70`; balance each exactly once. AL means nonempty. Slot 7 takes `(station, mask*, base*, count*)`, reads/writes count, mask, base in that order and retains earlier writes on failure; exact properties and shift widths are in dispatch.md §4.5.1 and protection.md §8.4. Destination node clearing does not release old elements. Independent distinguishing vectors are specified in dispatch.md §12.
+
+<!-- from: glue-dispatch-complete4 correction (2026-10-22) -->
+DP13 evidence correction: a2 failed identically. Inspection of the allowed SDK SC4List implementation showed its destructor already releases non-null elements; the lane's explicit ground release therefore doubled that cleanup. Clearing nodes after audited cleanup fixes this implementation error. Neither failure proves an air-source ownership rule. The original replacement's SC4List destructor already balanced ground station references.
 <!-- Archive for [dispatch.md](../../dispatch.md). Lanes do not read this file. Open questions are in ../dispatch.md. -->
 
 <!-- from: From the city situation, demolition, dispatch, port, prop developer and city detail specs (2026-10-14) -->

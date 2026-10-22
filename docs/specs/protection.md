@@ -789,7 +789,15 @@ GZCOM-registered classes, but the simulators create them directly and call their
 `0x99EF1142`, `0x99EF1143`, `0xE94671EB`, `0x894671F6`, `0xE94671EC`, `0xE94671ED` and registers the source with
 the dispatch manager. Their save record is `u16 1`, `u32 n` + n occupant refs, `u32` (meaning unknown) (`Write`
 `0x006AC930`). The fire class's Read (`0x006AC970`) accepts version 1 only; the police class's Read (`0x006DF970`)
-accepts 0 and 1 *[quirk]* (save-records.md §7.4). Their behaviour belongs to a later dispatch spec.
+accepts 0 and 1 *[quirk]* (save-records.md §7.4).
+
+**Air station lists and unit state (DP13).** Object-start slot 6 takes a native occupant-list
+reference, replaces its nodes and AddRefs each copied station, returning AL = nonempty. Both
+air tables use `0x006E0010` → `0x006DFC70`. Balance prior element references before reusing
+the destination: the native node clear does not release them. Slot 7 takes
+`(station, mask*, base*, count*)`, returns AL success, and writes count, masked mask, then base,
+retaining partial writes on failure. The complete output/property/ownership and 32-bit shift
+contracts are in dispatch.md §4.5.1; no borrowed-air-list exception applies.
 
 **How they are created** *[compat]* (PR13):
 
