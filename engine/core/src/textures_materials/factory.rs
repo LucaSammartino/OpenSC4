@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 use super::{
     Binding, BindingParams, BitCounts, ImageInfo, ImageResource, Provider, Release, ResourceKey, Service, Upload,
-    DEFAULT_GROUP, IMAGE_TYPE, RESTORE_TEXTURES,
+    Unsupported, DEFAULT_GROUP, IMAGE_TYPE, RESTORE_TEXTURES,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -26,22 +26,21 @@ pub struct BindingInfo {
 pub struct Stats {
     pub in_use: u32,
     pub pooled: u32,
-    // TB5: wide aggregate counters avoid inventing native overflow semantics.
-    pub in_use_bytes: u64,
-    pub pooled_bytes: u64,
+    pub in_use_bytes: u32,
+    pub pooled_bytes: u32,
 }
 
 impl Stats {
     pub fn format(self) -> String {
-        let mb = |n: u64| n as f64 * 2_f64.powi(-20);
+        let mb = |n: u32| n as f64 * 2_f64.powi(-20);
         format!(
             "Textures: {} ({:.1} MB) in use, {} ({:.1} MB) awaiting reuse, {} ({:.1} MB) total\n",
-            self.in_use,
+            self.in_use as i32,
             mb(self.in_use_bytes),
-            self.pooled,
+            self.pooled as i32,
             mb(self.pooled_bytes),
-            u64::from(self.in_use) + u64::from(self.pooled),
-            mb(self.in_use_bytes + self.pooled_bytes)
+            self.in_use.wrapping_add(self.pooled) as i32,
+            mb(self.in_use_bytes.wrapping_add(self.pooled_bytes))
         )
     }
 }
@@ -71,6 +70,7 @@ pub struct BindingFactory<P: Provider> {
     message_server: Option<u64>,
     next_id: u64,
     alive: bool,
+    unsupported: Option<Unsupported>,
 }
 
 impl<P: Provider> BindingFactory<P> {
@@ -91,11 +91,28 @@ impl<P: Provider> BindingFactory<P> {
             message_server: None,
             next_id: 1,
             alive: true,
+            unsupported: None,
         }
     }
 
     pub fn provider(&self) -> &P {
         &self.provider
+    }
+
+    /// Read after an operation returning None/void: Some means no native failure
+    /// result is claimed. Ordinary resource/driver failures leave this unset.
+    pub fn unsupported(&self) -> Option<Unsupported> {
+        self.unsupported
+    }
+
+    fn params(&mut self, image: &dyn ImageInfo) -> Option<BindingParams> {
+        match BindingParams::for_image(image.description(), self.lod, self.display_depth) {
+            Ok(params) => Some(params),
+            Err(_) => {
+                self.unsupported = Some(Unsupported::NativeNontermination);
+                None
+            }
+        }
     }
 
     /// Exclusively borrowed for driver/resource setup; no owner policy is delegated.
@@ -272,12 +289,16 @@ impl<P: Provider> BindingFactory<P> {
     }
 
     pub fn get_binding_from_image(&mut self, image: &dyn ImageInfo) -> Option<BindingId> {
+        self.unsupported = None;
         if !self.alive {
             return None;
         }
-        let params = BindingParams::for_image(image.description(), self.lod, self.display_depth).ok()?;
+        let params = self.params(image)?;
         let id = self.reuse_or_create(params, image.description().bits)?;
         self.set_binding_image_data(id, image);
+        if self.unsupported.is_some() {
+            return None;
+        }
         self.add_binding_ref(id)?;
         Some(id)
     }
@@ -292,24 +313,31 @@ impl<P: Provider> BindingFactory<P> {
     }
 
     pub fn get_binding_by_key(&mut self, key: ResourceKey) -> Option<BindingId> {
-        // TB6: instance zero is the unkeyed sentinel; its cache contract is unpublished.
-        if !self.alive || key.instance == 0 {
+        self.unsupported = None;
+        if !self.alive {
             return None;
         }
         if let Some(&id) = self.keys.get(&(key.group, key.instance)) {
+            if !self.records.contains_key(&id) {
+                self.unsupported = Some(Unsupported::DanglingKey);
+                return None;
+            }
             self.take_from_pool(id);
             self.add_binding_ref(id)?;
             return Some(id);
         }
         let resource = self.provider.load(self.manager?, key)?;
         let result = resource.image_info().and_then(|image| {
-            let params = BindingParams::for_image(image.description(), self.lod, self.display_depth).ok()?;
+            let params = self.params(image)?;
             let id = self.reuse_or_create(params, image.description().bits)?;
             let record = self.records.get_mut(&id)?;
             record.group = key.group;
             record.instance = key.instance;
             self.keys.insert((key.group, key.instance), id);
             self.set_binding_image_data(id, image);
+            if self.unsupported.is_some() {
+                return None;
+            }
             self.add_binding_ref(id)?;
             Some(id)
         });
@@ -343,14 +371,19 @@ impl<P: Provider> BindingFactory<P> {
         let id = BindingId(self.next_id);
         let next = self.next_id.checked_add(1)?;
         let mut textures = Vec::new();
-        for _ in 0..params.frames {
+        // An impossible allocation is an unsupported portable path, not a
+        // checked native layout rejection. Do not attempt multi-gigabyte buffers.
+        if params.frames > 1_000_000 || textures.try_reserve_exact(params.frames as usize).is_err() {
+            self.unsupported = Some(Unsupported::Allocation);
+            return None;
+        }
+        for frame in 0..params.frames {
             let texture = self.provider.create_texture(driver, params, 2);
             textures.push(texture);
             if self.provider.driver_error(driver) {
-                // TB7: includes the just-returned handle among textures made so far.
-                for texture in textures {
-                    self.provider.delete_texture(driver, texture);
-                }
+                self.provider.delete_textures(driver, &textures[..frame as usize]);
+                // Native leaks the separate handle array here. Rust reclaims
+                // storage; this allocation-leak path is not claimed as parity.
                 return None;
             }
         }
@@ -366,36 +399,43 @@ impl<P: Provider> BindingFactory<P> {
                 instance: 0,
             },
         );
-        self.stats.in_use += 1;
-        self.stats.in_use_bytes += u64::from(params.bytes);
+        self.stats.in_use = self.stats.in_use.wrapping_add(1);
+        self.stats.in_use_bytes = self.stats.in_use_bytes.wrapping_add(params.bytes);
         Some(id)
     }
 
     /// §1.5 and graphics-formats §2.10: last n source levels, per frame, no clamping.
     pub fn set_binding_image_data(&mut self, id: BindingId, image: &dyn ImageInfo) {
+        self.unsupported = None;
+        // Native reads the source fields even for an unknown binding.
+        let description = image.description();
         let Some(record) = self.records.get(&id) else {
             return;
         };
         let Some(driver) = self.driver else {
             return;
         };
-        let description = image.description();
-        // TB7: malformed/mismatched level tables are outside the published domain.
-        let Some(first) = description.levels.checked_sub(record.params.levels) else {
-            return;
-        };
-        for (frame, texture) in record.binding.textures().iter().enumerate() {
+        let first = description.levels.wrapping_sub(record.params.levels);
+        for frame in 0..description.frames {
+            let Some(&texture) = record.binding.textures().get(frame as usize) else {
+                self.unsupported = Some(Unsupported::BindingHandleArray);
+                return;
+            };
             for level in 0..record.params.levels {
-                let Some(data) = image.level_data(frame as u32, first + level) else {
-                    return;
+                let data = match image.level_pointer(frame, first.wrapping_add(level)) {
+                    Ok(data) => data,
+                    Err(reason) => {
+                        self.unsupported = Some(reason);
+                        return;
+                    }
                 };
                 self.provider.upload(
                     driver,
                     Upload {
-                        texture: *texture,
+                        texture,
                         level,
-                        width: record.params.width.checked_shr(level).unwrap_or(0),
-                        height: record.params.height.checked_shr(level).unwrap_or(0),
+                        width: record.params.width.wrapping_shr(level),
+                        height: record.params.height.wrapping_shr(level),
                         format: description.format,
                         component_type: description.component_type,
                         data,
@@ -414,10 +454,10 @@ impl<P: Provider> BindingFactory<P> {
         }
         self.free.retain(|entry| *entry != id);
         record.in_use = true;
-        self.stats.pooled -= 1;
-        self.stats.pooled_bytes = self.stats.pooled_bytes.saturating_sub(u64::from(record.params.bytes));
-        self.stats.in_use += 1;
-        self.stats.in_use_bytes += u64::from(record.params.bytes);
+        self.stats.pooled = self.stats.pooled.wrapping_sub(1);
+        self.stats.pooled_bytes = self.stats.pooled_bytes.wrapping_sub(record.params.bytes);
+        self.stats.in_use = self.stats.in_use.wrapping_add(1);
+        self.stats.in_use_bytes = self.stats.in_use_bytes.wrapping_add(record.params.bytes);
     }
 
     pub fn free_binding(&mut self, id: BindingId) {
@@ -429,16 +469,16 @@ impl<P: Provider> BindingFactory<P> {
             return;
         }
         record.in_use = false;
-        self.stats.in_use -= 1;
-        self.stats.in_use_bytes -= u64::from(record.params.bytes);
-        self.stats.pooled += 1;
-        self.stats.pooled_bytes += u64::from(record.params.bytes);
+        self.stats.in_use = self.stats.in_use.wrapping_sub(1);
+        self.stats.in_use_bytes = self.stats.in_use_bytes.wrapping_sub(record.params.bytes);
+        self.stats.pooled = self.stats.pooled.wrapping_add(1);
+        self.stats.pooled_bytes = self.stats.pooled_bytes.wrapping_add(record.params.bytes);
         self.free.push_front(id);
         self.adjust_free_pool_size();
     }
 
     fn adjust_free_pool_size(&mut self) {
-        while self.stats.pooled_bytes > u64::from(self.free_pool_max) {
+        while self.stats.pooled_bytes > self.free_pool_max {
             let Some(&oldest) = self.free.back() else {
                 break;
             };
@@ -455,16 +495,14 @@ impl<P: Provider> BindingFactory<P> {
         }
         self.free.retain(|entry| *entry != id);
         if record.in_use {
-            self.stats.in_use -= 1;
-            self.stats.in_use_bytes -= u64::from(record.params.bytes);
+            self.stats.in_use = self.stats.in_use.wrapping_sub(1);
+            self.stats.in_use_bytes = self.stats.in_use_bytes.wrapping_sub(record.params.bytes);
         } else {
-            self.stats.pooled -= 1;
-            self.stats.pooled_bytes = self.stats.pooled_bytes.saturating_sub(u64::from(record.params.bytes));
+            self.stats.pooled = self.stats.pooled.wrapping_sub(1);
+            self.stats.pooled_bytes = self.stats.pooled_bytes.saturating_sub(record.params.bytes);
         }
         if let Some(driver) = self.driver {
-            for texture in record.binding.textures() {
-                self.provider.delete_texture(driver, *texture);
-            }
+            self.provider.delete_textures(driver, record.binding.textures());
         }
         // Dropping the record frees binding storage even if caller references survive.
     }
@@ -491,15 +529,25 @@ impl<P: Provider> BindingFactory<P> {
     }
 
     pub fn do_message(&mut self, message: u32) -> bool {
+        self.unsupported = None;
         if message == RESTORE_TEXTURES {
             if let Some(manager) = self.manager {
-                // The spec publishes membership, not native hash traversal order.
-                let keys: Vec<_> = self.keys.iter().map(|(&key, &id)| (key, id)).collect();
-                for ((group, instance), id) in keys {
+                // TB8: bucket hash/growth/chain insertion are not published.
+                // Withhold multi-entry traversal rather than invent sorted order.
+                if self.keys.len() > 1 {
+                    self.unsupported = Some(Unsupported::RestoreTableOrder);
+                    return true;
+                }
+                let ids: Vec<_> = self.keys.values().copied().collect();
+                for id in ids {
+                    let Some(record) = self.records.get(&id) else {
+                        self.unsupported = Some(Unsupported::DanglingKey);
+                        return true;
+                    };
                     let key = ResourceKey {
                         type_id: IMAGE_TYPE,
-                        group,
-                        instance,
+                        group: record.group,
+                        instance: record.instance,
                     };
                     if let Some(resource) = self.provider.load(manager, key) {
                         if let Some(image) = resource.image_info() {
@@ -517,5 +565,19 @@ impl<P: Provider> BindingFactory<P> {
 impl<P: Provider> Drop for BindingFactory<P> {
     fn drop(&mut self) {
         self.shutdown();
+    }
+}
+
+impl<P: Provider> super::BindingReferences for BindingFactory<P> {
+    fn acquire_binding(&mut self, binding: BindingId) {
+        if self.add_binding_ref(binding).is_none() {
+            self.unsupported = Some(Unsupported::InvalidBinding);
+        }
+    }
+
+    fn release_binding(&mut self, binding: BindingId) {
+        if self.release_binding(binding).is_none() {
+            self.unsupported = Some(Unsupported::InvalidBinding);
+        }
     }
 }

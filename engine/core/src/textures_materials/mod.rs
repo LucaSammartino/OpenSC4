@@ -12,7 +12,10 @@ mod material;
 
 pub use binding::{Binding, Release};
 pub use factory::{BindingFactory, BindingId, BindingInfo, Stats};
-pub use material::{material_flags, Material, MaterialManager, MaterialRecord, MaterialTexture, TextureSlot};
+pub use material::{
+    material_flags, release_value_range, BindingReferences, Material, MaterialArena, MaterialId,
+    MaterialManager, MaterialRecord, MaterialTexture, TextureSlot,
+};
 
 #[cfg(test)]
 mod tests;
@@ -32,6 +35,7 @@ pub trait SystemService {
     fn query_interface(&mut self, iid: u32) -> Option<u32>;
     fn add_ref(&mut self) -> u32;
     fn release(&mut self) -> u32;
+    fn destroy_base(&mut self);
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -65,6 +69,24 @@ pub struct ImageDescription {
 pub trait ImageInfo {
     fn description(&self) -> ImageDescription;
     fn level_data(&self, frame: u32, level: u32) -> Option<&[u8]>;
+    /// Distinguishes a readable null pointer entry from an inaccessible table.
+    fn level_pointer(&self, frame: u32, level: u32) -> Result<Option<&[u8]>, Unsupported> {
+        self.level_data(frame, level).map(Some).ok_or(Unsupported::ImageTable)
+    }
+}
+
+/// Portable execution boundaries, never native false/error results.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Unsupported {
+    NativeNontermination,
+    ImageTable,
+    BindingHandleArray,
+    DanglingKey,
+    InvalidMaterial,
+    MaterialSlots,
+    InvalidBinding,
+    Allocation,
+    RestoreTableOrder,
 }
 
 pub trait ImageResource {
@@ -159,8 +181,10 @@ pub trait Provider: SystemService {
     fn release_resource(&mut self, resource: Self::Resource);
     fn create_texture(&mut self, driver: u64, params: BindingParams, usage: u32) -> u32;
     fn driver_error(&mut self, driver: u64) -> bool;
-    fn delete_texture(&mut self, driver: u64, texture: u32);
-    fn upload(&mut self, driver: u64, upload: Upload<'_>);
+    /// One slot-36 call, including an empty array on first-frame failure.
+    fn delete_textures(&mut self, driver: u64, textures: &[u32]);
+    /// The return is ignored by the owner; no error query follows.
+    fn upload(&mut self, driver: u64, upload: Upload<'_>) -> bool;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -171,5 +195,5 @@ pub struct Upload<'a> {
     pub height: u32,
     pub format: u32,
     pub component_type: u32,
-    pub data: &'a [u8],
+    pub data: Option<&'a [u8]>,
 }
