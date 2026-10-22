@@ -12796,4 +12796,14 @@ uint32_t fc4_feature_snapshot_lifetime(fc4_feature_snapshot* snapshot, uint32_t 
 static_assert(sizeof(fc4_feature_file) == (sizeof(void*) == 4 ? 12 : 24), "fc4_feature_file layout");
 #endif
 
+/* cIGZVariant GetCount: scalar 0, array storage length. data-formats §5.2.
+ * Separate from the logical element counts accepted by typed setters. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+uint32_t fc4_variant_get_count(uint16_t var_type, uint32_t storage_count);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */
