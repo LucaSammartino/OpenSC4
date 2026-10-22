@@ -22,7 +22,10 @@ fn crt_boundary_receives_signed_bytes_and_fullpath_stays_ascii() {
     let mut path = RzPath::with_classifier(bytes, &mut Cwd::default(), classified).unwrap();
     assert_eq!(path.get_drive().unwrap(), &[0xE9, b':']);
     let mut out = b"unchanged".to_vec();
-    assert_eq!(resolve_path(&mut out, bytes, None, &mut Cwd::default()), Err(UnsupportedLocaleByte(-23)));
+    assert_eq!(
+        resolve_path(&mut out, bytes, None, &mut Cwd::default()),
+        Err(UnsupportedLocaleByte(-23))
+    );
     assert_eq!(out, b"unchanged");
     assert_eq!(
         fullpath_current(Some(b"\xE9:rel"), 520, &mut Cwd::sc4()).unwrap(),
@@ -94,7 +97,13 @@ fn split_directory_literal_boundaries_signed_capacity_and_partial_writes() {
         let mut input = b"a\\".to_vec();
         input.extend(vec![b'x'; n]);
         input.push(b'\\');
-        assert_eq!(split_directory(&input, 2).is_some(), expected);
+        let result = split_directory(&input, 2);
+        assert_eq!(result.is_some(), expected);
+        if expected {
+            let mut suffix = vec![b'x'; n];
+            suffix.push(b'\\');
+            assert_eq!(result.unwrap(), vec![suffix, b"a\\".to_vec()]);
+        }
     }
     // All short components, but the final aggregate prefix has a computed span of 255.
     let long_prefix = b"a\\".repeat(128);
@@ -109,7 +118,10 @@ fn split_directory_literal_boundaries_signed_capacity_and_partial_writes() {
     assert_eq!(parts[1], [0xCC; 260]);
     let (mut last, mut parent) = (b"last".to_vec(), b"parent".to_vec());
     assert!(!split_directory_path(&input, &mut last, &mut parent));
-    assert_eq!((last.as_slice(), parent.as_slice()), (b"last".as_slice(), b"parent".as_slice()));
+    assert_eq!(
+        (last.as_slice(), parent.as_slice()),
+        (b"last".as_slice(), b"parent".as_slice())
+    );
 }
 
 #[test]
@@ -124,7 +136,11 @@ fn entry_lifecycle_copies_the_name_but_never_keeps_the_directory_alive() {
     let payload = owner.get_nth_entry(0).unwrap();
     let address = payload as *const _;
     // A caller explicitly makes a standalone copy; get_nth_entry itself remains a list borrow.
-    let original = RzDirectoryEntry { owner: &*owner, name: payload.name.clone(), kind: payload.entry_type };
+    let original = RzDirectoryEntry {
+        owner: &*owner,
+        name: payload.name.clone(),
+        kind: payload.entry_type,
+    };
     let copied = original.clone();
     assert_ne!(original.name.as_ptr(), copied.name.as_ptr());
     assert_eq!(copied.owner, &*owner as *const _);
@@ -145,28 +161,58 @@ fn string_sort_uses_unsigned_counted_bytes_and_preserves_equal_allocations() {
     let a1 = b"a".to_vec();
     let a2 = b"a".to_vec();
     let (p1, p2) = (a1.as_ptr(), a2.as_ptr());
-    let mut list: VecDeque<_> = [vec![0xFF], b"a\0y".to_vec(), a1, b"b".to_vec(),
-        b"a\0x".to_vec(), b"A".to_vec(), vec![0x80], a2].into();
+    let mut list: VecDeque<_> = [
+        vec![0xFF],
+        b"a\0y".to_vec(),
+        a1,
+        b"b".to_vec(),
+        b"a\0x".to_vec(),
+        b"A".to_vec(),
+        vec![0x80],
+        a2,
+    ]
+    .into();
     RzDirectory::alphabetize_entry_list(&mut list);
-    let expected: VecDeque<_> = [b"A".to_vec(), b"a".to_vec(), b"a".to_vec(), b"a\0x".to_vec(),
-        b"a\0y".to_vec(), b"b".to_vec(), vec![0x80], vec![0xFF]].into();
+    let expected: VecDeque<_> = [
+        b"A".to_vec(),
+        b"a".to_vec(),
+        b"a".to_vec(),
+        b"a\0x".to_vec(),
+        b"a\0y".to_vec(),
+        b"b".to_vec(),
+        vec![0x80],
+        vec![0xFF],
+    ]
+    .into();
     assert_eq!(list, expected);
     assert_eq!((list[1].as_ptr(), list[2].as_ptr()), (p1, p2));
 }
 
 #[test]
 fn repeated_failed_next_retries_the_same_handle_and_finish_alone_closes() {
-    struct Host { attempts: usize, closes: usize }
+    struct Host {
+        attempts: usize,
+        closes: usize,
+    }
     impl DirectoryProvider for Host {
         fn find_first(&mut self, pattern: &[u8]) -> Result<(OsHandle, FindData), OsError> {
             assert_eq!(pattern, b"pattern\0counted");
-            Ok((42, FindData { name: b"old\0name".to_vec(), directory: true }))
+            Ok((
+                42,
+                FindData {
+                    name: b"old\0name".to_vec(),
+                    directory: true,
+                },
+            ))
         }
         fn find_next(&mut self, handle: OsHandle) -> Option<FindData> {
             assert_eq!(handle, 42);
             assert_eq!(self.closes, 0);
             self.attempts += 1;
-            (self.attempts == 3).then(|| FindData { name: b"new".to_vec(), directory: false })
+            (self.attempts == 3).then(|| FindData {
+                name: b"new".to_vec(),
+                directory: false,
+            })
         }
         fn find_finish(&mut self, handle: OsHandle) {
             assert_eq!(handle, 42);
@@ -188,4 +234,6 @@ fn repeated_failed_next_retries_the_same_handle_and_finish_alone_closes() {
     assert!(!search.current().directory);
     search.finish();
     assert_eq!((host.attempts, host.closes), (4, 1));
+    assert!(!directory::find_next::<Host>(None));
+    directory::find_finish::<Host>(None);
 }

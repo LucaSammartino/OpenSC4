@@ -9,9 +9,10 @@
 - Baseline qbuild all launched; logs in build-runs/qbuild-*.log (result pending).
 - Done: added signed-byte CRT primitive boundary/errors; counted ResolvePath, entry default/copy/name-only drop, signed SplitDirectory with partial writes, retained find cache/retry/finish.
 - Done: removed duplicate paths directory owner/comparator; paths reexports authoritative rz_files owner. Primitive-only test host bridges it. Added PA4-PA8 independent vectors.
-- Tests: initial baseline all and current quick are still compiling; no verdict yet. fmt wrapper needs absolute paths and reports formatting diffs (to fix).
+- Tests: baseline all finished compilation in 22m35s and is running workspace tests; quick still compiling. fmt check passed for all 7 touched Rust files (absolute paths required).
 - Next: resolve compile/fmt findings, final stable full gate, report exact scope and enqueue if green.
-- New question PA9: negative signed capacity follows literal signed-loop no-output rule pending confirmation; PA1/PA2/PA3 retained.
+- New questions PA9/PA10: negative signed capacity follows literal signed-loop no-output rule; zero-part SplitDirectoryPath fills both safe empty outputs. PA1/PA2/PA3 retained.
+- Done: nullable next/finish boundaries added; conformance runner propagates unsupported CRT domain errors and accepts signed split count; literal JSON zero/one-byte/root vectors added.
 - Entry list remains the authoritative owner's passive payload; standalone lifecycle adds no native getters/COM or owner lifetime extension.
 - PA1/PA2/PA3 remain open; preserve selected normalization rule.
 - Correction reservation logical round 2/3; this task permits one round only.

@@ -14,7 +14,11 @@ pub struct RzPath {
 
 impl Default for RzPath {
     fn default() -> Self {
-        Self { parts: PathParts::default(), buffer: Vec::new(), classifier: invariant_crt_is_alpha }
+        Self {
+            parts: PathParts::default(),
+            buffer: Vec::new(),
+            classifier: invariant_crt_is_alpha,
+        }
     }
 }
 
@@ -29,12 +33,19 @@ impl RzPath {
         provider: &mut impl CurrentDirectory,
         classifier: CrtIsAlpha,
     ) -> Result<Self, UnsupportedLocaleByte> {
-        let mut result = Self { classifier, ..Self::default() };
+        let mut result = Self {
+            classifier,
+            ..Self::default()
+        };
         result.set_path(path, provider)?;
         Ok(result)
     }
 
-    pub fn set_path(&mut self, path: &[u8], provider: &mut impl CurrentDirectory) -> Result<bool, UnsupportedLocaleByte> {
+    pub fn set_path(
+        &mut self,
+        path: &[u8],
+        provider: &mut impl CurrentDirectory,
+    ) -> Result<bool, UnsupportedLocaleByte> {
         resolve_path_with_classifier(&mut self.buffer, path, None, provider, self.classifier)?;
         self.parts = splitpath(&self.buffer);
         Ok(true)

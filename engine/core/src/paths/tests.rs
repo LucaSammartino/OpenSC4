@@ -161,12 +161,7 @@ fn resolve_preserves_failure_and_bypasses_limits_for_already_full_text() {
     assert_eq!(cwd.calls, b"C"); // only the failed relative resolution asked for a drive directory.
     assert!(resolve_path(&mut out, b"relative", Some(b""), &mut cwd).unwrap());
     assert_eq!(out, b"relative");
-    assert!(resolve_path(
-        &mut out,
-        br"\\srv\share\f.txt",
-        Some(b"ignored"),
-        &mut cwd
-    ).unwrap());
+    assert!(resolve_path(&mut out, br"\\srv\share\f.txt", Some(b"ignored"), &mut cwd).unwrap());
     assert_eq!(out, br"\\srv\share\f.txt");
 }
 
@@ -387,7 +382,9 @@ impl crate::rz_files::directory::RzDirectoryHost for Finder {
     type FindHandle = OsHandle;
 
     fn find_first(&mut self, pattern: &[u8]) -> Option<(OsHandle, crate::rz_files::directory::DirectoryMatch)> {
-        DirectoryProvider::find_first(self, pattern).ok().map(|(h, data)| (h, directory_match(data)))
+        DirectoryProvider::find_first(self, pattern)
+            .ok()
+            .map(|(h, data)| (h, directory_match(data)))
     }
 
     fn find_next(&mut self, handle: &mut OsHandle) -> Option<crate::rz_files::directory::DirectoryMatch> {

@@ -27,8 +27,7 @@ pub struct UnsupportedLocaleByte(pub i32);
 /// an actual CRT adapter; even a chosen single-byte encoding does not establish their behavior.
 pub fn invariant_crt_is_alpha(byte: i32) -> Result<bool, UnsupportedLocaleByte> {
     match byte {
-        -1 | 0..=127 => Ok((b'A' as i32..=b'Z' as i32).contains(&byte)
-            || (b'a' as i32..=b'z' as i32).contains(&byte)),
+        -1 | 0..=127 => Ok((b'A' as i32..=b'Z' as i32).contains(&byte) || (b'a' as i32..=b'z' as i32).contains(&byte)),
         _ => Err(UnsupportedLocaleByte(byte)),
     }
 }
@@ -275,18 +274,14 @@ pub fn split_directory_into(path: &[u8], parts: &mut [[u8; 260]], count: &mut i3
     }
     let capacity = *count;
     *count = 0;
-    split_directory_emit(path, capacity, |text| {
+    let success = split_directory_emit(path, capacity, |text| {
         copy_c_result(&mut parts[*count as usize], Some(text));
         *count += 1;
-    })
-    .then_some(())
-    .map_or_else(
-        || {
-            *count = 0;
-            false
-        },
-        |()| true,
-    )
+    });
+    if !success {
+        *count = 0;
+    }
+    success
 }
 
 /// Owned convenience form; only the buffer/count form exposes partial writes on failure.
@@ -301,11 +296,15 @@ fn split_directory_emit(path: &[u8], capacity: i32, mut emit: impl FnMut(&[u8]))
         return false;
     }
     // PA6: indices are signed and the final prefix copies end, not end+1, bytes.
-    // A negative capacity follows the literal signed loop test, like zero: no writes.
+    // PA9: a negative capacity follows the literal signed loop test, like zero: no writes.
     let mut end = path.len() as i32 - 1;
     let mut written = 0;
     while written < capacity && end > 0 {
-        let scan_end = if is_path_separator(path[end as usize]) { end - 1 } else { end };
+        let scan_end = if is_path_separator(path[end as usize]) {
+            end - 1
+        } else {
+            end
+        };
         let separator = if written + 1 < capacity {
             path[..=scan_end as usize].iter().rposition(|&c| is_path_separator(c))
         } else {
@@ -336,7 +335,7 @@ pub fn split_directory_path(path: &[u8], last: &mut Vec<u8>, parent: &mut Vec<u8
     let Some(parts) = split_directory(path, 2) else {
         return false;
     };
-    // §3.9 [choice]: unwritten output slots are empty instead of uninitialised stack text.
+    // §3.9 [choice], PA10 for zero parts: unwritten slots are empty, not uninitialised text.
     *last = parts.first().cloned().unwrap_or_default();
     *parent = parts.get(1).cloned().unwrap_or_default();
     true

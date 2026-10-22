@@ -15,3 +15,6 @@
 <!-- from: core-paths-contractfix4 (2026-10-22) -->
 - **PA9 - §3.11 negative signed capacity:** Is a nonempty SplitDirectory input with a negative capacity successful with count 0 and no writes, as for zero? [Literal signed loop comparison emits no parts and succeeds; empty input still fails. PA4-PA8 are already answered, although the generated QUESTIONS index still lists PA4 next.]
 
+<!-- from: core-paths-contractfix4 (2026-10-22) -->
+- **PA10 - §3.9 / §3.11 zero-part wrapper outputs:** SplitDirectory succeeds with count 0 for a one-byte input. Does SplitDirectoryPath then copy two unwritten slots, or avoid assigning last/parent? [Extend §3.9's safe empty-unwritten-parent choice to both unwritten slots: true with empty last/parent. No native uninitialised byte claim.]
+

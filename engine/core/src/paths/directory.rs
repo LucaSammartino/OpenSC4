@@ -19,7 +19,11 @@ pub struct RzDirectoryEntry {
 
 impl Default for RzDirectoryEntry {
     fn default() -> Self {
-        Self { owner: std::ptr::null(), name: Vec::new(), kind: 0 }
+        Self {
+            owner: std::ptr::null(),
+            name: Vec::new(),
+            kind: 0,
+        }
     }
 }
 
@@ -50,7 +54,12 @@ pub struct FindSearch<'a, P: DirectoryProvider> {
 impl<'a, P: DirectoryProvider> FindSearch<'a, P> {
     pub fn first(provider: &'a mut P, pattern: &[u8]) -> Option<Self> {
         let (handle, current) = provider.find_first(pattern).ok()?;
-        Some(Self { provider, handle, pattern: pattern.to_vec(), current })
+        Some(Self {
+            provider,
+            handle,
+            pattern: pattern.to_vec(),
+            current,
+        })
     }
 
     pub fn current(&self) -> &FindData {
@@ -79,4 +88,14 @@ impl<P: DirectoryProvider> Drop for FindSearch<'_, P> {
     fn drop(&mut self) {
         self.provider.find_finish(self.handle);
     }
+}
+
+/// Nullable free-function next boundary (§4.1); no search means false and no provider call.
+pub fn find_next<P: DirectoryProvider>(search: Option<&mut FindSearch<'_, P>>) -> bool {
+    search.is_some_and(FindSearch::advance)
+}
+
+/// Nullable finish boundary. The search value owns its handle, never the caller's provider.
+pub fn find_finish<P: DirectoryProvider>(search: Option<FindSearch<'_, P>>) {
+    drop(search);
 }

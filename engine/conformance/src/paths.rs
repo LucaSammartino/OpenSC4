@@ -47,6 +47,16 @@ fn optional_text(value: Option<Vec<u8>>) -> R<Json> {
     value.as_deref().map(text).unwrap_or(Ok(Json::Null))
 }
 
+fn signed_count(op: &Json) -> R<i32> {
+    match opt(op, "count") {
+        None => Ok(2),
+        Some(value) => value
+            .as_i64()
+            .and_then(|n| i32::try_from(n).ok())
+            .ok_or_else(|| "invalid signed count".to_owned()),
+    }
+}
+
 pub(crate) fn exec(_: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
     let method = name.strip_prefix("path_")?;
     Some((|| {
@@ -70,11 +80,7 @@ pub(crate) fn exec(_: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
                         .collect::<R<_>>()?,
                 )
             }
-            "split_directory" => match helpers::split_directory(
-                input,
-                i32::try_from(opt(op, "count").and_then(Json::as_i64).unwrap_or(2))
-                    .map_err(|_| "invalid signed count".to_owned())?,
-            ) {
+            "split_directory" => match helpers::split_directory(input, signed_count(op)?) {
                 Some(parts) => Json::Array(parts.iter().map(|p| text(p)).collect::<R<_>>()?),
                 None => Json::Null,
             },
@@ -86,15 +92,18 @@ pub(crate) fn exec(_: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
                     let method = str_of(field(call, "method")?, "method")?;
                     let result = match method {
                         "get_path" => {
-                            path.get_path(&mut out).map_err(|e| format!("unsupported CRT byte: {e:?}"))?;
+                            path.get_path(&mut out)
+                                .map_err(|e| format!("unsupported CRT byte: {e:?}"))?;
                             text(&out)?
                         }
                         "get_drive_and_directory" => {
-                            path.get_drive_and_directory(&mut out).map_err(|e| format!("unsupported CRT byte: {e:?}"))?;
+                            path.get_drive_and_directory(&mut out)
+                                .map_err(|e| format!("unsupported CRT byte: {e:?}"))?;
                             text(&out)?
                         }
                         "get_file_name_and_extension" => {
-                            path.get_file_name_and_extension(&mut out).map_err(|e| format!("unsupported CRT byte: {e:?}"))?;
+                            path.get_file_name_and_extension(&mut out)
+                                .map_err(|e| format!("unsupported CRT byte: {e:?}"))?;
                             text(&out)?
                         }
                         "get_drive" => text(path.get_drive().map_err(|e| format!("unsupported CRT byte: {e:?}"))?)?,
@@ -110,8 +119,10 @@ pub(crate) fn exec(_: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
                             bytes(call, "value")?,
                             call.get("split").and_then(Json::as_bool).unwrap_or(false),
                         )),
-                        "set_path" => Json::Bool(path.set_path(bytes(call, "value")?, &mut Cwd(op))
-                            .map_err(|e| format!("unsupported CRT byte: {e:?}"))?),
+                        "set_path" => Json::Bool(
+                            path.set_path(bytes(call, "value")?, &mut Cwd(op))
+                                .map_err(|e| format!("unsupported CRT byte: {e:?}"))?,
+                        ),
                         "set_buffer" => {
                             path.set_buffer(count(call, "parts", 15)? as u32)
                                 .map_err(|e| format!("unsupported CRT byte: {e:?}"))?;
