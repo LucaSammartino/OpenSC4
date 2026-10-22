@@ -1,23 +1,68 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-language-native4 (native utility verification) | `Codex` / `verify-language-native4` (engine lane; detached HEAD) | in progress: round2; source06d71bb2; prior cargo4961/0, clippy clean, ctest68/68; owned/native-no-save2032 clean/ref0; strict116235/116235; two native full-save stalls retained | Diagnose identical-script no-verifier native full-save control, then corrected literal current40; retain LU1-LU4/SL1 gaps. |
+| verify-language-native4 (native utility verification) | `Codex` / `verify-language-native4` (engine lane; detached HEAD) | WIP round2/3: source06d71bb2 unchanged; cargo4961/0, clippy0, CTest68/68; strict116235/116235; native no-probe save stalled/ref0; literal40 probe-on/off full-save2032 clean/ref4 both; eight attempts retained; LU1-LU4/SL1 open | (1) Resolve native save/watchdog setup independently of verifier; (2) resolve ports/parks/landfill department-budget warnings; (3) stage supported immutable-run reload fixtures; at most one lane round remains. |
 
-## Handoff
+## Round2 diagnosis and controls (2026-10-22)
 
-- Goal: round2 of at most3; diagnose full-save stall before any owned fix; exact supplied house40 control.
-- Done: prior round report at35a599ca; source06d71bb2; all five prior attempts and raw counts retained below.
-- Baseline: round2 qbuild all complete; cargo4961/0, clippy clean, CTest68/68; DLL hash unchanged.
-- Done: vlun4-r2-native-noprobe-save-f stalled2031-12-01/ref0; identical immutable2 DLL/script/native profile, only verifier switched off. No language native BEGIN/END or callback executed.
-- Diagnosis: owned PDB resolves all eight plugin stack candidates identically to prior probe-on stall: observer/script SaveCity pending; no language probe frame. Watchdog kills at10s without OnTick. Native baseline/setup failure reproduced, no owned language fix justified.
-- Done: literal current40 vlun4-r2-current40-save-g clean2032-01-01, full save11031ms, full shutdown; ref_warnings4 (ports airport/seaport DropObject144, parks DropObject126, landfill ReleaseToken465; class0xE990BFFC). strict/host/gap counts unchanged; not ref0.
-- Gate: final qbuild all PASS cargo4961/0, clippy0 diagnostics, CTest68/68(93.4s); source/DLL unchanged.
-- Next: outstanding unique current40 no-probe control vlun4-r2-current40-noprobe-h to attribute four budget-department warnings; await its verdict. Reload needs supported fixture staging, no save_as/export protocol documented.
-- Facts: corrected immutable2 DLL SHA25678ea9b099f55d8abd95ea76cea21f34ced2caf72fc68ec305f35da43185c9342; no prior request outstanding.
-- Strict116235/116235; host2484/4140; gaps2629/3043. No production algorithm fit is permitted.
-- Current40 literal supplied in round2 prompt; excludes terrain/dispatch/effects. Preserve every failure, no unchanged failed-setup repeat.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-language-native4-r2-manifest.json.
+Round2 of the original at-most-three lane rounds. No engine source, production algorithm, host provider, callback, lifetime policy, default, ABI table or tool was changed this round. By call30 the native no-verifier baseline had reproduced the failure; no owned language fix was justified. The late current40 warnings identify other provider shutdown sites and do not justify fitting language behavior or changing unrelated owners in this lane.
 
-## Result and scope
+The baseline and final `qbuild all` both passed: **cargo4961/0, clippy0 diagnostics, CTest68/68**. Final CTest93.4s; `qbuild: PASS`. No Rust files were touched this round, so no new fmt or focused source test was required. The immutable2 DLL/PDB from round1 were reused unchanged; the rebuilt DLL SHA256 remains `78ea9b099f55d8abd95ea76cea21f34ced2caf72fc68ec305f35da43185c9342`. PDB SHA256 is `ab9ee7606d4ea62a51ab6bccc142bc989264334c55aab2dfbd384ef4cd406786`.
+
+### Native full-save isolation
+
+`vlun4-r2-native-noprobe-save-f` differs from failed corrected native request `vlun4-r1-native-06d7-2032-d` only in unique label and `language_native_verify=0`. Both use the identical immutable2 DLL, original simulator/budget (`disable=all`), normal speed, 2032-01-01 target, 600s city limit, refaudit, and identical script `2031-12-01 save`. Script SHA256 is `1b3ef9d7527e13a85eb1ec4305489c72444358b1cd20daa5029cc38aced7f24f`. Session seeds are naturally different; this is a failure control, not a deterministic simulation comparison.
+
+The no-probe baseline **stalled2031-12-01**, with ref_warnings0 and foreign_exceptions0. No language BEGIN/END, constructed utility or host callback executed. Full save did not return; neither full shutdown hook completed. This is a sixth retained attempt, not a replacement for any prior failure.
+
+Own-DLL/PDB symbolization of the eight distinct FreeCity4 return-address candidates in each copied stack is identical for probe-on and probe-off logs:
+
+| DLL offset | Our source location |
+|---|---|
+| 0x916AD0 | FC4Diag.cpp294, SehGuard |
+| 0x9178F7 | FC4Diag.cpp239, RunGuarded |
+| 0x9312FF | FC4Observer.cpp904, ObserverSaveCity |
+| 0x933087 | FC4Observer.cpp517, SaveStep (game interface SaveCity pending) |
+| 0x9332D0 | FC4Observer.cpp572, observer OnTick |
+| 0xD51ED1 | FC4Script.cpp539, ScriptOnTick |
+| 0xD531C7 | FC4Script.cpp269, RunSave |
+| 0xD54777 | FC4Script.cpp441, RunAction |
+
+These are sampled stack candidates, not an unwound proof of every live frame. No executable bytes or foreign function symbols were read. The watchdog's owned source explains termination after more than10s without a tick; the last published native hidden-pause state is0, while the passing owned save's is2. A long save and watchdog/setup interaction remain possible; the game's internal save cause is not established. The same save-boundary failure occurs with the verifier disabled, so the evidence does not support changing owned language callbacks/providers/references. This does not establish native full-save compatibility.
+
+Diagnostic artifacts remain lane-local: `build-runs/symbolize-language-owned.py`, `language-probe-on-symbols.txt`, `language-probe-off-symbols.txt`, `audit-language-round2.py`, and `language-round2-audit.txt`. Symbol candidate comparison reports no differences.
+
+### Corrected literal current40
+
+`vlun4-r2-current40-save-g` is the seventh retained attempt. Its enabled providers are the default owned simulator plus exactly the40 supplied names; budget is disabled, and terrain/dispatch/effects are absent. The request contains the literal list, rather than an inferred profile. It reuses immutable2 and the same full-save script, turbo1, target2032-01-01.
+
+Result: **clean2032-01-01, ref_warnings4**, foreign_exceptions0, watchdog_stalls0; full save returned1 in11031ms; PostAppShutdown and PostSystemServiceShutdown completed. Constructed comparisons are still **strict116235/116235**, **host2484/4140** (1656 differences), **gaps2629/3043** (414 differences), objects46, refused0, resync0, fallback0, managerUnchanged1. Natural0/0 remains unexercised. Every raw difference is retained and assigned to LU1-LU4/SL1 as in round1; the foreign printf/actual-host boundary and codec coverage gaps remain open.
+
+All four reference warnings are class0xE990BFFC at shutdown, after the constructed language probe completed: airport and seaport `DropObject:144`, parks `DropObject:126`, landfill `ReleaseToken:465`. They are retained failures of the required ref0 criterion. They are not ignored because the harness verdict says clean.
+
+`vlun4-r2-current40-noprobe-h` is an eighth, justified attribution control: identical current40/script/artifact, verifier0. Result: **clean2032-01-01, ref_warnings4**, foreign_exceptions0, watchdog_stalls0; full save returned1 in11016ms; both full shutdown hooks completed. No language comparison/callback executed. The same four department-budget warning sites/class IDs reproduce without the verifier. This establishes their occurrence independently of language verification, not a complete diagnosis of those owners' lifetime contracts. Both literal40 enabled-provider sets were checked: exactly the supplied40 plus the default simulator, no terrain/dispatch/effects. No unchanged failed native setup was repeated. No request remains outstanding; no additional game request is justified without a changed artifact/setup and a concrete hypothesis.
+
+### Complete retained attempt ledger
+
+| Unique run label | Harness verdict | Ref warnings | Full save | Full shutdown |
+|---|---|---|---|---|
+| vlun4-r1-own-0641-2032-a | clean2032-01-01, failed ref criterion | 359 | returned1,11078ms | completed |
+| vlun4-r1-native-0641-2032-b | stalled2031-12-02 | 359 | no return | not completed |
+| vlun4-r1-own-06d7-2032-c | clean2032-01-08 | 0 | returned1,11078ms | completed |
+| vlun4-r1-native-06d7-2032-d | stalled2031-12-01 | 0 | no return | not completed |
+| vlun4-r1-native-nosave-06d7-2032-e | clean2032-01-01 | 0 | omitted control | completed |
+| vlun4-r2-native-noprobe-save-f | stalled2031-12-01 | 0 | no return | not completed |
+| vlun4-r2-current40-save-g | clean2032-01-01, failed ref criterion | 4 | returned1,11031ms | completed |
+| vlun4-r2-current40-noprobe-h | clean2032-01-01, failed ref criterion | 4 | returned1,11016ms | completed |
+
+All unique completed verdicts are retained. Seven full-save attempts: four returned, three stalled. No failed-start/harness-error retry, refusal, label reuse or discarded verdict occurred this round. Every executed corrected probe has strict116235/116235, host2484/4140, gaps2629/3043, zero acquisition/storage refusals, final native/core release0 for all46, managerUnchanged1 and no resync. The two no-probe controls execute zero comparisons and receive zero verification credit.
+
+### Remaining conditions
+
+Native full-save/full-shutdown remains failed; current40 ref0 remains failed. The successful corrected owned full-save2032/ref0 and corrected native no-save2032/ref0 from round1 are retained without repeating them. The harness documents `fixture_city` import from main `build-runs/fixtures`, but no export request or supported save-as action for these runs. No fixture from these immutable runs was supplied for reload. Original/owned/current40 reloads are **not exercised**, and no reload credit is claimed. No unsupported save-as, slot copying, game start, Documents access, or arbitrary fixture substitution was attempted.
+
+No new spec question was filed in round2. **LU4** remains in `docs/specs/questions/language-utility.md`; **LU1-LU3/SL1** remain unresolved. C ABI exports are unchanged this round; the lane as a whole retains the three private transport exports described below. No readiness or owner-completeness claim is made. At most one lane round remains under the original three-round cap; round2 used three justified new requests, without resetting any count. No actual lane-guard denial occurred. Round2 milestones: initial handoff8e07c52a, native isolationeca36fe7, current40 result/final gatea16c81ad; detached HEAD retained throughout.
+
+## Retained round1 result and scope
 
 An opt-in constructed-native probe now compares independently owned ORIGINAL utilities with the actual production `fc4_core::language::LanguageUtility`, through a private persistent CAPI transport. Set `language_native_verify = 1` to run it at PostAppInit. The production utility implementation and its name tables are unchanged. String, detokenizer and encoding owners, defaults, shared tools/maps and ABI tables are untouched. No whole-owner verification, replacement or promotion is claimed.
 
@@ -66,7 +111,7 @@ Corrected DLL: `build-runs/language-immutable2/FreeCity4.dll`, SHA256 `78ea9b099
 - `vlun4-r1-native-06d7-2032-d`: original simulator/budget, normal speed; identical corrected utility counts and zero reference warnings in its log, then **stalled (fallback)** at scheduled 2031-12-01 save. No completed native full-save/full-shutdown/final ref0 verdict.
 - `vlun4-r1-native-nosave-06d7-2032-e`: same corrected DLL, original simulator/budget, normal speed, scheduled save omitted to isolate that boundary: **clean/ref0** through 2032-01-01, PostAppShutdown and PostSystemServiceShutdown completed; identical corrected utility counts. This isolates the two save failures; it does not erase them or prove native full save.
 
-No request remains outstanding. The exact coordinator `current40` enable profile was not found in permitted sources. No guessed list was submitted or credited as that control. No unsupported saved-city reload or Documents access was attempted.
+At the end of round1 no request remained outstanding. The exact coordinator `current40` enable profile was not then available; round2 above uses the subsequently supplied literal40 list. No guessed list was credited. No unsupported saved-city reload or Documents access was attempted.
 
 ## Build gate and formatting
 
@@ -78,6 +123,6 @@ The new Rust file passes qbuild fmt. The requested recursive fmt check of touche
 
 New **LU4** is appended to `docs/specs/questions/language-utility.md` for the observable foreign printf boundary and signed-zero/exponent differences. Existing **LU1, LU2, LU3** and **SL1** remain open and separately counted. The generated question index was not edited or regenerated with prohibited tools.
 
-WIP, not merge-ready: the required exact current40 control is missing and both native full-save controls failed. Coordinator next steps are to provide that literal profile, reconcile the native save/control boundary, and obtain published answers for LU1-LU4/SL1 before expanding credit. Regenerate the question index through the authorized coordinator workflow. Do not infer owner completeness or change defaults from the exact bounded constructed checks.
+Round1 ended WIP: the exact current40 control was then missing and both native full-save controls failed. Round2 above supplies the literal control and the no-verifier native baseline, retaining every earlier failure. Reconcile native save/setup, current40 shutdown reference warnings, and supported fixture reloads; obtain published answers for LU1-LU4/SL1 before expanding credit. Regenerate the question index through the authorized coordinator workflow. Do not infer owner completeness or change defaults from the exact bounded constructed checks.
 
 C ABI change: three private transport symbols (`fc4_language_verify_new`, `fc4_language_verify_call`, `fc4_language_verify_free`); no public header/ABI-table edits or ABI-version bump.
