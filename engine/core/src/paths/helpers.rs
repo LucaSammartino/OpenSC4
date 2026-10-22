@@ -130,7 +130,8 @@ pub fn resolve_path(
     provider: &mut impl CurrentDirectory,
 ) -> bool {
     let result = if is_full_path(input) {
-        Some(c_text(input).to_vec())
+        // PA4: classification sees the C-string prefix, assignment copies the counted range.
+        Some(input.to_vec())
     } else if let Some(base) = base {
         fullpath_with_base(Some(input), FULLPATH_MAX, base)
     } else {

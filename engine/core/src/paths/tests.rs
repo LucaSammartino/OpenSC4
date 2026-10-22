@@ -1,6 +1,16 @@
 //! Independent examples and boundary cases from paths.md §§1–4, 8; no host filesystem involved.
 use std::collections::{BTreeMap, VecDeque};
 
+#[test]
+fn fully_qualified_resolution_copies_the_entire_counted_range() {
+    let mut source = b"C:\\name\0/.tail".to_vec();
+    let mut out = Vec::new();
+    assert!(resolve_path(&mut out, &source, None, &mut Cwd::default()));
+    source.fill(b'!');
+    assert_eq!(out, b"C:\\name\0/.tail");
+    assert_eq!(splitpath(&out).name, b"name");
+}
+
 use super::helpers::*;
 use super::*;
 use crate::rz_files::{OsError, OsHandle};
