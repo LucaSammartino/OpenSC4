@@ -29,6 +29,18 @@ The Rust policy does not reproduce that byte or claim exact native returns.
 Stable tables/registries and valid objects remain the callback preconditions;
 native reentrancy and unspecified domains have no equivalence claim.
 
+The three `cache.rs` PR5 tests exercise the published A-D predicates, E's
+duplicate/current-key and null-output cases, and F's mutation from either
+predicate. Exact primitive traces check GetKey once before filtering, stored
+then supplied order, short-circuit rejection, and no enumeration AddRef/Release.
+They also check old-key lookup, type filtering, sentinel preservation, later
+observation of SetKey, and balanced cache/filter ownership after cleanup.
+The concrete portable KeyList always succeeds on append; PR5-E's foreign list
+returning false is not executable through this API. The owner ignores insert's
+return, but no native list-failure or ABI comparison is claimed by these tests.
+The 109-row mapping below is a complete source-contract inventory, not a
+measurement of native executions or runtime owner coverage.
+
 | Body start | Rust implementation |
 |---|---|
 | 00972B51 | PersistManager::query_interface |

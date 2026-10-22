@@ -8,7 +8,11 @@
 - Reused detached HEAD 8ae81c65; initial worktree clean.
 - Done: PR5 enumeration copies one current key before either predicate and output;
   audit now records published PR5 and explicit PR4 uninitialized-byte deviation.
-- Next: add focused PR5 A-F/counterexample tests, then focused and full gates.
+- Added three PR5 tests with exact primitive traces and ownership cleanup;
+  A-D run with/without output, E checks duplicates/type filters, F both predicates.
+- Next: finish focused core/conformance quick check, then stable full gate/fmt.
+- First focused compile found a missing Clone derive on test events; corrected.
+- Audit inventory has 109 rows; portable KeyList cannot model failing foreign append.
 - Source: engine/core/src/persistence_manager/{cache,manager,test_host,table,primitives}.rs and AUDIT.md.
 - Preserve PR4 initialized logical-OR policy and native/reentrancy limitations.
 - No baseline gate per corrected task; focused and final checks follow substantive edits.
