@@ -6,7 +6,9 @@ use fc4_core::fonts::{
     DrawColour, DrawRecord, FontFace, FontInfoRecord, FontLibrary, FontRef, FontRenderer, FontUse, GlyphRaster,
     GreyLevels, GzFontSys, Latin1Converter, ScreenFormat, SizeMetrics, SurfaceId,
 };
+use std::collections::BTreeMap;
 use std::ffi::{c_char, CStr};
+use std::io::{Read, Seek};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 
@@ -22,7 +24,30 @@ pub struct Metadata {
 fn text(bytes: &[u8]) -> String {
     String::from_utf8_lossy(&bytes[..bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len())]).into_owned()
 }
-struct Library(Vec<Metadata>);
+struct Library {
+    metadata: Vec<Metadata>,
+    headers: BTreeMap<String, Vec<u8>>,
+}
+impl Library {
+    fn new(metadata: Vec<Metadata>) -> Option<Self> {
+        let mut headers = BTreeMap::new();
+        for m in &metadata {
+            let path = text(&m.path);
+            let mut file = std::fs::File::open(&path).ok()?;
+            let mut head = [0; 12];
+            file.read_exact(&mut head).ok()?;
+            // Raw immutable provider input, captured once. Include the sfnt table directory
+            // (u16 count at byte 4) plus at least the catalogue's 32-byte sniff window.
+            // Classification stays in production probe_source_type; no native answer is used.
+            let bytes = (12 + 16 * usize::from(u16::from_be_bytes([head[4], head[5]]))).max(32);
+            file.rewind().ok()?;
+            let mut raw = Vec::new();
+            file.take(bytes as u64).read_to_end(&mut raw).ok()?;
+            headers.insert(path, raw);
+        }
+        Some(Self { metadata, headers })
+    }
+}
 struct Face(Metadata);
 impl FontFace for Face {
     fn family_name(&self) -> String {
@@ -50,19 +75,22 @@ impl FontFace for Face {
 }
 impl FontLibrary for Library {
     fn file_exists(&self, path: &str) -> bool {
-        self.0.iter().any(|m| text(&m.path) == path)
+        self.metadata.iter().any(|m| text(&m.path) == path)
     }
     fn open(&self, path: &str) -> Option<Box<dyn FontFace>> {
-        self.0
+        self.metadata
             .iter()
             .find(|m| text(&m.path) == path)
             .map(|m| Box::new(Face(*m)) as Box<dyn FontFace>)
     }
-    fn read_head(&self, _: &str, _: usize) -> Vec<u8> {
-        Vec::new()
+    fn read_head(&self, path: &str, count: usize) -> Vec<u8> {
+        self.headers
+            .get(path)
+            .map(|raw| raw[..count.min(raw.len())].to_vec())
+            .unwrap_or_default()
     }
     fn system_fonts_dir(&self) -> String {
-        self.0
+        self.metadata
             .first()
             .and_then(|m| text(&m.path).rsplit_once('\\').map(|(dir, _)| format!("{dir}\\")))
             .unwrap_or_default()
@@ -71,7 +99,7 @@ impl FontLibrary for Library {
         if !dir.eq_ignore_ascii_case(&self.system_fonts_dir()) {
             return Vec::new();
         }
-        self.0
+        self.metadata
             .iter()
             .map(|m| text(&m.path))
             .filter(|path| {
@@ -265,7 +293,10 @@ pub unsafe extern "C" fn fc4_fontsys_verify_new(meta: *const Metadata, count: u3
         } else {
             unsafe { std::slice::from_raw_parts(meta, count as usize) }.to_vec()
         };
-        let mut sys = GzFontSys::new(Arc::new(Library(data)), Arc::new(Latin1Converter), 0);
+        let Some(library) = Library::new(data) else {
+            return std::ptr::null_mut();
+        };
+        let mut sys = GzFontSys::new(Arc::new(library), Arc::new(Latin1Converter), 0);
         sys.add_ref();
         Box::into_raw(Box::new(Session {
             sys,
@@ -318,4 +349,45 @@ pub unsafe extern "C" fn fc4_fontsys_verify_free(session: *mut Session) {
             session.sys.shutdown();
         }
     }));
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn raw_system_header_allows_production_acquisition_and_cache_lifetime() {
+        // Regression for the verification provider returning an empty content probe even
+        // though the native provider could open Arial. Read-only system input, no font fixture.
+        let path = format!(
+            "{}\\Fonts\\arial.ttf",
+            std::env::var("WINDIR").expect("Windows directory")
+        );
+        let mut meta = Metadata {
+            path: [0; 260],
+            family: [0; 128],
+            style: 0,
+            kind: 1,
+        };
+        assert!(path.len() < meta.path.len());
+        meta.path[..path.len()].copy_from_slice(path.as_bytes());
+        meta.family[..5].copy_from_slice(b"Arial");
+        let library = Library::new(vec![meta]).expect("read-only Arial input");
+        assert!(!library.read_head(&path, 12).is_empty());
+        let mut sys = GzFontSys::new(Arc::new(library), Arc::new(Latin1Converter), 0);
+        assert!(sys.init());
+        sys.set_code_page(932);
+        let font = sys
+            .font_acquire_path(&path, 12, 4, true)
+            .expect("production font Init uses captured header");
+        assert_eq!(font.lock().code_page, 932);
+        let cached = sys
+            .font_acquire_family("Arial", 1, 12, 4, true)
+            .expect("production family lookup");
+        assert!(Arc::ptr_eq(&font, &cached));
+        assert_eq!(font.ref_count(), 3);
+        assert_eq!(sys.font_release(&cached), 2);
+        assert_eq!(sys.font_release(&font), 0);
+        assert_eq!(sys.get_cached_fonts(&mut []), 0);
+    }
 }
