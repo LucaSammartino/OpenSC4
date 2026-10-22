@@ -840,5 +840,31 @@ bool NetworkOccupantSetPiece(void* occupant, uint32_t pieceId, uint8_t orientati
     return true;
 }
 
+bool SpanContextAddresses(SpanContextVA* out) {
+    static int state = 0;  // 0 unknown, 1 available, -1 refused
+    if (state == 0) {
+        state = -1;
+        const ExecutableVersion* v = IdentifiedVersion();
+        MEMORY_BASIC_INFORMATION mbi{};
+        const bool ok = v == &kVersions[0] &&
+                        VirtualQuery(reinterpret_cast<const void*>(0x00AC17D0), &mbi, sizeof(mbi)) == sizeof(mbi) &&
+                        mbi.State == MEM_COMMIT && mbi.Type == MEM_IMAGE &&
+                        reinterpret_cast<uintptr_t>(mbi.AllocationBase) == v->imageBase &&
+                        !(mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS));
+        if (ok) state = 1;
+        else Log("compat: span context vtable 0x00AC17D0 NOT available (%s)", v ? "address rejected" : "executable not identified");
+    }
+    if (state != 1) return false;
+    if (out != nullptr) {
+        // span-render-4444.md §1.3; span-render-565.md §1.1 (the seven renderer call sites of 0x008302E0).
+        static const SpanContextVA kVA = {
+            0x00AC17D0, 0x00AC182C, 0x00AC185C,
+            {0x00830647, 0x008305FC, 0x00830627, 0x008305E7, 0x00830591, 0x0083053B, 0x008304D1},
+        };
+        *out = kVA;
+    }
+    return true;
+}
+
 }  // namespace compat
 }  // namespace fc4

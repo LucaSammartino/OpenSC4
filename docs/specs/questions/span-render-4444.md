@@ -18,3 +18,13 @@
   it: does any `cIGZDrawSystem` slot-4 caller (`0x0082BAB0`) pass a buffer whose type came from data (a buffer
   resource v1/v2 header with type 7, or a Gimex load whose target type is not a literal)?
   [no native 4444 inputs captured; the core stays unit-tested only]
+<!-- from: glue-span-context-final4 (2026-10-22) -->
+- **SP6 - section 1.3 (fixture inputs and counting):** (a) slot 13 SetBltSource `(src, x, y, sx, sy, rect*)` and
+  slot 15 SetBltTiling `(rect*)`: what do x, y, sx, sy mean (source origin and scale, or destination-to-source steps),
+  and is the 16-byte rect `(x, y, w, h)` or `(left, top, right, bottom)`? (b) "count by the return address" with the
+  call sites of span-render-565.md section 1.1: is each listed address the CALL instruction (return address = site +
+  instruction length) or the return address itself? [the fixture uses rects at the origin, which read the same both
+  ways, x = y = 0 and sx = sy in {1, 2, 0.5/0.75}; the observed site matched the expected path in all 378 cases;
+  return addresses 1..7 bytes after a listed site are counted for it]. In-game evidence for SP1: through the native
+  context, 4 of 6 type-7 alpha-gradient cases with alpha outside 0..255 differ (1-2 bytes, R nibble), every in-range
+  case is exact (run gsctx4-r2-union2032).

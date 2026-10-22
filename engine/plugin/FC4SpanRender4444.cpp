@@ -19,6 +19,7 @@
 #include "FC4Config.h"
 #include "FC4Diag.h"
 #include "FC4Log.h"
+#include "FC4SpanContext.h"
 #include "FC4RefAudit.h"
 #include "FC4Subsystems.h"
 #include "compat/FC4Compat.h"
@@ -32,6 +33,8 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+
+#include <intrin.h>
 
 #include <atomic>
 #include <cstdint>
@@ -149,22 +152,26 @@ void Original(Slot s, void* self, const uint32_t* spans, uint32_t count, const u
 
 // One forwarded call. `buffer` is the target descriptor (slots 1-4) or
 // rectA (slot 5); both start {base, stride} (§2, §7).
-void Bridge(Slot s, void* self, const uint32_t* spans, uint32_t count, const uint32_t* buffer, uint32_t a,
-            uint32_t b, const uint32_t* rectB, const uint8_t* src, uint32_t mode) {
+void Bridge(Slot s, uintptr_t ret, void* self, const uint32_t* spans, uint32_t count, const uint32_t* buffer,
+            uint32_t a, uint32_t b, const uint32_t* rectB, const uint8_t* src, uint32_t mode) {
     g.calls[s].fetch_add(1, std::memory_order_relaxed);
+    SpanNoteCall(kSpanR4444, s + 1, ret, false);  // this module's fixture never calls through the vtable
     Region r;
     const bool bridged = RegionOf(spans, count, buffer, &r) && (s != kBlt || (rectB != nullptr && src != nullptr));
     const int32_t stride = bridged ? static_cast<int32_t>(buffer[1]) : 0;
     if (!bridged) {
         g.fallback[s].fetch_add(1, std::memory_order_relaxed);
+        SpanNoteRefused(kSpanR4444);
         Original(s, self, spans, count, buffer, a, b, rectB, src, mode);
         return;
     }
-    if (!g.shadow) {
+    // The context fixture (FC4SpanContext.cpp) needs ours' pixels even under span4444_shadow.
+    if (!g.shadow || SpanContextFixtureThread()) {
         if (Ours(s, spans, count, r.lo, r, stride, a, b, rectB, src, mode) == 0) {
             g.ours[s].fetch_add(1, std::memory_order_relaxed);
         } else {
             g.fallback[s].fetch_add(1, std::memory_order_relaxed);
+            SpanNoteRefused(kSpanR4444);
             Original(s, self, spans, count, buffer, a, b, rectB, src, mode);
         }
         return;
@@ -188,25 +195,25 @@ void Bridge(Slot s, void* self, const uint32_t* spans, uint32_t count, const uin
 
 void __fastcall FwdSolid(void* self, void*, const uint32_t* spans, uint32_t count, const uint32_t* buffer,
                          uint32_t colour) {
-    Bridge(kSolid, self, spans, count, buffer, colour, 0, nullptr, nullptr, 0);
+    Bridge(kSolid, reinterpret_cast<uintptr_t>(_ReturnAddress()), self, spans, count, buffer, colour, 0, nullptr, nullptr, 0);
 }
 void __fastcall FwdGradient(void* self, void*, const uint32_t* spans, uint32_t count, const uint32_t* buffer,
                             const int32_t* grad) {
-    Bridge(kGradient, self, spans, count, buffer, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(grad)), 0,
+    Bridge(kGradient, reinterpret_cast<uintptr_t>(_ReturnAddress()), self, spans, count, buffer, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(grad)), 0,
            nullptr, nullptr, 0);
 }
 void __fastcall FwdAlpha(void* self, void*, const uint32_t* spans, uint32_t count, const uint32_t* buffer,
                          uint32_t colour, uint32_t alpha) {
-    Bridge(kAlpha, self, spans, count, buffer, colour, alpha, nullptr, nullptr, 0);
+    Bridge(kAlpha, reinterpret_cast<uintptr_t>(_ReturnAddress()), self, spans, count, buffer, colour, alpha, nullptr, nullptr, 0);
 }
 void __fastcall FwdAlphaGradient(void* self, void*, const uint32_t* spans, uint32_t count, const uint32_t* buffer,
                                  const int32_t* grad) {
-    Bridge(kAlphaGradient, self, spans, count, buffer, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(grad)), 0,
+    Bridge(kAlphaGradient, reinterpret_cast<uintptr_t>(_ReturnAddress()), self, spans, count, buffer, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(grad)), 0,
            nullptr, nullptr, 0);
 }
 void __fastcall FwdBlt(void* self, void*, const uint32_t* spans, uint32_t count, const uint32_t* rectA,
                        const uint32_t* rectB, const uint8_t* src, uint32_t mode) {
-    Bridge(kBlt, self, spans, count, rectA, 0, 0, rectB, src, mode);
+    Bridge(kBlt, reinterpret_cast<uintptr_t>(_ReturnAddress()), self, spans, count, rectA, 0, 0, rectB, src, mode);
 }
 
 void* Forwarder(unsigned s) {
@@ -408,6 +415,13 @@ void SpanRender4444Start() {
     g.installed = true;
     Log("span4444: bridge installed on vtable %p slots 1-5 (%s)", static_cast<void*>(vt),
         g.shadow ? "shadow: the original renders, ours compared" : "ours renders; the original on core rejection");
+}
+
+bool SpanRender4444UseOriginal(bool original) {
+    if (!g.installed) return false;
+    void* v[kSlots];
+    for (unsigned i = 0; i < kSlots; ++i) v[i] = original ? reinterpret_cast<void*>(g.original[i]) : Forwarder(i);
+    return WriteEntries(g.vtable + 1, v);
 }
 
 void SpanRender4444Stop() {

@@ -315,6 +315,15 @@ bool Span1555SlotEntry(unsigned slot, void*** entry, uintptr_t* function);
 // result is false (an occupant of another class has no contract here). `occupant` is the
 // cISC4NetworkOccupant* view; the orientation is passed zero-extended (only its low byte is used).
 bool NetworkOccupantSetPiece(void* occupant, uint32_t pieceId, uint8_t orientation);
+// glue-span-context-final4: cGZDrawContextRenderToBuffer (span-render-4444.md §1.3): its vtable 0x00AC17D0,
+// the renderer vtables 0x00AC182C (types 4/6) and 0x00AC185C (type 7), and the seven renderer call sites of
+// DrawPreclippedSpanList 0x008302E0 (span-render-565.md §1.1): sites[0..3] = solid, gradient, alpha,
+// alpha gradient (slots 1-4); sites[4..6] = texture plain, stretch, tiled (slot 5). Identified build only.
+struct SpanContextVA {
+    uintptr_t contextVtable, renderer1555Vtable, renderer4444Vtable;
+    uintptr_t sites[7];
+};
+bool SpanContextAddresses(SpanContextVA* out);
 
 }  // namespace compat
 }  // namespace fc4
