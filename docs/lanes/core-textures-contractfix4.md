@@ -1,8 +1,13 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-textures-contractfix4: texture/material contract corrections | Codex / `core-textures-contractfix4` (engine lane) | in progress; source 399d555d; fmt PASS 6 files; full gate pending; TB8 filed; no ABI/game changes | 1. Capture stable full gate. 2. Record exact counts and queue bounded source for review. |
+| core-textures-contractfix4: texture/material contract corrections | Codex / `core-textures-contractfix4` (engine lane) | in progress; final correction round 2/2, logical 3/3; source 399d555d preserved; prior gate absent | Preserve interrupted evidence, then one durable serial fmt/full gate; report exact results or park. |
 
 ## Handoff
+- Final same-name resume: correction round 2/2, logical family 3/3. No fourth round or renamed continuation.
+- Source remains 399d555d; previous report ca37f85f preserved in history; initial tree clean.
+- Native process audit 2026-10-22 21:16:40 UTC: prior PIDs 34944/15340/2848 absent. No qbuild/fc4verify or build descendants attributable to this worktree; only audit shell/Python were present. Python psutil unavailable and CIM denied; native read-only PID/creation/commandline/cwd query succeeded.
+- Evidence: build-runs/contractfix4-r2-evidence/initial-process-audit.json. qbuild-test.log still 521 bytes, mtime 21:06:39.852239 UTC, without final results. Session 41229 is not a surviving supervisor.
+- Next: preserve interrupted/mixed logs; hidden durable supervisor runs touched-file fmt then exactly one canonical qbuild all with RUST_TEST_THREADS=1. Source stays fixed; completion/provenance/stdout/stderr remain in own ignored evidence directory.
 - Goal: correct existing textures_materials owner to published TB4–TB7 contracts; no native/default promotion.
 - Done: reserved detached worktree reused; clean initial status; TB4–TB7 focused contracts read.
 - Done: e9ee879f signed power, masked LOD, wrapping layout and binding references (before call 30).
@@ -14,18 +19,17 @@
 - Done: f471bdc8 stable source; fmt PASS five files. Baseline all interrupted after 639 passed/0 failed completed results; C API second-thread clock test stalled over 60 seconds. No baseline clippy/native completion.
 - Done: quick old snapshot 3044 passed/3 failed (stale bulk-delete assertions); first stable all stopped on missing destroy_base in formats' independent MaterialBase mock. Both corrected; no tests skipped.
 - Done: invalid last factory-reference release now explicitly marks Unsupported::InvalidBinding before safe token cleanup. Reader integration verifies material count/header unknown byte.
-- Next: final all running on source 399d555d with RUST_TEST_THREADS=1, wrapper session 41229. Cell 56 completed its 300-second collection without output; the underlying gate remains running. Do not launch an overlapping all.
-- Latest check 2026-10-22 22:09:21: qbuild-test.log 521 bytes, compiling core/formats/conformance/capi, no new error/result lines; current-source full counts/clippy/native/CTest pending. Source and report committed; working tree clean before this handoff update.
+- Prior worker claimed a live final gate; this resume established its absence, so no passing prior final gate is claimed.
 - Facts: build-runs/summarize-contractfix4.py summarizes only gate logs; review record below reconciles every published body/shared entry.
 - TB8 filed: native hash/growth/chain rules absent; distinct-record restore explicitly unsupported.
 - Baseline wrapper session 62872 interrupted with Ctrl-C; focused quick native build still pending.
 - Scope: textures_materials and independent conformance/tests only; no game runs or shared ABI edits.
-- Family cap: parent core-textures-materials4 round 1 landed train84; this reservation logical 2/3, max one round here.
+- Family cap: parent round 1 landed train84; correction round 1 used one; this final correction round is logical 3/3.
 - TB1 interface identity and TB2 settings producer remain unknown.
 
 ## Review record (validation pending)
 
-The existing production owner remains `engine/core/src/textures_materials/`; no second owner, S3D decoder, native adapter, default routing, ABI export, shared/generated table, glyph code or game file was added. No game requests were issued, as required by this brief. Original parent `core-textures-materials4` remains parked with its train84 evidence. This is logical family reservation **2/3**, one round in this worktree; it does not reset the original three-round family cap.
+The existing production owner remains `engine/core/src/textures_materials/`; no second owner, S3D decoder, native adapter, default routing, ABI export, shared/generated table, glyph code or game file was added. No game requests were issued, as required by this brief. Original parent `core-textures-materials4` remains parked with its train84 evidence. This is final correction round **2/2**, logical family round **3/3**; no fourth round or renamed continuation is available.
 
 ### Changes and boundaries
 
