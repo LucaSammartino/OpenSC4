@@ -190,50 +190,94 @@ all: `IsOfType(t)` is `GetNetworkFlags() & (1 << t)`.
 
 All offsets from the object base (= the `cISC4NetworkOccupant` pointer). The constructor is `0x0061BDD0`.
 
-### 2.1 Sub-object map
+*Rewritten 2026-10-21 (re-ugbase), from the instruction bytes and the SDK's slot order. It corrects the earlier
+§2.1–§2.7 (offsets there were partly view-relative):*
+- `+0xFC` is the **piece id** (slot 23), `+0x100` the **under-texture** (slot 29), `+0x104` the **rotation and
+  flip** byte (slots 24–26, 74), `+0x105` the **variation** (slots 27, 28); slot 27 is `SetVariation` and slot 29
+  `SetUnderTexture` (SDK), not `SetRotation` / `SetVariation`;
+- `+0x108` is the **edge store** (`cSC4EdgeConnectionStore`, slots 37–45, §2.10); `+0x118` holds the **parts**
+  (slot 31 `AddPart`); the occupant type is at `+0x28` (`0x0061BF85`), not `+0x24`; the model-instance properties
+  set to `0x1A` by `Init` are at `+0x4C`;
+- `Init` **clears** network flag `0x2000` (primary slot 11, `0x0061CB7A`); it adds the piece to the retrofit list only
+  when `CheckForRetrofit` (slot 6, property `0x4835C6AC`) is true; on a second `Init` it clears flags `0x10000000`
+  and `0x800000` directly and sets them again through `SetNetworkFlag` (slot 10), so their change messages are
+  posted again;
+- `StaticInit` gets the texture manager by its service ID (it subscribes to nothing) and fills the avenue
+  intersection set with 13 piece ids (§2.5);
+- the path connections are a byte per (path type, entry side) with a bit per exit side (§2.6);
+- `GetPosition` is the corners' mean x and z and their highest y (§2.9); `GetOccupiedCell` rounds to nearest.
+
+### 2.1 Sub-object map and identity
 
 | Offset | What |
 |---|---|
-| `+0x00` | `cISC4NetworkOccupant` (vtable `0x00AA8080`) |
+| `+0x00` | `cISC4NetworkOccupant` (vtable `0x00AA8080`, 81 slots, §2.4) |
 | `+0x04` | `cISC4Occupant` base sub-object (its ctor runs with `this = object+4`; vtable `0x00AA7FF8`, 34-slot `cISC4Occupant` interface) |
 | `+0x08` | `cIGZSerializable` (`0x00AA7FDC`: Write `0x0061A190`, Read `0x0061CC00`, `GetGZCLSID` `0x00619040`) |
 | `+0x0C` | exemplar property holder (`0x00AA7F78`, 25 slots; foundations §10.3) |
-| `+0x1C` | second property-holder view (`0x00AA4140` comes from the base ctor's `+0x1C` write, shared with `cSC4Occupant`) |
-| `+0x20` | message-target-like view `0x00AA7F60` (the base ctor writes it; unused by this spec's callers) |
-| `+0x68` | `cS3DModelInstanceBasic` sub-object (ctor `0x00801CF0`; the QI fallback of §1.2) |
+| `+0x20` | a small interface (`0x00AA7F60`: `QueryInterface` / `AddRef` / `Release` thunks and two slots) *[summary]* |
+| `+0x38` | the model instance part (vtable `0x00AA7F5C`; `cS3DModelInstanceBasic` ctor `0x00801CF0` runs with `this = object+0x38` at `0x0061BE07`); its table pointer `+0x3C` locates the virtual base |
+| `+0x17C` | the virtual base: the model instance interface (`0x00AA7F10`, model-instances.md §1) |
 
-Within the `+4` occupant sub-object, the base `cSC4Occupant` fields sit at base-relative offsets; measured from
-the base `Write` `0x005E8CD0`: type u32 at base+0x20 (= object `+0x24`), the four rect bytes at base+0x24 (=
-`+0x28`), counters u16 at base+0x28, state u16 at base+0x2A, flags byte at base+0x2B (masked `& 0xDD` when saved;
-ctor default 4). The record layout itself is lot-records.md §2.3 and is not repeated here. The plain
-`cSC4NetworkOccupant` constructor **overwrites the occupant type dword with `0xC772BF98`** at `0x0061BF85`, after
-the base ctor wrote `0x74758925`.
+| Item | Value |
+|---|---|
+| Class ID (`GetGZCLSID`, `0x00619040`) | `0xC9C05C6E` |
+| `QueryInterface` (`0x006192C0`) | `0xA821EF94` (`cISC4NetworkOccupant`) and `0xA9764C8C` give the main interface, counted; any other IID goes to the occupant base, then to the model instance base |
+| Occupant type (occupant slot 7, the view's `+0x24`) | `0xC772BF98`, written by the constructor at object `+0x28` (`0x0061BF85`) over the base ctor's `0x74758925` |
+| Factory | `GZCOM_CreatecSC4NetworkOccupant` (`0x0061C480`), registered by `cSC4COMDirector`: a block from the class's pool (`operator new` `0x00619E90`, pool `0x00B0B398`), constructed as most-derived; returns the main interface |
+| Destructor | body `0x0061C170`; deleting destructor `0x0061C4C0` (returns the block to the pool) |
+
+The pool is an implementation detail *[choice]*: FreeCity4 may allocate the objects in any way. The other vtables'
+slots reach the methods through this-adjustor thunks (`0x0061BFC0`…`0x0061C160`).
+
+The model instance interface's slots: 0–2 the main object's `QueryInterface`, `AddRef`, `Release`; 3 `GetOwner`
+(the interface itself, no reference; `0x006193A0`); 4–6, 13–16, 18 the basic model instance's (owner, custom data,
+properties, draw attributes, `GetResModel`); 7 `GetBounds(box)` (the occupant's box in the instance's own frame,
+the inverse transform applied *[summary]*; `0x0061C110`, same body as `0x0061B1D0`); 8 `GetWorldBounds(box)` (the
+occupant's box, `0x0061C0A0`); 9, 10 `Get/SetTransform` (the set adds 1 to the change counter `+0x64`); 11
+`Pick(ray)` (§2.9); 12 `Draw` (§2.11); 17 `GetSortValue` (§2.11).
 
 ### 2.2 Fields *[compat]*
 
 | Offset | Type | Meaning |
 |---|---|---|
-| `+0x48` | u32 | lifecycle flags; `Init` sets `0x1A`; the prebuilt `Init` also clears `0x10` and sets `0x40` (§2.5) |
-| `+0x38` | object | the `cS3DModelInstanceBasic` virtual base (ctor `0x00801CF0` runs with `this = object+0x38` at `0x0061BE07`; vbtable pointer at `+0x3C`) |
+| `+0x28` | u32 | the occupant type `0xC772BF98` (§2.1) |
+| `+0x4C` | u32 | the model instance's properties: `0x1A` after `Init` (§2.5); the prebuilt `Init` also clears `0x10` and sets `0x40` (§2.8) |
+| `+0x50`…`+0x63` | 20 bytes | the model instance's draw attributes (model-instances.md §1 slots 15, 16): byte `+0x50` (bit `0x02` translucent), byte `+0x51`, the opacity `+0x60` (f32) |
 | `+0x64`…`+0x9B` | `S3DTransform` (0x38) | the transform (NO15): `+0x64` u8 change counter, `+0x65` u8 part mask (`4` rotation, `1` translation, `2` scale), `+0x68`…`+0x8B` 9 f32 rotation rows, `+0x8C`/`+0x90`/`+0x94` f32 translation, `+0x98` f32 scale; the ctor zeroes `+0x64`/`+0x65` (`0x0061BE52`) and seeds the matrix from `0x00B4525C` |
-| `+0x9C`…`+0xFB` | 4 × 0x18 | the road **quad**: four vertices of 0x18 bytes each — f32 x `+0`, y `+4`, z `+8`, colour dword `+0xC` (bytes B,G,R,A at `+0xC`…`+0xF`), f32 u `+0x10`, v `+0x14` (NO16) |
-| `+0xFC` | u32 | saved u32 written after the quad (record field 5) |
-| `+0x100` | u32 | variation (§2.4) |
-| `+0x104` | u8 | orientation/variation byte: low 7 bits `& 0x7F`, bit 7 is the **flip** (§2.4) |
-| `+0x105` | u8 | rotation byte |
-| `+0x108`…`+0x117` | sub-record | the cell-info block (record field 6, helper `this = object+0x108`): u8 entry count `+0x108`, u8 `+0x10C`, u32 `+0x110`, heap array pointer `+0x114` of `count` 8-byte entries {u8 `+0`, u32 `+4`}; slot 44 (`0x00604E00`) is `ADD ECX,0x108; JMP 0x006199D0` (free + reload) |
-| `+0x118`/`+0x11C`/`+0x120` | vector | the triangle list begin/end/capacity, element stride **0x4C**: u32 `+0`, then three vertices of 0x18 in the quad-vertex format above (`+4`, `+0x1C`, `+0x34`) |
-| `+0x124`…`+0x13B` | 6 floats | the bounding box: min x/y/z `+0x124/+0x128/+0x12C`, max x/y/z `+0x130/+0x134/+0x138` (`GetBoundingBox` `0x00619360` on the `+4` view reads view `+0x120`…`+0x134`) |
-| `+0x13C` | u32 | the **network flags** (ctor `0x6000000`); the flag table is network-manager.md §5; saved by the record (field 10: `Read` masks `& 0xFFFF1FFF`, converting below v6 with `ConvertV5FlagsToCurrentFlags` `0x006191A0`) |
-| `+0x140` | ref | an owned reference written through `SC4WriteGZSerializable` with IID `0x6999A8FB` (the segment-o-stream QI; foundations §3) and read back with `SC4ReadGZPersistRef` IID `0xA9667793` (record field 12); §2.6 reads the same word as the cached path info |
-| `+0x144`…`+0x164` | 4 × 8 bytes | the connection byte matrix: `[exit][type]` (§2.6) |
-| `+0x164` | u32 | path-id override (slot 16, `0x006197D0`); saved by the record (field 11) and the trigger of the v < 8 read tail |
-| `+0x168`, `+0x16C` | 2 × f32 | the **path origin offset** (x, z), meaningful only when `+0x164` ≠ 0. `GetPathInfo` (`0x0061B510`, `0x0061B635…0x0061B64B`) passes the two dwords by value as (x, 0, z) to the path-info slot `+0x74`; the prebuilt `GetModelInstances` loads them as f32 and negates them into the `Deform` origin (§10.3, `0x0061EEC9…0x0061EEE0`). The ctor stores integer 0 in both (`0x0061BFAC`/`0x0061BFB2`, = 0.0f). Not saved by the record and **not** the slot-63 pair (that is `+0x170`/`+0x174`). An earlier draft of this table named them "demolition cost / int64": wrong |
-| `+0x170`, `+0x174` | int64 | the int64 the record saves (field 13: low dword `+0x170`, high `+0x174`); §2.4 also reads this pair as the one-way data backing (property `0x4835C6AA`) |
+| `+0x9C`, `+0xB4`, `+0xCC`, `+0xE4` | 4 × 0x18 | the four **corners** of the textured quad: f32 x `+0`, y `+4`, z `+8`, colour dword `+0xC` (bytes B, G, R, A at `+0xC`…`+0xF`), f32 u `+0x10`, v `+0x14` (NO16) |
+| `+0xFC` | u32 | the **piece id** (slot 23) |
+| `+0x100` | u32 | the **under-texture** (slot 29) |
+| `+0x104` | u8 | the **rotation** (low 7 bits) and the **flip** (bit 7) (slots 24–26, 74) |
+| `+0x105` | u8 | the **variation** (slots 27, 28) |
+| `+0x108`…`+0x117` | 16 bytes | the **edge store** (§2.10): u8 count `+0x108`, first entry u8 type `+0x10C` and u32 flags `+0x110`, heap array `+0x114` of `count` 8-byte entries {u8 type `+0`, u32 flags `+4`}; slot 44 (`0x00604E00`) is `ADD ECX,0x108; JMP 0x006199D0` (free + copy) |
+| `+0x118`/`+0x11C`/`+0x120` | vector | the **parts** (slot 31, §2.11): begin/end/capacity, element stride **0x4C**: u32 texture id `+0`, then three vertices of 0x18 in the corner format (`+4`, `+0x1C`, `+0x34`) |
+| `+0x124`…`+0x13B` | 6 floats | the box: min x/y/z `+0x124/+0x128/+0x12C`, max x/y/z `+0x130/+0x134/+0x138` (slot 80, §2.9; `GetBoundingBox` `0x00619360` on the `+4` view reads view `+0x120`…`+0x134`) |
+| `+0x13C` | u32 | the **network flags** (ctor `0x6000000`); the flag table is network-manager.md §5 |
+| `+0x140` | pointer | the **cached path info** (slots 49, 50; traffic-network.md §7.2); saved as its resource key (§2.3 field 12) |
+| `+0x144`…`+0x163` | 8 × 4 bytes | the **path connections** (§2.6): a row of 4 bytes per path type |
+| `+0x164` | u32 | the path-id override (slots 16, 51, 52); saved (field 11) and the trigger of the v < 8 read tail |
+| `+0x168`, `+0x16C` | 2 × f32 | the **path origin offset** (x, z), meaningful only when `+0x164` ≠ 0. `GetPathInfo` (`0x0061B510`, `0x0061B635…0x0061B64B`) passes the two dwords by value as (x, 0, z) to the path info's slot `+0x74` (`OffsetAndScissor`, network-rules.md); the prebuilt `GetModelInstances` loads them as f32 and negates them into the `Deform` origin (§10.3, `0x0061EEC9…0x0061EEE0`). The ctor stores 0 in both (`0x0061BFAC`/`0x0061BFB2`). Not saved |
+| `+0x170`, `+0x174` | s64 | the **cost of demolition** (slots 63, 64), saved as field 13 |
 
 **Offsets in the record.** `Write` and `Read` sit in the `+8` vtable (`0x00AA7FDC`) with no thunk, so they run with
 `this = object+8`; every offset the record code uses is 8 less than the object offset in this table (NO16 c,
 NO17 b). The rows above give object offsets.
+
+**Properties.** Some state lives in the property holder (`+0xC`), so it is saved with the occupant record's
+property list (answers NO5: the slots that use them carry the SDK names):
+
+| Property | Value | Slots (SDK name) |
+|---|---|---|
+| `0x4835C6A7` | 2 × u32 (an array variant) | 13, 14: `Get/SetConnectionNodeEdgeTypes` |
+| `0x4835C6A8` | f32 | 67, 68: `Get/SetPassageCeiling` |
+| `0x4835C6A9` | u32 | 15, 16: `Get/SetConnectionPathIDOverride` |
+| `0x4835C6AA` | u8 | 69, 70: `Get/SetOneWayDirections` |
+| `0x4835C6AB` | u32 `(z << 16) + x` | 71, 72: `Get/SetComplexPieceOrigin` |
+| `0x4835C6AC` | an empty variant | 6, 7: `CheckForRetrofit` / `SetRetrofitFlag` (present = set) |
+
+The property holder's `HasProperty` (`0x00619500`) is true for `0x88696402` without looking; other IDs go to the
+exemplar property holder (NO32).
 
 ### 2.3 The base save record *[compat]*
 
@@ -246,21 +290,21 @@ version ≥ 4 (below that it fails at once) and has conversions for 4/5/6/7. In 
 | 1 | version | u16 = **8** | `Read` rejects < 4 with nothing more read |
 | 2 | the base occupant record | — | `cSC4Occupant::Write` / `Read` (lot-records.md §2.3) |
 | 3 | transform | `S3DTransform` stream form | object `+0x64` (view `+0x5C`). Write `operator<<` `0x005DA8C0`: u8 mask = the transform's own mask byte `+0x65`, copied, never recomputed; then if `mask & 4` the 9 rotation f32 (`+0x68`…`+0x88`, row by row), if `mask & 1` the 3 translation f32 (`+0x8C`, `+0x90`, `+0x94`), if `mask & 2` the scale f32 (`+0x98`). Read: v ≥ 5 `operator>>` `0x005DA710`, v 4 `S3DTransformLegacyLoad` `0x005DA930`; both rules below the table (NO15) |
-| 4 | the road quad | 4 × { 5 × f32, 4 × u8 } = 96 bytes | object `+0x9C`…`+0xFB`, one vertex per iteration (stride 0x18, 4 iterations, `0x0061A1C0`…`0x0061A23E`): f32 x `+0`, y `+4`, z `+8`, u `+0x10`, v `+0x14`, then the colour bytes `+0xE`, `+0xD`, `+0xC`, `+0xF` — i.e. **R, G, B, A** of the little-endian ARGB dword `+0xC`. Stream slot `+0x30` is `SetFloat32`/`GetFloat32`, so the five values are floats, not u32 (NO16 a) |
-| 5 | four scalars | u32, u8, u32, u8 | u32 object `+0xFC`, u8 `+0x105` (rotation), u32 `+0x100` (variation), u8 `+0x104` (orientation + flip bit), in that order. These are separate fields after the quad, not part of it |
-| 6 | the cell-info sub-record | u16 = 2, u8 count, u8, u32, count × { u8, u32 } | helper `0x00619C10` with `this = object+0x108`: count `+0x108`, u8 `+0x10C`, u32 `+0x110`, then each 8-byte array entry's u8 `+0` and u32 `+4`. Read `0x00619C90`: a version other than 2 returns 0 after consuming only the u16, and **the caller ignores that result** (the stream is then misaligned); otherwise it frees the old array, reads the three header fields and allocates `count × 8` bytes before reading the entries (count 0: no array) |
-| 7 | triangle count | u32 | `(end − begin) / 0x4C` over the vector `+0x118`/`+0x11C` (magic division `0x6BCA1AF3`, `SAR 5`). Read resizes the vector to the count with zero-filled elements (`0x0061CAF0`) |
-| 8 | per triangle | u32 + 3 × { 5 × f32, 4 × u8 } = 76 bytes | u32 `+0`, then the three vertices at element `+4`, `+0x1C`, `+0x34` in the field-4 vertex form (x, y, z, u, v, R, G, B, A). Read forces each vertex alpha byte to `0xFF` after reading it (`0x0061CE04`). The element is 0x4C bytes in memory and 76 in the stream (NO16 b) |
-| 9 | the bounding box | 6 × f32 | interleaved min/max per axis: min x `+0x124`, max x `+0x130`, min y `+0x128`, max y `+0x134`, min z `+0x12C`, max z `+0x138` (loop of 3 at `0x0061A3B8`, slot `+0x30`) (NO16 c) |
-| 10 | the network flags | u32 | object `+0x13C`. Read: below v6 converted by `ConvertV5FlagsToCurrentFlags` (rule below), then always `& 0xFFFF1FFF` |
-| 11 | the path-id word | u32 | object `+0x164` |
-| 12 | the owned reference | segment-stream ref | object `+0x140`; written through QI `0x6999A8FB` (helper `0x005D9940`); read with `SC4ReadGZPersistRef` (`0x005D9820`) IID `0xA9667793`. Read in **every** accepted version (no v8 gate) |
-| 13 | the int64 | i64 (`SetSint64`, slot `+0x28`) | low dword object `+0x170`, high `+0x174`. Read in every accepted version |
+| 4 | the four corners | 4 × { 5 × f32, 4 × u8 } = 96 bytes | object `+0x9C`…`+0xFB`, one corner per iteration (stride 0x18, `0x0061A1C0`…`0x0061A23E`): f32 x `+0`, y `+4`, z `+8`, u `+0x10`, v `+0x14`, then the colour bytes `+0xE`, `+0xD`, `+0xC`, `+0xF` — i.e. **R, G, B, A** of the little-endian ARGB dword `+0xC`. Stream slot `+0x30` is `SetFloat32`/`GetFloat32` (NO16 a) |
+| 5 | piece id, variation, under-texture, rotation and flip | u32, u8, u32, u8 | `+0xFC`, `+0x105`, `+0x100`, `+0x104`, in that order |
+| 6 | the edge store | u16 = 2, u8 count, u8 first type, u32 first flags, count × { u8 type, u32 flags } | helper `0x00619C10` with `this = object+0x108` (§2.10). Read `0x00619C90`: a version other than 2 returns 0 after consuming only the u16, and **the caller ignores that result** (the stream is then misaligned) *[quirk]*; otherwise it frees the old array, reads the header fields and allocates `count × 8` bytes before reading the entries (count 0: no array) |
+| 7 | part count | u32 | `(end − begin) / 0x4C` over `+0x118`/`+0x11C` (magic division `0x6BCA1AF3`, `SAR 5`). Read resizes the vector to the count with zero-filled elements (`0x0061CAF0`) |
+| 8 | per part | u32 + 3 × { 5 × f32, 4 × u8 } = 76 bytes | the texture id, then the three vertices at element `+4`, `+0x1C`, `+0x34` in the field-4 form. Read forces each vertex alpha byte to `0xFF` after reading it (`0x0061CE04`). The element is 0x4C bytes in memory and 76 in the stream (NO16 b) |
+| 9 | the box | 6 × f32 | interleaved min/max per axis: min x `+0x124`, max x `+0x130`, min y `+0x128`, max y `+0x134`, min z `+0x12C`, max z `+0x138` (loop of 3 at `0x0061A3B8`, slot `+0x30`) (NO16 c) |
+| 10 | the network flags | u32 | object `+0x13C`. Read: below v6 converted by `ConvertV5FlagsToCurrentFlags` (rule below), then always `& 0xFFFF1FFF`, which clears `0x2000` (path connections built), `0x4000` and `0x8000` (lighting up to date) |
+| 11 | the path-id override | u32 | object `+0x164` |
+| 12 | the cached path info's key | 0 or 3 × u32 | `SC4WriteGZPersistRef` (`0x005D9940`): only through a database segment stream — the stream is asked for `cISC4DBSegmentOStream` (`0x6999A8FB`); when it refuses, **nothing** is written. Otherwise, when the path info `+0x140` answers `cIGZPersistResource` (`0x456B8F1D`), its slots 5, 6 and 7 are written *[inferred: type, group, instance]*; with no path info, or one that does not answer, three zeros. `SC4ReadGZPersistRef` (`0x005D9820`) reads the three u32 only through `cISC4DBSegmentIStream` (`0x4999A8F5`) and asks the resource manager (`0x00B43CA8`, slot 3) for that key as interface `0xA9667793`; the result (or null) becomes the cached path info. Read in **every** accepted version. Where the city file keeps the piece's own path info is NO33 |
+| 13 | the cost of demolition | s64 (`SetSint64`, slot `+0x28`) | low dword `+0x170`, high `+0x174`. Read in every accepted version |
 
 `Write` returns early (to the error-flag return) when the occupant base record fails; otherwise it writes all 13
-fields and returns 1 iff the stream's error flag is clear. Byte count of a version-8 record: 2 (version) + the base occupant
-record + transform (1 + 36·[mask&4] + 12·[mask&1] + 4·[mask&2]) + 96 + 10 + (8 + 5·count) + 4 + 76·triangles
-+ 24 + 4 + 4 + ref + 8.
+fields and returns 1 iff the stream's error flag is clear. Byte count of a version-8 record written to a segment
+stream: 2 (version) + the base occupant record + transform (1 + 36·[mask&4] + 12·[mask&1] + 4·[mask&2]) + 96 + 10
++ (8 + 5·count) + 4 + 76·parts + 24 + 4 + 4 + 12 + 8.
 
 **Transform read rules (NO15).** `operator>>` `0x005DA710` reads the u8 mask; if the live mask byte `+0x65` is
 non-zero it first resets the transform to identity (rotation = identity, translation 0, scale 1.0), sets the mask
@@ -268,9 +312,9 @@ to 0 and increments the counter `+0x64`; then for each mask bit present it reads
 and increments the counter. A part the stream omits keeps its value from before the call (identity after the
 reset; untouched when the live mask was already 0). The scale is stored as read, but bit 2 is set only when the
 scale differs from 1.0 (constant `0x00A81228`; a NaN counts as different) and cleared when it equals 1.0. So a
-written mask of 7 with scale 1.0 reads back as mask 5. Worked example: a transform with mask `0x01` and translation (8, 2.5, 8) writes the 13
-bytes `01 | 00 00 00 41 | 00 00 20 40 | 00 00 00 41`; mask `0x07`, identity rotation, translation 0 and scale
-2.0 writes 1 + 36 + 12 + 4 = 53 bytes ending `00 00 00 40`.
+written mask of 7 with scale 1.0 reads back as mask 5. Worked example: a transform with mask `0x01` and
+translation (8, 2.5, 8) writes the 13 bytes `01 | 00 00 00 41 | 00 00 20 40 | 00 00 00 41`; mask `0x07`, identity
+rotation, translation 0 and scale 2.0 writes 1 + 36 + 12 + 4 = 53 bytes ending `00 00 00 40`.
 `S3DTransformLegacyLoad` (v 4) is fixed-size, 56 bytes: 9 f32 rotation (rows, → `+0x68`…`+0x88`, mask `|= 4`),
 3 f32 translation (→ `+0x8C`…`+0x94`, mask `|= 1`), 1 f32 scale (→ `+0x98`, bit 2 by the 1.0 test as above), then
 a u32 whose **low byte replaces the counter `+0x64`** (the three increments are overwritten). It never resets the
@@ -298,86 +342,153 @@ the read mask gives `0x00800003`. Old `0x0000_1001` → `0x1 | 0x4000000`, then 
 **The read tail (NO16 e).** After field 11, only when the path-id word `+0x164` is non-zero:
 - v < 7: the record holds **two more f32** here (offsets `dx`, `dz`; current writers never emit them). Read computes
   a cell `x = floor(((v0.x + v2.x) · 0.5 + dx) · 0.0625)` and `z = floor(((v0.z + v2.z) · 0.5 + dz) · 0.0625)` from
-  quad vertices 0 and 2 (object `+0x9C`/`+0xCC` for x, `+0xA4`/`+0xD4` for z), in x87 then rounded through
-  f32 (`+ 12582912.0` trick and a fix-up that makes exact integers floor to themselves, `0x0061CEBD`…`0x0061CF5B`),
-  and calls primary slot 72 (`0x0061BA90`) with `(x, z)`, which sets property `0x4835C6AB` to `(z << 16) + x`.
-- v < 8 (so also after the v < 7 step): primary slot 7 (`0x0061A120`) with 1, which adds the empty property
-  `0x4835C6AC` (with 0 it would remove it).
-Then fields 12 and 13 are read in every version. Finally Read fetches a render-state block from the model-instance
-base (its slot `+0x3C`); if vertex 0's alpha `+0xAB` is not `0xFF` or that block's bit 2 is set, it forces all four
-quad vertex alphas to `0xFF`, clears bit 2 and stores `255 · (1/255)` = 1.0 as the block's alpha before handing it
-back (slot `+0x40`). The return is 1 iff the stream's error flag is clear; version < 4 returns 0 having read only
-the u16.
+  corners 0 and 2 (object `+0x9C`/`+0xCC` for x, `+0xA4`/`+0xD4` for z), in x87 then rounded through f32
+  (`+ 12582912.0` trick and a fix-up that makes exact integers floor to themselves, `0x0061CEBD`…`0x0061CF5B`), and
+  calls primary slot 72 (`SetComplexPieceOrigin`, `0x0061BA90`) with `(x, z)`, which sets property `0x4835C6AB` to
+  `(z << 16) + x`.
+- v < 8 (so also after the v < 7 step): primary slot 7 (`SetRetrofitFlag`, `0x0061A120`) with 1, which adds the
+  empty property `0x4835C6AC`.
+Then fields 12 and 13 are read in every version. Finally Read fetches the draw attributes from the model-instance
+base (its slot `+0x3C`); if corner 0's alpha `+0xAB` is not `0xFF` or their translucent bit (2) is set, it forces
+all four corner alphas to `0xFF`, clears bit 2 and stores `255 · (1/255)` = 1.0 as the opacity before handing them
+back (slot `+0x40`), so a loaded piece is never translucent. The return is 1 iff the stream's error flag is clear;
+version < 4 returns 0 having read only the u16.
 
 The subclass records add fields after the base block; §3.4, §5.4, §6.4, §7.4, §8.5 give each.
 
-### 2.4 Slot notes used across the family *[compat]*
+### 2.4 Interface slots (`cISC4NetworkOccupant`, vtable `0x00AA8080`) *[compat]*
 
-- **`GetOccupiedCell`** (slot 59, `0x0061B010`): `(x, z)` of the piece's cell. World → cell is
-  `trunc(v * 0.0625 + 12582912.0) − 12582912.0` per axis (constants `0.0625` at `0x00AA7D78`, `12582912.0`
-  (`0x4B400000`) at `0x00AA7D7C`) — the standard 16-metre cell quantiser with the x87 rounding trick.
-- **Position** (slot 75, `0x006193D0`): x = `+0x9C`, z = `+0xA0`, y = `+0x98` guarded against `-FLT_MAX`
-  (`0x00AA7D74`), plus the model offsets `+0xB4` and `+0xBC`. The base `cISC4Occupant` `GetPosition`
-  (`0x005E8A20`) zeroes all three.
-- **Orientation/flip/rotation** (slots 26/24/25, `0x00604DE0`/`0x00604DC0`/`0x00604DD0`): the byte `+0x104`'s low
-  7 bits are the orientation/variation, `GetFlip` returns `byte >> 7`. `SetRotation` (slot 27, `0x0061B7F0`)
-  writes `+0x105` and posts a queued message. `SetVariation` (slot 29, `0x0061B880`) writes `+0x100` and posts a
-  queued message.
-- **`SetQuadDraw`** (slot 30, `0x0061B490`): alpha `0xFF` into the quads. **`SetTextureCoordinates`**
-  (`0x00619550`) fills the quads from the tables `0x00AA7D98`/`0x00AA7D88` by `(b & 3)`, swapping the pair when
-  `b ≥ 0x80` by `b & 1` *[compat]*.
-- **`AddTriangle`** (slot 31, `0x0061C800`): appends a 0x4C-byte vertex to the `+0x110` list, recomputes the bbox
-  (slot 80, `0x0061A430`) and calls slot 46.
-- **Demolition cost** (slot 63, `0x00604E10`, primary vtable `0x00AA7038` + `0xFC`): returns the int64
-  `+0x170` (low, `EAX`) / `+0x174` (high, `EDX`), the pair the record saves as field 13. (It does not read
-  `+0x168`/`+0x16C`, which are the f32 path origin offset of §2.2.)
+The SDK names slots 3–73 (its slot order matches the exe except that 53 and 54 are swapped, traffic-network.md
+§7.2; this spec keeps the compiled order). Slots 74–80 are past the SDK.
+
+| Slot | Address | Behaviour |
+|---|---|---|
+| 3 | `0x00619050` | `Init(corners[12])` (§2.5) |
+| 4 | `0x00619100` | `Shutdown`: the occupant base `Shutdown` |
+| 5 | `0x00648EF0` | `IsManagedGlobally`: false (§2.7) |
+| 6 | `0x00619180` | `CheckForRetrofit`: property `0x4835C6AC` present |
+| 7 | `0x0061A120` | `SetRetrofitFlag(b)`: true adds the property (an empty value), false removes it |
+| 8 | `0x00604D10` | `HasNetworkFlag(m)`: `(flags & m) = m` |
+| 9 | `0x00604D30` | `HasAnyNetworkFlag(m)`: `(flags & m) ≠ 0` |
+| 10, 11 | `0x00619EC0`, `0x00619F70` | `SetNetworkFlag`, `ClearNetworkFlag` (§2.7) |
+| 12 | `0x006E3000` | `GetNetworkFlag`: the flags |
+| 13 | `0x00619110` | `GetConnectionNodeEdgeTypes(&a, &b)`: from property `0x4835C6A7`; false without it |
+| 14 | `0x0061A020` | `SetConnectionNodeEdgeTypes(a, b)`: sets the property |
+| 15 | `0x00619150` | `GetConnectionPathIDOverride`: property `0x4835C6A9`, or 0 |
+| 16 | `0x0061A090` | `SetConnectionPathIDOverride(id)`: 0 removes the property, else sets it; then `+0x164 := id`, `ReleasePathInfo`, clear flag `0x2000` |
+| 17, 18 | `0x00604D50`, `0x00604D60` | `IsImmovable` / `SetImmovable(b)`: flag `0x400000` |
+| 19, 20 | `0x00604D80`, `0x00604D90` | `IsUsable` / `SetUsable(b)`: flag `0x10000000` |
+| 21 | `0x00604DB0` | `IsPlaced`: the occupant's flag bit 0 (in the occupant manager) |
+| 22 | `0x00619520` | `IsOfType(t)`: `HasNetworkFlag(table[t])`, table `0x00AA7CE8` = `1 << t` for `t` 0–12; no bounds check *[quirk]* |
+| 23 | `0x00459960` | `PieceId`: `+0xFC` (a body shared with other classes) |
+| 24, 25, 26 | `0x00604DC0`, `0x00604DD0`, `0x00604DE0` | `GetRotation` (`+0x104 & 0x7F`), `GetFlip` (`+0x104 >> 7`), `GetRotationAndFlip` (the byte) |
+| 27, 28 | `0x0061B7F0`, `0x00619880` | `SetVariation(v)` / `GetVariation`: `+0x105`; a change posts ChangeOccupant (§2.7) |
+| 29 | `0x0061B880` | `SetUnderTexture(t)`: `+0x100`; a change posts ChangeOccupant |
+| 30 | `0x0061B490` | `SetQuadDraw(piece, rotation)` (§2.11) |
+| 31 | `0x0061C800` | `AddPart(positions, uvs, indices[3], texture)` (§2.11) |
+| 32 | `0x00648EF0` | `HasViewDependentModel`: false |
+| 33 | `0x0061AF90` | `GetModelInstances(…, out[], …, &count)`: translation `:=` the occupant's position (occupant slot 8), mask bit 1 set, change counter + 1; `out[0] :=` the model instance (counted), `count := 1` |
+| 34, 35, 36 | `0x0065A6C0`, `0x006194C0`, `0x00619650` | `GetVertexHeights(h[4])`, `GetVertexHeight(i)` (ST0), `SetVertexHeights(h[4])`: the corners' y; the set does not recompute the box |
+| 37–43 | | the edge store (§2.10) |
+| 44, 45 | `0x00604E00`, `0x00798030` | `SetEdgeStore(store)` (a copy), `GetEdgeStore` (`+0x108`) |
+| 46 | `0x00619540` | `MarkLightingUpdateNeeded`: clear flag `0x8000` |
+| 47 | `0x00619320` | `ConnectsToNeighbor(side, t)`: `IsOfType(t)` and side `side`'s byte of `GetEdgeTypesFlag(t)` has bit 0 or 1 |
+| 48, 49 | | `AsOccupant`, `GetPathInfo` (§2.6; traffic-network.md §7.2) |
+| 50 | `0x00619680` | `ReleasePathInfo`: release and forget `+0x140` |
+| 51, 52 | `0x006197D0`, `0x006197E0` | `SetPathIDOverride(id)` / `GetPathIDOverride`: `+0x164` |
+| 53, 54 | `0x006196A0`, `0x00619790` | `PathConnectionExists`, `AddPathConnection` (§2.6) |
+| 55 | `0x0061BD80` | `IsIntersection`: an avenue piece (flag `0x40`, `IsOfType(6)`) whose piece id is in the static set (§2.5) |
+| 56, 57 | `0x006197F0`, `0x0061B6C0` | `GetAltitude(x, z)`, `GetNormal(out, x, z)` (§2.9) |
+| 58 | `0x0061B750` | `SetTranslucency(on, alpha)` (§2.11) |
+| 59 | `0x0061B010` | `GetOccupiedCell(&x, &z)` (§2.9) |
+| 60, 61, 62 | `0x00619890`, `0x0061B910`, `0x00648EF0` | `IsLit` (flag `0x20000000`), `SetLit(b)` (§2.7), `CanBeLit` (false) |
+| 63, 64 | `0x00604E10`, `0x00604E20` | `Get/SetCostOfDemolition`: the s64 `+0x170` (returned in `EDX:EAX`); the prebuilt primary `0x00AA7038` has the same body at `+0xFC` |
+| 65 | `0x00648F10` | `TransformNode`: nothing |
+| 66 | `0x006198A0` | `IsPartOfTheSameStructure(o)`: the two complex piece origins are equal (§2.9) |
+| 67, 68 | `0x00619900`, `0x0061B9A0` | `GetPassageCeiling(&f)` (false without the property) / `SetPassageCeiling(f)` |
+| 69, 70 | `0x00619940`, `0x0061B9F0` | `GetOneWayDirections` (0 without the property) / `SetOneWayDirections(d)`: with the property its value is set (0 included); without it, `d ≠ 0` adds it |
+| 71, 72 | `0x00619970`, `0x0061BA90` | `GetComplexPieceOrigin(&x, &z)` (false without the property; `x := v & 0xFFFF`, `z := v >> 16`) / `SetComplexPieceOrigin(x, z)` (`v := (z << 16) + x`) |
+| 73 | `0x006199C0` | `IsSupportPylonPresent`: flag `0x40000000` |
+| 74 | `0x00604DF0` | `SetRotationAndFlip(b)`: the byte, nothing else |
+| 75 | `0x006193D0` | `GetPosition(out)` (§2.9) |
+| 76 | `0x0061AC70` | `DrawOneWayArrow(context, selfLit, state, directions)` (§2.11) |
+| 77 | `0x0061C950` | `GetTexture(id, fallback)` (§2.11) |
+| 78 | `0x0061C5F0` | `SetTextureZoom(context)` (§2.11) |
+| 79 | `0x0061BB60` | `UpdateLighting(lighting)` (§2.7) |
+| 80 | `0x0061A430` | `ComputeBox(&min, &max)` (§2.9) |
 
 ### 2.5 Lifecycle *[compat]*
 
-**`Init`** (slot 3, `0x0061CB50`; the `cISC4Occupant` view's slot 3 is the same body via the vtable
-`0x00AA7FF8[3]`): the class runs its `StaticInit` once (`0x0061C690`); if not yet initialised: `SetNetworkFlag(0x2000)`
-through primary slot 10; `+0x48 := 0x1A`; if the occupant is in the city (primary slot 6 folded `0x006C2040`) it
-calls the network manager's compiled slot 23 (`AddToRetrofitList`, manager `0x00B43C94` + slot 0x5C) — the
-retrofit pass then revisits the piece (network-manager.md §7.10); then `cSC4Occupant::Init` `0x005E8C90` (which
-posts the `CreateOccupant` message only for fresh occupants, lot-records.md §2.4). If already initialised (the
-re-`Init` after a load): `ClearNetworkFlag(0x10000000)` then `ClearNetworkFlag(0x800000)`.
+**Construction.** The constructor sets the defaults of §2.2: identity transform, mask 0, zero corners and parts,
+piece id, under-texture, rotation and variation 0, an empty edge store, flags `0x06000000`, no path info, no path
+connections, no override, path origin offset 0, cost 0, type `0xC772BF98`.
 
-**`StaticInit`** `0x0061C690`: latched by the byte at `0x00B45250`; registers the message handler `0x0061C520`
-through `0x00B43C94` slot 0x114 (it clears the texture cache `0x00B45278` on a message); subscribes
-`0x1AC0E11A`/`0xFAC0E219`; packs the three render states into `0x00B45260`/`0x00B45268`/`0x00B45270`; clears the
-hashtable `0x00B4528C`. `operator new` `0x00619E90` allocates from the pool `0x00B0B398`.
+**`StaticInit`** (`0x0061C690`, once; latched by the byte at `0x00B45250`):
+1. hold the resource manager (`0x00B43CA8`, at `0x00B45254`) and the texture manager (system service `0x1AC0E11A`,
+   interface `0xFAC0E219`, at `0x00B45258`);
+2. register the static shutdown (`0x0061C520`) with the application (`0x00B43C94`, slot 69, `+0x114`);
+3. pack three render states (draw-context.md §5.1 order): **A** `0x00B45260` = (1, 1, 1, 1, 1, 1, 1, 3, 4, 5, 4,
+   0.1, 1, −1); **B** `0x00B45268` = (1, 1, 1, 0, 0, 1, 1, 3, −1, −1, −1, −1.0, 1, −1); **C** `0x00B45270` = (1, 1,
+   1, 1, 1, 1, 1, 2, 1, 1, 4, 0.1, 1, −1);
+4. empty the avenue intersection set (`0x00B4528C`) and fill it with the 13 piece ids of `0x00AA7D40`:
+   `0x04003500`, `0x04003600`, `0x04005200`, `0x04005300`, `0x04005400`, `0x04006900`, `0x04007100`, `0x04007400`,
+   `0x04007500`, `0x04008500`, `0x04009000`, `0x04009300`, `0x04009400` (slot 55).
+
+The static shutdown releases the cached textures (§2.11), the texture manager and the resource manager, and clears
+the latch.
+
+**Main slot 3 `Init(corners)`** (`0x00619050`): the occupant `Init` (below); when it fails, false. Otherwise the 12
+floats become the corners' x, y, z (corner 0 first), the box is recomputed (slot 80), true. (The SDK declares a
+3-float array; it is 4 × 3.)
+
+**Occupant slot 3 `Init()`** (`0x0061CB50`; the `cISC4Occupant` view's slot 3, `this = object+4`): `StaticInit` if
+needed. When the occupant is not yet initialised (occupant slot 5): `ClearNetworkFlag(0x2000)` (primary slot 11);
+model instance properties `+0x4C := 0x1A`; when `CheckForRetrofit` (primary slot 6) is true, the network manager's
+`AddToRetrofitList(this)` (manager slot 23, `+0x5C`; network-manager.md §7.10); then `cSC4Occupant::Init`
+(`0x005E8C90`, which posts the `CreateOccupant` message only for fresh occupants, lot-records.md §2.4), whose
+result is returned. When it is already initialised (the re-`Init` after a load): if flag `0x10000000` is set, it is
+cleared in `+0x13C` and set again through `SetNetworkFlag` (slot 10), and the same for `0x800000`, so their change
+messages are posted again (§2.7); true.
 
 **`Shutdown`** (slot 4, `0x00619100`) = `cSC4Occupant::Shutdown` only; the base class holds no model to release.
 
 ### 2.6 Path connections *[compat]*
 
-- **`AddPathConnection`** (slot 54, `0x00619790`): `OR 1 << type` into `[+0x144 + exit*4 + type]` and into
-  `[+0x144 + type]` (path type 0 is always set too), then `SetNetworkFlag(0x2000)`.
-- **`PathConnection`** (slot 53, `0x006196A0`): if flag `0x2000` is unset it calls `GetPathInfo` first; with
-  `0xFF` wildcards it returns the count of matching bits, otherwise a bool.
+The table `+0x144` has a row of 4 bytes per path type (8 rows); byte `entry` of a row has bit `exit` set for a
+connection from side `entry` to side `exit` (answers NO12).
+
+- **`AddPathConnection(type, entry, exit)`** (slot 54, `0x00619790`): unless `entry` is `0xFF`, ORs `1 << exit`
+  into byte `+0x144 + type·4 + entry` and into byte `+0x144 + entry` (row 0, path type 0, is always set too); then
+  `SetNetworkFlag(0x2000)` (in every case).
+- **`PathConnectionExists(type, entry, exit)`** (slot 53, `0x006196A0`): first builds the path info when flag
+  `0x2000` is clear (`GetPathInfo`); then, with `0xFF` as a wildcard: both wild → the number of set bits 0–3 over
+  the row's 4 bytes; only `entry` wild → the number of bytes with bit `exit`; only `exit` wild → the number of bits
+  0–3 set in byte `entry`; neither → bit `exit` of byte `entry`.
 - **`GetPathInfo`** (slot 49, `0x0061B510`): returns the cache at `+0x140` without `AddRef` (TG24); builds it on
   first call. **`ReleasePathInfo`** (slot 50, `0x00619680`) and the reset path (`pathinfo` slot 0xA0, zeroing
   `+0x144…+0x160`, pathinfo slot 0x6C) belong to the traffic rebuild (traffic-network.md §7.2).
-- The SDK's slot order for 53/54 is **reversed** in the compiled game (traffic-network.md §7.2); this spec keeps
-  the compiled order.
 
-### 2.7 Flags and lighting *[compat]*
+### 2.7 Flags, lighting and messages *[compat]*
 
-- `SetNetworkFlag` `0x00619EC0` / `ClearNetworkFlag` `0x00619F70` post the queued message `0x89D3E9F3`
-  (usable change, data1 = 1/0) exactly as network-manager.md §5 says: the set only when the occupant is in the
-  city (`GetFlags() & 1`, primary slot 0x84); the clear unconditionally tests. Setting `0x4000` also calls slot 58
+- `SetNetworkFlag` `0x00619EC0` / `ClearNetworkFlag` `0x00619F70` post the queued message `0x89D3E9F3` (usable
+  change, data1 = 1/0) exactly as network-manager.md §5 says: the set only when the occupant is in the city
+  (`GetFlags() & 1`, primary slot 0x84); the clear unconditionally tests. Setting `0x4000` also calls slot 58
   (`SetTranslucency(1, 0x80)`).
-- `SetLit` (slot 61, `0x0061B910`): gated by `CanBeLit` (slot 62 = `0x00648EF0`, false for the base class);
-  toggles `0x20000000` in `+0x13C` and posts the queued `0x09D8E0B6` with the result of primary slot 0x30.
-- `UpdateLighting` (slot 79, `0x0061BB60`): per triangle, the normal comes from
-  `SC4GeometryUtilities::GetNormalToTriangle` scaled `1/sqrt(...)` and is written into the per-vertex colour
-  bytes `+0x10…+0x13`; ends with `SetNetworkFlag(0x8000)` (primary slot 10).
-- `IsManagedGlobally` (slot 5) = `0x00648EF0`, **false** for the plain class. The prebuilt (`0x00AA7038`), bridge
-  (`0x00AA7300`) and tunnel (`0x00AA9308`) primaries answer **true** — that is what puts a piece on the network
-  manager's `managed` list (network-manager.md §6.1).
-- `Draw` (`0x0061A850`): packed render states `0x00B45260/68/70`; the quads (vertex buffer 10,4) then the
-  triangles (`+0x110`), wrap/filter 3,3; gated by the zoom table `0x00B0B374` and the `0x6000000` flag check.
-- `GetBoundingBox` (slot 10, `0x00619360`): min/max from `+0x120…+0x134` (§2.2).
+- `SetLit(b)` (slot 61, `0x0061B910`): when `CanBeLit` (slot 62 = `0x00648EF0`, false for the base class) and `b`
+  differs from flag `0x20000000`: toggle the flag and post (queued) `0x09D8E0B6` with the occupant (slot 48) as its
+  object. The base `CanBeLit` is false, so only subclasses light.
+- `UpdateLighting(lighting)` (slot 79, `0x0061BB60`): each corner gets its colour from the lighting's slot 12 (its
+  position; red, green, blue into `+0xE`, `+0xD`, `+0xC`). Each part gets the normal of its triangle
+  (`SC4GeometryUtilities::GetNormalToTriangle`), scaled to length 1, and the lighting's slot 19 (first vertex,
+  normal; red, green, blue), written to all three vertices. Then flag `0x8000` is set (primary slot 10).
+- `IsManagedGlobally` (slot 5) = `0x00648EF0`, **false** for the plain class and for the underground, pipe and
+  subway classes (their vtables `0x00AAAD40`, `0x00AA97B8`, `0x00AAA3C8` hold the same body; answers NO9). The
+  prebuilt (`0x00AA7038`), bridge (`0x00AA7300`) and tunnel (`0x00AA9308`) primaries answer **true** — that is what
+  puts a piece on the network manager's `managed` list (network-manager.md §6.1).
+- Messages: `SetVariation` and `SetUnderTexture`, on a change, post (queued) ChangeOccupant `0x99EF1145` built by
+  hand: data1 (message slot 11, not void1) and the object are the occupant, data2 is **1**, data3 the type
+  `0xC772BF98`, data4 0 (`PostOccupantMessage`, flora.md §9.1, would set void1 instead and put the occupant's flag 4
+  in data2). `SetTranslucency` uses `PostOccupantMessage(0x99EF1145, 0)`.
 
 ### 2.8 The prebuilt subclass *(cSC4NetworkOccupantWithPreBuiltModel)*
 
@@ -424,96 +535,319 @@ by `Shutdown` `0x006474F0`); `Write` `0x00647580` (v2) writes the has-pair bool 
 prebuilt `Init` + `ClearNetworkFlag(0x4000)`. Creation and pairing are traffic-network.md §4.8 and
 network-geometry.md §6.
 
+
+### 2.9 Geometry *[compat]*
+
+*Added 2026-10-21 (re-ugbase).* The four corners sit on the piece's 16 m cell: relative to corner 0 at `(x0, z0)`,
+corner 1 is at `(x0, z0 + 16)`, corner 2 at `(x0 + 16, z0 + 16)` and corner 3 at `(x0 + 16, z0)`. Their texture
+coordinates come from the rotation (§2.11). With `dx := x − x0`, `dz := z − z0` and `y_i` the corners' heights:
+
+- **`GetAltitude(x, z)`** (slot 56): if `dx ≤ dz`, `y0 + (dx × (y2 − y1) + dz × (y1 − y0)) × 0.0625`; otherwise (and
+  when the comparison is unordered) `y0 + (dx × (y3 − y0) + dz × (y2 − y3)) × 0.0625`. The cell is split along its
+  `dx = dz` diagonal, whatever flag `0x1000000` says for drawing (§2.11) *[quirk]*.
+- **`GetNormal(out, x, z)`** (slot 57): an unnormalised vector with `out.y = 16`. When `dz > dx`: `out.x = y0 − y3`,
+  `out.z = y0 − y1`; otherwise (`dz ≤ dx`, or unordered): `out.x = y1 − y2`, `out.z = y3 − y2`. The z components are
+  those of the triangle `GetAltitude` uses, the x components the other triangle's *[quirk]*; on a planar quad they
+  agree.
+- **`GetOccupiedCell(&x, &z)`** (slot 59, `0x0061B010`): corner 0's x and z (`+0x9C`, `+0xA4`) times `0.0625`
+  (`0x00AA7D78`), plus `12582912.0` = 1.5 × 2²³ (`0x00AA7D7C`), stored as f32, whose bits minus `0x4B400000` are the
+  cell: **round to nearest, ties to even**, in float32 (foundations §18).
+- **`IsPartOfTheSameStructure(o)`** (slot 66): both pieces' `GetComplexPieceOrigin` (slot 71) are called into
+  locals and the x and z compared. The results are not checked, so a piece without an origin compares uninitialised
+  values *[quirk]*; FreeCity4 returns false when either piece has no origin *[choice]*.
+- **`GetPosition(out)`** (slot 75, `0x006193D0`, and the occupant's slot 8 through it): x and z are the means of the
+  four corners' x and z (sum × 0.25), y the largest corner height (from `−FLT_MAX`, `0x00AA7D74`).
+- **`ComputeBox(&min, &max)`** (slot 80, `0x0061A430`): both start at the occupant's position and are widened by
+  every corner and every part vertex. Slot 3 and slot 31 call it with `+0x124`, `+0x130`; the occupant's
+  `GetBoundingBox` (slot 10, `0x00619360`) returns those two.
+- **`Pick(ray)`** (model instance slot 11): the box with its top raised by 0.1 is tested against the ray
+  (`RayIntersectsBoundingBox`); on a hit at a distance not above the ray's current best (`+0x28`), that distance
+  becomes the best and the result is true.
+
+### 2.10 The edge store (`cSC4EdgeConnectionStore`, `+0x108`) *[compat]*
+
+*Added 2026-10-21 (re-ugbase).* A small map from network type to a u32 of edge types, one byte per side 0–3: a
+first entry (u8 type `+0x10C`, u32 flags `+0x110`) and a heap array (`+0x114`) of `count` (`+0x108`) further
+entries of 8 bytes {u8 type, u32 flags}. In an edge byte, bits 0–1 are the edge type and bit 2 marks a grouped
+edge.
+
+- `SetEdgeTypesFlag(t, f)` (slot 37, `0x00619A40`): `t` is the first type → its flags `:= f`. Else, when the first
+  flags are 0, the first entry becomes `(t, f)`. Else `f = 0` removes `t`'s entry from the array (the last entry
+  takes its place; the array is freed when it empties); `f ≠ 0` sets `t`'s entry, or appends one.
+- `GetEdgeTypesFlag(t)` (slot 38, `0x00619B70`): the first entry's or the array entry's flags; 0 when absent.
+- `SetEdgeType(t, side, e)` (slot 39): byte `side` of `GetEdgeTypesFlag(t)` replaced by `e`, then set.
+- `GetActiveEdges` (slot 40): a 4-bit mask of the sides whose byte, in the OR of all entries, has any of bits 0–2.
+  `GetActiveEdgesForType(t)` (41): the same over `t`'s flags. `GetActiveEdgesForTypeNoGroup(t)` (42): any of bits
+  0–1. `GetGroupedEdges` (43): bit 2, over all entries.
+- `SetEdgeStore` / `GetEdgeStore` (slots 44, 45): a copy in, the store's address out. The record form is §2.3
+  field 6.
+
+### 2.11 Drawing *[compat]*
+
+*Added 2026-10-21 (re-ugbase).*
+
+**The textured quad.** Two triangles over the four corners: with flag `0x1000000` clear they are (0, 1, 2) and
+(0, 2, 3) (index list `0x00AA7D28`); with it set, (0, 1, 3) and (3, 1, 2) (`0x00AA7D34`). Flag `0x2000000` draws
+the first triangle and `0x4000000` the second (so these two bits are "draw the surface quad's halves"; answers
+UG2). The constructor sets both bits.
+
+**`SetQuadDraw(piece, rotation)`** (slot 30, `0x0061B490`): unless the piece is a lot connection node (flag
+`0x200000`), set flags `0x2000000` and `0x4000000`. Then release the path info, clear flag `0x2000`, store the piece
+id and the rotation byte, set the corners' texture coordinates (below) and make the four corner alphas `0xFF`.
+
+**Texture coordinates** (`SetTextureCoordinates(rotation)`, `0x00619550`): with `U = (0, 0, 1, 1)`,
+`V = (0, 1, 1, 0)` (`0x00AA7D98`, `0x00AA7D88`) and `r := rotation & 3`, corner `k` gets `(U[(r + k) & 3],
+V[(r + k) & 3])`. When the byte is `0x80` or more (flipped): for an odd `r` the v of corners 0 and 3 and of corners 1
+and 2 are swapped; for an even `r` their u.
+
+**`AddPart(positions, uvs, indices, texture)`** (slot 31, `0x0061C800`): appends one triangle whose vertex `k` is
+`positions[indices[k]]` with `uvs[indices[k]]` and white opaque colour, tagged with `texture`; then the box is
+recomputed (slot 80) and the lighting marked out of date (slot 46).
+
+**`GetSortValue(out)`** (model instance slot 17): with any of flags `0x06000000`, the piece id; otherwise, with
+parts, the first part's texture id; otherwise `0xA821EF94`.
+
+**Textures** (`GetTexture(id, fallback)`, slot 77, `0x0061C950`): a texture id whose low 4 bits are 0 gets the
+current zoom offset added (`0x00B0B374`, 5 at start). The id is looked up in a static cache; a miss loads the
+texture `{type 0x7AB50E44, group 0x1ABE787D, instance id}` through the texture manager (slot 6) and caches the
+result. When that fails and `fallback` is non-zero and differs from `id`, the fallback (with the same zoom rule) is
+tried the same way. The result is the binding or null. `SetTextureZoom(context)` (slot 78, `0x0061C5F0`) sets the
+zoom offset to the context's `+0x14` and releases every cached binding.
+
+**`SetTranslucency(on, alpha)`** (slot 58, `0x0061B750`): read the draw attributes; `on` sets their bit `0x02` and
+makes the four corner alphas `alpha`; off clears the bit and makes them `0xFF`. The opacity becomes corner 0's
+alpha / 255. Write the draw attributes back and post `PostOccupantMessage(0x99EF1145, 0)`.
+
+**`Draw(context, selfLit)`** (`0x0061A850`):
+1. When the context's zoom (`+0x14`) differs from the cached one: slot 78.
+2. When flag `0x8000` is clear: `UpdateLighting` (slot 79) with the context's lighting (`+0x44`).
+3. Render state A, unless the piece is a portal (flag `0x80000`), or is elevated (`0x40000000`) with corner 0
+   opaque (`+0xAB = 0xFF`): then the OR of all the edge store's flags is taken, and when it is none of
+   `0x03010000`, `0x00030100`, `0x00000301`, `0x01000003`, `0x01000000`, `0x00010000`, `0x00000100`, `0x00000001`,
+   `0x03000000`, `0x00030000`, `0x00000300`, `0x00000003`, render state B.
+4. Set the state and the model transform. With `selfLit`: when the occupant has no highlight (occupant slot 16),
+   stop (result 1); otherwise the self-lit shade `(1, 0.94, 0.55)` (`0x00B0B388`). Without: reset the shade.
+5. With any of flags `0x06000000`: the under-texture (when `+0x100 ≠ 0`, `GetTexture(+0x100, 0)`) and the piece
+   texture (`GetTexture(piece + 16 × variation, piece)`). Without a piece texture, skip to step 6. Otherwise wrap
+   modes (2, 2, 0), filtering (1, 1, 0), the corners as a 4-vertex buffer (format 10); for the under-texture and
+   then the piece texture, when present: set it and draw the quad's triangles; with `selfLit`, draw them a second
+   time with state C, wrap (2, 2, 0) and filtering (1, 1, 0), then restore step 3's state. Then, when the one-way
+   directions (slot 69) are not 0, `DrawOneWayArrow(context, selfLit, state, directions)`.
+6. Parts: wrap (3, 3, 0), filtering (1, 1, 0). When the terrain shows its water surface (terrain slot 83), a part
+   whose first vertex is below the water level there (terrain slot 30 at its x, z) is skipped. Each other part with
+   a texture (`GetTexture(id, 0)`) is drawn as one triangle (format 10); with `selfLit`, a second time with state C.
+7. With `selfLit`, reset the shade. The result is 1.
+
+**One-way arrows** (`DrawOneWayArrow`, slot 76, `0x0061AC70`):
+1. `e := GetEdgeTypesFlag(10)` (one-way road). When `e` has a bit outside bits 0–1 of each byte, stop.
+2. `m :=` the mask of sides with an edge; the table `0x00AA7EE0` gives two rotation bytes per mask: 3 → (`0x83`,
+   2), 5 → (1, 3), 6 → (3, `0x82`), 9 → (1, `0x80`), 10 → (2, 0), 12 → (`0x81`, 0); any other mask stops.
+3. `e` must be one of `0x00020002`, `0x02000200` (straight) or `0x01000003`, `0x00000301`, `0x00030100`,
+   `0x03010000` (curves); otherwise stop.
+4. Texture `0x0BE35EB0`; for the curve masks (3, 6, 9, 12) texture `0x0BE35EC0`, and in `directions` the two bits of
+   side 1 are swapped and so are those of side 2.
+5. `n :=` the sum over the four 2-bit fields of `directions` (1 → +1, 2 → −1). The rotation byte is the table's
+   first, or its second when `n < 0`.
+6. `GetTexture(texture, 0)`; when missing, stop. State A, the texture, `SetTextureCoordinates(rotation byte)`, the
+   quad's triangles; then state C, wrap (2, 2, 0), filtering (1, 1, 0) and the triangles again only with `selfLit`;
+   then `state` (twice) and the corners' own coordinates back (`SetTextureCoordinates(+0x104)`).
 ---
 
 ## 3. The underground pieces
 
-### 3.1 `cSC4UndergroundOccupant` — layout and slots
+### 3.1 `cSC4UndergroundOccupant` — identity, layout and slots
 
-The constructor `0x0065C0C0` (the GZCOM creator `0x0065C330` also serves as pipe/subway base ctor) lays out:
+*Rewritten 2026-10-21 (re-ugbase), from the instruction bytes: the constructor is `0x0065C330` (the pipe and subway
+constructors call it, `0x00648910`, `0x006530D0`) and `0x0065C0C0` the destructor body; the slots below are named
+by what their bodies do; the texture managers `Init` fetches are service lookups, not subscriptions; the
+descriptor from slot 101 goes to `+0x26C`.*
 
-| Offset | What |
+A network occupant (§2) with 25 more main slots. It has no factory and no class ID of its own (its serialisation
+slot 5 is pure); the pipe and subway are its concrete classes.
+
+| Item | Value |
 |---|---|
-| `+0x00` | `cISC4NetworkOccupant` `0x00AAAD40` — the **extended underground interface** (106 slots; the base 81 plus 25 underground slots) |
-| `+0x04` | `cISC4Occupant` `0x00AAACB8` |
-| `+0x08` | `cIGZSerializable` `0x00AAAC9C` (Write `0x0065B140`, Read `0x0065E510`, `GetGZCLSID` pure) |
-| `+0x0C` | property holder `0x00AAAC38` |
-| `+0x68` | model instance |
-| `+0x98`… | position inputs (§3.3) |
-| `+0x1FC`…`+0x238` | 3 × 4 float matrix (zeroed) |
-| `+0x23C`/`+0x240` | cell x/z (from city slot 0x17C `PositionToCell`) |
-| `+0x248`…`+0x24A` | three saved bytes (§3.4 field 9) |
-| `+0x24C`…`+0x258` | the **four terrain heights**, f32 at `+0x24C`, `+0x250`, `+0x254`, `+0x258` (NO17 d): `GetTerrainHeights` slot 94 `0x00659DD0` copies these four out; `SetTerrainHeights` slot 95 `0x0065B6B0` stores exactly these four, then calls primary slot 80 (`+0x140`) with `(&box min +0x124, &box max +0x130)` and `ComputeModelYPosition` `0x0065AB50`; `GetPosition` (on the `+4` view) reads the same four as its view `+0x248`…`+0x254` |
-| `+0x25C` | saved f32 (§3.4 field 11) |
-| `+0x260` | byte set to 1 by the pipe and subway `Read` (code `+0x258`) |
-| `+0x261`/`+0x262` | bytes set to 1/0 by the underground `Read` (code `+0x259`/`+0x25A`) |
-| `+0x264` | the class ID (saved, §3.4 field 12) |
-| `+0x268` | saved u32 (§3.4 field 13), set by the one-parameter `Init` from primary slot 0x65; the pipe's own extra u32 is `+0x270` (§3.3) |
-| `+0x26C` | the per-class **class info** pointer (below) |
+| `QueryInterface` (`0x0065A080`) | `0x4A10AFC2`, `0xA821EF94` and `0xA9764C8C` give the main interface, counted; others go to the occupant base, then the model instance base |
+| Main vtable | `0x00AAAD40` (106 slots: the base 81 plus 25; 101, 102 and 105 are pure, `0x005D4A10`, the subclasses fill them) |
+| Other vtables | `+0x04` `cISC4Occupant` `0x00AAACB8`; `+0x08` `cIGZSerializable` `0x00AAAC9C` (Write `0x0065B140`, Read `0x0065E510`); `+0x0C` property holder `0x00AAAC38` |
+| Constructor | `0x0065C330` (the network constructor, then the defaults below) |
+| Destructors | body `0x0065C0C0`, deleting `0x0065C650` |
+| Virtual base | `+0x274` (moved by the subclasses to `+0x27C` and `+0x2D4`) |
 
-The extended interface's underground slots (SDK indices continue past the shared 81):
+Fields past the network occupant's (§2.2):
+
+| Offset | Type | Field |
+|---|---|---|
+| `+0x178` | binding | the face texture |
+| `+0x17C` | u32 | the number of face lists in use (0–4) *[inferred]* |
+| `+0x180`, `+0x18C`, `+0x198`, `+0x1A4` | 4 vertex lists | the model's faces, drawn as quads (§3.2) |
+| `+0x1B0` | binding | the cap texture |
+| `+0x1B4` | vertex list | the cap: the four corners (slot 90) |
+| `+0x1C0` | vertex list | the highlight geometry, drawn in the self-lit pass |
+| `+0x1CC`…`+0x1E0` | 3 × 2 bindings | the wall textures: normal, distressed (flag `0x10000`), burst (`0x20000`) (slot 104) |
+| `+0x1E4`, `+0x1F0` | 2 vertex lists | the walls (slot 89); not saved |
+| `+0x1FC`…`+0x23B` | 16 × f32 | the mesh transform, a 4 × 4 matrix (identity; slot 85) |
+| `+0x23C`, `+0x240` | 2 × s32 | the cell (from the position through the city's `PositionToCell`, slot 95, `+0x17C`) |
+| `+0x244` | pointer | the mesh (a model resource, interface `0x9AD0E7E3`) |
+| `+0x248`, `+0x249`, `+0x24A` | 3 × bool | the quad's diagonal, "hide the first triangle", "hide the second triangle" (slot 88) |
+| `+0x24C`…`+0x258` | 4 × f32 | the corners' **original** heights (the terrain heights at `Init`; slots 94, 95) |
+| `+0x25C` | f32 | the ceiling height (§3.2) |
+| `+0x260`, `+0x261` | 2 × bool | refresh pending, model rebuild needed (slot 100, §3.2) |
+| `+0x262` | bool | cleared by `Read`; the subway builds its model before its paths while it is clear |
+| `+0x264` | u32 | the layer's class ID (`0x49C05B9F` pipe, `0xCA16374F` subway), given to `Init` (slot 82) |
+| `+0x268` | u32 | saved and returned by slot 96; nothing in these classes sets it (NO35) |
+| `+0x26C` | pointer | the static model descriptor (slot 101) |
+
+A vertex list is a vector of the 24-byte vertices of §2.2 (begin/end/capacity).
+
+Slots (main unless noted):
 
 | Slot | Address | Behaviour |
 |---|---|---|
-| 82 | `0x00648460` | pipe/subway shared stub (also at pipe 82) |
-| 83 | `0x00657730` | wall-quad helper |
-| 84 | `0x0065AE30` | `SetVertexHeights(4 floats)`: writes `+0xA0/+0xB8/+0xD0/+0xE8`, calls `ComputeModelYPosition` `0x0065AB50`, then rebuilds via slots 0x164/0x168 |
-| 85 | `0x0065B700` | terrain helper (two values + flag with 86) |
-| 86 | `0x0065ADD0` | `CreateGeometry(bool)`: slots 0x60/0x64 (rotation/variation), `ComputeModelYPosition`, slot 0x154, slots 85/87/89/90 |
-| 87 | `0x0065D810` | terrain helper |
-| 88 | `0x0065A3F0` | `GetZipperPieceType`-adjacent helper |
-| 89 | `0x0065E260` | terrain helper |
-| 90 | `0x0065E410` | terrain helper |
-| 92 | `0x0065A6F0` | `IsImaginaryConnection`-adjacent |
-| 93 | `0x0065AA70` | neighbour finder |
-| 94 | `0x00659DD0` | `GetTerrainHeights(float[4])` |
-| 95 | `0x0065B6B0` | `SetTerrainHeights(const float[4])` |
-| 96…100 | `0x0065A810`, `0x00659DB0`, `0x0065A120`, `0x0065A200`, `0x0065AF10` | wall/zipper helpers; **slot 99 `GetZipperPieceType`** (below); slot 100 sets `+0x260` from city slot 0x18C of `+0x23C`/`+0x240` |
-| 101/102/105 | `_purecall` `0x005D4A10` | abstract in the base (pipe/subway override, §3.5) |
-| 103 | `0x0065B020` | wall helper |
-| 104 | `0x0065A880` | the **model choice**: flags `0x20000` (burst) → the burst model, `0x10000` (distressed) → the distressed model (plumbing.md cites `0x0065A880`) |
+| 10, 11 | `0x0065A900`, `0x0065A940` | the base `Set` / `ClearNetworkFlag`, and "refresh pending" `:= true` when the bits `0x30000` change |
+| 21 `IsPlaced` | `0x00648470` | in the occupant manager, and a mesh or a descriptor is present |
+| 30 `SetQuadDraw(piece, rotation)` | `0x0065ADB0` | stores both, then the ceiling (§3.2); no flags, no texture coordinates |
+| 33 `GetModelInstances` | `0x00659D70` | `out[0] :=` the model instance (counted), count 1; the translation is left alone. Also slot 36 of the connections |
+| 78 | `0x0065CF20` | the base's slot 78, except that each cached texture is released and loaded again, as instance (its cache key + the new zoom offset) |
+| 80 `ComputeBox` | `0x00659E00` | the box of the corners and the model's vertices *[summary]* |
+| 81 | `0x0065C6B0` | `Init(corners, classID, descriptor)` (below) |
+| 82 | `0x00648460` | the layer's class ID |
+| 83 | `0x00657730` | nothing (3 arguments) |
+| 84 | `0x0065AE30` | `SetCornerHeights(h[4])`: the corners' y (`+0xA0`, `+0xB8`, `+0xD0`, `+0xE8`); the ceiling; slots 89 and 90 with true |
+| 85 | `0x0065B700` | the mesh transform `+0x1FC` from the rotation, flip and position (`GetObjectYRotationAngle`) *[summary]* |
+| 86 | `0x0065ADD0` | `Rebuild(s)`: the ceiling, slot 85, slot 87 (rotation, flip, `s`), slot 89 (`s`), slot 90 (`s`) |
+| 87 | `0x0065D810` | `CreateUndergroundModel(rotation, flip, s)` (§3.2; NO34) |
+| 88 | `0x0065A3F0` | the quad's triangles (§3.2) |
+| 89 | `0x0065E260` | `CreateWalls(s)` (§3.2; NO34) |
+| 90 | `0x0065E410` | `BuildCap(s)`: the cap list `:=` the four corners with white colour and their own alpha; with `s`, slot 100 with true |
+| 91 | `0x00648F10` | nothing |
+| 92 | `0x0065A6F0` | `GetQuadBools(&diagonal, &hideFirst, &hideSecond)` |
+| 93 | `0x0065AA70` | `GetCeiling(&h, &flat, side)` (§3.2) |
+| 94, 95 | `0x00659DD0`, `0x0065B6B0` | get / set the original heights; the set recomputes the box (slot 80) and the ceiling (`0x0065AB50`) |
+| 96 | `0x0065A810` | `GetModelKey(&piece, &value, h[4], &ceiling)`: the piece id, `+0x268`, the corners' y, the ceiling |
+| 97 | `0x00659DB0` | `SetCeilingParameters(depth, useOriginal, lift)`: the three statics of §3.2 (shared by every underground class) |
+| 98 | `0x0065A120` | `CountRun(o, side, depth)` (§3.2) |
+| 99 | `0x0065A200` | `GetZipperPieceType(&side)` (§3.2) |
+| 100 | `0x0065AF10` | `Refresh(propagate)` (§3.2) |
+| 103 | `0x0065B020` | `GetTint(out)`: (1, 1, 1) |
+| 104 | `0x0065A880` | `GetWallTextures(&a, &b)`: the burst pair with flag `0x20000`, else the distressed pair with `0x10000`, else the normal pair (plumbing.md cites `0x0065A880`) |
+| occupant 8 `GetPosition` | `0x0065A720` | §3.2 |
+| occupant 15 `PostOccupantMessage(type, v)` | `0x0065A980` | the base's; then for Insert `0x99EF1142` and Remove `0x99EF1143` also `0x8B87A974` / `0x8B87A975` with the base's layout (flora.md §9.1), posted |
+| drawable 17 `GetSortValue` | `0x0065A0E0` | the piece id (`+0xFC`, read as `[this − 0x178]` from the drawable at `+0x274`) with any of flags `0x06000000`, else `0x4A10AFC2` (answers NO7) |
 
-`Init` (two forms). The one-parameter form `0x0065C070` (called by pipe/subway `Init`): runs `StaticInit` once
-(`0x0065AE80`: two `PackRenderState`s into `0x00B46878`/`0x00B46880`, needs the renderer `0x00B43DD0`), then
-`cSC4NetworkOccupant::Init`, then primary slot 0x65 → `+0x268`. The five-parameter form `0x0065C6B0(args: float
-block p2, classID, param4)`: stores the four terrain heights `+0x24C…+0x258` from `p2+4/+0x10/+0x1C/+0x28`; calls
-primary slot 3 (the corner points, `0x00619050`); resets the vertex heights `+0xAC…+0xF8` (0/1.0 pattern);
-`PositionToCell` (city slot 0x17C) → `+0x23C/+0x240`; zeroes the matrix `+0x1FC…+0x238`; reads the **class info**
-through primary slot 0x194 (`GetClassInfo`) into `+0x26C` (per-class static info: counts at +0x64, point lists at
-+0x0F/+0x11, uv arrays at +0x12/+0x17, work at +0x48/+0x5C); subscribes `0x1AC0E11A`/`0xFAC0E219` twice (via
-`+0x1B0`, `+0x178`); builds the per-vertex uv ratios from point-index pair distances
-(`sqrt(dx*dx + dz*dz)`, ratio `d[i]/(d[i]+d[i+1])`) into the class-info arrays.
-
-`Shutdown` `0x0065CD90`: releases the five texture bindings `+0x1CC…+0x1E0`, clears the wall vectors (`+0x184`,
-`+0x190`, `+0x19C`, `+0x1B8`, `+0x1C4`, `+0x1E8`, `+0x1F4`), releases `+0x244`; then the base `Shutdown`.
+**Life cycle.**
+- **Occupant slot 3 `Init()`** (`0x0065C070`, the pipe and subway `Init` call it): the static set-ups once (below,
+  then the network occupant's when it has not run); unless the occupant is initialised, the network occupant's
+  `Init` (§2.5), then the descriptor `+0x26C :=` slot 101 (`+0x194`; stored at `this + 0x268` with `this = object+4`).
+  True.
+- **Main slot 81 `Init(corners, classID, descriptor)`** (`0x0065C6B0`): the static set-ups; unless initialised:
+  1. the layer's class ID and the descriptor are stored; the original heights `:=` the corners' y;
+  2. the network occupant's `Init(corners)` (§2.5);
+  3. the corners' texture coordinates `(0, 0)`, `(0, 1)`, `(1, 1)`, `(1, 0)` (`+0xAC`…`+0xF8`);
+  4. the cell from the occupant's position (occupant slot 8) through the city's slot 95;
+  5. the identity mesh transform; the three quad bools false; the descriptor `:=` slot 101;
+  6. the cap texture `{type 0x7AB50E44, group 0x891B0E1A, instance =` descriptor word 35`}` through the texture
+     manager (system service `0x1AC0E11A`, interface `0xFAC0E219`, slot 6) into `+0x1B0`; the face texture into
+     `+0x178` *[summary]*;
+  7. the face count, the six wall bindings, the lists and both bools of slot 100 cleared; the box recomputed;
+  8. the descriptor's ratio tables recomputed (§3.2). True.
+  The pipe and subway `Init(arg)` call it with their class IDs and descriptors (§3.3, §3.5).
+- **`Shutdown`** (main slot 4, `0x0065CD90`): release the eight texture bindings and the mesh, empty the eight
+  lists, then the network occupant's `Shutdown`.
+- **Static set-up** (`0x0065AE80`, once; flag `0x00B46870`): when the renderer (`0x00B43DD0`) exists, its slot 10,
+  then three packed states (draw-context.md §5.1 order): **D** `0x00B46878` = (1, 1, 1, 0, 0, 1, 0, 3, −1, −1, −1,
+  −1.0, 1, −1); **E** `0x00B46880` = (1, 1, 1, 0, 1, 1, 0, 3, 4, 5, −1, −1.0, 1, −1); **F** `0x00B46888` = (1, 1, 1,
+  0, 1, 0, 0, 3, 4, 5, −1, −1.0, 1, −1).
 
 ### 3.2 Underground behaviour *[compat]*
 
-- **`GetSortValue`** `0x0065A0E0`: if `HasAnyNetworkFlag(0x6000000)` it returns the stored sort value (the field
-  address is ambiguous in the decomp — NO7, §12), else the class ID `0x4A10AFC2`. The subway body `0x00652D30`
-  defaults to `0xCA16374F`; the pipe shape is the same.
-- **`GetZipperPieceType`** `0x0065A200` (subway only: requires the class field `+0x264 == 0xCA16374F` and
-  `+0xFC == 0x4B00`): finds the underground connection occupant at its cell (`FindUndergroundConnectionOccupant`
-  `0x006585E0`), else the neighbours (`FindUndergroundOccupant` `0x006584D0`, offset tables
-  `0x00B0CFE8`/`0x00B0CFEC`); the result is 0/1/2 plus an out byte.
-- **`IsImaginaryConnection(dir)`** `0x0065A640` (NO17 e): if the piece's own flags (primary slot 12, `+0x30`) have
-  bit 31 **clear** it returns false at once. Otherwise it looks for an underground occupant of its own class ID
-  (`+0x264`) at cell (`+0x23C` + dx[dir], `+0x240` + dz[dir]) with `FindUndergroundOccupant` `0x006584D0`; the
-  offset table `0x00B0CFE8` holds (dx, dz) pairs: dir 0 (−1, 0), 1 (0, −1), 2 (+1, 0), 3 (0, +1). **Not found →
-  false.** Found → true iff the neighbour's flags have bit 31 clear (the neighbour reference is released).
-  So: imaginary = "my bit 31 is set and the same-class neighbour in that direction has it clear".
-- **`GetPosition`** `0x0065A720` (on the `+4` view `0x00AAACB8` slot 8, so `this = object+4`; offsets below are
-  object offsets): the out vector starts as (0, `FLT_MAX`, 0). x and z are the **average of the four quad
-  vertices** (NO17 f): x = `((v0.x + v1.x) + v2.x) + v3.x` then `× 0.25` (constant `0x00A8821C`), z the same
-  with the z fields; vertex k is at object `+0x9C + 0x18·k` (x) and `+0xA4 + 0x18·k` (z), each partial sum stored
-  as f32. y = the minimum of the four terrain heights `+0x24C`, `+0x250`, `+0x254`, `+0x258`, compared in that
-  order with a strict `<` against the running value (seeded `FLT_MAX`, `0x00AAABB0`), so a NaN height never wins
-  and all-`FLT_MAX` heights give `FLT_MAX`. Example: vertex x 0/16/16/0, z 0/0/16/16, heights 3, 2.5, 4, 2.5 →
-  (8, 2.5, 8).
-- **Draw** `0x0065B290`: the underground view — walls and floor from the wall quads.
-- **No occupant type override**: the base ctor leaves the `cSC4Occupant` type (`0x74758925`) *[inferred — the
-  demolition dispatcher never names an underground type, and consumers reach the piece through
-  `cISC4NetworkOccupant`]*. See NO3 (§12).
+**The quad's triangles** (main slot 88, `0x0065A3F0`). The network occupant draws its textured quad with flags
+`0x1000000` (the other diagonal), `0x2000000` (first triangle) and `0x4000000` (second triangle) (§2.11). This slot
+sets the three bools from the piece id and rotation byte and then the flags from them: diagonal → `0x1000000` set,
+else cleared; "hide first" → `0x2000000` cleared, else set; "hide second" → `0x4000000` cleared, else set.
+
+| Piece id | Bools (diagonal, hide first, hide second) |
+|---|---|
+| `0x200` | by the rotation byte: 0 or `0x83` → (0, 1, 0); 1 or `0x82` → (1, 1, 0); 2 or `0x81` → (0, 0, 1); 3 or `0x80` → (1, 0, 1); any other byte leaves them |
+| `0x800`, `0xA00`, `0xC00`, `0x1400`, `0x1E00` | with `r :=` the rotation (slot 24): diagonal `:=` byte `r` of `0x00AAAB9C` = (1, 0, 1, 0); the mode word `r` of `0x00AAABA0` = (1, 0, 0, 1): 0 → hide (first, not second), 1 → hide (second, not first); then, when the piece is flipped (slot 25), all three are inverted |
+| any other | (0, 1, 1): no quad |
+
+So an underground piece shows the surface quad only over the half-cells that one of these pieces leaves open, and its
+sort value is its piece id exactly then.
+
+**The ceiling height** (`ComputeModelYPosition`, `0x0065AB50`). Three statics (slot 97): `depth` 3.0
+(`0x00B0CFD0`), `useOriginal` true (`0x00B0CFD4`), `lift` 10.0 (`0x00B0CFD8`). With `h_k` the corners' y and `o_k`
+the original heights:
+- pieces `0x200`, `0x800`, `0xA00`, `0x1400`: corners `(s, i, j)` by the rotation byte: 0 or `0x81` → (2, 1, 3);
+  1 or `0x80` → (1, 0, 2); 2 or `0x83` → (0, 1, 3); 3 or `0x82` → (3, 0, 2). With `useOriginal`:
+  `min(o_s, (o_i + o_j) × 0.5) − depth`; otherwise `min(h_s, (h_i + h_j) × 0.5) + lift`. The minimum keeps `o_s` (or
+  `h_s`) when the comparison is unordered.
+- pieces `0x300`, `0x4B00`: with `useOriginal`, the position's y (the lowest original height) `− depth`; otherwise
+  the mean of the four `h_k` `+ lift`.
+- any other piece: `h_0 + lift`.
+
+`GetCeiling(&h, &flat, side)` (slot 93): `h :=` the ceiling and `flat := 0`; for pieces `0x200`, `0x800`, `0xA00`,
+`0x1400` and `0x14E00`, `flat := 1`; for `0x300` and `0x4B00`, `h := (h_a + h_b) × 0.5 + lift` over the corners of
+side `side` (0 → 0, 1; 1 → 0, 3; 2 → 3, 2; 3 → 1, 2).
+
+**The descriptor's ratio tables.** `Init` recomputes, for every occupant, the tables that the pipe's and subway's
+static set-ups fill (§3.3, §3.5): with `n :=` descriptor word 25, the points table word 14 and the index lists words
+15 and 17, `L_k := ‖p[a_k] − p[b_k]‖` (x and z) for `k < n`; table **T1** (word 18) gets `T1[0] := 1` and
+`T1[k] := L_k / (L_{n−k} + L_k)` for `0 < k < n`; table **T2** (word 23) gets `T2[4] := 1` (a fixed index; `n` is 5
+in both descriptors) and `T2[n−1−k] := T1[k]`.
+
+**`GetPosition`** (`0x0065A720`, on the `+4` view): the out vector starts as (0, `FLT_MAX`, 0). x and z are the
+**average of the four corners** (NO17 f): x = `((v0.x + v1.x) + v2.x) + v3.x` then `× 0.25` (constant `0x00A8821C`),
+z the same with the z fields; corner k is at object `+0x9C + 0x18·k` (x) and `+0xA4 + 0x18·k` (z), each partial sum
+stored as f32. y = the minimum of the four original heights `+0x24C`, `+0x250`, `+0x254`, `+0x258`, compared in that
+order with a strict `<` against the running value (seeded `FLT_MAX`, `0x00AAABB0`), so a NaN height never wins and
+all-`FLT_MAX` heights give `FLT_MAX`. Example: corner x 0/16/16/0, z 0/0/16/16, heights 3, 2.5, 4, 2.5 → (8, 2.5,
+8).
+
+**Neighbours.** The side offsets (`0x00B0CFE8`) are side 0 `(−1, 0)`, side 1 `(0, −1)`, side 2 `(+1, 0)`, side 3
+`(0, +1)` in cells. `FindUndergroundOccupant(x, z, &o, classID)` (`0x006584D0`) and
+`FindUndergroundConnectionOccupant` (`0x006585E0`) are the underground tool's lookups (network-manager.md).
+- **`IsImaginaryConnection(side)`** (`0x0065A640`, NO17 e): if the piece's own flags (primary slot 12) have bit 31
+  (`0x80000000`, a draft) **clear** it returns false at once. Otherwise it looks for an underground occupant of its
+  own class ID (`+0x264`) at cell (`+0x23C` + dx[side], `+0x240` + dz[side]); not found → false; found → true iff
+  the neighbour's flags have bit 31 clear (the neighbour reference is released). The side indexes the table with no
+  bounds check, so a side above 3 reads the bytes after it *[quirk]* (answers NO20).
+- **`CountRun(o, side, depth)`** (slot 98): 0 unless `o`'s piece id is `0x4B00` and there is no connection occupant
+  of this layer at `o`'s cell; otherwise 1, plus, when `depth > 0` and `o` has a neighbour across `side` of the
+  layer, that neighbour's `CountRun(…, side, depth − 1)`.
+- **`GetZipperPieceType(&side)`** (slot 99): only for a subway (`+0x264 = 0xCA16374F`) piece `0x4B00` with no
+  connection occupant at its cell; otherwise 0. With `r` the rotation, the sides `a := (r + 3) mod 4` and
+  `b := (r + 1) mod 4`, each turned by 2 more when the piece is flipped and `r` is odd; `na`, `nb :=` the
+  neighbours' `CountRun(…, a or b, 4)` (0 without a neighbour). The result is 2 when both are above 1; 1 with
+  `side := 1` when `na = 1` and `nb > 2`; 1 with `side := 0` when `nb = 1` and `na > 2`; otherwise 0 (UG3).
+
+**`Refresh(propagate)`** (slot 100, `0x0065AF10`):
+1. When the city does not accept the cell (city slot 99), both bools (`+0x260`, `+0x261`) are cleared and nothing
+   else happens.
+2. When "refresh pending" is already set, nothing happens.
+3. Set "refresh pending" and "model rebuild needed"; recompute the box; when the occupant is visible (its flag 2),
+   the renderer (`0x00B43DD0`) slot 31 with the model instance and 3.
+4. With `propagate`: for each side 0–3 that `ConnectsToNeighbor(side, network type)` (slot 47, type from slot
+   102), the neighbour of the same layer across it gets `Refresh(true)`.
+The pending flag stops the recursion; the draw pass clears it.
+
+**Model and drawing** *[summary; NO34]*:
+- `CreateUndergroundModel(rotation, flip, s)` (slot 87): empties the lists, releases the six wall textures and the
+  mesh, loads the three wall texture pairs through the texture manager, builds the face lists of the piece
+  (`MakeCustomUndergroundPiece`, `0x0065D160`, which looks at the neighbours and their ceilings, slot 93), loads the
+  mesh (resource manager slot 3, interface `0x9AD0E7E3`) and the cap and face textures.
+- `CreateWalls(s)` (slot 89): rebuilds the wall lists with quads (`AddWallQuad`, `0x0065CFF0`) on the sides that have
+  no neighbour, no connection occupant and no imaginary connection; with `s`, slot 100.
+- `Draw(context, selfLit)` (`0x0065B290`): when "model rebuild needed" is set and the city accepts the cell, slot 87
+  rebuilds the model with the rotation and flip and the bool is cleared. Pass 0 (the context's `+4 = 0`): the cap
+  (render state D, the cap texture, wrap (2, 2, 0), filtering (1, 7, 0), primitive type 6, quads) and each face list
+  (state D, the face texture, quads); the result is 2. Pass 1, unless the piece is a lot connection node: the tint
+  (slot 103) as the shade; the two wall lists with the wall textures of slot 104 (state E, type 1, strips); the
+  mesh, when present, with the mesh transform, its render states forced to blending (bit `0x10`, factors 4, 5),
+  culling off for a flipped piece; then the shade is reset and "refresh pending" cleared. The self-lit pass draws the
+  highlight list with state F (strips). Primitive types: view-utilities.md §7.1.
+- **The occupant type** is the network occupant's `0xC772BF98`: the underground constructor runs the network
+  constructor first (`0x0065C354`), which writes it (§2.1), and nothing later changes it (quirk 1; answers NO3).
 
 ### 3.3 `cSC4PipeOccupant` *(0x49C05B9F)*
 
@@ -525,14 +859,14 @@ Layout: `+0` primary `0x00AA97B8` (110 slots), `+4` `0x00AA9730`, `+8` serializa
 `0x00B46708…0x00B4672C`, ratio `d[i]/(d[i]+d[j])` pattern); `cSC4UndergroundOccupant::Init` (`0x0065C6B0`) with
 `(p, classID 0x49C05B9F, param4 0x00B0BED0)`; `+0x270 = 0`.
 
-Record: u16 **3**, the underground record (§3.4, with its own u16 3), then u32 object `+0x270` (code `+0x268`); `Read` accepts exactly 3, reads the same and then sets the byte object `+0x260 = 1` (code `+0x258`). The
+Record: u16 **3**, the underground record (§3.4, with its own u16 3), then u32 object `+0x270` (code `+0x268`); `Read` accepts exactly 3, reads the same and then sets "refresh pending" (object `+0x260`, code `+0x258`) to 1 (§3.2). The
 meaning of `+0x270` is not established (NO6, §12).
 
 `Shutdown` is **shared with the subway**: both classes' slot 4 is `0x00652CF0` (5 bytes, tail to the underground
 `Shutdown`) *[quirk: one folded body for two classes]*.
 
 `SetWateredState` is a **non-virtual** member `0x00648540` (direct-calls.md; plumbing.md §9): stores the state and,
-when it changes, tail-calls primary slot 100 (`0x0065AF10`, the cell/`+0x260` setter). The water simulator calls
+when it changes, tail-calls primary slot 100 (`Refresh`, `0x0065AF10`, §3.2). The water simulator calls
 it directly (plumbing.md §6.4).
 
 ### 3.4 The underground save record *[compat]*
@@ -546,30 +880,31 @@ u16 version 3 followed by the complete base network record** (§2.3, with its ow
 |---|---|---|---|
 | 1 | version | u16 = **3** | `Read` accepts exactly 3; anything else returns 0 having read only the u16 |
 | 2 | the base network record | §2.3 | `cSC4NetworkOccupant::Write`/`Read`; on failure the tail is skipped |
-| 3 | two bytes | u8, u8 | `+0x50`, `+0x51` |
-| 4 | one float | f32 | `+0x60` |
-| 5 | one word | u32 | `+0x17C` |
-| 6 | six wall vertex lists | 6 × list | vectors (begin/end/capacity) at `+0x180`, `+0x18C`, `+0x198`, `+0x1A4`, `+0x1B4`, `+0x1C0` |
-| 7 | a 4 × 4 matrix | 16 × f32 | `+0x1FC`…`+0x23B`, row by row (`operator<<` `0x005DA6E0` / `operator>>` `0x005DA6B0`) |
+| 3 | the draw attributes' first two bytes | u8, u8 | `+0x50`, `+0x51` |
+| 4 | the opacity | f32 | `+0x60` |
+| 5 | the face count | u32 | `+0x17C` |
+| 6 | six vertex lists: the four faces, the cap, the highlight | 6 × list | vectors (begin/end/capacity) at `+0x180`, `+0x18C`, `+0x198`, `+0x1A4`, `+0x1B4`, `+0x1C0` |
+| 7 | the mesh transform | 16 × f32 | `+0x1FC`…`+0x23B`, row by row (`operator<<` `0x005DA6E0` / `operator>>` `0x005DA6B0`) |
 | 8 | the cell | s32, s32 | x `+0x23C`, z `+0x240` (`SetSint32`, slot `+0x20`) |
-| 9 | three bytes | u8 × 3 | `+0x248`, `+0x249`, `+0x24A` (`operator<<(u8)` `0x005D9FD0`) |
-| 10 | the four terrain heights | 4 × f32 | `+0x24C`, `+0x250`, `+0x254`, `+0x258` |
-| 11 | one float | f32 | `+0x25C` |
-| 12 | the class ID | u32 | `+0x264` (the field `GetZipperPieceType` and `IsImaginaryConnection` read) |
-| 13 | one word | u32 | `+0x268` |
+| 9 | the three quad bools | u8 × 3 | `+0x248`, `+0x249`, `+0x24A` (`operator<<(u8)` `0x005D9FD0`) |
+| 10 | the four original heights | 4 × f32 | `+0x24C`, `+0x250`, `+0x254`, `+0x258` |
+| 11 | the ceiling height | f32 | `+0x25C` |
+| 12 | the layer's class ID | u32 | `+0x264` (the field `GetZipperPieceType` and `IsImaginaryConnection` read) |
+| 13 | one word | u32 | `+0x268` (NO35) |
 
-A **wall vertex list** (helper `0x0065B070` write / `0x006574A0` read, NO17 c) is a u32 count = `(end − begin) /
-0x18` (magic division `0x2AAAAAAB`, `SAR 2`) followed by `count` vertices in the quad-vertex form of §2.3 field 4:
-f32 x, y, z, u, v (element `+0`, `+4`, `+8`, `+0x10`, `+0x14`), then the colour bytes `+0xE`, `+0xD`, `+0xC`,
-`+0xF` (R, G, B, A); 24 bytes per vertex in the stream and in memory. The reader resizes the vector to `count`
-first (`0x005E1B30`) and does **not** force the alpha byte.
+A **vertex list** (helper `0x0065B070` write / `0x006574A0` read, NO17 c) is a u32 count = `(end − begin) / 0x18`
+(magic division `0x2AAAAAAB`, `SAR 2`) followed by `count` vertices in the corner form of §2.3 field 4: f32 x, y,
+z, u, v (element `+0`, `+4`, `+8`, `+0x10`, `+0x14`), then the colour bytes `+0xE`, `+0xD`, `+0xC`, `+0xF` (R, G, B,
+A); 24 bytes per vertex in the stream and in memory. The reader resizes the vector to `count` first (`0x005E1B30`)
+and does **not** force the alpha byte. The face and cap textures, the wall lists and wall textures and the mesh are
+not saved: they are rebuilt.
 
-After the tail `Read` sets the bytes `+0x261 = 1` and `+0x262 = 0` (code `+0x259`/`+0x25A`) and returns 1 iff the
-stream's error flag is clear. The tail after the base record is 2 + 4 + 4 + 6 × (4 + 24·n) + 64 + 8 + 3 + 16 + 4 + 4
-+ 4 = 137 + 24·(total wall vertices) bytes.
+After the tail `Read` sets "model rebuild needed" `+0x261 = 1` and clears `+0x262` (code `+0x259`/`+0x25A`) and
+returns 1 iff the stream's error flag is clear. The tail after the base record is 2 + 4 + 4 + 6 × (4 + 24·n) + 64 +
+8 + 3 + 16 + 4 + 4 + 4 = 137 + 24·(total list vertices) bytes.
 
 Worked example (the stream after the base record, little-endian): bytes `+0x50 = 1`, `+0x51 = 0`, `+0x60 = 2.0`,
-`+0x17C = 7`, six empty wall lists, an identity matrix, cell (12, 34), bytes 0/0/0, heights 1.0/1.5/1.0/1.5,
+`+0x17C = 7`, six empty lists, an identity matrix, cell (12, 34), bytes 0/0/0, heights 1.0/1.5/1.0/1.5,
 `+0x25C = 0`, class `0x49C05B9F`, `+0x268 = 0` give
 `01 00 | 00 00 00 40 | 07 00 00 00 | 00 00 00 00` ×6 `| 00 00 80 3F, 00 00 00 00 ×3, ... (16 floats) | 0C 00 00 00
 22 00 00 00 | 00 00 00 | 00 00 80 3F 00 00 C0 3F 00 00 80 3F 00 00 C0 3F | 00 00 00 00 | 9F 5B C0 49 | 00 00 00 00`
@@ -578,7 +913,7 @@ Worked example (the stream after the base record, little-endian): bytes `+0x50 =
 ### 3.5 `cSC4SubwayOccupant` *(0xCA16374F)*
 
 Layout: `+0` primary `0x00AAA3C8` (112 slots), `+4` `0x00AAA340`, `+8` `0x00AAA324` (Write `0x00653010` v2 / Read
-`0x00653040` v2: u16 **2**, the underground record (§3.4), **no** extra field; `Read` accepts exactly 2, then sets the byte object `+0x260 = 1`, code `+0x258`), `+0xC` `0x00AAA2C0`.
+`0x00653040` v2: u16 **2**, the underground record (§3.4), **no** extra field; `Read` accepts exactly 2, then sets "refresh pending" (object `+0x260`, code `+0x258`) to 1), `+0xC` `0x00AAA2C0`.
 
 `Init` `0x006537A0`: `StaticInit` `0x00653640` (ratios from `0x00B0C960`/`0x00B0CB58`/`0x00B0CB80` into
 `0x00B467F8…0x00B4681C`); `cSC4UndergroundOccupant::Init` with `(classID 0xCA16374F, param4 0x00B0CDC8)`.
@@ -587,53 +922,105 @@ the underground base.
 
 ### 3.6 The underground connection occupant *(cSC4UndergroundConnectionOccupant, 0x8A139184)*
 
-The constructor `0x00654F00` derives **directly from `cSC4Occupant`** (no network-occupant base): `+0` primary
-`0x00AAA840` (25 slots, `cISC4UndergroundConnectionOccupant`), `+4` serializable `0x00AAA824` (Write `0x00654C50`
-/ Read `0x00659D70` / `GetGZCLSID` `0x00654E70`), `+8` property holder `0x00AAA7C0` (25), `+0x1C` `0x00AAA7A8`,
-`+0x34` `0x00AAA798`, `+0x38` `cS3DModelInstanceBasic`, `[+0x3C]`-relative `0x00AAA748`. No stored occupant type —
-the subclasses set `+0x24` themselves.
+*Rewritten 2026-10-21 (re-ugbase): `Read` is `0x00657590` (`0x00659D70` is the underground `GetModelInstances`);
+`Init(classID, descriptor)` (main slot 34) begins at `0x00654710`, and the second arguments its callers pass
+(`0x00B0B6D0`, `0x00B0C388`) are the classes' static model descriptors, not strings (answers NO8); offsets are
+object offsets (the record code runs with `this = object+4`).*
 
-Two `Init` bodies:
+The constructor `0x00654F00` derives **directly from `cSC4Occupant`** (no network-occupant base). An occupant and a
+model instance; object `0x250` bytes. Class ID `0x8A139184` (`GetGZCLSID` `0x00654E70`); `QueryInterface`
+(`0x00654030`) answers `0x8A139184` and `0xA9764C8C` itself, others go to the occupant base, then the model instance
+base.
 
-- `0x00654670` (the vtable slot 3 body): one-time latch `0x00B46838`; resource manager `0x00B43CA8`; registers the
-  callback `FUN_00653DA0` through `0x00B43C94` slot 0x114; `cSC4Occupant::Init`; `SetupPackedRenderState`
-  `0x00654260`; subscribes the four messages `0x8B87A974`, `0x8B87A975`, `0x8B8B2CEE`, `0xA6B79602` via the
-  `+0x34` sub-object.
-- `0x0065471D` (the tools' creation path; 1 328 bytes): the same one-time init; `cSC4Occupant::Init`; the params
-  land in `+0x23C/+0x240` (cell) and `+0x244` (byte); releases `+0xC8/+0xCC`; `PositionToCell`; city slot 0x150 +
-  slot 0x44/0x180 build; y positions from `0x00B0CF9C` (the cell size); `SetupPackedRenderState`; `+0x178 = 1`,
-  `+0x17C = 1`; slot 0x98; if `FindUndergroundOccupant` (`0x006584D0`) at its own cell finds a piece → slot 0xAC,
-  else the 8-neighbour loop with `FindUndergroundOccupant` / `FindUndergroundConnectionOccupant` (`0x006585E0`)
-  and the network manager's connections (manager slot 0x14); slot 0xA8; then the same four subscriptions.
+| Offset | What |
+|---|---|
+| `+0x00` | the occupant interface (main vtable `0x00AAA840`, 45 slots: the occupant's 0–33, then 34–44) |
+| `+0x04` | serialisation (`0x00AAA824`: Write `0x00654C50`, Read `0x00657590`, `GetGZCLSID` `0x00654E70`) |
+| `+0x08` | the property holder (`0x00AAA7C0`, 25 slots) |
+| `+0x1C`, `+0x34` | small interfaces (`0x00AAA7A8`; `0x00AAA798` the message target) |
+| `+0x38` | the model instance part (`cS3DModelInstanceBasic`); the virtual base at `+0x24C` (`0x00AAA748`) |
 
-`Shutdown` `0x006553A0`: three texture bindings (`+0x9C`, `+0x64`, `+0xB8`); the vector clears (4 × stride 0xC at
-`+0x70`, then `+0xA4`, `+0xB0`, `+0xC0`); releases `+0x158`, `+0x15C`, `+0xC8`, `+0xCC`; unsubscribes the four
-messages; `cSC4Occupant::Shutdown`.
+No stored occupant type: the subclasses set the occupant type `+0x24` (what occupant slot 7 `GetType` returns)
+themselves, before the base `Init`: `0x2A183167` for the pipe connection and `0x8A13918A` for the subway connection
+(answers UG4).
 
-Record: `Write` `0x00654C50` v2 — the `cSC4Occupant` record, then u32 `+0x64`; seven wall writes (`+0x68`, `+0x74`,
-`+0x80`, `+0x8C`, `+0x9C`, `+0xA8`, `+0xB8`); u32 `+0x14C`; u32 `+0x150`; 4 dwords `+0x15C…+0x168`; u32 `+0x16C`;
-u32 `+0x174`; bool `+0x178`; `SC4WriteGZSerializable(+0xC4+8 or null)`; `SC4WriteGZSerializable(+0xC8+4 or null)`;
-u32 `+0x23C`; 3 dwords `+0x22C…+0x234`. `Read` `0x00659D70` is symmetric.
+| Offset | Type | Field |
+|---|---|---|
+| `+0x68` | u32 | saved; meaning not known (NO35) |
+| `+0x6C`, `+0x78`, `+0x84`, `+0x90`, `+0xA0`, `+0xAC`, `+0xBC` | 7 vertex lists | the connection's model *[summary]* |
+| `+0xC8` | pointer | the **attached** underground occupant (the one at this cell), counted |
+| `+0xCC` | pointer | a **linked** occupant (slot 40), counted |
+| `+0x150`, `+0x154` | 2 × s32 | the cell |
+| `+0x160`…`+0x16C` | 4 × f32 | four heights |
+| `+0x170` | f32 | saved (NO35) |
+| `+0x178` | s32 | saved (NO35) |
+| `+0x17C` | bool | the model state has been taken into account |
+| `+0x180`, `+0x18C` | 2 × 3 × f32 | the box (slot 42) |
+| `+0x230` | 3 × f32 | the position (occupant slots 8 `GetPosition`, 9 `SetPosition`) |
+| `+0x240` | u32 | saved (NO35) |
+| `+0x244` | bool | set by `Read` |
 
-Other bodies worth naming: `GetHiddenTriangles` `0x006540A0` (writes 0, 1, 1 to the out array);
-`GetTransform`/`SetTransform` `0x00648360`/`0x006540F0`; `GetWorldBounds` `0x00654160`;
-`PostOccupantMessage` `0x00654180`; `ModelStateChanged` `0x006542F0`; `HasViewDependentModel` `0x00654620`;
-`GetModelInstances` `0x00655520`; `AddWallQuad` `0x006555E0`; `CreatePieceModel` `0x00655850`;
-`CreateWalls` `0x00655F10`; `CreateFloor` `0x00656010`; `CreateGeometry` `0x006562B0`; `DoMessage` `0x00656C80`;
-`Draw` `0x00656E90`.
+**Record** (`Write` `0x00654C50`, `Read` `0x00657590`):
+
+| # | Field | Encoding |
+|---|---|---|
+| 1 | version | u16 **2** |
+| 2 | the occupant base record | lot-records.md §2.3 |
+| 3 | `+0x68` | u32 |
+| 4 | the seven vertex lists, in order | as §3.4 |
+| 5 | the cell | s32 x, s32 z |
+| 6 | the four heights, `+0x170` | 4 × f32, f32 |
+| 7 | `+0x178` | s32 |
+| 8 | `+0x17C` | `bool` |
+| 9 | the attached occupant | `SC4WriteGZSerializable` ref (its serialisation interface); read as the occupant interface `0x26BB767E`, stored 4 bytes lower (the network occupant's main object) |
+| 10 | the linked occupant | ref, read as `0x26BB767E` and stored as is |
+| 11 | `+0x240` | u32 |
+| 12 | the position | 3 × f32 |
+
+`Write` stops after row 2 when the base fails. `Read` returns false for any version other than 2 before the base;
+after the rows it sets `+0x17C` and `+0x244` to true, so the saved row 8 is never used *[quirk]*. Both return true
+exactly when the stream has no error. Both classes appear in saves by class ID (save-records.md §3.2: subway
+connection `0xCA15ED6B` in 1 save, pipe connection `0xEA0A5ACF` in 4).
+
+**Behaviour.**
+- `Init()` (main slot 3, `0x00654670`): once (latch `0x00B46838`), hold the resource manager (`0x00B43CA8`, at
+  `0x00B46830`) and register a static shutdown (`0x00653DA0`) with the application (`0x00B43C94`, slot 69). Unless
+  initialised: the occupant base `Init`, the render state set-up (`SetupPackedRenderState`, `0x00654260`), and
+  subscriptions of the message target (`+0x34`) to `0x8B87A974`, `0x8B87A975`, `0x8B8B2CEE` and `0xA6B79602`
+  (message server slot 5).
+- `Init(classID, descriptor)` (main slot 34, `0x00654710`, 1,341 bytes; the tools' creation path): the same
+  one-time set-up and base `Init`; the cell and heights from the position through the city (`PositionToCell`; y from
+  the cell size `0x00B0CF9C`); `SetupPackedRenderState`; `+0x178 := 1`, `+0x17C := 1`; the attached occupant
+  (`FindUndergroundOccupant` `0x006584D0` at its own cell, else the 8-neighbour loop with `FindUndergroundOccupant` /
+  `FindUndergroundConnectionOccupant` `0x006585E0` and the network manager's connections, manager slot 0x14); then
+  the same four subscriptions. The pipe connection's `Init` (`0x00648050`) sets its type and calls it with
+  `(0xEA0A5ACF, 0x00B0B6D0)`; the subway connection's (`0x00652A80`) with `(0xCA15ED6B, 0x00B0C388)`.
+- `Shutdown` (`0x006553A0`): releases the three texture bindings and the lists, the attached and linked occupants,
+  removes the four subscriptions, then `cSC4Occupant::Shutdown`.
+- `PostOccupantMessage` (`0x00654180`): as the underground occupant's (§3.1).
+- `GetHiddenTriangles(&a, &b, &c)` (`0x006540A0`): (0, 1, 1), as an underground piece without a quad.
+- `ModelStateChanged` (`0x006542F0`): when `+0x17C` is false, set it, recompute the box (slot 42) and, when visible,
+  the renderer's slot 31 with the instance and 3.
+- Main slot 40 (`0x00654620`): `SetLinkedOccupant(o)`: holds `o`; with null, the connection removes itself from the
+  occupant manager (its slot 21 with 1, 0).
+- Main slot 43 (`0x00654160`): the attached occupant's `Refresh(true)` (§3.2).
+- `DoMessage` (`0x00656C80`): `0x8B87A974` (an underground occupant inserted) attaches the occupant of this layer at
+  the connection's cell and calls `ModelStateChanged`, or, when the message is the connection's own, rebuilds the
+  attached occupant's walls (slot 89); `0x8B87A975` (removed) detaches it; `0x8B8B2CEE` for the linked occupant
+  forgets it and removes the connection from the occupant manager; `0xA6B79602` with a changed value rebuilds the
+  geometry (`CreateGeometry`, `0x006562B0`).
+- `Draw` (`0x00656E90`): builds the geometry when needed (`CreateGeometry`: `CreatePieceModel` `0x00655850`,
+  `CreateWalls` `0x00655F10`, `CreateFloor` `0x00656010`, from the zoom and rotation; `AddWallQuad` `0x006555E0`),
+  then draws the lists with two packed states (`0x00B46864`, `0x00B46854`) (NO34).
+- Other bodies: `GetTransform`/`SetTransform` `0x00648360`/`0x006540F0`; `GetModelInstances` (slot 36) the
+  underground's `0x00659D70`.
 
 The subclasses differ in exactly three slots plus the type: the **pipe connection** ctor `0x006483E0` = the
-underground-connection ctor + its own vtables (`0x00AA9578` primary etc.); `Init` `0x00648050` sets the occupant
-type `+0x24 := 0x2A183167`, then calls the helper `0x00654710` `(classID 0xEA0A5ACF, string 0x00B0B6D0)` — a
-13-byte one-time registration whose string argument is unexplained (NO8, §12). The **subway connection** ctor
-`0x00652C50`; `Init` `0x00652A80` sets `+0x24 := 0x8A13918A` and calls the same helper with
-`(0xCA15ED6B, 0x00B0C388)`. The `QueryInterface`s are `0x00648080` (pipe) and `0x00652AA0` (subway); the subway's
-slot 44 `QueryOccupantInterface` `0x00652BD0` QIs `0xCA16374F` then `0x4A10AFC2` (§1.2).
-
-Both classes appear in saves by class ID (save-records.md §3.2: subway connection `0xCA15ED6B` in 1 save, pipe
-connection `0xEA0A5ACF` in 4). The primary vtables are 45 slots (`0x00AA9578`, `0x00AAA188`) with the same slot
-order; only QI (0), Init (3), GetGZCLSID (37), the folded 38 and slot 44 differ.
-
+underground-connection ctor + its own vtables (`0x00AA9578` primary etc.), `Init` `0x00648050`; the **subway
+connection** ctor `0x00652C50`, `Init` `0x00652A80`. The `QueryInterface`s are `0x00648080` (pipe) and `0x00652AA0`
+(subway); the subway's slot 44 `QueryOccupantInterface` `0x00652BD0` QIs `0xCA16374F` then `0x4A10AFC2` (§1.2). The
+primary vtables are 45 slots (`0x00AA9578`, `0x00AAA188`) with the same slot order; only QI (0), Init (3),
+GetGZCLSID (37), the folded 38 and slot 44 differ.
 ---
 
 ## 4. The power pole *(cSC4PowerPoleOccupant, 0x09C05C6A)*
@@ -1133,7 +1520,7 @@ and a `cS3DModelProcessor` at `+0x9C`. The "Prelight" name is wrong; §10.3 give
    increments the change counter `+0x64`. It then stores **the piece's own embedded `cS3DModelInstanceBasic`**
    (the virtual base at `+0x38`, reached through the vbtable at `+0x3C`) in `outArray[0]`, sets the count to 1
    and AddRefs it. So the call never returns zero instances and never returns null: a piece with no exemplar
-   model still returns this embedded instance, which draws the §2.2 quad and triangle list. The ctor `0x00614A30`
+   model still returns this embedded instance, which draws the §2.2 quad and parts (§2.11). The ctor `0x00614A30`
    is not involved.
 2. **Prebuilt piece (`0x0061E8A0`).** It calls step 1 first, so `outArray[0]` is the embedded instance. It then
    appends up to two new `cSC4NetworkOccupantModelInstance` objects:
@@ -1374,10 +1761,11 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
 7. **The prebuilt's `+0x1B8`/`+0x1BC` are −1** out of the constructor (§2.8).
 8. **The pylon's occupant type is its own** `0xA9B6D7DE` (§6.1), not the bare occupant type an earlier draft
    guessed from the missing write.
-9. **`GetOccupiedCell`'s x87 rounding** (§2.4): `trunc(v * 0.0625 + 2^23) − 2^23` — reproduce exactly, including
-   the float32 rounding (foundations §18).
-10. **The connection matrix is 4 × 4 bytes at `+0x144`** (§2.6): exit × path-type, path type 0 always set along
-    with the requested type, and the whole thing gated by network flag `0x2000`.
+9. **`GetOccupiedCell`'s rounding** (§2.9): `v · 0.0625 + 1.5 × 2^23` stored as float32, minus the bias in its bits:
+   round to nearest, ties to even, of corner 0's x and z — reproduce exactly (foundations §18).
+10. **The path connections are 8 × 4 bytes at `+0x144`** (§2.6): a byte per (path type, entry side), a bit per exit
+    side; path type 0 is always set along with the requested type, and the whole thing is gated by network flag
+    `0x2000`.
 11. **Pole records use class-ID-valued IIDs for distinct ref kinds** (§4.4): each destination
     pole uses `0x09C05C6A`, each linked-list power line uses `0xC9C05C5D`. Neither is an
     alternative fallback IID for the other kind. Four xyz vectors are saved/read through
@@ -1388,32 +1776,37 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
     a long tail of entries before its RTTI column; the shared interface proper is slots 0…80. *[quirk: the extra
     entries are unreachable through the SDK order; reproduce the first 81 and their overrides.]*
 
+14. **`GetNormal`'s x component** comes from the other triangle than `GetAltitude`'s (§2.9).
+15. **`IsPartOfTheSameStructure`** compares uninitialised values when an origin is missing (§2.9).
+16. **A wrong edge store version** is ignored and the record continues from there, misaligned (§2.3 field 6).
+17. **Loading makes every piece opaque** and every part vertex alpha `0xFF` (§2.3).
+18. **`GetAltitude` ignores the drawn diagonal** (flag `0x1000000`) (§2.9).
+19. **`IsImaginaryConnection` has no bounds check** on its side (§3.2).
+20. **The connection record's row 8 is never used**: `Read` sets `+0x17C` to true after reading it (§3.6).
 ---
 
 ## 12. Open questions
 
-- **NO1.** The meaning of network flag `0x40` tested by `IsIntersection` (primary slot 55, `0x0061BD80`) versus
-  the `0x100000` intersection bit used elsewhere (network-manager.md §5). [inferred: `0x40` is a
-  styling/presentation bit; the slot checks it before the highway-intersection piece-id lookup at `0x00B4528C`]
+- **NO1.** **Answered 2026-10-21 (re-ugbase):** flag `0x40` is `1 << 6`, the avenue network type (`IsOfType(6)`, §1.4);
+  `IsIntersection` is "an avenue piece whose piece id is in the 13-entry avenue intersection set" (§2.4, §2.5).
 - **NO2.** The identity of the delegate interface `0x26A68448` answered by the power pole via `+0xBC`
   (jump-table dispatch; likely a UI/drag helper). Probe: dump the `[+0xBC]` vtables on a live pole.
-- **NO3.** Does `cSC4UndergroundOccupant` ever carry a distinct occupant type? Its base ctor leaves
-  `0x74758925`; the demolition dispatcher never names an underground type. [inferred: underground pieces are
-  dispatched as `0xC772BF98` through their `cISC4NetworkOccupant` interface]
+- **NO3.** **Answered 2026-10-21 (re-ugbase):** no; the underground constructor runs the network constructor first,
+  which writes `0xC772BF98` (§3.2).
 - **NO4.** The semantics of the prebuilt `Write` fields `+0x170`/`+0x174`/`+0x178`/`+0x17C`/`+0x180` (§2.8):
   model refs? shear inputs?
-- **NO5.** The `0x4835C6A7…AC` property-ID family (edge types `0xA7`, passage ceiling `0xA8`, one-way `0xAA`,
-  anchor `0xAB`, retrofit `0xAC`) stored in the occupant's own property holder — SDK names unknown.
-- **NO6.** Pipe `Read`'s extra u32 → object `+0x270` and the byte `+0x260 = 1` (§3.3; code offsets `+0x268`/`+0x258`): meaning (funding state? watered?)
-  unverified.
-- **NO7.** `GetSortValue`'s stored-field address (§3.2): the negative displacement (`−0x178`/`−0x274`) in the
-  decomp is ambiguous; which field holds the sort value when flag `0x6000000` is set.
-- **NO8.** The strings `0x00B0B6D0`/`0x00B0C388` passed with the class IDs to helper `0x00654710` by the
-  pipe/subway-connection `Init` (§3.6): GZCOM class names?
+- **NO5.** **Answered 2026-10-21 (re-ugbase):** the slots that use them carry the SDK names (§2.2 "Properties");
+  `0x4835C6A9` is the connection path-ID override.
+- **NO6.** Pipe `Read`'s extra u32 → object `+0x270` (§3.3; code offset `+0x268`): meaning (funding state?
+  watered?) unverified. (The byte `+0x260` it sets is "refresh pending", §3.1.)
+- **NO7.** **Answered 2026-10-21 (re-ugbase):** the piece id `+0xFC` (§3.1 slot table, drawable 17).
+- **NO8.** **Answered 2026-10-21 (re-ugbase):** they are the classes' static model descriptors, the second argument of
+  `Init(classID, descriptor)` (§3.6).
 - **NO9.** ~~The power-pole `Write` version number~~ — **settled while writing this spec**: it writes version
   **5** (`PUSH 0x5` at `0x0064B01D`); `Read` rejects < 4. No question remains.
 - **NO10.** ~~The pylon's occupant type~~ — **settled while writing this spec**: the ctor writes `0xA9B6D7DE`
   at `+0x2C` (`0x005F19F9`). No question remains.
+- NO32–NO35 (re-ugbase, 2026-10-21) are in [questions/network-occupants.md](questions/network-occupants.md).
 
 ---
 
@@ -1433,16 +1826,17 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
    fields sum to; only the pole's is load-bearing (its pool).
 5. **Occupied cell** (§2.4). `GetOccupiedCell` of a piece positioned at world (800.0, 240.0) returns (50, 15),
    including for negative coordinates down to −4096 (the x87 rounding of quirk 9).
-6. **Orientation and flip** (§2.4). `SetRotation(2)` then slot 24 returns 2; setting the flip bit (`+0x104 |=
-   0x80`) makes `GetFlip` return 1 while `GetOrientation` still returns the low 7 bits.
+6. **Rotation and flip** (§2.4). `SetRotationAndFlip(2)` (slot 74) then `GetRotation` (slot 24) returns 2; setting
+   the flip bit (`+0x104 |= 0x80`) makes `GetFlip` (slot 25) return 1 while `GetRotation` still returns the low 7 bits.
 7. **Network flags** (§2.7). `SetNetworkFlag(0x10000000)` on a piece in the city posts `0x89D3E9F3` with data1 = 1
    exactly once; `ClearNetworkFlag(0x10000000)` posts data1 = 0; setting `0x4000` also calls slot 58.
 8. **Managed-globally** (§2.7). A plain road piece answers `IsManagedGlobally()` false; a bridge and a tunnel
    piece answer true; the network manager's `managed` list gains exactly the true ones (network-manager.md §6.1).
 9. **Path connections** (§2.6). `AddPathConnection(pt, e, x)` sets the matrix bit for `pt` **and** for type 0, sets
    flag `0x2000`, and `PathConnection` then matches; with `0xFF` wildcards it returns the count.
-10. **Init/Shutdown round trip** (§2.5). `Init` sets `+0x48 = 0x1A`; a second `Init` clears `0x10000000` and
-    `0x800000` from the flags; `Shutdown` does not crash on a piece with no model.
+10. **Init/Shutdown round trip** (§2.5). `Init` sets `+0x4C = 0x1A` and clears flag `0x2000`; a second `Init` on a
+    piece with `0x10000000` set posts the usable message (data1 = 1) again and keeps the flag; `Shutdown` does not
+    crash on a piece with no model.
 11. **Base record round trip** (§2.3). Save and reload a city with road/rail/highway pieces: every field of
     §2.3 is identical, the version is 8, and the flag mask `& 0xFFFF1FFF` is applied on read (a save with stray
     high bits reads them cleared).
@@ -1519,3 +1913,21 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
 25. **No network lot occupant** (§7.1). After building a road, the occupant manager holds exactly one occupant
     per road cell (the piece); the network lot manager's lot at that cell references the same piece occupant; no
     separate lot occupant object exists.
+26. **Fields** (§2.2). `SetVariation(3)` (slot 27) makes `+0x105` = 3 and posts ChangeOccupant with data2 = 1;
+    `SetUnderTexture(t)` (slot 29) writes `+0x100`; `PieceId` (slot 23) reads `+0xFC`.
+27. **Old origin** (§2.3). A version 6 record with a path override, corners 0 and 2 at x 32 and 48, z 64 and 80,
+    and `dx = dz = 0` gives the complex piece origin (2, 4) and sets the retrofit flag.
+28. **Altitude** (§2.9). Corners at heights (0, 16, 32, 16): `GetAltitude(x0 + 4, z0 + 8)` = (4 × 16 + 8 × 16) ×
+    0.0625 = 12; `GetAltitude(x0 + 8, z0 + 4)` = (8 × 16 + 4 × 16) × 0.0625 = 12.
+29. **Edges** (§2.10). `SetEdgeTypesFlag(0, 0x00020002)` then `GetActiveEdges()` = 5 and
+    `GetActiveEdgesForTypeNoGroup(0)` = 5; `SetEdgeType(0, 1, 4)` makes `GetGroupedEdges()` = 2.
+30. **Path connections** (§2.6). `AddPathConnection(3, 0, 2)` sets flag `0x2000`; `PathConnectionExists(3, 0, 2)`
+    and `(0, 0, 2)` are true; `(3, 0xFF, 0xFF)` is 1.
+31. **Texture coordinates** (§2.11). Rotation 1 gives corner 0 the coordinates (0, 1); rotation `0x81` gives
+    corner 0 (0, 0).
+32. **One-way arrow** (§2.11). A one-way straight piece with edges `0x00020002` and directions with net sum ≥ 0
+    is drawn with texture `0x0BE35EB0` at rotation 1; with a negative sum at rotation 3.
+33. **Translucency** (§2.11). `SetTranslucency(true, 0x80)` makes the corner alphas `0x80`, the opacity 128/255 and
+    posts ChangeOccupant; after save and load the piece is opaque again.
+34. **Ceiling** (§3.2). An underground piece `0x300` with original heights 10, 12, 10, 12 and the default statics
+    has the ceiling 10 − 3 = 7.

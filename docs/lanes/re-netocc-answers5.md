@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-netocc-answers5 (network owner questions) | Codex / detached `re-netocc-answers5` | ready: NO34, NO35, NO37 answered; docs checks pass | Trace NO33/NO36 owner geometry/rendering, then UG5; owner closure remains incomplete |
+| re-netocc-answers5 (network owner questions) | Codex / detached `re-netocc-answers5` | in progress: harvesting PR 10 | Finish harvest; trace NO33/NO36/UG5 and validate |
 
 ## Report
 
@@ -41,6 +41,10 @@ NO14 and NO29–NO32 were not reached. Work was bounded to finish and land verif
 answers within the measured lane budget rather than declaring these wider questions answered.
 
 ## Handoff
+- Round 2 manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-netocc-answers5-r2-manifest.json`.
+- Harvesting a8b30439 then a33fa02e, preserving amarret authorship. Duplicate PR questions NO32-35 become NO38-41.
+- REA returned target_unavailable (no app open); use export/decomp fallback, no new tools/session changes.
+- Conflict: keep PR rounding/path table (0061B010/00619790 instruction bytes); retain local pole ref-kind rule.
 - Land the ready spec commits; do not treat pole/pylon/connection owners as closed.
 - Next: NO33 primary methods, NO36 texture/model/geometry, then UG5 connection owner trace.
 - Use primary-relative offsets consistently; pole/pylon Read/Write receive serializable primary+0xC.

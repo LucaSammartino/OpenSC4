@@ -1,0 +1,179 @@
+va	name	evidence	mac_x86
+005d9890	SC4WriteGZPersistRef	network-occupants.md §2.3; writes the three key words of a persist resource, or three zeros	
+005d9940	SC4WriteGZPersistRef	network-occupants.md §2.3; asks the stream for cISC4DBSegmentOStream first	
+00604ca0	cSC4NetworkOccupantWithPreBuiltModel::~cSC4NetworkOccupantWithPreBuiltModel	sets the prebuilt-model vtables, releases +0x1C8/+0x1C4, then the network body 0x0061C170	
+00604d10	cSC4NetworkOccupant::HasNetworkFlag	network-occupants.md §2.4 slot 8	
+00604d30	cSC4NetworkOccupant::HasAnyNetworkFlag	network-occupants.md §2.4 slot 9	
+00604d50	cSC4NetworkOccupant::IsImmovable	network-occupants.md §2.4 slot 17	
+00604d60	cSC4NetworkOccupant::SetImmovable	network-occupants.md §2.4 slot 18	
+00604d80	cSC4NetworkOccupant::IsUsable	network-occupants.md §2.4 slot 19	
+00604d90	cSC4NetworkOccupant::SetUsable	network-occupants.md §2.4 slot 20	
+00604db0	cSC4NetworkOccupant::IsPlaced	network-occupants.md §2.4 slot 21	
+00604dc0	cSC4NetworkOccupant::GetRotation	network-occupants.md §2.4 slot 24	
+00604dd0	cSC4NetworkOccupant::GetFlip	network-occupants.md §2.4 slot 25	
+00604de0	cSC4NetworkOccupant::GetRotationAndFlip	network-occupants.md §2.4 slot 26	
+00604df0	cSC4NetworkOccupant::SetRotationAndFlip	network-occupants.md §2.4 slot 74	
+00604e00	cSC4NetworkOccupant::SetEdgeStore	network-occupants.md §2.4 slot 44	
+00604e10	cSC4NetworkOccupant::GetCostOfDemolition	network-occupants.md §2.4 slot 63	
+00604e20	cSC4NetworkOccupant::SetCostOfDemolition	network-occupants.md §2.4 slot 64	
+00619040	cSC4NetworkOccupant::GetGZCLSID	network-occupants.md §2.1	
+00619050	cSC4NetworkOccupant::Init	network-occupants.md §2.5 main slot 3	
+00619110	cSC4NetworkOccupant::GetConnectionNodeEdgeTypes	network-occupants.md §2.4 slot 13	
+00619150	cSC4NetworkOccupant::GetConnectionPathIDOverride	network-occupants.md §2.4 slot 15	
+00619180	cSC4NetworkOccupant::CheckForRetrofit	network-occupants.md §2.4 slot 6	
+006191a0	(anonymous_namespace)::ConvertV5FlagsToCurrentFlags	network-occupants.md §2.3	
+006192c0	cSC4NetworkOccupant::QueryInterface	network-occupants.md §2.1	
+00619320	cSC4NetworkOccupant::ConnectsToNeighbor	network-occupants.md §2.4 slot 47	
+00619360	cSC4NetworkOccupant::GetBoundingBox	network-occupants.md §2.9	
+006193a0	cSC4NetworkOccupant::GetOwner	network-occupants.md §2.1 model instance slot 3	
+006193d0	cSC4NetworkOccupant::GetPosition	network-occupants.md §2.9 main slot 75	
+006194c0	cSC4NetworkOccupant::GetVertexHeight	network-occupants.md §2.4 slot 35	
+006194e0	cSC4NetworkOccupant::GetWorldBounds	network-occupants.md §2.1 model instance slot 8	
+00619500	cSC4NetworkOccupant::HasProperty	network-occupants.md §2.2	
+00619520	cSC4NetworkOccupant::IsOfType	network-occupants.md §2.4 slot 22	
+00619540	cSC4NetworkOccupant::MarkLightingUpdateNeeded	network-occupants.md §2.4 slot 46	
+00619550	cSC4NetworkOccupant::SetTextureCoordinates	network-occupants.md §2.11	
+00619650	cSC4NetworkOccupant::SetVertexHeights	network-occupants.md §2.4 slot 36	
+00619680	cSC4NetworkOccupant::ReleasePathInfo	network-occupants.md §2.4 slot 50	
+006196a0	cSC4NetworkOccupant::PathConnectionExists	network-occupants.md §2.6 slot 53	
+00619790	cSC4NetworkOccupant::AddPathConnection	network-occupants.md §2.6 slot 54	
+006197d0	cSC4NetworkOccupant::SetPathIDOverride	network-occupants.md §2.4 slot 51	
+006197f0	cSC4NetworkOccupant::GetAltitude	network-occupants.md §2.9	
+00619880	cSC4NetworkOccupant::GetVariation	network-occupants.md §2.4 slot 28	
+00619890	cSC4NetworkOccupant::IsLit	network-occupants.md §2.4 slot 60	
+006198a0	cSC4NetworkOccupant::IsPartOfTheSameStructure	network-occupants.md §2.9	
+00619900	cSC4NetworkOccupant::GetPassageCeiling	network-occupants.md §2.4 slot 67	
+00619940	cSC4NetworkOccupant::GetOneWayDirections	network-occupants.md §2.4 slot 69	
+00619970	cSC4NetworkOccupant::GetComplexPieceOrigin	network-occupants.md §2.4 slot 71	
+006199c0	cSC4NetworkOccupant::IsSupportPylonPresent	network-occupants.md §2.4 slot 73	
+006199d0	cSC4EdgeConnectionStore::operator=	network-occupants.md §2.10; body of slot 44	
+00619a40	cSC4EdgeConnectionStore::SetEdgeTypesFlag	network-occupants.md §2.10	
+00619b70	cSC4EdgeConnectionStore::GetEdgeTypesFlag	network-occupants.md §2.10	
+00619c10	cSC4EdgeConnectionStore::Write	network-occupants.md §2.3 row 9	
+00619c90	cSC4EdgeConnectionStore::Read	network-occupants.md §2.3 step 4	
+00619ec0	cSC4NetworkOccupant::SetNetworkFlag	network-occupants.md §2.4 slot 10; network-manager.md §5	
+00619f70	cSC4NetworkOccupant::ClearNetworkFlag	network-occupants.md §2.4 slot 11; network-manager.md §5	
+0061a020	cSC4NetworkOccupant::SetConnectionNodeEdgeTypes	network-occupants.md §2.4 slot 14	
+0061a090	cSC4NetworkOccupant::SetConnectionPathIDOverride	network-occupants.md §2.4 slot 16	
+0061a120	cSC4NetworkOccupant::SetRetrofitFlag	network-occupants.md §2.4 slot 7	
+0061a190	cSC4NetworkOccupant::Write	network-occupants.md §2.3	
+0061a430	cSC4NetworkOccupant::ComputeBox	network-occupants.md §2.9 slot 80	
+0061a850	cSC4NetworkOccupant::Draw	network-occupants.md §2.11	
+0061ac70	cSC4NetworkOccupant::DrawOneWayArrow	network-occupants.md §2.11	
+0061ae90	cSC4NetworkOccupant::GetActiveEdges	network-occupants.md §2.10 slot 40	
+0061aee0	cSC4NetworkOccupant::GetActiveEdgesForType	network-occupants.md §2.10 slot 41	
+0061af10	cSC4NetworkOccupant::GetActiveEdgesForTypeNoGroup	network-occupants.md §2.10 slot 42	
+0061af40	cSC4NetworkOccupant::GetGroupedEdges	network-occupants.md §2.10 slot 43	
+0061af80	cSC4NetworkOccupant::GetEdgeTypesFlag	network-occupants.md §2.10 slot 38	
+0061af90	cSC4NetworkOccupant::GetModelInstances	network-occupants.md §2.4 slot 33	
+0061b010	cSC4NetworkOccupant::GetOccupiedCell	network-occupants.md §2.9	
+0061b060	cSC4NetworkOccupant::GetSortValue	network-occupants.md §2.11	
+0061b0b0	cSC4NetworkOccupant::GetTransform	network-occupants.md §2.1 model instance slot 9	
+0061b140	cSC4NetworkOccupant::SetTransform	network-occupants.md §2.1 model instance slot 10	
+0061b1d0	cSC4NetworkOccupant::GetBounds	network-occupants.md §2.1 model instance slot 7	
+0061b3a0	cSC4NetworkOccupant::Pick	network-occupants.md §2.9	
+0061b430	cSC4NetworkOccupant::SetEdgeType	network-occupants.md §2.10 slot 39	
+0061b480	cSC4NetworkOccupant::SetEdgeTypesFlag	network-occupants.md §2.10 slot 37	
+0061b490	cSC4NetworkOccupant::SetQuadDraw	network-occupants.md §2.11	
+0061b510	cSC4NetworkOccupant::GetPathInfo	traffic-network.md §7.2; network-rules.md	
+0061b6c0	cSC4NetworkOccupant::GetNormal	network-occupants.md §2.9	
+0061b750	cSC4NetworkOccupant::SetTranslucency	network-occupants.md §2.11	
+0061b7f0	cSC4NetworkOccupant::SetVariation	network-occupants.md §2.4 slot 27; §2.7	
+0061b880	cSC4NetworkOccupant::SetUnderTexture	network-occupants.md §2.4 slot 29; §2.7	
+0061b910	cSC4NetworkOccupant::SetLit	network-occupants.md §2.7	
+0061b9a0	cSC4NetworkOccupant::SetPassageCeiling	network-occupants.md §2.4 slot 68	
+0061b9f0	cSC4NetworkOccupant::SetOneWayDirections	network-occupants.md §2.4 slot 70	
+0061ba90	cSC4NetworkOccupant::SetComplexPieceOrigin	network-occupants.md §2.4 slot 72	
+0061bb60	cSC4NetworkOccupant::UpdateLighting	network-occupants.md §2.7	
+0061bd80	cSC4NetworkOccupant::IsIntersection	network-occupants.md §2.4 slot 55	
+0061bdd0	cSC4NetworkOccupant::cSC4NetworkOccupant	network-occupants.md §2.1, §2.5	
+0061bfc0	cSC4NetworkOccupant::QueryInterface (thunk)	network-occupants.md §2.1; this - 4	
+0061bfe0	cSC4NetworkOccupant::QueryInterface (thunk)	network-occupants.md §2.1; this - 8	
+0061bff0	cSC4NetworkOccupant::QueryInterface (thunk)	network-occupants.md §2.1; this - 0xC	
+0061c000	cSC4NetworkOccupant::~cSC4NetworkOccupant (thunk)	network-occupants.md §2.1; this - 0xC	
+0061c010	cSC4NetworkOccupant::QueryInterface (thunk)	network-occupants.md §2.1; this - 0x20	
+0061c020	cSC4NetworkOccupant::~cSC4NetworkOccupant (thunk)	network-occupants.md §2.1; this - 0x38	
+0061c030	cSC4NetworkOccupant::QueryInterface (thunk)	network-occupants.md §2.1; vtordisp	
+0061c040	cSC4NetworkOccupant::AddRef (thunk)	network-occupants.md §2.1; vtordisp	
+0061c050	cSC4NetworkOccupant::Release (thunk)	network-occupants.md §2.1; vtordisp	
+0061c060	cSC4NetworkOccupant::GetOwner (thunk)	network-occupants.md §2.1; vtordisp	
+0061c0a0	cSC4NetworkOccupant::GetWorldBounds (thunk)	network-occupants.md §2.1; this-adjusted copy	
+0061c100	cSC4NetworkOccupant::Write (thunk)	network-occupants.md §2.3; this - 4	
+0061c110	cSC4NetworkOccupant::GetBounds (thunk)	network-occupants.md §2.1; this-adjusted copy	
+0061c120	cSC4NetworkOccupant::GetTransform (thunk)	network-occupants.md §2.1; this-adjusted copy	
+0061c130	cSC4NetworkOccupant::SetTransform (thunk)	network-occupants.md §2.1; this-adjusted copy	
+0061c140	cSC4NetworkOccupant::Pick (thunk)	network-occupants.md §2.9; this-adjusted copy	
+0061c160	cSC4NetworkOccupant::GetSortValue (thunk)	network-occupants.md §2.11; this-adjusted copy	
+0061c170	cSC4NetworkOccupant::~cSC4NetworkOccupant	network-occupants.md §2.1 destructor body	
+0061c480	GZCOM_CreatecSC4NetworkOccupant	network-occupants.md §2.1	
+0061c4c0	cSC4NetworkOccupant::~cSC4NetworkOccupant	network-occupants.md §2.1 deleting destructor	
+0061c520	cSC4NetworkOccupant::StaticShutdown	network-occupants.md §2.5	
+0061c5f0	cSC4NetworkOccupant::SetTextureZoom	network-occupants.md §2.11 slot 78	
+0061c690	cSC4NetworkOccupant::StaticInit	network-occupants.md §2.5	
+0061c800	cSC4NetworkOccupant::AddPart	network-occupants.md §2.11	
+0061c950	cSC4NetworkOccupant::GetTexture	network-occupants.md §2.11 slot 77	
+0061cb50	cSC4NetworkOccupant::Init	network-occupants.md §2.5 occupant slot 3	
+0061cc00	cSC4NetworkOccupant::Read	network-occupants.md §2.3	
+0061d030	cSC4NetworkOccupant::Read (thunk)	network-occupants.md §2.3; this - 4	
+00648460	cSC4UndergroundOccupant::GetLayerClassID	network-occupants.md §3.1 main slot 82	
+00648470	cSC4UndergroundOccupant::IsPlaced	network-occupants.md §3.1 main slot 21	
+00653da0	cSC4UndergroundConnectionOccupant::StaticShutdown	network-occupants.md §3.6	
+00654030	cSC4UndergroundConnectionOccupant::QueryInterface	network-occupants.md §3.6	
+00654090	cSC4UndergroundConnectionOccupant::GetSortValue	network-occupants.md §3.6; the class ID 0x8A139184	
+006540a0	cSC4UndergroundConnectionOccupant::GetHiddenTriangles	network-occupants.md §3.6	
+006540c0	cSC4UndergroundConnectionOccupant::GetPosition	network-occupants.md §3.6	
+006540f0	cSC4UndergroundConnectionOccupant::SetPosition	network-occupants.md §3.6	
+00654140	cSC4UndergroundConnectionOccupant::GetWorldBounds	network-occupants.md §3.6; the occupant box	
+00654160	cSC4UndergroundConnectionOccupant::RefreshAttachedOccupant	network-occupants.md §3.6 main slot 43; was a Mac-matched GetWorldBounds name	
+00654180	cSC4UndergroundConnectionOccupant::PostOccupantMessage	network-occupants.md §3.6	
+006542f0	cSC4UndergroundConnectionOccupant::ModelStateChanged	network-occupants.md §3.6	
+00654620	cSC4UndergroundConnectionOccupant::SetLinkedOccupant	network-occupants.md §3.6 main slot 40; was a Mac-matched HasViewDependentModel name	
+00654670	cSC4UndergroundConnectionOccupant::Init	network-occupants.md §3.6 main slot 3	
+00654710	cSC4UndergroundConnectionOccupant::Init	network-occupants.md §3.6; main slot 34 Init(classID, descriptor), 1,341 bytes; was the folded name icf::cSC4PipeConnectionOccupant::~cSC4PipeConnectionOccupant (the code at 0x0065471D is inside it)	
+00654c50	cSC4UndergroundConnectionOccupant::Write	network-occupants.md §3.6	
+00654e70	cSC4UndergroundConnectionOccupant::GetGZCLSID	network-occupants.md §3.6	
+00654f00	cSC4UndergroundConnectionOccupant::cSC4UndergroundConnectionOccupant	network-occupants.md §3.6	
+006553a0	cSC4UndergroundConnectionOccupant::Shutdown	network-occupants.md §3.6	
+00656c80	cSC4UndergroundConnectionOccupant::DoMessage	network-occupants.md §3.6	
+00657590	cSC4UndergroundConnectionOccupant::Read	network-occupants.md §3.6	
+00659d70	cSC4UndergroundOccupant::GetModelInstances	network-occupants.md §3.1 main slot 33 (also slot 36 of the connections); was a Mac-matched Read name	
+00659db0	cSC4UndergroundOccupant::SetCeilingParameters	network-occupants.md §3.1 main slot 97, §3.2	
+00659dd0	cSC4UndergroundOccupant::GetOriginalHeights	network-occupants.md §3.1 main slot 94	
+00659e00	cSC4UndergroundOccupant::ComputeBox	network-occupants.md §3.1 main slot 80	
+0065a080	cSC4UndergroundOccupant::QueryInterface	network-occupants.md §3.1	
+0065a0e0	cSC4UndergroundOccupant::GetSortValue	network-occupants.md §3.1	
+0065a120	cSC4UndergroundOccupant::CountRun	network-occupants.md §3.2 main slot 98	
+0065a200	cSC4UndergroundOccupant::GetZipperPieceType	network-occupants.md §3.2 main slot 99	
+0065a3f0	cSC4UndergroundOccupant::UpdateQuadTriangles	network-occupants.md §3.2 main slot 88	
+0065a640	cSC4UndergroundOccupant::IsImaginaryConnection	network-occupants.md §3.2	
+0065a6c0	cSC4NetworkOccupant::GetVertexHeights	network-occupants.md §2.4 slot 34	
+0065a6f0	cSC4UndergroundOccupant::GetQuadBools	network-occupants.md §3.1 main slot 92	
+0065a720	cSC4UndergroundOccupant::GetPosition	network-occupants.md §3.1 occupant slot 8	
+0065a810	cSC4UndergroundOccupant::GetModelKey	network-occupants.md §3.1 main slot 96	
+0065a880	cSC4UndergroundOccupant::GetWallTextures	network-occupants.md §3.1 main slot 104; network-manager.md §5	
+0065a900	cSC4UndergroundOccupant::SetNetworkFlag	network-occupants.md §3.1 main slot 10	
+0065a940	cSC4UndergroundOccupant::ClearNetworkFlag	network-occupants.md §3.1 main slot 11	
+0065a980	cSC4UndergroundOccupant::PostOccupantMessage	network-occupants.md §3.1 occupant slot 15	
+0065aa70	cSC4UndergroundOccupant::GetCeiling	network-occupants.md §3.2 main slot 93	
+0065ab50	cSC4UndergroundOccupant::ComputeModelYPosition	network-occupants.md §3.2	
+0065adb0	cSC4UndergroundOccupant::SetQuadDraw	network-occupants.md §3.1 main slot 30	
+0065add0	cSC4UndergroundOccupant::Rebuild	network-occupants.md §3.1 main slot 86	
+0065ae30	cSC4UndergroundOccupant::SetCornerHeights	network-occupants.md §3.1 main slot 84	
+0065ae80	cSC4UndergroundOccupant::StaticInit	network-occupants.md §3.1	
+0065af10	cSC4UndergroundOccupant::Refresh	network-occupants.md §3.2 main slot 100	
+0065b020	cSC4UndergroundOccupant::GetTint	network-occupants.md §3.1 main slot 103	
+0065b070	cSC4UndergroundOccupant::WriteVertexList	network-occupants.md §3.4 row 5; also used by the connection record	
+0065b140	cSC4UndergroundOccupant::Write	network-occupants.md §3.4	
+0065b290	cSC4UndergroundOccupant::Draw	network-occupants.md §3.2	
+0065b6b0	cSC4UndergroundOccupant::SetOriginalHeights	network-occupants.md §3.1 main slot 95	
+0065b700	cSC4UndergroundOccupant::BuildMeshTransform	network-occupants.md §3.1 main slot 85	
+0065c070	cSC4UndergroundOccupant::Init	network-occupants.md §3.1 occupant slot 3	
+0065c330	cSC4UndergroundOccupant::cSC4UndergroundOccupant	network-occupants.md §3.1	
+0065c6b0	cSC4UndergroundOccupant::Init	network-occupants.md §3.1 main slot 81	
+0065cd90	cSC4UndergroundOccupant::Shutdown	network-occupants.md §3.1	
+0065cf20	cSC4UndergroundOccupant::SetTextureZoom	network-occupants.md §3.1 main slot 78	
+0065cfe0	cSC4UndergroundOccupant::Shutdown (thunk)	network-occupants.md §3.1; this - 4	
+0065e410	cSC4UndergroundOccupant::BuildCap	network-occupants.md §3.1 main slot 90	
+0065e510	cSC4UndergroundOccupant::Read	network-occupants.md §3.4	
+0065e690	cSC4UndergroundOccupant::Read (thunk)	network-occupants.md §3.4; this - 4	
+00798030	cSC4NetworkOccupant::GetEdgeStore	network-occupants.md §2.4 slot 45	

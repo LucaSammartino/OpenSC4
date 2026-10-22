@@ -101,3 +101,75 @@
   start height at -FLT_MAX, replace only by strictly greater ordered corners, add 0.5, store float32.
   All-sentinel corners return y=-FLT_MAX; no failure/skipped pole. NaN corners are ignored. Evidence
   `0x0064F00B`, `0x0064F061–0x0064F0BB`; `0x00AA9F0C=0xFF7FFFFF`.
+
+<!-- from: the network occupants spec (2026-10-20) -->
+- ~~**NO1 - network flag 0x40 vs the intersection bit:** the meaning of network flag `0x40` tested by
+  `IsIntersection` (primary slot 55, `0x0061BD80`) versus the `0x100000` intersection bit used elsewhere
+  (network-manager.md §5). [inferred: `0x40` is a styling/presentation bit; the slot checks it before the
+  highway-intersection piece-id lookup at `0x00B4528C`]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** DIFFERS — `0x40` is `1 << 6`, the avenue network type bit (`IsOfType(6)`,
+  §1.4), not a styling bit: `IsIntersection` (slot 55) is true for an avenue piece whose piece id is in the 13-entry
+  set `StaticInit` fills from `0x00AA7D40` (network-occupants.md §2.4, §2.5).
+
+<!-- from: the network occupants spec (2026-10-20) -->
+- ~~**NO3 - the underground occupant's type:** does `cSC4UndergroundOccupant` ever carry a distinct occupant type?
+  Its base ctor leaves `0x74758925`; the demolition dispatcher never names an underground type. [inferred:
+  underground pieces are dispatched as `0xC772BF98` through their `cISC4NetworkOccupant` interface]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** DIFFERS — the underground constructor `0x0065C330` runs the network constructor
+  first (`0x0065C354`), which writes `0xC772BF98` at `+0x28`; nothing later changes it (§3.2; quirk 1).
+
+<!-- from: the network occupants spec (2026-10-20) -->
+- ~~**NO5 - the 0x4835C6A7-AC property family:** SDK names of the property-ID family `0x4835C6A7` (edge types),
+  `0x4835C6A8` (passage ceiling), `0x4835C6AA` (one-way), `0x4835C6AB` (anchor), `0x4835C6AC` (retrofit) stored
+  in the occupant's own property holder. [unknown]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** the SDK names the slots that read them: `0x4835C6A7`
+  Get/SetConnectionNodeEdgeTypes (13, 14), `0x4835C6A8` Get/SetPassageCeiling (67, 68), `0x4835C6A9`
+  Get/SetConnectionPathIDOverride (15, 16), `0x4835C6AA` Get/SetOneWayDirections (69, 70), `0x4835C6AB`
+  Get/SetComplexPieceOrigin (71, 72), `0x4835C6AC` CheckForRetrofit / SetRetrofitFlag (6, 7) (§2.2 "Properties").
+
+<!-- from: the network occupants spec (2026-10-20) -->
+- ~~**NO7 - GetSortValue's stored field:** which field holds the sort value of an underground occupant when flag
+  `0x6000000` is set (§3.2); the negative displacement (`−0x178`/`−0x274`) in the decomp is ambiguous.
+  [not specified]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** the piece id `+0xFC`: `GetSortValue` runs on the drawable at the virtual base
+  `+0x274`, so `[this − 0x178]` is object `+0xFC`; without flags `0x06000000` it answers `0x4A10AFC2` (§3.1).
+
+<!-- from: the network occupants spec (2026-10-20) -->
+- ~~**NO8 - the connection registration strings:** the strings `0x00B0B6D0`/`0x00B0C388` passed with the class IDs
+  to helper `0x00654710` by the pipe/subway-connection `Init` (§3.6): GZCOM class names? [unknown]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** they are not strings but the classes' static model descriptors (`0x00B0B6D0`
+  begins with the IDs `0x095A8D70`, `0xE95A8D8D`, …, pointers and counts), the second argument of the connection's
+  `Init(classID, descriptor)`, main slot 34, which begins at `0x00654710` (§3.6).
+
+<!-- from: core-netocc4 (engine lane, 2026-10-21) -->
+- ~~**NO9 - IsManagedGlobally for the underground family:** §2.7 gives slot 5 for the plain class (false) and the
+  prebuilt/bridge/tunnel primaries (true) but not for `cSC4UndergroundOccupant`/pipe/subway (`0x00AAAD40`,
+  `0x00AA97B8`, `0x00AAA3C8`). The core answers false (inherited plain body). Which body do those vtables hold?
+  (Numbered NO9 per QUESTIONS.md; §12 also uses NO9/NO10 for two settled notes.) [not specified]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** MATCHES — slot 5 of `0x00AAAD40`, `0x00AA97B8` and `0x00AAA3C8` is the shared
+  `0x00648EF0`, false (§2.7).
+
+<!-- from: core-netocc4 (engine lane, 2026-10-21) -->
+- ~~**NO12 - the path-connection table shape and the wildcard count:** §2.6 addresses `[+0x144 + exit*4 + type]` and
+  `[+0x144 + type]` (a 4 × 8 byte region that also contains the saved `+0x15C` u32), traffic-network.md §7.2 says
+  `(pathType, entry, exit)` with a bit per path type. Which index is entry/exit, how many bytes per row, and with
+  `0xFF` wildcards what is counted (matching entry/exit cells, or path-type bits too)? The core keeps
+  `[entry][exit]` path-type bit bytes and counts (type, entry, exit) triples. [ambiguous]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** DIFFERS — 8 rows of 4 bytes: byte `+0x144 + type·4 + entry` holds a bit per
+  exit side (`AddPathConnection` `0x00619790` ORs `1 << exit` there and into row 0, byte `+0x144 + entry`). With
+  `0xFF` wildcards `PathConnectionExists` counts set exit bits: both wild over the row's 4 bytes, `entry` wild the
+  bytes with bit `exit`, `exit` wild the bits of byte `entry` (§2.6).
+
+<!-- from: core-netocc4 (engine lane, 2026-10-21) -->
+- ~~**NO14 - conformance test 6's slot:** §13 test 6 says "`SetRotation(2)` then slot 24 returns 2", but §2.4 maps
+  slot 24 to `GetFlip` (slots 26/24/25 = orientation/flip/rotation). Is the test's slot 25 (`GetRotation`)? The
+  core tests `GetRotation`. [ambiguous]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** slot 24 is `GetRotation` (SDK order; `+0x104 & 0x7F`), 25 `GetFlip`, 26
+  `GetRotationAndFlip`; slot 27 is `SetVariation`, and the rotation is set by slot 30 or 74. Test 6 now uses
+  `SetRotationAndFlip` (slot 74) and `GetRotation` (slot 24) (§2.4, §13).
+
+<!-- from: core-netocc-records4 (engine lane, 2026-10-21) -->
+- ~~**NO20 - `IsImaginaryConnection` with dir > 3:** the offset table `0x00B0CFE8` has four (dx, dz) pairs; what does
+  a direction above 3 read (the bytes after the table, or a guard)? The core returns false. [missing]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** DIFFERS — there is no guard: the side indexes the table directly, so a side
+  above 3 reads the bytes after it (quirk 19). The core's false is a choice for an input the game never passes (§3.2).
