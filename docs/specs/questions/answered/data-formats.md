@@ -1,4 +1,14 @@
 # data-formats: answered questions (archive)
+
+## EX52 a/b/f and EX53 (2026-10-22)
+
+- **EX52 c — serial-record slot 28 arguments.** **ANSWERED 2026-10-22 (re-exemplar-final-gaps4):** MATCHES — §8.2 proves thiscall `(bytes, uint32 byteCount)`, 8 for binary signature / 10 for text, and the raw-write tail dispatch through record slot 51. Caller and writable packed-file target agree.
+- **EX52 d — kind-1 key getter and foreign property.** **ANSWERED 2026-10-22 (re-exemplar-final-gaps4):** DIFFERS — §8.2 proves property QI `0xE52184AB`, returned interface slot 6 with temporary key-output address, returned pointer sent to record slot 49, then Release. This supplies the previously missing foreign-property contract. A held resource IID alone does not select kind 1.
+- **EX52 e (syntax and lookup algorithm only) — text SerialWrite.** **ANSWERED 2026-10-22 (re-exemplar-final-gaps4):** DIFFERS — §8.2 now specifies key/count/property lines, dynamic INI field-5 names, exact supported type formats, unsupported-type malformed lines, no escaping, and ignored text-entry write failures. Discriminating vectors include scalar count 0, signed hex widening, 64-bit array prefix asymmetry and unsupported Float64. Population and contents of the name source remain open under EX52 e.
+
+- **EX52 a/b — non-null rebuild destination allocator and capacity word.** **ANSWERED 2026-10-22 (re-exemplar-final-gaps4):** MATCHES — §8.2 proves B allocation/free `0x0090CF54`/`0x0090CF63`, including insert growth, and three pointers `{begin, end, endOfStorage}` with 8-byte entries. Includes a two-entry layout/free vector. Remaining c–e stay open.
+- **EX52 f — holder slots 14/16 native return 2 versus replacement 1.** **ANSWERED 2026-10-22 (re-exemplar-final-gaps4):** DIFFERS — §8.2 traces their last call to the newly constructed property's Release; EAX propagates the surviving reference count (two entries on factory exemplar/cohort, one on plain holder), not a fixed success value. Source property/variant is copied. Null slot-14 input has no established result; public count-return declaration and arbitrary override results are not inferred.
+- **EX53 — scalar Char/RZUnicodeChar GetValString text and result.** **ANSWERED 2026-10-22 (re-exemplar-final-gaps4):** DIFFERS — §5.1 gives one raw byte for Char/RZChar, one byte for Unicode units ≤ `0xFF`, otherwise `?`; output is assigned and getter returns false. Explicit-length vectors include `41`, `E9`, `00`, and Unicode `0x0100`/`0xFFE9`. This contradicts the filed replacement behaviour of leaving the output unchanged.
 <!-- Archive for [data-formats.md](../../data-formats.md). Lanes do not read this file. Open questions are in ../data-formats.md. -->
 
 ## From the exemplar reader (filed by the coordinator from the lane's report, 2026-10-14; merged)
