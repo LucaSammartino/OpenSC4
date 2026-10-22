@@ -1,12 +1,16 @@
 # Lane files and run files
 
-One file per lane, one file per in-game run. The shared tables are **generated** from them, so two lanes
-finishing at the same time never edit the same lines and never conflict.
+Everything a lane writes for the record: its lane file, one file per in-game run, and its merge-queue entry. The
+shared tables are **generated** from the lane and run files, so two lanes finishing at the same time never edit the
+same lines. The merge train regenerates them after each batch; a lane does not need to.
 
 ```
-python tools/gen_handoff_tables.py          # rewrite the generated tables
+python tools/gen_handoff_tables.py          # rewrite the generated tables (the train runs this)
 python tools/gen_handoff_tables.py --check  # exit 1 if they are out of date
 ```
+
+Engine lanes do not run scripts from `tools/` (clean room, [CONTRIBUTING.md](../../CONTRIBUTING.md)): get the row
+format right by the rules below.
 
 The generator owns exactly three regions, marked with `<!-- BEGIN GENERATED: name -->` and
 `<!-- END GENERATED -->`:
@@ -18,7 +22,7 @@ The generator owns exactly three regions, marked with `<!-- BEGIN GENERATED: nam
 | `runs` | `docs/manual-checks.md` | the in-game run log, one row per `docs/runs/<tag>.md` |
 
 Everything outside those markers is hand-written and survives regeneration. Do not edit inside a
-generated region: edit the lane or run file and regenerate. The script is deterministic (lanes by
+generated region: edit the lane or run file instead. The script is deterministic (lanes by
 natural sort of the file name, runs by `run` number) and idempotent (running it twice writes the same
 bytes).
 
@@ -114,19 +118,23 @@ Rules:
 - A run file with a missing required field (`tag`, `run`, `verdict`, `switches`, `result`) makes the
   generator exit non-zero.
 
+Also put in a run's `result` the summary counts and any subsystem shadow lines a reader would otherwise have to grep
+the log for; the lane file links to its runs.
+
 Real examples: [`voidbool-141.md`](../runs/voidbool-141.md) (regress PASS),
 [`rl3-121.md`](../runs/rl3-121.md) (regress with a `summary_note`), [`run-8.md`](../runs/run-8.md)
 (an early run with no lane).
 
 ## How a lane lands
 
-The merge queue replaces the old `build-runs/main-merge.lock`. **A lane never takes a merge lock and
-never merges main.**
+A lane never takes a merge lock, never merges main and never bumps `FC4_ABI_VERSION`.
 
-1. **Write your files first.** `docs/lanes/<lane>.md` for your state and next steps, and
-   `docs/runs/<tag>.md` for every in-game run you did. Run `python tools/gen_handoff_tables.py` and
-   commit the regenerated tables with them.
-2. **Enqueue and stop.** Write `build-runs/merge-queue/<lane>.json` in your own worktree:
+1. **Write your files.** `docs/lanes/<lane>.md`: the row, then below it your full report in place of the
+   `## Handoff` (what changed; the gate, with cargo summed over every `test result:` line, clippy and ctest; the
+   game-run labels; what is measured and what is deliberately not done; questions filed; next steps). A
+   `docs/runs/<tag>.md` for every in-game run you did. Commit them.
+2. **Enqueue and stop.** Write `build-runs/merge-queue/<lane>.json` in your own worktree (`build-runs/` is
+   gitignored; the train scans every `.claude/worktrees/*/build-runs/merge-queue/` and the main checkout's):
 
    ```json
    {"lane":"example","branch":"example","tip":"<git rev-parse HEAD>","kind":"engine","abi":true,
@@ -137,57 +145,18 @@ never merges main.**
    |---|---|
    | `lane` | the lane slug (the `docs/lanes/<lane>.md` name) |
    | `branch` | the branch the work is on |
-   | `tip` | the commit hash at enqueue time |
-   | `kind` | `engine`, `tools`, `docs` or `test` |
-   | `abi` | `true` if the change touches the C ABI, `false` otherwise |
+   | `tip` | the commit hash at enqueue time (`merge-train.py status` reports an entry whose branch moved past it as not ready) |
+   | `kind` | `engine`, `tools`, `docs` or `test`; `docs` batches go first and skip the gate when `engine/`, `tools/`, `tests/` and `.claude/lane-bin/` are unchanged |
+   | `abi` | `true` if the change adds or removes a C ABI export, `false` otherwise |
    | `game_runs` | the labels of the in-game runs this change needs (or `[]`) |
-   | `summary` | one line for the merge train |
+   | `summary` | one line for the merge commit |
    | `state` | `ready` to land now, `wip` to hold |
+   | `touches` | *optional*: the subsystem keys the work changes, as given to `lanes.py check --touches` |
 
-   Then **stop**. Do not merge anything.
-3. **The merge train owns main.** One merge-train owner takes up to K ready lanes, merges them one
-   after another onto `integration/<n>` from main, runs the gate and the regress **once for the
-   batch**, and on a pass fast-forwards main to the integration branch. On a fail it bisects the batch
-   (about log2 K extra gates) and returns the culprit lane to its owner with the failure. Docs-only
-   and RE lanes skip the regress and can be batched freely.
-4. **The train bumps `FC4_ABI_VERSION`, never a lane.** It bumps it once per batch and writes one
-   `fc4.h` history line per batch listing the lanes. Do not touch `FC4_ABI_VERSION` in your lane.
+   Then **stop**. What the train does next (batches, one gate and regress per batch, bisecting a red batch, the ABI
+   bump) is in [docs/merge-train.md](../merge-train.md); a notice lands in `build-runs/merge-notices/<lane>.md`
+   when you are on `main`.
 
-Why this shape: every lane used to edit the same handful of files at merge time (the HANDOFF §0 rows, now
-`docs/lanes/INDEX.md`, the run numbers in `manual-checks.md`, `QUESTIONS.md` (now a generated index over the per-spec files in
-`docs/specs/questions/`; see its README), `FC4_ABI_VERSION`, `abi_entries.inc`), so every
-merge conflicted and about 25 agents polled a merge lock, costing about N² gates. Per-lane files and a
-single owner of main remove the shared lines.
-# Per-lane documents
-
-One file per lane, `docs/lanes/<lane>.md`, holding what used to be that lane's
-`HANDOFF.md` §0 row; and one file per in-game run, `docs/runs/<tag>.md`, keyed
-by the run's **tag** (its request label) rather than a sequential run number.
-
-A script regenerates the `HANDOFF.md` §0 table, the `manual-checks.md` index and
-the "latest in-game run" line from these two folders
-(`tools/gen_handoff_tables.py`), so lanes no longer edit those shared files and
-conflict with each other at merge time. See [merge-train.md](../merge-train.md).
-
-## `docs/lanes/<lane>.md`
-
-Write it when you stop, before you enqueue for the merge train. Keep it to what
-a reader of `HANDOFF.md` §0 needs:
-
-- the lane name, branch and what it changed;
-- the gate it ran (cargo summed over every `test result:` line, clippy, ctest)
-  and the game-run labels it produced;
-- what is wired, what is measured, and what is deliberately not done;
-- the next steps and the numbered questions it filed.
-
-## `docs/runs/<tag>.md`
-
-One file per in-game run, named after the request's `label`. Put in it the
-verdict line, the summary counts, and any subsystem shadow lines a reader would
-otherwise have to grep the log for. The lane doc links to them.
-
-## Adding a subsystem key or a new run summary block
-
-Those still live in shared files (`engine/README.md`, `engine/plugin/FC4Config.*`,
-`tools/regress.ps1`, `tools/run_summary.ps1`): keep those edits additive and
-grouped, as before.
+Shared files that still take every lane's edits (`engine/README.md`, `engine/plugin/FC4Config.*`,
+`FC4Subsystems.cpp`, `tools/regress.ps1`, `tools/run_summary.ps1`): keep those edits additive, grouped and at the end
+of their lists.

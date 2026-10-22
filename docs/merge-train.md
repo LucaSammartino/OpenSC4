@@ -18,45 +18,28 @@ Measured on 2026-10-16, the merge of each lane was slow, not git:
 
 ## What a lane does now
 
-1. Do your work on your branch in your worktree as before. Run your own gate and your own game runs through the
-   queue while you are working — that is how you iterate. Those runs are **not** the merge regress.
-2. **Do not bump `FC4_ABI_VERSION`.** If your change adds or removes a C ABI export, say so in the queue file.
-3. Write your per-lane files (see [docs/lanes/README.md](lanes/README.md)):
-   - `docs/lanes/<lane>.md` — your row of the lane table (`docs/lanes/INDEX.md`);
-   - `docs/runs/<tag>.md` — your in-game run rows, keyed by tag, not by a sequential run number.
-4. Write `build-runs/merge-queue/<lane>.json` **in your own worktree**:
-
-   ```json
-   {
-     "lane": "glue15",
-     "branch": "glue15",
-     "tip": "<git rev-parse HEAD>",
-     "kind": "engine",
-     "abi": true,
-     "game_runs": ["glue15-sh-1", "glue15-tut-1"],
-     "summary": "one line for the merge commit",
-     "state": "ready"
-   }
-   ```
-
-   `kind` is `engine`, `tools`, `docs` or `test`. `state` is `ready` or `wip`.
-5. **Stop.** The train picks you up. A notice lands in `build-runs/merge-notices/<lane>.md` when you are on `main`.
-
-The train also scans `.claude/worktrees/*/build-runs/merge-queue/*.json`, so you do not need write access to the
-main checkout.
+A lane works and iterates on its own branch (its own gate and game runs, which are **not** the merge regress), writes
+`docs/lanes/<lane>.md` and its `docs/runs/<tag>.md` files, writes `build-runs/merge-queue/<lane>.json` in its own
+worktree and **stops**. It never bumps `FC4_ABI_VERSION`; it sets `"abi": true` instead. The file formats and the
+queue keys are in [docs/lanes/README.md](lanes/README.md) "How a lane lands". The train scans
+`.claude/worktrees/*/build-runs/merge-queue/*.json` as well as the main checkout's, so a lane needs no write access to
+the main checkout. A notice lands in `build-runs/merge-notices/<lane>.md` when the lane is on `main`.
 
 ## What the train does
 
 ```
 python tools/merge-train.py status              # what is queued, and which entries are not actually ready
-python tools/merge-train.py plan --size 8       # what the next batch would be
-python tools/merge-train.py run --size 8        # merge-batch -> gate -> regress
+python tools/merge-train.py plan --size K       # what the next batch would be
+python tools/merge-train.py run --size K        # merge-batch -> gate -> regress
 python tools/merge-train.py land                # put a green batch on main
 python tools/merge-train.py bisect              # isolate a failing lane
 python tools/merge-train.py fail --lane <lane>  # send the culprit back to its lane
 ```
 
-1. **Batch (up to K lanes, start with K = 8), oldest first.** Docs-only lanes go first: they never need a regress.
+The coordinator's step-by-step commands and operator notes are in [docs/ops/coordinating.md](ops/coordinating.md)
+"Landing work: the merge train".
+
+1. **Batch (up to K lanes), oldest first.** Docs-only lanes go first: they never need a regress.
 2. **Merge them one after another onto `integration/<n>`, cut from `main`.** Conflicts are resolved once for the
    whole batch, not per lane.
 3. **Gate and regress once for the batch** (skipped when `engine/`, `tools/`, `tests/` and `.claude/lane-bin/` are
@@ -103,6 +86,7 @@ Notices are `build-runs/merge-notices/<lane>.md` and `build-runs/merge-notices/t
 
 ## Measuring
 
-Every lane should record its token count against the coverage bytes it moved, so "tokens per coverage point"
-becomes a measured figure instead of an estimate. Coverage numbers come from `python tools/coverage.py`
-(`docs/coverage-report.md`), never from an estimate.
+Coverage numbers come from `python tools/coverage.py` ([docs/coverage-report.md](coverage-report.md)), never from an
+estimate. Tokens per lane and per coverage point come from `python tools/lanes.py ledger`
+([docs/token-ledger.md](token-ledger.md)), dollars per point from `tools/spend.py`
+([docs/ops/efficiency-log.md](ops/efficiency-log.md)). A lane does not record them itself.
