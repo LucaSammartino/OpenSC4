@@ -8,6 +8,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 ## 0. Current state (2026-10-22, run4 open-ended)
 **Coordinator parked re-wingrid4:** 3/3:165/198 functions26103/32735B documented;33functions6632B plusWG3/WG4 remain. No fourth round.
 
+**train72 landed ce726c6d9a:** Scoped Codex Git transport repair:120tools tests and real guarded detached commit/checked own-branch publication PASS; existing metadata write allowed while config/main ref write denied. Nonfatal maintenance denial retained in evidence; no ACL removal or guard bypass. SP1/SP6 context proofs published; no runtime replacement. Refill pause clears only after repair lands and shared guards are rerun. Coverage57.6/35.4/16.5/17.9; rounds234 (open-ended).
+
 **train71 landed 307118c02e:** Advisor AD12-AD15 and exemplar EX52 a-d/f plus EX53 native proofs landed; AD16 and EX52 e source/content remain questions. Coordinator recovered reviewed docs after Codex sandbox denied Git commits; original results preserved, no extra rounds. Codex refills paused for scoped Git transport repair; running work preserved. No runtime promotion. Coverage57.6/35.4/16.5/17.9; rounds234 (open-ended).
 
 **train70 landed b60a7c3434:** Dual Claude/Codex subscription lane backends tested. Shared guards, rounds, parking and worktrees;115tools tests and real Codex two-call watchdog denial PASS. Full train gate/regress recorded. User requested testing only: STOP set;zero project workers started;no pilot/refill until user resumes. Claude quota pause preserved. No new runtime replacement. Coverage57.6/35.4/16.5/17.9; rounds225 (open-ended).
@@ -36,11 +38,11 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **User policy:** no total round limit. Continue until user STOP, existing STOP, or no work passes check. Target6-8 live lanes, refill up to7 initially (latest user instruction), max3glue, max3rounds per lane. Refill immediately after slots/check pass; no fourth round or bypass of denial. Usage/rate limit pauses refills until clear. STOP: `python tools/lanes.py stop "<reason>"`, land on-disk ready work, push, end.
 
-**Coverage after train71:**57.6/35.4/16.5/17.9; baseline36.8/28.3/12.1/15.9, delta+20.8/+7.1/+4.4/+2.0 points. 44 trains landed; 234 rounds used, no total cap. Next25-round checkpoint 250.
+**Coverage after train72:**57.6/35.4/16.5/17.9; baseline36.8/28.3/12.1/15.9, delta+20.8/+7.1/+4.4/+2.0 points. 45 trains landed; 234 rounds used, no total cap. Next25-round checkpoint 250.
 
 **Live authority:** `build-runs/run4-coordinator-state.json`; `run4-refill.py` launches reviewed briefs from `run4-refill-queue.json` through serialized `run4-launch.py` and the saved guarded Workflow. PID in run4-refill.pid; quota/errors pause refills. All slots/check/dependency/STOP/parked/3glue gates retained. After compaction reread this section and run guard before adding work. Helpers share run4_coord_lock.py; use its lock for state writes.
 
-**Train authority:** `build-runs/merge-train/state.json`; latest landed train71. Start next batch when2+ ready; guard and ancestry remain authoritative.
+**Train authority:** `build-runs/merge-train/state.json`; latest landed train72. Start next batch when2+ ready; guard and ancestry remain authoritative.
 
 **Parked at3/3, never fourth:** verify-netmgrfix4(aed635a8,2/73exact,21missing RNGdraw batches,ABIadditionsunreviewed), glue-exemplars4(581778a9,3/3candidateclean2032ref0 butEX46-EX50open; registry conflict waits), core-construction4(f6dddaa7,v4 NO15 reader fixed; OP13-OP16 remain; actual2/3; prior occprops phase landed; remains parked pending OP13-OP16), core-netocc-records4(c5e769ae,partial NO15-NO17 records; NO14/NO18-NO20 remain; logical3/3 with netocc4), re-view3dwin4(78a7bd7c,partial input/AddGUI specs;VW2-VW6/helpers remain;preserveWT/ABI proposals), re-legacycontrol4(603ed696,45/57functions;12interpreters andLC4/LC5/LC8 remain;partialdocs queued, preserveWT), re-rzservices4(File/INI/Directory/OFStream complete; CmdLine slot10/SysServPtr incomplete), glue-terrain3(97b1c237), re-driverdraw4(partial DX7, landed32), re-editors4(partial curves, landed30), re-particles4(partial drawing, landed30), re-widgets4(partial base, landed28), re-application4(partial57/322, landed27), re-terrain4(answers landed25). Preserve parked worktrees, even when supported portions landed.
 
