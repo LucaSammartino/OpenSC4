@@ -191,9 +191,10 @@ deal rows after the header. Three one-deal A sections give six rows, not three.
 ### 3.2 Combo-row ownership and selection edits
 
 Each displayed combo row is an owner-built 24-byte record in +0x50..+0x54: its first word is the combo
-control ID; +0x10 is a retained deal interface. Other words are row/presentation metadata whose exact
-values still need the bounded refresh/options audit. The append helper `0x0077E5A0` copies the data words
-and AddRefs +0x10, then advances by 24. Row construction first takes a temporary deal reference
+control ID; +0x10 is a retained deal interface. The +8/+12 words are row/presentation metadata whose exact
+values still need the bounded refresh/options audit. The append helper `0x0077E5A0` copies +0, +8, +12
+and +16; it does not initialize +4 or +20 in its spare-capacity path. It
+AddRefs +0x10, then advances by 24. Row construction first takes a temporary deal reference
 (`0x0077F823`–`0x0077F850`) and later releases it. Erase helper `0x0077C3C0` releases the pointer at
 entry +0x10 for each erased record (`0x0077C3EC`–`0x0077C3FB`). These references are separate from
 the held-deal vector and cannot be replaced with a host-owned selected-deal result.
@@ -210,16 +211,19 @@ Selection 0: if deal flags bit 1 is clear, do nothing. If set, call deal slot 34
 `0x6A3FF01C:0xCA5793C0`, then notify through combo slot 28/+0x70 with (0,1) and deal slot 37/+0x94
 with (1,1) (`0x0078BDFD`–`0x0078BE85`).
 
-Nonzero selection: first, if deal slot 39/+0x9C with mask 0x100 returns true, make no edit. Otherwise read
-flags; when bit 1 is clear call deal slot 35/+0x8C first. Then read maximum amount (slot 18/+0x48), increment
-(slot 16/+0x40), and current amount (slot 10/+0x28). All these scalar operations are 32-bit integers.
-If current amount != 0 and the **low 32 bits** of increment*selection exceed current amount in an unsigned
-comparison, the special branch chooses truncating signed maximum/current as the combo selection, writes
-the special LTEXT `0x6A3FF01C:0x6A57943C`, then calls slot 17/+0x44 with maximum. Otherwise call slot
-11/+0x2C with the low 32-bit product, set combo selection 0 and display
-`0x6A3FF01C:0x2A5794A0`. This order and distinction are from `0x0078BE90`–`0x0078BFDA`; the unusual
-current-amount divisor is intentional, not maximum/increment. Special-branch localization instance needs
-one final byte check before implementation (see section 5).
+Nonzero selection S: first, if deal slot 39/+0x9C with mask 0x100 returns true, make no edit. Otherwise read
+flags; when bit 1 is clear call deal slot 35/+0x8C first. Define the raw 32-bit accessor results as M=slot
+18/+0x48, I=slot 16/+0x40, A=slot 10/+0x28; avoid guessing their semantic names from folded symbols.
+Read M first. If M != 0, compare the **low 32 bits** of I*S to A, unsigned. When that product exceeds A,
+compute k = trunc_signed(A/M) - trunc_signed(A/I) + S (32-bit differences/sum), call slot 11/+0x2C with
+the low 32 bits of M*k, set combo selection 0, display LTEXT `0x6A3FF01C:0x2A5794A0`, then call
+slot 17/+0x44 with a fresh M read. If M == 0 or the product does not exceed A, call slot 11 with low32(I*S),
+set combo selection 0 and display the same LTEXT. The special path reads A separately for each division,
+I separately for the divisor, then M again for its product; do not collapse public calls if inputs can change.
+The ordinary path rereads I for its product; the special path also rereads M for its first divisor.
+The signed IDIV and unsigned product comparison are intentional (`0x0078BE90`–`0x0078BFDA`).
+For stable A=100,I=30,M=20,S=4: 120>100, k=5-3+4=6, set amount 120 then slot17(20). S=3 takes the
+other path, sets amount 90 and does not call slot17. No floating-point funding conversion belongs here.
 
 Raw deal primary table is at `0x00AB1DD8` (data references from `00AB1DD8` through `00AB1E74`). It is
 absent from the named vtable query's results, so slot names above are behavioral descriptions, not guessed
@@ -292,7 +296,8 @@ an update with neither ID retains that value. Missing budget resets it to zero.
 
 ### 4.2 UpdateBalanceSheetInfo (`0x00767990`), proved computation boundary
 
-Return immediately if panel window +0x10 is null. Otherwise always CalculateValues first, obtain the two
+First use panel window +0x10 slot 3/+0x0C and then returned object's slot 11/+0x2C, with no null check
+(`0x00767998`–`0x007679A5`). Then always CalculateValues, obtain the two
 GS colors (0x77,0,0) and (0x44,0x55,0x66), then test the dword +0x198. Zero selects the summary rendering
 path, nonzero the detailed path (`0x00767990`–`0x007679EB`). The summary writes funds to controls
 `0xAA3AC100` and `0xAA3AC10E`; color is the second color for signed funds >=0 and the first for negative.
@@ -305,8 +310,8 @@ refresh callback. SetFormattedAmountInTextControl remains an owner helper requir
 ## 5. Bounded remainder / completion boundary
 
 BW17 remains open, partially resolved by sections 1–4. Next bounded audits: (1) ordinance refresh, scale
-initialization and B money formatting; neighbour combo options/set_comboBox, three remaining metadata words,
-special-branch LTEXT byte check, temporary-list reference balance and updateNeighborBudget row reuse;
+initialization and B money formatting; neighbour combo options/set_comboBox, the +8/+12 metadata words,
+temporary-list reference balance and updateNeighborBudget row reuse;
 (2) individual enumeration/+0x44 restore acquisition and group/individual refresh reuse; (3) popup/empty/setup
 failure references, loan-display/tax/setup helpers and remaining balance-sheet control rendering. The inventory
 above is the checklist; layout alone may stay presentation, but counts, selection, filtering, arithmetic and
