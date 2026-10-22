@@ -12,7 +12,7 @@ The attribution audit at the lane's base (`a1804eeb`) assigns **70 bodies / 31,2
 to this owner: two by medium-confidence names, one by neighbor, and 67 by reachability.
 Attribution is an inventory boundary, not proof of class membership. In particular,
 many bodies are decoder helpers reached through the registered objects. This document
-does **not** yet justify complete-owner coverage; see §1 and questions TD1–TD3.
+does **not** yet justify complete-owner coverage; see §1 and open questions TD1/TD4.
 
 ## 1. Complete attributed-body checklist
 
@@ -149,6 +149,48 @@ secondDestination+20h*k (k=0..15). Only these word locations are stores; gaps
 remain history. It returns without EMMS. Its complete butterfly/coefficient
 arithmetic remains open: the scattered stores and packed signed-word operations
 must not be replaced by an assumed floating transform. Evidence: `00407000–0040798B`.
+
+#### Residual body reconciliation (2026-10-22)
+
+Every remaining U entry below was reconciled against exported body metadata,
+entry instructions, direct callers/callees and the corresponding native decomp
+body. This is a **remaining-proof list**, not an assertion that its algorithm has
+been specified. For the three largest synthesis bodies the complete instruction
+streams were additionally paged; that alone does not close arithmetic. Addresses
+in the caller column are call instructions and provide a reproducible route from
+the registered-service decode path. All 18 bodies / 22,853 B remain attributed;
+none is excluded as an unrelated library merely because it is not a director
+method. Native `CMpegBase` diagnostics establish the decoder boundary, not an
+alternative owner-credit calculation.
+
+| U body / bytes | Primary direct caller | Observed role; still unproved contract |
+|---|---|---|
+| `00407000` / 2444 | `00A6A2F1` | Packed-word transform into scattered history; complete butterfly constants, wrapping/high-product arithmetic and numerical vectors (§1.1 boundary only) |
+| `00A66BEF` / 189 | `0094A144` | Memory-input setup, virtual header call, history/format reset and seek-offset calculation; exact mixed32/64-bit division, failure mutations and setup ownership contract |
+| `00A66CAC` / 2078 | `00A6999D` | Float hybrid transform using block-type branches; full coefficients, x87 order/spills, output/overlap mapping |
+| `00A6832D` / 1414 | `00A6A041` | Full-rate scale factors from ring-bit reads, selection flags and signed-byte tables; every long/short/mixed layout and retained-field/bit-count rule |
+| `00A688B3` / 584 | `00A68B24` | Reduced-rate scale-factor decompression into shared scratch; exact tables, channel/mode cases, out-of-range compression and shared-state contract |
+| `00A68AFB` / 286 | `00A6A048` | Calls preceding decompressor then maps scratch into channel scale-factor arrays; all destination permutations, zeroed and retained cells |
+| `00A68C19` / 684 | `00A6A070` | Signed coefficient dequantization with power/gain tables and `_pow`; complete binary32/x87 rounding, table bounds and gain-order rules |
+| `00A68EC5` / 319 | `00A6A0DC` | 576-word copy or short/mixed reordering via signed-word tables; full permutation/table values, aliasing and bounds |
+| `00A69004` / 97 | `00A69235` (four calls in stereo body) | Writes a pair of weighting values from parity/indexed table; native coefficient table and all input/overflow cases |
+| `00A69065` / 2084 | `00A6A09F` | Mono copy or joint-stereo reconstruction with scale-factor bands/weights; full channel/mode cases, native tables and float operation order |
+| `00A69889` / 173 | `00A6A0F0` | Cross-band float mixing with long/short/mixed early exits; coefficient values, x87 precision and update ordering |
+| `00A69936` / 410 | `00A6A104` | Invokes hybrid transform across subbands and updates overlap history; complete block selection/output permutation and retained state |
+| `00A69AD0` / 457 | `00A69D76` and `00A69DEF` | Huffman table traversal, escape/sign reads and special count1 cases; exact table format, termination, error/partial-bit and output mutations |
+| `00A69C99` / 493 | `00A6A05B` | Region-selected Huffman pairs/quads with bit-end accounting and rewind; complete overrun, invalid-selector and output-bound contract |
+| `00A69E86` / 981 | `00A66B55` | CRC/side-info/reservoir, per-granule decode pipeline and packed/float synthesis dispatch; ignores side-parser AL at `00A69EC2`; complete error propagation, reservoir availability and sample-count contract |
+| `00A6A25B` / 5716 | `00A6A221` | Packed synthesis/windowing; §1.1 proves phase/buffers/strides but complete window tables, central multiply-high and numerical outputs remain open |
+| `00A6B918` / 3773 | `00A6C8A8` | x87 transform using global scratch `00BB87A8` and binary32 coefficient operands; complete butterfly graph, spill points, aliasing/reentrancy and numerical vectors |
+| `00A6C808` / 671 | `00A6A1F5` | Float synthesis/window dots feeding proved PCM store helper; complete window tables, x87 order/rounding and state/output mapping |
+
+The logical chain is service+38 → `0094A0E4` → `00A66BEF`/`00A66B32` →
+`00A69E86` and the above scale-factor/Huffman/numerical bodies. The packed branch
+then reaches `00A6A25B` → `00407000`; the float branch reaches `00A6C808` →
+`00A6B918`/`00A6C7D5`. Numeric setup does not become unreachable merely because
+one branch uses packed output. Direct-call queries are incomplete for virtual
+edges: the retained neighbor-attributed `00A66A31` is a header-check entry (§5.9),
+not a reason to discard the memory-input setup which calls through its table.
 
 ## 2. Construction, singleton, and real registrations
 
@@ -834,7 +876,9 @@ review fixtures, not reports of execution against an implementation or the game.
 
 Checklist reconciliation: D=6 bodies/294 B; S=45 bodies/8125 B; U=18 bodies/22853 B;
 A=1 artifact/21 B. D/S are documented boundaries, not proof that nested decoder
-arithmetic is specified. TD1 and TD4 remain open; TD2 is answered in §5.2/§5.3,
+arithmetic is specified. This residual phase adds contracts/boundaries for 15
+previously U bodies / 5099 B, including the 3405-byte side-information parser;
+the exact remaining U list is in §1.1. TD1 and TD4 remain open; TD2 is answered in §5.2/§5.3,
 with numeric interface identities retained; TD3 is answered in section 2
 and archived in answered/tools-com-director.md. Whole-owner promotion is withheld.
 
