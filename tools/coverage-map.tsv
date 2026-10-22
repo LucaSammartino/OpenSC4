@@ -319,7 +319,7 @@ cGroupLayer	audio	audio	-	-	-	-
 nSGLDX7*	3D driver (DirectX 7)	renderer	-	-	-	-
 nRZSimGL*	3D driver (DirectX 7)	renderer	-	-	-	-
 cGZBufferSimGLCache	3D driver (DirectX 7)	renderer	-	-	-	-
-cSC4GDriversCOMDirector	3D driver (DirectX 7)	renderer	-	-	-	-
+cSC4GDriversCOMDirector	3D driver (DirectX 7)	renderer	renderer-gdrivers-director.md,renderer-gdrivers-director-inventory.md	-	-	-
 cS3DCamera	camera and projection	renderer	camera.md	-	-	-
 fn:GZCOM_CreatecS3DCamera	camera and projection	renderer	camera.md	-	-	-
 fn:GZCOM_CreatecSC4CameraControl	camera and projection	renderer	camera.md	-	-	-
