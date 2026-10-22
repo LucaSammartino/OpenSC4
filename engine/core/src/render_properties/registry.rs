@@ -1,0 +1,102 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//! Static registrations in spec §3 order. Unlisted extra values are both zero.
+
+pub(super) struct Registration<T> {
+    pub name: &'static str,
+    pub value: T,
+    pub extra_values: [T; 2],
+}
+
+const fn registration<T>(name: &'static str, value: T, extra_values: [T; 2]) -> Registration<T> {
+    Registration {
+        name,
+        value,
+        extra_values,
+    }
+}
+
+pub(super) const BOOLS: [Registration<bool>; 38] = [
+    registration("kForceSoftwareDriver", false, [false; 2]),
+    registration("kRenderDynamicView", true, [false; 2]),
+    registration("kRenderStaticView", true, [false; 2]),
+    registration("kRenderWaterEffects", true, [false; 2]),
+    registration("kRenderCloudsAndFog", true, [false; 2]),
+    registration("kForcePointSampling", false, [false; 2]),
+    registration("kForceBilinear", false, [false; 2]),
+    registration("kForceNoAlphaBlend", false, [false; 2]),
+    registration("kForceNoAlphaTest", false, [false; 2]),
+    registration("kRenderShadows", true, [false; 2]),
+    registration("kRenderDecals", true, [false; 2]),
+    registration("kUseSecondStage", true, [false; 2]),
+    registration("kForceDebugTexture", false, [false; 2]),
+    registration("kRenderParticleEffects", true, [false; 2]),
+    registration("kRenderFloraShadows", true, [false; 2]),
+    registration("kRenderTerrain", true, [false; 2]),
+    registration("kShowUpdateRegions", false, [false; 2]),
+    registration("kUseCursorEffects", true, [false; 2]),
+    registration("kDrawLotTextures", true, [false; 2]),
+    registration("kDrawLotFoundations", true, [false; 2]),
+    registration("kDrawLotWalls", true, [false; 2]),
+    registration("kForceTextureRepeat", false, [false; 2]),
+    registration("kUseScreenShake", true, [false; 2]),
+    registration("kRenderUI", true, [false; 2]),
+    registration("kUseUpdateRectClipping", true, [false; 2]),
+    registration("kUseVertexBuffers", true, [false; 2]),
+    registration("kShowBoundingBoxes", false, [false; 2]),
+    registration("kUseOverlayCulling", true, [false; 2]),
+    registration("kRenderSnapshot", false, [false; 2]),
+    registration("kNoAddSigned", false, [false; 2]),
+    registration("kNoPartialBackingStoreCopies", false, [false; 2]),
+    registration("kUseScreenFlash", true, [false; 2]),
+    registration("kRenderAutomata", true, [false; 2]),
+    registration("kPreferOpaque", false, [false; 2]),
+    registration("kDisplayAlertBorders", true, [false; 2]),
+    registration("kDrawLotOpaqueTextures", true, [false; 2]),
+    registration("kUseViewCleanup", false, [false; 2]),
+    registration("kDoAutoZoomAndRotationChanges", true, [false; 2]),
+];
+
+pub(super) const INTS: [Registration<i32>; 24] = [
+    registration("kViewOffsetY", 0, [0; 2]),
+    registration("kViewOffsetX", 0, [0; 2]),
+    registration("kTextureBits", 32, [0; 2]),
+    registration("kLODOffset", 0, [0; 2]),
+    registration("kShadowDebug", 0, [0; 2]),
+    registration("kMaxParticlesTarget", 10000, [0; 2]),
+    registration("kParticleLODOffset", 0, [0; 2]),
+    registration("kEffectPriorityLevel", 5, [1, 5]),
+    registration("kBackingStoreMaxZoomAll", 5, [0, 5]),
+    registration("kBackingStoreMaxZoomBuildingsProps", 5, [0, 5]),
+    registration("kBackingStoreMaxZoomTerrain", 5, [0, 5]),
+    registration("kBackingStoreMaxZoomFlora", 5, [0, 5]),
+    registration("kShadowQuality", 2, [0; 2]),
+    registration("kMinVehicleZoom", 3, [0; 2]),
+    registration("kMinPedZoom", 4, [0; 2]),
+    registration("kCursorType", 1, [0; 2]),
+    registration("kDepthOffset", 2, [0; 2]),
+    registration("kDebugTexture", 0, [0; 2]),
+    registration("kDirtyRectMergeFrames", 4, [0; 2]),
+    registration("kSoundDetail", 2, [0; 2]),
+    registration("kBuildingVariety", 2, [0; 2]),
+    registration("kBuildingLoaderSpeed", 1, [0; 2]),
+    registration("kModelLODOffset", 0, [0; 2]),
+    registration("kStringTextureCacheSize", 1024, [0; 2]),
+];
+
+pub(super) const FLOATS: [Registration<f32>; 15] = [
+    registration("kParticleEffectsLOD", 5.0, [1.0, 10.0]),
+    registration("kSplatTextureScale", 50.0, [1.0, 128.0]),
+    registration("kTexBindMaxFree", 2.0, [0.0, 32.0]),
+    registration("kParticleDensity", 1.0, [0.0; 2]),
+    registration("kParticleDamping", 0.0, [0.0; 2]),
+    registration("kParticleScale", 1.0, [0.0; 2]),
+    registration("kLightingUpdateDelta", 0.0001, [0.0; 2]),
+    registration("kShadowModelThreshold", 12.0, [0.0; 2]),
+    registration("kDemolishModelThreshold", 12.0, [0.0; 2]),
+    registration("kRenderModelThreshold", 6.0, [0.0; 2]),
+    registration("kRenderModelThresholdScroll", 40.0, [0.0; 2]),
+    registration("kParticleSizeThreshold", 300.0, [0.0; 2]),
+    registration("kMaxVehiclePct", 1.0, [0.0; 2]),
+    registration("kMaxPedPct", 1.0, [0.0; 2]),
+    registration("kOpaqueUIAlphaValue", 0.55, [0.0; 2]),
+];
