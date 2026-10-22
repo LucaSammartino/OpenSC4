@@ -227,6 +227,11 @@ void ScriptParseTests() {
         CHECK(ErrorIs("2026-02-01 port heliport 1 2", "port 'heliport' is not airport or seaport"));
         CHECK(ErrorIs("2026-02-01 port airport 1", "port takes 3 to 5 argument(s) (airport|seaport x z [facing [type]])"));
         CHECK(ErrorIs("2026-02-01 port airport 1 2 4", "port facing '4' is not 0..3"));
+        CHECK(ParseScriptLine("2026-02-01 portprops 0 90 0", 12, &a, &has, &error) && has);
+        CHECK(a.op == ScriptOp::PortProps && a.x0 == 0 && a.z0 == 90 && a.type == 0);
+        CHECK(ParseScriptLine("2026-02-01 portprops 2 2 1", 12, &a, &has, &error) && a.type == 1);
+        CHECK(ErrorIs("2026-02-01 portprops 0 90 2", "portprops requires cells 0..4095 and state 0..1"));
+        CHECK(ErrorIs("2026-02-01 portprops -1 90 0", "portprops requires cells 0..4095 and state 0..1"));
         // The glue-tutorial4 lane: tutorial query|task n|next|end 0/1|event e|reset a b.
         CHECK(ParseScriptLine("2026-02-01 tutorial query", 13, &a, &has, &error) && has);
         CHECK(a.op == ScriptOp::Tutorial && a.kind == kTutorialQuery);

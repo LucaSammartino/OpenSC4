@@ -1333,3 +1333,14 @@ std::string PortScriptBuild(uint32_t kind, uint32_t type, int32_t x, int32_t z, 
     FC4_RELEASE(reinterpret_cast<cIGZUnknown*>(lot));
     return b;
 }
+
+std::string PortScriptProps(int32_t x, int32_t z, uint32_t state) {
+    cISC4City* city = AppCity();
+    auto* manager = city ? fc4::AsGame(city->GetLotManager()) : nullptr;
+    cISC4Lot* lot = manager ? manager->GetLot(x, z, false) : nullptr;  // borrowed
+    if (lot == nullptr || state > 1) return "unavailable: existing lot and state 0..1 required";
+    const uint32_t count = SetAccessPropsState(nullptr, TokenOf(lot), 0xC98204B8u, state);
+    char b[120];
+    std::snprintf(b, sizeof(b), "PD12 diagnostic calls=%u state=%u lot-at=(%d,%d)", count, state, x, z);
+    return b;
+}

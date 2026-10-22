@@ -227,3 +227,7 @@ cIGZUnknown* CreateFC4SeaportDeveloper();
 // Works through the game's interfaces only, so the original developers adopt it
 // as ours do (§3 0x99EF1142). Returns the result text for the script log.
 std::string PortScriptBuild(uint32_t kind, uint32_t type, int32_t x, int32_t z, uint32_t facing);
+
+// Explicit diagnostic action: PD12 switch on the existing lot at (x,z),
+// property 0xC98204B8, state 0 or 1. Does not call either port developer.
+std::string PortScriptProps(int32_t x, int32_t z, uint32_t state);

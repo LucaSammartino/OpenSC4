@@ -714,6 +714,10 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
      | `port airport\|seaport x z [facing [type]]` | tooling (glue-portdev4; `PortScriptBuild`, `plugin/cFC4PortDeveloper.h`): the stage-0 lot of port type `type` (default 0; the tuning exemplar's list `0x8A270FC3`, the type's lot configuration list `0xCA271781` entry 0) built with its top-left cell at (x, z) as port-developers.md §4.5's swap builds a stage: lot manager `CreateLot` (size from the configuration), `SetLotConfiguration`, `UpdateZoneType`, lot developer `ConstructDefaultLot(lot, cfg, 0, true)`; a site with any lot on it is skipped, and one port of each kind per session is built, so a script can list candidate sites |
      | `tutorial query`, `tutorial task n`, `tutorial next`, `tutorial end 0\|1`, `tutorial event e`, `tutorial reset a b` | tooling (glue-tutorial4; `RunTutorial`): the city's tutorial system (city slot 82; tutorial.md §6) with one call: none (`query`), slot 19 `SetTutorialTaskNumber(n)`, slot 20 `IncrementTutorialTaskNumber`, slot 6 `endTutorial(bool)`, slot 18 `OnTutorialEvent(e)`, slot 17 `ResetTutorialNumAndIndex(a, b)`; then slots 8-12: `-> ret=<AL or -1> isTutorial=.. edgeScroll=.. currentTask=null\|set task=.. guid=0x..`. No `start`: the original's `startTutorial` opens its window. Works with the original class and with `enable = tutorial` |
 
+     The explicit diagnostic action `portprops x z state` switches native spatial props with property `0xC98204B8`
+     on the existing lot at (x,z) to state 0 or 1. It logs filter counts, setter calls and before/after states,
+     and calls no port-developer method.
+
      `save_as <name>` is not available (a parse error that says so). The interface exists
      (`SaveCity(cIGZString const& path, bool fast)`, slot 15, pop 8), but what saving under another path does is
      not documented: whether the city's save path and its region entry move to the new file, and what the region

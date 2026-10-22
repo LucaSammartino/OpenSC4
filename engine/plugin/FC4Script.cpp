@@ -388,6 +388,7 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
                                      static_cast<uint32_t>(a.facing));
             break;
         case ScriptOp::Tutorial: result = RunTutorial(a, city); break;
+        case ScriptOp::PortProps: result = PortScriptProps(a.x0, a.z0, static_cast<uint32_t>(a.type)); break;
     }
     std::string late;
     if (julian != a.julian) late = " (run on " + harness::FormatDate(harness::CivilFromJulian(julian)) + ")";

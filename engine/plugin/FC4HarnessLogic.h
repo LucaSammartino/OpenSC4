@@ -206,7 +206,8 @@ enum class ScriptOp {
     Disaster,
     Network,
     Port,
-    Tutorial
+    Tutorial,
+    PortProps
 };
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
@@ -243,6 +244,7 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::Disaster: return "disaster";
         case ScriptOp::Port: return "port";
         case ScriptOp::Tutorial: return "tutorial";
+        case ScriptOp::PortProps: return "portprops";
     }
     return "?";
 }
@@ -506,6 +508,16 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
             a.z1 = a.z0;
         } else {
             *error = "disaster '" + (nargs > 0 ? tok[2] : std::string()) + "' is not fire, riot or survey";
+            return false;
+        }
+    } else if (name == "portprops") {
+        // Explicit diagnostic action: native PD12 switch on an existing lot.
+        a.op = ScriptOp::PortProps;
+        if (!wantArgs(3, "x z state")) return false;
+        if (!detail::ParseCount(tok[2], kScriptMaxCell, &a.x0) ||
+            !detail::ParseCount(tok[3], kScriptMaxCell, &a.z0) ||
+            !detail::ParseCount(tok[4], 1, &a.type)) {
+            *error = "portprops requires cells 0..4095 and state 0..1";
             return false;
         }
     } else if (name == "port") {
