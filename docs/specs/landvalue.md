@@ -349,8 +349,8 @@ interceptor installation. Init registers native M at levels 0, 10, 4 and 6
 (`0x007043C4–0x007043D7`). The proof above does not establish a way to put a proxy in those
 existing deliveries while preserving target identity, registration order, shutdown removal and
 all notifications. Removing/re-adding an agent or changing a vtable is not approved by this
-proof. An additional independent subscription does not bracket the native call. No early-install
-path before the first developer publication/restored-map loss has been established either.
+proof. An additional independent subscription does not bracket the native call. The native
+startup windows are established in §6.1.2; a complete safe adapter installation is still unproved.
 LV6 stays open for this installation/lifetime/order gap and pending ABI application. LV2 and LV7
 still require actual per-Step/developer/startup captures in the preserved runtime traces;
 static layout proof and output-exact pass-end samples do not resolve them.
@@ -382,14 +382,17 @@ notification targets and invokes each target's slot 3 before returning
 Synchronous delivery does not establish exclusion from framework ticks, other threads or
 callbacks that pump dispatch. In particular the message server releases its collection lock
 before invoking targets (`0x0092EAF1–0x0092EAF8`).
-The copied target references survive until that dispatch's vector cleanup at `0x0092EB15`.
+The copy at `0x0092EAD7` obtains a reference through target slot 1 (`0x005447C7`);
+the references survive until vector cleanup at `0x0092EB15`, which releases each target
+through slot 2 (`0x006C6EA8`).
 Removing a subscription does not cancel a target already copied into that dispatch;
 unsubscription alone therefore cannot justify reclaiming its callback/table or saved context.
 
 **Earliest dispatch and pause.** The agent cannot receive its registered calendar/idle
 deliveries before its registration in Init. There is no initialized-flag guard in native
-land-value DoMessage or Step, so registration itself must not be treated as permission to
-call it during Init. OnTick's active/reentrancy tests are at `0x00703EFE–0x00703F0A`; its
+land-value DoMessage or Step (Step reads state directly at `0x006BE7CD`), so registration
+itself must not be treated as permission to call it during Init. OnTick's active/reentrancy
+tests are at `0x00703EFE–0x00703F0A`; its
 hidden-pause test skips the dispatch loop at `0x00703F25–0x00703F2A`. Ordinary pause skips
 calendar work but still permits idle work (`0x00703F2C–0x00703F4E`). A paused city or a
 pass-end callback is consequently not a demonstrated installation barrier.

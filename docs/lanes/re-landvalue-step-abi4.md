@@ -1,22 +1,67 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-landvalue-step-abi4: LV6 installation/startup proof | Codex / `re-landvalue-step-abi4` (RE spec lane; detached HEAD) | in progress: round 2; existing layout and synchronous forwarding proof preserved | Trace owner creation, Init/Shutdown and earliest dispatch; publish installation preconditions or exact remaining gap. |
+| re-landvalue-step-abi4: LV6 installation/startup proof | Codex / `re-landvalue-step-abi4` (RE spec lane; detached HEAD) | ready: bounded static evidence; LV6 installation gap explicit; docs checks pass; no game runs or C ABI change | Coordinator review/apply/gate ABI proposal separately; reconcile early registration/exclusion and new-city object-only gap before native capture; verify LV2/LV7. |
 
-## Handoff
+## Report
 
-- Goal: prove a safe boundary for native per-Step capture, including startup and teardown.
-- Preserved: b80750e6 layout/forwarding proof and 68c9b4f9 report; prior findings below.
-- Proposal: `build-runs/pending-abi/re-landvalue-step-abi4-layouts.md`; coordinator review/application/full gate still required.
-- LV6 open: QI installs no interceptor; early installation and restoration not yet proved.
-- LV2/LV7 remain pass-end samples, `native_step_capture=0`; no input-fidelity credit.
-- Done this round: §6.1.2 traces new/load pre-init, creation/Init, queued post-init/HiddenResume, pre-shutdown and owner destruction; LV6 narrowed in its question file.
-- Measured native prefixes: DoMessage 6 bytes/continue 0x006BF0D6; Init 5/0x006BE3B5; Shutdown 7/0x006BDF77. No patch bytes proposed.
-- Key asymmetry: NewCity pre-init 0x00454937 precedes owner creation; LoadCity pre-init 0x00455898 follows saved-interface reads. Both precede city Init.
-- Remaining: early observer registration, dispatch exclusion for mutation/restoration, and new-city post-creation callback for object-only route. No safe complete installation claimed.
-- Next: validate citations and message-server registration/lifetime; finalize bounded evidence report and docs-only queue.
-- Main read-only `C:/Users/tlori/FreeCity4`; HEAD intentionally detached. No engine/tools/direct ABI edits.
-- Quiet Bash wrapper failed E_ACCESSDENIED; use bounded PowerShell and local Python queries.
-- No game runs requested; no REA or runtime/gate verdict claimed.
+Round 2 publishes a completed, bounded evidence report. **A complete safe installation is
+not proved; LV6 remains open.** The ready queue is for these specifications and the pending
+proposal only. It neither applies `docs/abi/` changes nor authorizes native capture. The
+round-1 wip queue discussion preserved below is historical; its ABI/full-gate prerequisite
+still applies before an adapter uses the proposed fields.
+
+### Changes and measured results
+
+Proof milestone **5bf0dfc6** adds landvalue §6.1.2 and narrows LV6 in
+`docs/specs/questions/landvalue.md`, preserving b80750e6/68c9b4f9's canonical L/M/S bases,
+native layout and synchronous forwarding proof.
+
+- Both new and loaded cities synchronously send pre-init `0x26D31EC0` before city Init.
+  NewCity's send at `0x00454937` precedes land-value creation. LoadCity's send at
+  `0x00455898` follows saved-interface reads. A single pre-init object query cannot cover both.
+- City Init creates missing components, then calls land-value Init at `0x0045C088`.
+  Native Init prepares progress before registering M at levels 0/10/4/6; initialized is set last.
+- Queued post-init `0x26D31EC1` triggers the simulator's HiddenResume. Its name does not
+  prove a callback runs before the first native delivery. Ordinary pause still permits idle.
+- Synchronous pre-shutdown `0x26D31EC2` at `0x00454ABF` precedes city Shutdown.
+  Owner Shutdown removes agents/subscriptions before releasing grids/iterators; QI refs
+  preserve allocation lifetime only. Notification dispatch copies AddRef'd targets and
+  releases its collection lock before calling them; removal cannot cancel an existing copy.
+- Whole instruction prefixes covering a five-byte branch: DoMessage **6 bytes**, continue
+  `0x006BF0D6`; Init **5**, continue `0x006BE3B5`; Shutdown **7**, continue `0x006BDF77`.
+  Calling bases, stack contract and restoration preconditions are documented. No detour
+  encoding, executable patch or hook implementation is supplied.
+
+### Coordinator proposal and remaining work
+
+`build-runs/pending-abi/re-landvalue-step-abi4-layouts.md` remains the exact proposed
+`docs/abi/layouts.md` section. This round adds initialized/refcount widths and evidence,
+observed allocation size and entry-span observations. No new interface TSV rows are
+requested. Coordinator review/application and a **full train gate** remain required before
+glue may use these private fields. No direct ABI table, engine, tools or C ABI export changes.
+
+LV6 now identifies three precise missing proofs: observer registration/host availability
+before both pre-init sends; exclusion of ticks, notifications and in-flight calls during
+installation/restoration; and, for an object-only route, a callback after new-city component
+creation but before land-value registration. No such callback is established. These are
+implementation prerequisites, not grounds to guess bytes or remove gates.
+
+LV2/LV7 runtime questions and preserved traces remain unchanged. Keep
+`input_capture=pass-end-sample; native_step_capture=0`; no input-fidelity, runtime
+replacement or restored-map causal credit. Next work is host/ABI reconciliation followed
+by real per-Step/state-7 capture and runtime verification, without fitting algorithms or samples.
+
+### Validation and transport
+
+Instruction bytes, bounded decomp reads and export callers/xrefs establish the published
+facts. LoadCity's existing decomp failed on a structure field; export instructions supplied
+the ordering instead. REA was neither needed nor invoked. `git diff --check` passes;
+`python tools/questions.py index` succeeds with no index change. No question moved to
+answered; existing LV6 was refined. No cargo/clippy/ctest/full gate or game runs performed.
+
+The quiet Bash wrapper failed E_ACCESSDENIED, so reads used bounded PowerShell/Python.
+Git printed a shared packed-refs.lock permission error during commit, but the detached
+commit succeeded and its HEAD/clean status were verified; shared refs/config were untouched.
 
 ## Preserved round-1 report
 
