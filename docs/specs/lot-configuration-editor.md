@@ -493,8 +493,9 @@ Record type byte values are 0 building, 1 prop, 2 base texture, 4 flora and
 7 network node in the verified menu/add branches. Geometry uses binary32
 center `(x=+0x04, y=+0x08, z=+0x0C)` and bounds
 `xmin=+0x10, zmin=+0x14, xmax=+0x18, zmax=+0x1C`. Lot extents are unsigned
-dimension bytes multiplied by 16. The rules below concern finite input values;
-NaN/unordered x87 branches remain LE3.
+dimension bytes multiplied by 16. Unless explicitly extended below, numeric
+rules concern finite values. §9.4 establishes unordered cases for containment
+and cleanup; movement/hit-testing unordered cases remain LE3.
 
 ### 9.1 Translation, rotation and mirroring
 
@@ -555,12 +556,21 @@ or cancel. Only result `0x5301814A` permits continuation. No record is repaired
 by this verification. Save supplies partial mode true and prompting true.
 
 RemoveOutOfBoundsLotConfigurationObjects (`0x00484330`, 494 bytes) removes
-types 0/4/1 only when their rectangles fail the inclusive intersection test;
-partially overlapping objects remain. Erasure preserves remaining order and
-continues at the erased index. It also filters a separate packed fence vector,
-then selects the first record or null and redraws/invalidates. Fence-coordinate
-signedness, edge equality and dirty effects remain LE3; do not use this partial
-contract as a fence validator.
+types 0/4/1 when xmax>width, xmin<0, zmax>depth or zmin<0. Equality is allowed.
+**Correction to the earlier partial contract:** this is full containment,
+not intersection; partially overlapping objects are removed. It examines no
+other object types. Erasure preserves remaining order and continues at the
+erased index, destroying the vacated tail payload (`0x00484396..0x0048445A`).
+
+It next filters four-byte fence records in vector `+0xB4..+0xB8`. Record bytes
+2 and 3 are **signed** coordinates; dimensions remain unsigned. Remove if
+signed byte 2 > width or signed byte 3 > depth. There is no lower-bound check;
+negative coordinates and exact upper-edge equality survive. It compacts in
+place, preserving order. The return count includes both removed objects and
+fences. A nonzero count sets dirty and updates title once, after both passes;
+zero does neither (`0x00484460..0x00484520`). This body does **not** select a
+replacement object, redraw or invalidate, and does not repair selection pointers
+invalidated by erasure. Callers must account for those separate operations.
 
 ### 9.3 Addition, duplication and deletion: established subset
 
@@ -576,14 +586,21 @@ Type 7 starts rotation 2; others start zero. Non-building/flora/prop bounds
 start at center ±8. Family-based bounds come from manager slots `+0x60/+0x64/
 +0x68`. The editor boundary-moves the result, inserts it into the record vector,
 selects the first vector record, frees the temporary record/payload, sets dirty,
-updates title, draws and invalidates. Texture insertion order and failed
-allocation paths remain LE3.
+updates title, draws and invalidates. §9.4 specifies texture insertion order,
+record-allocation failures and the type-7 logical-size discrepancy.
 
 DuplicateObject (`0x00484E10`, 557 bytes) accepts only types 0,1,2,4; it copies
-the object, modifies placement through helper `0x0047BB40`, inserts at the
+the object, modifies placement using containment helper `0x0047BB40`, inserts at the
 vector front, selects the first record, sets dirty, updates title, draws and
-invalidates. The helper's offset sequence is LE3, so no exact duplicate
-coordinates are specified here.
+invalidates. Relative to the original geometry, it tries the translations
+`(+4,+4)`, `(-4,-4)`, `(0,-4)` in that order, stopping on the first containment
+success. If all three fail it inserts at `(-8,+4)` **without testing that final
+position**. Each pair is `(x,z)` and moves center and both bounds; y is preserved.
+The first test is `0x00484EAE`, the second `0x00484F1A`, the third
+`0x00484F74`; final untested adjustment/insertion is `0x00484F7D..0x00484FED`.
+Each add/subtract spills separately to binary32. Constants at `0x00A8E17C`
+and `0x00A8E178` are binary32 4 and 8. These are sequential rounded operations,
+not a single final displacement for extreme numeric inputs.
 
 DeleteLotConfigurationObject (`0x00480170`, 411 bytes) optionally asks
 `Are you sure you want to delete this %s?` with flag 3. Result `0x53018149`
@@ -593,6 +610,49 @@ the requested pointer it clears that pointer; it does not reset selected index
 or drag/capture in this method. It draws and invalidates even when the pointer
 was absent. **This method does not set dirty or update the title.** Do not
 silently repair that omission in the compatibility contract.
+
+### 9.4 Containment unordered cases and insertion details
+
+Helper `0x0047BB40` constructs the binary32 rectangle `(0,0,16*width,16*depth)`
+from unsigned dimension bytes and calls `0x0047B2A0`. The latter requires
+object xmax≤right, left≤xmin, zmax≤bottom and top≤zmin for finite values.
+Its x87 status tests allow unordered comparison at **each** check
+(`0x0047B2BB..0x0047B2F4`: three tests of status mask `0x41` for zero, one
+parity test of mask `0x05`). Thus, with x87 invalid exceptions masked, a quiet
+NaN coordinate does not itself reject containment; other coordinates can still
+fail it. Infinity follows the ordinary ordered comparisons. This helper does
+not test centers, type, finite-ness or rectangle orientation.
+
+The cleanup comparisons likewise let unordered values pass their individual
+checks (`0x004843B8..0x004843FE`, masks `0x05` and `0x41`). This rule is confined
+to these helpers; it does not establish movement, hit-test or conversion rules.
+
+For type 7 addition, the editor resizes the initially empty dword payload to
+**three elements**, then stores words at byte offsets 0,4,8,12 as
+`0,0,0x02000000,0` (`0x00484BCA..0x00484BEE`). The last store is beyond the
+logical end. Do not silently describe it as a four-element payload or a safe
+16-byte allocation. Allocator capacity and the consequences of that fourth
+store remain LE3. All six record-allocation paths set the result to null on
+allocation failure, then write its type/fields without a guard; these are not
+clean no-op exits (`0x004848BB..0x004848D4`, `0x0048498F..0x004849A8`,
+`0x00484A64..0x00484A7D`, `0x00484B39..0x00484B52`,
+`0x00484B93..0x00484BB0`, `0x00484C06..0x00484C2E`).
+
+The common default-bounds block stores `x+8` at `+0x10`, `z+8` at `+0x14`,
+`x−8` at `+0x18`, `z−8` at `+0x1C` (`0x00484C5D..0x00484C8C`). These are
+reversed relative to the min/max field convention above; do not normalise them
+when reproducing this block. The boundary-mover option is false for flora
+type 4 and true otherwise. Its result is ignored. Type 2 appends at the object
+vector's end, through the misleadingly named `0x00479BE0` helper; other types
+insert at the front. **Selection always takes the vector's first record**, so
+adding a base texture to a nonempty vector selects an older object, not the new
+texture (`0x00484C8F..0x00484CDD`, append proof `0x00479BE0..0x00479C1A`).
+
+Constructor helper `0x00478360` is reached directly by these allocations. It
+copies shared word `0x00B21670` into x/y/z, sets bounds to `(0,0,1,1)`, and
+zeroes the three payload-vector words; it leaves the type/flag bytes and
+creation word untouched. This proves a record-construction dependency, not
+exclusive editor ownership of this shared helper.
 
 ## 10. Additional independent conformance vectors
 
@@ -608,7 +668,7 @@ silently repair that omission in the compatibility contract.
 | Step modifier masks 0,1,2,3,4,7. | Move Right, away from bounds. | x and both x bounds increase by 0.25,1,0.5,2,2,16 respectively. |
 | Non-prop selected; Space held. | Key Move Up. | No y/z change, but boundary pass/dirty/title/draw/invalidating postlude still runs. |
 | Rect xmin=−2,xmax=2,zmin=1,zmax=3 in 16×16 lot. | Verify partial/full modes separately, no prompt. | Partial passes, full fails. |
-| Same partially overlapping rectangle. | Post-open cleanup. | Object remains; cleanup is based on intersection. |
+| Same partially overlapping rectangle, type 0/1/4. | Post-open cleanup. | Object is removed; cleanup requires full containment. |
 | x center 5,z center 6; bounds x=[3,7],z=[5,7]; rotation 3. | Rotate. | Rotation 0; x=[4,6],z=[4,8]; dirty/title/draw sequence runs. |
 | Dirty false; selected object A with index n. | Delete A without prompt. | A erased, selected pointer null, index n retained, dirty still false; draw/invalidating calls run. |
 | Type 5 selected, dirty false. | Mirror. | No mutation, dirty/title/draw untouched. |
@@ -674,3 +734,131 @@ clicks and the remaining drag/capture details remain LE5, not inferred here.
 | Capture held, drag false. | DoEditMouseUpL. | Returns true and leaves capture held. |
 | Capture held, drag true. | DoEditMouseUpL. | Drag clears and capture releases. |
 | Condition 6 versus 7 (separate runs). | Press C. | 6 becomes 0; 7 becomes 8. Both invoke refresh. |
+
+## 12. Family and texture selectors: traced contracts *[compat]*
+
+The four selectors share the following native workflow. Each creates the
+scripted window, queries its grid as IID `0xDAA6B9BE`, initialises the grid
+with `(2,32,0)`, clears rows, populates, then calls grid `+0x20C` with
+`(0,0,1,0)` (textures use their third argument for the last word). The meaning
+of the grid's last two sort options is not assigned here. Each temporarily
+installs editor callback subobject `+0x128`, registers/runs/unregisters the modal
+window, restores editor focus and removes the callback. Only result
+`0x42B7C356` accepts. Missing window or grid returns false; a missing grid
+prevents the modal attempt and still shuts down/Releases the created window.
+
+| Method | Factory selector | Script key (type,group,instance) | Grid ID |
+|---|---|---|---|
+| Building `0x004827D0` | `0x89264BF9` | `(0,0x96A006B0,0xE9263D4F)` | `0xE9264E71` |
+| Flora `0x00482DC0` | `0x89264BFA` | `(0,0x96A006B0,0x89404462)` | `0x69433083` |
+| Prop `0x004832E0` | `0x097CEFB0` | `(0,0x96A006B0,0x697CEF4C)` | `0x097CEFB1` |
+| Texture `0x0047CC30` | `0x6987B3F8` | `(0,0x96A006B0,0x6987B3F7)` | `0x6987B3F9` |
+
+Column 0 contains `0x%08x` ID text. Building rows come from manager
+`0x00B43D68`, family enumeration `+0x34` followed by individual enumeration
+`+0x2C`; column 1 is `Family: ` plus the family-name helper's result, or
+`Bldg: ` plus the building-name helper's result. Prop rows use manager
+`0x00B43D10`: argument 3 enables family enumeration `+0x18`, argument 4 enables
+individual enumeration `+0x14`. Column 1 prefixes are ` (F)` and ` (P)`
+respectively, followed by the corresponding name-helper result. Flora rows use
+manager `0x00B43D80`, families `+0x28` then individuals `+0x20`; family names
+are unprefixed helper results, while **every individual name is literal
+`<Flora>`**. Texture rows use parallel editor ID/image arrays `+0x1C4` and
+`+0x1D0`; column 1 receives the image pointer at the same index through
+grid `+0x1C8`. The latter array is indexed without a separate length check.
+
+A non-null second argument supplies preselected IDs. The native search helper
+at `0x004696C0` is misleadingly labelled `push_back` in the export: these
+call sites pass begin/end/value and compare the returned iterator to end.
+Matching IDs select column 0 of the row. Family and individual rows are not
+distinguished by a tag in this lookup, so equal IDs can preselect both rows.
+
+Acceptance requests at most 32 selection records, reads the selected row's
+**current column-0 text**, parses it with `RZAtoUint32HexA`, and appends each
+nonzero result to argument 1's vector. There is no private row-to-ID map, no
+output-vector clear, no deduplication and no family/individual tag in output.
+Zero is skipped. Empty acceptance returns true with the output unchanged;
+cancellation returns false and appends nothing. A null output pointer is not
+guarded when a nonzero selected ID is appended. Grid interfaces and temporary
+row/enumeration storage are released on normal exit; the window is then shut
+down and Released. The selectors themselves do not mark editor data dirty.
+
+Evidence: building `0x0048281C..0x00482DBD`, prop
+`0x0048332E..0x004838BC`, flora `0x00482E0F..0x004832D5`, texture
+`0x0047CC7B..0x0047CF86`. Name-helper fallbacks and remaining sort-option
+semantics remain open; this is not completion of LE4's other dialogs/popups.
+
+### 12.1 Dialog callback and keyboard search
+
+Callback `0x0047DD60` subtracts `0x128` from its callback-this before invoking
+editor helpers. Category 3 with command `0x287259F6` dispatches the following
+sort controls; it reports handled even if the helper cannot find a grid.
+
+| Controls (column 0 / column 1) | Grid |
+|---|---|
+| `0x097CEFB2` / `0x097CEFB3` | `0x097CEFB1` |
+| `0x69433011` / `0x69433012` | `0x69433083` |
+| `0xE9432DD7` / `0xE9432DD8` | `0xE9264E71` |
+| `0x6987B3FA` / none | `0x6987B3F9` |
+
+`DoDialogBoxGridSort` (`0x0047ABA0`) locates the clicked control and its parent,
+queries that parent's appropriate grid and calls `+0x20C` with
+`(column,modifier,1,0)`. Modifier is true if key `0x11` or `0x10` is down.
+Missing control/parent/grid ends without sorting. The acquired grid is Released.
+These raw option values are established without assuming sort direction or
+numeric-vs-text collation.
+
+Otherwise categories 3 and 5 consume message words `0x41..0x5A` as letters;
+all other cases return false. `DoDialogBoxScrollToLetter` (`0x0047CA60`)
+queries **only prop grid `0x097CEFB1`**, including when called from another
+dialog. It scans the inclusive row interval returned by grid `+0xC8`, reading
+column 1, and scrolls through `+0x90` to the first row whose first string byte
+exactly equals the supplied letter. There is no case folding, substring search
+or wraparound in this body. Missing grid/no match causes no scroll; acquired
+grid and temporary string are released (`0x0047CA60..0x0047CB65`).
+
+## 13. Rendering: newly established subset *[compat]*
+
+`DrawCurrentLotConfiguration` (`0x0047E060`) obtains surface IID `0x20732180`
+from editor reference `+0x138`; acquisition failure skips drawing. Its clear
+phase requests colour `(192,192,192)`, locks with `0x8001`, clears through
+surface `+0x48`, and unlocks only after a successful lock
+(`0x0047E066..0x0047E0D2`). Objects are drawn in **reverse vector order**:
+last record first, first record last. Fence drawing follows the object pass
+(`0x0047E32D..0x0047E394`). This makes insertion order observable.
+
+`DrawLotConfigurationObject` (`0x0047CF90`) gives type 3 a separate marker
+path: colour `(0,72,72)`, lock `0x8400`, two calls to marker helper
+`0x008DA370`, then unlock and return. Failed lock skips the calls and unlock.
+It bypasses the ordinary object/height-label path (`0x0047CF98..0x0047D01B`).
+
+For the ordinary path, the height-label gate at `0x0047D527..0x0047D53B`
+skips height equal to zero, including negative zero. An unordered height passes
+the gate (x87 invalid exceptions masked). It promotes the binary32 height to
+double and formats literal `+%.1f`. For ordered negative heights it replaces
+the first character with `-`; thus −1.0 produces **`--1.0`**, preserving the
+minus already formatted by `%f`. Unordered height retains the literal leading
+plus; the CRT's NaN spelling is not specified here
+(`0x0047D56C..0x0047D5B0`, parity masks `0x44` then `0x05`). Text layout,
+normal-object colour/alpha/outline, coordinate rounding and other draw phases
+remain LE5.
+
+## 14. Discriminating vectors for the newly traced contracts
+
+These are primary-evidence expectations, not outputs of an implementation.
+
+| Initial state / action | Expected distinction |
+|---|---|
+| Compatibility vector has only bit 0 and bit 20; accept no rows. | Both bits clear, not merely the displayed bit range. |
+| Select zone rows 0 and 14, wealth row 2, purpose row 7. | Resulting set bits are zone 1/15, wealth 3, purpose 8. |
+| Change only control `0x294053DB`, then accept otherwise unchanged dialog. | Its model source is unchanged; dirty/title still update. |
+| Missing second compatibility grid; accept after selecting a first-grid row. | First vector can change before the null second-grid dereference. Cancel avoids write-back. |
+| Two providers share a lowercased directory; first fails key derivation, second succeeds. | Second provider can supply the saved identity; no unconditional false return. |
+| Key lookup and QI succeed, path query fails. | Key helper still returns true and retains identity references. |
+| Output IDs initially `[0x10]`; selector returns two rows with ID `0x20` and one zero-ID row. | Output becomes `[0x10,0x20,0x20]`; no clear/dedup and zero is suppressed. |
+| Prop grid with both enumeration flags false; accept empty selection. | True with no appended IDs. |
+| Lot 16×16, type-0 bounds `[0,16]` on both axes; duplicate. | First three offsets fail. Final unchecked bounds are x `[−8,8]`, z `[4,20]`. |
+| Type 0, finite in-range bounds except quiet-NaN xmax; masked x87 exceptions. | NaN alone does not reject containment or cause cleanup removal. A finite out-of-range z bound still can. |
+| Lot dimensions 1×1; fence coordinates `(0xFF,1)`, `(1,1)`, `(2,1)`. | First two survive, third is removed; combined removal count/dirty reflect the one removal. |
+| Nonempty object vector `[A,B]`; add base texture T. | Vector `[A,B,T]`, selected A, draw order T/B/A. |
+| Height 0, −0, +1, −1 in separate ordinary draw calls. | No label, no label, `+1.0`, `--1.0` respectively. |

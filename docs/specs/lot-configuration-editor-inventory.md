@@ -48,15 +48,15 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 | 00480D10 | 6818 | 6818 | DoSetLotCompatibilitiesUI | C §4 |
 | 00487B30 | 5971 | 5971 | DoLotConfigurationObjectMenu | P §3, LE4 |
 | 004871B0 | 2425 | 2425 | DoEditAreaMenu | C §2 |
-| 0047CF90 | 1652 | 1652 | DrawLotConfigurationObject | O LE5 |
-| 004827D0 | 1514 | 1514 | DoSelectBuildingFamiliesUI | O LE4 |
-| 004832E0 | 1503 | 1503 | DoSelectPropFamiliesUI | O LE4 |
+| 0047CF90 | 1652 | 1652 | DrawLotConfigurationObject | P §13, LE5 |
+| 004827D0 | 1514 | 1514 | DoSelectBuildingFamiliesUI | P §12, LE4 |
+| 004832E0 | 1503 | 1503 | DoSelectPropFamiliesUI | P §12, LE4 |
 | 00483DC0 | 1373 | 1373 | DoHitTest | O LE5 |
-| 00482DC0 | 1304 | 1304 | DoSelectFloraFamiliesUI | O LE4 |
+| 00482DC0 | 1304 | 1304 | DoSelectFloraFamiliesUI | P §12, LE4 |
 | 00484850 | 1236 | 1236 | AddNewLotConfigurationObject | P §9.3, LE3 |
-| 0047E060 | 1193 | 1193 | DrawCurrentLotConfiguration | O LE5 |
+| 0047E060 | 1193 | 1193 | DrawCurrentLotConfiguration | P §13, LE5 |
 | 00480910 | 1021 | 1021 | DoSetRetainingWallUI | O LE4 |
-| 0047CC30 | 850 | 850 | DoSelectTexturesUI | O LE4 |
+| 0047CC30 | 850 | 850 | DoSelectTexturesUI | P §12, LE4 |
 | 00485D60 | 799 | 799 | DoSetFoundationUI | O LE4 |
 | 0047FC50 | 726 | 726 | GetAllLotBaseTextureTypes | O LE5 |
 | 00485710 | 717 | 717 | GZOnKeyDown | P §11, LE5 |
@@ -68,12 +68,12 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 | 0047C660 | 612 | 612 | CycleSelectedObject | O LE5 |
 | 00486930 | 610 | 610 | DoLotFoundationMenu | O LE4 |
 | 00485B00 | 605 | 605 | DoOutsideAreaMenu | O LE4 |
-| 00484E10 | 557 | 557 | DuplicateObject | P §9.3, LE3 |
+| 00484E10 | 557 | 557 | DuplicateObject | C §9.3 |
 | 0047AE20 | 547 | 547 | LoadCursors | O LE5 |
 | 0047F480 | 541 | 541 | GetLotConfigurationObjectName | O LE5 |
 | 0047E650 | 531 | 531 | DoSetNetworkNodePathUI | O LE4 |
 | 0047F750 | 510 | 510 | GetBuildingFamilyName | O LE5 |
-| 00484330 | 494 | 494 | RemoveOutOfBoundsLotConfigurationObjects | P §9.2, LE3 |
+| 00484330 | 494 | 494 | RemoveOutOfBoundsLotConfigurationObjects | C §9.2, §9.4 |
 | 0047B890 | 488 | 488 | PostInit | P §7, LE5 |
 | 00486F20 | 473 | 473 | StaticInit | O LE5 |
 | 00484530 | 462 | 462 | AddLotFoundation | O LE3 |
@@ -83,7 +83,7 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 | 00486770 | 434 | 434 | DoEditMouseDownL | P §11, LE5 |
 | 00480170 | 411 | 411 | DeleteLotConfigurationObject | C §9.3 |
 | 00480770 | 409 | 409 | DoSetLotNameUI | O LE4 |
-| 0047ABA0 | 406 | 406 | DoDialogBoxGridSort | O LE5 |
+| 0047ABA0 | 406 | 406 | DoDialogBoxGridSort | C §12.1; raw sort options specified |
 | 00486BA0 | 398 | 398 | DoSetLotSizeUI | O LE4 |
 | 0047E890 | 377 | 377 | ToggleFence | O LE3 |
 | 0047DA80 | 375 | 375 | cSC4WinLotConfigurationEditor | C §7 |
@@ -97,7 +97,7 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 | 004859E0 | 286 | 286 | DoEditMouseMove | P §11, LE5 |
 | 00483C80 | 281 | 281 | ReadLotConfigurationExemplar | C §8.1 |
 | 00604A67 | 270 | — | interior switch case | R; no exported entry |
-| 0047CA60 | 262 | 262 | DoDialogBoxScrollToLetter | O LE5 |
+| 0047CA60 | 262 | 262 | DoDialogBoxScrollToLetter | C §12.1 |
 | 0047B100 | 238 | 238 | SetSelectedLotConfigurationObject | C §1 |
 | 004852A0 | 238 | 238 | Save | C §8.2; dependency LE2 |
 | 00480080 | 228 | 228 | GetRetainingWallName | O LE5 |
@@ -117,7 +117,7 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 | 006049D4 | 147 | — | interior switch default | R; no exported entry |
 | 0047D610 | 146 | 146 | MessageBoxA | O LE5 |
 | 00486530 | 145 | 145 | Open | C §8.1; dependency LE2 |
-| 0047DD60 | 136 | 136 | DoMessage (dialog callback) | O LE5 |
+| 0047DD60 | 136 | 136 | DoMessage (dialog callback) | C §12.1 |
 | 0047B700 | 133 | 133 | GoTo3DView | O LE5 |
 | 0047B390 | 130 | 130 | FUN_0047B390 | O LE5 |
 | 0047F6C0 | 130 | 130 | GetBuildingName | O LE5 |
@@ -129,20 +129,20 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 | 00483920 | 114 | 114 | DoAddNewBuilding | O LE4 |
 | 004839A0 | 114 | 114 | DoAddNewFlora | O LE4 |
 | 00483AA0 | 114 | 114 | DoAddNewLotBaseTexture | O LE4 |
-| 0047B2A0 | 102 | 102 | FUN_0047B2A0 | O LE5 |
+| 0047B2A0 | 102 | 102 | FUN_0047B2A0 | C §9.4 |
 | 0047BAD0 | 101 | 101 | GetIdentityInfoForLotConfigurationType | C §8.4 |
 | 004838C0 | 92 | 92 | DoSelectLotBaseTexturesUI | O LE4 |
 | 0047C8D0 | 88 | 88 | DoAddNewWaterConstraint | O LE3 |
 | 0047C930 | 88 | 88 | DoAddNewTerrainConstraint | O LE3 |
 | 0047EFF0 | 83 | 83 | GetDefaultPath | C §8.2 |
 | 0047B420 | 81 | 81 | LotFoundationIsPresent | O LE3 |
-| 0047BB40 | 81 | 81 | FUN_0047BB40 | O LE3 |
+| 0047BB40 | 81 | 81 | FUN_0047BB40 | C §9.4 |
 | 00486440 | 77 | 77 | FUN_00486440 | O LE5 |
 | 00486490 | 77 | 77 | FUN_00486490 | O LE5 |
 | 004864E0 | 77 | 77 | FUN_004864E0 | O LE5 |
 | 0047BA80 | 73 | 73 | DoMessage (main window) | C §7 |
 | 0047B050 | 69 | 69 | FUN_0047B050 | O LE3 |
-| 00478360 | 64 | 64 | FUN_00478360 (record constructor) | R LE5 |
+| 00478360 | 64 | 64 | FUN_00478360 (record constructor) | R §9.4; editor dependency proved, exclusive ownership unresolved |
 | 0047A830 | 64 | 64 | QueryInterface | C §7 |
 | 00484DD0 | 58 | 58 | MirrorObject | C §9.1 |
 | 0047A8F0 | 53 | 53 | PixelUnitsToObjectUnits | O LE3 |

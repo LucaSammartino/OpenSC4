@@ -8,8 +8,10 @@
 - Prior milestone `ffa85bcf`: exact 109-entry/52646B inventory and partial contracts; LE1–LE5 open. Do not repeat arithmetic.
 - Save As entry is `00485390`; `00485445` is an interior mislabel. Preserve correction.
 - Done: `45b6a09a` resolves LE2, native identity success/new-name/Save As reference transfer, preserving corrected entry.
-- Done: LE1 instruction operands now resolve all 15/3/8 grid rows, row+1 bit maps, full-vector clear, missing-grid fault ordering, and absent first-scalar write-back.
-- Next: finish native family/texture row selection and callback contracts, then numeric/edit/render gaps within guard.
+- Done: `f577d079` resolves LE1: 15/3/8 grid rows, row+1 bits, full-vector clear, missing-grid faults and absent scalar write-back.
+- Done: this milestone traces four selectors/callbacks, duplication retries, signed fences, cleanup/containment unordered cases, type-7 payload discrepancy, allocation faults, insertion/selection/draw order and height labels; adds independent vectors.
+- Correction: cleanup requires full containment, updates dirty/title on removals and does not select/redraw/invalidate. Prior intersection/selection claims superseded.
+- Next: final documentation validation/report and queue as wip; LE3–LE5 remain open, no owner completion or self-restart.
 - Sources: absolute main-checkout export/decomp/executable only; no engine, implementation/test evidence, tools or ABI-table edits.
 - q.py cannot start Bash (`E_ACCESSDENIED`); use bounded PowerShell/Python calls.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-loteditor-window4-r2-manifest.json`.
