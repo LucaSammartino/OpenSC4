@@ -8,6 +8,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 ## 0. Current state (2026-10-22, run4 open-ended)
 **Coordinator parked re-wingrid4:** 3/3:165/198 functions26103/32735B documented;33functions6632B plusWG3/WG4 remain. No fourth round.
 
+**Run4 course correction (11:10):** Exact100-minute audit against5946b0b7: all four coverage byte/function counts unchanged at57.6/35.4/16.5/17.9 despite93commits. Supporting repairs, partial owners and constructed renderer fixtures did not advance headline coverage. Refilled7actualworkers (2core,5RE): new complete-owner watercraft38556B and view-utilities19670B tasks after fresh slots/checkOK. No glue active; dispatch/span8/traffic guards remain binding. Train76 fullgatePASS, regress running. Prioritize owner completion and real replacement, retain no partial credit.
+
 **train75 landed 17b350b472:** 1555 public-context/setter reconciliation with independent packed vectors and980/980 constructed-native exact evidence, no shipped/default credit. Partial render-properties registry77entries and10tests; RP3-RP5 prevent owner core credit. Span8 SR9 native ABI prerequisite published separately, SR10 owned C adapter scope clarified; original glue8 branch remains resumable. 4444 lane excluded after shared-context conflict, preserved for next batch. Full gate and union including span1555 required; traffic nonexact evidence retained. Coverage57.6/35.4/16.5/17.9; rounds255 (open-ended).
 
 **Run4 checkpoint250:** 250 lane rounds; 47 trains landed; coverage delta+20.8/+7.1/+1.5/+2.0 points since run4 start; 26 parked/stopped lanes. Seven live Codex workers, automatic guarded refills; train75 gating. Traffic diagnosis guard-denied on unlanded subsystem claims; no bypass.
