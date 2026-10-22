@@ -1,32 +1,68 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-cmdline-native4: public native read-only queries | `verify-cmdline-native4` / detached worktree | in progress: round 2, public framework route audit and baseline running | Compare borrowed process getters with production Rust; full gate and immutable 2032 native/current40 controls. |
+| verify-cmdline-native4: public native read-only queries | `verify-cmdline-native4` / detached worktree | wip: 492/492 bounded queries exact; cargo4963/clippy0/ctest68 pass; current40 full-save/shutdown clean; native lifecycle control fails | Establish a supported native load/full-save/shutdown control, then rerun probe-on with a unique label. CL4 remains open outside this phase. |
 
-## Handoff
+## Round 2 report (2026-10-22)
 
-- Goal: public cIGZFrameWork::CommandLine borrowed getters versus Rust with independently captured GetCommandLineA input.
-- Prior milestone: 1c194a5e filed CL4; owned construction/mutators/lifetime remain open and outside this phase.
-- Worktree reused detached at 1c194a5e, initially clean; no refs modified.
-- Public safe route demonstrated in source by call 15: initialized director FrameWork(), audited framework hold, typed CommandLine(), const borrowed getters, zero borrowed releases.
-- Thin CAPI now calls actual production CmdLine; no native output used as parser input. Private exports added, ABI version/maps unchanged.
-- Baseline cargo/clippy passed; C++ failed because first hook edit overlapped baseline compilation (missing include then fixed). Retain this attempt; stable full gate still required.
-- First fmt attempt used relative paths and was refused as nonexistent; use absolute file paths.
-- Implementation committed adb42d1d before call 30. Quick PASS: capi 532 tests, C++ 130/130 edges.
-- New CAPI file formatted and qbuild fmt PASS. lib.rs recursive fmt flags 645 pre-existing diff lines in unrelated modules; none changed. q.py Bash unavailable (E_ACCESSDENIED); native rustfmt used only for the new file.
-- Stable full qbuild all PASS at 07aa4988: cargo 4963/0/0, clippy diagnostics0, build2/2, ctest68/68 (157s).
-- Native-a completed STALLED during full save at2032-01-01: 123/123 query comparisons exact, failures0, ref0, no shutdown proof. Preserve log/verdict; no query mismatch.
-- Native-a immutable DLL in build-runs/cmdline4-r2-immutable; source07aa4988, gate57e7b65d. No active request.
-- Add per-method positive/negative evidence and register opt-in key (warning fix). No supported watchdog override found; do not alter thresholds.
-- Logging/key update92e01745: quick532/0 + build5/5 PASS; stable all cargo4963/0, clippy0, build2/2, ctest68/68 (72.9s) PASS.
-- Current40-b CLEAN2032-02-01, ref0, 123/123 exact; positive/negative observed for every search/switch/index method. Full SaveCity(full)11094ms on2032-01-06; PostSystemServiceShutdown reached. No other warnings/INCOMPLETE.
-- Immutable-b source92e01745; SHA256053BD7A077A43A31ACB065C3B985D792CD9FEBFADAA82B0E7A343D742621FABC. No engine changes since gate33596de3.
-- Native-b STALLED during scripted full save after2032-01-02, ref0, 123/123 exact, no query differences/failures. End-date separation did not resolve Konradshohe native save stall.
-- Spandau-c completed STALLED fallback after921s; 123/123 exact, ref0. Final game log shutdown at900s deadline, date before2032, watchdog_stalls1; no full save. Does not qualify as a native lifecycle pass.
-- Preserve CL1 extra slot, CL2 empty name, CL3 high bytes; no full 17-method claim.
-- All four requests complete. First Spandau bounded wait540s expired; second wait retained the returned verdict. No result discarded.
-- Next: probe-OFF native Konradshohe control cmdline4-r2-native-probeoff-2032-d, same immutable-b DLL/script, to isolate the native full-save failure from new queries. No source changes or watchdog overrides.
-- Required: immutable native/current40 controls, full save/shutdown to 2032, ref0, supported reload only.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-cmdline-native4-r2-manifest.json.
+The public original endpoint is implemented and exercised: **492/492 read-only query comparisons exact across four launches**, each using the same five-argument process shape. This is bounded natural process-query evidence, not 492 independent fixtures or full owner verification. The required native 2032 full-save/shutdown control did not pass, so the lane remains **wip**. No requests remain outstanding.
+
+### Implementation and ownership
+
+- `engine/plugin/FC4CmdLineProbe.h`, called synchronously at the end of the director's PostAppInit, uses its initialized public `FrameWork()` pointer. An audited framework AddRef/Release pair keeps that hold alive throughout the probe. Public typed SDK `CommandLine()` returns the borrowed original; it is never AddRef'd, released, initialized, shut down, mutated, or deleted. No private slots, raw object writes, addresses, allocator, constructor, or owned native copies are used.
+- Independently capture full `GetCommandLineA()` once per enabled process, as command-line.md section 5 specifies for Windows NT. The new private CAPI transport creates a real production `fc4_core::cmdline::CmdLine` once from those bytes and calls its actual parser/query methods. Native outputs are compared and logged; they never build Rust input, state, or answers. No resynchronization, native forwarding, or substitute parser.
+- The opt-in `cmdline_probe = 1` defaults off. Its key is appended to FC4Config's recognized-key list; existing defaults are unchanged. The first run's unknown-key warning was corrected by this registration. New CAPI symbols are `fc4_cmdline_probe_create`, `fc4_cmdline_probe_query`, and `fc4_cmdline_probe_destroy`: **ABI exports changed**, but ABI version84, fc4.h, ABI tables/maps and generated abi_entries.inc are unchanged.
+- Actual argc5, argv order/text (including argv(argc)'s empty result), original full text174 bytes, Find/FindSubString, and named/char presence/value/index queries are compared. Query bounds and natural Find keys come only from independently parsed Rust input. Fixed ASCII names and absent names exercise positive/negative queries, case flags, unquote flags, untouched output strings, and index starts -1/0/argc.
+- Public route source was established in the initial 15-call audit; implementation committed `adb42d1d` before call30. Formatting/focused gate: `07aa4988`. Final logging/key source: `92e01745`; full gate recorded `33596de3`; current40 verdict recorded `43259b84`. Detached HEAD was retained; no refs switched, merged, rebased, or pushed.
+
+### Per-process production-method evidence
+
+The following exact counts were logged by both native-b and current40-b. Other enabled-probe launches also logged123/123 exact. Positive/negative counts describe native return values, not generated expectations.
+
+| Public read method | Exact/total | Present / absent |
+|---|---:|---:|
+| argc | 1/1 | - |
+| argv | 6/6 | - |
+| GetCommandLineText | 1/1 | - |
+| Find | 12/12 | 10 / 2 |
+| FindSubString | 12/12 | 10 / 2 |
+| IsSwitchPresent(name) | 16/16 | 6 / 10 |
+| IsSwitchPresent(name, value, unquote) | 16/16 | 4 / 12 |
+| IsSwitchPresent(char, value, unquote) | 14/14 | 6 / 8 |
+| GetIndexOfSwitch(name, start) | 24/24 | 2 / 22 |
+| GetIndexOfSwitch(char, start) | 21/21 | 2 / 19 |
+
+Constructed native fixtures0/0, not exercised. Original command-line references acquired/released0/0; framework hold balanced per enabled probe. Native mutations0, fallbacks/resynchronizations0, query transport failures0, query differences0. CL1 private extra slot, CL2 empty switch name, and CL3 high-byte case behavior remain excluded. CL4 owned construction/mutators/lifetime is still open: this phase does not answer it or prove all17 owner methods.
+
+### Gates and retained failures
+
+- Final source `92e01745`: qbuild quick PASS, capi532 passed/0 failed, C++5/5 edges. Stable qbuild all PASS: cargo workspace4963 passed/0 failed/0 ignored; clippy0 diagnostics; C++2/2 edges; ctest68/68,72.9s. Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`. No engine edits followed this gate.
+- Earlier stable all at `07aa4988` also passed cargo4963/clippy0/ctest68/68 (157s). Initial baseline all passed its unchanged Rust/clippy stages, but C++ compilation overlapped my first incomplete hook edit and failed on the missing include; this is a retained failed attempt, not a pristine passing baseline. Its logs are `build-runs/cmdline-r2-baseline-{test,clippy,build}.log`.
+- qbuild fmt on the new CAPI file PASS. The first relative-path fmt attempt failed path lookup. The required lib.rs recursive check reported645 existing diff lines in unrelated child modules; none were reformatted. q.py could not start Bash (`Bash/Service/CreateInstance/E_ACCESSDENIED`); native rustfmt formatted only the new file, then the absolute-path qbuild fmt check passed. No lane-guard denial was received.
+
+### Immutable real-game controls
+
+All requests/verdicts/logs are retained under `build-runs/game-queue/done/` and `build-runs/game-results/`. Labels below are exact. Each request was unique and waited by `build-runs/cmdline4-r2-wait.py`, never qwait. Spandau's first540s wait expired; a second wait accepted the completed verdict without deleting or replacing it.
+
+| Label | Verdict / final date | Queries | Full save / shutdown | Reference warnings |
+|---|---|---:|---|---:|
+| cmdline4-r2-native-2032-a | stalled /2032-01-01 |123/123 exact| save queued, no completion; no shutdown |0|
+| cmdline4-r2-current40-2032-b | **clean /2032-02-01** |123/123 exact| **full save ok1,11094ms on2032-01-06; PostSystemServiceShutdown reached** |0|
+| cmdline4-r2-native-2032-b | stalled /2032-01-02 |123/123 exact| save queued, no completion; no shutdown |0|
+| cmdline4-r2-native-spandau-2032-c | stalled fallback /2015-03-08 |123/123 exact| no2032 save; shutdown at900s timeout, watchdog_stalls1 |0|
+| cmdline4-r2-native-probeoff-2032-d | stalled during autoload /no established city date |disabled,0 comparisons| no save/shutdown or final AUTOTEST verdict |0 logged|
+
+Spandau's final game line says clean but has watchdog_stalls1, and the immutable harness verdict is stalled; it is not counted as a pass. Probe-off-d stalled while LoadCity was running and returned no final game verdict. This demonstrates another native control failure without invoking the new queries, but does **not** isolate the two native full-save stalls or establish their cause.
+
+- Native-a immutable DLL: `build-runs/cmdline4-r2-immutable/FreeCity4.dll`, source07aa4988, SHA256 `2D002BDDF1F1B967FC93367223930F32F5F193B484F21728FA2A58CFABA2A317`.
+- All later requests used exactly `build-runs/cmdline4-r2-immutable-b/FreeCity4.dll`, source92e01745, SHA256 `053BD7A077A43A31ACB065C3B985D792CD9FEBFADAA82B0E7A343D742621FABC`, rechecked after all runs. No DLL was rebuilt during these controls.
+- Current40's actual enabled set was measured as42 entries: simulator/budget defaults plus exactly the requested40, set differences0. The requested list is preserved in its request. No experimental terrain/dispatch/effects were enabled. Native requests used disable=all; native-a's ineffective sim_turbo warning was avoided in subsequent native requests. No shadow differences occurred, so no turbo-only difference required a normal-speed replay.
+- `build-runs/cmdline4-r2-audit.py` reproduces the five-run accounting from retained logs. The script used for later runs is `build-runs/cmdline4-r2-save-b.script` (save2032-01-02, end2032-02-01). No UI actions, game-file edits, or unsupported reload were attempted. The documented queue resets each city and provides no export of these newly saved slot files for a supported reload; reload was not measured.
+
+### Questions and next steps
+
+No new spec questions or parser corrections: every observed query matched. Prior CL4 in `docs/specs/questions/command-line.md` remains open alongside CL1-CL3. No spec/ABI table, shared tool, default, game executable, or analysis-source edit was made.
+
+The unresolved requirement is a **clean native full-save/shutdown control through2032**. Establish a supported native baseline that completes loading and full save, then compare probe-off/probe-on with fresh unique labels and the retained immutable-b DLL. Do not weaken watchdog thresholds or claim the current40 pass substitutes for native success. Further private owned construction/mutation/copy/lifetime work still requires CL4's published contract and remains outside this phase. The merge record is wip, with no owner/default promotion.
 
 ## Prior round report (retained)
 
