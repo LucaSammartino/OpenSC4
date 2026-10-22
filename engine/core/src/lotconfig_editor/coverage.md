@@ -46,7 +46,7 @@ Read/Open are explicitly incomplete: successful foreign read installs the data a
 | 004805B0 | 447 | C | partial | DoFenceMenu: fence_menu row dispatch; placeholder wording LE6, help dependency LE5 |
 | 0047B480 | 443 | C | complete | MoveObjectToWithinLotBounds: geometry::move_within; four tests and final x-only clamp |
 | 00486770 | 434 | P | unsupported | DoEditMouseDownL: Explicit LE3/LE4/LE5 or owner/interface dependency; no generic window stub |
-| 00480170 | 411 | C | unsupported | DeleteLotConfigurationObject: Explicit LE3/LE4/LE5 or owner/interface dependency; no generic window stub |
+| 00480170 | 411 | C | partial | DeleteLotConfigurationObject: delete without confirmation preserves index/dirty/drag, draws even for absent pointer; confirmation stops at LE5 name helper |
 | 00480770 | 409 | C | partial | DoSetLotNameUI: name_dialog; empty name/title twice/missing control; unknown native name/title plumbing retained |
 | 0047ABA0 | 406 | C | partial | DoDialogBoxGridSort: dialog_callback raw Sort event; no invented collation or host implementation |
 | 00486BA0 | 398 | C | unsupported | DoSetLotSizeUI: Explicit LE3/LE4/LE5 or owner/interface dependency; no generic window stub |
@@ -120,6 +120,6 @@ Read/Open are explicitly incomplete: successful foreign read installs the data a
 | 006049C6 | 7 | R | foreign | FUN_006049C6: Shared image decoder/switch/record constructor; no exclusive implementation credit |
 | 006049CD | 180 | R | foreign | library switchD_006049B8::caseD_0: Shared image decoder/switch/record constructor; no exclusive implementation credit |
 
-Coverage classifications (body bytes are attribution, not implemented byte equivalents): complete 16/3274 B; partial 35/30431 B; unsupported 53/18514 B; foreign 5/427 B.
+Coverage classifications (body bytes are attribution, not implemented byte equivalents): complete 16/3274 B; partial 36/30842 B; unsupported 52/18103 B; foreign 5/427 B.
 
 No game run/shadow or drop-in-window completion is claimed. Physical type-7 three-allocation/four-store behavior is unsupported, as are SetLotSize arithmetic, foundation/wall dialogs, constraint branches, detail marker logic, edge table, selector name fallback, remaining lifecycle/input/capture/hit fallback/render/title/name/3D semantics.

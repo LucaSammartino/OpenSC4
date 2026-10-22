@@ -153,10 +153,7 @@ fn duplicate_candidates_front_selection_and_cleanup_containment() {
     e.insert(object(2, [-20.0; 4]), false);
     e.config_mut().unwrap().fences = vec![[0, 0, 255, 255], [0, 0, 2, 0], [0, 0, 1, 1]];
     assert_eq!(e.cleanup(&mut h).unwrap(), 2);
-    assert_eq!(
-        e.config().unwrap().fences,
-        vec![[0, 0, 255, 255], [0, 0, 1, 1]]
-    );
+    assert_eq!(e.config().unwrap().fences, vec![[0, 0, 255, 255], [0, 0, 1, 1]]);
 }
 
 #[test]
@@ -164,10 +161,7 @@ fn fence_order_wrap_and_first_foundation() {
     let (mut e, mut h) = editor();
     e.toggle_fence_pixels(0, -16, &mut h).unwrap();
     assert_eq!(e.config().unwrap().fences, vec![[0, 255, 0, 0]]);
-    assert_eq!(
-        h.events,
-        vec![Effect::Draw, Effect::Invalidate, Effect::Title]
-    );
+    assert_eq!(h.events, vec![Effect::Draw, Effect::Invalidate, Effect::Title]);
     h.events.clear();
     e.dirty = 0;
     e.toggle_fence([0, 255, 0, 0], &mut h).unwrap();
@@ -231,21 +225,12 @@ fn compatibility_clears_hidden_bits_and_truncates_before_clamp() {
     h.integers.insert(NUMERIC[3], 258);
     h.selections.insert(GRIDS[0], vec![(2, 17), (2, 1)]);
     e.compatibility_dialog(&mut h).unwrap();
-    assert_eq!(
-        e.config().unwrap().compatibility[0]
-            .iter()
-            .filter(|x| **x)
-            .count(),
-        1
-    );
+    assert_eq!(e.config().unwrap().compatibility[0].iter().filter(|x| **x).count(), 1);
     assert!(e.config().unwrap().compatibility[0][3]);
     assert_eq!(e.config().unwrap().minimum, 2);
     assert!(!h.events.contains(&Effect::Draw));
     h.absent.push(GRIDS[1]);
-    assert_eq!(
-        e.compatibility_dialog(&mut h),
-        Err(Unsupported::MissingAcceptedGrid(1))
-    );
+    assert_eq!(e.compatibility_dialog(&mut h), Err(Unsupported::MissingAcceptedGrid(1)));
 }
 
 #[test]
@@ -259,10 +244,7 @@ fn save_failure_and_close_cancel_preserve_state() {
     h.persist = true;
     assert!(e.save(false, true, &mut h).unwrap());
     assert_eq!(e.dirty, 0);
-    assert_eq!(
-        h.events,
-        vec![Effect::Title, Effect::Saved(e.identity.clone())]
-    );
+    assert_eq!(h.events, vec![Effect::Title, Effect::Saved(e.identity.clone())]);
     e.dirty = 1;
     h.prompt = 0x53018147;
     h.events.clear();
@@ -282,18 +264,9 @@ fn hit_priority_uses_selected_then_vector_then_popup() {
         Hit::Object(b, 101)
     );
     e.selected = None;
-    assert_eq!(
-        e.hit_candidates([2, 2], 0, None, &rects, None),
-        Hit::Object(a, 100)
-    );
-    assert_eq!(
-        e.hit_candidates([2, 2], 2, None, &rects, Some(-1)),
-        Hit::Cancelled
-    );
-    assert_eq!(
-        e.hit_candidates([2, 2], 2, None, &rects, Some(1)),
-        Hit::Object(b, 101)
-    );
+    assert_eq!(e.hit_candidates([2, 2], 0, None, &rects, None), Hit::Object(a, 100));
+    assert_eq!(e.hit_candidates([2, 2], 2, None, &rects, Some(-1)), Hit::Cancelled);
+    assert_eq!(e.hit_candidates([2, 2], 2, None, &rects, Some(1)), Hit::Object(b, 101));
 }
 
 #[test]
@@ -345,29 +318,15 @@ fn save_as_copy_restores_identity_but_not_dirty_or_title_and_releases_slots() {
     );
     assert_eq!(h.events.iter().filter(|v| **v == Effect::Title).count(), 1);
     assert!(!h.events.contains(&Effect::Release(80)));
-    let saved = h
-        .events
-        .iter()
-        .position(|e| matches!(e, Effect::Saved(_)))
-        .unwrap();
-    let gone = h
-        .events
-        .iter()
-        .position(|e| *e == Effect::RemoveDialog(10))
-        .unwrap();
+    let saved = h.events.iter().position(|e| matches!(e, Effect::Saved(_))).unwrap();
+    let gone = h.events.iter().position(|e| *e == Effect::RemoveDialog(10)).unwrap();
     assert!(gone < saved);
     assert!(h.events.contains(&Effect::RefreshChooser));
     h.events.clear();
     e.dirty = 4;
     assert!(e.save_as(false, false, true, &mut h).unwrap());
     assert_eq!(e.identity.id, 99);
-    assert_eq!(
-        h.events
-            .iter()
-            .filter(|v| **v == Effect::Release(80))
-            .count(),
-        2
-    );
+    assert_eq!(h.events.iter().filter(|v| **v == Effect::Release(80)).count(), 2);
 }
 
 #[test]
@@ -392,9 +351,7 @@ fn save_as_failures_rollback_and_cancellation_never_install() {
     h.modal = ACCEPT;
     h.selection = Some((1, String::new()));
     assert!(!e.save_as(false, false, false, &mut h).unwrap());
-    assert!(h
-        .events
-        .contains(&Effect::Message("You must select a file.".into(), 0)));
+    assert!(h.events.contains(&Effect::Message("You must select a file.".into(), 0)));
 }
 
 #[test]
@@ -407,16 +364,10 @@ fn read_failure_preserves_current_and_success_stops_at_explicit_dependency() {
         name: "loaded".into(),
         ..Default::default()
     });
-    assert!(matches!(
-        e.read([1, 2, 3], &mut h),
-        Err(Unsupported::Dependency(_))
-    ));
+    assert!(matches!(e.read([1, 2, 3], &mut h), Err(Unsupported::Dependency(_))));
     assert_eq!(e.config().unwrap().name, "loaded");
     assert!(h.events.is_empty());
-    assert!(matches!(
-        e.open([0; 3], &mut h),
-        Err(Unsupported::Dependency(_))
-    ));
+    assert!(matches!(e.open([0; 3], &mut h), Err(Unsupported::Dependency(_))));
     assert_eq!(e.config().unwrap().name, "loaded");
 }
 
@@ -448,19 +399,11 @@ fn selector_duplicate_ids_preselection_current_text_append_and_cancel() {
             (7, Cell::Text("Bldg: individual".into()))
         ]
     );
-    h.selections
-        .insert(0xE9264E71, vec![(1, 9), (1, 0), (0, 0)]);
+    h.selections.insert(0xE9264E71, vec![(1, 9), (1, 0), (0, 0)]);
     h.cells.insert((1, 0), "ab".into());
     h.cells.insert((0, 0), "0".into());
     let mut output = vec![99];
-    assert!(selector_dialog(
-        SelectorKind::Building,
-        &rows,
-        Some(&[7]),
-        &mut output,
-        &mut h
-    )
-    .unwrap());
+    assert!(selector_dialog(SelectorKind::Building, &rows, Some(&[7]), &mut output, &mut h).unwrap());
     assert_eq!(output, vec![99, 171, 171]);
     assert_eq!(
         h.events
@@ -523,8 +466,5 @@ fn fence_preserves_extended_product_low_byte_and_rejects_invalid_conversion() {
     e.toggle_fence_pixels(0, i32::MAX, &mut h).unwrap();
     assert_eq!(e.config().unwrap().fences, vec![[0, 255, 0, 0]]);
     e.scale = f32::NAN;
-    assert_eq!(
-        e.toggle_fence_pixels(0, 0, &mut h),
-        Err(Unsupported::NumericConversion)
-    );
+    assert_eq!(e.toggle_fence_pixels(0, 0, &mut h), Err(Unsupported::NumericConversion));
 }

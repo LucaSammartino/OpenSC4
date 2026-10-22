@@ -7,11 +7,12 @@
 - Worktree reused, detached HEAD; no initial changes. Baseline `qbuild all` started.
 - Published inventory read: 109 bodies / 52,646 B, C44/P20/O40/R5. Relevant §§1–4,7–12,16–17 read.
 - Independent expected fixtures written before production implementation; first source milestone covers state/geometry, compatibility/text dialogs, selector kernels/callbacks, save/save-as/close/provider identity sequencing.
-- Milestone 1: `3bda4ec3` production kernels plus pre-implementation fixtures. Added 109-entry audit and expanded 20+ fixtures for rollback, callback/selector and numeric ordering.
-- Audit: 16 focused complete bodies/3,274 B; 35 partial/30,431 B; 53 unsupported/18,514 B; 5 foreign/427 B. No byte-equivalent or whole-owner credit.
-- Next: obtain quiet quick results, fix any failures, final stable all and absolute-path fmt. Read/Open retain explicit dependency barriers; no lifecycle completeness claim.
+- Milestones: `3bda4ec3` initial production kernels/pre-implementation fixtures; `1b0e8080` audit and stronger fixtures. Final source has 18 fixtures (17 appeared in preceding quick run, final precision fixture awaits full gate).
+- Audit corrected to include no-confirm delete: 16 focused complete bodies/3,274 B; 36 partial/30,842 B; 52 unsupported/18,103 B; 5 foreign/427 B. No byte-equivalent or whole-owner credit.
+- Next: collect final stable `qbuild all` (launched 23:52), fix any failures; report/queue. Read/Open retain explicit dependency barriers; no lifecycle completeness claim.
 - Baseline all overlapped source edits; doctest/clippy saw erroneous filename headers from initial formatter and failed. Corrected via UTF-8 stdin rustfmt + apply_patch. Evidence build-runs/baseline-failure.txt; do not credit baseline as clean.
-- qbuild quick invoked twice, no final result yet; log test/clippy still baseline as of 23:50. Earlier fmt used relative paths (wrapper resolves from engine) and failed; rerun absolute paths.
+- Quick Rust tests passed 3,117/0, including 17 editor fixtures; dependent/native build still running/queued. Final all writes qbuild-test/clippy and fc4verify logs.
+- New files fmt PASS (5 files), after matching engine max_width=120 and UTF-8 stdin. Required lib.rs fmt check FAIL: 173 pre-existing module-order diff lines; no broad reformat made. Initial relative-path fmt also failed and is retained as a diagnostic.
 - Question LE6 filed for offset-name mismatch, unspecified initial fields/path rules/prompt text and manager adapter.
 - Quiet Bash wrapper fails with WSL E_ACCESSDENIED; use capped native PowerShell reads.
 - Guard status: GO, 17,337 / 150,000 at initialization. Manifest: main build-runs/run4-core-lotconfig-editor4-r1-manifest.json.

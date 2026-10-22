@@ -161,12 +161,7 @@ impl Editor {
         };
         let ignored = h.has_control(w, 0x294053DB);
         if ignored {
-            seed(
-                w,
-                0x294053DB,
-                Value::Integer(self.config()?.ignored_numeric),
-                h,
-            );
+            seed(w, 0x294053DB, Value::Integer(self.config()?.ignored_numeric), h);
         }
         let mut numeric = [false; 4];
         for (i, id) in NUMERIC.into_iter().enumerate() {
@@ -180,9 +175,7 @@ impl Editor {
                     // fractional rounding. Preserve the integral domain only.
                     if v.fract() != 0.0 && v.is_finite() {
                         dispose(w, h);
-                        return Err(Unsupported::Dependency(
-                            "LE6 fractional numeric initialization",
-                        ));
+                        return Err(Unsupported::Dependency("LE6 fractional numeric initialization"));
                     }
                     if !v.is_finite() || v < f64::from(i32::MIN) || v > f64::from(i32::MAX) {
                         dispose(w, h);
@@ -239,9 +232,7 @@ impl Editor {
                 let bits = &mut self.config_mut()?.compatibility[i];
                 bits.fill(false);
                 for (row, _) in selections.into_iter().take(32) {
-                    let bit = row
-                        .checked_add(1)
-                        .ok_or(Unsupported::BitOutsideLogicalRange(row))?;
+                    let bit = row.checked_add(1).ok_or(Unsupported::BitOutsideLogicalRange(row))?;
                     // Native does not validate or resize. Report unsupported storage
                     // instead of making an out-of-range result a successful no-op.
                     *bits
@@ -299,11 +290,7 @@ impl Editor {
             return Ok(false);
         };
         if let Some(text) = text {
-            self.config_mut()?.name = if text.is_empty() {
-                "<unnamed>".into()
-            } else {
-                text
-            };
+            self.config_mut()?.name = if text.is_empty() { "<unnamed>".into() } else { text };
             self.set_dirty(1, h);
             h.effect(Effect::Title);
         }
@@ -354,8 +341,7 @@ impl Editor {
             if let Some(text) = text {
                 let v = h.parse_unsigned(&text)?;
                 let c = self.config()?;
-                if f64::from(v) > f64::from(c.numeric[1]) || f64::from(v) < f64::from(c.numeric[2])
-                {
+                if f64::from(v) > f64::from(c.numeric[1]) || f64::from(v) < f64::from(c.numeric[2]) {
                     h.effect(Effect::Message(
                         "Slope is outside min/max values for this lot".into(),
                         0,
@@ -402,21 +388,14 @@ pub struct CatalogRow {
     pub name: Option<String>,
     pub image: Option<u64>,
 }
-pub fn selector_rows(
-    kind: SelectorKind,
-    rows: &[CatalogRow],
-    options: [bool; 2],
-) -> Result<Vec<(u32, Cell)>> {
+pub fn selector_rows(kind: SelectorKind, rows: &[CatalogRow], options: [bool; 2]) -> Result<Vec<(u32, Cell)>> {
     if kind == SelectorKind::Texture {
         return rows
             .iter()
             .map(|r| {
                 Ok((
                     r.id,
-                    Cell::Image(
-                        r.image
-                            .ok_or(Unsupported::Dependency("LE5 texture images"))?,
-                    ),
+                    Cell::Image(r.image.ok_or(Unsupported::Dependency("LE5 texture images"))?),
                 ))
             })
             .collect();
@@ -428,10 +407,7 @@ pub fn selector_rows(
         }
         for r in rows.iter().filter(|r| r.family == family) {
             let cell = if kind == SelectorKind::Texture {
-                Cell::Image(
-                    r.image
-                        .ok_or(Unsupported::Dependency("LE5 texture images"))?,
-                )
+                Cell::Image(r.image.ok_or(Unsupported::Dependency("LE5 texture images"))?)
             } else if kind == SelectorKind::Flora && !family {
                 Cell::Text("<Flora>".into())
             } else {
@@ -470,13 +446,7 @@ pub fn selector_dialog(
     }
     h.effect(Effect::GridInit(w, grid));
     for (i, (id, cell)) in rows.iter().enumerate() {
-        h.effect(Effect::GridRow(
-            w,
-            grid,
-            i,
-            format!("0x{id:08x}"),
-            cell.clone(),
-        ));
+        h.effect(Effect::GridRow(w, grid, i, format!("0x{id:08x}"), cell.clone()));
         if preselected.is_some_and(|ids| ids.contains(id)) {
             h.effect(Effect::GridSelect(w, grid, i));
         }

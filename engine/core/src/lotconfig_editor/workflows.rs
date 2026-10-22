@@ -60,9 +60,7 @@ pub fn identity_from_path(path: &str, h: &mut impl Host) -> Result<Option<Identi
         h.effect(Effect::Release(provider));
     }
     if unsupported {
-        Err(Unsupported::Dependency(
-            "LE6 non-ASCII directory comparison",
-        ))
+        Err(Unsupported::Dependency("LE6 non-ASCII directory comparison"))
     } else {
         Ok(result)
     }
@@ -110,9 +108,7 @@ impl Editor {
         self.renumber_loaded_records();
         // The existing LotConfigManager::fix requires a configuration-slot
         // adapter. Never let a host supply a precomputed editor reconciliation.
-        Err(Unsupported::Dependency(
-            "LotConfigManager::fix configuration adapter",
-        ))
+        Err(Unsupported::Dependency("LotConfigManager::fix configuration adapter"))
     }
     fn renumber_loaded_records(&mut self) {
         if let Some(c) = &mut self.current {
@@ -155,9 +151,7 @@ impl Editor {
             }
             let [l, t, right, bottom] = bounds(&r.data);
             if [l, t, right, bottom].iter().any(|x| !x.is_finite()) {
-                return Err(Unsupported::Dependency(
-                    "LE3 verification unordered geometry",
-                ));
+                return Err(Unsupported::Dependency("LE3 verification unordered geometry"));
             }
             let [width, depth] = c.size.map(|v| f32::from(v) * 16.0);
             let valid = if partial {
@@ -166,8 +160,7 @@ impl Editor {
                 l >= 0.0 && t >= 0.0 && right <= width && bottom <= depth
             };
             if !valid {
-                return Ok(prompt
-                    && h.prompt("Continue with objects outside lot bounds?", 0) == 0x5301814A);
+                return Ok(prompt && h.prompt("Continue with objects outside lot bounds?", 0) == 0x5301814A);
             }
         }
         Ok(true)
@@ -184,10 +177,7 @@ impl Editor {
         }
         if !h.persist(&self.identity, self.config()?)? {
             if error {
-                h.effect(Effect::Message(
-                    "Error saving lot configuration.".into(),
-                    0x10000,
-                ));
+                h.effect(Effect::Message("Error saving lot configuration.".into(), 0x10000));
             }
             return Ok(false);
         }
@@ -198,13 +188,7 @@ impl Editor {
         }
         Ok(true)
     }
-    pub fn save_as(
-        &mut self,
-        copy: bool,
-        success: bool,
-        error: bool,
-        h: &mut impl Host,
-    ) -> Result<bool> {
+    pub fn save_as(&mut self, copy: bool, success: bool, error: bool, h: &mut impl Host) -> Result<bool> {
         self.config()?;
         let initial = if self.identity.key[0] == 0 {
             default_path(&h.data_directory()?)
@@ -223,10 +207,7 @@ impl Editor {
         let selected = if accepted {
             match h.browser_selection(w) {
                 None => {
-                    h.effect(Effect::Message(
-                        "Unknown error in file selection.".into(),
-                        0,
-                    ));
+                    h.effect(Effect::Message("Unknown error in file selection.".into(), 0));
                     Ok(None)
                 }
                 Some((kind, _)) if kind != 2 => {
@@ -236,10 +217,7 @@ impl Editor {
                 Some((_, path)) => {
                     let result = identity_from_path(&path, h);
                     if matches!(result, Ok(None)) {
-                        h.effect(Effect::Message(
-                            "The file you selected was somehow invalid.".into(),
-                            0,
-                        ));
+                        h.effect(Effect::Message("The file you selected was somehow invalid.".into(), 0));
                     }
                     result
                 }
@@ -461,9 +439,7 @@ impl Editor {
                 self.delete(id, true, h)?;
             }
             (2, 2) => self.mirror(id, h)?,
-            (0, 3) | (1, 1) | (2, 1) => {
-                h.effect(Effect::Instructions("Use Page Up and Page Down to rotate"))
-            }
+            (0, 3) | (1, 1) | (2, 1) => h.effect(Effect::Instructions("Use Page Up and Page Down to rotate")),
             (1, 2) => h.effect(Effect::Instructions(
                 "Hold Space while pressing Up/Down to change elevation",
             )),
@@ -489,11 +465,7 @@ impl Editor {
         Ok(())
     }
     pub fn fence_menu(&mut self, h: &mut impl Host) -> Result<()> {
-        let row = h.popup(&[
-            "Set Fence Type...".into(),
-            String::new(),
-            "Help... (F1)".into(),
-        ]);
+        let row = h.popup(&["Set Fence Type...".into(), String::new(), "Help... (F1)".into()]);
         h.effect(Effect::Focus);
         match row {
             0 => h.effect(Effect::Message(
@@ -505,13 +477,7 @@ impl Editor {
         }
         Ok(())
     }
-    pub fn key_down(
-        &mut self,
-        key: u32,
-        modifiers: u32,
-        space: bool,
-        h: &mut impl Host,
-    ) -> Result<bool> {
+    pub fn key_down(&mut self, key: u32, modifiers: u32, space: bool, h: &mut impl Host) -> Result<bool> {
         if self.capturing {
             return Ok(true);
         }

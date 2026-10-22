@@ -165,14 +165,10 @@ impl Default for Editor {
 }
 impl Editor {
     pub fn config(&self) -> Result<&Configuration> {
-        self.current
-            .as_ref()
-            .ok_or(Unsupported::MissingConfiguration)
+        self.current.as_ref().ok_or(Unsupported::MissingConfiguration)
     }
     pub fn config_mut(&mut self) -> Result<&mut Configuration> {
-        self.current
-            .as_mut()
-            .ok_or(Unsupported::MissingConfiguration)
+        self.current.as_mut().ok_or(Unsupported::MissingConfiguration)
     }
     pub fn record(&self, id: RecordId) -> Option<&LotConfigObject> {
         self.current
@@ -199,10 +195,7 @@ impl Editor {
             data,
             creation_known: true,
         };
-        let c = self
-            .current
-            .as_mut()
-            .expect("configuration required for insertion");
+        let c = self.current.as_mut().expect("configuration required for insertion");
         if front {
             c.objects.insert(0, r);
         } else {
@@ -225,13 +218,7 @@ impl Editor {
         }
         self.selected = id;
         self.selected_index = id
-            .and_then(|id| {
-                self.current
-                    .as_ref()?
-                    .objects
-                    .iter()
-                    .position(|r| r.id == id)
-            })
+            .and_then(|id| self.current.as_ref()?.objects.iter().position(|r| r.id == id))
             .unwrap_or(0);
     }
     pub(crate) fn draw(&self, h: &mut impl Host) {

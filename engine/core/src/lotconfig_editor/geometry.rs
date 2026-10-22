@@ -32,17 +32,9 @@ pub fn move_within(o: &mut LotConfigObject, size: [u8; 2], partial: bool) {
         } else {
             o.offset[axis * 2]
         };
-        let target = if upper {
-            f64::from(size[axis]) * 16.0 - eps
-        } else {
-            eps
-        };
+        let target = if upper { f64::from(size[axis]) * 16.0 - eps } else { eps };
         let value = f64::from(value);
-        if if upper {
-            value > target
-        } else {
-            value < target
-        } {
+        if if upper { value > target } else { value < target } {
             translate(o, axis, target - value);
         }
     }
@@ -76,11 +68,7 @@ fn fence_coordinate(value: i32, scale: f32) -> Result<u8> {
     if product == 0 {
         return Ok(0);
     }
-    let shift = if exp == 0 {
-        -149 - 4
-    } else {
-        exp as i32 - 127 - 23 - 4
-    };
+    let shift = if exp == 0 { -149 - 4 } else { exp as i32 - 127 - 23 - 4 };
     let magnitude = if shift >= 0 {
         product
             .checked_shl(shift as u32)
@@ -98,21 +86,10 @@ fn fence_coordinate(value: i32, scale: f32) -> Result<u8> {
 }
 impl Editor {
     /// Established finite movement subset; LE3 conversion/hit helpers remain unsupported.
-    pub fn move_key(
-        &mut self,
-        id: RecordId,
-        key: u32,
-        modifiers: u32,
-        space: bool,
-        h: &mut impl Host,
-    ) -> Result<()> {
+    pub fn move_key(&mut self, id: RecordId, key: u32, modifiers: u32, space: bool, h: &mut impl Host) -> Result<()> {
         let size = self.config()?.size;
         let o = self.record_mut(id).ok_or(Unsupported::MissingRecord)?;
-        if o.offset
-            .iter()
-            .chain(bounds(o).iter())
-            .any(|v| !v.is_finite())
-        {
+        if o.offset.iter().chain(bounds(o).iter()).any(|v| !v.is_finite()) {
             return Err(Unsupported::NumericConversion);
         }
         let mut step = if modifiers & 2 != 0 { 0.5f32 } else { 0.25 };
@@ -139,12 +116,7 @@ impl Editor {
         self.edited(h);
         Ok(())
     }
-    pub fn move_position(
-        &mut self,
-        id: RecordId,
-        position: [f32; 2],
-        h: &mut impl Host,
-    ) -> Result<()> {
+    pub fn move_position(&mut self, id: RecordId, position: [f32; 2], h: &mut impl Host) -> Result<()> {
         let size = self.config()?.size;
         let o = self.record_mut(id).ok_or(Unsupported::MissingRecord)?;
         if position
@@ -169,10 +141,8 @@ impl Editor {
         let n = c.objects.len() + c.fences.len();
         c.objects
             .retain(|r| !matches!(r.data.kind, 0 | 1 | 4) || contained(&r.data, c.size));
-        c.fences.retain(|f| {
-            i16::from(f[2] as i8) <= i16::from(c.size[0])
-                && i16::from(f[3] as i8) <= i16::from(c.size[1])
-        });
+        c.fences
+            .retain(|f| i16::from(f[2] as i8) <= i16::from(c.size[0]) && i16::from(f[3] as i8) <= i16::from(c.size[1]));
         let removed = n - c.objects.len() - c.fences.len();
         if removed != 0 {
             self.set_dirty(1, h);
@@ -217,11 +187,7 @@ impl Editor {
     }
     pub fn rotate(&mut self, id: RecordId, h: &mut impl Host) -> Result<()> {
         let o = self.record_mut(id).ok_or(Unsupported::MissingRecord)?;
-        if o.offset
-            .iter()
-            .chain(bounds(o).iter())
-            .any(|v| !v.is_finite())
-        {
+        if o.offset.iter().chain(bounds(o).iter()).any(|v| !v.is_finite()) {
             return Err(Unsupported::NumericConversion);
         }
         o.orientation = o.orientation.wrapping_add(1) & 3;
@@ -231,12 +197,7 @@ impl Editor {
         let [x, _, z] = o.offset;
         set_bounds(
             o,
-            [
-                (f64::from(x) + hz) as f32,
-                z + hx,
-                (f64::from(x) - hz) as f32,
-                z - hx,
-            ],
+            [(f64::from(x) + hz) as f32, z + hx, (f64::from(x) - hz) as f32, z - hx],
         );
         self.edited(h);
         Ok(())
@@ -272,12 +233,7 @@ impl Editor {
                 },
                 false,
             );
-            let r = self
-                .config_mut()?
-                .objects
-                .iter_mut()
-                .find(|r| r.id == rid)
-                .unwrap();
+            let r = self.config_mut()?.objects.iter_mut().find(|r| r.id == rid).unwrap();
             r.creation_known = false; // +24 has no published value, not a zero guarantee.
         }
         Ok(())
@@ -365,11 +321,7 @@ impl Editor {
             .objects
             .iter()
             .enumerate()
-            .filter(|(_, r)| {
-                rectangles
-                    .iter()
-                    .any(|(id, rect)| *id == r.id && inside(point, *rect))
-            })
+            .filter(|(_, r)| rectangles.iter().any(|(id, rect)| *id == r.id && inside(point, *rect)))
             .collect();
         if candidates.is_empty() {
             return Hit::UnsupportedFallback;
