@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000" font-family="Segoe UI, Helvetica, Arial, sans-serif">
 <rect width="1600" height="1000" fill="#f6f7f4"/>
 <text x="16" y="44" font-size="30" font-weight="700" fill="#1d2320">OpenSC4 coverage of SimCity 4.exe</text>
-<text x="16" y="74" font-size="17" fill="#4a544f">Game code: 5.33 MB of machine code, libraries excluded. Specified 45.4% · implemented 34.5% · verified 16.4% · replaced in game 17.8%.</text>
-<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). main f1fab7c4, regress-train63.out.</text>
+<text x="16" y="74" font-size="17" fill="#4a544f">Game code: 5.33 MB of machine code, libraries excluded. Specified 45.4% · implemented 35.1% · verified 16.4% · replaced in game 17.8%.</text>
+<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). main 405c1c3c, regress-train64.out.</text>
 <rect x="18.0" y="146.0" width="75.5" height="112.4" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="18.0" y="258.4" width="75.5" height="104.3" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="93.5" y="146.0" width="94.3" height="79.8" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
@@ -229,10 +229,10 @@
 <rect x="325.1" y="608.9" width="79.8" height="74.6" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <rect x="404.9" y="608.9" width="78.1" height="74.6" fill="#1f6b43" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="404.9" y="608.9" width="78.1" height="74.6" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
-<rect x="483.0" y="608.9" width="73.0" height="44.6" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="483.0" y="608.9" width="73.0" height="44.6" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="483.0" y="653.5" width="35.3" height="30.0" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="518.4" y="653.5" width="28.0" height="30.0" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="546.4" y="653.5" width="9.6" height="21.9" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="518.4" y="653.5" width="28.0" height="30.0" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="546.4" y="653.5" width="9.6" height="21.9" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="546.4" y="675.4" width="9.6" height="8.1" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="483.0" y="608.9" width="73.0" height="74.6" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <rect x="237.9" y="683.5" width="75.9" height="70.6" fill="#1f6b43" stroke="#f6f7f4" stroke-width="0.4"/>
@@ -879,7 +879,7 @@
 <text x="1213.3" y="160.0" font-size="11.5" font-weight="600" fill="#1d2320" stroke="#f6f7f4" stroke-width="3" paint-order="stroke">application</text>
 <rect x="1209.3" y="398.3" width="60.9" height="118.1" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1270.2" y="398.3" width="57.3" height="55.8" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="1327.5" y="398.3" width="35.9" height="55.8" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="1327.5" y="398.3" width="35.9" height="55.8" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1270.2" y="454.1" width="50.3" height="34.1" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1270.2" y="488.3" width="50.3" height="28.1" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1320.6" y="454.1" width="24.2" height="35.4" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
@@ -1133,7 +1133,7 @@
 <rect x="1451.5" y="413.0" width="41.6" height="41.8" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1493.1" y="413.0" width="33.4" height="41.8" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1451.5" y="454.8" width="28.5" height="32.5" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="1451.5" y="487.3" width="28.5" height="29.1" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="1451.5" y="487.3" width="28.5" height="29.1" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1480.0" y="454.8" width="26.9" height="25.7" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1507.0" y="454.8" width="19.6" height="25.7" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1480.0" y="480.5" width="12.1" height="18.6" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
@@ -1176,9 +1176,9 @@
 <rect x="1573.2" y="453.7" width="8.8" height="25.4" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1554.5" y="453.7" width="27.5" height="25.4" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <rect x="1526.5" y="479.1" width="12.6" height="19.2" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="1539.1" y="479.1" width="15.1" height="9.6" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="1539.1" y="479.1" width="15.1" height="9.6" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1539.1" y="488.6" width="12.2" height="9.6" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="1551.3" y="488.6" width="2.9" height="5.7" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="1551.3" y="488.6" width="2.9" height="5.7" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1551.3" y="494.4" width="2.9" height="3.9" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1526.5" y="479.1" width="27.7" height="19.2" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <rect x="1526.5" y="498.3" width="10.3" height="18.1" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>

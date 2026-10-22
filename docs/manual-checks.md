@@ -255,6 +255,7 @@ every harness run rewrites the ini and stages its own DLL.
 | train57-243 | 243 | 2026-10-21 | train57 | 0683520f gated FreeCity4.dll | turbo to2032 | clean | default38 replacements and standard shadows including occupant manager follow | PASS |
 | train59-244 | 244 | 2026-10-21 | train59 | 882cfb73 gated FreeCity4.dll | turbo to2032 | clean | current38+citydetail and standard follow shadows | PASS |
 | train63-245 | 245 | 2026-10-22 | train63 | e7b3f2d7 gated FreeCity4.dll | turbo to2032 | clean | current38+citydetail+span565, standardfollowshadows | PASS |
+| train64-246 | 246 | 2026-10-22 | train64 | train64 gated FreeCity4.dll | turbo to2032 | clean | current39+span4444+span1555, standardfollowshadows | PASS |
 <!-- END GENERATED -->
 
 - The history that used to follow this table (the budget bisection and differential, the run-23/26 `RefCell`
