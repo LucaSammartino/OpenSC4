@@ -5,9 +5,10 @@
 ## Handoff
 - Goal: specify only cGZWinTextEdit19999B from original native bodies, with foreign contracts, distinguishing vectors and owner checklist.
 - Scope read: re-widgets4 public report; base window coverage does not imply text-editor coverage.
-- Done: substantive text-edit.md sections 1-7: byte text, replacement limits, selection, input/high-level replacement, caret; TE1/TE2 foreign boundaries.
+- Done: f6875240 substantive state/editing contract; second milestone adds raw mutations/history, key/clipboard, font/layout/paint, mouse/messages/flags/lifetime.
+- TE2 resolved from native +0x26C sound adapter despite folded font name; TE1, TE3-TE7 remain explicit boundaries.
 - Inventory: 146 label matches; 134 direct nonnested owner labels / 19,415B. Requested 19,999B attribution still needs reconciliation.
-- Next: complete key/clipboard, paint/layout/scroll and lifecycle contracts; reconcile unnamed helpers and add full method checklist.
+- Next: reconcile exact attributed inventory, add method checklist; audit claims, questions index, final docs-only report/queue.
 - Native fact: T=W+0xD8 despite exported thunk spelling n228; editor flags W+0x128 and max W+0x1D0.
 - Main evidence root: C:/Users/tlori/FreeCity4; edit only this worktree.
 - No engine reads/edits, no real clipboard access, no REA used, no game runs requested.
