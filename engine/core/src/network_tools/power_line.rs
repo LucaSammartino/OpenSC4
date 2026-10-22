@@ -12,18 +12,30 @@
 //! (`0x0064F0F0`), `ComputePolePosition` (`0x0064EFE0`) and the reuse rule of
 //! `CreatePowerPole` (`0x00650140`).
 //!
-//! # Not specified (owned by the host, questions NT18-NT20)
-//!
-//! The specs name `DeterminePolePositions` (`0x00650840`), `PlacePoles`
-//! (`0x00651560`), `AttemptNeighborConnections`, `PlaceNeighborConnections`
-//! and the slot 82 preview refresh but do not give their bodies, nor where
-//! slot 81 is called from on this path; they are [`PowerLineHost`] hooks.
-//! Slots 3, 4, 10 and 16 (`Init`, `Shutdown`, `UpdateOnZoneChange`,
-//! `0x0064F3F0`) are listed by network-tools.md §1 without behaviour and are
-//! not implemented here.
+//! Published portable bodies are in `power-line-tool.md`. Regional operations
+//! remain assigned externally. NT18 group production, NT22 backward-split
+//! reachability and NT24 inventory accounting remain explicit boundaries.
+
+mod geometry;
+mod records;
+mod world;
+mod placement;
+mod lifecycle;
+mod containers;
+mod zone;
+
+pub use geometry::*;
+pub use records::*;
+pub use world::*;
+pub use placement::*;
+pub use lifecycle::*;
+pub use containers::*;
+pub use zone::*;
+
+#[cfg(test)]
+mod tests;
 
 use crate::network_geometry::extras::power_line_cost;
-use crate::network_occupants::power_line::pole_position_axis;
 
 use super::host::ToolRun;
 use super::state::ToolState;
@@ -89,14 +101,6 @@ impl PowerLineParams {
     }
 }
 
-/// One pole record (48 bytes in the original). The spec names only the
-/// cell; the remaining bytes are the host's (question NT18).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct PoleInfo {
-    pub x: i32,
-    pub z: i32,
-}
-
 /// The power-line tool's own fields. Its `+0x36C`/`+0x370` are the pole
 /// vector's begin/end (§9 step 3, §11), not the base tool's underground
 /// depth/cover fields at the same offsets (power line is a surface tool).
@@ -104,6 +108,16 @@ pub struct PoleInfo {
 pub struct PowerLineTool {
     /// Ordered input anchors; distinct from generated pole records (§2).
     pub anchors: Vec<(i32, i32)>,
+    /// Inclusive ranges in the dragged-cell vector, in source order.
+    pub steps: Vec<(usize, usize)>,
+    /// Input only: no guessed producer for NT18 adjacency groups.
+    pub groups: Vec<Vec<usize>>,
+    pub wire_vectors: Vec<Vec<WireCell>>,
+    pub newly_created: Vec<Reference>,
+    pub reused: Vec<Reference>,
+    pub edits: Vec<SavedConnection>,
+    pub real: bool,
+    pub initialized: bool,
     /// `+0x36C`..`+0x370`: the pole records.
     pub poles: Vec<PoleInfo>,
     /// The line list (cells of the line occupants `PlacePoles` made).
@@ -141,23 +155,12 @@ impl PowerLineTool {
     }
 }
 
-/// The hooks the specs name without a body (questions NT18, NT20).
-pub trait PowerLineHost {
-    /// `DeterminePolePositions` (`0x00650840`): fills `tool.poles` and counts
-    /// `tool.wire_cells`. It may lower `run.valid_count` and set `failure`
-    /// (slot 81, [`check_for_reserved_tiles`], is the only source of the
-    /// power-line codes the spec names; where it is called is NT18).
-    fn determine_pole_positions(&mut self, run: &mut ToolRun, tool: &mut PowerLineTool, failure: &mut u32);
-    /// `PlacePoles(arg)` (`0x00651560`); §9 step 2 passes 1.
-    fn place_poles(&mut self, run: &mut ToolRun, tool: &mut PowerLineTool, arg: u32);
+/// Only the assigned regional owners remain host calls.
+pub trait PowerLineHost: World {
     /// `AttemptNeighborConnections`.
     fn attempt_neighbor_connections(&mut self, run: &mut ToolRun, tool: &mut PowerLineTool) -> bool;
     /// `PlaceNeighborConnections`.
     fn place_neighbor_connections(&mut self, run: &mut ToolRun, tool: &mut PowerLineTool);
-    /// Slot 82 with argument `arg` (§9 step 5 passes 0): the preview refresh.
-    fn refresh_preview(&mut self, arg: u32);
-    /// §9 step 6: release the pole infos.
-    fn release_pole_infos(&mut self, tool: &mut PowerLineTool);
 }
 
 /// Slot 53 `DoNetworkSpecificPlacement` (`0x00652980`, network-tools.md §9).
@@ -165,37 +168,38 @@ pub trait PowerLineHost {
 pub fn do_network_specific_placement(
     st: &mut ToolState,
     tool: &mut PowerLineTool,
-    host: &mut dyn PowerLineHost,
+    host: &mut impl PowerLineHost,
     run: &mut ToolRun,
     neighbour_mode: u32,
     real: bool,
 ) -> bool {
     // §2: release saved endpoints before structural clear, including stale records.
     tool.wire_cells = 0;
-    host.release_pole_infos(tool);
+    tool.release_pole_infos(host);
+    tool.wire_vectors.clear();
     tool.lines.clear();
+    tool.real = real;
     run.valid_count = run.dragged_count;
     // 2. With at least 2 dragged steps: DeterminePolePositions, PlacePoles(1).
     if run.dragged_count >= 2 {
-        host.determine_pole_positions(run, tool, &mut st.failure);
-        host.place_poles(run, tool, 1);
+        determine_pole_positions(run, tool, host, &mut st.failure);
+        place_poles(run, tool, host, &mut st.failure, true).expect("unsupported power-line geometry resource");
     }
     // 3. Pole span under 48 units (no whole record): valid count := 0.
     if tool.pole_count() == 0 {
         run.valid_count = 0;
     }
     // NT20: Attempt runs in either mode; Place requires success and real placement.
-    if neighbour_mode != 0 && run.valid_count >= run.dragged_count && tool.anchors.len() >= 2 && st.failure == 0 {
-        if host.attempt_neighbor_connections(run, tool) && real {
+    if neighbour_mode != 0 && run.valid_count >= run.dragged_count && tool.anchors.len() >= 2 && st.failure == 0
+        && host.attempt_neighbor_connections(run, tool) && real {
             host.place_neighbor_connections(run, tool);
-        }
     }
     // 5. Draft mode: slot 82 (0) refreshes the preview.
     if !real {
-        host.refresh_preview(0);
+        terrain_highlight(run, tool, host, 0);
     }
     // 6. Release the pole infos; return true.
-    host.release_pole_infos(tool);
+    tool.release_pole_infos(host);
     true
 }
 
@@ -247,14 +251,22 @@ pub fn check_for_reserved_tiles(
     (last + 1) as u32
 }
 
-/// `ComputePolePosition` (`0x0064EFE0`, network-occupants.md §5.2):
-/// `x = (cell + 0.5) × 16`, `z` likewise, `y` = the terrain height.
-/// "Guarded against `-FLT_MAX`": [literal] a terrain answer of `-FLT_MAX`
-/// (no height) gives no position (question NO24).
-pub fn compute_pole_position(x: i32, z: i32, terrain: impl Fn(f32, f32) -> f32) -> Option<[f32; 3]> {
-    let (wx, wz) = (pole_position_axis(x), pole_position_axis(z));
-    let y = terrain(wx, wz);
-    (y != -f32::MAX).then_some([wx, y, wz])
+/// §4.2: output is always a position, including all-sentinel corner heights.
+pub fn compute_pole_position(x: i32, z: i32, terrain: &mut impl Terrain) -> Point {
+    use crate::x87::r24;
+    let width = f64::from(terrain.cell_width());
+    let wx = r24(r24(f64::from(x) + 0.5) * width) as f32;
+    let wz = r24(r24(f64::from(z) + 0.5) * width) as f32;
+    let height = if terrain.special_height((x, z)) {
+        terrain.height(wx, wz)
+    } else {
+        let mut height = -f32::MAX;
+        for value in terrain.corners((x, z)) {
+            if value > height { height = value; }
+        }
+        height
+    };
+    [wx, r24(f64::from(height) + 0.5) as f32, wz]
 }
 
 /// The world the pole creation sees (network-occupants.md §4.5).

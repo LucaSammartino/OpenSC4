@@ -4,9 +4,12 @@
 
 ## Handoff
 - Goal: implement newly published portable power-line contracts; no region owners, ABI edits, or game runs.
-- Done: first correction applies float clearance/default 7, input-anchor regional gate, success/real ordering, stale record release and final-road truncation; accompanying wrapper expectations corrected.
-- Baseline full gate started before edits; evidence `qbuild-test.log` (still running at first correction commit).
-- Next: implement published position, lifecycle, geometry, records, selection, preview/undo and bounded non-region orchestration; inspect individual vectors.
+- Done: first correction `121ea3df`; added portable curve/control/sampling, connection/link/record ownership, lifecycle, direct classifier/probes, Determine/PlacePoles, highlight/undo, supplied-group consumption and bounded zone/relocation bodies.
+- Added independent public vector tests; validation in progress, source not yet ready.
+- Baseline all started before edits but later clippy/CTest observed first edits: clippy collapsible-if, CTest 67/68; baseline Rust log had core 3011/0. These are not a clean baseline claim.
+- Focused quick requested; still awaiting wrapper completion. No game requests.
+- NT18 producer, NT22 entire backward wire split and NT24 inventory basis withheld; NT25 filed for nonpositive/invalid curve allocation behavior.
+- Next: finish focused fixes and independent vector reconciliation; format touched Rust via wrapper; one final stable full gate; report and queue.
 - Family reservation: logical round 2/3; this correction has one round, 150000 tokens / 100 calls per commit.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-powerline-contractfix4-r1-manifest.json`.
 - Evidence stays in this worktree `build-runs/`; no game requests outstanding.

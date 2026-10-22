@@ -1,4 +1,5 @@
 # network-tools: open questions
+
 <!-- Questions about [network-tools.md](../network-tools.md). Append new entries at the END; when one is answered, move it to answered/network-tools.md. Rules: README.md. -->
 
 <!-- from: the cores27 lane, the network tools core (2026-10-20) -->
@@ -100,3 +101,9 @@
   zero AddRef/Release, erase and destruction. The measured inventory remains 46 unique entries /
   16156 B. The sole remaining NT24 item is the exact source/counting basis of the brief's 49;
   no missing functions or sizes are invented to reconcile an unsourced count.
+
+<!-- from: core-powerline-contractfix4 (engine lane, 2026-10-22) -->
+- **NT25 - power-line-tool §5.3/§5.5 invalid geometry allocation:** the literal count formula can
+  produce N<=0, or a very large count, under invalid resource values. What is the observable
+  allocation/failure behavior and retained-reference cleanup in those cases? [unsupported in the
+  portable builder: report the raw nonpositive count explicitly; do not clamp N or promote coverage]
