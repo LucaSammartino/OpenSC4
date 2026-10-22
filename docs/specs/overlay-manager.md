@@ -43,6 +43,29 @@ managers: static and dynamic, each for land and for water.
 - `0x0073AC90` (on shutdown) unsubscribes, releases the view, factory and terrain, empties both record tables and
   forgets the free lists.
 
+### 1.1 Initialization and repeat calls (OV4, proven subset)
+
+The constructor (`0x0073BC20`) sets initialized false, shadow quality 2, second-stage setting 0; parent, terrain,
+factory and the three arenas' begin/end/capacity pointers are null. Each arena has free-head and free-tail −1.
+It does **not** initialize the dynamic/water bytes, cell dimensions, reciprocal scale, city rectangle, shadow
+binding or counters; those are established by Init. No public getter/draw contract is supplied before Init.
+`0x0073BC6A–0x0073BC79`, `0x0073BCF5–0x0073BD9B`.
+
+Init (`0x0073CB60`) takes `(parent, dynamicByte, waterByte)`, returns no specified result and has no initialized
+guard or rollback. It replaces the parent with AddRef-before-Release when different, stores both bytes and sets
+initialized true **before** looking up the texture factory (framework class/interface `0x1AC0E11A/0xFAC0E219`).
+It similarly retains the new factory and global terrain and releases replaced references. Identical pointers
+avoid those reference operations. Terrain slots 7/8 provide signed cell counts; slot 6 returns the cell width.
+Init stores width as binary32, reciprocal as binary32 of the x87 reciprocal, and city bounds `(0,0,nx,nz)`.
+It resets counters and `+0x94`, releases any old `+0xD4` binding, then requests key `0xAA592B77` through
+**factory slot 5** (byte offset `0x14`), into `+0xD4`. It initializes draw states, rebuilds the static index when
+dynamic is zero, registers message `0xC9F775BB` when that global server exists, then reads quality/second-stage
+settings. Repeated Init executes this sequence again and does not clear the overlay/handle/group arenas.
+Missing factory/terrain/framework services do not produce a clean false result: required pointers are later
+dereferenced without checks, after earlier mutations. Atomic rejection of repeated/failed Init is not native
+behavior. Evidence: `0x0073CB60–0x0073CD3B` (including binding call `0x0073CCE7`). Numeric defaults of a freshly
+constructed overlay record, whose alpha/colour/matrices copy mutable globals, remain under OV4.
+
 ## 2. Records and handles *[compat]*
 
 ### 2.1 Two tables
@@ -55,7 +78,8 @@ managers: static and dynamic, each for land and for water.
 - **Handles** (`+0xAC` table, 0x30 bytes each): what callers hold. A handle with the high bit set names a handle
   record: its placement (nine floats from `+0x04`) and the overlay it drives (`+0x2C`). An overlay index whose high
   bit is set names a **group** (`+0xC0`, 0x24 bytes: eight overlay indices), and every call on a group is applied to
-  its eight parts. Handle −1 is "none" and is ignored by every call.
+  its eight parts where the method supports group recursion. Handle −1 is "none"; scalar getters return their
+  sentinels and placement getters leave their output untouched (§2.3).
 
 Counters: the decals and shadows drawn in the last frame (`+0xD8`, `+0xDC`).
 
@@ -65,6 +89,53 @@ A static manager keeps, per terrain cell, the overlays that cover it (`0x0073823
 `0x007382E0` removes it), so that a frame only visits the overlays of visible cells (§4). Any change to an overlay
 marks it changed (`0x00737D40`); a round decal (slot 7) also redisplays the terrain under each part's rectangle
 (terrain slot 68).
+
+### 2.3 Allocation, reuse, getters and invalid records (OV4/OV5)
+
+All three arenas allocate ascending zero-based indices when no freed entry exists. Removal appends to a
+free **queue**, and allocation takes its head: reuse is **FIFO**, independently for overlays, handles and groups.
+The first word is −1 while live; a free entry's word links to the next (the tail word is set to 0 and is not
+followed when head equals tail). No generation is encoded in an ID. A stale handle may therefore operate on a
+new occupant of the same slot. There is no portable result for an out-of-range ID or null required pointer;
+native paths dereference the computed address, rather than rejecting the operation atomically.
+Evidence: handle allocate/free `0x00739EC0–0x00739FB1` / `0x00736210–0x0073624D`, group allocate
+`0x00739FC0–0x0073A06D`, overlay allocate `0x0073AEC0–0x0073AF7B`, removal `0x007388C0–0x00738A08`.
+
+Ordinary source/binding decals allocate an overlay **and** an indirect placement handle, even if the clipped
+rectangle is empty. Round decals allocate eight overlays, a group and one indirect handle. The city-wide
+rectangle add returns a **direct overlay ID**, without a placement handle: not every add allocates one.
+Slots 12–14 ignore nonnegative direct IDs. For indirect removal, the handle is freed first; group removal
+recurses over its eight indices in array order and then frees the group. Direct overlay removal on a static
+manager removes its index entries and marks the old rectangle before checking whether its free-list word
+already says free. Payload is left in freed records (including binding/source references); removal itself
+does not release them. Reuse/arena destruction, rather than removal, disposes retained payload references.
+There is no general live-record validation on setters/getters. Evidence: `0x0073B127–0x0073B141`,
+`0x0073C069–0x0073C082`, `0x0073B2CF–0x0073B38E`, `0x0073B9A7–0x0073BA04`, `0x007388F2–0x00738A08`.
+
+Scalar getters accept direct overlay IDs or resolve an indirect handle. If that handle resolves to a group,
+they read **part 0** only, never a reduction/average across parts. A group ID by itself is not a public handle.
+
+| Slot | Actual value | −1 behavior |
+|---|---|---|
+| 22 (`0x00736580`) | shown: `(flags & 1)`, boolean | false |
+| 23 (`0x007365E0`) | binary32 alpha at `+0x9C`, returned on x87 stack | +0 |
+| 24 (`0x00736640`) | three colour words from `+0xA0` | writes three zero words |
+| 25 (`0x007366C0`) | zero-extended **byte** at `+0x08` | 0 |
+| 26 (`0x00736720`) | self-lighting: `(flags >> 6) & 1`, boolean | false |
+
+Slot 24 has output first and handle second (callee pops 8); it returns the output address in EAX. No null
+output check exists, even for handle −1. Slot 14's no-handle/direct-ID path, in contrast, does not touch output.
+These identities follow the field loads, not the earlier descriptive function name `IsShown` for slot 26.
+
+Slots 16/18/19 write shown/colour/draw-state and mark a nonempty static rectangle even when supplied values
+are identical; dynamic writes omit redisplay. Slot 19 writes only the low byte. Slot 13 always re-places;
+static re-placement with the same clipped rectangle still marks it once, and a changed rectangle removes old
+index entries, marks old, writes new bounds, inserts new entries, then marks new. Slot 12's tolerance is in §3.2.
+Evidence: `0x00737EB8–0x00737EED`, `0x00738078–0x007380B0`, `0x00738128–0x0073814D`,
+`0x007393DF–0x0073943E`. These are owner operations, not caller-supplied computed rectangles or redraw results.
+
+Paper reuse vector: allocate indices 0,1,2; remove 1 then 0; the next allocations reuse 1 then 0, then append 3
+if no other frees occur. For a group with differing part colours/alpha, getters observe part 0 only.
 
 ## 3. The interface (`0x00AB39E8`) *[compat]*
 
@@ -89,7 +160,7 @@ marks it changed (`0x00737D40`); a round decal (slot 7) also redisplays the terr
 | 19 | `0x007380C0` | `SetDrawState(handle, index)` | `+0x08` |
 | 20 | `0x007364F0` | `EnableSelfLighting(handle, on)` (descriptive name) | when the low bit of `on` is set, OR flag bit 6; false does not clear it; groups recurse over all eight parts |
 | 21 | `0x00738160` | `SetTextureScale(handle, size, offset)` | the matrix becomes a scale of 1 ÷ size with the second axis flipped and an offset of 1 + offset ÷ size; flag bit 5 |
-| 22–26 | `0x00736580`–`0x00736720` | getters | an overlay field; the alpha (`+0x9C`, 0 for none); the colour (`+0xA0`); the draw state byte; shown |
+| 22–26 | `0x00736580`–`0x00736720` | getters | shown; alpha; colour (output first); draw-state byte; self-lit (§2.3) |
 | 27 | `0x007352A0` | `GetStatsString(out)` | "%d decals, %d shadows" from the counters |
 
 Slots 0–2 are `QueryInterface`, `AddRef`, `Release`. The ordinary decal add signatures in the table above use
@@ -197,6 +268,30 @@ First exact paper vectors (not an executed native/game verdict):
 | Static alpha old 0; write 0.03125 then 0.0625 | first rejected; second accepted relative to stored 0 |
 | Static alpha old 1; write 1 | no write/redraw |
 | Dynamic alpha old 1; write a quiet NaN | stores that NaN, no redraw call |
+
+### 3.4 Slot 21: exact replacement matrix (OV7, proven subset)
+
+For a single overlay, slot 21 replaces all sixteen matrix entries; it does not compose a scale with placement.
+Let r = E(1/size), t = F(E(r × offset) + 1). The consecutive binary32 rows are:
+
+| Row | Four entries |
+|---|---|
+| 0 | F(r), +0, +0, +0 |
+| 1 | +0, F(−r), +0, +0 |
+| 2 | F(r), +0, 1, +0 |
+| 3 | +0, t, +0, 1 |
+
+Thus the first coordinate is `(x+z)/size` and the second is `−y/size+1+offset/size` in real-number terms,
+not a simple world X/Z rectangle mapping. The reciprocal remains in x87 precision until each store; t uses
+that reciprocal, not a rounded reciprocal. The owner ORs flag bit 5 and marks the rectangle on static managers,
+even for equal input. There is no size-zero guard or clamp: with masked FP exceptions, size +0 gives +infinity,
+−infinity, +infinity at indices 0,5,8, and a NaN at index 13 when offset is zero. Negative zero reverses the
+infinities. Unmasked FP exceptions follow caller FP state. The method ignores −1, resolves an indirect handle,
+but **does not recurse over groups**; a handle resolving to a group is an unsupported unsafe native call.
+Evidence: `0x00738160–0x00738220`, especially stores `0x007381D7–0x00738207`.
+
+Paper vector: size=16, offset=8 gives rows `[1/16,0,0,0]`, `[0,−1/16,0,0]`, `[1/16,0,1,0]`,
+`[0,1.5,0,1]`; input `[16,8,16,1]` produces `[2,1,16,1]`.
 
 ## 4. Drawing (`Draw`, `0x00738A50`) *[compat]*
 
