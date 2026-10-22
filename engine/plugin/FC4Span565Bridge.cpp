@@ -79,7 +79,7 @@ void __fastcall Solid(void* self, void* edx, const uint32_t* s, uint32_t n, cons
         Count(1, -1);
         Measure565(1, s, n, d, nullptr, nullptr, 0,
             [&] { reinterpret_cast<SolidFn>(kExpected[1])(self, edx, s, n, d, c); },
-            [&](const fc4_span565_dest* copy) { return fc4_span565_render_solid(s, n, copy, c); });
+            [&](const fc4_span565_dest* copy, const uint32_t* ss) { return fc4_span565_render_solid(ss, n, copy, c); });
         return;
     }
     const int r = Forced() ? -1 : fc4_span565_render_solid(s, n, d, c);
@@ -90,9 +90,12 @@ void __fastcall Gradient(void* self, void* edx, const uint32_t* s, uint32_t n, c
     NoteCaller(2, reinterpret_cast<uintptr_t>(_ReturnAddress()));
     if (Forced()) {
         Count(2, -1);
+        uint32_t record[12];
+        std::memcpy(record,g,sizeof(record));
         Measure565(2, s, n, d, nullptr, nullptr, 0,
             [&] { reinterpret_cast<GradFn>(kExpected[2])(self, edx, s, n, d, g); },
-            [&](const fc4_span565_dest* copy) { return fc4_span565_render_gradient(s, n, copy, g); });
+            [&](const fc4_span565_dest* copy, const uint32_t* ss) { return fc4_span565_render_gradient(ss, n, copy, record); });
+        if (std::memcmp(record,g,sizeof(record))) ++g_contract565;
         return;
     }
     const int r = Forced() ? -1 : fc4_span565_render_gradient(s, n, d, g);
@@ -105,7 +108,7 @@ void __fastcall Alpha(void* self, void* edx, const uint32_t* s, uint32_t n, cons
         Count(3, -1);
         Measure565(3, s, n, d, nullptr, nullptr, 0,
             [&] { reinterpret_cast<AlphaFn>(kExpected[3])(self, edx, s, n, d, c, argb); },
-            [&](const fc4_span565_dest* copy) { return fc4_span565_render_alpha(s, n, copy, c, argb); });
+            [&](const fc4_span565_dest* copy, const uint32_t* ss) { return fc4_span565_render_alpha(ss, n, copy, c, argb); });
         return;
     }
     const int r = Forced() ? -1 : fc4_span565_render_alpha(s, n, d, c, argb);
@@ -116,9 +119,12 @@ void __fastcall AlphaGradient(void* self, void* edx, const uint32_t* s, uint32_t
     NoteCaller(4, reinterpret_cast<uintptr_t>(_ReturnAddress()));
     if (Forced()) {
         Count(4, -1);
+        uint32_t record[12];
+        std::memcpy(record,g,sizeof(record));
         Measure565(4, s, n, d, nullptr, nullptr, 0,
             [&] { reinterpret_cast<GradFn>(kExpected[4])(self, edx, s, n, d, g); },
-            [&](const fc4_span565_dest* copy) { return fc4_span565_render_alpha_gradient(s, n, copy, g); });
+            [&](const fc4_span565_dest* copy, const uint32_t* ss) { return fc4_span565_render_alpha_gradient(ss, n, copy, record); });
+        if (std::memcmp(record,g,sizeof(record))) ++g_contract565;
         return;
     }
     const int r = Forced() ? -1 : fc4_span565_render_alpha_gradient(s, n, d, g);
@@ -131,7 +137,7 @@ void __fastcall Blt(void* self, void* edx, const uint32_t* s, uint32_t n, const 
         Count(5, -1);
         Measure565(5, s, n, d, src, b, kind,
             [&] { reinterpret_cast<BltFn>(kExpected[5])(self, edx, s, n, d, src, b, kind); },
-            [&](const fc4_span565_dest* copy) { return fc4_span565_render_blt(s, n, copy, src, b, kind); });
+            [&](const fc4_span565_dest* copy, const uint32_t* ss) { return fc4_span565_render_blt(ss, n, copy, src, b, kind); });
         return;
     }
     const int r = Forced() ? -1 : fc4_span565_render_blt(s, n, d, src, b, kind);
@@ -228,11 +234,15 @@ void Span565Restore() {
     g_installed = false;
     for (int o = 0; o < 2; ++o) {
         Log("span565 bridge: %s calls ours %ld/%ld/%ld/%ld/%ld declined %ld/%ld/%ld/%ld/%ld forced-native "
-            "%ld/%ld/%ld/%ld/%ld (slots 1-5)", o == 0 ? "shipped    " : "constructed",
+            "%ld/%ld/%ld/%ld/%ld (slots 1-5)", o == 0 ? "nonfixture " : "constructed",
             g_ours[o][1], g_ours[o][2], g_ours[o][3], g_ours[o][4], g_ours[o][5], g_declined[o][1],
             g_declined[o][2], g_declined[o][3], g_declined[o][4], g_declined[o][5], g_native[o][1],
             g_native[o][2], g_native[o][3], g_native[o][4], g_native[o][5]);
     }
+    const char* const origins[] = {"constructed_native_context","constructed_direct","natural_native_context","other"};
+    for (unsigned i = 0; i < 4; ++i)
+        Log("span565 origins: %s %ld/%ld/%ld/%ld/%ld (slots 1-5)",origins[i],
+            g_callers565[i][1],g_callers565[i][2],g_callers565[i][3],g_callers565[i][4],g_callers565[i][5]);
     Log("span565 bridge: removed (%d of 5 entries restored)", restored);
 }
 

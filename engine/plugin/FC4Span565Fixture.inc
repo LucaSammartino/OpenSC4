@@ -119,8 +119,6 @@ void Trace() {
                 const uint32_t format = type == 7 ? 0 : type == 6 ? 1 : type == 4 ? 2 :
                                         type == 5 ? 3 : type == 9 ? 4 : type == 8 ? 5 : 6;
                 const uint32_t masks[] = {0xFFF,0x7FFF,0x7FFF,0xFFFF,0xFFFFFF,0xFFFFFF,0};
-                uint32_t key = 0;
-                std::memcpy(&key,g_src565,bpp);
                 for (unsigned placement = 0; placement < 3; ++placement) {
                     const auto& p = placements[placement];
                     const unsigned modes = placement == 0 ? 2 : 1;  // plain plus tiled
@@ -129,6 +127,9 @@ void Trace() {
                     for (unsigned mode = 0; mode < modes; ++mode) {
                         const int32_t tile[] = {1,1,5,4};
                         const bool tiled = mode == 1;
+                        uint32_t key = 0;
+                        const size_t keyOffset = tiled ? stride + bpp : placement == 1 ? stride : placement == 2 ? bpp : 0;
+                        std::memcpy(&key,g_src565+keyOffset,bpp);
                         if (tiled) VSlot<Ctx565Rect>(ctx,15)(ctx,nullptr,tile);
                         else VSlot<Ctx565Void>(ctx,14)(ctx,nullptr);
                         for (unsigned keyed = 0; keyed < 2; ++keyed) {
@@ -152,7 +153,7 @@ void Trace() {
                                     g_expectedBlt565.u0 = 0; g_expectedBlt565.v0 = 0;
                                 }
                                 g_expectTexture565 = true;
-                                const uint32_t small[] = {0x00030003,0x00030004};
+                                const uint32_t small[] = {0x00030003,0x00030005};
                                 Draw565(ctx,placement == 2 ? small : spans,placement == 2 ? 1 : 4,5,site);
                                 Require565(!source->IsLocked() && Refs565(source) == 2 && dst->IsLocked());
                             }

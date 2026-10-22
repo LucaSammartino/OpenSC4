@@ -47,11 +47,21 @@ void Measure565(int slot, const uint32_t* spans, uint32_t n, const fc4_span565_d
         return;
     }
     if (src) {
-        // Check all six producer dwords and every defined blit member. Padding
-        // bytes in the stack-local b record are unspecified, so exclude them.
-        if (std::memcmp(src, &g_expectedSource565, sizeof(*src)) || !blt ||
-            std::memcmp(blt, &g_expectedBlt565, 28) || blt->key_flag != g_expectedBlt565.key_flag ||
-            kind != g_expectedKind565) ++g_contract565;
+        // All six source dwords are defined. Plain geometry words, tiled
+        // steps, an inactive key and padding are not consumed by the route;
+        // capture them verbatim for Rust without imposing invented values.
+        const bool geometry = blt && (g_expectedSite565 == 4 ||
+            (blt->u0 == g_expectedBlt565.u0 && blt->v0 == g_expectedBlt565.v0 &&
+             (g_expectedSite565 == 6 || (blt->du == g_expectedBlt565.du && blt->dv == g_expectedBlt565.dv))));
+        if (std::memcmp(src, &g_expectedSource565, sizeof(*src)) || !blt || !geometry ||
+            blt->format != g_expectedBlt565.format || blt->argb != g_expectedBlt565.argb ||
+            (blt->key_flag && blt->key != g_expectedBlt565.key) ||
+            blt->key_flag != g_expectedBlt565.key_flag || kind != g_expectedKind565) {
+            if (g_contract565 < 8 && blt) Log("span565 producer: case=%llu site=%d source=%p/%d/%u/%u/%u/%u geometry=%08X/%08X/%08X/%08X kind=%u key=%08X/%u expected_key=%08X/%u",
+                g_cases565,g_expectedSite565,src->texels,src->stride,src->width,src->height,src->unread[0],src->unread[1],
+                blt->u0,blt->v0,blt->du,blt->dv,kind,blt->key,blt->key_flag,g_expectedBlt565.key,g_expectedBlt565.key_flag);
+            ++g_contract565;
+        }
         if (!blt || blt->format > 6 || kind > 11 || blt->key_flag > 1) {
             ++g_unaccounted565;
             native();
@@ -67,28 +77,31 @@ void Measure565(int slot, const uint32_t* spans, uint32_t n, const fc4_span565_d
     const fc4_span565_dest savedDst = *dst;
     const std::vector<uint32_t> savedSpans(spans, spans + 2 * n);
     std::vector<uint8_t> source;
+    std::vector<uint8_t> sourceBefore;
     fc4_span565_source rs{};
     fc4_span565_blt savedBlt{};
     if (src) {
         source.assign(g_srcBytes565 + 64, 0xE7);
         std::memcpy(source.data() + 32, g_src565, g_srcBytes565);
+        sourceBefore.assign(g_src565, g_src565 + g_srcBytes565);
         rs = *src;
         savedBlt = *blt;
     }
     native();  // original authoritative; no second host draw, restore, or resync
     int status;
     if (src) {
-        const uintptr_t bias = reinterpret_cast<uintptr_t>(src->texels) - reinterpret_cast<uintptr_t>(g_src565);
+        const uintptr_t bias = reinterpret_cast<uintptr_t>(rs.texels) - reinterpret_cast<uintptr_t>(g_src565);
         rs.texels = reinterpret_cast<const uint8_t*>(reinterpret_cast<uintptr_t>(source.data() + 32) + bias);
         // Rust uses the captured source, including plain pointer bias and padding.
-        status = fc4_span565_render_blt(spans, n, &rd, &rs, &savedBlt, kind);
-        if (std::memcmp(source.data() + 32, g_src565, g_srcBytes565) ||
+        status = fc4_span565_render_blt(savedSpans.data(), n, &rd, &rs, &savedBlt, kind);
+        if (std::memcmp(source.data() + 32, sourceBefore.data(), g_srcBytes565) ||
+            std::memcmp(g_src565, sourceBefore.data(), g_srcBytes565) ||
             std::memcmp(src, &g_expectedSource565, sizeof(*src)) ||
             std::memcmp(blt, &savedBlt, sizeof(savedBlt))) ++g_contract565;
         for (size_t i = 0; i < 32; ++i)
             if (source[i] != 0xE7 || source[source.size()-1-i] != 0xE7) ++g_contract565;
     } else {
-        status = rust(&rd);
+        status = rust(&rd,savedSpans.data());
     }
     if (status != FC4_SPAN565_OK) ++g_refused565;  // no fallback permitted in measured branch
     if (std::memcmp(dst, &savedDst, sizeof(*dst)) ||
