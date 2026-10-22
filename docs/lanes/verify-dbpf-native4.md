@@ -1,6 +1,21 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-dbpf-native4: independent public packed DBPF transport | `verify-dbpf-native4` / detached engine lane | WIP: cargo4962 PASS, clippy0, CTest68/68; native turbo + normal clean2032/ref0/fullsave/shutdown; natural60440/60440 record transport exact per run, constructed10/10; three key-list/count differences EX55; EX54 open | 1. Supply coordinator exacthouse40 profile and supported own-mode definition. 2. Split EX55 diagnostics without fitting. 3. Use remaining original-run slot only with the supplied profile. |
+| verify-dbpf-native4: independent public packed DBPF transport | `verify-dbpf-native4` / detached engine lane | in progress: round2/3 from b3e8d72d; prior cargo4962/clippy0/CTest68/68; native turbo+normal clean2032/ref0; EX54/EX55 open | 1. Split EX55 transport diagnostics. 2. Run own/current40 saved-city reload and ref0 controls with frozen artifacts. 3. Full gate and bounded report. |
+
+## Handoff
+
+- Goal: round2/3; separate public record transport from original packed owner, preserve EX54/EX55.
+- Starting tip b3e8d72d; detached HEAD, no refs/branches/config changes allowed.
+- Round1 production implementation d25b2ebd; report b3e8d72d; original attempts retained below and in build-runs.
+- Own profile: replacement clock24 only, dbpf_native=1; original packed-segment remains independently owned.
+- Current40: literal coordinator list from round2 brief; no terrain/effects substitutions.
+- Baseline qbuild all started (session60541); next inspect result and split combined list/count diagnostics.
+- No round2 game request outstanding. Unique labels required; wait without qwait.
+- Round1 turbo and normal both natural60440/60440 + constructed10/10; three EX55 combined differences each; refusal0/failed0/fallback0/resync0.
+- No game-attempt cap: originalcap3 meant lane rounds, this is round2/3.
+- Guard manifest C:/Users/tlori/FreeCity4/build-runs/run4-verify-dbpf-native4-r2-manifest.json.
+
+## Previous round report (preserved)
 
 ## Result
 
