@@ -1,6 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-persist-manager-complete4: PR5 enumeration completion | `core-persist-manager-complete4` / detached reserved worktree (engine lane) | blocked at prerequisite; native production comparison adapter unavailable; no source changes, builds or game runs; ABI unchanged; no new questions | 1. Publish supported native cache binding and production-core comparison adapter with storage/lifetime contracts. 2. Correct PR5 and add counterexamples, preserving explicit PR4 deviation. 3. Gate and independently compare native/core, then guarded game save/shutdown/reload. |
+| core-persist-manager-complete4: PR5 enumeration completion | `core-persist-manager-complete4` / detached reserved worktree (engine lane) | in progress; corrected core-only round 2/2; ABI unchanged | 1. Correct PR5 and test counterexamples. 2. Refresh owner audit preserving PR4 policy. 3. Focused tests, full gate and fmt. |
+
+## Handoff
+
+- Goal: complete published PR5 enumeration in core only; native prerequisite removed.
+- Reused detached HEAD 8ae81c65; initial worktree clean.
+- Next: read PR5 slot 12 and A-F, change cache enumeration, add focused tests.
+- Source: engine/core/src/persistence_manager/{cache,manager,test_host,table,primitives}.rs and AUDIT.md.
+- Preserve PR4 initialized logical-OR policy and native/reentrancy limitations.
+- No baseline gate per corrected task; focused and final checks follow substantive edits.
+- No native binding, CAPI, plugin, game, shadow or replacement work authorized.
+- No outstanding game labels or new questions.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-persist-manager-complete4-r2-manifest.json.
+- Prior round report below is historical; its prerequisite is superseded.
 
 ## Result
 
