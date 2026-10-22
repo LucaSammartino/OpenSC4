@@ -160,16 +160,26 @@ mod tests {
 
     #[test]
     fn cumulative_boundary_and_zero_draw_choose_first_ge_not_next() {
-        let seeds = FixedSeeds { wall_clock: 1, process_clock: 0 };
+        let seeds = FixedSeeds {
+            wall_clock: 1,
+            process_clock: 0,
+        };
         let mut random = RzRandom::new(1, &seeds);
         // Zero state with zero process clock gives exactly 0.5, so r=1 of 2.
         random.set_state(1, 0, None);
-        let mut first = Triangle::new([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], 0.0, Xform::default());
+        let mut first = Triangle::new(
+            [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            0.0,
+            Xform::default(),
+        );
         first.cumulative_area = 1.0;
         let mut second = Triangle::new(first.vertices, 1.0, Xform::default());
         second.transform.translation = [100.0, 0.0, 0.0];
         let triangles = [first, second];
         let point = sample(1, &triangles, 2.0, &mut random).unwrap()[0];
-        assert!(point.position[0] < 2.0, "an equal-area boundary belongs to the first triangle");
+        assert!(
+            point.position[0] < 2.0,
+            "an equal-area boundary belongs to the first triangle"
+        );
     }
 }

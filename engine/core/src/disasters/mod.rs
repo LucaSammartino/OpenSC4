@@ -68,6 +68,7 @@
 
 mod effect;
 mod fire;
+pub mod flames;
 mod layer;
 mod pipe;
 mod quake;

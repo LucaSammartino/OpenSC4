@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-use super::{get_points_on_model, EffectFactory, Flame, FlameInitial, ModelInstance, PlacementError, Stage, VisualEffect};
+use super::{
+    get_points_on_model, EffectFactory, Flame, FlameInitial, ModelInstance, PlacementError, Stage, VisualEffect,
+};
 use crate::camera::Vec3;
 use crate::rng::{RzRandom, SeedSource};
 
@@ -37,7 +39,14 @@ pub struct FireFlames<E: VisualEffect> {
 impl<E: VisualEffect> FireFlames<E> {
     /// Portable composition, not the unpublished native constructor (FF2).
     pub fn new(top_count: u32, side_count: u32, initial: FlameInitial) -> Self {
-        Self { top_count, side_count, initial, stage: None, on_model: false, flames: Vec::new() }
+        Self {
+            top_count,
+            side_count,
+            initial,
+            stage: None,
+            on_model: false,
+            flames: Vec::new(),
+        }
     }
 
     pub fn stage(&self) -> Option<Stage> {
@@ -56,7 +65,10 @@ impl<E: VisualEffect> FireFlames<E> {
         if !self.flames.is_empty() {
             return Err(PlacementError::AlreadyPopulated);
         }
-        let count = self.top_count.checked_add(self.side_count).ok_or(PlacementError::CountOverflow)?;
+        let count = self
+            .top_count
+            .checked_add(self.side_count)
+            .ok_or(PlacementError::CountOverflow)?;
         if let Some(points) = get_points_on_model(count, placement.instances, placement.seeds)? {
             self.on_model = true;
             for point in points {
@@ -76,8 +88,14 @@ impl<E: VisualEffect> FireFlames<E> {
                 } else if index < self.top_count {
                     position[1] = (max[1] - 1.0).max(min[1]);
                     if self.top_count > 1 {
-                        position[0] = placement.fire_random.range_gaussian(f64::from(min[0]), f64::from(max[0])) as f32;
-                        position[2] = placement.fire_random.range_gaussian(f64::from(min[2]), f64::from(max[2])) as f32;
+                        position[0] = placement
+                            .fire_random
+                            .range_gaussian(f64::from(min[0]), f64::from(max[0]))
+                            as f32;
+                        position[2] = placement
+                            .fire_random
+                            .range_gaussian(f64::from(min[2]), f64::from(max[2]))
+                            as f32;
                     }
                 } else {
                     wall = true;
@@ -122,7 +140,11 @@ impl<E: VisualEffect> FireFlames<E> {
 
     /// §4: base Init, group membership, then Update(stage) for existing flames.
     /// FF2 records the conflicting "builds flames" summary in disasters §5.11.
-    pub fn init(&mut self, base: &mut impl OccupantInit, factory: &mut impl EffectFactory<Effect = E>) -> Result<(), PlacementError> {
+    pub fn init(
+        &mut self,
+        base: &mut impl OccupantInit,
+        factory: &mut impl EffectFactory<Effect = E>,
+    ) -> Result<(), PlacementError> {
         base.init();
         base.join_group(FIRE_OCCUPANT_GROUP);
         self.update_all(factory)
