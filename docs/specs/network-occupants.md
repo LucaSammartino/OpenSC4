@@ -228,7 +228,7 @@ the base ctor wrote `0x74758925`.
 | `+0x140` | ref | an owned reference written through `SC4WriteGZSerializable` with IID `0x6999A8FB` (the segment-o-stream QI; foundations §3) and read back with `SC4ReadGZPersistRef` IID `0xA9667793` (record field 12); §2.6 reads the same word as the cached path info |
 | `+0x144`…`+0x164` | 4 × 8 bytes | the connection byte matrix: `[exit][type]` (§2.6) |
 | `+0x164` | u32 | path-id override (slot 16, `0x006197D0`); saved by the record (field 11) and the trigger of the v < 8 read tail |
-| `+0x168`, `+0x16C` | int64 | demolition cost / saved int64 pair (slot 63); the ctor zeroes both |
+| `+0x168`, `+0x16C` | 2 × f32 | the **path origin offset** (x, z), meaningful only when `+0x164` ≠ 0. `GetPathInfo` (`0x0061B510`, `0x0061B635…0x0061B64B`) passes the two dwords by value as (x, 0, z) to the path-info slot `+0x74`; the prebuilt `GetModelInstances` loads them as f32 and negates them into the `Deform` origin (§10.3, `0x0061EEC9…0x0061EEE0`). The ctor stores integer 0 in both (`0x0061BFAC`/`0x0061BFB2`, = 0.0f). Not saved by the record and **not** the slot-63 pair (that is `+0x170`/`+0x174`). An earlier draft of this table named them "demolition cost / int64": wrong |
 | `+0x170`, `+0x174` | int64 | the int64 the record saves (field 13: low dword `+0x170`, high `+0x174`); §2.4 also reads this pair as the one-way data backing (property `0x4835C6AA`) |
 
 **Offsets in the record.** `Write` and `Read` sit in the `+8` vtable (`0x00AA7FDC`) with no thunk, so they run with
@@ -328,7 +328,9 @@ The subclass records add fields after the base block; §3.4, §5.4, §6.4, §7.4
   `b ≥ 0x80` by `b & 1` *[compat]*.
 - **`AddTriangle`** (slot 31, `0x0061C800`): appends a 0x4C-byte vertex to the `+0x110` list, recomputes the bbox
   (slot 80, `0x0061A430`) and calls slot 46.
-- **Demolition cost** (slot 63, `0x00604E10`): returns the int64 `+0x168`/`+0x16C` in `EDX:EAX`.
+- **Demolition cost** (slot 63, `0x00604E10`, primary vtable `0x00AA7038` + `0xFC`): returns the int64
+  `+0x170` (low, `EAX`) / `+0x174` (high, `EDX`), the pair the record saves as field 13. (It does not read
+  `+0x168`/`+0x16C`, which are the f32 path origin offset of §2.2.)
 
 ### 2.5 Lifecycle *[compat]*
 
@@ -964,8 +966,242 @@ paired `0x00AA7C70`, `+0x20` `0x00AA7CE0`, processor at `+0x2C+0x70`) with four 
 | `Clip` | `0x00618B00` | the underground/clipping view |
 | `Prelight` | `0x00614350` | the pre-light pass |
 
-`GetModelInstances` (primary slot 33, `0x0061AF90`) returns it. A replacement renders the piece by deforming the
-exemplar model to the corners; the quads and triangle soup of §2.2 are the fallback path when there is no model.
+**Correction (NO22, NO23; re-networkmodel-answers4, from the bytes).** None of the four bodies is a virtual
+override: no vtable or data reference points at any of them. They are ordinary members called only from
+`cSC4NetworkOccupantWithPreBuiltModel::GetModelInstances` (`0x0061E8A0`). The instance's own vtables (`0x00AA7CBC`,
+9 slots, and `0x00AA7C70`, 19 adjustor thunks) are the plain `cS3DModelInstance` ones plus a destructor
+`0x00614830`. The instance is 0xE4 bytes: `new` at `0x0061E9xx`, ctor `0x00614A30` with the virtual-base flag 1,
+and a `cS3DModelProcessor` at `+0x9C`. The "Prelight" name is wrong; §10.3 gives the real role of `0x00614350`.
+
+### 10.1 Who builds the instances, and what `GetModelInstances` returns *(NO23)*
+
+`GetModelInstances(a1, a2, outArray, a4, outCount)` (5 stack arguments, `RET 0x14`):
+
+1. **Plain piece (`0x0061AF90`, every class).** It sets `*outCount = 0`, reads the piece position (the `+4` view's
+   slot 8, `+0x20`) into the transform translation `+0x8C/+0x90/+0x94`, sets part-mask bit 1 at `+0x65`, and
+   increments the change counter `+0x64`. It then stores **the piece's own embedded `cS3DModelInstanceBasic`**
+   (the virtual base at `+0x38`, reached through the vbtable at `+0x3C`) in `outArray[0]`, sets the count to 1
+   and AddRefs it. So the call never returns zero instances and never returns null: a piece with no exemplar
+   model still returns this embedded instance, which draws the §2.2 quad and triangle list. The ctor `0x00614A30`
+   is not involved.
+2. **Prebuilt piece (`0x0061E8A0`).** It calls step 1 first, so `outArray[0]` is the embedded instance. It then
+   appends up to two new `cSC4NetworkOccupantModelInstance` objects:
+   - **Main model.** `cSC4ModelMakerUtility::GetModelInstanceID` (`0x00497180`) takes the `+4` view, the
+     rotation (primary slot 24), and a bool that is the negation of option `0x27812821`. A zero ID **returns at
+     once**: no model instance, and the shadow update of the last step is skipped. Otherwise the resource
+     manager (`0x00B45254`, IID `0x9AD0E7E3`) loads the model. On success a fresh instance is built **on every
+     call** (`new 0xE4`, ctor, AddRef) and bound to the model by `0x00614890`. That function stores the model
+     ref at instance `+0x28`, stores the LOD word 0 at `+0x94`, has the model fill the instance's mesh vector
+     `+0x04`, and copies the model bounds to `+0x64`. Then the transform, the passes of §10.2 and the alpha are
+     set. The instance is AddRef'd into `outArray[count++]`, passed to primary slot 81 (the prebuilt appendix,
+     §2.8), and **cached in the AutoRef at `+0x1C4`**, which releases the previous instance. The model resource
+     ref and the construction ref are then released. Net result: one reference for the caller and one in the
+     cache. If the allocation fails or `0x00614890` fails, `+0x1C4` is cleared (and its old instance released)
+     and nothing is appended. If the resource load fails, `+0x1C4` keeps its old instance and nothing is
+     appended.
+   - **Second model.** Built only when `+0x19C` is not zero, from the key {type `0x5AD0E817`, group
+     `0xBADB57F1`, instance `+0x19C`}, in the same way. It is cached at `+0x1C8`. Its yaw adds f32 `+0x1A0`, its
+     translation adds `+0x1A4/+0x1A8/+0x1AC` (on top of `+0x178…`), and it gets no `Deform` or `Clip`.
+   - Last step: when `a1 != byte +0x1C0`, it calls `UpdateShadow(1)` and stores `a1` in `+0x1C0`.
+3. **Ownership.** The model instance is **a separate heap object**, not the `+0x38`/`+0x68` sub-object of §2.1/§2.2.
+   The piece owns it only through the `+0x1C4`/`+0x1C8` cache. Each draw query replaces the instance, so the
+   deformation always starts from the flat model (§10.3). **Release (NO26):** the prebuilt `Shutdown`
+   (`0x0061D0D0`) first asks the `+4` view's slot 5 (`+0x14`). When that answers true, it clears and releases
+   `+0x1C4`, then `+0x1C8`, and tail-calls the base `Shutdown`. When it answers false, it returns 1 and touches
+   nothing. `+0x1C0` is not reset. **Destructor:** the prebuilt destructor body is `0x00604CA0` (the export
+   labels it `cSC4NetworkOccupant::~cSC4NetworkOccupant`, but it installs the prebuilt vtables `0x00AA7038`,
+   `0x00AA6FB0`, `0x00AA6F94`, `0x00AA6F30`, `0x00AA6F18`, `0x00AA6F14`, `0x00AA6EC8`). It releases **`+0x1C8` first,
+   then `+0x1C4`** (each: if non-null, call its slot `+8`, Release; `0x00604CEA…0x00604D05`). It does not clear
+   them, and it then tail-jumps to the base destructor `0x0061C170`. The deleting destructor `0x00605020` calls
+   that body and frees the object (`0x0061E300`) when bit 0 of its argument is set. The tunnel destructor body
+   `0x00647260` (also labelled as the prebuilt one) releases its own `+0x1D0` and then runs `0x00604CA0`. A
+   piece that was shut down first holds null caches at this point, so nothing is released twice.
+
+**Transform written to each model instance** (before the passes; the instance's slot `+0x24` reads its transform
+into a local, slot `+0x28` writes it back):
+- the rotation starts from identity;
+- yaw = `SC4ViewUtilities::GetObjectYRotationAngle` when the position query's flag byte is set, otherwise
+  −(view global `0x00B43DD8` `+0x1C`), plus `+0x1A0` for the second model;
+- the 3×3 rotation is built from that yaw (pitch and roll 0), and the mask gets bit `0x400`;
+- **flip** (primary slot 25 true): the **first rotation row is negated** (a mirror);
+- translation = position + (`+0x178`, `+0x17C`, `+0x180`), and the mask gets bit `0x100`.
+
+When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (constant 0.003921569) and flag bit 2.
+
+### 10.2 Pass order *(NO22)*
+
+| Path (main model) | Condition | Calls, in order |
+|---|---|---|
+| options skip | option `0x6A845768` true (its byte is saved at `0x0061E97B`) | none: the instance draws the shared flat model |
+| surface | network-flag test (primary slot 8) `0x40000` false | `Bind` `0x00614350`, then `Deform` `0x00614A90`, then `FlipAndLight` `0x00616800` |
+| clipped | `0x40000` true | `Clip` `0x00618B00` **first** (it runs even when the option is set), then `Bind`, then `FlipAndLight` (no `Deform`) |
+| second model | option false | `Bind`, then `FlipAndLight` |
+
+`Clip` is called at `0x0061EE60` as `Clip(&lo, &hi, 1)` with
+- lo = (−FLT_MAX, h, −FLT_MAX) and hi = (FLT_MAX, FLT_MAX, FLT_MAX);
+- h = (lowest of the four terrain heights at the piece's cell corners) − position y (`0x0061EE07`);
+- the corner heights come from the terrain at `0x00B43CF4`: slot `+0x38` per integer vertex, or, when slot
+  `+0x14C` answers true, slot `+0x78` at world (16·x, 16·z) and (16·x+16, 16·z+16).
+
+### 10.3 The four bodies *(NO21, NO22)*
+
+- **`Bind` (`0x00614350`, misnamed "Prelight").** It calls `cS3DModelProcessor::SetModel` (`0x008038D0`) on the
+  processor at `+0x9C`, passing the instance's `+0x20` virtual-base view. SetModel keeps the shared vertex arrays
+  (refcounted) and replaces each mesh's array with a **private copy** in the processor's vertex format. The copy
+  takes x, y, z, u and v from the source and fills colour with the constant at `0x00B0E37C`; the bounds are
+  copied too. A mesh whose source format is not `PackStandardVertexFormat(2)` makes SetModel drop the model.
+  Every later pass edits only this private copy.
+- **`Deform(rot, flip, P0, P1, origin, diag)` (`0x00614A90`).** The arguments are:
+  - `rot` = primary slot 24 & 0xFF;
+  - `flip` = slot 25;
+  - `P0` = prebuilt `+0x184`, `P1` = `+0x190`, each three f32 {a, b, c};
+  - `origin` = (0, 0, 0), or (−f32 `+0x168`, 0, −f32 `+0x16C`) when `+0x164` ≠ 0;
+  - `diag` = the network-flag test `0x1000000`.
+
+  It resets the instance bounds `+0x64…+0x78` to the empty sentinel (min 1, 1, 1; max 0, 0, 0). Then, for every
+  vertex of every mesh (count u16 at array `+6`, stride u16 at `+4`, data at `+8`; position x, y, z at `+0/+4/+8`):
+  1. Rotate the model x, z with the jump table `0x00614CE4`:
+     - rot 0 (and any value > 3): x′ = x, z′ = z
+     - rot 1: x′ = −z, z′ = x
+     - rot 2: x′ = −x, z′ = −z
+     - rot 3: x′ = z, z′ = −x
+  2. If `flip` is set, x′ = −x′.
+  3. Subtract the origin: x′ −= origin.x, z′ −= origin.z.
+  4. Compute s = x′ + z′ when `diag` is set, otherwise s = x′ − z′. Use P1 when s ≥ 0 (also when s is NaN),
+     otherwise P0 (`0x00614B87`, compared with 0.0 at `0x00A81054`).
+  5. Set **y ← ((z′·b + x′·a) + c) + y**, summed on the x87 stack and rounded to f32 once at the store
+     (`0x00614B9C…0x00614BAC`).
+
+  Then it recomputes the bounds from all mesh vertices. The first mesh seeds them when max.x < min.x.
+
+  **The planes** come from `RecomputeShearTransform` (`0x0061D230`). Write y0…y3 for the y values of quad
+  vertices 0…3 (`+0xA0/+0xB8/+0xD0/+0xE8`) and Y for the piece position y. The constants are 0.5 (`0x00A84D2C`)
+  and 0.0625 (`0x00AA81E4`).
+
+  | `0x1000000` | c (both planes) | P0 {a, b} | P1 {a, b} |
+  |---|---|---|---|
+  | clear | (y0 + y2)·0.5 − Y | ((y2 − y1)·0.0625, (y1 − y0)·0.0625) | ((y3 − y0)·0.0625, (y2 − y3)·0.0625) |
+  | set | (y1 + y3)·0.5 − Y | ((y3 − y0)·0.0625, (y1 − y0)·0.0625) | ((y2 − y1)·0.0625, (y2 − y3)·0.0625) |
+
+  These two planes reproduce all three corner heights of their triangles only with the corners at x′, z′ =
+  v0 (−8, −8), v1 (−8, +8), v2 (+8, +8), v3 (+8, −8). So the frame is **centred on the piece position with
+  extent −8…+8**.
+  - Diagonal: v0–v2 (x′ = z′) when the flag is clear, v1–v3 (x′ = −z′) when it is set.
+  - **Shape: two triangles, not bilinear.**
+  - **The bend is added to the flat y**, relative to Y, and always starts from a fresh private copy of the flat
+    model.
+  - **Nothing is clamped**: a vertex outside ±8 takes the plane of its side of the diagonal, extrapolated.
+
+  Worked example (flag clear, y = (0, 4, 8, 0), Y = 0): P0 = (0.25, 0.25, 4), P1 = (0, 0.5, 4). Results:
+  - vertex (8, 8, flat y 0): s = 0 picks P1, y = 8 (corner v2);
+  - (−8, 8): P0, y = 4 (v1);
+  - (8, −8): P1, y = 0 (v3);
+  - (12, 0): P1, y = 4 (extrapolated);
+  - with flip set, model (8, −8) maps to x′ = −8 and gets P0, y = 0.
+- **`FlipAndLight(flip)` (`0x00616800`).** When `flip` (slot 25) is set, every mesh gets a new index list, which
+  **reverses the winding**:
+  - the old indices are copied in reverse order;
+  - each primitive range's start becomes N − start − count, where N is the index count (or the vertex count when
+    the mesh has no index list);
+  - a mesh with no index list gets a synthesized descending list (max − 1 … min) and its ranges are rebased by −min.
+
+  It moves no vertex and changes no UV: the mirror itself is the negated transform row of §10.1. Whether or not
+  `flip` is set, it then calls `cS3DModelProcessor::LightModel(*0x00B43DDC, flip)` (`0x00803E10`). LightModel
+  builds vertex normals (`0x00803370`) when the processor has none and lights the copy through the instance
+  transform; when `flip` is set it negates all nine rotation entries. FlipAndLight then calls `ReleaseModel`
+  (`0x00802B30`), which drops the processor's references.
+- **`Clip(lo, hi, mode)` (`0x00618B00`, NO25).** Arguments: `lo` at `[esp+4]`, `hi` at `[esp+8]`, `mode` byte
+  at `[esp+0xC]`, `RET 0xC`.
+  1. **Early out.** A null `lo` returns at once. The bounds are read through slot `+0x1C` of the `+0x20` view
+     into a local that starts as min (1, 1, 1), max (0, 0, 0). With `mode` ≠ 0 it cuts when **min.y < lo.y or
+     max.y > hi.y**, an unordered compare counting as "cut" (`0x00618B65…0x00618BC0`). With `mode` 0 it tests
+     x and z only: min.x < lo.x, min.z < lo.z, max.x > hi.x, max.z > hi.z. If no test fires, it returns with
+     nothing changed, the bounds included. At the §10.2 call site (hi = +FLT_MAX), the piece is cut exactly when
+     its bounds' min.y < h.
+  2. **Per mesh** (slot `+0xC` gives the count, slot `+0x10` the mesh): the source format (dword at the vertex
+     array `+0`) selects the path:
+     - 2 and `0x80004001`: 20-byte output vertices {x, y, z, u, v} at `+0/+4/+8/+0xC/+0x10`, through the
+       pooled clipper `0x00B45240`.
+     - 10: 24-byte vertices {x, y, z, colour u32 at `+0xC`, u `+0x10`, v `+0x14`}, through the pool
+       `0x00B45244`.
+     - Any other format runs no clipping. The mesh still gets the fresh, **empty** vertex array (same format)
+       and an empty index list (`0x00618EC0` onward installs them unconditionally).
+
+     The source is read with its own stride (u16 at array `+4`).
+  3. **Clipper state:** lo (3 f32), hi (3 f32), the source data pointer and stride, the output vertex vector, the
+     output index vector, a map from source index to output index, and `mode` (clipper `+0x4C`).
+  4. **Ranges.** Each primitive range (12 bytes: {kind, start, count}) is walked as a **triangle list**:
+     - triangle k uses indices start + 3k … start + 3k + 2, taken while 3k < count − 2;
+     - with no index list, the indices are the vertex numbers themselves;
+     - afterwards the range's start = the output index count before it, and its count = the indices it emitted;
+     - ranges that emitted nothing are removed, keeping order (`0x006189E0`);
+     - a mesh with no ranges emits nothing and ends empty.
+  5. **Outcode per vertex** (`0x00614100`): +1 if x < lo.x, +0x10 if y < lo.y, +2 if z < lo.z, +4 if x > hi.x,
+     +0x20 if y > hi.y, +8 if z > hi.z, all strict. A NaN coordinate gives 0 (inside). For a triangle:
+     - the AND of its three codes is non-zero: dropped;
+     - all three codes are 0: emitted as is;
+     - otherwise it is clipped, with `mode` ≠ 0 by the **y-slab** clipper (`0x006175C0` for 20-byte vertices,
+       `0x00618030` for 24-byte). `mode` 0 uses `0x00616F60`/`0x00617980` (all six planes). The network call never
+       passes `mode` 0, and that path is not specified here.
+  6. **Y-slab clip (kept side).** Only the y bits (code & 0x30) count, so a vertex is kept when
+     **lo.y ≤ y ≤ hi.y**. At the §10.2 call site that means **the geometry at or above h is kept and everything
+     below h is removed**. The edges are walked as cur → next, with (v0 → v1), (v1 → v2), (v2 → v0), and each
+     appends to a polygon:
+
+     | cur | next | appended |
+     |---|---|---|
+     | in | in | cur |
+     | in | out | cur, then X(from next toward cur) |
+     | out | in | X(from cur toward next) |
+     | out, out, a shared y bit | | nothing |
+     | below and above (no shared bit) | | X(cur→next, t_min), then X(cur→next, t_max) |
+
+     The polygon (3 to 6 vertices) is emitted as a **fan**: (p0, p1, p2), (p0, p2, p3), … (the tail loop of
+     `0x006175C0`, index pushes around `0x00617908`/`0x0061793A`/`0x00617963`). The winding is kept.
+  7. **The cut vertex X(from out toward in)** (`0x00614490`, 24-byte `0x006145D0`):
+     - t starts at 0; for each set bit, t_b = (plane − out.c) / (in.c − out.c), with plane lo.y for 0x10 and
+       hi.y for 0x20;
+     - t_b is computed on the x87 stack from f32 operands, compared unrounded, and stored as f32 only when
+       t_b ≥ t (the first test is against 0.0 `0x00A81054`; a NaN fails).
+     - In the "below and above" case, t0 = (lo.y − cur.y) / (next.y − cur.y) and t1 = (hi.y − cur.y) /
+       (next.y − cur.y) share the f32-loaded denominator, are each stored f32, and are swapped when t0 > t1
+       (`0x00617738…0x00617773`).
+     - Every float attribute is **a′ = (in.a − out.a)·t + out.a**, on x87 and rounded to f32 at the store, in
+       the order x, y, z, u, v (`0x00614170`; 24-byte `0x00614200`).
+     - Format 10 colour: each byte c of `+0xF`, `+0xE`, `+0xD`, `+0xC` is **trunc(int(in.c − out.c)·t +
+       out.c)** through `_ftol2` (`0x0061424F…0x006142A9`), with no rounding to f32 first.
+  8. **Output vertices.** The first time a source vertex is used by an emitted triangle, it is copied to the
+     output (a per-mesh map, so shared source vertices stay shared). A cut vertex is appended every time, with no
+     sharing, even between the two triangles of a shared edge. Its output index is the vertex count just before
+     its append. The new vertex count is stored as u16 at array `+6`.
+  9. **Bounds after a cut.** With the meshes done, the instance bounds are **clamped to the box, not
+     recomputed**: per axis, min = lo if min < lo, and max = hi if hi < max (`0x00618FD2…0x00619024`; an
+     unordered compare keeps the old value). This runs for all three axes in both modes. At the call site it
+     raises min.y to h.
+
+  **Worked vectors (h = lo.y = 0, hi = +FLT_MAX, format 2, vertex = (x, y, z; u, v)).**
+  - A: v0 (0, −2, 0; 0, 0), v1 (4, 2, 0; 1, 0), v2 (0, 2, 4; 0, 1). Codes 0x10, 0, 0.
+    - Edge 0→1 gives X(v0→v1), t = 2/4 = 0.5: (2, 0, 0; 0.5, 0).
+    - Edge 1→2 gives v1.
+    - Edge 2→0 gives v2, then X(v0→v2), t = 0.5: (0, 0, 2; 0, 0.5).
+    - Polygon [X01, v1, v2, X02]; triangles (X01, v1, v2) and (X01, v2, X02).
+    - Output vertex order: X01, v1, v2, X02.
+    - The bounds' min.y becomes 0.
+  - B: v0 (0, −2, 0), v1 (4, −2, 0), v2 (0, 2, 0), with u, v = x/4, z/4.
+    - Edge 0→1 gives nothing.
+    - Edge 1→2 gives X(v1→v2), t = 0.5: (2, 0, 0; 0.5, 0).
+    - Edge 2→0 gives v2, then X(v0→v2) = (0, 0, 0; 0, 0).
+    - One triangle (X12, v2, X20).
+  - C: all three y < 0: dropped. y = 0 exactly counts as inside (strict compare), so a triangle touching h only
+    at vertices with y = 0 is emitted unchanged.
+  - D: t is taken from the **outside** vertex. Take out.y = −1, in.y = 2. Then t = 1/3 (f32 0x3EAAAAAB), and
+    in.x = 3, out.x = 0 give x′ = (in.x − out.x)·t + out.x = 3·t = 1.0000000298… → f32 1.0 (0x3F800000).
+    Anchoring on the inside vertex instead gives a different bit pattern. With t′ = (plane − in)/(out − in)
+    = f32 2/3 (0x3F2AAAAB), the weighted form in.x·(1 − t′) + out.x·t′ gives 1 − t′ = f32 0x3EAAAAAA, and
+    3 × that = 0.99999994 (0x3F7FFFFF), one ulp below the native 1.0. (The inside delta form 3 + (0 − 3)·t′
+    happens to round to 1.0 for this vector, but it is not the native order either.) To match bit-for-bit,
+    interpolate from the outside end exactly as rule 7 says: t from the outside vertex, stored as f32, then
+    (in − out)·t + out (0x00614490/0x00614170).
 
 ---
 
