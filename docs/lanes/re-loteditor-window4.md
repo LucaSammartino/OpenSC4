@@ -1,8 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-loteditor-window4 (RE: native lot configuration editor) | `re-loteditor-window4` / RE spec lane, detached HEAD | wip: round 2/3 published; LE1/LE2 answered, LE3–LE5 narrowed; exact inventory preserved; no complete-owner credit | Coordinator review native contracts and corrections; remaining fence/dialog/input/render/lifecycle branches require further native tracing. No self-restart. |
+| re-loteditor-window4 (RE: native lot configuration editor) | `re-loteditor-window4` / RE spec lane, detached HEAD | in progress: final round 3/3; preserve de5f2185 and 109-entry/52646B inventory | Trace LE3 geometry/fence/foundation, LE4 dialogs/menu and LE5 lifecycle/input/render; publish proved subsets and PARK exact residuals if incomplete. |
 
-## Report
+## Handoff
+
+- Goal: final native-evidence pass on LE3–LE5; substantive contracts by call 20–30; no fourth round.
+- Baseline: `de5f2185`; LE1/LE2 answered; selector/save contracts and exact inventory preserved.
+- Done: §9.5–§9.6/§15 prove fence overloads, first-foundation operations, pixel spill order, bounds-mover unordered tests; native addresses and nine independent vectors recorded.
+- Next: LE4 dialogs/menu and LE5 lifecycle/input/render/shared attribution; preserve newly narrowed LE3 invalid conversions and payload residuals.
+- Main evidence: `C:/Users/tlori/FreeCity4`; export/decomp only. No engine reads or edits.
+- q.py cannot start Bash (E_ACCESSDENIED); bounded PowerShell/Python used.
+- No game requests, ABI proposals, external communications or subagents.
+- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-loteditor-window4-r3-manifest.json`.
+
+## Previous round report (baseline)
 
 This round changes only the native lot configuration editor specifications,
 their question records/index and this lane report. No engine, tools, maps,

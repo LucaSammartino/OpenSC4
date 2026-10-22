@@ -76,23 +76,23 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 | 00484330 | 494 | 494 | RemoveOutOfBoundsLotConfigurationObjects | C §9.2, §9.4 |
 | 0047B890 | 488 | 488 | PostInit | P §7, LE5 |
 | 00486F20 | 473 | 473 | StaticInit | O LE5 |
-| 00484530 | 462 | 462 | AddLotFoundation | O LE3 |
+| 00484530 | 462 | 462 | AddLotFoundation | C §9.5 |
 | 0047FA80 | 457 | 457 | GetPropFamilyName | O LE5 |
 | 004805B0 | 447 | 447 | DoFenceMenu | O LE3 |
-| 0047B480 | 443 | 443 | MoveObjectToWithinLotBounds | P §9.2, LE3 |
+| 0047B480 | 443 | 443 | MoveObjectToWithinLotBounds | C §9.2, §9.6 |
 | 00486770 | 434 | 434 | DoEditMouseDownL | P §11, LE5 |
 | 00480170 | 411 | 411 | DeleteLotConfigurationObject | C §9.3 |
 | 00480770 | 409 | 409 | DoSetLotNameUI | O LE4 |
 | 0047ABA0 | 406 | 406 | DoDialogBoxGridSort | C §12.1; raw sort options specified |
 | 00486BA0 | 398 | 398 | DoSetLotSizeUI | O LE4 |
-| 0047E890 | 377 | 377 | ToggleFence | O LE3 |
+| 0047E890 | 377 | 377 | ToggleFence | C §9.5; allocation failure not normalized |
 | 0047DA80 | 375 | 375 | cSC4WinLotConfigurationEditor | C §7 |
 | 00485040 | 353 | 353 | MoveObject (key) | P §9.1, LE3 |
 | 00483B20 | 342 | 342 | CreateNewLotConfiguration | C §8.1 |
 | 0047FF30 | 335 | 335 | GetFoundationNameAndImplementationType | O LE5 |
 | 0047F0B0 | 327 | 327 | SetTitle | P §1, LE5 |
 | 0047C510 | 322 | 322 | Shutdown | C §7; destructor remains LE5 |
-| 00484700 | 322 | 322 | ToggleFence | O LE3 |
+| 00484700 | 322 | 322 | ToggleFence | P §9.5; invalid conversion LE3 |
 | 004892B0 | 295 | 295 | Init | P §7, LE5 |
 | 004859E0 | 286 | 286 | DoEditMouseMove | P §11, LE5 |
 | 00483C80 | 281 | 281 | ReadLotConfigurationExemplar | C §8.1 |
@@ -135,7 +135,7 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 | 0047C8D0 | 88 | 88 | DoAddNewWaterConstraint | O LE3 |
 | 0047C930 | 88 | 88 | DoAddNewTerrainConstraint | O LE3 |
 | 0047EFF0 | 83 | 83 | GetDefaultPath | C §8.2 |
-| 0047B420 | 81 | 81 | LotFoundationIsPresent | O LE3 |
+| 0047B420 | 81 | 81 | LotFoundationIsPresent | C §9.5 |
 | 0047BB40 | 81 | 81 | FUN_0047BB40 | C §9.4 |
 | 00486440 | 77 | 77 | FUN_00486440 | O LE5 |
 | 00486490 | 77 | 77 | FUN_00486490 | O LE5 |
@@ -145,7 +145,7 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 | 00478360 | 64 | 64 | FUN_00478360 (record constructor) | R §9.4; editor dependency proved, exclusive ownership unresolved |
 | 0047A830 | 64 | 64 | QueryInterface | C §7 |
 | 00484DD0 | 58 | 58 | MirrorObject | C §9.1 |
-| 0047A8F0 | 53 | 53 | PixelUnitsToObjectUnits | O LE3 |
+| 0047A8F0 | 53 | 53 | PixelUnitsToObjectUnits | C §9.6 |
 | 0047AA00 | 45 | 45 | FUN_0047AA00 | O LE5 |
 | 0047A890 | 42 | 42 | DoEditMouseUpL | C §11 |
 | 0047B0A0 | 39 | 39 | DoAddNewNetworkNode | O LE3 |

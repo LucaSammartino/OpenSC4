@@ -7,15 +7,17 @@ signed fence filtering, full-containment cleanup (correcting the old intersectio
 claim), containment/cleanup unordered tests, texture append/selection order,
 record-allocation null dereferences and the type-7 three-element/four-store
 discrepancy. These are no longer requests to retrace. Remaining scope below is
-ToggleFence overloads, foundation insertion, other numeric conversions and
-movement/hit-test unordered cases, plus physical payload allocation/copy effects.
+Final-round §9.5–§9.6 resolves both ToggleFence overloads for ordinary finite
+conversions, first-foundation query/insertion/removal, pixel conversion spill
+order and every bounds-mover unordered comparison. Remaining scope is invalid/
+overflow integer conversion, movement/hit-test and rectangle conversions outside
+those helpers, plus physical payload allocation/copy effects.
 
 Complete §9 with exact duplicate offsets (`0x0047BB40`, caller `0x00484E10`),
 type-7 payload sizing/initialisation, texture insertion order and all failure
-paths of `0x00484850`. Resolve signed fence filtering in `0x00484330`, both
-ToggleFence overloads (`0x0047E890`, `0x00484700`), and AddLotFoundation
-`0x00484530`. Verify every x87 unordered comparison in movement/bounds/hit
-testing, coordinate conversion widths, and rectangle rounding. Do not assign
+paths of `0x00484850`. Fence filtering, toggles, foundation and bounds-mover
+unordered tests are established and need no retrace. Verify remaining x87
+unordered comparisons in movement/hit testing and rectangle rounding. Do not assign
 NaN expectations from the finite-only rules already specified.
 
 **LE4 — Family/texture/foundation dialogs and complete object popup**

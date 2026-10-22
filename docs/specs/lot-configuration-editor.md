@@ -654,6 +654,80 @@ zeroes the three payload-vector words; it leaves the type/flag bytes and
 creation word untouched. This proves a record-construction dependency, not
 exclusive editor ownership of this shared helper.
 
+### 9.5 Fence toggles and lot foundations
+
+The record overload of ToggleFence (`0x0047E890`) compares **all four bytes**
+against fence records in forward order. On the first exact match it removes
+only that record and shifts later records down; otherwise it appends the input
+four bytes. Reversed endpoints are distinct. It performs no coordinate,
+adjacency or lot-bound validation. In either case it draws the current lot and
+calls editor virtual slot `+0x170`; it does not set dirty or update title
+(`0x0047E8BE..0x0047E947`, `0x0047E9ED..0x0047EA06`). Capacity growth is
+one record from empty, otherwise twice the current record count. Its raw
+allocation/copy path has no transactional failure return; do not substitute a
+successful no-op on allocation failure (`0x0047E94C..0x0047E9E7`).
+
+The pixel overload (`0x00484700`) consumes x and y as signed 32-bit integers;
+its third stack argument is unused (callee discards 12 argument bytes). Let
+`s` be editor binary32 `+0x1AC`. First scan vertical grid lines `i=0..width`
+in increasing order, with pixel coordinate truncation-toward-zero of
+`(16*i) * binary32(1/s)`. The reciprocal is rounded to binary32 before the
+loop. The first line within **inclusive ±3 pixels of x** wins. Only if no
+vertical line matches, scan horizontal lines `j=0..depth` similarly against y.
+There is no nearest-line comparison and no rectangle-origin subtraction.
+
+For a vertical match the fence bytes are `(i,t,i,t+1)`, where t is the low
+byte of truncation-toward-zero of `(signed y * s) * 0.0625`; for a horizontal
+match they are `(t,j,t+1,j)`, using x instead. Increment wraps within one byte.
+The multiply chain stays in x87 until conversion, without a binary32 spill
+between the two multiplications. There is no clamping of the other coordinate.
+It calls the record overload, then sets dirty and updates title; no match
+does none of these operations. Thus its draw/invalidation precedes dirty/title
+(`0x00484718..0x00484839`). Constants are binary32 1 at `0x00A81228` and
+1/16 at `0x00A8E174`. Conversion is helper `0x009EEF04`, with signed 64-bit
+intermediate and low-byte use here. Invalid/overflow conversion is not assigned
+a portable fence coordinate; ordinary finite in-range truncation is established.
+
+LotFoundationIsPresent (`0x0047B420`) returns the `+0x20` ID of the **first**
+type-3 object, or zero if none; it is not a Boolean test and a zero-ID first
+foundation hides subsequent foundations (`0x0047B455..0x0047B470`).
+AddLotFoundation (`0x00484530`) likewise considers only the first type-3 record:
+
+| Existing first type-3 / enable argument | Result |
+|---|---|
+| None / zero | No change. |
+| Present / zero | Remove that record, preserving survivor order and releasing the vacated tail payload. |
+| Present with requested ID / nonzero | Return immediately, without replacing or moving it. |
+| Present with different ID / nonzero | Remove it, then append a new type-3 record at the end. |
+| None / nonzero | Append a new type-3 record. |
+
+The appended record has type byte 3, requested ID at `+0x20`, zero orientation,
+flags, position/bounds and payload pointers/counts. The spare dword `+0x24`
+is not initialized by this stack construction and is not assigned a zero rule.
+Additional type-3 records remain untouched. Removal/replacement does not repair
+the selected pointer. This method itself does not set dirty, update title,
+draw, invalidate or select (`0x00484570..0x004846FD`). These effects belong to
+its callers; adding them here changes same-ID and deletion behavior.
+
+### 9.6 Conversion stores and unordered movement
+
+PixelUnitsToObjectUnits (`0x0047A8F0`) reads each pixel coordinate as signed
+32-bit, multiplies by binary32 scale `+0x1AC`, and stores each product to its
+binary32 output. It then subtracts rectangle `+4` from the stored x and
+rectangle `+0xC` from the stored y, storing each result again to binary32
+(`0x0047A8F0..0x0047A920`). The intermediate rounding is observable; replacing
+it with one multiply-subtract or subtracting the origin before scaling differs.
+
+With x87 invalid exceptions masked, **every** unordered comparison in
+MoveObjectToWithinLotBounds skips its associated translation; the final
+x-only negative clamp also skips for unordered x. Each test uses status bits
+`0x05` with a parity branch (`0x0047B4C0..0x0047B554`,
+`0x0047B56B..0x0047B5FF`, `0x0047B627..0x0047B62E`). This is independent
+per test: a NaN x bound in partial mode does not suppress finite z correction,
+and a finite tested bound can still trigger arithmetic that propagates NaN
+from an untested center/bound. Full mode tests centers; partial mode tests
+opposite bounds as in §9.2. No generic NaN rejection or repair occurs.
+
 ## 10. Additional independent conformance vectors
 
 | Initial state / input | Action | Expected result |
@@ -862,3 +936,20 @@ These are primary-evidence expectations, not outputs of an implementation.
 | Lot dimensions 1×1; fence coordinates `(0xFF,1)`, `(1,1)`, `(2,1)`. | First two survive, third is removed; combined removal count/dirty reflect the one removal. |
 | Nonempty object vector `[A,B]`; add base texture T. | Vector `[A,B,T]`, selected A, draw order T/B/A. |
 | Height 0, −0, +1, −1 in separate ordinary draw calls. | No label, no label, `+1.0`, `--1.0` respectively. |
+
+## 15. Final-round discriminating vectors
+
+These expectations derive from native branches and stores, independently of
+any implementation or test output.
+
+| Initial state / action | Expected distinction |
+|---|---|
+| Fence vector `[A,B,A]`; toggle exact A by record overload. | `[B,A]`; one deletion, draw/invalidate, no dirty/title write. |
+| Vector contains `(0,0,0,1)`; toggle `(0,1,0,0)`. | Reversed record appends; endpoints are not normalized. |
+| Scale 1, nonempty lot; pixel toggle x=1,y=1. | Vertical priority creates `(0,0,0,1)`, not a horizontal segment. |
+| Scale 4, width≥1; pixel toggle x=3,y=8. | Both vertical lines 0 and 1 are within tolerance; line 0 wins although line 1 is nearer. |
+| Scale 1; pixel toggle x=0,y=−16. | Bytes `(0,255,0,0)`; truncation then byte wrapping, no lower-bound clamp. |
+| Type-3 records A(ID 0), B(ID 7); query presence, then enable ID 0. | Query returns 0; enable returns without mutation and B remains. |
+| Objects `[A(type3,ID1),X,B(type3,ID2)]`; enable ID3. | `[X,B,new(type3,ID3)]`, with no dirty/title/draw by this helper. Disable once then removes B only. |
+| Partial bounds mover; both x bounds quiet NaN, finite z bounds wholly below zero; masked exceptions. | Both x translations skip; z is corrected. No whole-record rejection. |
+| Pixel conversion x=16777217, scale 1, rectangle x-origin=16777216. | x output 0 after product spill, rather than 1 from a combined expression (round-to-nearest). |
