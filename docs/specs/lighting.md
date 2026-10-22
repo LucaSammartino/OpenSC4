@@ -141,6 +141,13 @@ Then:
 
 ### 1.5 Colour maps *[compat]*
 
+**Storage boundary (LT7):** `FindMinRedComponentValue` scans every 32-bit element from vector begin to
+vector end, irrespective of width, height or stride. Padding elements inside that range participate; spare
+capacity after end does not. The empty-vector accumulator is 255. The result is the minimum byte multiplied
+by the binary32 constant `0x3B808081` (approximately 0.003921568859368563), using x87 arithmetic; Init stores
+the result as binary32. Thus the empty result at the Init storage boundary is 1.0. Evidence:
+`0x007D6871–0x007D689E`, constant `0x00A90BBC`. This supersedes an active-width-only scan.
+
 Each map is a `cImageARGB8` (0x18 bytes: a vector of 32-bit pixels, width, height, row stride). `CreateColorMap`
 (`0x007DB4D0`) loads the image of group `0xA9179251` and the given instance through `cSLBuffer` (`0x00602B70`, type
 0 and format 9) and copies it pixel by pixel (`0x007DB450`); a missing image leaves the map null. A pixel's red,
@@ -180,6 +187,13 @@ lerped toward the pixel (x1, y) by x − x0. There is no clamp: for u above (W �
 the next row *[quirk]* (between 23:15 and midnight on the shipped 32-wide maps).
 
 ### 2.2 `SetTimeOfDay(t)` (slot 6, `0x007D9DF0`)
+
+**Distance and precision (LT6):** subtract the current RGB components from the last-announced components,
+square them, sum in the order blue squared plus green squared, then red squared, and take the square root.
+All operands are binary32 fields, but these intermediate operations stay on the x87 stack without a
+binary32 store. Compare that length directly with the binary32 threshold: only an ordered, strictly greater
+length proceeds. Equality and unordered comparisons return false. There is no squared-threshold shortcut.
+Evidence: `0x007D9E21–0x007D9E68` (including the square root at `0x007D9E55`).
 
 1. If t is below the current time (the day wrapped), month := slot 15 of the city object at global `0x00B43DAC` (city
    slot 70) − 1 *[inferred: the month 1–12]*.
@@ -340,6 +354,15 @@ s := 1 − `0x085489D3` × night fraction, × (1 − d / 50) when d > 0.
 (x, z) is clamped to [0, W − ε] × [0, D − ε] (ε the double at `0x00AA2270`), then terrain slot 27 (a normal read,
 terrain.md §15.1).
 
+**Upper endpoint precision (LT8):** ε is binary64 **0.001**, verified from the original image's data at
+`0x00AA2270`. Subtract it from the binary32 extent in x87 precision. Compare the incoming binary32 coordinate
+against that unrounded upper bound; only when the coordinate is greater, store the bound back to the
+binary32 argument before forwarding it to terrain slot 27. Negative coordinates become positive zero.
+There is no conversion to a cell index in this helper. For W = 1024 and x = 1024 the forwarded x is
+**1023.9990234375**; x = 1023.9990234375 itself also compares above the extended-precision bound but stores
+the same value. Evidence: `0x007D8340–0x007D83BA` (double subtraction at `0x007D8346`/`0x007D836D`,
+binary32 replacement at `0x007D83A3`/`0x007D83B6`).
+
 ### 5.6 Shadow parameters and projections
 
 - `GetShadowParams(a&, b&, colour&)` (slot 14, `0x007D6B70`): `0x085489CC`, `0x085489CD`, `0x085489CB`.
@@ -427,3 +450,75 @@ See QUESTIONS.md LT1–LT4: the meaning of the settings byte `+0x39C` (§2.1), t
    the same column of row n gets the shadow height 100 − 11.2 n (16 × 0.7 per row) until that reaches the ground,
    so rows 1–8 are shadowed and depth(row 1, ground) = 88.8.
 9. **Bytes:** 0.5 → 128, 0.999 → 255, 0.0019 → 0.
+10. **RGB change discriminator (LT6):** threshold = binary32 0.0001; last-announced RGB = (0,0,0),
+    current RGB = (binary32 0.00008, binary32 0.00008, 0). The length exceeds the threshold, so the call
+    proceeds (and returns true even without terrain). A squared-distance comparison with 0.0001 would fail.
+    With current RGB = (threshold,0,0), equality returns false. A NaN component also returns false.
+11. **Stored padding discriminator (LT7):** width = height = 1, stride = 2, vector contains a red-255 active
+    pixel followed by a red-0 padding pixel. Minimum red is 0; one white element of unused capacity beyond
+    vector end must have no effect. With vector end equal to begin, Init's stored minimum is 1.0.
+12. **Normal clamp discriminator (LT8):** a terrain spy receiving (1024, −1) for a 1024-by-1024 world must
+    see (1023.9990234375, +0), with its output otherwise passed through unchanged.
+
+## 12. Individual owner and attributed-helper checklist
+
+The exact lighting inventory is **43 cSC4LightingManager bodies** and **2 cImageARGB8 bodies**. The former
+includes two adjustment thunks and both destructors; shared AddRef bodies are dependencies, not extra
+lighting bodies. Each row below identifies an individual entry, even where several entries share a section.
+Existing sections describe baseline behaviour; open LT items explicitly withhold complete-owner credit.
+The export's original names alone omit manually attributed entries; this inventory uses the export addresses
+plus `re/symbols/lighting.tsv`, not a name-only export count.
+
+| Entry | Behaviour section | Remaining exact-contract review |
+|---|---|---|
+| `007D65E0` QueryInterface | §1.1 | LT5 |
+| `007D6650` Release | §1.1 | LT5 |
+| `007D6670` GetTimeOfDay | §2 | baseline |
+| `007D6680` IsNight | §2 | baseline |
+| `007D68B0` BendShadowedNormal | §5.3 | baseline |
+| `007D6950` ShadowDepth | §5.1, §5.3 | baseline |
+| `007D6A00` HeightAboveLand | §5.1, §5.3 | baseline |
+| `007D6AB0` SetLightingTint | §2.3 | baseline |
+| `007D6B00` ResetLightingTint | §2.3 | baseline |
+| `007D6B20` GetGlobalLight | §4.6 | baseline |
+| `007D6B50` GetShadowDirection | §4.6 | baseline |
+| `007D6B70` GetShadowParams | §5.6 | baseline |
+| `007D6BB0` GetShadowStrengthFromLocation | §5.4 | baseline |
+| `007D6CC0` CalcShadowTerrainRect | §5.6 | LT11 |
+| `007D73E0` GetColor(out) | §4.1 | baseline |
+| `007D7420` GetColor(bytes) | §4.1 | baseline |
+| `007D7460` GetColor(out, normal) | §4.1 | baseline |
+| `007D7730` GetColor(normal, bytes) | §4.1 | baseline |
+| `007D77C0` GetColor(out, normal, position) | §4.1 | baseline |
+| `007D7840` GetColor(position, normal, bytes) | §4.1 | baseline |
+| `007D7940` GetTerrainColor | §4.5 | baseline |
+| `007D7AE0` GetTerrainColorFloor | §4.5 | baseline |
+| `007D7BF0` GetVertexColors | §4.4 | baseline |
+| `007D7F00` GetTerrainVertexColors | §4.5 | baseline |
+| `007D8340` GetTerrainNormalClamped | §5.5 | epsilon/upper rounding proved |
+| `007D83C0` GetModelColor | §4.2 | LT7 |
+| `007D8550` GetModelLight | §4.3 | baseline |
+| `007D8B20` GetTerrainLighting | §4.5 | baseline |
+| `007D8C80` CalcShadowProjection | §5.6 | LT10 |
+| `007D9820` SetTimeDependentLightingValues | §2.1 | LT7 |
+| `007D9DF0` SetTimeOfDay | §2.2 | LT6 proved |
+| `007DA0A0` constructor | §1.1 | LT5 |
+| `007DA3E0` QueryInterface adjustment thunk | §7 | LT5 |
+| `007DA3F0` Release adjustment thunk | §7 | LT5 |
+| `007DA400` destructor | §1.3 | LT5/LT7 |
+| `007DA490` GetDecalShadowParams | §5.6 | baseline |
+| `007DA670` deleting destructor | §1.3 | LT5/LT7 |
+| `007DA690` Shutdown | §1.3 | LT7 |
+| `007DA7E0` ReadProperties | §1.4 | LT5 |
+| `007DAE70` FindHillShadows | §5.2 | LT8 |
+| `007DB6A0` Init | §1.3 | LT7 |
+| `007DB840` DoZoomAndRotationChange | §3 | LT5/LT8 |
+| `007DBCF0` DoMessage | §6 | LT9 |
+| `007D6690` cImageARGB8::SampleRowLerp | §2.1 | LT7 |
+| `007D6870` cImageARGB8::FindMinRedComponentValue | §1.5 | vector boundary/constant proved |
+
+Attributed helpers are `007D6540` RotateLightingRectToWorld (§6), `007DB450` CopyImageToARGB8 (§1.5),
+`007DB4D0` CreateColorMap (§1.5), `007DB570` MakeTestPattern (§1.5), `007F6CC0` RotateVectorByViewRotation (§3),
+and `0080B9F0` BuildBasisFromDirection (§5.6). The shared CRT `_CIfmod` at `009F068A` is a numeric dependency
+of model lighting (§4.3), not a lighting-owned primitive. Foreign terrain normal/height reads, image decode
+and property/message services remain dependency boundaries; this spec does not prescribe their outputs.

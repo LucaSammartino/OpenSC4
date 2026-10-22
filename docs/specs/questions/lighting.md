@@ -23,9 +23,6 @@
 - **LT5 - §1.1–§1.4 constructor, statics and identity:** what are the initial reference count, successful QueryInterface AddRef behavior, last-announced colors/fractions, initial direction/cache values, and the initial statics for properties whose table gives only shipped values? What does a view change use for fade before city dimensions exist? [Core requires explicitly seeded shared statics; shipped() is an explicit fixture/configuration, not inferred native defaults. Unspecified instance fields start zero, last-announced/cache light colors white, reference count 1, successful QueryInterface acquires a reference, and the no-city fade gradient is zero. These choices are not exact-owner credit.]
 
 <!-- from: core-lighting4 (2026-10-22) -->
-- **LT6 - §2.2 light distance:** is the change test the Euclidean RGB distance, its square, or a different metric? What precision is used? [Literal Euclidean length against the threshold. A displacement (0.00008,0.00008,0) exceeds 0.0001 under this choice; a squared-distance comparison does not.]
-
-<!-- from: core-lighting4 (2026-10-22) -->
 - **LT7 - §1.5/§2.1/§4.2 image boundaries and failure:** does min-red scan active width×height pixels or padding too? When the last-row time sample spills beyond the allocation, or the surface map exists but model map is absent/shorter, what is the defined outcome? What Init cleanup is required if decoding/copying fails after earlier maps loaded? [Scan active pixels; preserve linear row spill when storage exists; return explicit safe Rust errors for unavailable pixels/model map. Failed initialization owns partial resources until Shutdown/destruction or retry; no foreign image/lighting methods are called.]
 
 <!-- from: core-lighting4 (2026-10-22) -->
