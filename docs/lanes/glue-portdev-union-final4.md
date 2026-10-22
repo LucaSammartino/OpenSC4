@@ -62,3 +62,11 @@ Detailed ignored artifacts: `build-runs/at24-evidence.json`, `game-results/<labe
 ### Coordinator next step
 
 Integrate this additive C ABI export under the coordinator's ABI batching policy (no lane version bump), then run the joint train gate/regression. Only the coordinator may promote ports after joint train PASS. No default, map, tools, or coverage promotion was performed here. This exhausts the final logical round3/3; no fourth round, subagents, restart, merge, push, shared-ref/config changes, native RE inputs, or external communications. Detached commits succeeded despite Git's denied packed-refs-lock diagnostic.
+
+## Coordinator joint train91 validation (2026-10-22)
+
+Actual joint integration DLL SHA256 `db87ee5db68ec7a8fd85af3920efe391eac505d2e23a2a9c63b31c937ad032b6` passed the full native gate and current39-key union+ports regression. Independent root queue labels `train91-ports-save-on-20261022-a`, `train91-ports-save-off-20261022-a`, and `train91-ports-save-shadow-20261022-a` use the identical immutable captured save, identical save script, and identical staged DLL. All three reach2033-01-01/ref0 and SaveCity(full) returns1. The enabled run shows our airport/seaport Read/Write with ports=1, zero fallbacks, and actual property transitions.
+
+The fresh same-process shadow has ports_joint_followed 24/24 exact comparisons and two initial `followed=first` snapshots (excluded from that24). Each developer has exactly one initial snapshot, then only `followed=yes`; no regrown or resynced lines, no mismatch. The collector initially rejected the documented first marker; correcting that parser distinguishes initialization from actual resync and changes no game result. Raw logs/verdicts and full validation metadata are in root build-runs/game-results and run4-train91-supplement.json. Source fixture SHA256 remains `38f234433b0c387393a7e25a971953c37b7127ea93c7d5d0a4cb2c789e78b0be`.
+
+Promotion applies to the standard replacement regression profile. Research/shadow configurations may continue choosing original ports. No unrelated automata whole-owner coverage or global plugin-default activation is claimed.
