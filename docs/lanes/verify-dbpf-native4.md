@@ -21,7 +21,9 @@
 - EX55 appended with measured split predicates and own saved153 evidence; EX54 unchanged, no new question IDs or spec assumptions.
 - Own-save-off-normal clean2035-01-01/ref0/save11172ms/shutdown, verifier lines0; failed turbo attempt remains distinct and unexplained.
 - Current40-save-on clean2035-01-01 BUT ref_warnings4 (not acceptable ref0); save11125ms/shutdown. Saved153/153 (compressed80) and constructed10/10 exact transports, combined EX55 differences1+2, refusals0/failed0.
-- Warnings at shutdown DropObject:144 (game-object last-reference releases), not verifier record/segment cleanup. Next same frozen current40 verifier-off control; preserve all4 warnings and compare.
+- Current40-save-off clean2035-01-01/ref_warnings4/save11063ms/shutdown, verifier lines0. Same4 warnings:2 PortDeveloper DropObject:144,1 Parks DropObject:126,1 Landfill ReleaseToken:465; SDK class0xE990BFFC=DepartmentBudget. Preserve; no ref0 promotion.
+- Round2 six attempts complete, none outstanding:3 clean/ref0,2 clean/ref4,1 exited. Baseline reference warnings reproduced without verifier; no unrelated ownership fix or profile reduction.
+- Next: final WIP report and precise merge-queue update; EX54/EX55 remain open, failed turbo control preserved.
 - Supported fixture_city imports existing saved fixtures commands4-own-e50c5bbc.sc4 and commands4-r2-house40.sc4; do not claim new save roundtrip.
 - Round1 turbo and normal both natural60440/60440 + constructed10/10; three EX55 combined differences each; refusal0/failed0/fallback0/resync0.
 - No game-attempt cap: originalcap3 meant lane rounds, this is round2/3.
