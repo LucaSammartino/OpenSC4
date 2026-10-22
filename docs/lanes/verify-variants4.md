@@ -1,30 +1,57 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-variants4 (bounded native variants) | `verify-variants4` / detached engine lane | in progress round3: retained round1/2 evidence below; tracing production native count mapping; baseline all started | Correct production raw count, test and reproduce350 comparisons, exact house40 ON/OFF save/shutdown/reload |
+| verify-variants4 (bounded native variants) | `verify-variants4` / detached engine lane | ready round3: production Rust/CAPI GetCount scalar0/arraylen; native350/350 twice, prior28 differences retained; exact house40 ON/OFF and supported reload ON/OFF clean2032/ref0/save/shutdown; stable cargo4949/0 clippy0 ctest68/68; ABI export added; HG7 published, HG4-HG6 remain | HG4-HG6 contracts required before broader conversion/native serialization/return-channel claims |
 
-## Handoff
-- Goal: final round3; published scalar GetCount=0, array length; preserve logical count consumers.
-- Done: retained HEAD32bbaa27; read data-formats5.2/9 text/10.5 item42 and foundations4.1 exact count rules.
-- Baseline all PASS: cargo4947/0, clippy0, ctest68/68; logs copied to build-runs/evidence-r3-baseline.
-- Implementation: logical Variant::count unchanged; native_count/raw_count scalar0/arraylen; new CAPI export fc4_variant_get_count; production cFC4Variant GetCount uses installed Rust hook. ABI exports changed (no version/table edit).
-- Verifier compares original vs independently seeded actual production objects, plus literal Rust byte snapshots; all350 observations retained. Count hook absence refuses; all mismatches logged, fallback/resync explicit.
-- Focused quick PASS: cargo3453/0 (core2925+capi528), dependents compile, C++140/140; tree changed during quick, final stable all required. Both new count tests passed; absolute-path fmt PASS2.
-- Done1ee5d9b6: production raw-count mapping and comparisons committed. Stable all PASS at this code: cargo4949/0, clippy0, CMake2/2, ctest68/68(84.8s), no tree-changed warning; fmt2 PASS.
-- Immutable DLL/PDB: build-runs/dlls/vv4-r3-production/FreeCity4.dll/.pdb; DLL SHA256 D50E20D91AFB458388A11A03910849B22C439837C149A560753791F4D5016D28.
-- ON vv4-r3-house40-on-1ee5d9-1930 CLEAN2032-01-01/ref0,189.703s/11.41days/s; native350/350 plus Rust setup70/70; all28 previous scalar differences resolved by production mapping; clones native71/production70; refusals0/failures0/fallback0/resync0; actual core count196/set70/write70. Full save11156ms/ok1, script3/3, PostSystemServiceShutdown reached.
-- Preserved that full save from the logged slot1 city path (mtime19:31:25,1003482bytes) as main build-runs/fixtures/vv4-r3-house40-on-1ee5d9-2028.sc4 for supported fixture_city reload. Game data only, no Documents or game executable access, no game file committed.
-- OFF vv4-r3-house40-off-1ee5d9-1935 CLEAN2032-01-01/ref0,174.750s/12.39days/s, zero variant experiment lines; full save11265ms/ok1, script3/3, full PostSystemServiceShutdown.
-- Fixture SHA2569C181832B9DAC038D22BF90838E5A0105CEA65F1CC15CE19EF2AD2A72516EE90. DLL hash unchanged after ON/OFF. Both corrected house40 profiles succeed; older terrain/dispatch/effects opt-in failures are not house-regress failures.
-- ReloadON vv4-r3-house40-reload-on-1ee5d9-1938 CLEAN2032-01-01/ref0,122.750s/11.91days/s; harness verified fixture SHA9C181832...516EE90, source unchanged. Again native350/350+setup70/70, core count196/set70/write70, native71/production70clones, failures/refusals/fallback/resync0. Full save11047ms/ok1, script3/3, PostSystemServiceShutdown.
-- Outstanding vv4-r3-house40-reload-off-1ee5d9-1941, identical immutable DLL/script/exact house40 and same supported fixture_city, shadow0. Wait helper running; preserve completed verdict. Next inspect OFF/save/shutdown, final report/queue.
-- Next: inspect ON result/counts/save/shutdown, preserve saved .sc4 via supported fixture_city route, then OFF and supported ON/OFF reloads. Request/wait helper build-runs/vv4-r3-run.py checks exact list and uses no qwait.
-- Exact house40 from task excludes terrain/dispatch/effects and includes all default keys; validate equality before submission.
-- Original profile cap exhausted3/3; use corrected house40 only. Unique labels, preserve completed verdict, no qwait.
-- Prior scalar mismatches28 and opt-in profile crashes remain evidence; HG4-HG6 unresolved. HG7 already published.
-- Detached HEAD; no shared tools/maps/defaults/ABI tables, no terrain edits, no subagents, no restart/merge/push.
-- Main q.py Bash transport denied access; use capped PowerShell local commands.
+## Final round3 report
 
-## Round2 report: terrain/view integration blocker
+Ready for the bounded native-count and verifier change, implemented in `1ee5d9b6`. Both exact-house40 controls and both supported saved-city reloads succeed. The earlier 28 scalar differences and all older failed runs remain below as historical evidence. No fourth original profile was run; the original-profile cap remains3/3.
+
+### Published rule and production mapping
+
+HG7 was already answered: data-formats §5.2 (line842) says scalar GetCount=0 and array count=element length; lines1916-1918 give fresh SetValUint32 count0; §10.5 item42 (line2107) distinguishes scalar7 count0 from array-one count1. Foundations §4.1 (line545) independently states scalar variant count0. The question file now appends this correction without erasing the previous measurements or inventing a new native contract. No new question ID was needed.
+
+The owned native interface is `cFC4Variant`, whose storage and typed getters use the SDK. Its old GetCount forwarded the SDK's stored raw count; the verifier incorrectly compared native scalar metadata to logical Rust count1. The production adapter now invokes `fc4_variant_get_count` through the installed property bridge, which calls core `variant::native_count`. `Variant::raw_count` shares that mapping. Existing `Variant::count` keeps logical scalar/object count1 and array length; its misleading GetCount documentation is corrected. Typed setters, scalar byte extraction, converting getter input counts and serialization still use their existing logical lengths. No consumers were blindly changed.
+
+The standalone plugin-load test has no linked Rust library and retains an explicit spec-shaped fallback. The real-game experiment refuses to proceed unless the hook equals the actual production CAPI function, so fallback cannot earn comparison credit. This adds one C ABI export, `fc4_variant_get_count`; ABI version and tables remain unchanged. No tools/maps/defaults/generated ABI entries or terrain code changed.
+
+### Actual original/production comparisons
+
+The same fourteen numeric/character types each execute two distinct scalar literals and arrays of lengths0,1,3:70 cases. Every original typed setter/getter, scalar out getter, array copying/data getter, clone isolation, CopyFrom state and Erase observation is retained. The verifier independently seeds actual `cFC4Variant` objects with those literal inputs, calls their real virtual getters and copies, and compares them with the owned ORIGINAL results. It also retains the independent Rust typed-storage byte snapshots, seeded before original getters. No native result seeds Rust, no private verification implementation supplies count metadata, and no mismatch is filtered or resynchronized.
+
+Each ON run measures native350/350 plus Rust literal setup70/70, aggregate420/420. All28 former scalar-shape failures now compare against the actual production Rust/CAPI getter and pass; each type reports30/30. Per run, actual production calls are core native_count196, CAPI typed-set70 and variant-write70; native owned clones71 and production clones70. Failures0, scalar-shape differences0, unexplained0, refusals0, production-clone refusals0, fallback0, resync0. The count counter wraps real production virtual invocations with the Rust hook verified; typed values and copying remain backed by the production SDK, not a claim that every variant method runs in Rust. All mismatches are logged without the old first12 cap. OFF runs contain zero variant experiment lines.
+
+### Gates
+
+Baseline all at retained `32bbaa27`: cargo4947/0, clippy0, ctest68/68; baseline logs preserved in `build-runs/evidence-r3-baseline`. Focused quick: cargo3453/0 (core2925/capi528), dependents compiled, C++140/140; it reported a changing tree during implementation and is not the final stable gate. Both discriminating core/CAPI tests passed (scalar7, empty/one/multi arrays, stale scalar storage metadata), and absolute-path rustfmt checks passed for both changed Rust files.
+
+Stable final `qbuild all` at `1ee5d9b6`: cargo4949 passed/0 failed/0 ignored, clippy0 diagnostics, CMake2/2, ctest68/68 in84.8s, no tree-changed warning. No engine source changed afterward. Full logs remain `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`. FC4_CHECKED remains OFF.
+
+### Exact house40 and immutable game evidence
+
+All four requests were compared byte-for-byte with the supplied canonical enable CSV before atomic submission and rechecked from their archived requests after completion. None contains a disable override. The exact list is:
+
+`landvalue,weather,ordinance,demand,power,plumbing,flammability,pollution,protection,crime,aura,flora,landfill,residential,neighbors,zones,development,tract,history,clock24,commercial,industrial,civic,parks,lotdev,zonedev,traffic,automata,netmgr,netlot,nettool,demolition,occmgr,propmgr,lotcfg,citysit,propdev,simgrids,citydetail,ports`
+
+All use Konradshohe, turbo1, end_date2032-01-01, seconds900/timeout1050, refaudit1 and the unchanged three-action `build-runs/variants-save.txt`. Script SHA256:B421EB88ACC9BED7EDBD737527B1AFDF097FEDA7D33FD9E41998792F5F58F93E. Every run finishes all3 script actions, SaveCity(full) ok1, and reaches PostSystemServiceShutdown. All verdicts are clean2032-01-01/ref_warnings0, with no foreign exception, watchdog stall, RTC or overrun.
+
+| Unique request label | Shadow and comparisons | Real seconds / days per second | Full save ms |
+|---|---|---|---|
+| vv4-r3-house40-on-1ee5d9-1930 | ON native350/350, setup70/70 | 189.703 /11.41 | 11156 |
+| vv4-r3-house40-off-1ee5d9-1935 | OFF zero experiment lines | 174.750 /12.39 | 11265 |
+| vv4-r3-house40-reload-on-1ee5d9-1938 | ON supported reload, native350/350, setup70/70 | 122.750 /11.91 | 11047 |
+| vv4-r3-house40-reload-off-1ee5d9-1941 | OFF supported reload, zero experiment lines | 103.859 /14.07 | 11172 |
+
+Immutable DLL/PDB: `build-runs/dlls/vv4-r3-production/FreeCity4.dll` and `FreeCity4.pdb`. DLL SHA256:D50E20D91AFB458388A11A03910849B22C439837C149A560753791F4D5016D28, unchanged through all4 runs. After the ON save, its logged slot1 `.sc4` (mtime19:31:25,1003482bytes) was preserved as main `build-runs/fixtures/vv4-r3-house40-on-1ee5d9-2028.sc4`. Both reloads use the documented `[ini] fixture_city` route; the harness confirms SHA256:9C181832B9DAC038D22BF90838E5A0105CEA65F1CC15CE19EF2AD2A72516EE90 and source preservation. That hash remains unchanged after both reloads. No game file is committed. Original ON/OFF runs use the mirrored alias and make no fixture-source hash claim.
+
+Requests, verdicts, logs and per-request profile JSON are in this worktree's `build-runs/game-queue/done`, `game-results` and `build-runs/<label>-profile.json`. The local submit/wait helper is `build-runs/vv4-r3-run.py`; no qwait, external workflow, game restart, new original profile, terrain edit or coverage reduction was used. Each label is unique, completed verdicts are preserved, at most one request was outstanding, and none remains outstanding.
+
+### Limits and retained failures
+
+HG4-HG6 remain unresolved in `docs/specs/questions/foundations.md`: native segment serialization/read-into fixture, conversion/lifetime contracts, and Erase/CopyFrom/CreateCopy return channels/identity. Nominal native bool returns remain discarded where their channel is ambiguous; state/output establishes only the bounded observations. These runs do not establish all127 methods, exhaustive equivalence, untested conversions, strings/objects/pointers/reference aliasing, exceptional floats, native variant persistence or an entire Rust variant owner. Supported house40 save/reload is established; the ephemeral variant experiment itself is not persisted. No current turbo discrepancy remains to trigger another normal-speed run; the old normal-speed28-difference run remains recorded below.
+
+The older list called current40 included terrain/dispatch/effects and omitted automata/zonedev/simgrids. Its ON/OFF crashes, train97 crash, no-citydetail crash and minus-terrain diagnostic success remain valid for that opt-in profile. They are not failures of actual house40. The retained historical reports below use their original profile names and conclusions; this final report supersedes that profile interpretation and HG7's former unresolved status. Next work beyond this lane requires published HG4-HG6 contracts, not a whole-owner promotion or a terrain workaround.
+
+## Retained round2 report: opt-in terrain/view integration blocker
 
 The same-request train97 control reproduces the current40 failure. Disabling only the candidate's terrain replacement reaches2032 clean/ref0, performs the full scripted save, and completes shutdown. This isolates the failure to the terrain replacement boundary on this fixture; it does not establish a corrected current40 candidate. No engine code was changed in round2: a small pointer-only fix cannot satisfy the remaining published initialization and layout requirements. Stop here for a complete terrain compatibility implementation, without disabling coverage or changing defaults.
 
