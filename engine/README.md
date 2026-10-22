@@ -1993,6 +1993,9 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
      dept=… sea=… subscriptions=… agent=… held=…`, `ports <kind> Write -> 1 (ports=…)`, `ports <kind> month
      yyyy-mm-dd: ports=… ran=… history=… event=… avg=… trips=… fr=… required=… writes: …` (months with ports and
      the first month).
+     PD12 completion: the no-sea-access prop switch is implemented through the native occupant-manager spatial
+     list, occupant-holder property presence and acquired prop `SetState(1)`. `ports PD12` lines report filter,
+     list and setter counts; `unavailable` identifies safe-host precondition failures separately from empty results.
    - **Ports shadow** (`ports_shadow = 1`, env `FC4_PORTS_SHADOW`; off by default; `plugin/FC4PortsShadow.h`):
      needs FreeCity4's simulator and the **original** developers (do not enable `ports`). One shadow core per
      developer, with a read-only host, starts from the original's record at its first SimNewMonth and follows the
