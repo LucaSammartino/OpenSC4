@@ -9,7 +9,9 @@
 - Baseline: round2 qbuild all complete; cargo4961/0, clippy clean, CTest68/68; DLL hash unchanged.
 - Done: vlun4-r2-native-noprobe-save-f stalled2031-12-01/ref0; identical immutable2 DLL/script/native profile, only verifier switched off. No language native BEGIN/END or callback executed.
 - Diagnosis: owned PDB resolves all eight plugin stack candidates identically to prior probe-on stall: observer/script SaveCity pending; no language probe frame. Watchdog kills at10s without OnTick. Native baseline/setup failure reproduced, no owned language fix justified.
-- Next: run literal current40 profile full-save control; preserve native failures. Reload requires supported main build-runs/fixtures staging, not arbitrary save_as.
+- Done: literal current40 vlun4-r2-current40-save-g clean2032-01-01, full save11031ms, full shutdown; ref_warnings4 (ports airport/seaport DropObject144, parks DropObject126, landfill ReleaseToken465; class0xE990BFFC). strict/host/gap counts unchanged; not ref0.
+- Gate: final qbuild all PASS cargo4961/0, clippy0 diagnostics, CTest68/68(93.4s); source/DLL unchanged.
+- Next: outstanding unique current40 no-probe control vlun4-r2-current40-noprobe-h to attribute four budget-department warnings; await its verdict. Reload needs supported fixture staging, no save_as/export protocol documented.
 - Facts: corrected immutable2 DLL SHA25678ea9b099f55d8abd95ea76cea21f34ced2caf72fc68ec305f35da43185c9342; no prior request outstanding.
 - Strict116235/116235; host2484/4140; gaps2629/3043. No production algorithm fit is permitted.
 - Current40 literal supplied in round2 prompt; excludes terrain/dispatch/effects. Preserve every failure, no unchanged failed-setup repeat.
