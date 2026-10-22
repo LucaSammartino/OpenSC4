@@ -7,12 +7,21 @@
 - Start: clean detached HEAD5c537c6f; round2 report is committed there and remains below.
 - Historical: eight attempts retained; current40 ON/OFF clean/ref4, own OFF-turbo exited1, other five clean/ref0; EX54/EX55 unresolved.
 - Done: read contribution, lane/queue and operating docs; no engine/source/default changes or compiler/test invocations.
-- Next: recompute stable gate totals/hashes and engine tree; verify immutable DLL/PDB, literal corpus and supplied current40 fixture; inspect queue/process attribution.
-- CIM process enumeration denied; use read-only OS metadata fallback. Main queue showed regress-train105-shadows.req, owned queue only done; not proof of live state.
+- Done: retained r2 provider result and full report in build-runs/evidence-run4 agree with tip5c537c6f/WIP and eight retained attempts; manifest confirms round3, consumed2/3.
+- Gate recomputed4962/0, clippy0, CTest68/68; engine tree at02d08687/304fdfba/5c537c6f/HEAD is fc5c5a930cb1e2ae5ab494c6235a732a0477a00d; no rebuild needed.
+- Frozen readonly DLL/PDB and16 literal fixtures match supplied manifest hashes; current40 fixture hash4ad4e47b... exact; old scripts62e3c03c... exact.
+- OS23:32:12UTC:62 relevant process identities/creation/commands queried; no game/build or owned run waiter. Queue daemon PID23444 created2026-10-21T17:52:51UTC, -Slots6; its cwd and backend cwd denied; current shell cwd verified owned WT. No command-identity ambiguity; stale sessions ignored.
+- Both queue roots now have no pending/running entries; old main regress request completed independently. No attributable operation to overlap.
+- Next: validate pair/common script, submit OFF only, wait via owned read-only helper (no qwait), audit full lifecycle/ref0 before any ON submission.
 - Requests planned only after provenance passes: vdbpf4-r3-budget-on-current40-off-02d08687-a, then vdbpf4-r3-budget-on-current40-on-02d08687-b; neither submitted.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-dbpf-native4-r3-manifest.json.
 - Frozen pair: build-runs/dbpf-r2-frozen-02d08687; existing production implementation02d08687, gate304fdfba.
 - No fourth round, rebuild, source fitting, game slot access, qwait, subagents or owner/replacement promotion.
+
+## Round3 provenance checkpoint
+The retained stable gate source/artifact provenance passes. Recomputed SHA256: qbuild-test.log `623b064f26ee0c5bd3b1b3912996b985104b58a8335465b6f8863ee025578196` (4962 passed/0 failed), qbuild-clippy.log `9cc89356cb1091c2c904131ce4af07a3205f3988b6883bcab940190dbf523b16` (0 diagnostics), fc4verify-ctest.log `db05eaf2241e08e654dd2c3b2607f5f82a6abd560b07717cfd83c27b225d784d` (68/68), fc4verify-build.log `7ba51cf3e9477b9aef4d52452b0ffe456db6d224a4d4e116171b26b7f79cc933`, fc4verify-configure.log `ff8f119ef18966ea560dfdb8a85a287c6b18d2888e46a6bc7759143468ce7455`. Historical pair hashes and request/verdict/raw-log hashes were independently recomputed; no retained artifact overwritten. The complete round2 report is also preserved in `build-runs/evidence-run4/verify-dbpf-native4.md`; its finished provider result explicitly says WIP at5c537c6f, not ready. This is round3/3, never a new family or lane.
+
+CIM was denied; read-only Windows process metadata query succeeded for62 processes without command-query denials. Cwd for the external queue daemon/backend was denied, recorded as unavailable; the known daemon command/creation and no live game/build/wait child plus empty owned/main roots establish no outstanding attributable operation. The q.py Bash wrapper was denied by the environment; no permission escalation or compiler invocation followed. Queue files use the documented owned `build-runs/game-queue` interface directly, with a read-only owned audit/wait helper and apply_patch for file creation.
 
 ## Retained round2 report (at5c537c6f)
 
