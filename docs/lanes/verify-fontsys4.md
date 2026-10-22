@@ -1,25 +1,49 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-fontsys4: completed cGZFontSys verification | `verify-fontsys4` / detached reserved worktree (engine lane) | in progress | 1. Establish published owned factory/QI/lifetime route within 15 calls. 2. Verify production FontSys or stop on precise contract gap. |
+| verify-fontsys4: completed cGZFontSys verification | `verify-fontsys4` / detached reserved worktree (engine lane) | wip: owned route proven; production comparison incomplete (8469 exact, 72 differences, 129 refusals); provider corrected in 8ff837d9; cargo4962/clippy0/ctest68 PASS; questions none; no owner promotion | 1. Preserve evidence and original-attempt cap 3/3. 2. Coordinator review only; original/current40/reload controls and corrected-provider native equivalence remain unverified. |
 
-## Handoff
-- Goal: verify only completed cGZFontSys, drawing-fonts section 12/12.1, against independent original.
-- Worktree reused, detached HEAD; initial status clean and no commits beyond main.
-- Baseline qbuild all: Rust tests and clippy passed; native ctest 68/68 passed (fc4verify-ctest.log). Build finished with the route probe added, off by default.
-- Published route established: spec section 1 factory creates a new 0x70-byte instance; SDK cIGZCOM GetClassObject, service IID 0x287FB697 then primary QI 0x00673960 (this+4 relationship); section 12.1 supplies QI/refcounts/Shutdown/destruction. Typed SDK MSVC calls supply thiscall; no private getter.
-- d916e22d: opt-in owned route probe, balanced acquired/created views, Init/idempotence, negative QI, empty catalogue/cache, Shutdown/re-init/final Release.
-- Route game label fontsys4-route-20261022a1: clean, ref_warnings=0, date 2035-01-03; load and shutdown each 23 exact, 0 differences/refusals/fallback/resync, natural 0.
-- Added persistent actual GzFontSys C API transport and constructed native comparison; raw read-only Windows font metadata enters provider once, no native query/selection answers enter Rust.
-- 7c84f857: production bridge committed before call 30. Focused fontsys4-focused-20261022b1 exited -1 during first bootstrap AddFont, no exception/panic/ref warnings and no production comparisons. SDK overloaded virtual textual order is not a slot contract under MSVC. Changed overloaded calls to explicit published section 12.1 slots 9/10/11/13/14; cGZFont no-arg GetStyles uses published slot 7.
-- Added full read-only system font catalogue bootstrap once, actual directory positive/negative calls, renderer same-pointer/null/Shutdown lifetime tests, config key recognition. No metrics/raster claim. Natural 0 remains separate.
-- Initial post-bridge full gate: Rust tests/clippy pass; ctest 67/68, ret_channel_check false positive treated font GetSize as lot GetSize. Replaced that call with published font slot 10 (no shared checker changes).
-- bc7d8149 stable full gate PASS: qbuild all 4961 Rust tests / 0 failures, clippy 0 diagnostics, ctest 68/68, ret_channel_check passes. Summary build-runs/fontsys4-finalgate-summary.txt.
-- Frozen DLL build-runs/dll/fontsys4-stable/FreeCity4.dll SHA256 A7D4536F5F3A775EC9818BAB3A697000532E95951058D144D2815F8853B3FC48; paired PDB preserved. No further code/build mutations planned.
-- fontsys4-stable-20261022c1 (native attempt 3/3): clean/ref0, 2032-01-05, full save ok=1 on 2026-03-15. Load/presave/shutdown each production exact2823/diff24/refusal43/fallback0/resync0/natural0, raw metadata344; route each23/23. Totals production8469 exact/72 diff/129 refusal (8670 operations). NOT exact; no owner credit.
-- Root cause is our verification provider: read_head returned empty, so actual production GzFont Init refused valid paths and dependent handle checks refused. Not a native contract gap. Corrected to capture raw read-only system font headers once at Session construction and serve immutable bytes; native metadata still captured once. Added Windows integration regression for real Arial content probe / production acquire / cache / codepage / release.
-- Native attempt cap exhausted: no fourth request, no normal-speed rerun, no repaired-provider equivalence claim. Corrected adapter requires final gate only; not authorized for more original comparisons in this round.
-- Formatting: new module passes qbuild fmt. Root lib.rs check traverses unrelated modules (645 diff lines); scoped skip_children check identifies pre-existing test-module ordering, untouched. No mass reformat.
-- Three verification-only C exports added; ABI version and public ABI tables untouched. No binaries committed.
-- Next: finish corrected-provider quick/full gate, replace Handoff with full wip report and queue wip. Original/current40/reload controls not completed; current40 preset/reload not available in allowed docs/engine. No numbered spec question warranted for an identified adapter defect; do not turn it into a spec claim.
-- FN18-FN22 excluded. Do not read analysis sources or run tools/ scripts.
-- Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-fontsys4-r1-manifest.json.
+## Result
+
+WIP, no owner verification or replacement credit. The owned original route is safe in the real game, and a bounded catalogue/query/directory/renderer comparison exercised production Rust. Acquisition-dependent comparison evidence is invalidated by a verification-provider defect, corrected after exhausting the native attempt cap. This is not an exact FontSys shadow.
+
+## Implementation
+
+- Scope: drawing-fonts sections 1/12/12.1, actual production `GzFontSys`, `FontFixedInfo`, `FontInfoRecord`. No core algorithm changes, private verification clone, delegated selection, native-query answer injection, or periodic model resync. cGZFont FN18-FN22 excluded.
+- Opt-in `fontsys_verify = 1`, default off. Observer load/presave/shutdown hooks run constructed owned instances; natural instrumentation count is explicitly zero. Each comparison retains a production Rust object through its command sequence, then destroys that pair.
+- Original route: GZCOM creates CLSID 0x20673960 / service IID 0x287FB697, primary QI 0x00673960, primary vtable checked against published 0x00AC5488 relocated from module base. QI views differ by four bytes. Acquired views are balanced with audited created-reference releases. No global FontSys getter or global-service Shutdown.
+- Explicit published slots 9/10/11/13/14 avoid relying on MSVC overloaded virtual declaration ordering. Font getters use published slots 7/10 where necessary. No guessed private getters or shared ABI/checker changes.
+- A single independent raw catalogue snapshot per constructed pair provides metadata for 344 read-only Windows fonts. Production Rust populates its own catalogue and computes queries. Corrected adapter additionally captures raw font-header/table-directory bytes once at construction; subsequent content probes use immutable bytes. Provider metrics/raster behavior is outside this FontSys measurement domain.
+- Added three verification-only C exports (`fc4_fontsys_verify_new`, `fc4_fontsys_verify_call`, `fc4_fontsys_verify_free`). ABI flag true; ABI version, public headers/tables and defaults unchanged. No binaries committed.
+- Main work commits: d916e22d owned-route probe; 7c84f857 production bridge (before call 30); 5067dab6 explicit overloaded slots; bc7d8149 directory/renderer coverage; 8ff837d9 raw-header provider correction and regression.
+
+## Measured game evidence
+
+All requests used unique labels; all completed verdicts were retained. Original attempt cap is exhausted at 3/3. No request is outstanding.
+
+1. `fontsys4-route-20261022a1`: clean/ref_warnings=0, 2035-01-03. Load and shutdown each route exact=23, diff=0, refusal=0, fallback=0, resync=0, natural=0. Initial request placed end_date under ini, so the seconds limit ended it after 2032; not relabeled as a fixed-date control.
+2. `fontsys4-focused-20261022b1`: exited -1 before production results during bootstrap AddFont through an overloaded SDK call. No reported foreign exception, Rust panic or reference warning. Corrected call shape to explicit published slots; do not count this as passing conformance.
+3. `fontsys4-stable-20261022c1`: clean/ref_warnings=0, no foreign exceptions/stalls/RTC/panics/structured exceptions/other warnings, date 2032-01-05. Full save requested for 2026-03-01 ran on 2026-03-15, `ok=1`, 11641 ms. Each load/presave/shutdown phase: production exact=2823, diff=24, refusal=43, fallback=0, resync=0, natural=0, metadata_once=344, positive=1869, zero=978. Each phase also has 23/23 native route checks, counted separately.
+
+Production totals: 8670 operations = 8469 exact + 72 differences + 129 refusals; fallback=0, resync=0; natural=0 (not exercised). These are constructed raw observations, not an owner-equivalence percentage. Catalogue insertion/order/record queries, availability and directory/renderer cases are nonvacuous. No successful native-versus-Rust acquisition/cache/range/family/codepage/lifetime equivalence claim.
+
+The immutable tested DLL and PDB remain in `build-runs/dll/fontsys4-stable/`; DLL SHA256 `A7D4536F5F3A775EC9818BAB3A697000532E95951058D144D2815F8853B3FC48`. This binary predates the provider correction. Logs/verdicts are in `build-runs/game-results/` under the labels above.
+
+## Failure diagnosis and limits
+
+The old provider returned empty `read_head` data. Production `GzFont::init` correctly refused that content probe even though native opened the real font (first example `C:\WINDOWS\Fonts\AGENCYB.TTF`); downstream handle-dependent comparisons refused. Treat those differences as an invalid provider setup, not a discovered native algorithm or spec discrepancy. Correction 8ff837d9 snapshots real read-only headers and has a Windows integration test proving actual production Arial acquisition, family-cache reuse, codepage propagation and reference/cache release. It has no real-game equivalence verdict.
+
+No fourth original attempt or normal-speed comparison was made. Original/own/current40 immutable control set and saved-fixture reload are incomplete; the successful 2032 save/shutdown run alone does not establish them. No current40 preset or reload script action was found in the allowed operational docs/engine. No promotion, default change, whole-owner coverage credit, or claim about untested paths.
+
+## Gates and questions
+
+- Initial baseline: Rust tests/clippy passed, ctest 68/68. Its native build already included the default-off route probe.
+- Stable pre-correction full gate: qbuild all PASS, 4961 Rust tests, clippy zero diagnostics, ctest 68/68. Summary `build-runs/fontsys4-finalgate-summary.txt`.
+- Corrected-provider quick gate: PASS, capi 531 tests / 0 failed / 0 ignored and native build PASS; summary `build-runs/fontsys4-provider-quick-summary.txt`.
+- Corrected-provider final full gate: qbuild all PASS, 4962 Rust tests / 0 failed / 0 ignored, clippy zero diagnostics, ctest 68/68 (94.2 seconds), native build PASS. Summary `build-runs/fontsys4-corrected-finalgate-summary.txt`. Wrapper notes tree changed during the run: only this lane report changed; engine sources remained committed at 8ff837d9 (confirmed by final diff). This is not a fresh native conformance verdict.
+- Corrected built DLL SHA256 `9C7A5FD37144FAC68BD2E5557B01B11B2A88746FA814069D5E2CD558D81881B2`; not game-tested. Preserve the distinct frozen pre-correction DLL and its evidence.
+- New Rust module passes qbuild fmt. Root lib.rs traversal reports 645 existing formatting diff lines in untouched children; scoped root check also identifies pre-existing test-module ordering. No unrelated reformat applied.
+- Questions: none. The identified failures are adapter defects, not missing native contracts; no speculative question filed. FN18-FN22 remain excluded.
+
+## Next steps
+
+Coordinator review only: preserve the capped evidence and decide disposition of this default-off WIP probe. Corrected-provider native equivalence, independent original/current40 controls and supported saved-fixture reload remain unproven. This lane does not request or authorize another original attempt, restart, merge, push, RE or owner promotion.
