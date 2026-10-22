@@ -16,6 +16,7 @@
 - Resolve generated indexes by regeneration; coverage map changes limited to spec column; symbol duplicate keys retain main.
 - Review every added spec section for translated control flow; no engine/plugin/capi edits.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-pr-harvest5-r1-manifest.json.
+- Harvest milestone: 9087568e resolved with generated index, symbol union, and spec-column-only coverage; next source 13cf2b33.
 - Harvest milestone: 47f2fde4 resolved with generated index, symbol union, and spec-column-only coverage; next source 9087568e.
 - Harvest milestone: f02a528f resolved with generated index, symbol union, and spec-column-only coverage; next source 47f2fde4.
 - Harvest milestone: 4048a59f resolved with generated index, symbol union, and spec-column-only coverage; next source f02a528f.
