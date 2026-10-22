@@ -331,7 +331,9 @@ value *[quirk]*.
 Runs only when the Lua table exists, its handle is > 0 and **MySim state ≠ 0** (`IsActive`, cISC4MySim slot 20;
 `0x00427779`–`0x004277B0`, implementation `0x00449550`, answers MS15 d). The guards run in that order,
 before any Lua or dispatch sampling. It selects the
-MySim's table, writes, and restores the Lua stack.
+MySim's table and writes. Normal completion restores the saved Lua stack top (`0x0042850F`–`0x00428522`).
+If the traffic/pollution/crime service guard below fails, the early exit releases the local location copy
+but **skips that stack-restoration call** (`0x00427CBD`/`0x00427CC5`/`0x00427CD1` → `0x00428571`) *[quirk]*.
 
 - If the trip state changed or `force`: `trip_in_transit` := (new = 2), `trip_at_location` := (new = 3). On
   arrival (new = 3) the MySim's state follows the dispatch: at the default destination (home) → state 2 (and
