@@ -12,6 +12,10 @@ of `on_init` and `DoSubBudgetWindow` is stack-mangled and was checked against th
 
 ## 1. Identities *[compat]*
 
+BW17's native method/slot inventory and population/computation bodies are in
+[budget-window-bodies.md](budget-window-bodies.md). These are owner algorithms, not external callbacks that
+may supply populated rows or refreshed totals. Its bounded remainder keeps BW17 open.
+
 | Item | Value |
 |---|---|
 | `cSC4SubBudgetWindow` primary vtable | `0x00AB5494`, 6 slots: 0 QueryInterface, 1 AddRef, 2 Release, 3 `cIGZWinProc::DoWinProcMessage` thunk, 4 `DoWinMsg` `0x0078BCA0`, 5 deleting dtor `0x0077E420` |
