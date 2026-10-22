@@ -19,4 +19,7 @@
 - Published B string cleanup entry is already supplied by compat::StlNodeAllocator; capture EAX after that call, never synthesize success.
 - Executable CRT locale acquisition is not published; park precisely rather than use plugin CRT locale as evidence.
 - Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-dates4-r1-manifest.json.
-- Game requests: native submission next in same shell call. At most one outstanding; unique immutable labels, wait without qwait.
+- Native gd4-r1-native-a-20261022: stalled at2027-01-02 scripted save; ref0 foreign0; live234/234, fixtures185/185; no date mismatch/refusal/fallback/resync. Owner cGZDate/00ACEA38 via borrowed city.GetSimulator.GetSimDate, native ptr143A5B04. No clean2032 credit.
+- Frozen DLL SHA256 4FCF41E234C93150A770B55CA013BDD13359B2528C5B8BBF65D78F3617279EC0. Never rebuild/mutate during requests.
+- Next adapter request omits script as lifecycle control; union40 retains script. Native-nosave separate control if budget permits. Original save/reload remains failed/unproven, never a lucky-rerun fix.
+- q.py Bash runtime unavailable (E_ACCESSDENIED); local quiet Python waiter run directly in PowerShell. No qwait or game launch.
