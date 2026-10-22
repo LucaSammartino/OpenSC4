@@ -84,7 +84,7 @@ denominator and never count as done. The full breakdown is in
 | M5: traffic | 🟡 Running in game; matches the original on about two thirds of month lines, calibration to go |
 | M6+: rendering, UI, audio, region, standalone | ⬜ Data, save, texture and 3D model readers done; specs for the renderer and UI are next |
 
-The detailed checklist, with how each item was verified, is in [docs/PROGRESS.md](docs/PROGRESS.md). The
+Measured progress is [docs/coverage-report.md](docs/coverage-report.md); the old checklist (to 2026-10-14) is in [docs/history/progress-2026-10-14.md](docs/history/progress-2026-10-14.md). The
 milestones are defined in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap).
 
 ## Try it

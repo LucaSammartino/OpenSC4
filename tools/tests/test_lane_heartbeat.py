@@ -52,3 +52,26 @@ def test_train_with_unstarted_nullable_stages():
     assert result['train'] == 'train8'
     assert result['gate_ok'] is None and result['regress'] is None
     assert not any(alert.startswith('LAND:') for alert in result['alerts'])
+
+
+def test_live_but_idle_lane_is_stalled():
+    state = {'concurrency': 2, 'lanes': {'busy': {'pid': 1}, 'idle': {'pid': 2}, 'done': {'pid': 3}}}
+    now = 100 * 3600.0
+    result = heartbeat.summarize(state, [{'name': 'x', 'status': 'pending'}], {},
+                                 is_alive=lambda pid: pid in (1, 2, 9), refill_pid=9, now=now,
+                                 progress={'busy': now - 600, 'idle': now - 72 * 3600, 'done': now - 99 * 3600})
+    assert result['stalled'] == ['idle']  # 'done' is not live, so it is not a stalled worker
+    assert any(a.startswith('STALLED:') and 'idle (72.0h)' in a for a in result['alerts'])
+
+
+def test_ready_queue_entry_waiting_is_land_lag():
+    now = 50 * 3600.0
+    result = heartbeat.summarize({'lanes': {}}, [], {}, is_alive=lambda pid: False, now=now,
+                                 ready={'fresh': now - 60, 'old': now - 5 * 3600})
+    assert result['land_lag'] == ['old']
+    assert any(a.startswith('LAND LAG: 1 ready queue entry') for a in result['alerts'])
+
+
+def test_no_progress_data_no_new_alerts():
+    result = heartbeat.summarize({'lanes': {'a': {'pid': 1}}}, [], {}, is_alive=lambda pid: True, refill_pid=1)
+    assert result['stalled'] == [] and result['land_lag'] == []
