@@ -187,7 +187,7 @@ The queue is read and emptied in one place only: the TerrainReconciliation branc
 which runs `CreateSymmetricConnections` (§4). Nothing else reads it. Its other uses are the three producers above, the
 "clear" helper (`0x004A8570`, which sets the end of the vector to its start and has one caller, the same branch), and
 the file reader and writer. `CreateSymmetricConnections` and the three helpers each have exactly one caller, the
-handler.
+handler. The clear helper receives the **vector subobject** in ECX, not the regional-city base: the call site at `0x004ABE09` passes the message-target view plus `0x90`; the helper stores the new end at subobject `+4`. Its descriptive symbol deliberately does not claim a regional-city member calling convention.
 
 On the **current** city's record (the application's copy, §5.1) the handler does the following. `established` is the
 city's established flag, `forced` is `data3 ≠ 0` of the message, `moved` is the record's flag:

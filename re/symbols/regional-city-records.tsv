@@ -1,2 +1,2 @@
-va	name	evidence	mac_x86
-004a8570	cSC4RegionalCity::ClearPendingChanges	regional-city-records.md §3.3; descriptive name; empties the pending connection change queue (+0x94) by setting its end to its start; sole caller the TerrainReconciliation branch of DoMessage (0x004ABE0F); regional-city.md §6.2 refers to it as "dropping"	
+va	name	evidence
+004a8570	ClearRegionalCityPendingChangeVector	regional-city-records.md3.3; descriptive queue-subobject helper, not a cSC4RegionalCity-this member. Caller004abe09 passes message-target-view+90 in ECX; wrapper004a8570-004a8590 stores new end at queue+4. Sole direct call004abe0f in TerrainReconciliation.
