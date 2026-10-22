@@ -45,7 +45,7 @@ Values are what the constructor 0x009ABC95 stores. Size at least 0x2C4.
 | +0x148 | u32 | 0 | outline colour (§5.2) |
 | +0x14C..+0x158 | s32 | 0,0,1,1 | *[unknown]* |
 | +0x15C / +0x160 | s32 | -1 / -1 | last cell set by SetCellText/Bitmap/Window (§5.11) |
-| +0x164 | IUnknown* | null | released in Shutdown *[purpose pending]* |
+| +0x164 | IUnknown* | null | background image (GZPaint step 3, §5.12) |
 | +0x168 | IUnknown* | null | owner-draw notification target (§5.6) |
 | +0x170 | `cRZTimer` | ctor(…,4) | double-click timer (§5.9 mouse-down) |
 | +0x188 | u32 | 0 | extra-data mode: 1 = plain value, 2 = object (§5.5) |
@@ -663,7 +663,7 @@ origin. "No colour" is the sentinel 0x40000000 in every colour field below. Orde
    horizontal scroll c0 (+0x128) to cEnd = c0 + trunc(+0x130), rows r0 (+0x12C) to rEnd = r0 + trunc(+0x134);
    cEnd is lowered to maxCol + 1 when flag 0x8000 is clear (and maxCol <= cEnd), rEnd to maxRow + 1 when flag
    0x10000 is clear.
-3. Flag 0x100 (fill background): with no background image (+0x2C0 null) fill the whole window with the
+3. Flag 0x100 (fill background): with no background image (+0x164 null) fill the whole window with the
    window colour (window-view slot 126) via the draw context; with an image, draw it over the window rect.
 4. Grid lines, only when flag 0x20 (column lines, colour +0x14C) or 0x40 (row lines, colour +0x150) is enabled
    with a colour. Line extents: column lines run from the cell-area top to min(area bottom - 1, top + height of
@@ -675,7 +675,7 @@ origin. "No colour" is the sentinel 0x40000000 in every colour field below. Orde
 5. Flag 8: column headings for every visible column (slot 51 range): heading = column heading map entry
    (inserted when missing); an empty heading with flag 0x100000 becomes "Column #%d" (column index). Rect =
    slot 72 (window-view +0x120) heading rect + origin; the header background is painted by 0x009A60BB with the
-   header format at +0x2BC, then the text through the header font (+0x2BC slot +0xD0) at the position from
+   header format at +0x2C0, then the text through the header font (+0x2C0 slot +0xD0) at the position from
    0x009A5FE3. Flag 0x10: row headings the same with "Row #%d" and window-view +0x124.
 6. Flag 0x20000: a background pass over every visible cell: format (slot 84) and selected state (slot 45),
    background painted by 0x009A60BB.
@@ -684,12 +684,11 @@ origin. "No colour" is the sentinel 0x40000000 in every colour field below. Orde
    (0x0048ED90); format (slot 84); cell record (null when empty); selected state; enabled state (view slot 67).
    Without an owner-draw target, or when the target answers message 0xFA785CB2 true, the default cell drawer
    0x009A7E52 runs.
-8. When the grid has extra data object +0x268 *[as read]*, the vertical bar exists and flag 0x100 is set: the
+8. When both scroll bars exist (+0x26C and +0x270) and flag 0x100 is set: the
    corner square right of the horizontal bar / below the vertical bar is filled like step 3 (shrunk by 1 with
    flag 0x200).
-9. Flag 0x400: outline of the cell area; flag 0x200: outline of the window rect; both in colour +0x144 *[as
-   read: the decomp names this field the default row height; offsets in this view are grid - 4, so it is the
-   outline colour +0x148]*, width 1.
+9. Flag 0x400: outline of the cell area; flag 0x200: outline of the window rect; both in the outline colour +0x148
+   (RZDrawRectangleOutline), width 1.
 
 Paint record passed to the helpers and the owner-draw target: +0x0C cell rect*, +0x10 clip rect*, +0x18 draw
 context, +0x20 format* (+0x00 font, +0x08 background, +0x10 text colour, +0x18 selected colour, +0x1D horizontal
@@ -709,6 +708,28 @@ selected, +0x29 enabled.
   0x20000 the clip right edge from the record +0x14; drawn with capability 0x8010 enabled (context slot +0x74).
   *[pending]* the horizontal text position computed by 0x009A5FE3 for alignments 3/4/5 is lost in the
   decompilation and not yet read from the instructions.
+
+### 5.13 Cell rectangles, deleting and copying rows and columns
+
+- **GetCellRect(col, row, &rect)** slot 106, 0x009AE813: left = width sum of columns before col (slot 70), right =
+  left + GetColumnWidthInternal(col); top/bottom the same with rows (slot 71) and GetRowHeightInternal. Both
+  edges are then shifted by minus the width sum before the horizontal scroll column (skipped when it is 0) and
+  minus the height sum before the vertical scroll row, then plus the cell-area left/top (slot 9). Off-screen
+  cells get rectangles outside the area. Returns 1.
+- **DeleteColumns(col, n, mode)** 0x009AE5AC: mode 0 = 2, anything but 1/2/4 becomes 1. n < 0 returns 0, n = 0
+  returns 1. Every cell in columns col .. col + n - 1 is disposed (freed), then the matrix drops those columns
+  (RemoveCol). Mode 1: only column col's cached width is reset (cells to the right keep their indices). Mode 2:
+  cached widths from col to the limit are reset, then MakeRoomForColumn(col, -n, 2) pulls the right-hand cells
+  left. Mode 4: cached widths 0 .. col reset, then MakeRoomForColumn(col, -n, 4). Layout-dirty = 1, hook
+  0x009A5FAA, returns 1. **DeleteRows(row, n, mode)** 0x009AE6DF is the same along rows (mode 0 = 3; modes 1/3/5;
+  RemoveRow; SetSizeCachedActualForRow; MakeRoomForRow).
+- **CopyColumns(from, to, n, move)** 0x009AD9DB: nothing when from = to. The n column pairs are processed
+  forwards (from, from + 1, ...) when the ranges do not overlap or the destination end lies inside the source;
+  otherwise backwards from the last column. Per pair: for every used row of the source column (its own min..max)
+  the row's cached height is reset and CopyCellData(src, row, dst, row, copy = !move); the column extra data
+  (+0x25C map) entry is copied to dst and erased from src when moving; the column heading (+0x2A8) is assigned
+  to dst and, when moving, erased from src (0x009AB66B). Layout-dirty = 1. Returns 1. **CopyRows** 0x009ADB72 is
+  the same with rows, the row extra data map +0x250, row headings and the per-column width cache.
 
 ## 6. Conformance (planned vectors)
 
@@ -908,8 +929,8 @@ See `questions/win-grid.md`.
 | 009ad95e | 40 | SetRowHeading [slot 81] | 5.5 |
 | 009ad986 | 45 | GetColumnHeading [slot 78] | 5.5 |
 | 009ad9b3 | 40 | SetColumnHeading [slot 79] | 5.5 |
-| 009ad9db | 407 | CopyColumns | pending |
-| 009adb72 | 407 | CopyRows | pending |
+| 009ad9db | 407 | CopyColumns | 5.13 |
+| 009adb72 | 407 | CopyRows | 5.13 |
 | 009add09 | 315 | ResizeColumnToFitCellWindows | pending |
 | 009ade44 | 1086 | MakeRoom | 5.11 |
 | 009ae282 | 109 | MakeRoomForRow | 5.11 |
@@ -917,9 +938,9 @@ See `questions/win-grid.md`.
 | 009ae35c | 43 | GetColumnWidth | 5.4 |
 | 009ae387 | 264 | GetRowHeightInternal | 5.10 |
 | 009ae48f | 285 | ScrollCellsVertically | pending |
-| 009ae5ac | 307 | DeleteColumns | pending |
-| 009ae6df | 308 | DeleteRows | pending |
-| 009ae813 | 184 | GetCellRect | pending |
+| 009ae5ac | 307 | DeleteColumns | 5.13 |
+| 009ae6df | 308 | DeleteRows | 5.13 |
+| 009ae813 | 184 | GetCellRect | 5.13 |
 | 009ae8cb | 667 | SetCellTextValue | 5.11 |
 | 009aeb66 | 337 | SetCellBitmap [slot 114] | 5.11 |
 | 009aecb7 | 428 | SetCellWindow [slot 116] | 5.11 |
@@ -928,5 +949,5 @@ See `questions/win-grid.md`.
 | 009af121 | 71 | Init | 5.1 |
 | 009af168 | 2813 | GZPaint | 5.12 |
 
-Specified 159 of 198 functions, 23938 of 32735 bytes; remaining 39 functions, 8797 bytes.
+Specified 164 of 198 functions, 25551 of 32735 bytes; remaining 34 functions, 7184 bytes.
 <!-- END INVENTORY -->
