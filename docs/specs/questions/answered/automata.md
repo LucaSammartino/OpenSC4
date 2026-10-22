@@ -1,6 +1,22 @@
 # automata: answered questions (archive)
 <!-- Archive for [automata.md](../../automata.md). Lanes do not read this file. Open questions are in ../automata.md. -->
 
+<!-- from: coordinator train84 controlled saved-port union (2026-10-22) -->
+- **AT24 - aircraft manager loaded-reference destruction:** On identical integration DLL c269a6ba5f, immutable replacement save SHA25638f234433b0c..., identical seven-action reload script and literal39 replacement keys, both +ports and ports-disabled control reach2033/ref_warnings3. All three warnings are native cSC4Airplane class0xCBEB4F62, vtable SimCity4.exe+0x694B38, at cFC4Automata.cpp HostRelease:53 during destruction. Source labels train84-ports-union-reload-20261022-a and train84-ports-union-control-20261022-a are preserved under build-runs/game-results. The normal candidate union and seven ports-only/reload runs are clean/ref0. Does original aircraft-manager Read0x004FBE70 retain owning references to its airport/airplane map, and which exact clear/shutdown/destructor sites release them? Prove reference acquisition, loaded-segment lifetime, release order and final-owner conditions before changing ownership-audit classification or release behavior. Is the existing generic HostRelease semantically wrong or missing a justified destructor-only ownership annotation? No warning suppression or ports replacement promotion is authorized by this observation. [unresolved; same three warnings in control establishes an existing automata-path issue, not a ports-caused difference]
+  **ANSWERED 2026-10-22 (re-aircraft-ownedrefs4):** DIFFERS — automata.md §§5.2.1–5.2.2 prove the
+  native ownership rule, not the observed helper call stack. Read retains both QI-acquired references
+  across segment disposal. Initialized aircraft Shutdown `0x004FB7D0` releases airport then plane per
+  map entry, clears the map, then calls base Shutdown. PreCityShutdown clears the separate base list,
+  not this map; ordinary removal erases then releases plane before airport. Final manager Release
+  calls Shutdown before deleting destruction; deleting destructor `0x004FBCF0` frees storage without
+  releasing map payloads. A last plane Release is valid at the specified Shutdown event, including
+  final-Release-entered Shutdown. Holding these references past Shutdown until member destruction
+  differs from native; no destructor-only ownership annotation is justified by these warnings or the
+  controller-manager precedent. Seven independent probe families and native call signatures are
+  published. Residual: without phase/receiver/refcount evidence at HostRelease:53, the three existing
+  warnings cannot be classified as correct Shutdown releases versus delayed destructor cleanup.
+  The paired runs establish a pre-existing path only. No implementation or audit change authorized.
+
 <!-- from: From the occupant manager and automata cores (2026-10-16) -->
 - ~~**AT2 (automata.md §13 Q2):** the meaning of the two `vec3`s and the `bool` of a controller-manager automaton
   set.~~ **ANSWERED 2026-10-16 (re-answers16):** it is an occupant's **queue**:
