@@ -153,7 +153,91 @@ Init), call context slot 3 `Init(buffer)` (expect 1 and the vtable `0x00AC1844` 
 the context's public setters, call slot 22 `DrawPreclippedSpanList(spans, n)`, read the pixel words back through
 the buffer's `+0x88`/`+0x8C`, and finish with slot 4 `Shutdown` so the lock is undone. Run the same script against the
 original and ours and compare every byte of the buffer including the padding. A report must label this
-"constructed buffer"; a game-path claim needs SR565-5.
+"constructed buffer"; a game-path claim needs SR565-5. The calls, slots and fields of that route are in §1.3.
+
+### 1.3 Context public interface used by the route (re-span565-context4) [exact, static]
+
+Read from the bytes (REA had no open app; `re_query.py asm` and the image). Shared with `span-render-1555.md` §1.1
+(the draw-system slot 4 `RET 8`, DrawPreclippedSpanList slot 22, SetGradientTransform slot 12): re-read here, plus
+the return values and the setters below. All entries are MSVC thiscall (`this` in ECX, arguments right to left,
+callee pops); "bool" means only AL is defined (the upper EAX bytes are left over), so a caller tests AL only.
+
+**Draw system slot 4** (`0x0082BAB0`, `(buffer, out)`, `RET 8` at `0x0082BADF` / `0x0082BAE8`): walks the circular
+factory list whose head is `[this+0x20]` (node: `+0` next, `+8` factory), calling each factory's slot 3 (`+0x0C`)
+with `(buffer, out)` and stops at the first that returns AL ≠ 0: returns **AL = 1**; empty list or every factory
+refused: **AL = 0**. The RenderToBuffer factory (`0x0082B910`, `RET 8`) queries `buffer` for `0x20732180` (failure:
+AL = 0, `*out` untouched); success: allocates 0xD4 bytes, runs the constructor `0x00830690`, writes the context into
+`*out` without releasing what `*out` held, AddRefs it (count 0 → 1), releases its own query reference, AL = 1. A
+failed 0xD4 allocation is not tested (null store then a call through it: crash). The constructor sets only the
+vtable `0x00AC17D0`, `+4` (count), `+8` (target), `+0x24` (texture), `+0xB0` to 0 and the bytes `+0x41`, `+0x43`,
+`+0x74`, `+0x75` to 0; every other field (`+0x28..+0x40`, `+0x42`, `+0x94..+0xAC`, `+0xB4..+0xD0`) holds whatever
+the heap block held until a setter writes it.
+
+**Context vtable `0x00AC17D0`** (23 entries, read from the image; entry 23 onward is the 1555 table `0x00AC182C`):
+
+| Slot | Entry | Method | Arguments | Pops | Returns | Fields written |
+|---|---|---|---|---|---|---|
+| 0 | `0x0082FD60` | QueryInterface | `iid, out` | 8 | AL: 1 for iid 1 or `0x2AE78A07` (`*out = this`, AddRef), else 0 | — |
+| 1 | `0x005F47F0` | AddRef | — | 0 | new count | `+4` |
+| 2 | `0x008306C0` | Release | — | 0 | count | (final: §1.1) |
+| 3 | `0x00830710` | Init | `buffer` | 4 (`0x00830877`) | AL 1 / 0 | target, `+0x78..+0x8C`, `+0xC`, `+0x10`, `+0x90`, `+0xB0`; `+0xA4 = 0`, `+0x75 = 1` |
+| 4 | `0x0082FF20` | Shutdown | — | 0 | none defined | `+0xB0 = 0`, `+8 = 0` |
+| 5 | `0x00A64430` | target bounds | `out` (16 bytes) | 4 | tail-jumps to target slot 11 (`+0x2C`): copies the buffer's `(0, 0, W, H)` into `out` | — |
+| 6 | `0x0082FD90` | SetClipRect | `rect*` (4 dwords) | 4 | — | `+0x14..+0x20` (not read by slot 22) |
+| 7 | `0x0082FF70` | SetColorTable | `index, count, argb*` | 0xC (`0x0082FFC0`) | — | per entry `k`: `+0xB4 + 4(index+k)` = ARGB, `+0xC4 + 4(index+k)` = native colour |
+| 8 | `0x0082FEA0` | SetAlphaBlend | `int a` | 4 | — | `+0x41 = (a > 0)` signed |
+| 9 | `0x0082FEB0` | SetBltModulate | `byte m` | 4 | — | `+0x42 = m` (low byte as passed) |
+| 10 | `0x0082FEC0` | SetAntialiasing | `byte` | 4 | — | `+0x43` (not read by slot 22) |
+| 11 | `0x00648F10` | (empty) | 1 dword | 4 | — | — |
+| 12 | `0x0082FDB0` | SetGradientTransform | `p, x0, y0` | 0xC (`0x0082FE4D`) | — | `+0x44..+0x70`, `+0x74` (`span-render-1555.md` §4.1) |
+| 13 | `0x0082FFD0` | SetBltSource | `tex, x, y, sx, sy, outRect*` (floats) | 0x18 (`0x00830278`, `0x00830296`) | AL (below) | `+0x24`, `+0x28..+0x40`, `+0xA8`, `+0xAC` |
+| 14 | `0x0082FE60` | ClearBltTiling | — | 0 | — | `+0xA4 = 0` |
+| 15 | `0x0082FE70` | SetBltTiling | `rect*` (x0, y0, x1, y1) | 4 | — | `+0x94..+0xA0`, `+0xA4 = 1` |
+| 16, 20 | `0x00407990` | (empty) | — | 0 | — | — |
+| 17 | `0x008302A0` | Suspend | — | 0 | — | if `+0x75`: target unlock `0x8040`, `+0x75 = 0` |
+| 18 | `0x008302C0` | Resume | — | 0 | — | if not `+0x75`: target lock `0x8040` (result ignored), `+0x75 = 1` |
+| 19 | `0x0082FED0` | LockTarget | `out` (24 bytes), 1 unused dword | 8 | AL = 1 | copies `+0x78..+0x8C` into `out` |
+| 21 | `0x00831000` | Draw | (not used by the route) | | | |
+| 22 | `0x008302E0` | DrawPreclippedSpanList | `spans, n` | 8 | — | — (§6.1, §6.2) |
+
+**Init details used by §6.2.** On success Init stores the destination record `+0x78` pixels (buffer `+0x88`),
+`+0x7C` stride (`+0x8C`), `+0x80` W (`+0x24`), `+0x84` H (`+0x28`), `+0x88` colour type (first dword of `+0x3C`),
+`+0x8C` bytes per pixel (`+0x44`); also `+0xC` = W, `+0x10` = H, `+0x90` = bytes per pixel; then `+0xA4 = 0` and
+`+0x75 = 1` (`0x00830869`, `0x00830870`). It does not touch `+0x40`, `+0x41`, `+0x42`, `+0x74`, `+0xB4`, `+0xC4`.
+
+**Shutdown** releases the renderer (slot 0, flags 1) if `+0xB0` is set and clears it; if a target is held it
+unlocks it with `0x8040` **only when `+0x75` is set**, clears `+8` and tail-jumps to the target's Release, so EAX
+is the target's new count on that path and left over otherwise: callers must not read it.
+
+**SetColorTable** (`index, count, argb*`; `count = 0` writes nothing). For each of the `count` dwords `c`:
+`+0xB4 + 4i = c` first, then `+0xC4 + 4i` = target slot 30 (`+0x78`, `0x00825DA0`) called with
+`(c >> 16, c >> 8, c)` (it uses the low byte of each). For a type-5 target that converter is case `0x00825DE7`:
+`(r & 0xF8) << 8 | (g & 0xFC) << 3 | b >> 3`, alpha dropped. `index` is not range-checked: entries 0–3 lie in the
+object (`+0xB4..+0xC0`, `+0xC4..+0xD0`), index 4 writes its ARGB over native entry 0 and its native colour at
+`+0xD4`, past the 0xD4-byte block. Slot 22 reads entry 0 only (`+0xB4`, `+0xC4`).
+
+**SetBltSource** (`tex, x, y, sx, sy, outRect*`). Null `tex`: release the held texture, `+0x24 = 0`, return AL = 0.
+Otherwise release the held texture (`+0x24 = 0`), query `tex` for `0x20732180` into `+0x24`; if that fails return
+**AL = 1** with nothing else written. Else read the texture's bounds `(0, 0, W, H)` (slot 11) and, each value
+rounded to float and then converted with the current x87 rounding mode (round half to even by default; `FISTP`):
+`+0x30 = sx·65536`, `+0x34 = sy·65536`, `+0x38 = 65536/sx`, `+0x3C = 65536/sy` (constant `0x00A8CEB0` = 65536.0).
+- `+0x30` and `+0x34` both exactly `0x10000`: `+0x28 = round(x)`, `+0x2C = round(y)` (integers), `+0x40 = 0`,
+  `outRect = (ox, oy, W + ox, H + oy)`.
+- otherwise: `+0x28 = round(+0x38 · x)`, `+0x2C = round(+0x3C · y)` (16.16), `+0x40 = 1`, and
+  `outRect = (C(x), C(y), C(W·sx + x), C(H·sy + y))` with `C(v)` = the integer `n` nearest to `v` (half to even,
+  through float magic `0x00AC17A0` = 1.5·2²³ on `v − 0.5 + 0.5`), lowered by one when `v − 0.5` equals `n − 1`:
+  that is `ceil(v − 0.5)`.
+- then `+0xA8 = out.x1 − out.x0`, `+0xAC = out.y1 − out.y0`, return AL = 1. `+0xA4` (tiling) is not changed.
+
+**Conformance vectors (constructed context on a type-5 W = 5, H = 3 buffer).**
+(1) SetColorTable(0, 1, [`0x80FF8040`]): `+0xB4 = 0x80FF8040`, `+0xC4 = 0xFC08`; then slot 22 with no texture,
+alpha off, one span of 2 pixels writes `0xFC08` twice. (2) SetAlphaBlend(2) → `+0x41 = 1`; (−1) and
+(`0x80000000`) → 0. (3) SetBltSource(tex 4×3, x = 2.5, y = 3.5, sx = sy = 1): `+0x28 = 2`, `+0x2C = 4` (half to
+even), `+0x40 = 0`, `+0x30..+0x3C = 0x10000`, out = (2, 4, 6, 7), `+0xA8 = 4`, `+0xAC = 3`, AL = 1.
+(4) SetBltSource(tex 4×3, x = 1, y = 0, sx = 2, sy = 0.5): `+0x30 = 0x20000`, `+0x34 = 0x8000`,
+`+0x38 = 0x8000`, `+0x3C = 0x20000`, `+0x28 = 0x8000`, `+0x2C = 0`, `+0x40 = 1`, out = (1, 0, 9, 1),
+`+0xA8 = 8`, `+0xAC = 1`. (5) SetBltSource(null, …) after (3): AL = 0, `+0x24 = 0`, `+0x28..` unchanged.
+(6) Shutdown after Suspend: no unlock call (the `+0x75` gate), target still released.
 
 ## 2. RenderSolid (`0x0083DE50`, slot 1) [exact, verified]
 
