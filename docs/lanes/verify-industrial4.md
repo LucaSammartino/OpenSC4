@@ -13,7 +13,9 @@
 - Native replacement disabled; validate image, identity, views and reference ownership.
 - Compare Init/Shutdown/message/records, returns/bytes, failures and boundaries on independent instances.
 - Unique guarded game labels, 2032/ref0 save/shutdown; wait without qwait.
-- No outstanding game requests, ABI changes or new questions.
+- Outstanding: ind4-r2-native-92f61086-01 (qwait session 27667), original industrial disabled replacement, save script, 2032 turbo.
+- DLL immutable build-runs/dll/industrial-r2-92f61086/FreeCity4.dll SHA256 DCFA504194029630A2C1698605FBC8EDC54F4DE43DBDEDC5925708ECDE47C3D7.
+- Full gate session 19839, CMake build PASS; ctest pending. No ABI changes/new questions.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-industrial4-r2-manifest.json.
 
 ## Prior round report (superseded scope)
