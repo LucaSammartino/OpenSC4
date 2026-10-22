@@ -74,7 +74,7 @@ native owner.** No family, complete-owner, shadow or replacement credit is grant
 | S3D 007FF580 / 007FFEF0 | Both projection-state builders implemented; lazy counter timing not modeled; native perspective setter unidentified (CA3) |
 | S3D 007FFF10 / 00800120 / 00800340 | Project/UnProject/eye ray bodies implemented |
 | Control 007CB940 / 004BDF00 / 007CB920 / 007CBB10 / 007CBBA0 / 007CCBF0 / 007CCC20 | Read/Write/ID implemented; native QI/AddRef/Release/deleting destructor NOT implemented; no automatic ledger detach |
-| Control 007CC990 / 007CCC00 | Constructor implemented; native heap factory absent |
+| Control 007CC990 / 007CCC00 | Documented constructor fields implemented; pre-init derived conversion defaults provisional (CA7); native heap factory absent |
 | Control 007CB970 / 007CD200 / 007CDB20 | Detach/attach/Init corrected, including camera-less Init and acquired-before-release ordering |
 | Control 007CB990 / 007CB9B0 / 007CB9F0 / 007CBA10 | Signed viewport, clip getters and partial-write `rotation_corner_into` implemented |
 | Control 007CBC40 / 007624E0 / 007CBC60 | Virtual zoom/magnification/velocity bodies implemented |
