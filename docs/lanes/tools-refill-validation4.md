@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| tools-refill-validation4 (evidence preflight and heartbeat recovery) | `Codex` / `tools-refill-validation4` (tooling lane) | wip: source b42c1c80 complete; 38 targeted checks, 37 passed / 1 POSIX-only skip; required full pytest unavailable (No module named pytest). ABI unchanged; cargo/clippy/ctest/game n/a; questions none. | (1) Run python -m pytest -q tools/tests with pytest available; (2) if green, mark held source entry ready for the merge train. |
+| tools-refill-validation4 (evidence preflight and heartbeat recovery) | `Codex` / `tools-refill-validation4` (tooling lane) | ready: source b42c1c80 complete; coordinator full pytest 180 passed / 1 POSIX-only skip on clean tip 476aa600; earlier missing-pytest failure retained below. ABI unchanged; cargo/clippy/ctest/game n/a; questions none. | Land through the merge train; rerun combined full tools suite after integration. |
 
 ## Changes
 
@@ -66,3 +66,14 @@ cannot run in this interpreter. The coordinator must run that command with pytes
 failures, and only then mark the entry ready. Windows behavior was measured; POSIX-specific filename behavior
 is covered by a platform-conditional test but was not executed here. No live run4 queue/state, engine, RE,
 shared guard internals, provider availability or main branch was changed. No game runs or questions filed.
+
+## Coordinator validation, 2026-10-22 22:15 BST
+
+The missing pytest module was handled explicitly with an ignored coordinator virtual environment at
+`build-runs/pytest-venv`, using existing system/user packages. In this clean worktree at tip `476aa600`,
+`C:/Users/tlori/FreeCity4/build-runs/pytest-venv/Scripts/python.exe -m pytest -q tools/tests`
+completed with **180 passed, 1 skipped in 134.79 s**, exit 0. The complete log is retained in this worktree's
+`build-runs/coordinator-full-tools-2220.log`. The skipped filename test requires POSIX. Independent coordinator
+review of all eight changed files found no blocking defect; `git diff --check` passed. Source is unchanged
+from the tested tip; this follow-up records validation only. The held entry can now be ready. Heartbeat exit 1
+is an explicit critical-read failure requiring inspection; it must not be treated as a healthy snapshot or pause.
