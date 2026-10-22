@@ -276,7 +276,7 @@ generated index: the questions live one file per spec, so read only the file for
 | terrain-view | 3 | 0 | TV4 | questions/terrain-view.md |
 | texture-bindings | 6 | 1 | TB8 | questions/texture-bindings.md |
 | timers | 0 | 3 | TM4 | questions/timers.md |
-| tools-com-director | 3 | 1 | TD5 | questions/tools-com-director.md |
+| tools-com-director | 2 | 2 | TD5 | questions/tools-com-director.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
 | tutorial | 0 | 6 | TU10 | questions/tutorial.md |
@@ -294,4 +294,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **348** | **1201** | | |
+| **total** | **347** | **1202** | | |

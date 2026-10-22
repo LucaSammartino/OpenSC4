@@ -62,12 +62,12 @@ have `name-medium`, and `00A66A31` has `neighbour`.
 | `0094AC88` | 545 | S; large-service slot +1C |
 | `0094AEAE` | 107 | S; large-service slot +0C |
 | `00A667B4` | 38 | U |
-| `00A667DA` | 36 | U |
-| `00A667FE` | 463 | U |
-| `00A66A31` | 46 | U; neighbor attribution only |
+| `00A667DA` | 36 | S; history clear (§5.9) |
+| `00A667FE` | 463 | S; complete internal header parser (§5.9) |
+| `00A66A31` | 46 | S; inverted header check (§5.9); neighbor attribution retained |
 | `00A66A5F` | 211 | U |
 | `00A66B32` | 49 | U |
-| `00A66B80` | 39 | U |
+| `00A66B80` | 39 | S; cursor reset (§5.9) |
 | `00A66BA7` | 23 | S; decoder logical cleanup (§5.3) |
 | `00A66BBE` | 21 | S; decoder destructor (§5.3) |
 | `00A66BD3` | 28 | U |
@@ -270,7 +270,9 @@ Its default-format setup (`0094A54E–0094A5AC`) includes fields 1, 2, 44100,
 176400 and 16 at +10EC/+10EE/+10F0/+10F4/+10FA. The stored +10F8 value is computed
 from the **prior, uninitialized** 16-bit contents at +10FA before 16 is stored;
 do not silently replace this instruction order with an assumed constant 4.
-No stable external class/interface names are asserted for these services here.
+The exact native interface identities are the numeric QI IDs below. No semantic
+interface names are established by this evidence; names are not prerequisites for
+the slot, ownership or error contracts.
 The calculation is unsigned-zero-extension of the old word, multiplication by 2,
 then signed integer division by 8 (all inputs here nonnegative), before the new
 format is written. This is not a complete decoder specification.
@@ -315,7 +317,7 @@ Offsets are within `00AD4ED8`. Stack sizes below exclude `this` and the return a
 | +14 | `0094A977` | 4 bytes, resource key pointer; resource-to-path chain below; returns AL. |
 | +1C | `0094AC88` | No stack arguments; initialize/open current path; AL. |
 | +20 | `0094A907` | No stack arguments; close/release resources; always true AL. |
-| +24 | `0094A5DB` | Tail-forward to embedded file +10, with adjusted `this` (+20). |
+| +24 | `0094A5DB` | No arguments; tail-forward to embedded file +10 (`004770F0`), returning raw byte file+18 in AL; no normalization. |
 | +28 | `0094A5E3` | Return raw 32-bit +1100 estimate in EAX. |
 | +2C | `0093877E` | 8 bytes; return false AL, no side effects. |
 | +30, +34 | `0094A5EA` | No arguments; return false AL, no side effects. |
@@ -324,7 +326,7 @@ Offsets are within `00AD4ED8`. Stack sizes below exclude `this` and the return a
 | +40 | `0094A892` | Return borrowed pointer to format at +10EC; no copy or AddRef. |
 | +44 | `0094A899` | Return byte +10E8 if +10E9 nonzero, otherwise false AL. |
 | +48 | `0094A8AC` | 4 bytes; copy argument's low byte to +10E8, set +10E9=1, return true AL. No normalization of the copied byte. |
-| +4C | `0094A8CA` | Tail-forward to embedded file +18 with adjusted `this`. |
+| +4C | `0094A8CA` | No arguments; tail-forward to embedded file +18 (`00918345`), returning logical position dword file+48 when file+18 is nonzero, otherwise FFFFFFFF. |
 | +50 | `0094A8D2` | 4 bytes, offset; zero calls +3C then returns false regardless; nonzero requires embedded file +10 true, then calls file +30(offset), returning EAX=1 only if the returned value equals offset, otherwise 0. No decoder-buffer reset on the nonzero path. |
 | +54 | `0094AA9C` | 4 bytes, deleting-destructor flags. |
 | +58 | `0094A8C2` | No arguments; clear +10E9; no defined return value. |
@@ -339,8 +341,25 @@ normal return paths, including callbacks that return false with nonnull output.
 The service pointer and Boolean-success outputs are dereferenced without independent
 null checks. `004496C0` calls `RZGetFramework`, then framework +14 with
 `(056B906E,656B8EFC,&service)` if the framework exists (`004496D4–004496E1`). These
-are observed request IDs; semantic interface names remain TD2. No framework/service
+are observed request IDs; semantic interface names are not established. No framework/service
 leaves a null pointer that this +14 path subsequently dereferences.
+
+The embedded object's constructor call is `0094A4F9 -> 00918B96`; that constructor
+installs table `00ABFED0`. Thus the forwards above use cRZFile endpoints, despite
+the shared four-byte body `004770F0` having an unrelated exported owner name.
+Both thunks add exactly +20 to ECX and jump through the file table, preserving
+the caller's stack. They acquire no reference and return no owned object.
+The +4C position is a cached logical position, not a direct OS seek/tell request.
+Native QI comparisons are at `0094A457–0094A479` (1/FCEFF549) and
+`0096C390–0096C3AF` (1/3AFD825F); neither yields a textual interface name.
+Other file calls used here are +1C=`009186F5` (length), +30=`00918374`
+(absolute seek), +38=`00918382` (exact-count Boolean read). The latter calls
+file+3C with a local count and returns true only if that operation succeeds AND
+its resulting count equals the request; a short read can have copied bytes and
+advanced the file while returning false to this decoder wrapper.
+Evidence: native table dwords `00ABFEE0/00ABFEE8/00ABFEEC/00ABFF00/00ABFF08`,
+forwarders `0094A5DB–0094A5E2`, `0094A8CA–0094A8D1`, and endpoint instructions
+`004770F0–004770F3`, `00918345–00918351`, `00918382–009183AC`.
 
 ### 5.3 Open, close, and partial-failure ownership
 
@@ -377,10 +396,30 @@ wrapped `(fileSize << 3)` and load to x87, adding exactly 2^32 for a negative si
 interpretation; divide by the stored binary32 denominator; load unsigned +10F4 by
 the same signed-load/2^32 correction; multiply in x87; convert with `_ftol2` and
 store low EAX. It is not simply fileSize times a rational number in double precision.
-The positive finite in-range conversion truncates toward zero; invalid/overflow
-conversion behavior is part of TD2. The full file size includes any ID3 prefix.
+The conversion behavior is specified immediately below. The full file size includes any ID3 prefix.
 After this sequence open returns true. There is no check for zero bitrate, failed
 probe/rewind, or a nonsensical estimate.
+
+`_ftol2` here is native body `009EEF04–009EEF78`, not a signed-32-bit conversion
+or saturating cast. It duplicates ST0, stores one binary32 sign copy and converts
+to a **signed 64-bit** stack temporary using x87 FISTP. It does not change the x87
+control word. For finite results whose conversion/correction is representable,
+it corrects the rounded integer toward zero and returns EDX:EAX. The caller stores
+only EAX at +1100. Consequently values outside signed/unsigned 32-bit range but
+within the signed-64-bit conversion range wrap to their low 32 bits; e.g.
+4294967297.75 stores 1 and -1.75 stores FFFFFFFF. No range/error check follows.
+
+With invalid-operation masked, NaN, either infinity, and finite values whose
+FISTP conversion is outside signed-64-bit range write integer-indefinite
+`80000000:00000000`. The low-word-zero branch tests `high&7FFFFFFF`, sees zero,
+pops the two remaining x87 values and returns that pair unchanged; the service
+stores **00000000**, not 80000000, at +1100. The same branch also handles integer
+zero and exactly -2^63. Sticky exception flags are not cleared. With relevant x87
+exceptions unmasked there is no guaranteed normal return/store: the helper and
+preceding divide may raise the corresponding floating exception. This is a
+control-word-dependent native contract, not a claim about a runtime default.
+Evidence: FISTP qword `009EEF13`, correction paths `009EEF27–009EEF61`,
+zero/indefinite branch `009EEF63–009EEF78`, low-dword store `0094AE68`.
 
 Close (+20, `0094A907`) does nothing if +10D0 is zero and still returns true.
 Otherwise it calls embedded file +14, ignores the result, CRT-frees and nulls each
@@ -481,8 +520,8 @@ Channels=1 only when top two bits of byte 3 equal 3, otherwise 2. Output words a
 layer, frame bytes, samples/frame, channels, sample rate, bitrate; return EAX=0.
 Free-bitrate index 0 can produce zero frame bytes with a nonzero parsed layer.
 
-This parser differs from internal decoder parser `00A667FE`, whose mutating
-acceptance rules remain TD1. Equivalence between the parsers is not specified.
+This parser differs from internal decoder parser `00A667FE` (§5.9), including
+acceptance and mutation on failure. They must not share one assumed validation rule.
 
 ### 5.7 Compressed-input submission boundary
 
@@ -494,7 +533,7 @@ borrowed buffer pointer at +4A44, assembles its first four bytes in big-endian
 order, and calls `00A667FE`. A negative parser result becomes -2; pointer/parser
 side effects are not rolled back. Otherwise store sampleLimit at +4A4C, byteCount
 at +4A48 and return 0. It does not copy/own the buffer or validate compressed-frame
-length. Parser acceptance and writes remain TD1.
+length. Parser acceptance and writes are specified in §5.9.
 
 ### 5.8 Layer-3 side-information parser
 
@@ -565,6 +604,63 @@ at full rate and 72/136 bits at reduced rate, independent of switch flags.
 These are 17/32 and 9/17 logical bytes for byte-aligned input, plus the readable
 padding required by the extraction rule. No sample output is produced here.
 
+### 5.9 Internal header and reset contracts
+
+`00A667FE` receives decoder ECX and one big-endian assembled header dword H;
+it pops four bytes and returns full EAX=0 or -1. It owns no buffer and performs
+no payload read. First require `(H & FFF00000h)=FFF00000h`; failure returns -1
+without decoder writes. This requires bit20=1, so the later MPEG-2.5 branch is
+unreachable through this entry. MPEG-2.5 accepted by §5.6 is rejected here.
+No separate rejection exists for layer bits zero, sample-rate index3, or bitrate
+index15. On a passing prefix it makes these stores before subsequent failure tests:
+
+| Decoder field | Value |
+|---|---|
+| byte +2490 | L=4-((H>>17)&3), including L=4 |
+| bytes +4A11,+4A12,+4A13 | (H>>19)&1, (H>>16)&1, bitrate index K=(H>>12)&15 |
+| bytes +4A15,+4A16,+4A17 | padding (H>>9)&1, channel mode (H>>6)&3, mode extension (H>>4)&3 |
+| bytes +4A18,+4A19 | (H>>3)&1, (H>>2)&1 |
+| bytes +4A0D,+4A0E | 0, then reduced flag F=1-((H>>19)&1) |
+| byte +4A14 | rate index I=((H>>10)&3)+3*F |
+| byte +4A0F | ((H>>10)&3)+3*(1-F) |
+| dwords +2484,+2488 | sample-rate table[I] |
+| dwords +4A40,+4A1C | C=(mode==3 ? 1 : 2), then 32*C |
+
+Native rate dwords at `00AF3538`: 44100,48000,32000,22050,24000,16000,
+11025,12000,8000. Thus index3 spills into the next group: F=0 selects22050;
+F=1 selects11025. No division-by-zero results from these reachable indices.
+K=0 now emits the native diagnostic at `00AF35E4` and returns -1, retaining all
+above writes and the old +2494/+2498. Otherwise load a **signed 16-bit** bitrate
+from `00AF3458+2*(16*(3*F+L)+K)` and store sign-extended at +2494. Rows1..6 are
+the corresponding bitrate rows in §5.6, with a final zero at index15. The extra
+reachable row7 (F=1,L=4) is the adjacent rate-table words interpreted as signed
+halves: -21436,0,-17536,0,32000,0,22050,0,24000,0,16000,0,11025,0,12000,0.
+No invented valid MPEG layer is assigned to that spill.
+
+L=1 returns -1 **after** writing bitrate, leaving old +2498. For every other L,
+including4, multiply bitrate by144000 as a wrapping signed dword, signed-divide
+by +2484 (truncate toward zero), and store at +2498. For L=3 and F!=0, arithmetic
+shift that quotient right1 and store again. Then add padding and subtract4,
+with dword wrap, and return0. +2498 counts payload bytes excluding the four-byte
+header; zero bitrate from K=15 is accepted and yields -4 or -3. No failed parse
+clears the decoder state. Evidence: acceptance `00A66806–00A66816`, stores/tables
+`00A6681B–00A66985`, division/order/returns `00A6698B–00A669CA`.
+
+The neighbor-attributed `00A66A31` remains in scope. It reads four bytes at
+borrowed +24A4 when nonnull, otherwise the raw dword at +4A3C; byte-swaps the
+dword and calls `00A667FE`. It returns EAX=1 for parser result -1, otherwise0
+(an inverted failure predicate), retaining parser side effects. No byte-count
+or partial-input check. Evidence: `00A66A31–00A66A5E`; there are no direct callers
+in the exported caller query, which does not establish that indirect use is absent.
+
+`00A667DA` zeroes exactly 900h bytes starting at decoder+4 if global dword
+`00BB46C4` is nonzero, otherwise1200h bytes. It owns/frees nothing, performs no
+size check, and does not clear the following byte. EAX is memset's destination
+result, not a decode-success code (`00A667DA–00A667FD`). `00A66B80` copies +249C
+to +4A34 and clears four dwords +24AC,+24A8,+4A30,+24B4, returns EAX=0 and leaves
+all other state intact (`00A66B80–00A66BA6`). Neither reset means complete object
+initialization or ownership transfer.
+
 ## 6. Independent discriminating vectors
 
 These are contract vectors to implement independently, not reports of execution.
@@ -603,16 +699,24 @@ These are contract vectors to implement independently, not reports of execution.
 | TD-V30 | Reduced-rate mono, valid unswitched record with big-value count511 and region counts15/7 | AL=1, cursor72; stores511,15,7 without rejection |
 | TD-V31 | Synthesis 00A6A25B: phase0, channels0, both stack pointers null | Phase becomes15; no transform/output call or pointer read; no Boolean return contract |
 | TD-V32 | Synthesis: one channel and readable packed input/history, PCM destination null | Phase advances, transform/history writes still occur, PCM window/output stores skipped |
+| TD-V33 | Internal header FFFB9000; repeat FFFB9C00 | EAX0; +2494=128; sample rate44100/22050; payload413/831; both stereo |
+| TD-V34 | Internal header FFFBF000 with old payload99; repeat FFFB0000 with old payload99 | First EAX0, bitrate0, payload-4; second EAX-1, common header fields updated but old bitrate/payload retained |
+| TD-V35 | Internal header FFE380C0 (MPEG-2.5) with sentinel-filled decoder | EAX-1, decoder untouched; §5.6 accepts this version |
+| TD-V36 | Direct _ftol2 inputs NaN,+infinity,-infinity,2^63 with invalid masked; examine caller's store | Each produces EDX:EAX=80000000:00000000, and +1100=0; invalid flag is retained |
+| TD-V37 | Direct conversion4294967297.75, then -1.75 under round-to-nearest with exceptions masked | Caller stores1, then FFFFFFFF; neither is saturated to32-bit range |
+| TD-V38 | File-open byte7 and logical position123, then open byte0 | Large +24 returns AL7 then0; +4C returns123 then FFFFFFFF; no AddRef or OS tell |
+| TD-V39 | History-clear helper with nonzero global feature flag and storage filled AA; repeat flag0 | Clears [this+4,this+904h) then [this+4,this+1204h); first following byte remains AA |
 
 ## 7. Open contracts and coverage boundary
 
 Vector TD-V23 assumes parsed channel/rate fields matching the stored stereo format;
-it is a pending-data case after a valid header. The 32 vectors are independent
+it is a pending-data case after a valid header. The 39 vectors are independent
 review fixtures, not reports of execution against an implementation or the game.
 
-Checklist reconciliation: D=6 bodies/294 B; S=31 bodies/6431 B; U=32 bodies/24547 B;
+Checklist reconciliation: D=6 bodies/294 B; S=35 bodies/7015 B; U=28 bodies/23963 B;
 A=1 artifact/21 B. D/S are documented boundaries, not proof that nested decoder
-arithmetic is specified. TD1, TD2 and TD4 remain open; TD3 is answered in section 2
+arithmetic is specified. TD1 and TD4 remain open; TD2 is answered in §5.2/§5.3,
+with numeric interface identities retained; TD3 is answered in section 2
 and archived in answered/tools-com-director.md. Whole-owner promotion is withheld.
 
 See [tools-com-director questions](questions/tools-com-director.md). The full attributed

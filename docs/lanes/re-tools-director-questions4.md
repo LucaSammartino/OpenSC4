@@ -4,8 +4,8 @@
 
 ## Handoff
 Goal: TD1/TD2 only; native evidence to public tools-com-director spec/questions. Logical phase 2 of max 3; no restart/fourth phase.
-Done: complete 3405 B side-information body contract §5.8; seven independent vectors; 5716/2444 B synthesis boundaries in §1.1 with numerical residuals explicit. Native paged bytes/decomp/caller evidence retained under ignored build-runs/.
-Next: complete internal header parser 00A667FE; prove _ftol2 invalid/range results and embedded cRZFile endpoints; reconcile each remaining U row without whole-owner credit.
-Facts: inventory retained 70/31,293 B; current D6/294 B, S31/6431 B, U32/24,547 B, A1/21 B. TD4 separate coordinator review; no attribution edits.
+Done: 555a7567 publishes 3405 B side-information contract and synthesis boundaries. Added header/reset contracts (584 B), exact file forwards and _ftol2 result; TD2 moved to answered;39 independent vectors.
+Next: reconcile remaining U rows from primary bytes/decomp/callers, prove bounded wrappers, then exact residual list and final report/queue.
+Facts: retained70/31,293 B; D6/294 B, S35/7015 B, U28/23,963 B, A1/21 B. TD1/TD4 remain; no attribution edits. Evidence in ignored build-runs/.
 Restrictions: no engine/tests/implementation reads, tools/maps/ABI-table edits, network, runtime claims or subagents. Keep reachable decoder bodies attributed.
 Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-tools-director-questions4-r1-manifest.json
