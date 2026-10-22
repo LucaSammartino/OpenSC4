@@ -64,6 +64,8 @@ struct Provider {
     id: u32,
     fail_load: bool,
     fail_mesh: bool,
+    fail_load_id: Option<u32>,
+    fail_mesh_id: Option<u32>,
     drops: Arc<Mutex<Vec<u32>>>,
     loads: Mutex<Vec<ResourceKey>>,
     id_args: Mutex<Vec<(u8, bool)>>,
@@ -75,14 +77,14 @@ impl ModelProvider for Provider {
     }
     fn load(&self, key: ResourceKey) -> Option<Arc<dyn ModelResource>> {
         self.loads.lock().unwrap().push(key);
-        if self.fail_load {
+        if self.fail_load || self.fail_load_id == Some(key.instance_id()) {
             return None;
         }
         Some(Arc::new(Resource {
             mesh: self.mesh.clone(),
             bounds: self.bounds,
-            fail: self.fail_mesh,
-            id: key.instance,
+            fail: self.fail_mesh || self.fail_mesh_id == Some(key.instance_id()),
+            id: key.instance_id(),
             drops: Arc::clone(&self.drops),
         }))
     }
@@ -105,6 +107,8 @@ fn provider(vertices: Vec<Vertex>) -> Provider {
         id: 7,
         fail_load: false,
         fail_mesh: false,
+        fail_load_id: None,
+        fail_mesh_id: None,
         drops: Arc::new(Mutex::new(Vec::new())),
         loads: Mutex::new(Vec::new()),
         id_args: Mutex::new(Vec::new()),
@@ -112,7 +116,7 @@ fn provider(vertices: Vec<Vertex>) -> Provider {
 }
 
 fn instance(p: &Provider) -> NetworkModelInstance {
-    let key = ResourceKey::network(p.id);
+    let key = ResourceKey::MainInstance(p.id);
     NetworkModelInstance::create(key, p.load(key).unwrap()).unwrap()
 }
 
@@ -345,7 +349,14 @@ fn no25_a_fan_and_uvs_b_single_triangle_c_drop_and_inclusive_boundary() {
     assert_eq!(m.clip(Some(slab(0.0, 1.0)), 1), Ok(false));
     assert!(Arc::ptr_eq(&m.meshes[0].vertices, &p.mesh.vertices));
     assert_eq!(m.clip(None, 0), Ok(false));
-    assert_eq!(m.clip(Some(slab(0.0, 1.0)), 0), Err(UnspecifiedClipMode));
+    assert_eq!(m.clip(Some(slab(0.0, 1.0)), 0), Ok(false));
+    let narrow = Bounds {
+        min: [1.0, -10.0, -f32::MAX],
+        max: [f32::MAX; 3],
+    };
+    let bounds = m.bounds;
+    assert_eq!(m.clip(Some(narrow), 0), Err(UnspecifiedClipMode));
+    assert_eq!(m.bounds, bounds);
 }
 
 #[test]
@@ -589,4 +600,94 @@ fn model_state_is_safe_for_cross_thread_getters() {
     send_sync::<NetworkModelInstance>();
     send_sync::<EmbeddedInstance>();
     send_sync::<PrebuiltPiece>();
+}
+
+#[test]
+fn caches_fail_independently_and_zero_id_keeps_both_previous_instances() {
+    let mut p = provider(vec![vertex(0.0, 0.0, 0.0); 3]);
+    let mut owner = piece();
+    let mut s = state();
+    s.second_id = 8;
+    drop(owner.get_model_instances(&p, &s, CONSTANTS));
+    let old_main = Arc::downgrade(owner.cached_main().unwrap());
+    let old_second = Arc::downgrade(owner.cached_second().unwrap());
+    p.fail_load_id = Some(7);
+    let q = owner.get_model_instances(&p, &s, CONSTANTS);
+    assert_eq!(q.instances.len(), 2);
+    assert_eq!(model(&q, 1).key, ResourceKey::network(8));
+    assert!(old_main.upgrade().is_some());
+    assert!(old_second.upgrade().is_none());
+    drop(q);
+    p.fail_load_id = None;
+    p.fail_mesh_id = Some(8);
+    let q = owner.get_model_instances(&p, &s, CONSTANTS);
+    assert_eq!(q.instances.len(), 2);
+    assert_eq!(model(&q, 1).key, ResourceKey::MainInstance(7));
+    assert!(owner.cached_second().is_none());
+    drop(q);
+    p.fail_mesh_id = None;
+    drop(owner.get_model_instances(&p, &s, CONSTANTS));
+    let a = Arc::downgrade(owner.cached_main().unwrap());
+    let b = Arc::downgrade(owner.cached_second().unwrap());
+    let load_count = p.loads.lock().unwrap().len();
+    p.id = 0;
+    s.shadow_byte = 2;
+    s.rotation = 3;
+    s.option_27812821 = true;
+    let q = owner.get_model_instances(&p, &s, CONSTANTS);
+    assert_eq!(q.instances.len(), 1);
+    assert!(!q.update_shadow);
+    assert_eq!(owner.shadow_byte, 1);
+    assert!(a.upgrade().is_some() && b.upgrade().is_some());
+    assert_eq!(p.loads.lock().unwrap().len(), load_count);
+    assert_eq!(p.id_args.lock().unwrap().last(), Some(&(3, false)));
+}
+
+#[test]
+fn clip_unordered_bounds_nan_coordinate_and_whole_triangle_x_rejection() {
+    let mut p = provider(vec![
+        vertex(f32::NAN, 0.0, 0.0),
+        vertex(1.0, 0.0, 0.0),
+        vertex(0.0, 0.0, 1.0),
+    ]);
+    p.bounds.min[1] = f32::NAN;
+    let mut m = instance(&p);
+    assert_eq!(m.clip(Some(slab(0.0, 1.0)), 1), Ok(true));
+    assert!(m.bounds.min[1].is_nan());
+    assert_eq!(m.meshes[0].vertices.len(), 3);
+    assert!(m.meshes[0].vertices[0].pos[0].is_nan());
+    let p = provider(vec![
+        vertex(-2.0, -1.0, 0.0),
+        vertex(-2.0, 1.0, 0.0),
+        vertex(-2.0, 1.0, 1.0),
+    ]);
+    let mut m = instance(&p);
+    let b = Bounds {
+        min: [0.0, 0.0, -f32::MAX],
+        max: [f32::MAX; 3],
+    };
+    m.clip(Some(b), 1).unwrap();
+    assert!(m.meshes[0].vertices.is_empty());
+}
+
+#[test]
+fn draw_uses_view_yaw_path_origin_and_shared_flat_model_when_skipped() {
+    let p = provider(vec![vertex(8.0, 0.5, -8.0); 3]);
+    let mut owner = piece();
+    let mut s = state();
+    s.rotation = 1;
+    s.orientation_byte = 0x80;
+    s.path_id = 1;
+    s.path_origin = [4.0, 0.0];
+    s.use_object_yaw = false;
+    s.view_yaw = 0.6;
+    let q = owner.get_model_instances(&p, &s, CONSTANTS);
+    assert_eq!(model(&q, 1).transform, ModelTransform::new(-0.6, [0.0; 3], true));
+    assert_eq!(model(&q, 1).meshes[0].vertices[0].pos[1], 5.5);
+    s.option_6a845768 = true;
+    let q = owner.get_model_instances(&p, &s, CONSTANTS);
+    assert!(Arc::ptr_eq(&model(&q, 1).meshes[0].vertices, &p.mesh.vertices));
+    assert!(model(&q, 1).passes.is_empty());
+    assert_eq!(model(&q, 1).alpha, None);
+    assert_eq!(model(&q, 1).draw_flags & 2, 0);
 }

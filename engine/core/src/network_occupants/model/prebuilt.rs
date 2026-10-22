@@ -5,18 +5,29 @@ use crate::network_occupants::xform::Xform;
 use std::sync::RwLock;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ResourceKey {
-    pub kind: u32,
-    pub group: u32,
-    pub instance: u32,
+pub enum ResourceKey {
+    /// The main model's ID is resolved by the external resource service;
+    /// §10.1 publishes a fixed type/group only for the second model.
+    MainInstance(u32),
+    Tgi {
+        kind: u32,
+        group: u32,
+        instance: u32,
+    },
 }
 
 impl ResourceKey {
     pub fn network(instance: u32) -> Self {
-        Self {
+        Self::Tgi {
             kind: 0x5AD0_E817,
             group: 0xBADB_57F1,
             instance,
+        }
+    }
+
+    pub fn instance_id(self) -> u32 {
+        match self {
+            Self::MainInstance(id) | Self::Tgi { instance: id, .. } => id,
         }
     }
 }
@@ -129,12 +140,11 @@ impl PrebuiltPiece {
         if id == 0 {
             return query;
         } // also skips second model and shadow update.
-        self.append(provider, ResourceKey::network(id), false, state, constants, &mut query);
+        self.append(provider, ResourceKey::MainInstance(id), state, constants, &mut query);
         if state.second_id != 0 {
             self.append(
                 provider,
                 ResourceKey::network(state.second_id),
-                true,
                 state,
                 constants,
                 &mut query,
@@ -151,11 +161,11 @@ impl PrebuiltPiece {
         &mut self,
         provider: &dyn ModelProvider,
         key: ResourceKey,
-        second: bool,
         state: &DrawState,
         constants: ProcessorConstants,
         query: &mut DrawQuery,
     ) {
+        let second = matches!(key, ResourceKey::Tgi { .. });
         // Load failure preserves the old cache; SetModel failure clears it.
         let Some(resource) = provider.load(key) else {
             return;
@@ -221,6 +231,8 @@ impl PrebuiltPiece {
         }
         // Fresh Arc is the construction reference. Cloning into the caller
         // then moving into AutoRef leaves exactly caller + cache, not a leak.
+        // Safe stable Arc allocation aborts on OOM: native new-failure cache
+        // clearing is an exact remaining branch, not a fabricated host input.
         let instance = Arc::new(instance);
         query.appendix.push(query.instances.len());
         query.instances.push(PieceRender::Model(Arc::clone(&instance)));

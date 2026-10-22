@@ -119,3 +119,13 @@ implementer of the class tables and records.
 - **NO30 - §10.2 clipped path with option `0x6A845768`:** does the true option skip Bind and FlipAndLight
   after Clip, or does the clipped row override the options-skip row for all three calls? The core treats
   the explicit parenthesis as an exception for Clip alone: Clip runs, Bind/FlipAndLight skip. [ambiguous]
+
+<!-- from: core-networkmodel-contractfix4 (2026-10-22) -->
+- **NO31 - §10 instance constructor/destructor inventory:** beyond the published object size, base-class
+  identity, processor member, resource reference and prebuilt cache lifetimes, what are the initial state
+  and teardown side effects of instance ctor `0x00614A30` and destructor `0x00614830`? The pure core models
+  resource/mesh/processor reference lifetime with RAII; it does not claim unreported native body effects. [missing]
+
+  NO29 implementation refinement: the published mode-0 x/z bounds early-out is implemented too. Only a
+  mode-0 call that actually needs six-plane cutting returns `UnspecifiedClipMode`; null lo or contained
+  x/z bounds return unchanged. No six-plane output is fabricated.

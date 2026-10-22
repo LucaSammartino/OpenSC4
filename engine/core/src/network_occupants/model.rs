@@ -275,15 +275,18 @@ impl NetworkModelInstance {
         let Some(clip_box) = clip_box else {
             return Ok(false);
         };
+        let axes: &[usize] = if mode == 0 { &[0, 2] } else { &[1] };
+        let needs_cut = axes.iter().any(|&axis| {
+            let below = self.bounds.min[axis].partial_cmp(&clip_box.min[axis]);
+            let above = self.bounds.max[axis].partial_cmp(&clip_box.max[axis]);
+            !matches!(below, Some(std::cmp::Ordering::Equal | std::cmp::Ordering::Greater))
+                || !matches!(above, Some(std::cmp::Ordering::Equal | std::cmp::Ordering::Less))
+        });
+        if !needs_cut {
+            return Ok(false);
+        }
         if mode == 0 {
             return Err(UnspecifiedClipMode);
-        }
-        let below = self.bounds.min[1].partial_cmp(&clip_box.min[1]);
-        let above = self.bounds.max[1].partial_cmp(&clip_box.max[1]);
-        if matches!(below, Some(std::cmp::Ordering::Equal | std::cmp::Ordering::Greater))
-            && matches!(above, Some(std::cmp::Ordering::Equal | std::cmp::Ordering::Less))
-        {
-            return Ok(false);
         }
         for mesh in &mut self.meshes {
             clip_mesh(mesh, clip_box);
