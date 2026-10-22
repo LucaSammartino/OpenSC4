@@ -67,6 +67,7 @@ identity with byte counters zero. These are constructor state facts, independent
 | constructor / factory | `0x007FF930` / `0x00800320` | the defaults of §1.1 (0x1A8 bytes from the global heap) |
 | `SetViewport(w, h)` | `0x007FF150` | viewport := (w, h); subview := (0, 0, w, h), not in use; projection counter += 2 |
 | `SetSubview(x, y, w, h)` | `0x007FF080` | subview := (x, y, w, h), in use; projection counter += 1 |
+| reset subview (descriptive) | `0x007FF0B0` | subview := (0, 0, viewportWidth, viewportHeight), not in use; projection counter += 1; export alias `cSC43DRender::UnsetClipRect` |
 | `SetDepthSize(d)` | `0x007FF070` | `+0x10 := d`; projection counter += 1 |
 | `SetOrtho(l, r, b, t, n, f)` | `0x007FF2E0` | the box; type := 1; projection counter += 1 |
 | `SetPixelOffset(dx, dy)` | `0x007FF2C0` | `+0x19C`, `+0x1A0`; projection counter += 1 |
@@ -80,6 +81,7 @@ identity with byte counters zero. These are constructor state facts, independent
 | `UpdateViewXform()` | `0x007FF3D0` | §1.3 |
 | `ProjectionMatrix()` / `_UpdateProjection()` | `0x007FFEF0` / `0x007FF580` | §1.4 |
 | `GetProjectionType()` / `GetViewState()` | `0x007FF110` / `0x007FF3C0` | `+0x180` / the local counter |
+| projection counter getter (descriptive) | `0x007FF120` | u32 `+0x17C`; export alias `cSC4City::GetFloraSimulator` |
 | `Project(world, &screen)` | `0x007FFF10` | §1.5 |
 | `UnProject(screen, &world)` | `0x00800120` | §1.5 |
 | `GetEyeRay(screenXY, &origin, &direction)` | `0x00800340` | §1.6 |
@@ -114,6 +116,16 @@ units), and the bias `β = −(+0x1A4 / depthSize)`; if the subview is in use, f
 
 The inverse is stored alongside (diagonal reciprocals and the matching offsets).
 
+Projection invalidation is a wrapping **u32** counter, separate from the wrapping **byte** transform
+counters. SetOrtho writes all six arguments verbatim, sets type 1 and increments once even when the box
+is unchanged (`0x007FF2E0–0x007FF334`); it performs no range/degeneracy checks. SetViewport increments
+twice (viewport and reset-subview); the other projection setters increment once. ProjectionMatrix compares
+the cached and current u32 counters and calls the builder only when unequal (`0x007FFEF0–0x007FFF03`).
+The type-2 builder branch proves perspective **state evaluation**; it does not prove a public perspective
+box setter, its signature or its invalidation count. No such setter has been identified in the native owner
+inventory (§7). An implementation-only `set_frustum` is an extension until CA3's remaining entry-point
+question is resolved; mirroring SetOrtho is not a measured native contract.
+
 ### 1.5 `Project` and `UnProject`
 
 `Project(p)`: `v` as in §1.3, `c = M · (v, 1)`; if `|c.w| < 0.0001`, false. Otherwise `ndc = c / c.w` and
@@ -143,12 +155,12 @@ rotation.
 | `+0x05` | loaded from a save | false |
 | `+0x08` | reference count | 0 |
 | `+0x0C` | the attached `cS3DCamera` (counted) | null |
-| `+0x10`…`+0x18` | the camera-plane origin (rotation corner + eye offset) | |
-| `+0x1C`…`+0x24` | the rotation corner (§2.3) | |
-| `+0x38`…`+0x40` | the eye position | |
-| `+0x44`…`+0x4C` | the **view target** | |
+| `+0x10`…`+0x18` | the camera-plane origin (rotation corner + eye offset) | (0, 0, 0) |
+| `+0x1C`…`+0x24` | the rotation corner (§2.3) | (0, 0, 0) |
+| `+0x38`…`+0x40` | the eye position | (0, 0, 0) |
+| `+0x44`…`+0x4C` | the **view target** | (0, 0, 0) |
 | `+0x50`…`+0x58` | the view-target velocity | 0 |
-| `+0x5C`…`+0x7C` | the view direction and the camera-plane axes (copied from the view transform) | |
+| `+0x5C`…`+0x7C` | view direction; up axis at `+0x68`; right axis at `+0x74` | zero; (0, 1, 0); zero |
 | `+0xB0`, `+0xB4` | the position tweak (pixels, §2.3) | 0, 0 |
 | `+0xB8`…`+0xC8` | scroll step per zoom: 100, 50, 25, 12.5, 6.25 (m) | |
 | `+0xF0` | custom magnification | 1 |
@@ -156,16 +168,21 @@ rotation.
 | `+0x100`, `+0x104` | previous zoom and rotation | 0, 0 |
 | `+0x108`, `+0x10C` | **zoom** (0–4) and **rotation** (0–3) | 0, 0 |
 | `+0x110`, `+0x114` | new zoom and rotation (as sent in the messages) | 0, 0 |
-| `+0x118` | yaw base −π/4 | |
+| `+0x118` | yaw base | float bits `0xBEC90FDB`, approximately −π/8 |
 | `+0x11C` | the current pitch (π/6 at construction) | |
 | `+0x120` | the eye's horizontal distance, 8192 m | |
-| `+0x124`, `+0x128` | near and far distances | |
+| `+0x124`, `+0x128` | near and far distances | 0, 0 |
 | `+0x12C`, `+0x130` | viewport size (int pixels) | 800, 600 |
 | `+0x134`, `+0x138` | metres per pixel and pixels per metre | 1, 1 |
-| `+0x13C`…`+0x144` | the eye offset from the target | |
+| `+0x13C`…`+0x144` | the eye offset from the target | (0, 0, 0) |
 | `+0x148` | scroll bounds in use | true |
 | `+0x14C`…`+0x154` | the scroll-bounds polygon (a vector of 2D points) | empty |
 | `+0x158`, `+0x15C` | city width and depth (m) | 4096, 4096 |
+
+Pre-init values are literal stores, not a valid computed camera basis: constructor
+`0x007CC9A6–0x007CCA68` zeros the vectors except `+0x6C = 1`, and
+`0x007CCAF8–0x007CCB65` zeros clip distances and eye offset. In particular, there are **not two identity
+camera-plane axes**. The clip getter simply copies the two stored zero values (`0x007CB9F0–0x007CBA08`).
 
 ### 2.2 Zoom and rotation → projection (`UpdateCameraZoomAndRotationParams`, `0x007CBE40`)
 
@@ -176,7 +193,10 @@ Tables (by zoom 0–4): **cell width in pixels** 8, 16, 32, 73, 146 (`0x00ABACE0
    (`SC4ViewUtilities::GetCityWidthFromOrthoView(16, zoom)`, angle table `0x00ABCFC4`, −22.5° at every zoom):
    metres per pixel `+0x134 := cellSpan / pixels`, pixels per metre `+0x138 :=` its reciprocal. At magnification 1:
    2.613126, 1.306563, 0.653281, 0.286370, 0.143185 m per pixel.
-2. `yaw := (rotation + 1) · π/2 − π/4`; `pitch := pitch[zoom]` (stored at `+0x11C`).
+2. `yaw := (rotation + 1) · float(π/2) + yawBase`; `pitch := pitch[zoom]` (stored at `+0x11C`).
+   The constructor yaw base is approximately −π/8, so default yaws are 3π/8, 7π/8, 11π/8, 15π/8.
+   The order and single-precision operands are explicit at `0x007CBE98–0x007CBEB0`; the multiplier at
+   `0x00ABAD04` is `0x3FC90FDB`. The former −π/4 formula was incorrect.
 3. `d := 8192 / cos(pitch)`; with `W, H :=` the city size, each at least 4096: near `:= (d − √(W² + H²) / cos(pitch))
    × 0.95`, far `:= d × 1.5`.
 4. `SetOrtho(−a, a, −c, c, near, far)` with `a = viewportWidth × metresPerPixel × 0.5` and
@@ -186,7 +206,9 @@ Tables (by zoom 0–4): **cell width in pixels** 8, 16, 32, 73, 146 (`0x00ABACE0
 ### 2.3 Eye placement and pixel snapping (`UpdateCameraPositionParams`, `0x007CC290`)
 
 1. **Rotation corner** (`0x007CBA10`): for rotation 0, 1, 2, 3 the city corner (0, 0, 0), (W, 0, 0), (W, 0, H),
-   (0, 0, H). The camera-plane origin is that corner plus the eye offset `o`.
+   (0, 0, H). An index outside 0…3 writes only the output y=0, leaving its x/z words unchanged
+   (`0x007CBA14–0x007CBA22`, `0x007CBA70`); there is no zero-corner fallback.
+   The camera-plane origin is that corner plus the eye offset `o`.
 2. `k := 1 − ((target − corner) · o) / |o|²` (0 when `|o|² = 0`); **eye := target + k · o**. Every eye position lies on
    the plane through `corner + o` perpendicular to `o`, so the depth range is the same everywhere.
 3. `camera.SetPosition(eye)`, `camera.SetLookAt(target, (0, 1, 0))`, pixel offset (0, 0).
@@ -214,17 +236,42 @@ GetCityCornerPosition`, corners 1, 0, 2, 3) in camera-plane coordinates `A, B, C
 `(C.x + 500, C.y + lift)`: the city's outline widened by 500 m left and right and raised by `lift`
 *[inferred: the screen-space meaning of `lift`]*.
 
-`ClampScrollToBounds(from, to, &out)` (`0x007CC650`): with bounds off or empty, `out := to`. Otherwise the move from
-`from` towards `to` is cut at the polygon edge it crosses first (the smallest crossing fraction over the edges whose
-outer side `to` lies on; edges shorter than 1e-8 are skipped), stopping 0.0001 of the move short when the fraction is
-at least 0.001; the rest of the move is then projected onto that edge's direction and the process repeats, at most as
-many times as the polygon has edges, until a step crosses nothing (`out :=` that point). When it runs out of steps,
-`out := from` *[inferred: the exact sliding rule; the bytes were read but not run]*.
+`ClampScrollToBounds(from, to, &out)` (`0x007CC650`), for finite points and a valid bounds vector:
 
-`ClampTargetToScrollBounds` (`0x007CD000`): clamp the target's camera-plane point (from itself to itself, so only an
-outside target moves); if it moved by at least 0.0001 in either axis, convert back to a world point and intersect
-the view direction with the ground plane: the result becomes the target and the velocity is zeroed; then
-`UpdateCameraPositionParams`, CameraUpdated, ViewTChange2, ViewTChange3 (§2.7).
+1. Bounds off or an empty vector copies `to`. Otherwise retain the original arguments, set working start S
+   to `from` and endpoint T to `to`, and clear two direction-history flags. Visit edges in vector order,
+   starting with (last point, point 0). There is **no signed-area winding calculation**.
+2. For previous vertex A and current vertex B, let v=A−B and length L=√(v.x²+v.y²).
+   Skip L less than the **double** constant 1e−8 (`0x00AB1F88`); this tests length, not length squared
+   (`0x007CC719–0x007CC744`). For other edges use n=(v.y/L, −v.x/L) and signed distance
+   d(P)=n·P−n·A. Positive is the accepted side. This expects counterclockwise vertices in Cartesian x/y;
+   reversing the winding reverses the accepted half-planes.
+3. Consider an edge only when d(T)≤0 **and d(S)>d(T)**. Its fraction is d(S)/(d(S)−d(T)). Choose the strictly
+   smallest fraction below the initial best 1 (`0x007CC775–0x007CC7B6`). Equal fractions preserve the first
+   edge. A boundary endpoint reached at fraction 1 is not selected. Outside starts are not projected onto
+   an edge: negative fractions may be selected; equal-distance/tangential moves select nothing.
+4. No selected edge returns T. Otherwise, if the stored float fraction is at least float(0.001), subtract
+   float(0.0001); below that threshold use **zero**, not a negative inset. These constants are bits
+   `0x3A83126F` and `0x38D1B717` (`0x007CC7E3–0x007CC806`). The inset is a fraction, not a world distance.
+   Form remaining vector R=(T−S)·(1−adjustedFraction), with component float stores, then Q=T−R.
+5. Classify the dot product of the **original** (to−from) with edge direction (B−A): negative versus
+   nonnegative (zero is nonnegative). Remember each category. If both have now occurred, return Q
+   immediately (`0x007CC872–0x007CC8A9`, `0x007CC971`). This is an extra stop rule, not a winding test.
+6. Otherwise normalize (B−A), project R onto it, set S=Q and T=Q+projectedR, and repeat. At most N such
+   projections are allowed for N vertices. Exhausting N returns the **original from**, even if an intermediate
+   point was closer (`0x007CC8AF–0x007CC95C`).
+
+A zero-length outside move has d(S)=d(T) on every edge and returns the outside point unchanged. An outside
+move further outward is limited to its tangential component at the original outside line; it is not brought
+inside. These are native arithmetic/control-flow consequences, not claims from a runtime capture.
+
+`ClampTargetToScrollBounds` (`0x007CD000`) converts the **rotation corner** and target to the camera plane
+and clamps the segment **corner → target**, not target → itself (`0x007CD00C–0x007CD068`). If either output
+component differs from the target-plane point by at least float(0.0001), convert the output to a temporary
+world point and intersect the view direction with the ground plane. Success stores the hit and clears
+velocity; failure keeps target **and velocity**. Either outcome still updates position and sends
+CameraUpdated, ViewTChange2, ViewTChange3 when a camera is attached (`0x007CD0CD–0x007CD100`). Below the
+component threshold it performs no update/message work.
 
 ### 2.6 Commands
 
@@ -234,17 +281,42 @@ the view direction with the ground plane: the result becomes the target and the 
 | `AttachToCamera(cam)` | `0x007CD200` | a different camera: keep it (counted), `SetViewport(800×600 or the size set)`; if initialised: §2.2, §2.3, bounds, PostViewInit |
 | `DetachFromCamera()` | `0x007CB970` | release the camera |
 | `SetZoom(z)` (float) | `0x007CDC50` | if `4 < z < 5`: magnification `:= 2^(z − 4)` (CRT `pow`) and `z := 4`; else magnification 1. Refused (false) for `z` outside 0…4 and when the integer zoom and the magnification are unchanged. Else `SetCustomMagnification`, previous := current, zoom := `trunc(z)`, ViewZRChange1, §2.2, §2.3, bounds, CameraUpdated, ViewZRChange2, ViewZRChange3, `ClampTargetToScrollBounds`; true |
-| `SetZoomAndRotation(z, r)` (ints) | `0x007CDE60` | the same with a rotation 0…3 (refused otherwise); nothing happens when both are unchanged |
-| `SetRotation(r)` | `0x007CD540` | 0…3; an unchanged rotation returns true at once; else as above with the zoom kept |
+| `SetZoomAndRotation(z, r)` (ints) | `0x007CDE60` | validates zoom/rotation, then calls SetCustomMagnification(1) **before** testing whether the integer pair is unchanged; equal pair then returns false; changed pair uses the zoom/rotation update sequence |
+| `SetRotation(r)` | `0x007CD540` | invalid r or unchanged rotation returns true at once; changed rotation preserves zoom **and custom magnification**, updates pair fields, then uses the update/message sequence; false if it changed state with no attached camera |
 | `SetCustomMagnification(m)` | `0x007CD6E0` | when `m` differs and the **current** magnification is in (0, 1000): store it, §2.2, §2.3, bounds, PostViewRefresh *[quirk: the range test is on the old value]* |
 | `SetViewTarget(p)` | `0x007CD810` | every component finite and within ±100000: target := p, velocity 0; §2.3, CameraUpdated, ViewTChange2, ViewTChange3; true |
 | `SetViewTargetVelocity(v)` | `0x007CBC60` | stores `v` when every component is a number (no NaN) |
-| `ScrollByViewportAngle(angle, amount)` | `0x007CD330` | camera-plane step `(cos(angle), −sin(angle)) × amount × step[zoom]`, clamped (§2.5), back to the world, then the terrain view's ray cast along the view direction (terrain view slot 3), else the ground plane: the hit becomes the target; §2.3, messages as `SetViewTarget`; true (false without a camera) |
-| `SetCameraPositionTweakAdd(x, y)` | `0x007CDA20` | on a change: §2.2, §2.3, bounds |
+| `ScrollByViewportAngle(angle, amount)` | `0x007CD330` | camera-plane step `(cos(angle), −sin(angle)) × amount × step[zoom]`, clamped (§2.5), converted back **directly into target storage**, then terrain ray cast along the view direction (terrain view slot 3), else the ground plane. A hit replaces target; if both fail the plane point remains. With a camera: §2.3 and CameraUpdated/ViewTChange2/ViewTChange3, true, even after failed intersections. Velocity is not cleared. Requires a camera for the conversions; its late false return is not a safe null-camera guard |
+| `SetCameraPositionTweakAdd(x, y)` | `0x007CDA20` | replaces the two stored pixel offsets, not accumulation; on a change with camera: §2.2, §2.3; with view utilities also update its camera position and build bounds **only if empty**; no view messages |
 | `SetCitySize(w, h)` | `0x007CDAA0` | `+0x158`, `+0x15C`; when initialised the bounds polygon is emptied and rebuilt after §2.2, §2.3 |
-| `SetViewportSize(w, h)` / `GetViewportSize` | `0x007CB9B0` / `0x007CB990` | also the camera's viewport |
+| `SetViewportSize(w, h)` / `GetViewportSize` | `0x007CB9B0` / `0x007CB990` | setter stores signed ints and, if attached, passes their float conversions to camera.SetViewport; no control projection-box/position/bounds recomputation or messages (`0x007CB9B0–0x007CB9E2`) |
 | `GetVirtualZoom()` | `0x007CBC40` | zoom, plus 1 when the magnification exceeds 1.5 |
 | `GetCustomMagnification()` / `GetDistancesToClipPlanes` | `0x007624E0` / `0x007CB9F0` | `+0xF0` / near and far |
+
+Command ordering matters: integer SetZoomAndRotation with an unchanged pair can still reset magnification,
+recompute and send PostViewRefresh before returning false (`0x007CDF12–0x007CDF2C`). A changed rotation-only
+call never calls the magnification setter (`0x007CD55B–0x007CD5AE`). SetZoom(NaN) returns false before any
+setter or state write: unordered x87 comparison sets the tested less-than bit (`0x007CDCB2–0x007CDCC1`).
+SetCustomMagnification, however, checks the **old** value, so old=1 permits storing NaN; subsequent calls
+are then blocked by the old-value range test (`0x007CD6E0–0x007CD72C`).
+
+Init is idempotent even without a camera: it sets initialised true after its optional camera work; subsequent
+calls return true without reattachment (`0x007CDB23–0x007CDB28`, `0x007CDC3B–0x007CDC4D`). DetachFromCamera
+releases and nulls only the camera, retaining initialised, loaded and all numeric state (`0x007CB970–0x007CB987`).
+The observed city-view Shutdown calls Detach then Release (`0x007F15B8–0x007F15D2`); the control destructor
+frees the bounds vector/object and does **not** release the camera (`0x007CCC20–0x007CCC4F`). There is no
+Shutdown slot in its seven-slot native vtable (§7), nor an identified separate control Shutdown body.
+A pure-core operation that clears initialised is adapter policy, not this native teardown contract.
+AttachToCamera acquires the new camera before releasing the old one, sets its viewport and, when initialised,
+performs the updates/init message. A distinct null input reaches SetViewport with null this
+(`0x007CD211–0x007CD243`); use Detach for native detachment.
+
+Malformed saved indices are not repaired. Read preserves raw u32 words; the zoom update indexes the cell
+and pitch arrays directly (`0x007CBE47–0x007CBE54`, `0x007CBEB4`), and scroll directly indexes its step array.
+An invalid rotation leaves corner x/z unchanged (§2.3). There is no native bounded-table/zero-corner fallback.
+The result of an out-of-array native read is not a deterministic valid-state contract. Containment in a safe
+implementation must be labelled a safety policy. Read also accepts NaN target components without calling
+SetViewTarget's validation; loaded Init bypasses its supplied target.
 
 ### 2.7 Messages (through the message server 2)
 
@@ -254,6 +326,16 @@ the camera control); ViewZRChange1–3 `0xA6B79600`–`0xA6B79602` and ViewTChan
 data2 = the new pair `+0x110`. A zoom or rotation change sends ViewZRChange1 (`0x007CC000`) before the update, then
 CameraUpdated, ViewZRChange2 and ViewZRChange3 after it; a target move sends CameraUpdated, ViewTChange2 and
 ViewTChange3.
+
+Despite the word “Post” in the descriptive helper names, every send here calls message-server-2 **slot 3,
+offset +0x0C**, synchronously. The native slot at `0x0092EA65` snapshots recipients and invokes their slot-3
+callbacks before returning (`0x0092EAFB–0x0092EB10`); these are not queued posts. Camera call sites include
+`0x007CC087`, `0x007CC13E`, `0x007CC1AA`, `0x007CC1CA` and `0x007CDC27`.
+Payload pairs are **pointers to mutable fields**, not copied old/new values. The sender reuses one message
+object, changes its type/data between synchronous sends, and releases it afterward. A receiver observes
+the state at its callback; a deferred adapter snapshot is not native timing or pointer identity.
+Before ViewZRChange1 the current and previous/new pair fields have already changed, while the main
+projection/position recomputation follows that callback. Optional magnification refresh work happens earlier.
 
 ### 2.8 Save record (class `0xC9C628EC`; `Write` slot 3 `0x007CBB10`, `Read` slot 4 `0x007CBBA0`)
 
@@ -292,7 +374,7 @@ inverse stream error flag.
 ## 6. Conformance tests
 
 1. **Tables:** metres per pixel at magnification 1: 2.613126, 1.306563, 0.653281, 0.286370, 0.143185 for zooms 0–4;
-   pitch 30°, 35°, 40°, 45°, 45°; yaw for rotations 0–3: π/4, 3π/4, 5π/4, 7π/4.
+   pitch 30°, 35°, 40°, 45°, 45°; yaw for rotations 0–3: 3π/8, 7π/8, 11π/8, 15π/8.
 2. **Ortho matrix:** `SetOrtho(−400, 400, −300, 300, 10, 20)` with an 800×600 viewport and no offset gives
    `m00 = 1/400`, `m11 = 1/300`, `m22 = −0.2`, `m23 = −3`, `m03 = m13 = 0`; a pixel offset (1, 0) adds `−2/800`
    to `m03`.
@@ -300,7 +382,7 @@ inverse stream error flag.
    projects to (400, 300, 0); (400, 0, −10) to (800, 300, −1); `UnProject` of each gives the point back.
 4. **Look-at:** position (0, 0, 10), target 0, up (0, 1, 0): right (1, 0, 0), up (0, 1, 0), back (0, 0, 1).
 5. **Eye placement:** zoom 0, rotation 0, city 4096×4096, target (2048, 0, 2048): the eye offset is
-   (cos(π/4)·8192, tan 30°·8192, sin(π/4)·8192) and the eye lies on the plane through corner + offset.
+   (cos(3π/8)·8192, tan 30°·8192, sin(3π/8)·8192) and the eye lies on the plane through corner + offset.
 6. **SetZoom:** `SetZoom(4.5)` gives zoom 4 and magnification √2 ≈ 1.41421 (`GetVirtualZoom` 4); `SetZoom(4.75)`
    magnification ≈ 1.68179 (`GetVirtualZoom` 5); `SetZoom(5)` and `SetZoom(−1)` are refused; repeating a zoom is
    refused.
@@ -319,3 +401,54 @@ inverse stream error flag.
     but loaded becomes true. With a version-1 mock stream that writes target (7, 8, 9) and previous zoom 17,
     then flags an error and leaves all remaining destinations untouched, Read returns false but preserves
     those writes. All six integer reads are attempted. No atomic commit is permitted.
+13. **Lifecycle and malformed data:** pre-init near/far are 0/0, direction/right zero and up Y. Init with no
+    camera returns true and sets initialised. A second Init with a camera does not attach it. After normal
+    attachment/Init, Detach preserves initialised, target and zoom; another Init is still a no-op. Read a
+    complete version-1 record with zoom 17, rotation 9 and NaN target x: Read succeeds if the stream has no
+    error and retains those raw fields. Do not dereference the invalid zoom in a fidelity test. Separately,
+    GetRotationCorner(9) into (123, 456, 789) produces (123, 0, 789).
+14. **Magnification versus command result:** attached camera at zoom 4/rotation 0/magnification 2:
+    SetZoomAndRotation(4,0) resets magnification to 1, emits PostViewRefresh, then returns false without
+    ZR-change messages. From the same initial state, SetRotation(1) keeps magnification 2 and emits the
+    normal ZR sequence. SetRotation(−1) and SetRotation(4) return true without changing anything.
+15. **Input and viewport edges:** SetZoom(NaN) preserves all state and sends nothing. From old magnification
+    1, SetCustomMagnification(NaN) stores NaN; a following SetCustomMagnification(1) cannot repair it.
+    Two tweak calls (2,3) then (4,5) leave (4,5). With a nonempty polygon that second tweak does not rebuild
+    bounds. Resizing an attached, computed camera from 800×600 to 1024×768 changes camera viewport/subview
+    and adds 2 to its projection counter; the control's existing ortho box, eye, bounds and messages remain
+    unchanged until another recomputation trigger.
+16. **Synchronous observations:** a ViewZRChange1 receiver runs inside the command and sees the new current
+    integer pair and old projection (absent earlier magnification work); later receivers see updated camera
+    data. Pair data pointers refer to the control's fields, and the sender reuses its message object for
+    CameraUpdated/change2/change3. A recorder of copied events delivered after return cannot satisfy this.
+
+### 6.1 Independent scroll discriminators (CA6)
+
+These are analytic consequences of §2.5's native branches, **not captured game outputs** and not derived
+from core tests. Unless specified otherwise use P=[(0,0),(10,0),(10,10),(0,10)], bounds enabled, finite float
+inputs. Approximate coordinates allow 0.0001 per component for the shown arithmetic stores; exact equality
+cases remain exact. No terrain is needed for the pure clamp cases.
+
+| From → to / setup | Required result or observation | Discriminates |
+|---|---|---|
+| (12,5) → (12,5) | (12,5), unchanged outside | no outside-start projection/fallback |
+| (12,5) → (13,6) | (12,6), still outside | negative fraction becomes zero; tangent slide stays on outside line |
+| (12,5) → (11,6) | (11,6), still outside | an inward move with d(S)≤d(T) is accepted |
+| (5,5) → (10,5) | exactly (10,5) | fraction 1 is not selected or inset |
+| (5,5) → (15,5) | approximately (9.999,5) | fractional inset gives 0.001 world units |
+| (5,5) → (25,5) | approximately (9.998,5) | doubled move doubles inset distance |
+| P narrowed to x=0…1; (0,5) → (2000,5) | (0,5) | fraction 0.0005 is replaced by zero |
+| Same narrow P; (0,5) → (1000,5) | approximately (0.9000,5) | fraction stored as float(0.001) takes subtract branch |
+| Reverse P; (5,5) → (6,5) | (5,5), versus (6,5) for P | fixed directed half-planes, no automatic winding repair |
+| (5,5) → (15,15) | approximately (9.999,9.999); right edge selected before top at the tied 0.5, then opposite direction categories stop at Q | first-edge tie and history stop; final symmetric coordinates alone do not identify first edge |
+| Synthetic two-point vector [(0,0),(0,h)], (−1,0) → (1,0), h bits 0x322BCC77 | (1,0); h≈9.99999994e−9, both edges skipped | compares length with double 1e−8 |
+| Same with h bits 0x322BCC78 | approximately (−0.0002,0); h≈1.00000008e−8, edge active | rejects a length-squared or float-threshold substitution |
+
+For the ground-failure paths, use attached-camera/terrain stubs with defined conversion results. Have the
+camera-plane inverse return (7,8,9), direction (1,0,0), and terrain return false without writing the hit.
+ScrollByViewportAngle leaves target (7,8,9), preserves velocity, returns true and synchronously sends
+CameraUpdated/ViewTChange2/ViewTChange3. In ClampTargetToScrollBounds, force a clamp displacement above
+the component threshold with the same failed ground direction: the **old** target and velocity survive,
+but position update and those three messages still occur. A displacement below threshold sends nothing.
+An exhaustion fixture must force N projections without an earlier no-edge/history stop; its expected result
+is the original from. No general “inside after clamp” property is valid for these routines.
