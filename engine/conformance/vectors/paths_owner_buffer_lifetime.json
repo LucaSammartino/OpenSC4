@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "name": "paths_owner_buffer_lifetime",
+  "spec": ["paths.md §2", "paths.md §8.4"],
+  "description": "Five independently owned strings; getters rebuild the buffer, lazy FileName rereads the last join, failed SetPath still returns true and resplits it.",
+  "steps": [
+    {
+      "op":"path_owner","input":"adv_const.lua","drive":"C","cwd":{"C":"C:\\Games\\SC4"},
+      "calls":[
+        {"method":"get_path"},
+        {"method":"get_drive_and_directory"},
+        {"method":"get_file_name_and_extension"},
+        {"method":"set_extension","value":"dat"},
+        {"method":"get_path"},
+        {"method":"set_file_name","value":"x\\y.txt","split":true},
+        {"method":"get_file_name"},
+        {"method":"set_file_name","value":""},
+        {"method":"file_name"},
+        {"method":"set_extension","value":"p/a.gz","split":true},
+        {"method":"get_extension"},
+        {"method":"get_drive"},
+        {"method":"get_directory"}
+      ],
+      "expect":["C:\\Games\\SC4\\adv_const.lua","C:\\Games\\SC4\\","adv_const.lua",true,"C:\\Games\\SC4\\adv_const.dat",true,"y",true,"adv_const",true,".gz","C:","\\Games\\SC4\\"]
+    },
+    {
+      "op":"path_owner","input":"C:\\old.txt",
+      "calls":[
+        {"method":"get_file_name_and_extension"},
+        {"method":"set_path","value":"relative"},
+        {"method":"get_drive"},
+        {"method":"get_directory"},
+        {"method":"get_file_name"},
+        {"method":"get_extension"},
+        {"method":"set_buffer","parts":0},
+        {"method":"set_file_name","value":""},
+        {"method":"file_name"}
+      ],
+      "expect":["old.txt",true,"","","old",".txt",null,true,""]
+    }
+  ]
+}

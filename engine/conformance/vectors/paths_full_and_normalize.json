@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "paths_full_and_normalize",
+  "spec": ["paths.md §1.1-1.4", "paths.md §8.1-8.2"],
+  "description": "Literal root, dot, UNC, drive/current-directory and byte-budget vectors. C:/ follows explicit §1.2 and §6.9; conflicting §8 example remains PA3.",
+  "steps": [
+    {"op":"path_is_full","input":"C:\\a","expect":true},
+    {"op":"path_is_full","input":"\\\\srv\\share","expect":true},
+    {"op":"path_is_full","input":"C:/a","expect":false},
+    {"op":"path_is_full","input":"C:","expect":false},
+    {"op":"path_is_full","input":"1:\\x","expect":false},
+    {"op":"path_is_full","input":"C:\\a/.hidden","expect":false},
+    {"op":"path_normalize","input":"adv_const.lua","base":"C:\\Games\\SC4","expect":"C:\\Games\\SC4\\adv_const.lua"},
+    {"op":"path_normalize","input":"..\\x.dat","base":"C:\\Games\\SC4","expect":"C:\\Games\\x.dat"},
+    {"op":"path_normalize","input":"C:\\a\\..\\b.txt","base":"","expect":"C:\\b.txt"},
+    {"op":"path_normalize","input":"C:\\..","base":"","expect":null},
+    {"op":"path_normalize","input":"a\\..","base":"","expect":null},
+    {"op":"path_normalize","input":"C:\\a/./b","base":"","expect":"C:\\a/b"},
+    {"op":"path_normalize","input":"\\\\srv\\..\\x","base":"","expect":"\\\\x"},
+    {"op":"path_normalize","input":"C:/","base":"","expect":"C:\\\\"},
+    {"op":"path_normalize","input":"C:\\a\\\\b","base":"","expect":"C:\\a\\\\b"},
+    {"op":"path_normalize","input":"d:rel.txt","drive":"C","cwd":{"D":"D:\\Data"},"expect":"D:\\Data\\rel.txt"},
+    {"op":"path_normalize","input":"\\x\\y.z","drive":"C","expect":"C:\\x\\y.z"},
+    {"op":"path_normalize","input":"C:/a/b.txt","expect":"C:\\a/b.txt"},
+    {"op":"path_normalize","input":"x","expect":null},
+    {"op":"path_normalize","input":"","base":"","max":1,"expect":""},
+    {"op":"path_normalize","input":"","base":"","max":0,"expect":null},
+    {"op":"path_normalize","input":"abc","base":"","max":3,"expect":null},
+    {"op":"path_normalize","input":"abc","base":"","max":4,"expect":"abc"}
+  ]
+}
