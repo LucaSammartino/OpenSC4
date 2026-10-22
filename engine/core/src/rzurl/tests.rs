@@ -277,3 +277,223 @@ fn change_url_cases() {
     assert!(u.change_url(b"//other/p", b"http://a/b"));
     assert_eq!(u.full_url(), b"http://other/p");
 }
+
+#[test]
+fn change_url_chain_on_own_fields() {
+    // Spec 2.7 examples (Q4 answered), base `http://a/b;p?old#f`.
+    let base = b"http://a/b;p?old#f";
+    for (new, want) in [
+        (&b"?new"[..], &b"http://a/b;p?new"[..]),
+        (b"#g", b"http://a/b;p?old#g"),
+        (b";q", b"http://a/b;q"),
+        (b";q?r", b"http://a/b;q?r"),
+        (b"?r#s", b"http://a/b;p?r#s"),
+    ] {
+        let mut u = RzUrl::new();
+        assert!(u.change_url(new, base));
+        assert_eq!(u.full_url(), want, "{}", String::from_utf8_lossy(new));
+        assert!(u.is_parsed());
+        assert!(u.allow_relative());
+        assert_eq!(u.url_type(), RELATIVE);
+    }
+}
+
+#[test]
+fn constructors_do_not_parse() {
+    let u = rel("http://h:81/p;x?q#f");
+    assert!(!u.is_parsed());
+    assert_eq!(u.stored_url_type(), 0);
+    assert_eq!(u.port(), 0);
+    assert!(u.stored_components().iter().all(|c| c.is_empty()));
+    let d = RzUrl::new();
+    assert!(!d.allow_relative() && !d.is_parsed() && d.full_url().is_empty());
+}
+
+#[test]
+fn lazy_component_getters() {
+    for get in 0..5 {
+        let mut u = rel("ftp://h:21/f;type=a");
+        let _ = match get {
+            0 => u.user().to_vec(),
+            1 => u.password().to_vec(),
+            2 => u.params().to_vec(),
+            3 => u.query().to_vec(),
+            _ => u.fragment().to_vec(),
+        };
+        assert!(u.is_parsed(), "getter {get}");
+        assert_eq!(u.port(), 21);
+    }
+    let mut u = rel("http://h/p;a?b#c");
+    assert_eq!(u.params(), b";a");
+    assert_eq!(u.query(), b"?b");
+    assert_eq!(u.fragment(), b"#c");
+    let mut u = rel("ftp://us:pw@h/f");
+    assert_eq!(u.user(), b"//us");
+    assert_eq!(u.password(), b"pw");
+    // A URL that does not parse is reparsed on every call, same result.
+    let mut g = RzUrl::new();
+    g.set_full_url(b"mailto:x@y", true);
+    assert_eq!(g.user(), b"");
+    assert!(!g.is_parsed());
+    assert_eq!(g.scheme(), b"mailto");
+    assert_eq!(g.url_type(), 0);
+}
+
+#[test]
+fn get_port_and_full_url_not_lazy() {
+    let mut u = rel("http://h:8080/x");
+    assert_eq!(u.port(), 0);
+    assert_eq!(u.full_url(), b"http://h:8080/x");
+    assert!(!u.is_parsed());
+    assert_eq!(u.server(), b"h");
+    assert_eq!(u.port(), 8080);
+}
+
+#[test]
+fn port_digit_run_wraps() {
+    for (p, want) in [
+        ("4294967296", 0u32),
+        ("4294967297", 1),
+        ("99999", 99999),
+        ("0000000000000001", 0),
+        ("1234567890123456789", 2_249_056_121),
+    ] {
+        let mut u = RzUrl::from_text(format!("http://h:{p}/z").as_bytes());
+        assert_eq!(u.server(), b"h");
+        assert_eq!(u.port(), want, "{p}");
+        assert_eq!(u.absolute_path(), b"/z", "{p}");
+    }
+    assert_eq!(atol_digits(b"123456789012345"), 123_456_789_012_345u64 as u32);
+}
+
+#[test]
+fn unknown_scheme_kept() {
+    let mut u = rel("gopher://h/x");
+    assert_eq!(u.url_type(), RELATIVE);
+    assert_eq!(u.scheme(), b"gopher");
+    assert_eq!(u.server(), b"h");
+    assert_eq!(u.absolute_path(), b"/x");
+    let mut g = RzUrl::new();
+    g.set_full_url(b"gopher://h/x", true);
+    assert_eq!(g.url_type(), NONE);
+    assert!(!g.is_parsed());
+    // ChangeURL treats it, type-1 schemes and `mailto:` as "N has a scheme".
+    for new in [&b"gopher://h/x"[..], b"about:blank", b"mailto:a@b"] {
+        let mut c = RzUrl::new();
+        assert!(c.change_url(new, b"http://a/b"));
+        assert_eq!(c.full_url(), new);
+        assert!(!c.is_parsed());
+        assert_eq!(c.stored_url_type(), 0);
+    }
+}
+
+#[test]
+fn setters_are_plain_copies() {
+    let mut u = rel("http://h:81/p");
+    assert_eq!(u.url_type(), HTTP);
+    u.set_scheme(b"ftp");
+    u.set_user(b"me");
+    u.set_password(b"pw");
+    u.set_server(b"s");
+    u.set_path(b"/q");
+    u.set_params(b"p");
+    u.set_query(b"?x");
+    u.set_fragment(b"#y");
+    assert!(u.is_parsed());
+    assert_eq!(u.stored_url_type(), HTTP);
+    assert_eq!(u.port(), 81);
+    assert_eq!(u.full_url(), b"http://h:81/p");
+    assert_eq!(
+        u.stored_components(),
+        [&b"ftp"[..], b"me", b"pw", b"s", b"/q", b"p", b"?x", b"#y"]
+    );
+    assert_eq!(u.make_url_string_from_components(), b"ftp://me:pw@s:81/qp?x#y");
+    // On an unparsed URL the next lazy getter reparses and drops the setter values.
+    let mut v = rel("http://h/p");
+    v.set_server(b"other");
+    assert_eq!(v.server(), b"h");
+}
+
+#[test]
+fn set_full_url_invalidate() {
+    let mut u = rel("http://h:81/p");
+    assert_eq!(u.server(), b"h");
+    u.set_full_url(b"http://k/q", false);
+    assert!(u.is_parsed());
+    assert_eq!(u.full_url(), b"http://k/q");
+    assert_eq!(u.server(), b"h");
+    assert_eq!(u.port(), 81);
+    u.set_full_url(b"http://k/q", true);
+    assert!(!u.is_parsed());
+    assert_eq!(u.port(), 81);
+    assert_eq!(u.stored_url_type(), HTTP);
+    assert_eq!(u.server(), b"k");
+    assert_eq!(u.port(), 0);
+}
+
+#[test]
+fn change_url_early_returns_keep_stale_fields() {
+    let mut u = rel("http://us:pw@h:81/p;a?b#c");
+    assert_eq!(u.url_type(), HTTP);
+    // New empty: full = base, unparsed; user/params/query/fragment stay.
+    assert!(u.change_url(b"", b"www.x.com/y"));
+    assert_eq!(u.full_url(), b"www.x.com/y");
+    assert!(!u.is_parsed());
+    assert_eq!(u.port(), 0);
+    assert_eq!(
+        u.stored_components(),
+        [&b""[..], b"//us", b"", b"", b"", b";a", b"?b", b"#c"]
+    );
+    // allowRelative (true here) is left unchanged: relative parse, not guess mode.
+    assert_eq!(u.url_type(), RELATIVE);
+
+    let mut g = RzUrl::new();
+    assert!(g.change_url(b"", b"www.x.com/y"));
+    assert!(!g.allow_relative());
+    assert_eq!(g.url_type(), HTTP);
+    assert_eq!(g.server(), b"www.x.com");
+
+    // Base empty parses with this object's own allowRelative.
+    let mut g = RzUrl::new();
+    assert!(g.change_url(b"www.x.com/y", b""));
+    assert_eq!(g.stored_url_type(), HTTP);
+    assert!(!g.allow_relative());
+    let mut r = rel("");
+    assert!(r.change_url(b"x/y", b""));
+    assert_eq!(r.stored_url_type(), RELATIVE);
+    // Null base is empty.
+    let mut n = RzUrl::new();
+    assert!(!n.change_url_opt(b"x/y", None));
+    assert_eq!(n.full_url(), b"x/y");
+}
+
+#[test]
+fn change_url_base_object_overload() {
+    let mut u = RzUrl::new();
+    assert!(!u.change_url_with_base(b"x/y", None));
+    assert_eq!(u.full_url(), b"x/y");
+    // A base with components but an empty stored full text counts as null.
+    let mut b = RzUrl::new();
+    b.set_scheme(b"http");
+    b.set_server(b"a");
+    let mut u = RzUrl::new();
+    assert!(!u.change_url_with_base(b"x/y", Some(&b)));
+    // Otherwise the stored full text is used as is (not rebuilt).
+    let mut b = rel("http://a/d/e");
+    b.set_server(b"zzz");
+    let mut u = RzUrl::new();
+    assert!(u.change_url_with_base(b"x", Some(&b)));
+    assert_eq!(u.full_url(), b"http://a/d/x");
+}
+
+#[test]
+fn assignment_copies_verbatim() {
+    let mut u = rel("http://h:81/p?q");
+    let _ = u.server();
+    u.set_full_url(b"other", false);
+    let c = u.clone();
+    assert_eq!(c, u);
+    assert!(c.is_parsed() && c.allow_relative());
+    assert_eq!(c.port(), 81);
+    assert_eq!(c.full_url(), b"other");
+}

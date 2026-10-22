@@ -1,8 +1,7 @@
 //! cRZURL: URL parser and resolver (docs/specs/web-network.md section 2).
 //!
 //! Pure byte-string implementation. No network access. Character classes use the C
-//! locale (ASCII); the spec names `isalnum` in the C locale for the scheme test and a
-//! one-argument CRT classifier (decimal digits, inferred) for the port.
+//! locale (ASCII): `isalnum` for the scheme test, CRT `isdigit` (`_DIGIT`) for the port.
 
 /// URL type codes (spec table 2.2).
 pub mod url_type {
@@ -21,7 +20,7 @@ pub mod url_type {
 
 use url_type::*;
 
-/// Most port digits kept (spec 2.4: a longer run overflows a 16-byte buffer in the original).
+/// Most port digits fed to atol (spec 2.4, Q5 answered: the whole run is still erased).
 const MAX_PORT_DIGITS: usize = 15;
 
 fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
@@ -44,8 +43,8 @@ fn rfind_byte(hay: &[u8], b: u8) -> Option<usize> {
 }
 
 /// Emulates MSVC `atol` on a run of decimal digits, then the store into an unsigned 32-bit
-/// port. Literal reading: digits accumulate with 32-bit wrap-around (spec silent on
-/// overflow; question web-network Q5).
+/// port: digits accumulate with 32-bit wrap-around, no overflow check (spec 2.4, Q5
+/// answered).
 fn atol_digits(digits: &[u8]) -> u32 {
     let mut v: u32 = 0;
     for &d in digits {
@@ -142,24 +141,106 @@ impl RzUrl {
         RzUrl::from_text(text).is_url_relative()
     }
 
-    // The spec lists the lazy getters above only; these read the stored field as is.
-    pub fn user(&self) -> &[u8] {
+    /// GetUser (lazy parse, 00823780).
+    pub fn user(&mut self) -> &[u8] {
+        self.ensure_parsed();
         &self.user
     }
-    pub fn password(&self) -> &[u8] {
+
+    /// GetPassword (lazy parse, 008237f0).
+    pub fn password(&mut self) -> &[u8] {
+        self.ensure_parsed();
         &self.password
     }
+
+    /// GetParams (lazy parse, 00823940); keeps the leading `;`.
+    pub fn params(&mut self) -> &[u8] {
+        self.ensure_parsed();
+        &self.params
+    }
+
+    /// GetQuery (lazy parse, 008239b0); keeps the leading `?`.
+    pub fn query(&mut self) -> &[u8] {
+        self.ensure_parsed();
+        &self.query
+    }
+
+    /// GetFragment (lazy parse, 00823a20); keeps the leading `#`.
+    pub fn fragment(&mut self) -> &[u8] {
+        self.ensure_parsed();
+        &self.fragment
+    }
+
+    /// GetPort (008216d0): the stored port. **Not lazy**: 0 (or a stale value) until a lazy
+    /// getter has parsed `full` (spec 2.1).
     pub fn port(&self) -> u32 {
         self.port
     }
-    pub fn params(&self) -> &[u8] {
-        &self.params
+
+    /// The stored type code without a parse (inspection only; the original has no such
+    /// accessor, GetURLType is lazy).
+    pub fn stored_url_type(&self) -> u32 {
+        self.url_type
     }
-    pub fn query(&self) -> &[u8] {
-        &self.query
+
+    /// Stored component fields without a parse, in the order scheme, user, password,
+    /// server, path, params, query, fragment (inspection only, no original counterpart).
+    pub fn stored_components(&self) -> [&[u8]; 8] {
+        [
+            &self.scheme,
+            &self.user,
+            &self.password,
+            &self.server,
+            &self.path,
+            &self.params,
+            &self.query,
+            &self.fragment,
+        ]
     }
-    pub fn fragment(&self) -> &[u8] {
-        &self.fragment
+
+    // Component setters (spec 2.1): plain copies. They change neither `parsed`, `type`,
+    // `port` nor `full`.
+
+    /// SetScheme (00822000).
+    pub fn set_scheme(&mut self, v: &[u8]) {
+        self.scheme = v.to_vec();
+    }
+    /// SetUser (00822030).
+    pub fn set_user(&mut self, v: &[u8]) {
+        self.user = v.to_vec();
+    }
+    /// SetPassword (00822060).
+    pub fn set_password(&mut self, v: &[u8]) {
+        self.password = v.to_vec();
+    }
+    /// SetServer (00822090).
+    pub fn set_server(&mut self, v: &[u8]) {
+        self.server = v.to_vec();
+    }
+    /// SetAbsolutePath (008220c0): the path field.
+    pub fn set_path(&mut self, v: &[u8]) {
+        self.path = v.to_vec();
+    }
+    /// SetParams (008220f0), copied verbatim (no `;` added).
+    pub fn set_params(&mut self, v: &[u8]) {
+        self.params = v.to_vec();
+    }
+    /// SetQuery (00822120), copied verbatim (no `?` added).
+    pub fn set_query(&mut self, v: &[u8]) {
+        self.query = v.to_vec();
+    }
+    /// SetFragment (00822150), copied verbatim (no `#` added).
+    pub fn set_fragment(&mut self, v: &[u8]) {
+        self.fragment = v.to_vec();
+    }
+
+    /// SetFullURL (00821fc0): with `invalidate`, parsed = false; then full = text. Type,
+    /// port and components are left as they were.
+    pub fn set_full_url(&mut self, text: &[u8], invalidate: bool) {
+        if invalidate {
+            self.parsed = false;
+        }
+        self.full = text.to_vec();
     }
 
     /// ParseURL (spec 2.4 last paragraph): clears every component and the port, runs the
@@ -249,8 +330,8 @@ impl RzUrl {
             if self.url_type != NONE {
                 return;
             }
-            // Literal reading: an unrecognised `xyz://` scheme keeps its scheme text and
-            // falls through to steps 6/7 (question web-network Q6).
+            // An unrecognised `xyz://` scheme keeps its scheme text and
+            // falls through to steps 6/7 (spec 2.3 step 5, Q6 answered).
         }
         if !self.allow_relative {
             self.url_type = if rest.starts_with(b"www.") {
@@ -315,8 +396,8 @@ impl RzUrl {
         match (colon, slash) {
             (Some(c), s) if s.map_or(true, |s| c < s) => {
                 let run = rest[c + 1..].iter().take_while(|b| b.is_ascii_digit()).count();
-                // Literal reading: at most 15 digits feed atol; the whole run is erased
-                // (longer runs are undefined in the original, question web-network Q5).
+                // At most 15 digits feed atol; the whole run is erased
+                // (spec 2.4, Q5 answered).
                 let kept = run.min(MAX_PORT_DIGITS);
                 if kept > 0 {
                     self.port = atol_digits(&rest[c + 1..c + 1 + kept]);
@@ -479,7 +560,7 @@ impl RzUrl {
         }
         let mut n = RzUrl::from_text(new);
         let mut b = RzUrl::from_text(base);
-        // Literal reading: the two parse results are not checked.
+        // The two parse results are not checked (spec 2.7 details).
         n.ensure_parsed();
         b.ensure_parsed();
         if !n.scheme.is_empty() {
@@ -501,13 +582,13 @@ impl RzUrl {
         }
         if n.path.is_empty() {
             n.path.clone_from(&b.path);
-            // Literal reading of the chain: each later field is taken from B when the
-            // previous one is empty, without testing N's own value (question web-network Q4).
+            // Chain (spec 2.7, Q4 answered): each test is on N's own field; a non-empty N
+            // field stops the chain and is never overwritten.
             if n.params.is_empty() {
                 n.params.clone_from(&b.params);
-                if n.params.is_empty() {
+                if n.query.is_empty() {
                     n.query.clone_from(&b.query);
-                    if n.query.is_empty() {
+                    if n.fragment.is_empty() {
                         n.fragment.clone_from(&b.fragment);
                     }
                 }
@@ -523,6 +604,25 @@ impl RzUrl {
         n.make_url_string_from_components();
         *self = n;
         true
+    }
+
+    /// ChangeURL (00823a90) with a possibly null base text: null is treated as empty
+    /// (spec 2.7 details).
+    pub fn change_url_opt(&mut self, new: &[u8], base: Option<&[u8]>) -> bool {
+        self.change_url(new, base.unwrap_or(b""))
+    }
+
+    /// ChangeURL overload (00823ed0, new text, base URL object): a null base, or one whose
+    /// stored full text (GetFullURL: not rebuilt, not parsed) is empty, resolves with a
+    /// null base; otherwise with the base's full text.
+    pub fn change_url_with_base(&mut self, new: &[u8], base: Option<&RzUrl>) -> bool {
+        match base {
+            Some(b) if !b.full_url().is_empty() => {
+                let text = b.full_url().to_vec();
+                self.change_url(new, &text)
+            }
+            _ => self.change_url_opt(new, None),
+        }
     }
 }
 
