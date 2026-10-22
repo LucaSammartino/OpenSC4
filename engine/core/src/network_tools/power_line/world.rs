@@ -27,7 +27,12 @@ pub trait World: Terrain {
     fn pole_data(&self, pole: Reference) -> &PoleData;
     fn pole_data_mut(&mut self, pole: Reference) -> &mut PoleData;
     fn create_pole(&mut self, cell: (i32, i32), mask: u8, position: Point) -> Reference;
-    fn create_wire(&mut self, cell: (i32, i32), endpoints: [Reference; 2], pivot: bool, position: Point, real: bool) -> Reference;
+    /// Raw allocation plus construction; the core performs the subsequent owner operations.
+    fn allocate_wire(&mut self) -> Reference;
+    fn init_wire(&mut self, wire: Reference);
+    fn set_wire_mode(&mut self, wire: Reference, real: bool);
+    fn bind_wire(&mut self, wire: Reference, cell: (i32, i32), endpoints: [Reference; 2], pivot: bool);
+    fn set_wire_position(&mut self, wire: Reference, position: Point);
     fn insert_pole(&mut self, pole: Reference, arg: u32);
     fn has_occupant_manager(&self) -> bool;
     fn remove_pole(&mut self, pole: Reference, arg0: bool, arg1: bool);
@@ -37,6 +42,7 @@ pub trait World: Terrain {
     /// Genuine external pole-occupant primitives, not tool algorithm callbacks.
     fn remove_connection(&mut self, pole: Reference, other: Reference, arg: u32);
     fn connection_cells(&mut self, pole: Reference, other: Reference) -> Vec<(i32, i32)>;
+    fn connection_cells_at(&mut self, pole: Reference, index: usize) -> Vec<(i32, i32)>;
     fn clear_connections(&mut self, pole: Reference, arg: bool);
     fn draw_line(&mut self, run: &mut super::ToolRun, anchors: [(i32, i32); 2], snap: u32) -> Vec<(usize, usize)>;
     fn select(&mut self, cell: (i32, i32), color: u32, args: [u32; 3]);

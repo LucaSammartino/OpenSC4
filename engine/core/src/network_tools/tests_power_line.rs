@@ -7,17 +7,20 @@
 //! Conformance tests for the power-line tool (network-tools.md §9,
 //! network-geometry.md §11).
 
-use super::host::ToolRun;
 use super::power_line::*;
-
-const POWER: u32 = 5;
 
 fn line(n: i32) -> Vec<(i32, i32)> {
     (0..n).map(|x| (x, 7)).collect()
 }
 
 fn poles(n: i32) -> Vec<PoleInfo> {
-    (0..n).map(|i| PoleInfo { x: i * 4, z: 7, ..PoleInfo::default() }).collect()
+    (0..n)
+        .map(|i| PoleInfo {
+            x: i * 4,
+            z: 7,
+            ..PoleInfo::default()
+        })
+        .collect()
 }
 
 fn reserved(kinds: &[u32], uninit: u32) -> (u32, u32) {
@@ -61,9 +64,8 @@ fn reserved_tiles_road_crossed_in_the_middle() {
 
 #[test]
 fn reserved_tiles_one_cell_road_depends_on_uninitialised_local() {
-    // [quirk] either way the valid count is 1 (last starts at 0); only the
-    // code differs from nothing.
-    assert_eq!(reserved(&[3], 0), (1, FAIL_ROAD));
+    // NT20: only the previous=clear path explicitly truncates to current-1.
+    assert_eq!(reserved(&[3], 0), (0, FAIL_ROAD));
     assert_eq!(reserved(&[3], 7), (1, FAIL_ROAD));
 }
 
@@ -106,7 +108,15 @@ fn cost_of_solution_shipped_values() {
 
 #[test]
 fn defaults_are_float_clearance_and_zero_costs() {
-    assert_eq!(PowerLineParams::load(|_| None, |_| None), PowerLineParams { v_3a4: 20, v_3a8: 7.0, cost_per_pole: 0, cost_per_wire: 0.0 });
+    assert_eq!(
+        PowerLineParams::load(|_| None, |_| None),
+        PowerLineParams {
+            v_3a4: 20,
+            v_3a8: 7.0,
+            cost_per_pole: 0,
+            cost_per_wire: 0.0
+        }
+    );
 }
 
 struct World {

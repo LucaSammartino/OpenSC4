@@ -16,24 +16,26 @@
 //! remain assigned externally. NT18 group production, NT22 backward-split
 //! reachability and NT24 inventory accounting remain explicit boundaries.
 
+mod containers;
 mod geometry;
+mod lifecycle;
+mod placement;
 mod records;
 mod world;
-mod placement;
-mod lifecycle;
-mod containers;
 mod zone;
 
+pub use containers::*;
 pub use geometry::*;
+pub use lifecycle::*;
+pub use placement::*;
 pub use records::*;
 pub use world::*;
-pub use placement::*;
-pub use lifecycle::*;
-pub use containers::*;
 pub use zone::*;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_lifecycle;
 
 use crate::network_geometry::extras::power_line_cost;
 
@@ -125,6 +127,8 @@ pub struct PowerLineTool {
     /// `+0x384`: counted up by `DeterminePolePositions` *[inferred: the
     /// number of wire cells]*.
     pub wire_cells: u32,
+    /// +0x388, updated by Determine and the cost getter, reset by slot 53.
+    pub counted_poles: u32,
     /// `+0x3A4`..`+0x3B0`.
     pub params: PowerLineParams,
 }
@@ -145,7 +149,8 @@ impl PowerLineTool {
     /// `GetCostOfSolution` (`0x0064F0F0`): `+0x388` := the pole count; 0 for
     /// at most one pole, else `trunc(r24((float)wire × +0x3B0)) + +0x3AC ×
     /// poles`.
-    pub fn cost_of_solution(&self) -> i32 {
+    pub fn cost_of_solution(&mut self) -> i32 {
+        self.counted_poles = self.pole_count();
         power_line_cost(
             self.pole_count(),
             self.wire_cells,
@@ -172,9 +177,10 @@ pub fn do_network_specific_placement(
     run: &mut ToolRun,
     neighbour_mode: u32,
     real: bool,
-) -> bool {
+) -> Result<bool, GeometryBoundary> {
     // §2: release saved endpoints before structural clear, including stale records.
     tool.wire_cells = 0;
+    tool.counted_poles = 0;
     tool.release_pole_infos(host);
     tool.wire_vectors.clear();
     tool.lines.clear();
@@ -183,16 +189,21 @@ pub fn do_network_specific_placement(
     // 2. With at least 2 dragged steps: DeterminePolePositions, PlacePoles(1).
     if run.dragged_count >= 2 {
         determine_pole_positions(run, tool, host, &mut st.failure);
-        place_poles(run, tool, host, &mut st.failure, true).expect("unsupported power-line geometry resource");
+        place_poles(run, tool, host, &mut st.failure, true)?;
     }
     // 3. Pole span under 48 units (no whole record): valid count := 0.
     if tool.pole_count() == 0 {
         run.valid_count = 0;
     }
     // NT20: Attempt runs in either mode; Place requires success and real placement.
-    if neighbour_mode != 0 && run.valid_count >= run.dragged_count && tool.anchors.len() >= 2 && st.failure == 0
-        && host.attempt_neighbor_connections(run, tool) && real {
-            host.place_neighbor_connections(run, tool);
+    if neighbour_mode != 0
+        && run.valid_count >= run.dragged_count
+        && tool.anchors.len() >= 2
+        && st.failure == 0
+        && host.attempt_neighbor_connections(run, tool)
+        && real
+    {
+        host.place_neighbor_connections(run, tool);
     }
     // 5. Draft mode: slot 82 (0) refreshes the preview.
     if !real {
@@ -200,7 +211,7 @@ pub fn do_network_specific_placement(
     }
     // 6. Release the pole infos; return true.
     tool.release_pole_infos(host);
-    true
+    Ok(true)
 }
 
 /// `CellIsOKForPlacement` (`0x0064FD00`) results (§9 table).
@@ -262,7 +273,9 @@ pub fn compute_pole_position(x: i32, z: i32, terrain: &mut impl Terrain) -> Poin
     } else {
         let mut height = -f32::MAX;
         for value in terrain.corners((x, z)) {
-            if value > height { height = value; }
+            if value > height {
+                height = value;
+            }
         }
         height
     };

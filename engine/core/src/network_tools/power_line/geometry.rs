@@ -71,7 +71,11 @@ pub fn control_points(a: Point, b: Point, p: CurveParams) -> Controls {
     let displacement = r24(r24(f64::from(p.displacement_percent) * percentage) * length) as f32;
     let sag = r24(r24(r24(f64::from(p.sag_percent) * percentage) * length) * length) as f32;
     // Strict comparison preserves unordered computed values, unlike f32::min.
-    let g = if p.maximum_displacement < displacement { p.maximum_displacement } else { displacement };
+    let g = if p.maximum_displacement < displacement {
+        p.maximum_displacement
+    } else {
+        displacement
+    };
     let s = if p.maximum_sag < sag { p.maximum_sag } else { sag };
     let half = r24(length * 0.5);
     let first_distance = r24(half - f64::from(g));
@@ -82,7 +86,11 @@ pub fn control_points(a: Point, b: Point, p: CurveParams) -> Controls {
     second[1] = r24(f64::from(second[1]) - f64::from(s)) as f32;
     let quotient = r24(length / f64::from(p.sample_distance));
     let minimum = f64::from(p.minimum_count as f32);
-    let count = ftol32(if quotient < minimum { minimum } else { f64::from(quotient as f32) });
+    let count = ftol32(if quotient < minimum {
+        minimum
+    } else {
+        f64::from(quotient as f32)
+    });
     Controls { first, second, count }
 }
 

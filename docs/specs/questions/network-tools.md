@@ -107,3 +107,11 @@
   produce N<=0, or a very large count, under invalid resource values. What is the observable
   allocation/failure behavior and retained-reference cleanup in those cases? [unsupported in the
   portable builder: report the raw nonpositive count explicitly; do not clamp N or promote coverage]
+
+<!-- from: core-powerline-contractfix4 (engine lane, 2026-10-22) -->
+- **NT26 - power-line-tool §4.1 versus PL-G1:** for a fresh horizontal six-step drag with one
+  cell per step and anchors (0,0),(5,0), diagonal-distance equality selects pivots only at the
+  anchors. PL-G1 expects an intermediate pole at step 3 for spacing=3. Does PL-G1 assume a
+  nonzero previously-placed count making intermediate steps pivots, or is another pivot/spacing
+  rule missing? [literal pivot rule implemented; PL-G1 spacing vector tested with previous=6,
+  fresh previous=0 remains endpoint-only; no guessed intermediate pivot]

@@ -49,7 +49,9 @@ pub fn read_power_pole_infos(globals: &mut Globals, resources: &mut impl Resourc
 }
 
 pub fn init(tool: &mut PowerLineTool, globals: &mut Globals, resources: &mut impl Resources) -> bool {
-    if tool.initialized { return true; }
+    if tool.initialized {
+        return true;
+    }
     if !globals.power_initialized {
         globals.power_initialized = true;
         static_init(globals, resources);
@@ -60,10 +62,18 @@ pub fn init(tool: &mut PowerLineTool, globals: &mut Globals, resources: &mut imp
     tool.params.v_3a4 = 20;
     tool.params.v_3a8 = 7.0;
     if let Some(exemplar) = resources.exemplar(PARAM_EXEMPLAR, 0xA521_60F5) {
-        if let Some(v) = resources.uint_property(exemplar, PROP_3A4) { tool.params.v_3a4 = v; }
-        if let Some(v) = resources.float_property(exemplar, PROP_3A8) { tool.params.v_3a8 = v; }
-        if let Some(v) = resources.uint_property(exemplar, PROP_COST_PER_POLE) { tool.params.cost_per_pole = v as i32; }
-        if let Some(v) = resources.float_property(exemplar, PROP_COST_PER_WIRE) { tool.params.cost_per_wire = v; }
+        if let Some(v) = resources.uint_property(exemplar, PROP_3A4) {
+            tool.params.v_3a4 = v;
+        }
+        if let Some(v) = resources.float_property(exemplar, PROP_3A8) {
+            tool.params.v_3a8 = v;
+        }
+        if let Some(v) = resources.uint_property(exemplar, PROP_COST_PER_POLE) {
+            tool.params.cost_per_pole = v as i32;
+        }
+        if let Some(v) = resources.float_property(exemplar, PROP_COST_PER_WIRE) {
+            tool.params.cost_per_wire = v;
+        }
         resources.release_resource(exemplar);
     }
     // Structural clears deliberately do not run saved-endpoint releases.
@@ -73,7 +83,9 @@ pub fn init(tool: &mut PowerLineTool, globals: &mut Globals, resources: &mut imp
 }
 
 pub fn shutdown(tool: &mut PowerLineTool, resources: &mut impl Resources) -> bool {
-    if !tool.initialized { return true; }
+    if !tool.initialized {
+        return true;
+    }
     tool.initialized = false;
     resources.base_shutdown()
 }
@@ -82,6 +94,22 @@ pub trait FailureText {
     fn base_reason(&mut self, reason: u32, output: &mut String);
     fn zone_at(&mut self, cell: (i32, i32)) -> i32;
     fn load_string(&mut self, group: u32, instance: u32, output: &mut String, argument: u32);
+}
+
+/// Structural destruction is separate from world-side undo and takes no COM references (§1).
+pub fn destruct(tool: &mut PowerLineTool, base: impl FnOnce()) {
+    tool.groups.clear(); tool.groups.shrink_to_fit();
+    tool.edits.clear(); tool.edits.shrink_to_fit();
+    tool.reused.clear(); tool.reused.shrink_to_fit();
+    tool.newly_created.clear(); tool.newly_created.shrink_to_fit();
+    tool.wire_vectors.clear(); tool.wire_vectors.shrink_to_fit();
+    tool.poles.clear(); tool.poles.shrink_to_fit();
+    base();
+}
+
+pub fn deleting_destructor(tool: &mut PowerLineTool, flags:u32, base:impl FnOnce(), free:impl FnOnce()) {
+    destruct(tool,base);
+    if flags & 1 != 0 { free(); }
 }
 
 pub fn failure_reason(tool: &PowerLineTool, host: &mut impl FailureText, reason: u32, output: &mut String) {

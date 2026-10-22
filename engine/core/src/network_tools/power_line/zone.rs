@@ -29,12 +29,23 @@ pub struct Relocation {
 }
 
 /// Caller must provide reachable stop and valid indices. No invented clamp or repaired stop.
-pub fn find_new_pole_position(run: &mut ToolRun, tool: &mut PowerLineTool, world: &mut impl World, rectangle: Rectangle, cells: &[(i32, i32)], scan: Relocation, failure: &mut u32) -> Result<Option<(i32, i32)>, GeometryBoundary> {
+pub fn find_new_pole_position(
+    run: &mut ToolRun,
+    tool: &mut PowerLineTool,
+    world: &mut impl World,
+    rectangle: Rectangle,
+    cells: &[(i32, i32)],
+    scan: Relocation,
+    failure: &mut u32,
+) -> Result<Option<(i32, i32)>, GeometryBoundary> {
     let mut index = scan.start;
     while index != scan.stop {
         let cell = cells[index as usize];
         if !rectangle.contains_unsigned(cell) && classify(world, cell) == 0 {
-            let mask = scan.other.map(|other| 1u8 << direction(cell, world.pole_data(other).cell)).unwrap_or(0);
+            let mask = scan
+                .other
+                .map(|other| 1u8 << direction(cell, world.pole_data(other).cell))
+                .unwrap_or(0);
             let found = probe(world, cell, true);
             let pole = if let Some(pole) = found {
                 pole
@@ -42,7 +53,9 @@ pub fn find_new_pole_position(run: &mut ToolRun, tool: &mut PowerLineTool, world
                 let position = compute_pole_position(cell.0, cell.1, world);
                 world.create_pole(cell, mask, position)
             };
-            if found.is_none() { world.insert_pole(pole, 0); }
+            if found.is_none() {
+                world.insert_pole(pole, 0);
+            }
             world.release(pole);
             if let Some(other) = scan.other {
                 let anchors = [cell, world.pole_data(other).cell];
@@ -70,9 +83,18 @@ pub struct ZoneResult {
 }
 
 /// Query order, signed pole bounds, endpoint-overlap wire dedup and supported pole relocation.
-pub fn update_on_zone_change(run: &mut ToolRun, tool: &mut PowerLineTool, world: &mut impl ZoneWorld, enabled: bool, rectangle: Rectangle, failure: &mut u32) -> Result<ZoneResult, GeometryBoundary> {
+pub fn update_on_zone_change(
+    run: &mut ToolRun,
+    tool: &mut PowerLineTool,
+    world: &mut impl ZoneWorld,
+    enabled: bool,
+    rectangle: Rectangle,
+    failure: &mut u32,
+) -> Result<ZoneResult, GeometryBoundary> {
     let mut result = ZoneResult::default();
-    if !enabled { return Ok(result); }
+    if !enabled {
+        return Ok(result);
+    }
     tool.real = true;
     let mut poles = Vec::new();
     let mut wires = Vec::new();
@@ -81,13 +103,31 @@ pub fn update_on_zone_change(run: &mut ToolRun, tool: &mut PowerLineTool, world:
             let position = world.occupant_position(occupant);
             let cell = world.world_to_cell(position);
             if rectangle.contains_signed(cell) {
-                let connections = world.pole_data(pole).connections.clone();
-                for connection in connections {
-                    let Some(other) = connection.other else { continue };
-                    let cells = world.connection_cells(pole, other);
+                let count = world.pole_data(pole).connections.len();
+                for index in 0..count {
+                    let cells = world.connection_cells_at(pole, index);
                     if cells.len() > 1 {
-                        let (start, stop, increment) = if cells[0] == cell { (1, cells.len() as i32, 1) } else { (cells.len() as i32 - 1, 0, -1) };
-                        find_new_pole_position(run, tool, world, rectangle, &cells, Relocation { start, stop, increment, unused_ninth: Some(pole), other: Some(other) }, failure)?;
+                        let (start, stop, increment) = if cells[0] == cell {
+                            (1, cells.len() as i32, 1)
+                        } else {
+                            (cells.len() as i32 - 1, 0, -1)
+                        };
+                        let other = world.pole_data(pole).connections[index].other;
+                        find_new_pole_position(
+                            run,
+                            tool,
+                            world,
+                            rectangle,
+                            &cells,
+                            Relocation {
+                                start,
+                                stop,
+                                increment,
+                                unused_ninth: Some(pole),
+                                other,
+                            },
+                            failure,
+                        )?;
                     }
                 }
                 poles.push(pole);
@@ -100,11 +140,21 @@ pub fn update_on_zone_change(run: &mut ToolRun, tool: &mut PowerLineTool, world:
             for &old in &wires {
                 let previous = world.wire_endpoints(old);
                 duplicate = endpoints.iter().any(|p| previous.contains(p));
-                for p in previous.into_iter().flatten() { world.release(p); }
-                if duplicate { break; }
+                for p in previous.into_iter().flatten() {
+                    world.release(p);
+                }
+                if duplicate {
+                    break;
+                }
             }
-            if duplicate { world.release(wire); } else { wires.push(wire); }
-            for p in endpoints.into_iter().flatten() { world.release(p); }
+            if duplicate {
+                world.release(wire);
+            } else {
+                wires.push(wire);
+            }
+            for p in endpoints.into_iter().flatten() {
+                world.release(p);
+            }
         }
         world.release(occupant);
     }
@@ -123,7 +173,9 @@ pub fn update_on_zone_change(run: &mut ToolRun, tool: &mut PowerLineTool, world:
                 }
             }
         }
-        for endpoint in endpoints.into_iter().flatten() { world.release(endpoint); }
+        for endpoint in endpoints.into_iter().flatten() {
+            world.release(endpoint);
+        }
         world.release(wire);
     }
     for pole in poles {
