@@ -16,6 +16,7 @@ struct Snapshot {
     bits: u32,
     len: u32,
     text: [u8; 512],
+    logical_elements: u32,
 }
 
 // Safety: private caller FC4CommandsVerify.h supplies live Box<SetRef> handles,
@@ -95,16 +96,19 @@ unsafe extern "C" fn fc4_commands_verify_snapshot(h: *mut SetRef, id: u32, fallb
         bits: 0,
         len: 0,
         text: [0; 512],
+        logical_elements: 0,
     };
     let v = if fallback != 0 {
-        Some(set.get_or_fallback(id))
+        Some(set.get_native_or_fallback(id))
     } else {
-        set.get_parameter(id)
+        set.get_native_parameter(id)
     };
     if let Some(v) = v {
         result.present = 1;
-        result.kind = u32::from(v.mem_type());
-        result.elements = v.count() as u32;
+        result.kind = u32::from(v.get_type());
+        result.elements = v.get_count() as u32;
+        let v = v.variant();
+        result.logical_elements = v.count() as u32;
         match v {
             Variant::Scalar(Elem::Bool(b)) => result.bits = u32::from(*b),
             Variant::Scalar(Elem::U32(b)) => result.bits = *b,

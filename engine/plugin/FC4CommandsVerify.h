@@ -19,8 +19,9 @@ namespace fc4 { namespace commands_verify {
 struct Snapshot {
     uint32_t count, first, next, present, kind, elements, bits, len;
     unsigned char text[512];
+    uint32_t logical_elements;
 };
-static_assert(sizeof(Snapshot) == 544, "private transport layout");
+static_assert(sizeof(Snapshot) == 548, "private transport layout");
 extern "C" void* fc4_commands_verify_new();
 extern "C" void fc4_commands_verify_release(void*);
 extern "C" uint32_t fc4_commands_verify_mutate(void*, uint32_t, uint32_t, uint32_t,
@@ -49,6 +50,7 @@ struct Pair {
 
 struct Compare {
     unsigned checked = 0, mismatches = 0, refused = 0, elementMismatches = 0;
+    unsigned logicalCountDifferences = 0;
     const char* phase = "sets";
     void Eq(const char* field, uint32_t id, uint32_t a, uint32_t b) {
         ++checked;
@@ -85,6 +87,9 @@ struct Compare {
             }
         }
         if (!fc4_commands_verify_snapshot(p.core, id, fallback, &b)) { ++refused; return; }
+        // Preserve the historical raw-native versus logical DTO diagnostic.
+        // All original assertions below now use the production native projection.
+        if (a.elements != b.logical_elements) ++logicalCountDifferences;
         Eq("count", id, a.count, b.count); Eq("first", id, a.first, b.first);
         Eq("next", id, a.next, b.next); Eq("present", id, a.present, b.present);
         Eq("type", id, a.kind, b.kind); Eq("elements", id, a.elements, b.elements);
@@ -205,9 +210,8 @@ inline void Run() {
         }
     }
     FC4_RELEASE(server);
-    // GC8: retain the ORIGINAL/core scalar GetCount discrepancy, never fit it.
-    Log("commands_verify: checked=%u exact=%u mismatches=%u refused=%u sets=%u parser=%u elements_diffs=%u other_diffs=%u scope=owned-original-production-methods GC1-GC7=excluded",
+    Log("commands_verify: checked=%u exact=%u mismatches=%u refused=%u sets=%u parser=%u elements_diffs=%u other_diffs=%u historical_logical_count_diffs=%u scope=owned-original-production-methods GC1-GC7=excluded",
         c.checked, c.checked - c.mismatches, c.mismatches, c.refused, sets, c.checked - sets,
-        c.elementMismatches, c.mismatches - c.elementMismatches);
+        c.elementMismatches, c.mismatches - c.elementMismatches, c.logicalCountDifferences);
 }
 } }

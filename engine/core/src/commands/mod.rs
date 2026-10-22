@@ -39,7 +39,8 @@ pub use dispatcher::{
 };
 pub use generator::{quote_argument, CommandServer, StringCommandGenerator, GENERATOR_IIDS, MAX_COMMAND_WORDS};
 pub use params::{
-    make_lower, CommandParameterSet, SetRef, ANY_PARAMETER_ID, NO_PARAMETER_ID, PARAMETER_SET_IIDS, STATUS_PARAMETER_ID,
+    make_lower, CommandParameterSet, NativeParameter, SetRef, ANY_PARAMETER_ID, NO_PARAMETER_ID, PARAMETER_SET_IIDS,
+    STATUS_PARAMETER_ID,
 };
 pub use split::{line_of, parse_delimited_text};
 

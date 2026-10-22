@@ -1,6 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-command-system4: native command verification | Codex / `verify-command-system4` (engine lane, detached HEAD) | WIP; source 5eb61637; cargo 4961 PASS, clippy clean, ctest 68/68; own/reload clean through 2032 ref0; 7414 assertions, 7243 exact, 171 GC8 metadata differences; native saves stalled; current40 pending | 1. Resolve GC8 binding distinction. 2. Supply canonical current40 profile and complete clean native/current40 save regression. |
+| verify-command-system4: native command verification | Codex / `verify-command-system4` (engine lane, detached HEAD) | in progress; round 2; historical 7414 assertions / 7243 exact / 171 scalar metadata differences | 1. Fix production native count projection. 2. Gate and diagnose native save control. 3. Validate clock24 and exact house40 save/reload. |
+
+## Handoff
+
+- Goal: implement published scalar GetCount=0 / array length in command production projection, preserving Variant::count.
+- Done: previous round at b2b4dd2d; historical report below. Round-2 baseline: Rust 4961 PASS, clippy clean, ctest 68/68.
+- Implemented: borrowed NativeParameter production view on stored command values/fallback; native count 0 for scalar/Empty, array length. Logical Variant::count untouched.
+- Verifier uses that production view, retains all 7414 assertions and separately logs historical logical count differences. Scalar/empty/one/multi/string/fallback tests added.
+- Next: finish focused build/fmt, commit production fix, stable full gate, freeze DLL; native verifier-on/off identical-script controls then clock24 and exact house40 save/reload.
+- Shared variant.rs/variant CAPI, tools, maps, ABI tables and defaults are excluded.
+- Preserve all 171 comparisons and raw logical-count history. Native owned sets remain game-created originals.
+- GC1-GC7 remain outside scope. No request outstanding. New requests use unique labels; await without qwait.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-command-system4-r2-manifest.json.
 
 ## Changes and provenance
 
