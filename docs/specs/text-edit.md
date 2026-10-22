@@ -295,6 +295,11 @@ insertion is LF. It does not change insertion line or selection itself.
 
 ## 8. Layout, font primitives and view
 
+New native byte/word stepping, line/index conversion, horizontal visible
+spans, scroll offsets, scrollbar geometry/range arithmetic, page scrolling
+and drag-timer routing are specified in [text-edit-layout.md](text-edit-layout.md).
+The remaining TE5 paths are listed there individually.
+
 CalculateVisibleWidth/Height (`0x009BCBC5`, `0x009BCC0E`) subtract twice
 the corresponding gutter plus the orthogonal scrollbar thickness from
 window width/height, returning zero when the unsigned dimension is smaller
@@ -629,6 +634,16 @@ These are specification examples derived from bodies, not game-run results.
 | Same nonnull scrollbar image assigned again with valid empty rectangle and existing bar | Incoming AddRef precedes old Release, rectangle copied, image +0x30 rectangle passed to bar +0x44 with image and 0 |
 | Null WM/service result in scroll/caret callback | No dispatcher call and no direct widget mutation; no retry |
 | SetOutlineUse with valid color and either enable value | Bit/color change but no invalidation by this method |
+| Text `ab` + LF + `cde`, coherent starts [0,3]; GetIndexFromLineAndColumn(0,4) | Writes 4 and returns true: column can cross the requested line boundary |
+| Same text; GetIndexFromLineAndColumn(99,1) | Uses last start 3, writes 4 and returns true despite out-of-range line |
+| Ordinary byte text `one,two  three`; word step +1 from 0 | Lands at byte 9; punctuation is not a boundary |
+| Selector 101; ordinary versus composed stepping +1, composed helper reports 2 | Ordinary advances one byte; composed advances two |
+| `abcd`, byte steps 1, font advances 10/prefix, visible width 15; horizontal metrics with scroll 9 then 10 | Absolute spans [0,3), displacement -9; then [1,3), displacement 0 |
+| Unwrapped pixel mode, horizontal bar present, offset 5, line height 16; ScrollLeft | Offset becomes signed -11; value update/invalidation occurs and return is true |
+| Same mode, visible width 100, offset 95, line height 16, longest line 500; ScrollRight | Offset capped at 100, not 111 or 400 |
+| Editor 100x50, vertical width 10, horizontal height 8, both bars; resize bars | Horizontal (0,42,90,50) first; vertical (91,0,100,42) second |
+| Ten lines, four visible rows, firstVisible 5; ScrollPageDown | FirstVisible becomes 9, with value update/invalidation and true |
+| Capturing, cursor x=-3,y=-3; ScrollLineUp succeeds | Vertical route wins; +0x228 gets (original x,lineHeight/2,0), with no horizontal scroll call |
 
 ## 12. Whole-owner checklist and current limits
 

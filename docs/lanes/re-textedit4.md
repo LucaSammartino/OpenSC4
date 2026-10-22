@@ -9,7 +9,9 @@
 - Done: actual coverage reconciled: 150 bodies/19,999B, all 134 old rows plus 16 exact measured additions, no size mismatches; public attribution evidence added.
 - Done: eeeaf4ac reconciles attribution and proves TE4 history eviction; original 20 vectors preserved.
 - Done: TE3 numeric failure domains, TE6 mixed password/hit coordinates and TE7 cleanup/image/color/callback failures specified; ten further vectors (34 total).
-- Next: largest unclosed metrics/layout/selection/navigation bodies (TE5), then remaining thin/helper inventory dispositions (TE8); no whole-owner promotion.
+- Done: 1f74cd36 publishes TE3/TE6/TE7 answers and explicit unsafe-call/resource boundaries.
+- Done: new layout extension proves large metrics (334B), bar sizing (454B), pixel-hit (387B), word/composed motion (250/224B), bar ranges (241B), drag routing (236B), scroll and index contracts; 44 total vectors.
+- Next: final inventory disposition audit, questions/diff checks and report; TE5 precise residuals remain, no whole-owner promotion.
 - Main: C:/Users/tlori/FreeCity4; WT: C:/Users/tlori/FreeCity4/.claude/worktrees/re-textedit4.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-textedit4-r2-manifest.json.
 - q.py cannot start Bash (E_ACCESSDENIED); use bounded PowerShell shell calls.
