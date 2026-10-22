@@ -13,6 +13,9 @@
 - Milestone d58b77cb: portable production owners committed.
 - Added 15 total discriminating tests: byte fixtures, file scope/filter/order, copy/move failures, capture alpha/delay, pause/restore, drag/reuse and same-file dirty edits.
 - Formatting of the six new Rust files passes (absolute paths required by qbuild fmt). q.py Bash transport unavailable; targeted rustfmt output retained in build-runs/snapshot-format.log.
-- Quick check running (exec session 68359, build-runs/fc4verify-quick-test.log); no diagnostic yet. Source now frozen pending check; inspect diagnostics, then stable final all.
+- Milestone 91e3d071: strengthened 15-fixture suite and frozen production code.
+- Focused quick Rust phase: 2965 passed / 0 failed, including the initial 6 snapshot fixtures (compiled before 9 later additions); final all must run all 15.
+- New-file fmt passes; shared additive lib.rs fmt check fails on pre-existing ordering/layout (166 diff lines), left untouched as required.
+- Quick wrapper still running dependency compilation (exec session 68359, fc4verify-quick-deps.log). Next: await completion, preserve quick logs, then stable final qbuild all.
 - No game requests: pure core only; no ABI changes or native-exact/full-owner claims.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-snapshots4-r1-manifest.json.
