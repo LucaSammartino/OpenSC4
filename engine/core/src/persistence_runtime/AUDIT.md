@@ -89,3 +89,35 @@ There is no native shadow, shipped-image scan, original base-resource
 verification or combined manager/runtime coverage credit in this lane.
 Full foreign resource subclasses, stream vtables, constructors, allocator
 failure effects and undefined malformed input domains remain unsupported.
+
+## R2 boundary review (validation pending)
+
+Rechecked persistence sections 2-7 against the concrete bodies and test
+expectations. Typed widths, integer-only swapping (including failed reads),
+strings/keys/marker-free variants and borrowed cursor position remain in
+`serial.rs`/`variant.rs`. Segment close-once/ref effects remain in `record.rs`.
+Atomic resource references, QI and keys remain in `resource.rs`.
+`ResourceFactory` owns record/type routing, key-before-Read, serial QI,
+requested QI and temporary release. Its production hooks are sealed and
+implemented by `BufferResourceFactory`; test-only hook fixtures discriminate
+forwarding/failure order, not arbitrary foreign subclass correctness.
+
+Image dispatch, raw prefix versus typed header order, decoded-size checks,
+packed/padded copies, BMP parsing/writing and unlock paths remain in
+`image.rs`. Factory defaults/stack, type/QI checks, temporary resources,
+file access 1/3 and close-after-operation, and module target selection remain
+in `factory.rs`. Host boundaries are raw I/O/seek/size/position/close,
+buffer allocation/ref/QI/lock/pixels/foreign colour conversion, OS opening
+and module bytes, and the existing formats QFS codec. No owner-level oracle
+or manager/cache dependency was introduced.
+
+The tests include literal integer/float/header/pixel expectations, a failed
+typed read with host-modified prefix, short/UTF-16/legacy strings, key failure
+short-circuiting, variant failure publication, segment close-once, QI/ref
+cleanup, raw v0 prefix with swapped later fields, v1 stored format, padded
+v1 choice versus v2 correct rows, BMP palette/padding/ignored-write results,
+explicit memory bound, and in-memory file/module target paths. The formats
+integration test consumes literal QFS bytes and separately checks literal
+decoded pixels and saved headers; the encoder round trip is supplemental.
+None of this establishes native conversion, malformed-memory effects,
+native constructor defaults, shipped data or native/shadow equivalence.

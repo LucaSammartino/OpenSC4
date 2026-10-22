@@ -21,6 +21,7 @@
 - Baseline retained intact in build-runs/runtime-gates/baseline-mixed-r1-retained/: 20 suites/5080 passed cases then E0433 failure, clippy finished, CMake 214/214, CTest only 20/68 with no final verdict/exit. Interrupted/unmeasured combined gate. Original helper/status and process snapshot retained there.
 - Source correspondence rechecked: git diff 7921d6fe..4c99691e -- engine shows ONLY AUDIT.md (23 lines); broad engine trees 146feb7d versus c7cdd186 differ by that documentation. No production-source change since 7921d6fe.
 - Local gitignored helper corrected to absolute fmt file paths; archived original first. Do not use --after-baseline on the incomplete dead baseline. No queue until complete required checks.
+- R2 owner/test review: sections 2-7 and actual 17+1 tests rechecked; bounded primitives/sealed hooks and specific vectors recorded in AUDIT.md. No production changes. Serial quick running from daec994c, source unchanged since 7921d6fe; native snapshot 22:41:45Z shows qbuild/fc4verify/cargo/sccache descendants, no duplicate checker.
 - No C ABI/plugin/manager/cache changes authorized; no game request planned for pure core.
 - PR1 native-order supplied explicitly; PR2 constructed fixtures are not shipped coverage; PR3 padded v1 row copy is a FreeCity4 choice.
 - R1 guard denial honored with committed handoff/no queue. This is R2 of original max3, not a reset; manifest C:/Users/tlori/FreeCity4/build-runs/run4-core-persist-runtime4-r2-manifest.json.
