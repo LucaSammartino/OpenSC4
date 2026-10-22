@@ -48,16 +48,12 @@ impl Binding {
     }
 
     pub fn add_ref(&mut self) -> Option<u32> {
-        if self.references == 0 {
-            return None;
-        }
-        // TB5: overflow is outside the published valid lifetime domain.
-        self.references = self.references.checked_add(1)?;
+        self.references = self.references.wrapping_add(1);
         Some(self.references)
     }
 
     pub fn release(&mut self) -> Option<Release> {
-        self.references = self.references.checked_sub(1)?;
+        self.references = self.references.wrapping_sub(1);
         Some(if self.has_factory && self.references == 1 {
             Release::FreeToPool
         } else if self.references == 0 {

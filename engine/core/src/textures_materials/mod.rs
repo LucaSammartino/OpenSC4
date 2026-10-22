@@ -84,31 +84,26 @@ pub struct BindingParams {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LayoutError {
-    NoLevels,
-    Overflow,
+    /// The native signed doubling loop never returns for this input.
+    NativeNontermination,
+}
+
+pub fn next_power_of_two(value: u32) -> Result<u32, LayoutError> {
+    if value as i32 <= 1 {
+        Ok(1)
+    } else if value > 0x4000_0000 {
+        Err(LayoutError::NativeNontermination)
+    } else {
+        Ok(value.next_power_of_two())
+    }
 }
 
 impl BindingParams {
     /// §1.4. Halving for byte accounting intentionally does not clamp to one.
     pub fn for_image(image: ImageDescription, lod: u32, depth: u32) -> Result<Self, LayoutError> {
-        // TB5: zero levels and unrepresentable 32-bit sizes have no published
-        // numeric contract. Reject them as a safe portable boundary, not native parity.
-        if image.levels == 0 {
-            return Err(LayoutError::NoLevels);
-        }
-        let d = lod.min(image.levels - 1);
-        let width = image
-            .width
-            .max(1)
-            .checked_next_power_of_two()
-            .ok_or(LayoutError::Overflow)?;
-        let height = image
-            .height
-            .max(1)
-            .checked_next_power_of_two()
-            .ok_or(LayoutError::Overflow)?;
-        let width = width.checked_shr(d).unwrap_or(0).max(1);
-        let height = height.checked_shr(d).unwrap_or(0).max(1);
+        let d = if image.levels > lod { lod } else { image.levels.wrapping_sub(1) };
+        let width = next_power_of_two(image.width)?.wrapping_shr(d).max(1);
+        let height = next_power_of_two(image.height)?.wrapping_shr(d).max(1);
         let internal_format = match image.format {
             7 | 8 => 5,
             9 => 6,
@@ -120,23 +115,17 @@ impl BindingParams {
             _ => 2,
         };
         let bits_per_texel = [16, 24, 16, 16, 32, 4, 8, 8][internal_format as usize];
-        let levels = image.levels - d;
-        let (mut w, mut h, mut texels) = (width, height, 0_u64);
+        let levels = image.levels.wrapping_sub(d);
+        let (mut w, mut h, mut texels) = (width, height, 0_u32);
         for _ in 0..levels {
-            texels = texels
-                .checked_add(u64::from(w) * u64::from(h))
-                .ok_or(LayoutError::Overflow)?;
+            texels = texels.wrapping_add(w.wrapping_mul(h));
             w >>= 1;
             h >>= 1;
             if w == 0 || h == 0 {
                 break;
             }
         }
-        let bytes = texels
-            .checked_mul(u64::from(bits_per_texel))
-            .and_then(|n| n.checked_mul(u64::from(image.frames)))
-            .ok_or(LayoutError::Overflow)?
-            / 8;
+        let bytes = texels.wrapping_mul(bits_per_texel).wrapping_mul(image.frames) >> 3;
         Ok(Self {
             frames: image.frames,
             levels,
@@ -144,7 +133,7 @@ impl BindingParams {
             height,
             internal_format,
             bits_per_texel,
-            bytes: u32::try_from(bytes).map_err(|_| LayoutError::Overflow)?,
+            bytes,
         })
     }
 }
