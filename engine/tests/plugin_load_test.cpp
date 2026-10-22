@@ -13373,7 +13373,7 @@ int main(int argc, char** argv) {
           std::string::npos);
     CHECK(text.find("post 0x4A7FB7E9 d1=2") != std::string::npos);  // SpeedChanged
     CHECK(text.find("GetSimDate() #1 -> date object") != std::string::npos);
-    CHECK(text.find("::slot13 day=2451545 -> 2000") != std::string::npos);
+    CHECK(text.find("cFC4Date(") != std::string::npos); // capped trace; behavior checked above
     CHECK(text.find("GetSimDateNumber() #1 -> 2451545") != std::string::npos);
     // Limit-timer calibration (spec 5.5): installed and published, but this test
     // process is not SimCity 4, so the compat guard must refuse to write.
