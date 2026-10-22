@@ -31,7 +31,8 @@ continuation is pending returns an integration error without replacing it.
 Message handlers return `Ok((true, boundary))` on native routes, including unknown
 messages. Busy-continuation failures are Rust adapter errors, not native false
 acknowledgments. The caller must run queued Quit/plugin continuations and satisfy
-returned direct boundaries such as RequestQuit. Region/city events update only
+returned direct boundaries such as RequestQuit (the v1 quit message always means
+`RequestQuit(false, false)`). Region/city events update only
 the published app-mode field; no city/region algorithm is implemented.
 
 ## Published method map
