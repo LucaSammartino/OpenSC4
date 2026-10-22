@@ -12,8 +12,10 @@ Scope. The family is the engine's own small web stack: a URL parser (`cRZURL`), 
 (`cRZHTTPClient`), an FTP client reached only from `cGZWWWSystem`, a cookie store (`cRZCookieManager`), a disk cache
 (`NetworkFileCache`), sockets and name lookup (`cRZNet*`, `cRZNameLookup`) and the `cGZWWWSystem` job front end.
 The game uses it for the in-game HTML documents (`cHTMLDocument` resolves links and images with `cRZURL::ChangeURL`).
-This revision specifies **`cRZURL` completely** (section 2) and **`cRZCookieManager`** (section 3); the other owners
-are outlined in section 4 with their measured size and stay unspecified. No live network request was made.
+This revision specifies **`cRZURL` completely** (section 2), **`cRZCookieManager` partly** (section 3), and
+the **cGZWWWSystem front end** (section 4, added 2026-10-22 by re-web-largest4). The latter owner's reached
+FTP bodies are included in its inventory but are not automatically covered by the front-end contract.
+Section 5 retains the HTTP-client outline. No live network request was made.
 
 Tags: *[inferred]* = role named by behaviour, not by symbol. *[quirk]* = observed behaviour that looks unintended;
 an implementation must reproduce it for byte-exact parity.
@@ -22,8 +24,8 @@ an implementation must reproduce it for byte-exact parity.
 
 | Owner | Bytes | Specified here |
 |---|---|---|
-| cGZWWWSystem (incl. the FTP client it reaches, ~30 KB) | 34049 | no (outline 4.1) |
-| cRZHTTPClient | 15133 | no (outline 4.2) |
+| cGZWWWSystem (includes reached FTP bodies) | 34049 | partial, section 4; body checklist controls credit |
+| cRZHTTPClient | 15133 | no (outline 5) |
 | cRZURL | 9498 | **yes, section 2** |
 | cRZCookieManager | 8137 | partly, section 3 (parse, add, lookup, eviction; file format and capacity open) |
 | NetworkFileCache | 6699 | no |
@@ -332,18 +334,168 @@ WriteCookieDataFile / ReadCookieDataFile store records as `CookieData%05u` entri
 selects an encrypted form. The record layout on disk, the encryption and the store capacity set by Init are open
 (Q2, Q3).
 
-## 4. Owners not yet specified (outline only)
+## 4. cGZWWWSystem — front end and owned helper boundary
 
-### 4.1 cGZWWWSystem (34049 B)
+Evidence: native export and class/unnamed pseudocode, with instruction checks at the addresses below.
+The coverage snapshot has **148 bodies / 34,049 B** for this owner, including reached and neighbouring
+FTP implementation bodies. This is an attribution inventory, not proof that all those bodies implement
+the public WWW interface. No cRZHTTPClient, NetworkFileCache, cookie-manager or socket-owner credit follows.
+Foreign file, clock, thread and HTTP operations below are supplied inputs/calls; their success is never
+promised by WWWSystem. Section 4 is a partial-owner contract until every body in its checklist is resolved.
 
-The service front end: Init/PostInit/Shutdown, cache and cookie usage switches, a default notification target, job
-IDs mapped to HTTP or FTP client jobs (HTTPClientJobIDFromWWWSystemJobID, FTPClientJobIDFromWWWSystemJobID),
-visited-URL set, URL handlers, document load status, job update notifications. About 30 KB of its bytes are an FTP
-client reached only from it (00811c90..0081e760): commands `USER`, `PASS`, `ACCT`, `SYST`, `TYPE A`, `TYPE I`,
-`PORT h1,h2,h3,h4,p1,p2`, `LIST`, `STOR`, anonymous login, and a directory-listing parser that recognises `<DIR>`,
-`<dir>`, ` DIR `, Unix `d` mode lines and a `Disk size` trailer (00812de0).
+### 4.1 Interfaces, identity and lifecycle
 
-### 4.2 cRZHTTPClient (15133 B)
+The constructor registers base service identity **0x449b1939**, with the second base-constructor argument zero
+(008f9c02). It builds two empty job lists and a visited-URL set. The next-job counter initially holds 1;
+allocation increments before use, so the first allocated WWW job ID is 2 (008f9c38, 008f83ee).
+Cookie use starts enabled and cache use disabled (008f9c69–008f9c6d). Default custom data starts zero.
+The constructor creates a file cache, cookie manager, HTTP client and FTP client, retains each through its
+own interface convention and connects the two clients back to this service. Allocation failure is not
+a clean false-return path: constructor virtual calls follow even a null allocation result.
+
+`QueryInterface` accepts these IDs; successful queries retain the same object exactly once. An unsupported
+ID returns false and leaves the caller's output untouched (008f687d–008f68c3):
+
+| ID | Returned view relative to complete-object identity |
+|---|---|
+| 1 | public WWW view, +4 |
+| 0x287fb697 | system-service view, +8 |
+| 0x449b1912 | public WWW view, +4 |
+| 0x452294aa | message-target/complete-object view, +0 |
+
+The public WWW vtable is 00acce48. Its QueryInterface/AddRef/Release thunks adjust back to the complete
+object. The secondary views share reference ownership; they are not independent services.
+`Init` sets the initialized flag if needed and always returns true. `PostInit` calls Init, cache Init,
+cookie Init, HTTP-client Release and the FTP initialization helper, in that order, and returns true without
+testing their returns (008f68fe–008f6929). This unusual HTTP call is a literal +0x10 virtual call on the
+HTTP client; do not substitute an HTTP Init call on the basis of its apparent intent.
+
+`Shutdown` is guarded by the initialized flag. When set, it calls CancelAllDocumentLoadRequests,
+RemoveAllURLHandlers, disconnects HTTP then FTP from the WWW service, calls cache Shutdown then cookie
+Shutdown, and clears the flag. It returns true whether or not the guard was set (008f692a–008f696a).
+The destructor invokes Shutdown before releasing its retained components and default target and destroying
+containers (008f8992). Shutdown is not evidence of a successful underlying network transfer.
+
+### 4.2 Load dispatch, target references and synchronous completion
+
+Both LoadDocument overloads return an integer job ID, with zero used for rejection or failure. The string
+overload constructs a URL and delegates to the URL-object overload (008f72b5). That overload selects the
+explicit target, otherwise the stored default target. With neither, it returns zero before dispatch.
+It retains the selected target once. A zero custom-data argument selects the default custom data;
+zero cannot explicitly override a nonzero default. Preference 4 invokes the URL-path preference classifier
+before dispatch (008f834d–008f837b).
+
+Registered URL handlers are tested in list order, before built-in URL types. The first handler whose
+acceptance call returns true owns the attempt: allocate a WWW ID, form a type-0 job, call that handler's
+load method, and synchronously notify the target of success or failure. A false handler load does not
+try another handler or the built-in protocol. The selected target reference is released after notification,
+then the temporary job is destroyed; the allocated ID is returned even if the handler reports failure
+(008f838a–008f848e). These jobs are never inserted in either asynchronous job list.
+
+If no handler accepts, route URL types as follows (008f83a8–008f84e9):
+
+| URL type | Attempt |
+|---|---|
+| 2 | HTTP helper 008f8ffe; pass the caller's cache-permission argument |
+| 4 | local-file helper 008f84ea |
+| 5 | FTP helper 008f93da |
+| 7 | helper at 0090ce99; its contract is still an explicit gap |
+| any other | release the selected target reference and return zero; no notification |
+
+URL parsing/resolution remains section 2's contract. WWWSystem consumes GetFullURL/GetAbsolutePath and
+GetURLType; it does not implement a second URL parser or a separate HTTPS transport.
+
+`SetDefaultNotificationTarget(new)` retains a nonnull new target **before** releasing the old target, then
+stores it. Self-assignment therefore preserves lifetime. Null clears the setting (008f69e5). A dispatched
+asynchronous job carries its own selected-target reference; changing the default does not retarget it.
+
+### 4.3 Local files and representation preference
+
+Local file loads are synchronous (008f84ea). With a target, allocate a WWW ID and construct a type-0 job,
+copy the full URL, timestamp, preference, target and custom data. Derive the native path from the URL's
+absolute path, apply helper 00823310, test existence, and if absent try the GetPathName-derived fallback.
+The helper's exact escaping rules remain a boundary until separately specified.
+
+| Resolved preference | Existing-file behavior |
+|---|---|
+| 0 | Try opening and reading all bytes into RAM, independent of size. If opening fails, fall back to a filename. |
+| 1 | Try opening; read into RAM only for unsigned size **< 500,000**. At exactly 500,000 or above, return a filename. Opening failure also falls back to a filename. |
+| 2 or 3 | Return filename bytes without attempting a file read. |
+
+The preference branch is a signed comparison against 1, while the size comparison is unsigned
+(008f85d6, 008f8602–008f8607). An actual Read failure is a failure notification, not a filename fallback.
+A filename result sets the job's file-data flag; a successful RAM read clears it. Success sets result=1
+and progress=100; a missing path or failed read sets result=0 and progress=0. Notify even on this failure,
+then release the target and destroy the temporary job. No completed-file history is retained.
+The function returns zero for a missing path, but on the RAM-read branch it assigns the allocated ID before
+testing Read success, so a failed Read can still return that nonzero ID (008f8624–008f8682).
+
+### 4.4 HTTP admission, cached completion and duplicate URLs
+
+Helper 008f8ffe requires a target and obtains the full URL and current timestamp. Under the WWW lock it
+checks cache only when **both** service cache-use and per-request cache permission are true. A positive
+IsCachedDataPresent result precedes duplicate-job lookup. Choose representation using the cache's unsigned
+reported size and this table (008f9089–008f90dd):
+
+| Preference | Attempt cached RAM data when |
+|---|---|
+| 0 | any size |
+| 1 | size < 2,000,000 |
+| 2 | size < 500,000 |
+| 3 or higher | never |
+
+If an eligible GetCachedDataAsData succeeds, copy the bytes and Release the returned CacheData. Otherwise
+try GetCachedDataAsFile; success returns its filename and sets file-data. If neither retrieval succeeds,
+continue to duplicate/network admission rather than notifying a cache failure. A usable cache hit allocates
+a fresh WWW ID, forms a type-1 success/progress-100 job, unlocks, synchronously notifies and releases the
+selected target reference. It does not insert a live job (008f912a–008f91a2).
+
+On the non-cache path, scan active jobs for equal full-URL strings. A match allocates a fresh WWW ID and
+appends a waiting job with its own preference, target and custom data, without submitting another HTTP
+request (008f91aa–008f926a). The waiting job's foreign HTTP/FTP IDs start zero. Thus status lookup and
+foreign-ID lookup need not agree that a waiting request exists.
+
+With no duplicate, release the WWW lock, ask the cookie manager for request-header text if cookie use is
+enabled, and, when supplied, submit one `Cookie` header. Enter the HTTP client's admission lock/helper,
+submit method value 2 with URL and those headers, and only on a nonzero foreign ID allocate/store a WWW
+job under the WWW lock. Release the HTTP admission helper after storing the job, then free temporary
+header storage (008f9273–008f93d9). A foreign zero ID returns zero; target-reference disposition on this
+path must be checked explicitly, not inferred from the successful-completion path. There is no WWW-level
+retry loop in admission. Redirects, HTTP parsing, sockets and timeouts belong to the foreign client.
+
+### 4.5 Live status and cancellation
+
+GetDocumentLoadStatus locks and searches active then waiting lists; it returns **2** for a matching ID and
+**0** otherwise. It reports live membership, not the job's result/progress field. Synchronously completed
+jobs therefore immediately report 0 (008f6d08). GetJob searches **active only**, returns a borrowed pointer,
+and adds no reference or lock (008f6d59). HTTPClientJobIDFromWWWSystemJobID returns the active job's foreign
+ID only for type 1 or 2; FTPClientJobIDFromWWWSystemJobID only for type 3; absent/mismatched jobs return 0
+(008f6a0c, 008f6a30).
+
+CancelDocumentLoadRequest locks, searches active jobs, cancels the foreign HTTP request for type 1/2,
+then erases that job. Type 3 is erased without a corresponding FTP cancellation call here. If no eligible
+active match, search waiting jobs and erase a match. Return true on an erase, false on no match. It issues
+no terminal notification (008f7e76). CancelAllDocumentLoadRequests destroys both job lists' contents and
+clears both lists under the lock; this body contains no per-job HTTP/FTP cancellation call (008f7f04).
+
+### 4.6 Independent contract vectors (constructed; not live-game results)
+
+| ID | Inputs/fixture | Required observations |
+|---|---|---|
+| WWW-01 | Unsupported QueryInterface; output preset to sentinel | false; sentinel unchanged; no AddRef |
+| WWW-02 | Set default target T twice, then clear | AddRef(T), AddRef(T), Release(T), Release(T), in that order |
+| WWW-03 | Explicit target absent, default absent | load returns 0; no dispatch or notification |
+| WWW-04 | First handler accepts but its load fails; second would succeed | first handler alone loads; failure notification before target Release; nonzero allocated ID; status 0 |
+| WWW-05 | Existing file, preference 1, lengths 499,999 and 500,000 | first attempts RAM Read; second returns filename without Read |
+| WWW-06 | File open succeeds but Read fails | failure/progress 0 notification; selected target released once; allocated ID may still be returned |
+| WWW-07 | HTTP cache enabled/per-request allowed, preference 1; sizes 1,999,999 and 2,000,000 | first attempts RAM retrieval; second goes directly to file retrieval |
+| WWW-08 | Cache-present true; RAM and file retrieval both fail; no active duplicate | proceed to foreign HTTP submission, no cache-failure notification |
+| WWW-09 | Two loads of identical full URL while first is active | distinct WWW IDs, one foreign request; status 2 for both; GetJob/foreign-ID lookup finds active ID only |
+| WWW-10 | Cancel active HTTP job, then same ID again | one foreign cancel and one erase, true then false; no callback |
+| WWW-11 | Cancel active FTP job | erase and true; no FTP cancel call from this body |
+| WWW-12 | Completed cache hit followed by GetDocumentLoadStatus | synchronous callback before load returns, then status 0 |
+
+## 5. cRZHTTPClient (15133 B; outline only)
 
 HTTP/1.x client jobs, TimeStringToSeconds (HTTP dates), DoJobFinalization (resolves redirects with
 cRZURL::ChangeURL), cookie send and receive through 3.3 and 3.4, disk cache through NetworkFileCache.
