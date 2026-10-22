@@ -16,7 +16,10 @@
 - Completed ind4-r2-native-92f61086-01: clean 2032-01-05/ref0, full+fast save ok, shutdown suite logged. Four suites, 263052 checks, 262472 reported differences.
 - Differences traced to probe counting expected adapter segment-QI negotiation as unexpected (all Read/Write calls), fixed in current code; needs rerun. No semantic conclusion from first counters.
 - ff173d78 fixes setup counters, adds outcome totals and local ABI return annotations; focused quick PASS 4/4 edges.
-- Outstanding ind4-r2-native-ff173d78-02 (qwait8171), same full/fast saves and2032; immutable DLL SHA256 A52DF4AC728379280876A1C2E1A46C20D6217BED0B9620F252605337AA8DB1CB.
+- ind4-r2-native-ff173d78-02 clean2032-01-01/ref0: 4 suites,263052checks,0diffs/refusals; full/fast save ok; shutdown/final-release tested.
+- Per suite 65562reads/56writes/56messages/19reference checks; read_failures65553/65553,write_failures42/42; read_bytes131106/131106,write_bytes56/56.
+- Immutable DLL SHA256 A52DF4AC728379280876A1C2E1A46C20D6217BED0B9620F252605337AA8DB1CB.
+- Outstanding ind4-r2-off-ff173d78-03 (qwait35906), off control full/fast saves through2032.
 - Full gate rerun64738 pending; previous final run only ret-channel annotations failed.
 - DLL immutable build-runs/dll/industrial-r2-92f61086/FreeCity4.dll SHA256 DCFA504194029630A2C1698605FBC8EDC54F4DE43DBDEDC5925708ECDE47C3D7.
 - Full gate: cargo4938/clippy0/build PASS; ctest67/68, ret_channel_check needs local [abi-ret] annotations for published AL=1 lifecycle slots (now added). No ABI changes/new questions.
