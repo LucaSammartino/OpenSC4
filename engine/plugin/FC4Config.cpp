@@ -347,6 +347,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "fontsys_verify",
                                   "span8_shadow",
                                   "feature_shadow",
+                                  "persist_manager_verify",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

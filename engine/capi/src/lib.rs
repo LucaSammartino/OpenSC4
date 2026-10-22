@@ -1131,3 +1131,6 @@ mod fontsys_verify;
 
 // Independent app-owned feature-manager query verification.
 pub mod feature_manager;
+
+// Resource-only public-manager verification transport; actual production core.
+pub mod persist_manager_verify;

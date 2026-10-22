@@ -12826,4 +12826,23 @@ bool fc4_landfill_occupant_probe(const uint8_t* bytes, size_t len, uint32_t muta
 }
 #endif
 
+/* Resource-only persistence-manager verification; no original answers as inputs. */
+typedef struct fc4_pm_session fc4_pm_session;
+typedef struct fc4_pm_key { uint32_t ty, group, instance; } fc4_pm_key;
+typedef struct fc4_pm_result {
+    uint32_t status, identity, references[3], unexpected;
+    fc4_pm_key current_keys[3];
+} fc4_pm_result;
+#ifdef __cplusplus
+extern "C" {
+#endif
+fc4_pm_session* fc4_pm_create(const fc4_pm_key* three_keys);
+uint32_t fc4_pm_step(fc4_pm_session* session, uint32_t operation, uint32_t index,
+                     fc4_pm_key key, uint32_t iid, fc4_pm_result* out);
+void fc4_pm_destroy(fc4_pm_session* session);
+#ifdef __cplusplus
+}
+static_assert(sizeof(fc4_pm_result) == 60, "fc4_pm_result layout");
+#endif
+
 #endif /* FC4_H */
