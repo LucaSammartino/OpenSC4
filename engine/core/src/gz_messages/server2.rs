@@ -12,6 +12,19 @@ use super::{Token, MESSAGE_SERVER2_IID, STANDARD_MESSAGE_CLSID};
 
 /// Host callbacks of message server 2.
 pub trait Server2Host: MessageHost {
+    /// AddRef/GetType can re-enter while registry depth is positive (GZ6b).
+    fn add_ref_target(&mut self, _server: &mut MessageServer2, target: Token) {
+        self.add_ref(target);
+    }
+    fn message_type_in_server(&mut self, _server: &mut MessageServer2, msg: Token) -> u32 {
+        self.message_type(msg)
+    }
+    fn add_ref_message(&mut self, _server: &mut MessageServer2, msg: Token) {
+        self.add_ref(msg);
+    }
+    fn release_message(&mut self, _server: &mut MessageServer2, msg: Token) {
+        self.release(msg);
+    }
     /// `target->DoMessage(msg)` (target vtable +0x0C). The return value is
     /// ignored by every caller (§4.3, §4.5). The server is passed so the
     /// target may re-enter it.
@@ -31,8 +44,8 @@ pub trait Server2Host: MessageHost {
 }
 
 impl<H: Server2Host + ?Sized> RegistryHost<MessageServer2> for H {
-    fn add_ref_target(&mut self, target: Token) {
-        self.add_ref(target);
+    fn add_ref_target(&mut self, server: &mut MessageServer2, target: Token) {
+        Server2Host::add_ref_target(self, server, target);
     }
     fn release_target(&mut self, server: &mut MessageServer2, target: Token) {
         Server2Host::release_target(self, server, target);
@@ -42,6 +55,7 @@ impl<H: Server2Host + ?Sized> RegistryHost<MessageServer2> for H {
 /// Message server 2 state (§4.1).
 #[derive(Debug, Clone)]
 pub struct MessageServer2 {
+    ref_count: u32,
     registry: Registry,
     /// The post queue (+0x38).
     post_queue: MessageQueue2,
@@ -71,6 +85,7 @@ impl MessageServer2 {
     /// Constructor (§4.1).
     pub fn new() -> Self {
         Self {
+            ref_count: 0,
             registry: Registry::default(),
             post_queue: MessageQueue2::new(),
             taken: 0,
@@ -106,6 +121,23 @@ impl MessageServer2 {
         self.countdown
     }
 
+    /// Slot 12 and the +8 unknown-interface getter read the same dword.
+    pub fn ref_count(&self) -> u32 {
+        self.ref_count
+    }
+
+    /// Both message/service and +8-interface AddRef forward here (GZ1).
+    pub fn add_ref(&mut self) -> u32 {
+        self.ref_count = self.ref_count.wrapping_add(1);
+        self.ref_count
+    }
+
+    /// +8-interface slot 4: decrement only if positive, never destroy.
+    pub fn remove_ref(&mut self) -> u32 {
+        self.ref_count = self.ref_count.saturating_sub(1);
+        self.ref_count
+    }
+
     /// The directed deque, front first: (target, message).
     pub fn directed(&self) -> impl Iterator<Item = (Token, Token)> + '_ {
         self.directed.iter().copied()
@@ -114,14 +146,28 @@ impl MessageServer2 {
     /// Slot 3 MessageSend (§4.3). Always true.
     pub fn message_send<H: Server2Host + ?Sized>(&mut self, host: &mut H, msg: Token) -> bool {
         registry::apply_pending(self, host);
-        self.registry.depth += 1;
-        let ty = host.message_type(msg);
-        let targets = self.registry.snapshot(ty, true);
-        self.registry.depth -= 1;
-        // [choice] The spec lists no AddRef of the snapshot for server 2
-        // (unlike §4A), so the copied targets are not referenced.
-        for t in targets {
+        self.registry.depth = self.registry.depth.wrapping_add(1);
+        let ty = host.message_type_in_server(self, msg);
+        let mut targets = self.registry.snapshot(ty, false);
+        for &t in &targets {
+            Server2Host::add_ref_target(host, self, t);
+        }
+        // Section 4.3 copies the typed list before looking up wildcard 0.
+        // A typed target's AddRef can enter a nested send which applies work
+        // to the separate wildcard list without invalidating this traversal.
+        if ty != 0 {
+            for t in self.registry.targets(0).to_vec() {
+                Server2Host::add_ref_target(host, self, t);
+                targets.push(t);
+            }
+        }
+        self.registry.depth = self.registry.depth.wrapping_sub(1);
+        for &t in &targets {
             host.do_message(self, t, msg);
+        }
+        // GZ6a: keep every per-occurrence hold until ALL callbacks finish.
+        for t in targets {
+            Server2Host::release_target(host, self, t);
         }
         true
     }
@@ -147,42 +193,73 @@ impl MessageServer2 {
     }
 
     /// Slot 7 post directed (msg, target) (§4.5): append (target, msg), both
-    /// referenced. [choice] Returns true (the spec gives no return value).
-    pub fn post_directed<H: MessageHost + ?Sized>(&mut self, host: &mut H, msg: Token, target: Token) -> bool {
-        host.add_ref(target);
-        host.add_ref(msg);
+    /// referenced. Native slot 7 is void. Construct the temporary, copy it
+    /// into the deque, then destroy it before leaving the directed lock.
+    pub fn post_directed<H: Server2Host + ?Sized>(&mut self, host: &mut H, msg: Token, target: Token) {
+        Server2Host::add_ref_target(host, self, target);
+        host.add_ref_message(self, msg);
+        Server2Host::add_ref_target(host, self, target);
+        host.add_ref_message(self, msg);
         self.directed.push_back((target, msg));
-        true
+        host.release_message(self, msg);
+        Server2Host::release_target(host, self, target);
     }
 
-    /// Slot 8 cancel directed messages for `target` (§4.5): erase every
-    /// entry of that target, dropping both references (message first,
-    /// [choice]). Returns the number erased ([choice], the spec gives none).
-    pub fn cancel_directed<H: MessageHost + ?Sized>(&mut self, host: &mut H, target: Token) -> u32 {
-        let mut erased = 0;
-        let mut kept = VecDeque::with_capacity(self.directed.len());
-        for (t, m) in std::mem::take(&mut self.directed) {
-            if t == target {
-                host.release(m);
-                host.release(t);
-                erased += 1;
+    /// Slot 8: preserve the native pre-advanced iterator and suffix skip.
+    /// Precondition: no erase may advance the scan beyond the new end
+    /// (notably erasing the last/sole element is unsupported native UB).
+    /// Native slot 8 is void.
+    pub fn cancel_directed<H: Server2Host + ?Sized>(&mut self, host: &mut H, target: Token) {
+        let mut scan = 0;
+        while scan < self.directed.len() {
+            let i = scan;
+            scan += 1;
+            if self.directed[i].0 != target {
+                continue;
+            }
+            if i < self.directed.len() / 2 {
+                for j in (1..=i).rev() {
+                    let pair = self.directed[j - 1];
+                    self.assign_directed(host, j, pair);
+                }
+                let (t, m) = self.directed.pop_front().unwrap();
+                host.release_message(self, m);
+                Server2Host::release_target(host, self, t);
+                scan -= 1; // prefix pop moves the advanced iterator's index
             } else {
-                kept.push_back((t, m));
+                for j in i..self.directed.len() - 1 {
+                    let pair = self.directed[j + 1];
+                    self.assign_directed(host, j, pair);
+                }
+                let (t, m) = self.directed.pop_back().unwrap();
+                host.release_message(self, m);
+                Server2Host::release_target(host, self, t);
+                // Do not turn native iterator invalidation into remove-all.
             }
         }
-        // A release above cannot re-enter (MessageHost has no server
-        // access), so nothing was appended meanwhile.
-        self.directed = kept;
-        erased
+    }
+
+    fn assign_directed<H: Server2Host + ?Sized>(&mut self, host: &mut H, i: usize, (t, m): (Token, Token)) {
+        let (old_t, old_m) = self.directed[i];
+        if t != old_t {
+            Server2Host::add_ref_target(host, self, t);
+            self.directed[i].0 = t;
+            Server2Host::release_target(host, self, old_t);
+        }
+        if m != old_m {
+            host.add_ref_message(self, m);
+            self.directed[i].1 = m;
+            host.release_message(self, old_m);
+        }
     }
 
     /// Slot 9 OnTick (§4.4). Always true.
     pub fn on_tick<H: Server2Host + ?Sized>(&mut self, host: &mut H) -> bool {
         let limit = self.taken.wrapping_add(u64::from(self.post_queue.count()));
-        while let Some(m) = self.post_queue.get_front() {
+        while let Some(m) = self.post_queue.get_front(host) {
             self.taken = self.taken.wrapping_add(1);
             self.message_send(host, m);
-            host.release(m);
+            host.release_message(self, m);
             if !self.drain_all && self.taken >= limit {
                 break;
             }
@@ -195,19 +272,41 @@ impl MessageServer2 {
 
     /// Directed delivery (§4.5, end of OnTick).
     pub fn deliver_directed<H: Server2Host + ?Sized>(&mut self, host: &mut H) {
+        let (mut local_t, mut local_m) = (None, None);
         if self.countdown <= 0 {
             self.countdown = self.directed.len() as i32;
         }
         while self.countdown > 0 {
-            self.countdown -= 1;
-            if let Some((t, m)) = self.directed.pop_front() {
+            self.countdown = self.countdown.wrapping_sub(1);
+            if let Some((t, m)) = self.directed.front().copied() {
+                if local_t != Some(t) {
+                    Server2Host::add_ref_target(host, self, t);
+                    let old = local_t.replace(t);
+                    if let Some(old) = old {
+                        Server2Host::release_target(host, self, old);
+                    }
+                }
+                if local_m != Some(m) {
+                    host.add_ref_message(self, m);
+                    let old = local_m.replace(m);
+                    if let Some(old) = old {
+                        host.release_message(self, old);
+                    }
+                }
+                self.directed.pop_front();
+                host.release_message(self, m);
+                Server2Host::release_target(host, self, t);
                 host.do_message(self, t, m);
-                // [choice] The deque's references are dropped after the call.
-                host.release(m);
-                host.release(t);
             }
         }
-        self.countdown -= 1;
+        self.countdown = self.countdown.wrapping_sub(1);
+        // Directed lock has been left; each invocation owns its local pair.
+        if let Some(m) = local_m {
+            host.release_message(self, m);
+        }
+        if let Some(t) = local_t {
+            Server2Host::release_target(host, self, t);
+        }
     }
 
     /// Slot 10 posted-message count.
@@ -234,9 +333,22 @@ impl MessageServer2 {
     pub fn destroy<H: Server2Host + ?Sized>(&mut self, host: &mut H) {
         registry::clear(self, host);
         for (t, m) in std::mem::take(&mut self.directed) {
-            host.release(m);
-            host.release(t);
+            host.release_message(self, m);
+            Server2Host::release_target(host, self, t);
         }
-        self.post_queue.remove_all(host);
+        self.post_queue.destroy(host);
+    }
+}
+
+#[cfg(test)]
+mod counter_boundary {
+    use super::MessageServer2;
+    #[test]
+    fn shared_unsigned_counter_wraps_without_deletion() {
+        let mut server = MessageServer2::new();
+        server.ref_count = u32::MAX;
+        assert_eq!(server.add_ref(), 0);
+        assert_eq!(server.remove_ref(), 0);
+        assert_eq!(server.ref_count(), 0);
     }
 }
