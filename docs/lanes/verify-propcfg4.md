@@ -23,3 +23,4 @@
 - Normal vpc4-r2-normal-20261022a CLEAN 2032-01-01/ref0, full-save ok1; same1544 padding/1908 raw array differences. Prop queries11840/11840, create2336/2336, lot9361/9361, fixtures5/5, C++ getters87814/87814; roundtrips74 each exact. Not turbo-only.
 - Captured normal save in isolated build-runs slot before reuse: main/build-runs/fixtures/vpc4-r2-normal-20261022a-saved.sc4 SHA256 1a01f3b549e13ded888aba0422d2cc6f3a2cb8bc2e2ea7c6230213dd338a823c (1015403B); receipt in lane build-runs. Never accessed real Documents.
 - Outstanding own replacement vpc4-r2-own-20261022a (fresh2026->2032); qwait session9624, save capture22630. Next collect verdict/capture, then reload own saved fixture and current40 controls with unique labels.
+- Own vpc4-r2-own-20261022a CLEAN2032-01-12/ref0. Independent native comparisons correctly refused on replacement owners (zero pairs, no equality credit). Next own saved-city reload then current40 fresh/save/reload.
