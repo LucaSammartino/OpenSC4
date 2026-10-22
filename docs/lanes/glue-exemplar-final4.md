@@ -1,27 +1,30 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-exemplar-final4 (EX51 a-f applied to FC4ExemplarFactory; 8-scenario native-vs-ours test; EX50 per-module split) | `glue-exemplar-final4` / (engine lane) | in progress (round 3): GetValString fix + SerialWrite fixture + EX50 entry tracing committed UNBUILT; gate and game run not yet done | see Handoff |
+| glue-exemplar-final4 (EX51 a-f applied to FC4ExemplarFactory; 8-scenario native-vs-ours test; EX50 per-module and per-entry caller split; GetValString through the core) | `glue-exemplar-final4` / (engine lane) | ready (round 3): gate green, gef4-r3-union2032 clean to 2032 ref 0, contract 7/8 match (add_slots_b differs only in the slot 14/16 return values, EX52 f) | answer EX52 a-f and EX53; then a script run with a query-tool click and a save for EX50 |
 
-## Handoff (round 3, 2026-10-22; replaces the round-2 next list; the round-2 report below stays as history)
+## Report (round 3, 2026-10-22)
 
-Goal (round 3): fix GetValString name conversion; SerialWrite fixture setup (identical SetKey on both sides, SetWriteMode(false) on both factories, EX51 d); EX50 caller addresses at the concrete virtual entries; full gate; one clean union run to 2032 with ref_warnings 0 under a NEW unique label. Do not force slots 14/16 to return 2 or guess EX52 ABI.
+What changed in round 3
+- 7c19eb65 (round 2 tail, unbuilt then) validated: `fc4_variant_get_string` (engine/capi/src/props.rs, declared at the end of engine/capi/include/fc4.h, additive, no FC4_ABI_VERSION bump), cFC4Variant::GetValString through the core, SerialWrite fixture SetKey/SetWriteMode(false) on both sides, EX50 EntryScope tracing on the concrete entries.
+- 68d4090c: the GetValString body moved to FC4PropertyHolder.cpp behind `fc4::gVariantGetValString` (set at static init), because fc4_plugin_load_test links cFC4Variant.cpp without the core; there it answers false, value unchanged.
+- 1ab8f999: main merged (69 commits); fc4.h conflict resolved by keeping main's span565 block, then fc4_variant_get_string at the end.
+- Questions: EX53 filed (GetValString on scalar Char / RZUnicodeChar; literal reading: false, output unchanged); EX52 update (f) filed (slot 14/16 return values). QUESTIONS.md data-formats row: open 3, next free EX54.
 
-Done (7c19eb65, validated in round 3: built, gate green):
-- capi: `fc4_variant_get_string(var_type, data, count, sink, ctx) -> int32` (1 string/true, 0 text written/false, -1 nothing) in engine/capi/src/props.rs on fc4_formats `Property::get_string_into`; `variant_u32` refactored onto a shared `variant_value` (GameValue enum). Unit test `get_val_string_text_and_result`. Declared at the end of the function list in engine/capi/include/fc4.h (additive, no ABI bump).
-- plugin: cFC4Variant::GetValString (was the SDK stub, returns false/empty: the cause of the '' names) now goes through the capi; `fc4::VariantValueBytes` exported from FC4PropertyHolder.cpp (wraps the anon ValueBytes), declared in cFC4Variant.h; cFC4Variant.cpp includes fc4.h.
-- FC4ExemplarFactory.cpp: `EntryScope` (outermost-entry caller tracing, natural game/other vs ours fc4/fixture counters, nested GetPropertyList counted under the outer entry) on GetPropertyList, SetCohort, SetParent, RebuildEffective, DebugInstanceTag, CreateInstance(record)/CreateFromRecord, factory Read/Write/SerialWrite; `LogEntries()` after LogCallers at shutdown. RunSide2: SetWriteMode(false) via slot 12 on fe and fc, SetKey(kTypeExemplar,0x33,0x44) on e[3] and (…,0x33,0x45) on e[4] before SerialWrite.
+Measured
+- Gate (qbuild all): cargo 4107 passed / 0 failed, clippy 0, ctest 66/66. Focused test props::tests::get_val_string_text_and_result ok; rustfmt clean on props.rs.
+- Game gef4-r3-union2032 (default set + enable=exemplars, Konradshohe, turbo, end 2032): verdict clean, date 2032-01-02, ref_warnings 0, foreign_exceptions 0.
+- Contract 7/8 MATCH: list_order, remove_reveals_parent, setcohort_refs, stubs_tag_rebuild, rebuild_dest_a, serialwrite_d, tag_text_ef. DIFF add_slots_b: only s14 and s16 returns (native 2, ours 1); all effects match. Not forced (EX52 f).
+- EX50 concrete-entry counters, natural (game / other) vs ours (fc4 / fixture):
+  - CreateInstance(record): game 9157 (one caller, SimCity 4.exe+0x572F5C, abs 0x00972F5C), other 0 | fc4 0, fixture 0; nested GetPropertyList 3623.
+  - GetPropertyList 0/0 | 0/5; SetCohort 0/0 | 0/10 (nested 8); SetParent 0/0 | 0/0; RebuildEffective 0/0 | 0/9 (nested 5); DebugInstanceTag 0/0 | 0/7; Factory.Read 0/0 | 0/0; Factory.Write 0/0 | 0/0; SerialWrite 0/0 | 0/4.
+  - GetPropertyList by module: game 0, fc4 3623, fc4_fixture 18, other 0 (the fc4 calls are our rebuild inside the game's CreateInstance(record)).
+- Earlier runs: gef4-r1-union2032 crash (fixed 3b0c66ad), gef4-r2-union2032 clean, 4/8.
 
-Next (exact):
-1. File EX53 at the END of docs/specs/questions/data-formats.md (and QUESTIONS.md index per README): "section 5.1 GetValString on a scalar Char (0x0C) / RZUnicodeChar (0x0D): which text, which result? Literal reading taken: unsupported, false, output unchanged (fc4_variant_get_string -1)". Code comments already cite EX53.
-2. `qbuild.py --wt <WT> quick` then fix compile errors (watch: fc4_bytes_sink signature in the C++ SinkToString, EntryScope defined before ExHolder uses it, std::atomic arrays zero-init); `qbuild fmt engine/capi/src/props.rs`.
-3. `qbuild all` (baseline round 2: cargo 4099/0, clippy 0, ctest 65/65).
-4. Game: request with a NEW label (e.g. gef4-r3-union2032), default set + enable=exemplars, sim_turbo=1, end_date 2032; wait with qwait WITHOUT --fresh; grep log for "contract" and "EX50 entry". Expect GetValString DIFFs gone; slots 14/16 return DIFF remains (EX52, do not fix by guessing).
-5. Report: natural (game/other) vs ours (fc4/fixture) counters separately; keep old 4/8 and r1 crash trace facts.
+Remaining gaps
+- EX52 a-f open (slot 15 dest allocator and third word, serial slot 28 args, kind-1 key slot, text form, slot 14/16 returns); EX53 open; EX50 open: in city play without actions the game's only entry is CreateInstance(record) from 0x00972F5C, no game caller of GetPropertyList/SetCohort/SetParent/Rebuild/Tag/Read/Write/SerialWrite. A script run with a query-tool click and a save would complete it.
+- No default promotion: exemplars stays behind enable=exemplars.
 
-Facts: round-2 game runs gef4-r1-union2032 (crash, fixed), gef4-r2-union2032 (clean 2032, ref 0, 4/8 match). No request outstanding. EX52 open (slot 15 allocator, slot 28 args, slots 14/16 returns).
-Round 3 status: EX53 filed (63c-r3a), main merged 1ab8f999 (fc4.h conflict: span565 block then fc4_variant_get_string), GetValString body moved behind fc4::gVariantGetValString hook set in FC4PropertyHolder.cpp (68d4090c; fc4_plugin_load_test links cFC4Variant.cpp alone), rustfmt. Gate: cargo 4107/0, clippy 0, ctest 66/66. Game gef4-r3-union2032 QUEUED (req gef4-r3.req): next = qwait its verdict (no --fresh), grep log for "contract" and "EX50 entry", then report.
-
-## Report
+## Report (round 2, history)
 
 What changed (engine/plugin/FC4ExemplarFactory.cpp only)
 - Slot 15 with a non-null dest fills the native `{begin,end,cap}` vector of 8-byte `{id, prop*}`, one ref per element, ascending ID, own wins; the dest's old elements are released; the buffer grows with the STL node allocator (B, EX52 a). The object's effective list is left alone.
