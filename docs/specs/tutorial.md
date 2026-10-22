@@ -253,6 +253,58 @@ with the two details an implementer must not "tidy up":
 `Shutdown` returns true and has no initialised flag, so calling it twice repeats all three steps. Test 7 covers
 the happy path; an apply lane can implement §4.3 as written.
 
+#### 4.3.1 Debug cheat payload and dispatch (TU7)
+
+`0x0043F870` is the cheat-handler subobject's method (ECX = system base+8, one message pointer, pop4,
+AL true on every exit). Its argument is a **plain cheat notification**, not the message-target interface used
+by `0x0043F1A0`. Consumed fields are:
+
+| Offset | Representation |
+|---|---|
+| +0 | uint32 notification kind; must equal `0x230E27AC` |
+| +4 | uint32 cheat ID; must equal `0x6A382BAF` |
+| +8 | borrowed `cIGZString*` containing the whole command line, including its command-name token |
+
+First test +0; if different, return true without reading the string. Otherwise call the string interface's
+**slot 5** (`ToChar`), construct a local `cRZCmdLine` from those characters, then test +4. Even another cheat
+ID therefore reaches the local parser before being ignored (`0x0043F879`–`0x0043F8AA`). No pointer in the
+notification is retained. Registration is gated by app slot 21 as §4.3 says, but this method does not repeat
+that check.
+
+The native command-line tokenizer (`0x00914C70`) trims/splits on **space, tab and LF** outside double quotes,
+collapses adjacent delimiters and removes a token's enclosing pair of double quotes. Double quotes toggle
+delimiter suppression; there is no backslash-escape branch (`0x00914C9F`–`0x00914CD7`,
+`0x00914D0A`–`0x00914D98`, `0x00914DB5`–`0x00914DE3`). Token 0 is counted but not checked by this handler;
+token 1 is copied, lowercased with `cRZString::MakeLower`, then compared for **whole-string equality**.
+Only exactly 3 tokens or exactly 2 tokens are dispatched, in that order; all other counts do nothing.
+
+For three-token commands, token 2 is passed to `RZConvertToUint32A` (`0x0090FE93`), not interpreted as a
+message data field. This chooses base16 for a leading `0x`/`0X`, otherwise scans from the beginning: an
+`a`–`f`/`A`–`F` encountered before the first other nondigit selects base16, otherwise base10. It calls the native
+unsigned string-to-long conversion with no end pointer; the handler adds no full-token validation. Thus `100`
+is decimal 100 and `1e` is hexadecimal 30. The result is a 32-bit value; only `save n` explicitly rejects
+0 and `0xFFFFFFFF` (`0x0043F97E`–`0x0043F989`). Do not require every numeric token to begin with `0x` to accept hex.
+
+In this table, **system fields use base offsets**, not cheat-subobject offsets. App is `0x00B43C94`;
+region = app slot 35; regional-city metadata = app slot 36. Return values of all listed dispatch calls are ignored.
+
+| Token count / comparison order | Command | Ordered effect |
+|---|---|---|
+| 3 / first | `Tutorial reset n` | Convert n; if app exists, region slot **22** `ResetTutorialCity(n)`, system slot **5** `startTutorial()`, then system slot **17** `ResetTutorialNumAndIndex(n, 0)` (`0x0043F8F2`–`0x0043F941`). No separate numeric-range check |
+| 3 / second | `Tutorial save n` | Convert n; if 0 or all-ones, stop. Otherwise set is-tutorial byte +0x1F=1, GUID +0x24=n, task number +0x20=0, end-pending byte +0x2C=0; regional-city slot **66** `SetTutorialGUID(n)`, then app slot **9** `RequestSaveCity(1, 0)` (`0x0043F98F`–`0x0043F9C6`). No app-null guard in this branch |
+| 3 / third | `Tutorial step n` | Convert n; system slot **17** `(current GUID, n)` (`0x0043F9E8`–`0x0043FA10`). With no window that call returns false and changes nothing |
+| 2 / first | `Tutorial save` | Regional-city slot **66** `(current GUID)`, then app slot **9** `(1, 0)`; no field resets, no 0/all-ones check, no app-null guard (`0x0043FA60`–`0x0043FA88`) |
+| 2 / second | `Tutorial next` | Only with a window: direct `moveToNext`, `0x00443BD0`, `__thiscall`, ECX=window base, no arguments/pop0, no result consumed (`0x0043FAA6`–`0x0043FAAD`) |
+| 2 / third | `Tutorial quit` | Only with a window: system slot **6** `endTutorial(false)` (`0x0043FACA`–`0x0043FAD9`); leaves registry end pending until the ordinary pre-save path |
+| 2 / fourth | `Tutorial reset` | If app exists, region slot **22** `(current GUID)`, system slot **5**, then system slot **17** `(current GUID, 0)` (`0x0043FAF4`–`0x0043FB26`). The GUID for the last call is read again after start, not cached before region reset |
+
+`step` has no two-token form; `next` and `quit` have no three-token form. Unknown subcommands do nothing.
+The lowercase literals occupy `0x00A8620C` (quit), `0x00A86214` (next), `0x00A8621C` (step),
+`0x00A86224` (save), `0x00A8622C` (reset); comparison order above is the actual branch order.
+For example, `Tutorial NEXT` advances with a window, but `Tutorial next 1` does nothing; `Tutorial save 0`
+does nothing whereas `Tutorial save` passes the current GUID even when it is 0. The local parser/string
+temporaries are destroyed and AL is set to true (`0x0043FB29`–`0x0043FB52`).
+
 ### 4.4 Other slots (UI)
 
 Each forwards to the tutorial window when there is one:
@@ -482,3 +534,14 @@ the shared-getter names of 11, 12): `build-runs/re-specs13d-abi-rows.tsv`.
 7. **Shutdown** (TU5). Tutorial running with a window, cheat manager present: `Shutdown` closes the window, drops
    both references and clears +0x40, unregisters the cheat and its handler, unsubscribes the three messages, and
    leaves `IsTutorial` = 1. A message `0x26C63343` posted afterwards does nothing.
+8. **Original-window reopen protocol** (TU6/TU9; native integration expectation). A loaded tutorial with a known
+   active registry entry opens on its first city-init-complete message. Check two explicit owner references,
+   the live global binding, Init callbacks 7/12/11 and continued task progress through callback20. A second
+   init-complete message does not open a second window. Ending closes before both owner releases. Existing
+   without-window shadow runs do not establish this case.
+9. **Filter payload routing** (TU8). Use distinct +8/+12 dwords as in §4.4.2; verify F6/F7 forward +8 and
+   49D993D4 forwards +12 only for kind3, with AL true throughout. A forwarding-induced task advance must update
+   the owner's counter before returning.
+10. **Cheat arity and ordered effects** (TU7). Compare `Tutorial next` with `Tutorial next 1`, `save` with
+    `save 0`, and `step 1e` (index30). Check reset's region/start/reset-index ordering and save n's four field
+    writes before metadata/save calls. Preserve callbacks and window behavior; no-op handling is insufficient.

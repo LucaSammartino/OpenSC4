@@ -1,6 +1,18 @@
 # tutorial: answered questions (archive)
 
 <!-- from: glue-tutorial4 (2026-10-21) -->
+- **TU7 - section 4.3 (the debug cheat's subcommands):** the cheat `0x6A382BAF` "Tutorial" handler (`0x0043F870`,
+  message `0x230E27AC`) has subcommands reset, save, step, next, quit. Where in the message is the subcommand
+  (the cheat string, data field 1/2, a `cIGZString`?), how is it parsed, and what does each one do (which slots /
+  fields / registry and window calls, in order)? Only reachable when `cISC4App` slot 21 is true. [the handler is
+  registered as specified, logs the cheat and ignores it]
+  **ANSWERED 2026-10-22 (re-tutorial-contracts4):** DIFFERS — §4.3.1 proves the plain notification layout
+  (+0 kind,+4 cheat ID,+8 borrowed string interface), native tokenization, lowercase whole-token comparison,
+  exactly-three-token reset/save/step versus exactly-two-token save/next/quit/reset, numeric conversion and
+  ordered field/interface/window effects. Registration alone checks app21; the handler itself does not.
+  Arity, save validation and reset ordering are observable and ignoring the cheat omits those effects.
+
+<!-- from: glue-tutorial4 (2026-10-21) -->
 - **TU9 - sections 4.2 / 4.4 (the tutorial window as direct calls):** What allocator, constructor/Init/close/event
   arguments, reference counts, base pointer, slots 6-11 and tutorial-owner callbacks are required to retain the
   original window? **ANSWERED 2026-10-22 (re-tutorial-contracts4):** DIFFERS — §4.2.2 and §4.4.1 give the native

@@ -6,6 +6,7 @@ cSC4TutorialUIWinProc::constructor	00442920	__thiscall	100-byte heap-C allocatio
 cSC4TutorialUIWinProc::Init	00443e60	__thiscall	constructed window base	none	0	void (owner consumes no result)	uses global00b20e88 borrowed live cISC4TutorialSystem*; no owner argument	0043f0cf-0043f0d2;00443eda-00443ee2;00443f37-00443f6b;00444152
 cSC4TutorialUIWinProc::Shutdown	00442c80	__thiscall	constructed window base	none	0	void (owner consumes no result)	close before releasing the two owner references	00442c80-00442e34;0043f110; tutorial.md 4.2.2
 cSC4TutorialUIWinProc::OnTutorialEvent	00443970	__thiscall	constructed window base	event:uint32 by value	4	AL:true	no ownership transfer; temporarily retains current task	00443989;004439e1-004439e7
+cSC4TutorialUIWinProc::moveToNext	00443bd0	__thiscall	constructed window base	none	0	void (owner consumes no result)	temporarily retains current task and global tutorial-system interface; may post end message	0043faa6-0043faad;00443c10-00443c1c;00443ce3-00443cf6;00443e0f
 # Proposed destination: docs/abi/vtables.tsv; exact existing TSV column format follows. Only consumed base slots proposed; no full UI-owner credit.
 class	vtable	slot	offset	target	method	callee_pop	arg_dwords	ret	ret_confidence	notes
 cSC4TutorialUIWinProc::vftable	00a8638c	1	+0x4	0057eb00	cSC4TutorialUIWinProc::AddRef	0	0	eax	high	this=base; tail00968b60 increments base+4; tutorial.md4.2.2
