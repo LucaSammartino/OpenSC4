@@ -5,12 +5,12 @@ before it stops and moves the stop note it replaces, verbatim, to [docs/history/
 lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-10.md](history/handoff-2026-10.md).
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
-## 0. Current state (2026-10-21, run4 open-ended)
+## 0. Current state (2026-10-22, run4 open-ended)
 **Coordinator parked re-wingrid4:** 3/3:165/198 functions26103/32735B documented;33functions6632B plusWG3/WG4 remain. No fourth round.
 
 **train69 landed 1157a92093:** Final outsidePR5 e77f1bf1 included after its second head advance. RM7 proof cited unpublished region-city-dialogs; restored question and retained provisional RM1 timing rather than guessing. PR6/7 alreadylanded68 with full67native/97tools PASS and clean2032/ref0 union regression; security review recorded. Docs-only follow-up, no new runtime claim. Ten original-WT quota resumes, three new largest eligible fresh cores and checked effects retry queued, provider pause retained; no workers spawned,225rounds/nextcheckpoint250. Old merged-lane denial preserved. Coverage57.6/35.4/16.5/17.9; rounds225 (open-ended).
 
-**Post-PR continuation:** provider weekly quota still pauses refills. Ten original-WT resumes, three new byte-priority cores and the now-unblocked effects retry are reviewed/queued; launch only once provider clears, with fresh guards. [Recovery procedure](ops/run4-recovery.md). Old core-netocc4 remains stopped (resume denied alreadymerged/missingWT). No new workers started; nextcheckpoint250.
+**Post-PR continuation:**16 reviewed jobs remain queued with original round counts and worktrees. The user authorized both providers; Codex subscription adapter passed a real watchdog denial and115tools tests. Claude weekly-limit pause remains. Select Codex explicitly after the tooling train lands; validate a project round before full refills. [Provider/recovery procedure](ops/lane-providers.md). Old core-netocc4 remains stopped; nextcheckpoint250.
 
 **train68 landed f259852181:** Reviewed and merged outside PR5 lateste16ff6a8,PR6 and stackedPR7; retained histories, regenerated indexes and preserved current main. Corrected PR5 wildcard, reconciled3region aliases, closed overlay slot20/pedestrian slot158 gaps with public contracts and conformance. Explicit FreeType range extension and TerrainScrubber credit deferred CT3. Security review finds no executable/build/dependency changes or new script/credential patterns.97tools tests PASS on combined metadata; full native gate and house regression PASS before landing. New specs drive specified57.6%; other gains are attribution, no new engine/runtime replacement. Existing name rules exclude9compiler helpers860B; explicit library range unchanged. Provider weekly quota pauses refills, all WIP preserved. Coverage57.6/35.4/16.5/17.9; rounds225 (open-ended).
 
@@ -30,11 +30,11 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 **Assigned outside work** ([assignments.tsv](assignments.tsv)): the `region` subsystem is assigned to LucaSammartino
 (RE specs, by PR) until 2026-11-21. `lanes.py check` refuses a lane that names `region`. Do not spawn region work.
 
-**User policy:** no total round limit. Continue until user STOP, existing STOP, or no work passes check. Target10 live lanes (user raised for CPU/memory headroom), max3glue, max3rounds per lane. Refill immediately after slots/check pass; no fourth round or bypass of denial. Usage/rate limit pauses refills until clear. STOP: `python tools/lanes.py stop "<reason>"`, land on-disk ready work, push, end.
+**User policy:** no total round limit. Continue until user STOP, existing STOP, or no work passes check. Target6-8 live lanes, refill up to7 initially (latest user instruction), max3glue, max3rounds per lane. Refill immediately after slots/check pass; no fourth round or bypass of denial. Usage/rate limit pauses refills until clear. STOP: `python tools/lanes.py stop "<reason>"`, land on-disk ready work, push, end.
 
 **Coverage after train69:**57.6/35.4/16.5/17.9; baseline36.8/28.3/12.1/15.9, delta+20.8/+7.1/+4.4/+2.0 points. 42 trains landed; 225 rounds used, no total cap. Next25-round checkpoint 250.
 
-**Live authority:** `build-runs/run4-coordinator-state.json`; `run4-refill.py` launches reviewed briefs from `run4-refill-queue.json` through serialized `run4-launch.py` and the saved guarded Workflow. PID in run4-refill.pid; quota/errors pause refills. All slots/check/dependency/STOP/parked/3glue gates retained. After compaction reread this section and run guard before adding work. Helpers share run4_coord_lock.py; use its lock for state writes.
+**Live authority:** `build-runs/run4-coordinator-state.json`; tracked `tools/lane_refill.py --provider claude|codex` launches reviewed briefs through `tools/lane_launch.py`. Both retain one round ledger, guard policy, STOP/parked/capacity/subsystem checks. Provider errors pause refills; no automatic failover. After compaction reread this section and run guard. Manual state edits still use run4_coord_lock.py.
 
 **Train authority:** `build-runs/merge-train/state.json`; latest landed train69. Start next batch when2+ ready; guard and ancestry remain authoritative.
 
@@ -48,7 +48,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **After every train:** gen_handoff_tables.py, coverage.py, coverage_treemap.py; one status line here, commit/push. `run4-post-train.py` applies explicit tested maps and question-index upkeep after actual PASS+land. Remove landed nonparked worktrees only after verifying lane ancestor of main and clean state; keep branches and ignored evidence. Never remove active, unlanded or parked worktrees. C:>85% stops spawning until cleanup. Keep this section about60lines; archive older status lines to [today's history](history/handoff-2026-10-21.md).
 
-**Main/tools:** keep checkout clean; tool changes require full tools tests and immediate separate commit. Latest89PASS. Candidate union supports --add-shadow and --add-replace.38 default replacement keys include simgrids,propdev,citysit,occmgr,propmgr,lotcfg; ports remain candidate-only.
+**Main/tools:** keep checkout clean; tool changes require full tools tests and immediate separate commit. Latest115PASS. Candidate union supports --add-shadow and --add-replace.39 default replacement keys include simgrids,propdev,citysit,occmgr,propmgr,lotcfg; ports remain candidate-only.
 
 **Runtime:** elevated game queue6slots(pid23444) restarted after Windows elevation blocked non-elevated launches. Native CLI BG_WAIT_CEILING_MS=0; qwait without--fresh, unique labels. RE preflight must GO. Never set gate verdicts by hand.
 
