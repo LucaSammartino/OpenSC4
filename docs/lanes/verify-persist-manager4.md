@@ -10,10 +10,11 @@
 - Exclusions: no published owned-manager class acquisition; factory removal retains type associations; SDK cache strategy/filter interfaces are forward declarations. PR5 native callback cases remain excluded.
 - Done: 49b74ac7 records initial public ABI/ownership boundary; PR6/PR7 filed. Production-core resource-only C ABI and opt-in pre-city native probe implemented (23 commands, three independent literal keys, three creator-owned resource fixtures).
 - Baseline: cargo 4987/4987, clippy 0 diagnostics, CTest 68/68; source changed during final baseline CTest, so this is baseline evidence only. Logs copied to build-runs/baseline/.
-- Focused quick: initial transport passed 533 capi tests and 144/144 build edges; subsequent negative private-load/preflight additions require another quick.
-- Next: quick on current committed source, focused native request, then stable full gate and immutable-DLL native/component/exact-house40 controls through 2032 with full save and shutdown. No supported reload fixture supplied.
+- Done: source commit 8e321f6f; current quick PASS 533 capi tests, 5/5 build edges. DLL SHA256 0daa3a923fe7c266a674e306ebb240fc40730dc746e272e370255038de1bf40d.
+- Focused vpm4-r1-focus-8e321f6f: clean 2026-05-04/ref0; constructed 1, natural 0; exact 23/23, diff 0, positive 13, negative 10, refusal/fallback/resync 0; cleanup 3/3, creator_refs 3/3 before city. Full save ok=1 in 11328 ms and full shutdown.
+- Next: stable qbuild all, freeze immutable DLL/PDB and run native/component/exact-house40 controls through 2032 with full save and shutdown. No supported reload fixture supplied.
 - Formatting: new Rust module passes wrapper fmt. Checking lib.rs traverses unrelated pre-existing style differences; lib.rs itself passes rustfmt with skip_children=true,reorder_modules=false; no unrelated formatting changed. q.py Bash transport unavailable (E_ACCESSDENIED); local PowerShell commands and qbuild work.
 - Native scope: cached-hit load including failed QI/sentinel, duplicate insertion/registration key mutation, null/negative operations and balanced refs; uncached missing-factory load (preflight typed FindObjectFactory absence) is safe. No positive factory-driven load/cache-filter/PR5/base-resource implementation credit.
 - Constraints: no RE, no global-service teardown or existing-key mutations, no untyped cache calls, no subagents, no branch/ref changes.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-persist-manager4-r1-manifest.json.
-- Game requests: none outstanding. Measured verification: none yet.
+- Game requests: focused completed; none outstanding. Results under build-runs/game-results/.
