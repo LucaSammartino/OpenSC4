@@ -311,7 +311,56 @@ or rebuilds geometry (`0x00649916–0x006499A2`).
 wire vector does nothing. In 16-byte record order, read the interface at +8, AddRef it and append it
 to the destination linked list using a 12-byte node. It performs no null-interface test, clears neither
 source nor destination and does not deduplicate (`0x0064B6E0–0x0064B749`). The subsequent owner of
-the destination list must release these references. The 1338-byte geometry builder remains NT21.
+the destination list must release these references.
+
+### 5.3 Connection builder: record, geometry dispatch and lifetime
+
+`0x0064E3E0(self, other, optionalWireVector)` returns without changes for null other, an existing
+connection with **both** cell coordinates equal to other's, or other at self's computed cell. It does
+not use pointer equality to detect the existing connection. Self's cell here is truncation toward
+zero of world x divided by the float at `0x00B46760`, and world z divided by `0x00B4675C`; other's
+cell comes from its slot 8. The instruction trace, rather than the decompiler's register names,
+establishes these inputs (`0x0064E3E9–0x0064E47F`).
+
+The direction helper `0x0061F4C0(selfX,selfZ,otherX,otherZ)` returns 0 for equal z (including equal
+cells), 2 for equal x and unequal z, otherwise 1 when the two unsigned coordinate comparisons have
+the same result and 3 when they differ (`0x0061F4C0–0x0061F506`). This selects an attachment-bank
+orientation; it is not an endpoint compass direction.
+
+For a new connection allocate an empty circular list, retain other once, and initialise a 44-byte
+record: endpoint pointer +0; list head +4; byte +8 zero; byte +9 equal to unsigned
+`(selfZ,selfX) < (otherZ,otherX)`; other's cell at +12/+16; two empty geometry vectors at +20/+32.
+Probe service `0x00B43CF4`, slot 34, at self's stored cell +0xC8/+0xCC; only if false probe other's
+cell. The OR result controls the extra three-point geometry below. These probes also run for the
+endpoint that will not build geometry (`0x0064E49D–0x0064E558`).
+
+Only when byte +9 is true, obtain four world attachment points for each endpoint, using the **same**
+orientation for both. Helper `0x00649BA0` selects one of four 48-byte banks at endpoint +0xE4 and
+adds endpoint world position +0xA0/+0xA4/+0xA8 to each point, storing each sum as float32. For each
+of the four corresponding pairs, in index order:
+
+1. Call `0x0064A6C0(A,B,&controlA,&controlB,&N)`; there is no coincident-attachment guard here.
+2. Allocate N float32 triplets. Copy A to the first triplet. Call `0x006493B0` with A, controlA,
+   controlB, B, output beginning at triplet 1, and count N−1. Append this owned triplet buffer to
+   the record's first geometry vector; each vector entry is 12 bytes (buffer/end/capacity).
+3. If the service OR result is true, allocate three triplets and call the same sampler with the
+   same four points and count 3, starting at triplet 0. Append this buffer to the second geometry
+   vector. No separately copied A precedes these three samples.
+
+These calls and counts are instruction-derived (`0x0064E55E–0x0064E7FE`); NT21 still covers the
+helpers' full numeric curve contract. Do not substitute an inferred straight line or fixed segment
+count. After all four pairs, copy optional wire references into the record list through §5.2, then
+call self's occupant-view slot 15 with `(0x99EF1145,0)`. With byte +9 false, skip geometry, optional
+wire copying and this call; still append the connection record and set self +0xD0 to 1
+(`0x0064E804–0x0064E879`).
+
+Appending deep-copies the record's list nodes and geometry storage (`0x0064CFA0`); the endpoint's
+single retained reference is owned by the stored record, not released at this return. Temporary
+geometry buffers, their vector storage, list nodes and sentinel are freed after the copy. The
+temporary list is freed without releasing its copied interface payloads, transferring responsibility
+for the AddRefs taken by §5.2 to the stored connection. The caller's optional vector is neither
+cleared nor consumed (`0x0064E886–0x0064E91C`). The nested-copy helper's full allocation details
+remain outside this bounded trace; no completion credit for that dependency follows from the call.
 
 ## 6. Reserved-tile walk and zone update
 

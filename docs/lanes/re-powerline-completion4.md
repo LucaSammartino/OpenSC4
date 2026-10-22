@@ -1,6 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-powerline-completion4 (PowerLineTool public owner contracts) | `re-powerline-completion4` / (RE spec lane) | wip: bounded contracts committed; 46 functions / 16156 B inventoried; 48 vectors; owner incomplete | 1. NT21 geometry, NT22 entry/pole orchestration, NT23 regional Attempt, NT24 containers/count; no promotion. |
+| re-powerline-completion4 (PowerLineTool public owner contracts) | `re-powerline-completion4` / (RE spec lane) | in progress: final round 3; owner incomplete | NT21 native geometry first; NT18/NT22–NT24 exact residuals; PARK at end, no fourth round. |
+
+## Handoff
+
+- Goal: final round 3 native-evidence completion of bounded power-line contracts; no owner promotion without proof.
+- Preserved: round-2 tip `27cc9cf9`, prior `67f996cf`; 46 functions / 16156 B, 48 unique vectors.
+- Done: §5.3 native trace of all 1338 B in `0064E3E0`: record gate, four geometry pairs, sample counts, optional vector/reference lifetime and cleanup.
+- Next: numeric curve-helper contract remains NT21; then zone entry/cleanup, type-5 regional Attempt, containers and +398 construction.
+- Remaining public questions: NT18, NT21–NT24 in questions/network-tools.md; prior report below gives exact residuals.
+- Main checkout read-only; no engine/tools/ABI-table changes. Detached HEAD: commit without ref changes.
+- Bash q.py fails E_ACCESSDENIED; bounded native PowerShell used. No REA required for exported bodies.
+- Evidence helpers: build-runs/inspect-power.py, power-owner.py and power-owner.tsv.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-powerline-completion4-r3-manifest.json.
+- Stop after this round: publish bounded docs and explicitly PARK any unproved owner obligations; no fourth round.
 
 ## Report — 2026-10-22, round 2
 

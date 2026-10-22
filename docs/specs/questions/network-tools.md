@@ -79,6 +79,10 @@
   instruction-derived contracts in §5.2; these two helper obligations are resolved.
   Reach attributes these pole-occupant helpers to this tool. Observed ordering is specified, numeric
   geometry is not. [not proved]
+  **Partial answer 2026-10-22, final round (re-powerline-completion4):** §5.3 traces the complete
+  1338-byte builder's record gating, four attachment-pair calls, N−1 versus 3 sample counts,
+  optional reference copy and temporary cleanup. Full numeric `0064A6C0` / `006493B0` contracts
+  and nested geometry-copy allocation details remain; no whole-owner completion claim.
 - **NT22 - power-line-tool.md §6, zone repair:** prove UpdateOnZoneChange `0x006522F0` deduplication,
   rectangle-edge/split-cell behavior and query/ref-release order; FindNewPolePosition `0x006520C0`
   endpoint selection when either endpoint is null. Entry guard and outside-clear search are proved;
