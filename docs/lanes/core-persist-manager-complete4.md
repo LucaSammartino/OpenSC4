@@ -10,7 +10,11 @@
   audit now records published PR5 and explicit PR4 uninitialized-byte deviation.
 - Added three PR5 tests with exact primitive traces and ownership cleanup;
   A-D run with/without output, E checks duplicates/type filters, F both predicates.
-- Next: finish focused core/conformance quick check, then stable full gate/fmt.
+- Done: 295792c5 production PR5; 7dcbdb17 tests and complete audit refresh.
+- Focused fc4verify --crates fc4-core,fc4-conformance quick PASS: 4274/0,
+  10 result lines; build 4/4 edges; 136.9 seconds, unchanged tree.
+- fmt PASS on both touched Rust files (absolute paths required by wrapper).
+- Next: qbuild all on this stable committed tree, then final report and queue.
 - First focused compile found a missing Clone derive on test events; corrected.
 - Audit inventory has 109 rows; portable KeyList cannot model failing foreign append.
 - Source: engine/core/src/persistence_manager/{cache,manager,test_host,table,primitives}.rs and AUDIT.md.
