@@ -65,6 +65,7 @@
 #include <windows.h>
 
 #include <cstring>
+#include "FC4CmdLineProbe.h"  // opt-in public, read-only command-line probe
 
 #ifndef FC4_VERSION_STRING
 #define FC4_VERSION_STRING "0.1.0"
@@ -357,6 +358,7 @@ public:
         fc4::MySimsShadowStart();        // mysims_shadow (FC4MySimsShadow.h)
         fc4::SpanRender4444Start();      // enable = span4444 (FC4SpanRender4444.h)
         fc4::SpanRender8888Start();      // enable = span8888 (opt-in)
+        fc4::CmdLineProbe(FrameWork());  // opt-in public borrowed process query evidence
         fc4::FpuLog("hook PostAppInit (exit)");
         return true;
     }

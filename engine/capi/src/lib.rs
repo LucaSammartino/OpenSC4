@@ -1121,3 +1121,6 @@ pub mod span_render8888;
 mod simgrids_verify;
 // glue-dates4: published cIGZDate scalar/text contracts.
 pub mod dates;
+
+// Private ephemeral process command-line read-only verification transport.
+mod cmdline_probe;

@@ -1,8 +1,23 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-cmdline-native4: independent original command-line verification | `verify-cmdline-native4` / (engine lane, detached worktree) | blocked: CL4 owned-original binding contract absent; constructed 0/0, natural 0/0; cargo/clippy/ctest and game n/a; no ABI changes | 1. Publish the CL4 binding contract. 2. Resume independent production comparisons and required game controls only after it is available. |
+| verify-cmdline-native4: public native read-only queries | `verify-cmdline-native4` / detached worktree | in progress: round 2, public framework route audit and baseline running | Compare borrowed process getters with production Rust; full gate and immutable 2032 native/current40 controls. |
 
-## Report
+## Handoff
+
+- Goal: public cIGZFrameWork::CommandLine borrowed getters versus Rust with independently captured GetCommandLineA input.
+- Prior milestone: 1c194a5e filed CL4; owned construction/mutators/lifetime remain open and outside this phase.
+- Worktree reused detached at 1c194a5e, initially clean; no refs modified.
+- Public safe route demonstrated in source by call 15: initialized director FrameWork(), audited framework hold, typed CommandLine(), const borrowed getters, zero borrowed releases.
+- Thin CAPI now calls actual production CmdLine; no native output used as parser input. Private exports added, ABI version/maps unchanged.
+- Baseline cargo/clippy passed; C++ failed because first hook edit overlapped baseline compilation (missing include then fixed). Retain this attempt; stable full gate still required.
+- First fmt attempt used relative paths and was refused as nonexistent; use absolute file paths.
+- Next: format only new CAPI file, commit implementation before call 30, quick then stable all, immutable controls.
+- Preserve CL1 extra slot, CL2 empty name, CL3 high bytes; no full 17-method claim.
+- No game requests yet; use unique labels and wait without qwait.
+- Required: immutable native/current40 controls, full save/shutdown to 2032, ref0, supported reload only.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-cmdline-native4-r2-manifest.json.
+
+## Prior round report (retained)
 
 The prerequisite audit stopped before 15 tool calls. No fully documented owned original construction path was established. Filed CL4 in `docs/specs/questions/command-line.md`; production core, CAPI, plugin, defaults and ABI tables are unchanged. The reserved worktree was reused with detached HEAD and an initially clean tree.
 
