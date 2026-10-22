@@ -5,6 +5,32 @@ use super::tests::{city, manager};
 use super::*;
 use std::sync::Mutex;
 
+struct EmptyResources;
+impl Resources for EmptyResources {
+    fn image(&mut self, _: u32, _: u32) -> Option<Box<dyn TexturePixels>> {
+        None
+    }
+}
+#[test]
+fn constructor_zero_map_rotation_and_shutdown_retained_matrix() {
+    let statics = LightingStatics::new(Parameters::initial());
+    statics.update(|p| p.test_pattern = true);
+    let mut m = LightingManager::new(statics, RegisterPrecision::Bits64);
+    let mut events = Vec::new();
+    assert_eq!(m.init(0, None, &mut EmptyResources, &mut events), Ok(true));
+    for normal in [[1.0, 0.0, 0.0], [0.0, 0.0, 1.0]] {
+        assert_eq!(m.get_color(normal), Ok([0.0; 3]));
+        assert_eq!(m.get_model_color(normal), Ok([0.0; 3]));
+    }
+    m.do_zoom_and_rotation_change(0, 0).unwrap();
+    assert_eq!(m.get_color([1.0, 0.0, 0.0]), Ok([1.0, 0.0, 0.0]));
+    assert!(m.shutdown(&mut events));
+    assert!(!m.view_applied());
+    assert_eq!(m.init(0, None, &mut EmptyResources, &mut events), Ok(true));
+    assert_eq!(m.get_model_color([1.0, 0.0, 0.0]), Ok([1.0, 0.0, 0.0]));
+    m.shutdown(&mut events);
+}
+
 #[test]
 fn native_initial_state_shared_defaults_and_query_counts() {
     let statics = LightingStatics::new(Parameters::initial());

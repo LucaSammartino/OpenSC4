@@ -108,6 +108,7 @@ impl LightingManager {
     }
     pub fn do_zoom_and_rotation_change(&mut self, zoom: u8, rotation: u8) -> Result<()> {
         self.rotation = rotation % 4;
+        self.map_rotation_initialized = true;
         self.zoom = zoom;
         self.key = rotate(normalize([-1.0, 1.0, 1.0]), rotation);
         self.fill = rotate(normalize([1.0, 0.5, -1.0]), rotation);

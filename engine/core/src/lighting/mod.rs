@@ -54,6 +54,7 @@ pub struct LightingManager {
     shadow_direction: Vector,
     scaled_light: Color,
     rotation: u8,
+    map_rotation_initialized: bool,
     zoom: u8,
     global_light: Color,
     day_light: Color,
@@ -105,6 +106,7 @@ impl LightingManager {
             shadow_direction: [0.0; 3],
             scaled_light: [0.0; 3],
             rotation: 0,
+            map_rotation_initialized: false,
             zoom: 0,
             global_light: WHITE,
             day_light: WHITE,
@@ -261,6 +263,16 @@ impl LightingManager {
     }
     pub fn get_time_of_day(&self) -> f32 {
         self.time
+    }
+    fn map_normal(&self, normal: Vector) -> Vector {
+        if self.map_rotation_initialized {
+            normal
+        } else {
+            // LT5: the constructor's stored 2x2 is zero, not identity. Preserve
+            // zero products (and hence nonfinite propagation) before first view.
+            let zero = 0.0 * normal[0] + 0.0 * normal[2];
+            [zero, normal[1], zero]
+        }
     }
     pub fn month(&self) -> u8 {
         self.month
