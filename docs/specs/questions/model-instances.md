@@ -9,7 +9,3 @@
 <!-- from: re-modelinst (2026-10-20) -->
 - **MI2 - §4:** what `LightModel`'s `flip` argument is for (it negates the rotation used to light the normals) and
   which callers pass true. [as read]
-
-
-
-
