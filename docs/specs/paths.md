@@ -24,8 +24,9 @@ paths are never case-folded; nothing here is saved.
 
 ## 1. Path utilities *[compat]*
 
-A **separator** is `\` or `/` (`IsPathSeparator`, `0x005F8FE0`). A **letter** is ASCII `A`–`Z` or `a`–`z`
-(`0x00917AE0`).
+A **separator** is `\` or `/` (`IsPathSeparator`, `0x005F8FE0`). The explicit `IsASCIILetter` helper
+(`0x00917AE0`) recognizes ASCII A–Z and a–z; Fullpath's drive branch uses it (`0x00918624–0x0091862D`).
+IsFullPath and FixDriveString instead use CRT locale classification (§2.3).
 
 ### 1.1 `IsFullPath(p)` (`0x00918080`; on a `cRZString`, `0x009186E7`)
 
@@ -138,6 +139,35 @@ So `GetPath` of `adv_const.lua` resolved against `C:\Games\SC4` is `C:\Games\SC4
 resolved path already has a letter drive and a directory that starts and ends with a separator, so the fixes change
 only what a failed resolution or a `Set…` call left behind.
 
+### 2.3 Byte strings, equality and locale (PA4)
+
+The 255/520/521 limits in §§1–2 count **bytes**, with the separately stated treatment of trailing
+NUL. Fullpath copies single bytes, advances pointers by one and adds `strlen(rel)` before the 521
+comparison (`0x00917EAE–0x00917EF8`); Splitpath uses strlen, byte scans and copies
+(`0x00917BDA–0x00917C23`). These owners do not decode, normalize or transcode bytes, and establish
+no particular UTF-8 or other encoding.
+
+SetFileName and SetExtension compare through `0x00454BB0–0x00454C06`: compare stored begin/end byte
+lengths, then all bytes case-sensitively. Embedded NUL does **not** end comparison. Unsplit assignment
+uses the source's entire begin/end range (`0x00424399–0x004243A5`), preserving embedded NULs. Split
+assignment passes the character pointer to the C-string splitter, stopping at the first NUL
+(`0x009194C3–0x009194C9`). IsFullPath's string overload also passes only the character pointer
+(`0x009186E7–0x009186F4`). ResolvePath can therefore accept a fully qualified C-string prefix, then
+copy the complete stored byte range (`0x0091973C–0x00919753`).
+
+IsFullPath and FixDriveString sign-extend the first byte and call `_isalpha`
+(`0x00918085–0x00918089`, `0x0091C3B0–0x0091C3B6`). The CRT uses the thread's locale information,
+refreshing it when stale; for single-byte locales it tests mask `0x103` in the locale's table, and
+for multibyte locales calls `___isctype_mt` (`0x009EF56A–0x009EF5A8`). Thus their native rule is
+**CRT locale-dependent**, not unconditional ASCII or Unicode alphabetic membership. These owners
+establish neither a fixed runtime locale nor safe behavior for every negative signed byte outside
+the CRT classifier's valid domain.
+
+Distinguishing vectors: `a` and `A` differ; stored `a\0x` and `a\0y` differ despite equal C-string
+prefixes. An unsplit filename setter retains all three bytes; split mode processes only `a`. A
+sequence of 128 two-byte characters has byte length 256 for these bounds. High-bit drive tests
+require the native CRT locale/input-domain behavior, not host Unicode classification.
+
 ## 3. `cRZDirectory` *[compat]*
 
 ### 3.1 State (0x34 bytes)
@@ -163,7 +193,7 @@ kind 4 for a directory and 8 for a file.
 | `ChangeDirectory(path, read)` | `0x0091BCAD` | `path :=` it, made to end with a separator; `ReadDirectoryEntries` if `read`; true |
 | `SetNewDirectoryEntryFilter(f, read)` | `0x0091BCD7` | `filter := f`, or `*` when `f` is empty; `ReadDirectoryEntries` if `read` |
 | `GetNthEntry(n)` | `0x0091AD83` | the `n`-th entry in list order, or null when `n ≥` the count |
-| `AlphabetizeEntryList(cmp)` | `0x0091AE1E` | sorts the list with the caller's comparison |
+| `AlphabetizeEntryList(stringList)` (static) | `0x0091AE1E` | sorts the supplied **string** list by byte order; see §3.10 |
 
 ### 3.3 `ReadDirectoryEntries()` (`0x0091BA22`)
 
@@ -233,6 +263,71 @@ a snapshot album, and the file browser.
 path has only one part, `parent` is read from a buffer §1.6 did not write *[quirk]*; *[choice]* FreeCity4 gives an
 empty `parent`.
 
+### 3.10 Directory-entry owner and string-list sort (PA5, PA8)
+
+The native named out-of-line `cRZDirectoryEntry` inventory is **three bodies, 94 bytes**, not an inferred
+COM interface: default constructor `0x0091ADC2` (22 bytes), copy constructor `0x0091AEED` (41), deleting
+destructor `0x0091ADFF` (31). There is no vptr in the constructed layout (§3.1). No separate assignment,
+getter, name/path composition, comparison or ownership method is established by this inventory; list-template
+operations are not additional entry methods.
+
+- Default construction sets the owner pointer null, constructs an empty name string at +4, then sets the
+  32-bit kind word at +0x18 to zero (`0x0091ADC2–0x0091ADD7`). Kind zero is the default, not file kind 8.
+- Copy construction copies the owner pointer verbatim, copy-constructs the **whole name string**, then copies
+  the kind word (`0x0091AEED–0x0091AF15`). It performs no directory AddRef and does not resolve a full path.
+  The copied name has an independent string lifetime; the directory pointer remains borrowed.
+- Destruction destroys only the name. Flags bit 0 additionally frees the entry allocation; it neither releases
+  nor destroys the directory (`0x0091ADFF–0x0091AE1D`). Other flag bits do not select extra cleanup.
+- `GetNthEntry` returns the actual list-node payload (node +8), with no copy/reference increment
+  (`0x0091AD83–0x0091ADA6`). A reread erases every old entry **before** attempting the new search, including
+  on a failed search (`0x0091BA73–0x0091BAA8`). Those borrowed pointers and their names then become invalid.
+  Directory destruction also destroys the list after its filter/path strings (`0x0091B2F7–0x0091B311`).
+  Changing path with `read=false` keeps the existing entries and pointers alive, with the owner directory now
+  holding the new path; `read=true` invalidates them through reread (`0x0091BCAD–0x0091BCD6`). A standalone
+  copied name survives reread/directory destruction, but its copied owner pointer does not keep the owner alive.
+
+**Signature correction:** `AlphabetizeEntryList` (`0x0091AE1E–0x0091AE30`) is a static utility taking a
+**list of strings**, with no comparison callback. The native caller builds a directory-name string list and
+passes that same list (`0x009A4F6C–0x009A4F7E`). It does not pass a directory object, an entry list or a
+function pointer. Thus it neither rearranges nor invalidates the entries returned by `GetNthEntry`.
+
+Its list sort (`0x007B75F0`) merges by case-sensitive unsigned-byte lexicographic order, comparing counted
+string spans with the shorter length first, then lengths when the common prefix matches
+(`0x007B7158–0x007B71B2`). Embedded NUL is a byte in that comparison. It splices list nodes, rather than
+copying strings. Equal strings keep their original order: a right-run element moves ahead only when it is
+strictly less; equality advances the left-run cursor (`0x007B71B2–0x007B71F8`). For example `b`, `A`, `a`
+sorts to `A`, `a`, `b`; two equal `a` nodes retain identity/order. A portable caller-supplied name comparator
+is an extension, not this native method's contract.
+
+### 3.11 SplitDirectory byte-boundary vectors (PA6)
+
+The 255 checks in §1.6 use byte/index arithmetic, **not** a Unicode character count. Capacity and intermediate
+indices are signed 32-bit values. For a nonempty input, capacity zero yields **true with count 0**, without
+writing any part (`0x00917D68–0x00917D70`, `0x00917E14–0x00917E6B`). Empty input still fails with count 0.
+An input consisting of one byte (`x` or a single separator) succeeds with count 0 even with spare capacity:
+the final prefix is emitted only when its tracked end index is positive (`0x00917D39`, `0x00917E10`).
+
+The bound applies to the **computed span**, which differs by branch. A suffix split at a separator copies
+`trackedEnd−separatorIndex` bytes, including an existing trailing separator, then rejects span ≥255
+(`0x00917DD4–0x00917DED`, `0x00917DA3–0x00917DB1`). The no-earlier-separator branch instead copies the
+tracked end index bytes, accounting for §1.6's lost last character on a bare name. The final aggregate prefix
+also checks its tracked end index against 255; short individual components do not exempt a long prefix
+(`0x00917E10–0x00917E39`). A rejection resets count to 0 and returns false; earlier output writes need not
+be undone. A separator already present is retained; otherwise a backslash and NUL are appended.
+
+| Input (N denotes that many `x` bytes) | Capacity | Result |
+|---|---:|---|
+| `abc` | 0 | true, count 0; output untouched |
+| 254 `x` followed by `\` | 2 | true, one part: 254 `x` plus `\` |
+| 255 `x` followed by `\` | 2 | false, count 0 |
+| `a\` + 254 `x` + `\` | 2 | false: suffix span is 255 including its existing separator |
+| `a\` + 253 `x` + `\` | 2 | true: suffix span 254, then `a\` |
+| `\a\` | 8 | true, only `a\`; the leading root separator is not a separate part |
+| `C:\a\` | 8 | true, `a\`, then `C:\` |
+
+With capacity 1, a remaining aggregate prefix of at least 255 bytes is rejected even when all of its component
+names are short. The previously published assumption that any root is retained as its own part is incorrect.
+
 ## 4. Finding files (`RZFileFindFirst`, next, `RZFileFindFinish`)
 
 `RZFileFindFirst(pattern)` (`0x0091B0A1`) converts the pattern to the system code page (`ConvertStringEncoding`,
@@ -247,6 +342,15 @@ collation order); nothing here sorts *[compat-limit]*.
 Four function pointers (`0x00B6291C`, `0x00B62920`: find first and next; `0x00B62924`, `0x00B62928`: create and
 remove directory) would replace these calls, but nothing in 1.1.641 sets them, so the ANSI Win32 calls are always
 used *[inferred]*.
+
+### 4.1 Exhaustion state (PA7)
+
+`RZFileFindNext` returns false for a null search object or a failed next call (hook or Win32 branch). On either
+next-call failure it leaves the cached name, directory flag **and handle** unchanged
+(`0x0091B246–0x0091B24A`, `0x0091B280–0x0091B288`, `0x0091B2D1–0x0091B2D5`). Only success assigns
+the new name/flag. It neither closes the handle nor marks the object exhausted. Calling next again reissues
+the provider call using the same stored handle; there is no native terminal-state guard. The separate finish
+operation still owns closure. Automatic close-on-first-failure is a portable lifetime policy, not this body.
 
 ## 5. Users
 
