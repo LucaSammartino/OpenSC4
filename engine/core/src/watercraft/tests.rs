@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Independent vectors from watercraft §§2-7,9,11, not captured native output.
+#![allow(clippy::approx_constant)] // The specification publishes rounded decimal constants.
 use super::*;
 use crate::automata::{AutomatonBase, State};
 use crate::stream::{ByteReader, ByteWriter};
@@ -15,7 +16,13 @@ fn group() -> Arc<Group> {
 }
 
 fn boat() -> Watercraft {
-    let mut boat = Watercraft::new(WatercraftRecord { base: AutomatonBase::new() }, group(), 5.0);
+    let mut boat = Watercraft::new(
+        WatercraftRecord {
+            base: AutomatonBase::new(),
+        },
+        group(),
+        5.0,
+    );
     boat.heading = [1.0, 0.0, 0.0];
     boat.previous_heading = boat.heading;
     boat
@@ -65,12 +72,27 @@ impl DockManager for Manager {
 
 struct Water;
 impl Terrain for Water {
-    fn contains(&self, cell: Cell) -> bool { (0..100).contains(&cell.x) && (0..100).contains(&cell.z) }
-    fn cell_at(&self, position: [f32; 3]) -> Cell { Cell { x: position[0] as i32, z: position[2] as i32 } }
-    fn terrain_height(&self, _: [f32; 3]) -> f32 { -10.0 }
-    fn sea_level(&self) -> f32 { 0.0 }
-    fn water_height(&self, _: [f32; 3]) -> f32 { 0.0 }
-    fn navigable(&self, _: Cell, _: u32, _: Option<&Resource>) -> bool { true }
+    fn contains(&self, cell: Cell) -> bool {
+        (0..100).contains(&cell.x) && (0..100).contains(&cell.z)
+    }
+    fn cell_at(&self, position: [f32; 3]) -> Cell {
+        Cell {
+            x: position[0] as i32,
+            z: position[2] as i32,
+        }
+    }
+    fn terrain_height(&self, _: [f32; 3]) -> f32 {
+        -10.0
+    }
+    fn sea_level(&self) -> f32 {
+        0.0
+    }
+    fn water_height(&self, _: [f32; 3]) -> f32 {
+        0.0
+    }
+    fn navigable(&self, _: Cell, _: u32, _: Option<&Resource>) -> bool {
+        true
+    }
 }
 
 #[test]
@@ -130,9 +152,22 @@ fn record_only_saves_version_and_base_and_rejects_truncation() {
     assert!(original.record.write(&mut writer));
     let bytes = writer.bytes();
     assert_eq!(&bytes[..4], &[2, 0, 8, 0]);
-    assert_eq!(WatercraftRecord::read(&mut ByteReader::new(bytes)).unwrap(), original.record);
+    let loaded = WatercraftRecord::read(&mut ByteReader::new(bytes)).unwrap();
+    assert_eq!(loaded.base.states, original.record.base.states);
+    assert_eq!(loaded.base.vectors, original.record.base.vectors);
+    assert_eq!(loaded.base.automata_flags, original.record.base.automata_flags);
+    // OccupantBase::read applies its inherited loaded-status bit. Runtime
+    // watercraft fields are absent: changing them cannot change the record.
+    original.lifetime_elapsed = 1.0;
+    original.position = [0.0; 3];
+    let mut again = ByteWriter::new();
+    assert!(original.record.write(&mut again));
+    assert_eq!(bytes, again.bytes());
     for end in 0..bytes.len() {
-        assert!(WatercraftRecord::read(&mut ByteReader::new(&bytes[..end])).is_none(), "truncation {end}");
+        assert!(
+            WatercraftRecord::read(&mut ByteReader::new(&bytes[..end])).is_none(),
+            "truncation {end}"
+        );
     }
     let mut bad = bytes.to_vec();
     bad[0] = 3;
@@ -143,16 +178,28 @@ fn record_only_saves_version_and_base_and_rejects_truncation() {
 fn state_entry_exit_and_remove_side_effect_order() {
     let mut fleet = fleet();
     let mut no_manager = None;
-    fleet.push_state(1, State::new(state::PLAYER_DRIVE), &mut no_manager).unwrap();
+    fleet
+        .push_state(1, State::new(state::PLAYER_DRIVE), &mut no_manager)
+        .unwrap();
     let b = &fleet.boats[&1];
     assert_eq!(b.player.field_144, 15);
     assert_eq!(b.player.field_1ac, 2000.0);
     assert_eq!(b.player.turn_rate, 0.2618);
     assert_eq!(b.events, [Event::ActiveSound(false)]);
     fleet.pop_state(1, &mut no_manager).unwrap();
-    fleet.push_state(1, State::new(state::SLOW_REMOVE), &mut no_manager).unwrap();
+    fleet
+        .push_state(1, State::new(state::SLOW_REMOVE), &mut no_manager)
+        .unwrap();
     fleet.state_tick(1, 1.0, &mut no_manager).unwrap();
-    assert_eq!(fleet.boats[&1].events, [Event::ActiveSound(false), Event::ActiveSound(true), Event::Remove(false), Event::Remove(false)]);
+    assert_eq!(
+        fleet.boats[&1].events,
+        [
+            Event::ActiveSound(false),
+            Event::ActiveSound(true),
+            Event::Remove(false),
+            Event::Remove(false)
+        ]
+    );
 }
 
 #[test]
@@ -164,7 +211,10 @@ fn idle_is_cumulative_and_strictly_above_sixty_seconds_falls_through() {
     assert_eq!(fleet.boats[&1].top_state(), Some(state::IDLE));
     fleet.pop_state(1, &mut manager).unwrap();
     fleet.push_state(1, State::new(state::IDLE), &mut manager).unwrap();
-    assert_eq!(fleet.state_tick(1, 1.0, &mut manager), Err(ContractGap::CrashSequenceWc5));
+    assert_eq!(
+        fleet.state_tick(1, 1.0, &mut manager),
+        Err(ContractGap::CrashSequenceWc5)
+    );
     assert_eq!(fleet.boats[&1].idle_elapsed, 60_001.0);
     assert_eq!(fleet.boats[&1].crash_elapsed, 1.0);
     assert_eq!(fleet.boats[&1].top_state(), Some(state::SLOW_REMOVE));
@@ -175,11 +225,25 @@ fn ferry_public_vector_selects_berth_wait_or_remove_and_preserves_order() {
     for (berth, waiting, expected, calls) in [
         (true, true, state::DOCK, vec!["berth:2:1"]),
         (false, true, state::QUEUE, vec!["berth:2:1", "wait:2:1"]),
-        (false, false, state::SLOW_REMOVE, vec!["berth:2:1", "wait:2:1"]),
+        // Entering removal also gives back the source berth (§4 EndDocking).
+        (
+            false,
+            false,
+            state::SLOW_REMOVE,
+            vec!["berth:2:1", "wait:2:1", "done:1:1"],
+        ),
     ] {
         let mut fleet = fleet();
-        fleet.boats.get_mut(&1).unwrap().set_station_information([station(1, 0.0), station(2, 250.0)], true);
-        let mut manager = Manager { berth, waiting, ..Manager::default() };
+        fleet
+            .boats
+            .get_mut(&1)
+            .unwrap()
+            .set_station_information([station(1, 0.0), station(2, 250.0)], true);
+        let mut manager = Manager {
+            berth,
+            waiting,
+            ..Manager::default()
+        };
         fleet.dock_requests(1, &mut Some(&mut manager)).unwrap();
         assert_eq!(fleet.boats[&1].top_state(), Some(expected));
         assert_eq!(manager.calls, calls);
@@ -208,7 +272,10 @@ fn public_docked_vector_and_far_approach_gap() {
     b.heading = [angle.cos(), 0.0, angle.sin()];
     assert_eq!(fleet.docking_tick(1, 1.0, &Water, &mut None), Ok(false));
     fleet.boats.get_mut(&1).unwrap().position = [200.0, 0.0, 0.0];
-    assert_eq!(fleet.docking_tick(1, 1.0, &Water, &mut None), Err(ContractGap::AiMotionWc4));
+    assert_eq!(
+        fleet.docking_tick(1, 1.0, &Water, &mut None),
+        Err(ContractGap::AiMotionWc4)
+    );
 }
 
 #[test]
@@ -247,7 +314,10 @@ fn exact_gear_gates_and_rudder() {
     assert_eq!(b.select_gear(0.0, 150.0), Some((Gear::Forward, 0.0)));
     assert_eq!(b.select_gear(-1.0, 150.0), Some((Gear::Reverse, -150.0)));
     assert_eq!(b.select_gear(-1.0, 149.0), Some((Gear::Neutral, 0.0)));
-    b.group = Arc::new(Group { aems_value: None, ..(*group()).clone() });
+    b.group = Arc::new(Group {
+        aems_value: None,
+        ..(*group()).clone()
+    });
     assert_eq!(b.select_gear(1.0, 500.0), None);
     b.turn = 2.0;
     assert_eq!(b.rudder_angle(), -0.25);
@@ -274,4 +344,348 @@ fn debug_text_has_exact_fields_width_and_negative_zero() {
     b.queued = true;
     assert_eq!(b.debug_extra_text([2, 3], Cell { x: 1, z: -2 }),
         "Tow: 0, (FT,MT): (2,3), (Q,D): (1,0), Turn: -0.00, Speed: 0.00, Cell(  1, -2), Pos(0.00,0.00,0.00), Ornt<1.00,0.00,0.00>");
+}
+
+#[test]
+fn direction_order_excludes_reverse_and_respects_every_mask_bit() {
+    assert_eq!(candidate_directions(2, 0).collect::<Vec<_>>(), [2, 3, 1, 4, 0, 5, 7]);
+    for direction in 0..8 {
+        let order = candidate_directions(direction, 0).collect::<Vec<_>>();
+        assert_eq!(order.len(), 7);
+        assert!(!order.contains(&((direction + 4) % 8)));
+        for mask in 0..=255 {
+            let expected = order
+                .iter()
+                .copied()
+                .filter(|d| mask & (1 << d) == 0)
+                .collect::<Vec<_>>();
+            assert_eq!(candidate_directions(direction, mask).collect::<Vec<_>>(), expected);
+        }
+    }
+}
+
+#[test]
+fn lifetime_boundary_manager_order_and_retention_flags() {
+    let mut fleet = fleet();
+    let b = fleet.boats.get_mut(&1).unwrap();
+    b.lifetime_limit = 100.0;
+    b.lifetime_elapsed = 100.0;
+    b.record.base.automata_flags = 0x10000 | 0x400;
+    let mut manager = Manager {
+        stay: true,
+        ..Manager::default()
+    };
+    assert_eq!(fleet.lifetime_tick(1, 1.0, &mut Some(&mut manager)), Ok(true));
+    assert!(manager.calls.is_empty());
+    assert_eq!(fleet.lifetime_tick(1, 1.0, &mut Some(&mut manager)), Ok(true));
+    assert_eq!(manager.calls, ["stay:1"]);
+    assert_eq!(fleet.boats[&1].lifetime_limit, 0.0);
+    assert_eq!(fleet.boats[&1].record.base.automata_flags, 0x400);
+    assert_eq!(fleet.boats[&1].lifetime_elapsed, 102.0);
+}
+
+#[test]
+fn parked_lifetime_asks_manager_before_override_and_no_manager_removes() {
+    let mut fleet = fleet();
+    let b = fleet.boats.get_mut(&1).unwrap();
+    b.lifetime_limit = 10.0;
+    b.lifetime_elapsed = 11.0;
+    let mut manager = Manager {
+        stay: true,
+        ..Manager::default()
+    };
+    fleet
+        .push_state(1, State::new(state::PARKED), &mut Some(&mut manager))
+        .unwrap();
+    assert_eq!(fleet.lifetime_tick(1, 100.0, &mut Some(&mut manager)), Ok(false));
+    assert_eq!(manager.calls, ["stay:1"]);
+    assert_eq!(fleet.boats[&1].top_state(), Some(state::SLOW_REMOVE));
+    assert_eq!(fleet.boats[&1].lifetime_elapsed, 11.0);
+    fleet.pop_state(1, &mut None).unwrap();
+    fleet.pop_state(1, &mut None).unwrap();
+    fleet.lifetime_tick(1, 1.0, &mut None).unwrap();
+    assert_eq!(fleet.boats[&1].top_state(), Some(state::SLOW_REMOVE));
+}
+
+#[test]
+fn animation_early_return_and_two_idle_accumulations() {
+    let mut fleet = fleet();
+    fleet.boats.get_mut(&1).unwrap().count_idle_always = true;
+    fleet.push_state(1, State::new(state::IDLE), &mut None).unwrap();
+    assert_eq!(fleet.animation_budget(1, 0.000009, 20.0, &mut None), Ok(false));
+    assert_eq!(fleet.boats[&1].idle_elapsed, 0.0);
+    assert_eq!(fleet.animation_budget(1, 0.00001, 20.0, &mut None), Ok(true));
+    fleet.state_tick(1, 30.0, &mut None).unwrap();
+    assert_eq!(fleet.boats[&1].idle_elapsed, 50.0);
+    assert_eq!(fleet.lifetime_tick(1, 1000.0, &mut None), Ok(false));
+    assert_eq!(fleet.boats[&1].lifetime_elapsed, 0.0);
+}
+
+#[test]
+fn lifetime_stack_exclusions_are_not_just_top_state_checks() {
+    for excluded in [16, 74, 75, 77, 78] {
+        let mut fleet = fleet();
+        let b = fleet.boats.get_mut(&1).unwrap();
+        b.record.base.states = vec![State::new(excluded), State::new(3)];
+        b.lifetime_limit = 1.0;
+        b.lifetime_elapsed = 2.0;
+        assert_eq!(fleet.lifetime_tick(1, 100.0, &mut None), Ok(false));
+        assert_eq!(fleet.boats[&1].lifetime_elapsed, 2.0);
+        assert_eq!(fleet.boats[&1].top_state(), Some(3));
+    }
+}
+
+#[test]
+fn tow_message_uses_owned_nearest_then_group_and_releases_both_links() {
+    let mut fleet = fleet();
+    let mut other = boat();
+    other.group = Arc::new(Group {
+        id: 0x4417,
+        ..(*group()).clone()
+    });
+    other.position = [100.0, 0.0, 0.0];
+    fleet.boats.insert(2, other);
+    fleet.boats.get_mut(&1).unwrap().tow_armed = true;
+    let mut manager = Manager::default();
+    assert_eq!(
+        fleet.do_message(1, Message::TowLanding(Some([100.0, 0.0, 0.0])), &mut Some(&mut manager)),
+        Ok(MessageDisposition::Handled)
+    );
+    assert_eq!(fleet.boats[&1].towed, Some(2));
+    assert_eq!(fleet.boats[&2].tug, Some(1));
+    assert_eq!(fleet.boats[&2].top_state(), Some(state::TOWED));
+    assert!(!fleet.boats[&1].tow_armed);
+    fleet.release_tow_ahead(1, &mut Some(&mut manager)).unwrap();
+    assert_eq!(fleet.boats[&1].towed, None);
+    assert_eq!(fleet.boats[&2].tug, None);
+    assert_eq!(fleet.boats[&2].top_state(), None);
+}
+
+#[test]
+fn invalid_tow_pick_disarms_and_unarmed_messages_forward() {
+    let mut fleet = fleet();
+    fleet.boats.get_mut(&1).unwrap().tow_armed = true;
+    assert_eq!(
+        fleet.do_message(1, Message::TowLanding(None), &mut None),
+        Ok(MessageDisposition::Handled)
+    );
+    assert!(!fleet.boats[&1].tow_armed);
+    assert_eq!(
+        fleet.do_message(1, Message::TowLanding(None), &mut None),
+        Ok(MessageDisposition::ForwardToAutomaton)
+    );
+    assert_eq!(
+        fleet.do_message(1, Message::Other(42), &mut None),
+        Ok(MessageDisposition::ForwardToAutomaton)
+    );
+}
+
+#[test]
+fn ferry_reader_skips_used_cells_only_once_and_neighbor_exhaustion_removes() {
+    let mut fleet = fleet();
+    let route = Arc::<[Cell]>::from([
+        Cell { x: 0, z: 0 },
+        Cell { x: 1, z: 0 },
+        Cell { x: 2, z: 0 },
+        Cell { x: 3, z: 0 },
+    ]);
+    let mut s = (*station(1, 0.0)).clone();
+    s.route = route.clone();
+    let b = fleet.boats.get_mut(&1).unwrap();
+    b.ferry = true;
+    b.initialize_current_route(Arc::new(s));
+    assert_eq!(fleet.next_route_cell(1, &mut None), Ok(Some(Cell { x: 2, z: 0 })));
+    assert_eq!(fleet.next_route_cell(1, &mut None), Ok(Some(Cell { x: 3, z: 0 })));
+    assert_eq!(fleet.boats[&1].used_cells, 4);
+    assert_eq!(
+        fleet.next_route_cell(1, &mut None),
+        Err(ContractGap::RouteExhaustionWc7)
+    );
+    fleet.boats.get_mut(&1).unwrap().set_neighbor_route(
+        NeighborRoute {
+            occupant: Arc::new(Resource(8)),
+            position: [0.0; 3],
+            cells: route,
+            next: 0,
+        },
+        |c| [c.x as f32, 0.0, c.z as f32],
+    );
+    assert_eq!(fleet.next_route_cell(1, &mut None), Ok(None));
+    assert_eq!(fleet.boats[&1].top_state(), Some(state::SLOW_REMOVE));
+}
+
+#[test]
+fn initialization_acquires_once_shutdown_stops_and_drops_only_owned_resources() {
+    struct Resources {
+        names: Vec<&'static str>,
+        created: Vec<Arc<Resource>>,
+    }
+    impl EffectResources for Resources {
+        fn create(&mut self, name: &'static str) -> Option<Arc<Resource>> {
+            self.names.push(name);
+            let resource = Arc::new(Resource(self.names.len() as u64));
+            self.created.push(resource.clone());
+            Some(resource)
+        }
+    }
+    let mut resources = Resources {
+        names: vec![],
+        created: vec![],
+    };
+    let mut fleet = fleet();
+    let b = fleet.boats.get_mut(&1).unwrap();
+    assert_eq!(
+        b.initialize_runtime([1.0, 2.0, 3.0], [0.0, 0.0, 2.0], &mut resources),
+        Ok(true)
+    );
+    assert_eq!(b.heading, [0.0, 0.0, 1.0]);
+    assert_eq!(b.initialize_runtime([0.0; 3], [0.0; 3], &mut resources), Ok(false));
+    assert_eq!(resources.names, EFFECTS);
+    assert!(resources.created.iter().all(|r| Arc::strong_count(r) == 2));
+    fleet.shutdown(1, &mut None).unwrap();
+    // Shutdown transfers the acquired references into stop commands. A
+    // foreign resource adapter stops each effect before dropping its command.
+    assert!(resources.created.iter().all(|r| Arc::strong_count(r) == 2));
+    assert_eq!(fleet.shutdown(1, &mut None), Ok(false));
+    assert_eq!(
+        &fleet.boats[&1].events[2..],
+        [
+            Event::Unregister(TOW_MESSAGE),
+            Event::StopEffect(Arc::new(Resource(1))),
+            Event::StopEffect(Arc::new(Resource(2))),
+            Event::StopEffect(Arc::new(Resource(3))),
+            Event::StopEffect(Arc::new(Resource(4))),
+            Event::StopEffect(Arc::new(Resource(5))),
+            Event::StopEffect(Arc::new(Resource(6))),
+            Event::BaseShutdown
+        ]
+    );
+    fleet.boats.get_mut(&1).unwrap().events.clear();
+    assert!(resources.created.iter().all(|r| Arc::strong_count(r) == 1));
+}
+
+#[test]
+fn effect_failure_is_a_gap_not_success_and_shutdown_releases_partial_resources() {
+    struct Missing;
+    impl EffectResources for Missing {
+        fn create(&mut self, name: &'static str) -> Option<Arc<Resource>> {
+            (name != "boat_grounding").then(|| Arc::new(Resource(1)))
+        }
+    }
+    let mut fleet = fleet();
+    let b = fleet.boats.get_mut(&1).unwrap();
+    assert_eq!(
+        b.initialize_runtime([0.0; 3], [1.0, 0.0, 0.0], &mut Missing),
+        Err(ContractGap::ResourceCreationWc3)
+    );
+    assert!(b.events.is_empty());
+    assert!(!b.initialized);
+    fleet.shutdown(1, &mut None).unwrap();
+    assert!(fleet.boats[&1].effects.iter().all(Option::is_none));
+}
+
+#[test]
+fn crash_case_angle_and_ai_override_do_not_reap_expired_crashes() {
+    let mut fleet = fleet();
+    let b = fleet.boats.get_mut(&1).unwrap();
+    assert_eq!(b.determine_crash_case([true; 4], [0.0; 3]), Ok(CrashCase::SlowRemove));
+    b.record.base.states.push(State::new(state::PLAYER_DRIVE));
+    assert_eq!(b.determine_crash_case([false; 4], [0.0; 3]), Ok(CrashCase::Sink));
+    assert_eq!(
+        b.determine_crash_case([true; 4], [0.0, 1.0, 0.0]),
+        Ok(CrashCase::RunAground)
+    );
+    fleet
+        .set_state_internal(1, CrashCase::CollisionSink, &mut None)
+        .unwrap();
+    assert!(fleet.boats[&1].sunk_by_collision);
+    assert_eq!(
+        fleet.boats[&1].record.base.states.last().unwrap().base.countdown_ms,
+        8000.0
+    );
+    assert_eq!(
+        fleet.state_tick(1, 10_000.0, &mut None),
+        Err(ContractGap::CrashSequenceWc5)
+    );
+    assert_eq!(fleet.boats[&1].top_state(), Some(state::SINK));
+    assert!(!fleet.boats[&1].events.iter().any(|e| matches!(e, Event::Remove(_))));
+}
+
+#[test]
+fn docking_final_approach_is_bounded_and_completion_uses_strict_distance() {
+    let mut fleet = fleet();
+    let b = fleet.boats.get_mut(&1).unwrap();
+    b.set_station_information([station(1, 0.0), station(2, 10.0)], true);
+    b.position = [8.0, 0.0, 0.0];
+    b.heading = [0.0, 0.0, 1.0];
+    assert_eq!(fleet.docking_tick(1, 0.5, &Water, &mut None), Ok(true));
+    let b = &fleet.boats[&1];
+    assert_eq!(b.position, [8.5, 0.0, 0.0]);
+    assert!((b.heading[0] - 0.5_f32.to_radians().sin()).abs() < 0.000001);
+    assert!((b.heading[2] - 0.5_f32.to_radians().cos()).abs() < 0.000001);
+    let b = fleet.boats.get_mut(&1).unwrap();
+    b.heading = [1.0, 0.0, 0.0];
+    b.position = [9.0, 0.0, 0.0];
+    assert_eq!(fleet.docking_tick(1, 0.0, &Water, &mut None), Ok(true));
+    assert_eq!(fleet.docking_tick(1, 0.5, &Water, &mut None), Ok(false));
+}
+
+#[test]
+fn undocking_moves_horizontally_and_does_not_overshoot() {
+    let mut fleet = fleet();
+    let b = fleet.boats.get_mut(&1).unwrap();
+    b.position = [1.0, 4.0, 0.0];
+    b.neighbor = Some(NeighborRoute {
+        occupant: Arc::new(Resource(1)),
+        position: [0.0, -2.0, 0.0],
+        cells: Arc::from([]),
+        next: 0,
+    });
+    let rectangle = [Cell { x: 1, z: 1 }; 4];
+    assert_eq!(fleet.undocking_tick(1, 0.5, rectangle, &Water, &mut None), Ok(true));
+    assert_eq!(fleet.boats[&1].position, [1.0, 4.0, 0.0]);
+    assert_eq!(fleet.undocking_tick(1, 2.0, rectangle, &Water, &mut None), Ok(true));
+    assert_eq!(fleet.boats[&1].position, [3.0, 4.0, 0.0]);
+    assert_eq!(fleet.undocking_tick(1, 100.0, rectangle, &Water, &mut None), Ok(false));
+    assert_eq!(fleet.boats[&1].position, [10.0, 4.0, 0.0]);
+}
+
+#[test]
+fn movement_flag_precedes_bounds_then_bounds_precede_crash_state() {
+    let mut fleet = fleet();
+    fleet.boats.get_mut(&1).unwrap().record.base.automata_flags = 1;
+    let outside = [Cell { x: -1, z: 0 }; 4];
+    assert_eq!(fleet.movement_possible(1, outside, &Water, &mut None), Ok(false));
+    assert!(fleet.boats[&1].events.is_empty());
+    fleet.boats.get_mut(&1).unwrap().record.base.automata_flags = 0;
+    fleet.push_state(1, State::new(state::SINK), &mut None).unwrap();
+    assert_eq!(fleet.movement_possible(1, outside, &Water, &mut None), Ok(false));
+    assert_eq!(fleet.boats[&1].top_state(), Some(state::IMMEDIATE_REMOVE));
+}
+
+#[test]
+fn station_selection_is_per_axis_and_route_restart_preserves_used_count() {
+    let mut b = boat();
+    let a = station(1, 0.0);
+    let other = station(2, 100.0);
+    b.set_station_information([a, other.clone()], true);
+    b.route_start = [0.00009; 3];
+    assert_eq!(b.other_station().unwrap().lot.0, 2);
+    b.route_start[1] = 0.001;
+    assert_eq!(b.other_station().unwrap().lot.0, 1);
+    b.used_cells = 7;
+    b.route_started = true;
+    b.initialize_current_route(other);
+    assert_eq!(b.used_cells, 7);
+    assert!(!b.route_started);
+}
+
+#[test]
+fn final_state_pop_preserves_crash_and_adds_disappear() {
+    let mut fleet = fleet();
+    fleet.set_state_internal(1, CrashCase::Sink, &mut None).unwrap();
+    assert_eq!(fleet.pop_state(1, &mut None), Ok(true));
+    assert_eq!(fleet.boats[&1].top_state(), Some(1));
+    assert_eq!(fleet.boats[&1].record.base.states[0].state_type, state::SINK);
+    assert_eq!(fleet.boats[&1].record.base.states[1].base.stack_index, 1);
 }

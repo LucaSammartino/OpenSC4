@@ -3,15 +3,17 @@
 //! No original watercraft implementation is used as a provider.
 
 mod math;
-mod record;
-mod owner;
-mod states;
 mod movement;
+mod operations;
+mod owner;
+mod record;
+mod states;
 
-pub use record::{WatercraftRecord, CLASS_ID, RECORD_VERSION};
-pub use owner::*;
-pub use states::CrashCase;
 pub use movement::Gear;
+pub use operations::{candidate_directions, Message, MessageDisposition};
+pub use owner::*;
+pub use record::{WatercraftRecord, CLASS_ID, RECORD_VERSION};
+pub use states::CrashCase;
 
 #[cfg(test)]
 mod tests;
@@ -24,10 +26,9 @@ impl Default for DriveParameters {
     #[allow(clippy::approx_constant)] // Exact decimal constants in watercraft §2.
     fn default() -> Self {
         Self([
-            0.1, 0.001, 1.0, 0.05, 0.2, 5.0, -0.1, 0.3, -2.0, 2.0, 0.001, 50.0, 5.0,
-            0.001, 0.001, 0.1, 0.5, 1.0472, 0.3142, 0.1309, 0.2618, 8000.0, 0.7854,
-            0.95, 2.1817, 1.0472, 10.0, 0.5, 0.25, 0.75, -2000.0, 3000.0, 150.0, 0.0,
-            2.0, 100.0, 300.0, 90.0, 1.0, 1.0,
+            0.1, 0.001, 1.0, 0.05, 0.2, 5.0, -0.1, 0.3, -2.0, 2.0, 0.001, 50.0, 5.0, 0.001, 0.001, 0.1, 0.5, 1.0472,
+            0.3142, 0.1309, 0.2618, 8000.0, 0.7854, 0.95, 2.1817, 1.0472, 10.0, 0.5, 0.25, 0.75, -2000.0, 3000.0,
+            150.0, 0.0, 2.0, 100.0, 300.0, 90.0, 1.0, 1.0,
         ])
     }
 }

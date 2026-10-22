@@ -5,12 +5,7 @@ use super::{state, BoatId, ContractGap, DockManager, Event, Fleet, Result, Water
 
 impl Fleet {
     /// Owner enter hooks only; inherited state handling is not replaced here.
-    pub fn push_state(
-        &mut self,
-        id: BoatId,
-        state: State,
-        manager: &mut Option<&mut dyn DockManager>,
-    ) -> Result<()> {
+    pub fn push_state(&mut self, id: BoatId, state: State, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
         let kind = state.state_type;
         self.push_raw(id, state)?;
         match kind {
@@ -76,16 +71,17 @@ impl Fleet {
         Ok(())
     }
 
-    pub fn pop_state(
-        &mut self,
-        id: BoatId,
-        manager: &mut Option<&mut dyn DockManager>,
-    ) -> Result<bool> {
-        let Some(state) = self.boat_mut(id)?.record.base.states.pop() else {
+    pub fn pop_state(&mut self, id: BoatId, manager: &mut Option<&mut dyn DockManager>) -> Result<bool> {
+        let Some(top) = self.boat(id)?.record.base.states.last() else {
             return Ok(false);
         };
-        // Only the watercraft exit hook is modelled; final-state inherited
-        // semantics remain in automata. This API does not replace PopState.
+        // Reuse the base record/state representation and preserve the base
+        // final-state rule implemented by automata::Automaton::pop_state.
+        if top.base.is_final && top.state_type != crate::automata::state_type::RIOT_END {
+            self.push_raw(id, State::new(crate::automata::state_type::RIOT_END))?;
+            return Ok(true);
+        }
+        let state = self.boat_mut(id)?.record.base.states.pop().unwrap();
         match state.state_type {
             state::PLAYER_DRIVE => {
                 self.boat_mut(id)?.events.push(Event::ActiveSound(true));
@@ -120,11 +116,7 @@ impl Fleet {
         Ok(true)
     }
 
-    pub fn end_towing(
-        &mut self,
-        id: BoatId,
-        manager: &mut Option<&mut dyn DockManager>,
-    ) -> Result<()> {
+    pub fn end_towing(&mut self, id: BoatId, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
         if let Some(towed) = self.boat_mut(id)?.towed.take() {
             self.pop_state(towed, manager)?;
             self.boat_mut(towed)?.tug = None;
@@ -132,11 +124,7 @@ impl Fleet {
         Ok(())
     }
 
-    pub fn end_docking(
-        &mut self,
-        id: BoatId,
-        manager: &mut Option<&mut dyn DockManager>,
-    ) -> Result<()> {
+    pub fn end_docking(&mut self, id: BoatId, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
         let boat = self.boat_mut(id)?;
         if boat.held_berth {
             if let Some(station) = boat.current_station.as_ref() {
@@ -178,12 +166,7 @@ impl Fleet {
 
     /// Owner-only state dispatch. Crash animation is not published; its
     /// accumulator still follows the specified order, then returns WC5.
-    pub fn state_tick(
-        &mut self,
-        id: BoatId,
-        dt: f32,
-        manager: &mut Option<&mut dyn DockManager>,
-    ) -> Result<()> {
+    pub fn state_tick(&mut self, id: BoatId, dt: f32, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
         match self.boat(id)?.top_state() {
             Some(state::IDLE) => {
                 self.boat_mut(id)?.idle_elapsed += dt;
@@ -213,11 +196,7 @@ impl Fleet {
     }
 
     /// One-shot owner Shutdown, with all owned resource drops in §3 order.
-    pub fn shutdown(
-        &mut self,
-        id: BoatId,
-        manager: &mut Option<&mut dyn DockManager>,
-    ) -> Result<bool> {
+    pub fn shutdown(&mut self, id: BoatId, manager: &mut Option<&mut dyn DockManager>) -> Result<bool> {
         if self.boat(id)?.shut_down {
             return Ok(false);
         }
@@ -231,21 +210,21 @@ impl Fleet {
         let boat = self.boat_mut(id)?;
         for i in 0..2 {
             if boat.dock_requests[i] {
-                if let (Some(station), Some(manager)) =
-                    (boat.stations[i].as_ref(), manager.as_deref_mut())
-                {
+                if let (Some(station), Some(manager)) = (boat.stations[i].as_ref(), manager.as_deref_mut()) {
                     manager.done_docking(&station.lot, id);
                 }
                 boat.dock_requests[i] = false;
             }
         }
-        boat.events.push(Event::Unregister(super::TOW_MESSAGE));
+        if boat.initialized {
+            boat.events.push(Event::Unregister(super::TOW_MESSAGE));
+        }
         boat.stations = [None, None];
         boat.current_station = None;
         boat.neighbor = None;
         for effect in &mut boat.effects {
             if let Some(effect) = effect.take() {
-                boat.events.push(Event::StopEffect(effect.0));
+                boat.events.push(Event::StopEffect(effect));
             }
         }
         boat.events.push(Event::BaseShutdown);

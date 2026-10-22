@@ -36,14 +36,7 @@ pub const EFFECTS: [&str; 6] = [
     "tugropeconnection",
     "waterski",
 ];
-pub const WAKES: [&str; 6] = [
-    "SMLWake",
-    "SMLWash",
-    "MEDWake",
-    "MEDWash",
-    "LargeWake",
-    "LargeWash",
-];
+pub const WAKES: [&str; 6] = ["SMLWake", "SMLWash", "MEDWake", "MEDWash", "LargeWake", "LargeWash"];
 
 /// Resource identity; owning an Arc takes precisely one Rust reference.
 #[derive(Debug, PartialEq, Eq)]
@@ -140,7 +133,8 @@ pub enum Event {
     Register(u32),
     Unregister(u32),
     ActiveSound(bool),
-    StopEffect(u64),
+    /// The adapter must stop the effect before dropping this owned reference.
+    StopEffect(Arc<Resource>),
     StartWake(&'static str),
     StopWake(&'static str),
     Notify(u32, u32),
@@ -157,15 +151,13 @@ pub enum ContractGap {
     DegenerateDirection,
     AiMotionWc4,
     CrashSequenceWc5,
-    CrashNotificationWc5,
     RouteExhaustionWc7,
-    RouteBacktrackingWc7,
     UndockBlockedWc7,
     DockingReturnWc7,
-    DockingCompletionWc4,
     MissingStationWc7,
     MissingRouteWc7,
     ResourceCreationWc3,
+    NearestTieWc7,
 }
 
 pub type Result<T> = std::result::Result<T, ContractGap>;
@@ -181,7 +173,7 @@ pub struct PlayerState {
 }
 
 /// Runtime-only data is deliberately separate from the saved base record.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Watercraft {
     pub record: WatercraftRecord,
     pub group: Arc<Group>,
@@ -223,10 +215,15 @@ pub struct Watercraft {
     pub events: Vec<Event>,
     pub(super) route_next: usize,
     pub(super) initialized: bool,
+    pub(super) initialization_attempted: bool,
     pub(super) shut_down: bool,
 }
 
 impl Watercraft {
+    pub fn class_id(&self) -> u32 {
+        super::CLASS_ID
+    }
+
     /// Constructs portable storage. This is not a claim about the unreported
     /// native constructor's 79-method inventory (WC3).
     pub fn new(record: WatercraftRecord, group: Arc<Group>, radius: f32) -> Self {
@@ -271,6 +268,7 @@ impl Watercraft {
             events: Vec::new(),
             route_next: 0,
             initialized: false,
+            initialization_attempted: false,
             shut_down: false,
         }
     }
@@ -295,10 +293,11 @@ impl Watercraft {
         heading: Vec3,
         effects: &mut dyn EffectResources,
     ) -> Result<bool> {
-        if self.initialized {
+        if self.initialization_attempted {
             return Ok(false);
         }
         let heading = math::unit(heading).ok_or(ContractGap::DegenerateDirection)?;
+        self.initialization_attempted = true;
         self.load_drive_parameters();
         self.effects = EFFECTS.map(|name| effects.create(name));
         if self.effects.iter().any(Option::is_none) {
@@ -309,6 +308,20 @@ impl Watercraft {
         // WC3: set all three named flags; do not guess the fourth.
         self.record.base.automata_flags |= 0x2000 | 0x20000 | 4;
         self.events.push(Event::Register(TOW_MESSAGE));
+        self.towed = None;
+        self.tug = None;
+        self.tow_armed = false;
+        self.stations = [None, None];
+        self.dock_requests = [false; 2];
+        self.current_station = None;
+        self.travel.clear();
+        self.lifetime_limit = 0.0;
+        self.lifetime_elapsed = 0.0;
+        self.idle_elapsed = 0.0;
+        self.crash_elapsed = 0.0;
+        self.still_elapsed = 0.0;
+        self.backwards_elapsed = 0.0;
+        self.count_idle_always = false;
         self.position = position;
         self.previous_position = position;
         self.heading = heading;
@@ -319,8 +332,7 @@ impl Watercraft {
     }
 
     pub fn on_land(&self, terrain: &dyn Terrain) -> bool {
-        terrain.contains(terrain.cell_at(self.position))
-            && terrain.terrain_height(self.position) > terrain.sea_level()
+        terrain.contains(terrain.cell_at(self.position)) && terrain.terrain_height(self.position) > terrain.sea_level()
     }
 
     pub fn other_station(&self) -> Option<Arc<Station>> {
@@ -357,8 +369,7 @@ impl Watercraft {
     pub fn set_neighbor_route(&mut self, mut route: NeighborRoute, cell_position: impl Fn(Cell) -> Vec3) {
         route.next = 0;
         while route.next < route.cells.len()
-            && math::length(math::sub(cell_position(route.cells[route.next]), route.position))
-                <= 3.0 * self.radius
+            && math::length(math::sub(cell_position(route.cells[route.next]), route.position)) <= 3.0 * self.radius
         {
             route.next += 1;
         }
@@ -380,7 +391,7 @@ impl Watercraft {
 /// cannot create an Arc cycle; shutdown/exit explicitly clears both ends.
 #[derive(Default)]
 pub struct Fleet {
-    pub boats: BTreeMap<BoatId, Watercraft>,
+    pub(super) boats: BTreeMap<BoatId, Watercraft>,
 }
 
 impl Fleet {

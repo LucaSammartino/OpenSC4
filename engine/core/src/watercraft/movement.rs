@@ -24,11 +24,7 @@ impl Fleet {
         Ok(!matches!(boat.top_state(), Some(state::RUN_AGROUND | state::SINK)))
     }
 
-    pub fn dock_requests(
-        &mut self,
-        id: BoatId,
-        manager: &mut Option<&mut dyn DockManager>,
-    ) -> Result<()> {
+    pub fn dock_requests(&mut self, id: BoatId, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
         let boat = self.boat(id)?;
         let Some(station) = boat.other_station() else {
             return Ok(());
@@ -64,16 +60,13 @@ impl Fleet {
         self.push_state(id, State::new(next), manager)
     }
 
-    pub fn clear_dock_requests(
-        &mut self,
-        id: BoatId,
-        manager: &mut Option<&mut dyn DockManager>,
-    ) -> Result<()> {
+    pub fn clear_dock_requests(&mut self, id: BoatId, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
         let boat = self.boat(id)?;
         if boat.held_berth
-            && boat.current_station.as_ref().is_some_and(|station| {
-                math::length(math::sub(boat.position, station.position)) > boat.drive.0[36]
-            })
+            && boat
+                .current_station
+                .as_ref()
+                .is_some_and(|station| math::length(math::sub(boat.position, station.position)) > boat.drive.0[36])
         {
             // §5.3 clears only these two flags; unlike EndDocking, it does
             // not say to clear docking_in_progress.
@@ -119,9 +112,11 @@ impl Fleet {
         let position = math::approach(boat.position, station.position, dt * boat.drive.0[39]);
         boat.heading = heading;
         boat.position = position;
-        // WC4: only the already-docked test above is unambiguous. The spec
-        // does not say whether completion is retested after this movement.
-        Err(ContractGap::DockingCompletionWc4)
+        // WC4: literal "docked when" is evaluated after moving/turning too;
+        // the specification does not give the native instruction order.
+        let remaining_angle = math::angle(heading, target).ok_or(ContractGap::DegenerateDirection)?;
+        let remaining_distance = math::length(math::sub(position, station.position));
+        Ok(remaining_angle.to_degrees() >= 1.0 || remaining_distance >= 1.0)
     }
 
     pub fn undocking_tick(
@@ -152,7 +147,8 @@ impl Fleet {
         let direction = math::unit(away).ok_or(ContractGap::DegenerateDirection)?;
         let amount = dt * boat.drive.0[39];
         if amount >= 1.0 {
-            let target = math::add(route.position, math::scale(direction, 2.0 * boat.radius));
+            let mut target = math::add(route.position, math::scale(direction, 2.0 * boat.radius));
+            target[1] = boat.position[1];
             let mut position = math::approach(boat.position, target, amount);
             position[1] = boat.position[1];
             boat.position = position;
