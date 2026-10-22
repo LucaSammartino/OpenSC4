@@ -7,11 +7,6 @@ Spec: [network-occupants.md](../network-occupants.md) §§1–10. RE-side follow
 implementer of the class tables and records.
 
 <!-- from: the network occupants spec (2026-10-20) -->
-- **NO2 - the power pole's delegate interface:** the identity of the delegate interface `0x26A68448` answered by
-  the power pole via `+0xBC` (jump-table dispatch; likely a UI/drag helper). Probe: dump the `[+0xBC]` vtables on
-  a live pole. [unknown]
-
-<!-- from: the network occupants spec (2026-10-20) -->
 - **NO4 - the prebuilt record's first five fields:** the semantics of the prebuilt `Write` fields
   `+0x170`/`+0x174`/`+0x178`/`+0x17C`/`+0x180` (network-occupants.md §2.8): model refs? shear inputs?
   [not specified]
@@ -29,14 +24,6 @@ implementer of the class tables and records.
 - **NO11 - the tunnel constructor's flag write:** §2.8 says `+0x13C &= ~0x400 | 0x10C00000`, "clearing the prebuilt
   bit", but the prebuilt bit is `0x400000`. Is the cleared mask `0x400` or `0x400000`, and is the expression
   `(f & ~mask) | 0x10C00000`? The core applies the literal `0x400` (a tunnel keeps `0x400000`). [ambiguous]
-
-<!-- from: core-netocc4 (engine lane, 2026-10-21) -->
-- **NO13 - the power line's field offsets and record:** §5.1's layout puts the cell at `+0x40/+0x44` and three
-  poles at `+0x48/+0x4C/+0x50`; its slot table reads `GetCell` from `+0x44/+0x48` and `GetConnectedPoles` from
-  `+0x4C/+0x50` plus byte `+0x54`; §5.2 writes u32 `+0x30…+0x40` then references from `+0x4C`, `+0x44`, `+0x48`.
-  Which live field is each record word/reference, is the cell z saved, does `Read` check the version (only "v2"
-  is stated), and does `SetPosition`'s float→int helper truncate or round? The core keeps the record as a literal
-  field list and truncates. [ambiguous]
 
 <!-- from: core-netocc-records4 (engine lane, 2026-10-21) -->
 - **NO18 - pipe/subway `Read` after a failed underground record:** §3.3 says pipe `Read` "reads the same and then
@@ -134,3 +121,12 @@ implementer of the class tables and records.
 <!-- from: re-ugbase (2026-10-20) -->
 - **NO41 - §3.1, §3.6:** what the saved underground `+0x268` (returned by slot 96, set by nothing in these
   classes) and the connection's `+0x68`, `+0x170`, `+0x178` and `+0x240` hold. [as read]
+
+<!-- from: re-powerpoles (2026-10-21) -->
+- **NO36 - §4.1, §4.4:** what the pole's saved bool `+0x110` means (record row 11); nothing read in this lane sets
+  it. [as read]
+
+<!-- from: re-powerpoles (2026-10-21) -->
+- **NO37 - §4.2, §4.6, §4.7:** the pole's floor and walls (`CreateFloor` `0x0064BFD0`, `AddWallQuad` `0x0064C2C0`,
+  `CreateWalls` `0x0064C470`), `Draw` and `DrawPowerlines` (`0x0064C800`, `0x0064B750`), `GetBoundingBox`
+  (`0x00649A00`), `Pick` (`0x0064A870`) and the cell walk under a wire (`0x0064A4D0`) in detail. [summary]

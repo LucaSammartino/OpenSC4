@@ -173,3 +173,22 @@
   a direction above 3 read (the bytes after the table, or a guard)? The core returns false. [missing]~~
   **ANSWERED 2026-10-21 (re-ugbase):** DIFFERS — there is no guard: the side indexes the table directly, so a side
   above 3 reads the bytes after it (quirk 19). The core's false is a choice for an input the game never passes (§3.2).
+
+<!-- from: the network occupants spec (2026-10-20) -->
+- ~~**NO2 - the power pole's delegate interface:** the identity of the delegate interface `0x26A68448` answered by
+  the power pole via `+0xBC` (jump-table dispatch; likely a UI/drag helper). Probe: dump the `[+0xBC]` vtables on
+  a live pole. [unknown]~~
+  **ANSWERED 2026-10-21 (re-powerpoles):** `+0xBC` is the pole's model instance and `0x26A68448` is a model instance's
+  mesh-container interface (model-instances.md): `QueryInterface` forwards that IID to the instance's own
+  `QueryInterface` and fails when the pole has no instance (network-occupants.md §4.1).
+
+<!-- from: core-netocc4 (engine lane, 2026-10-21) -->
+- ~~**NO13 - the power line's field offsets and record:** §5.1's layout puts the cell at `+0x40/+0x44` and three
+  poles at `+0x48/+0x4C/+0x50`; its slot table reads `GetCell` from `+0x44/+0x48` and `GetConnectedPoles` from
+  `+0x4C/+0x50` plus byte `+0x54`; §5.2 writes u32 `+0x30…+0x40` then references from `+0x4C`, `+0x44`, `+0x48`.
+  Which live field is each record word/reference, is the cell z saved, does `Read` check the version (only "v2"
+  is stated), and does `SetPosition`'s float→int helper truncate or round? The core keeps the record as a literal
+  field list and truncates. [ambiguous]~~
+  **ANSWERED 2026-10-21 (re-powerpoles):** with object offsets: position `+0x38` (3 × f32), cell `+0x44`/`+0x48`, the
+  two poles `+0x4C`/`+0x50`, the bool `+0x54`, preview `+0x55` (the earlier table was 4 low). The record
+  (`0x0064A310`) is u16 2, the occupant record, 3 × f32, 2 × s32, a u8 and two refs (network-occupants.md §5.1, §5.2).

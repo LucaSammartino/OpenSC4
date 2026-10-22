@@ -1025,17 +1025,22 @@ GetGZCLSID (37), the folded 38 and slot 44 differ.
 
 ## 4. The power pole *(cSC4PowerPoleOccupant, 0x09C05C6A)*
 
-### 4.1 Layout
+*Rewritten 2026-10-21 (re-powerpoles), from the instruction bytes. Offsets are object offsets (the earlier layout
+table and record list mixed in view offsets); `+0xBC` is the pole's model instance, to which `0x26A68448` is
+forwarded (answers NO2); `+0xC0`/`+0xC4` are the view rotation and zoom the model was made for; slots 5, 9, 13, 16
+and 17 are named; slot 10's cost is the tuning property `0x0A2ECED8`, read by `StaticInit`. The wire geometry is
+[power-line-tool.md](power-line-tool.md) §5.3 and §5.5.*
 
-Constructor `0x0064DB30`, object **0x124** bytes. Sub-objects: `+0` primary `cISC4PowerPoleOccupant` `0x00AA9EB0`
-(19 slots), `+4` `cIGZMessageTarget2` `0x00AA9EA0` (4), `+8` `cISC4Occupant` `0x00AA9E18` (34; its QI thunk
-`0x0064DF00` subtracts 8), `+0xC` `cIGZSerializable` `0x00AA9DFC` (Write `0x0064B010`, Read `0x0064EA00`,
-`GetGZCLSID` `0x0064DD50`), `+0x10` property holder `0x00AA9D98` (25), `+0x24` 5-slot table `0x00AA9D80`
-(`SetDefaultExemplar` `0x0064D910` is slot 3), `+0x3C` model instance, `[+0x40]`-relative `0x00AA9D30` (19-slot
-3D-instance view). Occupant type `0x2890D4DE` written at `+0x2C`.
+A power pole is an occupant with a model (the pole) and a list of **connections** to other poles. Each connection
+holds the other pole, the power **line** occupants that stand in the cells under the wire, and, on the pole that
+owns it, four **wires**: point lists sampled from a cubic Bézier curve that sags between the two poles' attachment
+points. Poles can be distressed (they then show a "powerpolezap" effect) and preview.
 
-| Offset | Meaning |
+### 4.1 Identity and layout
+
+| Item | Value |
 |---|---|
+<<<<<<< HEAD
 | `+0x68` | transform; matrix starts +6C (identity 0/1), scalar +9C=1.0 |
 | `+0xA0/+0xA4/+0xA8` | position x/y/z (`GetPosition` `0x00649DA0` receives occupant-view +8) |
 | `+0xAC/+0xB0` | connection vector (records of stride **0x2C**: +0 pole ref, +4 wire-point list, +8 byte flag, +9 byte, +0xC u32, +0x10 u32, +0x14…+0x24 two vertex lists) |
@@ -1052,6 +1057,40 @@ Constructor `0x0064DB30`, object **0x124** bytes. Sub-objects: `+0` primary `cIS
 | `+0x110` | bool |
 | `+0x112` | distressed byte (`IsDistressed` `0x00649230` reads it) |
 | `+0x118` | stored by primary slot 14 (`0x00649250`) |
+=======
+| Class ID (`GetGZCLSID` `0x0064DD50`) | `0x09C05C6A` |
+| `QueryInterface` (`0x0064A030`) | `0xA8C86142` (`cISC4PowerPoleOccupant`), `0x09C05C6A`, `0xA9764C8C` → main; `0x452294AA` → the message target (`+4`); `0x26A68448` (a model instance's mesh container, model-instances.md) → forwarded to the model instance `+0xBC` when there is one; any other → the occupant base, then the model instance base |
+| Occupant type (`+0x2C`, the occupant view's `+0x24`) | `0x2890D4DE` |
+| Factory | `GZCOM_CreatecSC4PowerPoleOccupant` (`0x0064E340`): a pool block (`0x006499D0`) constructed as most-derived (`0x0064DB30`); destructor `0x0064E380`; object **0x124** bytes |
+
+Sub-objects: `+0` main (`cISC4PowerPoleOccupant`, vtable `0x00AA9EB0`, 19 slots), `+4` message target
+(`cIGZMessageTarget2`, `0x00AA9EA0`, 4 slots), `+8` occupant (`0x00AA9E18`, 34 slots; its QI thunk `0x0064DF00`
+subtracts 8), `+0xC` serialisation (`0x00AA9DFC`: Write `0x0064B010`, Read `0x0064EA00`), `+0x10` property holder
+(`0x00AA9D98`, 25 slots), `+0x24` the exemplar interface (`0x00AA9D80`: slot 3 `SetDefaultExemplar` `0x0064D910`,
+slot 4 the exemplar; `GetOwner` `0x00649190`), `+0x3C` the model instance part, and the model instance interface as
+a virtual base at `+0x120` (`0x00AA9D30`, 19 slots).
+
+| Offset | Type | Field |
+|---|---|---|
+| `+0x54`, `+0x55`, `+0x64` | u8, u8, f32 | the model instance's draw attributes: flags (bit 0 highlighted), highlight, opacity |
+| `+0x68`, `+0x69` | u8, u8 | transform change counter, mask |
+| `+0x6C`, `+0x90`, `+0x9C` | 9 f32, 3 f32, f32 | rotation, translation, scale (identity; defaults from `0x00B46778`) |
+| `+0xA0` | 3 × f32 | the pole's **position** (`GetPosition` `0x00649DA0`) |
+| `+0xAC`…`+0xB4` | vector | the **connections** (44-byte records, §4.6) |
+| `+0xB8` | u32 | the pole kind, `Init`'s second argument (§4.3) |
+| `+0xBC` | pointer | the pole's model instance (counted) |
+| `+0xC0`, `+0xC4` | 2 × s32 | the view rotation and zoom the model was made for (from the view utilities `0x00B43DD8` `+0x10`, `+0xC`; −1 at construction) |
+| `+0xC8`, `+0xCC` | 2 × s32 | the **cell** (slot 8) |
+| `+0xD0` | bool | set by every connection change; true at construction *[inferred: the bounds are stale]* |
+| `+0xE4` | pointer | the attachment table (§4.6) |
+| `+0xE8`, `+0xF4`, `+0x100` | 3 vertex lists | the floor and walls drawn in the underground view *[summary]* (stride 0x18) |
+| `+0x10C` | f32 | the floor height: the lowest corner altitude of the cell (§4.7) |
+| `+0x110` | bool | saved; meaning not known (NO36) |
+| `+0x111` | bool | subscribed to `0x99EF1142` |
+| `+0x112` | bool | **distressed** (slots 11, 12) |
+| `+0x114` | pointer | the "powerpolezap" effect while distressed |
+| `+0x118` | bool | **preview** (slots 13, 14) |
+>>>>>>> a33fa02e (network-occupants.md: the power pole and power line occupants, corrected)
 
 ### 4.2 Interface slots *[compat]*
 
@@ -1059,53 +1098,56 @@ Constructor `0x0064DB30`, object **0x124** bytes. Sub-objects: `+0` primary `cIS
 
 | Slot | Address | Behaviour | Pop |
 |---|---|---|---|
-| 0 | `0x0064A030` | `QueryInterface` (§1.2) | 8 |
+| 0 | `0x0064A030` | `QueryInterface` (§4.1) | 8 |
 | 1/2 | `0x006491C0`/`0x006491D0` | `AddRef`/`Release` (thunks to the shared bodies) | 0 |
-| 3 | `0x006C2040` | `AsOccupant`-folded (returns `this + 8`) | 0 |
-| 4 | `0x00649D80` | connection count: `([+0xB0] − [+0xAC]) / 0x2C` | 0 |
-| 5 | `0x0064BE50` | connection *i* (out: the record) | 8 |
-| 6 | `0x0064DAE0` | `BreakAllConnectionsAtDestination` | 4 |
-| 7 | `0x006499B0` | connection *i* field 0 (the pole ref) | 4 |
-| 8 | `0x00649210` | `GetCell` = (`+0xC8`, `+0xCC`) | 8 |
-| 9 | `0x0064A650` | refresh connections | 0 |
-| 10 | `0x0064DD60` | `GetCostOfOccupantDemolition`: `EDX:EAX` from the cost statics `0x00B46770/0x00B46774` | 0 |
-| 11 | `0x00649230` | `IsDistressed` (reads `+0x112`) | 0 |
-| 12 | `0x0064AA40` | `SetDistressed` | 4 |
-| 13 | `0x00649240` | unnamed flag (the "ignore this pole" test power.md §5.1 uses) | 0 |
-| 14 | `0x00649250` | stores `+0x118` | 4 |
-| 15 | `0x0064CE40` | `Init` (below) | 8 |
-| 16 | `0x00649DD0` | (out-param pair) | 8 |
-| 17 | `0x00649D00` | (out-param pair + more) | 20 |
-| 18 | `0x0064C6C0` | `ChangeZoomLevel` | 4 |
+| 3 | `0x006C2040` | `AsOccupant`: `this + 8` (null-safe) | 0 |
+| 4 | `0x00649D80` | `GetConnectionCount`: records in the vector (`([+0xB0] − [+0xAC]) / 0x2C`) | 0 |
+| 5 | `0x0064BE50` | `GetLineCells(index, out)` (§4.6) | 8 |
+| 6 | `0x0064DAE0` | `BreakAllConnections(quiet)` (§4.6) | 4 |
+| 7 | `0x006499B0` | `GetConnectedPole(i)`: record `i`'s pole, no bounds check, not counted | 4 |
+| 8 | `0x00649210` | `GetCell(&x, &z)` = (`+0xC8`, `+0xCC`) | 8 |
+| 9 | `0x0064A650` | `InsertLines`: for each record not inserted, each line into the occupant manager (`InsertOccupant(line, 0)`), then inserted | 0 |
+| 10 | `0x0064DD60` | `GetCostOfDemolition`: `EDX:EAX` from `0x00B46770`/`0x00B46774`, the tuning `0x0A2ECED8` as an int64 (§4.3) | 0 |
+| 11, 12 | `0x00649230`, `0x0064AA40` | `IsDistressed` (`+0x112`) / `SetDistressed(b)` (§4.7) | 0, 4 |
+| 13, 14 | `0x00649240`, `0x00649250` | `IsPreview` / `SetPreview(b)` (`+0x118`; power.md §5.1 ignores a preview pole) | 0, 4 |
+| 15 | `0x0064CE40` | `Init(exemplar, kind)` (§4.3) | 8 |
+| 16 | `0x00649DD0` | `GetLineCellsTo(pole, out)`: slot 5 for the record of `pole`; false when there is none | 8 |
+| 17 | `0x00649D00` | `GetModelInstances(…, out[], …, &count)`: translation `:=` the position, mask bit 1, change counter + 1, `out[0] :=` the model instance interface (counted), count 1 | 20 |
+| 18 | `0x0064C6C0` | `ChangeZoomLevel(context)` (§4.7) | 4 |
 
-`GetOwner` `0x00649190` is on the `+0x24` 5-slot table (slot 3). `Pick` `0x0064A870`: ray-vs-bbox over the wire
-vertices (`0x005D6580`, `0x005D7660`, shortest kept; writes ctx `+0x28/+0x2C`).
-`RemoveConnection` is non-virtual `0x0064DA00` (direct-calls.md). Other members: `SetPosition` `0x0064C540`;
-`SetModelPosition` `0x0064AC70`; `DrawPowerlines` `0x0064B750`; `Draw` `0x0064C800`; `CreateFloor` `0x0064BFD0`;
-`AddWallQuad` `0x0064C2C0`; `CreateWalls` `0x0064C470`; `SetHighlight` `0x006491E0`; `GetBounds` `0x00649E50`;
-`GetWorldBounds` `0x00649E60`; `GetTransform` `0x00649E80`; `SetTransform` `0x00649F10`; `GetSortValue`
-`0x00649200`.
+Others: occupant slot 9 `SetPosition` (`0x0064C540`, §4.7); occupant slot 10 `GetBoundingBox` (`0x00649A00`, with the
+cell-size floats `0x00B4675C`/`0x00B46760` that the occupant `Init` reads from city slots 91, 92) *[summary]*;
+occupant slot 17 `SetHighlight(h)` (`0x006491E0`) writes the draw attributes only (byte 1 `:= h`, flag bit 0 `:= h ≠
+0`), so the occupant's own `GetHighlight` (slot 16, the occupant state byte) stays 0 *[quirk]*; model instance slot 17
+`GetSortValue` (`0x00649200`) is always `0xAA9DA78E` (the wire texture); slot 11 `Pick` (`0x0064A870`): ray against
+the boxes of the wire vertices (`0x005D6580`, `0x005D7660`), the shortest kept (writes the context's `+0x28`/`+0x2C`)
+*[summary]*. `GetBounds` `0x00649E50`, `GetWorldBounds` `0x00649E60`, `GetTransform` `0x00649E80`, `SetTransform`
+`0x00649F10`. `RemoveConnection` is non-virtual (§4.6; direct-calls.md).
 
-### 4.3 `Init` and the static control variables *[compat]*
+### 4.3 Tuning, `Init` and the static set-up *[compat]*
 
-`Init` (primary slot 15, `0x0064CE40`, pop 8): `StaticInit` once (`0x0064CC20`); `cSC4Occupant::Init`; the model
-ids `+0xC0/+0xC4` from `0x00B43DD8`; `+0xB8 = param_3`; the 5-slot table's slot 3 `SetDefaultExemplar(param_2)`;
-`LoadModel` `0x0064AD90` (property `0x27812821` model id, resource `0x9AD0E7E3`); `InitConnectionPoints`; clears
-the three vectors (`+0xE8`, `+0xF4`, `+0x100`); `+0x54 = 0`, `+0x55 = 0`, `+0x64 = 1.0`; if `+0x112`:
-`SetDistressed(1)`.
+The tuning is read from the exemplar type `0x6534284A`, group `0xE7E2C2DB`, instance `0xC911E35B` ("Utilities",
+`SimCity_1.dat`): the first six by `InitPowerLineControlVariables` (`0x0064A170`, which writes the defaults first),
+the last two by `StaticInit`:
 
-`InitPowerLineControlVariables` `0x0064A170` (part of `StaticInit`): reads the exemplar
-(type `0x6534284A`, group `0xE7E2C2DB`, instance `0xC911E35B`) properties into `0x00B46740…0x00B46754`:
+| Property | Name | Default | Shipped | Where, use |
+|---|---|---|---|---|
+| `0xE9A18D3F` | power line control max horizontal distance | 16 | 16 | `0x00B46754`, power-line-tool.md §5.5 |
+| `0x49A1E8C4` | power line control horizontal % | 10 | 10 | `0x00B46750` |
+| `0x89A18FC4` | power line control max vertical distance | 10 | 10 | `0x00B4674C` |
+| `0xE9A1E8D4` | power line control vertical % | 0.15 | 0.15 | `0x00B46748` |
+| `0x49A195C0` | power line curve distance between points | 8 | 8 | `0x00B46744` |
+| `0x89A1E8FB` | minimum number of curve points (u32) | 5 | 5 | `0x00B46740` |
+| `0xE9AC43E7` | power line scaling factor, one per zoom (5 × f32) | 0.3 each | 0, 1, 0.5, 0.35, 0.2 | `0x00B46798`, the wire width by zoom (§4.7) |
+| `0x0A2ECED8` | power pole demolition cost | 0 | 5 | `0x00B46770`, slot 10 (stored as an int64) |
 
-| Property | Where | Default |
-|---|---|---|
-| `0xE9A18D3F` | `0xB46754` | 16.0 (`0x41800000`) |
-| `0x49A1E8C4` | `0xB46750` | 10.0 |
-| `0x89A18FC4` | `0xB4674C` | 10.0 |
-| `0xE9A1E8D4` | `0xB46748` | 0.15 (`0x3E19999A`) |
-| `0x49A195C0` | `0xB46744` | 8.0 (`0x41000000`) |
-| `0x89A1E8FB` | `0xB46740` | 5 |
+**`StaticInit`** (`0x0064CC20`, once; flag `0x00B46764`): hold the resource manager (`0x00B46768`); register the
+static shutdown (`0x0064BD80`, which releases the texture cache) with the application (slot 69); hold the texture
+manager (service `0x1AC0E11A`, interface `0xFAC0E219`, `0x00B46758`); read the tuning; put the textures `0xAA9DA78E`,
+`0xC9AF0FCD`, `0x0912220E` and `0x08080004` in the texture cache (`0x00B46784`, empty bindings); pack the render
+state `0x00B4677C` = (1, 1, 1, 1, 0, 1, 0, 3, 4, 5, 4, 0.1, 1, −1) (draw-context.md §5.1).
 
+<<<<<<< HEAD
 **Demolition quote is independent of those six controls.** The signed 64-bit quote at
 `0x00B46770/74` starts at zero. In the same one-time `StaticInit`, a second lookup of the
 same control exemplar reads property **`0x0A2ECED8`** through the signed-int64 property
@@ -1198,55 +1240,162 @@ release. Both Write and Read then return `GetError()==0`; a failed reference loo
 alone is not separately promoted to a false result by the owner. Unsupported version
 returns false directly. Allocation failure and malformed excessive counts have no
 additional owner validation contract.
+=======
+- **Main slot 15 `Init(exemplar, kind)`** (`0x0064CE40`, pop 8): the static set-up; unless initialised: the occupant
+  `Init` (below); rotation and zoom from the view utilities; `kind` stored (`+0xB8`); the exemplar set
+  (`SetDefaultExemplar`); the model loaded (`LoadModel`, §4.7) and the attachment table chosen (§4.6); the three
+  vertex lists emptied; draw attributes cleared and opacity 1; when distressed, `SetDistressed(true)`. True.
+- **Occupant slot 3 `Init()`** (`0x00649FA0`): the occupant base `Init`; the city's cell width and depth (city
+  slots 91, 92) into two statics; unless already subscribed, the message target subscribes to `0x99EF1142` (message
+  server slot 5); the model instance is released.
+- **The message target** (`+4` slot 3, `0x0064A140`): on `0x99EF1142` whose occupant is this pole, it unsubscribes
+  and inserts its connections' lines (slot 9). So the lines join the occupant manager when their pole does.
+- **`SetDefaultExemplar`** (`+0x24` slot 3, `0x0064D910`): when the exemplar is not the current one, hold it, reload
+  the model and the attachment table, and rebuild the wires of every connection on both poles (`0x0064D510`)
+  *[summary]*.
+- **`Shutdown`** (occupant slot 4, `0x0064BC80`): `BreakAllConnections(true)`; the stale flag cleared; the model
+  instance released; the vertex lists emptied; the subscription removed; the effect stopped and released; the
+  occupant base `Shutdown`.
+
+### 4.4 Save record *[compat]*
+
+`Write` (`0x0064B010`) and `Read` (`0x0064EA00`) on the serialisation interface; class ID `0x09C05C6A`. Encodings as
+lot-records.md §2.1; `ref` as foundations §2.7.
+
+| # | Field | Encoding |
+|---|---|---|
+| 1 | version | u16 **5** (`PUSH 0x5` at `0x0064B01D`) |
+| 2 | the occupant base record | lot-records.md §2.3 |
+| 3 | the instance transform (`+0x68`) | `xform` (`operator<<` `0x005DA8C0`) |
+| 4 | the position | 3 × f32 |
+| 5 | the connections | u32 count; per connection: `ref` the other pole (its serialisation interface; read as `0x09C05C6A`); u32 line count and a `ref` per line (read as `0xC9C05C5D`); `bool` inserted; `bool` owner; s32 cell x; s32 cell z; the wires (u32 count, then per wire u32 point count and `vec3` points); the coarse curves (same) |
+| 6 | the pole kind | u32 |
+| 7 | rotation, zoom, cell x, cell z | 4 × s32 |
+| 8 | the first four attachment points of the table (`+0xE4`) | 4 × `vec3` |
+| 9 | the lists `+0xE8`, `+0xF4`, `+0x100` | as §3.4's vertex lists |
+| 10 | the floor height | f32 |
+| 11 | `+0x110` | `bool` |
+| 12 | the draw attributes' two bytes and opacity | u8, u8, f32 |
+| 13 | distressed | u8 |
+
+`Read`: the static set-up first; a version below 4 → false; version 4 reads the 56-byte legacy transform
+(`0x005DA930`). After row 7 it chooses the attachment table from the exemplar (§4.6) and then reads row 8 **into that
+shared table**, so a loaded pole overwrites the orientation-0 points of every pole of its kind *[quirk]* (the saved
+values are the table's own, so nothing changes in practice). At the end it releases the model instance, which the
+next draw remakes. Both return true exactly when the stream has no error.
+>>>>>>> a33fa02e (network-occupants.md: the power pole and power line occupants, corrected)
 
 ### 4.5 Creation and consumption
 
 Poles are created by `cSC4PowerLineTool::CreatePowerPole` `0x00650140` (`FindPoleOccupant` `0x0064FFE0` reuses an
-existing pole at the cell; `operator new` pool `0x006499D0`; `SetDefaultExemplar`; `+0xB8` = the exemplar index).
-The consumer is the power simulator (power.md §5.1/§5.4: dispatch on type `0x2890D4DE`, QI `0xA8C86142`, wire bits
-from `GetCell`, the reference list, `costBase` from the int64 property `0x09132DE8`).
+existing pole at the cell; `operator new` pool `0x006499D0`; `SetDefaultExemplar`; `+0xB8` = the exemplar index;
+power-line-tool.md). The consumer is the power simulator (power.md §5.1/§5.4: dispatch on type `0x2890D4DE`, QI
+`0xA8C86142`, wire bits from `GetCell`, the reference list, `costBase` from the int64 property `0x09132DE8`).
+
+### 4.6 Connections and wires *[compat]*
+
+**A connection** (`tConnection`, 44 bytes): `+0` the other pole (counted); `+4` a list of the power line occupants
+under the wire (counted); `+8` bool: the lines have been inserted into the occupant manager; `+9` bool: **this pole
+owns the wire** (it alone keeps the wire points and draws them; the one with the smaller `(z, x)` cell); `+0xC`,
+`+0x10` the other pole's cell; `+0x14` the **wires**: a vector of point lists (each a vector of 3 × f32); `+0x20` the
+coarse curves, made only over water. `AddConnection` (`0x0064E3E0`), the direction helper, the sag control points
+and the Bézier sampling are [power-line-tool.md](power-line-tool.md) §5.2, §5.3 and §5.5.
+
+**Attachment points** (`0x00649BA0`). `InitConnectionPoints` (`0x00649B30`) reads the exemplar's resource key: with
+`k := (instance >> 8) & 0xF`, `k` 1 or 2 selects table **A** (`0x00B0C0D8`, the straight pole), 3 or 4 table **B**
+(`0x00B0C198`, the diagonal pole); another value keeps the current table. Each table has four orientations of four
+points (x, y, z):
+
+| `r` | Table A | Table B |
+|---|---|---|
+| 0 | (0, 31.7, ±4.8), (0, 38.7, ±4.8) | (∓3.3, 31.7, ±3.3), (∓3.3, 38.7, ±3.3) |
+| 1 | (0, 31.7, ±6.5), (0, 38.7, ±6.5) | (∓4.5, 31.7, ±4.5), (∓4.5, 38.7, ±4.5) |
+| 2 | (∓4.8, 31.7, 0), (∓4.8, 38.7, 0) | (∓4.5, 31.7, ∓4.5), (∓4.5, 38.7, ∓4.5) |
+| 3 | (∓6.5, 31.7, 0), (∓6.5, 38.7, 0) | (∓3.3, 31.7, ∓3.3), (∓3.3, 38.7, ∓3.3) |
+
+(each entry is two points, the upper sign first: for example table A `r = 0` is (0, 31.7, 4.8), (0, 31.7, −4.8),
+(0, 38.7, 4.8), (0, 38.7, −4.8)). The attachment points of a pole for orientation `r` are the four table points of
+`r mod 4` plus the pole's position.
+
+**Removing.**
+- `RemoveConnection(record, quiet)` (`0x0064A560`): release the record's pole (left null); remove each of its lines
+  from the occupant manager (`RemoveOccupant(line, true, 0)`) and release it; empty the list; not inserted; when this
+  pole owns the wire and not `quiet`, `PostOccupantMessage(0x99EF1145, 0)`; the stale flag set. The wires stay.
+- `RemoveConnection(pole, quiet)` (`0x0064DA00`, non-virtual; power.md §11.2): the record whose pole is `pole` is
+  removed as above and erased from the vector.
+- `BreakAllConnections(quiet)` (main slot 6, `0x0064DAE0`): for every record, the other pole's
+  `RemoveConnection(this, false)`, then this pole's `RemoveConnection(record, quiet)`. The records stay in the vector
+  with no pole *[quirk]*, so `GetConnectionCount` does not drop.
+
+**Cells under a wire** (main slot 5, `0x0064BE50`). `GetLineCells(index, out)`: false for an index out of range.
+When this pole does not own the wire and the other pole exists, the answer is the other pole's slot 16 for this pole.
+Otherwise the cells from this pole's cell to the record's cell are walked in `trunc(max(|dx|, |dz|)) + 1` steps
+(`0x0064A4D0`) and appended to `out` as (x, z) pairs *[summary]*; true.
+
+### 4.7 Position, model, effect and drawing *[summary; NO37]*
+
+**Position** (occupant slot 9 `SetPosition(p)`, `0x0064C540`): the position becomes `p`; the model is moved
+(`SetModelPosition` `0x0064AC70`); the cell becomes `(trunc(p.x × (1/w)), trunc(p.z × (1/w)))` with `w` the terrain's
+cell width (terrain slot 6); the floor height becomes the lowest of the cell's four corner altitudes (terrain slot
+17), the first corner kept on ties and NaN never taken; the floor and walls are rebuilt (`CreateFloor` `0x0064BFD0`,
+`AddWallQuad` `0x0064C2C0`, `CreateWalls` `0x0064C470`); the effect, when present, is moved to `p`. For a cell off
+the map the corner read leaves its output untouched, so the floor height comes from uninitialised values *[quirk]*;
+FreeCity4 uses the position's y then *[choice]*. Occupant slot 8 `GetPosition` returns the position.
+
+**Model and zoom.** `LoadModel` (`0x0064AD90`) builds the model's resource key from the exemplar's property
+`0x27812821`, with the instance from `cSC4ModelMakerUtility::GetModelInstanceID(occupant, zoom, rotation, kind is 1
+or 8, 0, 0, 0)`, fetches the model (interface `0x9AD0E7E3`) and makes the pole's model instance, placed by
+`SetModelPosition` (the position plus the exemplar's offset `0x4835C6A4`) and turned with the view.
+`ChangeZoomLevel` (slot 18): when the context's zoom differs from the cached one (`0x00B0C0A8`), every cached texture
+is reloaded; then the rotation and zoom become the context's (`+0x18`, `+0x14`) and the model, floor and walls are
+rebuilt.
+
+**Distress.** `SetDistressed(b)` stores the flag. Distressed with no effect: the effects manager (`0x00B43D1C`, slot
+7) makes `powerpolezap`, which is placed at the position (identity rotation, scale 1) and started (its slots 8 and 3).
+Repaired: a running effect is stopped (slots 5, 4), released and forgotten. The pole decay of power.md §7.6 calls it.
+
+**Drawing.** `Draw` (`0x0064C800`) rebuilds the model, floor and walls when needed, draws the floor and walls in the
+underground view with the textures `0x0912220E` and `0x08080004` and the tint from the lighting, and
+`DrawPowerlines` (`0x0064B750`) draws each owned wire with texture `0xAA9DA78E` (and `0xC9AF0FCD` for the coarse
+curves), its width scaled by the zoom's scaling factor (§4.3).
 
 ---
 
 ## 5. The power line *(cSC4PowerLineOccupant, 0xC9C05C5D)*
 
+*Rewritten 2026-10-21 (re-powerpoles): object offsets, and the record read in the bytes (answers NO13).* A power line
+occupant is a light occupant at one cell that names its two poles; the power simulator wires its cell.
+
 ### 5.1 Layout and slots
 
-Constructor `0x0064A270`. Sub-objects: `+0` primary `cISC4PowerLineOccupant` `0x00AA9C80` (**8 slots**),
-`+4` `cISC4Occupant` `0x00AA9BF8` (34), `+8` serializable `0x00AA9BDC` (Write `0x0064A310` / Read `0x0064A3A0` /
-`GetGZCLSID` `0x00649260`), `+0xC` property holder `0x00AA9B78`, `+0x20` `0x00AA9B60`. Occupant type `0x0990B2EA`
-at `+0x28`.
-
-| Offset | Meaning |
+| Item | Value |
 |---|---|
-| `+0x30` | u32 (the record's field 1) |
-| `+0x34/+0x38/+0x3C` | position x/y/z floats (`GetPosition` `0x005B2B00`) |
-| `+0x40/+0x44` | cell x/z (from `SetPosition`) |
-| `+0x48/+0x4C/+0x50` | the three connected poles (refs) |
-| `+0x54` | byte (the third pole's flag) |
-| `+0x55` | preview byte (slots 6/7) |
+| Class ID (`GetGZCLSID` `0x00649260`) | `0xC9C05C5D` |
+| `QueryInterface` (`0x00649350`) | `0xC98F3B24` (`cISC4PowerLineOccupant`), `0xC9C05C5D`, `0xA9764C8C` → main (counted); others → the occupant base |
+| Occupant type (`+0x28`) | `0x0990B2EA` |
+| Factory | `GZCOM_CreatecSC4PowerLineOccupant` (`0x0064AB70`), a pool block and the constructor `0x0064A270` |
+| Sub-objects | `+0` main (`cISC4PowerLineOccupant`, vtable `0x00AA9C80`, **8 slots**), `+4` occupant (`0x00AA9BF8`, 34), `+8` serialisation (`0x00AA9BDC`: Write `0x0064A310`, Read `0x0064A3A0`), `+0xC` property holder (`0x00AA9B78`), `+0x20` a small interface (`0x00AA9B60`) |
 
-`cISC4PowerLineOccupant` slots (vtable `0x00AA9C80`):
+State: position `+0x38` (3 × f32), cell `+0x44`, `+0x48` (2 × s32), the two poles `+0x4C`, `+0x50` (counted), a
+bool `+0x54` given with the poles, preview `+0x55`.
 
 | Slot | Address | Behaviour | Pop |
 |---|---|---|---|
-| 0 | `0x00649350` | `QueryInterface` (§1.2) | 8 |
-| 1/2 | shared | `AddRef`/`Release` | 0 |
-| 3 | `0x00649290` | `GetConnectedPoles`: out1 = `+0x4C`, out2 = `+0x50`, out3 byte = `+0x54` (`AddRef`s) | 12 |
-| 4 | `0x006492D0` | `SetConnectedPoles` (releases old, `AddRef`s new) | 12 |
-| 5 | `0x00649330` | `GetCell` = (`+0x44`, `+0x48`) | 8 |
-| 6 | `0x00649390` | `IsPreview` = byte `+0x55` | 0 |
-| 7 | `0x006493A0` | `SetPreview` stores `+0x55` | 4 |
-
-`SetPosition` `0x0064A460`: world x × 0.0625 (`0x00A8E174`) → int cell at `+0x40`, z → `+0x44` (through the
-float→int helper `0x009EEF04`). `GetBoundingBox` `0x0064A4A0`: min = max = the position (a degenerate box).
-`Shutdown` `0x00649270`: releases the two pole refs, then the base `Shutdown`.
+| main 3 | `0x00649290` | `GetConnectedPoles(&p1, &p2, &b)`: both poles (each counted for the caller), `b :=` `+0x54`. The SDK declares the first out-argument a line; it is a pole | 12 |
+| main 4 | `0x006492D0` | `SetConnectedPoles(p1, p2, b)`: holds the new poles, releases the old, stores `b` | 12 |
+| main 5 | `0x00649330` | `GetCell(&x, &z)` = (`+0x44`, `+0x48`) | 8 |
+| main 6, 7 | `0x00649390`, `0x006493A0` | `IsPreview` / `SetPreview(b)` (`+0x55`) | 0, 4 |
+| occupant 3 | `0x005DEA50` | the occupant base `Init` | |
+| occupant 4 | `0x00649270` | `SetConnectedPoles(null, null, false)`, then the occupant base `Shutdown` | |
+| occupant 8 | `0x005B2B00` | `GetPosition` | |
+| occupant 9 | `0x0064A460` | `SetPosition(p)`: the position, and the cell `(trunc(p.x × 0.0625), trunc(p.z × 0.0625))` (`0x00A8E174`, through the float→int helper `0x009EEF04`) | |
+| occupant 10 | `0x0064A4A0` | `GetBoundingBox(min, max)`: both the position (a degenerate box) | |
 
 ### 5.2 Record and creation *[compat]*
 
-`Write` `0x0064A310` v2: the `cSC4Occupant` record; u32 `+0x30`; u32 `+0x34`; u32 `+0x38`; u32 `+0x3C`; u32
-`+0x40`; `SC4WriteGZSerializable(+0x4C)`; `SC4WriteGZSerializable(+0x44)`; `SC4WriteGZSerializable(+0x48)`.
-`Read` `0x0064A3A0` v2: symmetric (refs read with IID `0xA8C86142`).
+`Write` `0x0064A310` / `Read` `0x0064A3A0`: u16 **2**; the occupant base record; the position (3 × f32, stream slot
+`+0x30`); the cell (2 × s32, slot `+0x20`); `bool` `+0x54` (`operator<<(u8)` `0x005D9FD0`); `ref` pole 1; `ref` pole 2
+(`SC4WriteGZSerializable` `0x005D99A0`; read as `0xA8C86142`). `Read` accepts only version 2.
 
 Creation: `cSC4PowerLineTool::PlacePoles` `0x00651560` creates lines directly (ctor `0x0064A270` at `0x00651CE4`),
 position from `ComputePolePosition` `0x0064EFE0`; x,z use `(signed cell + 0.5) × terrain cell width`.
@@ -1766,10 +1915,15 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
 10. **The path connections are 8 × 4 bytes at `+0x144`** (§2.6): a byte per (path type, entry side), a bit per exit
     side; path type 0 is always set along with the requested type, and the whole thing is gated by network flag
     `0x2000`.
+<<<<<<< HEAD
 11. **Pole records use class-ID-valued IIDs for distinct ref kinds** (§4.4): each destination
     pole uses `0x09C05C6A`, each linked-list power line uses `0xC9C05C5D`. Neither is an
     alternative fallback IID for the other kind. Four xyz vectors are saved/read through
     the selected shared connection-point table pointer, not inline object storage.
+=======
+11. **The pole's record reads two kinds of reference** (§4.4): the other pole of each connection comes back as
+    `0x09C05C6A`, each line under it as `0xC9C05C5D`.
+>>>>>>> a33fa02e (network-occupants.md: the power pole and power line occupants, corrected)
 12. **The demolition cost is an int64** (§2.4, slot 63): returned in `EDX:EAX`, saved as one `SetInt64`
     (§2.3 field 13).
 13. **The prebuilt primary's appendix** (§2.8): the vtable at `0x00AA7038` continues past the shared 81 slots with
@@ -1783,14 +1937,19 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
 18. **`GetAltitude` ignores the drawn diagonal** (flag `0x1000000`) (§2.9).
 19. **`IsImaginaryConnection` has no bounds check** on its side (§3.2).
 20. **The connection record's row 8 is never used**: `Read` sets `+0x17C` to true after reading it (§3.6).
+21. **Loading a pole writes its saved attachment points into the shared table of its kind** (§4.4).
+22. **`BreakAllConnections` leaves pole-less records in the vector**, so the connection count does not drop (§4.6).
+23. **A pole off the map takes its floor height from uninitialised values** (§4.7).
+24. **`GetConnectedPole` has no bounds check** (§4.2).
+25. **A pole's `SetHighlight` does not change the occupant's `GetHighlight`** (§4.2).
 ---
 
 ## 12. Open questions
 
 - **NO1.** **Answered 2026-10-21 (re-ugbase):** flag `0x40` is `1 << 6`, the avenue network type (`IsOfType(6)`, §1.4);
   `IsIntersection` is "an avenue piece whose piece id is in the 13-entry avenue intersection set" (§2.4, §2.5).
-- **NO2.** The identity of the delegate interface `0x26A68448` answered by the power pole via `+0xBC`
-  (jump-table dispatch; likely a UI/drag helper). Probe: dump the `[+0xBC]` vtables on a live pole.
+- **NO2.** **Answered 2026-10-21 (re-powerpoles):** `0x26A68448` is forwarded to the pole's model instance
+  `+0xBC` (a model instance's mesh container, §4.1).
 - **NO3.** **Answered 2026-10-21 (re-ugbase):** no; the underground constructor runs the network constructor first,
   which writes `0xC772BF98` (§3.2).
 - **NO4.** The semantics of the prebuilt `Write` fields `+0x170`/`+0x174`/`+0x178`/`+0x17C`/`+0x180` (§2.8):
@@ -1806,7 +1965,7 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
   **5** (`PUSH 0x5` at `0x0064B01D`); `Read` rejects < 4. No question remains.
 - **NO10.** ~~The pylon's occupant type~~ — **settled while writing this spec**: the ctor writes `0xA9B6D7DE`
   at `+0x2C` (`0x005F19F9`). No question remains.
-- NO32–NO35 (re-ugbase, 2026-10-21) are in [questions/network-occupants.md](questions/network-occupants.md).
+- NO32–NO35 (re-ugbase) and NO36–NO37 (re-powerpoles), 2026-10-21, are in [questions/network-occupants.md](questions/network-occupants.md).
 
 ---
 
@@ -1850,6 +2009,7 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     resolved to each other (traffic-network.md §4.8).
 15. **Connection occupants** (§3.6). A pipe connection saves as class `0xEA0A5ACF` with the seven wall writes and
     reloads; `QueryOccupantInterface` (subway, slot 44) QIs `0xCA16374F` then `0x4A10AFC2`.
+<<<<<<< HEAD
 16. **Pole record** (§4.4). Round-trip a v5 pole with two destination refs. The first
     connection has line list [L1,L2], the second an empty list: reference read IIDs are
     respectively 0x09C05C6A, 0xC9C05C5D, 0xC9C05C5D, 0x09C05C6A, with list counts
@@ -1876,6 +2036,12 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     the quote is identical. After the first static init, changing `0x0A2ECED8` and
     initializing another pole also leaves the old quote intact. Calling only the
     six-control reload does not reset an already supplied quote.
+=======
+16. **Pole record** (§4.4). A pole with two connections saves version 5; version 3 fails; on read the other poles
+    resolve with IID `0x09C05C6A` and the lines with `0xC9C05C5D` (quirk 11); `InitConnectionPoints` runs again.
+17. **Pole cost** (§4.2, §4.3). `GetCostOfDemolition` (slot 10) returns the `EDX:EAX` pair `0x00B46770/0x00B46774`,
+    the tuning `0x0A2ECED8`: 5 with the shipped exemplar, 0 without it.
+>>>>>>> a33fa02e (network-occupants.md: the power pole and power line occupants, corrected)
 18. **Line slots** (§5.1). `GetConnectedPoles` returns the three refs with `AddRef`; `SetConnectedPoles` releases
     the old ones; `IsPreview`/`SetPreview` round-trip.
 19. **Pylon record** (§6.3). A v5 fixture starts its derived body with dirty=1,
@@ -1931,3 +2097,13 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     posts ChangeOccupant; after save and load the piece is opaque again.
 34. **Ceiling** (§3.2). An underground piece `0x300` with original heights 10, 12, 10, 12 and the default statics
     has the ceiling 10 − 3 = 7.
+35. **Pole identity** (§4.1). `QueryInterface(0xA8C86142)` succeeds; `QueryInterface(0x26A68448)` on a pole with a
+    model instance returns that instance's mesh container, and fails without one.
+36. **Line record** (§5.2). A line saves u16 2, the occupant record, 12 bytes of position, 8 of cell, one byte and
+    two refs; version 1 fails.
+37. **Line position** (§5.1). `SetPosition((40, 3, 70))` gives the cell (2, 4) and a point bounding box at
+    (40, 3, 70).
+38. **Distress** (§4.7). `SetDistressed(true)` creates one `powerpolezap` effect; a second call creates no other;
+    `SetDistressed(false)` stops and releases it.
+39. **Break all** (§4.6). After `BreakAllConnections(true)` on a pole with two connections, `GetConnectionCount` is
+    still 2, both records have no pole, and the other poles have no record of this one.
