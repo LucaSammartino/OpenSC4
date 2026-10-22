@@ -39,9 +39,42 @@ sizes the quad from the frame's pixels and the view's metres per pixel, so the s
   key (slot 22, so type `0x29A5D1EC` is the sprite animation), returning it or null; `0x5AD0E817` →
   `GetSpriteAnimFromResourceKey` (`0x007FD7D0`), which fetches the resource through the resource manager. Other
   types give false. The two Mac-matched names look swapped against what the functions build *[inferred]*.
-- Loading (`0x007FD120`): from the model's per-zoom table, for each zoom the sprite-animation record of type
-  `0x69B6F01C` is fetched and set up (`0x007FC320`): its frame count, its number of view directions N and the angle
-  step 2π ÷ N, and the frame layout of §4.1; a missing zoom ends the loading.
+- Loading uses model-header IID `0x29A5D1EC` and per-zoom record IID `0x69B6F01C`. The latter is an
+  **interface ID**, not a resource type; its serialized type is `0x09ADCD75` (model-instances §6).
+
+### 2.1 Load transaction and ownership
+
+`Load(key)` passes the supplied key unchanged to resource-manager slot 3, requested IID `0x29A5D1EC`,
+output pointer and two zero options. Failed acquisition returns false. Success calls owner slot 21,
+releases the acquired interface, and returns that call's boolean (`0x007FD0C0–007FD114`).
+
+`LoadFromResource(null)` returns false unchanged. A non-null interface's slot 3 returns a borrowed header.
+The owner copies u32 header +0x3C to frame count +0xAC **before any acquisition**. It builds a key with
+type=header +0x0C, group=header +0x10 and, in order i=0..4, instance=header[0x14+4i]. Before each request
+it copies float header[0x28+4i] to scale[0xB0+4i]. These are five array slots, with no zoom subtraction.
+Each resource-manager slot-3 request uses that key, IID `0x69B6F01C`, output interface and two zero options.
+First failure stops further requests.
+
+For each success, the holder releases its previous interface, clears interface/data pointers, adds a reference
+to the new interface, stores it and its slot-3 borrowed data pointer plus 0x20, and derives §4.1 metrics.
+Load releases the temporary acquired reference. The model-header input itself is borrowed, without AddRef
+or Release by LoadFromResource (`0x007FD120–007FD1F1`, `0x007FC320`).
+
+Five successful zooms are insufficient: it acquires framework service `0x1AC0E11A`, IID `0xFAC0E219`, then
+calls service slot 6 with a key copied from header +0,+4,+8 and output texture binding. Only a non-null
+binding gives true. Before testing it, the function releases the old binding at +0xC4 and installs the result,
+including null. If service is absent or fewer than five zooms succeeded, it leaves the old binding untouched.
+The temporary service reference is released on exit (`0x007FD1F3–007FD2A5`).
+
+Failure rolls back **only this call's successful prefix**, in reverse order, releasing and nulling those
+holders' interface/entry pointers. It returns false even after four successful zooms. Failed/unvisited slots
+retain previous resources; overwritten old prefix resources are not recovered. Frame count, copied scales
+and derived metrics are not rolled back. No frame/clock/dirty/last-entry reset or sequence-controller
+construction occurs here. Repeated loads are not atomic replacements (`0x007FD2A5–007FD2E9`).
+
+Independent vector: starting with A0..A4 and binding T, acquire B0,B1 then fail at i=2. Return false;
+interfaces become [null,null,A2,A3,A4]; T remains; new frame count and scales 0..2 remain, scales 3..4 retain
+old values. A fresh instance failing at i=0 remains empty and returns false.
 
 ## 3. The interface (vtable `0x00ABD220`) *[compat]*
 
@@ -65,7 +98,8 @@ sizes the quad from the frame's pixels and the view's metres per pixel, so the s
 | 21 | `0x007FD120` | `LoadFromResource(resource)` | §2 |
 | 22 | `0x007FD0C0` | `Load(key)` | the resource of type `0x29A5D1EC` for the key, then slot 21 |
 
-Slot 0 (`0x007FAF40`) and slot 17 (always 0) are shared bodies.
+Slot 0 (`0x007FAF40`) converts the sprite pointer to the shared instance interface using its virtual-base
+offset; null stays null. It is not QueryInterface. Slot 17 returns 0.
 
 ### 3.1 Placement
 
@@ -163,12 +197,53 @@ returns 0 when equal, otherwise toggles bit 4 according to nonzeroness and retur
 
 ### 4.1 Frame lookup (`GetTextureResourceData` `0x007FD2F0`, `GetTextureData` `0x007FD3D0`)
 
-For the zoom's record: the **direction** d = round(N × ((yaw + π) − base) ÷ 2π) mod N, where yaw is the angle at which
-the camera sees the instance (negative pitches are wrapped by 2π first); the frame is then the record's entry for
-(d, frame mod frames). The entry gives the texture page and the frame's place in it: frames are laid out left to
-right and then downwards in a square page of side 2^k pixels, starting a new page when one is full; the frame's
-texture coordinates follow from its pixel position and size, with the sign bits of two entry bytes flipping u or v.
-A per-zoom scale other than 1 (by more than 0.0001) scales the frame's size and offset.
+The borrowed record has u32 divisors at +0,+4,+8; floats at +0x0C,+0x10,+0x14,+0x18; eight-byte entries
+start at +0x20. Let K be binary32 `0x40C90FDB` (2π). Holder +8,+0x10,+0x18 store K divided by the three
+unsigned divisors, rounded to binary32. Holder +0x0C,+0x14 copy record +0x0C,+0x14. It derives
+P=trunc((record[+0x10]−record[+0x0C])/holder[+0x10]+binary32(0.1))+1 and
+R=trunc((record[+0x18]−record[+0x14])/holder[+0x18]+binary32(0.1))+1.
+Holder +0x20=P, +0x24=R, +0x28=low32(P×R), +0x1C=divisor0. There is no rate/frame-count read here
+(`0x007FC36D–007FC438`). This describes consumer layout, not a file reader.
+
+Selection takes float angles a,b, an unused third argument, zoom, rotation and output pointer. Define B(x):
+store binary32(x+12582912), reinterpret bits as u32, add `0xB4C00000` modulo 2^32. This is a bit conversion,
+**not** truncation or ties-away rounding; in its intended range and nearest-even mode it rounds ties to even.
+π=`0x40490FDB`, reciprocal2π=`0x3E22F983`, quarter-turn=`0x3FC90FDB`.
+
+- p = unsigned remainder B((((a+π)−holder.base)×unsigned(P))×reciprocal2π) by P.
+- b'=b−signed(rotation)×quarter-turn; if ordered b'<0 add K once. Set
+  y=B((unsigned(divisor0)×reciprocal2π)×b'); if y>=divisor0 take unsigned remainder by divisor0.
+- Entry address = entryBase + 8×(p×R+y×(P×R)), with native 32-bit integer products/sum.
+
+Temporal frame does **not** select this entry: the decoder below packs it across pages. Draw supplies
+a=asin(forward.y), b=atan2(forward.x,forward.z), rotation=context view rotation. This corrects the earlier
+single yaw formula and negative-pitch description. Active x87 precision/rounding affects transients;
+do not round every operation. An absent holder pointer writes null; an allocated unloaded holder is not
+guarded against zero divisors. No zoom range check exists (`0x007FD2F0–007FD3C7`).
+
+| Entry byte | Meaning as consumed by the owner |
+|---|---|
+| 0 | unsigned initial texture page |
+| 1 | exponent k; side S=32-bit (1 << (k&31)) |
+| 2,3 | unsigned initial pixel x,y |
+| 4,5 | signed width,height; absolute values W,H; negative flips that UV axis |
+| 6,7 | signed pixel offsets ox,oy |
+
+For nonzero temporal frame n, delta=low32(W×n). If unsigned(delta+x)>unsigned(S−W), subtract
+trunc((S−x)/W)×W from delta, set x=0, add H to y (if y>S−H set y=0 and increment page), and set
+rowSpan=trunc(S/W)×W. While unsigned(delta)>unsigned(S−W), subtract rowSpan, add H to y and
+roll/increment page as above. Finally add delta to x. The branch skipping the first crossing retains an
+output-pointer integer in the rowSpan register; for valid packing its following loop cannot run.
+Do not turn malformed records into a regular atlas algorithm (`0x007FD470–007FD512`).
+
+UV edges use binary32 reciprocal 1/S, without half-texel bias. Vertices 0,1 share u0 and 2,3 share u1;
+vertices 0,3 share v0 and 1,2 share v1. Positive dimensions give u0=x/S,u1=(x+W)/S and v0=y/S,v1=(y+H)/S;
+negative dimensions swap the corresponding pair. Output is u32 page and float W,H,ox,oy. When ordered
+abs(scale−1) >= binary32 `0x38D1B717` (approximately 0.0001), all four metrics are scaled; UVs/page are
+unchanged (`0x007FD3D0–007FD63E`).
+
+Independent vector: entry [2,6,48,32,16,−16,−3,4], frame 5 gives side 64, page 3, x=0,y=0 and
+UVs [(0,0.25),(0,0),(0.25,0),(0.25,0.25)]. Scale 2 gives [page 3,32,32,−6,8].
 
 ## 5. Drawing (`Draw`, `0x007FEA90`; `UpdateView`, `0x007FE400`) *[compat]*
 
