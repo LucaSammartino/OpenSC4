@@ -49,9 +49,50 @@ Read once (the first `Init`) from the exemplar `0x6534284A / 0x88CD66E9 / 2` ("R
 
 ### 1.2 Shores (`DetectShores`, `0x00761B70`)
 
-Every terrain vertex with flag `0x10` set and flag `0x01` clear starts a shore trace (terrain helpers `0x0074B570`);
-a shore with more points than `0x491C9C01` is kept (`0x00761A00`). The terrain's edit counter (terrain slot 54) is
-remembered.
+When enabled, DetectShores resets the accumulated edit area, snapshots the unsigned 32-bit terrain edit counter
+(slot 54), and refreshes terrain flag `0x10` through `0x007428E0` (the existing terrain shoreline kernel).
+It scans **all vertices**, z ascending outside x ascending, using stride cellsX + 1. A vertex with `0x10` set
+and `0x01` clear starts a trace. The length comparison is unsigned and strict: retain only length > minimum,
+not ≥ minimum (`0x00761B86–0x00761C9E`). Rejected short traces still consume visit flags during this scan.
+
+The ordered trace is defined by `0x0074B570`, forward walk `0x0074AD20`, and backward walk `0x0074AB60`.
+Its direction table is executable data at `0x00AB3B80` (x) and `0x00AB3BA4` (z):
+
+| Direction | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|---|---|---|---|---|---|---|---|
+| dx | −1 | −1 | 0 | 1 | 1 | 1 | 0 | −1 |
+| dz | 0 | −1 | −1 | −1 | 0 | 1 | 1 | 1 |
+
+Clear the temporary deque, append the seed index once, and OR visit mask 1 into its 16-bit flags. First walk
+forward from the seed, appending each accepted index; then walk backward **from the original seed**, prepending
+each accepted index. Both walks share the mutated flags. Each walk initially searches for an in-bounds neighbour
+whose binary32 height is strictly below waterY: forward searches directions 0..7, backward 7..0. If none exists,
+that walk ends immediately. This initial underwater direction is the excluded direction for the first scan.
+
+Forward scans the seven other directions starting at excluded + 1 modulo 8, increasing modulo 8; backward starts
+at excluded − 1 modulo 8 and decreases modulo 8. Out-of-bounds neighbours are skipped, using unsigned x/z bounds
+checks (negative coordinates wrap and fail). At each in-bounds neighbour:
+
+- If flag `0x10` is set and visit mask 1 is clear, OR the mask into its flags, append/prepend its index, make it
+  the current vertex, and restart with excluded direction `(acceptedDirection − 4) & 7`.
+- Otherwise, height strictly above waterY terminates this walk immediately. Equal-height vertices do not stop
+  the directional scan. The shore/visit test precedes the height test, so an unvisited shore candidate can be
+  accepted even when its height is above waterY.
+- Exhausting the seven directions without acceptance ends the walk. Visited shore vertices are never appended
+  again, including the seed: there is no explicit closed-loop endpoint duplication or closure flag.
+
+This is an eight-neighbour directional trace with a height barrier, not enumeration of a connected component.
+Initial direction and barriers use height, not a guessed water flag. Instruction proof: initial comparison
+`0x0074AD7C–0x0074AD87`, shore/visit/barrier order `0x0074ADF3–0x0074AE1E`, reverse order
+`0x0074AC34–0x0074AC51`, append/prepend and direction reset `0x0074AE35–0x0074AEF5`,
+`0x0074AC6A–0x0074AD1C`. The visits are temporary: after **all seeds**, `0x00740980(1)` clears mask 1 from
+every terrain vertex, rather than restoring a saved per-vertex flag word. Preexisting bit-1 values are therefore
+also cleared. Other bits remain as produced by the flag refresh and tracing.
+
+AddShore copies deque indices in their final order to binary32 control points `(16 × (index % stride),
+16 × (index / stride))`, unsigned division/remainder then conversion; no simplification, endpoint extension or
+height is stored (`0x00761A00–0x00761B6A`). DetectShores itself appends shores; callers clear the old shore
+collection when a full redetection is intended (§1.5).
 
 ### 1.3 Strips (`CreateRipples` `0x00761CF0`, `CreateRipplesForShore` `0x00761140`)
 
@@ -135,15 +176,65 @@ as one triangle strip with its current frame's texture.
 
 ### 1.5 Updates (`DoMessage`, `0x00761F80`)
 
-- `0x86AD10EE` (animation tick with the elapsed time; `DoAnimationTick` `0x00761E70`): each strip's clock advances;
-  past its period the frame advances (wrapping at the texture's frame count) and a new random period is drawn. When
-  no rebuild is pending and the terrain's edit counter has grown by more than 50² / 10 = 250, a rebuild is armed; an
-  armed rebuild happens after 2,000,000 time units *[inferred: 2 s]*.
-- `0x278E6003` terrain changed (`DoOnTerrainEdit` `0x00760E10`): the changed area is added up; past
-  `0x491C9C0C` (12) the sum restarts and the rectangle is checked: strips it touches are removed and a rebuild is
-  armed; otherwise the rectangle is merged into a dirty rectangle and a rebuild is armed once that covers more than 400
-  cells.
-- `0x89171496`: rebuild at once.
+**Frame sampling (WR6).** Strip preparation samples a frame in `[0, frameCount)` first, then a period in `[L,H)`,
+and initializes its unsigned 32-bit clock to zero (`0x0075FEF2–0x0075FF3B`). There is one shared native
+cRZRandom object at `0x00B4D530`; calls consume it in shore order, strip list order. This is multiply-high range
+scaling, not modulo, floating random interpolation, inclusive upper-bound sampling or rejection sampling:
+
+- For nonzero bound B, obtain raw R and return floor(R × B / 2³²), using unsigned 32×32 multiplication. B = 0
+  returns zero without consuming a random value (`0x009136B1–0x009136C9`).
+- Signed range helper returns L + bounded(H − L), with 32-bit subtraction/addition (`0x009136CA–0x009136DE`).
+- Raw step: form the unsigned 64-bit value Q = state × `0x41C64E6D` + `0x3039`; store low32(Q) as the next
+  state; return low32(Q >> 16). The high multiplication bits participate in the returned value; this is not
+  merely nextState >> 16 (`0x00913696–0x009136B0`).
+- L and H come from unsigned base period P converted with x87 integer load plus 2³² correction when its signed
+  interpretation is negative. Multiply by binary32 0.7 (`0x3F333333`, `0x00A98F80`) and binary32 1.3
+  (`0x3FA66666`, `0x00AB45F4`), respectively. Each product remains extended precision for the native floor
+  conversion: subtract binary32 0.5, add 12582912, spill binary32, subtract bit pattern `0x4B400000`; increment
+  the resulting integer only if the original product equals that integer + 1. Within the intended conversion
+  domain this is floor, including the representational error in the multipliers (`0x007601D3–0x0076026B`).
+  For P = 175000 it gives **L = 122499, H = 227499**, so periods range 122499..227498. The earlier
+  decimal-only 122500..227500 description is not the native arithmetic. No additional clamping is applied.
+
+**Tick.** Before the first Update has built the collection, DoAnimationTick does nothing. Afterwards, scheduling
+is processed first (§below), then each retained strip once in collection/list order. Add the raw elapsed value
+to its clock modulo 2³². If the resulting unsigned clock is **≥ period**, increment frame once, sample one new
+period, reset clock to zero (discard all overshoot), and reset frame to zero if it is ≥ frameCount. It never
+loops to catch up. Equality advances; wrapping the clock can instead prevent advancement. Strips created by a
+rebuild during this tick receive that same tick's full elapsed value (`0x00761E74–0x00761F5F`).
+
+**Terrain edits and scheduling (WR10).** Message `0x278E6003` supplies packed unsigned 16-bit bounds: high/low
+halves of message slot 9 are xmin/xmax; high/low halves of slot 14 are zmin/zmax. These are terrain cell-grid
+coordinates for the cached contact rectangles, not metres. Area is signed low32 of `(xmax−xmin)(zmax−zmin)`,
+without +1. If area ≤ 0, return. Otherwise add it modulo 2³² to an unsigned accumulated area. Values ≤ the
+tuning threshold (12) return immediately; **no dirty-rectangle union occurs on this branch**. Only when the sum
+is > threshold does it reset to zero and test/remove intersecting strips (`0x00760E21–0x00760E8A`).
+
+Contact uses inclusive signed rectangle overlap: first shore cached cell bounds, then strip cached cell bounds,
+then any cached subrectangle of that strip. Edge/corner contact passes. It is an AABB/subrectangle test, not
+segment/polygon intersection. Remove **all** matching strips, freeing their vertices and subrectangle storage;
+other strips remain. The cached-bound construction is a separate draw-preparation obligation (WR7).
+Proof: `0x0075FB40–0x0075FBA9`, `0x007607F0–0x007608C7`.
+
+If any strip was removed, arm the rebuild and reset its clock to zero **even when already armed**. Otherwise,
+if already armed, return without union or clock reset. Otherwise union this edit rectangle into the dirty
+rectangle using componentwise signed min/max; arm/reset only when its signed width×height is > 400.
+The dirty rectangle starts `(INT_MAX,INT_MAX,INT_MIN,INT_MIN)` in the constructor. Neither DetectShores nor a
+completed rebuild resets it; the accumulated area and edit-counter snapshot, by contrast, reset during enabled
+DetectShores. A sequence of distant edits can therefore retain old dirty extents across rebuilds
+(`0x00760E8C–0x00760EC4`, union `0x004665C0`, constructor `0x007617EA–0x00761806`).
+
+When a tick starts unarmed, arm/reset if current unsigned edit counter is > low32(snapshot + floor(low32(minimum²)
+/ 10)). This is comparison against a wrapped sum, **not a wrapped difference**. The arming tick contributes no
+elapsed time to the rebuild clock. When a tick starts armed, add elapsed modulo 2³² and rebuild only at
+**strictly > 2000000**, not equality. Delayed rebuild clears all shores/strips, redetects, then recreates; the
+rebuild happens before frame animation on that tick (`0x00761E87–0x00761EE9`).
+
+Message `0x89171496` clears the shore collection, redetects and recreates immediately (`0x00761FC1–0x00761FE8`).
+It does not itself clear a pending rebuild; CreateRipples sees that pending flag, clears/redetects again and
+clears it. A zoom mismatch in Update calls CreateRipples: normally it reuses cached shores and rebuilds only
+strips; if pending, CreateRipples first clears/redetects shores. Zoom comparison/recreation occurs only inside
+the nonempty-shore and water-effects-enabled draw branch (`0x00761CF7–0x00761D31`, `0x00762004–0x00762094`).
 
 ## 2. Selection highlights (`cSTESelectedTerrainArea`) *[compat]*
 
@@ -156,8 +247,9 @@ states (§2.3).
 
 ### 2.2 Marking (`MarkSelected`, five forms)
 
-The last argument of each form clears both tables first (the rectangle form then also rebuilds the render states if
-`kPreferOpaque` changed).
+When the last argument is nonzero, **each of the five forms** clears both tables first and refreshes the shared
+render states if `kPreferOpaque` changed. With clear false none refreshes that preference, including the rectangle
+form (`0x007516D0`, `0x00751780`, `0x00751910`, `0x007519A0`, `0x00751A70`, first branches).
 
 | VA | Arguments | Effect |
 |---|---|---|
@@ -169,6 +261,34 @@ The last argument of each form clears both tables first (the rectangle form then
 
 The palette index is not range-checked: indices above 4 read unrelated constants *[quirk]*. `ClearCurrentSelections`
 (`0x00750CA0`) empties both tables.
+
+**Data widths and unchecked inputs (WR9).** Coordinates and keys/colours/mode are 32-bit; b1–b3 are bytes;
+RGB and alpha fields are binary32. Packed colour `0xRRGGBBxx` copies **xx as b3**. R/G/B are each multiplied
+by binary32 `0x3B808081` (1/255 at `0x00A90BBC`) and stored as binary32. Alpha is exactly 1 in every case
+except mode 3 with kNoAddSigned, which stores mode 1 and alpha 0.5. The low colour byte is not alpha
+(`0x00751AD3–0x00751B91`). Palette marking copies only three RGB floats from 16-byte-stride entries, then
+unconditionally stores alpha 1 and mode 2; it ignores the fourth palette float (`0x00751A17–0x00751A62`).
+
+There is no terrain bounds validation or rectangle normalization. Cell key is low32(z × (cellsX + 1) + x);
+out-of-range/negative coordinates can alias valid keys. An empty list still performs requested clear/preference
+refresh, then succeeds. Rectangles iterate signed inclusive z outside signed inclusive x; reversed bounds insert
+no entries (but still clear/refresh if requested). Valid portions of out-of-range rectangles are not selected
+separately: all coordinates in the given loop are inserted. Marking returns boolean true; there is no atomic
+invalid-input rejection (`0x007516D0–0x00751771`, `0x007517D0–0x0075190D`, `0x00751958–0x00751992`,
+`0x00751653–0x007516A9`). Signed endpoint overflow is unsanitized; callers must avoid INT_MAX inclusive loops.
+
+Palette indexing shifts the full index left four bits modulo 2³² and reads RGB at low32(`0x00AB4238 + offset`).
+It neither clamps nor reports an error. Adjacent shipped-image RGB words are:
+
+| Index | RGB binary32 words | Values |
+|---|---|---|
+| 5 | `3D800000 47400000 38D1B717` | 0.0625, 49152, approximately 0.0001 |
+| 6 | `3F800000 3F800000 00000000` | 1, 1, 0 |
+| 7 | `00000000 3F800000 3F800000` | 0, 1, 1 |
+
+These are unrelated data, not extra palette entries. Arbitrary overflow is an unchecked native memory read;
+addresses outside mapped memory can fault and are not a defined portable colour domain. The shift also makes
+index `0x10000000` alias index 0 (`0x00751A17–0x00751A2E`; image data `0x00AB4288–0x00AB42B0`).
 
 ### 2.3 Drawing (`Update`, `0x007514F0`)
 
@@ -190,8 +310,9 @@ animation tick drives the ripples.
 
 ## 5. Open questions
 
-See [questions/water-ripples.md](questions/water-ripples.md) WR1–WR3: the time unit of the tick and the periods, the
-terrain flag meanings `0x10` / `0x01` (shore and water *[inferred]*), and the bytes b1–b3 of a textured selection.
+See [questions/water-ripples.md](questions/water-ripples.md). WR4–WR6 and WR9–WR10 have native contracts here;
+WR7–WR8 retain explicit draw/lifecycle obligations. WR1–WR3 remain separate semantic questions; in particular,
+bit 1 is a temporary trace visit mask here, not evidence that it means water.
 
 ## 6. Conformance tests
 
@@ -209,3 +330,13 @@ terrain flag meanings `0x10` / `0x01` (shore and water *[inferred]*), and the by
     A 1001st followup is appended before splitting, giving 1002 pairs including the initial pair.
 11. **WR5 fade:** A = 100, configured fade = 6 and V = 8 give R = 2, start = 10, increment = 14 (binary32 0.9
     is below 0.9). Pair alpha is `[10,24,24,10]`, not `[0,100,100,0]` or a fade divided by R.
+12. **WR4 trace:** with only the seed flagged shore, the result is exactly one index, even if all eight
+    neighbours are underwater; it is rejected for minimum ≥ 2. Visit mask 1 is cleared globally after detection.
+    With all heights equal to waterY neither walk starts, regardless of neighbouring shore flags.
+13. **WR6 overshoot:** clock 0, period 150000, frame 2 of 8, elapsed 900000 advances to frame 3, clock 0,
+    and consumes one period draw. It does not advance six frames. P = 175000 samples `[122499,227499)`.
+14. **WR9 alias:** stride 9, cells (9,0) and (0,1) share key 9. Packed `0x123456AB`, mode 2 stores
+    b3 = 0xAB and alpha 1. A reversed rectangle with clear true empties old selections and succeeds.
+15. **WR10 thresholds:** accumulated edit area 0 plus area 12 returns without union. A subsequent area 1
+    resets the accumulated area and performs contact. Armed clock exactly 2000000 does not rebuild; one more
+    unit does. Snapshot `0xFFFFFFF0` and minimum 50 give wrapped threshold 234: current counter 100 does not arm.
