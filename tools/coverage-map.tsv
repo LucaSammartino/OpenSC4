@@ -251,10 +251,10 @@ cSC4Region	region	region	region-model.md, region.md	-	-	-
 cSC4Region*	region	region	-	-	-	-
 cSC4WinRegionScreen	region	region	region-screen.md	-	-	-
 cSC4WinRegion*	region	region	-	-	-	-
-cSC4NewRegionDialog	region	region	-	-	-	-
-cSC4ImportCityDialog	region	region	-	-	-	-
-cSC4EstablishCityWinProc	region	region	-	-	-	-
-cSC4ObliterateCity	region	region	-	-	-	-
+cSC4NewRegionDialog	region	region	region-city-dialogs.md	-	-	-
+cSC4ImportCityDialog	region	region	region-city-dialogs.md	-	-	-
+cSC4EstablishCityWinProc	region	region	region-city-dialogs.md	-	-	-
+cSC4ObliterateCity	region	region	region-city-dialogs.md	-	-	-
 fn:SC4*Region*	region	region	-	-	-	-
 cSTEEdgeReconcile*	region	region	-	-	-	-
 # ---- data formats and scripting (framework)

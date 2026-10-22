@@ -49,6 +49,7 @@ generated index: the questions live one file per spec, so read only the file for
 | CRH | coverage-radius-effect-helper |
 | CS | city-situation |
 | CT | city-tools, city-tools-input |
+| CY | region-city-dialogs |
 | DC | draw-context |
 | DG | building-development |
 | DM | demolition |
@@ -298,8 +299,9 @@ generated index: the questions live one file per spec, so read only the file for
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
 | region | 2 | 0 | RQ3 | questions/region.md |
-| region-model | 11 | 1 | RM13 | questions/region-model.md |
-| region-screen | 3 | 0 | QR4 | questions/region-screen.md |
+| region-city-dialogs | 12 | 0 | CY13 | questions/region-city-dialogs.md |
+| region-model | 13 | 1 | RM15 | questions/region-model.md |
+| region-screen | 4 | 0 | QR5 | questions/region-screen.md |
 | regional-city | 6 | 0 | RY7 | questions/regional-city.md |
 | regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
 | render-properties | 3 | 3 | RP7 | questions/render-properties.md |
@@ -348,4 +350,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **533** | **1281** | | |
+| **total** | **548** | **1281** | | |
