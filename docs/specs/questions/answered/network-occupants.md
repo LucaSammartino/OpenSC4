@@ -52,4 +52,3 @@
   start height at -FLT_MAX, replace only by strictly greater ordered corners, add 0.5, store float32.
   All-sentinel corners return y=-FLT_MAX; no failure/skipped pole. NaN corners are ignored. Evidence
   `0x0064F00B`, `0x0064F061–0x0064F0BB`; `0x00AA9F0C=0xFF7FFFFF`.
-

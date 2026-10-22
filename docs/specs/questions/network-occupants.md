@@ -93,4 +93,3 @@ implementer of the class tables and records.
 <!-- from: core-netocc-records4 (engine lane, 2026-10-21) -->
 - **NO20 - `IsImaginaryConnection` with dir > 3:** the offset table `0x00B0CFE8` has four (dx, dz) pairs; what does
   a direction above 3 read (the bytes after the table, or a guard)? The core returns false. [missing]
-

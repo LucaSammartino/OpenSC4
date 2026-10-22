@@ -162,6 +162,40 @@ span state and whether this is a forced point. These branches are not the slot-8
 calls the classifier itself, and writes building/road failure codes internally. NT18 retains the exact
 break/old-wire cases pending proof. There is no call of slot 81 in the direct Determine/PlacePoles chain.
 
+#### Existing-wire interception: eligibility and reference transfer
+
+On a clear cell with no existing pole, probe for a wire occupant (`0x00650ACE–0x00650AE6`). A hit
+returns its two endpoint references through wire slot 3. Form the saved descriptor from those endpoints
+in returned order with **both state bytes set to 1**. Read each endpoint's cell through pole slot 8.
+The endpoint coordinates are signed integers for the following test; each nonzero coordinate difference
+is reduced by signed division by its absolute value (`0x00650B53–0x00650BBB`).
+
+Reject interception if the current step is at or beyond the previously placed-step count (`+0x74`),
+or if **both** reduced coordinate differences are nonzero. Thus horizontal and vertical spans are
+eligible; diagonal spans are rejected regardless of slope or length. Coincident endpoints pass this
+part of the gate. Rejection releases both endpoint references, nulls both descriptor pointers and resets
+both descriptor state bytes to 1. It does not itself clear an already pending pole request.
+
+Otherwise set the pending pole request, then test, in short-circuit order:
+
+1. An existing generated pole record has the exact same ordered endpoint pointers and both state bytes.
+2. The first endpoint shares **either** x **or** z with any generated pole record.
+3. The second endpoint shares **either** x **or** z with any generated pole record.
+
+If any predicate succeeds and the current cell is **not forced**, clear the pending request and reject
+the descriptor as above. A forced cell bypasses this duplicate rejection, but never bypasses the
+previously-placed-step or diagonal gates. Here forced means the flag set for the special previous-run
+point, next input anchor/final-cell anchor advance, or spacing trigger; it is separate from the pending
+request retained across cells. If no duplicate predicate succeeds, or the cell is forced, retain the
+two endpoint references in the descriptor for the emitted record. Release the probed wire reference
+in all hit cases, after the endpoint decision (`0x00650BCC–0x00650C35`). The later pivot test still
+controls whether this cell emits; accepting a descriptor is not itself an unconditional emission.
+
+Evidence: branch predicates `0x00650BBF–0x00650BCA`, pending/forced handling
+`0x00650BD3–0x00650C01`, release/reset `0x00650C06–0x00650C2E`; descriptor equality helper
+`0x0064F170–0x0064F1C5`, coordinate-OR helper `0x0064F1D0–0x0064F22E`. This bounded contract
+does not settle the later break/adjacency/repair branches still tracked by NT18.
+
 ### 4.2 ComputePolePosition, including NO24
 
 Arguments are signed integer cell x,z and output position; no boolean result. Let s be terrain slot 6's
@@ -268,6 +302,12 @@ These are host-observation vectors, not claimed in-game measurements.
 
 | Vector | Inputs | Required result/order |
 |---|---|---|
+| PL-I1 | eligible prior-run step; horizontal old span; no generated record shares either endpoint coordinate; pivot; no prior request | retain both endpoints, request and emit pole; release wire probe only |
+| PL-I2 | same as I1, but diagonal endpoints and a forced anchor | reject endpoints even though forced; release both endpoint refs, preserve pre-existing pending request |
+| PL-I3 | eligible axis-aligned span; generated record shares endpoint x but has a different z; not forced | coordinate-OR predicate rejects; pending request cleared, both endpoint refs released |
+| PL-I4 | same duplicate as I3, forced spacing point | accept descriptor and pending request; no endpoint release in the interception branch |
+| PL-I5 | eligible axis-aligned span; descriptor matches only after endpoint reversal; no coordinate predicate matches | ordered descriptor comparison alone does not reject; no pointer-order normalisation |
+| PL-I6 | current step equals previously placed count; axis-aligned old wire; forced | reject on equality boundary before duplicate probes; release both endpoints and wire |
 | PL-L1 | fresh object, exemplar unavailable; Init twice | type 5; defaults 20,7,0,0; resource attempt/base Init only on first Init; both return true |
 | PL-L2 | successful Init; change cost fields; Shutdown; Init with missing properties | Shutdown clears latch before base; Init resets only spacing/clearance; costs retain prior values |
 | PL-L3 | first resource lookup fails, second object initialises | process resource enumeration is not retried |
