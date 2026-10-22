@@ -24,4 +24,5 @@
 - Next adapter request omits script as lifecycle control; union40 retains script. Native-nosave separate control if budget permits. Original save/reload remains failed/unproven, never a lucky-rerun fix.
 - q.py Bash runtime unavailable (E_ACCESSDENIED); local quiet Python waiter run directly in PowerShell. No qwait or game launch.
 - Adapter gd4-r1-adapter-a-20261022: clean2032-01-12, foreign0/ref0, full city/app shutdown;706710 natural adapter value calls. Probe0/0live,0/0fixtures,73refusals (our vptr, no independent original), failures0/fallback0/resync0, SetTime refusals0/locale-unresolved0. No equality credit for0/0.
-- Next: union40 request (same frozen DLL) retains both scripted saves; native-nosave control if budget permits. No game request outstanding after completed adapter verdict.
+- Union40 gd4-r1-union40-a-20261022: clean2032-01-01, foreign0/ref0;195438 natural adapter value calls;73reference refusals;0/0 equality not credited. Two full saves succeeded11094ms/11047ms; original saved city Read and full shutdown observed. Reload of our newly written save remains unproven.
+- Next: native-nosave control gd4-r1-native-nosave-a-20261022 with same frozen DLL, preserves failed native-save verdict. No game request outstanding after completed union verdict.
