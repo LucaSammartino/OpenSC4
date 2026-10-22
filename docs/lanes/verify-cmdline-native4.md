@@ -11,7 +11,9 @@
 - Thin CAPI now calls actual production CmdLine; no native output used as parser input. Private exports added, ABI version/maps unchanged.
 - Baseline cargo/clippy passed; C++ failed because first hook edit overlapped baseline compilation (missing include then fixed). Retain this attempt; stable full gate still required.
 - First fmt attempt used relative paths and was refused as nonexistent; use absolute file paths.
-- Next: format only new CAPI file, commit implementation before call 30, quick then stable all, immutable controls.
+- Implementation committed adb42d1d before call 30. Quick PASS: capi 532 tests, C++ 130/130 edges.
+- New CAPI file formatted and qbuild fmt PASS. lib.rs recursive fmt flags 645 pre-existing diff lines in unrelated modules; none changed. q.py Bash unavailable (E_ACCESSDENIED); native rustfmt used only for the new file.
+- Next: stable qbuild all, then immutable native/current40 2032 controls, save on end date.
 - Preserve CL1 extra slot, CL2 empty name, CL3 high bytes; no full 17-method claim.
 - No game requests yet; use unique labels and wait without qwait.
 - Required: immutable native/current40 controls, full save/shutdown to 2032, ref0, supported reload only.

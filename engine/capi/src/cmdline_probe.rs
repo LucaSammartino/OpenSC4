@@ -116,13 +116,22 @@ mod tests {
             assert!(!h.is_null());
             let mut bytes = [0u8; 128];
             let (mut len, mut scalar) = (0, 0);
-            assert_eq!(fc4_cmdline_probe_query(h, 6, key.as_ptr(), 1, bytes.as_mut_ptr(), 128, &mut len, &mut scalar), 0);
+            assert_eq!(
+                fc4_cmdline_probe_query(h, 6, key.as_ptr(), 1, bytes.as_mut_ptr(), 128, &mut len, &mut scalar),
+                0
+            );
             assert_eq!((scalar, &bytes[..len as usize]), (1, b"off".as_slice()));
-            assert_eq!(fc4_cmdline_probe_query(h, 2, key.as_ptr(), 0, bytes.as_mut_ptr(), 128, &mut len, &mut scalar), 0);
+            assert_eq!(
+                fc4_cmdline_probe_query(h, 2, key.as_ptr(), 0, bytes.as_mut_ptr(), 128, &mut len, &mut scalar),
+                0
+            );
             assert_eq!(&bytes[..len as usize], raw.as_bytes());
             // Capacity refusal leaves every result field untouched.
             let before = (bytes, len, scalar);
-            assert_eq!(fc4_cmdline_probe_query(h, 2, key.as_ptr(), 0, bytes.as_mut_ptr(), 1, &mut len, &mut scalar), -2);
+            assert_eq!(
+                fc4_cmdline_probe_query(h, 2, key.as_ptr(), 0, bytes.as_mut_ptr(), 1, &mut len, &mut scalar),
+                -2
+            );
             assert_eq!((bytes, len, scalar), before);
             fc4_cmdline_probe_destroy(h);
         }
