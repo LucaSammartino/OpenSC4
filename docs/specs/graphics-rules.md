@@ -290,8 +290,10 @@ does not consult `writeLog`. A failed open still leaves the newly gathered envir
 Conversely `SetOptionsFromConfiguration` does not gather again; it evaluates the stored environment even
 with logging disabled or file opening unsuccessful. Logging failure does not suppress rule evaluation.
 
-`LogConfigInfo` emits flags in §2 order with `%d` values 0/1, strings in index order with `%s`, then numbers
-in index order with `%g`, as `name = value`, with section separators (`0x007CEF40`). `LogOptions` also dumps
+`LogConfigInfo` starts with `Log generated on <date>, HH:MM` (date/time from the shared clock services),
+then emits `Flags`/`-----`, `Strings`/`-------`, `Numbers`/`-------`, with blank lines between sections.
+Flags use `%s` values `true`/`false` in §2 order, strings use `%s` in index order, then numbers use `%g`
+in index order, as `name = value` (`0x007CEF40`). `LogOptions` also dumps
 all render bools, ints and floats by ascending index, using their property names and `%s` (`true`/`false`),
 `%d`, `%g` respectively. Its preference summary uses unsigned application bytes as current values and
 `GetOptionGroupAutoSetting` as recommended values, not current renderer property values:
