@@ -251,7 +251,6 @@ bool UseOriginal(unsigned r, bool original) {
 void RunCase(unsigned r, void* ctx, Buf& dst, const std::vector<uint8_t>& init, const Case& c, Totals& t) {
     const size_t len = size_t(dst.stride) * dst.h;
     SetupCase(ctx, c);
-    const bool sp1 = r != kSpanR8888 && c.kind == kAlphaGradient && !AlphaInRange(ctx);
     // SP1 is a 4444-only contract; 1555 §5 specifies the entire packed domain.
     const bool sp1 = r == kSpanR4444 && c.kind == kAlphaGradient && !AlphaInRange(ctx);
     t.sp1Cases += sp1;
