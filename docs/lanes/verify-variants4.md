@@ -15,7 +15,8 @@
 - Preserved that full save from the logged slot1 city path (mtime19:31:25,1003482bytes) as main build-runs/fixtures/vv4-r3-house40-on-1ee5d9-2028.sc4 for supported fixture_city reload. Game data only, no Documents or game executable access, no game file committed.
 - OFF vv4-r3-house40-off-1ee5d9-1935 CLEAN2032-01-01/ref0,174.750s/12.39days/s, zero variant experiment lines; full save11265ms/ok1, script3/3, full PostSystemServiceShutdown.
 - Fixture SHA2569C181832B9DAC038D22BF90838E5A0105CEA65F1CC15CE19EF2AD2A72516EE90. DLL hash unchanged after ON/OFF. Both corrected house40 profiles succeed; older terrain/dispatch/effects opt-in failures are not house-regress failures.
-- Outstanding vv4-r3-house40-reload-on-1ee5d9-1938, same immutable DLL/script/exact house40, shadow1 and supported fixture_city path above. Wait helper running; preserve existing verdict. Next reloadOFF, then final report/queue.
+- ReloadON vv4-r3-house40-reload-on-1ee5d9-1938 CLEAN2032-01-01/ref0,122.750s/11.91days/s; harness verified fixture SHA9C181832...516EE90, source unchanged. Again native350/350+setup70/70, core count196/set70/write70, native71/production70clones, failures/refusals/fallback/resync0. Full save11047ms/ok1, script3/3, PostSystemServiceShutdown.
+- Outstanding vv4-r3-house40-reload-off-1ee5d9-1941, identical immutable DLL/script/exact house40 and same supported fixture_city, shadow0. Wait helper running; preserve completed verdict. Next inspect OFF/save/shutdown, final report/queue.
 - Next: inspect ON result/counts/save/shutdown, preserve saved .sc4 via supported fixture_city route, then OFF and supported ON/OFF reloads. Request/wait helper build-runs/vv4-r3-run.py checks exact list and uses no qwait.
 - Exact house40 from task excludes terrain/dispatch/effects and includes all default keys; validate equality before submission.
 - Original profile cap exhausted3/3; use corrected house40 only. Unique labels, preserve completed verdict, no qwait.
