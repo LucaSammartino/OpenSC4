@@ -59,7 +59,7 @@ boolean. A null source is replaced by an empty string. Count zero means
 It erases the existing text before filtering the candidate. It removes
 disallowed characters and calls the composition fixer against the now-empty
 destination. A nonzero combined correction count calls primary slot
-`+0x26C` with reason 0. That hook's downstream effect is not established here.
+`+0x26C` with reason 0. Its sound-adapter contract is specified in section 10 (TE2).
 
 If filtered length exceeds the maximum, ordinary code pages keep exactly
 the maximum byte count. For selectors **8 or 100**, the truncation loop
@@ -520,10 +520,10 @@ caret callback timer, invokes cleanup for the +0x208 member, releases the
 font, destroys redo then undo storage, destroys the strings at +0x144 and
 +0x130, frees nonnull line-start storage, destroys mask and main strings,
 and tail-calls cGZWin's destructor. Native order is `0x009BFAE6–FB81`;
-foreign cleanup internals and exceptional paths remain TE7. Because
+foreign allocation/timer implementations remain explicit boundaries. Because
 Shutdown has already cleared the font, the later conditional font-release
-site normally sees null. Background-image release is not established by
-this sequence; its exact ownership endpoint remains TE7.
+site normally sees null. The additional resource contract below establishes
+that native editor cleanup has no matching background-image release.
 
 The primary +0x26C hook is natively a sound-service adapter at
 `0x009BD9F2`, despite the folded label `cGZWinIMEComposition::SetFont`.
@@ -661,7 +661,7 @@ is claimed while body and foreign-boundary residuals remain.
 | Area | Current evidence disposition |
 |---|---|
 | Identity, state, whole-text replacement, selection, overwrite, character input, high-level insertion, caret timer | Rules above; external helper contracts remain bounded |
-| Raw insertion/deletion, undo/redo, key navigation/clipboard, mouse, focus | Sections 6-10; TE3/TE4 domains and eviction resolved; word/composed motion remains TE5 |
+| Raw insertion/deletion, undo/redo, key navigation/clipboard, mouse, focus | Sections 6-10 and layout extension; TE3/TE4 domains/eviction and word/composed motion resolved; exact remaining navigation paths TE5 |
 | Line starts, metrics, painting, hit mapping, scrollbars | Sections 8-9; mixed password coordinates resolved, remaining metrics/scrollbars TE5 |
 | Init/shutdown, images/font ownership, flags/messages | Section 10 specifies owner cleanup, including absent background-image release; foreign resource implementations remain boundaries |
 | Every label, folded alias, thin method and helper | Companion inventory and questions required; no credit beyond documented contracts |

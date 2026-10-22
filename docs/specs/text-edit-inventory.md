@@ -23,7 +23,7 @@ Addresses and byte counts are metadata, not decompiler listings.
 | 0x00994E8C | 45 | SetText | P; sections 2-5 |
 | 0x00994EB9 | 7 | GetCaption | U; TE8 |
 | 0x00994EC0 | 23 | SetCaption | U; TE8 |
-| 0x00994ED7 | 13 | SetMaxUndoLevelCount | P/B; sections 6-7; TE3/TE4 |
+| 0x00994ED7 | 13 | SetMaxUndoLevelCount | P; section 6, including no immediate pruning |
 | 0x00994FF2 | 10 | GetLineCount | U; TE8 |
 | 0x009BC5E1 | 45 | QueryInterface | P; section 1 (constructor sequence bounded) |
 | 0x009BC60E | 39 | ToggleCaretVisibility | P; sections 2-5 |
@@ -43,10 +43,10 @@ Addresses and byte counts are metadata, not decompiler listings.
 | 0x009BC8DB | 41 | SetFillColor | U; TE8 |
 | 0x009BC904 | 74 | SetFontStyle | P/B; section 10; TE7 |
 | 0x009BC94E | 25 | GetFontStyle | U; TE8 |
-| 0x009BC967 | 20 | SetColor | U; TE8 |
-| 0x009BC97B | 22 | GetColor | U; TE8 |
+| 0x009BC967 | 20 | SetColor | P; section 10, unchecked color index |
+| 0x009BC97B | 22 | GetColor | P; section 10, unchecked color index/output |
 | 0x009BC991 | 27 | GetBackgroundImage | U; TE8 |
-| 0x009BC9AC | 93 | SetBackgroundImage | P/B; section 10; TE7 |
+| 0x009BC9AC | 93 | SetBackgroundImage | P; section 10, identity/ref order and teardown asymmetry |
 | 0x009BCA09 | 48 | SetTextGutterY | P/B; section 10; TE7 |
 | 0x009BCA39 | 50 | InsertText | P/B; sections 6-7; TE3/TE4 |
 | 0x009BCA6B | 50 | RemoveText | P/B; sections 6-7; TE3/TE4 |
@@ -60,54 +60,54 @@ Addresses and byte counts are metadata, not decompiler listings.
 | 0x009BCBC5 | 73 | CalculateVisibleWidth | P/B; section 8; TE5 |
 | 0x009BCC0E | 73 | CalculateVisibleHeight | P/B; section 8; TE5 |
 | 0x009BCC57 | 29 | SetSoundID | U; TE8 |
-| 0x009BCC74 | 31 | StartScrollTimer | U; TE8 |
-| 0x009BCC93 | 28 | StopScrollTimer | U; TE8 |
-| 0x009BCCAF | 31 | ScrollTimerCallback | U; TE8 |
-| 0x009BCCCE | 236 | DoCursorScroll | U; TE8 |
+| 0x009BCC74 | 31 | StartScrollTimer | P; section 10, running-state gate and interval |
+| 0x009BCC93 | 28 | StopScrollTimer | P; section 10, running-state gate |
+| 0x009BCCAF | 31 | ScrollTimerCallback | P; section 10, nullable dispatcher boundary |
+| 0x009BCCCE | 236 | DoCursorScroll | P; text-edit-layout.md, thresholds/priority/routing |
 | 0x009BCDBA | 131 | RemoveScrollBar | U; TE8 |
-| 0x009BCE3D | 454 | SetScrollBarSizes | U; TE8 |
+| 0x009BCE3D | 454 | SetScrollBarSizes | P; text-edit-layout.md, four bar-presence cases |
 | 0x009BD003 | 172 | Shutdown | P/B; section 10; TE7 |
 | 0x009BD0E1 | 139 | DoMessage | P/B; section 10; TE7 |
-| 0x009BD16C | 47 | CaretTimerCallback | U; TE8 |
+| 0x009BD16C | 47 | CaretTimerCallback | P; section 10, nullable dispatcher and temporary cleanup |
 | 0x009BD19B | 50 | GetTextArea | P/B; section 8; TE5 |
 | 0x009BD1CD | 41 | GZOnMouseUpL | P/B; section 10; TE7 |
 | 0x009BD1F6 | 130 | GZOnMouseMove | P/B; section 10; TE7 |
-| 0x009BD278 | 129 | SetScrollBarImageVertical | U; TE8 |
-| 0x009BD2F9 | 129 | SetScrollBarImageHorizontal | U; TE8 |
+| 0x009BD278 | 129 | SetScrollBarImageVertical | P; section 10, reference/rectangle/callback order |
+| 0x009BD2F9 | 129 | SetScrollBarImageHorizontal | P; section 10, reference/rectangle/callback order |
 | 0x009BD37A | 31 | SetCaretColor | U; TE8 |
 | 0x009BD399 | 32 | GetCaretColor | U; TE8 |
 | 0x009BD3B9 | 7 | GetFont | U; TE8 |
-| 0x009BD3C0 | 33 | SetFontColor | U; TE8 |
-| 0x009BD3E1 | 37 | SetFontColor | U; TE8 |
-| 0x009BD406 | 65 | GetFontColor | U; TE8 |
-| 0x009BD447 | 56 | ClearFontColor | U; TE8 |
+| 0x009BD3C0 | 33 | SetFontColor | P; section 10, converted default color |
+| 0x009BD3E1 | 37 | SetFontColor | P; section 10, indexed conversion/dispatch |
+| 0x009BD406 | 65 | GetFontColor | P; section 10, success-only output write |
+| 0x009BD447 | 56 | ClearFontColor | P; section 10, sentinels and unchecked index |
 | 0x009BD47F | 22 | GetHighlightFillColor | U; TE8 |
 | 0x009BD495 | 31 | SetHighlightFillColor | U; TE8 |
-| 0x009BD4B4 | 48 | SetOutlineUse | U; TE8 |
-| 0x009BD4E4 | 44 | GetOutlineUse | U; TE8 |
+| 0x009BD4B4 | 48 | SetOutlineUse | P; section 10, bit/color and no invalidation |
+| 0x009BD4E4 | 44 | GetOutlineUse | P; section 10, bit and reverse-converted output |
 | 0x009BD510 | 68 | GetIndexFromPosition | U; TE8 |
 | 0x009BD554 | 63 | GetCharacterCountOfLine | U; TE8 |
-| 0x009BD593 | 125 | GetLineAndColumnFromIndex | U; TE8 |
-| 0x009BD610 | 94 | GetIndexFromLineAndColumn | U; TE8 |
+| 0x009BD593 | 125 | GetLineAndColumnFromIndex | P; text-edit-layout.md, valid-index domain/LF branch |
+| 0x009BD610 | 94 | GetIndexFromLineAndColumn | P; text-edit-layout.md, whole-text clamp/status |
 | 0x009BD66E | 70 | SetInsertionIndex | U; TE8 |
 | 0x009BD6B4 | 102 | SetInsertionLineAndColumn | U; TE8 |
-| 0x009BD71A | 224 | IncrementInsertionPositionByComposedCharacter | U; TE8 |
-| 0x009BD7FA | 163 | IncrementInsertionPosition | U; TE8 |
-| 0x009BD89D | 250 | IncrementInsertionPositionByWord | U; TE8 |
+| 0x009BD71A | 224 | IncrementInsertionPositionByComposedCharacter | P; text-edit-layout.md, signed selector predicate/helper domain |
+| 0x009BD7FA | 163 | IncrementInsertionPosition | P; text-edit-layout.md, 8/100 stepping and final clamp |
+| 0x009BD89D | 250 | IncrementInsertionPositionByWord | P; text-edit-layout.md, byte whitespace transitions |
 | 0x009BD997 | 91 | SetSelection | P; sections 2-5 |
 | 0x009BDA65 | 155 | FixInsertionPositionIfBroken | U; TE8 |
-| 0x009BDB00 | 131 | GetPixelWidthOfLongestLine | U; TE8 |
-| 0x009BDB83 | 334 | GetHorizontalLineMetrics | U; TE8 |
-| 0x009BDCD1 | 241 | SetScrollBarValues | U; TE8 |
-| 0x009BDDC2 | 48 | GetHorizontalScrollPixels | U; TE8 |
+| 0x009BDB00 | 131 | GetPixelWidthOfLongestLine | P; text-edit-layout.md, original-text ranges and unsigned maximum |
+| 0x009BDB83 | 334 | GetHorizontalLineMetrics | P; text-edit-layout.md, exact boundary/width loops |
+| 0x009BDCD1 | 241 | SetScrollBarValues | P; text-edit-layout.md, ranges/division/callback order |
+| 0x009BDDC2 | 48 | GetHorizontalScrollPixels | P; text-edit-layout.md, original-prefix versus pixel offset |
 | 0x009BDE57 | 48 | ScrollLineUp | U; TE8 |
 | 0x009BDE87 | 66 | ScrollLineDown | U; TE8 |
-| 0x009BDEC9 | 112 | ScrollLeft | U; TE8 |
-| 0x009BDF39 | 142 | ScrollRight | U; TE8 |
+| 0x009BDEC9 | 112 | ScrollLeft | P; text-edit-layout.md, character/pixel modes and no zero clamp |
+| 0x009BDF39 | 142 | ScrollRight | P; text-edit-layout.md, visible-width cap |
 | 0x009BDFC7 | 66 | ScrollToStart | U; TE8 |
 | 0x009BE009 | 90 | ScrollToEnd | U; TE8 |
-| 0x009BE063 | 70 | ScrollPageUp | U; TE8 |
-| 0x009BE0A9 | 104 | ScrollPageDown | U; TE8 |
+| 0x009BE063 | 70 | ScrollPageUp | P; text-edit-layout.md, native status/update domain |
+| 0x009BE0A9 | 104 | ScrollPageDown | P; text-edit-layout.md, signed gate/uncapped increment |
 | 0x009BE111 | 104 | ResizeWindowForExactLineHeights | U; TE8 |
 | 0x009BE179 | 192 | GetColumnFromPosition | P/B; section 8; TE5 |
 | 0x009BE239 | 162 | GetPositionFromLineAndColumn | P/B; section 8; TE5 |
@@ -122,13 +122,13 @@ Addresses and byte counts are metadata, not decompiler listings.
 | 0x009BE96A | 53 | FindText | U; TE8 |
 | 0x009BE99F | 16 | ShowWindow | U; TE8 |
 | 0x009BEA28 | 1850 | GZPaint | P/B; section 9; TE6 |
-| 0x009BF162 | 387 | GetLineAndColumnFromPosition | U; TE8 |
+| 0x009BF162 | 387 | GetLineAndColumnFromPosition | P; section 9, numeric/pixel/password branches |
 | 0x009BF2E5 | 80 | AdjustLinePositionArray | U; TE8 |
 | 0x009BF335 | 171 | RemoveBadCharacters | U; TE8 |
 | 0x009BF3E0 | 312 | CalculateAllLineLengths | P/B; section 8; TE5 |
 | 0x009BF578 | 63 | RemoveBadCharacters | U; TE8 |
-| 0x009BF5B7 | 447 | InsertText | P/B; sections 6-7; TE3/TE4 |
-| 0x009BF776 | 306 | RemoveChar | P/B; sections 6-7; TE3/TE4 |
+| 0x009BF5B7 | 447 | InsertText | P; section 6, lowered-limit selector/failure domains |
+| 0x009BF776 | 306 | RemoveChar | P; section 6, empty/invalid-position boundary |
 | 0x009BF8A8 | 227 | RemoveText | P/B; sections 6-7; TE3/TE4 |
 | 0x009BF98B | 233 | RecalculateAll | P/B; section 8; TE5 |
 | 0x009BFB9C | 265 | Init | P/B; section 10; TE7 |
@@ -142,8 +142,8 @@ Addresses and byte counts are metadata, not decompiler listings.
 | 0x009C027E | 280 | Undo | P/B; sections 6-7; TE3/TE4 |
 | 0x009C0396 | 280 | Redo | P/B; sections 6-7; TE3/TE4 |
 | 0x009C04FE | 399 | SetText | P; sections 2-5 |
-| 0x009C068D | 210 | AddUndoRecordForTextInsertion | P/B; sections 6-7; TE3/TE4 |
-| 0x009C075F | 130 | AddUndoRecordForTextTextDeletion | P/B; sections 6-7; TE3/TE4 |
+| 0x009C068D | 210 | AddUndoRecordForTextInsertion | P; section 6, native quarter eviction/range helpers |
+| 0x009C075F | 130 | AddUndoRecordForTextTextDeletion | P; section 6, absent capacity check |
 | 0x009C07E1 | 437 | InsertTextHighLevel | P; sections 2-5 |
 | 0x009C0996 | 255 | GZOnCharacter | P; sections 2-5 |
 | 0x009C0A95 | 2938 | GZOnKeyDown | P/B; section 7; TE5 |
@@ -166,18 +166,18 @@ Important native bodies absent from direct-label inventory:
 | 0x009BD0AF | 50 | Preceding-LF insertion correction; section 7 |
 | 0x009BD9F2 | 115 | Sound adapter mislabelled as folded font setter; section 10 |
 | 0x009BDDF2 | 76 | Unresolved helper; TE8 |
-| 0x009BDE3E | 25 | Unresolved helper; TE8 |
-| 0x009BE9AF | 31 | Action destruction helper called by replay; full closure TE7/TE8 |
+| 0x009BDE3E | 25 | Action allocation request: zero count returns null, otherwise count*60 bytes; overflow/allocator semantics remain foreign |
+| 0x009BE9AF | 31 | Action destruction: owned string at action+0x14, then GlobalHeapFree only when deleting flag bit 1; section 6 |
 | 0x009BE9ED | 32 | Creates initial line-start entry; call-site contract section 8 |
-| 0x009BEA0D | 27 | Unresolved helper; TE8 |
-| 0x009BF518 | 24 | Unresolved helper; TE8 |
-| 0x009BFA74 | 30 | History-vector destruction helper; section 10 call order; internals TE7 |
-| 0x009BFA92 | 41 | Unresolved helper; TE8 |
-| 0x009BFABB | 40 | Unresolved helper; TE8 |
+| 0x009BEA0D | 27 | Nondeleting action destruction over a valid half-open 60-byte-stride range; section 6 |
+| 0x009BF518 | 24 | Range-destruction forwarding wrapper; section 6 |
+| 0x009BFA74 | 30 | Destroys every action then frees nonnull vector storage; sections 6/10 |
+| 0x009BFA92 | 41 | Range copy-construction in 60-byte strides; destination-null check per iteration; allocator construction is foreign |
+| 0x009BFABB | 40 | Counted copy-construction in 60-byte strides; destination-null check per iteration; allocator construction is foreign |
 | 0x009BFAE3 | 163 | Nondeleting destructor; section 10 |
-| 0x009BFF03 | 68 | Copies action scalar fields, owned string and five-word state; TE8 for full helper domain |
-| 0x009C017D | 50 | Forward action copy range with 60-byte stride; TE8 for full helper domain |
-| 0x009C04AE | 29 | Unresolved helper; TE8 |
+| 0x009BFF03 | 68 | Assigns scalar fields, owned string and five-word state to a valid existing action; section 6 |
+| 0x009C017D | 50 | Forward action assignment over a valid 60-byte-stride range; section 6 |
+| 0x009C04AE | 29 | Range-assignment forwarding wrapper used by the mislabelled vector erase; section 6 |
 
 Other folded/unnamed text-vtable entries include 0x009BC8B8, 0x00994F79,
 0x009C32AC, 0x009BCB20, 0x009D41A1 and 0x00994EE4. A foreign-looking
@@ -198,9 +198,10 @@ Inherited base/stub slots are not additional primary text-editor bodies.
 - [x] Track exact direct-label address/size inventory without inventing a suffix.
 - [x] Reconcile the requested 19,999B attribution using actual coverage-owner
   output, exact address/size join and primary helper/vtable evidence (TE8).
-- [ ] Complete U/B method contracts, raw-mutation domains, encoding and
-  composition, word navigation, metrics/scrollbar resource/range behavior,
-  history eviction and exceptional resource lifetimes (TE1, TE3-TE8).
+- [x] Prove raw-mutation domains, history eviction, mixed password coordinates
+  and owner resource/callback failure semantics (TE3/TE4/TE6/TE7).
+- [ ] Complete remaining U/B method contracts, encoding/composition and the
+  individually named navigation/resource residuals (TE1/TE5/TE8).
 - [ ] Implementation, conformance execution, shadow/game verification and
   replacement: none performed or claimed by this RE-only lane.
 

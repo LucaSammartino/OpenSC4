@@ -46,8 +46,7 @@ and multibyte continuation bytes have no special word status.
 
 ## Horizontal visible spans
 
-GetHorizontalLineMetrics (`0x009BDB83-DC D0`, W; end address
-`0x009BDCD0`) consumes a valid line, unsigned pixel scroll and nonnull
+GetHorizontalLineMetrics (`0x009BDB83-0x009BDCD0`, W) consumes a valid line, unsigned pixel scroll and nonnull
 start/end/displacement outputs. The measured source is **original text**,
 including when the caller paints a password mask. Obtain the original line
 start and byte count from the line array/text interface.
@@ -108,7 +107,7 @@ window's +0xA4 and Hheight the horizontal bar window's +0xA8:
 | Vertical only | No call | (Ewidth-Vwidth+1,0,Ewidth,Eheight) |
 | Both | (0,Eheight-Hheight,Ewidth-Vwidth,Eheight), set first | (Ewidth-Vwidth+1,0,Ewidth,Eheight-Hheight), set second |
 
-The vertical **+1** is native (`0x009BCF31-446`, `0x009BCF8E-49F`).
+The vertical **+1** is native (`0x009BCF31-0x009BCF44`, `0x009BCF8E-0x009BCF9F`).
 There is no nonnegative-size clamp, null returned-window check, result
 check or invalidation in this body. Dimensions are queried through virtual
 calls, not cached constants; foreign resize side effects can affect later

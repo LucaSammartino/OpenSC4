@@ -11,7 +11,14 @@
 - Done: TE3 numeric failure domains, TE6 mixed password/hit coordinates and TE7 cleanup/image/color/callback failures specified; ten further vectors (34 total).
 - Done: 1f74cd36 publishes TE3/TE6/TE7 answers and explicit unsafe-call/resource boundaries.
 - Done: new layout extension proves large metrics (334B), bar sizing (454B), pixel-hit (387B), word/composed motion (250/224B), bar ranges (241B), drag routing (236B), scroll and index contracts; 44 total vectors.
-- Next: final inventory disposition audit, questions/diff checks and report; TE5 precise residuals remain, no whole-owner promotion.
+- Done: final inventory audit edits prepared; questions.py check and git diff --check PASS; address join still exact; 48 P, 36 P/B, 50 U direct entries and 44 vectors measured.
+- Next: review committed final inventory edits, rewrite this lane file as final report, commit, write own merge queue if authorized by coordinator/guard; no new tracing needed to publish bounded docs.
+- Stop: guard denied finalization at context 151k/150k; required continue handoff, no merge queue. This is round 2 only; no automatic restart or additional round requested.
+- Current substantive commits: eeeaf4ac attribution/history; 1f74cd36 TE3/TE6/TE7; 733c7744 layout/body extension.
+- Latest audit removes superseded TE7 uncertainty and updates ~36 newly proved inventory dispositions; no whole-owner promotion.
+- Open TE1 encoding; TE5 Page-key preferred-X audit, single-line caret-in-view, AddScrollBar resource negotiation, word-selection/composition repair; TE8 remaining U/P-B/folded/generated contracts.
+- Queue not written. No ABI changes/proposals. No native/game/conformance execution; vectors are proposed cases.
+- Git commits succeed but print packed-refs.lock denial; do not change shared refs/config or run maintenance.
 - Main: C:/Users/tlori/FreeCity4; WT: C:/Users/tlori/FreeCity4/.claude/worktrees/re-textedit4.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-textedit4-r2-manifest.json.
 - q.py cannot start Bash (E_ACCESSDENIED); use bounded PowerShell shell calls.
