@@ -15,7 +15,7 @@ fn run<T: GridElem>(record: &[u8], op: u32, a: &[i32], data: &[u8]) -> Option<Ve
     let mut out = ByteWriter::new();
     match op {
         0 => {} // Bootstrap roundtrip is validation, never an algorithm comparison.
-        1 | 2 | 3 | 4 => {
+        1..=4 => {
             let (x, z, w, h) = (a[0], a[1], a[2], a[3]);
             let (tx, tz) = if op == 2 || op == 3 {
                 geom.cell_to_tract(x, z)

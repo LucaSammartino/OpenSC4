@@ -9,7 +9,7 @@
 - Implemented: private stateless Rust transport over independent core SimGrid; constructed native ten-format fixture and persistent native power-owner follow, no native-state resync. Shared public ABI table untouched.
 - Milestone: 65ca724a substantive native/Rust verification committed by call 25.
 - Focused quick build compiled/linked. Added typed high-bit/resize/version tests, geometry/coordinates/lifetime and literal Read fixtures. fmt new module passed; recursive lib.rs check encounters pre-existing formatting in unrelated child modules (no mass format).
-- Full stable gate running: session 78272. Next: inspect full result; freeze DLL/PDB; unique-label native/current40 save/reload/2032/ref0.
+- Full gate: cargo passed; clippy caught manual_range_patterns in new transport, corrected literally (1..=4). Next: rerun gate on committed code; freeze DLL/PDB; submit prepared native39 request, then current40 and saved reload.
 - Natural domain is all power-owner grid adapter calls; other owners outside scope. Native allocation failure and replacement-factory refusal cannot count as equality.
 - No game request outstanding; no questions filed. SG1 boundaries unchanged.
 - Only published contracts, public SDK and implementation may be read. No RE, tools, subagents or default changes.
