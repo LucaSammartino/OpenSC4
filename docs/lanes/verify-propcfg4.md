@@ -25,3 +25,4 @@
 - Outstanding own replacement vpc4-r2-own-20261022a (fresh2026->2032); qwait session9624, save capture22630. Next collect verdict/capture, then reload own saved fixture and current40 controls with unique labels.
 - Own vpc4-r2-own-20261022a CLEAN2032-01-12/ref0. Independent native comparisons correctly refused on replacement owners (zero pairs, no equality credit). Next own saved-city reload then current40 fresh/save/reload.
 - Own save SHA256 fbb6358d381ee054aba8e75e48076f949bef4f0881c0083f4b3a033c62bbf32d (1004051B), captured from isolated slot1. vpc4-r2-own-reload-20261022a staged that exact fixture, CLEAN2032-01-18/ref0; source preserved, full-save again. Next current40 fresh/save/reload.
+- Exact literal current40 vpc4-r2-current40-20261022a CLEAN2032-01-01/ref0, switches_off=-, disabled=-. Next saved current40 reload request vpc4-r2-current40-reload-20261022a using captured fixture; no code changes since stable gate.
