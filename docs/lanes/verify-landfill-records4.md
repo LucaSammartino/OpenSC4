@@ -9,7 +9,7 @@
 - Implemented isolated native factory/interface probe and independent Rust C ABI probe over authored records, nine native cases, two focused Rust tests. No city insertion/Init or exemplar changes; same-ID SetTileID uses corrected public return type.
 - Initial all: cargo 4938, clippy 0 diagnostics, ctest 68/68; tree changed during run (baseline only). Quick: capi 529 tests and C++ 5/5 build PASS. fmt two Rust files PASS.
 - Added fresh-object native record reload (native output only into native Read), independent Rust own-record reload and destruction counts for both lifetimes. Published null-parent holder records avoid shared exemplar mutation.
-- Intermediate all caught a return-channel review annotation for corrected SetTileID; fixed in a0584dd0. Final stable gate pending.
+- Intermediate all: cargo4940/clippy0/ctest67/68; only return-channel review annotation for corrected SetTileID failed, fixed in a0584dd0. Fresh-object reload added c8b59ba7; format corrected before final stable gate.
 - Next: final all, snapshot DLL and submit unique guarded game controls through 2032 with save/reload. Native comparison measurements not yet available.
 - Required game evidence: immutable guarded2032/ref0 save/reload controls, unique request labels, wait without qwait. No request outstanding.
 - Guard: C:/Users/tlori/FreeCity4/build-runs/run4-verify-landfill-records4-r2-manifest.json; shared budget/calls retained.

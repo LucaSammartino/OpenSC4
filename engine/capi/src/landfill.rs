@@ -1557,10 +1557,7 @@ pub unsafe extern "C" fn fc4_landfill_occupant_probe(
             let reloaded = LandfillOccupant::empty();
             let mut reload_input = ByteReader::new(output.bytes());
             let mut second = ByteWriter::new();
-            if !reloaded.read(&mut reload_input)
-                || !reloaded.write(&mut second)
-                || second.bytes() != output.bytes()
-            {
+            if !reloaded.read(&mut reload_input) || !reloaded.write(&mut second) || second.bytes() != output.bytes() {
                 return false;
             }
             if let Some(sink) = sink {
