@@ -14,8 +14,9 @@
 - First corrected game pduf4-fixed-ports-20261022-a clean2033/ref0; runtime logs prove ascending airport-map pair releases during Shutdown, then base plane Shutdown/release; final Release calls empty Shutdown. Paired fixed-control pending/completing, session35355.
 - Quick wrapper has a Ninja restat parsing issue (exit log1/4 despite no compiler error); final stable gate will include real C++ rebuild after final diagnostic wording change.
 - Stable final all PASS at e9cbb658: cargo4714/0, clippy0 diagnostics, build5/5, ctest68/68. fmt check PASS. DLL SHA256457179c94a045048736b14733811761c0188285f98474230cfab7cb61e4db08f.
-- Final pduf4-final-ports-20261022-a clean2033/ref0, saved fixture/script unchanged. pduf4-final-control-20261022-a outstanding session14397; do not queue another until complete.
-- Next: finish paired control; ordinary union and saved fixture shadow; full final report/queue. No promotion before coordinator joint train PASS.
+- Final paired pduf4-final-ports-20261022-a and pduf4-final-control-20261022-a both clean2033/ref0, DLL457179c9, saved fixture and supplied script unchanged. Ordinary union pduf4-final-ordinary-20261022-a clean2033/ref0 on same DLL.
+- Next: sequential at24-suite.py now owns only remaining requests: save-ports, save-control, final-shadow (all pduf4-*20261022-a). It queues one only after prior clean verdict; inspect session in tool history/results. Then full report/queue.
+- Additional boundary: final early Shutdown still sees external owners (planes5->4 map,4->3 list); explicit save pair disposes segment owner to exercise final-manager-owner path. Native timing correction is independently visible before audit classification.
 - Fixture SHA256 confirmed 38f234433b0c387393a7e25a971953c37b7127ea93c7d5d0a4cb2c789e78b0be.
 - Evidence: build-runs/evidence-run4 contains supplied control/reload verdicts, script and warning excerpts.
 - Fixture immutable: C:/Users/tlori/FreeCity4/build-runs/fixtures/glue-portdev-complete4/pdc4-replace-20261022-a.sc4.
