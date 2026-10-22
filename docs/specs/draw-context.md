@@ -123,6 +123,75 @@ is **white**, not zero: the constructor copies three binary32 1.0 values from ex
 `0x00B0DC44`–`0x00B0DC4F` at `0x007D5FA0`–`0x007D5FBE`. Additional constructor/transform details
 and the attributed method inventory appear below as they are resolved.
 
+### 1.4 Stage storage defaults (DC5)
+
+`Init` uses unsigned max(driver count, 2) records. The constructor `0x007D3C60` establishes the
+following record; `0x007D3D41`–`0x007D3D72` explicitly overwrite the temporary matrix values with identity.
+
+| Stage-relative offset | Width | Initial value |
+|---|---|---|
+| `+00` | 32 bits | texture value `0xFFFFFFFF` (not null) |
+| `+04` | signed 32 bits | coordinate set 0 |
+| `+08`, `+0C` | signed 32 bits each | wrap S, T: −1, −1 |
+| `+10`, `+14` | signed 32 bits each | minification, magnification: −1, −1 |
+| `+18`–`+23` | 12 bytes | stage combiner in §1.2 |
+| `+24` | byte | transform-present false |
+| `+25`–`+27` | 3 bytes | no stores established by this constructor; unspecified |
+| `+28`–`+67` | 16 binary32 values | 4 × 4 identity matrix (diagonal 1, off-diagonal +0) |
+
+Stage copying/assignment is a value copy, including the texture value; there is no texture reference
+acquisition/release in those helpers or in reset. The constructor of the owner leaves its loaded
+4 × 4 matrix at `+0x1AC` without initialization; `0x007D2730` merely copies those 64 bytes to an
+output pointer and does not make them valid. Do not expose a fabricated identity before a transform load.
+
+### 1.5 Attributed body inventory and foreign endpoints (DC3)
+
+Addresses identify bodies, not a new virtual interface. Overloads and unnamed bodies are kept distinct.
+The packed-state helper is `0x007D2B50`. The following owner bodies are identified by direct layout use
+and/or receivers at callers; this is the audited native inventory, not a promise that all inlined
+operations have out-of-line methods.
+
+| Group | Owner bodies (VA suffixes below all have prefix `0x007D`) |
+|---|---|
+| Lifetime | `5F10` constructor; `6320` Init; `2720` shutdown helper; `5BB0` storage destructor |
+| Transform | `2730` copy loaded 4 × 4; `2750` invalidate model-view; `2D20` plain view load; `3400` model transform; `3D80` camera; `4480` depth offset; `4B80` raw-matrix transform path (not a stack method) |
+| Word state | `2760` colour mask; `27B0` depth test; `2800` depth mask; `2850` cull; `28A0` depth function; `28F0` blend factors; `2F50` alpha function/reference; `3E90` alpha-test enable; `3EF0` texture enables; `4010` blend enable |
+| Stage state | `3030` combiner; `30B0` environment colour; `4070` texture; `40B0` environment mode; `4180` coordinates; `41E0` wrapping; `4280` filtering; `4340` matrix; `4420` clear matrix |
+| Shade / environment | `2A20` transparency; `2A30` reset transparency; `30D0` lighting toggle; `3140` shade; `31B0` self-lit shade; `31E0` model shade; `3290` reset shade; `32D0` fog |
+| State setup / replay | `4530` packed state; `47E0` emulated second pass; `4F80` write indexed highlight RGBA; `4FB0` highlight by index; `5200` default/top replay; `5230` unilateral reset; `5310` material; `5670` highlight material |
+| Drawing | `2970` vertex buffer; `2980` index buffer; `2990`, `29C0`, `29F0` primitive overloads; `4A80` mesh; `5030` bounding box; `5710` model instance |
+
+Two export labels need owner correction: `0x007D30D0` and `0x007D32D0` are labelled
+`cSC43DRender::TurnOnLighting` / `TurnOnFog`. They operate on the **draw context**. For example,
+`0x007CB5DC` loads renderer `+0x11C` into the receiver before calling `0x007D30D0` at `0x007CB5E3`;
+the body uses context driver `+0x30`, lighting manager `+0x44`, and default shade `+0x94`.
+`0x007D4F80` is independently called eleven times by renderer `ReadProperties`, once per highlight
+colour (`0x007C5FD8`–`0x007C6187`). It is not a pop operation. The range-copy helpers at `0x007D5170`,
+`0x007D51A0`, `0x007D51D0`, and allocation helpers at `0x007D5AB0`, `0x007D5C20`, `0x007D5D60`,
+`0x007D5EB0` are container internals, not additional rendering APIs.
+
+Foreign calls below use the graphics-driver interface at context `+0x30`. The concrete DX7 table
+`0x00AC4660` supplies these targets; another driver can supply different bodies at the same offsets.
+These are not context methods, and the driver slots 3/4 are primitive draws, not Begin/End.
+
+| Driver slot(s) | DX7 target(s) | Operation |
+|---|---|---|
+| 3, 4, 5 | `0x008857E0`, `0x00885A00`, `0x00881EC0` | DrawArrays, DrawElements, InterleavedArrays |
+| 15, 16, 17 | `0x00882D10`, `0x00882CE0`, `0x00882D20` | colour mask, depth function, depth mask |
+| 21, 22 | `0x00882F10`, `0x00882F60` | blend factors, alpha function |
+| 27, 28, 29 | `0x008830A0`, `0x00884960`, `0x00884990` | environment colour, environment mode, texture parameter |
+| 30, 31, 32, 33 | `0x00883180`, `0x00883100`, `0x00883240`, `0x00883310` | fog vector, fog integer, colour multiplier, alpha multiplier |
+| 40, 41 | `0x00881EA0`, `0x00882AC0` | matrix mode, load matrix |
+| 44, 45 | `0x00884EF0`, `0x00884FB0` | enable, disable |
+| 51, 52, 53 | `0x00882020`, `0x00883550`, `0x00883600` | select stage, coordinates, stage matrix |
+| 58, 62, 64 | `0x00884810`, `0x00884A70`, `0x00886E10` | texture binding, combiner, video-mode record |
+
+Stack evidence is narrower than an API inventory: `SetDefaultRenderState` compares begin `+0x1EC`
+with end `+0x1F0`, and passes either owner `+0x88` or the **eight bytes at end − 8** to packed replay
+(`0x007D5200`–`0x007D5228`). It does not pop. Unilateral reset does not consult this stack. No push/pop
+signature or mutation body has been attributed by this audit; adding generic Push/Pop methods remains
+unsupported. The residual DC3 question records this precise limit.
+
 ## 2. The state word (`+0x80`) *[compat]*
 
 | Bits | State | Driver call when sent |
@@ -226,10 +295,8 @@ given by the draw flags' second byte, binds only slot 0's texture with its coord
 
 ## 7. Texture stages *[compat]*
 
-A stage record (0x68 bytes; default `0x007D3C60`) keeps the bound texture, the coordinate set, the two wrap modes,
-the two filters, a transform flag and, for stage 1, a 4 × 4 transform. Every stage call selects the stage at the
-driver first (`TexStage`, slot 51); stage 1 is skipped at the driver, but still recorded, without
-`kUseSecondStage`.
+A stage record (0x68 bytes; defaults in §1.4) keeps the bound texture, coordinate set, wrapping, filtering,
+combiner, transform flag and a 4 × 4 transform. Selection and suppression are **operation-specific** (§7.2).
 
 | Call | VA | Behaviour |
 |---|---|---|
@@ -251,6 +318,88 @@ transform are put on stage 0; the depth function becomes 2 (equal) and alpha tes
 mode: 0, stage 0's mode 0 and blending off; 1, blend 0 / 2 (zero, source colour: a multiply) and blending on; 2,
 stage 0's mode 0, blend 4 / 5 and blending on; any other mode keeps blending as it was. The Mac-matched name
 `SetTexEnvMode` is kept although the function prepares this pass *[inferred]*.
+
+### 7.2 Ordered stage/cache effects (DC5–DC7)
+
+Let **allowed** mean stage = 0 or boolean 11 (`kUseSecondStage`) is nonzero. This gate applies to **all
+nonzero** stages in binding, coordinates, wrapping, filtering and setting transforms, not just stage 1.
+All indices here require allocated records; the owner does not check bounds. Lists below are in execution
+order; an ordinary driver return advances execution without testing a success value.
+
+| Operation | Selection / driver calls and local writes |
+|---|---|
+| Texture | If allowed, slot 58(texture, stage), **without** slot 51 and without equality test. Then store texture at stage `+00`, even when suppressed. |
+| Coordinates | If allowed and requested set differs from cached `+04`, slot 51(stage), then 52(set). Always store requested set at `+04`, including suppressed stages. An equal set sends no selection. |
+| Wrapping | If either requested S/T differs, and allowed: select once, parameter `(0,2,S)`, then `(0,3,T)` (forced repeat substitutes 3 for both). Then store **requested** S/T, even when suppressed. If both equal: no selection, calls or writes. |
+| Filtering | If either requested mag/min differs, and allowed: select once, parameter `(0,0,mag)`, then `(0,1,min)`, with §4 overrides. Then store **requested** mag/min at `+14`/`+10`, even when suppressed. Equal pair does nothing. |
+| Set transform | If allowed: invoke coordinate setter(16, stage), then select stage **again**, then slot 53(matrix,4,2,1). Always set flag `+24` true. Copy all 16 matrix words only for stage 1. Suppressed stages do **not** get coordinate set 16 through this path. No matrix equality test. |
+| Clear transform | If flag false: nothing. Otherwise invoke coordinate setter(0,stage), then **unconditionally** select stage and call slot 53(null,3,2,1), then clear flag. Does not overwrite saved matrix. Thus suppressed stages still get select/clear, although their nested coordinate setter sends no calls. |
+| Combiner | Unconditionally slot 62(record,stage), no selection/gate/equality test. Then set stage 0/1 word mode to 4, then copy all twelve bytes to stage `+18`. Above stage 1 there is no word-mode update. |
+| Environment mode | Mode −1 returns immediately. Otherwise first write word 1 to stage `+22`. For stage 0/1 compare word mode; equal returns with only that word write. Changed stage 0/1 updates word **before** driver calls. Stage 1 suppresses select/mode if not allowed; stage 0 never suppresses. Above stage 1 always select and slot 28(0,0,mode), without a word-mode cache or boolean-11 gate. |
+
+Primary instructions: texture `0x007D4091`–`0x007D40A8`; coordinates `0x007D41A1`–`0x007D41D3`;
+wrap `0x007D4203`–`0x007D4273`; filter `0x007D42A3`–`0x007D4333`; transform
+`0x007D4361`–`0x007D4411`; clear `0x007D4434`–`0x007D446B`; combiner
+`0x007D3042`–`0x007D30A1`; mode `0x007D40B6`–`0x007D4175`.
+
+Suppression updates the requested caches; turning boolean 11 on does **not** invalidate them. An equal
+coordinate/wrap/filter request afterward can therefore remain silent. Changing only force-repeat or
+force-filter properties also does not bypass requested-value equality. Graphics-formats §3.8's
+"do nothing" wording applies only to suppressed **driver effects** for wrapping/filtering; local cache
+writes still happen. It must not be read as discarding the request.
+
+### 7.3 Unilateral setup and replay order (DC6–DC7)
+
+Unilateral reset first iterates **every allocated record**, including stages above 1 and stages suppressed
+by boolean 11: select i; slot 53(null,3,2,1); slot 52(0). This loop does not use the ordinary cached
+setters or the boolean-11 gate. Only after all those calls, assign a freshly constructed default record
+to every stage; then set the cached state word to bitwise complement of owner default packed value;
+then replay the owner default (`0x007D5260`–`0x007D5302`). The default replay's ordinary tail sets
+stage-0 wrap/filter values and clears transforms. It does not replay stack top, restore saved bindings,
+or apply a combiner record. Thus stage 0 ends with wrap 3/3 and mag/min 1/7 in its requested cache;
+other stages keep the constructor defaults, including coordinates 0 and texture `0xFFFFFFFF`.
+
+Packed replay computes changed bits once from `(requested XOR cached) AND mask`. If nonzero, it first
+stores `(cached AND NOT mask) OR requested` (requested is **not** masked here), selects stage 0,
+then dispatches changed groups in order: colour mask, depth mask, depth-test enable, alpha-test enable,
+blend enable, texture-0 enable, cull enable, depth function, alpha function/reference, blend factors,
+stage-0 mode. If any stage-1 enable/mode bits changed and boolean 11 allows them: select stage 1,
+texture-1 enable, stage-1 mode, select stage 0. Force-no-alpha-test/blend affect driver enable choices,
+not the requested bits already stored by this replay. No driver result is checked.
+
+Whether any packed bits changed or not, the tail is: wrap(3,3,stage0), filtering(1,7,stage0), clear
+transform(stage1), clear transform(stage0), in that order (`0x007D47A6`–`0x007D47CD`). Cached wrap/filter
+equality can suppress their calls. This tail is not a no-op merely because the packed word is unchanged.
+
+The emulated pass first tests word bit 28; if clear it does nothing. Otherwise: bind stage-1 texture on
+stage 0 and store it there; copy coordinates through the stage-0 cached setter; wrap S/T; filter mag/min;
+set or clear the stage-0 transform from stage 1; change depth function to 2 if needed; disable alpha test
+if needed; dispatch the mode-specific mode/blend effects in §7.1. These writes modify stage-0 caches
+and word state, rather than saving/restoring them. Blend-enable calls still obey the force-no-blend
+property. Model drawing performs the second mesh draw after this setup whenever boolean 11 is off and
+material texture count is exactly 2 (`0x007D5A29`–`0x007D5A4D`); setup itself can be a no-op if bit 28 is off.
+
+### 7.4 Invalid input, returned failures and retries (DC6)
+
+Native setters generally return void: neither a checked error code nor transactional rollback is
+established. Stage addressing is unchecked signed 32-bit `stage × 0x68` plus the stage-table pointer.
+Invalid stage, null required pointer, invalid material texture count/binding or unmapped memory has
+no safe-error contract here. Enum setters use the shifts/masks shown in §§2–5, not portable range
+validation. Alpha values are not clamped before packing. A portable wrapper's validation errors are
+policy outside this native contract.
+
+For a foreign call that **returns normally**, even if its return register denotes failure to that
+foreign implementation, the owner continues: it neither tests that value nor attempts cleanup/retry.
+Texture/coordinate/wrap/filter caches advance after their calls; packed-state and alpha-function
+caches advance before their calls; combiner mode/bytes advance after its call; transform-present is
+set/cleared after its driver sequence. Therefore an equal retry of a cached coordinate or wrap/filter
+pair is suppressed after a returned failure, whereas texture and combiner calls always run again.
+There is no first-failure accumulator. An exception/nonreturning call has no recovery path in these
+bodies; do not infer guaranteed later cleanup from it.
+
+Normal model drawing cleans up after all meshes: restore default shade if override is pending, clear
+the override flag, then unconditionally set alpha multiplier to binary32 1.0
+(`0x007D5A5B`–`0x007D5A96`). That is end-of-loop work, not a cleanup handler around each foreign call.
 
 ## 8. Transforms and shading *[compat]*
 

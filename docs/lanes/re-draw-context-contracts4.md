@@ -5,7 +5,10 @@
 ## Handoff
 - Goal: exact native contracts for DC3–DC8 in draw-context.md; spec text only.
 - Done: first native proof in §1.2–1.3: all combiner bytes; white shade; lifecycle helpers; callback receiver disproves Begin/End inference.
-- Next: finish attributed owner inventory/stack and stage cache/order/failure contracts; numeric/shade/transform vectors.
+- Done: first milestone a0a0d989. Added native inventory, foreign driver targets, full stage defaults and operation-specific gate/order/cache/failure/retry rules.
+- Next: resolve shade/lighting and numeric/transform details; add independent contract vectors; move answered questions and retain precise residuals.
+- Key correction: 0x007D30D0/0x007D32D0 use context receivers despite renderer export labels; TurnOnLighting populates default shade via lighting slot 10.
+- Stack: top replay reads end-8; no push/pop body established. 0x007D4F80 writes highlight colours; 0x007D4B80 is a raw-matrix transform path.
 - Measured: 12-byte records include explicit word-zero tails; stage coordinate=0, wrap/filter=-1; SetTexture has no selection/equality/refcount calls.
 - Main evidence: C:/Users/tlori/FreeCity4/ghidra/export/windows and decomp/SC4DrawContext.c; query with main tools/re_query.py first.
 - No engine reads/edits, ABI edits, runtime claims, subagents, network, branch changes, or main-checkout edits.
