@@ -133,3 +133,4 @@ pub mod animation_coordinator;
 pub mod number_text;
 pub mod feature_manager;
 pub mod persistence_manager;
+pub mod geometry_utilities;
