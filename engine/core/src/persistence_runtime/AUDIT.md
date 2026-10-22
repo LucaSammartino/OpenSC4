@@ -4,14 +4,14 @@ Source: persistence.md sections 2-7, foundations.md sections 2.3 and 9.2.
 The published attribution gives owner totals, not individual method byte sizes.
 No per-method byte credit can be inferred from these groups or Rust methods.
 
-| New owner | Published functions / bytes | Published body groups to implement | Initial status |
+| New owner | Published functions / bytes | Published body groups | Bounded owner status |
 |---|---|---|---|
-| DBRecord | 9 / 207 | construction, QI, AddRef, Release/destruction, key get/set, flags get/set, close | unimplemented; initial reference count unspecified |
-| DBSerialRecord | 49 / 6,172 | inherited record; serial/input/output QI; scalar/array signed/unsigned 8/16/32/64; float32/64; strings; keys; variants; raw stream forwarding | unimplemented; raw stream I/O remains a primitive, not typed encoding |
-| PersistResource | 6 / 115 | construction, interlocked AddRef/Release, QI, key get/set, derived type | unimplemented |
-| PersistResourceFactory | 14 / 680 | locked lifetime; record/type construction; convenience; allocation hook; Read/Write QI and serial hooks; temporary release | unimplemented; initial count and failed-allocation output unspecified |
-| BufferResource | 32 / 5,030 | buffer construction/destruction; buffer-first QI; get/get-as/set; format dispatch; v0/v1/v2; BMP load; QFS/BMP save | unimplemented; foreign pixel conversion is a primitive |
-| BufferResourceFactory | 21 / 1,517 | target and version stack; type/QI creation; serial dispatch; temporary load/save; file open/access/close; module-resource entrypoints | unimplemented; OS file/module allocation domains need explicit hosts |
+| DBRecord | 9 / 207 | construction, QI, AddRef, Release/destruction, key get/set, flags get/set, close | partial; explicit constructor count, logical lifetime; native allocation unsupported (PR9) |
+| DBSerialRecord | 49 / 6,172 | inherited record; serial/input/output QI; scalar/array signed/unsigned 8/16/32/64; float32/64; strings; keys; variants; raw stream forwarding | partial; owned typed algorithms; native vtables/error state, allocation thresholds and malformed-memory effects unsupported (PR1/PR10/PR13) |
+| PersistResource | 6 / 115 | construction, interlocked AddRef/Release, QI, key get/set, derived type | partial; atomic logical lifetime and key/QI; native object reclamation unsupported |
+| PersistResourceFactory | 14 / 680 | locked lifetime; record/type construction; convenience; allocation hook; Read/Write QI and serial hooks; temporary release | partial; sealed BufferResource specialization; other derived owners, reentrancy and native allocation-failure outputs unsupported (PR9) |
+| BufferResource | 32 / 5,030 | buffer construction/destruction; buffer-first QI; get/get-as/set; format dispatch; v0/v1/v2; BMP load; QFS/BMP save | partial; foreign colour conversion remains a primitive; native malformed-size/BMP/allocation domains unsupported; padded v1 copy is an explicit choice (PR2/PR3/PR11/PR12) |
+| BufferResourceFactory | 21 / 1,517 | target and version stack; type/QI creation; serial dispatch; temporary load/save; file open/access/close; module-resource entrypoints | partial; OS file/module acquisition remains primitive; native hosts/constructors/close-failure precedence unsupported (PR9/PR13) |
 | **New-owner denominator** | **131 / 13,721** | | **No blanket owner completion credit** |
 
 Existing authoritative `persistence_manager::KeyList` (22 functions / 1,071 B)

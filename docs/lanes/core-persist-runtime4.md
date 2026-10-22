@@ -14,8 +14,8 @@
 - Next: run corrected build-runs/runtime-gates.py WITHOUT --after-baseline (quick/fmt/all serially); finish per-owner audit and measure the 17+1 tests.
 - Questions PR9-PR13 appended; IDs chosen beyond existing manager PR8; PR1-PR3 retained.
 - R2 fresh native process snapshot 2026-10-22T22:36:44Z: no old runtime-gates/qbuild/fc4verify/compiler/test attributable to this lane, all checker candidate commands accessible. WMI denied; native query succeeded. No cause of disappearance inferred.
-- Expected additions: 17 core runtime tests and 1 formats integration test, pending actual measurements. No blanket owner or implemented-byte credit.
-- IMPORTANT: those 18 new tests have NOT yet had a coherent quick/all execution. Never promote the old 5080 baseline count to runtime coverage. No merge queue entry while gates are pending.
+- R2 measured 2026-10-22T23:54:11+01:00: live quick log has 5 completed suites / 3214 passed / 0 failed; all 17 new core runtime tests executed successfully (12 main + 5 edge). The 1 formats runtime integration test is still pending. This is partial evidence, not a complete quick/all verdict.
+- Never promote old 5080 baseline cases to runtime coverage. No merge queue entry while required gates are pending; build-runs/summarize-runtime-gates.py records exact per-test execution names/counts separately from historical logs.
 - Review: foreign helpers are limited to raw I/O, buffer allocation/ref/QI/locks/pixels/conversion, OS opening and existing QFS bytes; sealed production factory bodies remain ours. All six owners are partial; no byte subtotal or KeyList completion claim.
 - Oracle audit recorded in engine/core/src/persistence_runtime/AUDIT.md: constructed/synthetic conversion fixtures are not native, shipped-data or complete foreign-subclass evidence.
 - Baseline retained intact in build-runs/runtime-gates/baseline-mixed-r1-retained/: 20 suites/5080 passed cases then E0433 failure, clippy finished, CMake 214/214, CTest only 20/68 with no final verdict/exit. Interrupted/unmeasured combined gate. Original helper/status and process snapshot retained there.
