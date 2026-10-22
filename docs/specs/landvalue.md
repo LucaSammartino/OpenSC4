@@ -287,6 +287,74 @@ snapshot taken at load (or at the first frame, slot 10 true) is the map it used.
 the developer's state 17 instead, D-now is right and the load snapshot is the wrong candidate; the rule "previous
 = last snapshot while slot 10 was true" covers both.
 
+### 6.1.1 Native capture ownership and delivery order (LV6, static proof)
+
+The verified native field widths and canonical interface bases are proposed in
+`build-runs/pending-abi/re-landvalue-step-abi4-layouts.md` for publication in `docs/abi/layouts.md`.
+**They are not yet a published ABI prerequisite.** Coordinator review, application and a full train gate
+are required before an adapter depends on them; a docs-only gate bypass is insufficient.
+
+Use two separately queried interfaces, each held by its own successful QueryInterface reference:
+L = `cISC4LandValueSimulator` (IID `0xE7781D8C`), M = `cIGZMessageTarget2` (IID `0x452294AA`).
+For this native build M = L + 4; serializable is L + 8 (`0x006BD4DF–0x006BD4F9`).
+Progress offsets in §6.1 are relative to L. Native slot-3 forwarding uses M as `this` and the
+original message pointer, one 4-byte argument, callee pop 4, bool in AL. Passing L to that slot
+reads the wrong fields: DoMessage itself subtracts 4 before Step (`0x006BF113`, `0x006BF15D`).
+Only the named 1.1.641 GOG build is established. Executable identity, native vtable/slot identity
+and expected bases must be validated before any private-field read; a failure disables capture.
+
+**Proven synchronous boundary.** The two direct calls to Step (`0x006BE7B0`) are in DoMessage:
+SimNewDay supplies 5 ms at `0x006BF111–0x006BF116`; SimIdle gets the message's 32-bit data3
+through slot 19 and calls Step at `0x006BF155–0x006BF160`. Calendar dispatch invokes target
+slot 3 at `0x007039CB`, then releases the message at `0x007039D4`, then tests the saved AL and
+advances its cursor. Idle dispatch calls SendAgentMessage at `0x00702EE0`; that function invokes
+target slot 3 at `0x00702520`, saves AL and releases the message at `0x00702529` before returning.
+Thus the synchronous forwarder's required observation order, **if safely installed**, is:
+
+1. At entry for the actual land-value SimIdle/SimNewDay delivery, copy L's state, ignoreZoning,
+   relevant iterator contents and developer cursor/header, then copy the world inputs needed by
+   that state's read table. Capture no speculative next-state work; at most one state executes.
+2. Forward that same message exactly once to the saved native slot, with native M, in this delivery.
+   Preserve the native budget and message fields. Save the native bool result.
+3. Before returning to the caller, copy the after-state and progress, and associate the pre-call
+   input copies with the work actually performed. State 8 can already have recorded history and
+   queued LandValueMapChanged; a later message-server notification is not this boundary.
+4. Return the native bool. Both paths retain message ownership in the dispatcher, which releases
+   its reference only after the target returns. The observer borrows the message during the call;
+   it keeps owned input copies rather than message, iterator, tree-node or grid-storage pointers.
+
+For unchanged tract states, a fresh iterator's stored coordinate is included on its first yield;
+a running iterator's stored coordinate has already been yielded and is excluded from new work.
+Next advances x first, wraps x to x0 and increases z, with inclusive signed int32 bounds
+(`0x0060C8D0–0x0060C92A`). State 2 is exhaustion, not a valid final tract. An unchanged fresh
+iterator means no tract was read. On a pipeline transition attribute work to the old state under
+§6's rules, including its skip cases; a newly reset iterator does not imply new-state work.
+In the state-3 fallback, ignoreZoning changes to true, statistics
+and the tract iterator reset, and state remains 3 (`0x006BEBED–0x006BEC2B`); discard the old
+scan's inputs rather than interpreting the reset as ordinary forward progress.
+
+State 6 establishes the first developer cursor without reading its desirability map
+(`0x006BEEB3–0x006BEEC3`). A state-7 call with cursor unequal to header reads that one node's
+borrowed developer interface, float32 weight and current int16 desirability map, then advances
+the cursor and returns (`0x006BEEE7–0x006BEF2E`). Copy that developer's map **before** forwarding;
+never substitute a later publication. A state-7 call already at the header processes no developer
+and advances to state 8. Developer slot 13's map return is borrowed (plain pointer getter
+`0x007C9FB0–0x007C9FB6`); copying it confers no reference on the underlying storage. Successful
+L and M QueryInterface references must remain alive through observation and be balanced after
+capture stops; they do not transfer ownership of developers, iterators or tree nodes.
+
+**Still unproved: installation and startup.** QueryInterface obtains an interface, not an
+interceptor installation. Init registers native M at levels 0, 10, 4 and 6
+(`0x006BE6EB–0x006BE724`); AddAgent references the supplied target
+(`0x007043C4–0x007043D7`). The proof above does not establish a way to put a proxy in those
+existing deliveries while preserving target identity, registration order, shutdown removal and
+all notifications. Removing/re-adding an agent or changing a vtable is not approved by this
+proof. An additional independent subscription does not bracket the native call. No early-install
+path before the first developer publication/restored-map loss has been established either.
+LV6 stays open for this installation/lifetime/order gap and pending ABI application. LV2 and LV7
+still require actual per-Step/developer/startup captures in the preserved runtime traces;
+static layout proof and output-exact pass-end samples do not resolve them.
+
 ## 7. Formulas *[compat]*
 
 ### 7.1 Water bonus (state 2)
@@ -570,6 +638,11 @@ callers read only AL, so declaring them `uint8_t` is correct.
 |---|---|---|---|
 | 0–2 | QueryInterface / AddRef / Release | 8 / 0 / 0 | as above |
 | 3 | `DoMessage(cIGZMessage2*)` | 4 | AL = 1 always (§5) |
+
+This interface's native `this` is M = L + 4, where L is the separately queried land-value
+interface. Slot 0's thunk subtracts 4 (`0x006BDDB0`); slot 3 expects M directly. The forwarding
+contract and the unresolved installation boundary are in §6.1.1. Obtaining M by QueryInterface
+does not install a forwarder or change the simulator's existing agent targets.
 
 ## 12. Dependencies (methods the original calls) *[compat]*
 
