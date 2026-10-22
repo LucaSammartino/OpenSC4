@@ -216,9 +216,13 @@ application route is `cIGZFrameWork::Application()` to the application, successf
 `QueryInterface(0x26CE01C0, void**)` to `cISC4App`, then
 `cISC4App::GetRenderProperties()` to the properties view. The last method is a borrowed
 pointer getter: native `0x0044B660–0x0044B666` just returns the stored pointer, with no
-AddRef. Check for an unavailable application, failed interface query or null property
-pointer before use. Release a successfully acquired application-interface reference;
-AddRef/Release the **properties view** if retaining it beyond its borrowed use. Do not
+AddRef. Native application QueryInterface accepts that IID and acquires a reference
+(`0x004492A7–0x004492C2`), independently confirming the SDK acquisition route.
+Check for an unavailable application, failed interface query or null property
+pointer before use. If retaining the properties pointer, AddRef the **properties view**
+while its application owner is still live, before releasing the successfully acquired
+application-interface reference; eventually Release that retained properties reference.
+For a borrowed use, keep the application owner live throughout that use. Do not
 try to obtain that view by QueryInterface ID 1: §1.1 establishes that ID 1 returns the
 different U view. No new GZCOM service ID or IID is specified here.
 
@@ -298,6 +302,11 @@ initialization requirement: do not call them to force a desired profile. Success
 language-manager selection alone does not prove `setlocale` succeeded: its null-return
 branch still reaches the success path (`0x00928072–0x00928098`). Exact shipped-language
 profiles, OS acceptance and startup ordering remain RP6's explicit open evidence gap.
+The language argument comes from the language-manager runtime-library-name method
+at `0x0092440F` (vtable slot 13, called at `0x00928061`), which supplies CRT request
+strings such as `english-us`, `english-uk`, `french`, `japanese` and `turkish`
+(`0x00924430–0x00924499`, `0x00924541`). These literals identify requests; they do not
+establish an accepted LC_CTYPE, numeric codepage or installed/shipped language inventory.
 
 **Graphics-rules GR6 boundary.** An imported full name can contain non-UTF-8 bytes under
 the active CRT profile; the SDK's `char const*` promises no UTF-8 validation. Preserve
@@ -563,6 +572,11 @@ plugin CRT's `setlocale` result is not an observation of the executable CRT. Arr
 locale state for each recipe; save and restore the original state when deliberately
 changing it. Failure to activate a requested profile is an unavailable experiment, not
 an ASCII-equivalent result. Do not inject invalid property indices or alter registry data.
+For each stable construction profile, build an independent expected short-name list by
+direct native classification/mapping of §3's original mixed-case names after `k`, before
+constructing the owner. There is no public SDK short-name getter. Retain this list with
+the full-name bytes obtained from native getters; do not inspect a guessed object layout
+or reuse a portable implementation's abbreviation output as the oracle.
 
 | Discriminator | Independent expectation / observation to retain |
 |---|---|
