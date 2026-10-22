@@ -6,6 +6,8 @@ lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
 ## 0. Current state (2026-10-21, run4 open-ended)
+**Coordinator parked glue-exemplar-final4:** final3/3, contract7/8 and clean2032/ref0; EX52/EX53 plus EX50 missing clients remain. Compiled opt-in fixes may land, no default/whole replacement credit, no fourth round; worktree retained.
+
 
 **train63 landed e7b3f2d7dc:** Rebuilt failed62 with typed MySim shadow payload decoding and poison-callback regression test. Full66-test gate and current38+citydetail+span565 union2032/ref0 PASS. Lotcfg realpreference host fix removes implementation blocker; citydetail promoted after implemented boundary/native-compatible8byte record proof and jointcleanrun. CD6/CD7/PL22 increase/two-session reload remain testgaps. Span565 remains opt-in, no whole-native replacement credit. Original null-read failing message type was not captured; failedDLL/PDB/evidence preserved. Advisor/MySim sourcephases parked3/3 with AD12-15/MS13-15 and remaining bodies; no fourth rounds, WTs preserved. Coverage45.4/34.5/16.4/17.8; rounds208 (open-ended).
 
