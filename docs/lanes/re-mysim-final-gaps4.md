@@ -8,3 +8,7 @@
 - Goal: prove MS13 (0x00431370 floor, SetCellPosition, home rect), MS14 (Import n, %d, F.ini, gender/zodiac), MS15 (CheckCommute 0x0042D9E0 pathfinder slots, trip vars) from bytes; write rules into mysims.md, move to answered/, regen index.
 - Done: lane file.
 - Next: read spec §4.6/§4.7/§4.7.1/§4.12, then re_query asm on the cited functions.
+
+
+## Coordinator quota pause (2026-10-22)
+Provider weekly limit; resets 18:00 Europe/London. This round stopped. Existing work is preserved as WIP, not ready or verified. Resume only after the provider limit clears and fresh slots/check --resume pass; the round still counts.

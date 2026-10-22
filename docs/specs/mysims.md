@@ -427,9 +427,29 @@ exit. A valid location with `notify` true still notifies. (answers MS11)
 - **`SetByOccupant(o)`** (`0x00431430`): first resets **every** field to the default above (so byCommute becomes 0
   and `+0x14`/`+0x18` −1), then flag `+0x1C` := 1, holds `o` (reference the new, release the old); if `o` is
   non-null: world x, z := `o.GetPosition()` (cISC4Occupant slot 8) x and z, and cell := `floor(world / 16)` per
-  axis (single precision, `0x00431370`). A null `o` leaves cells −1 (invalid). Returns true. Callers that need
+  axis (single precision, `0x00431370`; exact rule below). A null `o` leaves cells −1 (invalid). Returns true. Callers that need
   byCommute set it again afterwards: `ChangeJob` and `validateCommuteLocation` (which restores the byCommute it had
   before the call, i.e. 1).
+- **World → cell (`0x00431370`, per axis, answers MS13 a)** is not a truncating conversion but the
+  "magic number" floor, under the main thread's 24-bit x87 precision (foundations §18). With `w` the float32
+  world coordinate: `q := w × 0.0625` (`0x00A85798`, exact); `d := q − 0.5` (`0x00A84D2C`) rounded to 24 bits;
+  `s := d + 12582912.0` (`0x00A8579C`, 1.5 × 2^23) rounded to 24 bits and stored as float32; `n :=` the bit
+  pattern of `s` plus `0xB4C00000` (wrapping 32-bit add, read as int32); the result is `n + 1` if `q` compares
+  **equal** to the integer `n + 1`, else `n` (an unordered compare, i.e. NaN, also gives `n`). For
+  `|w| < 2^26` this is `floor(w / 16)` except one case: a negative `w` with `|w| ≤ 2^-21` gives **0**, not −1
+  (`d` rounds to exactly −0.5 and `s` ties to even). Outside that range and for NaN/∞ the result is the bit
+  arithmetic, **not** a saturation and not `0x80000000`; a NaN keeps its payload (quieted) into `n`.
+  Vectors (input float32 bits → cell): `0x432FE666` (175.9) → 10; `0xC1000000` (−8) → −1; `0xC1800000` (−16) →
+  −1; `0x80000000` (−0) → 0; `0x8DA24260` (−1e−30) → **0**; `0x477FFFFD` (65535.99) → 4095; `0x4C800000`
+  (2^26) → 4194304; `0x4CBEBC20` (1e8) → **5222152**; `0xCCBEBC20` (−1e8) → **−8305697**; `0x7FC00000` (NaN) →
+  **880803840**; `0xFFC00000` (−NaN) → **−1266679808**; `0x7F800001` (sNaN) → 880803841; `0x7F800000` (+∞) →
+  876609536; `0xFF800000` (−∞) → −1270874112.
+- **`SetCellPosition(x, z)` (`0x004311B0`, answers MS13 b)** writes the cells **and** the world fields:
+  `+0x0C := x`, `+0x10 := z`, `+0x04 := float(x << 4)`, `+0x08 := float(z << 4)` (32-bit shift, wrapping, then
+  an exact int → float32 store). It touches nothing else (occupant, flags, `+0x14`/`+0x18` unchanged). So the
+  neighbour branch of `validateCommuteLocation` leaves world = 16 × the clamped cell (end cell (−1, 37) in a
+  64×64 city → cell (0, 37), world (0.0, 592.0)), not the −16.0 of the reset; and §4.6's `force` reset to (0, 0)
+  also moves the world position to (0.0, 0.0).
 - **`+0x40` is the dispatch's trip state**: written only by dispatch `setState(s)` (`0x00431C10`): old := `+0x40`
   (kept at `+0x44`), `+0x40` := s; s = 3 also ORs `2` into dispatch flags `+0x48` (notification `0x4BB2D020`
   when they change); if old ≠ s, notification `0x4BB2CFC0(old, s)`, which is how §4.6 receives `newTripState` /
@@ -457,7 +477,7 @@ exit. A valid location with `notify` true still notifies. (answers MS11)
 | 4 | `SetTripDestinationFilter` (9) | **0** (standard destination) |
 | 5 | `SetDestinationFlag` (10) by the MySim's `GetWealth()` (cISC4MySim slot 19) | wealth 1 → `0x1`, 2 → `0x2`, 3 → `0x4`, anything else → `0x1` |
 | 6 | `SetTrafficDensity` (18) | 1 |
-| 7 | `SetStartRect` (19) | cell rect of the home location (`+0x84`): the lot of its occupant (or the lot at its cell) → the lot's bounding rect; no lot → the single cell |
+| 7 | `SetStartRect` (19) | cell rect of the home location (`+0x84`), `getLocationCellRect` (`0x00431880`): occupant non-null → lot manager slot 14 (`+0x38`, the occupant's lot); occupant null → `GetLot(cellX, cellZ, false)` (slot 6); a lot → its `GetBoundingRect` (lot slot 14); no lot → the single cell (cellX, cellZ, cellX, cellZ). An occupant whose lot is not found goes **straight to the single cell**, the cell lookup is not tried (answers MS13 c) |
 | 8 | `SetTravelTypeFlag(mask, alsoStarting)` (13) | `0x1CF`, true (Walk, Car, Bus, Passenger train, Subway, Elevated train, Monorail — allowed **and** starting) |
 | 9 | `FindPath` (23) | **one** call; result ≠ 1 → return false |
 
@@ -496,6 +516,9 @@ Worked examples (conformance):
 | `IsValid`, flag 0, region city at (+0x14,+0x18) with only a Ferry connection | — | false; with a Subway one → true |
 | `SetByOccupant(o)`, o at world (175.9, y, 32.0) | — | cell (10, 2), byCommute 0, `+0x14`/`+0x18` −1 |
 | `ChangeJob(b)`, b in city, trip state any | — | stored, no pathfinder call, one `0xEBA06BF4`, true |
+| home location: occupant set, lot manager has no lot for it, a lot exists at its cell (5, 6) | — | start rect (5, 6, 5, 6) (the cell lot is not used) |
+| home location: no occupant, lot at cell (5, 6) with bounding rect (4, 6, 7, 8) | — | start rect (4, 6, 7, 8) |
+| neighbour end cell (−1, 37), city 64×64 | — | `+0x04`/`+0x08` = 0.0 / 592.0 |
 
 **`ChangeJob(b)`** (slot 8): set the dispatch commute destination to building `b`; result of the dispatch.
 
