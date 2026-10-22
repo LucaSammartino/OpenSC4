@@ -434,7 +434,7 @@ exit. A valid location with `notify` true still notifies. (answers MS11)
   "magic number" floor, under the main thread's 24-bit x87 precision (foundations §18). With `w` the float32
   world coordinate: `q := w × 0.0625` (`0x00A85798`, exact); `d := q − 0.5` (`0x00A84D2C`) rounded to 24 bits;
   `s := d + 12582912.0` (`0x00A8579C`, 1.5 × 2^23) rounded to 24 bits and stored as float32; `n :=` the bit
-  pattern of `s` plus `0xB4C00000` (wrapping 32-bit add, read as int32); the result is `n + 1` if `q` compares
+  pattern of `s` plus `0xB4C00000` (wrapping 32-bit add, read as int32); the result is the wrapping int32 `n + 1` if `q` compares
   **equal** to the integer `n + 1`, else `n` (an unordered compare, i.e. NaN, also gives `n`). For
   `|w| < 2^26` this is `floor(w / 16)` except one case: a negative `w` with `|w| ≤ 2^-21` gives **0**, not −1
   (`d` rounds to exactly −0.5 and `s` ties to even). Outside that range and for NaN/∞ the result is the bit
@@ -446,10 +446,10 @@ exit. A valid location with `notify` true still notifies. (answers MS11)
   876609536; `0xFF800000` (−∞) → −1270874112.
 - **`SetCellPosition(x, z)` (`0x004311B0`, answers MS13 b)** writes the cells **and** the world fields:
   `+0x0C := x`, `+0x10 := z`, `+0x04 := float(x << 4)`, `+0x08 := float(z << 4)` (32-bit shift, wrapping, then
-  an exact int → float32 store). It touches nothing else (occupant, flags, `+0x14`/`+0x18` unchanged). So the
+  signed int → float32, rounded to nearest-even at the store). It touches nothing else (occupant, flags, `+0x14`/`+0x18` unchanged). So the
   neighbour branch of `validateCommuteLocation` leaves world = 16 × the clamped cell (end cell (−1, 37) in a
   64×64 city → cell (0, 37), world (0.0, 592.0)), not the −16.0 of the reset; and §4.6's `force` reset to (0, 0)
-  also moves the world position to (0.0, 0.0).
+  also moves the **local copy's** world position to (0.0, 0.0); it does not move the dispatch itself.
 - **`+0x40` is the dispatch's trip state**: written only by dispatch `setState(s)` (`0x00431C10`): old := `+0x40`
   (kept at `+0x44`), `+0x40` := s; s = 3 also ORs `2` into dispatch flags `+0x48` (notification `0x4BB2D020`
   when they change); if old ≠ s, notification `0x4BB2CFC0(old, s)`, which is how §4.6 receives `newTripState` /
@@ -729,7 +729,10 @@ create-always (truncate), share read** and write the 4 magic bytes; failure → 
    `DoesDirectoryExist`); missing → next `i`. Call this `<ud>` below. (answers MS12 f)
 2. List `<ud>\Export\` (`<ud>` + `\` + `Export` + `\`) with filter `*.pub`. For each entry: `F.ini` = that
    directory + the entry name with its **last 4 bytes** dropped (`Left(len − 4)`, `0x0043C3CA`) + `.ini` — the
-   `.ini` sits next to the `.pub` in the `Export` directory (answers MS12 d). It must exist (open read / open
+   `.ini` sits next to the `.pub` in the `Export` directory (answers MS12 d). For a listed name shorter than
+   four bytes, the subtract wraps to a large unsigned count: `Left` compares **unsigned** with the string
+   length and returns the **entire name**, not an empty stem (`0x0090F46D`–`0x0090F478`, answers MS14 c).
+   Thus listed name `abc` gives `abc.ini`; an empty listed name gives `.ini`. It must exist (open read / open
    existing) and parse as an ini file, else skip the file.
 3. `[WebPages] FamilyDescription` is required (else skip the file); its encoding is converted, then **one**
    trailing `/` is cut (`EndsWith("/")` → length − 1; `\` is not cut). The family's picture folder is, byte for
@@ -745,8 +748,23 @@ create-always (truncate), share read** and write the 4 magic bytes; failure → 
    framework-rz-files.md §3.5: section and key match ASCII case-insensitively; numbers are `sscanf("%ld")`
    (leading blanks, optional sign, decimal only, stops at the first non-digit; a miss writes nothing).
    `_guid` uses the `ReadNumber` result (false → skip member). `sims_family_nummembers`'s result is **not
-   tested**; the member loop runs `k = 1` while `k ≤ n` **unsigned** (`0x0043C84D`, `0x0043CE8A`), so n = 0 → no
-   members and a negative n would loop over 2^32 − |n| keys (each failing `_name` and skipping).
+   tested**; **n starts at 0 for each listed family** (answers MS14 a: zero store `0x0043C27E`, with 16 bytes of
+   outstanding pushed arguments; read-output address `0x0043C761`; value loaded `0x0043C83E`). Missing or
+   non-numeric `sims_family_nummembers` therefore leaves n = 0 and imports no members, even after a previous
+   family with a valid positive n. The member loop runs `k = 1` while `k ≤ n` **unsigned**
+   (`0x0043C84D`, `0x0043CE8A`); negative parsed n is reinterpreted as uint32. For n = `0xFFFFFFFF`, k wraps
+   through zero and the loop never terminates by its bound *[quirk]*; do not simulate billions of iterations
+   as a conformance test.
+   The actual member-key formats are `sims_familymember%d_name`, `sims_familymember%d_gender`,
+   `sims_familymember%d_zodiac`, `sims_familymember%d_guid`; the face format is `family%d_face` (answers MS14 b;
+   calls `0x0043C9D3`, `0x0043CA4B`, `0x0043CB66`, `0x0043CBEA`, `0x0043CC97`). Although the bound is unsigned,
+   `%d` interprets k as signed int32: k = `0x80000000` gives `sims_familymember-2147483648_name` and
+   `family-2147483648_face.jpg`. This is a formatting vector, not a request to execute the import loop to k.
+   **Every member text read is required** (answers MS14 d): `_name` failure skips before `_gender`;
+   `_gender` failure skips before `_zodiac`; `_zodiac` failure skips before `_guid`; `_guid` failure skips
+   before portrait conversion. A present empty value is different from a missing key: successful empty
+   gender/zodiac values continue to the localized comparisons below. Branches: `0x0043CA2B`–`0x0043CA2F`,
+   `0x0043CAA6`–`0x0043CB44`, `0x0043CBBE`–`0x0043CBC2`, `0x0043CC22`–`0x0043CC7B`.
 5. Write one record (table above): name `"<first> <family>"`, is male := gender equals the "male" text
    (`cRZString::IsEqual` `0x0090EC57` called at `0x0043CDC2` with the case-sensitive flag = 0; see "Gender test"
    below), sign := zodiac index
@@ -762,7 +780,7 @@ Zodiac index: compare the lower-cased value with the 12 localized names (group `
 
 Text that fails to load (answers MS12 g): the "male" text and the zodiac names are `cSLString` objects
 (`0x00603580`, neighbors.md: a missing LTEXT leaves the string **empty**). An empty "male" text makes exactly the
-members with an empty `_gender` male; an empty zodiac name matches an empty `_zodiac` value (first such index
+members with a **present, successfully read** empty `_gender` male; an empty zodiac name matches a present empty `_zodiac` value (first such index
 wins), and no longer matches anything else.
 
 **Gender test** (`IsEqual(const cIGZString&, bool caseSensitive)` `0x0090EC57`; the flag pushed at `0x0043CDB2` is
