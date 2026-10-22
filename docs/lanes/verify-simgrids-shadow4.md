@@ -12,8 +12,10 @@
 - Stable full gate at e0522ffd: cargo 4940/0, clippy 0 diagnostics, build PASS, ctest 68/68. Prior overlapping retry failed DLL link while old CTest held DLL; final gate ran after old CTest completed.
 - Frozen DLL/PDB: build-runs/dll-sgv4-r1; DLL SHA256 397C55ADE6EA4698799BF70BC50A18CE544D415128A19FF9F9FC47B249ED9EC5.
 - First request sgv4-r1-native39-20261022a CORRUPT: 1 foreign exception immediately after original-grid probe (117 captures), before fixture result, no algorithm credit. No RE/dump investigation.
-- Shadow-OFF control39 sgv4-r1-control39-off-20261022b outstanding (qwait session 79227), frozen first DLL. No other game outstanding.
-- Fixture now establishes Init+SetTractSize before capturing a factory object's Write; unsized factory Write is outside published initialized operation contract. Added public-call phase logs. Next: control result, focused+full gate for this correction, freeze new immutable DLL, native shadow retry under NEW label only.
+- Shadow-OFF control39 sgv4-r1-control39-off-20261022b CLEAN 2032-01-01/ref0; full SaveCity control executed. Failed ON run retained, not excused by control.
+- Fixture now establishes Init+SetTractSize before first capture; SG2 parks constructor/pre-init Write contract (no causal assertion about exception). SG1 unchanged.
+- Final code f5902bb7: quick PASS529; stable all cargo4940/clippy0/buildPASS/ctest68. New frozen DLL build-runs/dll-sgv4-r2 SHA256 CAD1864980992DAA5F352043EF456F3B25EC9D0323027DA9FF19E3381C5E8AFB.
+- Native retry sgv4-r1-native39-20261022c queued/outstanding; qwait/script session86153. Script then preserves native save and submits current40-reload-20261022c, then native39-roundtrip-20261022c only if clean. At most one request outstanding. Inspect final counts including refusals/failures and all differences; file questions, no exact credit from bootstrap/digests.
 - Natural domain is all power-owner grid adapter calls; other owners outside scope. Native allocation failure and replacement-factory refusal cannot count as equality.
 - No game request outstanding; no questions filed. SG1 boundaries unchanged.
 - Only published contracts, public SDK and implementation may be read. No RE, tools, subagents or default changes.
