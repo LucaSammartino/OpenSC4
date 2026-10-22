@@ -709,6 +709,105 @@ Independent creation/scheduling/stack vectors:
 | Chunk `job`; parsed tokens `--fast`, `/n:12`, `:x`, `---`, `count:9` | T[0]="job"; T.fast=true; T.n="12"; T[""]="x"; T[1..4] are the four original accepted tokens; T.count=5 |
 | Auto-yield true, saved line 4; hook lines `4,5,5,4`, raw +2E zero | Yields only on second and fourth hooks, each with zero results; saved lines `4,5,5,4` |
 
+#### 6.3.6 Breakpoint storage and slots 11–18
+
+All breakpoint methods first look up a **single** script ID. There is no all-scripts `-1` selector here.
+Each record owns an insertion-ordered doubly linked list. A breakpoint payload is `0x34` bytes, with
+script ID at +00, copied source-name string at +04, 32-bit line at +18, enabled byte at +1C, copied condition
+string at +20; list nodes add eight linkage bytes. Default construction `0x008B0520` gives ID/line `-1`,
+enabled true, empty name/condition. Creating an entry fills ID from record.thread.GetID() (or `-1` with
+null thread), copies the supplied name and line, and appends to the tail. There is no line-range validation.
+
+Find/create `0x008B42C0` and remove `0x008B1B80` match **name and line**, not the payload's stored ID.
+Name equality uses string +24 with flag **zero**: case-insensitive equality, implemented by lowercasing
+temporary copies (`0x0090E242` forwards to `0x0090EC57`; `0x0090ECCE–0x0090ECD6`). No path
+normalization, basename conversion or separator folding occurs here. The first match wins. Find/create
+clears its created-output byte on entry, returns the existing entry if found, returns null for a miss when
+creation is disabled, or appends the new entry and sets created true. Remove clears its changed-output
+byte, unlinks/destroys/frees the first matching node and sets changed true on a hit, otherwise returns false.
+Removal helper `0x008B1540` unlinks before destroying the condition then name string and freeing the node.
+List destruction `0x008B1D00` clears all payload nodes, then frees the sentinel. Neither operation notifies
+on its own. The public operations are:
+
+| Slot / entry | Inputs after ID | Result and mutation |
+|---|---|---|
+| 11 `008B4E60` GetBreakpointExists | name, line | True only when record and entry exist; never creates |
+| 12 `008B4EC0` SetBreakpointExists | name, line, final flag | **Zero flag creates/finds and forces enabled=true. Nonzero flag removes.** Existing record returns true even if no entry changed; missing record returns false. Notify only on actual creation/removal |
+| 13 `008B4F60` ToggleBreakpointExists | name, line | Remove if present; otherwise create with defaults. Notify once on actual change; return true for an existing record, false for a missing record |
+| 14 `008B5000` GetBreakpointEnabled | name, line | True only if entry exists and enabled byte is nonzero; false on any miss |
+| 15 `008B5070` SetBreakpointEnabled | name, line, enabled byte | Create if absent. Store supplied byte when different. Notify once if created or byte changed. True for a found record, false for a missing record |
+| 16 `008B5110` GetBreakpointCondition | name, line, output string | Clear output to length zero **before** testing for a record/entry. Copy stored condition bytes and return true on hit; false on miss with output still empty. Never creates |
+| 17 `008B51A0` SetBreakpointCondition | name, line, condition string | Create if absent. Compare stored condition to supplied text with flag **one** (case-sensitive equality). **Only if equal**, copy supplied text and notify; if unequal, leave condition unchanged and notify only if entry was newly created. True for an existing record, false on record miss |
+| 18 `008B4210` GetBreakpointEntryList | source-name filter, output list | Clear/destroy old output entries first, even on record miss. Append deep copies of matching-name entries, in insertion order, including stored ID, line, enabled and condition. True for a found record (even zero matches), false otherwise |
+
+The inverted-looking flag in slot 12 is established by `0x008B4EF1–0x008B4F30`; it is not interpreted
+from the method's SDK name. Likewise slot 17's equality branch is literal (`0x008B5202–0x008B520E`):
+it does **not** assign unequal text. In normal public creation all conditions start empty, so setting a
+nonempty condition does not make it persist. Reapplying SetBreakpointExists with flag zero can enable an
+existing disabled entry **without a notification**, because that method observes only the created flag.
+Output strings/lists in slots 16/18 must be valid mutable objects; they are not optional/null-checked.
+
+ShouldBreak `0x008B1E00` is an independent scheduling test. Empty list immediately returns false.
+Otherwise ask the debug-info service for current source name and line at stack depth zero; scan entries
+in insertion order for case-insensitive name equality and exact 32-bit line equality. The first match means
+true. There is **no enabled-byte test, condition evaluation, pause-counter update, resume-counter test,
+or notification** in this function (`0x008B1E78–0x008B1E98`). Disabled entries therefore still prevent a
+status-1 script's next resume. Removing the entry allows the next tick to resume; incrementing the
+resume-transition counter alone does not bypass it. The debug service supplies name/line; VM/debug
+behavior is not an owner-produced oracle result.
+
+#### 6.3.7 Notification protocol, failure boundaries and conformance inputs
+
+The script notification helper `0x008AEBC0` asks the framework for service pair
+`(0x04FA845B,0x652294C7)` into a temporary owned reference. If no service is returned, it performs no
+message allocation/send and simply releases the temporary reference. Otherwise allocate/construct a
+`0x2C` standard message, AddRef it, invoke message +14 with type, +2C with ID, +40 with the 32-bit payload,
+then message-server +10 with `(message,0)`, Release the message, and release the temporary service.
+The return from the send is ignored. The helper does not pass the server pointer in a message field.
+
+| Event | Message type | ID | Payload | State at service invocation |
+|---|---|---|---:|---|
+| Creation | `0x6BA990D8` | CreateThread result | 0 | Last ID written, record inserted, hook installed |
+| Pause transition to 1 | `0xEBAAF9BE` | Lookup ID | 1 | Pause count already 1 |
+| Resume transition to 0 | `0xEBAAF9BE` | Lookup ID | 0 | Pause count already 0; transition counter not yet incremented |
+| Explicit kill | `0xCBA990D3` | Thread.GetID result | 0 | Foreign DestroyThread already called; record still in map |
+| Tick terminal status | `0xCBA990D3` | Thread.GetID result | 0 | Record still in map; optional status-zero DestroyThread has **not** yet been called |
+
+Breakpoint helper `0x008AEC60` uses the same service lookup/allocation/reference/send protocol but type
+`0x8BD13EE2`, writes only the script ID through message +2C, and makes no +40 payload setter call.
+Message delivery policy is foreign to the server: these are ordered service invocations, not a claim that
+observers execute synchronously. No retry or propagation of send failure occurs. A missing message service
+does not undo any script/breakpoint mutation. Message allocation failure is unchecked before virtual calls;
+no false-return or rollback contract exists for exhaustion. The same absence of defensive checks applies
+to failed script-record/list/string allocation. Valid foreign interfaces and available storage are required
+for successful paths; do not invent SDK recovery behavior.
+
+The following independent vectors complete the owner boundary cases; they supplement §16 without
+requiring a real VM. Supply thread Status/debug name/line, returned IDs, factory results and callback
+events as inputs; compare the server's state changes and foreign call sequence as outputs.
+
+| Initial state / input | Expected result and ordered effects |
+|---|---|
+| Live record; no breakpoint; slot 12 `(name,10,0)` twice | True twice; one enabled entry; exactly one breakpoint notification |
+| Same entry disabled; slot 12 `(name,10,0)` | Entry enabled; no notification |
+| Same entry; slot 12 `(name,10,1)` twice | True twice; first removes/notifies, second does neither |
+| No entry; SetBreakpointEnabled(name,10,false) | Creates disabled entry; exactly one notification; GetEnabled false, GetExists true |
+| That disabled entry; eligible status 1; debug name equal ignoring case and line 10 | ShouldBreak true, no ResumeThread; no control notification |
+| Existing empty condition; SetCondition("x > 0") | True; condition remains empty; no notification |
+| Missing entry; SetCondition("x > 0") | True; entry created enabled with empty condition; one notification |
+| Existing empty condition; SetCondition("") | True; copy equal empty text and notify once |
+| Caller output condition "old"; missing record or breakpoint | False, output now empty |
+| Caller list nonempty; missing record | Old copied payloads destroyed, list empty, false |
+| Insert `(A,30)`, `(a,10)`, `(B,20)`; list filter `a` | Copies first two entries in insertion order `[30,10]`, not line order; result true |
+| Missing message service; any create/remove/pause operation above | Same mutation/result; no message allocation or send |
+| Record count 1; Shutdown with no framework | Latch clears; Kill smallest ID (DestroyThread before termination), record freed/erased, generator shutdown-view call/release, Lua Close/release; true |
+| Last-created ID 71; kill ID 71; query last/current | Last remains 71; current is `-1` outside tick ResumeThread |
+
+No unresolved owner decisions remain for normal, non-invalidating calls in this audit. The external parser,
+file reader, base system service, Lua execution/debug service and message delivery retain their own
+contracts. In particular no interpretation of Lua instructions, invented safe self-destruction, or additional
+breakpoint-condition language is part of this owner contract.
+
 ---
 
 ## 7. Script resources
