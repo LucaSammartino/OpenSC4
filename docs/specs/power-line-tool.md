@@ -292,6 +292,21 @@ Do these passes in order; empty each corresponding list after its pass:
 No rebuilding of pole positions or wire cells happens in this undo entry. The call order and the unusual
 manager-null release branch are verified at `0x0064F407–0x0064F55C`.
 
+### 5.2 Connection support contracts
+
+`0x00649910(self, other, enable)` locates the **first** connection record whose endpoint pointer equals
+other, scanning `self+0xAC..+0xB0` in 44-byte strides. It reads other's cell even if the connection vector
+is empty. With no match it changes nothing. A false enable writes zero to that connection's byte +9.
+A true enable rereads other's cell and writes 1 only if self's unsigned (z,x) is lexicographically less
+than other's; equality and greater write zero. It never adds/removes a record, calls AddRef/Release,
+or rebuilds geometry (`0x00649916–0x006499A2`).
+
+`0x0064B6E0(destinationList, wireVector)` is a **copy of references**, not a transfer. Null or empty
+wire vector does nothing. In 16-byte record order, read the interface at +8, AddRef it and append it
+to the destination linked list using a 12-byte node. It performs no null-interface test, clears neither
+source nor destination and does not deduplicate (`0x0064B6E0–0x0064B749`). The subsequent owner of
+the destination list must release these references. The 1338-byte geometry builder remains NT21.
+
 ## 6. Reserved-tile walk and zone update
 
 Slot 81 (`0x0064FED0`) is specified by network-geometry §11. For NT20(b), its `last` starts at input
@@ -315,6 +330,40 @@ the first cell outside the rectangle with result 0. If the exclusive stop is rea
 repair. For a chosen cell it rebuilds the input anchors and draws/determines/places a replacement span;
 exact endpoint and release behavior remains NT22. Bounds are unsigned inclusive comparisons
 (`0x006520E3–0x00652120`); classifier is not called for cells inside the rectangle.
+
+### 6.1 Classifier and occupant probes
+
+CellIsOKForPlacement (`0x0064FD00`) returns an integer, not a boolean. Initialise result=0. Query the
+zone service's slot 12 at (x,z). If nonzero, query it again at (x,z); if that second value is not 15,
+query a **third time at (z,z)**. A third value other than 14 returns result=1, without querying
+occupants. This literal third-call coordinate asymmetry is visible at `0x0064FD92–0x0064FD98`.
+Do not fold these calls into one cached zone value.
+
+On the remaining path, ask the tool's occupant manager slot 40 for the single-cell inclusive rectangle,
+with flags 0 and mask -1, and walk the returned list in order. Class `0x278128A0` writes result=2.
+Class `0xC772BF98` queries interface `0x4A10AFC2`: success releases that query reference and leaves
+result unchanged; failure writes result=3. Other classes leave it unchanged. Release **every** returned
+occupant reference as it is visited. Continue after every assignment; the last qualifying occupant wins,
+so this is not building-before-road priority. Clear the query list's nodes. Only if result is still zero,
+call service `0x00B43D08` slot 6 `(x,z,0)`; nonzero changes result to 2. Clear/free list storage and
+return result. No failure-code field is written here (`0x0064FDAD–0x0064FEC8`).
+
+The pole probe (`0x0064FFE0`, cdecl x,z,out) and wire probe (`0x0064FBF0`, thiscall x,z,out) both
+query occupant manager `0x00B43D0C` slot 40 for that same single-cell rectangle, flags 0, mask -1.
+They overwrite *out with null without releasing any incoming *out. Visit **all** returned occupants;
+QI pole `0xA8C86142` or wire `0xC98F3B24`. The pole probe additionally obtains the occupant's world
+position through occupant slot 8 and maps x,z through manager slot 19, requiring exact equality of both
+cell coordinates to the requested x,z. A mismatching pole QI is released immediately. The wire probe
+has no extra coordinate/endpoint/direction filter. For each accepted candidate release the previously
+selected QI reference, store the new QI reference, and keep scanning. Release every query-list occupant
+reference once, including accepted candidates. Finally destroy the list nodes and return AL=true iff
+any candidate was accepted; output is the **last accepted** QI reference, owned by caller, or null.
+Evidence: pole `0x0065007D–0x0065013A`, wire `0x0064FC8D–0x0064FCF8`.
+
+`0x0064A2E0` allocates a raw pool block: pop the freelist head at `[0x00B0C25C]+8`, refilling through
+`0x0090CF9A(0x00B0C258)` when empty; replace head with the returned block's first dword, increment the
+pool's dword allocation count at +12, return the block. It does not initialise an occupant or AddRef
+anything, and has no explicit null-recovery branch (`0x0064A2E0–0x0064A30A`).
 
 ## 7. Resources
 
@@ -345,6 +394,12 @@ These are host-observation vectors, not claimed in-game measurements.
 | PL-B3 | zone after a solitary linkless pole, L=-1; versus blocked termination with same descriptor | both remove record; only blocked path releases saved endpoint refs |
 | PL-P1 | saved endpoints A,B both present; a=1,b=0 | detach both directions; queue (A,new) only; draft transfers descriptor to undo list, real releases A,B |
 | PL-P2 | saved A=B, a=b=1 | two repair entries, each with two AddRefs; no deduplication; two descriptor releases in real mode |
+| PL-C1 | classifier zone calls return 2,2,14 respectively; x differs from z | calls (x,z),(x,z),(z,z); proceeds to occupant query, rather than returning zone |
+| PL-C2 | no zone rejection; returned occupants building then road without QI, versus reversed list | result 3 versus 2; releases both occupants; skips fallback service in both cases |
+| PL-C3 | two pole QIs pass, third QI maps to different cell | out is second QI; first and third QI released, all three occupant refs released |
+| PL-C4 | two wire QIs in one cell with different spans | last QI wins without geometry filtering; first QI released |
+| PL-S1 | enable connection with equal self/other cell, then enable with other's z one greater | byte +9 is 0 then 1; no connection mutation or refcount operation |
+| PL-S2 | wire vector [W,W], destination initially nonempty | append W twice after existing entries; two AddRefs; source unchanged |
 | PL-L1 | fresh object, exemplar unavailable; Init twice | type 5; defaults 20,7,0,0; resource attempt/base Init only on first Init; both return true |
 | PL-L2 | successful Init; change cost fields; Shutdown; Init with missing properties | Shutdown clears latch before base; Init resets only spacing/clearance; costs retain prior values |
 | PL-L3 | first resource lookup fails, second object initialises | process resource enumeration is not retried |
@@ -387,10 +442,10 @@ body bytes, not address-span lengths. No full-owner completion credit is claimed
 | `0064F140:41`, `0064F880:153` | resource enumeration §7 |
 | `0064F170:86`, `0064F1D0:95`, `0064F230:125`, `0064FB40:176`, `00650760:216` | record/link/pivot helpers; caller eligibility NT18 |
 | `0064FED0:263`, `00650140:258` | reserved walk §6; existing create/reuse, network-occupants §4.5 |
-| `0064FD00:459`, `0064FFE0:347`, `0064FBF0:267` | classifier/pole search/wire probe partial, NT24 |
+| `0064FD00:459`, `0064FFE0:347`, `0064FBF0:267` | classifier and last-match probe contracts §6.1 |
 | `00650840:3345`, `00651560:2884`, `00652980:235` | wrapper proved, Determine/PlacePoles partial, NT18 |
 | `006520C0:552`, `006522F0:1658` | zone repair partial, NT22 |
-| `00649910:149`, `0064A2E0:43`, `0064B6E0:106`, `0064E3E0:1338` | connection helpers/allocator incomplete, NT21/NT24 |
+| `00649910:149`, `0064A2E0:43`, `0064B6E0:106`, `0064E3E0:1338` | enable/reference-copy/raw allocator §§5.2,6.1; geometry builder incomplete NT21 |
 | `0064F5D0:55`, `0064F610:92`, `0064F670:148`, `0064F710:89`, `0064F770:260`, `0064F920:113`, `0064F9A0:111`, `0064FA60:135`, `0064FAF0:68`, `00650250:84`, `006502B0:58`, `006502F0:99`, `00650480:218` | 13 container helpers, 1530 bytes; ownership audit NT24 |
 
 The descriptor predicate `0x0064F170` tests exact ordered endpoint-pointer and flag-byte equality against

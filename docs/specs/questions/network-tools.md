@@ -73,7 +73,8 @@
 
 <!-- from: re-powerline-completion4 (RE lane, 2026-10-22) -->
 - **NT21 - power-line-tool.md §§5,9, connection helpers:** prove `0x0064E3E0`'s connection geometry and
-  optional wire-vector ownership; `0x00649910`'s enable/restore predicate; `0x0064B6E0`'s list ownership.
+  optional wire-vector ownership. Enable/restore `0x00649910` and reference-copy `0x0064B6E0` now have
+  instruction-derived contracts in §5.2; these two helper obligations are resolved.
   Reach attributes these pole-occupant helpers to this tool. Observed ordering is specified, numeric
   geometry is not. [not proved]
 - **NT22 - power-line-tool.md §6, zone repair:** prove UpdateOnZoneChange `0x006522F0` deduplication,
@@ -87,3 +88,6 @@
   precedence, FindPoleOccupant `0x0064FFE0` candidate filters, wire probe `0x0064FBF0` selection/ref ownership,
   allocator `0x0064A2E0`, and the 13 container helpers' copy/erase ownership. Reconcile brief 49 functions
   against measured 46 entries, both 16156 bytes. [not proved]
+  **Partial answer 2026-10-22 (re-powerline-completion4):** §6.1 proves classifier call/overwrite order,
+  last-match pole/wire probes and their QI ownership, and raw allocator. Remaining: the 13 container
+  helpers and exact source of the 49-versus-46 function-count discrepancy; no whole-owner credit.

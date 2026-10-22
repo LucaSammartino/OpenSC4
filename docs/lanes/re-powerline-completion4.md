@@ -10,7 +10,8 @@
 - Questions: NT19/NT20/NO24 moved to answered files and index regenerated. NT18 narrowed; NT21–NT24 filed in questions/network-tools.md.
 - Round 2: removed both reported trailing blank lines before new contracts; original wording restoration remains to do.
 - Round 2 milestone `2c750974`: interception eligibility/ownership, forced gate, six vectors; whitespace fixed.
-- Round 2 next milestone: zone/building/road break table, strict closure boundary, native release asymmetry; step-group matching and saved endpoint detach/repair queue without dedup; 36 vectors total. Whole owner still partial.
+- Round 2 milestone `42301fa2`: break table, closure boundary, release asymmetry; step groups and saved repair queue without dedup; 36 vectors.
+- Round 2 next milestone: classifier/probe/enable/copy/pool contracts; 42 vectors. Restored original NT19/NT20/NO24 question wording. NT21 numeric geometry, NT22, NT23, NT24 containers/count remain open; whole owner partial.
 - Next evidence: trace 00650AEC–00650C35 interception eligibility/flags, zone/blocked exits through 00651477, then PlacePoles saved-endpoint branches before 00651C00; resolve NT18 fully.
 - NT21: connection geometry 0064E3E0, enable/restore helper 00649910, list helper 0064B6E0; NT22: zone repair 006522F0 and endpoint selection in 006520C0.
 - NT23: full type-5 AttemptNeighborConnections 00628BD0; NT24: classifier/probes/allocator/container ownership and function-count discrepancy.
