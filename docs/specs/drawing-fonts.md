@@ -370,7 +370,7 @@ first absent probe returns false). The table, read from the switch at `0x00898A7
   `0x00897ECD`..`0x00897EF7` returns the existing entry without overwriting its name.
   The only discarded records, using zero-based ordinals, are 421 (U+00B7, `middot`, first is ordinal 108,
   `periodcentered`) and 424 (U+03A5, `Upsilon1`, first is ordinal 282, `Upsilon`). The TSV has header
-  `code<TAB>name`, LF line endings including the final newline, no BOM, and SHA-256
+  `code<TAB>name`; its canonical UTF-8/LF content, including the final newline and no BOM, has SHA-256
   `421d2a61eab4f96e50a94aee1980bdcbfc718f7b2e147b34fbc262172345ecae`.
   Discriminating vectors: U+00B7 must request `periodcentered`, never `middot`; U+03A5 must request `Upsilon`,
   never `Upsilon1`; U+2126 requests `Omega`; U+FB01/U+FB02 request `fi`/`fl`. With no holder-cache hit and a
