@@ -8,6 +8,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 ## 0. Current state (2026-10-22, run4 open-ended)
 **Coordinator parked re-wingrid4:** 3/3:165/198 functions26103/32735B documented;33functions6632B plusWG3/WG4 remain. No fourth round.
 
+**Run4 checkpoint250:** 250 lane rounds; 47 trains landed; coverage delta+20.8/+7.1/+1.5/+2.0 points since run4 start; 26 parked/stopped lanes. Seven live Codex workers, automatic guarded refills; train75 gating. Traffic diagnosis guard-denied until unlanded1555 claim lands; no bypass.
+
 **train74 landed b4bfe9afd9:** Four RE publications: MS13-MS15 commute/import/location contracts (MS16 remains), span565 public-setter/context proofs, complete font name map and x87/lock contracts, and partial FileBrowser inventory (FBQ1-FBQ6 remain, no complete-owner credit). Docs-only gate/regress recorded; traffic train73 mismatch remains under investigation, no runtime promotion. Coverage57.6/35.4/13.6/17.9; rounds248 (open-ended).
 
 **train73 landed d8eb2cac06:** Six-lane recovery batch: 8888 opt-in bridge with two native/shadow2032/ref0 runs; train union includes current39+citydetail+span565+span8888. Budget ownership/visibility corrected, partial overlay core and explicit gaps added, landvalue pass-end sampling disclosed (LV6 native capture unimplemented), NR15 Pipe/Subway contract and LR8/LR9 blockers published. No incomplete owner or default runtime promotion; exact original worker results preserved. Refill continues independently through repaired Git transport. Coverage57.6/35.4/13.6/17.9; rounds244 (open-ended).
