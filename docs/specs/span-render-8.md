@@ -191,6 +191,10 @@ into the emulator and run the shipped bytes against the rules above (model: `spa
   The gradient paths additionally inherit SR565-1 (no direct caller of `SetGradientTransform`).
 - Behaviour with records the caller never produces (stretch reads past the texture, `W = 0`, row 13, `n = 0`) is
   stated above for completeness but has no compatibility weight.
+- **SR9** answered 2026-10-22: §§10.1, 10.5, 10.7 specify the native boundary and the bounded ABI proposal;
+  applying the absent keys remains a coordinator review/train prerequisite before bridge calls are enabled.
+- **SR10** is the coordinator's glue-scope clarification, not a missing native-game contract: the new checked
+  C adapter is our interface design. It supplies no native ABI approval, runtime evidence or replacement credit.
 
 ## 10. Bridge: object, factory, target buffer, dispatch [exact]
 
@@ -314,11 +318,13 @@ the record is not refreshed per draw.
    stretch origins), unchanged for this target; it unlocks the texture with `0x800` after the call. A texture of an
    unsupported colour type, or a failed texture lock, draws nothing. `ctx+0xB0` is never null-checked.
 
-**Slot-22 return contract (SR9):** void, popping 8 bytes. Its six exits (`0x008305A7`, `0x008305BC`,
+**Slot-22 return contract (SR9):** void, popping 8 bytes. Its eight exits (`0x008304E7`, `0x00830551`,
+`0x008305A7`, `0x008305BC`,
 `0x008305EF`, `0x00830604`, `0x0083062F`, `0x0083064F`) have identical cleanup but no common return-value
 definition: texture success/unsupported format leaves Unlock scratch, lock failure leaves Lock scratch,
 and untextured paths leave renderer scratch. The triangle rasterizer calls it at `0x0082E5AA` and proceeds
-directly to restoring registers. Do not promote any incidental AL/EAX contents to a bool or count.
+directly to restoring registers. The quad and polygon callers likewise ignore it (`0x0082E72A`,
+`0x0082E881`). Do not promote any incidental AL/EAX contents to a bool or count.
 
 Worked route (constructed fixture): create a `cGZBuffer`, `Init(8, 2, 2, 8)` (stride 8); `CreateDrawContext` →
 `Init` → renderer `0x00AC188C`, destination record {pointer, 8, 8, 2, 2, 1}; `SetColorTable(0, 1, {0xFF336699})`
@@ -335,3 +341,116 @@ texel instead.
   buffer factory, the screen buffer) were not traced to a `CreateDrawContext` call; that is what remains of SR8-2.
 - Distinguish: §8's proofs and the worked route above are **constructed fixtures**; no shipped draw into a type-2
   target is known.
+
+### 10.7 SR9: bounded native ABI evidence and reconciliation [exact, static]
+
+All rows here are **MSVC thiscall**: ECX holds the object/interface pointer, stack arguments occupy dword
+slots and are pushed right to left; Pops excludes the return address. EAX means a full 32-bit value or pointer,
+AL means only the low byte is defined, and void promises no result. Names are descriptive; the exact ABI key is
+`(interface, game_class, vtable, slot)`, never the method name or a shared function's export label.
+
+**Provenance.** Read the vtable dwords directly from GOG 1.1.641's native executable, SHA256
+`3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`, and compare the queried instructions'
+bytes with that image: **1,782 instructions in 43 function ranges match** (the 40 proposed targets and three
+rasterizer callers). This is static verification, not an executed native fixture or a game/shadow run. The export
+does not decode the software factory entry `0x0082B910`, and the local fallback lacks capstone; §10.5's existing
+factory proof is retained, without adding a factory ABI row or claiming a new audit of that entry. REA was not used.
+
+**Context and draw system.** Context rows below have interface `cIGZDrawContext`, game class
+`cGZDrawContextRenderToBuffer`, vtable `0x00AC17D0`. The shared public setter behaviour is
+[span-render-565.md §1.3](span-render-565.md#13-context-public-interface-used-by-the-route-re-span565-context4-exact-static)
+and §6.2: Init selects this renderer for type 2, but the setters and slot-22 consumer are the same bytes.
+Colour table packing is through the target's MapRGB; for type 2 its result is zero (§10.4).
+
+| Slot | Target | Method; arguments after this | Pops | Result | Cleanup evidence |
+|---|---|---|---|---|---|
+| 0 | `0x0082FD60` | QueryInterface; iid, out | 8 | AL | `0x0082FD70`, `0x0082FD80` |
+| 1 | `0x005F47F0` | AddRef; none | 0 | EAX new count | `0x005F47F7` |
+| 2 | `0x008306C0` | Release; none | 0 | EAX remaining count | `0x0083070C` |
+| 3 | `0x00830710` | Init; target | 4 | AL | `0x00830877`, `0x00830892`, `0x008308AB` |
+| 4 | `0x0082FF20` | Shutdown; none | 0 | void | `0x0082FF6A`; tail call at `0x0082FF66` to target Release also pops 0 |
+| 7 | `0x0082FF70` | SetColorTable; index, count, argb* | 12 | void | `0x0082FFC0` |
+| 8 | `0x0082FEA0` | SetAlphaBlend; signed int | 4 | void | `0x0082FEAC` |
+| 9 | `0x0082FEB0` | SetBltModulate; low byte in dword slot | 4 | void | `0x0082FEB7` |
+| 12 | `0x0082FDB0` | SetGradientTransform; float[12]* or null, binary32 x0, y0 | 12 | void | `0x0082FE4D`, `0x0082FE58` |
+| 13 | `0x0082FFD0` | SetBltSource; texture, binary32 x, y, sx, sy, outRect* | 24 | AL | `0x00830278`, `0x00830296` |
+| 14 | `0x0082FE60` | ClearBltTiling; none | 0 | void | `0x0082FE67` |
+| 15 | `0x0082FE70` | SetBltTiling; rect* | 4 | void | `0x0082FE97` |
+| 22 | `0x008302E0` | DrawPreclippedSpanList; spans, n | 8 | void | eight exits in §10.5 |
+
+SetAlphaBlend stores 1 only for a signed argument greater than zero; SetBltModulate stores the passed low byte,
+without normalising it. Null gradient input clears the gradient flag but leaves its record unchanged; a null
+texture releases the previous source and returns AL = 0. A nonnull texture whose QueryInterface fails follows
+the AL = 1 exit with no bound source (`0x00830008` → `0x00830270`), as already specified in the public setter
+proof. No bounds checks are added to SetColorTable. Init does not initialise all drawing state: use the setters
+before the constructed draw (§10.5), as the 565 proof's fixture does.
+
+Draw-system row: interface `cIGZDrawSystem`, game class `cGZDrawSystem`, vtable `0x00AC1668`, **slot 4**
+(`+0x10`) → `0x0082BAB0`, CreateContext(target, outContext), Pops **8**, result **AL**. Empty/all-refused
+factory list returns 0; first successful factory returns 1 (`0x0082BADF`, `0x0082BAE8`). The result is tested
+as AL after the factory call at `0x0082BACC`. The list head is `[this+0x20]`; §10.5's `+0x1C` names the list
+storage, not the sentinel pointer used by this walk. The context still needs its separate Init call.
+
+**Buffer calls used by this route.** All following rows have interface `cIGZBuffer`, game class `cGZBuffer`,
+vtable `0x00AC1400`; none is inferred from another buffer's vtable. Descriptor output pointers and integer
+returns are full EAX values even when a given caller ignores them.
+
+| Slot | Target | Method; arguments after this | Pops | Result | Cleanup evidence |
+|---|---|---|---|---|---|
+| 0 | `0x00825D00` | QueryInterface; iid, out | 8 | AL | `0x00825D19`, `0x00825D30`, `0x00825D42`, `0x00825D52` |
+| 1 | `0x00825D60` | AddRef; none | 0 | EAX new count | `0x00825D67` |
+| 2 | `0x00825D70` | Release; none | 0 | EAX remaining count | `0x00825D8B`, `0x00825D90` |
+| 3 | `0x008269B0` | Init; width, height, type, bpp | 16 | AL | `0x008269FA`, `0x00826A00` |
+| 6 | `0x00826AA0` | Lock; flags | 4 | AL | `0x00826AC0`, `0x00826AC5` |
+| 7 | `0x00826490` | Unlock; flags | 4 | AL | `0x008264A4` |
+| 9 | `0x00808620` | GetWidth; none | 0 | EAX `[this+0x1C]` | `0x00808623` |
+| 10 | `0x004ED900` | GetHeight; none | 0 | EAX `[this+0x20]` | `0x004ED903` |
+| 11 | `0x008268D0` | GetRect; outRect* (16 bytes) | 4 | EAX = outRect | `0x008268ED` |
+| 15 | `0x008268F0` | GetColorType; outPair* (8 bytes) | 4 | EAX = outPair | `0x008268FF` |
+| 17 | `0x00826910` | GetBytesPerPixel; none | 0 | EAX bpp logically shifted right by 3 | `0x00826916` |
+| 26 | `0x00826620` | GetColorKey; outKey* (4 bytes) | 4 | AL enabled | `0x00826631`, `0x00826636` |
+| 30 | `0x00825DA0` | MapRGB; r, g, b low bytes in three dwords | 12 | EAX packed colour (0 for type 2) | `0x00825DE4`, `0x00825E0E`, `0x00825E3C`, `0x00825E5D` |
+| 34 | `0x008265C0` | GetPixels; none | 0 | EAX `[this+0x3C]` | `0x008265C3` |
+| 35 | `0x0068D1B0` | GetStride; none | 0 | EAX `[this+0x40]` | `0x0068D1B3` |
+| 40 | `0x00827340` | DeletingDestructor; flags | 4 | EAX = this | `0x00827379` |
+| 42 | `0x00826350` | AllocateStorage; none | 0 | AL from slot 43 | `0x00826367`, `0x0082636B` |
+| 43 | `0x00826A50` | AllocatePixels; none | 0 | AL = 1 | `0x00826A95` |
+| 44 | `0x00826370` | FreePixels; none | 0 | AL = 1 | `0x00826389` |
+| 45 | `0x00826390` | ResolveColorType; none | 0 | void | `0x00826431`, `0x0082644F`, `0x00826470`, `0x00826485` |
+
+QueryInterface accepts iid 1 or `0x20732180` at the primary pointer (writes this and AddRefs); the additional
+`0x86D72B57` interface uses this+4 and is not invoked through this table in the route. AddRef/Release use the
+count at +0x2C; final Release calls deleting-destructor slot 40 with flags 1 and then returns zero. The destructor
+returns the original pointer even after freeing it; that is not a live reference. GetRect copies +0x14..+0x20
+(fresh Init gives 0,0,W,H); GetColorType copies +0x0C and +0x10 (type,bpp), not a scalar type. Its returned pointer
+is dereferenced by context Init (`0x00830767`) and the texture consumer (`0x0083032B`). GetColorKey tests bit 1
+at +0x28: enabled writes +0x24 to outKey and returns 1; disabled leaves outKey untouched and returns 0.
+
+The direct call sites delimit the proposal: Init uses buffer QueryInterface, Lock and destination descriptors
+(§10.3); SetColorTable invokes slot 30 (`0x0082FFA9`); SetBltSource invokes QueryInterface/Release and slot 11
+(`0x00830017`); slot 22 invokes source descriptor slots 9/10/15/17/34/35 (`0x0083030B`..`0x00830354`), key
+slot 26 (`0x008303BC`) and Unlock (§10.5). Shutdown and final Release release their buffer references (§10.2).
+Context QueryInterface/AddRef/Release are included for acquiring and disposing the returned context.
+
+The necessary buffer lifecycle closure is Init → slot 42 (`0x008269EA`) → slot 43 (`0x00826355`) → slot 45
+(`0x00826A57`), and Release → slot 40 (`0x00825D83`) → slot 44 (`0x00827350`, indirect through table address
+`0x00AC14B0`). ResolveColorType leaves a type-2 descriptor unchanged (it only resolves types 1 and 3).
+AllocatePixels returns AL = 1 even if the heap allocation returned null; subsequent Lock then fails. Neither
+that incidental success nor the destructor's pointer result makes an allocation failure safe to draw through.
+No additional methods for antialiased direct-pixel drawing, other buffer classes or palette-service interfaces
+are proposed. This is a bounded span8 fixture route, not a complete interface catalogue.
+
+**Exact-key reconciliation.** On 2026-10-22 the main checkout's `docs/abi/interfaces.tsv` contains **0 of these
+40 keys**: 6 renderer, 13 context, 1 draw system and 20 buffer rows. The earlier 17-row
+`docs/abi/proposals/re-span-context4.tsv` overlaps **14** keys: nine public context setters/lifecycle rows,
+slot 22, three buffer rows and draw-system slot 4. Thirteen overlapping contracts match; its slot-22
+`unknown` is strengthened to **void** by §10.5, preserving the stronger existing public spec. The remaining
+three earlier rows (context Suspend, Resume, LockTarget) are outside this bounded route and remain untouched.
+No existing applied row is replaced, and no unknown pop count or return is invented.
+
+The lane publishes the 40 absent rows, using the existing 12-column interfaces schema, at
+`build-runs/abi-rows-re-span8-abi4.tsv` in worktree `re-span8-abi4`. The coordinator must review by the complete
+key again at application time, preserve any stronger intervening answers, and apply only approved absent keys
+through the gated train. **The proposal is not applied ABI approval:** no table, ABI version, native bridge or
+C export changes are made here. SR9's native contract uncertainty is resolved; bridge enablement still waits
+for that review/application and the SR10 glue adapter. SR8-2 reachability and SR8-3 row-13 restrictions remain.
