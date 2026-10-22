@@ -8,6 +8,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 ## 0. Current state (2026-10-21, run4 open-ended)
 **Coordinator parked re-wingrid4:** 3/3:165/198 functions26103/32735B documented;33functions6632B plusWG3/WG4 remain. No fourth round.
 
+**Run4 checkpoint225 (recorded at225):** 225 rounds, 39 trains landed; coverage45.4/35.1/16.3/17.8, baseline delta+8.6/+6.8/+4.2/+1.9 points; 23 lanes parked. Target10/max3glue; refills paused on provider weekly limit until18:00 Europe/London, all interrupted work preserved. Approved live-worker count fix de1cd3b6 applied,97testsPASS; no guard bypass. Nextcheckpoint250.
+
 **train65 landed e289319e57:** Two-lane batch: newly proved native network-model deform/clip/cache contracts and opt-in exemplar GetValString/EX51 fixes with concrete-entry caller tracing. Exemplar ownunion clean2032/ref0 and contract7/8; EX52/EX53 and EX50 additional clients remain, parked3/3 with WT kept, no default or whole replacement credit. No coverage-map additions; answers unblock bounded core correction and RE. Coverage45.4/35.1/16.3/17.8; rounds225 (open-ended).
 
 **train64 landed 511d0ab654:** Thirteen-lane bounded engine/docs batch: URL, input/file streams and lot owner core completions; exact stream failure, callbacktimer, ambience and construction contract fixes. Inactive advisor wrappers and partial MySim fixes staged with AD12-15/MS13-15 parked at3; no replacement credit. Font FN15-17, timer TM3, audio AA4/AA10/AA11, construction OP17 remain. Native span context proof improves but SP1 real mismatch remains opt-in. BW15/16 and LV1 answers unblock core/verify; Grid165/198 functions partial, parked3/3. No new default keys. Coverage45.4/35.1/16.4/17.8; rounds216 (open-ended).
@@ -30,7 +32,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **User policy:** no total round limit. Continue until user STOP, existing STOP, or no work passes check. Target10 live lanes (user raised for CPU/memory headroom), max3glue, max3rounds per lane. Refill immediately after slots/check pass; no fourth round or bypass of denial. Usage/rate limit pauses refills until clear. STOP: `python tools/lanes.py stop "<reason>"`, land on-disk ready work, push, end.
 
-**Coverage after train65:**45.4/35.1/16.3/17.8; baseline36.8/28.3/12.1/15.9, delta+8.6/+6.8/+4.2/+1.9 points. 39 trains landed; 225 rounds used, no total cap. Next25-round checkpoint 225.
+**Coverage after train65:**45.4/35.1/16.3/17.8; baseline36.8/28.3/12.1/15.9, delta+8.6/+6.8/+4.2/+1.9 points. 39 trains landed; 225 rounds used, no total cap. Next25-round checkpoint 250.
 
 **Live authority:** `build-runs/run4-coordinator-state.json`; `run4-refill.py` launches reviewed briefs from `run4-refill-queue.json` through serialized `run4-launch.py` and the saved guarded Workflow. PID in run4-refill.pid; quota/errors pause refills. All slots/check/dependency/STOP/parked/3glue gates retained. After compaction reread this section and run guard before adding work. Helpers share run4_coord_lock.py; use its lock for state writes.
 
