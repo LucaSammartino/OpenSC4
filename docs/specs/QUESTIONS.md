@@ -172,7 +172,7 @@ generated index: the questions live one file per spec, so read only the file for
 | budget-window | 2 | 14 | BW18 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
 | bulldozer-tool | 1 | 0 | BT2 | questions/bulldozer-tool.md |
-| camera | 5 | 1 | CA7 | questions/camera.md |
+| camera | 2 | 4 | CA7 | questions/camera.md |
 | city-detail | 2 | 5 | CD8 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
 | city-tools | 3 | 0 | CT4 | questions/city-tools.md |
@@ -287,4 +287,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **308** | **1171** | | |
+| **total** | **305** | **1174** | | |

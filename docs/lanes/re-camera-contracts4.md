@@ -6,8 +6,9 @@
 
 - Goal: resolve only camera CA3–CA6 using native export/bytes; no engine reads or edits.
 - Done: first native proof: constructor box is ±1, remembered target/up both zero, counters 1/0; degenerate look-at has unchecked normalization; Read mutates loaded/fields before failure. Added discriminating prose vectors.
-- Next: finish explicit native entry inventory and question reconciliation; validate the published numeric constants and document remaining perspective-entry uncertainty.
-- Done: native lifecycle/save/NaN, magnification/tweak/viewport and synchronous message rules; exact directed scroll selection, direction-history stop and failure mutations; added independent discriminators. Current milestone pending commit.
+- Milestones: `8cc181db` native defaults and partial reads; `26e3247c` lifecycle, commands, directed scroll and discriminating vectors.
+- Next: final documentation checks/report/queue; no further RE round. CA3 perspective-entry residual remains precise and open.
+- Done: explicit native owner inventory including all 4/7 vtable slots and folded aliases; CA4–CA6 archived as DIFFERS, CA3 narrowed; generated question index passes; coordinator qualification reconciled.
 - Corrected additional primary-byte discrepancy: constructor yaw base 0xBEC90FDB (−pi/8), so rotation 0 yaw is 3pi/8, not pi/4.
 - New facts: integer SetZoomAndRotation calls SetCustomMagnification before equal-pair rejection; rotation-only does not call it. Invalid GetRotationCorner writes only y=0, preserving output x/z.
 - Main: `C:/Users/tlori/FreeCity4`; worktree: `C:/Users/tlori/FreeCity4/.claude/worktrees/re-camera-contracts4`.

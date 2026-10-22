@@ -265,6 +265,12 @@ A zero-length outside move has d(S)=d(T) on every edge and returns the outside p
 move further outward is limited to its tangential component at the original outside line; it is not brought
 inside. These are native arithmetic/control-flow consequences, not claims from a runtime capture.
 
+Precision detail: the length comparison uses the x87 square root before its float store is reloaded;
+normalization divides by the stored float length (`0x007CC735–0x007CC754`). The endpoint distance and
+chosen fraction also have float stores (`0x007CC771`, `0x007CC7B0`). Other intermediate x87 values retain
+register precision. The algebra above does not authorize replacing the whole routine by either all-double
+arithmetic or rounding every elementary operation to float.
+
 `ClampTargetToScrollBounds` (`0x007CD000`) converts the **rotation corner** and target to the camera plane
 and clamps the segment **corner → target**, not target → itself (`0x007CD00C–0x007CD068`). If either output
 component differs from the target-plane point by at least float(0.0001), convert the output to a temporary
@@ -280,7 +286,7 @@ component threshold it performs no update/message work.
 | `Init(target)` | `0x007CDB20` | once: if loaded from a save, the new zoom/rotation := the loaded ones, else `target :=` the argument; `AttachToCamera`, §2.2, §2.3, scroll bounds, PostViewInit; initialised := true; true |
 | `AttachToCamera(cam)` | `0x007CD200` | a different camera: keep it (counted), `SetViewport(800×600 or the size set)`; if initialised: §2.2, §2.3, bounds, PostViewInit |
 | `DetachFromCamera()` | `0x007CB970` | release the camera |
-| `SetZoom(z)` (float) | `0x007CDC50` | if `4 < z < 5`: magnification `:= 2^(z − 4)` (CRT `pow`) and `z := 4`; else magnification 1. Refused (false) for `z` outside 0…4 and when the integer zoom and the magnification are unchanged. Else `SetCustomMagnification`, previous := current, zoom := `trunc(z)`, ViewZRChange1, §2.2, §2.3, bounds, CameraUpdated, ViewZRChange2, ViewZRChange3, `ClampTargetToScrollBounds`; true |
+| `SetZoom(z)` (float) | `0x007CDC50` | if `4 < z < 5`: magnification `:= 2^(z − 4)` (CRT `pow`) and `z := 4`; else magnification 1. Refused (false) for `z` outside 0…4 or NaN, or when the effective **float z equals the current integer zoom** and the magnification is unchanged. Else `SetCustomMagnification`, previous := current, zoom := `trunc(z)`, ViewZRChange1, §2.2, §2.3, bounds, CameraUpdated, ViewZRChange2, ViewZRChange3, `ClampTargetToScrollBounds`; true with an attached camera, false after state mutation without one |
 | `SetZoomAndRotation(z, r)` (ints) | `0x007CDE60` | validates zoom/rotation, then calls SetCustomMagnification(1) **before** testing whether the integer pair is unchanged; equal pair then returns false; changed pair uses the zoom/rotation update sequence |
 | `SetRotation(r)` | `0x007CD540` | invalid r or unchanged rotation returns true at once; changed rotation preserves zoom **and custom magnification**, updates pair fields, then uses the update/message sequence; false if it changed state with no attached camera |
 | `SetCustomMagnification(m)` | `0x007CD6E0` | when `m` differs and the **current** magnification is in (0, 1000): store it, §2.2, §2.3, bounds, PostViewRefresh *[quirk: the range test is on the old value]* |
@@ -370,6 +376,9 @@ inverse stream error flag.
 
 - **CA1:** (§2.5) the geometric meaning of the 0.48 factor and of `lift` in the scroll polygon.
 - **CA2** (answered 2026-10-20 by re-drawcontext): `SetDepthBias` (§1.2), from the draw context's depth offset.
+- **CA3 residual:** (§1.4, §7) a native perspective setter/call site and its counter contract remain unidentified.
+  Constructor and degenerate look-at portions are resolved in §§1.1–1.4. CA4–CA6 are answered in §§2.1–2.8,
+  with discriminating vectors in §6; see the question archive for the reconciled provisional choices.
 
 ## 6. Conformance tests
 
@@ -411,6 +420,8 @@ inverse stream error flag.
     SetZoomAndRotation(4,0) resets magnification to 1, emits PostViewRefresh, then returns false without
     ZR-change messages. From the same initial state, SetRotation(1) keeps magnification 2 and emits the
     normal ZR sequence. SetRotation(−1) and SetRotation(4) return true without changing anything.
+    With zoom 0/magnification 1, SetZoom(0.5) twice takes the change path twice although stored zoom
+    remains 0: equality is tested against 0.5 before integer truncation (`0x007CDCDC–0x007CDD3D`).
 15. **Input and viewport edges:** SetZoom(NaN) preserves all state and sends nothing. From old magnification
     1, SetCustomMagnification(NaN) stores NaN; a following SetCustomMagnification(1) cannot repair it.
     Two tweak calls (2,3) then (4,5) leave (4,5). With a nonempty polygon that second tweak does not rebuild
@@ -452,3 +463,43 @@ the component threshold with the same failed ground direction: the **old** targe
 but position update and those three messages still occur. A displacement below threshold sends nothing.
 An exhaustion fixture must force N projections without an earlier no-edge/history stop; its expected result
 is the original from. No general “inside after clamp” property is valid for these routines.
+
+## 7. Native owner inventory and evidence limits (CA3–CA6)
+
+This inventory accounts for the native owner bodies and shared COM entries, not just symbols containing
+the class names. Export names may be compiler-folded aliases. Addresses below are body entries; grouping
+does not imply additional ABI slots. Behaviour is in §§1–2. No engine source or core expected values were
+used as evidence in the 2026-10-22 reconciliation.
+
+| `cS3DCamera` entries | Contract / disposition |
+|---|---|
+| `0x007FF040`, `0x005F47F0`, `0x007FF020`, `0x007FF130` | All four vtable slots 0–3 at `0x00ABD2C4`: QueryInterface, shared AddRef (+4), Release, deleting destructor |
+| `0x007FF010`, `0x007FF930`, `0x00800320` | Class ID, constructor, heap factory (0x1A8 bytes) |
+| `0x007FF070`, `0x007FF080`, `0x007FF0B0`, `0x007FF150` | Depth size, set/reset subview, viewport; reset body has misleading render UnsetClipRect export alias |
+| `0x007FF0E0`, `0x007FF190`, `0x007FF3C0`, `0x007FF3D0`, `0x007FFED0` | Local transform, reset transforms, local state counter, view rebuild, lazy view getter |
+| `0x007FF230`, `0x007FF250`, `0x007FF280`, `0x007FFD60` | Position get/set, remembered-target getter, look-at; getter synchronizes its remembered-counter word but does not derive a new target |
+| `0x007FF0F0`, `0x007FF110`, `0x007FF120`, `0x007FF2C0`, `0x007FF2E0`, `0x007FF340` | Depth bias, projection type/counter getters, pixel offset, orthographic box, shifted view volume; counter body has misleading city GetFloraSimulator alias |
+| `0x007FF580`, `0x007FFEF0` | Projection/inverse builder and lazy matrix getter; cache counter copied at `0x007FF917–0x007FF91D`; type-2 evaluation present, public setter unidentified |
+| `0x007FFF10`, `0x00800120`, `0x00800340` | Project, UnProject, eye ray |
+
+| `cSC4CameraControl` entries | Contract / disposition |
+|---|---|
+| `0x007CB940`, `0x004BDF00`, `0x007CB920`, `0x007CBB10`, `0x007CBBA0`, `0x007CCBF0`, `0x007CCC20` | All seven vtable slots 0–6 at `0x00ABAD18`: QueryInterface, shared AddRef (+8), Release, Write, Read, class ID, deleting destructor. Release has misleading occupant-filter constructor export alias |
+| `0x007CC990`, `0x007CCC00` | Constructor and heap factory (0x160 bytes) |
+| `0x007CB970`, `0x007CD200`, `0x007CDB20` | Detach, attach, Init; no native control Shutdown slot/body identified; observed external teardown detaches then releases |
+| `0x007CB990`, `0x007CB9B0`, `0x007CB9F0`, `0x007CBA10` | Viewport get/set, clip distances, rotation corner |
+| `0x007CBC40`, `0x007624E0`, `0x007CBC60` | Virtual zoom, custom-magnification getter (outside contiguous owner region), target velocity |
+| `0x007CBCE0`, `0x007CBD70`, `0x007CBE40`, `0x007CC290` | Plane conversions, zoom/rotation computation, position computation |
+| `0x007CC000`, `0x007CC0B0`, `0x007CC5B0` | Pre-ZR, post-change and init-message helpers; synchronous server slot 3, not queued posting |
+| `0x007CC650`, `0x007CCC60`, `0x007CD000`, `0x007CD330` | Scroll clamp, bounds builder, target clamp, angle scroll |
+| `0x007CCF80` | Generic update helper (descriptive): false without camera; pre-change helper, zoom/projection except kind 3, position, optional view-utilities update, bounds for kinds 1/2 or empty, post-change helper, target clamp for kind 2; true |
+| `0x007CD540`, `0x007CD6A0`, `0x007CD6C0`, `0x007CD6E0` | Rotation, rotate left/right, custom magnification; last has stale UpdateCameraPosition export alias |
+| `0x007CD810`, `0x007CDA20`, `0x007CDAA0` | Target, replacement tweak, city size |
+| `0x007CDC50`, `0x007CDE60`, `0x007CE080`, `0x007CE0E0` | Float zoom, integer pair, zoom in/out |
+| `0x007CBA90`, `0x007CC200` | Associated non-owner/shared helpers: ground-plane intersection; 8-byte element copy used by bounds-vector maintenance |
+
+Vtable words were checked directly in the native PE. Function boundaries and bytes came from the Windows
+export, with the two decompilation files used only as reading aids. No REA fallback was necessary. This is
+an entry-by-entry inventory, not a claim that every previously documented arithmetic path has received
+a fresh bit-exact audit. In particular CA3's perspective setter remains unresolved, and these contracts
+alone do not establish complete-owner implementation, shadow agreement or native replacement fidelity.
