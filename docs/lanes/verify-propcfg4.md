@@ -16,4 +16,7 @@
 - q.py cannot start Bash (E_ACCESSDENIED); use capped PowerShell and quiet build wrappers.
 - Next: finish evidence coverage (failure/roundtrip/activity labels), full stable gate, immutable unique-label native, own replacement and current40 save/reload2032 game requests.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-propcfg4-r2-manifest.json.
-- Native request vpc4-r2-native-20261022a to 2032, script zone/pricezone/full-save 2031-10-02; queued immediately after this commit. No ABI changes.
+- Native vpc4-r2-native-20261022a CLEAN 2032-01-02/ref0; full SaveCity ok1 (2031-10-03). SHA256 04b93bd72ee847fad54084520d5492c48518176e6746d8b31a1dc2be357339db.
+- Native Rust query/create pairs exact: prop11840/11840, create2336/2336, lot9354/9354; fixtures5/5; roundtrips74/74 each (no algorithm/evolution credit). Live lot cells1618, props2232, lot configs308, expansions1770. Zone calls accepted0/16 (no mutation credit).
+- Raw catalogue3318/4862 (1544 padding differences); full config arrays1/1909 (1908 differences, all foundations kept); C++ getters87814/87814, no Rust config-owner credit. PL23 filed; no differences filtered out.
+- Next: normal-speed native control, own propmgr+lotcfg and exact current40 controls with saved-city reload; no outstanding request. No ABI changes.
