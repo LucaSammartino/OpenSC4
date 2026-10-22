@@ -7,12 +7,14 @@
 - Goal: FINAL bounded round3 supported lifecycle controls; no source/owner/default expansion, no fourth round.
 - Done: initial round3 handoff9ca61786; all round2 ledger and copied evidence reviewed; engine tree b5044770680594c46e936d71a4b5bec83a63c10f equals 06d71bb2; no working/untracked engine changes.
 - Done: built DLL/PDB and immutable2 hashes match; retained cargo4961/0, clippy0, CTest68/68 audited from logs (CTest93.03s); no redundant rebuild/fmt.
-- Next: submit unused label vlun4-r3-supported-off-2032-i; require clean/ref0, returned full save, completion mark and PostSystemServiceShutdown before any ON request.
+- Done: OFF vlun4-r3-supported-off-2032-i clean2032-01-04/ref0; simulator-only actual1, budget disabled; full save returned1 in10953ms at22:10:06.574 (executed2031-12-16), mark completed; PostAppShutdown22:10:07.222 and PostSystemServiceShutdown22:10:07.302.
+- Next: submit unique matching ON vlun4-r3-supported-on-2032-j, changing only label and language_native_verify=1; require same lifecycle/ref0 before literal40.
 - New hypothesis: disable=all/turbo0 historical failures differ from supported simulator-only/disablebudget/turbo1; prior OWNc already passed the latter effective profile.
 - Requests planned: unique probeOFF first, then exact matched ON if OFF passes, then literal40 enable/defaultbudget if ON passes; seconds420/timeout600, Konradshohe, target2032-01-01.
 - Immutable2 expected DLL SHA256: 78ea9b099f55d8abd95ea76cea21f34ced2caf72fc68ec305f35da43185c9342.
 - Retain strict116235/116235 separately from foreign host2484/4140 and question gaps2629/3043 per enabled run; 46 constructed lifetimes, natural0/0.
-- No request outstanding at this commit; OFF request will follow. Use existing copied evidence-run4/cmdline4-r3-supported-save.script unchanged, SHA25670a903f02158b86981fbc3d5411c8e2ace5a9ea6539b5ab3806f0ae07fa24ac6; no cmdline DLL use.
+- No request outstanding at this commit; OFF raw verdict/log retained (SHA2566287c403b90a7c46698418dab76233e078a313c1598824350649224a3f3e1fe5 / 36e78eb55aaf0e935cf6f333764744c517d565163a2e0e39bc05c1f1eed29c45). No comparisons executed or credited.
+- Use copied evidence-run4/cmdline4-r3-supported-save.script unchanged, SHA25670a903f02158b86981fbc3d5411c8e2ace5a9ea6539b5ab3806f0ae07fa24ac6; no cmdline DLL use.
 - No supported isolated reload fixture supplied; reload remains unmeasured. LU1-LU4/SL1 open. q.py Bash unavailable (access denied); run bounded lane-local Python directly.
 - Guard: C:/Users/tlori/FreeCity4/build-runs/run4-verify-language-native4-r3-manifest.json; original family final3/3, maxCalls100.
 
