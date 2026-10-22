@@ -5,10 +5,11 @@
 ## Handoff
 - Goal: round 2 resolves ONLY remaining WR7/WR8 contracts, spec text only.
 - Done: 3b970a37 WR5; 33ace687 WR4/WR6/WR9/WR10; c7cfb5ae partial WR7/WR8; 613177cf final report/inventory and signed IDIV correction.
-- Done round 2 milestone 1: WR7 residual proof published in §2.3 and vectors 16–18; moved WR7 to answered.
-- Exact next step: query WR8 owner vtables, Cleanup/deleting/refcount paths, ReadTuningParameters and texture failure.
+- Done round 2 milestone 1: 69fc2a72 publishes WR7 proof in §2.3/vectors 16–18; moved WR7 to answered.
+- Done round 2 milestone 2: §§2.4–2.5 publish actual owner dispatch tables/refcounts/deletion, process reset, global tuning copies and unsafe resource failure; vectors 19–21.
+- Exact next step: validate citations/remaining signature attribution and update WR8 residual; final per-owner report.
 - WR7 closed: black source PE zero-fill, 193 initial buckets/prime resize/prepend rehash/clear retains capacity, first-operand NaN/equality.
-- WR8 residual: complete inherited/public API/signatures/attribution, Cleanup/destructor/refcount, tuning absence/type/ownership/reset, texture acquisition failure.
+- WR8 residual: literal helper signatures/attribution and 65/15308 vs 69/15276 reconciliation; shared scalar ConvertTypes matrix. Lifecycle/array/resource paths proved.
 - Native address-window inventory 69 bodies/15276 bytes is not the brief's 65/15308 owner attribution; no whole-owner credit.
 - Native findings and vectors: docs/specs/water-ripples.md; five dated answers moved to questions/answered/water-ripples.md; WR7/WR8 remain open with partial notes.
 - REA failed target_unavailable/No app is open; export, decomp and executable-data fallback used.

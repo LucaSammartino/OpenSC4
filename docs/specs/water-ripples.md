@@ -167,7 +167,14 @@ within a shortened ramp (`0x00761D36–0x00761E09`, `0x0075FF27–0x00760055`; 0
 
 The texture is the FSH (`0x7AB50E44`, `0x891B0E1A`, `0xE9A44A88`) requested through texture binding factory slot
 6. The old statement that failure safely leaves no strips is withdrawn: exact acquisition-failure control flow
-remains a WR8 obligation; StartNewRipple's failure path and later preparation must be reconciled together.
+is not a safe skip. StartNewRipple zeroes the cached binding and caller's current-strip pointer on false
+acquisition (`0x00760F43–0x00760F4D`), releases its temporary factory reference, then follows the null-strip
+path to append a new empty strip (`0x00760F58–0x00760FA2` onward). It does not return at acquisition failure.
+Subsequent requests retry because the cache remains null. If no request succeeds, display preparation reads
+frame count at cached-binding+4 without a null guard (`0x0075FEE8–0x0075FEF8`); this path has no defined
+successful geometry result. If an earlier current strip existed, nulling the caller pointer does not remove
+that strip. An unavailable factory also has no graceful branch: slot 6 is called through null. Successful
+acquisition is cached until Shutdown, with no extra AddRef of the returned binding.
 
 ### 1.4 Drawing (`Update`, `0x00761FF0`; `DrawRipple`, `0x0075FE70`)
 
@@ -392,7 +399,7 @@ storage (PE section virtual tail). Each of those three source addresses has only
 instruction stream and its address is not otherwise present as an immediate in the executable. Their initial
 triple is therefore (0,0,0); no owner path changes it. This palette survives instance Shutdown/destruction.
 
-### 2.4 Lifecycle evidence and residual (WR8)
+### 2.4 Lifecycle and tuning ownership (WR8)
 
 Both constructors initialize their inherited reference count to **0** through `0x0090DA1E`, not 1. Selection
 constructor initializes two empty hash tables with requested bucket count 100, terrain/factory pointers null;
@@ -419,11 +426,93 @@ Shutdown, guarded by initialized, clears that flag, unsubscribes messages/tick, 
 and returns true. It does not clear shores, reset first-Update, zoom or dirty rectangle. Re-Init after Shutdown
 therefore is not construction of fresh state (`0x00760330–0x00760477`, `0x0075FBB0–0x0075FC31`).
 
-WR8 remains open: required complete owner attribution and all public/inherited signatures; Cleanup/deleting
-destructor/reference paths; tuning property absence/type/array ownership and process reset defaults; resource
-failure control flow; exact repeated Init consequences. The above are bounded direct-body facts, not a complete
-owner policy. In particular neither Arc/Drop ownership nor retaining tuning only after successful Init is native
-evidence.
+**Reference and deletion paths.** Object base+4 is the reference interface; base+8 is its unsigned32 count.
+AddRef increments with wrap and returns the new count (`0x00968B60`). RemoveRef decrements only if nonzero
+and never deletes (`0x0090D981`). Release decrements and returns when count >1; at count 0 or 1 it invokes
+the deleting destructor with flag 1 and returns 0 (`0x0090D997`). Refcount is not atomic. Destructors free
+container storage, invoke `0x0046B4C0` / base `0x0090D990` (which only installs its base vtable), and free
+the object only when flag bit 0 is set. Ripple destruction visits nested shore storage (`0x007619D0` →
+`0x00761760`); selection destroys textured then plain tables (`0x00751C40`). Neither path calls Shutdown,
+so destruction alone does not release held terrain/binding/factory or cancel ripple subscriptions.
+
+QueryInterface(1,out) returns object+4 and AddRefs, even when called through the primary interface. Unsupported
+IDs return false **without zeroing out** (`0x009457C6`). Ripple additionally accepts `0x452294AA`, returns
+object+12 (message interface) and AddRefs (`0x0075FAE0`). Selection has no corresponding override.
+Null out pointers are unchecked on success. The nominal null-this branch in ripple QueryInterface still
+dereferences this to AddRef; it is not a valid null-object operation.
+
+**Shared tuning and Cleanup.** The Init test/set is process-wide, not per object and not conditioned on a
+successful resource lookup. It sets `0x00B4D524` and registers callback `0x0075FB20` before reading tuning
+(`0x0076033E–0x00760368`). That callback returns true and only clears the flag if set; it does not free arrays,
+restore executable scalar values, reset period bounds or touch any object. There is no Cleanup slot in either
+owner's vtables below; do not invent instance cleanup behavior from the reset callback's role. After callback,
+the next not-already-initialized ripple Init rereads tuning. Shutdown/destruction do not trigger that callback.
+
+Before any read, executable scalar storage at `0x00B0D7B0–0x00B0D7C7` contains enabled=true (byte),
+minimum=10, height=2, period=1000000, edit area=850 and fade count=5. These are storage initializers, distinct
+from the exemplar values in §1.1. The float/byte vectors and derived step/period arrays are initially empty/
+zero-filled. Failed exemplar acquisition returns from ReadTuningParameters without changes or resource Release;
+Init still continues and the shared flag remains set (`0x00760099–0x007600A1`, `0x00760368`). Thus missing
+tuning does not install usable five-element vectors and does not produce a false Init result by itself.
+
+Property lookup failure leaves its destination unchanged; the owner ignores every getter result. Scalar types
+are bool for suffix 00, unsigned32 for 01/07/0C/0D, float32 for 03. Their helpers call variant output getters
+at byte offsets 0x28/0x64/0x94 (`0x005FD390`, `0x005FD480`, `0x005FD4F0`). The native variant getters
+directly copy matching types (tags 1/6/10); otherwise they call ConvertTypes into a temporary target variant,
+write destination only on conversion success, destroy the temporary, and return success/failure. They do not
+silently write zero on conversion failure (`0x009174F6`, `0x009176C8–0x00917720`, `0x00917852–0x009178B1`).
+The complete ConvertTypes conversion matrix is not established here.
+
+Float arrays (02/04/05/06/0A/0B) and byte arrays (08/09) use different copy helpers `0x005FFCC0` and
+`0x005FFB40`. On property presence they take the variant's raw array pointer and element count (slots
+0x1BC or 0x17C, and 0x10), resize an **owned global vector** to that count, copy exactly count floats or
+bytes, and compact excess capacity. No array type or length check occurs: the native variant pointer getters
+both load +4, the count getter loads +0x10 (`0x0060CE80`, `0x0040CE60`, variant vtable `0x00ACECD0`).
+Malformed types therefore do not get a safe typed conversion or a five-element fallback. There is no release
+of borrowed property/variant pointers; successful exemplar acquisition is released after all copies at
+`0x00760320–0x0076032B`. Owner destruction does not free these global vectors.
+
+After reading minimum, clamp it to 2 by an **unsigned** comparison, so `0xFFFFFFFF` remains unchanged
+(`0x007600CC–0x007600E3`). After the spacing getter, access exactly elements 0..4 regardless of result or
+length: save each original value/64 to the step array and square it in place. Turn-limit elements 0..4 are
+multiplied in place by the binary32 degree factor at `0x00AA8C60` (`0x007602AB` onward). The other arrays
+retain their supplied count. A missing/short spacing or turn vector can cause invalid reads/writes; no false
+return, padding, or rollback exists. If a reset/reload omits an array that was already loaded, old transformed
+values are transformed again. Earlier field changes survive any later failure.
+
+### 2.5 Per-owner native API checklist
+
+Addresses here are **actual dispatch targets**, not the unrelated folded names in the export. Signatures
+describe the observed call boundary; they are not new C ABI exports. Both primary tables have five slots:
+
+| Slot | Call shape / behavior | Selection table `00AB42F8` | Ripple table `00AB4624` |
+|---:|---|---|---|
+| 0 | bool QueryInterface(uint32 id, void** out) | `005BCB40` → `009457C6` | `0075FAE0` |
+| 1 | uint32 AddRef() | `005BE3E0` → `00968B60` | same |
+| 2 | uint32 Release() | `005BCB30` → `0090D997` | same |
+| 3 | Update(draw-context pointer), result unused | `007514F0`, §2.3 | `00761FF0`, §1.4 |
+| 4 | bool Pick(four 32-bit arguments) | `00735290`, false, no output writes | same |
+
+Each reference-interface table (`00AB430C` selection, `00AB460C` ripple) has six slots: QueryInterface,
+AddRef, Release, deleting destructor(unsigned flags), RemoveRef(), GetRefCount(). Query/Add/Release adjust
+back to the primary object then use the targets above; GetRefCount simply returns count (`0x009D7E63`,
+whose export name is misleading). Deleting-destructor thunks subtract 4 and reach `0x00751C40`/`0x007619D0`.
+Ripple's message table at `0x00AB45FC` has four slots: adjusted Query/Add/Release (subtract 12) and
+DoMessage(message pointer) at `0x00761F80` (§1.5). No Init, Shutdown or Cleanup slot occurs in these tables.
+
+| Owner | Nonvirtual callable contracts / direct entry points | Proof obligation |
+|---|---|---|
+| Selection | constructor `00751BC0`; bool Init(terrain*) `00750AA0`; bool Shutdown() `007505C0`; ClearCurrentSelections() `00750CA0` | §2.4; repeated Init leaks prior retained pointers, repeated Shutdown leaves selections intact |
+| Selection | five MarkSelected argument forms `007516D0/00751780/00751910/007519A0/00751A70` | exact input widths/order in §2.2; helper insertions are not additional virtual API |
+| Selection | draw preparation/UV helpers `007504F0/00750820/00750960`; DrawTextured/Untextured `00750CF0/00750FC0`; InitRenderState `00750600` | §2.3; allocation/copy/destruction helpers have separate storage roles |
+| Ripple | constructor `00761790`; bool Init() `00760330`; bool Shutdown() `0075FBB0`; process reset callback `0075FB20`; ReadTuningParameters() `00760060` | §2.4; failed/partial Init is not rolled back |
+| Ripple | DetectShores `00761B70`, AddShore `00761A00`, CreateRipples `00761CF0`, shore traversal `00761140`, spline `0075FC40`, StartNewRipple `00760EE0`, preparation `0075FEE0` | §§1.2–1.3; resource failure contract above |
+| Ripple | DrawRipple `0075FE70`, grouped bounds `007609B0/00761010`, contact `0075FB40/007607F0`, edit `00760E10`, tick `00761E70`, remove-last `007606B0` | §§1.4–1.5; message dispatch table above |
+
+WR8 remains open for a full literal signature/owner attribution of the allocation/copy/template helpers and
+reconciliation of the brief's 65 functions/15308 bytes with the 69-body/15276-byte address-window inventory.
+The scalar ConvertTypes matrix remains a shared dependency. The vtable checklist, direct lifecycle/resource
+paths and array copy/failure rules above are proved independently of those residuals; no whole-owner credit.
 
 ## 3. Users
 
@@ -476,3 +565,12 @@ bit 1 is a temporary trace visit mask here, not evidence that it means water.
     193,0. This distinguishes retained capacity from rebuilding a table on clear.
 18. **WR7 palette:** the first plain draw with index 4 submits packed opaque black `0xFF000000`, including
     when no prior draw initialized any of the other palette entries.
+19. **WR8 references:** constructor count 0 → RemoveRef returns 0 and keeps storage → AddRef returns 1;
+    Release at either count 0 or 1 deletes, but does not Shutdown. Unsupported QueryInterface preserves a
+    prefilled output pointer. ID 1 yields object+4; ripple message ID yields object+12, each with one AddRef.
+20. **WR8 reset/reload:** load spacing `[16]*5`, then reset callback and reread an exemplar missing property
+    02 but otherwise valid: old squared spacing 256 becomes step 4 and squared spacing 65536. A freshly
+    copied spacing 16 would instead give step 0.25 and squared spacing 256. Callback itself changes neither.
+21. **WR8 failure:** a first failed ripple texture request nulls current-strip but appends a new strip; if no
+    later request succeeds, preparation reaches null-binding+4. A first missing spacing property similarly
+    reaches empty-vector element 0. Neither yields a safe empty successful result or transactional rollback.
