@@ -277,7 +277,7 @@ generated index: the questions live one file per spec, so read only the file for
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | vehicles | 2 | 0 | VH3 | questions/vehicles.md |
 | view-input-controls | 2 | 0 | VIC3 | questions/view-input-controls.md |
-| view-utilities | 7 | 4 | VU12 | questions/view-utilities.md |
+| view-utilities | 0 | 11 | VU12 | questions/view-utilities.md |
 | view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
 | water-ripples | 3 | 0 | WR4 | questions/water-ripples.md |
 | watercraft | 7 | 0 | WC8 | questions/watercraft.md |
@@ -287,4 +287,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **359** | **1179** | | |
+| **total** | **352** | **1186** | | |

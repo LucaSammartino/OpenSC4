@@ -34,3 +34,56 @@
   explicitly reconcile its ownership/source in the requested inventory. [unimplemented, no guessed
   alias to fixed-view projection; report 38 implemented named contracts, no whole-owner credit]~~
   **ANSWERED 2026-10-22 (re-view-utilities-contracts4):** DIFFERS — §4.3: free helper 0x007F6CC0 rotates in place by signed rotation%4, preserves y, and leaves negative nonzero remainders unchanged.
+
+<!-- from: re-viewutils (2026-10-20) -->
+- ~~**VU2 - §1:** what the fields `+0x3DC`-`+0x410` hold; the constructor sets `+0x3F4` and `+0x3F8` to 1 and
+  `+0x410` to 0.3, and none of the functions in this spec reads them. [unused here]~~
+  **ANSWERED 2026-10-22 (re-view-utilities-contracts4):** MATCHES — §2 reserved-state contract: the block has only constructor defaults; none of the reconciled 50 family bodies reads it. No further source-level semantics are evidenced.
+
+<!-- from: re-viewutils (2026-10-20) -->
+- ~~**VU3 - §3.1, §5:** whether the camera's view volume is always centred (left = -right, bottom = -top). The
+  corners are built from the half-extents around the forward axis, so an off-centre volume would draw where
+  the frustum tests do not look. [centred (inferred)]~~
+  **ANSWERED 2026-10-22 (re-view-utilities-contracts4):** DIFFERS — §3.1: half-extents build corners about the forward axis without enforcing centering, while projection and point tests consume the actual off-centre bounds.
+
+<!-- from: core-view-utilities4 (2026-10-22) -->
+- ~~**VU4 - §§1–7 complete owner inventory/lifecycle:** the task attributes 49 functions/19670 bytes to
+  SC4ViewUtilities, but the spec provides no exhaustive function inventory, setter/destructor/init bodies,
+  or address-to-method ownership accounting. Please publish all 49 attributed entries with signatures,
+  lifecycle/setter/getter bodies and any alias/helper ownership. Are any public methods absent here?
+  [implement the named contracts and owned constructor state; Rust input setters are explicitly adapters;
+  refuse complete-owner/19670-byte credit until the 49 functions are reconciled]~~
+  **ANSWERED 2026-10-22 (re-view-utilities-contracts4):** DIFFERS — §12 reconciles 48 attributed entries/19574 bytes plus two dedicated helpers/174 bytes: 50/19748, including the previously omitted 78-byte rotation helper. §2 specifies borrowed renderer wiring and absence of separately attributed view lifecycle/setter bodies.
+
+<!-- from: core-view-utilities4 (2026-10-22) -->
+- ~~**VU5 - §§2–4 numeric conventions and invalid camera input:** what exact table float bits, trig
+  precision, intermediate evaluation order, inverse-scale calculation and vector normalization are used?
+  What happens for zoom outside 0–4, zero viewport/volume extents, coincident eye/look-at, or vertical
+  forward? [literal written f32 formulas, separate operations/no FMA; invalid zoom returns false/None;
+  unguarded zero divisors retain IEEE NaNs/infinities; not a claim of bit-exact native float behavior]~~
+  **ANSWERED 2026-10-22 (re-view-utilities-contracts4):** DIFFERS — §2.2 gives literal angle bits, x87 trig/extended intermediates and store boundaries, inverse-scale sources, unguarded normalization/divisions and unchecked zoom-table reads; no false/None invalid-zoom contract.
+
+<!-- from: core-view-utilities4 (2026-10-22) -->
+- ~~**VU6 - §§3.3,4.1,7 geometry dependency contracts:** specify RayIntersectsTriangle winding/culling,
+  determinant tolerance, barycentric edge inclusion, t=0/negative-t treatment and whether distance is
+  ray parameter or Euclidean length; RayIntersectsPlane parallel/t=0/failure-output behavior; polygon
+  winding, clip-edge order and boundary/empty/degenerate float handling for ClipPolygonToPolygon2D.
+  [own literal two-sided Moller–Trumbore, no epsilon, inclusive edges, t>=0, parameter t; exact parallel
+  ray-plane miss preserves output; inclusive convex clipping x>=0,x<=W,z>=0,z<=D; unresolved fidelity]~~
+  **ANSWERED 2026-10-22 (re-view-utilities-contracts4):** DIFFERS — §7.2 gives 0.01f tolerance, two-sided inclusive line-triangle hits without a t sign check, Euclidean picking distance, tolerant plane coplanarity/miss-zero writes, and ordered clipping with unchecked intersection failures.
+
+<!-- from: core-view-utilities4 (2026-10-22) -->
+- ~~**VU8 - §§4,4.2,5 integer conversions:** specify nearest rounding tie handling and out-of-range
+  conversion for bounding rectangle coordinates; block<=0, nonfinite/out-of-int32 inputs and rounded-result
+  overflow; rectangle centre expression/truncation and overflow. [existing x87::rhe ties-even helper for
+  pixel bounds; block helpers truncate finite int32 input then mathematical floor/ceil, fail on invalid
+  block/result; widened integer centre sum/2 truncates toward zero]~~
+  **ANSWERED 2026-10-22 (re-view-utilities-contracts4):** DIFFERS — §4.4 specifies float-bit bias conversion, signed low-word truncation, wrapping block arithmetic, integer divide faults and wrapping rectangle-centre sums.
+
+<!-- from: core-view-utilities4 (2026-10-22) -->
+- ~~**VU10 - §7 resource edge contracts:** define undersized group counts for n-1/n-2, invalid index/
+  vertex references, byte strides below 12, missing meshes and index addition overflow. Is the §7
+  transform matrix applied by row dot products or column combinations? [typed owned resources; reject
+  malformed byte input, saturate undersized triangle counts to zero, skip invalid triangles; row-dot
+  matrix application literally from "rows"; preserve specified type6/7 indices even out of bounds]~~
+  **ANSWERED 2026-10-22 (re-view-utilities-contracts4):** DIFFERS — §7.2 specifies raw signed counts, unchecked vertex/index/stride accesses and null mesh faults, model/mesh order and literal row-dot matrix application; checked rejection is an adapter policy.

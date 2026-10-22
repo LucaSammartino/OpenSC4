@@ -58,6 +58,16 @@ visible, where a point lands on screen, and which ground point lies under a pixe
 
 ## 2. Camera update (`UpdateCameraPosition(cameraControl)`, `0x007F83F0`) *[compat]*
 
+**Lifecycle and reserved state (VU2/VU4):** constructor defaults at `+0x3DC`–`+0x410` are an opaque
+reserved block: zero at `+0x3DC`–`+0x3F0` and `+0x3FC`–`+0x40C`, float32 one at `+0x3F4/+0x3F8`, and
+float32 `0x3E99999A` at `+0x410`. The constructor `0x007F6DF0` writes these defaults; none of the
+50 family entries in §12 consumes this block. No behavioral meaning beyond retained defaults is proved.
+The object owns no renderer/camera reference: `+0x04` starts null and is a borrowed renderer pointer;
+the surrounding renderer supplies it and the two city dimensions by field writes. There is no separate
+SC4ViewUtilities Init, Shutdown, renderer setter, camera setter, AddRef/Release or deleting destructor
+among these 50 entries. A portable input setter is an adapter to that surrounding field/provider wiring,
+not a new attributed native method. The iterator deleting destructor in §12 is a different object.
+
 Called when the camera changes. It clears both visible-area caches (§6) and the valid flag; without a renderer or
 camera it stops there. Otherwise:
 
@@ -87,12 +97,44 @@ camera it stops there. Otherwise:
 - `GetZoomAndRotation` (`0x007F66A0`) returns `+0x0C` and `+0x10`; `ViewportUnitsToWorldUnits(v)` (`0x007F6690`)
   returns v × `+0x150`.
 
+### 2.2 Native numeric evaluation and invalid inputs (VU5)
+
+The angle table values are **float32 constants**, not exact mathematical angles. All five yaw offsets
+have bits `0xBEC90FDB`; the pitch bits for zoom 0–4 are `0x3F060A92`, `0x3F1C61AA`, `0x3F32B8C2`,
+`0x3F490FDB`, `0x3F490FDB`. The quarter turn is `0x3FC90FDB` (`0x00ABCFEC`). These were read from
+the shipped PE data at `0x00ABCFC4`–`0x00ABCFEC` and checked against the indexed loads at
+`0x007F85BE`–`0x007F85ED`. Native yaw is signed integer rotation converted by x87, multiplied by the
+quarter turn, then the offset added before a float32 store. The rotation-only angle is stored separately.
+There is **no** zoom or rotation bounds check before the table reads. Out-of-range zoom is an out-of-table
+memory read, potentially a fault or unrelated float data; returning false/None is a checked-adapter policy.
+`UpdateCameraPosition` returns void and marks valid at the successful end even for numerically invalid
+camera data; its only early exits are the missing renderer/camera paths (§2 entry).
+
+The instructions use x87 extended intermediates and explicit float32 memory stores, not an all-float32
+expression graph and not fused multiply-add. Native trig uses FSIN/FCOS, and angle helpers use
+FPTAN/FPATAN (`0x007F85F0`–`0x007F863A`, `0x007F8370`–`0x007F8380`). No portable libm bit identity
+is implied. sx and sy are computed with extent subtraction still on the x87 stack and each quotient stored
+to float32. Their inverses divide one by those **stored** scales. sz is stored by a non-popping float32
+store, and its inverse uses the still-retained extended quotient (`0x007F8533`–`0x007F85A1`), rather
+than reloading rounded sz or simply copying far−near. No method here changes the x87 control word:
+rounding/exception mode is inherited from the caller. Numeric bit conformance must name that mode.
+
+Forward normalization forms the squared length with x87 products/additions, FSQRT, and reciprocal,
+then stores the three products to float32 (`0x007F8640`–`0x007F8677`); there is no zero-length guard.
+Right and up similarly divide by their lengths; up is formed from the right cross product before that
+right vector is normalized (`0x007F867A`–`0x007F8685`). Coincident eye/look-at and vertical forward
+therefore propagate invalid values under masked exceptions. Zero viewport or view-volume extents
+likewise take the ordinary division path: zero scales/infinite inverse scales or infinite scales/zero
+inverses, and NaNs where both numerator and denominator vanish. No finite-value repair occurs.
+The later length-to-extent steps used for corners do test squared length >0 before rescaling; this does
+not turn the earlier unguarded basis normalization into a checked operation.
+
 ## 3. The view frustum *[compat]*
 
 ### 3.1 Corners and box
 
 With n = position + forward × near and f = position + forward × far, h = right × (right − left)/2 and
-v = up × (top − bottom)/2 (the view volume is taken as centred *[inferred]*), the corners are:
+v = up × (top − bottom)/2, the corners are:
 
 | Corner | 0 | 1 | 2 | 3 |
 |---|---|---|---|---|
@@ -102,6 +144,14 @@ and corners 4–7 are the same at f, for the orthographic camera (projection typ
 *[inferred]*. For a perspective camera the original pushes the **previous** corners 4–7 away from the camera
 position by far ÷ near, so they compound across updates *[quirk]*; FreeCity4 should push corners 0–3 instead
 *[choice]*. The box (`+0x78`) is the axis-aligned box of the 8 corners (`0x005D6900`).
+
+**Off-centre volume (VU3):** centering is an assumption of the corner builder, not an enforced input
+contract. It uses the two differences only and never adds (left+right)/2 or (bottom+top)/2 to the
+forward axis (`0x007F83F0`, corner construction). The coordinate projections and point test still use the actual
+left/right/bottom/top values. Thus an off-centre camera can disagree with corner-derived box/plane
+tests. Do not silently recenter either path to make them agree. The narrowed draw branch likewise
+uses rectangle-relative extents, except that an axis spanning the full viewport copies that axis's
+original camera volume. No universal claim that every possible camera provider is centred follows.
 
 ### 3.2 Planes and ground lines
 
@@ -230,6 +280,35 @@ leave x/z untouched (`0x007F6D18`–`0x007F6D2D`), rather than selecting the Euc
   v is first **truncated** to an integer, then rounded down (up) to a multiple of block. So RoundUp(0.5, 64) = 0
   and RoundDown(−0.5, 64) = 0 *[quirk]*.
 
+### 4.4 Integer operations (VU8)
+
+Pixel bounds use the **float-bit bias conversion**, not FISTP or a saturating float-to-int operation:
+add float32 constant 12582912 (`0x4B400000`) to the projected coordinate (after subtracting 0.5 for
+left/top), store once to float32, interpret its word as an integer, and subtract `0x4B400000` modulo
+2³² (`0x007F7B84`–`0x007F7BE3`; the other rotation arms repeat this). With round-to-nearest/even,
+this produces nearest/even while the biased result lies in [2²³,2²⁴). For example left input 2.0
+uses 1.5 and yields 2; left input 3.0 uses 2.5 and also yields 2. Right inputs 2.5/3.5 yield 2/4.
+Outside that range, including infinity and NaNs, the result follows the bit operation, not int32 range
+validation. An unmasked x87 exception can interrupt a conversion; no local handler is installed.
+
+Block helpers call `_ftol2` (`0x009EEF04`, signed 64-bit truncation) and consume only its low 32-bit
+word as signed n. Finite values outside int32 but within int64 therefore wrap before block rounding.
+Subsequent operations are signed IDIV (quotient truncates toward zero) and 32-bit wrapping arithmetic:
+down first subtracts block from n when n≤0 and the signed division remainder is nonzero; up first
+adds block when n≥0 and that remainder is nonzero. Both then divide the adjusted n by block and
+multiply the quotient by block, returning the signed product through x87 FILD
+(`0x007F6D75`–`0x007F6DA0`, `0x007F6DB5`–`0x007F6DE0`). They do not reject block≤0 or overflow.
+Block zero raises integer divide error; INT_MIN divided by −1 can also raise it. Negative blocks
+follow these same steps, e.g. Down(−65,−64)=0 and Up(65,−64)=0. Up(2147483647,64) wraps to
+−2147483584. Invalid/nonfinite `_ftol2` input follows the processor/runtime invalid-conversion path,
+not a helper-supplied failure value; a portable checked adapter must document its different policy.
+
+The draw rectangle centre uses a **32-bit wrapping sum** of the two coordinates and signed division
+by two, truncating toward zero; subtractions from that centre also wrap before conversion to float.
+It neither widens to int64 nor clamps/reorders the rectangle. The native operation is visible in the
+rectangle-centre sequence of `0x007FA31D` onward. For left=INT_MAX, right=INT_MAX, centre.x is −1;
+for left=−4, right=1 it is −1. Inverted/empty rectangles take the regular narrowed-frustum path.
+
 ## 5. The draw frustum (`BuildDrawFrustumDataFromViewportRect(topLeft, bottomRight)`, `0x007F9F50`) *[compat]*
 
 Drawing may be limited to a dirty rectangle of the viewport (pixels); the renderer's draw pass calls this with its
@@ -311,6 +390,63 @@ model uses either type *[quirk]*. The index reader
 (`0x0080B090`) knows eight index formats (signed and unsigned 8 and 16 bits, two 32-bit codes, float and double,
 floored), but the walk only uses unsigned 16 bits.
 
+### 7.2 Geometry predicates, ordering and unsafe resources (VU6/VU10)
+
+`RayIntersectsTriangle` (`0x005D6FF0`) is two-sided Möller–Trumbore with **absolute determinant
+tolerance 0.01f**, bits `0x3C23D70A` from `0x00A823A4`. It rejects |det| below that value, including
+degenerate triangles; equality is accepted (`0x005D707F`–`0x005D709E`). Barycentrics include all
+three edges: u≥0, u≤1, v≥0, u+v≤1. There is **no t sign test**: t=0 and intersections behind the
+origin both succeed (`0x005D70ED`–`0x005D71D7`). The optional output is the float32 intersection
+point O+tD, not t. On geometric rejection it is unwritten. The status-word branches also allow unordered
+determinant/barycentric values through: a NaN can yield true with NaN intersection coordinates
+(`0x005D708B`, `0x005D70F9`, `0x005D710E`, `0x005D7179`, `0x005D718E`).
+`TrianglePick` computes the Euclidean length from origin to that returned, rounded point using
+`LengthOfLine`, compares it strictly with the saved nearest distance, and updates only if smaller
+(`0x007F6B1D`–`0x007F6B35`). Equal or unordered distance leaves nearest untouched. Thus scaling
+the direction changes parameter t but not the intended metric, and a behind-origin hit can win.
+
+`RayIntersectsPlane` (`0x005D7360`) forms a=n·O+d and b=n·D. For |b|≥0.01f it writes O−(a/b)D
+and returns true, without requiring forward t. For |b|<0.01f, |a|<0.01f is considered coplanar:
+return true and copy O. Otherwise return false and **write (0,0,0)** to a nonnull output
+(`0x005D7397`–`0x005D7416`). A null output is allowed. Unordered |b| takes the division branch;
+with a small finite |b|, unordered |a| takes the false/zero-output branch. The unguarded §4.1 arithmetic helper is distinct.
+
+The city clipper's subject order is corner 3, corner 0, ground hit from corner 0, ground hit from
+corner 3. The city clip polygon is (0,0),(0,D),(W,D),(W,0); edges are visited **last→first** then
+0→1, 1→2, 2→3, giving z≥0, x≥0, z≤D, x≤W in that order (`0x007F7F60`, `0x005D79D0`).
+For edge A→B, inside means (P.x−A.x)(B.z−A.z)−(P.z−A.z)(B.x−A.x)≥0, with equality included.
+This requires the clip polygon's stated winding. At each edge, walk subject last→first then each
+successive vertex: inside→inside emits current, outside→inside emits intersection then current,
+inside→outside emits intersection, outside→outside emits nothing. Output order and duplicate
+boundary points are retained; there is no deduplication or degeneracy cleanup. Empty output remains
+empty on later edges. `ClipPolygonToPolygon2D` uses a 40-point scratch polygon and truncates each
+edge's result to caller capacity; the view caller capacity is 10. It does not sort extrema before clipping.
+NaN half-space expressions classify outside (`0x005D7854`–`0x005D7869`). Intersections call
+`RaysIntersect2D`, which rejects a determinant magnitude below the same 0.01f threshold and leaves
+its output unwritten (`0x005D7455`–`0x005D7473`); the clipper ignores that return. Near-parallel
+crossings can consequently emit stale/indeterminate intersection data. No deterministic cleaned
+polygon is promised for such a failure. The view wrapper ignores plane-intersection booleans too;
+its plane miss writes zero by the rule above. If clipping leaves no points, output x/z extrema are
+zero; min.y=0 and max.y remains corner3.y, rather than an all-zero 3D box.
+
+Triangle counts and indices are signed 32-bit calculations. Counts n−1/n−2 are **not saturated**;
+the iterator uses signed current≥triangleCount to stop, so ordinary undersized counts produce no
+triangles. Index/first/stride address arithmetic wraps at 32 bits. There is no range validation against
+vertex/index counts and no stride≥12 check: each referenced position copies 12 bytes unconditionally
+(`0x0080B020`–`0x0080B082`). A stride below 12 overlaps records; invalid references can fault or read
+other accessible memory. These are unsafe-input effects, not skipped-triangle guarantees. A missing
+vertex-buffer pointer or zero vertex count makes MeshPick return false before iterating
+(`0x007F91CE`–`0x007F91E0`). The mesh pointer itself and its group structures are dereferenced without
+null guards. ModelPick does not skip a null mesh returned by model slot5: it calls the instance's transform
+slot9 then MeshPick, so malformed resources can fault. It visits all meshes even after a hit; each mesh
+stops on its first strict improvement, preserving model order (`0x007F9A70`–`0x007F9B1B`).
+
+The matrix wording in §7 is literal **row dot products**: output x uses +04/+08/+0C, y uses
++10/+14/+18, z uses +1C/+20/+24 (`0x007F943C`–`0x007F949A`). Kind5 adds translation to the row results.
+The default kind applies uniform scale after each row dot and
+then translation. Do not transpose M or rotate its translation. A kind byte above 5 always takes the
+default, including 255; there is no malformed-kind rejection.
+
 ## 8. Users
 
 The 3D renderer updates the object on camera changes; the terrain, model, overlay and automata views test their
@@ -328,9 +464,9 @@ boxes against the frustums; the tools pick through §4.1 and §7; the animation 
 
 ## 10. Open questions
 
-See [questions/view-utilities.md](questions/view-utilities.md) VU2–VU3: what the fields `+0x3DC`–`+0x410` hold;
-whether the view volume is always centred (§3.1 builds it from half-extents). VU1 is answered: types 6 and 7 are
-quads and quad strips (graphics-formats.md §3.7), which no shipped model uses.
+VU1–VU11 are archived in [answered questions](questions/answered/view-utilities.md). Reserved fields
+have only the observable defaults stated in §2; their original source-level names are unknown. Native
+indeterminate memory/floating exception paths are not replaced here by invented checked behavior.
 
 ## 11. Conformance tests
 
@@ -350,3 +486,106 @@ quads and quad strips (graphics-formats.md §3.7), which no shipped model uses.
 12. **Independent caches:** with a counting eye-ray provider, full draw, §6, §6 produces ray-call totals
     4, 8, 8; narrowed draw, §6, §6 likewise produces 4, 8, 8 from a fresh state. Return a different ground
     mapping for the second set of four calls to distinguish fresh §6 rays from reuse of draw ground corners.
+13. **Behind and non-unit direction:** O=(0.25,0.25,2), D=(0,0,2), triangle
+    A=(0,0,0), B=(1,0,0), C=(0,1,0) succeeds with t=−1 and hit=(0.25,0.25,0).
+    TrianglePick with nearest=3 updates to 2, not −1 or 1. Reversing B/C still hits. A second identical
+    pick with nearest=2 is false. On-plane O=(0.25,0.25,0) succeeds at distance zero.
+14. **Determinant threshold:** the same triangle with D=(0,0,1/128) misses, preserving the intersection
+    sentinel, despite meeting its interior as a line. D=(0,0,1/64) succeeds. Test both windings.
+15. **Plane tolerance and writes:** for y=0, O=(3,1,4), D=(1,1/128,0) returns false and writes zero;
+    with O=(3,1/256,4) the same D returns true and copies O as coplanar. D=(0,1,0), O=(3,2,4)
+    returns true with (3,0,4), despite negative t. Test optional null output separately.
+16. **Rectangular city:** W=80,D=48, corner2/rotation1 gives (80,0,80). An invalid corner with
+    sentinel (9,8,7) gives (9,0,7). This distinguishes the shipped W-for-z quirk and partial writes.
+17. **Off-centre volume:** compare left/right=(−2,2) and (1,5) with all other camera state equal.
+    Their generated frustum corners match; projection x of any point differs by −3×sx. Point-frustum
+    tests use the changed bounds. No common-centre correction is allowed.
+18. **Conversion ties/overflow:** use the pixel-bound ties in §4.4 and centre(INT_MAX,INT_MAX)=−1;
+    Up(2147483647,64)=−2147483584 and Down(−65,−64)=0. Fault tests for block zero belong in
+    an isolated native harness, not an ordinary in-process portable geometry test.
+19. **Matrix orientation:** rows (1,2,3),(4,5,6),(7,8,9), vertex (1,2,4), kind4 produce (17,38,59).
+    Kind5 with t=(10,20,30) gives (27,58,89); kind255, s=2 gives (44,96,148).
+20. **Ordering:** two overlapping triangles at distances 8 then 2, initial nearest=10, in one mesh
+    leave nearest=8. Swap their primitive order and nearest=2. Put them in separate meshes and both
+    are visited, yielding 2 in either mesh order. Undersized strip n=1 has raw count −1 and emits none.
+21. **Ordered clipping:** clip the already-contained polygon [(1,1),(1,3),(3,3),(3,1)] to
+    [(0,0),(0,4),(4,4),(4,0)]; it retains that vertex order. Replace its first point by (0,0) to test
+    inclusive boundaries without deduplication. Reverse only the clip winding to distinguish the
+    retained half-planes. A wholly disjoint polygon yields zero output vertices; the view wrapper's
+    max.y still comes from corner3.
+
+## 12. Complete family checklist and ownership accounting (VU4)
+
+This is an **address/body-byte checklist**, not a claim of core implementation or verification. The
+2026-10-22 export and attribution inputs give **48 entries / 19574 bytes** to SC4ViewUtilities, including
+the free rotation helper through the free-neighbour rule. Its two separately mapped min/max helpers
+add **2 / 174**, making the requested family **50 / 19748**. The earlier **49 / 19670** family total
+omitted the 78-byte rotation entry; no byte denominator or maps are changed by this spec. Sizes below
+are export `body_bytes`, including switch-table ranges where present (not textual instruction lengths).
+Functions owned by cSC43DRender/cSC4View3DWin are not imported into this total. Names in italics below
+are descriptive roles for unnamed bodies, not proposed public interfaces. Vectors are float32 triples,
+P2 are pairs; mutable arguments are outputs/in-place; required pointers are not null-checked unless stated.
+
+| VA | Bytes | Entry / logical arguments and result | Contract / ownership |
+|---|---:|---|---|
+| `005D6900` | 668 | *point-array AABB*(points,count,&min,&max) → void | Initialize both from first point even if count≤0; scan subsequent points in order with strict per-component comparisons. NaNs never replace an existing component; a first NaN stays. Used for 8 frustum corners (§3.1); reach-owned helper. |
+| `005D6F10` | 59 | *cross*(a,b,&out) → void | a×b; writes x,y,z in order without copying all inputs first, so output aliasing an input affects subsequent components. Reach-owned basis helper (§2). |
+| `007F6550` | 87 | MinOfFourFloats(a,b,c,d) → x87 scalar | Start FLT_MAX, replace only on strict smaller comparisons in argument order; NaNs ignored, all-NaN returns FLT_MAX. Separate fn owner (§6). |
+| `007F65B0` | 87 | MaxOfFourFloats(a,b,c,d) → x87 scalar | Start −FLT_MAX, replace only on strict greater comparisons; NaNs ignored, all-NaN returns −FLT_MAX. Separate fn owner (§6). |
+| `007F6620` | 104 | ClipPositionToCity2D(&point2D) → void | Clamp adjacent x/z floats using dimensions (§4.2); NaNs stay untouched. |
+| `007F6690` | 13 | ViewportUnitsToWorldUnits(v) → x87 scalar | v×metresPerPixel (§2.1). |
+| `007F66A0` | 21 | GetZoomAndRotation(&zoom,&rotation) → void | Copy cached integer fields (§1). |
+| `007F66C0` | 67 | ProjectPointFromViewCoordinatesToViewportCoordinates(&p) → void | §4. |
+| `007F6710` | 96 | ProjectPointToFixedViewCoordinates(&p) → void | §4. |
+| `007F6770` | 413 | IsBoundingBoxInViewFrustum(min,max) → bool | §3.4. |
+| `007F6910` | 413 | IsBoundingBoxInDrawFrustum(min,max) → bool | §3.4. |
+| `007F6AB0` | 49 | GetRayIntersectionWithGroundPlane(origin,direction,&out) → void | §4.1. |
+| `007F6AF0` | 88 | TrianglePick(&pick,a,b,c) → bool | §7.2, Euclidean metric. |
+| `007F6B50` | 66 | RayIntersectsGroundPlane(origin,direction,&out) → bool | §7.2 tolerant plane dependency. |
+| `007F6BA0` | 181 | GetCityCornerPosition(corner,&out) → void | §4.2; always writes y=0, even invalid inputs. |
+| `007F6CB0` | 13 | GetObjectYRotationAngle(rotation) → x87 scalar | §2.1. |
+| `007F6CC0` | 78 | RotateVectorByViewRotation(&v,rotation) → void | §4.3; free-neighbour attribution. |
+| `007F6D10` | 78 | GetVectorForEdge(&out,edge) → void | §§4.2–4.3; signed remainder/partial writes. |
+| `007F6D70` | 49 | RoundDownToNearestBlockBoundary(v,block) → x87 scalar | §4.4. |
+| `007F6DB0` | 49 | RoundUpToNearestBlockBoundary(v,block) → x87 scalar | §4.4. |
+| `007F6DF0` | 2326 | SC4ViewUtilities(storage) | Constructor/defaults, §§1–2. |
+| `007F7710` | 51 | ClipWorldPositionToCityPosition(&p) → void | §4.2, leaves y. |
+| `007F7750` | 44 | GetVisibleEdges(&a,&b) → void | §4.2; additions wrap, signed remainders. |
+| `007F7780` | 71 | GetCameraViewAnglesForRotation(rotation,zoom,&yaw,&pitch,&groundPitch) → void | §§2.1–2.2. |
+| `007F77D0` | 126 | ProjectPointToViewCoordinates(&p) → void | §4. |
+| `007F7850` | 75 | ProjectPointToViewportCoordinates(&p) → void | §4. |
+| `007F78A0` | 64 | ProjectPointToViewportZ(p) → x87 scalar | §4. |
+| `007F78E0` | 54 | ProjectPointToViewportCoordinates2D(&p) → void | §4. |
+| `007F7920` | 133 | UnProjectPointFromViewCoordinatesToWorldCoordinates(&p) → void | §4. |
+| `007F79B0` | 77 | UnProjectPointFromViewportCoordinatesToWorldCoordinates(&p) → void | §4. |
+| `007F7A40` | 1018 | ProjectBoundingBoxToViewportRectangle(min,max,&TL,&BR) → void | §§4,4.4. |
+| `007F7E50` | 270 | IsPointInViewFrustum(p) → bool | §3.4. |
+| `007F7F60` | 527 | GetFrustumAABBCityClipped(useView,&min,&max) → void | §§3.3,7.2. |
+| `007F8300` | 56 | GetCityWidthFromOrthoView(width,zoom) → x87 scalar | §§2.1–2.2. |
+| `007F8390` | 83 | ProjectPointFromViewportCoordinatesToFixedViewCoordinates(&p) → void | §4. |
+| `007F83F0` | 3204 | UpdateCameraPosition(cameraControl) → void | §2; no valid-input bool result. |
+| `007F9080` | 216 | ViewportPositionToRay(x,y,&origin,&direction) → bool | §4.1. |
+| `007F9160` | 88 | GetViewportPointIntersectionWithGroundPlane(x,y,&out) → bool | §4.1; unchecked temporary failure. |
+| `007F91C0` | 2133 | MeshPick(&pick,mesh,transform) → bool | §§7,7.2. |
+| `007F9A40` | 246 | ModelPick(&pick,instance,model) → bool | §§7,7.2. |
+| `007F9B40` | 852 | GetGroundPlaneVisibleAreaRectangle(&innerMin,&innerMax,&outerMin,&outerMax) → void | §6; optional outputs. |
+| `007F9EA0` | 169 | GetViewportRectGroundCorners(&TL,&TR,&BL,&BR,rectTL,rectBR) → void | §4.1; four P2 ground outputs. |
+| `007F9F50` | 3888 | BuildDrawFrustumDataFromViewportRect(TL,BR) → void | §5. |
+| `0080AE80` | 67 | *primitive triangle count*(type,n) → int32 | §7.1 count table, signed truncating division; no saturation (§7.2); reach. |
+| `0080AEF0` | 235 | *primitive vertex indices*(type,i,&triple) → void | §7.1 indices, no strip winding flip; unknown type leaves outputs; neighbour. |
+| `0080B000` | 31 | *iterator deleting destructor*(this,flags) → this | Set vtable to `0x00ABD92C`; GlobalHeapFree(this) iff flags bit0; no buffer frees; neighbour. |
+| `0080B020` | 99 | *iterator vertex copy*(this,indices,&triangle) → void | Copy 12 bytes from data+index×stride for each vertex, no validation (§7.2); reach. |
+| `0080B090` | 623 | *iterator index decode*(this,indices,&decoded) → void | Formats 0/1 signed/unsigned8, 2/3 signed/unsigned16, 4/5 raw32, 6 float32, 7 float64 narrowed to float32; numeric formats floor via bias plus exact-integer correction; unknown format leaves output. §7.1; neighbour. |
+| `0080B320` | 137 | *iterator select group*(this,mesh,groupIndex) → void | Set primitive/count, vertex format/stride/data; fixed index format3; use first×stride vertex-base offset without indices, first×2 index-base offset with indices; set signed triangle count and current=0 (§7.2); neighbour. |
+| `0080B3B0` | 106 | *iterator next*(this,&triangle) → bool | Signed current≥count returns false, preserving triangle; otherwise primitive triple, optional index decode, vertex copy, increment current, true; reach. |
+
+The 50-body checklist does not make every nearby function a member. In particular `0x007F7A00`
+copies cached view min/max to two required vector outputs (57 bytes); `0x007F8290` copies x/z of
+draw ground corners to four required P2 outputs (87 bytes); `0x007F8340` is a cached-angle getter
+(69 bytes, same angle rule using cached zoom/rotation). They operate on this object's layout but are
+**outside the measured 50-entry attribution set**; retain these native getter contracts without adding
+their bytes to that set. `0x007F8170` is a transform/AABB helper (273 bytes) and `0x007F82F0` computes
+atan2(−first,−second) (15 bytes); neither is a missing camera setter. No shared-map edits are proposed.
+The constructor at `0x0080AE60` initializes the iterator vtable and its defaults but is shared by
+attribution, not a 51st family-owned body. Geometry triangle/plane/clipping dependencies in §7.2 likewise
+retain their geometry owner rather than being double-counted here.
