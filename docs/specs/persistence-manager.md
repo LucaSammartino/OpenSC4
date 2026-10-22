@@ -317,10 +317,8 @@ The cache list's auto-reference destructors do Release cache references. Shutdow
 cleanup operation; final Release is not an equivalent flush.
 
 Service slot 11 (`0x0097356D`, main+4) takes the cache-registry lock and calls every cache slot 14 with the
-supplied argument. **Quirk:** it ORs results into an uninitialized stack byte and returns that byte; an
-empty list also returns the uninitialized byte. Native `0x0097356D–0x009735B7` contains no initialization
-of `[EBP-1]`; this is not a reliable boolean oracle. Only callback order/arguments are deterministic.
-See PR4 in questions/persistence.md for the caller-facing implementation decision still needing evidence.
+supplied argument. Its native return is stack-state-dependent; §9.1 gives the exact byte rule and shipped
+consumer, and §9.2 specifies the deliberately deterministic clean-room return (PR4).
 
 Locks are recursive critical-section objects. Factory/segment/cache callbacks generally run while the
 corresponding lock remains held, with the exceptions explicitly listed above. They are not copied to
@@ -329,6 +327,68 @@ There is no owner-local concurrent/reentrant-mutation safety or rollback guarant
 use stable registries while enumerating. This documents the observed mechanism, not a newly promised
 thread-safe public API. In particular, wrong/different locks on slots 17/41/42 and unlocked slots 35/36
 must not be read as protection against arbitrary concurrent registry mutation.
+
+### 9.1 Service Update: native return and shipped consumer (PR4)
+
+With a stable cache registry, Update visits every cache once in registry order, passes the unchanged
+32-bit argument to cache slot 14, and releases the cache-registry lock after the last callback. A true
+callback result does not stop traversal. The empty registry still acquires/releases the lock. Evidence:
+`0x00973577–0x009735AC`; the callback is at `0x00973597`, and the loop back-edge at `0x009735A5` depends
+only on reaching the list sentinel, not on a callback result.
+
+**Native undefined initial value:** the byte at `[EBP-1]` is never initialized by this body. The stack
+reservation at `0x00973570` does not clear it. The lock helper at `0x0048C9F0–0x0048CA08`, called with
+the object at `[EBP-0xC]`, writes only that object's first two 32-bit fields, not `[EBP-1]`. Each callback's
+entire AL byte is ORed into `[EBP-1]` at `0x0097359C`; `0x009735AF` loads that byte into AL for return.
+There is no boolean normalization. Upper EAX bits do not constitute a specified return value.
+
+Let **S** denote the pre-existing accumulator byte, and **R1…Rn** the callback return bytes for a particular
+execution. The returned byte is **S OR R1 OR … OR Rn**, using 8-bit bitwise OR. With no callbacks, or with
+all callbacks returning zero, it is S. With canonical boolean callbacks, any true result forces bit 0
+but leaves the other seven bits dependent on S. Thus even the ordinary built-in cache's true result
+does not establish that the returned byte equals 1. Neither initial false nor initial true is a native
+contract; S is prior stack content, not a caller input or a fresh random value on each call.
+
+For illustration only, latent S=`0x80` and callback bytes `[0,1,0]` yield `0x81`; latent S=`0x00` and
+those same bytes yield `0x01`. An empty registry would yield `0x80` and `0x00` respectively. These are
+conditional byte calculations, not measured runs or controllable API inputs.
+
+The shipped registration/dispatch trace is:
+
+| Evidence | Consequence for this return |
+|---|---|
+| Constructor `0x009744BB–0x009744E4`: service ID `0x056B906E`, service pointer main+4, vtable `0x00AD899C`; the executable word at `0x00AD89C8` is `0x0097356D`. | This is service slot 11, not manager slot 11. Export has zero direct calls to this target and one data reference, this vtable word. |
+| `cGZResManCOMDirector::OnStart`, `0x0097531C–0x0097534E`: create class `0x656B8F27` as service IID `0x287FB697`, then pass that service pointer to framework slots 3 and 11. Class creation uses `0x009750E4`, which enters the manager constructor at `0x009750F5`. | The manager's service is registered for framework dispatch. Framework slot 11 here is registration, not a call to the service's slot 11. |
+| Framework vtable `0x00AC3090`: slot 11 targets `0x00879D21`; that body appends the pointer to the list at framework+`0xA8` (`0x00879D45–0x00879D9B`). Slot 16 targets `0x0087A812` (word `0x00AC30D0`). | This list supplies the service Update dispatcher. |
+| Dispatcher `0x0087A812` copies that list to a temporary vector, then calls each service slot 11 at `0x0087A8C1`, passing its update counter from framework+`0xC4` (`0x0087A85C–0x0087A8C1`). Immediately afterward it advances EDI and compares EDI with EBX (`0x0087A8C4–0x0087A8C9`). | The callback's AL/EAX is neither tested, stored, accumulated nor forwarded. Dispatch continues independently of this return, including false or noncanonical bytes. |
+
+The other two indirect `+0x2C` calls in the framework code interval `0x008793BD–0x0087B0B8` are at
+`0x0087AF73` and `0x0087AFC3`. Their receivers are respectively the embedded COM interface (obtained at
+`0x0087AF5D`, getter `0x008793F9`) and the application global `0x00B540B4`, not a registered service.
+The executable's 19 immediate references to service ID `0x056B906E` comprise its constructor and 18
+framework lookups that all request manager IID `0x656B8EFC`, not service IID `0x287FB697`. Representative
+lookup: `0x004496D5–0x004496E1`; the lookup sites are recorded in the lane report.
+
+**Observed consumer verdict:** the identified shipped service Update dispatch ignores the return byte;
+no return-observing persistence service caller was found along these registration, dispatch and explicit
+ID-lookup paths. This is static evidence for these shipped paths, not a claim about arbitrary dynamically
+obtained interfaces, external plugins or modified executables. Ghidra pseudocode omits the dispatch loop
+as allegedly unreachable; the executable/export instructions above establish that loop and its behavior.
+
+### 9.2 Clean-room return policy (PR4 choice)
+
+**Chosen deviation from the undefined native baseline:** expose canonical false for an empty registry or
+all-false callbacks, and canonical true if any cache Update returns true. Start the logical OR reduction
+at false, but execute every callback in registry order even once its result is true. Preserve the native
+argument, lock scope and callback effects independently of the chosen return. This rule covers callbacks
+obeying their boolean interface; it does not promise to emulate arbitrary noncanonical injected AL bytes.
+
+The choice is justified by the native OR operation's aggregation intent and the shipped dispatch's
+discarded return: it gives a useful, deterministic result without changing that dispatch's decisions or
+callback effects. It is an explicit compatibility policy, not evidence that native starts at zero, returns
+constant true, or matches these chosen bytes in empty/all-false cases. Exact native byte comparison is
+inapplicable where S is unknown. The independent vectors in §10.1 separate those native constraints from
+the chosen outputs.
 
 ## 10. Independent input/output/failure vectors
 
@@ -369,7 +429,24 @@ changes after manager temporaries are released. A “call trace” lists only se
 | PM27 | Shutdown with caches C1,C2, factories F1,F2, segments A,B | C1/C2 Shutdown before list Releases; then factory Releases/clear; then A/B Releases/clear. True; second Shutdown true with no callbacks. No cache restored by initialization, no type-map/counter reset. |
 | PM28 | Query unknown IID on manager or built-in cache, sentinel output | false, sentinel unchanged. Successful cache AddRef from count 0 returns 0 but stores 1; manager AddRef from count 0 returns/stores 1. |
 | PM29 | Segment callback returns true for A, false for B with C later | Callback trace A,B only; null callback has no trace. No AddRefs around callbacks. Registration mutation inside callback has no safe-iteration result vector. |
-| PM30 | Service update with caches C1,C2 returning 0/1 | Both receive argument in order; return byte has bit 0 set because of C2, but other bits depend on uninitialized stack. Empty/all-zero results have no deterministic returned-byte expectation (PR4). |
+| PM30 | Service update with caches C1,C2 returning 0/1 | Both receive argument in order; native return has bit 0 set, other bits depend on S. Chosen clean-room return true. See §9.1–9.2 and the independent PR4 cases below. |
+
+### 10.1 Independent service Update vectors (PR4)
+
+These are derived specification vectors, not executed tests or game captures. Remove the built-in cache
+before installing the exact registry shown; keep the registry stable during callbacks. Each named cache
+logs `(name, argument)` when its slot 14 is entered and returns the listed canonical boolean. Native S
+has the meaning in §9.1 and must not be silently set to zero by an oracle. All cases acquire the
+cache-registry lock before the trace and release it afterward.
+
+| ID | Registry and callback returns; supplied argument | Exact callback trace | Native returned-byte constraint | Chosen clean-room return |
+|---|---|---|---|---|
+| PMU01 empty | `[]`; `0x12345678` | none | S; no determinate boolean | false |
+| PMU02 false | `[A:false]`; `0` | `(A,0)` | S; no determinate boolean | false |
+| PMU03 all false | `[A:false,B:false,C:false]`; `0xFFFFFFFF` | `(A,0xFFFFFFFF)`, `(B,0xFFFFFFFF)`, `(C,0xFFFFFFFF)` | S; no determinate boolean | false |
+| PMU04 all true | `[A:true,B:true]`; `7` | `(A,7)`, `(B,7)` | S OR `0x01`; nonzero, not necessarily `0x01` | true; B still called |
+| PMU05 mixed | `[A:false,B:true,C:false]`; `0x12345678` | `(A,0x12345678)`, `(B,0x12345678)`, `(C,0x12345678)` | S OR `0x01`; nonzero | true; C still called |
+| PMU06 order/early true | `[C:true,A:false,B:true]`; `0x80000000` | `(C,0x80000000)`, `(A,0x80000000)`, `(B,0x80000000)` | S OR `0x01`; nonzero | true; all three called in registry order |
 
 ## 11. Complete attributed-body audit
 
