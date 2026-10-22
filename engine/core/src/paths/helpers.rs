@@ -16,10 +16,31 @@ pub const fn is_letter(c: u8) -> bool {
     c.is_ascii_alphabetic()
 }
 
-pub fn is_full_path(text: &[u8]) -> bool {
+/// Primitive thread-CRT classifier. The argument is the sign-extended input byte (PA4).
+/// An adapter must report unsupported locale/input domains instead of substituting Unicode.
+pub type CrtIsAlpha = fn(i32) -> Result<bool, UnsupportedLocaleByte>;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnsupportedLocaleByte(pub i32);
+
+/// Only the invariant basic-character/EOF domain is supplied portably. Other signed bytes need
+/// an actual CRT adapter; even a chosen single-byte encoding does not establish their behavior.
+pub fn invariant_crt_is_alpha(byte: i32) -> Result<bool, UnsupportedLocaleByte> {
+    match byte {
+        -1..=127 => Ok((b'A' as i32..=b'Z' as i32).contains(&byte) || (b'a' as i32..=b'z' as i32).contains(&byte)),
+        _ => Err(UnsupportedLocaleByte(byte)),
+    }
+}
+
+pub fn is_full_path(text: &[u8]) -> Result<bool, UnsupportedLocaleByte> {
+    is_full_path_with_classifier(text, invariant_crt_is_alpha)
+}
+
+pub fn is_full_path_with_classifier(text: &[u8], classifier: CrtIsAlpha) -> Result<bool, UnsupportedLocaleByte> {
     let text = c_text(text);
-    let rooted = text.starts_with(b"\\\\") || (text.len() >= 3 && is_letter(text[0]) && text[1..3] == *b":\\");
-    rooted && !text.windows(2).any(|p| is_path_separator(p[0]) && p[1] == b'.')
+    let alpha = classifier(i32::from(text.first().copied().unwrap_or(0) as i8))?;
+    let rooted = text.starts_with(b"\\\\") || (text.len() >= 3 && alpha && text[1..3] == *b":\\");
+    Ok(rooted && !text.windows(2).any(|p| is_path_separator(p[0]) && p[1] == b'.'))
 }
 
 /// Owned result text, without a terminator. `None` is the null/failure result (§1.2).
@@ -128,9 +149,20 @@ pub fn resolve_path(
     input: &[u8],
     base: Option<&[u8]>,
     provider: &mut impl CurrentDirectory,
-) -> bool {
-    let result = if is_full_path(input) {
-        Some(c_text(input).to_vec())
+) -> Result<bool, UnsupportedLocaleByte> {
+    resolve_path_with_classifier(out, input, base, provider, invariant_crt_is_alpha)
+}
+
+pub fn resolve_path_with_classifier(
+    out: &mut Vec<u8>,
+    input: &[u8],
+    base: Option<&[u8]>,
+    provider: &mut impl CurrentDirectory,
+    classifier: CrtIsAlpha,
+) -> Result<bool, UnsupportedLocaleByte> {
+    let result = if is_full_path_with_classifier(input, classifier)? {
+        // PA4: classification sees the C-string prefix, assignment copies the counted range.
+        Some(input.to_vec())
     } else if let Some(base) = base {
         fullpath_with_base(Some(input), FULLPATH_MAX, base)
     } else {
@@ -138,9 +170,9 @@ pub fn resolve_path(
     };
     if let Some(result) = result {
         *out = result;
-        true
+        Ok(true)
     } else {
-        false
+        Ok(false)
     }
 }
 
@@ -197,14 +229,23 @@ pub fn splitpath_into(
     }
 }
 
-pub fn fix_drive_string(drive: &mut Vec<u8>) {
+pub fn fix_drive_string(drive: &mut Vec<u8>) -> Result<(), UnsupportedLocaleByte> {
+    fix_drive_string_with_classifier(drive, invariant_crt_is_alpha)
+}
+
+pub fn fix_drive_string_with_classifier(
+    drive: &mut Vec<u8>,
+    classifier: CrtIsAlpha,
+) -> Result<(), UnsupportedLocaleByte> {
     if !drive.is_empty() {
+        let alpha = classifier(i32::from(drive[0] as i8))?;
         drive.resize(2, 0);
-        if !is_letter(drive[0]) {
+        if !alpha {
             drive[0] = b'C';
         }
         drive[1] = b':';
     }
+    Ok(())
 }
 
 pub fn fix_directory_string(directory: &mut Vec<u8>) {
@@ -224,70 +265,78 @@ pub fn fix_extension_string(extension: &mut Vec<u8>) {
     }
 }
 
-/// C-style count/output wrapper. Failure sets count to zero and leaves all parts unchanged (§1.6).
-/// Caller storage must cover the requested count; PA6's zero-count choice also fails here.
-pub fn split_directory_into(path: &[u8], parts: &mut [[u8; 260]], count: &mut usize) -> bool {
-    if *count > parts.len() {
+/// Signed C-style capacity/count. Rejection resets count but keeps earlier writes (PA6).
+/// The caller must provide storage for the positive requested capacity.
+pub fn split_directory_into(path: &[u8], parts: &mut [[u8; 260]], count: &mut i32) -> bool {
+    if *count > 0 && *count as usize > parts.len() {
         *count = 0;
         return false;
     }
-    let Some(texts) = split_directory(path, *count) else {
+    let capacity = *count;
+    *count = 0;
+    let success = split_directory_emit(path, capacity, |text| {
+        copy_c_result(&mut parts[*count as usize], Some(text));
+        *count += 1;
+    });
+    if !success {
         *count = 0;
-        return false;
-    };
-    *count = texts.len();
-    for (out, text) in parts.iter_mut().zip(texts) {
-        copy_c_result(out, Some(&text));
     }
-    true
+    success
 }
 
-/// Reverse component order, with the final available part containing all remaining prefix (§1.6).
-/// PA6: a zero-capacity or overlong remainder is rejected without exposing unwritten storage.
-pub fn split_directory(path: &[u8], capacity: usize) -> Option<Vec<Vec<u8>>> {
-    let path = c_text(path);
-    if path.is_empty() || capacity == 0 {
-        return None;
-    }
-    let mut end = path.len();
+/// Owned convenience form; only the buffer/count form exposes partial writes on failure.
+pub fn split_directory(path: &[u8], capacity: i32) -> Option<Vec<Vec<u8>>> {
     let mut parts = Vec::new();
-    loop {
-        let content_end = if end > 0 && is_path_separator(path[end - 1]) {
+    split_directory_emit(path, capacity, |text| parts.push(text.to_vec())).then_some(parts)
+}
+
+fn split_directory_emit(path: &[u8], capacity: i32, mut emit: impl FnMut(&[u8])) -> bool {
+    let path = c_text(path);
+    if path.is_empty() || path.len() > i32::MAX as usize {
+        return false;
+    }
+    // PA6: indices are signed and the final prefix copies end, not end+1, bytes.
+    // PA9: a negative capacity follows the literal signed loop test, like zero: no writes.
+    let mut end = path.len() as i32 - 1;
+    let mut written = 0;
+    while written < capacity && end > 0 {
+        let scan_end = if is_path_separator(path[end as usize]) {
             end - 1
         } else {
             end
         };
-        let separator = path[..content_end].iter().rposition(|&c| is_path_separator(c));
-        let start = if parts.len() + 1 == capacity {
-            0
+        let separator = if written + 1 < capacity {
+            path[..=scan_end as usize].iter().rposition(|&c| is_path_separator(c))
         } else {
-            separator.map_or(0, |p| p + 1)
+            None
         };
-        if content_end - start >= 255 {
-            return None;
+        let (start, span) = match separator {
+            Some(index) => (index + 1, end as usize - index),
+            None => (0, end as usize),
+        };
+        if span >= 255 {
+            return false;
         }
-        let mut part = path[start..end].to_vec();
-        if separator.is_none() && start == 0 && content_end == end {
-            // §1.6's explicitly specified single-component last-byte loss.
-            part.pop();
+        let mut text = path[start..start + span].to_vec();
+        if !text.last().copied().is_some_and(is_path_separator) {
+            text.push(b'\\');
         }
-        if !part.last().is_some_and(|&c| is_path_separator(c)) {
-            part.push(b'\\');
+        emit(&text);
+        written += 1;
+        match separator {
+            Some(index) => end = index as i32,
+            None => break,
         }
-        parts.push(part);
-        if start == 0 {
-            return Some(parts);
-        }
-        end = start;
     }
+    true
 }
 
 pub fn split_directory_path(path: &[u8], last: &mut Vec<u8>, parent: &mut Vec<u8>) -> bool {
-    let Some(mut parts) = split_directory(path, 2) else {
+    let Some(parts) = split_directory(path, 2) else {
         return false;
     };
-    *last = parts.remove(0);
-    // §3.9 [choice]: missing parent is empty instead of uninitialised stack text.
-    *parent = parts.pop().unwrap_or_default();
+    // §3.9 [choice], PA10 for zero parts: unwritten slots are empty, not uninitialised text.
+    *last = parts.first().cloned().unwrap_or_default();
+    *parent = parts.get(1).cloned().unwrap_or_default();
     true
 }
