@@ -13,9 +13,10 @@
 - First fmt attempt used relative paths and was refused as nonexistent; use absolute file paths.
 - Implementation committed adb42d1d before call 30. Quick PASS: capi 532 tests, C++ 130/130 edges.
 - New CAPI file formatted and qbuild fmt PASS. lib.rs recursive fmt flags 645 pre-existing diff lines in unrelated modules; none changed. q.py Bash unavailable (E_ACCESSDENIED); native rustfmt used only for the new file.
-- Next: stable qbuild all, then immutable native/current40 2032 controls, save on end date.
+- Stable full qbuild all PASS at 07aa4988: cargo 4963/0/0, clippy diagnostics0, build2/2, ctest68/68 (157s).
+- Next: immutable DLL snapshot cmdline4-r2-immutable; native label cmdline4-r2-native-2032-a will be submitted next, full save at end date2032-01-01.
 - Preserve CL1 extra slot, CL2 empty name, CL3 high bytes; no full 17-method claim.
-- No game requests yet; use unique labels and wait without qwait.
+- Upcoming native request cmdline4-r2-native-2032-a; use build-runs/cmdline4-r2-wait.py (never qwait); retain completed verdict. Current40 not submitted yet.
 - Required: immutable native/current40 controls, full save/shutdown to 2032, ref0, supported reload only.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-cmdline-native4-r2-manifest.json.
 
