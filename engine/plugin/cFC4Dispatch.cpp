@@ -197,7 +197,8 @@ size_t SourceStations(void* u, uint64_t source, fc4_station_units* out, size_t c
         ++n;
         // protection.md §15.4 (PR8): GetStations AddRefs every element.
         // SC4List only frees nodes; balance even count-only calls.
-        if (st != nullptr) {
+        // Air-source list ownership is not published; see dispatch DP13.
+        if (st != nullptr && (Src(s)->CanHandleDispatchType(0) || Src(s)->CanHandleDispatchType(1))) {
             FC4_ACQUIRED(st, "dispatch GetStations");
             FC4_RELEASE(st);
         }

@@ -22,8 +22,9 @@
 // SimNewMonth ("month"), on the main thread:
 //   1. the original's record (its cIGZSerializable::Write into memory, §7) is
 //      read into a FreeCity4 core made for the run over a read-only host table
-//      (only `resolve_ref` is wired: the record's station, automaton and
-//      pylon references; every callback that would change the game is NULL).
+//      (reference callbacks and read-only source queries are wired; callbacks
+//      that change game behavior are NULL). Sources are independently recovered
+//      from city protection providers and their saved air-source references.
 //      The core's Write must give the same bytes back (a reference is written
 //      as the capture's own object number, FC4CoreShadow.h);
 //   2. the original's answers through cISC4DispatchManager against the shadow
@@ -31,14 +32,13 @@
 //      GetDispatchIDArray (12) and GetDispatchInfo (10) record by record
 //      (type, ID, call ID, active, the vehicle-view handle and the station,
 //      automaton and pylon as object identities), and GetActivePylon (18) as
-//      an object identity.
+//      an object identity. Source identity (15) and available units (21) are
+//      compared for every type, with original/core counts printed in the log.
 //
 // Not readable read-only, hence not compared (logged at game start): the
 // automaton events (0x09D92FC3) the manager receives as the vehicle's event
 // target, the messages it POSTS (0xE94671EB-ED, 0x894671F6), the tool's pylon
-// list and everything derived from it (Begin / End, slots 16, 17, and
-// GetAvailablePylonCount, slot 21: the free units of the sources' stations,
-// which a record-only shadow cannot see) and the vehicle view's tracking
+// list (Begin / End, slots 16, 17) and the vehicle view's tracking
 // (slot 22 is presentation).
 //
 // Log lines (always written, not the verbose channel), one per event:

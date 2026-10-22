@@ -17,7 +17,7 @@
 //! `create_vehicle_view`, a created `begin_vehicle` or `resolve_ref` comes
 //! with one reference for the core. Tokens from queries are borrowed.
 //!
-//! Threads: the core is single-threaded (`RefCell`). The plugin serialises
+//! Threads: state reads/writes use a mutex. The plugin must serialize
 //! every call on one object (fc4.h).
 
 use std::ffi::c_void;

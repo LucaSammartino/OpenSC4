@@ -22,8 +22,7 @@
 // 0xE4FDA3D4 at +8 (the core's fc4_dispatch_query_interface gives the
 // sub-object offset).
 //
-// Threading: the core is single-threaded (RefCell); the plugin serialises
-// every call on this one object. Getters run from a second thread while
+// Threading: core state uses a mutex for reads and writes. Getters run from a second thread while
 // OnTick runs (HANDOFF §5.1), so nothing here lives in a RefCell.
 //
 // OFF by default: FreeCity4.ini `enable = dispatch`; `disable` still wins.

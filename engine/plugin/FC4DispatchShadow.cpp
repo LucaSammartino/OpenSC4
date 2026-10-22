@@ -93,7 +93,9 @@ size_t SourceStations(void*, uint64_t source, fc4_station_units* out, size_t cap
             s->GetDispatchesAtStation(station, &out[n].mask, &out[n].base, &out[n].count);
         }
         ++n;
-        if (station != nullptr) {
+        // PR8 proves AddRef-on-copy for ground providers only. Air-source
+        // ownership is unpublished (DP13); do not release an unowned pointer.
+        if (station != nullptr && (s->CanHandleDispatchType(0) || s->CanHandleDispatchType(1))) {
             FC4_ACQUIRED(station, "dispatch shadow GetStations");
             FC4_RELEASE(station);  // protection.md §15.4: slot 6 AddRefs elements
         }
@@ -272,6 +274,7 @@ void RunStep(void* p) {
             // The station, automaton and pylon travel as object identities.
             if (info.type != static_cast<int32_t>(s.dispatch_type) || info.id != s.id || info.callId != s.call_id ||
                 (info.active ? 1 : 0) != s.active ||
+                info.x != s.target_x || info.y != s.target_y || info.z != s.target_z ||
                 TokenOf(info.station) != s.station || TokenOf(info.automaton) != s.automaton ||
                 TokenOf(info.pylon) != s.pylon) {
                 d.Add("info(%u) fields differ", ids[k]);
@@ -305,6 +308,9 @@ void RunStep(void* p) {
     g_tally.mismatched += d.n;
     if (d.n != 0) AppendF(g_kinds, "%s%u", g_kinds.empty() ? "" : ",", d.n);
     r.result = static_cast<intptr_t>(d.n);
+    // Release captured references while the native records still own them.
+    fc4_dispatch_destroy(g_core);
+    g_core = nullptr;
 }
 
 intptr_t RunOnce(cISC4City* city, int32_t julian, uint32_t event) {

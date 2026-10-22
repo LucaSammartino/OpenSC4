@@ -375,8 +375,8 @@ std::string RunDispatch(const harness::ScriptAction& a, int32_t julian, cISC4Cit
     if (located) {
         const uint32_t freeBefore = dm->GetAvailablePylonCount(a.type);
         const uint32_t before = dm->GetDispatchCount(a.type);
-        const bool can = dm->CanDispatch(a.type, position.fX, position.fZ);
-        const bool began = dm->BeginDispatchTool(a.type);
+        const bool can = dm->CanDispatch(a.type, position.fX, position.fZ);  // [abi-ret] dispatch.md §8 slot 5: AL
+        const bool began = dm->BeginDispatchTool(a.type);  // [abi-ret] dispatch.md §8 slot 16: AL
         const uint32_t id = dm->Dispatch(a.type, position.fX, position.fZ);
         FC4DispatchInfo info{};
         const bool hasInfo = dm->GetDispatchInfo(id, info);
@@ -389,8 +389,8 @@ std::string RunDispatch(const harness::ScriptAction& a, int32_t julian, cISC4Cit
             info.automaton != nullptr, info.pylon != nullptr, info.viewHandle,
             static_cast<unsigned>(record.Bytes().size()), wrote);
         if (DispatchShadowEnabled()) DispatchShadowTestRun(city, julian, 2);
-        const bool revoked = id != 0 && dm->RevokeDispatchByID(id);
-        const bool ended = dm->EndDispatchTool(a.type);
+        const bool revoked = id != 0 && dm->RevokeDispatchByID(id);  // [abi-ret] dispatch.md §8 slot 7: AL
+        const bool ended = dm->EndDispatchTool(a.type);  // [abi-ret] dispatch.md §8 slot 17: AL
         if (DispatchShadowEnabled()) DispatchShadowTestRun(city, julian, 2);
         char text[240];
         std::snprintf(text, sizeof(text), "id=%u info=%d vehicle=%d revoke=%d end=%d count=%u free=%u "
@@ -400,7 +400,9 @@ std::string RunDispatch(const harness::ScriptAction& a, int32_t julian, cISC4Cit
         result = text;
     }
     for (auto*& station : stations) {
-        if (station != nullptr) {
+        // Ground-source list elements are acquired (protection.md §15.4).
+        // Air-source list ownership remains DP13; never release unowned data.
+        if (station != nullptr && (source->CanHandleDispatchType(0) || source->CanHandleDispatchType(1))) {
             FC4_ACQUIRED(station, "script dispatch GetStations");
             FC4_RELEASE(station);
         }

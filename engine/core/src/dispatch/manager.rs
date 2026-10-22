@@ -7,8 +7,9 @@
 //! The dispatch manager (§2–§4, §7).
 
 use std::any::Any;
-use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, MutexGuard};
 
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 
@@ -78,10 +79,24 @@ impl Default for DispatchState {
 }
 
 /// The dispatch manager.
+// Getters may run on the game's second thread. Guards never cross the ABI;
+// state storage must synchronize reads as well as writes (lessons.md §5.1).
+struct StateStorage(Mutex<DispatchState>);
+
+impl StateStorage {
+    fn borrow(&self) -> MutexGuard<'_, DispatchState> {
+        self.0.lock().unwrap_or_else(|poison| poison.into_inner())
+    }
+
+    fn borrow_mut(&self) -> MutexGuard<'_, DispatchState> {
+        self.borrow()
+    }
+}
+
 pub struct DispatchManager {
     host: Rc<dyn DispatchHost>,
-    token: Cell<u64>,
-    s: RefCell<DispatchState>,
+    token: AtomicU64,
+    s: StateStorage,
 }
 
 /// What `Read` parsed (§7), applied only when complete.
@@ -98,17 +113,17 @@ impl DispatchManager {
     pub fn new(host: Rc<dyn DispatchHost>, token: u64) -> Rc<DispatchManager> {
         Rc::new(DispatchManager {
             host,
-            token: Cell::new(token),
-            s: RefCell::new(DispatchState::default()),
+            token: AtomicU64::new(token),
+            s: StateStorage(Mutex::new(DispatchState::default())),
         })
     }
 
     pub fn token(&self) -> u64 {
-        self.token.get()
+        self.token.load(Ordering::Relaxed)
     }
 
     pub fn set_token(&self, token: u64) {
-        self.token.set(token);
+        self.token.store(token, Ordering::Relaxed);
     }
 
     pub fn snapshot(&self) -> DispatchState {
@@ -143,10 +158,15 @@ impl DispatchManager {
 
     fn destroy(&self) {
         let h = &*self.host;
-        let (records, sources) = {
+        let (records, sources, active, available) = {
             let mut s = self.s.borrow_mut();
             s.destroyed = true;
-            (std::mem::take(&mut s.records), std::mem::take(&mut s.sources))
+            (
+                std::mem::take(&mut s.records),
+                std::mem::take(&mut s.sources),
+                s.active_pylon.take(),
+                std::mem::take(&mut s.available_pylons),
+            )
         };
         for r in records {
             for t in [r.station, r.automaton, r.pylon].into_iter().flatten() {
@@ -154,6 +174,11 @@ impl DispatchManager {
             }
         }
         for t in sources {
+            h.release(t);
+        }
+        // Read can precede Init. Its owned pylon references still need release
+        // when an uninitialized capture/core is destroyed.
+        for t in active.into_iter().chain(available.into_iter().flatten()) {
             h.release(t);
         }
     }
@@ -849,6 +874,13 @@ impl DispatchManager {
     }
 }
 
+impl Drop for DispatchManager {
+    fn drop(&mut self) {
+        self.shutdown();
+        self.destroy();
+    }
+}
+
 impl SaveObject for DispatchManager {
     fn class_id(&self) -> u32 {
         CLSID_DISPATCH_MANAGER
@@ -912,6 +944,6 @@ impl SaveObject for DispatchManager {
     }
 
     fn host_token(&self) -> u64 {
-        self.token.get()
+        self.token.load(Ordering::Relaxed)
     }
 }
