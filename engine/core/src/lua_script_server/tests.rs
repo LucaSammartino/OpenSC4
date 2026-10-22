@@ -41,7 +41,23 @@ fn counters_use_32_bit_wrap_and_signed_pause_comparison() {
 fn absent_thread_argument_setup_has_no_stack_effects() {
     let mut s = ScriptServer::new();
     let r = Record::new(RecordToken(1), b"", b"");
-    assert_eq!(s.setup_thread_arguments(&mut Minimal, &r), Ok(false));
+    assert_eq!(s.setup_thread_arguments(&mut Minimal, Some(&r)), Ok(false));
+}
+
+#[test]
+fn null_argument_record_is_a_defined_false_result() {
+    let mut s = ScriptServer::new();
+    assert_eq!(s.setup_thread_arguments(&mut Minimal, None), Ok(false));
+}
+
+#[test]
+fn factory_allocation_failure_and_zero_reference_construction() {
+    assert!(ScriptServer::factory(false).is_none());
+    let s = ScriptServer::factory(true).unwrap();
+    assert_eq!(s.ref_count(), 0);
+    assert_eq!(s.get_last_created_script_id(), -1);
+    assert_eq!(s.get_lua(), None);
+    assert!(!s.init_latched());
 }
 
 #[test]
@@ -53,8 +69,26 @@ fn non_schedulable_record_is_not_even_status_checked() {
 
 #[test]
 fn default_breakpoint_and_record_payloads() {
-    assert_eq!(Breakpoint::default(), Breakpoint { id: -1, name: vec![], line: -1, enabled: 1, condition: vec![] });
+    assert_eq!(
+        Breakpoint::default(),
+        Breakpoint {
+            id: -1,
+            name: vec![],
+            line: -1,
+            enabled: 1,
+            condition: vec![]
+        }
+    );
     let s = seeded();
     let r = s.record(7).unwrap();
-    assert_eq!((r.pause_count, r.resume_transitions, r.schedulable, r.auto_yield, r.last_line), (0, 0, false, false, -1));
+    assert_eq!(
+        (
+            r.pause_count,
+            r.resume_transitions,
+            r.schedulable,
+            r.auto_yield,
+            r.last_line
+        ),
+        (0, 0, false, false, -1)
+    );
 }

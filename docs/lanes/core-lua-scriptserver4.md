@@ -6,9 +6,12 @@
 - Goal: complete pure Rust cGZLuaScriptServer owner, with typed foreign execution/services.
 - Base: a4fe4219; detached HEAD intentionally retained; clean starting tree.
 - Read: short handoff index, lane/queue formats, re-lua-scriptserver4 public report.
-- Done: complete owner modules plus 31 independent public conformance cases and 4 core edge tests.
-- Quick gate PASS: 3647 tests, 0 failures; dependents compile; CMake 206/206 edges.
-- Next: ownership/failure/reentry edge audit, full owner inventory, formatting check, one stable final full gate.
+- Done: d217437c implements owner and 31 public vectors; expanded tests cover 25 integration and 6 core edges.
+- Done: all 50 real bodies / 7658B mapped in engine/core/src/lua_script_server/OWNER.md; false 42B excluded.
+- Quick gate PASS: 3674 tests, 0 failures; dependents compile; CMake 4/4 edges (104.7s).
+- Formatting: wrapper requires absolute file paths; 8 new Rust files check PASS before latest two small core helpers.
+- Next: final counter/ID edge review, formatting check, one stable final full cargo/clippy/ctest gate.
+- Build note: test-only changes can cause Ninja restat to show 1/4 edges despite exit zero; wrapper marks incomplete.
 - Baseline: coordinator stable native train gate accepted; task forbids repeating pre-edit full gate.
 - q.py cannot start Bash (E_ACCESSDENIED); use capped direct PowerShell commands.
 - No game requests, no questions, no native/ABI/plugin changes.
