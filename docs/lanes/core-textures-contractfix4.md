@@ -11,9 +11,10 @@
 - Done: independent distinguishing vectors added; focused quick and fmt invoked, logs pending.
 - Done: 2a906396 factory/material correction and independent vectors; formatting passed five touched Rust files.
 - Done: order-independent repeated-alias restore now reloads the current record key once per table entry; distinct-record order withheld under TB8.
-- Next: stable source commit, final fmt/full gate; record exact counts and review queue.
+- Done: f471bdc8 stable source; fmt PASS five files. Baseline all interrupted after 639 passed/0 failed completed results; C API second-thread clock test stalled over 60 seconds. No baseline clippy/native completion.
+- Next: final all on f471bdc8 with RUST_TEST_THREADS=1; record exact counts and review queue.
 - TB8 filed: native hash/growth/chain rules absent; distinct-record restore explicitly unsupported.
-- Baseline all started; wrapper returned session 62872; inspect build-runs summaries for completion.
+- Baseline wrapper session 62872 interrupted with Ctrl-C; focused quick native build still pending.
 - Scope: textures_materials and independent conformance/tests only; no game runs or shared ABI edits.
 - Family cap: parent core-textures-materials4 round 1 landed train84; this reservation logical 2/3, max one round here.
 - TB1 interface identity and TB2 settings producer remain unknown.
