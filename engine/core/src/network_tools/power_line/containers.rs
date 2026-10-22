@@ -39,7 +39,10 @@ pub fn repeat_pole_record(source: &PoleInfo, count: usize) -> Vec<PoleInfo> {
 }
 
 pub fn assign_pole_range(destination: &mut [PoleInfo], source: &[PoleInfo]) -> usize {
-    assert!(destination.len() >= source.len(), "native assignment requires sufficient destination storage");
+    assert!(
+        destination.len() >= source.len(),
+        "native assignment requires sufficient destination storage"
+    );
     for (destination, source) in destination.iter_mut().zip(source) {
         destination.clone_from(source);
     }
@@ -47,7 +50,10 @@ pub fn assign_pole_range(destination: &mut [PoleInfo], source: &[PoleInfo]) -> u
 }
 
 pub fn assign_groups(destination: &mut [Vec<usize>], source: &[Vec<usize>]) -> usize {
-    assert!(destination.len() >= source.len(), "native assignment requires sufficient destination storage");
+    assert!(
+        destination.len() >= source.len(),
+        "native assignment requires sufficient destination storage"
+    );
     for (destination, source) in destination.iter_mut().zip(source) {
         destination.clone_from(source);
     }

@@ -198,11 +198,16 @@ impl World for TestWorld {
         wire
     }
     fn init_wire(&mut self, _: Reference) {}
-    fn set_wire_mode(&mut self, _: Reference, real: bool) { assert!(real); }
-    fn bind_wire(&mut self, wire: Reference, cell: (i32,i32), endpoints: [Reference;2], _:bool) {
-        self.wires.insert(wire,endpoints.map(Some)); self.wire_cells.insert(wire,cell);
+    fn set_wire_mode(&mut self, _: Reference, real: bool) {
+        assert!(real);
     }
-    fn set_wire_position(&mut self, wire: Reference, position: Point) { self.positions.insert(wire,position); }
+    fn bind_wire(&mut self, wire: Reference, cell: (i32, i32), endpoints: [Reference; 2], _: bool) {
+        self.wires.insert(wire, endpoints.map(Some));
+        self.wire_cells.insert(wire, cell);
+    }
+    fn set_wire_position(&mut self, wire: Reference, position: Point) {
+        self.positions.insert(wire, position);
+    }
     fn insert_pole(&mut self, p: Reference, arg: u32) {
         assert_eq!(arg, 0);
         self.events.push(Event::Insert(p));
@@ -237,9 +242,11 @@ impl World for TestWorld {
     fn connection_cells(&mut self, p: Reference, other: Reference) -> Vec<(i32, i32)> {
         self.cells.get(&(p, other)).cloned().unwrap_or_default()
     }
-    fn connection_cells_at(&mut self, p:Reference,index:usize) -> Vec<(i32,i32)> {
-        let other=self.poles[&p].connections[index].other;
-        other.map(|o|self.cells.get(&(p,o)).cloned().unwrap_or_default()).unwrap_or_default()
+    fn connection_cells_at(&mut self, p: Reference, index: usize) -> Vec<(i32, i32)> {
+        let other = self.poles[&p].connections[index].other;
+        other
+            .map(|o| self.cells.get(&(p, o)).cloned().unwrap_or_default())
+            .unwrap_or_default()
     }
     fn clear_connections(&mut self, p: Reference, arg: bool) {
         assert!(arg);
@@ -619,9 +626,7 @@ fn pl_n1_n2_n3_wrapper_attempt_and_real_success_gate() {
             ..TestWorld::default()
         };
         let mut state = ToolState::new(5);
-        assert!(do_network_specific_placement(
-            &mut state, &mut tool, &mut w, &mut run, 1, real
-        ).unwrap());
+        assert!(do_network_specific_placement(&mut state, &mut tool, &mut w, &mut run, 1, real).unwrap());
         assert!(w.events.contains(&Event::Attempt));
         assert_eq!(w.events.contains(&Event::Regional), regional);
         assert!(tool.poles.is_empty());
@@ -763,62 +768,188 @@ fn pl_zw1_zw2_zw3_zu3_endpoint_overlap_and_withheld_backward_split() {
 
 #[test]
 fn pl_b2_b3_building_termination_and_zone_reference_asymmetry() {
-    for zone in [false,true] {
-        let (mut run,mut tool)=drag(2,20); run.straight_count=2;
-        let mut w=TestWorld::default();
-        let a=w.pole(1,(10,10)); let b=w.pole(2,(15,10));
-        w.wires.insert(Reference(8),[Some(a),Some(b)]);
-        w.register(Reference(8),(0,0),WIRE_IID,Reference(8));
+    for zone in [false, true] {
+        let (mut run, mut tool) = drag(2, 20);
+        run.straight_count = 2;
+        let mut w = TestWorld::default();
+        let a = w.pole(1, (10, 10));
+        let b = w.pole(2, (15, 10));
+        w.wires.insert(Reference(8), [Some(a), Some(b)]);
+        w.register(Reference(8), (0, 0), WIRE_IID, Reference(8));
         if zone {
             // First cell zone=0; second cell three uncached zone reads reject.
-            w.zones=[0,1,1,1].into();
+            w.zones = [0, 1, 1, 1].into();
         } else {
-            w.occupants.insert((1,0),vec![Reference(9)]); w.classes.insert(Reference(9),0x2781_28A0);
+            w.occupants.insert((1, 0), vec![Reference(9)]);
+            w.classes.insert(Reference(9), 0x2781_28A0);
         }
-        let mut failure=0; determine_pole_positions(&mut run,&mut tool,&mut w,&mut failure);
+        let mut failure = 0;
+        determine_pole_positions(&mut run, &mut tool, &mut w, &mut failure);
         assert!(tool.poles.is_empty());
-        assert_eq!(w.events.contains(&Event::Release(a)),!zone);
-        assert_eq!(w.events.contains(&Event::Release(b)),!zone);
-        assert_eq!(failure,if zone{0}else{FAIL_BUILDING});
+        assert_eq!(w.events.contains(&Event::Release(a)), !zone);
+        assert_eq!(w.events.contains(&Event::Release(b)), !zone);
+        assert_eq!(failure, if zone { 0 } else { FAIL_BUILDING });
     }
-    for building in [true,false] {
-        let (mut run,mut tool)=drag(4,20); run.straight_count=4;
-        let mut w=TestWorld::default(); w.occupants.insert((1,0),vec![Reference(9)]);
-        w.classes.insert(Reference(9),if building{0x2781_28A0}else{0xC772_BF98});
-        let mut failure=0; determine_pole_positions(&mut run,&mut tool,&mut w,&mut failure);
-        if building { assert_eq!(failure,FAIL_BUILDING); assert_eq!(run.valid_count,1); }
-        else { assert_eq!(tool.wire_cells,2); assert_eq!(run.valid_count,4); }
+    for building in [true, false] {
+        let (mut run, mut tool) = drag(4, 20);
+        run.straight_count = 4;
+        let mut w = TestWorld::default();
+        w.occupants.insert((1, 0), vec![Reference(9)]);
+        w.classes
+            .insert(Reference(9), if building { 0x2781_28A0 } else { 0xC772_BF98 });
+        let mut failure = 0;
+        determine_pole_positions(&mut run, &mut tool, &mut w, &mut failure);
+        if building {
+            assert_eq!(failure, FAIL_BUILDING);
+            assert_eq!(run.valid_count, 1);
+        } else {
+            assert_eq!(tool.wire_cells, 2);
+            assert_eq!(run.valid_count, 4);
+        }
     }
 }
 
 #[test]
 fn pl_p2_real_repair_calls_draw_once_and_recursive_place_disallows_more_repairs() {
-    for allow in [false,true] {
-        let (mut run,mut tool)=drag(3,20); tool.real=true;
-        let mut w=TestWorld::default(); let old=w.pole(1,(0,0));
-        tool.append_pole((2,0),2,false,-1,SavedConnection {endpoints:[Some(old),None],enabled:[1,0]});
-        place_poles(&mut run,&mut tool,&mut w,&mut 0,allow).unwrap();
-        assert_eq!(w.events.iter().filter(|e|matches!(e,Event::Draw(_))).count(),usize::from(allow));
+    for allow in [false, true] {
+        let (mut run, mut tool) = drag(3, 20);
+        tool.real = true;
+        let mut w = TestWorld::default();
+        let old = w.pole(1, (0, 0));
+        tool.append_pole(
+            (2, 0),
+            2,
+            false,
+            -1,
+            SavedConnection {
+                endpoints: [Some(old), None],
+                enabled: [1, 0],
+            },
+        );
+        place_poles(&mut run, &mut tool, &mut w, &mut 0, allow).unwrap();
+        assert_eq!(
+            w.events.iter().filter(|e| matches!(e, Event::Draw(_))).count(),
+            usize::from(allow)
+        );
     }
 }
 
 #[test]
 fn ordered_adjacency_groups_link_every_pair_without_dedup_and_do_not_invent_a_producer() {
-    let (mut run,mut tool)=drag(2,20); let mut w=TestWorld::default();
-    tool.append_pole((0,0),0,false,-1,SavedConnection::default());
-    tool.append_pole((1,0),1,false,-1,SavedConnection::default());
-    tool.groups=vec![vec![0,1,1,99]];
-    place_poles(&mut run,&mut tool,&mut w,&mut 0,false).unwrap();
-    assert_eq!(tool.poles[0].links,vec![(1,-1);4]);
-    assert_eq!(tool.poles[1].links,vec![(0,-1);4]);
-    assert_eq!(tool.poles[0].mask,tool.poles[1].mask);
+    let (mut run, mut tool) = drag(2, 20);
+    let mut w = TestWorld::default();
+    tool.append_pole((0, 0), 0, false, -1, SavedConnection::default());
+    tool.append_pole((1, 0), 1, false, -1, SavedConnection::default());
+    tool.groups = vec![vec![0, 1, 1, 99]];
+    place_poles(&mut run, &mut tool, &mut w, &mut 0, false).unwrap();
+    assert_eq!(tool.poles[0].links, vec![(1, -1); 4]);
+    assert_eq!(tool.poles[1].links, vec![(0, -1); 4]);
+    assert_eq!(tool.poles[0].mask, tool.poles[1].mask);
     assert!(tool.groups.is_empty());
 }
 
 #[test]
 fn invalid_sample_count_is_reported_without_clamping_or_synthesizing_geometry() {
-    let mut w=TestWorld {params:CurveParams {minimum_count:0,sample_distance:-8.0,..CurveParams::default()},..TestWorld::default()};
-    let a=w.pole(1,(0,0)); let b=w.pole(2,(2,0));
-    assert_eq!(connect(&mut w,a,Some(b),None),Err(GeometryBoundary::UnsupportedSampleCount(0)));
+    let mut w = TestWorld {
+        params: CurveParams {
+            minimum_count: 0,
+            sample_distance: -8.0,
+            ..CurveParams::default()
+        },
+        ..TestWorld::default()
+    };
+    let a = w.pole(1, (0, 0));
+    let b = w.pole(2, (2, 0));
+    assert_eq!(
+        connect(&mut w, a, Some(b), None),
+        Err(GeometryBoundary::UnsupportedSampleCount(0))
+    );
     assert!(!w.poles[&a].dirty && w.poles[&a].connections.is_empty());
+}
+
+#[test]
+fn pl_ep1_u1_draft_transfers_descriptor_and_restores_both_directions() {
+    let (mut run, mut tool) = drag(3, 20);
+    let mut w = TestWorld::default();
+    let a = w.pole(1, (0, 0));
+    let b = w.pole(2, (4, 0));
+    for (source, other) in [(a, b), (b, a)] {
+        let cell = w.poles[&other].cell;
+        w.poles.get_mut(&source).unwrap().connections.push(Connection {
+            other: Some(other),
+            enabled: 1,
+            cell,
+            ..Connection::default()
+        });
+    }
+    let saved = SavedConnection {
+        endpoints: [Some(a), Some(b)],
+        enabled: [1, 0],
+    };
+    tool.append_pole((2, 0), 2, false, -1, saved);
+    place_poles(&mut run, &mut tool, &mut w, &mut 0, false).unwrap();
+    assert_eq!(tool.edits, vec![saved]);
+    assert!(!w.events.contains(&Event::Detach(a, b)));
+    assert!(!w.events.contains(&Event::Release(b))); // descriptor ref transferred, b has no repair entry
+    w.events.clear();
+    undo_preview(&mut tool, &mut w);
+    assert_eq!(w.poles[&a].connections[0].enabled, 1);
+    assert_eq!(w.poles[&b].connections[0].enabled, 0);
+    assert!(w.events.ends_with(&[Event::Release(a), Event::Release(b), Event::Base]));
+}
+
+#[test]
+fn pl_rl2_nonnull_other_replaces_anchors_after_release_and_solves_without_regional_wrapper() {
+    let (mut run, mut tool) = drag(3, 20);
+    let mut w = TestWorld::default();
+    let other = w.pole(1, (6, 0));
+    let cells = [(2, 0), (3, 0), (4, 0)];
+    let scan = Relocation {
+        start: 0,
+        stop: 3,
+        increment: 1,
+        unused_ninth: Some(Reference(999)),
+        other: Some(other),
+    };
+    let found = find_new_pole_position(
+        &mut run,
+        &mut tool,
+        &mut w,
+        Rectangle {
+            minimum: (0, 0),
+            maximum: (2, 0),
+        },
+        &cells,
+        scan,
+        &mut 0,
+    )
+    .unwrap();
+    assert_eq!(found, Some((3, 0)));
+    assert_eq!(tool.anchors, vec![(3, 0), (6, 0)]);
+    let draw = w.events.iter().position(|e| matches!(e, Event::Draw(_))).unwrap();
+    assert_eq!(w.events[draw - 1], Event::Release(Reference(101)));
+    assert!(!w
+        .events
+        .iter()
+        .any(|e| matches!(e, Event::Attempt | Event::Regional | Event::Selection(..))));
+}
+
+#[test]
+fn literal_fresh_axis_pivots_preserve_nt26_and_native_release_pass_skips_wire_vector_zero() {
+    let (mut run, mut tool) = drag(6, 3);
+    let mut w = TestWorld::default();
+    determine_pole_positions(&mut run, &mut tool, &mut w, &mut 0);
+    assert_eq!(tool.poles.iter().map(|p| p.x).collect::<Vec<_>>(), vec![0, 5]);
+    let (mut run, mut tool) = drag(2, 20);
+    tool.real = true;
+    tool.append_pole((0, 0), 0, false, -1, SavedConnection::default());
+    tool.append_pole((2, 0), 1, true, 0, SavedConnection::default());
+    tool.wire_vectors.push(vec![WireCell {
+        x: 1,
+        z: 0,
+        ..WireCell::default()
+    }]);
+    let mut w = TestWorld::default();
+    place_poles(&mut run, &mut tool, &mut w, &mut 0, false).unwrap();
+    assert!(tool.wire_vectors[0][0].wire.is_some()); // strict >0 release test
 }

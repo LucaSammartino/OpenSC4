@@ -354,12 +354,12 @@ pub fn place_poles(
             if tool.real && wire_index >= 0 {
                 for wire in &mut tool.wire_vectors[wire_index as usize] {
                     if wire.wire.is_none() {
-                        let position = compute_pole_position(wire.x, wire.z, world);
                         let reference = world.allocate_wire();
                         world.add_ref(reference);
                         world.init_wire(reference);
                         world.set_wire_mode(reference, tool.real);
                         world.bind_wire(reference, (wire.x, wire.z), endpoints, wire.pivot);
+                        let position = compute_pole_position(wire.x, wire.z, world);
                         world.set_wire_position(reference, position);
                         wire.wire = Some(reference);
                     }

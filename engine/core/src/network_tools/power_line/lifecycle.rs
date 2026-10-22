@@ -98,18 +98,26 @@ pub trait FailureText {
 
 /// Structural destruction is separate from world-side undo and takes no COM references (§1).
 pub fn destruct(tool: &mut PowerLineTool, base: impl FnOnce()) {
-    tool.groups.clear(); tool.groups.shrink_to_fit();
-    tool.edits.clear(); tool.edits.shrink_to_fit();
-    tool.reused.clear(); tool.reused.shrink_to_fit();
-    tool.newly_created.clear(); tool.newly_created.shrink_to_fit();
-    tool.wire_vectors.clear(); tool.wire_vectors.shrink_to_fit();
-    tool.poles.clear(); tool.poles.shrink_to_fit();
+    tool.groups.clear();
+    tool.groups.shrink_to_fit();
+    tool.edits.clear();
+    tool.edits.shrink_to_fit();
+    tool.reused.clear();
+    tool.reused.shrink_to_fit();
+    tool.newly_created.clear();
+    tool.newly_created.shrink_to_fit();
+    tool.wire_vectors.clear();
+    tool.wire_vectors.shrink_to_fit();
+    tool.poles.clear();
+    tool.poles.shrink_to_fit();
     base();
 }
 
-pub fn deleting_destructor(tool: &mut PowerLineTool, flags:u32, base:impl FnOnce(), free:impl FnOnce()) {
-    destruct(tool,base);
-    if flags & 1 != 0 { free(); }
+pub fn deleting_destructor(tool: &mut PowerLineTool, flags: u32, base: impl FnOnce(), free: impl FnOnce()) {
+    destruct(tool, base);
+    if flags & 1 != 0 {
+        free();
+    }
 }
 
 pub fn failure_reason(tool: &PowerLineTool, host: &mut impl FailureText, reason: u32, output: &mut String) {
