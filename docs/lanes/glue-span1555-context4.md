@@ -15,6 +15,8 @@
 - Native `span1555-c4r1-native-20261022-01`: clean 2032-01-11/ref0; native 980/980 exact, 470400 arena bytes, refusal/fault/noCall=0. Direct 158/158. Shipped=0; all reachable texture rows 12 kinds, invalid records=0.
 - `4034791b` fixes fixture reference probe; quick PASS core2318/0, build4/4. First native setter check failures were fixture-only unsupported raw refcount offset; retained verdict is valid but not a passing setter check.
 - Corrected native `span1555-c4r1-native-20261022-02`: clean 2032-01-03/ref0; 980/980 exact, 470400 bytes, changed71043, 742/742 setter/lifetime checks; no refusal/fault/route mismatch/noCall/invalid texture record. Shipped0; no full-class/default credit.
-- Next: inspect union `span1555-c4r1-union-20261022-01` (literal supplied list + span1555) and final all session22803, then final report and queue.
+- Union `span1555-c4r1-union-20261022-01`: clean 2032-01-01/ref0, identical native 980/980 exact /470400 bytes /742 setter checks, refusal/fault/noCall/invalid0, shipped0. Literal supplied 39 keys plus span1555.
+- Final all PASS cargo4175/0, clippy0 diagnostics, ctest67/67 (96.9s); no code edits since probe fix. Tree-changed stamp is documentation commits only.
+- Next: replace this Handoff with final report, commit report, write ready queue for actual detached HEAD. No new questions, no ABI changes.
 - Required game checks: unique native fixture and shipped counters through 2032/ref0, then literal supplied replacement union plus span1555.
-- Outstanding: union label above, wait session returned by exec. Wait helper build-runs/wait-span1555-verdict.py (no qwait).
+- No outstanding game requests; all three unique completed verdicts retained. Wait helper build-runs/wait-span1555-verdict.py used (no qwait).
