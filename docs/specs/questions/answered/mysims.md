@@ -64,3 +64,32 @@
   (f) `<path>\UserData` when the registry path already ends in `\` [plain concatenation, double separator kept];
   (g) the "male" text or a zodiac name failing to load [empty string].
   **ANSWERED 2026-10-21 (re-mysims-pool-answers4):** DIFFERS — (a) absent props write nothing and the template ctor 0x008B5E70 leaves bitmap/is-male/sign uninitialised: name and portrait empty, the other three indeterminate in the original (reimplement as 0/false/0). (b) cRZIniFile ReadEntry/ReadNumber: ASCII case-insensitive section/key, sscanf("%ld") decimal; nummembers result untested, unsigned k ≤ n loop. (c) picture folder = <ud>\Web Pages\<value>\FamilyGFX\ under the UserData dir (not install path); source cRZPath name family<k>_face ext .jpg. (d) F.ini = Export dir + name minus last 4 bytes + .ini (MATCHES). (e) length byte = len mod 256, that many bytes written (not cut to 255). (f) "%s%sUserData" with "\" always inserted: double separator kept (MATCHES). (g) cSLString miss → empty string (MATCHES). Rules in mysims.md §4.12.
+
+<!-- from: core-mysims-contractfix4 (2026-10-21); answered by re-mysim-final-gaps4 -->
+- ~~**MS13 - section 4.7.1:** location details left after MS11: (a) `0x00431370` `floor(world / 16)` for a NaN or a
+  quotient outside `i32` (x87 integer-indefinite `0x80000000`, or something else?) [Rust saturating cast, NaN → 0];
+  (b) does `SetCellPosition(x, z)` (neighbour branch of `validateCommuteLocation`) also write the world fields
+  `+0x04`/`+0x08`, or do they keep the −16.0 of the step-1 reset? [cells only]; (c) the home start rect when the home
+  holds an occupant whose lot is not found: the lot at the home cell, or straight to the single cell? [single cell].~~
+  **ANSWERED 2026-10-22 (re-mysim-final-gaps4):** DIFFERS — §4.7.1: positionToStandardCityCell uses the 24-bit x87 magic-number bit algorithm (00431370–004313FD), not saturation or integer-indefinite; NaN 7FC00000 gives 880803840. SetCellPosition writes world as well as cells (004311B0–004311D7). An occupant whose lot lookup fails goes straight to its single cell (00431880–004318D7; c MATCHES). Vectors: §12 case 21.
+
+- ~~**MS14 - section 4.12:** `Import` details left after MS12: (a) the value of the family member count `n` when
+  `sims_family_nummembers` is missing or not a number (`ReadNumber` writes nothing and its result is not tested: is
+  the local pre-initialised, and to what?) [0]; (b) the text of the member keys and of `family%d_face` for `k ≥ 2^31`
+  in the unsigned loop (printed with `%d`, negative, or `%u`?) [`%d`]; (c) `F.ini` for a listed entry name shorter
+  than 4 bytes (`Left(len − 4)` with a negative count) [empty stem]; (d) a missing `_gender` / `_zodiac` entry:
+  skip the member, or an empty value? [empty value].~~
+  **ANSWERED 2026-10-22 (re-mysim-final-gaps4):** DIFFERS — §4.12: n is zeroed per family at 0043C27E (16 bytes of pending pushes), passed to ReadNumber at 0043C761 and tested unsigned at 0043C84D (a MATCHES). Member/face formats use signed %d (0043C9BF,0043CA45,0043CB60,0043CBE4,0043CC8C; b MATCHES). Left's unsigned compare at 0090F46D–0090F478 keeps the whole short name. Missing gender or zodiac skips the member (0043CAA6–0043CB44,0043CBBE–0043CBC2); a successful empty read continues. Vectors: §12 case 22.
+
+- ~~**MS15 - sections 4.6, 4.7, 7.2:** trip and commute details not published: (a) `CheckCommute` (`0x0042D9E0`):
+  §4.7 says "the pathfinder's slot use is in §7.2", but §7.2 lists none. Which pathfinder slots and values does it
+  call (flags, destination filter, destination flags, travel-type masks, density, max trip length, start/end rect
+  source: the MySim's job/neighbour fields or the dispatch's commute destination), which `FindPath` result counts
+  as success, and which getter is "totalTime" (slot)? Is the pathfinder created only when a home and a job exist,
+  and does a missing home/job lot call `FailCommute`? [implemented: host callback `commute_time`, no core
+  configuration]. (b) §4.6: is `trip_traffic_congestion` read with `PositionToTract`/`GetTractValue` at the current
+  position ("All grid reads ...") or at the cell? [position]. (c) §4.6: does the `force` reset of the cell to
+  (0, 0) also apply to `GetTravelTimeRatio(cellX, cellZ, …)`? [yes, same cell]. (d) §4.6: what is the class's
+  "active" check of the gate? [MySim state != 0]. (e) §4.6 `destination_subject` "when travelling": the new trip
+  state = 2, or the dispatch's current state = 2? [new trip state].~~
+  **ANSWERED 2026-10-22 (re-mysim-final-gaps4):** DIFFERS — §§4.6/4.7/7.2: CheckCommute 0042D9E0–0042DB40 uses slots 5(1),9(3),18(1),19(home occupant bounds),20(job occupant bounds or MySim stored commute cell),23; success is exactly 1, then slot26 scaled-display getter and _ftol2 low32 store without clamping. No lot lookup or dispatch destination source. Missing references/null factory output return false without FailCommute. Other results run FailCommute fully before Release, including replacement-search owner callbacks (0042C8E0–0042C930). Trip congestion uses local world position (00427D1C–00427D4A), ratio local cells including forced zero (00427C60,00427D85–00427D96); active is state != 0 (00449550); subject uses new-state argument (00427980). b–e MATCHES, with local-copy/subject-retention rules added. Vectors: §12 cases 23–25; inherited factory defaults remain MS16.

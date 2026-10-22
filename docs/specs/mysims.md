@@ -328,21 +328,30 @@ value *[quirk]*.
 
 ### 4.6 `UpdateTripVariables(newTripState, oldTripState, newFlags, oldFlags, force)`
 
-Runs only when the Lua table exists, its handle is > 0 and the class's "active" check passes. It selects the
-MySim's table, writes, and restores the Lua stack.
+Runs only when the Lua table exists, its handle is > 0 and **MySim state ≠ 0** (`IsActive`, cISC4MySim slot 20;
+`0x00427779`–`0x004277B0`, implementation `0x00449550`, answers MS15 d). The guards run in that order,
+before any Lua or dispatch sampling. It selects the
+MySim's table and writes. Normal completion restores the saved Lua stack top (`0x0042850F`–`0x00428522`).
+If the traffic/pollution/crime service guard below fails, the early exit releases the local location copy
+but **skips that stack-restoration call** (`0x00427CBD`/`0x00427CC5`/`0x00427CD1` → `0x00428571`) *[quirk]*.
 
 - If the trip state changed or `force`: `trip_in_transit` := (new = 2), `trip_at_location` := (new = 3). On
   arrival (new = 3) the MySim's state follows the dispatch: at the default destination (home) → state 2 (and
   `AnnounceMoveIn` if the state was 1); at the commute destination → state 3. Then `UpdateQuickVariables`.
-  `destination_subject` := the occupant at the current destination when travelling, or at the current location
-  when it is neither home nor work (null otherwise).
+  `destination_subject` uses the **new trip-state argument**, not the dispatch's current state (MS15 e):
+  new = 2 → occupant at `GetCurrentDestination`; new = 3 → occupant at `GetCurrentLocation` when that location
+  is neither home nor work, otherwise null. New states other than 2/3 **leave the previous subject untouched**,
+  including a forced refresh with new = old = −1 (`0x00427980`–`0x00427A39`). The subject assignment follows
+  arrival handling and its quick-variable refresh.
 - If the flags changed beyond bit `0x100`, or `force`: `trip_at_transit_switch` (flag `0x10`), `trip_idle` (flag 1);
   if bit 15 of the flags went from clear to set, push event `MYSIM_APPROACHING_LOCATION` `0xEC107DF9`; the
   travel-type flags `trip_on_bus` (2), `trip_on_foot` (0), `trip_on_subway` (6), `trip_in_car` (1),
   `trip_on_train` (3), `trip_on_elevated_train` (7), `trip_on_monorail` (8), and `last_trip_type` (the matching
   number, 255 when none matches).
-- **Local area.** `half := LOCAL_AREA_SIZE / 2` (integer); the square is the MySim's current cell ± half
-  (current dispatch location; with `force` the cell is reset to (0, 0) first *[quirk]*).
+- **Local area.** Copy the dispatch's current location (holding its occupant reference); with `force`,
+  `SetCellPosition(0, 0)` changes this **local copy's cells and world position** to zero before sampling
+  (`0x00427C3E`–`0x00427C60`). The dispatch itself is unchanged. `half := LOCAL_AREA_SIZE / 2` (integer);
+  the square is that copy's cell ± half.
 - Only if the traffic, pollution and crime simulators all exist:
   - if the dispatch state is 2 (travelling) or `force`:
     - if not idle or `force`: `trip_traffic_congestion` (congestion map value, uint8), `trip_time_ratio`
@@ -351,7 +360,10 @@ MySim's table, writes, and restores the Lua stack.
     - `trip_pollution_air/water/garbage` (pollution grids 0–2, int16), `trip_crime` (crime grid, uint8),
       **`trip_mayor_rating`** (aura simulator `GetAuraGrid()` value, **int8, signed**; aura.md), `trip_eq` /
       `trip_hq` (residential `GetAverageEQGrid` / `GetAverageHQGrid` values as int).
-    All grid reads convert the current position with `PositionToTract` and read with `GetTractValue`
+    **Congestion uses the local copy's world x/z**, not its cells: `PositionToTract` slot 19 `+0x4C`, then
+    `GetTractValue` slot 22 `+0x58` (`0x00427D1C`–`0x00427D4A`, MS15 b). **Travel-time ratio uses that same
+    copy's cells**, including (0, 0) with force (`0x00427D85`–`0x00427D96`, MS15 c). These are distinct units.
+    All other grid reads also convert the local copy's world position with `PositionToTract` and read with `GetTractValue`
     (simgrid §4 slots 19/22, **no bounds check** *[quirk]*).
   - if `force`, dispatch state 3 (at a location), on foot, in a car, or idle: query the lots in the square
     (lot manager `GetLotsInCellRect(x0, z0, x1, z1, false)`). For every lot **with a building**, count it (n) and:
@@ -427,9 +439,29 @@ exit. A valid location with `notify` true still notifies. (answers MS11)
 - **`SetByOccupant(o)`** (`0x00431430`): first resets **every** field to the default above (so byCommute becomes 0
   and `+0x14`/`+0x18` −1), then flag `+0x1C` := 1, holds `o` (reference the new, release the old); if `o` is
   non-null: world x, z := `o.GetPosition()` (cISC4Occupant slot 8) x and z, and cell := `floor(world / 16)` per
-  axis (single precision, `0x00431370`). A null `o` leaves cells −1 (invalid). Returns true. Callers that need
+  axis (single precision, `0x00431370`; exact rule below). A null `o` leaves cells −1 (invalid). Returns true. Callers that need
   byCommute set it again afterwards: `ChangeJob` and `validateCommuteLocation` (which restores the byCommute it had
   before the call, i.e. 1).
+- **World → cell (`0x00431370`, per axis, answers MS13 a)** is not a truncating conversion but the
+  "magic number" floor, under the main thread's 24-bit x87 precision (foundations §18). With `w` the float32
+  world coordinate: `q := w × 0.0625` (`0x00A85798`, exact); `d := q − 0.5` (`0x00A84D2C`) rounded to 24 bits;
+  `s := d + 12582912.0` (`0x00A8579C`, 1.5 × 2^23) rounded to 24 bits and stored as float32; `n :=` the bit
+  pattern of `s` plus `0xB4C00000` (wrapping 32-bit add, read as int32); the result is the wrapping int32 `n + 1` if `q` compares
+  **equal** to the integer `n + 1`, else `n` (an unordered compare, i.e. NaN, also gives `n`). For
+  `|w| < 2^26` this is `floor(w / 16)` except one case: a negative `w` with `|w| ≤ 2^-21` gives **0**, not −1
+  (`d` rounds to exactly −0.5 and `s` ties to even). Outside that range and for NaN/∞ the result is the bit
+  arithmetic, **not** a saturation and not `0x80000000`; a NaN keeps its payload (quieted) into `n`.
+  Vectors (input float32 bits → cell): `0x432FE666` (175.9) → 10; `0xC1000000` (−8) → −1; `0xC1800000` (−16) →
+  −1; `0x80000000` (−0) → 0; `0x8DA24260` (−1e−30) → **0**; `0x477FFFFD` (65535.99) → 4095; `0x4C800000`
+  (2^26) → 4194304; `0x4CBEBC20` (1e8) → **5222152**; `0xCCBEBC20` (−1e8) → **−8305697**; `0x7FC00000` (NaN) →
+  **880803840**; `0xFFC00000` (−NaN) → **−1266679808**; `0x7F800001` (sNaN) → 880803841; `0x7F800000` (+∞) →
+  876609536; `0xFF800000` (−∞) → −1270874112.
+- **`SetCellPosition(x, z)` (`0x004311B0`, answers MS13 b)** writes the cells **and** the world fields:
+  `+0x0C := x`, `+0x10 := z`, `+0x04 := float(x << 4)`, `+0x08 := float(z << 4)` (32-bit shift, wrapping, then
+  signed int → float32, rounded to nearest-even at the store). It touches nothing else (occupant, flags, `+0x14`/`+0x18` unchanged). So the
+  neighbour branch of `validateCommuteLocation` leaves world = 16 × the clamped cell (end cell (−1, 37) in a
+  64×64 city → cell (0, 37), world (0.0, 592.0)), not the −16.0 of the reset; and §4.6's `force` reset to (0, 0)
+  also moves the **local copy's** world position to (0.0, 0.0); it does not move the dispatch itself.
 - **`+0x40` is the dispatch's trip state**: written only by dispatch `setState(s)` (`0x00431C10`): old := `+0x40`
   (kept at `+0x44`), `+0x40` := s; s = 3 also ORs `2` into dispatch flags `+0x48` (notification `0x4BB2D020`
   when they change); if old ≠ s, notification `0x4BB2CFC0(old, s)`, which is how §4.6 receives `newTripState` /
@@ -457,7 +489,7 @@ exit. A valid location with `notify` true still notifies. (answers MS11)
 | 4 | `SetTripDestinationFilter` (9) | **0** (standard destination) |
 | 5 | `SetDestinationFlag` (10) by the MySim's `GetWealth()` (cISC4MySim slot 19) | wealth 1 → `0x1`, 2 → `0x2`, 3 → `0x4`, anything else → `0x1` |
 | 6 | `SetTrafficDensity` (18) | 1 |
-| 7 | `SetStartRect` (19) | cell rect of the home location (`+0x84`): the lot of its occupant (or the lot at its cell) → the lot's bounding rect; no lot → the single cell |
+| 7 | `SetStartRect` (19) | cell rect of the home location (`+0x84`), `getLocationCellRect` (`0x00431880`): occupant non-null → lot manager slot 14 (`+0x38`, the occupant's lot); occupant null → `GetLot(cellX, cellZ, false)` (slot 6); a lot → its `GetBoundingRect` (lot slot 14); no lot → the single cell (cellX, cellZ, cellX, cellZ). An occupant whose lot is not found goes **straight to the single cell**, the cell lookup is not tried (answers MS13 c) |
 | 8 | `SetTravelTypeFlag(mask, alsoStarting)` (13) | `0x1CF`, true (Walk, Car, Bus, Passenger train, Subway, Elevated train, Monorail — allowed **and** starting) |
 | 9 | `FindPath` (23) | **one** call; result ≠ 1 → return false |
 
@@ -496,13 +528,57 @@ Worked examples (conformance):
 | `IsValid`, flag 0, region city at (+0x14,+0x18) with only a Ferry connection | — | false; with a Subway one → true |
 | `SetByOccupant(o)`, o at world (175.9, y, 32.0) | — | cell (10, 2), byCommute 0, `+0x14`/`+0x18` −1 |
 | `ChangeJob(b)`, b in city, trip state any | — | stored, no pathfinder call, one `0xEBA06BF4`, true |
+| home location: occupant set, lot manager has no lot for it, a lot exists at its cell (5, 6) | — | start rect (5, 6, 5, 6) (the cell lot is not used) |
+| home location: no occupant, lot at cell (5, 6) with bounding rect (4, 6, 7, 8) | — | start rect (4, 6, 7, 8) |
+| neighbour end cell (−1, 37), city 64×64 | — | `+0x04`/`+0x08` = 0.0 / 592.0 |
 
 **`ChangeJob(b)`** (slot 8): set the dispatch commute destination to building `b`; result of the dispatch.
 
-**`CheckCommute()`**: creates a pathfinder from the home lot rectangle to the job lot rectangle (or the
-neighbour cell), runs it, and on success stores `lastCommuteTime := uint(trunc(max(0, totalTime)))`. On failure
-→ **`FailCommute`**: `QuitJob()`, push event `MYSIM_COMMUTE_FAILED` `0xCA4553B7`, then `SetCurrentCommuteDestination(default, notify = true)`: a new job search (callers table above), which leaves the destination empty only when the search fails or trip state is 2.
-The pathfinder's slot use is in §7.2.
+**`CheckCommute()`** (`0x0042D9E0`, answers MS15 a) has its **own** pathfinder request, distinct from job
+search in §4.7.1. Native branch and callback order:
+
+1. Obtain the traffic simulator via city slot 69 (`+0x114`) **on entry**, even if the following preconditions
+   fail (`0x0042D9E7`–`0x0042D9F0`). A null city/traffic service is not guarded here.
+2. Require a job building (`+0xE0`) **or** neighbour job city (`+0xE4`), and a residence building (`+0xC4`).
+   Otherwise return false, preserving lastCommuteTime and without calling `FailCommute`.
+3. Initialise the pathfinder output pointer to null and call traffic slot 6 (`+0x18`, `CreatePathFinder(&out)`).
+   Only the **output pointer** is tested: null → false with no `FailCommute`; the factory's return register is
+   not used (`0x0042DA1E`–`0x0042DA30`). The non-null output is held until step 7.
+4. Obtain the residence's occupant via building slot 3 (`+0x0C`; the native building implementation returns
+   its occupant sub-object, `0x005FD7E0`), then occupant slot 11 (`+0x2C`, `GetBoundingCityCells(&startRect)`).
+   If the job building is non-null, obtain its rectangle the same way; **the local job takes precedence**
+   when both job references exist. Otherwise endRect := `(commuteCellX, commuteCellZ, commuteCellX,
+   commuteCellZ)` from MySim `+0xF0/+0xF4`, without validation or clamping (`0x0042DA3B`–`0x0042DA87`).
+   These are **occupant bounding city cells, not lot rectangles**. No lot-manager query or dispatch destination
+   getter runs. Missing home/job lots therefore do not cause a special failure or cell fallback. The occupant
+   results are dereferenced without null guards; do not turn an invalid occupant interface into `FailCommute`.
+5. Call the pathfinder slots in this exact order: 5 `SetFlag(1)`; 9 `SetTripDestinationFilter(3)`;
+   18 `SetTrafficDensity(1)`; 19 `SetStartRect(startRect)`; 20 `SetEndRect(endRect)`; 23 `FindPath()`.
+   Rectangles are passed as four int32 values by value (`0x0042DA8B`–`0x0042DB07`). There are **no calls** to
+   clear flags, set/clear destination flags, set/clear travel-type masks, set starting costs, or set maximum
+   trip length/work time. Preserve factory configuration for those settings; do not borrow job-search's
+   wealth flag, travel masks or MAX_TRIP_LENGTH setup. This specifies the MySim caller, not unproved factory
+   default values.
+6. Only the **full integer result = 1** is success. Success: call slot 26 (`+0x68`,
+   `GetTripLengthScaledForDisplay`, **not** slot 25 `GetTripLength`), convert the x87 result with `_ftol2`
+   `0x009EEF04`, and store its **low 32 bits** in lastCommuteTime (`+0x154`, `0x0042DB14`–`0x0042DB1C`).
+   For finite results within signed-64 conversion range this is truncation toward zero followed by reduction
+   modulo 2^32: 12.75 → 12, −1.75 → `0xFFFFFFFF`, 4294967808 → 512. All three operands are representable
+   with a 24-bit significand. There is **no nonnegative clamp**.
+   The getter itself multiplies its stored trip length (`+0x60`) by traffic's slot-15 display scale
+   (`0x006D6030`–`0x006D603B`), under the normal x87 precision rule (§18). Any FindPath result other than 1
+   calls `FailCommute` **before releasing this pathfinder**, without calling the getter or storing a new time.
+7. Release the original non-null pathfinder through slot 2 (`+0x08`) and return the success boolean
+   (`0x0042DB2B`–`0x0042DB40`). No extra MySim-side AddRef or rectangle-result Release occurs.
+
+**`FailCommute`** (`0x0042C8E0`): `QuitJob()` completes first (including `UpdateVariables`), then push event
+`MYSIM_COMMUTE_FAILED` `0xCA4553B7`, then construct a default location, mark it **by commute**, and call
+`SetCurrentCommuteDestination(location, notify = true)` (`0x0042C8E6`–`0x0042C91A`). Its normal validation,
+search and owner-notification rules in §4.7.1 apply synchronously; a successful search can therefore notify
+the owner and assign a replacement job before the original CheckCommute pathfinder is released. Do not
+reuse the failed pathfinder or substitute a previously drawn RNG value. Failure returns false even if this
+replacement search succeeds. The temporary location releases its held occupant on exit (`0x0042C91F`).
+Pathfinder slot reference: §7.2.
 
 **`QuitJob()`** (state ≠ 0): drop the job (or the neighbour city and its cells); if state ≠ 5, state := 2;
 `UpdateVariables`.
@@ -706,7 +782,10 @@ create-always (truncate), share read** and write the 4 magic bytes; failure → 
    `DoesDirectoryExist`); missing → next `i`. Call this `<ud>` below. (answers MS12 f)
 2. List `<ud>\Export\` (`<ud>` + `\` + `Export` + `\`) with filter `*.pub`. For each entry: `F.ini` = that
    directory + the entry name with its **last 4 bytes** dropped (`Left(len − 4)`, `0x0043C3CA`) + `.ini` — the
-   `.ini` sits next to the `.pub` in the `Export` directory (answers MS12 d). It must exist (open read / open
+   `.ini` sits next to the `.pub` in the `Export` directory (answers MS12 d). For a listed name shorter than
+   four bytes, the subtract wraps to a large unsigned count: `Left` compares **unsigned** with the string
+   length and returns the **entire name**, not an empty stem (`0x0090F46D`–`0x0090F478`, answers MS14 c).
+   Thus listed name `abc` gives `abc.ini`; an empty listed name gives `.ini`. It must exist (open read / open
    existing) and parse as an ini file, else skip the file.
 3. `[WebPages] FamilyDescription` is required (else skip the file); its encoding is converted, then **one**
    trailing `/` is cut (`EndsWith("/")` → length − 1; `\` is not cut). The family's picture folder is, byte for
@@ -722,8 +801,23 @@ create-always (truncate), share read** and write the 4 magic bytes; failure → 
    framework-rz-files.md §3.5: section and key match ASCII case-insensitively; numbers are `sscanf("%ld")`
    (leading blanks, optional sign, decimal only, stops at the first non-digit; a miss writes nothing).
    `_guid` uses the `ReadNumber` result (false → skip member). `sims_family_nummembers`'s result is **not
-   tested**; the member loop runs `k = 1` while `k ≤ n` **unsigned** (`0x0043C84D`, `0x0043CE8A`), so n = 0 → no
-   members and a negative n would loop over 2^32 − |n| keys (each failing `_name` and skipping).
+   tested**; **n starts at 0 for each listed family** (answers MS14 a: zero store `0x0043C27E`, with 16 bytes of
+   outstanding pushed arguments; read-output address `0x0043C761`; value loaded `0x0043C83E`). Missing or
+   non-numeric `sims_family_nummembers` therefore leaves n = 0 and imports no members, even after a previous
+   family with a valid positive n. The member loop runs `k = 1` while `k ≤ n` **unsigned**
+   (`0x0043C84D`, `0x0043CE8A`); negative parsed n is reinterpreted as uint32. For n = `0xFFFFFFFF`, k wraps
+   through zero and the loop never terminates by its bound *[quirk]*; do not simulate billions of iterations
+   as a conformance test.
+   The actual member-key formats are `sims_familymember%d_name`, `sims_familymember%d_gender`,
+   `sims_familymember%d_zodiac`, `sims_familymember%d_guid`; the face format is `family%d_face` (answers MS14 b;
+   calls `0x0043C9D3`, `0x0043CA4B`, `0x0043CB66`, `0x0043CBEA`, `0x0043CC92`). Although the bound is unsigned,
+   `%d` interprets k as signed int32: k = `0x80000000` gives `sims_familymember-2147483648_name` and
+   `family-2147483648_face.jpg`. This is a formatting vector, not a request to execute the import loop to k.
+   **Every member text read is required** (answers MS14 d): `_name` failure skips before `_gender`;
+   `_gender` failure skips before `_zodiac`; `_zodiac` failure skips before `_guid`; `_guid` failure skips
+   before portrait conversion. A present empty value is different from a missing key: successful empty
+   gender/zodiac values continue to the localized comparisons below. Branches: `0x0043CA2B`–`0x0043CA2F`,
+   `0x0043CAA6`–`0x0043CB44`, `0x0043CBBE`–`0x0043CBC2`, `0x0043CC22`–`0x0043CC7B`.
 5. Write one record (table above): name `"<first> <family>"`, is male := gender equals the "male" text
    (`cRZString::IsEqual` `0x0090EC57` called at `0x0043CDC2` with the case-sensitive flag = 0; see "Gender test"
    below), sign := zodiac index
@@ -739,7 +833,7 @@ Zodiac index: compare the lower-cased value with the 12 localized names (group `
 
 Text that fails to load (answers MS12 g): the "male" text and the zodiac names are `cSLString` objects
 (`0x00603580`, neighbors.md: a missing LTEXT leaves the string **empty**). An empty "male" text makes exactly the
-members with an empty `_gender` male; an empty zodiac name matches an empty `_zodiac` value (first such index
+members with a **present, successfully read** empty `_gender` male; an empty zodiac name matches a present empty `_zodiac` value (first such index
 wins), and no longer matches anything else.
 
 **Gender test** (`IsEqual(const cIGZString&, bool caseSensitive)` `0x0090EC57`; the flag pushed at `0x0043CDB2` is
@@ -973,6 +1067,23 @@ not an SDK error, but a non-MSVC replacement must lay the table out as below.
 `mysim_dispatch_tool` → `+0x10C` (wrappers `0x0040A410`, `0x0040A4F0`, `0x0040A5D0`, `0x0040A6B0`,
 `0x0040A790`). So the compiled `+0xC4..+0xD4` slots are indeed the SDK slot + 4 bytes.
 
+External pathfinder calls made by `CheckCommute` (MS15; `cISC4PathFinder`, vtable `0x00AB2150`;
+complete branch/order contract in §4.7):
+
+| Slot | Offset | Native entry | Meaning at this call site |
+|---|---|---|---|
+| 5 | +0x14 | `0x006D6CF0` SetFlag | OR flag 1 |
+| 9 | +0x24 | `0x006D6D30` SetTripDestinationFilter | filter 3 |
+| 18 | +0x48 | `0x006D6E00` SetTrafficDensity | density 1 |
+| 19 | +0x4C | `0x006D6E10` SetStartRect | home occupant's bounding city cells, four int32 by value |
+| 20 | +0x50 | `0x006D6E40` SetEndRect | job occupant's bounding city cells, or MySim's stored commute cell |
+| 23 | +0x5C | `0x006D91B0` FindPath | only integer 1 is success |
+| 26 | +0x68 | `0x006D6030` GetTripLengthScaledForDisplay | x87 result; called only after success |
+| 2 | +0x08 | Release | after the success store or the entire FailCommute handler |
+
+The caller supplies no destination flags, travel masks or maximum trip length. Their inherited factory
+configuration is a separate unresolved traffic contract (MS16); no numeric defaults are asserted here.
+
 ### 7.3 Other vtables of `cSC4MySim`
 
 | Vtable | Address | Overrides of the base |
@@ -1167,3 +1278,35 @@ the MySims own no grid).
     car/pedestrian keys zero and last player trip day 0.
 20. **No feedback.** Run 24 months with and without five MySims placed (same seeds for every simulator): every
     simulator record except the advisor system's is byte-identical.
+21. **MS13 location arithmetic.** Use §4.7.1's bit/result pairs, including −1e−30 → 0,
+    `0x7FC00000` → 880803840 and ±1e8, to distinguish the native algorithm from floor-plus-saturating-cast.
+    These are instruction-derived values under 24-bit precision, not game measurements. Cells (3, 37) →
+    world (48, 592); preserve occupant, flags and neighbour fields. Cell x = `0x10000001` stays unchanged
+    but gives world x = 16.0 (wrapping shift). For job search, a home occupant with no lot uses a single-cell
+    rect even when another lot exists at its cell; without an occupant, use that cell lot's rect.
+22. **MS14 import branches.** Import a valid family, then families with missing and non-numeric counts:
+    the latter import zero members, not the preceding family's count. For otherwise importable members,
+    missing `_gender` skips before zodiac/guid reads and portrait conversion; missing `_zodiac` skips before
+    guid and conversion. Present empty values continue (later guid/portrait steps must still succeed).
+    Formatting-only k = `0x80000000` yields §4.12's negative decimal keys/face name; never iterate to it.
+    Short listed name `abc` resolves `Export\abc.ini`, not `Export\.ini`.
+23. **MS15 request trace.** Give home/job occupants, their lots and dispatch destinations different bounds:
+    only occupant bounds supply CheckCommute's rectangles. Removing the lots must not change those calls.
+    Neighbour end rect uses the MySim's stored commute cell, even when negative or different from the
+    dispatch destination. With both job references, use the local job. Assert §4.7's exact setter order
+    and the absence of destination-flag/travel-mask/max-length setters.
+24. **MS15 outcomes and owner order.** Missing home or both job references: traffic lookup still occurs,
+    but no factory, failure event or time store. Null factory output: no rectangles, FindPath, failure
+    handler or time store. A captured native trace with FindPath result 1 must call slot 26, convert/store,
+    then Release; every other result must run QuitJob refresh, failure event, by-commute destination request
+    and its synchronous owner callbacks before releasing the original pathfinder. Return false even if
+    that replacement search succeeds. Verify conversion separately with §4.7's arithmetic examples;
+    do not invent host `commute_time` outputs, treat arbitrary nonzero results as success, or reuse RNG.
+    These are required cases; this lane produced no native runtime traces or conformance implementation.
+25. **MS15 trip sampling/subjects.** State 0 stops before Lua/dispatch sampling; absent table or nonpositive
+    handle stops earlier still. With world (160, 320), cell (10, 20), congestion PositionToTract receives
+    (160, 320), ratio receives (10, 20). Force makes both (0, 0), leaving the dispatch location unchanged.
+    New trip state 2 with dispatch state 3 uses the destination occupant as subject; new = 3 with dispatch
+    state 2 uses the arrival subject (null at home/work). Environmental sampling follows dispatch-state
+    gates. New = old = −1 with force writes both state booleans as 0 but preserves the subject. Flag changes
+    beyond bit `0x100` suppress the final state-change update post (§4.6).
