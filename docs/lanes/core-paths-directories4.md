@@ -1,24 +1,32 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-paths-directories4: portable path and directory entry owners | Codex / `core-paths-directories4` (engine lane) | in progress; detached HEAD reserved by supervisor | Audit existing primitives; implement published contracts and independent vectors; stable full gate |
+| core-paths-directories4: portable path and directory entry contracts | Codex / `core-paths-directories4` (engine lane) | ready; cargo 4307 passed; clippy 0 diagnostics; ctest 67/67; game n/a; PA4-PA8 filed; entry complete-owner credit withheld | 1. Review and merge portable code. 2. Resolve PA4-PA8 before native binding or entry complete-owner credit. |
 
-## Handoff
-- Goal: exact portable cRZPath/cRZDirectoryEntry and published path helpers from paths.md sections 1-4, 8.
-- Reserved existing worktree reused; initially clean, no lane-only commits.
-- Read paths sections 1-4/8, existing rz_files host/file primitives and public SDK filenames.
-- q.py cannot launch Bash (E_ACCESSDENIED); use capped native PowerShell reads and qbuild for checks.
-- Latest brief requests focused checks then one stable full gate, with no redundant baseline.
-- No game runtime bindings, C ABI or plugin changes authorized; no game requests planned.
-- Done 226c963c: byte helpers, five-string RzPath, native find primitive/RAII handle, list-owned entry state and listing policies, 13 independent tests.
-- Audit: no rz_services or path helper implementation exists here; reused rz_files OsHandle/OsError rather than duplicating primitive types.
-- Owner checklist cRZPath: constructor/Drop (five owned Vecs), SetPath, four getters, lazy FileName, two setters, SetBuffer and three joined outputs implemented.
-- Owner checklist cRZDirectoryEntry: published owner/name/kind state implemented as directory-bound borrow; standalone method contracts absent, complete-owner credit withheld (PA5).
-- cRZDirectory listing supports §§3.1-3.4 only; recursive/create/remove are outside this owner task, not claimed.
-- Questions PA4-PA8 appended to docs/specs/questions/paths.md; existing PA3 normalise conflict preserved, §§1.2/6.9 followed literally.
-- First quick: 2434 pass/1 fail; dependents compiled; CMake 206/206. Corrected test expectation for C: retaining current-directory trailing separator (§1.2). Wrapper invalidated initial run because milestone commit changed tree; no source was edited during it.
-- Done 1563e7a1: C allocation/output/null-part/count APIs, public part-fixing helpers, 2 more tests (15 total), 3 language-neutral conformance vectors (38 operations) and their runner.
-- New Rust modules formatted; qbuild fmt absolute paths passes (6 files). Relative fmt paths fail in wrapper's rustfmt cwd; use absolute paths.
-- Stable focused quick PASS at 1563e7a1: 3630 tests passed, 0 failed (core 2437; conformance 1190 plus 3 runner/parser checks); dependents compile; native build 4/4 edges. Logs build-runs/fc4verify-quick-{test,deps}.log and fc4verify-build.log.
-- Shared Rust registration files fmt check flags 172 existing/order/layout diff lines; preserved additive list edits per instruction, no mass reformat. Six new modules fmt passes.
-- Next: run qbuild all once on committed stable tree; record cargo/clippy/ctest verdict, finalize report and merge queue.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-paths-directories4-r1-manifest.json.
+## Changes and scope
+
+Added `engine/core/src/paths/` from public paths.md sections 1-4 and 8. Parsing uses framework bytes, ASCII letters, exact comparisons and both separator spellings. It preserves the published drive-root, dot-component, reverse-split and last-joined-buffer quirks. C-output helpers count the NUL, preserve caller storage on failure, permit omitted split outputs, and return independent allocations. No host filesystem parser, locale folding or wildcard emulation supplies owner results.
+
+The initial audit found no existing path owner/helpers or rz_services module in this checkout. Reused `rz_files::OsHandle` and `OsError`; the existing file host has no directory enumeration primitive. New `DirectoryProvider` exposes only native first/next/finish operations. Its native adapter must perform the specified encoding conversion and system wildcard matching/order. The core owns search state, filtering, dot synthesis and handle closure, including early exits. No CmdLine/SysServPtr work, C ABI/plugin changes, runtime binding, maps or coverage edits.
+
+## Individual owner checklist
+
+- **cRZPath:** all published constructor/lifecycle and method contracts implemented: five owned strings initialized before SetPath; Rust destruction of all five strings; SetPath (always true, preserve old buffer on resolution failure, then resplit); GetDrive/GetDirectory/GetFileName/GetExtension; lazy FileName; SetFileName/SetExtension split/equality behavior; SetBuffer masks; GetPath/GetDriveAndDirectory/GetFileNameAndExtension with independent output copies. All three in-place part-fixing helpers are shared with the free helper API. PA4 explicitly records byte/encoding/NUL/locale assumptions where the spec says only “characters” or cRZString.
+- **cRZDirectoryEntry:** published owner/name/kind state implemented; names belong to the directory, kind is 4/8, and entry views borrow the actual owner. Safe Rust prevents retaining a dangling entry across reread, mutation or destruction. **Do not award complete-owner credit:** §3.1 publishes no standalone entry methods, copy/assignment or native lifetime contract. PA5 requests those facts; none were invented.
+- **cRZDirectory:** only the entry/list support in §§3.1-3.4 is implemented to support the entry contract. Recursive traversal, existence/create/remove operations are outside this owner task and receive no implementation/complete-owner claim.
+
+## Validation
+
+- Stable `qbuild quick` at 1563e7a1: **3630 passed, 0 failed**, dependents compiled, native build 4/4 edges.
+- One stable `qbuild all` at 9c0b8673: **4307 passed, 0 failed, 0 ignored; clippy 0 diagnostics; native build 2/2; CTest 67/67 (84.5 seconds)**. No tracked files changed during either passing run. Final commit changes this report only.
+- Added **15 core tests** for empty/boundary/drive/UNC/dot/separator/byte/size/ownership/list/search cases and **3 language-neutral conformance vectors with 38 operations**, all passing. The first quick found one incorrect C: expectation, corrected to the literal §1.2 trailing-separator rule before the stable runs.
+- `qbuild fmt` passes for all six new Rust modules. Checking the three shared registration files reports 172 ordering/layout diff lines, including existing module ordering and the required appended registrations. Preserved additive edits; no mass reformat. `git diff --check` clean.
+- Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-ctest.log`, `fc4verify-build.log`, and `fc4verify-quick-{test,deps}.log`.
+- Game runs: **n/a**, core-only lane (`game: false` in manifest); no runtime shadow/replacement claim. C ABI exports unchanged.
+
+## Questions and next steps
+
+Appended **PA4-PA8** to `docs/specs/questions/paths.md`: byte/string/locale boundaries; missing entry owner contracts; SplitDirectory zero/count/component boundaries; failed-next cached state; comparator arguments/ties. Choices are marked in code. Existing PA3 remains open; explicit normalization §§1.2/6.9 is followed without reconciling its conflicting §8 example.
+
+Review/merge the portable implementation, resolve these questions before native binding or entry complete-owner credit, then add the native encoding/find adapter only under a separately authorized glue task. No pending game requests.
+
+Implementation commits: 226c963c (owners/helpers/entry state), 1563e7a1 (buffers/fix helpers/conformance), 9c0b8673 (focused gate record). Reserved detached HEAD was reused; supervisor publishes it. `q.py` cannot start Bash here, so capped native PowerShell reads and authorized qbuild were used. Git commits succeed despite a packed-refs.lock permission diagnostic; no shared refs/config were changed.
