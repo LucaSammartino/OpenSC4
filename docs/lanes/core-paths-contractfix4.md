@@ -1,29 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-paths-contractfix4: PA4-PA8 portable path corrections | `Codex` / `core-paths-contractfix4` (engine lane) | source committed; final stable gate pending | Collect sequential gate, then report and queue only on green |
+| core-paths-contractfix4: PA4-PA8 portable path corrections | `Codex` / `core-paths-contractfix4` (engine lane) | ready for bounded review; stable full gate green | Review portable corrections; preserve PA/RZ/native gaps and logical 3/3 cap |
 
-## Handoff
-- Goal: apply PA4-PA8 to production paths and directory-entry lifecycle; reuse cRZDirectory.
-- Scope: portable Rust only; no ABI/shared files, native glue, game runs, or whole-owner completion claim.
-- Done 3032f628: first substantive PA4 correction preserves full counted ResolvePath input on the full-prefix branch; independent NUL/copy vector added (before call 30).
-- Build evidence: baseline and earlier quick/all overlapped; use final-gate-result.json as final authority, not their mixed native logs.
-- Done 1fc145c6: signed-byte CRT primitive boundary/errors; counted ResolvePath, entry default/copy/name-only drop, signed SplitDirectory/partial writes, retained find cache/retry/finish.
-- Done: removed duplicate paths directory owner/comparator; paths reexports authoritative rz_files owner. Primitive-only test host bridges it. Added PA4-PA8 independent vectors.
-- Tests: stable fmt recheck passed for all 7 Rust files after 8c6589ec. Earlier quick core: 3053 passed / 1 failed (old high-bit expectation, fixed in 7476c5d9); all six new PA4-PA8 groups passed. Final driver quick/all still required.
-- Resume audit: direct Windows API process inspection found no attributable surviving validator; all candidate commandlines were readable (WMI denied; limited process access fallback worked). Full PID/PPID/commandline/cwd evidence is in build-runs/resume-liveness.json.
-- Interrupted/mixed qbuild/fc4verify/progress/driver artifacts preserved with SHA-256 inventory at build-runs/evidence/interrupted-r2-20261022/. Neither old 1232/0 log nor worker handle 74719 establishes a final gate.
-- Correction: helpers.rs uses -1..=127 instead of adjacent OR patterns, preserving exactly the signed-byte classifier domain while resolving clippy manual_range_patterns. No test or vector changed.
-- Next: commit this minimal fix, then run ONE hidden durable serial fmt/all supervisor on that stable commit. Record PID/provenance/stdout/stderr/completion and parse full cargo/clippy/CMake/CTest evidence before reporting green.
-- New questions PA9/PA10: negative signed capacity follows literal signed-loop no-output rule; zero-part SplitDirectoryPath fills both safe empty outputs. PA1/PA2/PA3 retained.
-- Done 56d8bee9: nullable next boundary, CRT error propagation and signed split counts in conformance runner; literal JSON zero/one-byte/root vectors.
-- Baseline caveat: long cold build saw updated runtime JSON with its old binary (zero-capacity vector failure); do not claim a clean baseline. Earlier overlapping all logs are not authoritative final evidence.
-- Done 7476c5d9: remaining old high-bit/ASCII expectation fixed. Sequential driver owns final evidence; it is still in quick before final all.
-- Done 8c6589ec: removed nullable-finish convenience (no published null-finish contract). Valid finish/Drop close once; null next is tested. Final all follows this correction and final EOF formatting.
-- Audit complete: all published path constructors/destructor/getters/setters/joins and free helpers checked. Entry list remains authoritative passive payload; standalone lifecycle adds no native getters/COM/lifetime extension; RZ9-RZ11 and native layout/glue remain withheld.
-- PA1/PA2/PA3 remain open; preserve selected normalization rule.
-- Correction reservation final correction 2/2, logical family 3/3; no further round permitted.
-- q.py cannot launch Bash (E_ACCESSDENIED); use bounded PowerShell output and required qbuild wrappers.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-paths-contractfix4-r2-manifest.json.
+## Validation and provenance
+
+- Final correction 2/2, logical family 3/3. Ready only for the bounded portable changes described below; no whole-owner/native completion credit or further correction round.
+- Validated committed source: `a4971f046eff6abc9ec151e8a658a7454b106a7e`, engine tree `3507d70ec11834542a78d099b9628849a236188f`. HEAD, full tree, engine tree, tracked status and seven Rust-file hashes matched before/after the entire gate. This final report is a documentation-only follow-up.
+- One hidden durable supervisor, PID 31556, ran `qbuild fmt` on all seven touched Rust files, then exactly one canonical `qbuild all`. Formatting: 7/7 passed. Cargo workspace: **5,087 passed, 0 failed, 0 ignored, 0 filtered**, summed over all **21** `test result:` aggregates, including doctests. Core: 3,054/0; conformance: 1,232/0. All seven added Rust test functions passed.
+- Clippy `-D warnings`: exit 0, zero diagnostics. Configure completed in this worktree's `engine/build-x86`. Native build: **214/214** steps, including `FreeCity4.dll` (873.1 s; C/C++ cache 0 hit / 191 miss, Rust 0 hit / 3 miss). Full CTest: **68/68 passed**, zero failed/skipped (1171.7 s); all 68 individual pass lines and the full summary were checked.
+- Final authority: `build-runs/evidence/final-r2/result.json` and `analysis-final.json`. They retain source/tree provenance, timestamps, supervisor/child commands and IDs, stdout/stderr, complete logs and SHA-256 inventory. Every archived log checksum matched. Direct process snapshots also record driver/descendant commandlines and working directories; no overlapping validation was launched.
+- Resume audit found no attributable surviving old validator. WMI was denied; direct Windows API limited-access inspection read all candidate commandlines. Evidence: `build-runs/resume-liveness.json`. Interrupted/mixed logs and old fmt-only progress were preserved under `build-runs/evidence/interrupted-r2-20261022/` before the new gate.
+- Historical failures remain evidence: raw quick log 3,053 passed / 1 failed, `UnsupportedLocaleByte(-23)` (stale high-byte expectation corrected in `7476c5d9`); prior old-binary/runtime-JSON split failure 1,231/1. The original split failure log had already been overwritten before resume, so `failure-context.json` explicitly attributes that observation to the prior handoff/task brief. Neither the later overwritten 1,232/0 log nor handle 74719 is final-pass evidence. The baseline is not represented as clean.
+- Resume fix `a4971f04`: replace `-1 | 0..=127` with `-1..=127`, preserving the exact signed-byte domain and resolving the demonstrated `manual_range_patterns` error. No test/vector changed this resume. Earlier substantive milestones: `3032f628` counted ResolvePath copy; `1fc145c6` PA4-PA8 corrections/reuse; `56d8bee9` conformance boundaries; `7476c5d9` stale expectation; `8c6589ec` removal of unpublished null-finish convenience.
+- No game runs were requested for this task. ABI exports/version, shared maps/coverage/defaults and generated `abi_entries.inc` were not edited. No native binding, cache/configuration workaround, skips, timeout/tolerance weakening or external-failure suppression was added.
 
 ## Portable contract audit
 
@@ -37,4 +26,9 @@
 - PA8: removed the duplicate entry comparator/sort owner. The authoritative stable unsigned counted-byte string-list merge sort is reused unchanged. NUL tails, high-bit bytes, equal string allocation order, and unchanged directory entry order/identity have discriminating tests.
 - Withheld: PA1 hook installation, PA2 caller/order dependencies, and PA3 contradictory C:/ conformance examples remain open. The previously selected doubled-backslash normalization is retained without claiming PA3 resolved. RZ9-RZ11 and all existing authoritative directory behavior remain unchanged. No additional recursive/create/remove implementation, native glue, game request, ABI export/version change, shared map/coverage/default edit, or whole-owner completion claim.
 - Genuine remaining owner scope: the reused directory has no published paths §3.8 recursive RemoveDirectoryA owner implementation; this lane does not add it. Its passive list payload is not a native entry layout bridge. Those omissions and unbound native/locale behavior preclude whole-owner completion credit.
-- Evidence: seven new Rust tests (one counted-resolution case plus six PA4-PA8 groups), six new literal JSON split vectors, and existing path/directory vectors retained or corrected. The final stable full gate is still required before enqueue; earlier overlapping logs are not final evidence.
+- Evidence: seven new Rust test functions (one counted-resolution case plus six PA4-PA8 groups), six added literal JSON split vectors, and retained/corrected existing path/directory vectors. The stable full gate above validates these portable inputs; it supplies no native/game exactness claim.
+
+## Questions and next steps
+
+- Filed **PA9/PA10** in `docs/specs/questions/paths.md`: negative signed capacity follows the commented literal no-output choice; zero-part wrapper outputs use the commented safe-empty choice. Both native contracts remain pending. **PA1/PA2/PA3** remain open; no hook/caller/locale or conflicting `C:/` answer was invented. **RZ9-RZ11**, recursive directory removal and native layout/glue remain withheld.
+- Coordinator: review the bounded queue entry for these portable corrections. Keep whole-owner/native completion withheld and preserve the final logical-family cap (3/3); no fourth round is reserved.
