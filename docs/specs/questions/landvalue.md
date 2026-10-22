@@ -18,6 +18,24 @@ deliveries while preserving identity/order, shutdown removal, notification lifet
 loaded-map capture. QueryInterface alone installs nothing. Until ABI application and that proof,
 retain `input_capture=pass-end-sample; native_step_capture=0`; no input-fidelity credit.
 
+<!-- from: re-landvalue-step-abi4 (2026-10-22), round-2 bounded installation proof -->
+LV6 installation/startup follow-up: §6.1.2 now proves synchronous pre-init `0x26D31EC0`
+before city Init on both NewCity (`0x00454937` / `0x00454941`) and LoadCity
+(`0x00455898` / `0x004558A2`), and synchronous pre-shutdown `0x26D31EC2`
+(`0x00454ABF`) before city Shutdown (`0x00454AC9`). NewCity's pre-init occurs
+**before** creation of the land-value owner; a QI-only object forwarder installed there
+does not cover that branch. Native DoMessage needs a six-byte whole-instruction prefix
+for a five-byte entry branch; continuation `0x006BF0D6`, with M as this and callee pop 4.
+No replacement bytes or installed hook are supplied. The precise remaining question is:
+which reconciled observer-registration/host body executes before both pre-init sends,
+and what excludes OnTick, notification callbacks and in-flight entries while installing
+and restoring (including at pre-shutdown)? For an object-only route, identify the callback
+after CreateCityComponents and before land-value's first AddAgent; none is established.
+Post-init is queued and its simulator handler HiddenResumes, so it cannot substitute for
+that proof merely by name. Layout proposal now includes initialized/refcount widths and
+entry-span evidence. LV6 stays open; ABI application/full train gate, real adapter capture,
+and LV2/LV7 runtime verification remain prerequisites. No sampling/math/output adjustment.
+
 <!-- from: verify-landvalue-step4 (2026-10-22), additional runtime evidence for LV2 -->
 LV2 evidence: `lv4r2-sample-20261022-0941-turbo` reached 2032-01-20 clean/ref0, 73/74 output-exact comparisons. Pass16 at2027-04-06: intrinsic5,total2,slope0,type0,mean270.05667/270.05804, mismatch count8; previous-D chosen (live total262). Day1/31 reproduces intrinsic/mode/mean and total. `lv4r2-sample-20261022-0944-normal` reached2032-01-01 clean/ref0,70/72 output-exact. Pass3 at2026-03-02: intrinsic1,total1,slope0,type0,scalars0, mismatch count2; previous-D chosen (live total647). Day1/28 reproduces intrinsic/mode/mean and total. These are pass-end samples, with native_step_capture=0 throughout, not per-Step proof. Both use DLL SHA256439fd26fcb2b1abb43f1aa7e4ac437b082917c450a0a549404bdeb016956a7ad. Logs, verdicts and parsed records remain under this worktree's `build-runs/game-results/`; no algorithm/math/golden/sampling adjustment was made.
 

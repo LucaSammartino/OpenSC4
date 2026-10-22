@@ -4,7 +4,27 @@ Lane: re-landvalue-step-abi4. Target: append the section below to `docs/abi/layo
 Status: proposed, not applied. Coordinator review/application and a **full train gate** are required;
 do not land this ABI record through a docs-only bypass. No C ABI export/version change is proposed.
 The existing `interfaces.tsv` rows already cover every virtual call named below; no TSV changes are requested.
-Behaviour, ownership and the unresolved installation boundary are in landvalue §6.1.1 and §11.3.
+Behaviour, ownership and the unresolved installation boundary are in landvalue §6.1.1–§6.1.2 and §11.3.
+
+Round-2 lifecycle evidence (2026-10-22): constructor `0x006BDDF0` installs the three
+vtables and clears the one-byte initialized flag and four-byte reference count at
+`0x006BDE18–0x006BDE1B`; Release reads/decrements the four-byte count at
+`0x006BD8A3–0x006BD8AC`. Init sets the flag at `0x006BE79D`; Shutdown clears it
+at `0x006BDF81`. The allocation helper at `0x006BDEF0` requests `0xA4` bytes;
+the field inventory below remains partial and grants no construction permission.
+
+Native entry-span observations for coordinator review, **not patch bytes or hook approval**:
+
+| Entry | Whole prefix needed to cover five bytes | Native continuation | Contract |
+|---|---|---|---|
+| DoMessage `0x006BF0D0` | 6 bytes (instruction lengths 1, 1, 4) | `0x006BF0D6` | ECX=M; one four-byte message argument; callee pop 4; result AL |
+| Init `0x006BE3B0` | 5 bytes (3, 1, 1) | `0x006BE3B5` | ECX=L; no stack arguments; result AL |
+| Shutdown `0x006BDF70` | 7 bytes (1, 1, 2, 3) | `0x006BDF77` | ECX=L; no stack arguments; result AL |
+
+The displaced DoMessage stack-argument load requires the original stack arrangement.
+None of these prefixes has a relative operand. These measurements do not specify branch
+encoding, executable-memory permissions, thread exclusion, hook chaining or reclamation.
+§6.1.2 names the exact startup/new-city and restoration gaps; LV6 remains open.
 
 ## Land-value native progress (`cSC4LandValueSimulator`, 1.1.641 GOG, verified 2026-10-22)
 
@@ -18,6 +38,8 @@ not an object allocation size or permission to construct an instance.
 
 | Offset | Width (bytes) | Native field / interpretation |
 |---|---|---|
+| +0x0C | 1 | initialized flag; constructor clears, Init sets only after registration/subscription, Shutdown clears before removal |
+| +0x10 | 4 | native reference count; observation only, ownership must use QI/AddRef/Release |
 | +0x38 | 4 | pipelineState, int32 (0 through 9) |
 | +0x3C | 4 | pointer to tract ScanningIterator |
 | +0x40 | 4 | pointer to slope ScanningIterator |
