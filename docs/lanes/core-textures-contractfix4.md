@@ -9,8 +9,10 @@
 - Done: factory wrapping counters, instance-zero cache/reuse, bulk failure deletion, source-frame/masked-level/null uploads.
 - Done: material 16-bit acquisition/release, reference/value/stage assignment, forward range cleanup, manager false slots/base destruction.
 - Done: independent distinguishing vectors added; focused quick and fmt invoked, logs pending.
-- Next: inspect focused logs; format/fix, verify body checklist; one final stable all gate.
-- TB8 filed: native hash/growth/chain rules absent; multi-entry restore explicitly unsupported, single-entry uses record key.
+- Done: 2a906396 factory/material correction and independent vectors; formatting passed five touched Rust files.
+- Done: order-independent repeated-alias restore now reloads the current record key once per table entry; distinct-record order withheld under TB8.
+- Next: stable source commit, final fmt/full gate; record exact counts and review queue.
+- TB8 filed: native hash/growth/chain rules absent; distinct-record restore explicitly unsupported.
 - Baseline all started; wrapper returned session 62872; inspect build-runs summaries for completion.
 - Scope: textures_materials and independent conformance/tests only; no game runs or shared ABI edits.
 - Family cap: parent core-textures-materials4 round 1 landed train84; this reservation logical 2/3, max one round here.

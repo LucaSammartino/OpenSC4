@@ -4,8 +4,8 @@
 use std::collections::{BTreeMap, VecDeque};
 
 use super::{
-    Binding, BindingParams, BitCounts, ImageInfo, ImageResource, Provider, Release, ResourceKey, Service, Upload,
-    Unsupported, DEFAULT_GROUP, IMAGE_TYPE, RESTORE_TEXTURES,
+    Binding, BindingParams, BitCounts, ImageInfo, ImageResource, Provider, Release, ResourceKey, Service, Unsupported,
+    Upload, DEFAULT_GROUP, IMAGE_TYPE, RESTORE_TEXTURES,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -31,6 +31,20 @@ pub struct Stats {
 }
 
 impl Stats {
+    fn move_to_pool(&mut self, bytes: u32) {
+        self.in_use = self.in_use.wrapping_sub(1);
+        self.in_use_bytes = self.in_use_bytes.wrapping_sub(bytes);
+        self.pooled = self.pooled.wrapping_add(1);
+        self.pooled_bytes = self.pooled_bytes.wrapping_add(bytes);
+    }
+
+    fn move_from_pool(&mut self, bytes: u32) {
+        self.pooled = self.pooled.wrapping_sub(1);
+        self.pooled_bytes = self.pooled_bytes.wrapping_sub(bytes);
+        self.in_use = self.in_use.wrapping_add(1);
+        self.in_use_bytes = self.in_use_bytes.wrapping_add(bytes);
+    }
+
     pub fn format(self) -> String {
         let mb = |n: u32| n as f64 * 2_f64.powi(-20);
         format!(
@@ -99,7 +113,7 @@ impl<P: Provider> BindingFactory<P> {
         &self.provider
     }
 
-    /// Read after an operation returning None/void: Some means no native failure
+    /// Most recent get/upload/restore boundary. Some means no native failure
     /// result is claimed. Ordinary resource/driver failures leave this unset.
     pub fn unsupported(&self) -> Option<Unsupported> {
         self.unsupported
@@ -291,6 +305,7 @@ impl<P: Provider> BindingFactory<P> {
     pub fn get_binding_from_image(&mut self, image: &dyn ImageInfo) -> Option<BindingId> {
         self.unsupported = None;
         if !self.alive {
+            self.unsupported = Some(Unsupported::DestroyedOwner);
             return None;
         }
         let params = self.params(image)?;
@@ -315,6 +330,7 @@ impl<P: Provider> BindingFactory<P> {
     pub fn get_binding_by_key(&mut self, key: ResourceKey) -> Option<BindingId> {
         self.unsupported = None;
         if !self.alive {
+            self.unsupported = Some(Unsupported::DestroyedOwner);
             return None;
         }
         if let Some(&id) = self.keys.get(&(key.group, key.instance)) {
@@ -326,7 +342,11 @@ impl<P: Provider> BindingFactory<P> {
             self.add_binding_ref(id)?;
             return Some(id);
         }
-        let resource = self.provider.load(self.manager?, key)?;
+        let Some(manager) = self.manager else {
+            self.unsupported = Some(Unsupported::MissingService);
+            return None;
+        };
+        let resource = self.provider.load(manager, key)?;
         let result = resource.image_info().and_then(|image| {
             let params = self.params(image)?;
             let id = self.reuse_or_create(params, image.description().bits)?;
@@ -367,7 +387,12 @@ impl<P: Provider> BindingFactory<P> {
             record.bits = bits;
             return Some(id);
         }
-        let driver = self.driver?;
+        if self.driver.is_none() && params.frames != 0 {
+            self.unsupported = Some(Unsupported::MissingService);
+            return None;
+        }
+        // A zero-frame record does not dereference the driver at all.
+        let driver = self.driver.unwrap_or(0);
         let id = BindingId(self.next_id);
         let next = self.next_id.checked_add(1)?;
         let mut textures = Vec::new();
@@ -412,9 +437,17 @@ impl<P: Provider> BindingFactory<P> {
         let Some(record) = self.records.get(&id) else {
             return;
         };
+        if description.frames == 0 {
+            return;
+        }
         let Some(driver) = self.driver else {
+            self.unsupported = Some(Unsupported::MissingService);
             return;
         };
+        if u64::from(description.frames) * u64::from(record.params.levels) > 1_000_000 {
+            self.unsupported = Some(Unsupported::ExecutionBudget);
+            return;
+        }
         let first = description.levels.wrapping_sub(record.params.levels);
         for frame in 0..description.frames {
             let Some(&texture) = record.binding.textures().get(frame as usize) else {
@@ -454,10 +487,7 @@ impl<P: Provider> BindingFactory<P> {
         }
         self.free.retain(|entry| *entry != id);
         record.in_use = true;
-        self.stats.pooled = self.stats.pooled.wrapping_sub(1);
-        self.stats.pooled_bytes = self.stats.pooled_bytes.wrapping_sub(record.params.bytes);
-        self.stats.in_use = self.stats.in_use.wrapping_add(1);
-        self.stats.in_use_bytes = self.stats.in_use_bytes.wrapping_add(record.params.bytes);
+        self.stats.move_from_pool(record.params.bytes);
     }
 
     pub fn free_binding(&mut self, id: BindingId) {
@@ -469,10 +499,7 @@ impl<P: Provider> BindingFactory<P> {
             return;
         }
         record.in_use = false;
-        self.stats.in_use = self.stats.in_use.wrapping_sub(1);
-        self.stats.in_use_bytes = self.stats.in_use_bytes.wrapping_sub(record.params.bytes);
-        self.stats.pooled = self.stats.pooled.wrapping_add(1);
-        self.stats.pooled_bytes = self.stats.pooled_bytes.wrapping_add(record.params.bytes);
+        self.stats.move_to_pool(record.params.bytes);
         self.free.push_front(id);
         self.adjust_free_pool_size();
     }
@@ -533,8 +560,11 @@ impl<P: Provider> BindingFactory<P> {
         if message == RESTORE_TEXTURES {
             if let Some(manager) = self.manager {
                 // TB8: bucket hash/growth/chain insertion are not published.
-                // Withhold multi-entry traversal rather than invent sorted order.
-                if self.keys.len() > 1 {
+                // Withhold distinct-record traversal rather than invent sorted
+                // order. Repeated aliases of one record are order-independent.
+                let mut entries = self.keys.values();
+                let first = entries.next();
+                if entries.any(|id| Some(id) != first) {
                     self.unsupported = Some(Unsupported::RestoreTableOrder);
                     return true;
                 }
@@ -554,6 +584,9 @@ impl<P: Provider> BindingFactory<P> {
                             self.set_binding_image_data(id, image);
                         }
                         self.provider.release_resource(resource);
+                        if self.unsupported.is_some() {
+                            return true;
+                        }
                     }
                 }
             }
@@ -579,5 +612,30 @@ impl<P: Provider> super::BindingReferences for BindingFactory<P> {
         if self.release_binding(binding).is_none() {
             self.unsupported = Some(Unsupported::InvalidBinding);
         }
+    }
+}
+
+#[cfg(test)]
+mod word_tests {
+    use super::Stats;
+
+    #[test]
+    fn pool_transfer_wraps_each_counter_in_both_directions() {
+        let mut stats = Stats {
+            in_use: 0,
+            in_use_bytes: 0,
+            pooled: u32::MAX,
+            pooled_bytes: u32::MAX,
+        };
+        stats.move_to_pool(1);
+        assert_eq!(
+            (stats.in_use, stats.in_use_bytes, stats.pooled, stats.pooled_bytes),
+            (u32::MAX, u32::MAX, 0, 0)
+        );
+        stats.move_from_pool(1);
+        assert_eq!(
+            (stats.in_use, stats.in_use_bytes, stats.pooled, stats.pooled_bytes),
+            (0, 0, u32::MAX, u32::MAX)
+        );
     }
 }

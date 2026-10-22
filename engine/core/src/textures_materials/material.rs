@@ -154,6 +154,7 @@ impl<B: SystemService> MaterialManager<B> {
             }
         }
         material.flags = material_flags(record.stored_flags());
+        material.first_byte = 1;
         material.alpha_func = record.alpha_func();
         material.depth_func = record.depth_func();
         material.src_blend = record.src_blend();
@@ -223,7 +224,7 @@ impl Material {
     /// use Rust zero placeholders; their pre-creation native values are withheld.
     pub fn constructor() -> Self {
         Self {
-            first_byte: 1,
+            first_byte: 0,
             references: 0,
             flags: 0,
             alpha_func: 0,

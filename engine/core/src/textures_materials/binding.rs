@@ -14,7 +14,11 @@ mod tests {
 
     #[test]
     fn reference_word_wraps_without_freeing_on_add() {
-        let mut b = Binding { textures: vec![5], references: u32::MAX, has_factory: true };
+        let mut b = Binding {
+            textures: vec![5],
+            references: u32::MAX,
+            has_factory: true,
+        };
         assert_eq!(b.add_ref(), Some(0));
         assert_eq!(b.textures(), &[5]);
         assert_eq!(b.release(), Some(Release::Live(u32::MAX)));

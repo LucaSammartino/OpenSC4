@@ -13,8 +13,8 @@ mod material;
 pub use binding::{Binding, Release};
 pub use factory::{BindingFactory, BindingId, BindingInfo, Stats};
 pub use material::{
-    material_flags, release_value_range, BindingReferences, Material, MaterialArena, MaterialId,
-    MaterialManager, MaterialRecord, MaterialTexture, TextureSlot,
+    material_flags, release_value_range, BindingReferences, Material, MaterialArena, MaterialId, MaterialManager,
+    MaterialRecord, MaterialTexture, TextureSlot,
 };
 
 #[cfg(test)]
@@ -87,6 +87,9 @@ pub enum Unsupported {
     InvalidBinding,
     Allocation,
     RestoreTableOrder,
+    ExecutionBudget,
+    MissingService,
+    DestroyedOwner,
 }
 
 pub trait ImageResource {
@@ -123,7 +126,11 @@ pub fn next_power_of_two(value: u32) -> Result<u32, LayoutError> {
 impl BindingParams {
     /// §1.4. Halving for byte accounting intentionally does not clamp to one.
     pub fn for_image(image: ImageDescription, lod: u32, depth: u32) -> Result<Self, LayoutError> {
-        let d = if image.levels > lod { lod } else { image.levels.wrapping_sub(1) };
+        let d = if image.levels > lod {
+            lod
+        } else {
+            image.levels.wrapping_sub(1)
+        };
         let width = next_power_of_two(image.width)?.wrapping_shr(d).max(1);
         let height = next_power_of_two(image.height)?.wrapping_shr(d).max(1);
         let internal_format = match image.format {

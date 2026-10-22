@@ -136,7 +136,11 @@ impl Provider for Host {
     fn create_texture(&mut self, _driver: u64, params: BindingParams, usage: u32) -> u32 {
         self.next_texture += 1;
         self.events.push(Event::Create(self.next_texture, params, usage));
-        if self.zero_handle == Some(self.next_texture) { 0 } else { self.next_texture }
+        if self.zero_handle == Some(self.next_texture) {
+            0
+        } else {
+            self.next_texture
+        }
     }
     fn driver_error(&mut self, _driver: u64) -> bool {
         self.error_queries += 1;
@@ -233,20 +237,34 @@ fn dimensions_zero_one_huge_lod_and_no_clamp_byte_accounting() {
 
 #[test]
 fn signed_power_masked_lod_and_wrapped_sizes() {
-    for (word, power) in [(0, 1), (1, 1), (3, 4), (0x4000_0000, 0x4000_0000),
-        (0x8000_0000, 1), (u32::MAX, 1)] {
+    for (word, power) in [
+        (0, 1),
+        (1, 1),
+        (3, 4),
+        (0x4000_0000, 0x4000_0000),
+        (0x8000_0000, 1),
+        (u32::MAX, 1),
+    ] {
         assert_eq!(next_power_of_two(word), Ok(power));
     }
     for word in [0x4000_0001, 0x7fff_ffff] {
         assert_eq!(next_power_of_two(word), Err(LayoutError::NativeNontermination));
     }
-    for (levels, lod, expected) in [(0, 0, (1, 1, 1, 4)), (33, 32, (8, 8, 1, 256)),
-        (34, 32, (8, 8, 2, 320)), (33, u32::MAX, (8, 8, 1, 256))] {
+    for (levels, lod, expected) in [
+        (0, 0, (1, 1, 1, 4)),
+        (33, 32, (8, 8, 1, 256)),
+        (34, 32, (8, 8, 2, 320)),
+        (33, u32::MAX, (8, 8, 1, 256)),
+    ] {
         let p = BindingParams::for_image(Image::new(8, 8, levels, 1, 3).description, lod, 32).unwrap();
         assert_eq!((p.width, p.height, p.levels, p.bytes), expected);
     }
-    for (w, h, frames, bytes) in [(65536, 65536, 1, 0), (8192, 8192, 2, 0),
-        (8, 8, 0, 0), (u32::MAX, 1, 1, 4)] {
+    for (w, h, frames, bytes) in [
+        (65536, 65536, 1, 0),
+        (8192, 8192, 2, 0),
+        (8, 8, 0, 0),
+        (u32::MAX, 1, 1, 4),
+    ] {
         let p = BindingParams::for_image(Image::new(w, h, 1, frames, 3).description, 0, 32).unwrap();
         assert_eq!(p.bytes, bytes);
     }
@@ -864,7 +882,9 @@ fn no_driver_no_manager_fail_and_zero_key_is_accepted() {
     let image = Image::new(8, 8, 1, 1, 9);
     let mut f = BindingFactory::new(Host::default());
     assert!(f.get_binding_from_image(&image).is_none());
+    assert_eq!(f.unsupported(), Some(Unsupported::MissingService));
     assert!(f.get_binding_by_key(key(1)).is_none());
+    assert_eq!(f.unsupported(), Some(Unsupported::MissingService));
     assert!(f.provider().events.is_empty());
     let mut f = factory(image);
     assert!(f.get_binding_by_key(key(0)).is_some());
@@ -893,9 +913,18 @@ fn creation_failure_first_and_third_bulk_counts_and_zero_handles() {
         assert!(f.get_binding_by_key(key(17)).is_none());
         assert_eq!(f.unsupported(), None);
         assert_eq!(f.provider().error_queries, failure as usize);
-        let batches: Vec<_> = f.provider().events.iter().filter_map(|event| {
-            if let Event::DeleteBatch(handles) = event { Some(handles.clone()) } else { None }
-        }).collect();
+        let batches: Vec<_> = f
+            .provider()
+            .events
+            .iter()
+            .filter_map(|event| {
+                if let Event::DeleteBatch(handles) = event {
+                    Some(handles.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
         assert_eq!(batches, vec![expected]);
         assert_eq!(f.provider().events.last(), Some(&Event::ResourceRelease));
         assert_eq!(f.stats(), Stats::default());
@@ -904,6 +933,10 @@ fn creation_failure_first_and_third_bulk_counts_and_zero_handles() {
 
 #[test]
 fn zero_frame_creation_and_zero_level_memory_boundary_are_distinct() {
+    let mut bare = BindingFactory::new(Host::default());
+    assert!(bare.get_binding_from_image(&Image::new(8, 8, 0, 0, 3)).is_some());
+    assert!(bare.provider().events.is_empty());
+    assert_eq!(bare.unsupported(), None);
     let mut f = factory(Image::new(8, 8, 1, 0, 3));
     let id = f.get_binding_by_key(key(1)).unwrap();
     assert_eq!(f.binding(id).unwrap().frame_count(), 0);
@@ -913,7 +946,13 @@ fn zero_frame_creation_and_zero_level_memory_boundary_are_distinct() {
     let zero = Image::new(8, 8, 0, 1, 3);
     f.get_binding_from_image(&zero);
     assert_eq!(f.unsupported(), Some(Unsupported::ImageTable));
-    assert_eq!(events(&f, |e| matches!(e, Event::Create(_, p, _) if p.levels == 1 && p.width == 1 && p.height == 1)), 1);
+    assert_eq!(
+        events(
+            &f,
+            |e| matches!(e, Event::Create(_, p, _) if p.levels == 1 && p.width == 1 && p.height == 1)
+        ),
+        1
+    );
     let mut huge = zero;
     huge.description.width = 0x4000_0001;
     assert!(f.get_binding_from_image(&huge).is_none());
@@ -947,8 +986,16 @@ fn instance_zero_reacquires_then_reuses_stale_key_and_restore_uses_record_key() 
     f.get_binding_info(a, &mut info);
     assert_eq!((info.group, info.instance), (100, 7));
     assert!(f.do_message(RESTORE_TEXTURES));
-    assert_eq!(f.unsupported(), Some(Unsupported::RestoreTableOrder));
-    assert!(f.provider().events.is_empty());
+    assert_eq!(f.unsupported(), None);
+    let loads: Vec<_> = f
+        .provider()
+        .events
+        .iter()
+        .filter(|e| matches!(e, Event::Load(_)))
+        .cloned()
+        .collect();
+    assert_eq!(loads, [Event::Load(key(7)), Event::Load(key(7))]);
+    assert_eq!(events(&f, |e| matches!(e, Event::Upload(..))), 2);
 }
 
 #[test]
@@ -974,9 +1021,18 @@ fn source_frame_count_ignored_upload_errors_and_masked_upload_shifts() {
     let id = f.get_binding_from_image(&image).unwrap();
     assert_eq!(f.provider().error_queries, 2); // creation only
     assert_eq!(events(&f, |e| matches!(e, Event::Upload(..))), 68);
-    let uploads: Vec<_> = f.provider().events.iter().filter_map(|e| {
-        if let Event::Upload(t, l, w, h, _, _, data) = e { Some((*t, *l, *w, *h, data.clone())) } else { None }
-    }).collect();
+    let uploads: Vec<_> = f
+        .provider()
+        .events
+        .iter()
+        .filter_map(|e| {
+            if let Event::Upload(t, l, w, h, _, _, data) = e {
+                Some((*t, *l, *w, *h, data.clone()))
+            } else {
+                None
+            }
+        })
+        .collect();
     assert_eq!(uploads[31], (1, 31, 0, 0, vec![31]));
     assert_eq!(uploads[32], (1, 32, 8, 8, vec![32]));
     assert_eq!(uploads[34], (2, 0, 8, 8, vec![16]));
@@ -998,14 +1054,26 @@ fn source_frame_count_ignored_upload_errors_and_masked_upload_shifts() {
 fn null_pointer_is_forwarded_and_does_not_stop_later_levels() {
     struct NullImage(Image);
     impl ImageInfo for NullImage {
-        fn description(&self) -> ImageDescription { self.0.description }
-        fn level_data(&self, _frame: u32, _level: u32) -> Option<&[u8]> { None }
-        fn level_pointer(&self, _frame: u32, _level: u32) -> Result<Option<&[u8]>, Unsupported> { Ok(None) }
+        fn description(&self) -> ImageDescription {
+            self.0.description
+        }
+        fn level_data(&self, _frame: u32, _level: u32) -> Option<&[u8]> {
+            None
+        }
+        fn level_pointer(&self, _frame: u32, _level: u32) -> Result<Option<&[u8]>, Unsupported> {
+            Ok(None)
+        }
     }
     let image = NullImage(Image::new(8, 8, 2, 2, 9));
     let mut f = factory(image.0.clone());
     f.get_binding_from_image(&image).unwrap();
-    assert_eq!(events(&f, |e| matches!(e, Event::Upload(_, _, _, _, _, _, data) if data.is_empty())), 4);
+    assert_eq!(
+        events(
+            &f,
+            |e| matches!(e, Event::Upload(_, _, _, _, _, _, data) if data.is_empty())
+        ),
+        4
+    );
     assert_eq!(f.unsupported(), None);
 }
 
@@ -1015,9 +1083,27 @@ fn accounting_wraps_on_create_pool_reacquire_and_reuse() {
     let mut f = factory(image.clone());
     f.set_free_pool_max(u32::MAX);
     let ids: Vec<_> = (1..=17).map(|i| f.get_binding_by_key(key(i)).unwrap()).collect();
-    assert_eq!(f.stats(), Stats { in_use: 17, in_use_bytes: 0x1000_0000, pooled: 0, pooled_bytes: 0 });
-    for id in &ids { f.release_binding(*id); }
-    assert_eq!(f.stats(), Stats { in_use: 0, in_use_bytes: 0, pooled: 17, pooled_bytes: 0x1000_0000 });
+    assert_eq!(
+        f.stats(),
+        Stats {
+            in_use: 17,
+            in_use_bytes: 0x1000_0000,
+            pooled: 0,
+            pooled_bytes: 0
+        }
+    );
+    for id in &ids {
+        f.release_binding(*id);
+    }
+    assert_eq!(
+        f.stats(),
+        Stats {
+            in_use: 0,
+            in_use_bytes: 0,
+            pooled: 17,
+            pooled_bytes: 0x1000_0000
+        }
+    );
     // Wrapped pool bytes are below the limit despite the large mathematical sum.
     f.set_free_pool_max(0x1000_0000);
     assert_eq!(f.stats().pooled, 17);
@@ -1026,13 +1112,20 @@ fn accounting_wraps_on_create_pool_reacquire_and_reuse() {
     f.get_binding_from_image(&image).unwrap();
     assert_eq!(f.stats().pooled_bytes, 0xf000_0000);
     assert_eq!(f.stats().in_use_bytes, 0x2000_0000);
+    f.set_free_pool_max(0);
+    assert_eq!(f.stats().pooled_bytes, 0);
+    assert_eq!(f.stats().pooled, 0);
 }
 
 #[derive(Default)]
 struct BindingCalls(Vec<(bool, BindingId)>);
 impl BindingReferences for BindingCalls {
-    fn acquire_binding(&mut self, id: BindingId) { self.0.push((true, id)); }
-    fn release_binding(&mut self, id: BindingId) { self.0.push((false, id)); }
+    fn acquire_binding(&mut self, id: BindingId) {
+        self.0.push((true, id));
+    }
+    fn release_binding(&mut self, id: BindingId) {
+        self.0.push((false, id));
+    }
 }
 
 fn material_with_bindings(manager: &MaterialManager<Host>, a: BindingId, b: BindingId) -> Material {
@@ -1055,7 +1148,10 @@ fn material_counts_zero_one_two_65535_and_reverse_stage_release() {
         let mut arena = MaterialArena::default();
         let id = arena.insert(m);
         let mut calls = BindingCalls::default();
-        assert_eq!(arena.release(id, &mut calls), Ok(if count > 1 { u32::from(count - 1) } else { 0 }));
+        assert_eq!(
+            arena.release(id, &mut calls),
+            Ok(if count > 1 { u32::from(count - 1) } else { 0 })
+        );
         if count > 1 {
             assert_eq!(arena.get(id).unwrap().references, count - 1);
             assert!(calls.0.is_empty());
@@ -1105,6 +1201,7 @@ fn material_value_assignment_copies_count_and_acquires_before_release_per_stage(
     source.references = 65535;
     source.first_byte = 7;
     source.flags = 0x3456;
+    source.header_tail = Some(0xa5);
     source.textures[0].scale_divisor = 3.5;
     let mut calls = BindingCalls::default();
     target.assign_value(&source, &mut calls);
@@ -1126,7 +1223,10 @@ fn value_range_cleanup_is_forward_ignores_counts_and_preserves_enclosing_values(
     let b = f.get_binding_by_key(key(2)).unwrap();
     let c = f.get_binding_by_key(key(3)).unwrap();
     let manager = MaterialManager::new(Host::default());
-    let mut values = [material_with_bindings(&manager, a, b), material_with_bindings(&manager, c, a)];
+    let mut values = [
+        material_with_bindings(&manager, a, b),
+        material_with_bindings(&manager, c, a),
+    ];
     values[0].references = 65535;
     values[1].references = 0;
     let mut calls = BindingCalls::default();
@@ -1148,4 +1248,56 @@ fn manager_false_slots_and_base_destruction_do_not_enumerate_materials() {
     drop(manager);
     assert_eq!(destructions.get(), 1);
     assert_eq!(m.references, 1);
+}
+
+#[test]
+fn constructor_count_and_material_binding_lifetime_reach_the_real_factory() {
+    let raw = Material::constructor();
+    assert_eq!(raw.references, 0);
+    assert_eq!(raw.header_tail, None);
+    assert!(raw.textures.iter().all(|slot| *slot == TextureSlot::default()));
+    let mut f = factory(Image::new(8, 8, 1, 1, 9));
+    let a = f.get_binding_by_key(key(1)).unwrap();
+    let b = f.get_binding_by_key(key(2)).unwrap();
+    let manager = MaterialManager::new(Host::default());
+    assert_eq!(
+        manager.try_create_material(&material_record(3)),
+        Err(Unsupported::MaterialSlots)
+    );
+    let mut arena = MaterialArena::default();
+    let id = arena.insert(material_with_bindings(&manager, a, b));
+    assert_eq!(arena.release(id, &mut f), Ok(0));
+    assert_eq!((f.stats().in_use, f.stats().pooled), (0, 2));
+    assert_eq!(f.binding(a).unwrap().reference_count(), 1);
+    assert_eq!(f.binding(b).unwrap().reference_count(), 1);
+}
+
+#[test]
+fn restore_distinct_records_withholds_unknown_hash_order() {
+    let mut f = factory(Image::new(8, 8, 1, 1, 9));
+    f.get_binding_by_key(key(9)).unwrap();
+    f.get_binding_by_key(key(1)).unwrap();
+    f.provider_mut().events.clear();
+    assert!(f.do_message(RESTORE_TEXTURES));
+    assert_eq!(f.unsupported(), Some(Unsupported::RestoreTableOrder));
+    assert!(f.provider().events.is_empty());
+}
+
+#[test]
+fn wrapped_pool_total_can_stop_trimming_with_sixteen_records_remaining() {
+    let mut f = factory(Image::new(8192, 8192, 1, 1, 3));
+    f.set_free_pool_max(u32::MAX);
+    for i in 1..=17 {
+        let id = f.get_binding_by_key(key(i)).unwrap();
+        // Keep every record live until all have been created, preventing reuse.
+        assert_eq!(f.binding(id).unwrap().reference_count(), 2);
+    }
+    for i in 1..=17 {
+        let id = f.get_binding_by_key(key(i)).unwrap();
+        f.release_binding(id);
+        f.release_binding(id);
+    }
+    assert_eq!(f.stats().pooled_bytes, 0x1000_0000);
+    f.set_free_pool_max(0);
+    assert_eq!((f.stats().pooled, f.stats().pooled_bytes), (16, 0));
 }
