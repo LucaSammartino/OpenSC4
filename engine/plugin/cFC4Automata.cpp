@@ -42,15 +42,44 @@
 
 namespace {
 
+// AT24: observe public reference events without taking an observer reference
+// or reading private game refcounts. Release's return is the measured count.
+thread_local const char* managerPhase = "runtime";
+struct ManagerPhase {
+    const char* previous = managerPhase;
+    explicit ManagerPhase(const char* phase) { managerPhase = phase; }
+    ~ManagerPhase() { managerPhase = previous; }
+};
+thread_local const fc4_istream* tracedInput = nullptr;
+thread_local cFC4AutomataManager* readingManager = nullptr;
+thread_local uint32_t readRefIndex = 0;
+bool TraceManagerReadRef(void* user, uint32_t iid, fc4_ref* out) {
+    const bool ok = tracedInput->get_ref(user, iid, out);
+    fc4::Log("AT24 acquire manager=%p class=%08X phase=Read index=%u iid=%08X receiver=%016llX ok=%d",
+        static_cast<void*>(readingManager), readingManager->GetGZCLSID(), readRefIndex++, iid,
+        static_cast<unsigned long long>(out->token), ok);
+    return ok;
+}
+
 // The cores' reference host (FC4AutomataHost.h): an object is its game
 // pointer as the token.
-void HostAddRef(void* /*user*/, uint64_t token) {
+void HostAddRef(void* user, uint64_t token) {
     cIGZUnknown* o = reinterpret_cast<cIGZUnknown*>(token);
-    if (o != nullptr) FC4_ADDREF(o);
+    if (o != nullptr) {
+        const uint32_t count = FC4_ADDREF(o);
+        fc4::Log("AT24 AddRef manager=%p phase=%s receiver=%p after=%u", user, managerPhase, o, count);
+    }
 }
-void HostRelease(void* /*user*/, uint64_t token) {
+void HostRelease(void* user, uint64_t token) {
     cIGZUnknown* o = reinterpret_cast<cIGZUnknown*>(token);
-    if (o != nullptr) FC4_RELEASE(o);
+    if (o != nullptr) {
+        const auto* manager = static_cast<cFC4AutomataManager*>(user);
+        fc4::Log("AT24 Release begin manager=%p class=%08X phase=%s receiver=%p", user,
+            manager != nullptr ? const_cast<cFC4AutomataManager*>(manager)->GetGZCLSID() : 0, managerPhase, o);
+        const uint32_t count = FC4_RELEASE(o);
+        fc4::Log("AT24 Release end manager=%p phase=%s receiver=%p before=%u after=%u", user,
+            managerPhase, o, count + 1, count);
+    }
 }
 // The controller manager's release (user = the cFC4AutomataControllerManager).
 // While its destructor runs, a game object's release is the one the manager
@@ -81,9 +110,10 @@ void CmHostRelease(void* user, uint64_t token) {
 uint32_t HostControllerFlags(void* /*user*/, uint64_t /*controller*/) { return 0; }
 void HostLog(void* /*user*/, const char* text) { fc4::Log("automata: %s", text); }
 
-fc4_automata_ref_host RefHost() {
+fc4_automata_ref_host RefHost(cFC4AutomataManager* owner) {
     fc4_automata_ref_host h{};
     h.struct_size = sizeof(h);
+    h.user = owner;
     h.add_ref = &HostAddRef;
     h.release = &HostRelease;
     return h;
@@ -290,13 +320,14 @@ bool cFC4AutomataControllerManager::DoMessage(cIGZMessage2* message) {
 // ---- components 43-46: the four managers --------------------------------
 
 cFC4AutomataManager::cFC4AutomataManager(uint32_t classId) : classId_(classId) {
-    const fc4_automata_ref_host h = RefHost();
+    const fc4_automata_ref_host h = RefHost(this);
     core_ = fc4_automata_manager_create(classId, &h);
     fc4::Log("cFC4AutomataManager(%p, class 0x%08X) created, core %p", static_cast<void*>(this), classId,
         static_cast<void*>(core_));
 }
 
 cFC4AutomataManager::~cFC4AutomataManager() {
+    ManagerPhase phase("destructor");
     fc4_automata_manager_destroy(core_);
     core_ = nullptr;
     // The wrappers this manager created (7.2): the handles go with them.
@@ -345,8 +376,24 @@ bool cFC4AutomataManager::Write(cIGZOStream& out) {
 }
 
 bool cFC4AutomataManager::Read(cIGZIStream& in) {
+    ManagerPhase phase("Read-replacement");
     fc4::IStreamAdapter a(in);
-    const bool ok = core_ != nullptr && fc4_automata_manager_read(core_, a.Get());
+    const auto* previousInput = tracedInput;
+    auto* previousManager = readingManager;
+    const uint32_t previousIndex = readRefIndex;
+    tracedInput = a.Get();
+    readingManager = this;
+    readRefIndex = 0;
+    fc4_istream input = *a.Get();
+    input.get_ref = &TraceManagerReadRef;
+    const bool ok = core_ != nullptr && fc4_automata_manager_read(core_, &input);
+    fc4_automata_manager_state state{};
+    fc4_automata_manager_get_state(core_, &state);
+    fc4::Log("AT24 Read manager=%p class=%08X base-list=%u refs=%u ok=%d", static_cast<void*>(this),
+        classId_, state.automata, readRefIndex, ok);
+    tracedInput = previousInput;
+    readingManager = previousManager;
+    readRefIndex = previousIndex;
     fc4::Log("cFC4AutomataManager(0x%08X) Read -> %d", classId_, ok ? 1 : 0);
     return ok;
 }
@@ -356,7 +403,9 @@ bool cFC4AutomataManager::Read(cIGZIStream& in) {
 // all this class keeps (0: animation is stubbed), so a message is accepted and
 // dropped.
 bool cFC4AutomataManager::DoMessage(cIGZMessage2* message) {
-    (void)message;
+    if (message != nullptr && message->GetType() == 0x26D31EC2)
+        fc4::Log("AT24 PreCityShutdown manager=%p class=%08X (current handler has no list cleanup)",
+            static_cast<void*>(this), classId_);
     return true;
 }
 
@@ -522,6 +571,8 @@ bool cFC4AutomataManager::Init() {
 }
 
 bool cFC4AutomataManager::Shutdown() {
+    ManagerPhase phase("Shutdown");
+    fc4::Log("AT24 Shutdown manager=%p class=%08X", static_cast<void*>(this), classId_);
     return fc4_automata_manager_shutdown(core_) != 0;
 }
 
