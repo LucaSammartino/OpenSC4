@@ -1,0 +1,18 @@
+{
+  "format":1,
+  "name":"fm_02_no_resources",
+  "spec":"feature-manager.md §§4.1,4.4–4.6,10.2",
+  "description":"No resolved resource installs a pack or enables a feature; a scan still succeeds.",
+  "steps":[{"op":"fm_scenario","resources":[],"actions":[
+    {"method":"init","expect":true},
+    {"method":"current","expect":0},
+    {"method":"pack","arg":0,"expect":false},
+    {"method":"pack","arg":1,"expect":false},
+    {"method":"pack","arg":16,"expect":false},
+    {"method":"pack","arg":32,"expect":false},
+    {"method":"pack","arg":33,"expect":false},
+    {"method":"pack","arg":"0xFFFFFFFF","expect":false},
+    {"method":"feature","arg":0,"expect":false},
+    {"method":"feature","arg":"0xFFFFFFFF","expect":false}
+  ]}]
+}
