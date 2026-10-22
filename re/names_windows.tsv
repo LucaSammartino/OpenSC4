@@ -1985,12 +1985,27 @@ va	name	source	confidence	note
 004c37a0	std::vector<unsigned_char,std::allocator<unsigned_char>>::operator[]	auto:D	medium	mac 005f5a4a score 0.5 support 1
 004c37b0	cSC4HoverQueriableOccupantFilter::IsOccupantIncluded	auto:B0	medium	mac 006cd3ee score 0.982 support 4.5
 004c3860	cSC4ViewInputControlQuery::GetRouteTravelTypes	auto:B5	medium	mac 0020cac2 score 0.986 support 2.0
+004c3810	cSC4ViewInputControlQuery::GetOccupantNameTipInfo	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §2.3; 0x899AFBAD, 0x8A416A99, 0x20
 004c38d0	SafeGetAltitude	auto:B3	medium	mac 00206fbc score 0.99 support 2.0
+004c39a0	cSC4QueryRouteOccupantFilter::IsOccupantIncluded	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §2.1; vtable 0x00A909E4
+004c3ab0	cSC4QueryAutomatonFilter::IsOccupantTypeIncluded	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §3.1; vtable 0x00A90A18
+004c3ad0	cSC4QueryStoplightFilter::IsOccupantIncluded	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §3.1; groups 0x5002, 0x5003
+004c3b10	cSC4ViewInputControlQuery::GetLoadMeterValue	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.1; L(used, cap)
+004c3b90	cSC4ViewInputControlQuery::SetEditControlText	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1000
 004c3c00	cSC4ViewInputControlQuery::SetStaticControlText	auto:B0	medium	mac 0020735c score 0.948 support 3.5
+004c3c50	cSC4ViewInputControlQuery::GetSliderControlValue	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.1
 004c3ca0	cSC4ViewInputControlQuery::SetPerformanceMeterValue	auto:B3	medium	mac 0020755e score 0.968 support 2.0
+004c3d70	cSC4ViewInputControlQuery::SetOrGetSeaportTrafficVolume	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1015 (zone)
+004c3e10	cSC4ViewInputControlQuery::SetOrGetLandfillUsage	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1026 (zone)
+004c3e70	cSC4ViewInputControlQuery::SetOrGetGarbageBuildingEfficiency	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1029
+004c3ee0	cSC4ViewInputControlQuery::SetOrGetRecyclingCenterEfficiency	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x105E
+004c3f90	cSC4ViewInputControlQuery::SetOrGetPowerPlantEfficiency2	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1034
+004c3fd0	cSC4ViewInputControlQuery::SetOrGetTransitStationServiceQuality	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1041
 004c4160	cSC4ViewInputControlQuery::GetOccupantCapacity	auto:D	medium	mac 0020862e score 0.5 support 1
 004c4210	cSC4ViewInputControlQuery::GetLandValue	auto:B2	medium	mac 002081b8 score 0.944 support 1.0
 004c4260	cSC4ViewInputControlQuery::GetRatingIn3DegreesFromPercent	auto:B2	medium	mac 002079de score 0.977 support 3.0
+004c42f0	cSC4ViewInputControlQuery::SetOrGetWaterBuildingEfficiency	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x103A, 0x106D
+004c4340	cSC4ViewInputControlQuery::EnumFuncAddWinProc	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §4.1 step 4
 004c4370	cSC4ViewInputControlQuery::EnumFuncClearFilter	auto:A	high	mac 00207ce2 score 0.88 support 0
 004c44e0	icf::cSC4QueryDialogWinProc::QueryInterface	folded	folded	2 names: cSC4QueryDialogWinProc::QueryInterface | cSC4TutorialUIWinProc::QueryInterface
 004c4570	cSC4LegendDialogWinProc::~cSC4LegendDialogWinProc	auto:C	high	mac 00206cd4 score 1.0 support 1
@@ -2009,21 +2024,87 @@ va	name	source	confidence	note
 004c53a0	cSC4ViewInputControlQuery::GetCurrentOccupancyValue	auto:D	medium	mac 0020a202 score 0.5 support 1
 004c5490	cSC4ViewInputControlQuery::GetMayorRatingPercent	auto:B4	medium	mac 0020ae60 score 0.957 support 1.0
 004c55a0	cSC4ViewInputControlQuery::SetOrGetOccupantIsHistorical	auto:B1	medium	mac 0020a4c2 score 0.957 support 2.0
+004c4750	cSC4ViewInputControlQuery::RateSubjectiveSchoolGrade	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §6; rating 2
+004c47f0	cSC4ViewInputControlQuery::RateSubjectiveHospitalGrade	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §6; rating 3
+004c4890	cSC4ViewInputControlQuery::RateSubjectiveCrime	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §6; rating 4
+004c4930	cSC4ViewInputControlQuery::RateSubjectiveCommercialTraffic	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §6; rating 5
+004c4a30	cSC4ViewInputControlQuery::RateSubjectiveCommute	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §6; rating 6
+004c4d10	cSC4ViewInputControlQuery::PickAutomaton	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §3.1; vehicles and pedestrians
+004c5180	cSC4ViewInputControlQuery::SetOrGetFireStationEfficiency	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1001
+004c51c0	cSC4ViewInputControlQuery::SetOrGetPoliceStationEfficiency	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1006
+004c5200	cSC4ViewInputControlQuery::SetOrGetJailLoad	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x100C
+004c5310	cSC4ViewInputControlQuery::SetOrGetSeaportOccupantTrafficVolume	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1015
+004c5350	cSC4ViewInputControlQuery::SetOrGetPowerPlantEfficiency	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x102D
+004c5620	cSC4QueryDialogWinProc::cSC4QueryDialogWinProc	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §4.1 step 4; holds the occupant
 004c5690	cSC4QueryDialogWinProc::EndDialog	auto:B1	medium	mac 0020a56e score 0.914 support 2.0
 004c56f0	std::_Rb_tree<unsigned_long,std::pair<unsigned_long_const,SC4Percentage>,std::_Select1st<std::pair<unsigned_long_const,SC4Percentage>>,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,SC4Percentage>>>::~_Rb_tree	auto:D	medium	mac 0065d05a score 0.5 support 1
 004c5730	cSC4ViewInputControlQuery::~cSC4ViewInputControlQuery	auto:C	high	mac 006ce2b8 score 1.0 support 1
+004c5750	cSC4ViewInputControlQuery::~cSC4ViewInputControlQuery (body)	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §1
 004c57a0	cSC4ViewInputControlQuery::Init	auto:A	high	mac 00218642 score 0.76 support 0
 004c5ba0	cSC4ViewInputControlQuery::SetTip	auto:B1	medium	mac 0020c624 score 0.999 support 2.0
+004c5c90	cSC4ViewInputControlQuery::RateSubjectivePollution	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §6; rating 0
+004c5d70	cSC4ViewInputControlQuery::RateSubjectiveGarbage	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §6; rating 1
 004c5e20	cSC4ViewInputControlQuery::MakeRoutePath	auto:B2	medium	mac 0020cb24 score 0.967 support 1.5
 004c67f0	cSC4ViewInputControlQuery::SetOrGetAirportOccupantAirTrafficVolume	auto:B0	medium	mac 0021b282 score 0.938 support 1.0
 004c69a0	std::vector<std::map<unsigned_long,unsigned_short,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,unsigned_short>>>,std::allocator<std::map<unsigned_long,unsigned_short,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,unsigned_short>>>>>::_M_insert_aux	auto:B5	medium	mac 006587fa score 0.87 support 1.0
 004c6a60	WriteConnectionInfo	auto:A	high	mac 0020a5f2 score 1.0 support 0
+004c6b10	cSC4ViewInputControlQuery::GetEditControlText	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1000
 004c6bf0	cSC4ViewInputControlQuery::SetStaticControlNumeric	auto:B2	medium	mac 002073b6 score 0.865 support 2.0
 004c6ca0	cSC4ViewInputControlQuery::SetStaticControlNumericPercent	auto:D	medium	mac 00207420 score 0.5 support 1
 004c6d50	cSC4ViewInputControlQuery::SetStaticControlSimoleons	auto:B1	medium	mac 0020748a score 0.867 support 3.0
 004c6e30	cSC4ViewInputControlQuery::SetSliderControlValue	auto:A	high	mac 002177d2 score 0.789 support 0
+004c70c0	cSC4ViewInputControlQuery::SetOrGetBuildingName	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1000
+004c7200	cSC4ViewInputControlQuery::SetOrGetFireStationFunding	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1002
+004c72e0	cSC4ViewInputControlQuery::SetOrGetFireStationDispatchCount	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1003
+004c7350	cSC4ViewInputControlQuery::SetOrGetFireStationCost	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1004
+004c7390	cSC4ViewInputControlQuery::SetOrGetPoliceStationArrests	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1007
+004c73d0	cSC4ViewInputControlQuery::SetOrGetPoliceStationCrimes	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1008
+004c7410	cSC4ViewInputControlQuery::SetOrGetPoliceStationFunding	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1009
+004c74f0	cSC4ViewInputControlQuery::SetOrGetPoliceStationDispatchCount	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x100A
+004c7560	cSC4ViewInputControlQuery::SetOrGetPoliceStationCost	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x100B
+004c75a0	cSC4ViewInputControlQuery::SetOrGetJailComfortableCapacity	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x100D; 0.8 x capacity
+004c75f0	cSC4ViewInputControlQuery::SetOrGetJailInmates	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x100E
+004c7660	cSC4ViewInputControlQuery::SetOrGetJailUpkeepCost	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x100F
 004c7690	cSC4ViewInputControlQuery::SetOrGetAirportMaintenanceCost	auto:D	medium	mac 002082de score 0.5 support 1
+004c76f0	cSC4ViewInputControlQuery::SetOrGetAirportUsage	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x107B (zone)
+004c7760	cSC4ViewInputControlQuery::SetOrGetAirportCapacity	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x107C (zone)
+004c77d0	cSC4ViewInputControlQuery::SetOrGetSeaportUsage	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x107D (zone)
+004c7840	cSC4ViewInputControlQuery::SetOrGetSeaportCapacity	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x107E (zone)
+004c78b0	cSC4ViewInputControlQuery::SetOrGetSeaportMaintenanceCost	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1078 (zone)
+004c7910	cSC4ViewInputControlQuery::SetOrGetOccupantWaterPollution	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1016
+004c7980	cSC4ViewInputControlQuery::SetOrGetSchoolGrade	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1017
+004c7a70	cSC4ViewInputControlQuery::SetOrGetSchoolStaffFunding	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1018
+004c7bb0	cSC4ViewInputControlQuery::SetOrGetSchoolBusFunding	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1019
+004c7ce0	cSC4ViewInputControlQuery::SetOrGetCivicBuildingEstimatedCapacity	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x101B, 0x101D, 0x101F, 0x1024
+004c7d30	cSC4ViewInputControlQuery::SetOrGetSchoolServed	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x101C, 0x101E
+004c7e10	cSC4ViewInputControlQuery::SetOrGetHospitalGrade	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1020
+004c7f00	cSC4ViewInputControlQuery::SetOrGetHospitalStaffFunding	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1021
+004c8030	cSC4ViewInputControlQuery::SetOrGetHospitalAmbulanceFunding	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1022
+004c8160	cSC4ViewInputControlQuery::SetOrGetCivicBuildingEstimatedStaff	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x101A, 0x1023
+004c81b0	cSC4ViewInputControlQuery::SetOrGetHospitalServed	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1025
+004c8290	cSC4ViewInputControlQuery::SetOrGetLandfillGarbageAmount	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1027 (zone)
+004c82f0	cSC4ViewInputControlQuery::SetOrGetLandfillBudget	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1028 (zone)
+004c8330	cSC4ViewInputControlQuery::SetOrGetIncineratorUsagePercent	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x102A
+004c83b0	cSC4ViewInputControlQuery::SetOrGetIncineratorGarbageAmount	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x102B
+004c8420	cSC4ViewInputControlQuery::SetOrGetOccupantAirPollution	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x102C
+004c8470	cSC4ViewInputControlQuery::SetOrGetRecyclingPercent	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x105F
+004c8550	cSC4ViewInputControlQuery::SetOrGetRecyclingAmountPerCenter	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1060
+004c85f0	cSC4ViewInputControlQuery::SetOrGetWasteToEnergyGarbageAmount	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1033
+004c8660	cSC4ViewInputControlQuery::SetOrGetPowerPlantUsagePercent	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x102E, 0x1035
+004c86d0	cSC4ViewInputControlQuery::SetOrGetPowerPlantMaxOutput	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x102F, 0x1036
+004c8710	cSC4ViewInputControlQuery::SetOrGetPowerPlantOutput	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1030, 0x1037
+004c8760	cSC4ViewInputControlQuery::SetOrGetPowerPlantFunding	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1063
+004c8880	cSC4ViewInputControlQuery::SetOrGetWaterBuildingUsagePercent	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x103B
+004c8900	cSC4ViewInputControlQuery::SetOrGetWaterBuildingMaxOutput	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x103C
+004c8950	cSC4ViewInputControlQuery::SetOrGetWaterBuildingOutput	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x103D
+004c89a0	cSC4ViewInputControlQuery::SetOrGetWaterBuildingUsedOutput	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x103E
+004c89f0	cSC4ViewInputControlQuery::SetOrGetWaterBuildingCondition	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1073
+004c8a60	cSC4ViewInputControlQuery::SetOrGetTransitStationUsagePercent	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1042
+004c8b30	cSC4ViewInputControlQuery::SetOrGetTransitStationMaintenanceCost	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1043
+004c8bc0	cSC4ViewInputControlQuery::SetOrGetTransitStationUsage	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1044
+004c8c50	cSC4ViewInputControlQuery::SetOrGetTransitStationCapacity	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1045
 004c8ce0	cSC4ViewInputControlQuery::SetOrGetTransitStationGlobalFunding	auto:A	high	mac 0020b01c score 1.0 support 0
+004c8d40	cSC4ViewInputControlQuery::SetOrGetTransitStationLocalCost	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1047
 004c8e30	cSC4ViewInputControlQuery::SetOrGetNeighborConnectionNeighborCityMayorName	auto:D	medium	mac 0020a728 score 0.5 support 1
 004c8f20	cSC4ViewInputControlQuery::SetOrGetNeighborConnectionCongestion	auto:D	medium	mac 0020b47e score 0.5 support 1
 004c8ff0	cSC4ViewInputControlQuery::SetOrGetRCIBuildingCurrentOccupancy	auto:A	high	mac 0020a436 score 1.0 support 0
@@ -2035,8 +2116,17 @@ va	name	source	confidence	note
 004c9470	std::vector<std::map<unsigned_long,unsigned_short,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,unsigned_short>>>,std::allocator<std::map<unsigned_long,unsigned_short,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,unsigned_short>>>>>::push_back	auto:B4	medium	mac 006589b4 score 0.829 support 2.0
 004c9520	cSC4ViewInputControlQuery::WriteDesirabilityEquation	auto:A	high	mac 0020b61e score 1.0 support 0
 004c9e60	cSC4ViewInputControlQuery::SetOrGetAirportOccupantMaintenanceCost	auto:B0	medium	mac 00208f86 score 0.938 support 1.0
+004c9ea0	cSC4ViewInputControlQuery::SetOrGetAirportOccupantUsage	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x107B
+004c9ee0	cSC4ViewInputControlQuery::SetOrGetAirportOccupantCapacity	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x107C
+004c9f20	cSC4ViewInputControlQuery::SetOrGetSeaportOccupantUsage	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x107D
+004c9f60	cSC4ViewInputControlQuery::SetOrGetSeaportOccupantCapacity	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x107E
+004c9fa0	cSC4ViewInputControlQuery::SetOrGetSeaportOccupantMaintenanceCost	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1078
+004c9ff0	cSC4ViewInputControlQuery::SetOrGetPowerPlantUsedOutput	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1031, 0x1038
+004ca040	cSC4ViewInputControlQuery::SetOrGetPowerPlantCondition	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1061, 0x1062
 004ca090	cSC4ViewInputControlQuery::SetOrGetWaterBuildingPumpCondition	auto:A	high	mac 002098e4 score 0.735 support 0
 004ca1e0	cSC4ViewInputControlQuery::SetOrGetNeighborConnectionNeighborCityName	auto:B2	medium	mac 0020a7b2 score 0.924 support 3.0
+004ca2c0	cSC4ViewInputControlQuery::SetOrGetOccupantIsPowered	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1076
+004ca390	cSC4ViewInputControlQuery::SetOrGetOccupantIsWatered	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1077
 004ca460	cSC4ViewInputControlQuery::ShowAllRoutesThatIntersectCityRect	auto:B1	medium	mac 0020e00e score 0.948 support 8.5
 004caa60	cSC4ViewInputControlQuery::GetBuildingOccupantPaths	auto:B3	medium	mac 0020e9a4 score 0.949 support 2.0
 004caae0	cSC4ViewInputControlQuery::GetNetworkOccupantPaths	auto:B2	medium	mac 0020f3e6 score 0.93 support 2.5
@@ -2056,6 +2146,8 @@ va	name	source	confidence	note
 004cc160	cSC4ViewInputControlQuery::SetOrGetAirportLostLuggage	auto:A	high	mac 0020f256 score 0.715 support 0
 004cc1d0	cSC4ViewInputControlQuery::SetOrGetNeighborConnectionDealGarbageAmount	auto:D	medium	mac 0020de16 score 0.5 support 1
 004cc240	cSC4ViewInputControlQuery::SetOrGetControlValue	auto:B0	medium	mac 0021b55e score 0.947 support 1.0
+004cc660	cSC4ViewInputControlQuery::EnumFuncFillCellControl	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §4.2; fill = true
+004cc6a0	cSC4ViewInputControlQuery::EnumFuncWriteBackCellControl	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §4.2; fill = false
 004cc6e0	cSC4ViewInputControlQuery::DoNeighborConnectionQueryDialog	auto:A	high	mac 00219668 score 0.684 support 0
 004cccb0	cSC4ViewInputControlQuery::DoZoneBasedQueryDialog	auto:A	high	mac 00219306 score 0.725 support 0
 004ccf60	cSC4ViewInputControlQuery::DescribeBuilding	auto:A	high	mac 002119c0 score 0.926 support 0
@@ -2073,14 +2165,26 @@ va	name	source	confidence	note
 004cfd20	cSC4ViewInputControlQuery::CalculateTripVolumeFromTrafficPaths	auto:B6	medium	mac 0021560e score 0.983 support 5.5
 004d0190	cSC4ViewInputControlQuery::GetBuildingOccupantTrafficInfo	auto:A	high	mac 00215b18 score 0.918 support 0
 004d07c0	cSC4ViewInputControlQuery::GetNetworkOccupantTrafficInfo	auto:A	high	mac 0021625c score 0.944 support 0
+004d0d30	cSC4ViewInputControlQuery::SetStaticControlCostPerUnit	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.1
 004d0ee0	cSC4ViewInputControlQuery::SetOrGetWhyOccupantAbandoned	auto:A	high	mac 0020f650 score 0.785 support 0
+004d10f0	cSC4ViewInputControlQuery::SetOrGetPowerPlantCostPerUnit	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1032, 0x1039
+004d1190	cSC4ViewInputControlQuery::SetOrGetWaterBuildingCostPerUnit	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x103F
 004d1230	cISC4BuildingOccupant::BuildingProfile::BuildingProfile	auto:D	medium	mac 00658a5e score 0.5 support 1
 004d12a0	cSC4ViewInputControlQuery::WriteDetailedDebugInfo	auto:A	high	mac 00212c2e score 0.962 support 0
 004d3260	cSC4ViewInputControlQuery::GetBuildingWealth	auto:B1	medium	mac 0020ea48 score 1.0 support 2.0
 004d32d0	cSC4ViewInputControlQuery::FindBestDeveloper	auto:B2	medium	mac 0020eab6 score 0.977 support 3.0
 004d3470	cSC4ViewInputControlQuery::GetSubjectiveOccupantRatingString	auto:B1	medium	mac 0020ec54 score 0.943 support 2.5
 004d3500	cSC4ViewInputControlQuery::SetOrGetRCIBuildingWealthLevel	auto:B2	medium	mac 0021716c score 0.98 support 2.5
+004d3730	cSC4ViewInputControlQuery::SetOrGetOccupantPollutionRating	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1054; rating 0
+004d37a0	cSC4ViewInputControlQuery::SetOrGetOccupantGarbageRating	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1075; rating 1
+004d3810	cSC4ViewInputControlQuery::SetOrGetOccupantCrimeRating	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1055; rating 4
 004d3880	cSC4ViewInputControlQuery::SetOrGetResidentialBuildingCommute	auto:A	high	mac 0020ee7a score 0.581 support 0
+004d3940	cSC4ViewInputControlQuery::SetOrGetOccupantTrafficRating	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1074; rating 5
+004d39b0	cSC4ViewInputControlQuery::SetOrGetOccupantSchoolRating	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1059; rating 2
+004d3a20	cSC4ViewInputControlQuery::SetOrGetOccupantHospitalRating	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x105A; rating 3
+004d3ae0	cSC4ViewInputControlQuery::EnumFuncFillControl	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §4.1 step 5; fill = true
+004d3b40	cSC4ViewInputControlQuery::EnumFuncRefreshControl	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §4.1 step 6
+004d3bd0	cSC4ViewInputControlQuery::EnumFuncWriteBackControl	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §4.1 step 8; fill = false
 004d3c30	cSC4ViewInputControlQuery::DoQueryDialog	auto:B0	medium	mac 00218ed0 score 0.95 support 5.5
 004d3f40	cSC4QueryDialogWinProc::DoWinProcMessage	auto:A	high	mac 002182da score 0.723 support 0
 004d4140	cSC4ViewInputControlQuery::DescribePick	auto:A	high	mac 00219cde score 0.804 support 0

@@ -22,15 +22,10 @@
 - **CT7 - §8.4 step 5, the legend dialog:** the exact script key passed to `SC4CreateWindowFromScript` and the
   placement arithmetic (window slots 41, 44, 45, 56) of the two legend panes; `SetLegendMinimized`
   (`0x004C4630`) swaps their visibility and moves the minimised pane. [next RE round]
-- **CT8 - §8.6, the click modifier bits `0x01` and `0x02`:** which keys are they (Shift / Ctrl, or the mouse
-  button state)? [unknown]
-- **CT9 - §8.6 step 2, the automaton and stoplight hits:** what are city slots 43 and 40 and the called slots 34 and
-  37 (select an automaton, toggle a stoplight)? What does the automaton filter `0x004BDF90` accept? [unknown]
-- **CT10 - §8.6 step 3:** what is residential simulator slot 59 called with the quarter-resolution cell (a debug
-  commute or travel test)? [unknown]
-- **CT12 - §8.10, the query tool remainder:** 183 functions, 60,518 bytes after round 3 (zone and neighbour
-  dialogs, description writers, 87 filler bodies of the §8.12.3 table and their typed workers, route code, rating
-  helpers). The lane parked after its third round; needed before the owner can be claimed. [next RE lane]
+- **CT9 - §8.6 step 2, the automaton and stoplight hits:** what do the vehicle manager's slot 34 and the traffic
+  network's slot 37 do with the picked automaton and stoplight prop (select or track it, toggle the light)? (City
+  slot 43 is `GetVehicleManager` and slot 40 `GetTrafficNetwork` in the SDK; the automaton filter accepts vehicles
+  `0xC7CC75F1` and pedestrians `0x496E5783`, `0x004C3AB0`; re-query 2026-10-21.) [unknown]
 
 <!-- from: the re-querytool4 lane (2026-10-21, round 2) -->
 - **CT13 - §8.11.3/§8.11.4, the tip gauge data:** the meaning of callout slot 4's values (12, 10) and slot 14's
@@ -40,3 +35,13 @@
   (`+0x130`) and slot 14 (`0x007984D0`) a held pointer (`+0x140`) and a float clamped to [0, 1]; the integer
   arguments (12, 10) and (5) of §8.11.3 do not fit those shapes, so the interface the tip display calls through
   must be checked again. [unknown; callout slots only]
+
+<!-- from: re-query (2026-10-21) -->
+- **CT14 - §8.13, §8.12.1, §8.12.4:** the neighbour connection dialog in detail (`0x004CC6E0`: the kind codes, the
+  looked-up window for kinds 4 and 5, the row fillers of `0x104B`–`0x104E`, `0x1066`–`0x106A`), the MySim icon
+  control `0x105B`, and the debug description writers (`DescribeBuilding`, `DescribePopulation`, `DescribeDemand`,
+  `DescribeCell`, `WriteDetailedDebugInfo`). [summary]
+
+<!-- from: re-query (2026-10-21) -->
+- **CT15 - §8.15:** route mode: `MakeRoutePath`, `GetBuildingOccupantPaths`, `GetNetworkOccupantPaths`,
+  `DoesRouteCrossCell`, `GetRouteTravelTypes` and the legend's travel-type toggles in detail. [outline]
