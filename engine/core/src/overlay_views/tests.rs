@@ -91,7 +91,7 @@ fn prescribed_order_and_newest_survives_priority_insertion_and_duplicate_ids() {
     add_path(&mut v, 9, 1, &[p(4.0, 5.0, 6.0)]);
     add_path(&mut v, 7, 2, &[p(7.0, 8.0, 9.0)]);
     assert_eq!(
-        v.paths().iter().map(|p| (p.id, p.priority)).collect::<Vec<_>>(),
+        v.paths().iter().map(|p| (p.id(), p.priority())).collect::<Vec<_>>(),
         [(9, 1), (9, 2), (7, 2)]
     );
     assert!(v.add_path_vertex(p(8.0, 100.0, 9.0)).unwrap());
@@ -748,4 +748,121 @@ fn empty_and_invalid_inputs_do_not_submit_or_change_state() {
     let old = v.cell_size();
     assert_eq!(v.set_cell_size([1.0, 0.0]), Err(Error::InvalidInput));
     assert_eq!(v.cell_size(), old);
+}
+
+struct TrainFactory {
+    binding: Arc<Binding>,
+    calls: Mutex<Vec<(u32, u32, u32)>>,
+    fail_at: Option<usize>,
+}
+impl TrainFactory {
+    fn record(&self, key: (u32, u32, u32)) -> bool {
+        let mut calls = self.calls.lock().unwrap();
+        calls.push(key);
+        self.fail_at != Some(calls.len())
+    }
+}
+impl TrainResourceFactory for TrainFactory {
+    fn picture(&self, group: u32, instance: u32) -> Option<Arc<dyn Texture>> {
+        self.record((0, group, instance))
+            .then(|| self.binding.clone() as Arc<dyn Texture>)
+    }
+    fn model(&self, kind: u32, group: u32, instance: u32) -> Option<Arc<dyn Model>> {
+        self.record((kind, group, instance))
+            .then(|| self.binding.clone() as Arc<dyn Model>)
+    }
+}
+
+#[test]
+fn train_exact_resource_keys_direction_table_and_acquired_reference_rollback() {
+    let factory = TrainFactory {
+        binding: Arc::new(Binding),
+        calls: Mutex::new(Vec::new()),
+        fail_at: None,
+    };
+    let mut view = SC4TrainJunctionView::new();
+    view.load_resources(&factory).unwrap();
+    assert_eq!(
+        *factory.calls.lock().unwrap(),
+        [
+            (0, 0x1ABE787D, 0x6BE09921),
+            (0, 0x1ABE787D, 0x6BE09922),
+            (0, 0x1ABE787D, 0x6BE09923),
+            (0, 0x1ABE787D, 0x6BE09924),
+            (0, 0x1ABE787D, 0x6BE09925),
+            (0, 0x1ABE787D, 0x6BE09926),
+            (0x5AD0E817, 0xBADB57F1, 0x8BB70000),
+            (0x5AD0E817, 0xBADB57F1, 0x8BB80000),
+        ]
+    );
+    assert_eq!(Arc::strong_count(&factory.binding), 9);
+    assert_eq!(view.directions()[0][2], Some([1.0, 0.0]));
+    assert_eq!(view.directions()[1][3], Some([0.0, 1.0]));
+    assert_eq!(view.directions()[2][2], None);
+    let d = view.directions()[0][1].unwrap();
+    near(d[0], std::f32::consts::FRAC_1_SQRT_2);
+    near(d[1], -std::f32::consts::FRAC_1_SQRT_2);
+    let failing = TrainFactory {
+        binding: factory.binding.clone(),
+        calls: Mutex::new(Vec::new()),
+        fail_at: Some(4),
+    };
+    assert_eq!(view.load_resources(&failing), Err(Error::ResourceUnavailable));
+    assert_eq!(Arc::strong_count(&factory.binding), 10);
+    assert!(view.resources().is_some());
+    drop(failing);
+    drop(view);
+    assert_eq!(Arc::strong_count(&factory.binding), 1);
+}
+
+#[test]
+fn train_chord_fallback_and_cross_product_boundaries() {
+    let route = [
+        p(0.0, 5.0, 10.0),
+        p(5.0, 9.0, 0.0),
+        p(5.03, 12.0, 0.02),
+        p(5.05, 15.0, 0.04),
+    ];
+    assert_eq!(
+        SC4TrainJunctionView::get_path_bitmap(&route, [1.0, 0.0], false),
+        Ok(0x6BE09921)
+    );
+    // Unit segment directions (sqrt(15), ±1)/4 have exact boundary cross products ±0.25.
+    for z in [-1.0, 1.0] {
+        let route = [p(0.0, 0.0, 0.0), p(15.0_f32.sqrt(), 0.0, z)];
+        assert_eq!(
+            SC4TrainJunctionView::get_path_bitmap(&route, [1.0, 0.0], true),
+            Ok(0x6BE09926)
+        );
+    }
+    assert_eq!(
+        SC4TrainJunctionView::get_path_bitmap(&[], [1.0, 0.0], false),
+        Err(Error::InvalidInput)
+    );
+}
+
+#[test]
+fn arrow_flags_on_short_path_are_suppressed_and_other_bits_remain_opaque() {
+    let mut view = path_view();
+    view.new_path(0xFEDCBA98, -17, 0xA5000003)
+        .unwrap()
+        .supply_attributes(RED, -3.0)
+        .unwrap();
+    view.add_path_vertex(p(3.0, 7.0, 11.0)).unwrap();
+    view.add_path_vertex(p(4.0, 7.0, 11.0)).unwrap();
+    assert_eq!(view.paths()[0].flags(), 0xA5000003);
+    let draw = view.draw_path(&view.paths()[0]).unwrap().unwrap();
+    assert_eq!(draw.vertices[2].uv[1], -0.75);
+    assert_eq!(draw.vertices[2].position, p(4.0, 7.0, 13.0));
+}
+
+#[test]
+fn all_owner_state_is_send_and_sync_without_refcell_getters() {
+    fn check<T: Send + Sync>() {}
+    check::<cSC4PathView>();
+    check::<PathInfo>();
+    check::<SC4MarkedCellView>();
+    check::<cSTEVertBufExtn>();
+    check::<SC4PathInfoView>();
+    check::<SC4TrainJunctionView>();
 }

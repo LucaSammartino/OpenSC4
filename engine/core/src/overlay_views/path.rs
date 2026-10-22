@@ -4,9 +4,9 @@ use std::sync::Arc;
 
 /// The owner cSC4PathView::PathInfo, represented outside a Rust struct namespace.
 pub struct PathInfo {
-    pub id: u32,
-    pub priority: i32,
-    pub flags: u32,
+    id: u32,
+    priority: i32,
+    flags: u32,
     points: Vec<Point>,
     texture: Option<Arc<dyn Texture>>,
     attributes: Option<(Colour, f32)>,
@@ -14,6 +14,15 @@ pub struct PathInfo {
 }
 
 impl PathInfo {
+    pub fn id(&self) -> u32 {
+        self.id
+    }
+    pub fn priority(&self) -> i32 {
+        self.priority
+    }
+    pub fn flags(&self) -> u32 {
+        self.flags
+    }
     pub fn points(&self) -> &[Point] {
         &self.points
     }
@@ -60,10 +69,10 @@ impl cSC4PathView {
 
     pub fn init(&mut self, prefer_opaque: bool) {
         let plain = DrawState {
-            colour_write: true,
+            colour_write: Some(true),
             depth_write: false,
             depth: DepthTest::Disabled,
-            culling: true,
+            culling: Some(true),
             blend: if prefer_opaque {
                 Blend::Disabled
             } else {

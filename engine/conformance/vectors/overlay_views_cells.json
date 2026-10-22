@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "name": "overlay_views_cells",
+  "spec": ["overlay-views.md §2.1", "overlay-views.md §7.4"],
+  "description": "100 cells in one batch and 300 in two, 1024 vertex maximum.",
+  "steps": [{"op": "ov_cells", "count": 100, "expect": [400]},
+    {"op": "ov_cells", "count": 300, "expect": [1024, 176]},
+    {"op": "ov_cells", "count": 0, "expect": []}]
+}

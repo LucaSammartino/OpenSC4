@@ -103,10 +103,10 @@ pub enum Blend {
 /// Semantic state fields only. No guessed native packed flags.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DrawState {
-    pub colour_write: bool,
+    pub colour_write: Option<bool>,
     pub depth_write: bool,
     pub depth: DepthTest,
-    pub culling: bool,
+    pub culling: Option<bool>,
     pub blend: Blend,
     pub textures: u8,
     pub alpha_greater_than: Option<f32>,

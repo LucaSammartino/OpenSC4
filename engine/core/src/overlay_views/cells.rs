@@ -74,14 +74,14 @@ impl SC4MarkedCellView {
     pub fn init(&mut self, filter: Arc<dyn LotFilter>) {
         self.filter = Some(filter);
         self.state = Some(DrawState {
-            colour_write: true,
+            colour_write: Some(true),
             depth_write: false,
             depth: if self.ignore_depth {
                 DepthTest::Disabled
             } else {
                 DepthTest::LessOrEqual
             },
-            culling: true,
+            culling: Some(true),
             blend: Blend::SourceAlpha,
             textures: 0,
             alpha_greater_than: None,

@@ -70,5 +70,6 @@ pub mod variants;
 pub(crate) mod weather;
 pub(crate) mod zones;
 pub(crate) mod dates;
+pub(crate) mod overlay_views;
 
 pub use runner::{run_vector_file, run_vector_text};

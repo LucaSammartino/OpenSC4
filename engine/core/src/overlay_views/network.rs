@@ -46,15 +46,15 @@ impl SC4PathInfoView {
 
     pub fn init(&mut self) {
         self.state = Some(DrawState {
-            colour_write: true,
+            colour_write: None,
             depth_write: false,
             depth: if self.ignore_depth {
                 DepthTest::Disabled
             } else {
                 DepthTest::LessOrEqual
             },
-            // Culling is irrelevant for lines; native unspecified fields are NOV2.
-            culling: false,
+            // Unpublished fields stay unknown, rather than gaining native defaults (NOV2).
+            culling: None,
             blend: Blend::SourceAlpha,
             textures: 0,
             alpha_greater_than: Some(0.0),
