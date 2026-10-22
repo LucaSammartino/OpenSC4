@@ -7,7 +7,14 @@ use super::{CacheId, Filter, Key, KeyList};
 pub struct Object(pub u64);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Lock { Factory, Segment, CacheRegistry, Key, CacheEntries(CacheId), CacheReferences(CacheId) }
+pub enum Lock {
+    Factory,
+    Segment,
+    CacheRegistry,
+    Key,
+    CacheEntries(CacheId),
+    CacheReferences(CacheId),
+}
 
 /// The lock events identify the recursive native critical-section scopes.
 /// Portable calls require exclusive mutable access, and getters borrow state;
@@ -27,8 +34,22 @@ pub trait Primitives {
     fn resource_count(&mut self, resource: Object) -> u32;
     fn resource_query(&mut self, resource: Object, iid: u32, out: &mut Option<Object>) -> bool;
     fn com_create_factory(&mut self, class: u32, iid: u32, out: &mut Option<Object>) -> bool;
-    fn factory_create_type(&mut self, factory: Object, ty: u32, iid: u32, out: &mut Option<Object>, args: [u32; 2]) -> bool;
-    fn factory_create_record(&mut self, factory: Object, record: Object, iid: u32, out: &mut Option<Object>, args: [u32; 2]) -> bool;
+    fn factory_create_type(
+        &mut self,
+        factory: Object,
+        ty: u32,
+        iid: u32,
+        out: &mut Option<Object>,
+        args: [u32; 2],
+    ) -> bool;
+    fn factory_create_record(
+        &mut self,
+        factory: Object,
+        record: Object,
+        iid: u32,
+        out: &mut Option<Object>,
+        args: [u32; 2],
+    ) -> bool;
     fn factory_write(&mut self, factory: Object, resource: Object, record: Object) -> bool;
     fn segment_id(&mut self, segment: Object) -> u32;
     fn segment_contains(&mut self, segment: Object, key: Key) -> bool;

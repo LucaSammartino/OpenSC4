@@ -1,16 +1,31 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-use super::{table::{PointerDeque, Table}, CacheId, CacheStore, Filter, Key, KeyList, Lock, Object,
-    Primitives, FACTORY_IID, MANAGER_IID, RESOURCE_IID, SERVICE_IID};
+use super::{
+    table::{PointerDeque, Table},
+    CacheId, CacheStore, Filter, Key, KeyList, Lock, Object, Primitives, FACTORY_IID, MANAGER_IID, RESOURCE_IID,
+    SERVICE_IID,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum InterfaceView { Manager, Service, Unknown }
+pub enum InterfaceView {
+    Manager,
+    Service,
+    Unknown,
+}
 impl InterfaceView {
     pub fn offset(self) -> u32 {
-        match self { Self::Manager => 0, Self::Service => 4, Self::Unknown => 8 }
+        match self {
+            Self::Manager => 0,
+            Self::Service => 4,
+            Self::Unknown => 8,
+        }
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ServiceState { pub id: u32, pub priorities: [u32; 2], pub running: bool }
+pub struct ServiceState {
+    pub id: u32,
+    pub priorities: [u32; 2],
+    pub running: bool,
+}
 
 /// All owner decisions reside here (spec §§1–11). Host calls are primitive
 /// foreign vtable operations, never answers from an original manager.
@@ -35,23 +50,52 @@ impl<P: Primitives> PersistManager<P> {
         let mut objects = CacheStore::new(host);
         let default_cache = objects.create();
         objects.add_ref(default_cache); // One net auto-reference in the list.
-        Self { objects, factories: Table::new(), types: Table::new(), segments: PointerDeque::new(),
-            caches: vec![default_cache], default_cache, group: 0, next_instance: 0xffff,
-            references: 0, service: ServiceState { id: 0x056b906e, priorities: [1_000_000; 2], running: false },
-            deletion: None }
+        Self {
+            objects,
+            factories: Table::new(),
+            types: Table::new(),
+            segments: PointerDeque::new(),
+            caches: vec![default_cache],
+            default_cache,
+            group: 0,
+            next_instance: 0xffff,
+            references: 0,
+            service: ServiceState {
+                id: 0x056b906e,
+                priorities: [1_000_000; 2],
+                running: false,
+            },
+            deletion: None,
+        }
     }
-    fn lock(&mut self, lock: Lock, enter: bool) { self.objects.host.lock(lock, enter); }
-    pub fn default_cache(&self) -> CacheId { self.default_cache }
-    pub fn service(&self) -> ServiceState { self.service }
-    pub fn reference_count(&self) -> u32 { self.references }
-    pub fn allocation_freed(&self) -> Option<bool> { self.deletion }
-    pub fn initialize(&mut self) -> bool { true }
+    fn lock(&mut self, lock: Lock, enter: bool) {
+        self.objects.host.lock(lock, enter);
+    }
+    pub fn default_cache(&self) -> CacheId {
+        self.default_cache
+    }
+    pub fn service(&self) -> ServiceState {
+        self.service
+    }
+    pub fn reference_count(&self) -> u32 {
+        self.references
+    }
+    pub fn allocation_freed(&self) -> Option<bool> {
+        self.deletion
+    }
+    pub fn initialize(&mut self) -> bool {
+        true
+    }
 
     /// Main QI delegates service/unknown views to the inherited service QI;
     /// all views share one plain count. Unsupported requests preserve output.
     pub fn query_interface(&mut self, _from: InterfaceView, iid: u32, out: &mut Option<InterfaceView>) -> bool {
-        let view = match iid { MANAGER_IID => InterfaceView::Manager, SERVICE_IID => InterfaceView::Service,
-            1 => InterfaceView::Unknown, _ => return false };
+        let view = match iid {
+            MANAGER_IID => InterfaceView::Manager,
+            SERVICE_IID => InterfaceView::Service,
+            1 => InterfaceView::Unknown,
+            _ => return false,
+        };
         *out = Some(view);
         self.add_ref();
         true
@@ -61,17 +105,26 @@ impl<P: Primitives> PersistManager<P> {
         self.references
     }
     pub fn release(&mut self, _from: InterfaceView) -> u32 {
-        if self.references > 1 { self.references -= 1; self.references }
-        else { self.destroy(1); 0 }
+        if self.references > 1 {
+            self.references -= 1;
+            self.references
+        } else {
+            self.destroy(1);
+            0
+        }
     }
     /// Ordinary/deleting destruction is intentionally not Shutdown. Only the
     /// cache list owns auto-references; raw factory/segment entries do not
     /// release themselves on member destruction (§9).
     pub fn destroy(&mut self, flags: u32) {
-        if self.deletion.is_some() { return; }
-        for cache in self.caches.drain(..) { self.objects.release(cache); }
-        self.factories.clear();
-        self.types.clear();
+        if self.deletion.is_some() {
+            return;
+        }
+        for cache in self.caches.drain(..) {
+            self.objects.release(cache);
+        }
+        self.factories.destroy();
+        self.types.destroy();
         self.segments.clear();
         self.deletion = Some(flags & 1 != 0);
     }
@@ -79,13 +132,21 @@ impl<P: Primitives> PersistManager<P> {
         self.lock(Lock::CacheRegistry, true);
         self.lock(Lock::Factory, true);
         self.lock(Lock::Segment, true);
-        for &cache in &self.caches { self.objects.shutdown(cache); }
-        for cache in self.caches.drain(..) { self.objects.release(cache); }
+        for &cache in &self.caches {
+            self.objects.shutdown(cache);
+        }
+        for cache in self.caches.drain(..) {
+            self.objects.release(cache);
+        }
         self.lock(Lock::CacheRegistry, false);
-        for (_, factory) in self.factories.entries() { self.objects.host.release(*factory); }
+        for (_, factory) in self.factories.entries() {
+            self.objects.host.release(*factory);
+        }
         self.factories.clear(); // Keep type associations, group, next ID, service state.
         self.lock(Lock::Factory, false);
-        for segment in self.segments.iter() { self.objects.host.release(segment); }
+        for segment in self.segments.iter() {
+            self.objects.host.release(segment);
+        }
         self.segments.clear();
         self.lock(Lock::Segment, false);
         true
@@ -106,9 +167,14 @@ impl<P: Primitives> PersistManager<P> {
     // Slots 19–25: two independently growing, duplicate-preserving maps.
     pub fn register_factory(&mut self, id: u32, ty: u32, supplied: Option<Object>) -> bool {
         let mut factory = supplied;
-        if let Some(factory) = factory { self.objects.host.add_ref(factory); }
-        else { self.objects.host.com_create_factory(id, FACTORY_IID, &mut factory); }
-        let Some(factory) = factory else { return false; };
+        if let Some(factory) = factory {
+            self.objects.host.add_ref(factory);
+        } else {
+            self.objects.host.com_create_factory(id, FACTORY_IID, &mut factory);
+        }
+        let Some(factory) = factory else {
+            return false;
+        };
         self.lock(Lock::Factory, true);
         self.factories.insert_duplicate(id, factory);
         self.types.insert_duplicate(ty, id);
@@ -128,11 +194,16 @@ impl<P: Primitives> PersistManager<P> {
     pub fn factory_for_type(&mut self, ty: u32, out: &mut Option<Object>) -> bool {
         self.lock(Lock::Factory, true);
         let found = self.types.get(ty).and_then(|id| self.factories.get(*id)).copied();
-        if let Some(factory) = found { *out = Some(factory); self.objects.host.add_ref(factory); }
+        if let Some(factory) = found {
+            *out = Some(factory);
+            self.objects.host.add_ref(factory);
+        }
         self.lock(Lock::Factory, false);
         found.is_some()
     }
-    pub fn factory_for_key(&mut self, key: Key, out: &mut Option<Object>) -> bool { self.factory_for_type(key.ty, out) }
+    pub fn factory_for_key(&mut self, key: Key, out: &mut Option<Object>) -> bool {
+        self.factory_for_type(key.ty, out)
+    }
     pub fn factory_for_resource(&mut self, resource: Object, out: &mut Option<Object>) -> bool {
         let ty = self.objects.host.resource_type(resource);
         self.factory_for_type(ty, out)
@@ -151,14 +222,24 @@ impl<P: Primitives> PersistManager<P> {
     }
 
     // Slots 26–38: ordered, pointer-identical segment registry/direct records.
-    pub fn register_segment(&mut self, segment: Object) -> bool { self.prepend_segment(segment) }
-    pub fn prepend_segment(&mut self, segment: Object) -> bool { self.move_segment(segment, true) }
-    pub fn append_segment(&mut self, segment: Object) -> bool { self.move_segment(segment, false) }
+    pub fn register_segment(&mut self, segment: Object) -> bool {
+        self.prepend_segment(segment)
+    }
+    pub fn prepend_segment(&mut self, segment: Object) -> bool {
+        self.move_segment(segment, true)
+    }
+    pub fn append_segment(&mut self, segment: Object) -> bool {
+        self.move_segment(segment, false)
+    }
     fn move_segment(&mut self, segment: Object, front: bool) -> bool {
         self.objects.host.add_ref(segment);
         self.lock(Lock::Segment, true);
         self.remove_segment(segment); // Recursive acquisition, release old ref.
-        if front { self.segments.push_front(segment); } else { self.segments.push_back(segment); }
+        if front {
+            self.segments.push_front(segment);
+        } else {
+            self.segments.push_back(segment);
+        }
         self.lock(Lock::Segment, false);
         true
     }
@@ -182,7 +263,11 @@ impl<P: Primitives> PersistManager<P> {
         self.lock(Lock::Segment, true);
         *out = None;
         for segment in self.segments.iter() {
-            if self.objects.host.segment_id(segment) == id { *out = Some(segment); self.objects.host.add_ref(segment); break; }
+            if self.objects.host.segment_id(segment) == id {
+                *out = Some(segment);
+                self.objects.host.add_ref(segment);
+                break;
+            }
         }
         self.lock(Lock::Segment, false);
         out.is_some()
@@ -191,7 +276,11 @@ impl<P: Primitives> PersistManager<P> {
         self.lock(Lock::Segment, true);
         *out = None;
         for segment in self.segments.iter() {
-            if self.objects.host.segment_contains(segment, key) { *out = Some(segment); self.objects.host.add_ref(segment); break; }
+            if self.objects.host.segment_contains(segment, key) {
+                *out = Some(segment);
+                self.objects.host.add_ref(segment);
+                break;
+            }
         }
         self.lock(Lock::Segment, false);
         out.is_some()
@@ -210,7 +299,11 @@ impl<P: Primitives> PersistManager<P> {
     }
     pub fn visit_segments(&mut self, mut callback: Option<&mut dyn FnMut(Object, &mut P) -> bool>) {
         if let Some(callback) = callback.as_mut() {
-            for segment in self.segments.iter() { if !callback(segment, &mut self.objects.host) { break; } }
+            for segment in self.segments.iter() {
+                if !callback(segment, &mut self.objects.host) {
+                    break;
+                }
+            }
         }
     }
     pub fn segment_array(&mut self, out: Option<&mut [Option<Object>]>, capacity: &mut u32) -> u32 {
@@ -231,9 +324,14 @@ impl<P: Primitives> PersistManager<P> {
     }
     pub fn open_record(&mut self, key: Key, out: &mut Option<Object>, writable: u32) -> bool {
         let mut segment = None;
-        if !self.segment_for_key(key, &mut segment) { return false; }
+        if !self.segment_for_key(key, &mut segment) {
+            return false;
+        }
         let segment = segment.unwrap();
-        let result = self.objects.host.segment_open(segment, key, out, if writable == 0 { 1 } else { 3 });
+        let result = self
+            .objects
+            .host
+            .segment_open(segment, key, out, if writable == 0 { 1 } else { 3 });
         self.objects.host.release(segment);
         result
     }
@@ -247,7 +345,9 @@ impl<P: Primitives> PersistManager<P> {
     // Slots 39–44: registry and cache acceptance are separate from insertion.
     pub fn register_cache(&mut self, cache: CacheId) -> bool {
         self.lock(Lock::CacheRegistry, true);
-        let result = if self.caches.contains(&cache) { false } else {
+        let result = if self.caches.contains(&cache) {
+            false
+        } else {
             self.objects.add_ref(cache);
             self.caches.push(cache);
             true
@@ -258,26 +358,35 @@ impl<P: Primitives> PersistManager<P> {
     pub fn remove_cache(&mut self, cache: CacheId) -> bool {
         self.lock(Lock::CacheRegistry, true);
         let found = self.caches.iter().position(|c| *c == cache);
-        if let Some(index) = found { self.objects.release(cache); self.caches.remove(index); }
+        if let Some(index) = found {
+            self.objects.release(cache);
+            self.caches.remove(index);
+        }
         self.lock(Lock::CacheRegistry, false);
         found.is_some()
     }
     pub fn automatic_purge(&mut self) -> u8 {
         self.lock(Lock::Key, true);
         let mut value = 0;
-        for &cache in &self.caches { value |= self.objects.automatic_purge(cache); }
+        for &cache in &self.caches {
+            value |= self.objects.automatic_purge(cache);
+        }
         self.lock(Lock::Key, false);
         value
     }
     pub fn set_automatic_purge(&mut self, value: u8) {
         self.lock(Lock::Key, true);
-        for &cache in &self.caches { self.objects.set_automatic_purge(cache, value); }
+        for &cache in &self.caches {
+            self.objects.set_automatic_purge(cache, value);
+        }
         self.lock(Lock::Key, false);
     }
     pub fn purge(&mut self) -> u8 {
         self.lock(Lock::CacheRegistry, true);
         let mut value = 0;
-        for &cache in &self.caches { value |= self.objects.purge(cache); }
+        for &cache in &self.caches {
+            value |= self.objects.purge(cache);
+        }
         self.lock(Lock::CacheRegistry, false);
         value
     }
@@ -293,7 +402,12 @@ impl<P: Primitives> PersistManager<P> {
     pub fn is_cached(&mut self, key: Key) -> bool {
         self.lock(Lock::CacheRegistry, true);
         let mut result = false;
-        for &cache in &self.caches { if self.objects.contains(cache, key) { result = true; break; } }
+        for &cache in &self.caches {
+            if self.objects.contains(cache, key) {
+                result = true;
+                break;
+            }
+        }
         self.lock(Lock::CacheRegistry, false);
         result
     }
@@ -301,13 +415,18 @@ impl<P: Primitives> PersistManager<P> {
         self.lock(Lock::CacheRegistry, true);
         let mut result = false;
         for &cache in &self.caches {
-            if self.objects.contains(cache, key) && self.objects.erase(cache, key) { result = true; break; }
+            if self.objects.contains(cache, key) && self.objects.erase(cache, key) {
+                result = true;
+                break;
+            }
         }
         self.lock(Lock::CacheRegistry, false);
         result
     }
     pub fn register_resource(&mut self, resource: Option<Object>) -> bool {
-        let Some(resource) = resource else { return false; };
+        let Some(resource) = resource else {
+            return false;
+        };
         self.lock(Lock::CacheRegistry, true);
         let key = self.objects.host.resource_key(resource);
         let result = self.is_cached(key) || self.insert_cache(key, resource);
@@ -322,7 +441,10 @@ impl<P: Primitives> PersistManager<P> {
         self.lock(Lock::Segment, true);
         let mut result = false;
         for segment in self.segments.iter() {
-            if self.objects.host.segment_contains(segment, key) { result = true; break; }
+            if self.objects.host.segment_contains(segment, key) {
+                result = true;
+                break;
+            }
         }
         self.lock(Lock::Segment, false);
         result
@@ -331,11 +453,15 @@ impl<P: Primitives> PersistManager<P> {
         let mut list = KeyList::new();
         let mut count = 0u32;
         self.lock(Lock::CacheRegistry, true);
-        for &cache in &self.caches { count = count.wrapping_add(self.objects.enumerate(cache, &mut list, filter)); }
+        for &cache in &self.caches {
+            count = count.wrapping_add(self.objects.enumerate(cache, &mut list, filter));
+        }
         self.lock(Lock::CacheRegistry, false);
         (count, list)
     }
-    pub fn cached_keys_of_type(&mut self, ty: u32) -> (u32, KeyList) { self.cached_keys(Some(Filter::Type(ty))) }
+    pub fn cached_keys_of_type(&mut self, ty: u32) -> (u32, KeyList) {
+        self.cached_keys(Some(Filter::Type(ty)))
+    }
     pub fn segment_keys(&mut self, filter: Option<Filter>) -> (u32, KeyList) {
         let mut list = KeyList::new();
         let mut count = 0u32;
@@ -346,12 +472,16 @@ impl<P: Primitives> PersistManager<P> {
         self.lock(Lock::CacheRegistry, false);
         (count, list)
     }
-    pub fn segment_keys_of_type(&mut self, ty: u32) -> (u32, KeyList) { self.segment_keys(Some(Filter::Type(ty))) }
+    pub fn segment_keys_of_type(&mut self, ty: u32) -> (u32, KeyList) {
+        self.segment_keys(Some(Filter::Type(ty)))
+    }
 
     // Internal slots 45–47, no cache operations or failure memoization.
     pub fn create_underlying(&mut self, key: Key, iid: u32, out: &mut Option<Object>, args: [u32; 2]) -> bool {
         let mut factory = None;
-        if !self.factory_for_key(key, &mut factory) { return false; }
+        if !self.factory_for_key(key, &mut factory) {
+            return false;
+        }
         let factory = factory.unwrap();
         let result = self.objects.host.factory_create_type(factory, key.ty, iid, out, args);
         self.objects.host.release(factory);
@@ -359,7 +489,9 @@ impl<P: Primitives> PersistManager<P> {
     }
     pub fn load_underlying(&mut self, key: Key, iid: u32, out: &mut Option<Object>, args: [u32; 2]) -> bool {
         let mut factory = None;
-        if !self.factory_for_key(key, &mut factory) { return false; }
+        if !self.factory_for_key(key, &mut factory) {
+            return false;
+        }
         let factory = factory.unwrap();
         let mut segment = None;
         let result = if self.segment_for_key(key, &mut segment) {
@@ -367,18 +499,36 @@ impl<P: Primitives> PersistManager<P> {
             let result = self.load_selected(key, factory, segment, iid, out, args);
             self.objects.host.release(segment);
             result
-        } else { false };
+        } else {
+            false
+        };
         self.objects.host.release(factory);
         result
     }
-    pub fn load_selected(&mut self, key: Key, factory: Object, segment: Object, iid: u32, out: &mut Option<Object>, args: [u32; 2]) -> bool {
+    pub fn load_selected(
+        &mut self,
+        key: Key,
+        factory: Object,
+        segment: Object,
+        iid: u32,
+        out: &mut Option<Object>,
+        args: [u32; 2],
+    ) -> bool {
         let mut record = None;
         if !self.objects.host.segment_open(segment, key, &mut record, 1) {
-            if record.is_some() { self.objects.host.segment_abort(segment, &mut record); }
+            if record.is_some() {
+                self.objects.host.segment_abort(segment, &mut record);
+            }
             return false;
         }
         let mut resource = None;
-        if !self.objects.host.factory_create_record(factory, record.expect("open success supplies record"), RESOURCE_IID, &mut resource, args) {
+        if !self.objects.host.factory_create_record(
+            factory,
+            record.expect("open success supplies record"),
+            RESOURCE_IID,
+            &mut resource,
+            args,
+        ) {
             self.objects.host.segment_abort(segment, &mut record);
             // False factory output is not released by this owner (§6).
             return false;
@@ -399,7 +549,10 @@ impl<P: Primitives> PersistManager<P> {
         let mut resource = None;
         let mut found = false;
         for &cache in &self.caches {
-            if self.objects.get(cache, key, &mut resource) { found = true; break; }
+            if self.objects.get(cache, key, &mut resource) {
+                found = true;
+                break;
+            }
         }
         if !found {
             if !self.load_underlying(key, RESOURCE_IID, &mut resource, args) {
@@ -416,7 +569,9 @@ impl<P: Primitives> PersistManager<P> {
     }
     pub fn load_uncached(&mut self, key: Key, iid: u32, out: &mut Option<Object>, args: [u32; 2]) -> bool {
         let mut resource = None;
-        if !self.load_underlying(key, RESOURCE_IID, &mut resource, args) { return false; }
+        if !self.load_underlying(key, RESOURCE_IID, &mut resource, args) {
+            return false;
+        }
         let resource = resource.expect("load success supplies resource");
         let result = self.objects.host.resource_query(resource, iid, out);
         self.objects.host.release(resource);
@@ -442,11 +597,15 @@ impl<P: Primitives> PersistManager<P> {
     }
     pub fn create_as(&mut self, key: Key, iid: u32, out: &mut Option<Object>, args: [u32; 2]) -> bool {
         let mut resource = None;
-        if !self.create_underlying(key, RESOURCE_IID, &mut resource, args) { return false; }
+        if !self.create_underlying(key, RESOURCE_IID, &mut resource, args) {
+            return false;
+        }
         let resource = resource.expect("factory success supplies resource");
         self.objects.host.resource_set_key(resource, key);
         let result = self.objects.host.resource_query(resource, iid, out);
-        if result { self.insert_cache(key, resource); }
+        if result {
+            self.insert_cache(key, resource);
+        }
         self.objects.host.release(resource);
         result
     }
@@ -463,7 +622,9 @@ impl<P: Primitives> PersistManager<P> {
     }
     pub fn write_key(&mut self, key: Key, segment: Object) -> bool {
         let mut resource = None;
-        if !self.load(key, RESOURCE_IID, &mut resource, [0, 0]) { return false; }
+        if !self.load(key, RESOURCE_IID, &mut resource, [0, 0]) {
+            return false;
+        }
         let resource = resource.expect("load success supplies resource");
         let result = self.write_resource(resource, key, segment);
         self.objects.host.release(resource);
@@ -474,23 +635,55 @@ impl<P: Primitives> PersistManager<P> {
         let mut record = None;
         let opened = if self.objects.host.segment_contains(segment, key) {
             self.objects.host.segment_open(segment, key, &mut record, 3)
-        } else { self.objects.host.segment_create(segment, creation_key, &mut record) };
+        } else {
+            self.objects.host.segment_create(segment, creation_key, &mut record)
+        };
         if opened {
             let mut factory = None;
             if self.factory_for_resource(resource, &mut factory) {
                 let factory = factory.unwrap();
-                if self.objects.host.factory_write(factory, resource, record.expect("successful open/create supplies record"))
-                    && self.objects.host.segment_commit(segment, &mut record) {
+                if self.objects.host.factory_write(
+                    factory,
+                    resource,
+                    record.expect("successful open/create supplies record"),
+                ) && self.objects.host.segment_commit(segment, &mut record)
+                {
                     record = None;
                 }
                 self.objects.host.release(factory);
             }
         }
-        if record.is_some() { self.objects.host.segment_abort(segment, &mut record); }
+        if record.is_some() {
+            self.objects.host.segment_abort(segment, &mut record);
+        }
         opened // Write/commit failure does NOT change this return.
     }
 }
 
 impl<P: Primitives> Drop for PersistManager<P> {
-    fn drop(&mut self) { self.destroy(0); }
+    fn drop(&mut self) {
+        self.destroy(0);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_host::Host;
+    use super::*;
+
+    #[test]
+    fn generated_instance_wrap_and_shutdown_do_not_reset_service_or_key_state() {
+        let mut manager = PersistManager::new(Host::default());
+        manager.next_instance = u32::MAX;
+        assert_eq!(manager.allocate_instance(), u32::MAX);
+        let initial = manager.service();
+        assert!(manager.shutdown());
+        assert!(manager.initialize());
+        assert_eq!(manager.allocate_instance(), 0);
+        assert_eq!(manager.current_group(), 0);
+        assert_eq!(manager.service(), initial);
+        assert_eq!(initial.id, 0x056b906e);
+        assert_eq!(initial.priorities, [1_000_000; 2]);
+        assert!(!initial.running);
+    }
 }
