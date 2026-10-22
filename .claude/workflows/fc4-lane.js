@@ -31,7 +31,7 @@ export const meta = {
 // lane of that kind (no lane name, date or path in it); everything lane-specific comes after it, in LANE, and a
 // restart's RESUME block comes last.
 const L = args
-const MAIN = 'C:/Users/tlori/FreeCity4'
+const MAIN = L.main || 'C:/Users/tlori/FreeCity4'
 const W = MAIN + '/.claude/worktrees/' + L.name
 const BUDGET = L.ctxBudget || 150000
 const MAX_ROUNDS = L.maxRounds || 6
