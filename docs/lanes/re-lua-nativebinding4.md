@@ -7,8 +7,12 @@
 - Worktree reused, clean detached HEAD; no branch/ref changes permitted.
 - Done: substantive native identity/typed-boundary spec: CLSID CBD101A9 registration, service ID 4BD10133,
   priority -999999; CommandServer public acquisition EB903A32/CB90253A and generator sibling views.
-- Next: finish framework Add/Init ordering, factory precedence and caller caching; verify generator retention,
-  failure/shutdown, add independent discriminators, then move LH1/LH2 to answered and regenerate index.
+- Milestone d9df37c5: native identities and typed endpoints committed.
+- Done: LH1/LH2 lifecycle/caching/foreign retention prose and nine independent discriminators;
+  original questions moved to answered. No guaranteed early plugin callback installation recipe proved.
+- Next: regenerate question index, check docs diff, commit answers, finalize report and queue.
+- Priority traversal is descending signed: ScriptServer -999999 Init precedes CommandServer -1000000
+  Init despite opposite registration order (00879ACE snapshot, 00879F15 first Init pass).
 - Key bytes: app factory-first request 00450813–0045082F, direct fallback 00450831–00450858,
   service QI/add/release 0045085B–00450891; SC4 director registration 0046021A–00460227.
 - Export xrefs to factory missed its instruction reference; native PUSH in director proves registration.

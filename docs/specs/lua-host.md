@@ -85,6 +85,72 @@ There is no single Lua VM. Each `CreateInstance` makes a new, independent state:
 Instance 1 is opened by the app before anything else touches it. The advisor system's `Open(0x7E)` (advisors.md
 §4.1 step 1) is therefore a no-op that returns true (§3.1).
 
+#### 1.4.1 Native ScriptServer acquisition and insertion (LH1)
+
+Application PreFrameWorkInit calls AddCOMDirectors then AddSystemServices (`0x00452831`,
+`0x00452838`). The relevant creation/registry order is CommandServer, game-data registry,
+ScriptServer, language manager. ScriptServer's sequence is:
+
+1. Zero a temporary and request **CLSID `0xCBD101A9`, IID `0x4BD10129`** through GZCOM
+   `+0x0C` (`0x00450813–0x0045082F`). The SDK names this operation GetClassObject; this spec
+   also calls it CreateInstance. It creates an acquired interface, rather than finding a service.
+2. Only on a false factory result, allocate `0x4C`, construct `0x008B07C0`, store its primary
+   pointer and AddRef it (`0x00450831–0x00450858`). This concrete fallback bypasses the factory.
+   Its subsequent dereference has no null-allocation guard. Likewise true factory status requires
+   a usable output; true-with-null is not handled as a recoverable failure.
+3. QI for **`cIGZSystemService`, IID `0x287FB697`**, then on success call framework
+   **AddSystemService**, `+0x0C`, and Release that acquired QI view (`0x0045085B–0x00450887`).
+   QI failure skips registration. AddSystemService's result is ignored. No Init occurs here.
+4. Release the original temporary (`0x0045088B–0x00450891`). The application does not retain
+   a ScriptServer member here; the framework holds a successfully registered service.
+
+Framework AddSystemService records signed priority and service ID, retains service references in
+its priority and ID collections, rejects duplicate IDs, and does not call Init (`0x0087AC7B–0x0087AD39`,
+reference assignment `0x0094909A`). Additions also fail while its enumeration/lookup exclusion flags
+are set. GetSystemService finds the **service ID**, then QIs for the requested **IID**
+(`0x0087A0C4–0x0087A0ED`). Thus helper `0x004496F0` requests **service `0x4BD10133`, IID
+`0x4BD10129`**. It initializes its pointer null; absent framework leaves it null. Successful
+acquisition owns a reference released by the smart pointer's destructor. Borrowing its contained
+pointer does not extend lifetime.
+
+After application PreFrameWorkInit and framework PreFrameWorkInit hooks, the first service Init
+pass precedes PreAppInit hooks and application Init (`0x0087AFDD–0x0087B046`). It visits signed
+priorities **greater than `-2000000` in descending order**, calls service `+0x20` Init, and calls
+SetServiceRunning(true) only for true status (`0x00879F76–0x00879F9F`). Signed priority insertion
+is `0x00879EA2–0x00879EAE`; the snapshot walks predecessors from the maximum
+(`0x00879B4C–0x00879B98`, predecessor `0x0040D500`). Therefore ScriptServer priority `-999999`
+initializes **before CommandServer priority `-1000000`** (`0x0092AF81–0x0092AF96`), despite
+CommandServer's earlier creation/registration. Service acquisition does not imply that service's
+Init already ran. This is separate from initialization of the advisor/app Lua VM in §1.5.
+
+**Factory availability and limits.** The registration in §1.2 is native and reachable; an empty
+export xref result for the factory is insufficient to conclude otherwise. Director GetClassObject
+searches child directors before its own class map, calls the no-argument factory, then QIs its
+result (`0x0090DFB3–0x0090E00B`). Successful QI acquires the initially zero-refcount object;
+failed QI uses AddRef/Release to dispose it (`0x0090E015–0x0090E023`). GZCOM selects a mapped
+loaded library if present, otherwise delegates to the root director (`0x0087BE87–0x0087BED8`).
+
+There is a real **factory-dispatch seam before application service registration**: a factory
+already selected at `0x0045082A` can supply the owner. That does not prove that a duplicate CLSID
+registered in an arbitrary plugin callback wins dispatch. This trace establishes neither a public
+plugin callback guaranteed to precede that request nor a duplicate-class override policy; no safe
+callback-based installation recipe is established. Public AddSystemService inserts an absent ID;
+it cannot replace an existing ID. Creating another instance by the valid CLSID does not replace
+the registered instance. RemoveSystemService followed by AddSystemService after acquisition is
+not a supported live-substitution contract: it does not rewrite retained references, transfer scripts
+or move the old owner's tick registration. No alternate public retargeting operation is established.
+
+| Caller | Acquisition/caching behavior |
+|---|---|
+| Misc command support DoMessage | Fresh local service smart pointers at `0x005C9468` and `0x005C975C`; conditional nonnull use, local release obligations |
+| Script console / script view | First window Init acquires and copies/AddRefs service into `+0x12C`, releases previous member and temporary; initialized-window Init skips acquisition (`0x008AEDE6–0x008AEE43`, `0x008AF126–0x008AF183`) |
+| Script view General | Same retained-service pattern at `+0x128` (`0x008AFA96–0x008AFAF1`) |
+| Tutorial registry | If cached Lua is null, temporarily acquires ScriptServer, obtains its Lua and QIs/caches `cISCLua` (`0x004B7731–0x004B77A4`); that cache is a Lua reference, not a service smart pointer |
+
+These acquisitions depend on events; they do not prove every cache predates every plugin callback.
+Once a caller retained the service or its Lua, later registry edits leave that old pointer unchanged.
+Even before such caching, the owner can already have initialized in the earlier service pass.
+
 ### 1.5 Init order (instance 1)
 
 1. `cSC4App::Init`: create, `Open(0x7E)` (§3.1). Opening also subscribes the instance to the game-data registry
@@ -544,6 +610,14 @@ calls that interface +10, clears/releases the generator, closes the Lua, and cle
 order. It does not reset last-created ID or the attempt serial. Clearing pointers before Release is observable
 to callbacks. Shutdown has no independent map snapshot or recursion guard.
 
+The server's QI returns primary `P` for IID `1` and `0x4BD10129`; base-service QI returns `P+4`
+for IID `0x287FB697`, acquired in either case (`0x008AE7D0`, `0x0091DD67`). The `P+8` base
+unknown/destruction subobject is not a second public ScriptServer identity: server QI for IID 1
+returns `P`. Native adjustment offsets describe this allocation, not a required replacement layout.
+Registry insertion is §1.4.1. Init's framework `+0x24` is **AddToTick**, and Shutdown's `+0x28`
+is **RemoveFromTick**, not registry insertion/removal; their results are ignored
+(`0x008B09BB–0x008B09C3`, `0x008B01D2–0x008B01E8`).
+
 ##### Foreign command endpoint identity (LH2)
 
 The temporary constructed at `0x008B091D` is **a CommandServer service reference**, despite the
@@ -581,6 +655,57 @@ The actual generator checks string length first, then null Lua and null CommandS
 returns false for those invalid inputs (`0x008B6751–0x008B677A`); a null string-reference address is
 not a supported input. It registers the borrowed generic view through public
 `cIGZCommandServer::RegisterCommandGenerator`, `+0x3C` (`0x008B678E–0x008B6796`).
+
+After registration, the generator obtains the Lua's **borrowed main-thread view** using
+`cIGZLua5::AsIGZLua5Thread`, `+0x0C`. On success it retains that thread and the CommandServer
+with AddRef assignments and copies the string into its own string member
+(`0x008B679C–0x008B67AD`, `0x008B6810–0x008B682D`, assignment `0x005447B0`, string assignment
+slot resolving to `0x0090E230`). It does not take ownership of the supplied Lua pointer or string
+storage. CommandServer RegisterCommandGenerator retains the generic view in its own collection
+(`0x0092AB0B–0x0092AB68`); that is independent of both the borrowed sibling conversion and the
+factory/QI reference owned by ScriptServer. Owner service lifecycle and these foreign-host
+references are distinct.
+
+Generator Init accepts the named Lua global if a table, creates it if nil, otherwise unregisters
+its generic view and returns false (`0x008B67AF–0x008B6810`, `0x008B6847–0x008B6876`). Failed
+command registration also returns false. True status follows remaining setup (`0x008B68BE–0x008B68CE`)
+and does not promise later command success. The owner handles false by the clear/release and
+Lua Close sequence above. A false factory result is followed by a null-pointer test; this does
+not validate a factory reporting true with null output.
+
+Generic generator Shutdown invokes CommandServer **UnregisterCommandGenerator**, `+0x40`,
+records that Boolean result, clears/releases its retained CommandServer, main thread and parameter
+sets, then clears working collections (`0x008B68D5–0x008B6931`, `0x008B698C–0x008B6992`).
+Without a retained CommandServer, status starts true. ScriptServer ignores the status, clears/releases
+its owned generator, calls Lua Close and clears/releases Lua (`0x008B0208–0x008B024A`). No separate
+Release applies to the borrowed sibling. There is no null check between AsIGZCommandGenerator
+and its returned view's Shutdown dispatch: the view must be usable while the generator is alive.
+Neither method consumes its receiver. Temporary CommandServer lifetime ends after Init;
+generator-retained endpoints survive it until Shutdown/destruction. Shutdown removes registration
+before the owner releases its generator reference.
+
+**Public binding result.** CommandServer acquisition/register/unregister, Lua5's main-thread
+accessor and generic CommandGenerator Shutdown have public SDK declarations. No CommandSystem
+accessor is needed. The inspected SDK include tree lacks the Lua-specific IID `0x2BD144DF`
+declaration; the two extra slots above are a native contract recovered from vtable words and method
+bytes. A typed declaration must preserve the three Unknown slots, AsIGZCommandGenerator and
+three-argument Init. Generic CommandGenerator Init cannot stand in for it. This foreign boundary
+does not solve the owner insertion-timing limit in §1.4.1, establish native activation, justify
+fixed-address calls or permit using the original ScriptServer as a scheduler/adapter.
+
+##### Independent boundary discriminators (LH1/LH2; specified, not executed)
+
+| Discriminator | Required observation |
+|---|---|
+| Class/service/priority roles | Factory uses `CBD101A9/4BD10129`; lookup uses `4BD10133/4BD10129`; signed priority is `-999999`. Looking up `FFF0BDC1` must not find this service. |
+| Creation versus initialization | Selected factory request, service QI, AddSystemService and temporary Releases precede owner Init. Duplicate service-ID insertion fails; application ignores that result. |
+| Foreign acquisition timing | ScriptServer Init acquires the registered CommandServer before that service's own Init; acquisition must not manufacture Init. |
+| Cache timing | Command operations acquire anew; initialized windows retain old service, tutorial retains old Lua. Registry changes must not retarget those references. |
+| Missing generator and retry latch | First failure closes/releases Lua, returns false, leaves latch set. Restoring the factory then repeating Init runs argument setup only. Shutdown then Init permits factory retry. |
+| Missing CommandServer | With valid Lua/string and present generator, pass null CommandServer to generator Init; it returns false. Temporary cleanup precedes generator release and owner Lua Close/release. |
+| Borrowed versus acquired | AsIGZCommandGenerator adds no reference; explicit QI for `0B90251F` does. Do not Release the conversion result separately. |
+| Temporary inputs | Release temporary CommandServer and destroy `sc4app` string immediately after generator Init. Successful retained thread/server references and string copy survive that cleanup. |
+| Shutdown and failure status | RemoveFromTick, KillScript loop, borrowed-view Shutdown, clear/release generator, Lua Close, clear/release Lua. False foreign Shutdown does not stop cleanup or change owner's true result. Second owner Shutdown with clear latch has no foreign calls. |
 
 #### 6.3.3 Control and inspection
 
