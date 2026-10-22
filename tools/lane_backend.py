@@ -46,7 +46,10 @@ def codex_defaults():
     home = Path(os.environ.get('CODEX_HOME', str(Path.home()/'.codex')))
     p = home/'config.toml'
     d = tomllib.loads(p.read_text(encoding='utf-8')) if p.is_file() else {}
-    return {k: d[k] for k in ('model', 'model_reasoning_effort') if k in d}
+    result = {k: d[k] for k in ('model', 'model_reasoning_effort') if k in d}
+    if (d.get('windows') or {}).get('sandbox'):
+        result['windows.sandbox'] = d['windows']['sandbox']
+    return result
 
 
 def codex_command(m, schema, final, env):
@@ -67,7 +70,7 @@ def codex_command(m, schema, final, env):
             '-c', 'features.multi_agent=false', '-c', 'web_search="disabled"',
             '-c', 'approval_policy="never"', '-c', 'tool_output_token_limit=2000']
     options = codex_defaults() | m.get('codex', {})
-    for key in ('model', 'model_reasoning_effort'):
+    for key in ('model', 'model_reasoning_effort', 'windows.sandbox'):
         if options.get(key):
             args += ['-c', key + '=' + json.dumps(options[key])]
     if m['kind'] == 're':

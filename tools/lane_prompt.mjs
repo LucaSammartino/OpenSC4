@@ -23,6 +23,8 @@ if (request.provider === 'codex') {
     .replaceAll('--fresh', '');
   rendered.prompt += '\n\n## Codex transport\nThe coordinator has created and reserved this worktree. Reuse it. Use only local shell/edit tools and the explicitly configured REA tools. Do not spawn agents, workflows or model CLI processes. The shared lane guard enforces every supported tool call; when denied, write only the permitted handoff and commit it, then return the required structured result. No tools or MCP servers may be added.\n';
   rendered.prompt += `- <MANIFEST> = ${request.manifest}\n`;
+  const worktree = `${request.args.main || 'C:/Users/tlori/FreeCity4'}/.claude/worktrees/${request.args.name}`;
+  rendered.prompt += `- Before any other tool, run exactly this single shell command to initialize measured context accounting: git -C "${worktree}" rev-parse --show-toplevel\n`;
   // Codex strict JSON schemas require every property in required, and no extra properties.
   rendered.schema.required = Object.keys(rendered.schema.properties);
   rendered.schema.additionalProperties = false;

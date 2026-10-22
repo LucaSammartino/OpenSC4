@@ -91,6 +91,12 @@ def validate_manifest(m):
         raise ValueError('Invalid guard limits')
 
 
+def bootstrap_command(m):
+    # Codex persists its first usage event after its first tool call. Before that, permit only
+    # this read-only identity probe. No project work runs without measured context telemetry.
+    return f'git -C "{Path(m["worktree"]).as_posix()}" rev-parse --show-toplevel'
+
+
 def handle(data, manifest):
     validate_manifest(manifest)
     m = manifest
@@ -121,11 +127,20 @@ def handle(data, manifest):
         if tool in ('spawn_agent', 'Agent', 'Workflow'):
             decision = ('deny', 'Lanes cannot spawn workers; only the guarded coordinator reserves rounds.')
         else:
-            # STOP/watchdog still permit handoff even if the provider transcript is unavailable.
+            try:
+                tokens = context_tokens(status['transcript'])
+            except (OSError, ValueError):
+                if status.get('bootstrap_done'):
+                    raise
+                if tool != 'Bash' or tin.get('command', '').strip() != bootstrap_command(m):
+                    return ('deny', 'LANE GUARD - context handshake required. Run exactly this single shell '
+                            'command first: ' + bootstrap_command(m))
+                tokens = 0
+                status['bootstrap_done'] = True
             def usage(path):
-                value = context_tokens(path)
-                status['context_tokens'] = value
-                return value
+                if tokens:
+                    status['context_tokens'] = tokens
+                return tokens
             decision = guard.guard_call(m['main'], m['lane'], m['guard_id'],
                 f"lane:{m['lane']}#{m['round']}", tool, tin, status['transcript'],
                 limits=(m['budget'], m['max_calls']), context_reader=usage,

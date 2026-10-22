@@ -55,6 +55,9 @@ class CodexGuard(unittest.TestCase):
         self.assertEqual(self.call()[0], 'allow')
 
     def test_missing_context_denies_instead_of_silently_disabling_budget(self):
+        status = laneguard.read_json(self.m['status_path'])
+        status['bootstrap_done'] = True
+        laneguard.write_json(self.m['status_path'], status)
         self.transcript.write_text('{}\n')
         p = subprocess.run([sys.executable, str(REPO/'.claude/lane-bin/codexguard.py'), 'hook',
                             '--manifest', str(self.manifest)],
@@ -63,6 +66,15 @@ class CodexGuard(unittest.TestCase):
         self.assertEqual(p.returncode, 0)
         self.assertEqual(json.loads(p.stdout)['hookSpecificOutput']['permissionDecision'], 'deny')
         self.assertTrue(self.manifest.with_suffix('.fatal.json').exists())
+
+    def test_first_call_without_usage_only_allows_identity_probe_once(self):
+        self.transcript.write_text('{}\n')
+        self.assertEqual(self.call(command='Write-Output work')[0], 'deny')
+        self.assertEqual(self.call(command=codexguard.bootstrap_command(self.m))[0], 'allow')
+        with self.assertRaisesRegex(ValueError, 'telemetry missing'):
+            self.call(command=codexguard.bootstrap_command(self.m))
+        self.set_context(1000)
+        self.assertEqual(self.call(command='Write-Output work')[0], 'allow')
 
     def test_stop_allows_only_handoff_patch_and_own_commit(self):
         laneguard.write_stop(str(self.f.main), 'test')
