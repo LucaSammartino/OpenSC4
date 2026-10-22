@@ -3,7 +3,7 @@
 | re-small-renderer-contracts4: native renderer and path owner contracts | Codex / `re-small-renderer-contracts4` (RE lane, detached worktree) | in progress: round 2; preserved flame evidence published; ten prior answers retained | 1. Prove TB4, GT4, FF2–FF4, PA4 residuals. 2. Validate questions and report. |
 
 ## Handoff
-- Round 2: preserved native flame evidence published in fire-flames §4.1; Init corrected in §4. No FF question closed yet.
+- Round 2 milestone bea42a5f: preserved flame evidence published in fire-flames §4.1; Init corrected in §4. No FF question closed yet.
 - Goal: resolve TB4–TB7, GT3–GT6, FF2–FF4, PA4–PA8 with primary native evidence; specs/questions only.
 - Worktree reused at detached HEAD; initial status clean and no commits ahead of main.
 - Read handoff index, lane row format, merge train instructions, texture/path question entries.
@@ -11,8 +11,8 @@
 - First milestone ac0e8a0f: texture §1.11–1.12 answers/archives TB5–TB7; §3 supplies manager slots 6/7 and destruction. Questions index/check passed.
 - Native distinctions: signed P hangs on 0x40000001..0x7fffffff; zero levels => one; shifts mask to 31; size/counters/refcounts wrap u32; failure deletion excludes current handle.
 - Second milestone 6bd15ef1: glyph/string info slot/lifetime/numeric/restore/output contracts; directory-entry three-body owner (94B); PA6–PA8 corrections. GT3/GT5/GT6, PA5–PA8 answered/archived; index/check passed.
-- Next EXACT step: publish pending flame evidence in fire-flames §4, then inventory reconciliation in texture §3. Guard denied both attempted final patches; neither applied. No merge queue.
-- Remaining requested questions: TB4 material inline lifetime/count mapping; GT4 inherited manager slots/count mapping; FF2 full lifetime/persistence/inventory; FF3 geometry/index/generator/precision; FF4 matrix/counters/draw order; PA4 encoding/locale/equality.
+- Round 2 current milestone: texture §3.1 proves material release/copy/assignment and reverse binding cleanup. paths §2.3 answers PA4; questions index/check passed. Next: manager inherited slots/lifetime, then flame transform/geometry. No merge queue yet.
+- Remaining requested questions: TB4 inventory scope only; GT4 inherited manager slots/count mapping; FF2 full persistence/inventory; FF3 geometry/index/generator/precision; FF4 matrix/counters/draw order. PA4 answered this round.
 - Pending native proof: 00470BC0..00470C9F (224B), mislabeled vector resize, is flame constructor called at 00472420/00472527 on fresh allocations: made=false,visible=true,wall=false,side=0,effect=null, identity embedded transform; position from shared word B21640 (not read).
 - Pending fire proof: constructor 004711C0..0047122A sets stage -1 at complete-object+44, empty vector,on-model=false; SetStage 004728B0..004728F7 equal stage no-op, changed stage stores/creates-if-empty/updates, no error propagation. Update indexes tables directly, no clamp (004710FD..00471110).
 - Pending Init proof 00471170..004711BC: initialized => true; otherwise base Init, group5005, set made/update existing flames, true irrespective base return; no CreateFlames. Init's receiver is adjusted (+4), unlike complete-object constructor.
@@ -22,4 +22,4 @@
 - Standalone info/entry contracts published, but no manager/material/fire/family blanket completion. Cargo/clippy/ctest/game/shadow n/a. No ABI proposals. Actual specs only committed through 6bd15ef1; pending flame evidence currently exists only in this handoff.
 - Main read-only source: C:/Users/tlori/FreeCity4; export queries via tools/re_query.py.
 - No engine reads/edits, tools/maps/ABI edits, external communications, subagents, merge/push or branch changes.
-- Guard: C:/Users/tlori/FreeCity4/build-runs/run4-re-small-renderer-contracts4-r1-manifest.json; budget 150000, maxCalls100, one round.
+- Guard: C:/Users/tlori/FreeCity4/build-runs/run4-re-small-renderer-contracts4-r2-manifest.json; budget 150000, maxCalls100, one round.

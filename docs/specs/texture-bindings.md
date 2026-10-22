@@ -285,6 +285,42 @@ requires the same table state; this section does not invent a key-order guarante
   service. The deleting destructor (`0x00800CE0–0x00800D13`) restores all three vtables, destroys the base at
   +4, then frees the 0x20-byte allocation iff flags bit 0 is set. It does not enumerate materials or bindings.
 
+### 3.1 Material value and reference lifetime (TB4)
+
+A material is a nonvirtual 0x34-byte object. Its constructor writes count zero at `+0x02`;
+CreateMaterial increments that word after publishing the output (`0x00800D27`, `0x00800E1B–0x00800E24`).
+Allocation failure still reaches null material field writes (`0x00800D7D–0x00800D99`), not a clean false.
+
+The unnamed body `0x008045B0–0x008045F3` (68 bytes) is material release. Read the count as unsigned
+16-bit. If greater than 1, decrement, store and return the count zero-extended. For **either 0 or 1**,
+release each nonnull held binding, first stage 1 (`material+0x24`), then stage 0 (`+0x10`), free the
+allocation, and return zero. This branch does not store a decremented count. Unused stage markers
+do not suppress release. In particular release at zero frees instead of underflowing to 65535.
+Material-reference assignment (`0x008048F0–0x0080490F`) increments the new nonnull material's count
+with 16-bit wrap, stores its pointer, then releases the old material; equal pointers cause no calls.
+
+Value assignment (`0x00802240–0x008022A9`, 106 bytes) copies the first byte, the **count word**, flags
+and bytes `+0x06..+0x0B`, then assigns stage 0 and stage 1; it does not acquire a material reference.
+Stage assignment (`0x00802070–0x008020E8`, 121 bytes) copies the texture ID, then, if binding pointers
+differ, AddRefs the new nonnull binding, stores it, and Releases the old nonnull binding; finally it
+copies sampler/environment/coordinate/transform fields. Equal pointers cause no reference operations.
+
+Value-range destruction (`0x008021F0–0x00802234`, 69 bytes; export label `vector::erase`) walks
+0x34-byte values forward, releasing stage 1 then stage 0 per value, without consulting material counts
+or freeing the enclosing range. Temporary cleanup at `0x00805676–0x00805686` uses that reverse-stage order.
+
+Distinguishing vectors: count 0 with two bindings releases stage 1, stage 0, then frees; count 2
+becomes 1 with no binding calls. Acquiring a material at 65535 wraps to 0 before releasing the old
+material. Assigning an equal binding performs no reference calls; assigning a different binding
+acquires it before releasing the old binding.
+
+The brief's 58 bodies / 4883 bytes is not reproduced by named rows: 55 bodies carry the four owner
+names (including folded `icf::` names), totaling 4758 bytes; three additional named rows are data.
+Class/create helpers `0x00800BF0` (6), `0x00800E30` (72), `0x00809120` (6), `0x0080A680` (27) add
+111 bytes, giving **59 / 4869**, before unnamed material/value helpers or inherited shared slots.
+These are different counting scopes; the exact legacy scope remains TB4's residual, not evidence
+of a missing virtual material API. The material lifetime and manager slots 6/7 are established.
+
 ## 4. Users
 
 The model frame resolution of graphics-formats §4.1 (slots 5 and 6); code that builds images in memory (slot 4)

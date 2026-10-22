@@ -24,8 +24,9 @@ paths are never case-folded; nothing here is saved.
 
 ## 1. Path utilities *[compat]*
 
-A **separator** is `\` or `/` (`IsPathSeparator`, `0x005F8FE0`). A **letter** is ASCII `A`–`Z` or `a`–`z`
-(`0x00917AE0`).
+A **separator** is `\` or `/` (`IsPathSeparator`, `0x005F8FE0`). The explicit `IsASCIILetter` helper
+(`0x00917AE0`) recognizes ASCII A–Z and a–z; Fullpath's drive branch uses it (`0x00918624–0x0091862D`).
+IsFullPath and FixDriveString instead use CRT locale classification (§2.3).
 
 ### 1.1 `IsFullPath(p)` (`0x00918080`; on a `cRZString`, `0x009186E7`)
 
@@ -137,6 +138,35 @@ The **fixes** change the stored part in place and only when it is not empty *[co
 So `GetPath` of `adv_const.lua` resolved against `C:\Games\SC4` is `C:\Games\SC4\adv_const.lua`. A successfully
 resolved path already has a letter drive and a directory that starts and ends with a separator, so the fixes change
 only what a failed resolution or a `Set…` call left behind.
+
+### 2.3 Byte strings, equality and locale (PA4)
+
+The 255/520/521 limits in §§1–2 count **bytes**, with the separately stated treatment of trailing
+NUL. Fullpath copies single bytes, advances pointers by one and adds `strlen(rel)` before the 521
+comparison (`0x00917EAE–0x00917EF8`); Splitpath uses strlen, byte scans and copies
+(`0x00917BDA–0x00917C23`). These owners do not decode, normalize or transcode bytes, and establish
+no particular UTF-8 or other encoding.
+
+SetFileName and SetExtension compare through `0x00454BB0–0x00454C06`: compare stored begin/end byte
+lengths, then all bytes case-sensitively. Embedded NUL does **not** end comparison. Unsplit assignment
+uses the source's entire begin/end range (`0x00424399–0x004243A5`), preserving embedded NULs. Split
+assignment passes the character pointer to the C-string splitter, stopping at the first NUL
+(`0x009194C3–0x009194C9`). IsFullPath's string overload also passes only the character pointer
+(`0x009186E7–0x009186F4`). ResolvePath can therefore accept a fully qualified C-string prefix, then
+copy the complete stored byte range (`0x0091973C–0x00919753`).
+
+IsFullPath and FixDriveString sign-extend the first byte and call `_isalpha`
+(`0x00918085–0x00918089`, `0x0091C3B0–0x0091C3B6`). The CRT uses the thread's locale information,
+refreshing it when stale; for single-byte locales it tests mask `0x103` in the locale's table, and
+for multibyte locales calls `___isctype_mt` (`0x009EF56A–0x009EF5A8`). Thus their native rule is
+**CRT locale-dependent**, not unconditional ASCII or Unicode alphabetic membership. These owners
+establish neither a fixed runtime locale nor safe behavior for every negative signed byte outside
+the CRT classifier's valid domain.
+
+Distinguishing vectors: `a` and `A` differ; stored `a\0x` and `a\0y` differ despite equal C-string
+prefixes. An unsplit filename setter retains all three bytes; split mode processes only `a`. A
+sequence of 128 two-byte characters has byte length 256 for these bounds. High-bit drive tests
+require the native CRT locale/input-domain behavior, not host Unicode classification.
 
 ## 3. `cRZDirectory` *[compat]*
 
