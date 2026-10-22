@@ -8,7 +8,9 @@
 - Done: f6875240 substantive state/editing contract; second milestone adds raw mutations/history, key/clipboard, font/layout/paint, mouse/messages/flags/lifetime.
 - TE2 resolved from native +0x26C sound adapter despite folded font name; TE1, TE3-TE7 remain explicit boundaries.
 - Inventory: 146 label matches; 134 direct nonnested owner labels / 19,415B. Requested 19,999B attribution still needs reconciliation.
-- Next: reconcile exact attributed inventory, add method checklist; audit claims, questions index, final docs-only report/queue.
+- Done: 24a4278a keyboard/paint/lifecycle milestone; address-by-address inventory added, 134 direct labels/19,415B and 146 full matches/19,908B.
+- Native audit: Escape editable sends message 5; noneditable Ctrl+Escape can copy. Return bit 0x400 and arrow bit 0x800 send 0x9B1552D5.
+- Next: finish audit and questions check, commit inventory/limits, final docs-only report and queue. TE8 records attribution gap; no complete-owner credit.
 - Native fact: T=W+0xD8 despite exported thunk spelling n228; editor flags W+0x128 and max W+0x1D0.
 - Main evidence root: C:/Users/tlori/FreeCity4; edit only this worktree.
 - No engine reads/edits, no real clipboard access, no REA used, no game runs requested.

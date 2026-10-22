@@ -208,12 +208,15 @@ There is no Ctrl+A branch in this body. Character entry is separate.
 | Backspace | Requires editable bit 1. Selected range uses the same deletion path; otherwise locate previous character length, remove in ordinary-character mode and record deletion. At start, reason 1 and no removal. |
 | Left/Right | Require editable bit 1. Normal movement calls composed-character stepping; control calls word stepping. Alt selects line-edge behavior before the Right step, but Left's alt path goes directly to column zero. Shift retains anchor, otherwise collapse selection to new insertion; put in view, show caret, invalidate and reset preferred X. |
 | Home/End | Require editable bit 1. No control chooses current line edge; control chooses document edge. Apply the same shift-selection/view/caret handling. End uses the LF correction helper before final selection handling. |
-| Up/Down | In editable multiline mode move one line, preserve a preferred pixel X and use font hit mapping. Without shift collapse selection; with shift keep anchor. When editor is noneditable or single-line, bit 0x800 instead forwards message 5 with key in the secondary payload. Boundary-without-selection invokes reason 2. |
+| Up/Down | In editable multiline mode move one line, preserve a preferred pixel X and use font hit mapping. Without shift collapse selection; with shift keep anchor. When editor is noneditable or single-line, bit 0x800 instead sends 0x9B1552D5 with (T,key,0). Boundary-without-selection invokes reason 2. |
 | Page Up/Down | Editable multiline only; move by visible-line count, clamp to first/last line, map the pixel X on destination and apply shift-selection rules. Boundary-without-selection invokes reason 2. Exact preferred-X reuse differs from Up/Down; see TE5. |
-| Escape / Return | With editor bit 0x800, forward message 5 to notification target with key and original modifiers; Escape first collapses a nonempty selection and invalidates. No LF is inserted by the key-down path itself. |
+| Escape | With editable bit 1, collapse a nonempty selection and invalidate, then send message 5 with (0x1B,originalModifiers,0) and return that send's result. Without editable bit 1 it jumps to the copy gates: Ctrl+Escape can copy selection when the same clipboard gates pass. |
+| Return | With editor bit 0x400, send 0x9B1552D5 with (T,0x0D,0), regardless of editable bit 1; otherwise consume. No LF is inserted by this key-down path. |
 
 Clipboard evidence: native gates/copy call/cut redispatch at
-`0x009C11E3–12A0`; paste branch `0x009C1504` onward. No clipboard manager
+`0x009C11E3–12A0`; paste branch `0x009C1504` onward. Escape/Return and
+arrow forwarding differ natively at `0x009C0BA3–0C02`, `0x009C14D9–14F9`.
+No clipboard manager
 implementation, OS format, newline conversion, persistence, error UI or
 ownership beyond the local string lifetime is inferred. No real user
 clipboard was accessed for this specification. The clipboard service may
@@ -403,8 +406,13 @@ They are not symmetric reflow setters.
 Shutdown (`0x009BD003`) stops running caret/scroll timers, releases and
 nulls both scrollbar interfaces, both scrollbar images and clipboard
 service, then calls base Shutdown. The deleting destructor wrapper
-`0x009BFF52` calls helper `0x009BFAE3` then deallocates storage; destructor
-helper and base/child/resource destruction ordering remain TE7.
+`0x009BFF52` calls helper `0x009BFAE3` then deallocates storage. The helper
+rewrites both editor vtables, calls editor Shutdown, destroys scroll then
+caret callback timer, invokes cleanup for the +0x208 member, releases the
+font, destroys redo then undo storage, destroys the strings at +0x144 and
++0x130, frees nonnull line-start storage, destroys mask and main strings,
+and tail-calls cGZWin's destructor. Native order is `0x009BFAE6–FB81`;
+foreign cleanup internals and exceptional paths remain TE7.
 
 The primary +0x26C hook is natively a sound-service adapter at
 `0x009BD9F2`, despite the folded label `cGZWinIMEComposition::SetFont`.
@@ -439,13 +447,16 @@ These are specification examples derived from bodies, not game-run results.
 | Focused visible caret; line heights 23 then 24 | Drawing widths float 1.0 then 2.0; each reset to float 1.0 |
 | Change only vertical gutter on initialized widget | Invalidates without the horizontal setter's full reflow |
 | Two far-apart left downs within timer interval | Second takes double-click word-selection path; no spatial test in owner |
+| Noneditable widget, clipboard bits permit copy; Ctrl+Escape | Runs copy gates; editable Escape instead sends message 5 |
+| Only editor bit 0x400 set; Return key-down | Sends 0x9B1552D5 with (T,13,0); editable bit 1 is not required |
 
 ## 12. Whole-owner checklist and current limits
 
 The name search contains 146 matching functions including adjusted thunks,
 STL helpers, a factory and a nested action constructor. Direct, non-nested
 `cGZWinTextEdit::` labels account for **134 bodies / 19,415 bytes**.
-That is a label inventory, not yet reconciliation to the task's 19,999-byte
+See the [address-by-address checklist](text-edit-inventory.md). That is a
+label inventory, not yet reconciliation to the task's 19,999-byte
 owner attribution. Folded aliases and unnamed native helpers must be
 counted separately; no whole-owner credit is claimed.
 

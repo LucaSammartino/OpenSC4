@@ -18,3 +18,6 @@
 
 <!-- from: re-textedit4 (2026-10-22) -->
 - **TE7 - section 10:** Complete native destructor helper 0x009BFAE3 and related helpers, background/font/image return ownership, scrollbar image replacement ordering, color override bounds and lifecycle failures. Does native pre-init or resource-null usage have additional required preconditions? [unknown beyond explicitly documented calls]
+
+<!-- from: re-textedit4 (2026-10-22) -->
+- **TE8 - section 12; text-edit-inventory.md:** Reconcile the brief's cGZWinTextEdit19999B attribution to exact native primary bodies. The export has no such suffix; 134 direct nonnested class labels total 19,415B, all 146 name matches total 19,908B, and unrelated folded names/unnamed helpers require independent attribution. Complete U/B checklist entries (thin text/caption adapters, color/outline bounds, exact line/index conversion, scroll helpers, image setters and generated action helpers) from native bodies before any complete-owner credit. [partial specification only; no whole-owner or widget-family credit]
