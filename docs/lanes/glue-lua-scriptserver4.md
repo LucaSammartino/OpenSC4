@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-lua-scriptserver4: native ScriptServer boundary | Codex / `glue-lua-scriptserver4` (engine, detached) | blocked: LH1/LH2 committed 25e25c43; native insertion and generator ABI unpublished; no ABI or plugin changes; baseline cargo 4641 PASS, clippy 0 diagnostics, build 208/208, ctest 68/68 PASS; game n/a | 1. Publish LH1/LH2 contracts. 2. Reconcile core ID constants. 3. Implement and exercise only this owner after insertion is established. |
+| glue-lua-scriptserver4: native ScriptServer boundary | Codex / `glue-lua-scriptserver4` (engine, detached) | blocked: LH1/LH2 committed 25e25c43; native insertion and generator ABI unpublished; no ABI or plugin changes; final cargo 4641 PASS, clippy 0 diagnostics, build 2/2, ctest 68/68 PASS on 277857e3; game n/a | 1. Publish LH1/LH2 contracts. 2. Reconcile core ID constants. 3. Implement and exercise only this owner after insertion is established. |
 
 ## Report
 
@@ -52,8 +52,12 @@ merely by copying their abstract argument list.
 - Baseline `qbuild.py --wt <WT> all` was started before implementation decisions.
   Cargo workspace: 4641 passed, zero failed; clippy zero diagnostics; native build
   PASS, 208/208 edges; full ctest 68/68 PASS. qbuild PASS. The baseline noted tree
-  changes (only this lane's documentation); a second all gate on committed state
-  is the next step, with no edits while it runs.
+  changes (only this lane's documentation).
+- Final `qbuild.py --wt <WT> all` on committed `277857e3`: cargo workspace
+  4641 passed / zero failed; clippy zero diagnostics; native incremental build 2/2
+  PASS; full ctest 68/68 PASS (72.6 seconds), fc4verify PASS (73.4 seconds),
+  qbuild PASS. No edits occurred during this final gate. Subsequent edits only
+  record its results in this lane report.
 - Existing independent ScriptServer conformance: 31/31 PASS; integration edge cases:
   27/27 PASS, in that same workspace gate. These include Init failure latch/retry,
   current/last IDs, signed pause/resume, breakpoint operations, ordered/reentrant
@@ -75,7 +79,8 @@ merely by copying their abstract argument list.
 ### Commits and next steps
 
 Initial handoff: `6fec4c86`. Exact boundary questions: `25e25c43` (substantive audit
-finding committed within the initial audit).
+finding committed within the initial audit). Baseline/full audit report:
+`277857e3`; final gate passed on that commit.
 
 After LH1/LH2 are answered: reconcile the core constants against the published
 roles, bind the public foreign VM/generator services, add the CAPI and concrete
