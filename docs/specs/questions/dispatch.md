@@ -1,4 +1,13 @@
 # dispatch: open questions
+
+2026-10-22 evidence update (re-dispatch-completion4): DP13 is answered and archived. DP10's
+construction, subobject adjustments and direct tracking boundary are in dispatch §4.1.3;
+renderer Update/refresh and delayed-untrack completion remain open. DP11's direct/factory
+construction, actual slot prefix, occupant-cell placement and byte-wrapped return algorithm
+are in §§4.1.1–4.1.2; slot-8 string input representation/final prefix audit remain open.
+DP12's complete caller-side descriptor/slot argument layout and order are in §4.2, including
+the null source occupant on retarget. Internal station-to-road spawn/heading and full route
+failure/ownership protocol remain open. These partial contracts confer no replacement credit.
 <!-- Append new questions at the end; IDs continue docs/specs/QUESTIONS.md. -->
 
 <!-- from: glue-dispatch-complete4 (2026-10-22) -->

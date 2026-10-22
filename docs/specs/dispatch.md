@@ -143,7 +143,183 @@ slot 5 `Shutdown` (`0x005F11A0`: when the pylon is initialized, it also clears a
 `Init` when loaded does `SetActivePylon(null)` first, then clears the available pylons. `EndDispatchTool` clears
 only the available pylons and leaves the active pylon alone.
 
+#### 4.1.1 Native pylon construction and callable prefix (DP11) *[compat]*
+
+The native class is `0x49B6D69B` (`GetGZCLSID`, `0x005F1A10`), with registered factory
+`0x005F2060`: allocate `0x1CC` bytes through `GlobalHeapAlloc`, then invoke constructor
+`0x005F1730` with ECX = allocation and one stack argument 1. Allocation failure returns null.
+The factory returns the object start without calling AddRef or Init. Dispatch uses this same
+allocation/constructor path directly, then primary slot 1 AddRef and slot 4 Init, in that order
+(`0x0046B30B`–`0x0046B340`). The tool dereferences a null construction result; it does not turn
+allocation failure into a false result. A factory client must acquire its own reference before
+retaining the result; normal GZCOM acquisition uses QueryInterface.
+
+Primary QueryInterface `0x005F0820` accepts pylon IID `0xC9B6D7D6` at object start, and
+message-target IID `0x452294AA` at `+4`, acquiring a reference on success. Other IIDs are tried
+through the occupant at `+8`, then the model-instance base at `+0x6C`. Slot 3 is a borrowed
+occupant pointer at **+8** (`0x006C2040`), not Init. No extra QueryInterface is required for
+AsOccupant, and its result must not be independently released. The callable primary prefix
+(`0x00AA5150`) is below. All stack arguments occupy dwords; offsets are relative to the primary
+pointer, not the occupant subobject. Setter return values are unused by dispatch unless stated.
+
+| Slot | Contract / stack bytes popped |
+|---|---|
+| 0 | QueryInterface(IID, out interface), AL success, acquired / 8 |
+| 1, 2 | AddRef, Release on the common object lifetime / 0 |
+| 3 | AsOccupant, EAX borrowed `this+8` / 0 |
+| 4, 5 | Init (`0x005F0930`), Shutdown (`0x005F11A0`), AL true / 0 |
+| 6, 7 | SetUIState(u32), GetUIState() → EAX, member `+0x6C` / 4, 0 |
+| 8 | SetBitmapInfo(u32 bitmap value, string argument), `0x005F0900`; forwards second argument to embedded cRZString slot 13 (`0x0090E230`) / 8; input string representation still needs audit |
+| 9, 10 | SetDispatchType(u32), GetDispatchType() → EAX, member `+0x74` / 4, 0 |
+| 11, 12 | SetDispatchState(u32), GetDispatchState() → EAX, member `+0x70` / 4, 0 |
+| 13, 14 | SetCallNumber(u16 in low word), GetCallNumber() → zero-extended EAX, member `+0x14C` / 4, 0 |
+| 15, 16 | SetDragState(bool in low byte), GetDragState() → low-byte bool, member `+0x7C` / 4, 0 |
+| 17, 18 | SetSourceOccupant(pointer), GetSourceOccupant() → borrowed EAX, member `+0x78` / 4, 0 |
+| 19, 20 | SetPylonOwner(pointer), GetPylonOwner() → borrowed EAX, member `+0x1C0` / 4, 0 |
+
+SetSourceOccupant (`0x005F0D30`) and SetPylonOwner (`0x005F1160`) do nothing on identical
+pointers; otherwise AddRef the new non-null pointer, store it, then Release the old one.
+Initialized Shutdown clears and releases both held pointers after unsubscribing/releasing its
+presentation resources; repeated Shutdown succeeds without repeating this work. Init subscribes
+the `+4` message target to `0xA6B79602`, `0x06CDB65B`, `0x26D31EC1` and animation tick `0x80`;
+it is idempotent and returns true. Position is supplied through AsOccupant slot 9, one pointer
+to three consecutive float32 values `(x,y,z)`, callee pops 4; dispatch ignores its return.
+
+#### 4.1.2 Station geometry and return predicate (DP11) *[compat]*
+
+The station **occupant**, not a lot interface, supplies the placement bounds. Occupant slot 11
+`GetBoundingCityCells(region&)` writes four signed dwords `(minX,minZ,maxX,maxZ)`. City slot 96
+`CellCornerToPosition(i32 x,i32 z,float* outX,float* outZ)` pops 16 and has no result channel.
+Convert `(minX,minZ)` to corner A and `(maxX+1,maxZ+1)` to corner B; obtain each Y from city
+slot 84's terrain slot 13 GetAltitude(x,z), ST0 stored to float32. No rotation, lot transform,
+road heading, or half-cell offset is requested (`0x0046B1A2`–`0x0046B22C`).
+
+For BeginDispatchTool count < 2, A is instead station occupant slot 8 GetPosition(vec3&),
+direction and spacing are zero. Otherwise use D = B−A, length = sqrt(Dx²+Dy²+Dz²),
+spacing = length / unsigned32(count+1). Normalize D only if length > 0. Each free unit i uses
+`A + (Dnormalized * spacing) * (i+1)`; occupied indices still leave their parking gap. The
+loop index is a byte, the free-mask shift uses its low five bits, and the stored call number
+is the low 16 bits of `base+i`; count ≥ 256 can make the native byte loop nonterminating.
+
+Numeric order is compatibility-visible: differences and normalized components are stored as
+float32; BeginTool's length is retained in x87 while computing spacing, which is stored as
+float32. Normalization uses the reciprocal in x87, not a separately stored float32 reciprocal.
+X/Y step-times-index are stored before adding A; Z step is stored before multiplying by index.
+See `0x0046B230`–`0x0046B2BC`, `0x0046B343`–`0x0046B3C4`; do not simplify to D/(count+1).
+
+ReturnPylonToStation always recomputes the diagonal from the bounds, including count 0 or 1;
+it does not use BeginTool's single-unit position shortcut. Its length is stored as float32,
+and its reciprocal and each step component are also stored as float32 before positioning
+(`0x0046AB2E`–`0x0046ABFE`). Its parking multiplier is
+`1 + u8(low8(callNumber) - low8(base))`, **not** full-width callNumber−base+1
+(`0x0046AC02`–`0x0046AC0D`). It resets dispatch/UI state only after successful slot-7 unit-state
+lookup, but inserts an absent pylon into the available list with AddRef even when that lookup
+fails. Existing null/missing-source cleanup rules remain as §4.4 states.
+
+The input tool's return predicate (`0x004BA1B0`) uses the active pylon's current occupant
+position and its source occupant's same bounds converted to corners. It revokes when
+`minWorldX <= p.x < maxWorldX` and `minWorldZ <= p.z < maxWorldZ`, ignoring height. The upper
+edges are exclusive (`0x004BA248`–`0x004BA28D`). This is an axis-aligned footprint test,
+not GetOccupantLot or a rotated-lot containment call. It then clears the active pylon.
+
+The construction/geometry portions of DP11 are resolved above; its question remains open for
+the slot-8 string input representation and final callable-prefix audit. The embedded value at
+`+0x1AC` is a string, not a texture-binding interface.
+
+#### 4.1.3 Vehicle-view native boundary (DP10, partial) *[compat]*
+
+Manager slot 22 returns the **borrowed object-start pointer** to its concrete vehicle view,
+not an acquired unknown interface. `Init` allocates `0xA0` through GlobalHeapAlloc, invokes
+constructor `0x0046F120`, calls primary slot 1 AddRef, direct `Init` at `0x0046B550`, then renderer
+slot 32 `(view,5,1000)`; it ignores Init/registration return values and has no null-allocation
+recovery (`0x0046A0A9`–`0x0046A0F0`). No view CLSID/factory or dedicated view IID is requested.
+Shutdown calls renderer slot 33 `(view)` **before** direct view Shutdown `0x0046D810`, then
+primary Release and clears its member (`0x0046A214`–`0x0046A233`).
+
+Exported data references define the following primary prefix at `0x00A88248`:
+slot 0 QueryInterface `0x0046B500`, slot 1 AddRef `0x005BE3E0`, slot 2 Release `0x005BCB30`,
+slot 3 Update `0x0046D990`, slot 4 the always-false, four-dword-pop pick function `0x00735290`.
+The prefix does **not** contain Init, Shutdown, TrackAutomaton or UntrackAutomaton slots.
+Those names must not be invented to complete a public SDK interface.
+
+QueryInterface(IID,out) zeros out first. Message-target IID `0x452294AA` yields acquired
+`this+0x0C`; otherwise it delegates to cRZUnknown at `this+4`. That base accepts IID 1 and
+returns acquired `this+4`, not the primary pointer (`0x0046B500`–`0x0046B540`, `0x009457C6`).
+Primary AddRef/Release adjust ECX by +4. Message-target QI/AddRef/Release use their adjustment
+thunks, and message slot 3 is DoMessage `0x0046D0F0` (data references `0x00A88220`–`0x00A88238`).
+
+Tracking is direct `TrackOccupant` at `0x0046F240`, ECX = view start, four stack arguments:
+occupant, kind, display/call number, optional label pointer. It returns a **32-bit EAX handle**,
+0 for a null occupant or a reached nonzero kind limit. Kinds used by dispatch are 0/1 with
+null label; numbers come from the vehicle's low-16-bit call number on new creation. Tracking
+acquires one occupant reference (`0x0046F608`–`0x0046F60C`). A successful track increments a
+process-global dword at `0x00B215FC` and stores that value as the handle, plus a per-kind count
+(`0x0046F61B`–`0x0046F646`). This is not a dispatch ID, pointer token, per-manager counter, or
+saved value. New manager construction does not itself allocate a handle. Re-targeting does
+not track again. Limits initialize to `0xFFFFFFFF` in Init.
+
+Direct `UntrackOccupant` at `0x0046EFB0` takes `(u32 handle,bool immediate)` and pops 8;
+AL false for zero/absent handle, true for found. Non-immediate removal of an entry with
+flag bit 3 sets bit 4 and returns true without immediate removal. Otherwise it temporarily
+AddRefs the occupant, removes track info, sorts remaining indicator priority, then Releases
+that temporary hold. View Shutdown releases every retained tracked occupant and clears its
+map. DP10 remains open: full renderer Update/refresh argument semantics, visual resources
+and all delayed-untrack completion effects have not been established here. These boundary
+facts alone do not justify wiring a complete native view provider or claiming exact shadow.
+
 ### 4.2 `Dispatch(type, x, z)` (`0x0046A630`, slot 6) → ID *[compat]*
+
+**BeginDispatch's native call layout (DP12, partial).** All calls below use ECX for this;
+stack arguments are in source order, each occupying a dword. Source slot 11 takes
+`(station, u32* group, key3* modelKey, u32* flags, vec3* target)`, pops 20 and returns AL.
+BeginDispatch initializes group, model key and flags to zero, takes target x/z from the record
+and refreshes target y from terrain ST0 into float32, then calls slot 11 and **ignores AL**
+(`0x00469914`–`0x00469979`). The three dwords of modelKey are not a spawn-position output.
+The shipped sources ignore station and target: fire ground group `0x4202`, police ground
+`0x4207` during disaster else `0x4228`, fire plane `0x4303`, police helicopter `0x4301`;
+all write key `(0,0,0)` and flags `0x11882` (`0x006AD5B0`, `0x006E0C00`,
+`0x006ACB30`, `0x006DFAC0`).
+
+`GetAutomataManagerForGroup(group)` at `0x0050CCA0` tries city slots 43,44,45,46 in that order,
+accepting the first non-null manager whose slot 30 `(group)` returns AL true. No AddRef is
+taken on the manager. If none accepts, the helper runs its diagnostic path and returns the
+last candidate (ESI), which is not forcibly nulled (`0x0050CD90`–`0x0050CD98`). BeginDispatch
+tests only the returned pointer; a non-null last candidate therefore proceeds even after rejection.
+
+BeginDispatch then passes these two temporary native descriptors by address:
+
+| Descriptor | Layout |
+|---|---|
+| source | u32 tag 0 at +0, station occupant pointer at +4 |
+| destination | u32 tag 1 at +0, target float32 x/y/z at +4/+8/+12 |
+
+New vehicle: manager slot 18 `(+0x48)` arguments are
+`(group, &source, &destination, flags, 0, &modelKey, 0xFF)`, pops 28, returns a borrowed
+automaton in EAX or null (`0x0046999E`–`0x004699F3`). The traffic-manager slot body is
+`0x0054DBF0`, **not** the similarly named `CreateDispatchAutomaton` at `0x0054F8A0`, which
+has a different signature. Slot 18 creates the automaton internally, adds it to the manager,
+routes through slot 17, releases its creation reference, and on route failure removes it
+through manager slot 8 `(automaton,true)` and returns null (`0x0054DC79`–`0x0054DCBF`).
+
+On non-null return, BeginDispatch AddRefs it, calls automaton slot 39 `(manager+4)` to add
+the dispatch manager's message-target callback, stores the vehicle in the record, then calls
+slots 28 `(dispatchID)`, 24 `(low16(callID))`, 25 `(3)` in order. It subsequently tracks its
+occupant, stores the handle and updates pylon call/state if present. Re-targeting instead
+calls vehicle slot 25 `(3)`, manager slot 17
+`(vehicle,&source,&destination,flags,2)` (pop 20, return ignored), then vehicle slot 39
+`(manager+4)`. It does not repeat the creation AddRef, dispatch/call-ID setters or view tracking
+(`0x00469AF2`–`0x00469B40`). **On re-targeting only**, source is `(tag 0, null occupant)`,
+not the record's station; `0x00469B20`–`0x00469B24` zero both source descriptor dwords.
+Both paths update the pylon's state from vehicle slot 26 and
+post begin only after those calls. Source absence, unavailable manager or null creation returns
+AL false; the enclosing Dispatch revokes its already-appended record through the existing
+§4.4 end path. There is no separate BeginDispatch station rollback before that revoke.
+
+DP12 remains open for the internal station-to-road spawn position/heading and complete
+slot-17 route failure/ownership contract. The descriptor/caller contracts above do not
+authorize treating zero modelKey as a world position or guessing that missing routing rule.
+
+The enclosing Dispatch sequence is:
 
 1. `source := GetDispatchSource(type)` (the first registered source whose `CanHandleDispatchType(type)` is true).
    If none, or `source.CanDispatch(x, z, &allBusy)` is false (protection.md §8.2): return **0**.
@@ -227,7 +403,7 @@ record stays until the vehicle is removed or re-targeted. Only the change into a
     (DP6). Unreachable in shipped play *[inferred]*: the tool gives every pylon its station as source, the
     pylon's `Shutdown` is what clears it, and a station's removal erases its records first. FreeCity4 shuts it down without the extra release *[choice]*.
   - Otherwise: `source` slot 7 (`+0x1C`) gives the station's unit state `(mask, base, count)`; if it succeeds, `p`
-    is placed at its parking spot (index `callNumber − base + 1` along the §4.5 step), with dispatch state 0 and UI
+    is placed at its parking spot (byte-wrapped multiplier in §4.1.2), with dispatch state 0 and UI
     state 1. Whether or not that call succeeded, `p` is looked up in the available vector (`0x004696C0`) and, if
     absent, pushed at the back with a reference (`0x007EBD30`).
   - A record whose type is not `toolType` has its pylon shut down and released by `EndDispatch`; a following
@@ -429,6 +605,31 @@ DP13 independent vectors (specified, not claimed executed):
 - Count 32 / 33 with raw mask all ones gives mask 0 / 1. Do not substitute a saturating mask.
 - Missing count leaves all sentinel outputs unchanged; missing mask writes count only; missing base
   writes count and masked mask. With null mask output, a missing mask property does not cause failure.
+
+DP11 independent vectors (specified, not claimed executed):
+
+- A=(0,0,0), B=(40,0,0), count 3, mask 5: pylons at x=10 and 30, with calls base and base+2.
+  With count 1 and station position x=7, BeginTool uses x=7; return uses diagonal midpoint x=20.
+- Call 1, base 257: return multiplier 1, not −255. Source replacement A→B acquires B before releasing A;
+  assigning B again performs neither reference operation.
+- Drop at the minimum X/Z corner revokes; at either maximum edge it does not. Vary height alone and
+  keep x/z inside: still revokes. Bounds come from the source occupant, even if a lot lookup would differ.
+- Query pylon IID and AsOccupant: acquired primary pointer and borrowed pointer+8 respectively;
+  the occupant's slot 9 receives the three-float position. A shifted SDK prefix must fail this vector.
+
+DP10/DP12 boundary vectors (specified, not claimed executed; remaining open contracts still apply):
+
+- Start a view, track two different occupants with an unchanged global counter between calls:
+  two consecutive nonzero handles, one acquired occupant reference each. A second manager must
+  not reset the counter. A null occupant returns zero without advancing it. Neither dispatch ID
+  nor a serialized record seeds the counter. Do not derive expected handles from candidate output.
+- QI message target returns primary+12; QI unknown returns primary+4; unsupported IID clears out
+  and returns false. Neither equals manager slot 22's borrowed primary pointer.
+- With a source returning group G, key K, flags F, capture manager slot 18 arguments independently:
+  G, source tag0/station, destination tag1/terrain-adjusted target, F, 0, K, 255. Retarget captures
+  slot 17 with source tag0/**null**, mode2, then callback; it leaves the view handle unchanged.
+- Return AL false from source slot 11 after writing the outputs: creation still uses those outputs.
+  Return null from creation: no vehicle AddRef/callback/tracking/begin; enclosing revoke performs end.
 
 1. Empty record: a fresh manager writes `02 00 00000000 00000000 00000000 00000000 08000000`.
 2. Round trip of the 22-byte corpus forms, including `toolType` 4; after `Init`, `toolType` is 8.
