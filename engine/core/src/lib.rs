@@ -142,3 +142,4 @@ pub mod occupant_groups;
 pub mod animated_sprite;
 pub mod draw_context;
 pub mod gdrivers_director;
+pub mod key_accelerator;

@@ -13,7 +13,7 @@ export const meta = {
 //   kind 'mech' is mechanical work (docs rows, ABI rows, regress records, renames): it defaults to a cheaper model.
 //   fix: the merge train's failure text (python tools/merge-train.py fail --lane <lane>), for a fix round.
 //   ctxBudget: context tokens per round (default 150000). Past it the lane writes its Handoff and returns state
-//     'continue'; the loop below starts a fresh agent from that file. maxRounds: cap on rounds (default 6).
+//     'continue'; the loop below starts a fresh agent from that file. maxRounds: cap on rounds (default 3, the user's per-lane cap; lane_launch.py passes 1 per launch and counts rounds in its ledger).
 //   maxCalls: the progress watchdog, tool calls allowed since the worktree's last commit (default 150).
 //
 // Enforcement (docs/ops/coordinating.md "Lane guard"): the budget, the watchdog, the STOP flag and parking are not
@@ -34,7 +34,7 @@ const L = args
 const MAIN = L.main || 'C:/Users/tlori/FreeCity4'
 const W = MAIN + '/.claude/worktrees/' + L.name
 const BUDGET = L.ctxBudget || 150000
-const MAX_ROUNDS = L.maxRounds || 6
+const MAX_ROUNDS = L.maxRounds || 3
 const MAX_CALLS = L.maxCalls || 150
 
 const RESULT = {
@@ -59,7 +59,7 @@ const COMMON = `## Working rules (every lane)
 - Worktree: create it first with \`git -C <MAIN> worktree add <WT> -b <lane> <base>\` (branch exists, worktree does not: \`git -C <MAIN> worktree add <WT> <lane>\`; worktree exists: reuse it, check \`git -C <WT> log --oneline main..\` and \`git -C <WT> -c submodule.recurse=false status --short --ignore-submodules\`). If git fails there because engine/third_party/gzcom-dll/.git holds a relative gitdir, repoint it at <MAIN>/.git/modules/engine/third_party/gzcom-dll.
 - Your cwd is the main checkout: never edit, commit, merge or \`cd\` there. Absolute paths and \`git -C <WT>\` for everything. Never merge main into your branch unless told to, never merge into main, never push, never bump FC4_ABI_VERSION.
 - Temp files and helper scripts go in <WT>/build-runs/ (never a shared scratchpad). Commit messages: <WT>/build-runs/msg-<lane>-N.txt, UTF-8 without BOM, \`git -C <WT> commit -F\`, last line \`Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\`. Commit small and often.
-- Read only what your task needs: docs/HANDOFF.md (the short index) and the files the brief below names; read a spec by the sections its outline marks (Read offset/limit), not whole. Do not read docs/lanes/INDEX.md, docs/history/ or docs/specs/questions/answered/ unless the task says so.
+- Read only what your task needs: docs/ops/rules.md, the files the brief below names, and the docs this prompt cites at the step that needs them; read a spec by the sections its outline marks (Read offset/limit), not whole. Do not read docs/HANDOFF.md (the coordinator's run status), docs/lanes/INDEX.md, docs/history/ or docs/specs/questions/answered/ unless the task says so.
 
 ## Cost rules (every call re-sends your whole context)
 - Several steps per call: chain commands in one Bash call (\`a && b && c\`) or put them in a script in <WT>/build-runs/ and run that; plan the next few steps before each call. Ten one-line calls cost about ten times one ten-line call.
@@ -69,13 +69,13 @@ const COMMON = `## Working rules (every lane)
   - \`python <MAIN>/.claude/lane-bin/qwait.py <file> [--fresh]\`: waits in ONE call (9 minutes at most; call again on "timeout") and prints the first lines. Never poll in a loop of tool calls.
   - Any other command: \`python <MAIN>/.claude/lane-bin/q.py --wt <WT> "<command line>"\` runs it in <WT> (relative paths work), keeps the full output in <WT>/build-runs/q/ and prints the last 40 lines / 4 KB and the exit code (\`--head\` for the first lines); grep that log for more. Or pipe through \`| head -n 40\`. Never print a whole log, spec, diff or decompiled file.
 - Stateless: your conversation can be cut at any time (context budget, API error) and a fresh agent continues from your files alone. Right after the worktree exists, write <WT>/docs/lanes/<lane>.md: the table row (format docs/lanes/README.md, State at stop "in progress"), then a \`## Handoff\` section of at most 25 lines: goal; done (milestones with commit hashes); next (the exact next step); facts a successor needs (measured numbers, game-request labels outstanding, paths, decisions taken). Update and commit it after every milestone (a commit of real work, a gate result, a game verdict, a spec section). Then, in the same call, run \`python <MAIN>/.claude/lane-bin/ctx.py <lane> --budget <budget>\`: on OVER, make sure the Handoff is committed, write no merge-queue file, and return state "continue" with the tip and a one-line summary.
-- Finish: (1) commit everything (no WIP at the tip if ready); (2) rewrite docs/lanes/<lane>.md: the one table row in the format of docs/lanes/README.md, then below it your full report (what changed, measured results, questions, next steps) in place of the Handoff section; commit it; (3) write <WT>/build-runs/merge-queue/<lane>.json as docs/merge-train.md says (lane, branch, tip, kind, abi, game_runs, summary, state ready|wip); (4) return the short structured result. The coordinator reads only that result; details belong in docs/lanes/<lane>.md.`
+- Finish: (1) commit everything (no WIP at the tip if ready); (2) rewrite docs/lanes/<lane>.md: the one table row in the format of docs/lanes/README.md, then below it your full report (what changed, measured results, questions, next steps) in place of the Handoff section; commit it; (3) write <WT>/build-runs/merge-queue/<lane>.json as docs/lanes/README.md "How a lane lands" says (lane, branch, tip, kind, abi, game_runs, summary, state ready|wip); (4) return the short structured result. The coordinator reads only that result; details belong in docs/lanes/<lane>.md.`
 
 const ENGINE = `You are a clean-room ENGINE IMPLEMENTER lane on FreeCity4 (OpenSC4), a GPL-3.0 reimplementation of SimCity 4 Deluxe (GOG 1.1.641): Rust core engine/core, C ABI engine/capi, C++ GZCOM plugin engine/plugin loaded by the real game.
 
 ## Clean-room rules (these do not bend)
 - Never open, list, grep or read: decomp/, decomp-mac/, external/, ghidra/ (any part), re/, tools/, docs/subsystems/, docs/sim-engine.md, any game executable — in either checkout. Do not run scripts from tools/.
-- You may read: docs/specs/ (your behaviour source), docs/abi/, docs/HANDOFF.md, docs/ops/, docs/harness.md, docs/manual-checks.md, docs/ARCHITECTURE.md, docs/PROGRESS.md, CONTRIBUTING.md, README.md, engine/ (incl. the SDK headers in engine/third_party/gzcom-dll), and in the main checkout only build-runs/coord-verify-lane.ps1. You may run the lane tools in .claude/lane-bin/.
+- You may read: docs/specs/ (your behaviour source), docs/abi/, docs/HANDOFF.md, docs/ops/, docs/harness.md, docs/manual-checks.md, docs/ARCHITECTURE.md, CONTRIBUTING.md, README.md, engine/ (incl. the SDK headers in engine/third_party/gzcom-dll), and in the main checkout only build-runs/coord-verify-lane.ps1. You may run the lane tools in .claude/lane-bin/.
 - Spec silent or ambiguous: implement the most literal reading, mark it with a code comment, and file a numbered question by appending it to docs/specs/questions/<spec>.md (the spec's ID prefix, next free number per docs/specs/QUESTIONS.md; see docs/specs/questions/README.md). That is the only file under docs/specs/ you may edit. Never guess from other sources. Never commit game files or decompiled output.
 
 ## Build and test
@@ -89,7 +89,7 @@ const ENGINE = `You are a clean-room ENGINE IMPLEMENTER lane on FreeCity4 (OpenS
 - Shared files (CMakeLists.txt, FC4Config.*, FC4Subsystems.cpp, fc4.h, capi/src/lib.rs, plugin_load_test.cpp, FC4TestSeam.*, README): edits additive, grouped, at the end of their lists.
 
 ## Testing in the real game (docs/harness.md)
-- Build the plugin (verify leaves engine/build-x86/FreeCity4.dll), write <WT>/build-runs/game-queue/<name>.req, then wait in one call: \`python <MAIN>/.claude/lane-bin/qwait.py <WT>/build-runs/game-results/<label>.verdict --fresh\`, and grep <label>.log for your lines. At most one request outstanding (6 slots shared by all lanes). Prefer \`sim_turbo = 1\` with an end_date; use \`script = <file>\` for in-city actions, never the UI. failed-start / harness-error: resend.
+- Build the plugin (verify leaves engine/build-x86/FreeCity4.dll), write <WT>/build-runs/game-queue/<name>.req, then wait in one call: \`python <MAIN>/.claude/lane-bin/qwait.py <WT>/build-runs/game-results/<label>.verdict\` (labels are unique), and grep <label>.log for your lines. At most one request outstanding (6 slots shared by all lanes). Prefer \`sim_turbo = 1\` with an end_date; use \`script = <file>\` for in-city actions, never the UI. failed-start / harness-error: resend.
 - Before you report: verdict clean, ref_warnings=0, your shadow exact or every difference a numbered question. If a shadow differs only under turbo, also run once at normal speed.
 - Do not start the game yourself, do not touch Documents/SimCity 4/.`
 

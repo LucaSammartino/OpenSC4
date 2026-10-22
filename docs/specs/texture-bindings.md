@@ -176,6 +176,81 @@ returns true.
 | 12, 14, 15, 16 | `0x00809B00`, `0x0080A580`, `0x0080A590`, `0x0080A010` | SetResGroup, SetFreePoolMax, FlushFreePool, FlushAll |
 | 17, 18 | `0x00809260`, `0x0080A4D0` | GetStatsString, FreeBinding |
 
+### 1.11 Native word arithmetic and invalid-domain boundaries (TB5)
+
+These rules qualify the mathematical description in §1.4. Dimensions, image frame/level counts, LOD offset,
+record byte size and factory byte/count fields are 32-bit words. Addition, subtraction and the low-word products
+wrap modulo 2^32; there is no checked-size rejection. This describes the native calculation, not a requirement
+to allocate an invalid or impossibly large image.
+
+- `P` (`0x0080A700–0x0080A716`) compares its argument and successive powers as **signed** 32-bit integers.
+  Zero, one, and any word with bit 31 set return 1. Positive values through `0x40000000` round upward normally.
+  Positive values `0x40000001..0x7FFFFFFF` do not terminate: doubling reaches the negative sign bit, then zero,
+  and stays zero. There is no native overflow error result.
+- The LOD selection uses an **unsigned** comparison: use the offset if `L > offset`, otherwise use `L−1`
+  modulo 2^32 (`0x00809514–0x0080952B`). Subtract that word from L for the output level count. Consequently
+  `L=0` selects `d=0xFFFFFFFF` and produces **one** binding level, rather than rejecting the input.
+- Width and height use logical right shifts with `d & 31`, followed by a **signed** comparison against 1;
+  only values signed-greater-than 1 survive (`0x0080952D–0x00809573`). Thus `L=33, offset=32, w=h=8`
+  gives one level of **8×8**, not 1×1; `L=0, w=h=8` gives one level of 1×1.
+- Size starts with the binding dimensions. For each binding level, add the low 32 bits of width×height to a
+  32-bit sum, then logically halve each dimension without clamping. Multiply the wrapped sum first by bits
+  per texel, then by frames, retaining only the low word each time; finally logically shift right by 3
+  (`0x0080A253–0x0080A296`). It is not a wide product divided by 8. A one-level 65536×65536 image at 32 bits
+  and one frame therefore has accounted size **0**. Zero frames also gives size 0 and makes no driver texture
+  creation calls; there is no frame-zero rejection (`0x0080A1EE–0x0080A253`).
+- Creation increments in-use words with wrapping arithmetic (`0x0080A300–0x0080A30B`). Returning to the pool
+  subtracts size from in-use bytes, adds it to pool bytes, decrements/increments the respective counts, all
+  wrapping (`0x0080A516–0x0080A537`). Reuse and keyed reacquisition reverse those transfers, also wrapping
+  (`0x00809D91–0x00809DB9`, `0x0080A3C9–0x0080A3EE`). Trimming compares bytes and limit **unsigned**;
+  its subtraction alone saturates at zero when record size is at least the current pool bytes
+  (`0x0080A0A3–0x0080A0FF`). A wrapped pool total can therefore suppress trimming.
+- Binding references are a wrapping **32-bit** word, not the material's 16-bit word. `AddRef`
+  (`0x004664A0`) turns `0xFFFFFFFF` into 0 without freeing; `Release` (`0x008090E0`) turns 0 into
+  `0xFFFFFFFF`. Only a decrement producing exactly 1 with a factory calls `FreeBinding`; exactly 0 frees
+  the binding allocation. No overflow/underflow guard exists.
+
+### 1.12 Instance-zero keys and upload failures (TB6–TB7)
+
+Keyed lookup accepts instance zero and inserts the (group, 0) entry just like any other key
+(`0x0080A454–0x0080A471`). Releasing and asking for that key before reuse/eviction returns the same binding
+without upload. The record's instance word nevertheless remains the unkeyed sentinel:
+
+- Reuse tests the instance word before key removal (`0x00809DCD–0x00809DF0`), so reusing this record for an
+  image-info request leaves the old (group, 0) entry pointing at the repurposed record. A subsequent keyed
+  lookup can return that binding with its new contents. Reusing it for another key can leave two entries
+  pointing to the same record.
+- Destruction makes the same zero test (`0x00809EB9–0x00809EE1`), leaving a dangling key-table value after
+  eviction. A later lookup is unsafe; there is no specified false/error recovery from the freed record.
+  `FlushAll` ultimately clears the key table (§1.7).
+- Restoration walks **key-table entries**, not records filtered by nonzero instance. The stale instance-zero
+  entry is therefore still visited. It reconstructs the load key from the record's current instance/group
+  (`0x00809A30–0x00809A69`), which may differ from the table key after reuse.
+
+Driver creation stores each returned handle before querying the driver error. On failure at zero-based frame
+i, slot 36 receives **count i** and the array base (`0x0080A22D–0x0080A244`, `0x0080A2B9–0x0080A2CE`).
+The just-returned handle is excluded, even if nonzero. Failure on the first call issues deletion with count 0;
+failure on the third deletes only handles 0 and 1. A zero handle among those earlier successful calls is still
+included. This path frees the record but does **not** free the separately allocated handle array before returning
+failure. These observations correct §1.5's ambiguous “made so far”; there is no per-handle nonzero filter.
+
+Upload (`0x00809B90–0x00809CC6`) reads image-info fields even before deciding whether the binding is known.
+For a known binding it loops over the **source image's frame count**, and over the **binding's level count**.
+The first source pointer is at source-level-table index `sourceLevels−bindingLevels` (32-bit subtraction);
+each successive frame advances by `sourceLevels` entries. Thus fewer source frames leave later handles
+unchanged; more source frames read beyond the binding's handle array. Insufficient source levels can address
+before the level table. Neither a missing table nor a null level pointer produces a native early failure:
+the table entry is read and its value is passed to the driver unchanged. Upload widths/heights are logical
+shifts by `level & 31`, without a minimum of 1. The source format/type are forwarded. The driver return is
+ignored and no error query follows, so later levels/frames are still attempted after a reported upload error
+(`0x00809C50–0x00809CBB`). Invalid memory accesses have no native boolean failure contract.
+
+Restore attempts resource load per table entry, skips upload if load fails or image-info is null, releases a
+returned resource, and continues (`0x00809A6C–0x00809A97`). Traversal follows each hash chain then the next
+occupied bucket, in ascending bucket index (`0x00809A97–0x00809AD3`), rather than sorted resource-key order.
+Driver/load call order is observable. Exact ordering across differing hash-table growth/insertion histories
+requires the same table state; this section does not invent a key-order guarantee.
+
 ## 2. `cS3DTextureBinding` *[compat]*
 
 16 bytes: the per-frame texture handles, the frame count, the factory, a reference count (constructor `0x008090C0`;
@@ -204,6 +279,85 @@ returns true.
   texture-coordinate set (`+0x0D`), a texture-transform switch (`+0x0E` bit 0) and that transform's scale
   divisor (`+0x10`) (draw-context.md §6); slots past T are never read, so their `0xFF` is only a marker.
 - Slot 4 (a shared body) always returns false; `GetStatsString` (slot 5, `0x00800C50`) formats "Nothing to report".
+- Primary slots **6 and 7** both target `0x0062C980`: return false, discard two 32-bit arguments, and do not
+  dereference them or mutate outputs. No method names or successful behavior are established by that body.
+- Primary AddRef/Release (`0x00800C30`, `0x00800C40`) adjust the receiver by +4 and delegate to the system
+  service. The deleting destructor (`0x00800CE0–0x00800D13`) restores all three vtables, destroys the base at
+  +4, then frees the 0x20-byte allocation iff flags bit 0 is set. It does not enumerate materials or bindings.
+
+### 3.1 Material value and reference lifetime (TB4)
+
+A material is a nonvirtual 0x34-byte object. Its constructor writes count zero at `+0x02`;
+CreateMaterial increments that word after publishing the output (`0x00800D27`, `0x00800E1B–0x00800E24`).
+Allocation failure still reaches null material field writes (`0x00800D7D–0x00800D99`), not a clean false.
+
+The unnamed body `0x008045B0–0x008045F3` (68 bytes) is material release. Read the count as unsigned
+16-bit. If greater than 1, decrement, store and return the count zero-extended. For **either 0 or 1**,
+release each nonnull held binding, first stage 1 (`material+0x24`), then stage 0 (`+0x10`), free the
+allocation, and return zero. This branch does not store a decremented count. Unused stage markers
+do not suppress release. In particular release at zero frees instead of underflowing to 65535.
+Material-reference assignment (`0x008048F0–0x0080490F`) increments the new nonnull material's count
+with 16-bit wrap, stores its pointer, then releases the old material; equal pointers cause no calls.
+
+Value assignment (`0x00802240–0x008022A9`, 106 bytes) copies the first byte, the **count word**, flags
+and bytes `+0x06..+0x0B`, then assigns stage 0 and stage 1; it does not acquire a material reference.
+Stage assignment (`0x00802070–0x008020E8`, 121 bytes) copies the texture ID, then, if binding pointers
+differ, AddRefs the new nonnull binding, stores it, and Releases the old nonnull binding; finally it
+copies sampler/environment/coordinate/transform fields. Equal pointers cause no reference operations.
+
+Value-range destruction (`0x008021F0–0x00802234`, 69 bytes; export label `vector::erase`) walks
+0x34-byte values forward, releasing stage 1 then stage 0 per value, without consulting material counts
+or freeing the enclosing range. Temporary cleanup at `0x00805676–0x00805686` uses that reverse-stage order.
+
+Distinguishing vectors: count 0 with two bindings releases stage 1, stage 0, then frees; count 2
+becomes 1 with no binding calls. Acquiring a material at 65535 wraps to 0 before releasing the old
+material. Assigning an equal binding performs no reference calls; assigning a different binding
+acquires it before releasing the old binding.
+
+### 3.2 Inventory scope (TB4)
+
+The brief's **58 bodies / 4883 bytes** is the coverage-map subsystem scope, including five free
+functions, rather than 58 class methods. Replaying the attribution against the main checkout's
+export, name map and ABI tables gives:
+
+| Owner / grouping | Bodies | Export body bytes |
+|---|---:|---:|
+| cS3DTextureBindingFactory | 42 | 4267 |
+| cS3DTextureBinding | 3 | 89 |
+| cS3DMaterialManager | 7 | 328 |
+| cS3DMaterial | 1 | 65 |
+| Class/create free functions: `00800BF0`, `00800E30`, `00809120`, `0080A680` | 4 | 111 (6 + 72 + 6 + 27) |
+| NextPowerOfTwo, `0080A700` | 1 | 23 |
+| Total | **58** | **4883** |
+
+The class-body membership is below (hexadecimal address / decimal export body bytes). Repeated
+adjustor entries count as distinct bodies; repeated vtable uses of the same address do not.
+
+| Class / body group | Addresses / bytes |
+|---|---|
+| Binding | `004664A0`/8, `008090C0`/32, `008090E0`/49 |
+| Material | `00800D20`/65 |
+| Material manager | `00800C00`/39, `00800C50`/21, `00800C70`/8, `00800CA0`/8, `00800CD0`/8, `00800CE0`/52, `00800D70`/192 |
+| Factory: QI/refcount/Shutdown/stats/driver | `00809130`/115, `008091B0`/8, `008091C0`/8, `008091D0`/108, `00809260`/140, `008092F0`/62 |
+| Factory: params/Init/lookup/dimensions | `00809330`/104, `008093A0`/286, `008094C0`/48, `008094F0`/134 |
+| Factory: key erasure/destruction/LOD | `00809690`/122, `00809890`/118, `00809910`/10 |
+| Factory: adjusted entries, first group | `00809920`/8, `00809930`/8, `00809940`/8, `00809950`/8, `00809960`/8, `00809970`/8, `00809980`/8 |
+| Factory: adjusted entries, second group | `00809990`/8, `008099A0`/8, `008099B0`/8, `008099C0`/8, `008099D0`/8, `008099E0`/8 |
+| Factory: message/group/upload/free lookup/info/destruction | `008099F0`/264, `00809B00`/140, `00809B90`/311, `00809CD0`/311, `00809E10`/147, `00809EB0`/114, `00809FF0`/30 |
+| Factory: flush/trim/create/lookup | `0080A010`/137, `0080A0A0`/100, `0080A110`/522, `0080A320`/89, `0080A380`/332 |
+| Factory: return/limit/pool flush/construction | `0080A4D0`/163, `0080A580`/15, `0080A590`/25, `0080A5B0`/200 |
+
+The earlier name-only count **55/4758** additionally includes two folded names: the 5-byte
+CreateMaterialVariant tail jump at `005BE2E0` and the 4-byte GetResGroup getter at `00809240`.
+These shared entries are callable contracts (§§1.10/3), but attribution does not assign them to
+these class owners. Subtract 2/9, then add the five free functions' 5/134 to obtain 58/4883 exactly.
+The bits-per-texel table and two named vtable addresses are **data**, not bodies. The earlier
+59/4869 helper subtotal was a different scope and omitted NextPowerOfTwo.
+
+This reconciliation does not remove material acquisition/release, assignment, value-copy and
+range-cleanup contracts in §3.1 just because their shared/unnamed bodies are outside this subtotal.
+Inherited shared system-service slots are likewise entries, not additional exclusive owner bodies.
+No extra virtual material API follows from the subsystem count.
 
 ## 4. Users
 

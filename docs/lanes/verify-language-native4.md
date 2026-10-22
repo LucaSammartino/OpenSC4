@@ -195,3 +195,14 @@ New **LU4** is appended to `docs/specs/questions/language-utility.md` for the ob
 Round1 ended WIP: the exact current40 control was then missing and both native full-save controls failed. Round2 above supplies the literal control and the no-verifier native baseline, retaining every earlier failure. Reconcile native save/setup, current40 shutdown reference warnings, and supported fixture reloads; obtain published answers for LU1-LU4/SL1 before expanding credit. Regenerate the question index through the authorized coordinator workflow. Do not infer owner completeness or change defaults from the exact bounded constructed checks.
 
 C ABI change: three private transport symbols (`fc4_language_verify_new`, `fc4_language_verify_call`, `fc4_language_verify_free`); no public header/ABI-table edits or ABI-version bump.
+
+## Coordinator integration, 2026-10-22
+
+After the final third round, the coordinator merged main `7e0dd45c` into this completed branch without
+launching another worker round. Three conflicts were additive: retain the language source pair alongside
+FontSys/span8/feature/persistence CMake entries, retain every CAPI module, and retain language plus
+span8/persistence startup calls. The language verifier source files are unchanged from `223d0644`.
+The retained 4961/clippy0/68 gate and immutable DLL prove the historical worker artifact only; this integrated
+engine tree requires the next merge train's real gate and regression. No new game comparison or broader
+native/owner/default credit comes from this mechanical integration. Earlier round1/round2 residual text
+above remains historical; the final round3 controls and limitations are recorded at the top of this report.

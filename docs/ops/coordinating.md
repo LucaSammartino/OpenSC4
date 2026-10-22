@@ -39,7 +39,7 @@ returns a short result (state, tip, one-line gate/game/questions, at most 5 next
 The template's long rules block comes first and is byte-identical for every lane of a kind (no name, date or path
 in it), so it is served from the prompt cache; keep it that way when editing. A fix round is the same call with
 `fix` set to the train's failure text. Engine lanes test their own DLL through the run queue
-(`tools/game_queue.ps1 -Slots 6`, started detached from the main checkout; [docs/harness.md](../harness.md)) and wait
+(`tools/game_queue.ps1 -Slots 6`, started detached from the main checkout; [running-the-game.md](running-the-game.md) "The game queue") and wait
 for verdicts in one blocking call, never a polling loop. A worktree lane cannot read files outside its worktree:
 paste what it needs into the task, or copy files into its gitignored `build-runs/`.
 
@@ -84,7 +84,7 @@ re-sending the whole context. Three changes, on branch `claude/wonderful-lamarr-
    engine lanes may run it): `qbuild.py --wt <WT> test clippy verify | fmt <files>` (full logs in
    `<WT>/build-runs/qbuild-<step>.log`; prints counts, exit lines, the first 15 errors), `qgrep.py` (40 lines, 8
    per file, 160 chars, then a count of the rest; `-l`, `-C`), `qwait.py <file> [--fresh]` (one blocking wait, 9
-   minutes). `tools/re_query.py asm` now prints 120 lines per call (was 400) with `--skip N` paging. The lane
+   minutes). `tools/re_query.py asm` prints 56 lines per call (was 400, then 120) with `--skip N` paging; every re_query call is capped at 60 lines / 4 KB. The lane
    prompt's new "Cost rules" say: chain steps in one Bash call or a build-runs script, cap every output, Grep with
    `head_limit` <= 40, forward-slash paths (lanes have Bash, not the PowerShell tool).
 
@@ -213,9 +213,20 @@ was recorded in the rounds ledger.
 
 ## Keeping the coordinator cheap
 
+- **Restart fresh, from a note:** a call takes about 8 s under 50k tokens of context and about 60 s above 300k
+  (measured on the Codex coordinator, whose context reached 446k). Every 10 trains, write a complete restart note in
+  HANDOFF section 0 (live lanes and their rounds, the queue, the train, open alerts, the next three actions) so a
+  fresh coordinator session can take over from it alone.
 - **One monitor, events only:** run `python tools/lanes.py monitor` under the Monitor tool for the whole session. It
   prints a line only when a lane enqueues, a verdict is not clean, a train gate/regress finishes, `main` moves or a
   lane stalls; do not re-arm timers or poll status between events.
+- **Keep the backlog launchable before a long wait (run 4, 2026-10-22):** before starting any wait longer than a few
+  minutes (a train gate/regress above all), queue at least as many *launchable* briefs (every dep already on
+  `main`) as there are open slots, and wait with `python tools/lane_heartbeat.py --wait-until train` instead of a
+  plain train wait. It returns on the train verdict or as soon as the heartbeat says `BACKLOG LOW` (exit 4): then
+  queue more launchable briefs and wait again. Briefs that depend on the train being waited for do not count; they
+  drained run 4 from 9 live lanes to 1 while the log showed `pending 2`. See
+  [docs/lane-tools.md](../lane-tools.md) "Run 4: the heartbeat backlog".
 - **Read results, not transcripts:** the lane's structured result and `docs/lanes/<lane>.md` are the record; never
   read an agent's output file. Batch status updates to the user instead of one per event.
 - **Measure:** `python tools/lanes.py ledger --md docs/token-ledger.md` after each landed batch; it reads the
@@ -255,8 +266,7 @@ python tools/merge-train.py bisect | fail --lane L  # a red batch
   renumber or revert it. Write merge messages to a file and use `-F <msgfile>`.
 - **After a landing:** the regress ran in the batch (read the shadow column, not only the verdict); run records go
   in `docs/runs/<tag>.md` and `python tools/gen_handoff_tables.py` regenerates `docs/lanes/INDEX.md`, the HANDOFF's
-  latest-run line and `docs/manual-checks.md`; questions: see docs/specs/questions/README.md; tick
-  [docs/PROGRESS.md](../PROGRESS.md); regenerate `docs/coverage-report.md` and `docs/coverage-map.svg`
+  latest-run line and `docs/manual-checks.md`; questions: see docs/specs/questions/README.md; regenerate `docs/coverage-report.md` and `docs/coverage-map.svg`
   (`python tools/coverage.py`, `python tools/coverage_treemap.py`) and check the delta: it must never go down.
 - **Pause / stop:** `TaskStop`, resume with `SendMessage` to the lane's agent ID (but never `SendMessage` a
   workflow subagent: that spawns a duplicate). After a hard stop, check the worktree's *unstaged* diff
@@ -288,7 +298,8 @@ Learned the hard way on 2026-10-16:
 - A git worktree's `engine/third_party/gzcom-dll/.git` holds a relative `gitdir:` that does not resolve — repoint it
   at `<main>/.git/modules/engine/third_party/gzcom-dll` or every git command in that worktree fails.
 - Disk: build caches are ~10-19 GB per worktree. `C:` hit ENOSPC twice mid-gate. Free
-  `engine/target` and `engine/build-x86` of **merged, clean, 0-commits-ahead** worktrees only.
+  `engine/target` and `engine/build-x86` of **merged, clean, 0-commits-ahead** worktrees only. Remove whole
+  worktrees per [rules.md](rules.md) "Worktrees".
 
 Learned 2026-10-20 and 2026-10-21:
 
@@ -336,10 +347,7 @@ in their debug info and `__FILE__` strings.
 **Lane checks.** `python <MAIN>/.claude/lane-bin/fc4verify.py --wt <WT> quick`: `cargo test -p` the crates changed
 since `main` (the crates that depend on them are compiled with `--no-run`), then the CMake build. Before enqueueing:
 `... build ctest` (the full ctest, `-j 4`; the DLL-loading tests are RUN_SERIAL). `cxxtest` is ctest without
-cargo_test. The engine lane brief names both. Branch `claude/wonderful-lamarr-87a662` (lean lane harness) was not
-on main when this landed: its `.claude/lane-bin/qbuild.py` should get a `quick` step that runs `fc4verify.py quick`
-and its `verify` step should call `fc4verify.py build ctest` instead of copying coord-verify-lane.ps1 (both files
-live in `.claude/lane-bin/`, no conflict).
+cargo_test. The engine lane brief names both. `qbuild.py quick` runs `fc4verify.py quick`; `qbuild.py verify` runs `fc4verify.py build ctest`.
 
 **Gate and land.** `gate` runs every step even after a failure and writes the record with the head, the tree and
 its dirty files. `land` refuses unless the record is for the integration head, built a clean tree, and passes when

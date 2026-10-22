@@ -104,7 +104,7 @@ impl QueueManager2 {
     }
 
     /// Slot 8 RemoveAllQueues: clear the map (releasing each queue in id
-    /// order, [choice] the spec gives no order); always true.
+    /// order, [choice, GZ8] the spec gives no order); always true.
     pub fn remove_all_queues<H: QueueHost + ?Sized>(&mut self, host: &mut H) -> bool {
         let map = std::mem::take(&mut self.map);
         for (_, q) in map {

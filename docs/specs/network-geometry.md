@@ -891,6 +891,15 @@ pieces without supports. The p+0xA0 list plays no part (it is read only for its 
 
 ## 11. Costs (answers NT2) and the power line (answers NT3)
 
+**NT19:** fresh construction plus Init with missing properties gives `+0x3A4` uint32=20 (drag-step
+spacing), `+0x3A8` float32=7.0 (clearance added to ray endpoints), `+0x3AC` uint32=0 and `+0x3B0`
+float32=0.0. Re-Init resets only spacing/clearance; absent cost properties retain previous values.
+Evidence and numeric order: [power-line-tool.md §§1,4](power-line-tool.md).
+
+**NT20(b):** initial `last` is input count-1. Zones and nonterminal roads preserve it. Results above 3
+preserve last/failure but update the previous-result local. A trailing zone after a clear step loses
+the final step; an all-zone walk can retain the original count. See power-line-tool §6 and its vectors.
+
 **NT2.** The per-type cell cost table `0x00B453A4` is type info `+0xDC` = p+0x8C (property `0x4A2D49B9`). `+0x320`,
 `+0x324` and `+0x328` are the tool's copy of p+0x90 (`0x8A2D49EA`), p+0x94 (`0x8A2D49F0`) and p+0x98 (`0x6A2D49F4`),
 with defaults 10, 20 and 0.1. Shipped values: §2.4. A flat straight road of 11 cells on empty land costs 11 × 10 = 110

@@ -46,3 +46,11 @@
 <!-- from: re-networkmodel-answers4 (2026-10-22) -->
 - **NO25 - §10.3 `Clip` 0x00618B00 kept side and cut:** with lo = (−FLT_MAX, h, −FLT_MAX), hi = +FLT_MAX, mode 1, is the geometry above h kept (inside the box) or below; how are cut-edge vertices interpolated (position, uv, colour) per format 2/0x80004001/10; exact early-out test on the bounds? [not proved]
   **ANSWERED 2026-10-22 (re-networkmodel-answers4):** DIFFERS — §10.3 Clip rules 1-9: kept when lo.y ≤ y ≤ hi.y (outcode 0x00614100, y bits 0x30), so the call site keeps geometry at/above h and removes below; mode≠0 cuts iff min.y<lo.y or max.y>hi.y (unordered = cut, 0x00618B65-0x00618BC0), mode 0 tests x/z only, null lo returns; cut vertex lerped from the OUTSIDE end, t=(plane−out)/(in−out) stored f32, a′=(in−out)·t+out for x,y,z,u,v (0x00614490/0x00614170; 24-byte 0x006145D0/0x00614200); format 10 colour bytes trunc via _ftol2 (0x0061424F-0x006142A9); formats 2/0x80004001 → 20-byte pool 0x00B45240, 10 → 24-byte pool 0x00B45244, others → empty mesh; polygon emitted as fan, cut vertices never shared (0x006175C0); bounds clamped to the box, not recomputed (0x00618FD2-0x00619024). Vector D: outside-anchored gives 1.0 (0x3F800000), inside weighted form 0x3F7FFFFF.
+<!-- from: core-powerline4 (engine lane, 2026-10-21) -->
+- **NO24 - §5.2, `ComputePolePosition` "guarded against `-FLT_MAX`":** what happens when the terrain answers
+  `-FLT_MAX` (`0x00AA9F0C`): is y left at `-FLT_MAX`, replaced by a value (0? the previous y?), or does the call fail
+  and the pole is skipped? The core returns no position. [ambiguous]
+  **ANSWERED 2026-10-22 (re-powerline-completion4):** DIFFERS — network-occupants §5.2/power-line-tool §4.2:
+  start height at -FLT_MAX, replace only by strictly greater ordered corners, add 0.5, store float32.
+  All-sentinel corners return y=-FLT_MAX; no failure/skipped pole. NaN corners are ignored. Evidence
+  `0x0064F00B`, `0x0064F061–0x0064F0BB`; `0x00AA9F0C=0xFF7FFFFF`.

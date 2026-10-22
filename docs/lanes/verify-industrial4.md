@@ -63,3 +63,15 @@ Verdicts/logs are in `build-runs/game-results/<label>.*`; full gate logs are `bu
 - No new questions. Existing IN3 only concerns excluded natural interception.
 - Coordinator may land this opt-in verification tooling and retain the narrowed evidence. No default replacement or full-natural coverage change is requested. Unsupported-platform/factory-allocation refusal branches exist but were not forced in the supported game.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-verify-industrial4-r2-manifest.json`. Worktree stays detached for supervisor publication; no merge, push or shared-ref maintenance.
+
+## Coordinator measured-shadow audit (2026-10-22)
+
+industrial_constructed_source 263052/263052; industrial_constructed_joint97 131526/131526.
+Independent original factory owner versus actual production fc4_industrial CAPI,
+4source suites and2joint regress suites (load/shutdown); joint totals counted once,
+not cumulative reports added twice. Zero mismatches/refusals/resync; source controls
+clean2032/ref0 and official train97 gate68/regressPASS.
+This qualifies measured exact same-process shadow under COVERAGE.md; IN3 natural
+interception, unobserved factory failures and exhaustive natural lifetime remain
+unproved. No additional replacement or default-enable promotion.
+Raw joint evidence/hash: build-runs/run4-train97-native-audit.json.

@@ -108,13 +108,14 @@ impl LightingManager {
     }
     pub fn do_zoom_and_rotation_change(&mut self, zoom: u8, rotation: u8) -> Result<()> {
         self.rotation = rotation % 4;
+        self.map_rotation_initialized = true;
         self.zoom = zoom;
         self.key = rotate(normalize([-1.0, 1.0, 1.0]), rotation);
         self.fill = rotate(normalize([1.0, 0.5, -1.0]), rotation);
         self.shadow_direction = rotate(self.sun, rotation);
         let (w, d) = self.city_size();
         self.fade_origin = add(rotate([-w / 2.0, 0.0, d / 2.0], rotation), [w / 2.0, 0.0, d / 2.0]);
-        // [choice, LT5] No city dimensions means a zero gradient, rather than NaN.
+        // LT5: safe pre-city policy, NOT a native zero-gradient default.
         self.fade_gradient = if d == 0.0 {
             [0.0; 3]
         } else {
@@ -199,22 +200,25 @@ impl LightingManager {
         if sx < 0.0 {
             return Ok(());
         }
-        let drift = -sz / sx;
+        let r = |x| register::Number::new(x, self.register_precision);
+        let drift = ((r(-1.0) / r(sx)) * r(sz)).store();
         if !(-1.0..=1.0).contains(&drift) {
             return Ok(());
         }
-        // §5.2 expressly describes square city grids. Do not invent a rectangular sweep (LT8).
-        if self.cells.0 != self.cells.1 {
-            return Err(LightingError::ContractGap("LT8"));
-        }
         let width = self.cells.1 + 1;
-        if self.heights.len() != width * width || self.shadows.len() != width * width {
+        let rows = self.cells.0 + 1;
+        if self.heights.len() != width * rows || self.shadows.len() != width * rows {
             return Err(LightingError::LocationOutsideGrid);
         }
-        let drop = (16.0 / sx) * sy * self.statics.snapshot().slope_factor;
+        let drop = (((r(16.0) / r(sx)) * r(sy)) * r(self.statics.snapshot().slope_factor)).store();
         let mut running = vec![0.0_f32; width];
-        self.changed = Rect::EMPTY;
-        for row in 0..width {
+        self.changed = Rect {
+            min_x: -1,
+            min_z: -1,
+            max_x: 0,
+            max_z: 0,
+        };
+        for row in 0..rows {
             for (column, h) in running.iter_mut().enumerate() {
                 let index = row * width + column;
                 *h = h.max(self.heights[index]);
@@ -273,12 +277,18 @@ impl LightingManager {
     pub fn terrain_normal(&self, p: Vector) -> Result<Vector> {
         let terrain = self.terrain.as_ref().ok_or(LightingError::NoTerrain)?;
         let (w, d) = self.city_size();
-        // LT8: numeric epsilon is absent from §5.5. Interior points need no
-        // upper clamp; report the gap on an edge/outside rather than guess it.
-        if p[0] >= w || p[2] >= d {
-            return Err(LightingError::ContractGap("LT8"));
-        }
-        Ok(terrain.normal(p[0].max(0.0), p[2].max(0.0)))
+        let r = |x| register::Number::new(x, self.register_precision);
+        let clamp = |coordinate: f32, extent: f32| {
+            let upper = r(extent) - register::Number::double(0.001, self.register_precision);
+            if coordinate < 0.0 {
+                0.0
+            } else if r(coordinate) > upper {
+                upper.store()
+            } else {
+                coordinate
+            }
+        };
+        Ok(terrain.normal(clamp(p[0], w), clamp(p[2], d)))
     }
     fn update_terrain(&mut self, rect: Rect, redisplay: bool, events: &mut dyn EventSink) -> Result<()> {
         let terrain = self.city_terrain.as_ref().ok_or(LightingError::NoTerrain)?;
