@@ -76,11 +76,19 @@ Codex writes initial usage after its first tool call. Before measured usage exis
 require the latest input-token measurement; cached input is already included and is not added twice.
 Cumulative billed tokens are not the context size. Missing later telemetry fails closed.
 
-The worker uses an isolated CLI process, workspace-write sandbox, and the user's Windows sandbox setup.
+The worker uses an isolated CLI process, a scoped workspace permission profile, and the user's Windows sandbox setup.
 It supplies the reviewed guard inline and uses Codex's one-invocation hook-trust option so it executes in
 noninteractive mode. That option enables the guard; it does not bypass guard decisions or sandbox policy.
 General hook limitations remain those of the installed CLI. Changes to its hook/transcript formats require
 another real denial test before use. Persistent rollout files are required; do not use ephemeral sessions.
+
+Git commits use a detached HEAD in the existing lane worktree. Before launch the supervisor verifies the
+registered lane branch and repository and persists its base commit. The profile grants writes only to that
+worktree's Git metadata and the shared object store; shared refs, config and hooks remain read-only. After the
+round the supervisor checks ancestry, compare-and-swaps only the reserved lane ref, and reattaches HEAD. A
+concurrent ref change or rewritten history fails closed and preserves the detached commits for review. Do not
+reset or switch a failed detached worktree blindly. This is needed because workspace-write protects resolved
+Git metadata even with --add-dir. The original lane guard still governs every model tool call.
 
 Completion is written atomically to the existing `run4-<lane>-r<n>-result.json` format. Codex's raw event
 stream, final JSON, schema, manifest and guard status stay alongside it in build-runs. The supervisor PID
@@ -100,7 +108,7 @@ nonparked worktrees. A guard denial still ends that lane's work; do not route ar
 
 ## Validation (2026-10-22)
 
-115 tools tests pass, including unchanged Claude Workflow tests and new cross-provider policy tests:
+120 tools tests pass, including unchanged Claude Workflow tests and new cross-provider policy tests:
 STOP/handoff allow-list, context/cache accounting, watchdog persistence across commits/provider changes,
 mixed-provider parking, round/glue/disk/subsystem caps, subscription-only authentication, stable prompt
 prefixes, and Claude's saved Workflow invocation. A real Codex CLI0.163.0 subscription probe, using the
@@ -112,3 +120,15 @@ count as SC4 implementation lane rounds.
 References: [Codex noninteractive mode](https://learn.chatgpt.com/docs/non-interactive-mode),
 [subscription authentication](https://learn.chatgpt.com/docs/auth), and
 [hook protocol and limitations](https://learn.chatgpt.com/docs/hooks).
+
+### Git transport repair validation (2026-10-22)
+
+The first project rounds exposed Git index.lock permission failures that the earlier read-only guard probe did
+not cover. Their edits and original results were preserved; coordinator recovery commits use exact reviewed
+files and do not consume another lane round. The 120-test suite now also covers detached commits, unchanged
+main, isolated permission roots, branch identity, concurrent ref conflicts and idempotent publication. A real
+subscription CLI probe committed a new file on detached HEAD and published only its fixture lane branch, with
+two registered guard calls. A native sandbox probe on an existing worktree allowed its own metadata write and
+denied opening shared config and main's ref for writes. No ACL removal or sandbox bypass was used. Evidence:
+build-runs/codex-adapter-canary/git-live2-* and existing-worktree-permissions.json. The adapter explicitly disables
+Git auto-maintenance in child shell settings so it cannot try to pack shared refs during a lane commit.
