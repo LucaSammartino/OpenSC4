@@ -64,6 +64,10 @@ after3 flat trains, and record why. Current selection moved to eligible publishe
 (3) Refill only reviewed launchable briefs through fresh guards, then resume the prescribed heartbeat wait.
 Parked lane details and prior status are preserved in the state ledger and today's history below.
 
+<!-- BEGIN GENERATED: latest-run -->
+- **Latest in-game run:** 253 (Instruction cleanup and three bounded core deliveries landed; no native/default or whole-owner promotion inferred. Full tools152PASS, doccheck check ok.); 252 (Current40+span8 replacement profile clean; span8 stays opt-in with SR8-2/3/4 gaps preserved.); 251 (Opt-in span8 constructed native route proven, SR8-2/3/4 preserved; no default promotion.); 247 (Gate and union regress required; exemplar opt-in7/8 no promotion; native model answers unblock core.); 246 (Full gate and union regression required; no default additions, inactive advisor wrappers only.). See `docs/manual-checks.md`.
+<!-- END GENERATED -->
+
 ## Where everything else is
 
 | File | What | Who reads it |
