@@ -1,35 +1,12 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-textures-contractfix4: texture/material contract corrections | Codex / `core-textures-contractfix4` (engine lane) | in progress; final correction round 2/2, logical 3/3; source 399d555d preserved; prior gate absent | Preserve interrupted evidence, then one durable serial fmt/full gate; report exact results or park. |
+| core-textures-contractfix4: texture/material contract corrections | Codex / `core-textures-contractfix4` (engine lane) | ready; final correction round 2/2, logical 3/3; source 399d555d unchanged; cargo 5098/0, clippy PASS, native 214/214, CTest 68/68; ABI unchanged | Coordinator review of bounded portable correction; retain TB1/TB2/TB8 limits and parent evidence. |
 
-## Handoff
-- Final same-name resume: correction round 2/2, logical family 3/3. No fourth round or renamed continuation.
-- Source remains 399d555d; previous report ca37f85f preserved in history; initial tree clean.
-- Native process audit 2026-10-22 21:16:40 UTC: prior PIDs 34944/15340/2848 absent. No qbuild/fc4verify or build descendants attributable to this worktree; only audit shell/Python were present. Python psutil unavailable and CIM denied; native read-only PID/creation/commandline/cwd query succeeded.
-- Evidence: build-runs/contractfix4-r2-evidence/initial-process-audit.json. qbuild-test.log still 521 bytes, mtime 21:06:39.852239 UTC, without final results. Session 41229 is not a surviving supervisor.
-- Next: preserve interrupted/mixed logs; hidden durable supervisor runs touched-file fmt then exactly one canonical qbuild all with RUST_TEST_THREADS=1. Source stays fixed; completion/provenance/stdout/stderr remain in own ignored evidence directory.
-- Goal: correct existing textures_materials owner to published TB4–TB7 contracts; no native/default promotion.
-- Done: reserved detached worktree reused; clean initial status; TB4–TB7 focused contracts read.
-- Done: e9ee879f signed power, masked LOD, wrapping layout and binding references (before call 30).
-- Done: factory wrapping counters, instance-zero cache/reuse, bulk failure deletion, source-frame/masked-level/null uploads.
-- Done: material 16-bit acquisition/release, reference/value/stage assignment, forward range cleanup, manager false slots/base destruction.
-- Done: independent distinguishing vectors added; focused quick and fmt invoked, logs pending.
-- Done: 2a906396 factory/material correction and independent vectors; formatting passed five touched Rust files.
-- Done: order-independent repeated-alias restore now reloads the current record key once per table entry; distinct-record order withheld under TB8.
-- Done: f471bdc8 stable source; fmt PASS five files. Baseline all interrupted after 639 passed/0 failed completed results; C API second-thread clock test stalled over 60 seconds. No baseline clippy/native completion.
-- Done: quick old snapshot 3044 passed/3 failed (stale bulk-delete assertions); first stable all stopped on missing destroy_base in formats' independent MaterialBase mock. Both corrected; no tests skipped.
-- Done: invalid last factory-reference release now explicitly marks Unsupported::InvalidBinding before safe token cleanup. Reader integration verifies material count/header unknown byte.
-- Prior worker claimed a live final gate; this resume established its absence, so no passing prior final gate is claimed.
-- Facts: build-runs/summarize-contractfix4.py summarizes only gate logs; review record below reconciles every published body/shared entry.
-- TB8 filed: native hash/growth/chain rules absent; distinct-record restore explicitly unsupported.
-- Baseline wrapper session 62872 interrupted with Ctrl-C; focused quick native build still pending.
-- Scope: textures_materials and independent conformance/tests only; no game runs or shared ABI edits.
-- Family cap: parent round 1 landed train84; correction round 1 used one; this final correction round is logical 3/3.
-- TB1 interface identity and TB2 settings producer remain unknown.
-
-## Review record (validation pending)
+## Report
 
 The existing production owner remains `engine/core/src/textures_materials/`; no second owner, S3D decoder, native adapter, default routing, ABI export, shared/generated table, glyph code or game file was added. No game requests were issued, as required by this brief. Original parent `core-textures-materials4` remains parked with its train84 evidence. This is final correction round **2/2**, logical family round **3/3**; no fourth round or renamed continuation is available.
+
+The final gate passed on unchanged source **399d555d3f13e48eefcdd675921cdfa8159b6e20**. Implementation history remains in `e9ee879f`, `2a906396`, `f471bdc8` and `399d555d`; previous report `ca37f85f` and the corrected liveness audit `5a248e54` are preserved. This resume changed the lane report only; its supervision and evidence helpers remain ignored under this worktree's `build-runs/`.
 
 ### Changes and boundaries
 
@@ -101,15 +78,21 @@ Shared entries outside that subtotal remain real contracts:
 - Value assignment `00802240`: `assign_value`; stage assignment `00802070`: `TextureSlot::assign`; forward range cleanup `008021F0` and temporary reverse-stage cleanup `00805676`: `release_value_range` / `release_stages`.
 - Inherited system-service behavior stays foreign behind `SystemService`; no inherited/shared body is counted twice. Bits-per-texel and vtable data are not bodies. TB1/TB2, distinct-record restore ordering and exact native invalid-memory/allocation paths prevent whole-owner credit.
 
-### Validation record
+### Final validation and evidence
 
-- Baseline `qbuild all`: interrupted after completed result lines totaling **639 passed / 0 failed**; the C API second-thread clock test stalled. No baseline clippy/native result is claimed.
-- During-work `qbuild quick`: old snapshot **3044 passed / 3 failed**; the failures were stale exact event lists missing the added bulk-delete call. All three assertions were corrected. Its native dependent build may still be completing; no current-source pass is claimed from this snapshot.
-- `qbuild fmt` on six touched absolute Rust paths (the five owner files and independent `engine/formats/src/s3d/tests.rs`): **PASS**, exit 0; no other Rust files formatted.
-- First stable-source `qbuild all` on `f471bdc8` stopped at `E0046` in the independent reader test's foreign-base mock, which needed the new destruction primitive. Mock corrected; no production reader changes. The replacement final stable-source all uses `RUST_TEST_THREADS=1` and is pending. Serial tests avoid the observed baseline interaction without changing other subsystems.
-- Replacement full gate source is **399d555d**, session **41229**, still compiling at 22:09:21; no current-source pass or ready queue is claimed. Collect this existing gate, use `build-runs/summarize-contractfix4.py` for bounded exact counts, fix any new failure if necessary, then replace Handoff with the final report and enqueue. No merge-queue JSON has been written while validation is pending.
+- **PASS:** canonical `qbuild all`, 2026-10-22 **21:19:44–22:32:51 UTC**, exit 0. Exactly one new full operation ran after the successful touched-file format check; no new quick build, wrapper/cache/config change, skipped test or timeout change was made.
+- Cargo: **5098 passed / 0 failed / 0 ignored**, summed over **21** `test result:` lines in fresh `qbuild-test.log`. All **48** texture/material tests passed; the independent S3D material-reader integration also passed. These establish the normalized supported domain described above, not native glue or whole-owner parity.
+- Clippy: **PASS**, `-D warnings`; completed dev profile, **zero diagnostics**, 6m 17s. Fresh CMake configuration and generation completed (3.4s / 1.0s); native build completed **214/214** actions, including `FreeCity4.dll` and `fc4_plugin_load_test.exe`, with no diagnostics. Release Rust build completed in 11m 36s.
+- Full CTest: **68/68 passed**, 0 failed, 1515.17 seconds. The built-in `cargo_test` executed the workspace in CTest's separate build directory as part of this same canonical operation; no additional lane-submitted build was used.
+- `qbuild fmt`: **PASS**, exit 0, on the six touched absolute Rust paths (five owner files plus `engine/formats/src/s3d/tests.rs`). The wrapper reported a path-canonicalization warning, not a formatting diff. A preliminary relative-path invocation stopped before launching all; its setup failure and unchanged source were retained in `stable-gate-1/`.
+- Hidden supervisor **34972** and qbuild **3376** have explicit start/finish records. Gate HEAD **5a248e549db236251d93754a3911ac3bb24ef9f5**, tree **6314c707ba7ceae49797302e52505bee68f38174**, and engine tree **d734a0c0d45f021fde3d030315cdbec94fcd0dc9** remained identical through completion. Per-file hashes and clean engine status also matched; `source_unchanged` is **true**. The final report commit changes documentation only.
+- Durable evidence: `build-runs/contractfix4-r2-evidence/stable-gate-final/{completion.json,source-provenance.json,measured-summary.json,final-logs/}` plus separate fmt/all stdout, stderr, PID and exit records. Only fresh logs from this operation supply the final measurements; preserved quick/configure/interrupted logs are excluded.
+- Initial native process audit at **21:16:40 UTC** found prior PIDs **34944/15340/2848 absent**, with no attributable build supervisor or descendants. Session 41229 was not proof of liveness. The old `qbuild-test.log` was **521 bytes**, mtime **21:06:39.852239 UTC**, without completed results. Commandline/cwd/creation-time evidence is in `initial-process-audit.json`; intermediate PID identities and descendants are retained in the other audit JSON files. Python psutil was unavailable and CIM denied; read-only native queries succeeded.
+- Historical failures remain distinct: baseline all was interrupted after **639 passed / 0 failed** completed results with the C API clock test stalled; no baseline clippy/native pass is claimed. Old quick was **3044 passed / 3 failed**, from stale bulk-delete event assertions. First stable all on `f471bdc8` stopped at **E0046**, missing `destroy_base` in the independent reader mock. **399d555d** corrected the mock and all three assertions without production reader changes or skips. Original reports/commit provenance and available interrupted/mixed logs remain preserved under `stable-gate-1/interrupted-before-gate/` and `stable-gate-final/interrupted-before-gate/`; none are promoted to final evidence.
+- The report checklist independently reconciles **all 58 published bodies**, with **0 missing / 0 extra**: 53 class bodies/4749 bytes and 5 free functions/134 bytes. Evidence is `build-runs/contractfix4-r2-evidence/inventory-reconciliation.json`; shared entries are separately enumerated above and do not inflate that subtotal.
 - Distinguishing vectors cover signed rounding/nontermination, masked/wrapping LOD and products, zero levels/frames, 65536-square size zero, binding ref underflow/overflow, each wrapping pool counter, stale-zero reuse/eviction/alias restore, first/third-frame failure and prior zero handles, ignored upload errors/null pointers, material counts 0/1/2/65535, equal/different binding assignment, reverse-stage releases and forward range order.
+- Game runs: **none**, per this final correction brief; no game/shadow/ref-warning verdict is claimed. C ABI exports and ABI version are unchanged. No maps/default/native-binding or whole-owner credit is requested.
 
 ### Questions and next steps
 
-**TB8** appended to `docs/specs/questions/texture-bindings.md`; TB1/TB2 remain open. Coordinator should regenerate the question index (engine lane cannot run tools scripts), review this bounded portable correction and retain the parent evidence. No native binding/default or whole-owner completion credit is requested. One final gate result and queue entry remain to be recorded.
+**TB8** remains appended to `docs/specs/questions/texture-bindings.md`; **TB1/TB2** also remain open. No new question or published answer was added in this resume. Distinct-record restore still reports `Unsupported::RestoreTableOrder` before load/upload; no hash/growth/chain traversal is invented. Coordinator should regenerate the question index (engine lane cannot run tools scripts), review the bounded queued source, and retain the original parent evidence. This final logical round is complete; no continuation round or renamed lane is proposed.
