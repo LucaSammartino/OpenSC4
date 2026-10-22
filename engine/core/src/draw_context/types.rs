@@ -281,11 +281,15 @@ pub trait Instance {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Stage {
+    /// DC5: None means unbound only after an explicit assignment. Before that
+    /// the separate known flag prevents replaying an invented default binding.
     pub texture: Option<TextureRef>,
+    pub texture_known: bool,
     pub coordinate_set: Option<u32>,
     pub wrap: [Option<u8>; 2],
     pub filter: [Option<u8>; 2],
     pub transform: Option<Matrix>,
+    pub transform_known: bool,
 }
 
 impl Stage {
@@ -294,10 +298,12 @@ impl Stage {
         // data, not a fabricated wrap/filter/coordinate value. First use sends it.
         Self {
             texture: None,
+            texture_known: false,
             coordinate_set: None,
             wrap: [None; 2],
             filter: [None; 2],
             transform: None,
+            transform_known: false,
         }
     }
 }

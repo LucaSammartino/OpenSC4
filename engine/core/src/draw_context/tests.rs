@@ -345,7 +345,11 @@ fn packed_dispatch_order_and_mandatory_resets() {
                 destination: 5
             },
             Command::TexEnv(1),
-            Command::TexEnv(1)
+            Command::TexEnv(1),
+            Command::TexCoord(0),
+            Command::TexMatrix(None),
+            Command::TexCoord(0),
+            Command::TexMatrix(None)
         ]
     );
     let matrix = Transform::IDENTITY.matrix();
@@ -407,6 +411,7 @@ fn suppressed_stage_records_all_resources_and_second_pass_replays_them() {
     let weak = Arc::downgrade(&tex);
     c.set_texture(Some(tex.clone()), 1).unwrap();
     drop(tex);
+    c.clear_tex_transform(1).unwrap();
     c.set_tex_coord(7, 1).unwrap();
     c.set_tex_wrap(2, 3, 1).unwrap();
     c.set_tex_filter(0, 1, 1).unwrap();
@@ -949,4 +954,14 @@ fn unknown_default_values_cannot_be_used_to_fabricate_second_pass() {
     let count = c.driver.commands.len();
     assert_eq!(c.prepare_second_pass(), Err(Error::Gap(ContractGap::StageDefaults)));
     assert_eq!(c.driver.commands.len(), count);
+    c.clear_tex_transform(1).unwrap();
+    c.set_tex_coord(2, 1).unwrap();
+    c.set_tex_wrap(3, 3, 1).unwrap();
+    c.set_tex_filter(1, 7, 1).unwrap();
+    assert_eq!(c.prepare_second_pass(), Err(Error::Gap(ContractGap::StageDefaults)));
+    assert!(!c.stages[1].texture_known);
+    c.set_texture(None, 1).unwrap(); // explicitly unbound is different from unknown
+    c.prepare_second_pass().unwrap();
+    assert!(c.stages[0].texture_known);
+    assert!(c.stages[0].texture.is_none());
 }

@@ -231,6 +231,8 @@ impl<D: Driver> DrawContext<D> {
                 self.emit(Command::TexCoord(0))?;
             }
             self.stages[stage] = Stage::unpublished_default();
+            self.stages[stage].coordinate_set = Some(0);
+            self.stages[stage].transform_known = true;
         }
         self.set_render_state(self.default_state)
     }

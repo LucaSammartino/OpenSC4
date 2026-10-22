@@ -9,6 +9,7 @@ impl<D: Driver> DrawContext<D> {
             self.emit(Command::Texture(texture.clone()))?;
         }
         self.stages[stage].texture = texture;
+        self.stages[stage].texture_known = true;
         Ok(())
     }
 
@@ -78,18 +79,22 @@ impl<D: Driver> DrawContext<D> {
             self.emit(Command::TexMatrix(Some(matrix)))?;
         }
         self.stages[stage].transform = Some(matrix);
+        self.stages[stage].transform_known = true;
         Ok(())
     }
 
     pub fn clear_tex_transform(&mut self, stage: usize) -> Result<(), Error> {
         self.stage(stage)?;
-        if self.stages[stage].transform.is_some() {
+        // DC5: an unknown initial cache entry is not evidence that the native
+        // default flag was clear. Establish a known clear value on first use.
+        if !self.stages[stage].transform_known || self.stages[stage].transform.is_some() {
             self.set_tex_coord(0, stage)?;
             if self.reaches_driver(stage) {
                 self.select(stage)?;
                 self.emit(Command::TexMatrix(None))?;
             }
             self.stages[stage].transform = None;
+            self.stages[stage].transform_known = true;
         }
         Ok(())
     }
@@ -147,19 +152,25 @@ impl<D: Driver> DrawContext<D> {
         }
         let stage = self.stages[1].clone();
         // DC5: copying unknown defaults cannot fabricate effective values.
+        if !stage.texture_known || !stage.transform_known {
+            return Err(Error::Gap(ContractGap::StageDefaults));
+        }
         let coord = stage.coordinate_set.ok_or(Error::Gap(ContractGap::StageDefaults))?;
         let s = stage.wrap[0].ok_or(Error::Gap(ContractGap::StageDefaults))?;
         let t = stage.wrap[1].ok_or(Error::Gap(ContractGap::StageDefaults))?;
         let mag = stage.filter[0].ok_or(Error::Gap(ContractGap::StageDefaults))?;
         let min = stage.filter[1].ok_or(Error::Gap(ContractGap::StageDefaults))?;
+        // Clear the old transform before copying the coordinate set: clearing
+        // selects coordinates 0 and must not overwrite the recorded stage-1 set.
+        if stage.transform.is_none() {
+            self.clear_tex_transform(0)?;
+        }
         self.set_texture(stage.texture, 0)?;
         self.set_tex_coord(coord, 0)?;
         self.set_tex_wrap(s, t, 0)?;
         self.set_tex_filter(mag, min, 0)?;
         if let Some(matrix) = stage.transform {
             self.set_tex_transform(matrix, 0)?;
-        } else {
-            self.clear_tex_transform(0)?;
         }
         self.set_depth_func(2)?;
         self.enable_alpha_test(0)?;

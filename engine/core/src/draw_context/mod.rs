@@ -67,6 +67,11 @@ pub struct ViewState {
     pub rotation: i32,
     pub value_1c: u32,
     pub values_28_2c: [u32; 2],
+    /// Unused borrowed renderer/camera-control identities, section 1 +0x34/+0x40.
+    /// DC3: no reference acquisition/release semantics are published for these.
+    pub renderer_link: usize,
+    pub camera_control_link: usize,
+    pub zero_fields_48_4c: [u32; 2],
 }
 
 pub struct DrawContext<D: Driver> {
