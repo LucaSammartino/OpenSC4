@@ -1,14 +1,32 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-industrial4: independent native industrial shadow | `verify-industrial4` / `.claude/worktrees/verify-industrial4` (engine lane) | in progress; boundary audit stopped at IN3; no implementation or verification credit | 1. Publish safe natural-call interception and lifetime contract in IN3. |
+| verify-industrial4: independent native industrial shadow | `verify-industrial4` / `.claude/worktrees/verify-industrial4` (engine lane, reserved branch; detached HEAD) | Blocked at IN3; audit/question b8e853e6; cargo/clippy/ctest n/a; no game runs; no industrial shadow credit; ABI unchanged | 1. Publish IN3 interception/lifetime contract. 2. Regenerate question index through authorized coordinator workflow. 3. Resume implementation in a separately authorized round. |
 
-## Handoff
-- Goal: compare original cSC4IndustrialSimulator with independent Rust state over identical inputs, including natural lifecycle/persistence calls.
-- Done: reused reserved detached worktree; clean initial status; audited industrial spec sections 1, 2.2-2.3, 3 (industrial paragraph), 5, 8.2, 9-10, 13; foundations sections 3.6-3.7; public SDK and existing plugin acquisition paths.
-- Published boundary so far: city component 28/getter slot 60; IID 0x477A9E7D; CLSID 0xA990C022; primary slots 0-4, message slot 3, serializable slots 3-5; successful QI AddRefs.
-- Next: wait for published IN3 contract; no further searches/builds/games in this round.
-- Boundary result: public GZCOM plus published slots permits constructed probes with industrial disabled; city getter permits component access. No published forwarder captures first store-owned Read through natural final release. Stop under task early-stop rule; do not substitute constructed probes or commercial shadow counts.
-- Filed IN3 in docs/specs/questions/commercial-industrial.md. QUESTIONS.md remains untouched: generated index/tool scripts are outside this lane edit/run permission; coordinator must regenerate via its authorized workflow.
-- No builds or game requests yet (task forbids code-free baseline builds).
-- Question reservation used IN3; previous next free IDs IN3 / CM11, per QUESTIONS.md.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-industrial4-r1-manifest.json.
+## Report
+
+Stopped at the required early boundary audit. The published industrial contract supplies callable interfaces, but does not establish the interception boundary needed to capture the original city/store-owned instance from its first natural Read through destruction. IN3 records the missing contract; this round delivers documentation only.
+
+### Published facts and scope
+
+- Industrial identity: CLSID `0xA990C022`, primary IID `0x477A9E7D`, city component 28, city getter slot 60. The primary has only QI/AddRef/Release/Init/Shutdown; message-target slot 3 and serializable slots 3-5 are published. Successful QI AddRefs, and final Release calls Shutdown then destroys the object (commercial-industrial sections 1, 2.3, 9).
+- Public SDK GZCOM creation and those slots permit constructed native probes when the industrial replacement is disabled. That does not observe the city/store-owned instance. With the replacement enabled, the same class request may resolve to our own implementation.
+- The industrial owner has no agents or subscriptions (sections 1, 3, 5). Commercial shadow interception cannot supply industrial coverage.
+- Foundations sections 3.6-3.7 put the component Read inside class-store load, before the city-init notifications. The public city getter alone does not provide capture of that earlier call.
+- Existing plugin factory replacement, commercial shadow, city-detail native acquisition, and public SDK COM/director interfaces were checked within the bounded audit. No published safe forwarder installation/removal contract for the required natural-call scope was established. Native table patching/provider bypass was not guessed.
+
+### Changes and validation
+
+- `b8e853e6`: append IN3 in `docs/specs/questions/commercial-industrial.md`, documenting the exact missing acquisition/interception/lifetime contract and the distinction between constructed and natural calls.
+- No core/plugin/ABI/default/map changes. No commercial algorithm changes. No implementation or industrial verification credit.
+- No native sessions or game requests were started. No comparison counters were produced; no exactness claim or fraction is reported. Controlled boundary, save/reload, shutdown and reference-warning checks remain unexecuted.
+- Cargo, clippy, CMake, ctest and formatting: n/a for this documentation-only early stop. The task explicitly prohibits code-free baseline builds and idle builds.
+- Question ID was selected from QUESTIONS.md next-free IN3. Its generated index remains untouched because this lane may edit only its question file under specs and may not run tools/ scripts. Coordinator regeneration is required.
+- Initial and post-question Git status were clean apart from this lane documentation before its commit. The question commit succeeded despite a shared packed-refs lock permission diagnostic; no Git configuration/ref maintenance was attempted.
+
+### Next steps
+
+1. Publish an IN3 answer using an already supported public route: exact native identity, interception before first Read, reference ownership, nested-call handling, and removal relative to final release/module teardown. This report requests no new RE work.
+2. Regenerate/check the question index through the coordinator authorized workflow; retain the question ID.
+3. Once the missing contract is published, authorize a new implementation round with separate native/Rust instances, complete counters, controlled failures, then focused checks/full gate and unique-label guarded save/reload/shutdown runs.
+
+Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-verify-industrial4-r1-manifest.json`. No outstanding requests. Reserved worktree remains on detached HEAD for supervisor publication; queue state is wip, final lane state blocked.
