@@ -1,5 +1,97 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::*;
+
+// Independent native prose vectors, view-utilities §11.10–21 (published before
+// this reconciliation). Expectations below are not derived from implementation.
+#[test]
+fn native_signed_rotation_partial_writes_and_wrapping_centres() {
+    for (r, expected) in [
+        (1, Vec3::new(-11.0, 7.0, 2.0)),
+        (2, Vec3::new(-2.0, 7.0, -11.0)),
+        (3, Vec3::new(11.0, 7.0, -2.0)),
+        (-1, Vec3::new(2.0, 7.0, 11.0)),
+        (-3, Vec3::new(2.0, 7.0, 11.0)),
+        (5, Vec3::new(-11.0, 7.0, 2.0)),
+    ] {
+        let mut v = Vec3::new(2.0, 7.0, 11.0);
+        rotate_vector_by_view_rotation(&mut v, r);
+        assert_eq!(v, expected);
+    }
+    let mut v = Vec3::new(9.0, 8.0, 7.0);
+    get_vector_for_edge_into(-1, &mut v);
+    assert_eq!(v, Vec3::new(9.0, 0.0, 7.0));
+    assert_eq!(PixelRect::new(i32::MAX, 0, i32::MAX, 0).center().x, -1);
+    assert_eq!(round_down_to_nearest_block_boundary(-65.0, -64), Some(0));
+    assert_eq!(round_up_to_nearest_block_boundary(65.0, -64), Some(0));
+}
+
+#[test]
+fn native_triangle_line_metric_tolerance_barycentrics_and_nan() {
+    let a = Vec3::ZERO;
+    let b = Vec3::new(1.0, 0.0, 0.0);
+    let c = Vec3::new(0.0, 1.0, 0.0);
+    for (b, c) in [(b, c), (c, b)] {
+        let mut p = Pick {
+            ray: Ray { origin: Vec3::new(0.25, 0.25, 2.0), direction: Vec3::new(0.0, 0.0, 2.0) },
+            nearest_distance: 3.0,
+        };
+        assert!(triangle_pick(&mut p, a, b, c));
+        assert_eq!(p.nearest_distance, 2.0);
+        assert!(!triangle_pick(&mut p, a, b, c));
+        let sentinel = Vec3::new(9.0, 8.0, 7.0);
+        let mut hit = sentinel;
+        p.ray.direction.z = 1.0 / 128.0;
+        assert!(!ray_intersects_triangle(p.ray, a, b, c, Some(&mut hit)));
+        assert_eq!(hit, sentinel);
+        p.ray.direction.z = 1.0 / 64.0;
+        assert!(ray_intersects_triangle(p.ray, a, b, c, Some(&mut hit)));
+        assert_eq!(hit, Vec3::new(0.25, 0.25, 0.0));
+        p.ray.direction.z = f32::NAN;
+        assert!(ray_intersects_triangle(p.ray, a, b, c, Some(&mut hit)));
+        assert!(hit.x.is_nan());
+        assert!(!triangle_pick(&mut p, a, b, c));
+    }
+}
+
+#[test]
+fn native_plane_tolerance_writes_and_negative_t() {
+    let mut out = Vec3::new(9.0, 8.0, 7.0);
+    let mut ray = Ray { origin: Vec3::new(3.0, 1.0, 4.0), direction: Vec3::new(1.0, 1.0 / 128.0, 0.0) };
+    assert!(!ray_intersects_ground_plane(ray, &mut out));
+    assert_eq!(out, Vec3::ZERO);
+    ray.origin.y = 1.0 / 256.0;
+    assert!(ray_intersects_ground_plane(ray, &mut out));
+    assert_eq!(out, ray.origin);
+    ray.origin.y = 2.0;
+    ray.direction = Vec3::new(0.0, 1.0, 0.0);
+    assert!(ray_intersects_ground_plane(ray, &mut out));
+    assert_eq!(out, Vec3::new(3.0, 0.0, 4.0));
+    assert!(ray_intersects_plane(ray, Vec3::new(0.0, 1.0, 0.0), 0.0, None));
+}
+
+#[test]
+fn native_independent_cache_observations() {
+    use std::cell::Cell;
+    struct Changing(Cell<usize>);
+    impl CameraRayProvider for Changing {
+        fn eye_ray(&self, x: f32, y: f32) -> Option<Ray> {
+            let count = self.0.get();
+            self.0.set(count + 1);
+            Some(Ray { origin: Vec3::new(x + (count / 4) as f32 * 1000.0, 10.0, y), direction: Vec3::new(0.0, -1.0, 0.0) })
+        }
+    }
+    for rect in [PixelRect::new(0, 0, 200, 100), PixelRect::new(20, 10, 180, 90)] {
+        let mut v = owner(camera());
+        let rays = Changing(Cell::new(0));
+        v.build_draw_frustum_data_from_viewport_rect(rect, Some(&rays));
+        assert_eq!(rays.0.get(), 4);
+        let area = v.get_ground_plane_visible_area_rectangle(Some(&rays)).unwrap();
+        assert_eq!(rays.0.get(), 8);
+        assert_eq!(area.inner.min.x, 1100.0);
+        assert_eq!(v.get_ground_plane_visible_area_rectangle(Some(&rays)), Some(area));
+        assert_eq!(rays.0.get(), 8);
+    }
+}
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn close(a: f32, b: f32) {
