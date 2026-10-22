@@ -217,6 +217,12 @@ Both bounds are inclusive for ordered operands. On a supplied NaN environment va
 tests pass, while any-mode numeric tests do not provide a match: the native x87 status tests differ
 (`0x007CE93B–0x007CE943`, `0x007CE975–0x007CE97D`, `0x007CEABD–0x007CEAC5`, `0x007CEAF7–0x007CEAFF`).
 Gathering supplies integer-derived finite values; NaN is an evaluator-fixture/embedding edge case.
+For unordered comparison the x87 status has C0=C2=C3=1. All-mode lower-bound rejection tests
+`AH & 0x41` for zero; upper-bound rejection tests odd parity of `AH & 0x05`. Neither rejects
+unordered. Any-mode lower-bound acceptance tests odd parity of `AH & 0x41`, and upper-bound
+acceptance tests `AH & 0x01` for zero; neither accepts unordered. This is the normative answer
+to GR5, including when both numeric condition lists contain entries. A failing flag or string
+condition can still reject the all-mode rule.
 
 The matcher receives the variable as its first argument, the pattern as its second, and zero as its third
 (`0x007CE9C0–0x007CE9CA`, `0x007CEA2D–0x007CEA37`; the any-condition path uses the same convention).
@@ -320,6 +326,31 @@ all render bools, ints and floats by ascending index, using their property names
 
 If the application-preference object is absent these twelve summary lines are omitted; property dumping
 still occurs (`0x007CE260`). Each summary uses `current: %3d recommended: %3d` after its padded label.
+
+### 6.1 Byte and write boundary (GR6)
+
+`LogOptions` emits `Options`, `-------`, the twelve preference lines when available, one blank
+line, `Properties`, `-------`, bool properties, a blank line, int properties, a blank line,
+float properties, and a final blank line. Property lists have no separate type headings
+(`0x007CE293`, `0x007CE2C3`, `0x007CE623–0x007CE6A2`, `0x007CE6A2–0x007CE85C`).
+Each preference label occupies 20 bytes, followed by one space and `current:`; thus `current:`
+starts at zero-based byte 21, including for the 20-byte `VariableSpeedAutomata`. Values use
+signed decimal `%3d`, a minimum width, never clipping a larger number. Current values are
+zero-extended application bytes (`0x007CE30C–0x007CE31D`, `0x007CE4E0–0x007CE4EB`).
+
+The log text file is initialized in byte mode. `WriteLine` writes the formatted payload with
+its explicit byte length, then writes bytes `0D 0A` separately. It writes no trailing NUL.
+If the payload write returns false, it skips the terminator; otherwise its return is the
+terminator write result (`0x009306DE–0x0093072A`). The alternate wide mode writes `0D 00 0A 00`,
+but is not selected by these manager entry points. This corrects the provisional LF rule.
+
+The manager tests whether the file is open before formatting each line, but ignores
+`WriteLine` results. `LogConfigurationToFile` checks open state after attempting open; after
+that check succeeds it logs, closes, and returns true regardless of write/close return values
+(`0x007D0446–0x007D0463`). Consequently successful return does not certify a complete file.
+`SetOptionsFromConfiguration` likewise does not turn I/O failure into failed rule evaluation.
+The external formatter remains the byte-oriented string service; §12 distinguishes its
+foreign formatting primitives from manager-owned line construction.
 
 ## 7. Fallback rules (`SetFallbackRules`, `0x007D13C0`)
 

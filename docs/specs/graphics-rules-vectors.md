@@ -28,7 +28,7 @@ Expected successful parse, thresholds both signed integer 2, applied names `lowe
 int(0,7), int(0,9), float(0,1.25). With memory=2 both rules apply, appending bool(1,false).
 At the condition-record boundary, threshold text -2.9 stores -2; `atLeast` fails for memory=-2.5.
 Threshold 2147483648 stores -2147483648 and `atLeast` passes for memory=0. A NaN environment passes
-either numeric condition in all mode, but neither supplies a match in any mode. Evidence: §4.2's
+both numeric conditions in all mode, but neither supplies a match in any mode. Evidence: §4.2's
 conversion/status branches and §1's dispatch loop.
 
 ## V2. Flags aggregate; empty any never matches

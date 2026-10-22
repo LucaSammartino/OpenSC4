@@ -22,3 +22,11 @@
   **ANSWERED 2026-10-22 (re-graphics-rules-completion4):** DIFFERS — software requires hardwareDriver clear;
   hardware is unconditional; its depth-1 child requires textureStages ≥ signed integer 2. All are non-partial,
   all-condition rules. See §7 and native stores `0x007D143B–0x007D144A`, `0x007D1782–0x007D17AA`.
+
+<!-- from: core-graphics-rules4 (2026-10-22) -->
+- **GR5 — §4.2 versus vectors V1 NaN contradiction:** §4.2 says NaN environment numbers pass all-mode numeric tests; V1 says a NaN "passes neither numeric condition in all mode". Which result is normative? [Follow §4.2: all-mode NaN passes, any-mode NaN supplies no match; mark the conflicting V1 edge explicitly.]
+
+  **ANSWERED 2026-10-22 (re-graphics-rules-final4):** MATCHES — all-mode NaN passes each numeric
+  condition; any-mode NaN supplies no numeric match. The contradictory V1 wording is corrected.
+  Native x87 masks/parity branches at `0x007CE940–0x007CE943`, `0x007CE97A–0x007CE97D`,
+  `0x007CEAC2–0x007CEAC5`, `0x007CEAFC–0x007CEAFF` decide unordered explicitly; see §4.2.
