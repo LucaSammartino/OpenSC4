@@ -281,3 +281,29 @@ null (docs/specs/neighbors.md §15.4 NG35).
 | Return | AL: true only when the dialog was closed with the Yes button (ID `0x8A8DFD4E`) |
 | Popups off | returns false at once (gate a, `SC4GetPopupModalDialogsEnabled`, NG36) |
 | Popups on | takes the hidden pause (simulator and clock) and runs the dialog modally: the caller must not hold a lock the game's other threads or the dialog's own callers need |
+
+## Tutorial registry and window protocol (TU6?TU9, 2026-10-22)
+
+Native entries proved by `re-tutorial-contracts4`; see `docs/specs/tutorial.md` ??4.2.1, 4.2.2, 4.3.1 and 4.4.1 for exact order, callbacks and ownership. These are native call contracts, not new C exports. A discarded result certifies only that the native caller reads no return value; it does not invent a bool/pointer/void result for the callee.
+
+The original tutorial window reads the borrowed `cISC4TutorialSystem*` at supported-game VA `0x00B20E88`. A replacement must bind the actual interface view through its documented lifetime and preserve reentrant callbacks. This record provides no concurrency or safe installation claim by itself. Runtime code must use version-gated compatibility addresses and test the binding/restoration and ownership before promotion.
+
+```tsv
+method	address	convention	this	arguments	callee_pop	return	ownership	evidence
+cSC4TutorialRegistry::GetItem	004b5d10	__thiscall	cISC4App slot49 result, already app+0x1c0	GUID:uint32 by value	4	EAX:item* or null	borrowed list-node+8; no AddRef/free	004b5d1d,004b5d60-004b5d7c; tutorial.md 4.2.1
+cSC4TutorialRegistry::SetActive	004b5d80	__thiscall	cISC4App slot49 result, already app+0x1c0	GUID:uint32 by value; active:bool byte in 4-byte slot	8	AL:changed-state bool; upper EAX unspecified	no ownership transfer; synchronous preferences save on cell modification	004b5d82-004b5d99,004b5dcd-004b5e02; tutorial.md 4.2.1
+cSC4TutorialUIWinProc::constructor	00442920	__thiscall	100-byte heap-C allocation base	none	0	EAX:same base	count at base+4 starts 0; caller takes two explicit references	00442920-00442991;0090da1e-0090da2a;0043f08c-0043f0d2
+cSC4TutorialUIWinProc::Init	00443e60	__thiscall	constructed window base	none	0	discarded; caller reads no return value	uses global00b20e88 borrowed live cISC4TutorialSystem*; no owner argument	0043f0cf-0043f0d2;00443eda-00443ee2;00443f37-00443f6b;00444152
+cSC4TutorialUIWinProc::Shutdown	00442c80	__thiscall	constructed window base	none	0	discarded; caller reads no return value	close before releasing the two owner references	00442c80-00442e34;0043f110; tutorial.md 4.2.2
+cSC4TutorialUIWinProc::OnTutorialEvent	00443970	__thiscall	constructed window base	event:uint32 by value	4	AL:true	no ownership transfer; temporarily retains current task	00443989;004439e1-004439e7
+cSC4TutorialUIWinProc::moveToNext	00443bd0	__thiscall	constructed window base	none	0	discarded; caller reads no return value	temporarily retains current task and global tutorial-system interface; may post end message	0043faa6-0043faad;00443c10-00443c1c;00443ce3-00443cf6;00443e0f
+class	vtable	slot	offset	target	method	callee_pop	arg_dwords	ret	ret_confidence	notes
+cSC4TutorialUIWinProc::vftable	00a8638c	1	+0x4	0057eb00	cSC4TutorialUIWinProc::AddRef	0	0	eax	high	this=base; tail00968b60 increments base+4; tutorial.md4.2.2
+cSC4TutorialUIWinProc::vftable	00a8638c	2	+0x8	0057eb70	cSC4TutorialUIWinProc::Release	0	0	eax	high	this=base; tail0090d997; final release invokes deleting destructor
+cSC4TutorialUIWinProc::vftable	00a8638c	6	+0x18	00443e10	cSC4TutorialUIWinProc::FilterMessagePayload	4	1	void	high	this=base; uint32 payload by value; owner consumes no result;00443e3c-00443e55
+cSC4TutorialUIWinProc::vftable	00a8638c	7	+0x1c	00443180	cSC4TutorialUIWinProc::ShowUIHintsForUsers	0	0	void	high	this=base; no arguments/result consumed;004433ad; owner0043f440
+cSC4TutorialUIWinProc::vftable	00a8638c	8	+0x20	00442340	cSC4TutorialUIWinProc::HandleCatalogView	4	1	void	high	this=base; borrowed catalog-menu interface pointer;00442348-00442354;00442428
+cSC4TutorialUIWinProc::vftable	00a8638c	9	+0x24	00442320	cSC4TutorialUIWinProc::GetCurrentTask	0	0	eax	high	this=base; borrowed task* or null, no AddRef;00442320-00442339
+cSC4TutorialUIWinProc::vftable	00a8638c	10	+0x28	00441c50	cSC4TutorialUIWinProc::FilterLeftMouseClick	12	3	al	high	this=base; two borrowed pointers to32-bit coordinate values then int32 stage;00441c83-00441ca8;00441d94-00441da5
+cSC4TutorialUIWinProc::vftable	00a8638c	11	+0x2c	00443b40	cSC4TutorialUIWinProc::ResetTutorialNumAndIndex	8	2	eax	high	this=base; GUID:uint32,relativeIndex:int32 by value; signed relative index or -1;00443bb7-00443bcc
+```
