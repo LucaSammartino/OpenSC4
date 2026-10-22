@@ -6,6 +6,13 @@ build or commit.
 - **Bootstrap the harness with the engine** (the user, 2026-10-14): as more of the game is ours, use it to make the
   feedback loops short and automated (a turbo clock, plugin-side scripted actions instead of screen clicks, end
   dates instead of timeouts). Prefer a tooling switch in the plugin (off by default, logged) over UI automation.
+- **Long commands, one wait:** give builds, cargo, ctest, `fc4verify`/`qbuild`, regress, game runs and
+  `qwait.py`/`lanes.py wait` a tool-call wait of at least 60 s (Codex: `yield_time_ms >= 60000`); never spend a call
+  only to check whether a command has finished. Measured 2026-10-21/22 on 196 Codex sessions: 22% of model calls
+  were such checks, after 2,072 commands started with a 1 s yield.
+- **Write files with the edit tool** (Edit/Write for Claude, `apply_patch` for Codex), never through the shell
+  (here-strings, `Set-Content`, `WriteAllText`, redirects: 989 such writes in the same logs); a multi-line script is a
+  file in the worktree's `build-runs/`, run by path.
 - **Run cargo from `engine/`**, never the worktree root: there `cargo fmt --check` prints help and exits 0.
 - **rustfmt: check only the files you touched**, `python <MAIN>/.claude/lane-bin/qbuild.py --wt <WT> fmt <files>`;
   add no diff and never mass-reformat. `cargo fmt --check` on main is not clean (18 files differ, measured

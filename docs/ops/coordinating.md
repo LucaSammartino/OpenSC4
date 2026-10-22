@@ -213,6 +213,10 @@ was recorded in the rounds ledger.
 
 ## Keeping the coordinator cheap
 
+- **Restart fresh, from a note:** a call takes about 8 s under 50k tokens of context and about 60 s above 300k
+  (measured on the Codex coordinator, whose context reached 446k). Every 10 trains, write a complete restart note in
+  HANDOFF section 0 (live lanes and their rounds, the queue, the train, open alerts, the next three actions) so a
+  fresh coordinator session can take over from it alone.
 - **One monitor, events only:** run `python tools/lanes.py monitor` under the Monitor tool for the whole session. It
   prints a line only when a lane enqueues, a verdict is not clean, a train gate/regress finishes, `main` moves or a
   lane stalls; do not re-arm timers or poll status between events.
