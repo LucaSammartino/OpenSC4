@@ -431,8 +431,7 @@ impl Session {
             } else {
                 return Err(Unsupported::OwnedBody("0081e640 named lookup"));
             }
-        }
-        if self.address.host == [0; 4] {
+        } else if self.address.host == [0; 4] {
             self.state = 0;
             self.login_stage = 400;
             self.event(io, 0x57386938, false);
@@ -599,7 +598,9 @@ impl Session {
         let (result, file_exists) = self.transfer_body(io, upload)?;
         self.terminal(io, if upload { 0x5738692c } else { 0x5738692e }, result);
         if file_exists {
-            io.file_close();
+            if upload {
+                io.file_close();
+            }
             io.effect(Effect::DestroyFile);
         }
         Ok(result)
@@ -634,8 +635,7 @@ impl Session {
             return Ok((false, false));
         }
         if !io.file_open(&self.local, if upload { (1, 2, 1) } else { (2, 3, 1) }) {
-            io.effect(Effect::DestroyFile);
-            return Ok((false, false));
+            return Ok((false, true));
         }
         io.file_seek_zero();
         let length = if upload {
@@ -679,15 +679,11 @@ impl Session {
             io.file_close();
         }
         if write_failed {
-            io.effect(Effect::DestroyFile);
-            return Ok((false, false));
+            return Ok((false, true));
         }
         Self::close_if_open(io, Socket::Data);
         let result = self.responses.completed(io, self.timeout)? && self.responses.class == 2;
-        if !upload {
-            io.effect(Effect::DestroyFile);
-        }
-        Ok((result, upload))
+        Ok((result, true))
     }
     /// 008163d0 entry + control acquisition. The published data loop cannot be
     /// reached portably through the still-O 00811f00 option helper; see `listing_bytes`.

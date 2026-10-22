@@ -608,6 +608,27 @@ impl Www {
     pub fn visited(&self, host: &mut impl Host, url: &[u8]) -> bool {
         host.cache_present(url)
     }
+    pub fn get_directory(&self, host: &mut impl Host) -> Vec<u8> {
+        host.cache_directory()
+    }
+    pub fn set_cookie_usage(&mut self, value: u8) {
+        self.cookies = value;
+    }
+    pub fn cookie_usage(&self) -> u8 {
+        self.cookies
+    }
+    pub fn set_cache_usage(&mut self, value: u8) {
+        self.cache = value;
+    }
+    pub fn cache_usage(&self) -> u8 {
+        self.cache
+    }
+    pub fn set_default_custom(&mut self, value: u32) {
+        self.default_custom = value;
+    }
+    pub fn default_custom(&self) -> u32 {
+        self.default_custom
+    }
     /// 008f698b: typed decoding of the four published message IDs; unknown is true.
     pub fn do_message(&mut self, host: &mut impl Host, incoming: Incoming<'_>) -> Contract<bool> {
         match incoming {
@@ -669,7 +690,6 @@ pub fn cache_tokens(text: &[u8]) -> Vec<Vec<u8>> {
     for &b in text {
         if b == b'"' {
             quoted = !quoted;
-            tail_present = true;
         } else if b == b',' && !quoted {
             tokens.push(trim(&token).to_vec());
             token.clear();
@@ -1210,6 +1230,7 @@ mod tests {
             cache_tokens(b"\"a,b\",c"),
             vec![b"a,b".to_vec(), b"c".to_vec()]
         );
+        assert!(cache_tokens(b"\"\"").is_empty());
         let mut w = service();
         let mut h = Fake::default();
         assert!(!w.set_directory(&mut h, b"out"));
