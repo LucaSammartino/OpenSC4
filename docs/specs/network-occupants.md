@@ -228,7 +228,7 @@ the base ctor wrote `0x74758925`.
 | `+0x140` | ref | an owned reference written through `SC4WriteGZSerializable` with IID `0x6999A8FB` (the segment-o-stream QI; foundations §3) and read back with `SC4ReadGZPersistRef` IID `0xA9667793` (record field 12); §2.6 reads the same word as the cached path info |
 | `+0x144`…`+0x164` | 4 × 8 bytes | the connection byte matrix: `[exit][type]` (§2.6) |
 | `+0x164` | u32 | path-id override (slot 16, `0x006197D0`); saved by the record (field 11) and the trigger of the v < 8 read tail |
-| `+0x168`, `+0x16C` | int64 | demolition cost / saved int64 pair (slot 63); the ctor zeroes both |
+| `+0x168`, `+0x16C` | 2 × f32 | the **path origin offset** (x, z), meaningful only when `+0x164` ≠ 0. `GetPathInfo` (`0x0061B510`, `0x0061B635…0x0061B64B`) passes the two dwords by value as (x, 0, z) to the path-info slot `+0x74`; the prebuilt `GetModelInstances` loads them as f32 and negates them into the `Deform` origin (§10.3, `0x0061EEC9…0x0061EEE0`). The ctor stores integer 0 in both (`0x0061BFAC`/`0x0061BFB2`, = 0.0f). Not saved by the record and **not** the slot-63 pair (that is `+0x170`/`+0x174`). An earlier draft of this table named them "demolition cost / int64": wrong |
 | `+0x170`, `+0x174` | int64 | the int64 the record saves (field 13: low dword `+0x170`, high `+0x174`); §2.4 also reads this pair as the one-way data backing (property `0x4835C6AA`) |
 
 **Offsets in the record.** `Write` and `Read` sit in the `+8` vtable (`0x00AA7FDC`) with no thunk, so they run with
@@ -328,7 +328,9 @@ The subclass records add fields after the base block; §3.4, §5.4, §6.4, §7.4
   `b ≥ 0x80` by `b & 1` *[compat]*.
 - **`AddTriangle`** (slot 31, `0x0061C800`): appends a 0x4C-byte vertex to the `+0x110` list, recomputes the bbox
   (slot 80, `0x0061A430`) and calls slot 46.
-- **Demolition cost** (slot 63, `0x00604E10`): returns the int64 `+0x168`/`+0x16C` in `EDX:EAX`.
+- **Demolition cost** (slot 63, `0x00604E10`, primary vtable `0x00AA7038` + `0xFC`): returns the int64
+  `+0x170` (low, `EAX`) / `+0x174` (high, `EDX`), the pair the record saves as field 13. (It does not read
+  `+0x168`/`+0x16C`, which are the f32 path origin offset of §2.2.)
 
 ### 2.5 Lifecycle *[compat]*
 
@@ -1006,7 +1008,14 @@ and a `cS3DModelProcessor` at `+0x9C`. The "Prelight" name is wrong; §10.3 give
    deformation always starts from the flat model (§10.3). **Release (NO26):** the prebuilt `Shutdown`
    (`0x0061D0D0`) first asks the `+4` view's slot 5 (`+0x14`). When that answers true, it clears and releases
    `+0x1C4`, then `+0x1C8`, and tail-calls the base `Shutdown`. When it answers false, it returns 1 and touches
-   nothing. `+0x1C0` is not reset. The destructor's handling of the two caches was not examined.
+   nothing. `+0x1C0` is not reset. **Destructor:** the prebuilt destructor body is `0x00604CA0` (the export
+   labels it `cSC4NetworkOccupant::~cSC4NetworkOccupant`, but it installs the prebuilt vtables `0x00AA7038`,
+   `0x00AA6FB0`, `0x00AA6F94`, `0x00AA6F30`, `0x00AA6F18`, `0x00AA6F14`, `0x00AA6EC8`). It releases **`+0x1C8` first,
+   then `+0x1C4`** (each: if non-null, call its slot `+8`, Release; `0x00604CEA…0x00604D05`). It does not clear
+   them, and it then tail-jumps to the base destructor `0x0061C170`. The deleting destructor `0x00605020` calls
+   that body and frees the object (`0x0061E300`) when bit 0 of its argument is set. The tunnel destructor body
+   `0x00647260` (also labelled as the prebuilt one) releases its own `+0x1D0` and then runs `0x00604CA0`. A
+   piece that was shut down first holds null caches at this point, so nothing is released twice.
 
 **Transform written to each model instance** (before the passes; the instance's slot `+0x24` reads its transform
 into a local, slot `+0x28` writes it back):
@@ -1101,11 +1110,94 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
   builds vertex normals (`0x00803370`) when the processor has none and lights the copy through the instance
   transform; when `flip` is set it negates all nine rotation entries. FlipAndLight then calls `ReleaseModel`
   (`0x00802B30`), which drops the processor's references.
-- **`Clip(lo, hi, mode)` (`0x00618B00`).** A null `lo` returns at once. It reads the instance bounds (slot
-  `+0x1C`) and, with `mode` 1, compares only y; when the bounds need no cut it returns unchanged. Otherwise, for
-  each mesh, it builds new vertex and index arrays clipped against the box [lo, hi]. It supports three vertex
-  formats, 2, `0x80004001` and 10, and uses the scratch globals `0x00B45240`/`0x00B45244`. Not shown yet: which
-  side is kept and how the cut edges interpolate (NO25).
+- **`Clip(lo, hi, mode)` (`0x00618B00`, NO25).** Arguments: `lo` at `[esp+4]`, `hi` at `[esp+8]`, `mode` byte
+  at `[esp+0xC]`, `RET 0xC`.
+  1. **Early out.** A null `lo` returns at once. The bounds are read through slot `+0x1C` of the `+0x20` view
+     into a local that starts as min (1, 1, 1), max (0, 0, 0). With `mode` ≠ 0 it cuts when **min.y < lo.y or
+     max.y > hi.y**, an unordered compare counting as "cut" (`0x00618B65…0x00618BC0`). With `mode` 0 it tests
+     x and z only: min.x < lo.x, min.z < lo.z, max.x > hi.x, max.z > hi.z. If no test fires, it returns with
+     nothing changed, the bounds included. At the §10.2 call site (hi = +FLT_MAX), the piece is cut exactly when
+     its bounds' min.y < h.
+  2. **Per mesh** (slot `+0xC` gives the count, slot `+0x10` the mesh): the source format (dword at the vertex
+     array `+0`) selects the path:
+     - 2 and `0x80004001`: 20-byte output vertices {x, y, z, u, v} at `+0/+4/+8/+0xC/+0x10`, through the
+       pooled clipper `0x00B45240`.
+     - 10: 24-byte vertices {x, y, z, colour u32 at `+0xC`, u `+0x10`, v `+0x14`}, through the pool
+       `0x00B45244`.
+     - Any other format runs no clipping. The mesh still gets the fresh, **empty** vertex array (same format)
+       and an empty index list (`0x00618EC0` onward installs them unconditionally).
+
+     The source is read with its own stride (u16 at array `+4`).
+  3. **Clipper state:** lo (3 f32), hi (3 f32), the source data pointer and stride, the output vertex vector, the
+     output index vector, a map from source index to output index, and `mode` (clipper `+0x4C`).
+  4. **Ranges.** Each primitive range (12 bytes: {kind, start, count}) is walked as a **triangle list**:
+     - triangle k uses indices start + 3k … start + 3k + 2, taken while 3k < count − 2;
+     - with no index list, the indices are the vertex numbers themselves;
+     - afterwards the range's start = the output index count before it, and its count = the indices it emitted;
+     - ranges that emitted nothing are removed, keeping order (`0x006189E0`);
+     - a mesh with no ranges emits nothing and ends empty.
+  5. **Outcode per vertex** (`0x00614100`): +1 if x < lo.x, +0x10 if y < lo.y, +2 if z < lo.z, +4 if x > hi.x,
+     +0x20 if y > hi.y, +8 if z > hi.z, all strict. A NaN coordinate gives 0 (inside). For a triangle:
+     - the AND of its three codes is non-zero: dropped;
+     - all three codes are 0: emitted as is;
+     - otherwise it is clipped, with `mode` ≠ 0 by the **y-slab** clipper (`0x006175C0` for 20-byte vertices,
+       `0x00618030` for 24-byte). `mode` 0 uses `0x00616F60`/`0x00617980` (all six planes). The network call never
+       passes `mode` 0, and that path is not specified here.
+  6. **Y-slab clip (kept side).** Only the y bits (code & 0x30) count, so a vertex is kept when
+     **lo.y ≤ y ≤ hi.y**. At the §10.2 call site that means **the geometry at or above h is kept and everything
+     below h is removed**. The edges are walked as cur → next, with (v0 → v1), (v1 → v2), (v2 → v0), and each
+     appends to a polygon:
+
+     | cur | next | appended |
+     |---|---|---|
+     | in | in | cur |
+     | in | out | cur, then X(from next toward cur) |
+     | out | in | X(from cur toward next) |
+     | out, out, a shared y bit | | nothing |
+     | below and above (no shared bit) | | X(cur→next, t_min), then X(cur→next, t_max) |
+
+     The polygon (3 to 6 vertices) is emitted as a **fan**: (p0, p1, p2), (p0, p2, p3), … (the tail loop of
+     `0x006175C0`, index pushes around `0x00617908`/`0x0061793A`/`0x00617963`). The winding is kept.
+  7. **The cut vertex X(from out toward in)** (`0x00614490`, 24-byte `0x006145D0`):
+     - t starts at 0; for each set bit, t_b = (plane − out.c) / (in.c − out.c), with plane lo.y for 0x10 and
+       hi.y for 0x20;
+     - t_b is computed on the x87 stack from f32 operands, compared unrounded, and stored as f32 only when
+       t_b ≥ t (the first test is against 0.0 `0x00A81054`; a NaN fails).
+     - In the "below and above" case, t0 = (lo.y − cur.y) / (next.y − cur.y) and t1 = (hi.y − cur.y) /
+       (next.y − cur.y) share the f32-loaded denominator, are each stored f32, and are swapped when t0 > t1
+       (`0x00617738…0x00617773`).
+     - Every float attribute is **a′ = (in.a − out.a)·t + out.a**, on x87 and rounded to f32 at the store, in
+       the order x, y, z, u, v (`0x00614170`; 24-byte `0x00614200`).
+     - Format 10 colour: each byte c of `+0xF`, `+0xE`, `+0xD`, `+0xC` is **trunc(int(in.c − out.c)·t +
+       out.c)** through `_ftol2` (`0x0061424F…0x006142A9`), with no rounding to f32 first.
+  8. **Output vertices.** The first time a source vertex is used by an emitted triangle, it is copied to the
+     output (a per-mesh map, so shared source vertices stay shared). A cut vertex is appended every time, with no
+     sharing, even between the two triangles of a shared edge. Its output index is the vertex count just before
+     its append. The new vertex count is stored as u16 at array `+6`.
+  9. **Bounds after a cut.** With the meshes done, the instance bounds are **clamped to the box, not
+     recomputed**: per axis, min = lo if min < lo, and max = hi if hi < max (`0x00618FD2…0x00619024`; an
+     unordered compare keeps the old value). This runs for all three axes in both modes. At the call site it
+     raises min.y to h.
+
+  **Worked vectors (h = lo.y = 0, hi = +FLT_MAX, format 2, vertex = (x, y, z; u, v)).**
+  - A: v0 (0, −2, 0; 0, 0), v1 (4, 2, 0; 1, 0), v2 (0, 2, 4; 0, 1). Codes 0x10, 0, 0.
+    - Edge 0→1 gives X(v0→v1), t = 2/4 = 0.5: (2, 0, 0; 0.5, 0).
+    - Edge 1→2 gives v1.
+    - Edge 2→0 gives v2, then X(v0→v2), t = 0.5: (0, 0, 2; 0, 0.5).
+    - Polygon [X01, v1, v2, X02]; triangles (X01, v1, v2) and (X01, v2, X02).
+    - Output vertex order: X01, v1, v2, X02.
+    - The bounds' min.y becomes 0.
+  - B: v0 (0, −2, 0), v1 (4, −2, 0), v2 (0, 2, 0), with u, v = x/4, z/4.
+    - Edge 0→1 gives nothing.
+    - Edge 1→2 gives X(v1→v2), t = 0.5: (2, 0, 0; 0.5, 0).
+    - Edge 2→0 gives v2, then X(v0→v2) = (0, 0, 0; 0, 0).
+    - One triangle (X12, v2, X20).
+  - C: all three y < 0: dropped. y = 0 exactly counts as inside (strict compare), so a triangle touching h only
+    at vertices with y = 0 is emitted unchanged.
+  - D: t is taken from the **outside** vertex. Take out.y = −1, in.y = 2. Then t = 1/3 (f32 0x3EAAAAAB), and
+    in.x = 3, out.x = 0 give x′ = 3·t = 1.0000000298… → f32 1.0. Computing from the inside vertex (t′ = 2/3)
+    instead gives 3 − 3·t′ in other roundings. An implementation must interpolate from the outside end to
+    match bit-for-bit.
 
 ---
 
