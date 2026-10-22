@@ -113,6 +113,11 @@ def checked(command, root):
 
 
 def launch(root, state_path, spec_path=None, provider=None):
+    # Reject bad sources before even retiring completed lanes or writing coordinator state.
+    import lane_evidence
+    spec = json.loads(spec_path.read_text(encoding='utf-8')) if spec_path is not None else None
+    if spec is not None:
+        lane_evidence.preflight(root, spec, spec_path)
     with backend.codexguard.locked(root/'build-runs/run4-coordinator.lock'):
         state = json.loads(state_path.read_text(encoding='utf-8'))
         retire_completed(state, root)
@@ -124,7 +129,6 @@ def launch(root, state_path, spec_path=None, provider=None):
             for n in live:
                 print(n, state['lanes'][n].get('provider', 'claude'), 'round', state['lanes'][n]['rounds'])
             return
-        spec = json.loads(spec_path.read_text(encoding='utf-8'))
         provider = provider or spec.get('provider') or state.get('provider', 'claude')
         if provider not in ('claude', 'codex'):
             raise ValueError('Unknown provider')
@@ -142,6 +146,7 @@ def launch(root, state_path, spec_path=None, provider=None):
         if args.get('deps'):
             check += ['--deps', ','.join(args['deps']) if isinstance(args['deps'], list) else args['deps']]
         checked(check, root)
+        sources = lane_evidence.preflight(root, spec, spec_path)
         wt = root/'.claude/worktrees'/name
         if not spec.get('resume'):
             checked(['git', 'worktree', 'add', str(wt), '-b', name, 'main'], root)
@@ -153,9 +158,9 @@ def launch(root, state_path, spec_path=None, provider=None):
             (sdk/'.git').write_text('gitdir: ' + (root/'.git/modules/engine/third_party/gzcom-dll').as_posix() + '\n')
         evidence = wt/'build-runs/evidence-run4'
         evidence.mkdir(parents=True, exist_ok=True)
-        for rel in spec.get('evidence', []):
-            p = root/rel
-            (evidence/p.name).write_bytes(p.read_bytes())
+        for index, p in enumerate(sources):
+            data = lane_evidence.read_source(p, spec_path, index, spec['evidence'][index])
+            (evidence/p.name).write_bytes(data)
         args.update(maxRounds=1, main=root.as_posix())
         args.setdefault('ctxBudget', 150000)
         args.setdefault('maxCalls', 150)

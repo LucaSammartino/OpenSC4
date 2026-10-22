@@ -9,6 +9,7 @@ import sys
 import time
 
 import lane_launch as launcher
+import lane_evidence
 
 LIMIT_RE = re.compile(r'rate_limit_error|usage_limit|rate limit (?:reached|exceeded)|'
                       r'usage limit (?:reached|exceeded)|quota exceeded|insufficient credits|'
@@ -54,6 +55,7 @@ def main():
                 spec = read(str(path), None)
                 if not spec or spec['args'].get('maxRounds', 1) != 1:
                     raise ValueError('A queued brief must reserve exactly one round')
+                lane_evidence.preflight(root, spec, path)
                 name = spec['args']['name']
                 if any(e['name'] == name and e['status'] in ('pending','launching') for e in q):
                     raise ValueError('Already queued: ' + name)
