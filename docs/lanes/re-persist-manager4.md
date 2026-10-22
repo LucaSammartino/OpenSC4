@@ -61,3 +61,6 @@ native-tables.py and bounded body extracts. No pseudocode, binaries or external 
 ### Coordinator specification-stage review (train80)
 
 The exact cGZPersistResourceManager owner has all109attributed functions8437B specified, including the measured undefined stack-byte return. PR4 asks how a portable implementation should handle that undefined result after checking its consumers; it does not erase the observed native body contract. Grant only the exact-owner specification row. Implementation credit requires the owned algorithms and a resolved return policy; no runtime credit is implied.
+
+
+The map audit found an existing exact manager row under data formats that already credited formats/src/dbpf.rs. That file implements package parsing/building, not the manager lifetime/cache/factory/service algorithms. Train80 corrects that historical implementation overclaim, moves the exact row to persistence and resources with its complete companion spec, and withholds core credit. There is no new specified-byte gain for an owner previously marked specified, and no duplicate row is added. The separately completed render-properties core adds legitimate implemented bytes.
