@@ -1,6 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-ripples-contracts4: exact ripple and selection contracts | Codex / `re-ripples-contracts4` (RE spec lane; reserved detached worktree) | WIP: WR4-WR6, WR9-WR10 answered; WR7-WR8 partial; docs checks passed; ABI unchanged; no game runs | 1. Review remaining WR7/WR8 proof obligations below. 2. Coordinator may publish bounded spec changes without whole-owner credit. |
+| re-ripples-contracts4: exact ripple and selection contracts | Codex / `re-ripples-contracts4` (RE spec lane; reserved detached worktree) | continue: guard context limit; WR4-WR6, WR9-WR10 answered; WR7-WR8 partial; docs checks passed; ABI unchanged; no game runs | 1. Coordinator reviews committed bounded result and residuals. 2. No merge-queue file written. |
+
+## Handoff
+- Goal: exact native WR4-WR10 behavior contracts, spec text only.
+- Done: 3b970a37 WR5; 33ace687 WR4/WR6/WR9/WR10; c7cfb5ae partial WR7/WR8; 613177cf final report/inventory and signed IDIV correction.
+- Exact next step: coordinator reviews remaining WR7/WR8 obligations in report below; do not assume another round is authorized.
+- WR7 residual: dynamic plain black RGB initialization, hash allocation/rehash submission history, NaN height operand selection.
+- WR8 residual: complete inherited/public API/signatures/attribution, Cleanup/destructor/refcount, tuning absence/type/ownership/reset, texture acquisition failure.
+- Native address-window inventory 69 bodies/15276 bytes is not the brief's 65/15308 owner attribution; no whole-owner credit.
+- Native findings and vectors: docs/specs/water-ripples.md; five dated answers moved to questions/answered/water-ripples.md; WR7/WR8 remain open with partial notes.
+- REA failed target_unavailable/No app is open; export, decomp and executable-data fallback used.
+- Last successful checks: questions index generated, git diff --check passed; no engine tests/game runs or ABI changes.
+- Guard denied final queue command at context 150k; it never executed. No merge-queue file was written. Stop with continue as instructed.
 
 ## Report (2026-10-22)
 - Goal: resolve WR4-WR10 from native export/decomp/instructions; spec text only.
