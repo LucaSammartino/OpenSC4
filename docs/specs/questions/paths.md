@@ -12,3 +12,6 @@
 
 - **PA3 - section 8 (PR integration review):** paths.md section 8 test 2 lists two outputs for the identical input `C:/`. Section 1.2 step 5 explains the doubled separator. Confirm which overload each vector exercises before implementation; do not guess.
 
+<!-- from: core-paths-contractfix4 (2026-10-22) -->
+- **PA9 - §3.11 negative signed capacity:** Is a nonempty SplitDirectory input with a negative capacity successful with count 0 and no writes, as for zero? [Literal signed loop comparison emits no parts and succeeds; empty input still fails. PA4-PA8 are already answered, although the generated QUESTIONS index still lists PA4 next.]
+

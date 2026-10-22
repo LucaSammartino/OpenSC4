@@ -1,31 +1,48 @@
 //! cRZPath's five owned strings and all published non-virtual methods (paths.md §2).
 
 use super::helpers::{
-    fix_directory_string, fix_drive_string, fix_extension_string, resolve_path, splitpath, CurrentDirectory, PathParts,
+    fix_directory_string, fix_drive_string_with_classifier, fix_extension_string, invariant_crt_is_alpha,
+    resolve_path_with_classifier, splitpath, CrtIsAlpha, CurrentDirectory, PathParts, UnsupportedLocaleByte,
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct RzPath {
     parts: PathParts,
     buffer: Vec<u8>,
+    classifier: CrtIsAlpha,
+}
+
+impl Default for RzPath {
+    fn default() -> Self {
+        Self { parts: PathParts::default(), buffer: Vec::new(), classifier: invariant_crt_is_alpha }
+    }
 }
 
 impl RzPath {
-    pub fn new(path: &[u8], provider: &mut impl CurrentDirectory) -> Self {
-        let mut result = Self::default();
-        result.set_path(path, provider);
-        result
+    pub fn new(path: &[u8], provider: &mut impl CurrentDirectory) -> Result<Self, UnsupportedLocaleByte> {
+        Self::with_classifier(path, provider, invariant_crt_is_alpha)
     }
 
-    pub fn set_path(&mut self, path: &[u8], provider: &mut impl CurrentDirectory) -> bool {
-        resolve_path(&mut self.buffer, path, None, provider);
+    /// The callback is only the primitive thread CRT isalpha operation, never path resolution.
+    pub fn with_classifier(
+        path: &[u8],
+        provider: &mut impl CurrentDirectory,
+        classifier: CrtIsAlpha,
+    ) -> Result<Self, UnsupportedLocaleByte> {
+        let mut result = Self { classifier, ..Self::default() };
+        result.set_path(path, provider)?;
+        Ok(result)
+    }
+
+    pub fn set_path(&mut self, path: &[u8], provider: &mut impl CurrentDirectory) -> Result<bool, UnsupportedLocaleByte> {
+        resolve_path_with_classifier(&mut self.buffer, path, None, provider, self.classifier)?;
         self.parts = splitpath(&self.buffer);
-        true
+        Ok(true)
     }
 
-    pub fn get_drive(&mut self) -> &[u8] {
-        fix_drive_string(&mut self.parts.drive);
-        &self.parts.drive
+    pub fn get_drive(&mut self) -> Result<&[u8], UnsupportedLocaleByte> {
+        fix_drive_string_with_classifier(&mut self.parts.drive, self.classifier)?;
+        Ok(&self.parts.drive)
     }
 
     pub fn get_directory(&mut self) -> &[u8] {
@@ -69,10 +86,13 @@ impl RzPath {
         true
     }
 
-    pub fn set_buffer(&mut self, parts: u32) {
+    pub fn set_buffer(&mut self, parts: u32) -> Result<(), UnsupportedLocaleByte> {
+        // Portable unsupported-domain error leaves the previous join intact.
+        if parts & 1 != 0 {
+            self.get_drive()?;
+        }
         self.buffer.clear();
         if parts & 1 != 0 {
-            self.get_drive();
             self.buffer.extend_from_slice(&self.parts.drive);
         }
         if parts & 2 != 0 {
@@ -86,20 +106,24 @@ impl RzPath {
             self.get_extension();
             self.buffer.extend_from_slice(&self.parts.extension);
         }
+        Ok(())
     }
 
-    pub fn get_path(&mut self, out: &mut Vec<u8>) {
-        self.set_buffer(15);
+    pub fn get_path(&mut self, out: &mut Vec<u8>) -> Result<(), UnsupportedLocaleByte> {
+        self.set_buffer(15)?;
         out.clone_from(&self.buffer);
+        Ok(())
     }
 
-    pub fn get_drive_and_directory(&mut self, out: &mut Vec<u8>) {
-        self.set_buffer(3);
+    pub fn get_drive_and_directory(&mut self, out: &mut Vec<u8>) -> Result<(), UnsupportedLocaleByte> {
+        self.set_buffer(3)?;
         out.clone_from(&self.buffer);
+        Ok(())
     }
 
-    pub fn get_file_name_and_extension(&mut self, out: &mut Vec<u8>) {
-        self.set_buffer(12);
+    pub fn get_file_name_and_extension(&mut self, out: &mut Vec<u8>) -> Result<(), UnsupportedLocaleByte> {
+        self.set_buffer(12)?;
         out.clone_from(&self.buffer);
+        Ok(())
     }
 }

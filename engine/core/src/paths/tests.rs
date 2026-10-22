@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, VecDeque};
 fn fully_qualified_resolution_copies_the_entire_counted_range() {
     let mut source = b"C:\\name\0/.tail".to_vec();
     let mut out = Vec::new();
-    assert!(resolve_path(&mut out, &source, None, &mut Cwd::default()));
+    assert!(resolve_path(&mut out, &source, None, &mut Cwd::default()).unwrap());
     source.fill(b'!');
     assert_eq!(out, b"C:\\name\0/.tail");
     assert_eq!(splitpath(&out).name, b"name");
@@ -16,14 +16,14 @@ use super::*;
 use crate::rz_files::{OsError, OsHandle};
 
 #[derive(Default)]
-struct Cwd {
+pub(super) struct Cwd {
     drive: Option<u8>,
     directories: BTreeMap<u8, Vec<u8>>,
     calls: Vec<u8>,
 }
 
 impl Cwd {
-    fn sc4() -> Self {
+    pub(super) fn sc4() -> Self {
         Self {
             drive: Some(b'C'),
             directories: [(b'C', br"C:\Games\SC4".to_vec()), (b'D', br"D:\Data".to_vec())].into(),
@@ -45,7 +45,7 @@ impl CurrentDirectory for Cwd {
 #[test]
 fn full_path_classification_is_literal_and_byte_based() {
     for path in [br"C:\a".as_slice(), br"\\s\x", br"z:\", br"C:\a\\b"] {
-        assert!(is_full_path(path), "{path:?}");
+        assert!(is_full_path(path).unwrap(), "{path:?}");
     }
     for path in [
         br"C:/a".as_slice(),
@@ -57,11 +57,11 @@ fn full_path_classification_is_literal_and_byte_based() {
         b"",
         b"C",
         b"\\",
-        b"\xE9:\\x",
     ] {
-        assert!(!is_full_path(path), "{path:?}");
+        assert!(!is_full_path(path).unwrap(), "{path:?}");
     }
-    assert!(is_full_path(b"C:\\x\0/.bad"));
+    assert!(is_full_path(b"C:\\x\0/.bad").unwrap());
+    assert_eq!(is_full_path(b"\xE9:\\x"), Err(UnsupportedLocaleByte(-23)));
     assert!(is_path_separator(b'/'));
     assert!(!is_path_separator(0xA5));
     assert!(!is_letter(0xE9));
@@ -152,21 +152,21 @@ fn sizes_include_nul_and_fail_without_partial_output() {
 fn resolve_preserves_failure_and_bypasses_limits_for_already_full_text() {
     let mut cwd = Cwd::default();
     let mut out = b"old".to_vec();
-    assert!(!resolve_path(&mut out, b"relative", None, &mut cwd));
+    assert!(!resolve_path(&mut out, b"relative", None, &mut cwd).unwrap());
     assert_eq!(out, b"old");
     let mut long = br"c:\".to_vec();
     long.extend(vec![b'x'; 700]);
-    assert!(resolve_path(&mut out, &long, None, &mut cwd));
+    assert!(resolve_path(&mut out, &long, None, &mut cwd).unwrap());
     assert_eq!(out, long);
     assert_eq!(cwd.calls, b"C"); // only the failed relative resolution asked for a drive directory.
-    assert!(resolve_path(&mut out, b"relative", Some(b""), &mut cwd));
+    assert!(resolve_path(&mut out, b"relative", Some(b""), &mut cwd).unwrap());
     assert_eq!(out, b"relative");
     assert!(resolve_path(
         &mut out,
         br"\\srv\share\f.txt",
         Some(b"ignored"),
         &mut cwd
-    ));
+    ).unwrap());
     assert_eq!(out, br"\\srv\share\f.txt");
 }
 
@@ -211,9 +211,10 @@ fn reverse_split_and_parent_failure_are_explicit() {
     }
     assert_eq!(split_directory(br"abc\", 2).unwrap(), [br"abc\".to_vec()]);
     assert_eq!(split_directory(b"abc", 2).unwrap(), [br"ab\".to_vec()]);
-    assert_eq!(split_directory(b"x", 2).unwrap(), [br"\".to_vec()]);
+    assert!(split_directory(b"x", 2).unwrap().is_empty());
+    assert!(split_directory(b"\\", 2).unwrap().is_empty());
     assert!(split_directory(b"", 2).is_none());
-    assert!(split_directory(b"abc", 0).is_none());
+    assert!(split_directory(b"abc", 0).unwrap().is_empty());
     assert!(split_directory(&vec![b'x'; 256], 2).is_none());
     let (mut last, mut parent) = (b"old-last".to_vec(), b"old-parent".to_vec());
     assert!(!split_directory_path(b"", &mut last, &mut parent));
@@ -263,7 +264,7 @@ fn published_part_fixes_preserve_case_and_separator_spelling() {
         (b"zXYZ", b"z:"),
     ] {
         let mut text = input.to_vec();
-        fix_drive_string(&mut text);
+        fix_drive_string(&mut text).unwrap();
         assert_eq!(text, expected);
     }
     for (input, expected) in [
@@ -291,16 +292,16 @@ fn published_part_fixes_preserve_case_and_separator_spelling() {
 #[test]
 fn path_owner_join_setters_and_lazy_buffer_reload() {
     let mut cwd = Cwd::sc4();
-    let mut path = RzPath::new(b"adv_const.lua", &mut cwd);
+    let mut path = RzPath::new(b"adv_const.lua", &mut cwd).unwrap();
     let mut out = Vec::new();
-    path.get_path(&mut out);
+    path.get_path(&mut out).unwrap();
     assert_eq!(out, br"C:\Games\SC4\adv_const.lua");
-    path.get_drive_and_directory(&mut out);
+    path.get_drive_and_directory(&mut out).unwrap();
     assert_eq!(out, br"C:\Games\SC4\");
-    path.get_file_name_and_extension(&mut out);
+    path.get_file_name_and_extension(&mut out).unwrap();
     assert_eq!(out, b"adv_const.lua");
     assert!(path.set_extension(b"dat", false));
-    path.get_path(&mut out);
+    path.get_path(&mut out).unwrap();
     assert_eq!(out, br"C:\Games\SC4\adv_const.dat");
     assert!(path.set_file_name(br"x\y.txt", true));
     assert_eq!(path.get_file_name(), b"y");
@@ -314,7 +315,7 @@ fn path_owner_join_setters_and_lazy_buffer_reload() {
     path.set_file_name(b"UPPER", false);
     path.set_file_name(b"upper", false);
     assert_eq!(path.get_file_name(), b"upper");
-    path.set_buffer(0xF0);
+    path.set_buffer(0xF0).unwrap();
     path.set_file_name(b"", false);
     assert_eq!(path.file_name(), b"");
 }
@@ -323,24 +324,24 @@ fn path_owner_join_setters_and_lazy_buffer_reload() {
 fn path_resolution_failure_resplits_last_join_and_owns_all_bytes() {
     let mut cwd = Cwd::sc4();
     let mut input = b"first.txt".to_vec();
-    let mut path = RzPath::new(&input, &mut cwd);
+    let mut path = RzPath::new(&input, &mut cwd).unwrap();
     input.fill(b'X');
     assert_eq!(path.get_file_name(), b"first");
     let mut out = Vec::new();
-    path.get_file_name_and_extension(&mut out);
+    path.get_file_name_and_extension(&mut out).unwrap();
     cwd.directories.clear();
-    assert!(path.set_path(b"unresolved", &mut cwd)); // always true, despite resolution failure.
-    assert_eq!(path.get_drive(), b"");
+    assert!(path.set_path(b"unresolved", &mut cwd).unwrap()); // true despite resolution failure.
+    assert_eq!(path.get_drive().unwrap(), b"");
     assert_eq!(path.get_directory(), b"");
     assert_eq!(path.get_file_name(), b"first");
     path.set_file_name(b"second", false);
     assert_eq!(out, b"first.txt"); // output is an independent owned string.
-    let empty = RzPath::new(b"unresolved", &mut cwd);
+    let empty = RzPath::new(b"unresolved", &mut cwd).unwrap();
     assert_eq!(empty.get_file_name(), b"");
 }
 
 #[derive(Default)]
-struct Finder {
+pub(super) struct Finder {
     matches: BTreeMap<Vec<u8>, Vec<FindData>>,
     active: BTreeMap<OsHandle, VecDeque<FindData>>,
     patterns: Vec<Vec<u8>>,
@@ -349,7 +350,7 @@ struct Finder {
 }
 
 impl Finder {
-    fn put(&mut self, pattern: &[u8], names: &[(&[u8], bool)]) {
+    pub(super) fn put(&mut self, pattern: &[u8], names: &[(&[u8], bool)]) {
         self.matches.insert(
             pattern.to_vec(),
             names
@@ -381,12 +382,43 @@ impl DirectoryProvider for Finder {
     }
 }
 
+// Primitive-only bridge for exercising the one authoritative directory owner.
+impl crate::rz_files::directory::RzDirectoryHost for Finder {
+    type FindHandle = OsHandle;
+
+    fn find_first(&mut self, pattern: &[u8]) -> Option<(OsHandle, crate::rz_files::directory::DirectoryMatch)> {
+        DirectoryProvider::find_first(self, pattern).ok().map(|(h, data)| (h, directory_match(data)))
+    }
+
+    fn find_next(&mut self, handle: &mut OsHandle) -> Option<crate::rz_files::directory::DirectoryMatch> {
+        DirectoryProvider::find_next(self, *handle).map(directory_match)
+    }
+
+    fn find_finish(&mut self, handle: OsHandle) {
+        DirectoryProvider::find_finish(self, handle);
+    }
+
+    fn create_directory(&mut self, _: &[u8]) -> bool {
+        panic!("unexpected create primitive")
+    }
+
+    fn remove_directory(&mut self, _: &[u8]) -> bool {
+        panic!("unexpected remove primitive")
+    }
+}
+
+fn directory_match(data: FindData) -> crate::rz_files::directory::DirectoryMatch {
+    crate::rz_files::directory::DirectoryMatch {
+        name: data.name,
+        attributes: if data.directory { 0x10 } else { 0 },
+    }
+}
+
 fn entries(directory: &RzDirectory) -> Vec<(Vec<u8>, u32)> {
-    (0..directory.entry_count())
+    (0..directory.count())
         .map(|i| {
             let e = directory.get_nth_entry(i).unwrap();
-            assert!(std::ptr::eq(e.owner, directory));
-            (e.name.to_vec(), e.kind)
+            (e.name.to_vec(), e.entry_type)
         })
         .collect()
 }
@@ -404,18 +436,22 @@ fn entry_state_preserves_system_order_and_owner_identity() {
             (b"sub", true),
         ],
     );
-    let mut directory = RzDirectory::new(br"C:\P", true, false, false, &mut provider);
+    let directory = RzDirectory::new(&mut provider, br"C:\P", true, false, false);
     assert_eq!(directory.path(), br"C:\P\");
     assert_eq!(
         entries(&directory),
         [(b"b.dat".to_vec(), 8), (b"a.dat".to_vec(), 8), (b"sub".to_vec(), 4)]
     );
     assert!(directory.get_nth_entry(3).is_none());
-    directory.alphabetize_entry_list(|a, b| a.cmp(b));
-    assert_eq!(directory.get_nth_entry(0).unwrap().name, b"a.dat");
+    let first = directory.get_nth_entry(0).unwrap() as *const _;
+    let mut names = [b"b.dat".to_vec(), b"a.dat".to_vec()].into();
+    RzDirectory::alphabetize_entry_list(&mut names);
+    assert_eq!(names.front().unwrap(), b"a.dat");
+    assert_eq!(directory.get_nth_entry(0).unwrap().name, b"b.dat");
+    assert_eq!(directory.get_nth_entry(0).unwrap() as *const _, first);
     assert_eq!(provider.closed.len(), 1);
     assert!(provider.active.is_empty());
-    let all = RzDirectory::new(br"C:\P\", true, true, true, &mut provider);
+    let all = RzDirectory::new(&mut provider, br"C:\P\", true, true, true);
     assert_eq!(all.get_nth_entry(0).unwrap().name, b".");
     assert_eq!(all.get_nth_entry(1).unwrap().name, b"..");
 }
@@ -425,48 +461,48 @@ fn dot_synthesis_is_filter_specific_and_never_turns_no_match_into_success() {
     let mut provider = Finder::default();
     provider.put(br"C:\*", &[(b"x", false)]);
     provider.put(br"C:\*.dat", &[(b"x.dat", false)]);
-    let mut directory = RzDirectory::new(br"C:\", true, true, true, &mut provider);
+    let mut directory = RzDirectory::new(&mut provider, br"C:\", true, true, true);
     assert_eq!(
         entries(&directory),
         [(b".".to_vec(), 4), (b"..".to_vec(), 4), (b"x".to_vec(), 8)]
     );
-    directory.set_new_directory_entry_filter(b"*.dat", true, &mut provider);
+    directory.set_new_directory_entry_filter(&mut provider, b"*.dat", true);
     assert_eq!(entries(&directory), [(b"x.dat".to_vec(), 8)]);
-    directory.set_new_directory_entry_filter(b"missing", true, &mut provider);
+    directory.set_new_directory_entry_filter(&mut provider, b"missing", true);
     assert!(entries(&directory).is_empty());
     assert!(!directory.read_directory_entries(&mut provider));
-    directory.set_new_directory_entry_filter(b"", false, &mut provider);
+    directory.set_new_directory_entry_filter(&mut provider, b"", false);
     assert_eq!(directory.filter(), b"*");
     assert!(directory.read_directory_entries(&mut provider));
-    assert!(directory.change_directory(b"", false, &mut provider));
+    assert!(directory.change_directory(&mut provider, b"", false));
     assert_eq!(directory.path(), br"\");
-    assert_eq!(directory.entry_count(), 3); // read=false preserves list even when path changes.
+    assert_eq!(directory.count(), 3); // read=false preserves list even when path changes.
 }
 
 #[test]
 fn name_lists_append_and_leave_entry_list_unchanged() {
     let mut provider = Finder::default();
     provider.put(br"p/*", &[(b"a", false), (b"sub", true)]);
-    let directory = RzDirectory::new(b"p/", true, false, false, &mut provider);
+    let directory = RzDirectory::new(&mut provider, b"p/", true, false, false);
     let before = entries(&directory);
-    let mut list = vec![b"existing".to_vec()];
-    assert!(directory.read_directory_file_entries_into_string_list(&mut list, &mut provider));
-    assert_eq!(list, [b"existing".to_vec(), b"a".to_vec()]);
-    assert!(directory.read_directory_directory_entries_into_string_list(&mut list, 3, &mut provider));
+    let mut list: VecDeque<_> = [b"existing".to_vec()].into();
+    assert!(directory.read_directory_file_entries_into_string_list(&mut provider, &mut list));
+    assert_eq!(list, VecDeque::from([b"existing".to_vec(), b"a".to_vec()]));
+    assert!(directory.read_directory_directory_entries_into_string_list(&mut provider, &mut list, 3));
     assert_eq!(
         list,
-        [
+        VecDeque::from([
             b".".to_vec(),
             b"..".to_vec(),
             b"existing".to_vec(),
             b"a".to_vec(),
             b"sub".to_vec()
-        ]
+        ])
     );
     assert_eq!(entries(&directory), before);
-    let missing = RzDirectory::new(b"missing", false, true, true, &mut provider);
+    let missing = RzDirectory::new(&mut provider, b"missing", false, true, true);
     let old = list.clone();
-    assert!(!missing.read_directory_specific_entries_into_string_list(&mut list, 15, &mut provider));
+    assert!(!missing.read_directory_specific_entries_into_string_list(&mut provider, &mut list, 15));
     assert_eq!(list, old);
 }
 

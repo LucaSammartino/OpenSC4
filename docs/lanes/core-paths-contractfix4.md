@@ -7,7 +7,12 @@
 - Scope: portable Rust only; no ABI/shared files, native glue, game runs, or whole-owner completion claim.
 - Done: first substantive PA4 correction preserves the full counted ResolvePath input on the full-prefix branch; independent NUL/copy vector added.
 - Baseline qbuild all launched; logs in build-runs/qbuild-*.log (result pending).
-- Next: add explicit CRT classifier boundary, correct SplitDirectory, consolidate directory owner and entry lifecycle; run quick gate.
+- Done: added signed-byte CRT primitive boundary/errors; counted ResolvePath, entry default/copy/name-only drop, signed SplitDirectory with partial writes, retained find cache/retry/finish.
+- Done: removed duplicate paths directory owner/comparator; paths reexports authoritative rz_files owner. Primitive-only test host bridges it. Added PA4-PA8 independent vectors.
+- Tests: initial baseline all and current quick are still compiling; no verdict yet. fmt wrapper needs absolute paths and reports formatting diffs (to fix).
+- Next: resolve compile/fmt findings, final stable full gate, report exact scope and enqueue if green.
+- New question PA9: negative signed capacity follows literal signed-loop no-output rule pending confirmation; PA1/PA2/PA3 retained.
+- Entry list remains the authoritative owner's passive payload; standalone lifecycle adds no native getters/COM or owner lifetime extension.
 - PA1/PA2/PA3 remain open; preserve selected normalization rule.
 - Correction reservation logical round 2/3; this task permits one round only.
 - q.py cannot launch Bash (E_ACCESSDENIED); use bounded PowerShell output and required qbuild wrappers.
