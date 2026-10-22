@@ -4293,3 +4293,22 @@ Animation coordinator format-1 vectors use a dedicated `domain` and typed foreig
 fixture. See [animation-coordinator.md](animation-coordinator.md) for its operations,
 literal state/events, and the explicit distinction between published behavior and
 provisional AC5–AC8 choices.
+## Occupant group owner vectors
+
+Vectors with `"suite": "occupant_groups"` exercise the portable owners in
+`fc4_core::occupant_groups`, from occupant-groups.md §§2–4,7,10. The usual
+format/version/steps envelope applies. These vectors start with **already
+imported state**, not Lua tables. They do not claim script-system import,
+registry or linking conformance (§10.1–5,9).
+
+`new` supplies a fixture `group`, `session_seed`, and `state`; `set` changes
+state (`id`, `class`, `source`, `percentage`); `parent` links two fixture
+identities without acquiring a reference. `expect.queries` accepts `class`,
+`source`, `depth`, `ids`, `contains`, and `excludes`. `filter` supplies a
+nullable u32-array `property` and one primitive `draw`, then checks both
+`included` and `draws`. Non-finite numeric fixtures use `"NaN"`, `"+inf"`,
+`"-inf"`. `effect_state` supplies one stored command/effect pair (explicit
+`fx`, `bone`, `controller`, `flags`); `key` checks its `expected` full copy,
+or null for failure with unchanged output. `clear_effects` clears the owner
+map. Shared `set_turbo` operations execute through the existing harness.
+Unknown fields, operations and failed expectations are rejected.

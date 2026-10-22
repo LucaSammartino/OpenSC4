@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "suite": "occupant_groups",
+  "name": "occupant_groups_key_copy",
+  "spec": ["occupant-groups.md §§3.3,4.7,7,10.8"],
+  "description": "Fixture states are the published accepted key effects, not an importer simulation. Copy all three strings/flags, use low command byte, no parent fallback, clear map, preserve failed lookup output.",
+  "steps": [
+    {"op":"new","group":"P","session_seed":0,"state":{}},
+    {"op":"new","group":"G","session_seed":0,"state":{}},
+    {"op":"parent","group":"G","parent":"P"},
+    {"op":"effect_state","group":"P","command":8,"effect":{"fx":"parent","bone":"parent-bone","controller":"","flags":16}},
+    {"op":"effect_state","group":"G","command":7,"effect":{"fx":"a","bone":"","controller":"","flags":17}},
+    {"op":"effect_state","group":"G","command":9,"effect":{"fx":"c","bone":"","controller":"x","flags":54}},
+    {"op":"key","group":"G","command":7,"expected":{"fx":"a","bone":"","controller":"","flags":17}},
+    {"op":"key","group":"G","command":4294967049,"expected":{"fx":"c","bone":"","controller":"x","flags":54}},
+    {"op":"key","group":"G","command":8,"expected":null},
+    {"op":"effect_state","group":"G","command":255,"effect":{"fx":"f","bone":"b","controller":"k","flags":4275878552}},
+    {"op":"key","group":"G","command":4294967295,"expected":{"fx":"f","bone":"b","controller":"k","flags":4275878552}},
+    {"op":"clear_effects","group":"G"},
+    {"op":"key","group":"G","command":7,"expected":null},
+    {"op":"key","group":"G","command":9,"expected":null}
+  ]
+}

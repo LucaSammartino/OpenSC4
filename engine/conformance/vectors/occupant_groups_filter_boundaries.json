@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "suite": "occupant_groups",
+  "name": "occupant_groups_filter_boundaries",
+  "spec": ["occupant-groups.md §§4.1,10.7"],
+  "description": "Own ID only; matching and >=1 shortcuts avoid a draw. Equality includes. Double draw is not narrowed to float. No share clamp, NaN is unordered, zero still draws.",
+  "steps": [
+    {"op":"new","group":"P","session_seed":0,"state":{"id":2}},
+    {"op":"new","group":"G","session_seed":0,"state":{"id":5}},
+    {"op":"parent","group":"G","parent":"P"},
+    {"op":"filter","group":"G","property":null,"draw":0,"included":false,"draws":0},
+    {"op":"filter","group":"G","property":[2],"draw":0,"included":false,"draws":0},
+    {"op":"filter","group":"G","property":[2,5],"draw":1,"included":true,"draws":0},
+    {"op":"set","group":"G","state":{"percentage":0.5}},
+    {"op":"filter","group":"G","property":[5],"draw":0.5,"included":true,"draws":1},
+    {"op":"filter","group":"G","property":[5],"draw":0.5000000000000002,"included":false,"draws":1},
+    {"op":"filter","group":"G","property":[5],"draw":0.4999999999999998,"included":true,"draws":1},
+    {"op":"set","group":"G","state":{"percentage":0}},
+    {"op":"filter","group":"G","property":[5],"draw":0,"included":true,"draws":1},
+    {"op":"set","group":"G","state":{"percentage":-0.25}},
+    {"op":"filter","group":"G","property":[5],"draw":0,"included":false,"draws":1},
+    {"op":"set","group":"G","state":{"percentage":"NaN"}},
+    {"op":"filter","group":"G","property":[5],"draw":0,"included":false,"draws":1},
+    {"op":"set","group":"G","state":{"percentage":"+inf"}},
+    {"op":"filter","group":"G","property":[5],"draw":1,"included":true,"draws":0},
+    {"op":"set","group":"G","state":{"id":0}},
+    {"op":"filter","group":"G","property":[0],"draw":0,"included":false,"draws":0}
+  ]
+}
