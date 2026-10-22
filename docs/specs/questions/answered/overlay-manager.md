@@ -19,3 +19,15 @@
 - ~~**OV6 - §3 slot17:** what is the numerical value/precision of 0x00AB39A0, strict versus inclusive step comparison, and does a sub-step alpha write update the stored alpha, or compare against the last redrawn alpha? Specify clamping/NaN behavior, dynamic redraw behavior, and equal endpoint writes. [dynamic and endpoint changes supported; static non-endpoint changes report a gap atomically rather than accept an external threshold]~~
 
   **ANSWERED 2026-10-22 (re-overlays-contract4):** DIFFERS — §3.3: binary64 0.05, strict greater-than; static sub-step/equal writes leave stored alpha unchanged, no clamp, static NaN rejected, dynamic always stores without redraw; endpoint equality is rejected on static managers. Native bytes and paper vectors cited there.
+
+<!-- from: re-overlays (2026-10-20) -->
+- ~~**OV2 - §3:** what slot 20 (`0x007364F0`, no function in the export) does, and how the add forms of slots 8, 9 and 11 differ from slot 4 (slot 11 is the largest and is inferred to build a shadow from a model's footprint). [unread]~~
+
+  Prior partial resolution (re-overlays-contract4): slot 20 and slots 9/10 were specified; city/model add bodies remained.
+
+  **ANSWERED 2026-10-22 (re-overlays-final4):** DIFFERS — §§3.5–3.7 and slot-20 review specify each owner form. City add resolves factory slot 5 and makes a direct flags-0x13 rectangle record with an unusual nx-only matrix. Model add uses six arguments, lighting projection and a separate live-global-quality rectangle branch, makes a direct flags-9 record, then derives its secondary transform from projected-pair extrema. Neither creates an ordinary placement handle. Outside-owner projection production remains explicitly OV1, not a guessed decal rule.
+
+<!-- from: re-overlays (2026-10-20) -->
+- ~~**OV3 - §5:** what message `0xC9F775BB` is and what the managers do on it. [inferred: the overlays are placed again after a terrain or zoom change]~~
+
+  **ANSWERED 2026-10-22 (re-overlays-final4):** DIFFERS — §5: render-settings refresh; complete handler 0x00736100 copies cached quality, second-stage/debug setting and selection byte, always returns true, and never re-places overlays, rebuilds the index, invalidates terrain or resets counters. Native SetRenderProperties dispatch provides independent sender evidence.

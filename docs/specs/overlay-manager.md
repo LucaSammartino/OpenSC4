@@ -40,8 +40,8 @@ managers: static and dynamic, each for land and for water.
 - The terrain view creates four and initialises them as (static, land) `+0x78`, (static, water) `+0x7C`,
   (dynamic, land) `+0x80`, (dynamic, water) `+0x84`, registered at draw layers 2, 2, 5, 5 with priorities 0, 1100,
   1000, 1100 (terrain.md §15.5.4). The terrain keeps the first at its `+0xF8`.
-- `0x0073AC90` (on shutdown) unsubscribes, releases the view, factory and terrain, empties both record tables and
-  forgets the free lists.
+- `0x0073AC90` (on shutdown) unsubscribes, releases the view, factory and terrain and clears overlay/handle
+  live ranges/free queues. It is distinct from destruction; see §1.2 for retained groups/index/shadow binding.
 
 ### 1.1 Initialization and repeat calls (OV4, proven subset)
 
@@ -74,6 +74,30 @@ is filled from scratch/default global `0x00B4B3C8`; no usable second-transform v
 add fills it. Likewise the handle allocator copies a complete owner-constructed placement/aspect/target record;
 there is no independently initialized public default handle. Evidence: `0x00735F40–0x007360F9`, with alpha's
 literal 1 established at `0x00735FF2`, colour loads `0x007360BE–0x007360DC`, and allocator §2.3.
+
+### 1.2 Shutdown versus destruction (owner boundary)
+
+Shutdown `0x0073AC90–0x0073AD70` runs without an initialized guard. It unsubscribes the message target if
+the server exists, then nulls/releases parent, terrain and factory, in that order. It clears the overlay live
+range, releasing source and binding references in increasing record order, and resets overlay free-head/tail
+to −1; then clears the handle live range and resets its free-head/tail to −1; initialized becomes false last.
+It retains the arena allocations. It does **not** clear/reset the group arena/free queue, cell-index heads,
+index dimensions/stamp, shadow binding `+0xD4`, cached settings, or statistics. In particular shutdown alone
+does not remove each overlay from the retained index. Draw/use between Shutdown and valid reinitialization
+has no supported contract. Overlay range destruction releases source before binding, including payloads in
+freed slots (`0x00737E10–0x00737E4A`); ordinary Remove does neither (§2.3).
+
+The destructor body `0x0073BE00–0x0073BF0A` is a separate path: it destroys all index lists and frees index
+storage, releases `+0xD4`, frees group then handle storage, destroys overlay payloads and frees overlay
+storage, releases factory, parent and terrain, and destroys bases. It does **not** invoke Shutdown or
+unsubscribe. The index-list destructor `0x0073A170–0x0073A1A7` visits heads in array order, frees each chain
+from head to tail and nulls the head. The deleting-destructor wrapper `0x0073C980–0x0073C99D` additionally
+frees the object when argument bit 0 is set. Subscription lifetime therefore requires the explicit shutdown
+protocol; destruction must not be described as automatically performing it.
+
+Paper lifecycle discriminator: after removing an overlay, its references remain; Shutdown releases payload
+references in the overlay range but retains `+0xD4` and group/index allocations. Destruction releases that
+binding and storage. Neither path submits a terrain redisplay request per removed record.
 
 ## 2. Records and handles *[compat]*
 
@@ -171,10 +195,10 @@ if no other frees occur. For a group with differing part colours/alpha, getters 
 | 5 | `0x00736150` | `AddDecal(key, positionXZ, width, turns)` | the factory's binding for the key (factory slot 6), then slot 4 |
 | 6 | `0x007361B0` | `AddDecal(key, positionXZ, width, turns)` | the same with factory slot 5 |
 | 7 | `0x0073B170` | `AddRoundDecal(key, positionXZ, width, turns)` | a **group** of eight outline rectangles omitting the centre (§3.1) |
-| 8 | `0x0073C9A0` | `AddCityDecal(key)` | one overlay over the whole city (`0x0073B8A0`, flags `0x12`) *[inferred]* |
+| 8 | `0x0073C9A0` | `AddCityDecal(key)` | factory slot 5; direct rectangle overlay, flags `0x13`, exact matrix in §3.6 |
 | 9 | `0x0073B3B0` | `AddShadow(key, positionXZ, width, turns, flipV)` | factory slot 6 resolves the key; shadow matrices as §3.5 |
 | 10 | `0x00735480` | `AddShadow(groupWord, positionXZ, width, turns, flipV)` | −1 when `kShadowQuality` is 0; otherwise constructs the key described in §3.5 and calls slot 9 |
-| 11 | `0x0073C0D0` | `AddModelShadow(…)` *[inferred]* | a shadow built from a model's footprint |
+| 11 | `0x0073C0D0` | `AddModelShadow(binding,n,source,pairs,box,descriptor)` | direct shadow record; lighting projection, quality-dependent bounds and owned secondary transform (§3.7) |
 | 12 | `0x0073AD80` | `SetPosition(handle, xz)` | for a handle record: when the two floats change, the overlay is placed again |
 | 13 | `0x0073ADE0` | `SetPlacement(handle, nine floats)` | the whole placement, then placed again |
 | 14 | `0x00736490` | `GetPlacement(handle, out)` | the nine floats |
@@ -458,7 +482,112 @@ This is a key construction, not passing the slot-11 result as a binding. Evidenc
 Paper discriminator: with square texture, centre `(0,0)`, width 16, turns 0, flipV false, the centre maps to
 primary `(1/2,1/2,0,1)` and secondary `(1/2,1/2,0,1)`; at world `(0,0,8)` primary v=1 and secondary v=3/4.
 With flipV true the latter primary v=0 and secondary v=1/4. The placement getter is identical in both cases.
-Model-shadow slot 11 remains a separate unresolved contract (OV1); these rules must not be substituted for it.
+Model-shadow slot 11 uses the distinct owner construction in §3.7; these rules must not be substituted for it.
+
+### 3.6 Rectangle helper and city-wide add (OV2)
+
+`AddOverlayForRect` (`0x0073B8A0`) takes `(binding, cellRectangle, matrix16, extraFlags)` and returns a
+**direct overlay index**, or −1 for a null binding. It constructs the default overlay (§1.1), retains the
+binding, copies all four supplied rectangle words and all sixteen primary-matrix words, ORs extraFlags into
+the default shown flag, and allocates the record. It does not clip, normalize, derive a placement record,
+allocate an indirect handle, or initialize a shadow-specific secondary transform. For a non−1 allocation
+on a static manager it inserts the rectangle into the cell index, then calls MarkChanged; a dynamic manager
+skips both. Local source/binding references are released after allocation; the retained record owns its
+references. Evidence: `0x0073B8AE–0x0073B8F1`, copies `0x0073B8F1–0x0073B9A7`, post-add/cleanup
+`0x0073B9AC–0x0073BA04`.
+
+Slot 8 resolves its one key through **factory slot 5**, calls that helper with city rectangle `(0,0,nx,nz)`
+and extraFlags `0x12`, then releases the temporary binding. Thus final flags are `0x13` (shown, bit 1,
+decal bit 4); it returns a direct ID and has no placement getter record. A missing binding yields −1 through
+the helper. Its primary matrix is unusual and must be preserved rather than replaced with a conventional
+city-sized X/Z texture mapping. In the row/column convention of §3.2 its rows are
+`[0,0,0,0]`, `[0,F(E(2/nx)),0,0]`, `[0,0,1,0]`, `[0,0,0,1]`.
+The numerator is binary32 2 at `0x00A8825C`; nx is converted from a signed integer and the quotient is
+stored once as binary32. Neither nz nor the world cell width enters that matrix. No nx=0 guard exists.
+Evidence: `0x0073C9A6–0x0073CA6E` (matrix base and sole quotient store `0x0073CA6A`), helper call
+`0x0073CA75–0x0073CA83`, return/temporary release `0x0073CA88–0x0073CA9E`.
+
+Paper discriminator: nx=64, nz=32 gives rectangle `(0,0,64,32)` and sole nonzero texture coefficient
+M[1,1]=1/32. A static add with binding present returns a direct ID with flags `0x13`; slot 14 does not
+write an output placement for that ID. Changing nz alone leaves this matrix unchanged.
+
+### 3.7 Model-shadow add and its owned records (OV1/OV2)
+
+Slot 11 (`0x0073C0D0–0x0073C838`, callee pops 24 bytes) has **six** arguments:
+
+| Argument | Owner-observed role |
+|---|---|
+| 1 | texture binding passed to the rectangle helper; this is not a resource key or texture source |
+| 2 | signed point count n; later controls the projected-pair bounding scan |
+| 3 | source geometry pointer forwarded to lighting slots 17/18; the overlay owner does not decode its elements |
+| 4 | pointer to n consecutive binary32 pairs `(u,v)` used after projection succeeds; forwarded to lighting slot 17 |
+| 5 | world box pointer, six binary32 words `(xmin,ymin,zmin,xmax,ymax,zmax)` in the fallback bounds calculation; also forwarded to lighting slot 18 |
+| 6 | projection descriptor forwarded to lighting slot 17; its internal layout is outside this owner |
+
+If cached shadow quality is exactly zero, return −1 before accessing these pointers or requesting lighting.
+Otherwise obtain lighting through the global service's slot 9 and invoke lighting slot 17
+`CalcShadowProjection(n, sourceGeometry, pairs, descriptor, outP)`. False in AL returns −1. For the bounds
+choice, read **current global** quality (render-properties integers `+0x1FC`), not the cached field again.
+Signed quality ≥5 invokes lighting slot 18 `CalcShadowTerrainRect(n, sourceGeometry, worldBox, outRect)`;
+false returns −1. Signed quality <5 requests shadow direction through lighting slot 13 and uses the local
+fallback below. These service calls precede the null-binding rejection. Evidence: `0x0073C0DC–0x0073C1D6`.
+The owner does not infer projected geometry from an ordinary placement record. The production of P/pairs
+and the high-quality rectangle belongs to those named lighting bodies, not to a caller-supplied completed
+overlay record; no substituted TR33–TR37 terrain contract is implied here.
+
+The fallback `ComputeCellRect` (`0x007354E0–0x007356C3`) accepts
+`(direction3, n, sourceGeometry, worldBox6, outRect)`. It does not read n or sourceGeometry. For ordinary
+finite inputs in the native conversion range, first compute
+`Lx=floor(E((xmin+e)×cellScale))`, `Rx=ceil(E((xmax−e)×cellScale))`, and analogously Lz/Rz,
+where e is **binary32** `0x3D8F5C29` (0.07000000029802322, `0x00AA27E8`), with the sums retained in x87.
+Compute `h=ceil(E((ymax−ymin)×1/16))`; 1/16 is binary32 at `0x00A8E174`, independent of cellScale.
+If direction X is ordered >0, add h to Rx; otherwise subtract h from Lx. Likewise direction Z >0 adds h to
+Rz, otherwise subtracts h from Lz. Zero and unordered direction take the subtract-minimum branch. Intersect
+the resulting rectangle with the city bounds using §2.2's helper; copy all four words to output.
+There is no nonnegative-height clamp. Conversion uses the floor/ceil bias-and-correction family of §3.1,
+not saturation of arbitrary nonfinite/huge boxes. Evidence: epsilon/scale/conversion
+`0x007354E7–0x007355EC`, height `0x007355EC–0x0073562E`, signs/clipping `0x00735632–0x007356C1`.
+
+The add then calls §3.6's rectangle helper with `(binding, outRect, P, 8)`; missing binding or returned −1
+returns −1. Success is a **direct** ID with flags 9, default alpha/colour/draw-state and primary matrix P.
+There is no placement handle, retained aspect or group. Static insertion/redisplay happens inside that
+helper, **before** the following secondary matrix is written; no second redisplay is requested afterward.
+Evidence: `0x0073C1D6–0x0073C208`, secondary stores `0x0073C7B1–0x0073C82B`.
+
+For the secondary matrix, scan pairs in increasing index order starting from pair 0, maintaining minimum u/v
+and maximum u/v. Minimum/maximum retain the old operand for equality or unordered comparison; update only
+for an ordered strict improvement. Four-pair unrolling preserves encounter order. The first pair is read
+even when n≤0; no empty-polygon success rule or zero-extent guard exists. Write `du=F(E(umax−umin))`,
+`dv2=F(E(E(vmax−vmin)×2))`. Set `su=F(E(1/(E(du×2))))`, `sv=F(E(1/dv2))`,
+`tu=F(E(1/4−E(1/(E(du×2)))×umin))`, `tv=F(E(1/4−E(1/dv2)×vmin))`.
+The 1/4 literals are **binary64** (`0x00AA74E8`). The translation products use the unrounded reciprocal
+still in x87, not the stored su/sv. Evidence: pair bounds `0x0073C208–0x0073C4F9`, coefficients
+`0x0073C4FF–0x0073C553`.
+
+For each row `(a,b,c,d)` of P define `z=F(E(c×0))`, `y=F(E(b×0))`, `x=F(E(a×0))`.
+The secondary row is:
+
+| Column | Ordered evaluation, outer F is its binary32 store |
+|---|---|
+| 0 | `F(((a×su+d×tu)+y)+z)` |
+| 1 | `F(((d×tv+b×sv)+x)+z)` |
+| 2 | `F(((d×0+c)+x)+y)` |
+| 3 | `F(((d+x)+y)+z)` |
+
+All unmarked operations retain x87 precision. Rows are evaluated 3,2,1,0, with column 0/1 intermediates
+retained until their eventual stores; zero products are real operations, including for nonfinite values.
+Evidence: row 3 `0x0073C555–0x0073C5FE`, row 2 `0x0073C605–0x0073C690`, row 1
+`0x0073C697–0x0073C71F`, row 0/final stores `0x0073C723–0x0073C82B`.
+
+Independent paper vectors, conditional on the named lighting output (not an invented lighting algorithm):
+
+- Fallback box `(16,0,32,48,32,64)`, cellScale=1/16, direction `(1,0,−1)` and a large enough city gives
+  `(1,0,5,4)`: unextended bounds `(1,2,3,4)`, h=2. Direction X=0 instead gives xmin=−1 before clipping.
+- If successful lighting supplies P=identity and pair extrema `(0,0)`–`(2,4)`, secondary rows are
+  `[1/4,0,0,0]`, `[0,1/8,0,0]`, `[0,0,1,0]`, `[1/4,1/4,0,1]`.
+  Minimum and maximum pair coordinates therefore map to 1/4 and 3/4, rather than 0 and 1.
+- Cached quality 0 suppresses all lighting work even when current global quality is 6. Cached quality 2
+  with current global quality 6 selects lighting slot 18, demonstrating the two distinct quality reads.
 
 ## 4. Drawing (`Draw`, `0x00738A50`) *[compat]*
 
@@ -466,8 +595,8 @@ A dynamic manager is not drawn under `kRenderSnapshot` (boolean 28). Otherwise:
 
 1. The model-reset helper is called and the resulting context matrix is inverted, so that a camera-space
    position can be taken back to world; composition order and the reset guard are specified in §4.7.
-2. The overlays: for a static manager with its cell index, those that cover visible cells; otherwise every overlay
-   in use.
+2. Selection: a static manager with byte `+0x20` nonzero collects through its cell index; otherwise scan all
+   live overlay records in increasing index order (`0x00739245–0x007392DD`). The message in §5 refreshes that byte.
 3. With `kRenderDecals` (boolean 10): the decals (§4.2). With `kRenderShadows` (boolean 9): the shadows, the rough
    form (`DrawShadowsRough`, `0x00737870`) when `kShadowQuality` < 3 or `kUseSecondStage` is off, else the full form
    (`DrawShadows`, `0x00736BF0`).
@@ -497,11 +626,10 @@ the vertex-buffer extension). Transparency, shade and vertex colours are restore
 
 ### 4.3 Shadows (`DrawShadows`, `0x00736BF0`; `DrawShadowsRough`, `0x00737870`)
 
-Depth offset 3, draw state 4, the shadow colour and strength from the 3D view manager (`0x00B43DD0` slot 9, then
-slot 14) as the environment colour, alpha testing at "greater or equal" scaled by the strength when the strength is
-above a minimum, a texture combiner; the full form adds a second stage with the shadow texture (`+0xD4`, clamped,
-point-sampled) and a second texture transform, and on land reads a terrain height there (terrain slot 15)
-*[inferred]*. Each shadow's cells are then drawn as for decals.
+Both forms set depth offset 3 and obtain global shadow parameters through view-manager slot 9's lighting
+result, slot 14. The exact alpha-test and exit actions are in §4.6. The full form has distinct normal/debug
+stage routes, a conditional location-strength rejection and a water dispatch choice (§4.8); it is not simply
+the rough form with a second texture. There is no proved direct terrain-height query here.
 
 ### 4.4 Counters and skipped draws (OV8, proven subset)
 
@@ -520,12 +648,14 @@ Each pass independently returns on an empty input vector before its reset. On a 
 an in-use record with all bits `0x09`; no snapshot bit-7 test is added there. Bit 4 is decal eligibility;
 bit 3 is shadow eligibility. Neither test excludes the other bit, so a record carrying both can count in both.
 
-The counter increments exactly once **after** calling the cell-draw helper for each eligible record, with no
+The counter increments exactly once **after** calling the cell-draw helper for each submitted eligible record, with no
 triangle count, draw-success, alpha, or nonempty-rectangle test at the increment. The full shadow pass selects
 DrawRect or DrawShadowRect before their common increment. Evidence: decal `0x00736813–0x00736831`,
 `0x00736B88–0x00736B9C`; full shadow `0x00736D7F–0x00736D95`, `0x00737814–0x0073782D`;
 rough shadow `0x007379C1–0x007379D3`, `0x00737CDB–0x00737CEB`. This is a count of eligible submitted
-records; eight eligible group parts count eight, even when a helper emits no geometry.
+records; eight submitted group parts count eight, even when a helper emits no geometry. In the full normal
+shadow path, the location-strength check in §4.8 can reject a mask-eligible record before submission and
+before increment. Consequently the mask alone is not a sufficient count oracle for that path.
 
 Paper discriminators starting from counters `(3,2)`: empty selection leaves `(3,2)`; a nonempty selection
 containing only one hidden in-use record with both passes enabled gives `(0,0)`; the same selection with
@@ -588,7 +718,8 @@ when ordered s>0 they enable alpha testing and set comparison function 6 (greate
 `F(E(q×s))`; when s≤0 or unordered they disable alpha testing. They do **not** skip shadow submission on that
 branch and do not clamp the reference. Evidence: full `0x00736C49–0x00736CAD`, rough
 `0x007378E2–0x0073793A`. The old wording “above a minimum” must not be implemented with a guessed positive
-epsilon. For q=1/2,s=1/4 the reference is 1/8; s=0 disables testing without suppressing the counter increment.
+epsilon. For q=1/2,s=1/4 the reference is 1/8; s=0 disables testing and does not itself suppress a submission.
+The full normal pass still has the distinct qLocal rejection in §4.8.
 
 After a nonempty decal pass, the owner calls ResetTransparency and ResetShade and requests vertex colours
 enabled with both arguments 1 (`0x00736BC1–0x00736BDA`); this is a reset, not saving/restoring arbitrary
@@ -612,8 +743,15 @@ getter `0x007D2736–0x007D2741`, reset guard/source `0x007D2D23–0x007D2D34`.
 The owner inverts that matrix inline and stores the result as sixteen binary32 words. It computes a reciprocal
 with native x87 arithmetic at `0x00739020–0x00739028` and multiplies/stores inverse entries before copying
 them back at `0x0073914D–0x007391FF`. It does not substitute a transpose or rigid-camera-only inverse. The
-complete cofactor/spill evaluation and singular-input behavior remain OV7; using a library inverse is not yet
+complete cofactor/spill evaluation remains OV7; using a library inverse is not yet
 an established bit-exact contract.
+
+There is no determinant-zero comparison, epsilon guard or conditional fallback in the inverse interval.
+The reciprocal is computed as native x87 `1/determinant`, **stored binary32**, then reloaded for scaling
+all sixteen output entries (`0x00738FEE–0x00739141`). Singular/nonfinite inputs therefore follow the caller's
+x87 exception/rounding environment; under masked exceptions, infinity/NaN can propagate. They are not
+replaced with identity, a transpose, or an early successful no-draw result. This establishes singular-path
+control flow, without claiming all cofactor spill arithmetic is yet specified.
 
 Let C denote the resulting camera-to-world matrix and M an overlay's primary matrix. Decals submit the
 row-vector composition **C × M** to SetTexTransform4, stage 0. In ordinary real arithmetic this takes a
@@ -622,17 +760,84 @@ as binary32; intermediate products and additions use x87, without a store after 
 output row 3 column 0 is `F(E(C[3,2]×M[2,0])+E(C[3,0]×M[0,0])+E(C[3,1]×M[1,0])+E(C[3,3]×M[3,0]))`,
 added left to right (`0x007368E9–0x00736905`), whereas row 3 column 1 sums terms in order 3,1,2,0
 (`0x00736907–0x00736923`). A uniform dot-product accumulation order is therefore not proven bit-exact.
-Final submission: `0x00736B7C`. Complete sixteen-entry evaluation order and the shadow camera/height
-composition branches remain explicitly open in OV7/OV8.
+Final submission: `0x00736B7C`. Complete sixteen-entry evaluation order in the decal and shadow
+compositions remains explicitly open in OV7; the shadow branch/stage choices are specified in §4.8.
 
 Paper order discriminator: C=translation `(16,0,0)` and M from a square, width-16 decal centred at zero
 give submitted row-3 U translation 1.5. Reversing the multiplication gives 16.5. This tests composition order
 without pretending to validate native inverse rounding on general matrices.
 
+### 4.8 Full-shadow stage, strength and water boundaries (OV7/OV8)
+
+The signed cached quality must exceed 2 **and** context render boolean `+0x17C` must be nonzero to choose
+the full pass; otherwise an enabled shadow pass uses the rough body (`0x00739342–0x00739376`). This test
+is separate from the add-time quality decisions in §3.7.
+
+For a nonempty full pass, debug mode is exactly cached second-stage setting ==4. Stage 0 gets filtering
+`(1,1)`, combiner descriptor manager `+0x38`. If `+0xD4` exists, enable and bind it on stage j, where
+j=0 in debug and j=1 otherwise; filtering is `(0,0)`, wrap modes `(2,2)`, and combiner is manager `+0x50`
+in debug or `+0x44` otherwise (`0x00736CB2–0x00736D3A`). No dummy binding is supplied when it is absent.
+For each eligible record, the normal branch binds that record's binding on stage 0, sets wrap modes `(3,3)`
+when flag bit 1 is set and `(2,2)` otherwise, and submits binary32 camera-to-world × primary on stage 0,
+then camera-to-world × secondary on stage 1. Debug bypasses the per-record binding/primary composition
+and submits camera-to-world × secondary on stage 0. Source intervals: normal
+`0x00736D9B–0x007373D5`, debug `0x00737493–0x007377B9`. These are row-vector compositions; exact
+all-entry accumulation orders still belong to OV7. The normal path's secondary matrix uses world Y through
+that composition; it is not evidence for an extra direct terrain slot-15 height sample.
+
+After the two normal transforms, byte global `0x00B0D4CC` gates a **location-strength** operation (shipped
+initial byte 1). When zero, skip this entire block. Otherwise start with the global q of §4.6, compute
+world midpoint `(F(E(E(cellWidth×1/2)×(x0+x1))), F(E(E(cellWidth×1/2)×(z0+z1))))` from the overlay's
+**clipped stored** rectangle. Integer endpoint sums are native 32-bit sums converted as signed; 1/2 is
+binary64 at `0x00A92D28`. On land only, request lighting slot 15's strength at that X/Z pair and store
+`qLocal=F(E(result×q))`. On water use qLocal=q without the lighting call. Reject only an **ordered**
+qLocal < binary64 0.05 (`0x00AB39A0`); equal and unordered continue. A rejected record makes no geometry
+call and no counter increment, although its transforms have already been submitted. If continuing and the
+global s is ordered >0, update alpha reference to `F(E(qLocal×s))`; submit environment colour again with
+the fourth word changed to qLocal. This block does not multiply by the record's alpha. Debug mode bypasses
+the block completely. Evidence: `0x007373DA–0x0073748E`, rejection jump `0x00737456`.
+
+Immediately before geometry, land always invokes DrawRect. Water passes a **copy** of the stored cell
+rectangle to terrain slot 53 (byte offset `0xD4`), obtains signed integer r, and compares it with
+`(x1−x0+1)×(z1−z0+1)` computed from the original stored rectangle using native 32-bit arithmetic.
+If r is signed less than that product, invoke DrawShadowRect with the **original** rectangle; otherwise
+DrawRect. Any mutations to the temporary rectangle are not copied into the overlay or dispatched bounds.
+Both routes increment `+0xDC` once after the helper. Evidence: `0x007377BE–0x0073782D`.
+The rough pass invokes DrawRect unconditionally for every eligible submission and has neither this terrain
+slot-53 branch nor the normal full pass's location-strength block (`0x007379B0–0x00737CEB`). What terrain
+slot 53 counts or changes internally is an outside-owner gap; no water-height adjustment is inferred here.
+
+Independent paper discriminators (conditional service inputs, not native/game execution):
+
+- Full normal land with q=1/2, lighting strength=1/16 stores qLocal=1/32 and rejects before geometry/count;
+  with strength=1/4, qLocal=1/8 continues. Setting the byte gate to zero bypasses both decisions.
+- At rectangle `(1,2,3,4)` and cellWidth=16, land location-strength input is `(32,48)`. It is not the
+  original unclipped centre retained by an indirect handle.
+- Full water rectangle `(1,2,3,4)` has comparison product 9. Terrain return 8 selects DrawShadowRect;
+  return 9 selects DrawRect. Changing the temporary rectangle in that service cannot change these bounds.
+- Debug setting 4 bypasses record binding/primary transform/location rejection; setting 5 takes the normal
+  path. Neither setting is a bitmask test.
+
 ## 5. Messages
 
-`0xC9F775BB` is subscribed by `Init` and unsubscribed at shutdown *[inferred: a terrain or zoom change that makes the
-overlays be placed again]*.
+The message target subobject is at manager `+0x10`; its vtable `0x00AB39A8` has handler slot 3
+`0x00736100`. Init subscribes that subobject to `0xC9F775BB` when the global message server exists;
+Shutdown unsubscribes it (`0x0073CD09–0x0073CD18`, `0x0073ACA2–0x0073ACB5`).
+
+The handler obtains the message type from message slot 4. For `0xC9F775BB` it refreshes manager `+0x18`
+from render-properties integers `+0x1FC` (shadow quality), `+0x1C` from integers `+0xBC` (second-stage/debug
+setting), and byte `+0x20` from render-properties booleans `+0x37C`. All are copied, without range checks.
+Other types leave all those fields alone. Both paths return true in AL. No overlay traversal, re-placement,
+index rebuild, counter reset, terrain invalidation or geometry request occurs. This is a render-settings
+refresh notification, not evidence for a terrain/zoom re-placement rule. The complete handler is
+`0x00736100–0x00736141`, with the three stores at `0x00736121`, `0x0073612D`, `0x00736139`.
+An independently identified sender, `cSC4View3DWin::SetRenderProperties`, constructs this message after its
+settings mutation and dispatches it through server slot 4 (`0x007ECEE7–0x007ECF2D`). Init copies the two
+integer settings but does not refresh `+0x20`; that byte retains constructor value 1 or a prior notification.
+
+Paper vector: start with quality 2, second-stage setting 0, byte `+0x20`=1 and nonempty records/index.
+With source settings `(0,7,0)`, an unrelated message returns true and preserves all three cached values;
+`0xC9F775BB` returns true and changes them to `(0,7,0)`, leaving placement/index/counters untouched.
 
 ## 6. Users
 
@@ -647,9 +852,12 @@ shadows through the terrain view's `GetOverlayManager(index)` (slot 18) or the t
 
 ## 8. Open questions
 
-See [questions/overlay-manager.md](questions/overlay-manager.md): OV1 model-shadow add; OV2 remaining add-form
-differences; OV3 message `0xC9F775BB`; OV7 complete camera-inverse rounding; OV8 remaining rendering details.
-OV4–OV6 lifecycle/handles/alpha and OV9 outline partition are answered in the named sections above.
+See [questions/overlay-manager.md](questions/overlay-manager.md): OV1 outside-owner lighting projection
+inputs/production; OV7 complete camera-inverse and all-entry composition rounding; OV8 terrain consumers and
+outside-owner lighting/terrain services. OV2/OV3 are answered in §§3.6/3.7/5. OV4–OV6 and OV9 remain
+answered in the named sections above. The complete per-body disposition, including unproved scaffolding,
+is [overlay-manager-native-inventory.md](overlay-manager-native-inventory.md). This final RE round publishes
+bounded contracts and parks the exact residuals; it does not claim complete native rendering equivalence.
 
 ## 9. Conformance tests
 
