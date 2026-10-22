@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-fonts-final4: apply FN7-FN14 answers to engine/core/src/fonts | `core-fonts-final4` / (engine lane) | ready: commits 0cb60e6c, 93032dfb on main 8ef9b49f; gate cargo 4106 passed (baseline 4099, +7 FN tests) / clippy 0 / ctest 65/65; no ABI change; no game run (core only); questions FN15, FN16 filed | 1. Answer FN15 (479-entry glyph-name table) and FN16 (x87 precision). 2. Slot-by-slot audit of the 64 cGZFont / 25 cGZFontSys slots against §4.1/§12.1 (not done here). 3. A glue lane wires the core to the plugin and shadows it in game. |
+| core-fonts-final4: apply FN7-FN14 answers to engine/core/src/fonts | `core-fonts-final4` / (engine lane) | ready: commits 0cb60e6c, 93032dfb (FN7-FN14), 50deb37d, e2a6a26f (slot audit: getters, FN17, 6 tests); gate cargo 4111 passed / clippy 0 / ctest 65/65; no ABI change; no game run (core only); 0 missing slot bodies (64 + 25); questions FN15, FN16, FN17 open | 1. Answer FN15 (glyph-name table), FN16 (x87 precision), FN17 (lock slot return paths). 2. A glue lane wires the core to the plugin and shadows it in game. |
 
 ## Report
 
