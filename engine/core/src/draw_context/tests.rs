@@ -9,6 +9,8 @@ struct Device {
     reads: usize,
     fail_info: bool,
     fail_next: bool,
+    attempts: usize,
+    fail_at: Option<usize>,
     stage_count: usize,
 }
 impl Driver for Device {
@@ -23,7 +25,9 @@ impl Driver for Device {
         })
     }
     fn submit(&mut self, command: Command) -> Result<(), Error> {
-        if std::mem::take(&mut self.fail_next) {
+        let attempt = self.attempts;
+        self.attempts += 1;
+        if std::mem::take(&mut self.fail_next) || self.fail_at == Some(attempt) {
             return Err(Error::Provider(99));
         }
         self.commands.push(command);
@@ -769,5 +773,180 @@ fn errors_do_not_fabricate_success_cache_or_missing_owned_constants() {
         c.set_material_state(&m, flags()),
         Err(Error::Gap(ContractGap::DefaultCombiner))
     );
+    assert_eq!(c.driver.commands.len(), count);
+}
+
+#[test]
+fn partial_packed_mask_does_not_apply_force_switch_to_excluded_bits() {
+    let mut c = context();
+    c.enable_alpha_test(1).unwrap();
+    c.enable_blend(1).unwrap();
+    c.properties.force_no_alpha_test = true;
+    c.properties.force_no_blend = true;
+    c.set_render_state(PackedState { value: 1, mask: 1 }).unwrap();
+    assert_eq!(c.state_word() & 0x19, 0x19);
+    c.enable_alpha_test(1).unwrap();
+    c.enable_blend(1).unwrap();
+    assert_eq!(c.state_word() & 0x19, 1);
+}
+
+#[test]
+fn remaining_second_pass_modes_and_hardware_stage() {
+    for (mode, expected_blend, expected_pair, expected_env) in
+        [(0, false, 0x54, 0), (2, true, 0x54, 0), (3, true, 0x54, 1)]
+    {
+        let mut c = context();
+        let mut m = material();
+        m.flags |= 0x10;
+        m.blend = [4, 5];
+        m.textures = vec![slot(1, 1), slot(mode, 2)];
+        c.set_material_state(&m, flags()).unwrap();
+        c.prepare_second_pass().unwrap();
+        assert_eq!(c.state_word() & 16 != 0, expected_blend);
+        assert_eq!((c.state_word() >> 13) & 255, expected_pair);
+        assert_eq!((c.state_word() >> 25) & 7, expected_env);
+    }
+    let mut c = context();
+    c.properties.use_second_stage = true;
+    camera(&mut c, Transform::IDENTITY);
+    c.set_lighting(Some(Arc::new(Light)));
+    let mut m = mesh();
+    m.material.textures = vec![slot(1, 1), slot(1, 2)];
+    c.driver.commands.clear();
+    c.render_model_instance(&ModelInstance, &[m], flags(), false).unwrap();
+    assert_eq!(
+        c.driver
+            .commands
+            .iter()
+            .filter(|cmd| matches!(cmd, Command::DrawElements { .. }))
+            .count(),
+        1
+    );
+    assert!(c.driver.commands.contains(&Command::SelectStage(1)));
+}
+
+#[test]
+fn per_field_device_failure_preserves_completed_prefix_and_retry() {
+    let mut c = context();
+    c.driver.fail_at = Some(c.driver.attempts + 2); // selection, mag succeeds, min fails
+    assert_eq!(c.set_tex_filter(1, 7, 0), Err(Error::Provider(99)));
+    assert_eq!(c.stages[0].filter, [Some(1), None]);
+    c.driver.fail_at = None;
+    c.driver.commands.clear();
+    c.set_tex_filter(1, 7, 0).unwrap();
+    assert_eq!(
+        c.driver.commands,
+        [
+            Command::SelectStage(0),
+            Command::TexParameter { parameter: 1, value: 7 }
+        ]
+    );
+    let first = Arc::new(Texture { token: 1 });
+    let weak = Arc::downgrade(&first);
+    c.set_texture(Some(first.clone()), 1).unwrap();
+    drop(first);
+    c.properties.use_second_stage = true;
+    c.driver.fail_at = Some(c.driver.attempts + 1); // texture call, after selection
+    assert_eq!(
+        c.set_texture(Some(Arc::new(Texture { token: 2 })), 1),
+        Err(Error::Provider(99))
+    );
+    assert_eq!(c.stages[1].texture.as_ref().unwrap().token, 1);
+    c.driver.fail_at = None;
+    c.properties.use_second_stage = false;
+    c.set_texture(None, 1).unwrap();
+    assert!(weak.upgrade().is_none());
+}
+
+#[test]
+fn model_failure_runs_cleanup_and_constant_shade_restores_default() {
+    let mut c = context();
+    camera(&mut c, Transform::IDENTITY);
+    c.set_default_shade([0.2, 0.3, 0.4]);
+    c.driver.commands.clear();
+    // Model matrix, constant shade, then fail the first material write.
+    c.driver.fail_at = Some(c.driver.attempts + 2);
+    let result = c.render_model_instance(
+        &ModelInstance,
+        &[mesh()],
+        DrawFlags {
+            bits: 4,
+            color: [0.6, 0.7, 0.8],
+            ..flags()
+        },
+        false,
+    );
+    assert_eq!(result, Err(Error::Provider(99)));
+    assert_eq!(
+        &c.driver.commands[c.driver.commands.len() - 2..],
+        [Command::ColorMultiplier([0.2, 0.3, 0.4]), Command::AlphaMultiplier(1.0)]
+    );
+    assert!(!c.shade_override());
+    assert!(!c
+        .driver
+        .commands
+        .iter()
+        .any(|cmd| matches!(cmd, Command::DrawElements { .. })));
+}
+
+struct EffectsInstance;
+impl Instance for EffectsInstance {
+    fn token(&self) -> u64 {
+        panic!("debug box must not ask for shading")
+    }
+    fn bounds(&self) -> Result<Bounds, Error> {
+        Ok(Bounds {
+            min: [0.0; 3],
+            max: [1.0; 3],
+        })
+    }
+    fn effects_collection_bounds(&self) -> Result<Option<Bounds>, Error> {
+        Ok(Some(Bounds {
+            min: [2.0; 3],
+            max: [4.0; 3],
+        }))
+    }
+    fn transform(&self) -> Result<Transform, Error> {
+        panic!("debug box must not set model transform")
+    }
+}
+
+#[test]
+fn debug_boxes_precede_culling_and_do_not_draw_model() {
+    let mut c = context();
+    c.properties.show_boxes = true;
+    c.properties.bit30 = true; // no View is needed in this early path
+    c.render_model_instance(&EffectsInstance, &[mesh()], flags(), false)
+        .unwrap();
+    let arrays: Vec<_> = c
+        .driver
+        .commands
+        .iter()
+        .filter_map(|cmd| match cmd {
+            Command::InterleavedOwned { vertices, .. } => Some(vertices),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(arrays.len(), 2);
+    assert_eq!(arrays[0][4].bgra, [0, 0, 255, 255]);
+    assert_eq!(arrays[1][4].bgra, [255, 0, 0, 128]);
+    assert!(!c
+        .driver
+        .commands
+        .iter()
+        .any(|cmd| matches!(cmd, Command::DrawElements { .. })));
+}
+
+#[test]
+fn unknown_default_values_cannot_be_used_to_fabricate_second_pass() {
+    let mut c = context();
+    assert_eq!(c.default_packed_state(), DEFAULT_STATE);
+    assert_eq!(c.highlight_packed_state(), HIGHLIGHT_STATE);
+    assert_eq!(c.default_combiner_bytes()[3], None);
+    assert_eq!(c.default_combiner_bytes()[4], Some(0));
+    assert_eq!(c.highlight_combiner_bytes()[6], Some(0));
+    c.enable_texture(1, 1).unwrap();
+    let count = c.driver.commands.len();
+    assert_eq!(c.prepare_second_pass(), Err(Error::Gap(ContractGap::StageDefaults)));
     assert_eq!(c.driver.commands.len(), count);
 }

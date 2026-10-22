@@ -82,6 +82,8 @@ pub struct DrawContext<D: Driver> {
     default_state: PackedState,
     highlight_state: PackedState,
     highlights: [Rgba; 11],
+    default_combiner: [Option<u8>; 12],
+    highlight_combiner: [Option<u8>; 12],
     default_shade: Rgb,
     shade_override: bool,
     depth_offset: i32,
@@ -112,6 +114,8 @@ impl<D: Driver> DrawContext<D> {
             default_state: PackedState { value: 0, mask: 0 },
             highlight_state: PackedState { value: 0, mask: 0 },
             highlights: [[0.0; 4]; 11],
+            default_combiner: [Some(0); 12],
+            highlight_combiner: [Some(0); 12],
             default_shade: [0.0; 3],
             shade_override: false,
             depth_offset: 0,
@@ -140,6 +144,8 @@ impl<D: Driver> DrawContext<D> {
         self.highlights = HIGHLIGHT_COLORS;
         self.default_state = DEFAULT_STATE;
         self.highlight_state = HIGHLIGHT_STATE;
+        self.default_combiner = DEFAULT_COMBINER_BYTES;
+        self.highlight_combiner = HIGHLIGHT_COMBINER_BYTES;
         self.initialized = true;
         Ok(())
     }
@@ -169,6 +175,18 @@ impl<D: Driver> DrawContext<D> {
     }
     pub fn highlights(&self) -> &[Rgba; 11] {
         &self.highlights
+    }
+    pub fn default_packed_state(&self) -> PackedState {
+        self.default_state
+    }
+    pub fn highlight_packed_state(&self) -> PackedState {
+        self.highlight_state
+    }
+    pub fn default_combiner_bytes(&self) -> &[Option<u8>; 12] {
+        &self.default_combiner
+    }
+    pub fn highlight_combiner_bytes(&self) -> &[Option<u8>; 12] {
+        &self.highlight_combiner
     }
     pub fn model_view_valid(&self) -> bool {
         self.model_view_valid

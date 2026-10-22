@@ -66,7 +66,7 @@ impl<D: Driver> DrawContext<D> {
         if material.flags & 0x20 != 0 && material.textures.iter().any(|slot| slot.mode == 4) {
             return Err(Error::Gap(ContractGap::DefaultCombiner));
         }
-        let bit = |n| flags.bits & (1 << n) != 0;
+        let bit = |n: u32| flags.bits & (1u8 << n) != 0;
         let grey = bit(3);
         let fade = bit(1) && !grey;
         let reference = material.alpha_threshold as f32 / 255.0;
