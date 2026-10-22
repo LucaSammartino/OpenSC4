@@ -1321,6 +1321,9 @@ pub fn run_vector_text(text: &str) -> R<usize> {
     if fmt != FORMAT_VERSION {
         return Err(format!("unsupported vector format {fmt}"));
     }
+    if v.get("domain").and_then(Json::as_str) == Some("animation-coordinator") {
+        return crate::animation_coordinator::run(&v);
+    }
     let state = Rc::new(HostState {
         now: Cell::new(0),
         auto_step: Cell::new(0),

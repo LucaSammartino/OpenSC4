@@ -1,0 +1,22 @@
+{
+  "format":1,"name":"animation_coordinator_target_failure","domain":"animation-coordinator",
+  "spec":["animation-coordinator 2"],
+  "description":"AC7 choices: set membership before target/manager callbacks, flag after success, explicit failures preserve flag, only acquired target leases released. Retrying explicit off may stop an unregistered animating occupant.",
+  "city_cells_x":64,"zoom":4,"visible":[0,0,512,512],
+  "occupants":[{"id":1,"position":[20,20],"flags":132,"models":["0xEA123BE1"],"properties":[]}],
+  "steps":[
+    {"op":"init"},{"op":"fail","target":true},{"op":"clear"},
+    {"op":"set","id":1,"on":true,"error":"MissingMessageTarget"},
+    {"op":"expect","state":{"registered":1,"ticks":[],"flags":[[1,132]],"events":["read:occupant:1"]}},
+    {"op":"fail","target":false,"add":true},{"op":"clear"},
+    {"op":"set","id":1,"on":true,"error":"ForeignUnavailable"},
+    {"op":"expect","state":{"registered":1,"ticks":[],"flags":[[1,132]],"events":["read:occupant:1","acquire:target:1","add:1","release:target:1"]}},
+    {"op":"fail","add":false},{"op":"set","id":1,"on":true},
+    {"op":"expect","state":{"registered":1,"ticks":[1],"flags":[[1,164]]}},
+    {"op":"fail","remove":true},{"op":"clear"},
+    {"op":"set","id":1,"on":false,"error":"ForeignUnavailable"},
+    {"op":"expect","state":{"registered":0,"ticks":[1],"flags":[[1,164]],"events":["read:occupant:1","acquire:target:1","remove:1:0xC0","release:target:1"]}},
+    {"op":"fail","remove":false},{"op":"clear"},{"op":"set","id":1,"on":false},
+    {"op":"expect","state":{"registered":0,"ticks":[],"flags":[[1,132]],"events":["read:occupant:1","acquire:target:1","remove:1:0xC0","flag:1:false","release:target:1"]}}
+  ]
+}

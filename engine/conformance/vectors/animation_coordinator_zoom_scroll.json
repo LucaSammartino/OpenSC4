@@ -1,0 +1,25 @@
+{
+  "format": 1, "name": "animation_coordinator_zoom_scroll", "domain": "animation-coordinator",
+  "spec": ["animation-coordinator 2", "animation-coordinator 3", "animation-coordinator 6.2", "animation-coordinator 6.3"],
+  "description": "Zoom 1 stops, zoom 2 starts. Scroll retains overlap, leaves before entering [choice AC7], then zoom crossing stops all visible occupants.",
+  "city_cells_x": 64, "zoom": 1, "visible": [0,0,512,512],
+  "occupants": [
+    {"id":1,"position":[20,20],"flags":4,"models":["0xEA123BE1"],"properties":[]},
+    {"id":2,"position":[300,20],"flags":4,"models":["0xEA123BE1"],"properties":[]},
+    {"id":3,"position":[600,20],"flags":4,"models":["0xEA123BE1"],"properties":[]}
+  ],
+  "steps": [
+    {"op":"init"},
+    {"op":"set","id":1,"on":true}, {"op":"set","id":2,"on":true}, {"op":"set","id":3,"on":true},
+    {"op":"expect","state":{"registered":3,"ticks":[],"flags":[[1,4],[2,4],[3,4]]}},
+    {"op":"message","id":"0xA6B79602","zoom":2,"old_rotation":0,"new_rotation":0},
+    {"op":"expect","state":{"zoom":2,"ticks":[1,2],"flags":[[1,36],[2,36],[3,4]]}},
+    {"op":"view","rect":[256,0,768,512]}, {"op":"clear"},
+    {"op":"message","id":"0xA6B79612"},
+    {"op":"expect","state":{"ticks":[2,3],"events":["read:rect","read:occupant:1","acquire:target:1","remove:1:0xC0","flag:1:false","release:target:1","read:occupant:3","acquire:target:3","add:3","flag:3:true","release:target:3"]}},
+    {"op":"clear"}, {"op":"message","id":"0xA6B79612"},
+    {"op":"expect","state":{"events":["read:rect"]}},
+    {"op":"message","id":"0xA6B79602","zoom":1,"old_rotation":0,"new_rotation":0},
+    {"op":"expect","state":{"zoom":1,"ticks":[],"flags":[[1,4],[2,4],[3,4]]}}
+  ]
+}

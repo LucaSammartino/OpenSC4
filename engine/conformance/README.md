@@ -4269,3 +4269,10 @@ daylight time.
 Not covered by a vector, and why: `cRZDate()` / `cRZTime()` "now" read the host clock *[compat-limit]*; the
 `fc4-core` unit tests drive them through a fixed `WallClock`. Names shorter than three characters (DT2) and the
 `Clone` / `DateString` results (DT3) are pinned as *[choice]*.
+
+## Animation coordinator
+
+Animation coordinator format-1 vectors use a dedicated `domain` and typed foreign
+fixture. See [animation-coordinator.md](animation-coordinator.md) for its operations,
+literal state/events, and the explicit distinction between published behavior and
+provisional AC5–AC8 choices.

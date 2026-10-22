@@ -9,10 +9,15 @@
 - AC3/AC4 were artifacts of that wrong task; remove them, preserve genuine AC1/AC2, never reuse withdrawn IDs.
 - Prior round tip bf85e2c5 only documented the now-withdrawn blocker; no prior Rust implementation exists.
 - Read full owner spec, question rules/index, CONTRIBUTING, HANDOFF index, lane and merge formats.
-- Done: core owner and 29 independent Rust vectors written; quick core tests PASS (2451).
-- Quick native build/dependent compilation still running; do not edit sources until it finishes.
+- Done 1400b003: core owner, 29 independent Rust vectors, AC3/AC4 withdrawal and genuine AC5–AC9.
+- First quick PASS: 2451 core tests, dependent compile, native 4/4 (142 s); docs/commit changed during run.
+- Added eight executable language-neutral vectors and all 19 published function-reference inventory.
+- Conformance quick initially failed turbo-off injection; fixed: all eight vectors and turbo-off audit pass.
+- Latest focused cargo PASS: 3649 tests, dependents compile; native verifier FAIL at restat 1/4 edges, no compiler errors.
+- Native rules restat unchanged capi/ABI outputs, skipping links; force two generated links before final gate.
+- New Rust files fmt PASS (3); six-file fmt finds shared formatting; copied bf85e2c5 versions also fail fmt.
 - AC3/AC4 removed as withdrawn; AC1/AC2 preserved; genuine AC5–AC9 filed for geometry/lifetime/order/triggers/catalogue.
-- Next: language-neutral vectors and full published-owner inventory, then final stable all gate.
+- Next: final stable all gate; report wip (AC2 and native/catalogue contracts incomplete), no owner promotion.
 - 45 attributed functions / 7726 bytes is the target; public spec does not enumerate 45 entries.
 - No pre-edit baseline: main freshly gated. Final stable full gate required.
 - Core only: no CAPI/plugin/ABI/maps changes or native runtime promotion.

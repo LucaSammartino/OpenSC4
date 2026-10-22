@@ -1,0 +1,20 @@
+{
+  "format":1,"name":"animation_coordinator_refresh_order","domain":"animation-coordinator",
+  "spec":["animation-coordinator 1.1","animation-coordinator 3"],
+  "description":"Explicit AC7 provisional row-major/sorted-ID order and stop-on-first-failure, then retry through opaque all-block refresh. These vectors pin portable choices rather than assert unspecified native order.",
+  "city_cells_x":64,"zoom":4,"visible":[0,0,512,512],
+  "occupants":[
+    {"id":5,"position":[20,20],"flags":4,"models":["0xEA123BE1"],"properties":[]},
+    {"id":1,"position":[20,20],"flags":4,"models":["0xEA123BE1"],"properties":[]},
+    {"id":2,"position":[300,20],"flags":4,"models":["0xEA123BE1"],"properties":[]},
+    {"id":3,"position":[20,300],"flags":4,"models":["0xEA123BE1"],"properties":[]}
+  ],
+  "steps":[
+    {"op":"init"},{"op":"set","id":5,"on":true},{"op":"set","id":1,"on":true},{"op":"set","id":2,"on":true},{"op":"set","id":3,"on":true},
+    {"op":"detail","byte":0},{"op":"fail","remove":true},{"op":"clear"},
+    {"op":"refresh_enabled","error":"ForeignUnavailable"},
+    {"op":"expect","state":{"enabled":false,"registered":4,"ticks":[1,2,3,5],"events":["read:detail","read:occupant:1","acquire:target:1","remove:1:0xC0","release:target:1"]}},
+    {"op":"fail","remove":false},{"op":"clear"},{"op":"message","id":"0x231BBF91"},
+    {"op":"expect","state":{"ticks":[],"flags":[[1,4],[2,4],[3,4],[5,4]],"events":["read:occupant:1","acquire:target:1","remove:1:0xC0","flag:1:false","release:target:1","read:occupant:5","acquire:target:5","remove:5:0xC0","flag:5:false","release:target:5","read:occupant:2","acquire:target:2","remove:2:0xC0","flag:2:false","release:target:2","read:occupant:3","acquire:target:3","remove:3:0xC0","flag:3:false","release:target:3"]}}
+  ]
+}

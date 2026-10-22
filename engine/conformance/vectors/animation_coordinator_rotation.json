@@ -1,0 +1,21 @@
+{
+  "format":1,"name":"animation_coordinator_rotation","domain":"animation-coordinator",
+  "spec":["animation-coordinator 3"],
+  "description":"Rotation changes recompute visibility only when both old and new zooms are >=2; a same-rotation close zoom change stores zoom without recomputing. Typed payloads are not native message decoding (AC8).",
+  "city_cells_x":64,"zoom":4,"visible":[0,0,256,256],
+  "occupants":[
+    {"id":1,"position":[20,20],"flags":4,"models":["0xEA123BE1"],"properties":[]},
+    {"id":2,"position":[300,20],"flags":4,"models":["0xEA123BE1"],"properties":[]}
+  ],
+  "steps":[
+    {"op":"init"},{"op":"set","id":1,"on":true},{"op":"set","id":2,"on":true},
+    {"op":"view","rect":[256,0,512,256]},{"op":"clear"},
+    {"op":"message","id":"0xA6B79602","zoom":3,"old_rotation":0,"new_rotation":0},
+    {"op":"expect","state":{"zoom":3,"ticks":[1],"events":[]}},
+    {"op":"message","id":"0xA6B79602","zoom":2,"old_rotation":0,"new_rotation":1},
+    {"op":"expect","state":{"zoom":2,"ticks":[2],"events":["read:rect","read:occupant:1","acquire:target:1","remove:1:0xC0","flag:1:false","release:target:1","read:occupant:2","acquire:target:2","add:2","flag:2:true","release:target:2"]}},
+    {"op":"message","id":"0xA6B79602","zoom":1,"old_rotation":1,"new_rotation":1},
+    {"op":"clear"},{"op":"message","id":"0xA6B79602","zoom":0,"old_rotation":1,"new_rotation":2},
+    {"op":"expect","state":{"zoom":0,"ticks":[],"events":[]}}
+  ]
+}

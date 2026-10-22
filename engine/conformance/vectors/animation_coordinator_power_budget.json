@@ -1,0 +1,27 @@
+{
+  "format":1,"name":"animation_coordinator_power_budget","domain":"animation-coordinator",
+  "spec":["animation-coordinator 2","animation-coordinator 3","animation-coordinator 6.4"],
+  "description":"Power change touches only its blocks. Budget property returns explicit AC2 unresolved, preserving flags; this is a residual vector, not invented budget conformance. Membership-before-error and predicate short circuit are AC7 choices.",
+  "city_cells_x":64,"zoom":4,"visible":[0,0,512,512],
+  "occupants":[
+    {"id":1,"position":[20,20],"flags":4,"models":["0xEA123BE1"],"properties":["0xEA5393ED"],"powered":true},
+    {"id":2,"position":[300,20],"flags":4,"models":["0xEA123BE1"],"properties":["0xEA5393ED"],"powered":true},
+    {"id":3,"position":[20,20],"flags":4,"models":["0xAA123BF9"],"properties":[]},
+    {"id":4,"position":[300,300],"flags":36,"models":["0xEA123BE1"],"properties":["0x8A5F88E3"]},
+    {"id":5,"position":[20,300],"flags":36,"models":["0xEA123BE1"],"properties":["0xEA5393ED","0x8A5F88E3"]}
+  ],
+  "steps":[
+    {"op":"init"},
+    {"op":"set","id":1,"on":true},{"op":"set","id":2,"on":true},{"op":"set","id":3,"on":true},
+    {"op":"set","id":4,"on":true,"error":"UnspecifiedBudgetTest(OccupantId(4))"},
+    {"op":"set","id":5,"on":true},
+    {"op":"expect","state":{"registered":5,"ticks":[1,2,3,4],"flags":[[1,36],[2,36],[3,36],[4,36],[5,4]]}},
+    {"op":"power","id":1,"on":false},{"op":"clear"},
+    {"op":"message","id":"0x8A07AE00","blocks":[0,0,1,1]},
+    {"op":"expect","state":{"ticks":[2,3,4],"events":["read:occupant:1","power:1","acquire:target:1","remove:1:0xC0","flag:1:false","release:target:1","read:occupant:3"]}},
+    {"op":"message","id":"0x6A5FD3FD","occupant":4,"error":"UnspecifiedBudgetTest(OccupantId(4))"},
+    {"op":"expect","state":{"ticks":[2,3,4],"flags":[[1,4],[2,36],[3,36],[4,36],[5,4]]}},
+    {"op":"set","id":4,"on":false},
+    {"op":"expect","state":{"registered":4,"ticks":[2,3],"flags":[[1,4],[2,36],[3,36],[4,4],[5,4]]}}
+  ]
+}

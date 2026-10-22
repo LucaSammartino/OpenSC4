@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "animation_coordinator_blocks",
+  "domain": "animation-coordinator",
+  "spec": ["animation-coordinator 1.2", "animation-coordinator 2", "animation-coordinator 4", "animation-coordinator 6.1"],
+  "description": "Literal (300,700)->(1,2), both model classes, exclusion property, duplicates and offscreen-in-visible-block behavior. Exact edge convention is AC5 [choice].",
+  "city_cells_x": 64, "zoom": 2, "visible": [256, 512, 512, 768],
+  "occupants": [
+    {"id": 1, "position": [300,700], "flags": 4, "models": ["0xEA123BE1"], "properties": []},
+    {"id": 2, "position": [500,750], "flags": 0, "models": ["0xAA123BF9"], "properties": []},
+    {"id": 3, "position": [512,700], "flags": 4, "models": ["0xEA123BE1"], "properties": []},
+    {"id": 4, "position": [300,700], "flags": 4, "models": [99], "properties": []},
+    {"id": 5, "position": [300,700], "flags": 4, "models": ["0xAA123BF9"], "properties": ["0x4A70D491"]}
+  ],
+  "steps": [
+    {"op": "init"},
+    {"op": "set", "id": 1, "on": true},
+    {"op": "set", "id": 1, "on": true},
+    {"op": "set", "id": 2, "on": true},
+    {"op": "set", "id": 3, "on": true},
+    {"op": "set", "id": 4, "on": true},
+    {"op": "set", "id": 5, "on": true},
+    {"op": "expect", "state": {"side": 4, "registered": 3, "blocks": [[1,2,2],[2,2,1]], "ticks": [1,2], "flags": [[1,36],[2,32],[3,4],[4,4],[5,4]]}},
+    {"op": "set", "id": 1, "on": false},
+    {"op": "set", "id": 1, "on": false},
+    {"op": "expect", "state": {"registered": 2, "blocks": [[1,2,1],[2,2,1]], "ticks": [2], "flags": [[1,4],[2,32],[3,4],[4,4],[5,4]]}}
+  ]
+}
