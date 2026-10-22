@@ -300,6 +300,8 @@ impl S3dCamera {
         self.update_projection();
     }
     /// Eager caches allow readers on another thread without interior mutation.
+    // Preserve §1.4's (subview expression) + old offset operand order.
+    #[allow(clippy::assign_op_pattern)]
     pub fn update_projection(&mut self) {
         let v = self.volume;
         let mut sx = 1.0 / (v.right - v.left);
