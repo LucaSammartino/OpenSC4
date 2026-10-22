@@ -123,13 +123,13 @@ A heap object (vtable `0x00AD1F14`) that asks a timer service to call it back.
 | Offset | Field | Initial |
 |---|---|---|
 | `+0x04` | uses the framework service (bool) | false before the constructor's `UseTimerService(true)`, then true only if the framework service was found (§2.3) |
-| `+0x08` / `+0x0C` | callback function / its argument | 0 / 0 |
+| `+0x08` / `+0x0C` | callback function / its argument | 0 / **not written** by the constructor (only `+0x08` is zeroed, `0x00932C41`; the argument is read only when a function is set, so it is never observed) |
 | `+0x10` | `delay` (u32) | 100 |
 | `+0x14` | `period` (u32) | 1000 |
 | `+0x18` | running (bool) | false |
 | `+0x19` | one-shot (bool) | false |
 | `+0x1C` | the service's timer ID | 0 |
-| `+0x20` | the timer service (counted reference, or the built-in default `0x00B62AB0`) | default |
+| `+0x20` | the timer service (counted reference, or the built-in default `0x00B62AB0`, or null, §2.3.1) | default (never AddRef'd) |
 | `+0x24` | an optional counted object kept alive while the timer runs | null |
 
 Every live callback timer is in a global set (`0x00B62A9C`) guarded by a critical section (`0x00B62AA8`); the
@@ -139,7 +139,7 @@ constructor adds it, the destructor removes it.
 
 | Slot | Method | Address | Behaviour |
 |---|---|---|---|
-| 0 | deleting destructor | `0x00932C9C` | destructor (`0x00932AFE`: leave the set, `Stop` if running, release `+0x24` and the service), free with flag bit 0 |
+| 0 | deleting destructor | `0x00932C9C` | destructor (`0x00932AFE`): leave the set (under the lock); if running (`+0x18`) call `Stop` directly; release `+0x24` if non-null and null it; `+0x08 := +0x0C := 0`; if `+0x20` is non-null: release it **only when `+0x04` is true**, then `+0x20 := null` (§2.3.1). Free with flag bit 0 |
 | 1 | `SetDelay(v)` | `0x0093294A` | `delay := v`; a running timer is restarted (below); true |
 | 2 | `GetDelay(out)` | `0x009329A0` (shared getter) | `out := delay`; true |
 | 3 | `SetPeriod(v)` | `0x009329AE` | `period := v`; a running timer is restarted (below); true |
@@ -149,7 +149,7 @@ constructor adds it, the destructor removes it.
 | 7 | `Stop()` | `0x00932A12` | if it has an ID: `service.RemoveTimer(ID)` (service slot 4), release `+0x24`; ID, running and one-shot := 0. True |
 | 8 | `IsRunning()` | `0x00932B83` (shared) | `+0x18` |
 | 9, 10 | `SetCallback(fn, arg)` | `0x00932A4A` (shared) | `+0x08 := fn`, `+0x0C := arg`; true |
-| 11 | `UseTimerService(bool)` | `0x00932A5D` | unchanged flag: nothing, **true**. Otherwise `+0x04 :=` the argument. True: ask the framework for system service `0xA76C78E7` (interface `0x276C784B`); if found, call its slot 3 (the scheduler it owns, §2.5), and if that differs from `+0x20` release the old one, store it and AddRef it; release the system service; true. Not found (or no framework): `+0x04 := false`; unless `+0x20` is already the default, release it and store the default; **false**. False: `+0x20 :=` the default **without releasing** the old service, true *[quirk]* |
+| 11 | `UseTimerService(bool)` | `0x00932A5D` | unchanged flag: nothing, **true**. Otherwise `+0x04 :=` the argument. True: ask the framework for system service `0xA76C78E7` (interface `0x276C784B`); if found, call its slot 3 (the scheduler it owns, §2.5, a plain getter: no AddRef), and if that differs from `+0x20` release the old one (when non-null, **even the default**), store it, and AddRef it when non-null (a null result is stored, `+0x04` stays true, §2.3.1); release the system service; true. Neither branch touches the ID or the running flag (§2.3.1). Not found (or no framework): `+0x04 := false`; unless `+0x20` is already the default, release it and store the default; **false**. False: `+0x20 :=` the default **without releasing** the old service, true *[quirk]* |
 | 12 | `GetTimerService()` | `0x009D8564` (shared getter) | `+0x20` |
 
 **Restart** (slots 1 and 3): keep a reference on `+0x24`, call `Stop` (slot 7), then call slot 5 or 6 by the
@@ -161,9 +161,52 @@ other effect in this class *[quirk]*.
 
 ### 2.3 Construction (`0x00932C23`)
 
-Sets the initial values of §2.1, joins the global set, takes the default service and sets `+0x04 := false`
-(`0x00932C8D`; an earlier store of 1 is overwritten), then calls `UseTimerService(true)` directly (not through the
-vtable): the flag differs, so the lookup always runs, and with a framework timer service present it uses that one.
+Sets the initial values of §2.1 (`+0x20 := 0` first), joins the global set, stores the default service in `+0x20`
+**without AddRef** (`0x00932C86`) and sets `+0x04 := false` (`0x00932C8D`; an earlier store of 1 is overwritten),
+then calls `UseTimerService(true)` directly (not through the vtable): the flag differs, so the lookup always runs,
+and with a framework timer service present it uses that one. Its result is discarded.
+
+### 2.3.1 Service reference counts (TM3)
+
+**The scheduler's counting.** The scheduler's AddRef (slot 1, `0x009334B1`) and Release (slot 2, `0x009334C2`)
+count only when its byte `+0x09` ("counted") is set: AddRef increments `+0x0C` and returns it; Release returns
+`count − 1` after decrementing when `count > 1`, else calls its deleting destructor (slot 8) with 1 and returns 0.
+When `+0x09` is clear both do nothing and return 1. The scheduler constructor clears `+0x09` and `+0x0C`; the
+**default** (`0x00B62AB0`) is never marked, so AddRef/Release on it are no-ops and it is never destroyed by them.
+The framework service's constructor (`0x009304A6`) heap-allocates its scheduler, marks it counted (`0x009334E7`
+with 1) and AddRefs it once: count 1, owned by the service.
+
+So the callback timer's unbalanced calls on the default are harmless *[compat]*:
+
+| Event | Calls on the default | Calls on the framework scheduler S |
+|---|---|---|
+| construction, framework service found, slot 3 = S | 1 Release (no-op) | 1 AddRef |
+| construction, no framework or service not found | none (`+0x20` already the default) | none |
+| `UseTimerService(false)` while on S | none (stored, no AddRef) | **none** (leak, quirk 8) |
+| `UseTimerService(true)` while on the default | 1 Release (no-op) | 1 AddRef |
+| destruction, `+0x04` true, `+0x20` = S | none | 1 Release |
+| destruction, `+0x04` false | none (`+0x20` is not released whatever it holds) | none |
+
+The destructor's release is gated on the flag, not on the pointer: whenever `+0x04` is false `+0x20` holds the
+default (both false paths of slot 11 store it), so the default is released only in the unreachable-in-practice case
+where the framework's slot 3 returns the default itself.
+
+**Null scheduler.** If the framework service is found but its slot 3 returns null, the null is **stored**: the old
+`+0x20` is released (when non-null; the default's release is a no-op), `+0x20 := null`, no AddRef, `+0x04` stays
+true, the system service is released and slot 11 returns true. It is not treated as "not found". A later
+`UseTimerService(true)` is a no-op (flag unchanged); `UseTimerService(false)` stores the default. The destructor
+skips the release (null). `Start`, `StartOnce` and `Stop` with an ID call through `+0x20` unconditionally, so they
+would dereference null in the original *[compat-limit]*: FreeCity4 must not crash there and may treat the call as a
+failed `AddTimer` (ID 0) / a no-op `RemoveTimer` *[choice]*. The game's framework service never returns null.
+
+**Switching while running.** Slot 11 changes only `+0x04` and `+0x20`: the ID, running and one-shot flags and the
+service's entry stay as they were (no stop, no restart, no re-registration). The entry stays in the **old**
+scheduler and keeps firing the handler, which checks only that the timer is alive (§2.4), so the callback keeps
+running. A later `Stop` (or a restart through slot 1 or 3, or the destructor's `Stop`) sends `RemoveTimer(ID)` to the
+**new** service; its result is ignored, so `Stop` still clears ID / running / one-shot, releases `+0x24` and returns
+true, while the old scheduler's entry survives and keeps calling the callback until the timer is destroyed (then the
+handler finds it gone and does nothing) *[quirk]*. IDs are per-scheduler counters, so that `RemoveTimer` removes the
+new scheduler's entry with the same ID if there is one, which may belong to another timer *[quirk]*.
 
 ### 2.4 When the service fires (handler `0x00932B87`)
 
@@ -233,10 +276,14 @@ injected millisecond clock.
 8. `UseTimerService(false)` drops the framework service without releasing it (§2.2).
 9. The scheduler sleeps 10 ms when an entry is already overdue, saturates a fixed-rate entry that lags, and wraps
    waits over 4,294,967 ms (§2.5).
+10. The constructor and `UseTimerService(true)` release the default service they never AddRef'd; harmless because
+    the default is not counted (§2.3.1).
+11. Switching the service of a running timer leaves its entry firing in the old scheduler; `Stop` removes the ID
+    from the new one (§2.3.1).
 
 ## 5. Open questions
 
-None (TM1 answered in §2.5, TM2 in §1.3 / §2.2 / §2.3).
+None (TM1 answered in §2.5, TM2 in §1.3 / §2.2 / §2.3, TM3 in §2.3 / §2.3.1).
 
 ## 6. Conformance tests
 
@@ -258,3 +305,20 @@ float, so the results do not depend on the x87 precision) and overhead `o = 3`:
    calls the callback once and leaves the timer stopped; `Stop` removes the ID; `SetPeriod(50)` on a running
    periodic timer re-registers it with `(…, 50, 0, 0)`, and on a running one-shot timer too (it is then periodic);
    the kept object survives the restart with one reference.
+7. **Service counts (TM3)** with two scripted schedulers: the default D (uncounted: AddRef/Release do not change it)
+   and the framework's S (counted, count 1 held by the service), a recording framework service F whose slot 3 returns
+   S, and a log of every AddRef/Release call:
+   - *Default replacement:* construct a timer with F present: calls are exactly `D.Release` ×1, `S.AddRef` ×1
+     (S count 2), F looked up and released once; `+0x04` true, service S, slot 11 result discarded. Destroy it
+     (never started): `S.Release` ×1 (count 1), no call on D; `+0x20` null afterwards.
+   - *No framework:* construct: zero AddRef/Release calls on D, `+0x04` false, service D. Destroy: zero calls.
+   - *Leak:* construct with F, then `UseTimerService(false)` → true, service D, `+0x04` false, no call on S (count
+     2) or D; destroy: no call on S or D (S count stays 2). `UseTimerService(false)` again → true, no calls.
+   - *Null slot 3:* F's slot 3 returns null: construct → `D.Release` ×1, no AddRef, service null, `+0x04` true;
+     `UseTimerService(true)` → true with no lookup (flag unchanged); destroy → no service call.
+   - *Running switch:* construct with F absent (service D), set a callback, `Start(0, null)` → D registers ID 1
+     (period 1000). Make F present, `UseTimerService(true)` → true; calls `D.Release` ×1, `S.AddRef` ×1; D's entry
+     ID 1 is untouched, S has none; running still true, ID 1. Let D fire: the callback runs. `Stop()` → true;
+     S receives `RemoveTimer(1)` (returns false), D receives nothing; ID 0, not running. D fires again: the callback
+     still runs. Destroy the timer (`S.Release` ×1); D fires: nothing is called. Variant: S already holds another
+     timer's entry with ID 1: that `Stop` removes it.
