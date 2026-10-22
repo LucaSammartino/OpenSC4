@@ -530,7 +530,10 @@ if(FC4_IS_WIN32_X86)
         # Constructed-native industrial verification; no replacement or natural interception.
         plugin/FC4IndustrialShadow.cpp
         plugin/FC4IndustrialShadow.h
-        plugin/compat/FC4IndustrialCompat.h)
+        plugin/compat/FC4IndustrialCompat.h
+        # Owned cGZFontSys verification (drawing-fonts sections 12/12.1).
+        plugin/FC4FontSysVerify.cpp
+        plugin/FC4FontSysVerify.h)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
