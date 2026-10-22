@@ -207,6 +207,7 @@ cSC4NetworkPreview	city tools and input	ui	-	-	-	-
 cSC4NetworkLayout*View	3D scene and models	renderer	-	-	-	-
 cSC4FirePlaneDispatchSource	automata (vehicles, animation)	simulation	aircraft.md	-	-	-
 cSC4PoliceHelicopterDispatchSource	automata (vehicles, animation)	simulation	aircraft.md	-	-	-
+cSC4*DispatchSource	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4Network*Occupant*	network occupants	simulation	network-occupants.md	-	-	-
 cSC4UndergroundOccupant	network occupants	simulation	network-occupants.md	-	-	-
 cSC4UndergroundConnectionOccupant	network occupants	simulation	network-occupants.md	-	-	-
@@ -450,7 +451,8 @@ cSC4SignFilter	city tools and input	ui	view-input-controls.md	-	-	-
 cSC4SignOrLabelFilter	city tools and input	ui	view-input-controls.md	-	-	-
 cSC4ViewInputControlFlora	city tools and input	ui	city-tools.md	-	-	-
 cSC4ViewInputControlTorch	city tools and input	ui	city-tools.md	-	-	-
-cSC4ViewInputControlTerrainScrubber	city tools and input	ui	city-tools.md	-	-	-
+# TerrainScrubber owner credit awaits CT3: mislabeled 0x008AE57B / library-boundary attribution.
+cSC4ViewInputControlTerrainScrubber	city tools and input	ui	-	-	-	-
 cSC4ViewInputControlCitySituations	city tools and input	ui	city-tools.md	-	-	-
 cSC4ViewInputControlZone	city tools and input	ui	zone-tool.md	-	-	-
 cSC4ViewInputControlDemolish	city tools and input	ui	bulldozer-tool.md	-	-	-
