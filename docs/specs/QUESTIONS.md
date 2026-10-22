@@ -176,7 +176,7 @@ generated index: the questions live one file per spec, so read only the file for
 | budget-window | 2 | 14 | BW18 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
 | bulldozer-tool | 1 | 0 | BT2 | questions/bulldozer-tool.md |
-| camera | 2 | 4 | CA7 | questions/camera.md |
+| camera | 3 | 4 | CA8 | questions/camera.md |
 | city-detail | 2 | 5 | CD8 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
 | city-tools | 3 | 0 | CT4 | questions/city-tools.md |
@@ -201,7 +201,7 @@ generated index: the questions live one file per spec, so read only the file for
 | fire-flames | 4 | 0 | FF5 | questions/fire-flames.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
-| foundations | 2 | 8 | AO4, HG4, RN4, SV2 | questions/foundations.md |
+| foundations | 4 | 8 | AO4, HG4, RN6, SV2 | questions/foundations.md |
 | framework-gz-services | 0 | 7 | GZ8 | questions/framework-gz-services.md |
 | framework-rz-files | 8 | 0 | RZ9 | questions/framework-rz-files.md |
 | geometry-utilities | 6 | 0 | GU7 | questions/geometry-utilities.md |
@@ -296,4 +296,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **391** | **1214** | | |
+| **total** | **394** | **1214** | | |
