@@ -80,6 +80,8 @@ an owner-completion audit merely because the name importer omitted them:
 
 Thus this is an exact exported method/slot inventory with explicitly unclassified helpers, not a claim
 that every address in the region is an independent C++ member or that either owner is complete.
+Section 5 now classifies `0077ACA0`, `0077D8C0` and `0077C480` from that support list as restore-record
+copy, grow/append and release/free helpers respectively; the other listed support candidates remain open.
 
 ## 2. Ordinance population (`initOrdinanceBudget`, `0x0077C660`)
 
@@ -346,7 +348,7 @@ the service-kind branch can fill them before they are copied (`0x00785930`–`0x
 The append takes a temporary AddRef, copies into the vector with another AddRef, then releases the
 temporary: one net retained occupant reference per record. The capacity-growth path has the same retained
 record, copies existing records with AddRef, then releases the old records (`0x00785DDE`–`0x00785E56`,
-`0x0077D93A`–`0x0077D9A2`, copy helper `0x0077ACA0`). Clear releases each erased pointer and resets the
+`0x0077D93A`–`0x0077D9A2`, copy helper `0x0077ACA0`, old-storage release/free `0x0077C480`). Clear releases each erased pointer and resets the
 end without needing to free capacity (`0x00429800`–`0x00429826`). A false rebuild byte therefore preserves
 the original cancel snapshot even while current service values and the viewport change. A true rebuild
 replaces it with one record per current list entry, including off-screen entries. The temporary per-entry
@@ -369,6 +371,9 @@ selector +0x20; use index 0 if none matches. Then call budget slot 31/+0x7C with
 output department vector). No owner row provider supplies those results. Clear slider vector +0x2C..+0x30
 on every admitted refresh (`0x00789AC1`–`0x00789B67`). No empty-vector guard appears before the selected
 record dereference; do not invent a successful empty-group result for this path.
+After both passes, normal cleanup releases each returned department interface separately and clears
+the busy byte +0x12C (`0x0078AFDC`–`0x0078B013`). It does not retain that department vector as its next
+refresh's raw input.
 
 Only if stored A count +0x124 is nonzero, reset +0x90/+0x94, then traverse departments in provider order.
 For each, obtain its item vector through department slot 21/+0x54. Traverse items in provider order, testing
