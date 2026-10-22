@@ -95,6 +95,57 @@ A module-level helper of the terrain view (terrain-view.md §4):
   multiple of 3). `SetIndexBuffer` (`0x0075CAB0`) sets the terrain's index source; `ReleaseVertexBufferExtension`
   (`0x0075CA90`) releases the buffer.
 
+### 3.1 Exact batching and failure contract (OVV7)
+
+This is a process-wide helper, not one independent buffer per view. Let W and H be terrain cell dimensions,
+C the driver's vertex capacity, S = W + 1, V the used vertex count, and I the used index count.
+`GetVertexBufferExtension` accepts C ≥ 2S and pre-sizes its **16-bit** index vector to
+`min(floor(C/S), H) × W × 6`: there is **no subtraction of one vertex row**. This is storage sizing,
+not a promise that that many independent cell rows fit. Format 11 is requested and checked. Acquisition
+does not lock. Rejected format/capacity releases the queried interface; query failure returns null.
+Evidence: `0x0075CD7F–0x0075CE53`, especially unsigned division at `0x0075CE12`.
+
+`CreateBuffer` calls interface slot 6 with `(handle, C)` and keeps its returned pointer. There is no
+separate lock-mode argument at this call site. Success sets V = I = 0 and returns true; null returns
+false without resetting those counts (`0x0075C9F0–0x0075CA25`). The terrain callers explicitly call this
+before submission (e.g. `0x007521CB`, `0x0075B822`); submission is not a lazy initial lock.
+
+The submission arguments are `(row, firstColumn, endColumn)` with an **exclusive** end; n is their
+difference. If V + 2(n+1) > C (equality fits), flush, then call slot 6 again. If the resulting/current
+pointer is null, return without copying or drawing. Otherwise copy n+1 vertices from row and row+1,
+each 32 bytes, into two consecutive compact rows. There is no row cache or overlap reuse. n = 0 still
+copies two vertices and appends no indices. Negative ranges and requests larger than C are not
+validated; there is no repeated capacity test after relocking (`0x0075CB78–0x0075CC0F`).
+
+`SetIndexBuffer(pointer, byteFlag)` borrows the source; it does not AddRef or copy it. Source starts at
+`pointer + 12 × firstColumn` bytes, plus `12 × W × row` when byteFlag is nonzero. Each of the 6n source
+entries is an unsigned 16-bit value q **relative to a pair of full terrain rows**, not an absolute
+terrain vertex number. With A and B the compact starts of the copied first and second rows, append
+q + A − firstColumn when q ≤ W, otherwise q + B − S − firstColumn, storing the result modulo 65536.
+No check tests whether q actually refers to one of the copied columns; hidden/degenerate indices
+outside that range are neither repaired nor culled. Index-vector shortage grows it to I+6n+16 entries;
+it does **not** flush (`0x0075CC14–0x0075CCD1`, word loads/stores `0x0075CCAA/0x0075CCC1`).
+
+Flush with a null lock pointer does nothing. Otherwise call slot 8 `(handle)` to unlock, clear the
+pointer, and, if signed I > 0, call slot 10 `(handle, 0, 3 × trunc(I/3), indices)`. Ignore both driver
+return values, then set V = I = 0. Flush never relocks. Release calls slot 2 and clears only the
+interface pointer: it does not unlock, flush pending indices, destroy the index vector, or clear the
+stored lock pointer. Thus release while locked/pending is not an implicit successful submission;
+subsequent helper calls require a valid reacquisition/caller sequence. No allocation-failure recovery
+is present in the vector-growth path. Evidence: `0x0075CAD0–0x0075CB40`, `0x0075CA90`.
+
+Independent discriminators derived from these instructions (no portable implementation consulted):
+
+| Input/sequence | Native consequence |
+|---|---|
+| W=4, H=8, C=10 | Accept; initial index-vector length 48, not 24. No lock yet. |
+| Lock; row=2, columns [1,3), source q=1,2,6,2,7,6 | Copies six vertices; compact indices 0,1,3,1,4,3. Row selection changes only source address when byteFlag is set. |
+| Same range, source q=0 | Rebased first index is 65535; no validity repair. |
+| V=4, C=10, n=2 | Equality fits: no flush. V becomes 10. |
+| Empty range [2,2), lock valid | V increases by 2, I unchanged; later flush unlocks even if I=0. |
+| Flush; small submission without CreateBuffer | Null lock pointer: no new copy/draw. |
+| Grow index vector with room for vertices | Grow storage; no driver unlock/draw. |
+
 ## 4. Users
 
 Tools and views create these view objects and register them with the renderer (render3d.md §11): routes and

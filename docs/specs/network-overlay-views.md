@@ -28,18 +28,80 @@ player can choose, as arrow pictures, with the chosen one highlighted.
   (`0x00542EE0`): an untextured blended state (source alpha, one minus source alpha, alpha test "greater" than 0),
   without depth write; with the depth test less-or-equal unless the view was told to ignore depth.
 - `Update(context)` (`0x00542FC0`), each draw:
-  1. A pulse byte advances by 5 per draw (wrapping), starting at 0.
+  1. A process-wide pulse byte becomes 0 if its old value is 255, otherwise increases by 5 modulo 256.
   2. Over the network manager's visible cell rectangle, each network occupant on each cell gives its path info
      (occupant slot 49), and each of its paths is drawn when the view's path-type filter (`+0x18`, −1 = all) is −1
      or equals the path key's bits 16–23.
-  3. A path whose key has any of bits 28–31 set is drawn as a red cross, 4 m each way, at its first point.
+  3. A path whose key has any of bits 28–31 set is drawn as a red cross, spanning 4 m on each axis, at its first point.
   4. Otherwise its points (at most 25) form one line strip, each point 0.5 m above the path's height (or the
      ground under it when the path has no heights), in a colour (alpha 200) chosen by the key's bits 24–27: 1 light
      green, 2 blue, 4 yellow, 6 and 7 magenta, others light red; a path with flag bit 1 instead pulses from red to
      white.
-  5. An arrowhead of two 3 m lines at ±45° marks the path's end, along its last segment longer than 1 mm.
+  5. An arrowhead marks the full path's end, using a backward chord of at least 1 mm in 3D (§1.1).
   6. When the key's byte 1 is `0xFF`, a bar 6 m across, perpendicular to the first segment, marks the start; when
      its byte 0 is `0xFF`, the same marks the end.
+
+### 1.1 Native geometry and colour corrections (NOV2)
+
+The following rules supersede the earlier approximate colour/arrow descriptions. Native Update is
+`0x00542FC0–0x00543B21`; the strip cap is at `0x005431A0`, full-path endpoint loads at
+`0x00543231–0x00543273`, and squared-distance arithmetic includes **all three axes** at
+`0x00543277–0x00543295`. Positions are passed directly in the path/occupant's world coordinate space;
+there is no cell-origin addition. SetModelTransform uses the identity transform.
+
+Vertices are format 1: three binary32 coordinates followed by four bytes **B,G,R,A** (16-byte stride).
+The strip uses primitive 5, format 1. Its RGBA values are:
+
+| Type nibble | RGBA bytes |
+|---|---|
+| 1 | (128,255,128,200) |
+| 2 | (0,0,255,200) |
+| 4 | (255,255,0,200) |
+| 6 or 7 | (255,0,255,200) |
+| Other | (255,128,128,200) |
+| Path record flag bit 1, any type | (255,pulse,pulse,200) |
+
+These are literal byte stores, not a floating colour conversion (`0x00543110–0x005431BC`). The pulse
+advances even if no network manager exists and is shared across instances. Its update rule includes
+255 for one draw, then resets to 0 on the next; the initialized-start value remains to be established
+from static initialization, rather than inferred from the constructor.
+
+For the strip only, take the first min(N,25) points. When path-info says it has heights, use stored y;
+otherwise ask the occupant for altitude separately at each x,z. Add 0.5 m in both cases. The arrow
+instead reads the **full vector's last point E** and initially its penultimate point Q. While |Q−E|₃D
+< binary32(0.001), step Q backward without changing E. If a chord of at least that length exists,
+normalize Q−E in 3D, rotate its x,z components by +/−binary32(π/4), multiply by 3, and emit the
+three-point line strip `wing+, E, wing−`. All three y values are stored E.y+0.5, even when strip
+altitudes came from the occupant. Consequently a sloping chord makes the projected wings shorter
+than 3 m; a vertical chord makes both wings coincide with E in x,z. Equality at 1 mm is eligible.
+The RGB bytes are copied into all three arrow vertices, but alpha is **not rewritten**: it retains
+the corresponding strip scratch vertex's alpha. With fewer than three strip vertices the third
+arrow alpha has no initialized-value guarantee. Evidence: `0x0054331E–0x005435FF`.
+
+Endpoint bars also use the full vector and **immediate** first/last segments, normalized in 3D,
+without a short-segment search or zero-length guard. Offset in x,z is `3 × (dz,−dx)/length3D` on
+either side of that endpoint, and y is the endpoint's **stored** y, without +0.5 or terrain lookup.
+RGB is red; alpha retains scratch contents. Byte 1 = FF draws the start bar; only **else**, byte 0
+= FF draws the end bar: both FF produces just the start bar (`0x00543600–0x005438A8`).
+
+The red cross is two separate two-point line strips, first x from P.x−2 to P.x+2, then z from
+P.z−2 to P.z+2. RGBA is (255,0,0,255), not alpha 200. Each endpoint separately uses stored P.y
+or an occupant altitude query at that endpoint, then +0.5 (`0x005438AD–0x00543A63`).
+
+Traversal is x outer, z inner over inclusive visible limits, then linked occupant order, then the
+path hash table's bucket order and linked chains. It is not sorted by key or by path type. An absent
+manager or empty visible rectangle returns success; a filtered-out path emits nothing. Regular paths
+with zero/one points reach unconditional endpoint loads before the later bar N≥2 test: they have no
+defined safe empty-path behavior. Repeated endpoint pairs can cause division by zero in bars; there
+is no explicit finite-input validation. Do not replace these boundaries with invented native rejects.
+
+Independent discriminators: a 40-point path draws a 25-point main strip but locates its arrow at
+point 40; E=(3,4,0), Q=(0,0,0) gives x,z wing offsets (−9√2/10,±9√2/10), at y=4.5;
+a no-heights path can have its strip at occupant altitude+0.5 while its arrow remains at stored
+E.y+0.5 and its bar at stored E.y. A key with both low bytes FF draws only the start bar. A cross
+at (10,7,20), with heights, draws (8,7.5,20)→(12,7.5,20), then
+(10,7.5,18)→(10,7.5,22), opaque red. Default/setter/state and degenerate-input residuals are
+tracked in NOV2 until the remaining lifecycle evidence is reconciled.
 
 ## 2. The train-junction view (`SC4TrainJunctionView`) *[compat]*
 
