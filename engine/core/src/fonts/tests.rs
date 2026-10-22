@@ -8,6 +8,9 @@ use super::font::{FontObj, GzFont};
 use super::layout::Rect;
 use super::*;
 
+#[path = "contract_tests.rs"]
+mod contract_tests;
+
 #[derive(Clone)]
 struct MockFace {
     family: String,
@@ -743,12 +746,13 @@ impl FontRenderer for LogRenderer {
     fn detach(&self, _: usize) {
         self.0.lock().unwrap().push("detach".into());
     }
-    fn lock_surface(&self, _: SurfaceId) -> bool {
+    fn lock_surface(&self, _: SurfaceId, _: FontUse) -> bool {
         self.0.lock().unwrap().push("lock".into());
         true
     }
-    fn unlock_surface(&self, _: SurfaceId) {
+    fn unlock_surface(&self, _: SurfaceId, _: FontUse) -> bool {
         self.0.lock().unwrap().push("unlock".into());
+        true
     }
     fn draw(&self, _: SurfaceId, recs: &[DrawRecord], _: &[u8], c: &DrawColour) {
         self.0.lock().unwrap().push(format!("draw:{}:{:?}", recs.len(), c));
