@@ -10,8 +10,6 @@
 - **MI2 - §4:** what `LightModel`'s `flip` argument is for (it negates the rotation used to light the normals) and
   which callers pass true. [as read]
 
-<!-- from: core-model-instances4 (2026-10-22) -->
-- **MI3 - §§1–2, constructor/records:** what are the base/static initial owner, custom data, properties and draw attributes; which bytes in the 20-byte draw-attribute record hold flags; and what is the transform change counter's width and SetTransform increment source? [Rust accepts explicit base defaults; static custom data/properties start zero, supplied draw attributes; semantic flags plus 16 opaque bytes without native packing; wrapping u32 instance-local counter, never an ABI layout]
 
 <!-- from: core-model-instances4 (2026-10-22) -->
 - **MI4 - §2 world bounds:** is the transformed model box the enclosing AABB of all eight corners, including negative uniform scale and non-symmetric matrices? [literal enclosing AABB; preserve empty boxes]
@@ -31,5 +29,3 @@
 <!-- from: core-model-instances4 (2026-10-22) -->
 - **MI9 - §§2–4 malformed/numeric inputs:** are non-finite playback/transform inputs and invalid primitive vertex/index references in scope? [preserve literal f32 comparisons/arithmetic, no FMA; unordered animation magnitude takes the one-step catch-up branch; under-sized primitive triangle counts saturate to zero and invalid mesh references are skipped for memory safety, consistent with graphics-formats' safe reader choices]
 
-<!-- from: core-model-instances4 (2026-10-22) -->
-- **MI10 - §1 reference lifecycle:** what is the initial native reference count and the behavior when its 16-bit counter overflows? [a returned Rust Reference owns one count; exposed arithmetic wraps at 16 bits, while backing Arc storage remains alive until all Rust handles are released, avoiding invalid memory access on counter overflow; ordinary non-overflow releases destroy the most-derived owner at zero]

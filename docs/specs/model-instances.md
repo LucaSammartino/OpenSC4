@@ -54,12 +54,61 @@ base implements it (vtable `0x00ABD468`; derived classes replace the slots marke
 `cS3DTransform::MakeIdentity` (only when the transform's "dirty" byte is set) writes the identity rotation, a zero
 translation and scale 1, clears the byte and bumps the change counter (the transform layout is view-utilities §7).
 
+### 1.1 Construction, records and lifetime (MI3, MI10)
+
+The basic constructor starts with **zero** native references, null owner, custom data 0 and properties 2
+(`0x00801D2B`–`0x00801D35`). A successful query adds a reference; an unsupported query returns false without
+writing the output (`0x00801940`). The 16-bit reference count increments modulo 65536 and returns the
+zero-extended result. Release decrements only counts greater than 1; **both 0 and 1 destroy the most-derived
+allocation and return 0** (`0x00801900`, `0x00801910`). Thus incrementing 65535 returns 0, and the following
+Release destroys the allocation; there is no native overflow protection or hidden surviving ownership.
+A portable handle may protect memory safety, but must not describe surviving handles after that destruction
+as native behaviour. A newly returned counted instance normally has 1, distinct from the constructor's 0.
+
+Owner getters return a borrowed pointer. Setting the same owner causes no reference calls. Basic owner
+replacement releases the old owner **before** adding a reference to the new one, then stores the pointer
+(`0x00801860`); destruction releases the remaining owner once (`0x00801D93`). Static owner replacement uses
+the opposite order: retain new, store new, release old (`0x00801B50`). These orders matter to callbacks.
+
+The 20-byte draw record is copied field-for-field, including its otherwise uninterpreted bytes. Its relative
+layout and constructor defaults are:
+
+| Record bytes | Default in both basic and static instances | Contract |
+|---|---|---|
+| `+0` | 0 | Flag byte; static SetModel ORs `0x0E` into this byte only |
+| `+1` | 0 | Separate byte, preserved by the copy |
+| `+2..3` | Unwritten by these constructors | Preserved 16-bit field; no deterministic native default |
+| `+4`, `+8`, `+12` | binary32 1, 1, 1 | Three copied words, initialized from `0x00B0E35C..64` |
+| `+16` | binary32 1 | Copied word |
+
+Evidence: basic construction `0x00801D3C`–`0x00801D5D`, static construction
+`0x00802AA0`–`0x00802ACA`, copies `0x00801E10`/`0x00801E50` and `0x00801F00`/`0x00801F40`;
+the executable data at `0x00B0E35C..64` contains three `0x3F800000` words. A portable API may choose initial
+values for the two unwritten bytes, explicitly as a choice; it must preserve them after a supplied record.
+
+### 1.2 Transform counter (MI3)
+
+The change counter is an **unsigned byte**, incremented modulo 256. MakeIdentity increments the destination
+counter only when its byte `+1` is nonzero; otherwise it changes nothing, even if the other fields are not an
+identity (`0x00801DC4`–`0x00801DFC`). Static GetTransform increments the caller's destination counter, copies
+the 13 binary32 words at `+4..+0x34`, then copies byte `+1`; it does not return the instance's counter
+(`0x00801B80`). SetTransform increments the **instance's existing** counter, copies the same words and byte
+`+1`, and ignores the supplied counter (`0x00801BE0`). Neither operation copies bytes `+2..3`.
+
 ## 2. Static model instances (`cS3DModelInstance`) *[compat]*
 
 An object of `0xA4` bytes from a pool (`operator new` `0x00801B00`, released by `0x008020F0`; constructor
 `0x00802950`, destructor `0x00802620`, deleting destructor `0x00802B00`). It is also a **mesh container**
 (IID `0x26A68448`): the meshes (12-byte records: vertex block, index block, primitive block, each counted) and the
 materials (52-byte records, graphics-formats §3.8) of one model frame.
+
+Static construction starts with empty mesh/material arrays, null owner and model, custom data 0, properties 2,
+an identity transform with counter 0 and byte `+1` zero, and stored bounds min=(1,1,1), max=(0,0,0)
+(`0x00802950`–`0x00802AFE`). The bounds-refresh flags start set. Properties store only the low 16 bits
+(`0x008017A0`), unlike the basic class's full 32 bits. Static instances have a **32-bit**, initially zero,
+reference count shared by their instance and container interfaces: increment modulo 2³², Release destroys
+at 0 or 1 (`0x004F0240`, `0x008016B0`, static vtable `0x00ABD554`). The static factory explicitly adds the
+first reference after construction (`0x00804104`–`0x00804108`); the basic 16-bit rule must not be applied to it.
 
 Mesh container slots (vtable `0x00ABD554`; the bare container of `0x00ABD4E0` has the same slots 3–7):
 
@@ -204,3 +253,22 @@ value of a sprite animation hold; what `flip` in `LightModel` is used for.
    1/√2 ≈ 0.707.
 5. **Mesh order:** boxes centred at z = 1, 3, 2 with direction (0, 0, 1) sort as 3, 2, 1.
 6. **Shared sheet:** keys k₂ = k₃ = k₄ = K ≠ I: zoom 3 uses K with scale 73 ÷ 146 = 0.5, zoom 2 with 32 ÷ 146.
+
+The following independent vectors discriminate the MI3/MI10 rules; they are expected behaviours, not results
+from a reimplementation:
+
+7. **Defaults:** construct a basic instance: owner=null, custom=0, properties=2, count=0. A static instance has
+   properties=2 too. Setting properties to `0x12345678` reads back that value on basic and `0x5678` on static.
+8. **Draw bytes:** set a 20-byte record with byte 0=`0xA1`, byte 1=`0xB2`, bytes 2..3=`0xC3,0xD4` and distinct
+   final words. Get returns all 20 bytes unchanged. A blend-pair SetModel changes byte 0 to `0xAF`, preserving
+   byte 1 and bytes 2..19 except independently specified material changes.
+9. **Counter source and wrap:** with instance counter 255 and source counter 17, SetTransform leaves the
+   instance counter 0; a second set leaves 1. GetTransform into a destination whose counter is 40 yields 41,
+   irrespective of the instance counter. MakeIdentity with counter 255 and byte `+1` nonzero yields counter 0;
+   repeating it with byte `+1` zero makes no further changes.
+10. **Count width:** on a basic allocation at count 65535, AddRef returns 0 and Release destroys once, returns 0.
+    On a static allocation at count 65535, AddRef returns 65536 and Release returns 65535 without destruction.
+    Release on a newly constructed zero-count basic or static allocation also destroys it. No access after
+    destruction is part of this vector.
+11. **Owner events:** replacing A by B gives `Release(A), AddRef(B)` on basic and `AddRef(B), Release(A)` on
+    static; setting B again gives no calls. Clear then destroy produces only one Release(B).
