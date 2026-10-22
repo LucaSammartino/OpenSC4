@@ -1,25 +1,27 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-key-accelerator4: cRZWinKeyAccelerator core | `core-key-accelerator4` / detached reserved worktree (engine lane) | in progress | 1. Baseline gate. 2. Independent fixtures and owner inventory. 3. Implement and validate. |
+| core-key-accelerator4: cRZWinKeyAccelerator core | `core-key-accelerator4` / detached reserved worktree (engine lane) | ready for bounded pure-core merge; source f3aee604; cargo 4999 passed/0 failed; clippy 0 diagnostics; ctest 68/68; WT7-WT9; ABI unchanged; game n/a | 1. Regenerate question index centrally. 2. Resolve WT7-WT9 before native adapter or full-owner claims. |
 
-## Handoff
-- Goal: implement only widget-toolkit section 13 accelerator owner in a new Rust core module.
-- Worktree reused at coordinator-reserved detached HEAD; clean at start, no commits beyond main.
-- Read section 13, keyboard message section 7.3, all 16 ABI rows and public SDK headers.
-- Independent fixtures committed first at 9dfb9b7e: 28 key/modifier cases, 9 asymmetric presence cases, duplicate/deletion/order/capacity, message, dispatch and lifetime traces. Not yet compiled.
-- Filed WT7 (owner/lifetime inventory), WT8 (boundary/repeat/failure contract), WT9 (SDK/spec slot conflicts); index regeneration deferred to coordinator because tools/ is forbidden.
-- Baseline qbuild all completed FAIL: initial Rust test build exit101 (four rustc exit-1 processes, no diagnostics); clippy exit0, 0 diagnostics. CMake PASS 212/212 (511.0s), CTest PASS 68/68 (501.0s), fc4verify PASS with tree-changed warning (1016.5s). Not a stable final gate. Logs preserved with baseline- prefix.
-- Implemented production BTreeMap owner, all published lookup/registration/enumeration/dispatch decisions and explicit live-count lifecycle; typed host only exposes borrowed service/AddRef/Release/synchronous send.
-- Slot 0 is membership only; slot 15 native flags/construction remain WT7 residuals. No full-owner claim.
-- Production implementation committed at 7b0b14fa; expanded to 12 tests including explicit WT8 literal boundary choices, no-server initialization, terminal and overflow safety.
-- Final code f3aee604; qbuild fmt passes both new files. lib.rs check fails inherited module-order/format diffs (166 lines); additive export only, no unrelated reformat.
-- Initial cargo/clippy were launched before implementation; later baseline CMake/CTest stages can include the new source. This is not a pristine-base CTest measurement.
-- Focused qbuild quick PASS: fc4-core 2971 passed/0 failed/0 ignored, including all 12 new tests; fc4-capi/fc4-conformance/fc4-formats dependents compiled; build 4/4 edges (488.2s), total491.2s. Logs copied focused-.
-- Preserved an erroneous overlapping retry: same 2971 tests passed/dependents compiled, configure failed with ninja recompaction Permission denied; qbuild also rejects --crates as an unknown step. Do not overlap build wrappers or infer skipped tests from buffered output. Logs copied overlap-.
-- Next: one stable qbuild all (no source/report edits during run), final report/queue. Use absolute file paths for qbuild fmt.
-- Scope: pure core, no C ABI changes, game runs, native-exact or replacement claims.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-key-accelerator4-r1-manifest.json.
-- All owner gaps must remain explicit; no other widget/HTML owners.
+## Result
+
+Implemented the published section-13 accelerator behavior in `engine/core/src/key_accelerator.rs`, with an additive export at the end of `engine/core/src/lib.rs`. The core owns the ordered table, insertion/duplicate/removal policy, key packing and rejection, asymmetric presence masking, all lookup overload decisions, bounded enumeration with total counting, and synchronous dispatch decisions. The host exposes only borrowed service acquisition, AddRef, Release and MessageSend primitives. Shutdown retains bindings; final live-count Release shuts down before cleaning owned values. Getters use ordinary shared Rust borrows, with no RefCell.
+
+Fixtures were committed before implementation (9dfb9b7e); production followed at 7b0b14fa; final source and 12 tests are at f3aee604. Expected fixture tables contain 28 independent key/modifier cases and 9 presence-mask cases, plus unsigned ordering/capacities 0-6, duplicate/deletion/reinsertion, full four-dword payloads, six input-message types, no-server/uninitialized processing, reference cleanup and separately labeled literal WT8/safe-Rust boundary cases. They do not calculate expected answers by calling a native owner or duplicating the packing formula.
+
+This is a bounded pure-core implementation, not a full native-owner completion. Slot 0 implements membership only; native construction, QueryInterface acquisition/output effects and slot-15 deletion flags remain unpublished (WT7). No C ABI, defaults, maps, shared ABI tables or other widget/HTML owners changed. No game requests, native-exact shadow, replacement or native coverage promotion is claimed.
+
+## Validation and preserved failures
+
+- Final stable `qbuild all` at c40cbb3a3f4c9a18a23df12c47da18207e2c489a: PASS; workspace **4999 passed, 0 failed, 0 ignored**, clippy exit0/0 diagnostics, CMake **2/2 edges** (0.5s), CTest **68/68** (127.6s), fc4verify PASS (128.6s), no tree-changed warning. All 12 new tests passed in this workspace run. Only this report and queue metadata follow that gate; source remains unchanged.
+- Focused `qbuild quick`: PASS; fc4-core **2971 passed/0 failed/0 ignored**, dependents fc4-capi/fc4-conformance/fc4-formats compiled with no-run, build **4/4 edges** (488.2s), total491.2s.
+- `qbuild fmt` with absolute paths: both new files PASS. The required lib.rs check reports 166 lines of module-order/format differences, including inherited ordering; the lane retains the required additive export and does not reformat unrelated code. Early relative-path fmt invocation failed to locate files; subsequent checks used absolute paths.
+- Baseline `qbuild all`: FAIL; initial workspace test build exit101 (four rustc exit-1 subprocesses, no compiler diagnostics), clippy exit0/0 diagnostics; build PASS **212/212** (511.0s), CTest PASS **68/68** (501.0s), fc4verify PASS with tree-changed warning (1016.5s). Initial cargo/clippy launched before implementation; later stages could include new source, so this is not a pristine-base CTest measurement. Failure retained, not replaced by the final pass.
+- An unnecessary overlapping quick retry passed the same 2971 tests and compiled dependents, but configure failed with `ninja: error: failed recompaction: Permission denied`; qbuild also rejected `--crates` as an unknown step. This is preserved separately. Do not overlap wrappers or infer skipped tests from buffered summaries.
+- Logs under this worktree's `build-runs/`: `baseline-qbuild-{test,clippy}.log`, `baseline-fc4verify-{configure,build,ctest}.log`, `baseline-LastTest.log`; `overlap-fc4verify-{configure,quick-test,quick-deps}.log`; `focused-fc4verify-{quick-test,quick-deps,build}.log`; final logs copied as `final-qbuild-{test,clippy}.log`, `final-fc4verify-{configure,build,ctest}.log` and `final-LastTest.log`. Standard wrapper log names also retain the final run.
+
+## Questions and next steps
+
+Appended **WT7-WT9** to `docs/specs/questions/widget-toolkit.md`: complete lifetime/method inventory and native byte residuals; literal full-width key/repeat/missing-service behavior; public SDK versus spec/ABI overload and return-type conflict. Choices are labeled in code/tests. The generated question index is untouched because this lane may only append its question file and may not run tools/; coordinator should regenerate it centrally. Resolve these contracts before building a native adapter or claiming full-owner coverage. No additional lane round is requested by this report.
 
 ## Published owner inventory
 
