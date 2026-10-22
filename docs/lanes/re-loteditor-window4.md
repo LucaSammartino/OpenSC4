@@ -1,6 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-loteditor-window4 (RE: native lot configuration editor) | `re-loteditor-window4` / RE spec lane, detached HEAD | wip: partial behavior contracts; exact 109-entry/52646B current export inventory reconciled; LE1-LE5 open; no complete-owner credit, ABI or game runs | 1. Coordinator review partial contracts; 2. Resolve LE1-LE5 before owner credit; one authorized round used, no self-restart. |
+| re-loteditor-window4 (RE: native lot configuration editor) | `re-loteditor-window4` / RE spec lane, detached HEAD | in progress: round 2/3; preserve exact inventory and resolve LE1–LE5 from native evidence | Trace largest save/edit/input/family/render bodies; publish substantive additions and retain genuine gaps. |
+
+## Handoff
+
+- Goal: continue native cSC4WinLotConfigurationEditor only; docs-only round 2/3.
+- Prior milestone `ffa85bcf`: exact 109-entry/52646B inventory and partial contracts; LE1–LE5 open. Do not repeat arithmetic.
+- Save As entry is `00485390`; `00485445` is an interior mislabel. Preserve correction.
+- Next: read contract sections and companion rows, then query export first for save/identity and largest selectors/render bodies.
+- Sources: absolute main-checkout export/decomp/executable only; no engine, implementation/test evidence, tools or ABI-table edits.
+- q.py cannot start Bash (`E_ACCESSDENIED`); use bounded PowerShell/Python calls.
+- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-loteditor-window4-r2-manifest.json`.
+- Detached HEAD is intentional; commit normally without refs/config maintenance; no subagents or self-restart.
+- No game requests, ABI changes or ABI proposals. Report below describes prior round until replaced at finish.
 
 ## Report
 

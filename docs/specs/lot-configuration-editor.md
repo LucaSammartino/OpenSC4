@@ -179,7 +179,8 @@ These expected outcomes come from native control flow, not an implementation.
 
 The [inventory companion](lot-configuration-editor-inventory.md) records every
 entry in the measured owner set, its attributed byte count and contract status.
-LE1–LE5 track the unresolved behavior. No ABI changes or game-run evidence.
+LE1 and LE3–LE5 track the unresolved behavior; LE2 is answered in §8.
+No ABI changes or game-run evidence.
 
 ## 7. Interfaces, creation and lifetime *[compat]*
 
@@ -239,9 +240,11 @@ a configuration and replaces the prior configuration with AddRef-before-Release.
 The new configuration has ID zero, dimensions 1 by 1, float fields `+0x38=5.0`,
 `+0x30=90.0`, `+0x34=0.0`, and byte `+0x42=0`. It clears dirty, updates the
 title and returns true. Constants are direct native writes at
-`0x00483C26..0x00483C62`; the configuration name source and allocation-failure
-behavior remain LE2. The code subsequently dereferences the new pointer;
-allocation failure is not an established graceful false return.
+`0x00483C26..0x00483C62`. The name is the literal seven-character `New Lot`:
+`0x00483BCB..0x00483C0E` constructs the range `0x00A8E020..0x00A8E027`
+and assigns it to configuration `+0x10`; it is not obtained from a chooser,
+path or generated counter. Allocation failure installs a null configuration
+and then dereferences it at `0x00483BD9`; there is no graceful false-return path.
 
 `ReadLotConfigurationExemplar` (`0x00483C80`, 281 bytes) returns false if the
 global manager is absent or its read fails, preserving the prior current
@@ -321,9 +324,92 @@ ID, registers the configuration with option true if absent, and refreshes the
 chooser list if a chooser exists. Successful **copy** also restores the old
 identity and configuration ID; successful ordinary Save As retains the new
 identity (`0x00485605..0x004856AD`). Copy does not restore the prior dirty byte:
-the inner successful Save has already cleared it. Identity-path success and
-cleanup/reference edge cases remain LE2; the broken pseudocode is not proof
-that every selected path fails.
+the inner successful Save has already cleared it. The identity and reference
+rules below complete this workflow. There is no title refresh after restoring
+the old identity in the copy/failure branch; the inner Save's effects have
+already occurred.
+
+The browser window flag call is `(0x100,true)` at `0x0048543D..0x0048544B`,
+through window virtual `+0x110`. This is confirmed from the executable bytes
+across the false export boundary. Browser virtual `+0x14` receives mode 2.
+The browser allocation failure branch sets its pointer to null and immediately
+dereferences it (`0x004853EE..0x00485419`); it does not return a clean failure.
+
+The browser object receives one explicit AddRef before use. After the modal
+attempt, including cancellation and all three selection-error branches, the
+editor unregisters the window from the modal service, removes it through the
+dialog host, Releases the browser and restores editor focus, in that order
+(`0x00485586..0x004855A8`). Selection errors use message-box option zero,
+independently of the Save error-message option. The browser is already gone
+before any identity replacement or persistence attempt.
+
+Identity snapshots copy their path string but **copy reference pointers
+without AddRef or Release** (`0x0047E5F0..0x0047E64E`,
+`0x0047F050..0x0047F0A6`). Save As therefore transfers ownership explicitly:
+
+| Outcome after installing the selected identity | Reference and identity cleanup |
+|---|---|
+| Save succeeds, ordinary Save As | Keep selected identity; Release each non-null old reference from the snapshot. |
+| Save succeeds, copy | Restore snapshot; Release each non-null selected reference; reset configuration ID from restored identity. |
+| Save fails | Same restoration and selected-reference cleanup as copy; return false. |
+| Cancellation or invalid selection | Never install selected identity; return false. |
+
+The two references are independently Released, even if their pointer values
+coincide. The local selected-reference slots are cleared after release on the
+restoration path. Snapshot/path string buffers are freed on their applicable
+exit paths (`0x0048564A..0x00485700`). This is not a general reference-owning
+assignment operation: a caller reusing a populated identity output must arrange
+its old-reference cleanup separately.
+
+### 8.4 Resolving identities
+
+The identity record, relative to editor `+0x164`, consists of a separate ID at
+`+0`, a three-word key at `+4/+8/+0x0C`, path string at `+0x10`, and two retained
+references at `+0x24/+0x28`.
+
+`GetIdentityInfoForLotConfigurationExemplarPath` (`0x0047F200`) starts with
+success false. It extracts the selected path's directory; a nonexistent
+directory or absent global provider manager fails without installing an
+identity. It enumerates manager virtual `+0x90` in two calls (count, then array),
+lowercases the extracted directory, and scans providers in enumeration order.
+Each provider must supply IID `0x856C8CF7`. Its directory, obtained through
+that interface's `+0x20`, is lowercased and compared by equal byte length and
+equal bytes (`0x0047F2BB..0x0047F365`). This is full directory equality, not a
+prefix test. No extra slash or path normalisation is performed by this body.
+
+For an equal directory it splits the original selected path into filename stem
+and extension and calls the queried interface's `+0x4C` with those two strings
+and the output key. Only a true AL from that call establishes success. The
+provider supplies the key; this editor does not itself hash, parse or invent
+an instance ID. On success the editor copies the original, case-preserving
+selected path, copies key word `+0x0C` into the separate ID, stores both provider
+and queried-interface references and AddRefs both (`0x0047F37D..0x0047F3D8`).
+A matching directory whose key derivation fails does not prevent trying later
+providers. After the first success, later providers are only Released.
+
+Every successful queried-interface acquisition is Released after its attempt;
+every enumerated provider reference is Released, including providers after
+success. The enumeration allocation and temporary strings are freed. The final
+return reloads the saved success byte (`0x0047F430..0x0047F479`), contradicting
+the corrupted pseudocode's unconditional failure. Failure does not promise to
+clear an output key partly written by a failing provider. The retained path,
+ID and reference installation occur only after provider success.
+
+`GetIdentityInfoForLotConfigurationExemplarKey` (`0x0047B1F0`) fails if the
+provider manager is absent, its `+0x80` lookup fails, or the returned provider
+cannot supply IID `0x856C8CF7`. After successful acquisition it asks that
+interface's `+0x48` for the path, copies all three input key words, copies the
+instance word into the separate ID, retains/AddRefs the two references, Releases
+the temporary acquisitions and returns true. **The path query's return value
+is not tested** (`0x0047B231..0x0047B283`). Thus a failed path query does not
+by itself make this helper return false.
+
+`GetIdentityInfoForLotConfigurationType` (`0x0047BAD0`) first requires the
+configuration manager and a successful type lookup (`+0x20`). It reads that
+configuration's ID through `+0x0C`, constructs key
+`(0x6534284A,0xA8FBD372,ID)`, then returns the key helper's result. The earlier
+temporary group word `0x67CD5FA1` is overwritten before the key-helper call
+(`0x0047BAD0..0x0047BB34`); it is not the final lookup group.
 
 ### 8.3 Closing and failure ordering
 

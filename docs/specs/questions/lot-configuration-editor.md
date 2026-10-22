@@ -11,17 +11,6 @@ Known: modal acceptance is `0x42B7C356`, scalar writes and checkbox byte rules
 are already documented. No complete-owner credit until these and the exact
 remaining body inventory are resolved.
 
-**LE2 — Corrected Save As, identity-path success and new-name source**
-
-Complete §8 using the real Save As entry `0x00485390` (vtable word
-`0x00A8DAE8`), including browser flags and all reference cleanup. Reconcile
-`GetIdentityInfoForLotConfigurationExemplarPath` (`0x0047F200`) native success
-returns: its pseudocode's final false return and corrupted stack are not proof
-of unconditional failure. Verify key/type identity helpers `0x0047B1F0` and
-`0x0047BAD0`, directory matching/path-derived IDs, and the new-configuration
-name source in `0x00483B20`. Basic Save, Close and accepted Save As restore/
-retain ordering are in §8. No file-format or overwrite semantics inferred.
-
 **LE3 — Complete object geometry, fences and numeric edge cases**
 
 Complete §9 with exact duplicate offsets (`0x0047BB40`, caller `0x00484E10`),

@@ -60,8 +60,8 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 | 00485D60 | 799 | 799 | DoSetFoundationUI | O LE4 |
 | 0047FC50 | 726 | 726 | GetAllLotBaseTextureTypes | O LE5 |
 | 00485710 | 717 | 717 | GZOnKeyDown | P §11, LE5 |
-| 00485445 | 700 | 700 | SaveAs (false entry) | P §8.2, LE2; true entry 00485390 |
-| 0047F200 | 640 | 640 | GetIdentityInfoForLotConfigurationExemplarPath | P §8.2, LE2 |
+| 00485445 | 700 | 700 | SaveAs (false entry) | C §8.2; true entry 00485390 |
+| 0047F200 | 640 | 640 | GetIdentityInfoForLotConfigurationExemplarPath | C §8.4 |
 | 0047BBA0 | 638 | 638 | Prepare3DView | O LE5 |
 | 0047DDF0 | 618 | 618 | DoSet3DViewSlopeUI | O LE4 |
 | 00486080 | 614 | 614 | SetLotSize | O LE4 |
@@ -88,7 +88,7 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 | 0047E890 | 377 | 377 | ToggleFence | O LE3 |
 | 0047DA80 | 375 | 375 | cSC4WinLotConfigurationEditor | C §7 |
 | 00485040 | 353 | 353 | MoveObject (key) | P §9.1, LE3 |
-| 00483B20 | 342 | 342 | CreateNewLotConfiguration | P §8.1, LE2 |
+| 00483B20 | 342 | 342 | CreateNewLotConfiguration | C §8.1 |
 | 0047FF30 | 335 | 335 | GetFoundationNameAndImplementationType | O LE5 |
 | 0047F0B0 | 327 | 327 | SetTitle | P §1, LE5 |
 | 0047C510 | 322 | 322 | Shutdown | C §7; destructor remains LE5 |
@@ -112,7 +112,7 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 | 0047A930 | 173 | 173 | FUN_0047A930 | O LE5 |
 | 004895A0 | 169 | 169 | GZOnMouseDownR | O LE5 |
 | 004893E0 | 166 | 166 | DoEditMouseDownR | O LE5 |
-| 0047B1F0 | 165 | 165 | GetIdentityInfoForLotConfigurationExemplarKey | O LE2 |
+| 0047B1F0 | 165 | 165 | GetIdentityInfoForLotConfigurationExemplarKey | C §8.4 |
 | 00604920 | 159 | 169 | FUN_00604920 (shared image decoder) | R LE5 |
 | 006049D4 | 147 | — | interior switch default | R; no exported entry |
 | 0047D610 | 146 | 146 | MessageBoxA | O LE5 |
@@ -130,7 +130,7 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 | 004839A0 | 114 | 114 | DoAddNewFlora | O LE4 |
 | 00483AA0 | 114 | 114 | DoAddNewLotBaseTexture | O LE4 |
 | 0047B2A0 | 102 | 102 | FUN_0047B2A0 | O LE5 |
-| 0047BAD0 | 101 | 101 | GetIdentityInfoForLotConfigurationType | O LE2 |
+| 0047BAD0 | 101 | 101 | GetIdentityInfoForLotConfigurationType | C §8.4 |
 | 004838C0 | 92 | 92 | DoSelectLotBaseTexturesUI | O LE4 |
 | 0047C8D0 | 88 | 88 | DoAddNewWaterConstraint | O LE3 |
 | 0047C930 | 88 | 88 | DoAddNewTerrainConstraint | O LE3 |
