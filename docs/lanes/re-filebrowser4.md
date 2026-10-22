@@ -12,3 +12,7 @@
   was assigned it anyway by the coordinator. legacy-control.md §9.3 already covers the property interpreter
   0x00954212 (not owned here). coverage-map.tsv needs a row `cGZWinFileBrowser -> win-filebrowser.md` (tools edit,
   proposed only; this lane is docs-only).
+
+
+## Coordinator quota pause (2026-10-22)
+Provider weekly limit; resets 18:00 Europe/London. This round stopped. Existing work is preserved as WIP, not ready or verified. Resume only after the provider limit clears and fresh slots/check --resume pass; the round still counts.
