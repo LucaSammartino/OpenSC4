@@ -7,6 +7,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-22, run4 open-ended)
 
+**train101 landed ab04822ecc:** heartbeat backlog/blocking waits and three existing contract publications landed in the required next train after100; real68gate/current40 regressionPASS, tools161PASS, doccheck ok. Native fire pause cleared naturally before the2032 end-date quit; unnecessary coordinator close request disclosed in run254, no retry or state edit. Four skipped sources now have additive recovery commits with preserved ancestry and unchanged worker rounds; next train must test all ready sources. Power-line correction phase launched within inherited2-round remainder; first application phase queued. Coverage57.8/36.1/19.7/18.1; rounds413 at landing.
+
 **Restart checkpoint after train100 (20:34 BST):** main `add060142b`; all four lane ancestors proved.
 Instruction cleanup, lighting corrections, cRZDirectory and model-instance corrections landed after the real
 68-test gate and full current40 regression PASS. No native/default/whole-owner promotion is inferred.
@@ -29,8 +31,7 @@ subscription adapter; each launch needs fresh slots/check/dependencies/parking/r
 - `core-key-accelerator4`: round 1/3, core, supervisor PID 15244.
 - `core-resource-editor4`: round 1/3, core, supervisor PID 26832.
 
-**Queue/train:** train100 landed; no current train. The next train MUST include `tools-heartbeat-backlog4`
-(ready, dependency `docs-instructions-cleanup4` now landed). Include every other ready entry. Corrected stale
+**Queue/train update:** train101 landed; heartbeat dependency and required next-train landing satisfied. Run the next batch with every ready source. Corrected stale
 worktree queue tips for re-tools-director-questions4, re-powerline-completion4 and re-draw-context-contracts4
 after proving own clean commits; each remains incomplete/parked, no additional RE round.
 Train100 skipped verify-variants4 (3/3), verify-fontsys4 (2/3), verify-landfill-records4 (2/3, LG32/LG33 parked)
@@ -48,9 +49,10 @@ not repair historical traffic failures. Preserve failures, refusals, resyncs and
 Codex pause20:15 was cleared only after the real same-model/subscription one-call success saved beside
 `build-runs/provider-pauses/codex-cleared-20261022-2018.json`; refiller PID23912 restarted hidden.
 
-**Heartbeat/main/tools:** use five-minute-or-shorter waits followed by `python tools/lane_heartbeat.py --once`
-until tools-heartbeat-backlog4 lands. Then use its exact train/backlog blocking-wait exit-code loop from prompt.txt.
-Windows scheduled heartbeat remains read-only; the active coordinator handles its alerts. Latest152PASS.
+**Heartbeat/main/tools:** use `python tools/lane_heartbeat.py --wait-until train` while a train runs, else
+`--wait-until backlog`, with a yield of at least600s; act on exit0/2/3/4/5 as prompt.txt specifies. Launchable
+briefs cover open slots before long waits; waiting dependencies do not count. Use --fresh only after rerunning
+a gate/regress yourself. Windows scheduled checks remain read-only; active coordinator handles alerts. Latest161PASS.
 Game queue6slots, PID23444; unique game labels, no qwait--fresh for already valid completed verdicts.
 
 **After every train:** gen_handoff_tables.py, coverage.py, coverage_treemap.py, `python tools/doccheck.py check`
@@ -59,13 +61,13 @@ ops/rules.md Worktrees. Preserve ignored evidence, branches and all parked/activ
 Every10 trains write this full restart checkpoint; every25 rounds compare measured coverage, change selection
 after3 flat trains, and record why. Current selection moved to eligible published UI source after native gaps.
 
-**Next three actions:** (1) Finish train100 postchecks/commit/push and eligible worktree cleanup.
-(2) Run the next train with heartbeat plus every ready entry; recover skipped conflicts without resetting caps.
+**Next three actions:** (1) Finish train101 postchecks/commit/push and eligible worktree cleanup.
+(2) Run the next train with every ready source, including recovered conflicts, without resetting caps.
 (3) Refill only reviewed launchable briefs through fresh guards, then resume the prescribed heartbeat wait.
 Parked lane details and prior status are preserved in the state ledger and today's history below.
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 253 (Instruction cleanup and three bounded core deliveries landed; no native/default or whole-owner promotion inferred. Full tools152PASS, doccheck check ok.); 252 (Current40+span8 replacement profile clean; span8 stays opt-in with SR8-2/3/4 gaps preserved.); 251 (Opt-in span8 constructed native route proven, SR8-2/3/4 preserved; no default promotion.); 247 (Gate and union regress required; exemplar opt-in7/8 no promotion; native model answers unblock core.); 246 (Full gate and union regression required; no default additions, inactive advisor wrappers only.). See `docs/manual-checks.md`.
+- **Latest in-game run:** 254 (Heartbeat backlog/blocking-wait update landed in the very next train after instruction cleanup, with three existing bounded contract publications.); 253 (Instruction cleanup and three bounded core deliveries landed; no native/default or whole-owner promotion inferred. Full tools152PASS, doccheck check ok.); 252 (Current40+span8 replacement profile clean; span8 stays opt-in with SR8-2/3/4 gaps preserved.); 251 (Opt-in span8 constructed native route proven, SR8-2/3/4 preserved; no default promotion.); 247 (Gate and union regress required; exemplar opt-in7/8 no promotion; native model answers unblock core.). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
