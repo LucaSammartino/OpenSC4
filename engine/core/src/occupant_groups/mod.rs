@@ -10,10 +10,26 @@ use std::sync::{Mutex, RwLock, Weak};
 
 use crate::rng::{RzRandom, CLOCK_SEED};
 use crate::seeding::{clocks, SeedKey};
-use crate::stream::ResKey;
+use crate::stream::{InStream, OutStream, ResKey};
 
 pub const OCCUPANT_GROUPS_PROPERTY: u32 = 0xAA1D_D396;
 pub const GZCLSID: u32 = 0xA9C7_4DC9;
+
+/// The known identity part of inherited QueryInterface (§1). Acquisition
+/// and output-pointer failure side effects remain unimplemented pending OG4.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InterfaceView {
+    Filter,
+    Serializable,
+}
+
+pub fn interface_view(iid: u32) -> Option<InterfaceView> {
+    match iid {
+        1 | 0x46A8_0026 => Some(InterfaceView::Filter),
+        0xE4FD_A3D4 => Some(InterfaceView::Serializable),
+        _ => None,
+    }
+}
 
 /// tKeyEffect's three independently owned strings and unmodified flag word.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -92,11 +108,11 @@ impl GroupState {
         self.drive_params.take();
         self.player_drive_params.take();
         self.key_effects.clear();
-        self.trailer_ids.clear();
-        self.trailer_names.clear();
-        self.models.clear();
+        drop(std::mem::take(&mut self.trailer_ids));
+        drop(std::mem::take(&mut self.trailer_names));
+        drop(std::mem::take(&mut self.models));
         self.anims.clear();
-        self.controllers.clear();
+        drop(std::mem::take(&mut self.controllers));
     }
 }
 
@@ -155,11 +171,7 @@ impl OccupantGroupTemplate {
 
     /// Same body with an injected uniform draw primitive (§10.7). The
     /// comparison stays f64, including equality, NaN and out-of-range shares.
-    pub fn is_occupant_included_with_draw(
-        &self,
-        groups: Option<&[u32]>,
-        draw: impl FnOnce() -> f64,
-    ) -> bool {
+    pub fn is_occupant_included_with_draw(&self, groups: Option<&[u32]>, draw: impl FnOnce() -> f64) -> bool {
         let (id, percentage) = self.inspect(|s| (s.group_id, s.percentage));
         if id == 0 || !groups.is_some_and(|ids| ids.contains(&id)) {
             return false;
@@ -256,6 +268,19 @@ impl OccupantGroupTemplate {
         self.edit(|s| s.key_effects.clear());
     }
 
+    pub fn get_gzclsid(&self) -> u32 {
+        GZCLSID
+    }
+
+    /// The inherited base record only (§1); no group fields are saved.
+    pub fn write_base_record(&self, output: &mut dyn OutStream) -> bool {
+        output.put_u16(3) && output.error() == 0
+    }
+
+    pub fn read_base_record(&self, input: &mut dyn InStream) -> bool {
+        input.get_u16() == Some(3) && input.error() == 0
+    }
+
     /// Shared AddRef body: unsigned wrapping increment (public SDK).
     pub fn add_ref(&self) -> u32 {
         self.references.fetch_add(1, Ordering::Relaxed).wrapping_add(1)
@@ -264,15 +289,20 @@ impl OccupantGroupTemplate {
     /// §1: unlike a saturating decrement, zero also destroys. Rust retains
     /// an inert shell for observation; hosts must not use it after release 0.
     pub fn release(&self) -> u32 {
-        let old = self.references.fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
-            Some(if n <= 1 { 0 } else { n - 1 })
-        }).unwrap();
+        let old = self
+            .references
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+                Some(if n <= 1 { 0 } else { n - 1 })
+            })
+            .unwrap();
         if old > 1 {
             old - 1
         } else {
             if !self.destroyed.swap(true, Ordering::AcqRel) {
                 self.edit(GroupState::destroy);
-                self.id_list.lock().unwrap_or_else(|e| e.into_inner()).clear();
+                drop(std::mem::take(
+                    &mut *self.id_list.lock().unwrap_or_else(|e| e.into_inner()),
+                ));
             }
             0
         }
@@ -282,7 +312,9 @@ impl OccupantGroupTemplate {
 impl Drop for OccupantGroupTemplate {
     fn drop(&mut self) {
         self.state.get_mut().unwrap_or_else(|e| e.into_inner()).destroy();
-        self.id_list.get_mut().unwrap_or_else(|e| e.into_inner()).clear();
+        drop(std::mem::take(
+            self.id_list.get_mut().unwrap_or_else(|e| e.into_inner()),
+        ));
     }
 }
 

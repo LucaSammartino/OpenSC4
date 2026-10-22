@@ -1268,7 +1268,8 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
             .or_else(|| crate::ui_windows::exec(host, other, op))
             .or_else(|| crate::dates::exec(host, other, op))
             .unwrap_or_else(|| Err(format!("unknown op '{other}'"))),
-}}
+    }
+}
 
 fn expect_date_fields(op: &Json, d: &julian::DateFields) -> R<()> {
     let pairs = [
@@ -1358,6 +1359,9 @@ pub fn run_vector_text(text: &str) -> R<usize> {
         }
     }
     let sim = Simulator::new(Box::new(host.clone()));
+    if v.get("suite").and_then(Json::as_str) == Some("occupant_groups") {
+        return crate::occupant_groups::run(&v, |op| exec(&sim, &host, op));
+    }
     let steps = field(&v, "steps")?.as_array().ok_or("'steps' must be an array")?;
     for (i, op) in steps.iter().enumerate() {
         state.reads.set(0);

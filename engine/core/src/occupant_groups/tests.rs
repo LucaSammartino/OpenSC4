@@ -13,7 +13,12 @@ fn group(id: u32, class_id: u32, source: u32) -> Arc<OccupantGroupTemplate> {
 }
 
 fn effect(fx: &str, flags: u32) -> KeyEffect {
-    KeyEffect { fx: fx.into(), bone: String::new(), controller: String::new(), flags }
+    KeyEffect {
+        fx: fx.into(),
+        bone: String::new(),
+        controller: String::new(),
+        flags,
+    }
 }
 
 #[test]
@@ -40,7 +45,9 @@ fn chain_queries_include_zero_and_keep_self_first() {
     let g = group(3, 0, 0);
     c.edit(|s| s.parent = Arc::downgrade(&r));
     g.edit(|s| s.parent = Arc::downgrade(&c));
-    for id in [3, 0, 1] { assert!(g.is_occupant_group(id)); }
+    for id in [3, 0, 1] {
+        assert!(g.is_occupant_group(id));
+    }
     assert!(!g.is_occupant_group(7));
     assert_eq!(g.get_class_id(), 5);
     assert_eq!(g.get_source_building_group(), 7);
@@ -49,7 +56,10 @@ fn chain_queries_include_zero_and_keep_self_first() {
     assert_eq!(OccupantGroupTemplate::get_group_hierarchy_depth(None), 0);
     assert_eq!(g.get_group_id_variant(), [3, 1]);
     assert_eq!(r.get_class_id(), 0);
-    g.edit(|s| { s.class_id = 9; s.source_building = 10; });
+    g.edit(|s| {
+        s.class_id = 9;
+        s.source_building = 10;
+    });
     assert_eq!(g.get_class_id(), 9);
     assert_eq!(g.get_source_building_group(), 10);
 }
@@ -65,7 +75,10 @@ fn cache_is_stale_but_empty_cache_rebuilds_and_duplicates_survive() {
     let mut copy = g.get_group_id_variant();
     assert_eq!(copy, [4, 4]);
     copy.clear();
-    g.edit(|s| { s.group_id = 8; s.parent = Weak::new(); });
+    g.edit(|s| {
+        s.group_id = 8;
+        s.parent = Weak::new();
+    });
     assert_eq!(g.get_group_id_variant(), [4, 4]);
     assert!(!g.is_occupant_group(4));
 }
@@ -82,7 +95,10 @@ fn filter_shortcuts_never_draw_and_ignore_ancestors() {
         g.edit(|s| s.percentage = pct);
         assert!(g.is_occupant_included_with_draw(Some(&[2, 5]), || panic!("draw at >=1")));
     }
-    g.edit(|s| { s.group_id = 0; s.percentage = 0.5; });
+    g.edit(|s| {
+        s.group_id = 0;
+        s.percentage = 0.5;
+    });
     assert!(!g.is_occupant_included_with_draw(Some(&[0]), || panic!("draw for zero ID")));
     assert!(g.is_occupant_type_included(u32::MAX));
     assert!(g.is_property_holder_included(&()));
@@ -104,7 +120,13 @@ fn filter_exact_comparisons_no_clamp_or_premature_f32_rounding() {
     ] {
         g.edit(|s| s.percentage = pct);
         let mut calls = 0;
-        assert_eq!(g.is_occupant_included_with_draw(Some(&[5]), || { calls += 1; draw }), expected);
+        assert_eq!(
+            g.is_occupant_included_with_draw(Some(&[5]), || {
+                calls += 1;
+                draw
+            }),
+            expected
+        );
         assert_eq!(calls, 1);
     }
 }
@@ -128,7 +150,7 @@ fn temporary_seed_sequence_counts_only_actual_draws() {
     for n in 0..4 {
         // Independent expected first multiplicative states for session 0:
         // (A9C74DC9 XOR n) * 278DDE6D mod 2^32, foundations §6.1.
-        let state: u32 = [0x994A8A95, 0x71BCAC28, 0xE866477F, 0xC0D86912][n];
+        let state: u32 = [0x96056C95, 0x6E778E28, 0xE521296F, 0xBD934B02][n];
         let x = state as i32 as f64 / 4_294_967_296.0 + 0.5;
         assert_eq!(g.is_occupant_included(&p), 0.5 >= x);
     }
@@ -142,7 +164,9 @@ fn key_copy_is_deep_preserves_flags_and_failure_output() {
     let mut original = effect("a", 0xFEDC_BA98);
     original.bone = "bone".into();
     original.controller = "controller".into();
-    g.edit(|s| { s.key_effects.insert(7, original.clone()); });
+    g.edit(|s| {
+        s.key_effects.insert(7, original.clone());
+    });
     let mut out = effect("sentinel", 0xABCD);
     assert!(!g.get_key_effect(8, &mut out));
     assert_eq!(out, effect("sentinel", 0xABCD));
@@ -160,7 +184,9 @@ fn key_copy_is_deep_preserves_flags_and_failure_output() {
 struct Tracked(&'static str, Arc<Mutex<Vec<&'static str>>>);
 impl ParameterBlock for Tracked {}
 impl Drop for Tracked {
-    fn drop(&mut self) { self.1.lock().unwrap().push(self.0); }
+    fn drop(&mut self) {
+        self.1.lock().unwrap().push(self.0);
+    }
 }
 
 fn tracked(log: &Arc<Mutex<Vec<&'static str>>>) -> OccupantGroupTemplate {
@@ -169,6 +195,13 @@ fn tracked(log: &Arc<Mutex<Vec<&'static str>>>) -> OccupantGroupTemplate {
         s.drive_params = Some(Box::new(Tracked("drive", log.clone())));
         s.player_drive_params = Some(Box::new(Tracked("player", log.clone())));
         s.controllers.push(ControllerHandle(123));
+        s.models.push(ResKey {
+            type_id: 1,
+            group: 2,
+            instance: 3,
+        });
+        s.trailer_ids.push(4);
+        s.trailer_names.push("trailer".into());
         s.key_effects.insert(1, effect("owned", 0));
     });
     g
@@ -182,7 +215,9 @@ fn destruction_order_and_deleting_flag_bit_zero() {
         deleting_destroy(&mut allocation, flags);
         assert_eq!(*log.lock().unwrap(), ["drive", "player"]);
         assert_eq!(allocation.is_none(), flags & 1 != 0);
-        if let Some(shell) = &allocation { assert!(shell.is_none()); }
+        if let Some(shell) = &allocation {
+            assert!(shell.is_none());
+        }
         drop(allocation);
         assert_eq!(*log.lock().unwrap(), ["drive", "player"]);
     }
@@ -198,6 +233,12 @@ fn release_zero_one_two_unsigned_and_addref_wrap() {
         if initial <= 1 {
             assert_eq!(result, 0);
             assert_eq!(*log.lock().unwrap(), ["drive", "player"]);
+            g.inspect(|s| {
+                assert_eq!(s.controllers.capacity(), 0);
+                assert_eq!(s.models.capacity(), 0);
+                assert_eq!(s.trailer_ids.capacity(), 0);
+                assert_eq!(s.trailer_names.capacity(), 0);
+            });
         } else {
             assert_eq!(result, initial - 1);
             assert!(log.lock().unwrap().is_empty());
@@ -226,19 +267,70 @@ fn parent_links_and_controllers_do_not_own_references() {
 #[test]
 fn getters_are_safe_on_a_second_thread() {
     let g = group(3, 4, 5);
-    g.edit(|s| { s.percentage = 0.5; s.key_effects.insert(7, effect("a", 0x11)); });
-    let threads: Vec<_> = (0..4).map(|_| {
-        let g = g.clone();
-        std::thread::spawn(move || {
-            for _ in 0..100 {
-                assert_eq!(g.get_group_id_variant(), [3]);
-                assert_eq!(g.get_class_id(), 4);
-                let mut out = effect("", 0);
-                assert!(g.get_key_effect(7, &mut out));
-                g.is_occupant_included(&Properties(Some(vec![3]), AtomicU32::new(0)));
-            }
+    g.edit(|s| {
+        s.percentage = 0.5;
+        s.key_effects.insert(7, effect("a", 0x11));
+    });
+    let threads: Vec<_> = (0..4)
+        .map(|_| {
+            let g = g.clone();
+            std::thread::spawn(move || {
+                for _ in 0..100 {
+                    assert_eq!(g.get_group_id_variant(), [3]);
+                    assert_eq!(g.get_class_id(), 4);
+                    let mut out = effect("", 0);
+                    assert!(g.get_key_effect(7, &mut out));
+                    g.is_occupant_included(&Properties(Some(vec![3]), AtomicU32::new(0)));
+                }
+            })
         })
-    }).collect();
-    for t in threads { t.join().unwrap(); }
+        .collect();
+    for t in threads {
+        t.join().unwrap();
+    }
     assert_eq!(g.draws.load(Ordering::Relaxed), 400);
+}
+
+#[test]
+fn published_interface_identity_and_base_record_only() {
+    use crate::stream::{ByteReader, ByteWriter};
+    assert_eq!(interface_view(1), Some(InterfaceView::Filter));
+    assert_eq!(interface_view(0x46A8_0026), Some(InterfaceView::Filter));
+    assert_eq!(interface_view(0xE4FD_A3D4), Some(InterfaceView::Serializable));
+    for iid in [0, GZCLSID, u32::MAX] {
+        assert_eq!(interface_view(iid), None);
+    }
+    let g = group(9, 10, 11);
+    assert_eq!(g.get_gzclsid(), GZCLSID);
+    let mut out = ByteWriter::new();
+    assert!(g.write_base_record(&mut out));
+    assert_eq!(out.bytes(), [3, 0]);
+    for bytes in [&[][..], &[3][..], &[2, 0][..], &[0, 3][..]] {
+        assert!(!g.read_base_record(&mut ByteReader::new(bytes)));
+    }
+    assert!(g.read_base_record(&mut ByteReader::new(&[3, 0])));
+    assert_eq!(g.get_class_id(), 10);
+    assert_eq!(g.get_group_id_variant(), [9]);
+}
+
+#[test]
+fn temporary_seed_fixups_are_used_and_shortcuts_do_not_consume_them() {
+    for (session, expected) in [(GZCLSID, false), (!GZCLSID, true)] {
+        let g = OccupantGroupTemplate::new(session);
+        g.edit(|s| {
+            s.group_id = 5;
+            s.percentage = 0.5;
+        });
+        assert!(!g.is_occupant_included(&Properties(None, AtomicU32::new(0))));
+        let p = Properties(Some(vec![5]), AtomicU32::new(0));
+        // derive(0) -> 1 produces 0x278DDE6D (>0.5); derive(FFFFFFFF)
+        // -> FFFFFFFE produces 0xB0E44326 (<0.5). No helper computes expected.
+        assert_eq!(g.is_occupant_included(&p), expected);
+        assert_eq!(g.draws.load(Ordering::Relaxed), 1);
+    }
+    let g = OccupantGroupTemplate::new(0);
+    let p = Properties(Some(vec![0]), AtomicU32::new(0));
+    assert!(!g.is_occupant_included(&p));
+    assert_eq!(p.1.load(Ordering::Relaxed), 1);
+    assert_eq!(g.draws.load(Ordering::Relaxed), 0);
 }

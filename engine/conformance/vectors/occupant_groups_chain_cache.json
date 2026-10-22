@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "suite": "occupant_groups",
+  "name": "occupant_groups_chain_cache",
+  "spec": ["occupant-groups.md §§2,4.2–4.6,10.6"],
+  "description": "Already-imported owner states: zero IDs count for membership/depth but are omitted from the self-first cache. Nonempty cache stays stale; an empty cache rebuilds. Duplicate IDs are retained.",
+  "steps": [
+    {"op":"new","group":"R","session_seed":0,"state":{"id":1,"class":0,"source":7}},
+    {"op":"new","group":"C","session_seed":0,"state":{"id":0,"class":5}},
+    {"op":"new","group":"G","session_seed":0,"state":{"id":3}},
+    {"op":"parent","group":"C","parent":"R"},
+    {"op":"parent","group":"G","parent":"C"},
+    {"op":"expect","group":"G","queries":{"contains":[3,0,1],"excludes":[2,7],"class":5,"source":7,"depth":3,"ids":[3,1]}},
+    {"op":"set","group":"R","state":{"id":9,"class":8,"source":11}},
+    {"op":"set","group":"C","state":{"class":0}},
+    {"op":"expect","group":"G","queries":{"contains":[9],"excludes":[1],"class":8,"source":11,"ids":[3,1]}},
+    {"op":"new","group":"Z","session_seed":0,"state":{}},
+    {"op":"expect","group":"Z","queries":{"contains":[0],"class":0,"source":0,"depth":1,"ids":[]}},
+    {"op":"set","group":"Z","state":{"id":9}},
+    {"op":"parent","group":"Z","parent":"R"},
+    {"op":"expect","group":"Z","queries":{"depth":2,"ids":[9,9]}}
+  ]
+}
