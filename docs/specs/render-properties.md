@@ -33,6 +33,53 @@ registry with its defaults.
   object]*. `cSC4View3DWin`'s constructor builds a second one for the view.
 - Destruction (`0x007DE960`; deleting `0x007DEEB0`) frees the three tables.
 
+#### Two interface views and reference ownership (RP3)
+
+Let **P** be the complete object / render-properties interface pointer and **U = P + 4** the
+`cRZUnknown` interface pointer. Both views share the 32-bit reference count at **P + 8**.
+Construction starts at **0**, not 1: `0x007E3658–0x007E3668` passes U to the base constructor,
+whose `0x0090DA20` clears U + 4. The constructor installs the final U and P vtables at
+`0x007E366D` and `0x007E3675`. Constructing the tables does not itself acquire a reference.
+
+The exported data references identify these actual slots (some shared bodies have unrelated
+automatic names in the export; those names do not define the behavior):
+
+| Operation | P vtable `0x00ABB6C0` | U vtable `0x00ABB6A8` | Effective receiver/body |
+|---|---|---|---|
+| QueryInterface, slot 0 | `0x005BCB40` | `0x005BCB50` | U / `0x009457C6` |
+| AddRef, slot 1 | `0x005BE3E0` | `0x005BE420` | U / `0x00968B60` |
+| Release, slot 2 | `0x005BCB30` | `0x005BCB60` | U / `0x0090D997` |
+| Deleting destructor, slot 3 | not a destructor (GetBoolCount) | `0x007DE9F0` | P / `0x007DEEB0` |
+
+The P thunks add 4 to the receiver; the U thunks subtract 4 and enter the corresponding P
+thunk, giving U again. Thus QueryInterface through **either** view accepts **only integer
+IID 1** and writes **U**, never P, to the caller-provided output cell. It then calls U slot 1
+(one AddRef) and returns true in AL. Every other 32-bit ID returns false in AL **without
+writing the output cell or changing the count** (`0x009457C6–0x009457DE`). This is a Boolean
+result, not an HRESULT or a promised value in all 32 bits of EAX. A successful query requires
+a writable output cell; there is no null-output check. An unsupported ID does not dereference
+the output pointer. No render-properties-specific IID is accepted by these slots.
+
+AddRef increments the shared 32-bit field and returns the new value in EAX
+(`0x00968B60–0x00968B66`). It is a plain, non-atomic increment, with no saturation or overflow
+check; the literal arithmetic wraps modulo 2^32. Reference ownership must avoid overflow.
+
+Release compares the count **unsigned** with 1 (`0x0090D99A–0x0090D99D`). Above 1 it decrements
+and returns the new count. At **either 1 or 0** it invokes U slot 3 with deletion flag 1 and
+returns 0; it does not first store a decremented count (`0x0090D9A4–0x0090D9AB`). In particular,
+Release at the constructor count of zero destroys the object; it does not underflow to
+`0xFFFFFFFF` or leave the object alive. A further operation through either stale pointer is
+outside the lifetime contract.
+
+U slot 3 adjusts back to P (`0x007DE9F0`) and enters the deleting destructor. The latter always
+runs the ordinary destructor, then frees the **complete object P** with `GlobalHeapFree`
+**iff flag bit 0 is set**; other flag bits have no effect on that decision
+(`0x007DEEB3–0x007DEEC0`). It returns P in EAX, including after freeing it; this is not a live
+object reference. Flags 0 or 2 destroy the contents without freeing the outer allocation;
+flags 1 or 3 also free that allocation. Ordinary destruction releases the instance float,
+integer and Boolean tables, in that order, then destroys the base (`0x007DE974–0x007DE9E5`).
+Direct destructor calls are lifetime termination, not reference-count operations.
+
 ### 1.2 Tables and entries
 
 `+0x0C`, `+0x18`, `+0x24` are the boolean, integer and float tables (begin, end, capacity). An entry holds:
@@ -60,6 +107,65 @@ constructor (`0x007E3650`) copies the three tables into the object and then, for
 2. sets the short name to the name's capital letters, lower-cased (`0x007DDF80`): `RenderShadows` → `rs`;
 3. lower-cases the name: `rendershadows`.
 
+#### Byte strings, NUL and locale (RP5)
+
+Find takes a **pointer to a readable, NUL-terminated byte string**, not a counted string,
+UTF-16 string or Unicode case-folding request. The first zero byte ends the query; subsequent
+bytes are not part of its length or comparison. This is proved by the byte-at-a-time zero
+scans at `0x007DE250–0x007DE272` (Boolean), `0x007DE390–0x007DE3A2` (integer), and
+`0x007DE4E0–0x007DE4F2` (float). A leading NUL is an empty query and matches no registered
+name. A null query pointer or missing readable terminator is outside the supported input
+domain; no safe native failure result is promised. The caller does not need a writable query:
+Find copies the bytes before folding them.
+
+Folding is the executable CRT **tolower**, at `0x009F0543`, despite its incorrect automatic
+`std::transform` name in the export. Find supplies that callback at `0x007DE282`,
+`0x007DE3B2`, and `0x007DE502`. The loop at `0x00586AD8–0x00586AE2` **sign-extends each input
+byte to an int**, calls the callback, and stores only its low byte. It does not decode a
+multibyte character or UTF-8 sequence, expand a character into several bytes, remove accents,
+trim whitespace, or strip a query-leading `k`.
+
+The callback obtains the thread CRT locale record and synchronizes it with the global locale
+record when needed (`0x009F0543–0x009F055D`), then calls `___tolower_mt` at `0x009F047B`.
+For its **C-locale path**, the literal rule is: int values `0x41–0x5A` become value + `0x20`;
+all others are unchanged (`0x009F052F–0x009F053C`). Consequently ASCII bytes A–Z fold to a–z,
+and bytes `0x80–0xFF`, passed as negative ints, retain their original low byte on that path.
+The non-C path uses the locale classification information and CRT locale/codepage mapping
+(`0x009F0487–0x009F052B`, including `___crtLCMapStringA` at `0x009F050C`). There is **no fixed
+owner-specific codepage** and no unconditional Unicode or ASCII-only fold across all locales.
+In particular, replacing the sign extension with unsigned-byte promotion is not a proven
+equivalent for high bytes in a non-C locale.
+
+This locale dependency is live, not merely a CRT possibility: the language manager can call
+`setlocale(0, language-string)` and then set the multibyte codepage from that locale
+(`0x00928068–0x0092807A`). GetCurrentSystemCodePage can also change the C locale to the system
+default (`0x00910025–0x00910054`; executable byte strings at `0x00AC7020` and `0x00A80BF0`
+are respectively `C` and empty). Neither construction nor Find selects or freezes a locale.
+Names and short names are folded **at construction time**; queries are folded **at call time**.
+Short-name selection itself uses CRT isupper on sign-extended bytes, then the same tolower
+(`0x007DDFB0–0x007DDFCE`; locale lookup at `0x009EF5A9–0x009EF5DF`). A locale change does not
+rebuild existing entries. Thus §3 spellings and the conformance examples assume the C locale
+(or a locale with identical classification/folding for these ASCII spellings) during both
+construction and lookup.
+
+The current pure-core compatibility domain is **ASCII query prefixes through the first NUL,
+under that C-locale profile**, covering all 77 registered names and abbreviations. Within
+this domain, ASCII folding plus first-NUL truncation is sufficient. A Rust string API that
+compares bytes after an embedded NUL differs from native, even if its character folding is
+otherwise correct. Non-ASCII text is not established as UTF-8 or any particular Windows
+encoding by this owner. Matching a non-C locale, including ASCII I/i where locale-sensitive,
+or high-byte query behavior requires additional locale-profile evidence (RP6); an ASCII-only
+core must not claim those cases.
+
+After folding, comparison requires **equal byte length and equal bytes**, with each entry's
+full name tested before its short name, then the next entry. It returns the first matching
+zero-based table position, not a pointer or an independently interpreted entry ID; no match
+returns the 32-bit value `0xFFFFFFFF` (−1). Evidence: Boolean comparison/return at
+`0x007DE2B8–0x007DE314`, integer at `0x007DE3F3–0x007DE465`, float at
+`0x007DE543–0x007DE5B5`. In the C-locale profile, `RS\0ignored` finds Boolean 9,
+`STCS\0ignored` finds integer 23, and `PD\0ignored` finds float 3; `rs ` and `kRenderShadows`
+do not find a Boolean entry. Here `\0` denotes an actual zero byte, not backslash and digit.
+
 ## 2. Slots (vtable `0x00ABB6C0`) *[compat]*
 
 | Slot | VA | Behaviour |
@@ -74,6 +180,41 @@ constructor (`0x007E3650`) copies the three tables into the object and then, for
 - Get and set do **not** check the index, and set writes the value without looking at the range *[quirk]*.
 - **Find** lower-cases the query and compares it, entry by entry from index 0, with the entry's name and then its
   short name; the first entry that matches either wins. Comparison is exact after lower-casing (no wildcards).
+
+### 2.1 Index domain and native unchecked access (RP4)
+
+For slots 6–11 and 15–17, the compatibility input domain is a **live P view** and a 32-bit
+index **0 ≤ i < the count of that type**. The last valid Boolean, integer and float indices
+are respectively **37, 23, 14**; **38, 24, 15** are already outside their respective tables.
+Counts come from (end − begin) divided by entry stride (`0x007DDE10–0x007DDE59`), not from
+reserved capacity. An in-range set ignores the two extra range fields. GetBool returns a
+byte in AL, GetInt a 32-bit value in EAX, GetFloat loads a stored binary32 into x87; name
+getters return the entry's name pointer in EAX. Native setters provide **no success/failure
+status**. Boolean set copies the argument byte (supported Boolean values are 0 and 1), integer
+set copies four bytes, and float set loads/stores binary32 through x87.
+
+| Type | Table begin field | Byte stride | Value address / width | Name-pointer field address / width |
+|---|---|---|---|---|
+| Boolean | P + `0x0C` | `0x20` | begin + `0x20` × i + `0x1C` / 1 | begin + `0x20` × i + 4 / 4 |
+| Integer | P + `0x18` | `0x28` | begin + `0x28` × i + `0x1C` / 4 | begin + `0x28` × i + 4 / 4 |
+| Float | P + `0x24` | `0x28` | begin + `0x28` × i + `0x1C` / 4 | begin + `0x28` × i + 4 / 4 |
+
+These are **unchecked 32-bit effective-address calculations**, not checked multiplication
+or table operations with error results. Boolean bodies shift the supplied index left by 5;
+integer/float bodies form 5 × index and use address scale 8. Each immediately accesses the
+resulting address: sets `0x007DDE60–0x007DDEB4`, value gets `0x007DDEC0–0x007DDF10`, name
+gets `0x007DDF20–0x007DDF70`. None loads the table end or capacity, tests the index sign,
+clamps it, or branches on validity.
+
+**Negative indices, index equal to count, and extreme 32-bit indices have undefined native
+indexing behavior for this compatibility contract.** Address arithmetic can wrap and may
+reach other memory (even alias a valid entry); the result depends on allocation/layout and
+is not a supported property lookup. No native return of None, null, false, zero, −1, an
+exception, or even a guaranteed crash is specified for these accesses. Invalid setters may
+corrupt memory. Do not run native out-of-range accesses as expected-result conformance tests.
+A safe core may reject them with None/false and no mutation, as the current core reports;
+that is an implementation-defined safety extension, **not an observed native outcome**.
+The −1 from an unsuccessful Find must be checked before calling an indexed slot.
 
 ## 3. The registry *[compat]*
 
@@ -195,7 +336,10 @@ a short name always returns the lower index.
 ## 6. Open questions
 
 See [questions/render-properties.md](questions/render-properties.md) RP1–RP2: who reads the two extra values of an
-entry, and what the two extra bytes of a boolean entry are for.
+entry, and what the two extra bytes of a boolean entry are for. RP3–RP5 are answered in
+§1.1, §2.1 and §1.3 respectively; their original entries are archived. RP6 asks for the
+remaining non-C locale/codepage profiles and high-byte discriminators; the C-locale ASCII
+core domain is specified, not a universal text-folding contract.
 
 ## 7. Conformance tests
 
@@ -206,3 +350,62 @@ entry, and what the two extra bytes of a boolean entry are for.
 4. **Short names:** `FindInt("sd")` = 4; `FindFloat("pd")` = 3; `FindFloat("ParticleDamping")` = 4.
 5. **Set:** `SetInt(23, 4096)` then `GetInt(23)` = 4096.
 6. **Names:** slot 15 for 37 gives `doautozoomandrotationchanges`.
+
+### 7.1 Owner and interface discriminators (RP3)
+
+These are instruction-derived **test recipes**, not claims of executed native tests or game
+verification. Use a fresh object for each row and heap-compatible storage for any operation
+that frees it. A pure model may represent P and U symbolically; an interface adapter must
+also preserve the actual pointer adjustments. Observe destruction/free events, never inspect
+the object after its lifetime ends.
+
+| Case | Operations / observations | Required result |
+|---|---|---|
+| Initial count and shared views | Construct; P.AddRef; U.AddRef; P.Release; U.Release | Initial count 0; returned counts 1, 2, 1, 0. The final call destroys all tables and frees P exactly once. |
+| Successful queries | From fresh P, QueryInterface(1, out) through P, then through returned U | Both return true in AL and write U (P + 4), never P. Shared count becomes 1 then 2. Releasing the two acquired references returns 1 then 0 and destroys once. |
+| Failed query preserves output | Acquire one reference; initialize out to a non-null sentinel; query IDs 0, 2 and `0xFFFFFFFF` through each view, resetting the sentinel each time | Every query returns false in AL, leaves out equal to the sentinel and count equal to 1. Final Release returns 0 and destroys once. |
+| Zero-count Release | On separate newly constructed objects, call P.Release or U.Release without AddRef | Each returns 0 and destroys/frees once; neither wraps the count nor keeps the object alive. |
+| Destructor flag bit | On separate objects, invoke the deleting destructor with flags 0, 1, 2, 3, through U slot 3 (or its P-receiver body) | Contents destroyed once in every case; outer P allocation freed only for flags 1 and 3. Return value is P. No later query/release is allowed. |
+
+The shared-view case discriminates an erroneous independent counter for each view; the QI
+case discriminates returning the render-properties pointer or accepting a second IID; the
+failed-query case discriminates clearing out on failure. No overflow or use-after-free test
+is needed to establish supported reference ownership.
+
+### 7.2 String and index discriminators (RP4–RP5)
+
+Construct and query under the C locale for these cases; `\0` denotes an actual NUL byte.
+
+| Query bytes before the final readable terminator | Boolean Find | Integer Find | Float Find |
+|---|---|---|---|
+| `RS\0ignored` | 9 | −1 | −1 |
+| `STCS\0ignored` | −1 | 23 | −1 |
+| `PD\0ParticleDamping` | −1 | −1 | 3 |
+| `\0RenderShadows` (also test an empty string) | −1 | −1 | −1 |
+| `RenderShadows ` / ` RenderShadows` / `RenderShadow*` / `kRenderShadows` | −1 for each | −1 for each | −1 for each |
+
+Also query `rEnDeRsHaDoWs` → Boolean 9 and `ParticleDamping` → float 4 after the `PD` case;
+this verifies both case folding and scratch-query replacement. Append any high bytes **after**
+the first NUL and require the same result as the ASCII prefix; they are not folded or compared.
+The no-NUL, all-ASCII queries in the existing §7 tests remain required. Non-ASCII bytes before
+NUL and non-C locales are excluded from this table, pending RP6; do not substitute a Unicode
+case-folding expected value.
+
+For each of Boolean/integer/float, test **get value, get name and set** at index **0** and
+**count − 1**, and read the value back. The last names are respectively
+`doautozoomandrotationchanges`, `stringtexturecachesize`, `opaqueuialphavalue`.
+Last defaults: true (registration byte 1 at `0x007E0F82`), 1024 (`0x007E2472`), and
+binary32 bits `0x3F0CCCCD` (`0x007E3192`; decimal 0.55 rounded to binary32). Use exact, ordinary
+values for set/get round trips: false/true; signed 32-bit minimum/maximum; float −2.0/0.5.
+Verify that setting one endpoint does not change the other endpoint or a different instance.
+To discriminate range clamping independently of index validity, `SetInt(7, −1)` must retain −1
+despite the registered 1–5 range; `SetFloat(0, −2.0)` must retain −2.0 despite its 1–10 range
+(integer range literals at `0x007E166C–0x007E167F`; float literals at
+`0x007E2552–0x007E2562`). No raw NaN or noncanonical Boolean
+argument behavior is asserted by these recipes.
+
+If the safe core exposes invalid-index rejection, test **−1, count, signed 32-bit minimum,
+signed 32-bit maximum** for each value getter, name getter and setter: None/false, with no
+mutation, is the documented safe extension. Label those tests **core safety only**, not
+native exactness. Never probe the original with those indices to derive a stable expected
+value. Do not pass a failed Find result into an indexed native slot.
