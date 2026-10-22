@@ -12729,4 +12729,20 @@ bool fc4_automata_aircraft_lifecycle(fc4_automata_manager* manager, uint32_t ope
 }
 #endif
 
+/* Compiled cIGZDate value bridge (dates.md). No COM references cross this ABI.
+ * value accepts scalar slots 4,6-8,10-40,42-45; 21/22/24 return the day
+ * for out.Copy, 37-40 return the new day for storage, not interface pointers.
+ * month reads min(name_len,3) bytes; null fold explicitly means C locale,
+ * otherwise fold points to 256 u32 lowercase results captured from the host.
+ * text returns required capacity including NUL, and writes only if it fits. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+uint32_t fc4_gzdate_value(uint32_t slot, uint32_t day, uint32_t a, uint32_t b, uint32_t c);
+uint32_t fc4_gzdate_month(const uint8_t* name, size_t name_len, const uint32_t* fold);
+size_t fc4_gzdate_text(uint32_t day, uint32_t format, uint8_t* out, size_t capacity);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */

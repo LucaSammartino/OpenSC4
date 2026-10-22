@@ -5506,3 +5506,43 @@ cISC4FireOccupant	cSC4FireOccupant	00a88460	11	+0x2C	0068d1c0	cSC4FireOccupant::
 cISC4FireOccupant	cSC4FireOccupant	00a88460	12	+0x30	0046fdd0	cSC4FireOccupant::AddHosed(int delta)	4	1	eax-or-void	medium	re-answers23 (disasters.md 5.11): result clamped at 0
 cISC4FireOccupant	cSC4FireOccupant	00a88460	13	+0x34	0068d1d0	cSC4FireOccupant::GetFireID	0	0	eax	high	re-answers23 (disasters.md 5.11): +0x68
 cISC4FireOccupant	cSC4FireOccupant	00a88460	14	+0x38	006d6e00	cSC4FireOccupant::SetFireID(uint32)	4	1	eax-or-void	medium	re-answers23 (disasters.md 5.11): +0x68
+cISpanRender	cSpanRender8	00ac188c	0	+0x0	0082ff00	DeletingDestructor	4	1	eax	high	re-span8-abi4: thiscall ECX=this; flags; EAX=this; RET 0082ff1c; span-render-8.md 10.1
+cISpanRender	cSpanRender8	00ac188c	1	+0x4	0085e640	RenderSolid	16	4	void	high	re-span8-abi4: thiscall; spans,n,dst,colour; RET 0085e696; span-render-8.md 10.1
+cISpanRender	cSpanRender8	00ac188c	2	+0x8	0085e6a0	RenderGradient	16	4	void	high	re-span8-abi4: thiscall; spans,n,dst,gradient; RET 0085e70f; span-render-8.md 10.1
+cISpanRender	cSpanRender8	00ac188c	3	+0xc	0085e720	RenderAlpha	20	5	void	high	re-span8-abi4: thiscall; spans,n,dst,colour,argb; RET 0085e739; span-render-8.md 10.1
+cISpanRender	cSpanRender8	00ac188c	4	+0x10	0085e740	RenderAlphaGradient	16	4	void	high	re-span8-abi4: thiscall; spans,n,dst,gradient; tail JMP 0085e742 to slot2; span-render-8.md 10.1
+cISpanRender	cSpanRender8	00ac188c	5	+0x14	0085e750	RenderBlt	24	6	void	high	re-span8-abi4: thiscall; spans,n,dst,src,blit,kind; RET 0085e7df; span-render-8.md 10.1
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	0	+0x0	0082fd60	QueryInterface	8	2	al	high	re-span8-abi4: thiscall; iid,out; RET 0082fd70/0082fd80; span-render-8.md 10.7
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	1	+0x4	005f47f0	AddRef	0	0	eax	high	re-span8-abi4: thiscall; new count EAX; RET 005f47f7; span-render-8.md 10.7
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	2	+0x8	008306c0	Release	0	0	eax	high	re-span8-abi4: thiscall; remaining count EAX including zero; RET 0083070c; span-render-8.md 10.7
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	3	+0xc	00830710	Init	4	1	al	high	re-span8-abi4: thiscall; target; RET 00830877/00830892/008308ab; span-render-8.md 10.3
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	4	+0x10	0082ff20	Shutdown	0	0	void	high	re-span8-abi4: thiscall; RET 0082ff6a or tail JMP 0082ff66 to target Release; span-render-8.md 10.7
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	7	+0x1c	0082ff70	SetColorTable	12	3	void	high	re-span8-abi4: thiscall; index,count,argb; RET 0082ffc0; span-render-8.md 10.7
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	8	+0x20	0082fea0	SetAlphaBlend	4	1	void	high	re-span8-abi4: thiscall; signed int; RET 0082feac; span-render-8.md 10.7
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	9	+0x24	0082feb0	SetBltModulate	4	1	void	high	re-span8-abi4: thiscall; byte in dword stack slot; RET 0082feb7; span-render-8.md 10.7
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	12	+0x30	0082fdb0	SetGradientTransform	12	3	void	high	re-span8-abi4: thiscall; float pointer,x0,y0 binary32; RET 0082fe4d/0082fe58; span-render-8.md 10.7
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	13	+0x34	0082ffd0	SetBltSource	24	6	al	high	re-span8-abi4: thiscall; texture,x,y,sx,sy,outRect; RET 00830278/00830296; span-render-8.md 10.7
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	14	+0x38	0082fe60	ClearBltTiling	0	0	void	high	re-span8-abi4: thiscall; RET 0082fe67; span-render-8.md 10.7
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	15	+0x3c	0082fe70	SetBltTiling	4	1	void	high	re-span8-abi4: thiscall; rect pointer; RET 0082fe97; span-render-8.md 10.7
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	22	+0x58	008302e0	DrawPreclippedSpanList	8	2	void	high	re-span8-abi4: thiscall; spans,n; eight RET8 exits; replaces prior unknown with byte/caller proof; span-render-8.md 10.5
+cIGZDrawSystem	cGZDrawSystem	00ac1668	4	+0x10	0082bab0	CreateContext	8	2	al	high	re-span8-abi4: thiscall; target,outContext; RET 0082badf/0082bae8; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	0	+0x0	00825d00	QueryInterface	8	2	al	high	re-span8-abi4: thiscall; iid,out; RET 00825d19/00825d30/00825d42/00825d52; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	1	+0x4	00825d60	AddRef	0	0	eax	high	re-span8-abi4: thiscall; new count EAX at +2c; RET 00825d67; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	2	+0x8	00825d70	Release	0	0	eax	high	re-span8-abi4: thiscall; remaining count EAX including zero; RET 00825d8b/00825d90; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	3	+0xc	008269b0	Init	16	4	al	high	re-span8-abi4: thiscall; width,height,type,bpp; RET 008269fa/00826a00; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	6	+0x18	00826aa0	Lock	4	1	al	high	re-span8-abi4: thiscall; flags; RET 00826ac0/00826ac5; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	7	+0x1c	00826490	Unlock	4	1	al	high	re-span8-abi4: thiscall; flags; RET 008264a4; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	9	+0x24	00808620	GetWidth	0	0	eax	high	re-span8-abi4: thiscall; EAX=[this+1c]; RET 00808623; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	10	+0x28	004ed900	GetHeight	0	0	eax	high	re-span8-abi4: thiscall; EAX=[this+20]; RET 004ed903; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	11	+0x2c	008268d0	GetRect	4	1	eax	high	re-span8-abi4: thiscall; outRect; EAX=outRect 16 bytes; RET 008268ed; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	15	+0x3c	008268f0	GetColorType	4	1	eax	high	re-span8-abi4: thiscall; outPair; EAX=outPair 8 bytes; RET 008268ff; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	17	+0x44	00826910	GetBytesPerPixel	0	0	eax	high	re-span8-abi4: thiscall; EAX=bpp logical shift3; RET 00826916; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	26	+0x68	00826620	GetColorKey	4	1	al	high	re-span8-abi4: thiscall; outKey written only if enabled; RET 00826631/00826636; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	30	+0x78	00825da0	MapRGB	12	3	eax	high	re-span8-abi4: thiscall; r,g,b low bytes in dwords; type2 EAX=0; RET 00825e5d; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	34	+0x88	008265c0	GetPixels	0	0	eax	high	re-span8-abi4: thiscall; EAX=[this+3c]; RET 008265c3; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	35	+0x8c	0068d1b0	GetStride	0	0	eax	high	re-span8-abi4: thiscall; EAX=[this+40]; RET 0068d1b3; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	40	+0xa0	00827340	DeletingDestructor	4	1	eax	high	re-span8-abi4: thiscall; flags bit0=free; EAX=this; RET 00827379; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	42	+0xa8	00826350	AllocateStorage	0	0	al	high	re-span8-abi4: thiscall; Init invokes; propagates slot43 AL; RET 00826367/0082636b; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	43	+0xac	00826a50	AllocatePixels	0	0	al	high	re-span8-abi4: thiscall; returns AL1 even null heap allocation; RET 00826a95; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	44	+0xb0	00826370	FreePixels	0	0	al	high	re-span8-abi4: thiscall; destructor invokes; AL1; RET 00826389; span-render-8.md 10.7
+cIGZBuffer	cGZBuffer	00ac1400	45	+0xb4	00826390	ResolveColorType	0	0	void	high	re-span8-abi4: thiscall; slot43 invokes; type2 unchanged; RET 00826485; span-render-8.md 10.7

@@ -142,7 +142,7 @@ impl GzDate {
     }
 
     /// Slot 9: `Clone(out)`: a new date with this day number, AddRef'd (count
-    /// 1). The SDK's `bool` result is unspecified (DT3); the glue answers true.
+    /// 1). DT3: full EAX is the new object's AddRef result, exactly 1.
     pub fn clone_date(&self) -> GzDate {
         GzDate {
             date: self.date,
@@ -267,8 +267,8 @@ impl GzDate {
 
     // --- slots 41-45 --------------------------------------------------------
 
-    /// Slot 41: the text copied into the `cIGZString`. The SDK's `bool` result
-    /// is unspecified (DT3).
+    /// Slot 41: text for an owning virtual Copy. The glue must return the
+    /// native temporary's allocator cleanup depth, normally 0, not success.
     pub fn date_string(&self, format: u32) -> String {
         date_string(self.n(), format)
     }

@@ -64,6 +64,7 @@
 #include "cFC4LotDeveloper.h"
 #include "cFC4Message2Standard.h"
 #include "fc4.h"
+#include "cFC4Date.h"  // glue-dates4: opt-in independent date verification
 
 #include "GZServPtrs.h"
 #include "cIGZApp.h"
@@ -635,6 +636,7 @@ public:
                 // Then (popup dialogs handled first) a held turbo request may
                 // engage (FC4Turbo.h; tooling).
                 TurboOnConnectionsReady();
+                DatesProbe(CurrentCity(), "connections-ready");
                 break;
             case kMsgAuraCycleCompleted:
                 AuraShadowCycle(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // aura_shadow = 1 only
@@ -672,6 +674,7 @@ public:
                 fc4::MySimsShadowCityShutdown();  // mysims_shadow: the summary line, then the core goes
                 NetToolRegistry::CityShutdown();  // the glue29 lane: the shared replacement tools
                 AutotestOnCityShutdown(false);
+                DatesProbeSummary("city-shutdown");
                 break;
             case kMsgPostCityShutdown:
                 AutotestOnCityShutdown(true);
@@ -723,6 +726,7 @@ public:
                 cFC4PropDeveloper::MonthLine(julian);           // enable = propdev only (the month status line)
                 PropDevShadowMonth(CurrentCity(), julian);      // propdev_shadow = 1 only
                 fc4::MySimsShadowMonth(CurrentCity(), julian);  // mysims_shadow = 1 only
+                DatesProbe(CurrentCity(), "month");
                 ++monthsSinceLoad_;                if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the
                     // simulator's month-change message.

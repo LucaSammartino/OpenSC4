@@ -12505,10 +12505,19 @@ int main(int argc, char** argv) {
                 using fc4test::CallSlot;
                 const uint32_t d = static_cast<uint32_t>(day);
                 cIGZDate* other = nullptr;
-                CHECK((CallSlot(date, 9, {reinterpret_cast<uint32_t>(&other)}).eax & 0xFF) == 1);  // Clone
+                CHECK(CallSlot(date, 9, {reinterpret_cast<uint32_t>(&other)}).eax == 1);  // DT3 full EAX
                 CHECK(other != nullptr);
                 if (other != nullptr) {
-                    CHECK((CallSlot(other, 4, {100}).eax & 0xFF) == 1);  // Set(uint32 dayNumber)
+                    CHECK(CallSlot(other, 1, {}).eax == 2); // fresh Clone owns exactly one ref
+                    CHECK(CallSlot(other, 2, {}).eax == 1);
+                    CHECK(CallSlot(other, 4, {0x12345600u}).eax == 0x12345600u); // valid low AL zero
+                    CHECK(other->DayNumber() == 0x12345600u);
+                    void* sentinel = reinterpret_cast<void*>(0xDEADBEEF);
+                    CHECK(!other->QueryInterface(0xDEAD1234u, &sentinel));
+                    CHECK(sentinel == reinterpret_cast<void*>(0xDEADBEEF));
+                    CHECK(CallSlot(other, 6, {2, 30, 2000}).eax == 0); // invalid setter clears day
+                    CHECK(other->DayNumber() == 0);
+                    CHECK(CallSlot(other, 4, {100}).eax == 100);  // published new day number
                     const fc4test::SlotCall m1 = CallSlot(date, 33, {7});  // operator-(int32)
                     const fc4test::SlotCall m2 = CallSlot(date, 34, {reinterpret_cast<uint32_t>(other)});  // operator-(date)
                     const fc4test::SlotCall p1 = CallSlot(date, 35, {7});  // operator+(int32)
@@ -12523,8 +12532,8 @@ int main(int argc, char** argv) {
                     const fc4test::SlotCall f16 = CallSlot(date, 16, {3});
                     const fc4test::SlotCall f17 = CallSlot(date, 17, {});
                     CHECK(f16.espDelta == 0 && f17.espDelta == 0);
-                    CHECK(f16.eax == 2451545u + 31u + 29u);  // 2000-03-01
-                    CHECK(f17.eax == 2451545u);              // the sim date is in January 2000
+                    CHECK(f16.eax == 61u);  // dates.md: day of year, 2000-03-01
+                    CHECK(f17.eax == 1u);   // the sim date is in January 2000
                     other->Release();
                 }
             }
@@ -13364,7 +13373,7 @@ int main(int argc, char** argv) {
           std::string::npos);
     CHECK(text.find("post 0x4A7FB7E9 d1=2") != std::string::npos);  // SpeedChanged
     CHECK(text.find("GetSimDate() #1 -> date object") != std::string::npos);
-    CHECK(text.find("::Year() -> 2000") != std::string::npos);
+    CHECK(text.find("cFC4Date(") != std::string::npos); // capped trace; behavior checked above
     CHECK(text.find("GetSimDateNumber() #1 -> 2451545") != std::string::npos);
     // Limit-timer calibration (spec 5.5): installed and published, but this test
     // process is not SimCity 4, so the compat guard must refuse to write.

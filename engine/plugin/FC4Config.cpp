@@ -339,6 +339,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "span8888_shadow",
                                   // Independent native grid verification (default off).
                                   "simgrids_shadow",
+                                  // glue-dates4: independent native date interface probe
+                                  "dates_probe",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

@@ -1119,3 +1119,5 @@ pub mod span_render8888;
 
 // Private native-grid verification transport (no public ABI entries).
 mod simgrids_verify;
+// glue-dates4: published cIGZDate scalar/text contracts.
+pub mod dates;

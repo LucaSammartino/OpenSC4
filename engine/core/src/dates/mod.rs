@@ -105,17 +105,23 @@ pub fn weekday(n: u32) -> u32 {
 /// with the first three characters ignoring case, the **last** match wins and no
 /// match gives January *[quirk]*.
 ///
-/// `name` is the C string without its terminator. Literal reading (DT2): the
-/// comparison is a C `strnicmp(name, "Jan", 3)`, so a name shorter than three
-/// characters matches nothing, and case folding is ASCII only (the C locale).
+/// Explicit C-locale convenience entry. A byte slice may include a NUL or
+/// exactly three readable bytes; no fourth byte is examined. The native
+/// executable uses its own CRT locale, not necessarily this C-locale mapping.
 pub fn month_from_name(name: &[u8]) -> u32 {
+    month_from_name_folded(name, |b| u32::from(b.to_ascii_lowercase()))
+}
+
+/// DT2: supply the executable CRT's byte-to-integer lowercase mapping as
+/// captured host input. A plugin CRT locale is not a substitute for that input.
+pub fn month_from_name_folded(name: &[u8], fold: impl Fn(u8) -> u32) -> u32 {
     let mut month = 1;
     for (i, want) in MONTH_NAMES.iter().enumerate() {
         let hit = name.len() >= 3
             && name[..3]
                 .iter()
                 .zip(want.iter())
-                .all(|(a, b)| a.eq_ignore_ascii_case(b));
+                .all(|(a, b)| *a != 0 && fold(*a) == fold(*b));
         if hit {
             month = i as u32 + 1;
         }
