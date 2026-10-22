@@ -1,6 +1,25 @@
 # port-developers: answered questions (archive)
 <!-- Archive for [port-developers.md](../../port-developers.md). Lanes do not read this file. Open questions are in ../port-developers.md. -->
 
+<!-- from: glue-portdev4 (2026-10-21) -->
+- **PD12 - section 4.4 step 3 (seaport without sea access):** which interface lists "its props" (the lot's
+  occupants through the lot manager or the lot, the prop manager by the lot's rectangle, or the lot configuration's
+  objects), where property `0xC98204B8` is read (the prop occupant's property holder or its exemplar), and which
+  `cISC4Prop` slot `SetState(1)` is (number and calling convention)? What does the host call return (the number of
+  props switched)? [not wired: the glue logs it and returns 0; the advisor event `0x4A490D33` is pushed.
+  Seen in game, portdev4-shd-1: a seaport built at cells (0, 90) of Konradshohe has no sea access in month
+  2026-03-01, and the core asked for the switch once]
+  **ANSWERED 2026-10-22 (re-portdev-props4):** DIFFERS — section 4.4.1 now specifies native occupant-manager
+  slot 40 / +0xA0 spatial enumeration of the lot's inclusive cell rectangle with a prop-type/position/property
+  presence filter, owned occupant-list references and slot 48 cleanup. Property `0xC98204B8` is tested through
+  occupant slot 6's holder, HasProperty slot 3 (including that holder's exemplar fallback), without reading its
+  value. QueryInterface IID `0xE9793A65` supplies cISC4Prop; SetState is slot 11 / +0x2C, x86 __thiscall,
+  one 32-bit state argument, callee pop 4, void. The native lot helper has no count return; a host diagnostic
+  count of issued SetState calls is explicitly an adapter choice, not native state-change count. Native helpers
+  `0x00701190`, `0x007010E0`, `0x00701A60`, manager bodies `0x0049E250/0x004A0670/0x0049EF30`, and prop
+  bodies/vtable bytes prove order, multiplicity, lifetime and unchecked missing-provider behavior. Twelve
+  independent constructed vectors cover empty/multiple/property/duplicate/null/failure/lifetime cases.
+
 <!-- from: From the city situation, demolition, dispatch, port, prop developer and city detail specs (2026-10-14) -->
 - ~~**PD1:** `GetLeastEfficientPort` loops forever with two or more ports. Does anything call it? [no caller in the exe
   and no Lua binding found; FreeCity4 returns the least efficient port (*[choice]*). Searching the shipped Lua
