@@ -13,3 +13,31 @@
   pointer), cIGZPersistResourceManager slots 4 GetPrivateResource and 14, cIGZDate slots 4 SetDayNumber and 6
   SetMonthDayYear (passed through by cFC4Date / cFC4Simulator), cIGZVariant slot 54 CreateValString, cIGZWin slot 36
   GetChildAs. Is each a real bool? [SDK bool trusted]
+
+<!-- from: glue-rng4 native RNG contract audit (2026-10-22) -->
+- **RN4 - sections 6.1, 6.4 and 8.6, native-original fixture contract:** Can either exact owner,
+  `cRZRandom` or `cRZRandomSuper`, be exercised independently inside the supported GOG 1.1.641 process through
+  a published SDK/service/factory route or a fully typed supported-image native entrypoint? The SDK declares
+  only an opaque `intptr_t cISC4AdvisorSystem::GetRandom()`; it declares neither generator's operations, and
+  the reconciled ABI tables/direct-call contracts contain neither exact owner. Section 6 publishes behavior
+  and some addresses, but not a complete calling, object acquisition/construction, storage, lifetime or
+  disposal contract. Please publish the permitted route, complete argument/return/calling conventions and
+  supported-image validation contract, and how an isolated native instance can be given known seed/clock
+  inputs without disturbing the game's streams. Include raw/bounded/signed/double/Gaussian/weighted methods
+  where present, zero-bound draw behavior, seed sentinel/zero fallback and cache/reseed behavior. If no such
+  route exists, explicitly state that native sequence verification is blocked. [Do not call behavior-spec
+  addresses, dereference the opaque advisor handle, invent object layouts, or count Rust/spec/SDK-generated
+  sequences as an independent game-native reference. Native-original versus Rust remains unverified.]
+
+<!-- from: glue-rng4 native RNG contract audit (2026-10-22) -->
+- **RN5 - sections 6.2-6.4, real native insertion contract:** Is there a supported published way to install
+  an opt-in Rust-backed replacement for either exact owner `cRZRandom` or `cRZRandomSuper` so actual game RNG
+  calls reach it? Please identify the SDK service/factory registration and acquisition path, or publish a
+  complete typed native insertion contract, including caller coverage, ownership/lifetime, installation and
+  removal timing, and how independent member/temporary and process-wide streams retain their seed ownership
+  and draw order across city loads. The current SDK, reconciled ABI and foundations random/seeding sections
+  expose no such route; a list of native static addresses and the opaque advisor `GetRandom()` return are not
+  an insertion contract. If neither owner is replaceable through a supported route, please say so explicitly.
+  [No `rng` enable key, invented registration, vtable/constructor hook, private-field patch or native-operation
+  forwarding replacement is installed. Existing defaults, maps/tools and RNG-owning subsystem behavior stay
+  unchanged; same-name simulation/renderer generators are outside this request.]
