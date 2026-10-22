@@ -1027,8 +1027,9 @@ the default filter's test is false. Then:
 Otherwise true; slot 5 is the default's. Record (`0x005E9AF0` / `0x005E9B50`): u16 4, u8 `+0xC`, u8 `+0xD`, u8
 `+0xE`, then the default's record. `Read` fails below version 3; a version-3 record has no third byte and copies
 `+0xD` into `+0xE`. `GetGZCLSID` `0x004666F0`, which the demolition filter shares. Users: the 3D view's first view
-filter has all three flags set (`DoPreCityInit`, `0x007F42C5`); a 3D-view cheat replaces it with one with all three
-clear (`0x007F365D`) *[inferred: the cheat's word was not traced]*; the inside-lot filter (§13.2.6); the region-view
+filter has all three flags set (`DoPreCityInit`, `0x007F42C5`); the cheats `Zoneria` (`0x007F365D`:
+`+0xC` flipped, `+0xD` copied, `+0xE` clear) and `TastyZots` (`0x007F391F`: `+0xD` flipped, the others copied) replace
+it (view3d-window.md §3.1; OM10); the inside-lot filter (§13.2.6); the region-view
 thumbnail writer (`0x005DE18C`).
 
 **The demolition filter** (`cSC4DemolitionOccupantFilter`, 0x30 bytes, [demolition.md](demolition.md) §4.2) extends

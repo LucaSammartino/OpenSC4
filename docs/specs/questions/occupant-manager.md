@@ -7,6 +7,3 @@
   `0x8A15F1BD` (both exclude from the default filter; levels 3 and 2), `0xCAA9AB92` (not queriable), `0xE83A081D`
   (passed to the model lookup) and `0x29F013E6` (makes an occupant movable for terrain levelling)? The spec uses the
   raw IDs. [as read]
-<!-- from: re-occfilters (2026-10-20) -->
-- **OM10 - §13.2.3:** which cheat word reaches the 3D view's code at `0x007F365D` that installs a realistic filter
-  with all three flags clear? [as read]

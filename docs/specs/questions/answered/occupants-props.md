@@ -79,7 +79,7 @@
 - ~~**OP4:** `cSC4RealisticOccupantFilter` flag bytes `+0xC`/`+0xD`/`+0xE` (creator `0x005EA240` zeroes them; ctor
   `0x005EB850`?), the meaning of property `0x5001`, the `0x097F6D98` QI + lot slot 0x84==1 exclusion, and who sets
   the flags (callers of the creator). [include iff byte set for base textures and props]~~
-  **ANSWERED 2026-10-21 (re-occfilters):** DIFFERS - occupant-manager.md §13.2.3: `+0xC`, `+0xD` and `+0xE` keep, when set, empty lots' base textures, the occupants of group `0x5001` and the signposts and text decals; `0x5001` is an occupant group (occupant slot 22), not a property; a base texture is dropped only when `+0xC` is clear and the lot under it is in state 1 (ready). The 3D view sets all three (`0x007F42C5`), a cheat installs one with all three clear (`0x007F365D`, OM10), the inside-lot filter and the region thumbnail writer use them clear. The group's meaning stays open (OM9).
+  **ANSWERED 2026-10-21 (re-occfilters):** DIFFERS - occupant-manager.md §13.2.3: `+0xC`, `+0xD` and `+0xE` keep, when set, empty lots' base textures, the occupants of group `0x5001` and the signposts and text decals; `0x5001` is an occupant group (occupant slot 22), not a property; a base texture is dropped only when `+0xC` is clear and the lot under it is in state 1 (ready). The 3D view sets all three (`0x007F42C5`), the cheats `Zoneria` and `TastyZots` install copies with one flag flipped (OM10), the inside-lot filter and the region thumbnail writer use them clear. The group's meaning stays open (OM9).
 
 <!-- from: re-occprops (2026-10-20) -->
 - ~~**OP5:** `cSC4BlockingLotOccupantFilter` slot 3 (`0x004BDF90`, 26 bytes) body and users. [untraced]~~

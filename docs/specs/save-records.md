@@ -657,7 +657,9 @@ All of these have been applied to the specs named (M6 integration); the list sta
   edge density with data. Their layouts are verified against the executable only; a 1.1.641 save exercising them
   would close this.
 - Q4: The `0x89D9B9EE` record written by the city and the View3D record are not specified; FreeCity4 does not
-  replace their writers, but standalone mode needs both.
+  replace their writers, but standalone mode needs both. **Partly answered 2026-10-21 (re-view3dwin):** the View3D
+  record is specified in view3d-window.md §6k (four references, then the global effect triggers); the `0x89D9B9EE`
+  record is still open.
 - ~~Q5: The unnamed classes `0xA9C741B3`, `0xC9B84E10`, `0xCA15ED6B` and `0xEA0A5ACF` (§3.2).~~ **ANSWERED
   2026-10-15 (re-specs14a, re-inventory6):** `0xC9B84E10` is the terrain's 3D view (`cSTETerrainView3D`), saved
   through a reference in the terrain's class record (u16 1 and one byte, render only; terrain.md §13.2).
