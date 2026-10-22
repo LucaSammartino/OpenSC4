@@ -21,6 +21,7 @@
 #include "FC4Log.h"
 #include "FC4LotDevInterfaces.h"
 #include "FC4Properties.h"
+#include "FC4PortProps.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "FC4TractInterfaces.h"
@@ -49,6 +50,9 @@
 #include "cISC4LotDeveloper.h"
 #include "cISC4LotManager.h"
 #include "cISC4Occupant.h"
+#include "cISC4OccupantFilter.h"
+#include "cISC4OccupantManager.h"
+#include "cISC4PropOccupant.h"
 #include "cISC4Simulator.h"
 #include "cISC4TrafficSimulator.h"
 #include "cISC4ZoneManager.h"
@@ -56,6 +60,7 @@
 #include "cISTETerrain.h"
 #include "cRZBaseString.h"
 #include "cRZCOMDllDirector.h"
+#include "cS3DVector3.h"
 
 #include <cstdio>
 #include <cstring>
@@ -146,7 +151,6 @@ void NoteOnce(bool& done, const char* text) {
     fc4::Log("%s", text);
 }
 
-bool g_noteAccessProps = false;
 bool g_noteNoTraffic = false;
 
 cISC4City* AppCity() {
@@ -575,16 +579,127 @@ bool CellHasWater(void*, uint32_t x, uint32_t z) {
     return t != nullptr && t->CellHasWater(x, z);  // slot 34
 }
 
-// §4.4 step 3: presentation only (the props' state 1). [choice] Not wired:
-// logged once; the advisor event is still pushed by the core.
+// PD12 uses the reconciled manager slot 40 (the SDK's overload order differs).
+// City, lot, manager, occupant and holder are native preconditions. Safe-host
+// failures are explicitly logged as unavailable, never native empty results.
+class PortAccessFilter final : public cISC4OccupantFilter {
+public:
+    PortAccessFilter(fc4::PortPropBounds b, uint32_t p) : bounds(b), property(p) {}
+    bool QueryInterface(uint32_t iid, void** out) override {
+        if (out == nullptr) return false;
+        *out = nullptr;
+        if (iid != GZIID_cIGZUnknown && iid != GZIID_cISC4OccupantFilter) return false;
+        *out = static_cast<cISC4OccupantFilter*>(this);
+        AddRef();
+        return true;
+    }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override {
+        const uint32_t remaining = --refs;
+        if (remaining == 0) delete this;
+        return remaining;
+    }
+    struct Candidate {
+        cISC4Occupant* occupant;
+        PortAccessFilter& filter;
+        uint32_t Type() { ++filter.tested; return static_cast<uint32_t>(occupant->GetType()); }
+        void Position(float& x, float& z) {
+            ++filter.positions;
+            cS3DVector3 p;
+            occupant->GetPosition(&p);  // PD12: no Boolean gate
+            x = p.fX;
+            z = p.fZ;
+        }
+        bool HasProperty(uint32_t id) {
+            ++filter.holders;
+            cISCPropertyHolder* holder = occupant->AsPropertyHolder();  // borrowed, slot 6
+            if (holder == nullptr) { ++filter.unavailable; return false; }
+            return holder->HasProperty(id);  // slot 3: presence, instance + inherited
+        }
+    };
+    bool IsOccupantIncluded(cISC4Occupant* occupant) override {
+        if (occupant == nullptr) { ++unavailable; return false; }
+        Candidate candidate{occupant, *this};
+        const bool accepted = fc4::PortPropMatches(candidate, bounds, property);
+        if (accepted) ++matched;
+        return accepted;
+    }
+    bool IsOccupantTypeIncluded(uint32_t type) override { return type == 0xA823821Eu; }
+    bool IsPropertyHolderIncluded(cISCPropertyHolder* holder) override {
+        if (property == 0) return true;
+        if (holder == nullptr) { ++unavailable; return false; }
+        return holder->HasProperty(property);
+    }
+    uint32_t refs = 1;
+    fc4::PortPropBounds bounds;
+    uint32_t property;
+    uint32_t tested = 0, positions = 0, holders = 0, matched = 0, unavailable = 0;
+};
+
+struct NativePortProps {
+    using Occupant = cISC4Occupant;
+    using Prop = cISC4PropOccupant;
+    cISC4City* city;
+    cFC4ISC4Lot* lot;
+    cFC4ISC4OccupantManager* manager;
+    uint32_t property;
+    PortAccessFilter* filter = nullptr;
+    uint32_t listed = 0, tested = 0, positions = 0, holders = 0, matched = 0, unavailable = 0;
+    bool enumerated = false;
+    SC4Rect<int32_t> cells;
+    bool Available() const { return city != nullptr && lot != nullptr && manager != nullptr; }
+    void Unavailable() { ++unavailable; }
+    void Enumerate(fc4::GameList<Occupant*>& list) {
+        lot->GetBoundingRect(cells);  // slot 14, inclusive integer cells
+        fc4::PortPropBounds bounds{};
+        city->CellCornerToPosition(cells.topLeftX, cells.topLeftY, bounds.minX, bounds.minZ);  // 96
+        city->CellCornerToPosition(cells.bottomRightX + 1, cells.bottomRightY + 1, bounds.maxX, bounds.maxZ);
+        filter = new PortAccessFilter(bounds, property);
+        const SC4Point<int> min(cells.topLeftX, cells.topLeftY), max(cells.bottomRightX, cells.bottomRightY);
+        auto& nativeList = reinterpret_cast<SC4List<Occupant*>&>(list);
+        enumerated = manager->GetOccupantsByStandardCityCellsFilter(nativeList, &min, &max, filter, 0xFFFFFFFFu);
+    }
+    void ReleaseFilter() {
+        tested = filter->tested;
+        positions = filter->positions;
+        holders = filter->holders;
+        matched = filter->matched;
+        unavailable += filter->unavailable;
+        filter->Release();
+        filter = nullptr;
+    }
+    bool QueryProp(Occupant* occupant, Prop*& prop) {
+        ++listed;
+        const bool result = occupant->QueryInterface(GZIID_cISC4PropOccupant, reinterpret_cast<void**>(&prop));
+        if (prop != nullptr) FC4_ACQUIRED(prop, "PD12 prop QueryInterface output");
+        return result;
+    }
+    void AddRefProp(cISC4PropOccupant* prop) { FC4_ADDREF(prop); }
+    void ReleaseProp(cISC4PropOccupant* prop) { FC4_RELEASE(prop); }
+    void SetState(cISC4PropOccupant* prop, uint32_t state) {
+        const uint32_t before = prop->GetState();  // reconciled slot 12, diagnostic only
+        prop->SetState(state);  // slot 11, void
+        fc4::Log("ports PD12 prop: ptr=%p state=%u->%u requested=%u", static_cast<void*>(prop),
+                 before, static_cast<uint32_t>(prop->GetState()), state);
+    }
+    void ReleaseList(fc4::GameList<Occupant*>& list) {
+        // Manager releases all created-for-us occupant references and nodes.
+        // Do not release them a second time through our local destructor.
+        manager->ReleaseOccupantList(reinterpret_cast<SC4List<Occupant*>&>(list));  // 48
+    }
+};
+
 uint32_t SetAccessPropsState(void* u, uint64_t lot, uint32_t property, uint32_t state) {
-    char b[200];
-    snprintf(b, sizeof(b),
-             "ports %s: a seaport lot %p has no sea access: its props with property 0x%08X are not switched to state "
-             "%u (presentation; not wired)",
-             fc4::PortKindName(Ctx(u)->kind), static_cast<void*>(FromToken(lot)), property, state);
-    NoteOnce(g_noteAccessProps, b);
-    return 0;
+    cISC4City* city = AppCity();
+    NativePortProps provider{city, LotOf(lot), city ? fc4::AsGame(city->GetOccupantManager()) : nullptr, property};
+    const uint32_t count = fc4::SwitchPortAccessProps(provider, state);
+    fc4::Log("ports PD12: lot=%p cells=(%d,%d)-(%d,%d) property=0x%08X state=%u enum=%u "
+             "tested=%u positions=%u holders=%u matched=%u listed=%u calls=%u unavailable=%u",
+             FromToken(lot), provider.cells.topLeftX, provider.cells.topLeftY, provider.cells.bottomRightX,
+             provider.cells.bottomRightY, property, state, provider.enumerated ? 1u : 0u,
+             provider.tested, provider.positions, provider.holders, provider.matched, provider.listed,
+             count, provider.unavailable);
+    return count;
 }
 
 // §4.8 New seaport: SetAltitudeAtVertex (never reached with shipped data).

@@ -31,9 +31,9 @@
 // the main thread (CreateLot's reference for the caller becomes it), and one
 // on the department.
 //
-// Not wired (logged once): the seaport's "no sea access" prop state switch
-// (§4.4 step 3, presentation only: props with property 0xC98204B8 set to
-// state 1); the advisor event of that step is pushed.
+// PD12: the seaport's "no sea access" prop state switch enumerates the native
+// occupant manager's spatial list and switches matching prop interfaces to
+// state 1. Its diagnostic count does not gate the advisor event.
 //
 // Threads, as the landfill developer (cFC4Landfill.h): every call into the
 // core holds this object's lock; a getter on a thread other than the main one

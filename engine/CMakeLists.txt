@@ -939,3 +939,12 @@ endif()
 # The shadow must not dereference untyped payloads of unrelated messages.
 add_executable(mysims_message_payload_test tests/mysims_message_payload_test.cpp)
 add_test(NAME mysims_message_payload_test COMMAND mysims_message_payload_test)
+
+# PD12 native prop boundary vectors; provider grid policy is emulated by the test.
+if(MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 4)
+    add_executable(fc4_port_props_test tests/port_props_test.cpp)
+    target_include_directories(fc4_port_props_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
+    target_compile_definitions(fc4_port_props_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_port_props_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME port_props_test COMMAND fc4_port_props_test)
+endif()
