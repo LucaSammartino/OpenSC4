@@ -200,6 +200,93 @@ lowest and highest value and their vertex positions in locals, computes the 2-D 
 and returns the slope in ST0. It writes nothing outside its own stack frame: no member of the lot developer, the
 terrain or any grid. Calling it from a shadow, or more often than state 5 does, has no side effect.
 
+### 6.1 When each input is read *[compat]* (QUESTIONS LV1, from the exe)
+
+A pass has **no single input instant**. Each state reads the world at the moment it handles a tract (or developer),
+inside its own `Step` call, and never reads it again for that pass. The calls of one pass are spread over frames
+and days (SimIdle every frame, paused or not, plus one 5 ms call per SimNewDay, §5), so two states, and two tracts
+of one time-sliced state, can see different worlds. The original keeps no copy of any input: nothing is snapshotted
+at the pass start, at SimNewMonth or at the pass end.
+
+| State | Inputs read, per tract `t` or developer, at that tract's (developer's) call | Kept until |
+|---|---|---|
+| 1 | `HasLand(t)` (terrain altitude and water level of its (S+1)² vertices, §2) | scratch base; it also decides the water-bonus sources of state 2 |
+| 2 | no world input except terrain `MaxAllowedHeight`, `MinAllowedHeight` (tuning constants) | state 3 |
+| 3 | `HasLand(t)`, `alt(t)`, and `IsZoned(t)` unless ignoreZoning (or HasLand is false: `IsZoned` is evaluated first, so it is read for every tract while ignoreZoning is false) | minAlt, maxAlt, meanAlt, modeAlt, pivot, ranges, topIndex; ignoreZoning for state 8. `SetupAltitudeEffect` (end of state 3, same call as the last tract) reads `MaxAllowedHeight` again when highRange > 100 (§7.3) |
+| 5 | per slope tract: terrain altitude and water level of its 9 × 9 vertices (`GetAreaSlope`, §6) | slope grid |
+| 4 | `alt(t)` **again** (terrain `GetAltitude` at the tract centre); combined with state 1's scratch and state 3's parameters | intrinsic grid |
+| 6 | nothing from the world (copies intrinsic) | |
+| 7 | developer i's published desirability map D (slot 13), fetched and applied whole in that developer's call | total grid (written at the end of the list) |
+| 8 | `IsZoned(t)` unless ignoreZoning, then `HasLand(t)` only if that passed (short-circuit) | averageLandValue |
+
+So one tract's land/water is read up to three times (states 1, 3, 8), its altitude twice (3, 4), its zoning twice
+(3, 8), and its intrinsic value combines a state-1 base, state-3 statistics of **every** tract and a state-4
+altitude. A change between those reads gives a result that no single instant reproduces: for example a terrain
+edit between state 3 and state 4 makes state 4 use the new altitude against the old pivot and ranges.
+
+**Slicing within a call.** States 1, 3, 4, 5 and 8 loop: test the time budget (`LimitTimer::Expired`, every
+iteration while the adaptive stride is 1024, otherwise every 1024/stride iterations; `0x006BE865`), then take the
+next tract from the iterator (`0x0060C8D0`), then read and write. The budget test comes **before** `GetNext`, so no
+tract is taken and dropped: the tracts read in one call are exactly those the iterator returns in that call, and a
+call may read none. A state that finishes ends the call (at most one state per call, §6). Nothing else runs during
+a `Step` call (single-threaded; `Step` writes only land value's own grids and members, and at state 8 the history
+record and a *queued* LandValueMapChanged), so every input a call reads is the world as it was when that call
+started.
+
+**Where the progress is visible** (for a shadow; the original's object, `this` = the `cISC4LandValueSimulator`
+interface pointer): pipelineState at `+0x38` (int32, 0..9); the tract iterator pointer at `+0x3C` (states 1, 3, 4,
+8, and the reset at 0, 2, 3, 5, 4, 7) and the slope iterator pointer at `+0x40` (state 5). Iterator layout (simgrid
+§7.4, `0x0060C8D0`): `+0x00` state byte (0 fresh, 1 running, 2 done), `+0x04` x, `+0x08` z, `+0x0C` step, `+0x10`
+x0, `+0x14` z0, `+0x18` x1, `+0x1C` z1. The developer cursor is at `+0x70` (a map node; `+0x8C` holds the map's header
+node, which is the end; the list begins at the header's `+0x08`; a node's `+0x10` is the developer pointer and
+`+0x14` the weight). ignoreZoning is the byte at `+0x4C`.
+
+**Faithful capture boundary.** The only boundary that gives an independent shadow the original's exact inputs is
+**each delivery of SimIdle or SimNewDay to land value's agent** (`DoMessage`, `0x006BF0D0`, the only caller of
+`Step`). Read the world, pipelineState and the active iterator immediately before the delivery; read pipelineState
+and the iterator again after it. The tracts (states 1, 3, 4, 5, 8) or the developer (state 7) handled in that call
+are those between the two positions (a state that changed handled every remaining tract of the old state; state 3's
+zoning fallback restarts the scan). Their inputs are the world as read before the call. Any coarser boundary
+(SimNewDay, the pass end, a month) is a sample, not the input: it can only be **proved** right when no relevant
+input changed between it and the calls it stands for. A boundary is never chosen because its output matches.
+
+Typed input record for one pass (what an implementation or shadow needs to recompute it bitwise):
+
+| Part | Type | Taken at |
+|---|---|---|
+| land1[t] | bool per land value tract | the state-1 call that handled t |
+| land3[t], alt3[t], zoned3[t] | bool, float32 (`GetAltitude` result stored to float32), bool | the state-3 call that handled t (the last scan if the fallback ran) |
+| areaSlope[s] | float32 per slope tract | the state-5 call that handled s |
+| alt4[t] | float32 | the state-4 call that handled t (absent when there is no altitude curve) |
+| D[i] | int16 grid per developer, in list order | developer i's state-7 call |
+| zoned8[t], land8[t] | bool (zoned8 not read when ignoreZoning; land8 not read when zoned8 is false) | the state-8 call that handled t |
+| maxH, minH | float32 terrain limits | state 2 / end of state 3 |
+
+Recomputing §7 from this record (state 1 from land1, state 2 from scratch only, state 3 from land3/alt3/zoned3, state
+4 from alt4, state 5 = areaSlope, state 7 from D, state 8 from the total grid with zoned8/land8) gives the original's
+outputs exactly; when all parts were taken at one instant it is the same as running §6 on that instant.
+
+**Startup.** `Init` sets pipelineState 0 (§4.1), so pass 1 starts at the first SimIdle or SimNewDay delivered after
+the city is established, and follows the same table. Its state-7 developer maps are what the developers have
+published at that call. In a **loaded** city that is, until the developer's first state-17 call after the load, the
+map restored by the developer's `Read` (the published map is saved; `Init` neither resizes nor clears a restored
+grid and sets the developer's state to 0, growth-developer §1.2, §2). The building development simulator's level-0
+SimBegin call starts a monthly update on every developer at once (building-development §4.1, "Recomputed on load"),
+so in the first frames after a load both passes run together: land value reaches state 7 at its 8th call, the
+developer state 17 at its 17th at the earliest. Usually pass 1 therefore reads the **restored** map and the
+developer publishes its first new map before pass 1 ends, so D at the pass end is not the D that pass 1 used. The
+previous-map candidate of §7.4 for pass 1 is the restored map: a snapshot of D taken at any time after the load and
+before the developer's first state-17 call (slot 10 true and never seen false since the load) is exactly it. In a
+new city the developers are created and initialised before the simulation starts and the same rule holds with
+their freshly created map.
+
+**Example (pass 1 after a load).** Land value pass 1 runs states 0–6 on idle calls 1–7 and reads D at call 8; the
+developer, started by SimBegin, publishes at its 17th idle call. The pass ends at call 9 + (sliced extra calls).
+Comparing at LandValueMapChanged with D-now uses the map published at developer call 17, which pass 1 never saw; the
+snapshot taken at load (or at the first frame, slot 10 true) is the map it used. If slicing delays land value past
+the developer's state 17 instead, D-now is right and the load snapshot is the wrong candidate; the rule "previous
+= last snapshot while slot 10 was true" covers both.
+
 ## 7. Formulas *[compat]*
 
 ### 7.1 Water bonus (state 2)
@@ -573,7 +660,9 @@ full pass); Intrinsic Max (`0x47E2C300[1]`) is never used; `GetModeAltitude` is 
 3. Whether any shipped content lists more than one desirability developer (only then does the address-order
    question of §7.4 matter).
 
-4. [LV1: native pass input capture and startup snapshots](questions/landvalue.md) remains unsettled; diagnostic matching an earlier day is not a contract.
+4. *(resolved)* LV1, native pass input capture and startup snapshots: §6.1. A pass reads its inputs per state
+   and per call, not at one instant; the exact capture boundary is each land value `Step` call; pass 1 after a load
+   usually reads the developers' restored maps. Matching an earlier day's sample is evidence, not a contract.
 
 ## 16. Conformance tests (must exist in `engine/conformance`)
 
