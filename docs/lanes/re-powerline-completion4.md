@@ -1,29 +1,80 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-powerline-completion4 (PowerLineTool public owner contracts) | `re-powerline-completion4` / (RE spec lane) | in progress: round 2; preserved 67f996cf and evidence; NT18, NT21–NT24 audit | 1. Prove interception/break branches, then remaining large bodies; retain whole-owner residuals. |
+| re-powerline-completion4 (PowerLineTool public owner contracts) | `re-powerline-completion4` / (RE spec lane) | wip: bounded contracts committed; 46 functions / 16156 B inventoried; 48 vectors; owner incomplete | 1. NT21 geometry, NT22 entry/pole orchestration, NT23 regional Attempt, NT24 containers/count; no promotion. |
 
-## Handoff
+## Report — 2026-10-22, round 2
 
-- Goal: complete public PowerLineTool owner contracts; whole owner remains incomplete; no full host-hook removal yet.
-- Done: `0e36dec5` early contract milestone: lifecycle/defaults, failure text, slot 82, wrapper correction.
-- Done: `b00920bc` ordinary geometry/ray, record layout/counting, PlacePoles order/mode/allowRepair, slot 16 undo, resources, 25 vectors and full attribution inventory in docs/specs/power-line-tool.md.
-- Questions: NT19/NT20/NO24 moved to answered files and index regenerated. NT18 narrowed; NT21–NT24 filed in questions/network-tools.md.
-- Round 2: removed both reported trailing blank lines before new contracts; original wording restoration remains to do.
-- Round 2 milestone `2c750974`: interception eligibility/ownership, forced gate, six vectors; whitespace fixed.
-- Round 2 milestone `42301fa2`: break table, closure boundary, release asymmetry; step groups and saved repair queue without dedup; 36 vectors.
-- Round 2 milestone `25bad428`: classifier/probe/enable/copy/pool contracts; 42 vectors. Original NT19/NT20/NO24 wording restored.
-- Round 2 milestone `63c050e8`: FindNewPolePosition branches; 45 vectors; corrected cell-index groups and off-pivot emission.
-- Round 2 next milestone: wire dedup/split branch of UpdateOnZoneChange; 48 vectors; backward (k,count,-1) boundary now explicit NT22. Group source not established. Whole owner incomplete; finish round with wip report, no restart or credit.
-- Next evidence: trace 00650AEC–00650C35 interception eligibility/flags, zone/blocked exits through 00651477, then PlacePoles saved-endpoint branches before 00651C00; resolve NT18 fully.
-- NT21: connection geometry 0064E3E0, enable/restore helper 00649910, list helper 0064B6E0; NT22: zone repair 006522F0 and endpoint selection in 006520C0.
-- NT23: full type-5 AttemptNeighborConnections 00628BD0; NT24: classifier/probes/allocator/container ownership and function-count discrepancy.
-- Measured inventory validated: 46 unique functions, 16156 bytes, 25 vectors. Brief says 49 functions/same bytes; public table enumerates all measured entries, without completion credit.
-- Core corrections: Attempt runs in draft/real; Place requires Attempt success plus real; gate counts input anchors. NO24 returns sentinel y, not missing position.
-- Defaults: fresh Init 20 uint32, 7.0 f32, 0 uint32, 0.0 f32; re-Init only resets spacing/clearance. Spacing uses step delta at pivots, clearance raises ray endpoints.
-- REA exact batch failed target_unavailable/no app open; used local export/decomp fallback. q.py Bash startup E_ACCESSDENIED; use bounded native PowerShell.
-- Scratch: build-runs/power-owner.py and power-owner.tsv (read-only Attribution.run without engine/report inputs), inspect-power.py bounded native PE bytes.
-- Validation: question index regenerated; diff --check reported only the two trailing blank lines above. Cargo/clippy/ctest and game n/a; docs only, no ABI rows/exports changed.
-- All real work committed at b00920bc; final cleanup patch was denied before changes. No merge-queue file written.
-- Round 2 guard: C:/Users/tlori/FreeCity4/build-runs/run4-re-powerline-completion4-r2-manifest.json; 150000 context, 100 calls, one round only.
-- Detached HEAD reserved by supervisor; commit normally, never switch/update refs/merge/push; no engine/tools/ABI-table edits or subagents.
-- Main evidence root C:/Users/tlori/FreeCity4; edits only this worktree. Git reports packed-refs.lock permission error but detached commits succeed.
+Whole owner remains **incomplete**. This round supplies reviewable primary-evidence contracts, not
+implementation coverage, host-hook removal or replacement credit. Preserved `67f996cf`, earlier
+`0e36dec5`/`b00920bc`, and all ignored inventory/evidence. No engine, tool, ABI table or export edits.
+
+Milestones:
+
+- `2c750974`: fixed both trailing-blank-line warnings first; interception eligibility, forced override
+  limits, ordered descriptor equality, coordinate-OR duplicate predicates and endpoint reference transfer.
+- `42301fa2`: zone/building/road breaks, strict last-clear closure boundary, native zone-release
+  asymmetry, saved endpoint detachment and append-only repair queues.
+- `25bad428`: classifier's literal third zone probe at (z,z), last-qualifying overwrite order,
+  last-match pole/wire probes, QI ownership, enable predicate, reference-copy helper and raw pool allocator.
+  Restored original NT19/NT20/NO24 question wording in answered files.
+- `63c050e8`: all FindNewPolePosition branches, unused ninth argument, borrowed optional counterpart,
+  insertion/release/draw order. Corrected adjacency groups to dragged-cell indices and emission off-pivot.
+- `9f712744`: zone-wire endpoint-overlap deduplication, first-match split search and literal relocation
+  calls `(k,count,+1)` then `(k,count,-1)`; documented backward-walk boundary uncertainty.
+
+## Whole-owner checklist
+
+All 46 unique attributed entries, 16,156 body bytes, remain in power-line-tool.md §9 and
+`build-runs/power-owner.tsv`. The brief's 49-function count is still unreconciled; byte total matches.
+The following groups enumerate the complete measured inventory; a contract in one group grants no
+completion credit to the owner or its dependencies.
+
+| Functions | Contract / residual |
+|---|---|
+| 00626990, 0064F0D0, 006503C0, 00650560, 00650580, 006505D0, 00650630 | Prior lifecycle/defaults/resources contracts retained §§1,7 |
+| 0064F0F0 | Existing cost contract retained |
+| 0064EFE0, 0064F2B0, 0064F3F0, 0064F570 | Position/sentinel, slot82, draft undo and failure-string contracts retained §§2–5 |
+| 0064F140, 0064F880 | Resource enumeration retained §7 |
+| 0064F170, 0064F1D0, 0064F230, 0064FB40, 00650760 | Record/pivot/link contracts; ordered equality, coordinate OR and duplicate link append verified |
+| 0064FED0, 00650140 | Reserved walk and create/reuse contracts retained |
+| 0064FD00, 0064FFE0, 0064FBF0 | Classifier and complete probe selection/reference contracts added §6.1 |
+| 00650840, 00651560, 00652980 | Determine/Place branch contracts extended §§4–5; wrapper retained; external geometry/group-source obligations remain NT18/NT21 |
+| 006520C0, 006522F0 | Relocation contract added §6.2; zone-wire branch §6.3; zone entry/pole branch and final cleanup remain NT22 |
+| 00649910, 0064A2E0, 0064B6E0, 0064E3E0 | Enable/raw pool/reference-copy specified; 1338-byte connection geometry remains NT21 |
+| 0064F5D0, 0064F610, 0064F670, 0064F710, 0064F770, 0064F920, 0064F9A0, 0064FA60, 0064FAF0, 00650250, 006502B0, 006502F0, 00650480 | 13 container helpers / 1530 B: full copy/erase/destruction ownership remains NT24 |
+
+## Questions and exact next evidence
+
+No new question IDs; updated public residuals in `docs/specs/questions/network-tools.md`:
+
+- NT18: caller branches now specified; source/reachability of +0x398 groups unproved. Do not attribute
+  construction to zone update without evidence. Full connection body is separately NT21.
+- NT21: finish 0064E3E0, 1338 B, including numeric geometry and optional wire-vector lifetime;
+  enable 00649910 and list-copy 0064B6E0 are now proved. Decomp body is at main
+  `decomp/_unnamed/region_00640000.c:4840`; it misattributes registers, so use primary instructions.
+- NT22: prove 006522F0–006525B9 entry/query/pole branch and 00652883–00652979 final removal/cleanup.
+  Establish the invariant permitting the second split call's `(k,count,-1)` scan to find a clear outside
+  cell before indexing below zero. FindNewPolePosition has no lower-bound guard.
+- NT23: full type-5 AttemptNeighborConnections 00628BD0 endpoint/direction, consent/failure, vector and
+  preview behavior remains unproved. Wrapper Attempt/Place pairing is already answered by NT20.
+- NT24: 13 container helpers and count discrepancy above. Classifier/probes/pool obligations resolved.
+
+NT19/NT20/NO24 remain answered; index regenerated with `python tools/questions.py index`. No answer
+was closed merely because one of its dependent branches was specified. This authorized round ends here;
+no self-restart, merge, push, ref update or coverage promotion.
+
+## Validation and evidence
+
+- Native export instruction bytes and bounded decomp reads were the evidence source. Numeric adjacency
+  constants independently read from original PE: 00A80AA8=4F800000 (2^32), 00A81228=3F800000 (1.0).
+- Inventory recheck: 46 rows, 46 unique addresses, sum 16156 bytes. Vector table: 48 rows, with labels
+  reconciled to 48 unique IDs (23 added this round). These are independent host-observation contracts,
+  not executed game traces or implementation fixtures; no constructed-only coverage claim.
+- `git diff 67f996cf --check` passes; question index regenerated. Cargo/clippy/ctest and game/shadow n/a
+  for this documentation-only round. No ABI proposals or exports changed.
+- Prior REA attempt failed `target_unavailable` / no application open; local export/decomp fallback
+  retained, no REA retry needed. q.py Bash startup again denied E_ACCESSDENIED; bounded PowerShell used.
+- Scratch evidence remains under this worktree's build-runs/: power-owner.py, power-owner.tsv and
+  inspect-power.py. Main checkout read-only. Detached commits succeed despite packed-refs.lock warning.
+- Guard manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-powerline-completion4-r2-manifest.json`;
+  one guarded round, context 150000 / max calls 100. WIP queue identifies the actual detached HEAD.

@@ -454,8 +454,8 @@ These are host-observation vectors, not claimed in-game measurements.
 | PL-B1 | zone, active span, C=2; L=0 versus L=1 | L=0 does not close; L=1 emits closure; both clear active and request restart |
 | PL-B2 | building, active, P>=0, unforced; versus road with same state | building sets failure 0xF0000012 and terminates; road sets 0xF0000013 and accumulates |
 | PL-B3 | zone after a solitary linkless pole, L=-1; versus blocked termination with same descriptor | both remove record; only blocked path releases saved endpoint refs |
-| PL-P1 | saved endpoints A,B both present; a=1,b=0 | detach both directions; queue (A,new) only; draft transfers descriptor to undo list, real releases A,B |
-| PL-P2 | saved A=B, a=b=1 | two repair entries, each with two AddRefs; no deduplication; two descriptor releases in real mode |
+| PL-EP1 | saved endpoints A,B both present; a=1,b=0 | detach both directions; queue (A,new) only; draft transfers descriptor to undo list, real releases A,B |
+| PL-EP2 | saved A=B, a=b=1 | two repair entries, each with two AddRefs; no deduplication; two descriptor releases in real mode |
 | PL-C1 | classifier zone calls return 2,2,14 respectively; x differs from z | calls (x,z),(x,z),(z,z); proceeds to occupant query, rather than returning zone |
 | PL-C2 | no zone rejection; returned occupants building then road without QI, versus reversed list | result 3 versus 2; releases both occupants; skips fallback service in both cases |
 | PL-C3 | two pole QIs pass, third QI maps to different cell | out is second QI; first and third QI released, all three occupant refs released |
