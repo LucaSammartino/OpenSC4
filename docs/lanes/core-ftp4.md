@@ -1,17 +1,28 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-ftp4: portable WWW/FTP partial owner | Codex, core-ftp4 (detached reservation) | in progress; gates pending | Validate stable source and retain unsupported boundaries |
+| core-ftp4: portable WWW/FTP partial owner | Codex, core-ftp4 (detached reservation) | continue; context guard enforced, WIP | Verify pending formatting and gates; no merge queue |
 
 ## Handoff
 - Goal: published portable WWW/FTP first implementation; retained unsupported boundaries.
-- Done: 0a57021f parser/path, 40adce68 state algorithms, 1f4111db review/Q10 milestones.
-- Source: www module; report below reconciles all 91 C and exact 57 P/O rows.
-- Next: final stable all after lint fixes; inspect new unit-test verdicts and full CTest.
-- Initial all cargo: 5039 passed, zero failed, 21 result lines. Its later clippy saw
-  concurrent lane edits and found 2 new lints (doc-list syntax, submission arg count), fixed.
-- Quick requests 70740/2570: one running unit tests, another had waited on build lock.
-- fmt absolute-file session 75585; first relative invocation failed path lookup only.
-- No game requests; no ABI/default/glue/map/coverage changes.
+- Done: 0a57021f parser/path; 40adce68 algorithms; 1f4111db review/Q10;
+  97bff998 per-body report/worker vectors; 6a3a8b52 two observed clippy fixes.
+- Report below: 63 implemented-domain, 22 partial, 6 unsupported C rows; all 57 P/O retained.
+- EXACT NEXT: inspect git diff (formatting-only changes remain UNCOMMITTED), then run
+  qbuild fmt with absolute paths for six www files AND touched core/src/lib.rs.
+- Formatter helper build-runs/format-core-ftp4.py now runs rustfmt from engine cwd to
+  pick up engine formatting configuration. It applied a second format pass, but the
+  required follow-up fmt invocation was denied at context 153k/150k. Do not assume pass.
+- Commit verified formatting, inspect/fix quick diagnostics, run all on final committed
+  source; inspect summed cargo, clippy, CMake/full CTest before any ready queue.
+- Initial all cargo: 5039 passed/0 failed, 21 result lines. Concurrent edits reached its
+  later clippy: 2 new lints observed and fixed in 6a3a8b52; no final clippy pass measured.
+- Earlier parser-only quick: 3016 passed/0 failed. Current new tests have NO verdict yet.
+- Outstanding exec sessions: baseline all 51977; quick 70740/2570/42155; final all 24158
+  launched at 6a3a8b52; absolute fmt including lib.rs 75585. Several logs showed Cargo
+  build-lock waits; overlapping requests can overwrite same step logs. Do not infer pass.
+- Helpers/logs: build-runs/gate-summary-core-ftp4.py; qbuild-*.log, fc4verify-*.log.
+- Q10 appended to questions/web-network.md; retain Q1/Q3/Q7/Q9. No RE round requested.
+- No game requests, ABI/default/glue/map/coverage changes, or merge-queue file.
 - Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-ftp4-r1-manifest.json.
 
 ## Implementation
