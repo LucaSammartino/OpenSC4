@@ -11,20 +11,47 @@ use super::{Token, BLOCKING_WAIT_TIMEOUT};
 pub trait MessageHost {
     /// The message's `GetType` (message vtable +0x10).
     fn message_type(&mut self, msg: Token) -> u32;
-    /// The message equality test (message vtable +0x18).
-    /// [choice] The spec does not say which side's vtable is called; the
-    /// core calls it as `queued.equals(argument)`, i.e. `(queued, argument)`.
+    /// The queued receiver's equality test (message vtable +0x18, GZ7).
     fn messages_equal(&mut self, queued: Token, argument: Token) -> bool;
+    /// Raw native return; adapters override this to preserve low-byte truth.
+    fn equality_result(&mut self, queued: Token, argument: Token) -> u32 {
+        u32::from(self.messages_equal(queued, argument))
+    }
     /// One counted reference taken on `token`.
     fn add_ref(&mut self, token: Token);
     /// One counted reference dropped on `token`.
     fn release(&mut self, token: Token);
-    /// Wait on the queue's thread signal (§2 slots 20/21). The unit of
-    /// `timeout` and whether the wait resets the signal are unknown (GZ2);
-    /// the host decides. The queue is passed so a test host (or another
-    /// producer) can fill it. Default: return immediately.
-    fn wait_signal(&mut self, queue: &mut MessageQueue2, timeout: u32) {
-        let _ = (queue, timeout);
+    /// WaitForSingleObject equivalent: timeout is unsigned MILLISECONDS,
+    /// u32::MAX means infinite; return the raw OS status. Hold the platform
+    /// signal critical section across this call. No explicit ResetEvent.
+    /// The default invalid handle fails; a blocking get still retries.
+    fn wait_signal(&mut self, queue: &mut MessageQueue2, timeout_ms: u32) -> u32 {
+        let _ = (queue, timeout_ms);
+        u32::MAX
+    }
+    /// Mode-0 PulseEvent, NOT a persistent notification. The host creates an
+    /// initially nonsignalled auto-reset event; no eligible waiter loses it.
+    fn pulse_signal(&mut self) {}
+    /// Close event, destroy platform signal lock/string and free its state.
+    /// Called before releasing queue messages. No join or cancellation wake.
+    fn close_signal(&mut self) {}
+}
+
+/// GZ2: all finite microsecond timeouts truncate to milliseconds.
+pub const fn signal_wait_millis(timeout_us: u32) -> u32 {
+    if timeout_us == u32::MAX {
+        u32::MAX
+    } else {
+        timeout_us / 1_000
+    }
+}
+
+/// GZ2: WAIT_FAILED -> 0, WAIT_TIMEOUT -> 2, every other status -> 1.
+pub const fn signal_wait_result(os_status: u32) -> u32 {
+    match os_status {
+        u32::MAX => 0,
+        0x102 => 2,
+        _ => 1,
     }
 }
 
@@ -32,9 +59,8 @@ pub trait MessageHost {
 #[derive(Debug, Default, Clone)]
 pub struct MessageQueue2 {
     items: VecDeque<Token>,
-    /// The thread signal: set on the empty to non-empty transition, never
-    /// reset by the queue (§2).
-    signal: bool,
+    /// Diagnostic pulse count, never a wake token or a signalled state.
+    pulses: u64,
     /// The queue's own reference count, 0 after construction (§2).
     ref_count: u32,
     destroyed: bool,
@@ -45,15 +71,9 @@ impl MessageQueue2 {
         Self::default()
     }
 
-    /// The thread signal state (§2).
-    pub fn signal(&self) -> bool {
-        self.signal
-    }
-
-    /// Reset the thread signal. The queue never does this itself (§2); the
-    /// host's signal object may (GZ2).
-    pub fn reset_signal(&mut self) {
-        self.signal = false;
+    /// Empty-to-nonempty pulses issued, including pulses lost without waiters.
+    pub fn pulses(&self) -> u64 {
+        self.pulses
     }
 
     /// The queue's reference count.
@@ -91,6 +111,7 @@ impl MessageQueue2 {
 
     /// Slot 23, the destructor: releases every queued message.
     pub fn destroy<H: MessageHost + ?Sized>(&mut self, host: &mut H) {
+        host.close_signal();
         self.ref_count = 0;
         self.destroyed = true;
         while let Some(m) = self.items.pop_front() {
@@ -105,7 +126,8 @@ impl MessageQueue2 {
         host.add_ref(msg);
         self.items.push_back(msg);
         if was_empty {
-            self.signal = true;
+            self.pulses = self.pulses.wrapping_add(1);
+            host.pulse_signal();
         }
     }
 
@@ -115,7 +137,8 @@ impl MessageQueue2 {
         host.add_ref(msg);
         self.items.push_front(msg);
         if was_empty {
-            self.signal = true;
+            self.pulses = self.pulses.wrapping_add(1);
+            host.pulse_signal();
         }
     }
 
@@ -179,7 +202,7 @@ impl MessageQueue2 {
 
     /// Slot 6: remove the first message equal to `msg`.
     pub fn remove_first_equal<H: MessageHost + ?Sized>(&mut self, host: &mut H, msg: Token) -> bool {
-        self.remove_one(host, false, |h, m| h.messages_equal(m, msg))
+        self.remove_one(host, false, |h, m| h.equality_result(m, msg) as u8 != 0)
     }
 
     /// Slot 7: remove the last (newest) message of type `ty`.
@@ -189,7 +212,7 @@ impl MessageQueue2 {
 
     /// Slot 8: remove the last message equal to `msg`.
     pub fn remove_last_equal<H: MessageHost + ?Sized>(&mut self, host: &mut H, msg: Token) -> bool {
-        self.remove_one(host, true, |h, m| h.messages_equal(m, msg))
+        self.remove_one(host, true, |h, m| h.equality_result(m, msg) as u8 != 0)
     }
 
     /// Slot 9: remove every message of type `ty`; the number removed.
@@ -199,7 +222,7 @@ impl MessageQueue2 {
 
     /// Slot 10: remove every message equal to `msg`; the number removed.
     pub fn remove_all_equal<H: MessageHost + ?Sized>(&mut self, host: &mut H, msg: Token) -> u32 {
-        self.remove_every(host, |h, m| h.messages_equal(m, msg))
+        self.remove_every(host, |h, m| h.equality_result(m, msg) as u8 != 0)
     }
 
     /// Slot 11 RemoveAll: empty the queue; how many were in it.
@@ -246,46 +269,52 @@ impl MessageQueue2 {
 
     /// Slot 17: first message equal to `msg`, front to back, AddRef'd.
     pub fn peek_equal<H: MessageHost + ?Sized>(&self, host: &mut H, msg: Token) -> Option<Token> {
-        let i = self.find(host, false, |h, m| h.messages_equal(m, msg));
+        let i = self.find(host, false, |h, m| h.equality_result(m, msg) as u8 != 0);
         self.peek_at(host, i)
     }
 
-    /// Slot 18: get front: remove it; the caller now owns the queue's
-    /// reference (AddRef for the caller + Release by the queue, reported
-    /// as the net zero: no callback).
-    pub fn get_front(&mut self) -> Option<Token> {
-        self.items.pop_front()
+    /// Slot 18: acquire the caller hold, then remove/release the queue hold.
+    pub fn get_front<H: MessageHost + ?Sized>(&mut self, host: &mut H) -> Option<Token> {
+        self.get_at(host, 0)
     }
 
     /// Slot 19: get back.
-    pub fn get_back(&mut self) -> Option<Token> {
-        self.items.pop_back()
+    pub fn get_back<H: MessageHost + ?Sized>(&mut self, host: &mut H) -> Option<Token> {
+        self.get_at(host, self.items.len().checked_sub(1)?)
     }
 
     /// Slot 24: get the first message equal to `msg` and remove it.
     pub fn get_equal<H: MessageHost + ?Sized>(&mut self, host: &mut H, msg: Token) -> Option<Token> {
-        let i = self.find(host, false, |h, m| h.messages_equal(m, msg))?;
-        self.items.remove(i)
+        let i = self.find(host, false, |h, m| h.equality_result(m, msg) as u8 != 0)?;
+        self.get_at(host, i)
+    }
+
+    fn get_at<H: MessageHost + ?Sized>(&mut self, host: &mut H, i: usize) -> Option<Token> {
+        let m = *self.items.get(i)?;
+        host.add_ref(m);
+        self.items.remove(i);
+        host.release(m);
+        Some(m)
     }
 
     /// Slot 20: blocking get front: retry slot 18, waiting on the signal
     /// with timeout 1,000,000 between tries. Always succeeds.
     pub fn blocking_get_front<H: MessageHost + ?Sized>(&mut self, host: &mut H) -> Token {
         loop {
-            if let Some(m) = self.get_front() {
+            if let Some(m) = self.get_front(host) {
                 return m;
             }
-            host.wait_signal(self, BLOCKING_WAIT_TIMEOUT);
+            let _ = signal_wait_result(host.wait_signal(self, signal_wait_millis(BLOCKING_WAIT_TIMEOUT)));
         }
     }
 
     /// Slot 21: blocking get back.
     pub fn blocking_get_back<H: MessageHost + ?Sized>(&mut self, host: &mut H) -> Token {
         loop {
-            if let Some(m) = self.get_back() {
+            if let Some(m) = self.get_back(host) {
                 return m;
             }
-            host.wait_signal(self, BLOCKING_WAIT_TIMEOUT);
+            let _ = signal_wait_result(host.wait_signal(self, signal_wait_millis(BLOCKING_WAIT_TIMEOUT)));
         }
     }
 

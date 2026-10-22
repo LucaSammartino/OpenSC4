@@ -20,14 +20,17 @@ pub const SERVER1_SNAPSHOT_LIMIT: usize = 385;
 /// Host callbacks of the first-generation server.
 pub trait Server1Host {
     fn add_ref_target(&mut self, target: Token);
+    fn add_ref_target_in_server(&mut self, _server: &mut MessageServer1, target: Token) {
+        self.add_ref_target(target);
+    }
     fn release_target(&mut self, server: &mut MessageServer1, target: Token);
     /// `target->DoMessage(&record)` (+0x0C); return value ignored.
     fn do_message(&mut self, server: &mut MessageServer1, target: Token, msg: &Record);
 }
 
 impl<H: Server1Host + ?Sized> RegistryHost<MessageServer1> for H {
-    fn add_ref_target(&mut self, target: Token) {
-        Server1Host::add_ref_target(self, target);
+    fn add_ref_target(&mut self, server: &mut MessageServer1, target: Token) {
+        self.add_ref_target_in_server(server, target);
     }
     fn release_target(&mut self, server: &mut MessageServer1, target: Token) {
         Server1Host::release_target(self, server, target);
@@ -44,9 +47,7 @@ pub struct MessageServer1 {
     /// Drain-all flag (+0x64), default true.
     drain_all: bool,
     countdown: i32,
-    /// Directed deque: (target, record copy). [choice] §4A says "as §4.5";
-    /// the message is stored by value (nothing is counted for messages) and
-    /// the target is referenced as in §4.5 (GZ5).
+    /// Raw target and copied record; caller preserves both lifetimes (GZ5).
     directed: VecDeque<(Token, Record)>,
 }
 
@@ -57,6 +58,7 @@ impl Default for MessageServer1 {
 }
 
 impl HasRegistry for MessageServer1 {
+    const RAW_PENDING: bool = true;
     fn registry_mut(&mut self) -> &mut Registry {
         &mut self.registry
     }
@@ -108,7 +110,7 @@ impl MessageServer1 {
     /// snapshot and released right after its call. Returns true.
     pub fn message_send<H: Server1Host + ?Sized>(&mut self, host: &mut H, msg: &Record) -> bool {
         registry::apply_pending(self, host);
-        self.registry.depth += 1;
+        self.registry.depth = self.registry.depth.wrapping_add(1);
         let ty = msg[0];
         let mut targets = if ty == 0 {
             Vec::new()
@@ -119,9 +121,9 @@ impl MessageServer1 {
         // §4A allows treating 385 as the limit: the rest are not delivered.
         targets.truncate(SERVER1_SNAPSHOT_LIMIT);
         for &t in &targets {
-            Server1Host::add_ref_target(host, t);
+            host.add_ref_target_in_server(self, t);
         }
-        self.registry.depth -= 1;
+        self.registry.depth = self.registry.depth.wrapping_sub(1);
         let copy = *msg;
         for t in targets {
             host.do_message(self, t, &copy);
@@ -149,21 +151,27 @@ impl MessageServer1 {
     }
 
     /// Slot 7 post directed (msg, target).
-    pub fn post_directed<H: Server1Host + ?Sized>(&mut self, host: &mut H, msg: &Record, target: Token) -> bool {
-        Server1Host::add_ref_target(host, target);
+    pub fn post_directed<H: Server1Host + ?Sized>(&mut self, _host: &mut H, msg: &Record, target: Token) {
         self.directed.push_back((target, *msg));
-        true
     }
 
-    /// Slot 8 cancel directed messages for `target`; the number erased.
-    pub fn cancel_directed<H: Server1Host + ?Sized>(&mut self, host: &mut H, target: Token) -> u32 {
-        let before = self.directed.len();
-        self.directed.retain(|&(t, _)| t != target);
-        let erased = (before - self.directed.len()) as u32;
-        for _ in 0..erased {
-            Server1Host::release_target(host, self, target);
+    /// Slot 8: native prefix erase / suffix skip, with no reference calls.
+    /// Precondition: erasure must not leave the pre-advanced scan past end
+    /// (in particular, matching the last/sole entry is native undefined behavior).
+    /// Native slot 8 is void.
+    pub fn cancel_directed<H: Server1Host + ?Sized>(&mut self, _host: &mut H, target: Token) {
+        let mut scan = 0;
+        while scan < self.directed.len() {
+            let i = scan;
+            scan += 1;
+            if self.directed[i].0 == target {
+                let prefix = i < self.directed.len() / 2;
+                self.directed.remove(i);
+                if prefix {
+                    scan -= 1;
+                }
+            }
         }
-        erased
     }
 
     /// Slot 9 OnTick (as §4.4): the front record is taken into a local copy
@@ -189,13 +197,12 @@ impl MessageServer1 {
             self.countdown = self.directed.len() as i32;
         }
         while self.countdown > 0 {
-            self.countdown -= 1;
+            self.countdown = self.countdown.wrapping_sub(1);
             if let Some((t, rec)) = self.directed.pop_front() {
                 host.do_message(self, t, &rec);
-                Server1Host::release_target(host, self, t);
             }
         }
-        self.countdown -= 1;
+        self.countdown = self.countdown.wrapping_sub(1);
     }
 
     /// Slot 10 posted-message count.
@@ -211,9 +218,7 @@ impl MessageServer1 {
     /// Destruction (as §4.7).
     pub fn destroy<H: Server1Host + ?Sized>(&mut self, host: &mut H) {
         registry::clear(self, host);
-        for (t, _) in std::mem::take(&mut self.directed) {
-            Server1Host::release_target(host, self, t);
-        }
+        self.directed.clear();
         self.post_queue.clear();
     }
 }
