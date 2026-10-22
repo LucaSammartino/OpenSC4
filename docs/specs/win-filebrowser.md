@@ -28,7 +28,13 @@ base window at object offset `+4` (`0099FC88`–`0099FCA9`). The window-interfac
 QueryInterface and Release thunks subtract four before forwarding (`0047AA30`,
 `0047AA40`). A caller must release a successful query result.
 
-The window-interface table at `00A8D000` has 151 exported slots (0–150).
+The window-interface tables at `00A8D000` and `00ADCF30` have 151 slots (0–150).
+The recovered constructor installs **`00ADCF30`** at object `+4`; its slot
+148 is `009A3232`, forwarding to deleting destructor `009A35DD`. The older
+table's slot 148 is `008AEB00`, forwarding to `008AF100`. Both deleting
+wrappers call the same actual destructor `009A31A2`. Native table words and
+constructor stores (`009A57DC`–`009A57E2`) prove this distinction; a name-based
+vtable query alone does not distinguish these copies.
 Browser-specific overrides include Init (4), Shutdown (5), DoMessage (3),
 SetArea (`009A0089`), GZPaint (`009A0A17`), and the destructor thunk at 148;
 inherited entries retain their base-window meanings. The primary table starts
@@ -358,18 +364,63 @@ references; they do not transfer the caller's reference.
 
 ### 8.5 Lifecycle and paint
 
-Init (`009A3CC1`, 742 bytes) checks the base init flag and skips its setup when
-already initialized. First setup calls base Init, loads default icons 0–6,
-constructs controls and populates lists if control construction reports
-success. It returns true even on the already-initialized path. Constructor
-defaults, complete setup order and failure preconditions remain FBQ3.
+Init (`009A3CC1`, 742 bytes) receives the secondary/window pointer, checks
+the base init flag, and returns Boolean true immediately if already initialized.
+On first setup it obtains the resource manager, calls base Init without
+testing its result, and sets **actual width 396 and height 236**, in that order,
+through window slots 51/52. These are not minimum dimensions: SetW/SetH
+construct new area endpoints (`0099BC68`, `0099BC8F`). It then loads default
+icons 0–6, invokes primary slots 93 then 94, and copies the fallback directory
+to the current directory if the latter is empty (`009A3CC9`–`009A3D76`).
 
-Shutdown (`0099EC98`, 450 bytes) first invokes the three browser cleanup
-operations (primary offsets `0x1A0`, `0x1A4`, `0x1A8`), then releases and nulls
-retained control/resource interface fields, including each entry of its icon
-and button-buffer arrays, before invoking base Shutdown. These are ownership
-releases, not borrowed pointers to be silently discarded. Exact counts and
-the destructor-versus-Shutdown contract remain FBQ3.
+It stores `0xFF7C90FF` at primary `+0x30C`, invokes primary slot 40 with
+`(0,5,true)`, and, if the common font field `+0x2C8` is empty, requests resource
+`0x68963C4C`. A returned font is retained once. Its `(0,0)` height replaces
+`+0x224` only when unsigned-greater than the current value. Primary slot 73
+then receives `(5,5,5)`; slots 61,63 receive `+0x2E8`; slot 65 receives
+`+0x224`; slots 67,69 receive `(0,0)`. Init sets primary bytes `+0x29E` and
+`+0x2C2` to 6, passes the packed color pair derived from RGB `(8,36,107)` and
+`(255,255,255)` to slot 71, and enables slot 79 with true. If browser flag 2
+is set it clears window flags `0x20000` and `0x40000` and sets `0x10000`;
+otherwise it sets `0x20000` and `0x40000`, leaving `0x10000` untouched
+(`009A3D7B`–`009A3EDB`). Public property meanings remain in FBQ4 until their
+method bodies are reconciled; these ordered calls do not authorize substituting
+different setup values.
+
+Next acquire button resources `0x683DB4E5` and `0x683DB4E6` for selectors 2
+and 3, respectively. Retain each borrowed resource, or call the procedural
+buffer creator when absent, assign it through primary slot 13, then release
+the temporary reference. Neither creation success nor the temporary pointer
+is checked before Release. The second resource-manager call is also
+unconditional: a missing resource manager is not a supported graceful-failure
+path (`009A3EE1`–`009A3F63`). After AddControls (slot 91), only on true call
+slot 26 with the selected filter index, slot 92, then UpdatePath (slot 95).
+Finally clear dirty byte `+0x31C` and return true regardless of AddControls'
+result (`009A3F66`–`009A3FA6`). Failed first setup has no local rollback and
+does not turn the return into false.
+
+Shutdown (`0099EC98`, 450 bytes) receives the secondary/window pointer and
+first invokes primary slots **104,105,106**, in that order: clear file-entry
+records, clear drive records, clear custom-entry groups. Their results are
+ignored. Then visit the following **29 reference fields** in order, releasing
+each non-null interface exactly once and setting that field to null. Offsets
+below are all from the **primary** pointer, not the Shutdown argument.
+
+| Order | Primary fields | Number |
+|---|---|---:|
+| 1 | `+0xE8` through `+0x118`, step four (retained controls) | 13 |
+| 2 | `+0x2C8` (common font) | 1 |
+| 3 | `+0x2CC` through `+0x2E4`, step four (icons) | 7 |
+| 4 | `+0x2F0` through `+0x2FC`, step four (button buffers) | 4 |
+| 5 | `+0x310`, then `+0x238`, `+0x25C`, `+0x2A4` | 4 |
+
+Shutdown then tail-calls base Shutdown. It has no own initialized-flag guard;
+null fields skip Release, but cleanup slots and base Shutdown are still called
+on a repeat. In particular it **does not release `+0x280`**, the third of the
+four style-block font fields. Do not silently extend this list to a symmetric
+four-field loop. Evidence: `0099EC9D`–`0099ECBE`, scalar sequence
+`0099ECBE`–`0099EDCA`, seven/four iteration counts `0099EDCB`–`0099EE01`,
+and final fields/tail call `0099EE03`–`0099EE55`.
 
 GZPaint (`009A0A17`, 173 bytes) optionally paints a background using the
 configured buffer or solid color. If the primary dirty byte `+0x31C` is set,
@@ -378,6 +429,81 @@ after background painting; list population can therefore happen during paint.
 SetArea (`009A0089`, 45 bytes) sets that byte, invalidates, then delegates its
 four original arguments to base SetArea (`009A008E`–`009A00AD`). Exact
 background placement remains FBQ2.
+
+### 8.6 Constructor and destruction (native lifecycle contract)
+
+The actual constructor is **`009A57C4` (710 bytes)**, absent from the original
+174-entry union. It constructs the base window at `+4`, installs primary
+`00ADD190` and secondary `00ADCF30`, and initializes the following defaults
+before returning the primary pointer. No controls or graphic resources are
+created here; those belong to Init/AddControls.
+
+| State | Constructor value / operation |
+|---|---|
+| File-entry vector `+0xDC`, custom groups `+0x13C`, filter strings `+0x148` | Empty, zero begin/end/capacity |
+| Retained controls `+0xE8..+0x118` | All 13 null |
+| Control enables `+0x11C..+0x128` | All 13 bytes true |
+| Flags `+0x160`; filter index `+0x154` | `0xD`; zero |
+| Sort selector `+0x12C`, option `+0x134`, callback `+0x138` | zero, zero, `009A3FA7` |
+| Current directory `+0x170`, fallback `+0x184`, pending name `+0x1A0` | Empty strings |
+| Parent label `+0x1B4`, new-directory label `+0x1C8` | `..`, `New Folder` (native pointers `00B17B0C`, `00B17B14`) |
+| Pending selection words `+0x198`, `+0x19C` | Both zero |
+| Common font `+0x2C8`, icons `+0x2CC..+0x2E4`, buttons `+0x2F0..+0x2FC` | All null |
+| `+0x224`, `+0x2E8`, `+0x2EC`, `+0x314`, `+0x318` | 20 each |
+| `+0x228`, `+0x22C`, `+0x234`, `+0x300`, `+0x304`, `+0x310` | Zero |
+| `+0x230`; `+0x30C` | 8; `0xFFFFFFFF` |
+| Bytes `+0x15C`, `+0x308`, `+0x309`, `+0x31C` | False |
+
+Words `+0x164,+0x168,+0x16C` also start at zero.
+
+Five dimension words `+0x1E4,+0x1F0,+0x1FC,+0x208,+0x214` start at 10;
+`+0x1F8,+0x204,+0x210` start at `0xFFFFFFFF`. Words `+0x130,+0x1EC,+0x220`
+start at 2; `+0x1E0` starts at zero and `+0x21C` at 1. Bytes `+0x1DC,+0x1E8,
++0x218` are true; `+0x1F4,+0x200,+0x20C` are false. These stored defaults
+are compatibility facts, not inferred minimum dimensions. Four 36-byte style
+blocks at `+0x238,+0x25C,+0x280,+0x2A4` start with null font, six words of
+`0x40000000`, packed color `0x000000FF`, and final word `0x40000000`; the
+browser then clears each block's byte at relative `+0x1C`. The native helper
+`009A5BF2` initializes these blocks despite its misleading exported name.
+Three embedded selection strings at `+0x328,+0x33C,+0x350` are constructed
+and AddRef'd once. Evidence: constructor `009A57C4`–`009A5A89`, block helper
+`009A5BF2`–`009A5C1F`, descriptor constructor `009A1F3C`.
+
+Actual destruction (`009A31A2`, 144 bytes) installs browser tables, destroys
+the descriptor's three strings (`009A1F5B`), then strings at `+0x1C8,+0x1B4,
++0x1A0,+0x184,+0x170`, the list at `+0x158`, filter-string vector at `+0x148`,
+custom-group vector storage at `+0x13C`, and file-vector storage at `+0xDC`,
+then enters the base destructor at `+4`. It **does not call browser Shutdown**
+or its three clear slots. The base destructor directly calls base ChildDeleteAll
+and base Shutdown (`0099E1A6`–`0099E1B3`); that is not virtual browser cleanup.
+Thus explicit browser Shutdown is required to release retained browser
+references and destroy pointed-to file/drive/custom records. Destruction alone
+must not be documented as equivalent to Shutdown plus destruction.
+
+Deleting wrappers `008AF100` (30 bytes) and `009A35DD` (28 bytes) invoke the
+actual destructor, free the primary allocation only if the low bit of the
+32-bit argument is set, and return the original primary pointer. Secondary
+thunks `008AEB00` and `009A3232` subtract four before forwarding. Release
+(`0099FC70`, 24 bytes) unsigned-compares the primary reference count at
+`+0x10` with 1: values greater than 1 decrement and return the new value;
+0 or 1 invoke primary slot 89 and return zero without a preceding decrement.
+The constructor-installed slot 89 is the deleting wrapper. An already-zero
+count is not a safe no-op release. No extra browser Shutdown is inserted by
+Release itself.
+
+Primary clear methods are Boolean-true operations even on empty collections.
+Slot 104 (`009A2EC7`, 72 bytes) destroys each non-null file-entry's three
+owned strings and frees that record, then clears the pointer vector without
+freeing its capacity. Slot 105 (`009A2DA6`, 57 bytes) destroys each non-null
+drive-record string and frees the record, then clears list nodes. Slot 106
+(`009A35F9`, 134 bytes) visits every custom-entry group, releases each entry's
+non-null interface at record `+4`, destroys its embedded string at `+8`, frees
+the entry, clears the group-vector range, and resets selected index `+0x154`
+to zero. These methods do not clear grid cells, mark dirty, or invalidate.
+Filter-label strings in the separate vector `+0x148` survive these clear
+operations and are destroyed with that vector at destruction. Evidence:
+`009A2EC7`–`009A2F0E`, `009A1DB8`, `009A2DA6`–`009A2DDE`,
+`009A35F9`–`009A367E`, `009A2E07`.
 
 ## 9. Additional discriminating conformance cases
 
