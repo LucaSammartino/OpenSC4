@@ -171,7 +171,7 @@ if no other frees occur. For a group with differing part colours/alpha, getters 
 | 5 | `0x00736150` | `AddDecal(key, positionXZ, width, turns)` | the factory's binding for the key (factory slot 6), then slot 4 |
 | 6 | `0x007361B0` | `AddDecal(key, positionXZ, width, turns)` | the same with factory slot 5 |
 | 7 | `0x0073B170` | `AddRoundDecal(key, positionXZ, width, turns)` | a **group** of eight outline rectangles omitting the centre (§3.1) |
-| 8 | `0x0073C9A0` | `AddCityDecal(key)` | one overlay over the whole city (`0x0073B8A0`, flags `0x12`) *[inferred]* |
+| 8 | `0x0073C9A0` | `AddCityDecal(key)` | factory slot 5; direct rectangle overlay, flags `0x13`, exact matrix in §3.6 |
 | 9 | `0x0073B3B0` | `AddShadow(key, positionXZ, width, turns, flipV)` | factory slot 6 resolves the key; shadow matrices as §3.5 |
 | 10 | `0x00735480` | `AddShadow(groupWord, positionXZ, width, turns, flipV)` | −1 when `kShadowQuality` is 0; otherwise constructs the key described in §3.5 and calls slot 9 |
 | 11 | `0x0073C0D0` | `AddModelShadow(…)` *[inferred]* | a shadow built from a model's footprint |
@@ -460,6 +460,33 @@ primary `(1/2,1/2,0,1)` and secondary `(1/2,1/2,0,1)`; at world `(0,0,8)` primar
 With flipV true the latter primary v=0 and secondary v=1/4. The placement getter is identical in both cases.
 Model-shadow slot 11 remains a separate unresolved contract (OV1); these rules must not be substituted for it.
 
+### 3.6 Rectangle helper and city-wide add (OV2)
+
+`AddOverlayForRect` (`0x0073B8A0`) takes `(binding, cellRectangle, matrix16, extraFlags)` and returns a
+**direct overlay index**, or −1 for a null binding. It constructs the default overlay (§1.1), retains the
+binding, copies all four supplied rectangle words and all sixteen primary-matrix words, ORs extraFlags into
+the default shown flag, and allocates the record. It does not clip, normalize, derive a placement record,
+allocate an indirect handle, or initialize a shadow-specific secondary transform. For a non−1 allocation
+on a static manager it inserts the rectangle into the cell index, then calls MarkChanged; a dynamic manager
+skips both. Local source/binding references are released after allocation; the retained record owns its
+references. Evidence: `0x0073B8AE–0x0073B8F1`, copies `0x0073B8F1–0x0073B9A7`, post-add/cleanup
+`0x0073B9AC–0x0073BA04`.
+
+Slot 8 resolves its one key through **factory slot 5**, calls that helper with city rectangle `(0,0,nx,nz)`
+and extraFlags `0x12`, then releases the temporary binding. Thus final flags are `0x13` (shown, bit 1,
+decal bit 4); it returns a direct ID and has no placement getter record. A missing binding yields −1 through
+the helper. Its primary matrix is unusual and must be preserved rather than replaced with a conventional
+city-sized X/Z texture mapping. In the row/column convention of §3.2 its rows are
+`[0,0,0,0]`, `[0,F(E(2/nx)),0,0]`, `[0,0,1,0]`, `[0,0,0,1]`.
+The numerator is binary32 2 at `0x00A8825C`; nx is converted from a signed integer and the quotient is
+stored once as binary32. Neither nz nor the world cell width enters that matrix. No nx=0 guard exists.
+Evidence: `0x0073C9A6–0x0073CA6E` (matrix base and sole quotient store `0x0073CA6A`), helper call
+`0x0073CA75–0x0073CA83`, return/temporary release `0x0073CA88–0x0073CA9E`.
+
+Paper discriminator: nx=64, nz=32 gives rectangle `(0,0,64,32)` and sole nonzero texture coefficient
+M[1,1]=1/32. A static add with binding present returns a direct ID with flags `0x13`; slot 14 does not
+write an output placement for that ID. Changing nz alone leaves this matrix unchanged.
+
 ## 4. Drawing (`Draw`, `0x00738A50`) *[compat]*
 
 A dynamic manager is not drawn under `kRenderSnapshot` (boolean 28). Otherwise:
@@ -631,8 +658,21 @@ without pretending to validate native inverse rounding on general matrices.
 
 ## 5. Messages
 
-`0xC9F775BB` is subscribed by `Init` and unsubscribed at shutdown *[inferred: a terrain or zoom change that makes the
-overlays be placed again]*.
+The message target subobject is at manager `+0x10`; its vtable `0x00AB39A8` has handler slot 3
+`0x00736100`. Init subscribes that subobject to `0xC9F775BB` when the global message server exists;
+Shutdown unsubscribes it (`0x0073CD09–0x0073CD18`, `0x0073ACA2–0x0073ACB5`).
+
+The handler obtains the message type from message slot 4. For `0xC9F775BB` it refreshes manager `+0x18`
+from render-properties integers `+0x1FC` (shadow quality), `+0x1C` from integers `+0xBC` (second-stage/debug
+setting), and byte `+0x20` from render-properties booleans `+0x37C`. All are copied, without range checks.
+Other types leave all those fields alone. Both paths return true in AL. No overlay traversal, re-placement,
+index rebuild, counter reset, terrain invalidation or geometry request occurs. This is a render-settings
+refresh notification, not evidence for a terrain/zoom re-placement rule. The complete handler is
+`0x00736100–0x00736141`, with the three stores at `0x00736121`, `0x0073612D`, `0x00736139`.
+
+Paper vector: start with quality 2, second-stage setting 0, byte `+0x20`=1 and nonempty records/index.
+With source settings `(0,7,0)`, an unrelated message returns true and preserves all three cached values;
+`0xC9F775BB` returns true and changes them to `(0,7,0)`, leaving placement/index/counters untouched.
 
 ## 6. Users
 
