@@ -10,7 +10,9 @@
 - Initial quick: 2324 passed/1 failed (sweep accumulated f32 error 0.000022 vs tolerance 0.000020); tolerance corrected to 0.000050.
 - Added all nine spec numerical scenarios plus ownership/image/quirk/failure tests; rerun after formatting.
 - Quick PASS: core 2334/2334 (18 lighting), dependents compiled, native build 4/4 (141.5s).
-- Next: add drift/rotated grid/message tests, review edge cases; full all and fmt before final report.
+- Added drift in both directions, all rotated grids, deferred dirty messages, render settings, terrain/vertex color rules, decal overrides and bounds/failure cases.
+- Literal review correction: terrain vertex normals bend by grid depth even at zero; point color tests retain positive-depth checks. Terrain color lowers directly to stored land height.
+- Next: format new files, run full all and new-file fmt; review any gate errors, then final owner-by-owner report and queue.
 - Formatting: new files formatted; qbuild fmt with absolute paths detects inherited lib.rs ordering/line-wrap diffs (no unrelated reformat). q.py Bash is denied by environment; native PowerShell rustfmt works.
 - Clean room: only allowed docs and engine source; no tools scripts or analysis sources.
 - Filed LT5-LT11 in docs/specs/questions/lighting.md. Projection and terrain rectangle are explicit ContractGap; upper terrain clamp and rectangular sweep also unresolved.

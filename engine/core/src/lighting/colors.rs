@@ -98,7 +98,7 @@ impl LightingManager {
     pub fn get_terrain_color(&self, position: Vector, normal: Vector) -> Result<[u8; 3]> {
         let normal = if self.shadows_on {
             let mut ground = position;
-            ground[1] -= self.height_above_land(position)?;
+            ground[1] = self.heights[self.location_index(position)?];
             self.shadowed_normal(normal, ground)?
         } else {
             normal
@@ -167,9 +167,9 @@ impl LightingManager {
                 let index = self.grid_index(i0 + t, j)?;
                 let depth = self.shadows.get(index).ok_or(LightingError::LocationOutsideGrid)?
                     - self.heights.get(index).ok_or(LightingError::LocationOutsideGrid)?;
-                if depth > 0.0 {
-                    n = self.bend_shadowed_normal(n, depth);
-                }
+                // §4.5 says to bend by grid depth, without the positive-depth
+                // condition used by the point queries. Zero still normalizes n.
+                n = self.bend_shadowed_normal(n, depth);
                 let k = self.fade_term([(i0 + t) as f32 * 16.0, 0.0, j as f32 * 16.0]);
                 k2 = k * k;
             }

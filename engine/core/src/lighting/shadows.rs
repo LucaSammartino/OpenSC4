@@ -168,7 +168,7 @@ impl LightingManager {
             _ => (z - 1 - j) * x + i,
         })
     }
-    fn location_index(&self, p: Vector) -> Result<usize> {
+    pub(crate) fn location_index(&self, p: Vector) -> Result<usize> {
         if !p[0].is_finite() || !p[2].is_finite() || p[0] < 0.0 || p[2] < 0.0 {
             return Err(LightingError::LocationOutsideGrid);
         }
@@ -298,7 +298,7 @@ impl LightingManager {
         }
         Ok(())
     }
-    fn changed_world_rect(&self) -> Rect {
+    pub(super) fn changed_world_rect(&self) -> Rect {
         let mut world = Rect::EMPTY;
         let (x, z) = (self.cells.0 as i32, self.cells.1 as i32);
         for c in [self.changed.min_x, self.changed.max_x] {

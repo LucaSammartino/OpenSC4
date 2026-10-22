@@ -87,7 +87,7 @@ impl Rect {
         max_z: -1,
     };
     pub fn is_empty(self) -> bool {
-        self.min_x < 0 || self.max_x < self.min_x || self.max_z < self.min_z
+        self.min_x < 0 || self.min_z < 0 || self.max_x < self.min_x || self.max_z < self.min_z
     }
     pub fn include(&mut self, x: i32, z: i32) {
         if self.is_empty() {
