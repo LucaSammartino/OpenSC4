@@ -261,7 +261,6 @@ cGZDBSegment*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/s
 cGZDBSDFRecord	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
 cGZDBWriteRecord*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
 cGZPersistDBSegment*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
-cGZPersistResourceManager	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
 cRZFastCompression*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/qfs.rs	-	-
 cSCResExemplar	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
 cSCResExemplarCohort	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
@@ -355,7 +354,7 @@ cSC4LightingManager	lighting and shadows	renderer	lighting.md	-	-	-
 cImageARGB8	lighting and shadows	renderer	lighting.md	-	-	-
 fn:RotateLightingRectToWorld	lighting and shadows	renderer	lighting.md	-	-	-
 fn:BuildBasisFromDirection	lighting and shadows	renderer	lighting.md	-	-	-
-cSC4RenderProperties*	render properties	renderer	render-properties.md	-	-	-
+cSC4RenderProperties*	render properties	renderer	render-properties.md	core/src/render_properties	-	-
 cSC4ModelRegEffects	model effects	renderer	graphics-formats.md	-	-	-
 cSC4Model*	3D scene and models	renderer	-	-	-	-
 cSC4ConfigRuleManager	graphics rules	renderer	graphics-rules.md	-	-	-
@@ -530,6 +529,7 @@ fn:ResolvePath	paths and directories	framework	paths.md	-	-	-
 fn:Splitpath	paths and directories	framework	paths.md	-	-	-
 fn:SplitDirectory	paths and directories	framework	paths.md	-	-	-
 fn:RZFileFind*	paths and directories	framework	paths.md	-	-	-
+cGZPersistResourceManager	persistence and resources	framework	persistence-manager.md	-	-	-
 cGZPersist*	persistence and resources	framework	-	-	-	-
 cGZBufferResource	persistence and resources	framework	persistence.md	-	-	-
 cGZBufferResourceFactory	persistence and resources	framework	persistence.md	-	-	-
