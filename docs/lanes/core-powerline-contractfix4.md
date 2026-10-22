@@ -4,10 +4,11 @@
 
 ## Handoff
 - Stable source: `59750f17`; no source edits in this final round unless fresh gate errors require them.
-- Formatting: qbuild fmt PASSED, exit=0, 11 absolute Rust paths; diff_lines=1 is the canonicalize-path warning.
+- Formatting repeated in final round: qbuild fmt PASSED, exit=0, all 11 touched Rust files; diff_lines=1 is only the canonicalize-path warning. git diff --check also passed.
 - Prior all session 68246 and quick session 63587 are interrupted/incomplete, not live operations and not passed evidence.
 - Final-round process audit: queried Windows command lines successfully for all Python/Cargo/rustc/build candidates; none belongs to this worktree (only its lane backend is live). Native and both x86 Cargo build locks were acquired nonblocking and released; no build owns them. CIM was denied and Restart Manager returned 29; direct command-line and lock probes succeeded.
-- Old qbuild-test.log ends at Compiling; old clippy/CTest failures are baseline-era and excluded from final evidence. Next: inspect supported source, then run ONE fresh stable all.
+- Fresh all started once at 21:53 on `59cc4c84`, identical engine tree `6ac98c5c100e4fd9900c7844a253ac44b2030270` to `59750f17`. PID 28012 (qbuild), child Cargo 21776/35808, active rustc 34056/32368; native target lock owned, x86 build-x86 locks free. Unified exec session 44197 is only a transport handle, not liveness evidence. Collect this operation, do not start another.
+- Fresh qbuild-test.log compiling; clippy/CTest logs still old baseline-era and excluded from final evidence. No final test counts yet. Source inspection found no change needed.
 - Portable vector functions: 24 in power_line/tests.rs, 3 lifecycle/text tests, 9 retained tests_power_line.rs tests (36 total). Counts are source functions, not a passed-gate claim.
 - Scope: lifecycle/resources/text, NO24 position, classifier/probes, ordered links/records/13 structural helpers, controls/cubic/connection buffers, supplied-group Determine/Place, preview/undo, relocation and supported zone query/cleanup.
 - Withheld: regional owners/RA1-RA3; NT18 group producer; NT22 entire eligible backward wire split (counted explicitly); NT24 inventory basis; invalid allocation NT25; fresh-axis intermediate-pivot credit NT26. No full-owner promotion, ABI export edits or game runs.
