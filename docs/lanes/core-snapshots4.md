@@ -16,8 +16,9 @@
 - Milestone 91e3d071: strengthened 15-fixture suite and frozen production code.
 - Focused quick Rust phase: 2965 passed / 0 failed, including the initial 6 snapshot fixtures (compiled before 9 later additions); final all must run all 15.
 - New-file fmt passes; shared additive lib.rs fmt check fails on pre-existing ordering/layout (166 diff lines), left untouched as required.
-- Focused dependencies compiled; quick CMake build still running (exec session 68359).
+- Quick PASS: core 2965/0 (initial 6 snapshot fixtures), dependents compiled, CMake 170/170; 1427.5 s total. Tree changed during this iterative run; not the final frozen-code gate.
 - Review correction: typed on_key/on_capture_message now hide via the UI primitive before posting counter 0, own re-posts and raise the Lua event. A new independent effect-order fixture precedes this correction.
-- Next: await quick completion, preserve quick logs, run fmt on new files, then stable final qbuild all (no source changes during final gate).
+- Milestone 66f778c1: UI effect ordering correction, 16 total fixtures; new-file fmt passes.
+- Next: stable final qbuild all on frozen source. Quick logs preserved in build-runs/quick-iteration; no source edits during final gate.
 - No game requests: pure core only; no ABI changes or native-exact/full-owner claims.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-snapshots4-r1-manifest.json.
