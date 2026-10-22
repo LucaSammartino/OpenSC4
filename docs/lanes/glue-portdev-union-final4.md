@@ -15,7 +15,7 @@ Both diagnostic runs reached2033/ref3 on DLL`00213eb1` with the identical immuta
 | Run | Aircraft manager | Base plane receivers (Read order) | Airport keys (paired Read order) |
 |---|---|---|---|
 | pduf4-diag-ports-20261022-a | 04A6A9F0 | 03080814,03081814,03081014 | 031437A8,031436D8,03143670 |
-| pduf4-diag-control-20261022-a | 04D5EA20 | 03070814,03071814,03071014 | 031337A8,031336D8,03133670 |
+| pduf4-diag-control-20261022-a | 04D5EA20 | 03070814,03071814,03071014 | 031737A8,031736D8,03173670 |
 
 Each Read retained three base references plus three airport/plane pairs: nine acquired interfaces, with each plane appearing in both owners. Aircraft Shutdown released none. Later member destruction released base planes2->1, then each airport2->1 and map plane1->0 in stream order. All three warnings were those last map-plane releases in **destruction after Shutdown**, not the native initialized Shutdown event. The control establishes the same common failure independently of ports. Pointer identities and full logs are in `build-runs/game-results/<label>.log`; supplied earlier controls are under `build-runs/evidence-run4`.
 
