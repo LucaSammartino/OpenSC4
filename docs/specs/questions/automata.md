@@ -40,3 +40,29 @@ reading of "the manager holds them") and declares that release the manager's own
 
 <!-- from: coordinator train84 controlled saved-port union (2026-10-22) -->
 - **AT24 - aircraft manager loaded-reference destruction:** On identical integration DLL c269a6ba5f, immutable replacement save SHA25638f234433b0c..., identical seven-action reload script and literal39 replacement keys, both +ports and ports-disabled control reach2033/ref_warnings3. All three warnings are native cSC4Airplane class0xCBEB4F62, vtable SimCity4.exe+0x694B38, at cFC4Automata.cpp HostRelease:53 during destruction. Source labels train84-ports-union-reload-20261022-a and train84-ports-union-control-20261022-a are preserved under build-runs/game-results. The normal candidate union and seven ports-only/reload runs are clean/ref0. Does original aircraft-manager Read0x004FBE70 retain owning references to its airport/airplane map, and which exact clear/shutdown/destructor sites release them? Prove reference acquisition, loaded-segment lifetime, release order and final-owner conditions before changing ownership-audit classification or release behavior. Is the existing generic HostRelease semantically wrong or missing a justified destructor-only ownership annotation? No warning suppression or ports replacement promotion is authorized by this observation. [unresolved; same three warnings in control establishes an existing automata-path issue, not a ports-caused difference]
+<!-- from: glue-automata-managers4 (2026-10-22) -->
+- **AT22 - §§3.5, 7.1, 11; automata-support.md §2; automata-managers.md §1:** Please publish a complete
+  inherited `cSC4AutomataController` lifecycle/interface contract: constructor/destructor defaults and
+  ownership, Init/Shutdown and template assignment, activation, occupant attachment/movement, world bounds,
+  grid-bound storage, tick/expiry and controlled-automata removal, with reconciled signatures/returns for
+  every reachable slot. §3.5 says the saved position starts at +0x10 but the live getter at +0x14, and
+  CheckFlag/SetFlag use +0x40 while saved flags use +0x3C and +0x40 also holds the list head. Resolve these
+  before native layout calls or a live wrapper are implemented; a round-tripping record does not settle
+  live accessors. The director lists only attractor (0x6A1628BA) and generator (0x4A1628C5) controller
+  factories. Confirm the base has no separate factory and specify the derived overrides required on each
+  concrete route. AT21 separately covers the controller manager's final releases. [blocked; keep record
+  support only, no invented base CLSID or complete-owner claim]
+
+<!-- from: glue-automata-managers4 (2026-10-22) -->
+- **AT23 - §§6.1, 7.2, 11, 15; automata-managers.md §§1, 2.2:** Please publish the complete inherited
+  `cSC4Automaton` construction/Init/Shutdown/destruction contract and its occupant/model/callback ownership,
+  placement/unplacement, manager detach and deferred fade/removal lifecycle, with reconciled calling
+  signatures, return conventions and this-pointer views for every reachable base slot. The current sparse
+  plugin wrapper has void placeholders for Init/Shutdown and position/movement getters, returns null from
+  AsOccupant, and keeps wrappers alive until manager destruction. These are explicitly partial record hooks,
+  not a substitutable live owner. ABI rows for slots 5/6 still flag overload ordering as unconfirmed; §11
+  leaves slot 70 untraced while automata-managers.md §2.2 describes slot 70 as placement. Resolve that
+  surface and distinguish derived overrides before an owner replacement. The director has concrete
+  vehicle/pedestrian/aircraft/watercraft routes (including a concrete aircraft using the automaton
+  constructor), but no separate automaton factory: confirm which route can support the complete inherited
+  owner without delegating its missing methods back to native code. [blocked; no new wrapper or factory]

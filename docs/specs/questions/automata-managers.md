@@ -8,3 +8,28 @@
 <!-- from: re-comdir (2026-10-21) -->
 - **AD2 - §2.2, §5:** what the base manager's slots 51, 52 and 56 do, and the roles of the vehicle slots marked
   *[summary]* (151, 165, 168–170, 176, 181–189). [as read]
+
+<!-- from: glue-automata-managers4 (2026-10-22) -->
+- **AD3 - §§1, 2.1–2.2, 4; automata.md §§7, 11, 15:** Please publish the complete inherited
+  `cSC4AutomataManager` owner contract, including constructor/destructor, Init/Shutdown, message subscription
+  and unsubscription, tuning/exemplar reload, tracked-group ownership, and the calling signatures/return
+  conventions of class slots 38–67. Which concrete classes override each base method, and which base slots
+  are abstract? The director's 30-class list publishes factories for vehicle, pedestrian, aircraft and
+  watercraft managers, but no separately created base manager or traffic manager. Confirm that inherited
+  implementation must be installed through these concrete routes, rather than assigning a new CLSID to
+  either base. AD2 covers the missing bodies of slots 51/52/56; this asks for the surrounding complete
+  lifecycle and ABI needed to replace the owner without retaining native same-owner methods. The current
+  plugin exposes only interface slots 0–37 and stubs CanCreateGroup (slot 30), exemplar selection and
+  tracked-group calls; records alone cannot establish a complete base owner. [blocked; no new factory,
+  address call, enable key, forwarding adapter, or whole-owner credit]
+
+<!-- from: glue-automata-managers4 (2026-10-22) -->
+- **AD4 - §§2.3, 3.2–3.4, 4:** For the inherited `cSC4TrafficAutomataManager` owner, please publish
+  constructor/destructor and Init/Shutdown ordering, acquisition/release rules for traffic data, network
+  occupants, requests and effect controllers, timer initialization/reset and pause behavior, and reconciled
+  calling signatures/returns for slots 68–91. AD1 already requests the missing population/recall/creation
+  bodies (including slots 79/80); no duplicate body question is intended. Which complete concrete manager
+  route exercises those inherited methods, including class-specific overrides, and which version-gated
+  public interfaces supply the traffic counts, view rectangle and network services? The summaries in §4
+  and §3.4 do not define a complete lifecycle, and slot numbers plus function addresses alone do not give
+  a callable ABI. [blocked pending AD1/AD2 and this lifecycle/ABI contract; no same-owner native delegation]
