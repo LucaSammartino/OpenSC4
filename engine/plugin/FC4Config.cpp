@@ -337,6 +337,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // the glue-span565-impl4 lane (FC4Span565Bridge.h)
                                   "span565_trace",
                                   "span8888_shadow",
+                                  // glue-dates4: independent native date interface probe
+                                  "dates_probe",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

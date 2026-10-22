@@ -51,7 +51,9 @@ pub extern "C" fn fc4_gzdate_value(slot: u32, n: u32, a: u32, b: u32, c: u32) ->
 #[no_mangle]
 pub unsafe extern "C" fn fc4_gzdate_month(name: *const u8, name_len: usize, fold: *const u32) -> u32 {
     super::guard(1, || {
-        if name.is_null() { return 1; } // bridge refusal; COM must not hide native null-name faults
+        if name.is_null() {
+            return 1;
+        } // bridge refusal; COM must not hide native null-name faults
         let bytes = std::slice::from_raw_parts(name, name_len.min(3));
         if fold.is_null() {
             dates::month_from_name(bytes)

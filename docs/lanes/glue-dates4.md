@@ -5,9 +5,12 @@
 ## Handoff
 - Goal: reconcile DT2/DT3 core/CAPI/cFC4Date and verify original-versus-Rust from identical inputs in process.
 - Worktree reserved, detached HEAD; no branch/ref changes. No RE, subagents, tools/maps/default edits.
-- Done: DT2 folded-byte host-input API and NUL/locale vectors; CAPI scalar/month/text bridge; DT3 core documentation reconciled.
-- Baseline qbuild all still running (session 63337); started before edits. No baseline verdict yet.
-- Next: route cFC4Date through bridge, use actual native string cleanup EAX, independent original-date probe via existing simulator GetSimDate/Clone; quick gate.
+- Done: core/CAPI milestone 2ca78537. Baseline all PASS: cargo4938/0, clippy0, CTest68/68 (tree changed during baseline; final stable gate still required).
+- Done: adapter now uses Rust unsigned calendar, EAX day-number setters, Clone EAX1/ref1, native temporary Copy and real allocator cleanup EAX; atomic date state.
+- Done: opt-in dates_probe via existing simulator GetSimDate; only published original cGZDate vptr qualifies. Live stateless comparisons separate from explicitly seeded owned-clone fixtures.
+- Done: foreign Copy, native/foreign owning outputs, byte/NUL/high-byte/page-boundary fixtures, full EAX counters; DT4/DT5 filed for executable CRT locale/timezone acquisition.
+- Checks: first quick caught return-type mocks; second caught nonexistent logging macro; corrected. Four touched Rust files fmt PASS. Current quick session9151.
+- Next: inspect quick result, stable qbuild all, freeze DLL, unique original/adapter/40-key game requests with scripted save and shutdown; preserve complete mismatches/refusals.
 - Published B string cleanup entry is already supplied by compat::StlNodeAllocator; capture EAX after that call, never synthesize success.
 - Executable CRT locale acquisition is not published; park precisely rather than use plugin CRT locale as evidence.
 - Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-dates4-r1-manifest.json.

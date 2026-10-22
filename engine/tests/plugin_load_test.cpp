@@ -12523,8 +12523,8 @@ int main(int argc, char** argv) {
                     const fc4test::SlotCall f16 = CallSlot(date, 16, {3});
                     const fc4test::SlotCall f17 = CallSlot(date, 17, {});
                     CHECK(f16.espDelta == 0 && f17.espDelta == 0);
-                    CHECK(f16.eax == 2451545u + 31u + 29u);  // 2000-03-01
-                    CHECK(f17.eax == 2451545u);              // the sim date is in January 2000
+                    CHECK(f16.eax == 61u);  // dates.md: day of year, 2000-03-01
+                    CHECK(f17.eax == 1u);   // the sim date is in January 2000
                     other->Release();
                 }
             }

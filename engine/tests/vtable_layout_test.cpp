@@ -313,13 +313,13 @@ struct DateProbe final : cFC4IGZDate {
     bool QueryInterface(uint32_t, void**) override { return false; }
     uint32_t AddRef() override { return 1; }
     uint32_t Release() override { return 1; }
-    bool SetMonthNameDayYear(char const* monthName, uint32_t day, uint32_t year) override { g_hit = 3; return static_cast<bool>(0); }
-    bool SetDayNumber(uint32_t dayNumber) override { g_hit = 4; return static_cast<bool>(0); }
-    bool SetTime(cRZTime const& time) override { g_hit = 5; return static_cast<bool>(0); }
-    bool SetMonthDayYear(uint32_t month, uint32_t day, uint32_t year) override { g_hit = 6; return static_cast<bool>(0); }
-    bool SetDayOfYear(uint32_t day, uint32_t year) override { g_hit = 7; return static_cast<bool>(0); }
-    bool Copy(cFC4IGZDate const& from) override { g_hit = 8; return static_cast<bool>(0); }
-    bool Clone(cFC4IGZDate** out) override { g_hit = 9; return static_cast<bool>(0); }
+    uint32_t SetMonthNameDayYear(char const* monthName, uint32_t day, uint32_t year) override { g_hit = 3; return 0; }
+    uint32_t SetDayNumber(uint32_t dayNumber) override { g_hit = 4; return 0; }
+    uint32_t SetTime(cRZTime const& time) override { g_hit = 5; return 0; }
+    uint32_t SetMonthDayYear(uint32_t month, uint32_t day, uint32_t year) override { g_hit = 6; return 0; }
+    uint32_t SetDayOfYear(uint32_t day, uint32_t year) override { g_hit = 7; return 0; }
+    uint32_t Copy(cFC4IGZDate const& from) override { g_hit = 8; return 0; }
+    uint32_t Clone(cFC4IGZDate** out) override { g_hit = 9; return 0; }
     bool Between(cFC4IGZDate const& start, cFC4IGZDate const& end) override { g_hit = 10; return static_cast<bool>(0); }
     int32_t CompareTo(cFC4IGZDate const& other) override { g_hit = 11; return static_cast<int32_t>(0); }
     uint32_t WeekDay() override { g_hit = 12; return static_cast<uint32_t>(0); }
@@ -331,8 +331,8 @@ struct DateProbe final : cFC4IGZDate {
     uint32_t Hash() override { g_hit = 18; return static_cast<uint32_t>(0); }
     bool IsValid() override { g_hit = 19; return static_cast<bool>(0); }
     bool Leap() override { g_hit = 20; return static_cast<bool>(0); }
-    bool MaxDate(cFC4IGZDate const& other, cFC4IGZDate& out) override { g_hit = 21; return static_cast<bool>(0); }
-    bool MinDate(cFC4IGZDate const& other, cFC4IGZDate& out) override { g_hit = 22; return static_cast<bool>(0); }
+    uint32_t MaxDate(cFC4IGZDate const& other, cFC4IGZDate& out) override { g_hit = 21; return 0; }
+    uint32_t MinDate(cFC4IGZDate const& other, cFC4IGZDate& out) override { g_hit = 22; return 0; }
     uint32_t Month() override { g_hit = 23; return static_cast<uint32_t>(0); }
     uint32_t Previous(uint32_t dayOfPriorWeek, cFC4IGZDate& out) override { g_hit = 24; return static_cast<uint32_t>(0); }
     uint32_t YearLastTwoDigits() override { g_hit = 25; return static_cast<uint32_t>(0); }
@@ -351,7 +351,7 @@ struct DateProbe final : cFC4IGZDate {
     cFC4IGZDate& Decrement() override { g_hit = 38; return *this; }
     cFC4IGZDate& AddDays(int32_t days) override { g_hit = 39; return *this; }
     cFC4IGZDate& SubtractDays(int32_t days) override { g_hit = 40; return *this; }
-    bool DateString(cIGZString& out, uint32_t formatID) override { g_hit = 41; return static_cast<bool>(0); }
+    uint32_t DateString(cIGZString& out, uint32_t formatID) override { g_hit = 41; return 0; }
     bool DayWithinMonth(uint32_t month, uint32_t day, uint32_t year) override { g_hit = 42; return static_cast<bool>(0); }
     uint32_t DaysInYear(uint32_t year) override { g_hit = 43; return static_cast<uint32_t>(0); }
     uint32_t Jday(uint32_t month, uint32_t day, uint32_t year) override { g_hit = 44; return static_cast<uint32_t>(0); }
