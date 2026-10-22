@@ -595,6 +595,24 @@ fn manager_and_providers_are_send_sync() {
 }
 
 #[test]
+fn deleting_destructor_always_drops_resources_but_frees_storage_only_for_bit_zero() {
+    for flags in [0, 1, 2, 3] {
+        let mut m = Box::new(manager());
+        let exemplar: Arc<dyn PropertyHolder> = Arc::new(Empty);
+        let weak = Arc::downgrade(&exemplar);
+        m.exemplar = Some(exemplar);
+        let storage = m.deleting_destructor(flags);
+        assert!(weak.upgrade().is_none());
+        assert_eq!(storage.is_none(), flags & 1 != 0);
+        if let Some(mut destroyed) = storage {
+            assert_eq!(destroyed.add_ref(), Err(LightingError::Released));
+            assert!(destroyed.exemplar.is_none());
+            assert!(destroyed.day_keys.is_empty());
+        }
+    }
+}
+
+#[test]
 fn sweep_drift_both_directions_uses_ordered_in_place_interpolation() {
     let mut m = manager();
     city(&mut m, 2);

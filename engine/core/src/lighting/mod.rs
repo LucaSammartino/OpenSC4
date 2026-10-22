@@ -160,11 +160,15 @@ impl LightingManager {
         self.heights = Vec::new();
         self.shadows = Vec::new();
     }
-    /// Rust retains the value's allocation; bit 0's native deallocation is
-    /// represented by consuming the owned Box at an eventual adapter boundary.
-    /// Destruction of contained resources happens for either flag (§1.3).
-    pub fn deleting_destructor(&mut self, _flags: u32) {
+    /// §1.3: resources are destroyed for either flag. Bit 0 frees the owned
+    /// allocation; otherwise return the destroyed storage to its owner.
+    pub fn deleting_destructor(mut self: Box<Self>, flags: u32) -> Option<Box<Self>> {
         self.destroy();
+        if flags & 1 != 0 {
+            None
+        } else {
+            Some(self)
+        }
     }
 
     pub fn init(
