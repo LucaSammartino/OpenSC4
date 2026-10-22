@@ -316,8 +316,8 @@ For nonzero turns the owner rotates world X/Z about `(cx,cz)` before the above t
 c = F(cos(E(turns × binary32(2π)))) and s = F(sin(E(turns × binary32(2π)))), its real-number equations are
 `x′=c*(x−cx)−s*(z−cz)+cx`, `z′=s*(x−cx)+c*(z−cz)+cz`. The matrix also transforms its third output coordinate;
 it is not a two-dimensional texture-only rotation. Both signed zeros take the no-rotation branch; unordered
-angle comparison takes the rotation branch. Full rotated coefficient rounding remains part of OV1 until
-the ordered intermediates are specified. Evidence: `0x0073A34E–0x0073A63A`.
+angle comparison takes the rotation branch. Ordered rotated intermediates are specified in §3.2.1.
+Evidence: `0x0073A34E–0x0073A63A`.
 
 Repeat flag bit 1 is set unless **both bit patterns** repeatU and repeatV are `0x3F800000`.
 The unrotated footprint uses hx/hz, regardless of repeat factors or offset. For a rotated placement with
@@ -533,6 +533,102 @@ decals disabled gives `(3,0)`; a nonempty selection of one visible decal with al
 These are expected native outcomes, not executed game verdicts. Remaining DrawRect/state/visibility and
 shadow arithmetic details are tracked in OV8.
 
+### 4.5 Visible-ID collection (OV8, proven subset)
+
+Draw uses CollectVisibleOverlays only for a static manager with its index enabled; otherwise it clears the
+selected-ID vector and appends all in-use overlay indices in ascending arena order, including hidden records
+that a later pass may reject (`0x00739245–0x007392DD`). Collection is not a sorted set operation.
+
+CollectVisibleOverlays (`0x00738390`) clears the output vector and obtains four outputs from terrain-view
+GetDrawRows (`0x00752820`): row begin, row end, an array of per-row starts, and an array of per-row ends.
+Let k be the cell-index shift, t=2^k−1. It visits signed coarse rows from `rowBegin >> k` up to, **excluding**,
+`(rowEnd+t−1) >> k`. At each loop row y it directly reads the two arrays at index y and visits coarse columns
+from `starts[y] >> k` up to, excluding, `(ends[y]+t−1) >> k`. The shifts are arithmetic. In the initialized
+k=0 case this means rows `[rowBegin,rowEnd−1)` and columns `[starts[y],ends[y]−1)`: these are the cell ranges
+derived from terrain vertex-row endpoints, not inclusive cell ends. No additional city clipping is performed
+inside collection. Evidence: `0x007383C1–0x00738447`, loop ends `0x00738564–0x00738580`.
+
+Rows increase, then columns increase; each cell list is followed from its head through next links. A record is
+appended at its first encounter only, by comparing its 16-bit stamp at `+0x0A` with the manager stamp at `+0xE0`.
+The manager stamp increments modulo 65536 **before** the row-range empty test. No zero avoidance or all-record
+stamp reset occurs on wrap. A matching stale stamp can therefore suppress a record, including a never-collected
+record with constructor stamp zero when the collection stamp wraps to zero. Collection does not check shown,
+snapshot, decal/shadow or in-use bits before appending the list's ID; those filters belong to the passes.
+Evidence: `0x007383FC–0x00738413`, `0x00738480–0x007384B7`, `0x0073854E–0x00738580`.
+
+Paper discriminators: at k=0, vertex rows `[2,5)` visit cell rows 2 and 3, and per-row vertices `[3,7)` visit
+columns 3,4,5. A first cell whose head-to-tail IDs are `[9,2]`, followed by a cell `[2,7]`, yields `[9,2,7]`,
+not `[2,7,9]`. With collection stamp 65535, increment wraps to zero and a referenced record stamped zero is
+omitted. There is no caller-supplied sorted visible-ID result in the public owner contract.
+
+### 4.6 Rectangle submission and state changes (OV8, proven subset)
+
+DrawRect receives a draw context and the stored four-int **cell** rectangle. It constructs a by-value vertex
+rectangle `(x0,z0,x1+1,z1+1)`, using 32-bit integer increments without an empty-area guard. It delegates to the
+owning terrain view, never to externally supplied vertex/index arrays. Dispatch is:
+
+| Manager/context | Terrain-view consumer |
+|---|---|
+| water, static | `0x00755560` DrawOverlayWaterRect |
+| water, dynamic | `0x00755700` DrawOverlayWaterRectDynamic |
+| land, static, no vertex-buffer extension | `0x007541C0` DrawOverlayLandRect |
+| land, dynamic, no extension | `0x007543C0` DrawOverlayLandRectDynamic |
+| land, static, extension present | `0x007545C0` DrawOverlayLandRectWithVertBufExtension |
+| land, dynamic, extension present | `0x00754910` DrawOverlayLandRectDynamicWithVertBufExtension |
+
+Water ignores the extension; land extension consumers additionally receive the acquired extension pointer.
+Evidence: `0x00735720–0x00735819`, including separately exported tail blocks `0x0073576A`/`0x007357FE`.
+DrawShadowRect (`0x007356D0`) likewise expands maxima by one, but supplies the expanded rectangle by address
+to land shadow consumers `0x00754C60` (static) or `0x00754F10` (dynamic). Exact terrain-owned vertex/index-array
+formats inside those consumers remain unproved here; these dispatch rules do not claim their geometry bodies.
+
+Both shadow passes ask view-manager slot 9's result for slot 14 outputs `(q,s,rgb)`, with q/s binary32 scalars.
+They set the texture environment colour to rgb. The comparison minimum is **binary64 zero** at `0x00A80990`:
+when ordered s>0 they enable alpha testing and set comparison function 6 (greater-or-equal) with reference
+`F(E(q×s))`; when s≤0 or unordered they disable alpha testing. They do **not** skip shadow submission on that
+branch and do not clamp the reference. Evidence: full `0x00736C49–0x00736CAD`, rough
+`0x007378E2–0x0073793A`. The old wording “above a minimum” must not be implemented with a guessed positive
+epsilon. For q=1/2,s=1/4 the reference is 1/8; s=0 disables testing without suppressing the counter increment.
+
+After a nonempty decal pass, the owner calls ResetTransparency and ResetShade and requests vertex colours
+enabled with both arguments 1 (`0x00736BC1–0x00736BDA`); this is a reset, not saving/restoring arbitrary
+incoming shade/transparency. Full shadows disable texture state for stage 1 on their common exit
+(`0x00737855–0x0073785B`). Rough shadows save render-device flag 7, enable it, and disable it on exit only
+when it was initially off (`0x007378A2–0x007378BA`, `0x00737D10–0x00737D22`). Neither is a complete GPU
+state snapshot/restore. Draw's common exit clears texture transform **stage 0**, restores the depth-offset
+word saved from context `+0xBC`, and releases/zeros the acquired vertex-buffer extension. These actions also
+occur for an empty selection after normal setup, but not for the early dynamic-snapshot return.
+Evidence: `0x007391F9–0x00739203`, `0x007392E2–0x007392EF`, `0x00739378–0x0073939B`.
+
+### 4.7 Camera input and composition boundary (OV7, proven subset)
+
+Draw first calls the no-argument model-reset helper `0x007D2D20`, then copies **sixteen binary32 words** from
+draw-context `+0x1AC` via `0x007D2730`. The reset helper is permitted to return immediately when context byte
+`+0x138` is nonzero; otherwise it refreshes from the context camera's ViewXform (`0x007FFED0`). Consequently
+the authoritative input to this owner is the post-reset context matrix, not a fabricated camera position/yaw,
+projection matrix, or caller-provided completed world-to-texture matrix. Evidence: `0x00738AC9–0x00738AD5`,
+getter `0x007D2736–0x007D2741`, reset guard/source `0x007D2D23–0x007D2D34`.
+
+The owner inverts that matrix inline and stores the result as sixteen binary32 words. It computes a reciprocal
+with native x87 arithmetic at `0x00739020–0x00739028` and multiplies/stores inverse entries before copying
+them back at `0x0073914D–0x007391FF`. It does not substitute a transpose or rigid-camera-only inverse. The
+complete cofactor/spill evaluation and singular-input behavior remain OV7; using a library inverse is not yet
+an established bit-exact contract.
+
+Let C denote the resulting camera-to-world matrix and M an overlay's primary matrix. Decals submit the
+row-vector composition **C × M** to SetTexTransform4, stage 0. In ordinary real arithmetic this takes a
+camera-space input back to world before applying placement. It is not M × C. All sixteen outputs are stored
+as binary32; intermediate products and additions use x87, without a store after each operation. For example,
+output row 3 column 0 is `F(E(C[3,2]×M[2,0])+E(C[3,0]×M[0,0])+E(C[3,1]×M[1,0])+E(C[3,3]×M[3,0]))`,
+added left to right (`0x007368E9–0x00736905`), whereas row 3 column 1 sums terms in order 3,1,2,0
+(`0x00736907–0x00736923`). A uniform dot-product accumulation order is therefore not proven bit-exact.
+Final submission: `0x00736B7C`. Complete sixteen-entry evaluation order and the shadow camera/height
+composition branches remain explicitly open in OV7/OV8.
+
+Paper order discriminator: C=translation `(16,0,0)` and M from a square, width-16 decal centred at zero
+give submitted row-3 U translation 1.5. Reversing the multiplication gives 16.5. This tests composition order
+without pretending to validate native inverse rounding on general matrices.
+
 ## 5. Messages
 
 `0xC9F775BB` is subscribed by `Init` and unsubscribed at shutdown *[inferred: a terrain or zoom change that makes the
@@ -547,7 +643,7 @@ shadows through the terrain view's `GetOverlayManager(index)` (slot 18) or the t
 
 1. A dynamic manager's overlays vanish from snapshots (§4).
 2. Alpha changes smaller than the step are not redrawn in a static manager (§3, slot 17).
-3. Every call on a group repeats on its eight parts, so a round decal costs eight overlays (§3.1).
+3. Group-aware operations repeat on eight parts; scalar getters use part 0 and slot 21 does not recurse (§§2.3,3.4).
 
 ## 8. Open questions
 

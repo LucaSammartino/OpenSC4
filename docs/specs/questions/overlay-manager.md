@@ -24,8 +24,9 @@
 - **OV7 - §§3,4 slots21/Draw:** specify the placement-to-world/texture equations, matrix axis/storage/composition conventions, slot21 matrix entries and behavior for size=0, and camera transform inputs/precision. The public text gives semantic scales 1/size and -1/size with second-axis offset 1+offset/size but not their world matrix positions. [core stores those semantic coefficients only; no externally computed owner matrices accepted; full world transform deferred with OV1]
 
   Partial resolution (2026-10-22, re-overlays-contract4): §3.2/§3.2.1 specify row-vector placement coefficients;
-  §3.4 specifies all slot21 entries, FP behavior, no group recursion and redisplay. Camera reset/inverse/composition
-  inputs and precision in Draw still need a complete byte-level contract.
+  §3.4 specifies all slot21 entries, FP behavior, no group recursion and redisplay. §4.7 proves post-reset context
+  matrix input, binary32 storage, C×M order and differing dot-product orders. Still open: complete inverse
+  cofactor/spill/singular behavior and all sixteen output accumulation orders, plus shadow composition branches.
 
 <!-- from: core-terrain-overlays4 (2026-10-22) -->
 - **OV8 - §§2.2,4:** specify rectangle endpoint conventions, clipping/margin and cell-index insertion/update/removal ordering; decal/shadow classification (bit4 is described as both decal/shadow-part and decal eligibility); shadow selection/strength minimum, alpha-test equation, second transform/height coordinate, DrawRect land/water/dynamic array input formats, GPU restoration and counter reset/increment points. Does empty or skipped Draw preserve last-frame stats? [core uses explicitly internal half-open rectangles and sorted/deduplicated selection only; no host draw result, fabricated successful GPU pass or guessed stats; normal Draw reports a gap]
@@ -34,5 +35,7 @@
   half-open bounds, floor/ceil conversion without a margin, strict separation versus touching-edge clipping,
   native index traversal/prepend/removal and same/changed-rectangle redisplay. §4.4 proves selection-empty,
   pass-disabled and snapshot counter preservation, nonempty pass resets, masks and increment-after-submission.
-  Visible-row endpoints, stamp wrap, DrawRect inputs and shadow arithmetic/state restoration remain open.
-
+  §§4.5/4.6 now prove visible-row endpoint arithmetic and native encounter order, stamp wrap without reset,
+  cell-to-vertex rectangle dispatch, exact zero minimum/alpha reference and bounded exit-state actions.
+  Still open: terrain consumers' vertex/index-array bodies, full shadow secondary/height composition and
+  water adjustment/short-rectangle routing. No complete renderer or bit-exact shadow draw is claimed.

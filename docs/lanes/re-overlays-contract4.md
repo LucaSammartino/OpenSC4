@@ -26,4 +26,5 @@
 - Git commits succeed detached despite nonfatal packed-refs.lock permission diagnostic; supervisor must publish branch. No branch/config/ref operations performed.
 - Last unincorporated proof: DrawDecals empty input exits at 007367A6 before resetting D8 at 007367E4; both shadow routines likewise exit on empty vectors (00737886/00736C0A). Dynamic snapshot Draw exits at 00738A76. Complete counter contract still pending.
 - Done round 2: 96b4dc27 proves keyed slots9/10, byte flipV, ordered secondary matrix; independent counters/masks/increment sites.
-- New milestone: OV9 §3.1 exact eight-part outline (omitted centre), binary32 split constants, four chord samples/inner90%, shared matrix, clipping/redisplay/empty parts; move OV9 answered.
+- Done round 2: d558bfa2 resolves OV9 exact eight-part outline, binary32 splits, chord samples/inner90%, shared matrix, clipping/redisplay/empty parts.
+- New milestone: §§4.5–4.7 native visibility endpoints/order/stamp wrap, rectangle dispatch, zero shadow threshold/alpha ref and bounded GPU exit actions; camera input/C×M order and precision boundary. Remaining OV1/OV2/OV3/OV7/OV8 explicit.
