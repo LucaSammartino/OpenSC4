@@ -65,12 +65,25 @@
   the 48-byte pole record holds besides the cell, how `+0x384` (wire cells) is counted, what `PlacePoles`' argument
   means, and where slot 81 `CheckForReservedTiles` is called on this path (it is the only source of the power-line
   codes, and §9 step 4 reads the valid count and the code after step 2). The core keeps them as host hooks. [missing]
-- **NT19 - network-geometry §11, the power-line parameter defaults:** only `+0x3A4` has a stated default (20). What
-  are the defaults of `+0x3A8` (`0x098B27D0`), `+0x3AC` (`0x4A5F5953`) and `+0x3B0` (`0x0A5F596B`) when the exemplar
-  lacks them, and what do `+0x3A4`/`+0x3A8` control? The core uses 0. [missing]
-- **NT20 - §9 step 4 and §11 NT3, two literal readings:** (a) "When `real`, `AttemptNeighborConnections` is followed
-  by `PlaceNeighborConnections`": does `AttemptNeighborConnections` also run in draft mode, and does
-  `PlaceNeighborConnections` depend on its result? The core runs Attempt whenever the conditions hold and Place
-  after it when real, regardless of the result. (b) In `CheckForReservedTiles`, a zoned (1) or road (3) last cell
-  leaves `last` at the previous clear cell, so a line ending on a zoned cell loses that cell (v = last + 1); is that
-  the original's behaviour, and what does a `CellIsOKForPlacement` result above 3 do (the core ignores it)? [ambiguous]
+  **PARTIALLY RESOLVED 2026-10-22 (re-powerline-completion4):** power-line-tool.md §§4–5 proves records,
+  spacing/pivots, clearance ray, ordinary emission/counting, allowRepair argument, commit/draft order and
+  preview undo. Still open: interception eligibility/flags at `0x00650AEC–0x00650C35`, adjacency groups,
+  isolated-pole removal/last-clear closure on zones/forced blocked points, and displaced-pair deduplication.
+  Slot 81 is not called inside Determine/PlacePoles; Determine classifies directly. Do not close NT18.
+
+<!-- from: re-powerline-completion4 (RE lane, 2026-10-22) -->
+- **NT21 - power-line-tool.md §§5,9, connection helpers:** prove `0x0064E3E0`'s connection geometry and
+  optional wire-vector ownership; `0x00649910`'s enable/restore predicate; `0x0064B6E0`'s list ownership.
+  Reach attributes these pole-occupant helpers to this tool. Observed ordering is specified, numeric
+  geometry is not. [not proved]
+- **NT22 - power-line-tool.md §6, zone repair:** prove UpdateOnZoneChange `0x006522F0` deduplication,
+  rectangle-edge/split-cell behavior and query/ref-release order; FindNewPolePosition `0x006520C0`
+  endpoint selection when either endpoint is null. Entry guard and outside-clear search are proved;
+  remaining pseudocode has invalid stack/register attribution and needs instruction tracing. [not proved]
+- **NT23 - regional Attempt:** full type-5 AttemptNeighborConnections `0x00628BD0` endpoint/direction
+  derivation, failure/consent behavior, vector mutations and preview effects need instruction checks.
+  NT20 resolves the wrapper pairing only. [not proved]
+- **NT24 - power-line-tool.md §9 support inventory:** prove full classifier `0x0064FD00` zone/occupant
+  precedence, FindPoleOccupant `0x0064FFE0` candidate filters, wire probe `0x0064FBF0` selection/ref ownership,
+  allocator `0x0064A2E0`, and the 13 container helpers' copy/erase ownership. Reconcile brief 49 functions
+  against measured 46 entries, both 16156 bytes. [not proved]
