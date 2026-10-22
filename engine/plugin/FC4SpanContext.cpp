@@ -17,6 +17,7 @@
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Span1555Shadow.h"
+#include "FC4Span1555Context.h"
 #include "FC4SpanRender4444.h"
 #include "FC4SpanRender8888.h"
 #include "compat/FC4Compat.h"
@@ -55,12 +56,12 @@ const compat::SpanContextVA* VA() {
     return p;
 }
 
-// §1.3 counts by return address; span-render-565.md §1.1 lists the call
-// instruction addresses. Literal reading: a return address 1..7 bytes after a
-// listed site (the length of one CALL instruction) belongs to that site.
-int SiteOf(uintptr_t ret) {
+// 1555 uses the exact shared context CALL returns published by SP6b.
+// Preserve the siblings' previous classifier until their own lanes reconcile it.
+int SiteOf(unsigned renderer, uintptr_t ret) {
     const compat::SpanContextVA* va = VA();
     if (va == nullptr) return -1;
+    if (renderer == kSpanR1555) return Span1555ContextSite(ret, va->sites);
     for (int i = 0; i < 7; ++i)
         if (ret > va->sites[i] && ret <= va->sites[i] + 7) return i;
     return -1;
@@ -162,10 +163,12 @@ uint32_t FreeBuf(Buf* b) {
 
 struct DrawCall {
     void* ctx;
+    const uint32_t* spans = kSpans;
+    uint32_t count = kSpanCount;
 };
 void DrawGuarded(void* p) {
-    void* ctx = static_cast<DrawCall*>(p)->ctx;
-    VSlot<DrawSpansFn>(ctx, 22)(ctx, nullptr, kSpans, kSpanCount);
+    const auto& c = *static_cast<DrawCall*>(p);
+    VSlot<DrawSpansFn>(c.ctx, 22)(c.ctx, nullptr, c.spans, c.count);
 }
 
 enum Kind { kSolid, kAlpha, kGradient, kAlphaGradient, kTexture };
@@ -178,19 +181,25 @@ struct Case {
     float sx, sy;
     bool tiled;
     uint32_t modulate, alphaBlend;
+    float x = 0, y = 0;
+    int32_t* outRect = nullptr;
+    const int32_t* tileRect = nullptr;
+    const uint32_t* spans = kSpans;
+    uint32_t count = kSpanCount;
 };
 
 // The state of the path under test (§1.3 "Set first").
 void SetupCase(void* ctx, const Case& c) {
-    const int32_t dstRect[4] = {0, 0, int32_t(kDW), int32_t(kDH)};  // at the origin: (x, y, w, h) = (l, t, r, b)
-    const int32_t tile[4] = {0, 0, 8, 8};                          // same in both readings (question SP7)
+    int32_t dstRect[4] = {0, 0, int32_t(kDW), int32_t(kDH)};  // setter output, not a crop request (SP6a)
+    const int32_t tile[4] = {0, 0, 8, 8};  // source texel edges (SP6a)
     VSlot<ColorTableFn>(ctx, 7)(ctx, nullptr, 0, 1, &c.argb);
     if (c.kind == kTexture) {
         VSlot<GradientFn>(ctx, 12)(ctx, nullptr, nullptr, 0.0f, 0.0f);
-        VSlot<BltSourceFn>(ctx, 13)(ctx, nullptr, c.src->b, 0.0f, 0.0f, c.sx, c.sy, dstRect);
+        VSlot<BltSourceFn>(ctx, 13)(ctx, nullptr, c.src->b, c.x, c.y, c.sx, c.sy,
+                                  c.outRect ? c.outRect : dstRect);
         VSlot<DwordFn>(ctx, 9)(ctx, nullptr, c.modulate);
         VSlot<DwordFn>(ctx, 8)(ctx, nullptr, c.alphaBlend);
-        if (c.tiled) VSlot<RectFn>(ctx, 15)(ctx, nullptr, tile);
+        if (c.tiled) VSlot<RectFn>(ctx, 15)(ctx, nullptr, c.tileRect ? c.tileRect : tile);
         else VSlot<CtxVoidFn>(ctx, 14)(ctx, nullptr);
         return;
     }
@@ -243,8 +252,10 @@ void RunCase(unsigned r, void* ctx, Buf& dst, const std::vector<uint8_t>& init, 
     const size_t len = size_t(dst.stride) * dst.h;
     SetupCase(ctx, c);
     const bool sp1 = r != kSpanR8888 && c.kind == kAlphaGradient && !AlphaInRange(ctx);
+    // SP1 is a 4444-only contract; 1555 §5 specifies the entire packed domain.
+    const bool sp1 = r == kSpanR4444 && c.kind == kAlphaGradient && !AlphaInRange(ctx);
     t.sp1Cases += sp1;
-    DrawCall call{ctx};
+    DrawCall call{ctx, c.spans, c.count};
     // Original: the published functions in the renderer's vtable.
     std::memcpy(dst.bits, init.data(), len);
     UseOriginal(r, true);
@@ -280,6 +291,7 @@ void RunCase(unsigned r, void* ctx, Buf& dst, const std::vector<uint8_t>& init, 
         ++t.refused;
         return;
     }
+    if (r == kSpanR1555 && hits == 0) return;  // absence of a renderer call is never compared-output credit
     // A texture whose type selects no renderer makes no call (0x008305AA): not a route mismatch.
     if ((hits != 1 || hitSite != want) && !(hits == 0 && c.kind == kTexture)) {
         if (t.routeMismatch++ < 6)
@@ -318,6 +330,8 @@ const float kGrad[5][12] = {
 };
 
 // Steps 2-5 for one destination type.
+#include "FC4Span1555ContextCases.h"
+
 void RunDestination(unsigned r, uint32_t type, const compat::SpanContextVA& va, std::vector<Buf>& textures) {
     const uintptr_t wantRenderer = r == kSpanR8888 ? va.renderer8888Vtable :
         r == kSpanR1555 ? va.renderer1555Vtable : va.renderer4444Vtable;
@@ -386,6 +400,7 @@ void RunDestination(unsigned r, uint32_t type, const compat::SpanContextVA& va, 
         std::vector<uint16_t> texLocks;
         for (const Buf& src : textures) texLocks.push_back(LockCount(src));
         for (const Case& c : cases) RunCase(r, ctx, dst, init, c, t);
+        if (r == kSpanR1555) Run1555SourceCases(ctx, dst, init, t);
         VSlot<BltSourceFn>(ctx, 13)(ctx, nullptr, nullptr, 0.0f, 0.0f, 0.0f, 0.0f, nullptr);  // releases +0x24
         uint32_t texLockMoved = 0;
         for (size_t i = 0; i < textures.size(); ++i) texLockMoved += LockCount(textures[i]) != texLocks[i];
@@ -482,6 +497,20 @@ void RunFixture() {
 #endif  // _M_IX86
 
 void LogCounts(const char* when) {
+    for (unsigned row = 0; row < 14; ++row) {
+        uint64_t native = 0, other = 0;
+        unsigned kinds = 0;
+        for (unsigned k = 0; k < 12; ++k) {
+            const auto n = gSpan1555TextureRows[0][row][k].load();
+            native += n;
+            other += gSpan1555TextureRows[1][row][k].load();
+            kinds += n != 0;
+        }
+        Log("spanctx: %s span1555 texture row %u (format=%u key=%u): native=%llu kinds=%u other=%llu",
+            when, row, row / 2, row % 2, (unsigned long long)native, kinds, (unsigned long long)other);
+    }
+    Log("spanctx: %s span1555 invalid texture records=%llu", when,
+        (unsigned long long)gSpan1555TextureInvalid.load());
     for (unsigned r = 0; r < kSpanRendererCount; ++r) {
         for (unsigned c = 0; c < kClasses; ++c) {
             uint64_t sum = 0;
@@ -509,7 +538,7 @@ void LogCounts(const char* when) {
 
 void SpanNoteCall(unsigned renderer, unsigned slot, uintptr_t ret, bool fixtureDirect) {
     if (renderer >= kSpanRendererCount || slot < 1 || slot > 5) return;
-    const int site = SiteOf(ret);
+    const int site = SiteOf(renderer, ret);
     const unsigned c = site >= 0 ? (SpanContextFixtureThread() ? kNative : kShipped) : (fixtureDirect ? kDirect : kOther);
     g_calls[renderer][c][slot].fetch_add(1, std::memory_order_relaxed);
     if (site >= 0) g_sites[renderer][c == kNative ? 0 : 1][site].fetch_add(1, std::memory_order_relaxed);
