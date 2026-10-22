@@ -529,7 +529,7 @@ fn:ResolvePath	paths and directories	framework	paths.md	-	-	-
 fn:Splitpath	paths and directories	framework	paths.md	-	-	-
 fn:SplitDirectory	paths and directories	framework	paths.md	-	-	-
 fn:RZFileFind*	paths and directories	framework	paths.md	-	-	-
-cGZPersistResourceManager	persistence and resources	framework	persistence-manager.md	-	-	-
+cGZPersistResourceManager	persistence and resources	framework	persistence-manager.md	core/src/persistence_manager	-	-
 cGZPersist*	persistence and resources	framework	-	-	-	-
 cGZBufferResource	persistence and resources	framework	persistence.md	-	-	-
 cGZBufferResourceFactory	persistence and resources	framework	persistence.md	-	-	-
