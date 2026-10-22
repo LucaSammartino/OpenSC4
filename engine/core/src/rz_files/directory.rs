@@ -133,6 +133,8 @@ impl RzDirectory {
         &self.entries
     }
 
+    // §6.4 explicitly walks from the front. Keep that traversal on the portable deque too.
+    #[allow(clippy::iter_nth)]
     pub fn get_nth_entry(&self, n: u32) -> Option<&DirectoryEntry> {
         if n >= self.count {
             None
