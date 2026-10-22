@@ -115,8 +115,12 @@ pub fn software(frame: Frame, rectangle: [i32; 4], mut bitmap: u32, host: &mut i
     if bitmap == 0 {
         // No checked accessor failure in the native path. A null foreign accessor is
         // a Host fault/precondition, not an invented clean return.
+        let service = call(host, 0, Op::ComService, &[]);
+        if service == 0 {
+            return Err(super::Fault::NullRead);
+        }
         host.call(
-            0,
+            service,
             Op::ComBitmapCreate,
             &[0xc470_d325, 0x2073_2180],
             &[],

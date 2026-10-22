@@ -304,10 +304,16 @@ impl Products {
             }
             _ => return Err(Fault::MissingSlot),
         };
+        let arguments = [iid];
+        let arguments = if op == Op::BranchQueryInterface {
+            &arguments[..]
+        } else {
+            &[]
+        };
         Ok(host.call(
             identity.wrapping_sub(adjustment),
             op,
-            &[iid],
+            arguments,
             &[],
             std::slice::from_mut(output),
         ))

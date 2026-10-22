@@ -47,6 +47,7 @@ pub enum Op {
     ChildEnumerate,
     ChildCanUnload,
     QueryInterface,
+    InterfaceFactory,
     AddRef,
     Release,
     ForeignDx7Factory,
@@ -71,6 +72,7 @@ pub enum Op {
     GlViewport,
     GraphicsService,
     BitmapCreate,
+    ComService,
     ComBitmapCreate,
     BitmapInitialized,
     BitmapFormat,
@@ -119,6 +121,8 @@ pub trait Host {
     /// `data` is an immediate byte argument; output cells are shared with callers.
     fn call(&mut self, target: u32, op: Op, args: &[u32], data: &[u8], out: &mut [u32]) -> u32;
     fn observe(&mut self, _event: Event) {}
+    /// Pass the very same callback into a foreign child's enumeration operation.
+    fn enumerate_child(&mut self, target: u32, context: u32, callback: &mut dyn FnMut(u32, u32, u32) -> bool);
 }
 
 pub(crate) fn call(host: &mut impl Host, target: u32, op: Op, args: &[u32]) -> u32 {
@@ -165,17 +169,9 @@ impl Registry {
             return Ok(false);
         }
         if self.len == self.buckets.len() as u32 {
-            let count = match self.buckets.len() {
-                193 => 389,
-                _ => return Err(Fault::UnspecifiedGrowth),
-            };
-            let mut replacement = vec![Vec::new(); count];
             // General rehash chain order is not specified; see GDQ1. Reject rather
             // than silently inventing observable callback ordering on that path.
-            if self.len != 0 {
-                return Err(Fault::UnspecifiedGrowth);
-            }
-            std::mem::swap(&mut replacement, &mut self.buckets);
+            return Err(Fault::UnspecifiedGrowth);
         }
         let bucket = entry.class as usize % self.buckets.len();
         self.buckets[bucket].insert(0, entry);
@@ -361,7 +357,7 @@ impl Director {
     }
     pub fn enumerate(&self, context: u32, host: &mut impl Host, callback: &mut impl FnMut(u32, u32, u32) -> bool) {
         for child in &self.children {
-            call(host, *child, Op::ChildEnumerate, &[context]);
+            host.enumerate_child(*child, context, callback);
         }
         for entry in self.registry.entries() {
             callback(entry.class, 0, context);
@@ -396,7 +392,7 @@ impl Director {
         if entry.kind == 2 {
             return Ok(host.call(
                 entry.factory,
-                Op::QueryInterface,
+                Op::InterfaceFactory,
                 &[iid],
                 &[],
                 std::slice::from_mut(output),
