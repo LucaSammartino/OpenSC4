@@ -1,0 +1,21 @@
+{
+  "format":1,"name":"animation_coordinator_lifecycle","domain":"animation-coordinator",
+  "spec":["animation-coordinator 1.1","animation-coordinator 2"],
+  "description":"Owned lease cleanup, once-only Init and rollback/retry. Release ordering/rollback are AC6/AC7 choices, not native AddRef counts. Literal Shutdown has no additional invented tick removals.",
+  "city_cells_x":80,"zoom":1,"visible":[0,0,512,512],
+  "occupants":[{"id":1,"position":[20,20],"flags":4,"models":["0xEA123BE1"],"properties":[]}],
+  "steps":[
+    {"op":"expect","state":{"initialized":false,"zoom":4,"enabled":true,"side":0,"registered":0}},
+    {"op":"fail","subscription":"0x6A5FD3FD"},
+    {"op":"init","error":"ForeignUnavailable"},
+    {"op":"expect","state":{"initialized":false,"events":["acquire:services","acquire:subscription:0x8A07AE00","release:subscription:0x8A07AE00","release:services"]}},
+    {"op":"fail","subscription":null},{"op":"clear"},{"op":"init"},
+    {"op":"expect","state":{"initialized":true,"zoom":1,"side":5,"events":["acquire:services","acquire:subscription:0x8A07AE00","acquire:subscription:0x6A5FD3FD","acquire:subscription:0x231BBF91","acquire:subscription:0xA6B79612","acquire:subscription:0xA6B79602","read:rect"]}},
+    {"op":"clear"},{"op":"init"},{"op":"expect","state":{"events":[]}},
+    {"op":"message","id":"0xA6B79602","zoom":2,"old_rotation":0,"new_rotation":0},
+    {"op":"set","id":1,"on":true},{"op":"clear"},{"op":"shutdown"},
+    {"op":"expect","state":{"initialized":false,"side":0,"registered":0,"ticks":[1],"flags":[[1,36]],"events":["release:subscription:0x8A07AE00","release:subscription:0x6A5FD3FD","release:subscription:0x231BBF91","release:subscription:0xA6B79612","release:subscription:0xA6B79602","release:services"]}},
+    {"op":"clear"},{"op":"shutdown"},{"op":"expect","state":{"events":[]}},
+    {"op":"message","id":"0x231BBF91","error":"NotInitialized"}
+  ]
+}

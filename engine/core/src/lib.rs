@@ -129,3 +129,4 @@ pub mod view_utilities;
 pub mod glyph_textures;
 pub mod textures_materials;
 pub mod paths;
+pub mod animation_coordinator;

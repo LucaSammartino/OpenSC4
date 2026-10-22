@@ -1,0 +1,22 @@
+{
+  "format":1,"name":"animation_coordinator_opaque_byte","domain":"animation-coordinator",
+  "spec":["animation-coordinator 1.1","animation-coordinator 3"],
+  "description":"Raw byte threshold is >=2 with registered occupants; repeated same value only reads. Opaque refresh is all-block refresh; no guessed meaning or byte trigger (AC1/AC8).",
+  "city_cells_x":64,"zoom":4,"visible":[0,0,512,512],
+  "occupants":[{"id":1,"position":[20,20],"flags":4,"models":["0xEA123BE1"],"properties":[]}],
+  "steps":[
+    {"op":"init"},{"op":"clear"},{"op":"refresh_enabled"},
+    {"op":"expect","state":{"events":[],"enabled":true}},
+    {"op":"set","id":1,"on":true},{"op":"detail","byte":1},{"op":"clear"},
+    {"op":"message","id":"0x231BBF91"},
+    {"op":"expect","state":{"enabled":true,"ticks":[1],"events":["read:occupant:1"]}},
+    {"op":"clear"},{"op":"refresh_enabled"},
+    {"op":"expect","state":{"enabled":false,"ticks":[],"flags":[[1,4]],"events":["read:detail","read:occupant:1","acquire:target:1","remove:1:0xC0","flag:1:false","release:target:1"]}},
+    {"op":"detail","byte":0},{"op":"clear"},{"op":"refresh_enabled"},
+    {"op":"expect","state":{"events":["read:detail"],"enabled":false}},
+    {"op":"detail","byte":2},{"op":"refresh_enabled"},
+    {"op":"expect","state":{"enabled":true,"ticks":[1],"flags":[[1,36]]}},
+    {"op":"detail","byte":255},{"op":"clear"},{"op":"refresh_enabled"},
+    {"op":"expect","state":{"events":["read:detail"],"enabled":true}}
+  ]
+}
