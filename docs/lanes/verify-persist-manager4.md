@@ -10,12 +10,10 @@ Each fixture batch compares 22 public manager operations plus one ownership snap
 
 All batches report diff/refusal/fallback/resync=0, cleanup=3/3 and creator_refs=3/3 before city load. Per batch, seven preflight calls, four cache-hit safety guards and six cleanup calls are safety checks outside the 22 compared operations. Existing global state is outside the fixture domain; collisions refuse before any mutation. No factory/segment/cache registry changes, service Shutdown, private constructor, untyped cache call or installed-file mutation occurs.
 
-| Request | End date | Verdict | Fixture tuples | Full save |
-|---|---|---|---|---|
-| vpm4-r1-focus-8e321f6f | 2026-05-04 | clean/ref0 | 23/23 | ok=1, 11328 ms |
-| vpm4-r1-native-f875545f | 2032-01-08 | clean/ref0 | probe off; no verification credit | ok=1, 10906 ms |
-| vpm4-r1-component-f875545f | 2032-01-04 | clean/ref0 | 23/23 | ok=1, 11015 ms |
-| vpm4-r1-house40-f875545f | 2032-01-01 | clean/ref0 | 23/23 | ok=1, 11218 ms |
+- `vpm4-r1-focus-8e321f6f`: clean/ref0 through 2026-05-04; fixture 23/23; full save ok=1, 11328 ms.
+- `vpm4-r1-native-f875545f`: clean/ref0 through 2032-01-08; probe off, no verification credit; full save ok=1, 10906 ms.
+- `vpm4-r1-component-f875545f`: clean/ref0 through 2032-01-04; fixture 23/23; full save ok=1, 11015 ms.
+- `vpm4-r1-house40-f875545f`: clean/ref0 through 2032-01-01; fixture 23/23; full save ok=1, 11218 ms.
 
 Every run completed PostSystemServiceShutdown. The three final controls used one read-only DLL/PDB artifact under `build-runs/dll/persist-manager4-f875545f/`; SHA256 **0daa3a923fe7c266a674e306ebb240fc40730dc746e272e370255038de1bf40d**, identical to the focused DLL. Artifact metadata: `build-runs/persist-control-artifact.json`; serial driver/audit: `build-runs/run-persist-controls.ps1` and `build-runs/persist-control-driver.log`. Requests/verdicts/logs remain under `build-runs/game-queue/` and `build-runs/game-results/`. No request is outstanding.
 
