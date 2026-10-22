@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use super::cache::{CachedBitmapData, GlyphRecord};
 use super::encoding::{self, Converted, CP_UTF16};
 use super::{
-    aa, CodePageConverter, DrawColour, FontFace, FontLibrary, FontRenderer, GlyphRaster, GreyLevels, ScreenFormat,
-    SizeMetrics, SurfaceId,
+    aa, advance, names, CodePageConverter, DrawColour, FontFace, FontLibrary, FontRenderer, FontUse, GlyphRaster,
+    GreyLevels, ScreenFormat, SizeMetrics, SurfaceId,
 };
 
 /// Class ID of `cGZFont` (§1).
@@ -527,9 +527,9 @@ impl GzFont {
                     ch = 1;
                 }
                 if self.source_type == 2 || self.source_type == 3 {
-                    ch += 1;
-                    if ch > 28 {
-                        ch += 1;
+                    ch = ch.wrapping_add(1);
+                    if ch as u32 > 28 {
+                        ch = ch.wrapping_add(1);
                     }
                 }
                 self.char_height = ch;
@@ -589,9 +589,9 @@ impl GzFont {
         let Some(face) = self.face.as_ref() else {
             return 0;
         };
-        let names = [self.lib.ps_glyph_name(key), Some(format!("uni{:04X}", ch & 0xFFFF))];
-        for name in names.into_iter().flatten() {
-            if let Some(code) = face.glyph_name_to_code(&name) {
+        let fallback = format!("uni{:04X}", ch & 0xFFFF);
+        for name in [names::glyph_name(key), Some(fallback.as_str())].into_iter().flatten() {
+            if let Some(code) = face.glyph_name_to_code(name) {
                 let idx = face.char_index(code).unwrap_or(0);
                 if idx != 0 {
                     self.name_map.insert(key, idx);
@@ -604,19 +604,8 @@ impl GzFont {
 
     /// The scaled advance of a loaded glyph (§7 FN7). `adv` is 16.16.
     pub fn scaled_advance(adv: i32, s: f32, ch: u32) -> i32 {
-        if s == 1.0 {
-            return adv / 65536;
-        }
-        // x87: adv (exact) · s · 2^-16, truncated. f64 holds the product exactly for |adv| < 2^29;
-        // the x87 precision-control setting is not given by the spec (question FN16).
-        let v = (adv as f64 * s as f64 * (1.0 / 65536.0)) as i32;
-        // The band test compares the float s with 0.98 as a float (literal reading: s = 0.98 is
-        // "s ≤ 0.98").
-        if ch == 0x20 && s > 0.98f32 && s < 1.0 && v + 1 > adv / 65536 {
-            v - 1
-        } else {
-            v
-        }
+        advance::scaled_advance(adv, s, ch, advance::X87Control::default())
+            .expect("FN18: unsupported x87 integer conversion") as i32
     }
 
     /// Slot 61, AddCharData (`0x00898FDC`) into the active cache.
@@ -656,10 +645,11 @@ impl GzFont {
             let adv = if zero_width {
                 0
             } else {
-                Self::scaled_advance(adv16, self.advance_scale, ch) as i16 as i32
+                advance::scaled_advance(adv16, self.advance_scale, ch, self.lib.x87_control())
+                    .expect("FN18: unsupported x87 integer conversion") as i32
             };
             let rec = self.copy_glyph_to_source_data(&g, levels == GreyLevels::Two, x_off, y_off, adv);
-            self.active_cache_mut().glyphs.insert(ch, rec);
+            let rec = *self.active_cache_mut().glyphs.entry(ch).or_insert(rec);
             if !g.done_error {
                 return Some(rec);
             }
@@ -684,7 +674,12 @@ impl GzFont {
                 buffer: buf,
                 ..GlyphRaster::default()
             };
-            (g, (w as f64 * self.advance_scale as f64) as i32 as i16 as i32, false)
+            let adv = self
+                .lib
+                .x87_control()
+                .product(w as i32, self.advance_scale, 0)
+                .expect("FN18: unsupported x87 integer conversion") as i16 as i32;
+            (g, adv, false)
         };
         let rec = self.copy_glyph_to_source_data(&raster, bits, 0, 0, adv);
         // Insert-unique (`0x00897CB2`): after a glyph-done error the loaded record stays.
@@ -801,8 +796,9 @@ impl GzFont {
 
     // ---- §9 drawing --------------------------------------------------------------------------
 
-    pub fn get_renderer(&self) -> Option<Arc<dyn FontRenderer>> {
-        self.renderer.clone()
+    /// Slot 53 returns a borrowed renderer, without acquiring a reference.
+    pub fn get_renderer(&self) -> Option<&Arc<dyn FontRenderer>> {
+        self.renderer.as_ref()
     }
 
     /// Slot 54, SetRenderer.
@@ -824,30 +820,38 @@ impl GzFont {
         true
     }
 
-    /// Slot 55. Literal reading (FN17 open): the return values and the no-renderer / failed-lock
-    /// and unlock-at-zero paths are not in §9; false and an unchanged count there.
+    fn font_use(&self) -> FontUse {
+        FontUse {
+            font_id: self.id,
+            mode: match self.aa_mode {
+                1..=3 => self.aa_mode,
+                _ => 1,
+            },
+        }
+    }
+
+    /// Slot 55, FN17. The native null dereference is represented by a panic before mutation.
+    /// Callback failure is ignored; the wrapping increment and true return still occur.
     pub fn lock_surface(&mut self, target: SurfaceId) -> bool {
         if self.surface_lock_count == 0 {
-            let ok = self.renderer.as_ref().is_some_and(|r| r.lock_surface(target));
-            if !ok {
-                return false;
-            }
+            self.renderer
+                .as_ref()
+                .expect("FN17: null renderer on lock edge")
+                .lock_surface(target, self.font_use());
         }
-        self.surface_lock_count += 1;
+        self.surface_lock_count = self.surface_lock_count.wrapping_add(1);
         true
     }
 
     /// Slot 56.
     pub fn unlock_surface(&mut self, target: SurfaceId) -> bool {
-        if self.surface_lock_count == 0 {
-            return false;
+        if self.surface_lock_count == 1 {
+            self.renderer
+                .as_ref()
+                .expect("FN17: null renderer on unlock edge")
+                .unlock_surface(target, self.font_use());
         }
-        self.surface_lock_count -= 1;
-        if self.surface_lock_count == 0 {
-            if let Some(r) = &self.renderer {
-                r.unlock_surface(target);
-            }
-        }
+        self.surface_lock_count = self.surface_lock_count.wrapping_sub(1);
         true
     }
 
@@ -900,9 +904,16 @@ impl GzFont {
         let mut locked_here = false;
         if let Some(t) = target {
             if self.surface_lock_count == 0 {
-                if !self.lock_surface(t) {
+                // DrawTextLine's automatic path checks the callback (unlike explicit slot 55).
+                if !self
+                    .renderer
+                    .as_ref()
+                    .expect("null renderer on automatic lock edge")
+                    .lock_surface(t, self.font_use())
+                {
                     return false;
                 }
+                self.surface_lock_count = self.surface_lock_count.wrapping_add(1);
                 locked_here = true;
             }
         }
@@ -1000,7 +1011,7 @@ impl FontObj {
     }
     /// Slot 1.
     pub fn add_ref(&self) -> u32 {
-        self.refs.fetch_add(1, Ordering::SeqCst) + 1
+        self.refs.fetch_add(1, Ordering::SeqCst).wrapping_add(1)
     }
     /// Slot 2, Release: refCount > 1 → decrement and return it; otherwise FinalRelease (Shutdown,
     /// destroy) and 0.
@@ -1013,9 +1024,19 @@ impl FontObj {
         self.refs.store(0, Ordering::SeqCst);
         let mut f = self.lock();
         f.shutdown();
+        // The deleting destructor frees the holder even when Init failed before the flag
+        // was set (Shutdown alone deliberately does nothing on that path).
+        f.face = None;
+        f.name_map.clear();
+        f.mono_cache.clear();
+        f.grey_cache.clear();
+        f.current_palette = None;
+        f.palettes.clear();
         f.records.clear();
         f.glyph_map.clear();
         f.aa_table.clear();
+        f.file_path.clear();
+        f.family_name.clear();
         0
     }
     /// Slot 0, QueryInterface: AddRef and true for `0x10673960` or 1.

@@ -131,7 +131,8 @@ impl GzFont {
                             1
                         };
                         // The original has no end bound here; it cannot be reached with
-                        // non-negative advances (the first word is already wider than w).
+                        // non-negative advances (the first word is already wider than w). FN22
+                        // tracks the core's safe bound when this caller precondition fails.
                         if i >= n || self.units_width(u, i) >= w {
                             break;
                         }
@@ -179,6 +180,7 @@ impl GzFont {
         while pos < s.len() {
             let (len, _) = self.words_to_fit(&s[pos..], w, 2);
             if len == 0 {
+                // FN22: native trusts progress; preserve a bounded portable adapter for now.
                 break;
             }
             lines += 1;
@@ -199,10 +201,8 @@ impl GzFont {
 
     /// Slot 44, CalculateWidthOfLines(s, n, height).
     pub fn width_of_lines(&mut self, s: &[u8], height: i32) -> u32 {
-        // lineHeight 0 is not guarded in the original (a division fault); 0 is returned here.
-        let Some(max_lines) = (height as u32).checked_div(self.get_line_height() as u32) else {
-            return 0;
-        };
+        // Native division faults at lineHeight zero; preserve no-normal-return with a panic.
+        let max_lines = (height as u32) / (self.get_line_height() as u32);
         let (mut lo, mut hi) = (2u32, 400u32);
         while lo <= hi {
             let mid = (lo + hi) >> 1;
@@ -263,7 +263,8 @@ impl GzFont {
             }
         }
         let mut w = 1i32;
-        let has_nl = s.contains(&10);
+        // The published test is U+000A, not a byte 0x0A embedded in a multibyte unit.
+        let has_nl = self.convert(s).units.contains(&10);
         let set = |rect: &mut Rect, ww: i32, hh: i32| {
             rect.right = rect.left + ww;
             rect.bottom = rect.top + hh;
@@ -316,9 +317,9 @@ impl GzFont {
         if e < w {
             let (fit2, _) = self.chars_to_fit(text, w - e);
             text.truncate(fit2 as usize);
-            while text.last() == Some(&b' ') {
-                text.pop();
-            }
+            let converted = self.convert(text);
+            let keep = converted.units.iter().rposition(|&u| u != 0x20).map_or(0, |i| i + 1);
+            text.truncate(converted.src_len_of(keep) as usize);
             text.extend_from_slice(ellipsis);
         } else {
             text.clear();
@@ -326,7 +327,7 @@ impl GzFont {
         l
     }
 
-    /// Slot 52, DrawTextParagraph. Returns `initialised` (the spec gives no return rule).
+    /// Slot 52, DrawTextParagraph. FN19: provisional `initialised` result, no pen contract yet.
     #[allow(clippy::too_many_arguments)]
     pub fn draw_text_paragraph(
         &mut self,
@@ -348,13 +349,12 @@ impl GzFont {
                 break;
             }
             let mut line = &text[pos..pos + len as usize];
-            while let Some((&b, rest)) = line.split_last() {
-                if b == b'\r' || b == b'\n' {
-                    line = rest;
-                } else {
-                    break;
-                }
+            let converted = self.convert(line);
+            let mut units = converted.units.len();
+            while units != 0 && matches!(converted.units[units - 1], 13 | 10) {
+                units -= 1;
             }
+            line = &line[..converted.src_len_of(units) as usize];
             let x = match align {
                 1 => rect.left + w / 2 - line_w / 2,
                 2 => rect.right - line_w,
