@@ -198,7 +198,7 @@ if no other frees occur. For a group with differing part colours/alpha, getters 
 | 8 | `0x0073C9A0` | `AddCityDecal(key)` | factory slot 5; direct rectangle overlay, flags `0x13`, exact matrix in §3.6 |
 | 9 | `0x0073B3B0` | `AddShadow(key, positionXZ, width, turns, flipV)` | factory slot 6 resolves the key; shadow matrices as §3.5 |
 | 10 | `0x00735480` | `AddShadow(groupWord, positionXZ, width, turns, flipV)` | −1 when `kShadowQuality` is 0; otherwise constructs the key described in §3.5 and calls slot 9 |
-| 11 | `0x0073C0D0` | `AddModelShadow(…)` *[inferred]* | a shadow built from a model's footprint |
+| 11 | `0x0073C0D0` | `AddModelShadow(binding,n,source,pairs,box,descriptor)` | direct shadow record; lighting projection, quality-dependent bounds and owned secondary transform (§3.7) |
 | 12 | `0x0073AD80` | `SetPosition(handle, xz)` | for a handle record: when the two floats change, the overlay is placed again |
 | 13 | `0x0073ADE0` | `SetPlacement(handle, nine floats)` | the whole placement, then placed again |
 | 14 | `0x00736490` | `GetPlacement(handle, out)` | the nine floats |
@@ -626,11 +626,10 @@ the vertex-buffer extension). Transparency, shade and vertex colours are restore
 
 ### 4.3 Shadows (`DrawShadows`, `0x00736BF0`; `DrawShadowsRough`, `0x00737870`)
 
-Depth offset 3, draw state 4, the shadow colour and strength from the 3D view manager (`0x00B43DD0` slot 9, then
-slot 14) as the environment colour, alpha testing at "greater or equal" scaled by the strength when the strength is
-above a minimum, a texture combiner; the full form adds a second stage with the shadow texture (`+0xD4`, clamped,
-point-sampled) and a second texture transform, and on land reads a terrain height there (terrain slot 15)
-*[inferred]*. Each shadow's cells are then drawn as for decals.
+Both forms set depth offset 3 and obtain global shadow parameters through view-manager slot 9's lighting
+result, slot 14. The exact alpha-test and exit actions are in §4.6. The full form has distinct normal/debug
+stage routes, a conditional location-strength rejection and a water dispatch choice (§4.8); it is not simply
+the rough form with a second texture. There is no proved direct terrain-height query here.
 
 ### 4.4 Counters and skipped draws (OV8, proven subset)
 
@@ -649,12 +648,14 @@ Each pass independently returns on an empty input vector before its reset. On a 
 an in-use record with all bits `0x09`; no snapshot bit-7 test is added there. Bit 4 is decal eligibility;
 bit 3 is shadow eligibility. Neither test excludes the other bit, so a record carrying both can count in both.
 
-The counter increments exactly once **after** calling the cell-draw helper for each eligible record, with no
+The counter increments exactly once **after** calling the cell-draw helper for each submitted eligible record, with no
 triangle count, draw-success, alpha, or nonempty-rectangle test at the increment. The full shadow pass selects
 DrawRect or DrawShadowRect before their common increment. Evidence: decal `0x00736813–0x00736831`,
 `0x00736B88–0x00736B9C`; full shadow `0x00736D7F–0x00736D95`, `0x00737814–0x0073782D`;
 rough shadow `0x007379C1–0x007379D3`, `0x00737CDB–0x00737CEB`. This is a count of eligible submitted
-records; eight eligible group parts count eight, even when a helper emits no geometry.
+records; eight submitted group parts count eight, even when a helper emits no geometry. In the full normal
+shadow path, the location-strength check in §4.8 can reject a mask-eligible record before submission and
+before increment. Consequently the mask alone is not a sufficient count oracle for that path.
 
 Paper discriminators starting from counters `(3,2)`: empty selection leaves `(3,2)`; a nonempty selection
 containing only one hidden in-use record with both passes enabled gives `(0,0)`; the same selection with
@@ -741,8 +742,15 @@ getter `0x007D2736–0x007D2741`, reset guard/source `0x007D2D23–0x007D2D34`.
 The owner inverts that matrix inline and stores the result as sixteen binary32 words. It computes a reciprocal
 with native x87 arithmetic at `0x00739020–0x00739028` and multiplies/stores inverse entries before copying
 them back at `0x0073914D–0x007391FF`. It does not substitute a transpose or rigid-camera-only inverse. The
-complete cofactor/spill evaluation and singular-input behavior remain OV7; using a library inverse is not yet
+complete cofactor/spill evaluation remains OV7; using a library inverse is not yet
 an established bit-exact contract.
+
+There is no determinant-zero comparison, epsilon guard or conditional fallback in the inverse interval.
+The reciprocal is computed as native x87 `1/determinant`, **stored binary32**, then reloaded for scaling
+all sixteen output entries (`0x00738FEE–0x00739141`). Singular/nonfinite inputs therefore follow the caller's
+x87 exception/rounding environment; under masked exceptions, infinity/NaN can propagate. They are not
+replaced with identity, a transpose, or an early successful no-draw result. This establishes singular-path
+control flow, without claiming all cofactor spill arithmetic is yet specified.
 
 Let C denote the resulting camera-to-world matrix and M an overlay's primary matrix. Decals submit the
 row-vector composition **C × M** to SetTexTransform4, stage 0. In ordinary real arithmetic this takes a
@@ -757,6 +765,57 @@ composition branches remain explicitly open in OV7/OV8.
 Paper order discriminator: C=translation `(16,0,0)` and M from a square, width-16 decal centred at zero
 give submitted row-3 U translation 1.5. Reversing the multiplication gives 16.5. This tests composition order
 without pretending to validate native inverse rounding on general matrices.
+
+### 4.8 Full-shadow stage, strength and water boundaries (OV7/OV8)
+
+The signed cached quality must exceed 2 **and** context render boolean `+0x17C` must be nonzero to choose
+the full pass; otherwise an enabled shadow pass uses the rough body (`0x00739342–0x00739376`). This test
+is separate from the add-time quality decisions in §3.7.
+
+For a nonempty full pass, debug mode is exactly cached second-stage setting ==4. Stage 0 gets filtering
+`(1,1)`, combiner descriptor manager `+0x38`. If `+0xD4` exists, enable and bind it on stage j, where
+j=0 in debug and j=1 otherwise; filtering is `(0,0)`, wrap modes `(2,2)`, and combiner is manager `+0x50`
+in debug or `+0x44` otherwise (`0x00736CB2–0x00736D3A`). No dummy binding is supplied when it is absent.
+For each eligible record, the normal branch binds that record's binding on stage 0, sets wrap modes `(3,3)`
+when flag bit 1 is set and `(2,2)` otherwise, and submits binary32 camera-to-world × primary on stage 0,
+then camera-to-world × secondary on stage 1. Debug bypasses the per-record binding/primary composition
+and submits camera-to-world × secondary on stage 0. Source intervals: normal
+`0x00736D9B–0x007373D5`, debug `0x00737493–0x007377B9`. These are row-vector compositions; exact
+all-entry accumulation orders still belong to OV7. The normal path's secondary matrix uses world Y through
+that composition; it is not evidence for an extra direct terrain slot-15 height sample.
+
+After the two normal transforms, byte global `0x00B0D4CC` gates a **location-strength** operation (shipped
+initial byte 1). When zero, skip this entire block. Otherwise start with the global q of §4.6, compute
+world midpoint `(F(E((x0+x1)×cellWidth×1/2)), F(E((z0+z1)×cellWidth×1/2)))` from the overlay's
+**clipped stored** rectangle. Integer endpoint sums are native 32-bit sums converted as signed; 1/2 is
+binary64 at `0x00A92D28`. On land only, request lighting slot 15's strength at that X/Z pair and store
+`qLocal=F(E(result×q))`. On water use qLocal=q without the lighting call. Reject only an **ordered**
+qLocal < binary64 0.05 (`0x00AB39A0`); equal and unordered continue. A rejected record makes no geometry
+call and no counter increment, although its transforms have already been submitted. If continuing and the
+global s is ordered >0, update alpha reference to `F(E(qLocal×s))`; submit environment colour again with
+the fourth word changed to qLocal. This block does not multiply by the record's alpha. Debug mode bypasses
+the block completely. Evidence: `0x007373DA–0x0073748E`, rejection jump `0x00737456`.
+
+Immediately before geometry, land always invokes DrawRect. Water passes a **copy** of the stored cell
+rectangle to terrain slot 53 (byte offset `0xD4`), obtains signed integer r, and compares it with
+`(x1−x0+1)×(z1−z0+1)` computed from the original stored rectangle using native 32-bit arithmetic.
+If r is signed less than that product, invoke DrawShadowRect with the **original** rectangle; otherwise
+DrawRect. Any mutations to the temporary rectangle are not copied into the overlay or dispatched bounds.
+Both routes increment `+0xDC` once after the helper. Evidence: `0x007377BE–0x0073782D`.
+The rough pass invokes DrawRect unconditionally for every eligible submission and has neither this terrain
+slot-53 branch nor the normal full pass's location-strength block (`0x007379B0–0x00737CEB`). What terrain
+slot 53 counts or changes internally is an outside-owner gap; no water-height adjustment is inferred here.
+
+Independent paper discriminators (conditional service inputs, not native/game execution):
+
+- Full normal land with q=1/2, lighting strength=1/16 stores qLocal=1/32 and rejects before geometry/count;
+  with strength=1/4, qLocal=1/8 continues. Setting the byte gate to zero bypasses both decisions.
+- At rectangle `(1,2,3,4)` and cellWidth=16, land location-strength input is `(32,48)`. It is not the
+  original unclipped centre retained by an indirect handle.
+- Full water rectangle `(1,2,3,4)` has comparison product 9. Terrain return 8 selects DrawShadowRect;
+  return 9 selects DrawRect. Changing the temporary rectangle in that service cannot change these bounds.
+- Debug setting 4 bypasses record binding/primary transform/location rejection; setting 5 takes the normal
+  path. Neither setting is a bitmask test.
 
 ## 5. Messages
 
@@ -792,9 +851,12 @@ shadows through the terrain view's `GetOverlayManager(index)` (slot 18) or the t
 
 ## 8. Open questions
 
-See [questions/overlay-manager.md](questions/overlay-manager.md): OV1 model-shadow add; OV2 remaining add-form
-differences; OV3 message `0xC9F775BB`; OV7 complete camera-inverse rounding; OV8 remaining rendering details.
-OV4–OV6 lifecycle/handles/alpha and OV9 outline partition are answered in the named sections above.
+See [questions/overlay-manager.md](questions/overlay-manager.md): OV1 outside-owner lighting projection
+inputs/production; OV7 complete camera-inverse and all-entry composition rounding; OV8 terrain consumers and
+outside-owner lighting/terrain services. OV2/OV3 are answered in §§3.6/3.7/5. OV4–OV6 and OV9 remain
+answered in the named sections above. The complete per-body disposition, including unproved scaffolding,
+is [overlay-manager-native-inventory.md](overlay-manager-native-inventory.md). This final RE round publishes
+bounded contracts and parks the exact residuals; it does not claim complete native rendering equivalence.
 
 ## 9. Conformance tests
 
