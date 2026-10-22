@@ -121,7 +121,7 @@ generated index: the questions live one file per spec, so read only the file for
 
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
-| advisors | 5 | 10 | AD16 | questions/advisors.md |
+| advisors | 2 | 14 | AD17 | questions/advisors.md |
 | application | 3 | 2 | AP6 | questions/application.md |
 | audio-ambience | 3 | 8 | AA12 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
@@ -211,4 +211,4 @@ generated index: the questions live one file per spec, so read only the file for
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **218** | **1119** | | |
+| **total** | **215** | **1123** | | |
