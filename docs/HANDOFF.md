@@ -6,6 +6,8 @@ lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
 ## 0. Current state (2026-10-22, run4 open-ended)
+**Run4 checkpoint325:** 325 lane rounds; 58 trains landed; coverage57.6/36.0/16.7/17.9, delta+20.8/+7.7/+4.6/+2.0 points since run4 start; 47 parked lanes. Target9/max3glue. User prioritizes implemented ? exact same-process shadow ? exercised replacement ? default combined regress; RE prioritizes concrete blockers to those transitions.
+
 **Coordinator parked re-wingrid4:** 3/3:165/198 functions26103/32735B documented;33functions6632B plusWG3/WG4 remain. No fourth round. FileBrowser final phase also parked at logical3/3:114entries21878B remain; keep its worktree, no fourth round. Font final phase exhausted2+1 logical implementation rounds:FN18-FN22 remain, no cGZFont owner credit/fourth round; preserve worktree.
 
 **train85 landed efa1dcaa74:** Published GZ1-GZ7 native messaging answers and render-properties foreign-CRT binding contracts. Automata manager audit is documentation-only findings: AD3/AD4 and AT22/AT23 remain; AT24 aircraft ownership control evidence preserved. No complete-owner, shadow, replacement or default promotion; original blocked automata worktree retained. Coverage57.6/36.0/16.7/17.9; rounds322 (open-ended).
