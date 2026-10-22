@@ -13,7 +13,8 @@
 - Quick PASS core 2318/0, dependents compile, CMake 5/5; fmt PASS (absolute .rs path needed).
 - All PASS cargo 4175/0, clippy clean, ctest 67/67 (109.8s; tree changed stamp due commits). New fixture probe fix needs final re-gate.
 - Native `span1555-c4r1-native-20261022-01`: clean 2032-01-11/ref0; native 980/980 exact, 470400 arena bytes, refusal/fault/noCall=0. Direct 158/158. Shipped=0; all reachable texture rows 12 kinds, invalid records=0.
-- Native setter checks failed 312/371 per destination: fixture used unsupported raw buffer refcount offset. Replaced with balanced audited public AddRef/Release probes; quick build in progress. Retain this completed verdict, do not discard/reuse its label.
-- Next: corrected native unique label `span1555-c4r1-native-20261022-02`, inspect all setter checks/bytes, then literal supplied-list+span1555 union and final all gate.
+- `4034791b` fixes fixture reference probe; quick PASS core2318/0, build4/4. First native setter check failures were fixture-only unsupported raw refcount offset; retained verdict is valid but not a passing setter check.
+- Corrected native `span1555-c4r1-native-20261022-02`: clean 2032-01-03/ref0; 980/980 exact, 470400 bytes, changed71043, 742/742 setter/lifetime checks; no refusal/fault/route mismatch/noCall/invalid texture record. Shipped0; no full-class/default credit.
+- Next: inspect union `span1555-c4r1-union-20261022-01` (literal supplied list + span1555) and final all session22803, then final report and queue.
 - Required game checks: unique native fixture and shipped counters through 2032/ref0, then literal supplied replacement union plus span1555.
-- No game requests outstanding. Wait helper build-runs/wait-span1555-verdict.py (no qwait).
+- Outstanding: union label above, wait session returned by exec. Wait helper build-runs/wait-span1555-verdict.py (no qwait).
