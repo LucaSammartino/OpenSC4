@@ -267,6 +267,130 @@ arrivals of the last traffic cycle. `DoMonthlyTick` (`0x00701F70`):
 
 `GetNumAirportTrips()` / `GetNumSeaportTrips()` = Σ `GetTripsForPort` over the ports (demand.md §8).
 
+#### 4.4.1 Seaport prop switch: native boundary (PD12)
+
+For step 3, the actual call is `SetLotPropsState(lot, 0xC98204B8, 1)` (`0x00701FD5–0x00701FEB`).
+It uses the **occupant manager's spatial list**, with the lot's rectangle and a custom occupant filter.
+It does not enumerate the lot configuration, the lot's stored objects, the lot manager's occupants, or either
+prop-manager `GetLotProps` overload. The following slot numbers are zero-based; all calls use Windows x86
+`__thiscall` (interface pointer in ECX, arguments on the stack, callee removes the stated argument bytes).
+
+| Receiver | Slot / byte offset | Arguments in declaration order | Result / native evidence |
+|---|---|---|---|
+| `cISC4Lot` | 14 / `+0x38` | output integer rectangle reference | Writes inclusive cell bounds `(xmin,zmin,xmax,zmax)`; `0x006BF320–0x006BF341`; call `0x007011A1`. |
+| `cISC4City` | 96 / `+0x180` | signed cell x, signed cell z, output float x reference, output float z reference | `CellCornerToPosition`, four words / 16 bytes; each integer coordinate is multiplied by its city's float cell size and stored as float; `0x00459410–0x00459432`. Called for `(xmin,zmin)` and `(xmax+1,zmax+1)` at `0x007011BD/0x007011DE`. |
+| `cISC4OccupantManager` | 40 / `+0xA0` | list reference, pointer to minimum integer cell pair, pointer to maximum integer cell pair, filter pointer, maximum count | Five words / 20 bytes; boolean in AL. Original inclusive cell bounds, custom filter, count `0xFFFFFFFF`; `0x00701253–0x00701279`. Native entry `0x0049E250`, vtable `0x00A8F7F0`. |
+| `cISC4OccupantManager` | 48 / `+0xC0` | list reference | Releases every listed occupant reference and frees its list nodes; retains the sentinel; `0x0049EF30–0x0049EF5A`. Call `0x00701B46`; no usable count result. |
+| listed `cISC4Occupant` | 0 / `+0x00` | IID `0xE9793A65`, output prop pointer reference | `QueryInterface` for `cISC4Prop`, two words / 8 bytes. The caller initializes the output to null and tests that pointer, **not** AL (`0x00701AF0–0x00701B0D`). |
+| acquired `cISC4Prop` | 11 / `+0x2C` | state word, here 1 | `SetState`, one 32-bit word / 4 bytes, **void**, no success/count return. Call `0x00701B21–0x00701B26`; ordinary prop entry `0x005ED290`, vtable `0x00AA4900`, return at `0x005ED3F1`. |
+
+These identities are established by the native bodies and PE vtable words, rather than SDK method order.
+In particular, `cSC4PropOccupant` constructs its prop interface at object `+0`, occupant interface at `+8`
+and property holder at `+0x10` (`0x005EE06D–0x005EE087`). The occupant's QueryInterface thunk subtracts 8
+(`0x005EE100`); the prop QueryInterface accepts `0xE9793A65`, returns the primary interface and AddRefs it
+(`0x005EC960–0x005EC978`). Do not call the occupant's own slot 11 as though it were the prop interface.
+
+**Selection.** `GetLotProps` (`0x00701190–0x00701290`) constructs a reference-counted filter whose native
+vtable is `0x00AB2D34`; slot 3 points to `0x007010E0`. For each candidate, that filter tests in this order:
+
+1. Occupant slot 7 (`+0x1C`) must return type `0xA823821E` (prop). The ordinary prop constructor installs
+   this type at `0x005EE0C8`; the native getter returns the occupant's type word (`0x006BDD80`).
+2. Occupant slot 8 (`+0x20`) supplies a three-float position. Its x and z must lie **inside or on** the
+   world rectangle from the two city-corner conversions. Height is ignored. The four comparisons are single
+   precision memory operands; lower bounds reject less-than/unordered, upper bounds reject greater-than/unordered
+   (`0x0070111B–0x00701151`). Both upper bounds are inclusive; NaN coordinates fail. For ordinary props the
+   reported x/z are bounding-box midpoints, not necessarily a placement anchor (`0x005ED1F0–0x005ED219`).
+3. With the supplied property ID nonzero, occupant slot 6 (`+0x18`) returns its property holder; call that
+   holder's slot 3 (`+0x0C`), `HasProperty(propertyID)`, and accept only true in AL
+   (`0x00701153–0x0070116E`). A zero property ID would omit this test (`0x00701158`).
+
+The property test is **presence**, not a Boolean/value read: a present property whose value is false, zero,
+or an empty array still passes. It is performed on the **occupant holder**. For an ordinary prop, occupant
+slot 6 points to `0x006C2040`, returning the holder at occupant `+8` (prop object `+0x10`); that holder's
+slot 3 points to `0x005FEC20`. The latter first searches instance properties, then, if absent and an exemplar
+is attached, calls the exemplar's property holder (`0x005FEC20–0x005FEC8A`). Thus an inherited exemplar-only
+property qualifies, as does an instance-only property. The seaport helper never fetches an exemplar directly.
+
+The manager applies its own spatial query as well as this filter. Slot 40 clamps the integer bounds to its
+city-cell range and converts them to a world box, adding float `0.1` to its x/z minima and subtracting it
+from its maxima (`0x0049E261–0x0049E353`, constant `0x00A8F768 = 0x3DCCCCCD`), with y bounds
+`-FLT_MAX,+FLT_MAX`, then calls slot 36 / `+0x90` (`0x004A0670`). That query also requires bounding-box
+intersection. Accordingly, passing the filter alone does not guarantee inclusion; for example, a zero-width
+prop exactly on a lot corner can miss the manager's inset box. This is a spatial test, not a lot-ID membership
+test: a qualifying nearby prop whose reported position lies in the rectangle can be selected regardless of
+its nominal owning lot.
+
+**Order, references and lifetime.** The helper creates an empty native list with one pointer to a 12-byte
+sentinel; each 12-byte node contains next, previous and occupant pointers at `+0,+4,+8`
+(`0x00701AB6–0x00701AD5`). It passes that list by reference, not a flat pointer array and not a list of props.
+The manager appends accepted entries and AddRefs each listed occupant before appending
+(`0x004A07F8–0x004A0809`, `0x004A093E–0x004A09AF`). The filter is released immediately after enumeration
+(`0x0070127F–0x00701283`), before switching any state; the list's occupant references remain held.
+
+The switch walks the finished list from sentinel.next to sentinel, following next pointers. It preserves
+the provider's order and multiplicity; it does not sort, deduplicate, stop at the first prop, or re-enumerate
+after a state change (`0x00701ADA–0x00701B36`). Native manager order is ascending outer grid index, then
+ascending inner grid index, then the existing per-cell forward-list order; entries append at the tail.
+In the single-grid-cell path, there is no identity deduplication. In the multi-grid-cell path, the manager
+suppresses repeat pointers for nodes with tag bit 0 clear, using `0x004A03B0`; tag-bit-0-set nodes bypass
+that check (`0x004A0883–0x004A08A5`). There is no second deduplication in the seaport helper.
+
+For each entry: initialize the prop output to null; QueryInterface; if nonnull, AddRef that pointer, release
+the QueryInterface output's reference, call prop slot 11 with 1, and release the remaining prop reference
+(`0x00701AF0–0x00701B2D`). This is one acquired prop reference held across SetState, with a transient extra
+AddRef/Release pair. Null output skips only that entry; later entries are still processed. A normal successful
+QueryInterface already AddRefs its output. Finally manager slot 48 releases every list occupant, including
+entries that yielded no prop interface, and clears/frees all nodes. The subsequent local clear is empty;
+the list destructor frees the sentinel through the same native allocator
+(`0x00701B39–0x00701BAB`, `0x00413E60–0x00413ED1`). Never release both through slot 48 and again per item.
+State changes must not invalidate iteration: the list and acquired interfaces stay alive until their stated
+release points, even if a state-change callback changes occupant-manager membership.
+
+**Returns and failure.** Both the native lot-switch helper and SetState have **no defined count or success
+result**. SetState reads a full 32-bit argument, compares it with its byte-sized current state, and, if
+different, stores the low byte; even an already-1 prop still receives the call, whose body then exits early
+(`0x005ED294–0x005ED2B1`, `0x005ED3EC–0x005ED3F1`). Incidental EAX after SetState or allocator cleanup is
+not a count. The monthly caller ignores the helper's return registers (`0x00701FEB–0x00701FF0`).
+If the replacement host exposes a numeric diagnostic result, define it as the **number of SetState calls
+issued**, including duplicate entries and already-1 props, excluding null prop-interface outputs
+*[choice: adapter instrumentation]*. It is not the number of actual state transitions or a native return
+value; it must not control the advisor event. The event flag was set before enumeration and remains set
+for an inaccessible port even when this diagnostic count is zero.
+
+The manager's enumeration Boolean is ignored: any entries it supplied are processed, then released. An
+uninitialized native manager returns false without appending (`0x0049E256–0x0049E25B/0x0049E367`), so the
+initially empty list stays empty. QueryInterface's Boolean is also ignored; output nullness governs the switch.
+A false result with nonnull output is therefore still used; true with null output is skipped. Null lot, city,
+occupant-manager pointer, listed occupant, or property holder is **not** a supported empty-result case: these
+are dereferenced without a guard (`0x00701196/0x007011A4/0x00701267`, `0x00701AF0`, `0x00701164`).
+Filter allocation failure likewise reaches an unchecked dereference (`0x0070128D → 0x0070121A`). Missing
+native providers are precondition failures, not a native return of 0; a defensive host's unavailable-provider
+fallback must be identified separately from native conformance. The native helper also assumes its list
+allocator exists (`0x00701A67–0x00701AB8`).
+
+**Independent boundary vectors (constructed expectations; not new game-run results).** Use inclusive lot
+cells `(2,3)–(3,4)` and float cell sizes `(16,16)`, giving filter world bounds x `[32,64]`, z `[48,80]`.
+Unless stated otherwise, candidates have prop type `0xA823821E`, position `(40,0,56)`, a bounding box
+intersecting the manager's inset box, property present, and a successful prop QueryInterface. `A:1` denotes
+one SetState(1) call on A; C is the adapter diagnostic count defined above. Always release all references
+and list storage, even for C = 0. An inaccessible port still raises the month's advisor event in all valid
+zero-count cases.
+
+| Vector | Independent input / provider behavior | Expected switch trace / result |
+|---|---|---|
+| PD12.1 zero | Initialized manager returns an empty list. | No prop query or switch; C = 0. |
+| PD12.2 multiple/order | Candidate order B, A, C; all pass, A already has state 1. | `B:1, A:1, C:1`; C = 3; A's setter can exit without a state transition. |
+| PD12.3 property presence | A has instance property value 0; B has only exemplar property value false; C has neither; D has instance property with an empty array value. | `A:1, B:1, D:1`; C = 3. No property value is fetched. |
+| PD12.4 type/spatial | In order: A wrong type; B at x = 31; C at x = 64 with a box extending inside; D at x = 65; E at z = 80 with a box extending inside; F has NaN x. | `C:1, E:1`; C = 2. Wrong type fails before position/property queries; failed position fails before HasProperty. |
+| PD12.5 ownership | A passes spatial/property tests but is nominally owned by another lot; B belongs to this lot but is outside its world rectangle. | `A:1`; C = 1. Ownership labels do not replace the spatial tests. |
+| PD12.6 prop interface | Finished list `[A,B,C]`; A outputs null, B outputs nonnull with AL false, C outputs nonnull with AL true. | `B:1, C:1`; C = 2; all three occupant references released. Also true/null on A still skips A. |
+| PD12.7 duplicate output | Provider supplies finished list `[A,A,B]`, one owned occupant reference per node. | `A:1, A:1, B:1`; C = 3; separate balanced prop acquisitions and occupant releases for all three nodes. |
+| PD12.8 native grid duplicate | Two visited manager grid cells contain the same eligible A pointer with tag bit 0 clear. | Native manager lists A once; `A:1`; C = 1. If both nodes instead have tag bit 0 set, both bypass dedup and give `A:1, A:1`; C = 2. |
+| PD12.9 enumeration failure | Nonnull, uninitialized native manager returns false with no entries. | Empty trace; C = 0; filter and sentinel still released. For an injected false result with `[B,A]` supplied, process `B:1, A:1`; C = 2. |
+| PD12.10 missing provider | Occupant-manager pointer null (or city/lot pointer null); no enumeration result exists. | Native precondition failure at the unchecked call/dereference; no defined C, success or empty-list result. A safe-host skip/0 is a separately labeled fallback. |
+| PD12.11 missing holder | Otherwise eligible occupant returns null from slot 6 while property ID is nonzero. | Native precondition failure before prop QueryInterface; no defined count. A missing property in a nonnull holder instead gives a normal rejection. |
+| PD12.12 snapshot lifetime | Provider finishes `[A,B]`; A's SetState removes B from manager membership. | Still `A:1, B:1`, C = 2; B's list reference remains held until list cleanup. No second spatial query. |
+
 ### 4.5 Growth *[compat]*
 
 `SendAdvisorUpgradeMessage(p)` (port slot 15):
