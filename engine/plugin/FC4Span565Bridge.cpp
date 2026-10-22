@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <cstring>
 #include <vector>
+#include <intrin.h>
 
 #include <windows.h>
 
@@ -70,27 +71,75 @@ bool Count(int slot, int status) {
 
 bool Forced() { return Origin() == 1 && g_forceNative != 0; }
 
+#include "FC4Span565Measure.inc"
+
 void __fastcall Solid(void* self, void* edx, const uint32_t* s, uint32_t n, const fc4_span565_dest* d, uint32_t c) {
+    NoteCaller(1, reinterpret_cast<uintptr_t>(_ReturnAddress()));
+    if (Forced()) {
+        Count(1, -1);
+        Measure565(1, s, n, d, nullptr, nullptr, 0,
+            [&] { reinterpret_cast<SolidFn>(kExpected[1])(self, edx, s, n, d, c); },
+            [&](const fc4_span565_dest* copy, const uint32_t* ss) { return fc4_span565_render_solid(ss, n, copy, c); });
+        return;
+    }
     const int r = Forced() ? -1 : fc4_span565_render_solid(s, n, d, c);
     if (Count(1, r)) reinterpret_cast<SolidFn>(kExpected[1])(self, edx, s, n, d, c);
 }
 void __fastcall Gradient(void* self, void* edx, const uint32_t* s, uint32_t n, const fc4_span565_dest* d,
                          const uint32_t* g) {
+    NoteCaller(2, reinterpret_cast<uintptr_t>(_ReturnAddress()));
+    if (Forced()) {
+        Count(2, -1);
+        uint32_t record[12];
+        std::memcpy(record,g,sizeof(record));
+        Measure565(2, s, n, d, nullptr, nullptr, 0,
+            [&] { reinterpret_cast<GradFn>(kExpected[2])(self, edx, s, n, d, g); },
+            [&](const fc4_span565_dest* copy, const uint32_t* ss) { return fc4_span565_render_gradient(ss, n, copy, record); });
+        if (std::memcmp(record,g,sizeof(record))) ++g_contract565;
+        return;
+    }
     const int r = Forced() ? -1 : fc4_span565_render_gradient(s, n, d, g);
     if (Count(2, r)) reinterpret_cast<GradFn>(kExpected[2])(self, edx, s, n, d, g);
 }
 void __fastcall Alpha(void* self, void* edx, const uint32_t* s, uint32_t n, const fc4_span565_dest* d, uint32_t c,
                       uint32_t argb) {
+    NoteCaller(3, reinterpret_cast<uintptr_t>(_ReturnAddress()));
+    if (Forced()) {
+        Count(3, -1);
+        Measure565(3, s, n, d, nullptr, nullptr, 0,
+            [&] { reinterpret_cast<AlphaFn>(kExpected[3])(self, edx, s, n, d, c, argb); },
+            [&](const fc4_span565_dest* copy, const uint32_t* ss) { return fc4_span565_render_alpha(ss, n, copy, c, argb); });
+        return;
+    }
     const int r = Forced() ? -1 : fc4_span565_render_alpha(s, n, d, c, argb);
     if (Count(3, r)) reinterpret_cast<AlphaFn>(kExpected[3])(self, edx, s, n, d, c, argb);
 }
 void __fastcall AlphaGradient(void* self, void* edx, const uint32_t* s, uint32_t n, const fc4_span565_dest* d,
                               const uint32_t* g) {
+    NoteCaller(4, reinterpret_cast<uintptr_t>(_ReturnAddress()));
+    if (Forced()) {
+        Count(4, -1);
+        uint32_t record[12];
+        std::memcpy(record,g,sizeof(record));
+        Measure565(4, s, n, d, nullptr, nullptr, 0,
+            [&] { reinterpret_cast<GradFn>(kExpected[4])(self, edx, s, n, d, g); },
+            [&](const fc4_span565_dest* copy, const uint32_t* ss) { return fc4_span565_render_alpha_gradient(ss, n, copy, record); });
+        if (std::memcmp(record,g,sizeof(record))) ++g_contract565;
+        return;
+    }
     const int r = Forced() ? -1 : fc4_span565_render_alpha_gradient(s, n, d, g);
     if (Count(4, r)) reinterpret_cast<GradFn>(kExpected[4])(self, edx, s, n, d, g);
 }
 void __fastcall Blt(void* self, void* edx, const uint32_t* s, uint32_t n, const fc4_span565_dest* d,
                     const fc4_span565_source* src, const fc4_span565_blt* b, uint32_t kind) {
+    NoteCaller(5, reinterpret_cast<uintptr_t>(_ReturnAddress()));
+    if (Forced()) {
+        Count(5, -1);
+        Measure565(5, s, n, d, src, b, kind,
+            [&] { reinterpret_cast<BltFn>(kExpected[5])(self, edx, s, n, d, src, b, kind); },
+            [&](const fc4_span565_dest* copy, const uint32_t* ss) { return fc4_span565_render_blt(ss, n, copy, src, b, kind); });
+        return;
+    }
     const int r = Forced() ? -1 : fc4_span565_render_blt(s, n, d, src, b, kind);
     if (Count(5, r)) reinterpret_cast<BltFn>(kExpected[5])(self, edx, s, n, d, src, b, kind);
 }
@@ -143,151 +192,7 @@ cIGZBuffer* MakeBuffer(uint32_t w, uint32_t h, uint32_t type, uint32_t bits) {
     return b;
 }
 
-struct Case {
-    const char* name;
-    int slot;            // the renderer slot DrawPreclippedSpanList should pick (§6.1)
-    uint8_t alpha;       // ctx+0x41
-    uint8_t gradient;    // ctx+0x74
-    uint32_t colour;     // ctx+0xC4
-    uint32_t argb;       // ctx+0xB4
-};
-
-int g_traceFail = 0;
-
-void Compare(const char* what, int slot, const std::vector<uint8_t>& a, const std::vector<uint8_t>& b, LONG oursBefore) {
-    size_t diff = 0;
-    for (size_t i = 0; i < a.size(); ++i) diff += a[i] != b[i] ? 1 : 0;
-    const LONG ours = g_ours[1][slot] - oursBefore;
-    if (diff != 0 || ours != 1) ++g_traceFail;
-    Log("span565 trace: %-24s slot %d %-19s bytes=%u diff=%u ours_calls=%ld (constructed buffer)", what, slot,
-        kSlotName[slot], static_cast<unsigned>(a.size()), static_cast<unsigned>(diff), static_cast<long>(ours));
-}
-
-void Trace() {
-    g_traceThread = GetCurrentThreadId();
-    cIGZBuffer* buf = MakeBuffer(5, 3, 5, 16);
-    if (buf == nullptr) {
-        Log("span565 trace: FAIL cGZBuffer create / Init(5, 3, 5, 16)");
-        g_traceThread = 0;
-        return;
-    }
-    cIGZFrameWork* fw = RZGetFrameWork();
-    cIGZUnknown* ds = nullptr;
-    // GZServPtrs.h cIGZDrawSystemPtr: iid 1261347763, service id 3945702347.
-    if (fw == nullptr || !fw->GetSystemService(3945702347u, 1261347763u, reinterpret_cast<void**>(&ds)) || !ds) {
-        Log("span565 trace: FAIL no draw system service");
-        FC4_RELEASE_CREATED(buf);
-        g_traceThread = 0;
-        return;
-    }
-    FC4_ACQUIRED(ds, "GetSystemService draw system");
-    void* ctx = nullptr;
-    // §1.2: draw system slot 4 = 0x0082BAB0 (buffer, out), AddRefs into *out. Its
-    // convention is not published: thiscall, callee pops 8, bool result (literal reading).
-    using MakeCtxFn = bool(__fastcall*)(void*, void*, cIGZUnknown*, void**);
-    if (VEntry(ds, 4) != 0x0082BAB0) {
-        Log("span565 trace: FAIL draw system slot 4 is 0x%08lX, not 0x0082BAB0",
-            static_cast<unsigned long>(VEntry(ds, 4)));
-    } else {
-        VSlot<MakeCtxFn>(ds, 4)(ds, nullptr, buf, &ctx);
-        if (ctx != nullptr) FC4_ACQUIRED(static_cast<cIGZUnknown*>(ctx), "draw system slot 4 context");
-    }
-    FC4_RELEASE(ds);
-    if (ctx == nullptr || *reinterpret_cast<uintptr_t*>(ctx) != 0x00AC17D0 || VEntry(ctx, 3) != 0x00830710 ||
-        VEntry(ctx, 4) != 0x0082FF20 || VEntry(ctx, 22) != 0x008302E0) {
-        Log("span565 trace: FAIL context %p is not a RenderToBuffer context (vtable 0x00AC17D0)", ctx);
-        if (ctx != nullptr) FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(ctx));
-        FC4_RELEASE_CREATED(buf);
-        g_traceThread = 0;
-        return;
-    }
-    using InitFn = uint8_t(__fastcall*)(void*, void*, void*);
-    using ShutdownFn = void(__fastcall*)(void*, void*);  // §1.1 Init step 1 calls it with no argument
-    using DrawFn = void(__fastcall*)(void*, void*, const uint32_t*, uint32_t);
-    const uint8_t init = VSlot<InitFn>(ctx, 3)(ctx, nullptr, buf);
-    char* c = static_cast<char*>(ctx);
-    void* rend = *reinterpret_cast<void**>(c + 0xB0);
-    const uintptr_t rendVt = rend != nullptr ? *reinterpret_cast<uintptr_t*>(rend) : 0;
-    uint8_t* px = static_cast<uint8_t*>(buf->GetColorSurfaceBits());
-    const uint32_t stride = buf->GetColorSurfaceStride();
-    Log("span565 trace: constructed buffer %p type 5/16 5x3 stride %u, context %p Init -> %u, renderer vtable "
-        "0x%08lX (%s)", static_cast<void*>(buf), stride, ctx, init, static_cast<unsigned long>(rendVt),
-        rendVt == kVtable ? "565" : "NOT 565");
-    if (init == 1 && rendVt == kVtable && px != nullptr && stride == 12) {
-        const size_t bytes = stride * 3;
-        auto pattern = [&] {
-            for (size_t i = 0; i < bytes; ++i) px[i] = static_cast<uint8_t>(i * 37 + 0x5B);
-        };
-        // Three spans: full row 0, x 1..3 on row 1, x 2..4 on row 2 (row 2 overlaps
-        // nothing; the padding bytes 10, 11 of each row must stay).
-        const uint32_t spans[6] = {0x00000000, 0x00000005, 0x00010001, 0x00010004, 0x00020002, 0x00020005};
-        const uint32_t grad[12] = {0x00FF8000, 0x00408000, 0x00108000, 0x00808000, 0x00012345, 0x00054321,
-                                   0x000ABCDE, 0x00080000, 0x00003001, 0x00070007, 0x00100000, 0xFFFC0000};
-        const Case cases[4] = {{"solid", 1, 0, 0, 0x1234F81F, 0x80FF0000},
-                               {"alpha", 3, 1, 0, 0x0000B5A6, 0x7F10C080},
-                               {"gradient", 2, 0, 1, 0, 0},
-                               {"alpha-gradient", 4, 1, 1, 0, 0}};
-        for (const Case& k : cases) {
-            c[0x41] = static_cast<char>(k.alpha);
-            c[0x74] = static_cast<char>(k.gradient);
-            std::memcpy(c + 0xC4, &k.colour, 4);
-            std::memcpy(c + 0xB4, &k.argb, 4);
-            std::memcpy(c + 0x44, grad, sizeof(grad));
-            std::vector<uint8_t> native(bytes), ours(bytes);
-            pattern();
-            InterlockedExchange(&g_forceNative, 1);
-            VSlot<DrawFn>(ctx, 22)(ctx, nullptr, spans, 3);
-            InterlockedExchange(&g_forceNative, 0);
-            std::memcpy(native.data(), px, bytes);
-            pattern();
-            const LONG before = g_ours[1][k.slot];
-            VSlot<DrawFn>(ctx, 22)(ctx, nullptr, spans, 3);
-            std::memcpy(ours.data(), px, bytes);
-            Compare(k.name, k.slot, native, ours, before);
-        }
-        // RenderBlt by direct slot calls (no texture setter published, see the question file).
-        cIGZBuffer* tex = MakeBuffer(4, 3, 9, 32);
-        uint8_t* tp = tex != nullptr ? static_cast<uint8_t*>(tex->GetColorSurfaceBits()) : nullptr;
-        if (tp != nullptr) {
-            const uint32_t ts = tex->GetColorSurfaceStride();
-            for (uint32_t i = 0; i < ts * 3; ++i) tp[i] = static_cast<uint8_t>(i * 91 + 0x17);
-            const fc4_span565_dest d = {px, static_cast<int32_t>(stride), 5, 3, 5, 2};
-            const fc4_span565_source s = {tp, static_cast<int32_t>(ts), 4, 3, {9, 4}};
-            const uint32_t kinds[8] = {0, 1, 2, 3, 4, 6, 8, 11};
-            for (uint32_t kind : kinds) {
-                for (uint8_t keyed = 0; keyed < 2; ++keyed) {
-                    fc4_span565_blt b = {0x8000, 0x4000, 0xA000, 0xC000, 4, 0x80C04020, 0, keyed, {0, 0, 0}};
-                    std::memcpy(&b.key, tp + 4, 3);  // texel (1, 0), 24 bits: keyed rows skip it
-                    std::vector<uint8_t> native(bytes), ours(bytes);
-                    pattern();
-                    InterlockedExchange(&g_forceNative, 1);
-                    Blt(rend, nullptr, spans, 3, &d, &s, &b, kind);
-                    InterlockedExchange(&g_forceNative, 0);
-                    std::memcpy(native.data(), px, bytes);
-                    pattern();
-                    const LONG before = g_ours[1][5];
-                    VSlot<BltFn>(rend, 5)(rend, nullptr, spans, 3, &d, &s, &b, kind);
-                    std::memcpy(ours.data(), px, bytes);
-                    char what[32];
-                    std::snprintf(what, sizeof(what), "blt kind %u key %u", kind, keyed);
-                    Compare(what, 5, native, ours, before);
-                }
-            }
-        } else {
-            ++g_traceFail;
-            Log("span565 trace: FAIL texture buffer Init(4, 3, 9, 32)");
-        }
-        if (tex != nullptr) FC4_RELEASE_CREATED(tex);
-    } else {
-        ++g_traceFail;
-    }
-    VSlot<ShutdownFn>(ctx, 4)(ctx, nullptr);  // §1.2: undoes the destination lock
-    FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(ctx));
-    FC4_RELEASE_CREATED(buf);
-    g_traceThread = 0;
-    Log("span565 trace: %s (%d failing case%s; constructed buffer, not a shipped path: SR565-5)",
-        g_traceFail == 0 ? "EXACT" : "DIFFERS", g_traceFail, g_traceFail == 1 ? "" : "s");
-}
+#include "FC4Span565Fixture.inc"
 
 }  // namespace
 
@@ -329,11 +234,15 @@ void Span565Restore() {
     g_installed = false;
     for (int o = 0; o < 2; ++o) {
         Log("span565 bridge: %s calls ours %ld/%ld/%ld/%ld/%ld declined %ld/%ld/%ld/%ld/%ld forced-native "
-            "%ld/%ld/%ld/%ld/%ld (slots 1-5)", o == 0 ? "shipped    " : "constructed",
+            "%ld/%ld/%ld/%ld/%ld (slots 1-5)", o == 0 ? "nonfixture " : "constructed",
             g_ours[o][1], g_ours[o][2], g_ours[o][3], g_ours[o][4], g_ours[o][5], g_declined[o][1],
             g_declined[o][2], g_declined[o][3], g_declined[o][4], g_declined[o][5], g_native[o][1],
             g_native[o][2], g_native[o][3], g_native[o][4], g_native[o][5]);
     }
+    const char* const origins[] = {"constructed_native_context","constructed_direct","natural_native_context","other"};
+    for (unsigned i = 0; i < 4; ++i)
+        Log("span565 origins: %s %ld/%ld/%ld/%ld/%ld (slots 1-5)",origins[i],
+            g_callers565[i][1],g_callers565[i][2],g_callers565[i][3],g_callers565[i][4],g_callers565[i][5]);
     Log("span565 bridge: removed (%d of 5 entries restored)", restored);
 }
 
