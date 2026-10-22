@@ -678,6 +678,25 @@ text into the output and returns false**: a Uint32 7 gives the text `7` and fals
 same for Empty, and treats an object value as a missing property (false, output unchanged), because the original's
 result is a heap address. Only kind-1 properties (§4.6) hold objects, and no shipped record has one.
 
+**Scalar character text (EX53).** Char (`0x0C`) and RZChar (`0x0E`) produce exactly **one raw byte**,
+including a zero byte. RZUnicodeChar (`0x0D`) produces one byte with the unit's value when it is at most
+`0x00FF`, otherwise one byte `3F` (`?`). This is neither decimal formatting nor UTF-8 encoding. The output
+is replaced even though `GetValString` returns **false**. Check length and bytes, not a NUL-terminated view:
+
+| Scalar input | Output length | Output bytes | Getter result |
+|---|---|---|---|
+| Char `0x41` | 1 | `41` (`A`) | false |
+| Char `0xE9` | 1 | `E9` | false |
+| Char `0x00` | 1 | `00` | false |
+| RZUnicodeChar `0x00E9` | 1 | `E9` | false |
+| RZUnicodeChar `0x0100` or `0xFFE9` | 1 | `3F` | false |
+
+Proof: getter thunk `0x00917ADB` targets `0x009172A1`; conversion and length-bearing output assignment at
+`0x00917315`–`0x00917330` precede false at `0x00917349`. The scalar switch table `0x00917221` maps types
+`0x0C`/`0x0E` to `0x00916FAC` (byte load) and `0x0D` to `0x00916F90` (unsigned word load, unsigned
+comparison with `0xFF`, replacement `0x3F`). Both construct a one-character string at `0x00916EF0`.
+The scalar Unicode rule differs from the **array** rule below, which replaces non-ASCII units.
+
 **Text round trip** (arrays and strings): the source is turned into text, then the text is parsed into the target.
 
 - Text of a numeric or Bool array is its **first element** only (`%u` / `%d` / `%llu` / `%lld` for integers, the
@@ -1725,6 +1744,17 @@ object's own effective list is **not** touched when `dest` is non-null. The slot
 (`RET 4` with nothing loaded into `EAX`: callers see whatever was left there, e.g. 108 in the gecf4 contract
 test). FreeCity4 may return any value; nothing tests it.
 
+*Allocator and capacity proof (EX52 a/b).* The three words are `{begin, end, endOfStorage}` pointers;
+capacity in elements is `(endOfStorage - begin) / 8`, not the third word itself. Reserve compares that
+quantity with the requested element count (`0x0067CB25`–`0x0067CB35`), allocates `count * 8` bytes through
+**allocator B** `0x0090CF54` (`0x0067CB53`, `0x0067CB8E`), and stores `begin + count * 8` as word 3
+(`0x0067CBA3`–`0x0067CBAC`). Growth insert `0x005FF5D0` delegates allocation to `0x0077D7E0`, which calls
+the same B allocator at `0x0077D813`. Destruction releases each property, then frees the buffer through
+**B free `0x0090CF63`** (`0x005FF0D0`–`0x005FF0EA`). A foreign non-null destination must use that allocation
+pair; do not free a filled buffer through the global C heap. A discriminating layout check starts with
+three zero words, rebuilds a holder with two own IDs and no parent, and checks `end = begin + 16` and
+`endOfStorage = begin + 16`; release both property references before B-freeing `begin`.
+
 **Holder add slots (EX51 b).** On exemplars and cohorts holder slots 10–14 and 16 are the base
 `cSCPropertyHolder` bodies (holder vtables `0x00AAF038`/`0x00AAEF60`); only slot 15 `AddProperty(property, bool)`
 is overridden (`0x0067DCE0` exemplar, `0x0067DA00` cohort: base add to the own list, then the same insert or
@@ -1749,6 +1779,22 @@ and if the parent has the ID they keep returning the parent's value. Worked exam
 `0x10` = 2, E has no `0x10`; slot 13 `(0x10, 7, true)` → E's effective `0x10` is still 2, no message; slot 14
 with a Uint32 7 → effective 7 and `0xC53D10AA` posted. Slot 14 builds a new property with the ID and sets its value from the variant (property slot 7);
 slot 16 a property with the source's ID and a copy of its value; both then call slot 15 with their bool.
+
+*Slots 14/16 reference and return channels (EX52 f).* Both allocate a **new** property, take a temporary
+reference, copy the value (slot 14 does not retain the supplied variant; slot 16 does not retain the source
+property), dispatch holder slot 15, then release the temporary reference. Own and effective entries each
+hold one reference, even when they point to the same property. The last call is the new property's
+`Release`, and its result remains in `EAX` at return (`0x005FDF6C`–`0x005FDF73`,
+`0x005FE05B`–`0x005FE062`). Its concrete vtable `0x00AA6988` has AddRef `0x005FCFF0` and Release
+`0x005FD000`; Release decrements a 16-bit count and zero-extends the remainder, or destroys and returns 0.
+Thus the native observed **2** on an exemplar/cohort is the two surviving list references, not a literal
+success code. A plain base holder retaining only the own entry leaves **1**. Replacing an existing ID still
+creates a new property and leaves 2 on a factory exemplar: retaining a borrowed pointer to the old property
+is unsafe without AddRef. This explains the validation mismatch; it does not establish that the public
+method is declared to return a count. No direct callers of either wrapper were found. Do not infer a
+portable return type or require a constant 2 for arbitrary overrides; a native register-level comparison
+can record the actual post-Release count. Slot 14 with a null variant skips all work and has no established
+result; slot 16 requires a valid source property.
 
 **Parent ownership (EX48).** `GetCohort` (exemplar slot 9) and `GetParent` (cohort slot 6) are both `0x006AAC50`,
 which returns `+0x30` **borrowed** (no AddRef). `SetCohort(parent, bool)` (exemplar slot 10 `0x0067C510`, cohort
@@ -1819,8 +1865,93 @@ byte `+0x10`) picks the form: **false (binary)**: the 8-byte signature at `0x00A
 slot 11; nothing filled when there is no parent), a u32 count and, for each **own** property (not the effective
 list) in ascending ID: its ID, then kind byte 0 and the variant, or kind byte 1 and the key of the held resource
 when the property answers `0xE52184AB`; **true (text)**: `EQZT1###\r\n`, a `ParentCohort` entry, a `PropCount`
-entry, then one entry per own property named by `GetPropertyReadableName` (`0x0067FE80`) or `unknown`. It stops
-at the first failed write.
+entry, then one entry per own property named by `GetPropertyReadableName` (`0x0067FE80`) or `unknown`.
+The binary path stops at the first failed write. The text path tests the signature write, but its entry
+helpers ignore raw-write failure and return true (EX52 e, below).
+
+*Record arguments and kind-1 key interface (EX52 c/d).* Record slot 28 is a thiscall with arguments
+`(const void* bytes, uint32 byteCount)` in that order. The exemplar signature call pushes 8 then the address
+of `EQZB1###` and uses the record as `this` (`0x0068007A`–`0x00680081`); text uses the same call with 10 bytes.
+The actual writable record can be derived: the base serial-record vtable `0x00AD7CF0` slot 28 targets
+`0x00975B11`, a tail dispatch to virtual slot 51 (`+0xCC`), whose packed-file writer implementation is
+`0x00970F0F` (vtable `0x00AD8628`). That implementation uses argument 1 as data and argument 2 as byte
+count (`0x00970F2F`–`0x00970F42`). The export's folded name `SetFieldSint8` for `0x00975B11` is misleading
+for this call shape. Factory `Write` obtains IID `0xC56B8F08` before calling `SerialWrite`
+(`0x00975507`–`0x0097551E`).
+
+Kind 1 queries the **property**, not the variant's held unknown, for IID `0xE52184AB`. On success, after
+writing kind byte 1, it calls that returned interface's **slot 6 (`+0x18`) with one argument**, an address
+of a temporary three-word resource-key output. It passes **the pointer returned in EAX** to record slot 49,
+then releases the queried interface (`0x0068013D`–`0x0068015E`). There is no separate query of a held
+resource and no extra key slot call on it in this branch. A foreign implementation must fill that output
+and return its address. A discriminating spy property answers only this IID, records slot 6 and writes a
+distinct key; verify kind `01`, that key at record slot 49, and balanced QI/Release. An object-valued variant
+whose property does not answer the IID instead takes **kind 0 + SetFieldVariant**, even if its unknown
+answers a resource IID. This distinction must be preserved when testing a replacement writer.
+
+*Text form (EX52 e; unresolved name-source question retained).* The lookup is **data-driven**, not a fixed
+ID-to-name switch. When the factory's byte `+0x11` is false and global string `0x00B47A80` is nonempty,
+`GetPropertyReadableName` parses it as an INI file, enumerates section `Properties` through callback
+`0x0067FD80`, then sets that byte true (`0x0067FE8B`–`0x0067FEFD`). The callback converts the entry key
+with `RZConvertToUint32A`, discards ID 0, and unique-inserts ID → complete entry value into the global map
+at `0x00B47A94`; duplicate IDs keep the first insertion. A found value is split at commas into at most
+six strings; at least five must be returned, and **field 5 (one-based)** becomes the readable name
+(`0x0067FF78`–`0x0067FFB9`). Missing ID or too few fields returns false, causing literal `unknown`
+(`0x00680289`–`0x006802A9`). Empty field 5 is not itself a failed lookup. Initializer `0x00A74680` creates
+an empty source string. No population path or shipped table contents have been established; do not
+invent names from the current replacement's table.
+
+For a successful raw writer, the exact text fragments are:
+
+| Entry | Bytes before the terminating CR LF |
+|---|---|
+| signature | `EQZT1###` (cohort: `CQZT1###`) |
+| parent | `ParentCohort=Key:{0xGGGGGGGG,0xIIIIIIII,0xTTTTTTTT}` |
+| count | `PropCount=0xNNNNNNNN` |
+| property | `0xPPPPPPPP:{"name"}=Type:count:{values}` |
+
+Hex digits are lowercase, eight wide for IDs/count/key words; there are **no spaces** around separators.
+The parent format uses in-memory key words `+4,+8,+0` (`0x0067C590`–`0x0067C5B7`), hence group, instance,
+type. No parent yields three zeros. The count is the own-property count. Property count after the type is
+decimal: variant slot 4 (the word at `+0x10`, accessor `0x0040CE60`), including the scalar's native count;
+a freshly constructed scalar set through `SetValUint32` has count **0**, not 1 (`0x009166D4`,
+`0x0091587D`–`0x009158A4`). Strings hard-code 0. Name and string
+text are inserted through `%s`, with **no quote, brace or newline escaping** and truncation at an embedded
+NUL. Property prefix is at `0x0067CDDD`–`0x0067CDFF`; the type switch and final `}\r\n` are
+`0x0067CE12`–`0x0067CE2D` and `0x0067D735`–`0x0067D75B`.
+
+| Variant types handled | Type text | Value formatting |
+|---|---|---|
+| scalar/array Bool | `Bool` | `True` or `False` |
+| scalar/array Uint8, Sint8 | same spelling as type | `0x%02x` |
+| scalar/array Uint16, Sint16 | same spelling as type | `0x%04x` |
+| scalar/array Uint32, Sint32 | same spelling as type | `0x%08x` |
+| scalar Uint64, Sint64 | same spelling as type | `0x%08x%08x`, high word then low word |
+| array Uint64, Sint64 | same spelling as type | high/low words as above; **only last element has `0x`** |
+| scalar/array Float32 | `Float32` | promote to double, CRT `%f`, then `RemoveUnnecessaryFloatingPointDigits` (`0x0067C2B0`) |
+| RZChar array `0x800E` | `String` | complete suffix `String:0:{"text"}` |
+
+Arrays separate elements with commas and no spaces; count zero writes empty braces. Signed 8/16-bit
+values are sign-extended before `%x`, so negative values print eight hex digits despite the minimum width
+(`0x0067CEBC`, `0x0067CF2E`, array `0x0067D21F`, `0x0067D32F`). Float32's promotion is proved at
+`0x0067D04F`–`0x0067D061`; this is **not** the §5.1 float-to-text formatter. Unsupported types, including
+Float64, scalar characters and Char/Unicode arrays, produce the property prefix followed only by
+`}\r\n`, with no type/count/open brace; the writer still returns true. The text writer does not test the
+kind-1 property IID; it formats the property's variant.
+
+Discriminating text vectors with an absent name mapping, no parent and one own property `0x12345678`:
+fresh Uint32 5 yields `0x12345678:{"unknown"}=Uint32:0:{0x00000005}\r\n`; fresh Sint8 −1 yields
+`0x12345678:{"unknown"}=Sint8:0:{0xffffffff}\r\n`; Uint64 array `[1,2]` yields
+`0x12345678:{"unknown"}=Uint64:2:{0000000000000001,0x0000000000000002}\r\n`; Float64 1.5 yields
+`0x12345678:{"unknown"}=}\r\n`. Prepend `EQZT1###\r\n`, the zero parent line and
+`PropCount=0x00000001\r\n`. For a nonzero parent use type `0x11223344`, group `0x55667788`, instance
+`0x99AABBCC`: parent text is `ParentCohort=Key:{0x55667788,0x99aabbcc,0x11223344}\r\n`.
+
+The three entry helpers (`0x0067C590`, `0x0067C5E0`, `0x0067CDD0`) return true after issuing their raw writes
+without checking those writes' results (`0x0067C5C9`–`0x0067C5CC`, `0x0067C607`–`0x0067C60A`,
+`0x0067D757`–`0x0067D75B`). A sink that accepts only the initial signature and returns false thereafter
+therefore still gets further text calls and a true SerialWrite result. This is a useful failure-path vector;
+it differs from the binary writer and from the former blanket rule "stops at first failed write".
 
 *Binary form in detail (EX51 d).* The writes go to the serial record (`cGZPersistDBSerialRecord`, vtable
 `0x00AD7CF0`; persistence §3) and mirror the §4.2 reader exactly:
