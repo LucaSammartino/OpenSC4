@@ -176,6 +176,81 @@ returns true.
 | 12, 14, 15, 16 | `0x00809B00`, `0x0080A580`, `0x0080A590`, `0x0080A010` | SetResGroup, SetFreePoolMax, FlushFreePool, FlushAll |
 | 17, 18 | `0x00809260`, `0x0080A4D0` | GetStatsString, FreeBinding |
 
+### 1.11 Native word arithmetic and invalid-domain boundaries (TB5)
+
+These rules qualify the mathematical description in §1.4. Dimensions, image frame/level counts, LOD offset,
+record byte size and factory byte/count fields are 32-bit words. Addition, subtraction and the low-word products
+wrap modulo 2^32; there is no checked-size rejection. This describes the native calculation, not a requirement
+to allocate an invalid or impossibly large image.
+
+- `P` (`0x0080A700–0x0080A716`) compares its argument and successive powers as **signed** 32-bit integers.
+  Zero, one, and any word with bit 31 set return 1. Positive values through `0x40000000` round upward normally.
+  Positive values `0x40000001..0x7FFFFFFF` do not terminate: doubling reaches the negative sign bit, then zero,
+  and stays zero. There is no native overflow error result.
+- The LOD selection uses an **unsigned** comparison: use the offset if `L > offset`, otherwise use `L−1`
+  modulo 2^32 (`0x00809514–0x0080952B`). Subtract that word from L for the output level count. Consequently
+  `L=0` selects `d=0xFFFFFFFF` and produces **one** binding level, rather than rejecting the input.
+- Width and height use logical right shifts with `d & 31`, followed by a **signed** comparison against 1;
+  only values signed-greater-than 1 survive (`0x0080952D–0x00809573`). Thus `L=33, offset=32, w=h=8`
+  gives one level of **8×8**, not 1×1; `L=0, w=h=8` gives one level of 1×1.
+- Size starts with the binding dimensions. For each binding level, add the low 32 bits of width×height to a
+  32-bit sum, then logically halve each dimension without clamping. Multiply the wrapped sum first by bits
+  per texel, then by frames, retaining only the low word each time; finally logically shift right by 3
+  (`0x0080A253–0x0080A296`). It is not a wide product divided by 8. A one-level 65536×65536 image at 32 bits
+  and one frame therefore has accounted size **0**. Zero frames also gives size 0 and makes no driver texture
+  creation calls; there is no frame-zero rejection (`0x0080A1EE–0x0080A253`).
+- Creation increments in-use words with wrapping arithmetic (`0x0080A300–0x0080A30B`). Returning to the pool
+  subtracts size from in-use bytes, adds it to pool bytes, decrements/increments the respective counts, all
+  wrapping (`0x0080A516–0x0080A537`). Reuse and keyed reacquisition reverse those transfers, also wrapping
+  (`0x00809D91–0x00809DB9`, `0x0080A3C9–0x0080A3EE`). Trimming compares bytes and limit **unsigned**;
+  its subtraction alone saturates at zero when record size is at least the current pool bytes
+  (`0x0080A0A3–0x0080A0FF`). A wrapped pool total can therefore suppress trimming.
+- Binding references are a wrapping **32-bit** word, not the material's 16-bit word. `AddRef`
+  (`0x004664A0`) turns `0xFFFFFFFF` into 0 without freeing; `Release` (`0x008090E0`) turns 0 into
+  `0xFFFFFFFF`. Only a decrement producing exactly 1 with a factory calls `FreeBinding`; exactly 0 frees
+  the binding allocation. No overflow/underflow guard exists.
+
+### 1.12 Instance-zero keys and upload failures (TB6–TB7)
+
+Keyed lookup accepts instance zero and inserts the (group, 0) entry just like any other key
+(`0x0080A454–0x0080A471`). Releasing and asking for that key before reuse/eviction returns the same binding
+without upload. The record's instance word nevertheless remains the unkeyed sentinel:
+
+- Reuse tests the instance word before key removal (`0x00809DCD–0x00809DF0`), so reusing this record for an
+  image-info request leaves the old (group, 0) entry pointing at the repurposed record. A subsequent keyed
+  lookup can return that binding with its new contents. Reusing it for another key can leave two entries
+  pointing to the same record.
+- Destruction makes the same zero test (`0x00809EB9–0x00809EE1`), leaving a dangling key-table value after
+  eviction. A later lookup is unsafe; there is no specified false/error recovery from the freed record.
+  `FlushAll` ultimately clears the key table (§1.7).
+- Restoration walks **key-table entries**, not records filtered by nonzero instance. The stale instance-zero
+  entry is therefore still visited. It reconstructs the load key from the record's current instance/group
+  (`0x00809A30–0x00809A69`), which may differ from the table key after reuse.
+
+Driver creation stores each returned handle before querying the driver error. On failure at zero-based frame
+i, slot 36 receives **count i** and the array base (`0x0080A22D–0x0080A244`, `0x0080A2B9–0x0080A2CE`).
+The just-returned handle is excluded, even if nonzero. Failure on the first call issues deletion with count 0;
+failure on the third deletes only handles 0 and 1. A zero handle among those earlier successful calls is still
+included. This path frees the record but does **not** free the separately allocated handle array before returning
+failure. These observations correct §1.5's ambiguous “made so far”; there is no per-handle nonzero filter.
+
+Upload (`0x00809B90–0x00809CC6`) reads image-info fields even before deciding whether the binding is known.
+For a known binding it loops over the **source image's frame count**, and over the **binding's level count**.
+The first source pointer is at source-level-table index `sourceLevels−bindingLevels` (32-bit subtraction);
+each successive frame advances by `sourceLevels` entries. Thus fewer source frames leave later handles
+unchanged; more source frames read beyond the binding's handle array. Insufficient source levels can address
+before the level table. Neither a missing table nor a null level pointer produces a native early failure:
+the table entry is read and its value is passed to the driver unchanged. Upload widths/heights are logical
+shifts by `level & 31`, without a minimum of 1. The source format/type are forwarded. The driver return is
+ignored and no error query follows, so later levels/frames are still attempted after a reported upload error
+(`0x00809C50–0x00809CBB`). Invalid memory accesses have no native boolean failure contract.
+
+Restore attempts resource load per table entry, skips upload if load fails or image-info is null, releases a
+returned resource, and continues (`0x00809A6C–0x00809A97`). Traversal follows each hash chain then the next
+occupied bucket, in ascending bucket index (`0x00809A97–0x00809AD3`), rather than sorted resource-key order.
+Driver/load call order is observable. Exact ordering across differing hash-table growth/insertion histories
+requires the same table state; this section does not invent a key-order guarantee.
+
 ## 2. `cS3DTextureBinding` *[compat]*
 
 16 bytes: the per-frame texture handles, the frame count, the factory, a reference count (constructor `0x008090C0`;
@@ -204,6 +279,11 @@ returns true.
   texture-coordinate set (`+0x0D`), a texture-transform switch (`+0x0E` bit 0) and that transform's scale
   divisor (`+0x10`) (draw-context.md §6); slots past T are never read, so their `0xFF` is only a marker.
 - Slot 4 (a shared body) always returns false; `GetStatsString` (slot 5, `0x00800C50`) formats "Nothing to report".
+- Primary slots **6 and 7** both target `0x0062C980`: return false, discard two 32-bit arguments, and do not
+  dereference them or mutate outputs. No method names or successful behavior are established by that body.
+- Primary AddRef/Release (`0x00800C30`, `0x00800C40`) adjust the receiver by +4 and delegate to the system
+  service. The deleting destructor (`0x00800CE0–0x00800D13`) restores all three vtables, destroys the base at
+  +4, then frees the 0x20-byte allocation iff flags bit 0 is set. It does not enumerate materials or bindings.
 
 ## 4. Users
 

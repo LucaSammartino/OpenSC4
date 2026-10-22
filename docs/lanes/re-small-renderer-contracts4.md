@@ -1,0 +1,15 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| re-small-renderer-contracts4: native renderer and path owner contracts | Codex / `re-small-renderer-contracts4` (RE lane, detached worktree) | in progress | 1. Inventory texture/material native bodies. 2. Prove missing owner contracts and resolve exact questions. |
+
+## Handoff
+- Goal: resolve TB4–TB7, GT3–GT6, FF2–FF4, PA4–PA8 with primary native evidence; specs/questions only.
+- Worktree reused at detached HEAD; initial status clean and no commits ahead of main.
+- Read handoff index, lane row format, merge train instructions, texture/path question entries.
+- q.py cannot launch Bash here (CreateInstance E_ACCESSDENIED); use local PowerShell with bounded output.
+- First substantive milestone: texture §1.11–1.12 proves TB5–TB7 boundaries; §3 supplies manager slots 6/7 and destruction. Commit pending below.
+- Native distinctions: signed P hangs on 0x40000001..0x7fffffff; zero levels => one; shifts mask to 31; size/counters/refcounts wrap u32; failure deletion excludes current handle.
+- Next: reconcile exact 58-body inventory/material inline lifetime; then complete glyph/string, flame and directory-entry owners. TB4 remains open.
+- Main read-only source: C:/Users/tlori/FreeCity4; export queries via tools/re_query.py.
+- No engine reads/edits, tools/maps/ABI edits, external communications, subagents, merge/push or branch changes.
+- Guard: C:/Users/tlori/FreeCity4/build-runs/run4-re-small-renderer-contracts4-r1-manifest.json; budget 150000, maxCalls100, one round.
