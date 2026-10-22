@@ -41,9 +41,10 @@ STALE = (
      "lanes enqueue and stop; there is no merge lock (docs/lanes/README.md 'How a lane lands')"),
 )
 
-# What one lane round reads besides its prompt: the agent file, the docs the prompt and HANDOFF send every lane to,
-# and the kind's own reference. Used by `bytes`.
-ROUND_COMMON = ("docs/HANDOFF.md", "CONTRIBUTING.md", "docs/ops/rules.md", "docs/ops/conventions.md",
+# What one lane round reads besides its prompt: the agent file, the docs the prompt sends every lane to, and the
+# kind's own reference. Lanes stopped reading docs/HANDOFF.md on 2026-10-22 (the coordinator's run status). Used by
+# `bytes`.
+ROUND_COMMON = ("CONTRIBUTING.md", "docs/ops/rules.md", "docs/ops/conventions.md",
                 "docs/lanes/README.md", "docs/merge-train.md", "docs/specs/questions/README.md")
 ROUND_KINDS = {
     "engine": (".claude/agents/fc4-lane.md", ("docs/harness.md", "docs/ops/lessons.md")),

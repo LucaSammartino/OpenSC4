@@ -1,6 +1,6 @@
 # Run4 recovery after the specification PRs
 
-The run remains open-ended. The latest user target is6-8 live workers, refill up to7 initially, at most3 glue lanes and at most3 rounds per lane; explicit smaller family limits in the coordinator state remain binding. STOP and guard denials always take precedence. Main must stay clean. Both Claude and Codex backends are supported through the shared [provider runner](lane-providers.md).
+The run remains open-ended. The worker target and caps are HANDOFF section0 "User policy" (kept only there); explicit smaller family limits in the coordinator state remain binding. STOP and guard denials always take precedence. Main must stay clean. Both Claude and Codex backends are supported through the shared [provider runner](lane-providers.md).
 
 ## Provider pause
 
@@ -21,4 +21,4 @@ Previously queued network-model correction and exemplar contract answers remain 
 3. Every worker goes through `tools/lane_launch.py` and the selected guarded backend, with fresh slots and check --touches; use --resume for preserved worktrees. Never unpark a lane without its actual cause being fixed, never run a fourth round, and never change guard flags to force a launch.
 4. Refill returned slots immediately; keep at most3 glue. Cut a train at2+ ready, run its actual gates, regenerate handoff/coverage/treemap, commit/push, and remove only ancestor-proved landed nonparked worktrees. Keep parked/unlanded worktrees and branches.
 
-The approved live-worker count fix is de1cd3b6 (97 tools tests passed). `slots` still retains activity fallback for unknown worktrees; the native launcher count is the truth for our running agents. The checkpoint225 is pushed; next checkpoint250. PR review/coordinator metadata work did not consume lane-agent rounds.
+The approved live-worker count fix is de1cd3b6 (97 tools tests passed). `slots` still retains activity fallback for unknown worktrees; the native launcher count is the truth for our running agents. PR review/coordinator metadata work did not consume lane-agent rounds.
