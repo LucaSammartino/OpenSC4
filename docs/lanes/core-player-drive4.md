@@ -4,13 +4,15 @@
 
 ## Handoff
 - Goal: first portable player-drive owner from drive-tool sections 1-10; no native/ABI work.
-- Done: reused reserved detached worktree; clean initial status; read lane rules and report format.
-- Next: record baseline all; finish contract audit and independent literal fixtures before implementation.
+- Done: audit/questions/literal fixtures committed as 1ebdc0a1 before implementation.
+- Done: production owner and 24 discriminating tests drafted; unregistered until baseline all finishes so it remains a baseline.
+- Next: collect baseline operation (exec session 44795), register module, commit, run absolute fmt and serial quick/final all.
 - q.py cannot start Bash (E_ACCESSDENIED); use bounded PowerShell commands.
-- Process inventory attempted via CIM (access denied); Get-Process gives running Python/cargo/CMake handles, attribution still to inspect.
+- Process inventory via CIM denied; psutil unavailable; Get-Process measured active process IDs/start times/handles. No existing local qbuild/fc4verify logs before baseline; no duplicate check started.
+- Baseline all started once; local qbuild-test.log shows compilation only at last observation. Do not launch another build while it is active.
 - No game requests; no ABI changes. DR1/DR2 remain unresolved.
 
-### Pre-implementation method audit
+## Pre-implementation method audit
 
 The published attribution is 40 functions / 12400 bytes; the reported inventory is 32 entries including two foreign junction-view entries. Neither number is implementation credit. The behaviour spec names the following tool methods/handlers; inventory names absent from it cannot acquire invented contracts.
 
