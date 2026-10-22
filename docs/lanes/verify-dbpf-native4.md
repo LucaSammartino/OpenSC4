@@ -17,6 +17,7 @@
 - EX54 appended for unspecified ReadRecordRaw return/in-out contract; no malformed raw-read calls.
 - Stable all after return-contract comments: cargo4962/4962, clippy0 diagnostics, CTest68/68 PASS. Source tip1c53058b. Next: freeze DLL and queue native2032/fullsave/shutdown.
 - Frozen DLL SHA256 524CD1243584A4613969B49B28870A0F1CF0D3DF242133B431DA002304288A5A, build-runs/dbpf-native-frozen/FreeCity4.dll. Fixture manifest SHA256 3FD0E623041B954870C2043A10B30582B35092AE4831F19ED6F37A8FD5C70D4B; .dat files readonly.
-- OUTSTANDING: vdbpf4-r1-native-1c53058b-a, turbo to2032, scripted fullsave2031-12-01/shutdown; qwait verdict path build-runs/game-results/vdbpf4-r1-native-1c53058b-a.verdict. No second request until completed.
+- DONE vdbpf4-r1-native-1c53058b-a: clean2032-01-04/ref0, fullsave ok1 in11000ms, PostSystemServiceShutdown reached. Constructed16files/9opens/7rejects/10records (1compressed,1empty); natural1file/60440records/48880compressed; all metadata/raw/payload match. Three combined key-list/count differences (emptyfixture, QFS+DIR fixture, SimCity_1.dat) preserved as EX55. Raw return observations4/4 and0/0 (valid reads), natural1647/1647 and1665/1665; EX54 remains contract question.
+- OUTSTANDING next normal-speed request: vdbpf4-r1-normal-1c53058b-b; same immutable DLL/input files; fullsave/shutdown to2032. Original-run cap now2/3 submitted.
 - No game requests or serialized probe state. Need coordinator exacthouse40 profile: absent from brief/permitted coordination script; do not reconstruct from obsolete lists.
 - Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-dbpf-native4-r1-manifest.json.
