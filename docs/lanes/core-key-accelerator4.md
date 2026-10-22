@@ -14,7 +14,9 @@
 - Production implementation committed at 7b0b14fa; expanded to 12 tests including explicit WT8 literal boundary choices, no-server initialization, terminal and overflow safety.
 - Final code f3aee604; qbuild fmt passes both new files. lib.rs check fails inherited module-order/format diffs (166 lines); additive export only, no unrelated reformat.
 - Initial cargo/clippy were launched before implementation; later baseline CMake/CTest stages can include the new source. This is not a pristine-base CTest measurement.
-- Next: focused qbuild quick on final code; then one stable qbuild all and final report/queue. Use absolute file paths for qbuild fmt.
+- Focused qbuild quick PASS: fc4-core 2971 passed/0 failed/0 ignored, including all 12 new tests; fc4-capi/fc4-conformance/fc4-formats dependents compiled; build 4/4 edges (488.2s), total491.2s. Logs copied focused-.
+- Preserved an erroneous overlapping retry: same 2971 tests passed/dependents compiled, configure failed with ninja recompaction Permission denied; qbuild also rejects --crates as an unknown step. Do not overlap build wrappers or infer skipped tests from buffered output. Logs copied overlap-.
+- Next: one stable qbuild all (no source/report edits during run), final report/queue. Use absolute file paths for qbuild fmt.
 - Scope: pure core, no C ABI changes, game runs, native-exact or replacement claims.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-key-accelerator4-r1-manifest.json.
 - All owner gaps must remain explicit; no other widget/HTML owners.
