@@ -5,8 +5,8 @@
 ## Handoff
 
 - Goal: final RE round for remaining overlay questions; preserve OV4/OV5/OV6/OV9.
-- Done: proved city add/helper in §3.6 and complete message handler in §5 (first native-contract milestone).
-- Next: finish model add/ComputeCellRect; reconcile message question; inspect Draw/shadow numerical boundaries and owner inventory.
+- Done: a300262d city/helper and message; now §3.7 full owner model construction and fallback bounds, §1.2 shutdown/destructor distinction.
+- Next: publish owner rendering boundary advances, reconcile OV questions and complete logical-body inventory; park exact remaining camera/lighting/terrain residuals.
 - City primary matrix has only M[1,1]=F(2/nx), M[2,2]=1, M[3,3]=1 nonzero; do not infer X/Z mapping.
 - Handler 00736100 refreshes quality/debug/+20 only, always true; never re-places overlays.
 - Cached paginated native evidence: build-runs/native-*.txt; inspect-native.py; inventory.tsv has 97 exported span bodies, includes fragments/folded entries needing reconciliation to claimed 93.

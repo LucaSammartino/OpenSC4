@@ -40,8 +40,8 @@ managers: static and dynamic, each for land and for water.
 - The terrain view creates four and initialises them as (static, land) `+0x78`, (static, water) `+0x7C`,
   (dynamic, land) `+0x80`, (dynamic, water) `+0x84`, registered at draw layers 2, 2, 5, 5 with priorities 0, 1100,
   1000, 1100 (terrain.md §15.5.4). The terrain keeps the first at its `+0xF8`.
-- `0x0073AC90` (on shutdown) unsubscribes, releases the view, factory and terrain, empties both record tables and
-  forgets the free lists.
+- `0x0073AC90` (on shutdown) unsubscribes, releases the view, factory and terrain and clears overlay/handle
+  live ranges/free queues. It is distinct from destruction; see §1.2 for retained groups/index/shadow binding.
 
 ### 1.1 Initialization and repeat calls (OV4, proven subset)
 
@@ -74,6 +74,30 @@ is filled from scratch/default global `0x00B4B3C8`; no usable second-transform v
 add fills it. Likewise the handle allocator copies a complete owner-constructed placement/aspect/target record;
 there is no independently initialized public default handle. Evidence: `0x00735F40–0x007360F9`, with alpha's
 literal 1 established at `0x00735FF2`, colour loads `0x007360BE–0x007360DC`, and allocator §2.3.
+
+### 1.2 Shutdown versus destruction (owner boundary)
+
+Shutdown `0x0073AC90–0x0073AD70` runs without an initialized guard. It unsubscribes the message target if
+the server exists, then nulls/releases parent, terrain and factory, in that order. It clears the overlay live
+range, releasing source and binding references in increasing record order, and resets overlay free-head/tail
+to −1; then clears the handle live range and resets its free-head/tail to −1; initialized becomes false last.
+It retains the arena allocations. It does **not** clear/reset the group arena/free queue, cell-index heads,
+index dimensions/stamp, shadow binding `+0xD4`, cached settings, or statistics. In particular shutdown alone
+does not remove each overlay from the retained index. Draw/use between Shutdown and valid reinitialization
+has no supported contract. Overlay range destruction releases source before binding, including payloads in
+freed slots (`0x00737E10–0x00737E4A`); ordinary Remove does neither (§2.3).
+
+The destructor body `0x0073BE00–0x0073BF0A` is a separate path: it destroys all index lists and frees index
+storage, releases `+0xD4`, frees group then handle storage, destroys overlay payloads and frees overlay
+storage, releases factory, parent and terrain, and destroys bases. It does **not** invoke Shutdown or
+unsubscribe. The index-list destructor `0x0073A170–0x0073A1A7` visits heads in array order, frees each chain
+from head to tail and nulls the head. The deleting-destructor wrapper `0x0073C980–0x0073C99D` additionally
+frees the object when argument bit 0 is set. Subscription lifetime therefore requires the explicit shutdown
+protocol; destruction must not be described as automatically performing it.
+
+Paper lifecycle discriminator: after removing an overlay, its references remain; Shutdown releases payload
+references in the overlay range but retains `+0xD4` and group/index allocations. Destruction releases that
+binding and storage. Neither path submits a terrain redisplay request per removed record.
 
 ## 2. Records and handles *[compat]*
 
@@ -458,7 +482,7 @@ This is a key construction, not passing the slot-11 result as a binding. Evidenc
 Paper discriminator: with square texture, centre `(0,0)`, width 16, turns 0, flipV false, the centre maps to
 primary `(1/2,1/2,0,1)` and secondary `(1/2,1/2,0,1)`; at world `(0,0,8)` primary v=1 and secondary v=3/4.
 With flipV true the latter primary v=0 and secondary v=1/4. The placement getter is identical in both cases.
-Model-shadow slot 11 remains a separate unresolved contract (OV1); these rules must not be substituted for it.
+Model-shadow slot 11 uses the distinct owner construction in §3.7; these rules must not be substituted for it.
 
 ### 3.6 Rectangle helper and city-wide add (OV2)
 
@@ -486,6 +510,84 @@ Evidence: `0x0073C9A6–0x0073CA6E` (matrix base and sole quotient store `0x0073
 Paper discriminator: nx=64, nz=32 gives rectangle `(0,0,64,32)` and sole nonzero texture coefficient
 M[1,1]=1/32. A static add with binding present returns a direct ID with flags `0x13`; slot 14 does not
 write an output placement for that ID. Changing nz alone leaves this matrix unchanged.
+
+### 3.7 Model-shadow add and its owned records (OV1/OV2)
+
+Slot 11 (`0x0073C0D0–0x0073C838`, callee pops 24 bytes) has **six** arguments:
+
+| Argument | Owner-observed role |
+|---|---|
+| 1 | texture binding passed to the rectangle helper; this is not a resource key or texture source |
+| 2 | signed point count n; later controls the projected-pair bounding scan |
+| 3 | source geometry pointer forwarded to lighting slots 17/18; the overlay owner does not decode its elements |
+| 4 | pointer to n consecutive binary32 pairs `(u,v)` used after projection succeeds; forwarded to lighting slot 17 |
+| 5 | world box pointer, six binary32 words `(xmin,ymin,zmin,xmax,ymax,zmax)` in the fallback bounds calculation; also forwarded to lighting slot 18 |
+| 6 | projection descriptor forwarded to lighting slot 17; its internal layout is outside this owner |
+
+If cached shadow quality is exactly zero, return −1 before accessing these pointers or requesting lighting.
+Otherwise obtain lighting through the global service's slot 9 and invoke lighting slot 17
+`CalcShadowProjection(n, sourceGeometry, pairs, descriptor, outP)`. False in AL returns −1. For the bounds
+choice, read **current global** quality (render-properties integers `+0x1FC`), not the cached field again.
+Signed quality ≥5 invokes lighting slot 18 `CalcShadowTerrainRect(n, sourceGeometry, worldBox, outRect)`;
+false returns −1. Signed quality <5 requests shadow direction through lighting slot 13 and uses the local
+fallback below. These service calls precede the null-binding rejection. Evidence: `0x0073C0DC–0x0073C1D6`.
+The owner does not infer projected geometry from an ordinary placement record. The production of P/pairs
+and the high-quality rectangle belongs to those named lighting bodies, not to a caller-supplied completed
+overlay record; no substituted TR33–TR37 terrain contract is implied here.
+
+The fallback `ComputeCellRect` (`0x007354E0–0x007356C3`) accepts
+`(direction3, n, sourceGeometry, worldBox6, outRect)`. It does not read n or sourceGeometry. For ordinary
+finite inputs in the native conversion range, first compute
+`Lx=floor(E((xmin+e)×cellScale))`, `Rx=ceil(E((xmax−e)×cellScale))`, and analogously Lz/Rz,
+where e is **binary32** `0x3D8F5C29` (0.07000000029802322, `0x00AA27E8`), with the sums retained in x87.
+Compute `h=ceil(E((ymax−ymin)×1/16))`; 1/16 is binary32 at `0x00A8E174`, independent of cellScale.
+If direction X is ordered >0, add h to Rx; otherwise subtract h from Lx. Likewise direction Z >0 adds h to
+Rz, otherwise subtracts h from Lz. Zero and unordered direction take the subtract-minimum branch. Intersect
+the resulting rectangle with the city bounds using §2.2's helper; copy all four words to output.
+There is no nonnegative-height clamp. Conversion uses the floor/ceil bias-and-correction family of §3.1,
+not saturation of arbitrary nonfinite/huge boxes. Evidence: epsilon/scale/conversion
+`0x007354E7–0x007355EC`, height `0x007355EC–0x0073562E`, signs/clipping `0x00735632–0x007356C1`.
+
+The add then calls §3.6's rectangle helper with `(binding, outRect, P, 8)`; missing binding or returned −1
+returns −1. Success is a **direct** ID with flags 9, default alpha/colour/draw-state and primary matrix P.
+There is no placement handle, retained aspect or group. Static insertion/redisplay happens inside that
+helper, **before** the following secondary matrix is written; no second redisplay is requested afterward.
+Evidence: `0x0073C1D6–0x0073C208`, secondary stores `0x0073C7B1–0x0073C82B`.
+
+For the secondary matrix, scan pairs in increasing index order starting from pair 0, maintaining minimum u/v
+and maximum u/v. Minimum/maximum retain the old operand for equality or unordered comparison; update only
+for an ordered strict improvement. Four-pair unrolling preserves encounter order. The first pair is read
+even when n≤0; no empty-polygon success rule or zero-extent guard exists. Write `du=F(E(umax−umin))`,
+`dv2=F(E(E(vmax−vmin)×2))`. Set `su=F(E(1/(E(du×2))))`, `sv=F(E(1/dv2))`,
+`tu=F(E(1/4−E(1/(E(du×2)))×umin))`, `tv=F(E(1/4−E(1/dv2)×vmin))`.
+The 1/4 literals are **binary64** (`0x00AA74E8`). The translation products use the unrounded reciprocal
+still in x87, not the stored su/sv. Evidence: pair bounds `0x0073C208–0x0073C4F9`, coefficients
+`0x0073C4FF–0x0073C553`.
+
+For each row `(a,b,c,d)` of P define `z=F(E(c×0))`, `y=F(E(b×0))`, `x=F(E(a×0))`.
+The secondary row is:
+
+| Column | Ordered evaluation, outer F is its binary32 store |
+|---|---|
+| 0 | `F(((a×su+d×tu)+y)+z)` |
+| 1 | `F(((d×tv+b×sv)+x)+z)` |
+| 2 | `F(((d×0+c)+x)+y)` |
+| 3 | `F(((d+x)+y)+z)` |
+
+All unmarked operations retain x87 precision. Rows are evaluated 3,2,1,0, with column 0/1 intermediates
+retained until their eventual stores; zero products are real operations, including for nonfinite values.
+Evidence: row 3 `0x0073C555–0x0073C5FE`, row 2 `0x0073C605–0x0073C690`, row 1
+`0x0073C697–0x0073C71F`, row 0/final stores `0x0073C723–0x0073C82B`.
+
+Independent paper vectors, conditional on the named lighting output (not an invented lighting algorithm):
+
+- Fallback box `(16,0,32,48,32,64)`, cellScale=1/16, direction `(1,0,−1)` and a large enough city gives
+  `(1,0,5,4)`: unextended bounds `(1,2,3,4)`, h=2. Direction X=0 instead gives xmin=−1 before clipping.
+- If successful lighting supplies P=identity and pair extrema `(0,0)`–`(2,4)`, secondary rows are
+  `[1/4,0,0,0]`, `[0,1/8,0,0]`, `[0,0,1,0]`, `[1/4,1/4,0,1]`.
+  Minimum and maximum pair coordinates therefore map to 1/4 and 3/4, rather than 0 and 1.
+- Cached quality 0 suppresses all lighting work even when current global quality is 6. Cached quality 2
+  with current global quality 6 selects lighting slot 18, demonstrating the two distinct quality reads.
 
 ## 4. Drawing (`Draw`, `0x00738A50`) *[compat]*
 
@@ -669,6 +771,9 @@ Other types leave all those fields alone. Both paths return true in AL. No overl
 index rebuild, counter reset, terrain invalidation or geometry request occurs. This is a render-settings
 refresh notification, not evidence for a terrain/zoom re-placement rule. The complete handler is
 `0x00736100–0x00736141`, with the three stores at `0x00736121`, `0x0073612D`, `0x00736139`.
+An independently identified sender, `cSC4View3DWin::SetRenderProperties`, constructs this message after its
+settings mutation and dispatches it through server slot 4 (`0x007ECEE7–0x007ECF2D`). Init copies the two
+integer settings but does not refresh `+0x20`; that byte retains constructor value 1 or a prior notification.
 
 Paper vector: start with quality 2, second-stage setting 0, byte `+0x20`=1 and nonempty records/index.
 With source settings `(0,7,0)`, an unrelated message returns true and preserves all three cached values;
