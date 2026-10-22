@@ -1,6 +1,6 @@
 # Answered tools COM director questions
 
-## TD3 — Exceptions and singleton construction guard
+**TD3 - Exceptions and singleton construction guard**
 
 `0094AC43` sets the static bit before constructor/exit registration. If construction
 or AddCls throws, does the compiler unwind path reset the bit, release allocations,

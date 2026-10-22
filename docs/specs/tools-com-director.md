@@ -25,11 +25,11 @@ have `name-medium`, and `00A66A31` has `neighbour`.
 | Address | Bytes | Boundary/status |
 |---|---:|---|
 | `00407000` | 2444 | U; distant reached helper |
-| `00420036` | 21 | U; distant reached helper |
-| `0094A079` | 107 | U; decoder input helper |
+| `00420036` | 21 | A; numeric-table false reference (§1.1) |
+| `0094A079` | 107 | S; compressed-input submission (§5.7) |
 | `0094A0E4` | 455 | U |
 | `0094A2AB` | 22 | S; decoder reset boundary (§5.3) |
-| `0094A2C1` | 311 | U |
+| `0094A2C1` | 311 | S; compressed-header parser (§5.6) |
 | `0094A3F8` | 58 | S; ID3 prefix length (§5.4) |
 | `0094A437` | 32 | S; small-service constructor |
 | `0094A457` | 37 | S; small-service QueryInterface |
@@ -68,8 +68,8 @@ have `name-medium`, and `00A66A31` has `neighbour`.
 | `00A66A5F` | 211 | U |
 | `00A66B32` | 49 | U |
 | `00A66B80` | 39 | U |
-| `00A66BA7` | 23 | U |
-| `00A66BBE` | 21 | U |
+| `00A66BA7` | 23 | S; decoder logical cleanup (§5.3) |
+| `00A66BBE` | 21 | S; decoder destructor (§5.3) |
 | `00A66BD3` | 28 | U |
 | `00A66BEF` | 189 | U |
 | `00A66CAC` | 2078 | U |
@@ -97,6 +97,26 @@ have `name-medium`, and `00A66A31` has `neighbour`.
 
 Shared/inherited bodies used below are additional evidence, not extra inventory rows.
 The exit callback `00A7F63C` and base-destructor thunk `0094A432` are examples.
+
+### 1.1 Attribution discrepancy and large-body evidence
+
+`A` denotes an attribution artifact. The reference to `00420036` originates at
+`00AF5218`, which native loads at `00A68D6F` and `00A6935B–00A693B0` treat as
+signed 16-bit numeric table entries. Its words 54 and 66, packed together, happen
+to equal `00420036`. Executable bytes at `00420030` place that alleged entry
+inside the immediate of a compare at `00420034`. Its exported 21-byte body has no
+direct callers. Retain the row for the audit; TD4 requests attribution correction,
+without changing maps/exports. Excluding it leaves 69 candidates / 31,272 B, not
+69 fully specified bodies.
+
+The largest bodies were inspected to establish the remaining boundary:
+`00A6A25B` (5716 B) updates a modulo-16 phase at decoder +4A0C and reaches MMX
+routine `00407000` (2444 B); `00A6B918` (3773 B) uses x87 float operations, global
+scratch at `00BB87A8` and float coefficient tables; `00A675E0` (3405 B) extracts
+packed bits through +24A4/+24A8; `00A69065` (2084 B) uses the numeric word tables;
+`00A66CAC` (2078 B) initializes float outputs and performs further arithmetic.
+Their operation order, rounding and complete stateful outputs remain TD1. These
+observations do not justify a presumed stateless double-precision decoder.
 
 ## 2. Construction, singleton, and real registrations
 
@@ -285,7 +305,10 @@ Failure at any of these Boolean steps returns false. All obtained nonnull tempor
 interfaces are Released and the temporary string/reference destroyed along the
 normal return paths, including callbacks that return false with nonnull output.
 The service pointer and Boolean-success outputs are dereferenced without independent
-null checks. Semantic names and the dependency service ID are left in TD2.
+null checks. `004496C0` calls `RZGetFramework`, then framework +14 with
+`(056B906E,656B8EFC,&service)` if the framework exists (`004496D4–004496E1`). These
+are observed request IDs; semantic interface names remain TD2. No framework/service
+leaves a null pointer that this +14 path subsequently dereferences.
 
 ### 5.3 Open, close, and partial-failure ownership
 
@@ -332,8 +355,9 @@ Otherwise it calls embedded file +14, ignores the result, CRT-frees and nulls ea
 PCM buffer +A4/+A8, destroys (`0094A972` -> `00A66BBE`) and CRT-frees/nulls +A0,
 then clears active +10D0. It does not reset the estimate, format, override, pending
 counts or path. Decoder destruction reinstalls its table and, only if decoder byte
-+4A38 was nonzero, delegates cleanup to `00A66BA7`; the latter's subobject contract
-remains TD1. CRT allocations are paired with CRT free, whereas the outer object
++4A38 was nonzero, delegates cleanup to `00A66BA7`. That helper clears +4A3C and
++4A38 only if +4A38 was nonzero and always returns EAX=0; it does not free memory.
+CRT allocations are paired with CRT free, whereas the outer object
 is paired with `GlobalHeapFree`.
 
 ### 5.4 Rewind and ID3 prefix handling
@@ -385,6 +409,61 @@ bound check before reading into its inline buffer. Behavior before any valid
 header has initialized the parsed words is not a defined successful empty stream;
 those words are not initialized by `0094A4D8`.
 
+### 5.6 Compressed-header parser
+
+`0094A2C1` is caller-cleaned, taking `(fourReadableBytes,sixWordOutput)`. It first
+clears all 24 output bytes. It returns EAX=-1 if byte 0 is not FF, top three bits
+of byte 1 are not all set, version `(b1 >> 3) & 3` equals 1, layer bits
+`(b1 >> 1) & 3` equal 0, bitrate index `b2 >> 4` equals 15, or sample-rate index
+`(b2 >> 2) & 3` equals 3. It does not reject bitrate index 0 or check CRC/payload,
+version flags beyond those tests, or emphasis. Failure leaves six zero words.
+
+Layer number is `4-layerBits`. Version group is 0/1/2 for version bits 0/2/3;
+lower-rate flag is 1 for groups 0/1, otherwise 0. Native sample-rate table
+`00AD4D30` has these values indexed by group and sample-rate index:
+
+| Group | Index 0 | Index 1 | Index 2 |
+|---|---:|---:|---:|
+| 0 | 11025 | 12000 | 8000 |
+| 1 | 22050 | 24000 | 16000 |
+| 2 | 44100 | 48000 | 32000 |
+
+Bitrates below are indexed 0..14 by `b2 >> 4`. Native row start is
+`00AD4D1C + 4*15*row`; index arithmetic is verified at `0094A35D–0094A3D1`.
+
+| Row / applicability | Values for indices 0..14 (kb/s) |
+|---|---|
+| 1: group 2, layer 1 | 0,32,64,96,128,160,192,224,256,288,320,352,384,416,448 |
+| 2: group 2, layer 2 | 0,32,48,56,64,80,96,112,128,160,192,224,256,320,384 |
+| 3: group 2, layer 3 | 0,32,40,48,56,64,80,96,112,128,160,192,224,256,320 |
+| 4: groups 0/1, layer 1 | 0,32,48,56,64,80,96,112,128,144,160,176,192,224,256 |
+| 5/6: groups 0/1, layers 2/3 | 0,8,16,24,32,40,48,56,64,80,96,112,128,144,160 |
+
+Padding is `(b2 >> 1) & 1`. For layer 1, frame bytes are
+`(truncate(12000*bitrate/sampleRate)+padding)*4`, samples/frame=384. Otherwise first
+truncate `144000*bitrate/sampleRate`; only for layer 3 with lower-rate flag set,
+arithmetic-shift the quotient right by one; then add padding. Samples/frame=576
+in that reduced layer-3 case, otherwise 1152. Division is signed 32-bit integer
+division on nonnegative table inputs; padding is added after division/halving.
+Channels=1 only when top two bits of byte 3 equal 3, otherwise 2. Output words are
+layer, frame bytes, samples/frame, channels, sample rate, bitrate; return EAX=0.
+Free-bitrate index 0 can produce zero frame bytes with a nonzero parsed layer.
+
+This parser differs from internal decoder parser `00A667FE`, whose mutating
+acceptance rules remain TD1. Equivalence between the parsers is not specified.
+
+### 5.7 Compressed-input submission boundary
+
+`0094A079` takes decoder `this` in ECX, then `(buffer,byteCount,sampleLimit)` as
+three 32-bit stack arguments (callee pops 12). A signed-positive pending-byte count
+at +4A48 returns -1 without writes. Otherwise signed byteCount<4 returns -2 without
+reading or writing the buffer/submission fields. For byteCount>=4 it stores the
+borrowed buffer pointer at +4A44, assembles its first four bytes in big-endian
+order, and calls `00A667FE`. A negative parser result becomes -2; pointer/parser
+side effects are not rolled back. Otherwise store sampleLimit at +4A4C, byteCount
+at +4A48 and return 0. It does not copy/own the buffer or validate compressed-frame
+length. Parser acceptance and writes remain TD1.
+
 ## 6. Independent discriminating vectors
 
 These are contract vectors to implement independently, not reports of execution.
@@ -403,8 +482,30 @@ These are contract vectors to implement independently, not reports of execution.
 | TD-V10 | CanUnloadNow with positive count and a child that would return false; repeat at zero count | Positive count returns true without child call; zero count calls child and returns false |
 | TD-V11 | Destroy heap-created director with flags 0, 2, and 3 in independent cases | All run base destruction; only 3 frees allocation; original pointer returned |
 | TD-V12 | Prefill large-service +10FA with 8 or 16 before constructor | +10FA ends at 16 in both; +10F8 differs according to the pre-store calculation; no guaranteed default block alignment |
+| TD-V13 | Small-service +0C: force open failure, query supported/unsupported IID in separate cases | Supported QI can still return true; unsupported QI returns false without destroying the stream |
+| TD-V14 | Directly Release a fresh large service at count0 | Stored count and EAX become FFFFFFFF, no destruction |
+| TD-V15 | Path x.MP3: force file-open false, then call +1C again | First false retains active/allocations; second true without another file open |
+| TD-V16 | Assign a different matching-extension path via +0C while active | String changes and override clears; old file/resources remain active |
+| TD-V17 | Open a nonmatching path while active | False; explicit override=false; existing resources retained until close |
+| TD-V18 | Rewind: successful ID3 ten-byte read, size bytes 0,0,0,128, subsequent reads fail | Length138, 128 skip attempts, final true |
+| TD-V19 | Seek +50 to zero with successful rewind | Reset occurs; method returns false |
+| TD-V20 | Set override byte7; query; clear via +58; query | Returns byte7, then false; stored value need not be erased |
+| TD-V21 | Parse FF FB 90 00, then FF F3 80 C0 | layer3/417bytes/1152frames/stereo/44100Hz/128kbps; then layer3/208bytes/576frames/mono/22050Hz/64kbps |
+| TD-V22 | Parse FF FB 00 00 and FF FB F0 00 | Index0 succeeds with layer3 and frameBytes0; index15 fails, clears all 24 bytes |
+| TD-V23 | Read request5bytes, stereo/16-bit, at least one pending frame | One whole frame (4bytes); fifth destination byte untouched |
+| TD-V24 | Submit with positive pending bytes; repeat with count3 and no pending bytes | Returns -1 then -2; no input dereference/submission-field writes |
+| TD-V25 | Throw during first getter construction after base completes, catch outside, call getter again | Base cleanup, flag clear, then construction retry |
 
 ## 7. Open contracts and coverage boundary
+
+Vector TD-V23 assumes parsed channel/rate fields matching the stored stereo format;
+it is a pending-data case after a valid header. The 25 vectors are independent
+review fixtures, not reports of execution against an implementation or the game.
+
+Checklist reconciliation: D=6 bodies/294 B; S=30 bodies/3026 B; U=33 bodies/27952 B;
+A=1 artifact/21 B. D/S are documented boundaries, not proof that nested decoder
+arithmetic is specified. TD1, TD2 and TD4 remain open; TD3 is answered in section 2
+and archived in answered/tools-com-director.md. Whole-owner promotion is withheld.
 
 See [tools-com-director questions](questions/tools-com-director.md). The full attributed
 checklist is retained so that documenting the four director-specific bodies cannot
