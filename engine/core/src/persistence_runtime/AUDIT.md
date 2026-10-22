@@ -38,6 +38,9 @@ and discriminating test evidence will be recorded here.
   shared-position borrowed stream views and std Cursor byte primitives.
   Native GZCOM vtable adapters, stack/heap allocation thresholds and malformed
   string memory effects are not implemented/claimed.
+  Shared native stream error-state mutation is not established by the raw
+  boolean primitive contract (PR13); borrowed views expose only the published
+  raw/string forwarding subset, not a complete GZ stream vtable.
 - Resource: atomic reference count initially zero, QI, locked key and type.
   Native object memory reclamation is represented by logical release plus
   Rust ownership; no plugin/native resource replacement is claimed.
@@ -60,6 +63,8 @@ and discriminating test evidence will be recorded here.
   close ordering, module-vs-own-module target selection. OS open/module
   acquisition are explicit primitives; no production native SDF/Win32 host
   implementation or native constructor-allocation failure claim.
+  Native file-close-failure result precedence is unresolved (PR13); the
+  portable wrapper retains the load/save result and always performs close.
 
 All six owners remain **partial** against the 131-function / 13,721-B
 denominator. No exact implemented-byte subtotal is asserted: the spec gives
