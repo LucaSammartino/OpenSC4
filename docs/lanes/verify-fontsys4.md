@@ -13,7 +13,11 @@
 - 7c84f857: production bridge committed before call 30. Focused fontsys4-focused-20261022b1 exited -1 during first bootstrap AddFont, no exception/panic/ref warnings and no production comparisons. SDK overloaded virtual textual order is not a slot contract under MSVC. Changed overloaded calls to explicit published section 12.1 slots 9/10/11/13/14; cGZFont no-arg GetStyles uses published slot 7.
 - Added full read-only system font catalogue bootstrap once, actual directory positive/negative calls, renderer same-pointer/null/Shutdown lifetime tests, config key recognition. No metrics/raster claim. Natural 0 remains separate.
 - Initial post-bridge full gate: Rust tests/clippy pass; ctest 67/68, ret_channel_check false positive treated font GetSize as lot GetSize. Replaced that call with published font slot 10 (no shared checker changes).
-- Next: quick and final full gate, freeze DLL, final native attempt (3/3 counting initial route and exited focus), then original/current40 controls through 2032/save/shutdown. No additional native attempts permitted.
-- No game request yet; no plugin changes, native calls, ABI changes, or binary commits.
+- bc7d8149 stable full gate PASS: qbuild all 4961 Rust tests / 0 failures, clippy 0 diagnostics, ctest 68/68, ret_channel_check passes. Summary build-runs/fontsys4-finalgate-summary.txt.
+- Frozen DLL build-runs/dll/fontsys4-stable/FreeCity4.dll SHA256 A7D4536F5F3A775EC9818BAB3A697000532E95951058D144D2815F8853B3FC48; paired PDB preserved. No further code/build mutations planned.
+- Outstanding request fontsys4-stable-20261022c1 (native attempt 3/3 counting route and exited focus): immutable DLL, 2032 end date, scripted full save 2026-03-01; qwait invoked, no verdict yet. Never discard an existing verdict.
+- Formatting: new module passes qbuild fmt. Root lib.rs check traverses unrelated modules (645 diff lines); scoped skip_children check identifies pre-existing test-module ordering, untouched. No mass reformat.
+- Three verification-only C exports added; ABI version and public ABI tables untouched. No binaries committed.
+- Next: consume outstanding verdict, file exact questions for differences/contract gaps, do not make a fourth native attempt; original control and current40 preset/reload controls remain outstanding. No current40 preset or reload action found in allowed operational docs/engine.
 - FN18-FN22 excluded. Do not read analysis sources or run tools/ scripts.
 - Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-fontsys4-r1-manifest.json.
