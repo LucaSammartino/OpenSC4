@@ -69,3 +69,13 @@
   was released to zero with ref_warnings=0, and was refused before testing. [Discard nominal bool results;
   judge CreateCopy by its independent owned non-null pointer and supported-image interface validation,
   CopyFrom/Erase by resulting state. No unpublished clone address/layout is called or baked into code.]
+
+<!-- from: verify-variants4 independent owned native variants (2026-10-22) -->
+- **HG7 - section 9.1 scalar GetCount:** What does GetCount return on a scalar, including after typed
+  setters and native CreateCopy/CopyFrom? Rust Variant::count returns 1 for scalars. Original run
+  vv4-original2-7c5ca4-1810 executed 70 literal cases/420 checks, 392 exact and 28 scalar-shape differences,
+  with 71 successful native owned clones, no refusals and clean2032/ref_warnings=0. Every typed getter,
+  array count/data, copy isolation, CopyFrom state and Erase state passed. Please specify the native scalar
+  metadata contract separately from the one serialized scalar element. [Keep literal Rust scalar count=1;
+  preserve the 28 differences as failures rather than adjusting the oracle to native results. A normal-speed
+  third original run with explicit scalar metadata and a current40 control are planned to isolate pacing.]

@@ -14,11 +14,13 @@ namespace variant_shadow {
 
 struct Totals {
     unsigned cases = 0, checks = 0, exact = 0, failures = 0, refusals = 0, clones = 0;
+    unsigned scalarShapeFailures = 0;
     void Check(bool ok, const char* operation, uint16_t type) {
         ++checks;
         if (ok) ++exact;
         else {
             ++failures;
+            if (std::strcmp(operation, "scalar shape") == 0) ++scalarShapeFailures;
             if (failures <= 12) Log("variant shadow: FAIL %s type=0x%04X", operation, type);
         }
     }
@@ -120,10 +122,13 @@ void Cases(cFC4IGZVariant& native, uint16_t type, uint32_t diskTag, const T (&in
            Totals& t) {
     // Two distinct scalar writes and 0/1/3 element arrays are bounded cases,
     // not evidence for cross-type conversion or all 127 methods (HG5).
+    const unsigned beforeChecks = t.checks, beforeExact = t.exact, beforeFailures = t.failures;
     for (unsigned i = 0; i < 2; ++i) {
         ++t.cases;
         const auto expected = Core(type, false, input + i, 1, t);
         (native.*set)(input[i]);
+        if (i == 0) Log("variant shadow: scalar metadata type=0x%04X native_type=0x%04X native_count=%u core_count=1",
+                        type, native.GetType(), native.GetCount());
         t.Check(native.GetType() == type && native.GetCount() == 1 && U32(expected, 4) == diskTag,
                 "scalar shape", type);
         const T value = (native.*get)();
@@ -167,6 +172,8 @@ void Cases(cFC4IGZVariant& native, uint16_t type, uint32_t diskTag, const T (&in
         (void)native.Erase();  // [abi-ret] HG6: check state, not undefined EAX.
         t.Check(native.GetType() == 0 && native.GetCount() == 0, "Erase state", type);
     }
+    Log("variant shadow: type=0x%04X cases=5 checks=%u exact=%u failures=%u",
+        type, t.checks - beforeChecks, t.exact - beforeExact, t.failures - beforeFailures);
 }
 
 inline void Run() {
@@ -223,9 +230,11 @@ inline void Run() {
 #undef FC4_VARIANT_CASE
         }
     }
-    Log("variant shadow: total cases=%u checks=%u exact=%u failures=%u refusals=%u clones=%u; "
+    Log("variant shadow: total cases=%u checks=%u exact=%u failures=%u refusals=%u clones=%u "
+        "scalar_shape_HG7=%u unexplained=%u; "
         "excluded=conversions,string-operations,objects,pointers,reference-alias,serialization (HG4/HG5)",
-        t.cases, t.checks, t.exact, t.failures, t.refusals, t.clones);
+        t.cases, t.checks, t.exact, t.failures, t.refusals, t.clones,
+        t.scalarShapeFailures, t.failures - t.scalarShapeFailures);
 }
 
 }  // namespace variant_shadow
