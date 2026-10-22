@@ -34,3 +34,15 @@
 
 ### Coordinator delivery recovery (2026-10-22)
 Coordinator reviewed and committed the exact reported ten files after the worker exited on Git metadata denial. Two unique native/shadow runs already pass2032/ref0 as measured above; the integration train must independently gate and run the full current39+citydetail+span565+span8888 union before landing. No third lane round is needed merely to run that train regress. Four C ABI exports require the train ABI bump. Keep span8888 opt-in and withhold whole-owner replacement credit: documented refusals and SR8888-6 remain. Original result and recovery patch are preserved.
+
+## Coordinator verification audit (2026-10-22)
+
+Recorded sets from archived `span8888-impl4-r2-shadow-20261022-02`: span8888_ctx8 254/254;
+span8888_ctx9 254/254; span8888_direct 198/198; span8888_shipped 369/372. The last denominator
+includes all372ordinary gameplay calls:111solid+258blit were compared exactly, while
+3blits fell back to the original and are UNPROVEN, not exact. Zero differing pixels
+does not turn those3fallbacks into successes. Native fixture cases have0refusals,
+faults, route/no-call errors and no resynchronization; run reaches2032/ref0.
+
+All observed sets are recorded, so the inexact shipped set prevents verified status
+for the entire shadow key. No replacement/default promotion. SR8888-6 remains open.

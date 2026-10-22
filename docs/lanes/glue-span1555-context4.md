@@ -49,3 +49,17 @@ The union request uses exactly the supplied keys plus span1555:
 No new spec questions. SR1555-2 and SR1555-6 remain open; zero shipped calls does not answer them. The opt-in complete renderer bridge still compares independent core output against original output; fixtures supply no full context-owner replacement or default-list credit. No sibling behavior or native context owner is replaced by this lane. QueryInterface-rejection and texture-lock-failure injection were not exercised; no coverage is claimed for them.
 
 Next: merge as an opt-in 1555 context validation improvement; retain the existing shipped-use questions and reserve round2 only if follow-up evidence warrants it. Coordinator regenerates shared tables; lane did not execute forbidden tools scripts.
+
+## Coordinator verification audit (2026-10-22)
+
+Recorded original-versus-Rust same-process comparison sets: span1555_ctx4 490/490;
+span1555_ctx6 490/490; span1555_direct 158/158. Source is the archived
+`span1555-c4r1-union-20261022-01` raw log and verdict. Native arenas total470400bytes,
+71043 changed by original; zero differences, refusal/fallback, faults, route/no-call
+errors or resynchronization. Runtime reaches2032/ref0. The comparison saves original
+output, restores identical input, invokes independent Rust and compares whole arenas;
+this is not comparing Rust to itself. Enabled by `enable=span1555`.
+
+This qualifies only the measured same-process renderer comparison. Ordinary gameplay
+renderer calls remain0; no shipped-use, replacement/default, full draw-context owner,
+or unexercised failure-path claim is made. SR1555-2/SR1555-6 remain open.

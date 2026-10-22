@@ -80,3 +80,18 @@ The coordinator should regenerate the question index on integration; this clean-
 allowed question file and did not run anything from tools/. No game files or analysis outputs were committed.
 The Bash quiet wrapper failed with E_ACCESSDENIED, so capped PowerShell and the required qbuild wrappers were used.
 Integrate the supported changes, then seek spec/runtime evidence for SP2/SP4/SP7 before expanding scope.
+
+## Coordinator verification audit (2026-10-22)
+
+Recorded original-versus-Rust same-process comparison sets: span4444_sp6 350/350;
+span4444_ctx7 126/126; span4444_direct 198/198. Source is the archived
+`span4444-c4-union-b238183b-20261022c` raw log and verdict. Native arenas total228480bytes;
+original changes555+29651bytes. All sets have0differences/refusals/fallbacks/faults,
+and all6SP1 cases are actually exact (sp1_differing=0); no accepted-difference exception
+is counted as exact. Context tests switch actual original vtable entries vs Rust
+forwarders over identical input and compare arenas without state resynchronization.
+The run reaches2032/ref0, enabled by `enable=span4444`.
+
+This qualifies only the measured same-process renderer comparison. Ordinary gameplay
+calls remain0; no shipped-use, replacement/default, full context-owner or untested
+alias/failure-path claim is made. SP2/SP4/SP7 remain open.
