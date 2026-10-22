@@ -32,9 +32,12 @@ scene lifecycle), `nSGLDX7::TranslateColorToD3D` (`0x00881AB0`), the default dev
 `0x0088F8D0` and the converter table, §9.6; the per-routine pixel arithmetic is only sampled) with slots 24-26,
 35-39, 48, 58-61, the texture-stage records with slots 27-29, 51-57 and 62 (§10), the vertex-format slots 6-10
 (§8.5) and the matrix slots 40-42 (§8.6); slots 67-76 are §11. Named but **not yet specified** (open, §12):
-`cVertexBuffer`, `D3DLight`, `nRZSimGL` colour-key blitters, `cGZBufferSimGLCache`, `cSC4GDriversCOMDirector`,
+`cVertexBuffer`, `D3DLight`, `nRZSimGL` colour-key blitters, `cGZBufferSimGLCache`,
 and the presentation context's surface creation and restore (`0x0088BF50`, `0x0088BFC0`; §4.4 names what is
 known).
+
+The separate `cSC4GDriversCOMDirector` registration/lifecycle contract is specified in
+[renderer-gdrivers-director.md](renderer-gdrivers-director.md); it does not extend this driver's scope.
 
 The driver object exposes four COM-style interface pointers at object offsets `+0x0`, `+0x4`, `+0x8` and `+0xC`
 plus a reference-counted sub-object at `+0x10`; the 83-slot graphics interface is the one at `+0xC`. Slots 0-2

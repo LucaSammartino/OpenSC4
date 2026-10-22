@@ -1,20 +1,68 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-gdrivers-director4: cSC4GDriversCOMDirector8068B native behavior specification | `re-gdrivers-director4` / (RE lane, detached worktree) | in progress | 1. Inventory attributed director bodies. 2. Specify lifecycle, registration, factories and failures with independent vectors. |
+| re-gdrivers-director4: graphics COM director native behavior specification | `re-gdrivers-director4` / (RE lane, detached worktree) | ready; direct owner 2/2 bodies, 85/85 B; all 17 primary slots and 11 secondary entries; 31 paper vectors; native inventory/table audit and diff check PASS; cargo/clippy/ctest n/a; game n/a; ABI unchanged; no questions | 1. Merge docs. 2. Reconcile brief's 8068B figure against exact attribution; no whole-DX7-family credit. |
 
-## Handoff
-- Goal: specify only previously unspecified cSC4GDriversCOMDirector8068B; no DX7 driver-family credit.
-- Worktree reserved and reused; detached HEAD; no branch/ref changes.
-- Read re-driverdraw4 scope: renderer-driver.md covers capped nSGLDX7 driver; RD3-RD5 are out of scope.
-- Done: scope commit 88bcbb84; renderer-gdrivers-director.md §§1–5 specifies constructor/ID, singleton, registration order, service binding, lookup ownership/failures and class enumeration; 12 paper vectors.
-- Done: completed all 17 primary slots and 11 secondary entries, shared helpers, unload/reference quirks, exit destruction and native enumeration order; 31 discriminating paper vectors.
-- Next: final native-evidence consistency review, documentation-only validation and final lane report/queue.
-- Inventory: exact export owner has two named bodies (79+6=85 bytes), plus folded shared destructor (30 bytes); task suffix 8068B does not match direct attribution.
-- IDs: director 0x64B2A903; classes registered in order C4554841,7ACA35C6,BADB6906 (kind 1).
-- Important: kind-1 GetClassObject has no factory-null guard; failed QI calls AddRef then Release. InitializeCOM children receive original service/path (asm corrects pseudo).
-- Order: 193 buckets; class residues 40,113,179 => enum 7ACA35C6,C4554841,BADB6906. Shared primary targets: 16 unique, 506 bytes; no exclusive/shared double count.
-- Service path is a source string interface; copy length before data. Secondary slots 3–10 are true-returning no-ops, not inherited PreFrameWorkInit.
-- Evidence: main checkout absolute paths; export/decomp/native instructions only. No engine reads or edits.
-- q.py cannot start Bash (E_ACCESSDENIED); use bounded native PowerShell calls instead.
-- No game requests, ABI proposals, or questions yet.
-- Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-gdrivers-director4-r1-manifest.json.
+## Report (2026-10-22, round 1/1)
+
+Published [renderer-gdrivers-director.md](../specs/renderer-gdrivers-director.md). The exact per-body
+checklist separates the two exclusive owner bodies from shared dispatch targets and supporting
+factories/containers. The contract covers construction, singleton access, registration, service/path
+binding, containing-director registration, factory lookup and cleanup, class enumeration, both
+interface identities, reference/unload behavior, no-op lifecycle callbacks, path/configuration access
+and destruction. [renderer-driver.md](../specs/renderer-driver.md) received only a scope cross-link;
+RD3–RD5 and the capped driver body contracts were not reopened.
+
+### Attribution and measured results
+
+- Export/decomp attribution spells the owner `cSC4GDriversCOMDirector`, not the literal task suffix
+  `cSC4GDriversCOMDirector8068B`. Exact directly named inventory: constructor `0x00466250`, 79 bytes,
+  and ID getter `0x004662A0`, 6 bytes: **2/2 bodies, 85/85 bytes specified**.
+- All **17 primary slots** checked against executable table `0x00A87EE8` and native target bodies.
+  Sixteen shared targets total **506 bytes**, including the 30-byte folded deleting destructor; do
+  not add that destructor twice or award those bytes exclusively to this class.
+- All **11 secondary entries** checked against executable table `0x00A87EB8`. Three identity-adjusting
+  thunks; eight callbacks use the same true-returning no-op. The shared `PreFrameWorkInit` at
+  `0x0087B1FC` is not on this director's table.
+- Constructor registration order: `C4554841`, `7ACA35C6`, `BADB6906`, all no-argument factory kind 1.
+  Native registry requests 100 buckets and selects 193; unsigned remainders 113,40,179 produce the
+  different callback order **7ACA35C6,C4554841,BADB6906**. No driver is constructed by enumeration.
+- Unsupported factory-interface requests call **QI → AddRef → Release**. Null factory results are
+  dereferenced without a Boolean failure path. QI/missing-class failure preserves an output sentinel
+  unless a delegated child/factory changed it.
+- InitializeCOM copies a source string interface by length, preserving embedded zeros; children get
+  the original service/path arguments and their results are ignored. Null service returns false before
+  changing state; nonnull service plus null path dereferences invalid memory after storing handles.
+- Release saturates at zero without destruction. CanUnloadNow returns true at nonzero own reference
+  count and skips children; at zero it asks children. Singleton exit performs base cleanup directly,
+  without freeing static object storage or resetting its construction guard.
+- **GD1–GD31** are independent discriminating paper vectors, not executed implementation/game tests.
+  Supporting shared-body fixtures are distinguished from the director's default childless registry.
+
+### Evidence and validation
+
+Used only the main checkout's native export, decompilation and working executable data/instructions.
+Numeric constants, operand widths, comparison signedness, stack arguments and order were checked with
+`re_query.py asm --bytes`; table data were read from the local PE. Export queries came first. REA was
+not needed. q.py could not start Bash (`E_ACCESSDENIED`), so bounded PowerShell calls were used.
+
+The ignored one-off `build-runs/audit-director-doc.py` confirms the direct inventory, all 17 primary
+targets/sizes, 11 secondary entries, the 506-byte shared total and 31 contiguous vector IDs against
+native metadata/PE data. Audit **PASS**; `git diff --check` **PASS**. This is documentation consistency
+validation, not runtime behavior evidence. Cargo, clippy and ctest: **n/a**, docs-only. Game runs:
+**n/a**; no game requests or shadow/replacement claims.
+
+Milestones: `88bcbb84` scope/handoff; `b7a7bc26` substantive registration/lifecycle/failure contract;
+`751ab8a3` full dispatch/checklists/order and 31 vectors. Final review refines attribution wording,
+adds the existing-spec cross-link and validates native inventory consistency.
+
+### Questions, ABI and next steps
+
+Questions filed/answered: **none**. No question index change was required. No ABI exports, ABI tables,
+ABI proposals, engine, tool, map, game or external files were changed or committed. Helper scripts
+remain ignored under this worktree's build-runs. Worktree stayed detached; no branch/ref switch,
+merge, push, restart or subagent was used.
+
+Ready for a docs train. Coordinator should reconcile the brief's **8068B** figure before any coverage
+bookkeeping: the native inventory supports 85 exclusive bytes and separately documented shared
+dispatch, not an 8,068-byte director or whole-DX7-family completion claim. No further body in this
+director's actual attributed inventory or published dispatch surface remains unspecified here.

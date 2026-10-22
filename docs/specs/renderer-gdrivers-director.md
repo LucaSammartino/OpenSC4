@@ -24,8 +24,9 @@ No native object layout is prescribed.
 | `GetDirectorID` | `0x004662A0` | 6 | specified, §2: `0x64B2A903` |
 | Folded deleting destructor, alias of `icf::cGZDrawCOMDirector::~cGZDrawCOMDirector` | `0x00989DA0` | 30 shared | specified, §6.5; counted once as shared evidence |
 
-The primary vtable at `0x00A87EE8` has 17 slots. Only slot 13 is a director-specific override;
-the constructor also installs a secondary interface table at `0x00A87EB8`.
+The primary vtable at `0x00A87EE8` has 17 slots. Only slot 13 targets a body exclusively named under
+this director; slot 16 uses the folded derived deleting destructor. The constructor also installs a
+secondary interface table at `0x00A87EB8`.
 The complete slot checklist and secondary dispatch audit are in §6. The existence of
 this table does not imply additional driver APIs, device enumeration, or a director-specific renderer
 start/stop protocol.
@@ -37,8 +38,8 @@ alias inventory at `0x00989DA0`, and instructions at `0x00466250–0x0046629E` /
 
 The exposed logical state comprises a reference counter, a library-path string, service and framework
 handles, an ordered child-director collection, and a class registry.
-The base constructor sets the reference counter and another, unexposed word to zero, constructs an empty path and registry, clears the
-service/framework handles, and creates an empty child collection (`0x0090E18D`).
+The base constructor sets the reference counter to zero, constructs an empty path and registry,
+clears the service/framework handles, and creates an empty child collection (`0x0090E18D`).
 
 The derived constructor then installs this director's interface dispatch and makes these three
 registrations, in this order. All use the **no-argument object factory** registration kind (tag 1),
@@ -300,7 +301,7 @@ not additions to the two directly attributed owner bodies.
 |---|---|---|
 | Singleton accessor / exit callback | `0x00466440` / `0x00A7AE30` | §2 / §6.5 |
 | Base constructor / destructor | `0x0090E18D` / `0x0090E0A5` | §2 / §6.5 |
-| AddDirector / child-pointer append | `0x0090E0D4` / `0x008FF785` | §3.1; recursive registration, then append |
+| AddDirector / child-pointer append / append growth | `0x0090E0D4`, `0x008FF785`, `0x00994D77` | §3.1; recursive registration, then append |
 | AddCls kind 1 / kind 2 | `0x0090E133` / `0x0090E160` | §2 / §4; latter unregistered by derived constructor |
 | Three class-ID getters | `0x0087E0A0`, `0x008DA490`, `0x00886E00` | §2 constants |
 | Three factory wrappers | `0x0087E1D0`, `0x008DCD30`, `0x00886700` | §4, fresh construction and null branches |
@@ -310,6 +311,7 @@ not additions to the two directly attributed owner bodies.
 | Begin iterator / advance / next bucket | `0x0097C081`, `0x00969127`, `0x00879A0F` | §5 order |
 | Registry destruction / node clear / deallocator | `0x0099784E`, `0x0097C1A2`, `0x0090CF63` | §6.5; no interface release |
 | String construction / assignment / copy / byte assignment / destruction | `0x00578390`, `0x0090E230`, `0x0090E20A`, `0x0090F546`, `0x00414250` | §§2–3, §6.5; storage owned by director |
+| String length / character-data getters | `0x0090E4B6` / `0x009D7E63` | §3; length excludes terminator, data getter returns stored buffer |
 | Constant zero helper | `0x00949B47` | primary slot 15, §6.1 |
 
 No attributed body or primary/secondary slot remains unexamined. This does not claim completion of
@@ -352,7 +354,7 @@ Observe call logs, output sentinels and logical state independently of any imple
 | GD27 | Local class kind-2 fixture returns false and writes Y | Direct call with IID/output, false/Y propagated; no kind-1 QI/AddRef/Release sequence |
 | GD28 | Destroy independent director with deletion flags 0, 2, 1, 3 (separate instances) | Base cleanup in every case; object storage freed only for 1 and 3; no driver, child or service Release |
 | GD29 | Invoke singleton exit callback after holding refs and previously creating a driver | Base container/path cleanup only, regardless of director refs; no static-storage free, driver destruction or secondary stop callback |
-| GD30 | Add child C, whose existing children are A then B, to parent P (shared helper fixture) | C initialization first (which visits A then B); recursive additions initialize A then B again; P appends A, B, C, with no AddRef |
+| GD30 | Add child C, whose existing children are A then B, to P with nonnull service and valid path (shared helper fixture) | C initialization first (which visits A then B); recursive additions initialize A then B again; P appends A, B, C, with no AddRef |
 | GD31 | Primary slot 15 before/after registration, initialization and factory requests | 32-bit zero each time; no allocation-size computation |
 
 Fixtures with children, duplicate registration, alternate factory kinds or boundary counters exercise
