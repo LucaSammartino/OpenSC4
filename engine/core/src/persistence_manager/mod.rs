@@ -11,7 +11,7 @@ mod table;
 mod test_host;
 
 pub use cache::{BuiltinCache, CacheId, CacheStore};
-pub use manager::{InterfaceView, PersistManager, ServiceState};
+pub use manager::{InterfaceView, PersistManager, SegmentVisitor, ServiceState};
 pub use primitives::{Lock, Object, Primitives};
 
 pub const RESOURCE_IID: u32 = 0x456b8f1d;

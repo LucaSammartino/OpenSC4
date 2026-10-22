@@ -118,7 +118,7 @@ impl<K: HashKey, V> Table<K, V> {
     }
 
     pub fn destroy(&mut self) {
-        self.buckets.clear();
+        self.buckets = Vec::new();
         self.len = 0;
     }
 }
@@ -130,68 +130,6 @@ pub(super) struct PointerDeque<T: Copy> {
     blocks: VecDeque<Box<[Option<T>; 32]>>,
     first: usize,
     len: usize,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn deque_crosses_blocks_and_erases_both_sides_without_reordering() {
-        let mut deque = PointerDeque::new();
-        for value in 0..100 {
-            deque.push_back(value);
-        }
-        for value in (100..150).rev() {
-            deque.push_front(value);
-        }
-        let mut expected: Vec<_> = (100..150).chain(0..100).collect();
-        for index in [31, 32, 128, 0, 60, 140, 1, 32] {
-            assert_eq!(deque.erase(index), expected.remove(index));
-            assert_eq!(deque.iter().collect::<Vec<_>>(), expected);
-        }
-        while !expected.is_empty() {
-            let index = if expected.len() % 2 == 0 { 0 } else { expected.len() - 1 };
-            assert_eq!(deque.erase(index), expected.remove(index));
-        }
-        assert!(deque.blocks.is_empty());
-        deque.push_front(9);
-        deque.push_back(10);
-        assert_eq!(deque.iter().collect::<Vec<_>>(), [9, 10]);
-    }
-
-    #[test]
-    fn duplicate_chain_reverses_at_growth_and_bucket_iteration_is_unsigned() {
-        let mut table = Table::new();
-        table.insert_duplicate(7, 'A');
-        table.insert_duplicate(7, 'B');
-        table.insert_duplicate(7, 'C');
-        assert_eq!(
-            table
-                .entries()
-                .filter(|(k, _)| *k == 7)
-                .map(|(_, v)| *v)
-                .collect::<Vec<_>>(),
-            ['A', 'C', 'B']
-        );
-        for k in 1000..1190 {
-            table.insert_duplicate(k, 'X');
-        }
-        assert_eq!(table.bucket_count(), 193);
-        table.insert_duplicate(u32::MAX, 'Y');
-        assert_eq!(table.bucket_count(), 389);
-        assert_eq!(
-            table
-                .entries()
-                .filter(|(k, _)| *k == 7)
-                .map(|(_, v)| *v)
-                .collect::<Vec<_>>(),
-            ['B', 'C', 'A']
-        );
-        assert_eq!(table.get(u32::MAX), Some(&'Y'));
-        assert_eq!(PRIMES[25], 0xffff_fffb);
-        assert!(PRIMES.windows(2).all(|w| w[0] < w[1]));
-    }
 }
 
 impl<T: Copy> PointerDeque<T> {
@@ -267,5 +205,69 @@ impl<T: Copy> PointerDeque<T> {
         self.blocks.clear();
         self.first = 0;
         self.len = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deque_crosses_blocks_and_erases_both_sides_without_reordering() {
+        let mut deque = PointerDeque::new();
+        for value in 0..100 {
+            deque.push_back(value);
+        }
+        for value in (100..150).rev() {
+            deque.push_front(value);
+        }
+        let mut expected: Vec<_> = (100..150).chain(0..100).collect();
+        for index in [31, 32, 128, 0, 60, 140, 1, 32] {
+            assert_eq!(deque.erase(index), expected.remove(index));
+            assert_eq!(deque.iter().collect::<Vec<_>>(), expected);
+        }
+        while !expected.is_empty() {
+            let index = if expected.len() % 2 == 0 { 0 } else { expected.len() - 1 };
+            assert_eq!(deque.erase(index), expected.remove(index));
+        }
+        assert!(deque.blocks.is_empty());
+        deque.push_front(9);
+        deque.push_back(10);
+        assert_eq!(deque.iter().collect::<Vec<_>>(), [9, 10]);
+    }
+
+    #[test]
+    fn duplicate_chain_reverses_at_growth_and_bucket_iteration_is_unsigned() {
+        let mut table = Table::new();
+        table.insert_duplicate(7, 'A');
+        table.insert_duplicate(7, 'B');
+        table.insert_duplicate(7, 'C');
+        assert_eq!(
+            table
+                .entries()
+                .filter(|(k, _)| *k == 7)
+                .map(|(_, v)| *v)
+                .collect::<Vec<_>>(),
+            ['A', 'C', 'B']
+        );
+        for k in 1000..1190 {
+            table.insert_duplicate(k, 'X');
+        }
+        assert_eq!(table.bucket_count(), 193);
+        table.insert_duplicate(u32::MAX, 'Y');
+        assert_eq!(table.bucket_count(), 389);
+        assert_eq!(
+            table
+                .entries()
+                .filter(|(k, _)| *k == 7)
+                .map(|(_, v)| *v)
+                .collect::<Vec<_>>(),
+            ['B', 'C', 'A']
+        );
+        assert_eq!(table.get(u32::MAX), Some(&'Y'));
+        assert_eq!(PRIMES[25], 0xffff_fffb);
+        assert!(PRIMES.windows(2).all(|w| w[0] < w[1]));
+        table.destroy();
+        assert_eq!(table.buckets.capacity(), 0);
     }
 }

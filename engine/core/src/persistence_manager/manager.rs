@@ -27,6 +27,9 @@ pub struct ServiceState {
     pub running: bool,
 }
 
+/// Borrowed segment callback with caller-owned context captured by the closure.
+pub type SegmentVisitor<'a, P> = dyn FnMut(Object, &mut P) -> bool + 'a;
+
 /// All owner decisions reside here (spec §§1–11). Host calls are primitive
 /// foreign vtable operations, never answers from an original manager.
 /// Getters borrow and mutations require exclusive access; symbolic Lock events
@@ -297,7 +300,7 @@ impl<P: Primitives> PersistManager<P> {
         self.lock(Lock::Segment, false);
         found
     }
-    pub fn visit_segments(&mut self, mut callback: Option<&mut dyn FnMut(Object, &mut P) -> bool>) {
+    pub fn visit_segments(&mut self, mut callback: Option<&mut SegmentVisitor<'_, P>>) {
         if let Some(callback) = callback.as_mut() {
             for segment in self.segments.iter() {
                 if !callback(segment, &mut self.objects.host) {

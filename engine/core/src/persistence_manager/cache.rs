@@ -273,62 +273,6 @@ pub struct CacheStore<P: Primitives> {
     next: u64,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::super::test_host::Host;
-    use super::*;
-
-    #[test]
-    fn pm19_null_only_entries_are_removed_without_a_successful_resource_purge() {
-        let mut store = CacheStore::new(Host::default());
-        let id = store.create();
-        store.with_builtin(id, |cache, host| {
-            cache.entries.insert_unique(Key::new(1, 2, 3), None);
-            assert!(!cache.purge_one(host));
-            assert!(cache.is_empty());
-        });
-    }
-
-    #[test]
-    fn tick_compares_wrapped_counter_as_signed_and_ignores_disabled_ticks() {
-        let mut store = CacheStore::new(Host::default());
-        let id = store.create();
-        store.with_builtin(id, |cache, host| {
-            cache.set_automatic_purge(host, 1);
-            let mut purges = 0;
-            for (before, after) in [(0x7fff_ffff, 0x8000_0000), (u32::MAX, 0), (128, 0)] {
-                cache.counter = before;
-                assert!(cache.update_with(host, u32::MAX, |_, _| {
-                    purges += 1;
-                    true
-                }));
-                assert_eq!(cache.counter, after);
-            }
-            assert_eq!(purges, 1);
-            cache.set_automatic_purge(host, 0);
-            cache.counter = u32::MAX;
-            cache.update_with(host, 7, |_, _| panic!("disabled tick purged"));
-            assert_eq!(cache.counter, u32::MAX);
-        });
-    }
-
-    #[test]
-    fn shutdown_sweeps_virtual_clear_remainders_and_unsigned_purge_keeps_large_counts() {
-        let mut store = CacheStore::new(Host::default());
-        let id = store.create();
-        store.with_builtin(id, |cache, host| {
-            cache.insert(host, Key::new(1, 2, 3), Object(1));
-            cache.insert(host, Key::new(1, 2, 4), Object(2));
-            host.counts.insert(Object(2), u32::MAX);
-            assert!(cache.purge_one(host));
-            assert_eq!(cache.len(), 1);
-            assert_eq!(host.counts[&Object(2)], u32::MAX);
-            cache.shutdown_with(host, |_, _| {});
-            assert!(cache.is_empty());
-            assert_eq!(host.counts[&Object(2)], u32::MAX - 1);
-        });
-    }
-}
 impl<P: Primitives> CacheStore<P> {
     pub fn new(host: P) -> Self {
         Self {
@@ -447,5 +391,62 @@ impl<P: Primitives> CacheStore<P> {
             CacheId::Foreign(id) => self.host.cache_shutdown(id),
             CacheId::Null => panic!("null cache callback"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_host::Host;
+    use super::*;
+
+    #[test]
+    fn pm19_null_only_entries_are_removed_without_a_successful_resource_purge() {
+        let mut store = CacheStore::new(Host::default());
+        let id = store.create();
+        store.with_builtin(id, |cache, host| {
+            cache.entries.insert_unique(Key::new(1, 2, 3), None);
+            assert!(!cache.purge_one(host));
+            assert!(cache.is_empty());
+        });
+    }
+
+    #[test]
+    fn tick_compares_wrapped_counter_as_signed_and_ignores_disabled_ticks() {
+        let mut store = CacheStore::new(Host::default());
+        let id = store.create();
+        store.with_builtin(id, |cache, host| {
+            cache.set_automatic_purge(host, 1);
+            let mut purges = 0;
+            for (before, after) in [(0x7fff_ffff, 0x8000_0000), (u32::MAX, 0), (128, 0)] {
+                cache.counter = before;
+                assert!(cache.update_with(host, u32::MAX, |_, _| {
+                    purges += 1;
+                    true
+                }));
+                assert_eq!(cache.counter, after);
+            }
+            assert_eq!(purges, 1);
+            cache.set_automatic_purge(host, 0);
+            cache.counter = u32::MAX;
+            cache.update_with(host, 7, |_, _| panic!("disabled tick purged"));
+            assert_eq!(cache.counter, u32::MAX);
+        });
+    }
+
+    #[test]
+    fn shutdown_sweeps_virtual_clear_remainders_and_unsigned_purge_keeps_large_counts() {
+        let mut store = CacheStore::new(Host::default());
+        let id = store.create();
+        store.with_builtin(id, |cache, host| {
+            cache.insert(host, Key::new(1, 2, 3), Object(1));
+            cache.insert(host, Key::new(1, 2, 4), Object(2));
+            host.counts.insert(Object(2), u32::MAX);
+            assert!(cache.purge_one(host));
+            assert_eq!(cache.len(), 1);
+            assert_eq!(host.counts[&Object(2)], u32::MAX);
+            cache.shutdown_with(host, |_, _| {});
+            assert!(cache.is_empty());
+            assert_eq!(host.counts[&Object(2)], u32::MAX - 1);
+        });
     }
 }

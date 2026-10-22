@@ -8,7 +8,8 @@
 - Done: focused qbuild quick PASS 3685 tests, 0 failed; dependent crates compiled; native build 4/4 edges. All PM01-PM30, PMU01-PMU06 plus EX01-EX04 pass (40 conformance tests).
 - Done: exact audit mechanically compared: 109 specified starts, 109 unique mapped, none missing or extra. Added private null-node/wrap/virtual-clear edge tests after focused pass.
 - Format: all 8 new Rust files pass qbuild fmt with absolute paths. Shared core/src/lib.rs check finds pre-existing ordering/long-line differences (first at line 32); left its single additive export intact per no-mass-reformat rule.
-- Next: one stable qbuild all (cargo/clippy/full ctest); report and queue.
+- Full gate on ec55b72d: cargo 4366/4366 PASS, native build PASS, ctest 67/67 PASS; clippy FAIL (callback type complexity and two test-module ordering diagnostics). Fixed alias/order; destroy now explicitly frees bucket storage even when the outer allocation is retained.
+- Next: rerun stable qbuild all after these corrections; report and queue.
 - Questions: PR5 in docs/specs/questions/persistence-manager.md (enumeration predicate's key after external resource-key mutation).
 - Checks: task-specific instruction says no redundant pre-edit full baseline; focused checks followed by one stable full gate.
 - Facts: no game requests; no subagents; no main checkout edits; spec is docs/specs/persistence-manager.md.
