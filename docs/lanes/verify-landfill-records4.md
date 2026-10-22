@@ -19,7 +19,8 @@
 - Frozen final DLL SHA256777fe83b249162b0919fe4b4c6638251430ca6c2be9b3c0a60f2b8ce0b89b879, build-runs/dlls/occupant-r2-777fe83b2491/FreeCity4.dll.
 - vlfr4-r2-on-2032-20261022c stalled fallback: watchdog at startup before LoadCity/probe, stall over8063ms; subsequently8/9 exact (LG33 only),13/13 destroyed,reload4/4. No full-run credit; no audit suppression.
 - vlfr4-r2-off-2032-20261022d clean2032-01-01/ref0/saveok1 (138.437s), current40/probeOFF, same final DLL. Own saved fixture captured cd1d9ea53d49bf9d3cd29c337879e4ef9f1e8cf36bd219c9d6a844f60cf555ae at MAIN/build-runs/fixtures/vlfr4-r2-off-2032-20261022d-saved.sc4.
-- Next: unique ON retry from ordinary city, then true own-save reload control. No outstanding request; preserve failed label/verdict.
+- vlfr4-r2-on-2032-20261022e clean2032-01-03/ref0/saveok1 (104.625s), same frozen DLL/current40/probeON. Own saved fixture SHA256ef3bd25b3077435417b7d18308c01482a4f07b62d8ce0fa189392e5001f3c659 at MAIN/build-runs/fixtures/vlfr4-r2-on-2032-20261022e-saved.sc4.
+- Next: true own-save reload control with probeON and same immutable DLL, then final report/queue. No outstanding request; preserve failed label/verdict.
 - Required game evidence: immutable guarded2032/ref0 save/reload controls, unique request labels, wait without qwait. No request outstanding.
 - Guard: C:/Users/tlori/FreeCity4/build-runs/run4-verify-landfill-records4-r2-manifest.json; shared budget/calls retained.
 
