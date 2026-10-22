@@ -8,13 +8,13 @@
 - Read section 13, keyboard message section 7.3, all 16 ABI rows and public SDK headers.
 - Independent fixtures committed first at 9dfb9b7e: 28 key/modifier cases, 9 asymmetric presence cases, duplicate/deletion/order/capacity, message, dispatch and lifetime traces. Not yet compiled.
 - Filed WT7 (owner/lifetime inventory), WT8 (boundary/repeat/failure contract), WT9 (SDK/spec slot conflicts); index regeneration deferred to coordinator because tools/ is forbidden.
-- Baseline qbuild all running in exec session 96460: initial Rust test compilation failed without diagnostics (four rustc exit-1 processes); clippy passed. CMake PASS 212/212 edges (511.0s); CTest pending. Test/clippy/build/configure logs copied with baseline- prefix.
+- Baseline qbuild all completed FAIL: initial Rust test build exit101 (four rustc exit-1 processes, no diagnostics); clippy exit0, 0 diagnostics. CMake PASS 212/212 (511.0s), CTest PASS 68/68 (501.0s), fc4verify PASS with tree-changed warning (1016.5s). Not a stable final gate. Logs preserved with baseline- prefix.
 - Implemented production BTreeMap owner, all published lookup/registration/enumeration/dispatch decisions and explicit live-count lifecycle; typed host only exposes borrowed service/AddRef/Release/synchronous send.
 - Slot 0 is membership only; slot 15 native flags/construction remain WT7 residuals. No full-owner claim.
 - Production implementation committed at 7b0b14fa; expanded to 12 tests including explicit WT8 literal boundary choices, no-server initialization, terminal and overflow safety.
 - Final code f3aee604; qbuild fmt passes both new files. lib.rs check fails inherited module-order/format diffs (166 lines); additive export only, no unrelated reformat.
 - Initial cargo/clippy were launched before implementation; later baseline CMake/CTest stages can include the new source. This is not a pristine-base CTest measurement.
-- Next: capture baseline completion; focused qbuild quick, formatting check and byte/method inventory; final full gate once code stable. Use absolute file paths for qbuild fmt.
+- Next: focused qbuild quick on final code; then one stable qbuild all and final report/queue. Use absolute file paths for qbuild fmt.
 - Scope: pure core, no C ABI changes, game runs, native-exact or replacement claims.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-key-accelerator4-r1-manifest.json.
 - All owner gaps must remain explicit; no other widget/HTML owners.
