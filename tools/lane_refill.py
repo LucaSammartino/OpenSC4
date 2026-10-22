@@ -19,6 +19,17 @@ def provider_error(result):
     return bool(result.get('is_error') or LIMIT_RE.search(json.dumps(result)))
 
 
+def spec_deps(spec):
+    deps = spec['args'].get('deps', [])
+    return deps.split(',') if isinstance(deps, str) else deps
+
+
+def unmet_deps(root, deps):
+    """The deps that are not ancestors of main yet; a brief launches only when there are none."""
+    return [d for d in deps if subprocess.run(['git','merge-base','--is-ancestor',d,'main'],cwd=root,
+                                              capture_output=True,creationflags=launcher.backend.NOWIN).returncode]
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--provider', choices=('claude', 'codex'))
@@ -104,10 +115,7 @@ def main():
                 role = spec.get('lane_role', 're' if spec['args']['kind'] == 're' else 'verify')
                 if role == 'glue' and glue >= state.get('glue_limit', 3):
                     continue
-                deps = spec['args'].get('deps', [])
-                deps = deps.split(',') if isinstance(deps, str) else deps
-                if any(subprocess.run(['git','merge-base','--is-ancestor',d,'main'],cwd=root,
-                                      capture_output=True,creationflags=launcher.backend.NOWIN).returncode for d in deps):
+                if unmet_deps(root, spec_deps(spec)):
                     continue
                 selected = spec.get('provider', provider)
                 if launcher.provider_pause(root, selected):

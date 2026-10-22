@@ -83,3 +83,42 @@ coordinator can add `--lane <name>` to look in another worktree.
   writes `build-runs/lane-ledger.tsv` (one row per run), `build-runs/lane-ledger-by-lane.tsv` and, with `--md`,
   [token-ledger.md](token-ledger.md). Read the caveats there before quoting tokens per coverage point: lanes landed
   through the merge train have no journal, and coverage also moves when the coverage tool changes.
+
+## Run 4: the heartbeat backlog and `--wait-until`
+
+`python tools/lane_heartbeat.py --once` (the five-minute scheduled task) writes `build-runs/run4-heartbeat.json` and
+one log line. Pending briefs in `build-runs/run4-refill-queue.json` are split the way the refiller decides:
+a brief is **launchable** when every one of its `args.deps` is an ancestor of `main` (`lane_refill.unmet_deps`, the
+refiller's own `git merge-base --is-ancestor` rule), otherwise it is **waiting**. The line reads
+`pending L launchable / W waiting [brief: dep,dep; ...]`, and the JSON has `launchable`, `waiting` (brief to the deps
+it waits on) and `open_slots` (target minus live). On top of the existing alerts, `BACKLOG LOW: L launchable < N open
+slots` fires whenever the refiller has fewer briefs it can start than free slots (not while STOP or a provider
+pause is set). It was added after run 4 drained from 9 live lanes to 1 with `pending 2` in the log: both briefs
+depended on the train that was waiting to land, so neither could start, and the old `REVIEW QUEUE` alert only fires
+at 0 pending.
+
+The coordinator's long waits go through it:
+
+```
+python tools/lane_heartbeat.py --wait-until train [--fresh] [--timeout 540]
+python tools/lane_heartbeat.py --wait-until backlog
+python tools/lane_heartbeat.py --wait-until build-runs/gate-train100.out
+```
+
+It checks every `--poll` seconds (default 10), prints nothing meanwhile, and on the first of these prints one line
+and exits:
+
+| Exit | Line | When |
+|---|---|---|
+| 0 | `TRAIN <id>: gate FAIL`, `TRAIN <id>: gate ok, regress <verdict>`, `TRAIN <id>: no longer current (landed or cleared)` | `train`: the current train in `build-runs/merge-train/state.json` needs the coordinator (`RUNNING` does not count) |
+| 0 | `FILE <path>: present` | a file path (relative to `--root`: the checkout holding the script, the main checkout for the coordinator) exists |
+| 4 | `BACKLOG LOW: ...; live x/y, pending L launchable / W waiting [...]` | the heartbeat alert above |
+| 5 | `HALT: STOP set` / `HALT: provider <p> paused` | the STOP flag or a provider pause |
+| 2 | `TIMEOUT after <s>s waiting for <event>; ...` | nothing happened; call it again |
+| 3 | `WAIT: ...` | no current train for `train`, or `--timeout` outside (0, 3600] |
+
+A verdict or file already there returns at once (exit 0), and so does a backlog that is already low (exit 4): that is
+the point, the wait never starts while slots are going to empty. `--fresh` ignores a train verdict or file that was
+there before the call (for a re-run gate, whose old `gate.ok: false` stays in the state file until the new one is
+written). `backlog` waits for the backlog only. The default `--timeout` is 540 s, under a 10-minute tool-call
+limit; the maximum is 3600. The wait is read-only: it does not write the heartbeat files.
