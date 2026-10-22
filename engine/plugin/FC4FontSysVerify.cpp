@@ -28,6 +28,13 @@ void fc4_fontsys_verify_free(void*);
 
 namespace fc4 {
 namespace {
+// Use the published slot numbers for overloaded SDK methods. MSVC groups/reverses
+// overload declarations; their source order is not a native-vtable contract.
+template<class Result, class... Args>
+Result FontSysSlot(cIGZFontSys* self, unsigned slot, Args... args) {
+    using Function = Result(__fastcall*)(cIGZFontSys*, void*, Args...);
+    return reinterpret_cast<Function>((*reinterpret_cast<void***>(self))[slot])(self, nullptr, args...);
+}
 void PutString(uint8_t* dst, size_t capacity, const char* text) {
     std::memset(dst, 0, capacity);
     std::memcpy(dst, text, (std::min)(std::strlen(text), capacity - 1));
@@ -65,7 +72,7 @@ struct Pair {
         switch (op) {
         case 0: return native->Init();
         case 1: { bool ok = native->Shutdown(); InvalidateUnowned(); return ok; }
-        case 2: return native->AddFont(first);
+        case 2: return FontSysSlot<bool>(native, 14, static_cast<const cIGZString*>(&first));
         case 3: return native->EnumerateFontInfo(reinterpret_cast<cIGZFontSys::FontInfo*>(out), a);
         case 4: return native->IsFontAvailable(first, b, Style(a));
         case 5: return native->AddSubstitution(first, second);
@@ -85,17 +92,17 @@ struct Pair {
         case 8: native->SetDefaultUnantialiasedSizeRange(int32_t(a), int32_t(b), c ? &first : nullptr); return 0;
         case 9: native->SetDefaultCodePage(int32_t(a)); return 0; // SDK discards the published true return.
         case 10: native->SetDefaultFontAntialiasing(cIGZFont::AntialiasingMode(a)); return 0;
-        case 11: return Intern(native->FontAcquire(first, a, Style(b), c != 0), true);
-        case 12: return Intern(native->FontAcquire(first, int32_t(d), a, Style(b), c != 0), true);
-        case 13: return Intern(native->FontAcquire(int32_t(d), a, Style(b), 0x12345678, c != 0), true);
+        case 11: return Intern(FontSysSlot<cIGZFont*>(native, 10, static_cast<const cIGZString*>(&first), a, b, c != 0), true);
+        case 12: return Intern(FontSysSlot<cIGZFont*>(native, 11, static_cast<const cIGZString*>(&first), d, a, b, c != 0), true);
+        case 13: return Intern(FontSysSlot<cIGZFont*>(native, 9, d, a, b, uint32_t(0x12345678), c != 0), true);
         case 14: {
             if (!f) return UINT32_MAX;
             SC4String path, family;
             f->GetFilePath(path); f->GetName(family);
             PutString(out, 260, path.ToChar()); PutString(out+260, 128, family.ToChar());
             int32_t cp = 0; f->GetCodePage(cp);
-            // SDK's two style-getter declarations are reversed. Published section 4.1 slot 7
-            // is the no-argument GetStyles; never call SDK slot 6 with the wrong stack shape.
+            // Published section 4.1 slot 7 is the no-argument GetStyles. Do not infer
+            // its slot from the textual order of overloaded SDK declarations.
             using GetStyles = uint32_t(__fastcall*)(void*, void*);
             uint32_t style = reinterpret_cast<GetStyles>((*reinterpret_cast<void***>(f))[7])(f, nullptr);
             FC4_ADDREF(f); uint32_t refs = FC4_RELEASE_CREATED(f);
@@ -120,7 +127,7 @@ struct Pair {
             return n;
         }
         case 17: { bool ok = native->RemoveFontByName(first); InvalidateUnowned(); return ok; }
-        case 18: return native->AddFont(f);
+        case 18: return FontSysSlot<bool>(native, 13, f);
         case 19: return native->RemoveFontByFile(first);
         case 20: return FC4_ADDREF(native);
         case 21: return FC4_RELEASE_CREATED(native);
@@ -168,7 +175,8 @@ void Compare(cIGZFontSys* owned, const char* phase) {
     for (const char* file : {"arial.ttf", "arialbd.ttf", "cour.ttf", "tahoma.ttf"}) {
         std::string path = std::string(windows) + "\\Fonts\\" + file;
         SC4String input(path);
-        if (owned->AddFont(input)) paths.push_back(path);
+        Log("fontsys bootstrap read-only path=%s",path.c_str());
+        if (FontSysSlot<bool>(owned, 14, static_cast<const cIGZString*>(&input))) paths.push_back(path);
         else Log("fontsys bootstrap unavailable path=%s", path.c_str());
     }
     std::sort(paths.begin(), paths.end());
