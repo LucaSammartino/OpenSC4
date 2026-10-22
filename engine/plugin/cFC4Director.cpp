@@ -30,6 +30,7 @@
 #include "FC4EffectsShadow.h"
 #include "FC4FlammabilityShadow.h"
 #include "FC4Clock24Shadow.h"
+#include "FC4LanguageVerify.h"
 #include "FC4HistoryShadow.h"
 #include "FC4NetMgrShadow.h"
 #include "FC4MySimsShadow.h"  // the mysims1 lane: mysims_shadow
@@ -357,6 +358,7 @@ public:
         fc4::MySimsShadowStart();        // mysims_shadow (FC4MySimsShadow.h)
         fc4::SpanRender4444Start();      // enable = span4444 (FC4SpanRender4444.h)
         fc4::SpanRender8888Start();      // enable = span8888 (opt-in)
+        fc4::LanguageVerifyRun();  // opt-in constructed ORIGINAL language utility verification
         fc4::FpuLog("hook PostAppInit (exit)");
         return true;
     }
