@@ -7,10 +7,15 @@
 - Goal: narrowed CD7 native-save/replacement-reload and replacement-save/native-reload validation; no CD8 reduction work.
 - Start: HEAD 63b0c2bd; previous round stopped at CD8 boundary without runtime checks.
 - Done: reused reserved detached worktree; working tree initially clean; no refs/config changed.
-- Next: inspect persistence spec, harness fixture/save contract, prior immutable DLL/gate evidence and supported fixtures.
+- Done: immutable DLL copied from verify-simgrids-shadow4/dll-sgv4-r4, SHA256 ED12FAE2F0A13F6FDE1A03E4171CD29C7D5CB5EDF264A004C5C0294D17A1E1C1.
+- Gate reused per explicit task: original qbuild logs re-read, cargo4940/0, clippy clean, ctest68/68; no baseline rebuild.
+- Citydetail core/capi/plugin/shadow diff vs gated source7e9f580e is empty. No source files changed this round.
+- Input fixture sgv4-r1-native39-20261022c.sc4 rehashed F03DA3420CD8FABE50BD887890310D2D5577E5C5C109F76E3906EF84E255FB7A; exact8-byte payload 0000000001000000.
+- Next: wait existing local Python session49390 (build-runs/cd7_run.py); it queues sequential native39/replacement40/native39 runs through2033/2034/2035 and captures each changed DBPF while slot is live.
 - Reuse already gated immutable DLL if citydetail code unchanged; task explicitly forbids blind baseline rebuild.
 - Preserve actual DBPF SHA256, 8-byte records, original/reference controls, shutdown/ref0; no Documents writes.
-- No new request outstanding. New game labels must be unique; wait without qwait.
+- Outstanding: cd7-r2-native-save-20261022a in slot2; then script will queue cd7-r2-repl-reload-20261022a and cd7-r2-native-reload-20261022a one at a time. Never discard an existing verdict.
+- Own build-runs/cd7_record.py audits DBPF index/class framing and exact8-byte records, refuses compressed CD entry. cd7_run.py waits without qwait and preserves input/output hashes and capture metadata.
 - q.py fails with Bash E_ACCESSDENIED; use capped native PowerShell for read-only shell work.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-citydetail-reload4-r2-manifest.json.
 - No subagents, RE, tools scripts, ABI/default/map edits, merge/push/restart, or fourth round.
