@@ -6,19 +6,19 @@ pub type Vec3 = [f32; 3];
 /// Row major, applied to column vectors.
 pub type Mat4 = [[f32; 4]; 4];
 
-pub(super) fn add(a: Vec3, b: Vec3) -> Vec3 {
+pub(crate) fn add(a: Vec3, b: Vec3) -> Vec3 {
     [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
 }
-pub(super) fn sub(a: Vec3, b: Vec3) -> Vec3 {
+pub(crate) fn sub(a: Vec3, b: Vec3) -> Vec3 {
     [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 }
-pub(super) fn mul(a: Vec3, s: f32) -> Vec3 {
+pub(crate) fn mul(a: Vec3, s: f32) -> Vec3 {
     [a[0] * s, a[1] * s, a[2] * s]
 }
-pub(super) fn dot(a: Vec3, b: Vec3) -> f32 {
+pub(crate) fn dot(a: Vec3, b: Vec3) -> f32 {
     (a[0] * b[0] + a[1] * b[1]) + a[2] * b[2]
 }
-pub(super) fn cross(a: Vec3, b: Vec3) -> Vec3 {
+pub(crate) fn cross(a: Vec3, b: Vec3) -> Vec3 {
     [
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
@@ -39,7 +39,7 @@ pub(super) fn rotate(m: &[f32; 9], v: Vec3) -> Vec3 {
 pub(super) fn transpose(m: &[f32; 9]) -> [f32; 9] {
     [m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]]
 }
-pub(super) fn transform(x: &Xform, p: Vec3) -> Vec3 {
+pub(crate) fn transform(x: &Xform, p: Vec3) -> Vec3 {
     add(mul(rotate(&x.matrix, p), x.scale), x.translation)
 }
 pub(super) fn apply(m: &Mat4, p: [f32; 4]) -> [f32; 4] {
