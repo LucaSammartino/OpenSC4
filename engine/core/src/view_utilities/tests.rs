@@ -329,17 +329,18 @@ fn frustum_corner_order_and_plane_signs_follow_basis_not_euler_projection() {
 }
 
 #[test]
-fn perspective_choice_uses_current_near_corners_without_compounding() {
+fn native_perspective_reuses_previous_far_corners_and_compounds() {
     let mut c = camera();
     c.projection = Projection::Perspective;
+    c.position = Vec3::new(1.0, 2.0, 3.0);
+    c.look_at = Vec3::new(1.0, 2.0, 2.0);
+    c.volume.near = 1.0;
+    c.volume.far = 2.0;
     let mut v = owner(c);
     let first = v.view_frustum();
-    // Analytic geometry; f32 near-corner cancellation is amplified by far/near=51.
-    let expected = Vec3::new(610.0, 208.18733, -152.43706);
-    let delta = first.corners[4] - expected;
-    assert!(delta.x.abs() < 0.001 && delta.y.abs() < 0.001 && delta.z.abs() < 0.001);
+    assert_eq!(&first.corners[4..], &[Vec3::new(-1.0, -2.0, -3.0); 4]);
     assert!(v.update_camera_position(Some(&c)));
-    assert_eq!(first, v.view_frustum());
+    assert_eq!(&v.view_frustum().corners[4..], &[Vec3::new(-3.0, -6.0, -9.0); 4]);
 }
 
 #[test]
@@ -350,13 +351,13 @@ fn clipped_city_polygon_is_clipped_as_a_polygon_not_as_its_aabb() {
     let mut v = owner(c);
     v.set_city_size(5.0, 95.0);
     v.update_camera_position(Some(&c));
-    let b = v.get_frustum_aabb_city_clipped(true);
+    let b = v.get_frustum_aabb_city_clipped(true).unwrap();
     vector(b.min, Vec3::new(0.0, 0.0, 0.0));
     vector(b.max, Vec3::new(5.0, 102.12132, 95.0));
     c.position.x = -100.0;
     c.look_at.x = -100.0;
     v.update_camera_position(Some(&c));
-    let b = v.get_frustum_aabb_city_clipped(true);
+    let b = v.get_frustum_aabb_city_clipped(true).unwrap();
     assert_eq!(b.min, Vec3::ZERO);
     vector(b.max, Vec3::new(0.0, 102.12132, 0.0));
 }
@@ -388,7 +389,7 @@ fn rotated_city_clip_rejects_aabb_overlap_when_ground_polygon_misses_city() {
     v.update_camera_position(Some(&c));
     // This diagonal ground band has x+z >= 200-10*sqrt(2) > 185.
     // The city has x+z <= 150. Their AABBs overlap but the polygons do not.
-    let b = v.get_frustum_aabb_city_clipped(true);
+    let b = v.get_frustum_aabb_city_clipped(true).unwrap();
     assert_eq!((b.min.x, b.min.z, b.max.x, b.max.z), (0.0, 0.0, 0.0, 0.0));
     assert!(v.view_frustum().corners[3].x < 100.0);
     assert!(b.max.y > 0.0);
@@ -418,21 +419,20 @@ fn ground_ray_contract_and_checked_parallel_behind_surface_cases() {
     let mut out = Vec3::new(7.0, 8.0, 9.0);
     assert!(ray_intersects_ground_plane(r, &mut out));
     vector(out, Vec3::new(0.0, 0.0, 100.0));
-    let previous = out;
-    assert!(!ray_intersects_ground_plane(
+    assert!(ray_intersects_ground_plane(
         Ray {
             direction: Vec3::new(0.0, 1.0, 0.0),
             ..r
         },
         &mut out
     ));
-    assert_eq!(out, previous);
+    assert_eq!(out, Vec3::ZERO);
     let parallel = Ray {
         direction: Vec3::new(1.0, 0.0, 0.0),
         ..r
     };
     assert!(!ray_intersects_ground_plane(parallel, &mut out));
-    assert_eq!(out, previous);
+    assert_eq!(out, Vec3::ZERO);
     assert!(!get_ray_intersection_with_ground_plane(parallel).x.is_finite());
     assert!(ray_intersects_ground_plane(
         Ray {
@@ -464,8 +464,8 @@ fn camera_eye_ray_is_normalized_and_failures_preserve_direct_output() {
     assert_eq!(out, previous);
     assert_eq!(rays.calls.load(Ordering::SeqCst), 1);
     let mut ground = Vec3::ZERO;
-    assert!(v.get_viewport_point_intersection_with_ground_plane(None, 0.0, 0.0, &mut ground));
-    assert!(ground.x.is_nan() && ground.y.is_nan() && ground.z.is_nan());
+    assert!(!v.get_viewport_point_intersection_with_ground_plane(None, 0.0, 0.0, &mut ground));
+    assert_eq!(ground, Vec3::ZERO); // checked adapter; no native failure coordinate
 }
 
 #[test]
@@ -473,7 +473,7 @@ fn ground_corner_order_visible_area_truncation_and_cache_invalidation() {
     let mut v = owner(camera());
     let rays = Rays::new(-0.5);
     assert_eq!(
-        v.get_viewport_rect_ground_corners(Some(&rays), PixelRect::new(0, 0, 200, 100)),
+        v.get_viewport_rect_ground_corners(Some(&rays), PixelRect::new(0, 0, 200, 100)).unwrap(),
         [
             Vec3::new(-0.5, 0.0, 0.0),
             Vec3::new(199.5, 0.0, 0.0),
@@ -501,7 +501,7 @@ fn ground_corner_order_visible_area_truncation_and_cache_invalidation() {
     assert_eq!(rays.calls.load(Ordering::SeqCst), calls);
     v.build_draw_frustum_data_from_viewport_rect(PixelRect::new(10, 10, 20, 20), Some(&rays));
     assert!(v.visible_area.get().is_none());
-    assert_eq!(v.get_ground_plane_visible_area_rectangle(None), Some(a));
+    assert_eq!(v.get_ground_plane_visible_area_rectangle(Some(&rays)), Some(a));
     assert!(v.update_camera_position(Some(&camera())));
     let shifted = Rays::new(1000.0);
     assert_eq!(
@@ -543,10 +543,10 @@ fn every_draw_rectangle_invalidates_both_caches_and_keeps_full_view_visible_area
     let changed = Rays::new(1000.0);
     v.build_draw_frustum_data_from_viewport_rect(PixelRect::new(50, 25, 150, 75), Some(&changed));
     assert_eq!(
-        v.get_ground_plane_visible_area_rectangle(None).unwrap().inner.min.x,
+        v.get_ground_plane_visible_area_rectangle(Some(&changed)).unwrap().inner.min.x,
         1100.0
     );
-    assert_eq!(changed.calls.load(Ordering::SeqCst), 8); // four viewport + four dirty corners
+    assert_eq!(changed.calls.load(Ordering::SeqCst), 8); // four dirty + four fresh viewport corners
     let outside_draw = Aabb {
         min: Vec3::new(108.0, 80.0, 80.0),
         max: Vec3::new(108.0, 80.0, 80.0),
@@ -560,7 +560,7 @@ fn every_draw_rectangle_invalidates_both_caches_and_keeps_full_view_visible_area
     assert!(v.is_bounding_box_in_draw_frustum(inside_draw));
     v.build_draw_frustum_data_from_viewport_rect(PixelRect::new(0, 0, 200, 100), Some(&original));
     assert_eq!(
-        v.get_ground_plane_visible_area_rectangle(None).unwrap().inner.min.x,
+        v.get_ground_plane_visible_area_rectangle(Some(&original)).unwrap().inner.min.x,
         100.0
     );
 }
@@ -660,8 +660,8 @@ fn clipping_and_block_rounding_contract_vectors_and_invalid_inputs() {
         assert_eq!(round_up_to_nearest_block_boundary(value, 64), Some(up));
     }
     assert_eq!(round_down_to_nearest_block_boundary(1.0, 0), None);
-    assert_eq!(round_up_to_nearest_block_boundary(f32::NAN, 64), None);
-    assert_eq!(round_up_to_nearest_block_boundary(2147483520.0, 1000), None);
+    assert_eq!(round_up_to_nearest_block_boundary(f32::NAN, 64), Some(0));
+    assert_eq!(round_up_to_nearest_block_boundary(2147483520.0, 1000), Some(-2147482000));
 }
 
 #[test]
@@ -681,7 +681,7 @@ fn bounding_rectangle_uses_selected_corners_and_ties_even() {
         PixelRect::new(6, -8, 2, -4),
     ];
     for (rotation, rect) in expected.into_iter().enumerate() {
-        v.camera.rotation = rotation as u32;
+        v.camera.rotation = rotation as i32;
         let mut out = PixelRect::default();
         assert!(v.project_bounding_box_to_viewport_rectangle(b, &mut out));
         assert_eq!(out, rect);
@@ -757,7 +757,7 @@ fn triangle_pick_distance_strict_improvement_winding_and_failures() {
     assert_eq!(p.nearest_distance, 10.0);
     let [a, b, c] = triangle(5.0);
     assert!(triangle_pick(&mut p, a, c, b));
-    assert_eq!(p.nearest_distance, 5.0);
+    assert_eq!(p.nearest_distance, 10.0); // Euclidean distance, not ray parameter
     assert!(!triangle_pick(&mut p, a, a, a));
     let [a, b, c] = triangle(-1.0);
     assert!(!triangle_pick(&mut p, a, b, c));
@@ -801,7 +801,7 @@ fn all_primitive_tables_include_unusual_quad_walk_and_degenerate_groups() {
         for (i, indices) in triangles.into_iter().enumerate() {
             assert_eq!(triangle_indices(g, i as u32), Some(indices));
         }
-        assert_eq!(triangle_indices(g, g.triangle_count()), None);
+        assert_eq!(triangle_indices(g, g.triangle_count() as u32), None);
     }
     for kind in [1, 2, 5, 7, 99] {
         assert_eq!(
@@ -811,7 +811,7 @@ fn all_primitive_tables_include_unusual_quad_walk_and_degenerate_groups() {
                 count: 0
             })
             .triangle_count(),
-            0
+            match kind { 1 | 2 | 7 => -2, 5 => -1, _ => 0 }
         );
     }
     for kind in 3..=5 {
