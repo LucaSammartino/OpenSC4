@@ -113,7 +113,7 @@ void OccupantProbeSink(void* user, const uint8_t* bytes, size_t len) {
 
 void RunLandfillOccupantProbe(void*) {
     cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
-    unsigned exact = 0, created = 0, freed = 0;
+    unsigned exact = 0, created = 0, freed = 0, reloads = 0;
     // Construction; valid read; mutation; byte==1; byte!=1; bad outer,
     // base and holder versions; truncation. Each case has its own lifetime.
     for (unsigned test = 0; test < 9; ++test) {
@@ -201,6 +201,41 @@ void RunLandfillOccupantProbe(void*) {
                         static_cast<unsigned>(capture.Bytes().size()), static_cast<unsigned>(expected.size()),
                         static_cast<unsigned>(first));
                 }
+                // Native persistence goes into a fresh factory object. Its
+                // own captured record seeds only native Read, never Rust.
+                void* fresh = nullptr;
+                if (wrote && com->GetClassObject(0x8A22BEBE, 0xE4FDA3D4, &fresh) && fresh) {
+                    auto* loaded = static_cast<cIGZSerializable*>(fresh);
+                    FC4_ACQUIRED(loaded, "GetClassObject occupant probe reload");
+                    ++created;
+                    OccupantProbeInput reloadInput(capture.Bytes());
+                    const bool loadedOk = loaded->Read(reloadInput);
+                    void* tileRef = nullptr;
+                    if (loadedOk && loaded->QueryInterface(0x2A15F262, &tileRef) && tileRef) {
+                        auto* restored = static_cast<ProbeLandfillTile*>(tileRef);
+                        FC4_ACQUIRED(restored, "QueryInterface occupant probe reload");
+                        auto* restoredOcc = restored->AsOccupant();
+                        cS3DVector3 restoredPos, lo, hi;
+                        bool restoredOk = restoredOcc && restoredOcc->GetPosition(&restoredPos);
+                        if (restoredOcc) {
+                            restoredOcc->GetBoundingBox(&lo, &hi);
+                            restoredOk = restoredOk && restoredOcc->GetFlags() == (rust.flags & 0xDD) &&
+                                memcmp(&restoredPos.fX, rust.position, 12) == 0 &&
+                                memcmp(&lo.fX, rust.bounds, 12) == 0 && memcmp(&hi.fX, rust.bounds + 3, 12) == 0;
+                        }
+                        WriteCapture second;
+                        const bool secondOk = second.Capture(restored);
+                        restoredOk = restoredOk && secondOk && second.Bytes() == expected &&
+                            restored->GetOrientation() == rust.orientation &&
+                            restored->IsEmptyLandfillTile() == (rust.empty != 0);
+                        if (restoredOk) ++reloads;
+                        ok = restoredOk && ok;
+                        FC4_RELEASE(restored);
+                    } else ok = false;
+                    const uint32_t last = FC4_RELEASE_CREATED(loaded);
+                    if (last == 0) ++freed;
+                    ok = last == 0 && ok;
+                } else ok = false;
             }
             FC4_RELEASE(serial);
         } else ok = false;
@@ -213,8 +248,8 @@ void RunLandfillOccupantProbe(void*) {
         Log("landfill occupant probe case=%u %s qi=0x%X ref_add=%u ref_drop=%u final=%u read=%u write=%u",
             test, ok ? "exact" : "DIFFERENT", qiMask, added, released, finalRef, rust.read_ok, rust.write_ok);
     }
-    Log("landfill occupant probe summary exact=%u/9 created=%u destroyed=%u; public factory/interfaces; "
-        "authored inputs; no zone calls", exact, created, freed);
+    Log("landfill occupant probe summary exact=%u/9 created=%u destroyed=%u reloads=%u/4; public factory/interfaces; "
+        "authored inputs; no zone calls", exact, created, freed, reloads);
 }
 
 }  // namespace

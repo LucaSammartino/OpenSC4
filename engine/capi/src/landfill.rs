@@ -1552,6 +1552,17 @@ pub unsafe extern "C" fn fc4_landfill_occupant_probe(
         if r.read_ok != 0 {
             let mut output = ByteWriter::new();
             r.write_ok = u32::from(o.write(&mut output));
+            // Persistence uses only our own write as our reload input. Native
+            // captures never enter this function.
+            let reloaded = LandfillOccupant::empty();
+            let mut reload_input = ByteReader::new(output.bytes());
+            let mut second = ByteWriter::new();
+            if !reloaded.read(&mut reload_input)
+                || !reloaded.write(&mut second)
+                || second.bytes() != output.bytes()
+            {
+                return false;
+            }
             if let Some(sink) = sink {
                 sink(user, output.bytes().as_ptr(), output.bytes().len());
             }
