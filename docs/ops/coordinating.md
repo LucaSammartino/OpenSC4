@@ -7,6 +7,12 @@ instead: write the lane file, enqueue, stop.
 
 ## Spawning a lane
 
+**Provider selection:** the tracked `tools/lane_launch.py` and `tools/lane_refill.py` support explicit
+`--provider claude|codex` with one shared ledger and all checks below. Claude uses the saved Workflow;
+Codex uses its tested subscription CLI adapter and the same guard policy through registered hooks.
+See [lane-providers.md](lane-providers.md) for commands, authentication, model settings and recovery.
+Provider changes never reset rounds or parking, and never provide a fallback around a denial.
+
 Every lane is one run of the saved workflow [`.claude/workflows/fc4-lane.js`](../../.claude/workflows/fc4-lane.js):
 `Workflow({name: 'fc4-lane', args: {kind, name, task, date, brief, deps, game, fix?, model?, effort?, ctxBudget?,
 maxCalls?, maxRounds?}})` (see "Lane context" and "Lane guard" below). It has no
@@ -97,6 +103,12 @@ Chrome, computer-use and browser connectors off for the coordinator session and 
 `mcpServers` in `~/.claude.json`) only in sessions that spawn RE lanes.
 
 ## Lane guard (enforced, 2026-10-21)
+
+The policy now has two transport adapters: Claude's original hook below and Codex's
+`.claude/lane-bin/codexguard.py`. Both update the same per-lane counters and round/parking ledger.
+Codex's first read-only identity probe initializes measured usage; missing later telemetry blocks work.
+Its adapter and real watchdog denial were validated before enabling project lanes; see
+[provider validation](lane-providers.md#validation-2026-10-22).
 
 The context budget, the "stalled lane" rule and the wind-down order were prompt text, and the models ignored them.
 Measured over the two GLM runs of 2026-10-20/21 ([efficiency-log.md](efficiency-log.md)): 88% of lane context

@@ -1,10 +1,10 @@
 # Run4 recovery after the specification PRs
 
-The run remains open-ended. The worker target is10, at most3 glue lanes, at most3 rounds per lane; explicit smaller family limits in the coordinator state remain binding. STOP and guard denials always take precedence. Main must stay clean.
+The run remains open-ended. The latest user target is6-8 live workers, refill up to7 initially, at most3 glue lanes and at most3 rounds per lane; explicit smaller family limits in the coordinator state remain binding. STOP and guard denials always take precedence. Main must stay clean. Both Claude and Codex backends are supported through the shared [provider runner](lane-providers.md).
 
 ## Provider pause
 
-The provider returned a weekly-limit response, reporting a reset at18:00 Europe/London. All workers finished; ten interrupted original worktrees have WIP committed or preserved. Do not treat quota-interrupted work as ready or verified. The usage-interrupted rounds still count. `build-runs/run4-refill-paused.json` stops refills. A time passing alone is not evidence of provider availability: audit the provider state before clearing this marker. Never clear a user STOP automatically.
+Claude returned a weekly-limit response, reporting a reset at18:00 Europe/London. All workers finished; ten interrupted original worktrees have WIP committed or preserved. Do not treat quota-interrupted work as ready or verified. The usage-interrupted rounds still count. The original `build-runs/run4-refill-paused.json` remains Claude's pause. The user explicitly authorized adding Codex subscription lanes; select that provider explicitly without clearing Claude's pause. Time passing alone is not evidence of provider availability. Never clear a user STOP automatically.
 
 ## Prepared work
 
@@ -17,8 +17,8 @@ Previously queued network-model correction and exemplar contract answers remain 
 ## Restart procedure
 
 1. Read HANDOFF section0 and run `python tools/lanes.py guard` after any restart/compaction. Check STOP, true CLI-worker count, slots, C: utilization and the current train.
-2. Confirm provider availability. Only then remove the provider-pause marker and restart the reviewed-brief refill daemon (hidden window), retaining its owner lock and run4_coord_lock.py. Do not create a second dispatcher.
-3. Every worker still goes through run4-launch.py and the saved guarded Workflow, with fresh slots and check --touches; use --resume for preserved worktrees. Never unpark a lane without its actual cause being fixed, never run a fourth round, and never change guard flags to force a launch.
+2. Confirm the selected provider's availability, then start `tools/lane_refill.py --provider claude|codex` in a hidden window. Retain its owner lock and the shared coordinator lock; do not create a second dispatcher. Only clear a pause after its actual cause is resolved.
+3. Every worker goes through `tools/lane_launch.py` and the selected guarded backend, with fresh slots and check --touches; use --resume for preserved worktrees. Never unpark a lane without its actual cause being fixed, never run a fourth round, and never change guard flags to force a launch.
 4. Refill returned slots immediately; keep at most3 glue. Cut a train at2+ ready, run its actual gates, regenerate handoff/coverage/treemap, commit/push, and remove only ancestor-proved landed nonparked worktrees. Keep parked/unlanded worktrees and branches.
 
 The approved live-worker count fix is de1cd3b6 (97 tools tests passed). `slots` still retains activity fallback for unknown worktrees; the native launcher count is the truth for our running agents. The checkpoint225 is pushed; next checkpoint250. PR review/coordinator metadata work did not consume lane-agent rounds.
