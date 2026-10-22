@@ -347,9 +347,8 @@ of the four corresponding pairs, in index order:
    same four points and count 3, starting at triplet 0. Append this buffer to the second geometry
    vector. No separately copied A precedes these three samples.
 
-These calls and counts are instruction-derived (`0x0064E55E–0x0064E7FE`); NT21 still covers the
-helpers' full numeric curve contract. Do not substitute an inferred straight line or fixed segment
-count. After all four pairs, copy optional wire references into the record list through §5.2, then
+These calls and counts are instruction-derived (`0x0064E55E–0x0064E7FE`); §5.5 specifies the numeric
+curve contract. After all four pairs, copy optional wire references into the record list through §5.2, then
 call self's occupant-view slot 15 with `(0x99EF1145,0)`. With byte +9 false, skip geometry, optional
 wire copying and this call; still append the connection record and set self +0xD0 to 1
 (`0x0064E804–0x0064E879`).
@@ -360,7 +359,10 @@ geometry buffers, their vector storage, list nodes and sentinel are freed after 
 temporary list is freed without releasing its copied interface payloads, transferring responsibility
 for the AddRefs taken by §5.2 to the stored connection. The caller's optional vector is neither
 cleared nor consumed (`0x0064E886–0x0064E91C`). The nested-copy helper's full allocation details
-remain outside this bounded trace; no completion credit for that dependency follows from the call.
+are explicit: `0x0064BC00` copies each 12-byte geometry-vector entry through `0x0050BCB0`, which
+allocates exactly its used triplet count and copies all three dwords per triplet. `0x006F1570`
+allocates fresh list nodes and copies interface pointers without AddRef. Thus stored geometry is
+independent of the freed temporaries; payload-reference ownership is not multiplied by the copy.
 
 ### 5.4 Regional Attempt for network type 5
 
@@ -406,6 +408,59 @@ in the record, and byte +20 is false. Other out-of-range positive values are not
 Both paths return true after appending (`0x00629008–0x0062916D`). Attempt itself creates no preview,
 clears no vectors and neither requests consent nor places a regional connection. Its paired Place
 operation remains a separate call in the power-line wrapper.
+
+### 5.5 Connection curve numbers and evaluation
+
+The control helper `0x0064A6C0` uses these parameters. The defaults and property IDs are verified at
+`0x0064A18B–0x0064A24F`; each call of InitPowerLineControlVariables resets all defaults before
+attempting resource `(0x6534284A,0xE7E2C2DB,0xC911E35B)`, interface `0xA52160F5`, then the six
+property reads in table order. Values below are defaults, not claims about every loaded city resource.
+
+| Storage | Meaning in this helper | Default | Property |
+|---|---|---|---|
+| 00B46754 | maximum control displacement from midpoint | 16.0 | E9A18D3F |
+| 00B46750 | displacement percentage of span length | 10.0 | 49A1E8C4 |
+| 00B4674C | maximum downward sag | 10.0 | 89A18FC4 |
+| 00B46748 | sag percentage coefficient on squared length | float32 bits 3E19999A (about 0.15) | E9A1E8D4 |
+| 00B46744 | distance per sample | 8.0 | 49A195C0 |
+| 00B46740 | unsigned minimum sample count | 5 | 89A1E8FB |
+
+For attachment points A,B let delta=B−A and L its length. The percentage multiplier is float32
+bits `3C23D70A` at `0x00A823A4`; the half multiplier is exactly 0.5 at `0x00A84D2C`. Compute
+g as the lesser of maximum displacement and float32(displacementPercentage × multiplier × L).
+Compute s as the lesser of maximum sag and float32(sagPercentage × multiplier × L × L), using
+left-to-right products. Let u be the normalised delta. Control points are A+u×(L/2−g) and
+A+u×(L/2+g), with s subtracted from each resulting y. N is truncation toward zero of the greater
+of float32(unsigned minimum count) and float32(L / distancePerSample). There is no additional lower clamp,
+zero-length branch, or special treatment of negative/invalid resource values
+(`0x0064A6C0–0x0064A86E`).
+
+Numeric evaluation details: delta x,y initially remain in x87 precision; delta z is stored to float32
+without popping and its square multiplies the retained value by that stored copy. Add y² then x²,
+take sqrt, and store L to float32 while retaining the first root for reciprocal computation. Store
+1/root to float32, then store all normalised components to float32 (z is reloaded from its stored
+delta). Subsequent length products use stored L. Store control-point coordinates to float32 before
+subtracting s from stored y and storing y again. Sag/displacement selection chooses the cap only
+when cap is strictly less than the computed value; equality or unordered chooses the computed value.
+For N, choose the minimum-count float only when the retained quotient is strictly less than it;
+otherwise choose the quotient's float32 copy, including on unordered comparison. These
+rounding points follow `0x0064A6DB–0x0064A719`, `0x0064A71D–0x0064A81C`, `0x0064A81F–0x0064A867`.
+
+Sampler `0x006493B0(A,C1,C2,B,out,n)` writes n triplets at t=1/n,2/n,…, using a retained x87 step
+and repeated addition, not recomputed integer division per sample. Each coordinate uses the cubic
+weights w0=1−3t+3t²−t³, w1=3t−6t²+3t³, w2=3t²−3t³, w3=t³. Constants 1,3,6 are **float64** at
+`0x00A80AB0`, `0x00A929F0`, `0x00AA9CA0`. It stores t², 3t, 3×stored(t²), and w1 to float64;
+t³ uses the retained t². Evaluate w0 by successive subtraction/addition/subtraction, w1 as
+(stored(3t)−6×stored(t²))+3t³, and w2 as stored(3×stored(t²))−3t³. Other intermediates remain x87.
+Sum coordinate products in this order: x = A,C1,C2,B; y = B,C1,C2,A; z = C2,A,B,C1, then store
+float32. The loop unrolls four samples with the same arithmetic, then handles the remainder. No
+final overwrite forces the last output to equal B exactly (`0x006493B9–0x006497DB`).
+
+Worked default example: A=(0,20,0), B=(32,20,0) gives N=5, g approximately 3.2 and s approximately
+1.536. The main strand stores A followed by four samples (t=1/4,1/2,3/4,1); the optional strand stores
+three samples (t≈1/3,2/3,1), without A. This example expresses approximate geometry; the rounding rules
+above determine exact stored bits. World-to-cell divisors in §5.3 are supplied by terrain-service
+slots 91/92 and stored to float32 by pole Init (`0x00649FA9–0x00649FC9`), not hardcoded here.
 
 ## 6. Reserved-tile walk and zone update
 
@@ -559,6 +614,48 @@ not proved by these guards (`0x0065270C–0x00652828`, `0x006520E1–0x00652120`
 the reachable connection-cell/rectangle invariant; no out-of-bounds result is asserted as an observed
 game outcome.
 
+### 6.5 Container copy, erase and destruction ownership
+
+The following 13 attributed helpers total 1530 B. All allocate/free ordinary storage; none takes or
+releases occupant-interface references. In particular, copying a pointer-bearing record is not a
+new AddRef. Callers remain responsible for the explicit reference transfers/releases in §§4–6.
+Vector triplets below are begin/end/capacity; lengths, not source spare capacities, determine new
+copy allocations. Padding is not a semantic field.
+
+| Entry / body bytes | Contract established by the native body |
+|---|---|
+| 0064F5D0 / 55 | Copy [first,last) 16-byte records forward to uninitialised output; three dwords and byte +12 per record. Return output end. No allocation or source mutation. |
+| 0064F610 / 92 | Construct a vector copy of those 16-byte records: allocate exactly used count×16, invoke F5D0, publish end; empty source yields null triplet. Pointers within records are shallow copies. |
+| 0064F670 / 148 | Copy [first,last) 12-byte vector triplets to uninitialised output; each receives its own exactly sized buffer of the 16-byte records. Return output-triplet end. |
+| 0064F710 / 89 | Construct one 48-byte pole record: copy dwords +0..+16 and bytes +20/+21, copy-construct the 8-byte-element link vector at +24, and copy the three descriptor dwords at +36. No AddRefs on descriptor pointers. |
+| 0064F770 / 260 | Assign the 16-byte-record vector, self-assignment no-op. Reallocate exactly source used size if destination capacity is too small; otherwise reuse capacity, overwrite existing elements and construct only the new tail. Shrinking changes end without releasing interface payloads. |
+| 0064F920 / 113 | Copy-construct a range of 48-byte records using F710's field/link/descriptor rules; return output end. |
+| 0064F9A0 / 111 | Construct count copies of the same 48-byte source record, independently copying each link buffer; return output end. |
+| 0064FA60 / 135 | Assign a range of existing 48-byte records forward: overwrite scalar/descriptor fields, assign each 8-byte-element link vector (00611B00), return output end. No occupant release when overwriting a descriptor. |
+| 0064FAF0 / 68 | Assign a range of 12-byte int-vector triplets forward through 0050DB90; each vector owns a separate int buffer, reusing capacity where sufficient. Return output end. |
+| 00650250 / 84 | Erase a range of int-vector triplets: shift following triplets by deep assignment (FAF0), free the trailing inner buffers, reduce outer end. Preserve outer capacity; return erase position. |
+| 006502B0 / 58 | Destroy a vector of 48-byte records: free every link buffer at record +24, then outer storage. No endpoint Release, no clearing of the now-dead triplet. |
+| 006502F0 / 99 | Erase a range of 48-byte records: shift following records by FA60, free the trailing link buffers, reduce end and preserve capacity. Return erase position. |
+| 00650480 / 218 | Allocate capacity n+max(n,count) records, copy prefix before position, construct count copies of value, and copy the old suffix only when the final byte argument is false. Destroy old storage through 502B0, publish the new triplet. No AddRef/Release accompanies relocation. |
+
+The 8-byte link-vector constructor is `0x007CED60` (exactly used count×8 allocation and two dwords
+per link); assignment `0x00611B00` grows/reuses storage. The int-vector assignment is
+`0x0050DB90`. None turns these data elements into COM references. The caller's ReleasePoleInfos
+and its saved-descriptor rules must be applied separately; freeing container storage alone does not
+undo a retained endpoint. Native evidence is each row's entry through its measured body end,
+especially `0x0064F734–0x0064F75F`, `0x0064FA88–0x0064FAD9`, `0x006502C0–0x006502E3`, and
+`0x006504CE–0x00650550`.
+
+### 6.6 Adjacency-group construction boundary (NT18)
+
+A literal displacement search of the native export for +0x398/+0x39C within 0064xxxx–0065xxxx
+finds only constructor zeroing (`0x00650458/5E`), destructor address-taking (`0x00650583`), and
+PlacePoles reads/address-taking (`0x00651588/8E/98/D8`, `0x0065182B/31/37`). The final call is
+the range-erase helper §6.5, not an append. No such access occurs in UpdateOnZoneChange. This proves
+no direct producer in these traced bodies; it does not exclude an alias, inherited/external writer
+or a different displacement from an adjusted base. Construction and runtime reachability of nonempty
++0x398 groups remain NT18. Do not attribute their construction to zone update.
+
 ## 7. Resources
 
 The once-only StaticInit at `0x00626990` sets latch `0x00B452A8` before registering callback
@@ -657,7 +754,7 @@ PlaceNeighborConnections (`0x00624610`) consumes its 24-byte records in vector o
 0..12; for a noncurrent type included in the tool mask with nonzero connection-kind mapping, call regional
 manager slot 7 to remove that kind at record x,z. Then slot 6 creates record kind at x,z with endpoint flag.
 Record x,z are at +8,+12, kind at +16, flag byte at +20. All removals precede creation per record.
-Type mappings and full Attempt derivation remain NT23; wrapper pairing is specified in §2.
+The type-5 mapping and full Attempt derivation are in §5.4; wrapper pairing is specified in §2.
 
 Implementation boundary: defaults, wrapper pairing, position, highlight, text, resources/lifecycle and
 undo are now public rules. Entire Determine/PlacePoles, regional Attempt and zone repair remain incomplete;
