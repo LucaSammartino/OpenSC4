@@ -10,9 +10,11 @@
 - Done: added signed-byte CRT primitive boundary/errors; counted ResolvePath, entry default/copy/name-only drop, signed SplitDirectory with partial writes, retained find cache/retry/finish.
 - Done: removed duplicate paths directory owner/comparator; paths reexports authoritative rz_files owner. Primitive-only test host bridges it. Added PA4-PA8 independent vectors.
 - Tests: baseline all finished compilation in 22m35s and is running workspace tests; quick still compiling. fmt check passed for all 7 touched Rust files (absolute paths required).
-- Next: resolve compile/fmt findings, final stable full gate, report exact scope and enqueue if green.
+- Next: final-gate.py runs fmt/quick/all sequentially on stable source; inspect build-runs/final-gate-result.json and native logs, report exact scope and enqueue only if green.
 - New questions PA9/PA10: negative signed capacity follows literal signed-loop no-output rule; zero-part SplitDirectoryPath fills both safe empty outputs. PA1/PA2/PA3 retained.
 - Done: nullable next/finish boundaries added; conformance runner propagates unsupported CRT domain errors and accepts signed split count; literal JSON zero/one-byte/root vectors added.
+- Baseline caveat: long cold build saw updated runtime JSON with its old binary (zero-capacity vector failure); do not claim a clean baseline. Earlier overlapping all logs are not authoritative final evidence.
+- Fixed remaining old high-bit/ASCII expectation in part-fix test. Stable sequential driver owns final evidence; no source edits during its gate.
 - Entry list remains the authoritative owner's passive payload; standalone lifecycle adds no native getters/COM or owner lifetime extension.
 - PA1/PA2/PA3 remain open; preserve selected normalization rule.
 - Correction reservation logical round 2/3; this task permits one round only.
