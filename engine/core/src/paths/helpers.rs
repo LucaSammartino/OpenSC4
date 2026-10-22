@@ -18,8 +18,7 @@ pub const fn is_letter(c: u8) -> bool {
 
 pub fn is_full_path(text: &[u8]) -> bool {
     let text = c_text(text);
-    let rooted = text.starts_with(b"\\\\")
-        || (text.len() >= 3 && is_letter(text[0]) && text[1..3] == *b":\\");
+    let rooted = text.starts_with(b"\\\\") || (text.len() >= 3 && is_letter(text[0]) && text[1..3] == *b":\\");
     rooted && !text.windows(2).any(|p| is_path_separator(p[0]) && p[1] == b'.')
 }
 
@@ -80,11 +79,7 @@ pub trait CurrentDirectory {
     fn drive_directory(&mut self, drive: u8) -> Option<Vec<u8>>;
 }
 
-pub fn fullpath_current(
-    rel: Option<&[u8]>,
-    max: usize,
-    provider: &mut impl CurrentDirectory,
-) -> Option<Vec<u8>> {
+pub fn fullpath_current(rel: Option<&[u8]>, max: usize, provider: &mut impl CurrentDirectory) -> Option<Vec<u8>> {
     let mut rel = c_text(rel?);
     if rel.len() >= 2 && is_path_separator(rel[0]) && is_path_separator(rel[1]) {
         return fullpath_with_base(Some(&rel[2..]), max, b"\\\\");
@@ -113,6 +108,19 @@ pub fn copy_c_result(out: &mut [u8], text: Option<&[u8]>) -> bool {
     out[..text.len()].copy_from_slice(text);
     out[text.len()] = 0;
     true
+}
+
+/// The non-null-output form, with both the caller's `max` and the physical slice bound enforced.
+pub fn fullpath_into(out: &mut [u8], rel: Option<&[u8]>, max: usize, base: &[u8]) -> bool {
+    let text = fullpath_with_base(rel, max, base);
+    copy_c_result(out, text.as_deref())
+}
+
+/// The null-output form: a fresh allocation with the terminating NUL, subject to `max` (§1.2).
+pub fn fullpath_alloc(rel: Option<&[u8]>, max: usize, base: &[u8]) -> Option<Vec<u8>> {
+    let mut text = fullpath_with_base(rel, max, base)?;
+    text.push(0);
+    Some(text)
 }
 
 pub fn resolve_path(
@@ -165,6 +173,75 @@ pub fn splitpath(path: &[u8]) -> PathParts {
     }
 }
 
+/// Optional native output buffers (§1.5). The two-byte drive needs three bytes including NUL;
+/// the cRZString overload's four-byte argument slot can supply its first three bytes here.
+pub fn splitpath_into(
+    path: &[u8],
+    drive: Option<&mut [u8; 3]>,
+    directory: Option<&mut [u8; 256]>,
+    name: Option<&mut [u8; 256]>,
+    extension: Option<&mut [u8; 256]>,
+) {
+    let parts = splitpath(path);
+    if let Some(out) = drive {
+        copy_c_result(out, Some(&parts.drive));
+    }
+    if let Some(out) = directory {
+        copy_c_result(out, Some(&parts.directory));
+    }
+    if let Some(out) = name {
+        copy_c_result(out, Some(&parts.name));
+    }
+    if let Some(out) = extension {
+        copy_c_result(out, Some(&parts.extension));
+    }
+}
+
+pub fn fix_drive_string(drive: &mut Vec<u8>) {
+    if !drive.is_empty() {
+        drive.resize(2, 0);
+        if !is_letter(drive[0]) {
+            drive[0] = b'C';
+        }
+        drive[1] = b':';
+    }
+}
+
+pub fn fix_directory_string(directory: &mut Vec<u8>) {
+    if !directory.is_empty() {
+        if !is_path_separator(directory[0]) {
+            directory.insert(0, b'\\');
+        }
+        if !is_path_separator(*directory.last().unwrap()) {
+            directory.push(b'\\');
+        }
+    }
+}
+
+pub fn fix_extension_string(extension: &mut Vec<u8>) {
+    if !extension.is_empty() && extension[0] != b'.' {
+        extension.insert(0, b'.');
+    }
+}
+
+/// C-style count/output wrapper. Failure sets count to zero and leaves all parts unchanged (§1.6).
+/// Caller storage must cover the requested count; PA6's zero-count choice also fails here.
+pub fn split_directory_into(path: &[u8], parts: &mut [[u8; 260]], count: &mut usize) -> bool {
+    if *count > parts.len() {
+        *count = 0;
+        return false;
+    }
+    let Some(texts) = split_directory(path, *count) else {
+        *count = 0;
+        return false;
+    };
+    *count = texts.len();
+    for (out, text) in parts.iter_mut().zip(texts) {
+        copy_c_result(out, Some(&text));
+    }
+    true
+}
+
 /// Reverse component order, with the final available part containing all remaining prefix (§1.6).
 /// PA6: a zero-capacity or overlong remainder is rejected without exposing unwritten storage.
 pub fn split_directory(path: &[u8], capacity: usize) -> Option<Vec<Vec<u8>>> {
@@ -175,9 +252,17 @@ pub fn split_directory(path: &[u8], capacity: usize) -> Option<Vec<Vec<u8>>> {
     let mut end = path.len();
     let mut parts = Vec::new();
     loop {
-        let content_end = if end > 0 && is_path_separator(path[end - 1]) { end - 1 } else { end };
+        let content_end = if end > 0 && is_path_separator(path[end - 1]) {
+            end - 1
+        } else {
+            end
+        };
         let separator = path[..content_end].iter().rposition(|&c| is_path_separator(c));
-        let start = if parts.len() + 1 == capacity { 0 } else { separator.map_or(0, |p| p + 1) };
+        let start = if parts.len() + 1 == capacity {
+            0
+        } else {
+            separator.map_or(0, |p| p + 1)
+        };
         if content_end - start >= 255 {
             return None;
         }
@@ -198,7 +283,9 @@ pub fn split_directory(path: &[u8], capacity: usize) -> Option<Vec<Vec<u8>>> {
 }
 
 pub fn split_directory_path(path: &[u8], last: &mut Vec<u8>, parent: &mut Vec<u8>) -> bool {
-    let Some(mut parts) = split_directory(path, 2) else { return false };
+    let Some(mut parts) = split_directory(path, 2) else {
+        return false;
+    };
     *last = parts.remove(0);
     // §3.9 [choice]: missing parent is empty instead of uninitialised stack text.
     *parent = parts.pop().unwrap_or_default();

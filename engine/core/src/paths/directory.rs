@@ -37,7 +37,12 @@ pub struct FindSearch<'a, P: DirectoryProvider> {
 impl<'a, P: DirectoryProvider> FindSearch<'a, P> {
     pub fn first(provider: &'a mut P, pattern: &[u8]) -> Option<Self> {
         let (handle, current) = provider.find_first(pattern).ok()?;
-        Some(Self { provider, handle, pattern: pattern.to_vec(), current })
+        Some(Self {
+            provider,
+            handle,
+            pattern: pattern.to_vec(),
+            current,
+        })
     }
 
     pub fn current(&self) -> &FindData {
@@ -104,8 +109,11 @@ impl RzDirectory {
         provider: &mut impl DirectoryProvider,
     ) -> Self {
         let mut result = Self {
-            path: path.to_vec(), filter: b"*".to_vec(), entries: Vec::new(),
-            include_parent, include_self,
+            path: path.to_vec(),
+            filter: b"*".to_vec(),
+            entries: Vec::new(),
+            include_parent,
+            include_self,
         };
         end_with_separator(&mut result.path);
         if read {
@@ -114,9 +122,15 @@ impl RzDirectory {
         result
     }
 
-    pub fn path(&self) -> &[u8] { &self.path }
-    pub fn filter(&self) -> &[u8] { &self.filter }
-    pub fn entry_count(&self) -> usize { self.entries.len() }
+    pub fn path(&self) -> &[u8] {
+        &self.path
+    }
+    pub fn filter(&self) -> &[u8] {
+        &self.filter
+    }
+    pub fn entry_count(&self) -> usize {
+        self.entries.len()
+    }
 
     pub fn change_directory(&mut self, path: &[u8], read: bool, provider: &mut impl DirectoryProvider) -> bool {
         self.path = path.to_vec();
@@ -128,14 +142,22 @@ impl RzDirectory {
     }
 
     pub fn set_new_directory_entry_filter(&mut self, filter: &[u8], read: bool, provider: &mut impl DirectoryProvider) {
-        self.filter = if filter.is_empty() { b"*".to_vec() } else { filter.to_vec() };
+        self.filter = if filter.is_empty() {
+            b"*".to_vec()
+        } else {
+            filter.to_vec()
+        };
         if read {
             self.read_directory_entries(provider);
         }
     }
 
     pub fn get_nth_entry(&self, n: usize) -> Option<RzDirectoryEntry<'_>> {
-        self.entries.get(n).map(|e| RzDirectoryEntry { owner: self, name: &e.name, kind: e.kind })
+        self.entries.get(n).map(|e| RzDirectoryEntry {
+            owner: self,
+            name: &e.name,
+            kind: e.kind,
+        })
     }
 
     pub fn alphabetize_entry_list(&mut self, mut cmp: impl FnMut(&[u8], &[u8]) -> Ordering) {
@@ -151,7 +173,9 @@ impl RzDirectory {
 
     pub fn read_directory_entries(&mut self, provider: &mut impl DirectoryProvider) -> bool {
         self.entries.clear();
-        let Some(mut search) = FindSearch::first(provider, &self.pattern()) else { return false };
+        let Some(mut search) = FindSearch::first(provider, &self.pattern()) else {
+            return false;
+        };
         let mut seen_self = false;
         let mut seen_parent = false;
         loop {
@@ -162,52 +186,101 @@ impl RzDirectory {
             } else if data.directory && data.name == b".." {
                 seen_parent = true;
                 self.include_parent
-            } else { true };
+            } else {
+                true
+            };
             if keep {
-                self.entries.push(EntryState { name: data.name.clone(), kind: if data.directory { 4 } else { 8 } });
+                self.entries.push(EntryState {
+                    name: data.name.clone(),
+                    kind: if data.directory { 4 } else { 8 },
+                });
             }
-            if !search.advance() { break; }
+            if !search.advance() {
+                break;
+            }
         }
         if self.filter == b"*" {
             if self.include_parent && !seen_parent && !self.entries.iter().any(|e| e.name == b"..") {
-                self.entries.insert(0, EntryState { name: b"..".to_vec(), kind: 4 });
+                self.entries.insert(
+                    0,
+                    EntryState {
+                        name: b"..".to_vec(),
+                        kind: 4,
+                    },
+                );
             }
             if self.include_self && !seen_self && !self.entries.iter().any(|e| e.name == b".") {
-                self.entries.insert(0, EntryState { name: b".".to_vec(), kind: 4 });
+                self.entries.insert(
+                    0,
+                    EntryState {
+                        name: b".".to_vec(),
+                        kind: 4,
+                    },
+                );
             }
         }
         true
     }
 
     pub fn read_directory_specific_entries_into_string_list(
-        &self, list: &mut Vec<Vec<u8>>, flags: u32, provider: &mut impl DirectoryProvider,
+        &self,
+        list: &mut Vec<Vec<u8>>,
+        flags: u32,
+        provider: &mut impl DirectoryProvider,
     ) -> bool {
-        let Some(mut search) = FindSearch::first(provider, &self.pattern()) else { return false };
+        let Some(mut search) = FindSearch::first(provider, &self.pattern()) else {
+            return false;
+        };
         let mut seen_self = false;
         let mut seen_parent = false;
         loop {
             let data = search.current();
             let keep = if data.directory {
-                let dot = if data.name == b"." { seen_self = true; flags & 1 != 0 }
-                    else if data.name == b".." { seen_parent = true; flags & 2 != 0 }
-                    else { true };
+                let dot = if data.name == b"." {
+                    seen_self = true;
+                    flags & 1 != 0
+                } else if data.name == b".." {
+                    seen_parent = true;
+                    flags & 2 != 0
+                } else {
+                    true
+                };
                 flags & 4 != 0 && dot
-            } else { flags & 8 != 0 };
-            if keep { list.push(data.name.clone()); }
-            if !search.advance() { break; }
+            } else {
+                flags & 8 != 0
+            };
+            if keep {
+                list.push(data.name.clone());
+            }
+            if !search.advance() {
+                break;
+            }
         }
         if self.filter == b"*" {
-            if flags & 2 != 0 && !seen_parent { list.insert(0, b"..".to_vec()); }
-            if flags & 1 != 0 && !seen_self { list.insert(0, b".".to_vec()); }
+            if flags & 2 != 0 && !seen_parent {
+                list.insert(0, b"..".to_vec());
+            }
+            if flags & 1 != 0 && !seen_self {
+                list.insert(0, b".".to_vec());
+            }
         }
         true
     }
 
-    pub fn read_directory_file_entries_into_string_list(&self, list: &mut Vec<Vec<u8>>, provider: &mut impl DirectoryProvider) -> bool {
+    pub fn read_directory_file_entries_into_string_list(
+        &self,
+        list: &mut Vec<Vec<u8>>,
+        provider: &mut impl DirectoryProvider,
+    ) -> bool {
         self.read_directory_specific_entries_into_string_list(list, 8, provider)
     }
 
-    pub fn read_directory_directory_entries_into_string_list(&self, list: &mut Vec<Vec<u8>>, dots: u32, provider: &mut impl DirectoryProvider) -> bool {
+    pub fn read_directory_directory_entries_into_string_list(
+        &self,
+        list: &mut Vec<Vec<u8>>,
+        dots: u32,
+        provider: &mut impl DirectoryProvider,
+    ) -> bool {
         self.read_directory_specific_entries_into_string_list(list, (dots & 3) | 4, provider)
     }
 }

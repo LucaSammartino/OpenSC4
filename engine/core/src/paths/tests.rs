@@ -14,12 +14,18 @@ struct Cwd {
 
 impl Cwd {
     fn sc4() -> Self {
-        Self { drive: Some(b'C'), directories: [(b'C', br"C:\Games\SC4".to_vec()), (b'D', br"D:\Data".to_vec())].into(), calls: Vec::new() }
+        Self {
+            drive: Some(b'C'),
+            directories: [(b'C', br"C:\Games\SC4".to_vec()), (b'D', br"D:\Data".to_vec())].into(),
+            calls: Vec::new(),
+        }
     }
 }
 
 impl CurrentDirectory for Cwd {
-    fn current_drive(&mut self) -> Option<u8> { self.drive }
+    fn current_drive(&mut self) -> Option<u8> {
+        self.drive
+    }
     fn drive_directory(&mut self, drive: u8) -> Option<Vec<u8>> {
         self.calls.push(drive);
         self.directories.get(&drive).cloned()
@@ -31,7 +37,18 @@ fn full_path_classification_is_literal_and_byte_based() {
     for path in [br"C:\a".as_slice(), br"\\s\x", br"z:\", br"C:\a\\b"] {
         assert!(is_full_path(path), "{path:?}");
     }
-    for path in [br"C:/a".as_slice(), br"\x", b"C:", br"1:\x", br"C:\a/.b", br"C:\a\.hidden\f", b"", b"C", b"\\", b"\xE9:\\x"] {
+    for path in [
+        br"C:/a".as_slice(),
+        br"\x",
+        b"C:",
+        br"1:\x",
+        br"C:\a/.b",
+        br"C:\a\.hidden\f",
+        b"",
+        b"C",
+        b"\\",
+        b"\xE9:\\x",
+    ] {
         assert!(!is_full_path(path), "{path:?}");
     }
     assert!(is_full_path(b"C:\\x\0/.bad"));
@@ -61,7 +78,11 @@ fn explicit_base_normalisation_vectors() {
         (br"C:\other", br"C:\base", br"C:\base\C:\other"), // explicit base always joins.
     ];
     for &(rel, base, expected) in cases {
-        assert_eq!(fullpath_with_base(Some(rel), 520, base).as_deref(), Some(expected), "{rel:?}, {base:?}");
+        assert_eq!(
+            fullpath_with_base(Some(rel), 520, base).as_deref(),
+            Some(expected),
+            "{rel:?}, {base:?}"
+        );
     }
     for path in [br"C:\..".as_slice(), br"a\..", br"\..", br"C:\a\..\..\x"] {
         assert!(fullpath_with_base(Some(path), 520, b"").is_none(), "{path:?}");
@@ -79,16 +100,22 @@ fn current_directory_drive_root_unc_and_fallback_vectors() {
         (br"//srv/share", br"\\srv/share"),
         (br"C:/", br"C:\\"),
         (br"d:\x", br"D:\x"),
-        (b"C:", br"C:\Games\SC4"),
+        (b"C:", br"C:\Games\SC4\"),
     ] {
         assert_eq!(fullpath_current(Some(input), 520, &mut cwd).as_deref(), Some(expected));
     }
     assert_eq!(cwd.calls, b"DC");
     cwd.drive = None;
-    assert_eq!(fullpath_current(Some(b"x"), 520, &mut cwd).as_deref(), Some(br"C:\Games\SC4\x".as_slice()));
+    assert_eq!(
+        fullpath_current(Some(b"x"), 520, &mut cwd).as_deref(),
+        Some(br"C:\Games\SC4\x".as_slice())
+    );
     cwd.directories.clear();
     assert!(fullpath_current(Some(b"x"), 520, &mut cwd).is_none());
-    assert_eq!(fullpath_current(Some(br"\x"), 520, &mut cwd).as_deref(), Some(br"C:\x".as_slice()));
+    assert_eq!(
+        fullpath_current(Some(br"\x"), 520, &mut cwd).as_deref(),
+        Some(br"C:\x".as_slice())
+    );
 }
 
 #[test]
@@ -121,10 +148,15 @@ fn resolve_preserves_failure_and_bypasses_limits_for_already_full_text() {
     long.extend(vec![b'x'; 700]);
     assert!(resolve_path(&mut out, &long, None, &mut cwd));
     assert_eq!(out, long);
-    assert!(cwd.calls.is_empty() || cwd.calls == b"C");
+    assert_eq!(cwd.calls, b"C"); // only the failed relative resolution asked for a drive directory.
     assert!(resolve_path(&mut out, b"relative", Some(b""), &mut cwd));
     assert_eq!(out, b"relative");
-    assert!(resolve_path(&mut out, br"\\srv\share\f.txt", Some(b"ignored"), &mut cwd));
+    assert!(resolve_path(
+        &mut out,
+        br"\\srv\share\f.txt",
+        Some(b"ignored"),
+        &mut cwd
+    ));
     assert_eq!(out, br"\\srv\share\f.txt");
 }
 
@@ -162,7 +194,10 @@ fn splitpath_drive_last_dot_separator_and_truncation() {
 #[test]
 fn reverse_split_and_parent_failure_are_explicit() {
     for input in [br"C:\a\b\".as_slice(), br"C:\a\b"] {
-        assert_eq!(split_directory(input, 2).unwrap(), [br"b\".to_vec(), br"C:\a\".to_vec()]);
+        assert_eq!(
+            split_directory(input, 2).unwrap(),
+            [br"b\".to_vec(), br"C:\a\".to_vec()]
+        );
     }
     assert_eq!(split_directory(br"abc\", 2).unwrap(), [br"abc\".to_vec()]);
     assert_eq!(split_directory(b"abc", 2).unwrap(), [br"ab\".to_vec()]);
@@ -177,6 +212,70 @@ fn reverse_split_and_parent_failure_are_explicit() {
     assert!(split_directory_path(b"abc", &mut last, &mut parent));
     assert_eq!(last, br"ab\");
     assert!(parent.is_empty());
+}
+
+#[test]
+fn c_output_allocations_optional_parts_and_count_contract() {
+    let mut out = [0xCC; 8];
+    assert!(!fullpath_into(&mut out, Some(b"abcdefg"), 7, b""));
+    assert_eq!(out, [0xCC; 8]);
+    assert!(fullpath_into(&mut out, Some(b"abcdefg"), 8, b""));
+    assert_eq!(&out, b"abcdefg\0");
+    let mut a = fullpath_alloc(Some(b"abc"), 4, b"").unwrap();
+    let b = fullpath_alloc(Some(b"abc"), 4, b"").unwrap();
+    a[0] = b'X';
+    assert_eq!(b, b"abc\0");
+    let mut drive = [0xCC; 3];
+    let mut name = [0xCC; 256];
+    splitpath_into(b"x:dir/a.dat", Some(&mut drive), None, Some(&mut name), None);
+    assert_eq!(&drive, b"x:\0");
+    assert_eq!(&name[..3], &[b'a', 0, 0xCC]);
+    let mut parts = [[0xCC; 260]; 3];
+    let mut count = 2;
+    assert!(split_directory_into(br"C:\a\b", &mut parts, &mut count));
+    assert_eq!(count, 2);
+    assert_eq!(&parts[0][..3], b"b\\\0");
+    assert_eq!(&parts[1][..6], b"C:\\a\\\0");
+    assert_eq!(parts[2], [0xCC; 260]);
+    let old = parts;
+    assert!(!split_directory_into(b"", &mut parts, &mut count));
+    assert_eq!(count, 0);
+    assert_eq!(parts, old);
+}
+
+#[test]
+fn published_part_fixes_preserve_case_and_separator_spelling() {
+    for (input, expected) in [
+        (b"".as_slice(), b"".as_slice()),
+        (b"x", b"x:"),
+        (b"1:abc", b"C:"),
+        (b"\xE9", b"C:"),
+        (b"zXYZ", b"z:"),
+    ] {
+        let mut text = input.to_vec();
+        fix_drive_string(&mut text);
+        assert_eq!(text, expected);
+    }
+    for (input, expected) in [
+        (b"".as_slice(), b"".as_slice()),
+        (b"foo", br"\foo\"),
+        (b"/foo/", b"/foo/"),
+        (b"foo/", br"\foo/"),
+    ] {
+        let mut text = input.to_vec();
+        fix_directory_string(&mut text);
+        assert_eq!(text, expected);
+    }
+    for (input, expected) in [
+        (b"".as_slice(), b"".as_slice()),
+        (b"dat", b".dat"),
+        (b".UP", b".UP"),
+        (b"..", b".."),
+    ] {
+        let mut text = input.to_vec();
+        fix_extension_string(&mut text);
+        assert_eq!(text, expected);
+    }
 }
 
 #[test]
@@ -241,7 +340,16 @@ struct Finder {
 
 impl Finder {
     fn put(&mut self, pattern: &[u8], names: &[(&[u8], bool)]) {
-        self.matches.insert(pattern.to_vec(), names.iter().map(|(name, directory)| FindData { name: name.to_vec(), directory: *directory }).collect());
+        self.matches.insert(
+            pattern.to_vec(),
+            names
+                .iter()
+                .map(|(name, directory)| FindData {
+                    name: name.to_vec(),
+                    directory: *directory,
+                })
+                .collect(),
+        );
     }
 }
 
@@ -254,7 +362,9 @@ impl DirectoryProvider for Finder {
         self.active.insert(self.next_handle, names);
         Ok((self.next_handle, first))
     }
-    fn find_next(&mut self, handle: OsHandle) -> Option<FindData> { self.active.get_mut(&handle)?.pop_front() }
+    fn find_next(&mut self, handle: OsHandle) -> Option<FindData> {
+        self.active.get_mut(&handle)?.pop_front()
+    }
     fn find_finish(&mut self, handle: OsHandle) {
         assert!(self.active.remove(&handle).is_some(), "double-close or unowned handle");
         self.closed.push(handle);
@@ -262,20 +372,34 @@ impl DirectoryProvider for Finder {
 }
 
 fn entries(directory: &RzDirectory) -> Vec<(Vec<u8>, u32)> {
-    (0..directory.entry_count()).map(|i| {
-        let e = directory.get_nth_entry(i).unwrap();
-        assert!(std::ptr::eq(e.owner, directory));
-        (e.name.to_vec(), e.kind)
-    }).collect()
+    (0..directory.entry_count())
+        .map(|i| {
+            let e = directory.get_nth_entry(i).unwrap();
+            assert!(std::ptr::eq(e.owner, directory));
+            (e.name.to_vec(), e.kind)
+        })
+        .collect()
 }
 
 #[test]
 fn entry_state_preserves_system_order_and_owner_identity() {
     let mut provider = Finder::default();
-    provider.put(br"C:\P\*", &[(b".", true), (b"..", true), (b"b.dat", false), (b"a.dat", false), (b"sub", true)]);
+    provider.put(
+        br"C:\P\*",
+        &[
+            (b".", true),
+            (b"..", true),
+            (b"b.dat", false),
+            (b"a.dat", false),
+            (b"sub", true),
+        ],
+    );
     let mut directory = RzDirectory::new(br"C:\P", true, false, false, &mut provider);
     assert_eq!(directory.path(), br"C:\P\");
-    assert_eq!(entries(&directory), [(b"b.dat".to_vec(), 8), (b"a.dat".to_vec(), 8), (b"sub".to_vec(), 4)]);
+    assert_eq!(
+        entries(&directory),
+        [(b"b.dat".to_vec(), 8), (b"a.dat".to_vec(), 8), (b"sub".to_vec(), 4)]
+    );
     assert!(directory.get_nth_entry(3).is_none());
     directory.alphabetize_entry_list(|a, b| a.cmp(b));
     assert_eq!(directory.get_nth_entry(0).unwrap().name, b"a.dat");
@@ -292,7 +416,10 @@ fn dot_synthesis_is_filter_specific_and_never_turns_no_match_into_success() {
     provider.put(br"C:\*", &[(b"x", false)]);
     provider.put(br"C:\*.dat", &[(b"x.dat", false)]);
     let mut directory = RzDirectory::new(br"C:\", true, true, true, &mut provider);
-    assert_eq!(entries(&directory), [(b".".to_vec(), 4), (b"..".to_vec(), 4), (b"x".to_vec(), 8)]);
+    assert_eq!(
+        entries(&directory),
+        [(b".".to_vec(), 4), (b"..".to_vec(), 4), (b"x".to_vec(), 8)]
+    );
     directory.set_new_directory_entry_filter(b"*.dat", true, &mut provider);
     assert_eq!(entries(&directory), [(b"x.dat".to_vec(), 8)]);
     directory.set_new_directory_entry_filter(b"missing", true, &mut provider);
@@ -316,7 +443,16 @@ fn name_lists_append_and_leave_entry_list_unchanged() {
     assert!(directory.read_directory_file_entries_into_string_list(&mut list, &mut provider));
     assert_eq!(list, [b"existing".to_vec(), b"a".to_vec()]);
     assert!(directory.read_directory_directory_entries_into_string_list(&mut list, 3, &mut provider));
-    assert_eq!(list, [b".".to_vec(), b"..".to_vec(), b"existing".to_vec(), b"a".to_vec(), b"sub".to_vec()]);
+    assert_eq!(
+        list,
+        [
+            b".".to_vec(),
+            b"..".to_vec(),
+            b"existing".to_vec(),
+            b"a".to_vec(),
+            b"sub".to_vec()
+        ]
+    );
     assert_eq!(entries(&directory), before);
     let missing = RzDirectory::new(b"missing", false, true, true, &mut provider);
     let old = list.clone();

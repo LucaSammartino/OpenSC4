@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "paths_split_boundaries",
+  "spec": ["paths.md §1.5-1.6", "paths.md §8.3,8.5"],
+  "description": "Independent drive/empty/last-dot/mixed-separator cases and the published single-component byte-loss quirk.",
+  "steps": [
+    {"op":"path_split","input":"C:\\x\\advisors\\Taxi.lua","expect":["C:","\\x\\advisors\\","Taxi",".lua"]},
+    {"op":"path_split","input":".lua","expect":["","","",".lua"]},
+    {"op":"path_split","input":"a.b.c","expect":["","","a.b",".c"]},
+    {"op":"path_split","input":"C:foo.txt","expect":["C:","","foo",".txt"]},
+    {"op":"path_split","input":"a\\b.c\\d","expect":["","a\\b.c\\","d",""]},
+    {"op":"path_split","input":"1:x.","expect":["1:","","x","."]},
+    {"op":"path_split","input":"a/b.C","expect":["","a/","b",".C"]},
+    {"op":"path_split","input":"","expect":["","","",""]},
+    {"op":"path_split_directory","input":"C:\\a\\b\\","expect":["b\\","C:\\a\\"]},
+    {"op":"path_split_directory","input":"C:\\a\\b","expect":["b\\","C:\\a\\"]},
+    {"op":"path_split_directory","input":"abc\\","expect":["abc\\"]},
+    {"op":"path_split_directory","input":"abc","expect":["ab\\"]},
+    {"op":"path_split_directory","input":"","expect":null}
+  ]
+}

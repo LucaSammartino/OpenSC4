@@ -1267,6 +1267,7 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
             .or_else(|| crate::network_geometry::exec(host, other, op))
             .or_else(|| crate::ui_windows::exec(host, other, op))
             .or_else(|| crate::dates::exec(host, other, op))
+            .or_else(|| crate::paths::exec(host, other, op))
             .unwrap_or_else(|| Err(format!("unknown op '{other}'"))),
 }}
 

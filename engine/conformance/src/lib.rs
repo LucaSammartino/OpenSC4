@@ -72,3 +72,4 @@ pub(crate) mod zones;
 pub(crate) mod dates;
 
 pub use runner::{run_vector_file, run_vector_text};
+pub(crate) mod paths;

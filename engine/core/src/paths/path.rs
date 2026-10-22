@@ -1,6 +1,8 @@
 //! cRZPath's five owned strings and all published non-virtual methods (paths.md §2).
 
-use super::helpers::{is_letter, is_path_separator, resolve_path, splitpath, CurrentDirectory, PathParts};
+use super::helpers::{
+    fix_directory_string, fix_drive_string, fix_extension_string, resolve_path, splitpath, CurrentDirectory, PathParts,
+};
 
 #[derive(Debug, Default)]
 pub struct RzPath {
@@ -22,27 +24,13 @@ impl RzPath {
     }
 
     pub fn get_drive(&mut self) -> &[u8] {
-        if !self.parts.drive.is_empty() {
-            self.parts.drive.resize(2, 0);
-            if !is_letter(self.parts.drive[0]) {
-                self.parts.drive[0] = b'C';
-            }
-            self.parts.drive[1] = b':';
-        }
+        fix_drive_string(&mut self.parts.drive);
         &self.parts.drive
     }
 
     pub fn get_directory(&mut self) -> &[u8] {
-        let dir = &mut self.parts.directory;
-        if !dir.is_empty() {
-            if !is_path_separator(dir[0]) {
-                dir.insert(0, b'\\');
-            }
-            if !is_path_separator(*dir.last().unwrap()) {
-                dir.push(b'\\');
-            }
-        }
-        dir
+        fix_directory_string(&mut self.parts.directory);
+        &self.parts.directory
     }
 
     pub fn get_file_name(&self) -> &[u8] {
@@ -57,9 +45,7 @@ impl RzPath {
     }
 
     pub fn get_extension(&mut self) -> &[u8] {
-        if !self.parts.extension.is_empty() && self.parts.extension[0] != b'.' {
-            self.parts.extension.insert(0, b'.');
-        }
+        fix_extension_string(&mut self.parts.extension);
         &self.parts.extension
     }
 
