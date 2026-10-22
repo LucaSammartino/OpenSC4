@@ -11,7 +11,9 @@
 - Focused quick PASS: cargo3453/0 (core2925+capi528), dependents compile, C++140/140; tree changed during quick, final stable all required. Both new count tests passed; absolute-path fmt PASS2.
 - Done1ee5d9b6: production raw-count mapping and comparisons committed. Stable all PASS at this code: cargo4949/0, clippy0, CMake2/2, ctest68/68(84.8s), no tree-changed warning; fmt2 PASS.
 - Immutable DLL/PDB: build-runs/dlls/vv4-r3-production/FreeCity4.dll/.pdb; DLL SHA256 D50E20D91AFB458388A11A03910849B22C439837C149A560753791F4D5016D28.
-- Outstanding: vv4-r3-house40-on-1ee5d9-1930, exact house40 equality validated40keys before atomic submit, variant_shadow1/refaudit1/2032/full-save script. Wait helper running; do not resubmit or discard completed verdict.
+- ON vv4-r3-house40-on-1ee5d9-1930 CLEAN2032-01-01/ref0,189.703s/11.41days/s; native350/350 plus Rust setup70/70; all28 previous scalar differences resolved by production mapping; clones native71/production70; refusals0/failures0/fallback0/resync0; actual core count196/set70/write70. Full save11156ms/ok1, script3/3, PostSystemServiceShutdown reached.
+- Preserved that full save from the logged slot1 city path (mtime19:31:25,1003482bytes) as main build-runs/fixtures/vv4-r3-house40-on-1ee5d9-2028.sc4 for supported fixture_city reload. Game data only, no Documents or game executable access, no game file committed.
+- Outstanding vv4-r3-house40-off-1ee5d9-1935 (shadow0), same immutable DLL/script/exact house40; wait helper running. Do not resubmit or discard existing completed verdict.
 - Next: inspect ON result/counts/save/shutdown, preserve saved .sc4 via supported fixture_city route, then OFF and supported ON/OFF reloads. Request/wait helper build-runs/vv4-r3-run.py checks exact list and uses no qwait.
 - Exact house40 from task excludes terrain/dispatch/effects and includes all default keys; validate equality before submission.
 - Original profile cap exhausted3/3; use corrected house40 only. Unique labels, preserve completed verdict, no qwait.
