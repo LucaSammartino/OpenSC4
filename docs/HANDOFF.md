@@ -6,6 +6,8 @@ lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
 ## 0. Current state (2026-10-21, run4 open-ended)
+**Coordinator parked core-construction-contractfix4:** family3/3:parent2+this1. Known OP13-OP16 fixes complete;OP17 and crane/prop/crew hosts remain. No fourth round.
+
 
 **Run4 checkpoint200 (recorded at201):** 201 rounds, 36 trains landed; coverage45.4/34.5/16.4/17.8, baseline delta+8.6/+6.2/+4.3/+1.9 points; 18 lanes parked. Target10/max3glue; reviewed guarded refills continue under unchanged caps. Nextcheckpoint225.
 
