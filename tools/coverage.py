@@ -175,7 +175,7 @@ def folded_owner(note):
 
 class Attribution:
     def __init__(self, export, names_tsv, vtables_tsv, interfaces_tsv, libs_tsv, ranges_tsv, text_lo, text_hi,
-                 noncode_refs_tsv=None):
+                 noncode_refs_tsv):
         self.funcs = {}  # va -> size
         self.gname = {}  # va -> Ghidra name (non-default)
         self.thunk = set()
