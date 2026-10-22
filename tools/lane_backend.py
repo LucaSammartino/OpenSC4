@@ -37,9 +37,73 @@ def render(args, provider, manifest):
 
 def codex_environment():
     # Account auth remains in its original credential store. Never copy/print auth.json or accept API fallback.
-    return {k: v for k, v in os.environ.items()
+    env = {k: v for k, v in os.environ.items()
             if k not in ('OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_API_BASE')
             and (not k.startswith('CODEX_') or k == 'CODEX_HOME')}
+    count = int(env.get('GIT_CONFIG_COUNT', '0'))
+    for key, value in (('gc.auto', '0'), ('maintenance.auto', 'false')):
+        env[f'GIT_CONFIG_KEY_{count}'] = key
+        env[f'GIT_CONFIG_VALUE_{count}'] = value
+        count += 1
+    env['GIT_CONFIG_COUNT'] = str(count)
+    return env
+
+
+def git_output(m, *args):
+    return subprocess.check_output(['git', '-C', m['worktree'], *args],
+        text=True, encoding='utf-8', stderr=subprocess.PIPE, creationflags=NOWIN).strip()
+
+
+def prepare_codex_git(m):
+    """Commit on a detached HEAD; only the supervisor publishes the lane's branch."""
+    if not re.fullmatch(r'[a-z0-9][a-z0-9_-]*', m['lane']):
+        raise ValueError('Invalid Git lane name')
+    ref = 'refs/heads/' + m['lane']
+    if git_output(m, 'symbolic-ref', '-q', 'HEAD') != ref:
+        raise ValueError('Codex worktree must start on its own lane branch')
+    common = Path(git_output(m, 'rev-parse', '--path-format=absolute', '--git-common-dir')).resolve()
+    metadata = Path(git_output(m, 'rev-parse', '--absolute-git-dir')).resolve()
+    if common != (Path(m['main'])/'.git').resolve() or not metadata.is_relative_to(common/'worktrees'):
+        raise ValueError('Codex requires a linked lane worktree in the registered repository')
+    base = git_output(m, 'rev-parse', 'HEAD')
+    m.update(git_ref=ref, git_base=base, git_common=str(common), git_dir=str(metadata))
+    # Persist recovery information before changing HEAD; no checkout/files are changed.
+    write_json(m['manifest'], m)
+    git_output(m, 'checkout', '--detach', '--quiet')
+
+
+def publish_codex_git(m):
+    """Compare-and-swap only this lane's ref, retaining detached commits on conflicts."""
+    ref, base = m['git_ref'], m['git_base']
+    if ref != 'refs/heads/' + m['lane']:
+        raise ValueError('Git publication ref differs from the registered lane')
+    head = git_output(m, 'rev-parse', 'HEAD')
+    current = git_output(m, 'rev-parse', '--verify', ref)
+    symbolic = subprocess.run(['git', '-C', m['worktree'], 'symbolic-ref', '-q', 'HEAD'],
+        capture_output=True, text=True, creationflags=NOWIN)
+    if symbolic.returncode == 0 and symbolic.stdout.strip() != ref:
+        raise ValueError('Refusing to publish another checked-out branch')
+    git_output(m, 'merge-base', '--is-ancestor', base, head)
+    if current not in (base, head):
+        raise ValueError('Lane branch moved concurrently; detached work preserved')
+    if current != head:
+        git_output(m, 'update-ref', ref, head, base)
+    git_output(m, 'symbolic-ref', 'HEAD', ref)
+    m['git_published'] = head
+    write_json(m['manifest'], m)
+
+
+def codex_git_permissions(m):
+    common, metadata = Path(m['git_common']).resolve(), Path(m['git_dir']).resolve()
+    if common != (Path(m['main'])/'.git').resolve() or not metadata.is_relative_to(common/'worktrees'):
+        raise ValueError('Invalid Codex Git permission roots')
+    # A whole TOML table preserves dots in path keys. Shared refs/config/hooks stay read-only.
+    rules = {common.as_posix(): 'read', metadata.as_posix(): 'write',
+             (common/'objects').as_posix(): 'write'}
+    table = '{' + ','.join(json.dumps(k)+'='+json.dumps(v) for k, v in rules.items()) + '}'
+    return ['-c', 'default_permissions="fc4-lane"',
+            '-c', 'permissions.fc4-lane.extends=":workspace"',
+            '-c', 'permissions.fc4-lane.filesystem=' + table]
 
 
 def codex_defaults():
@@ -70,6 +134,9 @@ def codex_command(m, schema, final, env):
             '-c', 'features.multi_agent=false', '-c', 'web_search="disabled"',
             '-c', 'approval_policy="never"', '-c', 'tool_output_token_limit=2000']
     options = codex_defaults() | m.get('codex', {})
+    if options.get('sandbox', 'workspace-write') != 'workspace-write':
+        raise ValueError('Codex lanes require the scoped workspace permission profile')
+    args += codex_git_permissions(m)
     for key in ('model', 'model_reasoning_effort', 'windows.sandbox'):
         if options.get(key):
             args += ['-c', key + '=' + json.dumps(options[key])]
@@ -84,9 +151,8 @@ def codex_command(m, schema, final, env):
             args += ['-c', 'mcp_servers.rea.env.' + json.dumps(key) + '=' + json.dumps(value)]
         args += ['-c', 'mcp_servers.rea.enabled_tools=["procedure_pseudo_code","batch_decompile"]']
     args += ['exec', '--ignore-user-config', '--strict-config', '--json',
-             '--sandbox', options.get('sandbox', 'workspace-write'), '-C', m['worktree'],
+             '-C', m['worktree'],
              '--add-dir', str(Path(m['main'])/'build-runs'),
-             '--add-dir', str(Path(m['main'])/'.git'),
              '--output-schema', str(schema), '-o', str(final), '-']
     return args
 
@@ -195,10 +261,18 @@ def main():
         code, line = laneguard.preflight(m['main'], m['lane'], m['kind'])
         if code:
             raise RuntimeError('Round not started: ' + line)
+        if m['provider'] == 'codex':
+            prepare_codex_git(m)
         result = run_codex(m) if m['provider'] == 'codex' else run_claude(m)
     except Exception as e:
         result = dict(type='result', subtype='error', provider=m['provider'], is_error=True,
                       result=f'{type(e).__name__}: {e}')
+    if m['provider'] == 'codex' and m.get('git_base'):
+        try:
+            publish_codex_git(m)
+        except Exception as e:
+            result = dict(type='result', subtype='error', provider='codex', is_error=True,
+                          result=f'Git publication failed; detached work preserved: {type(e).__name__}: {e}')
     write_json(m['result'], result)
     return 1 if result.get('is_error') else 0
 

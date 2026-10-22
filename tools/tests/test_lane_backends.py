@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
+import tomllib
 import unittest
 from unittest.mock import patch
 
@@ -184,13 +186,17 @@ class PromptAndTransport(unittest.TestCase):
         self.assertIn('Co-Authored-By: Claude', c['prompt'])
 
     def test_subscription_auth_and_hooks_are_required(self):
-        m = dict(main='C:/main', worktree='C:/main/.claude/worktrees/test', manifest='C:/manifest.json', kind='tool')
+        m = dict(main='C:/main', worktree='C:/main/.claude/worktrees/test', manifest='C:/manifest.json', kind='tool',
+                 git_common='C:/main/.git', git_dir='C:/main/.git/worktrees/test')
         with patch('lane_backend.shutil.which', return_value='codex.exe'), patch('lane_backend.codex_defaults', return_value={}):
             with patch('lane_backend.subprocess.run', return_value=subprocess.CompletedProcess([],0,'Logged in using ChatGPT','')):
                 cmd = lane_backend.codex_command(m, 'schema', 'final', {})
                 self.assertIn('forced_login_method="chatgpt"', cmd)
                 self.assertIn('--ignore-user-config', cmd)
                 self.assertIn('--no-daemon', cmd)
+                self.assertNotIn('--sandbox', cmd)
+                self.assertNotIn('danger-full-access', cmd)
+                self.assertIn('default_permissions="fc4-lane"', cmd)
                 self.assertTrue(any(c.startswith('hooks.PreToolUse=') for c in cmd))
             with patch('lane_backend.subprocess.run', return_value=subprocess.CompletedProcess([],0,'Logged in using an API key','')):
                 with self.assertRaisesRegex(RuntimeError, 'subscription login'):
@@ -202,6 +208,84 @@ class PromptAndTransport(unittest.TestCase):
             self.assertNotIn('OPENAI_API_KEY', env)
             self.assertNotIn('CODEX_API_KEY', env)
             self.assertEqual(env['CODEX_HOME'], 'C:/auth')
+
+
+class CodexGitTransport(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(prefix='fc4-git-transport-')
+        self.main = Path(self.tmp.name)/'main'
+        self.main.mkdir()
+        git(self.main, 'init', '-q', '-b', 'main')
+        git(self.main, 'config', 'user.name', 'fixture')
+        git(self.main, 'config', 'user.email', 'fixture@example.invalid')
+        (self.main/'seed').write_text('seed')
+        git(self.main, 'add', 'seed')
+        git(self.main, 'commit', '-qm', 'seed')
+        self.wt = self.main/'.claude/worktrees/sample'
+        git(self.main, 'worktree', 'add', '-qb', 'sample', str(self.wt))
+        self.m = dict(main=str(self.main), worktree=str(self.wt), lane='sample',
+                      manifest=str(self.main/'build-runs/manifest.json'))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def commit(self):
+        (self.wt/'proof').write_text('proof')
+        git(self.wt, 'add', 'proof')
+        git(self.wt, 'commit', '-qm', 'proof')
+        return lane_backend.git_output(self.m, 'rev-parse', 'HEAD')
+
+    def test_detached_commit_published_only_to_own_ref_and_reattached(self):
+        main = lane_backend.git_output(self.m, 'rev-parse', 'main')
+        lane_backend.prepare_codex_git(self.m)
+        self.assertEqual(subprocess.run(['git','-C',str(self.wt),'symbolic-ref','-q','HEAD'],
+                                       capture_output=True).returncode, 1)
+        tip = self.commit()
+        self.assertEqual(lane_backend.git_output(self.m, 'rev-parse', 'sample'), main)
+        lane_backend.publish_codex_git(self.m)
+        self.assertEqual(lane_backend.git_output(self.m, 'rev-parse', 'sample'), tip)
+        self.assertEqual(lane_backend.git_output(self.m, 'rev-parse', 'main'), main)
+        self.assertEqual(lane_backend.git_output(self.m, 'symbolic-ref', 'HEAD'), 'refs/heads/sample')
+        self.assertEqual(json.loads(Path(self.m['manifest']).read_text())['git_published'], tip)
+
+    def test_concurrent_branch_move_is_preserved_and_recovery_keeps_detached_tip(self):
+        lane_backend.prepare_codex_git(self.m)
+        tip = self.commit()
+        git(self.main, 'commit', '--allow-empty', '-qm', 'concurrent')
+        other = lane_backend.git_output(self.m, 'rev-parse', 'main')
+        git(self.main, 'update-ref', 'refs/heads/sample', other, self.m['git_base'])
+        with self.assertRaisesRegex(ValueError, 'moved concurrently'):
+            lane_backend.publish_codex_git(self.m)
+        self.assertEqual(lane_backend.git_output(self.m, 'rev-parse', 'sample'), other)
+        self.assertEqual(lane_backend.git_output(self.m, 'rev-parse', 'HEAD'), tip)
+
+    def test_initial_branch_identity_and_permission_roots_fail_closed(self):
+        self.m['lane'] = 'different'
+        with self.assertRaisesRegex(ValueError, 'own lane branch'):
+            lane_backend.prepare_codex_git(self.m)
+        self.m['lane'] = 'sample'
+        lane_backend.prepare_codex_git(self.m)
+        bad = self.m | {'git_dir': str(self.main/'.git')}
+        with self.assertRaisesRegex(ValueError, 'permission roots'):
+            lane_backend.codex_git_permissions(bad)
+
+    def test_permission_profile_has_no_shared_ref_or_config_write(self):
+        lane_backend.prepare_codex_git(self.m)
+        args = lane_backend.codex_git_permissions(self.m)
+        value = next(x.split('=', 1)[1] for x in args if x.startswith('permissions.fc4-lane.filesystem='))
+        rules = tomllib.loads('rules=' + value)['rules']
+        common = (self.main/'.git').resolve()
+        self.assertEqual(rules[common.as_posix()], 'read')
+        self.assertEqual({k for k,v in rules.items() if v == 'write'},
+                         {Path(self.m['git_dir']).as_posix(), (common/'objects').as_posix()})
+        self.assertNotIn((common/'refs').as_posix(), rules)
+
+    def test_repeated_publication_after_success_is_idempotent(self):
+        lane_backend.prepare_codex_git(self.m)
+        tip = self.commit()
+        lane_backend.publish_codex_git(self.m)
+        lane_backend.publish_codex_git(self.m)
+        self.assertEqual(lane_backend.git_output(self.m, 'rev-parse', 'sample'), tip)
 
     def test_claude_still_invokes_saved_workflow_once(self):
         f = Fixture()
