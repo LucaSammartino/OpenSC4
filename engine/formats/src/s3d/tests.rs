@@ -445,6 +445,74 @@ fn t33_flags() {
     assert!(!m.has(material_flags::ALPHA_TEST));
 }
 
+/// A foreign system-service base is irrelevant to material construction.
+struct MaterialBase;
+impl fc4_core::textures_materials::SystemService for MaterialBase {
+    fn query_interface(&mut self, _iid: u32) -> Option<u32> {
+        None
+    }
+    fn add_ref(&mut self) -> u32 {
+        1
+    }
+    fn release(&mut self) -> u32 {
+        0
+    }
+}
+
+#[test]
+fn parsed_mats_feeds_portable_owner_with_versioned_filters() {
+    use fc4_core::textures_materials::{MaterialManager, TextureSlot};
+    let manager = MaterialManager::new(MaterialBase);
+    for (model, filter) in [(T::new().model(), 1), (T::old(1, 4).model(), 0)] {
+        let material = manager.create_material(&model.materials[0]).unwrap();
+        assert_eq!((material.flags, material.alpha_threshold), (0x01AB, 0x7F));
+        assert_eq!(
+            (
+                material.alpha_func,
+                material.depth_func,
+                material.src_blend,
+                material.dst_blend
+            ),
+            (4, 3, 1, 0)
+        );
+        assert_eq!(
+            material.textures[0],
+            TextureSlot {
+                id: Some(0x1234_5678),
+                mag_filter: filter,
+                min_filter: filter,
+                ..TextureSlot::default()
+            }
+        );
+        assert_eq!(
+            material.textures[1],
+            TextureSlot {
+                environment: 0xFF,
+                ..TextureSlot::default()
+            }
+        );
+    }
+}
+
+#[test]
+fn parsed_last_id_zero_quirk_stays_in_reader_and_marks_both_owner_slots_unused() {
+    use fc4_core::textures_materials::MaterialManager;
+    let mut t = T::new();
+    t.mats = hex(&format!(
+        "01 00 00 00 {MATERIAL} {}",
+        TEXTURE_15.replace("78 56 34 12", "00 00 00 00")
+    ));
+    let model = t.model();
+    assert_eq!(model.materials[0].textures.len(), 1);
+    let material = MaterialManager::new(MaterialBase)
+        .create_material(&model.materials[0])
+        .unwrap();
+    assert!(material
+        .textures
+        .iter()
+        .all(|slot| slot.environment == 0xFF && slot.id.is_none()));
+}
+
 #[test]
 fn t34_alpha_reference() {
     for (threshold, level) in [("00 80", 8), ("00 00", 0), ("00 FF", 15), ("7F 08", 0), ("FF 7F", 7)] {

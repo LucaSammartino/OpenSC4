@@ -763,3 +763,107 @@ fn material_manager_interface_fallback_and_deleting_destructor_flags() {
         assert_eq!(manager.deleting_destructor(flags), flags & 1 != 0);
     }
 }
+
+#[test]
+fn reuse_compares_internal_format_not_source_format_or_bit_counts() {
+    let rgb = Image::new(8, 8, 1, 1, 7);
+    let mut rgba = Image::new(8, 8, 1, 1, 8);
+    rgba.description.bits.alpha = 1;
+    let mut f = factory(rgb.clone());
+    let old = f.get_binding_from_image(&rgb).unwrap();
+    f.release_binding(old);
+    f.provider_mut().events.clear();
+    assert_eq!(f.get_binding_from_image(&rgba), Some(old));
+    assert_eq!(events(&f, |e| matches!(e, Event::Create(..))), 0);
+    assert!(f.provider().events.contains(&Event::Upload(1, 0, 8, 8, 8, 1, vec![0])));
+}
+
+#[test]
+fn upload_dimensions_halve_to_zero_and_are_not_clamped() {
+    let image = Image::new(1, 4, 4, 1, 9);
+    let mut f = factory(image.clone());
+    f.get_binding_from_image(&image).unwrap();
+    let uploads: Vec<_> = f
+        .provider()
+        .events
+        .iter()
+        .filter(|e| matches!(e, Event::Upload(..)))
+        .cloned()
+        .collect();
+    assert_eq!(
+        uploads,
+        vec![
+            Event::Upload(1, 0, 1, 4, 9, 1, vec![0]),
+            Event::Upload(1, 1, 0, 2, 9, 1, vec![1]),
+            Event::Upload(1, 2, 0, 1, 9, 1, vec![2]),
+            Event::Upload(1, 3, 0, 0, 9, 1, vec![3])
+        ]
+    );
+}
+
+#[test]
+fn init_shuts_down_existing_records_before_acquiring_services_again() {
+    let mut f = factory(Image::new(8, 8, 1, 1, 9));
+    let old = f.get_binding_by_key(key(1)).unwrap();
+    f.provider_mut().events.clear();
+    assert!(f.init());
+    assert!(f.binding(old).is_none());
+    assert_eq!(
+        f.provider().events,
+        vec![
+            Event::Delete(1),
+            Event::Release(Service::Driver, 30),
+            Event::Release(Service::GraphicSystem, 20),
+            Event::Release(Service::ResourceManager, 10),
+            Event::Unsubscribe(40, RESTORE_TEXTURES),
+            Event::Release(Service::MessageServer, 40),
+            Event::Acquire(Service::ResourceManager, None),
+            Event::Acquire(Service::GraphicSystem, None),
+            Event::Acquire(Service::Driver, Some(20)),
+            Event::Acquire(Service::MessageServer, None),
+            Event::Subscribe(40, RESTORE_TEXTURES)
+        ]
+    );
+}
+
+#[test]
+fn failed_restore_does_not_change_binding_membership_or_references() {
+    let mut f = factory(Image::new(8, 8, 1, 1, 9));
+    let old = f.get_binding_by_key(key(1)).unwrap();
+    f.provider_mut().events.clear();
+    f.provider_mut().no_resource = true;
+    assert!(f.do_message(RESTORE_TEXTURES));
+    assert_eq!(f.provider().events, vec![Event::Load(key(1))]);
+    f.provider_mut().no_resource = false;
+    f.provider_mut().image = None;
+    f.provider_mut().events.clear();
+    assert!(f.do_message(RESTORE_TEXTURES));
+    assert_eq!(f.provider().events, vec![Event::Load(key(1)), Event::ResourceRelease]);
+    assert_eq!(f.binding(old).unwrap().reference_count(), 2);
+    assert_eq!(f.stats().in_use, 1);
+}
+
+#[test]
+fn no_driver_no_manager_and_zero_key_fail_without_side_effects() {
+    let image = Image::new(8, 8, 1, 1, 9);
+    let mut f = BindingFactory::new(Host::default());
+    assert!(f.get_binding_from_image(&image).is_none());
+    assert!(f.get_binding_by_key(key(1)).is_none());
+    assert!(f.provider().events.is_empty());
+    let mut f = factory(image);
+    assert!(f.get_binding_by_key(key(0)).is_none()); // TB6 safe boundary
+    assert!(f.provider().events.is_empty());
+}
+
+#[test]
+fn factory_deleting_destructor_cleans_records_for_every_flag() {
+    for flags in 0..4 {
+        let mut f = factory(Image::new(8, 8, 1, 1, 9));
+        let old = f.get_binding_by_key(key(1)).unwrap();
+        assert_eq!(f.deleting_destructor(flags), flags & 1 != 0);
+        assert!(f.binding(old).is_none());
+        assert_eq!(f.stats(), Stats::default());
+        assert_eq!(f.add_ref(), None);
+        assert!(f.provider().events.contains(&Event::Delete(1)));
+    }
+}
