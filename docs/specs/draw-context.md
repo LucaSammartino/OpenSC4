@@ -496,7 +496,7 @@ Evidence: `0x007D55AA`–`0x007D5619`. k is stored to binary32 for element 0 whi
 live for negation and translation multiplication, whose results are each separately stored to
 binary32. Do not force an extra binary32 reciprocal rounding before those products. No zero-scale check exists.
 
-### 8.3 Transform flags: proved boundary and residual (DC8)
+### 8.3 Compact-transform branches, grouping and spills (DC8)
 
 The second byte of each compact transform is tested as a **whole byte**, not as independent presence
 bits for rotation, translation and scale (`0x007D3530`–`0x007D3543`). Model flags zero skip composition
@@ -508,10 +508,69 @@ matrix-load path multiplies the rotation entries by scale only when composed fla
 and the last matrix row is explicitly `(0,0,0,1)` (`0x007D3969`–`0x007D3996`). Model-view-valid is cleared
 after `LoadMatrix` (`0x007D39A3`–`0x007D39A9`).
 
-Therefore the former portable assumption that each absent component flag substitutes an identity
-component is unsupported. Exact arithmetic grouping/spill behavior for every mixed-flag composition
-and the raw-matrix path `0x007D4B80` remains open in DC8; the algebraic summary in §8 is not a bitwise
-floating-point recipe for those paths.
+The input compact record has counter at byte 0, whole flags at byte 1, rotation floats at `+4..+0x24`
+(three rows in increasing address order), translation at `+0x28..+0x30`, scale at `+0x34`. The owner
+first refreshes its composed record from the camera if invalid, incrementing its own counter, not
+copying the camera counter (`0x007D3406`–`0x007D349A`). It then **always** increments the model-record
+counter `+0x13C` and copies the input's thirteen payload floats and flags, even for zero model flags
+(`0x007D34A0`–`0x007D352A`). It does not import the input counter or padding bytes.
+
+| Whole model flags | Whole view/composed flags | Composition before matrix expansion |
+|---|---|---|
+| Zero | Any | Leave composed payload, flags and counter as they stand after any camera refresh. |
+| Nonzero | Zero | Increment composed counter modulo 256; copy all thirteen model floats and whole flags without arithmetic. |
+| Nonzero | Nonzero | Compose all rotation, translation and scale components, even when a component's conventional flag bit is absent; store flag OR and increment composed counter modulo 256. |
+
+Thus absent component flags do not substitute identity components. In particular a stored view scale
+participates in translation composition even if neither flag byte has bit `0x02`. Only the later
+matrix expansion uses that bit. The following gives the arithmetic of the both-nonzero branch.
+Use v[i,j], t[i], s for the pre-composition view rotation, translation and scale; m[i,j], u[i], z for
+the input model values. Every load reads a binary32 value. Each multiplication and indicated addition
+is a separate x87 operation under the ambient precision and rounding control; keep intermediates in
+x87 registers except at the explicitly stated binary32 stores Q. No fused multiply-add is used.
+
+For each rotation entry let Pk=v[i,k]×m[k,j]. The exact three-product addition grouping and final
+binary32 store are:
+
+| Composed rotation entry | Grouping | Binary32 store address |
+|---|---|---|
+| (0,0) | Q((P0+P2)+P1) | `0x007D3731` |
+| (0,1) | Q((P2+P0)+P1) | `0x007D3741` |
+| (0,2) | Q((P1+P0)+P2) | `0x007D3727`, then bit-copy at `0x007D3737` |
+| (1,0) | Q((P0+P2)+P1) | `0x007D374F` |
+| (1,1) | Q((P1+P0)+P2) | `0x007D3755` |
+| (1,2) | Q((P1+P2)+P0) | `0x007D36C2`, then bit-copy at `0x007D3747` |
+| (2,0) | Q((P2+P1)+P0) | `0x007D3763` |
+| (2,1) | Q((P0+P2)+P1) | `0x007D3769` |
+| (2,2) | Q((P2+P0)+P1) | `0x007D3661`, then bit-copy at `0x007D375B` |
+
+There is no binary32 product or partial-sum spill within a rotation dot product. The three early
+temporary stores in the table are the completed entries, not intermediate dot-product terms.
+For translation let Di=((v[i,1]×u[1])+(v[i,2]×u[2]))+(v[i,0]×u[0]). Its asymmetrical spills matter:
+
+| Entry | Exact store sequence | Evidence |
+|---|---|---|
+| t'[0] | Q(Q(D0×s)+t[0]) | Product spill `0x007D35BA`, reload/add `0x007D35CE`–`0x007D35D2`, final store `0x007D35F8` |
+| t'[1] | Q(Q(D1×s)+t[1]) | Product spill `0x007D35C2`, reload/add `0x007D35D8`–`0x007D35DC`, final store `0x007D35FE` |
+| t'[2] | Q((Q(D2)×s)+t[2]) | Dot-product spill `0x007D35B0`, reload/multiply `0x007D35C6`–`0x007D35CA`, final store `0x007D35EA`, bit-copy `0x007D35F2` |
+| s' | Q(s×z) | `0x007D3775`–`0x007D377E` |
+
+Translation completes before rotation stores; every rotation expression uses the old view rotation.
+The composed flag OR/counter increment follows scale storage (`0x007D3784`–`0x007D3797`). For a normal
+distinct input record these formulas describe the entire branch; passing overlapping owner storage
+is not established by the callers and is not an additional supported aliasing contract.
+
+Expansion writes column-major matrix float [4j+i] from rotation (i,j), multiplied by the **already
+stored** composed scale with a separate Q for each entry when flag `0x02` is set; without that bit,
+rotation floats are bit-copied. The scale-path stores are `0x007D3853`, `3871`, `3883`, `3899`, `38A8`,
+`38B7`, `38CD`, `38DC`, `38EB` (all prefixed `0x007D`). Matrix floats 3,7,11 are explicit positive
+zero; floats 12,13,14 bit-copy composed translation and float 15 is binary32 1.0. No flag suppresses
+those translation copies. Call driver slot 41 once with the completed owner matrix; no MatrixMode
+call occurs. Ignore its return, then clear valid (`0x007D39A3`–`0x007D39A9`). A normally returning
+failure retains all preceding model/composed/matrix mutations and still clears valid. An equal retry
+refreshes from the camera, increments/copies/composes again and calls the driver again; no equality
+cache suppresses this operation. There is no status result, rollback or guaranteed clear after a
+non-returning call. The algebraic summary in §8 is therefore not a substitute for these store rules.
 
 ### 8.4 Raw-matrix load (`0x007D4B80`, DC3/DC8)
 
