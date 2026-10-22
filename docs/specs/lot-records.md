@@ -280,7 +280,8 @@ stores the low state byte, then obtains the current city day and stores it as th
    the caller's message reference, then its copy reference (`0x006C3473–006C34DB`).
 
 There is no defined success return. The equal-state path happens to leave AL = current state; the changed
-path leaves the final copy Release's EAX. Neither is a SetState boolean. A caller forwarding AL does not
+path leaves the final copy Release's EAX (normally 1 while the queued message owns the copy).
+Neither is a SetState boolean. A caller forwarding AL does not
 make either value a meaningful transition result.
 
 **Known-profile wealth selection.** For nonzero stored building type and profile purpose, build the
