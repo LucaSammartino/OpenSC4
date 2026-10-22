@@ -11,7 +11,8 @@
 - Focused quick: PASS 3451 tests, dependents compile, CMake160/160; changed-tree diagnostic means final immutable gate still required.
 - Format: touched feature core/tests and CAPI module pass qbuild fmt (absolute paths required); lib.rs recursive check also visits pre-existing unrelated format differences (no mass reformat).
 - Added independent Rust lifetime mirror (fixed published app AddRef + verifier QI lifecycle, never seeded from native counts); native supported/unsupported QI and AddRef/Release compare against it.
-- Next: finish current all (in-flight gate predates lifetime extension), rerun all on final unchanged code; freeze DLL/hash; submit unique guarded2032/ref0 query and lifetime sessions, wait without qwait.
+- Final unchanged-code all at 0465e0bf: PASS cargo4948/4948, clippy0 diagnostics, CMake139/139, ctest68/68. Earlier in-flight all also passed but is not final evidence.
+- Next: freeze DLL/hash; submit unique guarded2032/ref0 query and lifetime sessions, wait without qwait. Use build-runs/feature-submit.ps1; session JSONs record unique labels. No requests yet.
 - Restrictions: no native Init/Shutdown/reset/seeding; borrowed app getter and owned QI hold only; FM1/FM2 excluded.
 - Game requests: none outstanding. Unique labels required; wait without qwait.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-feature-manager4-r1-manifest.json.
