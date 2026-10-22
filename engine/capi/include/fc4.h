@@ -12234,6 +12234,23 @@ int32_t fc4_span565_render_alpha_gradient(const uint32_t* spans, uint32_t n, con
 int32_t fc4_span565_render_blt(const uint32_t* spans, uint32_t n, const fc4_span565_dest* dst,
                                const fc4_span565_source* src, const fc4_span565_blt* b, uint32_t kind);
 
+/* ---- span renderer A8R8G8B8 (docs/specs/span-render-8888.md §1.1-§9; engine/capi/src/span_render8888.rs) ----
+ * The plug-in's cSpanRender8888 bridge (glue-span8888-impl4). Same windows and return codes as
+ * fc4_span4444_*: `spans` holds `count` (start, end) dword pairs; the destination is `dst_len` bytes with
+ * pixel (0, 0) at byte `origin` and a signed byte `stride`; `grad` is the 12-dword record (§5, §6);
+ * RenderBlt: the source image is `src_len` bytes (not overlapping dst) with texel (0, 0) at `src_origin`,
+ * `desc` the 32-byte §7 `src` record. Returns 0 rendered, 1 null pointer / zero count, 2 rejected by the
+ * core (nothing written). */
+int32_t fc4_span8888_solid(const uint32_t* spans, uint32_t count, uint8_t* dst, size_t dst_len, size_t origin,
+                           int32_t stride, uint32_t colour);
+int32_t fc4_span8888_alpha(const uint32_t* spans, uint32_t count, uint8_t* dst, size_t dst_len, size_t origin,
+                           int32_t stride, uint32_t colour, uint32_t alpha);
+int32_t fc4_span8888_gradient(const uint32_t* spans, uint32_t count, uint8_t* dst, size_t dst_len, size_t origin,
+                              int32_t stride, const uint32_t* grad, bool alpha_ramp);
+int32_t fc4_span8888_blt(const uint32_t* spans, uint32_t count, uint8_t* dst, size_t dst_len, size_t origin,
+                         int32_t stride, const uint8_t* src, size_t src_len, size_t src_origin, int32_t src_stride,
+                         uint32_t src_width, uint32_t src_height, const uint8_t* desc, uint32_t mode);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
