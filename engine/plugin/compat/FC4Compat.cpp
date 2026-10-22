@@ -860,9 +860,40 @@ bool SpanContextAddresses(SpanContextVA* out) {
         static const SpanContextVA kVA = {
             0x00AC17D0, 0x00AC182C, 0x00AC185C,
             {0x00830647, 0x008305FC, 0x00830627, 0x008305E7, 0x00830591, 0x0083053B, 0x008304D1},
+            0x00AC1874,  // glue-span8888-impl4: span-render-8888.md §1.1
         };
         *out = kVA;
     }
+    return true;
+}
+
+// glue-span8888-impl4 (span-render-8888.md §1.1): the same checks as Span1555SlotEntry.
+bool Span8888SlotEntry(unsigned slot, void*** entry, uintptr_t* function) {
+    static const uintptr_t kVtable = 0x00AC1874;  // span-render-8888.md §1.1
+    static const uintptr_t kSlots[6] = {0x0082FF00, 0x00854E10, 0x00854E60, 0x00854F70, 0x00855040, 0x008551D0};
+    static int state[6] = {};  // 0 unknown, 1 available, -1 refused
+    if (slot >= 6) return false;
+    const ExecutableVersion* v = IdentifiedVersion();
+    if (state[slot] == 0) {
+        state[slot] = -1;
+        const uintptr_t slotVA = kVtable + 4u * slot;
+        MEMORY_BASIC_INFORMATION mbi{};
+        bool ok = v == &kVersions[0] &&
+                  VirtualQuery(reinterpret_cast<const void*>(slotVA), &mbi, sizeof(mbi)) == sizeof(mbi) &&
+                  mbi.State == MEM_COMMIT && mbi.Type == MEM_IMAGE &&
+                  reinterpret_cast<uintptr_t>(mbi.AllocationBase) == v->imageBase &&
+                  !(mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS));
+        if (ok) ok = CheckCode("span8888 slot function", kSlots[slot], v->imageBase);
+        if (ok) {
+            state[slot] = 1;
+        } else {
+            Log("compat: span8888 vtable 0x%08lX slot %u NOT available (%s)", static_cast<unsigned long>(kVtable),
+                slot, v ? "address rejected" : "executable not identified");
+        }
+    }
+    if (state[slot] != 1) return false;
+    if (entry != nullptr) *entry = reinterpret_cast<void**>(kVtable + 4u * slot);
+    if (function != nullptr) *function = kSlots[slot];
     return true;
 }
 

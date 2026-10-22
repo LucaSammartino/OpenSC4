@@ -336,6 +336,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "occmgr_shadow_follow",
                                   // the glue-span565-impl4 lane (FC4Span565Bridge.h)
                                   "span565_trace",
+                                  "span8888_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

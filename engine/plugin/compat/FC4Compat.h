@@ -322,8 +322,16 @@ bool NetworkOccupantSetPiece(void* occupant, uint32_t pieceId, uint8_t orientati
 struct SpanContextVA {
     uintptr_t contextVtable, renderer1555Vtable, renderer4444Vtable;
     uintptr_t sites[7];
+    // glue-span8888-impl4: the cSpanRender8888 vtable (types 8/9; span-render-8888.md §1.1).
+    uintptr_t renderer8888Vtable;
 };
 bool SpanContextAddresses(SpanContextVA* out);
+// glue-span8888-impl4: the cSpanRender8888 vtable (span-render-8888.md §1.1): one static six-entry table at
+// 0x00AC1874 shared by every colour type 8/9 RenderToBuffer context; slot 0 the deleting destructor 0x0082FF00,
+// slots 1-5 RenderSolid 0x00854E10, RenderGradient 0x00854E60, RenderAlpha 0x00854F70, RenderAlphaGradient
+// 0x00855040, RenderBlt 0x008551D0 (thiscall, callee pops 16/16/20/16/24, no return value). Identified build
+// only: the entry's address and the function it must hold; false otherwise (logged once per slot).
+bool Span8888SlotEntry(unsigned slot, void*** entry, uintptr_t* function);
 
 }  // namespace compat
 }  // namespace fc4

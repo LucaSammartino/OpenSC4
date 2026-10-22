@@ -18,6 +18,7 @@
 #include "FC4RefAudit.h"
 #include "FC4Span1555Shadow.h"
 #include "FC4SpanRender4444.h"
+#include "FC4SpanRender8888.h"
 #include "compat/FC4Compat.h"
 
 #include "cIGZBuffer.h"
@@ -36,7 +37,7 @@ namespace {
 
 enum CallerClass : unsigned { kNative = 0, kDirect, kShipped, kOther, kClasses };
 const char* const kClassName[kClasses] = {"constructed_native_context", "constructed_direct", "shipped", "other"};
-const char* const kRendererName[kSpanRendererCount] = {"span1555", "span4444"};
+const char* const kRendererName[kSpanRendererCount] = {"span1555", "span4444", "span8888"};
 const char* const kSiteName[7] = {"solid", "gradient", "alpha", "alpha_gradient", "tex_plain", "tex_stretch",
                                   "tex_tiled"};
 
@@ -234,13 +235,14 @@ bool AlphaInRange(const void* ctx) {
 uint64_t NativeSiteCount(unsigned r, int site) { return g_sites[r][0][site].load(); }
 
 bool UseOriginal(unsigned r, bool original) {
+    if (r == kSpanR8888) return SpanRender8888UseOriginal(original);
     return r == kSpanR1555 ? Span1555UseOriginal(original) : SpanRender4444UseOriginal(original);
 }
 
 void RunCase(unsigned r, void* ctx, Buf& dst, const std::vector<uint8_t>& init, const Case& c, Totals& t) {
     const size_t len = size_t(dst.stride) * dst.h;
     SetupCase(ctx, c);
-    const bool sp1 = c.kind == kAlphaGradient && !AlphaInRange(ctx);
+    const bool sp1 = r != kSpanR8888 && c.kind == kAlphaGradient && !AlphaInRange(ctx);
     t.sp1Cases += sp1;
     DrawCall call{ctx};
     // Original: the published functions in the renderer's vtable.
@@ -317,9 +319,10 @@ const float kGrad[5][12] = {
 
 // Steps 2-5 for one destination type.
 void RunDestination(unsigned r, uint32_t type, const compat::SpanContextVA& va, std::vector<Buf>& textures) {
-    const uintptr_t wantRenderer = r == kSpanR1555 ? va.renderer1555Vtable : va.renderer4444Vtable;
+    const uintptr_t wantRenderer = r == kSpanR8888 ? va.renderer8888Vtable :
+        r == kSpanR1555 ? va.renderer1555Vtable : va.renderer4444Vtable;
     Buf dst;
-    if (!MakeBuf(kDW, kDH, type, 16, kDstLock, type, &dst)) {
+    if (!MakeBuf(kDW, kDH, type, type >= 8 ? 32 : 16, kDstLock, type, &dst)) {
         Log("spanctx: %s type %u: destination NOT made: route not run", kRendererName[r], type);
         FreeBuf(&dst);
         return;
@@ -422,7 +425,8 @@ void RunFixture() {
         return;
     }
     const bool on1555 = Span1555UseOriginal(false), on4444 = SpanRender4444UseOriginal(false);
-    if (!on1555 && !on4444) return;
+    const bool on8888 = SpanRender8888UseOriginal(false);
+    if (!on1555 && !on4444 && !on8888) return;
     // Texture sources: every buffer type a published renderer table names (16-bit 4..7, 32-bit 8, 9).
     std::vector<Buf> textures;
     for (uint32_t type : {4u, 5u, 6u, 7u, 8u, 9u}) {
@@ -439,6 +443,32 @@ void RunFixture() {
         RunDestination(kSpanR1555, 6, *va, textures);
     }
     if (on4444) RunDestination(kSpanR4444, 7, *va, textures);
+    if (on8888) {
+        // Only extend 8888 coverage here; the existing 16-bit renderer cases above stay unchanged.
+        Buf a8;
+        if (MakeBuf(kTW, kTH, 2, 8, kTexLock, 102, &a8)) textures.push_back(a8);
+        else FreeBuf(&a8);
+        for (uint32_t type : {2u, 4u, 5u, 6u, 7u, 8u, 9u}) {
+            Buf keyed;
+            if (!MakeBuf(kTW, kTH, type, type == 2 ? 8 : type >= 8 ? 32 : 16, kTexLock, 200 + type, &keyed)) {
+                FreeBuf(&keyed);
+                continue;
+            }
+            // Public cIGZBuffer ABI: matching zero texels exercise the context's key masking.
+            if (keyed.b->Lock(kTexLock)) {
+                keyed.b->SetPixel(0, 0, 0);
+                keyed.b->SetPixel(5, 3, 0);
+                keyed.b->SetTransparency(0);
+                keyed.b->Unlock(kTexLock);
+            }
+            uint32_t key = 0;
+            Log("spanctx: span8888 texture type %u keyed=%u key=0x%08X stride=%u",
+                type, unsigned(keyed.b->GetTransparentColor(key)), key, keyed.stride);
+            textures.push_back(keyed);
+        }
+        RunDestination(kSpanR8888, 8, *va, textures);
+        RunDestination(kSpanR8888, 9, *va, textures);
+    }
     for (Buf& b : textures) {
         const uint32_t type = b.type;
         const uint32_t left = FreeBuf(&b);
@@ -446,6 +476,7 @@ void RunFixture() {
     }
     if (on1555) Span1555UseOriginal(false);
     if (on4444) SpanRender4444UseOriginal(false);
+    if (on8888) SpanRender8888UseOriginal(false);
 }
 
 #endif  // _M_IX86
