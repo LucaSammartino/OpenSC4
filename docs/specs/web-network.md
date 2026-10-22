@@ -327,12 +327,18 @@ First drop expired records (helper 008f9a07, returns the count removed *[inferre
 removed and records remain, remove the record with the smallest expiry, counting a session cookie (2) as expiring
 now *[inferred from the selection loop; the removal step was not re-read]*.
 
-### 3.6 Persistence and settings (not specified in this revision)
+### 3.6 Persistence and settings (persistence not specified)
 
 WriteCookieDataFile / ReadCookieDataFile store records as `CookieData%05u` entries under a `CookieData` key with
 `Binary` and `Admin` settings (strings at 00accca4, 00accdc0, 00a86de8, 00accdb0); SetShouldEncryptCookieDataFile
-selects an encrypted form. The record layout on disk, the encryption and the store capacity set by Init are open
-(Q2, Q3).
+selects an encrypted form. The record layout on disk and encryption remain open (Q3).
+
+Capacity (Q2 answered 2026-10-22): the constructor reached from WWWSystem sets the manager's +0x10
+capacity to **0x4000 = 16,384 records** (008f9bc5). Init does not assign that field: on its first call it
+attempts the persistence read only when the record container is empty, then sets initialized and returns
+true without testing that read's result (008f6a7c–008f6a99). The eviction trigger in section 3.3 therefore
+uses this constructor default unless a separate caller changes the setting. This does not specify the
+file loader's capacity handling or record format.
 
 ## 4. cGZWWWSystem — front end and owned helper boundary
 
@@ -415,7 +421,7 @@ asynchronous job carries its own selected-target reference; changing the default
 Local file loads are synchronous (008f84ea). With a target, allocate a WWW ID and construct a type-0 job,
 copy the full URL, timestamp, preference, target and custom data. Derive the native path from the URL's
 absolute path, apply helper 00823310, test existence, and if absent try the GetPathName-derived fallback.
-The helper's exact escaping rules remain a boundary until separately specified.
+The path conversion rules are given in section 4.11.
 
 | Resolved preference | Existing-file behavior |
 |---|---|
@@ -495,10 +501,9 @@ sets these fields, calls the target, then releases the message:
 | Field | Terminal notification | Progress notification (008f6b15) |
 |---|---|---|
 | Message type | 0x75758483 | 0x75758484 |
-| Void1 (+0x30 setter) | public WWW interface pointer | public WWW interface pointer |
-| Data1 (+0x40 setter) | boolean: Job result at +0x1c is nonzero | not set by this helper |
-| Data2 (+0x44 setter) | not set by this helper | pointer to three temporary progress words |
-| Void2 (+0x58 setter) | pointer to Job | pointer to Job |
+| Word at message +0x10 (virtual setter +0x30) | public WWW interface pointer | public WWW interface pointer |
+| Word at message +0x14 (virtual setters +0x40/+0x44) | boolean: Job result at +0x1c is nonzero | pointer to three temporary progress words |
+| Word at message +0x18 (virtual setter +0x58) | pointer to Job | pointer to Job |
 
 The Job and progress words can be stack temporaries. Consumers must copy fields/data they need during
 the callback; retaining the message does not extend the pointed-to Job or progress lifetime. The terminal
@@ -515,9 +520,9 @@ DoMessage switches on the incoming message type (008f698b). Unknown types return
 | 0xc4eccd8c | FTP terminal, 008f815f |
 | 0xc4eccd8d | FTP progress, 008f6c47 |
 
-Progress handlers obtain the foreign-job pointer from incoming Void1, lock, scan the active list by
+Progress handlers obtain the foreign-job pointer through incoming getter +0x50, lock, scan the active list by
 foreign ID, save its target and Job pointer, then unlock. If a target was found and incoming Data1 points
-to progress data, copy exactly three words into a temporary and send the progress envelope. They do not
+to progress data (getter +0x3c), copy exactly three words into a temporary and send the progress envelope. They do not
 retain the target or update stored progress. Both return true. FTP progress checks a null foreign-job
 pointer; HTTP progress dereferences it while scanning and therefore requires a valid pointer whenever an
 active entry is examined. Waiting jobs receive no progress forwarding through these handlers.
@@ -561,10 +566,10 @@ before fan-out. Removed waiting jobs report status 0 during their callbacks. The
 reports status 0 in its own callback.
 
 Finally, if a foreign resource was obtained, clear its file-data flag and empty its data bytes; the local
-Job copy is destroyed. This cleanup also occurs when no matching active job is found, provided the foreign
-pointer/resource was present. The handler always returns true. WWWSystem does not implement an HTTP
+Job copy is destroyed. If no active match is found, control skips this resource cleanup as well as delivery
+(008f8cfd, 008f8fea); it does not clear unrelated/late resources. The handler always returns true. WWWSystem does not implement an HTTP
 retry/backoff policy here; late completion after cancellation finds no active target and is ignored for
-delivery. Exact cache policy inside 008f7a50 remains open in Q5; this paragraph specifies its call boundary.
+delivery. Exact cache policy inside 008f7a50 remains open in Q8; this paragraph specifies its call boundary.
 
 ### 4.8 FTP admission and completion boundary
 
@@ -572,7 +577,7 @@ FTP admission helper 008f93da gets a full URL and timestamp, calls foreign helpe
 and two zero arguments, and on a nonzero foreign ID allocates/inserts a type-3 WWW Job under the WWW lock.
 It stores preference, selected target, custom data and FTP-client pointer; it does not consult WWW cache or
 duplicate-URL lists. On foreign admission failure it returns 0 without releasing the selected target
-reference. The reached FTP scheduler and wire operations are separate unfinished owned bodies (Q4).
+reference. The reached FTP scheduler and wire operations are separate unfinished owned bodies (Q7).
 
 FTP terminal handler 008f815f matches and removes the active Job under lock before delivery. It requires
 a valid incoming foreign-job pointer; there is no HTTP-style null guard. Incoming success zero yields
@@ -604,8 +609,14 @@ do not acquire the WWW job lock here. A handler owns any external resource work 
 SetCacheDirectory copies the supplied path, adds a trailing backslash when needed, sets the cookie data
 filename to that directory plus `CookieData.ini`, updates HTTP directory and `_cache` setting via 00819650
 and 008196b0, updates the FTP directory via 00813c50, then returns the cache SetCacheDirectory result.
-Earlier side effects are not rolled back if the final cache call fails (008f7966). The precise directory
-normalization/foreign setters remain Q6; no directory or network success is implied by this call sequence.
+Earlier side effects are not rolled back if the final cache call fails (008f7966). Empty paths stay empty;
+both slash and backslash count as existing final separators (008f7980–008f799e). The reached HTTP/FTP
+directory setters copy the string and append a backslash only when a nonempty path has neither final
+separator; the HTTP `_cache` setter simply copies its argument (00819650, 00813c50, 008196b0).
+No directory or network success is implied by this call sequence.
+
+The body-by-body coverage boundary is [the WWW owner checklist](web-network-www-bodies.md). Unresolved
+owned HTTP scheduler/resource helpers are Q9; these are not credited by the call-boundary descriptions above.
 
 ### 4.10 Independent contract vectors (constructed; not live-game results)
 
@@ -627,10 +638,31 @@ normalization/foreign setters remain Q6; no directory or network success is impl
 | WWW-14 | A preference 3 completes with filename; waiting B requested 0 | B receives A's filename/representation and preference; no B-specific read |
 | WWW-15 | Snapshot IDs A/B active then C waiting; cancel-all | cancel A, B, C in that order; return 3 even if a cancel fails; no terminal notifications |
 | WWW-16 | Load type 7 with a target, or HTTP/FTP foreign admission returns 0 | return 0; no callback; acquired target reference has no balancing Release on these paths |
-| WWW-17 | Two progress header families, each with 33 response cookies | indices 0–31 of family 0x35 first, then 0–31 of 0x34; index 32 ignored |
+| WWW-17 | Two response header families, each with 33 cookies | indices 0–31 of family 0x35 first, then 0–31 of 0x34; index 32 ignored |
 | WWW-18 | HTTP transfer succeeds but RAM-to-file Write fails | terminal success remains 1/progress 100 with RAM bytes; cache/cookie calls still precede notification |
-| WWW-19 | Incoming completion after its WWW job was canceled | no target callback, return true; HTTP resource bytes/flag still cleared when resource exists |
+| WWW-19 | Incoming HTTP completion after its WWW job was canceled | no target callback, return true; resource bytes/flag unchanged by this handler |
 | WWW-20 | Cache-use false, cached URL present | IsVisitedURL may return true; HTTP load still bypasses cache retrieval |
+
+### 4.11 Reached native-path conversion
+
+Helper 00823310 copies its input. If its byte length is at least three, byte 0 is `/` and byte 2 is `|`,
+replace the pipe with `:` then erase the initial slash. There is no drive-letter check. Next run decoder
+00823000, then replace every `/` in the decoded bytes with `\`. Copy the result out and return true;
+input/output aliasing is supported by the temporary copy (0082333f–0082339f).
+
+Decoder 00823000 scans bytes left to right exactly once. A percent with two following bytes consumes all
+three; two hexadecimal digits produce the low byte of their hexadecimal value, otherwise produce one
+space. A percent with fewer than two following bytes is copied literally, as are all other bytes. It
+neither changes plus to space nor recursively decodes newly produced percent bytes. NUL values are
+stored as bytes in the length-bearing result; later foreign C-string consumers may interpret them
+differently. Hex validation/conversion and the invalid-escape space are checked at 0082308b–008230ba.
+
+| ID | Input to native-path helper | Output bytes |
+|---|---|---|
+| WWW-21 | `/C|/a%20b` | `C:\a b` |
+| WWW-22 | `/1|/x` | `1:\x` (no alphabetic drive validation) |
+| WWW-23 | `a%ZZb%2` | `a b%2` |
+| WWW-24 | `a%252Fb+c%2F` | `a%2Fb+c\` (one decoding pass) |
 
 ## 5. cRZHTTPClient (15133 B; outline only)
 

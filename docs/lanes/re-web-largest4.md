@@ -9,11 +9,16 @@
 - Done: substantial web-network section 4: lifecycle, QI IDs, load dispatch, synchronous file/cache boundaries, duplicate admission, status/cancel; 12 independent prose vectors.
 - Native reads: largest FTP bodies first inspected (not yet complete); largest WWW admission/completion bodies traced; bytes checked for interface IDs and thresholds.
 - Done: front-end completion/progress/FTP boundary and 20 independent vectors; corrected misleading pseudocode for PostInit, visited query and cancel-all.
-- Next: verify callback slot roles, completion conversion assembly, path helpers and exact per-body checklist; file Q4-Q6 for any unresolved owned bodies.
+- Milestones: f25760eb admission/lifecycle; cfe33e39 completion/order/ref ownership.
+- Done: native message slots and unsigned conversion thresholds checked; path escape/directory rules specified; 24 constructed prose vectors.
+- Done: exact committed checklist docs/specs/web-network-www-bodies.md: 148/34049 B total; C=47/7239 B, P=8/12691 B, O=93/14119 B. No complete-owner credit.
+- Questions: Q2 capacity answered in section 3.6 and moved to answered; new Q7 FTP, Q8 cache policy, Q9 remaining owned scheduler/support bodies; questions index regenerated.
+- Validation: git diff --check PASS; checklist count/sum assertions PASS. Docs only; cargo/clippy/ctest/game n/a. No ABI proposal or exports changed.
+- Next: remaining task is Q7-Q9 (largest unresolved FTP bodies first); check checklist before any claim. Do not duplicate existing URL/cookie contracts. Max one round means coordinator decides disposition; no self-restart.
 - Key fixes: HTTP Init target008179f0 (not Release); IsVisitedURL calls cache presence; cancel-all snapshots IDs and calls individual cancel (007ebd30 is append, despite destructor name).
 - Job destructor releases containers only, not notification target; cancellation and foreign admission failure retain unmatched target reference.
 - Exact root table offsets: 2c=008f6bbc HTTP progress,30=008f8c5a HTTP final,34=008f6c47 FTP progress,38=008f815f FTP final,3c=008f6a9a notify wrapper.
-- No complete-owner credit: FTP closure remains; need committed per-body status checklist and precise public questions.
+- Limit: full 34049 B owner task remains incomplete; no coverage-map proposal or merge-queue entry. Latest guard before checkpoint was 147403/150000.
 - Shell: q.py cannot start Bash (E_ACCESSDENIED); use bounded native PowerShell commands.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-web-largest4-r1-manifest.json.
 - No network requests, no subagents, no game runs; max one guarded round.

@@ -1,5 +1,13 @@
 # Answered questions: web-network.md
 
+## Q2 (re-webnet4, 2026-10-21) — cookie store capacity
+AddCookie evicts when the store holds at least the capacity (manager +0x10). What value does Init or the constructor
+set? Spec section web-network.md §3.3.
+
+**ANSWERED 2026-10-22 (re-web-largest4):** MATCHES — constructor 008f9bad sets +0x10 to 0x4000 (16,384 records),
+verified by the immediate store at 008f9bc5. Init 008f6a7c does not reset capacity; it conditionally reads persisted
+data when initially empty, then marks initialized and returns true. Rule written in web-network.md §3.6.
+
 ## Q4 (core-url4, 2026-10-21) — ChangeURL empty-path chain
 §2.7, N path empty: "only if N's params are empty, B's params; only if those are empty too, B's query; only if that is
 empty too, B's fragment". Is B's query copied over N's own non-empty query (so `?new` against `http://a/b?old` keeps
