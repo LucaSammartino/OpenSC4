@@ -58,6 +58,7 @@ generated index: the questions live one file per spec, so read only the file for
 | EF | effects |
 | EH | residential-education-health |
 | EX | data-formats |
+| FBQ | win-filebrowser |
 | FF | fire-flames |
 | FL | flammability |
 | FM | feature-manager |
@@ -188,7 +189,7 @@ generated index: the questions live one file per spec, so read only the file for
 | disasters | 2 | 44 | DS47 | questions/disasters.md |
 | dispatch | 0 | 9 | DP10 | - |
 | draw-context | 2 | 0 | DC3 | questions/draw-context.md |
-| drawing-fonts | 3 | 14 | FN18 | questions/drawing-fonts.md |
+| drawing-fonts | 0 | 17 | FN18 | questions/drawing-fonts.md |
 | drive-tool | 2 | 0 | DR3 | questions/drive-tool.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
 | feature-manager | 2 | 0 | FM3 | questions/feature-manager.md |
@@ -216,7 +217,7 @@ generated index: the questions live one file per spec, so read only the file for
 | map-view | 4 | 0 | QV5 | questions/map-view.md |
 | model-instances | 2 | 0 | MI3 | questions/model-instances.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
-| mysims | 3 | 12 | MS16 | questions/mysims.md |
+| mysims | 1 | 15 | MS17 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
@@ -259,7 +260,7 @@ generated index: the questions live one file per spec, so read only the file for
 | snapshots | 2 | 0 | SN3 | questions/snapshots.md |
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 2 | 4 | SP7 | questions/span-render-4444.md |
-| span-render-565 | 8 | 0 | SR566 | questions/span-render-565.md |
+| span-render-565 | 6 | 2 | SR566 | questions/span-render-565.md |
 | span-render-8 | 3 | 1 | SR9 | questions/span-render-8.md |
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
@@ -280,7 +281,8 @@ generated index: the questions live one file per spec, so read only the file for
 | watercraft | 2 | 0 | WC3 | questions/watercraft.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
+| win-filebrowser | 6 | 0 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **304** | **1144** | | |
+| **total** | **303** | **1152** | | |
