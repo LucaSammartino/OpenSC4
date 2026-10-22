@@ -6,6 +6,8 @@ lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
 ## 0. Current state (2026-10-22, run4 open-ended)
+**train97 measured-shadow audit:** Production industrial CAPI versus original263052/263052 source and131526/131526 joint;565 independent native-context249/249 source+joint,156reachable pairs,3257changed bytes, clean2032/ref0/fullsave/shutdown. Qualified measured-shadow evidence recorded under COVERAGE.md; natural565calls0/IN3 remain, no default/replaced promotion. Coverage regeneration below is authoritative.
+
 **Heartbeat:** Windows task `FreeCity4-run4-lane-heartbeat` runs read-only `tools/lane_heartbeat.py --once` every5minutes. Actual registered PID counts, pending queue, provider pauses and train-ready alerts go to `build-runs/run4-heartbeat.json`/`.log`; active coordinator bridge surfaces them every5minutes. It cannot wake an ended chat. Full tools143PASS; no guard/spawn authority changed.
 
 **Final grid methods phase parked:** logical3/3 exhausted at d8fbc36d. Actual shipped-C++ native methods now compared independently;31 fixture differences persist at normal speed (SG3), native controls include ref1/early exit and complete save/reload chain remains unproved. SG1/SG2 retained; no method-owner promotion/fourth, preserve WT.

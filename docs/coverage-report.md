@@ -10,7 +10,7 @@ Game code, the denominator (every function outside the library and compiler buck
 |---|---|---:|---:|---:|---:|
 | **specified** | a spec in docs/specs covers its owner | 3,226,906 | **57.8%** | 14,602 | 49.4% |
 | **implemented** | a clean-room module in engine/ implements its owner | 2,010,026 | **36.0%** | 8,873 | 30.0% |
-| **verified** | its same-process shadow is exact in the run that measured it | 1,036,062 | **18.6%** | 4,041 | 13.7% |
+| **verified** | its same-process shadow is exact in the run that measured it | 1,075,398 | **19.3%** | 4,195 | 14.2% |
 | **replaced** | our class runs instead of the original in the regress replace run | 1,012,661 | **18.1%** | 3,899 | 13.2% |
 
 ## Whole executable
@@ -31,16 +31,16 @@ Each status cell is the share of the area's bytes, then (in brackets) of its fun
 
 | Area | Functions | Bytes | % of game | Specified | Implemented | Verified | Replaced |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| simulation | 8,632 | 1,965,688 | 35.2% | 98.5% (97.8%) | 75.4% (72.2%) | 45.1% (41.0%) | 51.5% (45.2%) |
+| simulation | 8,632 | 1,965,688 | 35.2% | 98.5% (97.8%) | 75.4% (72.2%) | 45.1% (41.1%) | 51.5% (45.2%) |
 | framework | 4,866 | 631,930 | 11.3% | 36.6% (41.8%) | 23.6% (23.6%) | 0.7% (0.6%) | 0.0% (0.0%) |
-| renderer | 5,198 | 1,214,553 | 21.7% | 57.9% (58.3%) | 31.2% (28.7%) | 12.0% (9.2%) | 0.0% (0.0%) |
+| renderer | 5,198 | 1,214,553 | 21.7% | 57.9% (58.3%) | 31.2% (28.7%) | 15.2% (12.0%) | 0.0% (0.0%) |
 | ui | 5,104 | 1,105,746 | 19.8% | 22.7% (13.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | audio | 1,965 | 223,456 | 4.0% | 12.8% (8.4%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | region | 417 | 111,848 | 2.0% | 67.7% (62.6%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | other | 447 | 48,891 | 0.9% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | shared | 2,065 | 196,006 | 3.5% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | unattributed | 842 | 86,724 | 1.6% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| **all game code** | **29,536** | **5,584,842** | 100.0% | **57.8%** (49.4%) | **36.0%** (30.0%) | **18.6%** (13.7%) | **18.1%** (13.2%) |
+| **all game code** | **29,536** | **5,584,842** | 100.0% | **57.8%** (49.4%) | **36.0%** (30.0%) | **19.3%** (14.2%) | **18.1%** (13.2%) |
 
 ## By subsystem
 
@@ -100,7 +100,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | simulation | 24-hour clock | 1 | 56 | 3,693 | yes | yes | 73/73 | yes | yes |
 | simulation | parks | 1 | 19 | 3,006 | yes | yes | 72/72 | yes | yes |
 | simulation | city detail | 1 | 13 | 2,081 | yes | yes | - | - | yes |
-| simulation | commercial/industrial | 2 | 26 | 2,022 | yes | yes | 28/28 | part | yes |
+| simulation | commercial/industrial | 2 | 26 | 2,022 | yes | yes | 28/28, industrial_constructed_source 263052/263052, industrial_constructed_joint97 131526/131526 (lane run) | yes | yes |
 | simulation | automata groups | 2 | 15 | 1,662 | yes | - | - | - | - |
 | simulation | foundations | 1 | 7 | 918 | yes | yes | - | - | - |
 | framework | application | 15 | 718 | 145,124 | part | - | - | - | - |
@@ -127,7 +127,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Statu
 | renderer | effects (particles, decals, visuals) | 23 | 243 | 67,799 | part | - | - | - | - |
 | renderer | 2D drawing (span render 4444) | 1 | 172 | 51,809 | yes | yes | span4444_sp6 350/350, span4444_ctx7 126/126, span4444_direct 198/198 (lane run) | yes | - |
 | renderer | 2D drawing (span render 1555) | 1 | 172 | 50,817 | yes | yes | span1555_ctx4 490/490, span1555_ctx6 490/490, span1555_direct 158/158 (lane run) | yes | - |
-| renderer | 2D drawing (span render 565) | 1 | 145 | 39,051 | yes | yes | - | - | - |
+| renderer | 2D drawing (span render 565) | 1 | 145 | 39,051 | yes | yes | span565_source_own 249/249, span565_source_current40 249/249, span565_joint97 249/249 (lane run) | yes | - |
 | renderer | 2D drawing (span render 8888) | 1 | 174 | 37,218 | yes | yes | span8888_ctx8 254/254, span8888_ctx9 254/254, span8888_direct 198/198, span8888_shipped 369/372 (lane run, not exact) | - | - |
 | renderer | terrain overlays | 1 | 93 | 30,436 | yes | - | - | - | - |
 | renderer | 2D drawing (span render 8) | 1 | 130 | 24,545 | yes | yes | - | - | - |
@@ -279,8 +279,8 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | tools/coverage-libs.tsv | de557a391ec04b04 | |
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
 | tools/coverage-noncode-refs.tsv | b4c00fa8a9729a29 | |
-| tools/coverage-map.tsv | da3430fddbc5bdc7 | |
-| tools/coverage-shadows.tsv | da3ceb2e79399312 | |
+| tools/coverage-map.tsv | ab8f406742e987b6 | |
+| tools/coverage-shadows.tsv | 92f73c784ef83aa8 | |
 | tools/regress.ps1 | b0d5f185df98ccf4 | |
 | engine/plugin/FC4Subsystems.cpp | cba0ebf462375d81 | |
 | build-runs/regress-train97.out | c06be71a6652a4cf | regress train97 (PASS; turbo to 2032-01-01, timeout 1800 s; queue (priority high, at the same time)); replace run clean |
