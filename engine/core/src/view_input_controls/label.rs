@@ -175,6 +175,7 @@ pub const LABEL_OK: u32 = 0x8A8D_FD4E;
 pub const LABEL_CANCEL: u32 = 0x8A8D_FD4A;
 pub const LABEL_CLOSE: u32 = 0x6BA1_8178;
 pub const LABEL_FIELD: u32 = 0xAA41_49BF;
+pub const LABEL_FIELD_INTERFACE: u32 = 0x231A_1C57;
 pub const LABEL_DIALOG: u32 = 0x8A8D_FCF5;
 pub const LABEL_SCRIPT: (u32, u32) = (0x96A0_06B0, 0x6B70_4690);
 
@@ -208,6 +209,8 @@ pub fn label_message_filter(m: DialogMessage) -> FilterAction {
         FilterAction::None
     }
 }
+/// Field text/select operations use LABEL_FIELD_INTERFACE; these are primitive
+/// GUI operations, not the label owner's dialog acceptance algorithm.
 pub trait LabelDialog {
     fn load_dialog(&mut self, script: (u32, u32), window: u32) -> Option<u64>;
     fn set_field_text(&mut self, window: u64, field: u32, text: &Text);
@@ -240,7 +243,7 @@ impl LabelTool {
     pub const CURSOR: u32 = 0xEB72_FEF4;
     pub fn init(&self, host: &mut impl LabelWorld) {
         host.show_signs_and_labels(true);
-        host.set_cursor(Self::CURSOR);
+        super::set_cursor(host, Self::CURSOR);
     }
     pub fn state(&self) -> MouseState {
         self.state

@@ -24,7 +24,7 @@ fn scroll_thresholds_raw_magnitude_inclusive_cursor_and_release_order() {
     tool.init(&mut host, ScrollTunables::default()).unwrap();
     tool.set_mouse_scroll(&mut host, Pixel::new(100, 100)).unwrap();
     assert_eq!(
-        &host.events[2..],
+        &host.events[3..],
         &[
             E::LoadPicture,
             E::Transparent(7, (255, 0, 255)),

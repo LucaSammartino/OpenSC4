@@ -6,6 +6,7 @@ use std::collections::VecDeque;
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
     Cursor(u32),
+    ApplyCursor(u64, bool),
     Capture,
     Release,
     Top(bool),
@@ -139,9 +140,12 @@ impl Host {
     }
 }
 impl ControlHost for Host {
-    fn set_cursor(&mut self, id: u32) -> bool {
+    fn lookup_cursor(&mut self, id: u32) -> Option<u64> {
         self.events.push(Event::Cursor(id));
-        self.cursor_found
+        self.cursor_found.then_some(23)
+    }
+    fn apply_window_cursor(&mut self, cursor: u64, force: bool) {
+        self.events.push(Event::ApplyCursor(cursor, force));
     }
     fn am_capturing(&self) -> bool {
         self.capturing

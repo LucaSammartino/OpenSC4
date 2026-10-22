@@ -8,6 +8,8 @@
 - Done: reused current ViewUtilities/Pixel/Vec3 and Terrain APIs; no native owner pass-through.
 - Done: production milestone `558e8ba7`; full published method/state-field inventory (byte lengths absent, VIC5).
 - Done: independent executable fixtures added for all five tools/three filters; VIC3-VIC7 appended to questions/view-input-controls.md.
+- Done: fixture/inventory milestone `cdb14932`; final cursor boundary split into raw resource lookup and window application; all 9 new Rust files fmt pass.
+- Source frozen after cursor/constant review; no more code edits unless a measured failure requires one.
 - Next: wait focused qbuild quick sessions 83085/58241 (second was inadvertently overlapped; stop launching builds), address measured failures, then stable final all.
 - Baseline: cargo 4987/0; clippy/build failed and tree-changed, invalidated by edits during the run. Original logs preserved in build-runs/baseline/.
 - Formatting: all 9 new Rust files pass qbuild fmt; including existing lib.rs fails its pre-existing module-order/format diffs (preserved fmt-including-existing-lib.log); keep additive export at list end.

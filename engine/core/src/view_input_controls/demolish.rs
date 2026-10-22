@@ -9,7 +9,7 @@ impl SignLabelDemolish {
     pub const ID: u32 = 0xCBCC_987E;
     pub const CURSOR: u32 = 0x8BD4_B428;
     pub fn init(&self, host: &mut impl PropWorld) {
-        host.set_cursor(Self::CURSOR);
+        super::set_cursor(host, Self::CURSOR);
         host.show_signs_and_labels(true);
     }
     pub fn selected(&self) -> Option<PropId> {

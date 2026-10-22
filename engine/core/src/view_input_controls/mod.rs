@@ -7,7 +7,7 @@ mod demolish;
 mod label;
 mod level;
 mod props;
-mod scroll;
+pub mod scroll;
 mod sign;
 
 pub use crate::view_utilities::{Pixel, Vec3};
@@ -24,15 +24,26 @@ pub const DEMOLISH: u32 = 0x8A5E_C047;
 pub const SOUND_EVENT: u32 = 0xEA45_1903;
 
 /// Only supporting base-control operations required by these tools. A host's
-/// cursor lookup returns false for an unknown resource; it must not substitute
+/// cursor lookup returns None for an unknown resource; it must not substitute
 /// a tool algorithm or call a native tool method. No COM ownership is claimed.
 pub trait ControlHost {
-    fn set_cursor(&mut self, resource: u32) -> bool;
+    /// Borrowed resource token; no AddRef/Release is taken or claimed here.
+    fn lookup_cursor(&mut self, resource: u32) -> Option<u64>;
+    fn apply_window_cursor(&mut self, cursor: u64, force: bool);
     fn am_capturing(&self) -> bool;
     fn capture(&mut self) -> bool;
     fn release_capture(&mut self) -> bool;
     fn remove_top_control(&mut self, stack: bool);
     fn post_sound(&mut self, event: u32, sound: u32);
+}
+
+pub(crate) fn set_cursor(host: &mut impl ControlHost, id: u32) -> bool {
+    if let Some(cursor) = host.lookup_cursor(id) {
+        host.apply_window_cursor(cursor, true);
+        true
+    } else {
+        false
+    }
 }
 
 pub(crate) fn sound(host: &mut impl ControlHost, id: u32) {

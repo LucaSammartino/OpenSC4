@@ -62,7 +62,7 @@ impl LevelTerrain {
     /// Local supported Init work. Terrain/view reference acquisition belongs
     /// to a future adapter; this core does not implement the base COM lifetime.
     pub fn init(&self, host: &mut impl LevelView) {
-        host.set_cursor(Self::CURSOR);
+        super::set_cursor(host, Self::CURSOR);
     }
     pub fn key_down(&self, _key: u32, _modifiers: u32) -> bool {
         false

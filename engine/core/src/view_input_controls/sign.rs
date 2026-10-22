@@ -70,7 +70,7 @@ impl SignTool {
     /// is an explicit VIC2 boundary, not emulated with an invented messaging API.
     pub fn init(&self, host: &mut impl SignWorld) {
         host.show_signs_and_labels(true);
-        host.set_cursor(Self::CURSOR);
+        super::set_cursor(host, Self::CURSOR);
     }
     pub fn state(&self) -> MouseState {
         self.state

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-use super::{ControlHost, Pixel, Unsupported};
+use super::{set_cursor, ControlHost, Pixel, Unsupported};
 use crate::view_utilities::PixelRect;
 
 pub const ID: u32 = 0x48E2_A1F8;
@@ -79,18 +79,16 @@ impl CityScroll {
         if inner < 0 || outer <= inner {
             return Err(Unsupported::PrimitiveData);
         }
-        if !self.initialized {
-            self.inner = inner;
-            self.outer = outer;
-            if host.set_cursor(NEUTRAL) {
-                self.cursor = NEUTRAL;
-            }
-            self.was_capturing = host.am_capturing();
-            if !self.was_capturing {
-                host.capture();
-            }
-            self.initialized = true;
+        self.inner = inner;
+        self.outer = outer;
+        if set_cursor(host, NEUTRAL) {
+            self.cursor = NEUTRAL;
         }
+        self.was_capturing = host.am_capturing();
+        if !self.was_capturing {
+            host.capture();
+        }
+        self.initialized = true;
         Ok(())
     }
     pub fn is_self_scrolling_view(&self) -> bool {
@@ -177,7 +175,7 @@ impl CityScroll {
         if cursor != NEUTRAL {
             self.has_scrolled = true;
         }
-        if cursor != self.cursor && host.set_cursor(cursor) {
+        if cursor != self.cursor && set_cursor(host, cursor) {
             self.cursor = cursor;
         }
         let (dx, dz) = (dx as f32, dz as f32);
