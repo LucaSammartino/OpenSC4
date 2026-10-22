@@ -5,9 +5,10 @@
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
 //! `cRZCallbackTimer` (timers.md §2): calls a function after a delay, once or
-//! repeatedly, through a timer service. The service's own behaviour (its
-//! callback thread, the meaning of `AddTimer`'s last two arguments) is
-//! open (TM1), so it is injected as a [`TimerService`].
+//! repeatedly, through a timer service. The service (the scheduler of §2.5,
+//! TM1) is a separate owner, injected as a [`TimerService`]; the framework
+//! lookup that finds the framework's scheduler is injected as a
+//! [`ServiceLocator`] returning a [`FrameworkTimerService`].
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
@@ -31,19 +32,51 @@ pub trait Counted: Send + Sync {
     fn release(&self);
 }
 
-/// The timer service (framework or built-in default, TM1).
+/// The timer scheduler a callback timer keeps in `+0x20` (§2.5): either the
+/// built-in default instance or the one the framework service owns. It is a
+/// counted reference; the timer calls `add_ref` / `release` explicitly where
+/// the original does (§2.2 slot 11, the destructor), so a test can count them.
+/// The scheduler itself (worker thread, due times) is a separate owner.
 pub trait TimerService: Send + Sync {
-    /// Service slot 3: `AddTimer(handler, this, period, one_shot, 0)`; the
-    /// returned ID 0 means failure. The service later calls
+    /// The scheduler's `AddRef`.
+    fn add_ref(&self);
+    /// The scheduler's `Release`.
+    fn release(&self);
+    /// Scheduler slot 3: `AddTimer(handler, this, ms, one_shot, fixed_rate)`;
+    /// the returned ID 0 means failure. The service later calls
     /// [`CallbackTimerSet::fire`] with `timer`.
     fn add_timer(&self, timer: TimerKey, period: u32, one_shot: u32, fifth: u32) -> u32;
-    /// Service slot 4: `RemoveTimer(ID)`.
-    fn remove_timer(&self, id: u32);
+    /// Scheduler slot 4: `RemoveTimer(ID)`: true when an entry was erased.
+    /// `cRZCallbackTimer` ignores the result.
+    fn remove_timer(&self, id: u32) -> bool;
 }
 
-/// The framework's system-service lookup (`0xA76C78E7` / `0x276C784B`).
+/// The framework system service `0xA76C78E7` (interface `0x276C784B`) as the
+/// framework's lookup hands it out: the caller owns one reference to it and
+/// gives it back with [`FrameworkTimerService::release`].
+pub trait FrameworkTimerService: Send + Sync {
+    /// Its slot 3 (`0x009D8564`, a plain getter): the scheduler it owns. The
+    /// result is not AddRef'd for the caller; `UseTimerService` AddRefs it
+    /// when it keeps it (§2.2 slot 11).
+    fn scheduler(&self) -> Arc<dyn TimerService>;
+    /// Gives back the reference the lookup returned.
+    fn release(&self);
+}
+
+/// The framework's system-service lookup (`GetSystemService(clsid, iid)`).
+/// `None` stands for both "no framework" and "service not found" (§2.2 slot
+/// 11 treats them alike).
 pub trait ServiceLocator: Send + Sync {
-    fn timer_service(&self) -> Option<Arc<dyn TimerService>>;
+    /// Asked with [`FRAMEWORK_TIMER_SERVICE_ID`] /
+    /// [`FRAMEWORK_TIMER_SERVICE_IID`]; a found service comes with one
+    /// reference for the caller.
+    fn system_service(&self, clsid: u32, iid: u32) -> Option<Arc<dyn FrameworkTimerService>>;
+}
+
+/// Pointer identity of two schedulers (the original compares `+0x20` with
+/// the slot-3 result and with the default's address).
+fn same_service(a: &Arc<dyn TimerService>, b: &Arc<dyn TimerService>) -> bool {
+    std::ptr::eq(Arc::as_ptr(a) as *const (), Arc::as_ptr(b) as *const ())
 }
 
 struct State {
@@ -149,9 +182,9 @@ impl CallbackTimer {
     /// service, then `UseTimerService(true)`.
     pub fn new(set: &Arc<CallbackTimerSet>) -> Self {
         // `+0x04` starts false so that slot 11's "on a change" does the
-        // lookup; it is true afterwards only with a framework service (§2.1
-        // says "true after construction"; slot 11 keeps it false without
-        // one).
+        // lookup (§2.3, TM2); it is true afterwards only with a framework
+        // service. The default is stored without an AddRef: §2.3 says only
+        // "takes the default service" (literal reading, question TM3).
         let state = Arc::new(Mutex::new(State {
             uses_service: false,
             callback: None,
@@ -259,8 +292,11 @@ impl CallbackTimer {
                 o.add_ref();
             }
             // Overwrites `+0x24` without releasing an old value (only a
-            // failed restart leaves one on a stopped timer).
-            s.object = object;
+            // failed restart leaves one on a stopped timer). Slot 5 always
+            // stores the argument; slot 6 only a non-null one.
+            if !once || object.is_some() {
+                s.object = object;
+            }
             let time = if once {
                 s.one_shot = true;
                 if arg != 0 {
@@ -280,10 +316,12 @@ impl CallbackTimer {
         let id = service.add_timer(self.key, time, u32::from(once), 0);
         let mut s = self.st();
         if id == 0 {
-            // "Undoes it": not running, object released; the one-shot flag
-            // is cleared too *[inferred]* (question TM2).
+            // "Undoes it": not running, `+0x24` released and cleared; slot 6
+            // clears the one-shot flag too (TM2 (d)). Slot 5 never set it.
             s.running = false;
-            s.one_shot = false;
+            if once {
+                s.one_shot = false;
+            }
             if let Some(o) = s.object.take() {
                 o.release();
             }
@@ -326,30 +364,69 @@ impl CallbackTimer {
         true
     }
 
-    /// Slot 11 `UseTimerService(bool)`. No change returns true *[inferred]*;
-    /// a running timer stays registered with its old service (the spec
-    /// names no restart).
+    /// Slot 11 `UseTimerService(bool)` (§2.2, TM2: no change returns true).
+    ///
+    /// A running timer stays registered with its old service: the spec names
+    /// no restart, so a later `Stop` sends the old ID to the new service
+    /// (literal reading).
     pub fn use_timer_service(&self, on: bool) -> bool {
-        if self.st().uses_service == on {
+        {
+            let mut s = self.st();
+            if s.uses_service == on {
+                return true;
+            }
+            s.uses_service = on;
+        }
+        if !on {
+            // Quirk 8: the default replaces `+0x20` without releasing the
+            // old service (and without an AddRef on the default).
+            self.st().service = self.set.default_service.clone();
             return true;
         }
-        if on {
-            let found = self.set.locator.as_ref().and_then(|l| l.timer_service());
-            match found {
-                Some(service) => {
+        let found = self
+            .set
+            .locator
+            .as_ref()
+            .and_then(|l| l.system_service(FRAMEWORK_TIMER_SERVICE_ID, FRAMEWORK_TIMER_SERVICE_IID));
+        match found {
+            Some(system) => {
+                let scheduler = system.scheduler();
+                let old = {
                     let mut s = self.st();
-                    s.service = service;
-                    s.uses_service = true;
-                    true
+                    if same_service(&s.service, &scheduler) {
+                        None
+                    } else {
+                        Some(std::mem::replace(&mut s.service, scheduler.clone()))
+                    }
+                };
+                if let Some(old) = old {
+                    old.release();
+                    scheduler.add_ref();
                 }
-                None => false,
+                system.release();
+                true
             }
-        } else {
-            let mut s = self.st();
-            s.service = self.set.default_service.clone();
-            s.uses_service = false;
-            true
+            None => {
+                let old = {
+                    let mut s = self.st();
+                    s.uses_service = false;
+                    if same_service(&s.service, &self.set.default_service) {
+                        None
+                    } else {
+                        Some(std::mem::replace(&mut s.service, self.set.default_service.clone()))
+                    }
+                };
+                if let Some(old) = old {
+                    old.release();
+                }
+                false
+            }
         }
+    }
+
+    /// `+0x20` is the built-in default scheduler.
+    pub fn uses_default_service(&self) -> bool {
+        same_service(&self.st().service, &self.set.default_service)
     }
 
     /// `+0x04`.
@@ -386,8 +463,13 @@ impl Drop for CallbackTimer {
         if self.is_running() {
             self.stop();
         }
-        if let Some(o) = self.st().object.take() {
+        let object = self.st().object.take();
+        if let Some(o) = object {
             o.release();
         }
+        // The service is released whichever it is, the default too (the
+        // constructor took the default without an AddRef, question TM3).
+        let service = self.st().service.clone();
+        service.release();
     }
 }
