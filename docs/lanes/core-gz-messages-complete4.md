@@ -1,23 +1,33 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-gz-messages-complete4: portable GZ messaging completion | `core-gz-messages-complete4` / (engine lane, detached HEAD) | in progress; completion phase after parent logical round 1/3; ABI unchanged | Implement published GZ1-GZ7 contracts, owner checklist, independent vectors, full gate. |
+| core-gz-messages-complete4: portable GZ messaging completion | `core-gz-messages-complete4` / (engine lane, detached HEAD) | wip: core 19269ab9, tests 7feda760, audit d60acdea, checklist 8cc85506, final correction fac8c016; cargo 4662/0, clippy 0, ctest 68/68, fmt 7 PASS; 35 GZ tests covering V01-V14; GZ8-GZ10 open; ABI unchanged; no game/shadow/replacement or complete-owner credit | 1. Resolve GZ8-GZ10 and reconcile the full owner body inventory. 2. Preserve logical round 2/3, one completion round remains. 3. Coordinator regenerates the questions index. |
 
-## Handoff
-- Goal: complete portable queue, manager, registry, server1/server2 using framework-gz-services sections 2-5.2.
-- Done: initial baseline qbuild all PASS: cargo 4641/0, clippy 0, ctest 68/68 (baseline tree changed during native run; final gate must be stable).
-- Done: implemented shared counter, microsecond wait/status mapping and pulse callback, low-byte queued equality, per-generation pending ownership, retained snapshots, persistent directed locals and cancellation skip.
-- Done: substantive implementation 19269ab9; independent published V01-V14 assertions plus counter wrap, shared flush guard, equal local pointer and failed-wait boundary tests implemented.
-- Done: first quick found an obsolete Host1 fixture indexing a raw directed target; fixed to inspect zero references without creating a hold.
-- Done: 7feda760 published vector/boundary tests; quick PASS cargo core 2720/0 plus dependent compile/native build (tree changed during run).
-- Done: follow-up audit corrected void directed slots, append temporary pair trace, embedded post-queue signal destruction; added prefix/suffix reference-order and generation-1 quota/raw-removal tests.
-- Questions: GZ8-GZ10 appended for unspecified cleanup/base forwarding and absent complete 166-body inventory; whole-owner completion remains withheld.
-- Done: stable qbuild all at 8cc85506 PASS cargo4661/0, clippy0, ctest68/68; fmt7 PASS. Superseded by the final safe nested-send wildcard-order regression below.
-- Done: final contract audit requires wildcard lookup AFTER typed snapshot AddRefs; added deterministic nested-apply-to-separate-wildcard-list regression and corrected lookup order.
-- Next: final qbuild all on this correction, then report/checklist and queue; no engine edits during the gate.
-- Round accounting: parent logical1/3 plus this completion phase1/2 = logical2/3, one completion round potentially remains; no selfrestart/fourth round.
-- No plugin/CAPI/CMake/ABI changes; no game request outstanding; core-only task.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-gz-messages-complete4-r1-manifest.json.
-- This is the single guarded completion round; retain parent logical round accounting, no reset/fourth round.
+## Report
+
+Implemented the portable behavior published for GZ1-GZ7 in `framework-gz-services.md` sections 2-4A and checked the independent V01-V14 expectations. Whole-owner completion remains **incomplete**: GZ8-GZ10 request cleanup ordering, base-service contracts and the missing complete per-body inventory. No owner/coverage, shadow, replacement or default promotion follows from these unit tests.
+
+Changes in the seven existing `engine/core/src/gz_messages/*.rs` files:
+
+- Added the server-2 shared unsigned count, wrapping AddRef and nondeleting positive-only RemoveRef. It remains distinct from posted count and the 64-bit taken counter.
+- Replaced the latched queue signal with an empty-to-nonempty pulse callback. Blocking waits convert unsigned microseconds to milliseconds, preserve infinity, map native OS results and retry after timeout/failure without resetting or joining. Queue destruction closes the host signal before releasing messages, including the embedded server-2 queue.
+- All equality methods call the queued receiver and test only the low byte. Gets now report caller AddRef followed by queue Release, preserving observable calls instead of reducing them to a net transfer.
+- Registry operations expose AddRef/GetType/destructor re-entry, unlink before Release at positive depth, preserve still-linked flush replay and the per-generation process-wide guards. Generation 2 includes pending construction temporary holds. Generation 1 distinguishes counted pending adds from raw removes and preserves transfer/duplicate-add leak during direct apply.
+- Server 2 keeps every per-occurrence snapshot hold through all deliveries, then cleans up forward. Wildcard lookup occurs after typed-list snapshot acquisition, including safe nested-send pending application to the separate wildcard list. Server 1 retains its 385-target policy, exact-type send and per-callback snapshot cleanup.
+- Directed slots are void. Generation 1 copies records and borrows targets without reference calls. Generation 2 preserves temporary pair construction/copy/destruction, target-then-message assignment, identity suppression, persistent delivery locals and message-then-target final cleanup. Both preserve cancellation's defined prefix/suffix-skip witnesses and shared signed quota, including cancel/post and nested tick behavior.
+
+## Measured verification
+
+- Initial baseline `qbuild all`: cargo 4641 passed / 0 failed, clippy 0 diagnostics, CTest 68/68. Its native run noted concurrent tree changes, so it is baseline evidence only.
+- Intermediate `quick` gates: core 2720/0 and 2722/0, dependent crates compile-only and native build PASS. The first quick caught a test fixture assuming a reference on a raw generation-1 directed target; the fixture was corrected.
+- Stable full gate at 8cc85506: cargo 4661/0, clippy 0, CTest 68/68. A subsequent contract audit found the safe nested-send wildcard lookup ordering case; fac8c016 fixes it and adds an independent regression.
+- **Final stable `qbuild all` at fac8c016: PASS cargo 4662/0, clippy 0 diagnostics, native build 4/4 edges, full CTest 68/68.** fc4verify 234.3 seconds (build 73.3 seconds, CTest 156.0 seconds); no tree-change qualifier. No engine source changed during this gate.
+- Final `qbuild fmt` on all seven touched Rust files: exit 0. `git diff --check`: clean. GZ tests: 35 total, 21 added above the parent's 14; all fourteen published vector rows are covered, plus focused order/lifetime/boundary cases.
+- Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `qbuild-fmt.log`, `fc4verify-build.log`, `fc4verify-ctest.log`. No logs or generated ABI entries are committed.
+- Game: n/a, portable core only. No new request, outstanding label, measured reference-warning count or native shadow is claimed; no plugin/CAPI/CMake/ABI/default/enable/map changes.
+
+Questions appended only to `docs/specs/questions/framework-gz-services.md`: **GZ8** cleanup visitation/clear lifetime; **GZ9** service Release/base QI/owner-specific forwarding; **GZ10** complete 166-body attribution inventory. The generated questions index is intentionally left for the coordinator (tools/ is prohibited in this lane).
+
+Next: obtain those contracts and reconcile every attributable owner body against the checklist below before requesting complete-owner credit. Preserve parent logical round 1/3 plus this completion phase 1/2 = logical round 2/3; only one completion round remains, no reset/fourth round. This guarded round ends here without selfrestart. Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-gz-messages-complete4-r1-manifest.json`.
 
 ## Completion scope and per-body checklist
 
@@ -80,7 +90,7 @@ This is logical round 2/3 (parent round 1/3 plus completion phase 1/2). All four
 | `0092D091` QI | `answers_iid`; native counted out/base QI host | H/U GZ9 |
 | `0093056F` AddRef | one shared `add_ref` | M V01; pointer adjustment host |
 | `00930577` Release | no invented service deletion semantics | U GZ9 |
-| `0092EA65` send | `message_send` | M V05/V07, wildcard twice, all holds retained |
+| `0092EA65` send | `message_send` | M V05/V07, wildcard twice, retained holds, nested wildcard lookup order |
 | `0092D0BB` post | `message_post` | M ordinary queue front/back, no immediate delivery |
 | `0092E795` add notification | shared registry add | M V06, snapshot AddRef re-entry |
 | `0092E560` remove notification | shared registry remove | M V06 unlink-before-Release at depth 1 |
