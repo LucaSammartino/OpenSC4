@@ -39,3 +39,26 @@ and `expect_*` results. Height/fallback fixtures specify a 16 m square/top scale
 16 in the runner; orientation vectors supply their own coordinate cycle.
 The negative runner test changes one expected result for each operation and
 requires rejection. Vectors do not certify the unresolved native contracts.
+
+## Per-entry completion status
+
+"Decisions complete" below means the published portable rule, not native owner
+completion. Unspecified layout/algorithm results are not foreign-owner callbacks.
+
+| Owner | Public entry/behavior | Status |
+|---|---|---|
+| All three | Construction, destruction, base operations | Rust-owned state/leases and drop tested; native defaults, pool, base/IID operations and reference counts missing (LM2). |
+| Foundation | `SetupVertices` | Labelled five-face bounds, repeats and normal lighting complete; ordered native positions/UVs missing (LM3). |
+| Foundation | `AdjustHeightToTerrain` | Supplied-border maximum, water precedence, ceil steps, never-up and forced geometry rebuild complete; native border enumeration/precision unresolved (LM3/LM8). |
+| Foundation | Texture helper | Side/top per-zoom lookups and fallback decisions complete under explicit LM5 literal failure policy. |
+| Foundation | `GetSortValue`, `Draw` | Sort and highlight/cache/visible-side/top ordering decisions complete; native buffer submission/lifecycle missing (LM2/LM3/LM5). |
+| Wall | `Init`, `SetupVerticesFromBBoxAndWallEdge` | Sampled-edge initialization implemented; native box-to-cell range and lot queries missing (LM4). |
+| Wall | `SetupVertices` | Level omission and seam-expanded bands implemented; exact triangles, offsets, UV origin and colours missing (LM4). `triangles()` explicitly fails. |
+| Wall | `SetupTextures`, `DoZoomChange` | Per-zoom group/key/fallback decisions complete under LM5 policy. |
+| Wall | `GetSortValue`, `Draw` | Sort, highlight/zoom/rotation/facing decisions complete; recolouring remains pending, triangle-list submission unavailable (LM4). |
+| Wall | Across-edge flat query | Flag-bit decision complete; across-cell mapping and suppression role missing (LM4). |
+| Cell | Record, texture helper | Explicit record, per-zoom namespace/key/fallback and retained resource alpha complete; native defaults/failures unresolved (LM2/LM5). |
+| Cell | Corner helper | Rotation/mirroring complete for explicit coordinate cycle; native cycle/direction/strip ordering missing (LM6). |
+| Cell | Placement helper | Flat-bit choice, height/light sampling, cell positions and inset/widened bounds complete for explicit layout; native corner/colour representation unresolved (LM6). |
+| Cell | `Init` | Three semantic states present; native state/combiner record construction incomplete (LM7). |
+| Cell | `Draw` | Mode/pass/texture/filter/tint/no-add-signed/flat-terrain/force decisions complete; combiner internals, unsupported modes and bypass condition missing (LM1/LM7). |
