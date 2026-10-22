@@ -25,7 +25,7 @@ player can choose, as arrow pictures, with the chosen one highlighted.
 ## 1. The path-info view (`SC4PathInfoView`) *[compat]*
 
 - Made and initialised by the automata manager's cheat handler (`0x0050DD30`, automata.md §9). `Init`
-  (`0x00542EE0`): an untextured blended state (source alpha, one minus source alpha, alpha test "greater" than 0),
+  (`0x00542EE0`): untextured source-alpha blending; alpha test disabled (function/reference fields greater/0),
   without depth write; with the depth test less-or-equal unless the view was told to ignore depth.
 - `Update(context)` (`0x00542FC0`), each draw:
   1. A process-wide pulse byte becomes 0 if its old value is 255, otherwise increases by 5 modulo 256.
@@ -38,7 +38,7 @@ player can choose, as arrow pictures, with the chosen one highlighted.
      green, 2 blue, 4 yellow, 6 and 7 magenta, others light red; a path with flag bit 1 instead pulses from red to
      white.
   5. An arrowhead marks the full path's end, using a backward chord of at least 1 mm in 3D (§1.1).
-  6. When the key's byte 1 is `0xFF`, a bar 6 m across, perpendicular to the first segment, marks the start; when
+  6. When the key's byte 1 is `0xFF`, a bar across the first segment marks the start; only otherwise, when
      its byte 0 is `0xFF`, the same marks the end.
 
 ### 1.1 Native geometry and colour corrections (NOV2)
@@ -102,6 +102,19 @@ E.y+0.5 and its bar at stored E.y. A key with both low bytes FF draws only the s
 at (10,7,20), with heights, draws (8,7.5,20)→(12,7.5,20), then
 (10,7.5,18)→(10,7.5,22), opaque red. Default/setter/state and degenerate-input residuals are
 tracked in NOV2 until the remaining lifecycle evidence is reconciled.
+
+### 1.2 State/default checklist (NOV2, partial)
+
+Constructor `0x00542F50` sets initialized=false, ignoreDepth=false, packed state value/mask=0,
+filter u32=0xFFFFFFFF. It does not reset the pulse. Init is idempotent and returns true, setting its
+flag even without a render service. With that service its packed-state argument tuple (draw-context
+§5.1 order) is **(1,0,!ignoreDepth,0,1,0,0,ignoreDepth?−1:3,4,5,4,0,1,−1)**
+(`0x00542EF9–0x00542F41`). Alpha test and culling are off; depth write is off; source-alpha blend
+is on. Changing a field after Init does not itself repack. Update ignores DrawPrims results and
+acquires no resources. Destructor thunk 0x00542F90 forwards to deleting destructor 0x00542FA0:
+shared cleanup 0x0046B4C0, then free only if deleting-flags bit 0 is set. The shared cleanup/refcount
+transition, concrete public filter/depth setters and pulse static-initializer write remain residuals.
+Primary interfaces and coverage limits are in overlay-views §3.2.
 
 ## 2. The train-junction view (`SC4TrainJunctionView`) *[compat]*
 
@@ -210,7 +223,7 @@ The automata manager (cheat) and the U-Drive-It player train control.
 
 ## 4. Quirks
 
-1. Only the first 25 points of a path are drawn by the path-info view (§1).
+1. Only the main strip is capped to 25; arrows/bars use the full path (§1.1).
 2. Junction arrows are stacked by small depth steps rather than sorted (§2).
 
 ## 5. Open questions
@@ -224,4 +237,4 @@ view on, and what the path key's bytes and type nibble denote in traffic-network
 2. **Limit:** a path of 40 points draws a strip of 25 points.
 3. **Arrow choice:** entry direction e = (1, 0) and a route ending along d = (0, −1) give c = 1: the pair
    `0x6BE09921`/`0x6BE09922`; a route ending along e gives c = 0: the pair `0x6BE09925`/`0x6BE09926`.
-4. **Transparency:** a junction away from the player's train draws at 0.5.
+4. **Transparency:** away from both stored cells, plain routes draw at .4, selected/marker at .5.

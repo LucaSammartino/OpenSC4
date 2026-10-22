@@ -238,7 +238,7 @@ generated index: the questions live one file per spec, so read only the file for
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
 | overlay-manager | 3 | 6 | OV10 | questions/overlay-manager.md |
-| overlay-views | 7 | 0 | OVV8 | questions/overlay-views.md |
+| overlay-views | 3 | 4 | OVV8 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 3 | 4 | PT8 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
@@ -294,4 +294,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **396** | **1201** | | |
+| **total** | **392** | **1205** | | |

@@ -17,6 +17,12 @@
   PathInfoColourNov2; native line format stays None. Cross provisional reading: x/z axes ±4m, alpha 200,
   same +0.5m height. No complete-owner credit.]
 
+  **Native evidence 2026-10-22 (re-overlay-views-contracts4):** §§1.1–1.2 prove exact colours/pulse
+  update, format/state/defaults, full-vector 3D arrow/bar rules, ±2m opaque cross, x-outer traversal,
+  empty/repeated/nonfinite and scratch-alpha boundaries. Residual: pulse static initialization,
+  actual public filter/depth setters and shared cleanup/refcount lifecycle. The constructor does not
+  reset the process-wide pulse; no initial-draw pulse value is certified yet.
+
 <!-- from: core-overlay-views4 (2026-10-22) -->
 - **NOV3 - §2, SC4TrainJunctionView missing draw bodies:** publish exact Init draw state, entry-direction
   selection, route coordinate space, last-three-points distance/chord rule, GetArrowBitmapQuad
@@ -25,3 +31,9 @@
   lifecycle. [Core acquires literal keys, builds midpoint unit directions and computes the literal
   last-three-point chord classifier and 0.8/0.5 transparency. Init, quad, junction draw and Update fail
   with TrainGeometryNov3; no injected same-owner transforms or placeholder success. No owner/runtime credit.]
+
+  **Native evidence 2026-10-22 (re-overlay-views-contracts4):** §2.1 proves packed Init state,
+  full-path horizontal chord classifier, exact quad/order/UV/height, .7/.4 plain versus .8/.5 selected,
+  frame-wide .1+.01 stacking, first-route origin/direction, model choice, resource releases and failure
+  boundaries. Residual: marker rotation-helper handedness/model-state details, actual setters and
+  identification of the stored cell pairs as train current versus target, destruction/refcount integration.

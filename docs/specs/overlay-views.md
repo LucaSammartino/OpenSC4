@@ -30,7 +30,8 @@ vertex buffer.
   by `Init` (`0x007DCD90`): plain and textured (one texture), both colour write with no depth write and no depth
   test, culling, blended (source alpha, one minus source alpha) unless boolean 33 `kPreferOpaque` is on.
 - `NewPath(colourBits, priority, flags)` (`0x007DDC50`): a new path, inserted before the first path whose
-  binary32 priority is not less than the new priority (equal priorities are newest first). Flag bit 0 draws an arrowhead at the start, bit 1
+  binary32 priority compares greater than or equal to the new priority (equal priorities are newest first;
+  unordered comparisons continue searching). Flag bit 0 draws an arrowhead at the start, bit 1
   at the end.
 - `AddPathVertex(p)` (`0x007DDB30`): appends p to the newest path, unless it lies within √(10⁻⁵) m of the previous
   vertex in x and z.
@@ -42,12 +43,10 @@ vertex buffer.
 
 A path of n ≥ 2 vertices becomes one triangle strip of 2n vertices (vertex format 10: position, colour, uv):
 
-- **Offsets:** at the two ends, the left and right points are the vertex ± t times the unit normal of the end
-  segment in x–z (`0x007DCE60`); at a joint, the offset follows the bisector of the two segments' normals
-  (`0x007DCF20`), falling back to the next segment's normal when the bisector is shorter than 0.0001 (a path that
-  doubles back).
-- **Texture coordinates:** u is 0 on one side and 1 on the other; v is the distance along the path so far times
-  r ÷ (2 t), where r is the path's repeat factor.
+- **Offsets:** ends use ±t times the horizontal unit normal; joints use the squared-length miter
+  rule with an unscaled outgoing-normal fallback (§1.2).
+- **Texture coordinates:** first coordinate is the per-segment longitudinal projection scaled by
+  r ÷ (2t); second coordinate is side 0/1 (§1.2).
 - **Arrowheads** (`DrawArrowhead`, `0x007DD0D0`): with the start or end flag, a single triangle (format 10) is drawn
   at that end along the end segment, sized from t, and the ribbon's end point moves back to the arrow's base; no
   arrow is drawn when its available 3D segment is shorter than 2t. See §1.2 for exact geometry.
@@ -60,7 +59,8 @@ A path of n ≥ 2 vertices becomes one triangle strip of 2n vertices (vertex for
 field (`0x007DD427–0x007DD42C`); no separate opaque ID lookup, default white colour, or colour setter
 is established by these bodies. Priority is a **float**, not a signed or unsigned integer
 (`0x007DDC64–0x007DDC76`). Search continues only while oldPriority < newPriority; equal values insert
-before the old one. An unordered comparison (NaN) also stops the search. NewPath selects this newly
+before the old one. The branch tests x87 C0 only: an unordered comparison (NaN) continues searching,
+just like less-than (`0x007DDC6D–0x007DDC76`). NewPath selects this newly
 inserted record for subsequent AddPathVertex/SetPathTexture, irrespective of its list position.
 
 Relative to a record (excluding its two list links): +0 colour bits, +4 flags, +8 binary32 priority,
@@ -151,8 +151,8 @@ colour), batched up to 1,024 vertices per indexed draw.
   is skipped unless its first or third corner is in the view frustum. With lots considered, a cell under a lot that
   the filter accepts takes the lot's altitude at each corner, 15.5 m higher for lots of certain types (flags
   `0x304`), and is skipped for a lot with flag `0x100000` that does not show marks.
-- **Other sizes:** the corners are the cell's grid corners times the cell size, clamped to the terrain, at the
-  altitude of the terrain vertex nearest to each corner; the diagonal is always the same.
+- **Other sizes:** clamp grid corners before scaling; sample lower terrain vertices and apply water-max;
+  use a fixed diagonal (§2.2).
 
 ### 2.2 Exact marked-cell colour, corner and ordering corrections (OVV4–OVV5)
 
@@ -289,6 +289,38 @@ Independent discriminators derived from these instructions (no portable implemen
 | Empty range [2,2), lock valid | V increases by 2, I unchanged; later flush unlocks even if I=0. |
 | Flush; small submission without CreateBuffer | Null lock pointer: no new copy/draw. |
 | Grow index vector with room for vertices | Grow storage; no driver unlock/draw. |
+
+### 3.2 Method checklist and proof limits (OVV6)
+
+The export currently names **49 non-template entries**, not the question's unverified 54. The full
+named checklist follows; presence in this checklist does not certify the entire body. Three additional
+unnamed marked-cell wrappers are also identified. Library list/deque helpers are not counted as owners.
+
+| Owner | Named methods and addresses | Proved scope / residual |
+|---|---|---|
+| cSC4PathView (15) | ctor 0x007DDD50; Init 0x007DCD90; Shutdown 0x0053C940; SetThickness 0x008B6DE0; SetPathTexture 0x007DCE20; NewPath 0x007DDC50; AddPathVertex 0x007DDB30; ClearPaths 0x007DDBE0; Update 0x007DD9B0; GetEndOffsets 0x007DCE60; GetJointOffsets 0x007DCF20; DrawArrowhead 0x007DD0D0; DrawPath 0x007DD410; destructor thunk 0x007DDDB0; deleting destructor 0x007DDDC0 | §1.2 inputs/finite geometry; full shared-reference lifecycle residual |
+| cSC4PathView::PathInfo (1) | destructor-labelled helper 0x008EBCD0 | Called on point-deque subobject; no separate full-record constructor/destructor ABI inferred from label |
+| SC4MarkedCellView (14) | AddRegionCells 0x004B9250; SetShouldIgnoreDepthBuffer 0x007DC1A0; SetShouldUseWaterAltitude 0x007DC1B0; SetCellSize 0x007DC1D0; Init 0x007DC200; Shutdown 0x007DC2C0; SetOutlineColor 0x007DC2F0; DrawCells 0x007DC3A0; Update 0x007DC9F0; SetCellColor 0x007DCB30; ctor 0x007DCC10; destructor thunk 0x007DCC80; deleting destructor 0x007DCC90; ClearCells 0x007DCD00 | §2.2; complete region allocation/failure and independent outline-disable residual |
+| cSTEVertBufExtn (7) | CreateBuffer 0x0075C9F0; CopyTerrainRow 0x0075CA30; ReleaseVertexBufferExtension 0x0075CA90; SetIndexBuffer 0x0075CAB0; FlushBuffer 0x0075CAD0; DrawPrimsIndexedUsingVertBuf 0x0075CB50; GetVertexBufferExtension 0x0075CD40 | §3.1 covers all seven mapped static helper bodies; no invented COM ctor |
+| SC4PathInfoView (5) | Init 0x00542EE0; ctor 0x00542F50; destructor thunk 0x00542F90; deleting destructor 0x00542FA0; Update 0x00542FC0 | network-overlay-views §§1.1–1.2; setter/static-init/shared-reference residuals |
+| SC4TrainJunctionView (7) | Init 0x005633C0; Shutdown 0x00563730; GetArrowBitmapQuad 0x005637E0; ctor 0x005649D0; GetPathBitmap 0x00564A60; DrawTrainJunction 0x00564BE0; Update 0x005657A0 | network-overlay-views §2.1; marker rotation, cell setters/destructors residual |
+
+Additional unnamed wrappers: marked-cell use-lots byte store 0x007DC1C0; packed-colour vector
+assignment 0x007DCCF0; append cell(x,z) 0x007DCD30. AddRegionCells scans signed inclusive x outer,
+z inner and appends set mask cells (`0x004B9250–0x004B92DC`); the full growth/failure path remains
+unaudited. Marked-cell depth switch is a byte store and does not repack initialized state. Init
+sets its flag and returns true even without the render service; Shutdown releases/nulls its filter
+and clears the flag. Its deleting destructor releases the filter, both vectors and base/free;
+it does not draw/flush (`0x007DCC90`).
+
+Primary view-interface tables: **0x00ABB648** (path), **0x00ABB614** (marked), **0x00A99F48**
+(path-info), **0x00A9D974** (train). All contain exactly five entries: QueryInterface 0x005BCB40,
+AddRef 0x005BE3E0, Release 0x005BCB30, owner Update, Pick 0x00735290. The first three adjust this
+by +4 and forward to shared unknown/refcount methods; Pick returns false without a hit. No bounds
+or transform getter/setter appears in these interfaces. Shared zero-release destructor dispatch is
+not proved merely by these thunks. OVV6 remains open: 49 named +3 identified unnamed entries do not
+reconcile 54, and shared deletion/remaining setters are residual. No whole-owner/runtime/replacement/
+default claim follows. All vectors in this spec are instruction-derived expectations, not game runs.
 
 ## 4. Users
 
