@@ -9,9 +9,10 @@ editors in [resource-exemplar-editor.md](resource-exemplar-editor.md).
 **Coverage status: partial, no complete-owner spec credit.** The fresh owner
 inventory has 111 entries, including 92 named editor methods. The named bodies
 sum to 51,054 bytes; the other 19 entries contribute 1,826 attributed bytes.
-The measured snapshot total is **52,880 bytes**, not the task-selection label's
-52,646 bytes. These are attribution counts, not a claim of unique native bytes
-or complete contracts; see §6 and the inventory companion.
+The old snapshot totals **52,880 attributed bytes**; reconciliation against
+current exported entries gives **109 entries / 52,646 body bytes**, matching
+the brief. These are inventory counts, not a claim of complete contracts;
+see §6 and the inventory companion for the exact difference.
 Sections below distinguish established dispatch/state rules from unresolved
 dialog and numeric details. An address citation identifies native evidence,
 not an executable conformance fixture.
@@ -469,3 +470,65 @@ silently repair that omission in the compatibility contract.
 | x center 5,z center 6; bounds x=[3,7],z=[5,7]; rotation 3. | Rotate. | Rotation 0; x=[4,6],z=[4,8]; dirty/title/draw sequence runs. |
 | Dirty false; selected object A with index n. | Delete A without prompt. | A erased, selected pointer null, index n retained, dirty still false; draw/invalidating calls run. |
 | Type 5 selected, dirty false. | Mirror. | No mutation, dirty/title/draw untouched. |
+
+## 11. Keyboard and edit-mouse state: established subset *[compat]*
+
+`GZOnKeyDown` (`0x00485710`, 717 bytes) returns true for every key, including
+unrecognised keys. While this editor is capturing the mouse it performs none
+of its key actions. Otherwise it clears the drag byte before dispatch.
+Modifiers below are raw mask bits; the Save labels corroborate their usual
+Shift/Control/Alt meanings, but no modifier-name ABI is imposed here.
+
+| Key | Action when not capturing |
+|---|---|
+| Escape | Placement mode zero; install normal cursor. Does not close or discard configuration edits. |
+| C | Increment condition byte; when the new byte is exactly 7 reset to zero; invoke refresh `+0x27C`. |
+| B / T | Add building / base texture selector. |
+| P | Prop selector: bit0 set gives `(false,true)`; bit0 clear and bit1 set gives `(true,false)`; otherwise `(true,true)`. |
+| F | No bits0/1: flora selector; either bit set: add/edit fences. |
+| S | Requires bit1. If bit0 set: ordinary Save As; else bit2 set: Save a Copy As; else Save. Both message options true. Without bit1 no action. |
+| G / R / F1 | Go to 3D view / refresh / help page 0. |
+| Arrow keys with selection | Pass key and modifier word to key MoveObject. |
+| Page Up or Page Down with selection | Call the same RotateObject; both increment rotation. |
+| M with selection | MirrorObject (which acts only on textures). |
+| D with selection | Duplicate only if bit1 is set. |
+| Delete or Backspace with selection | Delete with confirmation enabled. |
+| Home with selection | If elevation is nonzero, write zero, set dirty, update title and request redraw; this is not limited to props. |
+| N with selection | CycleSelectedObject. |
+
+Recognised global keys precede selected-object keys. For example Escape cancels
+placement mode even if an object is selected. Condition cycling assumes normal
+state 0..6: it is an equality reset at 7, not a general modulo-7 normalisation.
+Save argument pushes are at `0x00485846..0x00485881`; rotation keys share the
+one incrementing method specified in §9.1. Selection cycling and selector/
+refresh internals remain LE4/LE5.
+
+`DoEditMouseUpL` (`0x0047A890`, 42 bytes) returns true. If the drag byte is set,
+it clears it and releases capture only if currently capturing. If drag was
+already false it leaves even an existing capture untouched.
+
+`DoEditMouseMove` (`0x004859E0`, 286 bytes) moves the selection only while both
+drag and capture are active. It then updates status text for every move:
+`%08x: Pixel: (%d,%d) World: (%.1f,%.1f)`, using zero for the timestamp word
+when no object is selected and selected record `+0x24` otherwise. World values
+are pixel coordinates scaled by `+0x1AC`. The precise drag delta/pixel
+conversion and status-interface argument recovery remain LE3/LE5.
+
+`DoEditMouseDownL` (`0x00486770`, 434 bytes) starts by hit-testing. A no-hit
+clears an existing selection and redraws/invalidates. Hit code 1 with placement
+mode zero does the same. Hit code 2 with mode zero opens the lot-foundation
+dialog with the current foundation ID and no building, then clears selection;
+with nonzero mode it does nothing. Hit code 3 in mode 8 toggles a fence; other
+nonzero modes do nothing for this hit. In mode zero, hit code 3 clears any
+selection and requests a redraw. Object codes ≥100 in mode zero select the
+returned object and proceed into drag setup. Hit-code assignment, placement
+clicks and the remaining drag/capture details remain LE5, not inferred here.
+
+| Initial state / input | Action | Expected result |
+|---|---|---|
+| Mouse capture active; dirty false. | Press Escape, S or Delete. | Handler returns true without its key actions, including no drag-byte clear. |
+| Placement mode nonzero, configuration dirty. | Press Escape without capture. | Placement mode zero, normal cursor; dirty/current configuration preserved. |
+| Rotation 0, selected object. | Page Up, then Page Down. | Rotation becomes 1, then 2; Page Down does not undo Page Up. |
+| Capture held, drag false. | DoEditMouseUpL. | Returns true and leaves capture held. |
+| Capture held, drag true. | DoEditMouseUpL. | Drag clears and capture releases. |
+| Condition 6 versus 7 (separate runs). | Press C. | 6 becomes 0; 7 becomes 8. Both invoke refresh. |
