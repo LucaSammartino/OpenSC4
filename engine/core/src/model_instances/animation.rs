@@ -1,0 +1,86 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+use super::*;
+
+/// cS3DModelInstanceAnimated. The unpublished/never-set subrange table is
+/// intentionally absent (graphics-formats §3.9); SetAnimation is therefore inert.
+pub struct AnimatedInstance {
+    pub instance:StaticInstance,
+    frame:u16,
+    mode:u8,
+    direction:i8,
+    speed:f32,
+    accumulator:f32,
+}
+impl AnimatedInstance {
+    pub fn new(model:&ModelReference,attributes:DrawAttributes)->Option<Self> {
+        let mut instance=StaticInstance::new(attributes);
+        if !instance.set_model(Some(model)) {return None;}
+        Some(Self {instance,frame:0,mode:3,direction:1,speed:-100.,accumulator:0.})
+    }
+    pub fn frame(&self)->u16 {self.frame}
+    pub fn frame_count(&self)->u16 {self.animation_header().map_or(0,|h|h.frame_count)}
+    pub fn animation_header(&self)->Option<AnimationHeader> {self.instance.animation_header()}
+    pub fn mode(&self)->u8 {self.mode}
+    pub fn direction(&self)->i8 {self.direction}
+    pub fn speed(&self)->f32 {self.speed}
+    pub fn accumulator(&self)->f32 {self.accumulator}
+    pub fn set_animation(&mut self,_index:u32)->u32 {0}
+    pub fn set_frame(&mut self,frame:u16)->u32 {
+        if frame==self.frame {return 2;}
+        if frame>=self.frame_count() || !self.instance.build_frame(frame) {return 0;}
+        self.frame=frame;2
+    }
+    pub fn set_speed(&mut self,speed:f32) {
+        self.speed=if speed == -200. {f32::from(self.animation_header().map_or(0,|h|h.frame_rate))*0.001_f32}
+            else {speed};
+    }
+    pub fn set_anim_mode(&mut self,mode:u8) {self.mode=mode;}
+    pub fn step(&mut self) {
+        let count=self.frame_count();
+        if count<=1 || self.direction==0 {return;}
+        let next=if self.direction>0 {
+            if self.frame<count-1 {self.frame+1}
+            else if self.mode==3 {0}
+            else if self.mode==2 {self.direction=-1;self.frame-1}
+            else {self.direction=0;self.accumulator=0.;return;}
+        } else if self.frame>0 {self.frame-1}
+        else if self.mode==3 {count-1}
+        else if self.mode==2 {self.direction=1;self.frame+1}
+        else {self.direction=0;self.accumulator=0.;return;};
+        self.set_frame(next);
+    }
+    pub fn advance(&mut self,dt:f32)->u32 {
+        if self.speed.to_bits()==(-100_f32).to_bits() {self.set_speed(-200.);}
+        if self.speed==0. {return 0;}
+        self.accumulator=(dt*self.speed)*f32::from(self.direction)+self.accumulator;
+        if self.accumulator.abs()<1. {return 0;}
+        if self.accumulator.abs()<2. {
+            self.step();self.accumulator-=f32::from(self.direction);
+        } else {
+            self.step();self.accumulator=1.;
+        }
+        2
+    }
+}
+impl Interfaces for AnimatedInstance {
+    fn interface(&self,iid:u32)->Option<InterfacePart> {
+        if iid==IID_ANIMATED {Some(InterfacePart::Animated)} else {self.instance.interface(iid)}
+    }
+}
+
+#[derive(Clone)]
+pub enum InstanceReference {
+    Static(Reference<StaticInstance>),
+    Animated(Reference<AnimatedInstance>),
+}
+impl InstanceReference {
+    pub fn with_instance<R>(&self,f:impl FnOnce(&StaticInstance)->R)->R {
+        match self {Self::Static(v)=>f(&v.read()),Self::Animated(v)=>f(&v.read().instance)}
+    }
+    pub fn with_instance_mut<R>(&self,f:impl FnOnce(&mut StaticInstance)->R)->R {
+        match self {Self::Static(v)=>f(&mut v.write()),Self::Animated(v)=>f(&mut v.write().instance)}
+    }
+    pub fn animated_frame_count(&self)->Option<u16> {
+        match self {Self::Static(_)=>None,Self::Animated(v)=>Some(v.read().frame_count())}
+    }
+}

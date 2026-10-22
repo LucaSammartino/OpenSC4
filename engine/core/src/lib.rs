@@ -119,3 +119,4 @@ pub mod fonts;
 pub mod timers;
 pub mod terrain_overlays;
 pub mod render_properties;
+pub mod model_instances;

@@ -1,0 +1,102 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+use super::*;
+
+pub const SPRITE_ANIMATION_TYPE:u32=0x29A5D1EC;
+pub const SPRITE_TABLE_TYPE:u32=0x09ADCD75;
+pub const IID_SPRITE_TABLE:u32=0x69B6F01C;
+const ZOOM_SIZES:[f32;5]=[8.,16.,32.,73.,146.];
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SpriteAnimation {
+    pub instance_id:u32,
+    pub header:[u32;5],
+    pub trailing_value:u32,
+    pub keys:[u32;5],
+    pub source_zooms:[usize;5],
+    pub scales:[f32;5],
+}
+impl SpriteAnimation {
+    pub fn read(instance_id:u32,bytes:&[u8])->Option<Self> {
+        let mut reader=Words {bytes,offset:0};
+        if reader.next()?!=SPRITE_ANIMATION_TYPE {return None;}
+        let mut header=[0;5];for value in &mut header {*value=reader.next()?;}
+        let mut keys=[0;5];for value in &mut keys {*value=reader.next()?;}
+        keys[0]=0;keys[1]=0;
+        for key in &mut keys {if *key<instance_id {*key=key.wrapping_add(instance_id);}}
+        let trailing_value=reader.next()?;
+        let mut source_zooms=[0;5];let mut scales=[1.;5];let mut source=4;
+        source_zooms[4]=4;
+        for z in (0..4).rev() {
+            if keys[z]==keys[source] {scales[z]=ZOOM_SIZES[z]/ZOOM_SIZES[source];}
+            else {source=z;}
+            source_zooms[z]=source;
+        }
+        if keys[4]==instance_id {
+            // MI7: before a non-I source exists, leave the downward result
+            // unchanged. This also handles an all-I resource without invention.
+            let mut source=None;
+            for z in 0..5 {
+                if keys[z]!=instance_id {source=Some(z);}
+                else if let Some(s)=source {
+                    keys[z]=keys[s];source_zooms[z]=s;scales[z]=ZOOM_SIZES[z]/ZOOM_SIZES[s];
+                }
+            }
+        }
+        Some(Self {instance_id,header,trailing_value,keys,source_zooms,scales})
+    }
+}
+impl Interfaces for SpriteAnimation {
+    fn interface(&self,iid:u32)->Option<InterfacePart> {
+        match iid {IID_UNKNOWN|SPRITE_ANIMATION_TYPE=>Some(InterfacePart::Resource),_=>None}
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SpriteAnimationTable {block:Vec<u8>}
+impl SpriteAnimationTable {
+    pub fn read(bytes:&[u8])->Option<Self> {
+        let mut reader=Words {bytes,offset:0};
+        if reader.next()?!=SPRITE_TABLE_TYPE {return None;}
+        let block=bytes.get(4..)?;
+        let count=u32::from_le_bytes(block.get(28..32)?.try_into().ok()?);
+        let expected=32_usize.checked_add(usize::try_from(count).ok()?.checked_mul(8)?)?;
+        if block.len()!=expected {return None;}
+        Some(Self {block:block.to_vec()})
+    }
+    pub fn header(&self)->&[u8] {&self.block[..32]}
+    pub fn entry_count(&self)->u32 {u32::from_le_bytes(self.block[28..32].try_into().expect("validated header"))}
+    pub fn entry(&self,index:usize)->Option<&[u8]> {
+        let offset=32_usize.checked_add(index.checked_mul(8)?)?;
+        self.block.get(offset..offset.checked_add(8)?)
+    }
+    pub fn block(&self)->&[u8] {&self.block}
+}
+impl Interfaces for SpriteAnimationTable {
+    fn interface(&self,iid:u32)->Option<InterfacePart> {
+        match iid {IID_UNKNOWN|IID_SPRITE_TABLE=>Some(InterfacePart::Resource),_=>None}
+    }
+}
+
+/// Factory-owned result; failed reads return None with no retained allocation.
+pub enum SpriteResource {Animation(Reference<SpriteAnimation>),Table(Reference<SpriteAnimationTable>)}
+
+pub struct SpriteAnimationFactory;
+impl SpriteAnimationFactory {
+    pub fn serial_read(&self,resource_type:u32,instance_id:u32,bytes:&[u8])->Option<SpriteResource> {
+        match resource_type {
+            SPRITE_ANIMATION_TYPE=>SpriteAnimation::read(instance_id,bytes)
+                .map(|r|SpriteResource::Animation(Reference::new(r))),
+            SPRITE_TABLE_TYPE=>SpriteAnimationTable::read(bytes)
+                .map(|r|SpriteResource::Table(Reference::new(r))),
+            _=>None,
+        }
+    }
+}
+struct Words<'a> {bytes:&'a [u8],offset:usize}
+impl Words<'_> {
+    fn next(&mut self)->Option<u32> {
+        let end=self.offset.checked_add(4)?;
+        let value=u32::from_le_bytes(self.bytes.get(self.offset..end)?.try_into().ok()?);
+        self.offset=end;Some(value)
+    }
+}
