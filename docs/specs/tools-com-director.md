@@ -27,7 +27,7 @@ have `name-medium`, and `00A66A31` has `neighbour`.
 | `00407000` | 2444 | U; distant reached helper |
 | `00420036` | 21 | A; numeric-table false reference (§1.1) |
 | `0094A079` | 107 | S; compressed-input submission (§5.7) |
-| `0094A0E4` | 455 | U |
+| `0094A0E4` | 455 | S; planar drain/frame-dispatch boundary (§5.11); numerical driver remains U |
 | `0094A2AB` | 22 | S; decoder reset boundary (§5.3) |
 | `0094A2C1` | 311 | S; compressed-header parser (§5.6) |
 | `0094A3F8` | 58 | S; ID3 prefix length (§5.4) |
@@ -61,22 +61,22 @@ have `name-medium`, and `00A66A31` has `neighbour`.
 | `0094AC43` | 69 | D; singleton getter (named) |
 | `0094AC88` | 545 | S; large-service slot +1C |
 | `0094AEAE` | 107 | S; large-service slot +0C |
-| `00A667B4` | 38 | U |
+| `00A667B4` | 38 | S; decoder constructor (§5.10) |
 | `00A667DA` | 36 | S; history clear (§5.9) |
 | `00A667FE` | 463 | S; complete internal header parser (§5.9) |
 | `00A66A31` | 46 | S; inverted header check (§5.9); neighbor attribution retained |
-| `00A66A5F` | 211 | U |
-| `00A66B32` | 49 | U |
+| `00A66A5F` | 211 | S; format-derived initialization (§5.10) |
+| `00A66B32` | 49 | S; header/frame dispatch (§5.10); driver remains U |
 | `00A66B80` | 39 | S; cursor reset (§5.9) |
 | `00A66BA7` | 23 | S; decoder logical cleanup (§5.3) |
 | `00A66BBE` | 21 | S; decoder destructor (§5.3) |
-| `00A66BD3` | 28 | U |
+| `00A66BD3` | 28 | S; deleting destruction (§5.10) |
 | `00A66BEF` | 189 | U |
 | `00A66CAC` | 2078 | U |
-| `00A674CA` | 119 | U |
-| `00A67541` | 56 | U |
-| `00A67579` | 57 | U |
-| `00A675B2` | 46 | U |
+| `00A674CA` | 119 | S; ring-bit extraction (§5.10) |
+| `00A67541` | 56 | S; ring single-bit read (§5.10) |
+| `00A67579` | 57 | S; bit rewind (§5.10) |
+| `00A675B2` | 46 | S; byte rewind (§5.10) |
 | `00A675E0` | 3405 | S; complete layer-3 side-information parser (§5.8) |
 | `00A6832D` | 1414 | U |
 | `00A688B3` | 584 | U |
@@ -92,7 +92,7 @@ have `name-medium`, and `00A66A31` has `neighbour`.
 | `00A69E86` | 981 | U |
 | `00A6A25B` | 5716 | U |
 | `00A6B918` | 3773 | U |
-| `00A6C7D5` | 51 | U |
+| `00A6C7D5` | 51 | S; binary32-to-PCM store (§5.10) |
 | `00A6C808` | 671 | U |
 
 Shared/inherited bodies used below are additional evidence, not extra inventory rows.
@@ -661,6 +661,120 @@ to +4A34 and clears four dwords +24AC,+24A8,+4A30,+24B4, returns EAX=0 and leave
 all other state intact (`00A66B80–00A66BA6`). Neither reset means complete object
 initialization or ownership transfer.
 
+### 5.10 Ring bits, initialization and PCM conversion
+
+The bit reservoir helpers take a pointer R to this layout: dword +4 is the next
+byte index, +8 the bits remaining in the loaded byte, +C the left-aligned shift
+register, and +10..+100F the 4096-byte ring. These are caller-owned inline data,
+not an allocated buffer returned by any helper. Arithmetic wraps at32 bits;
+indices are masked with FFFh only for ring loads. No write cursor, available-byte
+count, underflow/error state or ownership operation exists in these helpers.
+
+`00A674CA` takes `(R in ECX, unsigned bitCount on stack)`, pops4, and returns the
+low32 extracted bits in EAX. Count0 returns0 without any state read/write. While
+bits remain requested, if +8=0 it loads ring[index&FFFh]<<24 into +C, increments
+index and sets +8=8. If requested>=available (unsigned compare), append all
+available bits to the result, clear +8, subtract available from requested, repeat
+if nonzero; the whole-byte branch does **not** shift or clear +C. Otherwise append
+only the requested high bits, left-shift +C by requested, decrement +8 and finish.
+Appending means left-shift the previous result and OR the logical high-bit
+extraction. All variable shifts mask their count to31. Thus requests>32 consume
+all requested bits but retain only the final32; they are not rejected. Readable
+ring contents are consumed even if no fresh compressed input was supplied.
+Evidence: full body `00A674CA–00A67540` (notably unsigned branches at D5/7508).
+
+`00A67541` takes R in ECX, no stack arguments. Refill identically if +8=0;
+then return +C>>31, decrement +8, and shift +C left1. It returns a full0/1 dword.
+`00A67579` takes one dword bit-rewind N, forms unsigned T=N+oldAvailable modulo
+2^32, subtracts logical T>>3 from index and sets available=T&7. If the latter is
+nonzero, reload `ring[(index-1)&FFFh] << ((32-available)&31)` into +C; otherwise
+retain old +C. `00A675B2` instead subtracts N directly from the byte index, retains
+available, and performs the same conditional reload. Both rewind helpers return
+R in EAX, pop4 and accept negative-bit-pattern arguments without validation.
+Invalid initial available counts are not normalized by either reader; the native
+comparisons/shifts above still apply. Evidence: `00A67541–00A675DE`.
+
+`00A667B4` installs table `00AF35D8`, clears exactly the three dwords
++24BC,+24C0,+24C4 via `009086AC`, clears dword +4A3C and byte +4A38, and returns
+this. It does not initialize the remainder of the 4A60h-byte allocation. This
+explains why submission/reset cannot be treated as construction of all decoder
+state. `00A66BD3` calls logical destructor `00A66BBE` (§5.3), and, if its flags
+argument bit0 is set, calls `005E5620` (GlobalHeapFree) on this; it returns the
+original pointer and pops4. The service's explicit decoder destruction followed
+by CRT free is a separate path; do not substitute this deleting wrapper there.
+Evidence: `00A667B4–00A667D9`, `009086AC–009086B6`, `00A66BD3–00A66BEE`.
+
+`00A66A5F` derives format state, with no allocation, validation or pointer ownership:
+signed32 P=wrap(bitrate(+2494)*144000), S=sampleRate(+2484). First signed-divide P
+by S; only after that division store +4A20=1, +4A24=quotient. Store +4A28 as
+truncate(remainder/100), +4A2C as truncate(S/100). Signed division traps on zero
+divisor or quotient overflow, without rollback. Form bytes=wrap(channels*900h);
+if layer=3 and reduced byte nonzero, arithmetic-shift bytes right1. Store bytes
+at +248C and +249C, phase byte +4A0C=1. For layer3 also set byte +4A10 to2 at full
+rate or1 at reduced rate, dword +4A08=0, words +4A04/+4A06=240h; clear the same
+three reservoir-control dwords and zero [this+3804h,this+4A04h). Finally EAX=0.
+Other layers leave all layer3-only fields untouched. Evidence: `00A66A5F–00A66B31`.
+
+`00A66B32` calls decoder virtual +4 first (no stack arguments). Nonzero full EAX
+returns-1; otherwise, layer byte +2490=3 forwards its sole stack argument to
+`00A69E86` and returns that body's EAX. Every other layer returns0 without frame
+decoding. It pops4, owns nothing, and does not validate the output pointer.
+The numerical frame driver remains unproved; this dispatch is not decoder closure.
+Evidence: `00A66B32–00A66B62`.
+
+`00A6C7D5` is caller-cleaned with `(writableWordPointer,binary32Value)` on stack.
+It loads the binary32 value, calls `_ftol2` (§5.3), compares **only signed EAX**
+against32767 and-32768, then stores32767/-32768 if above/below, otherwise AX.
+It writes exactly two bytes; no pointer check or returned success status. Invalid
+masked input therefore stores0. A finite value4294967296 stores0, rather than
+clipping high, because conversion's high dword is discarded before the comparisons.
+Evidence: `00A6C7D5–00A6C807`.
+
+### 5.11 Planar drain and frame-dispatch boundary
+
+`0094A0E4` receives decoder ECX and `(arrayOfPlanePointers,requestedFrames)`, pops8
+and returns a frame count. Plane pointers are borrowed, individually nullable;
+the array itself must be readable when the channel loop executes. Each nonnull
+plane receives two-byte samples deinterleaved from decoder+1244. No allocation,
+reference operation or destination capacity check occurs. Numerical production of
+that interleaved block by `00A69E86` remains TD1.
+
+At entry, a nonnegative remaining-limit dword +4A4C of zero returns0 immediately;
+otherwise clamp the signed request to that limit. A negative limit is unlimited.
+A nonpositive resulting request returns0. Start delivered=0. While delivered is
+less than that **fixed** clamped request, perform the following ordered actions:
+
+* If pending-frame count +4A50 is zero, a zero pending-input byte count +4A48
+  returns delivered. **Negative** byte counts do not take this exit. If first-frame
+  byte +4A5C is nonzero call `00A66BEF(input(+4A44),0)` and ignore its return,
+  load skip +4A58 from dword table `00AD4D20+4*layer`, clear first-frame byte.
+  Table entries for layers0..4 are0,481,481,1105,11025; layer4 spills into the
+  adjacent rate table. Otherwise set borrowed +24A4=input and dword +24AC=0.
+* Call `00A66B32(this+1244h as its stack output argument)`. Negative result zeroes
+  exactly +248C bytes of the interleaved block; nonnegative result is ignored.
+  Advance input and subtract byte count by wrap(payloadBytes(+2498)+4), without
+  checking available bytes. Set frame offset +4A54=0 and pending +4A50 to signed
+  division of +248C by wrap(channels<<1); zero/overflow can trap after prior writes.
+* A positive skip count discards pending frames: if skip<pending, advance offset
+  by skip, reduce pending and clear skip. Otherwise reduce skip by pending and
+  clear pending (without advancing offset in this branch).
+* When pending>0, choose N=min(pending,**fixed request**, signed comparison),
+  not min(pending,request-delivered). For channels c=0..C-1, a nonnull plane[c]
+  gets N words from `this+1244h+2*((offset+j)*C+c)` into plane[c]+2*(delivered+j).
+  Advance offset by N, subtract N from pending and from remaining-limit if it
+  is currently nonnegative, and increment delivered by N. Recheck the loop.
+
+The fixed-request comparison permits an overlong result: with request5, initial
+pending3 and a following block with at least5 frames after skipping, it copies3
+then5 and returns8. A nonnegative initial limit5 can end at-3. This is an observed
+buffer contract, not a promise that the caller always supplies only request-sized
+storage. No frame-size, plane-size or progress check is present; invalid parser
+state can cause out-of-bounds access, division failure or lack of progress instead
+of a decoder error return. Earlier writes are not rolled back on failures.
+Evidence: entry `0094A0ED–0094A114`, input/setup/concealment `0094A11A–0094A1C6`,
+skip `0094A1CC–0094A204`, fixed request/copy `0094A20A–0094A275`, accounting and
+returns `0094A277–0094A2A8`.
+
 ## 6. Independent discriminating vectors
 
 These are contract vectors to implement independently, not reports of execution.
@@ -706,14 +820,19 @@ These are contract vectors to implement independently, not reports of execution.
 | TD-V37 | Direct conversion4294967297.75, then -1.75 under round-to-nearest with exceptions masked | Caller stores1, then FFFFFFFF; neither is saturated to32-bit range |
 | TD-V38 | File-open byte7 and logical position123, then open byte0 | Large +24 returns AL7 then0; +4C returns123 then FFFFFFFF; no AddRef or OS tell |
 | TD-V39 | History-clear helper with nonzero global feature flag and storage filled AA; repeat flag0 | Clears [this+4,this+904h) then [this+4,this+1204h); first following byte remains AA |
+| TD-V40 | Ring: index4095, available0; bytes ring[4095]=A5, ring[0]=3C; extract12 bits | EAX=A53h, index4097, available4, register C0000000; one-bit read then returns1, available3, register80000000 |
+| TD-V41 | Ring: index1, available4; ring[0]=3C, ring[4095]=A5; rewind8 bits | index0, available4, register50000000; refill comes from wrapped index-1 |
+| TD-V42 | PCM store helper: binary32 40000,-40000,NaN,4294967296 with relevant exceptions masked | Signed words32767,-32768,0,0; following destination word untouched |
+| TD-V43 | Planar drain: valid stereo pending3, offset0, skip0, unlimited limit, request5; next produced block >=5 with skip0 and distinct samples | Writes3 then5 words per plane, returns8, demonstrating fixed-request overrun; null right plane suppresses only right stores |
+| TD-V44 | Format initialization: bitrate128, sampleRate44100, channels2, layer3, full rate | +4A24=417,+4A28=423,+4A2C=441; bytes+248C/+249C=4608; granules byte2; phase1; history zero range ends at4A04h |
 
 ## 7. Open contracts and coverage boundary
 
 Vector TD-V23 assumes parsed channel/rate fields matching the stored stereo format;
-it is a pending-data case after a valid header. The 39 vectors are independent
+it is a pending-data case after a valid header. The 44 vectors are independent
 review fixtures, not reports of execution against an implementation or the game.
 
-Checklist reconciliation: D=6 bodies/294 B; S=35 bodies/7015 B; U=28 bodies/23963 B;
+Checklist reconciliation: D=6 bodies/294 B; S=45 bodies/8125 B; U=18 bodies/22853 B;
 A=1 artifact/21 B. D/S are documented boundaries, not proof that nested decoder
 arithmetic is specified. TD1 and TD4 remain open; TD2 is answered in §5.2/§5.3,
 with numeric interface identities retained; TD3 is answered in section 2

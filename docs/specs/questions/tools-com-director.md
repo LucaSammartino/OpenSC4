@@ -16,7 +16,10 @@ largest inspected bodies' boundary; sampled instructions are not decoder coverag
 2026-10-22 residual phase: §5.8 now fully specifies `00A675E0` (3405 B), including
 bit extraction, both rate layouts, partial mutation and retained fields. §1.1 adds
 precise synthesis/history/input/output boundaries for `00A6A25B`/`00407000`, whose
-complete coefficient arithmetic remains open. Remaining U: 28 bodies / 23,963 B.
+complete coefficient arithmetic remains open. §§5.9–5.11 additionally specify the
+internal header, resets, ring bits, initialization, dispatch, PCM store and planar
+drain contracts. Remaining U: 18 bodies / 22,853 B; exact dependencies are retained
+in the spec rather than removed from the attributable scope.
 
 **TD4 - Numeric-table reference incorrectly counted as a body**
 
