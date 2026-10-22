@@ -394,8 +394,7 @@ values, and likewise vertically (`0x0046E296`–`0x0046E321`). Before overlap se
 the prospective icon is made 42 by 42 pixels using float32 additions; its four
 edges are individually converted to signed integers with `_ftol2` (truncation
 toward zero, not floor or round-to-nearest; `0x0046E38E`–`0x0046E3E4`). The overlap
-search may then move it; the search's complete candidate order is still residual
-DP10 work, so these facts do not license a replacement clamping/search policy.
+search may then move it, using the ordered protocol below.
 
 The final 2D submission sequence is instruction-verified at
 `0x0046EE02`–`0x0046EEE5`. All context calls use the **same borrowed Update context**:
@@ -431,6 +430,60 @@ return null; `(9,8,1,2)` returns the retained rectangle pointer. Rectangle
 existing anchor with bit 7 set. Two different handle pointers referring to the
 same texture must still select the identity-based order above. A bit-1 entry
 with null generated texture must still emit the number DrawPrims call.
+
+**Rectangle conflict and relocation (DP10).** The cdecl helper `0x0046B830` takes
+`(candidate20*,obstacleList*,bounds16*,outConflict20*)`; the caller removes its
+four dword arguments. A 20-byte record is four signed rectangle edges followed
+by a category byte (the remaining three bytes are not used for category tests).
+AL **true means conflict**, not success. It first tests containment against
+bounds, inclusive of equal edges. Out-of-bounds writes the bounds rectangle and
+category `0xFF` to outConflict and returns true. Otherwise it walks obstacles in
+list order. An obstacle participates only if its category is `0xFF` or equals
+the candidate category. Rectangles overlap when both closed intervals overlap;
+**touching edges conflict**. The first matching overlap copies all 20 bytes to
+outConflict and returns true. No match returns AL false without initializing
+outConflict (`0x0046B830`–`0x0046B8EF`). This helper does not alter the candidate.
+The category table at `0x00A881AC` is `1,1,1,1,2,2,3` for kinds 0 through 6
+(original PE bytes), so fire/police indicators compete with one another.
+
+For the relocation branch, first save the prospective integer rectangle as a
+fallback. Set a float32 moving center to `(integerLeft+21, integerTop+21)`.
+Let D be its vector toward the inset bounds' center. Compute its length L in
+x87, store `1.75*L` as the float32 travel limit, and store the two components
+of `D/L` as float32 step components. Progress begins at zero. The native code
+does not special-case L=0 before division (`0x0046E3E9`–`0x0046E495`).
+
+While progress is below that limit, make a main candidate by truncating each
+`centerX±21,centerY±21` to signed integer, retaining the entry's category, and
+test it with the conflict helper. A conflict-free candidate ends the search.
+When the first conflict's category is less than `0xFF`, test these **four**
+additional rectangles, in order, each derived from that first conflict:
+translate vertically by +43, vertically by −43, horizontally by +43,
+horizontally by −43. Stop at the first conflict-free rectangle. These are not
+four offsets from the original candidate, and subsequent conflicts returned
+by those probes do not replace the first conflict used to construct them.
+An out-of-bounds (`0xFF`) first conflict skips all four probes. If all attempted
+rectangles conflict, advance each moving-center component by twice its stored
+step component, storing float32, and add float32 2.0 to progress before the
+next limit test (`0x0046E4A0`–`0x0046E744`; constants 43 at `0x00A88260`,
+1.75 at `0x00A88264`, 2 at `0x00A8825C`, verified in the original PE).
+
+After the loop the helper is called once more on the current candidate. If it
+still conflicts, restore the **original saved integer rectangle**, even when
+it overlaps or is outside the inset bounds. Append the selected rectangle and
+category to the frame's obstacle list in either case. This is bounded search
+with an overlapping fallback, not a guarantee of collision-free placement
+(`0x0046E74A`–`0x0046E7D0`).
+
+Independent vectors for the helper: with bounds `(0,0,100,100)` and a category-1
+obstacle `(10,10,20,20)`, category-1 candidate `(20,12,30,18)` conflicts by edge
+contact, whereas `(21,12,31,18)` does not. Changing the obstacle to category 2
+removes that conflict; category `0xFF` restores it. Candidate `(-1,0,10,10)`
+returns bounds/category `0xFF` before inspecting obstacles; `(0,0,10,9)` is
+contained. Ordered same-category obstacles must return the first overlap,
+not the nearest or highest-priority one. A fully blocked relocation must
+append the initial fallback rather than omit the indicator or keep the last
+failed probe. These checks distinguish the native failure policy independently.
 
 ### 4.2 `Dispatch(type, x, z)` (`0x0046A630`, slot 6) → ID *[compat]*
 
