@@ -4,6 +4,8 @@
 
 ## Changes
 
+Coordinator source-publication review (2026-10-22): accept the committed published-contract corrections for merge-train integration. Review confirms the removal of same-owner output callbacks, explicit unsupported mode-0 cut/lighting results, retained resource/cache ownership and discriminating tests; the clean stable gate is source evidence only. NO27-NO31, allocation/precision limits and the family cap remain. Preserve the parked worktree; no full-owner/native/default credit or extra round is authorized. Gate the actual merged source.
+
 Applied the published NO21-NO23/NO25/NO26 contracts from network-occupants.md §§10.1-10.3 in the Rust core. No plugin, CAPI, ABI, tools, generated ABI-entry, or game-file changes. The four model bodies are ordinary members, not virtual overrides; the obsolete ModelRenderer owner-result callbacks and bilinear/frame assumptions are removed.
 
 - Deform uses the published two planes, centered ±8 coordinates, unclamped extrapolation, rotation then flip then path-origin subtraction, piece-relative Y and additive flat-model relief. A separate terrain-height constructor applies height + 0.2 before plane generation; draw state supplies actual quad heights directly.
