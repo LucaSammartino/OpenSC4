@@ -26,8 +26,8 @@ pub(crate) fn cross(a: Vec3, b: Vec3) -> Vec3 {
     ]
 }
 pub(super) fn normalize(a: Vec3) -> Vec3 {
-    // CA3: no fallback axes are specified for a zero/parallel look-at.
-    // Literal normalization retains IEEE division-by-zero/NaN behaviour.
+    // Resolved CA3 (§1.3): zero/parallel look-at has no fallback axes.
+    // Reciprocal-square-root normalization retains IEEE NaN behaviour.
     mul(a, 1.0 / dot(a, a).sqrt())
 }
 pub(super) fn row(m: &[f32; 9], i: usize) -> Vec3 {

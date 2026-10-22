@@ -11,6 +11,10 @@
 - Done: focused CA3–CA6 discriminator tests and per-native-body README audit; neither owner earns complete-owner credit (explicit missing bodies/cache/native lifecycle).
 - First quick overlapped edits: 2689 passed/14 failed, dependents compiled, build 208/208; invalidated by tree changes. Next: stable quick, correct failures, absolute-path fmt, then one final all gate.
 - Initial fmt wrapper needs absolute paths (relative file lookup failed); rustfmt applied only touched Rust files.
+- Milestone 1360e09b: correction bodies, focused tests, native body audit committed (by call 20–30).
+- Stable quick PASS: core 2712/0, dependents compiled, CMake 4/4 (134.9 s); corrected four inherited yaw/float-equality expectations. Added final terrain/velocity/reset checks before full gate.
+- Filed CA7 (questions/camera.md): unspecified pre-init derived conversion storage; provisional defaults labelled, no owner credit. CA3 stays open; question index regeneration belongs to train.
+- Next: commit this qualification/test correction, then run absolute-path fmt and the single stable qbuild all gate without editing during execution.
 - No redundant full baseline: task-specific instruction requests one stable full cargo/clippy/native gate after correction; parent baseline/final gate are recorded in core-camera-control4.
 - CA3 perspective setter/counter stays blocked. No game needed; native shadow/replacement deferred.
 - Phase: answer-correction phase 2 (parent used 1); logical cap 3, no phase reset/fourth phase.

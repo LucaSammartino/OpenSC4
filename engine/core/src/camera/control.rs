@@ -125,6 +125,8 @@ impl Default for CameraControl {
             velocity: [0.0; 3],
             direction: [0.0; 3],
             axes: [[0.0; 3], [0.0, 1.0, 0.0]],
+            // CA7: pre-init derived conversion storage is not specified;
+            // retain unit scale and zero plane/point until a camera update.
             view_scale: 1.0,
             plane: [0.0; 4],
             target_plane: [0.0; 2],
@@ -683,50 +685,6 @@ fn dot2(a: [f64; 2], b: [f64; 2]) -> f64 {
     a[0] * b[0] + a[1] * b[1]
 }
 
-#[cfg(test)]
-mod ground_failure_contracts {
-    use super::*;
-    fn fixture() -> CameraControl {
-        let mut c = CameraControl::new();
-        c.camera = Some(Arc::new(RwLock::new(S3dCamera::new())));
-        c.direction = [1.0, 0.0, 0.0];
-        c.velocity = [1.0, 2.0, 3.0];
-        c
-    }
-    fn assert_updates(c: &CameraControl) {
-        assert_eq!(
-            c.messages.iter().map(|m| m.kind).collect::<Vec<_>>(),
-            [
-                ViewMessageKind::CameraUpdated,
-                ViewMessageKind::ViewTChange2,
-                ViewMessageKind::ViewTChange3
-            ]
-        );
-        assert_eq!(c.velocity, [1.0, 2.0, 3.0]);
-    }
-    #[test]
-    fn angle_scroll_stores_plane_point_before_failed_ground_and_still_notifies() {
-        let mut c = fixture();
-        // §6.1 defined inverse result (7,8,9), parallel ground ray.
-        c.plane_origin = [7.0, 8.0, 9.0];
-        c.axes = [[0.0; 3]; 2];
-        assert!(c.scroll_by_viewport_angle(0.0, 1.0, None));
-        assert_eq!(c.target, [7.0, 8.0, 9.0]);
-        assert_updates(&c);
-    }
-    #[test]
-    fn target_clamp_uses_corner_start_retains_old_target_after_failed_ground() {
-        let mut c = fixture();
-        c.axes = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
-        c.corner = [5.0, 5.0, 0.0];
-        c.target = [15.0, 5.0, 9.0];
-        c.bounds = vec![[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]];
-        c.clamp_target_to_scroll_bounds();
-        assert_eq!(c.target, [15.0, 5.0, 9.0]);
-        assert_updates(&c);
-    }
-}
-
 pub(super) fn clamp_polygon(polygon: &[Vec2], enabled: bool, original: Vec2, to: Vec2) -> Vec2 {
     if !enabled || polygon.is_empty() {
         return to;
@@ -792,4 +750,57 @@ pub(super) fn clamp_polygon(polygon: &[Vec2], enabled: bool, original: Vec2, to:
         end = std::array::from_fn(|j| (f64::from(intersection[j]) + unit[j] * along) as f32);
     }
     original
+}
+
+#[cfg(test)]
+mod ground_failure_contracts {
+    use super::*;
+    fn fixture() -> CameraControl {
+        CameraControl {
+            camera: Some(Arc::new(RwLock::new(S3dCamera::new()))),
+            direction: [1.0, 0.0, 0.0],
+            velocity: [1.0, 2.0, 3.0],
+            ..CameraControl::new()
+        }
+    }
+    fn assert_updates(c: &CameraControl) {
+        assert_eq!(
+            c.messages.iter().map(|m| m.kind).collect::<Vec<_>>(),
+            [
+                ViewMessageKind::CameraUpdated,
+                ViewMessageKind::ViewTChange2,
+                ViewMessageKind::ViewTChange3
+            ]
+        );
+        assert_eq!(c.velocity, [1.0, 2.0, 3.0]);
+    }
+    #[test]
+    fn angle_scroll_stores_plane_point_before_failed_ground_and_still_notifies() {
+        struct Miss;
+        impl TerrainView for Miss {
+            fn ray_cast(&mut self, origin: Vec3, direction: Vec3) -> Option<Vec3> {
+                assert_eq!(origin, [7.0, 8.0, 9.0]);
+                assert_eq!(direction, [1.0, 0.0, 0.0]);
+                None
+            }
+        }
+        let mut c = fixture();
+        // §6.1 defined inverse result (7,8,9), parallel ground ray.
+        c.plane_origin = [7.0, 8.0, 9.0];
+        c.axes = [[0.0; 3]; 2];
+        assert!(c.scroll_by_viewport_angle(0.0, 1.0, Some(&mut Miss)));
+        assert_eq!(c.target, [7.0, 8.0, 9.0]);
+        assert_updates(&c);
+    }
+    #[test]
+    fn target_clamp_uses_corner_start_retains_old_target_after_failed_ground() {
+        let mut c = fixture();
+        c.axes = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
+        c.corner = [5.0, 5.0, 0.0];
+        c.target = [15.0, 5.0, 9.0];
+        c.bounds = vec![[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]];
+        c.clamp_target_to_scroll_bounds();
+        assert_eq!(c.target, [15.0, 5.0, 9.0]);
+        assert_updates(&c);
+    }
 }

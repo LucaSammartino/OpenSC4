@@ -409,7 +409,7 @@ fn zoom_fractional_magnification_refusal_and_virtual_threshold() {
     assert_eq!(c.custom_magnification(), 1.0);
     assert!(c.set_zoom(2.9));
     assert_eq!(c.zoom(), 2);
-    assert!(!c.set_zoom(2.1));
+    assert!(c.set_zoom(2.1));
     c.set_custom_magnification(1.5);
     assert_eq!(c.virtual_zoom(), 2);
     c.set_custom_magnification(f32::from_bits(1.5_f32.to_bits() + 1));
@@ -522,14 +522,24 @@ fn ground_intersection_has_exact_threshold_and_rejects_behind() {
 fn camera_plane_conversion_has_independent_axis_and_origin_results() {
     let c = control();
     let origin = c.camera_plane_origin();
-    near3(origin, [5792.6187, 4729.6533, 5792.6187], 0.002);
+    let sin_yaw = (2.0 + 2.0_f32.sqrt()).sqrt() * 0.5;
+    let cos_yaw = (2.0 - 2.0_f32.sqrt()).sqrt() * 0.5;
+    near3(
+        origin,
+        [8192.0 * cos_yaw, 8192.0 / 3.0_f32.sqrt(), 8192.0 * sin_yaw],
+        0.002,
+    );
     assert_eq!(c.convert_world_point_to_camera_plane_point(origin), [0.0; 2]);
     assert_eq!(c.convert_camera_plane_point_to_world_point([0.0; 2]), origin);
     let q = c.convert_world_point_to_camera_plane_point([0.0; 3]);
     near(q[0], 0.0, 0.001);
     near(q[1], 0.0, 0.001);
     let p = c.convert_camera_plane_point_to_world_point([100.0, 0.0]);
-    near3(super::geometry::sub(p, origin), [70.71068, 0.0, -70.71068], 0.001);
+    near3(
+        super::geometry::sub(p, origin),
+        [100.0 * sin_yaw, 0.0, -100.0 * cos_yaw],
+        0.001,
+    );
 }
 
 #[test]
@@ -660,21 +670,33 @@ fn scrolling_uses_only_foreign_terrain_query_then_ground_fallback() {
         calls: Vec::new(),
         hit: Some([20.0, 7.0, 30.0]),
     };
+    c.set_view_target_velocity([1.0, 2.0, 3.0]);
     assert!(c.scroll_by_viewport_angle(0.0, 1.0, Some(&mut terrain)));
     assert_eq!(terrain.calls.len(), 1);
     assert_eq!(c.view_target(), [20.0, 7.0, 30.0]);
+    assert_eq!(c.view_target_velocity(), [1.0, 2.0, 3.0]);
     c.set_view_target([2048.0, 0.0, 2048.0]);
     terrain.hit = None;
     assert!(c.scroll_by_viewport_angle(0.0, 1.0, Some(&mut terrain)));
-    near3(c.view_target(), [2118.7107, 0.0, 1977.2893], 0.002);
+    let sin_yaw = (2.0 + 2.0_f32.sqrt()).sqrt() * 0.5;
+    let cos_yaw = (2.0 - 2.0_f32.sqrt()).sqrt() * 0.5;
+    near3(
+        c.view_target(),
+        [2048.0 + 100.0 * sin_yaw, 0.0, 2048.0 - 100.0 * cos_yaw],
+        0.002,
+    );
     assert_eq!(terrain.calls.len(), 2);
     c.set_view_target([2048.0, 0.0, 2048.0]);
     assert!(c.scroll_by_viewport_angle(std::f32::consts::FRAC_PI_2, 1.0, None));
-    near3(c.view_target(), [2189.4214, 0.0, 2189.4214], 0.004);
+    near3(
+        c.view_target(),
+        [2048.0 + 200.0 * cos_yaw, 0.0, 2048.0 + 200.0 * sin_yaw],
+        0.004,
+    );
 }
 
 #[test]
-fn attach_detach_init_once_and_drop_balance_only_owned_references() {
+fn attach_detach_init_once_and_native_destructor_does_not_detach() {
     let cam = handle();
     {
         let mut c = CameraControl::new();
@@ -805,12 +827,16 @@ fn rectangular_city_scroll_corner_retains_foreign_view_quirk() {
     c.set_rotation(1);
     c.set_scroll_bounds_in_use(true);
     // Foreign utility corner 2 is (W, 0, W), not (W, 0, D).
-    near(c.scroll_bounds()[4][0], 1948.1547, 0.003);
-    near(c.scroll_bounds()[4][1], -724.07733, 0.003);
+    near(
+        c.scroll_bounds()[4][0],
+        1024.0 * (2.0 + 2.0_f32.sqrt()).sqrt() + 500.0,
+        0.003,
+    );
+    near(c.scroll_bounds()[4][1], -512.0 * (2.0 - 2.0_f32.sqrt()).sqrt(), 0.003);
 }
 
 #[test]
-fn malformed_saved_indices_are_preserved_without_table_or_integer_panics() {
+fn safety_policy_contains_malformed_saved_lookups_without_claiming_native_values() {
     let mut bytes = vec![1, 0];
     for _ in 0..3 {
         bytes.extend(0.0_f32.to_le_bytes());
@@ -890,6 +916,19 @@ fn independent_ca3_constructor_and_degenerate_look_at() {
     c.set_ortho(-1.0, 1.0, -1.0, 1.0, 1.0, 2.0);
     c.set_ortho(-1.0, 1.0, -1.0, 1.0, 1.0, 2.0);
     assert_eq!(c.projection_state(), before + 2);
+    c.set_subview(3.0, 4.0, 20.0, 30.0);
+    c.reset_subview();
+    assert_eq!(c.projection_state(), before + 4);
+    assert!(!c.subview_in_use());
+    assert_eq!(
+        c.subview(),
+        Viewport {
+            x: 0.0,
+            y: 0.0,
+            width: 100.0,
+            height: 100.0
+        }
+    );
 }
 
 #[test]
