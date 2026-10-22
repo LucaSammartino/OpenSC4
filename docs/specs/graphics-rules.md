@@ -55,8 +55,10 @@ A **property set** is three lists: (boolean index, value), (integer index, value
 
 **Numbers** (`atLeast` / `atMost`), as floats: 0 `cpuSpeed` (MHz, `0x00891552`), 1 `memory`, 2 `freeMemory`,
 3 `screenWidth`, 4 `screenHeight`, 5 `screenBPP`, 6 `videoMemory` and 7 `textureMemory` (MB: the graphic system's
-memory figures shifted right by 20), 8 `textureStages`, 9 `bogoFPS`, 10 `bogoMPPS` *[inferred: 9 and 10 are not
-measured and stay 0]*.
+memory figures shifted right by 20), 8 `textureStages`, 9 `bogoFPS`, 10 `bogoMPPS`.
+The constructor initializes all eleven binary32 numbers to positive zero (`0x007D0D79–0x007D0D86`).
+`GatherInformation` writes only indices 0–8: neither bogo number is measured by this manager, including on
+later gathers. The forced-FSAA probe is a separate rendering test, not a source for either bogo number.
 
 **Strings** (`stringMatch` / `stringNotMatch`): 0 `userName`, 1 `appName`, 2 `version`, 3 `osVersion`,
 4 `computerName`, 5 `CPU`, 6 `sglDriverName`, 7 `sglDriverVersion`, 8 `driverName`, 9 `driverVersion`,
@@ -119,9 +121,18 @@ end
 - Each rule records its **depth** (how many rules enclose it).
 - `has f` requires flag f set, `hasNo f` requires it clear (both set f in the rule's mask); `atLeast n v` requires
   number n ≥ v, `atMost n v` requires n ≤ v; `stringMatch s p` requires string s to match the wildcard pattern p
-  (`WildcardMatch`, case-insensitive) *[inferred: the case flag]*, `stringNotMatch` the opposite.
+  (`WildcardMatch`, case-insensitive), `stringNotMatch` the opposite.
 - Without `-any` **all** the conditions must hold (`0x007CE900`); with `-any` **one** is enough (`0x007CEA80`).
   A rule without conditions always matches, but a `-any` rule without conditions never does *[quirk]*.
+
+The matcher receives the variable as its first argument, the pattern as its second, and zero as its third
+(`0x007CE9C0–0x007CE9CA`, `0x007CEA2D–0x007CEA37`; the any-condition path uses the same convention).
+Zero makes temporary copies of **both** strings lowercase before matching (`0x00918F08–0x00918F18`);
+the stored environment and pattern are unchanged. Matching covers the entire string. `?` consumes exactly
+one byte, `*` consumes zero or more bytes, including separators; all other bytes are literal. There are no
+character classes or escape syntax in `MatchPattern` (`0x00918103–0x0091814D`). In particular, `*` matches
+the empty string, while `?` does not. ASCII case behavior is portable; non-ASCII lowercase behavior belongs
+to the shared string service, rather than a Unicode case-folding rule invented by this manager.
 
 ### 4.3 Values
 
@@ -173,13 +184,25 @@ rules never stop their siblings; children are tested only under a matching paren
 
 When the files cannot be parsed, `Using fallback rules.` is logged and three rules are built in:
 
-| Rule | Properties |
-|---|---|
-| `standard software` | `RenderCloudsAndFog`, `RenderShadows`, `RenderDecals`, `UseSecondStage` false |
-| `standard hardware` | `RenderCloudsAndFog`, `RenderShadows`, `RenderDecals` true, `UseSecondStage` false |
-| `two stages` | nested, `atLeast textureStages 2` *[inferred: the value]*: `UseSecondStage` true |
+| Rule | Depth; condition | Properties, in write order |
+|---|---|---|
+| `standard software` | 0; `hasNo hardwareDriver` | `RenderCloudsAndFog`, `RenderShadows`, `RenderDecals`, `UseSecondStage` false |
+| `standard hardware` | 0; **no conditions** | `RenderCloudsAndFog`, `RenderShadows`, `RenderDecals` true, `UseSecondStage` false |
+| `two stages` | 1; `atLeast textureStages 2` | `UseSecondStage` true |
 
-*[inferred: the software and hardware rules test the `hardwareDriver` flag]*.
+All three use all-condition mode and are non-partial. The second rule is the unconditional alternative to
+the first, not a positive hardware-flag test. The software match suppresses both the hardware alternative
+and its child. Thus a software environment never enables the second stage, even if its reported stage
+count exceeds two. Hardware with fewer than two stages receives the second row only; at exactly two it
+also receives the third row. Installing fallback clears/replaces the rule list, without constructing any
+option groups or applying any properties until evaluation.
+
+Evidence: default rule depth, partial/any bytes and flag masks are zero (`0x007D0523–0x007D052F`);
+the software rule clears expected flag bit 0 and sets mask bit 0 (`0x007D143B–0x007D144A`). The hardware
+rule is freshly constructed at `0x007D15A5`, with no condition additions before its insertion at
+`0x007D171A–0x007D174D`. The child stores depth 1 and the integer pair (numeric index 8, threshold 2)
+at `0x007D1782–0x007D17AA`; `RuleMatchesAll` loads that threshold as a signed integer and compares it
+to the environment float inclusively (`0x007CE936–0x007CE943`).
 
 ## 8. Users
 
@@ -196,8 +219,8 @@ graphics options dialog uses slots 6 and 7.
 
 ## 10. Open questions
 
-See [questions/graphics-rules.md](questions/graphics-rules.md) GR1–GR3: the exact sources of `DXT`, `fullscreen`,
-`forcedFSAA` and the `bogo` numbers, the case rule of `stringMatch`, and the conditions of the fallback rules.
+See [questions/graphics-rules.md](questions/graphics-rules.md) for remaining evidence gaps.
+GR2 (wildcard case behavior) and GR3 (fallback conditions) are resolved in §§4.2 and 7.
 
 ## 11. Conformance tests
 
