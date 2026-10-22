@@ -18,7 +18,10 @@ bit extraction, both rate layouts, partial mutation and retained fields. §1.1 a
 precise synthesis/history/input/output boundaries for `00A6A25B`/`00407000`, whose
 complete coefficient arithmetic remains open. §§5.9–5.11 additionally specify the
 internal header, resets, ring bits, initialization, dispatch, PCM store and planar
-drain contracts. Remaining U: 18 bodies / 22,853 B; exact dependencies are retained
+drain contracts. Final phase §5.12 specifies all5716 B of `00A6A25B` body-local
+window arithmetic, both coefficient layouts and the centre multiply-high rule;
+its called transform `00407000` remains unproved. Remaining U:17 bodies/17,137 B;
+exact dependencies are retained
 in the spec rather than removed from the attributable scope.
 
 **TD4 - Numeric-table reference incorrectly counted as a body**

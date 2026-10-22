@@ -1,8 +1,25 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-tools-director-questions4: TD1/TD2 residual contracts | Codex / `re-tools-director-questions4` (RE, detached worktree) | Ready bounded specification; 15 formerly U bodies/5099 B contracted, 18 U/22853 B retained; TD2 answered; 44 independent vectors; docs checks PASS; cargo/clippy/ctest/game n/a; ABI unchanged | 1. Coordinator reviews bounded publication. 2. TD1 numerical residuals remain explicit; TD4 attribution review remains separate. |
+| re-tools-director-questions4: TD1 final residual contracts | Codex / `re-tools-director-questions4` (RE, detached worktree) | in progress | 1. Prove largest remaining native bodies. 2. Commit bounded contracts and park exact residuals at logical phase 3/3. |
 
-## Report (2026-10-22, residual phase)
+## Handoff
+
+Goal: final round2/2, logical3/3; TD1 remaining18 bodies/22853 B, biggest first.
+Base084b185e preserves prior15 answers/5099 B and TD2; do not repeat them.
+Done: largest5716-byte00A6A25B body-local window contract,32 coefficient rows,
+mono/stereo layout, centre high-product rule and3 independent vectors (§5.12).
+80 complete window-instruction/formula audits PASS; this is offline analysis only.
+Remaining17 U/17137 B, including the called packed transform00407000.
+Next: reconcile3773-byte x87 transform00A6B918, preserving spills/operation order.
+Read-only native sources MAIN export/decomp/PE; edit public spec/questions only.
+No engine/tests/tools/maps/ABI edits; TD4 correction separately coordinator-owned.
+No fourth phase/reset, runtime claims, subagents, network, merge/push/ref updates.
+Existing native-evidence.py pages asm and reads PE tables in ignored build-runs.
+q.py fails Bash/Service/CreateInstance/E_ACCESSDENIED; use bounded PowerShell.
+47 vectors; inventory D6/294 B,S46/13841 B,U17/17137 B,artifact1/21 B.
+Guard manifest MAIN/build-runs/run4-re-tools-director-questions4-r2-manifest.json.
+
+## Prior phase report (reference until final report)
 
 Updated only public tools-com-director specification/questions and this lane report.
 TD2 answered DIFFERS in questions/answered/tools-com-director.md; index regenerated.

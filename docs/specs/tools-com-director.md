@@ -90,7 +90,7 @@ have `name-medium`, and `00A66A31` has `neighbour`.
 | `00A69AD0` | 457 | U |
 | `00A69C99` | 493 | U |
 | `00A69E86` | 981 | U |
-| `00A6A25B` | 5716 | U |
+| `00A6A25B` | 5716 | S; packed synthesis/window arithmetic (§5.12); transform dependency remains U |
 | `00A6B918` | 3773 | U |
 | `00A6C7D5` | 51 | S; binary32-to-PCM store (§5.10) |
 | `00A6C808` | 671 | U |
@@ -116,11 +116,13 @@ scratch at `00BB87A8` and float coefficient tables; `00A675E0` (3405 B) extracts
 packed bits through +24A4/+24A8; `00A69065` (2084 B) uses the numeric word tables;
 `00A66CAC` (2078 B) initializes float outputs and performs further arithmetic.
 The side-information body `00A675E0` now has a complete contract in §5.8.
-The other five bodies remain TD1; their complete numerical outputs are not proved.
+Of the other five, packed synthesis `00A6A25B` now has a body-local arithmetic
+contract in §5.12, conditional on its still-unproved transform dependency.
+The other four bodies remain TD1; their complete numerical outputs are not proved.
 These observations do not justify a presumed stateless double-precision decoder.
 
-The following additional boundary facts are instruction-verified, but do **not**
-close the 5716-byte synthesis body. `00A6A25B` takes decoder ECX and two stack
+The following boundary facts are instruction-verified; §5.12 supplies the complete
+window arithmetic of the 5716-byte synthesis body. `00A6A25B` takes decoder ECX and two stack
 arguments `(PCM destination, subband input)`, popping eight bytes. It decrements
 the byte at +4A0C modulo 16 even when signed channels at +4A40 is nonpositive.
 Let the resulting phase be p, parity b=p&1, and q=p+(b XOR 1). For each channel c
@@ -136,8 +138,8 @@ channel's base still advanced by two. There is no channel-limit, pointer, length
 allocation or error check. Inputs and outputs are borrowed, with no ownership
 transfer. Output values use signed word products, wrapping dword accumulation,
 arithmetic right shift by 13 and signed saturation to 16 bits; the central sample
-has a distinct multiply-high path whose complete coefficient contract remains
-open. No defined EAX result or local EMMS is provided by this body.
+has the distinct multiply-high rule in §5.12. No defined EAX result or local EMMS
+is provided by this body. The called packed transform remains open.
 Evidence: phase/setup `00A6A269–00A6A2F1`, output dispatch `00A6A2F9–00A6A310`,
 first sample `00A6A32D–00A6A388`, central multiply-high `00A6A83C–00A6A893`,
 mono/stereo branches and loop tail `00A6ADB9–00A6B8AC`.
@@ -158,7 +160,7 @@ body. This is a **remaining-proof list**, not an assertion that its algorithm ha
 been specified. For the three largest synthesis bodies the complete instruction
 streams were additionally paged; that alone does not close arithmetic. Addresses
 in the caller column are call instructions and provide a reproducible route from
-the registered-service decode path. All 18 bodies / 22,853 B remain attributed;
+the registered-service decode path. All remaining U bodies remain attributed;
 none is excluded as an unrelated library merely because it is not a director
 method. Native `CMpegBase` diagnostics establish the decoder boundary, not an
 alternative owner-credit calculation.
@@ -180,7 +182,6 @@ alternative owner-credit calculation.
 | `00A69AD0` / 457 | `00A69D76` and `00A69DEF` | Huffman table traversal, escape/sign reads and special count1 cases; exact table format, termination, error/partial-bit and output mutations |
 | `00A69C99` / 493 | `00A6A05B` | Region-selected Huffman pairs/quads with bit-end accounting and rewind; complete overrun, invalid-selector and output-bound contract |
 | `00A69E86` / 981 | `00A66B55` | CRC/side-info/reservoir, per-granule decode pipeline and packed/float synthesis dispatch; ignores side-parser AL at `00A69EC2`; complete error propagation, reservoir availability and sample-count contract |
-| `00A6A25B` / 5716 | `00A6A221` | Packed synthesis/windowing; §1.1 proves phase/buffers/strides but complete window tables, central multiply-high and numerical outputs remain open |
 | `00A6B918` / 3773 | `00A6C8A8` | x87 transform using global scratch `00BB87A8` and binary32 coefficient operands; complete butterfly graph, spill points, aliasing/reentrancy and numerical vectors |
 | `00A6C808` / 671 | `00A6A1F5` | Float synthesis/window dots feeding proved PCM store helper; complete window tables, x87 order/rounding and state/output mapping |
 
@@ -817,6 +818,116 @@ Evidence: entry `0094A0ED–0094A114`, input/setup/concealment `0094A11A–0094A
 skip `0094A1CC–0094A204`, fixed request/copy `0094A20A–0094A275`, accounting and
 returns `0094A277–0094A2A8`.
 
+### 5.12 Packed synthesis window: exact body-local arithmetic
+
+`00A6A25B` consumes the packed transform/history boundary described in §1.1.
+It is not a float-input transform. Its call to `00407000` remains a named,
+unproved numerical dependency: the following specifies **all arithmetic performed
+by this body after that call**, not the dependency's outputs. For each channel,
+let H be the 288 signed little-endian words of the selected 240h-byte history
+bank immediately after the transform. The body reads only H[0..271]. Let q be
+the phase-derived odd integer in §1.1 (1,3,...,15), and let sat16 clamp a signed
+integer to [-32768,32767]. A wrapping sum below means reduce modulo 2^32, then
+interpret as signed32; right shifts are arithmetic, including negative values.
+
+There are 32 outputs, j=0..31. The complete coefficient/history selection is:
+
+| Output j | History word start | Source coefficient row R |
+|---|---:|---:|
+| 0..15 | 16*j | 16+j |
+| 16 | 256 | 32 |
+| 17..31 | 16*(32-j) | j-17 |
+
+For the one-channel/general branch, coefficient i (i=0..15) is
+W[R][(16-q+i) mod16]. This is a **cyclic word rotation**, not a byte swap or
+sign reversal. The physical source is AFF920h+40h*R+20h-2*q+2*i, with each
+16-word row duplicated consecutively in the executable. For j other than16,
+output = sat16(wrap32(sum of the16 signed products H[start+i]*coefficient[i])
+arithmetic-right-shift13). Multiplication is exact signed16×signed16; pair sums,
+lane sums and horizontal reduction wrap at32 bits. There is no rounding bias.
+
+For j=16, use only even i=0,2,...,14. For each product take its signed high16
+bits (equivalently floor(product/65536)), shift that value left16, sum with
+32-bit wrapping, arithmetic-right-shift13 and sat16. The odd products are
+computed in packed lanes but discarded by a lane-local left shift16. Thus the
+centre sample is not the ordinary dot product and does not preserve its low
+product bits. Evidence for this difference: `00A6A865–00A6A8F9` and
+`00A6B31C–00A6B3AD`; the two ordinary ranges are `00A6A32D–00A6A835` /
+`00A6A8CC–00A6ADB0` and `00A6ADCC–00A6B2EC` / `00A6B380–00A6B87C`.
+
+Exactly two channels select the transposed global banks instead of the executable
+source. Its forward row address is BB65A8h+220h*q+20h*j (j=0..16);
+its reverse row address is BB47A8h+1E0h*q+20h*(j-17) (j=17..31). Both are
+16-word signed rows. The same ordinary/centre arithmetic applies, without an
+additional sign change. Native initializer `00A6B8AF` writes all16 phase blocks:
+each reverse block has15 rows copied as32 bytes from AFF940h-2*phase+40h*r;
+each forward block has17 rows from AFFD40h-2*phase+40h*r. Its eight dword copies
+preserve bytes, including a source aligned only to a word. The constructor path
+`00A66B63` calls this initializer when its feature-query AL is nonzero
+(`00A66B66–00A66B77`). The window body does not initialize or validate these banks;
+if they are changed or not initialized, it uses their actual contents. Initialized
+banks give exactly the same coefficient rows as the executable-source branch.
+This initializer is supporting native evidence outside the70-row inventory, not
+an extra attributed body or an attribution change.
+
+The complete source coefficients are below. R identifies an executable row
+starting AFF920h+40h*R; the listed16 words are duplicated as the following16.
+Row15 is unused by this body. All values are signed16 native literals; they must
+not be regenerated from an idealized trigonometric window.
+
+| R | W[R][0..15] |
+|---|---|
+| 0 | 1, 27, -31, 408, 72, 2459, 2863, 16322, -15671, -2135, -2396, 46, -374, 40, -24, -1 |
+| 1 | 1, 29, -26, 424, 136, 2479, 3245, 16623, -15322, -1788, -2354, 100, -357, 44, -22, -1 |
+| 2 | 1, 31, -20, 439, 203, 2489, 3637, 16907, -14959, -1454, -2304, 151, -339, 47, -21, -1 |
+| 3 | 2, 33, -14, 454, 273, 2491, 4038, 17173, -14583, -1133, -2249, 198, -320, 50, -19, 0 |
+| 4 | 2, 34, -7, 467, 347, 2483, 4449, 17419, -14194, -825, -2188, 242, -302, 52, -18, 0 |
+| 5 | 2, 36, 0, 479, 423, 2465, 4869, 17647, -13794, -530, -2122, 282, -284, 53, -17, 0 |
+| 6 | 2, 38, 9, 490, 501, 2437, 5297, 17855, -13383, -249, -2052, 320, -266, 55, -15, 0 |
+| 7 | 3, 40, 18, 500, 582, 2398, 5732, 18042, -12963, 17, -1977, 353, -247, 56, -14, 0 |
+| 8 | 3, 42, 27, 508, 665, 2347, 6173, 18208, -12534, 270, -1899, 383, -229, 56, -13, 0 |
+| 9 | 4, 44, 38, 514, 751, 2284, 6620, 18353, -12097, 509, -1817, 411, -212, 57, -12, 0 |
+| 10 | 4, 45, 49, 518, 837, 2210, 7072, 18477, -11654, 733, -1733, 434, -194, 57, -11, 0 |
+| 11 | 4, 47, 61, 521, 926, 2123, 7528, 18578, -11205, 944, -1647, 455, -177, 56, -10, 0 |
+| 12 | 5, 49, 73, 521, 1015, 2023, 7986, 18657, -10751, 1140, -1559, 473, -161, 56, -9, 0 |
+| 13 | 6, 50, 86, 520, 1106, 1910, 8447, 18714, -10294, 1322, -1469, 488, -145, 55, -8, 0 |
+| 14 | 6, 52, 100, 515, 1197, 1783, 8910, 18748, -9834, 1489, -1379, 500, -129, 54, -7, 0 |
+| 16 | 0, 7, 53, 114, 509, 1288, 1643, 9372, 18759, -9372, 1643, -1288, 509, -114, 53, -7 |
+| 17 | 0, 7, 54, 129, 500, 1379, 1489, 9834, 18748, -8910, 1783, -1197, 515, -100, 52, -6 |
+| 18 | 0, 8, 55, 145, 488, 1469, 1322, 10294, 18714, -8447, 1910, -1106, 520, -86, 50, -6 |
+| 19 | 0, 9, 56, 161, 473, 1559, 1140, 10751, 18657, -7986, 2023, -1015, 521, -73, 49, -5 |
+| 20 | 0, 10, 56, 177, 455, 1647, 944, 11205, 18578, -7528, 2123, -926, 521, -61, 47, -4 |
+| 21 | 0, 11, 57, 194, 434, 1733, 733, 11654, 18477, -7072, 2210, -837, 518, -49, 45, -4 |
+| 22 | 0, 12, 57, 212, 411, 1817, 509, 12097, 18353, -6620, 2284, -751, 514, -38, 44, -4 |
+| 23 | 0, 13, 56, 229, 383, 1899, 270, 12534, 18208, -6173, 2347, -665, 508, -27, 42, -3 |
+| 24 | 0, 14, 56, 247, 353, 1977, 17, 12963, 18042, -5732, 2398, -582, 500, -18, 40, -3 |
+| 25 | 0, 15, 55, 266, 320, 2052, -249, 13383, 17855, -5297, 2437, -501, 490, -9, 38, -2 |
+| 26 | 0, 17, 53, 284, 282, 2122, -530, 13794, 17647, -4869, 2465, -423, 479, 0, 36, -2 |
+| 27 | 0, 18, 52, 302, 242, 2188, -825, 14194, 17419, -4449, 2483, -347, 467, 7, 34, -2 |
+| 28 | 0, 19, 50, 320, 198, 2249, -1133, 14583, 17173, -4038, 2491, -273, 454, 14, 33, -2 |
+| 29 | -1, 21, 47, 339, 151, 2304, -1454, 14959, 16907, -3637, 2489, -203, 439, 20, 31, -1 |
+| 30 | -1, 22, 44, 357, 100, 2354, -1788, 15322, 16623, -3245, 2479, -136, 424, 26, 29, -1 |
+| 31 | -1, 24, 40, 374, 46, 2396, -2135, 15671, 16322, -2863, 2459, -72, 408, 31, 27, -1 |
+| 32 | -1, 26, 36, 391, -11, 2431, -2493, 16004, 16004, -2493, 2431, -11, 391, 36, 26, -1 |
+
+Bounds and sequencing are native, not a validation policy. All32 stores for a
+channel occur before the next channel's transform. Destination and source overlap
+is unchecked; the dot rules describe disjoint writable output/readable input and
+history, not a promise that aliasing is safe. This body performs no ownership,
+length, frame-availability or partial-read operation, returns no success count,
+does not clip floating values and leaves MMX state active. With null output it
+still decrements phase and transforms each channel but reads no window coefficients.
+Its format/error boundary remains the callers' responsibility; an invalid address
+may fault after phase/history/earlier PCM stores have already changed.
+
+Worked window-only examples, using a post-transform snapshot, q=1 and all
+unmentioned history words zero: H[0]=8192 gives output0=-7; H[0]=1 gives -1
+(negative arithmetic shift, not truncation toward zero). H[256]=8192 gives
+output16=-8 because the coefficient is -1 and the signed high product is -1.
+Using the ordinary dot product would incorrectly give -1. H[257]=32767 alone
+gives centre0: that odd product is discarded. These examples do not assume any
+particular output of the still-open transform.
+
 ## 6. Independent discriminating vectors
 
 These are contract vectors to implement independently, not reports of execution.
@@ -867,18 +978,23 @@ These are contract vectors to implement independently, not reports of execution.
 | TD-V42 | PCM store helper: binary32 40000,-40000,NaN,4294967296 with relevant exceptions masked | Signed words32767,-32768,0,0; following destination word untouched |
 | TD-V43 | Planar drain: valid stereo pending3, offset0, skip0, unlimited limit, request5; next produced block >=5 with skip0 and distinct samples | Writes3 then5 words per plane, returns8, demonstrating fixed-request overrun; null right plane suppresses only right stores |
 | TD-V44 | Format initialization: bitrate128, sampleRate44100, channels2, layer3, full rate | +4A24=417,+4A28=423,+4A2C=441; bytes+248C/+249C=4608; granules byte2; phase1; history zero range ends at4A04h |
+| TD-V45 | Window-only snapshot, q1, initialized banks, H[0]=8192 then1; all other words zero | Sample0=-7 then-1 in both coefficient layouts; negative shift is floor |
+| TD-V46 | Window-only snapshot, q1, H[256]=8192 then only H[257]=32767; all other words zero | Centre sample=-8 then0; catches replacing multiply-high/even-lane selection with ordinary dot arithmetic |
+| TD-V47 | Window-only snapshot, q1, initialized banks, H[16]=8192; all other words zero | Sample1=-6 (row17 last entry); centre0; forward rows are cyclically shifted signed words |
 
 ## 7. Open contracts and coverage boundary
 
 Vector TD-V23 assumes parsed channel/rate fields matching the stored stereo format;
-it is a pending-data case after a valid header. The 44 vectors are independent
+it is a pending-data case after a valid header. The 47 vectors are independent
 review fixtures, not reports of execution against an implementation or the game.
 
-Checklist reconciliation: D=6 bodies/294 B; S=45 bodies/8125 B; U=18 bodies/22853 B;
+Checklist reconciliation: D=6 bodies/294 B; S=46 bodies/13841 B; U=17 bodies/17137 B;
 A=1 artifact/21 B. D/S are documented boundaries, not proof that nested decoder
 arithmetic is specified. This residual phase adds contracts/boundaries for 15
 previously U bodies / 5099 B, including the 3405-byte side-information parser;
-the exact remaining U list is in §1.1. TD1 and TD4 remain open; TD2 is answered in §5.2/§5.3,
+the final phase additionally specifies5716 B of packed window arithmetic, with
+its2444-byte called transform still U. The exact remaining U list is in §1.1.
+TD1 and TD4 remain open; TD2 is answered in §5.2/§5.3,
 with numeric interface identities retained; TD3 is answered in section 2
 and archived in answered/tools-com-director.md. Whole-owner promotion is withheld.
 
