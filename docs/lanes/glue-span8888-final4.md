@@ -14,8 +14,11 @@
 - Measured: count22/mode0/format4 source stride588,height22 reads [107184,120120), not [0,12936); count5/mode0/format4 stride64,height16 reads [968,1228), not [0,1024). Both legacy_short calls now exact.
 - Save control own: SaveCity(full) ok1 in11094ms at2031-01-04; all5 actions ran. Context Shutdown lock0/flags0, Release0; bridge restored original entries.
 - Historical third generic memory-window/overlap refusal not reproduced; do NOT retroactively credit it. True alias remains original fallback under SR8888-1; target producer still SR8888-6.
-- Next: combined40 replacement request s8888-final4-combined-20261022-02 will be submitted after this commit; then copy its saved city from isolated slot Regions to main build-runs/fixtures and reload in shadow as s8888-final4-reload-20261022-03.
+- Done: s8888-final4-combined-20261022-02 clean2032-01-01/ref0; literal40+span8888 replacement, shipped427 ours427 (27 solid/400 blit), native comparisons0 (not exactness credit), fallback0/unaccounted0/resync0. Fixtures214/214 direct,254/254 per native target type, fault/refusal/diff/guard0.
+- Combined runtime count46/mode0 format4 stride960 height46 touched[0,43440), old envelope44160 overlaps destination window while actual source reads/destination writes are disjoint; captured legacy_envelope_overlap1, legacy_short2. This is not retroactive proof of the historical count22 refusal.
+- Combined full save ok1 in11047ms at2031-01-01. Copied isolated slot2 Regions/FC4 Test/City - Konradshohe.sc4 (1003774 bytes, mtime16:43:34) to main build-runs/fixtures/span8888-final4-combined-saved.sc4 for reload, without modifying the slot or real Documents.
+- Next: submit s8888-final4-reload-20261022-03 with combined40+span8888 shadow and saved fixture. Verify load at2031, native/shipped exactness, another full save and shutdown. Frozen DLL unchanged.
 - Facts: previous shipped 369/372 exact, two status2 rejects counts22/5 mode0 and one memory-window/overlap refusal count22. Preserve all fallback counts.
 - q.py is unusable here (Bash/Service/CreateInstance/E_ACCESSDENIED); use capped PowerShell and lane qbuild wrappers.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-span8888-final4-r1-manifest.json.
-- Own request completed; no request currently outstanding. Use single local wait script, not qwait; retain every unique verdict.
+- Own and combined requests completed; no request currently outstanding. Use single local wait script, not qwait; retain every unique verdict.
