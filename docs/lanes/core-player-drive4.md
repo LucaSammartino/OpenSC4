@@ -1,6 +1,20 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-player-drive4 (first portable drive-tool owner) | `Codex` / `core-player-drive4` (engine) | WIP: production eab6c1ad; 26 new fixtures unexecuted; baseline Rust 5142/0, clippy clean, CMake build 215/215, full CTest pending; new-file fmt passed, existing lib.rs fmt failed; DR3-DR8 appended; ABI unchanged | (1) Collect active baseline PID37080/PID19568; (2) serial quick and final all on committed source; (3) complete report with measured source results before readiness |
+| core-player-drive4 (first portable drive-tool owner) | `Codex` / `core-player-drive4` (engine) | in progress; round 2 resumes caa57315; prior gate incomplete, not acceptance | (1) Reconcile and archive prior operation; (2) serial quick, bounded fmt, final all on stable committed source; (3) report actual results |
+
+## Handoff
+
+- Goal: validate existing bounded owner/26 independent fixtures, without expanding scope or changing expectations.
+- Done: read own report/source fixture boundary and copied r1 result/stderr/reconciliation; read root intervention note.
+- Production remains eab6c1ad, report caa57315; detached HEAD reused; no source edits this round.
+- Prior baseline Rust 5142/0 (22 rows), clippy clean, native 215/215 predate registration; CTest log stops 18/68 with no final verdict.
+- Copied 00:40:51 observation found no attributable prior work; terminal exit/cause UNKNOWN. Fresh identity inspection needed before replacement.
+- Current CIM denied; q.py Bash E_ACCESSDENIED reproduced. Neither is a gate result or permission to bypass qbuild.
+- Fresh 00:46:08 BST native inventory: 75 build processes, all command/creation inspected (VM reads denied on service-owned processes); old PIDs absent, no own checker/output path. Other compiler output paths belong to other worktrees. Own string appears only in lane transport and inventory itself. Full snapshot: build-runs/process-inventory-r2-preflight.json.
+- Archived all six original logs with SHA256/size manifest under build-runs/baseline-r1/ using apply_patch moves. CTest 18/68 is incomplete, terminal outcome/cause UNKNOWN, no acceptance or duplicated baseline.
+- Next: exactly one necessary quick followed by final all on unchanged committed production; preserve wrapper results, inspect 26 tests and flags/source/artifacts.
+- No game request; DR1-DR8 remain; only own module/tests, necessary lib declaration, report and appended questions allowed.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-player-drive4-r2-manifest.json.
 
 ## Report
 
