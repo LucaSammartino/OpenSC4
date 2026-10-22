@@ -91,7 +91,9 @@ impl Ingredients {
     }
 
     pub fn name(&self, id: u32) -> String {
-        self.properties.get(&id).filter(|p| !p.name.is_empty())
+        self.properties
+            .get(&id)
+            .filter(|p| !p.name.is_empty())
             .map_or_else(|| format!("0x{id:08X}"), |p| p.name.clone())
     }
 
@@ -100,7 +102,9 @@ impl Ingredients {
     }
 
     pub fn variable_length(&self, id: u32) -> bool {
-        self.properties.get(&id).is_some_and(|p| p.count == 0 && p.editor_class != RESPONSE_CURVE_CLASS)
+        self.properties
+            .get(&id)
+            .is_some_and(|p| p.count == 0 && p.editor_class != RESPONSE_CURVE_CLASS)
     }
 
     pub fn value_map(&self, id: u32, elem: u16) -> Option<&BTreeMap<u32, String>> {
@@ -135,7 +139,9 @@ impl Ingredients {
             result.aliases.insert(value.trim().to_owned(), rule_n(key.as_bytes()));
         }
         for (key, value) in entries("ExemplarFilters") {
-            result.exemplar_filters.insert(rule_n(key.as_bytes()), result.filter(&value));
+            result
+                .exemplar_filters
+                .insert(rule_n(key.as_bytes()), result.filter(&value));
         }
         for (key, value) in entries("Properties") {
             if let Ok(property) = result.parse_property(rule_n(key.as_bytes()), &value, numbers) {
@@ -143,14 +149,22 @@ impl Ingredients {
             }
         }
         for (key, value) in entries("ResKeyTableEditorDefaults") {
-            if value.trim_start().is_empty() { continue; }
+            if value.trim_start().is_empty() {
+                continue;
+            }
             // RE1: short records are unspecified; never manufacture missing words.
             if let Ok(Variant::Array { items, .. }) = default_value(mem::UINT32, 4, &value, numbers) {
-                result.table_defaults.insert(rule_n(key.as_bytes()), TableDefaults {
-                    parameter: items[0].as_i64() as u32,
-                    key: ResKey { type_id: items[2].as_i64() as u32,
-                        group: items[1].as_i64() as u32, instance: items[3].as_i64() as u32 },
-                });
+                result.table_defaults.insert(
+                    rule_n(key.as_bytes()),
+                    TableDefaults {
+                        parameter: items[0].as_i64() as u32,
+                        key: ResKey {
+                            type_id: items[2].as_i64() as u32,
+                            group: items[1].as_i64() as u32,
+                            instance: items[3].as_i64() as u32,
+                        },
+                    },
+                );
             }
         }
         for &id in result.properties.keys() {
@@ -160,24 +174,35 @@ impl Ingredients {
                     // RE2: key narrowing and name trimming not specified; retain u32 keys and INI text.
                     map.insert(rule_n(key.as_bytes()), value);
                 }
-                if !map.is_empty() { maps.insert(id, map); }
+                if !map.is_empty() {
+                    maps.insert(id, map);
+                }
             }
         }
         result
     }
 
-    pub fn parse_property(&self, id: u32, text: &str, numbers: &mut impl TextPrimitives) -> Result<PropertyInfo, EditorError> {
+    pub fn parse_property(
+        &self,
+        id: u32,
+        text: &str,
+        numbers: &mut impl TextPrimitives,
+    ) -> Result<PropertyInfo, EditorError> {
         let mut fields = Fields(text);
-        let value_type = variant_type(&fields.next()?.0);
-        if value_type == mem::EMPTY { return Err(EditorError::UnsupportedType(value_type)); }
-        let count = rule_n(fields.next()?.0.as_bytes());
-        if value_type == ARRAY | mem::RZ_CHAR && count != 1 { return Err(EditorError::InvalidValue); }
-        let default = default_value(value_type, count, &fields.next()?.0, numbers)?;
-        let filter = self.filter(&fields.next()?.0);
-        let name = fields.next()?.0;
-        let help = fields.next()?.0;
-        let editor_class = self.filter_word(fields.next()?.0.trim());
-        let (arg, quoted) = fields.next()?;
+        let value_type = variant_type(&fields.read_field()?.0);
+        if value_type == mem::EMPTY {
+            return Err(EditorError::UnsupportedType(value_type));
+        }
+        let count = rule_n(fields.read_field()?.0.as_bytes());
+        if value_type == ARRAY | mem::RZ_CHAR && count != 1 {
+            return Err(EditorError::InvalidValue);
+        }
+        let default = default_value(value_type, count, &fields.read_field()?.0, numbers)?;
+        let filter = self.filter(&fields.read_field()?.0);
+        let name = fields.read_field()?.0;
+        let help = fields.read_field()?.0;
+        let editor_class = self.filter_word(fields.read_field()?.0.trim());
+        let (arg, quoted) = fields.read_field()?;
         let mut parameter = EditorParameter::default();
         if quoted {
             parameter.kind = STRING_PARAMETER;
@@ -188,13 +213,24 @@ impl Ingredients {
             parameter.kind = alias;
             parameter.argument = id;
         } else if let Some((prefix, number)) = arg.split_once('_') {
-            if number.as_bytes().first().is_some_and(u8::is_ascii_digit) {
+            if !number.is_empty() && number.bytes().all(|b| b.is_ascii_digit()) {
                 parameter.kind = self.aliases.get(prefix).copied().unwrap_or(0);
                 parameter.argument = rule_n(number.as_bytes());
             }
         }
-        let last = self.filter_word(fields.next()?.0.trim());
-        Ok(PropertyInfo { id, value_type, count, default, filter, name, help, editor_class, parameter, last })
+        let last = self.filter_word(fields.read_field()?.0.trim());
+        Ok(PropertyInfo {
+            id,
+            value_type,
+            count,
+            default,
+            filter,
+            name,
+            help,
+            editor_class,
+            parameter,
+            last,
+        })
     }
 }
 
@@ -202,7 +238,7 @@ impl Ingredients {
 pub struct Fields<'a>(pub &'a str);
 
 impl Fields<'_> {
-    pub fn next(&mut self) -> Result<(String, bool), EditorError> {
+    pub fn read_field(&mut self) -> Result<(String, bool), EditorError> {
         let rest = self.0.trim_start();
         if let Some(quoted) = rest.strip_prefix('"') {
             let end = quoted.find('"').ok_or(EditorError::InvalidField)?;

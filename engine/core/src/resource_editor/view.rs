@@ -5,7 +5,7 @@ use crate::property::PropertyHolder;
 use crate::stream::{RefValue, ResKey};
 use crate::variant::{mem, Elem, Variant, ARRAY};
 
-use super::{standard_flags, Area, Ingredients, RESPONSE_CURVE_CLASS, RESOURCE_TABLE_CLASS};
+use super::{standard_flags, Area, Ingredients, RESOURCE_TABLE_CLASS, RESPONSE_CURVE_CLASS};
 
 pub const BUTTON_MESSAGE: u32 = 0x2872_59F6;
 pub const SELECTION_MESSAGE: u32 = 0xE871_1255;
@@ -23,6 +23,7 @@ pub trait EditorHost {
     type Editor: Copy;
     fn create_editor(&mut self, class: u32) -> Option<Self::Editor>;
     fn resolve_reference(&mut self, value: &RefValue) -> Option<RefValue>;
+    fn table_defaults_interface(&mut self, editor: Self::Editor) -> bool;
     fn table_parameter(&mut self, editor: Self::Editor, value: u32);
     fn table_default(&mut self, editor: Self::Editor, key: ResKey);
     fn initialize(&mut self, editor: Self::Editor, property: u32, value: &Variant);
@@ -43,8 +44,13 @@ pub trait PropertyTarget {
     fn set_value(&mut self, value: Variant);
 }
 
-pub fn get_value_editor<H: EditorHost>(ingredients: &Ingredients, id: u32,
-    supplied: Option<&Variant>, exemplar: Option<&Variant>, host: &mut H) -> Option<H::Editor> {
+pub fn get_value_editor<H: EditorHost>(
+    ingredients: &Ingredients,
+    id: u32,
+    supplied: Option<&Variant>,
+    exemplar: Option<&Variant>,
+    host: &mut H,
+) -> Option<H::Editor> {
     let definition = ingredients.properties.get(&id)?;
     // RE5: §6's "otherwise" is ambiguous. Explicit dialog values must survive
     // Add/Remove (§9); absent supplied values use an exemplar object or default.
@@ -55,7 +61,7 @@ pub fn get_value_editor<H: EditorHost>(ingredients: &Ingredients, id: u32,
         _ => definition.default.clone(),
     };
     let editor = host.create_editor(definition.editor_class)?;
-    if matches!(definition.editor_class, RESOURCE_TABLE_CLASS | 0x281F_7625) {
+    if matches!(definition.editor_class, RESOURCE_TABLE_CLASS | 0x281F_7625) && host.table_defaults_interface(editor) {
         if let Some(default) = ingredients.table_defaults.get(&id) {
             host.table_parameter(editor, default.parameter);
             host.table_default(editor, default.key);
@@ -73,18 +79,35 @@ pub struct PropertyView<E: Copy> {
     pub help: String,
     pub area: Area,
     pub flags: u32,
+    pub controls: Vec<(u32, &'static str)>,
     initialized: bool,
 }
 
 impl<E: Copy> PropertyView<E> {
     pub fn new(filter: u32) -> Self {
-        Self { filter, rows: Vec::new(), editors: BTreeMap::new(), current: None, help: "<help>".into(),
-            area: Area::default(), flags: 0, initialized: false }
+        Self {
+            filter,
+            rows: Vec::new(),
+            editors: BTreeMap::new(),
+            current: None,
+            help: "<help>".into(),
+            area: Area::default(),
+            flags: 0,
+            controls: Vec::new(),
+            initialized: false,
+        }
     }
 
-    pub fn init(&mut self, ingredients: &Ingredients, exemplar: &PropertyHolder, parent: Area,
-        host: &mut impl EditorHost<Editor = E>) {
-        if self.initialized { return; }
+    pub fn init(
+        &mut self,
+        ingredients: &Ingredients,
+        exemplar: &PropertyHolder,
+        parent: Area,
+        host: &mut impl EditorHost<Editor = E>,
+    ) {
+        if self.initialized {
+            return;
+        }
         if self.area.right == self.area.left && self.area.bottom == self.area.top {
             self.area.left = (parent.right - parent.left - 400) / 2;
             self.area.top = (parent.bottom - parent.top - 450) / 2;
@@ -92,12 +115,22 @@ impl<E: Copy> PropertyView<E> {
             self.area.bottom = self.area.top + 450;
         }
         self.flags = standard_flags(self.flags);
+        self.controls = vec![
+            (PROPERTY_DONE, "Done"),
+            (PROPERTY_CANCEL, "Cancel"),
+            (0x87C3_0D17, "<help>"),
+            (PROPERTY_LIST, "Property ID"),
+        ];
         self.map_properties(ingredients, exemplar, host);
         self.initialized = true;
     }
 
-    pub fn map_properties(&mut self, ingredients: &Ingredients, exemplar: &PropertyHolder,
-        host: &mut impl EditorHost<Editor = E>) {
+    pub fn map_properties(
+        &mut self,
+        ingredients: &Ingredients,
+        exemplar: &PropertyHolder,
+        host: &mut impl EditorHost<Editor = E>,
+    ) {
         self.editors.clear();
         // §6 publishes the editor map, but not the population of the row
         // vector (RE5). Rows are supplied explicitly by the list's caller.
@@ -112,9 +145,13 @@ impl<E: Copy> PropertyView<E> {
 
     fn select(&mut self, selected: usize, host: &mut impl EditorHost<Editor = E>) -> Option<u32> {
         let &id = self.rows.get(selected)?;
-        if let Some(editor) = self.current { host.show(editor, false); }
+        if let Some(editor) = self.current {
+            host.show(editor, false);
+        }
         self.current = self.editors.get(&id).copied();
-        if let Some(editor) = self.current { host.show(editor, true); }
+        if let Some(editor) = self.current {
+            host.show(editor, true);
+        }
         Some(id)
     }
 
@@ -126,16 +163,29 @@ impl<E: Copy> PropertyView<E> {
         }
     }
 
-    pub fn command(&mut self, message: u32, parameter: u32, selected: usize, ingredients: &Ingredients,
-        target: &mut impl PropertyTarget, host: &mut impl EditorHost<Editor = E>) -> bool {
+    pub fn command(
+        &mut self,
+        message: u32,
+        parameter: u32,
+        selected: usize,
+        ingredients: &Ingredients,
+        target: &mut impl PropertyTarget,
+        host: &mut impl EditorHost<Editor = E>,
+    ) -> bool {
         if message == SELECTION_MESSAGE && parameter == PROPERTY_LIST {
-            if let Some(id) = self.select(selected, host) { self.help = ingredients.help(id).into(); }
+            if let Some(id) = self.select(selected, host) {
+                self.help = ingredients.help(id).into();
+            }
             return false;
         }
-        if message != BUTTON_MESSAGE { return false; }
+        if message != BUTTON_MESSAGE {
+            return false;
+        }
         match parameter {
             PROPERTY_DONE => {
-                if let Some(id) = self.select(selected, host) { self.assign(id, target, host); }
+                if let Some(id) = self.select(selected, host) {
+                    self.assign(id, target, host);
+                }
                 host.end_dialog(self.flags & 0x1000 != 0, 0)
             }
             PROPERTY_CANCEL => host.end_dialog(self.flags & 0x1000 != 0, 1),
@@ -170,53 +220,109 @@ pub struct EditValueDialog<E: Copy> {
 
 impl<E: Copy> EditValueDialog<E> {
     pub fn new(property: u32, area: Area) -> Self {
-        Self { property, editor: None, area, flags: 0, buttons: Vec::new(), help: String::new(),
-            help_area: Area::default(), initialized: false }
+        Self {
+            property,
+            editor: None,
+            area,
+            flags: 0,
+            buttons: Vec::new(),
+            help: String::new(),
+            help_area: Area::default(),
+            initialized: false,
+        }
     }
 
-    pub fn init(&mut self, ingredients: &Ingredients, current: &Variant,
-        metrics: &mut impl ButtonMetrics, host: &mut impl EditorHost<Editor = E>) {
-        if self.initialized { return; }
+    pub fn init(
+        &mut self,
+        ingredients: &Ingredients,
+        current: &Variant,
+        metrics: &mut impl ButtonMetrics,
+        host: &mut impl EditorHost<Editor = E>,
+    ) {
+        if self.initialized {
+            return;
+        }
         self.flags = standard_flags(self.flags);
         let width = self.area.right - self.area.left;
         let height = self.area.bottom - self.area.top;
         let mut right = width - 5;
         let mut top = height - 5;
-        for (index, (label, id, style)) in [("Okay", EDIT_OKAY, 0x2001), ("Cancel", EDIT_CANCEL, 0x2007),
-            ("Add Value", EDIT_ADD, 0x2010), ("Remove Value", EDIT_REMOVE, 0x2011)].into_iter().enumerate() {
-            if index >= 2 && !ingredients.variable_length(self.property) { break; }
+        for (index, (label, id, style)) in [
+            ("Okay", EDIT_OKAY, 0x2001),
+            ("Cancel", EDIT_CANCEL, 0x2007),
+            ("Add Value", EDIT_ADD, 0x2010),
+            ("Remove Value", EDIT_REMOVE, 0x2011),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            if index >= 2 && !ingredients.variable_length(self.property) {
+                break;
+            }
             let (w, h) = metrics.button_size(label, style);
-            if index == 0 { top = height - 5 - h; }
-            let area = Area { left: right - w, top, right, bottom: top + h };
+            if index == 0 {
+                top = height - 5 - h;
+            }
+            let area = Area {
+                left: right - w,
+                top,
+                right,
+                bottom: top + h,
+            };
             right = area.left - 5;
             self.buttons.push(DialogButton { label, id, style, area });
         }
         self.help = ingredients.help(self.property).into();
-        self.help_area = Area { left: 5, top, right: right + 5, bottom: height - 5 };
+        self.help_area = Area {
+            left: 5,
+            top,
+            right: right + 5,
+            bottom: height - 5,
+        };
         self.editor = get_value_editor(ingredients, self.property, Some(current), None, host);
         if let Some(editor) = self.editor {
-            host.set_area(editor, Area { left: 5, top: 5, right: width - 5, bottom: top });
+            host.set_area(
+                editor,
+                Area {
+                    left: 5,
+                    top: 5,
+                    right: width - 5,
+                    bottom: top,
+                },
+            );
             host.child_add(editor);
         }
         self.initialized = true;
     }
 
-    pub fn command(&mut self, message: u32, button: u32, ingredients: &Ingredients,
-        target: &mut impl PropertyTarget, host: &mut impl EditorHost<Editor = E>) -> bool {
-        if message != BUTTON_MESSAGE { return false; }
+    pub fn command(
+        &mut self,
+        message: u32,
+        button: u32,
+        ingredients: &Ingredients,
+        target: &mut impl PropertyTarget,
+        host: &mut impl EditorHost<Editor = E>,
+    ) -> bool {
+        if message != BUTTON_MESSAGE {
+            return false;
+        }
         match button {
             EDIT_OKAY => {
                 let result = if let Some(editor) = self.editor {
                     target.set_value(host.value(editor));
                     1
-                } else { 0 };
+                } else {
+                    0
+                };
                 host.end_dialog(true, result)
             }
             EDIT_CANCEL => host.end_dialog(true, 0),
             EDIT_ADD | EDIT_REMOVE => {
                 if let Some(editor) = self.editor {
                     let value = host.value(editor);
-                    if button == EDIT_REMOVE && value.count() < 2 { return true; }
+                    if button == EDIT_REMOVE && value.count() < 2 {
+                        return true;
+                    }
                     let new_value = resize_dialog_value(&value, button == EDIT_ADD);
                     let area = host.area(editor);
                     host.child_remove(editor);
@@ -237,22 +343,38 @@ impl<E: Copy> EditValueDialog<E> {
 pub fn resize_dialog_value(value: &Variant, add: bool) -> Variant {
     let ty = value.mem_type() & !ARRAY;
     let zero = match ty {
-        mem::BOOL => Elem::Bool(false), mem::UINT8 => Elem::U8(0), mem::SINT8 => Elem::I8(0),
-        mem::UINT16 => Elem::U16(0), mem::SINT16 => Elem::I16(0), mem::UINT32 => Elem::U32(0),
-        mem::SINT32 => Elem::I32(0), mem::FLOAT32 => Elem::F32(0.0),
+        mem::BOOL => Elem::Bool(false),
+        mem::UINT8 => Elem::U8(0),
+        mem::SINT8 => Elem::I8(0),
+        mem::UINT16 => Elem::U16(0),
+        mem::SINT16 => Elem::I16(0),
+        mem::UINT32 => Elem::U32(0),
+        mem::SINT32 => Elem::I32(0),
+        mem::FLOAT32 => Elem::F32(0.0),
         _ => return Variant::Empty,
     };
     let mut items = value.items();
-    if add { items.push(zero); } else { items.pop(); }
+    if add {
+        items.push(zero);
+    } else {
+        items.pop();
+    }
     Variant::array(ty, items)
 }
 
 /// Useful to callers building their own property lists; does not infer the
 /// unspecified native row population policy.
 pub fn matching_properties(ingredients: &Ingredients, mask: u32) -> Vec<u32> {
-    ingredients.properties.iter().filter_map(|(&id, p)| (p.filter & mask != 0).then_some(id)).collect()
+    ingredients
+        .properties
+        .iter()
+        .filter_map(|(&id, p)| (p.filter & mask != 0).then_some(id))
+        .collect()
 }
 
 pub fn has_variable_buttons(ingredients: &Ingredients, id: u32) -> bool {
-    ingredients.properties.get(&id).is_some_and(|p| p.count == 0 && p.editor_class != RESPONSE_CURVE_CLASS)
+    ingredients
+        .properties
+        .get(&id)
+        .is_some_and(|p| p.count == 0 && p.editor_class != RESPONSE_CURVE_CLASS)
 }
