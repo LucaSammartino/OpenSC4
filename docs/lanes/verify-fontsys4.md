@@ -8,9 +8,11 @@
 - Starting HEAD 391bfd5d; provider correction 8ff837d9. Detached HEAD, no branch/ref changes authorized.
 - Prior native requests retained: route a1 clean, focused b1 early SDK overload exit, stable c1 clean; 8469 exact/72 diff/129 refusals INVALID acquisition-provider evidence, no exact credit.
 - User clarified native request count 3 is not a lane-round cap; justified corrected-artifact requests authorized. No separate original-attempt cap applies.
-- Baseline qbuild all launched this round; next collect verdict and freeze corrected DLL/PDB on PASS.
+- Baseline qbuild all PASS4962/clippy0/ctest68 (90.9s; docs changed during gate). Repeated stable gate at0649002c PASS4962/clippy0/ctest68 (80.6s), no tree-change warning; engine unchanged from8ff837d9.
+- Next: freeze DLL/PDB in build-runs/dll/fontsys4-r2-corrected with hashes and gate logs; native-original corrected-provider ON request fontsys4-r2-original-on-20261022d1, full saves March2026/June2031, end2032.
 - Required controls: exact HOUSE40 profile from current task, ON/OFF full save/shutdown and supported reload to2032/ref0; no experimental keys.
-- No game request outstanding. No new questions or code edits yet. Preserve all historical evidence below until final report.
+- Request labels are unique; wait via build-runs/fontsys4-wait-verdict.py (never qwait). Helper fontsys4-submit.py fixes HOUSE40 explicitly, rejects reused labels/outstanding requests and checks frozen hashes.
+- No new questions or code edits yet. Preserve all historical evidence below until final report.
 - Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-fontsys4-r2-manifest.json.
 
 ## Prior round report (historical; native-attempt cap wording superseded above)
