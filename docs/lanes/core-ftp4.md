@@ -1,34 +1,12 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-ftp4: portable WWW/FTP partial owner | Codex, core-ftp4 (detached reservation) | in progress; FINAL3/3; quick PASS; captured all FAIL (one fixture lint; native incomplete; CTest skipped) | Validate one-line fixture correction serially; preserve failed logs; no queue before complete checks |
+| core-ftp4: portable WWW/FTP partial owner | Codex / core-ftp4 (detached engine reservation) | ready for bounded landing; checked 69ab9dba: cargo 5071/0/0, clippy clean, native 4/4, ctest 68/68; ABI unchanged; no game; owner incomplete | (1) Combined integration gate after landing; (2) retain Q1/Q3/Q7/Q9/Q10 and parked owner boundary |
 
-## Handoff
-- Goal: final bounded verification/reporting only; whole owner remains incomplete; FINAL3/3.
-- Production milestones: 0a57021f/40adce68 algorithms; 1f4111db Q10; 97bff998 vectors;
-  6a3a8b52 clippy fixes; 48c7f93c audited formatter changes; f508edbd complete quick evidence.
-- Production engine tree b53ab395e5f218c1549935755419c49d1591d935 identical at 48c7f93c/f508edbd/ee61263e.
-- Fresh process inventory 2026-10-22T22:33:45Z: 54 build/shell identities readable, zero inaccessible,
-  zero attributable operations/descendants; former PIDs 28252/19284/20956 absent.
-- CIM access denied; documented Toolhelp/NtQuery process helper succeeded; no game image accessed.
-- Old transport 34880 collection explicitly returned Unknown process id; no stdout/exit recoverable.
-- Former all: interrupted/unmeasured, disappearance cause unknown. Tests 5071/0/0 across 21 lines;
-  clippy ends Checking fc4-core, no completion; no final full CTest. Never a complete all PASS.
-- Six old step logs preserved with SHA256 manifests in build-runs/interrupted-all-r2/ before overwrite.
-- Existing complete quick retained: 3043/0/0, 32 WWW fixtures, 3 dependent compile checks,
-  native 212/212 edges; wrapper exit 0, 1981.9 s. Do not repeat due documentation-only flags.
-- Six WWW qbuild fmt PASS; seven-file check including lib.rs has 168 preexisting drift lines.
-- Captured final3 all at 46924013: 22:34:36Z to 22:47:00Z; actual wrapper exit 1; source stayed clean.
-- Tests 5071/0/0 (21 lines, 32 WWW fixtures); clippy exit 101: listing.rs:365 useless_vec in fixture.
-- Native wrapper FAIL 1/4 edges, log ends after unchanged ABI generation; CTest skipped, no pass claim.
-- Only correction: same 19-byte fixture uses &mut [0; 19], no heap Vec; algorithms unchanged.
-- EXACT NEXT: preserve-failed; fmt listing.rs; run final-gate-core-ftp4.py run final3b once serially.
-- Capture stdout/OS PID/exit/source identities; inspect all checks and artifact provenance.
-- Do not repeat a completed genuine full gate solely for a documentation checkpoint flag.
-- Retain 91 C/26757 B, 63 I/22 P/6 U and 57 P/O/7292 B; Q1/Q3/Q7/Q9/Q10 unresolved.
-- Primitive hosts only; owned barriers/unsafe domains Unsupported; leaks/nonjoining remain explicit.
-- No game/network/ABI/glue/default/map/tool/coverage changes, no new family/owner credit.
-- No queue before actual complete validation; combined integration gate still required; no unrelated retries.
-- Guard: MAIN/build-runs/run4-core-ftp4-r3-manifest.json; obey denial; no fourth continuation.
+## Final bounded delivery
+
+FINAL3/3 is complete. This lane is ready to land its portable Rust contracts and fixtures. The WWW owner remains incomplete and parked; this is no native/default replacement, whole-owner or additional family credit. No fourth continuation is requested.
+
+Production milestones: 0a57021f/40adce68 algorithms; 1f4111db Q10; 97bff998 reconciliation/vectors; 6a3a8b52 earlier clippy fixes; 48c7f93c audited formatting; f508edbd focused quick evidence. Final round commits 46924013 evidence and 69ab9dba one concrete fixture lint correction. No algorithm expansion occurred this round.
 
 ## Implementation
 
@@ -38,9 +16,54 @@ Core owns destructive parsing, commands, partial transfer loops, type/login/disp
 
 ## Validation
 
-Historical initial all (session 51977): 5,039 cargo tests passed, zero failed, 21 result lines; later clippy saw concurrent edits and two lints fixed in 6a3a8b52. This is not a pristine all-pass baseline. Earlier parser quick 3,016/0 is historical. Old failed/partial step logs are preserved under build-runs/inherited-r1/. Fresh round-2 quick at production source 48c7f93c passed: 3,043 passed, zero failed/ignored, two result lines including doc tests, all 32 WWW fixtures passed; three dependent crates compile-only passed; native CMake build 212/212 edges passed (1969.6 s), complete wrapper 1981.9 s, exit 0. Quick reports tree-changed because ac514591 committed its documentation checkpoint during the run; the engine tree stayed b53ab395e5f218c1549935755419c49d1591d935 throughout. Stable final all/clippy/full CTest remain pending. Configured rustfmt audit verified all six WWW files and absolute six-file qbuild fmt passed; required seven-file invocation including lib.rs failed on existing root/child formatting drift, left untouched. Pre-lane isolated lib.rs also needs formatting; this lane adds only its module declaration. No game run requested (explicit prohibition), external contact or live server tests.
+The complete final `qbuild all` at committed 69ab9dba ran from **2026-10-22T22:49:21.131358Z to 23:43:23.591525Z** (00:43 BST on October 23 at completion). Captured qbuild OS PID 23432 and transport 26984 both returned **exit 0**. Start/end HEAD, engine tree and clean tracked status are identical. The actual wrapper stdout says `qbuild: PASS`.
+
+| Check | Actual completed result |
+|---|---|
+| Workspace cargo test | exit 0; **5071 passed, 0 failed, 0 ignored**, summed over all 21 `test result:` lines; all 32 WWW fixtures passed |
+| Workspace clippy, warnings denied | exit 0, zero diagnostics; log ends `Finished dev profile` (3m 50s) |
+| CMake/native | **PASS 4/4 edges**, 557.8 s; fresh static library, smoke executable and DLL linked |
+| Full CTest | **68/68**, zero failures; complete log ends `100% tests passed`; 845.49 s CTest time, 846.1 s wrapper step |
+| fc4verify aggregate | PASS, 1611.7 s |
+| Formatting | six WWW files previously PASS; changed listing.rs rechecked through qbuild fmt, exit 0; required seven-file check including lib.rs retains **168 preexisting drift lines**, left untouched |
+
+Final evidence is in `build-runs/final3b-all-{start,result}.json`, `final3b-all-stdout.log`, `qbuild-{test,clippy}.log`, `fc4verify-{build,ctest-list,ctest}.log`, and `final3-audit.json`. No game run, live server/network contact or external communication occurred; game verdict/shadow/ref_warnings are not measured. This native build proves dependent compatibility, not runtime replacement of WWW.
+
+Prior checks and failures remain explicit:
+
+- Historical initial all (transport 51977): 5039 tests passed over 21 result lines, but concurrent edits and later clippy failures mean no pristine all-pass baseline. Older parser quick 3016/0 is historical. Its failed/partial logs remain in `build-runs/inherited-r1/`.
+- Completed round-2 quick at source 48c7f93c: 3043/0/0, two result lines including doc tests, 32 WWW fixtures, three dependent compile checks, native 212/212 edges (1969.6 s), total wrapper 1981.9 s, exit 0. Its documentation checkpoint flag is contextualized by exact engine-tree equality, not described as an unchanged whole-tree run. It was not repeated merely for documentation changes.
+- Former all transport 34880 / OS PID 28252 is **interrupted/unmeasured**, disappearance cause unknown. Fresh initial process inventory at 22:33:45Z read 54 build/shell identities, none inaccessible, zero attributable operations/descendants; PIDs 28252/19284/20956 were absent. CIM was denied but the existing Toolhelp/NtQuery method succeeded. Collecting 34880 returned `Unknown process id`; no stdout/exit was recoverable. Its test log totals 5071/0/0 across 21 lines, but clippy only started and no final full CTest existed. Six old step logs and SHA256 manifest were preserved in `build-runs/interrupted-all-r2/` before overwrite. This was never a full gate PASS.
+- First captured final3 all, 46924013, 22:34:36Z–22:47:00Z: actual wrapper exit **1**, tests 5071/0/0, clippy exit 101 for listing.rs:365 `useless_vec`; native wrapper FAIL 1/4 edges, CTest skipped. Ten outputs, captured stdout/exit and hash manifest are retained in `build-runs/failed-all-final3/`. No underlying native error or successful native completion is invented from its short log.
+- 69ab9dba replaces `&mut vec![0; 19]` with `&mut [0; 19]` in that existing unsafe-domain fixture. Identical 19-byte input and assertion; no parser behavior changes or new coverage claim. The successful serial final all above validates the correction.
+
+Final process inventory at 23:43:57Z read 87 build/shell identities, none inaccessible, zero attributable operations/descendants. No request or build remains outstanding. No successful full gate is repeated for this final documentation-only report. The next combined integration gate is still required after landing.
 
 Constructed vectors distinguish listing selectors/mutation/output preservation/unsafe domains, reply helpers, chunk short send versus command prefix resend, async state-4 reentry, rejected-login true, RETR write failure and empty success, ignored STOR sender/read failure, progress rounding, callback reentry, listing partial capacities, target/shutdown/file-wrapper lifetime, outer cancel/stop/suspend, HTTP method prefixes/wrap/raw queue leaks, bounded replacement-worker race, WWW cache thresholds/fallback, cancellation leaks/late resources, conversion failure, cookies, reentrant fanout and cache-control parsing including embedded NUL.
+
+## Source and artifact correspondence
+
+Inherited production 48c7f93c, f508edbd, ee61263e and 46924013 have identical engine tree **b53ab395e5f218c1549935755419c49d1591d935**. Final checked commit **69ab9dba58fb2052efa651d0d307f88603035db8** has engine tree **e32826972be3d647380dd7dfd7d32c225f64ded5**. Its complete engine diff from 48c7f93c is the single fixture replacement above. Final report commits change documentation only. All seven on-disk source files equal their checked committed bytes after CRLF normalization; their working-file SHA256 values are recorded below and in `final3-audit.json`.
+
+| Source under engine/core/src | SHA256 |
+|---|---|
+| www/ftp.rs | 1fac0bef9be4b05953b8b60a874ed61a7835e0a23a9a44c80e69dccbf484557c |
+| www/http.rs | 0e15f1dc5ba69a56ebe9641c23b3fccc374b229552695dd3266c96243124b1a7 |
+| www/listing.rs | 6a027c7ce511adbe925ff32832847906a1f1742cc991ab601f41c6091a3ff1c8 |
+| www/mod.rs | 7cafd3aeffbd9debe0f152905d7dedf2de6cdf942877b12be0d0b37ee2319c62 |
+| www/service.rs | 59d48449b4e886434837aa49a801a15604e8a41520f8c5120e401d986c86bd55 |
+| www/worker.rs | 265683c1b10ea092a5331a173b7856b97a3c1e2a130fb0e366943f4e13b970b7 |
+| lib.rs | 02773b03e2d312395219c4f5fde69557adb778bbaa38c85ef4a31034a0b5eb84 |
+
+Final CMake cache names this worktree's `engine` as `CMAKE_HOME_DIRECTORY`, Debug configuration and Rust target `i686-pc-windows-msvc`. The final build log reaches 4/4 and names the linked DLL. Artifact evidence, measured after completion:
+
+| Artifact under engine/build-x86 | Bytes | Modified UTC | SHA256 |
+|---|---:|---|---|
+| FreeCity4.dll | 17691136 | 2026-10-22T23:25:51.604469Z | 90a71b91946da007d0524f49f4598d0e7e1a8e177be0cae4af724f7e6171f0b9 |
+| cargo/i686-pc-windows-msvc/release/fc4_capi.lib | 77021056 | 2026-10-22T23:25:45.290472Z | 822a83cbdb0a99d0d1682db7c540b4d090c64abb665868cf106a5787b1304cc9 |
+| Testing/Temporary/LastTest.log | 429834 | 2026-10-22T23:43:23.010781Z | 3c0a7ea8a04fa42aef33d3a2eaaba4481f5d723749ade7817e5600ce932275d2 |
+
+The audit also retains CMakeCache/build.ninja hashes, all source Git blob IDs, complete source delta, log hashes, test counts and genuine completion markers. No ABI entries, ABI version, plugin/default/map/coverage files, tools or generated indexes were edited. Runtime glue, live transport and complete native allocation/layout equivalence remain outside this delivery.
 
 ## Per-body C reconciliation
 
@@ -208,4 +231,6 @@ All 57 original P/O rows / 7,292 B remain unsupported, without invented owner al
 
 ## Questions and next steps
 
-Filed Q10 in docs/specs/questions/web-network.md: targetless matched HTTP completion suffix. No changes to generated QUESTIONS.md or tools; coordinator may regenerate the question index. Retain Q1/Q3/Q7/Q9. No speculative owner/native/default coverage claim. Next: finish queued checks, fix any diagnostics, run final stable full gate, update this report and queue only after successful validation.
+Q10 remains filed in docs/specs/questions/web-network.md for the targetless matched HTTP completion suffix. No question was newly filed or resolved in this final verification round. Retain Q1 cookie Port count, Q3 persistence, and parked partial Q7/Q9. Do not reinterpret Unsupported as native false or restart URL/HTML/HTTP/cookie families. Published 91 C/26757 B, 63 I/22 P/6 U and excluded 57 P/O/7292 B are unchanged; final audit verified both exact address/size maps against the checklist.
+
+Next: coordinator lands this bounded delivery, preserving additive shared module declarations and running the next real combined integration gate. The whole owner stays incomplete/parked, with no native/default/whole-owner credit. There is no remaining operation or game request to collect, and no fourth original round.
