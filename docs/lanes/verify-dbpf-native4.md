@@ -1,25 +1,65 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-dbpf-native4: independent public packed DBPF transport | `verify-dbpf-native4` / detached engine lane | In progress round3/3: reconcile retained gate/artifact and run one budget-enabled current40 OFF-first matched lifecycle pair; round2 WIP and all eight earlier attempts retained; ABI3 additive exports retained | Verify frozen provenance and OS/queue attribution before any request; no builds or engine edits. |
+| verify-dbpf-native4: bounded original DBPF record/payload transport | `verify-dbpf-native4` / detached engine lane | READY only for bounded SDK record/payload transport and matched budget-enabled current40 lifecycle: OFF-first/ON both clean2035/ref0/fullsave/shutdown; constructed10/10 and supplied153/153 transport; EX55 differences3 retained; stable cargo4962/0,clippy0,CTest68/68; ABI3 additive exports retained; round3/3 complete | Coordinator review/integration and held run numbering; publish EX54/EX55; historical current40 ref4 and own OFF-turbo exit1 causes remain unresolved; no whole-owner/replacement promotion or fourth round. |
 
-## Handoff
-- Goal: final round3/3, bounded original record/payload transport plus matched budget-enabled current40 lifecycle validation.
-- Start: clean detached HEAD5c537c6f; round2 report is committed there and remains below.
-- Historical: eight attempts retained; current40 ON/OFF clean/ref4, own OFF-turbo exited1, other five clean/ref0; EX54/EX55 unresolved.
-- Done: read contribution, lane/queue and operating docs; no engine/source/default changes or compiler/test invocations.
-- Done: retained r2 provider result and full report in build-runs/evidence-run4 agree with tip5c537c6f/WIP and eight retained attempts; manifest confirms round3, consumed2/3.
-- Gate recomputed4962/0, clippy0, CTest68/68; engine tree at02d08687/304fdfba/5c537c6f/HEAD is fc5c5a930cb1e2ae5ab494c6235a732a0477a00d; no rebuild needed.
-- Frozen readonly DLL/PDB and16 literal fixtures match supplied manifest hashes; current40 fixture hash4ad4e47b... exact; old scripts62e3c03c... exact.
-- OS23:32:12UTC:62 relevant process identities/creation/commands queried; no game/build or owned run waiter. Queue daemon PID23444 created2026-10-21T17:52:51UTC, -Slots6; its cwd and backend cwd denied; current shell cwd verified owned WT. No command-identity ambiguity; stale sessions ignored.
-- Both queue roots now have no pending/running entries; old main regress request completed independently. No attributable operation to overlap.
-- Pair audit passed: exactly40 unique literal keys, disable empty; same artifact/fixture/common retained OFF script62e3c03c...; normalized common settings SHA256 a934793829e0882cb847e03868fc194743f16327bf4c239d28e795e472a68a7a.
-- OFF vdbpf4-r3-budget-on-current40-off-02d08687-a PASS: clean2035-01-01, foreign/stalls/rtc/overruns/ref0, fullsave ok1/11140ms, after-save mark and both shutdown hooks; native lines0 (control-only). Request/verdict/log hashes in own run record; readonly inputs unchanged.
-- Measured OFF providers42 = exact requested40 plus budget/simulator, missing0; not inferred from list length. Real160.422s, queue6s, wall178s, slot1.
-- ON vdbpf4-r3-budget-on-current40-on-02d08687-b submitted only after OFF passed; collect via owned read-only wait helper. No other game requests, builds or engine edits authorized.
-- Next: audit ON actual lifecycle/ref0, all17 source opens,16 fixture open/reject decisions,10 constructed/153 supplied records, separate list/key/count and EX55; verify unchanged immutable inputs and actual provider set before final report.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-dbpf-native4-r3-manifest.json.
-- Frozen pair: build-runs/dbpf-r2-frozen-02d08687; existing production implementation02d08687, gate304fdfba.
-- No fourth round, rebuild, source fitting, game slot access, qwait, subagents or owner/replacement promotion.
+## Round3 final result (2026-10-23)
+
+The one prescribed OFF-first matched pair passes the budget-enabled current40 lifecycle with the existing frozen implementation. Readiness is limited to the original packed-file SDK **record/payload transport** and this measured supported profile. Native enumeration remains different under EX55. The original packed-segment owner is independently acquired through public factory CLSID086D4A89/typed SDK QI; this neither replaces that owner nor verifies cRZFile ownership. Coordinator alone reviews integration and any narrowly supported coverage.
+
+No engine source, defaults, providers, ABI version, tables, shared indexes, tools, fixture bytes or game data were changed. No builds, tests, realcache RPC, normal-speed replay or extra variants ran. The existing three additive exports (`fc4_dbpf_entry_count`, `fc4_dbpf_entry`, `fc4_dbpf_read_record`) remain ABI=true; no new export. Rust still executes production Package entry/find/read_raw/read; original answers never become Rust inputs. All evidence is local, clean-room and retained.
+
+### Matched requests and measured lifecycle
+
+Both requests use the same readonly frozen DLL/PDB, Konradshohe, supplied current40 fixture, turbo1/sim_turbo1, seconds1200, timeout1500, end_date2035-01-01, refaudit1/refaudit_lines20, popup_dialogs0, autotest_end=quit, explicit empty `disable`, owned absolute dbpf_native_fixtures, and identical fixture_city/dbpf_native_file. Their bytes differ only in label and dbpf_native0/1. Normalized common settings SHA256 `a934793829e0882cb847e03868fc194743f16327bf4c239d28e795e472a68a7a` (canonical sorted JSON omitting those two fields).
+
+Literal enable list, exactly40 unique keys:
+
+`landvalue,weather,ordinance,demand,power,plumbing,flammability,pollution,protection,crime,aura,flora,landfill,residential,neighbors,zones,development,tract,history,clock24,commercial,industrial,civic,parks,lotdev,zonedev,traffic,automata,netmgr,netlot,nettool,demolition,occmgr,propmgr,lotcfg,citysit,propdev,simgrids,citydetail,ports`
+
+Actual logged provider sets were independently extracted in both runs: exactly the40 requested plus defaults **budget,simulator**, 42 unique; requested-minus-actual empty, actual-minus-requested {budget,simulator}, ON-minus-OFF and OFF-minus-ON empty. No terrain/effects/dispatch substitutions.
+
+The common script path for both is the retained `build-runs/vdbpf4-r2-current40-save-off-02d08687-script.txt`: `2034-12-01 save`, then `2034-12-15 mark dbpf-r2-after-full-save`. SHA256 `62e3c03c0a021a2a821b0d5e23633846c4e5743e8b6d10a512b24522f8f7e7b6`; both old script files remain unchanged. The already advanced fixture and2035 end date were preserved.
+
+| Unique label / owned run record | Actual result | Save and completed lifecycle |
+|---|---|---|
+| [vdbpf4-r3-budget-on-current40-off-02d08687-a](../runs/vdbpf4-r3-budget-on-current40-off-02d08687-a.md) | clean2035-01-01; foreign0/stalls0/rtc0/overruns0/ref0; real160.422s,20.12days/s; queue6s,wall178s,slot1; native lines0, control-only | Fullsave ok1/11140ms; mark; PostAppShutdown and PostSystemServiceShutdown |
+| [vdbpf4-r3-budget-on-current40-on-02d08687-b](../runs/vdbpf4-r3-budget-on-current40-on-02d08687-b.md) | clean2035-01-01; foreign0/stalls0/rtc0/overruns0/ref0; real159.250s,20.27days/s; queue3s,wall172s,slot1 | Fullsave ok1/11063ms; mark; PostAppShutdown and PostSystemServiceShutdown |
+
+OFF was fully audited before ON submission. Requests are preserved in game-queue/done; complete verdicts/raw logs are in owned game-results; their SHA256s are committed in the linked run records. No reset, deletion, reroll or failed-start resend occurred. Run numbers are held for coordinator assignment, using unique tags; generated indexes were not edited. No owned requests remain outstanding.
+
+### Per-field native evidence from ON
+
+The existing production verifier's individual file/list/difference lines were audited alongside its source comparisons, not just summary totals. There are exactly17 source-path decisions: all16 existing literal fixtures and the explicit supplied save; no archive/default source was opened in round3. Each original/Rust pair independently opens the identical read-locked path. Native source opens do not populate the Rust index.
+
+Both readers open `00-empty.dat`, `01-single.dat`, `02-zero-record.dat`, `03-multi-qfs.dat`, `04-duplicate.dat`, `05-dir-unlisted-signature.dat`, `11-minor99.dat`, `12-indexmajor99.dat`, `13-indexminor99.dat` (9). Both reject `10-major2.dat`, `14-index-offset-oob.dat`, `15-count-limit.dat`, `16-hole-count-limit.dat`, `17-record-offset-below-header.dat`, `18-record-size-oob.dat`, `19-bad-magic.dat` (7). No open-decision mismatch.
+
+| Origin, kept separate | Metadata/raw/decompressed payload | Other observed fields |
+|---|---|---|
+| Constructed,16 files;9 open/7 reject; zero1/one7/multi1 | 10 records,10 raw,10 payload, each compared; no metadata/raw/payload DIFF | compressed1,empty1; failed0/refusals0/fallback0/resync0; combined differences2 |
+| Supplied current40 save,1 open;multi1 | 153 records,153 raw,153 payload, each compared; no metadata/raw/payload DIFF | compressed80,empty0; failed0/refusals0/fallback0/resync0; combined differences1 |
+
+Raw metadata includes presence, offset, stored size, logical size and compression; the duplicate fixture retains the production first-key selection. Raw bytes are compared against original raw reads and independently locked disk bytes; decompressed bytes/record key/size are compared against original records. No read, record-close, segment-close, shutdown or borrowed-view DIFF occurred. Observed raw return/in-out examples remain4/4 and0/0 constructed,244/244 and216/216 saved; no interpretation of unpublished failure semantics (EX54), undersized/malformed raw-read probe, fallback or resynchronization.
+
+| Native enumeration input | List return / size / copied / expected / record count | Key/count predicates and retained DIFF |
+|---|---|---|
+| Empty fixture | false /0 /0 /0 /0 | keys_equal1,count_equal1; combined DIFF retained for false return |
+| QFS fixture | true /2 /2 /3 /3 | keys_equal0,count_equal1; missing only DIR `E86B1EEF/E86B1EEF/286B1F03`, extras0 |
+| Other7 opened constructed fixtures | true /1 /1 /1 /1 each | keys_equal1,count_equal1; no DIFF |
+| Supplied current40 save | true /152 /152 /153 /153 | keys_equal0,count_equal1; missing only same DIR, extras0 |
+
+Thus constructed list_false1/key_differences1/count_differences0; natural list_false0/key_differences1/count_differences0. All three original combined native-key-list DIFFs remain, exactly those files, with no other difference category. No filtering or empty-list reinterpretation. This is exact bounded record/payload comparison with known enumeration differences, not unqualified native/owner exactness or a combined whole-owner ratio. Repeated reads/launches add lifecycle/stability evidence, not distinct algorithms or fixtures.
+
+### Immutable provenance and historical limits
+
+Start5c537c6f was clean and its actual finished round2 provider result/report said WIP; consumed2/3 rounds, now final3/3. Implementation02d08687 and stable gate304fdfba remain authoritative. Engine tree `fc5c5a930cb1e2ae5ab494c6235a732a0477a00d` is identical at those commits,5c537c6f and current HEAD. Retained gate recomputed cargo4962 passed/0 failed, clippy0, CTest68/68; exact log hashes below remained unchanged after both requests. Documentation changes need no new45-minute gate.
+
+Frozen `build-runs/dbpf-r2-frozen-02d08687/FreeCity4.dll`:17491456 bytes, SHA256 `3d1eee0c6a7d55b992484c71a7373def98edc30364431198ce649a0bf21966d4`; adjacent PDB107999232 bytes, SHA256 `bc8ceb0de7490779087d30af0993071a208f9cfdfa6edbba61310160d74e00ad`. Both remain readonly, match their retained manifest, and were rehashed before/after each request. Literal corpus manifest SHA256 `3fd0e623041b954870c2043a10b30582b35092ae4831f19ed6f37a8fd5c70d4b`; all16 lengths/hashes checked unchanged. Only supplied `C:/Users/tlori/FreeCity4/build-runs/fixtures/commands4-r2-house40.sc4` was staged by the harness,998674 bytes, SHA256 `4ad4e47b96e66110216ce0a2794c7f0cd6cdb5450295b97d320e7e94469efff8`; source preserved throughout. No slot search/export/copy or Documents access.
+
+All eight prior attempts and every raw native DIFF are preserved below, in their original requests/verdicts/logs and retained report. Final audit rehashed all8 raw logs against preflight digests without change: round1 turbo/normal archive60440/60440 (compressed48880), round2 own normal archive60440/60440, own saved153/153 and current40 saved153/153; all enabled runs retain constructed10/10 plus EX55 differences2+1. Historical archive enumeration60439/expected60440/count60440 and both supplied saves152/expected153/count153 remain missing only DIR. OFF runs earn control-only credit.
+
+Historical current40 budget-disabled ON/OFF each remain clean/**ref4**, same four DepartmentBudget last-reference sites (two PortDeveloper, one Parks, one Landfill); own OFF-turbo remains **exit1 without verdict**, no completed save/shutdown. Its normal control passed. The new budget-enabled pair measures a supported ref0 configuration; it does not identify or resolve either historical cause. The already reproduced normal/turbo EX55 differences justify no further replay. No fourth round is authorized.
+
+This reloads an **existing supplied save followed by full save**, not a reload of this lane's newly produced save, future-load compatibility or saved-byte equivalence. [EX54/EX55](../specs/questions/data-formats.md) remain open without new question IDs or spec edits. Next: coordinator reviews/integrates this narrowly bounded result and assigns held run numbers; analysis publishes the missing raw-read/buffer and enumeration contracts; ownership/exit investigations require separate authorization, not another lane round.
 
 ## Round3 provenance checkpoint
 The retained stable gate source/artifact provenance passes. Recomputed SHA256: qbuild-test.log `623b064f26ee0c5bd3b1b3912996b985104b58a8335465b6f8863ee025578196` (4962 passed/0 failed), qbuild-clippy.log `9cc89356cb1091c2c904131ce4af07a3205f3988b6883bcab940190dbf523b16` (0 diagnostics), fc4verify-ctest.log `db05eaf2241e08e654dd2c3b2607f5f82a6abd560b07717cfd83c27b225d784d` (68/68), fc4verify-build.log `7ba51cf3e9477b9aef4d52452b0ffe456db6d224a4d4e116171b26b7f79cc933`, fc4verify-configure.log `ff8f119ef18966ea560dfdb8a85a287c6b18d2888e46a6bc7759143468ce7455`. Historical pair hashes and request/verdict/raw-log hashes were independently recomputed; no retained artifact overwritten. The complete round2 report is also preserved in `build-runs/evidence-run4/verify-dbpf-native4.md`; its finished provider result explicitly says WIP at5c537c6f, not ready. This is round3/3, never a new family or lane.
