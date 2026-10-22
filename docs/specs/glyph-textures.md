@@ -119,7 +119,8 @@ the glyph size (`+0x1C`, `+0x1E`; *[inferred naming]*), the UV rectangle (`+0x20
 | 6 | `0x005D7C70` | the UV rectangle (4 floats) |
 | 8 | `0x005D8240` | deleting destructor: releases the manager and the binding |
 
-So a glyph lives exactly as long as someone besides the map holds it.
+So a mapped glyph lives exactly as long as someone besides the map holds it. The transition to count 1 without
+a manager also deletes it (`0x005D887C–0x005D8894`); it does not leave a standalone reference alive.
 
 ## 3. String texture (0x28 bytes, vtable `0x00AA2A60`) *[compat]*
 
@@ -129,10 +130,97 @@ manager (`+0x0C`, counted), the text (`+0x10`), the font (`+0x24`, counted).
 | Slot | VA | Behaviour |
 |---|---|---|
 | 1 | shared body | AddRef (`+0x08`) |
-| 2 | `0x005D7C90` | Release: at 1 with a manager, nothing more (the cache holds it); at 1 without a manager, or 0, delete *[quirk: a last reference without a manager is deleted at 1]*; else the count |
+| 2 | `0x005D7C90` | Release: at 1 with a manager, retain the object but return **0**; at 1 without a manager, or 0, delete and return 0; else the count |
 | 3 | `0x005D8130` | width and height |
 | 4 | `0x005D8020` | the texture handle, through the manager (§1.4) |
 | 5 | `0x005D8290` | deleting destructor: releases the font, the text and the manager |
+
+### 3.1 Complete glyph-info and string-info slot/lifetime contracts (GT4, GT6)
+
+Native vtable data at `0x00AA2A3C` (9 words) and `0x00AA2A60` (6 words) establishes the complete virtual
+surfaces in §§2–3. Neither object has an additional private QueryInterface implementation: both slot 0 words
+are `0x0062C980`, returning false without inspecting either argument or writing the output. This includes
+IID 1. Failure leaves a caller's prefilled output untouched.
+
+Glyph slot 1 is `0x00459530` (increment and return the 32-bit word at +0x34); string slot 1 is `0x004BDF00`
+(the same operation at +0x08). Both wrap. Release decrements modulo 2^32 and uses unsigned comparisons:
+releasing count 0 returns `0xFFFFFFFF` without destruction. Glyph slot 7 is `0x006AAC50`, a plain load of
+the binding at +0x30, with **no AddRef**. Size getters zero-extend the stored 16-bit fields to their two
+32-bit outputs; no new metric calculation occurs. String slot 4 delegates to manager `GetStringTexture`
+with this string-info object; it needs a live manager, not a standalone renderer.
+
+The glyph constructor (`0x005D8030–0x005D8074`) constructs an empty framework string, sets binding,
+reference count and manager to zero, and leaves sizes and UV words **unwritten**. The string constructor
+(`0x005D80E0–0x005D8124`) constructs an empty string, sets reference count, manager and font to zero,
+and leaves the two size words unwritten. Do not turn those unspecified fields into promised zero defaults.
+
+Glyph `SetManager` (`0x005D7C40–0x005D7C6E`) is a no-op for equal pointers; otherwise AddRef the nonnull
+new manager, assign the link, then Release the nonnull old manager. String creation assigns its manager/font
+links in that same order (`0x005D81A2–0x005D81F1`). Glyph removal (`0x005D8800–0x005D886F`) scans map
+**values by object identity**, not a reconstructed key. If absent it neither erases nor releases anything;
+if found it erases that node first and then calls the object's Release.
+
+Glyph destruction (`0x005D8240`) releases manager, then binding, then destroys the character string.
+String destruction (`0x005D8290`) releases font, destroys text, then releases manager. Each frees its own
+allocation only if destructor flags bit 0 is set; other flag bits have no effect. These and the existing
+nonvirtual `SetManager` account for each standalone info object's named bodies and folded slot bodies;
+they do not establish manager-owner completion.
+
+### 3.2 Native numeric/output boundaries (GT3, GT5–GT6)
+
+- Font metrics and `CalcStringTextureSize` outputs are 32-bit words. Add 2 with wrapping arithmetic before
+  calling `P` (`0x005D7BD5–0x005D7BF9`); use the **signed**, potentially nonterminating P from
+  texture-bindings §1.11. Store only the low 16 bits in string info (`0x005D8211–0x005D8223`). For example,
+  metric 65534 rounds to 65536 then stores **0**; metric `0xFFFFFFFE` plus 2 becomes 0 and stores **1**.
+- Glyph texture sizes likewise narrow after rendering. UV division uses the original **signed 32-bit**
+  renderer dimensions (`FILD`), not those narrowed words. For precision, let r0,r1,r2,r3 be the four float32
+  words in the renderer's rectangle output, in memory order. Glyph width/height are the low 16 bits of the
+  truncations toward zero of **r0−r2** and **r1−r3**, respectively. The four stored UV words are
+  **r2/W, r3/H, r0/W, r1/H**, each rounded on float32 store. The subtraction/division is x87 arithmetic;
+  there is no intermediate float32 store before integer truncation (`0x005D926E–0x005D92CE`). This raw
+  ordering is normative; do not substitute a conventional rectangle layout based on field names.
+- Cached byte cost uses the **stored unsigned 16-bit string dimensions**, multiplied together and then
+  shifted left 2, keeping the low 32 bits. It does not use renderer-result dimensions
+  (`0x005D7F2A–0x005D7F4A`). Byte/count updates and budget KB×1024 wrap at 32 bits.
+- Sweep compares B and L as **signed** words. It first converts B to float32, then divides that rounded B
+  by signed L in x87 arithmetic. The threshold is float32 bits `0x3F8CCCCD` (1.1f), and the decrement factor
+  is float32 bits `0x3DCCCCCD` (0.1f), not exact decimal doubles. If the ratio is greater, target is truncation
+  toward zero of rounded-B minus L times 0.1f; otherwise target is L. The target arithmetic has no intervening
+  float32 store (`0x005D7E47–0x005D7E89`; constants `0x00A8FAF4`, `0x00A8C950`). With L=0 and positive
+  B, the unmasked normal IEEE division gives +infinity and the selected target is rounded-B: no forced
+  zero-budget flush. E.g. B=100,L=0 gives target 100, so no eviction. Floating exception masks are external
+  process state, not changed by this method.
+- A failed glyph font lookup or render returns false **without writing out**
+  (`0x005D9190–0x005D9197`, `0x005D9227–0x005D9258`). Success writes the object and AddRefs it.
+  `GetCachedStringTexture` has no null-font failure branch before calling the metric helper: that helper
+  dereferences the font. Its “always true” description applies to valid inputs, not a missing-font result.
+- `StringToGlyphTextureArray` clears/releases existing vector entries before processing. Its loop tests
+  signed remaining length > 0, so an empty input makes no glyph request. It trusts `GetCharLength`: zero
+  repeats without advancing; a value greater than remaining length is used for the substring copy, then
+  subtracted without validation. There is no stop-at-invalid-boundary policy (native body `0x005D8570`,
+  character loop and advancement; these are malformed-provider cases, not safe new error APIs).
+- Restore (§1.6) visits glyphs in map order, uses rectangle initial words (0,0,1,1), clears the binding slot
+  before releasing its old value, and passes that slot as the renderer output. It does not branch on font
+  lookup or renderer success and does not write glyph dimensions, texture dimensions or UVs. Thus the
+  resulting binding is **whatever the renderer writes**, even on failure; no manager-level rollback or
+  metadata refresh is promised (`0x005D8330`, binding replacement within `DoMessage`). If the factory global
+  is null it clears the string cache but leaves glyphs untouched.
+
+### 3.3 Manager lifecycle corrections and remaining inventory (GT4)
+
+The constructor is `0x005D8CA0`, **not** `0x005D8900` (the latter is destruction). It sets manager reference
+count to 0, initialized false, empty map/list, budget 1,048,576 and cached bytes/last sweep/entry count to 0
+(`0x005D8CE2–0x005D8D2B`). The deleting wrapper `0x005D8D40` calls the destructor and frees iff bit 0.
+
+Destruction does **not** call Shutdown. It destroys the cache nodes/sentinel, then map nodes/key strings and
+map sentinel, then the system-service base (`0x005D8900–0x005D8971`). The cache-node helper
+`0x005650A0–0x005650DD` frees nodes without releasing their stored binding/string pointers; the map helper
+`0x005D82E0–0x005D8329` destroys keys/nodes without releasing glyph values. Thus destruction cannot be
+specified as implicit Shutdown or as releasing all held object references.
+
+GT4 remains open for complete reconciliation of the requested 43-body/4475-byte inventory and inherited
+system-service/auxiliary slots. The two info owners' complete slot/lifetime contracts above must not be counted
+as completion of the manager or the entire family.
 
 ## 4. Users
 

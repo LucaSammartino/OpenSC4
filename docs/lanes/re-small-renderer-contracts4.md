@@ -7,9 +7,10 @@
 - Worktree reused at detached HEAD; initial status clean and no commits ahead of main.
 - Read handoff index, lane row format, merge train instructions, texture/path question entries.
 - q.py cannot launch Bash here (CreateInstance E_ACCESSDENIED); use local PowerShell with bounded output.
-- First substantive milestone: texture §1.11–1.12 proves TB5–TB7 boundaries; §3 supplies manager slots 6/7 and destruction. Commit pending below.
+- First substantive milestone ac0e8a0f: texture §1.11–1.12 proves TB5–TB7 boundaries; §3 supplies manager slots 6/7 and destruction. Questions check passed.
 - Native distinctions: signed P hangs on 0x40000001..0x7fffffff; zero levels => one; shifts mask to 31; size/counters/refcounts wrap u32; failure deletion excludes current handle.
-- Next: reconcile exact 58-body inventory/material inline lifetime; then complete glyph/string, flame and directory-entry owners. TB4 remains open.
+- Second milestone: glyph info/string info complete slot/lifetime surface, numeric/restore/output contracts; directory-entry three-body owner plus PA6–PA8 corrections. Commit pending.
+- Next: add native inventories and exact TB4/GT4/FF2–FF4/PA4 residuals; publish any remaining directly proved flame lifecycle before final report.
 - Main read-only source: C:/Users/tlori/FreeCity4; export queries via tools/re_query.py.
 - No engine reads/edits, tools/maps/ABI edits, external communications, subagents, merge/push or branch changes.
 - Guard: C:/Users/tlori/FreeCity4/build-runs/run4-re-small-renderer-contracts4-r1-manifest.json; budget 150000, maxCalls100, one round.
