@@ -1,0 +1,119 @@
+//! cRZPath's five owned strings and all published non-virtual methods (paths.md §2).
+
+use super::helpers::{is_letter, is_path_separator, resolve_path, splitpath, CurrentDirectory, PathParts};
+
+#[derive(Debug, Default)]
+pub struct RzPath {
+    parts: PathParts,
+    buffer: Vec<u8>,
+}
+
+impl RzPath {
+    pub fn new(path: &[u8], provider: &mut impl CurrentDirectory) -> Self {
+        let mut result = Self::default();
+        result.set_path(path, provider);
+        result
+    }
+
+    pub fn set_path(&mut self, path: &[u8], provider: &mut impl CurrentDirectory) -> bool {
+        resolve_path(&mut self.buffer, path, None, provider);
+        self.parts = splitpath(&self.buffer);
+        true
+    }
+
+    pub fn get_drive(&mut self) -> &[u8] {
+        if !self.parts.drive.is_empty() {
+            self.parts.drive.resize(2, 0);
+            if !is_letter(self.parts.drive[0]) {
+                self.parts.drive[0] = b'C';
+            }
+            self.parts.drive[1] = b':';
+        }
+        &self.parts.drive
+    }
+
+    pub fn get_directory(&mut self) -> &[u8] {
+        let dir = &mut self.parts.directory;
+        if !dir.is_empty() {
+            if !is_path_separator(dir[0]) {
+                dir.insert(0, b'\\');
+            }
+            if !is_path_separator(*dir.last().unwrap()) {
+                dir.push(b'\\');
+            }
+        }
+        dir
+    }
+
+    pub fn get_file_name(&self) -> &[u8] {
+        &self.parts.name
+    }
+
+    pub fn file_name(&mut self) -> &[u8] {
+        if self.parts.name.is_empty() && !self.buffer.is_empty() {
+            self.parts.name = splitpath(&self.buffer).name;
+        }
+        &self.parts.name
+    }
+
+    pub fn get_extension(&mut self) -> &[u8] {
+        if !self.parts.extension.is_empty() && self.parts.extension[0] != b'.' {
+            self.parts.extension.insert(0, b'.');
+        }
+        &self.parts.extension
+    }
+
+    pub fn set_file_name(&mut self, name: &[u8], split: bool) -> bool {
+        // PA4: literal stored-byte comparison, with no case or Unicode folding.
+        if name != self.parts.name {
+            self.parts.name = if split { splitpath(name).name } else { name.to_vec() };
+        }
+        true
+    }
+
+    pub fn set_extension(&mut self, extension: &[u8], split: bool) -> bool {
+        if extension != self.get_extension() {
+            if split {
+                self.parts.extension = splitpath(extension).extension;
+            } else {
+                self.parts.extension = extension.to_vec();
+                self.get_extension();
+            }
+        }
+        true
+    }
+
+    pub fn set_buffer(&mut self, parts: u32) {
+        self.buffer.clear();
+        if parts & 1 != 0 {
+            self.get_drive();
+            self.buffer.extend_from_slice(&self.parts.drive);
+        }
+        if parts & 2 != 0 {
+            self.get_directory();
+            self.buffer.extend_from_slice(&self.parts.directory);
+        }
+        if parts & 4 != 0 {
+            self.buffer.extend_from_slice(&self.parts.name);
+        }
+        if parts & 8 != 0 {
+            self.get_extension();
+            self.buffer.extend_from_slice(&self.parts.extension);
+        }
+    }
+
+    pub fn get_path(&mut self, out: &mut Vec<u8>) {
+        self.set_buffer(15);
+        out.clone_from(&self.buffer);
+    }
+
+    pub fn get_drive_and_directory(&mut self, out: &mut Vec<u8>) {
+        self.set_buffer(3);
+        out.clone_from(&self.buffer);
+    }
+
+    pub fn get_file_name_and_extension(&mut self, out: &mut Vec<u8>) {
+        self.set_buffer(12);
+        out.clone_from(&self.buffer);
+    }
+}
