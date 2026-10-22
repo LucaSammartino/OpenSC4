@@ -194,14 +194,14 @@ generated index: the questions live one file per spec, so read only the file for
 | drive-tool | 2 | 0 | DR3 | questions/drive-tool.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
 | feature-manager | 2 | 0 | FM3 | questions/feature-manager.md |
-| fire-flames | 3 | 0 | FF4 | questions/fire-flames.md |
+| fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | foundations | 2 | 8 | AO4, HG4, RN4, SV2 | questions/foundations.md |
 | framework-gz-services | 7 | 0 | GZ8 | questions/framework-gz-services.md |
 | framework-rz-files | 8 | 0 | RZ9 | questions/framework-rz-files.md |
 | geometry-utilities | 1 | 0 | GU2 | questions/geometry-utilities.md |
-| glyph-textures | 3 | 0 | GT5 | questions/glyph-textures.md |
+| glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 0 | 35 | FS18, GF19 | - |
 | graphics-rules | 3 | 3 | GR7 | questions/graphics-rules.md |
 | history | 0 | 17 | HW18 | - |
@@ -268,7 +268,7 @@ generated index: the questions live one file per spec, so read only the file for
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | terrain-view | 3 | 0 | TV4 | questions/terrain-view.md |
-| texture-bindings | 3 | 1 | TB5 | questions/texture-bindings.md |
+| texture-bindings | 2 | 1 | TB4 | questions/texture-bindings.md |
 | timers | 0 | 3 | TM4 | questions/timers.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
@@ -287,4 +287,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **350** | **1176** | | |
+| **total** | **347** | **1176** | | |

@@ -8,7 +8,11 @@
 - Prior milestones: `bea42a5f` flame lifecycle; `a2e1f920` material lifetime/PA4; `b0bdd07a` glyph lifetime/flame geometry/FF4; `f9d0d03d` round-2 report below.
 - Reserved detached worktree reused; clean at start. Main checkout read-only, absolute source paths.
 - Done this round: texture 58/4883 reconciled exactly (53 class bodies/4749 plus five free functions/134); native area subtraction origin, asymmetric spills, cumulative float stores and distinguishing 2²⁴+1+1 vector published.
-- Next: finish glyph inventory helper semantics and FF3 barycentric/transform stores; investigate flame legacy scope separately.
+- Milestone `2a6bf9f4`: native area spills and texture inventory published.
+- Done: GT4 exact 43/4475 scope, tree insertion and unrelated ordinance-thunk boundary; FF3 complete placement stores and z-cancellation vector; TB4/GT4/FF3 moved to exact answered files; questions index/check passed.
+- Done: flame legacy 16/3513 found in main archived coverage-owner TSVs: three flame bodies/555 plus thirteen sampler-reachability helpers/2958, excluding actual sampler/constructor.
+- Remaining/PARK final 3/3: FF2 twelve non-triangle reachability-helper contracts and inherited-occupant wrapper membership. Exact addresses/sizes in fire-flames §4.4. No fourth round or blanket owner completion.
+- Next: verify numeric vectors and documentation consistency; final report/queue with wip due FF2 residual.
 - Ignored evidence: `build-runs/inventory-{texture,glyph,flame,entry}.tsv`, `renderer-inventory.py`; legacy targets 58/4883, 43/4475, 16/3513 must not be forced with unrelated shared slots.
 - FF3 published: ignored first-index offset, physical trailing triples, cRZRandom(-1), unchecked normalization, unordered selection and one-past-end fallthrough.
 - FF3 remaining: area accumulation and complete barycentric/placement store sequence.

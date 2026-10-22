@@ -91,11 +91,9 @@ by **glyph pointer identity**, not a supplied key; absent pointer/empty map retu
 or Release. On a match it erases that node then calls the glyph's Release
 (`0x005D8800–0x005D886F`). Thus removing an absent pointer does not consume a reference.
 
-Inventory boundary: 38 owner-named function bodies total **4047 bytes** (manager 25, glyph-info 8,
-string-info 5); the three additional named vtable rows are data. The two AddRef thunks above and
-shared slot bodies are outside this name count. This does not reproduce the brief's 43 / 4475 scope.
-Info-object slot 0 and complete lifetime are established in §3.1; the legacy inventory scope remains
-the exact residual, not a reason to invent further virtual methods.
+Inventory: 38 owner-named function bodies total **4047 bytes** (manager 25, glyph-info 8,
+string-info 5); the three named vtable rows are data. The attribution count is reconciled in §3.4.
+Info-object slot 0 and lifetime are established in §3.1.
 
 Distinguishing vectors: a fresh manager has references=0 and sweep time=0; Release immediately
 returns 0xFFFFFFFF. Auxiliary slot 4 at zero returns zero without deleting. Destruction with cache
@@ -273,9 +271,52 @@ map sentinel, then the system-service base (`0x005D8900–0x005D8971`). The cach
 `0x005D82E0–0x005D8329` destroys keys/nodes without releasing glyph values. Thus destruction cannot be
 specified as implicit Shutdown or as releasing all held object references.
 
-GT4 remains open for complete reconciliation of the requested 43-body/4475-byte inventory and inherited
-system-service/auxiliary slots. The two info owners' complete slot/lifetime contracts above must not be counted
-as completion of the manager or the entire family.
+Inherited system-service/auxiliary slot behavior is in §1.1.1. The 43-body inventory is reconciled below;
+that numerical scope includes helpers and unrelated neighboring thunks and is not a virtual API list.
+
+### 3.4 Body inventory and private tree insertion (GT4)
+
+The brief's **43 / 4475** is reproduced by export-body attribution, as follows. Addresses and sizes
+below are hexadecimal addresses / decimal bytes; groups on each row enumerate separate bodies.
+
+| Attribution owner | Address / bytes |
+|---|---|
+| Manager: reference/query, key/size | `005D7B50`/23, `005D7B70`/31, `005D7B90`/111, `005D7C00`/56 |
+| Manager: Init/tick/string | `005D7D50`/122, `005D7E20`/224, `005D7F00`/279, `005D8150`/236 |
+| Manager: restore/array/remove/destruction | `005D8330`/568, `005D8570`/649, `005D8800`/112, `005D8900`/114 |
+| Manager: adjusted entries | `005D8980`/8, `005D8990`/8, `005D89A0`/8, `005D89B0`/8, `005D89C0`/8, `005D89D0`/8, `005D89E0`/8, `005D89F0`/8 |
+| Manager: Shutdown/tree helpers/construction/wrapper/glyph | `005D8A00`/234, `005D8AF0`/163, `005D8BA0`/241, `005D8CA0`/151, `005D8D40`/30, `005D9120`/498 |
+| Manager: remote attribution entries | `0080BCD0`/8, `0080BCE0`/8, `0080BCF0`/8, `0080BD00`/8 |
+| Glyph info | `005D7C40`/47, `005D7C70`/30, `005D8030`/69, `005D8080`/18, `005D80A0`/20, `005D80C0`/20, `005D8240`/78, `005D8870`/42 |
+| String info | `005D7C90`/34, `005D8020`/12, `005D80E0`/69, `005D8130`/20, `005D8290`/78 |
+
+Manager is 30/3938, glyph info 8/324, string info 5/213. Starting from the name-only 38/4047,
+remove folded AddRef `005D7B40` (8 bytes), add the two tree helpers (404 bytes) and four remote
+entries (32 bytes): **43/4475**. Shared QI/AddRef/getter bodies used by the info vtables and the
+system-service slots remain callable entries without being exclusively attributed here.
+
+Native jumps show that only `0080BCD0` and `0080BD00` are manager AddRef thunks (subtract 4/8,
+jump to `005D7B40`). `0080BCE0` subtracts 4 and jumps to ordinance Release `0080C990`;
+`0080BCF0` subtracts 8 and jumps to ordinance QueryInterface `0080C920`. The latter two enter the
+count by **neighbor attribution**, not by manager-vtable membership. They must not be exposed as
+new manager operations or substituted for its actual Release/QI entries.
+
+The remaining two bodies are private map insertion, not unlisted texture APIs:
+
+- `005D8BA0–005D8C90` performs unique-key insertion using string slot 12 with flag 1, then
+  **unsigned** font-ID comparison. It returns the node plus a byte: 1 if inserted, 0 for an
+  equivalent key. A duplicate returns the existing node without replacing its value or increasing
+  node count (`005D8C33–005D8C90`).
+- `005D8AF0–005D8B92` links a new node on the selected side, adjusts root/leftmost/rightmost
+  sentinel links as necessary, rebalances, increments the 32-bit tree count and returns the node.
+  Node creation (`005D88A0–005D88F7`, outside this attribution subtotal) allocates 44 bytes,
+  copies key string/font ID and the glyph pointer; it performs **no glyph AddRef**. Allocation and
+  string-storage failure behavior belongs to those primitives; this is not an invented fallback.
+
+Distinguishing vectors: for equal strings, font ID `0x7FFFFFFF` precedes `0x80000000`. Inserting
+the same string/ID twice through the private helper leaves one node, returns inserted bytes 1 then
+0, preserves the first glyph pointer and makes no helper-level glyph-reference call. This does not
+remove the separate references taken by public GetGlyphTexture.
 
 ## 4. Users
 

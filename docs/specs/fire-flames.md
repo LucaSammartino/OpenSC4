@@ -117,7 +117,62 @@ Independent area vector: start with vertices (0,0,0), (4096,0,0), (0,4096,0), th
 triangles with vertices (0,0,0), (1,0,0), (0,1,0). Their twice-areas are 2²⁴, 1, 1. Stored cumulative
 totals are **16777216, 16777216, 16777216**, whereas rounding only the final sum gives 16777218.
 Thus the two appended nondegenerate triangles can have no positive-width selection interval.
-The full barycentric/transform spill sequence remains FF3's residual until specified below.
+
+### 2.3 Barycentric, normal and placement stores (FF3)
+
+F and unmarked register arithmetic have the meanings in §2.2. These are store boundaries, not a
+promise that the active x87 precision/rounding control equals a portable double implementation.
+The three local vertices are v₀/v₁/v₂ in physical index order; n is the stored float unit normal.
+
+Normal construction (`00470F1D–00470FD5`) forms a = v₂ − v₀ and b = v₁ − v₀: a.x is retained
+in a register, a.y/a.z and every b component are F. It computes b × a using the retained a.x and
+stored other differences, then stores **all three** cross components as F. The reciprocal length
+is 1/sqrt((n.x² + n.y²) + n.z²), with no intermediate float store; each component is multiplied by
+that reciprocal and stored as F. This is separate from the twice-area helper's spill pattern.
+
+For barycentrics (`00472142–00472245`): u = F(first draw). Let k be the register subtraction
+1 − u; its F copy is retained locally, while a double copy of **k**, without reloading F(k),
+supplies the upper bound of the second draw. Let v be that second draw retained in a register;
+w = F(k) − v also remains in a register. Define the products by the following table:
+
+| Products | Store boundary |
+|---|---|
+| u × v₀.x | Register |
+| u × v₀.y, u × v₀.z | F |
+| v × v₁.x, v × v₁.y | Register |
+| v × v₁.z | F |
+| w × v₂.x, w × v₂.y | F |
+| w × v₂.z | Register |
+
+The weighted local coordinates are:
+
+| Coordinate | Ordered addition/store boundary |
+|---|---|
+| X | F(F(u×v₀.x + v×v₁.x) + F(w×v₂.x)) |
+| Y | F((F(u×v₀.y) + v×v₁.y) + F(w×v₂.y)) |
+| Z | w×v₂.z + F(F(u×v₀.z) + F(v×v₁.z)); a float output copy is written, but the register Z survives |
+
+The output position is repeatedly overwritten on the way to its final value. The normal-offset
+coordinates (`00472248–00472279`) are Lx = F(n.x + X), Ly = n.y + Y, Lz = Z + n.z.
+Float copies of Ly/Lz are written to the output, but their **unrounded register values** feed the
+matrix. Lx feeds it through its float local copy. For each matrix row j, the evaluation order is
+(Lz × M[j,2] + Ly × M[j,1]) + Lx × M[j,0] (`0047227F–004722D1`). Rows 0/1 are F before
+scaling; row 2 is retained, even though a float copy is written. Translation, matrix and scale are
+the instance transform fields described in transforms.md; here the matrix starts at +4, translation
+at +0x28 and scale at +0x34 of the transform pointer.
+
+After multiplication by scale, rows 0/1 are again F before adding translation; row 2 stays in its
+register across its output float copy. Finally each scaled coordinate plus its translation is
+stored as F (`004722D4–0047230B`). In particular the z path is not equivalent to rounding every
+intermediate position or every matrix/scale output to float before continuing. Wall/side bytes are
+copied from the triangle before placement; they are not recomputed after the instance transform.
+
+Independent cancellation vector (prescribed draw outputs, nearest/even): v₀=(0,0,1), v₁=(1,0,1),
+v₂=(0,1,67108864), u=0.25, v=0.25, hence w=0.5. The stored normal is (0,−1,2⁻²⁶). Use identity
+matrix, scale 1 and translation (0,0,−33554432). The weighted Z is 33554432.5, retained across
+its output float copy; final position is **(0.25,−0.5,0.5)**. Reloading the float z after each
+position/matrix/scale write instead gives z=0. This is an arithmetic conformance vector, not a
+claim that a clock-seeded run reproduces those exact draws.
 
 ## 3. Making the flames (`CreateFlames`, `0x00472380`) *[compat]*
 
@@ -290,8 +345,36 @@ are not silently included.
 The 19 named bodies total **3439 bytes**; with the constructor and destructor identified above this
 is **21 / 3740**, not the brief's 16 / 3513. Triangle construction (`0x00470EC0`, 418) and
 GetPointsOnModel (`0x00471CF0`, 1662) are separate non-owner helpers. The legacy owner/count scope
-and any additional inherited wrappers remain FF2's inventory residual. This table is not a claim
-that every inherited occupant method belongs to this small owner surface.
+is reconciled below. This table is not a claim that every inherited occupant method belongs to
+this small owner surface.
+
+### 4.4 Legacy subsystem scope versus semantic owners (FF2)
+
+The archived attribution in main `build-runs/coverage-owners-base.tsv` (also independently present
+in `coverage-owners-occprops.tsv`) identifies the **16/3513** selection exactly. It is three
+cSC4Flame bodies plus thirteen bodies attributed by reachability to **fn:GetPointsOnModel**;
+it is not the inventory of cSC4Flame plus cSC4FireOccupant.
+
+| Archived attribution owner | Addresses / decimal body bytes |
+|---|---|
+| cSC4Flame | `004700A0`/135, `00470CA0`/275, `004710D0`/145 |
+| fn:GetPointsOnModel | `0046FE80`/59, `0046FEC0`/249 |
+| fn:GetPointsOnModel | `004702B0`/114, `00470330`/119, `004703B0`/61, `004703F0`/54 |
+| fn:GetPointsOnModel | `00470430`/678, `004706E0`/233, `004707D0`/220, `004708B0`/667 |
+| fn:GetPointsOnModel | `00470EC0`/418, `00471070`/45, `004710A0`/41 |
+| Total | **3/555 + 13/2958 = 16/3513** |
+
+The actual GetPointsOnModel body `00471CF0`/1662 is **not** in those sixteen; neither is the
+mislabeled flame constructor `00470BC0`/224. This demonstrates why a reachability-owner subtotal
+cannot stand in for a complete class/API contract. Current attribution assigns the actual sampler
+to cSC4FireOccupant by free-neighbor rules and counts 35/6518 for that owner, plus 3/555 for
+cSC4Flame; these are again different scopes. No coverage-map or name-map change is proposed here.
+
+FF2 is parked after the final round for the exact remaining **semantic classification of the twelve
+non-triangle reachability helpers** above, and complete inherited-occupant wrapper membership.
+Triangle construction, sampler arithmetic, the 21 lifecycle/visual bodies in §4.3 and the exact
+legacy membership/count are preserved. Numerical reconciliation alone does not close the complete
+owner-contract request or authorize blanket completion credit.
 
 ## 5. Users
 
