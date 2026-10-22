@@ -6,7 +6,9 @@
 
 - Goal: complete published PR5 enumeration in core only; native prerequisite removed.
 - Reused detached HEAD 8ae81c65; initial worktree clean.
-- Next: read PR5 slot 12 and A-F, change cache enumeration, add focused tests.
+- Done: PR5 enumeration copies one current key before either predicate and output;
+  audit now records published PR5 and explicit PR4 uninitialized-byte deviation.
+- Next: add focused PR5 A-F/counterexample tests, then focused and full gates.
 - Source: engine/core/src/persistence_manager/{cache,manager,test_host,table,primitives}.rs and AUDIT.md.
 - Preserve PR4 initialized logical-OR policy and native/reentrancy limitations.
 - No baseline gate per corrected task; focused and final checks follow substantive edits.

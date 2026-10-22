@@ -162,19 +162,20 @@ impl BuiltinCache {
     ) -> u32 {
         host.lock(Lock::CacheEntries(self.id), true);
         let mut count = 0u32;
-        for (stored_key, resource) in self.entries.entries() {
-            // Literal entry-filter reading of §8.1; PR5 asks which key the
-            // predicate sees after an external SetKey changes the resource.
-            if self.filter.is_some_and(|f| !f.accepts(host, *stored_key)) {
+        for (_, resource) in self.entries.entries() {
+            // PR5: one current-key copy per entry, even without output or on
+            // rejection. Callbacks may SetKey; predicates and output keep this copy.
+            let resource = resource.expect("enumerated resource must be valid");
+            let key = host.resource_key(resource);
+            if self.filter.is_some_and(|f| !f.accepts(host, key)) {
                 continue;
             }
-            if filter.is_some_and(|f| !f.accepts(host, *stored_key)) {
+            if filter.is_some_and(|f| !f.accepts(host, key)) {
                 continue;
             }
             count = count.wrapping_add(1);
             if let Some(list) = list.as_mut() {
-                let resource = resource.expect("enumerated resource must be valid");
-                list.insert(host.resource_key(resource));
+                list.insert(key);
             }
         }
         host.lock(Lock::CacheEntries(self.id), false);
