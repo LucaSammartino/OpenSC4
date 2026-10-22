@@ -13,11 +13,12 @@ with the evidence but not proven; *[quirk]* original behaviour that looks uninte
 This spec covers the **framework runtime objects** of the GZ persistence layer: the objects a package hands out
 for one entry (records), the typed field API on them, the base classes of persistent resources and their
 factories, the resource key list, and the generic image resource (`cGZBufferResource`) with its factory and its
-on-disk forms. It does **not** cover:
+on-disk forms. The companion [persistence-manager.md](persistence-manager.md) specifies the resource manager
+and its built-in cache (§10). It does **not** cover:
 
 | Topic | Where |
 |---|---|
-| DBPF container, index, hole table, DIR, QFS/RefPack, resource manager load order | [data-formats.md](data-formats.md) §2–§3 |
+| DBPF container, index, hole table, DIR, QFS/RefPack, package discovery/load order | [data-formats.md](data-formats.md) §2–§3 |
 | SC4 segment streams (`cISC4DBSegmentIStream`/`OStream`), references, the save file | [foundations.md](foundations.md) §2–§3 |
 | Variant memory types and the variant disk tags | [foundations.md](foundations.md) §9 |
 | FSH / S3D resources | [graphics-formats.md](graphics-formats.md) |
@@ -33,7 +34,8 @@ Owner classes specified here (coverage-map owners; byte counts from `tools/cover
 | `cGZPersistResourceKeyList` | 22 | 1,071 | §5 |
 | `cGZBufferResource` | 32 | 5,030 | §6 |
 | `cGZBufferResourceFactory` | 21 | 1,517 | §7 |
-| **total** | **153** | **14,792** | |
+| `cGZPersistResourceManager` (incl. attributed built-in cache and container helpers; 2026-10-22 selection) | 109 | 8,437 | §10 / companion |
+| **total** | **262** | **23,229** | |
 
 Not specified here (same subsystem, left for later lanes): `cGZPersistBufferResource`/`Factory` (TGA/BMP image
 resources, 8,238 B), `cGZPersistBinaryReader`/`Writer`, `cGZPersistASCIIWriter`, `cGZPersistSurveyorWriter`
@@ -170,16 +172,23 @@ the reader (foundations §9.2 quirk).
 
 ### 4.2 Factory base (`cGZPersistResourceFactory`, `cIGZPersistResourceFactory` IID `0xA56B8F17`) *[compat]*
 
-The factory base has a reference count guarded by a critical section (both `AddRef` and `Release` take it) and
-splits each public entry into a class hook:
+The factory base has a reference count guarded by a critical section (both `AddRef` and `Release` take it).
+Native vtable `0x00AD8C20` distinguishes record construction from type construction:
 
 | Slot | Public entry | Behaviour |
 |---|---|---|
-| 3 | `CreateInstance(type, iid, out, …)` | calls hook slot 8 `(type, iid, out)` |
-| 4 | `CreateInstance(record, iid, out, …)` | calls hook slot 9 `(record, iid, out)` (`0x0097553B`) |
+| 3 | `CreateInstance(record, iid, out, a, b)` | under lock, get record key.type; if a=b=0 allocate via hook slot 9 `(type, resourceIID, outResource)`, otherwise call slot 4 with those forwarded arguments. On allocation success set resource key from record, Read via slot 5, then QueryInterface to requested IID only if Read succeeds; release temporary resource. Return false on allocation/Read/QI failure (`0x0097554F`, folded export label is misleading) |
+| 4 | `CreateInstance(type, iid, out, …)` | calls hook slot 9 `(type, iid, out)`; this base forwarding body ignores the final two arguments (`0x0097553B`) |
 | 5 | `Read(resource, record)` | under the factory's lock, QueryInterfaces the record for `cIGZPersistDBSerialRecord`; if that succeeds calls hook slot 10 `SerialRead(resource, serialRecord)`, otherwise returns false (`0x00975495`) |
 | 6 | `Write(resource, record)` | same with hook slot 11 `SerialWrite` (`0x009754E8`) |
 | 7 | (destructor) | |
+| 8 | `CreateInstance(record, iid, out)` convenience form | calls slot 3 with final arguments (0, 0) (`0x0093FF03`) |
+| 9 | type-allocation hook | derived factory implements `(type, iid, out)` |
+
+The record/type ordering above corrects the earlier reversed slot labels: the native table points slot 3
+at `0x0097554F` and slot 4 at `0x0097553B`; manager load calls factory offset `0x0C` with a record, while
+explicit creation calls offset `0x10` with key.type (`persistence-manager.md` §6). Native record-construction
+branches and Read/QI sequence: `0x00975566–0x00975605`.
 
 `Release` destroys the factory when the count is below 2 at entry (returns 0); otherwise decrements and returns
 the new count. A factory that cannot write implements `SerialWrite` as "return false".
@@ -325,3 +334,12 @@ Open questions live in [questions/persistence.md](questions/persistence.md).
 7. v2 load with a compressed stream that inflates to one byte fewer than `w × h × bpp/8` fails (§6.2).
 8. 24-bit BMP save of a 2×2 16-bit buffer: 54 + 2 × 8 = 70 bytes, row padding 2 bytes, rows bottom-up (§6.3).
 9. Factory write-version stack: `Pop` on `[2]` returns false and `Get` stays 2 (§7).
+
+## 10. Resource manager (`cGZPersistResourceManager`)
+
+The complete manager contract is in [persistence-manager.md](persistence-manager.md): load/create dispatch,
+factory and type multimap order, ordered segments, exact-key resource caching, ownership, retry/failure,
+direct records, writes, lifecycle and the attributed built-in cache. Its §11 records all 109 selected
+functions (8,437 B); §10 supplies 30 independent proposed conformance vectors PM01–PM30. These are spec
+vectors, not executed conformance or game/shadow results. PR4 tracks the service update's uninitialized
+return byte; callback effects are deterministic and specified.

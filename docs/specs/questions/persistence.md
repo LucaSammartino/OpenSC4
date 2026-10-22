@@ -16,3 +16,12 @@
 - **PR3:** (§6.2 v1) the original's padded-stride copy swaps the source and destination steps. FreeCity4 chose
   the correct copy (identical whenever stride = packed row size). Confirm no shipped data or caller depends on a
   padded v1 load. [the choice stands]
+
+<!-- from: re-persist-manager4 (2026-10-22) -->
+- **PR4:** ([persistence-manager.md](../persistence-manager.md) §9, service update return) Which shipped
+  callers observe the return byte of the manager service's slot 11 (`0x0097356D`), and what deterministic
+  return should the clean-room implementation expose? Native instructions OR every cache update result
+  into an uninitialized stack byte `[EBP-1]` (`0x0097359C`) and return it (`0x009735AF`); the empty-cache
+  path is uninitialized too. Callback order/arguments are specified, but an exact boolean baseline cannot
+  be inferred from this body. [expected: callers ignore it; verify call sites before choosing an initialized
+  OR reduction or constant true; neither choice is established by this audit]
