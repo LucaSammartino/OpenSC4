@@ -8,7 +8,9 @@
 - Done: implemented §7/§9.1 source capture from actual texel addresses; dimensions bound tiled calls only. Unreadable data and actual alias still fall back (SR8888-1).
 - Done: same-process native fixture extended with 16 bounds cases (214 total), including an unreadable unused prefix; separate true-alias safety control. Runtime inputs frozen before Original, full runtime/fixture/fallback accounting added.
 - Done: quick rebuilt and linked FC4SpanRender8888.cpp without compiler diagnostics; quick session handle expired before final console retrieval, so final all is authoritative.
-- Next: stable final all gate; enqueue immutable unique-label own shadow and combined40+span8888 profiles, plus save/reload controls.
+- Done: stable final qbuild all PASS: Rust4938/0/0, clippy0, build2/2, ctest68/68 (83.49s). Logs build-runs/final-gate/. No Rust touched; fmt n/a.
+- Artifact: build-runs/dll-span8888-final4/FreeCity4.dll SHA256 35e199bf7987e883eac33f38ce72de4f5cb903d2b1b0dccade7a7c715277eea4; paired PDB. Use this frozen DLL for all requests.
+- Next: own shadow request s8888-final4-own-20261022-01, combined40 replacement -combined-20261022-02, then reload combined saved city in shadow -reload-20261022-03. Own request will be submitted immediately after this milestone commit.
 - Facts: previous shipped 369/372 exact, two status2 rejects counts22/5 mode0 and one memory-window/overlap refusal count22. Preserve all fallback counts.
 - q.py is unusable here (Bash/Service/CreateInstance/E_ACCESSDENIED); use capped PowerShell and lane qbuild wrappers.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-span8888-final4-r1-manifest.json.
