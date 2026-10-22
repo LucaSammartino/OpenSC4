@@ -569,7 +569,7 @@ Finally, if a foreign resource was obtained, clear its file-data flag and empty 
 Job copy is destroyed. If no active match is found, control skips this resource cleanup as well as delivery
 (008f8cfd, 008f8fea); it does not clear unrelated/late resources. The handler always returns true. WWWSystem does not implement an HTTP
 retry/backoff policy here; late completion after cancellation finds no active target and is ignored for
-delivery. Exact cache policy inside 008f7a50 remains open in Q8; this paragraph specifies its call boundary.
+delivery. The cache policy inside 008f7a50 is specified in §4.12.
 
 ### 4.8 FTP admission and completion boundary
 
@@ -663,6 +663,80 @@ differently. Hex validation/conversion and the invalid-escape space are checked 
 | WWW-22 | `/1|/x` | `1:\x` (no alphabetic drive validation) |
 | WWW-23 | `a%ZZb%2` | `a b%2` |
 | WWW-24 | `a%252Fb+c%2F` | `a%2Fb+c\` (one decoding pass) |
+
+### 4.12 HTTP response cache-insertion policy (008f7a50; Q8 answered)
+
+This helper takes the completed foreign HTTP job and returns a byte boolean. A null job,
+null request at job+0x14, or null response/resource at job+0x18 returns false without insertion.
+It borrows these objects; it neither retains them nor calls a notification target. All temporary
+header strings are destroyed before return. Its caller ignores false for transfer success (§4.7).
+
+Read only occurrence zero of each named header, in this order: Pragma, Date, Last-Modified,
+Expires, Cache-Control (header IDs 4, 3, 0x2d, 0x2c, 1; names verified at 008177b0).
+Pragma containing the exact lowercase byte substring `no-cache` anywhere rejects insertion.
+This is case-sensitive, without word boundaries: `xno-cachey` rejects; `NO-CACHE` does not.
+The native test is unsigned find-position < full header length, including a match at position zero
+(008f7ab0–008f7ac6; find wrapper 00442850 calls 004427f0).
+
+Let D be Date parsed by TimeStringToSeconds (00818bd0), or the current 32-bit Unix seconds
+only if Date is absent. An invalid but present Date is passed to that parser without a fallback.
+Last-Modified, if present, is parsed, but its result is discarded. Let E be parsed Expires when
+present; otherwise E is D + 259200 (three days). This addition is a single 32-bit wrapping ADD,
+without saturation, freshness comparison or subtraction of current time (008f7af9–008f7b60).
+Age is never read. An already-expired E is still passed to insertion.
+
+Cache-Control processing deliberately preserves these native rules:
+
+1. Split on commas outside double quotes, with six output slots. Double quotes toggle quoted
+   mode and are omitted from token bytes; no backslash escape rule exists in this splitter.
+   Trim ASCII space and tab from each token. Stop at six tokens, ignoring the remaining input.
+   Delimiter-terminated empty tokens still consume slots; a final zero-length tail does not.
+   A nonempty whitespace-only tail consumes a slot before trimming. This follows the called
+   HTTPMessage splitter 00819290, not an HTTP directive grammar.
+2. Compare each complete token using CRT case-insensitive string equality against `private`,
+   `no-cache`, `must-revalidate`, `max-age`, and `no-store`. Copy recognized tokens into five
+   separate local strings; repeated matches overwrite the corresponding string. There is no
+   split at `=` before comparison (008f7be7–008f7c5e). The misleading export name at 00408c40
+   is a string assignment, as its instructions confirm.
+3. Reject if any copied private, no-cache or no-store string has nonzero byte length. The copied
+   must-revalidate string is never tested. In particular `private=field`, `no-cache=field`,
+   `no-store=1`, and `max-age=60` are unrecognized and cannot block or change expiry.
+4. For a copied max-age string, find `=` and, only if its unsigned position is below length−1,
+   erase the prefix through `=`, apply CRT atol to the remaining C string, and replace E with
+   D + that 32-bit result, wrapping (008f7c95–008f7cc4). For ordinary header text this branch
+   cannot change E: the only matching whole token is bare `max-age`, which contains no `=`.
+   Do not repair this by parsing the argument of `max-age=...`. The branch description also
+   specifies length-bearing strings with embedded NULs, for which C-string comparison and
+   stored byte length need not agree.
+
+Only after this policy work, check WWW cache-use and resource-data length. Disabled cache or
+empty data returns false. For RAM data, call cache vslot +0x5c with request URL, data pointer,
+byte length, flags (1,1), E. For filename data, convert filename bytes to an RZString and call
+vslot +0x60 with request URL, filename, flags (0,1), E. Return that insertion call's low-byte
+boolean; no retry, deletion or target callback occurs here (008f7d21–008f7e43).
+These are borrowed call arguments: this helper does not transfer/release the job or resource.
+Whether the cache internally copies or moves file contents belongs to its own interface contract.
+
+**Independent distinguishing vectors (constructed; no network or game observations).** Use a
+nonempty RAM response, enabled cache, Date parser result D=1000 and no Expires unless stated.
+Observe cache-call count, E and flags through an interface test double, not a live server:
+
+| Header input / variation | Expected cache boundary |
+|---|---|
+| None of the policy headers except Date | One +0x5c call, E=260200, flags (1,1) |
+| Pragma `xno-cachey` | No insertion; false |
+| Pragma `NO-CACHE` | One insertion with E=260200 |
+| Cache-Control ` PRIVATE ` | No insertion; false |
+| Cache-Control `private=field, no-store=1, max-age=60` | One insertion with E=260200 |
+| Cache-Control `must-revalidate, max-age` | One insertion with E=260200 |
+| Cache-Control `a,b,c,d,e,f,no-store` | One insertion: seventh token is ignored |
+| Cache-Control `a,b,c,d,e,no-store,f` | No insertion: sixth token blocks |
+| Cache-Control `"a,no-store", public` | One insertion: quoted comma stays within one token |
+| Expires parses to 7; Last-Modified parses to 900 | One insertion with E=7 |
+| Date parser result 0xffff0000, no Expires | E=0x0002f480 (32-bit wrap) |
+| Same ordinary input with filename representation | One +0x60 call, flags (0,1), E=260200 |
+| Disabled cache, empty bytes, or missing job/request/response | No insertion; false |
+| Cache interface returns false | Helper false; enclosing HTTP completion still succeeds |
 
 ## 5. cRZHTTPClient (15133 B; outline only)
 

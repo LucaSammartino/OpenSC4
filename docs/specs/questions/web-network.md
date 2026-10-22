@@ -16,13 +16,6 @@ and listing-format selection/entry acceptance rules must be reproduced? Largest 
 00815d30 (1245 B). These were inventoried and initially inspected, not fully specified. Section 4.8 covers
 the WWW admission/notification boundary only. See web-network-www-bodies.md for every pending address/byte count.
 
-## Q8 (re-web-largest4, 2026-10-22) — WWW response cache-insertion policy
-Section 4.7 calls 008f7a50 (1062 B) after successful HTTP conversion and before response-cookie handling.
-What precise Pragma/Cache-Control token matching, Date/Expires/max-age precedence, integer overflow behavior
-and default expiration arithmetic does it use, and which insertion flags differ for RAM and filename data?
-Do not substitute RFC semantics: pseudocode shows suspect substring-length and token-removal conditions.
-The call boundary and ignored insertion failure are specified; this body's policy is still partial.
-
 ## Q9 (re-web-largest4, 2026-10-22) — other reached scheduler/resource and support bodies
 Complete the still-open bodies in web-network-www-bodies.md outside Q7/Q8, especially HTTP job submission and
 thread/resource lifetime (0081cda0, 0081cc10, 00818210 and 0081ca90), shutdown/drain/callback ordering,

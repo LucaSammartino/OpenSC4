@@ -1,5 +1,19 @@
 # Answered questions: web-network.md
 
+## Q8 (re-web-largest4, 2026-10-22) — WWW response cache-insertion policy
+Section 4.7 calls 008f7a50 (1062 B) after successful HTTP conversion and before response-cookie handling.
+What precise Pragma/Cache-Control token matching, Date/Expires/max-age precedence, integer overflow behavior
+and default expiration arithmetic does it use, and which insertion flags differ for RAM and filename data?
+Do not substitute RFC semantics: pseudocode shows suspect substring-length and token-removal conditions.
+The call boundary and ignored insertion failure are specified; this body's policy is still partial.
+
+**ANSWERED 2026-10-22 (re-web-largest4):** DIFFERS — §4.12 records case-sensitive Pragma substring
+rejection, six whole-token case-insensitive Cache-Control comparisons (so ordinary max-age arguments
+do not match), ignored must-revalidate/Last-Modified, Date-or-now plus three days with 32-bit wrap
+unless Expires is present, RAM flags (1,1) versus file flags (0,1), and the borrowed insertion/return
+boundary. Fourteen independent constructed vectors distinguish these behaviors. Instruction addresses
+are cited in that section; no network request or implementation output was used.
+
 ## Q2 (re-webnet4, 2026-10-21) — cookie store capacity
 AddCookie evicts when the store holds at least the capacity (manager +0x10). What value does Init or the constructor
 set? Spec section web-network.md §3.3.

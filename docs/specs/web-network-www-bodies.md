@@ -6,8 +6,8 @@ Native attribution snapshot: main `build-runs/run4-owners-current.tsv`, read 202
 
 | Status | Bodies | Bytes |
 |---|---:|---:|
-| C | 47 | 7239 |
-| P | 8 | 12691 |
+| C | 48 | 8301 |
+| P | 7 | 11629 |
 | O | 93 | 14119 |
 | Total | 148 | 34049 |
 
@@ -21,7 +21,7 @@ Q7 covers the unresolved FTP command/listing/scheduler closure; Q8 covers 008f7a
 | 00816ee0 | 1628 | reach | P: Q7 | FUN_00816ee0 |
 | 008163d0 | 1466 | reach | P: Q7 | FUN_008163d0 |
 | 00815d30 | 1245 | reach | P: Q7 | FUN_00815d30 |
-| 008f7a50 | 1062 | reach | P: Q8 | FUN_008f7a50 |
+| 008f7a50 | 1062 | reach | C: 4.12 | FUN_008f7a50 |
 | 008f8ffe | 988 | reach | C: 4.4 | FUN_008f8ffe |
 | 008f8c5a | 932 | reach | C: 4.7 | FUN_008f8c5a |
 | 00812390 | 825 | reach | O: Q7 | FUN_00812390 |
