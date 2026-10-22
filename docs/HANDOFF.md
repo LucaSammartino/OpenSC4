@@ -6,6 +6,10 @@ lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
 ## 0. Current state (2026-10-22, run4 open-ended)
+**Lua native phase parked:** db4e9202 gate68/game clean2032/ref0, but nativecallbacks0/0. LH4 stock insertion and LH5 slot25 ABI remain; parent1+phase1=2 logical, only1final round after actual causes fixed. Preserve WT, no owner/default promotion.
+
+Older status lines: [today's archive](history/handoff-2026-10-22.md).
+
 **Run4 checkpoint400:** 400 rounds, 70 trains landed, coverage57.8/36.0/19.7/18.1, delta+21.0/+7.7/+7.6/+2.2 points since run4 start; 92 parked lanes. RE paused; native delivery/verification continue under remaining caps. Five-minute heartbeat active; next checkpoint425.
 
 **train97 measured-shadow audit:** Production industrial CAPI versus original263052/263052 source and131526/131526 joint;565 independent native-context249/249 source+joint,156reachable pairs,3257changed bytes, clean2032/ref0/fullsave/shutdown. Qualified measured-shadow evidence recorded under COVERAGE.md; natural565calls0/IN3 remain, no default/replaced promotion. Coverage regeneration below is authoritative.
@@ -16,15 +20,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **Final grid methods phase parked:** logical3/3 exhausted at d8fbc36d. Actual shipped-C++ native methods now compared independently;31 fixture differences persist at normal speed (SG3), native controls include ref1/early exit and complete save/reload chain remains unproved. SG1/SG2 retained; no method-owner promotion/fourth, preserve WT.
 
-**Run4 checkpoint375:** 375 rounds; 65 trains landed; coverage57.8/36.0/18.6/18.1, delta+21.0/+7.7/+6.5/+2.2 points since run4 start; 83 parked lanes. RE paused;9actual verification workers restarted after proven provider-capacity recovery. Train93 full68gatePASS, current40+span8888 replacement/shadow regress running; no new coverage credit yet.
-
-**train97 landed d5a4005e2f:** Five real source lanes landed after full68native gate and current40+span565/industrial_shadow regressPASS. Independent industrial263052/263052 and constructed565249/249 are retained with their bounded/native-reachability limits; joint565 supplemental audit pending, no default or whole-owner promotion inferred. Font FN18-FN22, PL23 mismatches and CD6/CD8 remain parked; capped source worktrees preserved. Coverage57.8/36.0/18.6/18.1; rounds387 (open-ended).
-
 **Grid method audit:** original8,621,314 native comparisons include8,620,930 scalar reads through a retained-record transport fast path, not actual production SimGrid methods. Preserve probe evidence without production-method coverage credit. Final logical3/3 methods phase queued after parent source lands; compare actual shipped C++ grid or persistent real Rust SimGrid objects, retain SG1/SG2 and complete failure/refusal accounting.
-
-**train96 landed 1e4c8d553f:** Joint68native gate (including40reviewed SR9 ABI rows) and current40+simgrids_shadow regressPASS. Real2-lane ancestry retained after additive module/config conflict resolution. Joint grid fixtures600/600, natural0/0 not exercised; prior scalar retained-record probe gets no production-method credit. Final3/3 actual-method phase and bounded span8 glue now unblocked/launched. Date compatibility DT4/DT5/save failures and SG1/SG2 retained; no default or whole-owner promotion. Coverage57.8/36.0/18.6/18.1; rounds385 (open-ended).
-
-**Coordination recovery (17:28):** Codex model-capacity error paused refills16:32; all workers subsequently finished,0live at17:26 and no coverage advance. Same-model/subscription availability probe succeeded17:28, pause archived with evidence; guarded resumes and verification-only refills restarted. No RE authorized. WY1/SV3/PV14-PV15 and final lot/date/8888 contract boundaries remain parked; no fourth rounds or guessed exactness.
 
 **User course correction (2026-10-22): STOP RE.** All eight RE workers stopped under per-agent guard PARK denial, committed findings, and left clean preserved worktrees; no further RE refills. Three glue plus five verify delivery briefs are queued through normal guards alongside the existing graphics-director core worker. Target9 remains subject to eligible work/max3glue/caps. Prioritize exact native shadows, real-game replacement and promotion of proven candidates; use already-published contracts and land existing answers that unblock delivery. Contract gaps remain parked questions, never guessed or relabeled as verify.
 
