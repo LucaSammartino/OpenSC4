@@ -1,33 +1,31 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-ftp4: portable WWW/FTP partial owner | Codex, core-ftp4 (detached reservation) | continue; round-2 context guard enforced; quick PASS, full all unmeasured | Resume active all before any new build; inspect complete gate/source flags; no queue |
+| core-ftp4: portable WWW/FTP partial owner | Codex, core-ftp4 (detached reservation) | in progress; FINAL3/3; quick PASS, former all interrupted/unmeasured | Obtain one captured final all on unchanged committed engine; no queue before complete validation |
 
 ## Handoff
-- Goal: finish bounded portable WWW/FTP delivery; whole owner remains incomplete; round 2 guard OVER.
-- Done: 0a57021f/40adce68 algorithms; 1f4111db Q10; 97bff998 reconciliation/vectors;
-  6a3a8b52 clippy fixes; 48c7f93c commits verified inherited formatting; ac514591/f508edbd evidence.
-- All six WWW files exactly equal configured rustfmt(old HEAD); expression-arm braces audited.
-- Absolute qbuild fmt six WWW: PASS. Required seven-file check including lib.rs: FAIL,
-  168 existing lib/root/child drift lines; isolated pre-lane lib also differs. No foreign reformat.
-- Fresh complete quick PASS: 3043/0/0, 2 result lines, 32/32 WWW fixtures; 3 dependents compile;
-  native 212/212 edges, 1969.6 s; complete wrapper 1981.9 s, exit 0. Session 60609 collected.
-- Quick tree-changed=true from documentation checkpoint ac514591; production unchanged.
-- Production source: 48c7f93c; engine tree b53ab395e5f218c1549935755419c49d1591d935 unchanged.
-- ONE fresh qbuild all launched at clean committed f508edbd, after no old/quick build remained.
-- Last observed all OS wrapper PID 28252, transport session 34880; collection cell 57 returned
-  still running after 300 s. These are handles/observations, NOT proof of present liveness.
-- EXACT NEXT: freshly check actual all liveness, collect/resume it before any new build;
-  inspect summed workspace test results, current clippy diagnostics, native/full CTest and source flags.
-- Last observed qbuild-test.log (23:06:59) was running conformance tests; no final verdict.
-- qbuild-clippy.log still had inherited 21:52 errors then; no current clippy/full CTest PASS measured.
-- This mandatory handoff commit occurs while all may run: inspect its tree-changed flag;
-  do not call a changed-tree run stable. If needed finish stable final validation after checkpoint.
-- Retain exact 91 C/26757 B, 63 I/22 P/6 U and 57 P/O/7292 B; both address/size maps verified.
-- Primitive hosts only; owned barriers/unsafe domains Unsupported; native leaks/nonjoining retained.
-- Q10 questions/web-network.md; retain Q1/Q3/Q7/Q9; no generated index or owner-family restart.
-- Old failed/partial logs preserved in build-runs/inherited-r1/; evidence helpers also in build-runs/.
-- No game/network/ABI/glue/default/map/tool/coverage changes; no merge queue (guard prohibition).
-- Guard: MAIN/build-runs/run4-core-ftp4-r2-manifest.json; OVER denial stops all other tools.
+- Goal: final bounded verification/reporting only; whole owner remains incomplete; FINAL3/3.
+- Production milestones: 0a57021f/40adce68 algorithms; 1f4111db Q10; 97bff998 vectors;
+  6a3a8b52 clippy fixes; 48c7f93c audited formatter changes; f508edbd complete quick evidence.
+- Production engine tree b53ab395e5f218c1549935755419c49d1591d935 identical at 48c7f93c/f508edbd/ee61263e.
+- Fresh process inventory 2026-10-22T22:33:45Z: 54 build/shell identities readable, zero inaccessible,
+  zero attributable operations/descendants; former PIDs 28252/19284/20956 absent.
+- CIM access denied; documented Toolhelp/NtQuery process helper succeeded; no game image accessed.
+- Old transport 34880 collection explicitly returned Unknown process id; no stdout/exit recoverable.
+- Former all: interrupted/unmeasured, disappearance cause unknown. Tests 5071/0/0 across 21 lines;
+  clippy ends Checking fc4-core, no completion; no final full CTest. Never a complete all PASS.
+- Six old step logs preserved with SHA256 manifests in build-runs/interrupted-all-r2/ before overwrite.
+- Existing complete quick retained: 3043/0/0, 32 WWW fixtures, 3 dependent compile checks,
+  native 212/212 edges; wrapper exit 0, 1981.9 s. Do not repeat due documentation-only flags.
+- Six WWW qbuild fmt PASS; seven-file check including lib.rs has 168 preexisting drift lines.
+- EXACT NEXT: run build-runs/final-gate-core-ftp4.py run once on this committed source;
+  it captures qbuild stdout, OS PID, actual exit, start/end HEAD/engine/status in build-runs/final3-all-*.
+- Then inspect workspace summed tests, clippy completion, native/full CTest and artifact provenance.
+- Do not repeat a completed genuine full gate solely for a documentation checkpoint flag.
+- Retain 91 C/26757 B, 63 I/22 P/6 U and 57 P/O/7292 B; Q1/Q3/Q7/Q9/Q10 unresolved.
+- Primitive hosts only; owned barriers/unsafe domains Unsupported; leaks/nonjoining remain explicit.
+- No game/network/ABI/glue/default/map/tool/coverage changes, no new family/owner credit.
+- No queue before actual complete required validation; next real combined integration gate required.
+- Guard: MAIN/build-runs/run4-core-ftp4-r3-manifest.json; obey denial; no fourth continuation.
 
 ## Implementation
 
