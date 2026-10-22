@@ -9,7 +9,8 @@
 - Done this round: reused reserved detached worktree; checked clean status and read re-driverdraw4 scope (do not reopen capped driver/RD3-RD5).
 - Done: recovered exact current attribution: 65 bodies / 8068 bytes, including 63 reachable/neighbor bodies / 7983 bytes. Factory edges are actual instructions; no ownership change justified.
 - Done: corrected parent spec's 85-byte completion claim; new attributed-helper spec covers factories, constructors, pool/working-array failures, integer coefficient tables; GD32-GD38.
-- Next: complete OpenGL branch bodies 0x0087D260..0x0087FBD0, software branch 0x008DC4A0..0x008EC050, then publish the 65-row checklist.
+- Done: OpenGL attributed branch contracts added (extension forwarding, lighting/material quirks, capture failure/leak behavior, metadata, mode callback, thunks/destruction), GD39-GD50.
+- Next: complete second-factory support 0x008DC4A0..0x008EC050 and publish the 65-row checklist; verify every new numeric rule against instructions.
 - Inventory snapshot (ignored): `build-runs/director-attributed.tsv`, produced read-only without accessing engine/.
 - Primary evidence: main checkout `tools/re_query.py`, `decomp/`, `ghidra/export/windows`, `bin/SimCity4.exe`; never engine/.
 - q.py cannot start Bash (`E_ACCESSDENIED`); use bounded PowerShell calls.
