@@ -7,8 +7,10 @@
 - Goal: final3/3 bounded lifecycle continuation of borrowed production/native queries; CL1-CL4 exclusions persist.
 - Reused detached HEAD088f78a2, initially clean. No production changes planned; immutable-b source92e01745, SHA256053BD7A077A43A31ACB065C3B985D792CD9FEBFADAA82B0E7A343D742621FABC.
 - Copied successful control: build-runs/evidence-run4/vpm4-r1-native-f875545f.{req,log,verdict}; script saves2031-12-01, mark2031-12-15, end2032-01-01; enable empty, disable budget, simulator retained. This is a hypothesis to test, not a cause finding.
-- Next: inspect exact gate/source/artifact correspondence and supported request fields; submit unique nativeOFF using same city/profile/timing, then nativeON only if clean; current40 only if both pass.
-- All round2 disable-all stalls and prior current40 evidence retained below and in build-runs. No new request outstanding.
+- Confirmed engine diff92e01745..HEAD empty; engine/build-x86 and immutable-b DLL hashes both053BD7A077A43A31ACB065C3B985D792CD9FEBFADAA82B0E7A343D742621FABC. Stable33596de3 records final source gate cargo4963/clippy0/ctest68; logs retained, DLL19:46:52 precedes gate completion19:49:01. No rebuild justified for unchanged source.
+- Source inspection confirms independent GetCommandLineA -> production CAPI/Rust parser, actual borrowed public SDK dispatch, no native seeding or clone. Same fixed query inventory and exclusions as round2.
+- Next: submit unique cmdline4-r3-native-off-2032-e, immutable-b DLL, Konradshohe, enable empty/disable budget, turbo1, save2031-12-01/mark2031-12-15/end2032-01-01, seconds420/timeout600. ON only if clean; current40 only if both pass.
+- All round2 disable-all stalls and prior current40 evidence retained below and in build-runs. No new request outstanding at commit; OFF submission is next.
 - No source changes, no new questions, no new gate; task explicitly permits inspecting existing stable gate for unchanged source.
 - q.py Bash transport failed with E_ACCESSDENIED; use bounded PowerShell reads, apply_patch for all files.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-cmdline-native4-r3-manifest.json. No fourth/renamed round, external reads, agents, ref updates or private owner work.
