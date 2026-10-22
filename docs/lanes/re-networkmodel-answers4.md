@@ -1,23 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-networkmodel-answers4 (NO21-NO23, NO25, network-occupants.md §10 model instance) | `re-networkmodel-answers4` / (RE spec lane) | in progress (round 3): §10.3 Clip written from bytes, dtor + §2.2 +0x168/+0x16C fixed; NO25 still in the open file | RE: finish vector D, move NO25 to answered, questions.py index, merge-queue |
-
-## Handoff (round 3, 2026-10-22)
-- Goal: NO25 Clip 0x00618B00 (kept side, cut-edge interpolation), prebuilt dtor +0x1C4/+0x1C8, +0x164..+0x16C naming.
-- Done (this commit): §10.3 Clip bullet rewritten as 9 numbered rules + worked vectors A-D. Facts: keeps lo.y <= y <= hi.y,
-  so the call site keeps geometry at/above h. Y-slab clipper 0x006175C0 (24-byte 0x00618030). The cut vertex is lerped
-  from the OUTSIDE vertex: t=(plane-out)/(in-out) stored f32, a'=(in-out)*t+out (0x00614490/0x00614170). Format-10
-  colour bytes are trunc via _ftol2 (0x00614200). Output is a fan; cut vertices are never shared. Bounds are clamped
-  to the box, not recomputed (0x00618FD2). An unsupported format leaves the mesh empty. §10.1: the dtor body
-  0x00604CA0 (mislabelled cSC4NetworkOccupant::~) releases +0x1C8 then +0x1C4 and does not clear them, then runs
-  base 0x0061C170. §2.2: +0x168/+0x16C are f32 path-origin x/z (GetPathInfo 0x0061B635, GetModelInstances
-  0x0061EEC9). Slot 63 0x00604E10 reads +0x170/+0x174, and §2.4 was fixed to match.
-- REA: "No app is open"; static fallback (re_query asm + decomp/_unnamed/region_00610000.c).
-- Next (exact): (1) in spec §10.3 Clip, vector D still has the vague "other roundings" text. Replace it with: native,
-  from the outside end: t=f32 0x3EAAAAAB and x'=3t -> 1.0. From the inside end: t'=f32 2/3 gives 0.99999994
-  (0x3F7FFFFF), wrong. (2) Move NO25 from questions/network-occupants.md to answered/ as DIFFERS. (3) Run
-  tools/questions.py index. (4) Lane report, merge-queue json (kind spec, abi false), return ready.
-- Names note for re/: 0x00604CA0 is the prebuilt dtor body, 0x00647260 the tunnel dtor body. Not edited (docs only).
+| re-networkmodel-answers4 (NO21-NO23, NO25, NO26, network-occupants.md §10 model instance) | `re-networkmodel-answers4` / (RE spec lane) | done: NO21-NO23, NO25, NO26 answered DIFFERS in §10.1-§10.3; §2.2 +0x168/+0x16C fixed | engine: port §10.3 Clip (outside-anchored lerp) and §10.1 dtor; re/: rename 0x00604CA0 / 0x00647260 via re/symbols + merge_names.py in the main checkout |
 
 ## Report
 
@@ -55,12 +38,23 @@ cS3DModelProcessor. Every number was checked against the instructions. The const
   instance.
 - **NO26 (release):** the prebuilt `Shutdown` `0x0061D0D0` releases both caches.
 
-**Open.**
-- NO25: which side `Clip` `0x00618B00` keeps, and how its cut edges interpolate.
-- The prebuilt destructor's handling of the two caches was not examined.
-- NO24 and terrain TR33-TR37 were deliberately left alone.
+- **NO25 (Clip `0x00618B00`):** keeps lo.y <= y <= hi.y, so the call site keeps geometry at or above h. The
+  cut vertex is lerped from the outside end: t = (plane - out)/(in - out) stored f32, a' = (in - out)*t + out
+  (`0x00614490`/`0x00614170`). Format-10 colour bytes are truncated by `_ftol2`. The output is a fan and cut
+  vertices are never shared (`0x006175C0`). Bounds are clamped to the box, not recomputed (`0x00618FD2`). An
+  unsupported format leaves the mesh empty. Vector D in §10.3 gives the exact bits: outside-anchored 1.0
+  (`0x3F800000`), inside weighted form 0.99999994 (`0x3F7FFFFF`), checked with an f32 simulation.
+- **Destructor:** the body `0x00604CA0` releases +0x1C8 then +0x1C4, does not clear them, and tail-jumps to
+  `0x0061C170`. §2.2: +0x168/+0x16C are f32 path-origin x/z (`0x0061B635`, `0x0061EEC9`), now fixed in the spec.
 
-**Possible conflict for the spec owner.** The prebuilt code reads `+0x164` as a gate and `+0x168`/`+0x16C` as f32
-origin offsets. §2.2 names those fields path-id and int64.
+**Open.**
+- NO24 and terrain TR33-TR37 were deliberately left alone.
+- Names: `re/names_windows.tsv` still labels `0x00604CA0` as `cSC4NetworkOccupant::~cSC4NetworkOccupant` (it is
+  the cSC4NetworkOccupantWithPreBuiltModel destructor body) and `0x00647260` as the prebuilt destructor (it is
+  `cSC4NetworkTunnelOccupant::~cSC4NetworkTunnelOccupant`). The fix is a manual `re/symbols/*.tsv` row, but
+  `tools/symport/merge_names.py` needs the gitignored `re/symport/win_features.pkl`, which this worktree does
+  not have. So the rename was not made: the coordinator can add the rows and regenerate in the main checkout.
+
+**Commits:** 04c1f969, 0f37aa05, 6bf75268, b8671525 (vector D, NO25 moved to answered, questions index).
 
 No engine, tools or ABI changes, and no game run.
