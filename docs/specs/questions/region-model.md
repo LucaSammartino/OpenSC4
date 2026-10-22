@@ -21,10 +21,6 @@
 - **RM6 - §6.4:** `CreateStarterRegion` passes an empty name, and the folder-name loop then finds that
   `Regions\` + `""` + `\` exists, so the first free candidate is ` (2)`. Is the starter region's folder really
   named ` (2)` in the game, and is its name really empty? [yes, as read from the bytes]
-- **RM7 - §7.3:** `MoveCity` has four arguments and no caller in the executable. The spec reads them as
-  `(sourceRegion, city, x, z)` with the destination being `this` (the active region). Which windows call it (the
-  region view's drag-and-drop?), what do they pass, and is the serial number change on a move within the same
-  region (and the possible ` (n)` rename of its file) really visible in play? [as read]
 - **RM8 - §7.6:** `ResetTutorialCity` returns true exactly when the export of the pristine tutorial city failed, and
   false when no city had the id or the reset worked. Is the polarity intended, and what does the nation's
   `ResetTutorialCities` do with it? [as read; the engine returns the same value]

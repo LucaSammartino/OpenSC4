@@ -223,7 +223,8 @@ added at the end of the section, and a missing file is created, so a region fold
 *[quirk]* Because the name is written from memory, a `Name = #0x...` token that `LoadConfig` resolved is written
 back as the **resolved text** in the language of that session. The localisation token is lost after the first
 shutdown of an initialised region *[inferred]*: both halves are read from the bytes, the combination has not been
-seen running (RM1).
+seen running (RM1). The import dialog initialises and shuts down every inactive region when it opens, so this
+happens the first time the player opens it (region-city-dialogs.md).
 
 *[inferred]* When the folder no longer exists (§6.3), creating the file fails and nothing is written (RM2).
 
@@ -461,8 +462,11 @@ delete, no recycle bin).
 
 ### 7.3 `MoveCity(region, city, x, z)` (slot 16, `0x004A7200`, pops 16) *[inferred]*
 
-The roles of the four arguments are read from how they are used; the function has no caller in the executable
-(it is reached only through the region view's interface calls) (RM7). Returns a bool.
+The function has no direct caller in the executable; it is reached through the region screen's import command
+(command `0x4A560002`), which passes the region picked in the import dialog (or null for a city taken from the
+Downloads folder) as the source and the top-left cell of the selected tile as `x, z` (region-city-dialogs.md §3).
+That fixes the roles of the first, third and fourth arguments *[compat]*. That the destination is the active
+region is still read from the body *[inferred]*. Returns a bool.
 
 ```
 R := region;  if R == this: R := null
