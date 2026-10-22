@@ -12,6 +12,7 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4Subsystems.h"
+#include "FC4IndustrialShadow.h"
 
 #include "FC4Autotest.h"
 #include "FC4Checked.h"
@@ -736,6 +737,7 @@ void Resolve() {
     Span1555Startup(enabledKey("span1555"));
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.
     ScriptReload();
+    IndustrialShadowStartup(enabledKey("industrial"));
 }
 
 }  // namespace

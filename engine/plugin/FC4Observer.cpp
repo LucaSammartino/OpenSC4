@@ -12,6 +12,7 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4Observer.h"
+#include "FC4IndustrialShadow.h"
 
 #include "FC4AuraShadow.h"
 #include "FC4Autoload.h"
@@ -624,9 +625,11 @@ public:
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
                 monthsSinceLoad_ = 0;
+                IndustrialShadowProbe(CurrentCity(), "load");
                 break;
             case kMsgPreSave:
                 PropLotShadowPreSave(CurrentCity());  // the records just before the save writes them
+                IndustrialShadowProbe(CurrentCity(), "presave");
                 break;
             case kMsgConnectionsReady:
                 PopupDialogsOnConnectionsReady();
@@ -669,6 +672,7 @@ public:
                 NetToolRegistry::LogSummary("city shutdown");
                 fc4::MySimsShadowCityShutdown();  // mysims_shadow: the summary line, then the core goes
                 NetToolRegistry::CityShutdown();  // the glue29 lane: the shared replacement tools
+                IndustrialShadowProbe(CurrentCity(), "shutdown");
                 AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:

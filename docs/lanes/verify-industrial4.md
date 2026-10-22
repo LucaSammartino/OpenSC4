@@ -1,8 +1,20 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-industrial4: independent native industrial shadow | `verify-industrial4` / `.claude/worktrees/verify-industrial4` (engine lane, reserved branch; detached HEAD) | Blocked at IN3; audit/question b8e853e6; cargo/clippy/ctest n/a; no game runs; no industrial shadow credit; ABI unchanged | 1. Publish IN3 interception/lifetime contract. 2. Regenerate question index through authorized coordinator workflow. 3. Resume implementation in a separately authorized round. |
+| verify-industrial4: constructed native industrial comparison | `verify-industrial4` / `.claude/worktrees/verify-industrial4` (detached HEAD) | in progress, round 2/3 | Independent original/Rust comparison, gates and guarded game controls. |
 
-## Report
+## Handoff
+
+- Goal: constructed ORIGINAL industrial versus independent Rust; IN3 natural interception excluded.
+- Current base d88e9470, detached HEAD; prior round b8e853e6 filed IN3.
+- Baseline qbuild all started; inspect result next.
+- Next: industrial lifecycle/record contract and existing plugin probes; substantive code by call 25-30.
+- Native replacement disabled; validate image, identity, views and reference ownership.
+- Compare Init/Shutdown/message/records, returns/bytes, failures and boundaries on independent instances.
+- Unique guarded game labels, 2032/ref0 save/shutdown; wait without qwait.
+- No outstanding game requests, ABI changes or new questions.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-industrial4-r2-manifest.json.
+
+## Prior round report (superseded scope)
 
 Stopped at the required early boundary audit. The published industrial contract supplies callable interfaces, but does not establish the interception boundary needed to capture the original city/store-owned instance from its first natural Read through destruction. IN3 records the missing contract; this round delivers documentation only.
 
