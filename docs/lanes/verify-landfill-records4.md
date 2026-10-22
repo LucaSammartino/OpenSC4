@@ -16,7 +16,10 @@
 - Normal diagnostic vlfr4-r2-normal-diagnostic-20261022b clean2034-01-01/ref0/saveok1; same7/9,14 destroyed,reload4/4. SetPosition SDK bool0 despite exact effects; malformed-holder Read native1/Rust0, consumed39/57/error0. DLL1c253934cb3868af4e2b3aed1a73f4392279eb652db6196e8b38eb04ed6f3ac7.
 - Filed LG32 (unscored SetPosition return; Rust has no return) and LG33 (bad-holder Read acceptance). Removed invented true-return assertion and stopped comparing native states after divergent Read acceptance. Expected final8/9,13 destroyed,reload4/4; pending measurement.
 - Final stable all on17a23477 PASS: cargo4940, clippy0, CMake4/4, ctest68/68 (106.5s); no tree-changed warning. Engine frozen for controls.
-- Next: ordinary-city immutable ON/OFF controls through2032 plus capture own save for a true reload control. No outstanding request.
+- Frozen final DLL SHA256777fe83b249162b0919fe4b4c6638251430ca6c2be9b3c0a60f2b8ce0b89b879, build-runs/dlls/occupant-r2-777fe83b2491/FreeCity4.dll.
+- vlfr4-r2-on-2032-20261022c stalled fallback: watchdog at startup before LoadCity/probe, stall over8063ms; subsequently8/9 exact (LG33 only),13/13 destroyed,reload4/4. No full-run credit; no audit suppression.
+- vlfr4-r2-off-2032-20261022d clean2032-01-01/ref0/saveok1 (138.437s), current40/probeOFF, same final DLL. Own saved fixture captured cd1d9ea53d49bf9d3cd29c337879e4ef9f1e8cf36bd219c9d6a844f60cf555ae at MAIN/build-runs/fixtures/vlfr4-r2-off-2032-20261022d-saved.sc4.
+- Next: unique ON retry from ordinary city, then true own-save reload control. No outstanding request; preserve failed label/verdict.
 - Required game evidence: immutable guarded2032/ref0 save/reload controls, unique request labels, wait without qwait. No request outstanding.
 - Guard: C:/Users/tlori/FreeCity4/build-runs/run4-verify-landfill-records4-r2-manifest.json; shared budget/calls retained.
 
