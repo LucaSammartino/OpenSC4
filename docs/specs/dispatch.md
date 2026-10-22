@@ -338,7 +338,7 @@ dispatch kinds 0/1, flag bit 1 selects the following number branch.
 
 WCM slot 5 receives `0x68963C4C`; its returned font is AddRef'd. Font slot 15 returns the
 old style, then slot 16 receives 3. The dword display number at info `+0x10` is formatted
-with the string at `0x00A8281C`. Font slot 48 receives `(bytes,length)` for width, then
+with signed-decimal format `%d` at `0x00A8281C` (original PE bytes). Font slot 48 receives `(bytes,length)` for width, then
 slot 37 receives the same pair for height. Start the square surface side at 32; only
 when width or height is greater than 32, replace it with the smallest power of two at
 least their signed maximum. This is ceiling-to-power-of-two, despite the helper's
@@ -370,6 +370,67 @@ failure must release/clear the old texture, restore the font style, Release the 
 retain the measured dimensions and leave no generated texture. A surface slot-6 false
 result must still draw text and attempt SetupTexture; a bit-6 entry must perform none
 of those calls. These vectors derive from native branches, not replacement outputs.
+
+**Last screen rectangle and 2D draw submission (DP10).** Direct thiscall
+GetLastScreenIconRect `0x0046BFA0` takes one u32 handle, pops 4 and returns EAX:
+null for an absent handle, or when either rectangle extent is zero; otherwise a
+**borrowed pointer** into its tree node. Node `+0xEC` is info `+0xD8`; its four signed
+dwords are left, top, right, bottom. The getter tests `right-left` and `bottom-top`
+for zero, not positivity: reversed extents are not rejected. There is no output-copy
+argument, acquisition, or view-handle allocation. Mutation/removal can invalidate
+the pointer (`0x0046BFA0`–`0x0046BFDF`).
+
+The 2D placement branch stores the chosen integer rectangle at info `+0xD8..+0xE4`,
+and its float32 anchor at `+0xE8..+0xF0`. Unless bit 7 is set, the anchor is
+`(left+(right-left)*0.5, top+(bottom-top)*0.5, 0)`; with bit 7 set, the previous
+anchor is retained. The native integer differences are converted before x87
+multiplication and addition, and each anchor component is stored float32
+(`0x0046E7ED`–`0x0046E811`, `0x0046E9DF`–`0x0046EA45`). Do not confuse these
+members with fade at `+0xF8` or the flags at `+0xFC`.
+
+The visible rectangle used for automatic placement is inset by 32 integer pixels
+on each side. Its horizontal center is `(right-left)*0.5+left`, with the inset
+values, and likewise vertically (`0x0046E296`–`0x0046E321`). Before overlap search,
+the prospective icon is made 42 by 42 pixels using float32 additions; its four
+edges are individually converted to signed integers with `_ftol2` (truncation
+toward zero, not floor or round-to-nearest; `0x0046E38E`–`0x0046E3E4`). The overlap
+search may then move it; the search's complete candidate order is still residual
+DP10 work, so these facts do not license a replacement clamping/search policy.
+
+The final 2D submission sequence is instruction-verified at
+`0x0046EE02`–`0x0046EEE5`. All context calls use the **same borrowed Update context**:
+
+| Order | Native call/effect |
+|---|---|
+| 1 | DrawContext SetModelTransform `0x007D2D20` with no stack arguments; ClearTexTransform `0x007D4420` with stage 0 |
+| 2 | Context `+0x34` service, slot 25, with no stack arguments |
+| 3 | SetTransparency `0x007D2A20` with info's float32 fade; SetRenderState `0x007D4530` with pointer to view `+0x14` |
+| 4 | Submit icon and optional call-number quads in the order below |
+| 5 | ResetTransparency `0x007D2A30`; context `+0x34` service, slot 24, no stack arguments |
+
+The icon's resource-handle pointer is info `+0x2C`. Its texture argument is the
+dword reached by **two dereferences**, whereas the generated call-number texture
+argument is info `+0x0C` directly. SetTexture `0x007D4070` receives `(texture,0)`;
+every quad uses DrawPrims `0x007D2990` with `(6,2,4,vertices)`. The two temporary
+vertex arrays each contain four 20-byte `(x,y,z,u,v)` records (the transform loop
+advances 0x14 and terminates at 0x50; `0x0046ED10`–`0x0046EDEF`). There is no null
+texture test at submission: when bit 1 requests a number, its quad is submitted
+even if number-texture creation left `+0x0C` zero.
+
+If the icon resource-handle pointer equals view `+0x34`, draw the number quad first
+when bit 1 is set, then the icon. Otherwise draw the icon first, then the number
+when bit 1 is set (`0x0046EE35`–`0x0046EED2`). This is a **handle-pointer identity**
+comparison, not equality of texture IDs, type numbers, or number text. Thus the
+first two dispatch kinds need not share draw order. Submission does not AddRef
+the context, acquire an occupant, increment the process-global handle counter,
+or serialize any of the rectangle/anchor data.
+
+Independent vectors: missing handle and rectangles `(1,2,1,9)` or `(1,2,9,2)`
+return null; `(9,8,1,2)` returns the retained rectangle pointer. Rectangle
+`(-3,-5,40,38)` anchors at `(18.5,16.5,0)` with bit 7 clear, but preserves an
+existing anchor with bit 7 set. Two different handle pointers referring to the
+same texture must still select the identity-based order above. A bit-1 entry
+with null generated texture must still emit the number DrawPrims call.
 
 ### 4.2 `Dispatch(type, x, z)` (`0x0046A630`, slot 6) → ID *[compat]*
 

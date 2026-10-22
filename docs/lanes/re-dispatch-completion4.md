@@ -9,6 +9,7 @@
 - Current manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-dispatch-completion4-r3-manifest.json.
 - Next exact evidence: query export 0046C8B0 and 0046D990, find decomp bodies, verify numeric paths against instructions.
 - Round-3 milestone: published instruction-verified DP10 number-texture slot recipe, font/style ownership, surface/texture failures and independent size/failure vectors; rectangles/draw submission still pending.
+- Committed b6914951: number-texture contract. Next milestone publishes screen-rectangle getter/storage/rounding and exact 2D draw submission/order; complete geometry and overlap candidate order remain under review.
 - q.py Bash startup denied (E_ACCESSDENIED); use bounded native PowerShell. No REA request made.
 - Final round: publish substantive contract, archive DP10 only if complete; otherwise PARK exact residual, no fourth round.
 
