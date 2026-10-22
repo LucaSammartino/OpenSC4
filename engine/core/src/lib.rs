@@ -121,3 +121,4 @@ pub mod timers;
 pub mod terrain_overlays;
 pub mod render_properties;
 pub mod model_instances;
+pub mod lua_script_server;
