@@ -208,7 +208,7 @@ fixture must call Shutdown (slot 4) before its last Release, or the buffer keeps
 | 10 | `0x0082FEC0` | SetAntialiasing | `(byte)` | 4 | `+0x43` (read by slot 21 only) |
 | 11 | `0x00648F10` | (shared no-op) | `(x)` | 4 | none |
 | 12 | `0x0082FDB0` | SetGradientTransform | `(m*, x0, y0)`, x0/y0 floats | 0xC | null m: `+0x74` = 0. Else `+0x44+4i`, `+0x54+4i`, `+0x64+4i` from the 12 floats of m (span-render-1555.md §4.1), `+0x74` = 1 |
-| 13 | `0x0082FFD0` | SetBltSource | `(src, x, y, sx, sy, rect*)`, x..sy floats | 0x18 | null src: releases `+0x24`, returns 0. Else releases `+0x24`, queries src for `0x20732180` into `+0x24`; if that fails returns **1** with `+0x24` = 0. Else sets `+0x28`..`+0x3C`, `+0x40` (0 when both scales give `0x10000`, else 1), `+0xA8`/`+0xAC`, writes the 16-byte destination rect, returns 1 |
+| 13 | `0x0082FFD0` | SetBltSource | `(src, x, y, sx, sy, outRect*)`, x..sy floats | 0x18 | null src: releases `+0x24`, returns 0. Else releases `+0x24`, queries src for `0x20732180` into `+0x24`; if that fails returns **1** with `+0x24` = 0. Else sets `+0x28`..`+0x3C`, `+0x40` (0 when both scales give `0x10000`, else 1), `+0xA8`/`+0xAC`, writes the 16-byte destination rect (section 1.3.1), returns 1 |
 | 14 | `0x0082FE60` | ClearBltTiling | - | 0 | `+0xA4` = 0 |
 | 15 | `0x0082FE70` | SetBltTiling | `(rect*)` 16 bytes | 4 | `+0xA4` = 1, `+0x94`..`+0xA0` |
 | 16, 20 | `0x00407990` | (bare `RET`) | - | 0 | none |
@@ -251,10 +251,124 @@ type (including 2) → 0. The alpha byte of argb is not passed. Example: argb `0
 5. ctx slot 4 Shutdown, ctx slot 2 Release, buffer Release. After Shutdown, `+0x38` of the buffer is back to its
    value before step 3.
 
-Counting and labels: count renderer calls by the return address. A call made inside one of the seven sites of
+Counting and labels: count renderer calls by the **exact return address** in section 1.3.2. A call from one of the seven sites of
 `0x008302E0` while the fixture's slot-22 call is active is **"constructed (native context)"**. A call from those
 sites at any other time is **"shipped"**. A direct call from the fixture to a slot entry is **"constructed
 (direct)"**. Report the three counts separately. Only "shipped" counts are evidence for SP4, SR1555-6 or SR565-5.
+
+### 1.3.1 Source placement, scales and rectangle directions (SP6a) [exact, static]
+
+These are the **framework 2D** context's contracts. They agree with the shared texture-state rules in
+[span-render-1555.md §6.1](span-render-1555.md#61-how-the-caller-fills-the-indices-drawpreclippedspanlist-0x008302e0-exact).
+They apply to 4444 because `Init` installs `0x00AC185C` in `+0xB0` for colour type 7
+(`0x008307A8`–`0x008307BC`), while the setters and `DrawPreclippedSpanList` remain the same functions.
+[draw-context.md](draw-context.md) describes `SC4DrawContext`, the separate **3D** object; its texture/render-state
+contracts do not specify these setters.
+
+**SetBltSource.** The six arguments are `(src, x, y, sx, sy, outRect*)`, with four binary32 floats and a writable
+16-byte output rectangle. `x,y` place the source in **destination pixel coordinates**. `sx,sy` are destination
+size per source texel: 2 doubles the displayed size, 0.5 halves it. They are not source offsets or the sampling
+steps themselves. The source is queried for `cIGZBuffer`; the setter obtains its bounds through buffer slot 11
+(`+0x2C`, call `0x00830017`). For `cGZBuffer` that slot is `0x008268D0` (vtable entry `0x00AC142C`), which copies
+the four signed edge coordinates `(L,T,R,B)`. A newly Init-ed buffer has `(0,0,width,height)`
+(`0x008269CC`–`0x008269DD`). The caller's `outRect` contents are not read on success: it is **not a crop request**.
+
+The stored values and mode selection are:
+
+| Context fields | Meaning | Native conversion |
+|---|---|---|
+| `+0x30`, `+0x34` | forward scale in 16.16 | `R(sx*65536)`, `R(sy*65536)` |
+| `+0x38`, `+0x3C` | source steps `du,dv` in 16.16 | `R(65536/sx)`, `R(65536/sy)` |
+| `+0x40 = 0`, `+0x28`, `+0x2C` | plain mode, integer placement `ox,oy` | when **both stored forward scales** equal `0x10000`: `ox=R(x)`, `oy=R(y)` |
+| `+0x40 = 1`, `+0x28`, `+0x2C` | stretch mode, scaled placement in 16.16 | otherwise: `ox=R(du*x)`, `oy=R(dv*y)` |
+
+Here `R` means arithmetic under the caller's x87 precision, a store/reload as binary32, then signed dword integer
+conversion using the current x87 rounding mode. The plain `R(x),R(y)` needs only the integer conversion of the
+already-binary32 argument. There is no control-word change in this setter. Under the game's 24-bit,
+nearest-even mode (shared precision rule in span-render-1555.md §4.1), retain the float rounding of each multiply
+or divide before conversion. The constant `65536.0` is a **double** at `0x00A8CEB0`. Anchors:
+forward/reciprocal conversions `0x0083001A`–`0x00830082`; quantized-scale test and plain placement
+`0x00830085`–`0x008300B3`; scaled placement `0x008300F6`–`0x0083012E`.
+
+The destination output rectangle is `(left,top,right,bottom)`, with exclusive right/bottom edges:
+
+- Plain: copy `(L,T,R,B)` and add `ox` to **both** horizontal edges, `oy` to **both** vertical edges
+  (`0x008300B7`–`0x008300F1`, final bottom store `0x00830259`).
+- Stretch: the four edges come from `x`, `y`, `x+(R-L)*sx`, `y+(B-T)*sy`, respectively
+  (`0x00830121`–`0x00830259`). The edge conversion subtracts double `0.5` (`0x00A92D28`), uses float `0.5`
+  (`0x00A84D2C`) and `12582912.0` (`0x00AC17A0`) to round, and corrects exact half ties down. For the finite,
+  small pixel coordinates below, each edge is `ceil(t-0.5)` in nearest-even mode. Products and sums still follow
+  the caller's x87 precision; this is not permission to evaluate an entire edge expression in double.
+- `+0xA8 = right-left`, `+0xAC = bottom-top`, using wrapping dword subtraction
+  (`0x00830256`–`0x0083026A`). Width/height are derived values, not the last two rect members.
+
+The draw consumer proves the direction of the mapping: plain mode biases the source pointer by
+`-(ox*bytesPerTexel + oy*stride)` (`0x00830554`–`0x0083056A`), so destination `(X,Y)` samples source
+`(X-ox,Y-oy)`. Stretch builds `u0=(du arithmetic-right-shift 1)-ox`, `v0=(dv arithmetic-right-shift 1)-oy`
+(`0x008304EF`–`0x00830538`); its 16.16 walk is the section 9.1 mapping, including the half-pixel centre.
+
+**SetBltTiling.** Slot 15 reads a **source texel rectangle** `(left,top,right,bottom)` into `+0x94`..`+0xA0` and
+sets `+0xA4=1` (`0x0082FE70`–`0x0082FE97`). It does not write back to that rectangle. Draw subtracts left from
+right and top from bottom to get the tile's source dimensions, then biases the source pointer by
+`left*bytesPerTexel + top*stride` (`0x0083043D`–`0x00830469`); it passes those reduced dimensions to the tiled
+renderer. Thus this rect is neither `(x,y,width,height)` nor a destination drawing extent. Tiling wins over
+stretching (`0x00830431`–`0x00830437`); tile edges are not multiplied by `sx/sy`. Use ClearBltTiling to restore
+plain/stretch selection. For the ordinary positive dimensions/placement in the examples, tile offsets are
+`u0=(-ox) mod tileWidth`, `v0=(-oy) mod tileHeight` with nonnegative remainders (the native unsigned division
+sequence is `0x0083046D`–`0x008304B3`; general wrapped offsets remain as specified in section 9.1).
+
+**Caller obligations.** Successful source setup dereferences `outRect`; tiling dereferences its input rect.
+Neither accepts a null rect on that path, validates scales, clips a source rectangle, or checks resulting
+sampling bounds. A normal fixture must supply finite nonzero scales, nonempty source/tile dimensions and spans
+whose sampled texels are inside the supplied allocation. A zero tile dimension reaches division by zero in the
+draw context before any renderer call. Null `src` instead clears/releases the old source and returns 0 without
+touching `outRect` (`0x0083027B`–`0x00830298`). Non-null `src` whose interface query fails returns **1**, leaves
+`+0x24=0`, and leaves `outRect` and the other texture state untouched (`0x00830004`–`0x00830008` branch to
+`0x00830270`). Do not treat that return byte as proof that a texture was accepted.
+
+**Conformance expectations (static).** Use an 8×6 `cGZBuffer` source with distinguishable texels, normal x87
+24-bit nearest-even mode, a destination large enough for the listed coordinates, and tiling cleared. Prefill
+`outRect` with four unrelated sentinel dwords; none may influence these success results. Values in fixed-point
+columns are hexadecimal dwords; rectangle/sample coordinates are decimal.
+
+| x,y | sx,sy | stored forward scales | du,dv | ox,oy | outRect | Sample at first destination pixel |
+|---|---|---|---|---|---|---|
+| 3,5 | 1,1 | `00010000,00010000` | `00010000,00010000` | `00000003,00000005` | (3,5,11,11) | dest (3,5) → source (0,0) |
+| 3,5 | 2,0.5 | `00020000,00008000` | `00008000,00020000` | `00018000,000A0000` | (3,5,19,8) | dest (3,5) → source (0,1) |
+| 3,5 | 0.5,2 | `00008000,00020000` | `00020000,00008000` | `00060000,00028000` | (3,5,7,17) | dest (3,5) → source (1,0) |
+| 3,5 | 0.75,0.75 | `0000C000,0000C000` | `00015555,00015555` | `0003FFFF,0006AAA9` | (3,5,9,9) | dest (3,5) → source (0,0) |
+| 3.5,5.5 | 1,1 | `00010000,00010000` | `00010000,00010000` | `00000004,00000006` | (4,6,12,12) | dest (4,6) → source (0,0) |
+| 3.5,5.5 | 2,2 | `00020000,00020000` | `00008000,00008000` | `0001C000,0002C000` | (3,5,19,17) | dest (3,5) → source (0,0) |
+
+For tiling, first use the first source-setup row, then SetBltTiling with `(2,1,6,4)`. Expect tile width 4, height 3,
+source pointer biased by `2*2 + 1*sourceStride` for a 16-bit source, and offsets `(1,1)`. Destination
+`(3,5),(4,5),(7,5)` must sample original source texels `(2,1),(3,1),(2,1)`. The input tile rect is unchanged.
+ClearBltTiling restores the first row's plain mapping. Also check that null source returns 0 and leaves the
+sentinel output unchanged, and a source refusing `0x20732180` returns 1 with no output write.
+
+### 1.3.2 CALL sites and exact return addresses (SP6b) [exact, byte-backed]
+
+Every address listed as a call site in [span-render-565.md §1.1](span-render-565.md#11-native-call-boundary-re-span565-bridge4-exact)
+is the **first byte of the CALL instruction**, not a return address. All seven are three-byte indirect calls
+through the renderer vtable; the instruction immediately after each is the exact return address below. The
+slot offsets in those bytes are `+0x14,+0x14,+0x14,+0x10,+0x08,+0x0C,+0x04`, respectively. The target for 4444
+comes from its table `0x00AC185C` (section 1.1), not from a presumed 565 target address.
+
+| Path | CALL site | Exact return address | Slot | 4444 target |
+|---|---|---|---|---|
+| tiled texture | `0x008304D1` | `0x008304D4` | 5 | `0x008480C0` |
+| stretched texture | `0x0083053B` | `0x0083053E` | 5 | `0x008480C0` |
+| plain texture | `0x00830591` | `0x00830594` | 5 | `0x008480C0` |
+| alpha gradient | `0x008305E7` | `0x008305EA` | 4 | `0x00847F10` |
+| opaque gradient | `0x008305FC` | `0x008305FF` | 2 | `0x00847D30` |
+| alpha colour | `0x00830627` | `0x0083062A` | 3 | `0x00847E40` |
+| solid colour | `0x00830647` | `0x0083064A` | 1 | `0x00847CE0` |
+
+Classify a renderer-entry return address by equality with this table; accepting every address 1..7 bytes after
+a site is unnecessarily broad. As a classifier conformance check, each exact return must select its row;
+the CALL site itself and site+1,+2,+4,+5,+6,+7 must not. Context identity/active-fixture scope is still required
+to separate constructed calls from shipped calls (the preceding counting rule). Static call-site proof does
+not establish new shipped-hit counts or reclassify the earlier 378 constructed cases as shipped evidence.
 
 ## 2. Shared conventions
 
@@ -313,13 +427,93 @@ value in bits 16-23); channel 3 is alpha and is ignored here.
 Arguments `(spans, count, buffer, grad)`, same 12-dword layout as section 5, all four channels used.
 - B, G, R accumulators are set up exactly as in section 5 (including the B >> 4 drift; R uses `<< 4` but no OR).
 - Alpha accumulator: `(startA + dxA*x + dyA*y) * 0x88`, step `dxA * 0x88` (32-bit wrapping). Per pixel
-  `a = acc >> 27` (unsigned), so for an 8.16 alpha value A, `a = floor(A * 136 / 2048)` = floor(A*17/256):
-  0..16 over A = 0..255. This is a different alpha-to-weight map from RenderAlpha (section 4); see the table in
-  section 8.
+  `a = acc >> 27` (unsigned). If `W` is the raw 8.16 dword at that pixel, the exact map is
+  `a = U32(136*W) >> 27`, with `U32` meaning the low 32 bits. For the represented real value
+  `A = W/65536` in 0..255, this simplifies to `floor(17*A/256)`, giving 0..16. It is a different map from
+  RenderAlpha (section 4); see section 8. Outside that range the wrapped map, not the simplified floor, applies.
 - Source colour per pixel: R = bits 24-27 of the R accumulator, G = bits 20-23 of G, B = bits 16-19 of the
-  shifted B accumulator (top nibbles of the 8-bit integer parts); then the blend of section 4 with this `a`.
+  shifted B accumulator (top nibbles of the 8-bit integer parts); then the packed blend below with this `a`.
   Output alpha nibble `0xF`. The R accumulator's top nibble is masked off, so out-of-range R does not reach
   alpha here.
+
+### 6.1 Alpha domain and packed arithmetic (SP1) [exact, instruction bytes]
+
+The normal colour domain is 0..255 per channel (0..1 before the native gradient setter's conversion), but it is
+**not a checked precondition** of this renderer or its setter. For an otherwise valid span/destination/gradient,
+every 32-bit alpha start and step has the wrapping behaviour here. Do not reject or saturate a gradient because
+its alpha crosses 0 or 255. `SetGradientTransform` uses the same four-channel conversion for alpha as for RGB,
+with no range comparison (`0x0082FDD0`–`0x0082FE43`; shared conversion in
+[span-render-1555.md §4.1](span-render-1555.md#41-gradient-record-0x30-bytes-shared-with-5)). This proves the
+setter's applicability to this context; it does not prove that shipped UI paths request such gradients.
+
+The renderer first forms `W = U32(startA + dxA*x + dyA*y)` and `acc = U32(136*W)`, then adds the wrapped
+`136*dxA` after each pixel (`0x00847FAF`–`0x00847FCA`, `0x0084807C`–`0x0084808D`). Thus `a` is always **0..31**;
+17..31 are reachable. RenderAlpha cannot reach them: it reduces the top five bits a second time to 0..16
+(`0x00847E50`–`0x00847E56`).
+
+Let `S` be the source RGB nibbles packed as `0x0RGB` and `D` the destination word. Define
+`sRB = S & 0x0F0F`, `dRB = D & 0x0F0F`, `sG = S & 0x00F0`, `dG = D & 0x00F0`.
+All subtraction, multiplication and addition below retain only their low **32** bits; all right shifts are
+**logical**. The native order is:
+
+1. Subtract `dRB` from `sRB`, multiply by `a`, then add `16*dRB` and `0x808`, obtaining `rb`.
+2. Subtract `dG` from `sG`, multiply by `a`, then add `16*(dG+8)`, obtaining `g`.
+3. Shift `rb` and `g` right by 4. OR the first with `0xF0F0`, OR the second with `0xFF0F`, AND those results,
+   and store only the low 16 bits. Equivalently the word is
+   `0xF000 | ((rb >> 4) & 0x0F0F) | ((g >> 4) & 0x00F0)`.
+
+Anchors: source/destination field extraction `0x00847FF0`–`0x0084801B`; unsigned weight extraction
+`0x00848022`; 32-bit subtract/multiply/add `0x0084801E`–`0x0084804E`; shifts, masks and word store
+`0x00848054`–`0x0084806C`. There is **no mask between the packed subtraction and the shift**. For a <= 16,
+this agrees with the separate-channel rule in section 4. For a > 16 the blue numerator can carry or borrow
+into the red calculation; keeping each channel's low nibble separately is not equivalent. Green remains
+separate; alpha is always F even when a packed intermediate is negative or overflows.
+
+**Discriminating conformance vectors.** Use one span at (0,0) of width 1, count 1, with all gradient steps zero.
+Set raw RGB starts to `(B,G,R) = (0, 0x00700000, 0)`, i.e. source `0x0070`. For each row the raw alpha start is
+`A*65536` (A below is an integer in channel units, not a normalized float). The expected word is derived from
+the instruction-width rule above. The last column shows the distinguishable result of rounding each channel
+separately and retaining its low nibble; it is not an accepted alternative.
+
+| A | a | Destination | Expected word | Separate channels |
+|---|---|---|---|---|
+| 256 | 17 | `F859` | `FF7F` | `F07F` |
+| 272 | 18 | `F455` | `FF7F` | `F07F` |
+| 287 | 19 | `F853` | `FE7F` | `FF7F` |
+| 302 | 20 | `F253` | `FF8F` | `F08F` |
+| 317 | 21 | `F852` | `FD8F` | `FE8F` |
+| 332 | 22 | `F452` | `FE8F` | `FF8F` |
+| 347 | 23 | `F852` | `FC8F` | `FD8F` |
+| 362 | 24 | `F152` | `FF8F` | `F08F` |
+| 377 | 25 | `F851` | `FB8F` | `FC8F` |
+| 392 | 26 | `F451` | `FD8F` | `FE8F` |
+| 407 | 27 | `F851` | `FA8F` | `FB8F` |
+| 422 | 28 | `F251` | `FE9F` | `FF9F` |
+| 437 | 29 | `F851` | `F99F` | `FA9F` |
+| 452 | 30 | `F451` | `FC9F` | `FD9F` |
+| 467 | 31 | `F851` | `F89F` | `F99F` |
+
+Additional boundary/carry vectors, again with zero steps. Set each raw RGB start to its source nibble times
+`0x00100000`:
+
+| Source S | Destination | Raw alpha W | acc | a | Expected word |
+|---|---|---|---|---|---|
+| `0070` | `8859` | `00000000` | `00000000` | 0 | `F859` |
+| `0070` | `8859` | `00FF0000` | `87780000` | 16 | `F070` |
+| `0000` | `880F` | `01000000` | `88000000` | 17 | `FF0F` |
+| `070F` | `8000` | `01000000` | `88000000` | 17 | `F800` |
+| `0070` | `F851` | `FFFF0000` (-1.0) | `FF780000` | 31 | `F89F` |
+| `0070` | `8859` | `01E20000` (482.0) | `00100000` | 0 | `F859` |
+| `0070` | `8859` | `80000000` | `00000000` | 0 | `F859` |
+
+In the `0000`/`880F` borrow case, `rb = FFFFFFF9`, logically shifted to `0FFFFFFF`; the mask/store yields
+`FF0F` rather than the separate-channel `F00F`. In the `070F`/`8000` carry case, `rb = 00008007`, yielding
+`F800` rather than `F700`. These are static conformance expectations, not newly recorded native game results.
+
+Two-pixel step/order checks use the same constant source `0070` and equal initial destinations at both pixels.
+With destinations `F859`, raw alpha start `00FF0000` and x step `00010000`, expect `F070,FF7F` (weights 16,17).
+With destinations `F851`, raw alpha start `01E10000` and the same step, expect `F89F,F851` (weights 31,0, because
+the accumulator wraps). Apply the step **after** writing the current pixel; neither boundary clamps.
 
 ## 7. RenderBlt (`0x008480C0`) - kernel dispatch
 

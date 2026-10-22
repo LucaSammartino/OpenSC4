@@ -29,3 +29,22 @@
   original-versus-ours pixel comparison calls the five original slot functions directly on a constructed,
   plug-in-owned fixture with the published section 1.1 contract]~~
   **ANSWERED 2026-10-21 (re-span-context4):** MATCHES - span-render-4444.md section 1.3: cIGZBuffer Init is slot 3 `(width, height, type, bits)` by value, pops 0x10, returns a byte; pixels via Lock slot 6 `(flags)` / slot 34 base / slot 35 stride / Unlock slot 7 `(flags)`, pops 4/0/0/4; draw system = GetSystemService(service `0xEB2EA3CB`, IID `0x4B2EA3B3`), slot 4 `(buffer, &out)` pops 8 stores and AddRefs without releasing the old `*out` (caller owns one reference); context Init slot 3 pops 4 returns a byte; `+0x74`/`+0x44` slot 12, `+0x41` slot 8, `+0xC4`/`+0xB4` slot 7.
+
+<!-- from: core-span4444-4 (2026-10-21) -->
+- ~~**SP1 - section 6 / section 4:** RenderAlphaGradient with an alpha ramp outside 0..255 gives `a = acc >> 27` in
+  17..31 (or a wrapped value). The packed R|B register form `((sRB - dRB)*a + 16*dRB + 0x808) >> 4` can then borrow
+  or carry between fields. What is the exact bit result for a > 16 (masking after the shift, field placement)?
+  [core evaluates each channel separately in wrapping 32-bit maths and keeps its low nibble; alpha 0xF]~~
+  **ANSWERED 2026-10-22 (re-span-context-gaps4):** DIFFERS — [section 6.1](../../span-render-4444.md#61-alpha-domain-and-packed-arithmetic-sp1-exact-instruction-bytes): no alpha range check in setter or renderer; all raw alpha dwords wrap, yielding weights 0..31. The packed R/B subtraction, multiply and bias use 32-bit registers, then logical shift by 4; the word is `F000 | ((rb>>4)&0F0F) | ((g>>4)&00F0)`. Blue carries/borrows can change red at weights 17..31. Bytes `0x0084801E`–`0x0084806C`; one discriminating vector per weight plus alpha-wrap and carry/borrow vectors are in the spec. Source `0000`, destination `880F`, raw alpha `01000000` yields `FF0F`, whereas separate channels yield `F00F`. Static proof; no new native run.
+
+<!-- from: glue-span-context-final4 (2026-10-22) -->
+- ~~**SP6 - section 1.3 (fixture inputs and counting):** (a) slot 13 SetBltSource `(src, x, y, sx, sy, rect*)` and
+  slot 15 SetBltTiling `(rect*)`: what do x, y, sx, sy mean (source origin and scale, or destination-to-source steps),
+  and is the 16-byte rect `(x, y, w, h)` or `(left, top, right, bottom)`? (b) "count by the return address" with the
+  call sites of span-render-565.md section 1.1: is each listed address the CALL instruction (return address = site +
+  instruction length) or the return address itself? [the fixture uses rects at the origin, which read the same both
+  ways, x = y = 0 and sx = sy in {1, 2, 0.5/0.75}; the observed site matched the expected path in all 378 cases;
+  return addresses 1..7 bytes after a listed site are counted for it]. In-game evidence for SP1: through the native
+  context, 4 of 6 type-7 alpha-gradient cases with alpha outside 0..255 differ (1-2 bytes, R nibble), every in-range
+  case is exact (run gsctx4-r2-union2032).~~
+  **ANSWERED 2026-10-22 (re-span-context-gaps4):** DIFFERS — sections [1.3.1](../../span-render-4444.md#131-source-placement-scales-and-rectangle-directions-sp6a-exact-static) and [1.3.2](../../span-render-4444.md#132-call-sites-and-exact-return-addresses-sp6b-exact-byte-backed). `x,y` are destination placement; `sx,sy` magnify the source, while stored sampling steps are their 16.16 reciprocals. SetBltSource writes a destination edge rectangle; SetBltTiling reads a source texel edge rectangle, both `(left,top,right,bottom)`. All seven listed sites are three-byte CALL instructions: use only site+3 as the renderer return address, rather than the reported site+1..7 window. Target bytes at `0x0082FFD0`/`0x0082FE70` and consumer `0x008302E0` prove the direction and field meanings; exact CALL/return/target table and nonorigin conformance cases are in the spec. The shared 1555 texture contract applies through the same context functions; draw-context.md is a separate 3D object. No new shipped hits or new game verdicts are claimed.
