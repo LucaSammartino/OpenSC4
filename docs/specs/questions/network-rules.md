@@ -16,10 +16,3 @@ Spec: [network-rules.md](network-rules.md) §14. RE-side follow-ups; nothing her
 - **NR7:** the constraint layout's codes 1–8 as `InsertIntersectionConstraints` (`0x00644710`) applies them: which
   vertex heights each code makes equal and which slope limits it sets (network-rules.md §10.3; network-geometry.md
   §9.4 step 4). [not specified]
-
-<!-- from: glue-netrules-apply4 (2026-10-21) -->
-- **NR15:** §11.2 (NR14) specifies slot 30 `SetPiece` for the ordinary (slot 54, class 0) occupant of the surface
-  types. Do the underground types, Pipe (4) and Subway (7), create their occupants through the same class and apply
-  their solved pieces through the same slot 30 before `InsertOccupant`, or through another path (another class or
-  vtable, a different flag sequence)? Until answered, our tool does not apply solved pieces to Pipe/Subway occupants
-  (logged as `unsupported`). [not specified]

@@ -1,4 +1,21 @@
 # network-rules: answered questions (archive)
+
+<!-- from: glue-netrules-apply4 (2026-10-21) -->
+- **NR15:** §11.2 (NR14) specifies slot 30 `SetPiece` for the ordinary (slot 54, class 0) occupant of the surface
+  types. Do the underground types, Pipe (4) and Subway (7), create their occupants through the same class and apply
+  their solved pieces through the same slot 30 before `InsertOccupant`, or through another path (another class or
+  vtable, a different flag sequence)? Until answered, our tool does not apply solved pieces to Pipe/Subway occupants
+  (logged as `unsupported`).
+  **ANSWERED 2026-10-22 (re-netrules-underground4):** DIFFERS — network-rules.md §11.3 and tests 32–35.
+  Pipe and Subway create `cSC4PipeOccupant` (vtable `0x00AA97B8`) and `cSC4SubwayOccupant`
+  (`0x00AAA3C8`) through derived slot 54/82 factories; their slot 30 target is `0x0065ADB0`.
+  It copies a u32 id and low-byte orientation and recomputes underground draw height, without the surface target's
+  flag/path-cache/texture/alpha work. Native caller/target bytes and executable vtable words prove application
+  before insertion through the common commit path (`0x0062797F` before `0x00627A38`) and underground fallback
+  (`0x00659747` before `0x00659ABC`). The second pass reuses found occupants without reapplying their piece or
+  reinserting them; it releases both found and new local results. No underground game run or replacement credit
+  is claimed by this answer.
+
 <!-- Archive for [network-rules.md](../../network-rules.md). Lanes do not read this file. Open questions are in ../network-rules.md. -->
 
 <!-- from: From the network rules spec (2026-10-16) -->

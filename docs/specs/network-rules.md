@@ -1127,9 +1127,10 @@ vector of them; `InsertOccupantsForSolvedCells`, slot 55, `0x006258C0`, steps 12
 `+8`). It becomes an occupant at commit (network-tools.md §6.2). The record's piece id becomes the occupant's **piece
 id** (network occupant slot 23, occupant `+0xFC`) and its orientation byte the occupant's rotation and flip (slot 26
 returns it, occupant byte `+0x104`; §9 reads it back). Both are written by exactly one method, network occupant
-**slot 30** (§11.2), which the tool calls on the new occupant **before** it is inserted (NR14).
+**slot 30** (§11.2 for surface occupants, §11.3 for Pipe/Subway), which the tool calls on the new occupant
+**before** it is inserted (NR14/NR15).
 
-- An **ordinary** network occupant (`CreateNetworkOccupant`, slot 54, `0x00624210`, with no class id) is a textured
+- An **ordinary surface** network occupant (`CreateNetworkOccupant`, slot 54, `0x00624210`, with no class id) is a textured
   cell: its piece id names the cell's texture. The multi-type solutions file calls the field `textureId`. The texture
   lookup belongs to the network rendering, outside this spec (§14).
 - A **prebuilt-model** occupant (class `0x49C1A034`) takes its model from an exemplar: `GetOccupantExemplar(piece,
@@ -1144,7 +1145,7 @@ on the group *[compat]*.
 ### 11.1 The paths of a piece (what the simulation reads; NR1)
 
 The simulation never reads a piece's texture. It reads the piece's **path info** (traffic-network.md §7.3), which the
-piece id also selects. `GetPathInfo` (network occupant slot 49, `0x0061B510`) builds it on the first call and caches
+piece id also selects. The base `GetPathInfo` implementation (network occupant slot 49, `0x0061B510`) builds it on the first call and caches
 it in the occupant (`+0x140`):
 
 1. `id :=` the piece id (slot 23), `group := 0x69668828`. If the occupant has a **path override** (`+0x164`, set by
@@ -1170,10 +1171,10 @@ The orientation byte therefore turns the paths through step 5. The texture an or
 orientation turns it, is drawing only; it is left to the renderer specs. What the path resource holds and exactly what
 slots 25, 26, 27, 29 and 40 do is NR6. The path-info slots are listed in traffic-network.md §7.3.
 
-### 11.2 Applying a piece: network occupant slot 30 (NR14)
+### 11.2 Applying a piece: surface network occupant slot 30 (NR14)
 
 `cISC4NetworkOccupant` slot 30 (vtable `+0x78`, `0x0061B490`; docs/abi names it `SetQuadDraw`, an automatic Mac
-match; by behaviour it is **SetPiece(id, orientation)**) is how every tool path found writes `+0xFC` and `+0x104`
+match; by behaviour it is **SetPiece(id, orientation)**) is the surface implementation that writes `+0xFC` and `+0x104`
 (loading a saved occupant restores them from its record instead, network-occupants.md record field 5). It is a public vtable slot of the interface the game's occupants already implement (`0xC9C05C6E`); no private
 bridge is involved. Calling convention: thiscall, two dword arguments, `ret 8`, no result. Argument 1 is the u32 piece
 id, argument 2 the orientation byte **zero-extended** to a dword (callers load the record's `+4` byte with
@@ -1213,6 +1214,102 @@ occupant reads back piece 0, orientation 0 until slot 30 is called.
 (slot 54, or the game's own path through slot 72, which reads the 12-byte record), call slot 30 with
 `(piece id, orientation)` on it, and only then insert it. It must not write `+0xFC`/`+0x104` directly (step 2's path
 info release and step 5's texture turn would be skipped).
+For Pipe/Subway, use their derived factory and slot-30 contract in §11.3.
+
+### 11.3 Pipe/Subway piece application (NR15)
+
+**DIFFERS from the surface target.** Pipe (type 4) and Subway (type 7) use the same network-interface slot number
+30 (`+0x78`), but their target is **`0x0065ADB0`**, not `0x0061B490`. Their occupants are respectively
+`cSC4PipeOccupant` and `cSC4SubwayOccupant`, derived through `cSC4UndergroundOccupant`. A replacement using the
+game's underground occupants must dispatch through their own slot 30. The surface-target equality check measured
+by glue-netrules-apply4 correctly rejects these vtables; its 27/27 surface readbacks do not measure this path.
+
+**Native identity and dispatch proof (GOG 1.1.641).** These are Windows image virtual addresses, checked against
+the executable's little-endian dwords as well as the instruction bytes. The primary table is the network interface
+at object `+0`; the occupant-manager interface is at object `+4`.
+
+| Type | Tool construction and primary vtable | Factory dispatch | Resulting occupant and primary vtable | Slot 30 entry |
+|---|---|---|---|---|
+| Pipe (4) | `0x00648EC0` passes 4 to the underground base; installs `0x00AA99A8` at `0x00648ECA` | slot 54 entry `0x00AA9A80` = `0x00657740`; slot 82 entry `0x00AA9AF0` = `0x00648D10` | factory allocates `0x280` bytes and calls `0x006488F0` at `0x00648DAB`; constructor installs **`0x00AA97B8`** at `0x00648918`; class id `0x49C05B9F` (`0x00648F40`) | `0x00AA9830` = **`0x0065ADB0`** |
+| Subway (7) | `0x00653D60` passes 7 to the underground base; installs `0x00AAA5C0` at `0x00653D6A` | slot 54 entry `0x00AAA698` = `0x00657740`; slot 82 entry `0x00AAA708` = `0x00653A00` | factory allocates `0x2D8` bytes and calls `0x006530B0` at `0x00653A9B`; constructor installs **`0x00AAA3C8`** at `0x006530D8`; class id `0xCA16374F` (`0x00653D90`) | `0x00AAA440` = **`0x0065ADB0`** |
+
+The slot 54 adapter (`0x00657740–0x0065776E`) forwards the cell, output pointer, quad buffer and class argument
+to the actual tool's **slot 82** (`+0x148`). Thus the class-0 call at `0x00627963` does not select an ordinary
+surface occupant on these tools. The two factories above create their specific classes. Both tools' slot 72 is
+`0x006278A0` (entries `0x00AA9AC8`, `0x00AAA6E0`); their slot 55 is the underground wrapper `0x006599D0`
+(entries `0x00AA9A84`, `0x00AAA69C`). This establishes the derived dispatch rather than assuming surface behavior.
+
+**Setter contract.** `0x0065ADB0–0x0065ADCB` is x86 `__thiscall`: ECX is the network-interface pointer; two
+four-byte stack argument slots hold an unsigned 32-bit piece id and the orientation. The caller zero-extends the
+solved record's **one-byte** `+4` field into the orientation argument (at `0x00627976–0x0062797E`, or
+`0x0065973E–0x00659746`). The target reads the entire id at stack `+4`, but only the orientation's low byte at
+stack `+8`, stores the id to occupant `+0xFC` and the byte to `+0x104`, then calls `0x0065AB50`. It returns with
+eight bytes of callee stack cleanup. It supplies no result to the caller.
+
+`0x0065AB50–0x0065AD13` recomputes the underground draw-height field `+0x25C` from the current piece,
+orientation and heights; it is not the surface texture-coordinate routine. In particular, neither the setter nor
+that helper sets `0x2000000`/`0x4000000`, clears `0x2000`, releases the cached path info, turns the surface quad's
+texture coordinates, sets its alpha bytes to `0xFF`, or posts the surface setters' `0x99EF1145` message. This holds
+even for an unchanged id/orientation: the height helper is still called. Calling the surface target directly would
+introduce these extra effects and omit the underground height calculation. The height-selection formula itself is
+outside this solved-piece application contract; retaining the native slot preserves it.
+
+Readbacks retain the network layout: slot 23 returns the full id; slot 26 returns the orientation byte
+(`0x00604DE0`), slot 24 its low seven bits (`0x00604DC0`), and slot 25 its high bit. For example, orientation
+`0x81` reads back as rotation 1 and flip 1. These are byte return values; callers must not interpret the rest of EAX
+as part of the result.
+
+**Commit and ordering.** The underground slot 55 wrapper first calls the base slot 55 directly at `0x006599E5`.
+The base enters its real-commit branch when tool byte `+0x50` is nonzero and the third argument's low byte is zero
+(`0x006258CC–0x006258DE`). For an ordinary solved cell, its virtual slot 72 call at `0x00625B5F` reaches
+`InsertNetworkOccupant`. On the no-exemplar branch of that method:
+
+1. Slot 54 creates the type-specific occupant via the adapter and factory above (`0x00627963`). The factories
+   also store a retained pointer in cell `+0x0C`, propagate cell flags through slot 10, and initialize its position
+   and underground geometry (`0x00648DB6–0x00648E80`, `0x00653AA6–0x00653B70`).
+2. Slot 30 receives the solved id/orientation at **`0x0062797F`**, dynamically reaching **`0x0065ADB0`**.
+3. The common path performs its support/type-edge work, clears flag `0x400000` (`0x006279F7`), and clears previous
+   cell occupants (`0x00627A0A`). Slot 30 itself has not requested the surface path/texture invalidation flags.
+4. `occupantManager.InsertOccupant(n + 4, tool.+0x208)` is called at **`0x00627A38`**. Its byte result is stored in
+   cell `+0x54`. Thus insertion listeners see the solved piece and orientation on the underground occupant too.
+
+The existing connection-node and flagged-occupant branches remain the base method's separate branches (§11.2);
+the sequence above is for a newly created, ordinary solved piece, not a claim that every existing cell is recreated.
+
+**Underground second pass and reuse.** After the base returns, the wrapper performs its underground pass if
+tool `+0x50` is nonzero **or** the third argument's low byte is nonzero (`0x006599EA–0x006599F3`). It steps the
+same 12-byte solved records and calls `CreateNewUndergroundOccupant(cell, record, &n, &alreadyExists)` at
+`0x00659A33`. That helper initializes the **one-byte** `alreadyExists` output to 1, asks tool slot 81 for the
+type-specific class id, and searches at the cell (`0x006596CB–0x006596F3`).
+
+- **Found:** the search supplies a retained interface. The helper sets or clears `0x80000000` according to tool
+  `+0x50` (set when zero, clear otherwise), returns true and leaves `alreadyExists = 1`. It does **not** call slot
+  30 on this branch (`0x006597A7–0x006597D4`). In an ordinary successful commit, the first pass has already applied
+  and inserted the occupant; the underground pass does not apply the record twice.
+- **Absent:** slot 82 creates the specific occupant with class argument zero (`0x00659706`). A null output makes
+  the helper return false. Otherwise it applies the same `0x80000000` flag rule, calls **slot 30 at
+  `0x00659747`** with the solved id and zero-extended orientation, initializes four underground terrain heights
+  through slot 95, calls slots 89 and 90 with zero, and sets the output byte to **0** before returning true
+  (`0x0065974A–0x006597A4`). These zero calls are underground model setup, not the surface slot-30 side effects.
+
+For either successful result, the wrapper then copies cell `+0x58`'s four heights through slot 84, passes
+`alreadyExists` through slot 86, updates the type's edge word through slot 37, clears `0x4000` and sets
+`0x10000000`, in that order (`0x00659A40–0x00659A92`). Only **new** results (`alreadyExists = 0`) with a
+non-null occupant manager are inserted at **`0x00659ABC`**, using the occupant interface `n + 4` and the dword
+tool `+0x208`; the insertion result goes to cell `+0x54`. Found occupants are not removed/reinserted by this pass.
+Consequently the fallback also applies the piece before insertion. If both tool `+0x50` and the third argument's
+low byte are zero, this second pass does not run.
+
+**Ownership.** Slot 30 copies scalar values and retains neither argument. Each factory retains the returned
+network interface and separately retains the cell `+0x0C` reference, releasing the previous cell reference when
+replaced (Pipe `0x00648DB6–0x00648DDC`; Subway `0x00653AA6–0x00653ACC`). On reuse, the search obtains the
+typed interface via QueryInterface and releases replaced outputs and enumeration references
+(`0x00658580–0x006585C8`). After setup/insertion, the underground wrapper always releases its successful local
+result via slot 2 at `0x00659AC8`, whether new or reused; cell and world ownership are separate. The record and
+its orientation byte remain caller-owned. Dispatch on the network interface, and apply the `+4` adjustment only
+when passing the occupant interface to the manager.
+The common insertion path likewise releases its local result at `0x0062835B`; if its optional output list is
+present, it first adds a separate retained reference to that list (`0x0062831B–0x00628352`).
 
 ---
 
@@ -1421,3 +1518,30 @@ and the evaluator; the others drive the named function directly.
     the new occupant (`0x0062797F`) comes before `occupantManager.InsertOccupant` (`0x00627A38`), and the
     `0x99EF1142` listener sees slot 23 = the record's piece id (end `0x200`, straight `0x2600`, orientation `0x03` for
     the east-west road of run nrimpl4-a1). A replacement that inserts first and applies later fails this test.
+32. **Underground dispatch** (§11.3, NR15; native-derived vector). With a Pipe tool, slot 54 with class argument
+    zero returns `cSC4PipeOccupant`, primary vtable `0x00AA97B8`; with a Subway tool it returns
+    `cSC4SubwayOccupant`, primary vtable `0x00AAA3C8`. Both slot 30 entries are `0x0065ADB0`. Rejecting them
+    solely because they differ from surface target `0x0061B490`, or creating an ordinary surface class instead,
+    fails this vector.
+33. **Underground setter effects** (§11.3; native-derived vector). On each class from test 32, preseed flags
+    `0x2000` set and `0x2000000`/`0x4000000` clear; preserve a cached path-info reference and four alpha bytes
+    with distinct values below `0xFF`. Call its slot 30 with id `0x2600`, orientation argument `0x12340081`.
+    Readbacks: slot 23 = `0x2600`, slot 26 = `0x81`, slot 24 = 1, slot 25 = 1. The flags, cached reference and
+    alpha bytes are unchanged by this setter, and the underground height helper runs. Repeating the call runs that
+    helper again. This deliberately distinguishes the underground target from the surface target of test 30.
+34. **Fresh underground commit** (§11.3; native-derived vector). For each tool, real-commit byte `+0x50 = 1`,
+    third argument low byte zero, one solved record `{0x2600, 0x81, key}`, with its padding bytes nonzero, an
+    ordinary empty cell, no matching piece exemplar and no support structure: trace slot 54's derived factory,
+    slot 30 at `0x0062797F`, then manager insertion at `0x00627A38`. The slot-30 orientation stack slot is
+    `0x00000081`, not a dword read from record `+4`. The insertion observer sees `0x2600`/`0x81`. The wrapper's
+    second pass finds that occupant, neither applies slot 30 again nor inserts it again, and releases its search
+    result. After that pass `0x4000` is clear and `0x10000000` set. An implementation that only adds a second-pass
+    setter misses the first insertion's observable state.
+35. **Underground absent/found split** (§11.3; native-derived vectors). Invoke the wrapper with `+0x50 = 0` and
+    third argument low byte 1, so the base previews and the underground pass runs. With no matching underground
+    occupant, expect `alreadyExists = 0`, `0x80000000` set, slot 30 at `0x00659747`, then height/model setup,
+    final flags and insertion at `0x00659ABC`, then one local Release. Repeat with a matching occupant already
+    present whose piece/orientation differ from the record: expect `alreadyExists = 1`, no slot 30 and no insertion
+    in this pass, the old piece/orientation retained, height/edge/flag updates still performed and one local Release.
+    A setter unconditionally applied to found occupants fails this vector. With both control bytes zero there is
+    no underground second pass.
