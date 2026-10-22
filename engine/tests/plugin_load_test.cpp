@@ -12505,9 +12505,18 @@ int main(int argc, char** argv) {
                 using fc4test::CallSlot;
                 const uint32_t d = static_cast<uint32_t>(day);
                 cIGZDate* other = nullptr;
-                CHECK((CallSlot(date, 9, {reinterpret_cast<uint32_t>(&other)}).eax & 0xFF) == 1);  // Clone
+                CHECK(CallSlot(date, 9, {reinterpret_cast<uint32_t>(&other)}).eax == 1);  // DT3 full EAX
                 CHECK(other != nullptr);
                 if (other != nullptr) {
+                    CHECK(CallSlot(other, 1, {}).eax == 2); // fresh Clone owns exactly one ref
+                    CHECK(CallSlot(other, 2, {}).eax == 1);
+                    CHECK(CallSlot(other, 4, {0x12345600u}).eax == 0x12345600u); // valid low AL zero
+                    CHECK(other->DayNumber() == 0x12345600u);
+                    void* sentinel = reinterpret_cast<void*>(0xDEADBEEF);
+                    CHECK(!other->QueryInterface(0xDEAD1234u, &sentinel));
+                    CHECK(sentinel == reinterpret_cast<void*>(0xDEADBEEF));
+                    CHECK(CallSlot(other, 6, {2, 30, 2000}).eax == 0); // invalid setter clears day
+                    CHECK(other->DayNumber() == 0);
                     CHECK((CallSlot(other, 4, {100}).eax & 0xFF) == 1);  // Set(uint32 dayNumber)
                     const fc4test::SlotCall m1 = CallSlot(date, 33, {7});  // operator-(int32)
                     const fc4test::SlotCall m2 = CallSlot(date, 34, {reinterpret_cast<uint32_t>(other)});  // operator-(date)
