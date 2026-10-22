@@ -23,6 +23,7 @@ struct Host {
     created: BTreeSet<Vec<u8>>,
     fail_create: BTreeSet<Vec<u8>>,
     nested_hook: bool,
+    threaded_hook: bool,
     nested_output: VecDeque<Vec<u8>>,
 }
 
@@ -70,6 +71,25 @@ impl RzDirectoryHost for Host {
             let mut out = VecDeque::new();
             assert!(other.read_directory_file_entries_into_string_list_recursive(self, b"nested\\", &mut out, false,));
             self.nested_output = out;
+        }
+        if self.threaded_hook && pattern == b"outer\\*" {
+            self.threaded_hook = false;
+            self.nested_output = std::thread::spawn(|| {
+                let mut host = Host::default();
+                host.set(b"thread\\*", &[(b"thread-file", 0)]);
+                let mut owner = RzDirectory::new(&mut host, b"", false, false, false);
+                let mut out = VecDeque::new();
+                assert!(owner.read_directory_file_entries_into_string_list_recursive(
+                    &mut host,
+                    b"thread\\",
+                    &mut out,
+                    false,
+                ));
+                host.assert_closed();
+                out
+            })
+            .join()
+            .unwrap();
         }
         let mut entries: VecDeque<_> = self.finds.get(pattern)?.clone().into();
         let first = entries.pop_front()?;
@@ -258,6 +278,19 @@ fn successful_search_with_every_entry_skipped_still_returns_true() {
     let mut owner = RzDirectory::new(&mut host, b"X", false, false, false);
     assert!(owner.read_directory_entries(&mut host));
     assert_eq!(owner.count(), 0);
+    host.assert_closed();
+}
+
+#[test]
+fn only_exact_directory_dot_bytes_are_special_and_seen_dots_keep_os_position() {
+    let mut host = Host::default();
+    host.set(b"X\\*", &[(b". ", 0x10), (b".\xff", 0x10), (b".", 0x10)]);
+    let owner = RzDirectory::new(&mut host, b"X", true, true, true);
+    assert_eq!(
+        entry_values(&owner),
+        expected_entries(&[(b"..", 4), (b". ", 4), (b".\xff", 4), (b".", 4),])
+    );
+    assert_eq!(owner.count(), 4);
     host.assert_closed();
 }
 
@@ -473,6 +506,47 @@ fn recursive_depth_is_shared_between_distinct_owners_and_restored_after_return()
 }
 
 #[test]
+fn recursive_depth_is_process_wide_rather_than_thread_local() {
+    let _lock = RECURSIVE_TEST_LOCK.lock().unwrap();
+    let mut host = Host {
+        threaded_hook: true,
+        ..Host::default()
+    };
+    host.set(b"outer\\*", &[(b"outer-file", 0)]);
+    let mut owner = RzDirectory::new(&mut host, b"", false, false, false);
+    let mut out = VecDeque::new();
+    assert!(owner.read_directory_file_entries_into_string_list_recursive(&mut host, b"outer\\", &mut out, false,));
+    assert!(out.is_empty());
+    assert_eq!(host.nested_output, names(&[b"thread\\thread-file"]));
+    assert_eq!(RECURSIVE_DEPTH.load(Ordering::SeqCst), 0);
+    host.assert_closed();
+}
+
+#[test]
+fn recursive_depth_has_no_invented_limit_or_max_path_truncation() {
+    let _lock = RECURSIVE_TEST_LOCK.lock().unwrap();
+    let mut host = Host::default();
+    let mut path = b"root\\".to_vec();
+    for _ in 0..80 {
+        host.set(&[path.as_slice(), b"*"].concat(), &[(b"next", 0x10)]);
+        path.extend_from_slice(b"next\\");
+    }
+    host.set(&[path.as_slice(), b"*"].concat(), &[(b"last", 0)]);
+    let mut owner = RzDirectory::new(&mut host, b"", false, false, false);
+    let mut out = names(&[b"seed"]);
+    assert!(owner.read_directory_file_entries_into_string_list_recursive(&mut host, b"root\\", &mut out, false,));
+    assert_eq!(
+        out,
+        VecDeque::from([b"seed".to_vec(), [path.as_slice(), b"last"].concat()])
+    );
+    assert_eq!(owner.path(), path);
+    assert_eq!(owner.count(), 1);
+    assert_eq!(host.patterns().len(), 242);
+    assert_eq!(RECURSIVE_DEPTH.load(Ordering::SeqCst), 0);
+    host.assert_closed();
+}
+
+#[test]
 fn existence_uses_first_then_immediate_finish_without_next_or_attribute_check() {
     let mut host = Host::default();
     host.set(b"literal-pattern", &[(b"file", 0)]);
@@ -580,6 +654,9 @@ fn create_all_existing_and_server_only_do_not_create_anything() {
     assert!(host.created.is_empty());
     assert_eq!(host.patterns().len(), 2);
     host.assert_closed();
+    // RZ11's literal fallback: slash terminates the server name, but no third backslash exists.
+    assert!(RzDirectory::create_directory(&mut host, b"\\\\server/"));
+    assert_eq!(host.patterns().len(), 2);
 }
 
 #[test]
