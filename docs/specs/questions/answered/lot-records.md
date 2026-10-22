@@ -1,4 +1,45 @@
 # lot-records: answered questions (archive)
+
+<!-- from: glue-lotrecords-bind4 (2026-10-22) -->
+- **LR10 - sections 3.2/13.2, concrete lot slot 55:** what is the complete mutation contract of
+  `cISC4Lot::SetPopulation(devType, population)` (`0x006C1940`, pop 8)? The save record specifies a vector
+  of population maps, not which map(s) this setter selects/creates, whether it clamps to capacity, what
+  zero/absent/duplicate developer-type entries do, or which notifications/caches it updates. Native tract
+  callers invoke slot 55 (tract-developer.md section 4, population adjustment), and lot-developer.md
+  section 6.4 ReoccupyBuilding passes its AL through. The ABI row says `eax-or-void`, not a defined
+  boolean contract. Please specify mutations, observable calls/order and return definedness with vectors
+  for empty maps, the same developer type in two maps, and setting an existing population to zero.
+  [concrete binding withheld; do not infer a BTreeMap insert, successful bool, or call the native method
+  on a foreign object whose full native layout/construction contract is not published]
+  **ANSWERED 2026-10-22 (re-lotrecords-mutations4):** DIFFERS — §3.2.1/13.2 and T31–T36/T51:
+  clamp unsigned u16 to slot-52 AX first; choose the first profile capacity-map containing devType,
+  assign/insert only in the corresponding existing population map, preserve zero entries, then update
+  wealth (which can insert other zero keys). No map append or message. Explicit AL=0/1 proves the
+  boolean result; full EAX is not defined. Unknown native profiles are default-created with empty capacity
+  vectors. Invalid population-vector shapes remain unchecked native invariants, not successful cases.
+
+<!-- from: glue-lotrecords-bind4 (2026-10-22) -->
+- **LR11 - sections 3.2/13.2, concrete lot slot 34:** please publish the complete `SetState` owner
+  behavior needed for a replacement lot, including `UpdatePrimaryOccupantWealth` (`0x006C1430`).
+  Lot-developer.md section 3.2 specifies message data4 and expressly leaves that wealth computation
+  unspecified; the lot-records slot-34 row specifies pop 12 and no defined return, while the record
+  describes saved fields. Required discriminators: no building type, unknown profile, entering/leaving
+  constructing/occupied with wealth 0 versus nonzero, population/capacity-container updates and resource
+  releases, state-day update, and queued copy lifetime. Which operations occur before the queued copy
+  is taken? Native SetState uses a native lot copy constructor (`0x006C2450`) with embedded containers;
+  forwarding to it is not a supported operation on a portable record or arbitrary replacement layout.
+  [withhold complete-owner activation rather than synthesize successful transitions or manufacture a
+  native-layout facade; the LR8/LR9 construction and view answers remain accepted]
+  **ANSWERED 2026-10-22 (re-lotrecords-mutations4):** DIFFERS — §3.2.2/13.2, T37–T50/T52–T54,
+  and lot-developer.md §3.2 specify state/day, resource release, population rebuild/zeroing and nested
+  setter order, occupancy arithmetic/insertion, wealth fallbacks/ties, power cache and snapshot lifetime.
+  No building clears wealth; a nonzero unknown profile leaves it unchanged. Message leaving-wealth
+  is sampled just before the outer recomputation, after any nested fill. Snapshot follows power update;
+  maps copy independently, property objects/configuration are retained, unit/travel references and trips
+  are empty. Queue retains message, message retains copy; final destruction balances acquired refs.
+  No SetState boolean is defined; no native-layout forwarding contract is inferred. Empty capacity maps
+  inside a nonempty vector fault at integer division; invalid missing population maps have no defined
+  native container result. Neither is repaired into success. LR8/LR9 remain unchanged.
 <!-- Archive for [lot-records.md](../../lot-records.md). Lanes do not read this file. Open questions are in ../lot-records.md. -->
 
 <!-- from: core-lotrecords4 (2026-10-21) -->

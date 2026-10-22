@@ -212,13 +212,19 @@ IGZUnknown 32 (foundations §5).
 
 **What `cSC4Lot::SetState(state, wealth, reason)` puts in `0xE8BDA2E7`** *[compat]* (`0x006C3100`, pop 12; SDK
 order `(HabitationState, WealthType, VacateReason)` is correct). Nothing is posted when `state` equals the current
-state. Otherwise, with `old` the previous state and `W0` the lot's occupant wealth byte (lot slot 41) before the
-call:
+state. The comparison uses the whole state argument against the current byte; the stored new state is
+its low byte. Otherwise, with `old` the previous state and `W0` the lot's occupant wealth byte (lot slot 41)
+sampled immediately before the outer wealth recomputation (after any nested population fill):
 
-1. The new state is stored. If it is 4, the low byte of `reason` becomes the lot's vacate reason (lot slot 45,
-   `GetVacateReason`); `reason` is used for nothing else and never reaches the message.
-2. The lot recomputes its wealth from its building (`UpdatePrimaryOccupantWealth`, `0x006C1430`, not specified
-   here; it sets 0 when the lot has no building type) → `W1`.
+1. The new state is stored. During the mutation sequence below, if the new byte is 4, the low byte of
+   `reason` becomes the lot's vacate reason (lot slot 45, `GetVacateReason`); `reason` is used for nothing
+   else and never reaches the message.
+2. Before the outer wealth update, the lot updates its state-change day, releases construction resources
+   when leaving constructing, fills population on constructing → occupied, rebuilds zeroed population maps
+   on entering constructing, or zeroes existing counts outside states 2/3. The complete branch/order,
+   capacity clamp and wealth arithmetic are in lot-records.md §3.2.1–3.2.2 (LR10/LR11).
+   `UpdatePrimaryOccupantWealth` (`0x006C1430`) then yields `W1`; no stored building type sets 0,
+   whereas a nonzero unknown type's default purpose-zero profile leaves wealth unchanged.
 3. `occOld := old ∈ {2, 3}`, `occNew := state ∈ {2, 3}`. data4 is:
 
 | Case | data4 | Lot wealth afterwards |
@@ -226,15 +232,18 @@ call:
 | `occOld = occNew` | `W1` | `W1` |
 | entering 2/3, `wealth ≠ 0` (whole 32-bit value) | low byte of `wealth` | low byte of `wealth` |
 | entering 2/3, `wealth = 0` | `W1` | `W1` |
-| leaving 2/3 | `W0` (the wealth before the call) | `W1` |
+| leaving 2/3 | `W0` (sampled before outer recomputation) | `W1` |
 
 So `demand.md` §7, `growth-developer.md` §6.3 and `building-development.md` §3.2 are right to read data4 as the
-occupant wealth; `ReoccupyBuilding`'s `SetState(3, w, 0)` delivers `w`, and `AbandonBuilding`'s `SetState(4, 0,
-reason)` delivers the wealth the lot had while occupied. The IGZUnknown is a new `cSC4Lot` built by the copy
+occupant wealth; when entering from outside 2/3, `ReoccupyBuilding`'s `SetState(3, w, 0)` delivers `w`
+if nonzero. `AbandonBuilding`'s `SetState(4, 0, reason)` delivers W0. The IGZUnknown is a new `cSC4Lot` built by the copy
 constructor `0x006C2450` at post time (it copies the scalar fields, including state, building type, wealth and
 vacate reason, and references the configuration; two of its containers start empty: the **trip list** (lot
 `+0x84`, the list `Write` iterates at `0x006C0305`) and a tree at `+0x40` *[inferred: the occupant set]*; the
-containers at `+0x54` and `+0x60` are copied); SetState releases its own reference after posting. This is why §6.5 works on the lot
+containers at `+0x54` and `+0x60` are copied). The copy is taken after wealth/override and UpdateNeedsPower,
+and clears unit/travel-designate references. The message retains the copy and the queue retains the message;
+SetState releases its own message reference then copy reference after posting (lot-records.md §3.2.2).
+This is why §6.5 works on the lot
 found at the copy's location rather than on the message object.
 
 ### 3.3 Messages posted
@@ -785,6 +794,8 @@ Without animation the state is set to 3 at once, so §6.5 runs when the queued m
   `d := profile.wealth − w`; condition := 2 if `d = 1`, 3 if `d = 2`, otherwise (counter `0xE999B11F` exists and ≠ 0 ?
   1 : 0); `lot.SetState(3, w, 0)`; `lot.SetCondition(condition)`;
   `lot.SetPopulation(devType, lot.GetAvailableCapacity(devType, 0))` (slots 52, 55); returns its AL.
+  Slot 55 explicitly defines AL as whether a profile capacity map contained devType (lot-records.md §3.2.1);
+  slot 34 defines no success boolean even though the other wrappers pass AL through.
 - **`UpdateLotElements(lot, uint32 kind)`** (slot 37, `0x006CC880`, pop 8, AL = 1) *[compat]*. The second
   argument is the BDS's 32-bit terrain-change kind (`building-development.md` §4.11), **not** a bool (corrected;
   the SDK's `uint32_t` is right). Its only use is a full 32-bit compare `kind ≠ 5` (`0x006CC8C7`); no byte of it is
