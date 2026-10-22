@@ -39,8 +39,14 @@ impl ModelProcessor {
         self.container.is_some()
     }
     fn access_container(&self) -> Option<InstanceReference> {
-        self.container.as_ref().map(InstanceReference::borrowed_access)
-            .or_else(|| self.borrowed_container.as_ref().and_then(BorrowedInstanceReference::access))
+        self.container
+            .as_ref()
+            .map(InstanceReference::borrowed_access)
+            .or_else(|| {
+                self.borrowed_container
+                    .as_ref()
+                    .and_then(BorrowedInstanceReference::access)
+            })
     }
     pub fn normals(&self) -> Option<&[Vec<Vec3>]> {
         self.normals.as_deref()
@@ -51,34 +57,37 @@ impl ModelProcessor {
     fn restore_originals(&mut self) {
         if let Some(container) = self.access_container() {
             container.with_instance_mut(|instance| {
-                for (i, original) in self.originals.drain(..).enumerate() {
+                for (i, original) in self.originals.iter().enumerate() {
                     if let Some(mesh) = instance.mesh_mut(i) {
-                        mesh.vertices = original;
+                        // Retain the restored slot before releasing the replaced
+                        // block, then discard the saved reference (MI6).
+                        mesh.vertices = original.clone();
                     }
                 }
             });
         }
-        self.originals.clear();
     }
     pub fn set_model(&mut self, instance: Option<&InstanceReference>) -> bool {
         self.restore_originals();
+        self.originals.clear();
+        self.normals = None;
+        self.mesh_order.clear();
         self.instance = None;
         self.container = None;
         self.borrowed_container = None;
         self.already_released = false;
-        self.normals = None;
-        self.mesh_order.clear();
         let Some(instance) = instance else {
             return false;
         };
-        if instance.animated_frame_count().is_some_and(|n| n > 1) {
+        if !instance.has_mesh_container() || instance.animated_frame_count().is_some_and(|n| n > 1) {
             return false;
         }
         let valid = instance.with_instance(|model| {
-            model.mesh_count() != 0 && model
-                .meshes()
-                .iter()
-                .all(|mesh| mesh.vertices.as_ref().is_some_and(|v| v.read().format == 2))
+            model.mesh_count() != 0
+                && model
+                    .meshes()
+                    .iter()
+                    .all(|mesh| mesh.vertices.as_ref().is_some_and(|v| v.read().format == 2))
         });
         if !valid {
             return false;
@@ -122,6 +131,8 @@ impl ModelProcessor {
                 .meshes()
                 .iter()
                 .map(|mesh| {
+                    // MI11: retain wider sums until the published score store;
+                    // exact x87 control-word-dependent last bits are not claimed.
                     let count = mesh.vertices.as_ref().map_or(0, |v| v.read().vertices.len());
                     let mut sums = vec![[0.; 3]; count];
                     let mut weights = vec![0_f32; count];
@@ -206,9 +217,11 @@ impl ModelProcessor {
         self.mesh_order.clear();
         // Scan from the front: a NaN can make backward insertion differ.
         for value in 0..depths.len() {
-            let position = self.mesh_order.iter().position(|&old| {
-                depths[value].partial_cmp(&depths[old]) != Some(std::cmp::Ordering::Less)
-            }).unwrap_or(self.mesh_order.len());
+            let position = self
+                .mesh_order
+                .iter()
+                .position(|&old| depths[value].partial_cmp(&depths[old]) != Some(std::cmp::Ordering::Less))
+                .unwrap_or(self.mesh_order.len());
             self.mesh_order.insert(position, value);
         }
     }
@@ -233,5 +246,8 @@ impl Drop for ModelProcessor {
         self.instance = None;
         self.restore_originals();
         self.container = None;
+        self.originals.clear();
+        self.normals = None;
+        self.mesh_order.clear();
     }
 }

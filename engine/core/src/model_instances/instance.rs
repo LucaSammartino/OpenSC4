@@ -21,6 +21,20 @@ impl Default for DrawAttributes {
         Self { flags: 0, opaque }
     }
 }
+impl DrawAttributes {
+    pub fn from_bytes(bytes: [u8; 20]) -> Self {
+        Self {
+            flags: u32::from_le_bytes(bytes[..4].try_into().unwrap()),
+            opaque: bytes[4..].try_into().unwrap(),
+        }
+    }
+    pub fn to_bytes(self) -> [u8; 20] {
+        let mut bytes = [0; 20];
+        bytes[..4].copy_from_slice(&self.flags.to_le_bytes());
+        bytes[4..].copy_from_slice(&self.opaque);
+        bytes
+    }
+}
 
 pub trait BasicDerived {
     fn world_bounds(&self) -> BoundingBox;
@@ -217,6 +231,10 @@ impl StaticInstance {
             properties: 2,
         }
     }
+    /// Portable frame-provider convenience. Native SetModel only binds the
+    /// reference and inspects existing materials (set_model_reference below);
+    /// the resource supplies frame creation separately. The bool and null clear
+    /// here are portable choices, not extra native entry points.
     pub fn set_model(&mut self, model: Option<&ModelReference>) -> bool {
         let Some(model) = model else {
             self.frame = ModelFrame::default();
@@ -229,13 +247,25 @@ impl StaticInstance {
             let Some(frame) = model.read().model_frame(0) else {
                 return false;
             };
-            // Retain/store new before releasing old. A same-pointer set skips
-            // binding/frame creation, but still inspects the material below.
-            let old = std::mem::replace(&mut self.model, Some(model.clone()));
-            drop(old);
             // MI6: material fields are instance-local; block references can share.
             self.frame = frame;
         }
+        self.set_model_reference(Some(model));
+        true
+    }
+    pub fn set_model_reference(&mut self, model: Option<&ModelReference>) {
+        let same = match (&self.model, model) {
+            (Some(old), Some(new)) => old.ptr_eq(new),
+            (None, None) => true,
+            _ => false,
+        };
+        if !same {
+            // Retain/store new before releasing old; same pointer avoids both.
+            let old = std::mem::replace(&mut self.model, model.cloned());
+            drop(old);
+        }
+        // §9.1 [choice]: absent material 0 is safe here, unlike native unchecked
+        // access. No frame is built and no native failure return is invented.
         if let Some(material) = self.frame.materials.first_mut() {
             let special = material.source_blend == 8 && material.destination_blend == 1;
             if special || material.flags & 0x10 != 0 {
@@ -250,7 +280,6 @@ impl StaticInstance {
             }
         }
         self.bounds_stale = true;
-        true
     }
     pub fn resource_model(&self) -> Option<&ModelReference> {
         self.model.as_ref()

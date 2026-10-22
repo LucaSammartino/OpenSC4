@@ -113,12 +113,21 @@ impl BoundingBox {
         // MI4: full row matrix, independent of kind and endpoint ordering.
         let lo = self.min.map(|v| v * transform.scale);
         let hi = self.max.map(|v| v * transform.scale);
-        let mut result = Self { min: transform.translation, max: transform.translation };
+        let mut result = Self {
+            min: transform.translation,
+            max: transform.translation,
+        };
         for r in 0..3 {
             for j in 0..3 {
                 let a = transform.rotation[r][j] * lo[j]; // native binary32 store
+                                                          // MI11 [compat-limit]: f64 models wider transients, not every
+                                                          // x87 precision-control setting. Keep the published stores.
                 let b = f64::from(transform.rotation[r][j]) * f64::from(hi[j]);
-                let (small, large) = if f64::from(a) < b { (f64::from(a), b) } else { (b, f64::from(a)) };
+                let (small, large) = if f64::from(a) < b {
+                    (f64::from(a), b)
+                } else {
+                    (b, f64::from(a))
+                };
                 result.min[r] = (f64::from(result.min[r]) + small) as f32;
                 result.max[r] = (f64::from(result.max[r]) + large) as f32;
             }

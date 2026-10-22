@@ -16,7 +16,7 @@ pub use resources::*;
 
 use std::sync::{
     atomic::{AtomicBool, AtomicU32, Ordering},
-    Arc, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak,
+    Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -67,10 +67,16 @@ pub struct NativeCount {
     count: AtomicU32,
     destroyed: AtomicBool,
     policy: CountPolicy,
+    factory_lock: Mutex<()>,
 }
 impl NativeCount {
     pub fn new(policy: CountPolicy) -> Self {
-        Self { count: AtomicU32::new(0), destroyed: AtomicBool::new(false), policy }
+        Self {
+            count: AtomicU32::new(0),
+            destroyed: AtomicBool::new(false),
+            policy,
+            factory_lock: Mutex::new(()),
+        }
     }
     pub fn get(&self) -> u32 {
         self.count.load(Ordering::SeqCst)
@@ -79,18 +85,40 @@ impl NativeCount {
         self.destroyed.load(Ordering::SeqCst)
     }
     pub fn add_ref(&self) -> u32 {
+        let _lock = (self.policy == CountPolicy::Factory32)
+            .then(|| self.factory_lock.lock().unwrap_or_else(|e| e.into_inner()));
         assert!(!self.is_destroyed(), "AddRef after native destruction");
-        let mask = if self.policy == CountPolicy::Basic16 { 0xFFFF } else { u32::MAX };
-        let old = self.count.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| Some(n.wrapping_add(1) & mask)).unwrap();
+        let mask = if self.policy == CountPolicy::Basic16 {
+            0xFFFF
+        } else {
+            u32::MAX
+        };
+        let old = self
+            .count
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| Some(n.wrapping_add(1) & mask))
+            .unwrap();
         old.wrapping_add(1) & mask
     }
     pub fn release(&self) -> u32 {
+        let _lock = (self.policy == CountPolicy::Factory32)
+            .then(|| self.factory_lock.lock().unwrap_or_else(|e| e.into_inner()));
         assert!(!self.is_destroyed(), "Release after native destruction");
         let resource = self.policy == CountPolicy::Resource32;
-        let old = self.count.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
-            Some(if resource { n.wrapping_sub(1) } else { n.saturating_sub(1) })
-        }).unwrap();
-        let result = if resource { old.wrapping_sub(1) } else { old.saturating_sub(1) };
+        let old = self
+            .count
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
+                Some(if resource {
+                    n.wrapping_sub(1)
+                } else {
+                    n.saturating_sub(1)
+                })
+            })
+            .unwrap();
+        let result = if resource {
+            old.wrapping_sub(1)
+        } else {
+            old.saturating_sub(1)
+        };
         if result == 0 {
             self.destroyed.store(true, Ordering::SeqCst);
         }
@@ -111,35 +139,47 @@ pub struct Reference<T>(Arc<Allocation<T>>, bool);
 
 impl<T: ReferenceTarget> Reference<T> {
     pub fn constructed(value: T) -> Self {
-        Self(Arc::new(Allocation {
-            count: NativeCount::new(T::COUNT_POLICY),
-            value: RwLock::new(Some(value)),
-        }), true)
+        Self(
+            Arc::new(Allocation {
+                count: NativeCount::new(T::COUNT_POLICY),
+                value: RwLock::new(Some(value)),
+            }),
+            false,
+        )
     }
     pub fn new(value: T) -> Self {
-        let result = Self::constructed(value);
+        let mut result = Self::constructed(value);
         result.0.count.add_ref();
+        result.1 = true;
         result
     }
 }
 pub struct ReferenceRead<'a, T>(RwLockReadGuard<'a, Option<T>>);
 impl<T> std::ops::Deref for ReferenceRead<'_, T> {
     type Target = T;
-    fn deref(&self) -> &T { self.0.as_ref().expect("access after native destruction") }
+    fn deref(&self) -> &T {
+        self.0.as_ref().expect("access after native destruction")
+    }
 }
 pub struct ReferenceWrite<'a, T>(RwLockWriteGuard<'a, Option<T>>);
 impl<T> std::ops::Deref for ReferenceWrite<'_, T> {
     type Target = T;
-    fn deref(&self) -> &T { self.0.as_ref().expect("access after native destruction") }
+    fn deref(&self) -> &T {
+        self.0.as_ref().expect("access after native destruction")
+    }
 }
 impl<T> std::ops::DerefMut for ReferenceWrite<'_, T> {
-    fn deref_mut(&mut self) -> &mut T { self.0.as_mut().expect("access after native destruction") }
+    fn deref_mut(&mut self) -> &mut T {
+        self.0.as_mut().expect("access after native destruction")
+    }
 }
 pub(crate) struct BorrowedReference<T>(Weak<Allocation<T>>);
 impl<T> BorrowedReference<T> {
     pub(crate) fn access(&self) -> Option<Reference<T>> {
         let allocation = self.0.upgrade()?;
-        if allocation.count.is_destroyed() { return None; }
+        if allocation.count.is_destroyed() {
+            return None;
+        }
         Some(Reference(allocation, false))
     }
 }
@@ -214,6 +254,13 @@ pub struct InterfaceReference<T> {
     pub part: InterfacePart,
 }
 impl<T: Interfaces> Reference<T> {
+    pub fn query_interface_into(&self, iid: u32, output: &mut Option<InterfaceReference<T>>) -> bool {
+        let Some(found) = self.query_interface(iid) else {
+            return false;
+        };
+        *output = Some(found);
+        true
+    }
     pub fn query_interface(&self, iid: u32) -> Option<InterfaceReference<T>> {
         let part = self.read().interface(iid)?;
         Some(InterfaceReference {
