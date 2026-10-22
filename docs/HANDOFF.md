@@ -34,7 +34,9 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **Coverage after train73:**57.6/35.4/13.6/17.9; baseline36.8/28.3/12.1/15.9, delta+20.8/+7.1/+1.5/+2.0 points. 46 trains landed; 244 rounds used, no total cap. Next25-round checkpoint 250.
 
-**Live authority:** `build-runs/run4-coordinator-state.json`; `run4-refill.py` launches reviewed briefs from `run4-refill-queue.json` through serialized `run4-launch.py` and the saved guarded Workflow. PID in run4-refill.pid; quota/errors pause refills. All slots/check/dependency/STOP/parked/3glue gates retained. After compaction reread this section and run guard before adding work. Helpers share run4_coord_lock.py; use its lock for state writes.
+**Live authority:** `build-runs/run4-coordinator-state.json`; tracked `tools/lane_refill.py --provider codex` launches reviewed briefs from `build-runs/run4-refill-queue.json` through tracked `tools/lane_launch.py` and the guarded Codex subscription adapter. Do not use legacy Claude-only build-runs/run4-launch.py or run4-refill.py. PID in run4-refill.pid; quota/errors pause refills. All slots/check/dependency/STOP/parked/3glue gates retained. After compaction reread this section and run guard before adding work. Helpers share run4_coord_lock.py; use its lock for state writes.
+
+**Verification follow-up:** train73 traffic71/73 (train72:72/72), 408 mismatches on2031-05-29 and monthly propagation; verified16.5 to13.6. Preserve both shadow logs and investigate; no golden/sampling relaxation or runtime promotion. re-placelot-final4 resume was guard-denied already-merged: stopped, original worktree preserved, no alias bypass.
 
 **Train authority:** `build-runs/merge-train/state.json`; latest landed train73. Start next batch when2+ ready; guard and ancestry remain authoritative.
 
@@ -48,7 +50,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **After every train:** gen_handoff_tables.py, coverage.py, coverage_treemap.py; one status line here, commit/push. `run4-post-train.py` applies explicit tested maps and question-index upkeep after actual PASS+land. Remove landed nonparked worktrees only after verifying lane ancestor of main and clean state; keep branches and ignored evidence. Never remove active, unlanded or parked worktrees. C:>85% stops spawning until cleanup. Keep this section about60lines; archive older status lines to [today's history](history/handoff-2026-10-21.md).
 
-**Main/tools:** keep checkout clean; tool changes require full tools tests and immediate separate commit. Latest115PASS. Candidate union supports --add-shadow and --add-replace.39 default replacement keys include simgrids,propdev,citysit,occmgr,propmgr,lotcfg; ports remain candidate-only.
+**Main/tools:** keep checkout clean; tool changes require full tools tests and immediate separate commit. Latest120PASS. Candidate union supports --add-shadow and --add-replace.39 default replacement keys include simgrids,propdev,citysit,occmgr,propmgr,lotcfg; ports remain candidate-only.
 
 **Runtime:** elevated game queue6slots(pid23444) restarted after Windows elevation blocked non-elevated launches. Native CLI BG_WAIT_CEILING_MS=0; qwait without--fresh, unique labels. RE preflight must GO. Never set gate verdicts by hand.
 
