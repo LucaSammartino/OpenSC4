@@ -1,5 +1,10 @@
 # win-filebrowser: answered questions
 
+FinalRelease qualification for FBQ3: primary slot 89 (`009CFA1D`) calls virtual
+browser Shutdown, then secondary deleting-destructor slot 148 with flag 1.
+Normal final Release supplies the required Shutdown call; direct destruction
+lacks it. This shared method's export name belongs to another owner.
+
 <!-- from: re-filebrowser4 (2026-10-22) -->
 - **FBQ3 - sections 1 / 8.5 / A:** Where is the full browser constructor, what defaults and minimum dimensions does it establish, and which cleanup steps are guaranteed on destructor versus explicit Shutdown? Prove exact retained-field release counts, entry/filter ownership and initialization failure preconditions from constructor/destructor and `0099EC98`/`009A3CC1`; primary table begins `00ADD190`, secondary `00A8D000`.
   **ANSWERED 2026-10-22 (re-filebrowser-contracts4):** DIFFERS — Sections 1.1, 8.5 and 8.6 identify constructor `009A57C4` (710 B), outside the preserved union, installing secondary table `00ADCF30`; `00A8D000` is a second table copy with a different destructor thunk. Init sets actual size 396 × 236, not minimum dimensions, and returns true without rollback on control failure; it requires usable resource-manager/buffer paths. Shutdown clears owned file/drive/custom records and conditionally releases 29 retained fields; `+0x280` is omitted. Actual destructor `009A31A2` destroys embedded strings/container storage and calls the base destructor, never browser Shutdown. Explicit Shutdown is therefore a separate ownership obligation. Defaults, clear-method behavior, wrapper flags and Release channels are specified with native citations.
