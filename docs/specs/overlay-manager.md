@@ -170,7 +170,7 @@ if no other frees occur. For a group with differing part colours/alpha, getters 
 | 4 | `0x0073BF10` | `AddDecal(binding, positionXZ, width, turns)` | the same from a texture binding; −1 without one |
 | 5 | `0x00736150` | `AddDecal(key, positionXZ, width, turns)` | the factory's binding for the key (factory slot 6), then slot 4 |
 | 6 | `0x007361B0` | `AddDecal(key, positionXZ, width, turns)` | the same with factory slot 5 |
-| 7 | `0x0073B170` | `AddRoundDecal(key, positionXZ, width, turns)` | a **group** of eight parts covering a disc (§3.1) |
+| 7 | `0x0073B170` | `AddRoundDecal(key, positionXZ, width, turns)` | a **group** of eight outline rectangles omitting the centre (§3.1) |
 | 8 | `0x0073C9A0` | `AddCityDecal(key)` | one overlay over the whole city (`0x0073B8A0`, flags `0x12`) *[inferred]* |
 | 9 | `0x0073B3B0` | `AddShadow(key, positionXZ, width, turns, flipV)` | factory slot 6 resolves the key; shadow matrices as §3.5 |
 | 10 | `0x00735480` | `AddShadow(groupWord, positionXZ, width, turns, flipV)` | −1 when `kShadowQuality` is 0; otherwise constructs the key described in §3.5 and calls slot 9 |
@@ -464,8 +464,8 @@ Model-shadow slot 11 remains a separate unresolved contract (OV1); these rules m
 
 A dynamic manager is not drawn under `kRenderSnapshot` (boolean 28). Otherwise:
 
-1. The model-view is reset to the view and inverted, so that a camera-space position (texture coordinate set 16)
-   can be taken back to the world; each overlay's texture transform is that inverse followed by its own matrix.
+1. The model-reset helper is called and the resulting context matrix is inverted, so that a camera-space
+   position can be taken back to world; composition order and the reset guard are specified in §4.7.
 2. The overlays: for a static manager with its cell index, those that cover visible cells; otherwise every overlay
    in use.
 3. With `kRenderDecals` (boolean 10): the decals (§4.2). With `kRenderShadows` (boolean 9): the shadows, the rough
@@ -658,7 +658,14 @@ OV4–OV6 lifecycle/handles/alpha and OV9 outline partition are answered in the 
 3. **Shadow quality:** with `kShadowQuality` 0, slot 10 returns −1.
 4. **Texture scale:** `SetTextureScale(h, 16, 0)` sets flag bit 5 and a matrix scale of 1/16.
 5. **Snapshot:** a dynamic manager draws nothing while `kRenderSnapshot` is on.
-6. **Stats:** after drawing 3 decals and 2 shadows, slot 27 gives "3 decals, 2 shadows".
+6. **Stats:** after nonempty enabled passes submit 3 eligible decals and 2 eligible shadows, slot 27 gives
+   "3 decals, 2 shadows"; empty selection and disabled passes preserve their previous counters (§4.4).
+7. **Outline:** §3.1's width-256 vector produces eight specified rectangles and omits centre cell `(8,8)`.
+8. **Split precision:** cell-space height 20 yields split offsets 3 and 5, using the shipped binary32 constants.
+9. **Shadow mapping:** §3.5's byte flipV changes primary/secondary V at the upper edge from 1/3⁄4 to 0/1⁄4
+   without changing the placement getter; flags `0x100` and `0x101` discriminate the low-byte test.
+10. **Selection order/stamps:** §4.5's lists yield `[9,2,7]`; stamp wrap does not reset record stamps.
+11. **Camera order:** §4.7's translation vector yields row-3 U=1.5, not 16.5.
 
 ### PR review: slot 20 self-lighting
 

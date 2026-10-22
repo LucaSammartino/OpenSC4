@@ -16,6 +16,10 @@
   and 11 differ from slot 4 (slot 11 is the largest and is inferred to build a shadow from a model's
   footprint). [unread]
 
+  Partial resolution (2026-10-22, re-overlays-contract4): slot 20 is specified in the interface table and
+  slots 9/10 in §3.5. Remaining owner bodies: city add slot 8 (`0x0073C9A0`/`0x0073B8A0`) and model add
+  slot 11 (`0x0073C0D0`), including how their geometry/matrices differ from an ordinary decal.
+
 <!-- from: re-overlays (2026-10-20) -->
 - **OV3 - §5:** what message `0xC9F775BB` is and what the managers do on it. [inferred: the overlays are
   placed again after a terrain or zoom change]
