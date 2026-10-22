@@ -41,6 +41,7 @@ inline void CmdLineProbe(cIGZFrameWork* framework) {
     void* rust = fc4_cmdline_probe_create(raw.c_str());
     if (!rust) { Log("CMDLINE Rust construction failure"); return; }
     uint32_t total = 0, exact = 0, failures = 0;
+    uint32_t calls[10] = {}, matches[10] = {}, present[10] = {}, absent[10] = {};
     auto query = [&](uint32_t op, const std::string& key, int32_t param) {
         cRZBaseString k(key), value("__fc4_unchanged__");
         int32_t n = 0;
@@ -67,6 +68,14 @@ inline void CmdLineProbe(cIGZFrameWork* framework) {
         const bool ok = status == 0 && n == r && len == value.Strlen()
             && std::memcmp(out.data(), value.ToChar(), len) == 0;
         exact += ok ? 1u : 0u;
+        ++calls[op];
+        matches[op] += ok ? 1u : 0u;
+        if (op >= 3) {
+            const bool found = (op == 3 || op == 4 || op == 8 || op == 9) ? n >= 0 : n != 0;
+            ++(found ? present[op] : absent[op]);
+        }
+        if (op <= 2) Log("CMDLINE natural op=%u index=%d scalar=%d text='%s' exact=%d",
+            op, param, n, value.ToChar(), ok ? 1 : 0);
         if (status) ++failures;
         if (!ok) Log("CMDLINE difference op=%u key='%s' param=%d native=%d rust=%d native_text='%s' rust_text='%.*s' status=%d",
             op, key.c_str(), param, n, r, value.ToChar(), static_cast<int>(len), out.data(), status);
@@ -118,6 +127,9 @@ inline void CmdLineProbe(cIGZFrameWork* framework) {
         query(4, "__fc4_absent_7F91__", flag);
     }
     fc4_cmdline_probe_destroy(rust);
+    for (uint32_t op = 0; op < 10; ++op)
+        Log("CMDLINE method op=%u total=%u exact=%u present=%u absent=%u",
+            op, calls[op], matches[op], present[op], absent[op]);
     Log("CMDLINE native readonly total=%u exact=%u differences=%u failures=%u raw_bytes=%u argc=%d borrowed_release=0 mutations=0 constructed_native=0 CL4=open",
         total, exact, total - exact, failures, static_cast<uint32_t>(raw.size()), argc);
 }
