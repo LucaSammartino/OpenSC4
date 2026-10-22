@@ -80,3 +80,7 @@ complete-owner credit. Native interface binding and game validation remain separ
 
 Commits: **4336efc6** implementation/questions; **7c730cac** checkpoint;
 **facaae39** extra lifecycle and parsed-record vectors. Final report commit changes documentation only.
+
+## Coordinator source-phase review
+
+Bounded portable code/findings publication only; TB4-TB7 remain. No complete-owner, shadow or replacement credit is granted for this partial phase. Preserve the parked original worktree and existing round budget. Any engine change requires the joint full native gate and current default-union regression.

@@ -47,3 +47,7 @@ Run a uniquely labelled native fixture through2032/ref0, and only after clean su
 coordinator-supplied current-list+span8 union. No default promotion or coverage credit. Remain within the
 coordinator's three-round cap; this result uses one round. The detached commits are for supervisor publication;
 no branch switching, ref edits, merge or push was performed.
+
+## Coordinator source-phase review
+
+Bounded portable code/findings publication only; SR9/SR10 remain. No complete-owner, shadow or replacement credit is granted for this partial phase. Preserve the parked original worktree and existing round budget. Any engine change requires the joint full native gate and current default-union regression.

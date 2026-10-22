@@ -132,3 +132,7 @@ Final stable-source `qbuild.py --wt <WT> all`: **PASS** at `aa7e03f7`.
    message contracts; replace the explicitly provisional choices with published rules.
 3. Only then bind and measure runtime/shadow/reference behavior through a separately
    assigned glue task. Retain **WIP / no owner promotion** until completion.
+
+## Coordinator source-phase review
+
+Bounded portable code/findings publication only; AC2/AC5-AC9 remain. No complete-owner, shadow or replacement credit is granted for this partial phase. Preserve the parked original worktree and existing round budget. Any engine change requires the joint full native gate and current default-union regression.

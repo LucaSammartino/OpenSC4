@@ -63,3 +63,7 @@ Build top-lefts are `(2,2)` for the6x18 airport and `(0,90)` for the11x5 seaport
 No new questions; PD12 was implemented from the published answer, reconciled interfaces and SDK. No shadow differences, so no normal-speed discrepancy run is required. Live growth/advice upgrade was not triggered: this fixture has0 trips and the airport later skips for lack of road access; the shipped seaport has no growth advice. Existing core/conformance growth and zero-prop advisor/once-only recheck tests passed in the full gate; no live upgrade claim is made.
 
 Coordinator must run `ports` with the current replacement union before any default promotion. Keep this implementation opt-in until then. Reserved detached worktree was reused; commits do not switch branches or alter shared refs. Git printed a denied packed-refs lock attempt during commits, but each detached HEAD commit succeeded. Lane guard: `C:/Users/tlori/FreeCity4/build-runs/run4-glue-portdev-complete4-r1-manifest.json`; no subagents or restarts.
+
+## Coordinator same-process receipt
+
+Independently checked pdc4-final-shadow-20261022-a.verdict: **ports 144/144**, airport72 plus seaport72, resynced lines0, clean2032/ref0. This is the final same-DLL real-city shadow, separate from saved-city reload and the combined replacement-union check.

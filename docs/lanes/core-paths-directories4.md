@@ -30,3 +30,7 @@ Appended **PA4-PA8** to `docs/specs/questions/paths.md`: byte/string/locale boun
 Review/merge the portable implementation, resolve these questions before native binding or entry complete-owner credit, then add the native encoding/find adapter only under a separately authorized glue task. No pending game requests.
 
 Implementation commits: 226c963c (owners/helpers/entry state), 1563e7a1 (buffers/fix helpers/conformance), 9c0b8673 (focused gate record). Reserved detached HEAD was reused; supervisor publishes it. `q.py` cannot start Bash here, so capped native PowerShell reads and authorized qbuild were used. Git commits succeed despite a packed-refs.lock permission diagnostic; no shared refs/config were changed.
+
+## Coordinator source-phase review
+
+Bounded portable code/findings publication only; PA4-PA8 remain. No complete-owner, shadow or replacement credit is granted for this partial phase. Preserve the parked original worktree and existing round budget. Any engine change requires the joint full native gate and current default-union regression.
