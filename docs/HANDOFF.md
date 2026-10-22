@@ -36,11 +36,11 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **User policy:** Open-ended, no total round limit. Latest user: ALWAYS KEEP7 live workers; target/concurrency7, max3glue, max3rounds per lane. Refill immediately from reviewed queue after fresh slots/check, never bypass guard, STOP, usage/rate or CPU/disk limits. Park capped lanes; no fourth round. STOP: `python tools/lanes.py stop "<reason>"`, land ready on-disk work, push, end.
 
-**Coverage after train80:**57.6/35.9/13.5/17.9; baseline36.8/28.3/12.1/15.9, delta+20.8/+7.6/+1.4/+2.0 points. 53 trains landed; 283 rounds used, no total cap. Next25-round checkpoint 300.
+**Coverage after train80:**57.6/35.9/13.5/17.9; baseline36.8/28.3/12.1/15.9. 53 trains landed; 286 rounds used; next checkpoint300. RP adds23179implementedB; historical manager overclaim removes8437B (net+14742B). Verified loss169193B is traffic+landvalue, no restoration claim.
 
-**Live authority:** `build-runs/run4-coordinator-state.json`; `run4-refill.py` launches reviewed briefs from `run4-refill-queue.json` through serialized `run4-launch.py` and the saved guarded Workflow. PID in run4-refill.pid; quota/errors pause refills. All slots/check/dependency/STOP/parked/3glue gates retained. After compaction reread this section and run guard before adding work. Helpers share run4_coord_lock.py; use its lock for state writes.
+**Live authority:** `build-runs/run4-coordinator-state.json`; tracked `tools/lane_refill.py --provider codex` launches reviewed `build-runs/run4-refill-queue.json` briefs through tracked `tools/lane_launch.py` and guarded Codex subscription adapter. Legacy build-runs scripts are Claude-only. ALWAYS7 live; max3glue; slots/check/dependency/STOP/parking/CPU/disk gates retained. After compaction read section0 and run guard before adding work. State writes use run4_coord_lock.py.
 
-**Verification follow-up:** train73 traffic71/73 (train72:72/72), 408 mismatches on2031-05-29 and monthly propagation; verified16.5 to13.6 (train75 exact restored reported16.5 without resolving the failure). Preserve both shadow logs and investigate; no golden/sampling relaxation or runtime promotion. re-placelot-final4 resume was guard-denied already-merged: stopped, original worktree preserved, no alias bypass.
+**Verification follow-up:** train80 traffic71/73 and landvalue71/72 drop verified16.5 to13.5; source regress/game evidence preserved. Earlier train73 traffic408mismatches and train75/79 exact runs remain unresolved, not fixed by a lucky rerun. verify-traffic-delivery4 final family3/3 parked: diagnostic72/72 exact, TS68 continuation/provider-read evidence missing, no causal fix. LV2/LV6 runtime timing/install gaps remain. Original re-placelot-final4 resume denial remains stopped; no alias bypass.
 
 **Train authority:** `build-runs/merge-train/state.json`; latest landed train80. Start next batch when2+ ready; guard and ancestry remain authoritative.
 
