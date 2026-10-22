@@ -76,15 +76,25 @@ impl RenderPropertiesOwner {
 
     /// RP3: only IID 1, through either view; failure leaves output untouched.
     /// A mutable output reference enforces the native success-path writable cell.
-    pub fn query_interface(
+    pub fn query_interface(&mut self, view: InterfaceView, iid: u32, output: &mut Option<InterfaceView>) -> bool {
+        self.query_interface_optional_output(view, iid, Some(output))
+    }
+
+    /// An unsupported IID may be queried without an output cell. A successful
+    /// native query requires one; rejecting a missing cell for IID 1 is solely a
+    /// safe-core extension, not a claimed native null-pointer check.
+    pub fn query_interface_optional_output(
         &mut self,
         view: InterfaceView,
         iid: u32,
-        output: &mut Option<InterfaceView>,
+        output: Option<&mut Option<InterfaceView>>,
     ) -> bool {
         if iid != 1 || self.properties().is_none() {
             return false;
         }
+        let Some(output) = output else {
+            return false;
+        };
         *output = Some(InterfaceView::Unknown);
         self.add_ref(view);
         true
@@ -149,11 +159,14 @@ mod tests {
         assert_eq!(owner.release(U), Some(0));
         assert!(owner.storage.is_none()); // actual outer Box was released
         assert!(owner.properties().is_none());
-        assert_eq!(owner.deletion(), Some(Deletion {
-            returned_view: P,
-            allocation_freed: true,
-            count_at_destruction: 1, // no decrement before destruction
-        }));
+        assert_eq!(
+            owner.deletion(),
+            Some(Deletion {
+                returned_view: P,
+                allocation_freed: true,
+                count_at_destruction: 1, // no decrement before destruction
+            })
+        );
         assert_eq!(other.properties().unwrap().find_bool("rs"), 9);
     }
 
@@ -180,6 +193,7 @@ mod tests {
         owner.add_ref(P);
         for view in [P, U] {
             for iid in [0, 2, u32::MAX] {
+                assert!(!owner.query_interface_optional_output(view, iid, None));
                 for sentinel in [None, Some(P), Some(U)] {
                     let mut out = sentinel;
                     assert!(!owner.query_interface(view, iid, &mut out));

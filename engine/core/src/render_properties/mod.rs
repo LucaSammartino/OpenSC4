@@ -14,9 +14,9 @@ mod registry;
 pub use lifetime::{Deletion, InterfaceView, RenderPropertiesOwner};
 
 #[cfg(test)]
-mod tests;
-#[cfg(test)]
 mod contract_tests;
+#[cfg(test)]
+mod tests;
 
 /// One property, including the two uninterpreted extra values of spec §1.2.
 /// For booleans these represent the two initially zero bytes (RP2).
@@ -242,10 +242,7 @@ fn short_name(name_without_prefix: &[u8], ctype: &dyn ByteCtype) -> Vec<u8> {
         .collect()
 }
 
-fn copy_registrations<T: Copy>(
-    registrations: &[registry::Registration<T>],
-    ctype: &dyn ByteCtype,
-) -> Vec<Property<T>> {
+fn copy_registrations<T: Copy>(registrations: &[registry::Registration<T>], ctype: &dyn ByteCtype) -> Vec<Property<T>> {
     registrations
         .iter()
         .enumerate()
@@ -285,8 +282,8 @@ fn find<T>(table: &[Property<T>], query: &[u8], ctype: &dyn ByteCtype) -> i32 {
     }
     table
         .iter()
-        .find(|p| p.name == query || p.short_name == query)
-        .map_or(-1, |p| p.index)
+        .position(|p| p.name == query || p.short_name == query)
+        .map_or(-1, |index| index as i32)
 }
 
 impl Drop for RenderProperties {

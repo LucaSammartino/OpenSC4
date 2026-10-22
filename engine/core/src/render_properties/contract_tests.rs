@@ -18,10 +18,7 @@ fn nul_byte_queries_all_types_and_unchanged_caller_storage() {
         (&b"PD\0\xff\x80\xfe"[..], [-1, -1, 3]),
     ] {
         let snapshot = query.to_vec();
-        assert_eq!(
-            [p.find_bool(query), p.find_int(query), p.find_float(query)],
-            expected
-        );
+        assert_eq!([p.find_bool(query), p.find_int(query), p.find_float(query)], expected);
         assert_eq!(query, snapshot);
     }
     assert_eq!(p.find_bool(b"rEnDeRsHaDoWs"), 9);

@@ -209,6 +209,7 @@ fn find_is_exact_typed_and_first_match_wins() {
     assert_eq!(p.find_float("sd"), -1);
     // The match order is entry-first, rather than a full-name pass then an acronym pass.
     let mut table = p.bools.clone();
+    table[0].index = 91; // Find returns table position, not entry metadata (RP5).
     table[0].short_name = "latername".into();
     table[1].name = "latername".into();
     assert_eq!(find(&table, b"LaterName", &CLocale), 0);
