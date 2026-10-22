@@ -25,9 +25,10 @@ Owner bytes are from `tools/coverage.py --owners` (subsystem "framework services
 exposes, in its own vtable, `GetType` at +0x10 and an equality test against another message at
 +0x18. A message target exposes `DoMessage(message)` at +0x0C.
 
-Reference counting: every queue slot, registry entry and pending entry holds one counted reference
-(AddRef on store, Release on removal). Every "out" message pointer handed back to a caller is
-AddRef'd for that caller.
+Reference counting: server 2's queue slots, registry entries and pending entries hold counted
+references (AddRef on store, Release on removal). Every "out" message pointer handed back to a
+caller is AddRef'd for that caller. Server 1's directed records and pending removals are raw
+pointers; its pending adds have the special transfer rules in §4A.
 
 ## 2. Message queue (`cGZMessageQueue2`)
 
@@ -63,8 +64,39 @@ the table gives the behaviour (proposed names in `build-runs/abi-rows-re-gzservi
 | 23 | `0x0092E27C` | Destructor (deleting when bit 0 of the flag is set): releases every queued message. |
 | 24 | `0x0092D940` | Get anywhere (msg, out): as slot 17, then remove the found message. |
 
-The signal is set only on the empty to non-empty transition; it is never explicitly reset by the
-queue (the signal object's own semantics decide whether a wait consumes it).
+**Equality receiver (GZ7).** All five equality operations invoke the queued message's slot 6
+(vtable +0x18), passing the search argument: `queued.equals(argument)`. Only the low byte of the
+return value is tested. Equality need not be symmetric. Native call sites: `0x0092D698`,
+`0x0092D6F6`, `0x0092D756`, `0x0092D482`, `0x0092D969` (slots 6/8/10/17/24 respectively).
+
+**Blocking signal primitive (GZ2).** The embedded signal is constructed with a 32-bit mode of 0
+(`0x0092DD9D–0x0092DDA2`). Its vtable `0x00AD1F48` has Signal at slot 1 (`0x00932DA7`),
+Pulse at slot 2 (`0x00932D95`), Wait at slot 3 (`0x00932DE0`), and handle-valid test at slot 4
+(`0x00932E3A`). Constructor `0x00932E65` allocates 0x24 bytes of platform state and calls
+CreateEventA with no name, initially nonsignalled, manual-reset iff mode is nonzero.
+
+Wait takes an **unsigned 32-bit microsecond timeout**: `0xFFFFFFFF` is passed through as infinite;
+every other value is divided by 1,000 with unsigned division, discarding the remainder
+(`0x00932DF6–0x00932E11`). Thus 999 means a zero-millisecond poll, 1,000 means 1 ms, and the
+queue's 1,000,000 means **1 second**. Wait holds the signal platform critical section across
+WaitForSingleObject; it returns dword 0 for WAIT_FAILED, 2 for WAIT_TIMEOUT (0x102), otherwise 1.
+It does not explicitly call ResetEvent. The queue ignores this return and retries its get until
+successful (`0x0092CFC1`, `0x0092CFF7`); it has no timeout/failure return to its caller.
+
+Signal's mode-0 branch calls **PulseEvent**, returning normalized Win32 success. Its nonzero-mode
+branch calls SetEvent but returns 0 even on success (`0x00932DA7–0x00932DCD`). Slot 2 always pulses.
+The queue calls Signal only on an empty-to-nonempty transition. Consequently a pulse without an
+eligible waiter leaves no persistent notification: a producer can insert between a failed get
+and the wait, and the consumer then finds that message only after its wait times out. Do not
+model this as a permanently set event. The unused reset body `0x00932DCE` calls ResetEvent; it
+is not one of these five vtable slots.
+
+The signal is an embedded, uncounted resource. Queue destruction closes its event and destroys
+its platform critical section/string and frees platform state before destroying the queue lock
+and releasing queued messages (`0x0092DDB0`, `0x00932EC8`, `0x00932EB4`). There is no waiter join,
+cancellation wake, or deferred close. A live blocking call therefore requires the queue to remain
+alive. Allocation failure is not recovered (constructor dereferences null platform state);
+CreateEventA failure leaves a null handle, detectable by slot 4, but the queue never tests it.
 
 ## 3. Queue manager (`cGZMessageQueueManager2`)
 
@@ -110,8 +142,21 @@ Interface `cIGZMessageServer2` (vtable `0x00AD1BF4`):
 | 9 | `0x0092E040` | OnTick (§4.4); also reached from the service tick slot 10 via thunk `0x00473000` |
 | 10 | `0x0092D0F4` | Posted-message count (§4.4) |
 | 11 | `0x0092D11F` | Set drain-all flag (§4.4) |
-| 12 | `0x0092D0B3` | Reference count of the +8 interface (returns its stored count) |
+| 12 | `0x0092D0B3` | Shared system-service reference count, unsigned dword at server +0xC (GZ1) |
 | 13 | `0x0092D1FE` | CreateMessage (§4.6) |
+
+**Counter forwarding (GZ1).** Slot 12 adds 8 to the server pointer and tail-calls that
+interface's slot 5; `0x009D7E63` reads its +4, hence server +0xC. The export's name
+`cRZString::ToChar` on that shared four-byte body is not evidence of string semantics.
+The system-service constructor at server +4 constructs cRZUnknown at server +8 and initializes
+this count to 0 (`0x0091DE0F`, `0x0090DA1E`). The service ID is instead at server +0x10;
+priority fields are +0x14/+0x18, and the running byte is +0x1C.
+Interface AddRef/Release (`0x0093056F`/`0x00930577`) first adjust +4 to the service base;
+base wrappers (`0x009297A0`/`0x0091DD89`) adjust another +4 to the unknown interface.
+Its AddRef increments the same dword (`0x00968B60`). The +8 vtable's AddRef thunk
+`0x00473020` first adjusts -8 before using this chain. RemoveRef at +8-interface slot 4
+(`0x0090D981`) only decrements a positive unsigned count and returns it, without destruction.
+This is one shared count, not the posted-message count or 64-bit messages-taken counter.
 
 ### 4.2 Notification registry
 
@@ -133,6 +178,36 @@ A target registers for one message type; type **0 is the wildcard** (receives ev
   order; an add appends the target if absent (creating the type's list); a remove deletes every
   occurrence of the target from the type's list and frees an emptied list; then clears the list.
 
+**Re-entry and removal timing (GZ3, GZ6b).** Depth is a 32-bit dword, tested against zero,
+incremented/decremented with dword instructions. Removal unlinks the registry node **before**
+calling the target's Release, and frees the node afterwards. That Release runs with depth still
+1 and the registry lock held (`0x0092E603`, erase `0x007E9330`, then depth decrement
+`0x0092E627`). A final Release/destructor can therefore call back into AddNotification or
+RemoveNotification and create pending work. Appending a registry entry also calls target
+AddRef while depth is 1 (`0x0092E895`, helper `0x005447B0`). MessageSend calls the message's
+GetType at `0x0092EA94` and snapshot target AddRef at `0x0092EAD7` while depth is positive.
+The premise that no foreign code runs in these windows is false. The pending path is a live
+interface contract, even without a measured in-game occurrence of a particular re-entrant
+target. Ordinary DoMessage callbacks run after depth decrement/unlock; those calls alone do
+not create pending work. Cross-thread callers serialize on the registry critical section.
+
+Pending records carry a byte add/remove discriminator, a target interface pointer and a dword
+type. Both add and remove keep a counted target reference in server 2. Construction uses two
+temporary counted wrappers before copying the record into the list; temporary releases occur
+before unlocking (`0x0092E57D–0x0092E5BF`, `0x0092E7B4–0x0092E7F6`). These are observable
+foreign calls, not a single atomic reference transfer.
+
+Flush replays the **still-linked** front record through virtual slot 5 or 6, then unlinks it and
+releases its pending hold (`0x0092DF65–0x0092DF85`, `0x0092D9AF`, `0x009491FF`). Replay's
+registry AddRef/Release occurs before the pending reference is dropped. Its process-wide byte
+guard suppresses recursively entered flushes, including flushes on another server-2 instance;
+it does not suppress registry changes themselves. The guard is cleared before the outer unlock.
+Apply-pending instead walks records directly and clears the list after the walk, releasing all
+pending holds then (`0x0092E9F6`, `0x0092DA64`). It runs **before** MessageSend increments depth;
+there is no depth/flush-guard gate on that call (`0x0092EA87–0x0092EA8F`). Thus a nested send can
+apply pending work before the enclosing send finishes. General re-entry that invalidates a live
+native list iterator has no promised safe outcome; the controlled callbacks in §5.1 avoid that.
+
 ### 4.3 MessageSend (synchronous)
 
 Under the registry lock: apply pending registrations, increment the depth, read the message type T,
@@ -141,6 +216,14 @@ a copy of the wildcard (type 0) list. Decrement the depth and release the lock. 
 `DoMessage(msg)` on each copied target in array order; return values are ignored. A target that
 registers or unregisters during delivery does not change the current delivery. A target registered
 for both T and 0 receives the message twice. Returns true.
+
+**Snapshot holds (GZ6a).** Each copied target is AddRef'd while depth is positive and the
+registry lock is held, including a separate hold for its wildcard occurrence. The vector first
+appends a null reference, then assigns the target (`0x0092EAC2–0x0092EAD7`, assignment helper
+`0x005447B0`). All snapshot holds survive **all** DoMessage calls. After the last callback,
+the vector destructor releases its entries in forward order (`0x0092EB12–0x0092EB15`,
+`0x006C6E90`). It does not release each target immediately after that target's delivery.
+MessageSend itself borrows the message; it does not AddRef it.
 
 ### 4.4 MessagePost, the tick and the counters
 
@@ -163,14 +246,63 @@ ahead of the simulator (-2,000,000), see docs/specs/flammability.md §SimCycleCo
 ### 4.5 Directed messages
 
 - **Post directed (msg, target)** (slot 7, argument order message then target): under the directed
-  lock append (target, msg) (both referenced) to the deque.
-- **Cancel (target)** (slot 8): under the directed lock erase every deque entry whose target is the
-  argument.
+  lock append an 8-byte (target, msg) counted pair. The temporary first AddRefs target, then message;
+  deque copy construction repeats target then message AddRef; temporary destruction releases message
+  then target, before unlock. Net hold: one of each (`0x0092EA00`, `0x0092D1C5`, `0x0092D293`,
+  `0x004E4BB0`, `0x00473180`). Slot 7 is void, with no success result.
+- **Cancel (target)** (slot 8, void): scan by raw interface-pointer identity under the directed
+  lock. On a match, advance the scan iterator before erasing the old position, ignoring erase's
+  returned iterator (`0x0092E685–0x0092E69D`). Consequently the intended remove-all operation has
+  an iterator defect; see below. It does not change the directed countdown or cancel a record
+  already copied out for delivery. Erasure releases references while the directed lock is held.
 - **Delivery** (`0x0092DFA3`, end of OnTick): under the directed lock, if the countdown is <= 0 it is
   set to the deque size (nothing to do when 0). While the countdown is > 0: decrement it; if the deque
   is not empty, pop the front entry, release the lock, call `target->DoMessage(msg)`, retake the lock.
   Finally decrement the countdown once more and release the lock. Entries added during delivery wait
-  for the next tick; a nested delivery shares the countdown.
+  for the next tick **when the original entries consume the remaining quota**; cancellation can
+  make room for a newly posted entry in the same pass. A nested delivery shares the countdown.
+
+**Delivery holds (GZ6c).** There is one initially null local pair for the **entire** delivery pass,
+not one temporary per callback. Before each pop, assign front target into local target, then front
+message into local message (`0x0092DFF8`, helper `0x004731D0`). For each changed nonnull pointer,
+assignment AddRefs the new object, stores it, then Releases the previous local object; equal
+pointers cause no reference calls. Pop destroys the deque pair, releasing message then target
+under the lock (`0x004732E0`, boundary path `0x00473290`). Both local references survive DoMessage.
+After its callback the local pair persists until assignment of the next front or final cleanup.
+Final cleanup is **after unlocking**, message Release then target Release (`0x0092E026–0x0092E036`,
+`0x00473180`). Thus the previous target may be released during the next iteration before the
+previous message; simply releasing message then target immediately after every callback differs.
+
+The countdown is **signed 32-bit**, using signed positive tests (`0x0092DFC5`, `0x0092E024`),
+not an unsigned size. Normal nonempty completion leaves -1; an empty direct invocation also
+decrements 0 to -1. Nested completion may leave smaller negative values. No floating arithmetic
+is involved. Callback bools are ignored; directed delivery does not consult the registry or wildcard.
+
+**Cancellation iterator defect.** Erase computes the index and compares it with floor(size/2).
+In the first half it shifts the prefix and pops front; otherwise it shifts the suffix left and
+pops back (`0x0092E17F–0x0092E1FA`). The already-advanced iterator remains usable on the prefix
+path, but on the suffix path it can skip the element shifted into the erased position. Example
+within a single block: targets [B,C,A,A], cancel A: index 2 takes the suffix path, leaves [B,C,A],
+and the scan equals the new end, so the final A survives. Cancelling the last entry instead can
+leave the scan beyond the new end; the native equality-only end test provides no safe bounded
+result. Do not invent a deterministic delivery/crash for that invalid-iterator case. The defect
+also exists in server 1 (`0x0092FFAA`, `0x0092F023`, erase `0x0092FD24`). Server-2 suffix shifts
+assign pairs in forward order, target then message (`0x0092DD3F`, `0x0092DB38`, `0x0092D62A`,
+`0x004731D0`), so erasure can call AddRef/Release on surviving entries as well as the removed one.
+
+**Native uses (GZ4).** `cSC4WinIntroVideoScreen::DoUserStop` obtains server 1 through RZ::MS
+and posts a stack record of type `0xEAAD620A` to its own unadjusted target pointer
+(`0x0079D423–0x0079D452`). GZPaint does likewise for `0xEAAC1A96` and `0xCAAC6A52`
+(`0x0079D55E–0x0079D581`, `0x0079D5B7–0x0079D5DA`). This is concrete shipped UI use of
+slot 7, with FIFO deferred delivery observable by that screen.
+Server-2 call site `0x007724A3` acquires the exact service/IID `0x04FA845B`/`0x652294C7`,
+posts type `0x0A344006` to its supplied target, then releases the message (`0x00772440`).
+The exported unnamed body `0x009851F9` similarly obtains RZ::MS2 and posts type `0x6AE76406`
+to its +0x24 target when nonnull (`0x00985289`), otherwise uses ordinary MessagePost.
+No class name is inferred for those two unnamed bodies. The acquisition-seeded native caller
+search proves positive uses, not an exhaustive list of all indirect calls; no concrete slot-8
+game caller was established in this bounded trace. This does not weaken the native cancellation
+body's ordering/lifetime contract or imply that it is unused.
 
 ### 4.6 CreateMessage (slot 13, `0x0092D1FE`)
 
@@ -205,6 +337,25 @@ directed deque +0x84. Interface slots (addresses take the +0x1C interface pointe
 | 11 | `0x0092ED9B` | Set drain-all flag |
 
 Differences that matter:
+- **Pending ownership differs.** A pending add copies raw (flag,target,type) then AddRefs target
+  once (`0x00930051–0x00930071`); a pending remove copies the raw pointer without AddRef
+  (`0x0092FC4B–0x0092FC62`). Flush uses a separate global byte guard `0x00B629F3`. Replaying an
+  add calls AddNotification then Releases its pending-add hold before popping the record;
+  replaying a remove has no pending hold to release (`0x0092F8C2–0x0092F8ED`). Direct apply at
+  MessageSend start appends the raw target for an absent registration, transferring the pending-add
+  hold; it does not create server 2's counted wrapper. A pending add already present in the list
+  is skipped, and bulk clearing does not release those raw records, so this path leaks that extra
+  hold (`0x00930121`, add/duplicate branches through `0x009301EB`, clear `0x00930269`).
+  Normal removal unlinks matching raw entries, then Releases the target at depth 1, before
+  decrementing depth and flushing (`0x0092FCAD–0x0092FCE0`). Re-entrant callbacks must preserve
+  the lifetime of raw pending-removal targets themselves.
+- **Directed entries have no reference holds (GZ5).** Each entry is exactly 20 bytes: raw target
+  interface pointer followed by a copied 16-byte message record. Append constructs and copies
+  those values without target AddRef (`0x00930273`, `0x009DB1A1`, `0x0092EE7C`, `0x0097BF85`).
+  Delivery copies all five dwords to its local record (`0x00473110`), removes the deque front
+  without releasing anything (`0x00473240`), then calls the raw target with a pointer to the
+  local message (`0x0092F97E–0x0092F987`). Unlike server 2, neither cancellation nor delivery
+  owns a target/message reference; the caller must keep the target and pointed-to payloads alive.
 - **Messages are values.** A first-generation message is a 16-byte record whose first dword is the
   type; the queue stores copies, OnTick takes the front record into a zeroed local copy and sends a
   pointer to it, and nothing is reference counted for the message.
@@ -224,6 +375,60 @@ toFront true). Queue = [m2, m1], count 2. Tick: limit = 0 + 2. Take m2: send -> 
 A then W. With drain-all false and W posting m3 while handling m2, m3 would wait: `taken` reaches 2
 = limit after m1. With drain-all true m3 is delivered in the same tick.
 
+### 5.1 Independent contract vectors (GZ1–GZ7)
+
+These are instruction-derived expectations for an implementer's reference-logging targets/messages;
+they are not results from the partial core or an in-game run. Use separate live external holds
+unless a vector explicitly exercises final Release. A callback's target pointer is the exact
+registered/posted interface pointer; DoMessage is thiscall at vtable +0x0C, AddRef/Release at
++0x04/+0x08. Server 1 methods take its +0x1C interface pointer, server 2 methods its +0 pointer.
+
+| Vector | Setup / action | Required observation |
+|---|---|---|
+| GZ-V01 shared count | Construct server 2, AddRef through message interface, then AddRef through +8 interface; read slot 12 after each. RemoveRef through +8 slot 4. | Counts 0,1,2,1; no dependence on queue size or service ID. RemoveRef at 0 remains 0 without deleting. The count is an unsigned dword; increment wraps modulo 2^32. |
+| GZ-V02 wait units/results | Wait on a valid nonsignalled signal with 999, 1,000, 1,000,000 and 0xFFFFFFFF. | OS timeout arguments 0,1,1000,0xFFFFFFFF milliseconds respectively. Timeout maps to dword 2; forced invalid handle maps WAIT_FAILED to 0. No implicit explicit-reset call. |
+| GZ-V03 lost pulse | Queue get fails empty; producer appends before consumer enters Wait; no eligible waiter at the pulse. | No persistent wake token. Consumer's one-second wait can time out, then its get obtains the already queued message. A failed Wait is also followed by another get; an invalid handle plus an empty queue can spin indefinitely. |
+| GZ-V04 asymmetric equality | Queue distinct q1,q2,q3. Instrument q1.equals(a)=false, q2.equals(a)=true, q3.equals(a)=true; make a.equals(any)=false. Run each equality method on a fresh queue. | Slot 6 removes q2; slot 8 removes q3; slot 10 removes q2 and q3, returns 2. Slots 17/24 yield q2 with one caller hold; 17 retains it in queue, 24 removes the queue hold. The receiver a is never queried. A return dword 0x100 has false low byte. |
+| GZ-V05 counted snapshot | Register A,B for T and A for wildcard 0. Send T; A's first DoMessage removes B's T registration. | Calls A,B,A, despite unregistering B. B remains alive through its callback. All three retained snapshot holds persist until all deliveries complete, then Release in A,B,A order. This differs from both borrowed targets and per-callback cleanup. |
+| GZ-V06 registry destructor re-entry | A has one remaining registry hold for T. Remove A; its final Release makes one AddNotification(B,T) call. B's AddRef has no re-entry. | A's node is already unlinked but depth is 1 during Release. B is queued as pending, not inserted immediately. After outer depth drops, flush adds B before dropping the pending hold. At return B has one registry hold and pending is empty. |
+| GZ-V07 GetType re-entry | Server 2 has A for T. Message.GetType makes one AddNotification(B,T), then returns T. | GetType sees positive depth, so B enters pending. Current snapshot is A only. Next Send first applies pending, and its snapshot is A,B; pending's reference is released after its registry reference is acquired. Keep this callback one-shot. |
+| GZ-V08 generation-1 value/raw lifetime | Post a directed 16-byte record to live target A on server 1; alter every original record dword afterwards, then deliver. | A receives the original four dwords through a local record pointer. There is no target AddRef/Release at append, copy-out, pop, callback completion or cancellation; no message reference calls at all. Keep A and any pointers encoded in its record alive externally. |
+| GZ-V09 generation-2 delivery holds | Begin delivery with distinct pairs (A,m1),(B,m2), no re-entry. Log only the delivery interval. | First acquire local A,m1, then pop releases queue m1,A, then DoMessage(A,m1). Next local assignment AddRefs B and Releases A, then AddRefs m2 and Releases m1; pop releases queue m2,B, then DoMessage(B,m2). Final unlock precedes local Release(m2), Release(B). |
+| GZ-V10 cancellation prefix | Either generation has targets [A,A,B,C,D] in one deque block; cancel A, then deliver. | Both front A entries are removed by prefix erasures; remaining delivery order is B,C,D. Server 2 drops removed holds under the directed lock; server 1 makes no reference calls. |
+| GZ-V11 cancellation suffix defect | Either generation has targets [B,C,A,A] in one block; cancel A, then deliver. | Erasing index 2 uses suffix shift; the pre-advanced scan equals the new end. Queue remains [B,C,A] and the last A is delivered. Server 2 has net one remaining A hold. This is a defined concrete witness against blanket remove-all. |
+| GZ-V12 quota after cancel/post | Start [A,B,C,D,E]. During A's callback cancel B (now in prefix of four), then append F. No nested tick. | Original quota is 5. Delivery is A,C,D,E,F in this pass. Cancellation does not reduce countdown, so F can run during the current tick. |
+| GZ-V13 nested quota | Start [A,B,C]. A's callback enters OnTick once without posting or cancelling. | Outer pass decrements 3 to 2 before A. Nested pass consumes B,C using remaining 2, exits at -1; outer exits at -2. Each invocation has its own local pair, sharing only the countdown. |
+| GZ-V14 raw pending add transfer | Server 1: during A's one-shot AddRef callback in AddNotification(A,U), call AddNotification(B,T) twice, with T distinct from U. In case 1 return and allow normal flush; in case 2 perform a nested Send of a value message T before returning. Keep A/B externally alive; B's reference callbacks do not re-enter. | Case 1 leaves one registry hold on B and releases both pending-add holds. Case 2 directly applies pending before incrementing send depth: the first pending hold becomes the registry hold, the duplicate add is skipped and its extra hold is leaked on raw-record bulk clear. Snapshot holds are temporary. Pending removals have no protective reference. |
+
+For invalid-iterator cancellation (for example, matching the last/sole element), native scanning
+can pass the new end. There is deliberately no expected crash, return time or subsequent delivery
+vector: native instructions establish the unsafe traversal, not a deterministic result after it.
+For ordinary posting and failed allocation there is likewise no invented recoverable failure:
+the examined message/record paths do not return a failure bool or establish exception recovery.
+
+### 5.2 Missing-contract method/body inventory and scope
+
+This inventory identifies the bodies needed to complete the seven **specification** gaps; it
+does not claim any implementation method is missing or present. Names attached to folded/shared
+bodies in the export can be misleading; entry addresses and call adjustments control this spec.
+
+| Gap | Entry methods / required helper bodies | New contract |
+|---|---|---|
+| GZ1 | server2 slot 12 `0x0092D0B3`; +8 getter `0x009D7E63`, RemoveRef `0x0090D981`; service ctor `0x0091DE0F`, unknown ctor `0x0090DA1E`; `0x0093056F/77`, `0x009297A0`, `0x0091DD89`, `0x00968B60` | Shared unsigned dword at +0xC; complete +4,+4 and -8 forwarding (§4.1). |
+| GZ2 | queue blocking gets `0x0092CFC1/0x0092CFF7`, ctor/dtor `0x0092DD7E/0x0092DDB0`; foreign signal ctor `0x00932E65`, Signal/Pulse/Wait `0x00932DA7/0x00932D95/0x00932DE0`, valid/reset `0x00932E3A/0x00932DCE`, cleanup `0x00932EC8/0x00932EB4` | Microsecond unsigned conversion, pulsed queue notification, status mapping and handle lifetime (§2). Native PE table `0x00AD1F48` and Win32 import pointers corroborate the virtual dispatch. |
+| GZ3/GZ6b | server2 add/remove `0x0092E795/0x0092E560`, flush/apply `0x0092DF35/0x0092E8B5`; unlink/release `0x007E9330`, pending pop/erase/clear `0x0092DC24/0x0092D9AF/0x0092DA64`, pending target cleanup `0x009491FF`; server1 counterparts `0x00930030/0x0092FC2E/0x0092F88A/0x00930121`, raw clear `0x009A841F` | Callback windows, pending vs immediate order, per-generation ownership and duplicate-add leak (§4.2/§4A). |
+| GZ6a | send `0x0092EA65`, vector append `0x00442E40`, assignment `0x005447B0`, vector destructor `0x006C6E90` | Retained per-occurrence targets; all callbacks before forward cleanup (§4.3). |
+| GZ4/GZ5/GZ6c | server2 post/cancel/deliver `0x0092EA00/0x0092E642/0x0092DFA3`, pair ctor/copy `0x0092D1C5/0x0092D293`, assignment/destructor `0x004731D0/0x00473180`, pop `0x004732E0/0x00473290`, erase `0x0092E162`; server1 `0x00930273/0x0092FF6F/0x0092F90C`, raw ctor/copy `0x009DB1A1/0x0092EE7C/0x0097BF85/0x00473110`, raw pop/erase `0x00473240/0x0092FD24` | Pair vs raw 20-byte record; persistent delivery local, quota/cancel defects and positive native callers (§4.5/§4A). |
+| GZ7 | equality methods `0x0092D66F/0x0092D6CC/0x0092D72A/0x0092D45B/0x0092D940` | Queued receiver, argument direction and low-byte truth (§2). |
+
+Only the foreign ThreadSignal and SystemService/unknown forwarding needed by these questions
+are added here. No File/INI/Directory/CmdLine/SysServPtr owner completion is claimed; the native
+acquisition helpers are caller provenance only. No aggregate GZ/RZ owner or byte coverage increase
+follows from this contract pass. GZ1–GZ7 are resolved in their named sections and archived.
+
 ## 6. Open questions
+
+None in the GZ1–GZ7 contract scope. Native indirect-caller enumeration and invalid-iterator
+behaviour are bounded as stated in §4.5; they are not claims of exhaustive runtime coverage.
 
 See docs/specs/questions/framework-gz-services.md.
