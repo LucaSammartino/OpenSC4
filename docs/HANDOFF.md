@@ -8,6 +8,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 ## 0. Current state (2026-10-21, run4 open-ended)
 **Coordinator parked re-wingrid4:** 3/3:165/198 functions26103/32735B documented;33functions6632B plusWG3/WG4 remain. No fourth round.
 
+**Train65 verification gap:** landvalue71/72 (pass43,2029-07-07), verified16.3%; LV2 and preserved trace document read-timing evidence, no algorithm fitting. All10 quota-interrupted lanes preserved in original worktrees; refills paused until provider clears18:00 Europe/London. Capacity fix de1cd3b6 is applied and97testsPASS.
+
 **Run4 checkpoint225 (recorded at225):** 225 rounds, 39 trains landed; coverage45.4/35.1/16.3/17.8, baseline delta+8.6/+6.8/+4.2/+1.9 points; 23 lanes parked. Target10/max3glue; refills paused on provider weekly limit until18:00 Europe/London, all interrupted work preserved. Approved live-worker count fix de1cd3b6 applied,97testsPASS; no guard bypass. Nextcheckpoint250.
 
 **train65 landed e289319e57:** Two-lane batch: newly proved native network-model deform/clip/cache contracts and opt-in exemplar GetValString/EX51 fixes with concrete-entry caller tracing. Exemplar ownunion clean2032/ref0 and contract7/8; EX52/EX53 and EX50 additional clients remain, parked3/3 with WT kept, no default or whole replacement credit. No coverage-map additions; answers unblock bounded core correction and RE. Coverage45.4/35.1/16.3/17.8; rounds225 (open-ended).
