@@ -20,7 +20,8 @@
 - Own-save-off-02d08687 exited(code1) without verdict after58s; last day2033-11-15; no native verifier lines, warnings/foreign/SEH0 in harness summary. Preserve failure; no clean/ref0 claim.
 - EX55 appended with measured split predicates and own saved153 evidence; EX54 unchanged, no new question IDs or spec assumptions.
 - Own-save-off-normal clean2035-01-01/ref0/save11172ms/shutdown, verifier lines0; failed turbo attempt remains distinct and unexplained.
-- Next current40-save-on/off sequentially; no outstanding request at this milestone.
+- Current40-save-on clean2035-01-01 BUT ref_warnings4 (not acceptable ref0); save11125ms/shutdown. Saved153/153 (compressed80) and constructed10/10 exact transports, combined EX55 differences1+2, refusals0/failed0.
+- Warnings at shutdown DropObject:144 (game-object last-reference releases), not verifier record/segment cleanup. Next same frozen current40 verifier-off control; preserve all4 warnings and compare.
 - Supported fixture_city imports existing saved fixtures commands4-own-e50c5bbc.sc4 and commands4-r2-house40.sc4; do not claim new save roundtrip.
 - Round1 turbo and normal both natural60440/60440 + constructed10/10; three EX55 combined differences each; refusal0/failed0/fallback0/resync0.
 - No game-attempt cap: originalcap3 meant lane rounds, this is round2/3.
