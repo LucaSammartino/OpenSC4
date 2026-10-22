@@ -41,3 +41,22 @@
   [No `rng` enable key, invented registration, vtable/constructor hook, private-field patch or native-operation
   forwarding replacement is installed. Existing defaults, maps/tools and RNG-owning subsystem behavior stay
   unchanged; same-name simulation/renderer generators are outside this request.]
+
+<!-- from: verify-variants4 bounded native variant verification (2026-10-22) -->
+- **HG4 - sections 9.2, 10.1, 17.1, independent native serialization fixture:** What published SDK acquisition,
+  ownership and disposal route supplies an isolated ORIGINAL segment input/output stream capable of executing
+  its own ReadVariant/WriteVariant against caller-owned bytes? A property Write into a plugin segment stream
+  only calls that plugin's WriteVariant, so comparing its Rust serialization with Rust is not native
+  verification. Include error-state access, reset/position/lifetime and null-object read-into behavior.
+  [Native serialization/read-into not exercised; Rust serialization is used only to expose the independently
+  populated Rust Variant's typed storage. No native serialization equivalence or save-payload claim.]
+
+<!-- from: verify-variants4 bounded native variant verification (2026-10-22) -->
+- **HG5 - sections 9.1 and 17.1, variant behavior beyond typed storage:** Please publish the behavioral
+  contract for cross-type GetVal/As/CanGetVal, string create/get/set, reference-alias operations, and object/
+  pointer acquisition/retention/release, including empty/invalid values and failure output preservation.
+  The slot table proves call ABI but not these conversions or lifetimes. Confirm CreateCopy hands back one
+  owned reference and that numeric SetRefX copies input storage. [Literal published SDK reading for owned
+  numeric clones and copying setters only; two scalar values and 0/1/3-element arrays per numeric/character
+  type, clone isolation, CopyFrom and Erase are bounded experiments. No whole 127-method owner equivalence;
+  unsupported conversions, string operations, pointers, objects and reference aliasing are excluded.]

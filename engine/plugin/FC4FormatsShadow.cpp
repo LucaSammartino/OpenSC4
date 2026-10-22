@@ -36,6 +36,8 @@
 #include <string>
 #include <vector>
 
+#include "FC4VariantShadow.h"
+
 namespace fc4 {
 namespace {
 
@@ -445,6 +447,7 @@ void FormatsShadowStartup() {
 }
 
 void FormatsShadowCityLoaded() {
+    variant_shadow::Run();
     if (!g_enabled || g_done) return;
     g_done = true;
     // glue-exemplars4: with `enable = exemplars` GetResource returns the
