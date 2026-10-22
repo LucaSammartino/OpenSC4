@@ -9,8 +9,8 @@
 - Build evidence: baseline and earlier quick/all overlapped; use final-gate-result.json as final authority, not their mixed native logs.
 - Done 1fc145c6: signed-byte CRT primitive boundary/errors; counted ResolvePath, entry default/copy/name-only drop, signed SplitDirectory/partial writes, retained find cache/retry/finish.
 - Done: removed duplicate paths directory owner/comparator; paths reexports authoritative rz_files owner. Primitive-only test host bridges it. Added PA4-PA8 independent vectors.
-- Tests: stable fmt recheck passed for all 7 Rust files after 8c6589ec; old quick compiled in 23m39s and is running tests. Sequential driver's quick/all results pending.
-- Next: final-gate.py runs fmt/quick/all sequentially on stable source; inspect build-runs/final-gate-result.json and native logs, report exact scope and enqueue only if green.
+- Tests: stable fmt recheck passed for all 7 Rust files after 8c6589ec. Earlier quick core: 3053 passed / 1 failed (old high-bit expectation, fixed in 7476c5d9); all six new PA4-PA8 groups passed. Final driver quick/all still required.
+- Next: final-gate.py (exec session 74719) runs fmt/quick/all sequentially; inspect build-runs/final-gate-result.json and native logs, report counts and enqueue only if green. Source is stable at 5f3b1274; later commits are report-only.
 - New questions PA9/PA10: negative signed capacity follows literal signed-loop no-output rule; zero-part SplitDirectoryPath fills both safe empty outputs. PA1/PA2/PA3 retained.
 - Done 56d8bee9: nullable next boundary, CRT error propagation and signed split counts in conformance runner; literal JSON zero/one-byte/root vectors.
 - Baseline caveat: long cold build saw updated runtime JSON with its old binary (zero-capacity vector failure); do not claim a clean baseline. Earlier overlapping all logs are not authoritative final evidence.
