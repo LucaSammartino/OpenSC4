@@ -289,12 +289,18 @@ impl OccupantGroupTemplate {
     /// §1: unlike a saturating decrement, zero also destroys. Rust retains
     /// an inert shell for observation; hosts must not use it after release 0.
     pub fn release(&self) -> u32 {
-        let old = self
-            .references
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
-                Some(if n <= 1 { 0 } else { n - 1 })
-            })
-            .unwrap();
+        // compare_exchange keeps the declared Rust 1.75 MSRV: the newer
+        // try_update replacement for deprecated fetch_update is unavailable.
+        let mut old = self.references.load(Ordering::Acquire);
+        loop {
+            match self
+                .references
+                .compare_exchange_weak(old, old.saturating_sub(1), Ordering::AcqRel, Ordering::Acquire)
+            {
+                Ok(_) => break,
+                Err(observed) => old = observed,
+            }
+        }
         if old > 1 {
             old - 1
         } else {

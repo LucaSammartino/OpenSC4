@@ -265,6 +265,27 @@ fn parent_links_and_controllers_do_not_own_references() {
 }
 
 #[test]
+fn concurrent_releases_have_unique_counts_and_destroy_once() {
+    let log = Arc::new(Mutex::new(Vec::new()));
+    let g = Arc::new(tracked(&log));
+    for expected in 1..=32 {
+        assert_eq!(g.add_ref(), expected);
+    }
+    let threads: Vec<_> = (0..32)
+        .map(|_| {
+            let g = g.clone();
+            std::thread::spawn(move || g.release())
+        })
+        .collect();
+    let mut counts: Vec<_> = threads.into_iter().map(|t| t.join().unwrap()).collect();
+    counts.sort_unstable();
+    assert_eq!(counts, (0..32).collect::<Vec<_>>());
+    assert_eq!(*log.lock().unwrap(), ["drive", "player"]);
+    drop(g);
+    assert_eq!(*log.lock().unwrap(), ["drive", "player"]);
+}
+
+#[test]
 fn getters_are_safe_on_a_second_thread() {
     let g = group(3, 4, 5);
     g.edit(|s| {
