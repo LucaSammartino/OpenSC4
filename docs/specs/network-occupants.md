@@ -791,8 +791,12 @@ float→int helper `0x009EEF04`). `GetBoundingBox` `0x0064A4A0`: min = max = the
 `Read` `0x0064A3A0` v2: symmetric (refs read with IID `0xA8C86142`).
 
 Creation: `cSC4PowerLineTool::PlacePoles` `0x00651560` creates lines directly (ctor `0x0064A270` at `0x00651CE4`),
-position from `ComputePolePosition` `0x0064EFE0` (`x = (cell + 0.5) × 16`; `y` = terrain, guarded against
-`-FLT_MAX` `0x00AA9F0C`; constant 0.5 = `0x00A84D2C`). Consumers: power.md §5.4 (the wire overlay walk) and §11.
+position from `ComputePolePosition` `0x0064EFE0`; x,z use `(signed cell + 0.5) × terrain cell width`.
+**NO24:** start height at -FLT_MAX, replace with each strictly greater ordered corner in returned
+order, and store y=height+0.5 as float32. All-sentinel corners return y=-FLT_MAX; no failure or skipped
+pole. NaN corners are ignored. The special terrain branch samples at stored x,z and adds 0.5.
+Evidence: `0x0064F00B`, `0x0064F061–0x0064F0BB`; [full contract](power-line-tool.md) §4.2.
+Consumers: power.md §5.4 and §11.
 
 ---
 
