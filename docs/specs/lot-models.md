@@ -27,8 +27,8 @@ rotation changes, takes its texture per zoom with a fallback key, and draws with
 ## 1. Common behaviour *[compat]*
 
 - All three derive from `cS3DModelInstanceBasic` (as a virtual base; pool-allocated, freed to the pool by the
-  deleting destructors) and answer one IID each besides the basic ones: `0xA9E2831D` (cell texture, `0x005DEB00`),
-  `0xA9E2831E` (retaining wall, `0x005E1200`).
+  deleting destructors). Cell and wall add IIDs `0xA9E2831D` (`0x005DEB00`) and `0xA9E2831E`
+  (`0x005E1200`). Foundation delegates to the basic QueryInterface without adding an IID (`0x005D5410`).
 - **Sort value** (`GetSortValue`): the current texture's ID OR a class constant, so models sharing a texture draw
   together; without a texture a fixed value. Foundation: `| 0x2AB6`, else `0xE9862AB6` (`0x005D5570`); wall:
   `| 0x2A86`, else `0xC9862A86` (`0x005E14F0`).
@@ -37,6 +37,53 @@ rotation changes, takes its texture per zoom with a fallback key, and draws with
   once, including when that key already equals the fallback (§§2.1, 3.1).
 - The draw state, made once from the 3D view manager's draw context, is colour and depth write, depth test
   less-or-equal, one texture, no alpha test, no blending, no culling.
+
+### 1.1 Proven basic ownership and lifetime (LM2, partial)
+
+The basic constructor starts the reference count at **zero**. It is an unsigned 16-bit field, not a
+32-bit atomic counter. AddRef increments modulo 65536 and returns the zero-extended word. Release
+decrements and returns the count only when it was greater than one; counts zero and one both invoke
+deleting destruction and return zero (`0x00801900–0x00801932`, constructor `0x00801CF0`).
+
+The basic QueryInterface recognizes IID 1 and `0x26A68449`; success returns the adjusted basic
+interface and calls its virtual AddRef. Failure returns false without clearing the output pointer
+(`0x00801940`). Cell/wall recognize their extra IID, return their owner interface and AddRef it;
+otherwise they delegate to the basic operation. Foundation's `0x005D5410` is an adjustment/forwarder,
+not a fourth IID implementation.
+
+The owner pointer is initially null. SetOwner on a different pointer releases the old owner **before**
+AddRef of a nonnull new owner; equal pointers cause neither call. It then stores the new pointer.
+GetOwner returns the stored pointer without acquiring a reference. Custom data starts at zero and is
+an uninterpreted stored word; it has no lifetime calls. The basic constructor also sets properties
+to 2, two flag bytes to zero, and scale to binary32 1 (`0x00801850–0x008018AA`, `0x00801CF0`).
+
+Foundation destruction releases/clears side binding, then top binding, then invokes the basic
+destructor. Cell destruction releases/clears its binding, then basic destruction. Wall destruction
+releases/clears its binding, frees its vertex allocation if nonnull, then invokes basic destruction.
+The basic destructor finally releases/clears the owner pointer (`0x005D5300`, `0x005DEAB0`,
+`0x005E1A60`, `0x00801810`). Resource binding references and the model's owner reference are separate.
+
+### 1.2 Native entry inventory and limit of this audit (LM2, partial)
+
+These are the **51 explicitly named owner entries** returned by export searches, including adjusting
+thunks and deleting destructors. They are not 51 distinct behavior bodies or a reconciliation of the
+brief's 82-function total. Addresses below are hexadecimal native entry points.
+
+| Owner | Behavior bodies | Adapters / deleting entry |
+|---|---|---|
+| Foundation (13 entries) | destructor 005D5300; world bounds 005D5530; sort 005D5570; vertices 005D55C0; terrain adjustment 005D5A90; textures 005D5C70; constructor 005D5D70; zoom 005D5E90; draw 005D5FC0 | bounds 005D5D50; sort 005D5D60; deleting destructor 005D5F60; draw 005D6120 |
+| Cell (17 entries) | destructor 005DEAB0; QI 005DEB00; world bounds 005DEE30; sort 005DEE70; corners 005DEEA0; texture 005DF020; Init 005DF100; constructor 005DF880; SetTexture 005DF9A0; vertices 005DF9E0; zoom 005DFD40; draw 005E0200 | QI 005DEC00; bounds 005DF1C0; sort 005DF1D0; deleting destructor 005E01A0; draw 005E0540 |
+| Wall (21 entries) | QI 005E1200; neighbour flat 005E1240; bounds comparison 005E1400; world bounds 005E14C0; sort 005E14F0; box-to-edge 005E1520; textures 005E1620; zoom 005E1710; constructor 005E17C0; destructor 005E1A60; vertices 005E1BC0; Init 005E2780; draw 005E27C0 | QI 005E1940; AddRef 005E1950; Release 005E1960; bounds 005E1A40; sort 005E1A50; deleting destructor 005E1AD0; draw 005E28B0 |
+
+The foundation model-instance table at `0x00AA2808` and wall table at `0x00AA2EA8` each expose 19
+slots: QI, AddRef, Release, GetOwner, SetOwner, GetCustomData, SetCustomData, GetBounds,
+GetWorldBounds, GetTransform, SetTransform, slot 11, Draw, GetProperties, SetProperties,
+GetDrawAttributes, SetDrawAttributes, GetSortValue, GetResModel. Foundation basic adapters are
+`0x005D5420–0x005D54F0`; wall equivalents span `0x005E1950–0x005E1A30`. These adapters are not
+additional independent owner algorithms. Slot 11 forwards through `0x005E19E0` to `0x005DEB40`.
+Its behavior, the full cell inherited table, complete constructor fields, allocation failure and all
+remaining unnamed entries still require reconciliation; LM2 remains open. Do not turn this bounded
+inventory into an 82-body completion claim.
 
 ## 2. Foundations (`cSC4FoundationModel`) *[compat]*
 
@@ -142,10 +189,10 @@ Both side and top use four-vertex primitive type 6, format 10. Buffer assignment
   `0x891B0E1A`; a missing key falls back to `0x695C00C6 + zoom` — the five shipped wall textures `0x695C00C6`–
   `0x695C00CA` of the Terrain Properties exemplar's `0x295961F2` (terrain-view.md §1).
 - **Draw** (`0x005E27C0`): not when highlighted. A zoom change reloads the texture; a rotation change recolours.
-  With the facing test on (`+0x6A`), a wall is drawn only when its side is the rotation or the rotation + 3 (mod 4),
-  the sides facing the camera *[inferred]*; then one triangle list of its vertices.
-- `0x005E1240` tells whether the lot on the cell across the wall's edge is flat (lot flag bit 0) *[inferred: to skip
-  walls between flat lots]*.
+  Drawing requires `+0x6A` nonzero **and** side equal to rotation modulo 4 or rotation+3 modulo 4.
+  A zero flag skips the draw; it does not disable the facing restriction. Submit one triangle list.
+- `0x005E1240` tests the across-edge lot's flag bit 0. A true result suppresses construction of that
+  segment (`0x005E1D8F–0x005E1D96`), rather than merely altering the draw state.
 
 ### 3.1 Binding failures (LM5)
 
