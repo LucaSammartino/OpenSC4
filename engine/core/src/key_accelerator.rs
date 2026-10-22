@@ -164,8 +164,7 @@ impl<H: MessageHost> KeyAccelerator<H> {
     /// Slot 8: only the stored side is masked; retained modifier bit 3 differs
     /// from the three optional presence bits, and from packing's dropped 0x70.
     pub fn is_present(&self, code: u32, with_mod_bits: bool, with_up_bit: bool) -> bool {
-        let mask = !(if with_mod_bits { 0 } else { 0x0007_0000 }
-            | if with_up_bit { 0 } else { 0x1000_0000 });
+        let mask = !(if with_mod_bits { 0 } else { 0x0007_0000 } | if with_up_bit { 0 } else { 0x1000_0000 });
         self.bindings.keys().any(|stored| stored & mask == code)
     }
 

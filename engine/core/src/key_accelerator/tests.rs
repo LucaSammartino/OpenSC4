@@ -40,7 +40,10 @@ impl MessageHost for Host {
 
 fn owner(server: Option<u32>) -> (KeyAccelerator<Host>, Arc<Mutex<Vec<Event>>>) {
     let events = Arc::new(Mutex::new(Vec::new()));
-    let host = Host { server, events: events.clone() };
+    let host = Host {
+        server,
+        events: events.clone(),
+    };
     // Explicit caller-supplied live count, not a claim about the native constructor.
     (KeyAccelerator::new(host, std::num::NonZeroU32::new(1).unwrap()), events)
 }
@@ -82,9 +85,15 @@ fn independent_key_and_modifier_vectors() {
     for (code, vk, modifiers, down, hit) in vectors {
         let (mut accelerator, _) = owner(None);
         assert!(accelerator.register(code, BOUND));
-        assert_eq!(accelerator.test_key(vk, modifiers, down), hit.then_some(BOUND),
-            "code={code:08x} vk={vk:x} modifiers={modifiers:x} down={down}");
-        assert_eq!(accelerator.test_key_type(vk, modifiers, down), hit.then_some(BOUND.type_id));
+        assert_eq!(
+            accelerator.test_key(vk, modifiers, down),
+            hit.then_some(BOUND),
+            "code={code:08x} vk={vk:x} modifiers={modifiers:x} down={down}"
+        );
+        assert_eq!(
+            accelerator.test_key_type(vk, modifiers, down),
+            hit.then_some(BOUND.type_id)
+        );
     }
 }
 
@@ -104,8 +113,11 @@ fn presence_masks_only_stored_code_and_only_published_bits() {
         (0x0008_004f, false, false, false),
     ];
     for (probe, mods, up, expected) in vectors {
-        assert_eq!(accelerator.is_present(probe, mods, up), expected,
-            "probe={probe:08x} mods={mods} up={up}");
+        assert_eq!(
+            accelerator.is_present(probe, mods, up),
+            expected,
+            "probe={probe:08x} mods={mods} up={up}"
+        );
     }
 }
 
@@ -120,7 +132,13 @@ fn insertion_duplicates_removal_and_reinsertion_preserve_full_record() {
     assert!(!accelerator.unregister(0x4e));
     assert_eq!(accelerator.test_key(0x4e, 0, true), None);
     assert!(accelerator.register_type(0x4e, 99));
-    assert_eq!(accelerator.test_key(0x4e, 0, true), Some(Message { type_id: 99, data: [0; 3] }));
+    assert_eq!(
+        accelerator.test_key(0x4e, 0, true),
+        Some(Message {
+            type_id: 99,
+            data: [0; 3],
+        })
+    );
 }
 
 #[test]
@@ -133,16 +151,28 @@ fn enumeration_unsigned_order_capacity_and_total() {
     for capacity in 0..=6 {
         let mut output = [0xdead_beef; 6];
         let result = accelerator.keys_for_type(BOUND.type_id, &mut output[..capacity]);
-        assert_eq!(result, KeyCounts { written: capacity.min(5), total: 5 });
+        assert_eq!(
+            result,
+            KeyCounts {
+                written: capacity.min(5),
+                total: 5,
+            }
+        );
         let expected = [0, 0x4e, 0x1000_004e, 0x8000_0000, u32::MAX];
         assert_eq!(&output[..result.written], &expected[..result.written]);
         assert!(output[result.written..].iter().all(|&v| v == 0xdead_beef));
     }
     let mut output = [0xdead_beef; 2];
-    assert_eq!(accelerator.keys_for_type(0, &mut output), KeyCounts { written: 0, total: 0 });
+    assert_eq!(
+        accelerator.keys_for_type(0, &mut output),
+        KeyCounts { written: 0, total: 0 }
+    );
     assert_eq!(output, [0xdead_beef; 2]);
     accelerator.unregister(0);
-    assert_eq!(accelerator.keys_for_type(BOUND.type_id, &mut output), KeyCounts { written: 2, total: 4 });
+    assert_eq!(
+        accelerator.keys_for_type(BOUND.type_id, &mut output),
+        KeyCounts { written: 2, total: 4 }
+    );
     assert_eq!(output, [0x4e, 0x1000_004e]);
 }
 
@@ -151,9 +181,24 @@ fn keyboard_message_types_and_all_four_dwords() {
     let (mut accelerator, _) = owner(None);
     accelerator.register(0x4e, BOUND);
     accelerator.register_type(0x1000_004e, 44);
-    for (type_id, expected) in [(0, None), (4, None), (5, Some(BOUND)),
-        (6, Some(Message { type_id: 44, data: [0; 3] })), (7, None), (u32::MAX, None)] {
-        let input = Message { type_id, data: [0x4e, 0x70, 0xffff_ffff] };
+    for (type_id, expected) in [
+        (0, None),
+        (4, None),
+        (5, Some(BOUND)),
+        (
+            6,
+            Some(Message {
+                type_id: 44,
+                data: [0; 3],
+            }),
+        ),
+        (7, None),
+        (u32::MAX, None),
+    ] {
+        let input = Message {
+            type_id,
+            data: [0x4e, 0x70, 0xffff_ffff],
+        };
         assert_eq!(accelerator.test_message(input), expected);
         assert_eq!(accelerator.test_message_type(input), expected.map(|m| m.type_id));
     }
@@ -165,21 +210,38 @@ fn keyboard_message_types_and_all_four_dwords() {
 fn uninitialized_is_not_disabled_and_dispatch_is_synchronous() {
     let (mut accelerator, events) = owner(Some(7));
     accelerator.register(0x4e, BOUND);
-    let input = Message { type_id: 5, data: [0x4e, 0, 0] };
+    let input = Message {
+        type_id: 5,
+        data: [0x4e, 0, 0],
+    };
     assert!(accelerator.process(input));
     assert!(events.lock().unwrap().is_empty());
     assert!(accelerator.init());
     assert!(accelerator.init());
     assert!(accelerator.process(input));
-    assert_eq!(*events.lock().unwrap(), vec![Event::Service(0xc108_5722), Event::AddRef(7), Event::Send(7, BOUND)]);
+    assert_eq!(
+        *events.lock().unwrap(),
+        vec![Event::Service(0xc108_5722), Event::AddRef(7), Event::Send(7, BOUND)]
+    );
     assert!(!accelerator.process(Message { type_id: 4, ..input }));
-    assert!(!accelerator.process(Message { data: [0x4e, u32::MAX, 0], ..input }));
+    assert!(!accelerator.process(Message {
+        data: [0x4e, u32::MAX, 0],
+        ..input
+    }));
     assert_eq!(events.lock().unwrap().len(), 3);
     assert!(accelerator.shutdown());
     assert!(accelerator.shutdown());
     assert!(accelerator.process(input));
     assert_eq!(accelerator.test_message(input), Some(BOUND));
-    assert_eq!(*events.lock().unwrap(), vec![Event::Service(0xc108_5722), Event::AddRef(7), Event::Send(7, BOUND), Event::Release(7)]);
+    assert_eq!(
+        *events.lock().unwrap(),
+        vec![
+            Event::Service(0xc108_5722),
+            Event::AddRef(7),
+            Event::Send(7, BOUND),
+            Event::Release(7),
+        ]
+    );
 }
 
 #[test]
@@ -201,7 +263,17 @@ fn reinitialize_and_final_release_cleanup_once() {
     assert_eq!(accelerator.add_ref(), None);
     assert_eq!(accelerator.release(), None);
     drop(accelerator);
-    assert_eq!(*events.lock().unwrap(), vec![Event::Service(0xc108_5722), Event::AddRef(7), Event::Release(7), Event::Service(0xc108_5722), Event::AddRef(7), Event::Release(7)]);
+    assert_eq!(
+        *events.lock().unwrap(),
+        vec![
+            Event::Service(0xc108_5722),
+            Event::AddRef(7),
+            Event::Release(7),
+            Event::Service(0xc108_5722),
+            Event::AddRef(7),
+            Event::Release(7),
+        ]
+    );
 }
 
 #[test]
@@ -209,11 +281,15 @@ fn rust_drop_releases_only_reference_it_acquired() {
     for initialized in [false, true] {
         let (mut accelerator, events) = owner(Some(7));
         accelerator.register(0x4e, BOUND);
-        if initialized { accelerator.init(); }
+        if initialized {
+            accelerator.init();
+        }
         drop(accelerator);
         let expected = if initialized {
             vec![Event::Service(0xc108_5722), Event::AddRef(7), Event::Release(7)]
-        } else { vec![] };
+        } else {
+            vec![]
+        };
         assert_eq!(*events.lock().unwrap(), expected);
     }
 }
@@ -225,4 +301,60 @@ fn published_interface_membership_only() {
     assert!(!KeyAccelerator::<Host>::supports_interface(0));
     assert!(!KeyAccelerator::<Host>::supports_interface(0x42e9_67be));
     assert!(!KeyAccelerator::<Host>::supports_interface(u32::MAX));
+}
+
+#[test]
+fn literal_wt8_missing_service_and_repeated_calls() {
+    let (mut accelerator, events) = owner(None);
+    accelerator.register_type(0, 0);
+    assert!(accelerator.shutdown());
+    assert!(!accelerator.is_initialized());
+    assert!(events.lock().unwrap().is_empty());
+    assert!(accelerator.init());
+    assert!(accelerator.init());
+    assert!(accelerator.is_initialized());
+    assert!(accelerator.process(Message {
+        type_id: 5,
+        data: [0; 3],
+    }));
+    assert!(accelerator.shutdown());
+    assert!(accelerator.shutdown());
+    assert!(accelerator.init());
+    assert_eq!(accelerator.release(), Some(0));
+    drop(accelerator);
+    assert_eq!(*events.lock().unwrap(), vec![Event::Service(0xc108_5722); 2]);
+}
+
+#[test]
+fn literal_wt8_full_width_vk_and_verbatim_registration() {
+    let (mut accelerator, _) = owner(None);
+    accelerator.register(0x0001_004e, BOUND);
+    assert_eq!(accelerator.test_key(0x0001_004e, 0, true), Some(BOUND));
+    accelerator.register(0x0001_0010, BOUND);
+    assert_eq!(accelerator.test_key(0x0001_0010, 0, true), Some(BOUND));
+    accelerator.register(0x0010_004e, BOUND);
+    assert!(accelerator.is_present(0x0010_004e, true, true));
+    assert_eq!(accelerator.test_key(0x4e, 0x10, true), None);
+    assert!(accelerator.unregister(0x0010_004e));
+}
+
+#[test]
+fn terminal_and_overflow_are_explicit_rust_safety_boundaries() {
+    let (mut accelerator, events) = owner(None);
+    accelerator.references = u32::MAX;
+    assert_eq!(accelerator.add_ref(), None);
+    assert_eq!(accelerator.reference_count(), u32::MAX);
+    assert_eq!(accelerator.release(), Some(u32::MAX - 1));
+    accelerator.references = 1;
+    accelerator.register(0x4e, BOUND);
+    assert_eq!(accelerator.release(), Some(0));
+    assert!(!accelerator.init());
+    assert!(!accelerator.shutdown());
+    assert!(!accelerator.register(0x4e, BOUND));
+    assert!(!accelerator.unregister(0x4e));
+    assert!(!accelerator.is_present(0x4e, false, false));
+    let mut codes = [99];
+    assert_eq!(accelerator.keys_for_type(BOUND.type_id, &mut codes).total, 0);
+    assert_eq!(codes, [99]);
+    assert!(events.lock().unwrap().is_empty());
 }
