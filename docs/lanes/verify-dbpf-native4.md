@@ -15,7 +15,8 @@
 - Pair audit passed: exactly40 unique literal keys, disable empty; same artifact/fixture/common retained OFF script62e3c03c...; normalized common settings SHA256 a934793829e0882cb847e03868fc194743f16327bf4c239d28e795e472a68a7a.
 - OFF vdbpf4-r3-budget-on-current40-off-02d08687-a PASS: clean2035-01-01, foreign/stalls/rtc/overruns/ref0, fullsave ok1/11140ms, after-save mark and both shutdown hooks; native lines0 (control-only). Request/verdict/log hashes in own run record; readonly inputs unchanged.
 - Measured OFF providers42 = exact requested40 plus budget/simulator, missing0; not inferred from list length. Real160.422s, queue6s, wall178s, slot1.
-- Next: submit only matched ON vdbpf4-r3-budget-on-current40-on-02d08687-b, wait/audit independently; ON remains unsubmitted at this checkpoint.
+- ON vdbpf4-r3-budget-on-current40-on-02d08687-b submitted only after OFF passed; collect via owned read-only wait helper. No other game requests, builds or engine edits authorized.
+- Next: audit ON actual lifecycle/ref0, all17 source opens,16 fixture open/reject decisions,10 constructed/153 supplied records, separate list/key/count and EX55; verify unchanged immutable inputs and actual provider set before final report.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-dbpf-native4-r3-manifest.json.
 - Frozen pair: build-runs/dbpf-r2-frozen-02d08687; existing production implementation02d08687, gate304fdfba.
 - No fourth round, rebuild, source fitting, game slot access, qwait, subagents or owner/replacement promotion.
