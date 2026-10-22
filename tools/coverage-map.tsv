@@ -289,7 +289,7 @@ cS3DResModel*	graphics formats (FSH, S3D)	renderer	graphics-formats.md	formats/s
 cS3DShapeFile	graphics formats (FSH, S3D)	renderer	graphics-formats.md	formats/src/fsh	-	-
 cSCLua*	Lua host	framework	lua-host.md	-	-	-
 cGZLua5*	Lua host	framework	lua-host.md	-	-	-
-cGZLuaScriptServer	Lua host	framework	lua-host.md	-	-	-
+cGZLuaScriptServer	Lua host	framework	lua-host.md	core/src/lua_script_server	-	-
 SCLuaHelp	Lua host	framework	lua-host.md	-	-	-
 cLUAExtensionsCollector*	Lua host	framework	lua-host.md	-	-	-
 fn:lua_extension_*	Lua host	framework	lua-host.md	-	-	-
