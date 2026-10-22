@@ -278,7 +278,7 @@ fn driving_projection_orders_raw_operations_and_resumes_conditionally() {
                 enabled: false,
             },
             Operation::DispatchTrack(Some(B)),
-            Operation::Callback39(B),
+            Operation::Callback39 { automaton: B, tool: 99 },
             Operation::TimerReset,
         ];
         if paused {
@@ -630,7 +630,7 @@ fn stopping_state10_selects_slot13_or_slot53_using_only_published_bits() {
         assert_eq!(
             f.operations,
             [
-                Operation::Callback40(A),
+                Operation::Callback40 { automaton: A, tool: 99 },
                 Operation::DispatchTrack(None),
                 Operation::VehicleManagerTrack(None),
                 Operation::ZoomLimits(0, 5),
@@ -671,7 +671,7 @@ fn end_input_and_escape_order_callbacks_slot18_cleanup_and_base_stack_removal() 
                 values: [RawValue::Known(1), RawValue::Unpublished]
             },
             Operation::State13 { automaton: A, value: 0 },
-            Operation::Callback40(A),
+            Operation::Callback40 { automaton: A, tool: 99 },
             Operation::DispatchTrack(None),
             Operation::VehicleManagerTrack(None),
             Operation::ZoomLimits(0, 5),
@@ -711,7 +711,7 @@ fn removed_and_notification_identity_matching_is_mandatory() {
         } else {
             owner.automaton_removed(&mut f, A).unwrap();
         }
-        assert_eq!(f.operations[0], Operation::Callback40(A));
+        assert_eq!(f.operations[0], Operation::Callback40 { automaton: A, tool: 99 });
         assert_eq!(f.operations[7], Operation::ReleaseDriven(A));
         assert_eq!(
             &f.operations[8..],
@@ -863,7 +863,7 @@ fn failures_preserve_emitted_prefix_and_never_invent_reference_cleanup() {
     assert_eq!(
         f.operations,
         [
-            Operation::Callback40(A),
+            Operation::Callback40 { automaton: A, tool: 99 },
             Operation::DispatchTrack(None),
             Operation::VehicleManagerTrack(None),
             Operation::ZoomLimits(0, 5),

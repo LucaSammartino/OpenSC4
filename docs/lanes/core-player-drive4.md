@@ -9,9 +9,11 @@
 - Next: collect baseline operation (exec session 44795), register module, commit, run absolute fmt and serial quick/final all.
 - q.py cannot start Bash (E_ACCESSDENIED); use bounded PowerShell commands.
 - Process inventory: native command-line/handle query succeeded: baseline qbuild PID37080 (102 handles), attributable fc4-core test compiler PID8136 (126 handles); compiler later completed. No duplicate check started.
-- Baseline all started once, PID37080 / exec session44795; 5132 passed/0 failed across 14 summaries so far. formats game_data sweeps still running at last read; collect operation/logs before another build.
+- Baseline all PID37080 / exec session44795: Rust complete 5142 passed/0 failed across 22 summaries; clippy finished clean (4m32s). CMake configured, build still active; collect it before another build.
 - Formatting: first new-file check failed (wrong formatter config, 985 diff lines); corrected new files using engine/rustfmt.toml via apply_patch. Untouched lib.rs baseline fmt fails 171 diff lines (pre-existing module order); do not broadly reformat it.
 - New-file absolute fmt passed (2 files); baseline lib.rs fmt failure remains separate. No game requests/native probes; no ABI changes. DR1/DR2 retained; appended DR3-DR8.
+- Actual CMake cache: Debug, Ninja, FC4_CHECKED=OFF, compiler cache ON, Rust target i686-pc-windows-msvc; no source/default flags changed.
+- Callback39/40 plans now carry explicit tool identity as well as automaton; commit before registering module/checking it.
 
 ## Pre-implementation method audit
 
@@ -49,3 +51,13 @@ The published attribution is 40 functions / 12400 bytes; the reported inventory 
 | SC4TrainJunctionView construction / Shutdown | excluded | Separate owner, zero credit |
 
 Foreign Automata/Gauge/Audio/Camera/dispatch/junction/state10/keymap bodies are excluded throughout. Existing camera APIs use different zoom units and do not expose this window's SetZoomLimits; use raw window operations rather than reinterpret values. Existing automata PlayerDrive is serialized state only; city_situation slot32 remains a raw foreign predicate.
+
+## Bounded implementation
+
+The new `engine/core/src/player_drive` owns current/hover identities, selected/hover cells, choosing/driving state, both toggles, camera-speed words, callback planning order and timer markers. Its foreign inputs are individual picks, flags/group/type/state/property/drive fields, raw script command lookup, simulator pause state, mission slot32 and zoom predicates. Its outputs are ordered primitive operations, including the explicit acquired/released driven reference. No primitive returns a same-owner algorithm result.
+
+`enter_driving_mode` is an explicitly partial projection, not native entry: it marks omitted ShowUI, audio-table and settings-selection steps and always returns their unsupported gaps. It selects an ID without loading a dashboard. Light/button effects require an explicitly attached, already-created window. Normal keys stop at Unsupported HandleKeyEffects after raw lookup; direct numeric commands and the published mouse paths exercise the owned table. Unknown/nonboolean/missing primitive domains fail visibly, keeping already-emitted prefixes instead of inventing rollback or releases.
+
+`fixtures.md` was committed before production implementation (1ebdc0a1). The 25 tests discriminate table/order/state decisions rather than roundtripping serialization or asking a host for an owner outcome. No new-owner native equivalence, implemented bytes, shadow measurement, replacement/default promotion or complete Init/Shutdown is claimed. This is the first bounded portion of this distinct owner; no foreign-owner bodies count toward its credit.
+
+Questions DR3-DR8 are appended only in `docs/specs/questions/drive-tool.md`; DR1 and DR2 remain open and unchanged. The generated question index is deliberately not edited or regenerated under this lane's restrictions.

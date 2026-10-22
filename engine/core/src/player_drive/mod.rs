@@ -125,8 +125,14 @@ pub enum Operation {
     Slot53(Automaton),
     VehicleManagerTrack(Option<Automaton>),
     DispatchTrack(Option<Automaton>),
-    Callback39(Automaton),
-    Callback40(Automaton),
+    Callback39 {
+        automaton: Automaton,
+        tool: u64,
+    },
+    Callback40 {
+        automaton: Automaton,
+        tool: u64,
+    },
     ZoomLimits(i32, i32),
     Zoom(i32),
     WindowEnabled {
@@ -414,7 +420,10 @@ impl PlayerDrive {
         }
         self.toggles = [true, false];
         host.emit(Operation::DispatchTrack(Some(a)));
-        host.emit(Operation::Callback39(a));
+        host.emit(Operation::Callback39 {
+            automaton: a,
+            tool: self.tool_identity,
+        });
         self.timer = TimerState::Reset;
         host.emit(Operation::TimerReset);
         self.pause_everything(host, false)?;
@@ -425,7 +434,10 @@ impl PlayerDrive {
         let Some(a) = self.current else {
             return Ok(Progress::Ignored);
         };
-        host.emit(Operation::Callback40(a));
+        host.emit(Operation::Callback40 {
+            automaton: a,
+            tool: self.tool_identity,
+        });
         host.emit(Operation::DispatchTrack(None));
         host.emit(Operation::VehicleManagerTrack(None));
         host.emit(Operation::ZoomLimits(0, 5));
