@@ -167,7 +167,7 @@ generated index: the questions live one file per spec, so read only the file for
 | automata-managers | 2 | 0 | AD3 | questions/automata-managers.md |
 | automata-support | 2 | 0 | AN3 | questions/automata-support.md |
 | budget | 0 | 8 | BQ9 | - |
-| budget-window | 1 | 14 | BW17 | questions/budget-window.md |
+| budget-window | 2 | 14 | BW18 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
 | bulldozer-tool | 1 | 0 | BT2 | questions/bulldozer-tool.md |
 | camera | 1 | 1 | CA3 | questions/camera.md |
@@ -205,14 +205,14 @@ generated index: the questions live one file per spec, so read only the file for
 | history | 0 | 17 | HW18 | - |
 | html-document | 1 | 6 | HD8 | questions/html-document.md |
 | landfill | 0 | 36 | LF7, LG31 | - |
-| landvalue | 1 | 6 | LV6 | questions/landvalue.md |
+| landvalue | 3 | 6 | LV8 | questions/landvalue.md |
 | language-utility | 3 | 0 | LU4 | questions/language-utility.md |
 | legacy-control | 3 | 4 | LC9 | questions/legacy-control.md |
 | lighting | 4 | 0 | LT5 | questions/lighting.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
 | lot-models | 1 | 0 | LM2 | questions/lot-models.md |
-| lot-records | 2 | 5 | LR8 | questions/lot-records.md |
+| lot-records | 4 | 5 | LR10 | questions/lot-records.md |
 | map-view | 4 | 0 | QV5 | questions/map-view.md |
 | model-instances | 2 | 0 | MI3 | questions/model-instances.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
@@ -223,14 +223,14 @@ generated index: the questions live one file per spec, so read only the file for
 | network-manager | 0 | 13 | NM14 | questions/network-manager.md |
 | network-occupants | 18 | 8 | NO27 | questions/network-occupants.md |
 | network-overlay-views | 1 | 0 | NOV2 | questions/network-overlay-views.md |
-| network-rules | 3 | 9 | NR16 | questions/network-rules.md |
+| network-rules | 2 | 10 | NR16 | questions/network-rules.md |
 | network-tools | 14 | 0 | NT21 | questions/network-tools.md |
 | occupant-groups | 2 | 0 | OG3 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
 | occupants-props | 12 | 5 | OP18 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
-| overlay-manager | 3 | 0 | OV4 | questions/overlay-manager.md |
+| overlay-manager | 9 | 0 | OV10 | questions/overlay-manager.md |
 | overlay-views | 1 | 0 | OVV2 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 3 | 4 | PT8 | questions/particles.md |
@@ -283,4 +283,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **294** | **1143** | | |
+| **total** | **304** | **1144** | | |
