@@ -14,10 +14,6 @@
   matches the position of all 417 shipped city files. Which decoder loads a file called `config.bmp` into the
   buffer (a BMP reader, or a content-sniffing reader that also takes PNG, since the game-data templates are
   type `0x856DDBAC`), and does it always flip the BMP to top-down? [BMP and PNG both accepted, top row first]
-- **RM4 - §5.1:** `SC4ReadAppLoadSaveVersion` (`0x005DBF30`) returns 0 or 65 when the package has no version
-  record, depending on a second package call (DB segment slot `+0x4C`). What is that call, and is a city file
-  without a version record accepted (65) or refused (0)? Do files saved by the retail 1.1.641 game always carry
-  the record? [accepted as 65]
 - **RM5 - §6.4:** the sanitiser removes `< > : \ / " | * ?` and cuts to 256 bytes, but before that it converts the
   text between encodings, along a path that depends on a global flag (`0x00B62910`). What is the effect for a
   region name with non-ASCII letters (does the folder get the UTF-8 bytes, the system code page, or are the
@@ -43,6 +39,6 @@
   test, blending, culling), is the vertex colour `0xFF400000` read as ARGB, and is the rectangle visible in the
   region screen (it may only fill the depth buffer)? [flat dark red quad]
 - **RM12 - §12 test 2:** applying the spec to the shipped Timbuktu folder moves `City - New City (21).sc4` out to
-  `Regions\Downloads\` at the first load (it shares its cell with the Making Money tutorial city). Does a fresh
-  install behave this way, in which order does the file system list the two names, and is the tutorial registry
+  `Regions\Downloads\` at the first load (it shares its cell with the Making Money tutorial city). The shipped Downloads folder holds a byte-identical copy of that file
+  (renamed without the ` (21)`), this proves the shipped-file identity, but does not establish runtime first-load behavior; in which order does the file system list the two names, and is the tutorial registry
   expected to rebuild the tutorial city from the game data instead (`ResetTutorialCity`)? [as read]

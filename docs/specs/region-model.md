@@ -288,8 +288,9 @@ Input: a folder path (ending in a backslash) and an output list of counted regio
    - the file is opened as a package; a package that cannot be opened fails;
    - the **application version record** of the package (type `0xEA3FF4F5`, group `0xEA3FF506`, instance
      `0xEA3FF4F5`; save-records.md lists it) must give a version from **62 to 65** inclusive, else the file is
-     ignored. A package with no readable version record gives 65 or 0, depending on a second test of the package
-     that is not decoded (RM4);
+     ignored. A package with **no** version record counts as 65 (accepted); a package whose
+     version record exists but cannot be read counts as 0 (refused) *[compat]* (regional-city.md §9.1; every shipped
+     city file carries the record);
    - the **regional-city record** (type `0xCA027EDB`, group `0xCA027EE1`, instance 0; foundations.md §11) is read.
      A package without it, or with a record that fails to read (foundations.md §11.2: version 14 or more, a limit
      exceeded), is ignored.
@@ -653,7 +654,10 @@ each folder (§2.1), `Init` on the region that becomes active and `Shutdown` on 
 2. **A duplicate cell.** Timbuktu has 92 city files for 91 locations: `City - Making Money Tutorial.sc4` and
    `City - New City (21).sc4` both have position (6, 5) and size 2. With a directory listing in alphabetical order
    the first is placed and the second is overflow: `Init` moves it to `Regions\Downloads\` and deletes it from the
-   Timbuktu folder *[inferred]* (RM12 asks whether the game really does this on a fresh install).
+   Timbuktu folder *[inferred]*. The game data supports this: the shipped Downloads folder holds a `City - New City.sc4`
+   that is byte-identical to Timbuktu's `City - New City (21).sc4`, without the ` (21)` suffix (regional-city.md
+   §12). Which of the two names the file system lists first, and whether the tutorial registry rebuilds the tutorial
+   city, are still open (RM12).
 3. **Bounding rectangle.** Locations (0,0,1), (2,0,0) give `{0, 0, 2, 0}` reset to `{0, 0, 0, 0}` because
    `maxY - minY` is 0; locations (0,0,1), (3,2,0) give `{0, 0, 3, 2}`.
 4. **`LoadConfig`.** A `region.ini` with `Terrain type = 2`, `Water Min = 255`, `Water Max = 254`, `Name = ` leaves
@@ -682,3 +686,6 @@ obliteration, the nation's list handling beyond §11, and the sub-view classes t
 ## Complementary region analysis
 
 See [region.md](region.md) for the other contributor's independent region analysis. Both analyses and their open RM/RQ questions are retained. Coverage credits exact cSC4Region once; this cross-reference does not promote partial terrain-map/view or location/signpost helper owners. Inferred naming/argument and filesystem observations retain their tags until their questions are independently resolved.
+
+
+PR review conformance for RM4: a package with no application-version record uses65 and passes the62-65 version gate; a present but unreadable record uses0 and fails it. Shipped-file byte identity in test2 does not establish directory enumeration or what a fresh runtime does; RM12 remains open.
