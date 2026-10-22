@@ -113,22 +113,36 @@ bool Capture(std::array<std::vector<uint8_t>, 32>& bytes, std::array<fc4_feature
 }
 
 void Lifetime() {
+    if (!g_snapshot) return;
     // One QI-owned hold plus the app hold always remain during these probes.
     const uint32_t up = FC4_ADDREF(g_owned);
+    const uint32_t rustUp = fc4_feature_snapshot_lifetime(g_snapshot, 0, 0);
     const uint32_t down = FC4_RELEASE(g_owned);
-    ++g_lifetime;
-    if (up != down + 1 || down == 0) ++g_lifeDiff;
+    const uint32_t rustDown = fc4_feature_snapshot_lifetime(g_snapshot, 1, 0);
+    g_lifetime += 2;
+    if (up != rustUp) ++g_lifeDiff;
+    if (down != rustDown || down == 0) ++g_lifeDiff;
     for (uint32_t iid : {1u, 0x0B562673u}) {
         cISC4FeatureManager* out = nullptr;
         const bool ok = g_owned->QueryInterface(iid, reinterpret_cast<void**>(&out));
         ++g_lifetime;
-        if (!ok || out != g_owned) ++g_lifeDiff;
-        if (ok && out) { FC4_ACQUIRED(out, "feature supported QI"); FC4_RELEASE(out); }
+        const uint32_t bits = static_cast<uint32_t>(ok) | (static_cast<uint32_t>(out == g_owned) << 1);
+        if (bits != fc4_feature_snapshot_lifetime(g_snapshot, 2, iid)) ++g_lifeDiff;
+        if (ok && out) {
+            FC4_ACQUIRED(out, "feature supported QI");
+            const uint32_t native = FC4_RELEASE(out);
+            const uint32_t rust = fc4_feature_snapshot_lifetime(g_snapshot, 1, 0);
+            ++g_lifetime;
+            if (native != rust) ++g_lifeDiff;
+        }
     }
     void* out = reinterpret_cast<void*>(1);
     const bool ok = g_owned->QueryInterface(0x12345678u, &out);
     ++g_lifetime;
-    if (ok || out != reinterpret_cast<void*>(1)) ++g_lifeDiff;
+    const uint32_t bits = static_cast<uint32_t>(ok) | (static_cast<uint32_t>(out == reinterpret_cast<void*>(1)) << 1);
+    if (bits != fc4_feature_snapshot_lifetime(g_snapshot, 2, 0x12345678u)) ++g_lifeDiff;
+    Log("feature-lifetime: probe=%u exact=%u diff=%u native_add=%u rust_add=%u native_release=%u rust_release=%u",
+        g_samples, g_lifetime - g_lifeDiff, g_lifeDiff, up, rustUp, down, rustDown);
 }
 }
 
@@ -174,7 +188,10 @@ void FeatureShadowShutdown() {
     Queries();
     if (g_owned) Lifetime();
     uint32_t remaining = 0;
-    if (g_owned) { remaining = FC4_RELEASE(g_owned); g_owned = nullptr; ++g_lifetime; if (!remaining) ++g_lifeDiff; }
+    if (g_owned) {
+        remaining = FC4_RELEASE(g_owned); g_owned = nullptr; ++g_lifetime;
+        if (!remaining || (g_snapshot && remaining != fc4_feature_snapshot_lifetime(g_snapshot, 1, 0))) ++g_lifeDiff;
+    }
     fc4_feature_snapshot_destroy(g_snapshot); g_snapshot = nullptr;
     Log("feature-shadow: totals samples=%u exact=%u diff=%u refusal=%u resync=0 lifetime_exact=%u lifetime_diff=%u app_hold_remaining=%u",
         g_samples, g_exact, g_diff, g_refusal, g_lifetime - g_lifeDiff, g_lifeDiff, remaining);

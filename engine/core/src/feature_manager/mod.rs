@@ -35,7 +35,8 @@ pub trait PackResources {
     /// Register the process's static shutdown callback with context 0. The caller
     /// supplies the app-owned callback binding; the callback calls static_shutdown.
     fn register_static_shutdown(&mut self, process: &FeatureProcess);
-    /// Resolve one raw resource file. None means that its key did not resolve.
+    /// Acquire one raw resource file. None means acquisition failed; merely
+    /// locating a record does not prove acquisition succeeds (FM3).
     fn open_resource(&mut self, key: ResourceKey) -> Option<Self::File>;
     /// Release precisely the reference returned by open_resource, after parsing.
     fn release_file(&mut self, file: Self::File);

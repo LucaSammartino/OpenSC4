@@ -12741,6 +12741,10 @@ extern "C" {
 fc4_feature_snapshot* fc4_feature_snapshot_create(const fc4_feature_file* files);
 void fc4_feature_snapshot_destroy(fc4_feature_snapshot* snapshot);
 uint32_t fc4_feature_snapshot_query(const fc4_feature_snapshot* snapshot, uint32_t kind, uint32_t arg);
+/* Lifetime mirror starts with published app AddRef + verifier QI hold (count 2),
+ * never a native-supplied count. operations 0 AddRef, 1 Release, 2 QI; QI result
+ * bit 0 = success, bit 1 = output identity/sentinel preserved. */
+uint32_t fc4_feature_snapshot_lifetime(fc4_feature_snapshot* snapshot, uint32_t operation, uint32_t iid);
 #ifdef __cplusplus
 }
 static_assert(sizeof(fc4_feature_file) == (sizeof(void*) == 4 ? 12 : 24), "fc4_feature_file layout");

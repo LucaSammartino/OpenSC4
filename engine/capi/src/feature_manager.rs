@@ -48,6 +48,11 @@ pub unsafe extern "C" fn fc4_feature_snapshot_create(files: *const fc4_feature_f
         let process = FeatureProcess::new();
         let mut manager = FeatureManager::new(process.clone());
         manager.init(&mut Files(input));
+        // Published lifecycle, independent of native counts: app construction
+        // AddRef, followed by the verifier's one QI-owned reference.
+        manager.add_ref();
+        let mut owned = None;
+        manager.query_interface(0x0B56_2673, &mut owned);
         Box::into_raw(Box::new(fc4_feature_snapshot {
             manager,
             ids: process.mentioned_features(),
@@ -63,6 +68,33 @@ pub unsafe extern "C" fn fc4_feature_snapshot_destroy(snapshot: *mut fc4_feature
             drop(Box::from_raw(snapshot));
         }
     }));
+}
+
+/// Portable lifetime mirror: 0 AddRef, 1 Release, 2 QI. QI returns bit 0
+/// success, bit 1 identity preserved (sentinel is the existing identity).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_feature_snapshot_lifetime(
+    snapshot: *mut fc4_feature_snapshot,
+    operation: u32,
+    iid: u32,
+) -> u32 {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(s) = snapshot.as_mut() else {
+            return u32::MAX;
+        };
+        match operation {
+            0 => s.manager.add_ref().unwrap_or(u32::MAX),
+            1 => s.manager.release().unwrap_or(u32::MAX),
+            2 => {
+                let identity = s.manager.interface();
+                let mut out = identity.clone();
+                let ok = s.manager.query_interface(iid, &mut out);
+                u32::from(ok) | (u32::from(out == identity) << 1)
+            }
+            _ => u32::MAX,
+        }
+    }))
+    .unwrap_or(u32::MAX)
 }
 
 /// kind 0 feature, 1 pack (all u32 arguments), 2 current pack, 3 ID count, 4 ID at index.
@@ -122,6 +154,12 @@ mod tests {
             assert_eq!(fc4_feature_snapshot_query(snapshot, 4, 1), 20);
             assert_eq!(fc4_feature_snapshot_query(snapshot, 4, 2), 26);
             assert_eq!(fc4_feature_snapshot_query(snapshot, 4, 3), u32::MAX);
+            assert_eq!(fc4_feature_snapshot_lifetime(snapshot, 0, 0), 3);
+            assert_eq!(fc4_feature_snapshot_lifetime(snapshot, 1, 0), 2);
+            assert_eq!(fc4_feature_snapshot_lifetime(snapshot, 2, 1), 3);
+            assert_eq!(fc4_feature_snapshot_lifetime(snapshot, 1, 0), 2);
+            assert_eq!(fc4_feature_snapshot_lifetime(snapshot, 2, 0x1234_5678), 2);
+            assert_eq!(fc4_feature_snapshot_lifetime(snapshot, 1, 0), 1);
             fc4_feature_snapshot_destroy(snapshot);
             assert!(fc4_feature_snapshot_create(std::ptr::null()).is_null());
             files[0].present = 2; // Incomplete/unsupported capture cannot masquerade as absent.
