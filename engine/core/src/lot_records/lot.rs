@@ -334,20 +334,18 @@ impl SaveObject for Lot {
     fn class_id(&self) -> u32 {
         CLSID_LOT
     }
-    /// Field 2 is the held configuration's ID. A lot that was read but not
-    /// `Init`ed holds no object yet; the spec does not say what it writes
-    /// (LR4), so the ID read is written back (round-trips the crime-only lot
-    /// of §14).
+    /// Field 2 is `object ? object.GetID() : 0` (`0x006C0093`); the ID read
+    /// (`+0x30`) is never written back, so a lot read but never `Init`ed
+    /// saves 0 whatever it read (§3.2, §3.5, LR4).
     fn write(&self, out: &mut dyn OutStream) -> bool {
         let r = self.rec.borrow();
-        match self.configuration.get() {
-            Some(id) if r.configuration_id != id => {
-                let mut c = r.clone();
-                c.configuration_id = id;
-                c.write(out)
-            }
-            _ => r.write(out),
+        let id = self.configuration.get().unwrap_or(0);
+        if r.configuration_id == id {
+            return r.write(out);
         }
+        let mut c = r.clone();
+        c.configuration_id = id;
+        c.write(out)
     }
     /// `Read` (`0x006C35F0`, §3.4).
     fn read(&self, inp: &mut dyn InStream) -> bool {
