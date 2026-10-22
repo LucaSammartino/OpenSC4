@@ -2,7 +2,16 @@
 |---|---|---|---|
 | re-wingrid4: cGZWinGrid owner spec (198 functions, 32735 B) in docs/specs/win-grid.md | `re-wingrid4` / (RE lane) | wip after round 2 of 3, docs only, no ABI change; 127/198 functions, 11433/32735 B specified (remaining 71 fn, 21302 B, listed in spec §A as `pending`); WG1 answered (DIFFERS: slot 141 is PlaySound), WG2-WG4 open | Round 3 (last): cell data, scroll bars, layout/RecalculateAll, sort, copy/delete, GZPaint. |
 
-## Handoff / round 2 report
+## Handoff (round 3)
+
+Round 3 in progress (2026-10-22), static only. §5.10 scroll bars/RecalculateAll/sizes, §5.11 cell data/windows/
+copy/MakeRoom committed; WG2 answered. Coverage 156/198, 20021/32735 B; remaining 42 functions, 12714 B.
+Next: GZPaint 0x009AF168 + FUN_009A7E52 (§5.12), Sort/Copy/Delete rows+columns, SetCellFormat family,
+SetDefaultFormatting, ScrollCells*, GetCellRect, ResizeColumnToFitCellWindows, remaining FUN_ helpers.
+Tools: build-runs/cdec.py <decompfile> <addr> (compact decomp), rdf.py VA[:f|d|i|s] (read constants),
+appendix.py (status.tsv -> §A). Round 3 is the last: park if not complete.
+
+## Report (round 2)
 
 Round 2 done (2026-10-22), static only (REA: no app open, every call failed "No app is open").
 Done: 227181c2 §5.9 selection (AddCellToSelection, SetSelection, ActLikeAListbox), DoCursorHitTest,

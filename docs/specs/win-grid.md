@@ -41,10 +41,10 @@ Values are what the constructor 0x009ABC95 stores. Size at least 0x2C4.
 | +0x128 | s32 | 0 | horizontal scroll position (§5.1 DoMessage) |
 | +0x12C / +0x130 / +0x134 | s32, f32, f32 | 0, 1.0, 1.0 | vertical scroll position; visible column / row counts, possibly fractional (hit test, arrow keys and the step scrolls use them, §5.9) |
 | +0x138 / +0x13C | s32 | -1 / -1 | column / row cell limit; -1 = unlimited (§5.3) |
-| +0x140 / +0x144 | s32 | 100 / 20 | *[unknown]* |
+| +0x140 / +0x144 | s32 | 100 / 20 | default column width / default row height (§5.10) |
 | +0x148 | u32 | 0 | outline colour (§5.2) |
 | +0x14C..+0x158 | s32 | 0,0,1,1 | *[unknown]* |
-| +0x15C / +0x160 | s32 | -1 / -1 | *[unknown, cell coordinate pair]* |
+| +0x15C / +0x160 | s32 | -1 / -1 | last cell set by SetCellText/Bitmap/Window (§5.11) |
 | +0x164 | IUnknown* | null | released in Shutdown *[purpose pending]* |
 | +0x168 | IUnknown* | null | owner-draw notification target (§5.6) |
 | +0x170 | `cRZTimer` | ctor(…,4) | double-click timer (§5.9 mouse-down) |
@@ -58,7 +58,7 @@ Values are what the constructor 0x009ABC95 stores. Size at least 0x2C4.
 | +0x238 / +0x244 | 3 x s32 each | 0,-1,-1 / 0,-1,-1 | last click hit and last hover hit {region, col, row} (§5.9) |
 | +0x250 / +0x25C | map<u32,u32> | empty | row / column extra data (§5.5) |
 | +0x268 | u32 or IUnknown* | 0 | grid extra data (§5.5) |
-| +0x26C / +0x270 | IUnknown* | null | the two scroll bars (§pending) |
+| +0x26C / +0x270 | IUnknown* | null | vertical / horizontal scroll bar (§5.10) |
 | +0x274 / +0x278 | IUnknown* | null | scroll-bar images |
 | +0x27C..+0x298 | | 0 | *[unknown]* |
 | +0x29C..+0x2A4 | 3 x u32 | 0 | sound ids (§5.6) |
@@ -504,6 +504,155 @@ re-take capture for the grid and return the bar's result.
 - **GZOnKeyUp(key, modifiers)** 0x009A77ED: Escape (0x1B) sends message {type 6, 0x1B, modifiers, 0} to the
   notification target (window-view slot 145) and returns its result; any other key returns true.
 
+### 5.10 Scroll bars, layout recalculation and row/column sizes
+
+Two scroll-bar windows: +0x26C is the **vertical** bar (allowed by flag 4, follows rows), +0x270 the
+**horizontal** bar (allowed by flag 2, follows columns). "Used range" below is slot 50 GetCellUsedRange
+{minCol, minRow, maxCol, maxRow}; flags 0x8000 / 0x10000 make the column / row extent come from the cell limit
+instead of the used range.
+
+- **AddScrollBar(vertical, horizontal)** 0x009A6FD7. For each requested bar that is allowed and absent: create
+  it through the window manager (RZ::WCM, slot +0x44) with class 0x1A7C4511 style 2 (vertical) or 0x1A7C4510
+  style 1 (horizontal), range 0..100. Creation failure clears the allowing flag (ClearFlag(4) or (2)) instead.
+  If an image is set (+0x274 vertical, +0x278 horizontal) the bar gets it through bar slot +0x44 (image rect,
+  image, 0); the rect is the stored 16-byte source rect (+0x27C vertical, +0x28C horizontal) unless that rect is
+  empty (right <= left or bottom <= top, test 0x007C1870), then the image's own rect (image slot +0x30). The bar
+  window is added as a child (ChildAdd) and the previously focused window gets focus back. Layout-dirty = 1 only
+  when at least one bar was created. Returns 1.
+- **RemoveScrollBar(vertical, horizontal)** 0x009A7178: for each requested present bar: ChildDelete its window,
+  Release, null the field. Layout-dirty = 1 if any was removed. Returns 1.
+- **SetScrollBarValues()** 0x009A71FD. Vertical bar, only when present and visible rows (+0x134) > 0.0: if the
+  row limit (+0x13C) is -1 or 0 and flag 0x10000 is set: range (0, trunc(visibleRows)) via bar slot +0x1C, then
+  slot +0x3C(0x7FFFFFFF, 0x7FFFFFFF). Otherwise total = row limit, or (flag 0x10000 clear) usedRange.maxRow + 1;
+  max = max(0, total - trunc(visibleRows)); range (0, max); slot +0x3C(max, trunc(total / visibleRows + 1.0)),
+  the division done in x87 on the float field. Then position = vertical scroll (+0x12C) via slot +0x14.
+  Horizontal bar the same with visible columns (+0x130, test is "not equal 0.0"), column limit (+0x138), flag
+  0x8000, usedRange.maxCol + 1 and the horizontal scroll (+0x128); the used range is fetched once and shared.
+  Returns 1.
+- **SetScrollBarPositions()** 0x009A7405. W, H = grid window GetW/GetH. Vertical bar of width bw:
+  SetArea(W - bw, top, W, H - (horizontal bar height, if present)), top = 0, or with flag 8 the column-header
+  height (+0x110) + grid gutter top (+0xF4), +1 more with flag 0x200. Horizontal bar of height bh:
+  SetArea(left, H - bh, W - (vertical bar width, if present), H), left = 0, or with flag 0x10 the row-header width
+  (+0x114) + 1 + grid gutter left (+0xF0), +1 more with flag 0x200. *[compat]* The extra +1 exists only on the
+  horizontal side.
+- **TestForPossibleScrollBarAdditionOrRemoval()** 0x009A82C6. Vertical (flag 4): when the row limit is -1/0 and
+  flag 0x10000 is set, the bar is always wanted; otherwise needed = (row limit, or with flag 0x10000 clear
+  usedRange.maxRow + 1), and the bar is removed when (float)needed <= visible rows, else added. Horizontal (flag
+  2): the same rule with the column count (limit +0x138 or usedRange.maxCol + 1) against +0x130.
+  *[compat]* The horizontal test still reads the **row** limit (+0x13C) and flag **0x10000** to decide
+  "always wanted" (0x009A835E, 0x009A836D), while its count uses +0x138/maxCol. Finally, if either bar exists:
+  SetScrollBarValues, SetScrollBarPositions. Returns 1.
+- **RecalculateAll()** 0x009AEE63. A global depth counter (0x00BAC064) allows two nested levels; at depth >= 2
+  it returns 1 without doing anything. Otherwise depth += 1 and, only if the pause counter (+0xE8) < 1 and the
+  window is initialised: grid area (slot 8) gives +0x118 = width, +0x11C = height; cell area (slot 9) gives
+  +0x120 / +0x124. Visible columns (+0x130) restart at 0.0: column bound = column limit (-1/0 = 0x7FFFFFFF),
+  lowered to usedRange.maxCol + 1 when flag 0x8000 is clear and maxCol <= bound. From the horizontal scroll
+  column, integer widths (GetColumnWidthInternal) are summed; while the running sum is <= cell-area width,
+  +0x130 += 1.0f; at the first column that overflows, f = (areaW - prevSum) / (sum - prevSum) (x87, stored as
+  float) is added only if |f| > 0.05f (0x00A880D8), then stop. Visible rows (+0x134) the same with the row limit,
+  flag 0x10000, maxRow, vertical scroll, GetRowHeightInternal and cell-area height. Then
+  TestForPossibleScrollBarAdditionOrRemoval; if the set of present bars changed, RecalculateAll recurses (the
+  depth counter stops a third level). At depth 1 PlaceAllCellWindows (§5.11) follows. Finally depth -= 1 and
+  layout-dirty = 0 (also when paused). Returns 1.
+  Worked example: cell area 250 wide, columns 100, 100, 100 from column 0: sums 100, 200 count 2.0; 300 > 250
+  gives f = 50/100 = 0.5, visible columns = 2.5. With area 205 f = 0.05 is not > 0.05f, so 2.0.
+- **GetColumnWidthInternal(col)** 0x009AD684. Column size entries live in the format-extra matrix +0x19C at
+  (col, 0); row entries in +0x1C0 at (0, row). Entry +0x24 (s16) is the explicit size, +0x26 (s16) the cached
+  actual size, -1 = unset. Explicit if set, else cached if set; else if the column has no entry and no cells in
+  the cell matrix (+0x1E4) the default width +0x140 (100) without caching; otherwise the default width is cached
+  (SetSizeCachedActualForColumn(col, 1, w)) and returned. *[compat]* Column widths never measure content.
+- **GetRowHeightInternal(row)** 0x009AE387. Base h = default row height +0x144 (20), or cell-area height / row
+  limit (integer division) when a row limit other than 0/-1 is set. Explicit, else cached size if set. A row with
+  no entry and no cells returns +0x144 (not the divided base) uncached. Otherwise h = max(base,
+  CalculateCellHeight of every cell in the row), cached via SetSizeCachedActualForRow(row, 1, h) and returned.
+- **CalculateCellHeight(col, row, cell)** 0x009AD6FA (cell looked up when null). Content height c = +0x144, then
+  by cell type: window (1) the window's GetH; text (2) with non-empty text: font = the cell's effective format
+  font (slot 84 GetCellFormat), lineH = font slot +0x94(0, 0); if lineH != 0: lines = 1 when flag 0x800 or
+  0x20000 is set, else font slot +0xAC(text, length, GetColumnWidthInternal(col)); c = lines x lineH; bitmap
+  (4) the image slot +0x28 height. Result = cell gutter top (+0x104) + cell gutter bottom (+0x10C) + c.
+- **SetSizeCachedActualForRow(row, count, value)** 0x009ACC5A / **ForColumn(col, count, value)** 0x009ACD43.
+  count 0x7FFFFFFF means "to the limit": count = 0x7FFFFFFF - start, clipped to (limit - 1) - start + 1 when a
+  row (column) limit other than -1/0 exists; and if then value = -1, every entry of the matrix (all rows, not
+  only from start) gets cached = -1 and nothing else happens. Otherwise for count consecutive indices from
+  start: an existing entry gets +0x26 = (s16)value; a missing entry is inserted (default-constructed) and set
+  only when value != -1.
+
+WG2 answer: +0x140 is the default column width and +0x144 the default row height (and the base content height).
+
+### 5.11 Cell data, cell windows and moving cells
+
+A cell record (28 bytes, operator new via 0x005A6290) is {type, col, row, payload, format*, extra, cellFlags}:
+type 1 window (payload = window), 2 text (payload = cRZString), 4 bitmap (payload = image); format* = an
+optional 36-byte per-cell format whose first field is a ref-counted font; extra = cell extra data; cellFlags bit
+0/1 = window keeps grid width/height. Records live in the cell matrix +0x1E4; window cells also live in an
+ordered set of {type, col, row, window, ...} keyed records at +0x22C.
+
+Coordinates 0x7FFFFFFF in the three setters mean "append": column = (last used column of that row) + 1, or 0 for
+an empty row; row = (last used row of that column) + 1, or 0; both 0x7FFFFFFF take column = max used column of
+the matrix (0 if empty) and then the row rule.
+
+- **SetCellTextValue(col, row, text, length, mode, editable)** 0x009AE8CB. mode 0 = 1. The existing cell window
+  is looked up (slot 115) unless a coordinate is 0x7FFFFFFF. Editable: if that window has interface 0x231A1C57
+  its text is replaced (slot +0xC4(text, length, 0)); else the cell is cleared (slot 96) and a new
+  cGZWinTextEdit (style 0x11FF) gets the text and is placed with SetCellWindow(col, row, w, 1, 1, 1) on the
+  unresolved coordinates. Returns 1. Plain: an existing cell window is cleared first; coordinates are resolved;
+  out of bounds (slot 54) clears that cell and returns 1. Null text clears the cell. Otherwise length -1 or 0
+  means strlen; MakeRoom(col, row, 1, mode); a new type-2 record is inserted; layout-dirty = 1; recalculation
+  hook 0x009A5FAA. In bounds, +0x15C/+0x160 = the cell written (last set cell). Returns 1.
+- **SetCellBitmap(col, row, image, mode)** 0x009AEB66: the same resolve/bounds/clear rules; out of bounds returns
+  0. AddRef image, MakeRoom(…, 1, mode), type-4 record, dirty, hook; +0x15C/+0x160 updated; returns 1.
+- **SetCellWindow(col, row, win, keepW, keepH, mode)** 0x009AECB7: returns 0 when win is already a cell window
+  (slot 117). Resolve; out of bounds clears and returns 0. Null win clears the cell. Else AddRef, MakeRoom,
+  type-1 record with cellFlags bit 0 = keepW, bit 1 = keepH, insert, attach (0x009AA91A), Release, dirty, hook,
+  last set cell, returns 1.
+- **Attach** 0x009AA91A: inserts {1, col, row, win} into the +0x22C set, AddRef, win SendToBack (+0x60),
+  win SetFlag(0x800, 0), ChildAdd(win), then **place** 0x009A6C45.
+- **Place(col, row, win, keepW, keepH)** 0x009A6C45 / **PlaceAllCellWindows()** 0x009AA991 (every window record
+  of the set): only when the grid window is initialised. A cell outside the visible range (slot 51) hides its
+  window. Otherwise rect = GetCellRect (slot 106) shrunk by the cell gutters (left/top added, right/bottom
+  subtracted); ShowWindow; GZWinMoveTo(left, top); keepW: SetW(right - left); keepH: SetH(bottom - top).
+  *[compat]* Place additionally calls SetArea(rect) at the end; PlaceAllCellWindows does not.
+- **DoWindowRemoval(col, row, win)** 0x009A9837: erase {1, col, row, win} from the set; if it was there, remove
+  the child (ChildRemove) and Release. **DoCellWindowMove(cell)** 0x009A8F7A only scans the set for the window
+  and returns: no effect.
+- **DisposeOfCellData(col, row, cell, free)** 0x009AAB01 (cell looked up when null; none returns 0): window ->
+  DoWindowRemoval; text -> delete the string; bitmap -> Release; payload = 0 (type other than 1/2/4 keeps it).
+  Format: Release its font, free it. Extra: Release only in extra-data mode 2 (+0x188), then 0. free: free the
+  record. The matrix entry is not removed. Returns 1.
+- **ClearCell(col, row)** slot 96, 0x009AB897: deselect (AddCellToSelection(col, row, false)); remove the matrix
+  entry and dispose it with free (dirty = 1); hook 0x009A5FAA when something was removed or deselected. Returns 1.
+- **DisposeOfAllCellData()** 0x009ABAEF: disposes (with free) every record of the whole matrix, clears it, count
+  +0x1F0 = 0. Returns 1.
+- **CopyCellData(col, row, toCol, toRow, copy)** 0x009AD512: false when the source is out of bounds; true when
+  source = destination. Out-of-bounds destination: copy returns true; move falls back to destination = source
+  (net no change). Move: remove the source entry; none -> ClearCell(destination); else find or insert the
+  destination record, dispose its content, take over all 7 fields with the new coordinates, free the old record.
+  Copy: missing source -> ClearCell(destination); else find or insert the destination record and
+  **record copy** 0x009AB46A. Returns 1.
+- **Record copy(src, toCol, toRow, dst)** 0x009AB46A: dst content is disposed first (when dst exists); a window
+  source then returns 0 (dst left empty). dst gets type, coordinates, cellFlags; text is duplicated (empty string
+  for a null source text), a bitmap is AddRef'd and shared; a format is duplicated (36 bytes) with its font
+  AddRef'd; extra data is not copied (0). Returns 1.
+- **GetCellTextValue(col, row, out)** slot 111, 0x009AA813: a text cell assigns its text (out slot +0xC); otherwise
+  a cell window with interface 0x231A1C57 supplies it (slot +0xB4); else false.
+- **FindCellText(text, length, col0, nCols, row0, nRows, &col, &row, exactLength)** slot 133, 0x009A9892: null
+  text = false; length -1/0 = strlen. Walks the cell matrix in its order; the first text cell with col0 <= col <
+  col0 + nCols and row0 <= row < row0 + nRows (0x7FFFFFFF counts = unbounded) whose string contains text
+  (substring find at 0; with exactLength only strings of exactly that length) writes its coordinates and returns
+  true.
+- **MakeRoom(col, row, n, mode)** 0x009ADE44 (mode 0 = 1; others than 1..5 return 0). All moves use CopyCellData
+  (move) and reset the cached size of each touched column (modes 2/4) or row (3/5); each mode first resets row
+  `row`'s cache. Mode 1, n > 0: dispose and free the record at (col, row) (entry stays, the caller overwrites it).
+  Mode 2 (row, leftwards), with the row's used columns [min, max]: n > 0 moves c + n -> c for c = max(min - n, 0)
+  .. col - 1; n < 0 moves c -> c + n for c = col - n .. max. Mode 4 (row, rightwards): n > 0 moves c - n -> c for
+  c = min(max + n, column limit unless -1) down to col; n < 0 moves c -> c - n for c = col - 1 down to min. Modes
+  3 and 5 are the same along the column with rows and the row limit. n = 0 does nothing but the cache reset.
+  Layout-dirty = 1; returns 1. *[compat]* the limit clip uses the limit itself (not limit - 1) and treats 0 as a
+  limit.
+- **MakeRoomForRow(row, n, mode)** 0x009AE282: mode 0 = 3; only 1, 3, 5 (else 0); MakeRoom(c, row, n, mode) for
+  each used column c (used range) that has cells. **MakeRoomForColumn(col, n, mode)** 0x009AE2EF: mode 0 = 2;
+  only 1, 2, 4; MakeRoom(col, r, n, mode) for each used row having cells. Return 1.
+
 ## 6. Conformance (planned vectors)
 
 1. SetDefaultFontColor(c, 6) returns false and leaves all six colours unchanged; index 5 succeeds.
@@ -569,7 +718,7 @@ See `questions/win-grid.md`.
 | 009a6618 | 33 | SetSelectionRules [slot 39] | 5.3 |
 | 009a6639 | 69 | EnableFixedRanges [slot 47] | 5.3 |
 | 009a667e | 25 | SetCellLimits [slot 48] | 5.3 |
-| 009a6c45 | 232 | FUN_009a6c45 | pending |
+| 009a6c45 | 232 | FUN_009a6c45 | 5.11 |
 | 009a6d2d | 22 | SetExtraData [slot 125] | 5.5 |
 | 009a6d43 | 7 | GetExtraData [slot 126] | 5.5 |
 | 009a6d4a | 61 | GetCellExtraDataObject [slot 127] | 5.5 |
@@ -582,10 +731,10 @@ See `questions/win-grid.md`.
 | 009a6eda | 29 | SetSoundID [slot 138] | 5.6 |
 | 009a6ef7 | 112 | SetScrollBarImageVertical [slot 136] | 5.8 |
 | 009a6f67 | 112 | SetScrollBarImageHorizontal [slot 137] | 5.8 |
-| 009a6fd7 | 417 | AddScrollBar | pending |
-| 009a7178 | 133 | RemoveScrollBar | pending |
-| 009a71fd | 520 | SetScrollBarValues | pending |
-| 009a7405 | 370 | SetScrollBarPositions | pending |
+| 009a6fd7 | 417 | AddScrollBar | 5.10 |
+| 009a7178 | 133 | RemoveScrollBar | 5.10 |
+| 009a71fd | 520 | SetScrollBarValues | 5.10 |
+| 009a7405 | 370 | SetScrollBarPositions | 5.10 |
 | 009a75a3 | 44 | FUN_009a75a3 | 5.7 |
 | 009a75cf | 65 | FUN_009a75cf | 5.7 |
 | 009a7610 | 22 | FUN_009a7610 | 5.7 |
@@ -603,7 +752,7 @@ See `questions/win-grid.md`.
 | 009a7e52 | 876 | FUN_009a7e52 | pending |
 | 009a81be | 144 | SetFlags | 5.1 |
 | 009a824e | 120 | GZOnCharacter [slot 141] | 5.8 |
-| 009a82c6 | 308 | TestForPossibleScrollBarAdditionOrRemoval | pending |
+| 009a82c6 | 308 | TestForPossibleScrollBarAdditionOrRemoval | 5.10 |
 | 009a8446 | 45 | FUN_009a8446 | 5.7 |
 | 009a8473 | 45 | FUN_009a8473 | 5.7 |
 | 009a8574 | 29 | FUN_009a8574 | 5.7 |
@@ -621,7 +770,7 @@ See `questions/win-grid.md`.
 | 009a8c68 | 261 | FUN_009a8c68 | 5.7 |
 | 009a8d6d | 425 | GZOnKeyDown | 5.9 |
 | 009a8f16 | 100 | IsWindowACellWindow [slot 117] | 5.8 |
-| 009a8f7a | 68 | DoCellWindowMove | pending |
+| 009a8f7a | 68 | DoCellWindowMove | 5.11 |
 | 009a8fbe | 23 | FUN_009a8fbe | 5.7 |
 | 009a8fd5 | 23 | FUN_009a8fd5 | 5.7 |
 | 009a90f8 | 42 | FUN_009a90f8 | 5.7 |
@@ -631,8 +780,8 @@ See `questions/win-grid.md`.
 | 009a968c | 86 | FUN_009a968c | 5.7 |
 | 009a96e2 | 27 | FUN_009a96e2 | 5.7 |
 | 009a9765 | 105 | SetSelection [slot 43] | 5.9 |
-| 009a9837 | 91 | DoWindowRemoval | pending |
-| 009a9892 | 267 | FindCellText [slot 133] | pending |
+| 009a9837 | 91 | DoWindowRemoval | 5.11 |
+| 009a9892 | 267 | FindCellText [slot 133] | 5.11 |
 | 009a999d | 35 | FUN_009a999d | 5.7 |
 | 009a9a09 | 67 | FUN_009a9a09 | 5.7 |
 | 009a9a4c | 61 | FUN_009a9a4c | 5.7 |
@@ -644,11 +793,11 @@ See `questions/win-grid.md`.
 | 009a9f6a | 1143 | GZOnMouseDownL | 5.9 |
 | 009aa3e1 | 150 | ActLikeAListbox | 5.9 |
 | 009aa477 | 293 | AddCellToSelection | 5.9 |
-| 009aa813 | 151 | GetCellTextValue [slot 111] | pending |
-| 009aa91a | 119 | FUN_009aa91a | pending |
-| 009aa991 | 320 | PlaceAllCellWindows | pending |
+| 009aa813 | 151 | GetCellTextValue [slot 111] | 5.11 |
+| 009aa91a | 119 | FUN_009aa91a | 5.11 |
+| 009aa991 | 320 | PlaceAllCellWindows | 5.11 |
 | 009aaad1 | 48 | GetCellExtraData [slot 120] | 5.5 |
-| 009aab01 | 197 | DisposeOfCellData | pending |
+| 009aab01 | 197 | DisposeOfCellData | 5.11 |
 | 009aabc6 | 116 | FUN_009aabc6 | pending |
 | 009aad55 | 31 | FUN_009aad55 | pending |
 | 009aad74 | 63 | FUN_009aad74 | pending |
@@ -664,7 +813,7 @@ See `questions/win-grid.md`.
 | 009ab25c | 61 | FUN_009ab25c | pending |
 | 009ab310 | 55 | FUN_009ab310 | pending |
 | 009ab37e | 178 | FUN_009ab37e | pending |
-| 009ab46a | 275 | CopyCellData | pending |
+| 009ab46a | 275 | CopyCellData | 5.11 |
 | 009ab57d | 68 | FUN_009ab57d | pending |
 | 009ab5c1 | 41 | FUN_009ab5c1 | pending |
 | 009ab613 | 88 | FUN_009ab613 | pending |
@@ -672,10 +821,10 @@ See `questions/win-grid.md`.
 | 009ab7e6 | 37 | FUN_009ab7e6 | pending |
 | 009ab80b | 23 | FUN_009ab80b | pending |
 | 009ab822 | 23 | FUN_009ab822 | pending |
-| 009ab897 | 103 | ClearCell | pending |
+| 009ab897 | 103 | ClearCell | 5.11 |
 | 009ab9ab | 26 | FUN_009ab9ab | pending |
 | 009ab9c5 | 26 | FUN_009ab9c5 | pending |
-| 009abaef | 116 | DisposeOfAllCellData | pending |
+| 009abaef | 116 | DisposeOfAllCellData | 5.11 |
 | 009abc95 | 567 | cGZWinGrid | 5.1 |
 | 009abecc | 8 | __ZThn4_N10cGZWinGridD0Ev | 5.7 |
 | 009abed4 | 175 | Shutdown | 5.1 |
@@ -689,14 +838,14 @@ See `questions/win-grid.md`.
 | 009ac960 | 242 | SetCellWrapping [slot 92] | pending |
 | 009aca52 | 260 | SetCellAlignment [slot 93] | pending |
 | 009acb56 | 260 | SetCellBorder [slot 94] | pending |
-| 009acc5a | 233 | SetSizeCachedActualForRow | pending |
-| 009acd43 | 236 | SetSizeCachedActualForColumn | pending |
+| 009acc5a | 233 | SetSizeCachedActualForRow | 5.10 |
+| 009acd43 | 236 | SetSizeCachedActualForColumn | 5.10 |
 | 009ace2f | 167 | SetCellExtraData [slot 119] | pending |
 | 009aced6 | 786 | SortColumn | pending |
 | 009ad1e8 | 810 | SortRow | pending |
-| 009ad512 | 370 | CopyCellData | pending |
-| 009ad684 | 118 | GetColumnWidthInternal | pending |
-| 009ad6fa | 285 | CalculateCellHeight | pending |
+| 009ad512 | 370 | CopyCellData | 5.11 |
+| 009ad684 | 118 | GetColumnWidthInternal | 5.10 |
+| 009ad6fa | 285 | CalculateCellHeight | 5.10 |
 | 009ad817 | 282 | ScrollCellsHorizontally | pending |
 | 009ad931 | 45 | GetRowHeading [slot 80] | 5.5 |
 | 009ad95e | 40 | SetRowHeading [slot 81] | 5.5 |
@@ -705,22 +854,22 @@ See `questions/win-grid.md`.
 | 009ad9db | 407 | CopyColumns | pending |
 | 009adb72 | 407 | CopyRows | pending |
 | 009add09 | 315 | ResizeColumnToFitCellWindows | pending |
-| 009ade44 | 1086 | MakeRoom | pending |
-| 009ae282 | 109 | MakeRoomForRow | pending |
-| 009ae2ef | 109 | MakeRoomForColumn | pending |
+| 009ade44 | 1086 | MakeRoom | 5.11 |
+| 009ae282 | 109 | MakeRoomForRow | 5.11 |
+| 009ae2ef | 109 | MakeRoomForColumn | 5.11 |
 | 009ae35c | 43 | GetColumnWidth | 5.4 |
-| 009ae387 | 264 | GetRowHeightInternal | pending |
+| 009ae387 | 264 | GetRowHeightInternal | 5.10 |
 | 009ae48f | 285 | ScrollCellsVertically | pending |
 | 009ae5ac | 307 | DeleteColumns | pending |
 | 009ae6df | 308 | DeleteRows | pending |
 | 009ae813 | 184 | GetCellRect | pending |
-| 009ae8cb | 667 | SetCellTextValue | pending |
-| 009aeb66 | 337 | SetCellBitmap [slot 114] | pending |
-| 009aecb7 | 428 | SetCellWindow [slot 116] | pending |
-| 009aee63 | 659 | RecalculateAll | pending |
+| 009ae8cb | 667 | SetCellTextValue | 5.11 |
+| 009aeb66 | 337 | SetCellBitmap [slot 114] | 5.11 |
+| 009aecb7 | 428 | SetCellWindow [slot 116] | 5.11 |
+| 009aee63 | 659 | RecalculateAll | 5.10 |
 | 009af0f6 | 43 | GetRowHeight | 5.4 |
 | 009af121 | 71 | Init | 5.1 |
 | 009af168 | 2813 | GZPaint | pending |
 
-Specified 127 of 198 functions, 11433 of 32735 bytes; remaining 71 functions, 21302 bytes.
+Specified 156 of 198 functions, 20021 of 32735 bytes; remaining 42 functions, 12714 bytes.
 <!-- END INVENTORY -->
