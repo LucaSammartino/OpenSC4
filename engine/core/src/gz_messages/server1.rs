@@ -151,17 +151,16 @@ impl MessageServer1 {
     }
 
     /// Slot 7 post directed (msg, target).
-    pub fn post_directed<H: Server1Host + ?Sized>(&mut self, _host: &mut H, msg: &Record, target: Token) -> bool {
+    pub fn post_directed<H: Server1Host + ?Sized>(&mut self, _host: &mut H, msg: &Record, target: Token) {
         self.directed.push_back((target, *msg));
-        true
     }
 
     /// Slot 8: native prefix erase / suffix skip, with no reference calls.
     /// Precondition: erasure must not leave the pre-advanced scan past end
     /// (in particular, matching the last/sole entry is native undefined behavior).
-    /// The count is portable inspection, not a native return contract.
-    pub fn cancel_directed<H: Server1Host + ?Sized>(&mut self, _host: &mut H, target: Token) -> u32 {
-        let (mut scan, mut erased) = (0, 0);
+    /// Native slot 8 is void.
+    pub fn cancel_directed<H: Server1Host + ?Sized>(&mut self, _host: &mut H, target: Token) {
+        let mut scan = 0;
         while scan < self.directed.len() {
             let i = scan;
             scan += 1;
@@ -171,10 +170,8 @@ impl MessageServer1 {
                 if prefix {
                     scan -= 1;
                 }
-                erased += 1;
             }
         }
-        erased
     }
 
     /// Slot 9 OnTick (as §4.4): the front record is taken into a local copy

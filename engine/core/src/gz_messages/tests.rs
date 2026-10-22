@@ -432,7 +432,7 @@ fn server2_directed_delivery_and_cancel() {
     // match is deliberately outside the supported native preconditions.
     s.post_directed(&mut h, 3, C);
     s.post_directed(&mut h, 6, W);
-    assert_eq!(s.cancel_directed(&mut h, A), 1);
+    s.cancel_directed(&mut h, A);
     assert_eq!((h.r(A), h.r(1), h.r(3)), (0, 0, 1));
     s.post_directed(&mut h, 4, C);
     h.on_deliver.insert(B, vec![Act::Directed(5, A)]);
@@ -471,6 +471,7 @@ struct Host1 {
     refs: HashMap<Token, i64>,
     log: Vec<(Token, Record, i64)>,
     post_on: Option<(Token, Record)>,
+    directed_action: Option<bool>,
 }
 
 impl Server1Host for Host1 {
@@ -483,6 +484,16 @@ impl Server1Host for Host1 {
     fn do_message(&mut self, s: &mut MessageServer1, t: Token, msg: &Record) {
         let held = self.refs.get(&t).copied().unwrap_or(0);
         self.log.push((t, *msg, held));
+        if t == A {
+            if let Some(nested) = self.directed_action.take() {
+                if nested {
+                    s.on_tick(self);
+                } else {
+                    s.cancel_directed(self, B);
+                    s.post_directed(self, &[6, 0, 0, 0], 1005);
+                }
+            }
+        }
         if let Some((pt, rec)) = self.post_on {
             if pt == t {
                 self.post_on = None;
@@ -735,7 +746,7 @@ fn gz_v08_generation1_directed_records_are_copied_and_targets_borrowed() {
     for t in [A, A, B, C, W] {
         s.post_directed(&mut h, &record, t);
     }
-    assert_eq!(s.cancel_directed(&mut h, A), 2);
+    s.cancel_directed(&mut h, A);
     s.destroy(&mut h);
     assert!(h.refs.is_empty());
 }
@@ -785,8 +796,9 @@ fn gz_v10_prefix_and_v11_suffix_skip_in_both_generations() {
             s.post_directed(&mut h, i as Token + 1, t);
             raw.post_directed(&mut rh, &[i as u32, 7, 8, 9], t);
         }
-        assert_eq!(s.cancel_directed(&mut h, A), cancelled);
-        assert_eq!(raw.cancel_directed(&mut rh, A), cancelled);
+        s.cancel_directed(&mut h, A);
+        raw.cancel_directed(&mut rh, A);
+        assert_eq!(targets.len() - s.directed().count(), cancelled as usize);
         assert_eq!(s.directed().map(|p| p.0).collect::<Vec<_>>(), remaining);
         assert_eq!(raw.directed().map(|p| p.0).collect::<Vec<_>>(), remaining);
         assert_eq!(h.r(A), i64::from(2 - cancelled));
@@ -833,6 +845,7 @@ struct Pending1 {
     refs: HashMap<Token, i64>,
     action: Option<bool>,
     seen: Vec<Token>,
+    remove_pending: bool,
 }
 impl Server1Host for Pending1 {
     fn add_ref_target(&mut self, t: Token) {
@@ -841,6 +854,12 @@ impl Server1Host for Pending1 {
     fn add_ref_target_in_server(&mut self, s: &mut MessageServer1, t: Token) {
         self.add_ref_target(t);
         if t == A {
+            if std::mem::take(&mut self.remove_pending) {
+                let before = self.refs.get(&B).copied().unwrap_or(0);
+                s.remove_notification(self, B, 5);
+                assert_eq!(self.refs.get(&B).copied().unwrap_or(0), before);
+                assert_eq!(s.registry().pending().count(), 1);
+            }
             if let Some(nested_send) = self.action.take() {
                 assert_eq!(s.registry().depth(), 1);
                 s.add_notification(self, B, 5);
@@ -927,6 +946,29 @@ fn directed_equal_local_pointer_suppresses_redundant_assign_reference_calls() {
 }
 
 #[test]
+fn directed_append_constructs_copies_and_destroys_temporary_pair() {
+    let mut s = MessageServer2::new();
+    let mut h = Host::default();
+    s.post_directed(&mut h, 1, A);
+    assert_eq!(
+        h.events,
+        vec![
+            Event::Add(A),
+            Event::Add(1),
+            Event::Add(A),
+            Event::Add(1),
+            Event::Release(1),
+            Event::Release(A)
+        ]
+    );
+    assert_eq!((h.r(A), h.r(1)), (1, 1));
+    h.events.clear();
+    s.destroy(&mut h);
+    assert_eq!(h.events, vec![Event::Release(1), Event::Release(A), Event::Close]);
+    assert!(h.all_zero());
+}
+
+#[test]
 fn blocking_get_retries_failed_wait_and_timeout_without_resetting_signal() {
     let mut q = MessageQueue2::new();
     let mut h = Host {
@@ -973,4 +1015,78 @@ fn flush_guard_is_shared_across_server2_instances() {
     outer.destroy(&mut h);
     other.destroy(&mut h);
     assert!(h.all_zero());
+}
+
+#[test]
+fn directed_cancel_shift_reference_order_and_equal_target_suppression() {
+    let mut h = Host::default();
+    let mut s = MessageServer2::new();
+    for (m, t) in [(1, B), (2, A), (3, C), (4, W), (5, 1004)] {
+        s.post_directed(&mut h, m, t);
+    }
+    h.events.clear();
+    s.cancel_directed(&mut h, A);
+    assert_eq!(
+        h.events,
+        vec![
+            Event::Add(B),
+            Event::Release(A),
+            Event::Add(1),
+            Event::Release(2),
+            Event::Release(1),
+            Event::Release(B)
+        ]
+    );
+    s.destroy(&mut h);
+    assert!(h.all_zero());
+    let mut s = MessageServer2::new();
+    for (m, t) in [(1, B), (2, C), (3, A), (4, A)] {
+        s.post_directed(&mut h, m, t);
+    }
+    h.events.clear();
+    s.cancel_directed(&mut h, A);
+    assert_eq!(
+        h.events,
+        vec![Event::Add(4), Event::Release(3), Event::Release(4), Event::Release(A)]
+    );
+    assert_eq!(s.directed().collect::<Vec<_>>(), vec![(B, 1), (C, 2), (A, 4)]);
+    s.destroy(&mut h);
+    assert!(h.all_zero());
+}
+
+#[test]
+fn generation1_cancel_post_quota_nested_tick_and_raw_pending_remove() {
+    let _serial = serial();
+    let mut s = MessageServer1::new();
+    let mut h = Host1::default();
+    for (i, t) in [A, B, C, W, 1004].into_iter().enumerate() {
+        s.post_directed(&mut h, &[i as u32 + 1, 0, 0, 0], t);
+    }
+    h.directed_action = Some(false);
+    s.on_tick(&mut h);
+    assert_eq!(h.log.iter().map(|p| p.0).collect::<Vec<_>>(), vec![A, C, W, 1004, 1005]);
+    assert_eq!(s.countdown(), -1);
+    assert!(h.refs.is_empty());
+    h.log.clear();
+    for (i, t) in [A, B, C].into_iter().enumerate() {
+        s.post_directed(&mut h, &[i as u32 + 1, 0, 0, 0], t);
+    }
+    h.directed_action = Some(true);
+    s.on_tick(&mut h);
+    assert_eq!(h.log.iter().map(|p| p.0).collect::<Vec<_>>(), vec![A, B, C]);
+    assert_eq!(s.countdown(), -2);
+    assert!(h.refs.is_empty());
+
+    let mut ph = Pending1 {
+        remove_pending: true,
+        ..Pending1::default()
+    };
+    ph.add_ref_target(B); // external hold, raw pending remove must not own it
+    let mut pending = MessageServer1::new();
+    pending.add_notification(&mut ph, A, 9);
+    assert_eq!(pending.registry().pending().count(), 0);
+    assert_eq!(ph.refs[&B], 1);
+    pending.destroy(&mut ph);
+    ph.release_target(&mut pending, B);
+    assert!(ph.refs.values().all(|&v| v == 0));
 }

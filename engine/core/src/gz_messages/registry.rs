@@ -239,7 +239,7 @@ where
 
 /// Destruction (§4.7): depth 0, free every type list with its references,
 /// then the pending list. [choice] Lists are released in ascending type
-/// order, each in registration order.
+/// order, each in registration order (GZ8; cleanup visitation is unspecified).
 pub fn clear<S, H>(server: &mut S, host: &mut H)
 where
     S: HasRegistry + ?Sized,

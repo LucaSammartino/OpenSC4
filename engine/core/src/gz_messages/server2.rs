@@ -197,20 +197,23 @@ impl MessageServer2 {
     }
 
     /// Slot 7 post directed (msg, target) (§4.5): append (target, msg), both
-    /// referenced. [choice] Returns true (the spec gives no return value).
-    pub fn post_directed<H: Server2Host + ?Sized>(&mut self, host: &mut H, msg: Token, target: Token) -> bool {
+    /// referenced. Native slot 7 is void. Construct the temporary, copy it
+    /// into the deque, then destroy it before leaving the directed lock.
+    pub fn post_directed<H: Server2Host + ?Sized>(&mut self, host: &mut H, msg: Token, target: Token) {
+        Server2Host::add_ref_target(host, self, target);
+        host.add_ref_message(self, msg);
         Server2Host::add_ref_target(host, self, target);
         host.add_ref_message(self, msg);
         self.directed.push_back((target, msg));
-        true
+        host.release_message(self, msg);
+        Server2Host::release_target(host, self, target);
     }
 
     /// Slot 8: preserve the native pre-advanced iterator and suffix skip.
     /// Precondition: no erase may advance the scan beyond the new end
     /// (notably erasing the last/sole element is unsupported native UB).
-    /// The count is portable inspection, not a specified native return value.
-    pub fn cancel_directed<H: Server2Host + ?Sized>(&mut self, host: &mut H, target: Token) -> u32 {
-        let mut erased = 0;
+    /// Native slot 8 is void.
+    pub fn cancel_directed<H: Server2Host + ?Sized>(&mut self, host: &mut H, target: Token) {
         let mut scan = 0;
         while scan < self.directed.len() {
             let i = scan;
@@ -237,9 +240,7 @@ impl MessageServer2 {
                 Server2Host::release_target(host, self, t);
                 // Do not turn native iterator invalidation into remove-all.
             }
-            erased += 1;
         }
-        erased
     }
 
     fn assign_directed<H: Server2Host + ?Sized>(&mut self, host: &mut H, i: usize, (t, m): (Token, Token)) {
@@ -339,6 +340,6 @@ impl MessageServer2 {
             host.release_message(self, m);
             Server2Host::release_target(host, self, t);
         }
-        self.post_queue.remove_all(host);
+        self.post_queue.destroy(host);
     }
 }

@@ -35,10 +35,12 @@
 //! a lock around a callback, and those points are kept (delivery runs with no
 //! internal borrow held).
 //!
-//! GZ1-GZ7 contracts are implemented here. Platform resources and service
-//! base lifecycle remain host responsibilities; see the lane's body checklist.
+//! The fourteen published GZ1-GZ7 vectors are represented here. Whole-owner
+//! completion remains withheld: GZ8-GZ10 cover residual cleanup traces,
+//! base-service behavior and the complete body inventory. Platform resources,
+//! pointer adjustment and service base lifecycle remain host responsibilities.
 //! Native invalid-iterator re-entry and cancellation are unsupported: callers
-//! must preserve any live traversed list and must not cancel a last/sole deque
+//! must preserve any live traversal/assignment/pop and must not cancel a last/sole deque
 //! element. Raw generation-1 pending removals/directed targets require external
 //! lifetime holds. No deterministic behavior is promised for native UB.
 
