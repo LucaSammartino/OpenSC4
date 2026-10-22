@@ -177,8 +177,9 @@ extern "C" {
  * 83 = merge-train batch train73 (glue-lotrecords4, re-netrules-underground4, glue-span8888-impl4, core-budgetwindow-ownership4, core-terrain-overlays4, verify-landvalue-step4): merged (no C ABI history entry of its own)
  * 84 = merge-train batch train91 (glue-rng4, glue-portdev-union-final4, core-camera-contractfix4): merged (no C ABI history entry of its own)
  * 85 = merge-train batch train98 (glue-span8-native4): merged (no C ABI history entry of its own)
- * 86 = merge-train batch train102 (re-dispatch-completion4, re-small-renderer-contracts4, core-view-utilities-complete4, verify-fontsys4, core-networkmodel-contractfix4, verify-command-system4, core-key-accelerator4, verify-persist-manager4, verify-variants4, verify-landfill-records4): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 86u
+ * 86 = merge-train batch train102 (re-dispatch-completion4, re-small-renderer-contracts4, core-view-utilities-complete4, verify-fontsys4, core-networkmodel-contractfix4, verify-command-system4, core-key-accelerator4, verify-persist-manager4, verify-variants4, verify-landfill-records4): merged (no C ABI history entry of its own)
+ * 87 = merge-train batch train104 (verify-language-native4, tools-refill-validation4): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 87u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
