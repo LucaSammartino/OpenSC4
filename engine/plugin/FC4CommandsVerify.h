@@ -35,8 +35,11 @@ struct Pair {
         if (native) FC4_RELEASE_CREATED(native);
         if (core) fc4_commands_verify_release(core);
     }
-    bool Create(cIGZCommandServer* server) {
-        if (!server->CreateCommandParameterSet(&native) || !native) return false;
+    bool AcquireOriginal(cIGZCommandServer* server) {
+        // Section 5: factory returns reference count 1 in EAX, not a bool.
+        // Discard that result; validate the documented out pointer instead.
+        server->CreateCommandParameterSet(&native);
+        if (!native) return false;
         FC4_ACQUIRED(native, "commands verify: new ORIGINAL set");
         if (IsOurObject(native)) return false;
         core = fc4_commands_verify_new();
@@ -116,7 +119,8 @@ struct Compare {
             case 3: p.native->SetParameterCount(bits); break;
             case 4: p.native->RemoveParameter(id); break;
             case 5: p.native->SetStatusParameterValue(static_cast<int32_t>(bits)); break;
-            case 6: (*p.native)[id]->CopyFrom(*v); break;
+            // [abi-ret] CopyFrom return is discarded; only stored value is measured.
+            case 6: (void)(*p.native)[id]->CopyFrom(*v); break;
             default: ++refused; return;
         }
         if (!fc4_commands_verify_mutate(p.core, op, id, kind, bits,
@@ -139,7 +143,7 @@ inline void Run() {
     Compare c;
     {
         Pair p, scratch, copied;
-        if (!p.Create(server) || !scratch.Create(server) || !copied.Create(server)) ++c.refused;
+        if (!p.AcquireOriginal(server) || !scratch.AcquireOriginal(server) || !copied.AcquireOriginal(server)) ++c.refused;
         else {
             scratch.native->SetParameterCount(1);
             if (!fc4_commands_verify_mutate(scratch.core, 3, 0, 0, 1, nullptr, 0, nullptr)) ++c.refused;
@@ -186,6 +190,7 @@ inline void Run() {
             Pair parsed;
             uint32_t a = 0xcccccccc, b = 0xcccccccc;
             const uint32_t length = i == 12 ? 15u : (i % 2 ? 0xffffffffu : static_cast<uint32_t>(lines[i].size()));
+            // [abi-ret] Section 3.4 returns AL; section 5 slot 22 forwards it unchanged.
             const bool native = server->ConvertStringToCommand(lines[i].c_str(), length, a, parsed.native);
             if (parsed.native) FC4_ACQUIRED(parsed.native, "commands verify: parsed ORIGINAL set");
             const uint32_t core = fc4_commands_verify_parse(reinterpret_cast<const unsigned char*>(lines[i].c_str()),
