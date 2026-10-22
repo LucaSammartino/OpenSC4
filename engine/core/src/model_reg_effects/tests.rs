@@ -22,10 +22,7 @@ struct Effect {
 
 impl VisualEffect for Effect {
     fn start(&mut self, control: bool, extra: u32) {
-        self.log
-            .lock()
-            .unwrap()
-            .push(Event::Start(self.id, control, extra));
+        self.log.lock().unwrap().push(Event::Start(self.id, control, extra));
     }
 
     fn stop(&mut self, control: bool) {
@@ -75,10 +72,7 @@ impl Factory {
 
 impl EffectFactory for Factory {
     fn create(&mut self, name: &str) -> Option<Box<dyn VisualEffect>> {
-        self.log
-            .lock()
-            .unwrap()
-            .push(Event::Create(name.to_owned()));
+        self.log.lock().unwrap().push(Event::Create(name.to_owned()));
         if self.fail || name == "missing" {
             return None;
         }
@@ -134,11 +128,7 @@ fn close(actual: f32, expected: f32) {
 }
 
 fn rotation(actual: Rotation, expected: Rotation) {
-    for (actual, expected) in actual
-        .into_iter()
-        .flatten()
-        .zip(expected.into_iter().flatten())
-    {
+    for (actual, expected) in actual.into_iter().flatten().zip(expected.into_iter().flatten()) {
         close(actual, expected);
     }
 }
@@ -225,10 +215,7 @@ fn vector49_axis_angle_normalisation_and_zero_axis_choice() {
     };
     assert_eq!(flags, 5);
     assert_eq!(actual.translation, [101.0, 2.0, 203.0]);
-    rotation(
-        actual.rotation,
-        [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]],
-    );
+    rotation(actual.rotation, [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]);
     model.frame.lock().unwrap().animated_frame = Some(1);
     owner.update();
     let Event::Transform(_, zero, _) = factory.take()[0] else {
@@ -250,10 +237,7 @@ fn noncommuting_model_local_and_effect_placement_are_in_correct_order() {
     let local = Transform::from_record([1.0, 2.0, 3.0, 0.0, 0.0, 7.0, std::f32::consts::FRAC_PI_2]);
     let world = model.compose(local);
     assert_eq!(world.translation, [12.0, 14.0, 34.0]);
-    rotation(
-        world.rotation,
-        [[0.0, -1.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]],
-    );
+    rotation(world.rotation, [[0.0, -1.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]]);
     close(world.scale, 2.0);
     // Independent outer placement +90° about Y with scale 3.
     let placement = Transform {
@@ -263,11 +247,48 @@ fn noncommuting_model_local_and_effect_placement_are_in_correct_order() {
     };
     let placed = placement.compose(world);
     assert_eq!(placed.translation, [97.0, 46.0, -27.0]);
-    rotation(
-        placed.rotation,
-        [[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]],
-    );
+    rotation(placed.rotation, [[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]]);
     close(placed.scale, 6.0);
+}
+
+#[test]
+fn owner_update_combines_rotated_scaled_instance_with_selected_local_record() {
+    let mut factory = Factory::new();
+    let record = [1.0, 2.0, 3.0, 0.0, 0.0, 7.0, std::f32::consts::FRAC_PI_2];
+    let model = instance([("fx_rotor".into(), vec![record])].into(), &factory.log);
+    model.frame.lock().unwrap().transform = Transform {
+        rotation: [[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]],
+        translation: [10.0, 20.0, 30.0],
+        scale: 2.0,
+    };
+    let mut owner = ModelRegEffects::new();
+    owner.attach(Some(model), &mut factory);
+    owner.start_all(false, 0);
+    factory.take();
+    assert_eq!(owner.update().transformed, 1);
+    let Event::Transform(_, actual, 5) = factory.take()[0] else {
+        panic!("missing transform")
+    };
+    assert_eq!(actual.translation, [12.0, 14.0, 34.0]);
+    rotation(actual.rotation, [[0.0, -1.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]]);
+    assert_eq!(actual.scale, 2.0);
+}
+
+#[test]
+fn oblique_axis_is_normalised_and_zero_angle_leaves_identity() {
+    // A half-turn around (1,1,0) swaps X/Y and reverses Z, independently
+    // distinguishing axis normalisation from treating the record as a quaternion.
+    let record = [0.0, 0.0, 0.0, 3.0, 3.0, 0.0, std::f32::consts::PI];
+    rotation(
+        Transform::from_record(record).rotation,
+        [[0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, -1.0]],
+    );
+    let mut zero_angle = record;
+    zero_angle[6] = 0.0;
+    assert_eq!(
+        Transform::from_record(zero_angle).rotation,
+        Transform::IDENTITY.rotation
+    );
 }
 
 #[test]
@@ -327,16 +348,10 @@ fn named_controls_match_all_effect_names_and_forward_opaque_arguments() {
     assert_eq!(owner.start_named("ROTOR", true, 0xdeadbeef), 2);
     assert_eq!(
         factory.take(),
-        [
-            Event::Start(1, true, 0xdeadbeef),
-            Event::Start(0, true, 0xdeadbeef)
-        ]
+        [Event::Start(1, true, 0xdeadbeef), Event::Start(0, true, 0xdeadbeef)]
     );
     assert_eq!(owner.stop_named("rOtOr", false), 2);
-    assert_eq!(
-        factory.take(),
-        [Event::Stop(1, false), Event::Stop(0, false)]
-    );
+    assert_eq!(factory.take(), [Event::Stop(1, false), Event::Stop(0, false)]);
     assert_eq!(owner.start_named("missing", false, 9), 0);
     owner.start_all(false, 7);
     assert_eq!(
@@ -350,11 +365,7 @@ fn named_controls_match_all_effect_names_and_forward_opaque_arguments() {
     owner.stop_all(true);
     assert_eq!(
         factory.take(),
-        [
-            Event::Stop(1, true),
-            Event::Stop(0, true),
-            Event::Stop(2, true)
-        ]
+        [Event::Stop(1, true), Event::Stop(0, true), Event::Stop(2, true)]
     );
     assert!(owner.entries().all(|entry| !entry.started()));
 }
@@ -362,10 +373,7 @@ fn named_controls_match_all_effect_names_and_forward_opaque_arguments() {
 #[test]
 fn stopped_effect_has_no_transform_then_restarts_and_motion_reaches_every_entry() {
     let mut factory = Factory::new();
-    let model = instance(
-        [("fx_a".into(), vec![IDENTITY_RECORD])].into(),
-        &factory.log,
-    );
+    let model = instance([("fx_a".into(), vec![IDENTITY_RECORD])].into(), &factory.log);
     let mut owner = ModelRegEffects::new();
     owner.attach(Some(model), &mut factory);
     factory.take();
@@ -397,24 +405,14 @@ fn replacement_stops_releases_before_factory_and_failure_removes_entry() {
     owner.add_effect("key", "second", &[], &mut factory);
     assert_eq!(
         factory.take(),
-        [
-            Event::Stop(0, false),
-            Event::Release(0),
-            Event::Create("second".into())
-        ]
+        [Event::Stop(0, false), Event::Release(0), Event::Create("second".into())]
     );
     assert!(!owner.entries().next().unwrap().started());
     factory.fail = true;
-    assert!(owner
-        .add_effect("key", "third", &[], &mut factory)
-        .is_none());
+    assert!(owner.add_effect("key", "third", &[], &mut factory).is_none());
     assert_eq!(
         factory.take(),
-        [
-            Event::Stop(1, false),
-            Event::Release(1),
-            Event::Create("third".into())
-        ]
+        [Event::Stop(1, false), Event::Release(1), Event::Create("third".into())]
     );
     assert!(owner.get_effect("key").is_none());
     assert_eq!(owner.entries().len(), 0);
@@ -424,26 +422,18 @@ fn replacement_stops_releases_before_factory_and_failure_removes_entry() {
 #[test]
 fn region_lookup_copies_records_and_does_not_require_fx_prefix() {
     let mut factory = Factory::new();
-    let model = instance(
-        [("regpoint01".into(), vec![IDENTITY_RECORD])].into(),
-        &factory.log,
-    );
+    let model = instance([("regpoint01".into(), vec![IDENTITY_RECORD])].into(), &factory.log);
     let mut owner = ModelRegEffects::new();
     owner.attach(Some(model.clone()), &mut factory);
     assert_eq!(owner.entries().len(), 0);
-    assert!(owner
-        .add_effect_at_region("absent", "rotor", &mut factory)
-        .is_none());
+    assert!(owner.add_effect_at_region("absent", "rotor", &mut factory).is_none());
     assert!(factory.take().is_empty());
     assert!(owner
         .add_effect_at_region("regpoint01", "rotor", &mut factory)
         .is_some());
     assert!(owner.get_effect("REGPOINT01").is_none());
     assert!(owner.get_effect("regpoint01").is_some());
-    assert_eq!(
-        owner.entries().next().unwrap().records(),
-        &[IDENTITY_RECORD]
-    );
+    assert_eq!(owner.entries().next().unwrap().records(), &[IDENTITY_RECORD]);
     let mut records = vec![IDENTITY_RECORD];
     owner.add_effect("manual", "rotor", &records, &mut factory);
     records[0][0] = 999.0;
@@ -453,10 +443,7 @@ fn region_lookup_copies_records_and_does_not_require_fx_prefix() {
 #[test]
 fn attachment_acquires_one_reference_getters_borrow_and_drop_releases_in_order() {
     let mut factory = Factory::new();
-    let model = instance(
-        [("fx_a".into(), vec![IDENTITY_RECORD])].into(),
-        &factory.log,
-    );
+    let model = instance([("fx_a".into(), vec![IDENTITY_RECORD])].into(), &factory.log);
     let weak = Arc::downgrade(&model);
     let mut owner = ModelRegEffects::new();
     assert_eq!(Arc::strong_count(&model), 1);
@@ -470,11 +457,7 @@ fn attachment_acquires_one_reference_getters_borrow_and_drop_releases_in_order()
     drop(owner);
     assert_eq!(
         factory.take(),
-        [
-            Event::Stop(0, false),
-            Event::Release(0),
-            Event::ModelReleased
-        ]
+        [Event::Stop(0, false), Event::Release(0), Event::ModelReleased]
     );
     assert!(weak.upgrade().is_none());
 }
@@ -484,16 +467,10 @@ fn reattach_and_detach_clear_old_effects_before_releasing_old_model() {
     let mut factory = Factory::new();
     let mut owner = ModelRegEffects::new();
     owner.attach(
-        Some(instance(
-            [("fx_a".into(), vec![IDENTITY_RECORD])].into(),
-            &factory.log,
-        )),
+        Some(instance([("fx_a".into(), vec![IDENTITY_RECORD])].into(), &factory.log)),
         &mut factory,
     );
-    let next = instance(
-        [("fx_b".into(), vec![IDENTITY_RECORD])].into(),
-        &factory.log,
-    );
+    let next = instance([("fx_b".into(), vec![IDENTITY_RECORD])].into(), &factory.log);
     factory.take();
     owner.attach(Some(next), &mut factory);
     assert_eq!(
@@ -508,18 +485,12 @@ fn reattach_and_detach_clear_old_effects_before_releasing_old_model() {
     owner.attach(None, &mut factory);
     assert_eq!(
         factory.take(),
-        [
-            Event::Stop(1, false),
-            Event::Release(1),
-            Event::ModelReleased
-        ]
+        [Event::Stop(1, false), Event::Release(1), Event::ModelReleased]
     );
     assert!(owner.instance().is_none());
     owner.init(&mut factory);
     assert_eq!(owner.update(), UpdateReport::default());
-    assert!(owner
-        .add_effect_at_region("fx_b", "b", &mut factory)
-        .is_none());
+    assert!(owner.add_effect_at_region("fx_b", "b", &mut factory).is_none());
     assert!(factory.take().is_empty());
 }
 
@@ -528,10 +499,7 @@ fn init_replaces_filtered_entries_but_does_not_clear_unrelated_manual_entry() {
     let mut factory = Factory::new();
     let mut owner = ModelRegEffects::new();
     owner.attach(
-        Some(instance(
-            [("fx_a".into(), vec![IDENTITY_RECORD])].into(),
-            &factory.log,
-        )),
+        Some(instance([("fx_a".into(), vec![IDENTITY_RECORD])].into(), &factory.log)),
         &mut factory,
     );
     owner.add_effect("manual", "b", &[], &mut factory);
@@ -539,11 +507,7 @@ fn init_replaces_filtered_entries_but_does_not_clear_unrelated_manual_entry() {
     owner.init(&mut factory);
     assert_eq!(
         factory.take(),
-        [
-            Event::Stop(0, false),
-            Event::Release(0),
-            Event::Create("a".into())
-        ]
+        [Event::Stop(0, false), Event::Release(0), Event::Create("a".into())]
     );
     assert_eq!(owner.entries().len(), 2);
     owner.clear();

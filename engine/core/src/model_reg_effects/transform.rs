@@ -78,9 +78,7 @@ impl Transform {
     pub fn transform_point(self, point: Vector3) -> Vector3 {
         let mut result = [0.0; 3];
         for (i, cell) in result.iter_mut().enumerate() {
-            *cell = (self.rotation[i][0] * point[0]
-                + self.rotation[i][1] * point[1]
-                + self.rotation[i][2] * point[2])
+            *cell = (self.rotation[i][0] * point[0] + self.rotation[i][1] * point[1] + self.rotation[i][2] * point[2])
                 * self.scale
                 + self.translation[i];
         }

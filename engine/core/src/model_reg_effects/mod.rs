@@ -118,11 +118,7 @@ impl ModelRegEffects {
     /// Explicit portable attachment policy (GF20): stop/release the old effects
     /// while their old model is still alive, acquire the new model, then rebuild.
     /// This is not a claim about native slot 2's unspecified same-pointer behavior.
-    pub fn attach(
-        &mut self,
-        instance: Option<Arc<dyn ModelInstance>>,
-        factory: &mut dyn EffectFactory,
-    ) {
+    pub fn attach(&mut self, instance: Option<Arc<dyn ModelInstance>>, factory: &mut dyn EffectFactory) {
         self.clear();
         self.instance = instance;
         self.init_effects_list(factory);
@@ -264,9 +260,7 @@ impl ModelRegEffects {
             };
             let local = Transform::from_record(*record);
             let world = frame.transform.compose(local);
-            entry
-                .effect
-                .set_transform(world, MODEL_EFFECT_TRANSFORM_FLAGS);
+            entry.effect.set_transform(world, MODEL_EFFECT_TRANSFORM_FLAGS);
             report.transformed += 1;
         }
         report
@@ -278,9 +272,7 @@ impl ModelRegEffects {
     pub fn update_with_motion(&mut self, speed: f32, direction: f32) -> UpdateReport {
         let report = self.update();
         for entry in self.entries.values_mut() {
-            entry
-                .effect
-                .set_parameter(MOTION_PARAMETER, speed * direction);
+            entry.effect.set_parameter(MOTION_PARAMETER, speed * direction);
         }
         report
     }
