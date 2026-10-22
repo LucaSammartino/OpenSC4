@@ -24,3 +24,13 @@ formats_shadow	formats_exemplar_effective	8959	8959	docs/runs/train31-232.md	tra
 formats_shadow	formats_cohort_own	388	388	docs/runs/train31-232.md	train31 same-process install package steps1/3/4; reads only, not factory replacement
 formats_shadow	formats_cohort_effective	388	388	docs/runs/train31-232.md	train31 same-process install package steps1/3/4; reads only, not factory replacement
 ports_shadow	ports	144	144	docs/lanes/glue-portdev-complete4.md	Final real-city same-process shadow72airport+72seaport,0resync,clean2032ref0; actual saved-port reloads separately tested
+span1555	span1555_ctx4	490	490	docs/lanes/glue-span1555-context4.md	Constructed native type4;independent original-vs-Rust;zero fallback/resync;shipped0
+span1555	span1555_ctx6	490	490	docs/lanes/glue-span1555-context4.md	Constructed native type6;independent original-vs-Rust;zero fallback/resync;shipped0
+span1555	span1555_direct	158	158	docs/lanes/glue-span1555-context4.md	Direct original-vs-Rust fixture;zero refusal/diff;shipped0
+span4444	span4444_sp6	350	350	docs/lanes/glue-span4444-context4.md	Constructed native source fixture;zero refusal/fallback/resync;shipped0
+span4444	span4444_ctx7	126	126	docs/lanes/glue-span4444-context4.md	Constructed native type7;all6SP1actuallyexact;zero fallback/resync;shipped0
+span4444	span4444_direct	198	198	docs/lanes/glue-span4444-context4.md	Direct original-vs-Rust fixture;zero refusal/diff;shipped0
+span8888_shadow	span8888_ctx8	254	254	docs/lanes/glue-span8888-impl4.md	Constructed native type8;zero refusal/fallback/resync
+span8888_shadow	span8888_ctx9	254	254	docs/lanes/glue-span8888-impl4.md	Constructed native type9;zero refusal/fallback/resync
+span8888_shadow	span8888_direct	198	198	docs/lanes/glue-span8888-impl4.md	Direct fixture exact;does not override unproven shipped calls
+span8888_shadow	span8888_shipped	369	372	docs/lanes/glue-span8888-impl4.md	3ordinary-call fallbacks UNPROVEN;entire key remains NOT VERIFIED
