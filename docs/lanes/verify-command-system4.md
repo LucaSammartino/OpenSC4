@@ -11,7 +11,10 @@
 - Stable full gate PASS at source `f844935e`: Rust 4961/4961, clippy 0 diagnostics, C++ build 4/4 edges, ctest 68/68 (96.0 s). No subsequent source edits.
 - Native run `commands4-native-r1-e50c5bbc-a`: 7414 assertions / 7243 exact / 171 mismatches / 0 refusals; first twelve differences scalar variant GetCount 0 native / 1 core. GC8 filed; production semantics unchanged. Original vtables in refaudit: service game+0x6D17A0, sets game+0x6D16C8. Probe took ~2 ms.
 - Game reached 2032-01-01, ref_warnings=0, full save succeeded (10860 ms), full shutdown reached. Harness verdict stalled because save caused watchdog_stalls=1; do not call clean. Completed verdict retained.
-- Next: aggregate mismatch-category instrumentation, stable gate again, frozen label b native/default/reload with an earlier full save to keep the save workload bounded. No runtime fixture retained from stalled run.
+- Final source `5eb61637`: focused quick PASS (530 capi tests), full gate PASS (4961 Rust tests, clippy clean, ctest 68/68 in 99.3 s). Aggregate counters added without changing semantics.
+- Frozen DLL SHA256 `1F8594269BE9926AB1EA047D721195B6D5C03819B6D2A99194C0D7DB4B5A16D2`; old label-a DLL hash `B633D033A3778553DC6F6AC253466FE3FDB58BA31B4A997B4146EE9A8D285375` retained in completed verdict.
+- Outstanding: native label `commands4-native-r1-e50c5bbc-b` (request sent). Exec session 73044 waits, then queues own/default and supported fixture reload sequentially. At most one request is outstanding. Save is now 2026-03-01; old stalled verdict retained.
+- Next: collect label-b native/default/reload verdicts and aggregate differences; finish WIP report unless canonical current40 is supplied. No semantic correction is authorized by this verification task.
 - Canonical current40 profile is not in the permitted named files; do not mislabel the two default-on keys as current40.
 - Formatting caveat: wrapper requires absolute file paths; checking lib.rs recursively reports pre-existing child-module formatting. No mass reformat performed.
 - No game request outstanding. Core receives only raw literals, never native computed values; no registrations or executions.
