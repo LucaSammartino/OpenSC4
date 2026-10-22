@@ -5,13 +5,15 @@
 ## Handoff
 
 - Goal: FINAL bounded round3 supported lifecycle controls; no source/owner/default expansion, no fourth round.
-- Done: round2 ledger read; historical commits through 4e1b9efd preserved below; copied evidence-run4 requests identified.
-- Next: verify engine tree against 06d71bb2, immutable2 DLL/PDB and retained stable gate; inspect copied save/mark script and supported request settings.
+- Done: initial round3 handoff9ca61786; all round2 ledger and copied evidence reviewed; engine tree b5044770680594c46e936d71a4b5bec83a63c10f equals 06d71bb2; no working/untracked engine changes.
+- Done: built DLL/PDB and immutable2 hashes match; retained cargo4961/0, clippy0, CTest68/68 audited from logs (CTest93.03s); no redundant rebuild/fmt.
+- Next: submit unused label vlun4-r3-supported-off-2032-i; require clean/ref0, returned full save, completion mark and PostSystemServiceShutdown before any ON request.
 - New hypothesis: disable=all/turbo0 historical failures differ from supported simulator-only/disablebudget/turbo1; prior OWNc already passed the latter effective profile.
 - Requests planned: unique probeOFF first, then exact matched ON if OFF passes, then literal40 enable/defaultbudget if ON passes; seconds420/timeout600, Konradshohe, target2032-01-01.
 - Immutable2 expected DLL SHA256: 78ea9b099f55d8abd95ea76cea21f34ced2caf72fc68ec305f35da43185c9342.
 - Retain strict116235/116235 separately from foreign host2484/4140 and question gaps2629/3043 per enabled run; 46 constructed lifetimes, natural0/0.
-- No request outstanding. No supported isolated reload fixture supplied; reload remains unmeasured. LU1-LU4/SL1 open.
+- No request outstanding at this commit; OFF request will follow. Use existing copied evidence-run4/cmdline4-r3-supported-save.script unchanged, SHA25670a903f02158b86981fbc3d5411c8e2ace5a9ea6539b5ab3806f0ae07fa24ac6; no cmdline DLL use.
+- No supported isolated reload fixture supplied; reload remains unmeasured. LU1-LU4/SL1 open. q.py Bash unavailable (access denied); run bounded lane-local Python directly.
 - Guard: C:/Users/tlori/FreeCity4/build-runs/run4-verify-language-native4-r3-manifest.json; original family final3/3, maxCalls100.
 
 ## Round2 diagnosis and controls (2026-10-22)
