@@ -35,8 +35,10 @@ impl Transform {
     fn apply_vertex(&self, p: Vec3, first: bool) -> Vec3 {
         // §7.2 row order z,y,x. f64 policy retains intermediates at the known
         // stores; it is not a claim of x87 extended/trig bit conformance.
-        let dot = |row: [f32; 3]| (f64::from(p.z) * f64::from(row[2])
-            + f64::from(p.y) * f64::from(row[1])) + f64::from(p.x) * f64::from(row[0]);
+        let dot = |row: [f32; 3]| {
+            (f64::from(p.z) * f64::from(row[2]) + f64::from(p.y) * f64::from(row[1]))
+                + f64::from(p.x) * f64::from(row[0])
+        };
         let rows = self.matrix.map(dot);
         let matrix = || Vec3::new(rows[0] as f32, rows[1] as f32, rows[2] as f32);
         match self.kind {
@@ -60,7 +62,11 @@ impl Transform {
                         (row * scale + f64::from(translation)) as f32
                     }
                 };
-                Vec3::new(component(rows[0], t.x, false), component(rows[1], t.y, false), component(rows[2], t.z, true))
+                Vec3::new(
+                    component(rows[0], t.x, false),
+                    component(rows[1], t.y, false),
+                    component(rows[2], t.z, true),
+                )
             }
         }
     }
@@ -112,7 +118,7 @@ pub fn primitive_vertex_indices(kind: u32, i: u32, out: &mut [u32; 3]) {
         6 if i % 2 == 0 => [a, a.wrapping_add(1), a.wrapping_add(2)],
         6 => [a, a.wrapping_add(2), a.wrapping_add(3)],
         7 => {
-            let j = i.wrapping_add(i % 2);
+            let j = i.wrapping_add(((i as i32) % 2) as u32);
             [j, j.wrapping_add(1), j.wrapping_add(2)]
         }
         _ => return,
@@ -123,7 +129,13 @@ pub fn primitive_vertex_indices(kind: u32, i: u32, out: &mut [u32; 3]) {
 /// accesses are checked; native invalid addresses are not reproduced. Numeric
 /// formats have the explicit finite bias-range precondition below (VU13).
 pub fn decode_indices(format: u32, data: &[u8], indices: [u32; 3], out: &mut [u32; 3]) -> Option<()> {
-    let width = match format { 0 | 1 => 1, 2 | 3 => 2, 4..=6 => 4, 7 => 8, _ => return Some(()) };
+    let width = match format {
+        0 | 1 => 1,
+        2 | 3 => 2,
+        4..=6 => 4,
+        7 => 8,
+        _ => return Some(()),
+    };
     let mut result = [0; 3];
     for (slot, index) in result.iter_mut().zip(indices) {
         let offset = index.wrapping_mul(width) as usize;
@@ -135,14 +147,23 @@ pub fn decode_indices(format: u32, data: &[u8], indices: [u32; 3], out: &mut [u3
             3 => u32::from(u16::from_le_bytes(bytes.try_into().ok()?)),
             4 | 5 => u32::from_le_bytes(bytes.try_into().ok()?),
             6 | 7 => {
-                let value = if format == 6 { f32::from_le_bytes(bytes.try_into().ok()?) }
-                    else { f64::from_le_bytes(bytes.try_into().ok()?) as f32 };
+                let value = if format == 6 {
+                    f32::from_le_bytes(bytes.try_into().ok()?)
+                } else {
+                    f64::from_le_bytes(bytes.try_into().ok()?) as f32
+                };
                 // Within this interval the bias conversion is nearest/even;
                 // correcting a rounded-up result gives floor, including exact
                 // integers. No successful result invented for unclear extremes.
-                if !(-4_194_304.0..4_194_304.0).contains(&value) { return None }
+                if !(-4_194_304.0..4_194_304.0).contains(&value) {
+                    return None;
+                }
                 let nearest = crate::x87::rhe(value);
-                if nearest as f32 > value { nearest.wrapping_sub(1) as u32 } else { nearest as u32 }
+                if nearest as f32 > value {
+                    nearest.wrapping_sub(1) as u32
+                } else {
+                    nearest as u32
+                }
             }
             _ => unreachable!(),
         };
@@ -207,6 +228,7 @@ pub trait ModelInstance {
 
 /// §7.2 two-sided line/triangle predicate, including unordered comparisons.
 /// Rejection preserves the optional output. There is deliberately no t test.
+#[allow(clippy::manual_range_contains)] // unordered barycentrics pass native rejection tests
 pub fn ray_intersects_triangle(ray: Ray, a: Vec3, b: Vec3, c: Vec3, out: Option<&mut Vec3>) -> bool {
     let e1 = b - a;
     let e2 = c - a;
@@ -266,7 +288,11 @@ pub struct TriangleIterator<'a> {
 
 impl<'a> TriangleIterator<'a> {
     pub fn select_group(mesh: &'a Mesh, index: usize) -> Option<Self> {
-        Some(Self { mesh, group: *mesh.groups.get(index)?, current: 0 })
+        Some(Self {
+            mesh,
+            group: *mesh.groups.get(index)?,
+            current: 0,
+        })
     }
 
     pub fn next_triangle(&mut self, out: &mut [Vec3; 3]) -> Result<bool, InvalidMeshReference> {
@@ -276,7 +302,9 @@ impl<'a> TriangleIterator<'a> {
         let mut indices = [0; 3];
         primitive_vertex_indices(self.group.kind, self.current as u32, &mut indices);
         let points = indices.map(|i| self.mesh.vertex(self.group.first, i));
-        let [Some(a), Some(b), Some(c)] = points else { return Err(InvalidMeshReference) };
+        let [Some(a), Some(b), Some(c)] = points else {
+            return Err(InvalidMeshReference);
+        };
         *out = [a, b, c];
         self.current = self.current.wrapping_add(1);
         Ok(true)
@@ -292,7 +320,12 @@ pub fn mesh_pick_checked(pick: &mut Pick, mesh: &Mesh, transform: &Transform) ->
         let mut points = [Vec3::ZERO; 3];
         while iterator.next_triangle(&mut points)? {
             let [a, b, c] = points;
-            if triangle_pick(pick, transform.apply_vertex(a, true), transform.apply_vertex(b, false), transform.apply_vertex(c, false)) {
+            if triangle_pick(
+                pick,
+                transform.apply_vertex(a, true),
+                transform.apply_vertex(b, false),
+                transform.apply_vertex(c, false),
+            ) {
                 return Ok(true); // First improving triangle, not nearest in mesh.
             }
         }
@@ -301,12 +334,20 @@ pub fn mesh_pick_checked(pick: &mut Pick, mesh: &Mesh, transform: &Transform) ->
 }
 
 pub fn model_pick(pick: &mut Pick, instance: &dyn ModelInstance, model: &Model) -> bool {
+    model_pick_checked(pick, instance, model).unwrap_or(false)
+}
+
+pub fn model_pick_checked(
+    pick: &mut Pick,
+    instance: &dyn ModelInstance,
+    model: &Model,
+) -> Result<bool, InvalidMeshReference> {
     let mut hit = false;
     for (index, mesh) in model.meshes.iter().enumerate() {
         let mut transform = Transform::default();
         instance.fill_transform(index, &mut transform);
         // Do not short circuit: subsequent meshes can improve the distance.
-        hit |= mesh_pick(pick, mesh, &transform);
+        hit |= mesh_pick_checked(pick, mesh, &transform)?;
     }
-    hit
+    Ok(hit)
 }

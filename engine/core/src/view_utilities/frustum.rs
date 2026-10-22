@@ -126,19 +126,31 @@ impl Frustum {
 fn city_clipped_bounds(corners: &[Vec3; 8], (width, depth): (f32, f32)) -> Option<Aabb> {
     let mut a = Vec3::ZERO;
     let mut b = Vec3::ZERO;
-    ray_intersects_ground_plane(Ray {
-        origin: corners[0],
-        direction: corners[4] - corners[0],
-    }, &mut a);
-    ray_intersects_ground_plane(Ray {
-        origin: corners[3],
-        direction: corners[7] - corners[3],
-    }, &mut b);
+    ray_intersects_ground_plane(
+        Ray {
+            origin: corners[0],
+            direction: corners[4] - corners[0],
+        },
+        &mut a,
+    );
+    ray_intersects_ground_plane(
+        Ray {
+            origin: corners[3],
+            direction: corners[7] - corners[3],
+        },
+        &mut b,
+    );
     let polygon = clip_polygon_to_polygon_2d(
         &[corners[3], corners[0], a, b],
-        &[Vec3::ZERO, Vec3::new(0.0, 0.0, depth), Vec3::new(width, 0.0, depth), Vec3::new(width, 0.0, 0.0)],
+        &[
+            Vec3::ZERO,
+            Vec3::new(0.0, 0.0, depth),
+            Vec3::new(width, 0.0, depth),
+            Vec3::new(width, 0.0, 0.0),
+        ],
         10,
-    ).ok()?;
+    )
+    .ok()?;
     let mut bounds = Aabb::from_points(&polygon);
     bounds.min.y = 0.0;
     bounds.max.y = corners[3].y;
@@ -151,10 +163,14 @@ pub struct IndeterminateClipIntersection;
 /// §7.2 ordered clipping in x/z. No deduplication or winding repair. The native
 /// unchecked near-parallel intersection is exposed as an error, not stale data.
 pub fn clip_polygon_to_polygon_2d(
-    subject: &[Vec3], clip: &[Vec3], capacity: usize,
+    subject: &[Vec3],
+    clip: &[Vec3],
+    capacity: usize,
 ) -> Result<Vec<Vec3>, IndeterminateClipIntersection> {
     let mut polygon = subject.to_vec();
-    let Some(&last_clip) = clip.last() else { return Ok(polygon) };
+    let Some(&last_clip) = clip.last() else {
+        return Ok(polygon);
+    };
     let mut edge_start = last_clip;
     for &edge_end in clip {
         let input = std::mem::take(&mut polygon);

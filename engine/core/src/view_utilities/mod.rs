@@ -14,13 +14,13 @@ use std::sync::OnceLock;
 
 pub use frustum::{clip_polygon_to_polygon_2d, Frustum, GroundLine, IndeterminateClipIntersection, Plane, Projection};
 pub use math::{
-    get_ray_intersection_with_ground_plane, max_of_four_floats, min_of_four_floats, ray_intersects_ground_plane,
-    ray_intersects_plane, Aabb, Pixel, PixelRect, Ray, Vec3,
+    cross_in_storage, get_ray_intersection_with_ground_plane, max_of_four_floats, min_of_four_floats, point_array_aabb,
+    ray_intersects_ground_plane, ray_intersects_plane, Aabb, Pixel, PixelRect, Ray, Vec3,
 };
 pub use picking::{
-    decode_indices, mesh_pick, mesh_pick_checked, model_pick, primitive_vertex_indices, ray_intersects_triangle,
-    triangle_indices, triangle_pick, InvalidMeshReference, Mesh, Model, ModelInstance, Pick, PrimitiveGroup,
-    Transform, TriangleIterator,
+    decode_indices, mesh_pick, mesh_pick_checked, model_pick, model_pick_checked, primitive_vertex_indices,
+    ray_intersects_triangle, triangle_indices, triangle_pick, InvalidMeshReference, Mesh, Model, ModelInstance, Pick,
+    PrimitiveGroup, Transform, TriangleIterator,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -70,7 +70,10 @@ pub fn get_camera_view_angles_for_rotation(rotation: i32, zoom: u32) -> Option<V
     let pitch = f32::from_bits(*[0x3f06_0a92, 0x3f1c_61aa, 0x3f32_b8c2, 0x3f49_0fdb, 0x3f49_0fdb].get(zoom as usize)?);
     let offset = f64::from(f32::from_bits(0xbec9_0fdb));
     Some(ViewAngles {
-        yaw: (f64::from(rotation) * f64::from(f32::from_bits(0x3fc9_0fdb)) + offset) as f32,
+        // At 64-bit x87 precision this product/add is exact before the store:
+        // quarter-turn = 0xC90FDB * 2^-23, offset = -quarter-turn/4.
+        // Integer accumulation avoids an unproved f64 double-rounding shortcut.
+        yaw: ((i64::from(rotation) * 4 - 1) * 0x00c9_0fdb) as f32 * (1.0 / 33_554_432.0),
         pitch,
         // Native FSIN/FCOS/FPTAN/FPATAN have no portable libm bit guarantee.
         ground_pitch: (f64::from(pitch).tan() / offset.cos()).atan() as f32,
@@ -78,7 +81,7 @@ pub fn get_camera_view_angles_for_rotation(rotation: i32, zoom: u32) -> Option<V
 }
 
 pub fn get_object_y_rotation_angle(rotation: i32) -> f32 {
-    (-f64::from(rotation) * f64::from(f32::from_bits(0x3fc9_0fdb))) as f32
+    (-(i64::from(rotation) * 0x00c9_0fdb)) as f32 * (1.0 / 8_388_608.0)
 }
 
 pub fn get_city_width_from_ortho_view(width: f32, zoom: u32) -> Option<f32> {
@@ -90,9 +93,18 @@ pub fn get_city_width_from_ortho_view(width: f32, zoom: u32) -> Option<f32> {
 pub fn rotate_vector_by_view_rotation(v: &mut Vec3, rotation: i32) {
     let (x, z) = (v.x, v.z);
     match rotation % 4 {
-        1 => { v.x = -z; v.z = x; }
-        2 => { v.x = -x; v.z = -z; }
-        3 => { v.x = z; v.z = -x; }
+        1 => {
+            v.x = -z;
+            v.z = x;
+        }
+        2 => {
+            v.x = -x;
+            v.z = -z;
+        }
+        3 => {
+            v.x = z;
+            v.z = -x;
+        }
         _ => {}
     }
 }
@@ -100,7 +112,10 @@ pub fn rotate_vector_by_view_rotation(v: &mut Vec3, rotation: i32) {
 pub fn get_vector_for_edge_into(edge: i32, out: &mut Vec3) {
     out.y = 0.0;
     let (x, z) = match edge % 4 {
-        0 => (0.0, -1.0), 1 => (1.0, 0.0), 2 => (0.0, 1.0), 3 => (-1.0, 0.0),
+        0 => (0.0, -1.0),
+        1 => (1.0, 0.0),
+        2 => (0.0, 1.0),
+        3 => (-1.0, 0.0),
         _ => return,
     };
     out.x = x;
@@ -125,9 +140,13 @@ fn round_block(value: f32, block: i32, up: bool) -> Option<i32> {
     // exposes native IDIV faults as None, including the second adjusted divide.
     let n = crate::x87::ftol32(f64::from(value));
     let remainder = n.checked_rem(block)?;
-    let adjusted = if remainder != 0 && up && n >= 0 { n.wrapping_add(block) }
-        else if remainder != 0 && !up && n <= 0 { n.wrapping_sub(block) }
-        else { n };
+    let adjusted = if remainder != 0 && up && n >= 0 {
+        n.wrapping_add(block)
+    } else if remainder != 0 && !up && n <= 0 {
+        n.wrapping_sub(block)
+    } else {
+        n
+    };
     Some(adjusted.checked_div(block)?.wrapping_mul(block))
 }
 
@@ -516,8 +535,12 @@ impl ViewUtilities {
         let full = PixelRect::new(0, 0, self.camera.viewport_width, self.camera.viewport_height);
         if rect == full {
             self.draw_narrowed = false;
+            let previous_ground = self.draw.ground_points;
             self.draw = self.view;
-            let points = *self.viewport_ground.get_or_init(|| self.get_viewport_rect_ground_corners(camera, full));
+            self.draw.ground_points = previous_ground;
+            let points = *self
+                .viewport_ground
+                .get_or_init(|| self.get_viewport_rect_ground_corners(camera, full));
             let Some(points) = points else { return false };
             self.draw.ground_points = points;
             return true;
@@ -539,7 +562,9 @@ impl ViewUtilities {
             volume.top = c.y.wrapping_sub(rect.top_left.y) as f32 * factor;
             volume.bottom = c.y.wrapping_sub(rect.bottom_right.y) as f32 * factor;
         }
-        let Some(points) = self.get_viewport_rect_ground_corners(camera, rect) else { return false };
+        let Some(points) = self.get_viewport_rect_ground_corners(camera, rect) else {
+            return false;
+        };
         let position = self
             .unproject_point_from_viewport_coordinates_to_world_coordinates(Vec3::new(c.x as f32, c.y as f32, 0.0))
             - self.forward * volume.near;
@@ -567,8 +592,16 @@ impl ViewUtilities {
             // §6 explicitly says viewport corners, not dirty-rectangle corners.
             let inner = Aabb::from_points(&[(p[0] + p[1]) * 0.5, (p[2] + p[3]) * 0.5]);
             let bounds = Aabb {
-                min: Vec3::new(min_of_four_floats(p.map(|p| p.x)), 0.0, min_of_four_floats(p.map(|p| p.z))),
-                max: Vec3::new(max_of_four_floats(p.map(|p| p.x)), 0.0, max_of_four_floats(p.map(|p| p.z))),
+                min: Vec3::new(
+                    min_of_four_floats(p.map(|p| p.x)),
+                    0.0,
+                    min_of_four_floats(p.map(|p| p.z)),
+                ),
+                max: Vec3::new(
+                    max_of_four_floats(p.map(|p| p.x)),
+                    0.0,
+                    max_of_four_floats(p.map(|p| p.z)),
+                ),
             };
             let outer = Aabb {
                 min: Vec3::new(

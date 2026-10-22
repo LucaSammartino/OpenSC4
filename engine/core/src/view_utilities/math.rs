@@ -36,10 +36,18 @@ impl Vec3 {
         Self::new((x * inverse) as f32, (y * inverse) as f32, (z * inverse) as f32)
     }
     pub fn min(self, other: Self) -> Self {
-        Self::new(self.x.min(other.x), self.y.min(other.y), self.z.min(other.z))
+        Self::new(
+            if other.x < self.x { other.x } else { self.x },
+            if other.y < self.y { other.y } else { self.y },
+            if other.z < self.z { other.z } else { self.z },
+        )
     }
     pub fn max(self, other: Self) -> Self {
-        Self::new(self.x.max(other.x), self.y.max(other.y), self.z.max(other.z))
+        Self::new(
+            if other.x > self.x { other.x } else { self.x },
+            if other.y > self.y { other.y } else { self.y },
+            if other.z > self.z { other.z } else { self.z },
+        )
     }
 }
 
@@ -127,6 +135,25 @@ impl Aabb {
             if normal.z >= 0.0 { self.max.z } else { self.min.z },
         )
     }
+}
+
+/// §12 005D6900: first point initializes even for a nonpositive count. Empty
+/// or insufficient storage has no native defined result; checked policy is None.
+pub fn point_array_aabb(points: &[Vec3], count: i32) -> Option<Aabb> {
+    let count = usize::try_from(count.max(1)).ok()?;
+    Some(Aabb::from_points(points.get(..count)?))
+}
+
+/// §12 005D6F10: writes x, then y, then z, rereading aliased operands. Indices
+/// make the native aliasing contract expressible without aliased Rust borrows.
+pub fn cross_in_storage(storage: &mut [Vec3], a: usize, b: usize, out: usize) -> Option<()> {
+    storage.get(a)?;
+    storage.get(b)?;
+    storage.get(out)?;
+    storage[out].x = storage[a].y * storage[b].z - storage[a].z * storage[b].y;
+    storage[out].y = storage[a].z * storage[b].x - storage[a].x * storage[b].z;
+    storage[out].z = storage[a].x * storage[b].y - storage[a].y * storage[b].x;
+    Some(())
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
