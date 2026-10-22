@@ -6,8 +6,8 @@
 
 - Goal: final native-evidence pass on LE3–LE5; substantive contracts by call 20–30; no fourth round.
 - Baseline: `de5f2185`; LE1/LE2 answered; selector/save contracts and exact inventory preserved.
-- Done: §9.5–§9.6/§15 prove fence overloads, first-foundation operations, pixel spill order, bounds-mover unordered tests; native addresses and nine independent vectors recorded.
-- Next: LE4 dialogs/menu and LE5 lifecycle/input/render/shared attribution; preserve newly narrowed LE3 invalid conversions and payload residuals.
+- Done: `594ff09d` proves fences/foundations, pixel spill and bounds unordered tests. §16–§17.1 adds four dialog contracts, native fence placeholder, cursors/mode/cycle/style and hit-test priority with independent vectors.
+- Next: bounded final menu evidence, exact residual accounting and PARK report; no fourth round or complete-owner claim. LE3 invalid conversions/payloads and LE4/LE5 untraced bodies stay open.
 - Main evidence: `C:/Users/tlori/FreeCity4`; export/decomp only. No engine reads or edits.
 - q.py cannot start Bash (E_ACCESSDENIED); bounded PowerShell/Python used.
 - No game requests, ABI proposals, external communications or subagents.

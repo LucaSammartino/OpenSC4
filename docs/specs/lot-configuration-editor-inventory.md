@@ -51,7 +51,7 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 | 0047CF90 | 1652 | 1652 | DrawLotConfigurationObject | P §13, LE5 |
 | 004827D0 | 1514 | 1514 | DoSelectBuildingFamiliesUI | P §12, LE4 |
 | 004832E0 | 1503 | 1503 | DoSelectPropFamiliesUI | P §12, LE4 |
-| 00483DC0 | 1373 | 1373 | DoHitTest | O LE5 |
+| 00483DC0 | 1373 | 1373 | DoHitTest | P §17.1; numeric/fallback LE3/LE5 |
 | 00482DC0 | 1304 | 1304 | DoSelectFloraFamiliesUI | P §12, LE4 |
 | 00484850 | 1236 | 1236 | AddNewLotConfigurationObject | P §9.3, LE3 |
 | 0047E060 | 1193 | 1193 | DrawCurrentLotConfiguration | P §13, LE5 |
@@ -63,28 +63,28 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 | 00485445 | 700 | 700 | SaveAs (false entry) | C §8.2; true entry 00485390 |
 | 0047F200 | 640 | 640 | GetIdentityInfoForLotConfigurationExemplarPath | C §8.4 |
 | 0047BBA0 | 638 | 638 | Prepare3DView | O LE5 |
-| 0047DDF0 | 618 | 618 | DoSet3DViewSlopeUI | O LE4 |
+| 0047DDF0 | 618 | 618 | DoSet3DViewSlopeUI | C §16.2; parser dependency |
 | 00486080 | 614 | 614 | SetLotSize | O LE4 |
 | 0047C660 | 612 | 612 | CycleSelectedObject | O LE5 |
 | 00486930 | 610 | 610 | DoLotFoundationMenu | O LE4 |
 | 00485B00 | 605 | 605 | DoOutsideAreaMenu | O LE4 |
 | 00484E10 | 557 | 557 | DuplicateObject | C §9.3 |
-| 0047AE20 | 547 | 547 | LoadCursors | O LE5 |
+| 0047AE20 | 547 | 547 | LoadCursors | C §17 |
 | 0047F480 | 541 | 541 | GetLotConfigurationObjectName | O LE5 |
-| 0047E650 | 531 | 531 | DoSetNetworkNodePathUI | O LE4 |
+| 0047E650 | 531 | 531 | DoSetNetworkNodePathUI | C §16.1; parser dependency |
 | 0047F750 | 510 | 510 | GetBuildingFamilyName | O LE5 |
 | 00484330 | 494 | 494 | RemoveOutOfBoundsLotConfigurationObjects | C §9.2, §9.4 |
 | 0047B890 | 488 | 488 | PostInit | P §7, LE5 |
 | 00486F20 | 473 | 473 | StaticInit | O LE5 |
 | 00484530 | 462 | 462 | AddLotFoundation | C §9.5 |
 | 0047FA80 | 457 | 457 | GetPropFamilyName | O LE5 |
-| 004805B0 | 447 | 447 | DoFenceMenu | O LE3 |
+| 004805B0 | 447 | 447 | DoFenceMenu | C §16.2 |
 | 0047B480 | 443 | 443 | MoveObjectToWithinLotBounds | C §9.2, §9.6 |
 | 00486770 | 434 | 434 | DoEditMouseDownL | P §11, LE5 |
 | 00480170 | 411 | 411 | DeleteLotConfigurationObject | C §9.3 |
-| 00480770 | 409 | 409 | DoSetLotNameUI | O LE4 |
+| 00480770 | 409 | 409 | DoSetLotNameUI | C §16.1 |
 | 0047ABA0 | 406 | 406 | DoDialogBoxGridSort | C §12.1; raw sort options specified |
-| 00486BA0 | 398 | 398 | DoSetLotSizeUI | O LE4 |
+| 00486BA0 | 398 | 398 | DoSetLotSizeUI | C §16.1; SetLotSize dependency LE4 |
 | 0047E890 | 377 | 377 | ToggleFence | C §9.5; allocation failure not normalized |
 | 0047DA80 | 375 | 375 | cSC4WinLotConfigurationEditor | C §7 |
 | 00485040 | 353 | 353 | MoveObject (key) | P §9.1, LE3 |
@@ -109,7 +109,7 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 | 0047CB70 | 181 | 181 | DoShowHelpUI | O LE5 |
 | 0047F950 | 174 | 174 | GetFloraFamilyName | O LE5 |
 | 00487100 | 174 | 174 | GZOnMouseDownL | O LE5 |
-| 0047A930 | 173 | 173 | FUN_0047A930 | O LE5 |
+| 0047A930 | 173 | 173 | FUN_0047A930 | C §17 |
 | 004895A0 | 169 | 169 | GZOnMouseDownR | O LE5 |
 | 004893E0 | 166 | 166 | DoEditMouseDownR | O LE5 |
 | 0047B1F0 | 165 | 165 | GetIdentityInfoForLotConfigurationExemplarKey | C §8.4 |
@@ -148,9 +148,9 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 | 0047A8F0 | 53 | 53 | PixelUnitsToObjectUnits | C §9.6 |
 | 0047AA00 | 45 | 45 | FUN_0047AA00 | O LE5 |
 | 0047A890 | 42 | 42 | DoEditMouseUpL | C §11 |
-| 0047B0A0 | 39 | 39 | DoAddNewNetworkNode | O LE3 |
-| 0047B0D0 | 39 | 39 | DoAddEditFences | O LE3 |
-| 0047A8C0 | 35 | 35 | FUN_0047A8C0 | O LE5 |
+| 0047B0A0 | 39 | 39 | DoAddNewNetworkNode | C §17 |
+| 0047B0D0 | 39 | 39 | DoAddEditFences | C §17 |
+| 0047A8C0 | 35 | 35 | FUN_0047A8C0 | C §17 |
 | 0047E870 | 19 | 19 | TriggerLotConfigurationRedraw | O LE5 |
 | 00480590 | 18 | 18 | SetDataHasChanged | C §1 |
 | 006049BF | 7 | 7 | FUN_006049BF | R LE5; depth-8 switch stub |

@@ -28,6 +28,12 @@ empty selection, cancel/missing-control cleanup and raw sort calls. Remaining
 selector work is the semantic interpretation of sort options/collation and
 name-helper fallbacks; the other dialogs/object-menu branches below remain open.
 
+Final-round §16 resolves the lot-name, lot-size UI wrapper, slope and
+network-path dialogs, including accepted missing-control results, slope
+unordered/validation ordering and payload growth; §16.2 proves the fence-options
+popup is a native placeholder. SetLotSize's own arithmetic, retaining-wall and
+foundation dialogs and remaining selected-object menu branches are still open.
+
 Reconcile each control ID, row schema/sort key, row-to-ID map, preselection,
 empty selection, accept/cancel and missing-control behavior in the building,
 prop, flora and texture selectors (`0x004827D0`, `0x004832E0`, `0x00482DC0`,
@@ -44,6 +50,11 @@ draw order, type-3 marker path and height-label zero/unordered/sign behavior.
 The record constructor is an editor dependency (§9.4); exclusive ownership is
 not proved. Remaining lifecycle/input/hit-test/render/attribution work below
 continues to block complete-owner credit.
+
+Final-round §17–§17.1 resolves cursor-resource mapping/replacement, mode 4/8
+switches, condition-byte cycling, drawing-style output bytes, and hit-test
+selected/forward-vector/popup priority. Hit-test numeric/fallback behavior,
+other lifecycle/input/render phases and shared-helper ownership remain open.
 
 Reconcile the exact inventory companion: static resources/cursors and Init
 flags; PostInit view/alpha setup; destructor/reference-array cleanup; callback

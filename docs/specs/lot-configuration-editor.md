@@ -953,3 +953,163 @@ any implementation or test output.
 | Objects `[A(type3,ID1),X,B(type3,ID2)]`; enable ID3. | `[X,B,new(type3,ID3)]`, with no dirty/title/draw by this helper. Disable once then removes B only. |
 | Partial bounds mover; both x bounds quiet NaN, finite z bounds wholly below zero; masked exceptions. | Both x translations skip; z is corrected. No whole-record rejection. |
 | Pixel conversion x=16777217, scale 1, rectangle x-origin=16777216. | x output 0 after product spill, rather than 1 from a combined expression (round-to-nearest). |
+
+## 16. Other dialogs: final-round contracts *[compat]*
+
+The name, slope and network-path dialogs use script resource group
+`0x96A006B0`, instance `0xE9263D4C`, creation argument `0xC9264BE2`.
+Their text control is `0x89264D48`, queried as interface `0x231A1C57`.
+They show modally, unregister the dialog, restore editor focus, and write back
+only for modal result `0x42B7C356` and a successful second control query.
+Missing initial text control merely skips initialization; it does not cancel
+the modal dialog. Failed creation, cancellation and missing accepted control
+do not mutate the model. Created dialogs are destroyed/released on exit.
+This paragraph describes successful ordinary resource/control lifetime; it
+does not promise recovery from allocation faults in string construction.
+
+### 16.1 Lot name, size and network path
+
+DoSetLotNameUI (`0x00480770`) initializes the text from configuration `+0x0C`.
+Accepted empty text becomes literal `<unnamed>`; other text, including whitespace,
+is copied as read. It assigns the name even when unchanged, sets dirty, and
+calls SetTitle **twice**, without drawing. It returns true on accepted modal
+result even if the second text-control query fails, and false on creation
+failure/cancel (`0x004807D1..0x004808F2`).
+
+DoSetLotSizeUI (`0x00486BA0`) uses group `0x96A006B0`, instance
+`0xE9263DE5`, creation argument `0x8926EEBE`. Width control `0x0926ECD9`
+and depth control `0xE926ED2E` use interface `0x412CE496`. Each successful
+initial query sets its selection to unsigned stored dimension minus one.
+Missing initial controls do not prevent showing the dialog. On acceptance,
+both output dimensions start at 1. A successful accepted query replaces that
+dimension with control selection plus one, using 32-bit arithmetic; there is
+no local range validation. It invokes SetLotSize (`0x00486080`) with these
+width/depth values and final argument true. Accepted result returns true even
+when either/both controls are missing; cancellation/creation failure returns
+false (`0x00486BFD..0x00486D2D`). SetLotSize's remaining scale/rectangle
+arithmetic is still LE4 and is not inferred from these UI selections.
+
+DoSetNetworkNodePathUI (`0x0047E650`) takes an object record and titles its
+dialog `Set path ID for connection`. Initial text comes from payload dword 3
+when logical size is at least four, otherwise from zero; it does not read a
+physical fourth word merely because spare capacity exists. Acceptance reads
+the text through control slot `+0xB4`, parses with RZAtoUint32HexA
+(`0x0090FCEF`), grows a short payload to four zero-filled dwords, and writes
+only word 3. Payloads longer than four keep their length and other words.
+It does not set dirty, update title, recompute bounds, draw or invalidate
+(`0x0047E6DB..0x0047E711`, `0x0047E7D7..0x0047E856`). Hex-parser lexical
+edge cases remain that helper's contract, not a decimal-only validation rule.
+
+### 16.2 Slope and fence options
+
+DoSet3DViewSlopeUI (`0x0047DDF0`) titles its dialog `Set Slope of Displayed Lot`
+and initializes text from the unsigned integer at editor `+0x1E0`.
+Acceptance parses using RZConvertToUint32A (`0x0090FE93`). For comparison it
+loads the signed 32-bit result into x87 and, if the sign bit was set, adds
+binary32 2^32; no binary32 store intervenes before the lot-limit tests.
+In order, a value greater than configuration float `+0x30`, or less than
+configuration float `+0x34`, produces `Slope is outside min/max values for this
+lot`. Equality passes. With masked invalid exceptions an unordered upper or
+lower comparison passes that individual limit (status tests `0x41` and
+`0x05` respectively, `0x0047DF8B..0x0047DFAF`).
+
+Only after those tests does unsigned integer value greater than 80 produce
+`Slope limited to 80 degrees`. Otherwise it stores the integer at `+0x1E0`,
+calls Prepare3DView, then editor virtual `+0x27C` (`0x0047DFB1..0x0047DFEF`).
+There is no dirty/title write or implicit clamp. The lot-limit message wins
+when a value violates both a lot limit and the 80-degree cap.
+
+DoFenceMenu (`0x004805B0`) has rows 0 `Set Fence Type...`, 1 separator,
+2 `Help... (F1)`. After the popup it restores editor focus. Row 0 displays the
+native message that fence options are unimplemented until fence functionality
+is in place; it does not open a selector or change fence type. Row 2 invokes
+help page 0. Separator/cancel/other results do nothing. Menu temporaries are
+released (`0x004806DF..0x0048076E`). This is a native placeholder, not an
+untraced fence-type dialog that an implementer must invent.
+
+### 16.3 Discriminating vectors
+
+| Action / state | Native expectation |
+|---|---|
+| Accept empty lot-name text. | Name `<unnamed>`, dirty set, title called twice. |
+| Accept name dialog but accepted control is missing. | True return, no name/dirty/title write. |
+| Accept size dialog with missing width control and depth selected index 3. | SetLotSize receives `(1,4,true)`; true UI return. |
+| Two-word network payload `[7,8]`; accept path `AB`. | Logical payload `[7,8,0,0xAB]`; no dirty/title/redraw. |
+| Five-word payload `[1,2,3,4,5]`; accept path `AB`. | `[1,2,3,0xAB,5]`, still five words. |
+| Lot upper slope 75, lower 0; accept 90. | Lot-limit message, not 80-degree message; slope unchanged. |
+| Lot limits both quiet NaN, masked exceptions; accept 80 then 81. | 80 stores/prepares/refreshes; 81 shows 80-degree message. |
+| Fence popup row 0. | Unimplemented-options message; no fence mutation. |
+
+## 17. Additional input/resource helpers: established subset *[compat]*
+
+DoAddNewNetworkNode (`0x0047B0A0`) switches editor mode `+0x19C` to 4 and
+installs stored cursor `+0x150` through virtual `+0x154` with true. If already
+4 it returns without even resetting the cursor. DoAddEditFences (`0x0047B0D0`)
+does the same for mode 8 and cursor `+0x158`. Neither creates a record or sets
+dirty. Switching modes therefore does not itself require a placement click.
+
+LoadCursors (`0x0047AE20`) constructs seven cursor temporaries from group
+`0x46A006B0`. The stored-field mapping is:
+
+| Editor field | Resource instance |
+|---|---|
+| `+0x140` | `0x4A5CDC3F` |
+| `+0x144` | `0x4A5CDC3A` |
+| `+0x148` | `0x4A5CDC3B` |
+| `+0x14C` | `0x4A5CDC3C` |
+| `+0x150` | `0x4A5CDC40` |
+| `+0x154` | `0x4A5CDC3D` |
+| `+0x158` | `0x4A5CDC3E` |
+
+Each replacement is skipped on pointer equality; otherwise it AddRefs the
+new non-null pointer, stores it, and Releases the previous non-null pointer,
+in field order `140,144,148,14C,158,154,150`. Null construction results can
+clear previously stored cursors. All seven temporaries are then destroyed in
+reverse construction order. Resource construction failure is not reported as
+a false return or rollback by this void method.
+
+The condition-cycle helper (`0x0047A8C0`) increments only byte `+0x1DC`, wraps
+to zero **only when the incremented byte equals 7**, then tail-calls editor
+virtual `+0x27C`. This is not general modulo seven for corrupt initial values:
+7 advances to 8, 255 advances to 0. It has no dirty/title/Prepare3DView call.
+
+The drawing-style helper `0x0047A930` always writes binary32 0.5 to its final
+output, then three output bytes according to the record's first byte. In
+argument order the byte triples are type 0 `(0,0,128)`, type 1 `(128,0,128)`,
+type 2 `(0,128,128)`, type 3 `(0,72,72)`, type 4 `(0,128,0)`, and all other
+types `(128,128,128)` (`0x0047A938..0x0047A9DC`). These are output-channel
+values, without inferring an undocumented pixel-packing convention.
+
+### 17.1 Hit-test priority and popup: established subset
+
+DoHitTest (`0x00483DC0`) first nulls the caller's output record pointer. Only
+input flag bit `0x02` affects the selected-object bypass and overlap popup.
+With it clear, a non-null selected object whose inclusive integer rectangle
+contains the point wins immediately, yielding selected pointer and stored
+selected index plus 100 (`0x00483DD6..0x00483E2A`). It need not be the first
+object in the configuration vector. This selected rectangle comes from
+`0x0047B310`; its remaining conversion details are not supplied here.
+
+Otherwise the method scans all object records in **forward vector order**,
+collecting indices whose integer pixel rectangles inclusively contain x/y.
+It does not filter by type or height. If flag `0x02` is clear, or only one
+candidate exists, the first candidate returns pointer and index plus 100.
+Thus drawing's reverse order (§13) must not be substituted for hit-test order.
+With that flag set and multiple candidates, it builds a popup in candidate
+order, labelled by index/type. An unsigned returned row below candidate count
+selects that candidate and restores focus; any other result returns zero with
+null output, without continuing to grid/lot fallback tests
+(`0x004840B1..0x00484181`, `0x004842F1..0x00484327`).
+
+Object pixel bounds are obtained through `_ftol2` integer conversions, **not**
+direct floating-point comparisons (`0x00483E60..0x00483EC3`). Consequently the
+unordered-skip rules of §9.6 cannot be copied into this hit test. Exact
+reciprocal precision differences, invalid/overflow conversions, remaining
+grid/resize/inside fallback rectangles and helper `0x0047B310` are LE3/LE5.
+
+Discriminators: with overlapping records `[A,B]`, selected B and flag zero,
+B wins; with no selection and flag zero, A wins. With flag `0x02`, the selected
+shortcut is bypassed and the multi-object popup appears; cancelling it returns
+zero/null rather than the enclosing lot hit. Cycling condition byte 7 yields
+8, not 1; switching twice to fence mode installs its cursor only on the first
+switch. These expectations come from native branches, not test outputs.
