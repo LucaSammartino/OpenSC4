@@ -17,7 +17,8 @@
 - h1 fontsys4-r2-house40-off-20261022h1 clean/ref0 date2032-01-01; probeOFF/no-equivalence-credit, full saves2026-03-01(11125ms)/2031-06-01(11156ms) ok1, captured fixture. Profile40 includes simgrids/ports, excludes terrain/dispatch/effects.
 - i1 fontsys4-r2-house40-on-reload-20261022i1 clean/ref0 date2032-01-01: staged g1 fixture SHAef224fb8a87d4d5d13b8831004cad85e46df1f3c55c6fcf6d2276aeb3221fa55, full saves both2031-06-02(11750/11609ms) ok1; four phases each2890exact/0diff/0refusal; route23/23, fallback/resync0/natural0.
 - New corrected-provider ON totals so far final: 16 sequences,46240exact/0diff/0refusal/0fallback/0resync/natural0;368 native-route checks separate. Historical invalid counts excluded.
-- Next: HOUSE40 OFF reload j1 of h1 fixture, original OFF reload k1 of e1 fixture; run build-runs/fontsys4-audit-evidence.py, final report/queue. No new questions.
+- j1 fontsys4-r2-house40-off-reload-20261022j1 clean/ref0 date2032-01-01; staged h1 fixture SHA2d44a05076331519cbda3655ecb4cb0c9e815a7ed52c46b641e5ad5388b43a49; full saves both2031-06-02(10906/10875ms) ok1; probeOFF/no-equivalence-credit; complete shutdown.
+- Next: original OFF reload k1 of e1 fixture; run build-runs/fontsys4-audit-evidence.py, final report/queue. No new questions.
 - Required controls: exact HOUSE40 profile from current task, ON/OFF full save/shutdown and supported reload to2032/ref0; no experimental keys.
 - Request labels are unique; wait via build-runs/fontsys4-wait-verdict.py (never qwait). Helper fontsys4-submit.py fixes HOUSE40 explicitly, rejects reused labels/outstanding requests and checks frozen hashes.
 - No new questions or code edits yet. Preserve all historical evidence below until final report.
