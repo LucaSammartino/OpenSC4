@@ -450,10 +450,10 @@ binary32 replacement at `0x007D83A3`/`0x007D83B6`).
   given property holder when it has them, so a model exemplar can change its own decal shadow.
 - `CalcShadowTerrainRect(…, box, outRect)` (slot 18, `0x007D6CC0`): the cell rectangle ⌊min / 16⌋ … ⌈max / 16⌉ of the
   box's x and z, intersected with the city and then extended by the ordered edge probes in §5.7; always true.
-- `CalcShadowProjection(points, uvs, count, xform, inout)` (slot 17, `0x007D8C80`): fits, by least squares, the
+- `CalcShadowProjection(count, points, uvs, xform, out)` (slot 17, `0x007D8C80`): fits, by least squares, the
   texture coordinates of the points as an affine function of their position in a plane perpendicular to the shadow
   direction (expressed in the model's frame, `0x0080B9F0` building the plane basis), and writes the resulting texture
-  matrix, composed with the transform, into `inout`; false when the 3×3 normal-equation determinant is below 0.01
+  matrix, composed with the transform, into `out`; false when the 3×3 normal-equation determinant is below 0.01
   *[inferred: the exact composition with the transform's flags]*.
 
 ### 5.7 Exact terrain rectangle extension (LT11)
@@ -502,6 +502,39 @@ probe, when present, can continue after the first probe hits high ground. No cli
 extension, and untouched edges retain the initially intersected values. Evidence for the four branches:
 `0x007D6E25–0x007D7147`, `0x007D7170–0x007D72BC`, `0x007D72BD–0x007D73D4`; common final output stores at
 `0x007D7149–0x007D7168`.
+
+### 5.8 Projection: proved boundaries, remaining LT10 gap
+
+The actual slot-17 argument order is **(unsigned count, points, uvs, transform, out)**, correcting the
+earlier points-first summary. Points are contiguous three-binary32 vectors (12-byte stride); UVs are
+contiguous two-binary32 vectors (8-byte stride). The transform and output are **separate pointers**.
+Transform fields read are a flag byte at byte offset 1, nine binary32 matrix entries at offsets 4…36,
+three translation entries at 40…48 and a scale at 52. Output is sixteen binary32 entries (64 bytes).
+Evidence: transform reads `0x007D8C87–0x007D8D05`; count/array accesses `0x007D8F26–0x007D90F3`, and output
+stores `0x007D96A1–0x007D9801`. These layouts do not by themselves define the transform's mathematical
+convention; do not treat its first word as a matrix component or alias transform with output as a requirement.
+
+The attributed basis helper accepts direction d and writes three consecutive three-float rows. With
+nonzero horizontal length h = sqrt(dx²+dz²), row 0 is (dz/h,0,−dx/h), row 1 is d cross row 0, row 2 is d.
+It does **not** normalize d or row 1. The length/reciprocal use x87 arithmetic; row 0 is stored binary32
+before the cross product, whose components are also stored binary32. For a vertical direction, including
+the zero vector, rows 0 and 1 are fixed **(0,0,1)** and **(1,0,0)**, independent of dy; row 2 still copies d.
+Evidence: `0x0080B9F0–0x0080BAC6`. Thus the vertical fallback is not a general cross-product construction.
+
+The determinant check is **signed**, with no absolute value. The assembled determinant remains on the
+x87 stack and is compared directly with binary64 **0.01** at `0x00A92688`. An *ordered* value below that
+constant returns false, before any output store; equality proceeds. The instruction branch also lets an
+unordered (NaN) determinant proceed into reciprocal/composition, rather than returning false. The false
+path leaves all 64 output bytes untouched. Count zero supplies a zero normal-equation matrix and takes
+this false path, after reading the transform and obtaining/building the direction basis; it does not read
+the point/UV arrays (`0x007D91CC–0x007D9205`, count skip `0x007D8F33–0x007D8F35`).
+
+**Still open:** the exact model-frame direction transform, full flag-dependent composition and coefficient
+layout, and the complete accumulation/cofactor/composition spill-and-round schedule. In particular, a
+mathematical least-squares result with arbitrary binary32 rounding is not yet an exact native projection
+contract. The executable tests flag bits 4 and 2 in inverse setup and later the entire flag byte as well
+as bit 2; their complete mathematical meaning is not established here. Keep LT10 open and withhold
+complete-owner projection credit; the inferred §5.6 composition is not sufficient to implement this entry.
 
 ## 6. Messages (`DoMessage`, `0x007DBCF0`) *[compat]*
 
@@ -630,10 +663,16 @@ See QUESTIONS.md LT1–LT4: the meaning of the settings byte `+0x39C` (§2.1), t
     the first probe stops immediately, but the second continues from (2,1) to R=4: the same output results.
     Sampling every top-edge ray, excluding the stopped vertex, or comparing ≥ instead of > would not
     implement the specified procedure.
+18. **Projection failure boundary (LT10 partial):** with count 0, null points/UVs, a valid fully initialized
+    transform, a manager supplying a finite direction, and a sentinel-filled 64-byte output, return false
+    without modifying any output byte. The transform/direction work still occurs. Separately, the basis
+    helper for d=(0,−1,0) has rows (0,0,1), (1,0,0), (0,−1,0); computing row 1 as d cross row 0 in this
+    special case would incorrectly give (−1,0,0).
 
 ## 12. Individual owner and attributed-helper checklist
 
-The exact lighting inventory is **43 cSC4LightingManager bodies** and **2 cImageARGB8 bodies**. The former
+The exact lighting inventory is **43 cSC4LightingManager bodies / 21,714 bytes** and
+**2 cImageARGB8 bodies / 517 bytes**, measured against the native export's body sizes. The former
 includes two adjustment thunks and both destructors; shared AddRef bodies are dependencies, not extra
 lighting bodies. Each row below identifies an individual entry, even where several entries share a section.
 Existing sections describe baseline behaviour; open LT items explicitly withhold complete-owner credit.
@@ -642,8 +681,8 @@ plus `re/symbols/lighting.tsv`, not a name-only export count.
 
 | Entry | Behaviour section | Remaining exact-contract review |
 |---|---|---|
-| `007D65E0` QueryInterface | §1.1 | LT5 |
-| `007D6650` Release | §1.1 | LT5 |
+| `007D65E0` QueryInterface | §1.1, §1.2 | LT5 answered |
+| `007D6650` Release | §1.1, §1.2 | LT5 answered |
 | `007D6670` GetTimeOfDay | §2 | baseline |
 | `007D6680` IsNight | §2 | baseline |
 | `007D68B0` BendShadowedNormal | §5.3 | baseline |
@@ -655,7 +694,7 @@ plus `re/symbols/lighting.tsv`, not a name-only export count.
 | `007D6B50` GetShadowDirection | §4.6 | baseline |
 | `007D6B70` GetShadowParams | §5.6 | baseline |
 | `007D6BB0` GetShadowStrengthFromLocation | §5.4 | baseline |
-| `007D6CC0` CalcShadowTerrainRect | §5.6 | LT11 |
+| `007D6CC0` CalcShadowTerrainRect | §5.7 | LT11 answered |
 | `007D73E0` GetColor(out) | §4.1 | baseline |
 | `007D7420` GetColor(bytes) | §4.1 | baseline |
 | `007D7460` GetColor(out, normal) | §4.1 | baseline |
@@ -667,25 +706,25 @@ plus `re/symbols/lighting.tsv`, not a name-only export count.
 | `007D7BF0` GetVertexColors | §4.4 | baseline |
 | `007D7F00` GetTerrainVertexColors | §4.5 | baseline |
 | `007D8340` GetTerrainNormalClamped | §5.5 | epsilon/upper rounding proved |
-| `007D83C0` GetModelColor | §4.2 | LT7 |
+| `007D83C0` GetModelColor | §1.5, §4.2 | LT7 answered |
 | `007D8550` GetModelLight | §4.3 | baseline |
 | `007D8B20` GetTerrainLighting | §4.5 | baseline |
-| `007D8C80` CalcShadowProjection | §5.6 | LT10 |
-| `007D9820` SetTimeDependentLightingValues | §2.1 | LT7 |
+| `007D8C80` CalcShadowProjection | §5.6, §5.8 | LT10 remains open |
+| `007D9820` SetTimeDependentLightingValues | §1.5, §2.1 | LT7 answered |
 | `007D9DF0` SetTimeOfDay | §2.2 | LT6 proved |
-| `007DA0A0` constructor | §1.1 | LT5 |
-| `007DA3E0` QueryInterface adjustment thunk | §7 | LT5 |
-| `007DA3F0` Release adjustment thunk | §7 | LT5 |
-| `007DA400` destructor | §1.3 | LT5/LT7 |
+| `007DA0A0` constructor | §1.1, §1.2 | LT5 answered |
+| `007DA3E0` QueryInterface adjustment thunk | §1.2, §7 | LT5 answered |
+| `007DA3F0` Release adjustment thunk | §1.2, §7 | LT5 answered |
+| `007DA400` destructor | §1.3, §1.5 | LT5/LT7 answered |
 | `007DA490` GetDecalShadowParams | §5.6 | baseline |
-| `007DA670` deleting destructor | §1.3 | LT5/LT7 |
-| `007DA690` Shutdown | §1.3 | LT7 |
-| `007DA7E0` ReadProperties | §1.4 | LT5 |
-| `007DAE70` FindHillShadows | §5.2 | LT8 |
-| `007DB6A0` Init | §1.3 | LT7 |
-| `007DB840` DoZoomAndRotationChange | §3 | LT5/LT8 |
-| `007DBCF0` DoMessage | §6 | LT9 |
-| `007D6690` cImageARGB8::SampleRowLerp | §2.1 | LT7 |
+| `007DA670` deleting destructor | §1.3, §1.5 | LT5/LT7 answered |
+| `007DA690` Shutdown | §1.3, §1.5 | LT7 answered |
+| `007DA7E0` ReadProperties | §1.4 | LT5 answered |
+| `007DAE70` FindHillShadows | §5.2 | LT8 answered |
+| `007DB6A0` Init | §1.3, §1.5 | LT7 answered |
+| `007DB840` DoZoomAndRotationChange | §1.2, §3 | LT5/LT8 answered |
+| `007DBCF0` DoMessage | §6 | LT9 answered |
+| `007D6690` cImageARGB8::SampleRowLerp | §1.5, §2.1 | LT7 answered |
 | `007D6870` cImageARGB8::FindMinRedComponentValue | §1.5 | vector boundary/constant proved |
 
 Attributed helpers are `007D6540` RotateLightingRectToWorld (§6), `007DB450` CopyImageToARGB8 (§1.5),
