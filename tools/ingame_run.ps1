@@ -85,6 +85,7 @@ $OutDir = Join-Path $PSScriptRoot "..\build-runs"
 $Ctl = Join-Path $PSScriptRoot "sc4ctl.ps1"
 $MutexTool = Join-Path $PSScriptRoot "sc4mutex.ps1"
 $Region = "FC4 Test"
+. (Join-Path $PSScriptRoot 'city_fixture.ps1')
 
 Add-Type -ErrorAction SilentlyContinue @"
 using System; using System.Collections.Generic; using System.Runtime.InteropServices; using System.Text;
@@ -279,6 +280,9 @@ if ($Slot -gt 0) {
 $Plugins = Join-Path $UserDir "Plugins"
 $Log = Join-Path $Plugins "FreeCity4.log"
 $CityDir = Join-Path $UserDir "Regions\$Region"
+$cityFixture = Resolve-HarnessCityFixture $Ini $Slot $City (Join-Path (MainCheckout) 'build-runs\fixtures')
+$Ini = $cityFixture.Ini
+if ($cityFixture.Source) { $null = Resolve-HarnessFixtureDestination $UserDir $DocsUser $City }
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 
 $plan = @()
@@ -314,6 +318,10 @@ if ($Slot -gt 0) {
     # Mirror the test region (copies only what differs, removes what the last run added).
     & robocopy (Join-Path $DocsUser "Regions\$Region") $CityDir /MIR /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
     if ($LASTEXITCODE -ge 8) { Write-Output "BLOCKED: could not mirror the region into $CityDir (robocopy $LASTEXITCODE)"; exit 3 }
+    if ($cityFixture.Source) {
+        $fixtureCopy = Copy-HarnessCityFixture $cityFixture.Source $UserDir $DocsUser $City
+        Write-Output "fixture_city: $($fixtureCopy.SHA256) -> $($fixtureCopy.Destination) (source preserved)"
+    }
     foreach ($f in Get-ChildItem -LiteralPath $Plugins -File) { if ($f.Name -notin "FreeCity4.dll", "FreeCity4.pdb", "FreeCity4.log") { Remove-Item -LiteralPath $f.FullName -Force } }
 }
 if ($Dll -or $Slot -gt 0) {
