@@ -112,6 +112,7 @@ generated index: the questions live one file per spec, so read only the file for
 | TU | tutorial |
 | UG | underground-occupants |
 | VW | view3d-window |
+| WG | win-grid |
 | WT | widget-toolkit |
 | ZG | zones |
 | ZQ | zones |
@@ -120,13 +121,13 @@ generated index: the questions live one file per spec, so read only the file for
 
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
-| advisors | 1 | 10 | AD12 | questions/advisors.md |
+| advisors | 5 | 10 | AD16 | questions/advisors.md |
 | application | 3 | 2 | AP6 | questions/application.md |
-| audio-ambience | 1 | 8 | AA10 | questions/audio-ambience.md |
+| audio-ambience | 3 | 8 | AA12 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 2 | 37 | A5, AM13, AT22 | questions/automata.md |
 | budget | 0 | 8 | BQ9 | - |
-| budget-window | 1 | 13 | BW15 | questions/budget-window.md |
+| budget-window | 1 | 14 | BW17 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
 | city-detail | 2 | 5 | CD8 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
@@ -143,7 +144,7 @@ generated index: the questions live one file per spec, so read only the file for
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 2 | 44 | DS47 | questions/disasters.md |
 | dispatch | 0 | 9 | DP10 | - |
-| drawing-fonts | 0 | 14 | FN15 | questions/drawing-fonts.md |
+| drawing-fonts | 3 | 14 | FN18 | questions/drawing-fonts.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
 | feature-manager | 2 | 0 | FM3 | questions/feature-manager.md |
 | flammability | 0 | 13 | FL14 | - |
@@ -155,13 +156,13 @@ generated index: the questions live one file per spec, so read only the file for
 | history | 0 | 17 | HW18 | - |
 | html-document | 1 | 6 | HD8 | questions/html-document.md |
 | landfill | 0 | 36 | LF7, LG31 | - |
-| landvalue | 1 | 5 | LV6 | questions/landvalue.md |
+| landvalue | 0 | 6 | LV6 | questions/landvalue.md |
 | language-utility | 3 | 0 | LU4 | questions/language-utility.md |
 | legacy-control | 3 | 4 | LC9 | questions/legacy-control.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
-| lot-records | 0 | 5 | LR6 | questions/lot-records.md |
-| mysims | 0 | 12 | MS13 | questions/mysims.md |
+| lot-records | 2 | 5 | LR8 | questions/lot-records.md |
+| mysims | 3 | 12 | MS16 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
@@ -171,7 +172,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-tools | 14 | 0 | NT21 | questions/network-tools.md |
 | occupant-groups | 2 | 0 | OG3 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
-| occupants-props | 11 | 5 | OP17 | questions/occupants-props.md |
+| occupants-props | 12 | 5 | OP18 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
 | parks | 0 | 11 | PK12 | - |
@@ -193,13 +194,13 @@ generated index: the questions live one file per spec, so read only the file for
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | simgrid | 1 | 0 | SG2 | questions/simgrid.md |
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
-| span-render-4444 | 3 | 2 | SP6 | questions/span-render-4444.md |
+| span-render-4444 | 4 | 2 | SP7 | questions/span-render-4444.md |
 | span-render-565 | 8 | 0 | SR566 | questions/span-render-565.md |
 | span-render-8 | 3 | 1 | SR9 | questions/span-render-8.md |
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
-| timers | 0 | 2 | TM3 | questions/timers.md |
+| timers | 1 | 2 | TM4 | questions/timers.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
 | tutorial | 4 | 2 | TU10 | questions/tutorial.md |
@@ -208,5 +209,6 @@ generated index: the questions live one file per spec, so read only the file for
 | view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
+| win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **200** | **1115** | | |
+| **total** | **218** | **1119** | | |
