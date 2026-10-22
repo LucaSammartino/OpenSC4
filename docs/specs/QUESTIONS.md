@@ -172,7 +172,7 @@ generated index: the questions live one file per spec, so read only the file for
 | budget-window | 2 | 14 | BW18 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
 | bulldozer-tool | 1 | 0 | BT2 | questions/bulldozer-tool.md |
-| camera | 5 | 1 | CA7 | questions/camera.md |
+| camera | 2 | 4 | CA7 | questions/camera.md |
 | city-detail | 2 | 5 | CD8 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
 | city-tools | 3 | 0 | CT4 | questions/city-tools.md |
@@ -242,7 +242,7 @@ generated index: the questions live one file per spec, so read only the file for
 | persistence | 4 | 0 | PR5 | questions/persistence.md |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
 | pollution | 0 | 16 | PG17 | - |
-| port-developers | 1 | 11 | PD13 | questions/port-developers.md |
+| port-developers | 0 | 12 | PD13 | questions/port-developers.md |
 | power | 0 | 12 | CR2, PW12 | - |
 | prop-developer | 0 | 14 | GLUE22, PV14 | - |
 | prop-lotconfig | 7 | 8 | PL23 | questions/prop-lotconfig.md |
@@ -287,4 +287,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **309** | **1171** | | |
+| **total** | **305** | **1175** | | |
