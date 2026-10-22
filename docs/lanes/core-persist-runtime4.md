@@ -8,12 +8,15 @@
 - Done: 31438dbe implements record/typed scalar-array/string/key algorithms and shared stream views.
 - Done: ee08730a adds six portable owner groups, variants, sealed factory hooks and image algorithms; QFS codec only in formats.
 - Done: 7921d6fe defines Cursor partial-read primitive, file access/close/module-target tests, buffer-QI cleanup and padded row vectors. Native ownership/format gaps remain explicit in AUDIT.md.
+- Done: 849dc582 records baseline evidence and PR13. Source is frozen at 7921d6fe; later commits contain only audit/questions/lane documentation.
 - Independent vectors: field vectors committed before implementation; v1/v2 literal fixtures also recorded then. Additional lifetime/BMP/variant/edge tests were added after their bodies, not a test-first claim for those groups.
 - Baseline all: 20 suites / 5080 passed / 0 failed test cases, then formats doctest E0433 (new adapter source/old core artifact, mixed source); clippy passed, CMake pending. No stable full gate yet.
 - Next: build-runs/runtime-gates.py --after-baseline serially archives mixed baseline, runs quick, fmt, all; read runtime-gates/status.json and console/log summaries. Fix any failure, commit source, rerun without --after-baseline. No overlapping checks.
 - Questions PR9-PR13 appended; IDs chosen beyond existing manager PR8; PR1-PR3 retained.
 - Gate pipeline launched (exec session 24761), waiting baseline CMake/CTest; it runs all stages sequentially, captures the actual source tip and archives logs under build-runs/runtime-gates/. Do not launch competing checks.
 - Expected additions: 17 core runtime tests and 1 formats integration test, pending actual measurements. No blanket owner or implemented-byte credit.
+- IMPORTANT: those 18 new tests have NOT yet had a coherent quick/all execution. Never promote the old 5080 baseline count to runtime coverage. No merge queue entry while gates are pending.
+- Review: foreign helpers are limited to raw I/O, buffer allocation/ref/QI/locks/pixels/conversion, OS opening and existing QFS bytes; sealed production factory bodies remain ours. All six owners are partial; no byte subtotal or KeyList completion claim.
 - No C ABI/plugin/manager/cache changes authorized; no game request planned for pure core.
 - PR1 native-order supplied explicitly; PR2 constructed fixtures are not shipped coverage; PR3 padded v1 row copy is a FreeCity4 choice.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-persist-runtime4-r1-manifest.json
