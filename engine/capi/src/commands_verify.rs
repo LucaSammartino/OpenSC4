@@ -47,7 +47,11 @@ unsafe extern "C" fn fc4_commands_verify_mutate(
     if h.is_null() || len > 512 || (len != 0 && text.is_null()) {
         return 0;
     }
-    let bytes = if len == 0 { &[] } else { unsafe { std::slice::from_raw_parts(text, len as usize) } };
+    let bytes = if len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(text, len as usize) }
+    };
     let v = match kind {
         0 => Variant::Empty,
         1 => Variant::Scalar(Elem::Bool(bits != 0)),
@@ -92,7 +96,11 @@ unsafe extern "C" fn fc4_commands_verify_snapshot(h: *mut SetRef, id: u32, fallb
         len: 0,
         text: [0; 512],
     };
-    let v = if fallback != 0 { Some(set.get_or_fallback(id)) } else { set.get_parameter(id) };
+    let v = if fallback != 0 {
+        Some(set.get_or_fallback(id))
+    } else {
+        set.get_parameter(id)
+    };
     if let Some(v) = v {
         result.present = 1;
         result.kind = u32::from(v.mem_type());
@@ -121,8 +129,12 @@ unsafe extern "C" fn fc4_commands_verify_snapshot(h: *mut SetRef, id: u32, fallb
 // Refuse those callbacks; do not invent a second conversion implementation.
 struct ParsingOnly;
 impl ValueConvert for ParsingOnly {
-    fn get_val_string(&self, _v: &Variant, _out: &mut Vec<u8>) -> bool { false }
-    fn get_val_sint32(&self, _v: &Variant) -> Option<i32> { None }
+    fn get_val_string(&self, _v: &Variant, _out: &mut Vec<u8>) -> bool {
+        false
+    }
+    fn get_val_sint32(&self, _v: &Variant) -> Option<i32> {
+        None
+    }
 }
 
 // Fixed independent fixture from command-system.md section 0. Native lookup
@@ -130,10 +142,18 @@ impl ValueConvert for ParsingOnly {
 struct DocumentedCommand;
 impl CommandServer for DocumentedCommand {
     fn get_command_id(&self, name: &[u8]) -> u32 {
-        if name.eq_ignore_ascii_case(b"SetDebugLevel") { 0x2bb40833 } else { 0 }
+        if name.eq_ignore_ascii_case(b"SetDebugLevel") {
+            0x2bb40833
+        } else {
+            0
+        }
     }
-    fn get_command_name(&self, _id: u32) -> Option<Vec<u8>> { None }
-    fn execute_command_id(&self, _id: u32, _input: Option<&SetRef>, _output: Option<&SetRef>) -> i32 { 2 }
+    fn get_command_name(&self, _id: u32) -> Option<Vec<u8>> {
+        None
+    }
+    fn execute_command_id(&self, _id: u32, _input: Option<&SetRef>, _output: Option<&SetRef>) -> i32 {
+        2
+    }
 }
 
 #[no_mangle]
