@@ -70,11 +70,11 @@ marks it changed (`0x00737D40`); a round decal (slot 7) also redisplays the terr
 
 | Slot | VA | Call | Behaviour |
 |---|---|---|---|
-| 3 | `0x0073C0B0` | `AddDecal(source, placement, a, b)` | a decal textured from a texture source object (its size from the object's slot 3) |
-| 4 | `0x0073BF10` | `AddDecal(binding, placement, a, b)` | the same from a texture binding; −1 without one |
-| 5 | `0x00736150` | `AddDecal(key, placement, a)` | the factory's binding for the key (factory slot 6), then slot 4 |
-| 6 | `0x007361B0` | `AddDecal(key, placement, a)` | the same with factory slot 5 |
-| 7 | `0x0073B170` | `AddRoundDecal(key, placement)` | a **group** of eight parts covering a disc (§3.1) |
+| 3 | `0x0073C0B0` | `AddDecal(source, positionXZ, width, turns)` | a decal textured from a texture source object (its size from the object's slot 3) |
+| 4 | `0x0073BF10` | `AddDecal(binding, positionXZ, width, turns)` | the same from a texture binding; −1 without one |
+| 5 | `0x00736150` | `AddDecal(key, positionXZ, width, turns)` | the factory's binding for the key (factory slot 6), then slot 4 |
+| 6 | `0x007361B0` | `AddDecal(key, positionXZ, width, turns)` | the same with factory slot 5 |
+| 7 | `0x0073B170` | `AddRoundDecal(key, positionXZ, width, turns)` | a **group** of eight parts covering a disc (§3.1) |
 | 8 | `0x0073C9A0` | `AddCityDecal(key)` | one overlay over the whole city (`0x0073B8A0`, flags `0x12`) *[inferred]* |
 | 9 | `0x0073B3B0` | `AddShadow(binding, …)` | a shadow overlay |
 | 10 | `0x00735480` | `AddShadow(…)` | −1 when `kShadowQuality` is 0; else the factory's shadow binding (factory slot 11) and slot 9 |
@@ -92,15 +92,111 @@ marks it changed (`0x00737D40`); a round decal (slot 7) also redisplays the terr
 | 22–26 | `0x00736580`–`0x00736720` | getters | an overlay field; the alpha (`+0x9C`, 0 for none); the colour (`+0xA0`); the draw state byte; shown |
 | 27 | `0x007352A0` | `GetStatsString(out)` | "%d decals, %d shadows" from the counters |
 
-Slots 0–2 are `QueryInterface`, `AddRef`, `Release`. The placement record's nine floats are a centre, extents and
-an orientation *[inferred]*; the add calls turn it into the cell rectangle with the cell scale, the texture's size
-and a margin (`0x007354E0`).
+Slots 0–2 are `QueryInterface`, `AddRef`, `Release`. The ordinary decal add signatures in the table above use
+`positionXZ, width, angleInTurns`, rather than an input nine-float record. Slots 5/6 forward all three. The exact
+stored placement and owner computations are in §3.2. `ComputeCellRect` (`0x007354E0`) is a different helper;
+its margin must not be imported into ordinary `PlaceOverlay` coverage.
 
 ### 3.1 Round decals (`0x007394B0`)
 
 A disc of radius r is split into eight rectangles of cells that follow its outline (half-chords of the circle at
 the cells' rows); each becomes one part of the group, flagged as a part (bit 4), so that the decal touches only the
 cells inside the disc *[inferred: the coverage circles shown when placing a building]*.
+
+### 3.2 Placement record and owner calculations (OV1/OV5)
+
+The public record is nine consecutive **binary32** values, copied bit-for-bit by slots 13/14. It is not a
+three-dimensional centre and three-dimensional extents. Offsets below are relative to the public record;
+the handle stores it at `+0x04` and also stores an owner-derived texture aspect at `+0x28`.
+
+| Offset | Name | Consumed by `PlaceOverlay` |
+|---|---|---|
+| `00`, `04` | cx, cz | world X/Z centre; the only values changed by slot 12 |
+| `08` | w | full world width |
+| `0C` | turns | rotation; multiplied by binary32 `0x40C90FDB` (6.283185482025146484375), then native x87 sine/cosine |
+| `10` | stretch | multiplies the retained texture aspect, making depth/width |
+| `14`, `18` | repeatU, repeatV | multipliers of the two texture coordinates, independent of footprint size |
+| `1C` | offset | added to **both** texture coordinates |
+| `20` | retained | copied and returned, but not read by this placement routine |
+
+Ordinary binding/source adds construct `[cx,cz,w,turns,1,1,1,0,0]`. The binding form obtains texture dimensions
+from factory slot 8 and retains binary32 `height/width` separately; the source form obtains dimensions from
+source slot 3. This retained aspect is not overwritten by slot 13. The round add constructs the same defaults
+and likewise retains the binding aspect. Evidence: `0x0073AFB2–0x0073B073`, `0x0073BF33–0x0073BFC1`,
+`0x0073B1AE–0x0073B237`, copies `0x007364AE–0x007364E9`, `0x0073AE05–0x0073AE37`.
+
+Let F mean a binary32 store/reload, E native x87 arithmetic under the caller's control word (this routine does
+not change it), a = F(stretch × retainedAspect), hx = F(w × 0.5), hz = F((a × w) × 0.5). The multiplication
+forming a is stored before use. In the zero-angle path the world-to-texture matrix is stored as four consecutive
+rows, used with a **row vector** `[x,y,z,1]`:
+
+| Row | Four entries |
+|---|---|
+| 0 | A, 0, 0, 0 |
+| 1 | 0, 0, 0, 0 |
+| 2 | 0, D, 1, 0 |
+| 3 | Tu, Tv, 0, 1 |
+
+The finite, nonzero-size evaluation is A = F(repeatU × E(1/w)), R = E(E(1/a) × E(1/w)),
+D = F(repeatV × F(R)), Tu = F(F(repeatU × F((hx−cx) × E(1/w))) + offset),
+Tv = F(F(repeatV × F((hz−cz) × R)) + offset). The first reciprocal is kept in x87 precision;
+R is also stored to binary32 before the multiplication yielding D. This gives the familiar real-number
+coordinates `u=repeatU*(0.5+(x−cx)/w)+offset`, `v=repeatV*(0.5+(z−cz)/(a*w))+offset`, but that algebraic
+simplification is not the rounding contract. Zero products in the matrix are actually floating multiplications
+in several positions; the displayed zeros describe ordinary finite inputs, not NaN propagation or signed-zero
+canonicalization. Evidence: `0x0073A1C1–0x0073A34A`, matrix stores `0x0073AB99–0x0073ABF8`.
+
+For nonzero turns the owner rotates world X/Z about `(cx,cz)` before the above transform. With
+c = F(cos(E(turns × binary32(2π)))) and s = F(sin(E(turns × binary32(2π)))), its real-number equations are
+`x′=c*(x−cx)−s*(z−cz)+cx`, `z′=s*(x−cx)+c*(z−cz)+cz`. The matrix also transforms its third output coordinate;
+it is not a two-dimensional texture-only rotation. Both signed zeros take the no-rotation branch; unordered
+angle comparison takes the rotation branch. Full rotated coefficient rounding remains part of OV1 until
+the ordered intermediates are specified. Evidence: `0x0073A34E–0x0073A63A`.
+
+Repeat flag bit 1 is set unless **both bit patterns** repeatU and repeatV are `0x3F800000`.
+The unrotated footprint uses hx/hz, regardless of repeat factors or offset. For a rotated placement with
+both repeat factors exactly one, replace hx by F((abs(c) + a*abs(s)) × hx) and hz by
+F((abs(c) + F(1/a)*abs(s)) × hz), with sums/products kept in x87 precision until those stores.
+For any other repeat factors this footprint expansion is skipped. Four cell bounds are then stored to binary32:
+`[(cx−hx)*cellScale,(cz−hz)*cellScale,(cx+hx)*cellScale,(cz+hz)*cellScale]`.
+The owner converts minima to floor and maxima to ceil for normal finite city coordinates under round-to-nearest,
+then intersects with the city's cell rectangle. No 0.07 margin is applied here. Exact conversion and cell-index
+ordering are tracked under OV8. Evidence: `0x0073A5F5–0x0073A675`, `0x0073ABFB–0x0073AC6F`,
+conversion helper `0x00735380–0x00735475`.
+
+Slot 12 ignores -1 and nonnegative direct overlay IDs. It repositions only when either absolute coordinate
+difference is **at least** binary32 `0x38D1B717` (0.00009999999747378752), or is unordered. Otherwise neither
+coordinate is written. Slot 13 copies all nine values and re-places even for identical values. Slot 14 ignores
+-1/direct IDs and leaves output untouched; for an indirect ID it copies all nine words. There are no null-pointer,
+range, free-record or generation checks on these paths; callers must supply live records and valid pointers.
+Evidence: `0x007352D0–0x0073531A`, `0x0073AD80–0x0073AE52`, `0x00736490–0x007364EE`.
+
+### 3.3 Alpha acceptance (OV6)
+
+Slot 17's argument and stored alpha are binary32; the threshold at `0x00AB39A0` is **binary64**
+`0x3FA999999999999A` (the double representation of 0.05). A static manager first rejects an ordered equal
+old/new value. Otherwise it accepts new alpha exactly 0 or 1, or an ordered absolute x87 subtraction result
+**strictly greater** than that double threshold. A rejected sub-step change does not update stored alpha;
+the next call compares against the last accepted value. An accepted write stores the supplied bits and calls
+`MarkChanged`. There is no clamp: negative values, values above one and infinities can be accepted. New NaN is
+rejected in the static path (including when old is NaN); with old NaN only an endpoint new value is accepted.
+A dynamic manager stores every input, including equal values and NaN, without calling `MarkChanged`.
+Groups recurse through all eight parts in order; -1 is ignored. Evidence: `0x00737F00–0x00738000`, in particular
+the double comparison at `0x00737FCB` and rejection at `0x00737FD6`.
+
+First exact paper vectors (not an executed native/game verdict):
+
+| Input/state | Required result |
+|---|---|
+| Placement `[32,48,16,0,1,1,1,0,99]`, retained aspect 2, cellScale 1/16, city containing it | a=2, hx=8, hz=16; matrix rows `[1/16,0,0,0]`, `[0,0,0,0]`, `[0,1/32,1,0]`, `[-1.5,-1,0,1]`; cell rectangle `(1,2,3,4)`; repeat clear; retained 99 has no placement effect |
+| Same with repeatU=2 and offset=1/4 | A=1/8, Tu=−2.75, Tv=−0.75; footprint unchanged; repeat set |
+| Slot 13 receives the same nine words again | copy and placement still occur |
+| Slot 12: old `(0,0)`, new `(2^−14,0)` | no write, because 2^−14 is below the coordinate threshold |
+| Static alpha old 0; write binary32 `0x3D4CCCCC` | rejected, stored 0 |
+| Static alpha old 0; write binary32 `0x3D4CCCCD` | accepted: 0.05000000074505806 is greater than double 0.05 |
+| Static alpha old 0; write 0.03125 then 0.0625 | first rejected; second accepted relative to stored 0 |
+| Static alpha old 1; write 1 | no write/redraw |
+| Dynamic alpha old 1; write a quiet NaN | stores that NaN, no redraw call |
 
 ## 4. Drawing (`Draw`, `0x00738A50`) *[compat]*
 
