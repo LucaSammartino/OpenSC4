@@ -55,9 +55,8 @@ const compat::SpanContextVA* VA() {
     return p;
 }
 
-// §1.3 counts by return address; span-render-565.md §1.1 lists the call
-// instruction addresses. Literal reading: a return address 1..7 bytes after a
-// listed site (the length of one CALL instruction) belongs to that site.
+// 1555 uses the exact shared context CALL returns published by SP6b.
+// Preserve the siblings' previous classifier until their own lanes reconcile it.
 int SiteOf(unsigned renderer, uintptr_t ret) {
     const compat::SpanContextVA* va = VA();
     if (va == nullptr) return -1;

@@ -42,6 +42,9 @@ void Run1555SourceCases(void* ctx, Buf& dst, const std::vector<uint8_t>& init, T
                     bool ok = std::memcmp(rect, p.rect, sizeof(rect)) == 0;
                     ok = ok && Field<int32_t>(ctx, 0x28) == p.ox && Field<int32_t>(ctx, 0x2C) == p.oy;
                     ok = ok && Field<int32_t>(ctx, 0x38) == p.du && Field<int32_t>(ctx, 0x3C) == p.dv;
+                    ok = ok && Field<int32_t>(ctx, 0x30) == int32_t(p.sx * 65536) &&
+                        Field<int32_t>(ctx, 0x34) == int32_t(p.sy * 65536);
+                    ok = ok && Field<uint8_t>(ctx, 0x40) == (p.sx != 1 || p.sy != 1);
                     ok = ok && Field<int32_t>(ctx, 0xA8) == rect[2] - rect[0];
                     ok = ok && Field<int32_t>(ctx, 0xAC) == rect[3] - rect[1];
                     ok = ok && Field<void*>(ctx, 0x24) == src.b && Field<uint32_t>(src.b, 4) == refs + 1;
