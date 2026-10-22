@@ -24,16 +24,17 @@ def preflight(root, spec, spec_path):
     paths = []
     for index, value in enumerate(values):
         field = f'evidence[{index}]'
-        if not isinstance(value, str) or not value.strip():
+        if not isinstance(value, str) or not value:
             raise evidence_error(spec_path, field, value, 'expected a nonempty file path string')
         try:
             path = Path(root) / value
-            if not stat.S_ISREG(path.stat().st_mode):
-                raise evidence_error(spec_path, field, value, 'expected a regular source file')
+            mode = path.stat().st_mode
         except OSError as exc:
             raise evidence_error(spec_path, field, value, f'cannot access source file: {exc}') from exc
         except ValueError as exc:
             raise evidence_error(spec_path, field, value, f'invalid source path: {exc}') from exc
+        if not stat.S_ISREG(mode):
+            raise evidence_error(spec_path, field, value, 'expected a regular source file')
         read_source(path, spec_path, index, value)
         paths.append(path)
     return paths
