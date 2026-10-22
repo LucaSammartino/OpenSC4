@@ -6,6 +6,8 @@ lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
 ## 0. Current state (2026-10-22, run4 open-ended)
+**Run4 checkpoint400:** 400 rounds, 70 trains landed, coverage57.8/36.0/19.7/18.1, delta+21.0/+7.7/+7.6/+2.2 points since run4 start; 92 parked lanes. RE paused; native delivery/verification continue under remaining caps. Five-minute heartbeat active; next checkpoint425.
+
 **train97 measured-shadow audit:** Production industrial CAPI versus original263052/263052 source and131526/131526 joint;565 independent native-context249/249 source+joint,156reachable pairs,3257changed bytes, clean2032/ref0/fullsave/shutdown. Qualified measured-shadow evidence recorded under COVERAGE.md; natural565calls0/IN3 remain, no default/replaced promotion. Coverage regeneration below is authoritative.
 
 **train98 landed 8c9d7f3041:** Real2-lane source merge, additive interface/CMake conflicts resolved, main tool commits absorbed; fresh68gate and current40+span8 regressPASS on exact8c9d7f30. Six source/joint span8 comparison sets160/160 each,156positive kernel pairs/class, fullsave/shutdown2032/ref0; measured shadow only, shipped0/SR8-2/3/4 remain. Feature query26344/26344 and lifetime30/30 bounded; FM5/full-owner limits remain. No replacement/default promotion; parked evidence WTs preserved. Coverage57.8/36.0/19.7/18.1; rounds399 (open-ended).
@@ -46,7 +48,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **User policy:** Open-ended, no total round limit. Latest user raised target by2: keep9 live workers; target/concurrency9, max3glue, max3rounds per lane. Refill immediately from reviewed queue after fresh slots/check, never bypass guard, STOP, usage/rate or CPU/disk limits. Park capped lanes; no fourth round. STOP: `python tools/lanes.py stop "<reason>"`, land ready on-disk work, push, end.
 
-**Coverage after train98:**57.8/36.0/19.7/18.1; baseline36.8/28.3/12.1/15.9, delta+21.0/+7.7/+7.6/+2.2 points. 70 trains landed; 399 rounds used, no total cap. Next25-round checkpoint 400.
+**Coverage after train98:**57.8/36.0/19.7/18.1; baseline36.8/28.3/12.1/15.9, delta+21.0/+7.7/+7.6/+2.2 points. 70 trains landed; 399 rounds used, no total cap. Next25-round checkpoint425.
 
 **Live authority:** `build-runs/run4-coordinator-state.json`; tracked `tools/lane_refill.py --provider codex` launches reviewed briefs through tracked `tools/lane_launch.py` and guarded Codex subscription adapter. Legacy build-runs launch/refill scripts are Claude-only. Target9; fresh slots/check/dependency/STOP/parking/3glue gates retained. After compaction reread section0 and run guard before adding work. State writes use run4_coord_lock.py.
 
