@@ -10,7 +10,10 @@
 - Stable quick PASS: core 2746/0 including all 25 directory tests; dependent crates compiled; native 2/2 edges; 49.4 s, tree unchanged.
 - First all: workspace 4732/0 and native ctest 68/68 PASS, clippy failed only on explicitly required front-walking iter().nth() for VecDeque.
 - Added narrowly scoped clippy::iter_nth allowance with §6.4 comment; preserve published traversal instead of changing it to indexing.
-- Next: fmt + quick on the documented allowance, then final all gate; report/checklist and enqueue only after a full PASS.
+- Done 6fac505f: scoped traversal lint allowance committed; repeated fmt PASS (all 3 Rust files).
+- Post-correction stable quick PASS: core 2746/0, dependents compiled, native 4/4 edges, 182.2 s.
+- First-all failure logs archived as build-runs/first-all-{test,clippy,ctest}.log.
+- Next: final all gate on committed source; report/checklist and enqueue only after a full PASS.
 - Absolute-path fmt PASS for all 3 touched Rust files (environment canonicalization warning only).
 - Baseline full build intentionally skipped per task-specific instruction; one final stable all gate required.
 - Preserve native enumeration order, duplicate-dot quirks, caller append/front synthesis, global recursion depth, missing-separator child paths, outer-first rollback.
