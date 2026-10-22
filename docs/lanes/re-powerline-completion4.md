@@ -12,7 +12,8 @@
 - Round 2 milestone `2c750974`: interception eligibility/ownership, forced gate, six vectors; whitespace fixed.
 - Round 2 milestone `42301fa2`: break table, closure boundary, release asymmetry; step groups and saved repair queue without dedup; 36 vectors.
 - Round 2 milestone `25bad428`: classifier/probe/enable/copy/pool contracts; 42 vectors. Original NT19/NT20/NO24 wording restored.
-- Round 2 next milestone: FindNewPolePosition all branches; 45 vectors. Corrected group members to cell indices (builder 00650767–00650777), and pending emission off-pivot (00650DFC). NT18 depends on NT21/22; whole owner incomplete.
+- Round 2 milestone `63c050e8`: FindNewPolePosition branches; 45 vectors; corrected cell-index groups and off-pivot emission.
+- Round 2 next milestone: wire dedup/split branch of UpdateOnZoneChange; 48 vectors; backward (k,count,-1) boundary now explicit NT22. Group source not established. Whole owner incomplete; finish round with wip report, no restart or credit.
 - Next evidence: trace 00650AEC–00650C35 interception eligibility/flags, zone/blocked exits through 00651477, then PlacePoles saved-endpoint branches before 00651C00; resolve NT18 fully.
 - NT21: connection geometry 0064E3E0, enable/restore helper 00649910, list helper 0064B6E0; NT22: zone repair 006522F0 and endpoint selection in 006520C0.
 - NT23: full type-5 AttemptNeighborConnections 00628BD0; NT24: classifier/probes/allocator/container ownership and function-count discrepancy.

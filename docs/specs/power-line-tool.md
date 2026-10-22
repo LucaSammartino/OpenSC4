@@ -396,6 +396,37 @@ there is no success result or written output pole. Evidence: mask/create/release
 `0x00652135–0x006521C2`, optional-other branch `0x006521C5–0x006521DB`, anchor replacement
 `0x006521DE–0x00652298`, draw/solve `0x0065229D–0x006522E7`.
 
+### 6.3 Zone-update wire selection and splitting (bounded)
+
+Within UpdateOnZoneChange's wire branch, QI the queried occupant for `0xC98F3B24`. On success obtain
+its endpoint references. Visit already retained wire interfaces in insertion order, obtaining their
+endpoint references and releasing those temporary references after inspection. Reject the new wire
+when **any endpoint pointer** equals either endpoint of a retained wire. This is endpoint overlap,
+not equal wire identity or equality of an unordered endpoint pair. A null endpoint is not excluded
+from the equality comparisons. Rejecting releases the new wire QI; accepting appends it to the retained
+wire list without another AddRef. Release the new wire's temporary endpoint references in either case,
+then release the query-list occupant (`0x006525BA–0x006526BA`).
+
+In the later retained-wire walk, read endpoints A,B through wire slot 3. If either is null, skip repair.
+Also skip if either equals a pole already retained in the separate pole list. Otherwise obtain the
+connection cell vector through A's slot 16 `(B,&cells)`. Require more than one cell. Read the wire's
+own cell through slot 5 and scan the connection vector from index 0 for the first equal x,z. With
+no match, do not detach or relocate. At a match k, detach A→B then B→A with RemoveConnection(other,0).
+Then invoke FindNewPolePosition twice with the same rectangle and cell vector:
+
+| Order | Start | Exclusive stop | Increment | Ninth argument (unused by callee) | Optional other |
+|---|---|---|---|---|---|
+| first | k | cell count | +1 | A | B |
+| second | k | cell count | -1 | B | A |
+
+Both calls restart at k; the second does not start at k-1 and does not use -1 as its stop. The callee
+has no lower-bound guard, so a caller assumption about finding a clear outside cell on the backward
+walk remains an explicit NT22 boundary question. Free the connection-vector storage, release A then B,
+then the retained wire QI. Evidence: guards `0x006526D0–0x00652758`, first-match search
+`0x0065275E–0x00652795`, detachment/call arguments `0x0065279A–0x00652828`, cleanup
+`0x00652835–0x0065286A`. The entry/query and pole-branch orchestration remain outside this bounded
+contract. The source/reachability of `+0x398` adjacency groups has not been established by this trace.
+
 ## 7. Resources
 
 The once-only StaticInit at `0x00626990` sets latch `0x00B452A8` before registering callback
@@ -434,6 +465,9 @@ These are host-observation vectors, not claimed in-game measurements.
 | PL-RL1 | outside clear candidate at start; ninth dword is a pole pointer; other=null | create/reuse and release found pole; no anchor replacement or solve; ninth dword ignored |
 | PL-RL2 | first candidate exactly on rectangle maxX/maxZ, next outside and clear; other present | do not classify the boundary candidate; pick next; anchors found then other; release found pole before rereading other |
 | PL-RL3 | start=stop, other present | no candidate read, no classification, no creation or geometry calls |
+| PL-ZW1 | retained wire endpoints (A,B); next wire (B,C) | reject second QI despite distinct wire and endpoint pair; shared endpoint alone suffices |
+| PL-ZW2 | retained wire has null endpoint; new wire also has null endpoint | literal pointer comparison rejects new wire; no null filtering in dedup gate |
+| PL-ZW3 | eligible wire; connection cells include its cell first at k=2 and again at k=5; count=8 | detach once; relocation calls (start=2,stop=8,+1,other=B), then (2,8,-1,other=A) |
 | PL-L1 | fresh object, exemplar unavailable; Init twice | type 5; defaults 20,7,0,0; resource attempt/base Init only on first Init; both return true |
 | PL-L2 | successful Init; change cost fields; Shutdown; Init with missing properties | Shutdown clears latch before base; Init resets only spacing/clearance; costs retain prior values |
 | PL-L3 | first resource lookup fails, second object initialises | process resource enumeration is not retried |

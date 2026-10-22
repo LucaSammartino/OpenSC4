@@ -69,8 +69,9 @@
   spacing/pivots, clearance ray, counting, interception eligibility/flags, off-pivot pending emission,
   cell-index group consumption, zone/blocked/end removal asymmetry, saved endpoint processing and
   append-only repairs, allowRepair and draft undo. Slot 81 is not called inside Determine/PlacePoles.
-  Remaining caller dependency: construction of the `+0x398` cell-index groups by zone-update orchestration
-  (NT22), and the connection geometry body (NT21). Keep whole-owner host hooks pending those contracts.
+  Remaining dependency: source/reachability of the `+0x398` cell-index groups, and connection geometry
+  (NT21). Zone-update entry/pole orchestration remains NT22; group construction is not attributed to it
+  without proof. Keep whole-owner host hooks pending the remaining contracts.
 
 <!-- from: re-powerline-completion4 (RE lane, 2026-10-22) -->
 - **NT21 - power-line-tool.md §§5,9, connection helpers:** prove `0x0064E3E0`'s connection geometry and
@@ -85,6 +86,10 @@
   **Partial answer 2026-10-22 (re-powerline-completion4):** §6.2 now proves all of FindNewPolePosition:
   ninth dword unused; optional tenth pointer controls mask and geometry; null still creates/reuses one
   pole; nonnull replaces anchors and solves. Remaining UpdateOnZoneChange caller obligations unchanged.
+  §6.3 additionally proves wire endpoint-overlap deduplication, skip/search/detach and split-call order.
+  **Precise residual:** prove the entry/query and pole branch `0x006522F0–0x006525B9`, final pole-removal
+  cleanup `0x00652883–0x00652979`, and the caller invariant allowing backward relocation `(k,count,-1)`
+  at `0x00652828` to find an outside clear cell before indexing below zero. The helper has no such guard.
 - **NT23 - regional Attempt:** full type-5 AttemptNeighborConnections `0x00628BD0` endpoint/direction
   derivation, failure/consent behavior, vector mutations and preview effects need instruction checks.
   NT20 resolves the wrapper pairing only. [not proved]
