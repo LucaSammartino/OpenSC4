@@ -44,7 +44,9 @@ struct Shadow {
     bool Apply(uint32_t op, std::vector<uint8_t>& out, int32_t x = 0, int32_t z = 0,
                int32_t w = 0, int32_t h = 0, const void* data = nullptr, uint32_t n = 0) {
         int32_t a[4] = {x,z,w,h};
-        out.resize(std::max<size_t>(record.size() * 16 + 1024, 1024 * 1024));
+        // Scalar returns must not clear a megabyte on every natural getter.
+        const size_t capacity=(op>=1 && op<=4)?8:((op==12 || op==13)?64:record.size()*(op==7?16:1)+1024);
+        out.resize(capacity);
         int32_t len = fc4_simgrids_verify(kind, op, record.data(), static_cast<uint32_t>(record.size()), a,
             static_cast<const uint8_t*>(data), n, out.data(), static_cast<uint32_t>(out.size()));
         if (len < 0) { ++refused; out.clear(); return false; }

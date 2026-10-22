@@ -6,6 +6,37 @@ use fc4_core::grid::{CityDims, GridElem, SimGrid, TractGrid};
 use fc4_core::stream::{ByteReader, ByteWriter, OutStream, SaveObject};
 
 fn run<T: GridElem>(record: &[u8], op: u32, a: &[i32], data: &[u8]) -> Option<Vec<u8>> {
+    // Retained records were validated at bootstrap. Direct typed scalar access
+    // follows §4's x-outer indexing without rebuilding every other tract on
+    // each naturally occurring Get/Set; it never imports a native result.
+    if op == 1 || op == 5 {
+        if record.len() < 43 || record[..2] != [1, 0] {
+            return None;
+        }
+        let nx = i32::from_le_bytes(record[19..23].try_into().ok()?);
+        let nz = i32::from_le_bytes(record[23..27].try_into().ok()?);
+        let (x, z) = (a[0], a[1]);
+        if x < 0 || z < 0 || x >= nx || z >= nz {
+            return None;
+        }
+        let size = std::mem::size_of::<T>();
+        if record.len() != 43 + (nx as usize).checked_mul(nz as usize)?.checked_mul(size)? {
+            return None;
+        }
+        let offset = 43 + (x as usize * nz as usize + z as usize) * size;
+        if op == 1 {
+            let v = T::get(&mut ByteReader::new(&record[offset..offset + size]))?;
+            let mut out = ByteWriter::new();
+            v.put(&mut out);
+            return Some(out.into_bytes());
+        }
+        let v = T::get(&mut ByteReader::new(data))?;
+        let mut out = ByteWriter::new();
+        v.put(&mut out);
+        let mut retained = record.to_vec();
+        retained[offset..offset + size].copy_from_slice(out.bytes());
+        return Some(retained);
+    }
     let g = SimGrid::<T>::new();
     let mut input = ByteReader::new(record);
     if !g.read(&mut input) || input.position() != record.len() {
