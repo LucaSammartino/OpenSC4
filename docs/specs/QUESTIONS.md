@@ -161,7 +161,7 @@ generated index: the questions live one file per spec, so read only the file for
 | advisors | 2 | 14 | AD17 | questions/advisors.md |
 | aircraft | 2 | 0 | AF3 | questions/aircraft.md |
 | animated-sprite | 2 | 0 | AS3 | questions/animated-sprite.md |
-| animation-coordinator | 2 | 0 | AC3 | questions/animation-coordinator.md |
+| animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | application | 3 | 2 | AP6 | questions/application.md |
 | audio-ambience | 1 | 10 | AA12 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
@@ -194,14 +194,14 @@ generated index: the questions live one file per spec, so read only the file for
 | drive-tool | 2 | 0 | DR3 | questions/drive-tool.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
 | feature-manager | 2 | 0 | FM3 | questions/feature-manager.md |
-| fire-flames | 1 | 0 | FF2 | questions/fire-flames.md |
+| fire-flames | 4 | 0 | FF5 | questions/fire-flames.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | foundations | 2 | 8 | AO4, HG4, RN4, SV2 | questions/foundations.md |
 | framework-gz-services | 7 | 0 | GZ8 | questions/framework-gz-services.md |
 | framework-rz-files | 8 | 0 | RZ9 | questions/framework-rz-files.md |
 | geometry-utilities | 1 | 0 | GU2 | questions/geometry-utilities.md |
-| glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
+| glyph-textures | 6 | 0 | GT7 | questions/glyph-textures.md |
 | graphics-formats | 0 | 35 | FS18, GF19 | - |
 | graphics-rules | 3 | 3 | GR7 | questions/graphics-rules.md |
 | history | 0 | 17 | HW18 | - |
@@ -237,7 +237,7 @@ generated index: the questions live one file per spec, so read only the file for
 | parks | 0 | 11 | PK12 | - |
 | particles | 3 | 4 | PT8 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
-| paths | 3 | 0 | PA4 | questions/paths.md |
+| paths | 8 | 0 | PA9 | questions/paths.md |
 | pedestrians | 2 | 0 | PN3 | questions/pedestrians.md |
 | persistence | 3 | 1 | PR5 | questions/persistence.md |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
@@ -263,12 +263,12 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 3 | 4 | SP8 | questions/span-render-4444.md |
 | span-render-565 | 6 | 2 | SR566 | questions/span-render-565.md |
-| span-render-8 | 4 | 2 | SR11 | questions/span-render-8.md |
+| span-render-8 | 5 | 2 | SR11 | questions/span-render-8.md |
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | terrain-view | 3 | 0 | TV4 | questions/terrain-view.md |
-| texture-bindings | 2 | 1 | TB4 | questions/texture-bindings.md |
+| texture-bindings | 6 | 1 | TB8 | questions/texture-bindings.md |
 | timers | 0 | 3 | TM4 | questions/timers.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
@@ -287,4 +287,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **339** | **1176** | | |
+| **total** | **361** | **1176** | | |
