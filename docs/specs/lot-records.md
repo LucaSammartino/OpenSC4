@@ -199,6 +199,79 @@ truncated by the u8 count *[quirk; never observed]*. The trip list is written fr
 `Write` returns false **without writing field 27** if a trip's `Write` fails (only on a stream error); the return
 value is in **AL only** (§13).
 
+### 3.2.1 Population mutation (LR10) *[compat]*
+
+`SetPopulation(devType: u32, population: u16)` (slot 55, `0x006C1940`, pop 8) first calls
+slot 52 `GetAvailableCapacity(devType, false)`. It compares the requested **unsigned word** with AX and
+uses the smaller word (`0x006C1958–006C195F`). It then calls `GetBuildingType(true)` (slot 46),
+and BDS slot 39 to obtain that type's profile. Let C be the profile's ordered vector of capacity maps,
+and P the lot's vector of population maps. Search C in vector order for the first map containing devType
+(`0x006C1980–006C19EC`). The key comparisons are unsigned u32 comparisons.
+
+- No match, including C empty: return **AL = 0**, without writing P or recomputing wealth.
+- First match at index i: assign the clamped u16 to key devType in **P[i]**, inserting the key there
+  if absent; recompute occupant wealth (§3.2.2); return **AL = 1** (`0x006C19F8–006C1A28`).
+- It does not append a map, search P for a suitable map, update all duplicate keys, or remove a zero entry.
+  A zero assignment, unchanged assignment, and insertion all take the same successful path. It performs
+  no state/day update, queued message, travel-population update or job-cache update.
+- P must already contain the selected index. The native method indexes it without a size check; an empty
+  P paired with a matching nonempty C is outside its valid container invariant, not a successful creation
+  case. A profile pointer is dereferenced without a null check. Unknown profiles represented by a nonnull
+  sentinel with an empty capacity vector take the no-match path.
+
+Only AL is defined as the boolean result; EAX's upper 24 bits are incidental. This is stronger than the old
+`eax-or-void` annotation: the two explicit AL assignments prove a boolean result. ReoccupyBuilding passes
+this AL through (lot-developer.md §6.4); tract UpdatePopulation ignores it (tract-developer.md §4.18).
+Caller pass-through alone would not establish a boolean contract.
+
+### 3.2.2 State mutation and queued snapshot (LR11) *[compat]*
+
+`SetState(state: u32, wealth: u32, reason: u32)` (slot 34, `0x006C3100`, pop 12) compares the
+zero-extended current state byte with the **whole** state argument. Equality does nothing. Otherwise it
+stores the low state byte, then obtains the current city day and stores it as the state-change day
+(`0x006C3106–006C3133`). The following actions precede the message copy, in this order:
+
+1. When the old state was 2, the stored building type is nonzero, and its BDS profile purpose is nonzero,
+   release construction resources via BDS slot 51 with the zero-extended profile u16 resource field.
+   This happens even if the new state is not 3. If the new state is 3, obtain the developer type for the
+   profile purpose and native wealth, call lot slot 50 `GetCapacity(devType, true)`, then slot 55 with
+   that result (`0x006C3136–006C3198`). That nested setter can recompute wealth before step 4.
+2. On entering state 2, obtain `GetBuildingType(true)`. If nonzero, destroy all existing population maps
+   (retaining vector storage), then copy each profile capacity map into P in vector order and set every
+   copied count to zero (`0x006C31C0–006C32F0`, clear helper `0x006C2E30`). Empty capacity maps remain
+   empty maps. No building type means this rebuild is skipped. On entering state 4, store low byte of
+   reason as the vacate reason (`0x006C31B1`); other states retain the previous reason.
+3. If the new state byte is outside {2,3}, set all existing population counts in every map to zero,
+   retaining the maps and their keys (`0x006C32F6–006C33A7`). Travel populations, travel jobs and trips
+   are not reset by these loops.
+4. Save the current occupant wealth as Wpre, then call `UpdatePrimaryOccupantWealth` (`0x006C33A9`).
+   With no stored building type (`GetBuildingType(false) = 0`) it sets wealth to zero; with a nonzero
+   type whose nonnull profile has purpose zero it leaves wealth unchanged (`0x006C143B–006C1466`,
+   `0x006C15C3`). The profile/occupancy selection for a known profile is detailed below.
+5. Let Wcomputed be the resulting wealth; initially message data4 = Wcomputed. If old/new state bytes
+   differ in membership of {2,3}: leaving uses Wpre for data4 while keeping Wcomputed in the lot;
+   entering with whole wealth argument nonzero stores its low byte in the lot and data4. Entering with
+   wealth argument zero keeps Wcomputed. Within or outside the group, the argument is ignored
+   (`0x006C33BA–006C3411`). Wpre is sampled here, not necessarily at method entry.
+6. Call `UpdateNeedsPower` (`0x006C3417`), then construct the independent lot copy with `0x006C2450`
+   (`0x006C3449`). This is the snapshot point: after all preceding mutation and synchronous calls,
+   before message allocation and posting. Message type `0xE8BDA2E7` has data1 = old byte, data2 = new
+   byte, data3 = stored building type, data4 as above. Post via MessagePost(message, 0), then release
+   the caller's message reference, then its copy reference (`0x006C3473–006C34DB`).
+
+There is no defined success return. The equal-state path happens to leave AL = current state; the changed
+path leaves the final copy Release's EAX. Neither is a SetState boolean. A caller forwarding AL does not
+make either value a meaningful transition result.
+
+The copy constructor gives population maps and the travel-population map independent tree storage
+(`0x006C250F`, `0x006C251B`); the helper at `0x004C9470`, despite its exported template name,
+constructs a tree copy, not a vector append. Scalar saved fields, travel-job floats, state/day/wealth/reason
+and strategy byte are copied. Configuration is retained once (`0x006C24BF–006C24CC`). The occupant tree
+and trip list start empty; travel designate and the adjacent runtime word start null/zero
+(`0x006C24DB–006C250C`, `0x006C2592–006C25A4`). The business-unit pointer is copied raw
+(`0x006C24B9`); this constructor does not AddRef it or add the snapshot to membership. This describes
+snapshot semantics, not a layout contract for forwarding original methods on replacement objects.
+
 ### 3.3 Trip element (`cSC4TripData`) *[compat]*
 
 Inline, not a reference. Matches `traffic-simulator.md` §6.3; the observed values:
@@ -1024,6 +1097,7 @@ A replacement returns a clean 0/1 in EAX; callers in the original test AL only (
 | | 34 (+0x88) `SetState(state, u, reason)` `0x006C3100` | §3.2 | 12 | none defined |
 | | 44 (+0xB0) `SetHistorical(bool)` `0x006C2230` | Read v < 6 | 4 | none |
 | | 54 (+0xD8) `GetPopulations` `0x006C21E0` | Write | 0 | EAX = pointer to the vector |
+| | 55 (+0xDC) `SetPopulation(devType, u16)` `0x006C1940` | §3.2.1 (LR10) | 8 | AL = first capacity-map match; upper EAX undefined |
 | | 67 (+0x10C) `SetHasPower(bool)` `0x006C21C0` | Read v < 6 | 4 | none |
 | | 69 (+0x114) `SetVerticesAreLocked(bool)` `0x006C2130` | Read v < 6 | 4 | none |
 | `cISC4LotConfiguration` | 3 (+0xC) GetID | lot Write | 0 | EAX |
@@ -1360,3 +1434,29 @@ These are conformance vectors derived from native bytes, not reported game execu
   `0x005E3070(lot, true)` and `0x006C8C34` → `0x005E3960(lot)`. Merely registering a replacement wall
   factory changes neither trace. Where edge flags require a new wall, `0x005E30F5` still constructs the
   native wall; the AL = 0 success quirk remains (§7.1).
+
+### 17.5 Native mutation discriminators (LR10/LR11)
+
+These independent vectors follow the cited native branches; they are not game executions. C is the
+building profile capacity-vector, P the lot population-vector, k = `0x1010`, j = `0x1020`.
+Where a slot-52 result is supplied, it is an explicit collaborator input, not an assumed capacity formula.
+
+| Vector | Inputs | Required result / order |
+|---|---|---|
+| T31 | SetPopulation(k, 12); slot 52 returns 100; C=[], P=[] | AL=0; P remains []; no wealth update. Capacity query still occurs before the profile query. |
+| T32 | SetPopulation(k, 120); slot 52 returns 100; C=[{k:100},{k:200}], P=[{k:7},{k:9}] | P=[{k:100},{k:9}]; one wealth update; AL=1. The second occurrence is untouched. |
+| T33 | SetPopulation(k, 0); slot 52 returns 100; C=[{k:100}], P=[{k:7}] | P=[{k:0}], retaining k; wealth recomputed; AL=1. Repeating the call still recomputes wealth and returns AL=1. |
+| T34 | SetPopulation(k, 3); slot 52 returns 100; C=[{j:20},{k:100}], P=[{k:9},{}] | P=[{k:9},{k:3}]; insertion is at the capacity-selected index, irrespective of the existing key in P[0]. |
+| T35 | SetPopulation(k, 3); slot 52 returns 0; C=[{k:100}], P=[{}] | P=[{k:0}], AL=1: clamping to zero does not mean failure. |
+| T36 | C=[{k:100}], P=[] | Selected P[0] does not exist. Native has no bounds/creation branch; do not turn this invalid invariant into a successful append. |
+| T37 | State 3, day D0, wealth 2, P=[{k:7}]; SetState(3,1,6) | No calls, mutations, day update or message; wealth stays 2 and population stays 7. There is no defined boolean return. |
+| T38 | No stored building type and no configuration fallback; state 1, wealth 2, P=[{k:7}]; day service returns D; SetState(2,0,6) | State=2, day=D, P unchanged (no rebuild), wealth=0, reason unchanged; power update before copy; data=(1,2,0,0). |
+| T39 | Same as T38, but SetState(2,0x100,6) | Whole wealth is nonzero: final wealth=0 and data4=0 (low byte). Recompute occurs before override. |
+| T40 | Stored nonzero type B with nonnull purpose-zero profile; state 3, wealth 2, P=[{k:7},{k:9}]; SetState(4,0,0x106) | Every count becomes zero; wealth remains 2; reason=6; no construction-resource release; data=(3,4,B,2). |
+| T41 | Old state 2; stored type B with known purpose/native wealth and resource value R; SetState(3,0,0) | Day store precedes ReleaseConstructionResources(R), developer-type lookup, GetCapacity(devType,true), SetPopulation, outer wealth update, power update, copy, post, message Release, copy Release. Do not replace this with a synthetic successful transition. |
+| T42 | State 1 → 2, GetBuildingType(true) supplies known B; C=[{k:100,j:50},{k:200}], previous P arbitrary | Rebuild produces P=[{k:0,j:0},{k:0}] without changing C; copy observes that rebuilt P. Original map nodes are destroyed; no per-entry SetPopulation calls. |
+| T43 | Snapshot of lot with nonempty P, travel map, trips, occupant tree and configuration Q | P and travel-map entries copy independently; snapshot trips/occupant tree empty; Q gains one constructor reference; travel designate null; unit pointer copied without AddRef. Subsequent live-lot P/travel-map edits do not alter the snapshot. SetState acquires its copy reference, posts, releases message, then releases copy; queue retention must keep it alive beyond that release. |
+
+The known-profile occupancy arithmetic, power-update dependencies and final queued-copy destruction
+reference balance are the remaining proof work for LR11 at this checkpoint; the rules above do not claim
+those details have been resolved.
