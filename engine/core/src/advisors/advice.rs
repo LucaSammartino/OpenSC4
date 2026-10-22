@@ -493,6 +493,10 @@ impl Drop for Advice {
         if t != NO_TRIGGER {
             self.shared.host.release_trigger(t);
         }
+        let token = self.token.get();
+        if token != 0 {
+            self.shared.host.object_dropped(token);
+        }
     }
 }
 

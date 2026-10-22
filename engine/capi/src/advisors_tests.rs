@@ -793,3 +793,50 @@ fn header_source_codes() {
     }
     assert_eq!(seen, SrcKind::ALL.len());
 }
+
+thread_local! {
+    static DROPPED: RefCell<Vec<u64>> = const { RefCell::new(Vec::new()) };
+}
+
+unsafe extern "C" fn object_dropped(_: *mut c_void, t: u64) {
+    DROPPED.with(|d| d.borrow_mut().push(t));
+}
+
+#[test]
+fn weak_handles_and_object_dropped() {
+    let f = Fixture::new();
+    unsafe {
+        // The fixture's host table predates the callback: set it on a copy.
+        let mut h = advisor_host(&f.game);
+        h.object_dropped = Some(object_dropped);
+        let p = fc4_advisors_create(&h, std::ptr::null(), 0x1234);
+        assert!(!p.is_null());
+        let s = fc4_advisors_new_subject(p);
+        let token = fc4_adv_obj_token(s);
+        assert_ne!(token, 0);
+        // The host's own handle from object_created: keep only a weak one.
+        let host = f.game.created.borrow_mut().pop().unwrap().2 as *mut fc4_adv_obj;
+        assert!(fc4_adv_obj_same(host, s));
+        let w = fc4_adv_obj_downgrade(host);
+        fc4_adv_obj_destroy(host);
+        let up = fc4_adv_weak_upgrade(w);
+        assert!(fc4_adv_obj_same(up, s), "alive while a strong handle exists");
+        fc4_adv_obj_destroy(up);
+        assert!(DROPPED.with(|d| d.borrow().is_empty()));
+        fc4_adv_obj_destroy(s);
+        assert_eq!(DROPPED.with(|d| d.borrow().clone()), vec![token]);
+        assert!(fc4_adv_weak_upgrade(w).is_null(), "gone after the last strong handle");
+        fc4_adv_weak_destroy(w);
+        // Advisor objects: per-object calls agree with the id-based ones.
+        let a = fc4_advisors_advisor_object(f.p, 23);
+        assert_eq!(fc4_adv_advisor_id(a), 23);
+        let mut buf = [0 as c_char; 32];
+        assert_eq!(fc4_adv_advisor_text(a, 0, buf.as_mut_ptr(), buf.len()), 7);
+        assert!(fc4_adv_advisor_set_text(a, 1, b"Bob".as_ptr(), 3));
+        assert_eq!(fc4_advisors_advisor_text(f.p, 23, 1, buf.as_mut_ptr(), buf.len()), 3);
+        assert!(fc4_adv_advisor_advice_by_guid(a, 0xDEAD_BEEF).is_null());
+        assert!(fc4_adv_advisor_current_advice(a, 0, std::ptr::null_mut()).is_null());
+        fc4_adv_obj_destroy(a);
+        fc4_advisors_destroy(p);
+    }
+}

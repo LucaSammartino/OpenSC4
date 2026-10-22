@@ -73,6 +73,11 @@ const ExecutableVersion kVersions[] = {
             0x0040C9B0,  // game.window_query
             0x0040AF90,  // game.camera_jump (advisors.md §8.3.2; AD6)
             0x0040B1F0,  // game.camera_zoom
+            0x0040A810,  // game.random_chance (advisors.md §8.2 entry 30, §12.1 slot 9; AD8)
+            0x005FC020,  // _dofile_from_resource (advisors.md §8.2 entry 37, §4.2; AD10)
+            0x005FB850,  // print (advisors.md §8.2 entry 38; AD7)
+            0x005FC510,  // UpdateResourcesFromDirectory (advisors.md §4.2; AD10)
+            0x005FBA20,  // LoadPackageScripts (advisors.md §4.2; AD10)
         },
         {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
         0x00AB3118,  // cSC4TractDeveloper primary vtable (tract-developer.md §1.1, §7.1)
@@ -516,7 +521,9 @@ uintptr_t DirectCall(Direct which) {
                                          "lua tool_plop_zone", "lua tool_plop_building", "lua tool_plop_flora",
                                          "lua tool_button", "lua window_budget", "lua window_map",
                                          "lua window_graph", "lua window_query", "lua camera_jump",
-                                         "lua camera_zoom"};
+                                         "lua camera_zoom", "lua random_chance",
+                                         "lua _dofile_from_resource", "lua print",
+                                         "UpdateResourcesFromDirectory", "LoadPackageScripts"};
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused
     static uintptr_t address[static_cast<unsigned>(Direct::Count)] = {};

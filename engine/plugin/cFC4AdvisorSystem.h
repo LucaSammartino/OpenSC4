@@ -22,6 +22,7 @@
 // the next round; until they exist this object is only built by tests.
 #pragma once
 
+#include "FC4AdvisorApi.h"
 #include "FC4AdvisorMaps.h"
 #include "FC4AdvisorWindow.h"
 #include "FC4GameList.h"
@@ -147,6 +148,7 @@ public:
     void Subscribe(uint32_t msgType, bool on);
     void Cheat(uint32_t id, const char* name, bool on);
     void WindowCallback(bool start);
+    void ReloadScripts();  // §4.2 steps 1-3 (AD10)
 
 private:
     uint32_t refCount_ = 0;
@@ -161,6 +163,7 @@ private:
     fc4::CoreLock lock_;
     fc4::AdvisorGameMap<fc4::StlNodeAllocator> map_{fc4::AdvisorMapOrder::SignedKey};  // slot 8 mirror
     fc4::AdvisorSystemGlobalSlot global_{nullptr};
+    fc4::advisors::RZRandomShape random_{};  // §9 / §12.1 slot 9 (AD8, FC4AdvisorApi.h)
 };
 
 cIGZUnknown* CreateFC4AdvisorSystem();

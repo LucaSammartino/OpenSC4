@@ -10672,6 +10672,10 @@ typedef struct fc4_advisor_host {
     void (*release)(void* user, uint64_t token);
     uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid);
     uint64_t (*object_created)(void* user, uint32_t kind, uint32_t class_id, fc4_adv_obj* handle);
+    /* the core object with this object_created token is being dropped: the
+       core never hands the token out again (a wrapper holding only a
+       fc4_adv_weak may be freed) */
+    void (*object_dropped)(void* user, uint64_t token);
 } fc4_advisor_host;
 
 /* MySim Lua field values (§4.4). */
@@ -10891,6 +10895,39 @@ bool fc4_adv_obj_read(const fc4_adv_obj* o, const fc4_istream* in);
 bool fc4_adv_subject_get(const fc4_adv_obj* subject, fc4_adv_subject_state* out);
 /* SetLocation (clamped to the city) when has_location, SetObject, data1, data2. */
 bool fc4_adv_subject_set(const fc4_adv_obj* subject, const fc4_adv_subject_state* value);
+/* Weak handles and per-object calls (advisors.md §12.2-§12.4 fronts). A
+ * wrapper keeps a strong fc4_adv_obj only while it is referenced and an
+ * fc4_adv_weak otherwise; object_dropped says when the core object is gone.
+ * Handle results are new handles (fc4_adv_obj_destroy), NULL for none. */
+typedef struct fc4_adv_weak fc4_adv_weak;
+fc4_adv_weak* fc4_adv_obj_downgrade(const fc4_adv_obj* o);
+fc4_adv_obj* fc4_adv_weak_upgrade(const fc4_adv_weak* w); /* NULL once dropped */
+void fc4_adv_weak_destroy(fc4_adv_weak* w);
+bool fc4_adv_advice_get(const fc4_adv_obj* advice, fc4_advice_state* out); /* next_day/expiry/last_month 0 */
+bool fc4_adv_advice_init(const fc4_adv_obj* advice, int32_t table_index);  /* slot 3 */
+bool fc4_adv_advice_shutdown(const fc4_adv_obj* advice);                   /* slot 4 */
+fc4_adv_obj* fc4_adv_advice_clone(const fc4_adv_obj* advice);              /* slot 5 */
+bool fc4_adv_advice_get_trigger(const fc4_adv_obj* advice);                /* slot 8 */
+bool fc4_adv_advice_set_advisor_id(const fc4_adv_obj* advice, int32_t id); /* slot 12 */
+bool fc4_adv_advice_set_flags(const fc4_adv_obj* advice, uint32_t mask, bool on); /* slot 14 */
+bool fc4_adv_advice_notify_global_effects(const fc4_adv_obj* advice);      /* slot 23 */
+bool fc4_adv_advice_set_event_subject(const fc4_adv_obj* advice, const fc4_adv_obj* subject); /* slot 24 */
+fc4_adv_obj* fc4_adv_advice_event_subject(const fc4_adv_obj* advice);      /* slot 25 */
+bool fc4_adv_advice_update_text(const fc4_adv_obj* advice);                /* slot 28 */
+size_t fc4_adv_advice_trigger_text(const fc4_adv_obj* advice, char* out, size_t capacity); /* slot 9 */
+int32_t fc4_adv_advisor_id(const fc4_adv_obj* advisor);                    /* slot 5 */
+bool fc4_adv_advisor_init(const fc4_adv_obj* advisor, int32_t table_index); /* slot 3 */
+bool fc4_adv_advisor_shutdown(const fc4_adv_obj* advisor);                 /* slot 4 */
+size_t fc4_adv_advisor_text(const fc4_adv_obj* advisor, uint32_t which, char* out, size_t capacity); /* 0 caption, 1 personal */
+bool fc4_adv_advisor_set_text(const fc4_adv_obj* advisor, uint32_t which, const uint8_t* text, size_t len); /* slots 7, 9 */
+fc4_adv_obj* fc4_adv_advisor_current_advice(const fc4_adv_obj* advisor, uint32_t i, int32_t* value); /* slots 10/11 */
+fc4_adv_obj* fc4_adv_advisor_advice_by_guid(const fc4_adv_obj* advisor, uint32_t guid);   /* slot 12 */
+fc4_adv_obj* fc4_adv_advisor_advice_by_session(const fc4_adv_obj* advisor, int32_t session); /* slot 13 */
+bool fc4_adv_advisor_simulate(const fc4_adv_obj* advisor, int32_t kind);  /* slot 14 */
+bool fc4_adv_advisor_push_event(const fc4_adv_obj* advisor, uint32_t event_id, const fc4_adv_obj* subject); /* slot 18 */
+bool fc4_adv_advisor_command_would_trigger(const fc4_adv_obj* advisor, uint32_t command); /* slot 19 */
+bool fc4_adv_advisor_retire_advice(const fc4_adv_obj* advisor, const fc4_adv_obj* advice); /* slot 20 */
+bool fc4_adv_advisor_do_message(const fc4_adv_obj* advisor, const fc4_adv_message* m);
 
 /* The MySim agent (mysims.md §1.3, §3.2, §6.1, §7.1); false / 0 without MySims.
  * AdviceCommand names its advisor by ID in `unknown`. MySims are named by
@@ -12435,7 +12472,7 @@ static_assert(sizeof(fc4_adv_lua_value) == (sizeof(void*) == 4 ? 32 : 40), "fc4_
 static_assert(sizeof(fc4_advisors_state) == 56, "fc4_advisors_state layout");
 static_assert(sizeof(fc4_advisor_state) == 88, "fc4_advisor_state layout");
 static_assert(sizeof(fc4_advice_state) == 96, "fc4_advice_state layout");
-static_assert(sizeof(fc4_advisor_host) == (sizeof(void*) == 4 ? 264 : 528), "fc4_advisor_host layout");
+static_assert(sizeof(fc4_advisor_host) == (sizeof(void*) == 4 ? 268 : 536), "fc4_advisor_host layout");
 static_assert(sizeof(fc4_mysim_field) == (sizeof(void*) == 4 ? 40 : 48), "fc4_mysim_field layout");
 static_assert(sizeof(fc4_mysim_disaster_location) == 12, "fc4_mysim_disaster_location layout");
 static_assert(sizeof(fc4_mysim_building) == (sizeof(void*) == 4 ? 40 : 56), "fc4_mysim_building layout");

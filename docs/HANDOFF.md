@@ -29,6 +29,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **train55 landed a6225fa2ad:** Two-lane docs unblock: BW12 proves ordinance initialdown hides only count<9, neighbour/general<=9; no guessed common bound. Native565bridge/vtable00AC1844 and caller/lock contracts published; constructed trace route explicit, SR565-5/6 runtime/leak edges open. No ABI/runtime changes, gate/regress skipped. Reviewed-brief refill daemon now runs independently of merge work; every launch still passes slots/check and saved Workflow, max10live/max3glue. Tutorial RE denial preserved pending advisor branch landing. Coverage45.4/34.5/16.4/17.8; rounds169 (open-ended).
 
+**Parked at3/3: glue-advisors-activate4.** Wrapper/CAPI/weak-drop changes compile and fullgate passes, but no registered factory or advisor game trace. AD12-AD15 plus known value/list/history/world callbacks and system Read/Write remain. No fourth round; preserve this worktree. Compiled inactive stage may be reviewed through the train, without replacement credit.
+
 **train54 landed f1d0961050:** Three-lane docs batch. AD7-AD10 allDIFFERS resolved (47callback order, validshared RNG/DoLink, cheatGetVoid2, cdecl Lua reload and directory getters); AD11 runtime directory value remains. ModelMaker parked3/3 at20607/34705B,26functions remain; QueryTool parked3/3 at16046/76564B,183functions remain. Partial specs preserved, both WTs kept and no whole-owner credit. No ABI/runtime changes, gate/regress skipped. Coverage45.4/34.5/16.4/17.8; rounds162 (open-ended).
 
 **Assigned outside work** ([assignments.tsv](assignments.tsv)): the `region` subsystem is assigned to LucaSammartino

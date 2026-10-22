@@ -17,8 +17,14 @@
 #include "cFC4AdvisorSystem.h"
 
 #include "FC4Log.h"
+#include "FC4AdvisorApi.h"
 #include "FC4RefAudit.h"
+#include "cFC4AdvisorObjects.h"
+#include "FC4Interfaces.h"
+#include "FC4PropCityCommon.h"
 #include "FC4Streams.h"
+#include "cFC4AdviceSubject.h"
+#include "cFC4Date.h"
 #include "cFC4Message2Standard.h"
 #include "compat/FC4Compat.h"
 
@@ -32,12 +38,17 @@
 #include "cIGZString.h"
 #include "cISC4App.h"
 #include "cISC4City.h"
+#include "cISC4View3DWin.h"
 #include "cISCLua.h"
 #include "cRZBaseString.h"
 
 #include <windows.h>
 
 #include <array>
+#include <cctype>
+#include <cstdio>
+#include <cstring>
+#include <ctime>
 #include <string>
 #include <utility>
 #include <vector>
@@ -254,18 +265,53 @@ void CallTrigger(void* u, int32_t ref, fc4_adv_lua_result* out) {
     L->SetTop(top);
 }
 
+// §7.1: slots 12-14 write fields of the global `game` table and assume it
+// exists. [choice] A missing `game` drops the write (the stack is left
+// balanced) instead of raising a Lua error.
+bool PushGame(cISCLua* L) {
+    L->GetGlobal("game");
+    // [abi-ret] eax-or-void (interfaces.tsv cISCLua 72): the value is used as a bool
+    if (L->IsTable(-1)) return true;
+    L->Pop(1);
+    return false;
+}
+
 void SetGlobal(void* u, const char* name, double value) {
-    if (cISCLua* L = Self(u)->Lua()) {
-        L->PushNumber(value);
-        L->SetGlobal(name);
-    }
+    cISCLua* L = Self(u)->Lua();
+    if (L == nullptr || !PushGame(L)) return;
+    L->PushString(name);
+    L->PushNumber(value);
+    L->SetTable(-3);
+    L->Pop(1);
 }
 
 void SetGlobalString(void* u, const char* name, const uint8_t* value, size_t len) {
-    if (cISCLua* L = Self(u)->Lua()) {
-        L->PushLString(reinterpret_cast<const char*>(value), len);
-        L->SetGlobal(name);
-    }
+    cISCLua* L = Self(u)->Lua();
+    if (L == nullptr || !PushGame(L)) return;
+    L->PushString(name);
+    L->PushLString(reinterpret_cast<const char*>(value), len);
+    L->SetTable(-3);
+    L->Pop(1);
+}
+
+// §8.1: the two tags (subject, string), made by create_tags at Init.
+int32_t g_tags[2] = {-1, -1};
+
+// §7.1 slot 14: game[name] = value; game[name .. "_subject"] = the subject as
+// subject-tag userdata holding one reference (a null subject: null userdata).
+void SetLocal(void* u, const char* name, double value, const fc4_adv_subject_state*, uint64_t token) {
+    cISCLua* L = Self(u)->Lua();
+    if (L == nullptr || !PushGame(L)) return;
+    L->PushString(name);
+    L->PushNumber(value);
+    L->SetTable(-3);
+    const std::string key = std::string(name) + "_subject";
+    L->PushString(key.c_str());
+    cIGZUnknown* subject = fc4::FromToken(token);
+    if (subject != nullptr) FC4_ADDREF(subject);
+    L->PushUserTag(subject, g_tags[0]);
+    L->SetTable(-3);
+    L->Pop(1);
 }
 
 void CollectGarbage(void* u) {
@@ -294,11 +340,109 @@ bool HasCity(void*) {
 
 uint32_t NowMs(void*) { return static_cast<uint32_t>(GetTickCount()); }  // [choice] the wall clock in ms
 
-void SubscribeCb(void* u, uint32_t kind, int32_t, uint64_t, uint32_t type) {
-    if (kind == FC4_ADV_OBJ_SYSTEM) Self(u)->Subscribe(type, true);
+// ---- city and simulator reads (§5.1, §13) ------------------------------------------------------------------
+
+// The city the app holds (no reference: GetCity does not AddRef).
+cISC4City* AppCity() {
+    cISC4App* app = App();
+    cISC4City* city = app != nullptr ? app->GetCity() : nullptr;
+    if (app != nullptr) FC4_RELEASE(app);
+    return city;
 }
-void UnsubscribeCb(void* u, uint32_t kind, int32_t, uint64_t, uint32_t type) {
+
+cFC4ISC4Simulator* CitySimulator() {
+    cISC4City* city = AppCity();
+    return city != nullptr ? fc4::AsGame(city->GetSimulator()) : nullptr;  // borrowed
+}
+
+bool CityEstablishedCb(void*) {
+    cISC4City* city = AppCity();
+    return city != nullptr && city->GetEstablished();  // cISC4City +0x58
+}
+
+bool DifficultyCb(void*, int32_t* out) {
+    cISC4City* city = AppCity();
+    if (city == nullptr || out == nullptr) return false;
+    *out = static_cast<int32_t>(city->GetDifficultyLevel());  // +0x60
+    return true;
+}
+
+void CellCountsCb(void*, uint32_t* x, uint32_t* z) {
+    cISC4City* city = AppCity();
+    if (x != nullptr) *x = city != nullptr ? city->CellCountX() : 0;  // +0x174
+    if (z != nullptr) *z = city != nullptr ? city->CellCountZ() : 0;  // +0x178
+}
+
+// §5.1 step 2: the simulator date, cISC4Simulator +0x1C GetSimDate() (the
+// simulator's own object: no reference is taken or dropped).
+void SimDateCb(void*, fc4_adv_date* out) {
+    if (out == nullptr) return;
+    *out = fc4_adv_date{};
+    cFC4ISC4Simulator* sim = CitySimulator();
+    cFC4IGZDate* d = sim != nullptr ? sim->GetSimDate() : nullptr;
+    if (d == nullptr) return;
+    out->day_number = static_cast<int32_t>(d->DayNumber());
+    out->year = static_cast<int32_t>(d->Year());
+    out->month = static_cast<int32_t>(d->Month());
+    out->day = static_cast<int32_t>(d->DayOfMonth());
+}
+
+// §5.1 step 2.3: the year of the simulator's start date (+0x14 GetSimStartDate
+// into a local date).
+int32_t StartYearCb(void*) {
+    cFC4ISC4Simulator* sim = CitySimulator();
+    if (sim == nullptr) return 0;
+    cFC4Date start;
+    // [abi-ret] via-call (interfaces.tsv cISC4Simulator 5): the status is not read; §5.1 only reads the date
+    sim->GetSimStartDate(start);
+    return static_cast<int32_t>(start.Year());
+}
+
+bool IsAnyPausedCb(void*) {
+    cFC4ISC4Simulator* sim = CitySimulator();
+    // [abi-ret] eax-or-void (interfaces.tsv cISC4Simulator 18): the value is used as a bool (AL, §13)
+    return sim != nullptr && sim->IsAnyPaused();  // +0x48
+}
+
+void Deliver(const fc4_adv_out_message* m, bool sync);
+
+// §5.1 tick_self / §10: the ticker 0xCA5501F2 is posted with no target.
+void PostTickerCb(void*) {
+    fc4_adv_out_message m{};
+    m.msg_type = 0xCA5501F2;
+    Deliver(&m, false);
+}
+
+// §6.9: View3D +0xBC AssertGlobalEffectTrigger(id) / +0xC0 Retract (the
+// returned status is not read). No city view: nothing to notify.
+void GlobalEffectCb(void*, uint32_t id, bool assert_) {
+    cISC4View3DWin* v = fc4::propcity::View3D();
+    if (v == nullptr) return;
+    if (assert_) v->AssertGlobalEffectTrigger(id);
+    else v->RetractGlobalEffectTrigger(id);
+    fc4::propcity::Drop(reinterpret_cast<cIGZUnknown*>(v));
+}
+
+// An advisor subscribes its own front's message target (§5.4).
+void AdvisorNotification(uint64_t token, uint32_t type, bool on) {
+    cIGZUnknown* u = fc4::FromToken(token);
+    cIGZMessageTarget2* t = nullptr;
+    if (u == nullptr || !u->QueryInterface(kFC4_IID_cIGZMessageTarget2, reinterpret_cast<void**>(&t)) || t == nullptr) return;
+    FC4_ACQUIRED(t, "QueryInterface");
+    cIGZMessageServer2Ptr ms;
+    if (ms) {
+        if (on) ms->AddNotification(t, type);
+        else ms->RemoveNotification(t, type);
+    }
+    FC4_RELEASE(t);
+}
+void SubscribeCb(void* u, uint32_t kind, int32_t, uint64_t token, uint32_t type) {
+    if (kind == FC4_ADV_OBJ_SYSTEM) Self(u)->Subscribe(type, true);
+    else if (kind == FC4_ADV_OBJ_ADVISOR) AdvisorNotification(token, type, true);
+}
+void UnsubscribeCb(void* u, uint32_t kind, int32_t, uint64_t token, uint32_t type) {
     if (kind == FC4_ADV_OBJ_SYSTEM) Self(u)->Subscribe(type, false);
+    else if (kind == FC4_ADV_OBJ_ADVISOR) AdvisorNotification(token, type, false);
 }
 
 // fc4.h: obj_kind FC4_ADV_OBJ_HOST names a host object by token; advisor and
@@ -334,52 +478,67 @@ uint64_t ResolveRefCb(void*, uint64_t t, uint32_t iid) {
     return fc4::TokenOf(out);  // one reference for the core
 }
 
+fc4_adv_obj* NewSubjectHandle(void* u) {
+    fc4_advisors* core = Self(u)->Core();
+    return core != nullptr ? fc4_advisors_new_subject(core) : nullptr;
+}
+
 uint64_t ObjectCreated(void* u, uint32_t kind, uint32_t, fc4_adv_obj* handle) {
     if (kind == FC4_ADV_OBJ_SYSTEM) {
         fc4_adv_obj_destroy(handle);
         return fc4::TokenOf(Self(u)->Primary());
     }
-    // Advisor, advice and subject objects need their GZCOM classes (next round).
+    if (kind == FC4_ADV_OBJ_SUBJECT) {
+        // §1.1, §12.4: the subject's GZCOM front owns the handle.
+        auto* s = new cFC4AdviceSubject(handle, &NewSubjectHandle, u);
+        return s->Token();
+    }
+    if (kind == FC4_ADV_OBJ_ADVISOR) return (new cFC4Advisor(handle))->Token();  // §12.2
+    if (kind == FC4_ADV_OBJ_ADVICE) return (new cFC4Advice(handle))->Token();    // §12.3
     fc4_adv_obj_destroy(handle);
     return 0;
 }
 
+// The core object behind a front is gone (FC4AdvLife.h).
+void ObjectDroppedCb(void*, uint64_t token) { fc4::AdvFront::Dropped(token); }
+
+// §6.9: the text rebuild reads the advice entry's title and message.
+// [question AD12] the detokenizer pass (UI) is not run on them here.
+void RebuildTextCb(void* u, uint32_t, uint64_t token) {
+    cFC4ISC4Advice* a = FC4AdviceFront(token);
+    cISCLua* L = Self(u)->Lua();
+    if (a == nullptr || L == nullptr) return;
+    auto* f = static_cast<cFC4Advice*>(a);
+    std::string title, message;
+    // [choice] the table index is the 1-based `advices` index (as advice_entry)
+    if (PushEntry(L, "advices", static_cast<uint32_t>(f->TableIndex()))) {
+        FieldString(L, "title", &title);
+        FieldString(L, "message", &message);
+        L->Pop(1);
+    }
+    f->SetText(title.data(), title.size(), message.data(), message.size());
+}
+
 // ---- register_api (§8.2, lua-host.md §8.2) ---------------------------------------------------------------
 
-struct LuaEntry {
-    const char* name;
-    bool global;
-};
-// §8.3 table order (simulation collector). [choice] The spec gives the
-// collectors' contents, not their order inside the vector (question AD7);
-// the order only decides which function `_tf_` names afterwards.
-constexpr LuaEntry kCoreEntries[] = {
-    {"trend_value", false}, {"trend_slope", false}, {"trend_count", false}, {"ordinance_is_on", false},
-    {"ordinance_is_available", false}, {"ordinance_set_on", false}, {"ordinance_set_off", false},
-    {"ordinance_enact_fee", false}, {"ordinance_repeal_fee", false}, {"ordinance_monthly_cost", false},
-    {"ordinance_name", false}, {"ordinance_description", false}, {"event_feedback", false},
-    {"expire_advice", false}, {"retire_advice", false}, {"advice_subject", false}, {"trigger_event", false},
-    {"difficulty_level", false}, {"random_chance", false}, {"is_tutorial", false}, {"building_is_group", false},
-    {"event_building_distance", false}, {"event_disaster_distance", false}, {"nd_cancel", false},
-    {"mysim_distance_to_closest_building", false}, {"mysim_distance_to_closest_landmark_or_reward", false},
-    {"mysim_local_school_grade", false}, {"mysim_local_hospital_grade", false}, {"mysim_dispatch_tool", false},
-    {"reward_instance_count", false}, {"get_reward_building_state", false}, {"unlock_reward_building", false},
-    {"_combine_guids", true}, {"print", true},
-};
-constexpr size_t kCoreCount = sizeof(kCoreEntries) / sizeof(kCoreEntries[0]);
+using fc4::advisors::ApiEntry;
+using fc4::advisors::kApi;
+using fc4::advisors::kApiCount;
+using fc4::advisors::kCore;
+using fc4::compat::Direct;
 
-struct CompatEntry {
-    const char* name;
-    fc4::compat::Direct which;
-};
-constexpr CompatEntry kCompatEntries[] = {
-    {"camera_jump", fc4::compat::Direct::LuaCameraJump},          {"camera_zoom", fc4::compat::Direct::LuaCameraZoom},
-    {"tool_plop_network", fc4::compat::Direct::LuaToolPlopNetwork}, {"tool_plop_zone", fc4::compat::Direct::LuaToolPlopZone},
-    {"tool_plop_building", fc4::compat::Direct::LuaToolPlopBuilding}, {"tool_plop_flora", fc4::compat::Direct::LuaToolPlopFlora},
-    {"tool_button", fc4::compat::Direct::LuaToolButton},            {"window_budget", fc4::compat::Direct::LuaWindowBudget},
-    {"window_map", fc4::compat::Direct::LuaWindowMap},              {"window_graph", fc4::compat::Direct::LuaWindowGraph},
-    {"window_query", fc4::compat::Direct::LuaWindowQuery},
-};
+using fc4::advisors::VCall;
+
+// §4.2 step 2 (AD10): cISC4App +0xD4 GetPluginDirectory(out, -1), then +0xDC
+// GetSkuSpecificDirectory(out); `advisors\` is appended to each. AD11: the
+// value is taken as it is (logged by the caller), never interpreted.
+std::string AppDirectory(cISC4App* app, bool sku) {
+    cRZBaseString out;
+    // [abi-ret] void: the bool result is not read (advisors.md §4.2)
+    if (sku) VCall<bool, cIGZString&>(app, 0xDC, out);
+    else VCall<bool, cIGZString&, int32_t>(app, 0xD4, out, -1);
+    return std::string(out.ToChar() ? out.ToChar() : "", out.Strlen());
+}
 
 // lua-host.md §1.3: the owning thread object sits in the 4 bytes before the state.
 cISCLua* HostOf(lua_State* state) {
@@ -387,6 +546,33 @@ cISCLua* HostOf(lua_State* state) {
     void* lua = nullptr;
     if (thread == nullptr || !thread->QueryInterface(kIID_cISCLua, &lua)) return nullptr;
     return static_cast<cISCLua*>(lua);  // one reference, released by the caller
+}
+
+// §8.1 tag-gc: on the system's Lua state, userdata of tag 0 or 1 releases the
+// pointer it holds.
+int32_t TagGc(lua_State* state) {
+    cISCLua* L = HostOf(state);
+    if (L == nullptr || g_live == nullptr || L != g_live->Lua()) return 0;
+    // [abi-ret] eax-or-void (interfaces.tsv cISCLua 73): the value is used as a bool
+    if (!L->IsUserData(1)) return 0;
+    const int32_t tag = L->ToUserTag(1);
+    if (tag != g_tags[0] && tag != g_tags[1]) return 0;
+    if (auto* p = static_cast<cIGZUnknown*>(L->ToUserData(1))) FC4_RELEASE(p);
+    return 0;
+}
+
+// §4.1 step 3: NewTag twice, each with tag-gc as its "gc" method.
+void CreateTags(void* u, int32_t* subjectTag, int32_t* stringTag) {
+    cISCLua* L = Self(u)->Lua();
+    for (int i = 0; i < 2; ++i) {
+        g_tags[i] = -1;
+        if (L == nullptr) continue;
+        g_tags[i] = L->NewTag();
+        L->PushCClosure(&TagGc, 0);
+        L->SetTagMethod(g_tags[i], "gc");
+    }
+    if (subjectTag != nullptr) *subjectTag = g_tags[0];
+    if (stringTag != nullptr) *stringTag = g_tags[1];
 }
 
 int32_t Dispatch(size_t index, lua_State* state) {
@@ -416,7 +602,7 @@ int32_t Dispatch(size_t index, lua_State* state) {
             // Subject userdata (tag 0) needs the subject class (next round): passed as nil.
         }
         fc4_adv_lua_value res[4]{};
-        int32_t r = fc4_advisors_call_lua(g_live->Core(), kCoreEntries[index].name, args.data(), args.size(), res, 4);
+        int32_t r = fc4_advisors_call_lua(g_live->Core(), kApi[index].name, args.data(), args.size(), res, 4);
         if (r > 4) r = 4;
         for (int32_t k = 0; k < r; ++k) {
             const fc4_adv_lua_value& v = res[k];
@@ -442,7 +628,7 @@ template <size_t... I>
 constexpr std::array<lua_CFunction, sizeof...(I)> MakeTrampolines(std::index_sequence<I...>) {
     return {&Trampoline<I>...};
 }
-const std::array<lua_CFunction, kCoreCount> kTrampolines = MakeTrampolines(std::make_index_sequence<kCoreCount>());
+const std::array<lua_CFunction, kApiCount> kTrampolines = MakeTrampolines(std::make_index_sequence<kApiCount>());
 
 void RegisterOne(cISCLua* L, const char* name, lua_CFunction fn, bool global) {
     if (global) L->GetGlobals();
@@ -458,17 +644,24 @@ void RegisterApi(void* u, bool global) {
     cISCLua* L = Self(u)->Lua();
     if (L == nullptr) return;
     const int32_t top = L->GetTop();
-    for (size_t i = 0; i < kCoreCount; ++i) {
-        if (kCoreEntries[i].global == global) RegisterOne(L, kCoreEntries[i].name, kTrampolines[i], global);
-    }
-    if (!global) {
-        for (const CompatEntry& e : kCompatEntries) {
-            const uintptr_t va = fc4::compat::DirectCall(e.which);
-            if (va != 0) RegisterOne(L, e.name, reinterpret_cast<lua_CFunction>(va), false);
+    // §8.2: one walk in vector order; register_api(true) takes the global
+    // entries, register_api(false) the `game` ones. An original whose address
+    // the compat layer refused is left out (logged there once).
+    for (size_t i = 0; i < kApiCount; ++i) {
+        const ApiEntry& e = kApi[i];
+        if (e.global != global) continue;
+        lua_CFunction fn = kTrampolines[i];
+        if (e.native != kCore) {
+            const uintptr_t va = fc4::compat::DirectCall(e.native);
+            if (va == 0) continue;
+            fn = reinterpret_cast<lua_CFunction>(va);
         }
+        RegisterOne(L, e.name, fn, global);
     }
     L->SetTop(top);
 }
+
+void ReloadScriptsCb(void* u) { Self(u)->ReloadScripts(); }
 
 fc4_advisor_host MakeHost(cFC4AdvisorSystem* s) {
     fc4_advisor_host h{};
@@ -482,6 +675,7 @@ fc4_advisor_host MakeHost(cFC4AdvisorSystem* s) {
     h.release_trigger = &ReleaseTrigger;
     h.call_trigger = &CallTrigger;
     h.register_api = &RegisterApi;
+    h.reload_scripts = &ReloadScriptsCb;
     h.collect_garbage = &CollectGarbage;
     h.close_lua = &CloseLua;
     h.set_global = &SetGlobal;
@@ -492,6 +686,16 @@ fc4_advisor_host MakeHost(cFC4AdvisorSystem* s) {
     h.advisor_window = &AdvisorWindow;
     h.has_city = &HasCity;
     h.now_ms = &NowMs;
+    h.city_established = &CityEstablishedCb;
+    h.difficulty = &DifficultyCb;
+    h.cell_counts = &CellCountsCb;
+    h.sim_date = &SimDateCb;
+    h.start_year = &StartYearCb;
+    h.is_any_paused = &IsAnyPausedCb;
+    h.post_ticker = &PostTickerCb;
+    h.set_local = &SetLocal;
+    h.create_tags = &CreateTags;
+    h.global_effect = &GlobalEffectCb;
     h.subscribe = &SubscribeCb;
     h.unsubscribe = &UnsubscribeCb;
     h.post = &PostCb;
@@ -500,6 +704,8 @@ fc4_advisor_host MakeHost(cFC4AdvisorSystem* s) {
     h.release = &ReleaseCb;
     h.resolve_ref = &ResolveRefCb;
     h.object_created = &ObjectCreated;
+    h.object_dropped = &ObjectDroppedCb;
+    h.rebuild_text = &RebuildTextCb;
     return h;
 }
 
@@ -512,16 +718,20 @@ cIGZUnknown* CreateFC4AdvisorSystem() { return (new cFC4AdvisorSystem())->Primar
 bool cFC4AdvisorCheatHandler::QueryInterface(uint32_t riid, void** ppvObj) { return owner_->QueryInterface(riid, ppvObj); }
 uint32_t cFC4AdvisorCheatHandler::AddRef() { return owner_->AddRef(); }
 uint32_t cFC4AdvisorCheatHandler::Release() { return owner_->Release(); }
-// §5.2. [choice] The cheat's text is not read from cGZMessage (its layout for
-// cheat notifications is not in the specs): the core gets the ID only.
-bool cFC4AdvisorCheatHandler::DoMessage(cGZMessage& msg) {
-    if (owner_->Core() != nullptr) fc4_advisors_cheat(owner_->Core(), msg.dwMessageType, nullptr);
-    return true;
-}
+// §1.1 keeps the +8 interface for QueryInterface; §5.2 (AD9): the system is not
+// on the manager's cIGZMessageTarget list, cheats arrive in the message-2
+// DoMessage. Nothing is delivered here.
+bool cFC4AdvisorCheatHandler::DoMessage(cGZMessage&) { return true; }
 
 // ---- object -----------------------------------------------------------------------------------------------
 
 cFC4AdvisorSystem::cFC4AdvisorSystem() : cheat_(this) {
+    // §9: the generator is seeded with 0xFFFFFFFF at construction, which
+    // foundations §6.1 Seed() turns into time(NULL) XOR ((c << 16) | c), c = clock().
+    const uint32_t c = static_cast<uint32_t>(std::clock());
+    const uint32_t seed = fc4::advisors::WallClockSeed(static_cast<uint32_t>(std::time(nullptr)), c);
+    random_.mul = seed;
+    random_.lcg = seed;
     fc4::AdvisorWinProcOps ops{};
     if (fc4::GameAdvisorWinProcOps(&ops)) window_.SetOps(ops);
     host_ = MakeHost(this);
@@ -540,6 +750,7 @@ cFC4AdvisorSystem::~cFC4AdvisorSystem() {
     if (self_ != nullptr) fc4_adv_obj_destroy(self_);
     fc4_advisors_destroy(core_);
     core_ = nullptr;
+    fc4::AdvFront::DestroyAll();  // fronts still referenced by the game; their core objects may call the host (this)
     ReleaseLua();
 }
 
@@ -606,16 +817,47 @@ void cFC4AdvisorSystem::Cheat(uint32_t id, const char* name, bool on) {
     cIGZCheatCodeManager* cm = nullptr;
     if (raw != nullptr && raw->QueryInterface(kIID_cIGZCheatCodeManager, reinterpret_cast<void**>(&cm)) && cm) {
         FC4_ACQUIRED(cm, "QueryInterface");
+        // §5.2 (AD9): the system is a message-2 notification target of the
+        // manager (SendCheatNotifications), not on its cIGZMessageTarget list.
         if (on) {
             cm->RegisterCheatCode(id, cRZBaseString(name ? name : ""));
-            cm->AddNotification(CheatTarget(), id);
+            cm->AddNotification2(Target(), id);
         } else {
-            cm->RemoveNotification(CheatTarget(), id);
+            cm->RemoveNotification2(Target(), id);
             cm->UnregisterCheatCode(id);
         }
         FC4_RELEASE(cm);
     }
     if (app != nullptr) FC4_RELEASE(app);
+}
+
+// §4.2 steps 1-3 (AD10, AD11). The core clears reloadPending, then
+// register_api(false) and the tutorial hand-over follow in the core.
+void cFC4AdvisorSystem::ReloadScripts() {
+    if (lua_ == nullptr) return;
+    // 1. `_on_reload`, protected, no arguments.
+    const int32_t top = lua_->GetTop();
+    lua_->GetGlobal("_on_reload");
+    if (lua_->Type(-1) == cIGZLua5Thread::LuaTypeFunction) lua_->CallProtected(0, 0);
+    lua_->SetTop(top);
+    // 2. the plugin directory, then the SKU-specific one (the later wins).
+    using UpdateFn = int32_t(__cdecl*)(uint32_t group, const char* dir);
+    using LoadFn = int32_t(__cdecl*)(cISCLua* lua, uint32_t group, uint32_t firstPackage);
+    const uintptr_t update = fc4::compat::DirectCall(Direct::UpdateResourcesFromDirectory);
+    const uintptr_t load = fc4::compat::DirectCall(Direct::LoadPackageScripts);
+    constexpr uint32_t kScriptGroup = 0x4A5E8EF6;
+    cISC4App* app = App();
+    if (app != nullptr && update != 0) {
+        const fc4::advisors::ReloadDirectories dirs =
+            fc4::advisors::AdvisorReloadDirectories(AppDirectory(app, false), AppDirectory(app, true));
+        for (const std::string* dir : {&dirs.first, &dirs.second}) {
+            fc4::Log("advisors reload: directory \"%s\"", dir->c_str());  // AD11: recorded, not interpreted
+            reinterpret_cast<UpdateFn>(update)(kScriptGroup, dir->c_str());
+        }
+    }
+    if (app != nullptr) FC4_RELEASE(app);
+    // 3. the packages of the script group, from package 0.
+    if (load != 0) reinterpret_cast<LoadFn>(load)(lua_, kScriptGroup, 0);
 }
 
 // §4.1 step 10 / §4.6: slots 24 and 28 through the own vtable.
@@ -658,9 +900,37 @@ fc4::GameMapObject* cFC4AdvisorSystem::GetAdvisors() {
     if (map_.Object() == nullptr) map_.Rebuild({});
     return map_.Object();
 }
-void* cFC4AdvisorSystem::GetRandom() { return nullptr; }  // the generator lives in the core (question AD7)
+void* cFC4AdvisorSystem::GetRandom() { return &random_; }  // §12.1 slot 9 (AD8): the member's address
 cISCLua* cFC4AdvisorSystem::GetScriptingContext() { return lua_; }
-bool cFC4AdvisorSystem::DoLink(const cIGZString&) { return false; }  // body not specified (question AD7)
+
+// §12.1 slot 11 (AD8).
+bool cFC4AdvisorSystem::DoLink(const cIGZString& link) {
+    // 1-2. copy (Data +0x18, Strlen +0x1C), trim, sscanf "%08x%08x".
+    const char* data = VCall<const char*>(&link, 0x18);
+    const uint32_t len = VCall<uint32_t>(&link, 0x1C);
+    const fc4::advisors::AdvisorLink l = fc4::advisors::ParseAdvisorLink(data, len);
+    if (!l.parsed) return false;
+    // 3. advisor slot 13 GetAdviceBySessionID (+0x34), advice slot 22 DoLink (+0x58).
+    if (l.TriesAdvice()) {
+        cISC4Advisor* a = GetAdvisor(static_cast<int32_t>(l.advisorID));
+        void* advice = a ? VCall<void*, int32_t>(a, 0x34, static_cast<int32_t>(l.sessionID)) : nullptr;
+        if (advice != nullptr) {
+            cRZBaseString rest(l.AdviceText().c_str());
+            // [abi-ret] void: the advice's result is not read (§12.1 slot 11 returns true)
+            VCall<bool, const cIGZString*>(advice, 0x58, static_cast<const cIGZString*>(&rest));
+            return true;
+        }
+    }
+    // 4. Lua through the own slots 18/19; DoBuffer = cISCLua slot 55 (+0xDC), status ignored.
+    const std::string chunk = l.LuaChunk();
+    PushContextAdvice(nullptr);
+    if (lua_ != nullptr) {
+        const char* p = chunk.c_str();
+        VCall<int32_t, const char*, int32_t, const char*>(lua_, 0xDC, p, static_cast<int32_t>(std::strlen(p)), p);
+    }
+    PopContextAdvice();
+    return true;
+}
 bool cFC4AdvisorSystem::SetGlobalValueString(const char* name, cIGZString* value) {
     if (lua_ == nullptr || value == nullptr) return false;
     SetGlobalString(this, name, reinterpret_cast<const uint8_t*>(value->ToChar()), value->Strlen());
@@ -702,6 +972,13 @@ void cFC4AdvisorSystem::RemoveWinProcs() { window_.Remove(); }
 // §5: the ticker, PostCityInit, CityEstablished.
 bool cFC4AdvisorSystem::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    // §5.2 (AD9): cheat 0x230E27AC, ID = data1, text = GetVoid2 (+0x3C) as a
+    // borrowed cIGZString*, used with no null test as the original.
+    if (pMessage->GetType() == fc4::advisors::kCheatMessage) {
+        const fc4::advisors::CheatPayload c = fc4::advisors::ReadCheatPayload(pMessage);
+        fc4_advisors_cheat(core_, c.id, static_cast<const cIGZString*>(c.text)->ToChar());
+        return true;
+    }
     fc4_adv_message m{};
     m.msg_type = pMessage->GetType();
     cIGZMessage2Standard* std = nullptr;
