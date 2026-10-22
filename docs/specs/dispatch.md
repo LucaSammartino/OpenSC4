@@ -299,7 +299,7 @@ For an info with bit 3 set, each eligible Update decreases fade for pending remo
 clamps at zero, stores float32, and tests the still-live x87 result against float32
 0.01. Removal occurs strictly below 0.01, not at equality. A nonpending entry increases
 fade and clamps at 1.0. Delta is the timer's float32 milliseconds multiplied in x87 by
-float32 0.001 and the global float32 at `0x00B07F84`, then stored as float32 before use
+float32 0.001 and float32 2.0 at `0x00B07F84`, then stored as float32 before use
 (`0x0046D9EB`–`0x0046DA15`, `0x0046DC1E`–`0x0046DC51`, `0x0046DC92`–`0x0046DCB4`).
 Do not round the subtraction to float32 before the threshold comparison.
 
@@ -474,13 +474,14 @@ direction 1 for negative ΔZ, 3 for positive ΔZ, otherwise 0 for negative ΔX a
 with no following entry use 255. Fetch the cell's network list with traffic-network slot 14
 `(cellX,cellZ)`, walk links `+0x54` in order, skipping null occupants or null occupant slot 49
 path info. Ask manager slot 68 `(vehicle)` for a path type, then path-info slot 9
-`(pathType,255,direction,&global[0x00B21D78],&outPathIndex,0)`, then path-info slot 3
+`(pathType,255,direction,&randomSuper[0x00B21D78],&outPathIndex,0)`, then path-info slot 3
 `(returned path ID)`. First non-null path wins. Exhaustion returns false, after the deque
 has already been popped (`0x00554AB0`–`0x00554C25`).
 
 For the winner, vehicle slot 132 `(network occupant,pathIndex,path pointer,true)` attaches
 it. Heading comes from the last path point minus the first path point in **three dimensions**,
-normalized when length exceeds native float32 constant `0x00A9BCD8`; otherwise `(0,0,1)`.
+normalized when length exceeds float32 0.00001 (bits `0x3727C5AC`, `0x00A9BCD8`);
+otherwise `(0,0,1)`.
 Y difference is rounded to float32 before the squared sum; X/Z differences remain in x87;
 each normalized output is stored float32 (`0x00554C3B`–`0x00554CB7`). If no route remains,
 path-info slot 22 `(path,&world position)` chooses position and flag 4 is set; otherwise use
@@ -488,10 +489,32 @@ the path's first point. Call vehicle slot 16 `(position vec3&,heading vec3&)`, t
 (`0x00554CB7`–`0x00554D13`). It is not the station/pylon diagonal, a random road heading,
 or a separately invented station-spawn SDK function.
 
-DP12 remains open for the measured value of the heading threshold, the path-selector's
-global vector value/meaning and the complete numeric point-to-cell edge contract. The native
-call/ownership sequence above is established; those remaining numeric owner details must
-be settled before claiming the full question answered.
+The selector argument at `0x00B21D78` is the shared **cRZRandomSuper object**, not a vec3.
+Its initializer constructs it using `cRZTime`'s first dword XOR `0x4C09C170`
+(`0x00A727C0`–`0x00A727DC`); e.g. `0x005057AB` and `0x0050CFF9` use the same object
+for integer/double uniform draws. Pass it as a borrowed mutable generator; do not copy it,
+seed a per-dispatch generator, or treat its storage as coordinates. The matching path
+choice remains the path-info provider's operation, with its exact inputs above.
+
+For the point-descriptor conversion, the native cell operation is precise: retain
+`q = float32Coordinate * float32(1/16)` in x87; store
+`b = float32((q - float32(0.5)) + float32(12582912))`; let candidate be the signed32
+result of wrapping `bits32(b) - 0x4B400000`. If q equals signed32(candidate+1), increment
+candidate (ordered equality only); otherwise keep candidate. Apply independently to X/Z.
+For ordinary city coordinates this is floor(coordinate/16), including exact cell edges,
+but the bit algorithm defines the operation outside that range too; do not use truncation
+toward zero. Slot-17's current-vehicle fallback issues the same operation before its city
+range checks (`0x0050702E`–`0x005070B7`, `0x00551780`–`0x00551838`). Float32 constants
+are respectively bits `0x3D800000`, `0x3F000000`, `0x4B400000` (file-backed values at
+`0x00A952F0`, `0x00A84D2C`, `0x00A952F4`; the traffic copy uses `0x00A9BCF4`/`0x00A9BCF8`).
+No intermediate float32 store rounds q or q−0.5. Heading similarly sums squared Z and
+stored Y differences before squared X in x87, takes sqrt, uses x87 reciprocal 1.0/length,
+and rounds each output component only on store (`0x00554C3B`–`0x00554C99`).
+
+DP12 is answered by §4.2 and this native owner chain. It defines the issued calls and
+provider boundaries; an implementer must still provide the real automata/path/network
+objects. It does not authorize forwarding to the original dispatch manager or substituting
+a successful ID without a vehicle. DP10's rendering completion remains separate.
 
 The enclosing Dispatch sequence is:
 
@@ -821,6 +844,13 @@ DP10/DP12 boundary vectors (specified, not claimed executed; remaining open cont
 - Give two network occupants in the first route cell: first has no matching path, second does.
   Choose the second, derive heading from its path endpoints, and pop the first route entry once.
   With no match, fail after the pop; do not silently restore the deque or choose a nearby road.
+- Point descriptors x=−0.01, 0, 15.99, 16 map to cells −1, 0, 0, 1 respectively; fallback source
+  rejects the negative cell. Source tag0/non-null uses occupant/lot bounds instead. A degenerate
+  chosen path gives heading (0,0,1); a path from (0,0,0) to (0,3,4) gives (0,0.6,0.8), with
+  the specified float-store order. Capture the shared RNG pointer passed to the path selector.
+- Non-traffic automaton rejection after pathfinder acquisition returns null without Release;
+  a traffic automaton whose pathfinder result is 2 releases it once. These paths distinguish
+  the native exceptional leak from ordinary failed-routing cleanup.
 - Track a kind-0 occupant and request delayed removal before any eligible Update: it remains held
   and counted. A context gate can postpone completion; an eligible update below fade 0.01 removes
   it with texture/model release before the retained occupant Release. Refresh leaves the handle intact.

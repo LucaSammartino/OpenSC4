@@ -7,8 +7,9 @@
 - Goal: finish DP10–DP12 exact native contracts in one guarded round; no engine/tools/ABI edits.
 - Prior milestones: f1135c91 (DP13); c83804c4 (pylon geometry, caller descriptors, view tracking).
 - Done this round: DP11 resolved at 75f733f3; string-interface copy, prefix/return-width audit and independent vectors published.
-- Done: native traffic slot18/17 creation/route/cleanup chain and first-road heading; view Update gates, delayed removal, refresh and texture keys published.
-- Next: remaining DP12 constants/path-selector inputs and numeric cell conversion; DP10 screen-rectangle/call-display/draw submission.
+- Done: native traffic creation/route/cleanup chain and view delayed cleanup at 19650cbe.
+- Done: DP12 remaining constants verified from original PE bytes; shared RNG initializer traced; cell conversion/x87 order published; DP12 archived/indexed.
+- Next: DP10 screen-rectangle/call-display texture generation and draw submission remain; no complete-owner/replacement credit.
 - Newly verified quirk: non-traffic slot17 rejection leaks the acquired pathfinder; normal routing exits release it.
 - Residuals: DP10 renderer update/delayed untrack; DP11 bitmap string input/prefix; DP12 road spawn/route failure.
 - Public glue reports two unsaved viewHandle differences; no original runtime trace requested.
