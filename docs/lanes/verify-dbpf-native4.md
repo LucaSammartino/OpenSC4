@@ -1,6 +1,20 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-dbpf-native4: independent public packed DBPF transport | `verify-dbpf-native4` / detached engine lane | WIP round2/3: cargo4962/clippy0/CTest68/68; own archive60440/60440 and two saved153/153 record transports exact; EX55 combined differences3 per verifier run preserved; own on/off-normal clean/ref0; current40 on/off clean/ref4; own off-turbo exited1; EX54/EX55 open; ABI3 additive exports retained | 1. Publish EX54/EX55 contracts. 2. Resolve current40 DepartmentBudget ref4 baseline without suppressing warnings or reducing profile. 3. Diagnose preserved own off-turbo exit before qualification; no requests outstanding. |
+| verify-dbpf-native4: independent public packed DBPF transport | `verify-dbpf-native4` / detached engine lane | In progress round3/3: reconcile retained gate/artifact and run one budget-enabled current40 OFF-first matched lifecycle pair; round2 WIP and all eight earlier attempts retained; ABI3 additive exports retained | Verify frozen provenance and OS/queue attribution before any request; no builds or engine edits. |
+
+## Handoff
+- Goal: final round3/3, bounded original record/payload transport plus matched budget-enabled current40 lifecycle validation.
+- Start: clean detached HEAD5c537c6f; round2 report is committed there and remains below.
+- Historical: eight attempts retained; current40 ON/OFF clean/ref4, own OFF-turbo exited1, other five clean/ref0; EX54/EX55 unresolved.
+- Done: read contribution, lane/queue and operating docs; no engine/source/default changes or compiler/test invocations.
+- Next: recompute stable gate totals/hashes and engine tree; verify immutable DLL/PDB, literal corpus and supplied current40 fixture; inspect queue/process attribution.
+- CIM process enumeration denied; use read-only OS metadata fallback. Main queue showed regress-train105-shadows.req, owned queue only done; not proof of live state.
+- Requests planned only after provenance passes: vdbpf4-r3-budget-on-current40-off-02d08687-a, then vdbpf4-r3-budget-on-current40-on-02d08687-b; neither submitted.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-dbpf-native4-r3-manifest.json.
+- Frozen pair: build-runs/dbpf-r2-frozen-02d08687; existing production implementation02d08687, gate304fdfba.
+- No fourth round, rebuild, source fitting, game slot access, qwait, subagents or owner/replacement promotion.
+
+## Retained round2 report (at5c537c6f)
 
 ## Round2 result
 
