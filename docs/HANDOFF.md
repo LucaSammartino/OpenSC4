@@ -6,6 +6,8 @@ lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
 ## 0. Current state (2026-10-22, run4 open-ended)
+**User course correction (2026-10-22): STOP RE.** All eight live RE workers received per-agent guard PARK denial to preserve/commit their findings and wind down; no further RE refills. Target9 remains subject to eligible work/max3glue/caps. Prioritize exact native shadows, real-game replacement and promotion of proven candidates; use already-published contracts and land existing answers that unblock delivery. Contract gaps remain parked questions, never guessed or relabeled as verify.
+
 **Run4 checkpoint325:** 325 lane rounds; 58 trains landed; coverage57.6/36.0/16.7/17.9, delta+20.8/+7.7/+4.6/+2.0 points since run4 start; 47 parked lanes. Target9/max3glue. User prioritizes implemented ? exact same-process shadow ? exercised replacement ? default combined regress; RE prioritizes concrete blockers to those transitions.
 
 **Final native caps:** TextEdit3/3 retains TE5/TE8; dispatch RE3/3 retains DP10 rendering; small-renderer RE3/3 retains FF2 helper/slot inventory. Other texture/glyph/path questions answered. No fourth rounds; preserve source worktrees/evidence. Graphics director65/65 complete is separate from capped DX7driver.
