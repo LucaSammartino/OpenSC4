@@ -738,6 +738,14 @@ Observe cache-call count, E and flags through an interface test double, not a li
 | Disabled cache, empty bytes, or missing job/request/response | No insertion; false |
 | Cache interface returns false | Helper false; enclosing HTTP completion still succeeds |
 
+### 4.13 Reached FTP parser, transfers and helpers
+
+See [the FTP native contracts](web-network-ftp.md) for 00812de0's complete selector table,
+RETR/STOR entry/command/file/notification ordering, reached transport helpers, and independent
+distinguishing vectors. Q7 remains open for login, listing acquisition, outer scheduling and
+shutdown. The companion records unsafe native input domains explicitly and claims no live
+network observations.
+
 ## 5. cRZHTTPClient (15133 B; outline only)
 
 HTTP/1.x client jobs, TimeStringToSeconds (HTTP dates), DoJobFinalization (resolves redirects with

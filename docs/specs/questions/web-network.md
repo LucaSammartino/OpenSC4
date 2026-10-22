@@ -11,10 +11,12 @@ by SetShouldEncryptCookieDataFile. Spec section web-network.md §3.6.
 
 ## Q7 (re-web-largest4, 2026-10-22) — owned FTP scheduler, wire state and listing parser
 For the reached FTP bodies, what exact queue/start/cancel/shutdown order, retry limits, response-code transitions,
-and listing-format selection/entry acceptance rules must be reproduced? Largest unresolved bodies: 00812de0
-(3607 B, listing parser), 00814560 (1878 B), 00813e90 (1741 B), 00816ee0 (1628 B), 008163d0 (1466 B),
-00815d30 (1245 B). These were inventoried and initially inspected, not fully specified. Section 4.8 covers
-the WWW admission/notification boundary only. See web-network-www-bodies.md for every pending address/byte count.
+and listing-format selection/entry acceptance rules must be reproduced? Round 2 specifies the listing
+entry parser 00812de0 (3607 B), RETR 00814560 (1878 B), STOR 00813e90 (1741 B) and transport helpers in
+web-network.md §4.13 / web-network-ftp.md, including the async state-4 reentry rejection and unsafe
+fixed-column input domains. Still unresolved: outer scheduler 00816ee0 (1628 B), listing acquisition
+008163d0 (1466 B), login/format selection 00815d30 (1245 B), initialization 00812390 (825 B), other
+commands and list ownership. Q7 stays open; see web-network-www-bodies.md for each remaining address.
 
 ## Q9 (re-web-largest4, 2026-10-22) — other reached scheduler/resource and support bodies
 Complete the still-open bodies in web-network-www-bodies.md outside Q7/Q8, especially HTTP job submission and

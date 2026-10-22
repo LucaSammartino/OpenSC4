@@ -6,18 +6,18 @@ Native attribution snapshot: main `build-runs/run4-owners-current.tsv`, read 202
 
 | Status | Bodies | Bytes |
 |---|---:|---:|
-| C | 48 | 8301 |
-| P | 7 | 11629 |
-| O | 93 | 14119 |
+| C | 64 | 17475 |
+| P | 4 | 4403 |
+| O | 80 | 12171 |
 | Total | 148 | 34049 |
 
 Q7 covers the unresolved FTP command/listing/scheduler closure; Q8 covers 008f7a50; Q9 covers the remaining reached scheduler/resource/container helpers and adapters. 008f9bad has only its capacity/default state inspected (section 3.6); the whole cookie constructor is not credited. Existing URL/cookie contracts are not duplicated. The public Release thunk 009cc22d and several folded getter bodies belong to other snapshot owners and are not added to this total.
 
 | Address | Body bytes | Attribution | Contract status / section or gap | Export name |
 |---|---:|---|---|---|
-| 00812de0 | 3607 | reach | P: Q7 | FUN_00812de0 |
-| 00814560 | 1878 | reach | P: Q7 | FUN_00814560 |
-| 00813e90 | 1741 | reach | P: Q7 | FUN_00813e90 |
+| 00812de0 | 3607 | reach | C: 4.13 / web-network-ftp.md | FUN_00812de0 |
+| 00814560 | 1878 | reach | C: 4.13 / web-network-ftp.md | FUN_00814560 |
+| 00813e90 | 1741 | reach | C: 4.13 / web-network-ftp.md | FUN_00813e90 |
 | 00816ee0 | 1628 | reach | P: Q7 | FUN_00816ee0 |
 | 008163d0 | 1466 | reach | P: Q7 | FUN_008163d0 |
 | 00815d30 | 1245 | reach | P: Q7 | FUN_00815d30 |
@@ -36,7 +36,7 @@ Q7 covers the unresolved FTP command/listing/scheduler closure; Q8 covers 008f7a
 | 00818210 | 481 | reach | O: Q9 | FUN_00818210 |
 | 008f815f | 478 | reach | C: 4.8 | FUN_008f815f |
 | 00816af0 | 451 | reach | O: Q7 | FUN_00816af0 |
-| 00812ba0 | 437 | reach | O: Q7 | FUN_00812ba0 |
+| 00812ba0 | 437 | reach | C: 4.13 / web-network-ftp.md | FUN_00812ba0 |
 | 00823000 | 432 | reach | C: 4.11 | FUN_00823000 |
 | 008f833d | 429 | name-medium | C: 4.1–4.5, 4.9 | cGZWWWSystem::LoadDocument |
 | 00816230 | 415 | reach | O: Q7 | FUN_00816230 |
@@ -47,25 +47,25 @@ Q7 covers the unresolved FTP command/listing/scheduler closure; Q8 covers 008f7a
 | 008f9bed | 299 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::cGZWWWSystem |
 | 00816db0 | 296 | reach | O: Q7 | FUN_00816db0 |
 | 0081ca90 | 266 | reach | O: Q9 | FUN_0081ca90 |
-| 00816990 | 242 | reach | O: Q7 | FUN_00816990 |
+| 00816990 | 242 | reach | C: 4.13 / web-network-ftp.md | FUN_00816990 |
 | 008f7966 | 234 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::SetCacheDirectory |
 | 008f93da | 230 | reach | C: 4.8 | FUN_008f93da |
 | 008f736e | 227 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::GetRAMDataPreferenceFromMIMEType |
 | 00817af0 | 220 | neighbour | O: Q7 | FUN_00817af0 |
-| 00811cd0 | 199 | reach | O: Q7 | FUN_00811cd0 |
+| 00811cd0 | 199 | reach | C: 4.13 / web-network-ftp.md | FUN_00811cd0 |
 | 00816cc0 | 197 | reach | O: Q7 | FUN_00816cc0 |
 | 0081cc10 | 191 | reach | O: Q9 | FUN_0081cc10 |
 | 00823310 | 190 | reach | C: 4.11 | FUN_00823310 |
 | 008f7f04 | 182 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::CancelAllDocumentLoadRequests |
-| 008120e0 | 174 | reach | O: Q7 | FUN_008120e0 |
+| 008120e0 | 174 | reach | C: 4.13 / web-network-ftp.md | FUN_008120e0 |
 | 008f8992 | 160 | name-medium | C: 4.1–4.5, 4.9 | cGZWWWSystem::~cGZWWWSystem |
 | 00813d70 | 154 | reach | O: Q7 | FUN_00813d70 |
-| 00812b10 | 144 | reach | O: Q7 | FUN_00812b10 |
+| 00812b10 | 144 | reach | C: 4.13 / web-network-ftp.md | FUN_00812b10 |
 | 008f6c47 | 143 | reach | C: 4.6 | FUN_008f6c47 |
 | 008f7e76 | 142 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::CancelDocumentLoadRequest |
-| 00811fc0 | 140 | reach | O: Q7 | FUN_00811fc0 |
+| 00811fc0 | 140 | reach | C: 4.13 / web-network-ftp.md | FUN_00811fc0 |
 | 008f6bbc | 139 | reach | C: 4.6 | FUN_008f6bbc |
-| 00811e70 | 138 | reach | O: Q7 | FUN_00811e70 |
+| 00811e70 | 138 | reach | C: 4.13 / web-network-ftp.md | FUN_00811e70 |
 | 008129c0 | 135 | reach | O: Q7 | FUN_008129c0 |
 | 008f70c3 | 135 | reach | C: 4.7 | FUN_008f70c3 |
 | 00812300 | 132 | reach | O: Q7 | FUN_00812300 |
@@ -73,7 +73,7 @@ Q7 covers the unresolved FTP command/listing/scheduler closure; Q8 covers 008f7a
 | 0081da90 | 125 | reach | O: Q9 | FUN_0081da90 |
 | 00817580 | 123 | reach | O: Q7 | FUN_00817580 |
 | 008f6a9a | 123 | reach | C: 4.6 | FUN_008f6a9a |
-| 00812d60 | 123 | reach | O: Q7 | FUN_00812d60 |
+| 00812d60 | 123 | reach | C: 4.13 / web-network-ftp.md | FUN_00812d60 |
 | 00812190 | 122 | reach | O: Q7 | FUN_00812190 |
 | 00813e10 | 120 | reach | O: Q7 | FUN_00813e10 |
 | 00813cb0 | 119 | reach | O: Q7 | FUN_00813cb0 |
@@ -81,17 +81,17 @@ Q7 covers the unresolved FTP command/listing/scheduler closure; Q8 covers 008f7a
 | 00817a70 | 116 | reach | O: Q7 | FUN_00817a70 |
 | 00812210 | 114 | reach | O: Q7 | FUN_00812210 |
 | 008f72fd | 113 | reach | O: Q9 | FUN_008f72fd |
-| 00812290 | 110 | reach | O: Q7 | FUN_00812290 |
+| 00812290 | 110 | reach | C: 4.13 / web-network-ftp.md | FUN_00812290 |
 | 008f80f2 | 109 | reach | O: Q9 | FUN_008f80f2 |
 | 00812aa0 | 104 | reach | O: Q7 | FUN_00812aa0 |
-| 00811da0 | 98 | reach | O: Q7 | FUN_00811da0 |
+| 00811da0 | 98 | reach | C: 4.13 / web-network-ftp.md | FUN_00811da0 |
 | 00813c50 | 94 | reach | C: 4.9 | FUN_00813c50 |
 | 00819650 | 94 | reach | C: 4.9 | FUN_00819650 |
 | 00812840 | 94 | reach | O: Q7 | FUN_00812840 |
 | 008f698b | 90 | name-high | C: 4.6 | cGZWWWSystem::DoMessage |
 | 008f6e2b | 85 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::RemoveURLHandler |
 | 00811e10 | 84 | reach | O: Q7 | FUN_00811e10 |
-| 00811f30 | 84 | reach | O: Q7 | FUN_00811f30 |
+| 00811f30 | 84 | reach | C: 4.13 / web-network-ftp.md | FUN_00811f30 |
 | 008f6d08 | 81 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::GetDocumentLoadStatus |
 | 00817d00 | 80 | reach | O: Q7 | FUN_00817d00 |
 | 0081dd70 | 80 | reach | O: Q9 | FUN_0081dd70 |
@@ -105,7 +105,7 @@ Q7 covers the unresolved FTP command/listing/scheduler closure; Q8 covers 008f7a
 | 008f692a | 65 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::Shutdown |
 | 008f9bad | 64 | reach | P: 3.6 / Q9 | FUN_008f9bad |
 | 008f708a | 57 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::AddURLHandler |
-| 00813d30 | 53 | reach | O: Q7 | FUN_00813d30 |
+| 00813d30 | 53 | reach | C: 4.13 / web-network-ftp.md | FUN_00813d30 |
 | 00818100 | 52 | reach | O: Q9 | FUN_00818100 |
 | 008f6cd6 | 50 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::RemoveAllURLHandlers |
 | 008f747b | 49 | reach | O: Q9 | FUN_008f747b |
@@ -157,7 +157,7 @@ Q7 covers the unresolved FTP command/listing/scheduler closure; Q8 covers 008f7a
 | 008f8a5a | 8 | vtable | O: Q9 | FUN_008f8a5a |
 | 008f8a52 | 8 | vtable | O: Q9 | FUN_008f8a52 |
 | 008f8a62 | 8 | vtable | O: Q9 | FUN_008f8a62 |
-| 00813bf7 | 6 | neighbour | O: Q7 | Catch@00813bf7 |
+| 00813bf7 | 6 | neighbour | C: 4.13 / web-network-ftp.md | Catch@00813bf7 |
 | 0090ce99 | 5 | reach | O: Q9 | FUN_0090ce99 |
 | 0081e760 | 5 | reach | O: Q9 | FUN_0081e760 |
 | 009d41a5 | 4 | name-low | C: 4.1–4.5, 4.9 | cGZWWWSystem::GetCookieManager |
