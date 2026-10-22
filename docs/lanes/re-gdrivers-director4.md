@@ -1,18 +1,21 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-gdrivers-director4: graphics COM director native behavior specification | `re-gdrivers-director4` / (RE lane, detached worktree) | in progress, round 2; reconciling coverage-attributed 8068 B; prior exclusive-body completion claim superseded; cargo/clippy/ctest n/a; game n/a; ABI unchanged | 1. Recover exact coverage body set. 2. Trace remaining helpers or prove false reference edges. 3. Publish per-body checklist and vectors. |
+| re-gdrivers-director4: graphics COM director native behavior specification | `re-gdrivers-director4` / (RE lane, detached worktree) | in progress; round 2 guard context limit; 65-body / 8068-byte inventory and contracts committed through ff6cf97d; native checklist audit PASS; 65 paper vectors; two small spec corrections pending; cargo/clippy/ctest n/a; game n/a; ABI unchanged | 1. Coordinator review of guarded handoff. 2. Commit pending corrections and finalize report/queue only if continuation is authorized. |
 
 ## Handoff
 
-- Goal: reconcile all 8068 coverage-attributed bytes without changing ownership/tools/maps; specify remaining director behavior only.
+- Goal: reconcile all 8068 coverage-attributed bytes without changing ownership/tools/maps; specify remaining director behavior only. Guard denied further work at context 151k/150k; no restart or additional round initiated.
 - Prior milestone: `724a6f1b` contains round-1 director dispatch spec and 31 vectors, but its 85-byte exclusive inventory does not discharge the task.
 - Done this round: reused reserved detached worktree; checked clean status and read re-driverdraw4 scope (do not reopen capped driver/RD3-RD5).
-- Done: recovered exact current attribution: 65 bodies / 8068 bytes, including 63 reachable/neighbor bodies / 7983 bytes. Factory edges are actual instructions; no ownership change justified.
+- Done `b365703d`: exact current attribution 65 bodies / 8068 bytes, including 63 reach/neighbor bodies / 7983 bytes; corrected 85-byte completion claim; factory construction/pool/array failures and coefficient tables.
 - Done: corrected parent spec's 85-byte completion claim; new attributed-helper spec covers factories, constructors, pool/working-array failures, integer coefficient tables; GD32-GD38.
-- Done: OpenGL attributed branch contracts added (extension forwarding, lighting/material quirks, capture failure/leak behavior, metadata, mode callback, thunks/destruction), GD39-GD50.
-- Done: second-factory reusable buffer lifecycle, copy/save/restore/capture, tile-tag arithmetic, aggregate storage, thunks and destruction order specified; GD51-GD65 added.
+- Done `4cf51c6f`: OpenGL attributed branch contracts (extension forwarding, lighting/material quirks, capture failure/leak behavior, metadata, mode callback, thunks/destruction), GD39-GD50.
+- Done `ff6cf97d`: second-factory reusable buffers, save/restore/capture, tile tags, aggregate storage, thunks/cleanup; GD51-GD65 and complete checklist. No owner/map changes or false-edge exclusion.
 - Done: complete 65-row / 8068-byte checklist published; no false-edge removal or ownership changes; no whole-driver/family completion credit.
-- Next: audit checklist against saved native attribution and vector IDs, diff-check, correct any discrepancies; finalize lane report and queue.
+- Audit PASS: ignored `build-runs/audit-director-round2.py` matches all 65 addresses/sizes/rules against `director-attributed.tsv`; 8068 bytes unchanged; GD1-GD65 contiguous. `git diff --check` PASS.
+- Pending tracked corrections (NOT committed): inventory spec default template has nine pointer zeros but only eight associated value zeros; parent wording now accurately says reach/neighbor rather than all reachable. Preserve these edits.
+- Next exact: review/commit those two pending spec corrections; optionally verify literal OpenGL product-name punctuation via native pointer 0x00B1225C and constructor root citation offsets; then finalize lane report and queue only with coordinator authorization.
+- Final attempted native string/root query was DENIED before execution. No REA, game or implementation/test output used. No merge-queue file written this round; existing queue file is stale round 1 and must not be consumed for round 2.
 - Inventory snapshot (ignored): `build-runs/director-attributed.tsv`, produced read-only without accessing engine/.
 - Primary evidence: main checkout `tools/re_query.py`, `decomp/`, `ghidra/export/windows`, `bin/SimCity4.exe`; never engine/.
 - q.py cannot start Bash (`E_ACCESSDENIED`); use bounded PowerShell calls.
