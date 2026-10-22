@@ -20,3 +20,15 @@
   through the buffer's set-pixel vfunc `+0x58` and bypasses the span renderer. What value does it write on a
   colour-type 2 (1 byte per pixel) target for full and partial coverage (the colour comes from `ctx+0xB4` bytes and
   possibly the `+0x78` mapping, which is 0 for type 2)? Belongs to the context spec, not to cSpanRender8.
+
+<!-- from: glue-span8-impl4 (2026-10-22) -->
+- **SR9 - section 10.1 / 10.5, reconciled native ABI prerequisite:** can the ABI owner publish the six
+  `cSpanRender8` vtable `0x00AC188C` rows (slots 0..5, thiscall, callee pops 4/16/16/20/16/24;
+  destructor returns this in EAX, render slots return void) and reconcile the native-context rows before this
+  bridge is enabled? `docs/abi/interfaces.tsv` has no rows for this renderer, `cGZDrawContextRenderToBuffer`,
+  `cGZDrawSystem` or `cGZBuffer`. The 17 rows in `docs/abi/proposals/re-span-context4.tsv` are explicitly
+  unapplied per its adjacent report; in particular slot 22 still says `unknown` while section 10.5 says void.
+  The constructed route needs draw-system slot 4 (pop 8, AL), context slots 3/4/7/8/9/12/13/14/15/22
+  (pops 4/0/12/4/4/12/24/0/4/8), and buffer Init/Lock/Unlock plus the descriptor getters specified in
+  section 10.3. [Stop this path under the lane's no-unreconciled-ABI instruction; no table edits, new native
+  forwarders or fixture calls. Existing sibling infrastructure is unchanged.]
