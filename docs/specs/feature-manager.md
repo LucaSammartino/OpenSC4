@@ -215,8 +215,9 @@ destruction asks IsOpen, calls Close if open, and Releases its reference
 that a faulting provider, thrown exception or invalid pointer reaches this normal cleanup.
 
 SC4GetResourceAsFile itself opens the raw record, queries its serial interface, creates a
-file adapter and queries its record-binding interface; its success path binds the serial record
-and returns the acquired file interface (`0x005F9692–0x005F9717`). Acquisition failure is
+file adapter and queries its record-binding interface; its success path calls serial-record
+binding without checking its return and returns the acquired file interface
+(`0x005F9692–0x005F9717`). Acquisition failure is
 different from subsequent Read failure: the helper's normal false path nulls the output
 (`0x005F976C–0x005F977C`), so that pack's installed bit is not set. Merely locating a record
 does not prove the helper succeeds. The outcomes above describe the owner/INI response to

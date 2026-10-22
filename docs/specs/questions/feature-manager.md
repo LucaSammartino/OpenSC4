@@ -8,8 +8,8 @@
   manager pointer kept in memory and used later would escape both. An in-game probe that counts calls of slots 5
   and 6, with return addresses, over one session would settle it. [reachability only: the spec's answers stand
   either way]
+
 <!-- from: re-featuremgr (2026-10-19) -->
 - **FM2 - §6:** the key `tutorial_registry`'s `add_default_region(n, dir)` writes into `default_regions`, and so
   whether pack 1 reaches `timbuktu` through key 1 of the registry's map (`0x004B79A4`). Belongs with the tutorial
   registry. [reachability only: the spec's answers stand either way]
-
