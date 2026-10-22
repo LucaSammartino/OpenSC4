@@ -441,10 +441,14 @@ The power-line tool uses the base `PlaceNetworkOccupants` and `PlaceNetwork`. It
 2. With at least 2 dragged steps: `DeterminePolePositions` (`0x00650840`), then `PlacePoles(1)` (`0x00651560`).
 3. If the pole span (`+0x370 − +0x36C`) is under 48 units (`/ 0x30` is 0): valid count := 0.
 4. **Regional connection.** Try it only if all of these hold: `neighbourMode` is set; the whole drag is valid; there
-   are at least 2 pole positions; and no failure code is set. When `real`, `AttemptNeighborConnections` is followed by
-   `PlaceNeighborConnections`.
+   are at least 2 anchor cells (`+0x118..+0x11C`); and no failure code is set. `AttemptNeighborConnections`
+   runs in both modes. Only a successful attempt followed by `real` calls `PlaceNeighborConnections`.
 5. In draft mode, slot 82 (0) refreshes the preview.
 6. Release the pole infos; return **true**. The base solve never runs for power lines.
+
+The remaining owner contracts, including the pole records, geometry, commit/preview split and lifecycle,
+are in [power-line-tool.md](power-line-tool.md). Slot 82 is `SetTerrainHilight(startStep)` (`0x0064F2B0`),
+not a second placement or pole-rebuild pass.
 
 **Reserved tiles** (`CheckForReservedTiles`, slot 81, `0x0064FED0`). The tool walks the dragged cells, asking
 `CellIsOKForPlacement` (`0x0064FD00`) about each:
