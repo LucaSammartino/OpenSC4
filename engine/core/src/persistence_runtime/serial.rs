@@ -12,6 +12,29 @@ pub trait RawStream {
     fn close(&mut self) -> bool;
 }
 
+/// Standard portable in-memory byte/seek primitive. read_exact may update a
+/// prefix before failing; typed readers preserve those effects.
+impl RawStream for std::io::Cursor<Vec<u8>> {
+    fn read(&mut self, out: &mut [u8]) -> bool {
+        std::io::Read::read_exact(self, out).is_ok()
+    }
+    fn write(&mut self, bytes: &[u8]) -> bool {
+        std::io::Write::write_all(self, bytes).is_ok()
+    }
+    fn position(&self) -> u64 {
+        std::io::Cursor::position(self)
+    }
+    fn size(&self) -> u64 {
+        self.get_ref().len() as u64
+    }
+    fn seek(&mut self, position: u64) -> bool {
+        std::io::Seek::seek(self, std::io::SeekFrom::Start(position)).is_ok()
+    }
+    fn close(&mut self) -> bool {
+        true
+    }
+}
+
 mod sealed {
     pub trait Sealed {}
 }
@@ -53,11 +76,21 @@ impl<S: RawStream> SerialRecord<S> {
         Self::with_record(raw, native_order, DbRecord::new(Key::default(), 1, 0, None))
     }
     pub fn with_record(raw: S, native_order: bool, record: DbRecord) -> Self {
-        Self { record, raw, native_order }
+        Self {
+            record,
+            raw,
+            native_order,
+        }
     }
-    pub fn raw(&self) -> &S { &self.raw }
-    pub fn raw_mut(&mut self) -> &mut S { &mut self.raw }
-    pub fn native_order(&self) -> bool { self.native_order }
+    pub fn raw(&self) -> &S {
+        &self.raw
+    }
+    pub fn raw_mut(&mut self) -> &mut S {
+        &mut self.raw
+    }
+    pub fn native_order(&self) -> bool {
+        self.native_order
+    }
     pub fn query_interface(&mut self, iid: u32) -> Option<RecordInterface> {
         let view = match iid {
             SERIAL_IID => RecordInterface::Serial,
@@ -68,34 +101,52 @@ impl<S: RawStream> SerialRecord<S> {
         self.record.add_ref();
         Some(view)
     }
-    pub fn adapter(&mut self) -> StreamAdapter<'_, S> { StreamAdapter { serial: self } }
-    pub fn get<T: Field>(&mut self, value: &mut T) -> bool { self.get_array(std::slice::from_mut(value)) }
-    pub fn set<T: Field>(&mut self, value: &T) -> bool { self.set_array(std::slice::from_ref(value)) }
+    pub fn adapter(&mut self) -> StreamAdapter<'_, S> {
+        StreamAdapter { serial: self }
+    }
+    pub fn get<T: Field>(&mut self, value: &mut T) -> bool {
+        self.get_array(std::slice::from_mut(value))
+    }
+    pub fn set<T: Field>(&mut self, value: &T) -> bool {
+        self.set_array(std::slice::from_ref(value))
+    }
     pub fn get_array<T: Field>(&mut self, values: &mut [T]) -> bool {
-        let Some(len) = values.len().checked_mul(T::WIDTH) else { return false; };
+        let Some(len) = values.len().checked_mul(T::WIDTH) else {
+            return false;
+        };
         let mut bytes = vec![0; len];
         // Seed with existing bits so failed raw reads retain their own effects.
-        for (value, bytes) in values.iter().zip(bytes.chunks_exact_mut(T::WIDTH)) { value.encode(bytes); }
+        for (value, bytes) in values.iter().zip(bytes.chunks_exact_mut(T::WIDTH)) {
+            value.encode(bytes);
+        }
         let result = self.raw.read(&mut bytes);
         for (value, bytes) in values.iter_mut().zip(bytes.chunks_exact_mut(T::WIDTH)) {
-            if !self.native_order && T::INTEGER { bytes.reverse(); }
+            if !self.native_order && T::INTEGER {
+                bytes.reverse();
+            }
             *value = T::decode(bytes);
         }
         result
     }
     pub fn set_array<T: Field>(&mut self, values: &[T]) -> bool {
-        let Some(len) = values.len().checked_mul(T::WIDTH) else { return false; };
+        let Some(len) = values.len().checked_mul(T::WIDTH) else {
+            return false;
+        };
         let mut bytes = vec![0; len];
         for (value, bytes) in values.iter().zip(bytes.chunks_exact_mut(T::WIDTH)) {
             value.encode(bytes);
-            if !self.native_order && T::INTEGER { bytes.reverse(); }
+            if !self.native_order && T::INTEGER {
+                bytes.reverse();
+            }
         }
         self.raw.write(&bytes)
     }
     pub fn set_string(&mut self, bytes: &[u8]) -> bool {
         // Published writer domain (foundations §2.3). Invalid writer inputs
         // are rejected as a portable API precondition, not a native claim.
-        if bytes.len() > 200_000 || bytes.contains(&0) { return false; }
+        if bytes.len() > 200_000 || bytes.contains(&0) {
+            return false;
+        }
         self.set(&(bytes.len() as u32)) && self.raw.write(bytes)
     }
     pub fn get_string(&mut self, out: &mut Vec<u8>) -> bool {
@@ -111,27 +162,48 @@ impl<S: RawStream> SerialRecord<S> {
         }
         let start = self.raw.position();
         let mut header = 0u32;
-        if !self.get(&mut header) { return false; }
+        if !self.get(&mut header) {
+            return false;
+        }
         let count = (header & 0xffffff) as usize;
-        if count > 200_000 { return false; }
-        if count == 0 { out.clear(); return true; }
+        if count > 200_000 {
+            return false;
+        }
+        if count == 0 {
+            out.clear();
+            return true;
+        }
         match header >> 24 {
             0 | 0x10 => {
                 let utf16 = header >> 24 == 0x10;
                 let mut bytes = vec![0; count * if utf16 { 2 } else { 1 }];
                 let result = self.raw.read(&mut bytes);
-                if !result { return false; } // failure destination unpublished (PR10)
+                if !result {
+                    return false;
+                } // failure destination unpublished (PR10)
                 if utf16 || (bytes.len() >= 2 && bytes[1] == 0) {
                     // PR10: the guessed UTF-16 native path can read outside
                     // the input. Only complete, valid code units are supported.
-                    if bytes.len() % 2 != 0 { return false; }
-                    let units: Vec<_> = bytes.chunks_exact(2).map(|b| {
-                        if self.native_order { u16::from_le_bytes([b[0], b[1]]) }
-                        else { u16::from_be_bytes([b[0], b[1]]) }
-                    }).collect();
-                    let Ok(text) = String::from_utf16(&units) else { return false; };
+                    if bytes.len() % 2 != 0 {
+                        return false;
+                    }
+                    let units: Vec<_> = bytes
+                        .chunks_exact(2)
+                        .map(|b| {
+                            if self.native_order {
+                                u16::from_le_bytes([b[0], b[1]])
+                            } else {
+                                u16::from_be_bytes([b[0], b[1]])
+                            }
+                        })
+                        .collect();
+                    let Ok(text) = String::from_utf16(&units) else {
+                        return false;
+                    };
                     *out = text.into_bytes();
-                } else { *out = bytes; }
+                } else {
+                    *out = bytes;
+                }
                 result
             }
             _ => {
@@ -159,11 +231,19 @@ impl<S: RawStream> SerialRecord<S> {
 
 /// Borrowed views share the record position and logical count. QI acquisition
 /// is performed by SerialRecord, not implicitly by constructing this borrow.
-pub struct StreamAdapter<'a, S> { serial: &'a mut SerialRecord<S> }
+pub struct StreamAdapter<'a, S> {
+    serial: &'a mut SerialRecord<S>,
+}
 impl<S: RawStream> StreamAdapter<'_, S> {
-    pub fn set_void(&mut self, bytes: &[u8]) -> bool { self.serial.raw.write(bytes) }
-    pub fn get_void(&mut self, bytes: &mut [u8]) -> bool { self.serial.raw.read(bytes) }
-    pub fn set_gz_str(&mut self, bytes: &[u8]) -> bool { self.serial.set_string(bytes) }
+    pub fn set_void(&mut self, bytes: &[u8]) -> bool {
+        self.serial.raw.write(bytes)
+    }
+    pub fn get_void(&mut self, bytes: &mut [u8]) -> bool {
+        self.serial.raw.read(bytes)
+    }
+    pub fn set_gz_str(&mut self, bytes: &[u8]) -> bool {
+        self.serial.set_string(bytes)
+    }
     pub fn set_rz_char_str(&mut self, bytes: &[u8]) -> bool {
         self.serial.set_string(crate::rz_streams::c_str(bytes))
     }

@@ -27,3 +27,42 @@ Hidden constructors, undefined short-read destinations, arithmetic overflow,
 allocation failure details, malformed UTF-16 and foreign RGB conversions are
 not implicitly established by implementing a module. Final per-group status
 and discriminating test evidence will be recorded here.
+
+## Implemented portable bodies (pre-gate)
+
+- DBRecord: all published state/access/QI/reference/close groups; explicit
+  count input, segment AddRef, close-once release even on false, destructor
+  release without an extra close. Native constructor allocation unsupported.
+- SerialRecord: all integer/signed/float widths and arrays, raw-result and
+  swap-after-failure quirks, strings, resource keys, marker-free variants,
+  shared-position borrowed stream views and std Cursor byte primitives.
+  Native GZCOM vtable adapters, stack/heap allocation thresholds and malformed
+  string memory effects are not implemented/claimed.
+- Resource: atomic reference count initially zero, QI, locked key and type.
+  Native object memory reclamation is represented by logical release plus
+  Rust ownership; no plugin/native resource replacement is claimed.
+- ResourceFactory: locked record/type construction, forwarded argument route,
+  key-before-Read, serial QI acquisition/release, output QI and temporary
+  cleanup. Derived hooks are sealed runtime implementations, never foreign
+  full-SerialRead providers. Current object representation specializes to
+  BufferResource; other derived resource owners and reentrancy unsupported.
+- BufferResource: held-buffer references, buffer-first QI, v0/v1/v2 raw-prefix
+  dispatch, stored-vs-target initialization, correct packed/padded row copies,
+  QFS decoded-size validation, palette/BMP parsing, bottom-up BMP choice,
+  version dispatch, packed QFS save, literal BMP headers and ignored raw
+  write-result quirk. Pixel colour conversion remains a narrow primitive.
+  Owned buffers use only the published colour table, packed stride and an
+  explicit caller memory bound. Native thresholds/allocation failures,
+  malformed v1 size effects, negative BMP dimensions, inferred translation
+  details and buffers supplying a foreign resource interface remain gaps.
+- BufferResourceFactory: target/default stack, type allocation/QI/temporary
+  cleanup, serial type/QI checks, temporary load/save, file access 1/3 and
+  close ordering, module-vs-own-module target selection. OS open/module
+  acquisition are explicit primitives; no production native SDF/Win32 host
+  implementation or native constructor-allocation failure claim.
+
+All six owners remain **partial** against the 131-function / 13,721-B
+denominator. No exact implemented-byte subtotal is asserted: the spec gives
+no per-body byte attribution. Foreign primitives and existing KeyList are
+excluded. QFS reuse is via a narrow adapter in formats because formats already
+depends on core; core cannot depend back on formats.

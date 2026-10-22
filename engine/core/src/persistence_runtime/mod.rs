@@ -2,10 +2,23 @@
 //! Portable persistence.md §§2-7. Logical interface references are explicit;
 //! Rust owns allocations. Calls after logical destruction are outside the API.
 //! No native layout, DBPF native-order configuration or shipped-image claim.
+mod factory;
+mod image;
 mod record;
+mod resource;
 mod serial;
+mod variant;
 pub use crate::persistence_manager::{Key, KeyList};
+pub use factory::{
+    BufferResourceFactory, FactoryHooks, FactoryOutput, FactoryRecord, RecordOpener,
+    ResourceFactory, ResourceHandle,
+};
+pub use image::{
+    Buffer, BufferHandle, BufferLayout, BufferResource, Format, ImageCodec, OwnedBuffer,
+    PixelConversion,
+};
 pub use record::{DbRecord, RecordInterface, Segment};
+pub use resource::{Resource, ResourceInterface};
 pub use serial::{Field, RawStream, SerialRecord, StreamAdapter};
 
 pub const UNKNOWN_IID: u32 = 1;
@@ -20,5 +33,7 @@ pub const BUFFER_IID: u32 = 0x20732180;
 pub const BUFFER_FACTORY_IID: u32 = 0xa2c72982;
 pub const BUFFER_TYPE: u32 = 0x62b9da24;
 
+#[cfg(test)]
+mod edge_tests;
 #[cfg(test)]
 mod tests;
