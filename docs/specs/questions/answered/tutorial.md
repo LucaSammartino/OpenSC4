@@ -13,9 +13,16 @@
   Arity, save validation and reset ordering are observable and ignoring the cheat omits those effects.
 
 <!-- from: glue-tutorial4 (2026-10-21) -->
-- **TU9 - sections 4.2 / 4.4 (the tutorial window as direct calls):** What allocator, constructor/Init/close/event
-  arguments, reference counts, base pointer, slots 6-11 and tutorial-owner callbacks are required to retain the
-  original window? **ANSWERED 2026-10-22 (re-tutorial-contracts4):** DIFFERS — §4.2.2 and §4.4.1 give the native
+- **TU9 - sections 4.2 / 4.4 (the tutorial window as direct calls):** `cSC4TutorialUIWinProc` (100 bytes,
+  constructor `0x00442920`, close `0x00442C80`, `OnTutorialEvent` `0x00443970`) has no interface or vtable rows in
+  docs/abi. To keep the original window a replacement needs: the allocator for the 100 bytes (docs/abi/allocators.md),
+  the constructor's arguments and the reference count it leaves; which pointer `startTutorial` stores at +0x40 and
+  hands to `Init` (and `Init`'s arguments, e.g. the tutorial system, the GUID, the task number, the Lua context); the
+  window's vtable with slots 6-11 (`FilterMessage` field, `ShowUIHintsForUsers`, `HandleCatalogMenu`, current task,
+  `FilterLeftMouseClick`, `ResetTutorialNumAndIndex`): address, pop, arguments and return channel; and the close
+  call's convention. Does the window call back into the tutorial system (which slots) during Init or a task step?
+  [no window is created: every slot answers its without-window column]
+  **ANSWERED 2026-10-22 (re-tutorial-contracts4):** DIFFERS — §4.2.2 and §4.4.1 give the native
   boundary: heap C(100), constructor refcount0/base result/no arguments, two explicit owner references,
   Init/close thiscall/no arguments/pop0, event uint32/pop4/AL true, base table00A8638C slots6-11. Init obtains
   system slots7/12/11 from borrowed global00B20E88; task advancement uses slots12/11/20/11, and completion posts
@@ -24,15 +31,26 @@
   protocol; no complete UI-class implementation/coverage or runtime-reopen verification is claimed.
 
 <!-- from: glue-tutorial4 (2026-10-21) -->
-- **TU8 - section 4.4 slot 13 (`FilterMessage`'s argument):** What record/interface and offsets hold the kind,
-  ID and forwarded data? **ANSWERED 2026-10-22 (re-tutorial-contracts4):** DIFFERS — §4.4.2 proves a plain
+- **TU8 - section 4.4 slot 13 (`FilterMessage`'s argument):** "a message of kind 3 with ID `0x287259F6` /
+  `0x287259F7` ... data field 2 ... `0x49D993D4`, its field 3": what is the argument's type (a `cGZMessage*`, a
+  `cIGZMessage2*`, a window message struct), where are "kind", "ID" and the data fields (offsets, or which
+  interface slots), and what are their types? [not decoded; the answer is true, which is the without-window answer]
+  **ANSWERED 2026-10-22 (re-tutorial-contracts4):** DIFFERS — §4.4.2 proves a plain
   window-message prefix of four dwords, kind+0, ID+4, payload+8/+12, no vtable. Kind3 with F6/F7 IDs forwards
   +8, with ID49D993D4 forwards +12 to original-window slot6. All returns true, but forwarding can advance a task
   and call back into system slot20, so an unconditional no-op differs when the window is present.
 
 <!-- from: glue-tutorial4 (2026-10-21) -->
-- **TU6 - sections 4.2 / 4.3 and TU1 (registry calls as direct calls):** What are the calling convention,
-  arguments, returns and ownership of `SetActive` / `GetItem`, and the preferences-save execution context?
+- **TU6 - sections 4.2 / 4.3 and TU1 (registry calls as direct calls):** `cSC4TutorialRegistry` has no vtable (TU1),
+  so a replacement `cSC4TutorialSystem` can make `startTutorial`'s `SetActive(GUID, 1)`, `endTutorial`'s
+  `SetActive(GUID, 0)` and the city-init handler's entry lookup only by calling `0x004B5D80` and `0x004B5D10`
+  itself, in the docs/abi/direct-calls.md format, but neither is there. For each: calling convention (thiscall with
+  ECX = `cISC4App` slot 49's result, `&app+0x1C0`?), the stack arguments (count, types: is the GUID a `long` passed
+  by value, is `active` a bool byte or a dword?), the bytes the callee pops and the return channel (AL / EAX; for
+  `0x004B5D10` a `cItem*` into the list node or null?). Is calling `SetActive` from a DLL safe while the
+  preferences block may be saved (slot 17) on the main thread only? [no call is made: SetActive is not made and
+  the entry lookup answers "no entry", so a loaded tutorial city keeps is-tutorial set without a window, quirk 2's
+  state]
   **ANSWERED 2026-10-22 (re-tutorial-contracts4):** DIFFERS — tutorial.md §4.2.1 proves ECX = app slot49's
   borrowed result (already app+0x1C0), GUID by value, GetItem pop4/EAX borrowed item-or-null, SetActive pop8/AL
   changed-state with active read as a byte in a dword slot. Preferences save is synchronous only when an array
