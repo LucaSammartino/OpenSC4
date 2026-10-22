@@ -1,6 +1,25 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-powerline-completion4 (PowerLineTool public owner contracts) | `re-powerline-completion4` / (RE spec lane) | ready: bounded docs; whole owner PARKED incomplete | Publish docs only; retain NT18/NT22/NT24, withhold owner coverage; no fourth round. |
+| re-powerline-completion4 (PowerLineTool public owner contracts) | `re-powerline-completion4` / (RE spec lane) | continue: guard stopped queue publication; bounded docs committed; owner PARKED | Coordinator publication only; no further RE round; retain NT18/NT22/NT24 and withhold owner coverage. |
+
+## Handoff
+
+- Goal: final third round completed bounded docs; whole owner remains PARKED. No fourth RE round.
+- Commits: f19c79f9 builder; 3dc0b77a zone/type-5 Attempt; 510f273a numeric curves/containers;
+  c5e838ab final spec/question/report publication. Preserves 27cc9cf9 and 67f996cf.
+- Validated: diff 27cc9cf9 --check passes; questions index regenerated; 46 unique entries / 16156 B;
+  all prior 48 vectors preserved plus 12 = 60 unique. Cargo/clippy/ctest/game/shadow n/a; no ABI change.
+- NT21 and NT23 answered in docs/specs/questions/answered/network-tools.md. NT18/NT22/NT24 parked
+  in open questions; full exact evidence/bytes and remaining invariants in final report below.
+- Exact next step: coordinator publishes detached commits to reserved branch and queues bounded docs.
+  Do not restart RE or promote whole-owner coverage. No further research is authorised this round.
+- Queue attempt was blocked before execution by context guard at 150k; no new queue file was written.
+  Any existing ignored queue file is from a prior round and must not be mistaken for this tip.
+- Final committed spec/report tip before this handoff: c5e838ab. Actual final tip is this handoff commit.
+- Native comparison: sample count trunc(max(minimumCount,length/sampleDistance)), defaults 5 and 8.
+- Main checkout read-only; no engine/tools/ABI-table edits. Export/decomp fallback; no REA retry.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-powerline-completion4-r3-manifest.json.
+- Harness requires structured state continue solely for budget stop; this is not a request for round 4.
 
 ## Final report — 2026-10-22, round 3 of 3
 
