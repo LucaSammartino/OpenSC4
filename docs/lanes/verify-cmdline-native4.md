@@ -18,9 +18,11 @@
 - Native-a immutable DLL in build-runs/cmdline4-r2-immutable; source07aa4988, gate57e7b65d. No active request.
 - Add per-method positive/negative evidence and register opt-in key (warning fix). No supported watchdog override found; do not alter thresholds.
 - Logging/key update92e01745: quick532/0 + build5/5 PASS; stable all cargo4963/0, clippy0, build2/2, ctest68/68 (72.9s) PASS.
-- Next: immutable-b snapshot of92e01745; current40 label cmdline4-r2-current40-2032-b will be submitted next, then native retry. Save2032-01-02, end2032-02-01.
+- Current40-b CLEAN2032-02-01, ref0, 123/123 exact; positive/negative observed for every search/switch/index method. Full SaveCity(full)11094ms on2032-01-06; PostSystemServiceShutdown reached. No other warnings/INCOMPLETE.
+- Immutable-b source92e01745; SHA256053BD7A077A43A31ACB065C3B985D792CD9FEBFADAA82B0E7A343D742621FABC. No engine changes since gate33596de3.
+- Next: native retry cmdline4-r2-native-2032-b with same snapshot/schedule, no ineffective sim_turbo flag. Save2032-01-02, end2032-02-01.
 - Preserve CL1 extra slot, CL2 empty name, CL3 high bytes; no full 17-method claim.
-- Use build-runs/cmdline4-r2-wait.py (never qwait); retain every completed verdict. Upcoming current40-b; native-b not yet submitted.
+- Use build-runs/cmdline4-r2-wait.py (never qwait); retain every completed verdict. Upcoming native-b; current40-b complete.
 - Required: immutable native/current40 controls, full save/shutdown to 2032, ref0, supported reload only.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-cmdline-native4-r2-manifest.json.
 
