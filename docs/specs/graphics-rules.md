@@ -164,6 +164,20 @@ of at most eight hex digits, stopping on the first other byte; no digits gives z
 (`0x0090FCEF–0x0090FD8F`). Here its input is the NUL-terminated four-byte substring, so `12G4` gives
 18 and `GGGG` gives zero without making parsing fail. A short `cardVersion` leaves both IDs zero.
 
+The file-registration argument is a bit field, not a priority: bit 0 makes errors in that
+top-level file fatal to the aggregate result. Bit 1 requests a directory watcher; neither graphics
+registration sets it (`0x00681E10–0x00681E65`). Both paths are visited in registration order in one
+parse session (`0x00680990`, `0x0068135C–0x00681387`, `0x006813ED`). The per-file catch records an
+error except for code 2 (open failure) on an optional file, and marks failure only for a required
+file (`0x006813A2–0x006813E9`). Thus a missing options file is ignored; even a non-open parse error
+in that optional file does not set the aggregate failure flag. There is no per-file rollback of
+already executed callbacks. The no-partial-publication rule above applies when the aggregate result
+is false; optional-file errors can leave a partial options contribution in a successful publication.
+After a required-file error, later registered files are still visited. The parser runs its begin
+hook once, its end hook only if the aggregate succeeded, and its finish hook in either case.
+`DoParseFile` treats a false `ReadLine` result as end of input and does not separately classify a
+read failure (`0x00680F64–0x00680F78`). This is not an all-files transaction or an I/O-integrity check.
+
 ## 4. The language *[compat]*
 
 The files use the game's command parser (`nSCRes`): one command per line with its arguments, `#` comments, `set
@@ -539,3 +553,38 @@ escapes from the shipped files. The externally injectable operations are only th
 filesystem/path acquisition and the application preference/command-line data used in §§3/6. The rule
 manager and its callbacks own deterministic parsing into lists, wildcard matching, numeric conversion,
 tree traversal, recommendation updates and typed property dispatch.
+
+### 12.1 Concrete shared bodies still required by complete-owner credit
+
+These are actual native dependency entries, not proposed new graphics methods. Existing callback
+inventory above remains the graphics-specific owner inventory. A literal-only parser does not
+cover these dependencies. Conversely their foreign primitives do not imply ownership of Lua.
+
+| Native entry | Responsibility and contract status |
+|---|---|
+| `0067B3B0` SplitIntoArguments | token/bracket/quote/comment splitting; full lexical tables and escapes remain GR4 |
+| `00677B90` SubstituteVariables | token interpolation and unknown-name errors; boundary parenthesization remains GR4 |
+| `00678B00` RegisterCommands; `00679120` ParseCommandArguments; `00679450` ParseCommand | base command registry, substitution, enclosing-block/root dispatch; full registration/arity remains GR4 |
+| `00677510` cSetCommand::Parse | typed symbol construction; complete aliases, extra-argument and conversion policy remain GR4 |
+| `00679A20` cEvalCommand::Parse | exactly one argument, retokenize and dispatch; no Lua call in this body |
+| `00676B30` StartBlock; `00676110` cEndBlockCommand::Parse | push block; end calls its end hook and pops; end outside a block throws; EOF validation remains GR4 |
+| `00681DA0` AddInputFilePath; `00680990`/`006812F0` ParseFiles; catch `006813A2`; continuation `006813ED` | registration bits, ordered parse and optional-file failure policy, §3 |
+| `00680EA0` DoParseFile; continuation `00681176`; `00680B20` relative-path test; `00680C40` path-prefix insertion; `00680E30` FindParentDir | file reading/includes/path construction; full sinclude distinction and cycle behavior remain GR4 |
+| `00679DA0` EvalPositiveConstant; `0067AC30` parenthesized-expression helper; `0067AC60` EvalSignedNumber | primary/function selection; complete function/domain and literal rules remain GR4 |
+| `0067B360` EvalFactor; `0067B920` EvalTerm; `0067B990` multiplicative layer; `0067BA40` additive layer; `0067BB20` ParseExpression | signs, precedence, operation order and expression termination, §4.5; general Lua parsing is not required |
+| `0067BBA0` ParseFloat; `0067BC00` ParseInt; `0067BC70` ParseUint; `0067BCD0` ParseBool | native conversion wrappers; bool aliases/exceptional conversions remain GR4 |
+| `0090F574` cRZString::Sprintf; `0090E312` byte append; `009306DE` WriteLine | shared string/text algorithms used by §6.1; append ends in byte memcpy (`0090E355`) |
+
+Standard foreign primitives called by these algorithms include CRT character classification,
+decimal/hex numeric conversion, memcpy, floor/pow and the math library, `_ftol2`, and printf
+numeric formatting. Their observable profiles must be matched or explicitly bounded; they are
+not a license to replace the owned dispatcher, expression precedence or symbol/include algorithms
+with a provider callback. The decompiler mislabels the call at `0067BC8A` as a Lua operation in
+some pseudocode: the instructions call `_ftol2` at `009EEF04`. Do not infer a Lua dependency from
+that label. This round does not assert exhaustive absence of all scripting paths in base commands
+whose registration/body coverage is still open.
+
+Fallback construction stores each bool-name lookup result directly in its action record without
+checking for an unknown-name result (`007D1441–007D146D` and following analogous property additions).
+It does not turn missing fallback properties into a second parser failure. Applying those records
+uses the ordinary renderer setter boundary; no replacement name or property is invented.

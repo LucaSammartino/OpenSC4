@@ -180,4 +180,60 @@ evaluates, writing 7, without another gather. Evidence: `007D0420`, `007D18E0`.
 
 Inside a rule, `property noSuchThing 1` fails with `Unknown render property`; `has mmx` fails enum parsing;
 `atLeast memory "2x"` fails with `Bad real number`. Partially parsed lists are not published. Init installs
-fallback on failure and has no parse-success return. Evidence: `007E4250`, `0067BBCE`, `007D18C2–007D18CD`.
+fallback on aggregate failure and has no parse-success return. These error examples refer to the
+required rules file; optional-file errors follow §3. Evidence: `007E4250`, `0067BBCE`, `007D18C2–007D18CD`.
+
+## V11. Native arithmetic differs from common substitute evaluators
+
+At the numeric-reader boundary, under masked exceptions and round-to-nearest/even:
+
+| Input/reader | Expected | Discriminates |
+|---|---|---|
+| `2^3^2`, real | 512 | right-associative power |
+| `-2^2`, real | 4 | signs bind before power |
+| `-5%3`, real | 1 | floor remainder, not C remainder |
+| `(16777216+1)-16777216`, real | 1 | binary64 accumulators, not binary32 |
+| `2.9`, uint or threshold | 2 | truncation |
+| `3.5`, signed property int | 4 | binary32 bias/bit conversion, not truncation |
+| `2.5`, signed property int | 2 | nearest/even tie |
+
+These bypass command token splitting so unknown lexical rules cannot determine the expected result.
+Evidence: §4.5; floor helper `009EFF60` selects `__floor_default` at `009FB0FA` or its SSE path.
+
+## V12. Unordered comparison in both modes
+
+Inject one quiet NaN binary32 environment number and a single lower bound with threshold 2.
+All mode matches; any mode does not. Repeat with only an upper bound: the same two results.
+Repeat with both bounds: the same two results. A separate failing flag still rejects all mode.
+These distinguish §4.2 from the former V1 typo and from ordinary ordered host comparisons.
+
+## V13. Description fields, identity and permissive IDs
+
+Description bytes `header\nsgl\n\ndrv\r\nver` give description fields 6–11 equal to
+`sgl`, empty, `drv\r`, `ver`, empty, empty. A later regather replaces these fields while retaining
+an existing `cardIdentity` byte string. Parsing then resets identity to the current cardName before
+its result check. A cardVersion of length 27 with `12G4` at offset 8 and `GGGG` at offset 22 supplies
+vendor 18/device 0 and does not fail ID validation. A version of length 26 supplies 0/0.
+Evidence: §§2.2/3; no execution claim.
+
+## V14. File registration failure is not transactional
+
+Register A with argument 1 and B with argument 0. With A valid and B missing, aggregate parse succeeds.
+With A valid and B executing one complete callback before a later parse error, the error is recorded
+but aggregate success can publish that callback contribution. With A failing and B valid, B is still
+visited but aggregate failure prevents manager list publication; Init selects fallback. No per-file
+ParseBegin reset occurs. Evidence: §3 catch and continuation; EOF/block-validation cases remain GR4.
+
+## V15. Byte logs and failed writes
+
+With no application preferences and zero renderer properties, the LogOptions line sequence is
+`Options`, `-------`, empty, `Properties`, `-------`, empty, empty, empty. Each line has CRLF.
+For bool name bytes `FF 25 58` and value true, its property-line payload plus terminator is
+`FF 25 58 20 3D 20 74 72 75 65 0D 0A`; it is not rejected as invalid UTF-8 or reinterpreted as a format.
+For name bytes `41 00 42`, only `A` precedes ` = true`.
+
+Record underlying write calls: a successful nonempty line uses payload then `0D 0A`; false on the
+payload skips the terminator; false on the terminator makes WriteLine false. The manager ignores
+both failures. If explicit-log open succeeds and close returns false, LogConfigurationToFile still
+returns true. Failures may leave partial bytes; these vectors specify attempted writes, not atomic
+file replacement. Nonfinite formatting bytes remain GR6 and have no invented expected spelling.

@@ -8,3 +8,20 @@
 - **GR6 — lifecycle/failure/logging boundaries:** Please specify behavior for Init without a properties service or failed information acquisition; fallback lookup failure; malformed/short driver descriptions and invalid fixed-offset hex IDs; dense group/option index `UINT32_MAX` (index+1 overflow/allocation failure); exact renderer-dump headings, preference label padding, line endings and nonfinite `%g` spelling; write/close failures after successful log open; and whether regather changes cardIdentity. [Require a supplied property service/provider; reject invalid IDs/index overflow recoverably; missing description fields empty; retain cardIdentity on gather, reset it on parse; successful open determines explicit-log success. Logging layout follows the literal published headings with LF and a 20-column label, without byte-exact credit.]
 
 GR6 integration addendum: render-properties now correctly retains arbitrary foreign-CRT name bytes. What byte-exact dump/format behavior applies when names are non-UTF-8? The provisional unbound Rust logging adapter requires UTF-8 and rejects other profiles explicitly; it does not substitute, omit or stringify an Option. Native byte-name support remains missing and blocks owner credit/binding.
+
+**Final-round evidence 2026-10-22 (re-graphics-rules-final4), partial; GR4/GR6 remain open:**
+GR4 now has registration-bit/error-order semantics in §3, concrete native expression precedence,
+signed versus unsigned conversion, symbol dispatch and eval boundaries in §4.5, and actual dependency
+addresses in §12.1. Complete lexical tables, quoting/escapes/comment positioning, all command/switch
+case/arity/placement, symbol boundary parenthesization, boolean aliases, full functions/exceptional
+conversions, block EOF rules and sinclude missing/cycle policy remain unclosed. No general Lua parser
+is justified by the examined eval/numeric bodies; a pseudocode Lua label is actually `_ftol2`.
+
+GR6 now has regather/cardIdentity and description exhaustion/CR behavior (§2.2), permissive fixed hex
+(§3), unsafe dense-index wrapping (§4.5), fallback lookup storage (§12.1), actual Options/Properties
+headings, 21-byte preference prefix, CRLF/two-write behavior, ignored write/close results and arbitrary
+non-UTF-8 `%s` bytes (§6.1). Provisional strict ID/index rejection and LF output differ from native.
+Exact nonfinite `%g` output through the foreign CRT and exhaustive failure/allocator outcomes remain
+unclosed; do not infer them from a host formatter or turn unsafe native paths into recoverable parity.
+V11–V15 are independent source-derived discriminators, not implementation/test evidence. Parked after
+the authorized final logical RE round; no complete-owner/default/shadow/replacement promotion.
