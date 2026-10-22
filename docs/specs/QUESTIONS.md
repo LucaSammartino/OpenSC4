@@ -137,6 +137,7 @@ generated index: the questions live one file per spec, so read only the file for
 | SV | foundations, ordinance |
 | TB | texture-bindings |
 | TD | tools-com-director |
+| TE | text-edit |
 | TG | traffic-simulator |
 | TM | timers |
 | TN | traffic-network |
@@ -213,7 +214,7 @@ generated index: the questions live one file per spec, so read only the file for
 | landvalue | 3 | 6 | LV8 | questions/landvalue.md |
 | language-utility | 3 | 0 | LU4 | questions/language-utility.md |
 | legacy-control | 3 | 4 | LC9 | questions/legacy-control.md |
-| lighting | 11 | 0 | LT12 | questions/lighting.md |
+| lighting | 4 | 7 | LT12 | questions/lighting.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-configuration-editor | 3 | 2 | LE6 | questions/lot-configuration-editor.md |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
@@ -274,6 +275,7 @@ generated index: the questions live one file per spec, so read only the file for
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | terrain-view | 3 | 0 | TV4 | questions/terrain-view.md |
+| text-edit | 2 | 6 | TE9 | questions/text-edit.md |
 | texture-bindings | 6 | 1 | TB8 | questions/texture-bindings.md |
 | timers | 0 | 3 | TM4 | questions/timers.md |
 | tools-com-director | 3 | 1 | TD5 | questions/tools-com-director.md |
@@ -294,4 +296,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **396** | **1201** | | |
+| **total** | **391** | **1214** | | |
