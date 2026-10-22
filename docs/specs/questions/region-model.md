@@ -42,3 +42,5 @@
   `Regions\Downloads\` at the first load (it shares its cell with the Making Money tutorial city). The shipped Downloads folder holds a byte-identical copy of that file
   (renamed without the ` (21)`), this proves the shipped-file identity, but does not establish runtime first-load behavior; in which order does the file system list the two names, and is the tutorial registry
   expected to rebuild the tutorial city from the game data instead (`ResetTutorialCity`)? [as read]
+
+PR review of RM7: the proposed import-command argument proof cites region-city-dialogs.md, which was not included. The available region-screen.md section6.5 still leaves QR2 open. Keep RM7 open until the public call-site analysis is supplied; preserve the inferred body reading meanwhile.

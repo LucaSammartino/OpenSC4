@@ -223,7 +223,7 @@ added at the end of the section, and a missing file is created, so a region fold
 *[quirk]* Because the name is written from memory, a `Name = #0x...` token that `LoadConfig` resolved is written
 back as the **resolved text** in the language of that session. The localisation token is lost after the first
 shutdown of an initialised region *[inferred]*: both halves are read from the bytes, the combination has not been
-seen running (RM1).
+seen running (RM1). The proposed import-dialog write-back timing remains unconfirmed here until its analysis is published.
 
 *[inferred]* When the folder no longer exists (§6.3), creating the file fails and nothing is written (RM2).
 
@@ -461,8 +461,7 @@ delete, no recycle bin).
 
 ### 7.3 `MoveCity(region, city, x, z)` (slot 16, `0x004A7200`, pops 16) *[inferred]*
 
-The roles of the four arguments are read from how they are used; the function has no caller in the executable
-(it is reached only through the region view's interface calls) (RM7). Returns a bool.
+No direct caller is identified here. The region screen exposes import command `0x4A560002` (region-screen.md section6.5), but that public analysis still leaves the import path open as QR2. The proposed source-region/top-left-cell argument proof cites an unpublished region-city-dialogs.md; it is not established here. Roles read from the body remain inferred (RM7). Returns a bool.
 
 ```
 R := region;  if R == this: R := null
