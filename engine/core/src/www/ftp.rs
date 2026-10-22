@@ -707,6 +707,11 @@ impl Session {
             self.defer(io, 111);
             return Ok(true);
         }
+        if borrowed_list.is_some() {
+            return Err(Unsupported::NativeInputDomain(
+                "acquisition needs a live borrowed list, not an identity",
+            ));
+        }
         if path.is_empty() {
             return Err(Unsupported::NativeInputDomain(
                 "008163d0 empty path last-byte read",
@@ -1038,46 +1043,113 @@ mod tests {
         fn worker_effect(&mut self, effect: super::super::worker::Effect) {
             self.worker_effects.push(effect);
         }
-        fn complete_job(&mut self, _: &mut super::super::worker::Scheduler, job: &super::super::worker::Job, success: bool) {
-            self.worker_callbacks.push((job.status, job.progress, success));
+        fn complete_job(
+            &mut self,
+            _: &mut super::super::worker::Scheduler,
+            job: &super::super::worker::Job,
+            success: bool,
+        ) {
+            self.worker_callbacks
+                .push((job.status, job.progress, success));
         }
     }
 
     #[test]
     fn outer_worker_suspend_stop_cancel_and_nonftp_preserved_status() {
         use super::super::worker::{Effect as W, Job, Record, Scheduler, Step};
-        let job = Job { id:8, status:3, url:b"http://host/x".to_vec(), destination:vec![], time:0, progress:0, custom:9 };
-        let mut worker = Scheduler { queue:[job.clone()].into(), target:Some(9), ..Scheduler::default() };
-        let mut io = Fake::default(); worker.start(&mut io);
+        let job = Job {
+            id: 8,
+            status: 3,
+            url: b"http://host/x".to_vec(),
+            destination: vec![],
+            time: 0,
+            progress: 0,
+            custom: 9,
+        };
+        let mut worker = Scheduler {
+            queue: [job.clone()].into(),
+            target: Some(9),
+            ..Scheduler::default()
+        };
+        let mut io = Fake::default();
+        worker.start(&mut io);
         worker.record.as_mut().unwrap().suspend = 1;
-        assert_eq!(worker.dequeue(&mut io),Ok(Step::Suspended)); assert_eq!(worker.queue.len(),1);
+        assert_eq!(worker.dequeue(&mut io), Ok(Step::Suspended));
+        assert_eq!(worker.queue.len(), 1);
         assert!(io.worker_effects.contains(&W::Sleep(1000000)));
         worker.record.as_mut().unwrap().suspend = 0;
-        assert_eq!(worker.dequeue(&mut io),Ok(Step::Dequeued));
-        worker.process_current(&mut io).unwrap(); assert_eq!(io.worker_callbacks,[(3,100,false)]);
-        assert_eq!(worker.dequeue(&mut io),Ok(Step::Exited)); assert!(worker.record.is_none());
-        assert_eq!(Scheduler::wrapper_return(&mut io),0); assert_eq!(io.worker_effects.last(),Some(&W::ReleaseScheduler));
-        for stop in [false,true] {
-            let mut worker = Scheduler { target:Some(1), record:Some(Record { cancel:true, stop, current:Some(job.clone()), ..Record::default() }), ..Scheduler::default() };
-            let mut io = Fake::default(); worker.final_boundary(&mut io).unwrap();
+        assert_eq!(worker.dequeue(&mut io), Ok(Step::Dequeued));
+        worker.process_current(&mut io).unwrap();
+        assert_eq!(io.worker_callbacks, [(3, 100, false)]);
+        assert_eq!(worker.dequeue(&mut io), Ok(Step::Exited));
+        assert!(worker.record.is_none());
+        assert_eq!(Scheduler::wrapper_return(&mut io), 0);
+        assert_eq!(io.worker_effects.last(), Some(&W::ReleaseScheduler));
+        for stop in [false, true] {
+            let mut worker = Scheduler {
+                target: Some(1),
+                record: Some(Record {
+                    cancel: true,
+                    stop,
+                    current: Some(job.clone()),
+                    ..Record::default()
+                }),
+                ..Scheduler::default()
+            };
+            let mut io = Fake::default();
+            worker.final_boundary(&mut io).unwrap();
             assert!(!worker.record.as_ref().unwrap().cancel);
             assert!(worker.record.as_ref().unwrap().current.is_none());
-            if stop { assert!(io.worker_callbacks.is_empty()); }
-            else { assert_eq!(io.worker_callbacks,[(7,100,false)]); }
+            if stop {
+                assert!(io.worker_callbacks.is_empty());
+            } else {
+                assert_eq!(io.worker_callbacks, [(7, 100, false)]);
+            }
         }
     }
 
     #[test]
     fn outer_worker_init_barrier_and_rejected_login_true_is_not_transfer_success() {
         use super::super::worker::{Job, Record, Scheduler};
-        let job = Job { id:8, status:3, url:b"ftp://1.2.3.4/x".to_vec(), destination:vec![], time:0, progress:0, custom:9 };
-        let mut worker = Scheduler { target:Some(1), record:Some(Record { current:Some(job), ..Record::default() }), ..Scheduler::default() };
+        let job = Job {
+            id: 8,
+            status: 3,
+            url: b"ftp://1.2.3.4/x".to_vec(),
+            destination: vec![],
+            time: 0,
+            progress: 0,
+            custom: 9,
+        };
+        let mut worker = Scheduler {
+            target: Some(1),
+            record: Some(Record {
+                current: Some(job),
+                ..Record::default()
+            }),
+            ..Scheduler::default()
+        };
         let mut io = Fake::default();
-        assert_eq!(worker.process_current(&mut io),Err(Unsupported::OwnedBody("00813d70 FTP initialize")));
-        let mut s = Session { initialized:true, address:Address { host:[1,2,3,4],port_word:0 }, ..Session::default() };
+        assert_eq!(
+            worker.process_current(&mut io),
+            Err(Unsupported::OwnedBody("00813d70 FTP initialize"))
+        );
+        let mut s = Session {
+            initialized: true,
+            address: Address {
+                host: [1, 2, 3, 4],
+                port_word: 0,
+            },
+            ..Session::default()
+        };
         let mut io = Fake::ready(b"220 greeting\r\n530 rejected\r\n221 bye\r\n");
-        worker.transfer_current(&mut io,&mut s,&mut crate::rzurl::RzUrl::from_text(b"ftp://1.2.3.4/x")).unwrap();
-        assert_eq!(io.worker_callbacks,[(3,100,false)]);
+        worker
+            .transfer_current(
+                &mut io,
+                &mut s,
+                &mut crate::rzurl::RzUrl::from_text(b"ftp://1.2.3.4/x"),
+            )
+            .unwrap();
+        assert_eq!(io.worker_callbacks, [(3, 100, false)]);
     }
 
     #[test]

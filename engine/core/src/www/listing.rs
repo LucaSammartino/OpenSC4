@@ -91,17 +91,22 @@ pub fn parse(line: &mut [u8], selector: u32, output: &mut Entry) -> Contract<boo
                 .iter()
                 .rposition(|b| *b != b' ')
                 .map_or(0, |i| i + 1);
-            if line[..end].contains(&b' ') || !line[9..12].contains(&b' ') {
+            let name_end = line[..end].iter().position(|b| *b == 0).unwrap_or(end);
+            if line[..name_end].contains(&b' ')
+                || !line[9..12].iter().any(|b| matches!(b, 0 | b' '))
+            {
                 return Err(Unsupported::NativeInputDomain(
                     "317 uninitialized name/extension",
                 ));
             }
-            let mut name = line[..end].to_vec();
+            let mut name = line[..name_end].to_vec();
             if line[9..12].iter().any(|b| *b != b' ') {
                 name.push(b'.');
-                name.extend_from_slice(
-                    &line[9..12].split(|b| *b == b' ').next().unwrap_or_default(),
-                );
+                let extension_end = line[9..12]
+                    .iter()
+                    .position(|b| matches!(b, 0 | b' '))
+                    .unwrap_or(3);
+                name.extend_from_slice(&line[9..9 + extension_end]);
             }
             *output = Entry { name, kind: 8 };
             Ok(true)

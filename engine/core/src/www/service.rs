@@ -511,7 +511,11 @@ impl Www {
             return Ok(true);
         };
         if job.target.is_none() {
-            return Ok(true);
+            // Q10: no delivery is specified, but this exceptional snapshot's
+            // conversion/cache/fanout/cleanup suffix is not distinguished.
+            return Err(Unsupported::OwnedBody(
+                "Q10 HTTP completion without target suffix",
+            ));
         }
         let mut resource = resource;
         job.foreign_pointer = Some(foreign);

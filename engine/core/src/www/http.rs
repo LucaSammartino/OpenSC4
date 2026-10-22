@@ -394,7 +394,7 @@ impl Client {
         self.active = None;
         let record = self
             .workers
-            .remove(&id)
+            .get(&id)
             .ok_or(Unsupported::NativeInputDomain("worker identity"))?;
         // The actual close adapter 00817af0 is O: retain the boundary, don't fake it.
         host.effect(Effect::Unlock);
