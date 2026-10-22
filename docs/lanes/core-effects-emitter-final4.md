@@ -6,7 +6,8 @@
 - Goal: implement effects.md §7.1.1 EF14(a-e) literally in particles.rs and focused tests.
 - Done: c3833c3a implements EF14(a-e); literal plain top-up, sampled life/stored age, scale reset/precedence, period floor and safe curve edges. Eleven deterministic tests now added; fmt passes on all three touched Rust files.
 - Baseline all: cargo 4213 passed, clippy 0 diagnostics, CMake 206/206, ctest 67/67 PASS; wrapper reported tree changed during run (implementation edits began after baseline cargo/clippy).
-- Next: quick running (session 4672); check results, run final all on committed code, report/queue.
+- Done: 574acda9 reconciles fixtures and formatting. Quick PASS: core/conformance 3547 passed (26 particle tests), dependent capi/formats compile, CMake 4/4 edges; wrapper noted commit/tree changed during run.
+- Next: final all on committed clean code, then full report/queue. No outstanding game requests.
 - Conformance: adapter defaults D+0x10 to life; retain original 7-update delayed-stop vector (the first quick caught an incorrect expected 6); add a separate 2.3-target test with exactly 3 creations and death on update 3.
 - First quick: conformance fixture assertion failed (7 observed vs incorrect 6 expected); corrected as above. No implementation failure established by that run.
 - Constraints: no plugin/CAPI/ABI changes; no native owner outputs as host inputs; final family round, park any remainder.
