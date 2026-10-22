@@ -13,6 +13,7 @@
 
 #include "FC4Observer.h"
 #include "FC4IndustrialShadow.h"
+#include "FC4FontSysVerify.h"
 
 #include "FC4AuraShadow.h"
 #include "FC4Autoload.h"
@@ -633,10 +634,12 @@ public:
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
                 monthsSinceLoad_ = 0;
                 IndustrialShadowProbe(CurrentCity(), "load");
+                FontSysVerify("load");
                 break;
             case kMsgPreSave:
                 PropLotShadowPreSave(CurrentCity());  // the records just before the save writes them
                 IndustrialShadowProbe(CurrentCity(), "presave");
+                FontSysVerify("presave");
                 break;
             case kMsgConnectionsReady:
                 PopupDialogsOnConnectionsReady();
@@ -681,6 +684,7 @@ public:
                 fc4::MySimsShadowCityShutdown();  // mysims_shadow: the summary line, then the core goes
                 NetToolRegistry::CityShutdown();  // the glue29 lane: the shared replacement tools
                 IndustrialShadowProbe(CurrentCity(), "shutdown");
+                FontSysVerify("shutdown");
                 AutotestOnCityShutdown(false);
                 DatesProbeSummary("city-shutdown");
                 fc4::FeatureShadowShutdown();

@@ -531,6 +531,9 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4IndustrialShadow.cpp
         plugin/FC4IndustrialShadow.h
         plugin/compat/FC4IndustrialCompat.h
+        # Owned cGZFontSys verification (drawing-fonts sections 12/12.1).
+        plugin/FC4FontSysVerify.cpp
+        plugin/FC4FontSysVerify.h
         # Opt-in span8 checked adapter and native type2 route (SR9/SR10).
         plugin/FC4SpanRender8.cpp
         plugin/FC4SpanRender8.h
