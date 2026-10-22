@@ -1,25 +1,35 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-small-renderer-contracts4: native renderer and path owner contracts | Codex / `re-small-renderer-contracts4` (RE lane, detached worktree) | in progress: round 2; preserved flame evidence published; ten prior answers retained | 1. Prove TB4, GT4, FF2–FF4, PA4 residuals. 2. Validate questions and report. |
+| re-small-renderer-contracts4: native renderer and path owner contracts | Codex / `re-small-renderer-contracts4` (RE lane, detached worktree) | wip: round 2 proofs committed; PA4/FF4 answered (12 cumulative); questions check and diff check passed; no ABI/game changes | 1. Reconcile TB4/GT4/FF2 inventory scopes. 2. Finish FF3 numeric stores; retain exact residuals. |
 
-## Handoff
-- Round 2 milestone bea42a5f: preserved flame evidence published in fire-flames §4.1; Init corrected in §4. No FF question closed yet.
-- Goal: resolve TB4–TB7, GT3–GT6, FF2–FF4, PA4–PA8 with primary native evidence; specs/questions only.
-- Worktree reused at detached HEAD; initial status clean and no commits ahead of main.
-- Read handoff index, lane row format, merge train instructions, texture/path question entries.
-- q.py cannot launch Bash here (CreateInstance E_ACCESSDENIED); use local PowerShell with bounded output.
-- First milestone ac0e8a0f: texture §1.11–1.12 answers/archives TB5–TB7; §3 supplies manager slots 6/7 and destruction. Questions index/check passed.
-- Native distinctions: signed P hangs on 0x40000001..0x7fffffff; zero levels => one; shifts mask to 31; size/counters/refcounts wrap u32; failure deletion excludes current handle.
-- Second milestone 6bd15ef1: glyph/string info slot/lifetime/numeric/restore/output contracts; directory-entry three-body owner (94B); PA6–PA8 corrections. GT3/GT5/GT6, PA5–PA8 answered/archived; index/check passed.
-- Round 2 milestone a2e1f920: material release/copy and paths §2.3; PA4 answered, questions index/check passed. Current milestone: glyph manager lifetime/inherited slots, flame transform/FF4 answer, geometry/index and persistence proof. Next: final report and exact residuals. No merge queue yet.
-- Remaining requested questions: TB4 inventory scope; GT4 inventory scope; FF2 inherited-wrapper/legacy inventory scope; FF3 complete numeric store sequence. PA4 and FF4 answered this round.
-- Pending native proof: 00470BC0..00470C9F (224B), mislabeled vector resize, is flame constructor called at 00472420/00472527 on fresh allocations: made=false,visible=true,wall=false,side=0,effect=null, identity embedded transform; position from shared word B21640 (not read).
-- Pending fire proof: constructor 004711C0..0047122A sets stage -1 at complete-object+44, empty vector,on-model=false; SetStage 004728B0..004728F7 equal stage no-op, changed stage stores/creates-if-empty/updates, no error propagation. Update indexes tables directly, no clamp (004710FD..00471110).
-- Pending Init proof 00471170..004711BC: initialized => true; otherwise base Init, group5005, set made/update existing flames, true irrespective base return; no CreateFlames. Init's receiver is adjusted (+4), unlike complete-object constructor.
-- Pending visibility proof 00470270..00470290 writes byte before effect branch; start/stop argument1. Update 004710D3..00471160 stops0, clears/releases, replaces without rollback. Shutdown loop 00470DE0..00470E28: made effect tests slot5 active, stop0 only if true, release; unmade effect released without stop.
-- Pending transform proof 00470CA0..00470DB2 no effect=>no-op; temporary header bytes2,5; x87 FSIN/FCOS and intermediate float stores 00470CD1..00470D1A. Do not claim complete matrix/draw-order proof.
-- Inventory helper build-runs/renderer-inventory.py plus inventory-*.tsv (ignored): primary names texture55 bodies4758B (factory43/4271,binding3/89,manager8/333,material1/65), plus4 class/create helpers111B at800BF0(6),800E30(72),809120(6),80A680(27); not reconciled58/4883. Glyph38bodies4047B vs43/4475; flame19bodies3439B before mislabeled ctor vs16/3513. Three texture/three glyph data labels excluded.
-- Standalone info/entry contracts published, but no manager/material/fire/family blanket completion. Cargo/clippy/ctest/game/shadow n/a. No ABI proposals. Actual specs only committed through 6bd15ef1; pending flame evidence currently exists only in this handoff.
-- Main read-only source: C:/Users/tlori/FreeCity4; export queries via tools/re_query.py.
-- No engine reads/edits, tools/maps/ABI edits, external communications, subagents, merge/push or branch changes.
-- Guard: C:/Users/tlori/FreeCity4/build-runs/run4-re-small-renderer-contracts4-r2-manifest.json; budget 150000, maxCalls100, one round.
+## Report
+
+This round published the preserved flame evidence first, then added primary native instruction/data proof. All deliverables are spec, question and lane documentation; no engine, ABI-table, map or tool changes are committed.
+
+### Commits
+
+- `bea42a5f`: preserved flame defaults, visibility, replacement and Init/stage evidence; Init updates existing flames and does not create them.
+- `a2e1f920`: material lifetime/copy/assignment and byte-string/locale path boundaries; PA4 answered.
+- `b0bdd07a`: glyph-manager lifetime and inherited slots; flame index/selection, rotation, persistence, direct destruction and measured inventory; FF4 answered.
+
+### Native results
+
+- texture-bindings §3.1: unsigned 16-bit material release frees at **0 or 1**, otherwise decrements; releases stage 1 before stage 0. Assignment acquires before releasing; material value copy copies the count word. Manager slots 6/7 and teardown were already published in round 1. Named inventory is 55 bodies/4758B; four class/create helpers add 111B, yielding 59/4869 before unnamed/value/shared bodies. This does not reproduce 58/4883.
+- glyph-textures §1.1.1: constructor is **005D8CA0**, not destructor 005D8900; initial references and sweep time are zero. Inherited slots and message thunks are specified. Direct destruction frees container/key storage without Shutdown or texture-info releases; absent glyph-pointer removal does nothing. Named inventory is 38 bodies/4047B (manager 25, glyph-info 8, string-info 5), not 43/4475; shared/unnamed slots are separately identified.
+- fire-flames §§2.1/4.1–4.3: first primitive supplies count but its index offset is **ignored**; partial triples read physical trailing indices. Unordered area comparison selects a triangle; all ordered-less comparisons continue one past the vector. Local generator is cRZRandom(-1); unchecked zero-length normalization and some float stores are proved.
+- Flame transform uses unsigned side × **90 radians**, x87 trig, stated float stores and rows (c,0,s),(0,1,0),(−s,0,c). Temporary counter/kind are **2/5**; embedded transform is unchanged. Box wall draw order is side, free horizontal coordinate, height. ViewUpdate sends old-position then new-position transforms.
+- Fire persistence version is 3; read accepts exactly 3. Inline flame writing omits made/visible/effect and transform counters. Reads append, retain earlier additions on failure, and do not reclaim the failed fresh flame. Direct destruction frees vector storage without walking flame pointees; initialized Shutdown performs stop/release/free work. Owner inventory enumerates 21 bodies/3740B including the mislabeled flame constructor and unnamed fire destructor; triangle/point helpers are separate.
+
+### Questions and limits
+
+PA4 and FF4 moved, with DIFFERS rules, to their exact answered files. Ten prior answers were retained without re-answering them. No new question IDs were filed.
+
+TB4, GT4 and FF2 remain open **only for the documented inventory-scope/inherited-wrapper reconciliation**, not for the newly proved lifetime rules. FF3 remains open for exact area accumulation and the full barycentric/placement intermediate-store sequence; its index/generator/error boundaries are published. No family-wide completion claim is made. FF1 and the other pre-existing questions were outside this round's scope.
+
+Next evidence work: identify the original selection of bodies behind 58/4883, 43/4475 and 16/3513 rather than counting unrelated shared slots to force totals. For FF3 continue native 00470EC0's area call/accumulation and GetPointsOnModel 00472175–00472321, including extended-register values retained across float stores.
+
+### Validation and artifacts
+
+`python tools/questions.py index`, `python tools/questions.py check` and `git diff --check` passed. Cargo, clippy, ctest, game runs and shadow comparison: n/a, docs only. No C ABI exports changed; no ABI proposal file.
+
+Read-only sources were the main checkout's export, selected decompilation ranges and executable data. REA was not needed or called. No network, external communication, subagents, branch/ref updates, merge or push. Commits succeeded despite Git's nonfatal packed-refs.lock permission diagnostic. Ignored evidence helpers remain in this worktree's build-runs/: renderer-inventory.py, inventory-*.tsv and native-data.py.
