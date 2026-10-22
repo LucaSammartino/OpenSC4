@@ -14,9 +14,17 @@ For the reached FTP bodies, what exact queue/start/cancel/shutdown order, retry 
 and listing-format selection/entry acceptance rules must be reproduced? Round 2 specifies the listing
 entry parser 00812de0 (3607 B), RETR 00814560 (1878 B), STOR 00813e90 (1741 B) and transport helpers in
 web-network.md §4.13 / web-network-ftp.md, including the async state-4 reentry rejection and unsafe
-fixed-column input domains. Still unresolved: outer scheduler 00816ee0 (1628 B), listing acquisition
-008163d0 (1466 B), login/format selection 00815d30 (1245 B), initialization 00812390 (825 B), other
-commands and list ownership. Q7 stays open; see web-network-www-bodies.md for each remaining address.
+fixed-column input domains. Final round 3 additionally resolves outer scheduler 00816ee0,
+listing acquisition 008163d0, login/format selection 00815d30/008126d0, constructor 00812390,
+listing replacement/ownership, disconnect and session shutdown/destruction in
+web-network-ftp-control.md. The scheduler has no retry loop; cancellation still sends a failure
+completion while stop suppresses the final callback at its check. Login can return true after
+a rejected reply and disconnect. Async reentry can reject state 4.
+Still unresolved: commands 00815a60 (717 B), 00814cc0 (657 B), 00814f60/008153a0/008155f0
+(579 B each), 00815840 (538 B), 008151b0 (489 B); initialization entry 00813d70;
+scheduler admission 00817600, lifecycle/container/control helpers and exact per-address O: Q7
+rows in web-network-www-bodies.md. No full Q7 answer is claimed. Final round 3/3: **PARK**,
+no fourth round; the combined Q7/Q9 residual is exactly 57 bodies / 7292 B.
 
 ## Q9 (re-web-largest4, 2026-10-22) — other reached scheduler/resource and support bodies
 Complete the still-open bodies in web-network-www-bodies.md outside Q7/Q8, especially HTTP job submission and
@@ -28,5 +36,12 @@ effects to the WWW call. Shared/folded symbols must be checked by their bytes ra
 Round 2 §4.14 now specifies 0081cda0/0081ca90 submission and 0081cc10 cancellation, queue copying,
 method conversion and request Release. Cancellation alone does not join, close or guarantee callback
 suppression; raw queued-node cancellation does not release its request. Still open: constructor
-00818210, worker final resource ownership/drain/shutdown and remaining support/adapters. Worker
-0081ba80 belongs to another owner but is needed evidence for the callback-suppression question.
+remaining support/adapters and cookie constructor 008f9bad. Final round 3 resolves constructor
+00818210 and the bounded worker completion/resource/stop/drain behavior in
+web-network-http-lifetime.md: normal completion notifies before releasing internal then external
+resources; stop skips that completion and both releases; cancellation alone permits a failed
+callback; shutdown/drain does not join and may start a replacement worker before clearing raw
+queued nodes. An old worker exit can clear the new worker pointer. Foreign worker 0081ba80 and
+its companion completion/stop/drain bodies are evidence only, not WWW inventory credit.
+No full Q9 answer is claimed: all residual support/adapters retain their exact O/P checklist rows.
+Final round 3/3: **PARK**, no fourth round, no whole-owner completion claim.

@@ -6,8 +6,10 @@
 - Goal: final round 3/3; preserve bdd8e715 and 71/148 bodies, 18705/34049 B; no fourth round.
 - Baseline: bdd8e715 reconciliation; f949602d cache, ff9195ad FTP parser/transfers, a72140de HTTP admission/cancel. Do not retrace these for credit.
 - Exact residual: P=4/4403 B, O=73/10941 B; docs/specs/web-network-www-bodies.md.
-- Milestone: seven new bodies / 4102 B in web-network-ftp-control.md; C=78/22807 B, P=2/1692 B, O=68/9550 B. Login saved-boolean and listing wrong-argument bugs verified in instructions.
-- Next: finish 00816ee0 plus 00812390 and worker/resource shutdown; then largest O rows. Initial login/listing milestone committed with this handoff.
+- Milestone c833149e: seven new bodies / 4102 B in web-network-ftp-control.md; C=78/22807 B, P=2/1692 B, O=68/9550 B. Login saved-boolean bug verified.
+- Correction: c833149e misread listing ESP+0xd0 while time argument was still pushed; first/path argument is correct. Current spec fixes this and restores null-output-list lifetime/vector.
+- Milestone pending commit: 13 more bodies / 3950 B, scheduler and session lifetime; HTTP constructor plus foreign worker completion/stop/drain evidence. C=91/26757 B, P=1/64 B, O=56/7228 B.
+- Next: reconcile checklist/questions, validate exact residual 57 bodies/7292 B, commit final PARK report/queue; no fourth round.
 - Q7/Q9 partial; Q8 answered; unrelated Q1/Q3 untouched. Native evidence only, docs only, no engine/tools/maps/ABI edits.
 - q.py cannot start Bash (E_ACCESSDENIED); use bounded PowerShell and apply_patch.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-web-largest4-r3-manifest.json.
