@@ -139,3 +139,4 @@ pub mod overlay_views;
 pub mod lot_models;
 pub mod terrain_ripples;
 pub mod occupant_groups;
+pub mod animated_sprite;
