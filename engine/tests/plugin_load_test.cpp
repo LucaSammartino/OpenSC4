@@ -6437,16 +6437,20 @@ int LandValueShadowTest(const std::string& dll, const std::string& ini, const st
     CHECK(text.find("landvalue shadow: NOT readable read-only (left out of the comparison)") != std::string::npos);
     CHECK(text.find("landvalue shadow: the city has no land value simulator; nothing compared") != std::string::npos);
     CHECK(CountOf(text, "landvalue shadow: comparing with the original land value simulator") == 2);
+    // All six comparisons (clean, differing and unreadable-record cases)
+    // must disclose sampled inputs; output equality cannot prove LV1 capture.
+    CHECK(CountOf(text, "; input_capture=pass-end-sample; native_step_capture=0") == 6);
     CHECK(text.find("tuning the code defaults (no exemplar); differing tracts listed per grid: 3") !=
           std::string::npos);
     CHECK(text.find("landvalue shadow 2000-02-01 pass 1: compared on 4x3 tracts (S=2), slope 1x1 (S=8): intrinsic "
                     "cells=12 mismatched=0 max|d|=0; total cells=12 mismatched=0 max|d|=0; slope cells=1 "
                     "mismatched=0 max|d|=0; types mismatched=0/12; average orig/ours=0/0; modeAlt orig/ours=0/0; "
                     "meanAlt orig/ours=0/0; settled=1; desirability=none (no developer listed); mismatches=0; "
-                    "passes=1 clean=1\r\n") != std::string::npos);
+                    "passes=1 clean=1; input_capture=pass-end-sample; native_step_capture=0\r\n") != std::string::npos);
     CHECK(text.find("landvalue shadow 2000-03-01 pass 2: compared on 4x3 tracts (S=2), slope 1x1 (S=8): intrinsic "
                     "cells=12 mismatched=0 max|d|=0; total cells=12 mismatched=1 max|d|=1;") != std::string::npos);
-    CHECK(text.find("mismatches=1; passes=2 clean=1; first differing (x,z) orig/ours: total (1,2) 131/130") !=
+    CHECK(text.find("mismatches=1; passes=2 clean=1; input_capture=pass-end-sample; native_step_capture=0; "
+                    "first differing (x,z) orig/ours: total (1,2) 131/130") !=
           std::string::npos);
     CHECK(text.find("landvalue shadow 2000-04-01 pass 3: ") != std::string::npos);
     CHECK(text.find("; average orig/ours=7/0!; modeAlt orig/ours=0/0; meanAlt orig/ours=0/0; settled=1;") !=
