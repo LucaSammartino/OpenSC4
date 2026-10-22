@@ -1,8 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-variants4 (bounded native variants) | `verify-variants4` / detached engine lane | WIP: code e7817958; cargo4947/0, clippy clean, ctest68/68; original turbo/normal clean2032/ref0; 70 cases, native322/350 exact, 28 HG7 scalar-count differences; current40 on/off CORRUPT/ref0; HG4-HG7 filed; ABI unchanged | (1) Resolve current40 integration control outside this variants-only lane. (2) Answer HG4-HG7 before expanding scope or changing scalar count. No owner promotion; original cap3/3 exhausted. |
+| verify-variants4 (bounded native variants) | `verify-variants4` / detached engine lane | in progress: round2; retained code e7817958; native322/350,28 HG7; current40 ON/OFF corrupt/ref0 | (1) Resolve owned crash frames. (2) Run preserved train97 identical control. (3) Fix only evidenced owned cause and validate. |
 
-## Report
+## Handoff
+
+- Goal: diagnose current40 ON/OFF foreign exception using preserved train97 gated68/PASS baseline, no RE or core semantic changes.
+- Retained report follows; original report commit6e1f9257, copy build-runs/round1-report.md.
+- Baseline evidence: build-runs/evidence-run4/train97-gated-8a7160ca.dll/.pdb; SHA8a7160cad839f19b8fd9f6d685926a6d07defa11d116b0ff97589a302f17a0c7.
+- OFF owned frames: DLL+DC6841,DC6437,911AB5,91127C,9176A9; resolve with retained PDB next.
+- Same fixture is harness Konradshohe alias; script build-runs/variants-save.txt; exact request in game-queue/done.
+- Baseline qbuild all running exec session97202; no game request outstanding.
+- q.py Bash launch E_ACCESSDENIED; bounded PowerShell used. No guard denial.
+
+## Retained round1 report
 
 The bounded native verifier is implemented and the stable full build gate passes. The lane remains WIP because the current40 integration controls fail before the first simulation date with the shadow both enabled and disabled. No whole-owner equivalence, replacement promotion or coverage credit is claimed.
 
