@@ -1,23 +1,31 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-tools-director-questions4: TD1 final residual contracts | Codex / `re-tools-director-questions4` (RE, detached worktree) | in progress | 1. Prove largest remaining native bodies. 2. Commit bounded contracts and park exact residuals at logical phase 3/3. |
+| re-tools-director-questions4: TD1 final residual contracts | Codex / `re-tools-director-questions4` (RE, detached worktree) | blocked: coordinator STOP;0a623e2f contracts largest5716-byte body locally;17 U/17137 B remain;47 vectors; docs/arithmetic audits PASS; cargo/clippy/ctest/game n/a; ABI unchanged | 1. Preserve bounded findings and exact residual. 2. No further RE round authorized; coordinator owns publication and TD4 review. |
 
 ## Handoff
 
-Goal: final round2/2, logical3/3; TD1 remaining18 bodies/22853 B, biggest first.
-Base084b185e preserves prior15 answers/5099 B and TD2; do not repeat them.
-Done: largest5716-byte00A6A25B body-local window contract,32 coefficient rows,
-mono/stereo layout, centre high-product rule and3 independent vectors (§5.12).
-80 complete window-instruction/formula audits PASS; this is offline analysis only.
-Remaining17 U/17137 B, including the called packed transform00407000.
-Next: reconcile3773-byte x87 transform00A6B918, preserving spills/operation order.
-Read-only native sources MAIN export/decomp/PE; edit public spec/questions only.
-No engine/tests/tools/maps/ABI edits; TD4 correction separately coordinator-owned.
-No fourth phase/reset, runtime claims, subagents, network, merge/push/ref updates.
-Existing native-evidence.py pages asm and reads PE tables in ignored build-runs.
-q.py fails Bash/Service/CreateInstance/E_ACCESSDENIED; use bounded PowerShell.
-47 vectors; inventory D6/294 B,S46/13841 B,U17/17137 B,artifact1/21 B.
-Guard manifest MAIN/build-runs/run4-re-tools-director-questions4-r2-manifest.json.
+Goal: final round2/2, logical3/3; TD1 native dependencies, biggest first.
+STOP: guard says user directed STOP RE, prioritize verified/replaced; no more rounds.
+Committed0a623e2f: §5.12 body-local packed window contract00A6A25B/5716 B.
+Includes32 coefficient rows, both layouts, centre high-product/even-lane rule,
+native initializer evidence and3 independent window-only vectors (TD-V45..47).
+Called transform00407000 remains U; no nested decoder or complete-owner credit.
+Validation:80 offline instruction/formula comparisons PASS; inventory/residual/
+47-vector/TD2 archive audit PASS; questions index regenerated; diff check PASS.
+No game or implementation execution; cargo/clippy/ctest/shadow/replacement n/a.
+Inventory unchanged70/31293 B: D6/294,S46/13841,U17/17137,A1/21.
+Exact U list remains in public spec§1.1; TD1 open, TD2 previously answered.
+TD4 remains coordinator-owned; no new attribution or ABI-table proposal/edit.
+Ignored x87-graph.py/.json/.txt derive tentative00A6B918 value graph from742
+instructions/208 stores/31 float constants. Unreviewed; body remains U.
+Attempt to publish that graph was DENIED before editing spec; no coverage credit.
+Ignored window-evidence.py,window-audit.log,window-rows.txt preserve window audit.
+Prior phase084b185e retained:15 formerly U/5099 B, TD2 and44 vectors.
+q.py Bash unavailable; bounded PowerShell/export/PE/decomp used; no REA needed.
+No engine/test/implementation reads, network, subagents, ref updates/merge/push.
+Git commit succeeded despite packed-refs.lock permission diagnostic; no config fix.
+Next: preserve parked worktree and committed source; no fourth/reset/restart.
+No merge-queue file written after STOP; supervisor has actual detached HEAD.
 
 ## Prior phase report (reference until final report)
 
