@@ -27,7 +27,7 @@ pub struct UnsupportedLocaleByte(pub i32);
 /// an actual CRT adapter; even a chosen single-byte encoding does not establish their behavior.
 pub fn invariant_crt_is_alpha(byte: i32) -> Result<bool, UnsupportedLocaleByte> {
     match byte {
-        -1 | 0..=127 => Ok((b'A' as i32..=b'Z' as i32).contains(&byte) || (b'a' as i32..=b'z' as i32).contains(&byte)),
+        -1..=127 => Ok((b'A' as i32..=b'Z' as i32).contains(&byte) || (b'a' as i32..=b'z' as i32).contains(&byte)),
         _ => Err(UnsupportedLocaleByte(byte)),
     }
 }

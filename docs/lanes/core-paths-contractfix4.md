@@ -10,8 +10,10 @@
 - Done 1fc145c6: signed-byte CRT primitive boundary/errors; counted ResolvePath, entry default/copy/name-only drop, signed SplitDirectory/partial writes, retained find cache/retry/finish.
 - Done: removed duplicate paths directory owner/comparator; paths reexports authoritative rz_files owner. Primitive-only test host bridges it. Added PA4-PA8 independent vectors.
 - Tests: stable fmt recheck passed for all 7 Rust files after 8c6589ec. Earlier quick core: 3053 passed / 1 failed (old high-bit expectation, fixed in 7476c5d9); all six new PA4-PA8 groups passed. Final driver quick/all still required.
-- Next: final-gate.py (exec session 74719) runs fmt/quick/all sequentially; do not launch another concurrent qbuild. Inspect build-runs/final-gate-result.json and native logs, report counts and enqueue only if green. Source is stable at 5f3b1274; later commits are report-only.
-- Last observation 22:10 local: final-gate-progress.json contains fmt=0 only; quick/dependent cargo waits and earlier clippy checking are ongoing. No final result or merge-queue file exists. Collect completed driver evidence before any ready claim.
+- Resume audit: direct Windows API process inspection found no attributable surviving validator; all candidate commandlines were readable (WMI denied; limited process access fallback worked). Full PID/PPID/commandline/cwd evidence is in build-runs/resume-liveness.json.
+- Interrupted/mixed qbuild/fc4verify/progress/driver artifacts preserved with SHA-256 inventory at build-runs/evidence/interrupted-r2-20261022/. Neither old 1232/0 log nor worker handle 74719 establishes a final gate.
+- Correction: helpers.rs uses -1..=127 instead of adjacent OR patterns, preserving exactly the signed-byte classifier domain while resolving clippy manual_range_patterns. No test or vector changed.
+- Next: commit this minimal fix, then run ONE hidden durable serial fmt/all supervisor on that stable commit. Record PID/provenance/stdout/stderr/completion and parse full cargo/clippy/CMake/CTest evidence before reporting green.
 - New questions PA9/PA10: negative signed capacity follows literal signed-loop no-output rule; zero-part SplitDirectoryPath fills both safe empty outputs. PA1/PA2/PA3 retained.
 - Done 56d8bee9: nullable next boundary, CRT error propagation and signed split counts in conformance runner; literal JSON zero/one-byte/root vectors.
 - Baseline caveat: long cold build saw updated runtime JSON with its old binary (zero-capacity vector failure); do not claim a clean baseline. Earlier overlapping all logs are not authoritative final evidence.
@@ -19,9 +21,9 @@
 - Done 8c6589ec: removed nullable-finish convenience (no published null-finish contract). Valid finish/Drop close once; null next is tested. Final all follows this correction and final EOF formatting.
 - Audit complete: all published path constructors/destructor/getters/setters/joins and free helpers checked. Entry list remains authoritative passive payload; standalone lifecycle adds no native getters/COM/lifetime extension; RZ9-RZ11 and native layout/glue remain withheld.
 - PA1/PA2/PA3 remain open; preserve selected normalization rule.
-- Correction reservation logical round 2/3; this task permits one round only.
+- Correction reservation final correction 2/2, logical family 3/3; no further round permitted.
 - q.py cannot launch Bash (E_ACCESSDENIED); use bounded PowerShell output and required qbuild wrappers.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-paths-contractfix4-r1-manifest.json.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-paths-contractfix4-r2-manifest.json.
 
 ## Portable contract audit
 
