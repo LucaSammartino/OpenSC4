@@ -6,8 +6,10 @@
 
 - Goal: constructed ORIGINAL industrial versus independent Rust; IN3 natural interception excluded.
 - Current base d88e9470, detached HEAD; prior round b8e853e6 filed IN3.
-- Baseline qbuild all started; inspect result next.
-- Next: industrial lifecycle/record contract and existing plugin probes; substantive code by call 25-30.
+- Done: 1d8106c9 implements owned original versus direct Rust, validated typed views/image, all u16 versions and lifecycle/streams/messages/ref returns.
+- Baseline all: cargo 4938 passed, clippy zero diagnostics; CMake configure failed (concurrent wrapper run); no ctest baseline credit.
+- Focused qbuild quick PASS, 6/6 CMake edges; no Rust files touched.
+- Next: immutable guarded original/shadow request with save and 2032/shutdown; inspect counters/failures, then full gate.
 - Native replacement disabled; validate image, identity, views and reference ownership.
 - Compare Init/Shutdown/message/records, returns/bytes, failures and boundaries on independent instances.
 - Unique guarded game labels, 2032/ref0 save/shutdown; wait without qwait.
