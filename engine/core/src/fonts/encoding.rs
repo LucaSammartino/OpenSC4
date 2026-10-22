@@ -40,6 +40,8 @@ pub struct Converted {
     pub units: Vec<u16>,
     pub src: Vec<u32>,
     pub src_len: u32,
+    /// The §11 substitution ran, so the font's map vector (+0xD8) is non-empty.
+    pub substituted: bool,
 }
 
 impl Converted {
@@ -74,9 +76,15 @@ pub fn text_as_unicode(conv: &dyn CodePageConverter, cp: u32, s: &[u8]) -> Conve
             units: out,
             src: src2,
             src_len,
+            substituted: true,
         };
     }
-    Converted { units, src, src_len }
+    Converted {
+        units,
+        src,
+        src_len,
+        substituted: false,
+    }
 }
 
 /// Probe characters of `IsCodePageAvailable(cp)` (slot 25, switch at `0x00898A7E`).

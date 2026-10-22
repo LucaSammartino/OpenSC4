@@ -1,0 +1,290 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//! Words, clusters and whitespace (drawing-fonts.md §8.4, FN13): the shared UTF-16 helpers the
+//! measuring functions use.
+
+/// Membership in a sorted list of inclusive ranges.
+fn in_ranges(c: u16, r: &[(u16, u16)]) -> bool {
+    r.iter().any(|&(lo, hi)| lo <= c && c <= hi)
+}
+
+/// HB, hard break (`0x00911F42`).
+pub fn is_hard_break(c: u16) -> bool {
+    matches!(c, 0x000A | 0x000D | 0x0085 | 0x2028 | 0x2029)
+}
+
+const SB: &[(u16, u16)] = &[
+    (0x0020, 0x0020),
+    (0x002D, 0x002D),
+    (0x0082, 0x0082),
+    (0x2002, 0x200B),
+    (0x2010, 0x2010),
+    (0x2012, 0x2015),
+    (0x203E, 0x203E),
+    (0x3000, 0x3000),
+    (0x301C, 0x301C),
+    (0xFE31, 0xFE32),
+    (0xFE58, 0xFE58),
+];
+
+/// SB, break-after (`0x00911FFE`): the set, or any control ≤ 0x20 except LF and CR.
+pub fn is_break_after(c: u16) -> bool {
+    in_ranges(c, SB) || (c <= 0x20 && c != 0x0A && c != 0x0D)
+}
+
+/// NS, the no-start (closing) table at `0x00ACE760`, as stored.
+const NS: &[(u16, u16)] = &[
+    (0x0021, 0x0021),
+    (0x0025, 0x0025),
+    (0x0029, 0x0029),
+    (0x002C, 0x002C),
+    (0x002E, 0x002E),
+    (0x003A, 0x003B),
+    (0x003F, 0x003F),
+    (0x005D, 0x005D),
+    (0x007D, 0x007D),
+    (0x00A8, 0x00A8),
+    (0x00B0, 0x00B1),
+    (0x00B7, 0x00B7),
+    (0x00F7, 0x00F7),
+    (0x02C7, 0x02C7),
+    (0x02C9, 0x02C9),
+    (0x02CD, 0x02CD),
+    (0x0394, 0x0394),
+    (0x039B, 0x039B),
+    (0x2015, 0x2016),
+    (0x2019, 0x2019),
+    (0x201C, 0x201D),
+    (0x2025, 0x2027),
+    (0x2030, 0x2030),
+    (0x2032, 0x2033),
+    (0x203B, 0x203B),
+    (0x2103, 0x2103),
+    (0x2190, 0x2192),
+    (0x2196, 0x2199),
+    (0x221F, 0x2220),
+    (0x2225, 0x2225),
+    (0x222B, 0x222B),
+    (0x2234, 0x2236),
+    (0x2252, 0x2252),
+    (0x2266, 0x2267),
+    (0x2295, 0x2295),
+    (0x2299, 0x2299),
+    (0x22BF, 0x22BF),
+    (0x2502, 0x2502),
+    (0x250C, 0x250C),
+    (0x2514, 0x2514),
+    (0x2518, 0x2518),
+    (0x2524, 0x2524),
+    (0x252C, 0x252C),
+    (0x253C, 0x253C),
+    (0x2551, 0x2554),
+    (0x2558, 0x255D),
+    (0x2561, 0x2563),
+    (0x2565, 0x2566),
+    (0x256A, 0x256D),
+    (0x256F, 0x2570),
+    (0x2595, 0x2595),
+    (0x25CB, 0x25CB),
+    (0x25CF, 0x25CF),
+    (0x25E2, 0x25E5),
+    (0x2606, 0x2606),
+    (0x2640, 0x2640),
+    (0x2642, 0x2642),
+    (0x3001, 0x3003),
+    (0x3005, 0x3005),
+    (0x3008, 0x300B),
+    (0x300D, 0x300D),
+    (0x300F, 0x300F),
+    (0x3011, 0x3011),
+    (0x3015, 0x3015),
+    (0x3017, 0x3017),
+    (0x301D, 0x301D),
+    (0x3041, 0x3041),
+    (0x3043, 0x3043),
+    (0x3045, 0x3045),
+    (0x3047, 0x3047),
+    (0x3049, 0x3049),
+    (0x3063, 0x3063),
+    (0x3083, 0x3083),
+    (0x3085, 0x3085),
+    (0x3087, 0x3087),
+    (0x308E, 0x308E),
+    (0x309B, 0x309E),
+    (0x30A1, 0x30A1),
+    (0x30A3, 0x30A3),
+    (0x30A5, 0x30A5),
+    (0x30A7, 0x30A7),
+    (0x30A9, 0x30A9),
+    (0x30C3, 0x30C3),
+    (0x30E3, 0x30E3),
+    (0x30E5, 0x30E5),
+    (0x30E7, 0x30E7),
+    (0x30EE, 0x30EE),
+    (0x30F5, 0x30F6),
+    (0x30FB, 0x30FE),
+    (0x311D, 0x311D),
+    (0x3121, 0x3121),
+    (0x3124, 0x3124),
+    (0xBCA0, 0xBCA0),
+    (0xC2A4, 0xC2A4),
+    (0xC774, 0xC774),
+    (0xD2B8, 0xD2B8),
+    (0xD3F0, 0xD3F0),
+    (0xFE31, 0xFE31),
+    (0xFE33, 0xFE38),
+    (0xFE3D, 0xFE40),
+    (0xFE4B, 0xFE4B),
+    (0xFE50, 0xFE52),
+    (0xFE54, 0xFE54),
+    (0xFE56, 0xFE56),
+    (0xFE59, 0xFE5C),
+    (0xFE5F, 0xFE60),
+    (0xFE62, 0xFE62),
+    (0xFE64, 0xFE65),
+    (0xFE69, 0xFE6B),
+    (0xFF01, 0xFF0C),
+    (0xFF0E, 0xFF0E),
+    (0xFF10, 0xFF10),
+    (0xFF12, 0xFF13),
+    (0xFF15, 0xFF1C),
+    (0xFF1E, 0xFF20),
+    (0xFF3D, 0xFF3D),
+    (0xFF3F, 0xFF40),
+    (0xFF5B, 0xFF5E),
+    (0xFF61, 0xFF61),
+    (0xFF63, 0xFF65),
+    (0xFF67, 0xFF70),
+    (0xFF9E, 0xFF9F),
+    (0xFFE0, 0xFFE0),
+];
+
+/// NE, the no-end (opening) set.
+const NE: &[(u16, u16)] = &[
+    (0x0024, 0x0024),
+    (0x0028, 0x0028),
+    (0x005B, 0x005C),
+    (0x007B, 0x007B),
+    (0x00A3, 0x00A3),
+    (0x00A5, 0x00A5),
+    (0x2018, 0x2018),
+    (0x201C, 0x201C),
+    (0x2035, 0x2035),
+    (0x3008, 0x3008),
+    (0x300A, 0x300A),
+    (0x300C, 0x300C),
+    (0x300E, 0x300E),
+    (0x3010, 0x3010),
+    (0x3014, 0x3014),
+    (0x3016, 0x3016),
+    (0x301D, 0x301D),
+    (0xFE5B, 0xFE5B),
+    (0xFE5D, 0xFE5D),
+    (0xFF04, 0xFF04),
+    (0xFF08, 0xFF08),
+    (0xFF3A, 0xFF3B),
+    (0xFF5B, 0xFF5B),
+    (0xFF62, 0xFF62),
+    (0xFFE1, 0xFFE1),
+    (0xFFE5, 0xFFE5),
+];
+
+/// `0x00911D4A`: "can begin a line" = not in NS.
+pub fn can_begin_line(c: u16) -> bool {
+    !in_ranges(c, NS)
+}
+
+/// `0x00911E46`: "can end a line" = not in NE.
+pub fn can_end_line(c: u16) -> bool {
+    !in_ranges(c, NE)
+}
+
+/// CJK (`0x0091009B`).
+pub fn is_cjk(c: u16) -> bool {
+    in_ranges(
+        c,
+        &[(0x2E80, 0xE000), (0xF900, 0xFAFF), (0xFE30, 0xFE4F), (0xFF10, 0xFFEE)],
+    )
+}
+
+/// Thai (`0x009100DE`).
+pub fn is_thai(c: u16) -> bool {
+    (0x0E00..=0x0E7F).contains(&c)
+}
+
+/// Thai decoration (`0x00911B3E`).
+pub fn is_thai_decoration(c: u16) -> bool {
+    in_ranges(c, &[(0x0E31, 0x0E31), (0x0E34, 0x0E3A), (0x0E47, 0x0E4E)])
+}
+
+/// The space class of the visible width (`0x00896254`): U+0020, U+2002..U+200B.
+pub fn is_space(c: u16) -> bool {
+    c == 0x20 || (0x2002..=0x200B).contains(&c)
+}
+
+/// Number of NS table entries (the spec gives 223 distinct codes).
+pub fn ns_count() -> usize {
+    NS.iter().map(|&(lo, hi)| (hi - lo) as usize + 1).sum()
+}
+
+/// `UTF16GetWord(s, n)` (`0x0091227B`): length of the first word; 0 for n = 0, else ≥ 1.
+pub fn get_word(s: &[u16]) -> usize {
+    if s.is_empty() {
+        return 0;
+    }
+    let mut i = 1;
+    while i < s.len() {
+        let (p, c) = (s[i - 1], s[i]);
+        let ends = p == 0x0E46
+            || is_hard_break(p)
+            || is_hard_break(c)
+            || (can_begin_line(c)
+                && can_end_line(p)
+                && (is_cjk(p) || is_cjk(c) || (is_break_after(p) && !is_break_after(c))));
+        if ends {
+            break;
+        }
+        i += 1;
+    }
+    i
+}
+
+/// `UTF16ThaiCharGroupLength` (`0x00911CDE`) at `buf` with `n` units. `buf` may run past `n`:
+/// the original reads s[3] even when n = 3 (no bound check), so that unit comes from the caller's
+/// buffer; a read past the end of the whole buffer counts as "not U+0E33" (the core has no bytes
+/// there to read).
+pub fn thai_cluster_len(buf: &[u16], n: usize) -> usize {
+    let s = |i: usize| buf.get(i).copied().unwrap_or(0);
+    if n == 0 {
+        return 0;
+    }
+    if n == 1 {
+        return 1;
+    }
+    if s(1) == 0x0E33 {
+        return 2;
+    }
+    if !is_thai_decoration(s(1)) {
+        return 1;
+    }
+    if n < 3 {
+        return 2;
+    }
+    if s(2) == 0x0E33 {
+        return 3;
+    }
+    if !is_thai_decoration(s(2)) {
+        return 2;
+    }
+    3 + usize::from(s(3) == 0x0E33)
+}
+
+/// `GetComposedCharLength` (`0x00912588`) with the code page forced to UTF-16: a Thai unit starts
+/// a Thai cluster; any other unit is 1 (surrogate pairs are not joined).
+pub fn composed_len(buf: &[u16], n: usize) -> usize {
+    match buf.first() {
+        _ if n == 0 => 0,
+        None => 0,
+        Some(&c) if is_thai(c) => thai_cluster_len(buf, n),
+        Some(_) => 1,
+    }
+}
