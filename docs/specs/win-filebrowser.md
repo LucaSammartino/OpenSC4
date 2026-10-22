@@ -10,14 +10,14 @@ shadow comparison, or in-game verification is claimed.
 
 This owner combines a window with directory navigation, a file grid, an optional
 filename editor, file filters and selection notifications. Base window behavior
-comes from [widget-toolkit.md](widget-toolkit.md); grid behavior comes from the
-separate grid specification. This document does not extend either owner.
+comes from [widget-toolkit.md](widget-toolkit.md); grid behavior comes from
+[win-grid.md](win-grid.md). This document does not extend either owner.
 
 The preserved coverage inventory contains **100 candidate functions / 25,579
 bytes**, including reachability, neighbour and compiler-helper assignments. That
 is an attribution inventory, **not a count of fully specified browser methods**.
 The audit also found primary-interface targets missing from that inventory.
-The final inventory below must distinguish those sets; do not assign complete
+The final inventory below distinguishes those sets; do not assign complete
 owner coverage from the preserved count.
 
 ### 1.1 Interface identity and table boundaries
@@ -234,6 +234,14 @@ with 256 before increment (`009A45ED`–`009A45F9`); creation still occurs at
 
 ## 8. Largest owner bodies: population, construction and resources (partial)
 
+The verified filter-index operation (primary slot 26, `009A0D7B`, 80 bytes)
+accepts an unsigned index into a vector of 12-byte filter-group elements.
+An out-of-range index returns false without side effects. A valid index stores
+the selection, updates the filter combo when present, sets dirty byte `+0x31C`,
+invalidates, and returns true. The same valid index repeated still performs
+these actions. It does not populate the file list immediately. Evidence:
+count division/comparison `009A0D7E`–`009A0D95`, effects `009A0D97`–`009A0DC1`.
+
 ### 8.1 File population (`009A4EBA`, 2,241 bytes)
 
 Clear the file-grid contents and old owned file-entry records before rebuilding.
@@ -302,10 +310,17 @@ component `0xC470D325`/interface `0x20732180` and falling back to the graphic
 system's buffer creation when the factory fails. If a matching icon strip
 resource `0xA8963EEA` exists, icon N is sourced from horizontal interval
 18N..18N+18, vertical interval 0..17. Otherwise call CreateDefaultIcon.
-Install the buffer through the browser's icon setter and release the local
-buffer reference. The destination dimensions are byte-verified at
-`009A0F14`–`009A0F1C`; the sheet rectangle still needs byte revalidation
-before pixel conformance is credited (FBQ1).
+On the strip path, request buffer lock `0x8010`; on success copy the source
+rectangle into (0,0,18,17) and unlock. Failed lock skips copying but still
+assigns a color key converted from RGB (255,0,255), installs the buffer and
+returns true. The procedural fallback's return value is ignored. After either
+path, install through the icon setter, release the local reference and return
+true. Failure to obtain a buffer or initialize it returns false; an obtained
+buffer is released even when initialization fails. The setter's acceptance of
+the selector is not propagated. Destination dimensions are byte-verified at
+`009A0F14`–`009A0F1C`; source rectangle, lock, copy and key at
+`009A0F4F`–`009A0FB4`; installation/release/result at `009A0FCC`–`009A0FEB`.
+The source rectangle uses 32-bit multiply/add arithmetic.
 
 CreateDefaultIcon (`0099EF11`, 3,423 bytes) accepts an icon selector, a buffer
 and drawing area. A null buffer returns true without drawing (argument load,
@@ -323,7 +338,25 @@ buffer and clears the caller's output pointer (`009A18DF`–`009A18E6`). The
 successful drawing recipe and Boolean result still require instruction-level
 recovery (FBQ1). In particular, do not infer success solely from non-null output.
 
-### 8.4 Lifecycle and paint
+### 8.4 Icon and button-buffer setters
+
+The icon setter (primary slot 12, `0099EE5A`, 55 bytes) accepts an unsigned
+index 0–6 and a nullable buffer interface. Invalid indices have no effect.
+For a valid slot containing the same pointer, do nothing. Otherwise AddRef
+the incoming non-null buffer before releasing the previous non-null buffer,
+then store the incoming pointer. Its array starts at primary offset `+0x2CC`.
+There is no explicit invalidation in this body.
+
+The button-buffer setter (primary slot 13, `0099EE91`, 128 bytes) applies the
+same replacement/ownership rule to indices 0–3 in the array at `+0x2F0`.
+After a changed assignment, pass the new buffer (including null) to the
+corresponding button's buffer setter if the button exists. Index-to-button
+fields are 0→`+0x108`, 1→`+0x10C`, 2→`+0xF4`, 3→`+0xF8`. An unchanged pointer
+does not refresh the child. The unsigned range tests reject `0xFFFFFFFF`.
+Evidence: `0099EE5A`–`0099EE8E`, `0099EE91`–`0099EF0E`. These operations retain
+references; they do not transfer the caller's reference.
+
+### 8.5 Lifecycle and paint
 
 Init (`009A3CC1`, 742 bytes) checks the base init flag and skips its setup when
 already initialized. First setup calls base Init, loads default icons 0–6,
@@ -363,6 +396,11 @@ background placement remains FBQ2.
 | FB-C20 | Default-icon drawing receives null buffer | True; no color conversion, buffer lock or drawing. |
 | FB-C21 | Default-button buffer allocated but initialization fails | Release buffer exactly once and clear output pointer. |
 | FB-C22 | Fetch selection descriptor, then change browser selection | Getter returns true, copies type/ID and supplies three borrowed string-object pointers; it does not create owned string copies. Notification payload points to this five-word descriptor, not a string. |
+| FB-C23 | Replace retained icon A with B; repeat assignment of B | First call AddRefs B before releasing A; repeated pointer makes no refcount calls. Invalid index 7 makes no calls. |
+| FB-C24 | Assign null button buffer at index 1 while Cancel button exists | Release old retained buffer, store null and forward null to the Cancel button. Reassign null: no child update. Index `0xFFFFFFFF` is ignored. |
+| FB-C25 | Icon resource exists but destination lock fails | No resource copy; color key still set, icon setter called, local reference released and loader returns true. |
+| FB-C26 | Icon buffer obtained but initialization fails | Loader returns false and releases local buffer; icon setter is not called. |
+| FB-C27 | Select valid filter index twice; repeat with index equal to group count | Each valid call updates combo when present, marks dirty and invalidates without immediate file population. Out-of-range call returns false without those actions. |
 
 Cases involving unproved pixel geometry, layout, comparator order or pending
 selection are intentionally absent. Filling those cases to match an existing
@@ -412,9 +450,9 @@ Addresses and lengths identify the functions without exporting their bodies.
 | `00949ADE` | 3 | 92 | new | FBQ4 |
 | `0094D34F` | 7 | 1 | new | FBQ4 |
 | `00993785` | 7 | 9 | new | FBQ4 |
-| `0099EC98` | 450 | - | name-high | 8.4 partial / FBQ3 |
-| `0099EE5A` | 55 | 12 | neighbour | FBQ4 |
-| `0099EE91` | 128 | 13 | neighbour | FBQ4 |
+| `0099EC98` | 450 | - | name-high | 8.5 partial / FBQ3 |
+| `0099EE5A` | 55 | 12 | neighbour | 8.4 |
+| `0099EE91` | 128 | 13 | neighbour | 8.4 |
 | `0099EF11` | 3423 | - | name-medium | 8.3 partial / FBQ1 |
 | `0099FC70` | 24 | 2 | name-high | FBQ4 |
 | `0099FC88` | 34 | 0 | name-high | 1.1 |
@@ -427,7 +465,7 @@ Addresses and lengths identify the functions without exporting their bodies.
 | `0099FDDB` | 11 | 10 | new | FBQ4 |
 | `0099FDE6` | 615 | 11 | name-high | FBQ2 |
 | `009A0081` | 8 | 25 | neighbour | FBQ4 |
-| `009A0089` | 45 | - | vtable | 8.4 |
+| `009A0089` | 45 | - | vtable | 8.5 |
 | `009A00B6` | 36 | 17 | new | FBQ4 |
 | `009A00DA` | 34 | 27 | new | FBQ4 |
 | `009A00FC` | 53 | 90 | new | 6.1 |
@@ -489,10 +527,10 @@ Addresses and lengths identify the functions without exporting their bodies.
 | `009A08FA` | 145 | - | reach | FBQ6 |
 | `009A098B` | 56 | - | reach | FBQ6 |
 | `009A09C3` | 84 | - | reach | FBQ6 |
-| `009A0A17` | 173 | - | name-high | 8.4 partial / FBQ2 |
+| `009A0A17` | 173 | - | name-high | 8.5 partial / FBQ2 |
 | `009A0AC4` | 8 | 88 | neighbour | FBQ4 |
 | `009A0ACC` | 687 | - | name-high | FBQ2 |
-| `009A0D7B` | 80 | 26 | neighbour | FBQ4 |
+| `009A0D7B` | 80 | 26 | neighbour | 8 |
 | `009A0DCB` | 30 | 14,16 | neighbour | FBQ4 |
 | `009A0DE9` | 30 | 76 | neighbour | FBQ4 |
 | `009A0E07` | 46 | - | reach | FBQ6 |
@@ -559,7 +597,7 @@ Addresses and lengths identify the functions without exporting their bodies.
 | `009A3A23` | 208 | 101 | neighbour | FBQ4 |
 | `009A3AF3` | 116 | 95 | name-high | 2.3 |
 | `009A3B67` | 346 | - | name-medium | FBQ5 |
-| `009A3CC1` | 742 | - | name-high | 8.4 partial / FBQ3 |
+| `009A3CC1` | 742 | - | name-high | 8.5 partial / FBQ3 |
 | `009A3FA7` | 547 | - | free-neighbour | FBQ5 |
 | `009A41CA` | 116 | 15 | new | FBQ4 |
 | `009A423E` | 359 | 19 | name-medium | 6.3 |
