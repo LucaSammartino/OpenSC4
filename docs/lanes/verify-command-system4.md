@@ -13,7 +13,9 @@
 - Native controls commands4-r2-native-on-82376d6b-a and commands4-r2-native-off-82376d6b-a BOTH stalled in identical 2026-03-01 full-save script, ref0; verifier-off emitted no comparisons. Native whole-profile save still FAILS.
 - Native-on: 7414/7414 exact, 0 refused, historical logical count differences 171. Independent ORIGINAL objects, no native output seeding.
 - Clock24 commands4-r2-clock24-82376d6b-a CLEAN through 2032-01-14/ref0, save full ok=1 in 10906 ms; same 7414 exact/171 historical.
-- Next: await commands4-r2-house40-82376d6b-a (currently outstanding; session 46540), validate full shutdown then stage its saved fixture for supported reload. Helper build-runs/commands4-r2-run.py waits without qwait.
+- House40 commands4-r2-house40-82376d6b-a CLEAN through 2032-01-01/ref0; full save ok=1 in 10969 ms, PostSystemServiceShutdown reached, 7414 exact/171 historical.
+- Clock24 also reached PostSystemServiceShutdown. Native whole-profile failures remain explicitly failures.
+- Next: stage successful house40 save with timestamp validation (build-runs/commands4-r2-stage.py), then supported house40 reload through 2032. No request outstanding; helper build-runs/commands4-r2-run.py waits without qwait.
 - Shared variant.rs/variant CAPI, tools, maps, ABI tables and defaults are excluded.
 - Preserve all 171 comparisons and raw logical-count history. Native owned sets remain game-created originals.
 - GC1-GC7 remain outside scope. House40 uses exactly the 40 supplied opt-ins, existing simulator/budget infrastructure defaults; no terrain/effects/dispatch.
