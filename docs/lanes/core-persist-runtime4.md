@@ -11,15 +11,16 @@
 - Done: 849dc582 records baseline evidence and PR13. Source is frozen at 7921d6fe; later commits contain only audit/questions/lane documentation.
 - Independent vectors: field vectors committed before implementation; v1/v2 literal fixtures also recorded then. Additional lifetime/BMP/variant/edge tests were added after their bodies, not a test-first claim for those groups.
 - Baseline all: 20 suites / 5080 passed / 0 failed test cases, then formats doctest E0433 (new adapter source/old core artifact, mixed source); clippy passed, CMake pending. No stable full gate yet.
-- Next: build-runs/runtime-gates.py --after-baseline serially archives mixed baseline, runs quick, fmt, all; read runtime-gates/status.json and console/log summaries. Fix any failure, commit source, rerun without --after-baseline. No overlapping checks.
+- Next: run corrected build-runs/runtime-gates.py WITHOUT --after-baseline (quick/fmt/all serially); finish per-owner audit and measure the 17+1 tests.
 - Questions PR9-PR13 appended; IDs chosen beyond existing manager PR8; PR1-PR3 retained.
-- Gate pipeline launched (exec session 24761), waiting baseline CMake/CTest; it runs all stages sequentially, captures the actual source tip and archives logs under build-runs/runtime-gates/. Do not launch competing checks.
+- R2 fresh native process snapshot 2026-10-22T22:36:44Z: no old runtime-gates/qbuild/fc4verify/compiler/test attributable to this lane, all checker candidate commands accessible. WMI denied; native query succeeded. No cause of disappearance inferred.
 - Expected additions: 17 core runtime tests and 1 formats integration test, pending actual measurements. No blanket owner or implemented-byte credit.
 - IMPORTANT: those 18 new tests have NOT yet had a coherent quick/all execution. Never promote the old 5080 baseline count to runtime coverage. No merge queue entry while gates are pending.
 - Review: foreign helpers are limited to raw I/O, buffer allocation/ref/QI/locks/pixels/conversion, OS opening and existing QFS bytes; sealed production factory bodies remain ours. All six owners are partial; no byte subtotal or KeyList completion claim.
 - Oracle audit recorded in engine/core/src/persistence_runtime/AUDIT.md: constructed/synthetic conversion fixtures are not native, shipped-data or complete foreign-subclass evidence.
-- Latest checkpoint: c6e173c2; baseline CMake reached 214/214 and fc4verify-ctest-list.log / fc4verify-ctest.log now exist. CTest verdict and new quick/fmt/all results still unmeasured; read logs/status before any new check.
-- STOP: guard denied further work at 152k/150k. Continuation must first inspect build-runs/runtime-gates/status.json. Pipeline session 24761 remains the sole scheduled checker; do not overlap it or discard its results. No merge queue file written.
+- Baseline retained intact in build-runs/runtime-gates/baseline-mixed-r1-retained/: 20 suites/5080 passed cases then E0433 failure, clippy finished, CMake 214/214, CTest only 20/68 with no final verdict/exit. Interrupted/unmeasured combined gate. Original helper/status and process snapshot retained there.
+- Source correspondence rechecked: git diff 7921d6fe..4c99691e -- engine shows ONLY AUDIT.md (23 lines); broad engine trees 146feb7d versus c7cdd186 differ by that documentation. No production-source change since 7921d6fe.
+- Local gitignored helper corrected to absolute fmt file paths; archived original first. Do not use --after-baseline on the incomplete dead baseline. No queue until complete required checks.
 - No C ABI/plugin/manager/cache changes authorized; no game request planned for pure core.
 - PR1 native-order supplied explicitly; PR2 constructed fixtures are not shipped coverage; PR3 padded v1 row copy is a FreeCity4 choice.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-persist-runtime4-r1-manifest.json
+- R1 guard denial honored with committed handoff/no queue. This is R2 of original max3, not a reset; manifest C:/Users/tlori/FreeCity4/build-runs/run4-core-persist-runtime4-r2-manifest.json.
