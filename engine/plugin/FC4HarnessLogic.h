@@ -207,7 +207,7 @@ enum class ScriptOp {
     Network,
     Port,
     Tutorial,
-    Dispatch
+    Dispatch,
     PortProps
 };
 
