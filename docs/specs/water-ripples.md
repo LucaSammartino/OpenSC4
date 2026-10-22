@@ -90,7 +90,8 @@ every terrain vertex, rather than restoring a saved per-vertex flag word. Preexi
 also cleared. Other bits remain as produced by the flag refresh and tracing.
 
 AddShore copies deque indices in their final order to binary32 control points `(16 × (index % stride),
-16 × (index / stride))`, unsigned division/remainder then conversion; no simplification, endpoint extension or
+16 × (index / stride))`, **signed 32-bit** division/remainder then conversion (`IDIV` at `0x00761ADC`);
+valid terrain indices are nonnegative. No simplification, endpoint extension or
 height is stored (`0x00761A00–0x00761B6A`). DetectShores itself appends shores; callers clear the old shore
 collection when a full redetection is intended (§1.5).
 
