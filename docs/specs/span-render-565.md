@@ -175,10 +175,10 @@ with `(buffer, out)` and stops at the first that returns AL ≠ 0: returns **AL 
 refused: **AL = 0**. The RenderToBuffer factory (`0x0082B910`, `RET 8`) queries `buffer` for `0x20732180` (failure:
 AL = 0, `*out` untouched); success: allocates 0xD4 bytes, runs the constructor `0x00830690`, writes the context into
 `*out` without releasing what `*out` held, AddRefs it (count 0 → 1), releases its own query reference, AL = 1. A
-failed allocation is outside this fixture contract. The constructor sets only the
-vtable `0x00AC17D0`, `+4` (count), `+8` (target), `+0x24` (texture), `+0xB0` to 0 and the bytes `+0x41`, `+0x43`,
-`+0x74`, `+0x75` to 0; every other field (`+0x28..+0x40`, `+0x42`, `+0x94..+0xAC`, `+0xB4..+0xD0`) holds whatever
-the heap block held until a setter writes it.
+failed allocation is outside this fixture contract. The constructor sets its vtable to `0x00AC17D0`,
+zeros `+4` (count), `+8` (target), `+0x24` (texture), `+0xB0`, and zeros the bytes `+0x41`, `+0x43`,
+`+0x74`, `+0x75`; every other field (`+0x28..+0x40`, `+0x42`, `+0x94..+0xAC`, `+0xB4..+0xD0`) holds whatever
+the heap block held until Init or a setter writes it.
 
 **Context vtable `0x00AC17D0`** (23 entries, read from the image; entry 23 onward is the 1555 table `0x00AC182C`):
 
