@@ -139,7 +139,8 @@ equivalent for high bytes in a non-C locale.
 This locale dependency is live, not merely a CRT possibility: the language manager can call
 `setlocale(0, language-string)` and then set the multibyte codepage from that locale
 (`0x00928068–0x0092807A`). GetCurrentSystemCodePage can also change the C locale to the system
-default (`0x00910025–0x00910054`). Neither construction nor Find selects or freezes a locale.
+default (`0x00910025–0x00910054`; executable byte strings at `0x00AC7020` and `0x00A80BF0`
+are respectively `C` and empty). Neither construction nor Find selects or freezes a locale.
 Names and short names are folded **at construction time**; queries are folded **at call time**.
 Short-name selection itself uses CRT isupper on sign-extended bytes, then the same tolower
 (`0x007DDFB0–0x007DDFCE`; locale lookup at `0x009EF5A9–0x009EF5DF`). A locale change does not
@@ -399,7 +400,8 @@ values for set/get round trips: false/true; signed 32-bit minimum/maximum; float
 Verify that setting one endpoint does not change the other endpoint or a different instance.
 To discriminate range clamping independently of index validity, `SetInt(7, −1)` must retain −1
 despite the registered 1–5 range; `SetFloat(0, −2.0)` must retain −2.0 despite its 1–10 range
-(range/default float literals at `0x007E2552–0x007E2562`). No raw NaN or noncanonical Boolean
+(integer range literals at `0x007E166C–0x007E167F`; float literals at
+`0x007E2552–0x007E2562`). No raw NaN or noncanonical Boolean
 argument behavior is asserted by these recipes.
 
 If the safe core exposes invalid-index rejection, test **−1, count, signed 32-bit minimum,
