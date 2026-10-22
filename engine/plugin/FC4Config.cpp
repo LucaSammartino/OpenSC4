@@ -343,6 +343,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "simgrids_shadow",
                                   // glue-dates4: independent native date interface probe
                                   "dates_probe",
+                                  // Public process command-line read-only probe (default off).
+                                  "cmdline_probe",
                                   // Opt-in owned original / production Rust FontSys comparison.
                                   "fontsys_verify",
                                   "span8_shadow",

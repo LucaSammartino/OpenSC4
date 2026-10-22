@@ -67,6 +67,7 @@
 #include <windows.h>
 
 #include <cstring>
+#include "FC4CmdLineProbe.h"  // opt-in public, read-only command-line probe
 #include "FC4PersistManagerVerify.h"
 
 #ifndef FC4_VERSION_STRING
@@ -361,6 +362,7 @@ public:
         fc4::SpanRender4444Start();      // enable = span4444 (FC4SpanRender4444.h)
         fc4::SpanRender8888Start();      // enable = span8888 (opt-in)
         fc4::LanguageVerifyRun();  // opt-in constructed ORIGINAL language utility verification
+        fc4::CmdLineProbe(FrameWork());  // opt-in public borrowed process query evidence
         fc4::Span8Start();
         fc4::PersistManagerVerify(); // Opt-in scoped fixtures, all removed before city load.
         fc4::FpuLog("hook PostAppInit (exit)");

@@ -186,7 +186,7 @@ generated index: the questions live one file per spec, so read only the file for
 | city-tools-input | 12 | 1 | CT14 | questions/city-tools-input.md |
 | civic-buildings | 0 | 19 | CB20 | - |
 | clock24 | 0 | 22 | CK23 | - |
-| command-line | 3 | 0 | CL4 | questions/command-line.md |
+| command-line | 4 | 0 | CL5 | questions/command-line.md |
 | command-system | 8 | 0 | GC9 | questions/command-system.md |
 | commercial-industrial | 1 | 12 | CM11, IN4 | questions/commercial-industrial.md |
 | crime | 0 | 24 | CQ25 | - |
@@ -302,4 +302,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **429** | **1239** | | |
+| **total** | **430** | **1239** | | |
