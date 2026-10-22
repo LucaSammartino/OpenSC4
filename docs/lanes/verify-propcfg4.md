@@ -1,6 +1,14 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-propcfg4 (prop and lot independent verification) | `verify-propcfg4` / (engine lane, detached HEAD) | ready: cargo4938, clippy0, ctest68/68; six clean2032/ref0 runs including own/current40 save/reload; native query subsets exact, raw differences retained under PL23; ABI unchanged | Review verification subset; retain PL23 and existing parked gaps. |
+| verify-propcfg4 (prop and lot independent verification) | `verify-propcfg4` / (engine lane, detached HEAD) | continue: guard context budget reached after final report1113f298; cargo4938, clippy0, ctest68/68; six clean2032/ref0 save/reload controls; PL23 retained; ABI unchanged | Fresh agent: write merge queue for committed delivery; no further implementation or game runs required. |
+
+## Handoff
+- Goal: deliver opt-in independent native-versus-Rust prop/lot verification with complete evidence and no whole-owner overclaim.
+- Done: code ff4388f3 and99d9b5aa; final report1113f298 below; stable full gate cargo4938/clippy0/ctest68; all six unique-label game requests clean2032/ref0, own/current40 full-save/reload/shutdown validated.
+- Native query/create subsets exact; raw profile padding1544/run and complete arrays1908/run remain visible under PL23; no whole-configuration owner promotion.
+- Context guard denied merge-queue creation (152k/150k). No merge-queue file written. Stop this round; no request outstanding.
+- Exact next step in fresh context: retain the report, commit final ready lane row, then write build-runs/merge-queue/verify-propcfg4.json with actual HEAD, branch verify-propcfg4, kind engine, abi false, state ready and the six labels in the report below. No source changes or new tests needed.
+- DLL SHA25604b93bd72ee847fad54084520d5492c48518176e6746d8b31a1dc2be357339db; evidence and save receipts preserved in ignored build-runs; full report below contains exact counts/hashes/limitations.
 
 ## Implementation and scope
 
