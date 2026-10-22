@@ -186,7 +186,7 @@ generated index: the questions live one file per spec, so read only the file for
 | civic-buildings | 0 | 19 | CB20 | - |
 | clock24 | 0 | 22 | CK23 | - |
 | command-line | 3 | 0 | CL4 | questions/command-line.md |
-| command-system | 7 | 0 | GC8 | questions/command-system.md |
+| command-system | 8 | 0 | GC9 | questions/command-system.md |
 | commercial-industrial | 1 | 12 | CM11, IN4 | questions/commercial-industrial.md |
 | crime | 0 | 24 | CQ25 | - |
 | data-formats | 2 | 56 | EX54 | questions/data-formats.md |
@@ -194,25 +194,25 @@ generated index: the questions live one file per spec, so read only the file for
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 2 | 44 | DS47 | questions/disasters.md |
-| dispatch | 4 | 9 | DP14 | questions/dispatch.md |
+| dispatch | 1 | 12 | DP14 | questions/dispatch.md |
 | draw-context | 3 | 5 | DC9 | questions/draw-context.md |
 | drawing-fonts | 5 | 17 | FN23 | questions/drawing-fonts.md |
 | drive-tool | 2 | 0 | DR3 | questions/drive-tool.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
 | feature-manager | 3 | 2 | FM6 | questions/feature-manager.md |
-| fire-flames | 4 | 0 | FF5 | questions/fire-flames.md |
+| fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
-| foundations | 4 | 8 | AO4, HG4, RN6, SV2 | questions/foundations.md |
+| foundations | 8 | 8 | AO4, HG8, RN6, SV2 | questions/foundations.md |
 | framework-gz-services | 3 | 7 | GZ11 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
 | geometry-utilities | 6 | 0 | GU7 | questions/geometry-utilities.md |
-| glyph-textures | 6 | 0 | GT7 | questions/glyph-textures.md |
+| glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
 | graphics-rules | 2 | 4 | GR7 | questions/graphics-rules.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 1 | 6 | HD8 | questions/html-document.md |
-| landfill | 0 | 36 | LF7, LG31 | - |
+| landfill | 3 | 36 | LF7, LG34 | questions/landfill.md |
 | landvalue | 3 | 6 | LV8 | questions/landvalue.md |
 | language-utility | 3 | 0 | LU4 | questions/language-utility.md |
 | legacy-control | 3 | 4 | LC9 | questions/legacy-control.md |
@@ -231,7 +231,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
 | network-manager | 0 | 13 | NM14 | questions/network-manager.md |
-| network-occupants | 17 | 9 | NO27 | questions/network-occupants.md |
+| network-occupants | 23 | 9 | NO32 | questions/network-occupants.md |
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
 | network-rules | 2 | 10 | NR16 | questions/network-rules.md |
 | network-tools | 14 | 4 | NT25 | questions/network-tools.md |
@@ -245,10 +245,10 @@ generated index: the questions live one file per spec, so read only the file for
 | parks | 0 | 11 | PK12 | - |
 | particles | 3 | 4 | PT8 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
-| paths | 8 | 0 | PA9 | questions/paths.md |
+| paths | 3 | 0 | PA4 | questions/paths.md |
 | pedestrians | 2 | 0 | PN3 | questions/pedestrians.md |
 | persistence | 3 | 1 | PR5 | questions/persistence.md |
-| persistence-manager | 0 | 1 | PR6 | questions/persistence-manager.md |
+| persistence-manager | 3 | 1 | PR9 | questions/persistence-manager.md |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
 | pollution | 0 | 16 | PG17 | - |
 | port-developers | 0 | 12 | PD13 | questions/port-developers.md |
@@ -280,7 +280,7 @@ generated index: the questions live one file per spec, so read only the file for
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | terrain-view | 3 | 0 | TV4 | questions/terrain-view.md |
 | text-edit | 2 | 6 | TE9 | questions/text-edit.md |
-| texture-bindings | 6 | 1 | TB8 | questions/texture-bindings.md |
+| texture-bindings | 2 | 1 | TB4 | questions/texture-bindings.md |
 | timers | 0 | 3 | TM4 | questions/timers.md |
 | tools-com-director | 2 | 2 | TD5 | questions/tools-com-director.md |
 | traffic-network | 0 | 29 | TN30 | - |
@@ -290,14 +290,14 @@ generated index: the questions live one file per spec, so read only the file for
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | vehicles | 2 | 0 | VH3 | questions/vehicles.md |
 | view-input-controls | 2 | 0 | VIC3 | questions/view-input-controls.md |
-| view-utilities | 0 | 11 | VU12 | questions/view-utilities.md |
+| view-utilities | 2 | 11 | VU14 | questions/view-utilities.md |
 | view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
 | water-ripples | 10 | 0 | WR11 | questions/water-ripples.md |
 | watercraft | 7 | 0 | WC8 | questions/watercraft.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
-| widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
+| widget-toolkit | 8 | 1 | WT10 | questions/widget-toolkit.md |
 | win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **404** | **1236** | | |
+| **total** | **408** | **1239** | | |
