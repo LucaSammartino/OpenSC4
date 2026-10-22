@@ -1,8 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-fontsys4: completed cGZFontSys verification | `verify-fontsys4` / detached reserved worktree (engine lane) | wip: owned route proven; production comparison incomplete (8469 exact, 72 differences, 129 refusals); provider corrected in 8ff837d9; cargo4962/clippy0/ctest68 PASS; questions none; no owner promotion | 1. Preserve evidence and original-attempt cap 3/3. 2. Coordinator review only; original/current40/reload controls and corrected-provider native equivalence remain unverified. |
+| verify-fontsys4: cGZFontSys verification round 2 | `verify-fontsys4` / detached reserved worktree (engine lane) | in progress | 1. Stable full gate and freeze corrected provider. 2. Native production comparisons, HOUSE40 OFF/ON save/shutdown and supported reload. |
 
-## Result
+## Handoff
+
+- Goal: round 2 of at most 3 lane rounds; meaningful independent native comparison using production Rust FontSys and corrected raw provider.
+- Starting HEAD 391bfd5d; provider correction 8ff837d9. Detached HEAD, no branch/ref changes authorized.
+- Prior native requests retained: route a1 clean, focused b1 early SDK overload exit, stable c1 clean; 8469 exact/72 diff/129 refusals INVALID acquisition-provider evidence, no exact credit.
+- User clarified native request count 3 is not a lane-round cap; justified corrected-artifact requests authorized. No separate original-attempt cap applies.
+- Baseline qbuild all launched this round; next collect verdict and freeze corrected DLL/PDB on PASS.
+- Required controls: exact HOUSE40 profile from current task, ON/OFF full save/shutdown and supported reload to2032/ref0; no experimental keys.
+- No game request outstanding. No new questions or code edits yet. Preserve all historical evidence below until final report.
+- Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-fontsys4-r2-manifest.json.
+
+## Prior round report (historical; native-attempt cap wording superseded above)
 
 WIP, no owner verification or replacement credit. The owned original route is safe in the real game, and a bounded catalogue/query/directory/renderer comparison exercised production Rust. Acquisition-dependent comparison evidence is invalidated by a verification-provider defect, corrected after exhausting the native attempt cap. This is not an exact FontSys shadow.
 
