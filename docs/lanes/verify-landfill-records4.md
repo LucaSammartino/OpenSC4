@@ -11,7 +11,9 @@
 - Added fresh-object native record reload (native output only into native Read), independent Rust own-record reload and destruction counts for both lifetimes. Published null-parent holder records avoid shared exemplar mutation.
 - Intermediate all: cargo4940/clippy0/ctest67/68; only return-channel review annotation for corrected SetTileID failed, fixed in a0584dd0. Fresh-object reload added c8b59ba7; format corrected before final stable gate.
 - Stable all on 289c6fdf: cargo4940 passed, clippy0, CMake2/2, ctest68/68 (84.3s), no tree-changed warning. Quick capi529/CMake5/5 PASS; fmt2 files PASS.
-- Next: immutable-DLL game controls using saved fixture sgv4-r1-union40-20261022e.sc4 (SHA256 DE418AC20118B8B1ADBC1FF0CFF138BD83DAEC3A38D348285695E9C783398DAC), current40 replacements and scripted save through2032. Native measurements pending.
+- Game vlfr4-r2-on-reload-2032-20261022a clean/ref0, save ok1, 7/9 exact, 14/14 destroyed, reload4/4. Immutable DLL SHA256 1d523688f69580122d747de55d953b03d4736fc99f8d148b5db0df4b7bdb46bd. Fixture already2033-12-01: end2032 immediate, no six-year control credit.
+- Differences: case2 mutation returns despite matching record; case7 native accepts bad holder version while Rust refuses. Added public-output diagnostics; no Rust behavior changed to fit native.
+- Next: quick build, normal-speed diagnostic run; file exact questions, final stable gate and ordinary-city ON/OFF controls through2032. No outstanding request.
 - Required game evidence: immutable guarded2032/ref0 save/reload controls, unique request labels, wait without qwait. No request outstanding.
 - Guard: C:/Users/tlori/FreeCity4/build-runs/run4-verify-landfill-records4-r2-manifest.json; shared budget/calls retained.
 

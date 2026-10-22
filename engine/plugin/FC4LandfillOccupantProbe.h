@@ -65,6 +65,7 @@ public:
     bool ReadGZSerializable(cIGZSerializable**, bool) override { return Fail(); }
     bool ReadResKey(cGZPersistResourceKey&) override { return Fail(); }
     bool ReadVariant(cIGZVariant&) override { return Fail(); }
+    size_t Consumed() const { return pos_; }
 private:
     bool Fail() { good_ = false; return false; }
     bool Take(void* out, size_t n) {
@@ -162,6 +163,11 @@ void RunLandfillOccupantProbe(void*) {
             if (!input.empty()) {
                 OccupantProbeInput stream(input);
                 read = serial->Read(stream);
+                if (read != (rust.read_ok != 0)) {
+                    Log("landfill occupant probe case=%u Read native=%u rust=%u consumed=%u/%u error=%d", test,
+                        read ? 1u : 0u, rust.read_ok, static_cast<unsigned>(stream.Consumed()),
+                        static_cast<unsigned>(input.size()), stream.GetError());
+                }
             }
             ok = ok && read == (rust.read_ok != 0);
             auto* occ = tile->AsOccupant();  // borrowed
@@ -170,9 +176,14 @@ void RunLandfillOccupantProbe(void*) {
                 // previous uint32 ID in EAX, not the SDK's bool/AL.
                 const uint32_t previous = tile->SetTileID(0x02F10010);
                 ok = ok && previous == rust.previous_tile;
-                ok = tile->SetOrientation(-123) && ok;
+                const bool oriented = tile->SetOrientation(-123);
+                ok = oriented && ok;
                 const cS3DVector3 v(xyz[0], xyz[1], xyz[2]);
-                ok = occ->SetPosition(&v) && ok;
+                const bool positioned = occ->SetPosition(&v);
+                ok = positioned && ok;
+                Log("landfill occupant probe case=%u mutations previous native=0x%08X rust=0x%08X "
+                    "SetOrientation=%u SetPosition=%u", test, previous, rust.previous_tile,
+                    oriented ? 1u : 0u, positioned ? 1u : 0u);
             }
             if (test == 0 || read) {
                 ok = ok && occ && tile->GetOrientation() == rust.orientation &&
