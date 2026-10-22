@@ -1,0 +1,4 @@
+# Proven non-code data references from the fixed GOG export. Ignore only this exact edge, not its target function.
+# Evidence must establish that the source bytes are data rather than a function pointer. Denominator is unchanged.
+from	to	evidence
+00AC77E8	00677261	docs/specs/lua-host.md section6.3: bytes 61 72 67 00 are the string arg passed to PushString at008AED2F, not a ScriptServer callback

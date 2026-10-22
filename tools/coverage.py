@@ -174,7 +174,8 @@ def folded_owner(note):
 
 
 class Attribution:
-    def __init__(self, export, names_tsv, vtables_tsv, interfaces_tsv, libs_tsv, ranges_tsv, text_lo, text_hi):
+    def __init__(self, export, names_tsv, vtables_tsv, interfaces_tsv, libs_tsv, ranges_tsv, text_lo, text_hi,
+                 noncode_refs_tsv):
         self.funcs = {}  # va -> size
         self.gname = {}  # va -> Ghidra name (non-default)
         self.thunk = set()
@@ -279,14 +280,31 @@ class Attribution:
         # tables of function pointers in data: a slot belongs to a table whose head (an address code refers to) is
         # reached by walking back over contiguous pointer slots, 4 bytes at a time (at most 256); the functions
         # that refer to the head get an edge to the slot's function (vtables, command and Lua registration tables)
+        noncode_refs = set()
+        if noncode_refs_tsv is not None:
+            for r in read_tsv(noncode_refs_tsv):
+                if not all(re.fullmatch(r"[0-9a-fA-F]{8}", r.get(k, "")) for k in ("from", "to")) \
+                        or not r.get("evidence", "").strip():
+                    sys.exit(f"coverage: {noncode_refs_tsv}: non-code reference needs two addresses and evidence")
+                pair = (int(r["from"], 16), int(r["to"], 16))
+                if pair in noncode_refs:
+                    sys.exit(f"coverage: {noncode_refs_tsv}: duplicate non-code reference {pair}")
+                noncode_refs.add(pair)
+        seen_noncode_refs = set()
         slots = {}
         for r in read_tsv(export / "data-references.tsv"):
             try:
                 frm, to = int(r["from"], 16), int(r["to"], 16)
             except ValueError:
                 continue
+            if (frm, to) in noncode_refs:
+                seen_noncode_refs.add((frm, to))
+                continue  # Proven data, not a function pointer; do not propagate an owner through it.
             if frm >= text_hi:
                 slots[frm] = to
+        if seen_noncode_refs != noncode_refs:
+            sys.exit(f"coverage: {noncode_refs_tsv}: non-code reference absent from this export")
+        self.edge_counts["non-code-data-references"] = len(seen_noncode_refs)
         for frm in sorted(slots):
             to = slots[frm]
             if to not in self.funcs:
@@ -769,13 +787,14 @@ def main():
         "interfaces": REPO / "docs" / "abi" / "interfaces.tsv",
         "libs": REPO / "tools" / "coverage-libs.tsv",
         "ranges": REPO / "tools" / "coverage-ranges.tsv",
+        "noncode refs": REPO / "tools" / "coverage-noncode-refs.tsv",
         "map": REPO / "tools" / "coverage-map.tsv",
         "shadows": REPO / "tools" / "coverage-shadows.tsv",
         "regress.ps1": REPO / "tools" / "regress.ps1",
         "subsystems": REPO / "engine" / "plugin" / "FC4Subsystems.cpp",
     }
     att = Attribution(export, inputs["names"], inputs["vtables"], inputs["interfaces"], inputs["libs"],
-                      inputs["ranges"], text_lo, text_hi)
+                      inputs["ranges"], text_lo, text_hi, inputs["noncode refs"])
     owner, rule = att.run()
     rows = read_map(inputs["map"])
     replace_list, shadow_list = regress_lists(inputs["regress.ps1"])
@@ -1012,7 +1031,7 @@ def main():
     w(f"| SimCity 4.exe | {exe_sha[:16]} | GOG 1.1.641, image base 0x{base:08X} |")
     for f in ("functions.tsv", "function-details.tsv", "calls.tsv", "data-references.tsv", "instructions.asm"):
         w(f"| ghidra/export/windows/{f} | {text_sha256(export / f)[:16]} | Ghidra 12.1.4 auto-analysis export |")
-    for k in ("names", "vtables", "interfaces", "libs", "ranges", "map", "shadows", "regress.ps1", "subsystems"):
+    for k in ("names", "vtables", "interfaces", "libs", "ranges", "noncode refs", "map", "shadows", "regress.ps1", "subsystems"):
         w(f"| {inputs[k].relative_to(REPO).as_posix()} | {text_sha256(inputs[k])[:16]} | |")
     w(f"| build-runs/{regress.name} | {text_sha256(regress)[:16]} | regress {reg['tag']} "
       f"({'PASS' if reg['pass'] else 'FAIL'}; {reg['profile'] or 'profile not recorded'}); replace run "
