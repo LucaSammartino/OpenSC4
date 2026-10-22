@@ -5,6 +5,11 @@
 ## Handoff
 
 - Round 2 audit: preserved tip 6e85917e contains no spec or code changes; only this lane file.
+- Navigation milestone committed 6876d42d. Expanded selection/flags/mkdir/large-body partial contracts;
+  audited union is 174 distinct targets / 28,907 export bytes (74 missing primary targets).
+- Byte correction: slot 90 at 009A00FC fills a 20-byte descriptor, NOT a string; notification third
+  word points to stack descriptor containing two numbers and three borrowed string-object pointers.
+- Next: validate inventory and cross-links; regenerate question index; commit expanded spec/questions.
 - Milestone: drafted win-filebrowser.md interfaces, path updates, parent navigation, row lookup,
   and FB-C01..09. Numeric branches checked against bytes. Primary table 00ADD190 has 107 slots;
   00ADD33C is a separate comparator pointer. Primary interface absent from ABI table.

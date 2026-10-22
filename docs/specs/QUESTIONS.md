@@ -50,6 +50,7 @@ generated index: the questions live one file per spec, so read only the file for
 | EF | effects |
 | EH | residential-education-health |
 | EX | data-formats |
+| FBQ | win-filebrowser |
 | FL | flammability |
 | FM | feature-manager |
 | FN | drawing-fonts |
@@ -209,6 +210,7 @@ generated index: the questions live one file per spec, so read only the file for
 | view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
+| win-filebrowser | 6 | 0 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **218** | **1119** | | |
+| **total** | **224** | **1119** | | |
