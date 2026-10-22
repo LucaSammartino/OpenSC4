@@ -158,7 +158,7 @@ Evidence: `0x0087D897–0x0087D8F8`, early leak `0x0087D935–0x0087D945`, servi
 
 ### 3.4 Metadata, name predicate and mode callback
 
-`0x0087F0E0` fills the supplied descriptor's name pointer with **GDriverClass: OpenGL**, ORs
+`0x0087F0E0` fills the supplied descriptor's name pointer with **GDriverClass--OpenGL**, ORs
 `0x06080000` into its existing flags, sets the two dimension words at descriptor offsets 16 and 20
 to **600 and 800** respectively, and records the object's canonical identity in a global used by
 this branch. It returns true. Other descriptor contents are preserved. `0x0087F120` writes only
@@ -237,4 +237,284 @@ bodies and the supporting collection destructor `0x004638B0–0x004638E8`.
 
 ## 5. Second registered factory: remaining support
 
-Tracing and per-body checklist continue below.
+These contracts cover only the attributed support of the `0x7ACA35C6` product. They do not imply
+completion of all operations on that product, or rename it to match misleading folded symbols.
+
+### 5.1 Reusable buffer handles
+
+`0x008EAF30` accepts only type 0 or 1; other types return handle zero without changing state. Handles
+are **1-based array indices**, not pointers or serial numbers. Search from the first slot and use
+the first inactive one. When live count is at least capacity, allocate room for capacity+16 records,
+copy the old capacity's records, mark only the 16 new active flags false, increase capacity, free
+old storage and install the new array before searching. Native record stride is 44 bytes, but a
+portable representation need not use that layout. Allocation is not checked before copying/marking;
+there is no null-allocation Boolean failure path or rollback. New records' other contents are not
+blanket-zeroed (`0x008EAF5F–0x008EAFE2`).
+
+On claiming a slot, increment live count, mark active, set its data pointer null and type to the
+requested type, and assign a global 32-bit serial. If the next serial is zero, use 1; increment it
+after assignment with wraparound. Serial generation is shared across objects. Initialize its origin
+and dimensions to zero. Type 0 uses four bytes per pixel; type 1 uses two. The content-version word
+and pitch are not initialized here; first allocation by the save operation below supplies them.
+Return index+1. If the search finds no inactive slot, return zero, with no further growth/retry.
+Evidence: `0x008EAFE2–0x008EB0B6`.
+
+`0x008EAF00` considers a handle valid iff its unsigned value lies in 1..capacity and its active byte
+is nonzero. It does not compare the serial, live count, data pointer or buffer size. Negative signed
+inputs therefore fail the unsigned bound check (`0x008EAF04–0x008EAF20`). A released handle can
+become valid again for a different buffer when the same slot is reused.
+
+`0x008EB0C0` first invokes the object's virtual validity operation (table offset `0x20`). On false,
+return false with no change. On true, mark inactive, free the stored data pointer, decrement live
+count, and return true. It does not clear the freed pointer, serial, dimensions or type. A second
+release normally fails validity and does not free again. `0x008EB110` visits slots in increasing
+index order, invokes virtual release (table offset `0x14`) for each active slot, then frees the array,
+sets array pointer and capacity zero and returns true. It does not explicitly reset live count;
+ordinary release calls decrement it. Both validity/release results are low-byte Booleans. Evidence:
+complete bodies `0x008EB0C0–0x008EB10F`, `0x008EB110–0x008EB172`.
+
+### 5.2 Strided copy and dispatch endpoints
+
+`0x008EAE90` copies a rectangle described by source, destination, byte width, source pitch,
+destination pitch and height. If byte width or height is signed ≤0, return without invoking either
+endpoint. If both pitches equal byte width, call the copy endpoint once with height-times-width
+bytes. Otherwise call it once per row in increasing row order, advancing source/destination by
+their own pitches. In either positive-size case, invoke the completion endpoint **once after all
+copies**, not once per row. Do not add an overlap or negative-pitch rejection. All products and
+address arithmetic are 32-bit. Native register arguments are width/source/destination in EAX/ECX/EDX;
+this matters when reading the pseudocode, which omits width at some call sites.
+
+The attributed entry `0x008DDFB0` is an unconditional indirect tail delegate through the current copy
+endpoint pointer at `0x00B16104`; `0x008DDFC0` similarly delegates through `0x00B5CA90` for completion.
+Neither validates its pointer or adds an independent copy/cleanup. The installed optimized endpoints
+are separate support, not extra bodies added to this inventory. Evidence: `0x008EAE99–0x008EAEF7`
+and the complete six-byte tail delegates.
+
+### 5.3 Save frame rectangle into a buffer (`0x008EB180`, 447 bytes)
+
+Use arguments `(handle, rx, ry, width, height, sx, sy)`, where r denotes destination buffer offset
+and s source frame offset. Resolve the handle slot **without a validity/range check**. Require
+rx,ry,sx,sy ≥0; require rx+width and sx+width ≤frame width, and ry+height and sy+height ≤frame height.
+If buffer data already exists, also require rx+width/ry+height within its stored dimensions. Reject
+failed comparisons with false before the frame-synchronization helper `0x008E0100`. Width/height
+themselves are not required positive; sums and comparisons are signed 32-bit, with wrapped addition.
+
+After those checks, invoke synchronization. For a null buffer pointer, allocate
+`frame width × bytes-per-pixel × frame height + 8` bytes and immediately zero that entire size,
+without checking allocation success. Initialize pitch to frame-width-times-pixel-size, version to
+zero, origin to (0,0) and dimensions to full frame size. There is no resizing of an existing buffer.
+Increment version before copying, including zero/negative copy sizes and unsupported stored types.
+
+Type 0 copies four-byte pixels from the first frame plane; type 1 copies two-byte pixels from the
+second plane. Pass source frame base plus sy-times-frame-pitch plus sx-times-pixel-size, destination
+buffer base plus ry-times-buffer-pitch plus rx-times-pixel-size, byte width=width-times-pixel-size,
+both pitches, and height to §5.2. Return true after the copy. Other stored types return false **after**
+synchronization, lazy allocation if needed, and version increment. No validity call precedes these
+side effects. Evidence: checks `0x008EB19B–0x008EB230`, allocation `0x008EB242–0x008EB290`,
+version/type dispatch `0x008EB293–0x008EB2C0`, copy setup `0x008EB2C2–0x008EB33E`.
+
+### 5.4 Restore buffer rectangle to frame (`0x008EB500`, 754 bytes)
+
+Use arguments `(handle, sx, sy, width, height, dx, dy)`. Again resolve the handle directly without
+validity checking. Require dx,dy ≥0, dx+width ≤frame width and dy+height ≤frame height. Compute
+`u=dx−buffer origin x` and `v=dy−buffer origin y`; require u,v ≥0 and u+width/v+height within the
+buffer's stored dimensions. These checks **do not validate the explicit source offsets sx/sy**.
+Failed checks return false before synchronization or tile writes. There is no positive-size test.
+
+Invoke synchronization. For type 0, first mark affected 16×16 frame tiles, in row-major order. Tile
+columns run from arithmetic-shift-right(dx,4) through arithmetic-shift-right(dx+width−1,4), inclusive;
+rows analogously use dy and dy+height−1. Store this 32-bit tag, using addition of the components:
+
+`(((dx−sx) << 18) & 0x0FFC0000) + (((dy−sy) & 0x3FF) << 8) + (serial << 28) + (version & 0xFF)`.
+
+Then clear the left tile column if dx has a nonzero low nibble, the right tile column if dx+width
+has a nonzero low nibble, the top tile row if dy has a nonzero low nibble, and the bottom row if
+dy+height has a nonzero low nibble. Each clear covers the same inclusive tile range; overlap is
+allowed. Exact tile-boundary endpoints preserve the tag; partial boundary tiles become zero.
+All arithmetic wraps at 32 bits; this is not a unique full-width serial/version encoding. Native
+byte/shift/mask operations are at `0x008EB5C9–0x008EB621`; boundary loops
+`0x008EB676–0x008EB72B`. Type 1 performs no tile-tag writes.
+
+Source address is buffer base plus sy-times-buffer-pitch plus sx-times-pixel-size, even though the
+fit tests used u/v. Destination is frame-plane base plus dy-times-frame-pitch plus dx-times-pixel-size.
+Type 0 uses first plane/four-byte pixels; type 1 second plane/two-byte pixels. Delegate the copy to
+§5.2 and return true. Another stored type returns true after synchronization without copying; it is
+not the false-return rule of the save operation. A null data pointer is not independently rejected.
+Evidence: `0x008EB500–0x008EB5A8`, full marking loops `0x008EB623–0x008EB674`, and copy/type/return
+sequence `0x008EB731–0x008EB7F7`.
+
+### 5.5 Software-frame capture (`0x008EB340`, 443 bytes)
+
+Inputs are x,y,width,height and optional bitmap. Form the requested right/bottom before clamping
+x/y to zero; cap right/bottom to the current frame dimensions and subtract clamped starts. No empty
+or overflow rejection. Invoke synchronization **before** inspecting/creating the destination.
+An initialized destination must report format 9 (format descriptor starts as words 3,16); otherwise
+return null without releasing it. If accepted, independently limit capture width/height to its
+dimensions. The native bitmap identity is used for these calls; misleading decompiler references
+through another parameter are not part of the contract (`0x008EB3D9–0x008EB3FD`).
+
+Without a bitmap, call GZCOM's factory slot with class `0xC470D325`, interface `0x20732180`, and the
+bitmap output. Null output returns null. Unlike the OpenGL capture, this path does not null-check
+the GZCOM accessor before calling through it. Initialize an uninitialized bitmap to capture dimensions
+and format words 9,32. Initialization failure calls bitmap Release and returns null, including when
+the bitmap was supplied by the caller. Lock with `0x8040`; lock failure also releases it and returns
+null. An unsupported preexisting format does **not** take that Release path.
+
+After successful lock, ask bitmap slot 35 (native offset `0x8C`) with frame pitch and capture height,
+then pass its returned value to slot 34 (`0x88`) to obtain the destination address. Copy width×4
+bytes per row from first-plane address `(x,y)` using frame pitch and that same pitch for destination,
+with capture height rows; no RGB conversion or vertical reversal occurs here. Unlock with `0x8040`
+and return the bitmap without adding a reference. Native call setup `0x008EB473–0x008EB4B2` supplies
+height, frame pitch, frame pitch to the copy helper. Evidence: `0x008EB340–0x008EB4FA`.
+
+### 5.6 Aggregate records and their storage helpers
+
+This group manipulates two ordered sequences of opaque value records, A and B. Their native copy
+sizes are 204 and 48 bytes, respectively. These sizes describe copying and allocation evidence,
+not a mandated portable object layout. Copies are shallow: pointer-valued contents are copied as
+values and receive no AddRef, deep clone or per-element destruction during sequence resizing.
+
+| Body | Required behavior |
+|---|---|
+| `0x008DEC30` / `0x008DED50` | Reallocate A/B sequence to capacity `old size + max(old size, insertion count)`, using unsigned comparison for max. Copy prefix before the insertion position, then count copies of the supplied value. If the final input byte is zero, also copy the old suffix; nonzero omits that suffix. Free old backing storage, then install new begin/end/capacity. Copy widths are 51/12 words per record. No checked-allocation false result or rollback is provided. |
+| `0x008DEF60` / `0x008DF0B0` | Insert repeated A/B values. Zero count does nothing. If unused capacity is insufficient, use the corresponding reallocator above with suffix retained. Otherwise snapshot the supplied record **before shifting**, preserving self-aliasing insertion. If tail length is greater than insertion count, move its last count records beyond old end, shift the remaining tail backward, then fill the gap. Otherwise append count-minus-tail copies, move the old tail, then fill its old positions. Maintain order and increase size by count. No element pointees are freed. |
+| `0x008DF1F0` | Resize A to an unsigned requested count, with a supplied fill record. Shrink by moving end to the requested position, without freeing removed record pointees or shrinking capacity. Grow by inserting repeated fill records at old end; equality is a zero-count no-op. |
+| `0x008DF260` | Resize A using a partially initialized default record: zero its key word, nine pairs of entry words, and a trailing flag byte. Other record bytes have no defined initial value. This must not be specified as zeroing all 204 bytes. |
+| `0x008DF2E0` | Initialize both sequences and additional aggregate counters empty/zero; resize A to one default record, then mark that first record's flag true and its two trailing working values zero. Return the aggregate identity. No allocation-failure check before touching the first record. |
+| `0x008DEE80` | Destroy aggregate: in B order, free each record's first owned pointer; then in A order free nine entry pointers per record and clear each of those nine pointers. Free B backing storage, then A backing storage when nonnull. Do not reset sequence begin/end/capacity or promise this is safe to repeat. |
+
+Evidence: native strides and shallow copy loops `0x008DECB1–0x008DECF2`,
+`0x008DEDC0–0x008DEE23`; growth comparisons `0x008DEC56–0x008DEC68`,
+`0x008DED73–0x008DED86`; insertion branches `0x008DEF9B–0x008DF0A2`,
+`0x008DF0E0–0x008DF1E0`; resize `0x008DF215–0x008DF247`; partial template stores
+`0x008DF26F–0x008DF2C5`; aggregate initialization `0x008DF2E6–0x008DF31D`; destruction
+`0x008DEEB0–0x008DEF57`. Pointer/free order is behavior; no guessed graphics meaning is assigned
+to record A/B or the template's unwritten scalar fields.
+
+### 5.7 Interface and resource destruction order
+
+`0x008DCBF0` adjusts an interface identity by −4 and tail-delegates QueryInterface to `0x008DC4C0`.
+`0x008DCC50` adjusts by −12 and delegates deleting destruction to `0x008DCD60`.
+`0x008DCC60` adjusts by −12 and delegates Release to `0x008DC550`;
+`0x008DCC70` adjusts by −12 and delegates AddRef to `0x008DC540`. The last two targets' exported
+`cSC4NetworkToolUI` names do not make these thunks UI operations. Inputs and delegated return are
+preserved; no independent reference is added. Finalizer `0x008DC4A0` has the slot-80-then-delete(1),
+return-zero rule in §3.5.
+
+`0x008E0080` frees the two working-array pointers in their allocation order, without testing or
+clearing them. `0x008DCC80` restores this branch's dispatch and performs the following ordered
+cleanup: delegate branch stop to `0x008E1240`; free those two arrays; clear reusable buffers via
+§5.1; free a nonnull trailing owned buffer; destroy the trailing collection of owned string buffers;
+free a nonnull tile-tag buffer and another nonnull owned buffer; Release a nonnull held interface;
+destroy the A/B aggregate; destroy the block pool (virtual allocation, descriptor storage and set);
+then reference-base cleanup. The block-pool cleanup's misleading PathInfo/list export names do not
+change the resources it actually releases. No failure result from stop is tested and no cleanup
+failure is converted to a Boolean. This is distinct from the OpenGL destructor, which does not
+invoke WGL stop. Evidence: complete `0x008DCC80–0x008DCD24`, supporting pool calls at
+`0x008EBDFE`, `0x008EBE07`, `0x008EBE0E`, `0x008EBE1B`.
+
+The deleting wrapper `0x008DCD60` always performs that destruction and frees outer object storage
+only for flag bit 0, returning the canonical pointer. Its registered factory returns a different
+interface identity, as §1 records; callers must not separately free that interior identity.
+
+## 6. Independent resource/order vectors
+
+| ID | Stimulus | Required distinguishing observation |
+|---|---|---|
+| GD51 | Create type 0, type 1, then type 2 in an empty object. | Handles 1,2,0; capacity grows to 16 on first create only. Pixel sizes 4 and 2; unsupported type does not change count. |
+| GD52 | Release handle 1, validate it, then create again and validate the old number. | False after release, new handle 1, then old numeric handle valid again despite a different serial. Second release before reuse performs no free. |
+| GD53 | Clear active handles 2,5,9, instrumenting virtual release. | Release order 2,5,9; array freed afterward; pointer/capacity zero; live count reaches zero through releases. |
+| GD54 | Fail descriptor-array growth allocation from an empty object. | Invalid write while clearing new active flags; no handle-zero recovery or freeing old contents first. |
+| GD55 | Copy byte width 8, height 3 with pitches (8,8), then (12,16), then width 0. | One 24-byte copy then completion; three 8-byte copies at their respective strides then one completion; no calls for width zero. |
+| GD56 | Save an admissible zero-width rectangle into an unallocated type-0 handle. | Synchronize, allocate/zero full-frame storage plus 8, version increments; no copy/completion calls; true return. |
+| GD57 | Fail that lazy data allocation. | Invalid write while zeroing allocation result; no false-return allocation branch or rollback. |
+| GD58 | Restore type 0 at dx=dy=0, width=height=32, with serial=1, version=2, sx=sy=0. | Four tile tags become 0x10000002, then a strided copy; no edge clears. Type 1 changes no tags. |
+| GD59 | Restore at dx=1,dy=0,width=31,height=32 with source sx=1,sy=0. | Initial four tags written; left column then cleared; right column remains tagged because right=32 is aligned. |
+| GD60 | Set buffer origin (0,0), dimensions 64×64; restore dx=dy=0,size 16×16 but sx=−1. | Fit checks do not reject sx; copy uses source address one pixel before the buffer. No invented source-clamping rule. |
+| GD61 | Inject unsupported stored type 2 and invoke save/restore with otherwise admissible zero-size rectangles. | Save synchronizes and increments version then false; restore synchronizes then true without copying. |
+| GD62 | Software capture into caller-supplied bitmap: wrong initialized format, initialization failure, then lock failure. | Null without Release for wrong format; Release then null for either later failure. Distinguish the OpenGL path, which returns the bitmap on the latter failures. |
+| GD63 | Insert two copies of an element already inside A, with old size 3/capacity 8; separately grow size 3 by 5 requiring allocation. | Snapshot makes self-alias insertion preserve original value and order; reallocated capacity is 8, not 10 or fixed +16. No pointee frees during insertion. |
+| GD64 | Shrink A with allocated entry pointers, then destroy the aggregate. | Shrink only changes end; destruction visits remaining records, not removed ones. Removed pointees are not automatically freed by resize. |
+| GD65 | Delete a second-factory object with flag 2 while recording cleanup. | Stop → working-array frees → reusable-buffer releases/array free → trailing owned resources → held-interface Release → aggregate destruction → pool destruction → reference-base cleanup; no outer free. |
+
+## 7. Complete coverage-attributed checklist
+
+Each row is one exported function body. **65 rows / 8,068 bytes**, with no deduplication by name and
+no removal of neighbor-attributed entries. “Parent” means the linked director spec. All rows below
+have a behavior contract; support outside these rows is cited separately and adds no bytes to this
+denominator. The directly named 85 bytes are only the first two rows.
+
+| Address | Bytes | Attribution rule | Body / completed contract |
+|---|---:|---|---|
+| `0x00466250` | 79 | name-medium | Director constructor; parent §2 |
+| `0x004662A0` | 6 | name-low | Director ID; parent §2 |
+| `0x0087D260` | 24 | reach | Optional callback Boolean; §3.1 |
+| `0x0087D280` | 59 | reach | Selector callback; §3.1 |
+| `0x0087D2C0` | 16 | reach | One-word forwarding; §3.1 |
+| `0x0087D2D0` | 36 | reach | Five forwarded / seven consumed words; §3.1 |
+| `0x0087D300` | 46 | reach | Seven-word forwarding; §3.1 |
+| `0x0087D330` | 28 | reach | Lighting enable; §3.2 |
+| `0x0087D350` | 47 | reach | Individual light enable; §3.2 |
+| `0x0087D380` | 55 | reach | Ambient scalar permutation; §3.2 |
+| `0x0087D3C0` | 101 | reach | Selected light property; §3.2 |
+| `0x0087D430` | 88 | reach | Combined light pointer reuse; §3.2 |
+| `0x0087D490` | 136 | reach | Selected material property; §3.2 |
+| `0x0087D530` | 129 | reach | Combined material/shininess; §3.2 |
+| `0x0087D750` | 29 | reach | Finalizer; §3.5 |
+| `0x0087D880` | 541 | reach | Front-buffer capture; §3.3 |
+| `0x0087DBC0` | 224 | reach | Name predicate; §3.4 |
+| `0x0087DEE0` | 441 | reach | OpenGL product constructor; §1 |
+| `0x0087E0A0` | 6 | free-neighbour | Class ID 0xC4554841; parent §2 |
+| `0x0087E0B0` | 8 | reach | QI identity −4; §3.5 |
+| `0x0087E0C0` | 8 | reach | Release identity −4; §3.5 |
+| `0x0087E0D0` | 8 | reach | QI identity −8; §3.5 |
+| `0x0087E0E0` | 8 | reach | Release identity −8; §3.5 |
+| `0x0087E120` | 8 | reach | QI identity −16; §3.5 |
+| `0x0087E130` | 8 | reach | Release identity −16; §3.5 |
+| `0x0087E140` | 8 | reach | Delete identity −20; §3.5 |
+| `0x0087E150` | 8 | reach | Release identity −20; §3.5 |
+| `0x0087E160` | 105 | reach | OpenGL product destructor; §3.5 |
+| `0x0087E1D0` | 35 | reach | First registered factory; §1 |
+| `0x0087E200` | 30 | reach | OpenGL deleting wrapper; §3.5 |
+| `0x0087F0E0` | 56 | reach | OpenGL descriptor fill; §3.4 |
+| `0x0087F120` | 34 | reach | OpenGL callback descriptor; §3.4 |
+| `0x0087FBD0` | 182 | reach | OpenGL mode callback; §3.4 |
+| `0x008DA490` | 6 | reach | Class ID 0x7ACA35C6; parent §2 |
+| `0x008DC430` | 109 | reach | Coefficient tables; §1.3 |
+| `0x008DC4A0` | 29 | reach | Second-product finalizer; §3.5 |
+| `0x008DC960` | 599 | reach | Second-product constructor; §1 |
+| `0x008DCBF0` | 8 | reach | QI identity −4; §5.7 |
+| `0x008DCC50` | 8 | reach | Delete identity −12; §5.7 |
+| `0x008DCC60` | 8 | neighbour | Release identity −12; §5.7 |
+| `0x008DCC70` | 8 | neighbour | AddRef identity −12; §5.7 |
+| `0x008DCC80` | 165 | reach | Second-product destructor; §5.7 |
+| `0x008DCD30` | 37 | reach | Second registered factory; §1 |
+| `0x008DCD60` | 30 | reach | Second-product deleting wrapper; §5.7 |
+| `0x008DDFB0` | 6 | reach | Copy endpoint tail delegate; §5.2 |
+| `0x008DDFC0` | 6 | reach | Completion endpoint tail delegate; §5.2 |
+| `0x008DEC30` | 274 | reach | A reallocation/insertion; §5.6 |
+| `0x008DED50` | 297 | reach | B reallocation/insertion; §5.6 |
+| `0x008DEE80` | 222 | reach | Aggregate destruction; §5.6 |
+| `0x008DEF60` | 331 | neighbour | A insertion; §5.6 |
+| `0x008DF0B0` | 317 | neighbour | B insertion; §5.6 |
+| `0x008DF1F0` | 98 | neighbour | A resize with fill; §5.6 |
+| `0x008DF260` | 127 | neighbour | A partial default template; §5.6 |
+| `0x008DF2E0` | 72 | reach | Aggregate construction; §5.6 |
+| `0x008E0080` | 26 | reach | Working-array frees; §5.7 |
+| `0x008E00A0` | 88 | reach | Working-array allocation; §1.1 |
+| `0x008EAE90` | 97 | reach | Strided copy; §5.2 |
+| `0x008EAF00` | 47 | reach | Buffer-handle validation; §5.1 |
+| `0x008EAF30` | 385 | reach | Buffer-handle allocation/reuse; §5.1 |
+| `0x008EB0C0` | 80 | reach | Buffer-handle release; §5.1 |
+| `0x008EB110` | 99 | reach | Ordered buffer clear; §5.1 |
+| `0x008EB180` | 447 | reach | Frame-to-buffer save; §5.3 |
+| `0x008EB340` | 443 | reach | Software-frame capture; §5.5 |
+| `0x008EB500` | 754 | reach | Buffer-to-frame restore/tile tags; §5.4 |
+| `0x008EC050` | 248 | reach | Block-pool construction; §1.2 |
+
+The reach roots are genuine factory registrations, executable factory calls, and constructor/destructor
+table references. Neighbor assignments are kept as measured, even where another named owner calls
+the same body. No false-reference exclusion is proposed: none is needed to reconcile **8068 =
+85 + 7983**. This checklist records this director's attributed coverage only; it confers no
+whole-DX7-family or capped-driver completion credit. The parent spec's 17 primary and 11 secondary
+director entries remain a separate dispatch checklist, not a competing function denominator.

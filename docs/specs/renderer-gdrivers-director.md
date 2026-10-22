@@ -1,6 +1,6 @@
 # Spec: graphics-driver COM director (`cSC4GDriversCOMDirector`)
 
-Status: **director dispatch specified; round-2 coverage inventory and reachable-body contracts below**.
+Status: **implementation spec for the 65-body / 8,068-byte attributed inventory and director dispatch**.
 Clean-room behavior contract for SimCity 4
 Deluxe GOG 1.1.641. Prose, constants and address citations are the implementer-facing output; original
 program material must not be consulted by implementers.

@@ -10,7 +10,9 @@
 - Done: recovered exact current attribution: 65 bodies / 8068 bytes, including 63 reachable/neighbor bodies / 7983 bytes. Factory edges are actual instructions; no ownership change justified.
 - Done: corrected parent spec's 85-byte completion claim; new attributed-helper spec covers factories, constructors, pool/working-array failures, integer coefficient tables; GD32-GD38.
 - Done: OpenGL attributed branch contracts added (extension forwarding, lighting/material quirks, capture failure/leak behavior, metadata, mode callback, thunks/destruction), GD39-GD50.
-- Next: complete second-factory support 0x008DC4A0..0x008EC050 and publish the 65-row checklist; verify every new numeric rule against instructions.
+- Done: second-factory reusable buffer lifecycle, copy/save/restore/capture, tile-tag arithmetic, aggregate storage, thunks and destruction order specified; GD51-GD65 added.
+- Done: complete 65-row / 8068-byte checklist published; no false-edge removal or ownership changes; no whole-driver/family completion credit.
+- Next: audit checklist against saved native attribution and vector IDs, diff-check, correct any discrepancies; finalize lane report and queue.
 - Inventory snapshot (ignored): `build-runs/director-attributed.tsv`, produced read-only without accessing engine/.
 - Primary evidence: main checkout `tools/re_query.py`, `decomp/`, `ghidra/export/windows`, `bin/SimCity4.exe`; never engine/.
 - q.py cannot start Bash (`E_ACCESSDENIED`); use bounded PowerShell calls.
