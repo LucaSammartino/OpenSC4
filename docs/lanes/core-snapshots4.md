@@ -10,6 +10,9 @@
 - Milestone 757008ec: owner audit, questions and independent expected fixtures.
 - Implemented: virtual filesystem/UI primitives, ten-field info codec, album workflows and taker state machine/capture pipeline.
 - Baseline: cargo 4987 passed; clippy/build failed (logs preserved in build-runs/baseline); tree changed during later build phases, so baseline is not a clean final gate.
-- Quick check running (exec session 68359). Next: inspect diagnostics; add pipeline/failure fixtures; format touched files, focused check then stable final all.
+- Milestone d58b77cb: portable production owners committed.
+- Added 15 total discriminating tests: byte fixtures, file scope/filter/order, copy/move failures, capture alpha/delay, pause/restore, drag/reuse and same-file dirty edits.
+- Formatting of the six new Rust files passes (absolute paths required by qbuild fmt). q.py Bash transport unavailable; targeted rustfmt output retained in build-runs/snapshot-format.log.
+- Quick check running (exec session 68359, build-runs/fc4verify-quick-test.log); no diagnostic yet. Source now frozen pending check; inspect diagnostics, then stable final all.
 - No game requests: pure core only; no ABI changes or native-exact/full-owner claims.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-snapshots4-r1-manifest.json.

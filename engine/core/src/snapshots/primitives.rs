@@ -47,7 +47,9 @@ impl VPath {
         }
         let name = self.file_name().ok_or(Error::InvalidPath)?;
         let stem = name.rsplit_once('.').map_or(name, |(stem, _)| stem);
-        self.parent().ok_or(Error::InvalidPath)?.join(&format!("{stem}.{extension}"))
+        self.parent()
+            .ok_or(Error::InvalidPath)?
+            .join(&format!("{stem}.{extension}"))
     }
 
     pub fn text(&self) -> String {
@@ -56,9 +58,7 @@ impl VPath {
 }
 
 pub(crate) fn valid_component(s: &str) -> bool {
-    !s.is_empty()
-        && !matches!(s, "." | "..")
-        && !s.bytes().any(|b| b == 0 || is_path_separator(b) || b == b':')
+    !s.is_empty() && !matches!(s, "." | "..") && !s.bytes().any(|b| b == 0 || is_path_separator(b) || b == b':')
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -107,18 +107,22 @@ impl FileSystem for MemoryFs {
         if !self.directories.contains(directory) {
             return Err(Error::MissingFile);
         }
-        let dirs = self.directories.iter().filter_map(|p| {
-            (p.parent().as_ref() == Some(directory)).then(|| Entry {
+        let dirs = self
+            .directories
+            .iter()
+            .filter(|p| p.parent().as_ref() == Some(directory))
+            .map(|p| Entry {
                 name: p.file_name().expect("non-root child").to_owned(),
                 kind: EntryKind::Directory,
-            })
-        });
-        let files = self.files.keys().filter_map(|p| {
-            (p.parent().as_ref() == Some(directory)).then(|| Entry {
+            });
+        let files = self
+            .files
+            .keys()
+            .filter(|p| p.parent().as_ref() == Some(directory))
+            .map(|p| Entry {
                 name: p.file_name().expect("non-root child").to_owned(),
                 kind: EntryKind::File,
-            })
-        });
+            });
         Ok(dirs.chain(files).collect())
     }
 
@@ -222,9 +226,19 @@ pub struct MemoryUi {
 }
 
 impl UiPrimitives for MemoryUi {
-    fn paused(&self) -> bool { self.paused }
-    fn set_paused(&mut self, paused: bool) { self.paused = paused; }
-    fn set_album_visible(&mut self, visible: bool) { self.album_visible = visible; }
-    fn set_frame_visible(&mut self, visible: bool) { self.frame_visible = visible; }
-    fn zoom_picture(&mut self, direction: Zoom) { self.zoom_requests.push(direction); }
+    fn paused(&self) -> bool {
+        self.paused
+    }
+    fn set_paused(&mut self, paused: bool) {
+        self.paused = paused;
+    }
+    fn set_album_visible(&mut self, visible: bool) {
+        self.album_visible = visible;
+    }
+    fn set_frame_visible(&mut self, visible: bool) {
+        self.frame_visible = visible;
+    }
+    fn zoom_picture(&mut self, direction: Zoom) {
+        self.zoom_requests.push(direction);
+    }
 }

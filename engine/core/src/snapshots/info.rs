@@ -33,9 +33,19 @@ impl GraphicInfo {
     pub fn encode(&self) -> Result<Vec<u8>> {
         // SN5: portable text inputs are UTF-8. Refuse ambiguous LF-containing fields.
         let fields = [
-            "SanityCheck".to_owned(), self.user.clone(), self.city.clone(), self.mayor.clone(),
-            self.day.to_string(), self.date.clone(), self.population.to_string(), self.funds.to_string(),
-            self.further.to_string(), format!("{},{},{},{}", self.view.zoom, self.view.rotation, self.view.x, self.view.y),
+            "SanityCheck".to_owned(),
+            self.user.clone(),
+            self.city.clone(),
+            self.mayor.clone(),
+            self.day.to_string(),
+            self.date.clone(),
+            self.population.to_string(),
+            self.funds.to_string(),
+            self.further.to_string(),
+            format!(
+                "{},{},{},{}",
+                self.view.zoom, self.view.rotation, self.view.x, self.view.y
+            ),
         ];
         if fields.iter().any(|s| s.contains('\n')) {
             return Err(Error::Gap(Gap::EmbeddedLineFeed));
@@ -91,11 +101,22 @@ impl Information {
         Ok(Some(Self { fields }))
     }
 
-    pub fn fields(&self) -> &[Vec<u8>; 9] { &self.fields }
-    pub fn city(&self) -> &[u8] { &self.fields[1] }
-    pub fn funds(&self) -> &[u8] { &self.fields[6] }
+    pub fn fields(&self) -> &[Vec<u8>; 9] {
+        &self.fields
+    }
+    pub fn city(&self) -> &[u8] {
+        &self.fields[1]
+    }
+    pub fn funds(&self) -> &[u8] {
+        &self.fields[6]
+    }
     pub fn caption_fields(&self) -> CaptionFields {
-        CaptionFields { city: self.fields[1].clone(), mayor: self.fields[2].clone(),
-            date: self.fields[4].clone(), population: self.fields[5].clone(), funds: self.fields[6].clone() }
+        CaptionFields {
+            city: self.fields[1].clone(),
+            mayor: self.fields[2].clone(),
+            date: self.fields[4].clone(),
+            population: self.fields[5].clone(),
+            funds: self.fields[6].clone(),
+        }
     }
 }

@@ -14,12 +14,12 @@ mod taker;
 pub use album::{album_directory_name, AlbumAction, SnapshotAlbum};
 pub use info::{CaptionFields, CityContext, GraphicInfo, Information, ViewPosition};
 pub use primitives::{
-    DateText, Entry, EntryKind, FileSystem, ImageDepth, ImagePrimitives, MemoryFs,
-    MemoryUi, SnapshotClock, UiPrimitives, VPath, Zoom,
+    DateText, Entry, EntryKind, FileSystem, ImageDepth, ImagePrimitives, MemoryFs, MemoryUi, SnapshotClock,
+    UiPrimitives, VPath, Zoom,
 };
 pub use taker::{
-    capture_target, CaptureDelivery, CaptureTarget, Key, KeyResult, Modifiers, Rect,
-    Size, SnapshotTaker, CAPTURE_LUA_EVENT, CAPTURE_MESSAGE,
+    capture_target, CaptureDelivery, CaptureTarget, Key, KeyResult, Modifiers, Rect, Size, SnapshotTaker,
+    CAPTURE_LUA_EVENT, CAPTURE_MESSAGE,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
