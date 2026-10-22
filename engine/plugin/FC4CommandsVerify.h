@@ -48,12 +48,15 @@ struct Pair {
 };
 
 struct Compare {
-    unsigned checked = 0, mismatches = 0, refused = 0;
+    unsigned checked = 0, mismatches = 0, refused = 0, elementMismatches = 0;
     const char* phase = "sets";
     void Eq(const char* field, uint32_t id, uint32_t a, uint32_t b) {
         ++checked;
-        if (a != b && ++mismatches <= 12)
-            Log("commands_verify: DIFF phase=%s field=%s id=%08x native=%08x core=%08x", phase, field, id, a, b);
+        if (a != b) {
+            if (std::strcmp(field, "elements") == 0) ++elementMismatches;
+            if (++mismatches <= 12)
+                Log("commands_verify: DIFF phase=%s field=%s id=%08x native=%08x core=%08x", phase, field, id, a, b);
+        }
     }
     void Check(Pair& p, uint32_t id, bool fallback = false) {
         Snapshot a{}, b{};
@@ -202,7 +205,9 @@ inline void Run() {
         }
     }
     FC4_RELEASE(server);
-    Log("commands_verify: checked=%u exact=%u mismatches=%u refused=%u sets=%u parser=%u scope=owned-original-production-methods GC1-GC7=excluded",
-        c.checked, c.checked - c.mismatches, c.mismatches, c.refused, sets, c.checked - sets);
+    // GC8: retain the ORIGINAL/core scalar GetCount discrepancy, never fit it.
+    Log("commands_verify: checked=%u exact=%u mismatches=%u refused=%u sets=%u parser=%u elements_diffs=%u other_diffs=%u scope=owned-original-production-methods GC1-GC7=excluded",
+        c.checked, c.checked - c.mismatches, c.mismatches, c.refused, sets, c.checked - sets,
+        c.elementMismatches, c.mismatches - c.elementMismatches);
 }
 } }

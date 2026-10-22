@@ -37,3 +37,13 @@
 - **GC7 - §3.6 / data-formats §5.1:** what text does `GetValString` give for a **VoidPtr scalar** (memory type
   `0x0F`) parameter? §5.1 covers the VoidPtr *array* (empty text) and objects, not the scalar. [no text: the
   getter returns false and leaves its output unchanged, so command-to-text writes an empty word]
+
+<!-- from: verify-command-system4 (2026-10-22) -->
+- **GC8 - §1 typed parameter observations / data-formats §5.2:** the independently owned ORIGINAL-set fixture
+  `commands4-native-r1-e50c5bbc-a` made 7,414 comparisons against actual persistent production command-core
+  sets, with 171 differences and zero refusals. The first twelve differences are variant `GetCount()` metadata
+  on scalar parameters: original 0, `Variant::count()` 1. Data-formats §5.2 explicitly says scalar GetCount is 0,
+  while the production `Variant::count()` documentation says 1. Is that Rust method intentionally a logical
+  element count requiring a separate native-interface adapter, or should its contract be corrected? Preserve
+  the measured discrepancy; no conversion or command semantics have been fitted. The probe also reports
+  aggregate element-count versus other differences so later differences cannot be hidden by its log cap.
