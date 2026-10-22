@@ -5,16 +5,17 @@
 ## Handoff
 - Goal: apply PA4-PA8 to production paths and directory-entry lifecycle; reuse cRZDirectory.
 - Scope: portable Rust only; no ABI/shared files, native glue, game runs, or whole-owner completion claim.
-- Done: first substantive PA4 correction preserves the full counted ResolvePath input on the full-prefix branch; independent NUL/copy vector added.
+- Done 3032f628: first substantive PA4 correction preserves full counted ResolvePath input on the full-prefix branch; independent NUL/copy vector added (before call 30).
 - Baseline qbuild all launched; logs in build-runs/qbuild-*.log (result pending).
-- Done: added signed-byte CRT primitive boundary/errors; counted ResolvePath, entry default/copy/name-only drop, signed SplitDirectory with partial writes, retained find cache/retry/finish.
+- Done 1fc145c6: signed-byte CRT primitive boundary/errors; counted ResolvePath, entry default/copy/name-only drop, signed SplitDirectory/partial writes, retained find cache/retry/finish.
 - Done: removed duplicate paths directory owner/comparator; paths reexports authoritative rz_files owner. Primitive-only test host bridges it. Added PA4-PA8 independent vectors.
 - Tests: baseline all finished compilation in 22m35s and is running workspace tests; quick still compiling. fmt check passed for all 7 touched Rust files (absolute paths required).
 - Next: final-gate.py runs fmt/quick/all sequentially on stable source; inspect build-runs/final-gate-result.json and native logs, report exact scope and enqueue only if green.
 - New questions PA9/PA10: negative signed capacity follows literal signed-loop no-output rule; zero-part SplitDirectoryPath fills both safe empty outputs. PA1/PA2/PA3 retained.
-- Done: nullable next/finish boundaries added; conformance runner propagates unsupported CRT domain errors and accepts signed split count; literal JSON zero/one-byte/root vectors added.
+- Done 56d8bee9: nullable next boundary, CRT error propagation and signed split counts in conformance runner; literal JSON zero/one-byte/root vectors.
 - Baseline caveat: long cold build saw updated runtime JSON with its old binary (zero-capacity vector failure); do not claim a clean baseline. Earlier overlapping all logs are not authoritative final evidence.
-- Fixed remaining old high-bit/ASCII expectation in part-fix test. Stable sequential driver owns final evidence; no source edits during its gate.
+- Done 7476c5d9: remaining old high-bit/ASCII expectation fixed. Sequential driver owns final evidence; it is still in quick before final all.
+- Audit: removed unneeded nullable-finish convenience (no published null-finish contract). Valid finish/Drop still close exactly once; null next remains published and tested. Final all follows this last source correction.
 - Entry list remains the authoritative owner's passive payload; standalone lifecycle adds no native getters/COM or owner lifetime extension.
 - PA1/PA2/PA3 remain open; preserve selected normalization rule.
 - Correction reservation logical round 2/3; this task permits one round only.

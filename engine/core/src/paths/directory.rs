@@ -95,7 +95,3 @@ pub fn find_next<P: DirectoryProvider>(search: Option<&mut FindSearch<'_, P>>) -
     search.is_some_and(FindSearch::advance)
 }
 
-/// Nullable finish boundary. The search value owns its handle, never the caller's provider.
-pub fn find_finish<P: DirectoryProvider>(search: Option<FindSearch<'_, P>>) {
-    drop(search);
-}

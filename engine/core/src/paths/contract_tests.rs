@@ -235,5 +235,4 @@ fn repeated_failed_next_retries_the_same_handle_and_finish_alone_closes() {
     search.finish();
     assert_eq!((host.attempts, host.closes), (4, 1));
     assert!(!directory::find_next::<Host>(None));
-    directory::find_finish::<Host>(None);
 }
