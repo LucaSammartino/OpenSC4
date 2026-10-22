@@ -12745,4 +12745,33 @@ size_t fc4_gzdate_text(uint32_t day, uint32_t format, uint8_t* out, size_t capac
 }
 #endif
 
+/* Owned checked span8 adapter (SR10). Status 0 rendered, 1 bad arguments/alias,
+ * 2 bounded-core refusal, 3 unsupported row13 (SR8-3); refusal writes nothing.
+ * slot 1..5; spans 2*count u32, gradient 12 u32 (2/4), params 8 u32 (5).
+ * Regions must be live, destination exclusive writable. Source must not overlap.
+ * Native thiscall objects are translated by the plugin, never passed here. */
+typedef struct FC4Span8Image {
+    uint8_t* bytes;
+    size_t len, origin;
+    int32_t stride;
+    uint32_t width, height;
+} FC4Span8Image;
+typedef struct FC4Span8Job {
+    uint32_t slot, count;
+    const uint32_t* spans;
+    FC4Span8Image dst;
+    uint32_t colour, argb;
+    const uint32_t* gradient;
+    FC4Span8Image src;
+    const uint32_t* params;
+    uint32_t kind;
+} FC4Span8Job;
+#ifdef __cplusplus
+extern "C" {
+#endif
+int32_t fc4_span8_render(const FC4Span8Job* job);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */
