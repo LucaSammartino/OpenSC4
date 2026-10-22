@@ -251,7 +251,7 @@ pub fn get_word(s: &[u16]) -> usize {
 /// `UTF16ThaiCharGroupLength` (`0x00911CDE`) at `buf` with `n` units. `buf` may run past `n`:
 /// the original reads s[3] even when n = 3 (no bound check), so that unit comes from the caller's
 /// buffer; a read past the end of the whole buffer counts as "not U+0E33" (the core has no bytes
-/// there to read).
+/// there to read). FN22 records this boundary difference; backing storage past `n` is honoured.
 pub fn thai_cluster_len(buf: &[u16], n: usize) -> usize {
     let s = |i: usize| buf.get(i).copied().unwrap_or(0);
     if n == 0 {

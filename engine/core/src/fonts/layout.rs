@@ -131,7 +131,8 @@ impl GzFont {
                             1
                         };
                         // The original has no end bound here; it cannot be reached with
-                        // non-negative advances (the first word is already wider than w).
+                        // non-negative advances (the first word is already wider than w). FN22
+                        // tracks the core's safe bound when this caller precondition fails.
                         if i >= n || self.units_width(u, i) >= w {
                             break;
                         }
@@ -179,6 +180,7 @@ impl GzFont {
         while pos < s.len() {
             let (len, _) = self.words_to_fit(&s[pos..], w, 2);
             if len == 0 {
+                // FN22: native trusts progress; preserve a bounded portable adapter for now.
                 break;
             }
             lines += 1;
@@ -199,10 +201,8 @@ impl GzFont {
 
     /// Slot 44, CalculateWidthOfLines(s, n, height).
     pub fn width_of_lines(&mut self, s: &[u8], height: i32) -> u32 {
-        // lineHeight 0 is not guarded in the original (a division fault); 0 is returned here.
-        let Some(max_lines) = (height as u32).checked_div(self.get_line_height() as u32) else {
-            return 0;
-        };
+        // Native division faults at lineHeight zero; preserve no-normal-return with a panic.
+        let max_lines = (height as u32) / (self.get_line_height() as u32);
         let (mut lo, mut hi) = (2u32, 400u32);
         while lo <= hi {
             let mid = (lo + hi) >> 1;
@@ -326,7 +326,7 @@ impl GzFont {
         l
     }
 
-    /// Slot 52, DrawTextParagraph. Returns `initialised` (the spec gives no return rule).
+    /// Slot 52, DrawTextParagraph. FN19: provisional `initialised` result, no pen contract yet.
     #[allow(clippy::too_many_arguments)]
     pub fn draw_text_paragraph(
         &mut self,

@@ -527,9 +527,9 @@ impl GzFont {
                     ch = 1;
                 }
                 if self.source_type == 2 || self.source_type == 3 {
-                    ch += 1;
-                    if ch > 28 {
-                        ch += 1;
+                    ch = ch.wrapping_add(1);
+                    if ch as u32 > 28 {
+                        ch = ch.wrapping_add(1);
                     }
                 }
                 self.char_height = ch;
@@ -649,7 +649,7 @@ impl GzFont {
                     .expect("FN18: unsupported x87 integer conversion") as i32
             };
             let rec = self.copy_glyph_to_source_data(&g, levels == GreyLevels::Two, x_off, y_off, adv);
-            self.active_cache_mut().glyphs.insert(ch, rec);
+            let rec = *self.active_cache_mut().glyphs.entry(ch).or_insert(rec);
             if !g.done_error {
                 return Some(rec);
             }
@@ -796,8 +796,9 @@ impl GzFont {
 
     // ---- §9 drawing --------------------------------------------------------------------------
 
-    pub fn get_renderer(&self) -> Option<Arc<dyn FontRenderer>> {
-        self.renderer.clone()
+    /// Slot 53 returns a borrowed renderer, without acquiring a reference.
+    pub fn get_renderer(&self) -> Option<&Arc<dyn FontRenderer>> {
+        self.renderer.as_ref()
     }
 
     /// Slot 54, SetRenderer.
@@ -1010,7 +1011,7 @@ impl FontObj {
     }
     /// Slot 1.
     pub fn add_ref(&self) -> u32 {
-        self.refs.fetch_add(1, Ordering::SeqCst) + 1
+        self.refs.fetch_add(1, Ordering::SeqCst).wrapping_add(1)
     }
     /// Slot 2, Release: refCount > 1 → decrement and return it; otherwise FinalRelease (Shutdown,
     /// destroy) and 0.
@@ -1023,9 +1024,19 @@ impl FontObj {
         self.refs.store(0, Ordering::SeqCst);
         let mut f = self.lock();
         f.shutdown();
+        // The deleting destructor frees the holder even when Init failed before the flag
+        // was set (Shutdown alone deliberately does nothing on that path).
+        f.face = None;
+        f.name_map.clear();
+        f.mono_cache.clear();
+        f.grey_cache.clear();
+        f.current_palette = None;
+        f.palettes.clear();
         f.records.clear();
         f.glyph_map.clear();
         f.aa_table.clear();
+        f.file_path.clear();
+        f.family_name.clear();
         0
     }
     /// Slot 0, QueryInterface: AddRef and true for `0x10673960` or 1.
