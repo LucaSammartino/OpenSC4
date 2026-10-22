@@ -123,6 +123,9 @@ void CompareFile(cIGZCOM* com, const std::string& path, bool natural, Counts& c)
     const bool init = packed->Init();
     cRZBaseString nativePath(path.c_str());
     const bool configured = init && packed->SetPath(nativePath);
+    // [abi-ret] SDK cIGZPersistDBSegment::Open(bool,bool) returns bool;
+    // cIGZPersistDBSegment(SC4) OpenIStream is a distinct streaming interface.
+    // MSVC groups the SDK's Init overloads; Open occupies slot 6, not slot 5.
     const bool nativeOpen = configured && segment->Open(true, false);
     fc4_dbpf* rust = fc4_dbpf_open(reinterpret_cast<const uint8_t*>(path.data()), path.size());
     const bool rustOpen = rust != nullptr;
@@ -223,6 +226,8 @@ void CompareFile(cIGZCOM* com, const std::string& path, bool natural, Counts& c)
         }
     }
     if (rust) fc4_dbpf_close(rust);
+    // [abi-ret] SDK cIGZPersistDBSegment::Close() returns bool, not the
+    // distinct SC4 streaming interface's slot-8 OpenOStream(key,out,bool).
     if (nativeOpen && !segment->Close()) Difference(c, path.c_str(), "segment-close");
     if (init && !packed->Shutdown()) Difference(c, path.c_str(), "shutdown");
     FC4_RELEASE(segment);
