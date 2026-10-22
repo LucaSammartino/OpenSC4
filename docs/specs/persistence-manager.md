@@ -12,6 +12,11 @@ evict loaded resources. The resource-cache registry contains a default cache cre
 (`0x009744B2`, `0x0097C613`). The audit inventory is 109 attributed functions, 8,437 native bytes, including
 container helpers (selection file `run4-selection-owners.tsv`, 2026-10-22).
 
+Object and output pointers must be valid unless a nullable case is stated explicitly. The native bodies
+have no general null-input/heap-exhaustion-to-false policy. Cache registration can retain a null pointer
+without AddRef, but later callback loops dereference cache pointers unchecked; this is not a usable null
+cache implementation.
+
 Returned segment interfaces and returned resources carry references. Successful factory/resource lookups
 must release their temporary references after forwarding calls. In particular, a resource can remain in a
 cache after the caller's requested QueryInterface fails: a successful underlying load is cached **before**
@@ -92,6 +97,11 @@ in ascending order and each old chain from head to tail, relinking each node at 
 Equal-ID chain order therefore reverses on growth: do not implement an unconditional first- or last-wins
 dictionary. A lookup can change after registering an unrelated entry. The two maps can reach different
 growth thresholds after factory-ID removals, since type associations are retained.
+
+For an independent implementation, the complete growth sequence from the initial bucket count is
+`0xC1, 0x185, 0x301, 0x607, 0xC07, 0x1807, 0x3001, 0x6011, 0xC005, 0x1800D, 0x30005, 0x60019,
+0xC0001, 0x180005, 0x30000B, 0x60000D, 0xC00005, 0x1800013, 0x3000005, 0x6000017, 0xC000013,
+0x18000005, 0x30000059, 0x60000005, 0xC0000001, 0xFFFFFFFB` (native data `0x00A829B8–0x00A82A1C`).
 
 Indexed factory access walks ascending bucket numbers, then chain order, and counts duplicate entries.
 Evidence: insert wrappers `0x0097420D`/`0x00974231`; resize bodies `0x009978AF` and `0x004F0940` (the latter's
