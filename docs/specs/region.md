@@ -189,3 +189,8 @@ file-name rule of `SC4CreateSavePathForCity` and the starter region's name).
 4. **Overflow:** a city at (1, 0) of size 1 with a single location `{0, 0, 1}` (2 × 2 at the origin) goes to the
    overflow list.
 5. **ini:** `Terrain type = 2` leaves the terrain type unchanged; `Water Min = 254` is taken.
+
+
+## Complementary region analysis
+
+See [region-model.md](region-model.md) for the other contributor's independent region analysis. Both analyses and their open RM/RQ questions are retained. Coverage credits exact cSC4Region once; this cross-reference does not promote partial terrain-map/view or location/signpost helper owners. Inferred naming/argument and filesystem observations retain their tags until their questions are independently resolved.
