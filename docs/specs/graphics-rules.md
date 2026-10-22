@@ -117,6 +117,25 @@ fixtures; a constant false FSAA result or guessed DXT support is not evidence of
 The GPU rendering/readback operation belongs to that provider/renderer boundary; neither bogo value is
 an output of it.
 
+### 2.2 Regather and unavailable services (GR6)
+
+Regather clears/rebuilds the flags and refreshes the measured fields, but does **not** assign string
+index 12 (`cardIdentity`). Parsing assigns that identity separately (§3). Thus an explicit log after a
+driver change can contain a new `cardName` and the old parsed `cardIdentity`. The description splitter
+`NextToken` (`0x0067A960–0x0067AAEC`) returns one field before the first LF and removes that field plus
+one delimiter from the remaining description. Without another delimiter it returns the whole remainder
+and empties the remainder. Repeated reads of an exhausted remainder return empty strings. Empty fields
+are retained; CR bytes are not removed by this LF-only splitter. Only six fields after the discarded
+first field are consumed (`0x007CFAF7–0x007CFD07`); additional fields are ignored.
+
+`Init` is void: it retains the supplied properties reference, calls gather, then parse, and invokes
+fallback only when **parse** returns false (`0x007D18B9–0x007D18D2`). Gather has no checked success result.
+It calls the GS/current-driver interfaces without a general unavailable-service recovery branch; its
+hardware path reads properties bool index 0 without checking the retained properties pointer. Null
+properties and failed mandatory provider acquisition therefore have no native recoverable-error
+contract. They must not be described as a successful zero-filled gather or as a trigger for fallback.
+The optional sound-service absence still has the explicit `Unknown` behavior in §2.
+
 ## 3. Reading the rules (`ParseConfigFile`, `0x007CFE10`) *[compat]*
 
 1. A rule parser (`cSC4RuleParser`) is made. When `cardVersion` is longer than 26 characters, its 4 characters at
@@ -138,6 +157,12 @@ result, so failure leaves that default identity. Vendor/device IDs start at zero
 fails; the check is strictly greater than 26 and both substrings have length four at zero-based offsets
 8 and 22. There is no PCI-identity query in this manager. `prefsFirstTime` is the literal `true` or `false`
 selected directly by the nonzero/zero application byte (`0x007CFFE2–0x007D0009`).
+
+Fixed-offset ID conversion is permissive, not a four-hex-digit validation step. The shared
+`RZAtoUint32HexA` skips leading CRT whitespace, accepts optional `0x`/`0X`, then accumulates a prefix
+of at most eight hex digits, stopping on the first other byte; no digits gives zero
+(`0x0090FCEF–0x0090FD8F`). Here its input is the NUL-terminated four-byte substring, so `12G4` gives
+18 and `GGGG` gives zero without making parsing fail. A short `cardVersion` leaves both IDs zero.
 
 ## 4. The language *[compat]*
 
@@ -255,6 +280,56 @@ Before a new vendor is tested, the active vendor name is cleared; a matching ID 
 After the first matching card, the found latch suppresses later vendor/card changes. A matching vendor
 without a matching card does not change `cardIdentity` (`0x007E484A–0x007E48F8`, `0x007E4730`).
 
+### 4.5 Shared-parser facts and remaining grammar boundary (GR4)
+
+These are source-established requirements in addition to the graphics callbacks. They do not yet
+close the complete shared lexical/command grammar requested in GR4.
+
+- Registration calls the base `cCommandParser::RegisterCommands` first, then registers exactly the
+  four graphics commands `rule`, `partialRule`, `optionGroup`, `vendor` (`0x007E3DF0–0x007E3EC8`).
+  Shared registration includes `define`, `enddef`, `create`, `arrayCreate`, `namespace`
+  (`0x00678B00–0x00678D7D`). These names are not additional graphics-owner callbacks.
+- Dispatch substitutes variables in **every** token, including the command name, before searching
+  block command tables from innermost to outermost and then the root table (`0x00679170–0x006792C1`).
+  An unrecognized command throws `Unknown command`; a recognized block callback can reject an
+  unexpected switch after running. This is not a fixed parse of only the shipped command subset.
+- Variable substitution scans within tokens, accepts `$name` and `${name}`, and reports
+  `Unknown variable` when lookup fails (`0x00677B90–0x00677F84`). Name scanning accepts letters,
+  digits, underscore and colon. The scan advances through the original input while building a
+  replacement output; it does not recursively rescan inserted replacement text. Full quoting and
+  boundary-dependent parenthesization remain part of open GR4.
+- The shared `eval` command requires exactly one argument, splits that argument into command
+  tokens and calls `ParseCommandArguments` (`0x00679A20–0x00679AA2`). Its body invokes no Lua API.
+  The numeric reader likewise uses the native expression routines below, not a Lua parser.
+
+The verified numeric precedence, from weakest to strongest, is left-associative `+ -`,
+left-associative `* / %`, right-associative `^`, recursive unary `+ -`, and primaries/parentheses.
+Consequently `2^3^2` is 512 and `-2^2` is 4. `EvalFactor` handles signs before `EvalTerm` handles
+power (`0x0067B360–0x0067B3AB`, `0x0067B920–0x0067B987`). Additive and multiplicative accumulators
+are stored as **binary64** after operations (`0x0067B990–0x0067BA3C`,
+`0x0067BA4E–0x0067BAC6`); do not evaluate the whole expression in binary32. `%` computes
+left minus `floor(left/right)` times right, with binary64 spill of right and quotient before
+the floor helper (`0x0067BA06–0x0067BA2F`). The expression wrapper rejects empty expressions and
+trailing garbage (`0x0067BB20–0x0067BB9B`). Decimal conversion uses `StrToDEnglish`; lowercase
+`0x` selects unsigned hexadecimal conversion (`0x00679DA8–0x00679DF4`). Function names are parsed
+as a letter followed by alphanumeric/underscore bytes. Function/domain/overflow details not
+established here remain open; the existence of functions is not permission to substitute an
+unrelated language evaluator.
+
+`ParseUint` truncates by `_ftol2` and retains low 32 bits (`0x0067BC82–0x0067BC8F`), as do the
+threshold callbacks in §4.2. The signed property reader `ParseInt` is **different**: add binary32
+12582912 to the expression result, store binary32, reinterpret those bits as an integer, and
+subtract `0x4B400000` modulo 2^32 (`0x0067BC26–0x0067BC61`). It is not truncation or a checked
+integer parse. Under round-to-nearest/even, 2.5 gives 2 and 3.5 gives 4. Outside the small exact
+range this bit trick must not be replaced by a mathematical integer conversion. Native behavior
+depends on the active x87 rounding control.
+
+Dense group and option creation have no checked `index+1` overflow. `UINT32_MAX` wraps the resize
+target to zero (`0x007E5546`, `0x007E4996`); the selected index remains `UINT32_MAX`. Group resize
+can shrink/clear the vector (`0x007D0FD0–0x007D1015`). Later selected-element access is unchecked.
+There is no evidence for a recoverable parser error for this input or allocator failure. A host
+adapter may reject unsafe input, but cannot claim that rejection is native parser parity.
+
 ## 5. Evaluation (`ApplyRules`, `0x007D10B0`) *[compat]*
 
 The rules are walked in file order with a stack of depths:
@@ -351,6 +426,16 @@ that check succeeds it logs, closes, and returns true regardless of write/close 
 `SetOptionsFromConfiguration` likewise does not turn I/O failure into failed rule evaluation.
 The external formatter remains the byte-oriented string service; §12 distinguishes its
 foreign formatting primitives from manager-owned line construction.
+
+`%s` for a property name is NUL-terminated **bytes**, with no UTF-8 validation, normalization or
+replacement. `Sprintf` takes its byte length and appends that exact range
+(`0x0090F915–0x0090F97A`, `0x0090FB46`); its glyph-count calculation does not transcode the
+appended bytes. In these unpadded, unqualified `%s` fields it does not truncate to a character
+count. An embedded NUL ends the name; `%` in a name is data, not a second format string. A
+non-UTF-8 name is not grounds for the native logger to reject the profile. Numeric `%g` is
+delegated by `Sprintf` to native CRT `__snprintf` (`0x0090F83F–0x0090F8DB`), with a promoted
+binary64 argument and default precision. The exact exceptional-value spelling is still an
+explicit GR6 evidence gap, not permission to adopt a host formatter silently.
 
 ## 7. Fallback rules (`SetFallbackRules`, `0x007D13C0`)
 
