@@ -46,6 +46,7 @@
 #include "cFC4PropDeveloper.h"    // the glue12b1 lane: the propdev month line
 #include "FC4AutomataShadow.h"  // the glue19 lane
 #include "FC4SimGridProbe.h"    // the glue-simgrids4 lane
+#include "FC4CommandsVerify.h"  // verify-command-system4: opt-in public native comparison
 #include "FC4SimGridsShadow.h"
 #include "FC4MySimsShadow.h"    // the mysims1 lane: mysims_shadow
 #include "FC4AutomataDriver.h"  // the glue19 lane: the riot / fire driver
@@ -627,6 +628,7 @@ public:
                 fc4::FeatureShadowLoaded();
                 fc4::Span1555CityLoaded();  // glue-span1555-impl4: enable = span1555 only (constructed fixture)
                 fc4::SpanContextCityLoaded();  // glue-span-context-final4: span1555 / span4444 on only
+                fc4::commands_verify::Run();  // commands_verify = 1 only; app-owned service
                 fc4::Span8CityLoaded();
                 fc4::MySimsShadowMonth(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // the load comparison
                 // The snapshot at the next tick (outside the city's init
