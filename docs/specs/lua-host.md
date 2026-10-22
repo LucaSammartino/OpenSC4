@@ -689,7 +689,7 @@ direct calls are delegated to Lua. The server has no explicit registry-entry del
 
 The installed line hook (`0x008AE850`) obtains that same wrapper and its user context (+14). With either
 missing, a nonzero **16-bit** field at raw-state +2E, or record auto-yield byte false, it does nothing. Otherwise
-call lua_getinfo with option `l`, read the 32-bit line at debug-record +14, compare with the saved record line,
+call lua_getinfo with option `l` (its result is not tested), read the 32-bit line at debug-record +14, compare with the saved record line,
 and only on a difference store the line and lua_yield(state, **0**). It does not inspect breakpoint lists or
 pause counts. Repeated hooks for the same source line do not yield; toggling auto-yield does not reset the
 saved line. No event-kind test or wall-clock budget is added. The VM owns the meaning of the raw-state
