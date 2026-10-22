@@ -76,8 +76,9 @@ Slot 0 (`0x007FAF40`) and slot 17 (always 0) are shared bodies.
 
 ## 4. Animation and frames *[compat]*
 
-- The clock (`Tick`, slot 15): a rate of −100 (unset) is first replaced through slot 14
-  (called with −200) *[inferred: the resource's rate]*; a rate of 0 does nothing. Otherwise position := position +
+- The clock (`Tick`, slot 15): a rate whose bits are `0xC2C80000` (−100) calls slot 14 with −200.
+  The native sprite's `SetRate` simply stores that float and returns 2: **there is no resource-rate lookup**.
+  A rate of 0 does nothing. Otherwise position := position +
   elapsed × rate × direction. When |position| reaches 1: below 2, one frame is advanced (slot 13) and the direction
   subtracted; at 2 or more, frames are advanced until |position| < 1 when `+0xAA` is set *[inferred: frame
   skipping]*, else one frame is advanced and the position set to exactly 1 *[quirk]*. It returns 2 when frames
@@ -86,6 +87,79 @@ Slot 0 (`0x007FAF40`) and slot 17 (always 0) are shared bodies.
   one (`0x007FB1E0`), with more than one frame, the next frame; at the end, by the play mode (`+0xA8`): 3
   loops to frame 0, 2 reverses (ping-pong, direction −1), anything else stops (direction 0, position 0). Each change
   marks the frame dirty (`+0x9C`).
+
+### 4.2 Exact stepping and returns
+
+`SetRate` preserves the supplied 32 bits, with return 2 (`0x007FB310–007FB321`). `SetPlayMode` stores only
+the low byte, without touching direction, clock or the separate sequence controller; its return register is
+not a defined status (`0x007FB330–007FB33C`). Frame and owner direction are unsigned and signed bytes
+respectively. `AdvanceFrame` always returns 2, including no change and stopping (`0x007FCF60–007FCFA6`).
+Without a sequence controller, counts at most one leave everything unchanged. For larger counts:
+
+| Boundary/state | Mode 3 | Mode 2 | Any other mode |
+|---|---|---|---|
+| Forward at last frame | frame 0 | previous frame, direction −1 | retain frame, direction 0, clock 0 |
+| Reverse at frame 0 | last frame | frame 1, direction +1 | retain frame, direction 0, clock 0 |
+| Direction 0 | retain frame | retain frame | retain frame |
+
+All rows for counts greater than one mark the frame dirty, including a stopped direction. Interior steps move
+one frame according to the sign of direction. Evidence: `0x007FB1E0–007FB306`.
+
+`Tick` evaluates elapsed × stored rate × signed direction + stored clock with x87 arithmetic, storing the
+clock as binary32. The first threshold tests use the still-held x87 result, rather than reloading that store.
+After every advance it reads the **new** signed direction and subtracts it from the current stored clock.
+It returns 0 for zero rate or magnitude below 1; it returns 2 after an advance, even if no frame changed.
+For magnitude at least 2, a zero skip byte advances once and overwrites the clock with +1. A nonzero skip byte
+repeats advance then subtraction until magnitude is below 1. There is no progress/iteration guard: direction 0
+with a large clock can loop forever, as can a negative rate that drives the clock opposite the subtraction.
+Single-frame playback is not specially guarded by Tick; it terminates only when those subtractions converge.
+Evidence: `0x007FCFB3–007FD0B7`; threshold data `0x00A81228=1`, `0x00A8825C=2`.
+
+Independent examples, with no sequence controller: four frames, frame 3, direction +1, mode 2, clock 0,
+rate 1, elapsed 1.25 yields frame 2, direction −1, clock **2.25**, return 2. Four frames, frame 0,
+direction −1, mode 3, clock 0, rate 1, elapsed 1.25 yields frame 3, clock −0.25, return 2.
+One frame, direction +1, skip enabled, rate 1, elapsed 2.5 keeps frame 0 and leaves clock 0.5, return 2.
+
+### 4.3 Sequence-controller boundary contracts
+
+The optional owner pointer `+0x34` is a mutable controller, not a decoded sprite frame record. Its fields are:
+u16 selected sequence at +0, u16 sequence count at +2, u16 selected length at +4, pointer to u16 starts at +8,
+u16 absolute current frame at +12, mode byte at +14 and signed direction byte at +15. Starts include a terminal
+entry, since selecting i calculates the low 16 bits of starts[i+1] − starts[i].
+
+`SetAnimation(i)` returns 0 if absent or signed i is at least the count. It does not reject negative i before
+indexing: such calls are outside a safe decoded-record contract. An accepted call changes selection/length
+but **does not reset** controller current frame, direction or clock. It copies the low byte of current frame
+to the owner and dirties only if the full u16 differs from the old owner byte; return 2 (`0x007FCEA0`).
+
+`SetFrame(n)` without a controller stores low byte n (no modulo), dirtying if the full argument differs from
+the current byte. With a controller it uses signed remainder by selected length **only when n > length**;
+equality is not wrapped. It adds that value to starts[selected] with u16 wrapping, stores controller current,
+then compares/copies to the owner byte; return 2 (`0x007FCF00–007FCF53`). A zero length and positive n faults
+at division; negative n is not normalized. Example: starts [10,13], selected 0, length 3: n=3 gives absolute
+frame 13, n=4 gives 11, n=−1 gives 9.
+
+Controller advance uses its own mode/direction, independently of the owner's. Length at most one returns true
+unchanged; otherwise it steps inside [start,start+length), loops/reverses/stops using the same boundary modes
+as the table above. Stopping only clears controller direction, not owner clock/direction. `AdvanceFrame`
+copies its u16 current frame to the owner as above. Evidence: `0x007FAE90–007FAF34`, `0x007FCF60`.
+
+### 4.4 Fade, highlight and self-light contracts
+
+These setters preserve unrelated bits of the flags byte and do not dirty the frame cache.
+
+`SetFade(false, alpha)` always clears bit 2 and sets stored alpha to 1. With on=true: exactly −100 leaves
+both fields untouched; exactly −200 clears bit 2 and restores alpha 1; otherwise alpha at most the binary32
+constant `0x3F7D70A4` (approximately 0.99) enables bit 2 and stores the supplied bits. Larger alpha disables
+and restores 1. There is **no lower bound**, and the native unordered comparison also accepts NaN. Return is
+always 2 (`0x007FB340–007FB3A8`; constants `0x00A98F64`, `0x00ABD0DC`, `0x00ABD0E0`). Thus alpha 1 disables,
+alpha −1 enables, and disabling with alpha −100 still disables. This supersedes a guessed [0,1] interval.
+
+`SetHighlight(index)` compares the full integer with the old unsigned index byte and compares (index!=0)
+with bit 1; if both agree it returns 0. Otherwise it sets/clears bit 1 from the full integer's nonzeroness,
+stores its low byte and returns 2 (`0x007FB3B0–007FB401`). Example: 256 enables highlight but stores index 0;
+repeating 256 still returns 2. `SetSelfLit(on)` compares the input byte against bit 4 normalized to 0/1,
+returns 0 when equal, otherwise toggles bit 4 according to nonzeroness and returns 2 (`0x007FB410–007FB44B`).
 
 ### 4.1 Frame lookup (`GetTextureResourceData` `0x007FD2F0`, `GetTextureData` `0x007FD3D0`)
 
