@@ -140,6 +140,122 @@ any object that answers `cIGZBuffer` `0x20732180` (`0x0082B91C`). None of these 
 headers, so this route is undocumented. It works by calling the game's own COM classes and is not a game path. The
 static evidence finds no shipped scenario in which the game itself sends A4R4G4B4 spans to `0x00AC185C`.
 
+### 1.3 The buffer draw context as a native fixture route (SP5, SR1555-7; re-span-context4) [exact, static]
+
+This section is shared by the 1555 (types 4, 6), 565 (5), 4444 (7) and 8888 (8, 9) renderers: one context class,
+`cGZDrawContextRenderToBuffer`, picks the renderer in `Init`. Every slot, pop count and constant below was read from
+the shipped bytes (raw vtable dwords, `RET` immediates); REA had no binary open, so this is static evidence only.
+
+**Getting the objects.** (1) Buffer: GZCOM class `0xC470D325`, interface `cIGZBuffer` `0x20732180` (`cGZBuffer`
+QueryInterface answers only 1, `0x20732180` and `0x86D72B57`). (2) Draw system: framework slot `+0x14`
+GetSystemService called as `(0xEB2EA3CB, 0x4B2EA3B3, &out)` at `0x0082C8D1`/`0x0082C8CC`/`0x0082C8D8`: the **service
+ID is `0xEB2EA3CB`** and the **interface ID is `0x4B2EA3B3`** (`cGZDrawSystem` QueryInterface tests `0x4B2EA3B3`,
+`0x0082B894`). The template name `cRZSysServPtr<cIGZDrawSystem, 0x4B2EA3B3, 0xEB2EA3CB>` lists IID first, then
+service ID. (3) Context: draw system slot 4 (`0x0082BAB0`, entry `0x00AC1678` of vtable `0x00AC1668`), thiscall
+`(object, &out)`, RET 8, returns a byte. It asks each factory of the list at `+0x20` in order and stops at the first
+one that returns non-zero. The RenderToBuffer factory (vtable `0x00AC162C`, slot 3 `0x0082B910`) is added by the draw
+system's own `Init` (`0x0082BC90`, appended at the tail). It accepts any object that answers `0x20732180`, allocates
+0xD4 bytes, runs the constructor `0x00830690`, stores the pointer in `*out` **without releasing what `*out` held**,
+and AddRefs it (count 0 to 1). The caller owns that one reference. The SimGL factory (`0x00993270`) accepts only
+`0xE3094DC8`, which `cGZBuffer` does not answer. A fixture must still check that the vtable pointer of `*out` is
+`0x00AC17D0` before it uses the offsets below.
+
+**cIGZBuffer slots used** (vtable `0x00AC1400`, all thiscall):
+
+| Slot (offset) | Entry target | Call | Pops | Returns |
+|---|---|---|---|---|
+| 3 (`+0x0C`) | `0x008269B0` Init | `(width, height, type, bits)`, four dwords by value | 0x10 | byte: 0 if already initialised, width 0 or height 0, or allocation failed; else 1 |
+| 6 (`+0x18`) | `0x00826AA0` Lock | `(flags)` | 4 | byte: 0 only if the pixel pointer `+0x3C` is null |
+| 7 (`+0x1C`) | `0x00826490` Unlock | `(flags)` | 4 | byte, always 1 |
+| 30 (`+0x78`) | `0x00825DA0` pack colour | `(r, g, b)`, low byte of each dword | 0xC | packed pixel (below) |
+| 34 (`+0x88`) | `0x008265C0` | `()` | 0 | pixel (0, 0) pointer (`+0x3C`) |
+| 35 (`+0x8C`) | `0x0068D1B0` | `()` | 0 | row stride in bytes (`+0x40`) |
+
+Init stores width `+0x1C`, height `+0x20`, type `+0x0C`, bits `+0x10`, then allocates (`+0xAC`, `0x00826A50`): stride
+= `(width × (bits >> 3) + 3) & ~3`, pixels = stride × height bytes (contents not cleared there). Examples: 32×8,
+bits 16 → stride 64; 16×16, bits 16 → 32; 9 wide, bits 32 → 36; 3 wide, bits 16 → 8. So a plug-in reads pixels as:
+Lock(f), base = slot 34, stride = slot 35, ..., Unlock(f).
+
+**Lock and Unlock, audited.** Lock ORs `flags` into the word `+0x44`, increments the 16-bit count `+0x38`, and
+increments `+0x30` when bit 15 of `flags` is set. Unlock clears the bits of `flags` from `+0x44`, decrements `+0x38`
+and does not check the flags, the count, or `+0x30`, and does not decrement `+0x30`. Unlock with different flags
+therefore leaves bits set. Every pair in the context uses the same flags on both sides:
+
+| Lock site | Flags | Matching unlock site(s) | Flags |
+|---|---|---|---|
+| context Init `0x00830750` (destination) | `0x8040` | Shutdown `0x0082FF20` (only while `+0x75` is set), Suspend `0x008302B4` | `0x8040` |
+| Resume `0x008302D4` (destination, only while `+0x75` is clear) | `0x8040` | as above | `0x8040` |
+| DrawPreclippedSpanList `0x008302FB` (texture `+0x24`) | `0x800` | `0x008304DE`, `0x00830548`, `0x0083059E` (after the renderer), `0x008305AA` path (no renderer) | `0x800` |
+
+So "Unlock with the flags it locked with" **matches** the original for every context path. The context's last
+`Release` (`0x008306C0`) deletes the renderer, releases `+0x24` and `+0x8`, frees itself and **does not unlock**. A
+fixture must call Shutdown (slot 4) before its last Release, or the buffer keeps `0x8040` and one count.
+
+**Context vtable `0x00AC17D0`** (all thiscall; "-" = no stack arguments):
+
+| Slot | Target | Name in the export | Arguments | Pops | Effect on the fields `DrawPreclippedSpanList` reads |
+|---|---|---|---|---|---|
+| 0 | `0x0082FD60` | QueryInterface | `(iid, out*)` | 8 | answers 1 and `0x2AE78A07` only |
+| 1 | `0x005F47F0` | AddRef | - | 0 | `+4` += 1 |
+| 2 | `0x008306C0` | Release | - | 0 | see above |
+| 3 | `0x00830710` | Init | `(buffer)` | 4 | byte; see span-render-565.md §1.1. Sets `+0xB0`, `+0x78`..`+0x90`, `+0xA4` = 0, `+0x75` = 1 |
+| 4 | `0x0082FF20` | Shutdown | - | 0 | deletes renderer, `+0xB0` = 0; if `+0x75`: Unlock(`0x8040`); releases `+8` |
+| 5 | `0x00A64430` | (forwarder) | passed through | callee's | jumps to `cIGZBuffer` `+0x2C` of `+8` |
+| 6 | `0x0082FD90` | SetClipRect | `(rect*)` 16 bytes | 4 | `+0x14`..`+0x20` (not read by slot 22) |
+| 7 | `0x0082FF70` | SetColorTable | `(index, count, argb*)` | 0xC | for each i: `+0xB4+4(index+i)` = argb, `+0xC4+4(index+i)` = pack(argb>>16, argb>>8, argb). No bounds check (room for 4) |
+| 8 | `0x0082FEA0` | SetAlphaBlend | `(int)` | 4 | `+0x41` = (value > 0), signed (`SETG`) |
+| 9 | `0x0082FEB0` | SetBltModulate | `(byte)` | 4 | `+0x42` = low byte |
+| 10 | `0x0082FEC0` | SetAntialiasing | `(byte)` | 4 | `+0x43` (read by slot 21 only) |
+| 11 | `0x00648F10` | (shared no-op) | `(x)` | 4 | none |
+| 12 | `0x0082FDB0` | SetGradientTransform | `(m*, x0, y0)`, x0/y0 floats | 0xC | null m: `+0x74` = 0. Else `+0x44+4i`, `+0x54+4i`, `+0x64+4i` from the 12 floats of m (span-render-1555.md §4.1), `+0x74` = 1 |
+| 13 | `0x0082FFD0` | SetBltSource | `(src, x, y, sx, sy, rect*)`, x..sy floats | 0x18 | null src: releases `+0x24`, returns 0. Else releases `+0x24`, queries src for `0x20732180` into `+0x24`; if that fails returns **1** with `+0x24` = 0. Else sets `+0x28`..`+0x3C`, `+0x40` (0 when both scales give `0x10000`, else 1), `+0xA8`/`+0xAC`, writes the 16-byte destination rect, returns 1 |
+| 14 | `0x0082FE60` | ClearBltTiling | - | 0 | `+0xA4` = 0 |
+| 15 | `0x0082FE70` | SetBltTiling | `(rect*)` 16 bytes | 4 | `+0xA4` = 1, `+0x94`..`+0xA0` |
+| 16, 20 | `0x00407990` | (bare `RET`) | - | 0 | none |
+| 17 | `0x008302A0` | Suspend | - | 0 | if `+0x75`: Unlock(`0x8040`), `+0x75` = 0 |
+| 18 | `0x008302C0` | Resume | - | 0 | if not `+0x75`: Lock(`0x8040`) (result not tested), `+0x75` = 1 |
+| 19 | `0x0082FED0` | LockTarget | `(record*, x)` (second dword not read) | 8 | copies `+0x78`..`+0x8C` (base, stride, w, h, type, bytes per pixel) to record, returns 1; no lock |
+| 21 | `0x00831000` | Draw | `(prim, verts*, count)` | 0xC | antialiased polygons only when `+0x43` is set |
+| 22 | `0x008302E0` | DrawPreclippedSpanList | `(spans, n)` | 8 | one renderer call (span-render-565.md §1.1 path table) |
+| 23 | `0x0082FF00` | (this dword is slot 0 of the 1555 span table `0x00AC182C`) | | | |
+
+**State after the constructor and Init.** The constructor sets the vtable, `+4` (count), `+8`, `+0x24`, `+0x41`,
+`+0x43`, `+0x74`, `+0x75`, `+0xB0` to 0. Init then sets the fields listed above. It does **not** set `+0x40`, `+0x42`,
+`+0x44`..`+0x73`, `+0xB4`..`+0xD0` or the texture fields. They hold whatever the 0xD4-byte heap block held. A fixture
+must set every field its chosen path reads before slot 22 is called:
+
+| Path (span-render-565.md §1.1) | Set first |
+|---|---|
+| solid (slot 1) | slot 7 `(0, 1, &argb)`, slot 8 `(0)`, slot 12 `(null, 0, 0)` |
+| alpha (slot 3) | slot 7, slot 8 `(1)`, slot 12 `(null, ...)` |
+| gradient (slot 2) / alpha gradient (slot 4) | slot 12 `(m, x0, y0)`, slot 8 `(0)` or `(1)` |
+| texture (slot 5) | slot 13 (sets `+0x24`, `+0x40`), slot 9, slot 8, slot 14 or 15 |
+
+Pack (`0x00825DA0`, table `0x00825E60`, by type `+0x0C`): types 4 and 6 →
+`0x8000 | (r & 0xF8) << 7 | (g & 0xF8) << 2 | b >> 3`. Type 5 → `(r & 0xF8) << 8 | (g & 0xFC) << 3 | b >> 3`. Type 7 →
+`0xF000 | (r >> 4) << 8 | (g >> 4) << 4 | b >> 4`. Types 8 and 9 → `0xFF000000 | r << 16 | g << 8 | b`. Any other
+type (including 2) → 0. The alpha byte of argb is not passed. Example: argb `0x80FF8040` packs to `0xFE08` (types 4/6),
+`0xFC08` (5), `0xFF84` (7), `0xFFFF8040` (8/9). `+0xB4` keeps `0x80FF8040`.
+
+**Fixture route (original versus ours, through the native context).**
+
+1. Create the buffer and call Init `(w, h, type, 16)` for type 4, 6 or 7. Fill its pixels after Lock(`0x8040`) and
+   Unlock(`0x8040`).
+2. Get the draw system (service `0xEB2EA3CB`, IID `0x4B2EA3B3`). Call slot 4 `(buffer, &ctx)` with `ctx` = null.
+   Check that the result is non-zero and that the vtable is `0x00AC17D0`. Release the draw system.
+3. ctx slot 3 `Init(buffer)`. Expect 1 and `+0xB0` holding vtable `0x00AC182C` (types 4/6) or `0x00AC185C` (7).
+   Then set the state of the path under test (table above).
+4. Snapshot the destination. Call slot 22 `(spans, n)` with the original span-table entries in place, and keep the
+   result. Restore, patch the entries to ours, call again, and compare. Byte-exact for solid, alpha and blit.
+   Gradients need span-render-1555.md §4.1 (precision).
+5. ctx slot 4 Shutdown, ctx slot 2 Release, buffer Release. After Shutdown, `+0x38` of the buffer is back to its
+   value before step 3.
+
+Counting and labels: count renderer calls by the return address. A call made inside one of the seven sites of
+`0x008302E0` while the fixture's slot-22 call is active is **"constructed (native context)"**. A call from those
+sites at any other time is **"shipped"**. A direct call from the fixture to a slot entry is **"constructed
+(direct)"**. Report the three counts separately. Only "shipped" counts are evidence for SP4, SR1555-6 or SR565-5.
+
 ## 2. Shared conventions
 
 **Pixel.** 16 bits, A in bits 12-15, R 8-11, G 4-7, B 0-3 (masks `0xF000/0x0F00/0x00F0/0x000F`).

@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 79;
+pub const FC4_ABI_VERSION: u32 = 80;
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
 pub const FC4_ERR_TRUNCATED: i32 = -2;
@@ -937,6 +937,8 @@ pub mod zonedev;
 pub mod zones;
 // glue-formats4: DBPF packages and exemplars for the plug-in's formats shadow.
 pub mod dbpf;
+// the glue-span565-impl4 lane: the 565 span renderer bridge (span-render-565.md §1.1)
+pub mod span565;
 // glue-disasters-impl4: the layer-only disaster layer (`enable = disasters`).
 pub mod disaster_layer;
 // glue-span4444-impl4: the cSpanRender4444 bridge (span-render-4444.md §1.1-§7).
@@ -1106,6 +1108,8 @@ mod zonedev_tests;
 #[cfg(test)]
 mod audio_tests;
 
+#[cfg(test)]
+mod span565_tests;
 #[cfg(test)]
 mod disaster_layer_tests;
 #[cfg(test)]

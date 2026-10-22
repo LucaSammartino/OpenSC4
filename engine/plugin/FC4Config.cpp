@@ -334,6 +334,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "span4444_shadow",
                                   // verify-occmgr4: the shadow's call follow (FC4OccMgrShadow.cpp)
                                   "occmgr_shadow_follow",
+                                  // the glue-span565-impl4 lane (FC4Span565Bridge.h)
+                                  "span565_trace",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

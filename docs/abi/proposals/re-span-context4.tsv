@@ -1,0 +1,18 @@
+interface	game_class	vtable	slot	offset	target	method	callee_pop	arg_dwords	ret	ret_confidence	notes
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	3	+0xc	00830710	Init	4	1	al	high	re-span-context4: span-render-4444.md 1.3, RET read from bytes
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	4	+0x10	0082ff20	Shutdown	0	0	void	high	re-span-context4: span-render-4444.md 1.3, RET read from bytes
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	7	+0x1c	0082ff70	SetColorTable	12	3	void	high	re-span-context4: span-render-4444.md 1.3, RET read from bytes
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	8	+0x20	0082fea0	SetAlphaBlend	4	1	void	high	re-span-context4: span-render-4444.md 1.3, RET read from bytes
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	9	+0x24	0082feb0	SetBltModulate	4	1	void	high	re-span-context4: span-render-4444.md 1.3, RET read from bytes
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	12	+0x30	0082fdb0	SetGradientTransform	12	3	void	high	re-span-context4: span-render-4444.md 1.3, RET read from bytes
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	13	+0x34	0082ffd0	SetBltSource	24	6	al	high	re-span-context4: span-render-4444.md 1.3, RET read from bytes
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	14	+0x38	0082fe60	ClearBltTiling	0	0	void	high	re-span-context4: span-render-4444.md 1.3, RET read from bytes
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	15	+0x3c	0082fe70	SetBltTiling	4	1	void	high	re-span-context4: span-render-4444.md 1.3, RET read from bytes
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	17	+0x44	008302a0	Suspend	0	0	void	high	re-span-context4: span-render-4444.md 1.3, RET read from bytes
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	18	+0x48	008302c0	Resume	0	0	void	high	re-span-context4: span-render-4444.md 1.3, RET read from bytes
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	19	+0x4c	0082fed0	LockTarget	8	2	al	high	re-span-context4: span-render-4444.md 1.3, RET read from bytes
+cIGZDrawContext	cGZDrawContextRenderToBuffer	00ac17d0	22	+0x58	008302e0	DrawPreclippedSpanList	8	2	unknown	high	re-span-context4: span-render-4444.md 1.3, RET read from bytes
+cIGZBuffer	cGZBuffer	00ac1400	3	+0xc	008269b0	Init	16	4	al	high	re-span-context4: span-render-4444.md 1.3, RET read from bytes
+cIGZBuffer	cGZBuffer	00ac1400	6	+0x18	00826aa0	Lock	4	1	al	high	re-span-context4: span-render-4444.md 1.3, RET read from bytes
+cIGZBuffer	cGZBuffer	00ac1400	7	+0x1c	00826490	Unlock	4	1	al	high	re-span-context4: span-render-4444.md 1.3, RET read from bytes
+cIGZDrawSystem	cGZDrawSystem	00ac1668	4	+0x10	0082bab0	CreateContext	8	2	al	high	re-span-context4: span-render-4444.md 1.3, RET read from bytes

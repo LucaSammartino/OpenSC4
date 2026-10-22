@@ -45,6 +45,7 @@
 #include "FC4DisasterShadow.h"
 #include "FC4PropLotShadow.h"  // the glue15 lane
 #include "FC4ExemplarFactory.h"  // the glue-exemplars4 lane
+#include "FC4Span565Bridge.h"    // the glue-span565-impl4 lane
 #include "FC4SpanRender4444.h"  // the glue-span4444-impl4 lane: enable = span4444
 #include "cFC4PropManager.h"  // the glue21 lane: fc4::PropManagerAppShutdown
 #include "cFC4LotConfigManager.h"  // the glue21 lane: fc4::LotConfigManagerAppShutdown
@@ -340,6 +341,7 @@ public:
         // city view, so before the first popup tick. Once per process.
         fc4::PopupDialogsApply("PostAppInit");
         fc4::ExemplarFactoryInstall();  // enable = exemplars (FC4ExemplarFactory.h; glue-exemplars4)
+        fc4::Span565Install();  // enable = span565 (FC4Span565Bridge.h; glue-span565-impl4)
         // Tooling that runs in every mode (autotest, digest, tick feed).
         fc4::ObserverStart();
         fc4::ClockProbeStart();  // clock_probe (FC4ClockProbe.h): the M1 clock differential
@@ -378,6 +380,7 @@ public:
         fc4::DialogsStop();  // close_dialogs (FC4Dialogs.h)
         fc4::ObserverStop();
         fc4::ExemplarFactoryRestore();  // the game's factories back (data-formats §8.1)
+        fc4::Span565Restore();  // the native 565 entries back, counter lines (glue-span565-impl4)
         return true;
     }
 

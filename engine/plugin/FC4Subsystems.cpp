@@ -109,6 +109,7 @@
 #include "FC4FormatsShadow.h"     // the glue-formats4 lane
 #include "cFC4SimGrid.h"          // the glue-simgrids4 lane: simgrids
 #include "FC4ExemplarFactory.h"   // the glue-exemplars4 lane
+#include "FC4Span565Bridge.h"     // the glue-span565-impl4 lane
 #include "FC4Span1555Shadow.h"    // the glue-span1555-impl4 lane: span1555
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -535,6 +536,9 @@ const Subsystem kSubsystems[] = {
     // the glue-exemplars4 lane: no GZCOM class; the resource factories are taken
     // over at PostAppInit (data-formats §8.1, FC4ExemplarFactory.h). `enable = exemplars`.
     {"exemplars", nullptr, nullptr, 0, false},
+    // the glue-span565-impl4 lane: no GZCOM class; the 565 span renderer vtable
+    // 0x00AC1844 is redirected at PostAppInit (FC4Span565Bridge.h). `enable = span565`.
+    {"span565", nullptr, nullptr, 0, false},
     // the glue-span4444-impl4 lane: no class; the cSpanRender4444 vtable bridge (FC4SpanRender4444.h)
     {"span4444", nullptr, nullptr, 0, false},
     // the glue-span1555-impl4 lane: no class is replaced; the key installs the cSpanRender1555
@@ -716,6 +720,7 @@ void Resolve() {
     FormatsShadowStartup();
     // The exemplar/cohort factory replacement (FC4ExemplarFactory.h; glue-exemplars4).
     ExemplarFactorySetEnabled(enabledKey("exemplars"));
+    Span565SetEnabled(enabledKey("span565"));  // the glue-span565-impl4 lane (FC4Span565Bridge.h)
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // The network tool registry (glue29): with `enable = nettool` the plugin's

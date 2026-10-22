@@ -33,3 +33,15 @@
   Release (`0x008306C0`) releases it without unlocking when Shutdown was not called first. In both cases a
   cGZBuffer keeps flags `0x8040` in `+0x44` and its lock word `+0x38` stays incremented. Must an implementation
   reproduce the leaked lock (observable through a later lock count / flag read), or may it unlock on those exits?
+
+<!-- from: glue-span565-impl4 (2026-10-21) -->
+- **SR565-7 - section 1.2 (fixture conventions and setters):** the constructed-buffer route names draw system slot 4
+  `(buffer, out)`, context slot 4 `Shutdown` and "the context's public setters" without their convention or slots.
+  The bridge's trace takes the literal reading: draw system slot 4 thiscall, callee pops 8, bool result; Shutdown
+  thiscall with no argument; and, for want of published setters, it writes the documented fields `+0x41`, `+0x74`,
+  `+0x44..+0x70`, `+0xB4`, `+0xC4` directly. Please publish (a) the convention/return of `0x0082BAB0` and
+  `0x0082FF20`, (b) the setter slots for alpha, colour, ARGB, gradient (`0x0082FDB0`'s slot) and texture.
+- **SR565-8 - section 6.1 (texture record):** which context fields hold the RenderBlt `src` record that
+  `DrawPreclippedSpanList` copies ("local copy of the texture record") and which setter fills `+0x24`, `+0x28/+0x2C`,
+  `+0x38/+0x3C`, `+0x40`, `+0x94..+0xA0`, `+0xA4`? Until then the bridge compares RenderBlt by direct slot-5 calls on
+  constructed buffers, not through `DrawPreclippedSpanList`.

@@ -143,13 +143,28 @@ the end of each mode branch: `0x00787C4E`, `0x00787D69`, `0x007882B0`, `0x007897
 **Content window `+0x10`** *[compat]* (BW10a, `0x00787A9E`–`0x00787BD5`): after the pause and the string loads and
 **before** the selector branch (so in every mode), `on_init` asks GZCOM for a new object of class `0x4386D516`,
 interface `0x5386D516` (the same generic window class as the dialog, §1). If that fails, `+0x10` stays null and
-nothing below runs. Otherwise `+0x10 := ` the object's `cIGZWin` (generator slot 3 `+0x0C`), stored with a
+only the rest of this block is skipped (see "Failed content creation" below). Otherwise `+0x10 := ` the object's `cIGZWin` (generator slot 3 `+0x0C`), stored with a
 reference (`cRZAutoRefCount<cIGZWin>::operator=`); then, in this order, generator flags `1:=0`, `2:=0`, `0x10000:=0`,
 `0x20:=0`, `0x40:=0`, `0x1000:=1`, `0x2000:=1`, `0x4000:=1` (generator slot 6 `+0x18`); window flags `0x100:=1`,
 `0x10000:=1`, `0x200000:=0`, `0x800:=0`, `0x8000:=0`, `4:=1` (`SetFlag`, slot 68 `+0x110`); `SetID(0x0423278E)`
 (slot 64 `+0x100`); and `win.ChildAdd(+0x10)` (dialog slot 14 `+0x38`). The temporary generator reference is then
 released (`0x00787BE4`). `+0x10` is the container the mode builders lay their background segments and rows into
 (`SetupWindow` and the other populate routines read it). `on_shutdown` and the destructor release it.
+
+**Failed content creation** *[compat]* (BW13): `CreateInstance` (GZCOM slot 3 `+0x0C`, at `0x00787ACD`) returning
+false jumps (`JZ` at `0x00787AD2`) to `0x00787BDA`, the common tail of the block: release the generator out-pointer
+if it is non-null (`0x00787BDA`–`0x00787BE4`), then fall into the selector branch at `0x00787BE7` exactly as on
+success. So on failure: no `+0x10` assignment, no generator or window flags, no `SetID`, no `ChildAdd`; the hidden
+pause taken earlier (`0x007878C0`) stays held; the selector branch runs; each branch still sets `+0x08 := 1` and
+`on_init` returns 1 (the paths of the first paragraph). There is no null check of `+0x10` anywhere in `on_init`.
+Every mode builder passes `+0x10` as the parent window (first argument) to `add_text` (`0x00779660`), for example
+group mode at `0x0078837B`/`0x0078839F`, `initOrdinanceBudget` at `0x0077C90E`, `initNeighborBudget` at
+`0x0077F59B`, `initIndividualBudget` at `0x00786C88`, and `add_text` dereferences that parent unconditionally (reads
+its vtable at `0x0077982B`, then calls its slot 14 `+0x38`, `ChildAdd`). The native program therefore faults on a
+null read at the first such `add_text` call; it has no recovery path, so whether the remaining steps ever execute
+is undefined in the original. An implementation must not fault: it follows the control flow above (skip the block,
+keep the pause, run the mode branch, set `+0x08`, return 1) and treats every child insertion into a missing `+0x10`
+as a no-op. This is a deliberate *[divergence]* from the native crash, not observed behaviour.
 
 `on_shutdown(win)` (`0x0077E440`, BW9): if `+0x08` is 0 → return 1 with no effect. Otherwise `+0x08 := 0`; empty the
 vectors `+0x2C` (slider rows), `+0x38` (group restore pairs), `+0x44` (individual restore records), `+0x50` (deal
@@ -176,12 +191,41 @@ is open. It then branches on the selector (`+0x20`, `0x00787BE7`):
 - **Order and the empty group** *[compat]* (BW10b): `+0x38` is emptied (`0x00787F8B`) and then filled **inside the
   row-counting loop**, one pair per department returned by `GetDepartmentBudgetsInGroup`, before any visibility test:
   {the f32 read through department slot 10 (`+0x28`, which returns a pointer), the department with a reference}
-  (`0x00787FDB`–`0x00788045`). The empty test comes after the loop (`0x0078822C`–`0x00788242`): when both row counts
+  (`0x00787FDB`–`0x00788045`). The reference ownership is given under "Department references in the saved pairs"
+  below (BW14). The empty test comes after the loop (`0x0078822C`–`0x00788242`): when both row counts
   `+0x124` and `+0x128` are 0, `on_init` calls `SetEmptyWindow` (`0x0077BEC0`, which touches neither vector) and
   skips the slider rows: `+0x2C` stays empty, but `+0x38` **keeps** one saved pair per group department (a group
   whose departments are all hidden still has pairs; only a group with no departments has none). A later
   `RestoreStartSettings` on such a window writes each saved fraction back unchanged. The empty branch also creates no
   scroll arrows (they are built at the end of the non-empty branch, below).
+
+**Department references in the saved pairs** *[compat]* (BW14): the department half of each `+0x38` pair is a
+counted reference (`cRZAutoRefCount`-style, `cIGZUnknown` slot 1 `+0x04` AddRef, slot 2 `+0x08` Release). Per
+department, in the row-counting loop:
+
+| Step | Address | Department refcount |
+|---|---|---|
+| a temporary pair {f32, department} is built; the department is AddRef'd if non-null | `0x00787FE7`–`0x00787FF9` | +1 |
+| append to `+0x38`, fast path (spare capacity): element copied, department AddRef'd if non-null | `0x0078800D`–`0x00788026` | +1 |
+| append, grow path (`FUN_0077D7E0`, at `0x00788040`): the new element and every moved old element are copy-constructed with AddRef (`FUN_0077AC20`/`FUN_0077AC60`), then every old element is Released and the old block freed (`0x005FF0C0`, at `0x0077D89B`) | `0x0077D7E0`–`0x0077D8B0` | new +1, old elements net 0 |
+| end of the iteration: the temporary pair's department is Released if non-null | `0x007881AC`–`0x007881BD` | −1 |
+
+Net: each pair in `+0x38` owns exactly one reference to its department. Every path from the top of the loop
+(`0x00787FB0`) reaches the Release at `0x007881AC` before the back edge (`0x007881D8`). The references are released:
+
+- when `+0x38` is emptied: the erase-range routine `0x0077C420` (called with begin and end) Releases the department
+  of every removed element (non-null only, `0x0077C450`–`0x0077C463`) and sets end := begin; capacity is kept. Its
+  callers for `+0x38` are `on_init` (`0x00787F8B`, before the loop; the vector is already empty there in practice,
+  because `on_init` runs only with `+0x08` clear, i.e. on a fresh window or after `on_shutdown`) and `on_shutdown`
+  (`0x0077E46F`);
+- by the destructor (`~cSC4SubBudgetWindow` `0x0077E420` → `0x0077C4C0`, at `0x0077C592`): `0x005FF0C0` Releases the
+  department of every element still present and frees the storage. After an `on_shutdown` the vector is empty, so
+  the destructor releases nothing more; a window destroyed without `on_shutdown` releases its pairs here.
+
+No other code path writes `+0x38` (callers of `0x0077C420`; `RestoreStartSettings` only reads it). The slider-row
+vector `+0x2C` (`SliderInfo` = {ID, department}) uses the same element layout and the same routines (`0x0077C420`
+at `0x00788376` and `0x0077E45F`, `0x005FF0C0` at `0x0077C59A`), so its department is Released the same way; the
+slider-row append that should pair with it was not byte-checked by this lane.
 
 ### 4.1 Group mode: the two lists and the special groups *[compat]* (BW1, BW7a)
 
@@ -513,3 +557,10 @@ procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
     `0x454` is in its created state.
 18. Selector 1 (ordinances) with `+0x124 = 9`, `+0x128 = 8`: after `on_init` arrows `0x451`, `0x453`, `0x454` are
     hidden and `0x452` is in its created state. Same counts with selector 2 (neighbours): all four hidden.
+19. (BW13) GZCOM `CreateInstance` for class `0x4386D516` fails, group mode with departments: `on_init` returns 1,
+    `+0x08` is 1, the hidden-pause counter went up by one (and `DestroySubBudgetWindow` brings it back), `+0x10` is
+    null, the dialog gained no `0x0423278E` child, `+0x38` holds one pair per department, and nothing faults.
+20. (BW14) Group with N departments, each a refcounted fake: after `on_init` each department's count is its start
+    count + 1 for its `+0x38` pair (all rows hidden, both row counts 0, so no `+0x2C` rows), including across a vector grow; after `on_shutdown` every count is back to its start value; a window destroyed without
+    `on_shutdown` also returns every count to its start value. An implementation that holds the department as an
+    uncounted handle fails this test.

@@ -18,15 +18,3 @@
   it: does any `cIGZDrawSystem` slot-4 caller (`0x0082BAB0`) pass a buffer whose type came from data (a buffer
   resource v1/v2 header with type 7, or a Gimex load whose target type is not a literal)?
   [no native 4444 inputs captured; the core stays unit-tested only]
-<!-- from: glue-span4444-impl4 (2026-10-21) -->
-- **SP5 - section 1.2 "What a game-pixel test can use":** the pixel test through a COM-created `cGZBuffer`
-  (CLSID `0xC470D325`, IID `0x20732180`) needs contracts no spec or docs/abi row publishes. Please give, for
-  GOG 1.1.641: (a) the `cIGZBuffer` slot of `Init` (`0x008269B0`), its argument list (width, height, the colour-type
-  pair: by value or by pointer?), callee pop count and return; (b) how a caller gets the pixel base and row stride of
-  an Init-ed buffer (slot, lock/unlock pairing, arguments, pops); (c) how a plug-in obtains `cIGZDrawSystem`
-  (`cRZSysServPtr<cIGZDrawSystem, 0x4B2EA3B3, 0xEB2EA3CB>` in widget-toolkit.md: is `0x4B2EA3B3` the service ID
-  and `0xEB2EA3CB` the IID?) and the reference rule of slot 4's `out`; (d) the context's slot 3 `Init(buffer)`
-  pop count and return, and the public context slots that set `+0x74`, `+0x41`, `+0xC4`, `+0xB4`, `+0x44` before
-  slot 22 `DrawPreclippedSpanList`. [glue-span4444-impl4 creates the buffer and releases it unused; its
-  original-versus-ours pixel comparison calls the five original slot functions directly on a constructed,
-  plug-in-owned fixture with the published section 1.1 contract]

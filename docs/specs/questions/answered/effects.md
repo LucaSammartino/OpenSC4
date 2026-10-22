@@ -183,3 +183,13 @@
   with flag A `0x08` it holds at the last loop instead of stopping. (d) MATCHES - the dispatch `0x005B96E0`
   returns at once while a delayed stop is pending (`+0x10` = base `+0x0C`). (e) MATCHES - live particles are
   updated (slot 20) first, then the emitter runs (`0x005B870A`). effects.md 7.1.1, 14.
+- ~~**EF14 - §7.1.1 emitter gaps** (core-effects-fix4, 2026-10-21): (a) the plain emitter `0x005B3CF0` (flag A `0x04`)
+  has no body in the spec; the core uses the rate emitter's integral over the whole step without loop counting,
+  gaps or stop - what does it do (sub-steps, phase wrap, ages, does it touch `w`)? (b) the rate scale `+0xC0` for
+  flags A bits 19/20/21: which wins when several are set, and is `m'` scaled at all when none is? (core: lowest
+  bit wins; none -> not applied). (c) `SetDescription`'s `1e-6` floor for `D+0x14`: is it written back into the
+  description (so the burst age and the gap use it too) or used for `ρ` only? (core: `ρ` only). (d) the
+  particle init/update (main slot 20): when does init with age `a` fail, and when does an update return false?
+  (core: a caller-given life; init fails when `a >= life`, a particle dies when its remaining life reaches 0).
+  (e) the curve interpolation when `P − n` is outside `[0, 1]` and for an empty curve (core: clamped, 0).
+  [all marked `[choice, EF14]` / `[choice]` in engine/core/src/effects/particles.rs]~~ **ANSWERED 2026-10-21 (re-effects14-4):** DIFFERS - (a) DIFFERS: the plain emitter `0x005B3CF0` only tops the live count up to `ceil(curve[0])` (no `m` or `+0xC0` scale) once `P > n`; `n`, `w` and `c` are never touched, nothing is sub-stepped, and new particles start at age 0 with no slot-20 call. (b) MATCHES: bits 19, 20 and 21 are tested in that order and the first set bit gives `k`, `k²` or `k³`; with none set there is no factor. (c) MATCHES: the `1e-6` is a local value and `D+0x14` is never written; only `ρ` is floored. (d) DIFFERS in where life comes from: `InitEffectsParticle` draws life uniformly from `[D+0x0C, D+0x10]` per particle; slot 20 does `age += t` and returns false when `age ≥ life`, so init fails when `a ≥ life`; when flags A `& 0x18000D00`, water/terrain kills can also fail it. (e) DIFFERS: the original does not clamp (reads past the end when `P − n > 1`, reachable when `ρ > 15`) and has no empty-curve guard; clamping and treating an empty curve as 0 stay `[choice]`. effects.md 7.1.1.

@@ -126,7 +126,7 @@ generated index: the questions live one file per spec, so read only the file for
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 2 | 37 | A5, AM13, AT22 | questions/automata.md |
 | budget | 0 | 8 | BQ9 | - |
-| budget-window | 3 | 11 | BW15 | questions/budget-window.md |
+| budget-window | 1 | 13 | BW15 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
 | city-detail | 2 | 5 | CD8 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
@@ -141,10 +141,10 @@ generated index: the questions live one file per spec, so read only the file for
 | dates | 3 | 0 | DT4 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
-| disasters | 3 | 43 | DS47 | questions/disasters.md |
+| disasters | 2 | 44 | DS47 | questions/disasters.md |
 | dispatch | 0 | 9 | DP10 | - |
-| drawing-fonts | 8 | 6 | FN15 | questions/drawing-fonts.md |
-| effects | 1 | 13 | EF15 | questions/effects.md |
+| drawing-fonts | 0 | 14 | FN15 | questions/drawing-fonts.md |
+| effects | 0 | 14 | EF15 | questions/effects.md |
 | feature-manager | 2 | 0 | FM3 | questions/feature-manager.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
@@ -160,7 +160,7 @@ generated index: the questions live one file per spec, so read only the file for
 | legacy-control | 3 | 4 | LC9 | questions/legacy-control.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
-| lot-records | 5 | 0 | LR6 | questions/lot-records.md |
+| lot-records | 0 | 5 | LR6 | questions/lot-records.md |
 | mysims | 0 | 12 | MS13 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
@@ -173,7 +173,7 @@ generated index: the questions live one file per spec, so read only the file for
 | occupant-manager | 0 | 5 | OM9 | - |
 | occupants-props | 11 | 5 | OP17 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
-| output-streams | 6 | 0 | OS7 | questions/output-streams.md |
+| output-streams | 3 | 4 | OS8 | questions/output-streams.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 3 | 4 | PT8 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
@@ -184,7 +184,7 @@ generated index: the questions live one file per spec, so read only the file for
 | port-developers | 1 | 11 | PD13 | questions/port-developers.md |
 | power | 0 | 12 | CR2, PW12 | - |
 | prop-developer | 0 | 14 | GLUE22, PV14 | - |
-| prop-lotconfig | 6 | 8 | PL22 | questions/prop-lotconfig.md |
+| prop-lotconfig | 7 | 8 | PL23 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
 | render3d | 3 | 1 | RND5 | questions/render3d.md |
@@ -192,14 +192,14 @@ generated index: the questions live one file per spec, so read only the file for
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | simgrid | 1 | 0 | SG2 | questions/simgrid.md |
-| span-render-1555 | 3 | 4 | SR1556 | questions/span-render-1555.md |
-| span-render-4444 | 4 | 1 | SP6 | questions/span-render-4444.md |
-| span-render-565 | 6 | 0 | SR566 | questions/span-render-565.md |
+| span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
+| span-render-4444 | 3 | 2 | SP6 | questions/span-render-4444.md |
+| span-render-565 | 8 | 0 | SR566 | questions/span-render-565.md |
 | span-render-8 | 3 | 1 | SR9 | questions/span-render-8.md |
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
-| timers | 2 | 0 | TM3 | questions/timers.md |
+| timers | 0 | 2 | TM3 | questions/timers.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
 | tutorial | 4 | 2 | TU10 | questions/tutorial.md |
@@ -209,4 +209,4 @@ generated index: the questions live one file per spec, so read only the file for
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **221** | **1090** | | |
+| **total** | **200** | **1115** | | |

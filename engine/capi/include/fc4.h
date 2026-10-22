@@ -170,8 +170,9 @@ extern "C" {
  * 76 = merge-train batch train31 (re-span4444-4, glue-formats4): merged (no C ABI history entry of its own)
  * 77 = merge-train batch train49 (core-construction4, glue-exemplars4): merged (no C ABI history entry of its own)
  * 78 = merge-train batch train56 (glue-span1555-impl4, glue-span4444-impl4, core-htmldocument4, glue-exemplar-contractfix4, core-fonts4, core-effects-fix4, verify-landvalue49): merged (no C ABI history entry of its own)
- * 79 = merge-train batch train57 (glue-disasters-impl4, glue-netrules-apply4): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 79u
+ * 79 = merge-train batch train57 (glue-disasters-impl4, glue-netrules-apply4): merged (no C ABI history entry of its own)
+ * 80 = merge-train batch train63 (glue-lotcfg-detail4, glue-span565-impl4): glue-lotcfg-detail4: merge-train batch train62 (glue-span565-impl4, glue-lotcfg-detail4): merged (no C ABI history entry of its own) | glue-span565-impl4: merge-train batch train62 (glue-span565-impl4, glue-lotcfg-detail4): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 80u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
@@ -12152,6 +12153,49 @@ bool fc4_dlayer_go_to_next(fc4_dlayer* d);
 bool fc4_dlayer_assessing(fc4_dlayer* d);
 uint32_t fc4_dlayer_refused(fc4_dlayer* d);
 
+/* The 565 span renderer (span-render-565.md, glue-span565-impl4): the five
+ * methods of the native vtable 0x00AC1844 on the native records, run by the
+ * core on the exact address hull of the call. 0 = drawn by ours; any other
+ * value = declined, nothing written (the bridge forwards to the native
+ * method). See engine/capi/src/span565.rs. */
+#define FC4_SPAN565_OK 0
+#define FC4_SPAN565_EMPTY_LIST 1
+#define FC4_SPAN565_INVALID_SPAN 2
+#define FC4_SPAN565_SLOT_OUTSIDE_TABLE 3
+#define FC4_SPAN565_TILED_ZERO_SIZE 4
+#define FC4_SPAN565_WINDOW 5
+#define FC4_SPAN565_NULL 6
+#define FC4_SPAN565_TOO_MANY 7
+typedef struct fc4_span565_dest {
+    uint8_t* pixels;
+    int32_t stride;
+    uint32_t width;
+    uint32_t height;
+    uint32_t color_type;
+    uint32_t bytes_per_pixel;
+} fc4_span565_dest;
+typedef struct fc4_span565_source {
+    const uint8_t* texels;
+    int32_t stride;
+    uint32_t width;
+    uint32_t height;
+    uint32_t unread[2];
+} fc4_span565_source;
+typedef struct fc4_span565_blt {
+    uint32_t u0, v0, du, dv, format, argb, key;
+    uint8_t key_flag;
+    uint8_t pad[3];
+} fc4_span565_blt;
+int32_t fc4_span565_render_solid(const uint32_t* spans, uint32_t n, const fc4_span565_dest* dst, uint32_t colour);
+int32_t fc4_span565_render_gradient(const uint32_t* spans, uint32_t n, const fc4_span565_dest* dst,
+                                    const uint32_t* grad);
+int32_t fc4_span565_render_alpha(const uint32_t* spans, uint32_t n, const fc4_span565_dest* dst, uint32_t colour,
+                                 uint32_t argb);
+int32_t fc4_span565_render_alpha_gradient(const uint32_t* spans, uint32_t n, const fc4_span565_dest* dst,
+                                          const uint32_t* grad);
+int32_t fc4_span565_render_blt(const uint32_t* spans, uint32_t n, const fc4_span565_dest* dst,
+                               const fc4_span565_source* src, const fc4_span565_blt* b, uint32_t kind);
+
 /* data-formats §5.1 GetValString (variant slot 55) on one value laid out as
  * for fc4_variant_get_u32: the value's text goes to `sink` (one call), then 1
  * when the getter returns true (a string, RZChar array 0x800E) or 0 when it
@@ -12601,6 +12645,17 @@ _Static_assert(sizeof(fc4_effect_info) == 48, "fc4_effect_info layout");
 _Static_assert(sizeof(fc4_effects_brush_state) == 56, "fc4_effects_brush_state layout");
 _Static_assert(sizeof(fc4_effects_game_state) == 32, "fc4_effects_game_state layout");
 _Static_assert(sizeof(fc4_effects_host) == (sizeof(void*) == 4 ? 80 : 160), "fc4_effects_host layout");
+#endif
+
+/* glue-span565-impl4 record layouts. */
+#ifdef __cplusplus
+static_assert(sizeof(fc4_span565_dest) == (sizeof(void*) == 4 ? 24 : 32), "fc4_span565_dest layout");
+static_assert(sizeof(fc4_span565_source) == (sizeof(void*) == 4 ? 24 : 32), "fc4_span565_source layout");
+static_assert(sizeof(fc4_span565_blt) == 32, "fc4_span565_blt layout");
+#else
+_Static_assert(sizeof(fc4_span565_dest) == (sizeof(void*) == 4 ? 24 : 32), "fc4_span565_dest layout");
+_Static_assert(sizeof(fc4_span565_source) == (sizeof(void*) == 4 ? 24 : 32), "fc4_span565_source layout");
+_Static_assert(sizeof(fc4_span565_blt) == 32, "fc4_span565_blt layout");
 #endif
 
 #endif /* FC4_H */

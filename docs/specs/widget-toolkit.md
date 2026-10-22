@@ -701,7 +701,7 @@ Returns true.
       stop; otherwise, if **this** window has `0x8000000`, set `r` to this window's absolute area (`+0x14`) and stop;
       otherwise add the ancestor's offset to `r` and continue. Draw area = `r`. (A window without a parent keeps its
       area.)
-   b. Once per process the code caches whether the system service with ID `0x4B2EA3B3` exists (the export names the
+   b. Once per process the code caches whether the system service with ID `0xEB2EA3CB`, queried as IID `0x4B2EA3B3`, exists (the export names the
       pointer `cRZSysServPtr<cIGZDrawSystem, 0x4B2EA3B3, 0xEB2EA3CB>`; cache flag `0x00BAC060` bit 1, result byte
       `0x00BAC05C`). **If it exists, the draw area is moved to the origin** keeping its size: `(0, 0, W, H)` (helper
       `0x0082AE40`, "move rectangle so its top-left is the given point"). Step a's translation is then discarded.
