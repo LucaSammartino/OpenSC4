@@ -526,7 +526,11 @@ if(FC4_IS_WIN32_X86)
         "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp"
         "${FC4_GZCOM_DIR}/src/SC4String.cpp"
         "${FC4_GZCOM_DIR}/src/cRZBaseVariant.cpp"
-        "${FC4_GZCOM_DIR}/src/StringResourceManager.cpp")
+        "${FC4_GZCOM_DIR}/src/StringResourceManager.cpp"
+        # Opt-in span8 checked adapter and native type2 route (SR9/SR10).
+        plugin/FC4SpanRender8.cpp
+        plugin/FC4SpanRender8.h
+        plugin/FC4Span8Fixture.inc)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN

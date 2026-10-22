@@ -341,6 +341,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "simgrids_shadow",
                                   // glue-dates4: independent native date interface probe
                                   "dates_probe",
+                                  "span8_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
