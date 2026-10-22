@@ -13,9 +13,9 @@ This file is the single source for the clean-room roles. Other docs link here.
 
 | | Analysis (spec writers) | Implementation (engine authors) |
 |---|---|---|
-| May read | the original executable, disassembly, Ghidra projects, `decomp/`, `decomp-mac/`, `ghidra/export/`, everything in `re/` | `docs/specs/` (questions for the analysis side go in `docs/specs/questions/<spec>.md`; `docs/specs/QUESTIONS.md` is the generated index), `docs/abi/` (interface facts), the public SDK headers in `engine/third_party/gzcom-dll` (LGPL), the game's data files, general literature; and the operating docs `docs/HANDOFF.md`, `docs/ops/`, `docs/lanes/INDEX.md`, `docs/lanes/README.md`, `docs/merge-train.md` |
+| May read | the original executable, disassembly, Ghidra projects, `decomp/`, `decomp-mac/`, `ghidra/export/`, everything in `re/` | `docs/specs/` (questions for the analysis side go in `docs/specs/questions/<spec>.md`; `docs/specs/QUESTIONS.md` is the generated index), `docs/abi/` (interface facts), `engine/` with the public SDK headers in `engine/third_party/gzcom-dll` (LGPL), the game's data files, general literature; and the operating docs `README.md`, `CONTRIBUTING.md`, `docs/HANDOFF.md`, `docs/ops/`, `docs/ARCHITECTURE.md`, `docs/harness.md`, `docs/manual-checks.md`, `docs/lanes/INDEX.md`, `docs/lanes/README.md`, `docs/merge-train.md` (keep decompiled and RE-only material out of all of these) |
 | Produces | **behaviour specs** in `docs/specs/` (what happens, in prose, tables and pseudo-math) and interface facts in `docs/abi/` | code in `engine/`, plus tests that check it against the specs |
-| Must not | write or edit `engine/` code | open `decomp/`, `decomp-mac/`, `external/`, `ghidra/project/`, `ghidra/mac/`, `ghidra/export/`, `re/`, `tools/`, `docs/subsystems/`, `docs/sim-engine.md`, the game executable, or any disassembly or decompiled output; or paste anything from them |
+| Must not | write or edit `engine/` code | open, list or grep `decomp/`, `decomp-mac/`, `external/`, `ghidra/` (any part), `re/`, `tools/`, `docs/subsystems/`, `docs/sim-engine.md`, the game executable, or any disassembly or decompiled output, in any checkout; paste anything from them; or run scripts from `tools/` (the lane tools in `.claude/lane-bin/` hold no RE content and may be run) |
 
 One person may hold different roles on different subsystems, but **never both roles on the same subsystem**.
 An agent doing engine work never reads RE material in the same task.
@@ -51,25 +51,12 @@ formulas, state changes, ordering) still reaches engine authors only as a behavi
 
 ## How work lands
 
-Work happens in lanes: one agent, one worktree, one task. A lane keeps its state and next steps in
-`docs/lanes/<lane>.md` and its in-game runs in `docs/runs/<tag>.md`. The shared tables in
-`docs/lanes/INDEX.md` (the lane table), `docs/manual-checks.md` (the run log) and the HANDOFF's "Latest in-game
-run" line are generated from those files:
+Work happens in lanes: one agent, one worktree, one branch, one task. A lane records its state and report in
+`docs/lanes/<lane>.md` and each in-game run in `docs/runs/<tag>.md`, writes a merge-queue entry and **stops**; a
+single merge-train owner lands batches on `main`. A lane never merges `main`, never bumps `FC4_ABI_VERSION` and
+never edits a `<!-- BEGIN GENERATED: ... -->` region. The formats and the queue contract are in
+[docs/lanes/README.md](docs/lanes/README.md); what the train does is in [docs/merge-train.md](docs/merge-train.md).
 
-```
-python tools/gen_handoff_tables.py
-```
-
-Never edit a `<!-- BEGIN GENERATED: ... -->` region by hand: edit the lane or run file and regenerate,
-or two lanes finishing together will conflict on the same lines again.
-
-When a lane is done it writes `build-runs/merge-queue/<lane>.json` and **stops**. A single merge-train
-owner merges batches onto `integration/<n>`, runs the gate and the regress once per batch, and
-fast-forwards main. There is no merge lock to take; a lane never merges main and never bumps
-`FC4_ABI_VERSION` (the train bumps it once per batch).
-
-The exact row formats, the run-file format and the merge-queue contract are in
-[`docs/lanes/README.md`](docs/lanes/README.md).
 ## Never commit
 
 - Game files (executables, DLLs, `.dat` archives, saves) or anything extracted from them.
