@@ -1,80 +1,59 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-lighting-contracts4: LT10 native projection contract | Codex / `re-lighting-contracts4` (RE docs, detached supervisor checkout) | in progress; round 2; six earlier answers retained; ABI unchanged | Prove model-frame direction, flag composition and exact rounding at 007D8C80. |
+| re-lighting-contracts4: LT10 native projection contract | Codex / `re-lighting-contracts4` (RE docs, detached supervisor checkout) | ready; LT10 answered; arithmetic/doc checks PASS; ABI unchanged; cargo/clippy/ctest and game n/a | Implementers reconcile §5.8 and vectors 18–22; LT1–LT4 remain outside this round. |
 
-## Handoff
+## Report (2026-10-22, round 2)
 
-- Goal: resolve only remaining LT10; no engine/tools/maps/ABI-table changes.
-- Start: reserved detached HEAD 9a236cfd; clean tracked state; reuse without branch/ref changes.
-- Prior milestones: 69fd2874 numeric/storage inventory, 82a5c8c2 lifecycle/terrain, 40622e51 six answers/partial projection.
-- LT5–LT9/LT11 are already answered; do not repeat them or claim runtime exactness.
-- LT10 partial: count-first, separate transform/output, basis fallback, signed binary64 0.01 cutoff, count-zero output untouched.
-- Round-2 milestone 4d1e3140: direction conditional transpose/negation/order/stores; vector 19 distinguishes 0/2 from 4/6.
-- Pending milestone: full §5.8.2–5.8.4 arithmetic/flags/layout proved from all 713 native instructions; accumulation/cofactor/lift/composition symbolic stack audit agrees.
-- Independent vectors 20–22: six flag cases; noncollinear triangle rejected at D=-1 due to product spill; identical UV columns yield unequal translation constants.
-- LT10 moved to answered; next regenerate index, run doc/arithmetic checks, commit complete projection contract, then finalize report/queue.
-- Exact inventory/checklist already in lighting.md; only projection status needs updating.
-- Primary evidence: main export via re_query.py asm --bytes and executable constants; foreign outputs remain boundaries.
-- q.py cannot start Bash (E_ACCESSDENIED); use capped PowerShell/Python commands.
-- No game requests, ABI proposal, REA, network or subagents; docs checks pending.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-lighting-contracts4-r2-manifest.json.
+Resolved only the residual LT10 projection question from detached base `9a236cfd`. The lighting spec
+now specifies the complete native entry in §5.8.1–§5.8.4: model-frame direction, basis arithmetic,
+mixed-precision accumulation/cofactors/coefficients/lifting, inverse fields, all flag-byte cases,
+composition spills, and column-major sixteen-float output. The individual checklist marks this entry
+proved; the existing owner/helper inventory and six earlier answered contracts are retained.
 
-## Report (2026-10-22)
+The direction uses a flag-4 conditional transpose and the negated manager direction, without translation,
+scale or normalization. Composition uses the entire byte being nonzero. Bit 2 selects reciprocal scale
+on the nine linear output components, after inverse translation preparation; constants are not scaled
+again. Unknown nonzero flag bits still enable composition. Register sums and binary32 memory sums are
+distinct, and the first RHS product stays unspilled while the second spills. U and V have different
+coefficient, lift and translation stores. A generic symmetric least-squares solve is insufficient.
 
-Changed only the lighting spec, its active/answered question files, generated question index and this lane
-report. No engine files were read or edited; no tools/maps/ABI tables changed. No ABI proposal is needed.
+Four new independent specification vectors (19–22) distinguish these contracts:
 
-The individual inventory is 43 manager bodies / 21,714 native bytes and 2 image bodies / 517 bytes.
-Six attributed helpers are identified separately; shared AddRef/CRT and foreign terrain/image/property/message
-services are dependency boundaries. Inventory completeness does not claim complete-owner behaviour credit.
+- Direction flags 0/2 versus 4/6 give d=(0,2,1) versus (0,2,−1), with exact basis values.
+- Six output cases for flags 0, 1, 2, 4, 6, 128 distinguish the whole-byte gate, transpose, inverse
+  translation and reciprocal scale, using a triangle with an independently fixed affine fit.
+- Product rounding changes a noncollinear triangle's determinant from exact 1 to native −1; native
+  returns false with untouched output. All arithmetic in the discriminator is exact before stated spills.
+- Identical UV columns give translation constants **−16777215 for U** and **−16777216 for V**, because
+  only the U translation dot product rounds before adding its fitted constant.
 
-Answered LT5–LT9 and LT11 in `docs/specs/questions/answered/lighting.md`, with native rules in
-`docs/specs/lighting.md` and regenerated `docs/specs/QUESTIONS.md`:
-
-- LT5 DIFFERS: zero initial reference count; black announcement/cache values, white current light,
-  fractions 1/0, initial sun (1,-1,-1), partially unwritten instance state, initial shared property table.
-  No universal pre-city fade result; successful QueryInterface acquires one reference.
-- LT6 MATCHES: Euclidean RGB distance, blue+green then red squares, x87 intermediates, strictly above
-  binary32 threshold; equality and unordered tests fail.
-- LT7 DIFFERS: minimum scans vector storage including padding, not unused capacity. Image/model accesses
-  are unchecked. Missing map Load does not fail Init; no transactional copy recovery. Explicit Shutdown
-  frees maps/unsubscribes; destruction alone does neither.
-- LT8 DIFFERS: epsilon is binary64 0.001, upper replacement rounds binary32; fixed X rows of Z floats at
-  every rotation, sx=0 nonfinite drift skips with retained rectangle. No-change rectangle is (-1,-1,0,0).
-- LT9 MATCHES: inclusive changed vertex endpoints are rotated verbatim without expansion/clipping;
-  deferred no-change sends neither terrain notification. Recipient-side expansion remains its own contract.
-- LT11 DIFFERS: complete six-float box/four-integer rectangle procedure, quadrant-specific ordered corner
-  probes, continuous first/second-probe edge and height, independent final-axis probe, strict stopping,
-  inclusive retained stop vertex, no fractional cross-axis drift or final clipping, true return.
-
-LT10 stays open. Section 5.8 newly proves **count-first** argument order, separate transform/output
-storage, basis helper including the vertical fallback, signed **binary64** 0.01 determinant comparison,
-NaN proceeding past that test, and untouched output on count-zero failure. Full model-frame direction,
-flag-dependent coefficient composition and accumulation/cofactor/composition rounding remain unproved.
-Do not implement that gap from the older inferred overview or promote complete-owner coverage.
+LT10 is marked **ANSWERED / DIFFERS** in `docs/specs/questions/answered/lighting.md`; its active entry
+was removed and `docs/specs/QUESTIONS.md` regenerated. LT1–LT4 remain outside this brief. No new question,
+ABI proposal or required foreign primitive output was introduced. This resolves a spec gap, not portable
+implementation coverage or measured runtime/shadow exactness.
 
 ## Evidence and checks
 
-Primary evidence is the local original Windows export's instruction bytes and executable data, queried
-through `re_query.py`; decompilation guided navigation. Numeric/lifecycle/rectangle claims cite addresses in
-the spec. No REA request, game run, network request or original-method provider was used.
+Primary evidence: all **713 instructions / 2,964 bytes** of `007D8C80–007D9813`, the attributed basis
+helper `0080B9F0–0080BAC6` and owner getter `007D6B50–007D6B65`, from the local original Windows export.
+Every numeric stage cites instruction addresses in the spec. PE data independently confirms binary32
+0/1 constants and the binary64 0.01 threshold. Decompilation was navigation only; no Mac-derived behavior,
+REA call, executable invocation, game run, network request or original-method provider was used.
 
-Nine independent conformance examples were added as spec text (vectors 10–18). Local scratch check
-`build-runs/check-lighting-docs.py` passed inventory uniqueness/body sizes, numeric discriminators and
-six-answered/one-remaining accounting. Question-index regeneration is idempotent. `git diff --check`
-passed across all three substantive commits. Cargo/clippy/ctest and runtime/shadow/replacement checks are
-n/a for this docs-only round; no measured in-game exactness is claimed.
+Scratch checks in ignored `build-runs/` passed: `trace-lt10-rounding.py` symbolically audits native
+accumulation/cofactor/lift/composition stacks; `check-lt10-r2.py` checks independent rational arithmetic,
+flag matrices and PE constants; `check-lighting-docs.py` checks inventory/accounting and question/vector
+consistency. Question-index regeneration is idempotent and `git diff --check` passes. Cargo, clippy,
+ctest, game and shadow checks are n/a for this docs-only change. No measured game verdict is claimed.
 
-Substantive commits: `69fd2874` inventory and numeric/storage boundaries; `82a5c8c2` lifecycle, statics,
-terrain extension and message rules; `40622e51` question reconciliation and partial projection evidence.
-The supervisor-reserved detached checkout was retained. Git printed a packed-refs lock permission warning
-during commits, but each commit succeeded and the resulting HEAD/clean tracked state were verified.
+Substantive commits: `4d1e3140` direction proof/vector; `69675480` complete arithmetic, flags, layout,
+vectors and LT10 reconciliation. Only spec/question/index/lane documentation is tracked in this round.
+No engine files were read or edited; tools/maps/ABI tables are unchanged. The reserved detached checkout
+was retained. Git emitted a packed-refs lock warning, but commits succeeded and HEAD was verified.
+The q.py Bash wrapper failed with E_ACCESSDENIED; capped PowerShell/Python queries succeeded instead.
 
 ## Next steps
 
-Prove LT10 using `007D8C80–007D9813`: inverse setup `007D8D13–007D8DEA`, direction/basis setup
-`007D8E36–007D8EC5`, accumulation/determinant `007D8F50–007D91E4`, then composition and float stores
-through `007D9801`. Recover all transform flag combinations and exact spill boundaries before closing it.
-Implementers can reconcile the six answered questions now; portable safety policies for invalid reads and
-unset pre-city fields must remain explicitly distinguished from native defaults. This round ends WIP;
-queue state is wip and no further round or self-restart was initiated.
+Implementers can reconcile their portable partial projection with §5.8 and vectors 18–22. Runtime
+conformance and any later owner-coverage claim require implementation-side evidence. No further RE
+round, self-restart, branch/ref update, merge or push is requested by this completed LT10 task.
