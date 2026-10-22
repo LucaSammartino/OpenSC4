@@ -153,7 +153,101 @@ Init), call context slot 3 `Init(buffer)` (expect 1 and the vtable `0x00AC1844` 
 the context's public setters, call slot 22 `DrawPreclippedSpanList(spans, n)`, read the pixel words back through
 the buffer's `+0x88`/`+0x8C`, and finish with slot 4 `Shutdown` so the lock is undone. Run the same script against the
 original and ours and compare every byte of the buffer including the padding. A report must label this
-"constructed buffer"; a game-path claim needs SR565-5.
+"constructed buffer"; a game-path claim needs SR565-5. The calls, slots and fields of that route are in §1.3.
+
+### 1.3 Context public interface used by the route (re-span565-context4) [exact, static]
+
+This is the framework **2D** `cGZDrawContextRenderToBuffer`, shared with
+[span-render-4444.md §1.3](span-render-4444.md#13-the-buffer-draw-context-as-a-native-fixture-route-sp5-sr1555-7-re-span-context4-exact-static)
+and span-render-1555.md §1.3. Applicability to 565 is proved by Init's type-5 jump-table entry
+`0x008308BC` → `0x00830792`: it installs span vtable `0x00AC1844` (`0x008307A0`) in the same context's
+`+0xB0` (`0x008307EE`). The context's vtable, setters and slot-22 consumer do not change. The separate 3D
+`SC4DrawContext` in draw-context.md does not specify these setters. The contracts below were audited against
+`re_query.py asm --bytes` and image dwords; the shared gradient precision proof is reused (§4.1).
+
+All calls below are MSVC thiscall (`this` in ECX, stack arguments right to left, callee pops the stated bytes).
+A byte result is tested in AL; upper EAX bits are not part of that result. A dash in Returns means no defined
+API return value, even where instructions leave a value in EAX.
+
+**Draw system slot 4** (`0x0082BAB0`, `(buffer, out)`, `RET 8` at `0x0082BADF` / `0x0082BAE8`): walks the circular
+factory list whose head is `[this+0x20]` (node: `+0` next, `+8` factory), calling each factory's slot 3 (`+0x0C`)
+with `(buffer, out)` and stops at the first that returns AL ≠ 0: returns **AL = 1**; empty list or every factory
+refused: **AL = 0**. The RenderToBuffer factory (`0x0082B910`, `RET 8`) queries `buffer` for `0x20732180` (failure:
+AL = 0, `*out` untouched); success: allocates 0xD4 bytes, runs the constructor `0x00830690`, writes the context into
+`*out` without releasing what `*out` held, AddRefs it (count 0 → 1), releases its own query reference, AL = 1. A
+failed allocation is outside this fixture contract. The constructor sets its vtable to `0x00AC17D0`,
+zeros `+4` (count), `+8` (target), `+0x24` (texture), `+0xB0`, and zeros the bytes `+0x41`, `+0x43`,
+`+0x74`, `+0x75`; every other field (`+0x28..+0x40`, `+0x42`, `+0x94..+0xAC`, `+0xB4..+0xD0`) holds whatever
+the heap block held until Init or a setter writes it.
+
+**Context vtable `0x00AC17D0`** (23 entries, read from the image; entry 23 onward is the 1555 table `0x00AC182C`):
+
+| Slot | Entry | Method | Arguments | Pops | Returns | Fields written |
+|---|---|---|---|---|---|---|
+| 0 | `0x0082FD60` | QueryInterface | `iid, out` | 8 | AL: 1 for iid 1 or `0x2AE78A07` (`*out = this`, AddRef), else 0 | — |
+| 1 | `0x005F47F0` | AddRef | — | 0 | new count | `+4` |
+| 2 | `0x008306C0` | Release | — | 0 | count | (final: §1.1) |
+| 3 | `0x00830710` | Init | `buffer` | 4 (`0x00830877`) | AL 1 / 0 | target, `+0x78..+0x8C`, `+0xC`, `+0x10`, `+0x90`, `+0xB0`; `+0xA4 = 0`, `+0x75 = 1` |
+| 4 | `0x0082FF20` | Shutdown | — | 0 | none defined | `+0xB0 = 0`, `+8 = 0` |
+| 5 | `0x00A64430` | target bounds | `out` (16 bytes) | 4 | tail-jumps to target slot 11 (`+0x2C`): copies the buffer's `(0, 0, W, H)` into `out` | — |
+| 6 | `0x0082FD90` | SetClipRect | `rect*` (4 dwords) | 4 | — | `+0x14..+0x20` (not read by slot 22) |
+| 7 | `0x0082FF70` | SetColorTable | `index, count, argb*` | 0xC (`0x0082FFC0`) | — | per entry `k`: `+0xB4 + 4(index+k)` = ARGB, `+0xC4 + 4(index+k)` = native colour |
+| 8 | `0x0082FEA0` | SetAlphaBlend | `int a` | 4 | — | `+0x41 = (a > 0)` signed |
+| 9 | `0x0082FEB0` | SetBltModulate | `byte m` | 4 | — | `+0x42 = m` (low byte as passed) |
+| 10 | `0x0082FEC0` | SetAntialiasing | `byte` | 4 | — | `+0x43` (not read by slot 22) |
+| 11 | `0x00648F10` | (empty) | 1 dword | 4 | — | — |
+| 12 | `0x0082FDB0` | SetGradientTransform | `p, x0, y0` | 0xC (`0x0082FE4D`) | — | `+0x44..+0x70`, `+0x74` (`span-render-1555.md` §4.1) |
+| 13 | `0x0082FFD0` | SetBltSource | `tex, x, y, sx, sy, outRect*` (floats) | 0x18 (`0x00830278`, `0x00830296`) | AL (below) | `+0x24`, `+0x28..+0x40`, `+0xA8`, `+0xAC` |
+| 14 | `0x0082FE60` | ClearBltTiling | — | 0 | — | `+0xA4 = 0` |
+| 15 | `0x0082FE70` | SetBltTiling | `rect*` (x0, y0, x1, y1) | 4 | — | `+0x94..+0xA0`, `+0xA4 = 1` |
+| 16, 20 | `0x00407990` | (empty) | — | 0 | — | — |
+| 17 | `0x008302A0` | Suspend | — | 0 | — | if `+0x75`: target unlock `0x8040`, `+0x75 = 0` |
+| 18 | `0x008302C0` | Resume | — | 0 | — | if not `+0x75`: target lock `0x8040` (result ignored), `+0x75 = 1` |
+| 19 | `0x0082FED0` | LockTarget | `out` (24 bytes), 1 unused dword | 8 | AL = 1 | copies `+0x78..+0x8C` into `out` |
+| 21 | `0x00831000` | Draw | `prim, verts*, count` (not used by this route) | 0xC | — | — |
+| 22 | `0x008302E0` | DrawPreclippedSpanList | `spans, n` | 8 | — | — (§6.1, §6.2) |
+
+**Init details used by §6.2.** On success Init stores the destination record `+0x78` pixels (buffer vfunc `+0x88`),
+`+0x7C` stride (vfunc `+0x8C`), `+0x80` W (vfunc `+0x24`), `+0x84` H (vfunc `+0x28`), `+0x88` colour type
+(first dword returned by vfunc `+0x3C`), `+0x8C` bytes per pixel (vfunc `+0x44`); also `+0xC` = W, `+0x10` = H,
+`+0x90` = bytes per pixel; then `+0xA4 = 0` and
+`+0x75 = 1` (`0x00830869`, `0x00830870`). It does not touch `+0x40`, `+0x41`, `+0x42`, `+0x74`, `+0xB4`, `+0xC4`.
+
+**Shutdown** releases the renderer (slot 0, flags 1) if `+0xB0` is set and clears it; if a target is held it
+unlocks it with `0x8040` **only when `+0x75` is set**, clears `+8` and tail-jumps to the target's Release, so EAX
+is the target's new count on that path and left over otherwise: callers must not read it.
+
+**SetColorTable** (`index, count, argb*`; `count = 0` writes nothing). For each of the `count` dwords `c`:
+`+0xB4 + 4i = c` first, then `+0xC4 + 4i` = target slot 30 (`+0x78`, `0x00825DA0`) called with
+`(c >> 16, c >> 8, c)` (it uses the low byte of each). For a type-5 target that converter is case `0x00825DE7`:
+`(r & 0xF8) << 8 | (g & 0xFC) << 3 | b >> 3`, alpha dropped. `index` is not range-checked: entries 0–3 lie in the
+object (`+0xB4..+0xC0`, `+0xC4..+0xD0`), index 4 writes its ARGB over native entry 0 and its native colour at
+`+0xD4`, past the 0xD4-byte block. Here `i = index + k`. Slot 22 reads entry 0 only (`+0xB4`, `+0xC4`).
+Store/call anchors: `0x0082FF86`–`0x0082FFAC`; RET `0x0082FFC0`; type-5 converter jump-table entry
+`0x00825E64` → `0x00825DE7`, ending `0x00825E0E`. For `0x80FF8040` this gives `0xFC08`, while the
+shared 1555 converter gives `0xFE08`: the setter is shared, its target-buffer packing is format-specific.
+
+**Gradient and texture setters.** Slot 12 accepts 12 binary32 floats plus binary32 `(x0,y0)`; its exact
+channel order, float stores, x87 precision and truncation are shared with span-render-1555.md §4.1 (also §4.1
+below). The writes are `+0x44..+0x70`, followed by `+0x74 = 1` (`0x0082FDD0`–`0x0082FE45`); null input clears
+only `+0x74` (`0x0082FE52`). Both exits pop 0xC (`0x0082FE4D`, `0x0082FE58`). Slot 13's texture state and
+record construction are specified in §6.2. Colour and ARGB are supplied together by slot 7, not separate setters.
+
+**Discriminating conformance vectors (specified, not executed here).** Use a constructed type-5 16×8 destination,
+all spans in bounds, and explicitly set the path's state: slot 7 entry 0, slot 8 alpha, slot 9 modulation,
+slot 12 gradient or null, slot 13 texture or null, slot 14 or 15 tiling. Do not depend on unset heap contents.
+(1) SetColorTable(0, 1, [`0x80FF8040`]): `+0xB4 = 0x80FF8040`, `+0xC4 = 0xFC08`; then slot 22 with no texture,
+alpha off, one span of 2 pixels writes `0xFC08` twice. (2) SetAlphaBlend(2) → `+0x41 = 1`; (−1) and
+(`0x80000000`) → 0. (3) SetBltSource(tex 4×3, x = 2.5, y = 3.5, sx = sy = 1): `+0x28 = 2`, `+0x2C = 4` (half to
+even), `+0x40 = 0`, `+0x30..+0x3C = 0x10000`, out = (2, 4, 6, 7), `+0xA8 = 4`, `+0xAC = 3`, AL = 1.
+(4) SetBltSource(tex 4×3, x = 1, y = 0, sx = 2, sy = 0.5): `+0x30 = 0x20000`, `+0x34 = 0x8000`,
+`+0x38 = 0x8000`, `+0x3C = 0x20000`, `+0x28 = 0x8000`, `+0x2C = 0`, `+0x40 = 1`, out = (1, 0, 9, 1),
+`+0xA8 = 8`, `+0xAC = 1`. (5) SetBltSource(null, …) after (3): AL = 0, `+0x24 = 0`, `+0x28..` unchanged.
+(6) SetBltModulate(`0x100`) stores byte 0; (`2`) stores byte 2 but selects modulation as a nonzero flag in slot 22.
+(7) SetGradientTransform with twelve zero floats and origins 0 sets all four starts to `0x8000`, all steps to 0,
+and `+0x74 = 1`; then null input clears the flag without rewriting the record. Both calls pop 0xC.
+(8) Shutdown after Suspend: no unlock call (the `+0x75` gate), target still released. Shutdown takes no stack
+arguments; it is void even when its tail call leaves the buffer's Release result in EAX.
 
 ## 2. RenderSolid (`0x0083DE50`, slot 1) [exact, verified]
 
@@ -254,7 +348,7 @@ flag `0x800`) and:
 - **Key** (texture vfunc `+0x68` returns the flag, key into `b+0x18`), masked per format (table `0x00830674`):
   0 `& 0x0FFF`, 1 and 2 `& 0x7FFF`, 3 `& 0xFFFF`, 4 and 5 `& 0x00FFFFFF`; for 6 the flag is forced to 0, so row 12
   is the only 8-bit row reached and row 13 is unreachable.
-- `b+0x14 = ctx+0xB4`. `kind = alpha + 2·modulate` (`+0x41`, `+0x42`), then `| 8` if tiling (`+0xA4`), else `| 4`
+- `b+0x14 = ctx+0xB4`. `kind = alpha + 2·modulate` (nonzero tests of `+0x41`, `+0x42`), then `| 8` if tiling (`+0xA4`), else `| 4`
   if stretching (`+0x40`); tiling wins.
 - **Plain**: source pointer biased by `−(ox·bpp + oy·stride)` (`ox = ctx+0x28`, `oy = ctx+0x2C`), so destination
   (x, y) reads texel (x − ox, y − oy).
@@ -263,6 +357,76 @@ flag `0x800`) and:
 - **Tiled**: the sub-rectangle `ctx+0x94..+0xA0` (x0, y0, x1, y1) of the texture: pointer += `x0·bpp + y0·stride`,
   `W = x1 − x0`, `H = y1 − y0`, `u0 = (K_W − ox) mod W` with `K_W = 0x7FFFFFFF − (0x7FFFFFFF mod W)` (unsigned
   `div`), `v0` likewise with H and `oy`: `u0 ≡ −ox (mod W)` for `ox ≤ K_W`. `W = 0` or `H = 0` faults (divide).
+
+### 6.2 Texture state provenance and the public-setter route (SR565-8) [exact, static]
+
+There is **no persistent 24-byte source surface record in the context**. `+0x24` holds a referenced `cIGZBuffer`
+interface, not the pixels or a surface-record pointer. Slot 13 SetBltSource (`0x0082FFD0`) releases the old
+reference, clears it, and queries the new object for `0x20732180` into `+0x24` (`0x0082FFE4`–`0x00830008`). Null
+source releases/clears the held reference and returns AL = 0; a source refusing the interface returns AL = 1.
+Neither case writes the placement/scales or caller's output rectangle. The success and null exits pop 0x18 at
+`0x00830278` / `0x00830296`. Thus AL alone does not prove that a texture was installed.
+
+On success the setter reads source bounds `(L,T,R,B)` through buffer slot 11 (`0x00830017`); `x,y,sx,sy` are
+binary32 arguments describing destination placement and destination size per source texel. The output pointer
+must name a writable 16-byte **edge rectangle**, not a crop request. These rules are the same shared 2D-context
+rules documented in span-render-4444.md §1.3 (including its source-placement proof), not a 565 variation:
+
+| Context field(s) | Producer and meaning |
+|---|---|
+| `+0x24` | slot 13: held source interface |
+| `+0x30`, `+0x34` | slot 13: `R(sx·65536)`, `R(sy·65536)` (forward 16.16 scales) |
+| `+0x38`, `+0x3C` | slot 13: `du=R(65536/sx)`, `dv=R(65536/sy)` (source steps) |
+| `+0x28`, `+0x2C`, byte `+0x40` | slot 13: if both stored forward scales are `0x10000`, integer `R(x),R(y)` and mode 0; otherwise 16.16 `R(du·x),R(dv·y)` and mode 1 |
+| `+0x94..+0xA0`, byte `+0xA4` | slot 15 SetBltTiling copies source-texel edges `(left,top,right,bottom)` and sets flag 1; slot 14 clears only the flag; Init also clears it |
+| `+0xA8`, `+0xAC` | slot 13: output right-minus-left and bottom-minus-top, wrapping dword subtraction; these are not the source surface's width/height |
+
+`R` retains the caller's x87 precision for the arithmetic, stores/reloads binary32, then converts to signed dword
+using the current rounding mode (`FISTP`). Plain placement converts the already-binary32 argument directly.
+The shared game's 24-bit, nearest-even rule applies (span-render-1555.md §4.1); the setter does not change the
+control word. `65536.0` is a **double** constant at `0x00A8CEB0`, not an instruction to compute the whole expression
+in double. Anchors: `0x0083001A`–`0x00830082` (scales), `0x00830085`–`0x008300B3` (quantized mode/plain placement),
+`0x008300F6`–`0x0083012E` (scaled placement).
+
+In plain mode the output is `(L+ox,T+oy,R+ox,B+oy)` (`0x008300B7`–`0x008300F1`, `0x00830259`). In stretch mode
+its edge inputs are `x,y,x+(R-L)·sx,y+(B-T)·sy`, with the caller's x87 precision at each operation. The exact
+edge-conversion instruction proof and precision limits are shared with span-render-4444.md §1.3.1; for the finite,
+small coordinates in §1.3's vectors, each edge is `ceil(t−0.5)` in nearest-even mode. Do not extend that shorthand
+to arbitrary floats. Width/height stores are `0x00830256`–`0x0083026A`. SetBltSource does not change tiling.
+SetBltTiling writes its own fields at `0x0082FE74`–`0x0082FE94`, pops 4 at `0x0082FE97`; ClearBltTiling returns
+with no pop at `0x0082FE67`. Both are void.
+
+For each slot-22 draw with a texture, after Lock(`0x800`) succeeds, the caller constructs `src` in **its stack
+frame** using these buffer vfuncs (`0x00830306`–`0x00830357`):
+
+| RenderBlt `src` member | Source at draw time |
+|---|---|
+| `+0` pixels | source buffer slot 34 (`+0x88`) |
+| `+4` stride | source buffer slot 35 (`+0x8C`) |
+| `+8` width, `+0xC` height | source buffer slots 9/10 (`+0x24`, `+0x28`) |
+| `+0x10` colour type | first dword returned by slot 15 (`+0x3C`) |
+| `+0x14` bytes per texel | source buffer slot 17 (`+0x44`) |
+
+The local `b` record then receives the placement/steps, format/key and ARGB of §6.1. Modulation is tested as
+`+0x42 != 0`, not used as a numeric multiplier when selecting `kind` (`0x0083040D`–`0x00830431`). Plain mode
+biases the local pixel pointer; stretch leaves it unchanged; tiling biases it and replaces the local width/height
+with the tile's edge differences (§6.1). The pointers to these local records and `ctx+0x78` go to the renderer's
+slot 5 (calls `0x008304D1`, `0x0083053B`, `0x00830591`); RenderBlt then makes the by-value copies described in §6.
+None of those adjustments writes a source surface back into the context or changes the source buffer's metadata.
+
+**Additional conformance vectors (specified, not executed here).** Use the public setters and slot 22 on the
+type-5 destination of §1.3; use an unkeyed type-5 4×3 source with distinct texel values, alpha/modulation off.
+With placement `(2,1)`, scales `(1,1)`, and tiling cleared, one pixel at destination `(2,1)` copies source `(0,0)`.
+SetBltTiling `(1,1,4,3)` instead: local source dimensions become 3×2, the pixel pointer advances by
+`2 + sourceStride`, and destination `(2,1),(3,1),(5,1)` copy original texels `(1,1),(2,1),(1,1)`. The input rect
+stays unchanged; ClearBltTiling restores the plain mapping. With §1.3 vector (4)'s placement/scales, destination
+`(1,0)` copies source `(0,1)` (the half-step centre distinguishes it from corner sampling). Check all six `src`
+members at renderer entry against the source buffer plus the stated mode adjustments, not destination fields
+or `+0xA8/+0xAC`.
+
+Null-source and refusing-interface cases must leave a sentinel output rectangle unchanged, while returning
+0 and 1 respectively and leaving `+0x24` null; neither draws a texture on the next slot-22 call. These are
+constructed native-context vectors. This static proof does not establish a shipped 565 drawing path (SR565-5).
 
 ## 7. The 565 dispatch table (row = `2·f + key`, column = `kind`) [verified, all 168 slots]
 
