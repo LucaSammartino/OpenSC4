@@ -7,6 +7,9 @@ pub mod file;
 pub mod host;
 pub mod ini;
 
+/// Complete cRZDirectory owner (framework-rz-files.md §6), independent of the file/INI host.
+pub mod directory;
+
 #[cfg(test)]
 mod tests;
 
