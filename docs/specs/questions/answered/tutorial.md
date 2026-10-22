@@ -1,4 +1,15 @@
 # tutorial: answered questions (archive)
+
+<!-- from: glue-tutorial4 (2026-10-21) -->
+- **TU6 - sections 4.2 / 4.3 and TU1 (registry calls as direct calls):** What are the calling convention,
+  arguments, returns and ownership of `SetActive` / `GetItem`, and the preferences-save execution context?
+  **ANSWERED 2026-10-22 (re-tutorial-contracts4):** DIFFERS — tutorial.md §4.2.1 proves ECX = app slot49's
+  borrowed result (already app+0x1C0), GUID by value, GetItem pop4/EAX borrowed item-or-null, SetActive pop8/AL
+  changed-state with active read as a byte in a dword slot. Preferences save is synchronous only when an array
+  cell changes; no concurrency guarantee or lock is supplied. Calling within the original tutorial/city execution
+  flow can perform the lookup/state change; answering no-entry/skipping the call does not match that flow.
+  Original question also requested direct-calls.md entries; proposed rows are in
+  build-runs/abi-rows-re-tutorial-contracts4.tsv for coordinator gating (no ABI tables edited).
 <!-- Archive for [tutorial.md](../../tutorial.md). Lanes do not read this file. Open questions are in ../tutorial.md. -->
 
 <!-- from: From the prop manager, lot configuration manager and tutorial cores (2026-10-16) -->

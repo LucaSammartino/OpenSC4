@@ -124,6 +124,38 @@ Is-tutorial is set by `startTutorial` and by `Read`, and cleared by `endTutorial
   the zoom (a task sets it through slot 8 `SetZoom`), does not re-add view input controls (a task removes the
   current one through slot 26), and does not clear the window callback the tutorial registered.
 
+#### 4.2.1 Native registry boundary (TU6)
+
+Both calls below are `__thiscall`. ECX is exactly the **borrowed result of `cISC4App` slot 49** on the
+application pointer at `0x00B43C94`. Do not add `0x1C0` to that result: the getter already returns
+`this+0x1C0` (`0x0044B510`–`0x0044B516`). The registry is not a COM interface and has no AddRef/Release.
+
+| Entry | Stack arguments in declaration order | Callee pops | Return and lifetime |
+|---|---|---|---|
+| `GetItem`, `0x004B5D10` | GUID: one 32-bit value, not a pointer | 4 bytes | EAX = matching item pointer, or null; borrowed interior pointer into the registry's list node |
+| `SetActive`, `0x004B5D80` | GUID: one 32-bit value; active: one four-byte slot, only the low byte read (normal calls pass 0 or 1) | 8 bytes | AL = 1 if a known item's byte changed; AL = 0 if absent or unchanged. Upper EAX bits are not a Boolean result |
+
+`GetItem` scans the registered groups and their item lists, comparing the whole GUID dword; its successful
+result is node+8 (`0x004B5D60`–`0x004B5D7C`). The item owns its contents; callers neither free nor release the
+pointer. Read the active byte at result+0x10 before any registry teardown/repopulation. No independent lifetime
+or synchronization is acquired. The city-init lookup consumes it immediately.
+
+`SetActive` first looks up the item. On a change it writes the **supplied low byte verbatim** to item+0x10
+(`0x004B5D90`–`0x004B5D99`), then obtains preferences through app slot 38. It scans the 256 dwords starting at
+prefs+0xF34. A nonzero active byte removes the **first matching GUID** by zeroing its cell; zero active inserts
+the GUID into the **first zero cell**. Only a cell modification calls app slot 17 (`SavePreferences`), synchronously.
+Even if the scan finds no matching/free cell, the item byte has already changed and AL is still 1
+(`0x004B5DB1`–`0x004B5E02`). For example, disabling a known active item with a full preferences array changes
+the in-memory byte and returns true, but neither saves preferences nor creates a durable disabled entry.
+
+The four exported call sites are tutorial start (`0x0043F0FE`), tutorial end (`0x0043F159`), nation tutorial-city
+reset (`0x00499B99`) and regional tutorial-city reset (`0x004A5599`). The function itself
+has no lock, thread handoff or deferred-save protocol; the item write, preferences edit and possible save happen
+in that order on the calling thread. This establishes the contract for calls in the original tutorial/city
+message flow, not a guarantee that concurrent registry mutation or saving on another thread is safe. A replacement
+using the native registry must preserve that execution context. Start's AL is consequently this changed-state
+result, rather than an unconditional success flag.
+
 ### 4.3 Messages (`DoMessage`, sub-object +4; every case returns true)
 
 | Message | Handling |
@@ -268,9 +300,9 @@ the shared-getter names of 11, 12): `build-runs/re-specs13d-abi-rows.tsv`.
   (`0x004B7720`), which forces `active = 0` for each listed GUID. The array is exactly adjacent to a 64-entry
   one at `prefs+0x1334` that `cSC4CitySituationManager::ResetTutorials` (`0x005266E0`) manages the same way.
 
-  `SetActive` has exactly three callers: `startTutorial` (`(guid, 1)`), `endTutorial` (`(guid, 0)`, only when
-  `endRegistry`), and `cSC4Region::ResetTutorialCity` (`(guid, 1)`, re-enabling a tutorial when its city is
-  rebuilt). The last is outside this class.
+  `SetActive` is called by `startTutorial` (`(guid, 1)`), `endTutorial` (`(guid, 0)`, only when
+  `endRegistry`), `cSC4Region::ResetTutorialCity` (`(guid, 1)`, re-enabling a tutorial when its city is
+  rebuilt), and `cSC4Nation::ResetTutorialCities` (call at `0x00499B99`). The reset callers are outside this class.
 
   **Registration and task lookup.** The registry is populated from Lua: `cSC4AdvisorSystem::reload_data`
   (`0x0041A4F0`) calls `SetLua` (`0x004B7D70`) with the shared context, which runs `Init`. `Init` loads the

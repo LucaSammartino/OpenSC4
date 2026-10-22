@@ -1,0 +1,4 @@
+# Proposed destination: docs/abi/direct-calls.md; these tab-separated fields supply its per-function tables, not a new C ABI.
+method	address	convention	this	arguments	callee_pop	return	ownership	evidence
+cSC4TutorialRegistry::GetItem	004b5d10	__thiscall	cISC4App slot49 result, already app+0x1c0	GUID:uint32 by value	4	EAX:item* or null	borrowed list-node+8; no AddRef/free	004b5d1d,004b5d60-004b5d7c; tutorial.md 4.2.1
+cSC4TutorialRegistry::SetActive	004b5d80	__thiscall	cISC4App slot49 result, already app+0x1c0	GUID:uint32 by value; active:bool byte in 4-byte slot	8	AL:changed-state bool; upper EAX unspecified	no ownership transfer; synchronous preferences save on cell modification	004b5d82-004b5d99,004b5dcd-004b5e02; tutorial.md 4.2.1
