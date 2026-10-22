@@ -3,7 +3,7 @@ use super::geometry::*;
 use super::S3dCamera;
 use crate::stream::{InStream, OutStream};
 use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, FRAC_PI_8};
-use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
 pub const CAMERA_CONTROL_CLASS_ID: u32 = 0xC9C6_28EC;
 pub type CameraHandle = Arc<RwLock<S3dCamera>>;
@@ -124,9 +124,6 @@ impl Drop for CameraControl {
     }
 }
 
-fn read_camera(camera: &CameraHandle) -> RwLockReadGuard<'_, S3dCamera> {
-    camera.read().unwrap_or_else(|poison| poison.into_inner())
-}
 fn write_camera(camera: &CameraHandle) -> RwLockWriteGuard<'_, S3dCamera> {
     camera.write().unwrap_or_else(|poison| poison.into_inner())
 }
@@ -193,7 +190,8 @@ impl CameraControl {
         self.magnification
     }
     pub fn virtual_zoom(&self) -> u32 {
-        self.current.zoom + u32::from(self.magnification > 1.5)
+        // CA4: retain bounded arithmetic even for malformed saved indices.
+        self.current.zoom.wrapping_add(u32::from(self.magnification > 1.5))
     }
     pub fn zoom_limits(&self) -> (u32, u32, f32) {
         (0, 4, 5.0)
@@ -631,9 +629,16 @@ pub(super) fn clamp_polygon(polygon: &[Vec2], enabled: bool, original: Vec2, to:
     let winding = if area < 0.0 { -1.0 } else { 1.0 };
     let mut start = original;
     let mut end = to;
+    let mut sliding_edge = None;
     for _ in 0..n {
-        let mut first: Option<(f32, Vec2, Vec2)> = None;
+        let mut first: Option<(f32, Vec2, Vec2, usize)> = None;
         for i in 0..n {
+            // Motion constructed parallel to this edge cannot cross it.
+            // Avoid treating projection rounding residue as a new crossing
+            // of the edge being followed (CA6).
+            if sliding_edge == Some(i) {
+                continue;
+            }
             let a = polygon[i];
             let edge = sub2(polygon[(i + 1) % n], a);
             let length2 = dot2(edge, edge);
@@ -656,17 +661,22 @@ pub(super) fn clamp_polygon(polygon: &[Vec2], enabled: bool, original: Vec2, to:
                 let stop = if fraction >= 0.001 { fraction - 0.0001 } else { fraction };
                 (fraction, add2(start, mul2(sub2(end, start), stop)))
             };
-            if first.as_ref().map_or(true, |old| fraction < old.0) {
-                first = Some((fraction, intersection, edge));
+            let earlier = match first {
+                Some((old, ..)) => fraction < old,
+                None => true,
+            };
+            if earlier {
+                first = Some((fraction, intersection, edge, i));
             }
         }
-        let Some((_, intersection, edge)) = first else {
+        let Some((_, intersection, edge, edge_index)) = first else {
             return end;
         };
         let remaining = sub2(end, intersection);
         let along = dot2(remaining, edge) / dot2(edge, edge);
         start = intersection;
         end = add2(intersection, mul2(edge, along));
+        sliding_edge = Some(edge_index);
     }
     original
 }

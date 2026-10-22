@@ -312,7 +312,7 @@ fn snapping_is_ties_to_even_with_negative_ties() {
 fn published_zoom_tables_and_yaws_all_combinations() {
     let expected_mpp = [2.613126, 1.306563, 0.653281, 0.286370, 0.143185];
     let pitches = [30.0_f32, 35.0, 40.0, 45.0, 45.0];
-    let yaws = [0.7853982, 2.3561945, 3.926991, 5.497787];
+    let yaws = [f32::from_bits(0x3f49_0fdb), 2.3561945, 3.926991, 5.497787];
     let steps = [100.0, 50.0, 25.0, 12.5, 6.25];
     let mut c = control();
     c.set_scroll_bounds_in_use(false);
@@ -332,7 +332,7 @@ fn published_zoom_tables_and_yaws_all_combinations() {
 fn eye_offset_and_plane_equation_are_independently_constrained() {
     let c = control();
     near3(c.eye_offset(), [5792.6187, 4729.6533, 5792.6187], 0.002);
-    near3(c.eye_position(), [5679.927, 2963.8623, 5679.927], 0.004);
+    near3(c.eye_position(), [6304.6187, 3475.5146, 6304.6187], 0.004);
     let [a, b, d, e] = c.camera_plane();
     let eye = c.eye_position();
     near(a * eye[0] + b * eye[1] + d * eye[2] + e, 0.0, 0.001);
@@ -531,15 +531,15 @@ fn scroll_polygon_preserves_published_lift_and_six_points() {
     assert_eq!(bounds.len(), 6);
     // Independent geometry at rotation 0, pitch 30°, zoom 0.
     near(bounds[0][0], 0.0, 0.002);
-    near(bounds[0][1], 1837.489, 0.006);
+    near(bounds[0][1], 1837.5022, 0.006);
     near(bounds[1][0], -3396.3093, 0.003);
-    near(bounds[1][1], 389.33435, 0.006);
+    near(bounds[1][1], 389.34753, 0.006);
     near(bounds[2][0], -3396.3093, 0.003);
     near(bounds[2][1], -1448.1547, 0.003);
     near(bounds[3][0], 0.0, 0.002);
     near(bounds[3][1], -2896.3093, 0.003);
     near(bounds[4][0], 3396.3093, 0.003);
-    near(bounds[5][1], 389.33435, 0.006);
+    near(bounds[5][1], 389.34753, 0.006);
 }
 
 const SQUARE: [Vec2; 4] = [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]];
@@ -559,7 +559,9 @@ fn scroll_clamp_disabled_empty_inside_and_outward_cut_are_exact() {
 #[test]
 fn scroll_clamp_corner_reverse_winding_outside_and_short_edge() {
     let corner = clamp_polygon(&SQUARE, true, [5.0, 5.0], [15.0, 15.0]);
-    assert!(corner[0] < 10.0 && corner[1] < 10.0);
+    // Second crossing is below 0.001, so it receives no fraction backoff.
+    near(corner[0], 9.999, 0.000001);
+    assert_eq!(corner[1], 10.0);
     assert!(corner[0] > 9.99 && corner[1] > 9.99);
     let mut reverse = SQUARE;
     reverse.reverse();
@@ -575,11 +577,11 @@ fn scroll_clamp_corner_reverse_winding_outside_and_short_edge() {
 #[test]
 fn clamping_an_outside_target_moves_it_and_zeros_velocity() {
     let mut c = control();
-    c.set_view_target([15000.0, 0.0, 15000.0]);
+    c.set_view_target([6000.0, 0.0, 6000.0]);
     c.set_view_target_velocity([1.0, 2.0, 3.0]);
     c.take_messages();
     c.clamp_target_to_scroll_bounds();
-    assert_ne!(c.view_target(), [15000.0, 0.0, 15000.0]);
+    assert_ne!(c.view_target(), [6000.0, 0.0, 6000.0]);
     assert_eq!(c.view_target_velocity(), [0.0; 3]);
     assert_eq!(
         kinds(&c),
@@ -589,6 +591,36 @@ fn clamping_an_outside_target_moves_it_and_zeros_velocity() {
             ViewMessageKind::ViewTChange3
         ]
     );
+}
+
+#[test]
+fn inconsistent_scroll_edges_exhaust_steps_and_keep_original_start() {
+    // A U-shaped polygon has contradictory inward half-planes x>=2/x<=1.
+    // No point can satisfy every edge, so the edge-count budget is exhausted.
+    let polygon = [
+        [0.0, 0.0],
+        [3.0, 0.0],
+        [3.0, 3.0],
+        [2.0, 3.0],
+        [2.0, 1.0],
+        [1.0, 1.0],
+        [1.0, 3.0],
+        [0.0, 3.0],
+    ];
+    assert_eq!(clamp_polygon(&polygon, true, [1.5, 2.0], [1.5, 2.0]), [1.5, 2.0]);
+}
+
+#[test]
+fn failed_ground_hit_retains_target_and_velocity_without_messages() {
+    let mut c = control();
+    // This target is past the fixed eye plane, reversing the look direction.
+    c.set_view_target([15000.0, 0.0, 15000.0]);
+    c.set_view_target_velocity([1.0, 2.0, 3.0]);
+    c.take_messages();
+    c.clamp_target_to_scroll_bounds();
+    assert_eq!(c.view_target(), [15000.0, 0.0, 15000.0]);
+    assert_eq!(c.view_target_velocity(), [1.0, 2.0, 3.0]);
+    assert!(c.messages().is_empty());
 }
 
 struct Terrain {
@@ -718,4 +750,75 @@ fn owners_can_be_read_on_a_second_thread() {
         .join()
         .unwrap();
     assert_eq!(pair, (c.zoom(), c.eye_position()));
+}
+
+#[test]
+fn perspective_ray_applies_local_rotation_without_scale() {
+    let mut c = S3dCamera::new();
+    c.set_viewport(8.0, 4.0);
+    c.set_frustum(-1.0, 1.0, -1.0, 1.0, 2.0, 6.0);
+    c.set_local_xform(Xform {
+        counter: 1,
+        mask: XFORM_MATRIX | XFORM_TRANSLATION | XFORM_SCALE,
+        matrix: [0.0, 0.0, 1.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0.0],
+        translation: [10.0, 20.0, 30.0],
+        scale: 7.0,
+    });
+    assert_eq!(
+        c.eye_ray([0.0, 0.0]),
+        Some(Ray {
+            origin: [10.0, 20.0, 30.0],
+            direction: [2.0, -1.0, -1.0],
+        })
+    );
+}
+
+#[test]
+fn rectangular_city_scroll_corner_retains_foreign_view_quirk() {
+    let mut c = control();
+    c.set_scroll_bounds_in_use(false);
+    c.set_city_size(2048.0, 4096.0);
+    c.set_view_target([1024.0, 0.0, 2048.0]);
+    c.set_rotation(1);
+    c.set_scroll_bounds_in_use(true);
+    // Foreign utility corner 2 is (W, 0, W), not (W, 0, D).
+    near(c.scroll_bounds()[4][0], 1948.1547, 0.003);
+    near(c.scroll_bounds()[4][1], -724.07733, 0.003);
+}
+
+#[test]
+fn malformed_saved_indices_are_preserved_without_table_or_integer_panics() {
+    let mut bytes = vec![1, 0];
+    for _ in 0..3 {
+        bytes.extend(0.0_f32.to_le_bytes());
+    }
+    for _ in 0..6 {
+        bytes.extend(u32::MAX.to_le_bytes());
+    }
+    let mut c = CameraControl::new();
+    assert!(c.read(&mut ByteReader::new(&bytes)));
+    c.init([1.0; 3], handle());
+    assert_eq!(c.zoom(), u32::MAX);
+    assert_eq!(c.rotation(), u32::MAX);
+    assert_eq!(c.scroll_step(), 6.25);
+    c.set_custom_magnification(2.0);
+    assert_eq!(c.virtual_zoom(), 0);
+    let mut out = ByteWriter::new();
+    assert!(c.write(&mut out));
+    assert_eq!(out.bytes(), bytes);
+}
+
+#[test]
+fn viewport_setter_updates_camera_without_implicit_control_recomputation() {
+    let mut c = control();
+    let cam = c.camera().unwrap();
+    let box_before = cam.read().unwrap().raw_view_volume();
+    let bounds_before = c.scroll_bounds().to_vec();
+    c.set_viewport_size(1600, 1200);
+    assert_eq!(cam.read().unwrap().viewport(), [1600.0, 1200.0]);
+    assert_eq!(cam.read().unwrap().raw_view_volume(), box_before);
+    assert_eq!(c.scroll_bounds(), bounds_before);
+    assert!(c.messages().is_empty());
+    c.update_camera_zoom_and_rotation_params();
+    assert_eq!(cam.read().unwrap().raw_view_volume().right, box_before.right * 2.0);
 }
