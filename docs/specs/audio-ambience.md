@@ -156,8 +156,11 @@ same interface; stop `(0x6A451908, o + id, 0, 0, 0)` when the sound system is pr
    `+0x38`) and run the condition update for that lot (§3.4).
 
 The init walk (city init step 7) visits every occupant of types `0x278128A0` (buildings), `0xA823821E` (props, as in city-detail.md) and
-`0xC7CC75F1` (an automaton type: the `cSC4TrafficAutomaton`-derived constructor `0x005628F0` writes it at `+0x28`, and
-`0x004C3AB0` accepts it beside the sim type `0x496E5783`; the exact class is AA4) (occupant-manager slot `+0xB0` with a type filter) and applies the init variant, which starts
+`0xC7CC75F1` (vehicles, AA4: the `cSC4Vehicle` base constructor `0x005628F0` installs vtable `0x00A9D488`, whose
+`QueryInterface` `0x0055B660` answers the vehicle IID `0x896E714A`, and writes the type at `+0x28` (`0x005629D2`); all
+ten derived vehicle constructors (`0x005148E0` … `0x00562C10`, e.g. trailer `0x00556DB0`, train car `0x0055B150`) call it
+and none rewrites `+0x28`, so every vehicle subclass carries this one type; `0x004C3AB0` accepts it beside the sim
+type `0x496E5783`) (occupant-manager slot `+0xB0` with a type filter) and applies the init variant, which starts
 **no** sound itself *[compat]*.
 
 `_AddOccupantSndInstance` also links an automaton occupant (IID `0xA9B40F05`) back to this manager (its
@@ -173,6 +176,22 @@ presence test; the value is not read) and the sound system is present, post set-
 **bare occupant address** (`0x004E8DCE`, `0x004E8DFD` → `0x004E8CB2`), not `o + id` as at start (AA8b, DIFFERS
 from the engine's `o + id`): unless the id is 0 the sound manager does not find the instance and ignores the
 event, so a moved occupant's sounds stay at the start position *[quirk]*.
+
+**Branch nesting (AA11).** The two posts are independent. The `0x6A36AFAC` presence test (`0x004E8D95`) and the
+sound-system test (`+0x20`, `0x004E8D9C`) both branch, when they fail, to the same join `0x004E8DDE`, which is
+the `0xCA19D7CA` read; so the second path is reached whether or not the holder has `0x6A36AFAC` and whether or
+not the sound system exists. The `0xCA19D7CA` read clears its value buffer first and only the read's success
+counts (`0x004E8DE9`–`0x004E8DFB`): a stored value of 0 still enters `0x004E8C70`. `0x004E8C70` (only caller is
+this handler) tests the sound system `+0x20` itself (`0x004E8C76`) and, when absent, posts nothing and returns 1.
+A missing property holder ends the handler before either test (`0x004E8D85`). The first post precedes the second.
+
+| holder has `0x6A36AFAC` | `0xCA19D7CA` reads | sound system | posts (all `(0xCA45190F, o, x, y, z)`) |
+|---|---|---|---|
+| yes | no | present | 1 (first path) |
+| no | yes (any value, 0 included) | present | 1 (second path, via `0x004E8C70`) |
+| yes | yes | present | 2, identical, first path then second |
+| yes / no | yes / no | absent | 0 (`0x004E8C70` is still entered when `0xCA19D7CA` reads) |
+| no | no | present | 0 |
 
 ### 3.3 Remove (`0x99EF1143`, `HandleRemoveOccupant` `0x004EA270`)
 
@@ -281,7 +300,11 @@ For each time `a[i]` (with `next` = `a[i+1]`, or `a[0]` for the last entry):
 **Creating an entry** (`_AddAlarmOccupant(o, id, &times, kind)`, `0x004EA690`, pop 16) *[compat]* (AA5):
 `o` null, or not `IsFlagSet(5)` (flags 1 and 4 both set), or `IsFlagSet(0x10)` → return 0, no entry
 (`0x004EA69D`–`0x004EA6CE`). Otherwise read the clock (the global is **not** null-checked before use: absent
-clock → crash) and build `{o, id, last, times (copied), on = 0, kind}` with
+clock → crash; AA10, native detail: `o` is AddRef'd first (`0x004EA6D5`), the null test at `0x004EA6DE` only
+skips the clock's AddRef, and the next instruction `0x004EA6E9` reads the clock's vtable through the null
+pointer, a read access violation at address 0, before any entry is built; neither caller, Insert `0x004EA8A0`/
+`0x004EA8CB` nor the init walk `0x004EA9F2`/`0x004EAA1D`, tests the clock first. What a replacement should do
+instead is an open policy question, AA10, not settled by the binary) and build `{o, id, last, times (copied), on = 0, kind}` with
 `last := float(GetHour()) + float(GetMinute() / 60)` — the same unsigned-integer formula as `t` below, so in
 practice the whole hour (`0x004EA6ED`–`0x004EA786`). The entry is appended at the **tail** of the alarm list
 `+0x4C`; return 1. Insert and the init walk pass `id` = the value just read of `0x0A36AFA2` (kind 0) or
@@ -772,7 +795,9 @@ because the last values were reset to 0; a later tick with `CanHandle` false pos
 | # | Question | What would settle it |
 |---|---|---|
 | **AA1** | Answered 2026-10-21: §8.6 (scores and freshness parameters), §8.7 (ease rates and time step), §8.5 mode 6 (the director member is never set; the original faults). | — |
-| **AA4** | Type `0xC7CC75F1` of the init walk: which automaton class (vehicle?) owns it. `0xA823821E` is props. | the occupant type table |
+| **AA4** | Answered 2026-10-22 (re-audio-final-gaps4): §3.1, `0xC7CC75F1` is the `cSC4Vehicle` occupant type (all vehicle subclasses). | — |
+| **AA10** | Open (policy): native faults on a null clock in `_AddAlarmOccupant` (§3.6); which replacement behaviour to adopt is a product choice. | coordinator / user decision |
+| **AA11** | Answered 2026-10-22 (re-audio-final-gaps4): §3.2, the two move posts are independent; each needs the sound system. | — |
 | **AA5-AA9** | Answered 2026-10-21 (re-audio-inputs4): §3.6 alarm creation, §4.1/§4.2/§2.2 vectors and unchecked globals, §5 iterator, §3/§3.2/§3.5/§3.6 instance ids, §2.3/§6 results. | — |
 
 ## 10. Conformance tests

@@ -42,3 +42,10 @@
   what does the release `0x004E9660` return, and does "empty the lists" include the alarm list? The engine
   returns 1 and empties layers and alarms.
   **ANSWERED 2026-10-21 (re-audio-inputs4):** DIFFERS — §6/§2.3: focus returns 1 (stage 1 or 4, Pause(!flag)); 0x2A2C0384 QIs the event itself and returns 1 when it does not answer; 0x2A5B69C0 returns 0; release returns 1 and empties only the layers, not the alarms.
+<!-- from: re-audio4 (2026-10-21) -->
+- **AA4 - section 3.1:** name occupant types `0xA823821E` and `0xC7CC75F1` of the init walk. (re-audioambience4: `0xA823821E` is the prop type; `0xC7CC75F1` is set by the
+  `cSC4TrafficAutomaton`-derived constructor `0x005628F0` at `+0x28`; class name still open.)
+  **ANSWERED 2026-10-22 (re-audio-final-gaps4):** MATCHES (vehicle) — §3.1: `0xC7CC75F1` is the `cSC4Vehicle` occupant type. Base ctor `0x005628F0` installs vtable `0x00A9D488` (QI `0x0055B660` answers vehicle IID `0x896E714A`) and writes the type at `+0x28` (`0x005629D2`); all ten derived vehicle ctors (trailer `0x00556DB0`, train car `0x0055B150`, ...) call it and none rewrites `+0x28`. Vector: the init walk visits every vehicle subclass (trailer, train car included) and no other automaton type except via `0x496E5783`.
+<!-- from: core-audio-inputfix4 (2026-10-22) -->
+- **AA11 - section 3.2:** does the second move set-position (`0x004E8C70`, entered when `0xCA19D7CA` reads) test the sound system `+0x20` itself, and is it reached when the holder lacks `0x6A36AFAC`? [both posts independent, each only with the sound system present]
+  **ANSWERED 2026-10-22 (re-audio-final-gaps4):** MATCHES — §3.2: both failing tests at `0x004E8D95` (`0x6A36AFAC`) and `0x004E8D9C` (`+0x20`) join at `0x004E8DDE`, the `0xCA19D7CA` read; `0x004E8C70` tests `+0x20` itself (`0x004E8C76`), posts nothing and returns 1 when absent. Vectors (sound present): A only → 1 post; B only (value 0 included) → 1 post; both → 2 identical posts, A first; neither → 0; sound absent → 0 in every case.
