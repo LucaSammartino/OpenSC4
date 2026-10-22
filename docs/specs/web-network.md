@@ -346,7 +346,7 @@ promised by WWWSystem. Section 4 is a partial-owner contract until every body in
 ### 4.1 Interfaces, identity and lifecycle
 
 The constructor registers base service identity **0x449b1939**, with the second base-constructor argument zero
-(008f9c02). It builds two empty job lists and a visited-URL set. The next-job counter initially holds 1;
+(008f9c02). It builds two empty job lists and a URL-handler list. The next-job counter initially holds 1;
 allocation increments before use, so the first allocated WWW job ID is 2 (008f9c38, 008f83ee).
 Cookie use starts enabled and cache use disabled (008f9c69–008f9c6d). Default custom data starts zero.
 The constructor creates a file cache, cookie manager, HTTP client and FTP client, retains each through its
@@ -366,9 +366,10 @@ ID returns false and leaves the caller's output untouched (008f687d–008f68c3):
 The public WWW vtable is 00acce48. Its QueryInterface/AddRef/Release thunks adjust back to the complete
 object. The secondary views share reference ownership; they are not independent services.
 `Init` sets the initialized flag if needed and always returns true. `PostInit` calls Init, cache Init,
-cookie Init, HTTP-client Release and the FTP initialization helper, in that order, and returns true without
-testing their returns (008f68fe–008f6929). This unusual HTTP call is a literal +0x10 virtual call on the
-HTTP client; do not substitute an HTTP Init call on the basis of its apparent intent.
+cookie Init, HTTP-client initialization and the FTP initialization helper, in that order, and returns true
+without testing their returns (008f68fe–008f6929). The HTTP client's +0x10 target is 008179f0, which sets
+its initialized byte at +4; the FTP helper 0045e110 sets its initialized byte at +8. Symbol names for
+these folded/mismatched bodies are misleading; neither call releases the client.
 
 `Shutdown` is guarded by the initialized flag. When set, it calls CancelAllDocumentLoadRequests,
 RemoveAllURLHandlers, disconnects HTTP then FTP from the WWW service, calls cache Shutdown then cookie
@@ -399,7 +400,7 @@ If no handler accepts, route URL types as follows (008f83a8–008f84e9):
 | 2 | HTTP helper 008f8ffe; pass the caller's cache-permission argument |
 | 4 | local-file helper 008f84ea |
 | 5 | FTP helper 008f93da |
-| 7 | helper at 0090ce99; its contract is still an explicit gap |
+| 7 | helper at 0090ce99 immediately returns 0; no callback and no target Release in that helper |
 | any other | release the selected target reference and return zero; no notification |
 
 URL parsing/resolution remains section 2's contract. WWWSystem consumes GetFullURL/GetAbsolutePath and
@@ -459,8 +460,8 @@ With no duplicate, release the WWW lock, ask the cookie manager for request-head
 enabled, and, when supplied, submit one `Cookie` header. Enter the HTTP client's admission lock/helper,
 submit method value 2 with URL and those headers, and only on a nonzero foreign ID allocate/store a WWW
 job under the WWW lock. Release the HTTP admission helper after storing the job, then free temporary
-header storage (008f9273–008f93d9). A foreign zero ID returns zero; target-reference disposition on this
-path must be checked explicitly, not inferred from the successful-completion path. There is no WWW-level
+header storage (008f9273–008f93d9). A foreign zero ID returns zero without releasing the selected target
+reference acquired by the public overload. There is no WWW-level
 retry loop in admission. Redirects, HTTP parsing, sockets and timeouts belong to the foreign client.
 
 ### 4.5 Live status and cancellation
@@ -475,10 +476,138 @@ ID only for type 1 or 2; FTPClientJobIDFromWWWSystemJobID only for type 3; absen
 CancelDocumentLoadRequest locks, searches active jobs, cancels the foreign HTTP request for type 1/2,
 then erases that job. Type 3 is erased without a corresponding FTP cancellation call here. If no eligible
 active match, search waiting jobs and erase a match. Return true on an erase, false on no match. It issues
-no terminal notification (008f7e76). CancelAllDocumentLoadRequests destroys both job lists' contents and
-clears both lists under the lock; this body contains no per-job HTTP/FTP cancellation call (008f7f04).
+no terminal notification (008f7e76). Erasing a Job destroys its URL/data containers, but its destructor
+does not Release its target. Thus cancellation leaves the load's acquired target reference unreleased
+(008f7451, 008f729b); do not infer an automatic COM smart pointer from the Job field.
 
-### 4.6 Independent contract vectors (constructed; not live-game results)
+CancelAllDocumentLoadRequests locks and collects a snapshot of IDs, active-list order followed by waiting-list
+order. It calls the public single-request cancel method once per snapshot ID, then clears both remaining
+lists. Its integer return is the snapshot count, **not** a boolean or count of successful cancellations
+(008f7f04–008f7fb9). The export's misleadingly named helper 007ebd30 appends the pointed-to integer to a
+vector; assembly 008f7f79–008f7f8a proves the per-ID cancel loop that the pseudocode removes as unreachable.
+
+### 4.6 Notification envelope, callback lifetime and progress
+
+All notification delivery here is a direct call to the selected target's message method (+0x0c), not a
+queued message-server post. Terminal helper 008f6a9a constructs a standard message, retains it locally,
+sets these fields, calls the target, then releases the message:
+
+| Field | Terminal notification | Progress notification (008f6b15) |
+|---|---|---|
+| Message type | 0x75758483 | 0x75758484 |
+| Void1 (+0x30 setter) | public WWW interface pointer | public WWW interface pointer |
+| Data1 (+0x40 setter) | boolean: Job result at +0x1c is nonzero | not set by this helper |
+| Data2 (+0x44 setter) | not set by this helper | pointer to three temporary progress words |
+| Void2 (+0x58 setter) | pointer to Job | pointer to Job |
+
+The Job and progress words can be stack temporaries. Consumers must copy fields/data they need during
+the callback; retaining the message does not extend the pointed-to Job or progress lifetime. The terminal
+helper itself does not release the target: its caller does so after delivery. These are native message
+slot roles, not a promise that the generic message stores owned objects (008f6ace–008f6b0c,
+008f6b49–008f6b80).
+
+DoMessage switches on the incoming message type (008f698b). Unknown types return true with no action.
+
+| Incoming type | Handler |
+|---|---|
+| 0x789af322 | HTTP terminal, 008f8c5a |
+| 0x789af323 | HTTP progress, 008f6bbc |
+| 0xc4eccd8c | FTP terminal, 008f815f |
+| 0xc4eccd8d | FTP progress, 008f6c47 |
+
+Progress handlers obtain the foreign-job pointer from incoming Void1, lock, scan the active list by
+foreign ID, save its target and Job pointer, then unlock. If a target was found and incoming Data1 points
+to progress data, copy exactly three words into a temporary and send the progress envelope. They do not
+retain the target or update stored progress. Both return true. FTP progress checks a null foreign-job
+pointer; HTTP progress dereferences it while scanning and therefore requires a valid pointer whenever an
+active entry is examined. Waiting jobs receive no progress forwarding through these handlers.
+
+### 4.7 HTTP completion and waiting-job fan-out
+
+The HTTP terminal handler obtains foreign-job information and incoming success, then locks and finds an
+active entry by its foreign ID. It copies the Job into a local temporary and removes the live entry before
+unlocking. A missing foreign pointer or absent match causes no callback; it still returns true. A matched
+job without a target similarly skips delivery. No source/type discriminator is tested during the ID scan
+(008f8c5a).
+
+Success requires both incoming success and a nonnull foreign resource pointer. Otherwise form result=0,
+progress=0 and attach the foreign-job pointer. On success, preserve the underlying resource's bytes or
+filename unless representation conversion succeeds:
+
+- Preference 3 with RAM resource: request a new cache-file path, open it, write all resource bytes. Only
+  after a successful Write mark the resource as file-data and replace its bytes with filename bytes. A
+  conversion failure leaves RAM data and does not turn the transfer into a failure.
+- Other preferences with file resource: open and inspect unsigned size. Read into RAM for preference 0
+  at any size, preference 1 below 2,000,000, or preference 2 below 500,000. A failed Read restores filename
+  bytes; successful Read clears file-data. Open failure/oversize leaves the filename. Equality at either
+  threshold keeps file data (008f8dcc–008f8e91).
+
+Set result=1/progress=100, copy the resource representation into the Job, attach the foreign-job pointer,
+call the cache-insertion policy helper 008f7a50, then process response cookies through 008f70c3. These calls
+precede the original target's terminal notification. Cache insertion failure is ignored for transfer success.
+Cookie processing runs only when cookie-use is enabled: enumerate header 0x35 indices 0–31 until absent,
+then header 0x34 indices 0–31 until absent, passing each to the cookie manager with the resource URL.
+This bounds each header family independently, preserves their family/index order, and does not implement
+cookie parsing inside WWWSystem.
+
+Notify the original target, Release it, and clear the local target pointer. Only **after that callback**,
+lock and scan waiting jobs for equal full URL; copy matching waiting jobs to a temporary list and erase
+them from the waiting list. Unlock before fan-out. For each copied job, in list order, replace only the
+completion Job's WWW ID, target and custom data, notify that target, Release it, and clear the local target
+pointer (008f8f2a–008f8fd0). Waiting jobs inherit the original completion's representation/preference and
+other fields, even if they requested different preferences; no second conversion or foreign request occurs.
+Because selection happens after the original callback, reentrant cancellation can remove a waiting job
+before fan-out. Removed waiting jobs report status 0 during their callbacks. The original ID already
+reports status 0 in its own callback.
+
+Finally, if a foreign resource was obtained, clear its file-data flag and empty its data bytes; the local
+Job copy is destroyed. This cleanup also occurs when no matching active job is found, provided the foreign
+pointer/resource was present. The handler always returns true. WWWSystem does not implement an HTTP
+retry/backoff policy here; late completion after cancellation finds no active target and is ignored for
+delivery. Exact cache policy inside 008f7a50 remains open in Q5; this paragraph specifies its call boundary.
+
+### 4.8 FTP admission and completion boundary
+
+FTP admission helper 008f93da gets a full URL and timestamp, calls foreign helper 00817600 with the URL
+and two zero arguments, and on a nonzero foreign ID allocates/inserts a type-3 WWW Job under the WWW lock.
+It stores preference, selected target, custom data and FTP-client pointer; it does not consult WWW cache or
+duplicate-URL lists. On foreign admission failure it returns 0 without releasing the selected target
+reference. The reached FTP scheduler and wire operations are separate unfinished owned bodies (Q4).
+
+FTP terminal handler 008f815f matches and removes the active Job under lock before delivery. It requires
+a valid incoming foreign-job pointer; there is no HTTP-style null guard. Incoming success zero yields
+result=0/progress=0, empty bytes and file-data=false. Nonzero success yields result=1/progress=100 and the
+foreign job's filename, initially file-data=true. For preferences other than 3 it attempts the same
+file-to-RAM conversion thresholds as HTTP; failed conversion keeps filename and success. Deliver one
+terminal notification, Release the target and destroy the local Job. Return true. It neither fans out
+WWW waiting jobs nor caches data nor processes cookies in this body.
+
+### 4.9 Settings, handler registration and visited query
+
+Cookie/cache setters store their supplied boolean byte directly; getters return that byte. They do not
+clear queued jobs or the cache. The default custom-data setter/getter just store/load their word.
+GetCacheDirectory delegates to the cache's getter. IsVisitedURL, despite its name, delegates to the
+cache's IsCachedDataPresent when the cache pointer exists, otherwise returns false; it does not consult a
+separate browsing-history set and does not test the cache-use flag (008f6a4d–008f6a5f).
+
+The preference classifier's name mentions MIME, but it actually extracts the URL's absolute-path extension,
+lowercases it and chooses 1 for `.html`, `.htm`, `.shtml`, `.asp`, `.plg`; otherwise it chooses 3. It always
+returns true, including when extension extraction fails (008f736e; literals 00accd40–00accd58).
+
+AddURLHandler retains the argument before calling its initialization slot (+0x0c). On false it Releases
+that retain and returns false; on true it appends the pointer and returns true. There is no duplicate or
+null check in this body (008f708a). RemoveURLHandler removes the first equal pointer, calls its shutdown
+slot (+0x10), then Releases it; absent pointers do nothing (008f6e2b). RemoveAllURLHandlers walks in list
+order, calls shutdown and Release on each, then clears list storage (008f6cd6). Registration and removal
+do not acquire the WWW job lock here. A handler owns any external resource work it performs.
+
+SetCacheDirectory copies the supplied path, adds a trailing backslash when needed, sets the cookie data
+filename to that directory plus `CookieData.ini`, updates HTTP directory and `_cache` setting via 00819650
+and 008196b0, updates the FTP directory via 00813c50, then returns the cache SetCacheDirectory result.
+Earlier side effects are not rolled back if the final cache call fails (008f7966). The precise directory
+normalization/foreign setters remain Q6; no directory or network success is implied by this call sequence.
+
+### 4.10 Independent contract vectors (constructed; not live-game results)
 
 | ID | Inputs/fixture | Required observations |
 |---|---|---|
@@ -494,6 +623,14 @@ clears both lists under the lock; this body contains no per-job HTTP/FTP cancell
 | WWW-10 | Cancel active HTTP job, then same ID again | one foreign cancel and one erase, true then false; no callback |
 | WWW-11 | Cancel active FTP job | erase and true; no FTP cancel call from this body |
 | WWW-12 | Completed cache hit followed by GetDocumentLoadStatus | synchronous callback before load returns, then status 0 |
+| WWW-13 | Active A, waiting B/C with same URL; A callback cancels B | A callback then C callback only; no lock held during callbacks; B cancellation leaks its acquired target reference |
+| WWW-14 | A preference 3 completes with filename; waiting B requested 0 | B receives A's filename/representation and preference; no B-specific read |
+| WWW-15 | Snapshot IDs A/B active then C waiting; cancel-all | cancel A, B, C in that order; return 3 even if a cancel fails; no terminal notifications |
+| WWW-16 | Load type 7 with a target, or HTTP/FTP foreign admission returns 0 | return 0; no callback; acquired target reference has no balancing Release on these paths |
+| WWW-17 | Two progress header families, each with 33 response cookies | indices 0–31 of family 0x35 first, then 0–31 of 0x34; index 32 ignored |
+| WWW-18 | HTTP transfer succeeds but RAM-to-file Write fails | terminal success remains 1/progress 100 with RAM bytes; cache/cookie calls still precede notification |
+| WWW-19 | Incoming completion after its WWW job was canceled | no target callback, return true; HTTP resource bytes/flag still cleared when resource exists |
+| WWW-20 | Cache-use false, cached URL present | IsVisitedURL may return true; HTTP load still bypasses cache retrieval |
 
 ## 5. cRZHTTPClient (15133 B; outline only)
 
