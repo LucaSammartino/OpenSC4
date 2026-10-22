@@ -1292,47 +1292,6 @@ fn trim_blank(s: &[u8]) -> &[u8] {
     &s[..s.len() - n]
 }
 
-/// C `strtoul` in `base` 10 or 16 (32 bits): leading white space, an optional sign, in base 16 an optional
-/// `0x`/`0X`, then digits up to the first character that is not one. No digits gives 0; a value above `0xFFFFFFFF`
-/// gives `0xFFFFFFFF`, with or without a `-` (it saturates); otherwise a leading `-` negates modulo 2³².
-fn strtoul(s: &[u8], base: u32) -> u32 {
-    let mut i = s.iter().take_while(|&&b| is_space(b)).count();
-    let neg = match s.get(i) {
-        Some(b'-') => {
-            i += 1;
-            true
-        }
-        Some(b'+') => {
-            i += 1;
-            false
-        }
-        _ => false,
-    };
-    if base == 16
-        && s.get(i) == Some(&b'0')
-        && matches!(s.get(i + 1), Some(b'x' | b'X'))
-        && s.get(i + 2).is_some_and(u8::is_ascii_hexdigit)
-    {
-        i += 2;
-    }
-    let mut v: u32 = 0;
-    let mut over = false;
-    while let Some(d) = s.get(i).and_then(|&c| char::from(c).to_digit(base)) {
-        match v.checked_mul(base).and_then(|v| v.checked_add(d)) {
-            Some(n) => v = n,
-            None => over = true,
-        }
-        i += 1;
-    }
-    if over {
-        u32::MAX
-    } else if neg {
-        v.wrapping_neg()
-    } else {
-        v
-    }
-}
-
 /// Rule N (§4.3) for number text: hexadecimal when it begins with `0x` or `0X`, or when a letter `a`–`f` / `A`–`F`
 /// appears before the first character that is not a hex digit; decimal otherwise. The base is chosen on the raw
 /// text (`RZConvertToUint32A`): a leading space stops the scan with base 10. The conversion is C `strtoul` in that
@@ -1340,14 +1299,7 @@ fn strtoul(s: &[u8], base: u32) -> u32 {
 /// negates modulo 2³², and a value above `0xFFFFFFFF` gives `0xFFFFFFFF`, with or without a `-`. So `16` = 16,
 /// `1A` = 26, `0x10` = 16, `-1` = `0xFFFFFFFF`, `0x00000010:{"Exemplar Type"}` = 16, ` 16` = 16, ` 1A` = 1,
 /// ` 0x10` = 0 and `4294967296` = `-4294967296` = `0xFFFFFFFF`.
-pub fn rule_n(s: &[u8]) -> u32 {
-    let hex = s.starts_with(b"0x")
-        || s.starts_with(b"0X")
-        || s.iter()
-            .take_while(|b| b.is_ascii_hexdigit())
-            .any(u8::is_ascii_alphabetic);
-    strtoul(s, if hex { 16 } else { 10 })
-}
+pub use fc4_core::number_text::rule_n;
 
 /// A parsed exemplar or cohort record: its kind, parent key and **own** properties (§4.4).
 #[derive(Clone, Debug, PartialEq)]

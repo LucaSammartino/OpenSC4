@@ -121,3 +121,5 @@ pub mod timers;
 pub mod terrain_overlays;
 pub mod render_properties;
 pub mod model_instances;
+pub mod number_text;
+pub mod feature_manager;
