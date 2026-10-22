@@ -166,6 +166,156 @@ returns the 32-bit value `0xFFFFFFFF` (−1). Evidence: Boolean comparison/retur
 `STCS\0ignored` finds integer 23, and `PD\0ignored` finds float 3; `rs ` and `kRenderShadows`
 do not find a Boolean entry. Here `\0` denotes an actual zero byte, not backslash and digit.
 
+### 1.4 Native text-service binding (RP6)
+
+This is the binding contract for an adapter running **inside the supported 32-bit game
+process**. It does not turn the portable ASCII profile into a complete non-C text profile.
+The two foreign primitives below, together with the byte and timing rules, let an adapter
+use the actual active CRT rather than reproduce undocumented locale tables.
+
+#### Primitive ABI and provenance
+
+| Operation | Native primitive signature | Supported executable address / RVA | Result consumed by this owner |
+|---|---|---|---|
+| Uppercase classification | `int32_t __cdecl isupper(int32_t character)` | `0x009EF5A9` / `0x005EF5A9` | Zero means omit the source byte from the abbreviation; any nonzero value means include it after lowercasing. This is an integer result, not a C++ bool-returning ABI. |
+| Lowercase mapping | `int32_t __cdecl tolower(int32_t character)` | `0x009F0543` / `0x005F0543` | Retain exactly the low 8 result bits as one output byte, including when the full integer result is negative or wider than one byte. |
+
+These names describe the measured primitives, **not PE export names**. Each takes one
+32-bit stack argument, returns its integer in EAX, and leaves argument removal to the
+caller. There is no `this`, context pointer, locale argument, out parameter, callback
+registration, reference count or result allocation. Evidence: the complete wrappers at
+`0x009EF5A9–0x009EF5E2` and `0x009F0543–0x009F0564`, and caller stack cleanup at
+`0x007DDFB4–0x007DDFBD`, `0x007DDFC8–0x007DDFD9`, `0x00586ADB–0x00586AE2`.
+The export's automatic `std::transform` label for the second primitive is wrong.
+
+The supported PE is i386/PE32, preferred image base `0x00400000`, SHA-256
+`3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`.
+Both targets lie in executable `.text`. Its import directory contains **no CRT DLL**;
+these are statically linked executable CRT routines. Its only named exports are
+`GZDllGetGZCOMDirector` and `__export__GetMemoryReport`. Neither primitive is exported.
+Calling a plugin's own `tolower`/`isupper`, or resolving either name from an arbitrary
+MSVCRT/UCRT DLL, does not select the game's CRT or its locale state.
+
+The actual lowercasing backend is also more than a direct Windows byte-map call:
+`___tolower_mt` (`0x009F047B`) invokes `___crtLCMapStringA` (`0x009FBEDF`) with the
+CRT locale's codepage and LCID when required; the latter can use Windows wide mapping
+plus byte conversions or the ANSI mapping path. The PE imports `LCMapStringA/W`,
+`GetStringTypeA/W`, `MultiByteToWideChar` and `WideCharToMultiByte` from KERNEL32.
+Their IAT cells include `0x00A801D4`, `0x00A801E4`, `0x00A801D0`, `0x00A801E8`,
+`0x00A80108`, `0x00A802C0` respectively. These OS imports are **dependencies**, not
+interchangeable replacements for the two primitives. Classification uses the CRT table
+or `___isctype_mt` (`0x009F871E`); replacing both with one Unicode case-fold operation
+loses the classification and byte-result rules.
+
+#### Lookup, lifetime and unavailable binding
+
+The public LGPL SDK declares the eighteen render-properties methods in
+`external/gzcom-dll/gzcom-dll/include/cISC4RenderProperties.h`, but declares no ctype
+provider, locale handle or additional render-properties text-service slot. The documented
+application route is `cIGZFrameWork::Application()` to the application, successful
+`QueryInterface(0x26CE01C0, void**)` to `cISC4App`, then
+`cISC4App::GetRenderProperties()` to the properties view. The last method is a borrowed
+pointer getter: native `0x0044B660–0x0044B666` just returns the stored pointer, with no
+AddRef. Native application QueryInterface accepts that IID and acquires a reference
+(`0x004492A7–0x004492C2`), independently confirming the SDK acquisition route.
+Check for an unavailable application, failed interface query or null property
+pointer before use. If retaining the properties pointer, AddRef the **properties view**
+while its application owner is still live, before releasing the successfully acquired
+application-interface reference; eventually Release that retained properties reference.
+For a borrowed use, keep the application owner live throughout that use. Do not
+try to obtain that view by QueryInterface ID 1: §1.1 establishes that ID 1 returns the
+different U view. No new GZCOM service ID or IID is specified here.
+
+*[choice: adapter binding protocol]* For this measured build an adapter may obtain the
+already loaded main executable with Windows `GetModuleHandleA(NULL)` and bind the two
+verified RVAs relative to that module base. This is a **build-specific internal binding**,
+not a discovered public API. Verify the executable identity, x86 ABI and target mapping
+before making either call. The supplied module handle and function pointers are borrowed
+for the lifetime of the loaded executable: no `FreeLibrary`, AddRef, Release or freeing
+of primitive results. An address alone is not a GZCOM object. A host-supplied bridge may
+instead provide these same operations, but such a bridge is adapter infrastructure,
+not a claimed game export or native registration hook.
+
+Resolve **both** operations before constructing an owner advertised as fully native-text
+compatible. If either is unavailable, the executable identity is unsupported, or the
+property-service acquisition fails, report an unavailable binding through the adapter's
+existing recoverable failure mechanism and do not publish a partially initialized native
+owner. No new C export or particular error-enum layout is prescribed. An explicitly
+selected ASCII-profile mode may remain available under §1.3; silently substituting it is
+not a successful native binding. Binding failure is distinct from an ordinary Find miss
+(`−1`) and from a primitive result of zero or `−1`.
+
+Once invoked, these native primitives have **no separate recoverable error result** for
+the owner to inspect. If Windows mapping fails inside `___tolower_mt`, it returns the
+original integer (`0x009F0514–0x009F053C`); the owner still stores its low byte. The
+multibyte classification helper returns zero when its OS classification fails
+(`0x009F877E–0x009F878B`), indistinguishable to this owner from non-uppercase.
+Do not reinterpret those results as adapter-unbound, throw on a negative mapping result,
+or use GetLastError as an added owner success protocol. CRT thread-state acquisition can
+allocate, and its failure goes to `__amsg_exit` (`0x009F7620–0x009F7668`); a blanket
+promise that native calls are allocation-free or always fail recoverably is unsupported.
+
+#### Byte and locale boundaries
+
+For every byte passed by this owner, promote **as signed 8-bit to signed 32-bit**:
+`0x49 → 73`, `0x80 → −128`, `0xD0 → −48`, `0xFF → −1`.
+This is measured executable behavior, not an instruction to substitute the standard
+C library's portable input-domain rules. In particular, do not convert `0xFF` to 255,
+discard it as EOF, stop the byte scan on it, or decode a multibyte sequence first.
+Only the original input's first NUL terminates a Find query. Primitive result truncation
+is separate from input termination; it does not change the copied query's byte count.
+`0x00586AD8–0x00586AE7` proves the one-input-byte/one-output-byte loop. All registered
+source names are ASCII; this owner does not offer arbitrary-name registration as a
+public SDK method, so an added high-byte abbreviation constructor API is not implied.
+
+| Boundary | Required calls and retained state |
+|---|---|
+| Construction, each entry after dropping `k` | Visit the still-mixed-case source bytes in order. Classify each byte; lowercase and append only those classified uppercase. Then lowercase every byte of the full name. Retain the resulting full and short byte strings in that instance. The short name is not derived from the already folded full name. |
+| Each Find call | Copy the input through its first NUL, excluding that NUL; lowercase every copied byte with the live primitive; compare the resulting counted bytes to the retained full/short names under §1.3. Do not classify query bytes or re-fold the stored names. |
+| Name getter | Return the stored full-name bytes. Do not decode, re-fold or reconstruct a display spelling under the current locale. |
+| Locale change after construction | Retained names stay unchanged; later Find byte mappings may change. A newly constructed instance may therefore have different name bytes from an older instance. |
+
+The constructor's order is explicit at `0x007E3887–0x007E38CE`; the abbreviation's
+classify-then-map order is at `0x007DDFB0–0x007DDFD1`. Boolean Find supplies the primitive
+at `0x007DE282`; the integer/float equivalents are at `0x007DE3B2` and `0x007DE502`.
+The SDK name getters return `char const*`; native Boolean getter
+`0x007DDF20–0x007DDF30` returns the stored string pointer without allocating. Treat names
+as borrowed byte strings backed by that instance, keep the owner alive while reading,
+and copy bytes if retaining them beyond its lifetime. Value setters do not rebuild names.
+
+Locale selection is live **per primitive invocation**, not a captured construction
+locale object, per-Find locale snapshot, or fixed Windows ACP. Both wrappers obtain
+the executable CRT's current thread record with `__getptd` (`0x009F7604`), compare its
+locale record with the current global record and synchronize when required. Locale
+update is internally locked (`0x009F4224–0x009F4255`); the owner does not take a lock
+covering an entire name, construction or Find. This contract does not promise an atomic
+profile if another thread changes locale midway. Invoke on the game's calling thread
+to preserve its CRT context; forwarding all calls to a worker or caching a 256-entry
+mapping at adapter startup is not established equivalent. No adapter-owned CRT locale
+record layout, thread-state allocation or shutdown hook is required or specified.
+
+The live mutators already identified in §1.3 remain relevant: language selection calls
+the **same executable** `setlocale` (`0x009F48E2`) and, on nonnull return, `_setmbcp(-4)`
+(`0x00928068–0x0092807F`); the system-codepage helper can replace `C` with the system
+default and does not restore it (`0x00910025–0x00910078`). Neither is an adapter
+initialization requirement: do not call them to force a desired profile. Successful
+language-manager selection alone does not prove `setlocale` succeeded: its null-return
+branch still reaches the success path (`0x00928072–0x00928098`). Exact shipped-language
+profiles, OS acceptance and startup ordering remain RP6's explicit open evidence gap.
+The language argument comes from the language-manager runtime-library-name method
+at `0x0092440F` (vtable slot 13, called at `0x00928061`), which supplies CRT request
+strings such as `english-us`, `english-uk`, `french`, `japanese` and `turkish`
+(`0x00924430–0x00924499`, `0x00924541`). These literals identify requests; they do not
+establish an accepted LC_CTYPE, numeric codepage or installed/shipped language inventory.
+
+**Graphics-rules GR6 boundary.** An imported full name can contain non-UTF-8 bytes under
+the active CRT profile; the SDK's `char const*` promises no UTF-8 validation. Preserve
+those bytes at the properties boundary, including the distinction between stored length
+and a C-string consumer's first NUL. This does not establish the separately owned dump
+logger's headings, padding, line endings, `%g` spelling, write/close failures or its
+handling of embedded zero bytes. Those remain the graphics-rules GR6 contract; merely
+decoding names with replacement characters cannot claim byte-exact logging.
+
 ## 2. Slots (vtable `0x00ABB6C0`) *[compat]*
 
 | Slot | VA | Behaviour |
@@ -338,8 +488,10 @@ a short name always returns the lower index.
 See [questions/render-properties.md](questions/render-properties.md) RP1–RP2: who reads the two extra values of an
 entry, and what the two extra bytes of a boolean entry are for. RP3–RP5 are answered in
 §1.1, §2.1 and §1.3 respectively; their original entries are archived. RP6 asks for the
-remaining non-C locale/codepage profiles and high-byte discriminators; the C-locale ASCII
-core domain is specified, not a universal text-folding contract.
+remaining shipped-language locale/codepage profiles and startup ordering. §1.4 specifies
+the native primitive ABI, binding/failure protocol and byte/timing boundaries; §7.3 gives
+independent native discriminators. Those are instruction-derived recipes, not measured
+per-language outcomes. The C-locale ASCII core domain remains distinct from native binding.
 
 ## 7. Conformance tests
 
@@ -409,3 +561,34 @@ signed 32-bit maximum** for each value getter, name getter and setter: None/fals
 mutation, is the documented safe extension. Label those tests **core safety only**, not
 native exactness. Never probe the original with those indices to derive a stable expected
 value. Do not pass a failed Find result into an indexed native slot.
+
+### 7.3 Native-binding discriminators (RP6)
+
+These are **unexecuted, instruction-derived recipes**. Use the supported original
+executable and a controlled native fixture, not an implementation's outputs as the oracle.
+Record PE identity, OS version, game language, calling thread, actual executable-CRT
+locale selection success and construction/lookup order. A language menu label or the
+plugin CRT's `setlocale` result is not an observation of the executable CRT. Arrange stable
+locale state for each recipe; save and restore the original state when deliberately
+changing it. Failure to activate a requested profile is an unavailable experiment, not
+an ASCII-equivalent result. Do not inject invalid property indices or alter registry data.
+For each stable construction profile, build an independent expected short-name list by
+direct native classification/mapping of §3's original mixed-case names after `k`, before
+constructing the owner. There is no public SDK short-name getter. Retain this list with
+the full-name bytes obtained from native getters; do not inspect a guessed object layout
+or reuse a portable implementation's abbreviation output as the oracle.
+
+| Discriminator | Independent expectation / observation to retain |
+|---|---|
+| Primitive identity and C-profile scalar results | Call the two independently verified native targets. In an established C profile, classification of `A` and `I` is nonzero, classification of `a` and `1` is zero. Mapping of 65/73 is 97/105; mapping of −128/−48/−1 preserves that integer. This follows the C branch at `0x009F052F–0x009F053C`, independently of the registry's successful ASCII examples. A bridge declared bool-returning cannot stand in for the integer ABI. |
+| Actual arguments and call order | Observe native construction/Find calls without replacing their results. For each source name after `k`, construction classifies original mixed-case bytes, maps selected uppercase bytes into the short name, then maps every full-name byte. Find only maps its copied prefix. A query prefix containing bytes `80 D0 FF` must supply −128, −48, −1 in that order. This distinguishes unsigned promotion, EOF handling, query classification and deriving abbreviations from folded full names. No high-byte classification probe is needed. |
+| First-NUL separation | In an established C profile, Boolean bytes `52 53 00 80 D0 FF` find 9 and invoke mapping for 82 and 83 only. Bytes `52 53 FF 00` map three arguments, including −1; they retain a third query byte and miss Boolean 9. `FF` is not an end marker. |
+| Locale changed before construction | Choose a profile only after direct original-CRT probes show an actual difference for a registered source character or classification. Construct an original owner there and capture all 77 full-name byte sequences via SDK name getters, and the lookup outcomes for the mixed-case source names and published abbreviations. Compare adapter construction against those native bytes/outcomes, not guessed locale-name tables. If no registered character differs, record that fact; it does not test high-byte equivalence. |
+| Locale changed after construction | Keep an original owner built in profile L0 alive; change the executable CRT to an accepted L1 with a directly observed differing mapping, then read names and repeat Find. Its name bytes must stay as captured under L0. Compute the query's expected folded byte sequence using separate direct native scalar probes in stable L1, then apply equal-length/equal-byte, full-before-short, first-entry matching against the captured L0 entries. Also construct a second owner under L1. This distinguishes startup caching, refolding stored entries and retroactive reconstruction. No universal I/i outcome is assigned to an unmeasured profile. |
+| High-byte and multibyte profiles | Under each actually accepted single-/multibyte profile, independently probe native mapping for every signed byte −128…−1 and retain both the full integer and low byte. Feed readable NUL-terminated queries containing individual high bytes, adjacent high-byte pairs and UTF-8-looking sequences to the original owner. Derive expected results by independent scalar mapping plus the native stored-name bytes. The owner must still map one signed byte at a time; do not compare with whole-sequence Windows/Unicode lowercasing or assert a universal miss. |
+| Binding failure and ownership | In an adapter-only fixture, withhold either primitive, supply an unsupported image identity, or fail the SDK application/properties lookup. Expect an unavailable native binding and no published partial owner, distinct from Find miss. For success, repeated mapping returns integers without allocations to free; name-pointer use ends before owner destruction. These are adapter policy/lifetime checks, not claims about safe execution of a wrong native address. |
+
+Do not describe these recipes as executed native vectors, game/shadow evidence, or proof
+that every shipped-language profile has been covered. The last four columns of a future
+profile record should include accepted CRT locale/codepage, construction name bytes,
+lookup mapping observations and final IDs; retain failures and unchanged profiles too.
