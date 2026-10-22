@@ -151,11 +151,86 @@ then on true calls +0x228 at (0,y,0)/(editorWidth,y,0). Otherwise no call.
 These are routed window operations, not a proportional drag speed or
 distance accumulator. The body has no manager-null guard.
 
+## Caret-in-view arithmetic
+
+PutInsertionPositionInView (`0x009BE302-476`, W) first compares unsigned
+insertion line L with firstVisible F and visibleRows R. L<F sets F=L;
+otherwise L>=F+R sets F=L-R+1. Additions/subtractions wrap at 32 bits;
+there is no separate zero-R clamp. A vertical change marks values dirty.
+
+With bit 0x200 it uses the insertion **column** as a byte offset in the
+whole original text. If this is before the horizontal byte offset +0x174,
+it sets that offset to the column. Otherwise it measures original-text
+prefix width to the column using font +0xC0 and subtracts
+GetHorizontalScrollPixels. Only a signed difference **greater than**
+visibleWidth starts the stepping loop. While byte offset<text length it
+adds GetCharLength at that offset and remeasures the scroll pixels, stopping
+when caret-relative X is **strictly below** signed(visibleWidth*3)/4.
+Multiplication wraps first and division truncates toward zero
+(`0x009BE3ED-3FE`); equality continues stepping. The length helper can
+overshoot malformed text or read outside the logical slice as described in
+the encoding companion. Font/helper nonprogress is not repaired by this
+owner. This branch always calls SetScrollBarValues(false), even without a
+change, and does not invalidate.
+
+Without 0x200, horizontal correction runs only if a horizontal bar exists
+or wrapping bit 2 is clear. It measures the original line prefix to the
+insertion column, subtracts horizontal scroll pixels, then adds that signed
+relative X to pixel offset +0x178 if X<0, or adds X-visibleWidth if
+X>=visibleWidth. X exactly at visibleWidth enters the change path but adds
+zero. Values update only for a vertical or horizontal change; wrapped text
+without a horizontal bar skips horizontal correction. This body neither
+invalidates nor changes selection/preferred-X (`0x009BE416-476`).
+
+## Scrollbar creation and failure boundary
+
+AddScrollBar (`0x009BE477-613`, W) attempts vertical first, horizontal
+second. A direction is attempted only if its Boolean argument is nonzero,
+its editor enable bit is set (vertical 8, horizontal 4), and its current bar
+pointer is null. For each attempted direction it obtains RZ::WCM and calls
+manager +0x44 with (0,2,0,100,0) vertically or (1,1,0,100,0)
+horizontally, storing the returned pointer. A null manager or null return
+invokes the text-interface ClearFlag slot +0x138 with that direction's bit.
+The other direction is still considered. No failure is reported: the body
+always returns true (`0x009BE60D`).
+
+For each successful bar with an existing direction image, the signed
+rectangle-empty predicate `0x007C1870-887` tests right<=left or
+bottom<=top. For an empty saved rectangle it obtains image +0x30 and
+passes that returned rectangle, image, zero to bar +0x44; otherwise it
+passes the saved rectangle, image, zero. It then obtains bar +0x0C and
+passes that result to primary window +0x38 (AddChild). There is no
+owner-side AddRef, result check, rollback or retry around these calls.
+The window/bar/image primitives retain their own ownership/failure contracts.
+If either direction was **attempted**, including both failing, the body
+calls RecalculateAll, SetScrollBarSizes, SetScrollBarValues(true), in that
+order. No attempt means none of those final calls. ClearFlag can itself
+recalculate; a failed attempt need not produce only one recalculation.
+
+## Word selection
+
+SelectCurrentWord (`0x009BE6CE-7AE`, W) returns false without view work
+when text is empty. Otherwise it tests the original byte at insertion
+using the byte-whitespace predicate in the navigation section. There is
+no initial end-index clamp, so insertion at text length requires a readable
+byte there; out-of-allocation input is unsafe. A whitespace byte with
+insertion zero, or with another whitespace byte immediately before it,
+leaves insertion/selection unchanged and merely puts insertion in view,
+then returns true. A whitespace byte preceded by a nonspace first decrements
+insertion and assigns **both** selection endpoints to that index.
+
+It then extends the existing lower endpoint left byte-by-byte until zero
+or preceding whitespace, and the existing upper endpoint right byte-by-byte
+until text length or current whitespace; each right step also sets insertion
+to the new upper endpoint. The nonspace initial path does **not** first
+collapse preexisting selection. After scanning it calls
+FixInsertionPositionIfBroken, then PutInsertionPositionInView and returns
+true (`0x009BE733-7A9`). It does not invalidate or select punctuation as a
+separate class. Character/composition repair is a distinct helper contract.
+
 ## Residuals
 
-TE5 remains open specifically for Page-key versus arrow preferred-X cache
-use/reset, single-line caret-in-view three-quarter-width stepping, complete
-AddScrollBar construction/resource negotiation and SelectCurrentWord/
-composition-repair helpers. The bodies above do not close those distinct
-methods or foreign font/encoding/bar implementations. No whole-owner
-promotion follows from this extension.
+TE5 remains open for Page-key versus arrow preferred-X cache use/reset and
+composition-repair helpers. The new sections close owner-side caret-in-view,
+AddScrollBar and word-selection paths; foreign font/bar/resource implementations
+remain call boundaries. No whole-owner promotion follows from this extension.

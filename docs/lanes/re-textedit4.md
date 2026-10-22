@@ -1,10 +1,10 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-textedit4 (cGZWinTextEdit round 2 native contracts) | `re-textedit4` / (RE lane, detached worktree) | in progress; preserving b613685e, TE2 and 20 vectors; no owner promotion | Reconcile actual coverage attribution, then prove TE3-TE8 body contracts. |
+| re-textedit4 (cGZWinTextEdit final round 3/3) | `re-textedit4` / (RE lane, detached worktree) | in progress; 150 bodies / 19,999B reconciled; 44 proposed vectors; no owner promotion | Prove residual TE1/TE5/TE8, then park exact gaps; no fourth round. |
 
 ## Handoff
 
-- Goal: reconcile actual coverage-owner output before extending native TextEdit contracts; no code/tools/maps/ABI edits.
+- Goal: final round 3/3: prove residual TE1/TE5/TE8 using native bodies; park exact gaps, preserve worktree, no fourth round.
 - Baseline: b613685e (134 direct labels/19,415B; 20 vectors; TE2 answered).
 - Done: actual coverage reconciled: 150 bodies/19,999B, all 134 old rows plus 16 exact measured additions, no size mismatches; public attribution evidence added.
 - Done: eeeaf4ac reconciles attribution and proves TE4 history eviction; original 20 vectors preserved.
@@ -12,15 +12,16 @@
 - Done: 1f74cd36 publishes TE3/TE6/TE7 answers and explicit unsafe-call/resource boundaries.
 - Done: new layout extension proves large metrics (334B), bar sizing (454B), pixel-hit (387B), word/composed motion (250/224B), bar ranges (241B), drag routing (236B), scroll and index contracts; 44 total vectors.
 - Done: final inventory audit edits prepared; questions.py check and git diff --check PASS; address join still exact; 48 P, 36 P/B, 50 U direct entries and 44 vectors measured.
-- Next: review committed final inventory edits, rewrite this lane file as final report, commit, write own merge queue if authorized by coordinator/guard; no new tracing needed to publish bounded docs.
-- Stop: guard denied finalization at context 151k/150k; required continue handoff, no merge queue. This is round 2 only; no automatic restart or additional round requested.
+- Round 3 milestone: TE1 helper byte tables/malformed and pending outcomes proved; caret-in-view, AddScrollBar and SelectCurrentWord owner paths published; eight new proposed vectors (52 total).
+- Next: audit Page/arrow instructions and composition repair, then remaining thin/U bodies and final proof checklist/queue.
+- Round 2 stopped at its guard; this is the explicitly authorized final third round, with no restart/fourth round.
 - Current substantive commits: eeeaf4ac attribution/history; 1f74cd36 TE3/TE6/TE7; 733c7744 layout/body extension.
 - Latest audit removes superseded TE7 uncertainty and updates ~36 newly proved inventory dispositions; no whole-owner promotion.
 - Open TE1 encoding; TE5 Page-key preferred-X audit, single-line caret-in-view, AddScrollBar resource negotiation, word-selection/composition repair; TE8 remaining U/P-B/folded/generated contracts.
 - Queue not written. No ABI changes/proposals. No native/game/conformance execution; vectors are proposed cases.
 - Git commits succeed but print packed-refs.lock denial; do not change shared refs/config or run maintenance.
 - Main: C:/Users/tlori/FreeCity4; WT: C:/Users/tlori/FreeCity4/.claude/worktrees/re-textedit4.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-textedit4-r2-manifest.json.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-textedit4-r3-manifest.json.
 - q.py cannot start Bash (E_ACCESSDENIED); use bounded PowerShell shell calls.
 - Keep original 20 vectors and answered TE2; newly traced bodies only; no whole-owner credit before inventory reconciliation.
 - No game/clipboard/network actions; no REA used. No ABI proposals yet.

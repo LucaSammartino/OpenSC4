@@ -115,8 +115,9 @@ return after saving the first byte; insufficient accumulated length also
 returns true. Other selectors use a one-byte pending string. Once ready,
 input calls InsertTextHighLevel only when the window is not capturing;
 the normal exit clears pending bytes and returns false. A true return
-therefore does not prove text changed. Exact foreign encoding-helper
-semantics remain an explicit boundary.
+therefore does not prove text changed. The exact helper byte tables and
+malformed-input outcomes are specified in [text-edit-encoding.md](text-edit-encoding.md)
+(TE1); composed/UTF16 conversion and system selector services remain foreign.
 
 `InsertTextHighLevel` (`0x009C07E1`) handles replacement, independently of
 the raw insert primitive. If editor bit `0x200` is set and the candidate's
@@ -644,6 +645,21 @@ These are specification examples derived from bodies, not game-run results.
 | Editor 100x50, vertical width 10, horizontal height 8, both bars; resize bars | Horizontal (0,42,90,50) first; vertical (91,0,100,42) second |
 | Ten lines, four visible rows, firstVisible 5; ScrollPageDown | FirstVisible becomes 9, with value update/invalidation and true |
 | Capturing, cursor x=-3,y=-3; ScrollLineUp succeeds | Vertical route wins; +0x228 gets (original x,lineHeight/2,0), with no horizontal scroll call |
+
+Additional final-round proposed vectors (45-52), derived from native
+branches, not executed results. Helpers/services are controlled boundary
+inputs; unsafe spans are observed by call arguments, not dereferenced.
+
+| Independent case | Distinguishing expected behavior |
+|---|---|
+| Selector 8, logical slice E0 of length 1 with readable following byte 80 | Forward length 3; no cap to the supplied length |
+| Selector 8, two-byte prefix 80 BF | Previous length 3 and glyph count 0 |
+| Selector 100, bytes 81 41 | Forward length 1 and glyph count 2; no generic DBCS inference from selector >=100 |
+| Enabled noncapturing selector 8; character C0 then 41 | First returns true and saves C0; second offers both bytes to high-level insertion and clears pending, returning false |
+| Same, E0 then 41 then 42 | First two return true; third offers all three despite invalid trail bytes |
+| Bit 0x200; byte/prefix advance 10 pixels, visible width 40, column 6, offset 0 | Relative X=60 starts stepping; offset reaches 4 and relative X=20, because X=30 equality does not stop |
+| Both bar bits/arguments set; both manager/bar results null | Each direction clears its bit; final recalculate/size/values(true) still occurs; returns true |
+| Text `abc def`, insertion 5, preexisting selection [0,5] | Word selection extends upper end to 7 and retains lower 0, rather than first collapsing to the word `def` |
 
 ## 12. Whole-owner checklist and current limits
 

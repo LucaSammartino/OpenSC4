@@ -1,6 +1,10 @@
 # text-edit: answered questions
 
 <!-- from: re-textedit4 (2026-10-22) -->
+- **TE1 - section 4:** Exact byte-length/count and pending-input helper encodings and malformed-input outcomes?
+  **ANSWERED 2026-10-22 (re-textedit4):** DIFFERS — text-edit-encoding.md records permissive selector-8 byte tables, no remaining-length clamp or later-byte validation in forward length, backward all-continuation N+1, non-continuation glyph counting, exact numeric lead ranges for 932/936/949/950 and byte behavior for 100. Pending C0/C1 lead acceptance disagrees with its expected-tail table; eligible later bytes are counted without trail validation. System selector and composed/UTF16 services remain explicit foreign inputs; no modern Unicode/grapheme claim.
+
+<!-- from: re-textedit4 (2026-10-22) -->
 - **TE3 - section 6:** Raw insertion after lowering the maximum and empty RemoveChar safe-call domains?
   **ANSWERED 2026-10-22 (re-textedit4):** DIFFERS — ordinary insertion wraps M-L; a deficit of at least two reaches the native string length-failure helper, while deficit one has an invalid source range without that guard. Selectors 8/100 instead retain zero, invoke reason 1 and complete the zero-byte update path. Empty RemoveChar manufactures begin-1/index 0xFFFFFFFF; selector 0/16 ordinary mode with null output reaches string erase's out-of-range failure, while other branches may access the invalid pointer earlier. Section 6 defines valid domains and makes no universal benign or single-exception promise.
 

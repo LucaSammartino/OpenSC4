@@ -112,10 +112,10 @@ Addresses and byte counts are metadata, not decompiler listings.
 | 0x009BE179 | 192 | GetColumnFromPosition | P/B; section 8; TE5 |
 | 0x009BE239 | 162 | GetPositionFromLineAndColumn | P/B; section 8; TE5 |
 | 0x009BE2DB | 39 | GetText | U; TE8 |
-| 0x009BE302 | 373 | PutInsertionPositionInView | P/B; section 8; TE5 |
-| 0x009BE477 | 413 | AddScrollBar | P/B; section 8; TE5 |
+| 0x009BE302 | 373 | PutInsertionPositionInView | P; text-edit-layout.md, signed three-quarter stepping/dirty gate |
+| 0x009BE477 | 413 | AddScrollBar | P; text-edit-layout.md, attempt gates/resource/failure/call order |
 | 0x009BE614 | 186 | FixBadCharacterComposition | U; TE8 |
-| 0x009BE6CE | 225 | SelectCurrentWord | U; TE8 |
+| 0x009BE6CE | 225 | SelectCurrentWord | P; text-edit-layout.md, byte scans/existing endpoints/unsafe-end domain |
 | 0x009BE7AF | 179 | TestForPossibleScrollBarAdditionOrRemoval | P/B; section 8; TE5 |
 | 0x009BE862 | 227 | GZOnMouseDownL | P/B; section 10; TE7 |
 | 0x009BE945 | 37 | UpdateScrollBarsAndWindowPosition | U; TE8 |
