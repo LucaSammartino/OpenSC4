@@ -103,16 +103,10 @@ bool RegionOf(const uint32_t* spans, uint32_t count, const uint32_t* desc, Regio
     return true;
 }
 
-// The source image of RenderBlt (`rectB`, §7): rows 0..height-1 from base
-// with a positive stride. False otherwise (the original runs).
-bool SourceOf(const uint32_t* rectB, const uint8_t** p, size_t* len) {
-    const int32_t stride = static_cast<int32_t>(rectB[1]);
-    const uint32_t height = rectB[3];
-    if (rectB[0] == 0 || stride <= 0 || height == 0 || uint64_t(stride) * height > (uint64_t(64) << 20)) return false;
-    *p = reinterpret_cast<const uint8_t*>(rectB[0]);
-    *len = static_cast<size_t>(stride) * height;
-    return true;
-}
+// Native plain mode can bias base before the allocation (§1.3.1). Acquire
+// exactly the sampled texels; rectB height is a tile dimension, not a readable
+// byte extent for the biased plain pointer (§7, §9.1).
+#include "FC4Span4444Source.inc"
 
 // Ours on `r` (a region of the real target, or a copy of it).
 int32_t Ours(Slot s, const uint32_t* spans, uint32_t count, uint8_t* dst, const Region& r, int32_t stride,
@@ -125,10 +119,9 @@ int32_t Ours(Slot s, const uint32_t* spans, uint32_t count, uint8_t* dst, const 
             return fc4_span4444_gradient(spans, count, dst, r.len, r.origin, stride, reinterpret_cast<const int32_t*>(a),
                                          s == kAlphaGradient);
         case kBlt: {
-            const uint8_t* sp = nullptr;
-            size_t sl = 0;
-            if (!SourceOf(rectB, &sp, &sl)) return 1;
-            return fc4_span4444_blt(spans, count, dst, r.len, r.origin, stride, sp, sl, 0,
+            std::vector<uint8_t> source;
+            if (!SourceOf(spans, count, rectB, src, mode, r, &source)) return 1;
+            return fc4_span4444_blt(spans, count, dst, r.len, r.origin, stride, source.data(), source.size(), 0,
                                     static_cast<int32_t>(rectB[1]), rectB[2], rectB[3], src, mode);
         }
         default: return 1;
@@ -156,6 +149,14 @@ void Bridge(Slot s, uintptr_t ret, void* self, const uint32_t* spans, uint32_t c
             uint32_t a, uint32_t b, const uint32_t* rectB, const uint8_t* src, uint32_t mode) {
     g.calls[s].fetch_add(1, std::memory_order_relaxed);
     SpanNoteCall(kSpanR4444, s + 1, ret, false);  // this module's fixture never calls through the vtable
+    if (s == kBlt && src != nullptr && SpanContextFixtureThread()) {
+        // Observe the actual context-built format/key descriptor, never infer
+        // coverage from a texture's requested type or from a sibling renderer.
+        uint32_t format = 0, key = 0;
+        std::memcpy(&format, src + 0x10, 4);
+        std::memcpy(&key, src + 0x18, 4);
+        Span4444NoteTexture(format, src[0x1C], key, mode);
+    }
     Region r;
     const bool bridged = RegionOf(spans, count, buffer, &r) && (s != kBlt || (rectB != nullptr && src != nullptr));
     const int32_t stride = bridged ? static_cast<int32_t>(buffer[1]) : 0;
@@ -180,6 +181,7 @@ void Bridge(Slot s, uintptr_t ret, void* self, const uint32_t* spans, uint32_t c
     Original(s, self, spans, count, buffer, a, b, rectB, src, mode);
     if (Ours(s, spans, count, copy.data(), r, stride, a, b, rectB, src, mode) != 0) {
         g.fallback[s].fetch_add(1, std::memory_order_relaxed);
+        SpanNoteRefused(kSpanR4444);
         return;
     }
     g.compared[s].fetch_add(1, std::memory_order_relaxed);

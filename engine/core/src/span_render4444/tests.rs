@@ -248,6 +248,80 @@ fn alpha_gradient_blend() {
 }
 
 #[test]
+fn sp1_published_packed_vectors() {
+    // Independent expected words from §6.1, including every reachable weight >16.
+    let cases: [(i32, u16, u32, u16); 22] = [
+        (0x0070, 0xF859, 256 << 16, 0xFF7F),
+        (0x0070, 0xF455, 272 << 16, 0xFF7F),
+        (0x0070, 0xF853, 287 << 16, 0xFE7F),
+        (0x0070, 0xF253, 302 << 16, 0xFF8F),
+        (0x0070, 0xF852, 317 << 16, 0xFD8F),
+        (0x0070, 0xF452, 332 << 16, 0xFE8F),
+        (0x0070, 0xF852, 347 << 16, 0xFC8F),
+        (0x0070, 0xF152, 362 << 16, 0xFF8F),
+        (0x0070, 0xF851, 377 << 16, 0xFB8F),
+        (0x0070, 0xF451, 392 << 16, 0xFD8F),
+        (0x0070, 0xF851, 407 << 16, 0xFA8F),
+        (0x0070, 0xF251, 422 << 16, 0xFE9F),
+        (0x0070, 0xF851, 437 << 16, 0xF99F),
+        (0x0070, 0xF451, 452 << 16, 0xFC9F),
+        (0x0070, 0xF851, 467 << 16, 0xF89F),
+        (0x0070, 0x8859, 0, 0xF859),
+        (0x0070, 0x8859, 0x00FF_0000, 0xF070),
+        (0x0000, 0x880F, 0x0100_0000, 0xFF0F),
+        (0x070F, 0x8000, 0x0100_0000, 0xF800),
+        (0x0070, 0xF851, 0xFFFF_0000, 0xF89F),
+        (0x0070, 0x8859, 0x01E2_0000, 0xF859),
+        (0x0070, 0x8859, 0x8000_0000, 0xF859),
+    ];
+    for (s, d, alpha, expected) in cases {
+        let g = Gradient {
+            start: [
+                ((s & 15) << 20),
+                (((s >> 4) & 15) << 20),
+                (((s >> 8) & 15) << 20),
+                alpha as i32,
+            ],
+            ..Default::default()
+        };
+        let mut data = buf(3, 1, d);
+        let mut target = Target {
+            data: &mut data,
+            origin: 2,
+            stride: 6,
+        };
+        render_alpha_gradient(&[Span::new(0, 0, 1)], &mut target, &g).unwrap();
+        assert_eq!(
+            row(&data, 6, 0, 3),
+            [d, expected, d],
+            "source={s:04x} alpha={alpha:08x}"
+        );
+    }
+}
+
+#[test]
+fn sp1_step_crosses_weight_and_wrap_boundaries() {
+    for (alpha, d, expected) in [
+        (0x00FF_0000, 0xF859, [0xF070, 0xFF7F]),
+        (0x01E1_0000, 0xF851, [0xF89F, 0xF851]),
+    ] {
+        let g = Gradient {
+            start: [0, 0x0070_0000, 0, alpha],
+            dx: [0, 0, 0, 0x0001_0000],
+            ..Default::default()
+        };
+        let mut data = buf(2, 1, d);
+        let mut target = Target {
+            data: &mut data,
+            origin: 0,
+            stride: 4,
+        };
+        render_alpha_gradient(&[Span::new(0, 0, 2)], &mut target, &g).unwrap();
+        assert_eq!(row(&data, 4, 0, 2), expected);
+    }
+}
+
+#[test]
 fn conversions_4444() {
     use SourceFormat::*;
     assert_eq!(blt_conversion_4444(A4R4G4B4, 0x1234), 0x1234);

@@ -14,3 +14,11 @@
   it: does any `cIGZDrawSystem` slot-4 caller (`0x0082BAB0`) pass a buffer whose type came from data (a buffer
   resource v1/v2 header with type 7, or a Gimex load whose target type is not a literal)?
   [no native 4444 inputs captured; the core stays unit-tested only]
+
+<!-- from: glue-span4444-context4 (2026-10-22) -->
+- **SP7 - sections 1.3.1, 7 and 9.1 (source/destination alias):** may a native context's texture allocation
+  overlap the destination, and if so what read/write ordering is required for self-blits, including keyed,
+  stretched and tiled paths? The specified plain pointer bias can precede the texture allocation, so the bridge
+  stages only the sampled texture texels instead of presenting `stride*height` bytes from that biased pointer
+  as an allocation. [Nonoverlapping textures supported; overlapping source/target regions explicitly refused
+  with counted original fallback pending this contract. No full-class/default replacement credit claimed.]

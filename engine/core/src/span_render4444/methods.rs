@@ -99,7 +99,7 @@ pub fn alpha_gradient_weight(acc: u32) -> u32 {
 /// destination with the §4 blend; output alpha 0xF.
 ///
 /// An alpha ramp outside 0..255 gives weights 17..31 (or wraps); the blend is
-/// then evaluated as documented on `blend4444` ([choice], question SP1).
+/// then evaluated with the packed dword arithmetic in §6.1 (SP1).
 pub fn render_alpha_gradient(spans: &[Span], target: &mut Target, grad: &Gradient) -> Result<(), SpanError> {
     let offs = target.check_spans(spans)?;
     for (span, off) in spans.iter().zip(offs) {
