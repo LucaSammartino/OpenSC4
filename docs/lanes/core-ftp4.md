@@ -1,22 +1,30 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-ftp4: portable WWW/FTP partial owner | Codex, core-ftp4 (detached reservation) | in progress; round 2 formatting verified, gates pending | Stable focused quick, source review, final all; no merge queue yet |
+| core-ftp4: portable WWW/FTP partial owner | Codex, core-ftp4 (detached reservation) | in progress; core quick 3043/0, 32 WWW fixtures pass; full gate pending | Finish quick native build, then stable final all; no merge queue yet |
 
 ## Handoff
 - Goal: finish bounded published portable WWW/FTP delivery in round 2; whole owner incomplete.
 - Done: 0a57021f parser/path; 40adce68 algorithms; 1f4111db review/Q10;
   97bff998 reconciliation/worker vectors; 6a3a8b52 observed clippy fixes (pass pending).
-- Round 2 audit: all six www files equal rustfmt(HEAD), using engine/rustfmt.toml;
-  four inherited dirty files are verified formatting-only, including expression-arm braces.
+- Round 2: 48c7f93c commits audited formatting; all six www files equal configured
+  rustfmt(previous HEAD), including expression-arm braces in four inherited dirty files.
 - qbuild fmt ABSOLUTE six www + lib.rs: exit 1, 168 diff lines in lib/module tree;
   existing root ordering/child formatting drift, no recursive reformat or foreign edits.
 - qbuild fmt ABSOLUTE six www: exit 0, only canonicalization warning.
-- Next: check liveness immediately before focused quick; inspect current quick, review
-  contracts/tests, commit any fixes; ONE stable all on final committed production source.
+- Current quick at 48c7f93c: core 3043 passed / 0 failed / 0 ignored (2 result lines),
+  including all 32 WWW fixtures. Dependent compile-only finished; native build pending.
+- NEXT: obtain complete quick verdict, then ONE stable all with no source/doc edits;
+  inspect summed workspace cargo, clippy, CMake/full CTest and source/tree flags.
+- Current quick OS wrapper PID 28520, transport session 60609; collect only after actual
+  liveness check. A 60-second collection call is active in exec cell 45 at this checkpoint.
+- Engine tree b53ab395e5f218c1549935755419c49d1591d935; no production edits during quick.
+- Review complete: both report address/size maps equal the published checklist exactly;
+  foreign hosts are primitives, owned barriers remain Unsupported, leaks/nonjoining retained.
 - Actual native process-command-line check: 66 accessible build processes, no old lane
   qbuild/compiler invocation; only lane supervisor matched. Old exec handles are stale.
 - Old failed/partial step logs preserved under build-runs/inherited-r1/ before overwrite.
-- Historical all cargo 5039/0 and parser quick 3016/0 are NOT final/current PASS evidence.
+- Historical all 5039/0 and parser quick 3016/0 are NOT final/current PASS evidence.
+- qbuild-clippy.log still contains inherited errors; fixes inspected but clippy PASS pending.
 - No requests outstanding. No game/network/ABI/glue/default/map/tool/coverage changes.
 - Report retained: 91 C / 26757 B, 63 I / 22 P / 6 U; 57 P/O / 7292 B unchanged.
 - Q10 filed in questions/web-network.md; retain Q1/Q3/Q7/Q9; no index generation.
@@ -31,7 +39,7 @@ Core owns destructive parsing, commands, partial transfer loops, type/login/disp
 
 ## Validation
 
-Initial all launched before source edits (session 51977): 5,039 cargo tests passed, zero failed, 21 result lines. Its later clippy saw concurrent lane edits and reported doc-list syntax and submission argument-count lints; both fixed. This is not a pristine all-pass baseline. Earlier quick checks passed 3,016 unit tests (parser slice); a new quick was launched for 97bff998. Final stable all, clippy, full CTest and Rustfmt results pending. No game run requested (explicit lane prohibition). No external contact or live server tests.
+Historical initial all (session 51977): 5,039 cargo tests passed, zero failed, 21 result lines; later clippy saw concurrent edits and two lints fixed in 6a3a8b52. This is not a pristine all-pass baseline. Earlier parser quick 3,016/0 is historical. Old failed/partial step logs are preserved under build-runs/inherited-r1/. Fresh round-2 focused core step at 48c7f93c: 3,043 passed, zero failed/ignored, two result lines including doc tests, all 32 WWW fixtures passed. Dependent compile-only finished; complete quick native verdict and stable final all/clippy/full CTest remain pending. Configured rustfmt audit verified all six WWW files and absolute six-file qbuild fmt passed; required seven-file invocation including lib.rs failed on existing root/child formatting drift, left untouched. Pre-lane isolated lib.rs also needs formatting; this lane adds only its module declaration. No game run requested (explicit prohibition), external contact or live server tests.
 
 Constructed vectors distinguish listing selectors/mutation/output preservation/unsafe domains, reply helpers, chunk short send versus command prefix resend, async state-4 reentry, rejected-login true, RETR write failure and empty success, ignored STOR sender/read failure, progress rounding, callback reentry, listing partial capacities, target/shutdown/file-wrapper lifetime, outer cancel/stop/suspend, HTTP method prefixes/wrap/raw queue leaks, bounded replacement-worker race, WWW cache thresholds/fallback, cancellation leaks/late resources, conversion failure, cookies, reentrant fanout and cache-control parsing including embedded NUL.
 
