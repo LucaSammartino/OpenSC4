@@ -270,6 +270,7 @@ generated index: the questions live one file per spec, so read only the file for
 | terrain-view | 3 | 0 | TV4 | questions/terrain-view.md |
 | texture-bindings | 2 | 1 | TB4 | questions/texture-bindings.md |
 | timers | 0 | 3 | TM4 | questions/timers.md |
+| tools-com-director | 0 | 0 | - | questions/tools-com-director.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
 | tutorial | 0 | 6 | TU10 | questions/tutorial.md |
