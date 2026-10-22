@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "name": "lm02_foundation_fallback",
+  "spec": ["lot-models.md §2", "lot-models.md §8.2"],
+  "description": "Absent configured foundation side/top keys at zoom 3. Successful resource primitives record the exact side-then-top requests.",
+  "steps": [
+    {"op": "lm_foundation_fallback", "zoom": 3, "expect_side": "0x69F20003", "expect_top": "0x09122212"}
+  ]
+}

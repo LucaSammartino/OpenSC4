@@ -38,20 +38,35 @@ pub struct Zoom(u8);
 
 impl Zoom {
     pub fn new(value: u8) -> Result<Self, ContractError> {
-        if value < 5 { Ok(Self(value)) } else { Err(ContractError::InvalidInput) }
+        if value < 5 {
+            Ok(Self(value))
+        } else {
+            Err(ContractError::InvalidInput)
+        }
     }
 
-    pub fn index(self) -> usize { self.0 as usize }
-    pub fn value(self) -> u32 { u32::from(self.0) }
+    pub fn index(self) -> usize {
+        self.0 as usize
+    }
+    pub fn value(self) -> u32 {
+        u32::from(self.0)
+    }
 }
 
 /// Outward edge normals from view-utilities §4.2 (not wall range traversal).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Edge { North, East, South, West }
+pub enum Edge {
+    North,
+    East,
+    South,
+    West,
+}
 
 impl Edge {
     pub const ALL: [Self; 4] = [Self::North, Self::East, Self::South, Self::West];
-    pub fn index(self) -> usize { self as usize }
+    pub fn index(self) -> usize {
+        self as usize
+    }
     pub fn normal(self) -> Vec3 {
         match self {
             Self::North => [0.0, 0.0, -1.0],
@@ -102,17 +117,30 @@ pub trait Lighting {
 /// the ambiguity between a missing configured key and an unresolved resource;
 /// this is the literal "loaded again" reading, not a native failure contract.
 pub(super) fn load_with_fallback<F: TextureFactory>(
-    factory: &mut F, primary: Option<TextureKey>, fallback: TextureKey,
+    factory: &mut F,
+    primary: Option<TextureKey>,
+    fallback: TextureKey,
 ) -> Option<F::Binding> {
-    primary.and_then(|key| factory.load(key)).or_else(|| factory.load(fallback))
+    primary
+        .and_then(|key| factory.load(key))
+        .or_else(|| factory.load(fallback))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DepthTest { LessOrEqual, Less }
+pub enum DepthTest {
+    LessOrEqual,
+    Less,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Blend { Disabled, SourceAlphaOneMinusSourceAlpha }
+pub enum Blend {
+    Disabled,
+    SourceAlphaOneMinusSourceAlpha,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum AlphaTest { Disabled, GreaterThanZero }
+pub enum AlphaTest {
+    Disabled,
+    GreaterThanZero,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DrawState {
@@ -127,22 +155,33 @@ pub struct DrawState {
 
 impl DrawState {
     pub const OPAQUE: Self = Self {
-        colour_write: true, depth_write: true, depth_test: DepthTest::LessOrEqual,
-        texture_count: 1, alpha_test: AlphaTest::Disabled, blend: Blend::Disabled, cull: false,
+        colour_write: true,
+        depth_write: true,
+        depth_test: DepthTest::LessOrEqual,
+        texture_count: 1,
+        alpha_test: AlphaTest::Disabled,
+        blend: Blend::Disabled,
+        cull: false,
     };
     pub const ALPHA: Self = Self {
         alpha_test: AlphaTest::GreaterThanZero,
-        blend: Blend::SourceAlphaOneMinusSourceAlpha, ..Self::OPAQUE
+        blend: Blend::SourceAlphaOneMinusSourceAlpha,
+        ..Self::OPAQUE
     };
     pub const TINTED: Self = Self {
-        depth_write: false, depth_test: DepthTest::Less,
-        blend: Blend::SourceAlphaOneMinusSourceAlpha, ..Self::OPAQUE
+        depth_write: false,
+        depth_test: DepthTest::Less,
+        blend: Blend::SourceAlphaOneMinusSourceAlpha,
+        ..Self::OPAQUE
     };
 }
 
 /// This is a semantic box, not an ordered native vertex buffer.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Bounds { pub min: Vec3, pub max: Vec3 }
+pub struct Bounds {
+    pub min: Vec3,
+    pub max: Vec3,
+}
 
 #[cfg(test)]
 mod tests;

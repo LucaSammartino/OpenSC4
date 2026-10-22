@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "name": "lm03_wall_texture",
+  "spec": ["lot-models.md §3", "lot-models.md §8.3"],
+  "description": "Absent retaining-wall key at zoom 4 uses the fifth shipped instance in group 0x891B0E1A.",
+  "steps": [
+    {"op": "lm_wall_texture", "zoom": 4, "expect_instance": "0x695C00CA"}
+  ]
+}

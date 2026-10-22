@@ -27,3 +27,15 @@ pool allocation, QueryInterface and AddRef/Release are unpublished contracts.
 The API rejects out-of-domain inputs instead of asserting native error behavior.
 Floating geometry uses the existing `Vec3 = [f32; 3]`; LM3/LM8 track exact native
 precision. No fallback white/black lighting or missing-texture success is invented.
+
+## Executable vectors
+
+`engine/conformance/vectors/lm01_*` through `lm06_*` cover every published §8
+example with explicit expected values, plus water, exact-step, facing-wrap and
+mode-priority boundaries. They run through the existing conformance dispatcher.
+Operations are `lm_foundation_steps`, `lm_foundation_fallback`, `lm_wall_texture`,
+`lm_wall_facing`, `lm_cell_mode`, `lm_cell_corners`. Fields are explicit inputs
+and `expect_*` results. Height/fallback fixtures specify a 16 m square/top scale
+16 in the runner; orientation vectors supply their own coordinate cycle.
+The negative runner test changes one expected result for each operation and
+requires rejection. Vectors do not certify the unresolved native contracts.

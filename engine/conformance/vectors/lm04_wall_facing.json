@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "name": "lm04_wall_facing",
+  "spec": ["lot-models.md §3", "lot-models.md §8.4"],
+  "description": "Rotation 1 faces sides 1 and 0; include rotation-zero wrap boundary.",
+  "steps": [
+    {"op": "lm_wall_facing", "rotation": 1, "side": 1, "expect_draw": true},
+    {"op": "lm_wall_facing", "rotation": 1, "side": 0, "expect_draw": true},
+    {"op": "lm_wall_facing", "rotation": 1, "side": 2, "expect_draw": false},
+    {"op": "lm_wall_facing", "rotation": 0, "side": 3, "expect_draw": true},
+    {"op": "lm_wall_facing", "rotation": 0, "side": 1, "expect_draw": false}
+  ]
+}
