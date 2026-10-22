@@ -53,10 +53,10 @@ pub const PROP_3A8: u32 = 0x098B_27D0;
 /// The tool's exemplar parameters (network-geometry.md §11).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PowerLineParams {
-    /// `+0x3A4`: property `0x098B25C8`, default 20. Meaning not named.
+    /// `+0x3A4`: spacing in dragged steps at pivots, default 20.
     pub v_3a4: u32,
-    /// `+0x3A8`: property `0x098B27D0`. Meaning not named.
-    pub v_3a8: u32,
+    /// `+0x3A8`: terrain-ray clearance, default 7.0.
+    pub v_3a8: f32,
     /// `+0x3AC`: cost per pole (`0x4A5F5953`).
     pub cost_per_pole: i32,
     /// `+0x3B0`: cost per wire cell (`0x0A5F596B`).
@@ -64,12 +64,11 @@ pub struct PowerLineParams {
 }
 
 impl Default for PowerLineParams {
-    /// Only `+0x3A4`'s default (20) is given; `+0x3A8`, `+0x3AC` and `+0x3B0`
-    /// have no stated default. [choice] 0 for each (question NT19).
+    /// Fresh Init values, power-line-tool §1 (NT19).
     fn default() -> Self {
         PowerLineParams {
             v_3a4: 20,
-            v_3a8: 0,
+            v_3a8: 7.0,
             cost_per_pole: 0,
             cost_per_wire: 0.0,
         }
@@ -83,7 +82,7 @@ impl PowerLineParams {
         let d = PowerLineParams::default();
         PowerLineParams {
             v_3a4: uint(PROP_3A4).unwrap_or(d.v_3a4),
-            v_3a8: uint(PROP_3A8).unwrap_or(d.v_3a8),
+            v_3a8: float(PROP_3A8).unwrap_or(d.v_3a8),
             cost_per_pole: uint(PROP_COST_PER_POLE).map_or(d.cost_per_pole, |v| v as i32),
             cost_per_wire: float(PROP_COST_PER_WIRE).unwrap_or(d.cost_per_wire),
         }
@@ -103,6 +102,8 @@ pub struct PoleInfo {
 /// depth/cover fields at the same offsets (power line is a surface tool).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PowerLineTool {
+    /// Ordered input anchors; distinct from generated pole records (§2).
+    pub anchors: Vec<(i32, i32)>,
     /// `+0x36C`..`+0x370`: the pole records.
     pub poles: Vec<PoleInfo>,
     /// The line list (cells of the line occupants `PlacePoles` made).
@@ -169,8 +170,9 @@ pub fn do_network_specific_placement(
     neighbour_mode: u32,
     real: bool,
 ) -> bool {
-    // 1. Clear the pole and line lists; valid count := dragged count.
-    tool.poles.clear();
+    // §2: release saved endpoints before structural clear, including stale records.
+    tool.wire_cells = 0;
+    host.release_pole_infos(tool);
     tool.lines.clear();
     run.valid_count = run.dragged_count;
     // 2. With at least 2 dragged steps: DeterminePolePositions, PlacePoles(1).
@@ -182,13 +184,9 @@ pub fn do_network_specific_placement(
     if tool.pole_count() == 0 {
         run.valid_count = 0;
     }
-    // 4. Regional connection: neighbourMode set, the whole drag valid, at
-    // least 2 poles, no failure code. [literal] "When real, Attempt is
-    // followed by Place": Attempt runs whenever the conditions hold and
-    // Place follows it when real, whatever Attempt returned (NT20).
-    if neighbour_mode != 0 && run.valid_count == run.dragged_count && tool.pole_count() >= 2 && st.failure == 0 {
-        host.attempt_neighbor_connections(run, tool);
-        if real {
+    // NT20: Attempt runs in either mode; Place requires success and real placement.
+    if neighbour_mode != 0 && run.valid_count >= run.dragged_count && tool.anchors.len() >= 2 && st.failure == 0 {
+        if host.attempt_neighbor_connections(run, tool) && real {
             host.place_neighbor_connections(run, tool);
         }
     }
@@ -238,6 +236,7 @@ pub fn check_for_reserved_tiles(
             CELL_ROAD => {
                 *failure = FAIL_ROAD;
                 if i == count - 1 && prev == CELL_CLEAR {
+                    last = i - 1;
                     break;
                 }
             }

@@ -76,6 +76,7 @@ fn place(h: &mut Host, r: &mut ToolRun, nm: u32, real: bool) -> (bool, ToolState
     let mut st = ToolState::new(POWER);
     let mut tool = PowerLineTool::new(PowerLineParams::default());
     tool.poles = poles(9); // stale lists are cleared at step 1
+    tool.anchors = vec![r.start, r.end];
     tool.lines = vec![(1, 1)];
     let ok = do_network_specific_placement(&mut st, &mut tool, h, r, nm, real);
     assert!(tool.lines.is_empty());
@@ -87,6 +88,7 @@ fn real_drag_with_neighbours_places_both() {
     let mut h = Host {
         poles: poles(3),
         wire: 9,
+        attempt_ok: true,
         ..Host::default()
     };
     let mut r = run(9);
@@ -95,13 +97,12 @@ fn real_drag_with_neighbours_places_both() {
     assert_eq!(r.valid_count, 9);
     assert_eq!(
         h.calls,
-        ["determine", "place_poles", "attempt", "place_neighbors", "release"]
+        ["release", "determine", "place_poles", "attempt", "place_neighbors", "release"]
     );
 }
 
 #[test]
-fn place_follows_attempt_even_when_attempt_finds_none() {
-    // [literal] reading of §9 step 4 (NT20).
+fn failed_attempt_does_not_place_neighbors() {
     let mut h = Host {
         poles: poles(2),
         attempt_ok: false,
@@ -111,7 +112,7 @@ fn place_follows_attempt_even_when_attempt_finds_none() {
     place(&mut h, &mut r, 1, true);
     assert_eq!(
         h.calls,
-        ["determine", "place_poles", "attempt", "place_neighbors", "release"]
+        ["release", "determine", "place_poles", "attempt", "release"]
     );
 }
 
@@ -123,7 +124,7 @@ fn draft_attempts_but_does_not_place_and_refreshes() {
     };
     let mut r = run(5);
     place(&mut h, &mut r, 1, false);
-    assert_eq!(h.calls, ["determine", "place_poles", "attempt", "preview", "release"]);
+    assert_eq!(h.calls, ["release", "determine", "place_poles", "attempt", "preview", "release"]);
 }
 
 #[test]
@@ -134,7 +135,7 @@ fn no_neighbour_mode_no_regional() {
     };
     let mut r = run(5);
     place(&mut h, &mut r, 0, true);
-    assert_eq!(h.calls, ["determine", "place_poles", "release"]);
+    assert_eq!(h.calls, ["release", "determine", "place_poles", "release"]);
 }
 
 #[test]
@@ -148,7 +149,7 @@ fn one_step_drag_skips_poles_and_is_invalid() {
     assert!(ok);
     // No poles were determined: the span is under 48 units → valid 0.
     assert_eq!(r.valid_count, 0);
-    assert_eq!(h.calls, ["preview", "release"]);
+    assert_eq!(h.calls, ["release", "preview", "release"]);
 }
 
 #[test]
@@ -160,11 +161,11 @@ fn no_pole_record_means_valid_zero() {
     let mut r = run(6);
     place(&mut h, &mut r, 1, true);
     assert_eq!(r.valid_count, 0);
-    assert_eq!(h.calls, ["determine", "place_poles", "release"]);
+    assert_eq!(h.calls, ["release", "determine", "place_poles", "release"]);
 }
 
 #[test]
-fn single_pole_is_valid_but_not_regional() {
+fn single_pole_with_two_input_anchors_still_attempts_regional() {
     let mut h = Host {
         poles: poles(1),
         ..Host::default()
@@ -172,7 +173,7 @@ fn single_pole_is_valid_but_not_regional() {
     let mut r = run(6);
     place(&mut h, &mut r, 1, true);
     assert_eq!(r.valid_count, 6);
-    assert_eq!(h.calls, ["determine", "place_poles", "release"]);
+    assert_eq!(h.calls, ["release", "determine", "place_poles", "attempt", "release"]);
 }
 
 #[test]
@@ -255,17 +256,20 @@ fn cost_of_solution_shipped_values() {
     let p = PowerLineParams::load(
         |id| match id {
             PROP_3A4 => Some(10),
-            PROP_3A8 => Some(7),
             PROP_COST_PER_POLE => Some(15),
             _ => None,
         },
-        |id| (id == PROP_COST_PER_WIRE).then_some(2.0),
+        |id| match id {
+            PROP_3A8 => Some(7.0),
+            PROP_COST_PER_WIRE => Some(2.0),
+            _ => None,
+        },
     );
     assert_eq!(
         p,
         PowerLineParams {
             v_3a4: 10,
-            v_3a8: 7,
+            v_3a8: 7.0,
             cost_per_pole: 15,
             cost_per_wire: 2.0
         }
