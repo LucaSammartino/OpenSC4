@@ -13,7 +13,8 @@
 - Added independent Rust lifetime mirror (fixed published app AddRef + verifier QI lifecycle, never seeded from native counts); native supported/unsupported QI and AddRef/Release compare against it.
 - Final unchanged-code all at 0465e0bf: PASS cargo4948/4948, clippy0 diagnostics, CMake139/139, ctest68/68. Earlier in-flight all also passed but is not final evidence.
 - Frozen DLL: build-runs/dlls/FreeCity4-feature-0465e0bf.dll; SHA256 BD01E7356043EB756C2FDB895FF4E0CB4533013AB7DAED1EBC62943D52F7D777.
-- Outstanding: fm4-r1-query-1022-171537 (current40, turbo to2032, refaudit1); submit/wait process session19933. No qwait used.
-- Next: accept this unique label's completed verdict; inspect feature-input/shadow/lifetime lines; then lifetime session with same frozen DLL and scripted saves via feature-submit.ps1 lifetime.
+- Query fm4-r1-query-1022-171537: clean2032/ref0; samples74, exact13172, diff0, refusal0, resync0; lifetime15 exact/0 diff; native AddRef3/Release2 = Rust3/2; final app hold1. All32 provider keys captured; only pack1 acquired (378B/FNV BC8924D4).
+- FM5 filed in docs/specs/questions/feature-manager.md: actual provider size378 versus §5.1 measurement263; no input normalization or native-answer seeding. Shadow differences remain0.
+- Outstanding: none. Next: lifetime session on same frozen DLL with scripted full/fast saves via feature-submit.ps1 lifetime; accept its unique completed verdict, then final report/queue.
 - Restrictions: no native Init/Shutdown/reset/seeding; borrowed app getter and owned QI hold only; FM1/FM2 excluded.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-feature-manager4-r1-manifest.json.
