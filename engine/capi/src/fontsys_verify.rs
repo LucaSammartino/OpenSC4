@@ -3,8 +3,8 @@
 //! implementation of its algorithms. Metadata is supplied once at construction, never resynced.
 //! Provider sizes/rasters are deliberately outside this FontSys-only measurement domain.
 use fc4_core::fonts::{
-    FontFace, FontInfoRecord, FontLibrary, FontRef, GlyphRaster, GreyLevels, GzFontSys, Latin1Converter, ScreenFormat,
-    SizeMetrics,
+    DrawColour, DrawRecord, FontFace, FontInfoRecord, FontLibrary, FontRef, FontRenderer, FontUse, GlyphRaster,
+    GreyLevels, GzFontSys, Latin1Converter, ScreenFormat, SizeMetrics, SurfaceId,
 };
 use std::ffi::{c_char, CStr};
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -62,19 +62,51 @@ impl FontLibrary for Library {
         Vec::new()
     }
     fn system_fonts_dir(&self) -> String {
-        String::new()
+        self.0
+            .first()
+            .and_then(|m| text(&m.path).rsplit_once('\\').map(|(dir, _)| format!("{dir}\\")))
+            .unwrap_or_default()
     }
-    fn list_files(&self, _: &str, _: &str) -> Vec<String> {
-        Vec::new()
+    fn list_files(&self, dir: &str, pattern: &str) -> Vec<String> {
+        if !dir.eq_ignore_ascii_case(&self.system_fonts_dir()) {
+            return Vec::new();
+        }
+        self.0
+            .iter()
+            .map(|m| text(&m.path))
+            .filter(|path| {
+                let path = path.to_ascii_lowercase();
+                match pattern {
+                    "*.tt?" => path
+                        .rsplit_once('.')
+                        .is_some_and(|(_, ext)| ext.len() == 3 && ext.starts_with("tt")),
+                    "*.pfb" => path.ends_with(".pfb"),
+                    "*.mxf" => path.ends_with(".mxf"),
+                    "*.otf" => path.ends_with(".otf"),
+                    _ => false,
+                }
+            })
+            .collect()
     }
     fn screen_format(&self) -> ScreenFormat {
         ScreenFormat::Screen(9)
     }
 }
 
+struct LifetimeRenderer;
+impl FontRenderer for LifetimeRenderer {
+    fn lock_surface(&self, _: SurfaceId, _: FontUse) -> bool {
+        false
+    }
+    fn unlock_surface(&self, _: SurfaceId, _: FontUse) -> bool {
+        false
+    }
+    fn draw(&self, _: SurfaceId, _: &[DrawRecord], _: &[u8], _: &DrawColour) {}
+}
 pub struct Session {
     sys: GzFontSys,
     fonts: Vec<FontRef>,
+    renderer: Arc<LifetimeRenderer>,
 }
 impl Session {
     fn intern(&mut self, font: Option<FontRef>) -> u32 {
@@ -206,6 +238,12 @@ impl Session {
             }
             // Uncached caller references use the font's own Release, not FontRelease (slot 12).
             24 => font()?.release(),
+            25 => self.sys.add_all_fonts_from_directory(s),
+            26 => {
+                self.sys.set_renderer(Some(self.renderer.clone()));
+                0
+            }
+            27 => Arc::strong_count(&self.renderer) as u32,
             _ => return None,
         })
     }
@@ -219,7 +257,7 @@ fn put_string(out: &mut [u8], value: &str) {
 #[no_mangle]
 pub unsafe extern "C" fn fc4_fontsys_verify_new(meta: *const Metadata, count: u32) -> *mut Session {
     catch_unwind(AssertUnwindSafe(|| {
-        if count > 8 || (count != 0 && meta.is_null()) {
+        if count > 4096 || (count != 0 && meta.is_null()) {
             return std::ptr::null_mut();
         }
         let data = if count == 0 {
@@ -229,7 +267,11 @@ pub unsafe extern "C" fn fc4_fontsys_verify_new(meta: *const Metadata, count: u3
         };
         let mut sys = GzFontSys::new(Arc::new(Library(data)), Arc::new(Latin1Converter), 0);
         sys.add_ref();
-        Box::into_raw(Box::new(Session { sys, fonts: Vec::new() }))
+        Box::into_raw(Box::new(Session {
+            sys,
+            fonts: Vec::new(),
+            renderer: Arc::new(LifetimeRenderer),
+        }))
     }))
     .unwrap_or(std::ptr::null_mut())
 }

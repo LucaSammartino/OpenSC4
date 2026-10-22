@@ -11,7 +11,9 @@
 - Route game label fontsys4-route-20261022a1: clean, ref_warnings=0, date 2035-01-03; load and shutdown each 23 exact, 0 differences/refusals/fallback/resync, natural 0.
 - Added persistent actual GzFontSys C API transport and constructed native comparison; raw read-only Windows font metadata enters provider once, no native query/selection answers enter Rust.
 - 7c84f857: production bridge committed before call 30. Focused fontsys4-focused-20261022b1 exited -1 during first bootstrap AddFont, no exception/panic/ref warnings and no production comparisons. SDK overloaded virtual textual order is not a slot contract under MSVC. Changed overloaded calls to explicit published section 12.1 slots 9/10/11/13/14; cGZFont no-arg GetStyles uses published slot 7.
-- Next: quick build/format/check, commit bridge by call 30; run focused differential then immutable controls through 2032/save/shutdown.
+- Added full read-only system font catalogue bootstrap once, actual directory positive/negative calls, renderer same-pointer/null/Shutdown lifetime tests, config key recognition. No metrics/raster claim. Natural 0 remains separate.
+- Initial post-bridge full gate: Rust tests/clippy pass; ctest 67/68, ret_channel_check false positive treated font GetSize as lot GetSize. Replaced that call with published font slot 10 (no shared checker changes).
+- Next: quick and final full gate, freeze DLL, final native attempt (3/3 counting initial route and exited focus), then original/current40 controls through 2032/save/shutdown. No additional native attempts permitted.
 - No game request yet; no plugin changes, native calls, ABI changes, or binary commits.
 - FN18-FN22 excluded. Do not read analysis sources or run tools/ scripts.
 - Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-fontsys4-r1-manifest.json.

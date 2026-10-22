@@ -39,11 +39,20 @@ void PutString(uint8_t* dst, size_t capacity, const char* text) {
     std::memset(dst, 0, capacity);
     std::memcpy(dst, text, (std::min)(std::strlen(text), capacity - 1));
 }
+// SetRenderer uses only the three IUnknown slots (section 12). This sentinel
+// is never passed to a font or draw call; the stack owner keeps reference 1.
+struct LifetimeRenderer final : cIGZUnknown {
+    uint32_t refs = 1;
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return --refs; }
+};
 struct Pair {
     cIGZFontSys* native;
     void* rust;
     std::vector<cIGZFont*> fonts;
     std::vector<uint32_t> callers;
+    LifetimeRenderer renderer;
     uint32_t exact = 0, diff = 0, refusal = 0, positive = 0, negative = 0;
     explicit Pair(cIGZFontSys* n, const std::vector<FontSysMetadata>& metadata)
         : native(n), rust(fc4_fontsys_verify_new(metadata.data(), uint32_t(metadata.size()))) {}
@@ -106,7 +115,9 @@ struct Pair {
             using GetStyles = uint32_t(__fastcall*)(void*, void*);
             uint32_t style = reinterpret_cast<GetStyles>((*reinterpret_cast<void***>(f))[7])(f, nullptr);
             FC4_ADDREF(f); uint32_t refs = FC4_RELEASE_CREATED(f);
-            const uint32_t values[] = {f->GetSize(), style, uint32_t(f->GetType()), uint32_t(f->GetAntialiasing()),
+            using GetU32 = uint32_t(__fastcall*)(void*, void*);
+            const uint32_t size = reinterpret_cast<GetU32>((*reinterpret_cast<void***>(f))[10])(f, nullptr);
+            const uint32_t values[] = {size, style, uint32_t(f->GetType()), uint32_t(f->GetAntialiasing()),
                                       uint32_t(cp), f->GetFontColor(), f->GetFontBackgroundColor(), refs};
             std::memcpy(out+388, values, sizeof(values)); return 1;
         }
@@ -144,6 +155,9 @@ struct Pair {
             uint32_t refs = FC4_RELEASE_CREATED(f); --callers[a-1];
             if (!refs) fonts[a-1] = nullptr; return refs;
         }
+        case 25: return FontSysSlot<uint32_t>(native,15,static_cast<const cIGZString*>(&first));
+        case 26: native->SetDefaultFontRenderer(reinterpret_cast<cIGZFontRenderer*>(&renderer)); return 0;
+        case 27: return renderer.refs;
         default: return UINT32_MAX;
         }
     }
@@ -172,12 +186,18 @@ void Compare(cIGZFontSys* owned, const char* phase) {
     char windows[MAX_PATH] = {};
     GetWindowsDirectoryA(windows, MAX_PATH);
     std::vector<std::string> paths;
-    for (const char* file : {"arial.ttf", "arialbd.ttf", "cour.ttf", "tahoma.ttf"}) {
-        std::string path = std::string(windows) + "\\Fonts\\" + file;
-        SC4String input(path);
-        Log("fontsys bootstrap read-only path=%s",path.c_str());
-        if (FontSysSlot<bool>(owned, 14, static_cast<const cIGZString*>(&input))) paths.push_back(path);
-        else Log("fontsys bootstrap unavailable path=%s", path.c_str());
+    const std::string directory = std::string(windows) + "\\Fonts\\";
+    for (const char* pattern : {"*.tt?", "*.pfb", "*.mxf", "*.otf"}) {
+        WIN32_FIND_DATAA found = {};
+        HANDLE search = FindFirstFileA((directory + pattern).c_str(), &found);
+        if (search == INVALID_HANDLE_VALUE) continue;
+        do {
+            if (found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+            std::string path = directory + found.cFileName;
+            SC4String input(path);
+            if (FontSysSlot<bool>(owned, 14, static_cast<const cIGZString*>(&input))) paths.push_back(path);
+        } while (FindNextFileA(search, &found));
+        FindClose(search);
     }
     std::sort(paths.begin(), paths.end());
     std::vector<cIGZFontSys::FontInfo> raw(paths.size());
@@ -198,6 +218,11 @@ void Compare(cIGZFontSys* owned, const char* phase) {
     p.Call(0); p.Call(0); p.Call(3); p.Call(16);
     p.Call(22,1); p.Call(22,0x00673960); p.Call(22,0x287FB697); p.Call(22,0); p.Call(22,0xffffffff);
     p.Call(20); p.Call(21); p.Call(23);
+    p.Call(27); p.Call(26); p.Call(27); p.Call(26); p.Call(27); p.Call(23); p.Call(27);
+    p.Call(26); p.Call(1); p.Call(27); p.Call(0);
+    p.Call(25,0,0,0,0,"FC4_nonexistent_font_directory\\");
+    p.Call(25,0,0,0,0,directory.c_str()); p.Call(3); p.Call(25,0,0,0,0,directory.c_str());
+    p.Call(1); p.Call(0);
     p.Call(11,12,0,1,0,"FC4_missing_font.ttf");
     p.Call(12,12,0,1,1,"missing"); p.Call(13,12,0,1,2);
     p.Call(18); p.Call(19,0,0,0,0,"missing");
