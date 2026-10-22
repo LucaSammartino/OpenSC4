@@ -32,6 +32,11 @@ namespace fc4 {
 // The value's bytes in its own layout (scalars: the one value; arrays: the
 // elements); false for pointers and objects (FC4PropertyHolder.cpp).
 bool VariantValueBytes(const cFC4IGZVariant& v, std::vector<uint8_t>& out);
+// cFC4Variant::GetValString's body. It goes through the core
+// (fc4_variant_get_string), so it lives in FC4PropertyHolder.cpp, which sets
+// this at static init; cFC4Variant.cpp alone (fc4_plugin_load_test) keeps it
+// null and GetValString answers false, value unchanged.
+extern bool (*gVariantGetValString)(const cFC4IGZVariant& v, cIGZString& value);
 }  // namespace fc4
 
 class cFC4Variant final : public cFC4IGZVariant {
