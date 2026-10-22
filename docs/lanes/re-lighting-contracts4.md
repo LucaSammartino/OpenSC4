@@ -6,7 +6,9 @@
 - Goal: resolve LT5–LT11 from original instructions/data; specs only, no engine reads/edits.
 - Done: reused supervisor-reserved detached worktree; read short handoff, lane/merge formats and lighting questions.
 - Done: individual 43+2 owner checklist and six attributed helpers; LT6 Euclidean/x87 contract, LT7 vector scan, LT8 exact double epsilon/upper clamp, independent vectors added.
-- Next: complete 0x007D6CC0 edge-extension proof; then projection, lifecycle and message branches.
+- Done: LT5 native zero reference count/black announcement-cache/unset geometry, initial statics; LT7 nontransactional map loading/explicit Shutdown; LT8 fixed rectangular flat scan/sx0; LT9 verbatim vertex rectangle notifications; LT11 full ordered edge probes and vectors 13–17.
+- Next: reconcile questions, verify projection determinant/basis evidence, review diff and finish report/queue.
+- Remaining: LT10 complete transform/precision composition still unproved; do not promote complete-owner coverage.
 - Facts: epsilon binary64 0.001; red reciprocal binary32 0x3B808081; min scan includes vector padding; RGB test strict greater, unordered fails.
 - Evidence sources: main checkout `C:/Users/tlori/FreeCity4`; query export first via tools/re_query.py, decomp fallback.
 - Guard: `C:/Users/tlori/FreeCity4/build-runs/run4-re-lighting-contracts4-r1-manifest.json`; max100 calls, one round.

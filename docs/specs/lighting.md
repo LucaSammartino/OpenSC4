@@ -42,6 +42,28 @@ use the rounding of §4.7.
 
 ### 1.2 State (0x1D8 bytes)
 
+**Constructor boundary (LT5):** the reference count starts at **0**, not 1 (`0x007DA0BE`). Each successful
+QueryInterface stores the requested interface and calls primary slot 1 once, including the `+4` message
+interface; an unsupported IID returns false without overwriting the output (`0x007D65E0–0x007D6642`).
+The adjustment thunks subtract four from the incoming message-interface pointer before forwarding.
+
+At construction, current global/day light and tint colour are white; last-announced global/day light,
+fill/key/shadow directions, scaled light, view rotation, all six cached axis colours, fade origin/gradient
+and fade colour are **zero**. Day fraction is 1 and night fraction 0. The unrotated sun starts at
+**(1, −1, −1)**, not a normalized direction. Time is 12, month 0, minimum red 0, tint amount 0, tint disabled,
+shadows disabled, view-applied and initialized flags clear. Vector headers for the three key lists and
+the two terrain grids are empty. Evidence: constructor `0x007DA0A0–0x007DA3D1`, zero data
+`0x00B4E334–0x00B4E340`, white data `0x00B0DCA4–0x00B0DCAC`.
+
+This is **not** a zero-fill constructor. In particular, it does not write map pointers `+0xCC/+0xD0`,
+city dimensions/cell widths `+0x12C…+0x148`, dirty/sweep rectangle coordinates, or grid strides. Their
+pre-initialization contents are not a native default. The normal map-loading Init path assigns all four
+map pointers; the test-pattern path assigns only `+0xC4/+0xC8`. City-start establishes the geometry.
+DoZoomAndRotationChange computes the fade formula *before* checking for terrain (`0x007DB840–0x007DBA60`):
+before geometry exists it consumes those unset dimensions. Consequently no universal zero-gradient
+result is specified for that call. A portable safety policy may initialize these fields, but must not
+claim that policy as an observed constructor result.
+
 | Offset | Field |
 |---|---|
 | `+0x08` | initialised (Init done) |
@@ -88,7 +110,7 @@ use the rounding of §4.7.
 2. Load the exemplar `0x6534284A / 0xA9189CF0 / 0x00000001` into `+0x10`; `ReadProperties` (§1.4).
 3. Unless the test-pattern property is true: load the four colour maps (§1.5); when the `+0xCC` map exists,
    `+0xD4` := its minimum red byte ÷ 255 (1.0 for an empty map; `cImageARGB8::FindMinRedComponentValue`
-   `0x007D6870`). With the test pattern: `+0xC4` and `+0xC8` get the 64×64 test pattern (§1.5), the others stay null.
+   `0x007D6870`). With the test pattern: `+0xC4` and `+0xC8` get the 64×64 test pattern (§1.5); the other two pointers are not assigned.
 4. Subscribe to `0xC53D10AA`, `0xC9F775BB`, `0x2B96B3EA`, `0xA6B79601`, `0xEA3B0AF1`, `0x6A3B0AFD`, `0x278E6003`
    (§6), in that order; initialised := true.
 
@@ -98,6 +120,25 @@ frees the four maps and clears initialised. The deleting destructor (slot 29, `0
 when bit 0 of its argument is set.
 
 ### 1.4 Properties (`ReadProperties`, `0x007DA7E0`) *[compat]*
+
+**Initial shared configuration (LT5):** before any exemplar read, the original image seeds the following
+values. These are shared across instances; construction and Shutdown do not restore them. Missing-property
+retention therefore refers to the previous shared value, not necessarily to the shipped exemplar.
+Float decimals in this table mean their binary32 encodings. Property-to-storage bindings are in
+`0x007DA7F3–0x007DA9F2`; initial data is `0x00B0DC50–0x00B0DC98`, `0x00B0DCBC–0x00B0DCDC` and
+zero-initialized `0x00B4E32C–0x00B4E354`.
+
+| Properties | Initial value |
+|---|---|
+| `29189BEB`, `29189BEC`, `29189BED`, `29189BEF` | 0.1, true, false, false |
+| `29189BEE`, `29189BF1`, `29189BF2`, `29189BF3` | 0.6 each |
+| `29189BF0`, `09B6D6AE` | (1,1,1) each |
+| `29189BF4`, `29189BF5` | (0,0.5,1), 0.5 |
+| `29189BF6`, `29189BF7` | 0.0001, 0.8 |
+| `085489C8`, `085489C9`, `085489CA` | `0x0917660E`, (0,0), 8 |
+| `085489CB`, `085489CC`, `085489CD` | (0,0,0), 0.5, 0 |
+| `085489CE`, `085489CF`, `085489D0` | 90, 45, 1 |
+| `085489D1`, `085489D2`, `085489D3` | 0.7, 50, 0.6 |
 
 Read from the exemplar into statics, every time it runs (also on `0xC53D10AA`). A missing property keeps the
 static's previous value. The shipped values are those of the exemplar in `SimCity_1.dat`; "—" marks a property the
@@ -161,6 +202,32 @@ green and blue are bits 16–23, 8–15 and 0–7, each ÷ 255.
 | `+0xD0` | `0x0917660F` | 32×32 | fade colour over time × month (§2.1) |
 
 The shipped images are PNGs (type `0x856DDBAC`) in `SimCity_1.dat`.
+
+**Failure and lifetime boundary (LT7):** a false buffer Load result assigns that map pointer null and
+destroys the temporary buffer. Init continues with subsequent maps, performs subscriptions when a message
+server exists, sets initialized and returns true. It does not return false because an image is missing;
+false is the already-initialized path. Image copying sets width, height and stride (= width), resizes to
+width×height pixels and obtains each pixel from image slot 21; the lighting helper has no per-pixel failure
+test or rollback path (`0x007DB450–0x007DB4CD`, `0x007DB4D0–0x007DB565`, `0x007DB6A0–0x007DB838`). An
+allocation failure or foreign decoder exception has no lighting-level recovery contract; it is not a
+second, normal false-return path. Do not invent transactional cleanup or a successful retry after such an
+interruption.
+
+Shutdown is the explicit cleanup protocol: unsubscribe when the message server exists, release exemplar
+and general terrain, destroy all four map allocations, null their pointers, and clear initialized and
+view-applied. It retains the city-terrain reference, key lists, terrain grids, shared properties and
+lighting values. A second Shutdown returns false. The destructor frees the key/grid vectors and releases
+city terrain, general terrain and exemplar, but **does not call Shutdown, unsubscribe or free maps**.
+Deleting destruction alone is not equivalent to the Shutdown-then-Release protocol.
+
+SampleRowLerp computes linear addresses `begin + 4×(stride×row + column)` without bounds tests, including
+both horizontal sample addresses even when their interpolation weight is zero. Row spill is ordinary
+linear addressing when storage exists. Beyond allocated storage there is no defined colour/error result
+from this owner. Similarly, GetModelColor tests the *surface* map pointer to enter its map path, then
+dereferences the model map using coordinates bounded by the surface dimensions: it does not test model
+presence/length. Absent or too-short model storage has no native fallback/error contract. Portable checked
+errors are safety policies for these invalid reads, not observed native outcomes (`0x007D6690–0x007D6861`,
+`0x007D83C0–0x007D854E`).
 
 The **test pattern** (`MakeTestPattern`, `0x007DB570`) is 64×64: opaque, red 255 where x > 32, green 255 where
 y > 32, blue 0 (so the dark half is 33 pixels wide) *[quirk]*.
@@ -337,6 +404,18 @@ stored row and X rows (the city grids are square):
 
 The whole grid is swept on every call.
 
+**Dimensions and zero horizontal direction (LT8):** the sweep always allocates the running vector to
+vertex-count Z (`+0x138`), takes exactly vertex-count X (`+0x134`) rows, and advances each physical row by Z
+floats. These counts are not exchanged for rotations 1 or 3. Rectangular inputs follow that same flat
+X-by-Z scan; do not substitute a rotation-dependent rectangular traversal. Terrain copying uses §3's
+strides independently. Evidence: `0x007DAEBF–0x007DAF32` and the row advance at the end of the sweep.
+
+The drift is computed as **(−1 / sx) × sz**, then stored binary32; drop is
+**((cellWidth / sx) × sy) × slopeFactor**, also stored binary32 (`0x007DAF5F–0x007DAF85`). With the ordinary
+masked floating-point exceptions and sx = 0, drift is infinite or NaN and fails the ordered [−1,1] tests;
+the sweep rectangle is retained. No special sx = 0 reset or rectangular-city rejection occurs. For an
+executed sweep with no differences, the rectangle is **(−1, −1, 0, 0)**, not four −1 values.
+
 ### 5.3 Depth and the bent normal
 
 - `ShadowDepth(p)` (`0x007D6950`) := shadow height at (p.x, p.z) − p.y; positive means p is in a hill shadow.
@@ -370,14 +449,59 @@ binary32 replacement at `0x007D83A3`/`0x007D83B6`).
   `0x085489C8`, `0x085489CC`, `0x085489CD`, `0x085489CA`, `0x085489C9`, `0x085489CB`, each then overridden by the
   given property holder when it has them, so a model exemplar can change its own decal shadow.
 - `CalcShadowTerrainRect(…, box, outRect)` (slot 18, `0x007D6CC0`): the cell rectangle ⌊min / 16⌋ … ⌈max / 16⌉ of the
-  box's x and z, clipped to the city, then extended cell by cell in the shadow direction while a ray from the box top
-  (falling by the shadow direction's slope per cell) stays above the terrain heights; always true *[inferred: the
-  cells a shadow cast from the box can reach]*.
+  box's x and z, intersected with the city and then extended by the ordered edge probes in §5.7; always true.
 - `CalcShadowProjection(points, uvs, count, xform, inout)` (slot 17, `0x007D8C80`): fits, by least squares, the
   texture coordinates of the points as an affine function of their position in a plane perpendicular to the shadow
   direction (expressed in the model's frame, `0x0080B9F0` building the plane basis), and writes the resulting texture
   matrix, composed with the transform, into `inout`; false when the 3×3 normal-equation determinant is below 0.01
   *[inferred: the exact composition with the transform's flags]*.
+
+### 5.7 Exact terrain rectangle extension (LT11)
+
+Slot 18 takes **(unused word, unused word, box, outRect)**. The box is six binary32 values
+(minX,minY,minZ,maxX,maxY,maxZ); minY is unused. The first two arguments are never read. Output is four
+signed integers (minXcell,minZcell,maxXcell,maxZcell), with inclusive vertex-index endpoints, and the normal
+return is always true. The method reads the **view-rotated** direction `+0x64`, not the unrotated sun or
+the slope-factor-adjusted hill-shadow direction.
+
+First obtain floor(minX/cellWidth), floor(minZ/cellWidth), ceil(maxX/cellWidth), ceil(maxZ/cellWidth), using
+the stored inverse cell width for multiplication. For the finite city-scale domain the native rounding
+sequence uses binary32 storage of `(q − 0.5) + 12582912` for floor, or `(q + 0.5) + 12582912` for ceil,
+then integer bit-pattern subtraction by `0x4B400000`, with an exact-integer correction (+1 for floor,
+−1 for ceil). This is not truncation toward zero. Intersect inclusively with [0,cellCountX] ×
+[0,cellCountZ]. A disjoint intersection sets all four bounds to zero; its false result is ignored, and
+extension still proceeds. The inclusive intersection helper is `0x0048ED90–0x0048EE0A`; the call and
+rounding are `0x007D6CC0–0x007D6E06`.
+
+Let the current bounds be L,T,R,B, direction (dx,dy,dz), cell width C, and binary32 slopes
+px = dy/dx, pz = dy/dz. The two divisions occur unconditionally (`0x007D6E0B–0x007D6E24`), including zero
+components. An X extension starts at height **maxY + (edge×C − corresponding box X face)×px**;
+a Z extension starts at **maxY + (edge×C − corresponding box Z face)×pz**. Use the max box face for
+increasing extensions and the min face for decreasing ones. Heights accumulate in x87 arithmetic; slopes
+are stored binary32. Read the terrain-height grid, not the hill-shadow grid, at the current world-index
+pair using §3's strides and base. There is no bilinear sample, fractional cross-axis drift, or edge-wide
+ray sweep.
+
+The following table is the complete ordered sequence. A two-probe extension keeps the height and moving
+edge reached by the first probe; it does **not** restart at the original face for the second probe.
+The last extension initializes its own height from its box face using the then-current edge index.
+
+| Direction signs | First extension: probes in order | Last extension: probe |
+|---|---|---|
+| dx > 0, dz ≤ 0 | increase R at z=B, then z=T | decrease T at x=R |
+| dx > 0, dz > 0 | increase B at x=L, then x=R | increase R at z=B |
+| dx ≤ 0, dz ≤ 0 | decrease T at x=R, then x=L | decrease L at z=T |
+| dx ≤ 0, dz > 0 | decrease L at z=T, then z=B | increase B at x=L |
+
+For each probe, while the moving edge is inside its extension limit (R < cellCountX, B < cellCountZ,
+L > 0, or T > 0), compare its current height with that grid vertex. Only **ordered height > terrain**
+advances the edge by one. Add C×slope on increasing steps and subtract it on decreasing steps. Equality
+or NaN stops the probe; reaching the city limit stops without sampling that boundary vertex. The stopped
+vertex remains an output endpoint. Thus the output can include the first unshadowed vertex. The second
+probe, when present, can continue after the first probe hits high ground. No clipping/expansion follows
+extension, and untouched edges retain the initially intersected values. Evidence for the four branches:
+`0x007D6E25–0x007D7147`, `0x007D7170–0x007D72BC`, `0x007D72BD–0x007D73D4`; common final output stores at
+`0x007D7149–0x007D7168`.
 
 ## 6. Messages (`DoMessage`, `0x007DBCF0`) *[compat]*
 
@@ -390,6 +514,30 @@ binary32 replacement at `0x007D83A3`/`0x007D83B6`).
 | `0x6A3B0AFD` long terrain operation ends | flag off; with shadows on and a non-empty rectangle, as above, then also terrain slot 68 (`RedisplayTerrain(0, 0, rect, 0)`) |
 | `0xC53D10AA` exemplar changed | §1.4 |
 | `0xC9F775BB` render properties changed | the change threshold := the float `+0x10C` of the settings object's `+0x24` member *[quirk: overrides the exemplar]*; shadows on := settings slot 7 (`0x0C`) ≥ 2; when that changed: §3, send `0xC9DA96EA` with the stored fractions and call `0x00B43DD0` slot 20 |
+
+**Dirty rectangles and notifications (LT9):** the incoming rectangle is passed directly to terrain slot
+15 as an inclusive *vertex-index* rectangle, with its starting grid address and the world-X/world-Z
+strides. The owner does not enlarge it to neighboring cells. During a long operation it unions incoming
+rectangles; end clears the flag before testing whether work is required. Both immediate and deferred
+paths sweep the whole shadow grid. Only when the sweep's first changed row is nonnegative do they transform
+the **sweep-changed** rectangle and call terrain slot 67. Deferred end then calls slot 68 with
+(0,0,the same transformed rectangle,0). An executed no-change sweep causes neither call; a skipped sweep
+retains the old rectangle and can therefore notify it again. There is no fallback to the incoming dirty
+rectangle for the no-change case. Evidence: `0x007DBD36–0x007DBE12`, `0x007DBF3F–0x007DC030`.
+
+For changed stored bounds (c0,r0,c1,r1) and world vertex counts X,Z, helper `0x007D6540` writes the following
+world bounds. It only permutes/subtracts indices, with **no** cell expansion, +1 endpoint conversion or
+clipping; rotations outside 0…3 leave the destination unchanged. Branch table data is at `0x007D65D0`.
+
+| Rotation | Output (x0,z0,x1,z1) |
+|---|---|
+| 0 | (r0,c0,r1,c1) |
+| 1 | (X−1−c1,r0,X−1−c0,r1) |
+| 2 | (X−1−r1,Z−1−c1,X−1−r0,Z−1−c0) |
+| 3 | (c0,Z−1−r1,c1,Z−1−r0) |
+
+Slot 67/68 receives those integer endpoints verbatim. Any further vertex-to-cell update expansion belongs
+to the terrain recipient, not to lighting; these calls do not establish that recipient's primitive output.
 
 ## 7. Slot table (vtable `0x00ABB530`)
 
@@ -459,6 +607,29 @@ See QUESTIONS.md LT1–LT4: the meaning of the settings byte `+0x39C` (§2.1), t
     vector end must have no effect. With vector end equal to begin, Init's stored minimum is 1.0.
 12. **Normal clamp discriminator (LT8):** a terrain spy receiving (1024, −1) for a 1024-by-1024 world must
     see (1023.9990234375, +0), with its output otherwise passed through unchanged.
+13. **Constructor discriminator (LT5):** construct in storage prefilled with a nonzero sentinel. Count is 0;
+    current global/day light is white, announced global/day light and all six cached colours are black;
+    day/night fractions are 1/0; city geometry and `+0xCC/+0xD0` retain the sentinel. Successful queries of
+    IID 1 then IID `452294AA` acquire two references total and return base then base+4. Unsupported IID leaves
+    an output sentinel unchanged. After balancing to count 1, one Release deletes and returns zero.
+14. **Missing image/lifetime discriminator (LT7):** make buffer Load return false for each of the four maps,
+    with an otherwise usable exemplar/settings/message service. First Init returns true with null maps;
+    second Init returns false and performs no reload/subscription. First Shutdown unsubscribes and returns
+    true; second returns false. Destruction without Shutdown must not be used as evidence of map cleanup.
+15. **Rectangular sweep discriminator (LT8):** vertex counts X=3,Z=5 always give three physical rows of five
+    floats, at every rotation. With zero initialized shadow/terrain arrays and a valid sweep, the changed
+    rectangle is (−1,−1,0,0). Following a prior nonempty changed rectangle, sun (0,−1,0) skips and retains it
+    under masked floating-point exceptions.
+16. **Dirty notification discriminator (LT9):** X=9,Z=5, changed stored rectangle (1,2,3,4) transforms at
+    rotation 1 into (5,2,7,4). Slot 67 receives those exact endpoints. Long-operation end also calls slot 68
+    with (0,0,the same rectangle,0). Repeat with an executed no-change sweep: neither slot is called.
+17. **Edge-probe discriminator (LT11):** C=16, city cell counts 8×8, box (16,0,16,32,32,32), direction
+    (1,−1,−1), flat height 0 everywhere. Initial bounds are (1,1,2,2). Increasing R probes z=2: heights 32,
+    16,0 at R=2,3,4; the zero stops at R=4. The z=1 probe also stops at (4,1). Decreasing T then starts
+    at height 32 and moves from 1 to boundary 0. Output is **(1,0,4,2)**. With height 32 at (2,2) alone,
+    the first probe stops immediately, but the second continues from (2,1) to R=4: the same output results.
+    Sampling every top-edge ray, excluding the stopped vertex, or comparing ≥ instead of > would not
+    implement the specified procedure.
 
 ## 12. Individual owner and attributed-helper checklist
 
