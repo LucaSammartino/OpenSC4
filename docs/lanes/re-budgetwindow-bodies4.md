@@ -7,7 +7,9 @@
 - Worktree is reserved, detached HEAD; commit normally without changing refs.
 - Done: c196156e publishes native owner inventory and first ordinance proof before call 30. Second milestone adds six neighbour scans/counts/filters, retained combo records/selection edits, and CalculateValues arithmetic.
 - Done: 94730e06 adds neighbour population/selection and balance computation. Round 2 reviewed corrections against 0078BE92-0078BFA4 and 00767998-007679A5: signed combo divisions, common LTEXT, missing panel null guard; BW17 annotated partial.
-- Next: audit remaining largest owner methods from companion section 1 inventory, publish bounded partial report/queue. BW17 stays open for unproved bodies in section 5.
+- Done: 69b3942c commits preserved corrections and five-row proposal; reviewed raw getter/setter bytes too.
+- Done: individual enumeration/12-byte retained restore acquisition and group A traversal/row reuse slice added (sections 5/6). Both remain partial: service computations and B/slider paths unproved.
+- Next: verify new section counter/reference statements, commit, then bounded final report/queue. BW17 remainder is section 7.
 - Main checkout: C:/Users/tlori/FreeCity4; query original/export there by absolute path.
 - q.py cannot launch Bash (E_ACCESSDENIED); use local PowerShell with capped output.
 - No engine reads/edits, direct ABI edits, runtime gates or game requests authorized by this docs task.

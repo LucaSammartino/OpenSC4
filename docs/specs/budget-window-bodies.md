@@ -50,8 +50,8 @@ the already identified unlabelled owner helpers. An address is a native body, no
 | SetupWindow; SetupWindowBig; SetupWindowIndiv; SetEmptyWindow | `0077A480`; `0077A6F0`; `0077A960`; `0077BEC0` | Setup/failure body gaps |
 | init/updateOrdinanceBudget | `0077C660`; `0077ADA0` | Section 2 population; refresh audit remains |
 | init/updateNeighborBudget | `0077E600`; `00781C90` | Section 3; remaining rendering/refresh audit recorded below |
-| init/updateIndividualBudget | `00786690`; `00785740` | Occupant enumeration/restore acquisition/refresh body gaps |
-| UpdateValues | `007898A0` | Group refresh and scroll reuse gap; existing visibility predicate still applies |
+| init/updateIndividualBudget | `00786690`; `00785740` | Section 5 enumeration, restore acquisition and viewport; service-query arithmetic remains open |
+| UpdateValues | `007898A0` | Section 6 raw providers and A traversal/reuse slice; B and slider rebuilding remain open |
 | RestoreStartSettings; SetOccupantFundingLevel | `0077C5E0`; `0077BC90` | Existing sections 5.1/5.5 |
 | DoIndividualBudgetWindow; end_dialog | `00786530`; `00779850` | Existing nested-dialog and modal/modeless contracts |
 | ApplyDealEdits (unlabelled); non-deleting destructor | `0077AB40`; `0077C4C0` | Existing apply/ownership contracts |
@@ -307,12 +307,111 @@ income, using 64-bit subtraction/addition before money formatting (control `0xAA
 mapping and the remainder of summary rendering are still pending; they cannot be represented as an external
 refresh callback. SetFormattedAmountInTextControl remains an owner helper requiring its separate widget audit.
 
-## 5. Bounded remainder / completion boundary
+## 5. Individual enumeration and restore acquisition
 
-BW17 remains open, partially resolved by sections 1–4. Next bounded audits: (1) ordinance refresh, scale
+### 5.1 Raw list and viewport
+
+Both `initIndividualBudget` and `updateIndividualBudget` obtain the budget simulator from global city
+`0x00B43CEC` slot 52/+0xD0, then the department through budget slot 28/+0x70 with owner department ID
++0x24 (`0x007867E0`–`0x007867F9`, `0x00785818`–`0x00785843`). Call department slot 32/+0x80 with
+(service kind +0x134, output list). Traverse the returned linked list in its returned order and count every
+entry; store that count at +0x128 (`0x00786AC3`–`0x00786AEC`, `0x00785886`–`0x007858B2`). No extra
+owner-side availability, occupancy or funding filter precedes this count. The service-kind mapping is the
+main spec's section 5.5. Setup's zero-count branch uses SetEmptyWindow with body LTEXT
+`0x6A3FF01C:0x4A5CB4B6`, sets byte +8 to 1, and leaves the populated path (`0x00786B6B`–`0x00786BAD`).
+
+Refresh takes a window and a rebuild-restore byte (two stack arguments). It enumerates again rather than
+reusing the setup list, resets signed-64-bit running amount +0x90/+0x94 to zero, and uses min(current
+count,9) as its row quota. Every list entry is processed for service values. Rendering selects entries
+whose zero-based list ordinal is at least +0x120 (unsigned comparison), until the displayed count reaches
+that quota (`0x007858AF`–`0x007858EE`, `0x00785E6D`–`0x00785E85`). Thus a list of 12 entries at offset
+10 displays two entries, not nine; setup count does not freeze the later list. No sort is performed here.
+
+The service-specific amount is a 32-bit integer. If +0x28 equals 1, multiply it by 12 retaining low32
+before sign-extending it into the two-word total. Every entry contributes, including off-screen entries;
+addition uses ADD/ADC (`0x00785E59`–`0x00785E69`, `0x007860E0`–`0x0078612A`). Service-specific raw
+query calls, rounding, and the initial amount itself remain unproved; this is an accumulation boundary,
+not permission to source computed rows or totals from the original owner.
+
+### 5.2 Restore vector references and refresh distinction
+
+When rebuild-restore is nonzero, first clear the entire +0x44..+0x48 vector; when zero, leave it intact
+(`0x007858D4`–`0x0078590A`). For **every** returned occupant, before testing viewport membership,
+append one 12-byte record: the original list occupant interface pointer, followed by the two f32 funding
+percentages used by RestoreStartSettings (main spec section 5.1). The pointer is not the result of the
+per-entry QI for `0x26BB767E`. The two working values start as positive-zero bit patterns each iteration;
+the service-kind branch can fill them before they are copied (`0x00785930`–`0x0078595A`,
+`0x00785DD5`–`0x00785E59`). Exact per-service production of those floats remains an audit item.
+
+The append takes a temporary AddRef, copies into the vector with another AddRef, then releases the
+temporary: one net retained occupant reference per record. The capacity-growth path has the same retained
+record, copies existing records with AddRef, then releases the old records (`0x00785DDE`–`0x00785E56`,
+`0x0077D93A`–`0x0077D9A2`, copy helper `0x0077ACA0`). Clear releases each erased pointer and resets the
+end without needing to free capacity (`0x00429800`–`0x00429826`). A false rebuild byte therefore preserves
+the original cancel snapshot even while current service values and the viewport change. A true rebuild
+replaces it with one record per current list entry, including off-screen entries. The temporary per-entry
+QI is released separately at `0x007860FB`–`0x0078610B`; temporary list entries release their pointers at
+`0x00786210`–`0x00786231`. Neither release consumes the vector's retained reference.
+
+Discriminator: 12 returned occupants and rebuild=true produce 12 restore records at either offset 0 or 10.
+Another refresh with rebuild=false and a changed 11-entry list leaves those 12 saved records untouched.
+It recomputes the current count and total from the 11-entry list.
+
+## 6. Group refresh (`UpdateValues`, `0x007898A0`), bounded A traversal proof
+
+This section covers the raw provider boundary and A-side traversal/row reuse, not the complete 6265-byte
+method. A means item slot 4/+0x10 returns 1; the later B pass tests 0 and still needs its own audit.
+
+If byte +0x12C is already nonzero, return false without asking the budget provider. Otherwise set it to 1
+(`0x007899DA`–`0x007899F4`, `0x00789A89`–`0x00789AB9`). Obtain the budget simulator as in section 5,
+then call budget slot 29/+0x74 with an output vector of 40-byte group records. Search record word 0 for
+selector +0x20; use index 0 if none matches. Then call budget slot 31/+0x7C with (chosen record word 0,
+output department vector). No owner row provider supplies those results. Clear slider vector +0x2C..+0x30
+on every admitted refresh (`0x00789AC1`–`0x00789B67`). No empty-vector guard appears before the selected
+record dereference; do not invent a successful empty-group result for this path.
+
+Only if stored A count +0x124 is nonzero, reset +0x90/+0x94, then traverse departments in provider order.
+For each, obtain its item vector through department slot 21/+0x54. Traverse items in provider order, testing
+item slot 4 == 1. At the first matching item, the main spec's section 4.1 header predicate applies: for
+selectors `0x6A357B96`, `0xEA597195`, `0x0A5A72D1`, department slot 16/+0x40 must return a nonzero
+two-word amount. Zero skips that header attempt but still proceeds to the item's rules. Otherwise admit
+one header for that department (`0x00789B6C`–`0x00789C3F`).
+
+Keep two separate counters, both initially zero: q is the traversal/scroll ordinal; p is the quota counter.
+They are **not** interchangeable with a count of rows actually drawn:
+
+| A event | Draw condition | Counter change |
+|---|---|---|
+| Admitted department header | q >= +0x11C unsigned, and p < 9 | q increments always; p only when drawn |
+| Item with unsigned slot 3/+0x0C > 100 and zero two-word slot 14/+0x38 | Never; skip before flag check | Neither |
+| Other matching item, slot 17/+0x44 bit 0 clear | Never | q only |
+| Other matching item, slot 17 bit 0 set | q >= +0x11C unsigned, and p < 9 | Both q and p, even when skipped |
+
+Header counters and tests: `0x00789C2D`–`0x00789C4A`, `0x00789DBD`–`0x00789E0D`; item tests and
+counters: `0x00789E11`–`0x00789E63`, `0x0078A008`–`0x0078A01F`. Preserve the p increment for a flagged
+item before the scroll offset; replacing it with a simple nine-row slice changes the refresh.
+
+For an admitted header, add department slot 16's signed two-word amount multiplied by owner scale
++0xB0/+0xB4 (low64 product via `0x009F0D10`) to the two-word total, whether drawn or off-screen. A drawn
+header reads that accessor separately for display and accumulation (`0x00789CD6`–`0x00789D2F`);
+an off-screen header uses `0x00789DD0`–`0x00789E07`. Display uses SC4MakeMoneyString. Existing controls
+are reused, starting at `0x0ABCDE03`: header name at current ID from department slot 4/+0x10, amount at
+ID+1, and SetFlag(1,false) on ID+2; then advance control ID by 3 (`0x00789C50`–`0x00789DBD`). This
+pass does not create a new child for that header. Item rendering and B-side slider/reference rebuilding
+remain open; don't generalize the header rules to those paths.
+
+Discriminator: offset 2, a department header followed by two ordinary bit-0-set A items. The header is
+skipped (q=1,p=0), the first item is skipped (q=2,p=1), and the second item is eligible to draw (q=3,p=2
+afterwards). An ordinal-only slice that resets p when it reaches the offset would have p=1 instead.
+
+## 7. Bounded remainder / completion boundary
+
+BW17 remains open, partially resolved by sections 1–6. Next bounded audits: (1) ordinance refresh, scale
 initialization and B money formatting; neighbour combo options/set_comboBox, the +8/+12 metadata words,
 temporary-list reference balance and updateNeighborBudget row reuse;
-(2) individual enumeration/+0x44 restore acquisition and group/individual refresh reuse; (3) popup/empty/setup
+(2) individual service-query calls, float/amount derivation, remaining individual control reuse, malformed
+initializer fragment `00786F62` and its true-rebuild call at `007875C5`; full group B refresh/slider rebuilding,
+A item rendering and final stale-row cleanup; (3) popup/empty/setup
 failure references, loan-display/tax/setup helpers and remaining balance-sheet control rendering. The inventory
 above is the checklist; layout alone may stay presentation, but counts, selection, filtering, arithmetic and
 owned references cannot be delegated as already computed results of these same owners.

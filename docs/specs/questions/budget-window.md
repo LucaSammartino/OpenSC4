@@ -8,6 +8,7 @@
 <!-- Partial BW17 evidence: re-budgetwindow-bodies4, 2026-10-22. -->
 BW17 is partially resolved in [budget-window-bodies.md](../budget-window-bodies.md): exact exported owner/slot
 inventory, available-ordinance classification/map construction, six neighbour scans and counts, combo edits,
-and CalculateValues raw-input arithmetic. It remains open for the three bounded audit groups in that spec's
-section 5; no full-owner completion or same-owner callback boundary is implied. The original request follows.
+CalculateValues raw-input arithmetic, individual list/restore acquisition, and the bounded group-A refresh
+slice. It remains open for the three bounded audit groups in that spec's section 7; no full-owner completion
+or same-owner callback boundary is implied. The original request follows.
 - **BW17 - sections 1, 4, 4.1, 5.2, 5.6 and 8 whole-owner inventory / omitted bodies:** please publish the full method/slot inventory for `cSC4SubBudgetWindow` and the owned budget-panel paths, and the non-layout algorithms still omitted: ordinance enumeration/filtering, A/B counts and row-map construction in `initOrdinanceBudget`; proposed-deal enumeration, section/count rules and `+0x50` selection edits in `initNeighborBudget`/combo handling; occupant enumeration and the exact creation/ownership of `+0x44` individual restore records; all four per-mode refreshes (including group row reuse on scroll), empty/popup window creation and failure reference rules, and the panel loan-display/balance-sheet bodies. Which public external interface calls and arguments supply their raw inputs? [unimplemented: existing same-class populate/refresh host callbacks remain explicit gaps, not core coverage; no native own-class result may count as an external input. BW14/BW15 ownership and BW16 visibility are implemented from their settled text; the documented BW13 null-content divergence is retained. No whole-owner completion claimed.]
