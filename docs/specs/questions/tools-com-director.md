@@ -11,20 +11,18 @@ decoder/library rather than the director class? `00A66A31` has neighbor attribut
 only. Native evidence is required; no complete-owner credit until each row has a
 contract or an evidence-backed attribution correction approved by the coordinator.
 §5.6 now specifies `0094A2C1` including native tables; §5.7 specifies `0094A079`.
-The internal decoder parser `00A667FE` still needs a contract. §1.1 records the
+The internal decoder parser `00A667FE` is specified in §5.9. §1.1 records the
 largest inspected bodies' boundary; sampled instructions are not decoder coverage.
-
-**TD2 - Registered services' remaining dependencies**
-
-The slot bodies, native widths, open/read/seek/close, creation/list behavior and
-reference lifetime now have contracts in §5. Remaining precise dependencies:
-what are the native semantic names of the two registered
-interfaces (IDs `FCEFF549` and `3AFD825F`) and forwarded embedded-file slots?
-What does `_ftol2` return/store on NaN, infinity or out-of-range estimates at
-`0094AE63`? The open path checks none of these cases. Names must come from native
-evidence. Decoder/header contracts remain TD1, not implied by the stream wrapper.
-The framework request IDs `(056B906E,656B8EFC)` are now confirmed in §5.2;
-header parser `0094A2C1` is now specified separately in §5.6.
+2026-10-22 residual phase: §5.8 now fully specifies `00A675E0` (3405 B), including
+bit extraction, both rate layouts, partial mutation and retained fields. §1.1 adds
+precise synthesis/history/input/output boundaries for `00A6A25B`/`00407000`, whose
+complete coefficient arithmetic remains open. §§5.9–5.11 additionally specify the
+internal header, resets, ring bits, initialization, dispatch, PCM store and planar
+drain contracts. Final phase §5.12 specifies all5716 B of `00A6A25B` body-local
+window arithmetic, both coefficient layouts and the centre multiply-high rule;
+its called transform `00407000` remains unproved. Remaining U:17 bodies/17,137 B;
+exact dependencies are retained
+in the spec rather than removed from the attributable scope.
 
 **TD4 - Numeric-table reference incorrectly counted as a body**
 
