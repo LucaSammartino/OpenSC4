@@ -222,10 +222,58 @@ Net: each pair in `+0x38` owns exactly one reference to its department. Every pa
   department of every element still present and frees the storage. After an `on_shutdown` the vector is empty, so
   the destructor releases nothing more; a window destroyed without `on_shutdown` releases its pairs here.
 
-No other code path writes `+0x38` (callers of `0x0077C420`; `RestoreStartSettings` only reads it). The slider-row
-vector `+0x2C` (`SliderInfo` = {ID, department}) uses the same element layout and the same routines (`0x0077C420`
-at `0x00788376` and `0x0077E45F`, `0x005FF0C0` at `0x0077C59A`), so its department is Released the same way; the
-slider-row append that should pair with it was not byte-checked by this lane.
+No other code path writes `+0x38` (callers of `0x0077C420`; `RestoreStartSettings` only reads it).
+
+**Slider rows `+0x2C`: what a `SliderInfo` owns** *[compat]* (BW15, byte-audited): an element is 8 bytes,
+{`+0` the slider's 32-bit window ID, `+4` the department, a counted reference}. The ID is a plain integer: the
+element holds **no** reference to the slider window. The slider is made by `FUN_007794E0` (thiscall, 9 stack
+arguments, `RET 0x24`): it creates the slider through the window factory (`RZ::WCM`), configures it, inserts it with
+`ChildAdd` (slot 14 `+0x38`, at `0x00779585`) into its **first argument**, which at both call sites is the dialog
+`win` itself (the `on_init` argument, `PUSH EBP` at `0x00788D24` and `0x00789173`), not the content window
+`+0x10`, and then Releases its own creation reference (`0x0077958C`). The slider is therefore owned by the dialog's
+child list, and `§4.4` finds it again by ID. The window ID passed to `FUN_007794E0` is the same value stored in the
+element.
+
+Only two places append to `+0x2C`, both in `on_init`'s group branch, both in the expense-list (B) build loop
+(`0x00788A30`–`0x00789282`), both keyed to the **department** of the current outer iteration (the department list
+from `GetDepartmentBudgetsInGroup`, element `[EBX]`), never to a line item. The income-list (A) loop creates no
+sliders. The only append routine is `FUN_0077E550` (push_back, callers `0x00788D6E` and `0x007891BD` only); nothing
+else in `on_init` writes `+0x2C..+0x34`.
+
+| Step | Address (header row / item row) | Department refcount |
+|---|---|---|
+| temporary `SliderInfo` {ID, null} built, then the department stored and AddRef'd if non-null | `0x00788D39`–`0x00788D5C` / `0x00789188`–`0x007891AB` | +1 |
+| push_back fast path (end ≠ capacity): ID and department copied, department AddRef'd if non-null, end += 8 | `0x0077E553`–`0x0077E576` | +1 |
+| push_back grow path (end = capacity): `FUN_0077D7E0` with count 1 (`0x0077E58F`), the same grow routine as `+0x38` (BW14 table): new element +1, moved old elements net 0 | `0x0077E57E`–`0x0077E594` | +1 (net) |
+| end of that row's block: the temporary's department Released if non-null | `0x00788EC2`–`0x00788ED6` / `0x00789241`–`0x00789263` | −1 |
+
+Every path from each push_back reaches its Release before the loop's next iteration (all branches between
+`0x00788D6E` and `0x00788EC2`, and between `0x007891BD` and `0x00789241`, jump forward inside that range). Net:
+**each `+0x2C` element owns exactly one reference to its department.** A department can own several elements:
+one for its B header row and one per shown B item row, within the 9 B rows that are built (§4.1; the row counter
+`[ESP+0x14]` is shared by all departments of the group, and a header that would be the 10th row gets no slider,
+path `0x00788EDB`). A department with no shown expense row has no `+0x2C` element.
+
+When the window's references are taken and dropped, in order:
+
+| Event | `+0x2C` | `+0x38` |
+|---|---|---|
+| `on_init`, group mode, `+0x08` clear | emptied at `0x00788376`, **only in the non-empty branch** (after `SetupWindowBig`, before the first row), then filled by the B loop | emptied at `0x00787F8B`, then filled in the counting loop (BW14) — so `+0x38` is filled **before** any `+0x2C` element |
+| `on_init`, empty group branch | untouched (stays empty) | filled (BW14) |
+| `on_init` with `+0x08` set | untouched | untouched |
+| `on_shutdown` with `+0x08` set | erased first (`0x0077E45F`) | erased second (`0x0077E46F`) |
+| destructor `0x0077C4C0` | released **second** (`0x0077C59A`) | released **first** (`0x0077C592`) |
+
+Erasing (`0x0077C420`, called with begin and end) Releases the department of each removed element front to back
+(`0x0077C450`–`0x0077C463`), skipping nulls, and sets end := begin, keeping the capacity. The destructor's
+`0x005FF0C0` Releases each remaining element's department front to back (`0x005FF0D0`–`0x005FF0E1`), then frees the
+block. In the destructor both vectors are released after `+0x50` and `+0x44` (`0x0077C582`, `0x0077C58A`) and
+before the interface references `+0x1C`, `+0x18`, `+0x14`, `+0x10`, `+0x0C` (`0x0077C59F`–`0x0077C5DD`).
+
+Failed content creation (BW13) and `+0x2C`: in the native program the first `add_text` into the missing `+0x10`
+(`0x0078837B`, right after the `+0x2C` erase at `0x00788376`) faults before any slider is appended, so at the fault
+`+0x2C` is empty and `+0x38` already holds its pairs. Under the no-fault rule of BW13 the sliders are still
+created (their parent is `win`, not `+0x10`) and appended exactly as on success, with the same counts.
 
 ### 4.1 Group mode: the two lists and the special groups *[compat]* (BW1, BW7a)
 
@@ -247,8 +295,22 @@ them in order:
    and `0x007880F7`–`0x00788123`). Other groups always add the header. A department without income items has no A
    header in any group.
 2. Each item whose `GetDisplayFlags()` (line item slot 17 `+0x44`) has bit 0 (ShowLineItem) adds one row to its list
-   if `GetID() > 100` (slot 3, unsigned compare with `0x64`) **or** its amount is non-zero: `GetIncome()` (slot 14
-   `+0x38`) for A, `GetFullExpenses()` (slot 10 `+0x28`) for B. Items with ID ≤ 100 and a zero amount are hidden.
+   if `GetID() <= 100` (line item slot 3, unsigned compare with `0x64`) **or** its amount is non-zero:
+   `GetIncome()` (slot 14 `+0x38`, 64-bit) for A, `GetFullExpenses()` (slot 10 `+0x28`, 64-bit) for B. Items with
+   ID > 100 and a zero amount are hidden; an item with ID ≤ 100 is shown whatever its amount. (BW16, settled from
+   bytes: at all four sites, count A `0x007880D3`, count B `0x00788147`, build A `0x007886ED`, build B `0x00788F33`,
+   the ID is compared with `0x64` and `JBE` jumps to the "shown" path; only the fall-through (ID > 100) reaches the
+   amount test, whose zero result jumps to "hidden". In the count loops the flag test comes first, in the build loops
+   the ID/amount test comes first; both conditions must hold, so the order changes nothing.)
+
+   Slot 3 is the line item's ID. The element pointers come from the department's line-item map, whose values are
+   `cSC4LineItem` objects at their primary interface (vtable `0x00AB0F58`); slot 3 there is `0x006AAEB0`, which
+   returns the dword at object `+0x54`. `Read` (`0x006A9B60`, called through the serializable interface at object
+   `+4`, so its `+0x50` is object `+0x54`) loads it from the save; otherwise it is set by the department's line-item
+   factory (department slot 17, `FUN_006AB040`), which stores its first argument at `+0x54` (`0x006AB076`) and uses
+   the same value as the key of the department's map at `+0x4C` (`0x006AB0A8`). For comparison, slot 4 (`+0x10`,
+   `GetType`, the `== 1` income test at `0x0078806C`) returns `+0x64` and slot 17 returns the flags at `+0x58`
+   (default 5 from the constructor `FUN_006AAE20`).
 
 The same header predicate is applied again when the rows are built (`0x007884B8`, `0x00788A6E`) and on every refresh
 in `UpdateValues` (`0x00789C04` for A, `0x0078A2E8` for B), so a header that was hidden stays hidden.
@@ -260,9 +322,10 @@ sizes the dialog, and at most 9 rows of each list are created; the rest are reac
 
 Worked example (group `0x6A357B96`): department X has an income item ID 5 with income 0 and an income item ID 200
 with income 0, and `GetTotalIncome() = 0`; department Y has one expense item ID 7, full expenses 300, ideal funding
-300. A: X adds no header (special group, total income 0); item 5 is hidden (ID ≤ 100, amount 0); item 200 is shown
-(ID > 100). countA = 1. B: Y adds a header and item 7: countB = 2. In group `0x4A357EAF` the same data gives
-countA = 2 (header always added).
+300. A: X adds no header (special group, total income 0); item 5 is shown (ID ≤ 100, amount ignored); item 200 is
+hidden (ID > 100, amount 0). countA = 1. B: Y adds a header and item 7: countB = 2. In group `0x4A357EAF` the same
+data gives countA = 2 (header always added). If item 200 had income 50 instead, it would be shown too (countA = 2,
+or 3 in group `0x4A357EAF`).
 
 ### 4.4 Slider moved (`0x887113A4`)
 
@@ -521,7 +584,8 @@ many money messages arrive. `ShowWindow` (`0x00768670`) refreshes immediately an
 
 BW1–BW10 are answered (re-budgetwindow4 and re-budgetwindow-answers4, 2026-10-21; archive
 `questions/answered/budget-window.md`). Still open: **BW11**, whether Alt+Enter / Alt+F4 actually reach the dialog
-at runtime (§4.0). Not covered: pixel layout of the four populate routines, the fill point of
+at runtime (§4.0). **BW16** (row-visibility ID test, §4.1) is answered from bytes: ID ≤ 100 is always shown, ID > 100
+only with a non-zero amount, the reverse of the earlier text. `+0x2C` ownership (BW15) is settled from bytes. Not covered: pixel layout of the four populate routines, the fill point of
 the individual restore records in `initIndividualBudget` (`0x00786690`), and whether the generator's window
 procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
 
@@ -564,3 +628,30 @@ procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
     count + 1 for its `+0x38` pair (all rows hidden, both row counts 0, so no `+0x2C` rows), including across a vector grow; after `on_shutdown` every count is back to its start value; a window destroyed without
     `on_shutdown` also returns every count to its start value. An implementation that holds the department as an
     uncounted handle fails this test.
+21. (BW15) Empty groups. (a) `GetDepartmentBudgetsInGroup` returns no departments: after `on_init`, `+0x2C` and
+    `+0x38` are empty and no department was touched. (b) Departments whose rows are all hidden: `+0x2C` is empty,
+    each department's count is start + 1 (only its `+0x38` pair), as in test 20.
+22. (BW15) Non-empty group `0x4A357EAF`, refcounted fakes; every line item has display flag bit 0 set and a non-zero
+    amount (shown under any reading of the ID test). Department X has only one income item; Y has two expense items;
+    Z has twelve expense items, Y before Z. After `on_init`: X count start + 1 (pair only, no slider); Y start + 4
+    (pair + header slider + 2 item sliders); Z start + 7 (pair + header + 5 items: Y used rows 1–3 of B, Z gets rows
+    4–9, so the cap of 9 stops it). `+0x2C` holds 9 elements in build order {Y, Y, Y, Z, Z, Z, Z, Z, Z}, each with a
+    distinct slider ID matching a child of `win`. The slider windows' own refcounts do not depend on `+0x2C`. With a
+    capacity-growing vector the counts are the same.
+23. (BW15) Repeated `on_init`: a second `on_init` while `+0x08` is set changes no count and no vector. `on_shutdown`
+    then `on_init` again: after the shutdown every count is at its start; after the second `on_init` the deltas are
+    those of test 22 again (not doubled).
+24. (BW15) Shutdown then drop: after `on_shutdown` all counts are at start; destroying the window afterwards Releases
+    nothing (no count goes below start). Release order, seen by a logging fake: `on_shutdown` Releases all `+0x2C`
+    elements front to back, then all `+0x38` pairs front to back; a destructor without `on_shutdown` Releases the
+    `+0x38` pairs first, then the `+0x2C` elements, each front to back, and every count ends at start.
+25. (BW15, BW13) Content-window creation fails in the case of test 22: the implementation does not fault, sliders
+    are still created as children of `win`, and the counts and `+0x2C` contents equal test 22. (The native program
+    faults at `0x0078837B` with `+0x2C` empty and the `+0x38` pairs taken; this test does not reproduce that.)
+26. (BW16) Row visibility at the ID boundary. Group `0x4A357EAF`, one department with six income items, in order:
+    ID 99, 100, 101 each with income 0, then ID 99, 100, 101 each with income 25; every item has display flags 5
+    (bit 0 set). countA = 1 header + 5 rows = 6: hidden is only ID 101 with income 0. Repeat with the same items as
+    expense items (B, `GetFullExpenses()` 0 / 25): countB = 6, the same row hidden. The built rows (first 9) show,
+    in order, 99, 100, 99, 100, 101 after the header.
+27. (BW16) Same items as test 26 but every display flag is 4 (bit 0 clear): countA = 1 (header only) and no item row
+    is built, for every ID and amount; with flags 1 the result equals test 26.
