@@ -21,13 +21,13 @@ fn all_77_registry_vectors() {
                 check_entry(&properties.bool_properties()[index as usize], &fields);
                 assert_eq!(properties.get_bool(index), Some(fields[4].parse().unwrap()));
                 assert_eq!(properties.bool_name(index), Some(fields[2]));
-                assert_eq!(properties.find_bool(&fields[2].to_ascii_uppercase()), index);
+                assert_eq!(properties.find_bool(fields[2].to_ascii_uppercase()), index);
                 let winner = match index {
                     22 => 11,
                     28 => 9,
                     _ => index,
                 };
-                assert_eq!(properties.find_bool(&fields[3].to_ascii_uppercase()), winner);
+                assert_eq!(properties.find_bool(fields[3].to_ascii_uppercase()), winner);
             }
             "int" => {
                 assert_eq!(index, counts[1]);
@@ -35,9 +35,9 @@ fn all_77_registry_vectors() {
                 check_entry(&properties.int_properties()[index as usize], &fields);
                 assert_eq!(properties.get_int(index), Some(fields[4].parse().unwrap()));
                 assert_eq!(properties.int_name(index), Some(fields[2]));
-                assert_eq!(properties.find_int(&fields[2].to_ascii_uppercase()), index);
+                assert_eq!(properties.find_int(fields[2].to_ascii_uppercase()), index);
                 let winner = if index == 19 { 4 } else { index };
-                assert_eq!(properties.find_int(&fields[3].to_ascii_uppercase()), winner);
+                assert_eq!(properties.find_int(fields[3].to_ascii_uppercase()), winner);
             }
             "float" => {
                 assert_eq!(index, counts[2]);
@@ -45,9 +45,9 @@ fn all_77_registry_vectors() {
                 check_entry(&properties.float_properties()[index as usize], &fields);
                 assert_eq!(properties.get_float(index), Some(fields[4].parse().unwrap()));
                 assert_eq!(properties.float_name(index), Some(fields[2]));
-                assert_eq!(properties.find_float(&fields[2].to_ascii_uppercase()), index);
+                assert_eq!(properties.find_float(fields[2].to_ascii_uppercase()), index);
                 let winner = if index == 4 { 3 } else { index };
-                assert_eq!(properties.find_float(&fields[3].to_ascii_uppercase()), winner);
+                assert_eq!(properties.find_float(fields[3].to_ascii_uppercase()), winner);
             }
             kind => panic!("unrecognised vector type: {kind}"),
         }
