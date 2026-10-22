@@ -4777,8 +4777,10 @@ va	name	source	confidence	note
 005f26f0	cSC4PylonOccupant::DoMessage	auto:B0	medium	mac 0019a9fa score 0.99 support 3.5
 005f2830	cSC4PylonOccupant::Draw	auto:B3	medium	mac 0019a800 score 0.94 support 2.5
 005f29b0	__ZThn60_N17cSC4PylonOccupant4DrawEP14SC4DrawContextb	auto:B4	low	mac 006a4f2a score 0.96 support 1.0
+005f29c0	SC4QuadGrid::GetClampedGridRect	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §2; round-half-even edges, clamped to the grid
 005f2a90	SC4QuadGrid::SetGridRectForElement	auto:D	medium	mac 002904e2 score 0.5 support 2
 005f2b30	SC4QuadGrid::RemoveElement	auto:D	medium	mac 00290962 score 0.5 support 1
+005f2c70	SC4QuadGrid::GetQuadrantsInRect	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §8; at most n quadrants
 005f2d40	SC4QuadGrid::SetQuadrantFlagsForElement	auto:B0	medium	mac 00290636 score 0.993 support 2.0
 005f3040	SC4QuadGridQuadrant::RemoveAllElements	auto:B5	medium	mac 00290b48 score 0.969 support 1.0
 005f30a0	SC4QuadGrid::RemoveAllElements	auto:B4	medium	mac 00290ba8 score 0.995 support 2.0
@@ -9025,16 +9027,19 @@ va	name	source	confidence	note
 007c2c10	cSC43DRender::SetViewFogEnabled	auto:C	high	mac 00503dca score 1.0 support 1
 007c2c30	cSC43DRender::GetLightingEnabled	auto:C	low	mac 00503e62 score 1.0 support 1
 007c2c40	cSC43DRender::SetLightingEnabled	auto:C	high	mac 00503e72 score 1.0 support 1
+007c2c70	cSC43DRender::ClipRectToViewport	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §7.2
 007c2cd0	cSC43DRender::BorrowRenderSystem	auto:C	low	mac 00503ea8 score 1.0 support 1
 007c2ce0	cSC43DRender::ReturnRenderSystem	auto:C	high	mac 00503eba score 1.0 support 1
 007c2d50	cSC43DRender::GetStatsString1	auto:A	high	mac 00503f30 score 1.0 support 0
 007c2db0	cSC43DRender::GetStatsString2	auto:A	high	mac 00503fa8 score 1.0 support 0
 007c2e50	cS3DBoundingBox::cS3DBoundingBox	auto:D	medium	mac 0066830e score 0.5 support 1
+007c2eb0	cSC43DRender::MakeDrawSortKey	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §6; sort value halves + depth x 65535
 007c2f80	(anonymous_namespace)::SC4ComputeViewportZProjection	auto:B7	medium	mac 00504150 score 0.996 support 2.5
 007c3060	cSC43DRender::Release	auto:C	high	mac 005029b0 score 1.0 support 2
 007c3090	cSC43DRender::StaticShutdown	auto:B1	medium	mac 00502ad6 score 0.947 support 1.0
 007c30f0	cSC43DRender::Write	auto:C	high	mac 00506190 score 1.0 support 1
 007c3180	cSC43DRender::Read	auto:A	high	mac 0050630a score 1.0 support 0
+007c3230	cSC43DRender::AccumulateViewTranslation	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §7.2; pending translated update
 007c32a0	cSC43DRender::DoSingleModelStaticDrawAddition	auto:B5	medium	mac 00504496 score 0.972 support 2.0
 007c3350	cSC43DRender::ClearViewportWithSolidColor	auto:B3	medium	mac 00504032 score 0.935 support 1.0
 007c3400	cSC43DRender::DrawViewportRectangle	auto:A	high	mac 00504680 score 1.0 support 0
@@ -9042,8 +9047,11 @@ va	name	source	confidence	note
 007c3790	cSC43DRender::MoveGridElement	auto:D	medium	mac 0050adfa score 0.5 support 1
 007c3810	cSC43DRender::StaticSetGDriver	auto:A	high	mac 00503b82 score 1.0 support 0
 007c38d0	cSC43DRender::RestoreBackingStore	auto:D	medium	mac 00503d02 score 0.5 support 1
+007c3950	cSC43DRender::PartitionDrawListDescending	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §6
+007c3a10	cSC43DRender::PartitionDrawListAscending	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §6
 007c3ad0	std::vector<cSC43DRender::ModelChangeQueueItem,std::allocator<cSC43DRender::ModelChangeQueueItem>>::push_back	auto:D	medium	mac 00821600 score 0.5 support 1
 007c3b30	cSC43DRender::FindInViewObjectList	auto:D	medium	mac 005048e8 score 0.5 support 1
+007c3b60	cSC43DRender::ClearViewObjectList	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §11
 007c3be0	cSC43DRender::SetGDriver	auto:C	high	mac 00508070 score 1.0 support 1
 007c3c60	cSC43DRender::SetClipRect	auto:B7	medium	mac 00508102 score 0.911 support 1.0
 007c3d50	SC43DGridElement::SC43DGridElement	auto:D	medium	mac 0081ffbe score 0.5 support 1
@@ -9062,6 +9070,8 @@ va	name	source	confidence	note
 007c5370	cSC43DRender::RebuildQuadGrid	auto:B2	medium	mac 0050ba52 score 0.989 support 2.0
 007c5540	cSC43DRender::ModelShouldGoIntoBackingStore	auto:B5	medium	mac 00505a36 score 0.886 support 3.0
 007c55c0	cSC43DRender::ReevaluateBackingStoreObjectFlags	auto:B4	medium	mac 00505b10 score 0.953 support 1.0
+007c56d0	cSC43DRender::SortDrawListDescending	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §6
+007c5710	cSC43DRender::SortDrawListAscending	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §6
 007c5ac0	cSC43DRender::RemoveViewObject	auto:C	high	mac 00505d56 score 1.0 support 1
 007c5c80	cSC43DRender::InsertIntoViewObjectList	auto:D	medium	mac 00505c10 score 0.5 support 1
 007c5d00	cSC43DRender::SetGraphicSystem	auto:C	high	mac 00506258 score 1.0 support 1
@@ -9072,6 +9082,7 @@ va	name	source	confidence	note
 007c6830	cSC43DRender::Pick	auto:C	high	mac 0050c64e score 1.0 support 1
 007c6bc0	cSC43DRender::StartScreenShake	auto:A	high	mac 00507940 score 0.686 support 0
 007c6d80	cSC43DRender::ClearDirtyRectangleQueue	auto:B6	medium	mac 00505538 score 0.91 support 2.0
+007c6e30	cSC43DRender::FlushModelChangeQueue	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §11; queued models removed at shutdown
 007c6fe0	std::vector<cSC43DRender::ModelChangeQueueItem,std::allocator<cSC43DRender::ModelChangeQueueItem>>::size	auto:B0	medium	mac 00820456 score 0.924 support 3.0
 007c7070	cSC43DRender::Shutdown	auto:B2	medium	mac 005056d6 score 0.948 support 7.0
 007c7310	cSC43DRender::DoFullViewUpdate	auto:B23	medium	mac 005055a2 score 0.952 support 3.0
@@ -9110,6 +9121,11 @@ va	name	source	confidence	note
 007cb0b0	cSC43DRender::DoMessage	auto:B0	medium	mac 0050be0e score 0.99 support 7.0
 007cb530	cSC43DRender::Draw	auto:B3	medium	mac 0050b252 score 0.955 support 3.5
 007cb920	cSC4OccupantTypesFilter::cSC4OccupantTypesFilter	auto:B7	medium	mac 0061ebe2 score 0.831 support 2.0
+007c9fe0	cSC43DRender::QueryInterface (thunk at +4)	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §11
+007c9ff0	cSC43DRender::QueryInterface (thunk at +8)	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §11
+007ca000	cSC43DRender::Release (thunk at +4)	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §11
+007ca010	cSC43DRender::Release (thunk at +8)	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §11
+007ca020	cSC43DRender::~cSC43DRender (body)	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §11
 007cb940	cSC4CameraControl::QueryInterface	manual:camera.tsv	high	camera.md Â§2.1; descriptive name; slot 0 of 0x00ABAD18; IIDs 1, 0xC9C628EC and 0xE4FDA3D4
 007cb970	cSC4CameraControl::DetachFromCamera	manual:camera.tsv	high	camera.md Â§2.6; descriptive name, no Mac match; releases +0xC; callers 0x007AC3F0, 0x007F15C2
 007cb990	cSC4CameraControl::GetViewportSize	manual:camera.tsv	high	camera.md Â§2.6; +0x12C, +0x130
@@ -9222,6 +9238,7 @@ va	name	source	confidence	note
 007d4530	SC4DrawContext::SetRenderState	manual:draw-context.tsv	high	draw-context.md Â§5.2; the packed form: (value ^ word) & mask, then the stage-0 defaults
 007d47e0	SC4DrawContext::SetTexEnvMode	manual:draw-context.tsv	high	draw-context.md Â§7.1; Mac name kept; prepares the emulated second-stage pass
 007d4a80	SC4DrawContext::RenderMesh	manual:draw-context.tsv	high	draw-context.md Â§9.1; DrawArrays or DrawElements per group
+007d4f80	SC4DrawContext::SetHighlightColor	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §11; colour i of the 11
 007d4fb0	SC4DrawContext::SetRenderStateHighlight	manual:draw-context.tsv	high	draw-context.md Â§5.2; highlight state +0xCC, colour from +0x54, combiner +0xD4
 007d5030	SC4DrawContext::DrawBoundingBox	manual:draw-context.tsv	high	draw-context.md Â§9.3; packed state 0x020A8197 / 0x1E1FE3FF
 007d5200	SC4DrawContext::SetDefaultRenderState	manual:draw-context.tsv	high	draw-context.md Â§5.2; top of the stack +0x1EC or the default +0x88

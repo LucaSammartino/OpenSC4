@@ -321,7 +321,7 @@ generated index: the questions live one file per spec, so read only the file for
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | system-service-pointer | 2 | 1 | SSP4 | questions/system-service-pointer.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
-| terrain-view | 3 | 0 | TV4 | questions/terrain-view.md |
+| terrain-view | 2 | 1 | TV4 | questions/terrain-view.md |
 | text-decal-occupant | 1 | 0 | TDO2 | questions/text-decal-occupant.md |
 | text-edit | 2 | 6 | TE9 | questions/text-edit.md |
 | texture-bindings | 3 | 1 | TB9 | questions/texture-bindings.md |
@@ -346,4 +346,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **531** | **1272** | | |
+| **total** | **530** | **1273** | | |

@@ -928,9 +928,19 @@ answering `cISC43DRender`; where a test needs the original, it is marked.
    breakpoint on `0x00593120` under one harness frame.
 2. **V3D-2.** What `SC4DrawContext` slot 3 (`+0x0C`) does — the one every `DrawPre*`/`DrawPost*` bracket calls
    (`0x007C3E3E` and three siblings). Settle by reading `SC4DrawContext`'s vtable row 3 in `docs/abi/vtables.tsv`.
+   **Answered 2026-10-21 (re-render3d):** no draw-context slot is called. Each bracket sets the draw context's pass
+   word (`+0x50`: 0, 2, 3, 5 for `DrawPreStaticView`, `DrawPostStaticView`, `DrawPreDynamicView`,
+   `DrawPostDynamicView`; the passes themselves are 1 and 4) and calls slot 3 (draw) of every view object registered
+   in its layer (render3d.md §11.1), passing the draw context.
 3. **V3D-3.** What `0x00B43CC4` is and what its `+0x0C` object's `+0x5C` and `+0x3C` bytes mean (the static and
    dynamic gates). Settle by the writer of `0x00B43CC4`.
+   **Answered 2026-10-21 (re-render3d):** `0x00B43CC4` is the render properties (render-properties.md §1.1); its
+   `+0x0C` is the boolean table, whose byte `+0x5C` is boolean 2 `kRenderStaticView` and `+0x3C` boolean 1
+   `kRenderDynamicView`.
 4. **V3D-4.** What `0x00B0DC19` is (the backing-store master switch) and who writes it.
+   **Answered 2026-10-21 (re-render3d):** `0x00B0DC19` is the backing-store switch, 1 at start;
+   `SetBackingStoreEnabled` (slot 57) writes it, forcing it off when no backing-store surface exists (render3d.md
+   §3.4, §12).
 5. **V3D-5.** The full `SC4DrawContext` slot table. This spec names 30 of its methods from `re/names_windows.tsv`
    but gives no slot numbers. Settle by generating its vtable rows (`cSC4DrawContext` is unnamed in
    `docs/abi/vtables.tsv` because it has no class vtable entry there).
