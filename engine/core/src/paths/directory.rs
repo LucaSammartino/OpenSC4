@@ -94,4 +94,3 @@ impl<P: DirectoryProvider> Drop for FindSearch<'_, P> {
 pub fn find_next<P: DirectoryProvider>(search: Option<&mut FindSearch<'_, P>>) -> bool {
     search.is_some_and(FindSearch::advance)
 }
-
