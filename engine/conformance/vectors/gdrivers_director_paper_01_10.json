@@ -1,0 +1,122 @@
+{
+  "format": 1,
+  "name": "gdrivers_director_paper_01_10",
+  "spec": [
+    "renderer-gdrivers-director.md \u00a7\u00a72\u20137",
+    "renderer-gdrivers-director-inventory.md \u00a7\u00a71\u20138"
+  ],
+  "description": "GD1\u2013GD65 are native-derived paper stimuli from the specifications; 66\u201380 add boundary and helper coverage. Expected words and call-order predicates are fixed independently of implementation outputs. Safe faults stand for native invalid accesses, not Boolean failures.",
+  "steps": [
+    {
+      "op": "gd_paper",
+      "id": 1,
+      "expect": [
+        1,
+        0,
+        3,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 2,
+      "expect": [
+        1689430275,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 3,
+      "expect": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 4,
+      "expect": [
+        1,
+        5,
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 5,
+      "expect": [
+        1,
+        1,
+        0,
+        2,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 6,
+      "expect": [
+        0,
+        123,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 7,
+      "expect": [
+        1,
+        900,
+        1,
+        900,
+        1,
+        900,
+        3,
+        1
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 8,
+      "expect": [
+        0,
+        123,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 9,
+      "expect": [
+        1,
+        123,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 10,
+      "expect": [
+        1,
+        66,
+        1,
+        0
+      ]
+    }
+  ]
+}

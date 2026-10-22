@@ -1,0 +1,174 @@
+{
+  "format": 1,
+  "name": "gdrivers_director_paper_61_70",
+  "spec": [
+    "renderer-gdrivers-director.md \u00a7\u00a72\u20137",
+    "renderer-gdrivers-director-inventory.md \u00a7\u00a71\u20138"
+  ],
+  "description": "GD1\u2013GD65 are native-derived paper stimuli from the specifications; 66\u201380 add boundary and helper coverage. Expected words and call-order predicates are fixed independently of implementation outputs. Safe faults stand for native invalid accesses, not Boolean failures.",
+  "steps": [
+    {
+      "op": "gd_paper",
+      "id": 61,
+      "expect": [
+        0,
+        1,
+        3,
+        1,
+        0
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 62,
+      "expect": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        1
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 63,
+      "expect": [
+        2,
+        2,
+        1,
+        2,
+        3,
+        8,
+        0,
+        8,
+        8,
+        1632,
+        1
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 64,
+      "expect": [
+        0,
+        1,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 65,
+      "expect": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 66,
+      "expect": [
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 67,
+      "expect": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 68,
+      "expect": [
+        101187712,
+        600,
+        800,
+        7,
+        100,
+        1,
+        35,
+        8908304,
+        7,
+        1,
+        3293923393,
+        0
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 69,
+      "expect": [
+        1,
+        900,
+        100,
+        1,
+        26,
+        123,
+        100,
+        0,
+        1,
+        900,
+        100,
+        1,
+        26,
+        123,
+        100,
+        0,
+        1,
+        900,
+        100,
+        1,
+        26,
+        123,
+        100,
+        0,
+        26,
+        123,
+        100,
+        0,
+        1,
+        900,
+        100,
+        1,
+        26,
+        123,
+        100,
+        0,
+        27,
+        123,
+        100,
+        0
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 70,
+      "expect": [
+        3,
+        6,
+        10,
+        10,
+        480,
+        1,
+        1,
+        1
+      ]
+    }
+  ]
+}
