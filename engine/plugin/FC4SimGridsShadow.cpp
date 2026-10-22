@@ -79,9 +79,9 @@ struct Shadow {
 };
 std::mutex mu;
 std::map<uint64_t, Shadow> natural;
-std::map<uint64_t, uint64_t> rejected;
+std::map<uint64_t, std::pair<std::string,uint64_t>> rejected;
 std::map<uint64_t, Shadow>::iterator Find(uint64_t t) {
-    auto r=rejected.find(t); if(r!=rejected.end()) ++r->second;
+    auto r=rejected.find(t); if(r!=rejected.end()) ++r->second.second;
     return natural.find(t);
 }
 
@@ -211,15 +211,15 @@ void SimGridsShadowFixtures() {
 }
 
 void SimGridsShadowTrack(const char* owner,uint64_t t) {
-    if(!Enabled() || !t || !owner || (std::strcmp(owner,"power")!=0 && std::strcmp(owner,"weather")!=0)) return;
+    if(!Enabled() || !t || !owner || (std::strcmp(owner,"power")!=0 && std::strcmp(owner,"pollution")!=0)) return;
     std::lock_guard<std::mutex> lock(mu);
     if(natural.count(t) || rejected.count(t)) return;
     Shadow s; s.owner=owner;
     if(!s.Capture(FromToken(t),s.record)) { Log("simgrids-shadow: source=natural owner=power bootstrap_failed=1 token=%p",FromToken(t)); return; }
     s.kind=Field<uint32_t>(s.record,3);
     if(FindEnabledClass(s.kind)) { // Public factory provenance, no vtable guesses.
-        rejected.emplace(t,0);
-        Log("simgrids-shadow: source=natural owner=power refused_replacement=1 token=%p comparisons=0",FromToken(t));
+        rejected.emplace(t,std::make_pair(std::string(owner),uint64_t(0)));
+        Log("simgrids-shadow: source=natural owner=%s refused_replacement=1 token=%p comparisons=0",owner,FromToken(t));
         return;
     }
     std::vector<uint8_t> roundtrip;
@@ -274,7 +274,7 @@ void SimGridsShadowShutdown(uint64_t t,bool result) {
 void SimGridsShadowRelease(uint64_t t) {
     if(!Enabled()) return; std::lock_guard<std::mutex> lock(mu);
     auto r=rejected.find(t);
-    if(r!=rejected.end()) { Log("simgrids-shadow: source=natural-release owner=power token=%p refused_replacement=1 unverified_calls=%llu exact=0/0 resync=0 fallback=0",FromToken(t),r->second); rejected.erase(r); return; }
+    if(r!=rejected.end()) { Log("simgrids-shadow: source=natural-release owner=%s token=%p refused_replacement=1 unverified_calls=%llu exact=0/0 resync=0 fallback=0",r->second.first.c_str(),FromToken(t),r->second.second); rejected.erase(r); return; }
     auto it=natural.find(t); if(it==natural.end()) return;
     it->second.RecordCheck(FromToken(t)); it->second.Report("natural-release",t); natural.erase(it);
 }
