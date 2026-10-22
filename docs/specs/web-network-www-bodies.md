@@ -6,9 +6,9 @@ Native attribution snapshot: main `build-runs/run4-owners-current.tsv`, read 202
 
 | Status | Bodies | Bytes |
 |---|---:|---:|
-| C | 71 | 18705 |
-| P | 4 | 4403 |
-| O | 73 | 10941 |
+| C | 78 | 22807 |
+| P | 2 | 1692 |
+| O | 68 | 9550 |
 | Total | 148 | 34049 |
 
 Q7 covers remaining FTP login, listing acquisition, commands and outer scheduler; Q8 is answered in §4.12; Q9 covers remaining scheduler/resource/container helpers and adapters beyond §4.14. Round 2 adds 24 documented bodies / 11466 B over ad775348's 47 / 7239 B; the 148 / 34049 B inventory is unchanged. C includes explicit native unsafe-input limitations, not deterministic output for uninitialized bytes. 008f9bad has only its capacity/default state inspected (§3.6); its whole constructor is not credited. Existing URL/cookie contracts are not duplicated. Public Release thunk 009cc22d and folded getters attributed to other owners are not added to this total.
@@ -19,8 +19,8 @@ Q7 covers remaining FTP login, listing acquisition, commands and outer scheduler
 | 00814560 | 1878 | reach | C: 4.13 / web-network-ftp.md | FUN_00814560 |
 | 00813e90 | 1741 | reach | C: 4.13 / web-network-ftp.md | FUN_00813e90 |
 | 00816ee0 | 1628 | reach | P: Q7 | FUN_00816ee0 |
-| 008163d0 | 1466 | reach | P: Q7 | FUN_008163d0 |
-| 00815d30 | 1245 | reach | P: Q7 | FUN_00815d30 |
+| 008163d0 | 1466 | reach | C: 4.13 / web-network-ftp-control.md §3 | FUN_008163d0 |
+| 00815d30 | 1245 | reach | C: 4.13 / web-network-ftp-control.md §1 | FUN_00815d30 |
 | 008f7a50 | 1062 | reach | C: 4.12 | FUN_008f7a50 |
 | 008f8ffe | 988 | reach | C: 4.4 | FUN_008f8ffe |
 | 008f8c5a | 932 | reach | C: 4.7 | FUN_008f8c5a |
@@ -35,13 +35,13 @@ Q7 covers remaining FTP login, listing acquisition, commands and outer scheduler
 | 008f84ea | 483 | name-medium | C: 4.1–4.5, 4.9 | cGZWWWSystem::LoadFileDocument |
 | 00818210 | 481 | reach | O: Q9 | FUN_00818210 |
 | 008f815f | 478 | reach | C: 4.8 | FUN_008f815f |
-| 00816af0 | 451 | reach | O: Q7 | FUN_00816af0 |
+| 00816af0 | 451 | reach | C: 4.13 / web-network-ftp-control.md §4 | FUN_00816af0 |
 | 00812ba0 | 437 | reach | C: 4.13 / web-network-ftp.md | FUN_00812ba0 |
 | 00823000 | 432 | reach | C: 4.11 | FUN_00823000 |
 | 008f833d | 429 | name-medium | C: 4.1–4.5, 4.9 | cGZWWWSystem::LoadDocument |
-| 00816230 | 415 | reach | O: Q7 | FUN_00816230 |
+| 00816230 | 415 | reach | C: 4.13 / web-network-ftp-control.md §3.1 | FUN_00816230 |
 | 00817600 | 399 | reach | O: Q7 | FUN_00817600 |
-| 008126d0 | 360 | reach | O: Q7 | FUN_008126d0 |
+| 008126d0 | 360 | reach | C: 4.13 / web-network-ftp-control.md §2 | FUN_008126d0 |
 | 0081cda0 | 319 | reach | C: 4.14 | FUN_0081cda0 |
 | 00817bd0 | 300 | neighbour | C: 4.14 | FUN_00817bd0 |
 | 008f9bed | 299 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::cGZWWWSystem |
@@ -87,7 +87,7 @@ Q7 covers remaining FTP login, listing acquisition, commands and outer scheduler
 | 00811da0 | 98 | reach | C: 4.13 / web-network-ftp.md | FUN_00811da0 |
 | 00813c50 | 94 | reach | C: 4.9 | FUN_00813c50 |
 | 00819650 | 94 | reach | C: 4.9 | FUN_00819650 |
-| 00812840 | 94 | reach | O: Q7 | FUN_00812840 |
+| 00812840 | 94 | reach | C: 4.13 / web-network-ftp-control.md §3.1 | FUN_00812840 |
 | 008f698b | 90 | name-high | C: 4.6 | cGZWWWSystem::DoMessage |
 | 008f6e2b | 85 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::RemoveURLHandler |
 | 00811e10 | 84 | reach | O: Q7 | FUN_00811e10 |
@@ -101,7 +101,7 @@ Q7 covers remaining FTP login, listing acquisition, commands and outer scheduler
 | 008f714a | 75 | reach | O: Q9 | FUN_008f714a |
 | 008f687d | 73 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::QueryInterface |
 | 008f72b5 | 72 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::LoadDocument |
-| 00812970 | 71 | reach | O: Q7 | FUN_00812970 |
+| 00812970 | 71 | reach | C: 4.13 / web-network-ftp-control.md §3.1 | FUN_00812970 |
 | 008f692a | 65 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::Shutdown |
 | 008f9bad | 64 | reach | P: 3.6 / Q9 | FUN_008f9bad |
 | 008f708a | 57 | name-high | C: 4.1–4.5, 4.9 | cGZWWWSystem::AddURLHandler |

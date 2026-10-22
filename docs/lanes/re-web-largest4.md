@@ -1,6 +1,17 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-web-largest4: cGZWWWSystem behavior (RE), round 2/3 | re-web-largest4 / .claude/worktrees/re-web-largest4 (RE, detached HEAD) | wip: 71/148 bodies, 18705/34049 B documented; Q8 answered; Q7/Q9 partial; docs checks pass; native/game gates n/a | Coordinator decides round 3; trace 00816ee0, 008163d0, 00815d30, then remaining checklist/Q9. |
+| re-web-largest4: WWW native contracts, final round 3/3 | `re-web-largest4` / `.claude/worktrees/re-web-largest4` (RE, detached HEAD) | in progress | Prove remaining Q7/Q9 bodies; publish exact residual and PARK if partial. |
+
+## Handoff
+- Goal: final round 3/3; preserve bdd8e715 and 71/148 bodies, 18705/34049 B; no fourth round.
+- Baseline: bdd8e715 reconciliation; f949602d cache, ff9195ad FTP parser/transfers, a72140de HTTP admission/cancel. Do not retrace these for credit.
+- Exact residual: P=4/4403 B, O=73/10941 B; docs/specs/web-network-www-bodies.md.
+- Milestone: seven new bodies / 4102 B in web-network-ftp-control.md; C=78/22807 B, P=2/1692 B, O=68/9550 B. Login saved-boolean and listing wrong-argument bugs verified in instructions.
+- Next: finish 00816ee0 plus 00812390 and worker/resource shutdown; then largest O rows. Initial login/listing milestone committed with this handoff.
+- Q7/Q9 partial; Q8 answered; unrelated Q1/Q3 untouched. Native evidence only, docs only, no engine/tools/maps/ABI edits.
+- q.py cannot start Bash (E_ACCESSDENIED); use bounded PowerShell and apply_patch.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-web-largest4-r3-manifest.json.
+- Detached HEAD intentional; no refs/config/maintenance/merge/push, subagents, network or game runs.
 
 ## Earlier checkpoint (historical; superseded by round 2 report below)
 - Goal: specify only cGZWWWSystem (reported owner 34049 B), native evidence, no engine/tools/ABI edits.

@@ -219,9 +219,7 @@ running the game or generating network traffic.
 
 ## 6. Deliberately unresolved Q7 boundary
 
-This contract does not assign behavior to login 00815d30, listing acquisition 008163d0,
-outer scheduler 00816ee0, initialization 00812390, or the remaining commands in the complete
-148-body checklist. No FTP retry count, shutdown/drain or cancellation suppression contract
-is inferred from RETR/STOR. Listing format detection and selection by login remain open;
-section 1 takes an already-selected numeric format. Unsafe native fixed-column cases have
-no invented deterministic output. The checklist distinguishes these remaining bodies.
+Login, listing acquisition, format selection and disconnect are now specified in
+[web-network-ftp-control.md](web-network-ftp-control.md). Outer scheduling, initialization
+and the other checklist gaps remain open as recorded there. No shutdown/drain or cancellation
+suppression is inferred from RETR/STOR; unsafe fixed-column cases still have no invented output.
