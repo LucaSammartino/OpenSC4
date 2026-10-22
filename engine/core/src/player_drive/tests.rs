@@ -694,6 +694,25 @@ fn end_input_and_escape_order_callbacks_slot18_cleanup_and_base_stack_removal() 
 }
 
 #[test]
+fn non10_cleanup_uses_literal_scope_without_inventing_a_state_transition() {
+    for state in [0, 2, u32::MAX] {
+        let (mut owner, mut f) = driving();
+        let data = f.objects.get_mut(&11).unwrap();
+        data.state = state;
+        data.flags = 0x0800_0000;
+        data.group = 0x4003;
+        owner.stop_tracking(&mut f).unwrap();
+        assert!(!f
+            .operations
+            .iter()
+            .any(|op| matches!(op, Operation::Slot53(_) | Operation::State13 { .. })));
+        assert_eq!(f.operations.last(), Some(&Operation::ReleaseDriven(A)));
+        assert!(!f.queries.contains(&"flags31"));
+        assert!(!f.queries.contains(&"group"));
+    }
+}
+
+#[test]
 fn removed_and_notification_identity_matching_is_mandatory() {
     for via_message in [false, true] {
         let (mut owner, mut f) = driving();
@@ -896,6 +915,22 @@ fn raw_camera_values_keep_bits_and_reject_undefined_subtraction_domains() {
         );
         assert_eq!(f.operations, [Operation::DisasterLayer(false)]);
         assert_eq!(owner.current(), None);
+    }
+    for level in [0, -1, i32::MIN, i32::MAX, 7] {
+        let mut owner = PlayerDrive::new(99);
+        let mut f = Foreign::default();
+        assert_eq!(
+            owner.enter_driving_mode(
+                &mut f,
+                A,
+                CameraFields {
+                    level: Some(level),
+                    ..CameraFields::default()
+                }
+            ),
+            Err(Unsupported::NumericBoundary)
+        );
+        assert_eq!(f.operations, [Operation::DisasterLayer(false)]);
     }
     let mut owner = PlayerDrive::new(99);
     let mut f = Foreign::default();

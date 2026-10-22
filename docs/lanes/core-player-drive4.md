@@ -5,8 +5,8 @@
 ## Handoff
 - Goal: first portable player-drive owner from drive-tool sections 1-10; no native/ABI work.
 - Done: audit/questions/literal fixtures committed as 1ebdc0a1 before implementation.
-- Done: production owner/tests df9c801a; literal message/domain tightening 2c43a25c; 25 new tests, not yet executed because module registration awaits baseline completion.
-- Next: collect baseline operation (exec session 44795), register module, commit, run absolute fmt and serial quick/final all.
+- Done: production owner/tests df9c801a; tightening 2c43a25c; explicit callback tool identity bb25fc0e. Module now registered; 26 new tests not yet executed.
+- Next: collect baseline operation (exec session44795/PID37080), then serial quick and final all on this committed production source. Never duplicate an active build.
 - q.py cannot start Bash (E_ACCESSDENIED); use bounded PowerShell commands.
 - Process inventory: native command-line/handle query succeeded: baseline qbuild PID37080 (102 handles), attributable fc4-core test compiler PID8136 (126 handles); compiler later completed. No duplicate check started.
 - Baseline all PID37080 / exec session44795: Rust complete 5142 passed/0 failed across 22 summaries; clippy finished clean (4m32s). CMake configured, build still active; collect it before another build.
@@ -14,6 +14,7 @@
 - New-file absolute fmt passed (2 files); baseline lib.rs fmt failure remains separate. No game requests/native probes; no ABI changes. DR1/DR2 retained; appended DR3-DR8.
 - Actual CMake cache: Debug, Ninja, FC4_CHECKED=OFF, compiler cache ON, Rust target i686-pc-windows-msvc; no source/default flags changed.
 - Callback39/40 plans now carry explicit tool identity as well as automaton; commit before registering module/checking it.
+- Registration followed baseline Rust/clippy completion and its native core compilation; active native baseline uses earlier objects and is not an owner-source gate. Final quick/all remain mandatory.
 
 ## Pre-implementation method audit
 
@@ -58,6 +59,6 @@ The new `engine/core/src/player_drive` owns current/hover identities, selected/h
 
 `enter_driving_mode` is an explicitly partial projection, not native entry: it marks omitted ShowUI, audio-table and settings-selection steps and always returns their unsupported gaps. It selects an ID without loading a dashboard. Light/button effects require an explicitly attached, already-created window. Normal keys stop at Unsupported HandleKeyEffects after raw lookup; direct numeric commands and the published mouse paths exercise the owned table. Unknown/nonboolean/missing primitive domains fail visibly, keeping already-emitted prefixes instead of inventing rollback or releases.
 
-`fixtures.md` was committed before production implementation (1ebdc0a1). The 25 tests discriminate table/order/state decisions rather than roundtripping serialization or asking a host for an owner outcome. No new-owner native equivalence, implemented bytes, shadow measurement, replacement/default promotion or complete Init/Shutdown is claimed. This is the first bounded portion of this distinct owner; no foreign-owner bodies count toward its credit.
+`fixtures.md` was committed before production implementation (1ebdc0a1). The 26 tests discriminate table/order/state decisions rather than roundtripping serialization or asking a host for an owner outcome. No new-owner native equivalence, implemented bytes, shadow measurement, replacement/default promotion or complete Init/Shutdown is claimed. This is the first bounded portion of this distinct owner; no foreign-owner bodies count toward its credit.
 
 Questions DR3-DR8 are appended only in `docs/specs/questions/drive-tool.md`; DR1 and DR2 remain open and unchanged. The generated question index is deliberately not edited or regenerated under this lane's restrictions.
