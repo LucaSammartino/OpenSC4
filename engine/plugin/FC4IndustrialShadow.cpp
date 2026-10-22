@@ -31,7 +31,12 @@ struct ProbeInput final : cIGZIStream {
     size_t pos = 0;
     int32_t error = 0;
     uint32_t calls = 0, unexpected = 0;
-    bool QueryInterface(uint32_t, void**) override { ++unexpected; return false; }
+    bool QueryInterface(uint32_t iid, void**) override {
+        // The Rust adapter negotiates segment references before any owner call.
+        // This record has none; refusal is stream setup, not an owner operation.
+        if (iid != kFC4_IID_cISC4DBSegmentIStream) ++unexpected;
+        return false;
+    }
     uint32_t AddRef() override { ++unexpected; return 1; }
     uint32_t Release() override { ++unexpected; return 1; }
     bool Take(void* p, size_t n) {
@@ -68,7 +73,10 @@ struct ProbeOutput final : cIGZOStream {
     size_t capacity = 2;
     int32_t error = 0;
     uint32_t calls = 0, unexpected = 0;
-    bool QueryInterface(uint32_t, void**) override { ++unexpected; return false; }
+    bool QueryInterface(uint32_t iid, void**) override {
+        if (iid != kFC4_IID_cISC4DBSegmentOStream) ++unexpected;
+        return false;
+    }
     uint32_t AddRef() override { ++unexpected; return 1; }
     uint32_t Release() override { ++unexpected; return 1; }
     void Flush() override { ++unexpected; }
@@ -107,6 +115,8 @@ struct Pair {
     cIGZSerializable* serial = nullptr;  // held successful QI
     cIGZMessageTarget2* target = nullptr; // held successful QI
     uint32_t checks = 0, diffs = 0, reads = 0, writes = 0, messages = 0, refs = 0;
+    uint32_t readFailuresNative = 0, readFailuresRust = 0, writeFailuresNative = 0, writeFailuresRust = 0;
+    uint32_t readBytesNative = 0, readBytesRust = 0, writeBytesNative = 0, writeBytesRust = 0;
     void Check(bool ok, const char* what, uint32_t arg = 0) {
         ++checks;
         if (!ok && ++diffs <= 8) Log("industrial constructed diff: %s arg=%u", what, arg);
@@ -122,6 +132,10 @@ struct Pair {
         n.error = r.error = error;
         IStreamAdapter adapter(r);
         const bool a = serial->Read(n), b = fc4_industrial_read(rust, adapter.Get());
+        readFailuresNative += !a; readFailuresRust += !b;
+        readBytesNative += uint32_t(n.pos); readBytesRust += uint32_t(r.pos);
+        if (tag <= 2) Log("industrial record Read sample %u: return=%u/%u pos=%u/%u error=%d/%d calls=%u/%u unexpected=%u/%u",
+            tag, a, b, unsigned(n.pos), unsigned(r.pos), n.error, r.error, n.calls, r.calls, n.unexpected, r.unexpected);
         Check(a == b && n.pos == r.pos && n.error == r.error && n.calls == r.calls &&
               n.unexpected == 0 && r.unexpected == 0, "Read return/position/error/calls", tag);
         ++reads;
@@ -132,6 +146,10 @@ struct Pair {
         n.error = r.error = error;
         OStreamAdapter adapter(r);
         const bool a = serial->Write(n), b = fc4_industrial_write(rust, adapter.Get());
+        writeFailuresNative += !a; writeFailuresRust += !b;
+        writeBytesNative += uint32_t(n.bytes.size()); writeBytesRust += uint32_t(r.bytes.size());
+        if (writes < 8) Log("industrial record Write sample capacity=%u input_error=%d: return=%u/%u size=%u/%u error=%d/%d calls=%u/%u unexpected=%u/%u",
+            unsigned(capacity), error, a, b, unsigned(n.bytes.size()), unsigned(r.bytes.size()), n.error, r.error, n.calls, r.calls, n.unexpected, r.unexpected);
         Check(a == b && n.bytes == r.bytes && n.error == r.error && n.calls == r.calls &&
               n.unexpected == 0 && r.unexpected == 0, "Write return/bytes/error/calls", uint32_t(capacity));
         if (capacity >= 2) Check(n.bytes == std::vector<uint8_t>({1, 0}), "version bytes");
@@ -201,8 +219,10 @@ struct Pair {
         Read({1, 0}, 7, 65539); Read({0, 0}, 7, 65540);
         for (uint32_t stage = 0; stage < 7; ++stage) {
             if (stage == 1 || stage == 2 || stage == 5)
+                // [abi-ret] commercial-industrial section 9 publishes slot 3 as AL=1.
                 Check(native->Init() == fc4_industrial_init(rust), "Init", stage);
             if (stage == 3 || stage == 4 || stage == 6)
+                // [abi-ret] commercial-industrial section 9 publishes slot 4 as AL=1.
                 Check(native->Shutdown() == fc4_industrial_shutdown(rust), "Shutdown", stage);
             State(stage);
             Read({1, 0}, 0, stage); Read({0xFF, 0xFF}, 0, stage); Read({}, 0, stage);
@@ -222,6 +242,7 @@ struct Pair {
             State(stage); // records/messages must not change initialization
         }
         // Final Release from initialized state exercises implicit Shutdown/destruction.
+        // [abi-ret] commercial-industrial section 9 publishes Init slot 3 as AL=1.
         Check(native->Init() == fc4_industrial_init(rust), "final Init");
         State(7);
     }
@@ -239,8 +260,10 @@ void IndustrialShadowStartup(bool replaced) {
     suites = refusals = totalChecks = totalDiffs = 0;
     if (enabled && replaced) {
         enabled = false;
-        Log("industrial constructed: REFUSED replacement enabled; no native oracle");
+        refusals = 1;
+        Log("industrial constructed: REFUSED replacement enabled; suites=0 refusals=1 no native oracle");
     } else if (enabled) Log("industrial constructed: ON independent original factory / Rust; IN3 excluded");
+    else Log("industrial constructed: OFF suites=0 refusals=0");
 }
 
 void IndustrialShadowProbe(cISC4City* city, const char* phase) {
@@ -255,6 +278,9 @@ void IndustrialShadowProbe(cISC4City* city, const char* phase) {
     if (acquired) { pair.Check(pair.native != natural, "independent of city"); pair.Run(); ++suites; }
     else { ++refusals; Log("industrial constructed %s: REFUSED factory/image/views/core unavailable", phase); }
     pair.Free();
+    Log("industrial constructed outcomes %s: read_failures=%u/%u write_failures=%u/%u read_bytes=%u/%u write_bytes=%u/%u",
+        phase, pair.readFailuresNative, pair.readFailuresRust, pair.writeFailuresNative, pair.writeFailuresRust,
+        pair.readBytesNative, pair.readBytesRust, pair.writeBytesNative, pair.writeBytesRust);
     totalChecks += pair.checks; totalDiffs += pair.diffs;
     Log("industrial constructed %s: suites=%u refusals=%u checks=%u mismatches=%u reads=%u writes=%u messages=%u refs=%u total_checks=%u total_mismatches=%u natural_interception=0",
         phase, suites, refusals, pair.checks, pair.diffs, pair.reads, pair.writes, pair.messages, pair.refs, totalChecks, totalDiffs);

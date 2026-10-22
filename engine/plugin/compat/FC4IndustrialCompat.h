@@ -10,7 +10,8 @@ namespace fc4 { namespace compat {
 inline bool IndustrialImageRange(uintptr_t p, size_t n, bool code) {
     const auto* v = IdentifiedVersion();
     MEMORY_BASIC_INFORMATION m{};
-    if (!v || v->imageBase != 0x400000 || p < v->imageBase ||
+    if (!v || v->timeDateStamp != 0x4C12BFB7 || v->sizeOfImage != 0x7C8000 ||
+        v->imageBase != 0x400000 || p < v->imageBase ||
         p + n < p || p + n > uintptr_t(v->imageBase) + v->sizeOfImage ||
         VirtualQuery(reinterpret_cast<void*>(p), &m, sizeof(m)) != sizeof(m) ||
         m.State != MEM_COMMIT || m.Type != MEM_IMAGE ||
