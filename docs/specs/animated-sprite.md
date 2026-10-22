@@ -32,6 +32,50 @@ sizes the quad from the frame's pixels and the view's metres per pixel, so the s
   at 0.5, blending source alpha / one minus source alpha, one texture, mode 1.
 - Destructor body `0x007FEEF0`: releases the per-zoom resources.
 
+### 1.1 Defaults and lifetime
+
+Offsets below are from the complete sprite object, not the adjusted shared-instance pointer.
+Constructor entry `0x007FDCB0` establishes zero in EBX; body `0x007FDCBA–007FDFB1` uses it for defaults.
+
+| State | Constructor value |
+|---|---|
+| owner/custom data (+0x10,+0x14); u16 reference count (+0x18) | null/0; **0**, not 1 |
+| properties (+0x1C); flags/highlight (+0x20,+0x21) | 1; 0/0 |
+| shade RGB (+0x24..+0x2C); fade alpha (+0x30) | (1,1,1); 1 |
+| sequence controller (+0x34) | null |
+| transform counter/flags (+0x38,+0x39) | 0/0 |
+| rotation (+0x3C..+0x5C); position (+0x60..+0x68); scale (+0x6C) | identity; (0,0,0); 1 |
+| local box min (+0x70..+0x78), max (+0x7C..+0x84) | (0,0,0), (1,1,1) |
+| cached zoom/rotation (+0x88,+0x89) | 255/255 |
+| last orientation-entry pointer (+0x98) | null |
+| frame dirty/view dirty/cached transform counter (+0x9C..+0x9E) | 1/1/255 |
+| frame (+0x9F); rate (+0xA0); clock (+0xA4) | 0; binary32 `0x3A83126F` (0.001); 0 |
+| mode/direction/skip (+0xA8..+0xAA); frame count (+0xAC) | 3/+1/0; 0 |
+| texture binding (+0xC4); five zoom holders (+0xC8..+0xD8) | null; allocated with null interface and entry pointers |
+| frame metric record (+0x94) | allocated 20 bytes, all zero |
+| draw vertices (+0xDC..+0x138) | zero position/UV, white `0xFFFFFFFF` colour |
+
+The per-zoom scales and unused derived holder metrics are not initialized before loading; do not invent
+safe loaded defaults for them. The constructor initially fills cached local corners (+0x13C..+0x168) from
+global `0x00B4E65C`; no cached-corner validity is promised before UpdateView. Base defaults are verified at
+`0x00801CF0–007?` [see address correction below]; specifically `0x00801D2B–00801D5D`, and sprite overrides
+at `0x007FDDA0–007FDF83`.
+
+AddRef increments the **u16** count modulo 65536, returns its zero-extended value, and has no overflow check.
+Release decrements only counts greater than one. Counts 0 and 1 both invoke deleting destruction and return 0
+without first storing a decremented count (`0x00801900–00801932`). QueryInterface adds a reference on success;
+unknown IID returns false without clearing the output. The sprite additionally accepts IID `0xA818EDD8`,
+returning its sprite interface; IID 1 and `0x26A68449` return the shared instance interface
+(`0x007FB130–007FB174`, `0x00801940–00801996`). No resource-table IID is accepted here.
+
+Destruction releases each retained zoom interface, returns each holder to its pool, frees the frame-metric
+record, releases the texture binding and runs base destruction. It does not delete the optional sequence
+controller. Deleting destruction invokes the sprite pool free only if argument bit 0 is set and returns
+the original object address (`0x007FEEF0–007FF003`).
+
+Independent lifetime vector: count 65535 → AddRef returns/stores 0 → Release destroys and returns 0.
+Count 2 → Release stores/returns 1 → Release destroys/returns 0.
+
 ## 2. Creation and loading *[compat]*
 
 - `GetAnimatedModelFromResourceKey(key)` (`0x007FEDE0`) by the key's type: `0x29A5D1EC` →
@@ -107,6 +151,58 @@ offset; null stays null. It is not QueryInterface. Slot 17 returns 0.
   out and in. `SetOrientation(yaw, pitch, roll)` (`0x007FC4B0`) builds the rotation from the angles that are not
   −100 (−100 means "unset"); `0x007FE250` turns the instance to look from its position along a direction (an up
   vector given); `0x007FCC90` transforms a point by it.
+
+`SetPosition` copies three float bit patterns, ORs transform flag 1, increments the u8 change counter even
+for equal input, and returns 1 (`0x007FC480–007FC4A7`). `SetTransform` increments the destination owner's
+counter modulo 256, copies thirteen dwords (rotation, translation, scale) and the input flags byte, and
+does not copy the source counter or change frame/view dirty bytes. `GetTransform` increments the **output
+record's** counter, copies those thirteen dwords and flags, and leaves the owner's counter unchanged.
+Neither copy method defines a status return (`0x007FE0F0–007FE22A`). With owner counter 255, importing
+any transform produces counter 0, independently of its source counter.
+
+`LookAt(target, up)` begins with normalized (position−target), so local +Z points **away from** the target.
+It obtains local +X by normalizing up × +Z and +Y by +Z × +X. Position and scale stay unchanged; it ORs flag 4,
+adds 2 to the counter modulo 256 and returns 2. It does not check zero distance/parallel up before division.
+Evidence: `0x007FE250–007FE38D`. Example: position (0,0,0), target (0,0,−1), up (0,1,0) gives identity.
+The noncommuting Euler-angle composition and −100 component rule remain unresolved (AS6); the earlier
+description of omitted angles is not a rule for preserving existing components.
+
+### 3.2 Shared instance surface and overrides
+
+The shared instance vtable at `0x00ABD1D0` has these 19 slots, separate from the sprite's 23-slot interface:
+
+| Slots | Entry addresses | Contract/body |
+|---|---|---|
+| 0,1,2 | `0x007FDFD0`, `0x007FDFE0`, `0x007FDFF0` | QueryInterface/AddRef/Release via `0x007FB130`, `0x007FB110`, `0x007FB120` |
+| 3,4,5,6 | `0x007FE000`, `0x007FE010`, `0x007FE020`, `0x007FE030` | Basic owner/custom-data get/set |
+| 7,8 | `0x007FE090`, `0x007FE0E0` | local box; world box via `0x007FD680` |
+| 9,10 | `0x007FE0F0`, `0x007FE190` | transform copies (§3.1) |
+| 11,12 | `0x007FE230`, `0x007FEE90` | Pick/Draw thunks to `0x007FD710`, `0x007FEA90` |
+| 13,14,15,16 | `0x007FE040`, `0x007FE050`, `0x007FE060`, `0x007FE070` | Basic properties/draw-attributes get/set |
+| 17,18 | `0x007FE240`, `0x007FE080` | sort value via `0x007FD640`; null resource model |
+
+The shared-interface thunks subtract the displacement at [this−4]; they do **not** unconditionally subtract
+4. Basic forwarding additionally subtracts 0x138; the deleting-destructor thunk `0x007FDFC0` instead
+subtracts 8. Several exported functions combine an adjustment entry and an internal body as disjoint ranges.
+Do not count each internal jump label as a separate native function (`0x007FE090`, `0x007FE0F0`, `0x007FE190`).
+
+`GetBounds(out)` copies local min/max without loading, drawing, recomputation or transformation, and defines
+no status. `GetWorldBounds(out)` adds position independently to each local min/max float; it does not apply
+rotation or scale or mutate the box. Before any draw the box therefore remains constructor [0,1]^3 shifted
+by position (`0x007FE0A0–007FE0DB`, `0x007FD680–007FD701`). Position (10,20,30) gives world min (10,20,30),
+max (11,21,31), even after importing a different rotation/scale without UpdateView.
+
+`GetSortValue(out)` writes 0 if binding or metric-record pointer is null; otherwise it writes the dword at
+binding.table[metrics.page], with no page bounds check or reference acquisition. It is a texture-table value,
+not a depth-distance formula, and defines no status (`0x007FD640–007FD670`). `GetResModel()` returns null via
+the shared zero body `0x004E13E0`. These getters do not refresh cached frame selection.
+
+Additional owner helpers beyond the two interfaces: NextFrame `0x007FB1E0`, SetZoomResource `0x007FC320`,
+GetTextureResourceData `0x007FD2F0`, metric decoder `0x007FD3D0`, selection/cache wrapper `0x007FE390`,
+UpdateView `0x007FE400`, constructor entry/body `0x007FDCB0`/`0x007FDCBA`, destructor body/deleting entry
+`0x007FEEF0`/`0x007FEFE0`. GetFrameCount uses shared body `0x007FB1D0` reading +0xAC despite its unrelated
+export alias. This inventory identifies the verified surfaces; reconciliation to the brief's exact
+60-function/10482-byte owner accounting remains AS3, rather than a complete-owner claim.
 
 ## 4. Animation and frames *[compat]*
 

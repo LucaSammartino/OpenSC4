@@ -1,14 +1,27 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-sprites-contracts4: animated-sprite native contracts | `re-sprites-contracts4` (RE docs lane) | in progress; detached worktree reused; no runtime or coverage claims | Trace AS1/AS3–AS9 against native owner and reconcile specs/questions. |
+| re-sprites-contracts4: animated-sprite native contracts | `re-sprites-contracts4` (RE docs lane) | blocked: coordinator STOP; native findings preserved, draft unreconciled; no runtime/coverage claims | Preserve worktree; no further RE rounds authorized; no merge queue. |
 
 ## Handoff
 
-- Goal: resolve only AS1/AS3–AS9 for cS3DModelInstanceAnimatedSprite; no engine reads/edits.
-- Done: native-byte proof added for clock/reversal/returns, sequence selection/frame boundary quirks and fade/highlight/self-lit. AS8 disproves closed [0,1]: −100 no-op, −200 disable, <=0.99 accepts negatives/NaN, >0.99 disables.
-- Milestone: 69ee90df committed native stepping/setter proof; load transaction and resource/atlas consumer contracts now documented from instructions.
-- Next: publish checked owner defaults/base overrides; reconcile answered AS4/AS5/AS8/AS9 and exact residuals for AS1/AS3/AS6/AS7.
+- Goal: AS1/AS3–AS9 only, cS3DModelInstanceAnimatedSprite; no engine reads/edits occurred.
+- STOP: guard denied further work: "User directed STOP RE: prioritize verified/replaced; preserve findings, commit handoff and return blocked. No further RE rounds authorized."
+- Done: 69ee90df native instruction proof for clock/reversal/returns, sequence selection/frame quirks, fade/highlight/self-lit.
+- Done: d45820c2 native load rollback, key/IID/ownership and orientation-record/atlas consumer contracts, independent worked vectors.
+- Preserved draft: owner defaults, shared-interface table, lifetime and bounds/sort getters added after d45820c2; not reconciled/reviewed before STOP.
+- IMPORTANT: draft §1.1 contains a literal unfinished citation `0x00801CF0–007?`; its following exact address range is the intended evidence. Do not publish this draft as ready.
+- Existing §3.1 and §5 still need reconciliation: LookAt first vector is target; Draw skips its boolean highlight-pass argument, not the stored highlight flag; fade threshold is alpha×0.5, not zero.
+- AS8 measured: true/−100 no-op; false always disable/alpha=1; true/−200 disables; otherwise <=binary32 0.99 accepts negatives/NaN, >0.99 disables; all return 2.
+- AS4 measured: failed acquisition rolls back only this call's successful prefix; five acquisitions plus non-null binding required for true. Frame count/scales are not rolled back.
+- AS5 measured: SetRate literal store (−100 resolves to literal −200 in Tick); subtract direction AFTER reversal; AdvanceFrame always 2; skip loop has no progress guard. SetFrame uses remainder only for n>length.
+- AS9 measured: GetBounds copies local box; WorldBounds adds position only; sort writes binding.table[metric page] or zero; GetResModel null; getters do not recompute.
+- Residual AS1: controller provenance beyond constructor/load (both leave +0x34 null), complete data-source reconciliation. AS3: exact 60-function/10482-byte accounting and remaining transform-helper details.
+- Residual AS6: noncommuting Euler composition/−100 rule. AS7: exact UpdateView quad/order/bounds math and numeric instruction verification; draw/cache/pick observations below are not yet incorporated into spec.
+- Draw proof: 0x007FEA90 skips nonzero boolean argument or signed context zoom<2, returns 1; zoom/rotation/view-dirty refresh frame, but UpdateView only when view-dirty; camera/mpp changes alone do not invalidate.
+- Draw tail 0x007FEC69–007FED4C: model transform; model/self-lit shade using RGB; packed state; if fade, transparency(alpha), alpha-func(4,float(alpha×double 0.5)); texture(binding.table[page],0); DrawPrims(2,10,4,vertex block); ResetShade then ResetTransparency. No render-state restore/failure branch.
+- Pick 0x007FD710–007FD7C6 tests cached translated vertex triangles (0,1,2), then (2,3,0); no view refresh. Thunks subtract [this−4], not fixed 4.
+- No questions moved/answered or question index regenerated before STOP. AS2 untouched. No ABI proposals, game runs, gates, implementation/runtime/default/coverage credit, or merge queue.
+- Next: none authorized; coordinator must release this parked worktree before reconciliation. Do not restart another RE round.
 - Native sources: C:/Users/tlori/FreeCity4/decomp/cS3DModelInstanceAnimatedSprite.c and tools/re_query.py in main checkout.
 - q.py cannot start Bash (E_ACCESSDENIED); use local PowerShell commands with capped output.
-- AS2 is outside scope and stays open. No game requests, ABI proposals or runtime validation.
 - Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-sprites-contracts4-r1-manifest.json.
