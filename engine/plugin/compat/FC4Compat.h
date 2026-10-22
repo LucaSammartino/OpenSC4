@@ -333,5 +333,7 @@ bool SpanContextAddresses(SpanContextVA* out);
 // only: the entry's address and the function it must hold; false otherwise (logged once per slot).
 bool Span8888SlotEntry(unsigned slot, void*** entry, uintptr_t* function);
 
+// feature-manager.md §§2,7: original layout, live app-owned count >0.
+bool FeatureManagerSupported(const void* object);
 }  // namespace compat
 }  // namespace fc4

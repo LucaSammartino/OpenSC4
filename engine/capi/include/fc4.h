@@ -12729,4 +12729,20 @@ bool fc4_automata_aircraft_lifecycle(fc4_automata_manager* manager, uint32_t ope
 }
 #endif
 
+/* Complete-byte feature-manager verification. Exactly 32 pack inputs; buffers
+ * borrowed for create only. Unsupported/partial captures must not be passed.
+ * query: 0 feature, 1 pack, 2 current, 3 mentioned-ID count, 4 ID at index.
+ * Invalid query/handle returns UINT32_MAX. */
+typedef struct fc4_feature_snapshot fc4_feature_snapshot;
+typedef struct fc4_feature_file { const uint8_t* data; size_t len; uint32_t present; } fc4_feature_file;
+#ifdef __cplusplus
+extern "C" {
+#endif
+fc4_feature_snapshot* fc4_feature_snapshot_create(const fc4_feature_file* files);
+void fc4_feature_snapshot_destroy(fc4_feature_snapshot* snapshot);
+uint32_t fc4_feature_snapshot_query(const fc4_feature_snapshot* snapshot, uint32_t kind, uint32_t arg);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */

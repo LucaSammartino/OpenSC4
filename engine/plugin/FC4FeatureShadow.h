@@ -1,0 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#pragma once
+namespace fc4 {
+void FeatureShadowLoaded();
+void FeatureShadowMonth();
+void FeatureShadowShutdown();
+}
