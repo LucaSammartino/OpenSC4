@@ -25,3 +25,8 @@ and Job/list support helpers. Which callbacks remain possible after disconnect o
 resource/target references do those reached bodies retain/release? Section 4 specifies direct WWW behavior,
 including its missing target Release on rejection/cancel, but does not assign the foreign scheduler's
 effects to the WWW call. Shared/folded symbols must be checked by their bytes rather than their names.
+Round 2 §4.14 now specifies 0081cda0/0081ca90 submission and 0081cc10 cancellation, queue copying,
+method conversion and request Release. Cancellation alone does not join, close or guarantee callback
+suppression; raw queued-node cancellation does not release its request. Still open: constructor
+00818210, worker final resource ownership/drain/shutdown and remaining support/adapters. Worker
+0081ba80 belongs to another owner but is needed evidence for the callback-suppression question.

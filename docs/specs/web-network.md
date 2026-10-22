@@ -746,6 +746,100 @@ distinguishing vectors. Q7 remains open for login, listing acquisition, outer sc
 shutdown. The companion records unsafe native input domains explicitly and claims no live
 network observations.
 
+### 4.14 Reached HTTP admission and cancellation (Q9 partly resolved)
+
+These are reached bodies attributed to WWWSystem by the fixed owner inventory, even though
+they operate on the foreign HTTP client. They do not change WWW's own target-reference rules.
+Names for still-untraced dependency functions are deliberately not inferred.
+
+**Method conversion.** 00817d00 maps IDs 1–10 respectively to OPTIONS, GET, HEAD, POST, PUT,
+DELETE, TRACE, PATCH, LINK, UNLINK; other IDs return null. 00817bd0 tests those exact uppercase
+strings in that order using CRT strncmp and its caller-supplied unsigned length. It redundantly
+tests PATCH twice, returns the matching ID, or zero for unknown. A short supplied length matches
+a prefix (zero length matches OPTIONS); this is not an unconditional whole-word test. The
+admission caller passes 0xffffffff, so ordinary terminated strings must match the whole method.
+Literal bytes GET/POST at 00aa1368/00aa1378 and LINK/PUT at 00abfc6c/00abfc8c were checked in
+the executable, rather than using the misleading pointer-symbol names in pseudocode.
+
+**Submission wrapper 0081cda0 (319 B).** Arguments are method ID, URL string, optional body
+string object, body representation byte, array of 24-byte records, record count, and custom
+value. IDs 8, 9, 10 immediately return zero, despite the converters recognizing their names.
+Otherwise allocate/construct a 0x78-byte request (0081a910), increment its reference count,
+set its method string from 00817d00 and copy the URL. Only method 5 requires a nonnull body:
+if absent, release the temporary request through 00817790 and return zero. For method 5,
+copy the body's length-bearing string at body+4 into request+0x4c and set request+0x64 to
+the supplied representation byte. Other methods ignore those two arguments in this wrapper.
+Append the supplied 24-byte records in order, then call admission 0081ca90(request,custom).
+Release the temporary request reference after that call, returning its ID/zero. Allocation
+failure is not handled safely: a null request allocation is subsequently dereferenced.
+Record count is decremented until zero, without validation of negative counts or array bounds.
+
+**Admission 0081ca90 (266 B).** Reject with ID zero if request is null, method byte length is
+zero (+0xc..+0x10), or URL byte length is zero (+0x20..+0x24). Before taking the queue lock:
+resolve method with 00817bd0; when request+0x4c is nonempty and its record range +0x58..+0x5c
+is empty, invoke 0081acf0 on that string and then erase the string. When the resolved method
+is neither zero nor OPTIONS, the record range is nonempty, and its first record's byte
+range +0xc..+0x10 is empty, call 0081ac20 on that first record. Those normalization helpers
+are dependency boundaries, not newly specified parsers here (0081cac8–0081cb17).
+
+Increment the request reference count at +4 **before** the lock. Form an eight-word job
+record: [ID,1,0,1,0,request,0,custom]. Lock client critical section +0xa4, increment the
+client's 32-bit counter at +0x3c, assign it as ID, append the record to the queue at +0xb0
+with 00818100, and unlock. Then call worker activation 0081c9d0 and return the assigned ID
+(0081cb1c–0081cb85). Counter wrap is not avoided: zero can be assigned/enqueued even though
+the interface otherwise uses zero for failure. This body performs no notification itself.
+The request is retained across successful queue insertion; URL and custom value are not
+independently AddRef'd. The wrapper's release leaves the queue's added request reference.
+
+**Queue append 00818100 (52 B).** Allocate a 0x28-byte node, copy exactly eight 32-bit words
+from the supplied record into node+8, and link it immediately before the circular sentinel
+(tail insertion). No field-specific copy, AddRef or cleanup is performed. The record is
+copied; pointed-to objects remain shared. Allocation failure is not a recoverable return.
+
+**Cancel 0081cc10 (191 B).** Hold +0xa4 throughout the following search/mutation, releasing
+the lock before each return:
+
+1. Scan queued nodes from head to sentinel by ID at node+8. On the first match, unlink and
+   free the raw node, then return true. It does **not** Release the request in that record,
+   notify, activate a worker, or continue searching for another equal ID.
+2. Otherwise, if active-worker pointer +0xac is nonnull, its current-record pointer +0x6c is
+   nonnull and that record's first word matches, set worker bytes +6 and +5 to 1, then clear
+   client+0xac. If the queue has any nodes, call 0081c9d0 **while still locked**. Return true.
+3. Otherwise return false, with no cancellation side effects (0081cc25–0081ccce).
+
+Active cancellation does not join the old thread, close its socket, free its record, or
+release its request here. Activation can allocate/start a successor while the old worker is
+still alive. Consequently this cancellation return alone is not a guarantee of quiescence
+or callback suppression. Exact worker handling of flags and final request/resource release
+remains Q9; do not synthesize it from WWW's late-completion lookup behavior (§4.7).
+The reached activation dependency 0081c9d0 was checked: it locks +0xa4, allocates worker
+context when +0xac is null, clears its stop byte +5, and, if its running byte +4 is zero,
+sets that byte, AddRefs the client and starts StaticWorkerThreadFunction. The static wrapper
+0081c9b0 calls WorkerThreadFunction then Releases the client. No thread join was found in
+these admission/cancel bodies; worker completion itself (0081ba80, another owner) was not
+fully traced in this round. Nested lock acquisition is observable in the cancel path.
+
+**Release helper 00817790 (22 B).** Interpret reference count at +4 as unsigned. If >1,
+decrement it and return the new count; otherwise invoke deleting destructor vslot zero
+with argument 1 and return zero. There is no special zero-count rejection or notification.
+
+**Independent distinguishing vectors (constructed).** Use recorded dependency calls, controlled
+thread activation and existing objects, not a live HTTP endpoint:
+
+| Input / setup | Result |
+|---|---|
+| Method converter length 1 with `GETaway` | ID 2; admission's length 0xffffffff instead returns unknown method 0 |
+| Zero comparison length with any valid input pointer | ID 1 (OPTIONS) |
+| Wrapper IDs 8/9/10, otherwise valid arguments | Zero before request allocation |
+| Wrapper PUT and absent body | Zero after releasing its temporary request; no queue entry |
+| Null request, empty method or empty URL on admission | Zero with no queue entry or new request reference |
+| Admission counter 0xffffffff | Enqueues ID 0 and returns 0; no wrap skip |
+| Two queued records with the same ID | Cancel removes only the first, without releasing its request |
+| Queued match and active record with same ID | Queue removal wins; active worker flags are untouched |
+| Active match plus nonempty queue | Both worker flags set, active pointer cleared, activation called before unlock |
+| Unknown cancellation ID | False after unlock, without notification |
+| Request count 2 versus 1 on 00817790 | Return 1 without destruction versus deleting destructor and return 0 |
+
 ## 5. cRZHTTPClient (15133 B; outline only)
 
 HTTP/1.x client jobs, TimeStringToSeconds (HTTP dates), DoJobFinalization (resolves redirects with
