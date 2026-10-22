@@ -169,7 +169,7 @@ generated index: the questions live one file per spec, so read only the file for
 | aircraft | 2 | 0 | AF3 | questions/aircraft.md |
 | animated-sprite | 9 | 0 | AS10 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
-| application | 3 | 2 | AP6 | questions/application.md |
+| application | 7 | 2 | AP10 | questions/application.md |
 | audio-ambience | 1 | 10 | AA12 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | automata | 4 | 38 | A5, AM13, AT25 | questions/automata.md |
@@ -235,7 +235,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-occupants | 23 | 9 | NO32 | questions/network-occupants.md |
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
 | network-rules | 2 | 10 | NR16 | questions/network-rules.md |
-| network-tools | 14 | 4 | NT25 | questions/network-tools.md |
+| network-tools | 16 | 4 | NT27 | questions/network-tools.md |
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
 | occupants-props | 12 | 5 | OP18 | questions/occupants-props.md |
@@ -246,7 +246,7 @@ generated index: the questions live one file per spec, so read only the file for
 | parks | 0 | 11 | PK12 | - |
 | particles | 3 | 4 | PT8 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
-| paths | 3 | 0 | PA4 | questions/paths.md |
+| paths | 5 | 0 | PA11 | questions/paths.md |
 | pedestrians | 2 | 0 | PN3 | questions/pedestrians.md |
 | persistence | 3 | 1 | PR5 | questions/persistence.md |
 | persistence-manager | 3 | 1 | PR9 | questions/persistence-manager.md |
@@ -302,4 +302,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **430** | **1239** | | |
+| **total** | **438** | **1239** | | |
