@@ -13,7 +13,9 @@
 - Immutable DLL/PDB: build-runs/dlls/vv4-r3-production/FreeCity4.dll/.pdb; DLL SHA256 D50E20D91AFB458388A11A03910849B22C439837C149A560753791F4D5016D28.
 - ON vv4-r3-house40-on-1ee5d9-1930 CLEAN2032-01-01/ref0,189.703s/11.41days/s; native350/350 plus Rust setup70/70; all28 previous scalar differences resolved by production mapping; clones native71/production70; refusals0/failures0/fallback0/resync0; actual core count196/set70/write70. Full save11156ms/ok1, script3/3, PostSystemServiceShutdown reached.
 - Preserved that full save from the logged slot1 city path (mtime19:31:25,1003482bytes) as main build-runs/fixtures/vv4-r3-house40-on-1ee5d9-2028.sc4 for supported fixture_city reload. Game data only, no Documents or game executable access, no game file committed.
-- Outstanding vv4-r3-house40-off-1ee5d9-1935 (shadow0), same immutable DLL/script/exact house40; wait helper running. Do not resubmit or discard existing completed verdict.
+- OFF vv4-r3-house40-off-1ee5d9-1935 CLEAN2032-01-01/ref0,174.750s/12.39days/s, zero variant experiment lines; full save11265ms/ok1, script3/3, full PostSystemServiceShutdown.
+- Fixture SHA2569C181832B9DAC038D22BF90838E5A0105CEA65F1CC15CE19EF2AD2A72516EE90. DLL hash unchanged after ON/OFF. Both corrected house40 profiles succeed; older terrain/dispatch/effects opt-in failures are not house-regress failures.
+- Outstanding vv4-r3-house40-reload-on-1ee5d9-1938, same immutable DLL/script/exact house40, shadow1 and supported fixture_city path above. Wait helper running; preserve existing verdict. Next reloadOFF, then final report/queue.
 - Next: inspect ON result/counts/save/shutdown, preserve saved .sc4 via supported fixture_city route, then OFF and supported ON/OFF reloads. Request/wait helper build-runs/vv4-r3-run.py checks exact list and uses no qwait.
 - Exact house40 from task excludes terrain/dispatch/effects and includes all default keys; validate equality before submission.
 - Original profile cap exhausted3/3; use corrected house40 only. Unique labels, preserve completed verdict, no qwait.
