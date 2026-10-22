@@ -1,6 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-language-native4 (native utility verification) | `Codex` / `verify-language-native4` (engine lane; detached HEAD) | WIP round2/3: source06d71bb2 unchanged; cargo4961/0, clippy0, CTest68/68; strict116235/116235; native no-probe save stalled/ref0; literal40 probe-on/off full-save2032 clean/ref4 both; eight attempts retained; LU1-LU4/SL1 open | (1) Resolve native save/watchdog setup independently of verifier; (2) resolve ports/parks/landfill department-budget warnings; (3) stage supported immutable-run reload fixtures; at most one lane round remains. |
+| verify-language-native4 (native utility verification) | `Codex` / `verify-language-native4` (engine lane; detached HEAD) | in progress FINAL round3/3: retained source06d71bb2, cargo4961/0, clippy0, CTest68/68; eight historical attempts preserved; LU1-LU4/SL1 open | (1) Audit immutable2/source/gate; (2) supported simulator-only OFF then matched ON; (3) conditional literal40 plus simulator/budget defaults; stop on prerequisite failure. |
+
+## Handoff
+
+- Goal: FINAL bounded round3 supported lifecycle controls; no source/owner/default expansion, no fourth round.
+- Done: round2 ledger read; historical commits through 4e1b9efd preserved below; copied evidence-run4 requests identified.
+- Next: verify engine tree against 06d71bb2, immutable2 DLL/PDB and retained stable gate; inspect copied save/mark script and supported request settings.
+- New hypothesis: disable=all/turbo0 historical failures differ from supported simulator-only/disablebudget/turbo1; prior OWNc already passed the latter effective profile.
+- Requests planned: unique probeOFF first, then exact matched ON if OFF passes, then literal40 enable/defaultbudget if ON passes; seconds420/timeout600, Konradshohe, target2032-01-01.
+- Immutable2 expected DLL SHA256: 78ea9b099f55d8abd95ea76cea21f34ced2caf72fc68ec305f35da43185c9342.
+- Retain strict116235/116235 separately from foreign host2484/4140 and question gaps2629/3043 per enabled run; 46 constructed lifetimes, natural0/0.
+- No request outstanding. No supported isolated reload fixture supplied; reload remains unmeasured. LU1-LU4/SL1 open.
+- Guard: C:/Users/tlori/FreeCity4/build-runs/run4-verify-language-native4-r3-manifest.json; original family final3/3, maxCalls100.
 
 ## Round2 diagnosis and controls (2026-10-22)
 
