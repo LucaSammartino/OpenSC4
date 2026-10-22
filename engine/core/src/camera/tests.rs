@@ -52,7 +52,7 @@ fn viewport_resets_subview_and_exact_counters() {
     let mut c = S3dCamera::new();
     c.set_subview(1.0, 2.0, 30.0, 40.0);
     assert!(c.subview_in_use());
-    assert_eq!(c.projection_state(), 1);
+    assert_eq!(c.projection_state(), 2);
     c.set_viewport(800.0, 600.0);
     assert!(!c.subview_in_use());
     assert_eq!(
@@ -64,12 +64,12 @@ fn viewport_resets_subview_and_exact_counters() {
             height: 600.0
         }
     );
-    assert_eq!(c.projection_state(), 3);
+    assert_eq!(c.projection_state(), 4);
     c.set_depth_bias(1.0);
     c.set_depth_size(128.0);
     c.set_pixel_offset(2.0, 3.0);
     c.set_ortho(-4.0, 4.0, -2.0, 2.0, 2.0, 6.0);
-    assert_eq!(c.projection_state(), 7);
+    assert_eq!(c.projection_state(), 8);
 }
 
 #[test]
@@ -312,7 +312,8 @@ fn snapping_is_ties_to_even_with_negative_ties() {
 fn published_zoom_tables_and_yaws_all_combinations() {
     let expected_mpp = [2.613126, 1.306563, 0.653281, 0.286370, 0.143185];
     let pitches = [30.0_f32, 35.0, 40.0, 45.0, 45.0];
-    let yaws = [f32::from_bits(0x3f49_0fdb), 2.3561945, 3.926991, 5.497787];
+    // Public CA4/CA5 correction: 3π/8, 7π/8, 11π/8, 15π/8.
+    let yaws = [1.1780972, 2.7488935, 4.31969, 5.8904862];
     let steps = [100.0, 50.0, 25.0, 12.5, 6.25];
     let mut c = control();
     c.set_scroll_bounds_in_use(false);
@@ -331,8 +332,15 @@ fn published_zoom_tables_and_yaws_all_combinations() {
 #[test]
 fn eye_offset_and_plane_equation_are_independently_constrained() {
     let c = control();
-    near3(c.eye_offset(), [5792.6187, 4729.6533, 5792.6187], 0.002);
-    near3(c.eye_position(), [6304.6187, 3475.5146, 6304.6187], 0.004);
+    let ox = 4096.0 * (2.0 - 2.0_f32.sqrt()).sqrt();
+    let oz = 4096.0 * (2.0 + 2.0_f32.sqrt()).sqrt();
+    near3(c.eye_offset(), [ox, 8192.0 / 3.0_f32.sqrt(), oz], 0.002);
+    let k = 1.0 - 2048.0 * (ox + oz) / (8192.0 * 8192.0 * (4.0 / 3.0));
+    near3(
+        c.eye_position(),
+        [2048.0 + k * ox, k * 8192.0 / 3.0_f32.sqrt(), 2048.0 + k * oz],
+        0.004,
+    );
     let [a, b, d, e] = c.camera_plane();
     let eye = c.eye_position();
     near(a * eye[0] + b * eye[1] + d * eye[2] + e, 0.0, 0.001);
@@ -401,7 +409,7 @@ fn zoom_fractional_magnification_refusal_and_virtual_threshold() {
     assert_eq!(c.custom_magnification(), 1.0);
     assert!(c.set_zoom(2.9));
     assert_eq!(c.zoom(), 2);
-    assert!(!c.set_zoom(2.1));
+    assert!(c.set_zoom(2.1));
     c.set_custom_magnification(1.5);
     assert_eq!(c.virtual_zoom(), 2);
     c.set_custom_magnification(f32::from_bits(1.5_f32.to_bits() + 1));
@@ -441,7 +449,7 @@ fn rotation_message_order_and_pairs_are_exact() {
     }
     c.take_messages();
     assert!(c.set_rotation(1));
-    assert!(!c.set_rotation(4));
+    assert!(c.set_rotation(4));
     assert!(!c.set_zoom_and_rotation(0, 1));
     assert!(!c.set_zoom_and_rotation(5, 0));
     assert!(!c.set_zoom_and_rotation(0, u32::MAX));
@@ -514,14 +522,24 @@ fn ground_intersection_has_exact_threshold_and_rejects_behind() {
 fn camera_plane_conversion_has_independent_axis_and_origin_results() {
     let c = control();
     let origin = c.camera_plane_origin();
-    near3(origin, [5792.6187, 4729.6533, 5792.6187], 0.002);
+    let sin_yaw = (2.0 + 2.0_f32.sqrt()).sqrt() * 0.5;
+    let cos_yaw = (2.0 - 2.0_f32.sqrt()).sqrt() * 0.5;
+    near3(
+        origin,
+        [8192.0 * cos_yaw, 8192.0 / 3.0_f32.sqrt(), 8192.0 * sin_yaw],
+        0.002,
+    );
     assert_eq!(c.convert_world_point_to_camera_plane_point(origin), [0.0; 2]);
     assert_eq!(c.convert_camera_plane_point_to_world_point([0.0; 2]), origin);
     let q = c.convert_world_point_to_camera_plane_point([0.0; 3]);
     near(q[0], 0.0, 0.001);
     near(q[1], 0.0, 0.001);
     let p = c.convert_camera_plane_point_to_world_point([100.0, 0.0]);
-    near3(super::geometry::sub(p, origin), [70.71068, 0.0, -70.71068], 0.001);
+    near3(
+        super::geometry::sub(p, origin),
+        [100.0 * sin_yaw, 0.0, -100.0 * cos_yaw],
+        0.001,
+    );
 }
 
 #[test]
@@ -529,17 +547,20 @@ fn scroll_polygon_preserves_published_lift_and_six_points() {
     let c = control();
     let bounds = c.scroll_bounds();
     assert_eq!(bounds.len(), 6);
-    // Independent geometry at rotation 0, pitch 30°, zoom 0.
+    // Analytic projections at yaw 3π/8, pitch 30°, zoom 0.
+    let sin_yaw = (2.0 + 2.0_f32.sqrt()).sqrt() * 0.5;
+    let cos_yaw = (2.0 - 2.0_f32.sqrt()).sqrt() * 0.5;
+    let lift = (8192.0 / 3.0_f32.sqrt() * 0.48) / (3.0_f32.sqrt() * 0.5) - 2.613126 * 300.0;
     near(bounds[0][0], 0.0, 0.002);
     near(bounds[0][1], 1837.5022, 0.006);
-    near(bounds[1][0], -3396.3093, 0.003);
-    near(bounds[1][1], 389.34753, 0.006);
-    near(bounds[2][0], -3396.3093, 0.003);
-    near(bounds[2][1], -1448.1547, 0.003);
-    near(bounds[3][0], 0.0, 0.002);
-    near(bounds[3][1], -2896.3093, 0.003);
-    near(bounds[4][0], 3396.3093, 0.003);
-    near(bounds[5][1], 389.34753, 0.006);
+    near(bounds[1][0], -4096.0 * cos_yaw - 500.0, 0.003);
+    near(bounds[1][1], lift - 2048.0 * sin_yaw, 0.006);
+    near(bounds[2][0], -4096.0 * cos_yaw - 500.0, 0.003);
+    near(bounds[2][1], -2048.0 * sin_yaw, 0.003);
+    near(bounds[3][0], 4096.0 * (sin_yaw - cos_yaw), 0.002);
+    near(bounds[3][1], -2048.0 * (cos_yaw + sin_yaw), 0.003);
+    near(bounds[4][0], 4096.0 * sin_yaw + 500.0, 0.003);
+    near(bounds[5][1], lift - 2048.0 * cos_yaw, 0.006);
 }
 
 const SQUARE: [Vec2; 4] = [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]];
@@ -559,15 +580,14 @@ fn scroll_clamp_disabled_empty_inside_and_outward_cut_are_exact() {
 #[test]
 fn scroll_clamp_corner_reverse_winding_outside_and_short_edge() {
     let corner = clamp_polygon(&SQUARE, true, [5.0, 5.0], [15.0, 15.0]);
-    // Second crossing is below 0.001, so it receives no fraction backoff.
+    // CA6: the low second fraction becomes zero; opposite history stops.
     near(corner[0], 9.999, 0.000001);
-    assert_eq!(corner[1], 10.0);
+    near(corner[1], 9.999, 0.000001);
     assert!(corner[0] > 9.99 && corner[1] > 9.99);
     let mut reverse = SQUARE;
     reverse.reverse();
-    let p = clamp_polygon(&reverse, true, [5.0, 5.0], [15.0, 5.0]);
-    near(p[0], 9.999, 0.000001);
-    assert_eq!(clamp_polygon(&SQUARE, true, [15.0, 5.0], [15.0, 5.0]), [10.0, 5.0]);
+    assert_eq!(clamp_polygon(&reverse, true, [5.0, 5.0], [6.0, 5.0]), [5.0, 5.0]);
+    assert_eq!(clamp_polygon(&SQUARE, true, [15.0, 5.0], [15.0, 5.0]), [15.0, 5.0]);
     let short = [[0.0, 0.0], [1e-10, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]];
     let p = clamp_polygon(&short, true, [5.0, 5.0], [15.0, 5.0]);
     near(p[0], 9.999, 0.000001);
@@ -611,7 +631,7 @@ fn inconsistent_scroll_edges_exhaust_steps_and_keep_original_start() {
 }
 
 #[test]
-fn failed_ground_hit_retains_target_and_velocity_without_messages() {
+fn failed_ground_hit_retains_target_and_velocity_but_sends_updates() {
     let mut c = control();
     // This target is past the fixed eye plane, reversing the look direction.
     c.set_view_target([15000.0, 0.0, 15000.0]);
@@ -620,7 +640,14 @@ fn failed_ground_hit_retains_target_and_velocity_without_messages() {
     c.clamp_target_to_scroll_bounds();
     assert_eq!(c.view_target(), [15000.0, 0.0, 15000.0]);
     assert_eq!(c.view_target_velocity(), [1.0, 2.0, 3.0]);
-    assert!(c.messages().is_empty());
+    assert_eq!(
+        kinds(&c),
+        vec![
+            ViewMessageKind::CameraUpdated,
+            ViewMessageKind::ViewTChange2,
+            ViewMessageKind::ViewTChange3
+        ]
+    );
 }
 
 struct Terrain {
@@ -643,21 +670,33 @@ fn scrolling_uses_only_foreign_terrain_query_then_ground_fallback() {
         calls: Vec::new(),
         hit: Some([20.0, 7.0, 30.0]),
     };
+    c.set_view_target_velocity([1.0, 2.0, 3.0]);
     assert!(c.scroll_by_viewport_angle(0.0, 1.0, Some(&mut terrain)));
     assert_eq!(terrain.calls.len(), 1);
     assert_eq!(c.view_target(), [20.0, 7.0, 30.0]);
+    assert_eq!(c.view_target_velocity(), [1.0, 2.0, 3.0]);
     c.set_view_target([2048.0, 0.0, 2048.0]);
     terrain.hit = None;
     assert!(c.scroll_by_viewport_angle(0.0, 1.0, Some(&mut terrain)));
-    near3(c.view_target(), [2118.7107, 0.0, 1977.2893], 0.002);
+    let sin_yaw = (2.0 + 2.0_f32.sqrt()).sqrt() * 0.5;
+    let cos_yaw = (2.0 - 2.0_f32.sqrt()).sqrt() * 0.5;
+    near3(
+        c.view_target(),
+        [2048.0 + 100.0 * sin_yaw, 0.0, 2048.0 - 100.0 * cos_yaw],
+        0.002,
+    );
     assert_eq!(terrain.calls.len(), 2);
     c.set_view_target([2048.0, 0.0, 2048.0]);
     assert!(c.scroll_by_viewport_angle(std::f32::consts::FRAC_PI_2, 1.0, None));
-    near3(c.view_target(), [2189.4214, 0.0, 2189.4214], 0.004);
+    near3(
+        c.view_target(),
+        [2048.0 + 200.0 * cos_yaw, 0.0, 2048.0 + 200.0 * sin_yaw],
+        0.004,
+    );
 }
 
 #[test]
-fn attach_detach_init_once_and_drop_balance_only_owned_references() {
+fn attach_detach_init_once_and_native_destructor_does_not_detach() {
     let cam = handle();
     {
         let mut c = CameraControl::new();
@@ -683,7 +722,9 @@ fn attach_detach_init_once_and_drop_balance_only_owned_references() {
         assert_eq!(second.read().unwrap().reference_count(), 0);
         c.attach_to_camera(cam.clone());
     }
-    assert_eq!(cam.read().unwrap().reference_count(), 0);
+    // Native deleting destruction does not detach. External teardown must
+    // call Detach; Rust's Arc lifetime alone does not decrement the ledger.
+    assert_eq!(cam.read().unwrap().reference_count(), 1);
 }
 
 fn record_bytes() -> Vec<u8> {
@@ -698,7 +739,7 @@ fn record_bytes() -> Vec<u8> {
     bytes
 }
 #[test]
-fn save_bytes_exact_and_init_uses_loaded_new_pair_before_city_exists() {
+fn save_bytes_exact_and_init_copies_loaded_current_pair_to_new() {
     let bytes = record_bytes();
     assert_eq!(bytes.len(), 38);
     let mut c = CameraControl::new();
@@ -715,8 +756,9 @@ fn save_bytes_exact_and_init_uses_loaded_new_pair_before_city_exists() {
     assert_eq!(out.bytes(), bytes);
     c.set_city_size(1024.0, 1024.0);
     c.init([999.0; 3], handle());
-    assert_eq!(c.zoom(), 4);
-    assert_eq!(c.rotation(), 1);
+    assert_eq!(c.zoom(), 3);
+    assert_eq!(c.rotation(), 0);
+    assert_eq!(c.new_zoom_and_rotation(), ZoomRotation { zoom: 3, rotation: 0 });
     assert_eq!(c.view_target(), [123.0, 4.0, 567.0]);
     assert_eq!(c.custom_magnification(), 1.0);
 }
@@ -727,8 +769,11 @@ fn record_bad_version_truncation_and_sticky_write_error() {
     for n in 0..bytes.len() {
         let mut c = CameraControl::new();
         assert!(!c.read(&mut ByteReader::new(&bytes[..n])));
-        assert!(!c.loaded());
-        assert_eq!(c.view_target(), [0.0; 3]);
+        assert!(c.loaded());
+        let expected = [123.0, 4.0, 567.0];
+        for (i, value) in c.view_target().into_iter().enumerate() {
+            assert_eq!(value, if n >= 2 + (i + 1) * 4 { expected[i] } else { 0.0 });
+        }
     }
     let mut bad = bytes;
     bad[0] = 2;
@@ -782,12 +827,16 @@ fn rectangular_city_scroll_corner_retains_foreign_view_quirk() {
     c.set_rotation(1);
     c.set_scroll_bounds_in_use(true);
     // Foreign utility corner 2 is (W, 0, W), not (W, 0, D).
-    near(c.scroll_bounds()[4][0], 1948.1547, 0.003);
-    near(c.scroll_bounds()[4][1], -724.07733, 0.003);
+    near(
+        c.scroll_bounds()[4][0],
+        1024.0 * (2.0 + 2.0_f32.sqrt()).sqrt() + 500.0,
+        0.003,
+    );
+    near(c.scroll_bounds()[4][1], -512.0 * (2.0 - 2.0_f32.sqrt()).sqrt(), 0.003);
 }
 
 #[test]
-fn malformed_saved_indices_are_preserved_without_table_or_integer_panics() {
+fn safety_policy_contains_malformed_saved_lookups_without_claiming_native_values() {
     let mut bytes = vec![1, 0];
     for _ in 0..3 {
         bytes.extend(0.0_f32.to_le_bytes());
@@ -821,4 +870,302 @@ fn viewport_setter_updates_camera_without_implicit_control_recomputation() {
     assert!(c.messages().is_empty());
     c.update_camera_zoom_and_rotation_params();
     assert_eq!(cam.read().unwrap().raw_view_volume().right, box_before.right * 2.0);
+}
+
+#[test]
+fn independent_ca3_constructor_and_degenerate_look_at() {
+    let mut c = S3dCamera::new();
+    assert_eq!(c.look_at(), [0.0; 3]);
+    assert_eq!(c.up(), [0.0; 3]);
+    assert_eq!(c.projection_state(), 1);
+    assert_eq!(
+        c.raw_view_volume(),
+        ViewVolume {
+            left: -1.0,
+            right: 1.0,
+            bottom: -1.0,
+            top: 1.0,
+            near: 1.0,
+            far: 2.0
+        }
+    );
+    assert_eq!(
+        *c.projection_matrix(),
+        [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, -2.0, -3.0],
+            [0.0, 0.0, 0.0, 1.0]
+        ]
+    );
+    c.set_look_at([0.0; 3], [0.0, 1.0, 0.0]);
+    assert!(c.local_xform().matrix.iter().all(|x| x.is_nan()));
+    assert_eq!(c.view_state(), 2);
+    c.set_position([0.0, 0.0, 1.0]);
+    c.set_look_at([0.0; 3], [0.0, 0.0, 1.0]);
+    assert_eq!(
+        [
+            c.local_xform().matrix[2],
+            c.local_xform().matrix[5],
+            c.local_xform().matrix[8]
+        ],
+        [0.0, 0.0, 1.0]
+    );
+    assert!(c.local_xform().matrix[0].is_nan());
+    let before = c.projection_state();
+    c.set_ortho(-1.0, 1.0, -1.0, 1.0, 1.0, 2.0);
+    c.set_ortho(-1.0, 1.0, -1.0, 1.0, 1.0, 2.0);
+    assert_eq!(c.projection_state(), before + 2);
+    c.set_subview(3.0, 4.0, 20.0, 30.0);
+    c.reset_subview();
+    assert_eq!(c.projection_state(), before + 4);
+    assert!(!c.subview_in_use());
+    assert_eq!(
+        c.subview(),
+        Viewport {
+            x: 0.0,
+            y: 0.0,
+            width: 100.0,
+            height: 100.0
+        }
+    );
+}
+
+#[test]
+fn independent_ca4_camera_less_init_detach_and_raw_read() {
+    let mut c = CameraControl::new();
+    assert_eq!(c.view_direction(), [0.0; 3]);
+    assert_eq!(c.camera_plane_axes(), [[0.0; 3], [0.0, 1.0, 0.0]]);
+    assert_eq!(c.distances_to_clip_planes(), [0.0; 2]);
+    assert!(c.init([1.0, 2.0, 3.0], None));
+    assert!(c.initialised());
+    assert!(c.init([9.0; 3], handle()));
+    assert!(c.camera().is_none());
+    assert_eq!(c.view_target(), [1.0, 2.0, 3.0]);
+    c.attach_to_camera(handle());
+    c.detach_from_camera();
+    assert!(c.initialised());
+    assert!(c.init([9.0; 3], handle()));
+    assert!(c.camera().is_none());
+    let mut bytes = record_bytes();
+    bytes[2..6].copy_from_slice(&f32::NAN.to_le_bytes());
+    bytes[22..26].copy_from_slice(&17_u32.to_le_bytes());
+    bytes[26..30].copy_from_slice(&9_u32.to_le_bytes());
+    assert!(c.read(&mut ByteReader::new(&bytes)));
+    assert!(c.view_target()[0].is_nan());
+    assert_eq!((c.zoom(), c.rotation()), (17, 9));
+    let mut output = [123.0, 456.0, 789.0];
+    c.rotation_corner_into(9, &mut output);
+    assert_eq!(output, [123.0, 0.0, 789.0]);
+    // Do not dereference invalid tables as a native fidelity assertion.
+}
+
+#[test]
+fn independent_ca4_failed_stream_attempts_all_destinations_without_rollback() {
+    use crate::stream::{InStream, RefValue};
+    struct PartialStream {
+        floats: usize,
+        integers: usize,
+    }
+    impl InStream for PartialStream {
+        fn get_u16(&mut self) -> Option<u16> {
+            Some(1)
+        }
+        fn get_f32(&mut self) -> Option<f32> {
+            self.floats += 1;
+            Some(6.0 + self.floats as f32)
+        }
+        fn get_u32(&mut self) -> Option<u32> {
+            self.integers += 1;
+            (self.integers == 1).then_some(17)
+        }
+        fn error(&self) -> i32 {
+            i32::from(self.integers > 1)
+        }
+        fn get_u8(&mut self) -> Option<u8> {
+            unreachable!()
+        }
+        fn get_u64(&mut self) -> Option<u64> {
+            unreachable!()
+        }
+        fn get_f64(&mut self) -> Option<f64> {
+            unreachable!()
+        }
+        fn get_bytes(&mut self, _: usize) -> Option<Vec<u8>> {
+            unreachable!()
+        }
+        fn get_str(&mut self) -> Option<Vec<u8>> {
+            unreachable!()
+        }
+        fn get_ref(&mut self) -> Option<RefValue> {
+            unreachable!()
+        }
+        fn skip(&mut self, _: usize) -> bool {
+            unreachable!()
+        }
+    }
+    let mut c = CameraControl::new();
+    c.set_view_target([1.0, 2.0, 3.0]);
+    let mut input = PartialStream { floats: 0, integers: 0 };
+    assert!(!c.read(&mut input));
+    assert!(c.loaded());
+    assert_eq!(c.view_target(), [7.0, 8.0, 9.0]);
+    assert_eq!(c.previous_zoom_and_rotation(), ZoomRotation { zoom: 17, rotation: 0 });
+    assert_eq!(input.integers, 6);
+    assert_eq!((c.zoom(), c.rotation()), (0, 0));
+}
+
+#[test]
+fn independent_ca5_reset_order_rotation_preservation_and_float_equality() {
+    let mut c = control();
+    c.set_scroll_bounds_in_use(false);
+    c.set_zoom_and_rotation(4, 0);
+    c.set_custom_magnification(2.0);
+    c.take_messages();
+    assert!(!c.set_zoom_and_rotation(4, 0));
+    assert_eq!(c.custom_magnification(), 1.0);
+    assert_eq!(kinds(&c), vec![ViewMessageKind::PostViewRefresh]);
+    c.set_custom_magnification(2.0);
+    c.take_messages();
+    assert!(c.set_rotation(1));
+    assert_eq!(c.custom_magnification(), 2.0);
+    assert_eq!(
+        kinds(&c),
+        vec![
+            ViewMessageKind::ViewZRChange1,
+            ViewMessageKind::CameraUpdated,
+            ViewMessageKind::ViewZRChange2,
+            ViewMessageKind::ViewZRChange3
+        ]
+    );
+    c.set_zoom_and_rotation(0, 0);
+    c.take_messages();
+    assert!(c.set_zoom(0.5));
+    assert!(c.set_zoom(0.5));
+    assert_eq!(c.zoom(), 0);
+    assert_eq!(c.messages().len(), 8);
+    c.take_messages();
+    assert!(c.set_rotation(u32::MAX));
+    assert!(!c.set_zoom(f32::NAN));
+    assert!(c.messages().is_empty());
+    c.set_custom_magnification(f32::NAN);
+    c.set_custom_magnification(1.0);
+    assert!(c.custom_magnification().is_nan());
+    let mut detached = CameraControl::new();
+    assert!(!detached.set_zoom(2.0));
+    assert_eq!(detached.zoom(), 2);
+    assert!(!detached.set_rotation(1));
+    assert_eq!(detached.rotation(), 1);
+    assert!(detached.messages().is_empty());
+}
+
+#[test]
+fn independent_ca5_tweak_and_signed_viewport_preserve_existing_bounds() {
+    let mut c = control();
+    let bounds = c.scroll_bounds().to_vec();
+    c.set_camera_position_tweak_add(2.0, 3.0);
+    c.set_camera_position_tweak_add(4.0, 5.0);
+    assert_eq!(c.position_tweak(), [4.0, 5.0]);
+    assert_eq!(c.scroll_bounds(), bounds);
+    let cam = c.camera().unwrap();
+    let volume = cam.read().unwrap().raw_view_volume();
+    let counter = cam.read().unwrap().projection_state();
+    let eye = c.eye_position();
+    c.set_viewport_size(-1024, 768);
+    assert_eq!(c.viewport_size(), [-1024, 768]);
+    assert_eq!(cam.read().unwrap().viewport(), [-1024.0, 768.0]);
+    assert_eq!(cam.read().unwrap().projection_state(), counter + 2);
+    assert_eq!(cam.read().unwrap().raw_view_volume(), volume);
+    assert_eq!(c.eye_position(), eye);
+    assert_eq!(c.scroll_bounds(), bounds);
+    assert!(c.messages().is_empty());
+}
+
+#[test]
+fn independent_ca6_outside_boundary_fraction_and_length_discriminators() {
+    for (from, to, expected) in [
+        ([12.0, 5.0], [12.0, 5.0], [12.0, 5.0]),
+        ([12.0, 5.0], [13.0, 6.0], [12.0, 6.0]),
+        ([12.0, 5.0], [11.0, 6.0], [11.0, 6.0]),
+        ([5.0, 5.0], [10.0, 5.0], [10.0, 5.0]),
+    ] {
+        assert_eq!(clamp_polygon(&SQUARE, true, from, to), expected);
+    }
+    near(clamp_polygon(&SQUARE, true, [5.0, 5.0], [25.0, 5.0])[0], 9.998, 0.0001);
+    let narrow = [[0.0, 0.0], [1.0, 0.0], [1.0, 10.0], [0.0, 10.0]];
+    assert_eq!(clamp_polygon(&narrow, true, [0.0, 5.0], [2000.0, 5.0]), [0.0, 5.0]);
+    near(clamp_polygon(&narrow, true, [0.0, 5.0], [1000.0, 5.0])[0], 0.9, 0.0001);
+    for (bits, expected) in [(0x322B_CC77, 1.0), (0x322B_CC78, -0.0002)] {
+        let polygon = [[0.0, 0.0], [0.0, f32::from_bits(bits)]];
+        near(
+            clamp_polygon(&polygon, true, [-1.0, 0.0], [1.0, 0.0])[0],
+            expected,
+            0.0001,
+        );
+    }
+}
+
+#[test]
+fn synchronous_callbacks_observe_live_fields_reentry_and_reused_message() {
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    };
+    #[derive(Debug)]
+    struct Observation {
+        kind: ViewMessageKind,
+        rotation: u32,
+        projection: u32,
+        data1: usize,
+        data2: usize,
+        message: usize,
+    }
+    #[derive(Debug, Default)]
+    struct Server {
+        observations: Mutex<Vec<Observation>>,
+        entered: AtomicBool,
+    }
+    impl ViewMessageServer for Server {
+        fn send(&self, control: &mut CameraControl, message: &LiveViewMessage) {
+            let data1 = match message.data1(control) {
+                ViewMessageData::Control(value) => value as *const CameraControl as usize,
+                ViewMessageData::Pair(value) => value as *const ZoomRotation as usize,
+            };
+            let data2 = message.data2(control).map_or(0, |p| p as *const ZoomRotation as usize);
+            let projection = control.camera().unwrap().read().unwrap().projection_state();
+            self.observations.lock().unwrap().push(Observation {
+                kind: message.kind,
+                rotation: control.rotation(),
+                projection,
+                data1,
+                data2,
+                message: message as *const LiveViewMessage as usize,
+            });
+            if message.kind == ViewMessageKind::CameraUpdated && !self.entered.swap(true, Ordering::SeqCst) {
+                assert!(control.set_rotation(2));
+            }
+        }
+    }
+    let mut c = control();
+    c.set_scroll_bounds_in_use(false);
+    let old_projection = c.camera().unwrap().read().unwrap().projection_state();
+    let server = Arc::new(Server::default());
+    c.set_message_server(Some(server.clone()));
+    assert!(c.set_rotation(1));
+    let observations = server.observations.lock().unwrap();
+    assert_eq!(observations.len(), 8);
+    assert_eq!(observations[0].kind, ViewMessageKind::ViewZRChange1);
+    assert_eq!(observations[0].rotation, 1);
+    assert_eq!(observations[0].projection, old_projection);
+    assert!(observations[1].projection > old_projection);
+    assert_eq!(observations[6].rotation, 2);
+    assert_eq!(observations[6].kind, ViewMessageKind::ViewZRChange2);
+    assert_eq!(observations[7].kind, ViewMessageKind::ViewZRChange3);
+    for i in [6, 7] {
+        assert_eq!(observations[i].message, observations[1].message);
+        assert_eq!(observations[i].data1, observations[0].data1);
+        assert_eq!(observations[i].data2, observations[0].data2);
+    }
+    assert_eq!(observations[1].data1, &c as *const CameraControl as usize);
+    assert_eq!(observations[1].data2, 0);
 }

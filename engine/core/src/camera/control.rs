@@ -2,7 +2,7 @@
 use super::geometry::*;
 use super::S3dCamera;
 use crate::stream::{InStream, OutStream};
-use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, FRAC_PI_8};
+use std::f32::consts::{FRAC_PI_2, FRAC_PI_8};
 use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
 pub const CAMERA_CONTROL_CLASS_ID: u32 = 0xC9C6_28EC;
@@ -31,13 +31,45 @@ pub enum ViewMessageKind {
     PostViewRefresh = 0xA6B7_9621,
 }
 
-/// Typed core event. CameraUpdated's data1 is the owning control, represented
-/// by its kind rather than a raw self pointer. Other kinds carry copied pairs.
+/// Diagnostic snapshot taken at send time, not a native message delivery.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ViewMessage {
     pub kind: ViewMessageKind,
     pub previous: ZoomRotation,
     pub new: ZoomRotation,
+}
+
+/// One synchronous message object, reused across each post-change sequence.
+/// Payload borrows are resolved against the live control at observation time.
+#[derive(Debug)]
+pub struct LiveViewMessage {
+    pub kind: ViewMessageKind,
+}
+
+#[derive(Debug)]
+pub enum ViewMessageData<'a> {
+    Control(&'a CameraControl),
+    Pair(&'a ZoomRotation),
+}
+
+impl LiveViewMessage {
+    pub fn data1<'a>(&self, control: &'a CameraControl) -> ViewMessageData<'a> {
+        if self.kind == ViewMessageKind::CameraUpdated {
+            ViewMessageData::Control(control)
+        } else {
+            ViewMessageData::Pair(&control.previous)
+        }
+    }
+    pub fn data2<'a>(&self, control: &'a CameraControl) -> Option<&'a ZoomRotation> {
+        (self.kind != ViewMessageKind::CameraUpdated).then_some(&control.new)
+    }
+}
+
+/// A synchronous host send, not a queue. The mutable control permits reentry;
+/// no camera lock is held while recipients run. Hosts resolve live payloads
+/// using data1/data2; references must not escape the callback.
+pub trait ViewMessageServer: std::fmt::Debug + Send + Sync {
+    fn send(&self, control: &mut CameraControl, message: &LiveViewMessage);
 }
 
 /// Only the documented foreign terrain-view query is supplied by the host.
@@ -69,7 +101,7 @@ pub struct CameraControl {
     pitch: f32,
     near: f32,
     far: f32,
-    viewport: [u32; 2],
+    viewport: [i32; 2],
     metres_per_pixel: f32,
     pixels_per_metre: f32,
     offset: Vec3,
@@ -77,6 +109,7 @@ pub struct CameraControl {
     bounds: Vec<Vec2>,
     city_size: Vec2,
     messages: Vec<ViewMessage>,
+    message_server: Option<Arc<dyn ViewMessageServer>>,
 }
 
 impl Default for CameraControl {
@@ -85,24 +118,24 @@ impl Default for CameraControl {
             initialised: false,
             loaded: false,
             camera: None,
-            // CA4: unspecified pre-init vectors/clip distances use zero,
-            // axes and scale use identity. No city query is needed by Read.
             plane_origin: [0.0; 3],
             corner: [0.0; 3],
             eye: [0.0; 3],
             target: [0.0; 3],
             velocity: [0.0; 3],
-            direction: [0.0, 0.0, -1.0],
-            axes: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            direction: [0.0; 3],
+            axes: [[0.0; 3], [0.0, 1.0, 0.0]],
+            // CA7: pre-init derived conversion storage is not specified;
+            // retain unit scale and zero plane/point until a camera update.
             view_scale: 1.0,
-            plane: [0.0, 0.0, -1.0, 0.0],
+            plane: [0.0; 4],
             target_plane: [0.0; 2],
             tweak: [0.0; 2],
             magnification: 1.0,
             previous: ZoomRotation::default(),
             current: ZoomRotation::default(),
             new: ZoomRotation::default(),
-            yaw: FRAC_PI_4,
+            yaw: -FRAC_PI_8,
             pitch: PITCH_DEGREES[0].to_radians(),
             near: 0.0,
             far: 0.0,
@@ -114,13 +147,8 @@ impl Default for CameraControl {
             bounds: Vec::new(),
             city_size: [4096.0, 4096.0],
             messages: Vec::new(),
+            message_server: None,
         }
-    }
-}
-
-impl Drop for CameraControl {
-    fn drop(&mut self) {
-        self.detach_from_camera();
     }
 }
 
@@ -158,6 +186,28 @@ impl CameraControl {
     }
     pub fn rotation_corner(&self) -> Vec3 {
         self.corner
+    }
+    pub fn rotation_corner_into(&self, rotation: u32, output: &mut Vec3) {
+        output[1] = 0.0;
+        match rotation {
+            0 => {
+                output[0] = 0.0;
+                output[2] = 0.0;
+            }
+            1 => {
+                output[0] = self.city_size[0];
+                output[2] = 0.0;
+            }
+            2 => {
+                output[0] = self.city_size[0];
+                output[2] = self.city_size[1];
+            }
+            3 => {
+                output[0] = 0.0;
+                output[2] = self.city_size[1];
+            }
+            _ => {}
+        }
     }
     pub fn camera_plane_origin(&self) -> Vec3 {
         self.plane_origin
@@ -199,7 +249,7 @@ impl CameraControl {
     pub fn distances_to_clip_planes(&self) -> Vec2 {
         [self.near, self.far]
     }
-    pub fn viewport_size(&self) -> [u32; 2] {
+    pub fn viewport_size(&self) -> [i32; 2] {
         self.viewport
     }
     pub fn city_size(&self) -> Vec2 {
@@ -227,6 +277,8 @@ impl CameraControl {
         &self.bounds
     }
     pub fn scroll_step(&self) -> f32 {
+        // Safety policy only: native malformed-save lookup is unchecked and
+        // has no deterministic out-of-array contract (CA4, §2.6).
         SCROLL_STEPS[self.current.zoom.min(4) as usize]
     }
     pub fn messages(&self) -> &[ViewMessage] {
@@ -237,32 +289,54 @@ impl CameraControl {
     }
 
     pub fn send_post_view_change_message(&mut self, kind: ViewMessageKind) {
+        self.send_message(&LiveViewMessage { kind });
+    }
+    pub fn set_message_server(&mut self, server: Option<Arc<dyn ViewMessageServer>>) {
+        self.message_server = server;
+    }
+    fn send_message(&mut self, message: &LiveViewMessage) {
         self.messages.push(ViewMessage {
-            kind,
+            kind: message.kind,
             previous: self.previous,
             new: self.new,
         });
+        if let Some(server) = self.message_server.clone() {
+            server.send(self, message);
+        }
+    }
+    fn send_sequence(&mut self, kinds: &[ViewMessageKind]) {
+        let mut message = LiveViewMessage {
+            kind: ViewMessageKind::CameraUpdated,
+        };
+        for &kind in kinds {
+            message.kind = kind;
+            self.send_message(&message);
+        }
     }
     fn send_target_changed(&mut self) {
-        self.send_post_view_change_message(ViewMessageKind::CameraUpdated);
-        self.send_post_view_change_message(ViewMessageKind::ViewTChange2);
-        self.send_post_view_change_message(ViewMessageKind::ViewTChange3);
+        self.send_sequence(&[
+            ViewMessageKind::CameraUpdated,
+            ViewMessageKind::ViewTChange2,
+            ViewMessageKind::ViewTChange3,
+        ]);
     }
 
     /// The foreign view supplies a camera identity, never an owner-method
     /// result. Attach to the core-owned camera and derive all state here.
-    pub fn init(&mut self, target: Vec3, camera: CameraHandle) -> bool {
+    pub fn init(&mut self, target: Vec3, camera: impl Into<Option<CameraHandle>>) -> bool {
         if self.initialised {
             return true;
         }
         if self.loaded {
-            self.current = self.new;
+            self.new = self.current;
         } else {
             self.target = target;
         }
-        self.attach_to_camera(camera);
-        self.update_all();
-        self.send_post_view_change_message(ViewMessageKind::PostViewInit);
+        if let Some(camera) = camera.into() {
+            self.attach_to_camera(camera);
+            self.update_all();
+            self.send_post_view_change_message(ViewMessageKind::PostViewInit);
+        }
         self.initialised = true;
         true
     }
@@ -270,10 +344,13 @@ impl CameraControl {
         if self.camera.as_ref().is_some_and(|old| Arc::ptr_eq(old, &camera)) {
             return;
         }
-        self.detach_from_camera();
         {
             let mut c = write_camera(&camera);
             c.add_ref();
+        }
+        self.detach_from_camera();
+        {
+            let mut c = write_camera(&camera);
             c.set_viewport(self.viewport[0] as f32, self.viewport[1] as f32);
         }
         self.camera = Some(camera);
@@ -287,22 +364,21 @@ impl CameraControl {
             write_camera(&camera).release();
         }
     }
-    // CA4: the spec names no Shutdown body; pure-core shutdown releases the
-    // attachment and clears initialised, without changing persisted fields.
+    // Adapter convenience for external Detach-before-Release teardown.
+    // The native destructor does not detach; Init remains retained.
     pub fn shutdown(&mut self) {
         self.detach_from_camera();
-        self.initialised = false;
     }
 
     pub fn update_camera_zoom_and_rotation_params(&mut self) {
-        // CA4: malformed save indices are retained in the record; clamp only
-        // table lookup to avoid indexing panics. Commands reject invalid input.
+        // Safety policy, not native fidelity: contain malformed-save table
+        // lookups. Native out-of-array values are not a valid-state contract.
         let zoom = self.current.zoom.min(4) as usize;
         let pixels = CELL_PIXELS[zoom] * self.magnification;
         let cell_span = 16.0 * (FRAC_PI_8.sin() + FRAC_PI_8.cos());
         self.metres_per_pixel = cell_span / pixels;
         self.pixels_per_metre = 1.0 / self.metres_per_pixel;
-        self.yaw = (self.current.rotation as f32 + 1.0) * FRAC_PI_2 - FRAC_PI_4;
+        self.yaw = (self.current.rotation as f32 + 1.0) * FRAC_PI_2 - FRAC_PI_8;
         self.pitch = PITCH_DEGREES[zoom].to_radians();
         let d = 8192.0 / self.pitch.cos();
         let w = self.city_size[0].max(4096.0);
@@ -321,14 +397,9 @@ impl CameraControl {
         ];
     }
     pub fn update_camera_position_params(&mut self) {
-        let [w, h] = self.city_size;
-        self.corner = match self.current.rotation {
-            0 => [0.0, 0.0, 0.0],
-            1 => [w, 0.0, 0.0],
-            2 => [w, 0.0, h],
-            3 => [0.0, 0.0, h],
-            _ => [0.0; 3], // CA4: malformed saved rotation; deterministic corner.
-        };
+        let mut corner = self.corner;
+        self.rotation_corner_into(self.current.rotation, &mut corner);
+        self.corner = corner;
         self.plane_origin = add(self.corner, self.offset);
         let length2 = dot(self.offset, self.offset);
         let k = if length2 == 0.0 {
@@ -425,7 +496,8 @@ impl CameraControl {
     }
     pub fn clamp_target_to_scroll_bounds(&mut self) {
         let q = self.convert_world_point_to_camera_plane_point(self.target);
-        let clamped = self.clamp_scroll_to_bounds(q, q);
+        let from = self.convert_world_point_to_camera_plane_point(self.corner);
+        let clamped = self.clamp_scroll_to_bounds(from, q);
         if (clamped[0] - q[0]).abs() < 0.0001 && (clamped[1] - q[1]).abs() < 0.0001 {
             return;
         }
@@ -433,6 +505,8 @@ impl CameraControl {
         if let Some(hit) = intersect_with_ground_plane(self.direction, world) {
             self.target = hit;
             self.velocity = [0.0; 3];
+        }
+        if self.camera.is_some() {
             self.update_camera_position_params();
             self.send_target_changed();
         }
@@ -451,54 +525,62 @@ impl CameraControl {
             return false;
         }
         let z = zoom.trunc() as u32;
-        if z == self.current.zoom && m == self.magnification {
+        if zoom == self.current.zoom as f32 && m == self.magnification {
             return false;
         }
         self.set_custom_magnification(m);
         self.change_zoom_rotation(ZoomRotation {
             zoom: z,
             rotation: self.current.rotation,
-        });
-        true
+        })
     }
     pub fn set_zoom_and_rotation(&mut self, zoom: u32, rotation: u32) -> bool {
         if zoom > 4 || rotation > 3 {
             return false;
         }
         let pair = ZoomRotation { zoom, rotation };
+        self.set_custom_magnification(1.0);
         if pair == self.current {
             return false;
         }
-        // CA5: "the same" as integer SetZoom resets custom magnification.
-        self.set_custom_magnification(1.0);
-        self.change_zoom_rotation(pair);
-        true
+        self.change_zoom_rotation(pair)
     }
     pub fn set_rotation(&mut self, rotation: u32) -> bool {
         if rotation > 3 {
-            return false;
+            return true;
         }
         if rotation == self.current.rotation {
             return true;
         }
-        self.set_zoom_and_rotation(self.current.zoom, rotation)
+        self.change_zoom_rotation(ZoomRotation {
+            zoom: self.current.zoom,
+            rotation,
+        })
     }
-    fn change_zoom_rotation(&mut self, pair: ZoomRotation) {
+    fn change_zoom_rotation(&mut self, pair: ZoomRotation) -> bool {
         self.previous = self.current;
         self.current = pair;
         self.new = pair;
+        if self.camera.is_none() {
+            return false;
+        }
         self.send_post_view_change_message(ViewMessageKind::ViewZRChange1);
         self.update_all();
-        self.send_post_view_change_message(ViewMessageKind::CameraUpdated);
-        self.send_post_view_change_message(ViewMessageKind::ViewZRChange2);
-        self.send_post_view_change_message(ViewMessageKind::ViewZRChange3);
+        self.send_sequence(&[
+            ViewMessageKind::CameraUpdated,
+            ViewMessageKind::ViewZRChange2,
+            ViewMessageKind::ViewZRChange3,
+        ]);
         self.clamp_target_to_scroll_bounds();
+        true
     }
     pub fn set_custom_magnification(&mut self, m: f32) {
         if m != self.magnification && self.magnification > 0.0 && self.magnification < 1000.0 {
             self.magnification = m;
-            self.update_all();
-            self.send_post_view_change_message(ViewMessageKind::PostViewRefresh);
+            if self.camera.is_some() {
+                self.update_all();
+                self.send_post_view_change_message(ViewMessageKind::PostViewRefresh);
+            }
         }
     }
     pub fn set_view_target(&mut self, target: Vec3) -> bool {
@@ -527,22 +609,25 @@ impl CameraControl {
             from[1] - angle.sin() * amount * step,
         ];
         let to = self.clamp_scroll_to_bounds(from, to);
-        let world = self.convert_camera_plane_point_to_world_point(to);
-        let terrain_hit = terrain.and_then(|t| t.ray_cast(world, self.direction));
-        if let Some(hit) = terrain_hit.or_else(|| intersect_with_ground_plane(self.direction, world)) {
+        self.target = self.convert_camera_plane_point_to_world_point(to);
+        let terrain_hit = terrain.and_then(|t| t.ray_cast(self.target, self.direction));
+        if let Some(hit) = terrain_hit.or_else(|| intersect_with_ground_plane(self.direction, self.target)) {
             self.target = hit;
-            self.velocity = [0.0; 3];
-            self.update_camera_position_params();
-            self.send_target_changed();
         }
+        self.update_camera_position_params();
+        self.send_target_changed();
         true
     }
     pub fn set_camera_position_tweak_add(&mut self, x: f32, y: f32) {
-        // CA5: the table describes the stored tweak changing, so x/y replace
-        // the additive pixel tweak, rather than accumulating on each call.
         if self.tweak != [x, y] {
             self.tweak = [x, y];
-            self.update_all();
+            if self.camera.is_some() {
+                self.update_camera_zoom_and_rotation_params();
+                self.update_camera_position_params();
+                if self.bounds.is_empty() {
+                    self.update_scroll_bounds();
+                }
+            }
         }
     }
     pub fn set_city_size(&mut self, width: f32, depth: f32) {
@@ -552,7 +637,7 @@ impl CameraControl {
             self.update_all();
         }
     }
-    pub fn set_viewport_size(&mut self, width: u32, height: u32) {
+    pub fn set_viewport_size(&mut self, width: i32, height: i32) {
         self.viewport = [width, height];
         if let Some(camera) = &self.camera {
             write_camera(camera).set_viewport(width as f32, height as f32);
@@ -572,51 +657,31 @@ impl CameraControl {
         out.error() == 0
     }
     pub fn read(&mut self, inp: &mut dyn InStream) -> bool {
+        self.loaded = true;
         if inp.get_u16() != Some(1) {
             return false;
         }
-        // CA4: commit the record atomically on stream success. Read runs
-        // before Init, does not size state from a city or touch the camera.
-        let mut target = [0.0; 3];
-        let mut pairs = [ZoomRotation::default(); 3];
-        for v in &mut target {
-            let Some(value) = inp.get_f32() else {
-                return false;
-            };
-            *v = value;
+        // Mutate each destination immediately and attempt every primitive.
+        // InStream's None leaves that destination untouched; stream errors
+        // determine success, with no camera-level rollback or validation.
+        for v in &mut self.target {
+            if let Some(value) = inp.get_f32() {
+                *v = value;
+            }
         }
-        for pair in &mut pairs {
-            let Some(zoom) = inp.get_u32() else {
-                return false;
-            };
-            let Some(rotation) = inp.get_u32() else {
-                return false;
-            };
-            *pair = ZoomRotation { zoom, rotation };
+        for pair in [&mut self.previous, &mut self.current, &mut self.new] {
+            if let Some(zoom) = inp.get_u32() {
+                pair.zoom = zoom;
+            }
+            if let Some(rotation) = inp.get_u32() {
+                pair.rotation = rotation;
+            }
         }
-        if inp.error() != 0 {
-            return false;
-        }
-        self.target = target;
-        [self.previous, self.current, self.new] = pairs;
-        self.loaded = true;
-        true
+        inp.error() == 0
     }
 }
 
-fn cross2(a: Vec2, b: Vec2) -> f32 {
-    a[0] * b[1] - a[1] * b[0]
-}
-fn sub2(a: Vec2, b: Vec2) -> Vec2 {
-    [a[0] - b[0], a[1] - b[1]]
-}
-fn add2(a: Vec2, b: Vec2) -> Vec2 {
-    [a[0] + b[0], a[1] + b[1]]
-}
-fn mul2(a: Vec2, s: f32) -> Vec2 {
-    [a[0] * s, a[1] * s]
-}
-fn dot2(a: Vec2, b: Vec2) -> f32 {
+fn dot2(a: [f64; 2], b: [f64; 2]) -> f64 {
     a[0] * b[0] + a[1] * b[1]
 }
 
@@ -625,58 +690,117 @@ pub(super) fn clamp_polygon(polygon: &[Vec2], enabled: bool, original: Vec2, to:
         return to;
     }
     let n = polygon.len();
-    let area: f32 = (0..n).map(|i| cross2(polygon[i], polygon[(i + 1) % n])).sum();
-    let winding = if area < 0.0 { -1.0 } else { 1.0 };
     let mut start = original;
     let mut end = to;
-    let mut sliding_edge = None;
+    let original_direction = [
+        f64::from(to[0]) - f64::from(original[0]),
+        f64::from(to[1]) - f64::from(original[1]),
+    ];
+    let mut negative = false;
+    let mut nonnegative = false;
     for _ in 0..n {
-        let mut first: Option<(f32, Vec2, Vec2, usize)> = None;
+        let mut best = 1.0_f32;
+        let mut first = None;
         for i in 0..n {
-            // Motion constructed parallel to this edge cannot cross it.
-            // Avoid treating projection rounding residue as a new crossing
-            // of the edge being followed (CA6).
-            if sliding_edge == Some(i) {
+            let a = polygon[(i + n - 1) % n].map(f64::from);
+            let b = polygon[i].map(f64::from);
+            let v = [a[0] - b[0], a[1] - b[1]];
+            let length = dot2(v, v).sqrt();
+            // §2.5 specifies the double threshold before the float length
+            // store, followed by normalization using that stored length.
+            if length < 1e-8_f64 {
                 continue;
             }
-            let a = polygon[i];
-            let edge = sub2(polygon[(i + 1) % n], a);
-            let length2 = dot2(edge, edge);
-            if length2.sqrt() < 1e-8 {
+            let length = f64::from(length as f32);
+            let normal = [v[1] / length, -v[0] / length];
+            let distance = |p: Vec2| dot2(normal, p.map(f64::from)) - dot2(normal, a);
+            let end_side = distance(end) as f32;
+            let start_side = distance(start);
+            if end_side > 0.0 || start_side <= f64::from(end_side) {
                 continue;
             }
-            let end_side = cross2(edge, sub2(end, a)) * winding;
-            if end_side >= 0.0 {
-                continue;
-            }
-            let start_side = cross2(edge, sub2(start, a)) * winding;
-            // CA6: the inferred rule does not define an outside start or
-            // from==to. Project an outside start onto the offending line;
-            // use fraction zero and then the same edge-slide operation.
-            let (fraction, intersection) = if start_side < 0.0 {
-                let along = dot2(sub2(start, a), edge) / length2;
-                (0.0, add2(a, mul2(edge, along)))
-            } else {
-                let fraction = start_side / (start_side - end_side);
-                let stop = if fraction >= 0.001 { fraction - 0.0001 } else { fraction };
-                (fraction, add2(start, mul2(sub2(end, start), stop)))
-            };
-            let earlier = match first {
-                Some((old, ..)) => fraction < old,
-                None => true,
-            };
-            if earlier {
-                first = Some((fraction, intersection, edge, i));
+            let fraction = start_side / (start_side - f64::from(end_side));
+            if fraction < f64::from(best) {
+                best = fraction as f32;
+                first = Some(([-v[0], -v[1]], length));
             }
         }
-        let Some((_, intersection, edge, edge_index)) = first else {
+        let Some((edge, length)) = first else {
             return end;
         };
-        let remaining = sub2(end, intersection);
-        let along = dot2(remaining, edge) / dot2(edge, edge);
+        let fraction = if best >= 0.001_f32 {
+            f64::from(best) - f64::from(0.0001_f32)
+        } else {
+            0.0
+        };
+        let remaining: Vec2 =
+            std::array::from_fn(|j| ((f64::from(end[j]) - f64::from(start[j])) * (1.0 - fraction)) as f32);
+        let intersection: Vec2 = std::array::from_fn(|j| end[j] - remaining[j]);
+        if dot2(original_direction, edge) < 0.0 {
+            negative = true;
+        } else {
+            nonnegative = true;
+        }
+        if negative && nonnegative {
+            return intersection;
+        }
+        let unit = [edge[0] / length, edge[1] / length];
+        let along = dot2(remaining.map(f64::from), unit);
         start = intersection;
-        end = add2(intersection, mul2(edge, along));
-        sliding_edge = Some(edge_index);
+        end = std::array::from_fn(|j| (f64::from(intersection[j]) + unit[j] * along) as f32);
     }
     original
+}
+
+#[cfg(test)]
+mod ground_failure_contracts {
+    use super::*;
+    fn fixture() -> CameraControl {
+        CameraControl {
+            camera: Some(Arc::new(RwLock::new(S3dCamera::new()))),
+            direction: [1.0, 0.0, 0.0],
+            velocity: [1.0, 2.0, 3.0],
+            ..CameraControl::new()
+        }
+    }
+    fn assert_updates(c: &CameraControl) {
+        assert_eq!(
+            c.messages.iter().map(|m| m.kind).collect::<Vec<_>>(),
+            [
+                ViewMessageKind::CameraUpdated,
+                ViewMessageKind::ViewTChange2,
+                ViewMessageKind::ViewTChange3
+            ]
+        );
+        assert_eq!(c.velocity, [1.0, 2.0, 3.0]);
+    }
+    #[test]
+    fn angle_scroll_stores_plane_point_before_failed_ground_and_still_notifies() {
+        struct Miss;
+        impl TerrainView for Miss {
+            fn ray_cast(&mut self, origin: Vec3, direction: Vec3) -> Option<Vec3> {
+                assert_eq!(origin, [7.0, 8.0, 9.0]);
+                assert_eq!(direction, [1.0, 0.0, 0.0]);
+                None
+            }
+        }
+        let mut c = fixture();
+        // §6.1 defined inverse result (7,8,9), parallel ground ray.
+        c.plane_origin = [7.0, 8.0, 9.0];
+        c.axes = [[0.0; 3]; 2];
+        assert!(c.scroll_by_viewport_angle(0.0, 1.0, Some(&mut Miss)));
+        assert_eq!(c.target, [7.0, 8.0, 9.0]);
+        assert_updates(&c);
+    }
+    #[test]
+    fn target_clamp_uses_corner_start_retains_old_target_after_failed_ground() {
+        let mut c = fixture();
+        c.axes = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
+        c.corner = [5.0, 5.0, 0.0];
+        c.target = [15.0, 5.0, 9.0];
+        c.bounds = vec![[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]];
+        c.clamp_target_to_scroll_bounds();
+        assert_eq!(c.target, [15.0, 5.0, 9.0]);
+        assert_updates(&c);
+    }
 }
