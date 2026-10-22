@@ -38,6 +38,13 @@ applies that option's property set. Everything is logged to `<computer name>-con
 
 A **property set** is three lists: (boolean index, value), (integer index, value), (float index, value). Applying it
 (`0x007CE1F0`) calls the render properties' `SetBool`, `SetInt` and `SetFloat` for each, in that order.
+Within each list, insertion order and duplicate assignments are preserved. The float list stores binary32;
+the integer list stores signed 32-bit values. Writes are not coalesced and setter failure does not stop the
+remaining writes. Construction creates empty rules/groups, sixteen empty strings and eleven +0.0 numbers.
+Replacing the render-property object in `Init` retains the new object and releases the old one; the same
+object is left alone (`0x007D189C–0x007D18B9`). `Init` has no success return and does not evaluate rules.
+Destruction releases the held properties and owned lists/file resources; secondary-interface thunks
+adjust `this` by four bytes (`0x007D0DA0`, `0x007D0DB0`).
 
 ## 2. Variables (`GatherInformation`, `0x007CF780`) *[compat]*
 
@@ -46,25 +53,69 @@ A **property set** is three lists: (boolean index, value), (integer index, value
 | Bit | Name | Source |
 |---|---|---|
 | 0 | `hardwareDriver` | the driver is a hardware driver and `kForceSoftwareDriver` is false |
-| 1 | `DXT` | the driver supports compressed textures *[inferred]* |
-| 2 | `fullscreen` | full-screen mode *[inferred]* |
+| 1 | `DXT` | current driver information record, byte `+0x2C`, nonzero |
+| 2 | `fullscreen` | current driver information record, byte `+0x20`, nonzero |
 | 3 | `MMX` | CPU feature bit 23 |
 | 4 | `FPU` | CPU feature bit 0 |
 | 5 | `backingStore` | a backing store exists (global `0x00B4E1E4` non-null, `0x007C2790`) |
-| 6 | `forcedFSAA` | `0x008D2320` on the driver *[inferred: anti-aliasing forced by the driver]* |
+| 6 | `forcedFSAA` | boolean result of the rendering probe `0x008D2320(currentDriver)` |
 
-**Numbers** (`atLeast` / `atMost`), as floats: 0 `cpuSpeed` (MHz, `0x00891552`), 1 `memory`, 2 `freeMemory`,
+**Numbers** (`atLeast` / `atMost`), as floats: 0 `cpuSpeed` (MHz, `0x00891552`), 1 `memory`, 2 `freeMemory` (MiB),
 3 `screenWidth`, 4 `screenHeight`, 5 `screenBPP`, 6 `videoMemory` and 7 `textureMemory` (MB: the graphic system's
-memory figures shifted right by 20), 8 `textureStages`, 9 `bogoFPS`, 10 `bogoMPPS` *[inferred: 9 and 10 are not
-measured and stay 0]*.
+memory figures shifted right by 20), 8 `textureStages`, 9 `bogoFPS`, 10 `bogoMPPS`.
+The constructor initializes all eleven binary32 numbers to positive zero (`0x007D0D79–0x007D0D86`).
+`GatherInformation` writes only indices 0–8: neither bogo number is measured by this manager, including on
+later gathers. The forced-FSAA probe is a separate rendering test, not a source for either bogo number.
 
 **Strings** (`stringMatch` / `stringNotMatch`): 0 `userName`, 1 `appName`, 2 `version`, 3 `osVersion`,
 4 `computerName`, 5 `CPU`, 6 `sglDriverName`, 7 `sglDriverVersion`, 8 `driverName`, 9 `driverVersion`,
 10 `cardName`, 11 `cardVersion`, 12 `cardIdentity`, 13 `soundDriverName`, 14 `soundCardName`, 15 `buildType`.
 
-- 6–11 are the successive tokens of the driver's description string.
+- 6–11 are successive newline-delimited fields of the driver's description string **after discarding its
+  first field** (`0x007CFAF7`, then `0x007CFB26–0x007CFCF5`; delimiter at `0x00A916BC` is byte `0x0A`).
 - 13 and 14 come from the sound system (service `0xE9D27715`), or `Unknown` without one.
 - 15 is `Release`.
+
+### 2.1 Exact provider boundary
+
+The graphics system comes from `RZ::GS()`. Its query for interface `0xC47B747C`, followed by that interface's
+slot 3, supplies the current driver (`0x007CF9AE–0x007CF9E2`). Driver slot 64 (`+0x100`) fills a **0x34-byte
+record**. The DX7 implementation at `0x00886E10` copies thirteen dwords from driver-interface-relative
+`+0x1D4`; the alternative implementation at `0x008DC320` copies thirteen from `+0x3A8`.
+Treat the returned record, not either concrete driver's object layout, as the boundary:
+
+| Record field | Manager consumption | Native evidence |
+|---|---|---|
+| byte `+0x20` | nonzero sets `fullscreen` | `0x007CFA77–0x007CFA8B` |
+| unsigned dword `+0x24` | convert to binary32 `textureStages` | `0x007CF9F6–0x007CFA12` |
+| byte `+0x2C` | nonzero sets `DXT` | `0x007CFA60–0x007CFA74` |
+| byte `+0x30` | nonzero AND render bool index 0 (`kForceSoftwareDriver`) clear sets `hardwareDriver` | `0x007CFA2F–0x007CFA5D` |
+
+These bytes are provider reports, not values recomputed from screen size, card identity, texture formats or
+command-line switches by the rule manager. In particular `forcedFSAA` is not a fourth capability byte or an
+FSAA preference. Its helper fetches this record itself and immediately returns false when byte `+0x30` is
+zero (`0x008D2338–0x008D2358`). On hardware it runs twenty render iterations, obtains a readback surface,
+and samples the 8×8 grid at x,y = 4,12,…,60. Count samples for which R+G+B is nonzero, ignoring alpha;
+the result is true iff that count exceeds one (`0x008D25C1–0x008D25E8`, `0x008D2709–0x008D2756`).
+Without a readback surface the result remains false. This measures a rendering symptom of forced FSAA;
+it is independent of `kForceSoftwareDriver`, which is checked later for flag 0. The manager invokes the
+probe on each gather, even when that render property forces software.
+
+The OS/version provider supplies CPU features, CPU MHz, screen dimensions/BPP, memory, and the first six
+strings. For memory the native version helper first truncates each unsigned byte count to MiB, then rounds
+that integer **up to a multiple of four** with 32-bit wrapping arithmetic: subtract one, OR with 3, add one
+(`0x0089159C–0x008915B9`). Zero maps to zero. Video and texture memory instead use GS slot 23 (`+0x5C`),
+with arguments 2 and 0 respectively; each unsigned byte count is shifted right 20 with **no** four-MiB
+rounding (`0x007CF965–0x007CF99F`). CPU MHz, screen values, memory values and stage count are converted
+from unsigned 32-bit quantities to binary32; the native signed x87 loads add 2^32 for negative signed
+representations before the float store. Do not reinterpret these as signed hardware quantities.
+
+A portable implementation may inject the OS results, capability record, description, sound names,
+backing-store presence and probe result through a provider. It owns the flag assembly, units/conversions,
+fixed field mapping and all parser/evaluator algorithms below. It must keep provider values explicit in
+fixtures; a constant false FSAA result or guessed DXT support is not evidence of native acquisition parity.
+The GPU rendering/readback operation belongs to that provider/renderer boundary; neither bogo value is
+an output of it.
 
 ## 3. Reading the rules (`ParseConfigFile`, `0x007CFE10`) *[compat]*
 
@@ -78,6 +129,15 @@ measured and stay 0]*.
 
 `Init(properties)` (slot 3, `0x007D1890`) holds the render properties, gathers the variables and parses; when the
 parse fails it installs the fallback rules (§7).
+
+The parser registers both paths before running its parse entry point. The rule path is registered with
+argument 1 and the options path with argument 0 (`0x007CFF83`, `0x007CFFC1`); file-loading semantics are
+those of the shared resource parser. Successful parsing swaps both completed lists into the manager;
+failure does not publish partly parsed lists. `cardIdentity` is set to `cardName` before checking the parse
+result, so failure leaves that default identity. Vendor/device IDs start at zero when the length check
+fails; the check is strictly greater than 26 and both substrings have length four at zero-based offsets
+8 and 22. There is no PCI-identity query in this manager. `prefsFirstTime` is the literal `true` or `false`
+selected directly by the nonzero/zero application byte (`0x007CFFE2–0x007D0009`).
 
 ## 4. The language *[compat]*
 
@@ -100,7 +160,17 @@ optionGroup <group number>
 end
 ```
 
-Group and option numbers grow the tables as needed; each option collects a property set.
+Group and option numbers are unsigned 32-bit numbers and grow dense tables through index+1 as needed.
+New intervening groups have recommendation 0 and no options; new options are empty property sets.
+The 16-byte default group is zeroed at all four dword offsets (`+0`, `+4`, `+8`, `+0xC`) by
+`0x007D0410–0x007D041F`: recommendation 0 followed by an empty options list. The option-group parser
+constructs this fill value at `0x007E5549` and passes it with the requested group count (index+1) to
+the resize helper at `0x007E5552`. The export's `cSC4ResponseCurve` name for the shared zeroing body
+does not describe its use here; the caller establishes the option-group contract.
+Reopening a group/option selects its existing set and appends properties (`0x007E54C0`, `0x007E4910`).
+Group `end` clears the parser's current-group selection to -1 (`0x007E3B50`). A property line requires a
+preceding option selection; `DoProperty` constructs no implicit option (`0x007E4490`). This is a structural
+precondition, not a promise of a recoverable error for malformed blocks that violate it.
 
 ### 4.2 Rules
 
@@ -115,18 +185,55 @@ rule ["name"] [-partial] [-any]        or        partialRule ["name"] [-any]
 end
 ```
 
-- `partialRule` is `rule -partial`. An unnamed rule takes the previous rule's name followed by `>`.
+- `partialRule` is `rule -partial`. An unnamed rule takes the previous emitted rule's name followed by `>`;
+  with no previous rule, the constructor name `unknown` remains (`0x007E45F4–0x007E464A`).
 - Each rule records its **depth** (how many rules enclose it).
 - `has f` requires flag f set, `hasNo f` requires it clear (both set f in the rule's mask); `atLeast n v` requires
   number n ≥ v, `atMost n v` requires n ≤ v; `stringMatch s p` requires string s to match the wildcard pattern p
-  (`WildcardMatch`, case-insensitive) *[inferred: the case flag]*, `stringNotMatch` the opposite.
+  (`WildcardMatch`, case-insensitive), `stringNotMatch` the opposite.
 - Without `-any` **all** the conditions must hold (`0x007CE900`); with `-any` **one** is enough (`0x007CEA80`).
   A rule without conditions always matches, but a `-any` rule without conditions never does *[quirk]*.
+
+Conditions are stored by kind, rather than interpreted as a Boolean expression in source order. Flags
+share one expected-value bitset and one mask: `has` sets an expected bit, `hasNo` clears it, and both set
+its mask bit (`0x007E3ED0`, `0x007E3F90`). Repeating a flag overwrites that bit's expectation, so `has MMX`
+followed by `hasNo MMX` means only the latter, even in all mode. All mode requires masked flags equal to
+the expected bitset; any mode requires at least one masked bit to agree. Numeric and string conditions
+append separate entries, including duplicates. Short-circuit order is flags, lower bounds, upper bounds,
+positive string matches, negative string matches (`0x007CE900`, `0x007CEA80`). Properties and option
+recommendations are actions, never conditions.
+
+**Threshold conversion is significant.** Both bounds call the shared real-number parser and `_ftol2`, then
+store only EAX (`0x007E435B–0x007E4368`, `0x007E440F–0x007E4417`). Conversion truncates toward zero and keeps
+the low 32 bits; comparison loads those bits as a **signed integer**, not a float. Thus 2.9 becomes 2 and
+-2.9 becomes -2. The helper converts to signed 64-bit first (`0x009EEF13`), so representable larger values
+wrap at 2^32: 2147483648 compares as -2147483648. An invalid signed-64 conversion under masked x87
+exceptions produces integer-indefinite with low word zero. Real-number expression parsing is the internal
+shared `nSCRes::ParseFloat` algorithm, not an OS-provider callback; unconsumed trailing input is rejected
+as `Bad real number` (`0x0067BBC8–0x0067BBEB`). Do not round thresholds to binary32 before integer conversion.
+Environment numbers, unlike thresholds, are already binary32.
+
+Both bounds are inclusive for ordered operands. On a supplied NaN environment value, all-mode numeric
+tests pass, while any-mode numeric tests do not provide a match: the native x87 status tests differ
+(`0x007CE93B–0x007CE943`, `0x007CE975–0x007CE97D`, `0x007CEABD–0x007CEAC5`, `0x007CEAF7–0x007CEAFF`).
+Gathering supplies integer-derived finite values; NaN is an evaluator-fixture/embedding edge case.
+
+The matcher receives the variable as its first argument, the pattern as its second, and zero as its third
+(`0x007CE9C0–0x007CE9CA`, `0x007CEA2D–0x007CEA37`; the any-condition path uses the same convention).
+Zero makes temporary copies of **both** strings lowercase before matching (`0x00918F08–0x00918F18`);
+the stored environment and pattern are unchanged. Matching covers the entire string. `?` consumes exactly
+one byte, `*` consumes zero or more bytes, including separators; all other bytes are literal. There are no
+character classes or escape syntax in `MatchPattern` (`0x00918103–0x0091814D`). In particular, `*` matches
+the empty string, while `?` does not. ASCII case behavior is portable; non-ASCII lowercase behavior belongs
+to the shared string service, rather than a Unicode case-folding rule invented by this manager.
 
 ### 4.3 Values
 
 Booleans are parsed by the parser's boolean reader (`true` / `false`, as the shipped file writes them), integers
 and floats by its number readers.
+Flag, numeric-variable and string-variable names require exact, case-sensitive enum spelling: the shared
+enum reader compares equal-length byte sequences (`0x0067AB23–0x0067AB2F`) and throws on unknown names.
+Case-insensitive wildcard matching therefore does not make `has mmx` an alias for `has MMX`.
 
 ### 4.4 Video cards
 
@@ -138,6 +245,9 @@ end
 
 A `vendor` block whose IDs include the detected vendor ID enables its `card` lines; a `card` whose device ID equals
 the detected one marks the card found and records its name (`0x007E4730`, `0x007E4800`).
+Before a new vendor is tested, the active vendor name is cleared; a matching ID records that block's name.
+After the first matching card, the found latch suppresses later vendor/card changes. A matching vendor
+without a matching card does not change `cardIdentity` (`0x007E484A–0x007E48F8`, `0x007E4730`).
 
 ## 5. Evaluation (`ApplyRules`, `0x007D10B0`) *[compat]*
 
@@ -157,6 +267,15 @@ The rules are walked in file order with a stack of depths:
 So among siblings the first matching non-partial rule wins and stops the rest (an if / else-if chain); partial
 rules never stop their siblings; children are tested only under a matching parent.
 
+Rule `option g o` actions only write recommendations, in source order; duplicate recommendations last-win.
+They may grow the group list, but do not create option property sets, validate o against existing options,
+or call `ApplyOptionGroupSetting`. No preference option is automatically applied by this evaluator.
+Recommendations and render properties persist between evaluations. `ApplyRules` resets only its local
+depth stack; it does not gather information, reparse, or reset recommendations. Once a matching rule sees
+`kForceSoftwareDriver` true it clears flag 0, but a later false assignment does not restore that flag.
+`ApplyOptionGroupSetting` itself does not update flags or recommendations: that flag check belongs only
+to matching-rule evaluation. Another gather recomputes flags from the provider and current properties.
+
 ## 6. Applying and logging
 
 - `SetOptionsFromConfiguration` (slot 4, `0x007D18E0`): logging is on unless the command line has
@@ -169,17 +288,62 @@ rules never stop their siblings; children are tested only under a matching paren
 - `GetOptionGroupAutoSetting(g)` (slot 7, `0x007CE8D0`): the recommended option of group g, 0 when g is out of
   range.
 
+`LogConfigurationToFile(path)` (slot 5, `0x007D0420`) is a distinct operation: gather information again,
+set/open the supplied path, then if open write configuration information, close, and return true; if not
+open return false. It never parses, installs fallback, applies rules or logs option recommendations. It
+does not consult `writeLog`. A failed open still leaves the newly gathered environment in the manager.
+Conversely `SetOptionsFromConfiguration` does not gather again; it evaluates the stored environment even
+with logging disabled or file opening unsuccessful. Logging failure does not suppress rule evaluation.
+
+`LogConfigInfo` starts with `Log generated on <date>, HH:MM` (date/time from the shared clock services),
+then emits `Flags`/`-----`, `Strings`/`-------`, `Numbers`/`-------`, with blank lines between sections.
+Flags use `%s` values `true`/`false` in §2 order, strings use `%s` in index order, then numbers use `%g`
+in index order, as `name = value` (`0x007CEF40`). `LogOptions` also dumps
+all render bools, ints and floats by ascending index, using their property names and `%s` (`true`/`false`),
+`%d`, `%g` respectively. Its preference summary uses unsigned application bytes as current values and
+`GetOptionGroupAutoSetting` as recommended values, not current renderer property values:
+
+| Order/label | Group | Application-byte offset |
+|---|---|---|
+| Visual Effects | 0 | `+0xF0D` |
+| Cars/Sims | 1 | `+0xF0E` |
+| Shadows | 2 | `+0xF0F` |
+| Atmospheric effects | 4 | `+0xF11` |
+| Water effects | 5 | `+0xF12` |
+| Software/Hardware | 6 | `+0xF13` |
+| Cursor | 7 | `+0xF14` |
+| VariableSpeedAutomata | 10 | `+0xF18` |
+| Translucent UI | 8 | `+0xF15` |
+| Graphic Detail | 9 | `+0xF16` |
+| Building Load Speed | 15 | `+0xF28` |
+| Texture Quality | 3 | `+0xF10` |
+
+If the application-preference object is absent these twelve summary lines are omitted; property dumping
+still occurs (`0x007CE260`). Each summary uses `current: %3d recommended: %3d` after its padded label.
+
 ## 7. Fallback rules (`SetFallbackRules`, `0x007D13C0`)
 
 When the files cannot be parsed, `Using fallback rules.` is logged and three rules are built in:
 
-| Rule | Properties |
-|---|---|
-| `standard software` | `RenderCloudsAndFog`, `RenderShadows`, `RenderDecals`, `UseSecondStage` false |
-| `standard hardware` | `RenderCloudsAndFog`, `RenderShadows`, `RenderDecals` true, `UseSecondStage` false |
-| `two stages` | nested, `atLeast textureStages 2` *[inferred: the value]*: `UseSecondStage` true |
+| Rule | Depth; condition | Properties, in write order |
+|---|---|---|
+| `standard software` | 0; `hasNo hardwareDriver` | `RenderCloudsAndFog`, `RenderShadows`, `RenderDecals`, `UseSecondStage` false |
+| `standard hardware` | 0; **no conditions** | `RenderCloudsAndFog`, `RenderShadows`, `RenderDecals` true, `UseSecondStage` false |
+| `two stages` | 1; `atLeast textureStages 2` | `UseSecondStage` true |
 
-*[inferred: the software and hardware rules test the `hardwareDriver` flag]*.
+All three use all-condition mode and are non-partial. The second rule is the unconditional alternative to
+the first, not a positive hardware-flag test. The software match suppresses both the hardware alternative
+and its child. Thus a software environment never enables the second stage, even if its reported stage
+count exceeds two. Hardware with fewer than two stages receives the second row only; at exactly two it
+also receives the third row. Installing fallback clears/replaces the rule list, without constructing any
+option groups or applying any properties until evaluation.
+
+Evidence: default rule depth, partial/any bytes and flag masks are zero (`0x007D0523–0x007D052F`);
+the software rule clears expected flag bit 0 and sets mask bit 0 (`0x007D143B–0x007D144A`). The hardware
+rule is freshly constructed at `0x007D15A5`, with no condition additions before its insertion at
+`0x007D171A–0x007D174D`. The child stores depth 1 and the integer pair (numeric index 8, threshold 2)
+at `0x007D1782–0x007D17AA`; `RuleMatchesAll` loads that threshold as a signed integer and compares it
+to the environment float inclusively (`0x007CE936–0x007CE943`).
 
 ## 8. Users
 
@@ -196,8 +360,8 @@ graphics options dialog uses slots 6 and 7.
 
 ## 10. Open questions
 
-See [questions/graphics-rules.md](questions/graphics-rules.md) GR1–GR3: the exact sources of `DXT`, `fullscreen`,
-`forcedFSAA` and the `bogo` numbers, the case rule of `stringMatch`, and the conditions of the fallback rules.
+See [questions/graphics-rules.md](questions/graphics-rules.md) for remaining evidence gaps.
+GR1–GR3 are resolved in §§2, 4.2 and 7.
 
 ## 11. Conformance tests
 
@@ -211,3 +375,51 @@ See [questions/graphics-rules.md](questions/graphics-rules.md) GR1–GR3: the ex
 6. **Unknown property:** `property noSuchThing 1` is a parse error.
 7. **Software:** a matching rule that sets `forceSoftwareDriver true` clears `hardwareDriver` for the rules after it.
 8. **Log name:** on a machine named `ALPHA` the log is `ALPHA-config-log.txt` in the application directory.
+
+Concrete scripts, injected inputs and independent expected results are in
+[graphics-rules-vectors.md](graphics-rules-vectors.md). They are proof-derived fixtures, not claims of
+executed native/shadow runs.
+
+## 12. Owner-method inventory and implementation boundary
+
+This inventory covers every named manager entry returned by the export, including all public slots;
+supporting command methods are listed separately so an implementer does not mistake a parser callback
+for a missing manager operation. Allocation/vector relocation helpers implement the value-list ownership
+described in §1; they add no rule syntax. The inventory is not a new coverage-byte measurement.
+
+| Manager entry/address | Contract |
+|---|---|
+| CLSID `007CE130`; QI `007CE140`; QI thunk `007D0DA0`; factory `007D1030` | §1 class/interface identity and normal unknown-interface delegation |
+| constructor `007D0CC0`; destructor `007D0DC0`; deleting destructor `007D1050`; destructor thunk `007D0DB0` | §1 defaults and ownership |
+| ApplyPropertySet `007CE1F0` | §1 typed ordered writes, duplicates retained |
+| LogOptions `007CE260`; LogConfigInfo `007CEF40` | §6 preference summary, renderer dump, environment dump |
+| ApplyOptionGroupSetting `007CE870`; GetOptionGroupAutoSetting `007CE8D0` | §6 unsigned bounds checks; getters return 0 outside range; setters have no effect outside range |
+| RuleMatchesAll `007CE900`; RuleMatchesAny `007CEA80` | §4.2 masks, integer thresholds, wildcard polarity and short circuit |
+| GatherInformation `007CF780` | §§2–2.1 provider acquisition and conversions |
+| ParseConfigFile `007CFE10` | §3 fixed IDs, paths, symbols and successful-list transfer |
+| LogConfigurationToFile `007D0420` | §6 regather, explicit path, success boolean, no evaluation |
+| ApplyRules `007D10B0` | §5 depth traversal and persistent side effects |
+| SetFallbackRules `007D13C0` | §7 exact three-rule construction |
+| Init `007D1890`; SetOptionsFromConfiguration `007D18E0` | §§3/6 initialization versus evaluation/logging |
+
+| Supporting entries | Contract |
+|---|---|
+| default group value `007D0410`, used at `007E5549`; group resize `007D0FD0` | §4.1 zero recommendation and empty options list used to fill newly added groups |
+| cSC4ConfigRule constructor `007D0500` | name `unknown`, depth 0, non-partial/all mode, empty conditions/actions |
+| cSC4RuleParser constructor `007E4DE0` with export continuation `007E4DE9`; destructor `007E5030` | own parser lists/provider reference; vendor/device IDs initially 0; dispose parser-owned lists after swaps |
+| parser RegisterCommands `007E3DF0`; ParseBegin `007E5580`, thunk `007E5620` | register rule/partialRule, optionGroup, vendor; parse-begin clears depth/rules/groups and acquires render-property service |
+| rule command constructor `00677290`, RegisterCommands `007E3C60`, Parse `007E4550`, EndBlock `007E3DD0` | §4.2; append flat preorder rule with current depth, push its index, increment depth; end decrements depth and pops current-rule index |
+| DoHas `007E3ED0`, DoHasNo `007E3F90`, DoAtLeast `007E4300`, DoAtMost `007E43B0`, DoStringMatch `007E5160`, DoStringNotMatch `007E5400` | §4.2; target current enclosing rule, not merely the most recently emitted child |
+| rule DoOption `007E4180`, DoProperty `007E4250` | append recommendation/property action to current rule |
+| option-group RegisterCommands `007E3B70`, Parse `007E54C0`, EndBlock `007E3B50`, DoOption `007E4910`, DoProperty `007E4490` | §4.1 selection, table growth, accumulation and structural preconditions |
+| vendor RegisterCommands `007E3C00`, Parse `007E4800`, DoCard `007E4730` | §4.4 active-vendor filtering and first-card latch |
+| AddOptionToSet `007E4050` | §4 typed property lookup/parse; bool before int before float; unknown-property failure |
+
+The command parser, tokenization, symbols/includes and real-number expression reader are internal shared
+`nSCRes` dependencies. A complete implementation must supply/reuse those algorithms as well as these
+owner callbacks; they are not environmental facts to obtain from a hardware/OS provider. The scripts here
+use the specified literal command subset. This spec does not infer extra expression operators or lexical
+escapes from the shipped files. The externally injectable operations are only those listed in §2.1,
+filesystem/path acquisition and the application preference/command-line data used in §§3/6. The rule
+manager and its callbacks own deterministic parsing into lists, wildcard matching, numeric conversion,
+tree traversal, recommendation updates and typed property dispatch.
