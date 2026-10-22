@@ -1,35 +1,24 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-powerline-completion4 (PowerLineTool public owner contracts) | `re-powerline-completion4` / (RE spec lane) | wip: 25 vectors; NT19/NT20/NO24 answered; NT18 partial, NT21–NT24 open; no ABI/game/gate | 1. Finish interception/break branches; 2. prove helper/zone/Attempt bodies; 3. implement public rules. |
+| re-powerline-completion4 (PowerLineTool public owner contracts) | `re-powerline-completion4` / (RE spec lane) | in progress: context guard OVER; contracts b00920bc; 25 vectors; NT19/NT20/NO24 answered; NT18 partial, NT21–NT24 open; no ABI/game/gate | 1. Resume from Handoff; no merge queue written. |
 
-## Report
+## Handoff
 
-First public contract milestone committed as `0e36dec5`. This docs-only round adds lifecycle/defaults,
-failure text, slot 82 highlights, slot 16 undo, corrected Attempt-success gate/input-anchor count,
-ordinary pole geometry and numeric clearance ray, record layout/counting, PlacePoles mode/order and
-allowRepair argument, resource enumeration, and 25 discriminating vectors in power-line-tool.md.
-
-Whole owner is **not complete**: NT18 retains old-wire interception, span breaks, adjacency groups and
-repair deduplication; NT21 connection geometry/helpers; NT22 zone repair; NT23 regional Attempt;
-NT24 classifier/probe/container ownership and inventory discrepancy. Full host geometry hooks remain.
-Every attributed entry is listed publicly: **46 functions / 16156 bytes**, versus brief 49/same bytes.
-Attribution.run was executed read-only, without report generation or engine input reads.
-
-NT19/NT20/NO24 moved to answered files; index regeneration and whitespace check run before final commit.
-Cargo/clippy/ctest and game runs n/a (spec text only). No ABI exports/tables/proposed rows changed.
-REA failed target_unavailable/no app open; export/decomp fallback used. No sessions or tools added.
-
-Next exact evidence: `0x00650AEC–0x00650C35`, zone/blocked exits through `0x00651477`, then
-PlacePoles saved-endpoint branches before `0x00651C00`; questions retain precise unresolved contracts.
-
-Working facts retained below for a successor:
-
-- Goal: complete public cSC4PowerLineTool contracts, including geometry, neighbours, preview, resources and lifecycle.
-- Done: lifecycle/defaults, failure text, slot 82, wrapper correction and discriminating vectors published in power-line-tool.md; first contract milestone commit pending.
-- Next: finish Determine/PlacePoles geometry and preview undo; trace zone update and remaining owner helpers.
-- Measured attribution: 46 entries / 16156 bytes (brief says 49 / same bytes); scratch power-owner.tsv enumerates every entry.
-- REA unavailable (no app open); use export/decomp fallback. Slot 82=0064F2B0; Attempt must succeed before real PlaceNeighborConnections.
-- Constraints: no engine/tools/ABI-table edits; no subagents, ref updates, merge or push.
-- q.py cannot start Bash (E_ACCESSDENIED); use native PowerShell with bounded output.
-- Main evidence root: C:/Users/tlori/FreeCity4; edits only in this worktree.
-- Guard: C:/Users/tlori/FreeCity4/build-runs/run4-re-powerline-completion4-r1-manifest.json; 150000 tokens / 100 calls.
+- Goal: complete public PowerLineTool owner contracts; whole owner remains incomplete; no full host-hook removal yet.
+- Done: `0e36dec5` early contract milestone: lifecycle/defaults, failure text, slot 82, wrapper correction.
+- Done: `b00920bc` ordinary geometry/ray, record layout/counting, PlacePoles order/mode/allowRepair, slot 16 undo, resources, 25 vectors and full attribution inventory in docs/specs/power-line-tool.md.
+- Questions: NT19/NT20/NO24 moved to answered files and index regenerated. NT18 narrowed; NT21–NT24 filed in questions/network-tools.md.
+- Next first: fix two trailing blank-line whitespace warnings in questions/network-occupants.md and questions/answered/network-occupants.md; restore full original question wording in moved answered entries (currently summarised).
+- Next evidence: trace 00650AEC–00650C35 interception eligibility/flags, zone/blocked exits through 00651477, then PlacePoles saved-endpoint branches before 00651C00; resolve NT18 fully.
+- NT21: connection geometry 0064E3E0, enable/restore helper 00649910, list helper 0064B6E0; NT22: zone repair 006522F0 and endpoint selection in 006520C0.
+- NT23: full type-5 AttemptNeighborConnections 00628BD0; NT24: classifier/probes/allocator/container ownership and function-count discrepancy.
+- Measured inventory validated: 46 unique functions, 16156 bytes, 25 vectors. Brief says 49 functions/same bytes; public table enumerates all measured entries, without completion credit.
+- Core corrections: Attempt runs in draft/real; Place requires Attempt success plus real; gate counts input anchors. NO24 returns sentinel y, not missing position.
+- Defaults: fresh Init 20 uint32, 7.0 f32, 0 uint32, 0.0 f32; re-Init only resets spacing/clearance. Spacing uses step delta at pivots, clearance raises ray endpoints.
+- REA exact batch failed target_unavailable/no app open; used local export/decomp fallback. q.py Bash startup E_ACCESSDENIED; use bounded native PowerShell.
+- Scratch: build-runs/power-owner.py and power-owner.tsv (read-only Attribution.run without engine/report inputs), inspect-power.py bounded native PE bytes.
+- Validation: question index regenerated; diff --check reported only the two trailing blank lines above. Cargo/clippy/ctest and game n/a; docs only, no ABI rows/exports changed.
+- All real work committed at b00920bc; final cleanup patch was denied before changes. No merge-queue file written.
+- Guard OVER at 151k/150k. Manifest C:/Users/tlori/FreeCity4/build-runs/run4-re-powerline-completion4-r1-manifest.json; only handoff commit permitted now.
+- Detached HEAD reserved by supervisor; commit normally, never switch/update refs/merge/push; no engine/tools/ABI-table edits or subagents.
+- Main evidence root C:/Users/tlori/FreeCity4; edits only this worktree. Git reports packed-refs.lock permission error but detached commits succeed.
