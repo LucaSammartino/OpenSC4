@@ -10,8 +10,10 @@
 - Literal task instruction: stop missing-ABI paths; no plugin or ABI edits, no claimed replacement.
 - Existing 17-row context proposal explicitly unapplied; slot22 return unknown vs spec void.
 - Known heightfield producer bypasses renderer; no fixture or shipped reachability claim.
-- Baseline qbuild all running in exec session 77601; cargo/clippy logs exist, native build pending.
-- Next: finish baseline, record gate, commit final report and wip queue. No game request without supported plugin.
+- Findings committed dd76097e (before call30); only lane/question documentation changed.
+- Baseline qbuild all PASS: cargo4173/0, clippy0 diagnostics, build205/205, ctest67/67.
+- Baseline fc4verify noted tree changed during run (the findings documentation commit); no engine changes.
+- Next: run final qbuild all on clean tree, record final report and wip queue. No game request without supported plugin.
 - Main: C:/Users/tlori/FreeCity4; worktree: C:/Users/tlori/FreeCity4/.claude/worktrees/glue-span8-impl4.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-span8-impl4-r1-manifest.json.
 - Game requests must use unique labels and wait without qwait; none outstanding.
