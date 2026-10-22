@@ -206,7 +206,8 @@ enum class ScriptOp {
     Disaster,
     Network,
     Port,
-    Tutorial
+    Tutorial,
+    Dispatch
 };
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
@@ -243,6 +244,7 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::Disaster: return "disaster";
         case ScriptOp::Port: return "port";
         case ScriptOp::Tutorial: return "tutorial";
+        case ScriptOp::Dispatch: return "dispatch";
     }
     return "?";
 }
@@ -576,6 +578,13 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
                 return false;
             }
         }
+    } else if (name == "dispatch") {
+        a.op = ScriptOp::Dispatch;
+        if (!wantArgs(1, "type")) return false;
+        if (!detail::ParseCount(tok[2], 8, &a.type)) {
+            *error = "dispatch type must be 0..8";
+            return false;
+        }
     } else if (name == "save_as") {
         // [question] Not implemented: what cISC4App::SaveCity(path, fast)
         // (slot 15) leaves as the city's save path, and what the region does
@@ -587,7 +596,7 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
     } else {
         *error = "unknown action '" + tok[1] +
                  "' (zone, pricezone, dezone, network, speed, pause, resume, turbo, digest, mark, save, terrain, "
-                 "disaster, port, tutorial)";
+                 "disaster, port, tutorial, dispatch)";
         return false;
     }
     *out = a;

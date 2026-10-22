@@ -29,6 +29,7 @@
 #include "cISC4City.h"
 #include "cISC4DispatchManager.h"  // cISC4DispatchSource is declared here
 #include "cISC4Occupant.h"
+#include "cISC4Automaton.h"
 #include "cISTETerrain.h"
 #include "SC4List.h"
 #include "cRZBaseString.h"
@@ -194,17 +195,32 @@ size_t SourceStations(void* u, uint64_t source, fc4_station_units* out, size_t c
             out[n].count = count;
         }
         ++n;
+        // protection.md §15.4 (PR8): GetStations AddRefs every element.
+        // SC4List only frees nodes; balance even count-only calls.
+        if (st != nullptr) {
+            FC4_ACQUIRED(st, "dispatch GetStations");
+            FC4_RELEASE(st);
+        }
     }
     return n;
 }
 
 uint64_t ResolveRef(void*, uint64_t token, uint32_t) { return token; }
 
-bool VehicleInGroup(void*, uint64_t, uint32_t) {
-    // The vehicle's occupant group (§4.2 step 5). Without an automata manager
-    // in the table every new vehicle is tracked as kind 1, which is the
-    // default the spec allows for an unknown group.
-    return false;
+bool VehicleInGroup(void*, uint64_t token, uint32_t group) {
+    auto* vehicle = reinterpret_cast<cISC4Automaton*>(static_cast<uintptr_t>(token));
+    auto* occupant = vehicle != nullptr ? vehicle->AsOccupant() : nullptr;
+    return occupant != nullptr && occupant->IsOccupantGroup(group);
+}
+
+void AutomatonDespawn(void*, uint64_t token) {
+    auto* vehicle = reinterpret_cast<cISC4Automaton*>(static_cast<uintptr_t>(token));
+    if (vehicle != nullptr) vehicle->Remove(false);  // dispatch.md §3, slot 13
+}
+
+void AutomatonGoHome(void*, uint64_t token) {
+    auto* vehicle = reinterpret_cast<cISC4Automaton*>(static_cast<uintptr_t>(token));
+    if (vehicle != nullptr) vehicle->ReturnToSourceOccupant();  // dispatch.md §3, slot 29
 }
 
 fc4_dispatch_host MakeHost(cFC4DispatchManager* self) {
@@ -229,9 +245,11 @@ fc4_dispatch_host MakeHost(cFC4DispatchManager* self) {
     h.source_stations = &SourceStations;
     h.resolve_ref = &ResolveRef;
     h.vehicle_in_group = &VehicleInGroup;
+    h.automaton_despawn = &AutomatonDespawn;
+    h.automaton_go_home = &AutomatonGoHome;
     // NOT wired (the tool's presentation): create_vehicle_view,
     // destroy_vehicle_view, refresh_vehicle_view, track_vehicle,
-    // untrack_vehicle, begin_vehicle, automaton_despawn, automaton_go_home,
+    // untrack_vehicle, begin_vehicle,
     // create_pylon and the pylon_* callbacks.
     return h;
 }

@@ -16,6 +16,8 @@
 #include "FC4Config.h"
 #include "FC4Diag.h"
 #include "FC4DisasterShadow.h"
+#include "FC4DispatchShadow.h"
+#include "FC4WriteCapture.h"
 #include "FC4Fpu.h"
 #include "FC4HarnessLogic.h"
 #include "FC4Interfaces.h"
@@ -32,6 +34,10 @@
 
 #include "SC4Rect.h"
 #include "cISC4City.h"
+#include "cISC4DispatchManager.h"
+#include "cISC4Occupant.h"
+#include "cS3DVector3.h"
+#include "SC4List.h"
 #include "cISC4NetworkManager.h"
 #include "cISC4NetworkTool.h"
 #include "cISC4TutorialSystem.h"  // the glue-tutorial4 lane: the tutorial action
@@ -352,6 +358,56 @@ std::string RunTutorial(const harness::ScriptAction& a, cISC4City* city) {
     return b;
 }
 
+// Tooling: real source stations, identical calls against original/replacement.
+std::string RunDispatch(const harness::ScriptAction& a, int32_t julian, cISC4City* city) {
+    auto* dm = city != nullptr ? AsGame(city->GetDispatchManager()) : nullptr;
+    if (dm == nullptr) return "unavailable: no dispatch manager";
+    auto* source = reinterpret_cast<cFC4ISC4DispatchSource*>(dm->GetDispatchSource(a.type));
+    if (source == nullptr) return "unavailable: no source (not an exercise success)";
+    SC4List<cISC4Occupant*> stations;
+    source->GetStations(stations);
+    cS3DVector3 position;
+    bool located = false;
+    for (auto* station : stations) {
+        if (!located && station != nullptr) located = station->GetPosition(&position);
+    }
+    std::string result = "unavailable: no station position (not an exercise success)";
+    if (located) {
+        const uint32_t freeBefore = dm->GetAvailablePylonCount(a.type);
+        const uint32_t before = dm->GetDispatchCount(a.type);
+        const bool can = dm->CanDispatch(a.type, position.fX, position.fZ);
+        const bool began = dm->BeginDispatchTool(a.type);
+        const uint32_t id = dm->Dispatch(a.type, position.fX, position.fZ);
+        FC4DispatchInfo info{};
+        const bool hasInfo = dm->GetDispatchInfo(id, info);
+        WriteCapture record;
+        const bool wrote = record.Capture(dm);
+        Log("dispatch exercise: type=%d target=(%.3f,%.3f) can=%d begin=%d id=%u count=%u->%u "
+            "free=%u->%u info=%d call=%u active=%d vehicle=%d pylon=%d view=%u record=%u bytes wrote=%d",
+            a.type, position.fX, position.fZ, can, began, id, before, dm->GetDispatchCount(a.type),
+            freeBefore, dm->GetAvailablePylonCount(a.type), hasInfo, info.callId, info.active,
+            info.automaton != nullptr, info.pylon != nullptr, info.viewHandle,
+            static_cast<unsigned>(record.Bytes().size()), wrote);
+        if (DispatchShadowEnabled()) DispatchShadowTestRun(city, julian, 2);
+        const bool revoked = id != 0 && dm->RevokeDispatchByID(id);
+        const bool ended = dm->EndDispatchTool(a.type);
+        if (DispatchShadowEnabled()) DispatchShadowTestRun(city, julian, 2);
+        char text[240];
+        std::snprintf(text, sizeof(text), "id=%u info=%d vehicle=%d revoke=%d end=%d count=%u free=%u "
+                      "exercise=%s", id, hasInfo, info.automaton != nullptr, revoked, ended,
+                      dm->GetDispatchCount(a.type), dm->GetAvailablePylonCount(a.type),
+                      id != 0 && hasInfo && info.automaton != nullptr && revoked && ended ? "completed" : "INCOMPLETE");
+        result = text;
+    }
+    for (auto*& station : stations) {
+        if (station != nullptr) {
+            FC4_ACQUIRED(station, "script dispatch GetStations");
+            FC4_RELEASE(station);
+        }
+    }
+    return result;
+}
+
 void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) {
     using harness::ScriptOp;
     std::string result;
@@ -388,6 +444,7 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
                                      static_cast<uint32_t>(a.facing));
             break;
         case ScriptOp::Tutorial: result = RunTutorial(a, city); break;
+        case ScriptOp::Dispatch: result = RunDispatch(a, julian, city); break;
     }
     std::string late;
     if (julian != a.julian) late = " (run on " + harness::FormatDate(harness::CivilFromJulian(julian)) + ")";

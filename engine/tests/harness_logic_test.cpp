@@ -162,6 +162,10 @@ void ScriptParseTests() {
     CHECK(One("2000-01-07 pause").actions.at(0).op == ScriptOp::Pause);
     CHECK(One("2000-01-07 resume").actions.at(0).op == ScriptOp::Resume);
     CHECK(One("2000-01-07 digest # now").actions.at(0).op == ScriptOp::Digest);
+    CHECK(One("2026-02-01 dispatch 1").actions.at(0).op == ScriptOp::Dispatch);
+    CHECK(One("2026-02-01 dispatch 1").actions.at(0).type == 1);
+    CHECK(ErrorIs("2026-02-01 dispatch 9", "dispatch type must be 0..8"));
+    CHECK(ErrorIs("2026-02-01 dispatch 1 2", "dispatch takes 1 argument(s) (type), not 2"));
     CHECK(One("2000-01-07 turbo on").actions.at(0).on);
     CHECK(!One("2000-01-07 turbo OFF").actions.at(0).on);
     {
@@ -250,7 +254,7 @@ void ScriptParseTests() {
     CHECK(ErrorIs("2000-01-01   # just a date", "a date with no action"));
     CHECK(ErrorIs("2000-01-01 plop 1 2",
                   "unknown action 'plop' (zone, pricezone, dezone, network, speed, pause, resume, turbo, digest, mark, "
-                  "save, terrain, disaster, port, tutorial)"));
+                  "save, terrain, disaster, port, tutorial, dispatch)"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 4"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4 1 9", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 6"));
     CHECK(ErrorIs("2000-01-01 pricezone 1 2 3", "pricezone takes 5 argument(s) (x0 z0 x1 z1 type), not 3"));

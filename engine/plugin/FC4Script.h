@@ -38,6 +38,8 @@
 //   turbo on|off               our simulator's turbo clock (FC4Turbo.h)
 //   digest                     the observer's DIGEST line, now
 //   mark <text>                a log line
+//   dispatch type              real station: begin tool, dispatch, record/shadow,
+//                              revoke, end; INCOMPLETE unless a vehicle dispatched
 //   save [fast]                cISC4App::SaveCity(fast) (docs/abi/vtables.tsv
 //                              cSC4App::vftable_3 slot 16, pop 4): the city
 //                              saved in place, a full save unless `fast`;
