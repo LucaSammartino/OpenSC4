@@ -557,8 +557,7 @@ search in §4.7.1. Native branch and callback order:
    Rectangles are passed as four int32 values by value (`0x0042DA8B`–`0x0042DB07`). There are **no calls** to
    clear flags, set/clear destination flags, set/clear travel-type masks, set starting costs, or set maximum
    trip length/work time. Preserve factory configuration for those settings; do not borrow job-search's
-   wealth flag, travel masks or MAX_TRIP_LENGTH setup. This specifies the MySim caller, not unproved factory
-   default values.
+   wealth flag, travel masks or MAX_TRIP_LENGTH setup. The inherited values are specified in §4.7.2.
 6. Only the **full integer result = 1** is success. Success: call slot 26 (`+0x68`,
    `GetTripLengthScaledForDisplay`, **not** slot 25 `GetTripLength`), convert the x87 result with `_ftol2`
    `0x009EEF04`, and store its **low 32 bits** in lastCommuteTime (`+0x154`, `0x0042DB14`–`0x0042DB1C`).
@@ -570,6 +569,51 @@ search in §4.7.1. Native branch and callback order:
    calls `FailCommute` **before releasing this pathfinder**, without calling the getter or storing a new time.
 7. Release the original non-null pathfinder through slot 2 (`+0x08`) and return the success boolean
    (`0x0042DB2B`–`0x0042DB40`). No extra MySim-side AddRef or rectangle-result Release occurs.
+
+#### 4.7.2 Inherited commute pathfinder configuration (MS16) *[compat]*
+
+Traffic slot 6 is `bool CreatePathFinder(cISC4PathFinder** out)` (`0x0070D860`–`0x0070D89F`).
+On normal completion it publishes a **new** object with one owned reference and returns true in **AL**.
+It allocates 0x3160 bytes, calls constructor `0x006D89C0`, slot 1 AddRef, then slot 3 Init, stores the
+creating traffic simulator at pathfinder `+0x0C`, and finally writes `*out`. It does not fetch a cached
+pathfinder, set any request parameter, call Reset, or test Init's return. AddRef increments the constructor's
+zero reference count to 1 (`0x004BDF00`–`0x004BDF07`). The traffic pointer is borrowed: this sequence makes
+no traffic AddRef. The caller owns the returned pathfinder reference; CheckCommute's existing release
+order above applies. This is separate from the dispatch's persistent job-search pathfinder (§4.7.1).
+
+Factory values and the request immediately before CheckCommute's first FindPath are:
+
+| Public setting | Factory result | CheckCommute request | Byte evidence (constructor / setter) |
+|---|---|---|---|
+| Flags, slot 5 | uint32 0 | uint32 1 | `0x006D89E3`; `0x006D6CF0`–`0x006D6CFE` ORs `+0x70` |
+| Trip destination filter/strategy, slot 9 | ID **3** | ID **3** (explicitly set again) | `0x006D89EC`; `0x006D6D30`–`0x006D6D3C` writes `+0x80` |
+| Destination flags, slots 10–12 | uint8 0 | uint8 0 | `0x006D89F6`; `0x006D6D40`–`0x006D6D54` operates on byte `+0x84` |
+| Allowed travel types, slots 13–15 | uint16 **0x0002** | uint16 **0x0002** | `0x006D8A14`–`0x006D8A19`; `0x006D6D98` operates on word `+0x64` |
+| Starting travel types, slots 13–15 | uint16 **0x0002** | uint16 **0x0002** | `0x006D8A1D`; `0x006D6DA0` operates on word `+0x66` |
+| Starting-cost array, slot 16 | null pointer | null pointer | `0x006D8A02`; `0x006D6DE0`–`0x006D6DEC` writes `+0x90` |
+| Maximum trip length, slot 17 | float32 **+0.0**, bits `0x00000000` | float32 **+0.0** | `0x006D89DD`; `0x006D6DF0`–`0x006D6DF9` writes `+0x60` |
+| Traffic density, slot 18 | uint32 **0** | uint32 **1** | `0x006D89E0`; `0x006D6E00`–`0x006D6E09` writes `+0x68` |
+| Maximum work time, slot 21 | uint32 **0** | uint32 **0** | `0x006D8A08`; `0x006D6E70`–`0x006D6E7C` writes `+0xC0` |
+
+The two masks select only travel-type **ID 1** (Car), not ID 2 and not all travel types; mask values are
+bits indexed by the travel-type ID (§4.6). In particular, do not substitute the job-search `0x1CF` masks,
+wealth flags, strategy ID 0 or tuned MAX_TRIP_LENGTH. These are fresh-factory defaults, not state left
+over from the most recent job search. Start/end rectangles come from the existing CheckCommute rule above;
+no default rectangle contents are promised.
+
+Init (`0x006D78B0`–`0x006D7951`) does **not** overwrite any setting in this table. On its first call it
+sets the initialized byte before querying global city's slots 93/94 (`+0x174/+0x178`) for cell counts,
+allocates zero-filled uint32 distance vectors of counts X+2 and Z+2, points each working table one element
+past its vector's start, and returns true in AL. A repeated Init returns false in AL and leaves the existing
+tables/settings intact. There is no null-city guard or recoverable allocation-failure return in this body.
+The creating traffic pointer is assigned **after** Init; Init uses the global city, not that pointer.
+
+Failure distinction: the native factory has no normal false/null-output branch. If its initial allocator
+returns null, it sets its local object pointer to null and then dereferences it to call AddRef
+(`0x0070D871`–`0x0070D886`); it does not publish a null output and return false. A null `out` is also
+unguarded at the final write (`0x0070D897`). Do not translate these into CheckCommute's null-output branch:
+that branch specifies how the caller handles a supplied service returning no object, not a native factory
+allocation-failure result. No result register from Init or CreatePathFinder substitutes for the path search.
 
 **`FailCommute`** (`0x0042C8E0`): `QuitJob()` completes first (including `UpdateVariables`), then push event
 `MYSIM_COMMUTE_FAILED` `0xCA4553B7`, then construct a default location, mark it **by commute**, and call
@@ -1082,7 +1126,7 @@ complete branch/order contract in §4.7):
 | 2 | +0x08 | Release | after the success store or the entire FailCommute handler |
 
 The caller supplies no destination flags, travel masks or maximum trip length. Their inherited factory
-configuration is a separate unresolved traffic contract (MS16); no numeric defaults are asserted here.
+configuration and the factory/Init ownership and failure contracts are specified in §4.7.2 (MS16).
 
 ### 7.3 Other vtables of `cSC4MySim`
 

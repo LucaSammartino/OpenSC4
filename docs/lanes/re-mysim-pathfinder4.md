@@ -1,0 +1,17 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| re-mysim-pathfinder4: MS16 factory defaults | `re-mysim-pathfinder4` / RE spec lane, detached worktree | in progress | 1. Trace factory and Init bytes. 2. Publish MS16 contracts and discriminating cases. |
+
+## Handoff
+
+- Goal: answer only MS16 from traffic CreatePathFinder 0x0070D860, constructor/Init and MySim call sites.
+- Scope: docs only; no engine, tools, ABI table edits, subagents, branch changes or extra rounds.
+- Worktree reused; initial main..HEAD log and status were empty.
+- First evidence/spec milestone: §4.7.2 publishes factory/Init, defaults and inherited CheckCommute values.
+- re_query factory unavailable (missing capstone/pefile); REA target_unavailable, No app is open.
+- Fallback: installed MSVC dumpbin /disasm:bytes /range:0x70d860,0x70d89f reads main bin/SimCity4.exe.
+- Factory allocates 0x3160, ctor, AddRef, Init (ignored result), borrowed traffic +0x0C, publishes out, AL=true.
+- Defaults proven: flags0, filter3, destination byte0, travel uint16 masks2/2, costs null, max trip float+0, density0, max work0.
+- Init only initializes city-size distance vectors; repeated call AL=false. Factory has no normal false/null branch.
+- Next: verify FindPath interpretation of null costs/zero limits, save local evidence, add discriminating cases, answer MS16 and validate index/check.
+- Required first spec/evidence milestone by call 30; guard manifest is main build-runs/run4-re-mysim-pathfinder4-r1-manifest.json.
