@@ -18,7 +18,9 @@
 - Formatting: first invocation used wrong relative paths; corrected absolute paths expose engine rustfmt configuration mismatch. Applying engine configuration only to new source; shared lib.rs must not be mass-reformatted.
 - Current quick evidence is NOT a pass: overlapping earlier failed invocations left NUL gaps/old errors in quick-test.log; intact failure snapshots retained. Never trust that mixed log as final source evidence.
 - Next: ONE all on committed source via q.py (full wrapper console persisted under build-runs/q); no source edits while it runs. Final touched-file fmt invocation pending in session 60998; new files were formatted with engine max_width=120, shared lib.rs preserved.
-- Full gate will start immediately after this Handoff commit. No game requests. No queue until stable passing gate; if context cuts, inspect all logs and q console without launching duplicate checks.
+- The q.py all transport FAILED BEFORE qbuild started: build-runs/q/20261023-000344-12404.log is UTF16 Access denied, Bash/Service/CreateInstance/E_ACCESSDENIED. Do not interpret this as a cargo/all result.
+- Direct PowerShell qbuild.py all will start immediately after this Handoff commit (first actual all); no source edits while it runs. No game requests or queue until stable passing gate.
+- Full 45-entry report draft and foreign-helper/domain audit: build-runs/legacy-control-report-draft.md. Gate/count fields deliberately pending; copy into final lane report only after actual evidence.
 - LC9/LC10 filed for unsafe/malformed/duplicate domains; allowed indeterminate-field choices labeled in code.
 - No baseline/full or game runs performed. Existing shared Git packed-refs.lock warning occurs during commit, but detached commits succeed; do not change shared config/refs.
 - Unknown LC4 (12 interpreters), LC5 opaque default parent, LC8 (19 foreign writers) stay explicit.
