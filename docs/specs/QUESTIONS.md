@@ -259,7 +259,7 @@ generated index: the questions live one file per spec, so read only the file for
 | simgrid | 1 | 0 | SG2 | questions/simgrid.md |
 | snapshots | 2 | 0 | SN3 | questions/snapshots.md |
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
-| span-render-4444 | 2 | 4 | SP7 | questions/span-render-4444.md |
+| span-render-4444 | 3 | 4 | SP8 | questions/span-render-4444.md |
 | span-render-565 | 6 | 2 | SR566 | questions/span-render-565.md |
 | span-render-8 | 4 | 2 | SR11 | questions/span-render-8.md |
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
@@ -285,4 +285,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **304** | **1156** | | |
+| **total** | **305** | **1156** | | |
