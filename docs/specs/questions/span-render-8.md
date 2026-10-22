@@ -32,3 +32,13 @@
   (pops 4/0/12/4/4/12/24/0/4/8), and buffer Init/Lock/Unlock plus the descriptor getters specified in
   section 10.3. [Stop this path under the lane's no-unreconciled-ABI instruction; no table edits, new native
   forwarders or fixture calls. Existing sibling infrastructure is unchanged.]
+
+<!-- from: glue-span8-impl4 (2026-10-22) -->
+- **SR10 - sections 1..7, core-to-plugin ABI prerequisite:** which public C ABI is approved for the landed
+  `engine/core/src/span_render8` implementation? `engine/capi/src/lib.rs`, all CAPI source modules and
+  `engine/capi/include/fc4.h` expose no span8 adapter or exports. The bridge needs solid, gradient, alpha,
+  alpha-gradient and blit entry points with bounded destination origin/signed stride, the 0x30-byte gradient,
+  source descriptor and blit record contracts, error-before-write results, and alias handling preserving
+  ascending read/write order. The Rust core has these operations, including `render_blt_aliased`, but cannot
+  be called by the C++ plugin through an existing export. [Stop the replacement path rather than invent an
+  unreviewed ABI; retain SR8-3 row13 refusal and SR8-2 reachability limits when this prerequisite lands.]
