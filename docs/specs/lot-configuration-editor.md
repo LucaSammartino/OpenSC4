@@ -8,7 +8,10 @@ editors in [resource-exemplar-editor.md](resource-exemplar-editor.md).
 
 **Coverage status: partial, no complete-owner spec credit.** The fresh owner
 inventory has 111 entries, including 92 named editor methods. The named bodies
-sum to 51,054 bytes; the reach-attributed remainder must also be reconciled.
+sum to 51,054 bytes; the other 19 entries contribute 1,826 attributed bytes.
+The measured snapshot total is **52,880 bytes**, not the task-selection label's
+52,646 bytes. These are attribution counts, not a claim of unique native bytes
+or complete contracts; see §6 and the inventory companion.
 Sections below distinguish established dispatch/state rules from unresolved
 dialog and numeric details. An address citation identifies native evidence,
 not an executable conformance fixture.
@@ -22,7 +25,7 @@ memory layout.
 
 `SetDataHasChanged` (`0x00480590`, 18 bytes) stores the caller's byte at editor
 `+0x12C`, then calls `SetTitle` (`0x0047F0B0`). The title begins `Lot Editor -- `;
-its dirty-dependent suffix remains subject to the string-byte reconciliation.
+its dirty suffix is ` *` (native string bytes at `0x00A8DCC0`).
 
 `SetSelectedLotConfigurationObject` (`0x0047B100`, 238 bytes): changing the
 pointer ends a pending drag (`+0x1B8`) and releases mouse capture if held. Null
@@ -117,8 +120,8 @@ are deliberately not inferred from their numbers.
 
 ## 4. Lot compatibility dialog: established subset *[compat]*
 
-`DoSetLotCompatibilitiesUI` (`0x00480D10`, 6,818 bytes) creates script resource
-`(type=0xE9264B49, group=0x96A006B0, instance=0xE9263D4D)`
+`DoSetLotCompatibilitiesUI` (`0x00480D10`, 6,818 bytes) calls the script-window
+factory with selector `0xE9264B49` and key words `(0, 0x96A006B0, 0xE9263D4D)`
 (`0x00480D25..0x00480D58`). Creation failure bypasses all model changes.
 It registers the created window with the modal service, runs it through the
 editor's dialog host, unregisters it and restores focus. Only modal result
@@ -173,6 +176,296 @@ These expected outcomes come from native control flow, not an implementation.
 
 ## 6. Inventory and remaining work
 
-Full exact owner inventory, lifecycle, I/O, selectors, mouse/keyboard,
-rendering and numeric workflows are being reconciled in this lane. This draft
-does not claim those unrecorded contracts. No ABI changes or game-run evidence.
+The [inventory companion](lot-configuration-editor-inventory.md) records every
+entry in the measured owner set, its attributed byte count and contract status.
+LE1–LE5 track the unresolved behavior. No ABI changes or game-run evidence.
+
+## 7. Interfaces, creation and lifetime *[compat]*
+
+`QueryInterface` (`0x0047A830`, 64 bytes) recognises IID `0xC6AE7085`, returns
+the interface subobject at editor `+0x128`, AddRefs the editor and returns true.
+Other IIDs delegate to `cGZWinGen::QueryInterface`. There is no safe null-output
+case. The null-this branch writes null and still attempts the virtual AddRef;
+do not treat it as a supported way to query capabilities
+(`0x0047A830..0x0047A86F`). Main-vtable AddRef/Release entries are the shared
+bodies `0x008AE960`/`0x008AE970` (native table `0x00A8D888`). This spec does not
+assign the private callback IID a public lot-editor API name.
+
+The constructor (`0x0047DA80`, 375 bytes) starts clean, with null selected
+pointer, index zero, drag false, placement mode zero, empty pending-ID vector,
+null current configuration, null service/view/chooser/network references and
+empty owned cursor containers. The pixel-to-object scale starts at binary32
+1.0 (`+0x1AC`); view-condition/slope state starts at zero. It installs the main
+window, auxiliary window-interface and dialog callback vtables. Construction
+alone does not create/load a configuration.
+
+`Init` (`0x004892B0`, 295 bytes) invokes static initialisation if its shared
+flag is unset. The base-window initialised flag gates the rest: first Init
+sets window/interface flags, invokes base Init, obtains an Arial size-12 font
+if missing, replaces the manager reference with the global configuration
+manager using AddRef-before-Release, posts message `0x0920B687`, loads cursors
+and installs the normal cursor. Repeated Init returns true without repeating
+that block. Exact flag meanings/static resources are LE5, not inferred from
+their numeric masks.
+
+The main `DoMessage` (`0x0047BA80`, 73 bytes) consumes all category-3 messages.
+Within that category, command `0x287259F6` and control `0x42B7C353` call editor
+virtual `+0x264` with `(true,true)` (Close). Message `0x0920B687` calls PostInit
+and returns true. Other categories delegate to the base procedure.
+
+`PostInit` (`0x0047B890`, 488 bytes) lazily acquires view interfaces. It also
+obtains network-manager objects for type selectors 3 and 0 with the second
+option true; for each missing stored object it AddRefs and invokes `+0x0C`.
+Repeated calls leave already-stored references alone. The central view/alpha
+setup has broken stack recovery and remains LE5.
+
+`Shutdown` (`0x0047C510`, 322 bytes), when initialised, first notifies a stored
+chooser that this editor closed, then releases and clears the font, view/service
+references, chooser, configuration-manager and identity references. For each
+stored network object it invokes `+0x10`, then Release, then clears the pointer.
+It Releases each non-null object in the owned reference array
+`+0x1D0..+0x1D4`. Base Shutdown runs even if the initialised flag was false.
+This body does not release the current configuration directly; destruction and
+container cleanup must not be invented from this Shutdown list (LE5).
+
+## 8. New, open, save and close *[compat]*
+
+### 8.1 Configuration creation and opening
+
+`CreateNewLotConfiguration` (`0x00483B20`, 342 bytes) clears all identity/key
+words and path text, Releases and clears both identity references, constructs
+a configuration and replaces the prior configuration with AddRef-before-Release.
+The new configuration has ID zero, dimensions 1 by 1, float fields `+0x38=5.0`,
+`+0x30=90.0`, `+0x34=0.0`, and byte `+0x42=0`. It clears dirty, updates the
+title and returns true. Constants are direct native writes at
+`0x00483C26..0x00483C62`; the configuration name source and allocation-failure
+behavior remain LE2. The code subsequently dereferences the new pointer;
+allocation failure is not an established graceful false return.
+
+`ReadLotConfigurationExemplar` (`0x00483C80`, 281 bytes) returns false if the
+global manager is absent or its read fails, preserving the prior current
+configuration. A successful read replaces the current pointer with
+AddRef-before-Release and asks the manager to reconcile its objects. Result
+zero returns success without setting dirty. Nonzero results set dirty, update
+the title and show `This lot has components that have changed since the last
+edit.` with the following reason when recognised:
+
+| Result | Reason text |
+|---|---|
+| 1 | The family has changed. |
+| 2 | The family is now empty. |
+| 3 | The footprint has changed. |
+| 4 | The footprint was out of bounds and needs to be fixed. |
+| 5 | The center has changed. |
+| 6 | The retaining walls have changed. |
+
+Other nonzero values retain only the introductory message. This is a warning
+after successful replacement, not a rollback of that replacement.
+
+`Open` (`0x00486530`, 145 bytes) calls PostInit, then uses the first word of
+the supplied key to choose new configuration (zero) or read exemplar (nonzero).
+Failure of that operation returns false. For nonzero keys, failure to obtain
+identity information also returns false; it does not undo the successful
+configuration replacement. Then, in order: update title; SetLotSize using the
+configuration's two dimension bytes with its third option false; remove
+out-of-bounds objects; prepare 3D view; go to 3D view; invoke refresh virtual
+`+0x27C`; return true. The post-load cleanup can therefore alter loaded data.
+
+### 8.2 Save and Save As
+
+`Save` (`0x004852A0`, 238 bytes) has separate success-message and error-message
+options. If identity word `+0x168` is zero, it temporarily sets shared byte
+`0x00B216B8=1`, calls Save As with `(copy=false, showSuccess, showError)`, clears
+the shared byte, and returns that result.
+
+For an existing identity it first calls bounds verification with both options
+true. Refusal returns false without writing. If verification permits the save,
+a missing manager or false result from persistence virtual `+0x268` fails;
+when enabled, the error message is `Error saving lot configuration.` with
+message-box flag `0x10000`. On successful persistence it clears dirty, updates
+the title, passes the identity starting at `+0x168` to the service obtained from
+global `0x00B43CEC` virtual `+0x94`, and optionally shows
+`Lot configuration saved.` with flag zero. Suppressing the success message does
+not suppress the service notification. No success is inferred from the upper
+24 bits of the native return register: callers test AL.
+
+The persistence virtual points to `0x0047AB70` (43-byte supplemental helper,
+outside the attributed set); it forwards the identity starting at `+0x168`,
+the current configuration and identity reference `+0x188` to `0x00489700`,
+or returns false in AL if the manager is absent. Its downstream file format is
+outside this owner's contract.
+
+**Save As entry correction:** the main-vtable word at `0x00A8DAE8`
+(`+0x260`) is **`0x00485390`**. The exported label `0x00485445` begins in the
+second byte of the instruction at `0x00485444`; its initial interrupt/arithmetic
+pseudocode is spurious. Native bytes `0x00485444..0x0048544B` encode the view
+flag call after the file-browser setup. The export's 180-byte prefix at
+`0x00485390`, unassigned byte at `0x00485444`, and 700-byte labelled continuation
+must be treated together for this workflow, not as three editor operations.
+
+The browser is created as a file browser, sized 200 by 200, configured with
+mode 2 and an initial directory: default path if no existing identity, otherwise
+the current path's directory. The default path helper (`0x0047EFF0`, 83 bytes)
+appends `Exemplar` and `Lot Templates` to the data directory using backslash
+separators. After modal selection, result retrieval failure reports
+`Unknown error in file selection.`; an item kind other than 2 reports
+`You must select a file.`; failure to resolve the selected path reports
+`The file you selected was somehow invalid.`. Dialog cancellation does not save.
+
+For a resolved selection, Save As copies the old identity, installs the new
+identity, writes its ID word into configuration `+0x08`, and calls Save with
+the supplied message options (`0x004855C6..0x004855FF`). Failure restores the
+old identity and configuration ID. Success queries the manager for the saved
+ID, registers the configuration with option true if absent, and refreshes the
+chooser list if a chooser exists. Successful **copy** also restores the old
+identity and configuration ID; successful ordinary Save As retains the new
+identity (`0x00485605..0x004856AD`). Copy does not restore the prior dirty byte:
+the inner successful Save has already cleared it. Identity-path success and
+cleanup/reference edge cases remain LE2; the broken pseudocode is not proof
+that every selected path fails.
+
+### 8.3 Closing and failure ordering
+
+`Close` (`0x004865D0`, 191 bytes) takes independent `ask` and `save` flags.
+If ask is true and dirty is nonzero, it asks
+`Do you want to save this lot configuration?` with flag 4.
+
+| Result | Effect |
+|---|---|
+| `0x5301814C` | Permit the normal save-flag path. |
+| `0x53018149` | Close immediately without saving, regardless of save flag. |
+| `0x53018147` | Return false immediately; no close notification/removal. |
+| Other | Initial permission remains false, but a requested dirty Save can still replace it with Save's result. |
+
+Without an ask, or when clean, permission starts true. On the normal path,
+`save && dirty` invokes Save with `(showSuccess=false, showError=true)` and uses
+its Boolean result. False leaves the window open. True notifies the chooser,
+if present, then calls parent virtual `+0x40` with this editor to remove it.
+This does not itself undo edits. A later Shutdown independently notifies a
+still-held chooser again; this body does not clear that reference on Close.
+
+## 9. Object edits and bounds *[compat]*
+
+Record type byte values are 0 building, 1 prop, 2 base texture, 4 flora and
+7 network node in the verified menu/add branches. Geometry uses binary32
+center `(x=+0x04, y=+0x08, z=+0x0C)` and bounds
+`xmin=+0x10, zmin=+0x14, xmax=+0x18, zmax=+0x1C`. Lot extents are unsigned
+dimension bytes multiplied by 16. The rules below concern finite input values;
+NaN/unordered x87 branches remain LE3.
+
+### 9.1 Translation, rotation and mirroring
+
+The key-based MoveObject (`0x00485040`, 353 bytes) starts with step 0.25;
+modifier bit 1 changes it to 0.5, bit 0 multiplies it by 4, then bit 2
+multiplies it by 8. The modifier meanings are assigned by the key handler,
+not guessed here. Native operations spill the step to binary32 after each
+multiply (`0x00485048..0x0048508B`, multiplier words at `0x00A8E178/17C`).
+Left subtracts from x and both x bounds; Right adds. Up subtracts from z and
+both z bounds; Down adds. With Space held, Up/Down instead add/subtract y
+**only for props**; non-props still reach the post-edit processing.
+
+The position-based MoveObject (`0x004851B0`, 119 bytes) computes dx=requested
+x−old x and dz=requested z−old z, adds them to the corresponding center and
+bound coordinates, then runs the same post-edit processing. Both overloads
+call the boundary mover with `allowPartial=(type != flora)`, set dirty, update
+the title, draw the current configuration and invoke window virtual `+0x170`.
+The key overload reaches that processing even for an unsupported key or a
+Space+Up/Down non-prop which did not change coordinates.
+
+RotateObject (`0x00484D40`, 130 bytes) increments rotation byte `+2` modulo 4.
+Using pre-rotation bounds, define hZ=(zmin−zmax)×0.5 and hX=(xmin−xmax)×0.5.
+It writes xmax=x−hZ, zmax=z−hX, xmin=x+hZ, zmin=z+hX, in that order, then
+sets dirty, updates title, draws and invokes `+0x170`. The native code keeps
+hZ in the x87 register stack but spills hX to binary32 before the z writes
+(`0x00484D5F..0x00484D9E`, half constant bits `0x3F000000`). There is no boundary
+mover call in this method. MirrorObject (`0x00484DD0`, 58 bytes) acts only on
+type 2: byte `+3` becomes 1 if zero, otherwise 0, then the same dirty/draw
+sequence. Other types return without mutation.
+
+### 9.2 Boundary mover and save verification
+
+MoveObjectToWithinLotBounds (`0x0047B480`, 443 bytes) uses epsilon equal to
+binary32 bits `0x3D4CCCCD` (approximately 0.05, constant `0x00A8CF94`).
+With allowPartial false, in order it translates the complete x triple until
+the center reaches epsilon if below it; translates the z triple similarly;
+translates x back if the center exceeds width−epsilon; then translates z back
+if its center exceeds depth−epsilon. With allowPartial true the same sequence
+tests xmax/zmax against epsilon and xmin/zmin against extent−epsilon instead.
+Thus the latter mode requires intersection with the lot, not full containment.
+Each translation preserves the relative center/bounds offsets subject to the
+individual binary32 stores; the delta remains on the x87 stack. Finally, a
+negative x center alone is set to zero without adjusting its bounds. There is
+no matching final z-center clamp. Width/depth are converted from unsigned bytes
+shifted left four (`0x0047B489..0x0047B4AD`); the two operation sequences and
+final x-only clamp are `0x0047B4B7..0x0047B63A`.
+
+The predicate helper `0x0047B640` (185 attributed bytes) has no epsilon. In
+full-containment mode require xmin,zmin≥0 and xmax≤width,zmax≤depth; in partial
+mode require xmax,zmax≥0 and xmin≤width,zmin≤depth. Equality is allowed for
+finite values. It does not move anything.
+
+VerifyObjectsAreWithinLotBounds (`0x0047D6B0`, 212 bytes) checks only types
+0, 4 and 1, in vector order, using that predicate and its supplied mode. Empty
+vectors and vectors containing only other types pass. The first failure either
+returns false silently or, when prompting is enabled, asks whether to continue
+or cancel. Only result `0x5301814A` permits continuation. No record is repaired
+by this verification. Save supplies partial mode true and prompting true.
+
+RemoveOutOfBoundsLotConfigurationObjects (`0x00484330`, 494 bytes) removes
+types 0/4/1 only when their rectangles fail the inclusive intersection test;
+partially overlapping objects remain. Erasure preserves remaining order and
+continues at the erased index. It also filters a separate packed fence vector,
+then selects the first record or null and redraws/invalidates. Fence-coordinate
+signedness, edge equality and dirty effects remain LE3; do not use this partial
+contract as a fence validator.
+
+### 9.3 Addition, duplication and deletion: established subset
+
+AddNewLotConfigurationObject (`0x00484850`, 1,236 bytes) switches on placement
+mode. Modes 1/2/3 create types 0/4/1 from the pending-ID vector and do nothing
+if that vector is empty. Mode 4 creates type 7 with rotation 2 and a network
+payload whose meaningful initial words include 0, 0, `0x02000000` and 0;
+the exact allocation/size reconciliation is LE3. Mode 5 creates type 2 and
+requires IDs. Modes 6/7 create types 5/6 from the pending vector without that
+nonempty precondition. Other modes do nothing. New objects start at the scaled
+click position, y=0, flags/mirroring zero, and a clock-derived creation word.
+Type 7 starts rotation 2; others start zero. Non-building/flora/prop bounds
+start at center ±8. Family-based bounds come from manager slots `+0x60/+0x64/
++0x68`. The editor boundary-moves the result, inserts it into the record vector,
+selects the first vector record, frees the temporary record/payload, sets dirty,
+updates title, draws and invalidates. Texture insertion order and failed
+allocation paths remain LE3.
+
+DuplicateObject (`0x00484E10`, 557 bytes) accepts only types 0,1,2,4; it copies
+the object, modifies placement through helper `0x0047BB40`, inserts at the
+vector front, selects the first record, sets dirty, updates title, draws and
+invalidates. The helper's offset sequence is LE3, so no exact duplicate
+coordinates are specified here.
+
+DeleteLotConfigurationObject (`0x00480170`, 411 bytes) optionally asks
+`Are you sure you want to delete this %s?` with flag 3. Result `0x53018149`
+aborts. Otherwise it searches by pointer identity and erases the matching
+record, destroying the vacated tail payload. If the selected pointer equals
+the requested pointer it clears that pointer; it does not reset selected index
+or drag/capture in this method. It draws and invalidates even when the pointer
+was absent. **This method does not set dirty or update the title.** Do not
+silently repair that omission in the compatibility contract.
+
+## 10. Additional independent conformance vectors
+
+| Initial state / input | Action | Expected result |
+|---|---|---|
+| Clean editor, no configuration. | Construct. | Null selection, scale 1.0, empty pending IDs, dirty false; no configuration loaded. |
+| Old configuration A; successful read B, failed identity lookup. | Open B. | Returns false with B still installed; later open steps do not execute. |
+| Dirty existing identity; valid bounds; persistence false; showError false. | Save. | Returns false, keeps dirty, does not show error or send success notification. |
+| Successful Save; showSuccess false. | Save. | Dirty clears, title updates, success notification still occurs, no success box. |
+| Dirty; ask/save both true; prompt result `0x53018149`. | Close. | Skips Save, notifies chooser, removes editor and returns true. |
+| Dirty; ask false, save true; Save As cancelled. | Close. | Save returns false; editor remains open and chooser is not notified by Close. |
+| Successful Save a Copy As from dirty original. | Save copy. | Original identity/ID restored, saved copy registered/chooser refreshed, dirty remains cleared by inner Save. |
+| Step modifier masks 0,1,2,3,4,7. | Move Right, away from bounds. | x and both x bounds increase by 0.25,1,0.5,2,2,16 respectively. |
+| Non-prop selected; Space held. | Key Move Up. | No y/z change, but boundary pass/dirty/title/draw/invalidating postlude still runs. |
+| Rect xmin=−2,xmax=2,zmin=1,zmax=3 in 16×16 lot. | Verify partial/full modes separately, no prompt. | Partial passes, full fails. |
+| Same partially overlapping rectangle. | Post-open cleanup. | Object remains; cleanup is based on intersection. |
+| x center 5,z center 6; bounds x=[3,7],z=[5,7]; rotation 3. | Rotate. | Rotation 0; x=[4,6],z=[4,8]; dirty/title/draw sequence runs. |
+| Dirty false; selected object A with index n. | Delete A without prompt. | A erased, selected pointer null, index n retained, dirty still false; draw/invalidating calls run. |
+| Type 5 selected, dirty false. | Mirror. | No mutation, dirty/title/draw untouched. |
