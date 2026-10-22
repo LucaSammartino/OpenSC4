@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-model-effects-contracts4: GF19–GF24 native contracts | Codex / `re-model-effects-contracts4` (RE spec lane; detached HEAD) | blocked: coordinator STOP; native proof preserved; no ABI/runtime/coverage claim | 1. Coordinator review of preserved findings. No further RE round authorized. |
+| re-model-effects-contracts4: GF19–GF24 native contracts | Codex / `re-model-effects-contracts4` (RE spec lane) | Bounded existing partial publication accepted by coordinator review; GF19–GF24 remain open; no native or whole-owner credit | Publish reviewed existing findings through the combined train; preserve parked worktree and original round count. No further RE round authorized. |
 
 ## Handoff
 - STOP: lane guard PARKED by coordinator: prioritize verified/replaced; preserve findings, commit handoff, return blocked. No further RE rounds authorized; no merge queue file.
@@ -21,3 +21,20 @@
 - No ABI changes/proposals, tests, game requests, shadow/replacement/default/owner-completion/coverage claims. No queue file written. Detached HEAD; supervisor owns publishing branch.
 - REA batch failed target_unavailable (No app is open); used export instructions/data and decomp/_unnamed/region_005e0000.c; no new REA session opened. q.py Bash unavailable (E_ACCESSDENIED), direct PowerShell used.
 - Ignored helper build-runs/native-data.py reads PE data; no game/decomp output committed. Manifest C:/Users/tlori/FreeCity4/build-runs/run4-re-model-effects-contracts4-r1-manifest.json.
+
+## Coordinator review of bounded existing publication
+
+Accepted the already committed partial contract/findings publication without changing the underlying spec or
+closing GF19–GF24. The published inventory reconciles to **23 unique bodies / 8,406 bytes**; shared getter and
+destruction bodies remain outside that total. No independent vectors or executed examples were added. Native
+verification, exact arithmetic equivalence, runtime replacement and whole-owner completion receive no credit.
+
+The phrase “checks ... and an empty key map” in §3.11.4 does not identify that map; it must not be used to invent
+an empty-owner-map admission guard. Preserve the explicit discovery traversal and repeated-Init behavior, and
+withhold any behavior that needs that ambiguity resolved. GF24's physical speed unit remains unknown; only the
+published binary32 input and multiplication behavior is supplied. All original questions and residuals remain.
+
+Read-only coordinator checks: the inventory count/sum above and `git diff --check` pass. This review does not
+retroactively claim the worker completed its interrupted final validation. The old worktree's instruction-doc
+baseline predates main's train100 fixes; the combined train must run doccheck with those fixes and its actual
+required gate/regression. No ABI, engine, spec, coverage-map or default change is part of this review commit.
