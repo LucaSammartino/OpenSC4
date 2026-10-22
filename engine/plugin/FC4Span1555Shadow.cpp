@@ -16,6 +16,7 @@
 
 #include "FC4Log.h"
 #include "FC4SpanContext.h"
+#include "FC4Span1555Context.h"
 #include "FC4RefAudit.h"
 #include "compat/FC4Compat.h"
 #include "fc4.h"
@@ -205,6 +206,7 @@ void __fastcall AlphaGradientFwd(void* self, void* edx, const uint32_t* spans, u
 void __fastcall BltFwd(void* self, void* edx, const uint32_t* spans, uint32_t n, const uint32_t* surface,
                        const uint32_t* src, const uint32_t* b, uint32_t kind) {
     Enter(5, reinterpret_cast<uintptr_t>(_ReturnAddress()));
+    Span1555NoteTexture(src, b, kind, SpanContextFixtureThread());
     auto orig = [&] { reinterpret_cast<BltFn>(g.original[5])(self, edx, spans, n, surface, src, b, kind); };
     Win w;
     MEMORY_BASIC_INFORMATION mbi{};

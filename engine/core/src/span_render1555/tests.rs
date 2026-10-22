@@ -99,6 +99,24 @@ fn alpha_gradient_weight_thresholds() {
 }
 
 #[test]
+fn alpha_gradient_17_through_31_uses_1555_weights() {
+    for (i, alpha) in [
+        132, 140, 148, 156, 163, 171, 179, 187, 194, 202, 210, 218, 225, 233, 241,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut b = 0x001fu16.to_le_bytes();
+        let g = GradientRecord {
+            c: [0, 0, 248 << 16, alpha << 16],
+            ..GradientRecord::default()
+        };
+        render_alpha_gradient(&[Span::row(0, 0, 1)], &mut surf(&mut b, 1), &g).unwrap();
+        assert_eq!(px(&b, 0), per_channel(0x7c00, 0x001f, i as u32 + 17));
+    }
+}
+
+#[test]
 fn render_alpha_worked_example() {
     let mut b = vec![0u8; 8];
     render_alpha(&[Span::row(0, 0, 4)], &mut surf(&mut b, 4), 0x7FFF, 0x8000_0000).unwrap();
