@@ -12,6 +12,9 @@
 - Implemented bounded literal shadow: 14 numeric/character types, two scalars and 0/1/3 arrays, clone isolation, CopyFrom, Erase; opt-in variant_shadow via existing formats city-load hook.
 - qbuild quick PASS: no Rust crates touched, build 5/5 edges. Baseline full gate still running ctest (session 34312); build PASS 208/208.
 - HG4/HG5 filed in docs/specs/questions/foundations.md: native segment serialization acquisition and unsupported conversion/string/object/pointer lifetimes. No native serialization claim.
-- Next: finish baseline; full gate; immutable DLL guarded 2032 original/current40 requests and save/reload where supported.
+- Baseline PASS cargo 4947, clippy 0, ctest 68/68 (tree changed). Stable gate found return-channel review violations for Erase/CopyFrom/CreateCopy; corrected by discarding nominal bools and judging output/state, HG6 filed.
+- First original vv4-original-a567f1-1820 clean2032/ref0/save ok=1; cases=0/refusal=1 because owned clone uses a different native COM vtable. Source exact identity retained; clone now validates all 127 published slots in the identified native image. No clone address hardcoded.
+- Immutable first DLL SHA256 52E213A0FC81C1E2E4E6215068B5EB528EE30698B075E0F1B16F47B7B462E175, build-runs/dlls/vv4-a567f1/FreeCity4.dll; FC4_CHECKED OFF (support-image/interface guard, not RTC build).
+- Next: quick/full gate and second original (cap 3 total) on corrected owned interface validation; current40 control. No outstanding request.
 - No game requests outstanding; original cap 3, unique labels required, wait without qwait.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-variants4-r1-manifest.json.

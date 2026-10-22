@@ -25,14 +25,17 @@ struct Totals {
 };
 
 // No unpublished layout: only the interface pointer and its published 127
-// entries. Exact vtable identity is published in foundations 17.1. The compat
-// layer identifies the supported image at its preferred base before any call.
-inline bool Native(const cFC4IGZVariant* p) {
+// entries. Borrowed source identity is published in foundations 17.1. Owned
+// SDK CreateCopy results may use a different native COM implementation table;
+// validate the complete published interface in the supported image, without
+// hardcoding an unpublished clone table or reading implementation data.
+inline bool Native(const cFC4IGZVariant* p, bool requireSourceIdentity = false) {
     if (!p || !compat::IdentifiedVersion()) return false;
     const auto table = *reinterpret_cast<const uintptr_t* const*>(p);
-    if (reinterpret_cast<uintptr_t>(table) != 0x00AA6788u) return false;
+    if (requireSourceIdentity && reinterpret_cast<uintptr_t>(table) != 0x00AA6788u) return false;
     MEMORY_BASIC_INFORMATION region{};
     if (!VirtualQuery(table, &region, sizeof(region)) || region.State != MEM_COMMIT ||
+        region.AllocationBase != GetModuleHandleW(nullptr) ||
         (region.Protect & (PAGE_GUARD | PAGE_NOACCESS)) ||
         reinterpret_cast<uintptr_t>(table + 127) >
             reinterpret_cast<uintptr_t>(region.BaseAddress) + region.RegionSize) return false;
@@ -52,10 +55,14 @@ public:
         // Literal SDK ownership reading: successful CreateCopy hands us one
         // owned reference. No borrowed property or property value is released.
         if (!Native(&source)) { ++t.refusals; return; }
-        const bool ok = source.CreateCopy(&p_);
+        // [abi-ret] Return channel is eax-or-void: the owned output pointer, not
+        // the nominal SDK bool, establishes success (HG6).
+        (void)source.CreateCopy(&p_);
         if (p_) FC4_ACQUIRED(p_, "variant CreateCopy owned result");
-        if (!ok || !p_ || p_ == &source || !Native(p_)) {
+        if (!p_ || p_ == &source || !Native(p_)) {
             ++t.refusals;
+            Log("variant shadow: clone refused result=%s alias=%u native=%u",
+                p_ ? "non-null" : "null", p_ == &source ? 1u : 0u, Native(p_) ? 1u : 0u);
             // Never release an aliased borrowed pointer on a contract violation.
             if (p_ == &source) p_ = nullptr;
             return;
@@ -131,7 +138,7 @@ void Cases(cFC4IGZVariant& native, uint16_t type, uint32_t diskTag, const T (&in
             native.SetValUint32(0x13579BDF);
             const T copied = (p->*get)();
             t.Check(p->GetType() == type && Payload(expected, false, &copied, 1), "scalar clone", type);
-            t.Check(native.CopyFrom(*p), "CopyFrom return", type);
+            (void)native.CopyFrom(*p);  // [abi-ret] HG6: check state, not undefined EAX.
             const T restored = (native.*get)();
             t.Check(native.GetType() == type && Payload(expected, false, &restored, 1), "CopyFrom state", type);
         }
@@ -153,11 +160,12 @@ void Cases(cFC4IGZVariant& native, uint16_t type, uint32_t diskTag, const T (&in
             t.Check(p->GetType() == (0x8000 | type) && p->GetCount() == count &&
                         Payload(expected, true, (p->*array)(), count), "array clone isolation", type);
             native.SetValUint32(0x2468ACE0);
-            t.Check(native.CopyFrom(*p), "array CopyFrom return", type);
+            (void)native.CopyFrom(*p);  // [abi-ret] HG6: check state, not undefined EAX.
             t.Check(native.GetCount() == count && Payload(expected, true, (native.*array)(), count),
                     "array CopyFrom state", type);
         }
-        t.Check(native.Erase() && native.GetType() == 0 && native.GetCount() == 0, "Erase state", type);
+        (void)native.Erase();  // [abi-ret] HG6: check state, not undefined EAX.
+        t.Check(native.GetType() == 0 && native.GetCount() == 0, "Erase state", type);
     }
 }
 
@@ -181,7 +189,7 @@ inline void Run() {
         const cISCProperty* property = exemplar.Holder()->GetProperty(id);
         if (!property) continue;
         const auto* value = AsGame(property->GetPropertyValue());
-        if (Native(value) && (value->GetType() & 0x7FFF) >= 1 && (value->GetType() & 0x7FFF) <= 14) {
+        if (Native(value, true) && (value->GetType() & 0x7FFF) >= 1 && (value->GetType() & 0x7FFF) <= 14) {
             borrowed = value;
             break;
         }

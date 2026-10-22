@@ -60,3 +60,12 @@
   numeric clones and copying setters only; two scalar values and 0/1/3-element arrays per numeric/character
   type, clone isolation, CopyFrom and Erase are bounded experiments. No whole 127-method owner equivalence;
   unsupported conversions, string operations, pointers, objects and reference aliasing are excluded.]
+
+<!-- from: verify-variants4 return-channel gate and first native run (2026-10-22) -->
+- **HG6 - section 17.1 slots 5/6/7 return channel and clone identity:** The ABI gate describes Erase,
+  CopyFrom and CreateCopy as eax-or-void. What return values, if any, are contractual? Does SDK CreateCopy
+  return a distinct COM implementation of the same published 127-slot cIGZVariant interface? The owned
+  result in vv4-original-a567f1-1820 had a different native vtable from the published borrowed source,
+  was released to zero with ref_warnings=0, and was refused before testing. [Discard nominal bool results;
+  judge CreateCopy by its independent owned non-null pointer and supported-image interface validation,
+  CopyFrom/Erase by resulting state. No unpublished clone address/layout is called or baked into code.]
