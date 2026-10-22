@@ -18,7 +18,9 @@
 - i1 fontsys4-r2-house40-on-reload-20261022i1 clean/ref0 date2032-01-01: staged g1 fixture SHAef224fb8a87d4d5d13b8831004cad85e46df1f3c55c6fcf6d2276aeb3221fa55, full saves both2031-06-02(11750/11609ms) ok1; four phases each2890exact/0diff/0refusal; route23/23, fallback/resync0/natural0.
 - New corrected-provider ON totals so far final: 16 sequences,46240exact/0diff/0refusal/0fallback/0resync/natural0;368 native-route checks separate. Historical invalid counts excluded.
 - j1 fontsys4-r2-house40-off-reload-20261022j1 clean/ref0 date2032-01-01; staged h1 fixture SHA2d44a05076331519cbda3655ecb4cb0c9e815a7ed52c46b641e5ad5388b43a49; full saves both2031-06-02(10906/10875ms) ok1; probeOFF/no-equivalence-credit; complete shutdown.
-- Next: original OFF reload k1 of e1 fixture; run build-runs/fontsys4-audit-evidence.py, final report/queue. No new questions.
+- k1 fontsys4-r2-original-off-reload-20261022k1 clean/ref0 date2032-01-07; staged e1 fixture SHA8dd895ff65e9082b4557f47a67c7ed4eb342acf3b4343459e0b80fa524a9a467; full saves both2031-06-14(10984/10953ms) ok1; probeOFF/no-equivalence-credit; complete shutdown.
+- Evidence audit PASS:8runs2032/ref0,16fullsaves,4stagedreloads,16ON sequences46240exact/0diff/0refusal/0fallback/0resync/natural0;30288positive/15952zero;368native-route exact. JSON build-runs/fontsys4-r2-evidence-audit.json; source diff from stable gate empty.
+- Next: replace Handoff with final bounded-scope report, commit, guard check, queue ready entry at actual detached HEAD. No request outstanding. No new questions.
 - Required controls: exact HOUSE40 profile from current task, ON/OFF full save/shutdown and supported reload to2032/ref0; no experimental keys.
 - Request labels are unique; wait via build-runs/fontsys4-wait-verdict.py (never qwait). Helper fontsys4-submit.py fixes HOUSE40 explicitly, rejects reused labels/outstanding requests and checks frozen hashes.
 - No new questions or code edits yet. Preserve all historical evidence below until final report.
