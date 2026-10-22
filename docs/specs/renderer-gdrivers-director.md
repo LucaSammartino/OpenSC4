@@ -14,8 +14,8 @@ operations in [renderer-driver.md](renderer-driver.md). No new coverage of `nSGL
 The coverage-attributed inventory is **65 bodies, 8,068 bytes**. The two directly named methods
 account for only **85 bytes**; they are not the completion denominator. The remaining **63 bodies,
 7,983 bytes** include the first two registered factories, their constructors/destructors, interface
-thunks, OpenGL operations, and software-driver support. These are real reachable bodies, retained in
-scope even where their export names misleadingly mention DX7. A folded deleting destructor also names
+thunks, OpenGL operations, and software-driver support. These bodies are retained under the measured
+reach/neighbor rules even where their export names misleadingly mention DX7. A folded deleting destructor also names
 this class among eight aliases; its 30 shared bytes are supporting dispatch evidence outside the 8,068.
 The singleton accessor and inherited methods are likewise additional supporting evidence, not a
 substitute inventory. No native object layout is prescribed.
