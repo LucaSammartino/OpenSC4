@@ -11,8 +11,12 @@
 - Current40: literal coordinator list from round2 brief; no terrain/effects substitutions.
 - Baseline qbuild all PASS cargo4962/clippy0/CTest68/68 (tree changed: handoff documentation); focused quick PASS cargo531/build4/4.
 - Split EX55 list status/key-vector/count diagnostics implemented; combined mismatch counting unchanged; scope log disclaims file ownership.
-- Next: commit diagnostics, freeze DLL/PDB, run own/current40 saved-fixture reload and verifier-off ref controls.
-- No round2 game request outstanding. Unique labels required; wait without qwait.
+- Diagnostics committed 02d08687; stable full qbuild all PASS cargo4962/clippy0/CTest68/68; fmt absolute path PASS.
+- Frozen build-runs/dbpf-r2-frozen-02d08687/FreeCity4.dll SHA256 3d1eee0c6a7d55b992484c71a7373def98edc30364431198ce649a0bf21966d4.
+- Matching PDB SHA256 bc8ceb0de7490779087d30af0993071a208f9cfdfa6edbba61310160d74e00ad; both readonly, hashes in manifest.json.
+- Outstanding vdbpf4-r2-own-archive-normal-02d08687 (slot2); waiting via owned dbpf-r2-run.py, session9611, no qwait.
+- Next: inspect that verdict; enqueue own-save-on/off and current40-save-on/off sequentially via helper.
+- Supported fixture_city imports existing saved fixtures commands4-own-e50c5bbc.sc4 and commands4-r2-house40.sc4; do not claim new save roundtrip.
 - Round1 turbo and normal both natural60440/60440 + constructed10/10; three EX55 combined differences each; refusal0/failed0/fallback0/resync0.
 - No game-attempt cap: originalcap3 meant lane rounds, this is round2/3.
 - Guard manifest C:/Users/tlori/FreeCity4/build-runs/run4-verify-dbpf-native4-r2-manifest.json.
