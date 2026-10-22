@@ -15,6 +15,9 @@
 - Unique guarded game labels, 2032/ref0 save/shutdown; wait without qwait.
 - Completed ind4-r2-native-92f61086-01: clean 2032-01-05/ref0, full+fast save ok, shutdown suite logged. Four suites, 263052 checks, 262472 reported differences.
 - Differences traced to probe counting expected adapter segment-QI negotiation as unexpected (all Read/Write calls), fixed in current code; needs rerun. No semantic conclusion from first counters.
+- ff173d78 fixes setup counters, adds outcome totals and local ABI return annotations; focused quick PASS 4/4 edges.
+- Outstanding ind4-r2-native-ff173d78-02 (qwait8171), same full/fast saves and2032; immutable DLL SHA256 A52DF4AC728379280876A1C2E1A46C20D6217BED0B9620F252605337AA8DB1CB.
+- Full gate rerun64738 pending; previous final run only ret-channel annotations failed.
 - DLL immutable build-runs/dll/industrial-r2-92f61086/FreeCity4.dll SHA256 DCFA504194029630A2C1698605FBC8EDC54F4DE43DBDEDC5925708ECDE47C3D7.
 - Full gate: cargo4938/clippy0/build PASS; ctest67/68, ret_channel_check needs local [abi-ret] annotations for published AL=1 lifecycle slots (now added). No ABI changes/new questions.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-industrial4-r2-manifest.json.
