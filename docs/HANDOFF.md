@@ -8,6 +8,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 ## 0. Current state (2026-10-22, run4 open-ended)
 **User course correction (2026-10-22): STOP RE.** All eight live RE workers received per-agent guard PARK denial to preserve/commit their findings and wind down; no further RE refills. Target9 remains subject to eligible work/max3glue/caps. Prioritize exact native shadows, real-game replacement and promotion of proven candidates; use already-published contracts and land existing answers that unblock delivery. Contract gaps remain parked questions, never guessed or relabeled as verify.
 
+**train92 landed 7da1291f9a:** Published already-written LH1/LH2, LR10/LR11 and DT2/DT3 answers to unblock delivery. Docs-only official gate/regress skip; no new RE launches, ABI proposals remain unapplied. Lua insertion timing still unproved; no activation or coverage credit inferred. Coverage57.8/36.0/18.6/18.1; rounds357 (open-ended).
+
 **Run4 checkpoint325:** 325 lane rounds; 58 trains landed; coverage57.6/36.0/16.7/17.9, delta+20.8/+7.7/+4.6/+2.0 points since run4 start; 47 parked lanes. Target9/max3glue. User prioritizes implemented ? exact same-process shadow ? exercised replacement ? default combined regress; RE prioritizes concrete blockers to those transitions.
 
 **Final native caps:** TextEdit3/3 retains TE5/TE8; dispatch RE3/3 retains DP10 rendering; small-renderer RE3/3 retains FF2 helper/slot inventory. Other texture/glyph/path questions answered. No fourth rounds; preserve source worktrees/evidence. Graphics director65/65 complete is separate from capped DX7driver.
@@ -15,10 +17,6 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 **Run4 checkpoint350 (recorded at356):** 356 lane rounds; 64 trains landed; coverage delta+21.0/+7.7/+6.5/+2.2 points since run4 start; 68 parked lanes. Target9 actual live workers/max3glue; no total cap, guard and per-lane caps retained.
 
 **train91 landed 7ae0d48002:** Ports promoted to standard replacement regress profile after native68gate/current39+portsPASS and jointDLL immutable saved-city ON/OFF/shadow all saved2033ref0. Proven AT24 native Shutdown order/timing replaces late destruction; no audit suppression. Fresh24followed comparisons exact plus2bootstrap,0resync. Only four completed port owners credited replaced. Camera remains partial CA3/CA7; RN4/RN5 documented, parked source/budgets preserved. Coverage57.8/36.0/18.6/18.1; rounds356 (open-ended).
-
-**train90 landed b43a51e503:** Complete native cSC4GDriversCOMDirector65body8068B contracts mapped for this specific owner only, not wholeDX7family. LT10 direction/composition/rounding answered; lighting core completion unblocked. TextEdit3/3 retains TE5/TE8 partial/native gaps, no whole-owner credit/fourth; capped source worktrees preserved. Coverage57.8/36.0/18.6/17.9; rounds346 (open-ended).
-
-**train89 landed 9955dba34f:** Jointly gated68tests and current39-key unionPASS; published eight already-written portable core subsets with exact OG/LM/OVV/NOV/GF/WR/AS/DC/GU contract gaps. No incomplete whole-owner/shadow/replacement/default credit. Original parked source worktrees/budgets retained; canonical overlaps now genuinely released so targeted native proof can proceed. Coverage57.6/36.0/18.6/17.9; rounds343 (open-ended).
 
 **Capped final RE phases:** span8 ABI SR9 answered with40 pending native proposals (SR8-2/3/4 remain); graphics rules GR4/GR6, overlays OV1/OV7/OV8, WWW57body7292B and LotEditor LE3-LE5 remain. Logical3/3 exhausted for each; no fourth rounds, preserve worktrees and ignored ABI/evidence. Bounded specs may publish without whole-owner credit.
 
@@ -46,13 +44,13 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **User policy:** Open-ended, no total round limit. Latest user raised target by2: keep9 live workers; target/concurrency9, max3glue, max3rounds per lane. Refill immediately from reviewed queue after fresh slots/check, never bypass guard, STOP, usage/rate or CPU/disk limits. Park capped lanes; no fourth round. STOP: `python tools/lanes.py stop "<reason>"`, land ready on-disk work, push, end.
 
-**Coverage after train91:**57.8/36.0/18.6/18.1; baseline36.8/28.3/12.1/15.9, delta+21.0/+7.7/+6.5/+2.2 points. 64 trains landed; 356 rounds used, no total cap. Next25-round checkpoint 375.
+**Coverage after train92:**57.8/36.0/18.6/18.1; baseline36.8/28.3/12.1/15.9, delta+21.0/+7.7/+6.5/+2.2 points. 65 trains landed; 357 rounds used, no total cap. Next25-round checkpoint 375.
 
 **Live authority:** `build-runs/run4-coordinator-state.json`; tracked `tools/lane_refill.py --provider codex` launches reviewed briefs through tracked `tools/lane_launch.py` and guarded Codex subscription adapter. Legacy build-runs launch/refill scripts are Claude-only. Target9; fresh slots/check/dependency/STOP/parking/3glue gates retained. After compaction reread section0 and run guard before adding work. State writes use run4_coord_lock.py.
 
 **Verification follow-up:** train80 traffic71/73 and landvalue71/72 drop verified16.5 to13.5; source regress/game evidence preserved. Earlier train73 traffic408mismatches and train75/79 exact runs remain unresolved, not fixed by a lucky rerun. verify-traffic-delivery4 final family3/3 parked: diagnostic72/72 exact, TS68 continuation/provider-read evidence missing, no causal fix. LV2/LV6 runtime timing/install gaps remain. Original re-placelot-final4 resume denial remains stopped; no alias bypass.
 
-**Train authority:** `build-runs/merge-train/state.json`; latest landed train91. Start next batch when2+ ready; guard and ancestry remain authoritative.
+**Train authority:** `build-runs/merge-train/state.json`; latest landed train92. Start next batch when2+ ready; guard and ancestry remain authoritative.
 
 **Parked at3/3, never fourth:** verify-netmgrfix4(aed635a8,2/73exact,21missing RNGdraw batches,ABIadditionsunreviewed), glue-exemplars4(581778a9,3/3candidateclean2032ref0 butEX46-EX50open; registry conflict waits), core-construction4(f6dddaa7,v4 NO15 reader fixed; OP13-OP16 remain; actual2/3; prior occprops phase landed; remains parked pending OP13-OP16), core-netocc-records4(c5e769ae,partial NO15-NO17 records; NO14/NO18-NO20 remain; logical3/3 with netocc4), re-view3dwin4(78a7bd7c,partial input/AddGUI specs;VW2-VW6/helpers remain;preserveWT/ABI proposals), re-legacycontrol4(603ed696,45/57functions;12interpreters andLC4/LC5/LC8 remain;partialdocs queued, preserveWT), re-rzservices4(File/INI/Directory/OFStream complete; CmdLine slot10/SysServPtr incomplete), glue-terrain3(97b1c237), re-driverdraw4(partial DX7, landed32), re-editors4(partial curves, landed30), re-particles4(partial drawing, landed30), re-widgets4(partial base, landed28), re-application4(partial57/322, landed27), re-terrain4(answers landed25). Preserve parked worktrees, even when supported portions landed.
 
