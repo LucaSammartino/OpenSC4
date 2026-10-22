@@ -71,3 +71,21 @@ denominator. No exact implemented-byte subtotal is asserted: the spec gives
 no per-body byte attribution. Foreign primitives and existing KeyList are
 excluded. QFS reuse is via a narrow adapter in formats because formats already
 depends on core; core cannot depend back on formats.
+
+## Oracle boundaries
+
+The 17 new core test functions and one formats integration function are test
+inventory, not execution results or native function/byte coverage. Field
+vectors precede their implementations; v1/v2 literal fixtures were recorded
+then too. Other lifetime/BMP/variant/edge tests were added after their bodies.
+Expected field/header/pixel bytes are literal; round trips are supplementary.
+Synthetic pixel conversion establishes ordering and byte plumbing only.
+The real formats codec is tested against a literal RefPack stream and literal
+decoded pixels; compressed encoder choices are not asserted native-canonical.
+Packed v1 agreement is distinct from the padded v1 PR3 choice. BMP row
+translation and padding expectations are portable choices pending PR11,
+not a native pixel conversion oracle. File/module fixtures touch no OS files.
+There is no native shadow, shipped-image scan, original base-resource
+verification or combined manager/runtime coverage credit in this lane.
+Full foreign resource subclasses, stream vtables, constructors, allocator
+failure effects and undefined malformed input domains remain unsupported.

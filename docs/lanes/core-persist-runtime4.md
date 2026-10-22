@@ -17,6 +17,7 @@
 - Expected additions: 17 core runtime tests and 1 formats integration test, pending actual measurements. No blanket owner or implemented-byte credit.
 - IMPORTANT: those 18 new tests have NOT yet had a coherent quick/all execution. Never promote the old 5080 baseline count to runtime coverage. No merge queue entry while gates are pending.
 - Review: foreign helpers are limited to raw I/O, buffer allocation/ref/QI/locks/pixels/conversion, OS opening and existing QFS bytes; sealed production factory bodies remain ours. All six owners are partial; no byte subtotal or KeyList completion claim.
+- Oracle audit recorded in engine/core/src/persistence_runtime/AUDIT.md: constructed/synthetic conversion fixtures are not native, shipped-data or complete foreign-subclass evidence.
 - No C ABI/plugin/manager/cache changes authorized; no game request planned for pure core.
 - PR1 native-order supplied explicitly; PR2 constructed fixtures are not shipped coverage; PR3 padded v1 row copy is a FreeCity4 choice.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-persist-runtime4-r1-manifest.json
