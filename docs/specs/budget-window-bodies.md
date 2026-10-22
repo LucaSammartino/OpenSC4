@@ -114,33 +114,200 @@ the first nine of its category, create its checkbox and info controls and append
 first nine A indices, then first nine B indices. No map entry is created for an off-screen item.
 Map append sites: `0x0077CA93`–`0x0077CAC3`, `0x0077CF21`–`0x0077CF51`.
 
-The checkbox/control IDs start at 300 and info IDs at 500 and follow the source index (the button handlers
-use id-300/id-500 to index +0xA4/+0xA8, not the category-relative visible row). The edited state controls the
+The checkbox IDs start at 300 and info IDs at 500 and follow the appended map entries, continuously across
+A then B. The button handlers use id-300/id-500 to look up the source index in the map (main spec section 5.6).
+The edited state controls the
 checkbox and amount inclusion; the original state is only the apply-change comparator. Enabled items beyond
 the ninth still contribute to category totals: the off-screen A branch is `0x0077CCFB`–`0x0077CD36`; B is
 `0x0077D209`–`0x0077D24E`. A adds the helper's two-word amount; B subtracts it. The helper is the signed
-64-bit arithmetic entry `0x009F0D10` (its imported template name is misleading); exact scaling, displayed
-amount formatting and refreshed map reuse are reserved below until that helper/caller audit is complete.
+64-bit multiplication entry `0x009F0D10` (its imported template name is misleading): multiply monthly income
+by the signed-64-bit scale at +0xB0/+0xB4, retaining the low 64 product bits. A adds that product; B subtracts
+it, including the off-screen branches. Enabled visible A rows display the product through SC4MakeMoneyString;
+disabled rows display an empty string (`0x0077CC2E`–`0x0077CCB0`). This scale is owner state, not a refreshed
+total supplied externally. Its initialization and B's visible money formatting remain in the refresh audit.
 
 Discriminators: available IDs [10 expense/on, 20 income/off, 30 income/on] produce counts A=2, B=1 and map
 [1,2,0], including the off ordinance and all zero amounts. With ten income ordinances, only indices 0..8
 have initial controls/map entries, but index 9 contributes to the total if edited/on. A provider that changes
 IsOrdinanceOn between the two initialization calls can produce original != edited before user interaction.
 
-## 3. Neighbour population
+## 3. Neighbour population (`0x0077E600`)
 
-Body proof in progress; no populated list, selected-row vector or count returned by a same-owner host
-callback is a valid external input. Native entries are listed above.
+### 3.1 Providers and section enumeration
+
+Acquire the neighbours simulator through application global `0x00B43CEC`, slot 62 (+0xF8). This is an
+external service accessor, not a populated budget result. Use simulator slot 27 (+0x6C) SetUIDisableFlag(1),
+slot 25 (+0x64) ProposeDeals(&list,1), and slot 30 (+0x78) FindDeals(type,&list). Counts are 32-bit unsigned;
+monthly deal amounts are returned in EDX:EAX. The temporary list is the owner's list at +0x130, with each
+node's deal pointer at node +8. Traverse provider order; do not sort it by city or amount.
+
+At entry zero countA/+0x124 and countB/+0x128. Erase all +0x50 rows (releasing their deal members), reset
+the +0x5C end to its begin, clear held +0x68 entries and the temporary list. Then call ProposeDeals(&list,1),
+traverse its results calling each deal's slot 8 (+0x20), and clear the temporary list again. That slot is a
+plain dword type getter (`0x004ED900`), not accept/cancel or Release; do not invent proposal acceptance here.
+Setup order is `0x0077E6A6`–`0x0077E752`.
+
+FindDeals is invoked six times, clearing the temporary list between calls. It selects exact type equality,
+not active status (`0x006D0783`–`0x006D079B`). Each returned deal contributes one row regardless of flags or
+amount, and each nonempty type contributes one additional section header:
+
+| Enumeration order | Type | List | Count sites / scan start |
+|---|---|---|---|
+| 1 | `0x4773FFE1` | A | `0077E761`–`0077E7A7` |
+| 2 | `0x4773FFE0` | B | `0077EA2A`–`0077EA79` |
+| 3 | `0x4773FFE3` | A | `0077ECFC`–`0077ED4B` |
+| 4 | `0x4773FFE2` | B | `0077EFDC`–`0077F034` |
+| 5 | `0x4773FFE5` | A | `0077F163`–`0077F1B4` |
+| 6 | `0x4773FFE4` | B | `0077F2E3`–`0077F334` |
+
+For every result append {type u32, deal interface pointer} to the held vector +0x68..+0x6C (8-byte entries).
+The append acquires a temporary +1 and an element +1, then drops the temporary; moving/growing the vector
+copies retained elements with AddRef and releases the old retained elements. Example byte sites:
+`0x0077E7AD`–`0x0077E8CC`, temporary release `0x0077E9EE`–`0x0077E9F8`. Do not use the export's SliderInfo
+template name to infer the semantic contents: here the pair's first word is deal type, not a slider ID.
+FindDeals itself AddRefs each matching pointer before adding it to the output list (`0x006D0797`); the full
+balance of the temporary list's returned references remains an explicit audit item, not an assumed borrowed list.
+
+Only if flags (deal slot 36, +0x90) contain bit 1 (`flags & 2`) does the initializer add slot 22 (+0x58,
+signed 64-bit monthly value) to that type's total, copy slot 10's dword into slot 13, copy slot 16's dword into
+slot 15, and append {cityID, type} to +0x5C..+0x60. CityID is deal slot 7 (+0x1C) followed by city slot 27
+(+0x6C). These are raw public interface calls; +0x5C is an owner-built list of 8-byte scalar pairs, with no
+city reference retained. First type: `0x0077E8D1`–`0x0077E9EE`; second: `0x0077EBA6`–`0x0077ECC0`;
+the other four repeat the flag test. A flag-zero deal is still counted and retained, but is not included
+in this initial total or active-city/type list. Do not filter it out of the dialog.
+
+After all six scans, both counts zero selects SetEmptyWindow with LTEXT group `0x6A3FF01C`, title
+`0x2A579AD2`, body `0xCA5CB52D` (`0x0077F455`–`0x0077F51A`). Otherwise create the two lists with a
+nine-row limit per list; headers consume rows. Render A by types E1,E3,E5, then B by E0,E2,E4, scanning
+the held vector for each type, retaining order within each type. The first header consumes a row before
+its deal rows (`0x0077F690`–`0x0077F6D3`); the nine-row budget is shared by the three sections of a list.
+Hidden/off-screen deals remain in the retained vector and full counts.
+
+Discriminators: E1 has 2 flag-zero deals, E3 has 1 active deal, E0 has none, E2 has 1 flag-zero deal,
+E5/E4 empty. A count=5 (two headers plus three deals); B count=2. The active scalar list has only E3's
+{cityID,E3}; the E1/E2 deals remain selectable. Ten E1 deals give countA=11 and at most eight initial
+deal rows after the header. Three one-deal A sections give six rows, not three.
+
+### 3.2 Combo-row ownership and selection edits
+
+Each displayed combo row is an owner-built 24-byte record in +0x50..+0x54: its first word is the combo
+control ID; +0x10 is a retained deal interface. Other words are row/presentation metadata whose exact
+values still need the bounded refresh/options audit. The append helper `0x0077E5A0` copies the data words
+and AddRefs +0x10, then advances by 24. Row construction first takes a temporary deal reference
+(`0x0077F823`–`0x0077F850`) and later releases it. Erase helper `0x0077C3C0` releases the pointer at
+entry +0x10 for each erased record (`0x0077C3EC`–`0x0077C3FB`). These references are separate from
+the held-deal vector and cannot be replaced with a host-owned selected-deal result.
+
+On combo change, traverse all 24-byte rows, comparing the first dword with the message's control ID;
+process every match. Find the child by ID (window slot 35), QI IID `0x412CE496`, and only on success get
+the selection (combo slot 30, +0x78). The row's retained deal at +0x10 is the edit target. Release the
+temporary combo interface afterward. A failed QI makes no edit for that row. There is no null-child check
+before QI. After traversal, always call updateNeighborBudget once and return 0
+(`0x0078BD6B`–`0x0078BDFB`, `0x0078BFF2`–`0x0078C064`).
+
+Selection 0: if deal flags bit 1 is clear, do nothing. If set, call deal slot 34 (+0x88), set combo selection
+0 (slot 24/+0x60), replace its displayed item text through slot 27/+0x6C using LTEXT
+`0x6A3FF01C:0xCA5793C0`, then notify through combo slot 28/+0x70 with (0,1) and deal slot 37/+0x94
+with (1,1) (`0x0078BDFD`–`0x0078BE85`).
+
+Nonzero selection: first, if deal slot 39/+0x9C with mask 0x100 returns true, make no edit. Otherwise read
+flags; when bit 1 is clear call deal slot 35/+0x8C first. Then read maximum amount (slot 18/+0x48), increment
+(slot 16/+0x40), and current amount (slot 10/+0x28). All these scalar operations are 32-bit integers.
+If current amount != 0 and the **low 32 bits** of increment*selection exceed current amount in an unsigned
+comparison, the special branch chooses truncating signed maximum/current as the combo selection, writes
+the special LTEXT `0x6A3FF01C:0x6A57943C`, then calls slot 17/+0x44 with maximum. Otherwise call slot
+11/+0x2C with the low 32-bit product, set combo selection 0 and display
+`0x6A3FF01C:0x2A5794A0`. This order and distinction are from `0x0078BE90`–`0x0078BFDA`; the unusual
+current-amount divisor is intentional, not maximum/increment. Special-branch localization instance needs
+one final byte check before implementation (see section 5).
+
+Raw deal primary table is at `0x00AB1DD8` (data references from `00AB1DD8` through `00AB1E74`). It is
+absent from the named vtable query's results, so slot names above are behavioral descriptions, not guessed
+names from folded getters. For example slot 10's `0x00A6CAB0` reads +0x34, slot 16's `0x0080BC00` reads
++0x38, slot 15's `0x006CE250` and slot 13's `0x007B62D0` are distinct setters, and slot 22's `0x006CE110`
+returns +0x50/+0x54 as two words. The initializer must make the public calls, not inspect those object fields.
 
 ## 4. Panel balance-sheet computation
 
-Body proof in progress. CalculateValues and UpdateBalanceSheetInfo are owner operations, not raw simulator
-inputs. In particular the former uses full 64-bit amounts; its decompilation has corrupted stack variables.
+### 4.1 CalculateValues (`0x00767270`)
+
+If cached budget interface +0x14 is null, obtain it through application slot 52 (+0xD0), acquire an owned
+reference on a different nonnull result, replace the cached pointer and release the old pointer. If still
+null, zero every dword from +0x28 through +0x14C inclusive and return (`0x00767278`–`0x007672B3`,
+`0x00767805`–`0x00767981`). Do not leave stale rows on the no-budget path.
+
+Otherwise perform the following reads/computation in table order. Each offset below holds a signed 64-bit
+low/high word pair. Sum and product operations retain the low 64 bits, with no floating-point conversion,
+rounding or saturation. Annual means multiply the monthly pair by 12 through `0x009F0D10`.
+
+| Destination | Raw input / owner computation |
+|---|---|
+| +0x28 | budget slot 6/+0x18, total funds |
+| +0x30 | budget slot 16/+0x40, monthly income |
+| +0x38 | budget slot 11/+0x2C (unnamed in ABI table) |
+| +0x40 | budget slot 14/+0x38, monthly expense |
+| +0x48 | budget slot 13/+0x34 (unnamed in ABI table) |
+| +0x50; +0x58 | sum budget slot 18/+0x48 GetTaxIncome(2), then (1), then (0); annual of that sum |
+| +0x60; +0x68 | sum GetTaxIncome(5),(4),(3),(7),(6), in that order; annual |
+| +0x70; +0x78 | sum GetTaxIncome(8),(10),(11),(9), in that order; annual |
+| +0x80; +0x88 | zero, then ordinance income accumulation below; annual |
+| +0x90; +0x98 | zero, then ordinance expense accumulation below; annual |
+| +0xA0; +0xB0 | neighbours global `0x00B43D8C` slot 32/+0x80 monthly income; annual |
+| +0xA8; +0xB8 | neighbours slot 33/+0x84 monthly expense; annual |
+
+Read/call sites: `0x007672BE`–`0x00767411`, `0x007674D2`–`0x00767577`. Ordinances use the same available
+ID count/array/borrowed GetOrdinanceByID providers as section 2. For each ID, call ordinance slot 5/+0x14,
+**save only EAX**, then call IsOrdinanceOn(id). If off, skip it. If on, interpret the saved low dword as
+signed i32: nonnegative values are sign-extended and added to +0x80; negative values are negated in 32
+bits, then sign-extended and added to +0x90 (`0x00767450`–`0x007674C2`). Do not classify by
+IsIncomeOrdinance here. `INT32_MIN` negates to itself and therefore adds a negative 64-bit amount to expense.
+The allocated ID array is freed after traversal; no ordinance object reference is acquired or released.
+
+Then call budget slot 29/+0x74 GetAllGroups(&temporaryVector), whose records are 40 bytes. Use the group
+ID at record +0; monthly income at +24 (two words); monthly expense at +32. Process records in returned
+order, selecting destinations as follows; other IDs have no effect. Copy the chosen pair and compute its
+annual pair. No clearing of these destinations precedes this loop on the successful-budget path: an absent
+group retains its prior value; a later duplicate overwrites the earlier one. EACB/EA95 share one destination.
+
+| Group ID | Input pair | Monthly; annual destinations |
+|---|---|---|
+| `0x0A5A72D1` | expense | +0xC0; +0xC8 |
+| `0xAA369059` | expense, then income | +0xD0;+0xD8 and +0xE0;+0xE8 |
+| `0x4A357B40` | income | +0xF0; +0xF8 |
+| `0x6A357B7F` | income | +0x100; +0x108 |
+| `0x4A357EAF` | income | +0x110; +0x118 |
+| `0x6A357B96` | income | +0x120; +0x128 |
+| `0xEA357ECB` or `0xEA597195` | income | +0x130; +0x138 |
+
+Dispatch/copy sites: `0x007675C0`–`0x00767780`. Finally read budget slot 45/+0xB4 into +0x140 and compute
+annual at +0x148; destroy temporary group strings and free the temporary vector (`0x00767786`–`0x00767804`).
+The unnamed budget slots remain described by public slot/arguments; resolving their names is not permission
+to replace CalculateValues with a host-produced balance-sheet object.
+
+Discriminators: tax results [2→1,1→2,0→3] produce monthly 6, annual 72. An on ordinance returning
+`0x00000001_FFFFFFFF` contributes expense 1, not income 8589934591; `0x00000001_00000000` contributes zero.
+An income-classified ordinance with low dword -7 contributes expense 7 here but remains an A row in section 2.
+Two returned groups EACB with income 10 followed by EA95 with income 20 leave +0x130=20, annual=240;
+an update with neither ID retains that value. Missing budget resets it to zero.
+
+### 4.2 UpdateBalanceSheetInfo (`0x00767990`), proved computation boundary
+
+Return immediately if panel window +0x10 is null. Otherwise always CalculateValues first, obtain the two
+GS colors (0x77,0,0) and (0x44,0x55,0x66), then test the dword +0x198. Zero selects the summary rendering
+path, nonzero the detailed path (`0x00767990`–`0x007679EB`). The summary writes funds to controls
+`0xAA3AC100` and `0xAA3AC10E`; color is the second color for signed funds >=0 and the first for negative.
+Byte +0x194 selects monthly versus annual controls. Monthly projection is funds - monthly expense + monthly
+income, using 64-bit subtraction/addition before money formatting (control `0xAA3AC103`,
+`0x00767AC2`–`0x00767ADE`); its sign selects the same positive/negative colors. The detailed control
+mapping and the remainder of summary rendering are still pending; they cannot be represented as an external
+refresh callback. SetFormattedAmountInTextControl remains an owner helper requiring its separate widget audit.
 
 ## 5. Bounded remainder / completion boundary
 
-BW17 remains open. Next body audits: neighbour enumeration/selection and balance-sheet arithmetic first;
-then ordinance refresh/scaling, individual enumeration and +0x44 restore acquisition, group/individual/neighbour
-refresh and row reuse, popup/empty/setup failure references, and loan-display/tax/setup helpers. The inventory
+BW17 remains open, partially resolved by sections 1–4. Next bounded audits: (1) ordinance refresh, scale
+initialization and B money formatting; neighbour combo options/set_comboBox, three remaining metadata words,
+special-branch LTEXT byte check, temporary-list reference balance and updateNeighborBudget row reuse;
+(2) individual enumeration/+0x44 restore acquisition and group/individual refresh reuse; (3) popup/empty/setup
+failure references, loan-display/tax/setup helpers and remaining balance-sheet control rendering. The inventory
 above is the checklist; layout alone may stay presentation, but counts, selection, filtering, arithmetic and
 owned references cannot be delegated as already computed results of these same owners.
