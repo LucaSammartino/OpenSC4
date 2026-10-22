@@ -23,8 +23,8 @@ impl PixelConversion for NoConversion {
 #[test]
 fn literal_qfs_load_exact_size_failure_and_save_header() {
     let literal = [
-        2, 0, 0, 0, 15, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0, 15, 0, 0, 0, 0x10, 0xfb, 0, 0,
-        4, 0xe0, 0x34, 0x12, 0xcd, 0xab, 0xfc,
+        2, 0, 0, 0, 15, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0, 15, 0, 0, 0, 0x10, 0xfb, 0, 0, 4, 0xe0, 0x34,
+        0x12, 0xcd, 0xab, 0xfc,
     ];
     let buffer = Arc::new(Mutex::new(OwnedBuffer::new(NoConversion, 1024)));
     let mut resource = BufferResource::new(Some(buffer.clone()));

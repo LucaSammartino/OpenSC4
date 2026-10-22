@@ -30,14 +30,10 @@ impl Resource {
         self.references.load(Ordering::SeqCst)
     }
     pub fn add_ref(&self) -> u32 {
-        self.references
-            .fetch_add(1, Ordering::SeqCst)
-            .wrapping_add(1)
+        self.references.fetch_add(1, Ordering::SeqCst).wrapping_add(1)
     }
     pub fn release(&self) -> u32 {
-        self.references
-            .fetch_sub(1, Ordering::SeqCst)
-            .wrapping_sub(1)
+        self.references.fetch_sub(1, Ordering::SeqCst).wrapping_sub(1)
     }
     pub fn query_interface(&self, iid: u32) -> bool {
         if iid == RESOURCE_IID || iid == UNKNOWN_IID {

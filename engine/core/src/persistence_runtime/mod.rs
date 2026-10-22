@@ -10,13 +10,9 @@ mod serial;
 mod variant;
 pub use crate::persistence_manager::{Key, KeyList};
 pub use factory::{
-    BufferResourceFactory, FactoryHooks, FactoryOutput, FactoryRecord, RecordOpener,
-    ResourceFactory, ResourceHandle,
+    BufferResourceFactory, FactoryHooks, FactoryOutput, FactoryRecord, RecordOpener, ResourceFactory, ResourceHandle,
 };
-pub use image::{
-    Buffer, BufferHandle, BufferLayout, BufferResource, Format, ImageCodec, OwnedBuffer,
-    PixelConversion,
-};
+pub use image::{Buffer, BufferHandle, BufferLayout, BufferResource, Format, ImageCodec, OwnedBuffer, PixelConversion};
 pub use record::{DbRecord, RecordInterface, Segment};
 pub use resource::{Resource, ResourceInterface};
 pub use serial::{Field, RawStream, SerialRecord, StreamAdapter};

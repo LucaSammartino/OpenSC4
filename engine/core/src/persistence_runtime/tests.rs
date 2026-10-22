@@ -37,8 +37,7 @@ impl RawStream for Bytes {
         if self.fail_write {
             return false;
         }
-        self.bytes
-            .resize(self.bytes.len().max(self.position + data.len()), 0);
+        self.bytes.resize(self.bytes.len().max(self.position + data.len()), 0);
         self.bytes[self.position..self.position + data.len()].copy_from_slice(data);
         self.position += data.len();
         true
@@ -65,15 +64,15 @@ fn independent_integer_widths_signed_bits_and_array_order() {
         (
             true,
             vec![
-                0xfe, 0x80, 0xfe, 0xff, 0x34, 0x12, 0xfe, 0xff, 0xff, 0xff, 0x78, 0x56, 0x34, 0x12,
-                0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 8, 7, 6, 5, 4, 3, 2, 1,
+                0xfe, 0x80, 0xfe, 0xff, 0x34, 0x12, 0xfe, 0xff, 0xff, 0xff, 0x78, 0x56, 0x34, 0x12, 0xfe, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff, 0xff, 8, 7, 6, 5, 4, 3, 2, 1,
             ],
         ),
         (
             false,
             vec![
-                0xfe, 0x80, 0xff, 0xfe, 0x12, 0x34, 0xff, 0xff, 0xff, 0xfe, 0x12, 0x34, 0x56, 0x78,
-                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe, 1, 2, 3, 4, 5, 6, 7, 8,
+                0xfe, 0x80, 0xff, 0xfe, 0x12, 0x34, 0xff, 0xff, 0xff, 0xfe, 0x12, 0x34, 0x56, 0x78, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff, 0xfe, 1, 2, 3, 4, 5, 6, 7, 8,
             ],
         ),
     ] {
@@ -125,10 +124,7 @@ fn string_exact_lengths_empty_short_header_and_failure_channels() {
     let mut serial = SerialRecord::new(Bytes::default(), false);
     assert!(serial.set_string(b"cat"));
     assert!(serial.set_string(b""));
-    assert_eq!(
-        serial.raw().bytes,
-        [0, 0, 0, 3, b'c', b'a', b't', 0, 0, 0, 0]
-    );
+    assert_eq!(serial.raw().bytes, [0, 0, 0, 3, b'c', b'a', b't', 0, 0, 0, 0]);
     let mut serial = SerialRecord::new(Bytes::input(b"xy"), true);
     let mut out = b"old".to_vec();
     assert!(serial.get_string(&mut out));
@@ -149,8 +145,8 @@ const V1: &[u8] = &[
     1, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0, 0x34, 0x12, 0xcd, 0xab,
 ];
 const V2: &[u8] = &[
-    2, 0, 0, 0, 15, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0, 15, 0, 0, 0, 0x10, 0xfb, 0, 0, 4,
-    0xe0, 0x34, 0x12, 0xcd, 0xab, 0xfc,
+    2, 0, 0, 0, 15, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0, 15, 0, 0, 0, 0x10, 0xfb, 0, 0, 4, 0xe0, 0x34, 0x12,
+    0xcd, 0xab, 0xfc,
 ];
 
 use std::sync::{Arc, Mutex};
@@ -211,10 +207,7 @@ fn record_close_failure_is_once_and_destruction_only_releases() {
     assert_eq!(record.access_flags(), 0);
     record.set_access_flags(0xff03);
     record.set_key(Key::new(4, 5, 6));
-    assert_eq!(
-        (record.key(), record.access_flags()),
-        (Key::new(4, 5, 6), 0xff03)
-    );
+    assert_eq!((record.key(), record.access_flags()), (Key::new(4, 5, 6), 0xff03));
     assert!(!record.close());
     assert!(!record.close());
     assert_eq!(*segment.0.lock().unwrap(), ["add", "close", "release"]);
@@ -239,14 +232,8 @@ fn record_close_failure_is_once_and_destruction_only_releases() {
 #[test]
 fn views_share_position_and_resource_buffer_replacement_balances_references() {
     let mut serial = SerialRecord::new(Bytes::default(), true);
-    assert_eq!(
-        serial.query_interface(INPUT_IID),
-        Some(RecordInterface::Input)
-    );
-    assert_eq!(
-        serial.query_interface(OUTPUT_IID),
-        Some(RecordInterface::Output)
-    );
+    assert_eq!(serial.query_interface(INPUT_IID), Some(RecordInterface::Input));
+    assert_eq!(serial.query_interface(OUTPUT_IID), Some(RecordInterface::Output));
     assert_eq!(serial.record.reference_count(), 3);
     assert!(serial.adapter().set_rz_char_str(b"hi\0ignored"));
     assert_eq!(serial.raw().bytes, [2, 0, 0, 0, b'h', b'i']);
@@ -288,8 +275,7 @@ fn literal_v0_v1_raw_prefix_and_stored_format_conversion_failure() {
         &NoCodec
     ));
     let v0 = [
-        0x24, 0xda, 0xb9, 0x62, 2, 0, 0, 0, 0, 0, 0, 1, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-        0x88,
+        0x24, 0xda, 0xb9, 0x62, 2, 0, 0, 0, 0, 0, 0, 1, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
     ];
     assert!(resource.load(
         &mut SerialRecord::new(Bytes::input(&v0), false),
@@ -318,9 +304,8 @@ fn bmp_headers_palette_padding_row_choice_and_save_ignored_write_failures() {
     // Literal 1x2 24-bit BMP, bottom red then top green. Offset deliberately
     // wrong: §6.4 ignores it. All headers and pixels are independent literals.
     let bmp = [
-        0x42, 0x4d, 62, 0, 0, 0, 0, 0, 0, 0, 99, 0, 0, 0, 40, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 1,
-        0, 24, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        255, 0, 0, 255, 0, 0,
+        0x42, 0x4d, 62, 0, 0, 0, 0, 0, 0, 0, 99, 0, 0, 0, 40, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 1, 0, 24, 0, 0, 0, 0, 0,
+        8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 0, 0, 255, 0, 0,
     ];
     let buffer = owned();
     let mut resource = BufferResource::new(Some(buffer.clone()));
@@ -336,10 +321,7 @@ fn bmp_headers_palette_padding_row_choice_and_save_ignored_write_failures() {
         &record.raw().bytes[..14],
         &[b'B', b'M', 62, 0, 0, 0, 0, 0, 0, 0, 54, 0, 0, 0]
     );
-    assert_eq!(
-        &record.raw().bytes[54..],
-        &[0x7f, 0, 255, 0, 0x7f, 255, 0, 0]
-    );
+    assert_eq!(&record.raw().bytes[54..], &[0x7f, 0, 255, 0, 0x7f, 255, 0, 0]);
     record.raw_mut().fail_write = true;
     assert!(resource.save(&mut record, 0x55d4fb53, &NoCodec));
     assert_eq!(&record.raw().writes[3..], &[14, 40, 8]); // all three attempted despite false
@@ -386,9 +368,7 @@ fn factory_defaults_type_failures_temporary_cleanup_and_settings() {
     assert_eq!(buffer.lock().unwrap().references, 0); // creator temporary released after failed QI
                                                       // Supply fresh allocation references for later load/save calls.
     let mut factory = BufferResourceFactory::new(NoCodec, || Some(owned()), 1);
-    let output = factory
-        .load(&mut SerialRecord::new(Bytes::input(V1), true))
-        .unwrap();
+    let output = factory.load(&mut SerialRecord::new(Bytes::input(V1), true)).unwrap();
     assert_eq!(output.lock().unwrap().bytes(), [0x34, 0x12, 0xcd, 0xab]);
     output.lock().unwrap().release();
     assert!(!factory.save(None, &mut SerialRecord::new(Bytes::default(), true)));
@@ -417,23 +397,12 @@ fn factory_record_type_order_fail_read_qi_and_forwarded_arguments() {
             self.events.push((ty, iid, a, b));
             self.allocate(ty, iid)
         }
-        fn serial_read<S: RawStream>(
-            &mut self,
-            resource: &ResourceHandle,
-            _: &mut SerialRecord<S>,
-        ) -> bool {
-            assert_eq!(
-                resource.lock().unwrap().base.key(),
-                Key::new(BUFFER_TYPE, 2, 3)
-            );
+        fn serial_read<S: RawStream>(&mut self, resource: &ResourceHandle, _: &mut SerialRecord<S>) -> bool {
+            assert_eq!(resource.lock().unwrap().base.key(), Key::new(BUFFER_TYPE, 2, 3));
             self.events.push((5, 0, 0, 0));
             self.read
         }
-        fn serial_write<S: RawStream>(
-            &mut self,
-            _: &ResourceHandle,
-            _: &mut SerialRecord<S>,
-        ) -> bool {
+        fn serial_write<S: RawStream>(&mut self, _: &ResourceHandle, _: &mut SerialRecord<S>) -> bool {
             false
         }
     }
@@ -485,10 +454,7 @@ fn variant_no_marker_unsupported_tags_and_temporary_publication() {
     )));
     assert_eq!(
         record.raw().bytes,
-        [
-            0, 0, 0, 6, 0xff, 0xfe, 0, 0, 0x80, 3, 0, 0, 0, 2, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc,
-            0xde, 0xf0
-        ]
+        [0, 0, 0, 6, 0xff, 0xfe, 0, 0, 0x80, 3, 0, 0, 0, 2, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0]
     );
     let mut unsupported = SerialRecord::new(Bytes::default(), true);
     assert!(!unsupported.set_variant(&Variant::Object(RefValue::Null)));
@@ -506,19 +472,13 @@ fn variant_no_marker_unsupported_tags_and_temporary_publication() {
     assert!(good.get_variant(&mut out));
     assert_eq!(
         out,
-        Some(Variant::array(
-            mem::UINT16,
-            vec![Elem::U16(0x1234), Elem::U16(0xabcd)]
-        ))
+        Some(Variant::array(mem::UINT16, vec![Elem::U16(0x1234), Elem::U16(0xabcd)]))
     );
     let mut short = SerialRecord::new(Bytes::input(&[3, 0, 0, 0, 1]), true);
     assert!(!short.get_variant(&mut out));
     assert_eq!(
         out,
-        Some(Variant::array(
-            mem::UINT16,
-            vec![Elem::U16(0x1234), Elem::U16(0xabcd)]
-        ))
+        Some(Variant::array(mem::UINT16, vec![Elem::U16(0x1234), Elem::U16(0xabcd)]))
     );
     let mut list = KeyList::new(); // authoritative owner, not a cloned list implementation
     list.insert(Key::new(1, 2, 3));
@@ -545,23 +505,12 @@ fn colour_table_and_explicit_owned_storage_limits() {
 #[test]
 fn independent_get_widths_floats_and_defined_partial_host_bytes() {
     let bytes = [
-        0xfe, 0x80, 0xff, 0xfe, 0x12, 0x34, 0xff, 0xff, 0xff, 0xfe, 0x12, 0x34, 0x56, 0x78, 0xff,
-        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe, 1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0x80, 0x3f, 0, 0,
-        0, 0, 0, 0, 0xf0, 0x3f,
+        0xfe, 0x80, 0xff, 0xfe, 0x12, 0x34, 0xff, 0xff, 0xff, 0xfe, 0x12, 0x34, 0x56, 0x78, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xfe, 1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0x80, 0x3f, 0, 0, 0, 0, 0, 0, 0xf0, 0x3f,
     ];
     let mut record = SerialRecord::new(Bytes::input(&bytes), false);
-    let (
-        mut i8v,
-        mut u8v,
-        mut i16v,
-        mut u16v,
-        mut i32v,
-        mut u32v,
-        mut i64v,
-        mut u64v,
-        mut f32v,
-        mut f64v,
-    ) = (0i8, 0u8, 0i16, 0u16, 0i32, 0u32, 0i64, 0u64, 0f32, 0f64);
+    let (mut i8v, mut u8v, mut i16v, mut u16v, mut i32v, mut u32v, mut i64v, mut u64v, mut f32v, mut f64v) =
+        (0i8, 0u8, 0i16, 0u16, 0i32, 0u32, 0i64, 0u64, 0f32, 0f64);
     assert!(
         record.get(&mut i8v)
             && record.get(&mut u8v)

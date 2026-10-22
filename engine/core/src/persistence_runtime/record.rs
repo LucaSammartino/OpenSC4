@@ -29,12 +29,7 @@ pub struct DbRecord {
 impl DbRecord {
     /// The spec does not supply the initial count: it is an explicit input
     /// rather than an inferred native constructor default (PR9).
-    pub fn new(
-        key: Key,
-        references: u16,
-        identity: u64,
-        segment: Option<Arc<dyn Segment>>,
-    ) -> Self {
+    pub fn new(key: Key, references: u16, identity: u64, segment: Option<Arc<dyn Segment>>) -> Self {
         if let Some(segment) = &segment {
             segment.add_ref();
         }

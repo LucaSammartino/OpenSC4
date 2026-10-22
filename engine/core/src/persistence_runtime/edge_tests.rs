@@ -91,9 +91,7 @@ impl Buffer for Padded {
         target == self.layout.format
     }
 }
-const QFS: &[u8] = &[
-    15, 0, 0, 0, 0x10, 0xfb, 0, 0, 4, 0xe0, 0x34, 0x12, 0xcd, 0xab, 0xfc,
-];
+const QFS: &[u8] = &[15, 0, 0, 0, 0x10, 0xfb, 0, 0, 4, 0xe0, 0x34, 0x12, 0xcd, 0xab, 0xfc];
 struct LiteralCodec;
 impl ImageCodec for LiteralCodec {
     fn decompress(&self, bytes: &[u8]) -> Option<Vec<u8>> {
@@ -231,8 +229,7 @@ fn file_access_close_failure_and_module_target_selection_are_runtime_owned() {
             SerialRecord::new(
                 Opened {
                     raw: Cursor::new(vec![
-                        1, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0, 0x34, 0x12,
-                        0xcd, 0xab,
+                        1, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0, 0x34, 0x12, 0xcd, 0xab,
                     ]),
                     closes: self.closes.clone(),
                 },

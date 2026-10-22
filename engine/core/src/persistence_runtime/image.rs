@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-use super::{
-    RawStream, Resource, ResourceInterface, SerialRecord, BUFFER_IID, BUFFER_RESOURCE_IID,
-    BUFFER_TYPE,
-};
+use super::{RawStream, Resource, ResourceInterface, SerialRecord, BUFFER_IID, BUFFER_RESOURCE_IID, BUFFER_TYPE};
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -131,11 +128,7 @@ impl<C: PixelConversion> Buffer for OwnedBuffer<C> {
     fn initialize(&mut self, width: u32, height: u32, format: Format) -> bool {
         // Unsupported invalid/native-allocation domains: PR11. Owned storage
         // follows the published colour table and always uses packed stride.
-        if width == 0
-            || height == 0
-            || format.bits == 0
-            || Format::stored(format.colour_type) != format
-        {
+        if width == 0 || height == 0 || format.bits == 0 || Format::stored(format.colour_type) != format {
             return false;
         }
         let mut layout = BufferLayout {
@@ -192,8 +185,7 @@ impl<C: PixelConversion> Buffer for OwnedBuffer<C> {
                 return self.conversion.index8(index, rgb, &mut self.bytes[range]);
             }
         }
-        self.conversion
-            .rgb(rgb, self.layout.format, &mut self.bytes[range])
+        self.conversion.rgb(rgb, self.layout.format, &mut self.bytes[range])
     }
     fn rgb16(&self, value: u16) -> Option<[u8; 3]> {
         self.conversion.rgb16(value, self.layout.format)
@@ -202,10 +194,7 @@ impl<C: PixelConversion> Buffer for OwnedBuffer<C> {
         if self.layout.format == target {
             return true;
         }
-        let Some(bytes) = self
-            .conversion
-            .convert(&self.bytes, self.layout.format, target)
-        else {
+        let Some(bytes) = self.conversion.convert(&self.bytes, self.layout.format, target) else {
             return false;
         };
         let layout = BufferLayout {
@@ -257,11 +246,7 @@ impl BufferResource {
     }
     pub fn get_buffer_as(&self, iid: u32) -> Option<BufferHandle> {
         let buffer = self.buffer.as_ref()?;
-        if buffer
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .query_interface(iid)
-        {
+        if buffer.lock().unwrap_or_else(|e| e.into_inner()).query_interface(iid) {
             Some(buffer.clone())
         } else {
             None
@@ -308,10 +293,7 @@ impl BufferResource {
         let size_or_width = u32::from_le_bytes(head[4..].try_into().unwrap());
         if form == BUFFER_TYPE {
             let mut height = 0u32;
-            if !record.get(&mut height)
-                || !buffer.initialize(size_or_width, height, target)
-                || !buffer.lock(true)
-            {
+            if !record.get(&mut height) || !buffer.initialize(size_or_width, height, target) || !buffer.lock(true) {
                 return false;
             }
             let len = buffer.layout().width as usize * buffer.layout().height as usize;
@@ -345,12 +327,7 @@ impl BufferResource {
         buffer.unlock();
         result && buffer.convert(target)
     }
-    pub fn save<S: RawStream>(
-        &self,
-        record: &mut SerialRecord<S>,
-        version: u32,
-        codec: &impl ImageCodec,
-    ) -> bool {
+    pub fn save<S: RawStream>(&self, record: &mut SerialRecord<S>, version: u32, codec: &impl ImageCodec) -> bool {
         let Some(buffer) = &self.buffer else {
             return false;
         };
@@ -412,10 +389,7 @@ fn load_pixels<S: RawStream>(
         return false;
     }
     for y in 0..layout.height as usize {
-        let Some(destination) = buffer
-            .bytes_mut()
-            .get_mut(y * layout.stride..y * layout.stride + row)
-        else {
+        let Some(destination) = buffer.bytes_mut().get_mut(y * layout.stride..y * layout.stride + row) else {
             return false;
         };
         // PR3 explicit choice: correct packed-source, padded-destination copy.
@@ -443,10 +417,7 @@ fn save_locked<S: RawStream>(
     let row = layout.row_bytes().unwrap_or(0);
     let mut packed = Vec::with_capacity(len);
     for y in 0..layout.height as usize {
-        let Some(bytes) = buffer
-            .bytes()
-            .get(y * layout.stride..y * layout.stride + row)
-        else {
+        let Some(bytes) = buffer.bytes().get(y * layout.stride..y * layout.stride + row) else {
             return false;
         };
         packed.extend_from_slice(bytes);
@@ -465,11 +436,7 @@ fn save_locked<S: RawStream>(
         && record.raw_mut().write(&compressed)
 }
 
-fn load_bmp<S: RawStream>(
-    buffer: &mut dyn Buffer,
-    record: &mut SerialRecord<S>,
-    target: Format,
-) -> bool {
+fn load_bmp<S: RawStream>(buffer: &mut dyn Buffer, record: &mut SerialRecord<S>, target: Format) -> bool {
     let mut info = [0; 40];
     if !record.raw_mut().read(&mut info) {
         return false;

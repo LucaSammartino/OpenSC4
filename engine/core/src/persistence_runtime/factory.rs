@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::{
-    BufferHandle, BufferResource, Format, ImageCodec, Key, RawStream, SerialRecord,
-    BUFFER_FACTORY_IID, BUFFER_TYPE, FACTORY_IID, RESOURCE_IID, SERIAL_IID, UNKNOWN_IID,
+    BufferHandle, BufferResource, Format, ImageCodec, Key, RawStream, SerialRecord, BUFFER_FACTORY_IID, BUFFER_TYPE,
+    FACTORY_IID, RESOURCE_IID, SERIAL_IID, UNKNOWN_IID,
 };
 use std::sync::{Arc, Mutex};
 
@@ -25,11 +25,7 @@ impl FactoryOutput {
                 }
             }
             Self::Buffer(buffer) => {
-                if buffer
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .query_interface(iid)
-                {
+                if buffer.lock().unwrap_or_else(|e| e.into_inner()).query_interface(iid) {
                     Some(self.clone())
                 } else {
                     None
@@ -60,16 +56,8 @@ pub trait FactoryHooks: sealed::RuntimeHooks {
     fn create_type(&mut self, ty: u32, iid: u32, _a: u32, _b: u32) -> Option<FactoryOutput> {
         self.allocate(ty, iid)
     }
-    fn serial_read<S: RawStream>(
-        &mut self,
-        resource: &ResourceHandle,
-        record: &mut SerialRecord<S>,
-    ) -> bool;
-    fn serial_write<S: RawStream>(
-        &mut self,
-        resource: &ResourceHandle,
-        record: &mut SerialRecord<S>,
-    ) -> bool;
+    fn serial_read<S: RawStream>(&mut self, resource: &ResourceHandle, record: &mut SerialRecord<S>) -> bool;
+    fn serial_write<S: RawStream>(&mut self, resource: &ResourceHandle, record: &mut SerialRecord<S>) -> bool;
 }
 /// A foreign record may decline serial QI. On success the concrete serial
 /// view is ours and owns all typed field algorithms; QI/release are primitives.
@@ -167,11 +155,7 @@ impl ResourceFactory {
             return false;
         };
         let result = if let FactoryOutput::Resource(resource) = &temporary {
-            resource
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .base
-                .set_key(key);
+            resource.lock().unwrap_or_else(|e| e.into_inner()).base.set_key(key);
             if read_write(hooks, resource, record, false) {
                 if let Some(view) = temporary.query(iid) {
                     *out = Some(view);
@@ -239,8 +223,7 @@ fn read_write(
 pub trait RecordOpener {
     type Stream: RawStream;
     fn open_file(&mut self, path: &str, access: u16) -> Option<SerialRecord<Self::Stream>>;
-    fn open_bitmap(&mut self, module: Option<usize>, id: u32)
-        -> Option<SerialRecord<Self::Stream>>;
+    fn open_bitmap(&mut self, module: Option<usize>, id: u32) -> Option<SerialRecord<Self::Stream>>;
 }
 
 pub struct BufferResourceFactory<C, A> {
@@ -296,11 +279,7 @@ impl<C: ImageCodec, A: FnMut() -> Option<BufferHandle>> BufferResourceFactory<C,
             None
         }
     }
-    pub fn save<S: RawStream>(
-        &mut self,
-        buffer: Option<BufferHandle>,
-        record: &mut SerialRecord<S>,
-    ) -> bool {
+    pub fn save<S: RawStream>(&mut self, buffer: Option<BufferHandle>, record: &mut SerialRecord<S>) -> bool {
         let Some(buffer) = buffer else {
             return false;
         };
@@ -308,12 +287,7 @@ impl<C: ImageCodec, A: FnMut() -> Option<BufferHandle>> BufferResourceFactory<C,
         resource.set_buffer(Some(buffer));
         resource.save(record, self.write_version(), &self.codec)
     }
-    pub fn load_file(
-        &mut self,
-        opener: &mut impl RecordOpener,
-        path: &str,
-        target: Format,
-    ) -> Option<BufferHandle> {
+    pub fn load_file(&mut self, opener: &mut impl RecordOpener, path: &str, target: Format) -> Option<BufferHandle> {
         let mut record = opener.open_file(path, 1)?;
         let mut resource = BufferResource::new((self.allocate_buffer)());
         let result = if resource.load(&mut record, target, &self.codec) {
@@ -324,12 +298,7 @@ impl<C: ImageCodec, A: FnMut() -> Option<BufferHandle>> BufferResourceFactory<C,
         record.raw_mut().close();
         result
     }
-    pub fn save_file(
-        &mut self,
-        opener: &mut impl RecordOpener,
-        path: &str,
-        buffer: Option<BufferHandle>,
-    ) -> bool {
+    pub fn save_file(&mut self, opener: &mut impl RecordOpener, path: &str, buffer: Option<BufferHandle>) -> bool {
         let Some(buffer) = buffer else {
             return false;
         };
@@ -362,29 +331,19 @@ impl<C: ImageCodec, A: FnMut() -> Option<BufferHandle>> BufferResourceFactory<C,
     }
 }
 impl<C, A> sealed::RuntimeHooks for BufferResourceFactory<C, A> {}
-impl<C: ImageCodec, A: FnMut() -> Option<BufferHandle>> FactoryHooks
-    for BufferResourceFactory<C, A>
-{
+impl<C: ImageCodec, A: FnMut() -> Option<BufferHandle>> FactoryHooks for BufferResourceFactory<C, A> {
     fn allocate(&mut self, ty: u32, iid: u32) -> Option<FactoryOutput> {
         if ty != BUFFER_TYPE {
             return None;
         }
         let resource = Arc::new(Mutex::new(BufferResource::new((self.allocate_buffer)())));
-        resource
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .base
-            .add_ref();
+        resource.lock().unwrap_or_else(|e| e.into_inner()).base.add_ref();
         let temporary = FactoryOutput::Resource(resource);
         let result = temporary.query(iid);
         temporary.release();
         result
     }
-    fn serial_read<S: RawStream>(
-        &mut self,
-        resource: &ResourceHandle,
-        record: &mut SerialRecord<S>,
-    ) -> bool {
+    fn serial_read<S: RawStream>(&mut self, resource: &ResourceHandle, record: &mut SerialRecord<S>) -> bool {
         let mut resource = resource.lock().unwrap_or_else(|e| e.into_inner());
         if resource.base.resource_type() != BUFFER_TYPE {
             return false;
@@ -402,11 +361,7 @@ impl<C: ImageCodec, A: FnMut() -> Option<BufferHandle>> FactoryHooks
         resource.release();
         result
     }
-    fn serial_write<S: RawStream>(
-        &mut self,
-        resource: &ResourceHandle,
-        record: &mut SerialRecord<S>,
-    ) -> bool {
+    fn serial_write<S: RawStream>(&mut self, resource: &ResourceHandle, record: &mut SerialRecord<S>) -> bool {
         let mut resource = resource.lock().unwrap_or_else(|e| e.into_inner());
         if resource.base.resource_type() != BUFFER_TYPE {
             return false;
