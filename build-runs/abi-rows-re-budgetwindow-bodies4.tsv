@@ -1,0 +1,6 @@
+class	vtable	slot	offset	target	method	callee_pop	arg_dwords	ret	ret_confidence	notes
+cSC4NeighborDeal::vftable	00ab1dd8	8	+0x20	004ed900		0	0	u32	high	BW17 proposal: primary table data reference 00ab1df8; getter reads object+20; neighbour initializer calls at 0077e746; imported folded name unrelated
+cSC4NeighborDeal::vftable	00ab1dd8	10	+0x28	00a6cab0		0	0	u32	high	BW17 proposal: data reference 00ab1e00; getter reads object+34; combo comparison/division operand A at 0078bedc/0078bef4
+cSC4NeighborDeal::vftable	00ab1dd8	16	+0x40	0080bc00		0	0	u32	high	BW17 proposal: data reference 00ab1e18; getter reads object+38; combo multiplier/divisor operand I at 0078bed0/0078bf00
+cSC4NeighborDeal::vftable	00ab1dd8	17	+0x44	006ce240		4	1	void	high	BW17 proposal: data reference 00ab1e1c; setter writes object+38; combo special-path call at 0078bf83
+cSC4NeighborDeal::vftable	00ab1dd8	22	+0x58	006ce110		0	0	i64	high	BW17 proposal: data reference 00ab1e30; getter returns object+50/+54 in EAX/EDX; population total ADD/ADC at 0077e8e7 onward
