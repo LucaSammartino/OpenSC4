@@ -85,6 +85,19 @@ bool cFC4Variant::GetValVoid(void* value, uint32_t& length) const {
     return true;
 }
 
+// Slot 55, GetValString (data-formats §5.1), in the core
+// (fc4_variant_get_string): the value's text replaces `value`; true only for
+// a string (RZChar array), false with the round-trip text for every other
+// type (Uint32 7 gives "7"). [choice] of §5.1: objects and pointers are a
+// missing property (false, `value` unchanged). The scalar Char and
+// RZUnicodeChar: false, unchanged (EX53, §5.1 gives no text for them).
+// The body is fc4::gVariantGetValString (FC4PropertyHolder.cpp).
+bool (*fc4::gVariantGetValString)(const cFC4IGZVariant& v, cIGZString& value) = nullptr;
+
+bool cFC4Variant::GetValString(cIGZString& value) const {
+    return fc4::gVariantGetValString != nullptr && fc4::gVariantGetValString(*this, value);
+}
+
 // foundations §17.1: slot 60 is GetValUnknown(riid, void**).
 // [choice] The stored object queried for `riid`.
 bool cFC4Variant::GetValUnknownAs(uint32_t riid, void** ppvObj) {

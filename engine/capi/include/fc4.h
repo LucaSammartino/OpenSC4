@@ -12234,6 +12234,14 @@ int32_t fc4_span565_render_alpha_gradient(const uint32_t* spans, uint32_t n, con
 int32_t fc4_span565_render_blt(const uint32_t* spans, uint32_t n, const fc4_span565_dest* dst,
                                const fc4_span565_source* src, const fc4_span565_blt* b, uint32_t kind);
 
+/* data-formats §5.1 GetValString (variant slot 55) on one value laid out as
+ * for fc4_variant_get_u32: the value's text goes to `sink` (one call), then 1
+ * when the getter returns true (a string, RZChar array 0x800E) or 0 when it
+ * writes the round-trip text and returns false (every other type, Empty
+ * included). -1 and no sink call for pointers, objects, a bad layout and the
+ * scalar Char / RZUnicodeChar (EX53). Additive; no FC4_ABI_VERSION bump. */
+int32_t fc4_variant_get_string(uint16_t var_type, const void* data, size_t count, fc4_bytes_sink sink, void* ctx);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

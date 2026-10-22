@@ -138,7 +138,7 @@ generated index: the questions live one file per spec, so read only the file for
 | command-system | 7 | 0 | GC8 | questions/command-system.md |
 | commercial-industrial | 0 | 12 | CM11, IN3 | - |
 | crime | 0 | 24 | CQ25 | - |
-| data-formats | 1 | 50 | EX52 | questions/data-formats.md |
+| data-formats | 3 | 50 | EX54 | questions/data-formats.md |
 | dates | 3 | 0 | DT4 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |

@@ -36,6 +36,7 @@
 #include "cIGZMessageServer2.h"
 #include "cIGZUnknownList.h"
 #include "cRZBaseString.h"
+#include "compat/FC4Compat.h"
 #include <windows.h>
 #include <intrin.h>
 #include <algorithm>
@@ -43,6 +44,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <map>
+#include <utility>
 #include <string>
 #include <mutex>
 #include <vector>
@@ -63,6 +66,8 @@ constexpr uint32_t kIIDFactory = 0xA56B8F17;
 // Private to FreeCity4: answers our object core (with a reference). Never
 // asked by the game.
 constexpr uint32_t kIIDFC4Core = 0x4FC4E5A1;
+constexpr uint32_t kIIDSerialRecord = 0xC56B8F08;  // persistence §3.1
+constexpr uint32_t kIIDResourceProperty = 0xE52184AB;  // §8.2 SerialWrite: kind-1 properties answer it
 // §4.4 [choice]: at most 32 ancestors load below the record requested.
 constexpr size_t kMaxDepth = 32;
 
@@ -76,7 +81,15 @@ struct Counters {
     // serializable stubs 3-5, holder stubs 23/24, factory slot 8.
     std::atomic<uint32_t> msgPosted{0}, msgFailed{0}, tags{0}, rebuilds{0}, rebuildDest{0}, serialStubs{0};
     std::atomic<uint32_t> holderStubs{0}, slot8{0};
+    // EX51: slot 18 with true on an empty own list (no message), slot 15
+    // dest failures, SerialWrite calls / failures / text-mode refusals.
+    std::atomic<uint32_t> removeAllNoPost{0}, rebuildDestFailed{0}, serialWrites{0}, serialWriteFails{0};
+    std::atomic<uint32_t> serialWriteText{0};
+    // EX50: GetPropertyList calls by caller module: SimCity 4.exe, FreeCity4
+    // outside the contract fixture, the contract fixture, any other module.
+    std::atomic<uint32_t> listsGame{0}, listsFC4{0}, listsFixture{0}, listsOther{0};
 };
+thread_local bool t_fixture = false;  // set while ContractTest builds its own objects
 Counters g_count;
 
 constexpr uint32_t kIIDProperty = 0x452160EC;     // §8.2: cISCProperty, the readers' PopFront IID
@@ -116,7 +129,31 @@ void DescribeAddress(void* ra, char* out, size_t n) {
              static_cast<unsigned long>(reinterpret_cast<uintptr_t>(ra)));
 }
 
+const char* ClassifyCaller(void* ra) {
+    HMODULE mod = nullptr;
+    GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                       static_cast<LPCSTR>(ra), &mod);
+    HMODULE self = nullptr;
+    GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                       reinterpret_cast<LPCSTR>(&ClassifyCaller), &self);
+    if (mod != nullptr && mod == GetModuleHandleA(nullptr)) {
+        ++g_count.listsGame;
+        return "game";
+    }
+    if (mod != nullptr && mod == self) {
+        if (t_fixture) {
+            ++g_count.listsFixture;
+            return "fc4-fixture";
+        }
+        ++g_count.listsFC4;
+        return "fc4";
+    }
+    ++g_count.listsOther;
+    return "other";
+}
+
 void NoteCaller(void* ra, uint32_t call) {
+    const char* cls = ClassifyCaller(ra);
     std::lock_guard<std::mutex> g(g_callerLock);
     for (size_t i = 0; i < g_callerCount; ++i) {
         if (g_callers[i].ra == ra) {
@@ -136,7 +173,7 @@ void NoteCaller(void* ra, uint32_t call) {
     c.mainThread = GetCurrentThreadId() == g_mainThread.load();
     char where[MAX_PATH + 48];
     DescribeAddress(ra, where, sizeof where);
-    Log("exemplars: EX50 GetPropertyList new caller %s first_call=%u reads=%u thread=%s", where, call,
+    Log("exemplars: EX50 GetPropertyList new caller %s class=%s first_call=%u reads=%u thread=%s", where, cls, call,
         c.readsAtFirst, c.mainThread ? "main" : "other");
 }
 
@@ -150,6 +187,106 @@ void LogCallers() {
             g_callers[i].mainThread ? "main" : "other");
     }
     if (g_callerOverflow.load() != 0) Log("exemplars: EX50 callers past the table: %u calls", g_callerOverflow.load());
+    Log("exemplars: EX50 GetPropertyList by module game=%u fc4=%u fc4_fixture=%u other=%u", g_count.listsGame.load(),
+        g_count.listsFC4.load(), g_count.listsFixture.load(), g_count.listsOther.load());
+}
+
+// EX50 entry tracing: the concrete property / serialization virtual entries
+// record the return address of THEIR caller (taken in the entry with
+// _ReturnAddress and passed in), only for the outermost of our entries on the
+// thread. Calls nested inside another of our entries (the rebuild's
+// GetPropertyList on the parent, say) are counted under that outer entry, so
+// an internal FC4 frame never stands for a consumer. Classes: game
+// (SimCity 4.exe), other (any other module), fc4 (our plugin outside the
+// contract fixture), fixture (the contract test). Evidence only.
+enum EntryId { kEnGetList, kEnSetCohort, kEnSetParent, kEnRebuild, kEnTag, kEnCreateRec, kEnFRead, kEnFWrite,
+               kEnSerialWrite, kEnCount };
+const char* const kEntryNames[kEnCount] = {"GetPropertyList", "SetCohort", "SetParent", "RebuildEffective",
+                                           "DebugInstanceTag", "CreateInstance(record)", "Factory.Read",
+                                           "Factory.Write", "SerialWrite"};
+enum CallerClass { kClGame, kClOther, kClFC4, kClFixture, kClCount };
+const char* const kClassNames[kClCount] = {"game", "other", "fc4", "fixture"};
+std::atomic<uint32_t> g_entryOuter[kEnCount][kClCount];
+std::atomic<uint32_t> g_listsNestedUnder[kEnCount];
+thread_local int t_entry = -1;
+
+CallerClass ModuleClass(void* ra) {
+    HMODULE mod = nullptr;
+    GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                       static_cast<LPCSTR>(ra), &mod);
+    HMODULE self = nullptr;
+    GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                       reinterpret_cast<LPCSTR>(&ModuleClass), &self);
+    if (mod != nullptr && mod == GetModuleHandleA(nullptr)) return kClGame;
+    if (mod != nullptr && mod == self) return t_fixture ? kClFixture : kClFC4;
+    return kClOther;
+}
+
+struct EntrySite {
+    int entry = -1;
+    void* ra = nullptr;
+    uint32_t count = 0;
+    CallerClass cls = kClOther;
+};
+constexpr size_t kMaxSites = 48;
+std::mutex g_siteLock;
+EntrySite g_sites[kMaxSites];
+size_t g_siteCount = 0;
+std::atomic<uint32_t> g_siteOverflow{0};
+
+class EntryScope {
+public:
+    EntryScope(EntryId id, void* ra) : outer_(t_entry < 0) {
+        if (!outer_) {
+            if (id == kEnGetList) ++g_listsNestedUnder[t_entry];
+            return;
+        }
+        t_entry = id;
+        const CallerClass cls = ModuleClass(ra);
+        ++g_entryOuter[id][cls];
+        std::lock_guard<std::mutex> g(g_siteLock);
+        for (size_t i = 0; i < g_siteCount; ++i) {
+            if (g_sites[i].entry == id && g_sites[i].ra == ra) {
+                ++g_sites[i].count;
+                return;
+            }
+        }
+        if (g_siteCount == kMaxSites) {
+            ++g_siteOverflow;
+            return;
+        }
+        g_sites[g_siteCount++] = EntrySite{id, ra, 1, cls};
+        char where[MAX_PATH + 48];
+        DescribeAddress(ra, where, sizeof where);
+        Log("exemplars: EX50 entry %s new caller %s class=%s thread=%s", kEntryNames[id], where, kClassNames[cls],
+            GetCurrentThreadId() == g_mainThread.load() ? "main" : "other");
+    }
+    ~EntryScope() {
+        if (outer_) t_entry = -1;
+    }
+    EntryScope(const EntryScope&) = delete;
+    EntryScope& operator=(const EntryScope&) = delete;
+
+private:
+    bool outer_;
+};
+
+void LogEntries() {
+    {
+        std::lock_guard<std::mutex> g(g_siteLock);
+        for (size_t i = 0; i < g_siteCount; ++i) {
+            char where[MAX_PATH + 48];
+            DescribeAddress(g_sites[i].ra, where, sizeof where);
+            Log("exemplars: EX50 entry %s caller %s class=%s count=%u", kEntryNames[g_sites[i].entry], where,
+                kClassNames[g_sites[i].cls], g_sites[i].count);
+        }
+    }
+    if (g_siteOverflow.load() != 0) Log("exemplars: EX50 entry callers past the table: %u calls", g_siteOverflow.load());
+    for (int e = 0; e < kEnCount; ++e) {
+        Log("exemplars: EX50 entry %s natural game=%u other=%u | ours fc4=%u fixture=%u | lists_nested=%u",
+            kEntryNames[e], g_entryOuter[e][kClGame].load(), g_entryOuter[e][kClOther].load(),
+            g_entryOuter[e][kClFC4].load(), g_entryOuter[e][kClFixture].load(), g_listsNestedUnder[e].load());
+    }
 }
 
 // §8.2 (EX49): the list GetPropertyList returns. The original's class has no
@@ -412,9 +549,14 @@ public:
         Post(b);
         return true;
     }
+    // §8.2 slot 18 (EX51 c): no return value in the original (RET 4, EAX not
+    // loaded); FreeCity4 returns true and nothing may test it. Posts only when
+    // the bool is true AND the own list was non-empty before the call.
     bool RemoveAllOwn(bool b) {
+        bool hadOwn = false;
         {
             std::lock_guard<std::recursive_mutex> g(lock_);
+            hadOwn = own_.Count() != 0;
             own_.RemoveAllProperties(false);
             std::vector<uint32_t> ids;
             eff_.EnumProperties([](cISCProperty* p, void* d) {
@@ -422,46 +564,141 @@ public:
             }, &ids);
             for (uint32_t id : ids) RevealOrErase(id);
         }
-        Post(b);
-        // [choice] the spec gives no return value for slot 18; true as slot 17's
-        // success value.
+        if (hadOwn) Post(b);
+        else if (b) ++g_count.removeAllNoPost;
         return true;
     }
-    // §8.2 slot 14 DebugInstanceTag(out): the base resource tag (shared stub
-    // 0x0093878E, which appends nothing: drawing-fonts §16 table), then
-    // " Exemplar ", "(Other)" / "(Unknown)" by ExemplarType 0x10 (uint 0 /
-    // otherwise), then " '<name>'" for ExemplarName 0x20; true. [choice] the
-    // properties are looked up in the effective list (the holder's view). The
-    // same text for cohorts (the spec describes both bodies together).
+    // §8.2 slot 14 DebugInstanceTag(out) (EX51 e/f): the base resource tag
+    // (shared stub 0x0093878E, which appends nothing: drawing-fonts §16
+    // table), then " Exemplar " (exemplar) or " Exemplar Cohort " (cohort);
+    // if ExemplarType 0x10 is found through the holder's GetProperty (slot 9,
+    // the effective list) "(Other)" when the first 4 bytes of its value
+    // storage are 0 (variant slot 73, no conversion) and "(Unknown)"
+    // otherwise; if ExemplarName 0x20 is found, " '" + the converting
+    // GetValString (variant slot 55, result not tested) + "'"; true.
     bool DebugTag(cIGZString& out) {
         ++g_count.tags;
         static const char kExemplar[] = " Exemplar ";
-        out.Append(kExemplar, sizeof kExemplar - 1);
-        uint32_t t = 0;
-        if (eff_.HasProperty(0x10)) {
-            eff_.GetPropertyU32(0x10, t);
+        static const char kCohort[] = " Exemplar Cohort ";
+        if (type_ == kTypeCohort) out.Append(kCohort, sizeof kCohort - 1);
+        else out.Append(kExemplar, sizeof kExemplar - 1);
+        if (cISCProperty* p = holder_.GetProperty(0x10)) {
+            cFC4IGZVariant* v = fc4::AsGame(p->GetPropertyValue());
+            const uint32_t t = v != nullptr ? v->AsUint32Ref() : 0;
             const char* s = t == 0 ? "(Other)" : "(Unknown)";
             out.Append(s, static_cast<uint32_t>(strlen(s)));
         }
-        if (eff_.HasProperty(0x20)) {
+        if (cISCProperty* p = holder_.GetProperty(0x20)) {
             cRZBaseString name;
-            eff_.GetPropertyString(0x20, name);
+            if (cFC4IGZVariant* v = fc4::AsGame(p->GetPropertyValue())) v->GetValString(name);
             out.Append(" '", 2);
             out.Append(name.ToChar(), name.Strlen());
             out.Append("'", 1);
         }
         return true;
     }
-    // §8.2 slot 15 rebuild(dest). Null: the own effective list. [choice,
-    // question EX51] a non-null dest is the original's {id, property} vector,
-    // whose memory layout docs/abi does not give: refused (false), counted.
-    // [choice] true after a rebuild (the return value is not specified).
+    // §8.2 slot 15 rebuild(dest) (EX51 a). Null: the own effective list. A
+    // non-null dest is the original's 12-byte vector {begin, end, capacity}
+    // of 8-byte {uint32 id, cISCProperty*} elements, ascending ID, one
+    // reference per element (the vector owns it): its elements are erased
+    // (each reference released), then the parent's effective properties and
+    // the own properties on top (own wins) are stored, each with one
+    // reference; the object's own effective list is not touched. The original
+    // has no return value (RET 4); FreeCity4 returns true, or false when the
+    // dest buffer has to grow and the game's allocator is unavailable.
     bool RebuildInto(void* dest) {
-        if (dest != nullptr) {
-            ++g_count.rebuildDest;
-            return false;
+        if (dest == nullptr) {
+            Rebuild();
+            return true;
         }
-        Rebuild();
+        ++g_count.rebuildDest;
+        return FillVector(static_cast<NativeVec*>(dest));
+    }
+    struct NativeElem {
+        uint32_t id;
+        cISCProperty* prop;
+    };
+    struct NativeVec {
+        NativeElem* begin;
+        NativeElem* end;
+        NativeElem* cap;  // [choice] end-of-storage pointer (question EX52)
+    };
+    bool FillVector(NativeVec* v) {
+        // Collect first, in our heap: parent (one reference each from the
+        // popped list reference), then own on top (AddRef new, release old).
+        std::map<uint32_t, cISCProperty*> m;
+        {
+            std::lock_guard<std::recursive_mutex> g(lock_);
+            if (cFC4ISCPropertyHolder* ph = ParentHolder()) {
+                cIGZUnknownList* list = nullptr;
+                if (ph->GetPropertyList(&list) && list != nullptr) {  // [abi-ret] probed: data-formats 8.2 / EX51
+                    FC4_ACQUIRED(list, "GetPropertyList");
+                    for (size_t n = list->GetSize(); n > 0; --n) {
+                        void* p = nullptr;
+                        if (!list->Pop_Front(kIIDProperty, &p) || p == nullptr) break;
+                        auto* prop = static_cast<cISCProperty*>(p);
+                        FC4_ACQUIRED(prop, "PopFront");  // kept by the vector element
+                        auto it = m.find(prop->GetPropertyID());
+                        if (it != m.end()) {
+                            FC4_RELEASE(it->second);
+                            it->second = prop;
+                        } else {
+                            m.emplace(prop->GetPropertyID(), prop);
+                        }
+                    }
+                    FC4_RELEASE_CREATED(list);  // made for us by GetPropertyList
+                }
+            }
+            own_.EnumProperties(
+                [](cISCProperty* p, void* d) {
+                    auto& mm = *static_cast<std::map<uint32_t, cISCProperty*>*>(d);
+                    FC4_ADDREF(p);
+                    auto it = mm.find(p->GetPropertyID());
+                    if (it != mm.end()) {
+                        FC4_RELEASE(it->second);
+                        it->second = p;
+                    } else {
+                        mm.emplace(p->GetPropertyID(), p);
+                    }
+                },
+                &m);
+        }
+        // Erase the destination's elements: EX51 a puts the release of each
+        // element's reference (the vector is its holder) here.
+        for (NativeElem* e = v->begin; e != nullptr && e != v->end; ++e) {
+            if (e->prop != nullptr) FC4_RELEASE_LAST_HOLDER(e->prop);
+        }
+        v->end = v->begin;
+        const size_t need = m.size();
+        const size_t have = v->begin != nullptr ? static_cast<size_t>(v->cap - v->begin) : 0;
+        if (need > have) {
+            // [choice, question EX52] the game's std::vector with the default
+            // allocator: the STL node allocator (docs/abi/allocators.md B).
+            compat::StlNodeAllocateFn alloc = nullptr;
+            compat::StlNodeFreeFn release = nullptr;
+            if (!compat::StlNodeAllocator(&alloc, &release) || alloc == nullptr || release == nullptr) {
+                ++g_count.rebuildDestFailed;
+                for (auto& kv : m) FC4_RELEASE(kv.second);
+                return false;
+            }
+            auto* buf = static_cast<NativeElem*>(alloc(static_cast<uint32_t>(need * sizeof(NativeElem))));
+            if (buf == nullptr) {
+                ++g_count.rebuildDestFailed;
+                for (auto& kv : m) FC4_RELEASE(kv.second);
+                return false;
+            }
+            if (v->begin != nullptr) release(v->begin);
+            v->begin = buf;
+            v->end = buf;
+            v->cap = buf + need;
+        }
+        for (auto& kv : m) {  // ascending ID; one reference per element for the vector
+            v->end->id = kv.first;
+            v->end->prop = kv.second;
+            FC4_ADDREF_FOR_CALLER(kv.second);
+            FC4_RELEASE(kv.second);
+            ++v->end;
+        }
         return true;
     }
     static void AddTo(cISCProperty* p, void* holder) {
@@ -505,7 +742,9 @@ public:
     bool SetParent(cISCResExemplarCohort* c, bool b) {
         {
             std::lock_guard<std::recursive_mutex> g(lock_);
-            if (c == parent_) return true;  // [choice] the no-op's return value is not specified
+            // EX51 c: SetCohort has no return value in the original (RET 8, EAX
+            // not loaded) in either path; FreeCity4 returns true, nothing tests it.
+            if (c == parent_) return true;
             if (c != nullptr) FC4_ADDREF(c);
             if (parent_ != nullptr) FC4_RELEASE(parent_);
             parent_ = c;
@@ -549,7 +788,95 @@ public:
     // decompressed. Reads the whole record, parses it in the core, loads the
     // parent (cohort IID, failure fails the read) and kind-1 resources.
     bool ReadRecord(cIGZPersistDBRecord& record);
+    // §8.2 SerialWrite binary form (EX51 d), on the record's spec slots.
+    bool WriteBinary(cIGZPersistDBSerialRecord* record);
 };
+
+namespace serial {
+// The serial record's write slots as data-formats §8.2 EX51 d numbers them
+// (thiscall, callee pops). [choice, question EX52] slot 28's arguments are
+// taken as (const void* bytes, uint32_t count), the SDK's raw-write shape.
+using RawWriteFn = bool(__thiscall*)(void*, const void*, uint32_t);
+using U8Fn = bool(__thiscall*)(void*, uint8_t);
+using U32Fn = bool(__thiscall*)(void*, uint32_t);
+using KeyFn = bool(__thiscall*)(void*, const cGZPersistResourceKey*);
+using VariantFn = bool(__thiscall*)(void*, const cIGZVariant*);
+template <class F>
+F At(void* obj, int slot) {
+    return reinterpret_cast<F>((*reinterpret_cast<void***>(obj))[slot]);
+}
+}  // namespace serial
+
+bool ExCore::WriteBinary(cIGZPersistDBSerialRecord* record) {
+    void* r = record;
+    static const char kExSig[8] = {'E', 'Q', 'Z', 'B', '1', '#', '#', '#'};
+    static const char kCoSig[8] = {'C', 'Q', 'Z', 'B', '1', '#', '#', '#'};
+    std::vector<cISCProperty*> props;
+    cGZPersistResourceKey pk(0, 0, 0);
+    {
+        std::lock_guard<std::recursive_mutex> g(lock_);
+        if (parent_ != nullptr) {
+            void* pr = nullptr;
+            if (parent_->QueryInterface(kIIDResource, &pr) && pr != nullptr) {
+                auto* res = static_cast<cIGZPersistResource*>(pr);
+                FC4_ACQUIRED(res, "QueryInterface");
+                res->GetKey(pk);
+                FC4_RELEASE(res);
+            }
+        }
+        own_.EnumProperties(
+            [](cISCProperty* p, void* d) {
+                FC4_ADDREF(p);
+                static_cast<std::vector<cISCProperty*>*>(d)->push_back(p);
+            },
+            &props);
+    }
+    std::sort(props.begin(), props.end(),
+              [](cISCProperty* a, cISCProperty* b) { return a->GetPropertyID() < b->GetPropertyID(); });
+    bool ok = serial::At<serial::RawWriteFn>(r, 28)(r, type_ == kTypeCohort ? kCoSig : kExSig, 8) &&
+              serial::At<serial::KeyFn>(r, 49)(r, &pk) &&
+              serial::At<serial::U32Fn>(r, 37)(r, static_cast<uint32_t>(props.size()));
+    for (cISCProperty* p : props) {
+        if (!ok) break;
+        ok = serial::At<serial::U32Fn>(r, 37)(r, p->GetPropertyID());
+        if (!ok) break;
+        // Kind 1: the property answers 0xE52184AB. Our own properties hold a
+        // loaded resource as an IGZUnknown value (§4.6 read path) and never
+        // answer it; [choice] one whose value answers cIGZPersistResource is
+        // written as kind 1 with that resource's key, so a read round-trips.
+        cGZPersistResourceKey rk;
+        bool kind1 = false;
+        void* q = nullptr;
+        if (p->QueryInterface(kIIDResourceProperty, &q) && q != nullptr) {
+            // [choice, question EX52] the spec does not say how the key is read
+            // from a 0xE52184AB property: a game-made one fails the write.
+            auto* u = static_cast<cIGZUnknown*>(q);
+            FC4_ACQUIRED(u, "QueryInterface");
+            FC4_RELEASE(u);
+            ok = false;
+            break;
+        }
+        if (cFC4IGZVariant* v = fc4::AsGame(p->GetPropertyValue())) {
+            void* res = nullptr;
+            // Only an IGZUnknown value (type 0x10) holds an object pointer.
+            if (v->GetType() == cIGZVariant::IGZUnknown && v->GetValUnknownAs(kIIDResource, &res) && res != nullptr) {  // [abi-ret] reviewed: our own properties carry cFC4Variant; slot 60 returns bool (foundations 17.1)
+                auto* pr = static_cast<cIGZPersistResource*>(res);
+                FC4_ACQUIRED(pr, "GetValUnknownAs");
+                pr->GetKey(rk);
+                FC4_RELEASE(pr);
+                kind1 = true;
+            }
+        }
+        if (kind1) {
+            ok = serial::At<serial::U8Fn>(r, 29)(r, 1) && serial::At<serial::KeyFn>(r, 49)(r, &rk);
+        } else {
+            ok = serial::At<serial::U8Fn>(r, 29)(r, 0) &&
+                 serial::At<serial::VariantFn>(r, 50)(r, p->GetPropertyValue());
+        }
+    }
+    for (cISCProperty* p : props) FC4_RELEASE(p);
+    return ok;
+}
 
 bool ExHolder::QueryInterface(uint32_t riid, void** ppvObj) { return o_->Outer()->QueryInterface(riid, ppvObj); }
 uint32_t ExHolder::AddRef() { return o_->Outer()->AddRef(); }
@@ -564,32 +891,38 @@ bool ExHolder::GetPropertyInterface(uint32_t id, uint32_t riid, void** ppv) cons
 bool ExHolder::GetPropertyString(uint32_t id, cIGZString& value) const { return o_->eff_.GetPropertyString(id, value); }
 bool ExHolder::GetPropertyU32(uint32_t id, uint32_t& value) const { return o_->eff_.GetPropertyU32(id, value); }
 cISCProperty* ExHolder::GetProperty(uint32_t id) const { return o_->eff_.GetProperty(id); }
-// [choice, question EX51] §8.2 names only holder slots 15/17/18 as posting the
-// change message; the other adds (10-14, 16) update the own and effective
-// lists and post nothing.
-bool ExHolder::AddPropertyData(uint32_t id, void* data, uint32_t length, bool b) {
-    const bool ok = o_->own_.AddPropertyData(id, data, length, b);
-    o_->Mirror(id);
-    return ok;
+// §8.2 holder add slots (EX51 b). Slots 10-13 are the base bodies: they ignore
+// their bool, never post, and touch the OWN list only: an existing own entry
+// gets its value set in place (the effective list holds the same object, so
+// the value shows at once); a new property goes into the own list only and
+// stays invisible through slots 3/9 until the next rebuild. Slots 14 and 16
+// build a new property and go through slot 15 (effective list updated, posts
+// when the bool is true).
+bool ExHolder::AddPropertyData(uint32_t id, void* data, uint32_t length, bool) {
+    std::lock_guard<std::recursive_mutex> g(o_->lock_);
+    return o_->own_.AddPropertyData(id, data, length, false);
 }
-bool ExHolder::AddPropertyObject(uint32_t id, cIGZUnknown* value, bool b) {
-    const bool ok = o_->own_.AddPropertyObject(id, value, b);
-    o_->Mirror(id);
-    return ok;
+bool ExHolder::AddPropertyObject(uint32_t id, cIGZUnknown* value, bool) {
+    std::lock_guard<std::recursive_mutex> g(o_->lock_);
+    return o_->own_.AddPropertyObject(id, value, false);
 }
-bool ExHolder::AddPropertyString(uint32_t id, cIGZString const& value, bool b) {
-    const bool ok = o_->own_.AddPropertyString(id, value, b);
-    o_->Mirror(id);
-    return ok;
+bool ExHolder::AddPropertyString(uint32_t id, cIGZString const& value, bool) {
+    std::lock_guard<std::recursive_mutex> g(o_->lock_);
+    return o_->own_.AddPropertyString(id, value, false);
 }
-bool ExHolder::AddPropertyU32(uint32_t id, uint32_t value, bool b) {
-    const bool ok = o_->own_.AddPropertyU32(id, value, b);
-    o_->Mirror(id);
-    return ok;
+bool ExHolder::AddPropertyU32(uint32_t id, uint32_t value, bool) {
+    std::lock_guard<std::recursive_mutex> g(o_->lock_);
+    return o_->own_.AddPropertyU32(id, value, false);
 }
+// Slot 14: a new property with the ID, its value set from the variant
+// (property slot 7), then slot 15 virtually with the bool. [choice] a null
+// variant leaves the new property Empty (the spec does not cover null).
 bool ExHolder::AddPropertyVariant(uint32_t id, cFC4IGZVariant const* value, bool b) {
-    const bool ok = o_->own_.AddPropertyVariant(id, value, b);
-    o_->Mirror(id);
+    auto* p = new cFC4Property(id);
+    FC4_ADDREF(p);
+    if (value != nullptr) p->Value().CopyFromGame(*value);
+    const bool ok = AddPropertyRecord(p, b);
+    FC4_RELEASE(p);
     return ok;
 }
 bool ExHolder::AddPropertyRecord(cISCProperty* property, bool b) {
@@ -599,10 +932,15 @@ bool ExHolder::AddPropertyRecord(cISCProperty* property, bool b) {
     o_->Post(b);  // §8.2: slot 15 posts the change message
     return ok;
 }
+// Slot 16: a new property with the source's ID and a copy of its value, then
+// slot 15 virtually with the bool.
 bool ExHolder::CopyAddProperty(cISCProperty* property, bool b) {
     if (property == nullptr) return false;
-    const bool ok = o_->own_.CopyAddProperty(property, b);
-    o_->Mirror(property->GetPropertyID());
+    auto* p = new cFC4Property(property->GetPropertyID());
+    FC4_ADDREF(p);
+    if (const cIGZVariant* v = property->GetPropertyValue()) p->Value().CopyFromGame(*fc4::AsGame(v));
+    const bool ok = AddPropertyRecord(p, b);
+    FC4_RELEASE(p);
     return ok;
 }
 // §8.2 (EX47): removal edits the own list, then the effective entry shows the
@@ -629,6 +967,7 @@ void* ExHolder::DeletingDestructor(uint32_t flags) {
 // out-pointer. EX50: the caller's return address is recorded.
 bool ExHolder::GetPropertyList(cIGZUnknownList** list) const {
     const uint32_t call = ++g_count.lists;
+    EntryScope scope(kEnGetList, _ReturnAddress());
     NoteCaller(_ReturnAddress(), call);
     if (list == nullptr) {
         ++g_count.listFails;
@@ -775,13 +1114,22 @@ public:
         std::lock_guard<std::recursive_mutex> g(lock_);
         return parent_;
     }
-    bool SetCohort(cISCResExemplarCohort* c, bool b) override { return SetParent(c, b); }
+    bool SetCohort(cISCResExemplarCohort* c, bool b) override {
+        EntryScope scope(kEnSetCohort, _ReturnAddress());
+        return SetParent(c, b);
+    }
     bool GetKey(cGZPersistResourceKey& k) override { return ExCore::GetKey(k); }
     bool SetKey(cGZPersistResourceKey const& k) override { return ExCore::SetKey(k); }
     bool CompactProperties() override { return true; }
     // §8.2 (EX47): slot 14 DebugInstanceTag(out), slot 15 rebuild(dest).
-    virtual bool DebugInstanceTag(cIGZString& out) { return DebugTag(out); }
-    virtual bool RebuildEffective(void* dest) { return RebuildInto(dest); }
+    virtual bool DebugInstanceTag(cIGZString& out) {
+        EntryScope scope(kEnTag, _ReturnAddress());
+        return DebugTag(out);
+    }
+    virtual bool RebuildEffective(void* dest) {
+        EntryScope scope(kEnRebuild, _ReturnAddress());
+        return RebuildInto(dest);
+    }
     // cIGZPersistResource
     void GetKey(cGZPersistResourceKey& k) const override { ExCore::GetKey(k); }
     uint32_t GetType() const override { return Key().type; }
@@ -839,15 +1187,24 @@ public:
         std::lock_guard<std::recursive_mutex> g(lock_);
         return parent_;
     }
-    bool SetParent(cISCResExemplarCohort* c, bool b) override { return ExCore::SetParent(c, b); }
+    bool SetParent(cISCResExemplarCohort* c, bool b) override {
+        EntryScope scope(kEnSetParent, _ReturnAddress());
+        return ExCore::SetParent(c, b);
+    }
     cISCPropertyHolder* AsISCPropertyHolder() override { return HolderSdk(); }
     cISCPropertyHolder* AsISCPropertyHolder() const override { return const_cast<cFC4ResCohort*>(this)->HolderSdk(); }
     bool IsPropertyLocal(uint32_t id) override { return own_.HasProperty(id); }
     bool GetKey(cGZPersistResourceKey& k) override { return ExCore::GetKey(k); }
     bool SetKey(cGZPersistResourceKey const& k) override { return ExCore::SetKey(k); }
     bool CompactProperties() override { return true; }
-    virtual bool DebugInstanceTag(cIGZString& out) { return DebugTag(out); }  // §8.2, as the exemplar's
-    virtual bool RebuildEffective(void* dest) { return RebuildInto(dest); }
+    virtual bool DebugInstanceTag(cIGZString& out) {  // §8.2, as the exemplar's
+        EntryScope scope(kEnTag, _ReturnAddress());
+        return DebugTag(out);
+    }
+    virtual bool RebuildEffective(void* dest) {
+        EntryScope scope(kEnRebuild, _ReturnAddress());
+        return RebuildInto(dest);
+    }
     void GetKey(cGZPersistResourceKey& k) const override { ExCore::GetKey(k); }
     uint32_t GetType() const override { return Key().type; }
     uint32_t GetGroup() const override { return Key().group; }
@@ -903,6 +1260,7 @@ public:
     // QueryInterface for the caller; our own reference released in every
     // case. The manager closes or aborts the record.
     bool CreateInstance(cIGZPersistDBRecord& record, uint32_t riid, void** ppv, uint32_t, cIGZUnknown*) override {
+        EntryScope scope(kEnCreateRec, _ReturnAddress());
         std::lock_guard<std::recursive_mutex> g(lock_);
         if (ppv == nullptr) return false;
         *ppv = nullptr;
@@ -920,6 +1278,7 @@ public:
     // Slot 5 Read(resource, record) (§8.1: through the serial record to
     // SerialRead).
     bool Read(cIGZPersistResource& resource, cIGZPersistDBRecord& record) override {
+        EntryScope scope(kEnFRead, _ReturnAddress());
         void* c = nullptr;
         if (!resource.QueryInterface(kIIDFC4Core, &c) || c == nullptr) return false;
         auto* core = static_cast<ExCore*>(c);
@@ -927,9 +1286,17 @@ public:
         core->CoreRelease();
         return ok;
     }
-    bool Write(cIGZPersistResource const&, cIGZPersistDBRecord&) override {
-        Unsupported("factory Write (SerialWrite)");
-        return false;
+    // Slot 6 Write(resource, record) (§8.2): QueryInterface of the record for
+    // the serial record (0xC56B8F08), then SerialWrite.
+    bool Write(cIGZPersistResource const& resource, cIGZPersistDBRecord& record) override {
+        EntryScope scope(kEnFWrite, _ReturnAddress());
+        void* s = nullptr;
+        if (!record.QueryInterface(kIIDSerialRecord, &s) || s == nullptr) return false;
+        auto* sr = static_cast<cIGZPersistDBSerialRecord*>(s);
+        FC4_ACQUIRED(sr, "QueryInterface");
+        const bool ok = SerialWrite(const_cast<cIGZPersistResource*>(&resource), sr);
+        FC4_RELEASE(sr);
+        return ok;
     }
     // Slot 7: the original's destructor slot. Our lifetime is the reference
     // count; nothing is deleted here [choice].
@@ -937,6 +1304,7 @@ public:
     // §8.2 (EX46) slot 8 (record, iid, out): slot 3 with the trailing 0, 0.
     virtual bool CreateFromRecord(cIGZPersistDBRecord& record, uint32_t riid, void** ppv) {
         ++g_count.slot8;
+        EntryScope scope(kEnCreateRec, _ReturnAddress());  // the inner call below is nested
         return CreateInstance(record, riid, ppv, 0, nullptr);
     }
     // Slot 9 CreateInstance(type, IID, out) (§8.1).
@@ -955,9 +1323,34 @@ public:
         cIGZPersistDBRecord* base = record->AsIGZPersistDBRecord();
         return base != nullptr && Read(*resource, *base);
     }
-    virtual bool SerialWrite(cIGZPersistResource*, cIGZPersistDBSerialRecord*) {
-        Unsupported("factory SerialWrite");
-        return false;
+    // Slot 11 SerialWrite(resource, serial record) (§8.2, EX51 d): false
+    // unless the resource's type (slot 5) is ours. Binary form (write mode
+    // false): signature EQZB1### / CQZB1### (record slot 28, raw 8 bytes), the
+    // parent's key (slot 49; all zero without a parent), the own-property
+    // count (slot 37), then per own property in ascending ID: its ID (slot
+    // 37), kind 0 + the variant (slots 29, 50) or kind 1 + the held
+    // resource's key (slots 29, 49). Stops at the first failed write and
+    // returns the last write's result. The SDK header of the serial record
+    // lacks the raw write at slot 28 (its slots from 28 on are one lower), so
+    // the record is called by the spec's slot numbers.
+    virtual bool SerialWrite(cIGZPersistResource* resource, cIGZPersistDBSerialRecord* record) {
+        EntryScope scope(kEnSerialWrite, _ReturnAddress());
+        ++g_count.serialWrites;
+        if (resource == nullptr || record == nullptr || resource->GetType() != type_) return false;
+        if (writeMode_ != 0) {
+            // [choice] the text form needs GetPropertyReadableName (0x0067FE80),
+            // whose name table the spec does not give: refused.
+            ++g_count.serialWriteText;
+            Unsupported("factory SerialWrite text form");
+            return false;
+        }
+        void* c = nullptr;
+        if (!resource->QueryInterface(kIIDFC4Core, &c) || c == nullptr) return false;
+        auto* core = static_cast<ExCore*>(c);
+        const bool ok = core->WriteBinary(record);
+        core->CoreRelease();
+        if (!ok) ++g_count.serialWriteFails;
+        return ok;
     }
     virtual void SetWriteMode(uint32_t v) { writeMode_ = v; }  // slot 12: no reader uses it [choice]
 
@@ -1097,9 +1490,7 @@ void RunSide(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, std
     } else {
         // Setup: properties go in through holder slot 13 (own list), then the
         // documented rebuild (slot 15 with null, or SetCohort) builds the
-        // effective list. Whether slot 13 itself updates the effective list
-        // is open (EX51 b) and only reported in out[4]; so are return values
-        // the spec does not give (SetCohort, slot 15: EX51 c).
+        // effective list (EX51 b: slot 13 alone does not).
         using Re = bool(__thiscall*)(void*, void*);
         Holder* hc = HolderOf(c);
         hc->AddPropertyU32(0x10, 2, false);
@@ -1108,12 +1499,14 @@ void RunSide(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, std
         Holder* h1 = HolderOf(e1);
         h1->AddPropertyU32(0x20, 5, false);
         h1->AddPropertyU32(0x27812870, 1, false);
-        Add(out[4], "set=%lu", e1->SetCohort(c, false));  // [abi-ret] probed: data-formats 8.2 / EX51
+        // EX51 c: SetCohort, RemoveAllProperties and slot 15 have no return
+        // value in the original; their results are not compared.
+        e1->SetCohort(c, false);
         out[0] += ListIds(h1);
         h1->AddPropertyU32(0x30, 9, false);
-        Add(out[4], " add13_has=%lu", h1->HasProperty(0x30));
+        Add(out[0], " add13_has=%lu", h1->HasProperty(0x30));  // EX51 b: own list only, expect 0
         Add(out[0], " local=%lu", e1->IsPropertyLocal(0x30));  // [abi-ret] probed: data-formats 8.2 / EX51
-        Add(out[4], " s15=%lu", Slot<Re>(e1, 15)(e1, nullptr));
+        Slot<Re>(e1, 15)(e1, nullptr);
         out[0] += " after_rebuild: " + ListIds(h1);
         // 2. removal reveals the parent.
         Holder* h2 = HolderOf(e2);
@@ -1127,17 +1520,17 @@ void RunSide(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, std
         Add(out[1], " local=%lu", e2->IsPropertyLocal(0x10));  // [abi-ret] probed: data-formats 8.2 / EX51
         Add(out[1], " rm2=%lu", h2->RemoveProperty(0x10, false));
         h2->AddPropertyU32(0x40, 1, false);
-        Add(out[4], " rmall=%lu", h2->RemoveAllProperties(false));  // [abi-ret] probed: data-formats 8.2 / EX51
+        h2->RemoveAllProperties(false);
         out[1] += " " + ListIds(h2);
         // 3. SetCohort references (counts relative to the start).
         const uint32_t r0 = RefsOf(c);
-        Add(out[4], " set3=%lu", e3->SetCohort(c, false));  // [abi-ret] probed: data-formats 8.2 / EX51
+        e3->SetCohort(c, false);
         Add(out[2], " d_set=%ld", static_cast<long>(RefsOf(c) - r0));
         Add(out[2], " get_same=%lu", e3->GetCohort() == c);
         Add(out[2], " d_get=%ld", static_cast<long>(RefsOf(c) - r0));
-        Add(out[4], " set_again=%lu", e3->SetCohort(c, false));  // [abi-ret] probed: data-formats 8.2 / EX51
+        e3->SetCohort(c, false);
         Add(out[2], " d_again=%ld", static_cast<long>(RefsOf(c) - r0));
-        Add(out[4], " set_null=%lu", e3->SetCohort(nullptr, false));  // [abi-ret] probed: data-formats 8.2 / EX51
+        e3->SetCohort(nullptr, false);
         Add(out[2], " d_null=%ld", static_cast<long>(RefsOf(c) - r0));
         Add(out[2], " has10=%lu", HolderOf(e3)->HasProperty(0x10));
         Add(out[2], " cohort_null=%lu", e3->GetCohort() == nullptr);
@@ -1170,22 +1563,243 @@ void RunSide(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, std
         if (u != nullptr) FC4_RELEASE_CREATED(u);  // made for us by CreateInstance
 }
 
+// A recording serial record for the SerialWrite scenario: the write slots
+// data-formats §8.2 EX51 d names (28 raw, 29 u8, 37 u32, 49 key, 50 variant)
+// append text; QueryInterface / AddRef / Release are inert; any other slot
+// appends "?N" (taken as argument-free).
+std::string* g_recLog = nullptr;
+struct FakeRec {
+    void** vtbl;
+};
+void RecAdd(const char* fmt, unsigned long a, unsigned long b = 0, unsigned long c = 0) {
+    char t[96];
+    snprintf(t, sizeof t, fmt, a, b, c);
+    if (g_recLog != nullptr) *g_recLog += t;
+}
+bool __fastcall RecQI(FakeRec*, void*, uint32_t, void**) { return false; }
+uint32_t __fastcall RecRef(FakeRec*, void*) { return 1; }
+bool __fastcall RecRaw(FakeRec*, void*, const void* p, uint32_t n) {
+    RecAdd(" raw%lu:", n, 0);
+    for (uint32_t i = 0; i < n && i < 16; ++i) RecAdd("%02lX", static_cast<const uint8_t*>(p)[i]);
+    return true;
+}
+bool __fastcall RecU8(FakeRec*, void*, uint8_t v) {
+    RecAdd(" u8:%lX", v);
+    return true;
+}
+bool __fastcall RecU32(FakeRec*, void*, uint32_t v) {
+    RecAdd(" u32:%lX", v);
+    return true;
+}
+bool __fastcall RecKey(FakeRec*, void*, const cGZPersistResourceKey* k) {
+    if (k == nullptr) RecAdd(" key:null", 0);
+    else RecAdd(" key:%lX,%lX,%lX", k->type, k->group, k->instance);
+    return true;
+}
+bool __fastcall RecVar(FakeRec*, void*, const cIGZVariant* v) {
+    if (v == nullptr) {
+        RecAdd(" var:null", 0);
+        return true;
+    }
+    auto* g = const_cast<cFC4IGZVariant*>(fc4::AsGame(v));
+    RecAdd(" var:t%lX,c%lu,w%lX", g->GetType(), g->GetCount(), g->AsUint32Ref());
+    return true;
+}
+template <int N>
+bool __fastcall RecOther(FakeRec*, void*) {
+    RecAdd(" ?%lu", N);
+    return false;
+}
+template <int... N>
+void FillOthers(void** t, std::integer_sequence<int, N...>) {
+    ((t[N] = reinterpret_cast<void*>(&RecOther<N>)), ...);
+}
+FakeRec* MakeRec() {
+    static void* vt[64];
+    static FakeRec rec{vt};
+    FillOthers(vt, std::make_integer_sequence<int, 64>{});
+    vt[0] = reinterpret_cast<void*>(&RecQI);
+    vt[1] = vt[2] = reinterpret_cast<void*>(&RecRef);
+    vt[28] = reinterpret_cast<void*>(&RecRaw);
+    vt[29] = reinterpret_cast<void*>(&RecU8);
+    vt[37] = reinterpret_cast<void*>(&RecU32);
+    vt[49] = reinterpret_cast<void*>(&RecKey);
+    vt[50] = reinterpret_cast<void*>(&RecVar);
+    return &rec;
+}
+
+cIGZPersistResource* ResOf(cIGZUnknown* u) {
+    void* r = nullptr;
+    if (!u->QueryInterface(kIIDResource, &r) || r == nullptr) return nullptr;
+    FC4_ACQUIRED(static_cast<cIGZPersistResource*>(r), "QueryInterface");
+    return static_cast<cIGZPersistResource*>(r);
+}
+
+// The EX51 scenarios (data-formats §8.2 as answered): 0 holder add slots
+// (b), 1 slot 15 into a native vector (a), 2 SerialWrite bytes (d), 3 tag
+// text (e/f). Only bool false is passed.
+void RunSide2(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, std::string out[4]) {
+    using Re = void(__thiscall*)(void*, void*);
+    using Tag = bool(__thiscall*)(void*, cIGZString&);
+    using SW = bool(__thiscall*)(void*, cIGZPersistResource*, void*);
+    auto* c = Make<cISCResExemplarCohort>(fc, kTypeCohort, kIIDCohort);
+    auto* c2 = Make<cISCResExemplarCohort>(fc, kTypeCohort, kIIDCohort);
+    cISCResExemplar* e[5] = {};
+    for (auto*& x : e) x = Make<cISCResExemplar>(fe, kTypeExemplar, kIIDExemplar);
+    bool all = c != nullptr && c2 != nullptr;
+    for (auto* x : e) all = all && x != nullptr;
+    if (!all) {
+        for (int i = 0; i < 4; ++i) out[i] = "create failed";
+    } else {
+        Holder* hc = HolderOf(c);
+        hc->AddPropertyU32(0x10, 2, false);
+        Slot<Re>(c, 15)(c, nullptr);
+        uint32_t v = 0;
+        // 0. add slots.
+        Holder* h = HolderOf(e[0]);
+        e[0]->SetCohort(c, false);
+        h->AddPropertyU32(0x10, 7, false);
+        Add(out[0], "s13_new_inherited=%lu", h->GetPropertyU32(0x10, v) ? v : 999);  // [abi-ret] probed: data-formats 8.2 / EX51
+        h->AddPropertyU32(0x50, 1, false);
+        Add(out[0], " s13_new_has=%lu", h->HasProperty(0x50));
+        h->AddPropertyU32(0x60, 3, false);
+        Slot<Re>(e[0], 15)(e[0], nullptr);
+        h->AddPropertyU32(0x60, 4, false);
+        v = 0;
+        Add(out[0], " s13_inplace=%lu", h->GetPropertyU32(0x60, v) ? v : 999);  // [abi-ret] probed: data-formats 8.2 / EX51
+        cISCProperty* p60 = h->GetProperty(0x60);
+        Add(out[0], " s14=%lu", p60 != nullptr ? h->AddPropertyVariant(0x10, fc4::AsGame(p60->GetPropertyValue()), false)
+                                               : 999);  // [abi-ret] probed: data-formats 8.2 / EX51
+        v = 0;
+        Add(out[0], " s14_get=%lu", h->GetPropertyU32(0x10, v) ? v : 999);  // [abi-ret] probed: data-formats 8.2 / EX51
+        Add(out[0], " s14_has50=%lu", h->HasProperty(0x50));
+        HolderOf(e[1])->AddPropertyU32(0x20, 1, false);
+        e[1]->SetCohort(c, false);
+        cISCProperty* p10 = hc->GetProperty(0x10);
+        Add(out[0], " s16=%lu", HolderOf(e[1])->CopyAddProperty(p10, false));  // [abi-ret] probed: data-formats 8.2 / EX51
+        cISCProperty* q10 = HolderOf(e[1])->GetProperty(0x10);
+        Add(out[0], " s16_copy=%lu", q10 != nullptr && q10 != p10);
+        Add(out[0], " s16_local=%lu", e[1]->IsPropertyLocal(0x10));  // [abi-ret] probed: data-formats 8.2 / EX51
+        // 1. slot 15 into a vector {begin, end, capacity} of {id, property}.
+        struct Elem {
+            uint32_t id;
+            cISCProperty* p;
+        };
+        struct Vec {
+            Elem* b;
+            Elem* e;
+            Elem* c;
+        } vec = {nullptr, nullptr, nullptr};
+        Holder* h2 = HolderOf(e[2]);
+        h2->AddPropertyU32(0x20, 5, false);
+        h2->AddPropertyU32(0x10, 9, false);
+        e[2]->SetCohort(c, false);
+        const std::string before = ListIds(h2);
+        const uint32_t r10 = RefsOf(p10);
+        for (int round = 0; round < 2; ++round) {
+            Slot<Re>(e[2], 15)(e[2], &vec);
+            Add(out[1], " r%lu:", static_cast<unsigned long>(round));
+            Add(out[1], "n=%lu", static_cast<unsigned long>(vec.e - vec.b));
+            for (Elem* x = vec.b; x != nullptr && x != vec.e; ++x) {
+                Add(out[1], " %lX", x->id);
+                Add(out[1], "=%lu", x->p != nullptr && x->id == x->p->GetPropertyID());
+            }
+            Add(out[1], " d_parent10=%ld", static_cast<long>(RefsOf(p10) - r10));  // the own 0x10 wins: 0
+            Add(out[1], " d_own20=%lu", static_cast<unsigned long>(vec.b != nullptr && vec.e != vec.b));
+        }
+        Add(out[1], " eff_same=%lu", before == ListIds(h2));
+        for (Elem* x = vec.b; x != nullptr && x != vec.e; ++x) {
+            if (x->p == nullptr) continue;
+            FC4_ACQUIRED(x->p, "slot 15 vector element");  // the vector's reference, now ours
+            FC4_RELEASE(x->p);
+        }
+        // The buffer is left allocated: which game allocator 0x0067CB20 uses
+        // is question EX52, so it is not freed here (a few bytes, once).
+        // 2. SerialWrite (factory slot 11) into the recording record.
+        // Setup, the same on both sides: the binary form (factory slot 12
+        // SetWriteMode(false), §8.2 EX51 d) on both factories, and explicit
+        // keys (SerialWrite returns false unless the resource's type is the
+        // factory's own; CreateInstance(type) alone leaves the key's type 0 on
+        // the native side). The native factories are no longer registered
+        // (ours replaced them, §8.1), so their mode does not reach a save.
+        using WM = void(__thiscall*)(void*, bool);
+        Slot<WM>(fe, 12)(fe, false);
+        Slot<WM>(fc, 12)(fc, false);
+        FakeRec* rec = MakeRec();
+        g_recLog = &out[2];
+        Holder* h3 = HolderOf(e[3]);
+        h3->AddPropertyU32(0x30, 9, false);
+        h3->AddPropertyU32(0x20, 5, false);
+        if (cIGZPersistResource* r = ResOf(e[3])) {
+            r->SetKey(cGZPersistResourceKey(kTypeExemplar, 0x33, 0x44));
+            Add(out[2], "ex:", 0);
+            Add(out[2], " ret=%lu", Slot<SW>(fe, 11)(fe, r, rec));  // [abi-ret] probed: data-formats 8.2 / EX51
+            FC4_RELEASE(r);
+        }
+        if (cIGZPersistResource* rc = ResOf(c)) {
+            rc->SetKey(cGZPersistResourceKey(kTypeCohort, 0x11, 0x22));
+            Add(out[2], " wrongtype:", 0);
+            Add(out[2], " ret=%lu", Slot<SW>(fe, 11)(fe, rc, rec));  // [abi-ret] probed: data-formats 8.2 / EX51
+            Add(out[2], " co:", 0);
+            Add(out[2], " ret=%lu", Slot<SW>(fc, 11)(fc, rc, rec));  // [abi-ret] probed: data-formats 8.2 / EX51
+            FC4_RELEASE(rc);
+        }
+        Holder* h4 = HolderOf(e[4]);
+        h4->AddPropertyU32(0x40, 1, false);
+        e[4]->SetCohort(c, false);
+        if (cIGZPersistResource* r = ResOf(e[4])) {
+            r->SetKey(cGZPersistResourceKey(kTypeExemplar, 0x33, 0x45));
+            Add(out[2], " child:", 0);
+            Add(out[2], " ret=%lu", Slot<SW>(fe, 11)(fe, r, rec));  // [abi-ret] probed: data-formats 8.2 / EX51
+            FC4_RELEASE(r);
+        }
+        g_recLog = nullptr;
+        // 3. tag text: cohort 0x10 = 1 and 0x20 = Uint32 5; an inheriting
+        // child; a string name; an add since the last rebuild (not shown).
+        Holder* hc2 = HolderOf(c2);
+        hc2->AddPropertyU32(0x10, 1, false);
+        hc2->AddPropertyU32(0x20, 5, false);
+        Slot<Re>(c2, 15)(c2, nullptr);
+        cRZBaseString t1, t2, t3, t4;
+        Slot<Tag>(c2, 14)(c2, t1);
+        out[3] += std::string("c[") + t1.ToChar() + "]";
+        e[3]->SetCohort(c2, false);  // own 0x20 = 5, 0x30; inherits 0x10 = 1
+        Slot<Tag>(e[3], 14)(e[3], t2);
+        out[3] += std::string(" e[") + t2.ToChar() + "]";
+        cRZBaseString abc("abc");
+        h4->AddPropertyString(0x20, abc, false);  // since the rebuild: not in the effective list
+        Slot<Tag>(e[4], 14)(e[4], t3);
+        out[3] += std::string(" pending[") + t3.ToChar() + "]";
+        Slot<Re>(e[4], 15)(e[4], nullptr);
+        Slot<Tag>(e[4], 14)(e[4], t4);
+        out[3] += std::string(" str[") + t4.ToChar() + "]";
+    }
+    for (int i = 4; i >= 0; --i)
+        if (e[i] != nullptr) FC4_RELEASE_CREATED(e[i]);  // made for us by CreateInstance
+    if (c2 != nullptr) FC4_RELEASE_CREATED(c2);
+    if (c != nullptr) FC4_RELEASE_CREATED(c);
+}
+
 void ContractTest() {
-    static const char* kNames[4] = {"list_order", "remove_reveals_parent", "setcohort_refs", "stubs_tag_rebuild"};
-    std::string nat[5], ours[5];
+    static const char* kNames[8] = {"list_order",    "remove_reveals_parent", "setcohort_refs", "stubs_tag_rebuild",
+                                    "add_slots_b",   "rebuild_dest_a",        "serialwrite_d",  "tag_text_ef"};
+    std::string nat[5], ours[5], nat2[4], ours2[4];
+    t_fixture = true;  // EX50: our calls from here are the fixture's
     RunSide(g_original[0], g_original[1], nat);
     RunSide(g_ours[0], g_ours[1], ours);
+    RunSide2(g_original[0], g_original[1], nat2);
+    RunSide2(g_ours[0], g_ours[1], ours2);
+    t_fixture = false;
     int match = 0;
-    for (int i = 0; i < 4; ++i) {
-        const bool same = nat[i] == ours[i];
+    for (int i = 0; i < 8; ++i) {
+        const std::string& a = i < 4 ? nat[i] : nat2[i - 4];
+        const std::string& b = i < 4 ? ours[i] : ours2[i - 4];
+        const bool same = a == b;
         match += same ? 1 : 0;
-        Log("exemplars: contract %s %s native={%s} ours={%s}", kNames[i], same ? "MATCH" : "DIFF", nat[i].c_str(),
-            ours[i].c_str());
+        Log("exemplars: contract %s %s native={%s} ours={%s}", kNames[i], same ? "MATCH" : "DIFF", a.c_str(),
+            b.c_str());
     }
-    // Not compared: return values the spec does not give and the slot-13
-    // effective-list probe (EX51 b/c).
-    Log("exemplars: contract unspecified (EX51) native={%s} ours={%s}", nat[4].c_str(), ours[4].c_str());
-    Log("exemplars: contract native-vs-ours %d/4 match", match);
+    Log("exemplars: contract native-vs-ours %d/8 match", match);
 }
 
 }  // namespace
@@ -1219,6 +1833,7 @@ void ExemplarFactoryRestore() {
         g_count.msgPosted.load(), g_count.msgFailed.load(), g_count.tags.load(), g_count.rebuilds.load(),
         g_count.rebuildDest.load(), g_count.serialStubs.load(), g_count.holderStubs.load(), g_count.slot8.load());
     LogCallers();
+    LogEntries();
     if (rm) {
         Restore(rm, 0, kTypeExemplar, kClsExemplarFactory);
         Restore(rm, 1, kTypeCohort, kClsCohortFactory);

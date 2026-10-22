@@ -192,6 +192,27 @@ bool FirstU32(const cFC4IGZVariant& v, uint32_t* out) {
 
 }  // namespace
 
+// cFC4Variant::GetValString's bytes (cFC4Variant.h).
+bool fc4::VariantValueBytes(const cFC4IGZVariant& v, std::vector<uint8_t>& out) { return ValueBytes(v, out); }
+
+// cFC4Variant::GetValString (slot 55, data-formats §5.1) through the core;
+// see cFC4Variant.cpp for the contract (EX53 for the scalar char types).
+namespace {
+void GetValStringSink(void* ctx, const uint8_t* data, size_t len) {
+    static_cast<cIGZString*>(ctx)->FromChar(reinterpret_cast<const char*>(data), static_cast<uint32_t>(len));
+}
+bool CoreGetValString(const cFC4IGZVariant& v, cIGZString& value) {
+    const uint16_t type = v.GetType();
+    const bool isArray = (type & cIGZVariant::TypeArray) != 0;
+    const bool hasValue = (type & ~cIGZVariant::TypeArray) != 0;
+    std::vector<uint8_t> b;
+    if (hasValue && !ValueBytes(v, b)) return false;
+    const size_t n = hasValue ? (isArray ? v.GetCount() : 1) : 0;
+    return fc4_variant_get_string(type, b.empty() ? nullptr : b.data(), n, GetValStringSink, &value) == 1;
+}
+const bool kGetValStringHooked = (fc4::gVariantGetValString = CoreGetValString, true);
+}  // namespace
+
 // ---- helpers ----------------------------------------------------------------------------------------
 
 bool fc4::VariantU32(const cFC4IGZVariant& v, uint32_t* out) {
