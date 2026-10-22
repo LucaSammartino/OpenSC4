@@ -163,7 +163,7 @@ generated index: the questions live one file per spec, so read only the file for
 |---|---:|---:|---|---|
 | advisors | 2 | 14 | AD17 | questions/advisors.md |
 | aircraft | 2 | 0 | AF3 | questions/aircraft.md |
-| animated-sprite | 2 | 0 | AS3 | questions/animated-sprite.md |
+| animated-sprite | 9 | 0 | AS10 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | application | 3 | 2 | AP6 | questions/application.md |
 | audio-ambience | 1 | 10 | AA12 | questions/audio-ambience.md |
@@ -192,7 +192,7 @@ generated index: the questions live one file per spec, so read only the file for
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 2 | 44 | DS47 | questions/disasters.md |
 | dispatch | 4 | 9 | DP14 | questions/dispatch.md |
-| draw-context | 2 | 0 | DC3 | questions/draw-context.md |
+| draw-context | 8 | 0 | DC9 | questions/draw-context.md |
 | drawing-fonts | 0 | 17 | FN18 | questions/drawing-fonts.md |
 | drive-tool | 2 | 0 | DR3 | questions/drive-tool.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
@@ -203,9 +203,9 @@ generated index: the questions live one file per spec, so read only the file for
 | foundations | 2 | 8 | AO4, HG4, RN4, SV2 | questions/foundations.md |
 | framework-gz-services | 0 | 7 | GZ8 | questions/framework-gz-services.md |
 | framework-rz-files | 8 | 0 | RZ9 | questions/framework-rz-files.md |
-| geometry-utilities | 1 | 0 | GU2 | questions/geometry-utilities.md |
+| geometry-utilities | 6 | 0 | GU7 | questions/geometry-utilities.md |
 | glyph-textures | 6 | 0 | GT7 | questions/glyph-textures.md |
-| graphics-formats | 0 | 35 | FS18, GF19 | - |
+| graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
 | graphics-rules | 2 | 4 | GR7 | questions/graphics-rules.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 1 | 6 | HD8 | questions/html-document.md |
@@ -217,7 +217,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-configuration-editor | 3 | 2 | LE6 | questions/lot-configuration-editor.md |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
-| lot-models | 1 | 0 | LM2 | questions/lot-models.md |
+| lot-models | 8 | 0 | LM9 | questions/lot-models.md |
 | lot-records | 4 | 7 | LR12 | questions/lot-records.md |
 | lua-host | 2 | 0 | LH3 | questions/lua-host.md |
 | map-view | 4 | 0 | QV5 | questions/map-view.md |
@@ -229,16 +229,16 @@ generated index: the questions live one file per spec, so read only the file for
 | network-geometry | 0 | 7 | NG8 | - |
 | network-manager | 0 | 13 | NM14 | questions/network-manager.md |
 | network-occupants | 18 | 8 | NO27 | questions/network-occupants.md |
-| network-overlay-views | 1 | 0 | NOV2 | questions/network-overlay-views.md |
+| network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
 | network-rules | 2 | 10 | NR16 | questions/network-rules.md |
 | network-tools | 14 | 0 | NT21 | questions/network-tools.md |
-| occupant-groups | 2 | 0 | OG3 | questions/occupant-groups.md |
+| occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
 | occupants-props | 12 | 5 | OP18 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
 | overlay-manager | 3 | 6 | OV10 | questions/overlay-manager.md |
-| overlay-views | 1 | 0 | OVV2 | questions/overlay-views.md |
+| overlay-views | 7 | 0 | OVV8 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 3 | 4 | PT8 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
@@ -286,7 +286,7 @@ generated index: the questions live one file per spec, so read only the file for
 | view-input-controls | 2 | 0 | VIC3 | questions/view-input-controls.md |
 | view-utilities | 0 | 11 | VU12 | questions/view-utilities.md |
 | view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
-| water-ripples | 3 | 0 | WR4 | questions/water-ripples.md |
+| water-ripples | 10 | 0 | WR11 | questions/water-ripples.md |
 | watercraft | 7 | 0 | WC8 | questions/watercraft.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
@@ -294,4 +294,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **348** | **1201** | | |
+| **total** | **396** | **1201** | | |
