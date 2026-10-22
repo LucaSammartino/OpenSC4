@@ -9,8 +9,10 @@
 - Prior milestones: 69fd2874 numeric/storage inventory, 82a5c8c2 lifecycle/terrain, 40622e51 six answers/partial projection.
 - LT5–LT9/LT11 are already answered; do not repeat them or claim runtime exactness.
 - LT10 partial: count-first, separate transform/output, basis fallback, signed binary64 0.01 cutoff, count-zero output untouched.
-- Round-2 milestone: §5.8.1 proves conditional transpose, negated direction, x/z/y order, binary32 stores, no scale/translation/normalization; vector 19 distinguishes flags 0/2 from 4/6.
-- Next: native 007D8F50–007D91E4 accumulation/solve, then through 007D9801 composition/stores; first 280 instruction lines inspected.
+- Round-2 milestone 4d1e3140: direction conditional transpose/negation/order/stores; vector 19 distinguishes 0/2 from 4/6.
+- Pending milestone: full §5.8.2–5.8.4 arithmetic/flags/layout proved from all 713 native instructions; accumulation/cofactor/lift/composition symbolic stack audit agrees.
+- Independent vectors 20–22: six flag cases; noncollinear triangle rejected at D=-1 due to product spill; identical UV columns yield unequal translation constants.
+- LT10 moved to answered; next regenerate index, run doc/arithmetic checks, commit complete projection contract, then finalize report/queue.
 - Exact inventory/checklist already in lighting.md; only projection status needs updating.
 - Primary evidence: main export via re_query.py asm --bytes and executable constants; foreign outputs remain boundaries.
 - q.py cannot start Bash (E_ACCESSDENIED); use capped PowerShell/Python commands.

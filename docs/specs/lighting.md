@@ -453,8 +453,8 @@ binary32 replacement at `0x007D83A3`/`0x007D83B6`).
 - `CalcShadowProjection(count, points, uvs, xform, out)` (slot 17, `0x007D8C80`): fits, by least squares, the
   texture coordinates of the points as an affine function of their position in a plane perpendicular to the shadow
   direction (expressed in the model's frame, `0x0080B9F0` building the plane basis), and writes the resulting texture
-  matrix, composed with the transform, into `out`; false when the 3×3 normal-equation determinant is below 0.01
-  *[inferred: the exact composition with the transform's flags]*.
+  matrix into `out`. The complete direction, mixed-precision fit, inverse-transform composition and output layout
+  are specified in §5.8; false on the signed determinant test there. The flag byte gates composition as a whole.
 
 ### 5.7 Exact terrain rectangle extension (LT11)
 
@@ -503,7 +503,7 @@ extension, and untouched edges retain the initially intersected values. Evidence
 `0x007D6E25–0x007D7147`, `0x007D7170–0x007D72BC`, `0x007D72BD–0x007D73D4`; common final output stores at
 `0x007D7149–0x007D7168`.
 
-### 5.8 Projection: proved boundaries, remaining LT10 gap
+### 5.8 Exact shadow projection (LT10)
 
 The actual slot-17 argument order is **(unsigned count, points, uvs, transform, out)**, correcting the
 earlier points-first summary. Points are contiguous three-binary32 vectors (12-byte stride); UVs are
@@ -511,8 +511,8 @@ contiguous two-binary32 vectors (8-byte stride). The transform and output are **
 Transform fields read are a flag byte at byte offset 1, nine binary32 matrix entries at offsets 4…36,
 three translation entries at 40…48 and a scale at 52. Output is sixteen binary32 entries (64 bytes).
 Evidence: transform reads `0x007D8C87–0x007D8D05`; count/array accesses `0x007D8F26–0x007D90F3`, and output
-stores `0x007D96A1–0x007D9801`. These layouts do not by themselves define the transform's mathematical
-convention; do not treat its first word as a matrix component or alias transform with output as a requirement.
+stores `0x007D96A1–0x007D9801`. The mathematical convention is defined below; do not treat the transform's
+first word as a matrix component or require transform and output to alias.
 
 The attributed basis helper accepts direction d and writes three consecutive three-float rows. With
 nonzero horizontal length h = sqrt(dx²+dz²), row 0 is (dz/h,0,−dx/h), row 1 is d cross row 0, row 2 is d.
@@ -548,12 +548,146 @@ The bit-2 inverse-scale path only changes separate local scale/translation field
 before building the basis. Unknown flag bits do not change this direction calculation; their later
 composition effect is a separate issue.
 
-**Still open:** full flag-dependent composition and coefficient layout, and the complete
-accumulation/cofactor/composition spill-and-round schedule. In particular, a
-mathematical least-squares result with arbitrary binary32 rounding is not yet an exact native projection
-contract. The executable later tests the entire flag byte as well as bit 2; that composition remains to
-be specified. Keep LT10 open and withhold
-complete-owner projection credit; the inferred §5.6 composition is not sufficient to implement this entry.
+#### 5.8.2 Arithmetic notation and plane coordinates
+
+In the formulas below **q(v)** means a binary32 store. All other operations are separate x87 operations
+in the parenthesized order, under the inherited control word, with no fused multiply-add. Neither this
+entry nor its basis helper changes that control word. An unmarked intermediate stays in a register;
+do not silently insert q, use binary64 as a universal substitute, reassociate, or exploit symmetry of the
+normal-equation matrix. The worked examples use round-to-nearest, ties-to-even, and masked exceptions;
+their finite results hold with either 53- or 64-significand-bit x87 intermediates.
+
+For the nonvertical basis in §5.8, the precise horizontal setup is **h = sqrt(dx×dx + (−dz)×(−dz))**,
+followed by **k = 1/(−h)**, both kept in x87 registers. Row B₀ is
+**(q((−dz)×k), q(0×k), q(dx×k))**, and B₁ is the componentwise cross product d cross B₀, with each
+product difference rounded once to binary32. B₂ copies d. The helper selects this path only for an
+ordered −h < 0; zero or unordered −h takes the fixed fallback rows described above. In particular, the
+zero in the ordinary B₀.y is obtained by multiplication, whereas fallback zeros are literal positive zero.
+Evidence: `0x0080BA09–0x0080BAA5`; the binary32 constants are 0 at `0x00A81054` and 1 at `0x00B0EC64`.
+
+For each input point p, in increasing unsigned array-index order, compute two stored plane coordinates:
+
+| Coordinate | Ordered arithmetic, including the only binary32 store |
+|---|---|
+| a | q((B₀.x×p.x + B₀.y×p.y) + B₀.z×p.z) |
+| b | q((B₁.z×p.z + B₁.y×p.y) + B₁.x×p.x) |
+
+No translation or uniform scale is applied to the point before this fit. Evidence:
+`0x007D8F50–0x007D8F96`. The two dot products have different addition orders.
+
+#### 5.8.3 Accumulation and cofactor solve
+
+Initialize all accumulators to positive zero from the shared zero at `0x00B4E334`. Maintain the following
+**distinct** sums; their names specify storage, not alternative formulas for one shared value:
+
+| Sums retained in x87 registers | Update for each (a,b) |
+|---|---|
+| X2 | X2 + q(a×a) |
+| XYe | XYe + q(a×b) |
+| Xe | Xe + a |
+| Ye | Ye + b |
+| N | N + 1 |
+
+Separately update four binary32 memory sums: **XYf := q(q(a×b) + XYf)**,
+**Y2f := q(q(b×b) + Y2f)**, **Xf := q(a + Xf)**, **Yf := q(b + Yf)**. The two copies of the xy sum
+can differ, as can the copies of x and y. Do not replace this with a symmetric matrix accumulated in one
+precision. For each input UV component w, keep three binary32 right-hand sums
+**Wa := q(a×w + Wa)**, **Wb := q(q(b×w) + Wb)**, **W0 := q(w + W0)**.
+The a×w product stays in x87 precision until its addition; the b×w product spills first. U and V sums
+are independent. Evidence: product spills `0x007D8F9E–0x007D8FE4`, normal-sum updates
+`0x007D8FEF–0x007D905A`, UV product spills and updates `0x007D9060–0x007D90E1`.
+
+Conceptually the stored/retained matrix is
+**H = [(X2,XYe,Xe); (XYf,Y2f,Ye); (Xf,Yf,N)]**. Calculate all nine **cofactors**, rounding each once:
+
+| C | Ordered expression |
+|---|---|
+| C₀₀ | q(Y2f×N − Ye×Yf) |
+| C₀₁ | q(Ye×Xf − N×XYf) |
+| C₀₂ | q(Yf×XYf − Y2f×Xf) |
+| C₁₀ | q(Xe×Yf − N×XYe) |
+| C₁₁ | q(X2×N − Xe×Xf) |
+| C₁₂ | q(XYe×Xf − X2×Yf) |
+| C₂₀ | q(Ye×XYe − Xe×Y2f) |
+| C₂₁ | q(Xe×XYf − X2×Ye) |
+| C₂₂ | q(X2×Y2f − XYe×XYf) |
+
+The determinant is **D = (C₀₂×Xe + C₀₁×XYe) + C₀₀×X2**, with no binary32 store before the signed
+binary64 0.01 test above. This is a row-0 cofactor expansion in reverse column order. Cofactor stores:
+`0x007D9101`, `0x007D9119`, `0x007D913B`, `0x007D914E`, `0x007D9161`, `0x007D917B`, `0x007D918E`,
+`0x007D91A4`, `0x007D91C1`; determinant assembly `0x007D91C8–0x007D91DE`.
+
+On success keep **r = 1/D** in x87 precision (`0x007D91FF`). The inverse coefficients K are the transposed
+cofactors times r: **K₀ⱼ = Cⱼ₀×r** remain in registers without q, whereas
+**K₁ⱼ = q(Cⱼ₁×r)** and **K₂ⱼ = q(Cⱼ₂×r)** are stored binary32, j=0,1,2.
+Evidence: `0x007D9205–0x007D9267`. Then fit the three coefficients for each UV component:
+
+| Coefficient | Ordered expression | Result storage |
+|---|---|---|
+| uₐ | (K₀₂×U0 + K₀₁×Ub) + K₀₀×Ua | q |
+| u_b | (K₁₀×Ua + K₁₂×U0) + K₁₁×Ub | q |
+| u₀ | (K₂₀×Ua + K₂₂×U0) + K₂₁×Ub | q |
+| vₐ | (K₀₂×V0 + K₀₁×Vb) + K₀₀×Va | retain x87 |
+| v_b | (K₁₀×Va + K₁₂×V0) + K₁₁×Vb | retain x87 |
+| v₀ | (K₂₀×Va + K₂₂×V0) + K₂₁×Vb | q |
+
+The asymmetric coefficient stores are native, even for identical U and V inputs. Evidence:
+`0x007D926E–0x007D9338`. Lift the two fitted linear rows into model coordinates with these exact spills:
+
+| Component | Binary32 result |
+|---|---|
+| u.x | q(uₐ×B₀.x + u_b×B₁.x) |
+| u.y | q(q(uₐ×B₀.y) + u_b×B₁.y) |
+| u.z | q(q(uₐ×B₀.z) + q(u_b×B₁.z)) |
+| v.x | q(vₐ×B₀.x + q(v_b×B₁.x)) |
+| v.y | q(vₐ×B₀.y + q(v_b×B₁.y)) |
+| v.z | q(q(vₐ×B₀.z) + v_b×B₁.z) |
+
+Evidence: `0x007D933F–0x007D9491`. These six rounded components, together with the two fitted constants,
+feed the composition; they are not a matrix that can be replaced by an arbitrarily ordered multiplication.
+
+#### 5.8.4 Inverse fields, flag composition and output
+
+Read the transform translation as **t**, scale as **s**. The local matrix **A** is defined in §5.8.1.
+Initially **T = −t** and **S = s**. When f has bit `0x04`, replace each component by
+**Tᵢ = q((Aᵢ₀×(−t.x) + Aᵢ₂×(−t.z)) + Aᵢ₁×(−t.y))**. When f has bit `0x02`, next set
+**S = q(1/s)**, then **Tᵢ = q(Tᵢ×S)** independently. Otherwise retain the initial scale without using
+it in the result. These are the only inverse operations; the function does not invert a general matrix.
+Evidence: transpose/translation `0x007D8D13–0x007D8DAD`, reciprocal scale `0x007D8DB8–0x007D8DE6`.
+
+The later composition gate is **the entire byte f != 0**, not a test of bit 4, a masked set of known
+flags, or a test that the numeric transform differs from identity (`0x007D935C`, `0x007D949C`).
+
+- For **f = 0**, use the already rounded u and v rows, constants u₀/v₀, third row (0,0,1), third
+  constant 0. Skip all matrix/translation composition and final scaling, even if R/t/s are nonidentity.
+  The earlier direction calculation still used R.
+- For **any nonzero f**, compute, for each column j=0,1,2,
+  **u′ⱼ = q((A₂ⱼ×u.z + A₁ⱼ×u.y) + u.x×A₀ⱼ)** and
+  **v′ⱼ = q((A₂ⱼ×v.z + A₁ⱼ×v.y) + v.x×A₀ⱼ)**.
+  The third row comes from **w′ⱼ = (A₁ⱼ + A₀ⱼ)×0 + A₂ⱼ**: q the x and z components here,
+  but keep the y component in x87 precision until its final output store. Do not simplify the zero
+  products: nonfinite matrix entries can propagate through them.
+  The three constants are **u′₀const = q(q((T.z×u.z + T.y×u.y) + u.x×T.x) + u₀)**,
+  **v′₀const = q(((T.z×v.z + T.y×v.y) + v.x×T.x) + v₀)**,
+  **w′₀const = q((T.y + T.x)×0 + T.z)**.
+  In particular, the u translation dot product spills before addition of u₀; the v dot product does not.
+
+Composition evidence: constants/zero products `0x007D94A4–0x007D956F`; column products/stores
+`0x007D9576–0x007D9688`. For nonzero f with bit `0x02`, finally multiply **only the nine linear
+components** by S and store each binary32. Eight components were already rounded as above; w′.y was
+retained until this multiply/store. Do not multiply the constants again. Bit 4 controls the transpose
+and translation rotation; bit 2 controls reciprocal scale; every other nonzero flag byte still enables
+composition with all matrix and translation fields. No separate translation-presence bit is consulted.
+Evidence: `0x007D95E0`, `0x007D969F–0x007D97D7`.
+
+The output is a **column-major 4×4** float array. As mathematical rows it is
+**[(u.x,u.y,u.z,uconst); (v.x,v.y,v.z,vconst); (w.x,w.y,w.z,wconst); (0,0,0,1)]** after the applicable
+branch and scale. Thus flat indices 0/4/8/12 hold the u row, 1/5/9/13 the v row, 2/6/10/14 the w row;
+3/7/11 are literal positive zero and 15 is literal 1. All sixteen entries are written on success and
+the return boolean is true (`0x007D96A1–0x007D9811`). This is a texture-affine output with a separately
+composed third row, not the original flagged transform layout. There is no allocation, bounds check,
+singular-transform rejection, scale-zero rejection, or NaN recovery. Under masked exceptions, values
+that reach arithmetic follow x87 behavior; an unordered determinant proceeds as already specified.
 
 ## 6. Messages (`DoMessage`, `0x007DBCF0`) *[compat]*
 
@@ -682,7 +816,7 @@ See QUESTIONS.md LT1–LT4: the meaning of the settings byte `+0x39C` (§2.1), t
     the first probe stops immediately, but the second continues from (2,1) to R=4: the same output results.
     Sampling every top-edge ray, excluding the stopped vertex, or comparing ≥ instead of > would not
     implement the specified procedure.
-18. **Projection failure boundary (LT10 partial):** with count 0, null points/UVs, a valid fully initialized
+18. **Projection failure and vertical fallback (LT10):** with count 0, null points/UVs, a valid fully initialized
     transform, a manager supplying a finite direction, and a sentinel-filled 64-byte output, return false
     without modifying any output byte. The transform/direction work still occurs. Separately, the basis
     helper for d=(0,−1,0) has rows (0,0,1), (1,0,0), (0,−1,0); computing row 1 as d cross row 0 in this
@@ -695,6 +829,38 @@ See QUESTIONS.md LT1–LT4: the meaning of the settings byte `+0x39C` (§2.1), t
     are exact binary32 values; zeros here are compared numerically. This independently distinguishes
     transpose selection, omission of translation/scale, the negation, and absence of normalization.
     It is an intermediate native arithmetic vector, not a claim of an observed game run.
+20. **Whole-byte flag and inverse-composition discriminator (LT10):** direction s=(0,−1,0); points
+    (0,0,0), (1,0,0), (0,0,1); UVs (0,0), (1,0), (0,1). Transform R has rows (0,0,1), (0,1,0),
+    (−1,0,0), t=(8,16,32), scale=2. Both direction branches are vertical, so the fallback yields a=z,
+    b=x; the independent affine fit is u=b, v=a, with D=1. Expected output **mathematical rows** below
+    must be flattened column-major as in §5.8.4. The last row is always (0,0,0,1).
+
+    | f | u row | v row | w row |
+    |---|---|---|---|
+    | 0 | (1,0,0,0) | (0,0,1,0) | (0,0,1,0) |
+    | 1 or 128 | (0,0,1,−8) | (−1,0,0,−32) | (−1,0,0,−32) |
+    | 2 | (0,0,0.5,−4) | (−0.5,0,0,−16) | (−0.5,0,0,−16) |
+    | 4 | (0,0,−1,32) | (1,0,0,−8) | (1,0,0,−8) |
+    | 6 | (0,0,−0.5,16) | (0.5,0,0,−4) | (0.5,0,0,−4) |
+
+    All nonzero results are exact binary32. This distinguishes whole-byte gating, unknown flag bits,
+    transpose selection, inverse translation, reciprocal scale, and unscaled constants. Zeros in this
+    table are numerical zeros; signed-zero outcomes follow the arithmetic schedule.
+21. **Product-spill rejection (LT10):** f=0, identity R, direction s=(0,0,−1); points
+    (4096,0,0), (4097,0,0), (4096,1,0); UVs (0,0), (1,0), (0,1). Basis coordinates are exactly a=x,
+    b=y. Exact arithmetic gives Σa²=50,339,841 and determinant **1**. Native q(4097²)=16,785,408
+    instead of 16,785,409, giving X2=50,339,840. With XYe=XYf=4096, Xe=Xf=12289, Ye=Yf=Y2f=1,
+    N=3, the first-row cofactors are (2,1,−8193), and
+    **D = (−8193×12289 + 1×4096) + 2×50339840 = −1**. Return **false**, leaving every output byte
+    unchanged. A generic least-squares fit of this noncollinear triangle would succeed; omitting the
+    per-product binary32 spill changes observable success/failure.
+22. **Different U/V translation rounding with identical UV columns (LT10):** f=1, identity R,
+    t=(16777216,0,1), direction s=(0,−1,0), points (0,0,0), (1,0,0), (0,0,1), UVs (1,1), (2,2),
+    (2,2). D=1; both fitted model rows are exactly (1,0,1), both constants 1. The translation dot product
+    is −16777217. U rounds it first to −16777216, then adds 1: **uconst=−16777215**. V adds 1 before
+    storing: **vconst=−16777216**. The complete output rows are **(1,0,1,−16777215)**,
+    **(1,0,1,−16777216)**, **(0,0,1,−1)**, **(0,0,0,1)**, stored column-major. Rounding only the final
+    sum, or imposing one uniform rounding policy on both fitted rows, fails this vector.
 
 ## 12. Individual owner and attributed-helper checklist
 
@@ -736,7 +902,7 @@ plus `re/symbols/lighting.tsv`, not a name-only export count.
 | `007D83C0` GetModelColor | §1.5, §4.2 | LT7 answered |
 | `007D8550` GetModelLight | §4.3 | baseline |
 | `007D8B20` GetTerrainLighting | §4.5 | baseline |
-| `007D8C80` CalcShadowProjection | §5.6, §5.8 | LT10 remains open |
+| `007D8C80` CalcShadowProjection | §5.6, §5.8.1–§5.8.4 | LT10 native arithmetic/flags/layout proved; vectors 18–22 |
 | `007D9820` SetTimeDependentLightingValues | §1.5, §2.1 | LT7 answered |
 | `007D9DF0` SetTimeOfDay | §2.2 | LT6 proved |
 | `007DA0A0` constructor | §1.1, §1.2 | LT5 answered |

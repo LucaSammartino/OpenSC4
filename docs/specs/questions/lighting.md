@@ -18,7 +18,3 @@
 - **LT4 - §5.6:** the meaning of the decal shadow values `0x085489C9` (a float pair the shipped exemplar lacks) and
   `0x085489CA` (12.0), and of the shadow parameters `0x085489CC` (0.4) and `0x085489CD` (0.55). Their users draw
   decal shadows outside this lane.
-
-<!-- from: core-lighting4 (2026-10-22) -->
-- **LT10 - §5.6 CalcShadowProjection:** specify the plane basis, model-frame direction transform, complete input/output matrix layout, flag-dependent composition and arithmetic precision. Does the determinant test use a signed or absolute determinant? [Only the stated 2D affine least-squares subproblem with signed determinant cutoff 0.01 is implemented; complete projection returns ContractGap and preserves output, without an original-method provider.]
-  **Partial native evidence 2026-10-22 (re-lighting-contracts4):** §5.8 proves count-first arguments, separate transform/output layouts, full basis-helper behaviour and signed binary64 0.01 comparison (NaN proceeds). Count-zero failure preserves all output. §5.8.1 proves the flag-4 conditional transpose and negated direction, x/z/y dot-product order, binary32 component stores, and omission of scale/translation/normalization. Remaining: full flag-dependent composition/coefficient layout and exact spill/round schedule. The question stays open; no complete-owner projection credit.
