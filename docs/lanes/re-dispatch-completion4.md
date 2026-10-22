@@ -1,6 +1,17 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-dispatch-completion4: DP10–DP13 native contracts | `re-dispatch-completion4` / (RE lane, detached worktree) | WIP: DP13 answered; substantive DP10–DP12 boundary/geometry contracts published; diff check passed; no runtime/ABI changes | 1. Review remaining DP10–DP12 contracts listed below before implementing the native providers. No replacement promotion. |
+| re-dispatch-completion4: DP10–DP13 native contracts | `re-dispatch-completion4` / (RE lane, detached worktree) | in progress: round 2 tracing DP10–DP12 residual contracts; DP13 already answered | Finish native view update, pylon string prefix and station spawn/route ownership contracts. |
+
+## Handoff
+
+- Goal: finish DP10–DP12 exact native contracts in one guarded round; no engine/tools/ABI edits.
+- Prior milestones: f1135c91 (DP13); c83804c4 (pylon geometry, caller descriptors, view tracking).
+- Done this round: DP11 resolved, archived and indexed; string-interface copy, prefix/return-width audit and independent vectors published.
+- Next: trace traffic-manager slot 18/17 implementation and view Update/delayed untrack.
+- Residuals: DP10 renderer update/delayed untrack; DP11 bitmap string input/prefix; DP12 road spawn/route failure.
+- Public glue reports two unsaved viewHandle differences; no original runtime trace requested.
+- Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-dispatch-completion4-r2-manifest.json.
+- Detached HEAD is intentional; commit normally without updating refs. No subagents/restart/network.
 
 ## Report
 

@@ -169,10 +169,10 @@ pointer, not the occupant subobject. Setter return values are unused by dispatch
 | 3 | AsOccupant, EAX borrowed `this+8` / 0 |
 | 4, 5 | Init (`0x005F0930`), Shutdown (`0x005F11A0`), AL true / 0 |
 | 6, 7 | SetUIState(u32), GetUIState() → EAX, member `+0x6C` / 4, 0 |
-| 8 | SetBitmapInfo(u32 bitmap value, string argument), `0x005F0900`; forwards second argument to embedded cRZString slot 13 (`0x0090E230`) / 8; input string representation still needs audit |
+| 8 | SetBitmapInfo(u32 bitmap value, const cIGZString& label), `0x005F0900`; copies the label into the embedded cRZString; no success return / 8 |
 | 9, 10 | SetDispatchType(u32), GetDispatchType() → EAX, member `+0x74` / 4, 0 |
 | 11, 12 | SetDispatchState(u32), GetDispatchState() → EAX, member `+0x70` / 4, 0 |
-| 13, 14 | SetCallNumber(u16 in low word), GetCallNumber() → zero-extended EAX, member `+0x14C` / 4, 0 |
+| 13, 14 | SetCallNumber(u16 in low word), GetCallNumber() → **AX only**, member `+0x14C`; upper EAX is unspecified / 4, 0 |
 | 15, 16 | SetDragState(bool in low byte), GetDragState() → low-byte bool, member `+0x7C` / 4, 0 |
 | 17, 18 | SetSourceOccupant(pointer), GetSourceOccupant() → borrowed EAX, member `+0x78` / 4, 0 |
 | 19, 20 | SetPylonOwner(pointer), GetPylonOwner() → borrowed EAX, member `+0x1C0` / 4, 0 |
@@ -222,9 +222,24 @@ position and its source occupant's same bounds converted to corners. It revokes 
 edges are exclusive (`0x004BA248`–`0x004BA28D`). This is an axis-aligned footprint test,
 not GetOccupantLot or a rotated-lot containment call. It then clears the active pylon.
 
-The construction/geometry portions of DP11 are resolved above; its question remains open for
-the slot-8 string input representation and final callable-prefix audit. The embedded value at
-`+0x1AC` is a string, not a texture-binding interface.
+DP11's callable prefix and geometry are resolved here. Slot 8 requires a non-null string
+interface pointer, not a char buffer, resource key, or texture-binding interface. It stores
+the bitmap dword at `+0x1A8`, copies into the embedded string at `+0x1AC`, then marks the
+presentation dirty (`+0x68 := 1`). The copy invokes source string slot 7 Strlen, then source
+slot 6 ToChar, then destination slot 3 FromChar(buffer,length), in that order
+(`0x005F0900`–`0x005F0926`, `0x0090E230`–`0x0090E23F`, `0x0090E20A`–`0x0090E22D`).
+It neither retains nor releases the source interface and does not accept null. Empty strings
+are valid; the explicit length controls copying, including bytes after an embedded NUL.
+The caller may destroy or change its string after the call. There is no boolean success
+channel; the wrapper's incidental EAX is the embedded destination string pointer.
+
+The prefix's narrow returns matter: GetCallNumber writes AX, without clearing the high
+word of EAX (`0x005F1A40`); GetDragState writes AL only (`0x005F1A60`). Its setter copies
+the input low byte literally, with no boolean normalization and no dirty flag
+(`0x005F1A50`). SetCallNumber writes the low word and always marks dirty (`0x005F1A20`).
+UI/dispatch state/type setters dirty the presentation and clear `+0x1A4` only when the
+dword value changes (`0x005F0CA0`, `0x005F0CD0`, `0x005F0D00`); their return registers
+are not success results. No shifted SDK method numbering is compatible with this prefix.
 
 #### 4.1.3 Vehicle-view native boundary (DP10, partial) *[compat]*
 
@@ -616,6 +631,11 @@ DP11 independent vectors (specified, not claimed executed):
   keep x/z inside: still revokes. Bounds come from the source occupant, even if a lot lookup would differ.
 - Query pylon IID and AsOccupant: acquired primary pointer and borrowed pointer+8 respectively;
   the occupant's slot 9 receives the three-float position. A shifted SDK prefix must fail this vector.
+- Supply a string interface reporting length 3 and bytes A,NUL,B. Observe source slots 7 then 6,
+  a copied three-byte destination, and no source AddRef/Release; mutate the source afterward.
+  Passing the character buffer itself cannot satisfy this contract. Empty string still makes both calls.
+- Set call number 0x12345678: GetCallNumber exposes AX=0x5678; do not compare upper EAX.
+  Set drag byte 2: GetDragState exposes AL=2 and does not mark dirty. These are narrow channels.
 
 DP10/DP12 boundary vectors (specified, not claimed executed; remaining open contracts still apply):
 
