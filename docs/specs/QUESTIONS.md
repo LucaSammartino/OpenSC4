@@ -121,6 +121,7 @@ generated index: the questions live one file per spec, so read only the file for
 | QR | region-screen |
 | QV | map-view |
 | RD | renderer-driver |
+| RE | resource-exemplar-editor |
 | RG | residential-education-health |
 | RM | region-model |
 | RN | foundations |
@@ -269,8 +270,9 @@ generated index: the questions live one file per spec, so read only the file for
 | renderer-gdrivers-director-inventory | 2 | 0 | GI3 | questions/renderer-gdrivers-director-inventory.md |
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
+| resource-exemplar-editor | 8 | 0 | RE9 | questions/resource-exemplar-editor.md |
 | simgrid | 2 | 0 | SG3 | questions/simgrid.md |
-| snapshots | 2 | 0 | SN3 | questions/snapshots.md |
+| snapshots | 9 | 0 | SN10 | questions/snapshots.md |
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 3 | 4 | SP8 | questions/span-render-4444.md |
 | span-render-565 | 6 | 2 | SR566 | questions/span-render-565.md |
@@ -289,7 +291,7 @@ generated index: the questions live one file per spec, so read only the file for
 | underground-occupants | 4 | 0 | UG5 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | vehicles | 2 | 0 | VH3 | questions/vehicles.md |
-| view-input-controls | 2 | 0 | VIC3 | questions/view-input-controls.md |
+| view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 2 | 11 | VU14 | questions/view-utilities.md |
 | view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
 | water-ripples | 10 | 0 | WR11 | questions/water-ripples.md |
@@ -300,4 +302,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **408** | **1239** | | |
+| **total** | **428** | **1239** | | |
