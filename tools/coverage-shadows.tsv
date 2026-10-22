@@ -35,3 +35,14 @@ span8888_shadow	span8888_ctx9	254	254	docs/lanes/glue-span8888-impl4.md	Construc
 span8888_shadow	span8888_direct	198	198	docs/lanes/glue-span8888-impl4.md	Direct fixture exact;does not override unproven shipped calls
 span8888_shadow	span8888_shipped	369	372	docs/lanes/glue-span8888-impl4.md	3ordinary-call fallbacks UNPROVEN;entire key remains NOT VERIFIED
 ports_shadow	ports_joint_followed	24	24	docs/lanes/glue-portdev-union-final4.md	JointDLL saved-city original ports;24followed exact,2bootstrap snapshots excluded;zero resync/regrow;save2033ref0
+span565	span565_source_own	249	249	docs/lanes/verify-span565-context4.md	Bounded constructed native-context versus production CAPI; natural0, no replacement credit
+span565	span565_source_current40	249	249	docs/lanes/verify-span565-context4.md	Source current40 exact; SR565-1/5/6 remain
+span565	span565_joint97	249	249	docs/lanes/verify-span565-context4.md	Gated joint97 current40 save/shutdown exact; natural0
+industrial_shadow	industrial_constructed_source	263052	263052	docs/lanes/verify-industrial4.md	Actual original factory versus production Rust CAPI; IN3 natural interception excluded
+industrial_shadow	industrial_constructed_joint97	131526	131526	docs/lanes/verify-industrial4.md	Official joint97 shadow load/shutdown2suites; no natural interception claim
+span8	span8_source_own_direct	160	160	docs/lanes/glue-span8-native4.md	Independent original versus production core/CAPI; constructed only, SR8-2/3/4 remain
+span8	span8_source_own_native	160	160	docs/lanes/glue-span8-native4.md	Independent original versus production core/CAPI; constructed only, SR8-2/3/4 remain
+span8	span8_source_current40_direct	160	160	docs/lanes/glue-span8-native4.md	Independent original versus production core/CAPI; constructed only, SR8-2/3/4 remain
+span8	span8_source_current40_native	160	160	docs/lanes/glue-span8-native4.md	Independent original versus production core/CAPI; constructed only, SR8-2/3/4 remain
+span8	span8_joint98_direct	160	160	docs/lanes/glue-span8-native4.md	Independent original versus production core/CAPI; constructed only, SR8-2/3/4 remain
+span8	span8_joint98_native	160	160	docs/lanes/glue-span8-native4.md	Independent original versus production core/CAPI; constructed only, SR8-2/3/4 remain

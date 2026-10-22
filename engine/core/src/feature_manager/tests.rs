@@ -238,11 +238,33 @@ fn signed_release_boundary_zero_and_negative_destroy_without_decrement() {
 
 #[test]
 fn increment_uses_32_bit_register_bits_fm4() {
-    let mut manager = FeatureManager::new(FeatureProcess::new());
-    manager.object_mut().unwrap().references = i32::MAX;
-    assert_eq!(manager.add_ref(), Some(0x8000_0000));
-    assert_eq!(manager.release(), Some(0));
-    assert_eq!(manager.deletion().unwrap().count_at_destruction, i32::MIN);
+    // Published independent FM4 bit vectors, not native overflow injection.
+    for (initial, incremented, released) in [
+        (0x7fff_fffeu32, 0x7fff_ffffu32, 0x7fff_fffeu32),
+        (0x7fff_ffff, 0x8000_0000, 0),
+        (0xffff_ffff, 0, 0),
+    ] {
+        let process = FeatureProcess::new();
+        let mut manager = FeatureManager::new(process.clone());
+        manager.init(&mut resources(&[(3, b"[Features]\n16=on\n17=off")]));
+        manager.object_mut().unwrap().references = initial as i32;
+        assert_eq!(manager.add_ref(), Some(incremented));
+        assert_eq!(manager.reference_count(), Some(incremented as i32));
+        assert_eq!(manager.release(), Some(released));
+        if released == 0 {
+            let deletion = manager.deletion().unwrap();
+            assert_eq!(deletion.count_at_destruction, incremented as i32);
+            assert!(!deletion.initialized_at_destruction);
+            assert!(deletion.allocation_freed);
+        } else {
+            assert!(manager.deletion().is_none());
+            assert_eq!(manager.initialized(), Some(true));
+        }
+        assert!(process.is_feature_enabled(16));
+        assert!(!process.is_feature_enabled(17));
+        assert!(process.is_expansion_pack_installed(3));
+        assert_eq!(process.mentioned_features(), vec![16, 17]);
+    }
 }
 
 #[test]

@@ -1457,9 +1457,10 @@ def cmd_brief(ctx, a):
         L.append("Engine lane, clean-room rules (CONTRIBUTING.md): read only docs/specs, docs/abi, the public SDK "
                  "headers and the game's data files; nothing from the analysis side. Questions for the spec writers "
                  "go at the end of the spec's docs/specs/questions/<spec>.md (listed below).")
-        L.append("Checks: while you work, `python <MAIN>/.claude/lane-bin/fc4verify.py --wt <WT> quick` (cargo test of "
-                 "the crates you touched + the CMake build, sccache-backed); before you enqueue, `... --wt <WT> build "
-                 "ctest` (the full ctest). Read its PASS/FAIL lines and the logs it names; exit codes are not verdicts.")
+        L.append("Checks: while you work, `python <MAIN>/.claude/lane-bin/qbuild.py --wt <WT> quick` (cargo test of "
+                 "the crates you touched + the CMake build, sccache-backed); before you enqueue, `... --wt <WT> all` "
+                 "(workspace tests, clippy, the full ctest). Read its PASS/FAIL lines and the logs it names; exit codes "
+                 "are not verdicts.")
     else:
         L.append("RE lane: write behaviour specs in docs/specs/ (no engine/ edits); answer open questions per spec.")
     L.append("")

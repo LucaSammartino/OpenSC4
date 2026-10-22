@@ -50,15 +50,15 @@ impl Terrain for FlatTerrain {
         UP
     }
 }
-fn manager() -> LightingManager {
-    let mut m = LightingManager::new(LightingStatics::new(Parameters::shipped()));
+pub(super) fn manager() -> LightingManager {
+    let mut m = LightingManager::new(LightingStatics::new(Parameters::shipped()), RegisterPrecision::Bits64);
     assert!(m
         .init(0, Some(Arc::new(Empty)), &mut NoResources, &mut Vec::new())
         .unwrap());
     m.do_zoom_and_rotation_change(0, 0).unwrap();
     m
 }
-fn city(m: &mut LightingManager, cells: usize) {
+pub(super) fn city(m: &mut LightingManager, cells: usize) {
     let terrain = Arc::new(FlatTerrain { cells, peak: None });
     m.do_message(
         LightingMessage::CityStarted {
@@ -290,7 +290,15 @@ fn conformance_8_peak_sweep_and_skipped_rect() {
     m.sun = [1.0, -1.0, 0.0];
     m.find_hill_shadows().unwrap();
     m.find_hill_shadows().unwrap();
-    assert_eq!(m.changed_shadow_rect(), Rect::EMPTY);
+    assert_eq!(
+        m.changed_shadow_rect(),
+        Rect {
+            min_x: -1,
+            min_z: -1,
+            max_x: 0,
+            max_z: 0
+        }
+    );
 }
 
 #[test]
@@ -321,7 +329,7 @@ fn image_sampling_stride_row_spill_minimum_and_test_pattern() {
     close_color(image.sample(0.75, 0.0).unwrap(), [0.5, 0.5, 0.0]);
     assert_eq!(image.sample(0.75, 0.75), Err(LightingError::SampleOutsideImage));
     let padded = ImageArgb8::new(1, 2, 2, vec![0xff880000, 0, 0xffff0000, 0]).unwrap();
-    close(padded.find_min_red_component_value(), 136.0 / 255.0);
+    assert_eq!(padded.find_min_red_component_value(), 0.0); // LT7: padding inside vector end
     close(
         ImageArgb8::new(0, 0, 0, vec![]).unwrap().find_min_red_component_value(),
         1.0,
@@ -355,14 +363,14 @@ fn persistent_properties_override_every_time_and_rebuild_keys() {
     first.floats.insert(0x29189beb, 0.25);
     first.colors.insert(0x29189bf0, [0.8, 0.7, 0.6]);
     first.booleans.insert(0x29189bed, true);
-    let mut m = LightingManager::new(statics.clone());
+    let mut m = LightingManager::new(statics.clone(), RegisterPrecision::Bits64);
     m.init(2, Some(Arc::new(first)), &mut NoResources, &mut Vec::new())
         .unwrap();
     assert_eq!(m.day_light(), [0.8, 0.7, 0.6]);
     assert_eq!(m.scaled_light, [0.2, 0.175, 0.15]);
     assert_eq!(m.maps[0].as_ref().unwrap().width(), 64);
     assert!(m.maps[2].is_none());
-    let mut second = LightingManager::new(statics.clone());
+    let mut second = LightingManager::new(statics.clone(), RegisterPrecision::Bits64);
     second
         .init(0, Some(Arc::new(Empty)), &mut NoResources, &mut Vec::new())
         .unwrap();
@@ -385,11 +393,12 @@ fn persistent_properties_override_every_time_and_rebuild_keys() {
 
 #[test]
 fn lifecycle_subscription_order_identity_and_owned_references() {
-    let mut m = LightingManager::new(LightingStatics::new(Parameters::shipped()));
+    let mut m = LightingManager::new(LightingStatics::new(Parameters::shipped()), RegisterPrecision::Bits64);
     assert_eq!(m.get_time_of_day(), 12.0);
     assert!(!m.is_night());
     assert_eq!(m.get_global_light(), WHITE);
     assert_eq!(m.query_interface(123).unwrap(), None);
+    assert_eq!(m.query_interface(1).unwrap(), Some(Interface::Lighting));
     assert_eq!(
         m.query_interface(MESSAGE_TARGET_IID).unwrap(),
         Some(Interface::MessageTarget)
@@ -478,7 +487,7 @@ fn resource_copy_lifetime_and_partial_failure_are_owned() {
         calls: vec![],
         fail_at: Some(2),
     };
-    let mut m = LightingManager::new(LightingStatics::new(Parameters::shipped()));
+    let mut m = LightingManager::new(LightingStatics::new(Parameters::shipped()), RegisterPrecision::Bits64);
     let mut events = Vec::new();
     assert_eq!(
         m.init(0, None, &mut resources, &mut events),
@@ -488,6 +497,9 @@ fn resource_copy_lifetime_and_partial_failure_are_owned() {
     assert!(events.is_empty());
     assert_eq!(dropped.load(Ordering::SeqCst), 2);
     assert!(m.maps[0].is_some()); // copied first image does not borrow the destroyed decoder
+                                  // LT7: invalid foreign pixels interrupted Init, without a retry contract.
+    drop(m);
+    let mut m = LightingManager::new(LightingStatics::new(Parameters::shipped()), RegisterPrecision::Bits64);
     resources.fail_at = None;
     assert!(m.init(0, None, &mut resources, &mut events).unwrap());
     assert_eq!(dropped.load(Ordering::SeqCst), 6);
@@ -535,24 +547,24 @@ fn suppressed_fade_still_tints_and_does_not_post_dawn_dusk() {
 }
 
 #[test]
-fn least_squares_cutoff_and_explicit_projection_gaps_preserve_outputs() {
+fn native_fit_cutoff_and_empty_projection_preserve_output() {
     let points = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
     let uvs = points.map(|[x, y]| [2.0 * x + 3.0 * y + 5.0, -x + 4.0 * y - 2.0]);
     assert_eq!(
-        fit_shadow_plane(&points, &uvs).unwrap(),
+        fit_shadow_plane(&points, &uvs, RegisterPrecision::Bits64).unwrap(),
         [[2.0, 3.0, 5.0], [-1.0, 4.0, -2.0]]
     );
     assert_eq!(
-        fit_shadow_plane(&[[0.0; 2]; 3], &[[0.0; 2]; 3]),
+        fit_shadow_plane(&[[0.0; 2]; 3], &[[0.0; 2]; 3], RegisterPrecision::Bits64),
         Err(LightingError::DegenerateProjection)
     );
     let small = [[0.0, 0.0], [0.1, 0.0], [0.0, 0.1]];
     assert_eq!(
-        fit_shadow_plane(&small, &small),
+        fit_shadow_plane(&small, &small, RegisterPrecision::Bits64),
         Err(LightingError::DegenerateProjection)
     );
     let m = manager();
-    let mut output = [[9.0; 4]; 2];
+    let mut output = [9.0; 16];
     assert_eq!(
         m.calc_shadow_projection(
             &[],
@@ -560,31 +572,14 @@ fn least_squares_cutoff_and_explicit_projection_gaps_preserve_outputs() {
             ProjectionTransform {
                 linear: IDENTITY,
                 translation: [0.0; 3],
+                scale: 1.0,
                 flags: 0
             },
             &mut output
         ),
-        Err(LightingError::ContractGap("LT10"))
+        Ok(false)
     );
-    assert_eq!(output, [[9.0; 4]; 2]);
-    let mut rect = Rect {
-        min_x: 1,
-        min_z: 2,
-        max_x: 3,
-        max_z: 4,
-    };
-    let before = rect;
-    assert_eq!(
-        m.calc_shadow_terrain_rect(
-            Bounds {
-                min: [0.0; 3],
-                max: [1.0; 3]
-            },
-            &mut rect
-        ),
-        Err(LightingError::ContractGap("LT11"))
-    );
-    assert_eq!(rect, before);
+    assert_eq!(output, [9.0; 16]);
 }
 
 #[test]
@@ -865,7 +860,7 @@ fn render_change_updates_threshold_and_only_changed_shadow_setting_emits() {
     .unwrap();
     assert!(m.shadows_enabled());
     assert_eq!(m.rotation, 1);
-    assert_eq!(events, [Event::Fractions { day: 0.0, night: 0.0 }, Event::Redraw]);
+    assert_eq!(events, [Event::Fractions { day: 1.0, night: 0.0 }, Event::Redraw]);
     events.clear();
     m.do_message(LightingMessage::ViewChanged { zoom: 0, rotation: 3 }, &mut events)
         .unwrap();
@@ -968,13 +963,10 @@ fn decal_holder_overrides_only_present_properties() {
 }
 
 #[test]
-fn unknown_upper_clamp_and_bad_buffers_are_explicit_failures() {
+fn known_upper_clamp_and_invalid_buffers_have_checked_boundaries() {
     let mut m = manager();
     city(&mut m, 2);
-    assert_eq!(
-        m.terrain_normal([32.0, 0.0, 0.0]),
-        Err(LightingError::ContractGap("LT8"))
-    );
+    assert_eq!(m.terrain_normal([32.0, 0.0, 0.0]), Ok(UP));
     assert_eq!(m.terrain_normal([-5.0, 0.0, -4.0]).unwrap(), UP);
     assert_eq!(
         m.shadow_depth([-1.0, 0.0, 0.0]),

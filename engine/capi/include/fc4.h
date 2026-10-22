@@ -175,8 +175,9 @@ extern "C" {
  * 81 = merge-train batch train64 (re-budget-slider-ownership4, re-landvalue-inputs4, re-wingrid4, core-streams-contractfix4, core-audio-inputfix4, glue-advisors-activate4, core-url-final4, core-callbacktimer-final4, glue-span-context-final4, core-fonts-final4, core-construction-contractfix4, core-lotrecords-final4, core-mysims-contractfix4): merged (no C ABI history entry of its own)
  * 82 = merge-train batch train65 (re-networkmodel-answers4, glue-exemplar-final4): merged (no C ABI history entry of its own)
  * 83 = merge-train batch train73 (glue-lotrecords4, re-netrules-underground4, glue-span8888-impl4, core-budgetwindow-ownership4, core-terrain-overlays4, verify-landvalue-step4): merged (no C ABI history entry of its own)
- * 84 = merge-train batch train91 (glue-rng4, glue-portdev-union-final4, core-camera-contractfix4): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 84u
+ * 84 = merge-train batch train91 (glue-rng4, glue-portdev-union-final4, core-camera-contractfix4): merged (no C ABI history entry of its own)
+ * 85 = merge-train batch train98 (glue-span8-native4): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 85u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
@@ -12741,6 +12742,86 @@ extern "C" {
 uint32_t fc4_gzdate_value(uint32_t slot, uint32_t day, uint32_t a, uint32_t b, uint32_t c);
 uint32_t fc4_gzdate_month(const uint8_t* name, size_t name_len, const uint32_t* fold);
 size_t fc4_gzdate_text(uint32_t day, uint32_t format, uint8_t* out, size_t capacity);
+#ifdef __cplusplus
+}
+#endif
+
+/* Owned checked span8 adapter (SR10). Status 0 rendered, 1 bad arguments/alias,
+ * 2 bounded-core refusal, 3 unsupported row13 (SR8-3); refusal writes nothing.
+ * slot 1..5; spans 2*count u32, gradient 12 u32 (2/4), params 8 u32 (5).
+ * Regions must be live, destination exclusive writable. Source must not overlap.
+ * Native thiscall objects are translated by the plugin, never passed here. */
+typedef struct FC4Span8Image {
+    uint8_t* bytes;
+    size_t len, origin;
+    int32_t stride;
+    uint32_t width, height;
+} FC4Span8Image;
+typedef struct FC4Span8Job {
+    uint32_t slot, count;
+    const uint32_t* spans;
+    FC4Span8Image dst;
+    uint32_t colour, argb;
+    const uint32_t* gradient;
+    FC4Span8Image src;
+    const uint32_t* params;
+    uint32_t kind;
+} FC4Span8Job;
+#ifdef __cplusplus
+extern "C" {
+#endif
+int32_t fc4_span8_render(const FC4Span8Job* job);
+#ifdef __cplusplus
+}
+#endif
+
+/* Complete-byte feature-manager verification. Exactly 32 pack inputs; buffers
+ * borrowed for create only. Unsupported/partial captures must not be passed.
+ * query: 0 feature, 1 pack, 2 current, 3 mentioned-ID count, 4 ID at index.
+ * Invalid query/handle returns UINT32_MAX. */
+typedef struct fc4_feature_snapshot fc4_feature_snapshot;
+typedef struct fc4_feature_file { const uint8_t* data; size_t len; uint32_t present; } fc4_feature_file;
+#ifdef __cplusplus
+extern "C" {
+#endif
+fc4_feature_snapshot* fc4_feature_snapshot_create(const fc4_feature_file* files);
+void fc4_feature_snapshot_destroy(fc4_feature_snapshot* snapshot);
+uint32_t fc4_feature_snapshot_query(const fc4_feature_snapshot* snapshot, uint32_t kind, uint32_t arg);
+/* Lifetime mirror starts with published app AddRef + verifier QI hold (count 2),
+ * never a native-supplied count. operations 0 AddRef, 1 Release, 2 QI; QI result
+ * bit 0 = success, bit 1 = output identity/sentinel preserved. */
+uint32_t fc4_feature_snapshot_lifetime(fc4_feature_snapshot* snapshot, uint32_t operation, uint32_t iid);
+#ifdef __cplusplus
+}
+static_assert(sizeof(fc4_feature_file) == (sizeof(void*) == 4 ? 12 : 24), "fc4_feature_file layout");
+#endif
+
+/* cIGZVariant GetCount: scalar 0, array storage length. data-formats §5.2.
+ * Separate from the logical element counts accepted by typed setters. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+uint32_t fc4_variant_get_count(uint16_t var_type, uint32_t storage_count);
+#ifdef __cplusplus
+}
+#endif
+
+/* Independent landfill occupant probe: input bytes must be caller-authored,
+ * never native output. len=0 queries construction only. mutate=1 changes
+ * orientation/position and calls SetTileID with the current ID (no exemplar
+ * mutation). Output bytes are the independently written Rust record. */
+typedef struct fc4_landfill_occupant_probe_result {
+    uint32_t read_ok, write_ok;
+    int32_t orientation;
+    uint32_t empty, occupant_type, flags, previous_tile, class_id, qi_mask, ref_delta;
+    float position[3], bounds[6];
+} fc4_landfill_occupant_probe_result;
+#ifdef __cplusplus
+extern "C" {
+#endif
+bool fc4_landfill_occupant_probe(const uint8_t* bytes, size_t len, uint32_t mutate,
+    int32_t orientation, const float* position, fc4_bytes_sink sink, void* user,
+    fc4_landfill_occupant_probe_result* result);
 #ifdef __cplusplus
 }
 #endif

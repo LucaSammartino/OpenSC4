@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 84;
+pub const FC4_ABI_VERSION: u32 = 85;
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
 pub const FC4_ERR_TRUNCATED: i32 = -2;
@@ -1116,6 +1116,8 @@ mod disaster_layer_tests;
 mod span1555_tests;
 // glue-span8888-impl4: the cSpanRender8888 bridge (span-render-8888.md §1.1-§9).
 pub mod span_render8888;
+// glue-span8-native4: owned checked adapter (SR10), no native object layout.
+pub mod span_render8;
 
 // Private native-grid verification transport (no public ABI entries).
 mod simgrids_verify;
@@ -1124,3 +1126,8 @@ pub mod dates;
 
 // verify-command-system4: private ORIGINAL comparison transport (no DLL exports).
 mod commands_verify;
+// Opt-in persistent production FontSys verification transport.
+mod fontsys_verify;
+
+// Independent app-owned feature-manager query verification.
+pub mod feature_manager;

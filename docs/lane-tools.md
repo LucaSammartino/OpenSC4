@@ -13,7 +13,7 @@ at another checkout, read-only.
 |---|---|---|
 | `slots` | coordinator, before every spawn | `active N / cap M - spawn ok`; exit 0 only when a spawn is ok |
 | `check <lane> [--deps a,b] [--touches k1,k2]` | coordinator, before every spawn | refuses a lane that would be wasted work; prints `ok` or one reason per line |
-| `wait --verdict <label>` or `wait --file <path> [--pattern <re>]` | **lanes** | one tool call instead of a polling loop |
+| `wait --verdict <label>` or `wait --file <path> [--pattern <re>]` | tooling and RE lanes, the coordinator (engine lanes use `.claude/lane-bin/qwait.py`: they do not run `tools/`) | one tool call instead of a polling loop |
 | `monitor [--interval 30]` | coordinator, under the Monitor tool | one line per event, silence otherwise |
 | `ledger [--out ...] [--md docs/token-ledger.md]` | coordinator, now and then | tokens per lane, merge share, tokens per coverage point |
 | `brief <subsystem-or-key> [--kind engine\|re] [--focus <regex>]` | coordinator, when writing a lane prompt | a context pack of at most 60 lines to paste into the prompt, with each spec's section outline (line ranges and sizes); `--focus` marks the sections and subsections the task is about, so the lane reads those ranges instead of a 100-200 KB spec |
@@ -37,10 +37,11 @@ build caches are 10-19 GB), `at cap`, `cpu busy` (CPU load at 85% or more, best 
 prints the inputs and the active lanes. Spawn only on exit 0, and spawn one lane at a time: a lane that has not
 written a file yet is only counted from its first change.
 
-## Lanes: use `wait`, never a polling loop
+## Waiting: one call, never a polling loop
 
 A game run goes through the queue, which takes minutes. Do not poll with `sleep` turns or repeated `Read`s: every
-poll is a turn that costs tokens and finds nothing. Submit the request, then make **one** call:
+poll is a turn that costs tokens and finds nothing. Engine lanes wait with `.claude/lane-bin/qwait.py`
+([harness.md](harness.md) "How long to wait"). Tooling and RE lanes submit the request, then make **one** call:
 
 ```
 python tools/lanes.py wait --verdict <label> --timeout 540

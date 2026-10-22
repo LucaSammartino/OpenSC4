@@ -99,6 +99,13 @@ pub unsafe extern "C" fn fc4_props_count(p: *const fc4_props) -> usize {
     props_ref(p).map_or(0, PropertyHolder::len)
 }
 
+/// Production cIGZVariant GetCount bridge. `storage_count` is the owned
+/// adapter's array length, not a serialized scalar's logical element count.
+#[no_mangle]
+pub extern "C" fn fc4_variant_get_count(var_type: u16, storage_count: u32) -> u32 {
+    fc4_core::variant::native_count(var_type, storage_count as usize) as u32
+}
+
 /// Element size of a game variant type, or `None` for types the core does not
 /// keep (empty, pointers, objects).
 fn elem_size(mem_type: u16) -> Option<usize> {
@@ -356,6 +363,17 @@ unsafe fn variant_value(var_type: u16, data: *const u8, count: usize) -> Option<
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_count_bridge_preserves_array_shape() {
+        use super::fc4_variant_get_count;
+        // Discriminate stale scalar storage metadata from a one-element array.
+        assert_eq!(fc4_variant_get_count(6, 1), 0);
+        assert_eq!(fc4_variant_get_count(6, 37), 0);
+        for n in [0, 1, 3] {
+            assert_eq!(fc4_variant_get_count(0x8006, n), n);
+        }
+        assert_eq!(fc4_variant_get_count(0, 0), 0);
+    }
     use super::*;
 
     unsafe extern "C" fn collect(ctx: *mut std::ffi::c_void, data: *const u8, len: usize) {
