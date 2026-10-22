@@ -1,0 +1,29 @@
+{
+  "format":1,
+  "name":"fm_07_process_and_object_lifetime",
+  "spec":"feature-manager.md §§2–3,4.1,4.3,10.7",
+  "description":"Object shutdown and deletion preserve shared answers; app static teardown clears them but does not reset the objects' initialized flags.",
+  "steps":[{"op":"fm_scenario","resources":[{"pack":1,"text":"[Features]\n0x10=on"}],"actions":[
+    {"method":"init","expect":true},
+    {"method":"shutdown","expect":true,"state":{"initialized":false}},
+    {"method":"feature","arg":"0x10","expect":true},
+    {"method":"replace_resources","resources":[{"pack":32,"text":"[Features]\n0x20=on"}],"expect":true},
+    {"method":"init","expect":true},
+    {"method":"current","expect":1},
+    {"method":"feature","arg":"0x20","expect":false},
+    {"method":"new","object":"b","expect":true},
+    {"method":"init","object":"b","expect":true},
+    {"method":"current","object":"b","expect":1},
+    {"method":"release","expect":0,"state":{"destroyed":true,"freed":true,"destructor_count":0,"destructor_initialized":false}},
+    {"method":"feature","object":"b","arg":"0x10","expect":true},
+    {"method":"static_shutdown","object":"b","expect":true},
+    {"method":"current","object":"b","expect":0},
+    {"method":"feature","object":"b","arg":"0x10","expect":false},
+    {"method":"init","object":"b","expect":true,"state":{"current":0}},
+    {"method":"shutdown","object":"b","expect":true},
+    {"method":"init","object":"b","expect":true,"state":{"current":32}},
+    {"method":"feature","object":"b","arg":"0x20","expect":true},
+    {"method":"static_shutdown","object":"b","expect":true},
+    {"method":"static_shutdown","object":"b","expect":true}
+  ]}]
+}

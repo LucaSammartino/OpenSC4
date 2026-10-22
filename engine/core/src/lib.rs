@@ -130,3 +130,6 @@ pub mod glyph_textures;
 pub mod textures_materials;
 pub mod paths;
 pub mod animation_coordinator;
+pub mod number_text;
+pub mod feature_manager;
+pub mod persistence_manager;

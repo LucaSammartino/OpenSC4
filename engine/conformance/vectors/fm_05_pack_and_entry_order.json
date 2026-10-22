@@ -1,0 +1,17 @@
+{
+  "format":1,
+  "name":"fm_05_pack_and_entry_order",
+  "spec":"feature-manager.md §§4.1–4.2,10.5",
+  "description":"Pack scan order ignores resource fixture insertion order; repeated entry order is preserved and the last mention wins.",
+  "steps":[{"op":"fm_scenario","resources":[
+    {"pack":2,"text":"[Features]\n0x99=off\n0x98=on\n0x97=on\n0x97=off\n0x96=off\n0x96=on"},
+    {"pack":1,"text":"[Features]\n0x99=on\n0x98=off\n0x97=on\n0x96=off"}
+  ],"actions":[
+    {"method":"init","expect":true},
+    {"method":"feature","arg":"0x99","expect":false},
+    {"method":"feature","arg":"0x98","expect":true},
+    {"method":"feature","arg":"0x97","expect":false},
+    {"method":"feature","arg":"0x96","expect":true},
+    {"method":"current","expect":2}
+  ]}]
+}

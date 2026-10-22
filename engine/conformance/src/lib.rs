@@ -75,3 +75,4 @@ pub use runner::{run_vector_file, run_vector_text};
 pub(crate) mod paths;
 
 pub(crate) mod animation_coordinator;
+pub(crate) mod feature_manager;
