@@ -12,8 +12,9 @@
 - Frozen readonly DLL/PDB and16 literal fixtures match supplied manifest hashes; current40 fixture hash4ad4e47b... exact; old scripts62e3c03c... exact.
 - OS23:32:12UTC:62 relevant process identities/creation/commands queried; no game/build or owned run waiter. Queue daemon PID23444 created2026-10-21T17:52:51UTC, -Slots6; its cwd and backend cwd denied; current shell cwd verified owned WT. No command-identity ambiguity; stale sessions ignored.
 - Both queue roots now have no pending/running entries; old main regress request completed independently. No attributable operation to overlap.
-- Next: validate pair/common script, submit OFF only, wait via owned read-only helper (no qwait), audit full lifecycle/ref0 before any ON submission.
-- Requests planned only after provenance passes: vdbpf4-r3-budget-on-current40-off-02d08687-a, then vdbpf4-r3-budget-on-current40-on-02d08687-b; neither submitted.
+- Pair audit passed: exactly40 unique literal keys, disable empty; same artifact/fixture/common retained OFF script62e3c03c...; normalized common settings SHA256 a934793829e0882cb847e03868fc194743f16327bf4c239d28e795e472a68a7a.
+- OFF submitted: vdbpf4-r3-budget-on-current40-off-02d08687-a; ON vdbpf4-r3-budget-on-current40-on-02d08687-b is only planned, not queued.
+- Next: collect OFF via owned read-only helper (no qwait), audit full lifecycle/ref0 and frozen inputs before any ON submission; OFF failure means stop WIP.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-dbpf-native4-r3-manifest.json.
 - Frozen pair: build-runs/dbpf-r2-frozen-02d08687; existing production implementation02d08687, gate304fdfba.
 - No fourth round, rebuild, source fitting, game slot access, qwait, subagents or owner/replacement promotion.
