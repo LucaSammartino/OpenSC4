@@ -1,3 +1,6 @@
+warn: could not canonicalize path C:\Users\tlori
+\\?\C:\Users\tlori\FreeCity4\.claude\worktrees\core-application4\engine\core\src\application\mod.rs:
+
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Partial cSC4App owner from application.md sections 1-10.
 //!
@@ -105,19 +108,41 @@ pub enum Effect {
     AddDirector(Director),
     FetchFrameworkManagers,
     SetRendererDriver(Token),
-    RegisterV1 { kind: u32, target: Token },
-    RegisterCheat { manager: Token, name: &'static str, id: u32 },
+    RegisterV1 {
+        kind: u32,
+        target: Token,
+    },
+    RegisterCheat {
+        manager: Token,
+        name: &'static str,
+        id: u32,
+    },
     InitTutorialRegistry(Token),
-    Message { message: Message, delivery: Delivery },
-    Warning { title: &'static str, text: &'static str },
+    Message {
+        message: Message,
+        delivery: Delivery,
+    },
+    Warning {
+        title: &'static str,
+        text: &'static str,
+    },
     LaunchExceptionReportUploader,
-    SetEnvironment { name: &'static str, value: Vec<u8> },
+    SetEnvironment {
+        name: &'static str,
+        value: Vec<u8>,
+    },
     CreateDirectory(Vec<u8>),
-    StartWatcher { watcher: Token, path: Vec<u8> },
+    StartWatcher {
+        watcher: Token,
+        path: Vec<u8>,
+    },
     StopWatcher(Token),
     ExecuteLuaScript(Vec<u8>),
     NetworkCommandGeneratorEnabled,
-    Pause { paused: bool, flags: [bool; 4] },
+    Pause {
+        paused: bool,
+        flags: [bool; 4],
+    },
     SleepCurrentThread(u32),
     ResourceManagerSlotAc(Token),
     RaiseTestException(Vec<u8>),
@@ -126,10 +151,19 @@ pub enum Effect {
     QuitServiceSlot44,
     ProcessPriority(u32),
     CpuCount(i32),
-    RenderProperty { key: u32, value: u32 },
-    ExceptionOption { index: u8, value: bool },
+    RenderProperty {
+        key: u32,
+        value: u32,
+    },
+    ExceptionOption {
+        index: u8,
+        value: bool,
+    },
     RestoreExceptionFilter(Token),
-    Pump { generation: u8, args: [u32; 3] },
+    Pump {
+        generation: u8,
+        args: [u32; 3],
+    },
 }
 
 /// Elapsed milliseconds are explicit state, so tests can exercise the rare
@@ -153,8 +187,11 @@ impl Timers {
     }
 }
 
-/// Only published constructor values are supplied by the core. Preferences,
-/// directory strings, thresholds and periods have no published defaults.
+/// Portable application state. `new` is a neutral composition state, not an
+/// implementation of the native constructor. Only mode/quitting constructor
+/// values are published. AP6: the integrating owner must supply preferences,
+/// paths, timer periods/thresholds, existing flags and borrowed service tokens;
+/// no native defaults or service-discovery algorithm are claimed here.
 #[derive(Debug)]
 pub struct Application {
     pub preferences: Preferences,
@@ -215,9 +252,15 @@ impl Application {
         }
     }
 
-    pub fn fully_paused(&self) -> bool { self.fully_paused }
-    pub fn pause_on_focus_loss(&self) -> bool { self.pause_on_focus_loss }
-    pub fn quitting(&self) -> bool { self.quitting }
+    pub fn fully_paused(&self) -> bool {
+        self.fully_paused
+    }
+    pub fn pause_on_focus_loss(&self) -> bool {
+        self.pause_on_focus_loss
+    }
+    pub fn quitting(&self) -> bool {
+        self.quitting
+    }
 
     /// Empty app name leaves caller output untouched (section 2).
     pub fn app_file_name(&self, extension: &[u8], out: &mut Vec<u8>) {
@@ -233,13 +276,18 @@ impl Application {
     }
 
     pub fn on_app_activate(&mut self, active: bool, host: &mut impl Host) {
-        if self.pause_on_focus_loss { self.full_game_pause(!active, host); }
+        if self.pause_on_focus_loss {
+            self.full_game_pause(!active, host);
+        }
     }
 
     pub fn full_game_pause(&mut self, paused: bool, host: &mut impl Host) {
         if paused != self.fully_paused {
             self.fully_paused = paused;
-            host.effect(Effect::Pause { paused, flags: [true; 4] });
+            host.effect(Effect::Pause {
+                paused,
+                flags: [true; 4],
+            });
         }
     }
 
@@ -265,24 +313,50 @@ impl Application {
     /// the caller. In particular a region/city event never starts those owners.
     pub fn message_v2(&mut self, kind: u32, host: &mut impl Host) -> Result<(bool, Option<Boundary>), HostFailure> {
         let boundary = match kind {
-            0x26D3_1EC2 | 0x8BB5_BB46 => { self.mode = 0; None }
-            0xCBB5_BB45 => { self.mode = 1; None }
-            0xEA8A_E29A => { self.mode = 2; None }
-            0x231B_BF91 => Some(Boundary::PreferencesChanged),
-            0x29A8_9B05 => { self.begin_quit()?; None }
-            0x0B62_7AD3 | 0x49A7_80B2 => { host.effect(Effect::LaunchExceptionReportUploader); None }
-            0xEA65_224E => Some(Boundary::CityObliteration),
-            GAME_IDLE => {
-                if let Some(manager) = self.resource_manager { host.effect(Effect::ResourceManagerSlotAc(manager)); }
+            0x26D3_1EC2 | 0x8BB5_BB46 => {
+                self.mode = 0;
                 None
             }
-            0xFA0C_6390 | 0x7A10_4750 => { self.timers.input = 0; None }
+            0xCBB5_BB45 => {
+                self.mode = 1;
+                None
+            }
+            0xEA8A_E29A => {
+                self.mode = 2;
+                None
+            }
+            0x231B_BF91 => Some(Boundary::PreferencesChanged),
+            0x29A8_9B05 => {
+                self.begin_quit()?;
+                None
+            }
+            0x0B62_7AD3 | 0x49A7_80B2 => {
+                host.effect(Effect::LaunchExceptionReportUploader);
+                None
+            }
+            0xEA65_224E => Some(Boundary::CityObliteration),
+            GAME_IDLE => {
+                if let Some(manager) = self.resource_manager {
+                    host.effect(Effect::ResourceManagerSlotAc(manager));
+                }
+                None
+            }
+            0xFA0C_6390 | 0x7A10_4750 => {
+                self.timers.input = 0;
+                None
+            }
             _ => None,
         };
         Ok((true, boundary))
     }
 
-    pub fn message_v1(&mut self, kind: u32, data1: Token, text: &[u8], host: &mut impl Host) -> Result<(bool, Option<Boundary>), HostFailure> {
+    pub fn message_v1(
+        &mut self,
+        kind: u32,
+        data1: Token,
+        text: &[u8],
+        host: &mut impl Host,
+    ) -> Result<(bool, Option<Boundary>), HostFailure> {
         let boundary = match kind {
             QUIT_REQUEST => Some(Boundary::RequestQuit),
             0x8716_3754 if self.watchers.contains(&Some(data1)) => {

@@ -1,3 +1,6 @@
+warn: could not canonicalize path C:\Users\tlori
+\\?\C:\Users\tlori\FreeCity4\.claude\worktrees\core-application4\engine\core\src\application\command_line.rs:
+
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Published command-line effects and resolution selection (application.md section 8).
 
@@ -44,9 +47,17 @@ pub(crate) fn on_off(value: &[u8]) -> Option<bool> {
 
 pub fn is_startup_resolution_ok(width: u32, height: u32, custom: bool) -> bool {
     custom
-        || [(800, 600), (1024, 768), (1152, 864), (1280, 1024), (1600, 1200), (1800, 1440), (2048, 1536)]
-            .iter()
-            .any(|&(w, h)| height == h && width >= w)
+        || [
+            (800, 600),
+            (1024, 768),
+            (1152, 864),
+            (1280, 1024),
+            (1600, 1200),
+            (1800, 1440),
+            (2048, 1536),
+        ]
+        .iter()
+        .any(|&(w, h)| height == h && width >= w)
 }
 
 pub fn fix_startup_resolution(width: &mut u32, height: &mut u32, custom: bool) {
@@ -82,21 +93,33 @@ impl Application {
             let mut values = [self.preferences.width, self.preferences.height, self.preferences.depth];
             let mut rest = value.as_slice();
             for (index, target) in values.iter_mut().enumerate() {
-                let Some((number, used)) = unsigned_prefix(rest, 10) else { break };
+                let Some((number, used)) = unsigned_prefix(rest, 10) else {
+                    break;
+                };
                 *target = number;
                 rest = &rest[used..];
                 if index < 2 {
-                    if rest.first() != Some(&b'x') { break; }
+                    if rest.first() != Some(&b'x') {
+                        break;
+                    }
                     rest = &rest[1..];
                 }
             }
             let custom = option(line, b"CustomResolution").as_deref().and_then(on_off) == Some(true);
             let (mut width, mut height) = (values[0], values[1]);
             fix_startup_resolution(&mut width, &mut height, custom);
-            unresolved.push(Boundary::ResolutionAcceptance { width, height, depth: values[2] });
+            unresolved.push(Boundary::ResolutionAcceptance {
+                width,
+                height,
+                depth: values[2],
+            });
         }
-        if character(line, b'f').is_some() { self.preferences.fullscreen = true; }
-        if character(line, b'w').is_some() { self.preferences.fullscreen = false; }
+        if character(line, b'f').is_some() {
+            self.preferences.fullscreen = true;
+        }
+        if character(line, b'w').is_some() {
+            self.preferences.fullscreen = false;
+        }
         if character(line, b'g').is_some_and(|v| matches!(v.first(), Some(b'p' | b'P'))) {
             self.preferences.pause_on_focus_loss = true;
         }
@@ -108,16 +131,26 @@ impl Application {
                 other => unsigned_prefix(other, 16).map_or(0, |(v, _)| v),
             };
         }
-        if let Some(value) = option(line, b"audio").or_else(|| option(line, b"sound")).as_deref().and_then(on_off) {
+        if let Some(value) = option(line, b"audio")
+            .or_else(|| option(line, b"sound"))
+            .as_deref()
+            .and_then(on_off)
+        {
             self.preferences.audio_04 = value;
             self.preferences.audio_69 = value;
         }
-        if let Some(value) = option(line, b"radio").or_else(|| option(line, b"music")).as_deref().and_then(on_off) {
+        if let Some(value) = option(line, b"radio")
+            .or_else(|| option(line, b"music"))
+            .as_deref()
+            .and_then(on_off)
+        {
             self.preferences.radio = u32::from(value);
         }
         if let Some(value) = option(line, b"ExceptionHandling") {
             let lower = value.to_ascii_lowercase();
-            if let Some(enabled) = on_off(&lower) { self.set_exception_handling(enabled, host); }
+            if let Some(enabled) = on_off(&lower) {
+                self.set_exception_handling(enabled, host);
+            }
             if lower == b"verbose" {
                 self.set_exception_handling(true, host);
                 self.exception_verbose = true;
@@ -126,9 +159,15 @@ impl Application {
         }
         if let Some(value) = character(line, b'l') {
             let mut text = value.as_slice();
-            if text.first() == Some(&b':') { text = &text[1..]; }
-            if text.first() == Some(&b'"') { text = &text[1..]; }
-            if text.last() == Some(&b'"') { text = &text[..text.len() - 1]; }
+            if text.first() == Some(&b':') {
+                text = &text[1..];
+            }
+            if text.first() == Some(&b'"') {
+                text = &text[1..];
+            }
+            if text.last() == Some(&b'"') {
+                text = &text[..text.len() - 1];
+            }
             self.preferences.language = text[..text.len().min(63)].to_vec();
         }
         if let Some(value) = option(line, b"UserDir") {
@@ -143,11 +182,16 @@ impl Application {
             host.effect(Effect::ProcessPriority(0x40));
         }
         if let Some(value) = option(line, b"AutoZoomChange").as_deref().and_then(on_off) {
-            host.effect(Effect::RenderProperty { key: 0x25, value: u32::from(value) });
+            host.effect(Effect::RenderProperty {
+                key: 0x25,
+                value: u32::from(value),
+            });
         }
         if let Some(value) = option(line, b"sim") {
             // AP8: English numeric prefix, preserving prefs on no conversion.
-            if let Some(value) = float_prefix(&value) { self.preferences.simulation = value; }
+            if let Some(value) = float_prefix(&value) {
+                self.preferences.simulation = value;
+            }
         }
         if let Some(value) = option(line, b"RDD").as_deref().and_then(on_off) {
             self.preferences.rdd = value;
@@ -174,8 +218,16 @@ impl Application {
 fn unsigned_prefix(text: &[u8], radix: u32) -> Option<(u32, usize)> {
     let mut index = text.iter().position(|b| !b.is_ascii_whitespace())?;
     let negative = text.get(index) == Some(&b'-');
-    if matches!(text.get(index), Some(b'+' | b'-')) { index += 1; }
-    if radix == 16 && text.get(index..index + 2).is_some_and(|s| s.eq_ignore_ascii_case(b"0x")) { index += 2; }
+    if matches!(text.get(index), Some(b'+' | b'-')) {
+        index += 1;
+    }
+    if radix == 16
+        && text
+            .get(index..index + 2)
+            .is_some_and(|s| s.eq_ignore_ascii_case(b"0x"))
+    {
+        index += 2;
+    }
     let start = index;
     let mut value = 0u32;
     while let Some(digit) = text.get(index).and_then(|&b| (b as char).to_digit(radix)) {
@@ -192,5 +244,8 @@ fn signed_decimal(text: &[u8]) -> i32 {
 
 fn float_prefix(text: &[u8]) -> Option<f32> {
     let text = std::str::from_utf8(text).ok()?.trim_start();
-    (1..=text.len()).rev().filter(|&n| text.is_char_boundary(n)).find_map(|n| text[..n].parse().ok())
+    (1..=text.len())
+        .rev()
+        .filter(|&n| text.is_char_boundary(n))
+        .find_map(|n| text[..n].parse().ok())
 }
