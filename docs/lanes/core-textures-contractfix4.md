@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-textures-contractfix4: texture/material contract corrections | Codex / `core-textures-contractfix4` (engine lane) | in progress | 1. Read contracts and baseline. 2. Correct owner and distinguishing tests. 3. Final gate and review queue. |
+| core-textures-contractfix4: texture/material contract corrections | Codex / `core-textures-contractfix4` (engine lane) | in progress; source 399d555d; fmt PASS 6 files; full gate pending; TB8 filed; no ABI/game changes | 1. Capture stable full gate. 2. Record exact counts and queue bounded source for review. |
 
 ## Handoff
 - Goal: correct existing textures_materials owner to published TB4–TB7 contracts; no native/default promotion.
@@ -14,7 +14,7 @@
 - Done: f471bdc8 stable source; fmt PASS five files. Baseline all interrupted after 639 passed/0 failed completed results; C API second-thread clock test stalled over 60 seconds. No baseline clippy/native completion.
 - Done: quick old snapshot 3044 passed/3 failed (stale bulk-delete assertions); first stable all stopped on missing destroy_base in formats' independent MaterialBase mock. Both corrected; no tests skipped.
 - Done: invalid last factory-reference release now explicitly marks Unsupported::InvalidBinding before safe token cleanup. Reader integration verifies material count/header unknown byte.
-- Next: corrected stable source all with RUST_TEST_THREADS=1; record exact counts and review queue. Old failed wrapper session 53854 stopped.
+- Next: final all running on source 399d555d with RUST_TEST_THREADS=1, wrapper session 41229; complete-output collection in functions cell 56. Old failed wrapper session 53854 stopped. Do not launch an overlapping all.
 - Facts: build-runs/summarize-contractfix4.py summarizes only gate logs; review record below reconciles every published body/shared entry.
 - TB8 filed: native hash/growth/chain rules absent; distinct-record restore explicitly unsupported.
 - Baseline wrapper session 62872 interrupted with Ctrl-C; focused quick native build still pending.
