@@ -4,6 +4,46 @@
 //! and nearest-even rounding are explicit preconditions, not a guessed game CW.
 use std::cmp::Ordering;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn extended_register_retains_bit_lost_by_binary64_and_spills_only_at_q() {
+        for (precision, expected) in [(RegisterPrecision::Bits53, 0.0), (RegisterPrecision::Bits64, 1.0)] {
+            let large = Number::double(9223372036854775808.0, precision);
+            let one = Number::new(1.0, precision);
+            assert_eq!(((large + one) - large).store(), expected);
+            assert_eq!(((large + one).q() - large).store(), 0.0);
+        }
+    }
+    #[test]
+    fn pc53_primitives_match_independent_ieee_binary64_operations() {
+        let mut seed = 0xa1234567_u32;
+        for _ in 0..4000 {
+            seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
+            let a = f32::from_bits(seed & 0xfeffffff);
+            seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
+            let b = f32::from_bits(seed & 0xfeffffff);
+            let x = Number::new(a, RegisterPrecision::Bits53);
+            let y = Number::new(b, RegisterPrecision::Bits53);
+            for (actual, expected) in [
+                ((x + y).store(), (f64::from(a) + f64::from(b)) as f32),
+                ((x - y).store(), (f64::from(a) - f64::from(b)) as f32),
+                ((x * y).store(), (f64::from(a) * f64::from(b)) as f32),
+                ((x / y).store(), (f64::from(a) / f64::from(b)) as f32),
+            ] {
+                assert!(
+                    actual.to_bits() == expected.to_bits() || (actual.is_nan() && expected.is_nan()),
+                    "{a} {b}: {actual} vs {expected}"
+                );
+            }
+            if a >= 0.0 {
+                assert_eq!(x.sqrt().store().to_bits(), (f64::from(a).sqrt() as f32).to_bits());
+            }
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub enum RegisterPrecision {
     Bits24,
@@ -44,6 +84,8 @@ impl Reg {
         !self.special() && self.significand == 0
     }
     fn exceptional(negative: bool, nan: bool) -> Self {
+        // LT13: canonical quiet NaNs are a portable policy. The public contract
+        // does not give x87 NaN payload/sign selection or signaling-NaN effects.
         Self {
             negative,
             significand: u64::from(nan),

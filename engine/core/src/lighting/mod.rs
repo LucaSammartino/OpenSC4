@@ -38,6 +38,7 @@ pub struct LightingManager {
     refs: u32,
     released: bool,
     initialized: bool,
+    initialization_interrupted: bool,
     view_applied: bool,
     exemplar: Option<Arc<dyn PropertyHolder>>,
     terrain: Option<Arc<dyn Terrain>>,
@@ -88,6 +89,7 @@ impl LightingManager {
             refs: 0,
             released: false,
             initialized: false,
+            initialization_interrupted: false,
             view_applied: false,
             exemplar: None,
             terrain: None,
@@ -193,6 +195,9 @@ impl LightingManager {
         if self.released {
             return Err(LightingError::Released);
         }
+        if self.initialization_interrupted {
+            return Err(LightingError::InitializationInterrupted);
+        }
         if self.initialized {
             return Ok(false);
         }
@@ -204,7 +209,15 @@ impl LightingManager {
             self.maps[1] = Some(ImageArgb8::make_test_pattern());
         } else {
             for (index, instance) in [0x0917660c, 0x0917660d, 0x0917660e, 0x0917660f].into_iter().enumerate() {
-                self.maps[index] = create_color_map(resources, instance)?;
+                self.maps[index] = match create_color_map(resources, instance) {
+                    Ok(map) => map,
+                    Err(error) => {
+                        // LT7: invalid foreign decoder output interrupts Init;
+                        // safe Rust latches it, rather than inventing a retry.
+                        self.initialization_interrupted = true;
+                        return Err(error);
+                    }
+                };
             }
             if let Some(image) = &self.maps[2] {
                 self.minimum_red = image.find_min_red_component_value();

@@ -55,6 +55,7 @@ pub fn color_bytes(color: Color) -> [u8; 3] {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LightingError {
     InvalidDimensions,
+    InitializationInterrupted,
     BufferTooShort,
     SampleOutsideImage,
     MissingModelMap,

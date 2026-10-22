@@ -26,3 +26,10 @@
   mode or whether it changes between entries. [Portable core requires an explicit 24/53/64-bit register
   precision at construction; implemented arithmetic assumes nearest-even and masked exceptions. No
   implicit game-mode default or whole-owner numeric exactness is claimed for unproved CW modes.]
+
+<!-- from: core-lighting-complete4 (2026-10-22) -->
+- **LT13 - §5.8 NaN output encoding:** for NaN inputs and invalid operations which proceed through the
+  unordered determinant path, are NaN payloads/signs or signaling-NaN exception flags part of the exact
+  64-byte result contract? The arithmetic schedule establishes propagation/classification but does not
+  specify those encodings. [Core returns true and propagates quiet NaN values without a finite fallback;
+  its integer register primitive canonicalizes payloads. NaN bit-pattern equivalence is not claimed.]

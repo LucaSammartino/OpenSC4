@@ -46,11 +46,11 @@ fn fit(points: &[[Number; 2]], uvs: &[[f32; 2]], p: RegisterPrecision) -> Option
         y2 = ((b * b).q() + y2).q();
         xf = (a + xf).q();
         yf = (b + yf).q();
-        for k in 0..2 {
-            let w = r(uv[k]);
-            rhs[k][0] = (a * w + rhs[k][0]).q();
-            rhs[k][1] = ((b * w).q() + rhs[k][1]).q();
-            rhs[k][2] = (w + rhs[k][2]).q();
+        for (sums, w) in rhs.iter_mut().zip(uv.iter().copied()) {
+            let w = r(w);
+            sums[0] = (a * w + sums[0]).q();
+            sums[1] = ((b * w).q() + sums[1]).q();
+            sums[2] = (w + sums[2]).q();
         }
     }
     let c = [
@@ -80,16 +80,15 @@ fn fit(points: &[[Number; 2]], uvs: &[[f32; 2]], p: RegisterPrecision) -> Option
     let k1 = c.map(|row| (row[1] * reciprocal).q());
     let k2 = c.map(|row| (row[2] * reciprocal).q());
     let mut out = [[r(0.0); 3]; 2];
-    for k in 0..2 {
-        let [wa, wb, w0] = rhs[k];
-        out[k] = [
+    for (index, (out, [wa, wb, w0])) in out.iter_mut().zip(rhs).enumerate() {
+        *out = [
             (k0[2] * w0 + k0[1] * wb) + k0[0] * wa,
             (k1[0] * wa + k1[2] * w0) + k1[1] * wb,
             ((k2[0] * wa + k2[2] * w0) + k2[1] * wb).q(),
         ];
-        if k == 0 {
-            out[k][0] = out[k][0].q();
-            out[k][1] = out[k][1].q();
+        if index == 0 {
+            out[0] = out[0].q();
+            out[1] = out[1].q();
         }
     }
     Some(out)
@@ -125,9 +124,7 @@ impl LightingManager {
         if transform.flags & 4 != 0 {
             a = std::array::from_fn(|i| std::array::from_fn(|j| a[j][i]));
         }
-        let direction = self.shadow_direction.map(|v| r(-v));
-        let direction = a.map(|row| ((row[0] * direction[0] + row[2] * direction[2]) + row[1] * direction[1]).q());
-        let [b0, b1, _] = basis(direction);
+        let [b0, b1, _] = model_basis(self.shadow_direction, a, precision);
         let plane: Vec<_> = points
             .iter()
             .map(|point| {
@@ -269,11 +266,11 @@ fn native_endpoint(q: Number, ceil: bool, p: RegisterPrecision) -> i32 {
     let stored = (shifted + Number::new(12582912.0, p)).store();
     let mut integer = stored.to_bits().wrapping_sub(0x4b400000) as i32;
     // Correct the ties at integral q, without replacing the native bit rounding.
-    if ceil && Number::new(integer as f32, p) < q {
-        integer += 1;
-    }
-    if !ceil && Number::new(integer as f32, p) > q {
+    if ceil && Number::new(integer.wrapping_sub(1) as f32, p) == q {
         integer -= 1;
+    }
+    if !ceil && Number::new(integer.wrapping_add(1) as f32, p) == q {
+        integer += 1;
     }
     integer
 }
@@ -294,6 +291,10 @@ pub(super) fn direction_basis(
             })
         })
     });
-    let s = direction.map(|v| r(-v));
-    basis(a.map(|row| ((row[0] * s[0] + row[2] * s[2]) + row[1] * s[1]).q())).map(|row| row.map(Number::store))
+    model_basis(direction, a, precision).map(|row| row.map(Number::store))
+}
+
+fn model_basis(direction: Vector, a: [[Number; 3]; 3], precision: RegisterPrecision) -> [[Number; 3]; 3] {
+    let s = direction.map(|v| Number::new(-v, precision));
+    basis(a.map(|row| ((row[0] * s[0] + row[2] * s[2]) + row[1] * s[1]).q()))
 }

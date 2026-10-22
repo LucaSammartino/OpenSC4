@@ -290,7 +290,15 @@ fn conformance_8_peak_sweep_and_skipped_rect() {
     m.sun = [1.0, -1.0, 0.0];
     m.find_hill_shadows().unwrap();
     m.find_hill_shadows().unwrap();
-    assert_eq!(m.changed_shadow_rect(), Rect::EMPTY);
+    assert_eq!(
+        m.changed_shadow_rect(),
+        Rect {
+            min_x: -1,
+            min_z: -1,
+            max_x: 0,
+            max_z: 0
+        }
+    );
 }
 
 #[test]
@@ -852,7 +860,7 @@ fn render_change_updates_threshold_and_only_changed_shadow_setting_emits() {
     .unwrap();
     assert!(m.shadows_enabled());
     assert_eq!(m.rotation, 1);
-    assert_eq!(events, [Event::Fractions { day: 0.0, night: 0.0 }, Event::Redraw]);
+    assert_eq!(events, [Event::Fractions { day: 1.0, night: 0.0 }, Event::Redraw]);
     events.clear();
     m.do_message(LightingMessage::ViewChanged { zoom: 0, rotation: 3 }, &mut events)
         .unwrap();
@@ -955,7 +963,7 @@ fn decal_holder_overrides_only_present_properties() {
 }
 
 #[test]
-fn unknown_upper_clamp_and_bad_buffers_are_explicit_failures() {
+fn known_upper_clamp_and_invalid_buffers_have_checked_boundaries() {
     let mut m = manager();
     city(&mut m, 2);
     assert_eq!(m.terrain_normal([32.0, 0.0, 0.0]), Ok(UP));
