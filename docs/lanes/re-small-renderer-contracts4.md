@@ -4,6 +4,8 @@
 
 ## Report
 
+Coordinator publication review (2026-10-22): accept the already committed TB4/GT4/FF3 answers and bounded inventories for the train, after checking the published scope and clean tree. FF2 remains open exactly as reported. This is publication of existing findings, with no additional RE, whole-family credit, fourth round or worktree removal.
+
 Final round 3/3 resolved the texture/glyph inventory residuals and flame sampler numeric boundaries. Committed changes are confined to specs, exact question files/index and this lane report. No engine, tool, map, ABI-table or game changes.
 
 ### Commits and native results
