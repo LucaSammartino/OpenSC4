@@ -43,21 +43,54 @@ managers: static and dynamic, each for land and for water.
 - `0x0073AC90` (on shutdown) unsubscribes, releases the view, factory and terrain, empties both record tables and
   forgets the free lists.
 
+### 1.1 Initialization and repeat calls (OV4, proven subset)
+
+The constructor (`0x0073BC20`) sets initialized false, shadow quality 2, second-stage setting 0; parent, terrain,
+factory and the three arenas' begin/end/capacity pointers are null. Each arena has free-head and free-tail −1.
+It sets the shadow binding and index storage pointers null. It does **not** initialize the dynamic/water bytes,
+cell dimensions, reciprocal scale, city rectangle or counters; those are established by Init. No public
+getter/draw contract is supplied before Init.
+`0x0073BC6A–0x0073BC79`, `0x0073BCF5–0x0073BD9B`.
+
+Init (`0x0073CB60`) takes `(parent, dynamicByte, waterByte)`, returns no specified result and has no initialized
+guard or rollback. It replaces the parent with AddRef-before-Release when different, stores both bytes and sets
+initialized true **before** looking up the texture factory (framework class/interface `0x1AC0E11A/0xFAC0E219`).
+It similarly retains the new factory and global terrain and releases replaced references. Identical pointers
+avoid those reference operations. Terrain slots 7/8 provide signed cell counts; slot 6 returns the cell width.
+Init stores width as binary32, reciprocal as binary32 of the x87 reciprocal, and city bounds `(0,0,nx,nz)`.
+It resets counters and `+0x94`, releases any old `+0xD4` binding, then requests key `0xAA592B77` through
+**factory slot 5** (byte offset `0x14`), into `+0xD4`. It initializes draw states, rebuilds the static index when
+dynamic is zero, registers message `0xC9F775BB` when that global server exists, then reads quality/second-stage
+settings. Repeated Init executes this sequence again and does not clear the overlay/handle/group arenas.
+Missing factory/terrain/framework services do not produce a clean false result: required pointers are later
+dereferenced without checks, after earlier mutations. Atomic rejection of repeated/failed Init is not native
+behavior. Evidence: `0x0073CB60–0x0073CD3B` (including binding call `0x0073CCE7`).
+
+The overlay-record constructor (`0x00735F40`) sets flags 1 (shown), draw-state byte 0 and collection stamp 0,
+first matrix identity, alpha 1, colour from the three binary32 defaults at `0x00B0D4E4/E8/EC` (all 1 in the
+shipped image), and binding/source pointers null. The cell rectangle and first free-list word are not initialized
+there; allocation sets the live word −1 and placement establishes bounds before observation. The second matrix
+is filled from scratch/default global `0x00B4B3C8`; no usable second-transform value is promised until a shadow
+add fills it. Likewise the handle allocator copies a complete owner-constructed placement/aspect/target record;
+there is no independently initialized public default handle. Evidence: `0x00735F40–0x007360F9`, with alpha's
+literal 1 established at `0x00735FF2`, colour loads `0x007360BE–0x007360DC`, and allocator §2.3.
+
 ## 2. Records and handles *[compat]*
 
 ### 2.1 Two tables
 
 - **Overlays** (`+0x98`, 0xB4 bytes each, with a free list `+0xA4`, `+0xA8`): a free-list link (−1 while in use),
-  flags (`+0x04`: bit 0 shown, bit 1 repeat the texture, bit 4 a decal or shadow part, bit 5 a texture matrix is set,
+  flags (`+0x04`: bit 0 shown, bit 1 repeat the texture, bit 3 shadow, bit 4 decal, bit 5 a texture matrix is set,
   bit 6 self-lit, bit 7 drawn in snapshots), the draw state index (`+0x08`, §4.1), the covered cell rectangle
   (`+0x0C`, x0, z0, x1, z1), a 4 × 4 world-to-texture matrix (`+0x1C`), the alpha (`+0x9C`), the colour (`+0xA0`, RGB),
   the texture binding (`+0xAC`) or a texture source object (`+0xB0`).
 - **Handles** (`+0xAC` table, 0x30 bytes each): what callers hold. A handle with the high bit set names a handle
   record: its placement (nine floats from `+0x04`) and the overlay it drives (`+0x2C`). An overlay index whose high
   bit is set names a **group** (`+0xC0`, 0x24 bytes: eight overlay indices), and every call on a group is applied to
-  its eight parts. Handle −1 is "none" and is ignored by every call.
+  its eight parts where the method supports group recursion. Handle −1 is "none"; scalar getters return their
+  sentinels and placement getters leave their output untouched (§2.3).
 
-Counters: the decals and shadows drawn in the last frame (`+0xD8`, `+0xDC`).
+Counters: the last invoked nonempty decal/shadow passes (`+0xD8`, `+0xDC`); skipped passes preserve them (§4.4).
 
 ### 2.2 The cell index (static managers)
 
@@ -66,18 +99,81 @@ A static manager keeps, per terrain cell, the overlays that cover it (`0x0073823
 marks it changed (`0x00737D40`); a round decal (slot 7) also redisplays the terrain under each part's rectangle
 (terrain slot 68).
 
+Native bounds are half-open for cell iteration and redisplay: positive area requires x1>x0 and z1>z0.
+Intersection helper `0x0048ED90` uses signed comparisons; a strictly separated rectangle becomes all zeros,
+whereas touching edges retain a zero-width/height intersection at that edge. Thus clipping `(−3,2,−1,4)`
+against `(0,0,8,8)` gives `(0,0,0,0)`, while `(−3,2,0,4)` gives `(0,2,0,4)`. Bounds are not swapped to
+normalize inverted input. `MarkChanged` invokes terrain slot 68 `(0,waterByte,&rect,0)` only for positive area
+(`0x00737D40–0x00737DA3`).
+
+`BuildCellIndex` establishes shift 0, grid nx by nz, nx*nz null list heads and a zero 16-bit collection stamp
+(`0x0073CB10–0x0073CB57`). For shift k in the indexing routines, covered coarse bounds are arithmetic shifts
+`[x0>>k,z0>>k,(x1+(2^k−1))>>k,(z1+(2^k−1))>>k]`. Addition traverses X outermost, Z innermost and **prepends**
+the overlay ID to each list, without duplicate suppression (`0x00738230–0x007382D8`). Removal traverses Z
+outermost, X innermost and unlinks every matching ID while preserving others' order (`0x007382E0–0x0073838B`).
+Collection appends on first encounter, using overlay `+0x0A` versus the manager's incremented 16-bit stamp;
+it does not sort the selected IDs (`0x00738480–0x007384B7`, `0x0073854E–0x00738580`). Exact visible-row endpoint
+inputs and stamp-wrap effects remain under OV8. A sorted/deduplicated host selection is not this owner algorithm.
+
+### 2.3 Allocation, reuse, getters and invalid records (OV4/OV5)
+
+All three arenas allocate ascending zero-based indices when no freed entry exists. Removal appends to a
+free **queue**, and allocation takes its head: reuse is **FIFO**, independently for overlays, handles and groups.
+The first word is −1 while live; a free entry's word links to the next (the tail word is set to 0 and is not
+followed when head equals tail). No generation is encoded in an ID. A stale handle may therefore operate on a
+new occupant of the same slot. There is no portable result for an out-of-range ID or null required pointer;
+native paths dereference the computed address, rather than rejecting the operation atomically.
+Evidence: handle allocate/free `0x00739EC0–0x00739FB1` / `0x00736210–0x0073624D`, group allocate
+`0x00739FC0–0x0073A06D`, overlay allocate `0x0073AEC0–0x0073AF7B`, removal `0x007388C0–0x00738A08`.
+
+Ordinary source/binding decals allocate an overlay **and** an indirect placement handle, even if the clipped
+rectangle is empty. Round decals allocate eight overlays, a group and one indirect handle. The city-wide
+rectangle add returns a **direct overlay ID**, without a placement handle: not every add allocates one.
+Slots 12–14 ignore nonnegative direct IDs. For indirect removal, the handle is freed first; group removal
+recurses over its eight indices in array order and then frees the group. Direct overlay removal on a static
+manager removes its index entries and marks the old rectangle before checking whether its free-list word
+already says free. Payload is left in freed records (including binding/source references); removal itself
+does not release them. Reuse/arena destruction, rather than removal, disposes retained payload references.
+There is no general live-record validation on setters/getters. Evidence: `0x0073B127–0x0073B141`,
+`0x0073C069–0x0073C082`, `0x0073B2CF–0x0073B38E`, `0x0073B9A7–0x0073BA04`, `0x007388F2–0x00738A08`.
+
+Scalar getters accept direct overlay IDs or resolve an indirect handle. If that handle resolves to a group,
+they read **part 0** only, never a reduction/average across parts. A group ID by itself is not a public handle.
+
+| Slot | Actual value | −1 behavior |
+|---|---|---|
+| 22 (`0x00736580`) | shown: `(flags & 1)`, boolean | false |
+| 23 (`0x007365E0`) | binary32 alpha at `+0x9C`, returned on x87 stack | +0 |
+| 24 (`0x00736640`) | three colour words from `+0xA0` | writes three zero words |
+| 25 (`0x007366C0`) | zero-extended **byte** at `+0x08` | 0 |
+| 26 (`0x00736720`) | self-lighting: `(flags >> 6) & 1`, boolean | false |
+
+Slot 24 has output first and handle second (callee pops 8); it returns the output address in EAX. No null
+output check exists, even for handle −1. Slot 14's no-handle/direct-ID path, in contrast, does not touch output.
+These identities follow the field loads, not the earlier descriptive function name `IsShown` for slot 26.
+
+Slots 16/18/19 write shown/colour/draw-state and mark a nonempty static rectangle even when supplied values
+are identical; dynamic writes omit redisplay. Slot 19 writes only the low byte. Slot 13 always re-places;
+static re-placement with the same clipped rectangle still marks it once, and a changed rectangle removes old
+index entries, marks old, writes new bounds, inserts new entries, then marks new. Slot 12's tolerance is in §3.2.
+Evidence: `0x00737EB8–0x00737EED`, `0x00738078–0x007380B0`, `0x00738128–0x0073814D`,
+`0x007393DF–0x0073943E`. These are owner operations, not caller-supplied computed rectangles or redraw results.
+
+Paper reuse vector: allocate indices 0,1,2; remove 1 then 0; the next allocations reuse 1 then 0, then append 3
+if no other frees occur. For a group with differing part colours/alpha, getters observe part 0 only.
+
 ## 3. The interface (`0x00AB39E8`) *[compat]*
 
 | Slot | VA | Call | Behaviour |
 |---|---|---|---|
-| 3 | `0x0073C0B0` | `AddDecal(source, placement, a, b)` | a decal textured from a texture source object (its size from the object's slot 3) |
-| 4 | `0x0073BF10` | `AddDecal(binding, placement, a, b)` | the same from a texture binding; −1 without one |
-| 5 | `0x00736150` | `AddDecal(key, placement, a)` | the factory's binding for the key (factory slot 6), then slot 4 |
-| 6 | `0x007361B0` | `AddDecal(key, placement, a)` | the same with factory slot 5 |
-| 7 | `0x0073B170` | `AddRoundDecal(key, placement)` | a **group** of eight parts covering a disc (§3.1) |
+| 3 | `0x0073C0B0` | `AddDecal(source, positionXZ, width, turns)` | a decal textured from a texture source object (its size from the object's slot 3) |
+| 4 | `0x0073BF10` | `AddDecal(binding, positionXZ, width, turns)` | the same from a texture binding; −1 without one |
+| 5 | `0x00736150` | `AddDecal(key, positionXZ, width, turns)` | the factory's binding for the key (factory slot 6), then slot 4 |
+| 6 | `0x007361B0` | `AddDecal(key, positionXZ, width, turns)` | the same with factory slot 5 |
+| 7 | `0x0073B170` | `AddRoundDecal(key, positionXZ, width, turns)` | a **group** of eight outline rectangles omitting the centre (§3.1) |
 | 8 | `0x0073C9A0` | `AddCityDecal(key)` | one overlay over the whole city (`0x0073B8A0`, flags `0x12`) *[inferred]* |
-| 9 | `0x0073B3B0` | `AddShadow(binding, …)` | a shadow overlay |
-| 10 | `0x00735480` | `AddShadow(…)` | −1 when `kShadowQuality` is 0; else the factory's shadow binding (factory slot 11) and slot 9 |
+| 9 | `0x0073B3B0` | `AddShadow(key, positionXZ, width, turns, flipV)` | factory slot 6 resolves the key; shadow matrices as §3.5 |
+| 10 | `0x00735480` | `AddShadow(groupWord, positionXZ, width, turns, flipV)` | −1 when `kShadowQuality` is 0; otherwise constructs the key described in §3.5 and calls slot 9 |
 | 11 | `0x0073C0D0` | `AddModelShadow(…)` *[inferred]* | a shadow built from a model's footprint |
 | 12 | `0x0073AD80` | `SetPosition(handle, xz)` | for a handle record: when the two floats change, the overlay is placed again |
 | 13 | `0x0073ADE0` | `SetPlacement(handle, nine floats)` | the whole placement, then placed again |
@@ -89,25 +185,287 @@ marks it changed (`0x00737D40`); a round decal (slot 7) also redisplays the terr
 | 19 | `0x007380C0` | `SetDrawState(handle, index)` | `+0x08` |
 | 20 | `0x007364F0` | `EnableSelfLighting(handle, on)` (descriptive name) | when the low bit of `on` is set, OR flag bit 6; false does not clear it; groups recurse over all eight parts |
 | 21 | `0x00738160` | `SetTextureScale(handle, size, offset)` | the matrix becomes a scale of 1 ÷ size with the second axis flipped and an offset of 1 + offset ÷ size; flag bit 5 |
-| 22–26 | `0x00736580`–`0x00736720` | getters | an overlay field; the alpha (`+0x9C`, 0 for none); the colour (`+0xA0`); the draw state byte; shown |
+| 22–26 | `0x00736580`–`0x00736720` | getters | shown; alpha; colour (output first); draw-state byte; self-lit (§2.3) |
 | 27 | `0x007352A0` | `GetStatsString(out)` | "%d decals, %d shadows" from the counters |
 
-Slots 0–2 are `QueryInterface`, `AddRef`, `Release`. The placement record's nine floats are a centre, extents and
-an orientation *[inferred]*; the add calls turn it into the cell rectangle with the cell scale, the texture's size
-and a margin (`0x007354E0`).
+Slots 0–2 are `QueryInterface`, `AddRef`, `Release`. The ordinary decal add signatures in the table above use
+`positionXZ, width, angleInTurns`, rather than an input nine-float record. Slots 5/6 forward all three. The exact
+stored placement and owner computations are in §3.2. `ComputeCellRect` (`0x007354E0`) is a different helper;
+its margin must not be imported into ordinary `PlaceOverlay` coverage.
 
-### 3.1 Round decals (`0x007394B0`)
+### 3.1 Round decals: eight outline parts (`0x007394B0`, OV9)
 
-A disc of radius r is split into eight rectangles of cells that follow its outline (half-chords of the circle at
-the cells' rows); each becomes one part of the group, flagged as a part (bit 4), so that the decal touches only the
-cells inside the disc *[inferred: the coverage circles shown when placing a building]*.
+This is an **outline partition with an omitted centre**, not eight filled-disc strips or exact cell-circle
+intersection. Slot 7 resolves its key through factory slot 5 and returns −1 before allocation if the binding
+output is null. It allocates eight shown decal records, retains the same binding in each, allocates one group,
+and places the group without redisplay. All eight parts receive the same full-footprint primary texture
+matrix/repeat flag computed by §3.2; a part is not independently stretched to fill its rectangle. The public
+width is a full width, not a radius. Evidence: `0x0073B170–0x0073B2F1`, group matrix stores
+`0x0073A67A–0x0073AB75`.
+
+The partition helper receives the **unclipped binary32 cell-space bounding rectangle** already produced by
+placement, including any rotation/aspect expansion. Call its endpoints `(fx0,fz0,fx1,fz1)`. It first converts
+that rectangle to integers `(x0,z0,x1,z5)` using floor minima and ceil maxima (§2.2). Calculations below use
+the original floating endpoints, not the city-clipped bounds. The formulas apply to ordinary finite city-sized
+inputs under native round-to-nearest FP state; E/F have the meaning in §3.2.
+
+| Quantity | Native evaluation |
+|---|---|
+| W, H | `W=E(fx1−fx0)` retained in x87; `H=F(E(fz1−fz0))` |
+| cx, cz | `F(E(fx0+fx1)×1/2)`, `F(E(fz0+fz1)×1/2)` |
+| R² | `F(E(W×1/2)²)` |
+| I² | `F(E(E((1−g8)×W)×1/2)²)` |
+| n1, n2 | `ceil(E(E(g4×H)×1/2))`, `ceil(E(E(g0×H)×1/2))` |
+| Four sample rows | `z1=z0+n1`, `z2=z0+n2`, `z3=z5−n2`, `z4=z5−n1` |
+
+Here g0/g4/g8 are the **binary32** image globals `0x00B0D4D0/D4/D8`:
+0.4000000059604645, 0.20000000298023224, 0.10000000149011612. The radius multipliers use binary64
+1/2 (`0x00A92D28`), while the centre uses binary32 1/2. Replacing these constants with exact decimal
+fractions changes split rows: H=20 yields n1=3 and n2=5, not 2 and 4. Source:
+`0x007394BD–0x00739645`. The integer conversion uses the same bias/correction operations as
+`0x00735380` (bias binary32 12582912 at `0x00AB390C`); mathematical floor/ceil here describe their
+normal finite range, not a saturating conversion for arbitrary nonfinite or huge inputs.
+
+At each sample row zi, let `S=F(E(cz−zi)²)`. The outer half-chord is
+`Oi=F(sqrt(E(R²−min(S,R²))))` and the inner half-chord is
+`Ji=F(sqrt(E(I²−min(S,I²))))`. The clamp is on the **stored square**, before subtraction/sqrt; no negative
+radicand repair after sqrt is substituted. The fourth inner half-chord J4 alone stays in x87 precision until
+its subsequent endpoint conversions rather than first passing through F. Define
+`Li=floor(E(cx−Oi))`, `Ri=ceil(E(cx+Oi))`, `li=ceil(E(cx−Ji))`, `ri=floor(E(cx+Ji))`.
+Outer endpoints round outward; inner endpoints round inward. Chord evaluation is at the integer split rows,
+not cell centres. Evidence: `0x0073963D–0x0073979F`, endpoint conversions `0x007397A1–0x00739B9D`.
+
+Let `b=min(r2,r3)` and `a=min(max(l2,l3),b)`. The eight pre-clipping rectangles, in **group part order**, are:
+
+| Part | `(x0,z0,x1,z1)` |
+|---|---|
+| 0 | `(L1,z0,R1,z1)` |
+| 1 | `(L4,z4,R4,z5)` |
+| 2 | `(x0,z2,a,z3)` |
+| 3 | `(b,z2,x1,z3)` |
+| 4 | `(L2,z1,l1,z2)` |
+| 5 | `(L3,z3,l4,z4)` |
+| 6 | `(r1,z1,R2,z2)` |
+| 7 | `(r4,z3,R3,z4)` |
+
+This central-boundary adjustment permits parts 2/3 to meet when inward endpoints cross; it does not fill a
+normal nondegenerate centre. No general rectangle normalization or re-partition after clipping occurs.
+Assembly evidence: `0x00739B9F–0x00739CE9`. Each rectangle is independently intersected with the city's
+cell bounds. For placement without redisplay, the helper writes the eight clipped rectangles directly in part
+order. For re-placement with redisplay, it calls UpdatePartRect in that same order, with the remove/mark-old/
+write/insert/mark-new ordering of §2.3. Evidence: `0x00739CF0–0x00739EB6`.
+
+After initial placement, slot 7 visits parts 0 through 7, inserts each into the static cell index and redisplays
+each positive-area clipped rectangle via terrain slot 68. A dynamic manager skips that index/redisplay loop.
+Empty clipped parts remain allocated in the group; they are not removed or replaced by −1. The add path has
+no partial-allocation failure branch or rollback loop: its only explicit −1 return is the initial missing
+binding. Allocation exceptions/invalid allocation results must not be specified as a clean atomic failed add.
+Evidence: `0x0073B2F6–0x0073B3A6`.
+
+Paper vector: a square texture, zero turns, cellScale=1/16, centre `(128,128)`, width 256, city containing
+cell box `(0,0,16,16)` gives parts
+`(2,0,14,2)`, `(2,14,14,16)`, `(0,4,3,12)`, `(13,4,16,12)`,
+`(1,2,5,4)`, `(1,12,5,14)`, `(11,2,15,4)`, `(11,12,15,14)`.
+Cell `(8,8)` belongs to none; the centre still maps to texture `(1/2,1/2)` in every part's shared matrix.
+Clipping the city edge changes only the intersections, not the chord samples or texture matrix.
+
+### 3.2 Placement record and owner calculations (OV1/OV5)
+
+The public record is nine consecutive **binary32** values, copied bit-for-bit by slots 13/14. It is not a
+three-dimensional centre and three-dimensional extents. Offsets below are relative to the public record;
+the handle stores it at `+0x04` and also stores an owner-derived texture aspect at `+0x28`.
+
+| Offset | Name | Consumed by `PlaceOverlay` |
+|---|---|---|
+| `00`, `04` | cx, cz | world X/Z centre; the only values changed by slot 12 |
+| `08` | w | full world width |
+| `0C` | turns | rotation; multiplied by binary32 `0x40C90FDB` (6.283185482025146484375), then native x87 sine/cosine |
+| `10` | stretch | multiplies the retained texture aspect, making depth/width |
+| `14`, `18` | repeatU, repeatV | multipliers of the two texture coordinates, independent of footprint size |
+| `1C` | offset | added to **both** texture coordinates |
+| `20` | retained | copied and returned, but not read by this placement routine |
+
+Ordinary binding/source adds construct `[cx,cz,w,turns,1,1,1,0,0]`. The binding form obtains texture dimensions
+from factory slot 8 and retains binary32 `height/width` separately; the source form obtains dimensions from
+source slot 3. This retained aspect is not overwritten by slot 13. The round add constructs the same defaults
+and likewise retains the binding aspect. Evidence: `0x0073AFB2–0x0073B073`, `0x0073BF33–0x0073BFC1`,
+`0x0073B1AE–0x0073B237`, copies `0x007364AE–0x007364E9`, `0x0073AE05–0x0073AE37`.
+
+Let F mean a binary32 store/reload, E native x87 arithmetic under the caller's control word (this routine does
+not change it), a = F(stretch × retainedAspect), hx = F(w × 0.5), hz = F((a × w) × 0.5). The multiplication
+forming a is stored before use. In the zero-angle path the world-to-texture matrix is stored as four consecutive
+rows, used with a **row vector** `[x,y,z,1]`:
+
+| Row | Four entries |
+|---|---|
+| 0 | A, 0, 0, 0 |
+| 1 | 0, 0, 0, 0 |
+| 2 | 0, D, 1, 0 |
+| 3 | Tu, Tv, 0, 1 |
+
+The finite, nonzero-size evaluation is A = F(repeatU × E(1/w)), R = E(E(1/a) × E(1/w)),
+D = F(repeatV × F(R)), Tu = F(F(repeatU × F((hx−cx) × E(1/w))) + offset),
+Tv = F(F(repeatV × F((hz−cz) × R)) + offset). The first reciprocal is kept in x87 precision;
+R is also stored to binary32 before the multiplication yielding D. This gives the familiar real-number
+coordinates `u=repeatU*(0.5+(x−cx)/w)+offset`, `v=repeatV*(0.5+(z−cz)/(a*w))+offset`, but that algebraic
+simplification is not the rounding contract. Zero products in the matrix are actually floating multiplications
+in several positions; the displayed zeros describe ordinary finite inputs, not NaN propagation or signed-zero
+canonicalization. Evidence: `0x0073A1C1–0x0073A34A`, matrix stores `0x0073AB99–0x0073ABF8`.
+
+For nonzero turns the owner rotates world X/Z about `(cx,cz)` before the above transform. With
+c = F(cos(E(turns × binary32(2π)))) and s = F(sin(E(turns × binary32(2π)))), its real-number equations are
+`x′=c*(x−cx)−s*(z−cz)+cx`, `z′=s*(x−cx)+c*(z−cz)+cz`. The matrix also transforms its third output coordinate;
+it is not a two-dimensional texture-only rotation. Both signed zeros take the no-rotation branch; unordered
+angle comparison takes the rotation branch. Ordered rotated intermediates are specified in §3.2.1.
+Evidence: `0x0073A34E–0x0073A63A`.
+
+Repeat flag bit 1 is set unless **both bit patterns** repeatU and repeatV are `0x3F800000`.
+The unrotated footprint uses hx/hz, regardless of repeat factors or offset. For a rotated placement with
+both repeat factors exactly one, replace hx by F((abs(c) + a*abs(s)) × hx) and hz by
+F((abs(c) + F(1/a)*abs(s)) × hz), with sums/products kept in x87 precision until those stores.
+For any other repeat factors this footprint expansion is skipped. Four cell bounds are then stored to binary32:
+`[(cx−hx)*cellScale,(cz−hz)*cellScale,(cx+hx)*cellScale,(cz+hz)*cellScale]`.
+The owner converts minima to floor and maxima to ceil for normal finite city coordinates under round-to-nearest,
+then intersects with the city's cell rectangle. No 0.07 margin is applied here. Exact conversion and cell-index
+ordering are tracked under OV8. Evidence: `0x0073A5F5–0x0073A675`, `0x0073ABFB–0x0073AC6F`,
+conversion helper `0x00735380–0x00735475`.
+
+Slot 12 ignores -1 and nonnegative direct overlay IDs. It repositions only when either absolute coordinate
+difference is **at least** binary32 `0x38D1B717` (0.00009999999747378752), or is unordered. Otherwise neither
+coordinate is written. Slot 13 copies all nine values and re-places even for identical values. Slot 14 ignores
+-1/direct IDs and leaves output untouched; for an indirect ID it copies all nine words. There are no null-pointer,
+range, free-record or generation checks on these paths; callers must supply live records and valid pointers.
+Evidence: `0x007352D0–0x0073531A`, `0x0073AD80–0x0073AE52`, `0x00736490–0x007364EE`.
+
+#### 3.2.1 Ordered rotated coefficients
+
+The following completes the coefficient order for finite nonzero size/aspect; it does not substitute a generic
+matrix multiplication (which can round differently). All operations between explicit F stores use E, with
+left-to-right sums as parenthesized. Start with rw=E(1/w), R=E(E(1/a)*rw), q=F(0*rw),
+du=F((hx−cx)*rw), dv=F((hz−cz)*R), rv=F(R). The unrotated coefficients before rotation are
+A=F(repeatU*rw), B=F(repeatU*q), C=F(repeatU*q), P=F(repeatV*F(0*R)),
+Q=F(repeatV*E(0*R)), S=F(repeatV*rv). Keep T=E(F(repeatU*du)+offset) in x87 precision;
+V=F(F(repeatV*dv)+offset) is stored. Unrotated rows are `[A,P,0,0]`, `[B,Q,0,0]`, `[C,S,1,0]`,
+`[F(T),V,0,1]` (the middle rows' last two zeros are literal integer zero stores).
+
+When turns is ordered equal to zero, use those rows directly. Otherwise take c/s as in §3.2, n=F(−sin(angle)),
+DX=F(cx*(1−c)+cz*s), DZ=E(cz*(1−c)−cx*s), b0=F(B*0), q0=F(Q*0), t0=F(T*0),
+v0=F(V*0), c0=F(c*0), n0=E(n*0). The double literal 1 is used in `1−c`. Then store:
+
+| Row | Four binary32 entries, each rounded at its enclosing F |
+|---|---|
+| 0 | F(((A*c+C*s)+t0)+b0), F(((P*c+S*s)+v0)+q0), F(c0+s), F(s*0+c0) |
+| 1 | F(((A+C)*0+t0)+B), F(((P+S)*0+v0)+Q), +0, +0 |
+| 2 | F(((C*c+A*n)+t0)+b0), F(((S*c+P*n)+v0)+q0), F(c+n0), F(c0+n0) |
+| 3 | F(((C*DZ+A*DX)+b0)+T), F(((S*DZ+P*DX)+q0)+V), F(DX*0+DZ), F((DZ*0+DX*0)+1) |
+
+The two translated texture entries are stored before the other rotated coefficients; DX is rounded but DZ
+remains in x87 precision until those uses. Source: `0x0073A1E2–0x0073A34A`, rotation and stores
+`0x0073A364–0x0073A5F1`. No additional angle reduction, trigonometric snapping, FMA, or matrix normalization
+is performed by this owner. The trigonometric operation itself follows native x87 behavior and caller FP state;
+exceptional-angle/size outcomes are not replaced with a fabricated finite rectangle.
+
+### 3.3 Alpha acceptance (OV6)
+
+Slot 17's argument and stored alpha are binary32; the threshold at `0x00AB39A0` is **binary64**
+`0x3FA999999999999A` (the double representation of 0.05). A static manager first rejects an ordered equal
+old/new value. Otherwise it accepts new alpha exactly 0 or 1, or an ordered absolute x87 subtraction result
+**strictly greater** than that double threshold. A rejected sub-step change does not update stored alpha;
+the next call compares against the last accepted value. An accepted write stores the supplied bits and calls
+`MarkChanged`. There is no clamp: negative values, values above one and infinities can be accepted. New NaN is
+rejected in the static path (including when old is NaN); with old NaN only an endpoint new value is accepted.
+A dynamic manager stores every input, including equal values and NaN, without calling `MarkChanged`.
+Groups recurse through all eight parts in order; -1 is ignored. Evidence: `0x00737F00–0x00738000`, in particular
+the double comparison at `0x00737FCB` and rejection at `0x00737FD6`.
+
+First exact paper vectors (not an executed native/game verdict):
+
+| Input/state | Required result |
+|---|---|
+| Placement `[32,48,16,0,1,1,1,0,99]`, retained aspect 2, cellScale 1/16, city containing it | a=2, hx=8, hz=16; matrix rows `[1/16,0,0,0]`, `[0,0,0,0]`, `[0,1/32,1,0]`, `[-1.5,-1,0,1]`; cell rectangle `(1,2,3,4)`; repeat clear; retained 99 has no placement effect |
+| Same with repeatU=2 and offset=1/4 | A=1/8, Tu=−2.75, Tv=−0.75; footprint unchanged; repeat set |
+| Slot 13 receives the same nine words again | copy and placement still occur |
+| Slot 12: old `(0,0)`, new `(2^−14,0)` | no write, because 2^−14 is below the coordinate threshold |
+| Static alpha old 0; write binary32 `0x3D4CCCCC` | rejected, stored 0 |
+| Static alpha old 0; write binary32 `0x3D4CCCCD` | accepted: 0.05000000074505806 is greater than double 0.05 |
+| Static alpha old 0; write 0.03125 then 0.0625 | first rejected; second accepted relative to stored 0 |
+| Static alpha old 1; write 1 | no write/redraw |
+| Dynamic alpha old 1; write a quiet NaN | stores that NaN, no redraw call |
+
+### 3.4 Slot 21: exact replacement matrix (OV7, proven subset)
+
+For a single overlay, slot 21 replaces all sixteen matrix entries; it does not compose a scale with placement.
+Let r = E(1/size), t = F(E(r × offset) + 1). The consecutive binary32 rows are:
+
+| Row | Four entries |
+|---|---|
+| 0 | F(r), +0, +0, +0 |
+| 1 | +0, F(−r), +0, +0 |
+| 2 | F(r), +0, 1, +0 |
+| 3 | +0, t, +0, 1 |
+
+Thus the first coordinate is `(x+z)/size` and the second is `−y/size+1+offset/size` in real-number terms,
+not a simple world X/Z rectangle mapping. The reciprocal remains in x87 precision until each store; t uses
+that reciprocal, not a rounded reciprocal. The owner ORs flag bit 5 and marks the rectangle on static managers,
+even for equal input. There is no size-zero guard or clamp: with masked FP exceptions, size +0 gives +infinity,
+−infinity, +infinity at indices 0,5,8, and a NaN at index 13 when offset is zero. Negative zero reverses the
+infinities. Unmasked FP exceptions follow caller FP state. The method ignores −1, resolves an indirect handle,
+but **does not recurse over groups**; a handle resolving to a group is an unsupported unsafe native call.
+Evidence: `0x00738160–0x00738220`, especially stores `0x007381D7–0x00738207`.
+
+Paper vector: size=16, offset=8 gives rows `[1/16,0,0,0]`, `[0,−1/16,0,0]`, `[1/16,0,1,0]`,
+`[0,1.5,0,1]`; input `[16,8,16,1]` produces `[2,1,16,1]`.
+
+### 3.5 Keyed shadows: slots 9/10 (OV1, proven subset)
+
+Both calls take five stack words. Slot 9's first argument is a **resource-key address**, not a texture binding.
+It returns −1 without resolving that key when shadow quality is zero; otherwise factory slot 6 receives the
+key and an initially null binding output. A null result returns −1. On success, factory slot 8 supplies the
+dimensions and the owner retains binary32 `height/width` (unsigned dimension conversion), constructs
+`[cx,cz,width,turns,1,1,1,0,0]`, allocates one overlay with shadow bit 3, and places it with redisplay disabled.
+The last argument is tested as a **byte**, so `0x100` is false and `0x101` is true. Evidence:
+`0x0073B3B9–0x0073B49A`, `0x0073B4CD–0x0073B520`.
+
+Let M be the primary row-vector matrix produced by placement. For true flipV, replace column 1, in each
+row r, with `F(M[r,3] + F(−M[r,1]))`; other columns stay unchanged. Thus the homogeneous texture output
+becomes `(u,w−v,z,w)`. This changes the matrix, not the nine public placement words or the cell rectangle.
+Evidence: `0x0073B526–0x0073B5A8`.
+
+The owner next derives a separate sixteen-float secondary matrix N from this possibly flipped M. For ordinary
+finite inputs its real-number action is `(u,v,z,w) → (u/2+w/4,v/2+w/4,z,w)`. It must not replace M with N.
+The native constants are binary32 +0 at `0x00A81054`, 1/4 at `0x00A8821C` and 1/2 at `0x00A84D2C`.
+For each source row `(a,b,c,d)`, the native store boundaries are:
+
+| Intermediate/output | Evaluation (E and F as §3.2; additions evaluated left to right) |
+|---|---|
+| C, Q, B, A | `C=F(E(c×0))`; `Q=F(E(d×1/4)+C)`; `B=F(E(b×0))`; `A=F(E(a×0))` |
+| N column 0 | `F(E(a×1/2)+B+Q)` |
+| N column 1 | `F(E(b×1/2)+A+Q)` |
+| N column 2, rows 1–3 | `F(E(d×0)+c+A+B)` |
+| N column 2, row 0 | `F(E(d×0)+A+c+B)` |
+| N column 3 | `F(E(A+B)+C+d)` |
+
+Products/additions without an F remain x87 intermediates; zero products really occur, including for
+nonfinite inputs. Rows are computed 3,2,1,0 and then stored to the secondary matrix. Evidence:
+`0x0073B5AA–0x0073B83A`. The owner then performs its static index/redisplay operation (`0x00738A10`),
+allocates an indirect handle retaining the placement/aspect, and releases temporary references. The matrices
+are owner-derived; callers do not supply a projected rectangle or a completed transform.
+
+Slot 10 obtains one word from factory slot 11 and constructs a temporary three-word key, in address order:
+`[0x7AB50E44, groupWord, factorySlot11Result]`. It forwards its other four arguments unchanged to slot 9.
+This is a key construction, not passing the slot-11 result as a binding. Evidence: `0x00735497–0x007354D3`.
+
+Paper discriminator: with square texture, centre `(0,0)`, width 16, turns 0, flipV false, the centre maps to
+primary `(1/2,1/2,0,1)` and secondary `(1/2,1/2,0,1)`; at world `(0,0,8)` primary v=1 and secondary v=3/4.
+With flipV true the latter primary v=0 and secondary v=1/4. The placement getter is identical in both cases.
+Model-shadow slot 11 remains a separate unresolved contract (OV1); these rules must not be substituted for it.
 
 ## 4. Drawing (`Draw`, `0x00738A50`) *[compat]*
 
 A dynamic manager is not drawn under `kRenderSnapshot` (boolean 28). Otherwise:
 
-1. The model-view is reset to the view and inverted, so that a camera-space position (texture coordinate set 16)
-   can be taken back to the world; each overlay's texture transform is that inverse followed by its own matrix.
+1. The model-reset helper is called and the resulting context matrix is inverted, so that a camera-space
+   position can be taken back to world; composition order and the reset guard are specified in §4.7.
 2. The overlays: for a static manager with its cell index, those that cover visible cells; otherwise every overlay
    in use.
 3. With `kRenderDecals` (boolean 10): the decals (§4.2). With `kRenderShadows` (boolean 9): the shadows, the rough
@@ -145,6 +503,132 @@ above a minimum, a texture combiner; the full form adds a second stage with the 
 point-sampled) and a second texture transform, and on land reads a terrain height there (terrain slot 15)
 *[inferred]*. Each shadow's cells are then drawn as for decals.
 
+### 4.4 Counters and skipped draws (OV8, proven subset)
+
+The two manager words are independent **last invoked nonempty pass** counters, not unconditional frame totals.
+Slot 27 formats the decal word `+0xD8`, then shadow word `+0xDC`, as `%d decals, %d shadows`.
+No reset occurs at entry to Draw. The following paths preserve both previous words:
+
+- A dynamic manager under snapshot returns before camera or selection setup (`0x00738A61–0x00738A76`).
+- An empty selected-ID vector skips both passes (`0x007392F1–0x00739301`).
+- Disabling a pass preserves that pass's word (`0x00739309–0x00739340`).
+
+Each pass independently returns on an empty input vector before its reset. On a nonempty vector, decals reset
+`+0xD8` at `0x007367E4`; full shadows reset `+0xDC` at `0x00736D4A`; rough shadows reset it at
+`0x00737983`. Each visits the supplied IDs in vector order. An eligible decal is an in-use record (first word
+−1) with all mask bits `0x11`, or `0x91` in a static snapshot. An eligible shadow in **both** shadow passes is
+an in-use record with all bits `0x09`; no snapshot bit-7 test is added there. Bit 4 is decal eligibility;
+bit 3 is shadow eligibility. Neither test excludes the other bit, so a record carrying both can count in both.
+
+The counter increments exactly once **after** calling the cell-draw helper for each eligible record, with no
+triangle count, draw-success, alpha, or nonempty-rectangle test at the increment. The full shadow pass selects
+DrawRect or DrawShadowRect before their common increment. Evidence: decal `0x00736813–0x00736831`,
+`0x00736B88–0x00736B9C`; full shadow `0x00736D7F–0x00736D95`, `0x00737814–0x0073782D`;
+rough shadow `0x007379C1–0x007379D3`, `0x00737CDB–0x00737CEB`. This is a count of eligible submitted
+records; eight eligible group parts count eight, even when a helper emits no geometry.
+
+Paper discriminators starting from counters `(3,2)`: empty selection leaves `(3,2)`; a nonempty selection
+containing only one hidden in-use record with both passes enabled gives `(0,0)`; the same selection with
+decals disabled gives `(3,0)`; a nonempty selection of one visible decal with alpha zero counts that decal.
+These are expected native outcomes, not executed game verdicts. Remaining DrawRect/state/visibility and
+shadow arithmetic details are tracked in OV8.
+
+### 4.5 Visible-ID collection (OV8, proven subset)
+
+Draw uses CollectVisibleOverlays only for a static manager with its index enabled; otherwise it clears the
+selected-ID vector and appends all in-use overlay indices in ascending arena order, including hidden records
+that a later pass may reject (`0x00739245–0x007392DD`). Collection is not a sorted set operation.
+
+CollectVisibleOverlays (`0x00738390`) clears the output vector and obtains four outputs from terrain-view
+GetDrawRows (`0x00752820`): row begin, row end, an array of per-row starts, and an array of per-row ends.
+Let k be the cell-index shift, t=2^k−1. It visits signed coarse rows from `rowBegin >> k` up to, **excluding**,
+`(rowEnd+t−1) >> k`. At each loop row y it directly reads the two arrays at index y and visits coarse columns
+from `starts[y] >> k` up to, excluding, `(ends[y]+t−1) >> k`. The shifts are arithmetic. In the initialized
+k=0 case this means rows `[rowBegin,rowEnd−1)` and columns `[starts[y],ends[y]−1)`: these are the cell ranges
+derived from terrain vertex-row endpoints, not inclusive cell ends. No additional city clipping is performed
+inside collection. Evidence: `0x007383C1–0x00738447`, loop ends `0x00738564–0x00738580`.
+
+Rows increase, then columns increase; each cell list is followed from its head through next links. A record is
+appended at its first encounter only, by comparing its 16-bit stamp at `+0x0A` with the manager stamp at `+0xE0`.
+The manager stamp increments modulo 65536 **before** the row-range empty test. No zero avoidance or all-record
+stamp reset occurs on wrap. A matching stale stamp can therefore suppress a record, including a never-collected
+record with constructor stamp zero when the collection stamp wraps to zero. Collection does not check shown,
+snapshot, decal/shadow or in-use bits before appending the list's ID; those filters belong to the passes.
+Evidence: `0x007383FC–0x00738413`, `0x00738480–0x007384B7`, `0x0073854E–0x00738580`.
+
+Paper discriminators: at k=0, vertex rows `[2,5)` visit cell rows 2 and 3, and per-row vertices `[3,7)` visit
+columns 3,4,5. A first cell whose head-to-tail IDs are `[9,2]`, followed by a cell `[2,7]`, yields `[9,2,7]`,
+not `[2,7,9]`. With collection stamp 65535, increment wraps to zero and a referenced record stamped zero is
+omitted. There is no caller-supplied sorted visible-ID result in the public owner contract.
+
+### 4.6 Rectangle submission and state changes (OV8, proven subset)
+
+DrawRect receives a draw context and the stored four-int **cell** rectangle. It constructs a by-value vertex
+rectangle `(x0,z0,x1+1,z1+1)`, using 32-bit integer increments without an empty-area guard. It delegates to the
+owning terrain view, never to externally supplied vertex/index arrays. Dispatch is:
+
+| Manager/context | Terrain-view consumer |
+|---|---|
+| water, static | `0x00755560` DrawOverlayWaterRect |
+| water, dynamic | `0x00755700` DrawOverlayWaterRectDynamic |
+| land, static, no vertex-buffer extension | `0x007541C0` DrawOverlayLandRect |
+| land, dynamic, no extension | `0x007543C0` DrawOverlayLandRectDynamic |
+| land, static, extension present | `0x007545C0` DrawOverlayLandRectWithVertBufExtension |
+| land, dynamic, extension present | `0x00754910` DrawOverlayLandRectDynamicWithVertBufExtension |
+
+Water ignores the extension; land extension consumers additionally receive the acquired extension pointer.
+Evidence: `0x00735720–0x00735819`, including separately exported tail blocks `0x0073576A`/`0x007357FE`.
+DrawShadowRect (`0x007356D0`) likewise expands maxima by one, but supplies the expanded rectangle by address
+to land shadow consumers `0x00754C60` (static) or `0x00754F10` (dynamic). Exact terrain-owned vertex/index-array
+formats inside those consumers remain unproved here; these dispatch rules do not claim their geometry bodies.
+
+Both shadow passes ask view-manager slot 9's result for slot 14 outputs `(q,s,rgb)`, with q/s binary32 scalars.
+They set the texture environment colour to rgb. The comparison minimum is **binary64 zero** at `0x00A80990`:
+when ordered s>0 they enable alpha testing and set comparison function 6 (greater-or-equal) with reference
+`F(E(q×s))`; when s≤0 or unordered they disable alpha testing. They do **not** skip shadow submission on that
+branch and do not clamp the reference. Evidence: full `0x00736C49–0x00736CAD`, rough
+`0x007378E2–0x0073793A`. The old wording “above a minimum” must not be implemented with a guessed positive
+epsilon. For q=1/2,s=1/4 the reference is 1/8; s=0 disables testing without suppressing the counter increment.
+
+After a nonempty decal pass, the owner calls ResetTransparency and ResetShade and requests vertex colours
+enabled with both arguments 1 (`0x00736BC1–0x00736BDA`); this is a reset, not saving/restoring arbitrary
+incoming shade/transparency. Full shadows disable texture state for stage 1 on their common exit
+(`0x00737855–0x0073785B`). Rough shadows save render-device flag 7, enable it, and disable it on exit only
+when it was initially off (`0x007378A2–0x007378BA`, `0x00737D10–0x00737D22`). Neither is a complete GPU
+state snapshot/restore. Draw's common exit clears texture transform **stage 0**, restores the depth-offset
+word saved from context `+0xBC`, and releases/zeros the acquired vertex-buffer extension. These actions also
+occur for an empty selection after normal setup, but not for the early dynamic-snapshot return.
+Evidence: `0x007391F9–0x00739203`, `0x007392E2–0x007392EF`, `0x00739378–0x0073939B`.
+
+### 4.7 Camera input and composition boundary (OV7, proven subset)
+
+Draw first calls the no-argument model-reset helper `0x007D2D20`, then copies **sixteen binary32 words** from
+draw-context `+0x1AC` via `0x007D2730`. The reset helper is permitted to return immediately when context byte
+`+0x138` is nonzero; otherwise it refreshes from the context camera's ViewXform (`0x007FFED0`). Consequently
+the authoritative input to this owner is the post-reset context matrix, not a fabricated camera position/yaw,
+projection matrix, or caller-provided completed world-to-texture matrix. Evidence: `0x00738AC9–0x00738AD5`,
+getter `0x007D2736–0x007D2741`, reset guard/source `0x007D2D23–0x007D2D34`.
+
+The owner inverts that matrix inline and stores the result as sixteen binary32 words. It computes a reciprocal
+with native x87 arithmetic at `0x00739020–0x00739028` and multiplies/stores inverse entries before copying
+them back at `0x0073914D–0x007391FF`. It does not substitute a transpose or rigid-camera-only inverse. The
+complete cofactor/spill evaluation and singular-input behavior remain OV7; using a library inverse is not yet
+an established bit-exact contract.
+
+Let C denote the resulting camera-to-world matrix and M an overlay's primary matrix. Decals submit the
+row-vector composition **C × M** to SetTexTransform4, stage 0. In ordinary real arithmetic this takes a
+camera-space input back to world before applying placement. It is not M × C. All sixteen outputs are stored
+as binary32; intermediate products and additions use x87, without a store after each operation. For example,
+output row 3 column 0 is `F(E(C[3,2]×M[2,0])+E(C[3,0]×M[0,0])+E(C[3,1]×M[1,0])+E(C[3,3]×M[3,0]))`,
+added left to right (`0x007368E9–0x00736905`), whereas row 3 column 1 sums terms in order 3,1,2,0
+(`0x00736907–0x00736923`). A uniform dot-product accumulation order is therefore not proven bit-exact.
+Final submission: `0x00736B7C`. Complete sixteen-entry evaluation order and the shadow camera/height
+composition branches remain explicitly open in OV7/OV8.
+
+Paper order discriminator: C=translation `(16,0,0)` and M from a square, width-16 decal centred at zero
+give submitted row-3 U translation 1.5. Reversing the multiplication gives 16.5. This tests composition order
+without pretending to validate native inverse rounding on general matrices.
+
 ## 5. Messages
 
 `0xC9F775BB` is subscribed by `Init` and unsubscribed at shutdown *[inferred: a terrain or zoom change that makes the
@@ -159,12 +643,13 @@ shadows through the terrain view's `GetOverlayManager(index)` (slot 18) or the t
 
 1. A dynamic manager's overlays vanish from snapshots (§4).
 2. Alpha changes smaller than the step are not redrawn in a static manager (§3, slot 17).
-3. Every call on a group repeats on its eight parts, so a round decal costs eight overlays (§3.1).
+3. Group-aware operations repeat on eight parts; scalar getters use part 0 and slot 21 does not recurse (§§2.3,3.4).
 
 ## 8. Open questions
 
-See [questions/overlay-manager.md](questions/overlay-manager.md) OV1–OV3: the placement record's nine floats and
-the add calls' last arguments; slot 20 and the add forms of slots 8, 9 and 11; what message `0xC9F775BB` is.
+See [questions/overlay-manager.md](questions/overlay-manager.md): OV1 model-shadow add; OV2 remaining add-form
+differences; OV3 message `0xC9F775BB`; OV7 complete camera-inverse rounding; OV8 remaining rendering details.
+OV4–OV6 lifecycle/handles/alpha and OV9 outline partition are answered in the named sections above.
 
 ## 9. Conformance tests
 
@@ -173,7 +658,14 @@ the add calls' last arguments; slot 20 and the add forms of slots 8, 9 and 11; w
 3. **Shadow quality:** with `kShadowQuality` 0, slot 10 returns −1.
 4. **Texture scale:** `SetTextureScale(h, 16, 0)` sets flag bit 5 and a matrix scale of 1/16.
 5. **Snapshot:** a dynamic manager draws nothing while `kRenderSnapshot` is on.
-6. **Stats:** after drawing 3 decals and 2 shadows, slot 27 gives "3 decals, 2 shadows".
+6. **Stats:** after nonempty enabled passes submit 3 eligible decals and 2 eligible shadows, slot 27 gives
+   "3 decals, 2 shadows"; empty selection and disabled passes preserve their previous counters (§4.4).
+7. **Outline:** §3.1's width-256 vector produces eight specified rectangles and omits centre cell `(8,8)`.
+8. **Split precision:** cell-space height 20 yields split offsets 3 and 5, using the shipped binary32 constants.
+9. **Shadow mapping:** §3.5's byte flipV changes upper-edge primary V from 1 to 0 and secondary V from 3/4
+   to 1/4 without changing the placement getter; `0x100` and `0x101` discriminate the low-byte test.
+10. **Selection order/stamps:** §4.5's lists yield `[9,2,7]`; stamp wrap does not reset record stamps.
+11. **Camera order:** §4.7's translation vector yields row-3 U=1.5, not 16.5.
 
 ### PR review: slot 20 self-lighting
 
