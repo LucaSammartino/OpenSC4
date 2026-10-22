@@ -68,7 +68,11 @@ void Run4444Context(void* ctx, Buf& dst, const std::vector<uint8_t>& init, const
             continue;
         }
         const uint16_t lock0 = LockCount(src), flags0 = LockFlags(src);
-        const uint32_t refs0 = Field<uint32_t>(src.b, 4);
+        // Observe reference counts through cIGZUnknown, without assuming the
+        // buffer shares the context's private refcount offset.
+        src.b->AddRef();
+        FC4_ACQUIRED(src.b, "span4444 lifetime probe");
+        const uint32_t refs0 = FC4_RELEASE(src.b);
         for (const auto& p : placements) {
             int32_t rect[4] = {111,222,333,444};
             const uint8_t accepted = VSlot<BltSourceFn>(ctx, 13)(ctx, nullptr, src.b, p.x,p.y,p.sx,p.sy,rect);
@@ -142,7 +146,10 @@ void Run4444Context(void* ctx, Buf& dst, const std::vector<uint8_t>& init, const
         if (VSlot<BltSourceFn>(ctx,13)(ctx,nullptr,&bad,0,0,1,1,sentinel) != 1) ++failures;
         if (std::memcmp(sentinel,saved,sizeof(saved)) || Field<void*>(ctx,0x24)) ++failures;
         if (std::memcmp(savedState,static_cast<uint8_t*>(ctx)+0x28,sizeof(savedState))) ++failures;
-        const bool balanced = LockCount(src) == lock0 && LockFlags(src) == flags0 && Field<uint32_t>(src.b,4) == refs0;
+        src.b->AddRef();
+        FC4_ACQUIRED(src.b, "span4444 lifetime probe");
+        const uint32_t refs1 = FC4_RELEASE(src.b);
+        const bool balanced = LockCount(src) == lock0 && LockFlags(src) == flags0 && refs1 == refs0;
         if (!balanced) ++failures;
         const uint32_t left = FreeBuf(&src);
         if (left != 0) ++failures;
