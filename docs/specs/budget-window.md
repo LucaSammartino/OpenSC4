@@ -295,8 +295,22 @@ them in order:
    and `0x007880F7`–`0x00788123`). Other groups always add the header. A department without income items has no A
    header in any group.
 2. Each item whose `GetDisplayFlags()` (line item slot 17 `+0x44`) has bit 0 (ShowLineItem) adds one row to its list
-   if `GetID() > 100` (slot 3, unsigned compare with `0x64`) **or** its amount is non-zero: `GetIncome()` (slot 14
-   `+0x38`) for A, `GetFullExpenses()` (slot 10 `+0x28`) for B. Items with ID ≤ 100 and a zero amount are hidden.
+   if `GetID() <= 100` (line item slot 3, unsigned compare with `0x64`) **or** its amount is non-zero:
+   `GetIncome()` (slot 14 `+0x38`, 64-bit) for A, `GetFullExpenses()` (slot 10 `+0x28`, 64-bit) for B. Items with
+   ID > 100 and a zero amount are hidden; an item with ID ≤ 100 is shown whatever its amount. (BW16, settled from
+   bytes: at all four sites, count A `0x007880D3`, count B `0x00788147`, build A `0x007886ED`, build B `0x00788F33`,
+   the ID is compared with `0x64` and `JBE` jumps to the "shown" path; only the fall-through (ID > 100) reaches the
+   amount test, whose zero result jumps to "hidden". In the count loops the flag test comes first, in the build loops
+   the ID/amount test comes first; both conditions must hold, so the order changes nothing.)
+
+   Slot 3 is the line item's ID. The element pointers come from the department's line-item map, whose values are
+   `cSC4LineItem` objects at their primary interface (vtable `0x00AB0F58`); slot 3 there is `0x006AAEB0`, which
+   returns the dword at object `+0x54`. `Read` (`0x006A9B60`, called through the serializable interface at object
+   `+4`, so its `+0x50` is object `+0x54`) loads it from the save; otherwise it is set by the department's line-item
+   factory (department slot 17, `FUN_006AB040`), which stores its first argument at `+0x54` (`0x006AB076`) and uses
+   the same value as the key of the department's map at `+0x4C` (`0x006AB0A8`). For comparison, slot 4 (`+0x10`,
+   `GetType`, the `== 1` income test at `0x0078806C`) returns `+0x64` and slot 17 returns the flags at `+0x58`
+   (default 5 from the constructor `FUN_006AAE20`).
 
 The same header predicate is applied again when the rows are built (`0x007884B8`, `0x00788A6E`) and on every refresh
 in `UpdateValues` (`0x00789C04` for A, `0x0078A2E8` for B), so a header that was hidden stays hidden.
@@ -308,9 +322,10 @@ sizes the dialog, and at most 9 rows of each list are created; the rest are reac
 
 Worked example (group `0x6A357B96`): department X has an income item ID 5 with income 0 and an income item ID 200
 with income 0, and `GetTotalIncome() = 0`; department Y has one expense item ID 7, full expenses 300, ideal funding
-300. A: X adds no header (special group, total income 0); item 5 is hidden (ID ≤ 100, amount 0); item 200 is shown
-(ID > 100). countA = 1. B: Y adds a header and item 7: countB = 2. In group `0x4A357EAF` the same data gives
-countA = 2 (header always added).
+300. A: X adds no header (special group, total income 0); item 5 is shown (ID ≤ 100, amount ignored); item 200 is
+hidden (ID > 100, amount 0). countA = 1. B: Y adds a header and item 7: countB = 2. In group `0x4A357EAF` the same
+data gives countA = 2 (header always added). If item 200 had income 50 instead, it would be shown too (countA = 2,
+or 3 in group `0x4A357EAF`).
 
 ### 4.4 Slider moved (`0x887113A4`)
 
@@ -569,9 +584,8 @@ many money messages arrive. `ShowWindow` (`0x00768670`) refreshes immediately an
 
 BW1–BW10 are answered (re-budgetwindow4 and re-budgetwindow-answers4, 2026-10-21; archive
 `questions/answered/budget-window.md`). Still open: **BW11**, whether Alt+Enter / Alt+F4 actually reach the dialog
-at runtime (§4.0), and **BW16**, the direction of the row-visibility ID test in §4.1 (the bytes read by BW15 show
-ID ≤ 100 always shown, ID > 100 shown only with a non-zero amount; §4.1 states the reverse). `+0x2C` ownership
-(BW15) is settled from bytes. Not covered: pixel layout of the four populate routines, the fill point of
+at runtime (§4.0). **BW16** (row-visibility ID test, §4.1) is answered from bytes: ID ≤ 100 is always shown, ID > 100
+only with a non-zero amount, the reverse of the earlier text. `+0x2C` ownership (BW15) is settled from bytes. Not covered: pixel layout of the four populate routines, the fill point of
 the individual restore records in `initIndividualBudget` (`0x00786690`), and whether the generator's window
 procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
 
@@ -634,3 +648,10 @@ procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
 25. (BW15, BW13) Content-window creation fails in the case of test 22: the implementation does not fault, sliders
     are still created as children of `win`, and the counts and `+0x2C` contents equal test 22. (The native program
     faults at `0x0078837B` with `+0x2C` empty and the `+0x38` pairs taken; this test does not reproduce that.)
+26. (BW16) Row visibility at the ID boundary. Group `0x4A357EAF`, one department with six income items, in order:
+    ID 99, 100, 101 each with income 0, then ID 99, 100, 101 each with income 25; every item has display flags 5
+    (bit 0 set). countA = 1 header + 5 rows = 6: hidden is only ID 101 with income 0. Repeat with the same items as
+    expense items (B, `GetFullExpenses()` 0 / 25): countB = 6, the same row hidden. The built rows (first 9) show,
+    in order, 99, 100, 99, 100, 101 after the header.
+27. (BW16) Same items as test 26 but every display flag is 4 (bit 0 clear): countA = 1 (header only) and no item row
+    is built, for every ID and amount; with flags 1 the result equals test 26.
