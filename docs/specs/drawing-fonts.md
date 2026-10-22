@@ -288,16 +288,52 @@ first absent probe returns false). The table, read from the switch at `0x00898A7
 - **Advance** (FN7, `0x00899176`..`0x00899225`). The unscaled 16.16 advance `adv` is face+0x80 when the face has
   the fixed-size flag (face+0x5C ≠ 0, the same flag that makes faceKind 2), else face+0xD0 (the loaded glyph's
   16.16 advance). With s = advanceScale (float at +0x70):
-  - s == 1.0: advance = adv / 65536 (signed integer division, truncation toward 0);
-  - 0.98 < s < 1.0 and ch == U+0020: v = ftol(adv · s · 2^-16) (x87: integer adv loaded exactly, times the float s,
-    times the float constant 1/65536 at `0x00AC276C`, truncated toward 0); if v + 1 > adv / 65536 then v − 1,
-    else v. (A space that would round to the full unscaled width is shortened by one pixel.)
-  - any other s (including s ≤ 0.98, s > 1.0, and non-space characters in the 0.98..1.0 band): advance =
-    ftol(adv · s · 2^-16) as above.
+  - Let t be the float32 constant at `0x00AC56E0`, bits `0x3F7AE148`, exactly
+    0.980000019073486328125 (the stored approximation of 0.98).
+  - s == 1.0: advance = adv / 65536 (signed integer division, truncation toward 0).
+  - t < s < 1.0 and ch == U+0020: v = ftol(adv · s · 2^-16), evaluated as described below; narrow v to s16
+    before the comparison. If sign-extended v + 1 > adv / 65536 then store v − 1, else v.
+    (A space that would reach the full unscaled width is shortened by one pixel.)
+  - t < s < 1.0 and ch != U+0020: **ignore s**, and use adv / 65536, as in the s == 1.0 case
+    (`0x008991BF`..`0x008991F2`). This corrects the earlier description of the non-space branch.
+  - Other s: advance = ftol(adv · s · 2^-16), evaluated as below.
   - The result is stored as s16. U+200B and U+FEFF then get advance 0 (not in the space branch, which cannot
     apply to them).
   Example: adv = 0x00058000 (5.5 px), s = 0.99, ch = space: v = trunc(5.445) = 5; 5 + 1 > 5 → advance 4.
   Same with ch = 'a': advance 5. s = 1.0: advance 5.
+- **Advance evaluation and precision** (FN16). The two scaled paths load signed i32 adv exactly into the x87,
+  multiply by the float32 s, then multiply by the float32 constant 2^-16 (bits `0x37800000` at `0x00AC276C`),
+  then call `_ftol2` to truncate toward zero. These are two successive floating operations, with no intermediate
+  memory store (`0x008991C5`..`0x008991D1`, `0x008991FE`..`0x0089920A`). Multiplication uses the **current
+  thread's x87 precision and rounding controls**; `_ftol2`'s integer truncation does not undo the product's
+  prior rounding (`0x009EEF04`..`0x009EEF78`). The font does not select its own precision.
+  In the ordinary application startup, precision is explicitly set to **24 significand bits**, overriding
+  the CRT's 53-bit default: `cSC4App::PreFrameWorkInit` calls `0x005F85E0` at `0x0045236C`; that wrapper passes
+  0 to `0x008929E0`. The latter clears CW bits 8..9 and reloads CW (`0x008929E8`..`0x00892A05`), selecting
+  24-bit precision while preserving the other control bits. Its arguments 1 and 2 select 53 and 64 bits.
+  The earlier CRT default setter is `0x009F6C30` (control value `0x10000`, mask `0x30000`). Thus a fixed f64
+  product is **not** the ordinary application's advance rule. With finite, normal results and round-to-nearest,
+  round adv·s to 24 significant bits first, then scale by the exact power of two and truncate. x87 keeps its
+  extended exponent range; this is not a general instruction to use float32 storage for overflow/underflow.
+  Precision is not a process-wide invariant: for example `cGZLua5Thread::Pause` saves the incoming precision,
+  selects 53 bits if it was 24, and restores the saved value after its Lua call (`0x008B6C35`..`0x008B6C65`).
+  A font call entered under another precision inherits that precision; this evidence does not assert a font
+  call occurs inside that particular Lua call. A host using a different precision must emulate the application's
+  24-bit default explicitly to reproduce its normal results.
+
+  Discriminating vectors (round-to-nearest, finite inputs; s given as float32 bits; final stored s16):
+
+  | adv | s bits | Character | PC 24 | PC 53 or 64 | Reason |
+  |---|---|---|---|---|---|
+  | 65535 | `3F800080` | U+0041 | 1 | 0 | Exact scaled product is 1 − 2^-32; PC 24 rounds it to 1 before truncation |
+  | −65535 | `3F800080` | U+0041 | −1 | 0 | Negative counterpart: truncation cannot recover a fraction rounded away |
+  | 524288 (8 px) | `3F7D70A4` | U+0041 | 8 | 8 | Narrow-band non-space branch bypasses multiplication; a scaled implementation gives 7 |
+  | 524288 (8 px) | `3F7D70A4` | U+0020 | 7 | 7 | Space uses the product, truncates to 7, and 7 + 1 is not greater than 8 |
+  | 360448 (5.5 px) | `3F7D70A4` | U+0020 | 4 | 4 | Product truncates to 5; the space adjustment decrements it |
+
+  The first two products were also measured on x87 hardware with CW `0x007F`, `0x027F`, `0x037F`, storing
+  the result in extended format before integer conversion: respectively ±1 versus ±(1 − 2^-32).
+  These are arithmetic measurements of the documented instruction sequence, not game-run observations.
 - **Missing or unloadable glyph** (FN7, `0x008992BD`). Reached when the font has no holder or no open face, when
   the glyph load (or the glyph-done call `0x0089E29E`) reports an error, or when the index is 0 and neither the
   name map nor the default glyph supplies one. With h = charHeight (unsigned) and w = h >> 1: the record's source
@@ -319,6 +355,28 @@ first absent probe returns false). The table, read from the switch at `0x00898A7
   the holder's map and returned. (3) Otherwise the name `uniXXXX` (four upper-case hex digits of ch & 0xFFFF,
   `sprintf "uni%04X"`) is tried the same way and cached on success. (4) Else 0, and nothing is cached (the next
   request repeats the search).
+- **Complete name map** (FN15): [font-name-map-fn15.tsv](data/font-name-map-fn15.tsv) is the normative,
+  complete character → name table, after keeping the first occurrence of each character. Its 477 data rows
+  are sorted by the hexadecimal, four-digit unsigned UTF-16 code; names are case-sensitive ASCII. A missing
+  code has no table name; use the `uniXXXX` fallback above, rather than another version of the Adobe glyph list.
+  Reproducible provenance: in the Windows executable with SHA-256
+  `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`, image base `0x00400000`,
+  read 479 consecutive 8-byte records at VA `0x00B150F0` (file offset `0x007150F0`, exclusive end
+  `0x00715FE8`). Each record has a little-endian u16 character at +0, two padding bytes, and a little-endian
+  32-bit VA at +4 pointing to a NUL-terminated ASCII name. Translate VAs through the PE section table.
+  Visit records in ascending address order and keep the first name for each code, then sort by code for the
+  TSV. The reader at `0x008988FA`/`0x00898905` uses precisely those fields; its stride and bound at
+  `0x00898920`/`0x00898923` are 8 and `0xEF8` (479 records). The unique insertion's equal-key path at
+  `0x00897ECD`..`0x00897EF7` returns the existing entry without overwriting its name.
+  The only discarded records, using zero-based ordinals, are 421 (U+00B7, `middot`, first is ordinal 108,
+  `periodcentered`) and 424 (U+03A5, `Upsilon1`, first is ordinal 282, `Upsilon`). The TSV has header
+  `code<TAB>name`, LF line endings including the final newline, no BOM, and SHA-256
+  `421d2a61eab4f96e50a94aee1980bdcbfc718f7b2e147b34fbc262172345ecae`.
+  Discriminating vectors: U+00B7 must request `periodcentered`, never `middot`; U+03A5 must request `Upsilon`,
+  never `Upsilon1`; U+2126 requests `Omega`; U+FB01/U+FB02 request `fi`/`fl`. With no holder-cache hit and a
+  face accepting only the discarded alias, the alias is **not** tried: try the retained name, then `uni00B7`
+  or `uni03A5`, then return 0 if neither resolves to a non-zero character index. U+FFFF has no table entry
+  and goes straight to `uniFFFF`.
 - **CopyGlyphToSourceData** (slot 62, `0x00897748`) appends the raster at the cache's pen x. With underline or
   strike style it widens the cell to max(raster width, advance) and folds a positive xOffset into the cell. It grows
   the source bitmap (slot 63) to width `cellWidth·32 + x` or to the needed height. 2-level rasters are unpacked MSB
@@ -491,7 +549,33 @@ CalculateWordsToFitInWidth(mode 2) against the rect width; x = left (align 0), l
 halves), right − lineWidth (2); trailing CR/LF are not drawn; y advances by line height while y < rect.bottom.
 
 `SetRenderer(r)`: if different, AddRef and attach r (r +0x0C with the font), detach (r +0x10) and Release the old
-one. `Lock/UnlockSurfaceForFontUse` count nested locks; only the 0→1 and 1→0 edges call the renderer (+0x14/+0x18).
+one.
+
+**Explicit surface lock slots** (FN17; slot 55 `0x00896B8E`, slot 56 `0x00896BC2`): the counter at +0x80 is
+a wrapping 32-bit integer. Lock calls renderer +0x14 only when the **old** count is 0, then increments the
+count unconditionally. Unlock calls renderer +0x18 only when the **old** count is 1, then decrements the count
+unconditionally. Both callbacks receive the font, the caller's target, and the mode derived from aaMode
+(1 → 1, 2 → 2, 3 → 3, other → 1; `0x00896B2C`). Any callback return value is ignored. Both slots return
+boolean **true** if control returns normally (only AL is defined as 1; the upper return-register bits are not
+a 32-bit success code). There is no counter rollback, renderer-null guard, or underflow guard. A null renderer
+on a callback edge is dereferenced **before** changing the count and faults; it does not produce a false
+return. A nested lock/unlock which does not need a callback succeeds even with a null renderer. These are
+the explicit slots' rules; the automatic lock in DrawTextLine above has its own failure check.
+
+| Old count | Operation and renderer result | Renderer calls | New count | Slot result |
+|---|---|---|---|---|
+| 0 | Lock, renderer returns false | +0x14 once | 1 | true |
+| 1 | Lock, null renderer | none | 2 | true |
+| 2 | Unlock, null renderer | none | 1 | true |
+| 1 | Unlock, renderer returns false | +0x18 once | 0 | true |
+| 0 | Unlock, null renderer | none | `0xFFFFFFFF` | true |
+| `0xFFFFFFFF` | Lock, null renderer | none | 0 | true |
+| 0 | Lock, null renderer | null dereference | no completed increment | no normal return |
+| 1 | Unlock, null renderer | null dereference | no completed decrement | no normal return |
+
+These vectors distinguish counter bookkeeping and return channels independently of actual surface access.
+Evidence: callback dispatches `0x00896BB3`/`0x00896BE7`, unconditional counter changes
+`0x00896BB6`/`0x00896BEA`, and boolean returns `0x00896BBC`/`0x00896BF0`.
 
 **Palette** (`SetCurrentPalette(fg, bg)`, `0x0089838C`): reuse the current palette when its (fg, bg) matches; else
 search the MRU list and move a hit to the front ("matches" = entry 127 == fg and entry 0 == bg, full 32 bits). A
@@ -768,5 +852,6 @@ s = {"Tahoma", "Verdana"}; GetSubstitutions("arial", s, 2) → 0 (keys are exact
 
 ## 13. Open questions
 
-FN1-FN14 are answered (FN7-FN14 by re-font-core-answers4) (archive: `docs/specs/questions/answered/drawing-fonts.md`); open entries, if any, are in
+FN1-FN17 are answered (FN7-FN14 by re-font-core-answers4; FN15-FN17 by re-font-final-gaps4)
+(archive: `docs/specs/questions/answered/drawing-fonts.md`); open entries, if any, are in
 `docs/specs/questions/drawing-fonts.md`.

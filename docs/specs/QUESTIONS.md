@@ -144,7 +144,7 @@ generated index: the questions live one file per spec, so read only the file for
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 2 | 44 | DS47 | questions/disasters.md |
 | dispatch | 0 | 9 | DP10 | - |
-| drawing-fonts | 3 | 14 | FN18 | questions/drawing-fonts.md |
+| drawing-fonts | 0 | 17 | FN18 | questions/drawing-fonts.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
 | feature-manager | 2 | 0 | FM3 | questions/feature-manager.md |
 | flammability | 0 | 13 | FL14 | - |
@@ -211,4 +211,4 @@ generated index: the questions live one file per spec, so read only the file for
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **218** | **1119** | | |
+| **total** | **215** | **1122** | | |
