@@ -133,11 +133,11 @@ struct NativeEvidence {
 };
 
 void NativeReport(const NativeEvidence& e, const char* owner, const char* operation, const void* native,
-                  const char* implementation = "Rust") {
-    Log("proplot native_verify owner=%s operation=%s native=%p source=diagnostic-probe natural_calls=0 "
+                  const char* implementation = "Rust", const char* source = "diagnostic-probe") {
+    Log("proplot native_verify owner=%s operation=%s native=%p source=%s natural_calls=0 "
         "pairs=%u exact=%u different=%u refused=%u fallback=0 resync=0 copied_record_credit=0 "
         "native_random_draws=0 implementation=%s",
-        owner, operation, native, e.pairs, e.exact, e.different, e.refused, implementation);
+        owner, operation, native, source, e.pairs, e.exact, e.different, e.refused, implementation);
 }
 
 // ---- formatting -----------------------------------------------------------------------------------------
@@ -395,10 +395,10 @@ intptr_t CompareRecords(bool oursOk, std::string& body) {
     if (a.size() != b.size() || firstDiff != SIZE_MAX) ++m;
     // References: the objects written in the same places (the bytes number
     // them in order of first appearance, so equal bytes pair them up). The
-    // capture numbers references 1..63 (FC4WriteCapture.h), so a record with
-    // more than 63 written references pairs only the first 63.
+    // WriteCapture has a dynamic reference table. Walk every captured identity;
+    // an old 63-reference cap silently omitted the rest of a prop record.
     uint32_t refs = 0, refsDiff = 0;
-    for (uint32_t id = 1; id < 64; ++id) {
+    for (uint32_t id = 1; ; ++id) {
         const void* x = g_capOrig.Object(id);
         const void* y = g_capOurs.Object(id);
         if (x == nullptr && y == nullptr) break;
@@ -969,6 +969,7 @@ intptr_t PropQueries(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, st
 
 // CreateProp (slot 15) on sample prop types.
 intptr_t PropCreate(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, std::string& body) {
+    NativeEvidence evidence;
     const std::vector<uint32_t> types = OursU32s(&fc4_prop_manager_all_prop_types, s);
     if (types.empty()) {
         body += "no prop types";
@@ -1010,12 +1011,15 @@ intptr_t PropCreate(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, std
         const uint32_t uc =
             g_pctx.gzClass != 0 ? g_pctx.gzClass : (g_pctx.builtinKind < 3 ? kBuiltinClass[g_pctx.builtinKind] : 0);
         ++n;
+        evidence.Pair(ro == rs);
         if (ro != rs) {
             ++resultDiff;
             first.Add("%08X result %d/%d", id, ro ? 1 : 0, rs ? 1 : 0);
             continue;
         }
         if (!ro) continue;
+        evidence.Pair(oc == uc);
+        evidence.Pair(g_pctx.typeSet && ot == g_pctx.propType);
         if (oc != uc) {
             ++classDiff;
             first.Add("%08X class %08X/%08X", id, oc, uc);
@@ -1027,6 +1031,7 @@ intptr_t PropCreate(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, std
         const float ob[6] = {omn.fX, omn.fY, omn.fZ, omx.fX, omx.fY, omx.fZ};
         const float ub[6] = {g_pctx.boxMin[0], g_pctx.boxMin[1], g_pctx.boxMin[2],
                              g_pctx.boxMax[0], g_pctx.boxMax[1], g_pctx.boxMax[2]};
+        evidence.Pair(g_pctx.boxSet && memcmp(ob, ub, sizeof(ob)) == 0);
         if (!g_pctx.boxSet || memcmp(ob, ub, sizeof(ob)) != 0) {
             ++boxDiff;
             first.Add("%08X box (%g,%g,%g)-(%g,%g,%g)/(%g,%g,%g)-(%g,%g,%g)", id, ob[0], ob[1], ob[2], ob[3], ob[4],
@@ -1036,6 +1041,7 @@ intptr_t PropCreate(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, std
     const intptr_t m = static_cast<intptr_t>(resultDiff + classDiff + typeDiff + boxDiff);
     AppendF(body, "props=%u resultsDiffering=%u classesDiffering=%u typesDiffering=%u boxesDiffering=%u first: %s", n,
             resultDiff, classDiff, typeDiff, boxDiff, first.Str());
+    NativeReport(evidence, "cSC4PropManager", "create-uninserted-resource-props", pm);
     return m;
 }
 
@@ -1093,6 +1099,11 @@ void PropRunStep(void* p) {
         AppendF(body, " read=%u atEnd=%u init=%u", read ? 1u : 0u, in.atEnd() ? 1u : 0u, inited ? 1u : 0u);
         if (!in.atEnd()) ++m;
         Line("propmgr", g_propTotals, r, "record", m, body);
+        Log("proplot roundtrip owner=cSC4PropManager date=%s event=%s native=%p "
+            "source=native-Write captured_bytes=%u read=%u consumed=%u init=%u differences=%ld "
+            "record_bootstrap=1 independent_evolution=0 algorithmic_credit=0",
+            r.date, r.event, pm, static_cast<unsigned>(g_capOrig.Bytes().size()), read, in.atEnd(), inited,
+            static_cast<long>(m));
     }
     if (r.load) {
         std::string body;
@@ -1595,10 +1606,26 @@ intptr_t LcmArrays(const std::vector<uint32_t>& ids, std::string& body) {
 intptr_t LcmQueries(const Run& r, fc4_lot_config_manager* s, const std::vector<uint32_t>& ids,
                     const std::vector<uint32_t>& families, std::string& body) {
     NativeEvidence evidence;
+    NativeEvidence fixtures;
+    bool fixtureType[5]{};
     LcmView* o = g_lctx.orig;
     uint32_t seed = Seed(r.julian, 0x4C434D51u);
     FirstList first;
     uint32_t famDiff = 0, sizeDiff = 0, hasDiff = 0, idArrDiff = 0, idArrays = 0, hasTests = 0;
+    std::vector<uint32_t> queryIds;
+    auto* lm = r.city->GetLotManager();
+    const uint32_t cx = r.city->CellCountX(), cz = r.city->CellCountZ();
+    if (lm != nullptr && cx != 0 && cz != 0) {
+        for (long i = 0; i < g_cells; ++i) {
+            const uint32_t x = NextRandom(seed) % cx, z = NextRandom(seed) % cz;
+            if (auto* lot = AsGame(lm)->GetLot(x, z, false)) {
+                if (auto* cfg = lot->GetLotConfiguration()) queryIds.push_back(cfg->GetID());
+            }
+        }
+    }
+    const size_t liveLotConfigs = queryIds.size();
+    for (uint32_t i = 0; i < kLcmConfigSamples && !ids.empty(); ++i)
+        queryIds.push_back(ids[NextRandom(seed) % ids.size()]);
     for (uint32_t i = 0; i < kLcmFamilySamples && !families.empty(); ++i) {
         const uint32_t f = families[NextRandom(seed) % families.size()];
         GameHashSetU32<> set(1);
@@ -1634,8 +1661,7 @@ intptr_t LcmQueries(const Run& r, fc4_lot_config_manager* s, const std::vector<u
             first.Add("size %ux%u n=%u/%u", x, z, on, un);
         }
     }
-    for (uint32_t i = 0; i < kLcmConfigSamples && !ids.empty(); ++i) {
-        const uint32_t id = ids[NextRandom(seed) % ids.size()];
+    for (uint32_t id : queryIds) {
         cISC4LotConfiguration* c = o->GetLotConfiguration(id);
         const uint64_t ours = fc4_lot_config_configuration(s, id);
         evidence.Pair((c != nullptr) == (ours != 0));
@@ -1691,6 +1717,34 @@ intptr_t LcmQueries(const Run& r, fc4_lot_config_manager* s, const std::vector<u
                 first.Add("ids %08X#%u type %u n=%u/%u", id, static_cast<unsigned>(k), co.object_type,
                           static_cast<unsigned>(os.size()), static_cast<unsigned>(us.size()));
             }
+            // Constructed fixtures, separately counted: repeated real IDs and
+            // a missing ID between them. Preserve duplicate/order semantics,
+            // including B5.6's building-family overwrite of preceding entries.
+            if (r.load && !tmp.empty() && !fixtureType[co.object_type]) {
+                fixtureType[co.object_type] = true;
+                for (bool missing : {false, true}) {
+                    cSC4LotConfigurationObject f{};
+                    f.type = base[k].type;
+                    f.data.push_back(tmp[0]);
+                    if (missing) f.data.push_back(0xFFFFFFFFu);
+                    f.data.push_back(tmp[0]);
+                    GameU32s nativeIds;
+                    nativeIds.push_back(0xDEADBEEF);
+                    o->GetObjectIDArray(&f, nativeIds);
+                    std::vector<uint32_t> input;
+                    const auto object = LotDevObjectOf(&f, input);
+                    std::vector<uint32_t> rustIds(fc4_lot_config_object_id_array(s, &object, nullptr, 0));
+                    if (!rustIds.empty())
+                        rustIds.resize(fc4_lot_config_object_id_array(s, &object, rustIds.data(), rustIds.size()));
+                    const bool same = ToStd(nativeIds) == rustIds;
+                    fixtures.Pair(same);
+                    if (!same) {
+                        ++idArrDiff;
+                        first.Add("fixture type=%u missing=%u input=%08X sizes=%u/%u", co.object_type, missing,
+                                  tmp[0], static_cast<unsigned>(nativeIds.size()), static_cast<unsigned>(rustIds.size()));
+                    }
+                }
+            }
         }
     }
     for (uint32_t id : {0u, 0xFFFFFFFFu}) {
@@ -1699,6 +1753,21 @@ intptr_t LcmQueries(const Run& r, fc4_lot_config_manager* s, const std::vector<u
         if (!same) ++hasDiff;
     }
     NativeReport(evidence, "cSC4LotConfigurationManager", "ordered-resource-queries", o);
+    if (r.load) {
+        GameU32s nativeIds;
+        nativeIds.push_back(0xDEADBEEF);
+        o->GetObjectIDArray(nullptr, nativeIds);
+        const bool same = nativeIds.empty() && fc4_lot_config_object_id_array(s, nullptr, nullptr, 0) == 0;
+        fixtures.Pair(same);
+        if (!same) ++idArrDiff;
+        NativeReport(fixtures, "cSC4LotConfigurationManager", "ordered-duplicate-missing-null-expansion", o,
+                     "Rust", "constructed-object-fixture");
+    }
+    Log("proplot live_inputs owner=cSC4LotConfigurationManager date=%s event=%s live_lot_configs=%u "
+        "catalogue_samples=%u object_expansions=%u natural_calls=0 weighted_selection=not-in-owner-contract "
+        "random_source=private-probe-LCG native_random_draws=0",
+        r.date, r.event, static_cast<unsigned>(liveLotConfigs),
+        static_cast<unsigned>(queryIds.size() - liveLotConfigs), idArrays);
     AppendF(body,
             "families=%u/%u differing sizes=%u/%u differing hasBuilding=%u/%u differing objectIDArrays=%u/%u "
             "differing first: %s",
@@ -1760,6 +1829,11 @@ void LcmRunStep(void* p) {
         AppendF(body, " read=%u atEnd=%u init=%u", read ? 1u : 0u, in.atEnd() ? 1u : 0u, inited ? 1u : 0u);
         if (!in.atEnd()) ++m;
         Line("lotcfg", g_lcmTotals, r, "record", m, body);
+        Log("proplot roundtrip owner=cSC4LotConfigurationManager date=%s event=%s native=%p "
+            "source=native-Write captured_bytes=%u read=%u consumed=%u init=%u differences=%ld "
+            "record_bootstrap=1 independent_evolution=0 algorithmic_credit=0",
+            r.date, r.event, raw, static_cast<unsigned>(g_capOrig.Bytes().size()), read, in.atEnd(), inited,
+            static_cast<long>(m));
     }
     std::vector<uint32_t> origIds, ourIds, origFams, ourFams;
     const char* why = nullptr;
