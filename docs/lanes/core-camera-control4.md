@@ -16,4 +16,4 @@
 - Done: aa772446 final committed code; qbuild all PASS cargo 4277/0, clippy 0 diagnostics, build 4/4, ctest 67/67; new module fmt PASS (5 files); whitespace check clean.
 - Next: submit/wait unique DLL smoke label core-camera-control4-aa772446-smoke-c8f07a2e; helper build-runs/wait-camera-verdict.py (no qwait); then full report/queue. No camera shadow seam.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-camera-control4-r1-manifest.json.
-- No game request outstanding; pure-core task has no shadow seam.
+- Submitted one smoke request: core-camera-control4-aa772446-smoke-c8f07a2e. Check its existing verdict in build-runs/game-results before any resend; the helper waiter is running. Camera shadow n/a.
