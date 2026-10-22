@@ -618,6 +618,9 @@ mode (byte, default **3**), direction (+1), speed (float32, default the "unset" 
   4. |acc| < 1: return 0. 1 ≤ |acc| < 2: `Step`, then acc = acc − direction, re-reading both after the step (so a
      direction that the step reversed or zeroed is used). |acc| ≥ 2: with catch-up, step until |acc| < 1; without
      (always), `Step` once and acc = 1.0. So at most one frame per call. Return 2.
+  The accumulator store does not pop the x87 result: initial threshold comparisons use that transient value,
+  not a forced reload of its binary32 storage (`0x007FC211`). Unordered magnitude returns 0 without stepping;
+  infinite magnitude takes the ≥2 path. See model-instances §3.1 for MI9 and numeric limits.
 - `Step` (slot 13, `0x007FDB80`), F from the header: nothing if F ≤ 1 or direction = 0. Forward: frame + 1 if it is
   below F; at the end, mode 3 goes to frame 0 (loop), mode 2 goes to frame − 1 and reverses (ping-pong), any other
   mode sets direction 0 and acc 0 (play once and hold). Backward: frame − 1 if above 0; at 0, mode 3 goes to F − 1,

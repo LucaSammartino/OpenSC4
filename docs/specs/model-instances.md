@@ -142,6 +142,34 @@ properties get bit 2 set and bit 1 cleared, its draw attributes bits 1–3 set, 
 (depth write) and its byte `+0x18`; a material with flag `0x10` (blending) only changes the properties that way.
 `0x00801CD0` refreshes the instance's box from the model.
 
+### 2.1 Bounds and pick distance (MI4, MI5)
+
+GetBounds and GetWorldBounds share the cached local box. If it is stale and a model exists, they fetch model
+slot 7 and clear the stale flag; without a model they copy the stored box and leave that flag set
+(`0x00801FC0`, `0x00802010`). Explicit UpdateBounds does the same refresh when there is a model
+(`0x00801CD0`). GetWorldBounds then applies the full matrix, uniform scale and translation; it does **not**
+dispatch on the transform kind byte or skip an empty/inverted box (`0x007F8170`).
+
+For each input axis, first multiply both endpoints by s, storing six binary32 scaled endpoints. For each output
+axis r, start its min and max at translation component t_r. In input-axis order x,y,z, form the two products
+M[r,j] × scaled endpoint j. Add the smaller contribution to min and the larger to max, storing each sum as
+binary32 before the next contribution (`0x007F81C0`–`0x007F8270`). This is the enclosing box of the eight
+transformed endpoint combinations for finite ordinary inputs, including negative scale and nonsymmetric M;
+it is not a transform of just min and max. Inverted endpoints are reordered by the product comparisons,
+so an inverted sentinel box is **not preserved as empty**. For numeric emulation, the first endpoint product is
+stored as binary32 before comparison; the second remains in x87 until used. The comparison selects the first
+product as min only when it is strictly less; equal or unordered selects the second as min. No NaN sanitation
+or explicit finite/empty test occurs here.
+
+Picking stores **Euclidean distance**, sqrt((hit−origin)·(hit−origin)), not signed ray parameter t. The triangle
+intersection helper writes the hit point as origin+t×direction (`0x005D719B`–`0x005D71D4`); TrianglePick and
+the inlined MeshPick path then call LengthOfLine (`0x007F6B23`, `0x007F9993`; square root `0x005D7688`).
+Only a strict, ordered distance decrease updates the nearest field; equal and NaN comparisons do not hit
+(`0x007F6B28`–`0x007F6B35`, `0x007F9998`–`0x007F9A07`). A geometrically accepted intersection behind the
+origin can therefore update a **positive** nearest distance. MeshPick returns after the first improvement
+within that mesh; ModelPick still visits subsequent meshes (view-utilities §7). Nonunit directions do not
+change the distance to a given hit point.
+
 ## 3. Animated model instances (`cS3DModelInstanceAnimated`) *[compat]*
 
 The playback (constructor `0x007FD870`, `SetFrame`, `SetSpeed`, `Advance`, `Step`, `SetAnimMode`) is
@@ -154,6 +182,29 @@ graphics-formats §3.9. The other animation slots:
   never set.
 - Building frame f (`0x007FC2E0`): the model's frame f (model slot 8, `GetModelFrame`) into the instance's meshes;
   a frame equal to the current one is not rebuilt.
+
+### 3.1 Native numeric boundaries (MI9)
+
+Construction uses the static base and initializes the subrange pointer null, current frame 0, mode 3,
+direction +1, speed −100.0, accumulator +0 and catch-up false (`0x007FD870`). A failed frame build returns
+false without updating the current-frame word; a same-frame build returns true without calling the model
+(`0x007FC2E0`). This is a guarantee about the frame word, not transactional rollback of an arbitrary external
+frame provider's writes into the supplied mesh container. No native container snapshot is taken.
+
+SetSpeed stores all inputs other than the exact −200.0 sentinel literally, including NaNs and infinities
+(`0x007FC170`). Advance only recognizes the exact −100.0 bits as unset and ordered zero speed as stopped.
+It computes (dt×speed)×signed-direction+acc using x87, stores acc as binary32, and **retains the unpopped
+x87 result** for its first magnitude comparisons (`0x007FC1F9`–`0x007FC235`). Do not prescribe rounding to
+binary32 after every arithmetic operation or fuse operations. Storage precision and transient precision are
+different: exact edge rounding additionally depends on the active x87 precision control.
+
+An unordered magnitude comparison at the first threshold (1.0) returns 0 without Step, after the accumulator
+store (`0x007FC219`–`0x007FC224`, `0x007FC2C0`). Thus NaN speed, NaN dt, and 0×infinity normally leave a NaN
+accumulator and do not advance. An infinite magnitude passes both finite thresholds: with the shipped
+catch-up=false state, Step runs once, accumulator is overwritten with 1.0, and Advance returns 2
+(`0x007FC27B`–`0x007FC292`). If an external API exposes catch-up=true, infinity can keep its native loop
+running indefinitely; that flag has no setter in this published native owner. For finite ordinary inputs the
+playback rules in graphics-formats §3.9 continue to apply.
 
 ## 4. The model processor (`cS3DModelProcessor`) *[compat]*
 
@@ -304,7 +355,27 @@ model-based particle effects (`SortMeshes`, `LightModel`); the effects model pro
 ## 9. Open questions
 
 See [questions/model-instances.md](questions/model-instances.md) MI1–MI2: what the five header values and the last
-value of a sprite animation hold; what `flip` in `LightModel` is used for.
+value of a sprite animation hold; what `flip` in `LightModel` is used for. MI3–MI10 are resolved in §§1.1–1.2,
+2.1, 3.1, 4.1, 6.1–6.2 and 9.1; the answers distinguish native behaviour from portable safety choices.
+
+### 9.1 Valid input and memory-safety boundary (MI9)
+
+Compatibility for mesh traversal requires valid live blocks, sufficient stride/data, valid primitive groups,
+and in-range indices/vertices. Native GetMesh and GetMaterial directly calculate addresses with no range
+check (`0x00801AF0`, `0x00801EC0`). Triangle walking likewise uses group.first to offset the index or vertex
+pointer, then directly reads selected indices and positions (`0x0080B320`, `0x0080B090`); there is no rule that
+invalid references are skipped. Rejecting malformed meshes, skipping invalid triangles, checked allocation
+arithmetic and safe null handling must be identified as **portable choices**, not native contracts.
+
+Small primitive counts need a finer distinction: the count helper returns signed n−2 for strips/fans/type 7
+and n−1 for type 5, with no saturation (`0x0080AEA8`, `0x0080AEB8`). The iterator starts at 0 and uses a signed
+less-than against that result (`0x0080B3B6`–`0x0080B3BE`), so negative or zero results yield no triangles.
+For ordinary nonnegative counts this has the same traversal outcome as a saturating count; it does not prove
+that the native helper saturates. Counts with the high bit set, overflowed offsets, malformed short table
+headers (§6.2), null models in operations that dereference material 0 (§2), reference overflow (§1.1), and
+released/dangling processor pointers (§4.1) do not acquire safe semantics merely by entering a portable API.
+Floating-point NaNs/infinities have the explicit comparison behaviour above and in §§2.1/4.1; invalid memory
+access has no deterministic portable outcome to reproduce.
 
 ## 10. Conformance tests
 
@@ -350,3 +421,18 @@ from a reimplementation:
 15. **Material isolation:** build two instances from a material with blend bytes (8,1), flag `0x80` and nonzero
     byte `+0x18`. SetModel on the first clears its flag `0x80` and byte `+0x18`, and ORs draw byte 0 with `0x0E`;
     source and second instance retain their flag and byte. Texture binding identities may remain shared.
+16. **Asymmetric bounds:** min=(1,2,3), max=(4,5,6), matrix rows (1,2,0), (0,1,3), (4,0,1), scale −2,
+    translation (10,20,30) yield min=(−18,−26,−14), max=(0,−2,16). This uses exact small-integer arithmetic.
+    Full-transform bounds give that result even when the kind byte is 0. Identity applied to the constructor's
+    inverted min=(1,1,1), max=(0,0,0) gives min=(0,0,0), max=(1,1,1).
+17. **Distance, sign and ties:** origin=(0,0,0), direction=(0,0,2), triangle vertices (−1,−1,6), (1,−1,6), (0,1,6),
+    nearest=100: accepted hit stores 6, not t=3. Reversing direction still stores 6 for the accepted behind-origin
+    intersection (t=−3). With nearest=6 or nearest=NaN, there is no improvement. Two accepted triangles in one
+    mesh at distances 6 then 2 leave 6; placing them in separate meshes permits the later mesh to reduce it to 2.
+18. **Playback nonfinite:** with F=4, frame=0, direction=+1, accumulator=0, mode=3, explicit speed=NaN and dt=1,
+    Advance returns 0, frame stays 0 and accumulator becomes NaN. With speed=1 and dt=+infinity, shipped
+    catch-up=false returns 2, frame becomes 1 and accumulator=1. With speed=+infinity and dt=0, it returns 0.
+19. **Short primitives and invalid data:** type 1 count 1 produces helper count −1, then no triangles; type 5
+    count 0 does likewise. An out-of-range vertex index is a portable rejection/skip vector only, with no
+    native expected safe result. Table total size 36 with n=0 is valid; total size 44 with n=1 is valid;
+    size 44 with n=0 fails. A wrapped count such as n=`0x20000000` is outside the safe native table contract.

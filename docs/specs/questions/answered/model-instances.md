@@ -24,3 +24,18 @@
 ~~- **MI8 - §4 repeated SortMeshes:** are ties stable against container order on each call or against the preceding processor permutation? [restart from container order each call, then literal descending stable insertion sort, including unordered comparisons]~~
 
 **ANSWERED 2026-10-22 (re-model-instance-contracts4):** DIFFERS — §§4 and 4.1: restart from container order each call, but insertion is before equal and unordered scores; ties reverse container order rather than remaining stable.
+
+<!-- from: core-model-instances4 (2026-10-22) -->
+~~- **MI4 - §2 world bounds:** is the transformed model box the enclosing AABB of all eight corners, including negative uniform scale and non-symmetric matrices? [literal enclosing AABB; preserve empty boxes]~~
+
+**ANSWERED 2026-10-22 (re-model-instance-contracts4):** DIFFERS — §2.1: full row-matrix/scale/translation interval transform encloses all endpoint combinations, handles negative scale, ignores kind, and reorders inverted bounds instead of preserving empty sentinels.
+
+<!-- from: core-model-instances4 (2026-10-22) -->
+~~- **MI5 - §2 Pick/view-utilities §7:** is nearest hit distance the signed triangle ray parameter t, or Euclidean distance to the intersection for non-unit directions and intersections behind the origin? [literal signed t; the geometry ray test explicitly accepts t < 0]~~
+
+**ANSWERED 2026-10-22 (re-model-instance-contracts4):** DIFFERS — §2.1 and view-utilities §7: distance is Euclidean origin-to-hit length, positive even for accepted behind-origin hits; strict ordered decrease only, not signed t.
+
+<!-- from: core-model-instances4 (2026-10-22) -->
+~~- **MI9 - §§2–4 malformed/numeric inputs:** are non-finite playback/transform inputs and invalid primitive vertex/index references in scope? [preserve literal f32 comparisons/arithmetic, no FMA; unordered animation magnitude takes the one-step catch-up branch; under-sized primitive triangle counts saturate to zero and invalid mesh references are skipped for memory safety, consistent with graphics-formats' safe reader choices]~~
+
+**ANSWERED 2026-10-22 (re-model-instance-contracts4):** DIFFERS — §§2.1, 3.1, 6.2, 9.1: x87 transient arithmetic with explicit f32 stores, unordered animation magnitude does not step; primitive subtraction is signed without saturation and iteration stops for nonpositive results; invalid-reference skips and checked parsing are portable safety choices, not native rules.

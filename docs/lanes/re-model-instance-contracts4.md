@@ -7,7 +7,8 @@
 - Goal: resolve MI3–MI10 for the published portable8owner subset; preserve opaque MI1 and literal MI2.
 - Worktree is reserved and detached; commit normally, never switch branches or update shared refs.
 - Done: `91e7137e` proves MI3/MI10. Current milestone proves MI6/MI7/MI8: resource initialization, material copy, processor refusal/destructor restoration, borrowed ReleaseModel pointer and reverse ties; four further vectors.
-- Next: original bounds transform, pick distance, playback/primitive numeric limits, then exact portable-eight inventory and reconciliation.
+- Done: current milestone resolves MI4/MI5/MI9 from instructions: full interval bounds, positive Euclidean pick length, NaN no-step, x87 transient precision, signed short primitive counts, and unsafe-input boundary; four further vectors.
+- Next: exact portable-eight entry inventory, lifecycle completeness and final consistency review; no whole-family credit.
 - Facts: properties default 2; draw +2..3 unwritten; counter u8; basic ref u16, static ref u32, both destroy at count <=1.
 - Facts: processor false/clear for empty/ineligible container; destructor restores; ReleaseModel is non-idempotent and leaves borrowed pointer. Sort equal/unordered inserts before prior entries.
 - Main evidence root: `C:/Users/tlori/FreeCity4`; edit docs/specs and this lane file only.
