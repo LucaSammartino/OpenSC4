@@ -11,11 +11,14 @@
 - Audit complete: exact 45 contracted owner functions; Custom shared stub is additional, not owner credit.
 - Frozen independent expected fixtures BEFORE implementation: 393 ordered vocabulary entries plus lifecycle, typed scans, fallback, two-pass, resource, Tree/Grid and boundary effect vectors.
 - Done: fixtures commit 02bd46f2 precedes all production source.
+- Production milestones: bf469091 (owner implementation), d8d3da6f (22 conformance tests, finalized source and engine-format configuration).
 - Done: portable lifecycle/build, 21 vocabulary tables/maps, common + seven published type bodies + Custom shared stub; fragment wrapper/frame/common with explicit LC8 coverage.
 - Done: added full-builder fixtures for all seven published widgets, fragment wrapper/common/LC8, FileBrowser defaults/filter index, Tree image/root/font, Grid stale-scan/scratch and resource ref effects.
 - Validation pending: first quick lifetime compile failure and second quick formatting-header failure preserved in build-runs/fc4verify-quick-test-{first,format}-failure.log. Fixed both. Third quick queued on Cargo lock (session 75463); do not start another quick.
 - Formatting: first invocation used wrong relative paths; corrected absolute paths expose engine rustfmt configuration mismatch. Applying engine configuration only to new source; shared lib.rs must not be mass-reformatted.
-- Next: complete quick evidence, touched-file fmt, commit final source then ONE stable all. No all has run yet.
+- Current quick evidence is NOT a pass: overlapping earlier failed invocations left NUL gaps/old errors in quick-test.log; intact failure snapshots retained. Never trust that mixed log as final source evidence.
+- Next: ONE all on committed source via q.py (full wrapper console persisted under build-runs/q); no source edits while it runs. Final touched-file fmt invocation pending in session 60998; new files were formatted with engine max_width=120, shared lib.rs preserved.
+- Full gate will start immediately after this Handoff commit. No game requests. No queue until stable passing gate; if context cuts, inspect all logs and q console without launching duplicate checks.
 - LC9/LC10 filed for unsafe/malformed/duplicate domains; allowed indeterminate-field choices labeled in code.
 - No baseline/full or game runs performed. Existing shared Git packed-refs.lock warning occurs during commit, but detached commits succeed; do not change shared config/refs.
 - Unknown LC4 (12 interpreters), LC5 opaque default parent, LC8 (19 foreign writers) stay explicit.
