@@ -322,7 +322,7 @@ impl Session {
         Err(Unsupported::OwnedBody("00813d70 FTP initialize"))
     }
 
-    /// 00812290. Short sends resubmit the whole original command, not its suffix.
+    /// Body 00812290: short sends resubmit the whole original command, not its suffix.
     /// Successful zero sends can loop forever; no invented retry/timeout policy.
     pub fn send_command(&mut self, io: &mut impl Io, command: &[u8]) -> bool {
         if self.state == 0 {

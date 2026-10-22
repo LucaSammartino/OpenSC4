@@ -153,6 +153,7 @@ impl Client {
         }
     }
     /// 0081cda0: wrappers 8/9/10 reject; PUT alone copies a mandatory body.
+    #[allow(clippy::too_many_arguments)] // Preserve the published submission argument channels.
     pub fn submit(
         &mut self,
         host: &mut impl Host,

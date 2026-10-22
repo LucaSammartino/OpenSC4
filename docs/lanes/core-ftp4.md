@@ -6,8 +6,9 @@
 - Goal: published portable WWW/FTP first implementation; retained unsupported boundaries.
 - Done: 0a57021f parser/path, 40adce68 state algorithms, 1f4111db review/Q10 milestones.
 - Source: www module; report below reconciles all 91 C and exact 57 P/O rows.
-- Next: finish quick diagnostics and baseline clippy/build; run final stable all after fixes.
-- Baseline cargo: 5039 passed, zero failed, 21 result lines; clippy now running.
+- Next: final stable all after lint fixes; inspect new unit-test verdicts and full CTest.
+- Initial all cargo: 5039 passed, zero failed, 21 result lines. Its later clippy saw
+  concurrent lane edits and found 2 new lints (doc-list syntax, submission arg count), fixed.
 - Quick requests 70740/2570: one running unit tests, another had waited on build lock.
 - fmt absolute-file session 75585; first relative invocation failed path lookup only.
 - No game requests; no ABI/default/glue/map/coverage changes.
@@ -21,7 +22,7 @@ Core owns destructive parsing, commands, partial transfer loops, type/login/disp
 
 ## Validation
 
-Baseline all launched before source edits (session 51977): 5,039 cargo tests passed, zero failed, 21 result lines. Clippy in progress. Quick checks launched (70740, 2570); unit tests running after lock wait. Final stable all, clippy, full CTest and Rustfmt results pending. No game run requested (explicit lane prohibition). No external contact or live server tests.
+Initial all launched before source edits (session 51977): 5,039 cargo tests passed, zero failed, 21 result lines. Its later clippy saw concurrent lane edits and reported doc-list syntax and submission argument-count lints; both fixed. This is not a pristine all-pass baseline. Earlier quick checks passed 3,016 unit tests (parser slice); a new quick was launched for 97bff998. Final stable all, clippy, full CTest and Rustfmt results pending. No game run requested (explicit lane prohibition). No external contact or live server tests.
 
 Constructed vectors distinguish listing selectors/mutation/output preservation/unsafe domains, reply helpers, chunk short send versus command prefix resend, async state-4 reentry, rejected-login true, RETR write failure and empty success, ignored STOR sender/read failure, progress rounding, callback reentry, listing partial capacities, target/shutdown/file-wrapper lifetime, outer cancel/stop/suspend, HTTP method prefixes/wrap/raw queue leaks, bounded replacement-worker race, WWW cache thresholds/fallback, cancellation leaks/late resources, conversion failure, cookies, reentrant fanout and cache-control parsing including embedded NUL.
 
