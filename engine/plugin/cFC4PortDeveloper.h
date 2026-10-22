@@ -31,9 +31,9 @@
 // the main thread (CreateLot's reference for the caller becomes it), and one
 // on the department.
 //
-// Not wired (logged once): the seaport's "no sea access" prop state switch
-// (§4.4 step 3, presentation only: props with property 0xC98204B8 set to
-// state 1); the advisor event of that step is pushed.
+// PD12: the seaport's "no sea access" prop state switch enumerates the native
+// occupant manager's spatial list and switches matching prop interfaces to
+// state 1. Its diagnostic count does not gate the advisor event.
 //
 // Threads, as the landfill developer (cFC4Landfill.h): every call into the
 // core holds this object's lock; a getter on a thread other than the main one
@@ -227,3 +227,7 @@ cIGZUnknown* CreateFC4SeaportDeveloper();
 // Works through the game's interfaces only, so the original developers adopt it
 // as ours do (§3 0x99EF1142). Returns the result text for the script log.
 std::string PortScriptBuild(uint32_t kind, uint32_t type, int32_t x, int32_t z, uint32_t facing);
+
+// Explicit diagnostic action: PD12 switch on the existing lot at (x,z),
+// property 0xC98204B8, state 0 or 1. Does not call either port developer.
+std::string PortScriptProps(int32_t x, int32_t z, uint32_t state);
