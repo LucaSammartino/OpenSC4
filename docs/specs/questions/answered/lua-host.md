@@ -2,8 +2,8 @@
 
 ## Resolutions
 
-- **LH1 — ANSWERED 2026-10-22 (re-lua-nativebinding4):** DIFFERS — §§1.2, 1.4.1, 6.3.2 identify CLSID `CBD101A9`, factory `008B10D0`, IID `4BD10129`, service `4BD10133`, signed priority `-999999`. Factory-first creation precedes fallback, service QI/registration and Releases; Init is a later priority pass. Factory dispatch exists, but no guaranteed early plugin-callback installation or safe retained-service substitution recipe is established. Duplicate service insertion fails.
-- **LH2 — ANSWERED 2026-10-22 (re-lua-nativebinding4):** DIFFERS — §6.3.2 identifies public CommandServer acquisition `EB903A32/CB90253A`, typed Lua-generator Init(CommandServer pointer, Lua5 pointer, const string reference), borrowed generic-view conversion and bool Shutdown, with retention, cleanup and failure contracts. The Lua-specific interface lacks an SDK declaration; its native slots are specified. Owner insertion timing remains subject to LH1; no activation claim.
+- **LH1** — **ANSWERED 2026-10-22 (re-lua-nativebinding4):** DIFFERS — §§1.2, 1.4.1, 6.3.2 identify CLSID `CBD101A9`, factory `008B10D0`, IID `4BD10129`, service `4BD10133`, signed priority `-999999`. Factory-first creation precedes fallback, service QI/registration and Releases; Init is a later priority pass. Factory dispatch exists, but no guaranteed early plugin-callback installation or safe retained-service substitution recipe is established. Duplicate service insertion fails.
+- **LH2** — **ANSWERED 2026-10-22 (re-lua-nativebinding4):** DIFFERS — §6.3.2 identifies public CommandServer acquisition `EB903A32/CB90253A`, typed Lua-generator Init(CommandServer pointer, Lua5 pointer, const string reference), borrowed generic-view conversion and bool Shutdown, with retention, cleanup and failure contracts. The Lua-specific interface lacks an SDK declaration; its native slots are specified. Owner insertion timing remains subject to LH1; no activation claim.
 
 ## Original entries
 
