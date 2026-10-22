@@ -643,12 +643,12 @@ fn t14_truncated_char_str() {
     assert_eq!(r.source().skips, vec![3]);
     let mut n = 0u8;
     assert!(r.get_uint8(&mut n) && n == 0x55, "all 6 bytes consumed");
-    // Exact fit still calls Skip(0) (literal reading, OS6)
+    // Exact fit: length - k = 0, so no Skip at all (OS6)
     let mut r = RzIStream::new(true, Src::new(vec![2, b'h', b'i']));
     let mut buf = [0xEEu8; 3];
     assert!(r.get_rz_char_str(&mut buf, 5));
     assert_eq!(buf, [b'h', b'i', 0]);
-    assert_eq!(r.source().skips, vec![0]);
+    assert!(r.source().skips.is_empty(), "Skip(0) is never called");
     // Empty string
     let mut r = RzIStream::new(true, Src::new(vec![0]));
     let mut buf = [0xEEu8; 2];
@@ -676,13 +676,13 @@ fn short_reads() {
     assert!(!r.get_rz_char_str(&mut buf, 8));
     assert_eq!(&buf[..6], &[b'a', b'b', 0xEE, 0xEE, 0xEE, 0]);
     assert!(r.source().skips.is_empty(), "no Skip after an error");
-    // GetGZStr: a failed chunk is not appended
+    // GetGZStr: the failed chunk is appended (OS5), stale bytes = previous chunk
     let mut src = vec![0xAC, 0x02];
     src.extend(vec![b'q'; 260]);
     let mut r = RzIStream::new(true, Src::new(src));
     let mut s = vec![9];
     assert!(!r.get_gz_str(&mut s));
-    assert_eq!(s, vec![b'q'; 255]);
+    assert_eq!(s, vec![b'q'; 300]);
     // length truncated mid-varint: the failed byte reads as 0 and ends it
     let mut r = RzIStream::new(true, Src::new(vec![0x85]));
     assert_eq!(istream::decode_string_length(&mut r), 5);
@@ -716,4 +716,136 @@ fn null_istream() {
     assert!(!r.get_gz_str(&mut s));
     assert!(s.is_empty(), "FromChar(\"\") first");
     assert!(!r.skip(1));
+}
+
+/// Conformance test 15 (§9) plus the other §2.2 vectors: double rounding,
+/// half-up both times (OS3).
+#[test]
+fn t15_float_ties() {
+    let mut s = text();
+    for d in [1234565.0, 0.1234565, 100000.5, 12345.25, -12345.25] {
+        s.set_float64(d);
+    }
+    s.set_float32(0.5);
+    for d in [123456.5, 1234575.0, 0.0001234565] {
+        s.set_float64(d);
+    }
+    assert_eq!(
+        texts(&s),
+        [
+            "1.23457e+006",
+            "0.123457",
+            "100001",
+            "12345.3",
+            "-12345.3",
+            "0.5",
+            "123457",
+            "1.23458e+006",
+            "0.000123457"
+        ]
+    );
+}
+
+/// Conformance test 16 (§9): a failed open, then `Flush()`: the state stays
+/// failbit only (OS4), `GetError()` true before and after.
+#[test]
+fn t16_failed_open_flush() {
+    struct NoOpen;
+    impl OfFileOpener for NoOpen {
+        type File = MemFile;
+        fn open(&mut self, _path: &[u8], _mode: OfOpenMode) -> Option<MemFile> {
+            None
+        }
+    }
+    for binary in [true, false] {
+        let mut f = RzOFStream::open(&mut NoOpen, b"x", binary, false, true, false);
+        assert_eq!(f.state(), file::FAILBIT);
+        assert!(f.get_error());
+        f.flush();
+        assert_eq!(f.state(), file::FAILBIT, "Flush leaves the state");
+        assert!(f.get_error());
+    }
+}
+
+/// Conformance test 17 (§9), over an atomic source (writes nothing on failure).
+#[test]
+fn t17_short_reads() {
+    // exact fit: no Skip
+    let mut r = RzIStream::new(true, Src::new(vec![3, b'a', b'b', b'c']));
+    let mut buf = [0xEEu8; 8];
+    assert!(r.get_rz_char_str(&mut buf, 8));
+    assert_eq!(&buf[..5], b"abc\0\xEE");
+    assert!(r.source().skips.is_empty());
+    // truncated: Skip(2) once
+    let mut r = RzIStream::new(true, Src::new(vec![5, b'a', b'b', b'c', b'd', b'e']));
+    let mut buf = [0xEEu8; 8];
+    assert!(r.get_rz_char_str(&mut buf, 3));
+    assert_eq!(&buf[..5], b"abc\0\xEE");
+    assert_eq!(r.source().skips, vec![2]);
+    // GetVoid failure: buf[0..k] as the caller had them, buf[k] = 0, no Skip
+    let mut r = RzIStream::new(true, Src::new(vec![5, b'a', b'b']));
+    let mut buf = [0x11u8, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77];
+    assert!(!r.get_rz_char_str(&mut buf, 3));
+    assert_eq!(buf, [0x11, 0x22, 0x33, 0, 0x55, 0x66, 0x77]);
+    assert!(r.source().skips.is_empty());
+    // GetGZStr, 300 bytes, second chunk fails: 255 + 45, the last 45 being
+    // the first 45 of the first chunk (one reused buffer)
+    let first: Vec<u8> = (0..255u32).map(|i| (i % 251) as u8 + 1).collect();
+    let mut src = vec![0xAC, 0x02];
+    src.extend(&first);
+    src.extend([0xAA; 10]);
+    let mut r = RzIStream::new(true, Src::new(src));
+    let mut s = b"old".to_vec();
+    assert!(!r.get_gz_str(&mut s));
+    assert_eq!(s.len(), 300);
+    assert_eq!(&s[..255], &first[..]);
+    assert_eq!(&s[255..], &first[..45]);
+    // a failed first chunk: unwritten bytes are natively unspecified; the
+    // FreeCity4 choice is a zeroed buffer
+    let mut r = RzIStream::new(true, Src::new(vec![4, b'x']));
+    r.source_mut().partial = true;
+    let mut s = vec![];
+    assert!(!r.get_gz_str(&mut s));
+    assert_eq!(s, vec![b'x', 0, 0, 0]);
+    // a failed length byte: with the FreeCity4 choice, one call, empty result
+    let mut r = RzIStream::new(true, Src::new(vec![]));
+    let mut s = b"old".to_vec();
+    assert!(!r.get_gz_str(&mut s));
+    assert!(s.is_empty());
+    assert_eq!(r.source().pos, 0);
+    let mut r = RzIStream::new(true, Src::new(vec![]));
+    let mut buf = [0xEEu8; 2];
+    assert!(!r.get_rz_char_str(&mut buf, 2));
+    assert_eq!(buf, [0, 0xEE]);
+    assert!(r.source().skips.is_empty());
+    // cRZNullIStream: every Get* false, GetGZStr leaves out empty
+    let mut r = RzNullIStream::new_null();
+    assert!(!r.core().little_endian(), "flag false (OS6)");
+    let (mut a, mut b, mut f, mut d) = (0u8, 0i64, 0f32, 0f64);
+    assert!(!r.get_uint8(&mut a) && !r.get_sint64(&mut b));
+    assert!(!r.get_float32(&mut f) && !r.get_float64(&mut d));
+    let mut s = vec![1];
+    assert!(!r.get_gz_str(&mut s) && s.is_empty());
+}
+
+/// Counts `GetUint8` calls through a failing source: the decoder makes one
+/// call after the failure under the FreeCity4 choice (natively unspecified).
+#[test]
+fn t17_length_failure_call_count() {
+    struct Count(u32);
+    impl ByteSource for Count {
+        fn skip(&mut self, _n: u32) -> bool {
+            false
+        }
+        fn get_void(&mut self, _out: &mut [u8]) -> bool {
+            self.0 += 1;
+            false
+        }
+        fn get_error(&self) -> bool {
+            self.0 > 0
+        }
+    }
+    let mut r = RzIStream::new(true, Count(0));
+    assert_eq!(istream::decode_string_length(&mut r), 0);
+    assert_eq!(r.source().0, 1);
 }

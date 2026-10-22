@@ -16,9 +16,12 @@ use super::ostream::GzOStream;
 /// sign and at least three digits. `decimal_point` is the runtime locale's
 /// (`b'.'` in the C locale) *[compat-limit]*.
 ///
-/// Rounding: the value is first taken to 17 significant digits (correctly
-/// rounded), then rounded half-up to 6. This is our reading of "the standard
-/// results" for the rare decimal ties; the spec gives no tie vector (OS3).
+/// Rounding: the spec's model (§2.2, OS3): the value's 17 significant digits
+/// correctly rounded, then half-up on the 7th digit. The 17-digit step uses
+/// Rust's exact `{:.16e}` as a generic correctly-rounded formatter (the native
+/// class delegates to its C runtime at this boundary). *[compat-limit]* The
+/// runtime's 12-byte power-of-ten scaling may differ from the model where its
+/// 18th digit sits next to 5: unmeasured, open as OS7.
 /// Infinities and NaNs use the runtime's `1.#INF` / `1.#QNAN` / `1.#IND` /
 /// `1.#SNAN` forms *[inferred]*; -0.0 prints `-0` *[inferred]*.
 pub fn format_g(d: f64, decimal_point: u8) -> String {
