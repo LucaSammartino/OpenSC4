@@ -57,11 +57,9 @@ pub const RESET_PATH_FLAGS: u32 = 0x800 | 0x1000 | 0x4000;
 /// unvalidated (§4.7.1 step 2).
 pub const STATE_STORE_UNVALIDATED: i32 = 2;
 
-/// The `CheckCommute` pathfinder (pathfinder.md §8's MySim dispatch row:
-/// flags 1 | 2, filter 3, density 0). Not part of §4.7.1; unchanged.
-const COMMUTE_FLAGS: u32 = flag::NO_BUDGET | flag::NEAREST_ON_FAILURE;
-const COMMUTE_DENSITY: u32 = 0;
-const MAX_WORK_TIME: u32 = 0x1000;
+// `CheckCommute`'s own pathfinder (§4.7, `0x0042D9E0`) is not configured
+// here: its slot calls are not published (§4.7 points to §7.2, which lists
+// none; question MS15). The MySim asks the host (`MySimHost::commute_time`).
 
 /// `SetDestinationFlag` value by the MySim's `GetWealth()` (§4.7.1 step 5):
 /// 1 → `0x1`, 2 → `0x2`, 3 → `0x4`, anything else → `0x1`.
@@ -73,64 +71,117 @@ pub fn destination_flag_for_wealth(wealth: u32) -> u8 {
     }
 }
 
-/// A dispatch location (home `+0x84`, commute destination `+0xD4`).
+/// The neighbour connection types `IsValid` tries for a location outside
+/// the city, in order, stopping at the first non-empty list (§4.7.1, table
+/// `0x00B07DD0`): Highway 3, GroundHighway 12, Avenue 8, Road 2, DirtRoad
+/// 10, Rail 1, LightRail 7, Monorail 11, Subway 6. Ferry, power and pipe
+/// connections are not in the table.
+pub const NEIGHBOR_VALID_CONNECTION_TYPES: [u32; 9] = [3, 12, 8, 2, 10, 1, 7, 11, 6];
+
+/// The world coordinate of a default location (§4.7.1: −16.0 = 16 × −1).
+pub const DEFAULT_WORLD: f32 = -16.0;
+
+/// A dispatch location (`cLocation`, 0x28 bytes; home `+0x84`, commute
+/// destination `+0xD4`), field by field per the §4.7.1 contract.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DispatchLocation {
-    /// The occupant (`SetByOccupant`).
+    /// `+0x00`: the referenced occupant (`None` = null).
     pub occupant: Option<u64>,
-    /// The occupant flag: the location is an occupant, not a cell.
-    pub by_occupant: bool,
-    /// Byte `+0x1D`, "by commute".
-    pub by_commute: bool,
-    /// The cell (`SetCellPosition`); −1, −1 by default.
+    /// `+0x04`, `+0x08`: world x, z.
+    pub world: (f32, f32),
+    /// `+0x0C`, `+0x10`: cell x, z.
     pub cell: (i32, i32),
-    /// The neighbour-city fields (`+0x14`, `+0x18`): the regional city's
-    /// position. The default bytes are not specified (question MS11):
-    /// `None` = never written by this code.
-    pub neighbor_city: Option<(i32, i32)>,
+    /// `+0x14`, `+0x18`: the neighbour city's region position.
+    pub neighbor_city: (i32, i32),
+    /// `+0x1C`: the "in this city" flag.
+    pub in_city: bool,
+    /// `+0x1D`: "by commute".
+    pub by_commute: bool,
+    /// `+0x20`, `+0x24`: copied, never read by the dispatch.
+    pub reserved: (u32, u32),
 }
 
 impl Default for DispatchLocation {
-    /// The default location (§4.7.1): occupant flag set, no occupant,
-    /// cells −1 → invalid.
+    /// The default location (ctor `0x00431320`): no occupant, world −16.0,
+    /// cells −1, neighbour city −1, in this city, not by commute.
     fn default() -> Self {
         DispatchLocation {
             occupant: None,
-            by_occupant: true,
-            by_commute: false,
+            world: (DEFAULT_WORLD, DEFAULT_WORLD),
             cell: (-1, -1),
-            neighbor_city: None,
+            neighbor_city: (-1, -1),
+            in_city: true,
+            by_commute: false,
+            reserved: (0, 0),
         }
     }
 }
 
+/// `floor(world / 16)` in single precision (`0x00431370`). The conversion
+/// of a non-finite or out-of-`i32` quotient is not specified (question
+/// MS13); Rust's saturating `as` (NaN → 0) is used, which is defined
+/// behaviour but not claimed to match the original.
+pub fn world_to_cell(world: f32) -> i32 {
+    (world / 16.0).floor() as i32
+}
+
 impl DispatchLocation {
-    /// A location by occupant (`SetByOccupant`).
-    pub fn by_occupant(occupant: u64) -> Self {
-        DispatchLocation {
-            occupant: Some(occupant),
-            ..DispatchLocation::default()
+    /// `SetByOccupant(o)` (`0x00431430`): every field reset to the default
+    /// (byCommute 0, neighbour city −1), in this city, `o` held; with an
+    /// occupant, world := its `GetPosition()` x, z and cell := `floor(world
+    /// / 16)`. `o` is the occupant and its position (the caller reads it
+    /// through cISC4Occupant slot 8); `None` = null (cells stay −1).
+    pub fn set_by_occupant(&mut self, o: Option<(u64, (f32, f32))>) {
+        *self = DispatchLocation::default();
+        self.in_city = true;
+        if let Some((occ, (x, z))) = o {
+            self.occupant = Some(occ);
+            self.world = (x, z);
+            self.cell = (world_to_cell(x), world_to_cell(z));
         }
     }
 
-    /// A location by cell (occupant flag 0, `SetCellPosition`).
+    /// A fresh location after `SetByOccupant(o)`.
+    pub fn by_occupant(o: Option<(u64, (f32, f32))>) -> Self {
+        let mut l = DispatchLocation::default();
+        l.set_by_occupant(o);
+        l
+    }
+
+    /// `SetCellPosition(x, z)`: the cells. §4.7.1 does not say whether it
+    /// also writes the world fields (question MS13); only the cells are
+    /// written here (literal reading).
+    pub fn set_cell_position(&mut self, x: i32, z: i32) {
+        self.cell = (x, z);
+    }
+
+    /// A default location with the in-city flag clear and a cell (test and
+    /// conformance setups of a cell home).
     pub fn by_cell(x: i32, z: i32) -> Self {
-        DispatchLocation {
-            by_occupant: false,
-            cell: (x, z),
+        let mut l = DispatchLocation {
+            in_city: false,
             ..DispatchLocation::default()
-        }
+        };
+        l.set_cell_position(x, z);
+        l
     }
 
-    /// Validity. §4.7.1 only says the default location (occupant flag set,
-    /// cells −1) is invalid; the literal reading used here *[question MS11]*:
-    /// an occupant location is valid when it holds an occupant, a cell
-    /// location when both cells are ≥ 0.
-    pub fn is_valid(&self) -> bool {
-        if self.by_occupant {
-            self.occupant.is_some()
+    /// `IsValid` (`0x00434F90`, answers MS11 a). In this city: both cells
+    /// within the city's cell counts (the occupant is not consulted).
+    /// Outside: the region has a city at the neighbour-city position and
+    /// the neighbours simulator lists a connection to it of one of
+    /// [`NEIGHBOR_VALID_CONNECTION_TYPES`] (first hit stops).
+    pub fn is_valid(&self, world: &dyn JobSearchWorld) -> bool {
+        if self.in_city {
+            let (cx, cz) = world.cell_counts();
+            (0..cx).contains(&self.cell.0) && (0..cz).contains(&self.cell.1)
         } else {
-            self.cell.0 >= 0 && self.cell.1 >= 0
+            let Some(city) = world.region_city(self.neighbor_city.0, self.neighbor_city.1) else {
+                return false;
+            };
+            NEIGHBOR_VALID_CONNECTION_TYPES
+                .iter()
+                .any(|&t| world.connections_of_type_to_city(t, city) > 0)
         }
     }
 }
@@ -189,6 +240,15 @@ pub trait JobSearchWorld {
     /// `FindCityOnOtherSideOfConnection(x, z)`: the regional city's
     /// position (its slot 5); `None` = no city.
     fn city_across_connection(&self, x: i32, z: i32) -> Option<(i32, i32)>;
+    /// An occupant's `GetPosition()` x, z (cISC4Occupant slot 8), read by
+    /// `SetByOccupant`.
+    fn occupant_position(&self, occupant: u64) -> (f32, f32);
+    /// The region's `GetCity(x, z)` (app slot 35, slot 11) as an opaque
+    /// handle; `None` = null (`IsValid`).
+    fn region_city(&self, x: i32, z: i32) -> Option<u64>;
+    /// The length of the list the neighbours simulator's
+    /// `GetConnectionsOfTypeToCity(type, city, list)` (slot 18) fills.
+    fn connections_of_type_to_city(&self, connection_type: u32, city: u64) -> usize;
 }
 
 /// The core pathfinder as a [`JobPathfinder`].
@@ -239,17 +299,54 @@ impl JobPathfinder for CoreJobPathfinder<'_> {
 pub struct JobSearchState {
     /// Dispatch flags (`0x80` home set, `0x800|0x1000|0x4000` path).
     pub flags: u32,
-    /// Dispatch state `+0x40` (§4.7.1 step 2). Whether it is the trip state
-    /// of §4.6 is not specified (question MS11), so it is its own field.
+    /// `+0x40`: the dispatch's trip state (answers MS11 d), written only by
+    /// [`set_state`]; §4.7.1 step 2 tests it and §4.6 receives it through
+    /// `0x4BB2CFC0`.
     pub state: i32,
+    /// `+0x44`: the trip state before the last [`set_state`].
+    pub prev_state: i32,
     /// The home location (`+0x84`, `SetDefaultDestination`).
     pub home: DispatchLocation,
     /// The commute destination (`+0xD4`).
     pub commute_destination: DispatchLocation,
     /// The route deque handed to `SetRouteInfo`.
     pub route: VecDeque<RouteData>,
-    /// The last end cell the search resolved (for the job-found report).
-    pub end_cell: (i32, i32),
+}
+
+/// The dispatch flag `setState(3)` ORs in (§4.7.1).
+pub const FLAG_AT_LOCATION: u32 = 0x2;
+/// The trip state that sets [`FLAG_AT_LOCATION`].
+pub const STATE_AT_LOCATION: i32 = 3;
+
+/// A notification `setState` posts at the MySim (`0x2BA06B99`, §3.3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StateNote {
+    /// `0x4BB2D020`: the dispatch flags changed (old, new).
+    Flags { old: u32, new: u32 },
+    /// `0x4BB2CFC0`: the trip state changed (old, new).
+    TripState { old: i32, new: i32 },
+}
+
+/// Dispatch `setState(s)` (`0x00431C10`, §4.7.1): old := `+0x40` (kept at
+/// `+0x44`), `+0x40` := s; s = 3 ORs `2` into the flags (`0x4BB2D020` when
+/// they change); old ≠ s → `0x4BB2CFC0(old, s)`. The notifications in
+/// posting order.
+pub fn set_state(st: &mut JobSearchState, s: i32) -> Vec<StateNote> {
+    let mut notes = Vec::new();
+    let old = st.state;
+    st.prev_state = old;
+    st.state = s;
+    if s == STATE_AT_LOCATION {
+        let of = st.flags;
+        st.flags |= FLAG_AT_LOCATION;
+        if st.flags != of {
+            notes.push(StateNote::Flags { old: of, new: st.flags });
+        }
+    }
+    if old != s {
+        notes.push(StateNote::TripState { old, new: s });
+    }
+    notes
 }
 
 /// `resetPath` (§4.7.1 step 0).
@@ -265,9 +362,9 @@ pub fn reset_path(st: &mut JobSearchState, pf: &mut dyn JobPathfinder) {
 /// occupant (or the lot at its cell) → the lot's bounding rect; no lot →
 /// the single cell.
 fn home_start_rect(home: &DispatchLocation, world: &dyn JobSearchWorld) -> CellRect {
-    let lot = match (home.by_occupant, home.occupant) {
-        (true, Some(occ)) => world.occupant_lot_rect(occ),
-        _ => world.lot_rect_at(home.cell.0, home.cell.1),
+    let lot = match home.occupant {
+        Some(occ) => world.occupant_lot_rect(occ),
+        None => world.lot_rect_at(home.cell.0, home.cell.1),
     };
     lot.unwrap_or(CellRect::new(home.cell.0, home.cell.1, home.cell.0, home.cell.1))
 }
@@ -297,13 +394,15 @@ pub fn validate_commute_location(
         return false;
     }
     let (x, z) = pf.get_end_cell();
-    st.end_cell = (x, z);
     if world.cell_is_in_bounds(x, z) {
         let LotAt::Building(b) = world.lot_at(x, z) else {
             return false;
         };
-        loc.occupant = Some(b);
-        loc.by_occupant = true;
+        // `SetByOccupant` resets byCommute; the search restores the value
+        // it had before the call (1, set in step 1).
+        let by_commute = loc.by_commute;
+        loc.set_by_occupant(Some((b, world.occupant_position(b))));
+        loc.by_commute = by_commute;
         true
     } else {
         let Some(city) = world.city_across_connection(x, z) else {
@@ -311,11 +410,18 @@ pub fn validate_commute_location(
         };
         let (cx, cz) = world.cell_counts();
         loc.occupant = None;
-        loc.by_occupant = false;
-        loc.cell = (x.clamp(0, (cx - 1).max(0)), z.clamp(0, (cz - 1).max(0)));
-        loc.neighbor_city = Some(city);
+        loc.in_city = false;
+        loc.set_cell_position(clamp_cell(x, cx), clamp_cell(z, cz));
+        loc.neighbor_city = city;
         true
     }
+}
+
+/// Clamp to `[0, count − 1]` (§4.7.1). Low bound first, then the high
+/// bound; a city has at least one cell per axis, so the order only matters
+/// for a 0-cell city (then −1), which cannot occur.
+fn clamp_cell(v: i32, count: i32) -> i32 {
+    v.max(0).min(count.saturating_sub(1))
 }
 
 /// `SetCurrentCommuteDestination(loc, notify)` (§4.7.1, `0x004350D0`):
@@ -327,7 +433,7 @@ pub fn set_current_commute_destination(
     mut loc: DispatchLocation,
     notify: bool,
 ) -> (bool, bool) {
-    if !loc.is_valid() {
+    if !loc.is_valid(world) {
         if !notify {
             return (false, false);
         }
@@ -360,6 +466,12 @@ pub trait DispatchHost: PathfinderHost {
     fn lot_at_cell(&self, x: i32, z: i32) -> LotAt;
     /// `FindCityOnOtherSideOfConnection(x, z)` → the city's position.
     fn city_across_connection(&self, x: i32, z: i32) -> Option<(i32, i32)>;
+    /// An occupant's `GetPosition()` x, z (`SetByOccupant`).
+    fn occupant_position(&self, occupant: u64) -> (f32, f32);
+    /// The region's `GetCity(x, z)`; `None` = null (`IsValid`).
+    fn region_city(&self, x: i32, z: i32) -> Option<u64>;
+    /// `GetConnectionsOfTypeToCity(type, city, list)` → the list length.
+    fn connections_of_type_to_city(&self, connection_type: u32, city: u64) -> usize;
     /// Posts a `0x2BA06B99` notification at the MySim.
     fn notify(&self, sim: i32, sub_id: u32, data1: u32, data2: u32);
 }
@@ -392,18 +504,24 @@ impl JobSearchWorld for SimWorld<'_> {
     fn city_across_connection(&self, x: i32, z: i32) -> Option<(i32, i32)> {
         self.host.city_across_connection(x, z)
     }
+    fn occupant_position(&self, occupant: u64) -> (f32, f32) {
+        self.host.occupant_position(occupant)
+    }
+    fn region_city(&self, x: i32, z: i32) -> Option<u64> {
+        self.host.region_city(x, z)
+    }
+    fn connections_of_type_to_city(&self, connection_type: u32, city: u64) -> usize {
+        self.host.connections_of_type_to_city(connection_type, city)
+    }
 }
 
-/// One MySim's dispatch state: the fields the simulation side reads (§4.6)
-/// plus the job-search fields.
+/// One MySim's dispatch state: the job-search fields (§4.7.1), whose
+/// `state` is the trip state (§4.6). `CheckCommute`'s time is the MySim's
+/// `lastCommuteTime` (§4.7), not a dispatch field.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct DispatchState {
-    /// 2 travelling, 3 at a location (§4.6).
-    pub trip_state: i32,
-    /// The job search's dispatch fields (§4.7.1).
+    /// The job search's dispatch fields (§4.7.1), incl. the trip state.
     pub search: JobSearchState,
-    /// The last pathfinder run's total time (§4.7 `CheckCommute`).
-    pub trip_length: f32,
 }
 
 /// The per-MySim trip controller.
@@ -481,15 +599,29 @@ impl MySimDispatch {
         st.flags |= FLAG_HAS_HOME;
     }
 
-    /// Writes the dispatch state `+0x40` (§4.7.1 step 2).
-    pub fn set_dispatch_state(&self, sim: i32, state: i32) {
-        self.sims.borrow_mut().entry(sim).or_default().search.state = state;
+    /// Dispatch `setState(s)` (§4.7.1, `0x00431C10`): the trip state
+    /// `+0x40`, with its notifications (`0x4BB2D020` flags, `0x4BB2CFC0`
+    /// trip state; data (old, new) as §3.3's handler reads them).
+    pub fn set_state(&self, sim: i32, s: i32) {
+        let notes = {
+            let mut sims = self.sims.borrow_mut();
+            set_state(&mut sims.entry(sim).or_default().search, s)
+        };
+        for n in notes {
+            match n {
+                StateNote::Flags { old, new } => self.host.notify(sim, super::dispatch_note::TRIP_STATE_A, old, new),
+                StateNote::TripState { old, new } => {
+                    self.host
+                        .notify(sim, super::dispatch_note::TRIP_STATE_B, old as u32, new as u32)
+                }
+            }
+        }
     }
 
     /// `SetCurrentCommuteDestination(loc, notify)` (§4.7.1). On success with
-    /// `notify`, the MySim is notified with `0xEBA06BF4`. A dispatch never
-    /// `Init`ed has no pathfinder: an invalid location then fails
-    /// *[choice]* (the original always has one after `Init`).
+    /// `notify`, the MySim is notified with `0xEBA06BF4`. Steps 1–2 need no
+    /// pathfinder; a dispatch never `Init`ed has none, so a search it would
+    /// run fails *[choice]* (the original always has one after `Init`).
     pub fn set_current_commute_destination(&self, sim: i32, loc: DispatchLocation, notify: bool) -> bool {
         let (ok, fire) = {
             let mut pfs = self.pathfinders.borrow_mut();
@@ -505,7 +637,7 @@ impl MySimDispatch {
                     };
                     set_current_commute_destination(st, &mut core, &world, loc, notify)
                 }
-                None if loc.is_valid() => {
+                None if loc.is_valid(&world) || (notify && st.state == STATE_STORE_UNVALIDATED) => {
                     st.commute_destination = loc;
                     (true, notify)
                 }
@@ -531,8 +663,9 @@ impl MySimDispatch {
 
     /// `FindNewJob` (§4.7.1, `0x00425A30`): a default location marked "by
     /// commute" through `SetCurrentCommuteDestination(loc, notify = true)`.
-    /// The destination is reported by [`Self::job_destination`] when the
-    /// `0xEBA06BF4` notification fires (the MySim's job_found).
+    /// `FailCommute` and `SetResidence` pass the same location (§4.7.1
+    /// callers table). The destination is reported by
+    /// [`Self::job_destination`] when `0xEBA06BF4` fires.
     pub fn find_new_job(&self, sim: i32) -> bool {
         let loc = DispatchLocation {
             by_commute: true,
@@ -541,119 +674,56 @@ impl MySimDispatch {
         self.set_current_commute_destination(sim, loc, true)
     }
 
-    /// `ChangeJob(b)` (§4.7.1): set the commute destination to building
-    /// `b`; the result of the dispatch. The `notify` argument of this call
-    /// is not specified (question MS11): false is used, so a valid building
-    /// is stored without a search and without `0xEBA06BF4`.
-    pub fn change_job(&self, sim: i32, building: u64) -> bool {
-        self.set_current_commute_destination(sim, DispatchLocation::by_occupant(building), false)
-    }
-
-    /// `CheckCommute` (§4.7): the total time of home → job (or the
-    /// neighbour cell), `None` on failure (the MySim then runs
-    /// `FailCommute`).
-    pub fn check_commute(&self, sim: i32) -> Option<f32> {
-        let home = self.host.home_rect(sim)?;
-        let dest = self.get_state(sim).search.commute_destination;
-        let end = match (dest.by_occupant, dest.occupant) {
-            (true, Some(building)) => self.host.building_rect(building)?,
-            (true, None) => return None,
-            (false, _) => CellRect::new(dest.cell.0, dest.cell.1, dest.cell.0, dest.cell.1),
-        };
-        let found = self.run_pathfinder(home, end)?;
-        self.sims.borrow_mut().entry(sim).or_default().trip_length = found;
-        Some(found)
+    /// `ChangeJob(b)` (§4.7.1, `0x00425D70`): `SetByOccupant(b's occupant)`,
+    /// byCommute 1, `SetCurrentCommuteDestination(loc, notify = true)`
+    /// (answers MS11 e). `building` is `b`'s cISC4Occupant (`None` = null:
+    /// the location is invalid and a normal job search runs).
+    pub fn change_job(&self, sim: i32, building: Option<u64>) -> bool {
+        let o = building.map(|b| (b, self.host.occupant_position(b)));
+        let mut loc = DispatchLocation::by_occupant(o);
+        loc.by_commute = true;
+        self.set_current_commute_destination(sim, loc, true)
     }
 
     /// The destination the `0xEBA06BF4` notification reports (§4.7): a city
-    /// lot's building, or the neighbour city at the reached cell.
+    /// lot's building at the location's cell (`SetByOccupant`'s
+    /// `floor(position / 16)`, answers MS11 c), or the neighbour city at
+    /// the location's cell. An in-city location without an occupant (the
+    /// default stored at trip state 2) reports nothing.
     pub fn job_destination(&self, sim: i32) -> Option<JobDestination> {
-        let st = self.get_state(sim).search;
-        let dest = st.commute_destination;
-        match (dest.by_occupant, dest.occupant) {
-            // The lot's cell is the search's end cell (what `SetByOccupant`
-            // stores as the cell is not specified, question MS11).
+        let dest = self.get_state(sim).search.commute_destination;
+        match (dest.in_city, dest.occupant) {
             (true, Some(building)) => Some(JobDestination::Lot {
                 building,
-                cell: st.end_cell,
+                cell: dest.cell,
             }),
-            (false, _) if dest.is_valid() => Some(JobDestination::Neighbor { cell: dest.cell }),
-            _ => None,
+            (false, _) => Some(JobDestination::Neighbor { cell: dest.cell }),
+            (true, None) => None,
         }
     }
 
-    /// Clears the commute destination (`FailCommute`'s "reset the commute
-    /// destination", §4.7).
-    pub fn reset_commute(&self, sim: i32) {
-        if let Some(state) = self.sims.borrow_mut().get_mut(&sim) {
-            state.search.commute_destination = DispatchLocation::default();
-        }
-    }
-
-    /// The dispatch reports a trip state change (§3.3: `0x4BB2CFC0` passes
-    /// (data3, data2) as (new, old), `0x4BB2D020` (−1, −1, data3, data2)).
-    pub fn report_trip_state(&self, sim: i32, new_state: i32, old_state: i32) {
-        {
-            let mut sims = self.sims.borrow_mut();
-            let state = sims.entry(sim).or_default();
-            state.trip_state = new_state;
-        }
-        self.host.notify(
-            sim,
-            super::dispatch_note::TRIP_STATE_B,
-            old_state as u32,
-            new_state as u32,
-        );
-    }
-
-    /// The dispatch reports a flags change (§3.3, the other half of the
-    /// pair).
+    /// Posts a flags-change notification (`0x4BB2D020`, data (old, new))
+    /// after writing the flags. Only `setState` is specified as a writer
+    /// (§4.7.1); this is the host's entry for the other flag writers of the
+    /// trip automaton (not specified here).
     pub fn report_flags(&self, sim: i32, new_flags: u32, old_flags: u32) {
         self.sims.borrow_mut().entry(sim).or_default().search.flags = new_flags;
         self.host
             .notify(sim, super::dispatch_note::TRIP_STATE_A, old_flags, new_flags);
     }
 
-    /// The dispatch reports an arrival (§3.3 `0xEBA06C12`): the trip state
-    /// is 3, at home or at work.
+    /// Posts an arrival (§3.3 `0xEBA06C12`). The trip state is written only
+    /// by [`Self::set_state`]; byCommute is not touched here (who clears it
+    /// is the trip automaton's, not specified).
     pub fn report_arrival(&self, sim: i32, at_home: bool) {
-        {
-            let mut sims = self.sims.borrow_mut();
-            let state = sims.entry(sim).or_default();
-            state.trip_state = 3;
-            state.search.commute_destination.by_commute = false;
-        }
         self.host
             .notify(sim, super::dispatch_note::ARRIVAL, u32::from(at_home), 0);
     }
 
-    /// The dispatch reports a raw MySim state transition (`0xEBA06BD4` /
-    /// `0x4BB71A7E`, §3.3).
+    /// Posts a MySim state transition (`0xEBA06BD4`, §3.3). This is the
+    /// MySim's state, not the dispatch trip state, so nothing is written.
     pub fn report_sim_state(&self, sim: i32, state: u32) {
-        if (1..=6).contains(&state) {
-            self.sims.borrow_mut().entry(sim).or_default().trip_state = state as i32;
-        }
         self.host.notify(sim, super::dispatch_note::STATE_1, state, 0);
-    }
-
-    /// One pathfinder run (pathfinder.md §8's MySim dispatch setup):
-    /// commuter travel-type mask, density 0, flags 1 | 2, filter 3, a route
-    /// deque, `FindPath`, `Reset`.
-    fn run_pathfinder(&self, home: CellRect, end: CellRect) -> Option<f32> {
-        let mut pf = Pathfinder::create(&*self.host, self.shared.clone());
-        pf.set_start_rect(home);
-        pf.set_end_rect(end);
-        pf.set_trip_destination_filter(filter::END_RECT);
-        pf.set_flag(COMMUTE_FLAGS);
-        pf.set_allowed_travel_types(COMMUTER_TRAVEL_MASK);
-        pf.set_starting_travel_types(COMMUTER_TRAVEL_MASK);
-        pf.set_traffic_density(COMMUTE_DENSITY);
-        pf.set_max_work_time(MAX_WORK_TIME);
-        pf.set_route_info(Some(VecDeque::new()));
-        let found = pf.find_path_on(&self.net, &*self.host);
-        let outcome = (found == result::FOUND).then(|| pf.get_trip_length());
-        pf.reset();
-        outcome
     }
 }
 

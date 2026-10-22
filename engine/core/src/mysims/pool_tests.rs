@@ -37,6 +37,7 @@ fn p1_record() {
             name: b"Bob Newb".to_vec(),
             is_male: true,
             sign: 5,
+            indeterminate: 0,
         }]
     );
     // A truncated second record is dropped; magic only / wrong magic.
@@ -147,7 +148,7 @@ fn sims_host() -> Rc<MemoryPoolHost> {
         .insert((ZODIAC_GROUP, ZODIAC_INSTANCES[4]), b"Leo".to_vec());
     h.listings
         .borrow_mut()
-        .insert(b"D:\\Sims\\UserData2\\Export".to_vec(), vec![b"F.pub".to_vec()]);
+        .insert(b"D:\\Sims\\UserData2\\Export\\".to_vec(), vec![b"F.pub".to_vec()]);
     let e = |k: &str, v: &str| (b"FamilyInfo".to_vec(), k.as_bytes().to_vec(), v.as_bytes().to_vec());
     let ini = IniFile {
         entries: vec![
@@ -186,7 +187,7 @@ fn p5_import() {
     assert_eq!(
         h.converted.borrow()[0],
         (
-            b"D:\\Sims\\Web Pages\\FamilyGFX\\Newb\\family1_face.jpg".to_vec(),
+            b"D:\\Sims\\UserData2\\Web Pages\\Newb\\FamilyGFX\\family1_face.jpg".to_vec(),
             b"C:\\U\\SimCity 4\\MySim\\Bob_1a32b.bmp".to_vec()
         )
     );
@@ -256,4 +257,125 @@ fn p7_cache() {
     assert_eq!(pool.import(), 1);
     assert!(!pool.is_loaded());
     assert_eq!(pool.templates().len(), 1);
+}
+
+/// MS12 examples: long name (length mod 256), UserData path, ini next to
+/// pub, picture folder.
+#[test]
+fn p8_ms12_paths_and_lengths() {
+    let name = vec![b'a'; 300];
+    let r = encode_record(&name, false, 0, b"p");
+    assert_eq!(r[0], 44);
+    assert_eq!(&r[1..45], &name[..44]);
+    assert_eq!(&r[45..], &[0, 0, 1, b'p']);
+    let back = parse_mysims_dat(&[&MYSIMS_DAT_MAGIC[..], &r].concat());
+    assert_eq!(back[0].name.len(), 44);
+    assert_eq!(encode_record(&[], true, 1, &[b'x'; 256])[3..], [0]);
+    assert_eq!(userdata_dir(b"D:\\Sims\\", 1), b"D:\\Sims\\\\UserData");
+    assert_eq!(userdata_dir(b"D:\\Sims\\", 3), b"D:\\Sims\\\\UserData3");
+    // A trailing-`\` install path: the double separator is kept throughout.
+    let h = sims_host();
+    h.registry
+        .borrow_mut()
+        .insert(b"InstallPath".to_vec(), b"D:\\Sims\\".to_vec());
+    h.dirs.borrow_mut().push(b"D:\\Sims\\".to_vec());
+    h.dirs.borrow_mut().push(b"D:\\Sims\\\\UserData".to_vec());
+    let ini = h.inis.borrow().values().next().cloned().unwrap();
+    h.listings
+        .borrow_mut()
+        .insert(b"D:\\Sims\\\\UserData\\Export\\".to_vec(), vec![b"Smith.pub".to_vec()]);
+    h.inis
+        .borrow_mut()
+        .insert(b"D:\\Sims\\\\UserData\\Export\\Smith.ini".to_vec(), ini);
+    assert_eq!(MySimPool::new(h.clone()).import(), 1);
+    assert_eq!(
+        h.converted.borrow()[0].0,
+        b"D:\\Sims\\\\UserData\\Web Pages\\Newb\\FamilyGFX\\family1_face.jpg".to_vec()
+    );
+    assert_eq!(
+        h.deleted.borrow()[0],
+        b"D:\\Sims\\\\UserData\\Export\\Smith.ini".to_vec()
+    );
+}
+
+/// MS12 b: ini sections/keys case-insensitive, numbers `%ld`, missing name /
+/// guid skip; unsigned member loop.
+#[test]
+fn p9_ms12_ini_reads() {
+    let ini = IniFile {
+        entries: vec![(b"FamilyInfo".to_vec(), b"Sims_Family_Name".to_vec(), b"N".to_vec())],
+    };
+    assert_eq!(ini.get(b"FAMILYINFO", b"sims_family_name"), Some(&b"N"[..]));
+    let num = |v: &[u8]| {
+        IniFile {
+            entries: vec![(b"S".to_vec(), b"k".to_vec(), v.to_vec())],
+        }
+        .read_number(b"s", b"K")
+    };
+    assert_eq!(num(b"0x1F"), Some(0));
+    assert_eq!(num(b" 42abc"), Some(42));
+    assert_eq!(num(b"-7"), Some(-7));
+    assert_eq!(num(b"abc"), None);
+    // Guid `0x1F` → 0, ` 42abc` → 42, missing → member skipped; keys in
+    // another case still match.
+    let h = sims_host();
+    h.inis.borrow_mut().values_mut().for_each(|i| {
+        i.entries.retain(|(_, k, _)| !k.starts_with(b"sims_familymember1"));
+        let e = |k: &str, v: &str| (b"familyinfo".to_vec(), k.as_bytes().to_vec(), v.as_bytes().to_vec());
+        i.entries.extend([
+            e("SIMS_FAMILY_NUMMEMBERS", "3"),
+            e("sims_familymember1_name", "A"),
+            e("sims_familymember1_guid", "0x1F"),
+            e("sims_familymember2_guid", " 42abc"),
+            e("sims_familymember3_guid", "9"),
+        ]);
+    });
+    // nummembers: the first entry ("2") wins, so member 3 is not reached.
+    let pool = MySimPool::new(h.clone());
+    assert_eq!(pool.import(), 2);
+    let t = pool.templates();
+    assert_eq!(t[0].portrait, b"A_0.bmp");
+    assert_eq!(t[1].portrait, b"Betty_2a.bmp");
+    // A negative count loops unsigned: member 3 is reached; n = 0 → none.
+    for (n, want) in [("-1", 3), ("0", 0)] {
+        h.inis.borrow_mut().values_mut().for_each(|i| {
+            i.entries.retain(|(_, k, _)| k != b"sims_family_nummembers");
+            i.entries.retain(|(_, k, _)| k != b"SIMS_FAMILY_NUMMEMBERS");
+            i.entries.push((
+                b"FamilyInfo".to_vec(),
+                b"sims_family_nummembers".to_vec(),
+                n.as_bytes().to_vec(),
+            ));
+            i.entries.push((
+                b"FamilyInfo".to_vec(),
+                b"sims_familymember3_name".to_vec(),
+                b"C".to_vec(),
+            ));
+        });
+        assert_eq!(MySimPool::new(h.clone()).import(), want, "n = {n}");
+    }
+}
+
+/// MS12 a: absent bitmap / is-male / sign are flagged indeterminate; an
+/// absent name is empty.
+#[test]
+fn p10_ms12_absent_properties() {
+    let h = host();
+    *h.keys.borrow_mut() = Some(vec![TemplateKey {
+        type_id: TEMPLATE_KEY_TYPE,
+        group: 0,
+        instance: 1,
+    }]);
+    h.exemplars.borrow_mut().insert(
+        1,
+        TemplateExemplar {
+            exemplar_type: Some(EXEMPLAR_TYPE_SIM_TEMPLATE),
+            sign: Some(7),
+            ..TemplateExemplar::default()
+        },
+    );
+    let t = MySimPool::new(h).templates();
+    assert_eq!(t[0].name, b"");
+    assert_eq!((t[0].bitmap_id, t[0].is_male, t[0].sign), (0, false, 7));
+    assert_eq!(t[0].indeterminate, INDETERMINATE_BITMAP | INDETERMINATE_MALE);
 }

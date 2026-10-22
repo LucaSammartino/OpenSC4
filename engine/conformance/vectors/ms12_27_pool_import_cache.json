@@ -34,7 +34,7 @@
         ],
         "families": [
           {
-            "export": "D:\\Sims\\UserData2\\Export",
+            "export": "D:\\Sims\\UserData2\\Export\\",
             "ini": "D:\\Sims\\UserData2\\Export\\F.ini",
             "entries": [
               [
@@ -123,11 +123,11 @@
         "file_hex": "aae4324a08426f62204e657762010409426f625f31613332620a4265747479204e65776200000842657474795f6666",
         "converted": [
           [
-            "D:\\Sims\\Web Pages\\FamilyGFX\\Newb\\family1_face.jpg",
+            "D:\\Sims\\UserData2\\Web Pages\\Newb\\FamilyGFX\\family1_face.jpg",
             "C:\\U\\SimCity 4\\MySim\\Bob_1a32b.bmp"
           ],
           [
-            "D:\\Sims\\Web Pages\\FamilyGFX\\Newb\\family2_face.jpg",
+            "D:\\Sims\\UserData2\\Web Pages\\Newb\\FamilyGFX\\family2_face.jpg",
             "C:\\U\\SimCity 4\\MySim\\Betty_ff.bmp"
           ]
         ],
@@ -164,7 +164,7 @@
         ],
         "families": [
           {
-            "export": "D:\\Sims\\UserData2\\Export",
+            "export": "D:\\Sims\\UserData2\\Export\\",
             "ini": "D:\\Sims\\UserData2\\Export\\F.ini",
             "entries": [
               [
@@ -236,11 +236,11 @@
         "file_hex": "aae4324a08426f62204e657762010409426f625f31613332620a4265747479204e65776200000842657474795f6666",
         "converted": [
           [
-            "D:\\Sims\\Web Pages\\FamilyGFX\\Newb\\family1_face.jpg",
+            "D:\\Sims\\UserData2\\Web Pages\\Newb\\FamilyGFX\\family1_face.jpg",
             "C:\\U\\SimCity 4\\MySim\\Bob_1a32b.bmp"
           ],
           [
-            "D:\\Sims\\Web Pages\\FamilyGFX\\Newb\\family2_face.jpg",
+            "D:\\Sims\\UserData2\\Web Pages\\Newb\\FamilyGFX\\family2_face.jpg",
             "C:\\U\\SimCity 4\\MySim\\Betty_ff.bmp"
           ]
         ],
@@ -277,7 +277,7 @@
         ],
         "families": [
           {
-            "export": "D:\\Sims\\UserData2\\Export",
+            "export": "D:\\Sims\\UserData2\\Export\\",
             "ini": "D:\\Sims\\UserData2\\Export\\F.ini",
             "entries": [
               [
@@ -385,11 +385,11 @@
         "file_hex": "aae4324a",
         "converted": [
           [
-            "D:\\Sims\\Web Pages\\FamilyGFX\\Newb\\family1_face.jpg",
+            "D:\\Sims\\UserData2\\Web Pages\\Newb\\FamilyGFX\\family1_face.jpg",
             "C:\\U\\SimCity 4\\MySim\\Bob_1a32b.bmp"
           ],
           [
-            "D:\\Sims\\Web Pages\\FamilyGFX\\Newb\\family2_face.jpg",
+            "D:\\Sims\\UserData2\\Web Pages\\Newb\\FamilyGFX\\family2_face.jpg",
             "C:\\U\\SimCity 4\\MySim\\Betty_ff.bmp"
           ]
         ],
@@ -426,7 +426,7 @@
         ],
         "families": [
           {
-            "export": "D:\\Sims\\UserData2\\Export",
+            "export": "D:\\Sims\\UserData2\\Export\\",
             "ini": "D:\\Sims\\UserData2\\Export\\F.ini",
             "entries": [
               [
@@ -501,7 +501,7 @@
         "file_hex": "aae4324a08426f62204e657762010409426f625f3161333262",
         "converted": [
           [
-            "D:\\Sims\\Web Pages\\FamilyGFX\\Newb\\family1_face.jpg",
+            "D:\\Sims\\UserData2\\Web Pages\\Newb\\FamilyGFX\\family1_face.jpg",
             "C:\\U\\SimCity 4\\MySim\\Bob_1a32b.bmp"
           ]
         ],

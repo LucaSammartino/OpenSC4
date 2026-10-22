@@ -22,6 +22,8 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 
+use crate::rz_files::ini::{ini_lower, scan_long};
+
 /// Resource-key type of the built-in templates (`EnumKeysCallback`).
 pub const TEMPLATE_KEY_TYPE: u32 = 0x6A29_7266;
 /// The interface queried on the resource manager.
@@ -79,7 +81,18 @@ pub struct MySimTemplate {
     pub is_male: bool,
     /// `+0x2D`, 0–11.
     pub sign: u8,
+    /// Fields the original leaves **uninitialised** because the exemplar
+    /// property is absent (§4.12, MS12 a, *[compat-undefined]*): bits
+    /// [`INDETERMINATE_BITMAP`], [`INDETERMINATE_MALE`],
+    /// [`INDETERMINATE_SIGN`]. The field itself then holds the
+    /// reimplementation's 0 / false / 0; 0 = every field defined.
+    pub indeterminate: u8,
 }
+
+/// [`MySimTemplate::indeterminate`] bits.
+pub const INDETERMINATE_BITMAP: u8 = 1;
+pub const INDETERMINATE_MALE: u8 = 2;
+pub const INDETERMINATE_SIGN: u8 = 4;
 
 /// A resource key (type, group, instance).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -117,13 +130,21 @@ pub struct IniFile {
 }
 
 impl IniFile {
-    /// The value of `[section] key`. Exact byte match: the original reader's
-    /// case rules are not specified (question MS12).
+    /// `ReadEntry` (framework-rz-files.md §3.5): the value of
+    /// `[section] key`, section and key matched case-insensitively (MS12 b,
+    /// [`ini_lower`]); the first matching entry wins.
     pub fn get(&self, section: &[u8], key: &[u8]) -> Option<&[u8]> {
+        let (section, key) = (ini_lower(section), ini_lower(key));
         self.entries
             .iter()
-            .find(|(s, k, _)| s == section && k == key)
+            .find(|(s, k, _)| ini_lower(s) == section && ini_lower(k) == key)
             .map(|(_, _, v)| v.as_slice())
+    }
+
+    /// `ReadNumber` (§3.5): `sscanf("%ld")` of the entry; `None` = no entry
+    /// or no number (the caller's variable is then left as it was).
+    pub fn read_number(&self, section: &[u8], key: &[u8]) -> Option<i32> {
+        self.get(section, key).and_then(scan_long)
     }
 }
 
@@ -155,7 +176,8 @@ pub trait PoolHost {
     fn create_output(&self, path: &[u8]) -> bool;
     fn write_output(&self, bytes: &[u8]);
     fn close_output(&self);
-    /// The file names matching `<dir>\<pattern>`, in listing order.
+    /// The file names matching `<dir><pattern>` (`dir` ends in `\`), in
+    /// listing order.
     fn list_files(&self, dir: &[u8], pattern: &[u8]) -> Vec<Vec<u8>>;
     /// Opens (read, open existing) and parses an ini file; `None` = missing
     /// or not an ini file.
@@ -204,17 +226,18 @@ pub fn parse_mysims_dat(bytes: &[u8]) -> Vec<MySimTemplate> {
             name,
             is_male: male,
             sign,
+            indeterminate: 0,
         });
     }
     out
 }
 
-/// One `MySims.dat` record (the `Import` writer). Lengths are one byte; a
-/// longer string is cut to 255 bytes so the record stays readable
-/// *[choice, question MS12]*.
+/// One `MySims.dat` record (the `Import` writer). Each string is written as
+/// a u8 length = **byte length mod 256** followed by that many bytes (MS12 e):
+/// a 300-byte name is stored as 44 and its first 44 bytes.
 pub fn encode_record(name: &[u8], is_male: bool, sign: u8, portrait: &[u8]) -> Vec<u8> {
-    let name = &name[..name.len().min(255)];
-    let portrait = &portrait[..portrait.len().min(255)];
+    let name = &name[..name.len() % 256];
+    let portrait = &portrait[..portrait.len() % 256];
     let mut r = Vec::with_capacity(name.len() + portrait.len() + 4);
     r.push(name.len() as u8);
     r.extend_from_slice(name);
@@ -241,29 +264,6 @@ pub fn portrait_source(t: &MySimTemplate, mysim_directory: &[u8]) -> PortraitSou
         PortraitSource::Resource(t.bitmap_id)
     } else {
         PortraitSource::File([mysim_directory, t.portrait.as_slice()].concat())
-    }
-}
-
-/// Leading decimal integer (`atoi`-like: optional sign, digits; else 0).
-/// The ini integer reader is not specified (question MS12).
-fn parse_int(v: &[u8]) -> i64 {
-    let mut i = 0;
-    while i < v.len() && (v[i] == b' ' || v[i] == b'\t') {
-        i += 1;
-    }
-    let neg = v.get(i) == Some(&b'-');
-    if matches!(v.get(i), Some(b'-') | Some(b'+')) {
-        i += 1;
-    }
-    let mut n: i64 = 0;
-    while let Some(d) = v.get(i).filter(|d| d.is_ascii_digit()) {
-        n = n.wrapping_mul(10).wrapping_add(i64::from(d - b'0'));
-        i += 1;
-    }
-    if neg {
-        -n
-    } else {
-        n
     }
 }
 
@@ -328,8 +328,9 @@ impl<H: PoolHost + ?Sized> MySimPool<H> {
         out
     }
 
-    /// `EnumKeysCallback(key)`. Absent properties give 0 / empty / false
-    /// (not specified, question MS12).
+    /// `EnumKeysCallback(key)`. An absent name gives the empty string; an
+    /// absent bitmap ID / is-male / sign is indeterminate in the original
+    /// (MS12 a): 0 / false / 0 here, flagged in `indeterminate`.
     fn enum_keys_callback(&self, key: TemplateKey) -> Option<MySimTemplate> {
         if key.type_id != TEMPLATE_KEY_TYPE {
             return None;
@@ -344,6 +345,9 @@ impl<H: PoolHost + ?Sized> MySimPool<H> {
             name: ex.localized_name.or(ex.name).unwrap_or_default(),
             is_male: ex.is_male.unwrap_or(false),
             sign: ex.sign.unwrap_or(0),
+            indeterminate: (u8::from(ex.bitmap_id.is_none()) * INDETERMINATE_BITMAP)
+                | (u8::from(ex.is_male.is_none()) * INDETERMINATE_MALE)
+                | (u8::from(ex.sign.is_none()) * INDETERMINATE_SIGN),
         })
     }
 
@@ -401,16 +405,13 @@ impl<H: PoolHost + ?Sized> MySimPool<H> {
             .collect();
         let install = self.installation();
         for i in 1..=USERDATA_COUNT {
-            let mut dir = [install.as_slice(), b"\\UserData"].concat();
-            if i > 1 {
-                dir.extend_from_slice(i.to_string().as_bytes());
-            }
-            if !self.host.directory_exists(&dir) {
+            let ud = userdata_dir(&install, i);
+            if !self.host.directory_exists(&ud) {
                 continue;
             }
-            let export = [dir.as_slice(), b"\\Export"].concat();
+            let export = [ud.as_slice(), b"\\Export\\"].concat();
             for file in self.host.list_files(&export, b"*.pub") {
-                count += self.import_family(&export, &file, &male, &zodiac, &mysim_dir);
+                count += self.import_family(&ud, &export, &file, &male, &zodiac, &mysim_dir);
             }
         }
         self.host.close_output();
@@ -422,11 +423,21 @@ impl<H: PoolHost + ?Sized> MySimPool<H> {
         count
     }
 
-    /// Steps 2–6 for one `F.pub`: the records written. `F.ini` is taken
-    /// from the same `Export` directory (literal reading).
-    fn import_family(&self, export: &[u8], pub_name: &[u8], male: &[u8], zodiac: &[Vec<u8>], mysim_dir: &[u8]) -> u32 {
-        let stem = pub_name.strip_suffix(b".pub").unwrap_or(pub_name);
-        let ini_path = [export, b"\\", stem, b".ini"].concat();
+    /// Steps 2–6 for one `F.pub` of `<ud>\Export\`: the records written.
+    fn import_family(
+        &self,
+        ud: &[u8],
+        export: &[u8],
+        pub_name: &[u8],
+        male: &[u8],
+        zodiac: &[Vec<u8>],
+        mysim_dir: &[u8],
+    ) -> u32 {
+        // `F.ini` = the Export directory + the entry name minus its last 4
+        // bytes (`Left(len − 4)`) + `.ini` (MS12 d). A name shorter than 4
+        // bytes is not specified: empty stem here (question MS14 c).
+        let stem = &pub_name[..pub_name.len().saturating_sub(4)];
+        let ini_path = [export, stem, b".ini"].concat();
         let Some(ini) = self.host.read_ini(&ini_path) else {
             return 0;
         };
@@ -434,21 +445,28 @@ impl<H: PoolHost + ?Sized> MySimPool<H> {
             return 0;
         };
         let desc = desc.strip_suffix(b"/").unwrap_or(desc);
-        // `<install>\Web Pages\FamilyGFX\<value>`: the separators are not
-        // specified (question MS12).
-        let pictures = [self.installation().as_slice(), b"\\Web Pages\\FamilyGFX\\", desc].concat();
+        // `<ud>\Web Pages\<value>\FamilyGFX\` (MS12 c).
+        let pictures = [ud, b"\\Web Pages\\", desc, b"\\FamilyGFX\\"].concat();
+        // A missing family name: `ReadEntry` writes nothing, the string stays
+        // empty (literal reading).
         let family = ini.get(b"FamilyInfo", b"sims_family_name").unwrap_or_default().to_vec();
-        let n = parse_int(ini.get(b"FamilyInfo", b"sims_family_nummembers").unwrap_or_default());
+        // The `ReadNumber` result is not tested; the value of `n` after a
+        // miss is not specified: 0 here (question MS14 a).
+        let n = ini.read_number(b"FamilyInfo", b"sims_family_nummembers").unwrap_or(0) as u32;
         let mut written = 0;
-        for k in 1..=n.max(0) {
-            let field = |f: &str| ini.get(b"FamilyInfo", format!("sims_familymember{k}_{f}").as_bytes());
-            let Some(guid) = field("guid") else { continue };
-            let guid = parse_int(guid) as u32;
-            let first = field("name").unwrap_or_default();
+        for k in member_indices(&ini, n) {
+            let key = |f: &str| format!("sims_familymember{}_{f}", k as i32);
+            let field = |f: &str| ini.get(b"FamilyInfo", key(f).as_bytes());
+            let Some(first) = field("name") else { continue };
+            // A missing `_gender` / `_zodiac` is not specified: empty value
+            // (literal reading; question MS14 d).
             let gender = field("gender").unwrap_or_default();
             let zod = make_lower(field("zodiac").unwrap_or_default());
-            let portrait = [first, b"_", format!("{guid:x}").as_bytes()].concat();
-            let src = [pictures.as_slice(), format!("\\family{k}_face.jpg").as_bytes()].concat();
+            let Some(guid) = ini.read_number(b"FamilyInfo", key("guid").as_bytes()) else {
+                continue;
+            };
+            let portrait = [first, b"_", format!("{:x}", guid as u32).as_bytes()].concat();
+            let src = [pictures.as_slice(), format!("family{}_face.jpg", k as i32).as_bytes()].concat();
             let dst = [mysim_dir, portrait.as_slice(), PORTRAIT_SUFFIX].concat();
             if !self.host.convert_image(&src, &dst) {
                 continue;
@@ -462,6 +480,41 @@ impl<H: PoolHost + ?Sized> MySimPool<H> {
         self.host.delete_file(&ini_path);
         written
     }
+}
+
+/// `Sprintf("%s%sUserData", path, "\")` for `i` = 1, `...UserData%d` else:
+/// the `\` is always inserted (MS12 f).
+pub fn userdata_dir(path: &[u8], i: u32) -> Vec<u8> {
+    let mut dir = [path, b"\\UserData"].concat();
+    if i > 1 {
+        dir.extend_from_slice(i.to_string().as_bytes());
+    }
+    dir
+}
+
+/// The members `k` the unsigned loop `k = 1 … n` (§4.12 step 4) reaches with
+/// a `sims_familymember<k>_name` entry, ascending. Every other `k` fails the
+/// `_name` read and is skipped without effect, so only these are visited (a
+/// negative `n` loops over 2^32 − |n| keys in the original). `k` is printed
+/// as `%d` (`k ≥ 2^31` negative; question MS14 b).
+fn member_indices(ini: &IniFile, n: u32) -> Vec<u32> {
+    const PREFIX: &[u8] = b"sims_familymember";
+    let mut ks: Vec<u32> = ini
+        .entries
+        .iter()
+        .filter(|(s, _, _)| ini_lower(s) == b"familyinfo")
+        .filter_map(|(_, k, _)| {
+            let k = ini_lower(k);
+            let mid = k.strip_prefix(PREFIX)?.strip_suffix(b"_name")?;
+            let v: i32 = std::str::from_utf8(mid).ok()?.parse().ok()?;
+            // Only the exact text `%d` prints matches the read key.
+            (v.to_string().as_bytes() == mid).then_some(v as u32)
+        })
+        .filter(|&k| k >= 1 && k <= n)
+        .collect();
+    ks.sort_unstable();
+    ks.dedup();
+    ks
 }
 
 /// An in-memory [`PoolHost`] (tests, conformance): files, registry, ini
