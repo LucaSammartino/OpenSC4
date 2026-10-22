@@ -5,7 +5,7 @@
 ## Handoff (round 3)
 
 Round 3 in progress (2026-10-22), static only. §5.10 scroll bars/RecalculateAll/sizes, §5.11 cell data/windows/
-copy/MakeRoom committed; WG2 answered. Coverage 156/198, 20021/32735 B; remaining 42 functions, 12714 B.
+copy/MakeRoom (f5f77b85), §5.12 GZPaint committed; WG2 answered. Coverage 156/198, 20021/32735 B; remaining 42 functions, 12714 B.
 Next: GZPaint 0x009AF168 + FUN_009A7E52 (§5.12), Sort/Copy/Delete rows+columns, SetCellFormat family,
 SetDefaultFormatting, ScrollCells*, GetCellRect, ResizeColumnToFitCellWindows, remaining FUN_ helpers.
 Tools: build-runs/cdec.py <decompfile> <addr> (compact decomp), rdf.py VA[:f|d|i|s] (read constants),

@@ -653,6 +653,63 @@ the matrix (0 if empty) and then the row rule.
   each used column c (used range) that has cells. **MakeRoomForColumn(col, n, mode)** 0x009AE2EF: mode 0 = 2;
   only 1, 2, 4; MakeRoom(col, r, n, mode) for each used row having cells. Return 1.
 
+### 5.12 Painting (GZPaint 0x009AF168)
+
+GZPaint is the window-view override (its `this` is the grid + 4). All rectangles are window-local plus the window
+origin. "No colour" is the sentinel 0x40000000 in every colour field below. Order of one paint:
+
+1. Layout-dirty (+0xE4) set: RecalculateAll. Then +0xE8 (pause counter) is forced to 0 *[compat]*.
+2. Cell area (slot 9) offset by the window origin; used range (slot 50). Visible bounds: columns from the
+   horizontal scroll c0 (+0x128) to cEnd = c0 + trunc(+0x130), rows r0 (+0x12C) to rEnd = r0 + trunc(+0x134);
+   cEnd is lowered to maxCol + 1 when flag 0x8000 is clear (and maxCol <= cEnd), rEnd to maxRow + 1 when flag
+   0x10000 is clear.
+3. Flag 0x100 (fill background): with no background image (+0x2C0 null) fill the whole window with the
+   window colour (window-view slot 126) via the draw context; with an image, draw it over the window rect.
+4. Grid lines, only when flag 0x20 (column lines, colour +0x14C) or 0x40 (row lines, colour +0x150) is enabled
+   with a colour. Line extents: column lines run from the cell-area top to min(area bottom - 1, top + height of
+   rows r0..limit/maxRow - 1) and row lines likewise across. For each column boundary from c0 to cEnd - 1 (x =
+   right edge of the column): if an owner-draw target (+0x168) exists it gets message 0xFA785CB0 with the line
+   geometry, the draw context and the enabled state (view slot 67); a false answer skips the default line. The
+   default line uses width (float)(u32)+0x154 then resets the width to 1.0f. Row lines: on the first column pass
+   only, the same per row from r0 to rEnd - 1 with message 0xFA785CB1, width +0x158.
+5. Flag 8: column headings for every visible column (slot 51 range): heading = column heading map entry
+   (inserted when missing); an empty heading with flag 0x100000 becomes "Column #%d" (column index). Rect =
+   slot 72 (window-view +0x120) heading rect + origin; the header background is painted by 0x009A60BB with the
+   header format at +0x2BC, then the text through the header font (+0x2BC slot +0xD0) at the position from
+   0x009A5FE3. Flag 0x10: row headings the same with "Row #%d" and window-view +0x124.
+6. Flag 0x20000: a background pass over every visible cell: format (slot 84) and selected state (slot 45),
+   background painted by 0x009A60BB.
+7. Cell pass, column by column then row by row over the visible bounds: cell rect = running sums of
+   GetColumnWidthInternal / GetRowHeightInternal from the cell-area origin, clipped to the cell area
+   (0x0048ED90); format (slot 84); cell record (null when empty); selected state; enabled state (view slot 67).
+   Without an owner-draw target, or when the target answers message 0xFA785CB2 true, the default cell drawer
+   0x009A7E52 runs.
+8. When the grid has extra data object +0x268 *[as read]*, the vertical bar exists and flag 0x100 is set: the
+   corner square right of the horizontal bar / below the vertical bar is filled like step 3 (shrunk by 1 with
+   flag 0x200).
+9. Flag 0x400: outline of the cell area; flag 0x200: outline of the window rect; both in colour +0x144 *[as
+   read: the decomp names this field the default row height; offsets in this view are grid - 4, so it is the
+   outline colour +0x148]*, width 1.
+
+Paint record passed to the helpers and the owner-draw target: +0x0C cell rect*, +0x10 clip rect*, +0x18 draw
+context, +0x20 format* (+0x00 font, +0x08 background, +0x10 text colour, +0x18 selected colour, +0x1D horizontal
+alignment byte: 3 centre, 4 right; +0x1E vertical alignment: 6 centre, 7 bottom), +0x24 cell record*, +0x28
+selected, +0x29 enabled.
+
+- **Background helper** 0x009A60BB: rect = cell rect, left += +0x154 when column lines are on, top += +0x158
+  when row lines are on, clipped. Not selected: background +0x08; selected: +0x18 unless flag 0x80000. No colour
+  = nothing. Fill uses draw-context capability 0x8001 enabled around the fill (slot +0x50).
+- **Default cell drawer** 0x009A7E52: the same background step unless flag 0x20000 (already painted in pass 6).
+  Content rect = cell rect shrunk by the cell gutters (+0x100..+0x10C). Window cells draw nothing (the child
+  paints itself). Text: alignment and colour from 0x009A5FE3 (vertical centre = (top + bottom) / 2 - lineH / 2;
+  colour +0x18 when selected, else +0x08 or +0x10 by the enabled byte); with flag 0x20000 the right edge is
+  taken from the paint record +0x14; with flag 0x80000 and a colour, each wrapped line (font slot +0xA4 breaks
+  at the content width) is filled as a selection band; then font slot +0xD0 draws the string. Bitmap: image
+  size from slot +0x2C; placed at the content left/top, centred (3/6) or right/bottom aligned (4/7); with flag
+  0x20000 the clip right edge from the record +0x14; drawn with capability 0x8010 enabled (context slot +0x74).
+  *[pending]* the horizontal text position computed by 0x009A5FE3 for alignments 3/4/5 is lost in the
+  decompilation and not yet read from the instructions.
+
 ## 6. Conformance (planned vectors)
 
 1. SetDefaultFontColor(c, 6) returns false and leaves all six colours unchanged; index 5 succeeds.
@@ -693,7 +750,7 @@ See `questions/win-grid.md`.
 | 009a5f70 | 13 | MakeDropDown [slot 139] | 5.6 |
 | 009a5f7d | 28 | GZOnMouseWheel | 5.1 |
 | 009a5fe3 | 216 | FUN_009a5fe3 | pending |
-| 009a60bb | 228 | FUN_009a60bb | pending |
+| 009a60bb | 228 | FUN_009a60bb | 5.12 |
 | 009a619f | 133 | SetArea | 5.1 |
 | 009a6224 | 96 | SetFlag | 5.1 |
 | 009a62cf | 33 | FUN_009a62cf | 5.7 |
@@ -749,7 +806,7 @@ See `questions/win-grid.md`.
 | 009a7c69 | 419 | DoCursorHitTest [slot 110] | 5.9 |
 | 009a7e0c | 35 | GZOnSetFocus | 5.1 |
 | 009a7e2f | 35 | GZOnKillFocus | 5.1 |
-| 009a7e52 | 876 | FUN_009a7e52 | pending |
+| 009a7e52 | 876 | FUN_009a7e52 | 5.12 |
 | 009a81be | 144 | SetFlags | 5.1 |
 | 009a824e | 120 | GZOnCharacter [slot 141] | 5.8 |
 | 009a82c6 | 308 | TestForPossibleScrollBarAdditionOrRemoval | 5.10 |
@@ -869,7 +926,7 @@ See `questions/win-grid.md`.
 | 009aee63 | 659 | RecalculateAll | 5.10 |
 | 009af0f6 | 43 | GetRowHeight | 5.4 |
 | 009af121 | 71 | Init | 5.1 |
-| 009af168 | 2813 | GZPaint | pending |
+| 009af168 | 2813 | GZPaint | 5.12 |
 
-Specified 156 of 198 functions, 20021 of 32735 bytes; remaining 42 functions, 12714 bytes.
+Specified 159 of 198 functions, 23938 of 32735 bytes; remaining 39 functions, 8797 bytes.
 <!-- END INVENTORY -->
