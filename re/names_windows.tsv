@@ -4018,23 +4018,48 @@ va	name	source	confidence	note
 005d7800	SC4GeometryUtilities::ClipPolygonToEdge2D	auto:B0	medium	mac 0009d862 score 0.965 support 2.0
 005d79d0	SC4GeometryUtilities::ClipPolygonToPolygon2D	auto:D	medium	mac 0009da7e score 0.5 support 1
 005d7b40	icf::cSC4GlyphTextureManager::AddRef	folded	folded	2 names: cSC4GlyphTextureManager::AddRef | cSC4OrdinanceSimple::AddRef
-005d7b50	cSC4GlyphTextureManager::Release	auto:C	high	mac 004c4332 score 1.0 support 1
-005d7b70	cSC4GlyphTextureManager::QueryInterface	auto:A	high	mac 004c435a score 1.0 support 0
+005d7b50	cSC4GlyphTextureManager::Release	manual:glyph-textures.tsv	high	glyph-textures.md §1.1; slot 2 of 0x00AA2AD4; count +0x24, deleting destructor at 0
+005d7b70	cSC4GlyphTextureManager::QueryInterface	manual:glyph-textures.tsv	high	glyph-textures.md §1.1; slot 0; answers only 0x0B54C519
+005d7b90	cSC4GlyphTextureManager::CalcStringTextureSize	manual:glyph-textures.tsv	high	glyph-textures.md §1.4; descriptive name, no Mac match; P(width + 2) x P(height + 2) from font slots 48 and 37
+005d7c00	cSC4GlyphTextureManager::CompareGlyphKeys	manual:glyph-textures.tsv	high	glyph-textures.md §1.3; descriptive name, no Mac match; string slot 12 (case flag 1), then the font ID +0x14
+005d7c40	cSC4GlyphTextureInfo::SetManager	manual:glyph-textures.tsv	high	glyph-textures.md §2; descriptive name, no Mac match; counted pointer +0x38
+005d7c70	cSC4GlyphTextureInfo::GetUVRect	manual:glyph-textures.tsv	high	glyph-textures.md §2; descriptive name, no Mac match; slot 6 of 0x00AA2A3C; +0x20..+0x2C
+005d7c90	cSC4StringTextureInfo::Release	manual:glyph-textures.tsv	high	glyph-textures.md §3; descriptive name, no Mac match; slot 2 of 0x00AA2A60; kept at 1 when a manager is set
 005d7cc0	std::_Rb_tree<SC4GlyphAndFontInfo,std::pair<SC4GlyphAndFontInfo_const,cSC4GlyphTextureInfo*>,std::_Select1st<std::pair<SC4GlyphAndFontInfo_const,cSC4GlyphTextureInfo*>>,std::less<SC4GlyphAndFontInfo>,std::allocator<std::pair<SC4GlyphAndFontInfo_const,cSC4GlyphTextureInfo*>>>::find	auto:D	medium	mac 008069c4 score 0.5 support 1
-005d7d50	cSC4GlyphTextureManager::Init	auto:C	high	mac 004c459c score 1.0 support 1
+005d7d50	cSC4GlyphTextureManager::Init	manual:glyph-textures.tsv	high	glyph-textures.md §1.2; system-service slot 8; budget kStringTextureCacheSize * 1024, subscribes 0x8ACAA95F
 005d7dd0	std::_Rb_tree<SC4GlyphAndFontInfo,std::pair<SC4GlyphAndFontInfo_const,cSC4GlyphTextureInfo*>,std::_Select1st<std::pair<SC4GlyphAndFontInfo_const,cSC4GlyphTextureInfo*>>,std::less<SC4GlyphAndFontInfo>,std::allocator<std::pair<SC4GlyphAndFontInfo_const,cSC4GlyphTextureInfo*>>>::lower_bound	auto:D	medium	mac 008065c2 score 0.5 support 1
-005d7e20	cSC4GlyphTextureManager::OnTick	auto:C	high	mac 004c4792 score 1.0 support 1
-005d8030	cSC4GlyphTextureInfo::cSC4GlyphTextureInfo	auto:D	medium	mac 004c4d58 score 0.5 support 1
-005d8150	cSC4GlyphTextureManager::GetCachedStringTexture	auto:C	high	mac 004c5134 score 1.0 support 1
+005d7e20	cSC4GlyphTextureManager::OnTick	manual:glyph-textures.tsv	high	glyph-textures.md §1.5; system-service slot 10; every 50 ms, target B - 0.1 L above 1.1 L, second-chance sweep
+005d7f00	cSC4GlyphTextureManager::GetStringTexture	manual:glyph-textures.tsv	high	glyph-textures.md §1.4; descriptive name, no Mac match; cache hit to the back, else nS3D::CreateTextureFromText and w * h * 4 bytes
+005d8020	cSC4StringTextureInfo::GetTexture	manual:glyph-textures.tsv	high	glyph-textures.md §3; descriptive name, no Mac match; slot 4; through the manager +0x0C
+005d8030	cSC4GlyphTextureInfo::cSC4GlyphTextureInfo	manual:glyph-textures.tsv	high	glyph-textures.md §2; 0x3C bytes, vtable 0x00AA2A3C
+005d8080	cSC4GlyphTextureInfo::GetString	manual:glyph-textures.tsv	high	glyph-textures.md §2; descriptive name, no Mac match; slot 3; string slot 13 with the character
+005d80a0	cSC4GlyphTextureInfo::GetTextureSize	manual:glyph-textures.tsv	high	glyph-textures.md §2; descriptive name, no Mac match; slot 4; +0x18, +0x1A
+005d80c0	cSC4GlyphTextureInfo::GetGlyphSize	manual:glyph-textures.tsv	high	glyph-textures.md §2; descriptive name, no Mac match; slot 5; +0x1C, +0x1E
+005d80e0	cSC4StringTextureInfo::cSC4StringTextureInfo	manual:glyph-textures.tsv	high	glyph-textures.md §3; descriptive name, no Mac match; 0x28 bytes, vtable 0x00AA2A60
+005d8130	cSC4StringTextureInfo::GetTextureSize	manual:glyph-textures.tsv	high	glyph-textures.md §3; descriptive name, no Mac match; slot 3; +0x04, +0x06
+005d8150	cSC4GlyphTextureManager::GetCachedStringTexture	manual:glyph-textures.tsv	high	glyph-textures.md §1.4; slot 5 (font ID, text, out); no render
+005d8240	cSC4GlyphTextureInfo::~cSC4GlyphTextureInfo (deleting destructor)	manual:glyph-textures.tsv	high	glyph-textures.md §2; descriptive name; slot 8; releases the manager and the binding
+005d8290	cSC4StringTextureInfo::~cSC4StringTextureInfo (deleting destructor)	manual:glyph-textures.tsv	high	glyph-textures.md §3; descriptive name, no Mac match; slot 5; releases the font, the text and the manager
 005d82e0	std::_Rb_tree<SC4GlyphAndFontInfo,std::pair<SC4GlyphAndFontInfo_const,cSC4GlyphTextureInfo*>,std::_Select1st<std::pair<SC4GlyphAndFontInfo_const,cSC4GlyphTextureInfo*>>,std::less<SC4GlyphAndFontInfo>,std::allocator<std::pair<SC4GlyphAndFontInfo_const,cSC4GlyphTextureInfo*>>>::clear	auto:D	medium	mac 00805e16 score 0.5 support 1
-005d8330	cSC4GlyphTextureManager::DoMessage	auto:B0	medium	mac 004c4ba0 score 0.924 support 2.5
-005d8570	cSC4GlyphTextureManager::StringToGlyphTextureArray	auto:B5	medium	mac 004c4a60 score 0.821 support 2.0
-005d8a00	cSC4GlyphTextureManager::Shutdown	auto:C	high	mac 004c4936 score 1.0 support 1
-005d8ca0	cSC4GlyphTextureManager::cSC4GlyphTextureManager	auto:A	high	mac 004c49c0 score 1.0 support 0
-005d8d40	cSC4GlyphTextureManager::~cSC4GlyphTextureManager	auto:C	high	mac 004c4866 score 1.0 support 1
+005d8330	cSC4GlyphTextureManager::DoMessage	manual:glyph-textures.tsv	high	glyph-textures.md §1.6; slot 3 of 0x00AA2A78; 0x8ACAA95F empties the string cache and re-renders the glyphs
+005d8570	cSC4GlyphTextureManager::StringToGlyphTextureArray	manual:glyph-textures.tsv	high	glyph-textures.md §1.3; slot 4 (key, text, out vector); slot 3 per character
+005d8800	cSC4GlyphTextureManager::RemoveGlyph	manual:glyph-textures.tsv	high	glyph-textures.md §2; descriptive name, no Mac match; erases the map entry of a glyph, then releases it
+005d8870	cSC4GlyphTextureInfo::Release	manual:glyph-textures.tsv	high	glyph-textures.md §2; descriptive name; slot 2; at 1 with a manager, RemoveGlyph
+005d8900	cSC4GlyphTextureManager::~cSC4GlyphTextureManager	manual:glyph-textures.tsv	high	glyph-textures.md §1.1; descriptive name; the destructor body run by 0x005D8D40
+005d8980	cSC4GlyphTextureManager::QueryInterface (thunk at +4)	manual:glyph-textures.tsv	high	glyph-textures.md §1.1; descriptive name; this - 4; slot 0 of 0x00AA2AA0
+005d8990	cSC4GlyphTextureManager::Release (thunk at +4)	manual:glyph-textures.tsv	high	glyph-textures.md §1.1; descriptive name; this - 4
+005d89a0	cSC4GlyphTextureManager::QueryInterface (thunk at +8)	manual:glyph-textures.tsv	high	glyph-textures.md §1.1; descriptive name; this - 8; slot 0 of 0x00AA2A88
+005d89b0	cSC4GlyphTextureManager::Release (thunk at +8)	manual:glyph-textures.tsv	high	glyph-textures.md §1.1; descriptive name; this - 8
+005d89c0	cSC4GlyphTextureManager::~cSC4GlyphTextureManager (thunk)	manual:glyph-textures.tsv	high	glyph-textures.md §1.1; descriptive name; this - 8 to the deleting destructor; slot 3 of 0x00AA2A88
+005d89d0	cSC4GlyphTextureManager::QueryInterface (thunk at +0x20)	manual:glyph-textures.tsv	high	glyph-textures.md §1.1; descriptive name; this - 0x20; slot 0 of 0x00AA2A78
+005d89e0	cSC4GlyphTextureManager::AddRef (thunk at +0x20)	manual:glyph-textures.tsv	high	glyph-textures.md §1.1; descriptive name; this - 0x20
+005d89f0	cSC4GlyphTextureManager::Release (thunk at +0x20)	manual:glyph-textures.tsv	high	glyph-textures.md §1.1; descriptive name; this - 0x20
+005d8a00	cSC4GlyphTextureManager::Shutdown	manual:glyph-textures.tsv	high	glyph-textures.md §1.2; system-service slot 9; releases the glyph map, unsubscribes
+005d8ca0	cSC4GlyphTextureManager::cSC4GlyphTextureManager	manual:glyph-textures.tsv	high	glyph-textures.md §1.1; service 0xABEB5E37, priority 0xFFE17B80, budget 0x100000; built by cSC4App::Init 0x0044C854
+005d8d40	cSC4GlyphTextureManager::~cSC4GlyphTextureManager (deleting destructor)	manual:glyph-textures.tsv	high	glyph-textures.md §1.1; was cSC4GlyphTextureManager::~cSC4GlyphTextureManager; 0x005D8900 then GlobalHeapFree on bit 0
 005d8d60	std::_Rb_tree<SC4GlyphAndFontInfo,std::pair<SC4GlyphAndFontInfo_const,cSC4GlyphTextureInfo*>,std::_Select1st<std::pair<SC4GlyphAndFontInfo_const,cSC4GlyphTextureInfo*>>,std::less<SC4GlyphAndFontInfo>,std::allocator<std::pair<SC4GlyphAndFontInfo_const,cSC4GlyphTextureInfo*>>>::insert_unique	auto:D	medium	mac 008067d2 score 0.5 support 1
 005d9050	std::map<SC4GlyphAndFontInfo,cSC4GlyphTextureInfo*,std::less<SC4GlyphAndFontInfo>,std::allocator<std::pair<SC4GlyphAndFontInfo_const,cSC4GlyphTextureInfo*>>>::operator[]	auto:D	medium	mac 00806912 score 0.5 support 1
-005d9120	cSC4GlyphTextureManager::GetGlyphTexture	auto:C	high	mac 004c4d96 score 1.0 support 1
+005d9120	cSC4GlyphTextureManager::GetGlyphTexture	manual:glyph-textures.tsv	high	glyph-textures.md §1.3; slot 3 (key, out); map hit, else RZ::WCM slot 5 font and nS3D::CreateTextureFromText
 005d9370	cSC4LimitTimerCalibrator::Tick	manual:symbols_windows.tsv	high	first call in OnTick
 005d9490	cSC4AutoLoadRecord::~cSC4AutoLoadRecord	auto:B2	medium	mac 0002b064 score 0.921 support 2.0
 005d94c0	cSC4AutoLoadRecord::openRecord	auto:B0	medium	mac 0002b2fa score 0.946 support 1.5
@@ -7791,7 +7816,7 @@ va	name	source	confidence	note
 00762480	cSCResourceCatalogView::Release	auto:D	low	mac 00259e56 score 0.5 support 1
 00762490	cGZWinKnob::QueryInterface	auto:A	high	mac 004fd21c score 1.0 support 0
 007624c0	cSC4PollutionSimulator::GetAverageAirValue	auto:C	low	mac 00069752 score 1.0 support 1
-007624e0	cSC4CameraControl::GetCustomMagnification	auto:B8	low	mac 0050caf6 score 0.874 support 2.0
+007624e0	cSC4CameraControl::GetCustomMagnification	manual:camera.tsv	high	camera.md §2.6; +0xF0
 007624f0	cSC4City::GetWorldBaseElevation	auto:C	low	mac 0002fe38 score 1.0 support 1
 00762570	cGZWinKnob::Init	auto:C	high	mac 004fd268 score 1.0 support 1
 00762630	cGZWinKnob::Shutdown	auto:C	high	mac 004fd326 score 1.0 support 1
@@ -8607,32 +8632,44 @@ va	name	source	confidence	note
 007cb0b0	cSC43DRender::DoMessage	auto:B0	medium	mac 0050be0e score 0.99 support 7.0
 007cb530	cSC43DRender::Draw	auto:B3	medium	mac 0050b252 score 0.955 support 3.5
 007cb920	cSC4OccupantTypesFilter::cSC4OccupantTypesFilter	auto:B7	medium	mac 0061ebe2 score 0.831 support 2.0
-007cb990	cSC4CameraControl::GetViewportSize	auto:B18	medium	mac 0050cb06 score 0.98 support 2.0
-007cb9b0	cSC4CameraControl::SetViewportSize	auto:B4	medium	mac 0050cb24 score 0.976 support 3.0
-007cb9f0	cSC4CameraControl::GetDistancesToClipPlanes	auto:D	medium	mac 0050cb60 score 0.5 support 1
-007cba90	IntersectWithGroundPlane	auto:B1	medium	mac 0050d13e score 0.998 support 2.0
-007cbc40	cSC4CameraControl::GetVirtualZoom	auto:D	medium	mac 0050d0aa score 0.5 support 5
-007cbc60	cSC4CameraControl::SetViewTargetVelocity	auto:D	medium	mac 0050cd2a score 0.5 support 1
-007cbce0	cSC4CameraControl::ConvertWorldPointToCameraPlanePoint	auto:B0	medium	mac 0050d0d4 score 0.958 support 2.0
-007cbd70	cSC4CameraControl::ConvertCameraPlanePointToWorldPoint	auto:B1	medium	mac 0050cd68 score 0.89 support 2.0
-007cbe40	cSC4CameraControl::UpdateCameraZoomAndRotationParams	auto:A	high	mac 0050cddc score 0.557 support 0
-007cc0b0	cSC4CameraControl::SendPostViewChangeMessage	auto:B1	medium	mac 0050cb80 score 0.985 support 4.5
-007cc290	cSC4CameraControl::UpdateCameraPositionParams	auto:D	medium	mac 0050dcc2 score 0.5 support 1
-007cc650	cSC4CameraControl::ClampScrollToBounds	auto:D	medium	mac 0050d1b4 score 0.5 support 1
-007cc990	cSC4CameraControl::cSC4CameraControl	auto:B0	medium	mac 0050d78a score 0.986 support 6.0
-007ccc00	GZCOM_CreatecSC4CameraControl	auto:B1	medium	mac 0050da0a score 0.939 support 1.0
-007ccc60	cSC4CameraControl::UpdateScrollBounds	auto:B1	medium	mac 0050da30 score 0.964 support 2.0
-007cd000	cSC4CameraControl::ClampTargetToScrollBounds	auto:B0	medium	mac 0050e0f4 score 0.876 support 3.0
-007cd200	cSC4CameraControl::AttachToCamera	auto:B5	medium	mac 0050e5ba score 0.812 support 1.0
-007cd330	cSC4CameraControl::ScrollByViewportAngle	auto:B2	medium	mac 0050e462 score 0.918 support 3.0
+007cb940	cSC4CameraControl::QueryInterface	manual:camera.tsv	high	camera.md §2.1; descriptive name; slot 0 of 0x00ABAD18; IIDs 1, 0xC9C628EC and 0xE4FDA3D4
+007cb970	cSC4CameraControl::DetachFromCamera	manual:camera.tsv	high	camera.md §2.6; descriptive name, no Mac match; releases +0xC; callers 0x007AC3F0, 0x007F15C2
+007cb990	cSC4CameraControl::GetViewportSize	manual:camera.tsv	high	camera.md §2.6; +0x12C, +0x130
+007cb9b0	cSC4CameraControl::SetViewportSize	manual:camera.tsv	high	camera.md §2.6; also cS3DCamera::SetViewport
+007cb9f0	cSC4CameraControl::GetDistancesToClipPlanes	manual:camera.tsv	high	camera.md §2.6; near +0x124, far +0x128
+007cba10	cSC4CameraControl::GetRotationCorner	manual:camera.tsv	high	camera.md §2.3; descriptive name, no Mac match; rotation 0-3 -> (0,0,0), (W,0,0), (W,0,H), (0,0,H) from +0x158 / +0x15C
+007cba90	IntersectWithGroundPlane	manual:camera.tsv	high	camera.md §2.4; fastcall (direction, origin), result through ESI; false when |dir.y| < 0.0001 or t < 0
+007cbb10	cSC4CameraControl::Write	manual:camera.tsv	high	camera.md §2.8; descriptive name; slot 3; u16 1, the view target +0x44, six u32 +0x100..+0x114
+007cbba0	cSC4CameraControl::Read	manual:camera.tsv	high	camera.md §2.8; descriptive name; slot 4; version 1 only, sets +5
+007cbc40	cSC4CameraControl::GetVirtualZoom	manual:camera.tsv	high	camera.md §2.6; zoom +0x108, +1 above magnification 1.5 (0x00ABA6B8)
+007cbc60	cSC4CameraControl::SetViewTargetVelocity	manual:camera.tsv	high	camera.md §2.6; stored when no component is a NaN
+007cbce0	cSC4CameraControl::ConvertWorldPointToCameraPlanePoint	manual:camera.tsv	high	camera.md §2.4; view rows 0 and 1 times the view scale, relative to +0x10
+007cbd70	cSC4CameraControl::ConvertCameraPlanePointToWorldPoint	manual:camera.tsv	high	camera.md §2.4; the inverse
+007cbe40	cSC4CameraControl::UpdateCameraZoomAndRotationParams	manual:camera.tsv	high	camera.md §2.2; cell pixels 0x00ABACE0 (8, 16, 32, 73, 146), pitch 0x00ABACCC (30, 35, 40, 45, 45 deg), yaw (r + 1) pi/2 - pi/4, near 0.95, far 1.5
+007cc000	cSC4CameraControl::SendViewZRChange1Message	manual:camera.tsv	high	camera.md §2.7; descriptive name, no Mac match; kind 2 only: 0xA6B79600 with the previous and new (zoom, rotation)
+007cc0b0	cSC4CameraControl::SendPostViewChangeMessage	manual:camera.tsv	high	camera.md §2.7; kinds 0 (PostViewInit), 2 (zoom/rotation), 3 (target), 4 (PostViewRefresh)
+007cc200	std::copy (8-byte elements)	manual:camera.tsv	high	camera.md §2.5; descriptive name; an unrolled copy of 2-float points, used to empty the bounds vector
+007cc290	cSC4CameraControl::UpdateCameraPositionParams	manual:camera.tsv	high	camera.md §2.3; eye := target + k o, look-at, pixel snapping of the rotation corner (1.5*2^23 rounding, 0x00ABACF8)
+007cc5b0	cSC4CameraControl::SendPostViewInitMessage	manual:camera.tsv	high	camera.md §2.7; descriptive name, no Mac match; 0xA6B79620
+007cc650	cSC4CameraControl::ClampScrollToBounds	manual:camera.tsv	high	camera.md §2.5; cut at the first crossed edge, slide along it, at most one step per edge
+007cc990	cSC4CameraControl::cSC4CameraControl	manual:camera.tsv	high	camera.md §2.1; scroll steps 100..6.25 at +0xB8, yaw -pi/4, pitch pi/6, distance 8192, viewport 800x600, city 4096x4096
+007ccbf0	cSC4CameraControl::GetGZCLSID	manual:camera.tsv	high	camera.md §2.1; descriptive name; slot 5; returns 0xC9C628EC
+007ccc00	GZCOM_CreatecSC4CameraControl	manual:camera.tsv	high	camera.md §2.1; GlobalHeapAlloc(0x160) then the constructor
+007ccc20	cSC4CameraControl::~cSC4CameraControl (deleting destructor)	manual:camera.tsv	high	camera.md §2.1; descriptive name; slot 6; frees the bounds vector +0x14C, then the object on flag bit 0
+007ccc60	cSC4CameraControl::UpdateScrollBounds	manual:camera.tsv	high	camera.md §2.5; six camera-plane points from the city corners, widened by 500 m (0x00ABAC98) and raised by o.y * 0.48 / row1.y - half the viewport
+007cd000	cSC4CameraControl::ClampTargetToScrollBounds	manual:camera.tsv	high	camera.md §2.5; re-intersects the ground plane when the target moved by 0.0001 or more
+007cd200	cSC4CameraControl::AttachToCamera	manual:camera.tsv	high	camera.md §2.6; counted camera +0xC, viewport, then the updates and PostViewInit when initialised
+007cd330	cSC4CameraControl::ScrollByViewportAngle	manual:camera.tsv	high	camera.md §2.6; step +0xB8[zoom], clamp, terrain view slot 3 ray cast, else the ground plane
+007cd540	cSC4CameraControl::SetRotation	manual:camera.tsv	high	camera.md §2.6; descriptive name, no Mac match; 0-3; messages as SetZoomAndRotation
 007cd6a0	cSC4CameraControl::RotateLeft	auto:D	medium	mac 0050e42c score 0.5 support 1
 007cd6c0	cSC4CameraControl::RotateRight	auto:D	medium	mac 0050e3f8 score 0.5 support 1
-007cd6e0	cSC4CameraControl::UpdateCameraPosition	auto:B4	medium	mac 0050e05c score 0.871 support 3.0
-007cda20	cSC4CameraControl::SetCameraPositionTweakAdd	auto:D	medium	mac 0050e248 score 0.5 support 1
-007cdaa0	cSC4CameraControl::SetCitySize	auto:B5	medium	mac 0050e202 score 0.904 support 2.0
-007cdb20	cSC4CameraControl::Init	auto:B6	medium	mac 0050e62c score 0.811 support 3.0
-007cdc50	cSC4CameraControl::SetZoom	auto:B0	medium	mac 0050e6a2 score 0.911 support 2.0
-007cde60	cSC4CameraControl::SetZoomAndRotation	auto:D	medium	mac 0050e8b4 score 0.5 support 1
+007cd6e0	cSC4CameraControl::SetCustomMagnification	manual:camera.tsv	high	camera.md §2.6; was cSC4CameraControl::UpdateCameraPosition; stores +0xF0 when it differs and the old value is in (0, 1000)
+007cd810	cSC4CameraControl::SetViewTarget	manual:camera.tsv	high	camera.md §2.6; descriptive name, no Mac match; each component finite and within +-100000 (0x00ABAC9C, 0x00ABACA8)
+007cda20	cSC4CameraControl::SetCameraPositionTweakAdd	manual:camera.tsv	high	camera.md §2.6; +0xB0, +0xB4
+007cdaa0	cSC4CameraControl::SetCitySize	manual:camera.tsv	high	camera.md §2.6; +0x158, +0x15C; empties and rebuilds the bounds
+007cdb20	cSC4CameraControl::Init	manual:camera.tsv	high	camera.md §2.6; once; loaded zoom/rotation or the given target
+007cdc50	cSC4CameraControl::SetZoom	manual:camera.tsv	high	camera.md §2.6; 4 < z < 5 gives magnification pow(2, z - 4) (0x009EFC60) at zoom 4
+007cde60	cSC4CameraControl::SetZoomAndRotation	manual:camera.tsv	high	camera.md §2.6; zoom 0-4 and rotation 0-3; ViewZRChange1, CameraUpdated, ViewZRChange2, ViewZRChange3
 007ce080	cSC4CameraControl::ZoomIn	auto:D	medium	mac 0050e84c score 0.5 support 1
 007ce0e0	cSC4CameraControl::ZoomOut	auto:D	medium	mac 0050e7f0 score 0.5 support 1
 007ce130	GZCOM_cSC4ConfigRuleManagerCLSID	auto:A	low	mac 0050ea0c score 1.0 support 0
@@ -8708,51 +8745,55 @@ va	name	source	confidence	note
 007d5710	SC4DrawContext::RenderModelInstance	auto:B4	medium	mac 0051500c score 0.984 support 2.5
 007d5f10	SC4DrawContext::SC4DrawContext	auto:B0	medium	mac 0051313e score 0.933 support 2.0
 007d6320	SC4DrawContext::Init	auto:B0	medium	mac 005148cc score 0.866 support 5.5
-007d65e0	cSC4LightingManager::QueryInterface	auto:C	high	mac 00515410 score 1.0 support 1
-007d6650	cSC4LightingManager::Release	auto:C	high	mac 00515464 score 1.0 support 1
+007d6540	RotateLightingRectToWorld	manual:lighting.tsv	high	lighting.md §6; descriptive name, no Mac match; fastcall (stored rect ECX, vertex count z EDX, rotation, vertex count x), result through EAX; called twice by DoMessage
+007d65e0	cSC4LightingManager::QueryInterface	manual:lighting.tsv	high	lighting.md §1.1; slot 0 of 0x00ABB530; IIDs 1, 0x681BD52A, 0x452294AA (this + 4)
+007d6650	cSC4LightingManager::Release	manual:lighting.tsv	high	lighting.md §1.1; slot 2; count +0x0C, deleting destructor at 1 or below
 007d6670	cSC4LightingManager::GetTimeOfDay	auto:C	low	mac 0051548a score 1.0 support 1
 007d6680	cSC4LightingManager::IsNight	auto:C	high	mac 005154ce score 1.0 support 1
-007d6870	cImageARGB8::FindMinRedComponentValue	auto:D	medium	mac 008245ac score 0.5 support 1
-007d68b0	cSC4LightingManager::BendShadowedNormal	auto:D	medium	mac 008247c2 score 0.5 support 1
-007d6950	cSC4LightingManager::ShadowDepth	auto:D	medium	mac 008244b0 score 0.5 support 1
-007d6a00	cSC4LightingManager::HeightAboveLand	auto:D	medium	mac 008243dc score 0.5 support 1
-007d6ab0	cSC4LightingManager::SetLightingTint	auto:C	high	mac 0051570e score 1.0 support 1
-007d6b00	cSC4LightingManager::ResetLightingTint	auto:C	high	mac 00515496 score 1.0 support 1
-007d6b20	cSC4LightingManager::GetGlobalLight	auto:C	high	mac 005154da score 1.0 support 1
-007d6b50	cSC4LightingManager::GetShadowDirection	auto:C	high	mac 005155b4 score 1.0 support 1
-007d6b70	cSC4LightingManager::GetShadowParams	auto:C	high	mac 00515500 score 1.0 support 1
-007d6bb0	cSC4LightingManager::GetShadowStrengthFromLocation	auto:C	high	mac 00515774 score 1.0 support 1
-007d6cc0	cSC4LightingManager::CalcShadowTerrainRect	auto:C	high	mac 00515d00 score 1.0 support 1
-007d73e0	cSC4LightingManager::GetColor	auto:C	high	mac 00515536 score 1.0 support 1
-007d7420	cSC4LightingManager::GetColor	auto:C	high	mac 00515574 score 1.0 support 1
-007d7460	cSC4LightingManager::GetColor	auto:C	high	mac 00517994 score 1.0 support 1
-007d7730	cSC4LightingManager::GetColor	auto:C	high	mac 005155d6 score 1.0 support 1
-007d77c0	cSC4LightingManager::GetColor	auto:C	high	mac 00516e18 score 1.0 support 1
-007d7840	cSC4LightingManager::GetColor	auto:C	high	mac 00516d0e score 1.0 support 1
-007d7940	cSC4LightingManager::GetTerrainColor	auto:C	high	mac 00516b1e score 1.0 support 1
-007d7ae0	cSC4LightingManager::GetTerrainColorFloor	auto:C	high	mac 0051561c score 1.0 support 1
-007d7bf0	cSC4LightingManager::GetVertexColors	auto:C	high	mac 00515ad6 score 1.0 support 1
-007d7f00	cSC4LightingManager::GetTerrainVertexColors	auto:C	high	mac 0051677a score 1.0 support 1
-007d8340	cSC4LightingManager::GetTerrainNormalClamped	auto:D	medium	mac 00515870 score 0.5 support 1
-007d83c0	cSC4LightingManager::GetModelColor	auto:B3	medium	mac 005158e6 score 0.957 support 1.0
-007d8550	cSC4LightingManager::GetModelLight	auto:B4	medium	mac 00516fa6 score 0.971 support 5.0
-007d8b20	cSC4LightingManager::GetTerrainLighting	auto:C	high	mac 00516eaa score 1.0 support 1
-007d8c80	cSC4LightingManager::CalcShadowProjection	auto:C	high	mac 00519e38 score 1.0 support 1
-007d9820	cSC4LightingManager::SetTimeDependentLightingValues	auto:B0	medium	mac 00517c42 score 0.85 support 1.0
-007d9df0	cSC4LightingManager::SetTimeOfDay	auto:A	high	mac 00517f00 score 1.0 support 0
-007da0a0	cSC4LightingManager::cSC4LightingManager	auto:B0	medium	mac 00518afe score 0.945 support 2.5
-007da3e0	__ZThn4_N19cSC4LightingManager14QueryInterfaceEmPPv	auto:B0	low	mac 00823f5e score 0.96 support 1.0
-007da3f0	__ZThn4_N19cSC4LightingManager7ReleaseEv	auto:B0	low	mac 00823f72 score 0.96 support 1.0
-007da490	cSC4LightingManager::GetDecalShadowParams	auto:A	high	mac 00517682 score 1.0 support 0
-007da670	cSC4LightingManager::~cSC4LightingManager	auto:C	high	mac 00518982 score 1.0 support 1
-007da690	cSC4LightingManager::Shutdown	auto:C	high	mac 005165f8 score 1.0 support 1
-007da7e0	cSC4LightingManager::ReadProperties	auto:A	high	mac 00518230 score 0.98 support 0
-007dae70	cSC4LightingManager::FindHillShadows	auto:B2	medium	mac 00518d6c score 0.945 support 3.0
-007db4d0	CreateColorMap	auto:A	high	mac 0051782e score 1.0 support 0
-007db570	MakeTestPattern	auto:D	medium	mac 00517784 score 0.5 support 1
-007db6a0	cSC4LightingManager::Init	auto:A	high	mac 0051876c score 0.592 support 0
-007db840	cSC4LightingManager::DoZoomAndRotationChange	auto:B1	medium	mac 005191d2 score 0.927 support 2.0
-007dbcf0	cSC4LightingManager::DoMessage	auto:B0	medium	mac 0051986a score 0.961 support 5.0
+007d6690	cImageARGB8::SampleRowLerp	manual:lighting.tsv	high	lighting.md §2.1; descriptive name, no Mac match; pixels (floor(Wu), floor(Hv)) and (ceil(Wu), floor(Hv)) lerped, no clamp
+007d6870	cImageARGB8::FindMinRedComponentValue	manual:lighting.tsv	high	lighting.md §1.3; the minimum of pixel byte 2 / 255 (1.0 when empty); called by Init
+007d68b0	cSC4LightingManager::BendShadowedNormal	manual:lighting.tsv	high	lighting.md §5.3; normalize(n + 0x085489D0 * depth * 0.01 * fill light +0x4C)
+007d6950	cSC4LightingManager::ShadowDepth	manual:lighting.tsv	high	lighting.md §5.3; shadow grid +0x198 at (x/16, z/16) minus p.y, no bounds check
+007d6a00	cSC4LightingManager::HeightAboveLand	manual:lighting.tsv	high	lighting.md §5.3; p.y minus terrain grid +0x18C
+007d6ab0	cSC4LightingManager::SetLightingTint	manual:lighting.tsv	high	lighting.md §2.3; slot 7; +0x178..+0x188, then SetTimeOfDay(current)
+007d6b00	cSC4LightingManager::ResetLightingTint	manual:lighting.tsv	high	lighting.md §2.3; slot 8
+007d6b20	cSC4LightingManager::GetGlobalLight	manual:lighting.tsv	high	lighting.md §4.6; slot 10; +0x8C
+007d6b50	cSC4LightingManager::GetShadowDirection	manual:lighting.tsv	high	lighting.md §4.6; slot 13; +0x64, the view-rotated sun
+007d6b70	cSC4LightingManager::GetShadowParams	manual:lighting.tsv	high	lighting.md §5.6; slot 14; properties 0x085489CC, 0x085489CD, 0x085489CB
+007d6bb0	cSC4LightingManager::GetShadowStrengthFromLocation	manual:lighting.tsv	high	lighting.md §5.4; slot 15; 2D (x, z); 0 above 50 m depth, night reduction 0x085489D3
+007d6cc0	cSC4LightingManager::CalcShadowTerrainRect	manual:lighting.tsv	high	lighting.md §5.6; slot 18; box cells extended along the shadow direction over the terrain grid
+007d73e0	cSC4LightingManager::GetColor	manual:lighting.tsv	high	lighting.md §4.1; slot 24 (out): slot 23 for the up normal
+007d7420	cSC4LightingManager::GetColor	manual:lighting.tsv	high	lighting.md §4.1; slot 21 (r&, g&, b&): slot 20 for the up normal
+007d7460	cSC4LightingManager::GetColor	manual:lighting.tsv	high	lighting.md §4.1; slot 23 (out, n): colour map +0xC4 by the view-rotated normal, else ambient 0.05 + key (1, 1, 0.8) + fill (0, 0.1, 0.5)
+007d7730	cSC4LightingManager::GetColor	manual:lighting.tsv	high	lighting.md §4.1; slot 20 (n, r&, g&, b&): slot 23 as bytes
+007d77c0	cSC4LightingManager::GetColor	manual:lighting.tsv	high	lighting.md §4.1; slot 22 (out, n, p): bent normal when shadows are on and the depth is positive
+007d7840	cSC4LightingManager::GetColor	manual:lighting.tsv	high	lighting.md §4.1; slot 19 (p, n, r&, g&, b&): slot 22 as bytes
+007d7940	cSC4LightingManager::GetTerrainColor	manual:lighting.tsv	high	lighting.md §4.5; slot 25; (1 - k^2) * colour, k the fade term
+007d7ae0	cSC4LightingManager::GetTerrainColorFloor	manual:lighting.tsv	high	lighting.md §4.5; slot 26; k^2 * fade colour + colour * (+0x70)
+007d7bf0	cSC4LightingManager::GetVertexColors	manual:lighting.tsv	high	lighting.md §4.4; slot 27; |n'| weighted cached axis colours, bytes B, G, R, 255
+007d7f00	cSC4LightingManager::GetTerrainVertexColors	manual:lighting.tsv	high	lighting.md §4.5; slot 28; 6 bytes per vertex, no fade with shadows off
+007d8340	cSC4LightingManager::GetTerrainNormalClamped	manual:lighting.tsv	high	lighting.md §5.5; (x, z) clamped to the city less 0.001, then terrain slot 27
+007d83c0	cSC4LightingManager::GetModelColor	manual:lighting.tsv	high	lighting.md §4.2; map +0xC8 sampled at a position from +0xC4's size, else slot 23
+007d8550	cSC4LightingManager::GetModelLight	manual:lighting.tsv	high	lighting.md §4.3; slot 11; weights 0x29189BF1-0x29189BF3 by occupant type, network flag 0x40000
+007d8b20	cSC4LightingManager::GetTerrainLighting	manual:lighting.tsv	high	lighting.md §4.5; slot 12; 0.8 * colour + 0.2 * white (0x29189BEE)
+007d8c80	cSC4LightingManager::CalcShadowProjection	manual:lighting.tsv	high	lighting.md §5.6; slot 17; least-squares texture matrix along the shadow direction, determinant >= 0.01
+007d9820	cSC4LightingManager::SetTimeDependentLightingValues	manual:lighting.tsv	high	lighting.md §2.1; day light from map +0xCC or the 8 keys, fade colour and strength, tint
+007d9df0	cSC4LightingManager::SetTimeOfDay	manual:lighting.tsv	high	lighting.md §2.2; slot 6; dawn 0xC9DA96E8, dusk 0xC9DA96E9, fractions 0xC9DA96EA
+007da0a0	cSC4LightingManager::cSC4LightingManager	manual:lighting.tsv	high	lighting.md §1.1; time 12.0, white light, no tint, no shadows
+007da3e0	cSC4LightingManager::QueryInterface (thunk)	manual:lighting.tsv	high	lighting.md §7; was __ZThn4_N19cSC4LightingManager14QueryInterfaceEmPPv; this - 4; slot 0 of the +4 vtable 0x00ABB51C
+007da3f0	cSC4LightingManager::Release (thunk)	manual:lighting.tsv	high	lighting.md §7; was __ZThn4_N19cSC4LightingManager7ReleaseEv; this - 4; slot 2 of 0x00ABB51C
+007da400	cSC4LightingManager::~cSC4LightingManager	manual:lighting.tsv	high	lighting.md §1.3; descriptive name; releases +0x18, +0x14, +0x10, frees the key lists and grids
+007da490	cSC4LightingManager::GetDecalShadowParams	manual:lighting.tsv	high	lighting.md §5.6; slot 16; lighting values overridden by the given property holder
+007da670	cSC4LightingManager::~cSC4LightingManager (deleting destructor)	manual:lighting.tsv	high	lighting.md §1.3; was cSC4LightingManager::~cSC4LightingManager; slot 29; 0x007DA400 then GlobalHeapFree on bit 0
+007da690	cSC4LightingManager::Shutdown	manual:lighting.tsv	high	lighting.md §1.3; slot 4; unsubscribes the seven messages, frees the maps
+007da7e0	cSC4LightingManager::ReadProperties	manual:lighting.tsv	high	lighting.md §1.4; 26 properties, the day-light, fade-strength and fade-colour key lists, the sun direction
+007dae70	cSC4LightingManager::FindHillShadows	manual:lighting.tsv	high	lighting.md §5.2; row sweep of a falling shadow height, drift -sz/sx, drop 16 sy/sx * 0x085489D1
+007db450	CopyImageToARGB8	manual:lighting.tsv	high	lighting.md §1.5; descriptive name, no Mac match; image in EBX (slots 9, 10 size, 21 pixel), map in EDI
+007db4d0	CreateColorMap	manual:lighting.tsv	high	lighting.md §1.5; group 0xA9179251, instance in EAX, through cSLBuffer 0x00602B70
+007db570	MakeTestPattern	manual:lighting.tsv	high	lighting.md §1.5; 64x64, red where x > 32, green where y > 32
+007db6a0	cSC4LightingManager::Init	manual:lighting.tsv	high	lighting.md §1.3; slot 3; exemplar 0x6534284A/0xA9189CF0/1, maps 0x0917660C-0x0917660F, seven subscriptions
+007db840	cSC4LightingManager::DoZoomAndRotationChange	manual:lighting.tsv	high	lighting.md §3; lights, view rotation, fade, grid strides, height copy, sweep, cached axis colours
+007dbcf0	cSC4LightingManager::DoMessage	manual:lighting.tsv	high	lighting.md §6; slot 3 of 0x00ABB51C
 007dc1a0	SC4MarkedCellView::SetShouldIgnoreDepthBuffer	auto:B0	low	mac 0051a462 score 0.938 support 3.0
 007dc1b0	SC4MarkedCellView::SetShouldUseWaterAltitude	auto:D	low	mac 0051a470 score 0.5 support 3
 007dc1d0	SC4MarkedCellView::SetCellSize	auto:B5	medium	mac 0051a48c score 0.945 support 2.0
@@ -9038,6 +9079,7 @@ va	name	source	confidence	note
 007f6b50	SC4ViewUtilities::RayIntersectsGroundPlane	auto:B0	medium	mac 00113c76 score 0.984 support 1.5
 007f6ba0	SC4ViewUtilities::GetCityCornerPosition	auto:D	medium	mac 00113df4 score 0.5 support 1
 007f6cb0	SC4ViewUtilities::GetObjectYRotationAngle	auto:B1	medium	mac 00113ee8 score 0.806 support 2.0
+007f6cc0	RotateVectorByViewRotation	manual:lighting.tsv	high	lighting.md §3; descriptive name, no Mac match; cdecl (vec3*, rotation): 1 (-z, x), 2 (-x, -z), 3 (z, -x)
 007f6d10	SC4ViewUtilities::GetVectorForEdge	auto:B5	medium	mac 00113faa score 0.945 support 2.5
 007f6d70	SC4ViewUtilities::RoundDownToNearestBlockBoundary	auto:D	medium	mac 00113d76 score 0.5 support 1
 007f6db0	SC4ViewUtilities::RoundUpToNearestBlockBoundary	auto:D	medium	mac 00113db4 score 0.5 support 1
@@ -9075,40 +9117,53 @@ va	name	source	confidence	note
 007fed50	GetMeshAnimFromResourceKey	auto:D	medium	mac 00138656 score 0.5 support 1
 007fede0	GetAnimatedModelFromResourceKey	auto:B0	medium	mac 00139f80 score 0.907 support 4.0
 007fee90	__ZThn4_N31cS3DModelInstanceAnimatedSprite4DrawEP14SC4DrawContextb	auto:B3	low	mac 0067858c score 0.96 support 1.0
-007ff070	cS3DCamera::SetDepthSize	auto:B0	medium	mac 001064c0 score 0.948 support 2.0
-007ff080	cS3DCamera::SetSubview	auto:B3	medium	mac 001064d6 score 0.978 support 1.0
+007ff010	cS3DCamera::GetGZCLSID	manual:camera.tsv	high	camera.md §1.2; descriptive name; returns 0xE9C6262A; called by the COM director 0x0046029D
+007ff020	cS3DCamera::Release	manual:camera.tsv	high	camera.md §1.2; descriptive name; slot 2 of 0x00ABD2C4; slot 3 with 1 at a count of 1 or less
+007ff040	cS3DCamera::QueryInterface	manual:camera.tsv	high	camera.md §1.2; descriptive name; slot 0; IIDs 1 and 0xE9C6262A
+007ff070	cS3DCamera::SetDepthSize	manual:camera.tsv	high	camera.md §1.2; +0x10, projection counter +0x17C += 1
+007ff080	cS3DCamera::SetSubview	manual:camera.tsv	high	camera.md §1.2; +0x18..+0x24, in use +0x14, counter += 1
 007ff0b0	cSC43DRender::UnsetClipRect	auto:B6	medium	mac 00502ba6 score 0.884 support 2.0
-007ff0e0	cS3DCamera::LocalXform	auto:B8	low	mac 00106502 score 0.825 support 2.0
-007ff110	cS3DCamera::GetProjectionType	auto:B5	low	mac 0010654e score 0.874 support 2.0
+007ff0e0	cS3DCamera::LocalXform	manual:camera.tsv	high	camera.md §1.2; returns the local transform +0x28
+007ff110	cS3DCamera::GetProjectionType	manual:camera.tsv	high	camera.md §1.2; +0x180 (2 perspective)
 007ff120	cSC4City::GetFloraSimulator	auto:C	low	mac 0003004a score 1.0 support 1
-007ff150	cS3DCamera::SetViewport	auto:B3	medium	mac 00107032 score 1.0 support 2.0
-007ff230	cS3DCamera::GetPosition	auto:D	medium	mac 0010667c score 0.5 support 1
-007ff280	cS3DCamera::GetLookAt	auto:D	medium	mac 0010659c score 0.5 support 1
-007ff2e0	cS3DCamera::SetOrtho	auto:B0	medium	mac 00106ae2 score 0.993 support 3.0
-007ff340	cS3DCamera::GetViewVolume	auto:B8	medium	mac 001065e0 score 0.959 support 2.0
-007ff3c0	cS3DCamera::GetViewState	auto:D	low	mac 001065d4 score 0.5 support 1
-007ff3d0	operator*	auto:B1	medium	mac 0065fcbc score 0.878 support 2.0
-007ff580	cS3DCamera::_UpdateProjection	auto:B3	medium	mac 001066c8 score 0.986 support 1.5
-007ffed0	cS3DCamera::ViewXform	auto:B0	medium	mac 00106b6c score 0.88 support 2.0
-007ffef0	cS3DCamera::ProjectionMatrix	auto:B2	medium	mac 00106ab6 score 0.898 support 3.0
-007fff10	cS3DCamera::Project	auto:B0	medium	mac 00106ec2 score 0.856 support 2.0
-00800120	cS3DCamera::UnProject	auto:B0	medium	mac 00106b94 score 0.91 support 2.0
-00800340	cS3DCamera::GetEyeRay	auto:D	medium	mac 00106cd0 score 0.5 support 2
+007ff130	cS3DCamera::~cS3DCamera (deleting destructor)	manual:camera.tsv	high	camera.md §1.2; descriptive name; slot 3; GlobalHeapFree on flag bit 0
+007ff150	cS3DCamera::SetViewport	manual:camera.tsv	high	camera.md §1.2; viewport and full subview, counter += 2
+007ff190	cS3DCamera::ResetXforms	manual:camera.tsv	high	camera.md §1.2; descriptive name, no Mac match; flagged local (+0x28) and view (+0x60) transforms become the identity
+007ff230	cS3DCamera::GetPosition	manual:camera.tsv	high	camera.md §1.2; +0x50..+0x58
+007ff250	cS3DCamera::SetPosition	manual:camera.tsv	high	camera.md §1.2; descriptive name, no Mac match; +0x50..+0x58, flag 1, counter += 1
+007ff280	cS3DCamera::GetLookAt	manual:camera.tsv	high	camera.md §1.2; the target remembered by SetLookAt (+0x160)
+007ff2c0	cS3DCamera::SetPixelOffset	manual:camera.tsv	high	camera.md §1.2; descriptive name, no Mac match; +0x19C, +0x1A0; projection counter += 1
+007ff2e0	cS3DCamera::SetOrtho	manual:camera.tsv	high	camera.md §1.2; (l, r, b, t, n, f) into +0x18C, +0x190, +0x198, +0x194, +0x184, +0x188; type 1
+007ff340	cS3DCamera::GetViewVolume	manual:camera.tsv	high	camera.md §1.2; the box shifted by the pixel offset
+007ff3c0	cS3DCamera::GetViewState	manual:camera.tsv	high	camera.md §1.2; the local transform counter
+007ff3d0	cS3DCamera::UpdateViewXform	manual:camera.tsv	high	camera.md §1.3; was operator*; view transform := inverse of the local one (transposed rotation, -R^T p, 1/s)
+007ff580	cS3DCamera::_UpdateProjection	manual:camera.tsv	high	camera.md §1.4; the glOrtho / glFrustum matrix at +0x9C with the pixel offset (-2 per pixel, 0x00ABD2D4) and the subview, plus its inverse at +0x11C
+007ff930	cS3DCamera::cS3DCamera	manual:camera.tsv	high	camera.md §1.1; descriptive name; vtable 0x00ABD2C4, viewport 100x100, depth 65536, identity transforms; 5 call sites
+007ffd60	cS3DCamera::SetLookAt	manual:camera.tsv	high	camera.md §1.3; descriptive name, no Mac match; back = normalize(pos - target), right = normalize(up x back), up = back x right
+007ffed0	cS3DCamera::ViewXform	manual:camera.tsv	high	camera.md §1.2; rebuilds the view transform when its counter differs
+007ffef0	cS3DCamera::ProjectionMatrix	manual:camera.tsv	high	camera.md §1.4; rebuilds the matrix when the counters differ
+007fff10	cS3DCamera::Project	manual:camera.tsv	high	camera.md §1.5; false when |w| < 0.0001 (0x00ABD2BC); y down inside the subview
+00800120	cS3DCamera::UnProject	manual:camera.tsv	high	camera.md §1.5; the inverse matrix, then the inverse view transform
+00800320	GZCOM_CreatecS3DCamera	manual:camera.tsv	high	camera.md §1.2; descriptive name; GlobalHeapAlloc(0x1A8) then the constructor 0x007FF930
+00800340	cS3DCamera::GetEyeRay	manual:camera.tsv	high	camera.md §1.6; orthographic: from one far distance behind the unprojected point; perspective: from the position
 00800580	cS3DFSHTextureFactory::~cS3DFSHTextureFactory	auto:C	high	mac 00722d1e score 1.0 support 1
 008005e0	GZCOM_cS3DFSHTextureFactoryCLSID	auto:A	low	mac 0034d8a8 score 1.0 support 0
 00800640	icf::cSC4Advice::GetTextTitle	folded	folded	3 names: cSC4Advice::GetTextTitle | cSC4Advisor::GetPersonalName | cSC4AdvisorSystem::GetRandom
 00800650	cGZPersistResourceFactory::CreateInstance	auto:C	high	mac 00259c14 score 1.0 support 1
 00800860	cS3DFSHTextureFactory::SerialRead	auto:A	high	mac 0034db0e score 0.589 support 0
 00800b80	cGZPersistResourceFactory::CreateInstance	auto:C	high	mac 00259abc score 1.0 support 1
-00800bf0	GZCOM_cS3DMaterialManagerCLSID	auto:A	low	mac 003dd240 score 1.0 support 0
-00800c00	cS3DMaterialManager::QueryInterface	auto:A	high	mac 003dd32c score 1.0 support 0
+00800bf0	GZCOM_cS3DMaterialManagerCLSID	manual:texture-bindings.tsv	high	texture-bindings.md §3; returns 0x9AC0E23D
+00800c00	cS3DMaterialManager::QueryInterface	manual:texture-bindings.tsv	high	texture-bindings.md §3; slot 0 of 0x00ABD3F4; 0xFAC0E21A, else the system service at +4
 00800c30	icf::cGZDrawSystem::AddRef	folded	folded	2 names: cGZDrawSystem::AddRef | cS3DMaterialManager::AddRef
 00800c40	icf::cGZDrawSystem::Release	folded	folded	2 names: cGZDrawSystem::Release | cS3DMaterialManager::Release
-00800c50	cS3DMaterialManager::GetStatsString	auto:A	high	mac 003dd3a0 score 1.0 support 0
-00800ce0	cS3DMaterialManager::~cS3DMaterialManager	auto:C	high	mac 003dd2f6 score 1.0 support 1
-00800d20	cS3DMaterial::cS3DMaterial	auto:D	medium	mac 0062c366 score 0.5 support 1
-00800d70	cS3DMaterialManager::CreateMaterial	auto:C	high	mac 003dd3bc score 1.0 support 1
-00800e30	cS3DMaterialManager::cS3DMaterialManager	auto:A	high	mac 003dd24a score 1.0 support 0
+00800c50	cS3DMaterialManager::GetStatsString	manual:texture-bindings.tsv	high	texture-bindings.md §3; slot 5; "Nothing to report"
+00800c70	cS3DMaterialManager::QueryInterface (thunk at +4)	manual:texture-bindings.tsv	high	texture-bindings.md §3; descriptive name; this - 4; slot 0 of 0x00ABD3C0
+00800ca0	cS3DMaterialManager::QueryInterface (thunk at +8)	manual:texture-bindings.tsv	high	texture-bindings.md §3; descriptive name; this - 8; slot 0 of 0x00ABD3A8
+00800cd0	cS3DMaterialManager::~cS3DMaterialManager (thunk)	manual:texture-bindings.tsv	high	texture-bindings.md §3; descriptive name; this - 8 to the deleting destructor; slot 3 of 0x00ABD3A8
+00800ce0	cS3DMaterialManager::~cS3DMaterialManager (deleting destructor)	manual:texture-bindings.tsv	high	texture-bindings.md §3; was cS3DMaterialManager::~cS3DMaterialManager; GlobalHeapFree on bit 0
+00800d20	cS3DMaterial::cS3DMaterial	manual:texture-bindings.tsv	high	texture-bindings.md §3; two texture slots: wrap 3, 3, filters 1, 1, slot byte 1, float 1.0
+00800d70	cS3DMaterialManager::CreateMaterial	manual:texture-bindings.tsv	high	texture-bindings.md §3; slot 3; 0x34-byte material, flags | 0x180, slots past T marked 0xFF, count 1
+00800e30	GZCOM_CreatecS3DMaterialManager	manual:texture-bindings.tsv	high	texture-bindings.md §3; was cS3DMaterialManager::cS3DMaterialManager; GlobalHeapAlloc(0x20), service 0x1AC0E11B; registered by the COM director 0x0046059E
 00800e80	cS3DVertexArray::cS3DVertexArray	auto:D	medium	mac 00660e72 score 0.5 support 1
 00800ec0	cS3DMesh::~cS3DMesh	auto:D	medium	mac 0062bef4 score 0.5 support 1
 00801140	cS3DMeshBuilder::Mesh	auto:B6	medium	mac 0015127c score 0.919 support 2.0
@@ -9151,49 +9206,67 @@ va	name	source	confidence	note
 00808ce0	cS3DShapeFile::SetCurrentFrameByIndex	auto:B0	medium	mac 0035045c score 0.974 support 2.0
 00808f00	cS3DShapeFile::Open	auto:D	medium	mac 003504d0 score 0.5 support 1
 00808fd0	cS3DShapeFile::OpenInfoOnly	auto:D	medium	mac 003505e2 score 0.5 support 1
-008090c0	cS3DTextureBinding::cS3DTextureBinding	auto:B0	medium	mac 000a0290 score 1.0 support 1.0
-008090e0	cS3DTextureBinding::Release	auto:B1	medium	mac 000a02c2 score 0.944 support 6.0
-00809120	GZCOM_cS3DTextureBindingFactoryCLSID	auto:A	low	mac 00240914 score 1.0 support 0
-00809130	cS3DTextureBindingFactory::QueryInterface	auto:C	high	mac 002409bc score 1.0 support 1
-008091b0	cS3DTextureBindingFactory::AddRef	auto:C	low	mac 00240a14 score 1.0 support 2
-008091c0	cS3DTextureBindingFactory::Release	auto:C	low	mac 00240a22 score 1.0 support 2
-008091d0	cS3DTextureBindingFactory::Shutdown	auto:C	high	mac 0024091e score 1.0 support 1
+008090c0	cS3DTextureBinding::cS3DTextureBinding	manual:texture-bindings.tsv	high	texture-bindings.md §2; handles, frame count, factory, count 0
+008090e0	cS3DTextureBinding::Release	manual:texture-bindings.tsv	high	texture-bindings.md §2; at a count of 1 with a factory: factory slot 18 FreeBinding
+00809120	GZCOM_cS3DTextureBindingFactoryCLSID	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; returns 0x9AC0E23C
+00809130	cS3DTextureBindingFactory::QueryInterface	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; slot 0 of 0x00ABD8C8; 1, 0xFAC0E219 this; 0x088CEB67 +4; 0x287FB697 +8
+008091b0	cS3DTextureBindingFactory::AddRef	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; slot 1; the system service's at +8
+008091c0	cS3DTextureBindingFactory::Release	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; slot 2; the system service's at +8
+008091d0	cS3DTextureBindingFactory::Shutdown	manual:texture-bindings.tsv	high	texture-bindings.md §1.3; system-service slot 9; FlushAll, releases, unsubscribes 0x8ACAA95F
 00809240	icf::cS3DTextureBindingFactory::GetResGroup	folded	folded	4 names: cS3DTextureBindingFactory::GetResGroup | cSC4PowerSimulator::GetUnpoweredConsumerCount | cSC4PylonOccupant::GetDispatchState | cSC4ResidentialSimulator::GetSchoolAverageGradeMap
 00809250	icf::cGZBufferSimGLCache::GetLastAccess	folded	folded	3 names: cGZBufferSimGLCache::GetLastAccess | cS3DTextureBindingFactory::GetFreePoolMax | cSC4OrdinanceSimple::GetYearFirstAvailable
-00809260	cS3DTextureBindingFactory::GetStatsString	auto:A	high	mac 00240b60 score 1.0 support 0
-008092f0	cS3DTextureBindingFactory::SetGDriver	auto:C	high	mac 00240c30 score 1.0 support 1
-00809330	cS3DTextureBindingFactory::FindBindingParams	auto:D	medium	mac 00240cb8 score 0.5 support 1
-008093a0	cS3DTextureBindingFactory::Init	auto:C	high	mac 00240a30 score 1.0 support 1
-008094c0	cS3DTextureBindingFactory::GetBinding	auto:C	high	mac 00240c7a score 1.0 support 1
+00809260	cS3DTextureBindingFactory::GetStatsString	manual:texture-bindings.tsv	high	texture-bindings.md §1.10; slot 17; in use, awaiting reuse, total, MB = bytes * 2^-20
+008092f0	cS3DTextureBindingFactory::SetGDriver	manual:texture-bindings.tsv	high	texture-bindings.md §1.3; slot 3; FlushAll before the swap
+00809330	cS3DTextureBindingFactory::FindBindingParams	manual:texture-bindings.tsv	high	texture-bindings.md §1.4; internal format 0-7 from the image format, alpha bits and bit depth +0x68
+008093a0	cS3DTextureBindingFactory::Init	manual:texture-bindings.tsv	high	texture-bindings.md §1.3; system-service slot 8; resource manager 0x056B906E, graphic system 0xC47B747C, message server 0x04FA845B
+008094c0	cS3DTextureBindingFactory::GetBinding	manual:texture-bindings.tsv	high	texture-bindings.md §1.5; slot 5 (ID): key (0x7AB50E44, 0x1ABE787D, ID) to slot 6
+008094f0	cS3DTextureBindingFactory::FindBindingDimensions	manual:texture-bindings.tsv	high	texture-bindings.md §1.4; descriptive name, no Mac match; powers of two, levels and sizes less the LOD offset +0x6C
 00809580	std::list<cS3DTextureBindingFactory::cBindingRec*,std::allocator<cS3DTextureBindingFactory::cBindingRec*>>::remove	auto:D	medium	mac 006d63fa score 0.5 support 1
 008095c0	__gnu_cxx::hashtable<std::pair<cS3DTextureBindingFactory::tResTextureKey_const,cS3DTextureBindingFactory::cBindingRec*>,cS3DTextureBindingFactory::tResTextureKey,cS3DTextureBindingFactory::ResTextureKeyHash,std::_Select1st<std::pair<cS3DTextureBindingFactory::tResTextureKey_const,cS3DTextureBindingFactory::cBindingRec*>>,std::equal_to<cS3DTextureBindingFactory::tResTextureKey>,std::allocator<cS3DTextureBindingFactory::cBindingRec*>>::find	auto:D	medium	mac 006d5f5c score 0.5 support 1
 00809600	__gnu_cxx::hashtable<std::pair<cS3DTextureBinding*const,cS3DTextureBindingFactory::cBindingRec*>,cS3DTextureBinding*,cS3DTextureBindingFactory::cS3DTextureBindingHash,std::_Select1st<std::pair<cS3DTextureBinding*const,cS3DTextureBindingFactory::cBindingRec*>>,std::equal_to<cS3DTextureBinding*>,std::allocator<cS3DTextureBindingFactory::cBindingRec*>>::erase	auto:B2	medium	mac 006d6056 score 0.939 support 1.0
+00809690	cS3DTextureBindingFactory::EraseKeyEntry	manual:texture-bindings.tsv	high	texture-bindings.md §1.9; descriptive name, no Mac match; removes one node of the key table; called by SetResGroup
 00809710	__gnu_cxx::hashtable<std::pair<cS3DTextureBindingFactory::tResTextureKey_const,cS3DTextureBindingFactory::cBindingRec*>,cS3DTextureBindingFactory::tResTextureKey,cS3DTextureBindingFactory::ResTextureKeyHash,std::_Select1st<std::pair<cS3DTextureBindingFactory::tResTextureKey_const,cS3DTextureBindingFactory::cBindingRec*>>,std::equal_to<cS3DTextureBindingFactory::tResTextureKey>,std::allocator<cS3DTextureBindingFactory::cBindingRec*>>::erase	auto:B1	medium	mac 006d619e score 0.929 support 2.0
 008097b0	__gnu_cxx::hashtable<std::pair<cS3DTextureBinding*const,cS3DTextureBindingFactory::cBindingRec*>,cS3DTextureBinding*,cS3DTextureBindingFactory::cS3DTextureBindingHash,std::_Select1st<std::pair<cS3DTextureBinding*const,cS3DTextureBindingFactory::cBindingRec*>>,std::equal_to<cS3DTextureBinding*>,std::allocator<cS3DTextureBindingFactory::cBindingRec*>>::find_or_insert	auto:B0	medium	mac 006d7118 score 0.931 support 1.0
 00809820	__gnu_cxx::hashtable<std::pair<cS3DTextureBindingFactory::tResTextureKey_const,cS3DTextureBindingFactory::cBindingRec*>,cS3DTextureBindingFactory::tResTextureKey,cS3DTextureBindingFactory::ResTextureKeyHash,std::_Select1st<std::pair<cS3DTextureBindingFactory::tResTextureKey_const,cS3DTextureBindingFactory::cBindingRec*>>,std::equal_to<cS3DTextureBindingFactory::tResTextureKey>,std::allocator<cS3DTextureBindingFactory::cBindingRec*>>::find_or_insert	auto:B0	medium	mac 006d6aac score 0.931 support 1.0
-00809890	cS3DTextureBindingFactory::~cS3DTextureBindingFactory	auto:B0	medium	mac 0024148c score 0.977 support 1.0
-00809910	cS3DTextureBindingFactory::SetLodOffset	auto:C	low	mac 006d55ee score 1.0 support 1
-00809b00	cS3DTextureBindingFactory::SetResGroup	auto:C	high	mac 00240dca score 1.0 support 1
-00809b90	cS3DTextureBindingFactory::SetBindingImageData	auto:C	high	mac 0024123a score 1.0 support 1
-00809cd0	cS3DTextureBindingFactory::GetFreeBinding	auto:B4	medium	mac 00240f7a score 0.925 support 1.0
-00809e10	cS3DTextureBindingFactory::GetBindingInfo	auto:C	high	mac 00241372 score 1.0 support 1
-00809eb0	cS3DTextureBindingFactory::DestroyBinding	auto:B0	medium	mac 00240d3e score 0.959 support 2.0
+00809890	cS3DTextureBindingFactory::~cS3DTextureBindingFactory	manual:texture-bindings.tsv	high	texture-bindings.md §1.3; Shutdown, then the tables
+00809910	cS3DTextureBindingFactory::SetLodOffset	manual:texture-bindings.tsv	high	texture-bindings.md §1.9; slot 9; +0x6C
+00809920	cS3DTextureBindingFactory::QueryInterface (thunk at +4)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 4; slot 0 of 0x00ABD8B8
+00809930	cS3DTextureBindingFactory::AddRef (thunk at +4)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 4
+00809940	cS3DTextureBindingFactory::Release (thunk at +4)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 4
+00809950	cS3DTextureBindingFactory::QueryInterface (thunk at +8)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 8; slot 0 of 0x00ABD884
+00809960	cS3DTextureBindingFactory::AddRef (thunk at +8)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 8
+00809970	cS3DTextureBindingFactory::Release (thunk at +8)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 8
+00809980	cS3DTextureBindingFactory::QueryInterface (thunk at +0xC)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 0xC; slot 0 of 0x00ABD86C
+00809990	cS3DTextureBindingFactory::AddRef (thunk at +0xC)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 0xC
+008099a0	cS3DTextureBindingFactory::Release (thunk at +0xC)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 0xC
+008099b0	cS3DTextureBindingFactory::~cS3DTextureBindingFactory (thunk)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 0xC to the deleting destructor; slot 3 of 0x00ABD86C
+008099c0	cS3DTextureBindingFactory::QueryInterface (thunk at +0x24)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 0x24; slot 0 of 0x00ABD85C
+008099d0	cS3DTextureBindingFactory::AddRef (thunk at +0x24)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 0x24
+008099e0	cS3DTextureBindingFactory::Release (thunk at +0x24)	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; descriptive name; this - 0x24
+008099f0	cS3DTextureBindingFactory::DoMessage	manual:texture-bindings.tsv	high	texture-bindings.md §1.8; descriptive name; slot 3 of 0x00ABD85C; kSGLMessage_RestoreTextures 0x8ACAA95F reloads keyed textures
+00809b00	cS3DTextureBindingFactory::SetResGroup	manual:texture-bindings.tsv	high	texture-bindings.md §1.9; slot 12; a new group un-keys every record
+00809b90	cS3DTextureBindingFactory::SetBindingImageData	manual:texture-bindings.tsv	high	texture-bindings.md §1.5; slot 7; driver slot 61 per frame and level
+00809cd0	cS3DTextureBindingFactory::GetFreeBinding	manual:texture-bindings.tsv	high	texture-bindings.md §1.5; oldest matching record of the free pool; drops its key
+00809e10	cS3DTextureBindingFactory::GetBindingInfo	manual:texture-bindings.tsv	high	texture-bindings.md §1.10; slot 8
+00809eb0	cS3DTextureBindingFactory::DestroyBinding	manual:texture-bindings.tsv	high	texture-bindings.md §1.6; key and binding entries, driver slot 36, frees
 00809f30	__gnu_cxx::hash_map<cS3DTextureBinding*,cS3DTextureBindingFactory::cBindingRec*,cS3DTextureBindingFactory::cS3DTextureBindingHash,std::equal_to<cS3DTextureBinding*>,std::allocator<cS3DTextureBindingFactory::cBindingRec*>>::operator[]	auto:D	medium	mac 006d71ac score 0.5 support 1
 00809fa0	__gnu_cxx::hash_map<cS3DTextureBindingFactory::tResTextureKey,cS3DTextureBindingFactory::cBindingRec*,cS3DTextureBindingFactory::ResTextureKeyHash,std::equal_to<cS3DTextureBindingFactory::tResTextureKey>,std::allocator<cS3DTextureBindingFactory::cBindingRec*>>::operator[]	auto:D	medium	mac 006d6b46 score 0.5 support 1
-00809ff0	cS3DTextureBindingFactory::~cS3DTextureBindingFactory	auto:C	high	mac 002413e4 score 1.0 support 1
-0080a010	cS3DTextureBindingFactory::FlushAll	auto:C	high	mac 00240f2c score 1.0 support 1
-0080a0a0	cS3DTextureBindingFactory::AdjustFreePoolSize	auto:D	medium	mac 00240e28 score 0.5 support 2
-0080a110	cS3DTextureBindingFactory::CreateNewBinding	auto:B3	medium	mac 00241678 score 0.933 support 2.0
-0080a320	cS3DTextureBindingFactory::GetBinding	auto:B4	medium	mac 00241ada score 0.954 support 2.0
-0080a380	cS3DTextureBindingFactory::GetBinding	auto:A	high	mac 00241964 score 1.0 support 0
-0080a4d0	cS3DTextureBindingFactory::FreeBinding	auto:C	high	mac 00240e8a score 1.0 support 1
-0080a580	cS3DTextureBindingFactory::SetFreePoolMax	auto:C	high	mac 00240f16 score 1.0 support 1
-0080a590	cS3DTextureBindingFactory::FlushFreePool	auto:C	high	mac 00240eee score 1.0 support 1
-0080a5b0	cS3DTextureBindingFactory::cS3DTextureBindingFactory	auto:B1	medium	mac 0024152c score 0.963 support 3.0
-0080a680	GZCOM_CreatecS3DTextureBindingFactory	auto:B2	medium	mac 0024163c score 0.919 support 1.0
+00809ff0	cS3DTextureBindingFactory::~cS3DTextureBindingFactory (deleting destructor)	manual:texture-bindings.tsv	high	texture-bindings.md §1.3; was cS3DTextureBindingFactory::~cS3DTextureBindingFactory; GlobalHeapFree on bit 0
+0080a010	cS3DTextureBindingFactory::FlushAll	manual:texture-bindings.tsv	high	texture-bindings.md §1.7; slot 16; destroys every record, in use or not
+0080a0a0	cS3DTextureBindingFactory::AdjustFreePoolSize	manual:texture-bindings.tsv	high	texture-bindings.md §1.6; evicts from the back of the free list above the limit +0x64
+0080a110	cS3DTextureBindingFactory::CreateNewBinding	manual:texture-bindings.tsv	high	texture-bindings.md §1.5; driver slot 60 per frame, slot 50 error check, bytes from the bits-per-texel table
+0080a320	cS3DTextureBindingFactory::GetBinding	manual:texture-bindings.tsv	high	texture-bindings.md §1.5; slot 4 (image info): reuse or create, upload, not keyed
+0080a380	cS3DTextureBindingFactory::GetBinding	manual:texture-bindings.tsv	high	texture-bindings.md §1.5; slot 6 (key): key table on (group, instance), else resource manager slot 4 with IID 0x1AB50C3F
+0080a4d0	cS3DTextureBindingFactory::FreeBinding	manual:texture-bindings.tsv	high	texture-bindings.md §1.6; slot 18; to the front of the free list, then trim
+0080a580	cS3DTextureBindingFactory::SetFreePoolMax	manual:texture-bindings.tsv	high	texture-bindings.md §1.6; slot 14
+0080a590	cS3DTextureBindingFactory::FlushFreePool	manual:texture-bindings.tsv	high	texture-bindings.md §1.6; slot 15; trim with limit 0
+0080a5b0	cS3DTextureBindingFactory::cS3DTextureBindingFactory	manual:texture-bindings.tsv	high	texture-bindings.md §1.2; service 0x1AC0E11A, pool limit 2,000,000, bit depth 32, group 0x1ABE787D
+0080a680	GZCOM_CreatecS3DTextureBindingFactory	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; GlobalHeapAlloc(0x84) then the constructor
+0080a700	NextPowerOfTwo	manual:texture-bindings.tsv	high	texture-bindings.md §1.4; descriptive name, no Mac match; the smallest power of two >= n, 1 for n <= 1; also called at 0x005D7BDB
 0080ab90	nS3D::CreateTextureFromText	auto:D	medium	mac 0025cc28 score 0.5 support 1
 0080b680	nS3D::RandomDirection2	auto:B1	medium	mac 0022b4d6 score 0.98 support 2.0
 0080b730	nS3D::RandomDirection3	auto:B0	medium	mac 0022b596 score 0.993 support 2.0
+0080b9f0	BuildBasisFromDirection	manual:lighting.tsv	high	lighting.md §5.6; descriptive name, no Mac match; rows normalize(dz, 0, -dx), d x row0, d; vertical d gives (0,0,1), (1,0,0)
 0080bbb0	cSC4OrdinanceSimple::SetEnabled	auto:C	high	mac 0082798a score 1.0 support 5
 0080bbc0	cSC4OrdinanceSimple::ForceAvailable	auto:C	high	mac 0082799e score 1.0 support 5
 0080bbd0	cSC4OrdinanceSimple::ForceOn	auto:C	high	mac 008279b2 score 1.0 support 5
@@ -15453,6 +15526,7 @@ va	name	source	confidence	note
 009efb9f	lib::_rand	library	medium	Function ID
 009efbc1	lib::__vsnprintf	library	medium	Function ID
 009efc20	lib::_pow	library	medium	Function ID
+009efc60	_CIpow	manual:camera.tsv	high	camera.md §2.6; descriptive name; the CRT x87 pow (SSE2 path __CIpow_pentium4 0x009F9B80)
 009efeb0	cSC4BudgetSimulator::PostBondMessage	auto:B0	medium	mac 0018ccd2 score 0.947 support 2.0
 009f0090	cS3DTransform::TransformDirection	auto:B14	medium	mac 0063eb4a score 0.787 support 2.0
 009f00ad	lib::start	library	medium	Function ID
@@ -15470,6 +15544,7 @@ va	name	source	confidence	note
 009f0639	lib::$L19916	library	medium	Function ID
 009f0642	lib::__nh_malloc	library	medium	Function ID
 009f066e	lib::_malloc	library	medium	Function ID
+009f068a	_CIfmod	manual:lighting.tsv	high	lighting.md §4.3; descriptive name; the CRT x87 fmod (dispatch 0x00B18C90, fprem)
 009f06b2	lib::_sprintf	library	medium	Function ID
 009f0710	lib::__aulldiv	library	medium	Function ID
 009f0778	lib::__make_time_t	library	medium	Function ID
@@ -16364,12 +16439,22 @@ va	name	source	confidence	note
 00a7ae50	cSC4FeatureManager::sEnabledFeatures static destructor	manual:feature-manager.tsv	high	feature-manager.md §2; empties the set, frees the header node (0x0090CF63)
 00a7c140	___tcf_1	auto:B1	medium	mac 00122ff2 score 0.974 support 1.0
 00a7f220	___tcf_3	auto:B2	medium	mac 0045b2e6 score 0.9 support 1.0
+00aa2a3c	cSC4GlyphTextureInfo::vftable	manual:glyph-textures.tsv	high	glyph-textures.md §2; 9 slots
+00aa2a60	cSC4StringTextureInfo::vftable	manual:glyph-textures.tsv	high	glyph-textures.md §3; descriptive name, no Mac match; 6 slots
+00aa2a78	cSC4GlyphTextureManager::vftable_3	manual:glyph-textures.tsv	high	glyph-textures.md §1.1; the message target at +0x20: 3 thunks, DoMessage
 00aa9648	cSC4PipeOccupant::vftable_vbase	manual:underground-occupants.tsv	high	underground-occupants.md §5; the virtual base's (drawable) vtable, 19 slots, installed at +0x27C
 00aa97b8	cSC4PipeOccupant::vftable	manual:underground-occupants.tsv	high	underground-occupants.md §1; 106 slots; installed by 0x006488F0 and 0x006489F0
 00aaa258	cSC4SubwayOccupant::vftable_vbase	manual:underground-occupants.tsv	high	underground-occupants.md §5; the virtual base's vtable, installed at +0x2D4
 00aaa3c8	cSC4SubwayOccupant::vftable	manual:underground-occupants.tsv	high	underground-occupants.md §1; 107 slots; installed by 0x006530B0 and 0x006535A0
 00ab0840	kTaxTypeByPurposeAndWealth	manual:clock-budget-neighbors.tsv	high	s16[9][4] data table indexed purpose*4+wealth; read by ComputeTax
 00ab3480	cSC4TrafficSimulator::WorkOnSimCycle::kNextState (data, uint32[20])	manual:traffic.tsv	high	indexed by state in WorkOnSimCycle (mov edi,[edx*4+0xAB3480])
+00abaccc	cSC4CameraControl::sZoomPitch (data, float[5])	manual:camera.tsv	high	camera.md §2.2; 30, 35, 40, 45, 45 degrees in radians
+00abace0	cSC4CameraControl::sZoomCellPixels (data, int[5])	manual:camera.tsv	high	camera.md §2.2; 8, 16, 32, 73, 146
+00abad18	cSC4CameraControl::vftable	manual:camera.tsv	high	camera.md §2.1; 7 slots: QueryInterface, AddRef, Release, Write, Read, GetGZCLSID, deleting destructor
+00abd2c4	cS3DCamera::vftable	manual:camera.tsv	high	camera.md §1.1; 4 slots
+00abd774	cS3DTextureBindingFactory::sBitsPerTexel (data, u32[8])	manual:texture-bindings.tsv	high	texture-bindings.md §1.4; 16, 24, 16, 16, 32, 4, 8, 8
+00abd85c	cS3DTextureBindingFactory::vftable_4	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; the message target at +0x24: 3 thunks, DoMessage
+00abd8b8	cS3DTextureBindingFactory::vftable_1	manual:texture-bindings.tsv	high	texture-bindings.md §1.1; the interface 0x088CEB67 at +4: 3 thunks and one more slot
 00ac17ac	nGZDrawSoftRender::cISpanRender::vftable	manual:gzdraw-softrender.tsv	high	installed by the deleting destructor 0082FF00
 00ac17d0	cGZDrawContextRenderToBuffer::vftable	manual:gzdraw-softrender.tsv	high	23 slots, installed by Release 008306C0; slot 21 = Draw 00831000 (symport B1), slot 3 = Init (Mac constant 0x20732180)
 00ac182c	nGZDrawSoftRender::cSpanRender1555::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color types 4 R5G5B5 and 6 A1R5G5B5; Mac __ZTVN17nGZDrawSoftRender15cSpanRender1555E
@@ -16393,6 +16478,11 @@ va	name	source	confidence	note
 00b0c960	cSC4SubwayOccupant::sCornerPoints (data, 24-byte points)	manual:underground-occupants.tsv	high	underground-occupants.md §3.6; read by StaticInit
 00b0cdb8	cSC4SubwayOccupant::sPool (data, pool object)	manual:underground-occupants.tsv	high	underground-occupants.md §1; vtable 0x00AAA578
 00b0cdc8	cSC4SubwayOccupant::sModelDescriptor (data)	manual:underground-occupants.tsv	high	underground-occupants.md §1; returned by main slot 101
+00b0dce0	cSC4LightingManager::sAmbientColor (data, float[3])	manual:lighting.tsv	high	lighting.md §4.1; 0.05, 0.05, 0.05
+00b0dcec	cSC4LightingManager::sKeyLightDirection (data, float[3])	manual:lighting.tsv	high	lighting.md §3; -1, 1, 1 (normalised at use)
+00b0dcf8	cSC4LightingManager::sFillLightDirection (data, float[3])	manual:lighting.tsv	high	lighting.md §3; 1, 0.5, -1 (normalised at use)
+00b0dd04	cSC4LightingManager::sKeyLightColor (data, float[3])	manual:lighting.tsv	high	lighting.md §4.1; 1, 1, 0.8
+00b0dd10	cSC4LightingManager::sFillLightColor (data, float[3])	manual:lighting.tsv	high	lighting.md §4.1; 0, 0.1, 0.5
 00b13420	cRZTimer::sCounterFrequency (data, uint64)	manual:timers.tsv	high	timers.md §1.5; QueryPerformanceFrequency, written by MeasureFrequencies 0x0088FED4
 00b13428	cRZTimer::sCycleFrequency (data, uint64)	manual:timers.tsv	high	timers.md §1.5; the CPU cycle rate C, written by MeasureFrequencies 0x0088FECC
 00b16998	cRZDirectory::sSelfName (data, char const*)	manual:paths.tsv	high	paths.md §3.3; points at '.' (0x00AA1B74)

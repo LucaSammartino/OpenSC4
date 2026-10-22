@@ -302,12 +302,28 @@ nSGLDX7*	3D driver (DirectX 7)	renderer	-	-	-	-
 nRZSimGL*	3D driver (DirectX 7)	renderer	-	-	-	-
 cGZBufferSimGLCache	3D driver (DirectX 7)	renderer	-	-	-	-
 cSC4GDriversCOMDirector	3D driver (DirectX 7)	renderer	-	-	-	-
+cS3DCamera	camera and projection	renderer	camera.md	-	-	-
+fn:GZCOM_CreatecS3DCamera	camera and projection	renderer	camera.md	-	-	-
+fn:GZCOM_CreatecSC4CameraControl	camera and projection	renderer	camera.md	-	-	-
+fn:IntersectWithGroundPlane	camera and projection	renderer	camera.md	-	-	-
+cS3DTextureBindingFactory	textures and materials	renderer	texture-bindings.md	-	-	-
+cS3DTextureBinding	textures and materials	renderer	texture-bindings.md	-	-	-
+cS3DMaterialManager	textures and materials	renderer	texture-bindings.md	-	-	-
+cS3DMaterial	textures and materials	renderer	texture-bindings.md	-	-	-
+fn:GZCOM_CreatecS3DTextureBindingFactory	textures and materials	renderer	texture-bindings.md	-	-	-
+fn:GZCOM_cS3DTextureBindingFactoryCLSID	textures and materials	renderer	texture-bindings.md	-	-	-
+fn:GZCOM_CreatecS3DMaterialManager	textures and materials	renderer	texture-bindings.md	-	-	-
+fn:GZCOM_cS3DMaterialManagerCLSID	textures and materials	renderer	texture-bindings.md	-	-	-
+fn:NextPowerOfTwo	textures and materials	renderer	texture-bindings.md	-	-	-
 cS3D*	3D scene and models	renderer	-	-	-	-
 nS3D*	3D scene and models	renderer	-	-	-	-
 cSC43D*	3D scene and models	renderer	-	-	-	-
 cSC4View3DWin	3D scene and models	renderer	-	-	-	-
-cSC4CameraControl	3D scene and models	renderer	-	-	-	-
-cSC4LightingManager	3D scene and models	renderer	-	-	-	-
+cSC4CameraControl	camera and projection	renderer	camera.md	-	-	-
+cSC4LightingManager	lighting and shadows	renderer	lighting.md	-	-	-
+cImageARGB8	lighting and shadows	renderer	lighting.md	-	-	-
+fn:RotateLightingRectToWorld	lighting and shadows	renderer	lighting.md	-	-	-
+fn:BuildBasisFromDirection	lighting and shadows	renderer	lighting.md	-	-	-
 cSC4RenderProperties*	3D scene and models	renderer	-	-	-	-
 cSC4Model*	3D scene and models	renderer	-	-	-	-
 cSC4ConfigRuleManager	3D scene and models	renderer	-	-	-	-
@@ -315,7 +331,9 @@ cSC4CellTextureModel	3D scene and models	renderer	-	-	-	-
 cSC4FoundationModel	3D scene and models	renderer	-	-	-	-
 cSC4LotRetainingWallModel	3D scene and models	renderer	-	-	-	-
 cSC4AnimationCoordinator	3D scene and models	renderer	-	-	-	-
-cSC4GlyphTextureManager	3D scene and models	renderer	-	-	-	-
+cSC4GlyphTextureManager	glyph and string textures	renderer	glyph-textures.md	-	-	-
+cSC4GlyphTextureInfo	glyph and string textures	renderer	glyph-textures.md	-	-	-
+cSC4StringTextureInfo	glyph and string textures	renderer	glyph-textures.md	-	-	-
 cSTETerrainView3D	3D scene and models	renderer	terrain.md	core/src/terrain	terrain_shadow	-
 cSTEOverlayManager	3D scene and models	renderer	-	-	-	-
 cSTEWaterRipple	3D scene and models	renderer	-	-	-	-

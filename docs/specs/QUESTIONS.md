@@ -32,6 +32,7 @@ generated index: the questions live one file per spec, so read only the file for
 | AU | aura |
 | BQ | budget |
 | BW | budget-window |
+| CA | camera |
 | CB | civic-buildings |
 | CD | city-detail |
 | CK | clock24 |
@@ -58,6 +59,7 @@ generated index: the questions live one file per spec, so read only the file for
 | GC | command-system |
 | GF | graphics-formats |
 | GLUE | lot-configuration, prop-developer |
+| GT | glyph-textures |
 | GZ | framework-gz-services |
 | HD | html-document |
 | HG | foundations |
@@ -68,6 +70,7 @@ generated index: the questions live one file per spec, so read only the file for
 | LF | landfill |
 | LG | landfill |
 | LR | lot-records |
+| LT | lighting |
 | LU | language-utility |
 | LV | landvalue |
 | MS | mysims |
@@ -104,6 +107,7 @@ generated index: the questions live one file per spec, so read only the file for
 | SP | span-render-4444 |
 | SR | span-render-1555, span-render-565, span-render-8, span-render-8888 |
 | SV | foundations, ordinance |
+| TB | texture-bindings |
 | TG | traffic-simulator |
 | TM | timers |
 | TN | traffic-network |
@@ -129,6 +133,7 @@ generated index: the questions live one file per spec, so read only the file for
 | budget | 0 | 8 | BQ9 | - |
 | budget-window | 1 | 14 | BW17 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
+| camera | 2 | 0 | CA3 | questions/camera.md |
 | city-detail | 2 | 5 | CD8 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
 | city-tools-input | 12 | 1 | CT14 | questions/city-tools-input.md |
@@ -152,6 +157,7 @@ generated index: the questions live one file per spec, so read only the file for
 | foundations | 2 | 8 | AO4, HG4, RN4, SV2 | questions/foundations.md |
 | framework-gz-services | 7 | 0 | GZ8 | questions/framework-gz-services.md |
 | framework-rz-files | 8 | 0 | RZ9 | questions/framework-rz-files.md |
+| glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 0 | 35 | FS18, GF19 | - |
 | history | 0 | 17 | HW18 | - |
 | html-document | 1 | 6 | HD8 | questions/html-document.md |
@@ -159,6 +165,7 @@ generated index: the questions live one file per spec, so read only the file for
 | landvalue | 1 | 6 | LV6 | questions/landvalue.md |
 | language-utility | 3 | 0 | LU4 | questions/language-utility.md |
 | legacy-control | 3 | 4 | LC9 | questions/legacy-control.md |
+| lighting | 4 | 0 | LT5 | questions/lighting.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
 | lot-records | 2 | 5 | LR8 | questions/lot-records.md |
@@ -200,6 +207,7 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
+| texture-bindings | 3 | 0 | TB4 | questions/texture-bindings.md |
 | timers | 0 | 3 | TM4 | questions/timers.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
@@ -211,4 +219,4 @@ generated index: the questions live one file per spec, so read only the file for
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **215** | **1127** | | |
+| **total** | **226** | **1127** | | |
