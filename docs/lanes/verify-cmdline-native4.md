@@ -11,15 +11,96 @@
 - Source inspection confirms independent GetCommandLineA -> production CAPI/Rust parser, actual borrowed public SDK dispatch, no native seeding or clone. Same fixed query inventory and exclusions as round2.
 - NativeOFF cmdline4-r3-native-off-2032-e CLEAN2032-01-07, full save ok1 at real2026-10-22 21:19:10.807/game2031-12-09,10984ms, PostSystemServiceShutdown, ref0/stalls0. Probe disabled: no comparisons/coverage credit. Actual enabled set simulator only; budget disabled; optional owners original.
 - NativeON cmdline4-r3-native-on-2032-f CLEAN2032-01-04,123/123 exact/failures0/differences0,argc5/raw174; full save ok1 at real2026-10-22 21:22:27.908/game2031-12-03,11266ms; shutdown/ref0/stalls0. Actual enabled simulator only; otherwise matches OFF. No source change or causal claim about old failures.
-- Next: unique cmdline4-r3-current40-2032-g using SAME immutable-b DLL/city/script/timing, cmdline_probe1, exactly40 specified literal enable keys, disable empty; attribute actual simulator/budget defaults separately and confirm42-entry enabled set.
-- All round2 disable-all stalls and prior current40 evidence retained below and in build-runs. No request outstanding at commit; current40 submission is next.
+- Outstanding: unique cmdline4-r3-current40-2032-g, running slot1 since2026-10-22 21:24:31; SAME immutable-b DLL/city/script/timing, cmdline_probe1, exactly40 specified literal enable keys, disable empty. Await existing request/verdict without replacement; attribute simulator/budget defaults separately and check actual42-entry set when complete.
+- All round2 disable-all stalls and prior current40 evidence retained below and in build-runs. Next: audit this unique current40 result, record every failure if present, finalize bounded ready only on clean full-save/shutdown/ref0.
 - No source changes, no new questions, no new gate; task explicitly permits inspecting existing stable gate for unchanged source.
 - q.py Bash transport failed with E_ACCESSDENIED; use bounded PowerShell reads, apply_patch for all files.
 - Audit script build-runs/cmdline4-r3-audit.py gate recomputes4963/0/0 and exact hashes; run audit corrected empty-enable whitespace parsing before recording configuration counts. Completed OFF verdict accepted without resubmission.
 - ON method op0..9 exact/total1,6,1,12,12,16,16,14,24,21; present/absent op3..9=10/2,10/2,6/10,4/12,6/8,2/22,2/19. Audit failure matcher corrected to exclude the successful failures=0 summary. No .sc4 fixture exists in this worktree's build-runs; replay not exercised or claimed.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-cmdline-native4-r3-manifest.json. No fourth/renamed round, external reads, agents, ref updates or private owner work.
 
-## Round 2 report (2026-10-22)
+## Round 3 evidence (2026-10-22; final control pending)
+
+The final bounded continuation has passed matched **native optional-owner profile
+OFF and ON** lifecycle controls with the retained immutable-b DLL. Both use
+Konradshohe, turbo1, seconds420/timeout600, end2032-01-01, the same save2031-12-01
+and mark2031-12-15 script, enable empty and disable budget. Only the label and
+cmdline_probe setting differ. The simulator remains our enabled harness; budget
+is disabled and all optional owners remain original. This is the supported explicit
+profile copied from the persist control, not an all-original simulator claim.
+
+| Unique label | Probe / exact queries | Verdict / date | Full save actual timestamp (game date); duration | Shutdown / ref warnings / stalls |
+|---|---|---|---|---|
+| cmdline4-r3-native-off-2032-e | OFF; disabled, no coverage credit | clean /2032-01-07 | 2026-10-22 21:19:10.807 (2031-12-09);10984ms,ok1 | PostSystemServiceShutdown /0/0 |
+| cmdline4-r3-native-on-2032-f | ON;123/123, differences0/failures0 | clean /2032-01-04 | 2026-10-22 21:22:27.908 (2031-12-03);11266ms,ok1 | PostSystemServiceShutdown /0/0 |
+
+### Source, artifact and stable gate correspondence
+
+Production source stays **92e01745**. `git diff --quiet 92e01745 HEAD -- engine`
+returns0. Both `engine/build-x86/FreeCity4.dll` and the artifact used by every new
+request, `build-runs/cmdline4-r2-immutable-b/FreeCity4.dll`, hash to
+**053BD7A077A43A31ACB065C3B985D792CD9FEBFADAA82B0E7A343D742621FABC**.
+The retained stable full gate was recorded by33596de3 after92e01745: workspace
+**4963 passed/0 failed/0 ignored**, clippy **0 diagnostics**, build **2/2**,
+ctest **68/68**,72.88s. DLL timestamp19:46:52 precedes gate completion19:49:01.
+Audit recomputes the cargo totals and hashes from actual retained files. Final
+source's preceding quick gate was capi532/0 and C++5/5. Earlier baseline/gate logs
+remain separately in build-runs/cmdline-r2-baseline-* and cmdline-r2-gate-a-*.
+As explicitly directed for unchanged source, these exact retained checks replace
+a redundant full build in round3; no Rust files were touched or reformatted.
+
+### Accepted query contract and exclusions
+
+Each enabled probe independently captures GetCommandLineA bytes, constructs the
+actual production `fc4_core::cmdline::CmdLine` through the CAPI once, and compares
+its outputs to actual typed public SDK calls on the framework's borrowed original
+CommandLine. Input, query bounds and natural Find keys come from the independent
+capture/production parse; native outputs never seed state or expected answers.
+The initialized framework has a balanced acquired hold; the borrowed command-line
+pointer is neither AddRef'd nor released. No clone oracle, resynchronization,
+fallback, native mutation, constructor, allocator or private lifetime call is used.
+
+New native ON logged argc5 and raw174 bytes. Its accepted method inventory is
+exactly the ten read-query variants in the table below (the same counts as the
+retained round2 table). Raw argc, argv0..5 including the empty out-of-range result,
+and full command-line text compare exactly. The process shape is program path,
+`-CPUCount:1`, `-w`, `-intro:off`, `-UserDir:` with the isolated slot path.
+Fixed ASCII names intro,CPUCount,CustomResolution,r,d,f,w and an absent marker,
+uppercase forms, chars iCrdfwZ, both case/unquote flags as applicable and starts
+-1/0/argc exercise the published read methods. Each query compares scalar,
+string length and bytes in process; logs retain raw natural outputs, per-method
+exact/positive/negative totals and any failed tuples. Successful search/switch
+tuples are aggregated rather than dumped individually; no extra raw fixture
+coverage is inferred from those totals.
+
+CL1 private slot16, CL2 empty switch names and CL3 high-byte/locale behavior remain
+excluded. Unsafe negative argv/erase, exception-prone single-quote input, owned
+parse/copy/mutator/lifetime domains are not exercised; CL4 remains open. Constructed
+original fixtures are not exercised and earn no0/0 credit. New queries are repeated
+natural process-query evidence, not independent arbitrary parser fixtures or all17
+owner methods. The opt-in defaults off; no owner or default enablement promotion.
+The lane's earlier three CAPI exports remain an ABI change, with ABI version84
+unchanged; round3 makes no engine/export/spec/map/table/default edits.
+
+### Preserved failures and replay limits
+
+All round2 disable-all native stalls and the earlier current40 clean control are
+preserved in their original requests/logs/verdicts and the historical report below.
+Different profile success is measured; it does **not** establish why disable-all
+stalled. The copied persist control used another DLL and is only the profile/timing
+prerequisite, never cmdline comparison evidence. The new matched current40 request
+uses this lane's same immutable DLL and will be reported separately.
+
+No `.sc4` fixture exists in this worktree's build-runs. Documented saved-city staging
+requires an actual isolated saved fixture; no supplied fixture is available within
+this lane's permitted evidence. Full save completion is proved, but reload/replay,
+saved-state byte equivalence and future-load behavior are unmeasured. No slot or
+Documents game file was accessed, exported or committed. Queries show no difference,
+so no turbo-only difference requires a normal-speed replay. No new spec question or
+engine correction is justified. CL1-CL4 remain the existing question IDs in
+docs/specs/questions/command-line.md.
+
+## Round 2 report (retained historical outcome, 2026-10-22)
 
 The public original endpoint is implemented and exercised: **492/492 read-only query comparisons exact across four launches**, each using the same five-argument process shape. This is bounded natural process-query evidence, not 492 independent fixtures or full owner verification. The required native 2032 full-save/shutdown control did not pass, so the lane remains **wip**. No requests remain outstanding.
 
