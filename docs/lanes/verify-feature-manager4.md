@@ -12,7 +12,8 @@
 - Format: touched feature core/tests and CAPI module pass qbuild fmt (absolute paths required); lib.rs recursive check also visits pre-existing unrelated format differences (no mass reformat).
 - Added independent Rust lifetime mirror (fixed published app AddRef + verifier QI lifecycle, never seeded from native counts); native supported/unsupported QI and AddRef/Release compare against it.
 - Final unchanged-code all at 0465e0bf: PASS cargo4948/4948, clippy0 diagnostics, CMake139/139, ctest68/68. Earlier in-flight all also passed but is not final evidence.
-- Next: freeze DLL/hash; submit unique guarded2032/ref0 query and lifetime sessions, wait without qwait. Use build-runs/feature-submit.ps1; session JSONs record unique labels. No requests yet.
+- Frozen DLL: build-runs/dlls/FreeCity4-feature-0465e0bf.dll; SHA256 BD01E7356043EB756C2FDB895FF4E0CB4533013AB7DAED1EBC62943D52F7D777.
+- Outstanding: fm4-r1-query-1022-171537 (current40, turbo to2032, refaudit1); submit/wait process session19933. No qwait used.
+- Next: accept this unique label's completed verdict; inspect feature-input/shadow/lifetime lines; then lifetime session with same frozen DLL and scripted saves via feature-submit.ps1 lifetime.
 - Restrictions: no native Init/Shutdown/reset/seeding; borrowed app getter and owned QI hold only; FM1/FM2 excluded.
-- Game requests: none outstanding. Unique labels required; wait without qwait.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-feature-manager4-r1-manifest.json.
