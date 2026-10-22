@@ -62,3 +62,8 @@ No C ABI, plugin, tools, generated ABI entries or existing math files changed.
 Review the questions and perform C ABI/plugin integration and real camera
 shadow verification in a separate lane. Reserved worktree remains detached;
 the supervisor publishes the final HEAD to `core-camera-control4`.
+
+
+### Coordinator review for train79
+
+The source report calls the published method inventory complete. Complete-owner coverage is WITHHELD: CA3-CA6 still contain provisional choices for constructor defaults, lifecycle/save edges, command/event semantics and scroll behavior. This batch publishes the unbound pure-core implementation and its tests as a building block only; it does not resolve those contracts or enable native replacement. Camera smoke checks DLL compatibility, not camera fidelity. RE must resolve these choices before owner promotion and later real shadow/replacement validation.

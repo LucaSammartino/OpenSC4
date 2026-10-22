@@ -48,3 +48,5 @@ Projection and view caches are maintained eagerly by writers, preserving change
 counters while avoiding mutation in getters. Messages capture the ordered values
 for a future host adapter; no raw pointers or original message method outputs are
 needed. No shadow or real-game replacement credit is claimed.
+
+Coordinator qualification (train79): this is a published-method implementation inventory, not certification of complete native-owner behavior. CA3-CA6 remain unresolved and retain provisional choices. No complete-owner, shadow or replacement coverage is granted by this module.
