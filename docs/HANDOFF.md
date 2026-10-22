@@ -36,7 +36,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **Coverage after train74:**57.6/35.4/13.6/17.9; baseline36.8/28.3/12.1/15.9, delta+20.8/+7.1/+1.5/+2.0 points. 47 trains landed; 248 rounds used, no total cap. Next25-round checkpoint 250.
 
-**Live authority:** `build-runs/run4-coordinator-state.json`; `run4-refill.py` launches reviewed briefs from `run4-refill-queue.json` through serialized `run4-launch.py` and the saved guarded Workflow. PID in run4-refill.pid; quota/errors pause refills. All slots/check/dependency/STOP/parked/3glue gates retained. After compaction reread this section and run guard before adding work. Helpers share run4_coord_lock.py; use its lock for state writes.
+**Live authority:** `build-runs/run4-coordinator-state.json`; tracked `tools/lane_refill.py --provider codex` launches reviewed briefs from `build-runs/run4-refill-queue.json` through tracked `tools/lane_launch.py` and the guarded Codex subscription adapter. Legacy build-runs launch/refill scripts remain Claude-only. PID in run4-refill.pid; quota/errors pause refills. All slots/check/dependency/STOP/parked/3glue gates retained. After compaction reread this section and run guard before adding work. Helpers share run4_coord_lock.py; use its lock for state writes.
 
 **Verification follow-up:** train73 traffic71/73 (train72:72/72), 408 mismatches on2031-05-29 and monthly propagation; verified16.5 to13.6. Preserve both shadow logs and investigate; no golden/sampling relaxation or runtime promotion. re-placelot-final4 resume was guard-denied already-merged: stopped, original worktree preserved, no alias bypass.
 
