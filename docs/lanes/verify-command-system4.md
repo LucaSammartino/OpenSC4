@@ -1,27 +1,74 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-command-system4: native command verification | Codex / `verify-command-system4` (engine lane, detached HEAD) | in progress; round 2; historical 7414 assertions / 7243 exact / 171 scalar metadata differences | 1. Fix production native count projection. 2. Gate and diagnose native save control. 3. Validate clock24 and exact house40 save/reload. |
+| verify-command-system4: native command verification | Codex / `verify-command-system4` (engine lane, detached HEAD) | ready; source 82376d6b; cargo 4962 PASS, clippy clean, ctest 68/68; 7414/7414 native assertions exact, 171 historical logical-count differences retained; clock24/house40/reload clean 2032/ref0; native verifier-on/off full-save controls both stalled | 1. Integrate bounded production projection. 2. Native whole-profile save watchdog failure remains separate baseline work; GC1-GC7 excluded. |
 
-## Handoff
+## Round 2 result
 
-- Goal: implement published scalar GetCount=0 / array length in command production projection, preserving Variant::count.
-- Done: production fix 82376d6b; previous-round history b2b4dd2d and below. Baseline: Rust 4961 PASS, clippy clean, ctest 68/68.
-- Implemented: borrowed NativeParameter production view on stored command values/fallback; native count 0 for scalar/Empty, array length. Logical Variant::count untouched.
-- Verifier uses that production view, retains all 7414 assertions and separately logs historical logical count differences. Scalar/empty/one/multi/string/fallback tests added.
-- Focused: 3466 tests PASS, dependents compile; fmt all 4 touched Rust files PASS. Stable all gate on 82376d6b: Rust 4962 PASS, clippy clean, ctest 68/68.
-- Immutable DLL: build-runs/commands4-r2-frozen/FreeCity4.dll SHA256 17115A0C565DD4E63D8191255C47B50CA9D08561580C0F3A445BF4CD5B169396.
-- Native controls commands4-r2-native-on-82376d6b-a and commands4-r2-native-off-82376d6b-a BOTH stalled in identical 2026-03-01 full-save script, ref0; verifier-off emitted no comparisons. Native whole-profile save still FAILS.
-- Native-on: 7414/7414 exact, 0 refused, historical logical count differences 171. Independent ORIGINAL objects, no native output seeding.
-- Clock24 commands4-r2-clock24-82376d6b-a CLEAN through 2032-01-14/ref0, save full ok=1 in 10906 ms; same 7414 exact/171 historical.
-- House40 commands4-r2-house40-82376d6b-a CLEAN through 2032-01-01/ref0; full save ok=1 in 10969 ms, PostSystemServiceShutdown reached, 7414 exact/171 historical.
-- Clock24 also reached PostSystemServiceShutdown. Native whole-profile failures remain explicitly failures.
-- Next: stage successful house40 save with timestamp validation (build-runs/commands4-r2-stage.py), then supported house40 reload through 2032. No request outstanding; helper build-runs/commands4-r2-run.py waits without qwait.
-- Shared variant.rs/variant CAPI, tools, maps, ABI tables and defaults are excluded.
-- Preserve all 171 comparisons and raw logical-count history. Native owned sets remain game-created originals.
-- GC1-GC7 remain outside scope. House40 uses exactly the 40 supplied opt-ins, existing simulator/budget infrastructure defaults; no terrain/effects/dispatch.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-command-system4-r2-manifest.json.
+Production fix **82376d6b** adds a borrowed `NativeParameter` view to the command parameter API.
+It projects native variant metadata from the actual stored value or shared fallback: scalar/Empty count 0,
+array count equal to its length, per data-formats §5.2 and §10.5 item 42. `Variant::count()` remains the
+logical-element API. The shared variant implementation and variant CAPI were not edited.
 
-## Changes and provenance
+The command CAPI verifier now calls this production view. All **7,414 original assertions remain**:
+3,708 set and 3,706 parser/prerequisite assertions. Every measured run with verification enabled reports
+**7,414 exact, zero mismatches, zero refusals**, and separately **171 historical logical-count differences**.
+The round-1 result **7,243/7,414 with 171 differences** is retained below. Those were native raw-count versus
+logical DTO-count comparisons, rather than differences in command semantics. No expected input was changed,
+no field was ignored, and native answers never populate or resynchronize Rust state.
+
+The native objects remain independently owned ORIGINAL sets created by the app-owned command server;
+the scratch variants are ORIGINAL too. No SDK parameter-set reimplementation replaces the object under test.
+No command registration/execution or replacement was introduced. GC1-GC7 and the other previously excluded
+behaviors remain outside measured scope; this is not exhaustive or whole-owner verification.
+
+Tests cover scalar metadata, Empty, empty/one/multiple-element arrays, strings, present/missing lookup,
+borrow identity, removal and writable shared fallback, while asserting preserved logical counts.
+Baseline all: **4,961 Rust tests PASS, clippy clean, ctest 68/68**.
+Focused: **3,466 tests PASS**, dependent crates compiled, plugin built; fmt of all four touched Rust files PASS.
+Stable full gate on source 82376d6b: **4,962 Rust tests PASS, clippy zero diagnostics, ctest 68/68**.
+Subsequent commits change only this report. Public C ABI exports, ABI version, maps, defaults and shared tools
+are unchanged. No new spec question was necessary: the published rule resolves GC8's adapter distinction.
+
+## Round 2 real-game results
+
+All five requests used the same immutable `build-runs/commands4-r2-frozen/FreeCity4.dll`, SHA256
+`17115A0C565DD4E63D8191255C47B50CA9D08561580C0F3A445BF4CD5B169396`, matching the gated build DLL.
+Every request uses the identical `2026-03-01 save` script, end date 2032-01-01, refaudit and full shutdown request.
+New unique labels were awaited without qwait; completed verdicts were retained. All runs have **ref_warnings=0**.
+
+| Label | Verdict / final date | Full save | Full shutdown | Native command comparisons |
+|---|---|---|---|---|
+| commands4-r2-native-on-82376d6b-a | stalled / 2026-03-01 | interrupted by watchdog | not reached | 7414 exact; historical 171 |
+| commands4-r2-native-off-82376d6b-a | stalled / 2026-03-01 | interrupted by watchdog | not reached | verifier OFF; no comparisons emitted |
+| commands4-r2-clock24-82376d6b-a | clean / 2032-01-14 | ok=1, 10906 ms | PostSystemServiceShutdown | 7414 exact; historical 171 |
+| commands4-r2-house40-82376d6b-a | clean / 2032-01-01 | ok=1, 10969 ms | PostSystemServiceShutdown | 7414 exact; historical 171 |
+| commands4-r2-reload-82376d6b-a | clean / 2032-01-01 | ok=1, 10937 ms | PostSystemServiceShutdown | 7414 exact; historical 171 |
+
+The two native controls disable every replacement. Their requests differ only in label and `commands_verify`.
+Both hit the no-OnTick watchdog at about 5 seconds and terminate at about 10.2 seconds during the deferred
+full-save action, outside FreeCity4. Turbo is explicitly ineffective with the replacement simulator disabled.
+The engine watchdog code lowers the outside-FreeCity4 sampling threshold to 5 seconds during autotest
+(`FC4Watchdog.cpp`); this is a measured watchdog termination, not proof of a permanent native save deadlock.
+The identical verifier-OFF failure establishes that the observed stall does not require this comparison.
+**The all-native whole-profile full-save/shutdown regression still fails and is not claimed passed.**
+No watchdog suppression, shared harness modification or unsupported callback change was made.
+
+Clock24 adds only `clock24` to the existing simulator/budget infrastructure defaults. House40 and reload add
+exactly these supplied 40 opt-ins to the same defaults:
+`landvalue,weather,ordinance,demand,power,plumbing,flammability,pollution,protection,crime,aura,flora,landfill,residential,neighbors,zones,development,tract,history,clock24,commercial,industrial,civic,parks,lotdev,zonedev,traffic,automata,netmgr,netlot,nettool,demolition,occmgr,propmgr,lotcfg,citysit,propdev,simgrids,citydetail,ports`.
+No experimental terrain/effects/dispatch was enabled. The command comparisons still exercise native components
+independently in these supported profiles. There are no current differences requiring a normal-speed rerun;
+the retained logical-count distinction also occurs in the native controls where turbo has no effect.
+
+The house40 save was staged only after validating its modification time **2026-10-22 19:46:30.116853** against
+the successful run window and its DBPF signature. Fixture: main `build-runs/fixtures/commands4-r2-house40.sc4`,
+**998,674 bytes**, SHA256 `4ad4e47b96e66110216ce0a2794c7f0cd6cdb5450295b97d320e7e94469efff8`.
+The supported reload verdict confirms that same full hash was staged, with source preserved.
+No game artifact is committed. Logs/verdicts and lane-only request/staging/audit helpers remain under this
+worktree's `build-runs/`. No request remains outstanding. Native baseline watchdog/save behavior is separate
+follow-up work; existing GC1-GC7 coverage remains unclaimed.
+
+## Round 1 historical record (b2b4dd2d; superseded by round 2 above)
 
 Added the opt-in `commands_verify = 1` city-load comparison in `engine/plugin/FC4CommandsVerify.h`,
 called additively from the observer. `engine/capi/src/commands_verify.rs` retains actual production
@@ -96,7 +143,7 @@ The full label-b gate and all label-b games use frozen DLL SHA256
 `1F8594269BE9926AB1EA047D721195B6D5C03819B6D2A99194C0D7DB4B5A16D2`.
 Label a used `B633D033A3778553DC6F6AC253466FE3FDB58BA31B4A997B4146EE9A8D285375` before aggregate instrumentation.
 
-## Remaining work
+## Round 1 remaining work (historical; resolved as recorded above)
 
 WIP: resolve GC8's production logical-count/native-interface distinction without fitting command semantics.
 Obtain the canonical current40 profile from the coordinator: the permitted named files identify it but do not
