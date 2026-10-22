@@ -6,7 +6,7 @@
 
 Goal (round 3): fix GetValString name conversion; SerialWrite fixture setup (identical SetKey on both sides, SetWriteMode(false) on both factories, EX51 d); EX50 caller addresses at the concrete virtual entries; full gate; one clean union run to 2032 with ref_warnings 0 under a NEW unique label. Do not force slots 14/16 to return 2 or guess EX52 ABI.
 
-Done (this commit, NOT YET COMPILED OR TESTED, the lane guard stopped at 60 calls):
+Done (7c19eb65, validated in round 3: built, gate green):
 - capi: `fc4_variant_get_string(var_type, data, count, sink, ctx) -> int32` (1 string/true, 0 text written/false, -1 nothing) in engine/capi/src/props.rs on fc4_formats `Property::get_string_into`; `variant_u32` refactored onto a shared `variant_value` (GameValue enum). Unit test `get_val_string_text_and_result`. Declared at the end of the function list in engine/capi/include/fc4.h (additive, no ABI bump).
 - plugin: cFC4Variant::GetValString (was the SDK stub, returns false/empty: the cause of the '' names) now goes through the capi; `fc4::VariantValueBytes` exported from FC4PropertyHolder.cpp (wraps the anon ValueBytes), declared in cFC4Variant.h; cFC4Variant.cpp includes fc4.h.
 - FC4ExemplarFactory.cpp: `EntryScope` (outermost-entry caller tracing, natural game/other vs ours fc4/fixture counters, nested GetPropertyList counted under the outer entry) on GetPropertyList, SetCohort, SetParent, RebuildEffective, DebugInstanceTag, CreateInstance(record)/CreateFromRecord, factory Read/Write/SerialWrite; `LogEntries()` after LogCallers at shutdown. RunSide2: SetWriteMode(false) via slot 12 on fe and fc, SetKey(kTypeExemplar,0x33,0x44) on e[3] and (…,0x33,0x45) on e[4] before SerialWrite.
@@ -19,6 +19,7 @@ Next (exact):
 5. Report: natural (game/other) vs ours (fc4/fixture) counters separately; keep old 4/8 and r1 crash trace facts.
 
 Facts: round-2 game runs gef4-r1-union2032 (crash, fixed), gef4-r2-union2032 (clean 2032, ref 0, 4/8 match). No request outstanding. EX52 open (slot 15 allocator, slot 28 args, slots 14/16 returns).
+Round 3 status: EX53 filed (63c-r3a), main merged 1ab8f999 (fc4.h conflict: span565 block then fc4_variant_get_string), GetValString body moved behind fc4::gVariantGetValString hook set in FC4PropertyHolder.cpp (68d4090c; fc4_plugin_load_test links cFC4Variant.cpp alone), rustfmt. Gate: cargo 4107/0, clippy 0, ctest 66/66. Game gef4-r3-union2032 QUEUED (req gef4-r3.req): next = qwait its verdict (no --fresh), grep log for "contract" and "EX50 entry", then report.
 
 ## Report
 
