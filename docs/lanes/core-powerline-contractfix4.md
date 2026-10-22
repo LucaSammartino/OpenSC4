@@ -1,25 +1,84 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-powerline-contractfix4 (portable power-line corrections) | `Codex` / `core-powerline-contractfix4` (engine lane, detached HEAD) | in progress | Run one fresh stable all; retain explicit residuals and final family cap. |
+| core-powerline-contractfix4 (portable power-line corrections) | `Codex` / `core-powerline-contractfix4` (engine lane, detached HEAD) | ready (bounded portable delivery) | Land the tested portable source; keep whole-owner and regional claims withheld. Final family round complete. |
 
-## Handoff
-- Stable source: `59750f17`; no source edits in this final round unless fresh gate errors require them.
-- Formatting repeated in final round: qbuild fmt PASSED, exit=0, all 11 touched Rust files; diff_lines=1 is only the canonicalize-path warning. git diff --check also passed.
-- Prior all session 68246 and quick session 63587 are interrupted/incomplete, not live operations and not passed evidence.
-- Final-round process audit: queried Windows command lines successfully for all Python/Cargo/rustc/build candidates; none belongs to this worktree (only its lane backend is live). Native and both x86 Cargo build locks were acquired nonblocking and released; no build owns them. CIM was denied and Restart Manager returned 29; direct command-line and lock probes succeeded.
-- Fresh all started once at 21:53 on `59cc4c84`, identical engine tree `6ac98c5c100e4fd9900c7844a253ac44b2030270` to `59750f17`. PID 28012 (qbuild), child Cargo 21776/35808, active rustc 34056/32368; native target lock owned, x86 build-x86 locks free. Unified exec session 44197 is only a transport handle, not liveness evidence. Collect this operation, do not start another.
-- Fresh Rust workspace PASSED: 21 result lines sum 5058 passed / 0 failed / 0 ignored / 0 measured / 0 filtered. Core 3030/0; all 36 retained power-line tests passed (24 vectors + 3 lifecycle/text + 9 prior tests). qbuild-test.log completed 22:24:45.
-- Fresh clippy PASSED with -D warnings, completed 22:30:27 (5m41s), zero diagnostics. Fresh CMake configure passed 22:30:31; x86 CMake build PASSED 4/4 edges, 935.0s, sccache Rust 0 hit / 3 miss. Full 68-test CTest now running in the same all; no final CTest verdict yet. Do not start another operation. Source unchanged throughout.
-- Portable vector functions: 24 in power_line/tests.rs, 3 lifecycle/text tests, 9 retained tests_power_line.rs tests (36 total). Counts are source functions, not a passed-gate claim.
-- Scope: lifecycle/resources/text, NO24 position, classifier/probes, ordered links/records/13 structural helpers, controls/cubic/connection buffers, supplied-group Determine/Place, preview/undo, relocation and supported zone query/cleanup.
-- Withheld: regional owners/RA1-RA3; NT18 group producer; NT22 entire eligible backward wire split (counted explicitly); NT24 inventory basis; invalid allocation NT25; fresh-axis intermediate-pivot credit NT26. No full-owner promotion, ABI export edits or game runs.
-- Goal: implement newly published portable power-line contracts; no region owners, ABI edits, or game runs.
-- Done: first correction `121ea3df`; added portable curve/control/sampling, connection/link/record ownership, lifecycle, direct classifier/probes, Determine/PlacePoles, highlight/undo, supplied-group consumption and bounded zone/relocation bodies.
-- Added independent public vector tests; source milestone `e4437d0f`. First quick found two stale fixture expectations (reused ray hit and one-cell final-road result), both corrected; second quick in progress.
-- Baseline all started before edits but later clippy/CTest observed first edits: clippy collapsible-if, CTest 67/68; baseline Rust log had core 3011/0. These are not a clean baseline claim.
-- No focused quick remains live. Fresh full validation will cover all retained vectors. No game requests.
-- NT18 producer, NT22 entire backward wire split and NT24 inventory basis withheld; NT25 filed for invalid curve allocation, NT26 for fresh-axis pivot/PL-G1 ambiguity. Literal pivot rule preserved.
-- Next: parse fresh Rust counts, clippy, CMake and 68 CTest results; queue only bounded actually tested source with clean tip. No overlapping gate/source edits.
-- Family reservation: FINAL inherited correction round 2/2, logical family 3/3; no fourth/renamed continuation.
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-powerline-contractfix4-r2-manifest.json`.
-- Evidence stays in this worktree `build-runs/`; no game requests outstanding.
+## Delivered portable scope
+
+Validated the source committed in `121ea3df`, `e4437d0f`, `10d219e3` and final source milestone
+`59750f17`. This final correction round required no engine or test edits: the frozen supported bodies
+passed fresh validation. The delivery contains:
+
+- Lifecycle/resource loading and failure text, parameter types/defaults, and NO24 pole position.
+- Classifier and last-match occupant probes, explicit reference transfers, ordered descriptors,
+  link/record operations and all 13 published structural container helpers.
+- Valid-resource curve controls, literal sample counts, cubic evaluation and connection buffers/lifetime.
+- Portable Determine/Place orchestration consuming supplied cell-index groups, spacing/pivot/ray rules,
+  saved endpoints, highlight/preview/undo and bounded append-only repair behavior.
+- Supported relocation and zone query, pole repair, endpoint-overlap wire deduplication and cleanup.
+
+All independent vectors were retained. The fresh Rust run passed 24 power-line vector functions,
+3 lifecycle/text tests and 9 retained reserved-tile/cost/create tests: **36/36**.
+
+## Fresh validation and source correspondence
+
+At entry, direct Windows command-line enumeration found no live quick/all/Cargo/rustc operation for
+this worktree. The engine/target build lock and both engine/build-x86/cargo locks were successfully
+acquired nonblocking and released. Prior session numbers therefore did not identify live work.
+One fresh `qbuild.py --wt <WT> all` ran from 2026-10-22 21:53 through 23:00, with no overlapping
+quick/all and no source edits. It completed **qbuild PASS, exit 0**.
+
+| Check | Actual result | Local evidence |
+|---|---|---|
+| Touched Rust formatting | PASS, exit 0, all 11 files; one environment canonicalization warning, no formatting diff | `qbuild.py fmt` with the 11 absolute touched paths |
+| Whitespace | PASS | `git diff --check ab04822e HEAD` |
+| Rust workspace, i686-pc-windows-msvc | **5058 passed, 0 failed**, 21 result summaries; 0 ignored/measured/filtered; core **3030/0** | `build-runs/qbuild-test.log`, completed 22:24:45 |
+| Clippy, warnings denied | PASS, exit 0, **0 diagnostics** | `build-runs/qbuild-clippy.log`, completed 22:30:27 |
+| CMake configure and x86 build | PASS, **4/4 edges**, 935.0s; release Rust completed, sccache Rust 0 hit / 3 miss | `build-runs/fc4verify-configure.log`, `build-runs/fc4verify-build.log` |
+| Full CTest | **68/68 individual passed records**, 0 failed; CTest 836.47s, wrapper 837.2s | `build-runs/fc4verify-ctest.log`, completed 23:00:17 |
+
+The gate began at documentation commit `59cc4c84`. Its tracked engine tree was
+`6ac98c5c100e4fd9900c7844a253ac44b2030270`, identical to `59750f17:engine` and the delivered engine
+tree. The required progress-report commits advanced HEAD during the gate, so fc4verify printed
+`[the tree changed during the run]`. Verification after completion found only
+`docs/lanes/core-powerline-contractfix4.md` changed between gate-start HEAD and the completed-gate
+HEAD `591984a9`; both the committed engine diff from `59750f17` and the working engine diff were empty.
+The final report commit also changes documentation only. No repeat gate is needed for these report edits.
+
+The Rust core artifact was
+`engine/target/i686-pc-windows-msvc/debug/deps/fc4_core-b6b23ae9ff2b797d.exe`.
+The fresh plugin is `engine/build-x86/FreeCity4.dll`, 17,711,616 bytes, written 22:46:07.
+fc4verify completed PASS in 1788.1s. Full logs remain local; no generated ABI entry file was edited.
+
+Earlier evidence is deliberately excluded from those final counts: the inherited quick failed two
+fixture expectations corrected before `59750f17`; the next quick and inherited all were interrupted.
+The old 20:56 clippy failure and old 67/68 CTest result observed changing source and are not a clean
+baseline or final evidence. The final round had no compiler, clippy or test failure requiring a fix.
+
+## Withheld claims and questions
+
+The whole power-line owner remains **PARKED/incomplete**. This ready state covers only the tested
+portable delivery; it does not promote whole-owner coverage, replacement, inventory or native integration.
+
+- **NT18:** no cell-index adjacency-group producer or runtime reachability is invented. Supplied groups
+  are consumed and tested; construction remains unsupported.
+- **NT22:** the entire eligible backward wire split is withheld, including detachment and the first
+  relocation. `withheld_wire_splits` counts it explicitly; no inferred bound or partial split is credited.
+- **NT24:** the exact counting basis of the brief's 49 versus the spec's 46 entries remains unresolved.
+  No missing functions, bytes or completed-owner credit are inferred.
+- **NT25:** invalid-resource geometry allocation/failure behavior remains unsupported. The nonpositive
+  sample-count boundary is explicit; no invented clamp or allocation-fidelity credit is claimed.
+- **NT26:** the literal fresh-axis pivot rule remains endpoint-only; the spacing vector uses the explicit
+  previous-count condition. Fresh intermediate-pivot credit is withheld pending the PL-G1 ambiguity.
+- Regional owners, including RA1/RA2/RA3, remain assigned elsewhere and excluded.
+
+NT25 and NT26 were filed by this lane in `docs/specs/questions/network-tools.md`; NT18, NT22 and NT24
+remain authoritative residuals there. No new questions were added in this final validation round.
+No regional bodies, native glue, C ABI exports/version, tools, maps, defaults or shared tables changed
+in this round. No real-game requests or shadow runs were made, and no game/ref-warning claim is made.
+
+## Next steps and final cap
+
+The coordinator may land the bounded validated source from the clean detached tip recorded in the
+queue. Keep every residual and regional assignment above; no further correction round or renamed
+continuation is reserved. This completes inherited correction round 2/2, logical family round 3/3.
+No merge, rebase, push, branch/ref update, external message or subagent was used.
