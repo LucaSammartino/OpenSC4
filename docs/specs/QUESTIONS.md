@@ -165,7 +165,7 @@ generated index: the questions live one file per spec, so read only the file for
 | application | 3 | 2 | AP6 | questions/application.md |
 | audio-ambience | 1 | 10 | AA12 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
-| automata | 2 | 37 | A5, AM13, AT22 | questions/automata.md |
+| automata | 3 | 37 | A5, AM13, AT25 | questions/automata.md |
 | automata-managers | 2 | 0 | AD3 | questions/automata-managers.md |
 | automata-support | 2 | 0 | AN3 | questions/automata-support.md |
 | budget | 0 | 8 | BQ9 | - |
@@ -287,4 +287,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **361** | **1176** | | |
+| **total** | **362** | **1176** | | |
