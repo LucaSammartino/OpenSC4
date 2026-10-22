@@ -123,6 +123,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RND | render3d |
 | RP | render-properties |
 | RQ | region |
+| RR | regional-city-records |
 | RS | residential |
 | RY | regional-city |
 | RZ | framework-rz-files |
@@ -231,7 +232,7 @@ generated index: the questions live one file per spec, so read only the file for
 | occupants-props | 12 | 5 | OP18 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
-| overlay-manager | 9 | 0 | OV10 | questions/overlay-manager.md |
+| overlay-manager | 5 | 4 | OV10 | questions/overlay-manager.md |
 | overlay-views | 1 | 0 | OVV2 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 3 | 4 | PT8 | questions/particles.md |
@@ -250,7 +251,8 @@ generated index: the questions live one file per spec, so read only the file for
 | region | 2 | 0 | RQ3 | questions/region.md |
 | region-model | 11 | 1 | RM13 | questions/region-model.md |
 | region-screen | 3 | 0 | QR4 | questions/region-screen.md |
-| regional-city | 2 | 0 | RY3 | questions/regional-city.md |
+| regional-city | 6 | 0 | RY7 | questions/regional-city.md |
+| regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
 | render-properties | 3 | 3 | RP7 | questions/render-properties.md |
 | render3d | 3 | 1 | RND5 | questions/render3d.md |
 | renderer-driver | 4 | 1 | RD6 | questions/renderer-driver.md |
@@ -270,7 +272,7 @@ generated index: the questions live one file per spec, so read only the file for
 | timers | 0 | 3 | TM4 | questions/timers.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
-| tutorial | 4 | 2 | TU10 | questions/tutorial.md |
+| tutorial | 0 | 6 | TU10 | questions/tutorial.md |
 | underground-occupants | 4 | 0 | UG5 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | vehicles | 2 | 0 | VH3 | questions/vehicles.md |
@@ -285,4 +287,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **305** | **1156** | | |
+| **total** | **308** | **1167** | | |
