@@ -8,6 +8,7 @@
 #include "FC4RefAudit.h"
 #include "compat/FC4Compat.h"
 #include "cISCProperty.h"
+#include "cFC4Variant.h"
 
 namespace fc4 {
 namespace variant_shadow {
@@ -15,15 +16,41 @@ namespace variant_shadow {
 struct Totals {
     unsigned cases = 0, checks = 0, exact = 0, failures = 0, refusals = 0, clones = 0;
     unsigned scalarShapeFailures = 0;
+    unsigned coreCountCalls = 0, coreSetCalls = 0, coreWriteCalls = 0;
+    unsigned productionClones = 0, productionCloneRefusals = 0;
+    uint32_t Count(const cFC4IGZVariant& owned) {
+        ++coreCountCalls;
+        return owned.GetCount();  // actual production virtual -> CAPI -> core
+    }
     void Check(bool ok, const char* operation, uint16_t type) {
         ++checks;
         if (ok) ++exact;
         else {
             ++failures;
             if (std::strcmp(operation, "scalar shape") == 0) ++scalarShapeFailures;
-            if (failures <= 12) Log("variant shadow: FAIL %s type=0x%04X", operation, type);
+            Log("variant shadow: FAIL %s type=0x%04X", operation, type);
         }
     }
+};
+
+class ProductionCopy {
+public:
+    ProductionCopy(const cFC4IGZVariant& source, Totals& t) {
+        (void)source.CreateCopy(&p_);
+        if (p_ && p_ != &source) {
+            FC4_ACQUIRED(p_, "variant production CreateCopy owned result");
+            ++t.productionClones;
+        } else {
+            p_ = nullptr;
+            ++t.productionCloneRefusals;
+            ++t.refusals;
+            Log("variant shadow: REFUSED production CreateCopy output");
+        }
+    }
+    ~ProductionCopy() { if (p_) FC4_RELEASE_CREATED(p_); }
+    cFC4IGZVariant* Get() const { return p_; }
+private:
+    cFC4IGZVariant* p_ = nullptr;
 };
 
 // No unpublished layout: only the interface pointer and its published 127
@@ -99,8 +126,14 @@ template<class T>
 std::vector<uint8_t> Core(uint16_t type, bool array, const T* input, size_t count, Totals& t) {
     fc4_props* core = fc4_props_create();
     std::vector<uint8_t> bytes;
-    const bool ok = core && fc4_props_set_typed(core, 1, type, array, input, count) &&
-                    fc4_props_write_variant(core, 1, Sink, &bytes);
+    bool ok = false;
+    if (core) {
+        ++t.coreSetCalls;
+        if (fc4_props_set_typed(core, 1, type, array, input, count)) {
+            ++t.coreWriteCalls;
+            ok = fc4_props_write_variant(core, 1, Sink, &bytes);
+        }
+    }
     t.Check(ok, "Rust literal storage", type);
     fc4_props_destroy(core);
     return bytes;
@@ -123,29 +156,45 @@ void Cases(cFC4IGZVariant& native, uint16_t type, uint32_t diskTag, const T (&in
     // Two distinct scalar writes and 0/1/3 element arrays are bounded cases,
     // not evidence for cross-type conversion or all 127 methods (HG5).
     const unsigned beforeChecks = t.checks, beforeExact = t.exact, beforeFailures = t.failures;
+    cFC4Variant production;
+    cFC4IGZVariant& own = production;
     for (unsigned i = 0; i < 2; ++i) {
         ++t.cases;
         const auto expected = Core(type, false, input + i, 1, t);
         (native.*set)(input[i]);
-        if (i == 0) Log("variant shadow: scalar metadata type=0x%04X native_type=0x%04X native_count=%u core_count=1",
-                        type, native.GetType(), native.GetCount());
-        t.Check(native.GetType() == type && native.GetCount() == 1 && U32(expected, 4) == diskTag,
+        (own.*set)(input[i]);
+        const auto ownCount = t.Count(own);
+        if (i == 0) Log("variant shadow: scalar metadata type=0x%04X native_type=0x%04X native_count=%u production_core_count=%u",
+                        type, native.GetType(), native.GetCount(), ownCount);
+        t.Check(native.GetType() == type && native.GetType() == own.GetType() &&
+                    native.GetCount() == ownCount && U32(expected, 4) == diskTag,
                 "scalar shape", type);
         const T value = (native.*get)();
+        const T ownValue = (own.*get)();
         T out = input[2];
+        T ownOut = input[2];
         const bool ok = (native.*getTo)(out);
-        t.Check(Payload(expected, false, &value, 1), "scalar value getter", type);
-        t.Check(ok && Payload(expected, false, &out, 1), "scalar out getter", type);
+        const bool ownOk = (own.*getTo)(ownOut);
+        t.Check(Payload(expected, false, &value, 1) && Payload(expected, false, &ownValue, 1), "scalar value getter", type);
+        t.Check(ok && ownOk && Payload(expected, false, &out, 1) && Payload(expected, false, &ownOut, 1), "scalar out getter", type);
         Owned copy(native, t);
+        ProductionCopy ownCopy(own, t);
         if (auto* p = copy.Get()) {
             // Change source after clone. The clone must retain the original
             // independently captured literal, with no Rust resynchronization.
             native.SetValUint32(0x13579BDF);
+            own.SetValUint32(0x13579BDF);
             const T copied = (p->*get)();
-            t.Check(p->GetType() == type && Payload(expected, false, &copied, 1), "scalar clone", type);
+            auto* q = ownCopy.Get();
+            const T ownCopied = q ? (q->*get)() : input[2];
+            t.Check(q && p->GetType() == q->GetType() && Payload(expected, false, &copied, 1) &&
+                        Payload(expected, false, &ownCopied, 1), "scalar clone", type);
             (void)native.CopyFrom(*p);  // [abi-ret] HG6: check state, not undefined EAX.
+            if (q) (void)own.CopyFrom(*q);
             const T restored = (native.*get)();
-            t.Check(native.GetType() == type && Payload(expected, false, &restored, 1), "CopyFrom state", type);
+            const T ownRestored = (own.*get)();
+            t.Check(q && native.GetType() == own.GetType() && Payload(expected, false, &restored, 1) &&
+                        Payload(expected, false, &ownRestored, 1), "CopyFrom state", type);
         }
     }
     for (unsigned count : {0u, 1u, 3u}) {
@@ -154,23 +203,41 @@ void Cases(cFC4IGZVariant& native, uint16_t type, uint32_t diskTag, const T (&in
         // A separate mutable copy is needed by the public copying-setter ABI.
         // It lives until Erase; the literal input and Rust state never change.
         T supplied[3] = {input[0], input[1], input[2]};
+        T ownSupplied[3] = {input[0], input[1], input[2]};
         (native.*setArray)(supplied, count);
+        (own.*setArray)(ownSupplied, count);
         supplied[0] = input[2];
-        t.Check(native.GetType() == (0x8000 | type) && native.GetCount() == count &&
+        ownSupplied[0] = input[2];
+        const auto ownCount = t.Count(own);
+        t.Check(native.GetType() == (0x8000 | type) && native.GetType() == own.GetType() &&
+                    native.GetCount() == ownCount && ownCount == count &&
                     U32(expected, 4) == (0x8000 | diskTag), "array shape", type);
-        t.Check(Payload(expected, true, (native.*array)(), count), "array copying setter/data getter", type);
+        t.Check(Payload(expected, true, (native.*array)(), count) &&
+                    Payload(expected, true, (own.*array)(), count), "array copying setter/data getter", type);
         Owned copy(native, t);
+        ProductionCopy ownCopy(own, t);
         if (auto* p = copy.Get()) {
             if (count) (native.*array)()[0] = input[2];
-            t.Check(p->GetType() == (0x8000 | type) && p->GetCount() == count &&
-                        Payload(expected, true, (p->*array)(), count), "array clone isolation", type);
+            if (count) (own.*array)()[0] = input[2];
+            auto* q = ownCopy.Get();
+            const auto cloneCount = q ? t.Count(*q) : 0;
+            t.Check(q && p->GetType() == q->GetType() && p->GetCount() == cloneCount &&
+                        Payload(expected, true, (p->*array)(), count) &&
+                        Payload(expected, true, (q->*array)(), count), "array clone isolation", type);
             native.SetValUint32(0x2468ACE0);
+            own.SetValUint32(0x2468ACE0);
             (void)native.CopyFrom(*p);  // [abi-ret] HG6: check state, not undefined EAX.
-            t.Check(native.GetCount() == count && Payload(expected, true, (native.*array)(), count),
+            if (q) (void)own.CopyFrom(*q);
+            const auto restoredCount = t.Count(own);
+            t.Check(q && native.GetCount() == restoredCount && Payload(expected, true, (native.*array)(), count) &&
+                        Payload(expected, true, (own.*array)(), count),
                     "array CopyFrom state", type);
         }
         (void)native.Erase();  // [abi-ret] HG6: check state, not undefined EAX.
-        t.Check(native.GetType() == 0 && native.GetCount() == 0, "Erase state", type);
+        (void)own.Erase();
+        const auto erasedCount = t.Count(own);
+        t.Check(native.GetType() == own.GetType() && native.GetCount() == erasedCount &&
+                    own.GetType() == 0, "Erase state", type);
     }
     Log("variant shadow: type=0x%04X cases=5 checks=%u exact=%u failures=%u",
         type, t.checks - beforeChecks, t.exact - beforeExact, t.failures - beforeFailures);
@@ -179,6 +246,10 @@ void Cases(cFC4IGZVariant& native, uint16_t type, uint32_t diskTag, const T (&in
 inline void Run() {
     if (!SettingInt("variant_shadow", "FC4_VARIANT_SHADOW", 0)) return;
     Totals t;
+    if (gVariantGetCount != fc4_variant_get_count) {
+        Log("variant shadow: REFUSED production Rust GetCount hook absent; fallback=1 resync=0");
+        return;
+    }
     Log("variant shadow: bounded literal native experiment; no 127-method owner or native serialization claim");
     if (!compat::IdentifiedVersion() || ExemplarFactoryActive()) {
         Log("variant shadow: refused unsupported image or replacement exemplar factory; cases=0 refusals=1");
@@ -235,6 +306,9 @@ inline void Run() {
         "excluded=conversions,string-operations,objects,pointers,reference-alias,serialization (HG4/HG5)",
         t.cases, t.checks, t.exact, t.failures, t.refusals, t.clones,
         t.scalarShapeFailures, t.failures - t.scalarShapeFailures);
+    Log("variant shadow: production core_native_count_calls=%u core_set_typed_calls=%u core_write_variant_calls=%u "
+        "production_clones=%u production_clone_refusals=%u fallback=0 resync=0; typed getters/copies use production SDK storage",
+        t.coreCountCalls, t.coreSetCalls, t.coreWriteCalls, t.productionClones, t.productionCloneRefusals);
 }
 
 }  // namespace variant_shadow

@@ -37,6 +37,9 @@ bool VariantValueBytes(const cFC4IGZVariant& v, std::vector<uint8_t>& out);
 // this at static init; cFC4Variant.cpp alone (fc4_plugin_load_test) keeps it
 // null and GetValString answers false, value unchanged.
 extern bool (*gVariantGetValString)(const cFC4IGZVariant& v, cIGZString& value);
+// Production hook installed with the other Rust property bridges. Standalone
+// load-test objects do not link Rust; their fallback has the same raw rule.
+extern uint32_t (*gVariantGetCount)(uint16_t type, uint32_t storageCount);
 }  // namespace fc4
 
 class cFC4Variant final : public cFC4IGZVariant {
@@ -62,7 +65,7 @@ public:
 
     // Slots that only forward to the SDK implementation (generated).
     uint16_t GetType() const override { return v_.GetType(); }
-    uint32_t GetCount() const override { return v_.GetCount(); }
+    uint32_t GetCount() const override;
     bool Erase() override { return v_.Erase(); }
     bool GetValBool() const override { return v_.GetValBool(); }
     bool GetValBoolTo(bool& value) const override { return v_.GetValBool(value); }

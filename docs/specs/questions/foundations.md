@@ -84,3 +84,11 @@
   reproduces 70 cases/420 checks/392 exact/28 HG7 differences/0 unexplained/0 refusals/71 clones.
   Every tested native scalar type 0x01 through 0x0E reports its matching type and GetCount=0 (Rust count=1).
   This is not a turbo-only difference. The full scripted save succeeds. No core semantics were changed.
+
+  **HG7 published-contract correction (round3, 2026-10-22):** This question is already answered by
+  data-formats §5.2 (scalar GetCount=0, array element count), its text writer discussion
+  (fresh SetValUint32 count0), §10.5 item42 (scalar7 count0, array-one count1), and foundations §4.1
+  (scalar variant count0). The previous instruction to retain logical count1 as the native metadata
+  oracle was incorrect. Keep the old 28 failures as historical measurements; preserve logical storage
+  count1 for existing consumers, and compare the actual production native GetCount path instead.
+  HG4-HG6 remain unresolved; this correction establishes no conversion/serialization/return-channel contract.

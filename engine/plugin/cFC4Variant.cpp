@@ -17,6 +17,15 @@
 #include <cstring>
 #include <vector>
 
+uint32_t (*fc4::gVariantGetCount)(uint16_t, uint32_t) = nullptr;
+
+uint32_t cFC4Variant::GetCount() const {
+    if (fc4::gVariantGetCount) return fc4::gVariantGetCount(v_.GetType(), v_.GetCount());
+    // Standalone plugin_load_test has no Rust library. The real plugin always
+    // installs the CAPI hook; the native verifier refuses an absent hook.
+    return (v_.GetType() & cIGZVariant::TypeArray) ? v_.GetCount() : 0;
+}
+
 bool cFC4Variant::QueryInterface(uint32_t riid, void** ppvObj) {
     if (ppvObj == nullptr) return false;
     if (riid == GZIID_cIGZVariant || riid == GZIID_cIGZUnknown) {

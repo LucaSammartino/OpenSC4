@@ -12729,4 +12729,14 @@ bool fc4_automata_aircraft_lifecycle(fc4_automata_manager* manager, uint32_t ope
 }
 #endif
 
+/* cIGZVariant GetCount: scalar 0, array storage length. data-formats §5.2.
+ * Separate from the logical element counts accepted by typed setters. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+uint32_t fc4_variant_get_count(uint16_t var_type, uint32_t storage_count);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */

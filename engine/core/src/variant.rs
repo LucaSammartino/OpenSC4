@@ -16,6 +16,17 @@ pub const OBJECT_MARKER: u32 = 0xA9BE_E9AC;
 /// Array bit of memory types and disk tags.
 pub const ARRAY: u16 = 0x8000;
 
+/// cIGZVariant::GetCount metadata, separate from logical storage length.
+/// Published data-formats §5.2: scalar 0, array element count (including 0/1).
+/// `array_count` comes from the owned adapter's storage, never a native oracle.
+pub fn native_count(mem_type: u16, array_count: usize) -> usize {
+    if mem_type & ARRAY != 0 {
+        array_count
+    } else {
+        0
+    }
+}
+
 /// Memory types (§9.1).
 pub mod mem {
     pub const EMPTY: u16 = 0x00;
@@ -186,13 +197,19 @@ impl Variant {
         }
     }
 
-    /// `GetCount()`: 1 for scalars, the length for arrays, 0 when empty.
+    /// Logical storage element count: one for scalars/objects. This is NOT
+    /// cIGZVariant::GetCount; callers consuming value bytes still need one.
     pub fn count(&self) -> usize {
         match self {
             Variant::Empty => 0,
             Variant::Object(_) | Variant::Scalar(_) => 1,
             Variant::Array { items, .. } => items.len(),
         }
+    }
+
+    /// Native metadata count (data-formats §5.2, §10.5 item 42).
+    pub fn raw_count(&self) -> usize {
+        native_count(self.mem_type(), self.count())
     }
 
     /// The values (one for a scalar).
@@ -451,6 +468,19 @@ fn read_variant(inp: &mut dyn InStream) -> Option<Read> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_count_distinguishes_scalar_and_array_shapes() {
+        use super::{mem, Elem, Variant};
+        let scalar = Variant::Scalar(Elem::U32(7));
+        assert_eq!(scalar.count(), 1);
+        assert_eq!(scalar.raw_count(), 0);
+        assert_eq!(Variant::Empty.raw_count(), 0);
+        for n in [0, 1, 3] {
+            let v = Variant::array(mem::UINT32, vec![Elem::U32(7); n]);
+            assert_eq!(v.count(), n);
+            assert_eq!(v.raw_count(), n);
+        }
+    }
     use super::*;
     use crate::stream::{ByteReader, ByteWriter};
 

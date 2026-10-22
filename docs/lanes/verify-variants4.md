@@ -5,8 +5,11 @@
 ## Handoff
 - Goal: final round3; published scalar GetCount=0, array length; preserve logical count consumers.
 - Done: retained HEAD32bbaa27; read data-formats5.2/9 text/10.5 item42 and foundations4.1 exact count rules.
-- Baseline qbuild all started19:17; inspect qbuild/fc4verify logs for completion.
-- Next: audit cFC4Variant/FC4PropertyHolder, core Variant, CAPI props and FC4VariantShadow; code by call30.
+- Baseline all PASS: cargo4947/0, clippy0, ctest68/68; logs copied to build-runs/evidence-r3-baseline.
+- Implementation: logical Variant::count unchanged; native_count/raw_count scalar0/arraylen; new CAPI export fc4_variant_get_count; production cFC4Variant GetCount uses installed Rust hook. ABI exports changed (no version/table edit).
+- Verifier compares original vs independently seeded actual production objects, plus literal Rust byte snapshots; all350 observations retained. Count hook absence refuses; all mismatches logged, fallback/resync explicit.
+- Focused quick PASS: cargo3453/0 (core2925+capi528), dependents compile, C++140/140; tree changed during quick, final stable all required. Both new count tests passed; absolute-path fmt PASS2.
+- Next: commit this implementation, stable qbuild all, immutable DLL/PDB snapshot, exact house40 ON/OFF2032/ref0 save/shutdown and supported fixture reload. Request/wait helper build-runs/vv4-r3-run.py checks exact list and uses no qwait.
 - Exact house40 from task excludes terrain/dispatch/effects and includes all default keys; validate equality before submission.
 - Original profile cap exhausted3/3; use corrected house40 only. Unique labels, preserve completed verdict, no qwait.
 - Prior scalar mismatches28 and opt-in profile crashes remain evidence; HG4-HG6 unresolved. HG7 already published.
