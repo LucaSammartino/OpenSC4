@@ -126,7 +126,7 @@ An advisor owns every `advices` entry whose `type` equals its `advice_type`, who
 | `persist` | non-zero: stays active when its trigger turns false | flag `persist` |
 | `no_timeout` | non-zero: never times out | flag `no_timeout` |
 | `effects` | list of global-effect IDs asserted in the 3D view while active | effect list |
-| `title`, `message`, `news` | text keys or text, detokenized for display | UI only |
+| `title`, `message` | text keys (`text@<id>`) or literal text, detokenized for display (§6.9.1) | UI only. The advice class reads no `news` field (the only `news` string in the program is `news_only`) |
 
 Subclasses read extra fields: `condition` (a function, reward advices, §6.6) and `nd_type` (neighbour-deal advices,
 §7.8).
@@ -353,7 +353,15 @@ subclass `Shutdown`s unsubscribe their messages first and clear dirty.
 4. Set or clear `once`, `news_only`, `event` (and the event ID), `persist`, `no_timeout` from their fields. Read
    `command`. Compare `class_id` with the object's own class ID: different → set class mismatch.
 5. Read `effects` (a list of IDs) and **append** it to the effect list.
-6. If the advice is active and was not just loaded, rebuild its text. Clear the loaded byte. Return true.
+6. **Text keys (AD12).** Take the entry's `message` and `title` strings (empty when absent) as they are (no URL
+   decoding here) and parse each into its text key (§6.9.1): message into the message string (advice `+0x50`), then
+   title into the title string (`+0x30`). `SetFlags(no text 0x80, both strings empty)`, then
+   `SetFlags(text dirty 0x10, on)` (`0x004091B7`–`0x004091E6`).
+7. If the advice is active and was not just loaded, rebuild its text. Clear the loaded byte.
+8. Clear the advice's text-field list (`+0x10`); unless `no text` is set, append `("message", message string)` then
+   `("title", title string)` (`0x00409207`–`0x00409253`). Only the fields in this list are rebuilt (§6.9.1). Return
+   true. Because step 7 runs before step 8 clears and refills the list, the rebuild in step 7 uses the list of the
+   previous `Init` (empty on the first one, so nothing is rebuilt and text dirty stays set).
 
 `cSC4RewardAdvice::Init` also sets flag `0x1000`. `cSC4AdviceNeghborDeal::Init` reads `nd_type`.
 
@@ -808,8 +816,52 @@ user about option 2 as a manual fallback.
 `NotifyGlobalEffectTriggerChanged()` (slot 23, void): for each effect ID, View3D `+0xBC`
 `AssertGlobalEffectTrigger(id)` if active, else `+0xC0` `RetractGlobalEffectTrigger(id)`.
 
-`UpdateText()` (slot 28) calls the class's text rebuild (class slot 30). Text rebuilding reads `title`, `message` and
-`news`, runs the detokenizer, and is UI only.
+`UpdateText()` (slot 28) calls the class's text rebuild (class slot 30). Text rebuilding reads `message` and
+`title` (no `news` field exists), runs the detokenizer, and is UI only (§6.9.1).
+
+#### 6.9.1 Text keys, `GetTextTitleGUID` / `GetTextMessageGUID` and the text rebuild (AD12) *[compat]*
+
+The title (advice `+0x30`) and the message (`+0x50`) are localized-string objects (`cSLString`): a text plus a
+resource key `{type +0x14, group +0x18, instance +0x1C}` of the string object.
+
+**Parsing a field into a key** (`cADVString::FromScriptText` `0x00417A00` → `cADVString::init` `0x004178F0`; the
+length argument is ignored): the key becomes type `0x2026960B`, group `0x6A231EA4`, instance = the first of these
+`sscanf` patterns that converts one value, tried in this order: `text@0x%08x`, `text@%08x`, `text@%u`, `text@%i`;
+instance **0** when none matches. Only the key is set; the string's text is not touched. Examples:
+`"text@0x4A1B0001"` → `0x4A1B0001`; `"text@4a1b0001"` → `0x4A1B0001` (hex, the second pattern); `"Hello"` → 0;
+`""` → 0.
+
+**Slots 19 and 21** (`0x00407D70`, `0x00407DA0`) return the **instance** of the title / message key (zero-initialised
+local key filled by `cSLString::GetKey` `0x00602F70`, read back at `+8`). So the GUID is 0 for literal (non-`text@`)
+text and for an advice whose key was never parsed. The value reflects the last parse (Init step 6 or the last
+rebuild). A replacement that returns 0 for every advice **DIFFERS** for `text@` fields.
+
+**Slots 18 and 20** return the string objects themselves (`+0x30`, `+0x50`); their text is whatever the last rebuild
+left (empty before the first one).
+
+**Text rebuild** (class slot 30, `cSC4Advice::refresh_text` `0x00409300`) → true:
+1. If the text-field list (`+0x10`, filled by Init step 8) is empty: return at once (text dirty is **not**
+   cleared, no context push).
+2. `PushContextAdvice(this)` (system slot 18); open a table reader on `advices[tableIndex]` (index at advice
+   `+0x88`) with the system's Lua state.
+3. If the reader is valid, for each `(name, string)` pair in list order (message, then title):
+   1. Read the entry's field `name` as a string (`PushString(name)`, `GetTable(-2)`, `ToString(-1)`, `Pop(1)`).
+   2. URL-decode it (`gConvertURLFromEndodedForm` `0x004184B0`).
+   3. Parse the decoded text into the string's key (as above).
+   4. `cSLString::Load` (`0x00603300`, both arguments 0): load the text for the key from the text database. If
+      that fails, the string's text becomes `"***_NOT_IN_TEXT_DATABASE_*** "` followed by the decoded field text,
+      converted from code page 1252 (`ConvertStringEncoding(.., 0x4E4, ..)`) (`0x00409459`–`0x00409558`). So a
+      literal (instance 0) field displays with that prefix.
+   5. Detokenize in place: `cSLString::ConvertTokens(null, true)` (`0x00602FB0`): the global detokenizer
+      (`0x00B43CDC`, lua-host.md §10) with HTML-clean mode forced on for the call and restored after, string
+      overload `Detokenize(str, str)`. Tokens: §8.5 (the context advice pushed in step 2 is what the tokens see).
+   6. If flag `0x200` (debug show GUID) is set and the key instance ≠ 0: the text becomes
+      `sprintf("=text@%08X= %s =adv@%08X=", instance, previousText, GetGUID())`.
+4. `PopContextAdvice()` (system slot 19), `SetFlags(text dirty, off)`, close the reader. Return true.
+
+Vectors: `message = "text@0x4A1B0001"` with that LTEXT present → message GUID `0x4A1B0001`, text = the detokenized
+LTEXT; `title = "Fire alert"` (no key; assuming no LTEXT with instance 0 loads) → title GUID 0, title text
+`"***_NOT_IN_TEXT_DATABASE_*** Fire alert"`. The non-string field case is AD16.
 
 ---
 
@@ -1598,6 +1650,67 @@ helper of these types either).
 SDK error (checked at `0x40D3D0`): `GetCurrentAdvices` returns a `std::map<advice, index>&`, not an
 `SC4List<pair<int32, advice>>&`. The subclasses override only slots 3, 4 and (CitySituations) 20.
 
+**`QueryInterface` (AD14, `cSC4Advisor::QueryInterface` `0x0040D430`)** *[compat]*. `this` is the class object; the
+interface vtables reach it through thunks that subtract 8 (`0x0040F370`, `cISC4Advisor`), `0xC` (`0x0040F380`,
+`cIGZSerializable`) and `0x10` (`cIGZMessageTarget2`). On success it writes the pointer, AddRefs once through the
+class vtable slot 1 (one shared count) and returns true:
+
+| IID | Result |
+|---|---|
+| `0x452294AA` `cIGZMessageTarget2` | class `+0x10` |
+| `0xCA09F544` `cISC4Advisor` | class `+0x8` |
+| `0xE4FDA3D4` `cIGZSerializable` | class `+0xC` |
+| `1` `cIGZUnknown` | class `+0` (via `cRZUnknown::QueryInterface` `0x009457C6`) |
+| anything else, including the advisor's own CLSID and `cISC4MySim` `0x0A1DA42F` | **false**, `*out` **not written** |
+
+The same function serves the base class and the Base, CitySituations, Finance, HQ, Safety, Traffic and Utility class
+vtables (8 data references). Only `cSC4AdvisorCityPlanning::QueryInterface` (`0x00411810`, its three thunks
+`0x00411EE0`/`0x00411EF0`/`0x00411F00`) adds one IID first: its CLSID `0x2A5F877D` → class `+0` with AddRef, true;
+everything else falls through to `0x0040D430`. So `cSC4AdvisorCityPlanning` is the only one of the seven that answers
+its own CLSID, and none of the seven answers `cISC4MySim`: the MySim agent's QI (§12.2 consumers) fails for them and
+succeeds only for the MySim advisor class (`cSC4MySim::QueryInterface` `0x00424B00`: it first **zeroes** `*out`,
+then answers `0x0A1DA42F` → class `+0xB8` and `0x8BC01FFE` → class `+0`, else falls through to `0x0040D430`; MySim
+spec). A replacement that answers its CLSID for every advisor **DIFFERS** (only CityPlanning does); one that answers
+`0x0A1DA42F` for a non-MySim advisor would put it in the MySim agent's list.
+
+**Head animations (AD15)** *[compat]* (UI only, not persisted). Offsets below are from the `cISC4Advisor` interface
+pointer (class `+8`), the base of the slot functions, like the active map at `+0x70`.
+
+| Item | Offset | Constructor value |
+|---|---|---|
+| current head index | `+0x88` | −1 |
+| current list selector (bool) | `+0x8C` | true |
+| list **true** (`vector<int32>` of `advisor_heads` indexes) | `+0x90`..`+0x98` | empty |
+| list **false** | `+0x9C`..`+0xA4` | empty |
+
+*Loading* (`cSC4Advisor::load_heads` `0x0040FA10`, called once from `Init` at `0x004109B0`; it is §4.4 step 7):
+1. With the system's Lua state: `GetGlobal("advisor_heads")`, `n = GetN(-1)` (cISCLua slot 64), `Pop(1)`.
+2. Clear both lists.
+3. For k = 1 .. n: open a table reader on `advisor_heads[k]`. `type` = the entry's `advisor_type` as int32
+   (`ToSint32`, 0 when the reader is invalid). If `type` ≠ `GetID()` (slot 5): skip. Otherwise, if the reader is
+   valid and the entry's `advisor_gender` as int32 is **1**: append k to list true; in every other case (gender ≠ 1,
+   absent → 0, or invalid reader) append k to list false.
+4. Keep the current selection if it is still valid (index ≥ 0 and < size of the selected list). Otherwise index := −1,
+   then: list true non-empty → selector true, index 0; else list false non-empty → selector false, index 0; else
+   index stays −1.
+
+*Slot 15 `GetHeadAnimCount(bool which)`* (`0x0040D870`): the number of entries of list `which`.
+
+*Slot 16 `SetHeadAnim(bool which, int32 index)`* (`0x0040D3E0`): if 0 ≤ index < `GetHeadAnimCount(which)`
+(called virtually): current index := index, selector := which, return **true**. Otherwise current index := −1 (the
+selector is left unchanged) and return **false**.
+
+*Slot 17 `GetHeadAnimID(int32 k)`* (`0x0040F3A0`): if the current index is < 0 or ≥ the size of the selected list,
+return 0. Otherwise open a table reader on `advisor_heads[list[index]]`; if it is invalid return 0; else return the
+entry's array element `[k]` as int32 (`PushNumber(k)`, `GetTable(-2)`, `ToSint32(-1)` truncating, `Pop(1)`;
+`0x0040D330`), 0 for a non-number.
+
+Vectors: `advisor_heads = { {advisor_type=5, advisor_gender=1, 111, 222}, {advisor_type=5, 333}, {advisor_type=6,
+advisor_gender=1, 444} }` and advisor ID 5 → after Init: count(true) = 1, count(false) = 1, selector true, index 0,
+`GetHeadAnimID(1)` = 111, `GetHeadAnimID(2)` = 222, `GetHeadAnimID(3)` = 0; `SetHeadAnim(false, 0)` → true and
+`GetHeadAnimID(1)` = 333; `SetHeadAnim(false, 1)` → false and `GetHeadAnimID(1)` = 0 (index −1). An advisor with no
+matching entry: both counts 0, index −1, every ID 0. A replacement with no animations matches only that last case.
+
 **Class (non-interface) vtable** of `cSC4Advisor` and its subclasses: 0 QI, 1 AddRef, 2 Release, 3 destructor,
 4–5 inherited `cRZBaseString` helpers, 6 **simulate_day**, 7 **simulate_day_events**, 8 **monthly hook** (calls 9
 in the base), 9 **update_variables**, 10 (CitySituations only) **UpdateMySimAdvices**. These are not public, but
@@ -1640,6 +1753,23 @@ SDK errors (checked): slot 8 returns `bool` in AL (SDK `intptr_t`: reading EAX g
 slots 9, 18, 20 return string objects (SDK `char*`); slot 12 returns nothing meaningful (SDK `cISC4Advice*`; EAX
 holds the argument, a replacement should return `this`); slot 23 is void (SDK `intptr_t`); slots 29–30 are missing
 (class virtuals).
+
+Slots 19 and 21 (`GetTextTitleGUID`, `GetTextMessageGUID`): §6.9.1 (AD12).
+
+**Slot 22 `DoLink(const cIGZString& link)` (`0x00407ED0`, AD13) → always true.** Called by the system's `DoLink`
+(§12.1 slot 11 step 3) with the link text after its 16 hex digits.
+1. If `CheckFlags(expire request 0x8)`: return true, nothing run.
+2. If not `CheckFlags(active 0x2)`: return true, nothing run.
+3. Otherwise `PushContextAdvice(this)` (system slot 18, through the system pointer `0x00B207C0`), take the system's
+   Lua state (slot 10), `p = link.ToChar()` (cIGZString slot 5 `+0x14`), run `DoBuffer(p, strlen(p), p)` (cISCLua
+   slot 55 `+0xDC`: the chunk name is the text itself), ignore the status, `PopContextAdvice()` (slot 19, result
+   ignored). Return true.
+
+`DoLink` itself takes no reference on the link string or on the advice; any advice reference is the one the
+context stack holds between the push and the pop (§12.1 slots 18–19). A replacement that returns false or runs
+nothing **DIFFERS**. Vectors: active advice, link `"x=1"` → the global `x` is 1 afterwards, and during the chunk
+`GetContextAdvice()` (system slot 20) is this advice; same
+advice with `0x8` set, or not active → `x` unchanged, result true; a chunk with a Lua error → result still true.
 
 ### 12.4 `cISC4AdviceSubject` (vtable `0x00A81090`, 14 slots)
 
