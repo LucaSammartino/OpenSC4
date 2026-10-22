@@ -326,7 +326,7 @@ Thus the synchronous forwarder's required observation order, **if safely install
 For unchanged tract states, a fresh iterator's stored coordinate is included on its first yield;
 a running iterator's stored coordinate has already been yielded and is excluded from new work.
 Next advances x first, wraps x to x0 and increases z, with inclusive signed int32 bounds
-(`0x0060C8D0–0x0060C92A`). State 2 is exhaustion, not a valid final tract. An unchanged fresh
+(`0x0060C8D0–0x0060C92A`). Iterator state 2 is exhaustion, not a valid final tract. An unchanged fresh
 iterator means no tract was read. On a pipeline transition attribute work to the old state under
 §6's rules, including its skip cases; a newly reset iterator does not imply new-state work.
 In the state-3 fallback, ignoreZoning changes to true, statistics

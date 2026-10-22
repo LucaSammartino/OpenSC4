@@ -13,7 +13,7 @@ canonical L/M bases, synchronous slot-3 before/forward/after ordering, reference
 iterator semantics and per-developer capture. Exact-width layout proposal:
 `build-runs/pending-abi/re-landvalue-step-abi4-layouts.md` (coordinator must review/apply to
 `docs/abi/layouts.md` and run the full train gate; no direct ABI edit or gate verdict here).
-**LV6 remains open:** no installation path has been proved that intercepts existing native agent
+LV6 remains open: no installation path has been proved that intercepts existing native agent
 deliveries while preserving identity/order, shutdown removal, notification lifetime and early
 loaded-map capture. QueryInterface alone installs nothing. Until ABI application and that proof,
 retain `input_capture=pass-end-sample; native_step_capture=0`; no input-fidelity credit.

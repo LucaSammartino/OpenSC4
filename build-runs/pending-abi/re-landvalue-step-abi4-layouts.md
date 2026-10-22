@@ -29,7 +29,7 @@ QueryInterface establishes these bases at `0x006BD4DF–0x006BD4F9`, `0x006BD523
 its success paths AddRef the shared object. Message-target slot 0 adjusts by −4
 (`0x006BDDB0–0x006BDDB3`). Step receives L: DoMessage adjusts M by −4 at
 `0x006BF113` / `0x006BF15D`. State is read at `0x006BE7CD`; iterator allocation/stores
-are `0x006BE5CF–0x006BE5E8` and `0x006BE632–0x006BE648`; slope iteration reads +0x40
+are `0x006BE5CF–0x006BE5E8` and `0x006BE630–0x006BE649`; slope iteration reads +0x40
 at `0x006BECD5`. Byte access to ignoreZoning is `0x006BEBED`, `0x006BEC08`.
 Cursor/header dword accesses are `0x006BEEB3–0x006BEEC3`, `0x006BEED9–0x006BEEE5`.
 
@@ -57,8 +57,8 @@ state 0 has not yielded that stored coordinate. Exhaustion can leave z beyond z1
 ### Developer-map nodes (known fields only)
 
 Node offsets are relative to the node pointer, not to L or the developer interface. Header is a
-sentinel: its +0x08 is the first node (header itself for an empty map); never interpret its payload
-as a developer. Child links use null for absence. No node allocation size, colour field or padding
+sentinel: its +0x08 supplies the first cursor; equality to header means no developer. Never
+interpret header payload as a developer. Child links use null for absence. No node allocation size, colour field or padding
 contract is asserted here.
 
 | Offset | Width (bytes) | Native field |
