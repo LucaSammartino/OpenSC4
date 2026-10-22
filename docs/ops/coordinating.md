@@ -220,6 +220,13 @@ was recorded in the rounds ledger.
 - **One monitor, events only:** run `python tools/lanes.py monitor` under the Monitor tool for the whole session. It
   prints a line only when a lane enqueues, a verdict is not clean, a train gate/regress finishes, `main` moves or a
   lane stalls; do not re-arm timers or poll status between events.
+- **Keep the backlog launchable before a long wait (run 4, 2026-10-22):** before starting any wait longer than a few
+  minutes (a train gate/regress above all), queue at least as many *launchable* briefs (every dep already on
+  `main`) as there are open slots, and wait with `python tools/lane_heartbeat.py --wait-until train` instead of a
+  plain train wait. It returns on the train verdict or as soon as the heartbeat says `BACKLOG LOW` (exit 4): then
+  queue more launchable briefs and wait again. Briefs that depend on the train being waited for do not count; they
+  drained run 4 from 9 live lanes to 1 while the log showed `pending 2`. See
+  [docs/lane-tools.md](../lane-tools.md) "Run 4: the heartbeat backlog".
 - **Read results, not transcripts:** the lane's structured result and `docs/lanes/<lane>.md` are the record; never
   read an agent's output file. Batch status updates to the user instead of one per event.
 - **Measure:** `python tools/lanes.py ledger --md docs/token-ledger.md` after each landed batch; it reads the
