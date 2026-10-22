@@ -203,8 +203,11 @@ previously-placed-step or diagonal gates. Here forced means the flag set for the
 point, next input anchor/final-cell anchor advance, or spacing trigger; it is separate from the pending
 request retained across cells. If no duplicate predicate succeeds, or the cell is forced, retain the
 two endpoint references in the descriptor for the emitted record. Release the probed wire reference
-in all hit cases, after the endpoint decision (`0x00650BCC–0x00650C35`). The later pivot test still
-controls whether this cell emits; accepting a descriptor is not itself an unconditional emission.
+in all hit cases, after the endpoint decision (`0x00650BCC–0x00650C35`). An accepted descriptor sets
+the pending request even off-pivot: the non-pivot branch reaches the pending-request emission test
+at `0x00650DFC–0x00650E08`. The pivot gate limits the terrain test, not pending-request emission.
+At the end of the clear-cell path the pending byte is cleared whether or not a pole was emitted
+(`0x00651073–0x00651075`).
 
 Evidence: branch predicates `0x00650BBF–0x00650BCA`, pending/forced handling
 `0x00650BD3–0x00650C01`, release/reset `0x00650C06–0x00650C2E`; descriptor equality helper
@@ -230,13 +233,16 @@ tests the argument at `0x00651F9D–0x00651FA6`; the recursive PlacePoles call p
 
 Proved order and mode differences:
 
-1. Read the groups of **step indices** at `+0x398..+0x39C` in order. For each group member, scan pole
-   records from the start and collect the first record with that step index (`record+0x0C`). In draft,
+1. Read the groups of **dragged-cell indices** at `+0x398..+0x39C` in order. For each group member, scan pole
+   records from the start and collect the first record with that cell index (`record+0x0C`). In draft,
    also require its pole pointer to be null; real mode has no such filter. Missing members add nothing;
    duplicate members are not deduplicated. Consider every ordered pair in the resulting index vector.
    Manhattan cell distance exactly 1 adds a reciprocal link with wire-vector index -1. Coordinates are
    converted as unsigned 32-bit values to x87 before subtraction/absolute-value/sum, so this comparison
-   does not wrap at 32 bits. This precedes occupant creation (`0x00651640–0x00651800`).
+   does not wrap at 32 bits. This precedes occupant creation (`0x00651640–0x00651800`). The link helper
+   appends both directed records on every call, without duplicate suppression; it ORs the same
+   classifier-derived direction bit into both pole masks (`0x0064FB40–0x0064FBE4`). Ordered-pair
+   traversal can therefore append repeated link records; the later occupant connection probe is separate.
 2. Clear those temporary adjacency groups; call CreatePowerPole for **all** pole records before processing
    the generated links. CreatePowerPole reuses the pole in that cell or creates and initialises one
    (network-occupants §4.5).
@@ -365,6 +371,31 @@ Evidence: pole `0x0065007D–0x0065013A`, wire `0x0064FC8D–0x0064FCF8`.
 pool's dword allocation count at +12, return the block. It does not initialise an occupant or AddRef
 anything, and has no explicit null-recovery branch (`0x0064A2E0–0x0064A30A`).
 
+### 6.2 FindNewPolePosition (`0x006520C0`, pop 40)
+
+Ten stack arguments are consumed: rectangle minX,minZ,maxX,maxZ; start index, exclusive stop index,
+signed index increment; pointer to a cell vector; an unused ninth dword; optional other-pole interface.
+The ninth argument is not an endpoint selection fallback. The scan stops on equality with stop, not
+on crossing it: callers must supply a reachable stop. Rectangle inclusion uses unsigned comparisons
+on both axes, inclusive at both edges. Cells inside the rectangle are skipped without classification.
+For an outside cell, classify it and stop at the first result 0; other results continue in the given
+index direction. start=stop or exhaustion returns without creating anything (`0x006520C0–0x00652129`).
+
+At a hit build a temporary pole record with that cell and an empty link vector. The direction mask is
+zero when other is null; otherwise read other's cell and set the byte to 1 shifted by the low five bits
+of `0x0061F4C0(foundX,foundZ,otherX,otherZ)`. CreatePowerPole creates/reuses it. Only newly created poles
+are inserted through occupant-manager slot 20 `(AsOccupant,0)`. Release the returned pole reference
+immediately after that insertion/reuse decision, before the remainder of this method.
+
+If other is null, finish without replacing input anchors or calling Determine/PlacePoles. If nonnull,
+reread other's cell, replace the input-anchor vector with [found cell, other cell], call draw slot 18
+with those endpoints, snap=0 and current network type, set valid=dragged, DeterminePolePositions and
+PlacePoles(true). This does not run the slot-53 regional gate or highlight path. Other is borrowed:
+the function neither AddRefs nor Releases it. Free the temporary link-vector buffer before returning;
+there is no success result or written output pole. Evidence: mask/create/release
+`0x00652135–0x006521C2`, optional-other branch `0x006521C5–0x006521DB`, anchor replacement
+`0x006521DE–0x00652298`, draw/solve `0x0065229D–0x006522E7`.
+
 ## 7. Resources
 
 The once-only StaticInit at `0x00626990` sets latch `0x00B452A8` before registering callback
@@ -400,6 +431,9 @@ These are host-observation vectors, not claimed in-game measurements.
 | PL-C4 | two wire QIs in one cell with different spans | last QI wins without geometry filtering; first QI released |
 | PL-S1 | enable connection with equal self/other cell, then enable with other's z one greater | byte +9 is 0 then 1; no connection mutation or refcount operation |
 | PL-S2 | wire vector [W,W], destination initially nonempty | append W twice after existing entries; two AddRefs; source unchanged |
+| PL-RL1 | outside clear candidate at start; ninth dword is a pole pointer; other=null | create/reuse and release found pole; no anchor replacement or solve; ninth dword ignored |
+| PL-RL2 | first candidate exactly on rectangle maxX/maxZ, next outside and clear; other present | do not classify the boundary candidate; pick next; anchors found then other; release found pole before rereading other |
+| PL-RL3 | start=stop, other present | no candidate read, no classification, no creation or geometry calls |
 | PL-L1 | fresh object, exemplar unavailable; Init twice | type 5; defaults 20,7,0,0; resource attempt/base Init only on first Init; both return true |
 | PL-L2 | successful Init; change cost fields; Shutdown; Init with missing properties | Shutdown clears latch before base; Init resets only spacing/clearance; costs retain prior values |
 | PL-L3 | first resource lookup fails, second object initialises | process resource enumeration is not retried |
@@ -444,7 +478,7 @@ body bytes, not address-span lengths. No full-owner completion credit is claimed
 | `0064FED0:263`, `00650140:258` | reserved walk §6; existing create/reuse, network-occupants §4.5 |
 | `0064FD00:459`, `0064FFE0:347`, `0064FBF0:267` | classifier and last-match probe contracts §6.1 |
 | `00650840:3345`, `00651560:2884`, `00652980:235` | wrapper proved, Determine/PlacePoles partial, NT18 |
-| `006520C0:552`, `006522F0:1658` | zone repair partial, NT22 |
+| `006520C0:552`, `006522F0:1658` | FindNewPolePosition §6.2; full zone-update orchestration incomplete NT22 |
 | `00649910:149`, `0064A2E0:43`, `0064B6E0:106`, `0064E3E0:1338` | enable/reference-copy/raw allocator §§5.2,6.1; geometry builder incomplete NT21 |
 | `0064F5D0:55`, `0064F610:92`, `0064F670:148`, `0064F710:89`, `0064F770:260`, `0064F920:113`, `0064F9A0:111`, `0064FA60:135`, `0064FAF0:68`, `00650250:84`, `006502B0:58`, `006502F0:99`, `00650480:218` | 13 container helpers, 1530 bytes; ownership audit NT24 |
 

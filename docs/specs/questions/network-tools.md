@@ -65,11 +65,12 @@
   the 48-byte pole record holds besides the cell, how `+0x384` (wire cells) is counted, what `PlacePoles`' argument
   means, and where slot 81 `CheckForReservedTiles` is called on this path (it is the only source of the power-line
   codes, and §9 step 4 reads the valid count and the code after step 2). The core keeps them as host hooks. [missing]
-  **PARTIALLY RESOLVED 2026-10-22 (re-powerline-completion4):** power-line-tool.md §§4–5 proves records,
-  spacing/pivots, clearance ray, ordinary emission/counting, allowRepair argument, commit/draft order and
-  preview undo. Still open: interception eligibility/flags at `0x00650AEC–0x00650C35`, adjacency groups,
-  isolated-pole removal/last-clear closure on zones/forced blocked points, and displaced-pair deduplication.
-  Slot 81 is not called inside Determine/PlacePoles; Determine classifies directly. Do not close NT18.
+  **PARTIALLY RESOLVED 2026-10-22 (re-powerline-completion4):** power-line-tool.md §§4–5 now specifies records,
+  spacing/pivots, clearance ray, counting, interception eligibility/flags, off-pivot pending emission,
+  cell-index group consumption, zone/blocked/end removal asymmetry, saved endpoint processing and
+  append-only repairs, allowRepair and draft undo. Slot 81 is not called inside Determine/PlacePoles.
+  Remaining caller dependency: construction of the `+0x398` cell-index groups by zone-update orchestration
+  (NT22), and the connection geometry body (NT21). Keep whole-owner host hooks pending those contracts.
 
 <!-- from: re-powerline-completion4 (RE lane, 2026-10-22) -->
 - **NT21 - power-line-tool.md §§5,9, connection helpers:** prove `0x0064E3E0`'s connection geometry and
@@ -81,6 +82,9 @@
   rectangle-edge/split-cell behavior and query/ref-release order; FindNewPolePosition `0x006520C0`
   endpoint selection when either endpoint is null. Entry guard and outside-clear search are proved;
   remaining pseudocode has invalid stack/register attribution and needs instruction tracing. [not proved]
+  **Partial answer 2026-10-22 (re-powerline-completion4):** §6.2 now proves all of FindNewPolePosition:
+  ninth dword unused; optional tenth pointer controls mask and geometry; null still creates/reuses one
+  pole; nonnull replaces anchors and solves. Remaining UpdateOnZoneChange caller obligations unchanged.
 - **NT23 - regional Attempt:** full type-5 AttemptNeighborConnections `0x00628BD0` endpoint/direction
   derivation, failure/consent behavior, vector mutations and preview effects need instruction checks.
   NT20 resolves the wrapper pairing only. [not proved]
