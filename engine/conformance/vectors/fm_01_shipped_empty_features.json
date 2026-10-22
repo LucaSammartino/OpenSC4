@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "fm_01_shipped_empty_features",
+  "spec": "feature-manager.md §§2,4.1,10.1",
+  "description": "The shipped empty Features section installs pack 1 without enabling any feature.",
+  "steps": [{"op":"fm_scenario", "resources":[{"pack":1,"text":"[Features]\r\n"}], "actions":[
+    {"method":"current","expect":0,"state":{"count":0,"initialized":false}},
+    {"method":"feature","arg":0,"expect":false},
+    {"method":"init","expect":true,"state":{"initialized":true,"count":0}},
+    {"method":"current","expect":1},
+    {"method":"pack","arg":1,"expect":true},
+    {"method":"pack","arg":2,"expect":false},
+    {"method":"pack","arg":32,"expect":false},
+    {"method":"feature","arg":0,"expect":false},
+    {"method":"feature","arg":1,"expect":false},
+    {"method":"feature","arg":"0x12345678","expect":false},
+    {"method":"feature","arg":"0xFFFFFFFF","expect":false}
+  ]}]
+}

@@ -4,12 +4,15 @@
 
 ## Handoff
 - Goal: implement the published cSC4FeatureManager portable core only; no C ABI/plugin edits.
-- Done: public contract and open questions audited; implemented owner, explicit shared process state, resource scan, lifecycle, ordered entries, queries, virtual pack dispatch and 10 focused tests.
-- Done: reused RZ byte-line parser; extracted existing Rule N into core and retained formats API via re-export. FM3/FМ4 appended (file read failures; AddRef overflow).
-- Next: finish running quick check (session 27326); add independent public conformance vectors; format-check touched files; freeze source and run full gate.
+- Done: 61844d96 implemented the public owner, explicit shared process state, scan, lifecycle, ordered entries, queries and virtual pack dispatch; reused RZ byte-line parser and extracted shared Rule N without changing the formats API.
+- Done: 8 independently expected public vectors cover §10, with full raw-resource trace and extended byte/numeric/lifecycle boundaries. 11 owner unit tests plus 1 Rule N test.
+- Done: first quick PASS (2620 Rust tests; 206/206 native edges); final quick PASS (3820 Rust tests, 0 failed; dependent capi compiled; native 4/4 edges). Final quick had no source edits/build race.
+- Done: qbuild fmt passes 5 implementation files; combined 8-file check fails pre-existing module ordering in shared lib.rs registries and brace layout in conformance runner.rs; no mass reformat.
+- Questions: FM3 and FM4 appended (streaming file read failures; AddRef overflow). Index regeneration left to coordinator: lane may not edit QUESTIONS.md or run tools/.
+- Next: source freeze at the vectors commit, then exactly one qbuild all; inspect parsed cargo/clippy/build/ctest verdicts, finalize report and queue.
 - Facts: task-specific instruction skips pre-edit full baseline; run focused quick checks then one frozen-source full gate.
 - No game requests; core-only lane. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-feature-manager4-r1-manifest.json.
-- Shell fact: q.py cannot start Bash (E_ACCESSDENIED); native PowerShell works. qbuild.py quick is running.
+- Shell fact: q.py cannot start Bash (E_ACCESSDENIED); native PowerShell works. qbuild fmt requires absolute input paths in this environment.
 
 ## Owner checklist (published bodies only)
 

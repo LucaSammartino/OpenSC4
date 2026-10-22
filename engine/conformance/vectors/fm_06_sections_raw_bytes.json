@@ -1,0 +1,22 @@
+{
+  "format":1,
+  "name":"fm_06_sections_raw_bytes",
+  "spec":"feature-manager.md §§4.1,10.6",
+  "description":"First case-insensitive matching section wins; header names are untrimmed; malformed headers stop entries; invalid text bytes are preserved.",
+  "steps":[{"op":"fm_scenario","resources":[
+    {"pack":1,"text":"[Other]\n0x11=on\n\t[FEATURES]suffix\n\t0x22 \t= on \t\n[Features]\n0x33=on"},
+    {"pack":2,"text":"[ Features ]\n0x44=on"},
+    {"pack":3,"text":"[Features]\n0x55=on\n[]\n0x66=on"},
+    {"pack":4,"hex":"5b46656174757265735d0a393d6fff660a383d6f66660a"}
+  ],"actions":[
+    {"method":"init","expect":true},
+    {"method":"feature","arg":"0x11","expect":false},
+    {"method":"feature","arg":"0x22","expect":true},
+    {"method":"feature","arg":"0x33","expect":false},
+    {"method":"feature","arg":"0x44","expect":false},
+    {"method":"feature","arg":"0x55","expect":true},
+    {"method":"feature","arg":"0x66","expect":false},
+    {"method":"feature","arg":9,"expect":true},
+    {"method":"feature","arg":8,"expect":false}
+  ]}]
+}

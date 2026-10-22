@@ -1,0 +1,23 @@
+{
+  "format":1,
+  "name":"fm_08_interfaces_and_deleting_destructor",
+  "spec":"feature-manager.md §§1,3,7,10.8",
+  "description":"QI success aliases the same object and increments exactly once; failure preserves sentinel output; Release differs from directly invoking the deleting destructor.",
+  "steps":[{"op":"fm_scenario","resources":[{"pack":3,"text":""}],"actions":[
+    {"method":"query_interface","arg":"0x12345678","expect":false,"state":{"count":0,"output_untouched":true}},
+    {"method":"query_interface","arg":1,"expect":true,"state":{"count":1,"output_same":true}},
+    {"method":"query_interface","arg":"0x0B562673","expect":true,"state":{"count":2,"output_same":true}},
+    {"method":"query_interface","arg":0,"expect":false,"state":{"count":2,"output_same":true}},
+    {"method":"init","expect":true},
+    {"method":"release","expect":1,"state":{"initialized":true}},
+    {"method":"release","expect":0,"state":{"destroyed":true,"freed":true,"destructor_count":1,"destructor_initialized":false}},
+    {"method":"new","object":"b","expect":true},
+    {"method":"init","object":"b","expect":true,"state":{"current":3}},
+    {"method":"add_ref","object":"b","expect":1},
+    {"method":"delete","object":"b","arg":2,"expect":true,"state":{"destroyed":true,"freed":false,"destructor_count":1,"destructor_initialized":true}},
+    {"method":"new","object":"c","expect":true},
+    {"method":"current","object":"c","expect":3},
+    {"method":"init","object":"c","expect":true},
+    {"method":"delete","object":"c","arg":3,"expect":true,"state":{"freed":true,"destructor_initialized":true}}
+  ]}]
+}

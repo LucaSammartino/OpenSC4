@@ -1,0 +1,26 @@
+{
+  "format":1,
+  "name":"fm_04_entry_parsing_numeric_boundaries",
+  "spec":"feature-manager.md §§4.2,10.4; data-formats.md §4.3 Rule N",
+  "description":"Exact off only; decimal and bare hex keys; first equals; CR/LF; invalid and overflowing numeric prefixes.",
+  "steps":[{"op":"fm_scenario","resources":[{"pack":1,"text":"[features]\r0x10 = on\n20 = yes\r\n1A=enabled\n0x30=OFF\n0x40=0\n0x50=off ; note\n;0x60=on\n0x70=\n =on\nxyz=on\nabc=on\n12345678=on\n0xA0=no\n0xA1=false\n0xA2=disabled\n0xA3=off=extra\n-1=on\n4294967296=off\n0xFFFFFFFF=on\n-4294967296=off\n"}],"actions":[
+    {"method":"init","expect":true},
+    {"method":"feature","arg":"0x10","expect":true},
+    {"method":"feature","arg":20,"expect":true},
+    {"method":"feature","arg":"0x1A","expect":true},
+    {"method":"feature","arg":"0x30","expect":false},
+    {"method":"feature","arg":"0x40","expect":true},
+    {"method":"feature","arg":"0x50","expect":true},
+    {"method":"feature","arg":"0x60","expect":false},
+    {"method":"feature","arg":"0x70","expect":false},
+    {"method":"feature","arg":0,"expect":true},
+    {"method":"feature","arg":"0xABC","expect":true},
+    {"method":"feature","arg":12345678,"expect":true},
+    {"method":"feature","arg":"0x12345678","expect":false},
+    {"method":"feature","arg":"0xA0","expect":true},
+    {"method":"feature","arg":"0xA1","expect":true},
+    {"method":"feature","arg":"0xA2","expect":true},
+    {"method":"feature","arg":"0xA3","expect":true},
+    {"method":"feature","arg":"0xFFFFFFFF","expect":false}
+  ]}]
+}

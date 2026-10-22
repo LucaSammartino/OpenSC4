@@ -1,4 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+
 # Conformance vectors
 
 Language-neutral test scenarios for the simulator (`docs/specs/simulator.md`), the shared foundations
@@ -14,6 +15,22 @@ document. When the runner and this README disagree, fix the runner.
 Vectors are derived from the spec, never from the original program. Each vector names the spec sections it covers
 in `spec`. Behaviours that the spec leaves open and that a vector pins down are marked `[choice]` in the vector's
 `description`.
+
+## Feature manager scenarios
+
+`fm_scenario` runs an isolated process scope with a default object `a`, `resources`
+(`pack` 1–32 plus raw `text` or `hex` bytes), and an ordered `actions` array. Every
+action names `method`, optionally `object` (default `a`) and `arg`; `expect` checks
+its return and `state` checks count, initialized/current, output_same/output_untouched,
+destroyed/freed and destructor_count/destructor_initialized. Methods are new, init,
+shutdown, add_ref, release, delete, query_interface, feature, pack, current,
+static_shutdown, replace_resources and trace. `new` requires an unused object name;
+replace_resources supplies a new resources array without resetting the scan guard.
+The output cell begins with another object's identity, allowing unchanged-output
+checks. `trace` returns exact registration/open/release strings. Resources contain
+one already-resolved raw record per key; they do not model package resolution or
+unpublished streaming read failures (FM3). Null returns denote terminal safe Rust
+handles, outside the native live-object contract.
 
 ## File layout
 

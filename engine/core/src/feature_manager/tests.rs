@@ -60,6 +60,26 @@ fn resources(files: &[(u32, &[u8])]) -> Resources {
 }
 
 #[test]
+fn empty_store_and_each_single_pack_cover_all_shift_boundaries() {
+    let mut empty = FeatureManager::new(FeatureProcess::new());
+    assert_eq!(empty.init(&mut Resources::default()), Some(true));
+    assert_eq!(empty.get_current_expansion_pack(), Some(0));
+    for n in 0..=33 {
+        assert_eq!(empty.is_expansion_pack_installed(n), Some(false));
+    }
+    for pack in 1..=32 {
+        let mut manager = FeatureManager::new(FeatureProcess::new());
+        manager.init(&mut resources(&[(pack, b"")]));
+        assert_eq!(manager.get_current_expansion_pack(), Some(pack));
+        for n in 1..=32 {
+            assert_eq!(manager.is_expansion_pack_installed(n), Some(n == pack));
+            assert_eq!(manager.is_expansion_pack_installed(n + 32), Some(n == pack));
+        }
+        assert_eq!(manager.is_expansion_pack_installed(0), Some(pack == 32));
+    }
+}
+
+#[test]
 fn scan_exact_keys_order_references_guard_and_non_ini_presence() {
     let process = FeatureProcess::new();
     let mut store = resources(&[(1, b"[Features]\n1=on"), (3, b"not an ini"), (32, b"")]);

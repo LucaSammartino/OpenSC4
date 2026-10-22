@@ -55,3 +55,38 @@ fn strtoul(s: &[u8], base: u32) -> u32 {
         v
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::rule_n;
+
+    #[test]
+    fn raw_base_selection_sign_and_unsigned_saturation() {
+        let cases: &[(&[u8], u32)] = &[
+            (b"16", 16),
+            (b"1A", 26),
+            (b"abc", 0xABC),
+            (b"xyz", 0),
+            (b"0X10", 16),
+            (b" 1A", 1),
+            (b" 0x10", 0),
+            (b"\t16", 16),
+            (b"-1", u32::MAX),
+            (b"+12", 12),
+            (b"-0x10", 0),
+            (b"4294967295", u32::MAX),
+            (b"4294967296", u32::MAX),
+            (b"-4294967295", 1),
+            (b"-4294967296", u32::MAX),
+            (b"0xFFFFFFFF", u32::MAX),
+            (b"0x100000000", u32::MAX),
+            (b"12345678", 12_345_678),
+            (b"12gA", 12),
+            (b"0x12\xFF", 18),
+            (b"", 0),
+        ];
+        for &(text, expected) in cases {
+            assert_eq!(rule_n(text), expected, "{text:?}");
+        }
+    }
+}
