@@ -10,7 +10,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **train75 landed 17b350b472:** 1555 public-context/setter reconciliation with independent packed vectors and980/980 constructed-native exact evidence, no shipped/default credit. Partial render-properties registry77entries and10tests; RP3-RP5 prevent owner core credit. Span8 SR9 native ABI prerequisite published separately, SR10 owned C adapter scope clarified; original glue8 branch remains resumable. 4444 lane excluded after shared-context conflict, preserved for next batch. Full gate and union including span1555 required; traffic nonexact evidence retained. Coverage57.6/35.4/16.5/17.9; rounds255 (open-ended).
 
-**Run4 checkpoint250:** 250 lane rounds; 47 trains landed; coverage delta+20.8/+7.1/+1.5/+2.0 points since run4 start; 26 parked/stopped lanes. Seven live Codex workers, automatic guarded refills; train75 gating. Traffic diagnosis guard-denied until unlanded1555 claim lands; no bypass.
+**Run4 checkpoint250:** 250 lane rounds; 47 trains landed; coverage delta+20.8/+7.1/+1.5/+2.0 points since run4 start; 26 parked/stopped lanes. Seven live Codex workers, automatic guarded refills; train75 gating. Traffic diagnosis guard-denied on unlanded subsystem claims; no bypass.
 
 **train74 landed b4bfe9afd9:** Four RE publications: MS13-MS15 commute/import/location contracts (MS16 remains), span565 public-setter/context proofs, complete font name map and x87/lock contracts, and partial FileBrowser inventory (FBQ1-FBQ6 remain, no complete-owner credit). Docs-only gate/regress recorded; traffic train73 mismatch remains under investigation, no runtime promotion. Coverage57.6/35.4/13.6/17.9; rounds248 (open-ended).
 
@@ -34,9 +34,9 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **Coverage after train75:**57.6/35.4/16.5/17.9; baseline36.8/28.3/12.1/15.9, delta+20.8/+7.1/+4.4/+2.0 points. 48 trains landed; 255 rounds used, no total cap. Next25-round checkpoint 275.
 
-**Live authority:** `build-runs/run4-coordinator-state.json`; `run4-refill.py` launches reviewed briefs from `run4-refill-queue.json` through serialized `run4-launch.py` and the saved guarded Workflow. PID in run4-refill.pid; quota/errors pause refills. All slots/check/dependency/STOP/parked/3glue gates retained. After compaction reread this section and run guard before adding work. Helpers share run4_coord_lock.py; use its lock for state writes.
+**Live authority:** `build-runs/run4-coordinator-state.json`; tracked `tools/lane_refill.py --provider codex` launches reviewed briefs from `build-runs/run4-refill-queue.json` through tracked `tools/lane_launch.py` and the guarded Codex subscription adapter. Legacy build-runs launch/refill scripts are Claude-only. PID in run4-refill.pid; quota/errors pause refills. All slots/check/dependency/STOP/parked/3glue gates retained. After compaction reread this section and run guard before adding work. Helpers share run4_coord_lock.py; use its lock for state writes.
 
-**Verification follow-up:** train73 traffic71/73 (train72:72/72), 408 mismatches on2031-05-29 and monthly propagation; verified16.5 to13.6. Preserve both shadow logs and investigate; no golden/sampling relaxation or runtime promotion. re-placelot-final4 resume was guard-denied already-merged: stopped, original worktree preserved, no alias bypass.
+**Verification follow-up:** train73 traffic71/73 (train72:72/72), 408 mismatches on2031-05-29 and monthly propagation; verified16.5 to13.6 (train75 exact restored reported16.5 without resolving the failure). Preserve both shadow logs and investigate; no golden/sampling relaxation or runtime promotion. re-placelot-final4 resume was guard-denied already-merged: stopped, original worktree preserved, no alias bypass.
 
 **Train authority:** `build-runs/merge-train/state.json`; latest landed train75. Start next batch when2+ ready; guard and ancestry remain authoritative.
 
