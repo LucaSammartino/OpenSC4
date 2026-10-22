@@ -1,22 +1,56 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-powerline-completion4 (PowerLineTool public owner contracts) | `re-powerline-completion4` / (RE spec lane) | in progress: final round 3; owner incomplete | NT21 native geometry first; NT18/NT22–NT24 exact residuals; PARK at end, no fourth round. |
+| re-powerline-completion4 (PowerLineTool public owner contracts) | `re-powerline-completion4` / (RE spec lane) | ready: bounded docs; whole owner PARKED incomplete | Publish docs only; retain NT18/NT22/NT24, withhold owner coverage; no fourth round. |
 
-## Handoff
+## Final report — 2026-10-22, round 3 of 3
 
-- Goal: final round 3 native-evidence completion of bounded power-line contracts; no owner promotion without proof.
-- Preserved: round-2 tip `27cc9cf9`, prior `67f996cf`; 46 functions / 16156 B, 48 unique vectors.
-- Done: §5.3 native trace of all 1338 B in `0064E3E0`: record gate, four geometry pairs, sample counts, optional vector/reference lifetime and cleanup.
-- Done: §6.4 zone entry/query/pole/cleanup; §5.4 all 1438 B of regional Attempt's type-5 path. Backward split invariant unproved.
-- Next: numeric curve-helper contract NT21, container ownership/count NT24, +398 construction NT18; move answered NT23 and add vectors.
-- Remaining public questions: NT18, NT21–NT24 in questions/network-tools.md; prior report below gives exact residuals.
-- Main checkout read-only; no engine/tools/ABI-table changes. Detached HEAD: commit without ref changes.
-- Bash q.py fails E_ACCESSDENIED; bounded native PowerShell used. No REA required for exported bodies.
-- Evidence helpers: build-runs/inspect-power.py, power-owner.py and power-owner.tsv.
+**PARK: the whole owner remains incomplete.** Bounded documentation is ready to publish; no
+whole-owner coverage, replacement or host-hook-removal credit. No fourth round, restart, merge,
+push or ref update. Preserved `27cc9cf9`, prior `67f996cf` and all earlier lane work.
+
+Substantive commits:
+
+- `f19c79f9`: complete native instruction trace of 0064E3E0 (1338 B), record gating, geometry
+  dispatch and optional wire-reference lifetime (§5.3).
+- `3dc0b77a`: zone entry/query/pole/removal cleanup (§6.4), and all 1438 B of type-5 regional
+  Attempt 00628BD0 (§5.4). No failure-code mutation or preview/consent UI inside Attempt.
+- `510f273a`: control-point helper 0064A6C0 (431 B), cubic sampler 006493B0 (1068 B), property
+  defaults/reads 0064A170 (245 B), nested geometry/list copies, and 13 containers / 1530 B (§§5.5,6.5).
+  Native comparison proves N=truncate(max(minimumCount,length/sampleDistance)); default minimum 5,
+  sample distance 8. Main geometry copies A then N−1 samples; extra geometry has 3 samples without A.
+- Final publication: NT21 and NT23 moved with original question text to answered/network-tools.md;
+  12 new independent conformance vectors, preserving the prior 48 (60 unique total).
+
+### Exact parked obligations
+
+- **NT18:** construction/reachability of nonempty +0x398 groups. Containing consumers are
+  DeterminePolePositions 00650840 (3345 B) and PlacePoles 00651560 (2884 B); this does not mean all
+  6229 B are unproved. §6.6 lists every literal +398/+39C access in 0064xxxx–0065xxxx: constructor,
+  destructor and PlacePoles only. No direct producer, and no zone-update access. A producer through
+  an alias, adjusted base or external/inherited call remains unidentified; its byte count is unknown.
+- **NT22:** the data invariant making backward split `(k,count,-1)` at 00652828 safe. UpdateOnZoneChange
+  006522F0 (1658 B) is traced; its local endpoint/list/count/match guards do not guarantee an outside
+  clear cell at or before k. FindNewPolePosition 006520C0 (552 B), especially 006520E1–00652120,
+  has no lower-bound check. Reachable connection-cell/rectangle construction is the remaining evidence,
+  not another unread orchestration branch. No observed crash or safe clamp is invented.
+- **NT24:** source/counting basis of the brief's 49 functions. Measured inventory stays **46 unique
+  attributed entries / 16156 B**, unchanged. All 13 listed container bodies now have contracts.
+  No three extra function addresses or residual body-byte total can be assigned without that source.
+
+### Validation and publication
+
+- Native export instructions with bytes establish widths, branches and operation order. Original PE
+  confirms float32 3C23D70A/3F000000/3F800000 and float64 1/3/6; defaults verified in native stores,
+  not copied from decompiler register attribution. Local export/decomp fallback only; no REA retry.
+- Final checks: whitespace diff, question-index regeneration, inventory count/byte sum and vector-ID
+  uniqueness. Cargo/clippy/ctest, game and shadow are n/a for docs-only work; no game runs requested.
+- No engine, tools, ABI table, export or game-file edits; no ABI proposal. Evidence scratch remains in
+  build-runs/power-owner.tsv, power-owner.py, inspect-power.py and rd.py. Bash wrapper startup denied
+  E_ACCESSDENIED; bounded PowerShell used. Commits succeeded despite packed-refs.lock warnings.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-powerline-completion4-r3-manifest.json.
-- Stop after this round: publish bounded docs and explicitly PARK any unproved owner obligations; no fourth round.
+- Next: coordinator may publish these bounded docs. Keep the owner parked and residual questions open.
 
-## Report — 2026-10-22, round 2
+## Prior round-2 report (historical; residuals superseded above)
 
 Whole owner remains **incomplete**. This round supplies reviewable primary-evidence contracts, not
 implementation coverage, host-hook removal or replacement credit. Preserved `67f996cf`, earlier

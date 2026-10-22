@@ -256,7 +256,7 @@ Proved order and mode differences:
    in that wire-cell record. Endpoint selection uses unsigned lexicographic **(z,x)** order.
 5. Finish both endpoint connections in source/destination order. For a wire-bearing link the wire vector
    is supplied to the endpoint chosen by that ordering; the other endpoint receives null. For index -1
-   both receive null. The connection geometry builder is `0x0064E3E0`; its full numeric body remains NT21.
+   both receive null. The connection geometry builder `0x0064E3E0` is specified in §§5.3,5.5.
 6. After generated links, real mode releases and nulls stored wire interfaces through the pole-link walk
    (the native condition is wire-vector index **> 0**, so index 0 is skipped by this release pass).
 7. Insert newly created poles through occupant-manager slot 20 `(AsOccupant,0)`. Draft poles receive
@@ -722,13 +722,25 @@ These are host-observation vectors, not claimed in-game measurements.
 | PL-R3 | count=3, classifier 0,4,3 | result 4 leaves last=0 but becomes previous; final road does not stop via previous=0; count=1, failure=0xF0000013 |
 | PL-Z1 | zone-update enabled=0 | no mode change, query or allocation |
 | PL-Z2 | FindNewPolePosition candidates inside rectangle, outside blocked, outside clear | no classifier call on inside; reject blocked; first outside clear wins |
+| PL-CN1 | connect null, duplicate cell, or same computed cell | no allocation, retention, record append or dirty flag change |
+| PL-CN2 | self unsigned (z,x) greater than other; optional wire vector nonempty | record retained and dirty set; no geometry or optional-wire AddRefs |
+| PL-CN3 | A=(0,20,0), B=(32,20,0), default curve properties | N=5; main strand includes A and four samples; extra strand has three samples without A |
+| PL-CN4 | build lesser endpoint with two optional wire records | two AddRefs; caller vector unchanged; stored list survives temporary-node cleanup |
+| PL-ZU1 | pole QI succeeds outside signed inclusive rectangle; wire QI would succeed | release pole QI and queried occupant; do not try wire QI |
+| PL-ZU2 | accepted pole with zero connections | retain in pole list; later clear connections, manager remove, Release in that order |
+| PL-ZU3 | split reaches k but no clear outside cell at or before k | local guards do not prove safety; unchecked backward scan remains NT22, no fabricated safe clamp |
+| PL-RA1 | type 5; border validation rejects | false; no failure-code write, pending-vector append, consent dialog or preview |
+| PL-RA2 | type 5, low=0, three final-step cells, successful probes | append three records to each pending vector; flag bytes false,true,true |
+| PL-RA3 | type 5, low!=0, mode=2 | false; mode=1 can append one clamped-key record with external coordinates retained |
+| PL-CO1 | copy a 48-byte record with two links and saved endpoint pointers | independent link allocation; same pointer values; zero AddRefs |
+| PL-CO2 | destroy pole-record vector with saved endpoint pointers | free link buffers and outer storage; zero endpoint Releases |
 
 ## 9. Evidence and remaining owner audit
 
 The local attribution algorithm (`tools/coverage.py`, read-only Attribution.run) reports **46 entries,
 16,156 function bytes** for this owner. The brief's 49-function count is not reproduced; byte count matches.
-This is not a completed-owner claim. Geometry, connection mutation, zone update and supporting resource
-functions remain partial as enumerated below. All attributed entries are included; sizes are function
+This is not a completed-owner claim. The +0x398 group producer/reachability, unchecked backward split
+invariant and the source of the 49-versus-46 count remain parked. All attributed entries are included; sizes are function
 body bytes, not address-span lengths. No full-owner completion credit is claimed.
 
 | Entries (address:bytes) | Contract status |
@@ -741,9 +753,9 @@ body bytes, not address-span lengths. No full-owner completion credit is claimed
 | `0064FED0:263`, `00650140:258` | reserved walk §6; existing create/reuse, network-occupants §4.5 |
 | `0064FD00:459`, `0064FFE0:347`, `0064FBF0:267` | classifier and last-match probe contracts §6.1 |
 | `00650840:3345`, `00651560:2884`, `00652980:235` | wrapper proved, Determine/PlacePoles partial, NT18 |
-| `006520C0:552`, `006522F0:1658` | FindNewPolePosition §6.2; full zone-update orchestration incomplete NT22 |
-| `00649910:149`, `0064A2E0:43`, `0064B6E0:106`, `0064E3E0:1338` | enable/reference-copy/raw allocator §§5.2,6.1; geometry builder incomplete NT21 |
-| `0064F5D0:55`, `0064F610:92`, `0064F670:148`, `0064F710:89`, `0064F770:260`, `0064F920:113`, `0064F9A0:111`, `0064FA60:135`, `0064FAF0:68`, `00650250:84`, `006502B0:58`, `006502F0:99`, `00650480:218` | 13 container helpers, 1530 bytes; ownership audit NT24 |
+| `006520C0:552`, `006522F0:1658` | §§6.2–6.4; only backward split invariant remains NT22 |
+| `00649910:149`, `0064A2E0:43`, `0064B6E0:106`, `0064E3E0:1338` | enable/reference-copy/raw allocator §§5.2,6.1; connection geometry/lifetime §§5.3,5.5 |
+| `0064F5D0:55`, `0064F610:92`, `0064F670:148`, `0064F710:89`, `0064F770:260`, `0064F920:113`, `0064F9A0:111`, `0064FA60:135`, `0064FAF0:68`, `00650250:84`, `006502B0:58`, `006502F0:99`, `00650480:218` | 13 container helpers, 1530 bytes; §6.5; count-source reconciliation remains NT24 |
 
 The descriptor predicate `0x0064F170` tests exact ordered endpoint-pointer and flag-byte equality against
 each generated record, without normalising endpoint order. `0x0064F1D0` returns false for null; otherwise
@@ -756,9 +768,10 @@ manager slot 7 to remove that kind at record x,z. Then slot 6 creates record kin
 Record x,z are at +8,+12, kind at +16, flag byte at +20. All removals precede creation per record.
 The type-5 mapping and full Attempt derivation are in §5.4; wrapper pairing is specified in §2.
 
-Implementation boundary: defaults, wrapper pairing, position, highlight, text, resources/lifecycle and
-undo are now public rules. Entire Determine/PlacePoles, regional Attempt and zone repair remain incomplete;
-the whole host hooks cannot yet be removed. No engine code was read or changed.
+Implementation boundary: bounded connection geometry, type-5 regional Attempt, zone orchestration and
+container ownership join the prior contracts. The whole owner is **PARKED**, incomplete, with NT18,
+NT22 and NT24 residuals above. No whole-owner coverage, replacement or host-hook-removal credit.
+This is the final third round; no fourth round is scheduled. No engine code was read or changed.
 
 REA batch queries for `0x0064F3F0`, `0x0064F230`, `0x00650760`, `0x0064FBF0` returned
 `target_unavailable` (no app open). The permitted fallback is the local export and existing class decompile.

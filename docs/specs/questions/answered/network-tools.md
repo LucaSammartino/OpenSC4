@@ -20,3 +20,22 @@
   Network-geometry §11/power-line-tool §6: zones/roads preserve last except final road after result 0,
   which stops at currentStep-1. Clear sets last; initial last=count-1 explains an all-zone walk retaining
   count. Results above 3 preserve last/failure but replace previous result; first previous is uninitialised.
+
+- **NT21 - power-line-tool.md §§5,9, connection helpers:** prove `0x0064E3E0`'s connection geometry and
+  optional wire-vector ownership. Enable/restore `0x00649910` and reference-copy `0x0064B6E0` now have
+  instruction-derived contracts in §5.2; these two helper obligations are resolved.
+  Reach attributes these pole-occupant helpers to this tool. Observed ordering is specified, numeric
+  geometry is not. [not proved]
+  **ANSWERED 2026-10-22 (re-powerline-completion4):** DIFFERS — §§5.2,5.3,5.5 specify unsigned
+  endpoint ordering, four attachment pairs, parameter defaults/properties, x87 control and cubic
+  evaluation, N=truncate(max(minimumCount,length/sampleDistance)), and independent geometry storage.
+  Optional wire-vector copying takes AddRefs only at the geometry-building endpoint, leaves the
+  input unchanged and transfers their release responsibility to the stored connection list.
+
+- **NT23 - regional Attempt:** full type-5 AttemptNeighborConnections `0x00628BD0` endpoint/direction
+  derivation, failure/consent behavior, vector mutations and preview effects need instruction checks.
+  NT20 resolves the wrapper pairing only. [not proved]
+  **ANSWERED 2026-10-22 (re-powerline-completion4):** MATCHES — §5.4 traces all 1438 B for type 5:
+  final-anchor/step direction, candidate border and validation, regional type 4, failure returns
+  without failure-code writes, append-only paired vectors and no consent UI or preview creation
+  inside Attempt. The wrapper's separate Place call remains governed by NT20.

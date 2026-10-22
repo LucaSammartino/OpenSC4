@@ -69,20 +69,11 @@
   spacing/pivots, clearance ray, counting, interception eligibility/flags, off-pivot pending emission,
   cell-index group consumption, zone/blocked/end removal asymmetry, saved endpoint processing and
   append-only repairs, allowRepair and draft undo. Slot 81 is not called inside Determine/PlacePoles.
-  Remaining dependency: source/reachability of the `+0x398` cell-index groups, and connection geometry
-  (NT21). Zone-update entry/pole orchestration remains NT22; group construction is not attributed to it
-  without proof. Keep whole-owner host hooks pending the remaining contracts.
+  **Final-round residual:** source/reachability of the `+0x398` cell-index groups (§6.6). Connection
+  geometry NT21 is answered. NT22 retains only the backward split invariant; no group construction
+  is attributed to zone update without proof. Keep whole-owner host hooks pending those contracts.
 
 <!-- from: re-powerline-completion4 (RE lane, 2026-10-22) -->
-- **NT21 - power-line-tool.md §§5,9, connection helpers:** prove `0x0064E3E0`'s connection geometry and
-  optional wire-vector ownership. Enable/restore `0x00649910` and reference-copy `0x0064B6E0` now have
-  instruction-derived contracts in §5.2; these two helper obligations are resolved.
-  Reach attributes these pole-occupant helpers to this tool. Observed ordering is specified, numeric
-  geometry is not. [not proved]
-  **Partial answer 2026-10-22, final round (re-powerline-completion4):** §5.3 traces the complete
-  1338-byte builder's record gating, four attachment-pair calls, N−1 versus 3 sample counts,
-  optional reference copy and temporary cleanup. Full numeric `0064A6C0` / `006493B0` contracts
-  and nested geometry-copy allocation details remain; no whole-owner completion claim.
 - **NT22 - power-line-tool.md §6, zone repair:** prove UpdateOnZoneChange `0x006522F0` deduplication,
   rectangle-edge/split-cell behavior and query/ref-release order; FindNewPolePosition `0x006520C0`
   endpoint selection when either endpoint is null. Entry guard and outside-clear search are proved;
@@ -91,23 +82,21 @@
   ninth dword unused; optional tenth pointer controls mask and geometry; null still creates/reuses one
   pole; nonnull replaces anchors and solves. Remaining UpdateOnZoneChange caller obligations unchanged.
   §6.3 additionally proves wire endpoint-overlap deduplication, skip/search/detach and split-call order.
-  **Precise residual:** prove the entry/query and pole branch `0x006522F0–0x006525B9`, final pole-removal
-  cleanup `0x00652883–0x00652979`, and the caller invariant allowing backward relocation `(k,count,-1)`
-  at `0x00652828` to find an outside clear cell before indexing below zero. The helper has no such guard.
+  **Precise final residual:** the caller invariant allowing backward relocation `(k,count,-1)` at
+  `0x00652828` to find an outside clear cell before indexing below zero. The helper has no such guard.
   **Final-round partial answer 2026-10-22 (re-powerline-completion4):** §6.4 proves entry/query,
   signed pole bounds, per-connection relocation arguments and final removal/ref-release order.
   The remaining NT22 obligation is the backward split's data/reachability invariant: none of the
   local guards proves a clear outside cell at or before k. No safe lower bound is inferred.
-- **NT23 - regional Attempt:** full type-5 AttemptNeighborConnections `0x00628BD0` endpoint/direction
-  derivation, failure/consent behavior, vector mutations and preview effects need instruction checks.
-  NT20 resolves the wrapper pairing only. [not proved]
-  **Final-round answer 2026-10-22 (re-powerline-completion4):** power-line-tool.md §5.4 now traces
-  all 1438 B for type 5, including direction, border probes, class 4, rejection behavior and paired
-  append-only pending vectors. This entry is moved to answered/network-tools.md when final checks pass.
 - **NT24 - power-line-tool.md §9 support inventory:** prove full classifier `0x0064FD00` zone/occupant
   precedence, FindPoleOccupant `0x0064FFE0` candidate filters, wire probe `0x0064FBF0` selection/ref ownership,
   allocator `0x0064A2E0`, and the 13 container helpers' copy/erase ownership. Reconcile brief 49 functions
   against measured 46 entries, both 16156 bytes. [not proved]
   **Partial answer 2026-10-22 (re-powerline-completion4):** §6.1 proves classifier call/overwrite order,
   last-match pole/wire probes and their QI ownership, and raw allocator. Remaining: the 13 container
-  helpers and exact source of the 49-versus-46 function-count discrepancy; no whole-owner credit.
+  helpers and exact source of the 49-versus-46 function-count discrepancy were still open after round 2.
+  **Final-round partial answer 2026-10-22 (re-powerline-completion4):** §6.5 specifies all 13
+  container helpers / 1530 B, including independent inner buffers, raw descriptor-pointer copies,
+  zero AddRef/Release, erase and destruction. The measured inventory remains 46 unique entries /
+  16156 B. The sole remaining NT24 item is the exact source/counting basis of the brief's 49;
+  no missing functions or sizes are invented to reconcile an unsourced count.
