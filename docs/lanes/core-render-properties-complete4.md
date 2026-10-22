@@ -97,3 +97,8 @@ or from the smoke run. The core algorithms are ready for integration with that b
 
 No C ABI exports changed. No game requests outstanding. Detached HEAD is intentional;
 the supervisor publishes the actual committed tip to the reserved lane branch.
+
+
+### Coordinator core-stage review (train80)
+
+The portable owner algorithms are complete: lifecycle/QI/deleting flags, all77 registry helpers, byte/NUL query/name operations and table access/mutation are owned and independently tested. ByteCtype exposes primitive FOREIGN CRT classification/lowering only; it does not supply original render-properties results. After the full train gate/regress, core-stage credit is appropriate for cSC4RenderProperties* even though the worker conservatively requested native binding first. RP6 active-game CRT binding, actual native interface pointer adjustment, shadow and replacement remain separate unresolved integration stages; this batch grants none of those. Safe stale-pointer/index rejection is outside the native valid-input contract.

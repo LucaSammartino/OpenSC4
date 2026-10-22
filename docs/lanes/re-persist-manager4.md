@@ -56,3 +56,8 @@ and reference ledgers. PR4 needs caller evidence before choosing an initialized 
 
 Navigation artifacts remain uncommitted under `build-runs/`: manager-inventory.tsv, audit-manager.py,
 native-tables.py and bounded body extracts. No pseudocode, binaries or external data are committed.
+
+
+### Coordinator specification-stage review (train80)
+
+The exact cGZPersistResourceManager owner has all109attributed functions8437B specified, including the measured undefined stack-byte return. PR4 asks how a portable implementation should handle that undefined result after checking its consumers; it does not erase the observed native body contract. Grant only the exact-owner specification row. Implementation credit requires the owned algorithms and a resolved return policy; no runtime credit is implied.
