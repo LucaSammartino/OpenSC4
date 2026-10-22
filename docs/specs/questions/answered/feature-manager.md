@@ -1,0 +1,11 @@
+# feature-manager: answered questions
+
+<!-- from: core-feature-manager4 (2026-10-22) -->
+- ~~**FM3 - §4.1 file/INI read failures:** after a resource resolves successfully, what happens if its file cannot be read, or fails partway through `[Features]`? Are entries already enumerated retained, is the file always released, and does scanning continue through later packs? [The portable raw-byte provider requires readable file bytes; resolved malformed/empty files install the pack, unresolved keys do not. Native streaming I/O failure behavior is outside this provider contract pending an answer; no read failure is converted to a miss.]~~
+
+  **ANSWERED 2026-10-22 (re-persist-feature-contracts4):** MATCHES — subsequent Open/Read failure is not an acquisition miss: installed bit remains, normal cleanup releases the INI and acquisition references, scan continues and initialization stays set. The INI reader indexes headers first, then gathers entries; a stopped entry pass still delivers its valid gathered prefix, including a partial line after an earlier successful chunk. An unindexed section or failed header reread delivers none. This resolves the streaming behavior outside the stated raw-byte provider contract; it does not assert fault reachability in any particular backend. See feature-manager.md §4.1.1 and §10.1; native `0x0046FC95–0x0046FD44`, `0x0091D91C`, `0x0091DB73`, `0x0091CA15`, `0x0091CF46`, `0x0091CDE3`.
+
+<!-- from: core-feature-manager4 (2026-10-22) -->
+- ~~**FM4 - §3 AddRef signed-count overflow:** does incrementing `0x7FFFFFFF` wrap to `0x80000000` and return those register bits, so the following signed Release destroys the object without decrementing? [Literal 32-bit increment wraps in the portable owner; the signed Release test is applied to that resulting count.]~~
+
+  **ANSWERED 2026-10-22 (re-persist-feature-contracts4):** MATCHES — native AddRef stores/returns EAX=`0x80000000`; following Release takes signed less-or-equal-to-1, performs no decrement/store, calls Shutdown then deleting destruction with flag 1 and returns EAX=0. Static feature state survives. This is the x86 instruction contract, not defined signed C++ overflow. See feature-manager.md §3 and §10.2; native `0x004BDF00–0x004BDF07`, `0x0046F7F3–0x0046F814`.

@@ -1,0 +1,133 @@
+{
+  "format": 1,
+  "name": "gdrivers_director_paper_11_20",
+  "spec": [
+    "renderer-gdrivers-director.md \u00a7\u00a72\u20137",
+    "renderer-gdrivers-director-inventory.md \u00a7\u00a71\u20138"
+  ],
+  "description": "GD1\u2013GD65 are native-derived paper stimuli from the specifications; 66\u201380 add boundary and helper coverage. Expected words and call-order predicates are fixed independently of implementation outputs. Safe faults stand for native invalid accesses, not Boolean failures.",
+  "steps": [
+    {
+      "op": "gd_paper",
+      "id": 11,
+      "expect": [
+        2060072390,
+        0,
+        42,
+        3293923393,
+        0,
+        42,
+        3134941446,
+        0,
+        42,
+        0
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 12,
+      "expect": [
+        2,
+        1
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 13,
+      "expect": [
+        1,
+        100,
+        1,
+        104,
+        1,
+        100,
+        3
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 14,
+      "expect": [
+        0,
+        123,
+        3
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 15,
+      "expect": [
+        4,
+        3,
+        3
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 16,
+      "expect": [
+        0,
+        0,
+        1,
+        0,
+        3
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 17,
+      "expect": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 18,
+      "expect": [
+        1,
+        1,
+        0
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 19,
+      "expect": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 20,
+      "expect": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0
+      ]
+    }
+  ]
+}

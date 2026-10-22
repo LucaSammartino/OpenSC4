@@ -32,7 +32,7 @@ pub fn build_table(gamma: f32, sharpness: f32) -> Vec<u8> {
             };
         }
         // `__ftol` truncates the x87 product; the product is formed in double here (literal
-        // reading: the spec gives `truncate(v · 255)` without the intermediate precision).
+        // reading, FN20: the spec gives `truncate(v · 255)` without intermediate precision).
         t.push((v as f64 * 255.0) as i32 as u8);
     }
     t

@@ -92,6 +92,20 @@ returns the new count. `Release` (slot 2, `0x0046F7F0`): when the count is **abo
 returns the new count; otherwise (1, or 0 or negative for an object nobody `AddRef`ed) it calls `Shutdown`
 (slot 4), then the deleting destructor (slot 8 with flag 1) and returns 0, **without** first decrementing.
 
+**32-bit overflow (FM4).** These are native machine operations, not a claim that signed C++
+overflow is defined. At `0x004BDF00–0x004BDF07`, AddRef loads the 32-bit count into EAX,
+increments EAX, stores those bits back and returns without changing EAX again. An input count
+`0x7FFFFFFF` therefore becomes and returns **EAX=`0x80000000`**. The following Release loads
+those bits, compares them with 1 and takes the **signed** less-or-equal branch
+(`0x0046F7F3–0x0046F7F9`). It neither decrements nor stores a replacement count on that branch.
+It calls virtual Shutdown, then virtual deleting destruction with flag 1, then explicitly clears
+EAX and returns **EAX=0** (`0x0046F801–0x0046F814`); the destructor's own `this` return does not
+escape Release. In the native class Shutdown clears only the initialized byte; destruction
+resets the vtable and frees the allocation (`0x0046F770–0x0046F77D`, `0x0046F7D0–0x0046F7EC`).
+Neither operation clears the static feature state. Observing the count before freeing would
+still show `0x80000000`; dereferencing the object after Release is invalid. A replacement must
+use defined 32-bit wrapping operations rather than depend on source-language signed overflow.
+
 **Deleting destructor** (slot 8, `0x0046F7D0`, pops 4): resets the vtable pointer; if flag bit 0 is set, frees the
 object to the global heap; returns `this`. It does not touch the static state.
 
@@ -125,7 +139,7 @@ for k in 0 .. 31:                                   # ascending: pack 1 first, p
 return true
 ```
 
-- A pack is **installed exactly when its resource key resolves**, whatever the file contains (an empty file, a file
+- A pack is **installed exactly when SC4GetResourceAsFile succeeds for its key**, whatever the file contains (an empty file, a file
   with no `[Features]` section, or a file that is not an INI at all still sets the bit) *[compat]*.
 - Packs need not be contiguous: a pack-3 file without a pack-2 file installs packs 1 and 3 only.
 - The lookup is the ordinary segment search (data-formats §3): when several packages hold the same key, the
@@ -145,6 +159,73 @@ return true
   trimmed on the right, the value on both sides; a line whose key or value is then empty is skipped. Lines end at CR
   or LF.
 - There are **no inline comments**: everything after the `=` is the value *[quirk]* (§4.2).
+
+#### 4.1.1 Resolved-file and streaming failures (FM3) *[compat]*
+
+The scan's decision is the **boolean result of SC4GetResourceAsFile**, not proof that reading
+the file will succeed. It sets the installed bit before constructing the INI reader
+(`0x0046FC95–0x0046FCC3`). It ignores EnumEntries' result: the next instructions destroy the
+section-name string and INI reader, then Release the acquired non-null file pointer, advance
+to the next pack and eventually return true (`0x0046FD03–0x0046FD44`). Thus ordinary Open/Read
+failures do not uninstall a successfully acquired pack, abort the 32-pack scan, roll back
+features, clear `staticInitDone`, or clear the object's `initialized` byte. Another Init,
+even after Shutdown, does not retry the failed file unless static teardown has reset the scan.
+
+The foreign reader determines which entries reach the feature callback:
+
+| Phase / failure | Entries delivered to the feature owner |
+|---|---|
+| File is not open and the reader cannot open it | None. LoadSectionNames returns false; EnumEntries returns false. |
+| Section-index pass stops on a false GetFileLine | Headers already indexed remain; the reader marks the index loaded and returns true, treating this stop like EOF. If Features has not been indexed, no entries are delivered. |
+| Features was indexed, but seeking to it returns a position at or beyond reported file size, or rereading its header returns false | None. EnumEntries returns false. The seek result is used as a position, not tested as a boolean. |
+| Header was reread, and the first or a later entry GetFileLine returns false | Stop gathering entries; deliver **all valid pairs already gathered**, in order, and return true, including true for an empty gathered list. No transaction rollback. |
+
+Indexing seeks to the beginning and records each header's starting position; enumeration then
+seeks back to the selected header. These are separate reads. A failure during indexing does
+not imply the same failure on the later pass: provider seek/recovery behavior matters.
+The section-index stop/loaded path is `0x0091DBD3–0x0091DBF1`,
+`0x0091DCF3–0x0091DD12`, `0x0091DD49–0x0091DD50`; Open failure is
+`0x0091DB89–0x0091DBAD`. EnumEntries' index/seek/header checks are
+`0x0091D92B–0x0091D948`, `0x0091D976–0x0091D992`, `0x0091D9BD–0x0091D9CA`.
+
+EnumEntries **gathers first, calls back afterward**: valid pairs are appended to a temporary
+sequence (`0x0091DA61–0x0091DA78`); a false line result and a new section both reach its callback
+loop (`0x0091DA99–0x0091DAD5`). Callbacks apply §4.2 directly to the static set and their return
+values are ignored. EnumEntries returns true after this loop (`0x0091DB21`). A later pack can
+therefore override the surviving prefix exactly like any other entries. No callbacks from
+this pack have run while its entry lines are still being gathered.
+
+**Read failure is not necessarily a lost line.** GetFileLine (`0x0091CA15`) asks the file's
+slot 14 (`+0x38`) to Read chunks of at most **40 bytes**, with a boolean result and no actual-byte
+count. A false result ends the current line operation. It returns false if no chunk succeeded;
+if an earlier chunk succeeded, it returns true with the accumulated prefix, even without a
+line terminator. Bytes from the failing Read are not appended. A prefix that still forms a
+valid key/value pair can consequently be applied. Read success is recorded at
+`0x0091CA87–0x0091CA9A`; accumulated text and that flag are returned through
+`0x0091CB1D–0x0091CB41`; the 40-byte bound is `0x0091CA6E–0x0091CA78`.
+Single-byte reads used to consume CR/LF also test the boolean; a failure there does not undo
+the already obtained line (`0x0091CACB–0x0091CAF3`).
+
+**Ownership and limits.** Given a valid acquired file, the INI constructor AddRefs it once
+(`0x0091CF73–0x0091CF9C`); its default is to leave the file open between operations
+(`0x0091CF5A`). On every normally returning scan path after successful acquisition, INI
+destruction asks IsOpen, calls Close if open, and Releases its reference
+(`0x0091CDE6–0x0091CE0C`), then the scan Releases the acquisition reference
+(`0x0046FD26–0x0046FD30`). Close failure does not bypass these releases. There is no guarantee
+that a faulting provider, thrown exception or invalid pointer reaches this normal cleanup.
+
+SC4GetResourceAsFile itself opens the raw record, queries its serial interface, creates a
+file adapter and queries its record-binding interface; its success path calls serial-record
+binding without checking its return and returns the acquired file interface
+(`0x005F9692–0x005F9717`). Acquisition failure is
+different from subsequent Read failure: the helper's normal false path nulls the output
+(`0x005F976C–0x005F977C`), so that pack's installed bit is not set. Merely locating a record
+does not prove the helper succeeds. The outcomes above describe the owner/INI response to
+specified file operations; they do not assert that a particular shipped record backend can
+produce every failure pattern. A raw-byte provider with complete bytes cannot express these
+streaming events. Nor can a generic short read be inferred from a byte prefix alone: a file
+reporting Read success is assumed to have supplied the requested bytes; a provider violating
+that contract has no portable short-read result specified here. No runtime failure was measured.
 
 ### 4.2 One `[Features]` entry (callback `0x0046FB10`) *[compat]*
 
@@ -303,3 +384,48 @@ Each test builds a resource store with the listed INI resources under `(0, 0x8A5
 8. **Reference counting:** a new object, `AddRef` → 1, `AddRef` → 2, `Release` → 1, `Release` → 0 and the object is
    destroyed. `QueryInterface(0x0B562673)` and `QueryInterface(1)` give `this` and add a reference;
    `QueryInterface(0x12345678)` returns false and leaves the out pointer unchanged.
+
+### 10.1 Independent streaming and ownership vectors (FM3)
+
+These are source-derived discriminating vectors, **not executed tests**. Start each with fresh
+static scan state. Pack 1 is readable and enables `0x10` and `0x55`; pack 2 successfully acquires
+a valid referenced file F with the operations specified below; pack 3 is readable and contains
+`0x20=on`. All other keys miss. File size/positions are coherent, seeks work unless stated,
+and successful Reads supply all requested bytes. Failures occur at the stated phase, not at
+an unspecified read-call number (line reading includes chunk reads and CR/LF lookahead).
+
+Every case installs packs 1, 2 and 3, reports current pack 3, returns true from Init, keeps both
+initialization flags set, and processes pack 3. F receives one INI AddRef and two Releases
+(INI then acquisition); its Close is attempted before those Releases if IsOpen is true.
+
+| Vector | F behavior | Required feature result / distinguishing trace |
+|---|---|---|
+| FM3-A | IsOpen=false; attempted Open returns false | No pack-2 callbacks; `0x10`, `0x55`, `0x20` remain on. No Close if IsOpen stays false; both references still released. |
+| FM3-B | Index pass: first GetFileLine returns false before any successful chunk; bytes would contain Features if readable | No indexed Features, no entry pass/callback; same features as A. A subsequently repaired file is not retried by Shutdown/Init. |
+| FM3-C | Index pass reads Features header then stops on read failure. Seeking back recovers; entry pass reads `0x10=off` to normal EOF | `0x10` off, `0x55` and `0x20` on. Partial indexing did not discard the already indexed header or prevent rereading it. |
+| FM3-D | Index succeeds. Entry pass rereads header; gathers `0x10=off`, `0x30=on`; next GetFileLine fails before any successful chunk; unread suffix would turn `0x10` on | Both gathered entries delivered in that order: `0x10` off; `0x30`, `0x55`, `0x20` on. During gathering the feature set is still pack 1's set; callbacks begin only after the stop. |
+| FM3-E | Index succeeds. Entry pass rereads header, then first entry Read fails with no successful chunk | Empty gathered sequence, no callbacks, EnumEntries true; feature result as A. Distinguishes empty entry pass from failed header reread, which returns false. |
+| FM3-F | Index succeeds. Entry pass: one entry begins with a successful 40-byte chunk consisting of `0x55 = off` plus 30 spaces; next chunk fails. Next GetFileLine also fails. Unread suffix would have added `; comment` | Accumulated prefix is a valid `off` entry: `0x55` off, `0x10` and `0x20` on. Rejecting all unterminated lines or discarding the entire pack gives a different result. |
+| FM3-G | Index succeeds, but rereading the selected header returns false before any successful chunk; Close returns false while IsOpen reports true | No callbacks, EnumEntries false; same features as A. Close failure still precedes both Releases; later packs still scanned. |
+
+Control: if pack 2's **acquisition helper returns false with null output**, pack 2 is uninstalled,
+no INI AddRef/Release occurs for it, and pack 3 still runs. For an override check, change pack 3
+in D to `0x10=on`: the final `0x10` must be on. A streaming provider must preserve the phase and
+ownership traces above; a complete-byte-only provider can document that it cannot inject them.
+
+### 10.2 Independent reference-count bit vectors (FM4)
+
+These are instruction-derived expectations for a live native-layout object with the indicated
+initial count, not a claim that billions of AddRefs or any runtime fault injection were run.
+Observe pre-destruction state through lifecycle logging, never by reading a freed pointer.
+
+| Initial count | AddRef stored count / EAX | Following Release |
+|---|---|---|
+| `0x7FFFFFFE` | `0x7FFFFFFF` / `0x7FFFFFFF` | Decrements to `0x7FFFFFFE`, EAX=`0x7FFFFFFE`; no Shutdown or destruction. |
+| `0x7FFFFFFF` | `0x80000000` / `0x80000000` | No count decrement/store; Shutdown once, deleting slot 8 once with flag 1, heap free once, EAX=0. Count at Shutdown entry is still `0x80000000`. |
+| `0xFFFFFFFF` | `0x00000000` / `0x00000000` | Same destruction path, count still 0 at Shutdown entry, EAX=0. |
+
+For both destruction cases, an initially set initialized byte is cleared, while pre-existing
+installed-pack bits and enabled-feature IDs remain in static storage. The deleting destructor's
+own EAX=`this` is overwritten by Release's final zero; an unsigned count comparison would
+incorrectly retain the overflow case instead.

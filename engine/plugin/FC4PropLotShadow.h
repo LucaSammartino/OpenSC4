@@ -22,10 +22,9 @@
 //   lotcfg_shadow = 1           (env FC4_LOTCFG_SHADOW)
 //   tutorial_shadow = 1         (env FC4_TUTORIAL_SHADOW)
 //
-// Each shadow only reads the class the city holds - the game's original, or
-// FreeCity4's replacement when `enable = propmgr` / `lotcfg` / `tutorial` is
-// on (glue21: a replacement does not turn its shadow off; over a replacement
-// the comparison is a class-layer self-check). At PostCityInit ("load"), at every
+// Each shadow reads the original class the city holds. Replaced owners are
+// explicitly refused: a comparison against ourselves is not native evidence.
+// At PostCityInit ("load"), at every
 // SimNewMonth ("month") and at PreSave ("save"), on the main thread, a core
 // of FreeCity4's (fc4_prop_manager / fc4_lot_config_manager / fc4_tutorial) reads
 // the original's own record (its cIGZSerializable::Write into memory,
@@ -50,19 +49,22 @@
 //   lotcfg (map, families): the configuration map (slot 20) and the family
 //     set (slot 21) in bucket order;
 //   lotcfg (arrays, load only): each configuration's object array (slot 23
-//     of the configuration) against fc4_lot_config_object_array on its
-//     exemplar at the city detail (§B3.3), the trailing foundation object
-//     (lot-configuration.md §3.7) excluded;
+//     of the configuration) against an independently resource-loaded C++
+//     configuration (using the Rust object decoder). Full order and fields,
+//     including foundation IDs, are compared without filtering differences;
 //   lotcfg (queries): GetLotConfigurationIDsByFamily / BySize (slots 14, 15)
 //     as sets with their counts, LotConfigurationHasBuildingFamily / Type
 //     (16, 17) and GetObjectIDArray (27) on sample configurations;
 //   tutorial (state): IsTutorial (slot 8), the task number (11), the GUID (12).
 //
-// The lot configuration shadow's catalogue is FreeCity4's (keys, group
-// filter, map and family-set order) over the ORIGINAL's configuration
-// objects: a configuration ours loads stands for the original's
-// configuration of the same ID (lot-configuration.md §3.1 step 4: the ID is
-// the key's instance), so the configuration class itself is not shadowed.
+// The Rust lot manager's catalogue uses independently resource-loaded C++
+// configurations for Load outcomes, size, families and objects. The native
+// configuration objects never answer those callbacks. C++ configuration getter
+// checks are separately labelled, with no whole-owner Rust configuration credit.
+// proplot native_verify reports complete comparison counts, refusals and owner
+// pointers; live_inputs separates real lot/prop inputs from natural method calls
+// (none intercepted). Roundtrip lines disclose record bootstrap and receive no
+// independent-evolution credit. The probes never draw the game's random stream.
 //
 // Not compared (logged at game start): GetBuildingProps (the 0xA8322B7F
 // property object's layout is not in docs/abi), every call that changes the

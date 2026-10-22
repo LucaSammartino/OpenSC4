@@ -518,12 +518,28 @@ if(FC4_IS_WIN32_X86)
         # Opt-in 8888 bridge (span-render-8888.md section 1.1).
         plugin/FC4SpanRender8888.cpp
         plugin/FC4SpanRender8888.h
+        # Independent native grid verification (no public ABI table changes).
+        plugin/FC4SimGridsShadow.cpp
+        plugin/FC4SimGridsShadow.h
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
         "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp"
         "${FC4_GZCOM_DIR}/src/SC4String.cpp"
         "${FC4_GZCOM_DIR}/src/cRZBaseVariant.cpp"
-        "${FC4_GZCOM_DIR}/src/StringResourceManager.cpp")
+        "${FC4_GZCOM_DIR}/src/StringResourceManager.cpp"
+        # Constructed-native industrial verification; no replacement or natural interception.
+        plugin/FC4IndustrialShadow.cpp
+        plugin/FC4IndustrialShadow.h
+        plugin/compat/FC4IndustrialCompat.h
+        # Owned cGZFontSys verification (drawing-fonts sections 12/12.1).
+        plugin/FC4FontSysVerify.cpp
+        plugin/FC4FontSysVerify.h
+        # Opt-in span8 checked adapter and native type2 route (SR9/SR10).
+        plugin/FC4SpanRender8.cpp
+        plugin/FC4SpanRender8.h
+        plugin/FC4Span8Fixture.inc
+        plugin/FC4FeatureShadow.cpp
+        plugin/FC4FeatureShadow.h)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN

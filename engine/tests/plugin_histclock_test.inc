@@ -28,16 +28,16 @@ public:
     bool QueryInterface(uint32_t, void**) override { return false; }
     uint32_t AddRef() override { return 1; }
     uint32_t Release() override { return 1; }
-    bool SetMonthNameDayYear(char const*, uint32_t, uint32_t) override { return false; }
-    bool SetDayNumber(uint32_t d) override {
+    uint32_t SetMonthNameDayYear(char const*, uint32_t, uint32_t) override { return 0; }
+    uint32_t SetDayNumber(uint32_t d) override {
         day = d;
         return true;
     }
-    bool SetTime(cRZTime const&) override { return false; }
-    bool SetMonthDayYear(uint32_t, uint32_t, uint32_t) override { return false; }
-    bool SetDayOfYear(uint32_t, uint32_t) override { return false; }
-    bool Copy(cFC4IGZDate const&) override { return false; }
-    bool Clone(cFC4IGZDate**) override { return false; }
+    uint32_t SetTime(cRZTime const&) override { return 0; }
+    uint32_t SetMonthDayYear(uint32_t, uint32_t, uint32_t) override { return 0; }
+    uint32_t SetDayOfYear(uint32_t, uint32_t) override { return 0; }
+    uint32_t Copy(cFC4IGZDate const&) override { return 0; }
+    uint32_t Clone(cFC4IGZDate**) override { return 0; }
     bool Between(cFC4IGZDate const&, cFC4IGZDate const&) override { return false; }
     int32_t CompareTo(cFC4IGZDate const&) override { return 0; }
     uint32_t WeekDay() override { return 0; }
@@ -49,8 +49,8 @@ public:
     uint32_t Hash() override { return day; }
     bool IsValid() override { return true; }
     bool Leap() override { return false; }
-    bool MaxDate(cFC4IGZDate const&, cFC4IGZDate&) override { return false; }
-    bool MinDate(cFC4IGZDate const&, cFC4IGZDate&) override { return false; }
+    uint32_t MaxDate(cFC4IGZDate const&, cFC4IGZDate&) override { return 0; }
+    uint32_t MinDate(cFC4IGZDate const&, cFC4IGZDate&) override { return 0; }
     uint32_t Month() override { return 0; }
     uint32_t Previous(uint32_t, cFC4IGZDate&) override { return 0; }
     uint32_t YearLastTwoDigits() override { return 0; }
@@ -69,7 +69,7 @@ public:
     cFC4IGZDate& Decrement() override { return *this; }
     cFC4IGZDate& AddDays(int32_t) override { return *this; }
     cFC4IGZDate& SubtractDays(int32_t) override { return *this; }
-    bool DateString(cIGZString&, uint32_t) override { return false; }
+    uint32_t DateString(cIGZString&, uint32_t) override { return 0; }
     bool DayWithinMonth(uint32_t, uint32_t, uint32_t) override { return false; }
     uint32_t DaysInYear(uint32_t) override { return 365; }
     uint32_t Jday(uint32_t, uint32_t, uint32_t) override { return 0; }

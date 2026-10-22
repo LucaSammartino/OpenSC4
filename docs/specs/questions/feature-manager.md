@@ -14,14 +14,12 @@
   whether pack 1 reaches `timbuktu` through key 1 of the registry's map (`0x004B79A4`). Belongs with the tutorial
   registry. [reachability only: the spec's answers stand either way]
 
-<!-- from: core-feature-manager4 (2026-10-22) -->
-- **FM3 - §4.1 file/INI read failures:** after a resource resolves successfully, what happens if its file cannot
-  be read, or fails partway through `[Features]`? Are entries already enumerated retained, is the file always
-  released, and does scanning continue through later packs? [The portable raw-byte provider requires readable
-  file bytes; resolved malformed/empty files install the pack, unresolved keys do not. Native streaming I/O
-  failure behavior is outside this provider contract pending an answer; no read failure is converted to a miss.]
-
-<!-- from: core-feature-manager4 (2026-10-22) -->
-- **FM4 - §3 AddRef signed-count overflow:** does incrementing `0x7FFFFFFF` wrap to `0x80000000` and return those
-  register bits, so the following signed Release destroys the object without decrementing? [Literal 32-bit
-  increment wraps in the portable owner; the signed Release test is applied to that resulting count.]
+<!-- from: verify-feature-manager4 (2026-10-22) -->
+- **FM5 - §5.1 shipped input size:** the supported 1.1.641 game provider in
+  `fm4-r1-query-1022-171537` reports pack 1 key `(0,0x8A5971C5,0x2B563701)`
+  acquired, file Length **378 bytes**, FNV-1a `BC8924D4`, whereas §5.1 records
+  263 bytes. Is that measurement specific to a data-package variant, or is there
+  a published distinction between raw record and adapter file size to document?
+  [No size assumption/normalization in Rust: independently capture the actual
+  provider bytes once. Native queries exact 13172/13172; no query difference or
+  FM1/FM2 reachability evidence inferred from this input-size discrepancy.]

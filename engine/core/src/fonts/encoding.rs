@@ -17,7 +17,7 @@ pub fn convert_char_to_unicode(conv: &dyn CodePageConverter, cp: u32, s: &[u8]) 
         return (0, 0);
     }
     if cp == CP_UTF16 {
-        // A lone trailing byte is read as the low half (the spec gives no rule for it).
+        // FN21 provisional boundary: a lone trailing byte is read as the low half.
         let lo = s[0] as u16;
         let hi = s.get(1).copied().unwrap_or(0) as u16;
         return (lo | (hi << 8), 2);

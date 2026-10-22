@@ -1,0 +1,141 @@
+{
+  "format": 1,
+  "name": "gdrivers_director_paper_51_60",
+  "spec": [
+    "renderer-gdrivers-director.md \u00a7\u00a72\u20137",
+    "renderer-gdrivers-director-inventory.md \u00a7\u00a71\u20138"
+  ],
+  "description": "GD1\u2013GD65 are native-derived paper stimuli from the specifications; 66\u201380 add boundary and helper coverage. Expected words and call-order predicates are fixed independently of implementation outputs. Safe faults stand for native invalid accesses, not Boolean failures.",
+  "steps": [
+    {
+      "op": "gd_paper",
+      "id": 51,
+      "expect": [
+        1,
+        2,
+        0,
+        16,
+        2,
+        4,
+        2,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 52,
+      "expect": [
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        2
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 53,
+      "expect": [
+        2,
+        5,
+        9,
+        0,
+        0,
+        0,
+        4
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 54,
+      "expect": [
+        1,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 55,
+      "expect": [
+        100,
+        200,
+        24,
+        1,
+        100,
+        200,
+        8,
+        112,
+        216,
+        8,
+        124,
+        232,
+        8,
+        1,
+        0
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 56,
+      "expect": [
+        1,
+        1,
+        256,
+        16392,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 57,
+      "expect": [
+        1,
+        1,
+        0,
+        1
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 58,
+      "expect": [
+        1,
+        268435458,
+        268435458,
+        268435458,
+        268435458,
+        4,
+        1,
+        0
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 59,
+      "expect": [
+        0,
+        268435458,
+        0,
+        268435458,
+        6
+      ]
+    },
+    {
+      "op": "gd_paper",
+      "id": 60,
+      "expect": [
+        1,
+        32764,
+        1
+      ]
+    }
+  ]
+}

@@ -69,6 +69,8 @@ struct State {
     std::atomic<uint64_t> compared[kSlots];   // shadow: compared calls
     std::atomic<uint64_t> differing[kSlots];  // shadow: calls with a differing byte
     std::atomic<uint64_t> diffPixels[kSlots];
+    std::atomic<uint64_t> fixtureCalls[kSlots], fixtureOurs[kSlots], fixtureFallback[kSlots];
+    std::atomic<uint64_t> legacyShort{0}, legacyOverlap{0};
 };
 State g;
 
@@ -100,20 +102,125 @@ bool RegionOf(const uint32_t* spans, uint32_t count, const uint32_t* desc, Regio
     return true;
 }
 
-// The source image of RenderBlt (`rectB`, §7): rows 0..height-1 from base
-// with a positive stride. False otherwise (the original runs).
-bool SourceOf(const uint32_t* rectB, const uint8_t** p, size_t* len) {
-    const int32_t stride = static_cast<int32_t>(rectB[1]);
-    const uint32_t height = rectB[3];
-    if (rectB[0] == 0 || stride <= 0 || height == 0 || uint64_t(stride) * height > (uint64_t(64) << 20)) return false;
-    *p = reinterpret_cast<const uint8_t*>(rectB[0]);
-    *len = static_cast<size_t>(stride) * height;
+constexpr int64_t kWindowLimit = int64_t(64) << 20;
+
+// Validate data pages only; never probe code bytes. A descriptor base may be
+// pre-offset outside an allocation (§9.1); only the addresses actually read
+// need to exist. VirtualQuery is a safety check, not a source of behaviour.
+bool DataWindow(uint64_t address, uint64_t length, bool writable = false) {
+    if (address == 0 || length == 0 || address + length > (uint64_t(1) << 32)) return false;
+    const uint64_t end = address + length;
+    while (address < end) {
+        MEMORY_BASIC_INFORMATION m = {};
+        if (!VirtualQuery(reinterpret_cast<const void*>(static_cast<uintptr_t>(address)), &m, sizeof(m)) ||
+            m.State != MEM_COMMIT || (m.Protect & (PAGE_GUARD | PAGE_NOACCESS))) return false;
+        const DWORD p = m.Protect & 0xFF;
+        if (p != PAGE_READWRITE && p != PAGE_WRITECOPY && (writable || p != PAGE_READONLY)) return false;
+        const uint64_t next = reinterpret_cast<uintptr_t>(m.BaseAddress) + uint64_t(m.RegionSize);
+        if (next <= address) return false;
+        address = next;
+    }
+    return true;
+}
+
+// §7: width/height are read ONLY by tiled kernels. In particular neither
+// stride*height nor width*bpp bounds a direct blit's pre-offset source.
+// Enumerate precisely the source reads defined by §9.1, without touching it.
+template<class Visit>
+bool SourceReads(const uint32_t* spans, uint32_t count, const uint32_t* image, const uint8_t* desc,
+                 uint32_t mode, Visit visit) {
+    uint32_t d[8];
+    std::memcpy(d, desc, sizeof(d));
+    if (d[4] > 6 || desc[28] > 1 || mode > 11) return false;
+    const uint32_t bpp = d[4] == 6 ? 1 : d[4] >= 4 ? 4 : 2;
+    const int64_t stride = static_cast<int32_t>(image[1]);
+    if (mode >= 8 && (image[2] == 0 || image[3] == 0)) return false;
+    uint64_t bytes = 0;
+    for (uint32_t i = 0; i < count; ++i) {
+        const uint32_t start = spans[2 * i], width = spans[2 * i + 1] - start;
+        const uint32_t x = start & 0xFFFFu, y = start >> 16;
+        bytes += uint64_t(width) * bpp;
+        // A bridge resource limit, not a native bounds rule. Keep fallback.
+        if (bytes > uint64_t(kWindowLimit)) return false;
+        if (width == 0) continue;
+        if (mode < 4) {
+            if (!visit(int64_t(y) * stride + int64_t(x) * bpp, size_t(width) * bpp)) return false;
+        } else {
+            uint32_t u = mode < 8 ? d[2] * x + d[0] : (x + d[0]) % image[2];
+            const uint32_t v = mode < 8 ? (d[3] * y + d[1]) >> 16 : (y + d[1]) % image[3];
+            for (uint32_t j = 0; j < width; ++j) {
+                const uint32_t tx = mode < 8 ? u >> 16 : u;
+                if (!visit(int64_t(v) * stride + int64_t(tx) * bpp, bpp)) return false;
+                if (mode < 8) u += d[2];
+                else if (++u == image[2]) u = 0;
+            }
+        }
+    }
+    return true;
+}
+
+struct SourceCapture {
+    std::vector<uint8_t> bytes;
+    size_t origin = 0;
+    int64_t first = 0, end = 0;
+    bool legacyShort = false, legacyOverlap = false;
+    const char* refusal = "invalid-source-geometry";
+};
+
+bool CaptureSource(const uint32_t* spans, uint32_t count, const Region& dst, int32_t dstStride,
+                   const uint32_t* image, const uint8_t* desc, uint32_t mode, SourceCapture* out) {
+    int64_t lo = 0, hi = 0;
+    bool any = false;
+    const uint64_t dstBase = reinterpret_cast<uintptr_t>(dst.lo) + dst.origin;
+    const bool valid = SourceReads(spans, count, image, desc, mode, [&](int64_t off, size_t n) {
+        const int64_t address = int64_t(image[0]) + off;
+        if (address <= 0 || !DataWindow(uint64_t(address), n)) {
+            out->refusal = "unreadable-source-data";
+            return false;
+        }
+        // SR8888-1 is open: do not invent a load/store order for true alias.
+        // Check actual writes, not the old oversized stride*height envelope.
+        for (uint32_t i = 0; i < count; ++i) {
+            const uint32_t s = spans[2 * i], w = spans[2 * i + 1] - s;
+            if (w == 0) continue;
+            const int64_t a = int64_t(dstBase) + int64_t(s >> 16) * dstStride + int64_t(s & 0xFFFFu) * 4;
+            if (address < a + int64_t(w) * 4 && a < address + int64_t(n)) {
+                out->refusal = "actual-source-destination-alias-SR8888-1";
+                return false;
+            }
+        }
+        if (!any || off < out->first) out->first = off;
+        if (!any || off + int64_t(n) > out->end) out->end = off + int64_t(n);
+        any = true;
+        if (off < lo) lo = off;
+        if (off + int64_t(n) > hi) hi = off + int64_t(n);
+        return true;
+    });
+    if (!valid) return false;
+    if (hi - lo > kWindowLimit) {
+        out->refusal = "source-snapshot-over-64MiB";
+        return false;
+    }
+    out->origin = static_cast<size_t>(-lo);
+    out->bytes.resize(hi > lo ? static_cast<size_t>(hi - lo) : 1);
+    // Sparse capture: unused bytes before/among touched rows are never read
+    // from native memory. Rust sees the same texels, with a representable base.
+    SourceReads(spans, count, image, desc, mode, [&](int64_t off, size_t n) {
+        std::memcpy(out->bytes.data() + static_cast<size_t>(off - lo),
+                    reinterpret_cast<const void*>(static_cast<uintptr_t>(int64_t(image[0]) + off)), n);
+        return true;
+    });
+    const int64_t legacyLen = int64_t(static_cast<int32_t>(image[1])) * image[3];
+    out->legacyShort = any && (out->first < 0 || out->end > legacyLen || legacyLen <= 0);
+    out->legacyOverlap = legacyLen > 0 && uint64_t(image[0]) < reinterpret_cast<uintptr_t>(dst.lo) + dst.len &&
+                         reinterpret_cast<uintptr_t>(dst.lo) < uint64_t(image[0]) + uint64_t(legacyLen);
     return true;
 }
 
 // Ours on `r` (a region of the real target, or a copy of it).
 int32_t Ours(Slot s, const uint32_t* spans, uint32_t count, uint8_t* dst, const Region& r, int32_t stride,
-             uint32_t a, uint32_t b, const uint32_t* rectB, const uint8_t* src, uint32_t mode) {
+             uint32_t a, uint32_t b, const uint32_t* rectB, const uint8_t* src, uint32_t mode,
+             const SourceCapture* captured = nullptr) {
     switch (s) {
         case kSolid: return fc4_span8888_solid(spans, count, dst, r.len, r.origin, stride, a);
         case kAlpha: return fc4_span8888_alpha(spans, count, dst, r.len, r.origin, stride, a, b);
@@ -122,10 +229,13 @@ int32_t Ours(Slot s, const uint32_t* spans, uint32_t count, uint8_t* dst, const 
             return fc4_span8888_gradient(spans, count, dst, r.len, r.origin, stride, reinterpret_cast<const uint32_t*>(a),
                                          s == kAlphaGradient);
         case kBlt: {
-            const uint8_t* sp = nullptr;
-            size_t sl = 0;
-            if (!SourceOf(rectB, &sp, &sl)) return 1;
-            return fc4_span8888_blt(spans, count, dst, r.len, r.origin, stride, sp, sl, 0,
+            SourceCapture local;
+            if (!captured) {
+                if (!CaptureSource(spans, count, r, stride, rectB, src, mode, &local)) return 1;
+                captured = &local;
+            }
+            return fc4_span8888_blt(spans, count, dst, r.len, r.origin, stride,
+                                    captured->bytes.data(), captured->bytes.size(), captured->origin,
                                     static_cast<int32_t>(rectB[1]), rectB[2], rectB[3], src, mode);
         }
         default: return 1;
@@ -152,45 +262,68 @@ void Original(Slot s, void* self, const uint32_t* spans, uint32_t count, const u
 void Bridge(Slot s, uintptr_t ret, void* self, const uint32_t* spans, uint32_t count, const uint32_t* buffer,
             uint32_t a, uint32_t b, const uint32_t* rectB, const uint8_t* src, uint32_t mode) {
     g.calls[s].fetch_add(1, std::memory_order_relaxed);
+    const bool fixture = SpanContextFixtureThread();
+    if (fixture) g.fixtureCalls[s].fetch_add(1, std::memory_order_relaxed);
     SpanNoteCall(kSpanR8888, s + 1, ret, false);  // this module's fixture never calls through the vtable
     Region r;
     bool bridged = RegionOf(spans, count, buffer, &r) && (s != kBlt || (rectB != nullptr && src != nullptr));
+    const int32_t stride = bridged ? static_cast<int32_t>(buffer[1]) : 0;
+    const char* refusal = "unsupported-destination-window";
+    if (bridged) bridged = DataWindow(reinterpret_cast<uintptr_t>(r.lo), r.len, true);
+    SourceCapture capture;
     if (bridged && s == kBlt) {
-        const uint8_t* source = nullptr;
-        size_t length = 0;
-        bridged = SourceOf(rectB, &source, &length);
-        if (bridged) {
-            // Self-blits must read live memory in native order (SR8888-1).
-            // Refuse before either shadow render; a copied destination would lose that alias.
-            const uint64_t d = reinterpret_cast<uintptr_t>(r.lo), p = reinterpret_cast<uintptr_t>(source);
-            bridged = d + r.len <= p || p + length <= d;
+        bridged = CaptureSource(spans, count, r, stride, rectB, src, mode, &capture);
+        refusal = capture.refusal;
+        if (bridged && (capture.legacyShort || capture.legacyOverlap)) {
+            const uint64_t shorter = capture.legacyShort ? g.legacyShort.fetch_add(1) : g.legacyShort.load();
+            const uint64_t overlap = capture.legacyOverlap ? g.legacyOverlap.fetch_add(1) : g.legacyOverlap.load();
+            if (shorter + overlap < 16)
+                Log("span8888: captured %s count=%u mode=%u source=%08X stride=%d width=%u height=%u "
+                    "format=%u keyed=%u touched=[%lld,%lld) legacy_short=%u legacy_envelope_overlap=%u",
+                    fixture ? "constructed-native" : "runtime", count, mode, rectB[0], static_cast<int32_t>(rectB[1]),
+                    rectB[2], rectB[3], reinterpret_cast<const uint32_t*>(src)[4], unsigned(src[28]),
+                    (long long)capture.first, (long long)capture.end, unsigned(capture.legacyShort), unsigned(capture.legacyOverlap));
         }
     }
-    const int32_t stride = bridged ? static_cast<int32_t>(buffer[1]) : 0;
     if (!bridged) {
         if (g.fallback[s].fetch_add(1, std::memory_order_relaxed) < 8)
-            Log("span8888: refused %s native memory window (invalid/overlapping source or unsupported region), count=%u",
-                kSlotName[s], count);
+            Log("span8888: refused %s reason=%s count=%u mode=%u", kSlotName[s], refusal, count, mode);
+        if (fixture) g.fixtureFallback[s].fetch_add(1);
         SpanNoteRefused(kSpanR8888);
         Original(s, self, spans, count, buffer, a, b, rectB, src, mode);
         return;
     }
     // The context fixture (FC4SpanContext.cpp) needs ours' pixels even under span8888_shadow.
-    if (!g.shadow || SpanContextFixtureThread()) {
-        const int32_t status = Ours(s, spans, count, r.lo, r, stride, a, b, rectB, src, mode);
+    if (!g.shadow || fixture) {
+        const int32_t status = Ours(s, spans, count, r.lo, r, stride, a, b, rectB, src, mode, &capture);
         if (status == 0) {
             g.ours[s].fetch_add(1, std::memory_order_relaxed);
+            if (fixture) g.fixtureOurs[s].fetch_add(1);
         } else {
             if (g.fallback[s].fetch_add(1, std::memory_order_relaxed) < 8)
                 Log("span8888: refused %s core status=%d count=%u mode=%u", kSlotName[s], status, count, mode);
+            if (fixture) g.fixtureFallback[s].fetch_add(1);
             SpanNoteRefused(kSpanR8888);
             Original(s, self, spans, count, buffer, a, b, rectB, src, mode);
         }
         return;
     }
+    // Freeze all non-pixel inputs before native rendering too. The source was
+    // captured before Original; true source/destination alias was refused.
+    const std::vector<uint32_t> savedSpans(spans, spans + size_t(count) * 2);
+    uint32_t savedImage[6] = {}, savedDesc[8] = {}, savedGradient[12] = {};
+    if (s == kBlt) {
+        std::memcpy(savedImage, rectB, sizeof(savedImage));
+        std::memcpy(savedDesc, src, sizeof(savedDesc));
+    }
+    if (s == kGradient || s == kAlphaGradient) {
+        std::memcpy(savedGradient, reinterpret_cast<const void*>(a), sizeof(savedGradient));
+        a = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(savedGradient));
+    }
     std::vector<uint8_t> copy(r.lo, r.lo + r.len);
-    Original(s, self, spans, count, buffer, a, b, rectB, src, mode);
-    const int32_t status = Ours(s, spans, count, copy.data(), r, stride, a, b, rectB, src, mode);
+    const auto* savedSource = reinterpret_cast<const uint8_t*>(savedDesc);
+    Original(s, self, savedSpans.data(), count, buffer, a, b, savedImage, savedSource, mode);
+    const int32_t status = Ours(s, savedSpans.data(), count, copy.data(), r, stride, a, b, savedImage, savedSource, mode, &capture);
     if (status != 0) {
         if (g.fallback[s].fetch_add(1, std::memory_order_relaxed) < 8)
             Log("span8888: shadow refused %s core status=%d count=%u mode=%u", kSlotName[s], status, count, mode);
@@ -288,14 +421,17 @@ struct Call {
     const uint32_t* rectB;
     const uint8_t* src;
     uint32_t* desc;
+    const uint32_t* spans;
+    uint32_t count;
 };
 
 void CallOriginalGuarded(void* ctx) {
     Call* c = static_cast<Call*>(ctx);
-    Original(c->s, nullptr, kSpans, kSpanCount, c->desc, c->a, c->b, c->rectB, c->src, c->mode);
+    Original(c->s, nullptr, c->spans, c->count, c->desc, c->a, c->b, c->rectB, c->src, c->mode);
 }
 
-void RunCase(Fixture& f, Slot s, uint32_t a, uint32_t b, const uint32_t* rectB, const uint8_t* src, uint32_t mode) {
+void RunCase(Fixture& f, Slot s, uint32_t a, uint32_t b, const uint32_t* rectB, const uint8_t* src, uint32_t mode,
+             const uint32_t* spans = kSpans, uint32_t count = kSpanCount) {
     constexpr size_t guard = 32;
     uint8_t native[sizeof(f.dstInit) + 2 * guard], ours[sizeof(native)];
     std::memset(native, 0xA5, sizeof(native));
@@ -308,11 +444,11 @@ void RunCase(Fixture& f, Slot s, uint32_t a, uint32_t b, const uint32_t* rectB, 
     r.lo = ours;
     r.len = sizeof(ours);
     r.origin = guard;
-    if (Ours(s, kSpans, kSpanCount, ours, r, kStride, a, b, rectB, src, mode) != 0) {
+    if (Ours(s, spans, count, ours, r, kStride, a, b, rectB, src, mode) != 0) {
         ++f.rejected;
         return;
     }
-    Call c{s, a, b, mode, rectB, src, desc};
+    Call c{s, a, b, mode, rectB, src, desc, spans, count};
     if (!SehGuard("span8888 fixture original", &CallOriginalGuarded, &c)) {
         ++f.faults;
         return;
@@ -321,10 +457,10 @@ void RunCase(Fixture& f, Slot s, uint32_t a, uint32_t b, const uint32_t* rectB, 
     int first = -1;
     for (size_t i = 0; i < sizeof(native); ++i) {
         bool touched = false;
-        for (uint32_t j = 0; j < kSpanCount; ++j) {
-            const uint32_t start = kSpans[2 * j];
+        for (uint32_t j = 0; j < count; ++j) {
+            const uint32_t start = spans[2 * j];
             const size_t off = guard + (start >> 16) * kStride + (start & 0xFFFFu) * 4;
-            touched |= i >= off && i < off + (kSpans[2 * j + 1] - start) * 4;
+            touched |= i >= off && i < off + (spans[2 * j + 1] - start) * 4;
         }
         const uint8_t initial = i >= guard && i < guard + sizeof(f.dstInit) ? f.dstInit[i - guard] : 0xA5;
         if (!touched && (native[i] != initial || ours[i] != initial)) ++f.guardFailures;
@@ -391,6 +527,48 @@ void RunFixture() {
             for (uint32_t mode = 0; mode < 12; ++mode) RunCase(f, kBlt, 0, 0, rectB, desc, mode);
         }
     }
+    // Independent native comparisons for the corrected §7 bounds contract:
+    // direct/stretch ignore these zero dimensions, for all seven formats.
+    const uint32_t ignoredSize[6] = {
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(f.src)), kSrcStride, 0, 0, 0, 0};
+    for (uint32_t format = 0; format < 7; ++format) {
+        const uint32_t desc[8] = {0, 0, 0x10000, 0x10000, format, 0xFFFFFFFF, 0, 0};
+        for (uint32_t mode : {0u, 4u})
+            RunCase(f, kBlt, 0, 0, ignoredSize, reinterpret_cast<const uint8_t*>(desc), mode);
+    }
+    // A pre-offset base in a RESERVED (unreadable) page, with only the
+    // actually sampled rows committed. Never read that unused prefix.
+    SYSTEM_INFO sys = {};
+    GetSystemInfo(&sys);
+    const size_t page = sys.dwPageSize;
+    auto* arena = static_cast<uint8_t*>(VirtualAlloc(nullptr, 3 * page, MEM_RESERVE, PAGE_NOACCESS));
+    auto* pixels = arena ? static_cast<uint8_t*>(VirtualAlloc(arena + page, 2 * page, MEM_COMMIT, PAGE_READWRITE)) : nullptr;
+    if (!pixels) {
+        ++f.faults;
+    } else {
+        for (size_t i = 0; i < 2 * page; ++i) pixels[i] = uint8_t(f.Next() >> 24);
+        const uint32_t spans[] = {0x00010002, 0x00010008, 0x00020001, 0x00020009};
+        const uint32_t image[6] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(arena)),
+                                  static_cast<uint32_t>(page), 0, 0, 0, 0};
+        const uint32_t desc[8] = {0, 0, 0x10000, 0x10000, 4, 0xFFFFFFFF, 0, 0};
+        for (uint32_t mode : {0u, 4u})
+            RunCase(f, kBlt, 0, 0, image, reinterpret_cast<const uint8_t*>(desc), mode, spans, 2);
+    }
+    if (arena) VirtualFree(arena, 0, MEM_RELEASE);
+    // Safety controls are refusals, not native comparison successes.
+    const uint32_t oneSpan[] = {0, 2};
+    uint32_t alias[4] = {0x12345678, 0x9ABCDEF0, 0x11111111, 0x22222222};
+    const uint32_t image[6] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(alias)), 16, 0, 0, 0, 0};
+    const uint32_t desc[8] = {0, 0, 0, 0, 4, 0xFFFFFFFF, 0, 0};
+    Region ar;
+    ar.lo = reinterpret_cast<uint8_t*>(alias);
+    ar.len = sizeof(alias);
+    SourceCapture refused;
+    const bool safe = !CaptureSource(oneSpan, 1, ar, 16, image, reinterpret_cast<const uint8_t*>(desc), 0, &refused) &&
+                      std::strcmp(refused.refusal, "actual-source-destination-alias-SR8888-1") == 0 &&
+                      alias[0] == 0x12345678 && alias[1] == 0x9ABCDEF0;
+    if (!safe) ++f.guardFailures;
+    Log("span8888 fixture safety [not a comparison]: true_alias_refused=%u unchanged=%u", unsigned(safe), unsigned(safe));
     for (unsigned s = 0; s < kSlots; ++s)
         Log("span8888 fixture [constructed direct, not a game path]: slot %u %s cases=%llu differing=%llu", s + 1,
             kSlotName[s], (unsigned long long)f.slotCases[s], (unsigned long long)f.slotDiffs[s]);
@@ -455,12 +633,24 @@ void SpanRender8888Stop() {
         orig[i] = reinterpret_cast<void*>(g.original[i]);
     }
     const bool ok = WriteEntries(g.vtable + 1, orig);
-    for (unsigned s = 0; s < kSlots; ++s)
+    for (unsigned s = 0; s < kSlots; ++s) {
         Log("span8888: %s calls=%llu ours=%llu original_fallback=%llu shadow_compared=%llu shadow_differing=%llu "
             "diff_pixels=%llu",
             kSlotName[s], (unsigned long long)g.calls[s].load(), (unsigned long long)g.ours[s].load(),
             (unsigned long long)g.fallback[s].load(), (unsigned long long)g.compared[s].load(),
             (unsigned long long)g.differing[s].load(), (unsigned long long)g.diffPixels[s].load());
+        const uint64_t fixture = g.fixtureCalls[s].load();
+        Log("span8888: runtime %s calls=%llu ours=%llu original_fallback=%llu shadow_compared=%llu "
+            "constructed_native_calls=%llu constructed_native_ours=%llu constructed_native_fallback=%llu unaccounted=%llu",
+            kSlotName[s], (unsigned long long)(g.calls[s].load() - fixture),
+            (unsigned long long)(g.ours[s].load() - g.fixtureOurs[s].load()),
+            (unsigned long long)(g.fallback[s].load() - g.fixtureFallback[s].load()),
+            (unsigned long long)g.compared[s].load(), (unsigned long long)fixture,
+            (unsigned long long)g.fixtureOurs[s].load(), (unsigned long long)g.fixtureFallback[s].load(),
+            (unsigned long long)(g.calls[s].load() - g.ours[s].load() - g.fallback[s].load() - g.compared[s].load()));
+    }
+    Log("span8888: corrected_source_windows legacy_short=%llu legacy_envelope_overlap=%llu resync=0",
+        (unsigned long long)g.legacyShort.load(), (unsigned long long)g.legacyOverlap.load());
     Log("span8888: bridge %s", ok ? "removed (original entries back)" : "NOT removed: VirtualProtect failed");
 }
 

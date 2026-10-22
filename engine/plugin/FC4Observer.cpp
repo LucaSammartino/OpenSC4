@@ -12,6 +12,8 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4Observer.h"
+#include "FC4IndustrialShadow.h"
+#include "FC4FontSysVerify.h"
 
 #include "FC4AuraShadow.h"
 #include "FC4Autoload.h"
@@ -44,6 +46,7 @@
 #include "cFC4PropDeveloper.h"    // the glue12b1 lane: the propdev month line
 #include "FC4AutomataShadow.h"  // the glue19 lane
 #include "FC4SimGridProbe.h"    // the glue-simgrids4 lane
+#include "FC4SimGridsShadow.h"
 #include "FC4MySimsShadow.h"    // the mysims1 lane: mysims_shadow
 #include "FC4AutomataDriver.h"  // the glue19 lane: the riot / fire driver
 #include "FC4DisasterShadow.h"
@@ -63,6 +66,7 @@
 #include "cFC4LotDeveloper.h"
 #include "cFC4Message2Standard.h"
 #include "fc4.h"
+#include "cFC4Date.h"  // glue-dates4: opt-in independent date verification
 
 #include "GZServPtrs.h"
 #include "cIGZApp.h"
@@ -81,6 +85,8 @@
 #include "FC4FormatsShadow.h"  // the glue-formats4 lane
 #include "FC4Span1555Shadow.h"  // the glue-span1555-impl4 lane
 #include "FC4SpanContext.h"  // the glue-span-context-final4 lane
+#include "FC4SpanRender8.h"
+#include "FC4FeatureShadow.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -593,6 +599,7 @@ public:
                 AutoloadOnCityLoaded();
                 PopupDialogsOnCityLoad();
                 SimGridProbeAtCityLoaded();  // glue-simgrids4 tooling (simgrids_probe)
+                SimGridsShadowFixtures();  // constructed cases, separate from natural power calls
                 AuraShadowCityLoaded(CurrentCity());  // aura_shadow = 1 only
                 ZonesShadowCityLoaded(CurrentCity());  // zones_shadow = 1 only
                 TractShadowCityLoaded(CurrentCity());  // tract_shadow = 1 only
@@ -617,22 +624,29 @@ public:
                 fc4::AutomataDriverCityLoaded(CurrentCity());  // the automata riot / fire driver (automata.md 8)
                 fc4::MySimsShadowCityLoaded(CurrentCity());  // mysims_shadow = 1 only
                 fc4::FormatsShadowCityLoaded();  // the glue-formats4 lane: formats_shadow = 1 only
+                fc4::FeatureShadowLoaded();
                 fc4::Span1555CityLoaded();  // glue-span1555-impl4: enable = span1555 only (constructed fixture)
                 fc4::SpanContextCityLoaded();  // glue-span-context-final4: span1555 / span4444 on only
+                fc4::Span8CityLoaded();
                 fc4::MySimsShadowMonth(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // the load comparison
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
                 monthsSinceLoad_ = 0;
+                IndustrialShadowProbe(CurrentCity(), "load");
+                FontSysVerify("load");
                 break;
             case kMsgPreSave:
                 PropLotShadowPreSave(CurrentCity());  // the records just before the save writes them
+                IndustrialShadowProbe(CurrentCity(), "presave");
+                FontSysVerify("presave");
                 break;
             case kMsgConnectionsReady:
                 PopupDialogsOnConnectionsReady();
                 // Then (popup dialogs handled first) a held turbo request may
                 // engage (FC4Turbo.h; tooling).
                 TurboOnConnectionsReady();
+                DatesProbe(CurrentCity(), "connections-ready");
                 break;
             case kMsgAuraCycleCompleted:
                 AuraShadowCycle(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // aura_shadow = 1 only
@@ -669,7 +683,11 @@ public:
                 NetToolRegistry::LogSummary("city shutdown");
                 fc4::MySimsShadowCityShutdown();  // mysims_shadow: the summary line, then the core goes
                 NetToolRegistry::CityShutdown();  // the glue29 lane: the shared replacement tools
+                IndustrialShadowProbe(CurrentCity(), "shutdown");
+                FontSysVerify("shutdown");
                 AutotestOnCityShutdown(false);
+                DatesProbeSummary("city-shutdown");
+                fc4::FeatureShadowShutdown();
                 break;
             case kMsgPostCityShutdown:
                 AutotestOnCityShutdown(true);
@@ -697,6 +715,7 @@ public:
                 if (ok) PublishJulian(static_cast<int32_t>(j));
                 const int32_t julian = ok ? static_cast<int32_t>(j) : static_cast<int32_t>(PublishedJulian());
                 if (digest_) WriteDigest(julian);
+                fc4::FeatureShadowMonth();
                 if (observe_) {
                     WriteObserve(&ObserveMonthStep, "observe month", julian, nullptr);
                     FpuLog("observe month");
@@ -721,6 +740,7 @@ public:
                 cFC4PropDeveloper::MonthLine(julian);           // enable = propdev only (the month status line)
                 PropDevShadowMonth(CurrentCity(), julian);      // propdev_shadow = 1 only
                 fc4::MySimsShadowMonth(CurrentCity(), julian);  // mysims_shadow = 1 only
+                DatesProbe(CurrentCity(), "month");
                 ++monthsSinceLoad_;                if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the
                     // simulator's month-change message.

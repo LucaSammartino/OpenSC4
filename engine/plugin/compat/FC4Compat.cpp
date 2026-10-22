@@ -897,5 +897,25 @@ bool Span8888SlotEntry(unsigned slot, void*** entry, uintptr_t* function) {
     return true;
 }
 
+bool FeatureManagerSupported(const void* object) {
+    const ExecutableVersion* v = IdentifiedVersion();
+    MEMORY_BASIC_INFORMATION obj{}, table{};
+    if (!v || !object || VirtualQuery(object, &obj, sizeof(obj)) != sizeof(obj) ||
+        obj.State != MEM_COMMIT || (obj.Protect & (PAGE_GUARD | PAGE_NOACCESS)) ||
+        reinterpret_cast<uintptr_t>(object) + 12 > reinterpret_cast<uintptr_t>(obj.BaseAddress) + obj.RegionSize)
+        return false;
+    const uintptr_t vt = *static_cast<const uintptr_t*>(object);
+    if (vt != 0x00A88274 || VirtualQuery(reinterpret_cast<const void*>(vt), &table, sizeof(table)) != sizeof(table) ||
+        table.State != MEM_COMMIT || table.Type != MEM_IMAGE ||
+        reinterpret_cast<uintptr_t>(table.AllocationBase) != v->imageBase || table.Protect != PAGE_READONLY)
+        return false;
+    constexpr uintptr_t slots[] = {0x0046F740, 0x004BDF00, 0x0046F7F0, 0x0046FD50, 0x0046F770,
+        0x0046FA80, 0x0046F780, 0x0046F7A0, 0x0046F7D0};
+    const auto* entries = reinterpret_cast<const uintptr_t*>(vt);
+    for (unsigned i = 0; i < 9; ++i)
+        if (entries[i] != slots[i] || !CheckCode("feature manager slot", slots[i], v->imageBase)) return false;
+    const int32_t count = static_cast<const int32_t*>(object)[2];
+    return count > 0 && count < 0x7ffffff0;
+}
 }  // namespace compat
 }  // namespace fc4

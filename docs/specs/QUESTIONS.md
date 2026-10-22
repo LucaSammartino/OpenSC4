@@ -66,7 +66,9 @@ generated index: the questions live one file per spec, so read only the file for
 | FQ | flora |
 | FS | graphics-formats |
 | GC | command-system |
+| GD | renderer-gdrivers-director |
 | GF | graphics-formats |
+| GI | renderer-gdrivers-director-inventory |
 | GLUE | lot-configuration, prop-developer |
 | GR | graphics-rules |
 | GT | glyph-textures |
@@ -177,7 +179,7 @@ generated index: the questions live one file per spec, so read only the file for
 | building-development | 0 | 39 | DG40 | - |
 | bulldozer-tool | 1 | 0 | BT2 | questions/bulldozer-tool.md |
 | camera | 3 | 4 | CA8 | questions/camera.md |
-| city-detail | 2 | 5 | CD8 | questions/city-detail.md |
+| city-detail | 3 | 5 | CD9 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
 | city-tools | 3 | 0 | CT4 | questions/city-tools.md |
 | city-tools-input | 12 | 1 | CT14 | questions/city-tools-input.md |
@@ -185,25 +187,25 @@ generated index: the questions live one file per spec, so read only the file for
 | clock24 | 0 | 22 | CK23 | - |
 | command-line | 3 | 0 | CL4 | questions/command-line.md |
 | command-system | 7 | 0 | GC8 | questions/command-system.md |
-| commercial-industrial | 0 | 12 | CM11, IN3 | - |
+| commercial-industrial | 1 | 12 | CM11, IN4 | questions/commercial-industrial.md |
 | crime | 0 | 24 | CQ25 | - |
 | data-formats | 2 | 56 | EX54 | questions/data-formats.md |
-| dates | 1 | 2 | DT4 | questions/dates.md |
+| dates | 3 | 2 | DT6 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 2 | 44 | DS47 | questions/disasters.md |
 | dispatch | 4 | 9 | DP14 | questions/dispatch.md |
 | draw-context | 8 | 0 | DC9 | questions/draw-context.md |
-| drawing-fonts | 0 | 17 | FN18 | questions/drawing-fonts.md |
+| drawing-fonts | 5 | 17 | FN23 | questions/drawing-fonts.md |
 | drive-tool | 2 | 0 | DR3 | questions/drive-tool.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
-| feature-manager | 4 | 0 | FM5 | questions/feature-manager.md |
+| feature-manager | 3 | 2 | FM6 | questions/feature-manager.md |
 | fire-flames | 4 | 0 | FF5 | questions/fire-flames.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | foundations | 4 | 8 | AO4, HG4, RN6, SV2 | questions/foundations.md |
-| framework-gz-services | 0 | 7 | GZ8 | questions/framework-gz-services.md |
-| framework-rz-files | 8 | 0 | RZ9 | questions/framework-rz-files.md |
+| framework-gz-services | 3 | 7 | GZ11 | questions/framework-gz-services.md |
+| framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
 | geometry-utilities | 6 | 0 | GU7 | questions/geometry-utilities.md |
 | glyph-textures | 6 | 0 | GT7 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
@@ -214,7 +216,7 @@ generated index: the questions live one file per spec, so read only the file for
 | landvalue | 3 | 6 | LV8 | questions/landvalue.md |
 | language-utility | 3 | 0 | LU4 | questions/language-utility.md |
 | legacy-control | 3 | 4 | LC9 | questions/legacy-control.md |
-| lighting | 4 | 7 | LT12 | questions/lighting.md |
+| lighting | 6 | 7 | LT14 | questions/lighting.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-configuration-editor | 3 | 2 | LE6 | questions/lot-configuration-editor.md |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
@@ -222,7 +224,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-records | 2 | 9 | LR12 | questions/lot-records.md |
 | lua-host | 0 | 4 | LH3 | questions/lua-host.md |
 | map-view | 4 | 0 | QV5 | questions/map-view.md |
-| model-instances | 2 | 0 | MI3 | questions/model-instances.md |
+| model-instances | 5 | 0 | MI14 | questions/model-instances.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
 | mysims | 0 | 16 | MS17 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
@@ -246,13 +248,13 @@ generated index: the questions live one file per spec, so read only the file for
 | paths | 8 | 0 | PA9 | questions/paths.md |
 | pedestrians | 2 | 0 | PN3 | questions/pedestrians.md |
 | persistence | 3 | 1 | PR5 | questions/persistence.md |
-| persistence-manager | 1 | 0 | PR6 | questions/persistence-manager.md |
+| persistence-manager | 0 | 1 | PR6 | questions/persistence-manager.md |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
 | pollution | 0 | 16 | PG17 | - |
 | port-developers | 0 | 12 | PD13 | questions/port-developers.md |
 | power | 0 | 12 | CR2, PW12 | - |
 | prop-developer | 0 | 14 | GLUE22, PV14 | - |
-| prop-lotconfig | 7 | 8 | PL23 | questions/prop-lotconfig.md |
+| prop-lotconfig | 8 | 8 | PL24 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
 | region | 2 | 0 | RQ3 | questions/region.md |
@@ -263,9 +265,11 @@ generated index: the questions live one file per spec, so read only the file for
 | render-properties | 3 | 3 | RP7 | questions/render-properties.md |
 | render3d | 3 | 1 | RND5 | questions/render3d.md |
 | renderer-driver | 4 | 1 | RD6 | questions/renderer-driver.md |
+| renderer-gdrivers-director | 1 | 0 | GD2 | questions/renderer-gdrivers-director.md |
+| renderer-gdrivers-director-inventory | 2 | 0 | GI3 | questions/renderer-gdrivers-director-inventory.md |
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
-| simgrid | 1 | 0 | SG2 | questions/simgrid.md |
+| simgrid | 2 | 0 | SG3 | questions/simgrid.md |
 | snapshots | 2 | 0 | SN3 | questions/snapshots.md |
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 3 | 4 | SP8 | questions/span-render-4444.md |
@@ -296,4 +300,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **388** | **1222** | | |
+| **total** | **411** | **1225** | | |

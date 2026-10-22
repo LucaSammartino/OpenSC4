@@ -162,19 +162,20 @@ impl BuiltinCache {
     ) -> u32 {
         host.lock(Lock::CacheEntries(self.id), true);
         let mut count = 0u32;
-        for (stored_key, resource) in self.entries.entries() {
-            // Literal entry-filter reading of §8.1; PR5 asks which key the
-            // predicate sees after an external SetKey changes the resource.
-            if self.filter.is_some_and(|f| !f.accepts(host, *stored_key)) {
+        for (_, resource) in self.entries.entries() {
+            // PR5: one current-key copy per entry, even without output or on
+            // rejection. Callbacks may SetKey; predicates and output keep this copy.
+            let resource = resource.expect("enumerated resource must be valid");
+            let key = host.resource_key(resource);
+            if self.filter.is_some_and(|f| !f.accepts(host, key)) {
                 continue;
             }
-            if filter.is_some_and(|f| !f.accepts(host, *stored_key)) {
+            if filter.is_some_and(|f| !f.accepts(host, key)) {
                 continue;
             }
             count = count.wrapping_add(1);
             if let Some(list) = list.as_mut() {
-                let resource = resource.expect("enumerated resource must be valid");
-                list.insert(host.resource_key(resource));
+                list.insert(key);
             }
         }
         host.lock(Lock::CacheEntries(self.id), false);
@@ -396,8 +397,193 @@ impl<P: Primitives> CacheStore<P> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::test_host::Host;
+    use super::super::test_host::{Event, Host, Predicate};
     use super::*;
+
+    const K: Key = Key::new(1, 2, 194);
+    const J: Key = Key::new(1, 2, 1);
+    const L: Key = Key::new(9, 7, 8);
+    const M: Key = Key::new(10, 7, 9);
+    const SENTINEL: Key = Key::new(99, 98, 97);
+    const R: Object = Object(1);
+    const S: Object = Object(2);
+    const STORED: Object = Object(3);
+    const SUPPLIED: Object = Object(4);
+
+    fn pr5_fixture() -> (BuiltinCache, Host) {
+        let mut cache = BuiltinCache::new(CacheId::Builtin(1));
+        let mut host = Host::default();
+        for object in [R, S, STORED, SUPPLIED] {
+            host.counts.insert(object, 1);
+        }
+        assert!(cache.insert(&mut host, K, R));
+        assert!(cache.insert(&mut host, J, S));
+        (cache, host)
+    }
+
+    fn predicate(host: &mut Host, object: Object, key: Key, set_key: Option<(Object, Key)>) {
+        host.filters.insert(object, Predicate { key, set_key });
+    }
+
+    fn assert_enumeration_events(cache: &BuiltinCache, host: &Host, inner: Vec<Event>) {
+        let mut expected = vec![Event::Lock(Lock::CacheEntries(cache.id), true)];
+        expected.extend(inner);
+        expected.push(Event::Lock(Lock::CacheEntries(cache.id), false));
+        // Includes GetKey on rejected entries and excludes any refcount calls.
+        assert_eq!(host.events, expected);
+    }
+
+    fn finish_pr5(cache: &mut BuiltinCache, host: &mut Host) {
+        cache.shutdown(host);
+        cache.destroy(host, 1);
+        for object in [R, S, STORED, SUPPLIED] {
+            assert_eq!(host.counts[&object], 1);
+        }
+    }
+
+    #[test]
+    fn pr5_a_through_d_filters_use_current_key_with_or_without_output() {
+        use Event::{Filter as F, GetKey as G};
+        let cases = [
+            // A: unchanged resource. B: stored-key acceptance must be rejected.
+            (
+                K,
+                Some(K),
+                K,
+                1,
+                vec![G(S), F(STORED, J), G(R), F(STORED, K), F(SUPPLIED, K)],
+            ),
+            (L, Some(K), K, 0, vec![G(S), F(STORED, J), G(R), F(STORED, L)]),
+            // C: current-key acceptance. D: supplied filter independently rejects.
+            (
+                L,
+                Some(L),
+                L,
+                1,
+                vec![G(S), F(STORED, J), G(R), F(STORED, L), F(SUPPLIED, L)],
+            ),
+            (
+                L,
+                Some(L),
+                K,
+                0,
+                vec![G(S), F(STORED, J), G(R), F(STORED, L), F(SUPPLIED, L)],
+            ),
+            // Supplied predicate alone must accept L and reject K after SetKey.
+            (L, None, L, 1, vec![G(S), F(SUPPLIED, J), G(R), F(SUPPLIED, L)]),
+            (L, None, K, 0, vec![G(S), F(SUPPLIED, J), G(R), F(SUPPLIED, L)]),
+        ];
+        for (current, stored, supplied, accepted, trace) in cases {
+            for output in [true, false] {
+                let (mut cache, mut host) = pr5_fixture();
+                host.resource_set_key(R, current);
+                if let Some(key) = stored {
+                    predicate(&mut host, STORED, key, None);
+                    cache.set_filter(&mut host, Some(Filter::Foreign(STORED)));
+                }
+                predicate(&mut host, SUPPLIED, supplied, None);
+                let counts = host.counts.clone();
+                host.events.clear();
+                let mut list = KeyList::new();
+                list.insert(SENTINEL);
+                let out = if output { Some(&mut list) } else { None };
+                assert_eq!(
+                    cache.enumerate(&mut host, out, Some(Filter::Foreign(SUPPLIED))),
+                    accepted
+                );
+                assert_enumeration_events(&cache, &host, trace.clone());
+                let expected = if output && accepted == 1 {
+                    vec![SENTINEL, current]
+                } else {
+                    vec![SENTINEL]
+                };
+                assert_eq!(list.keys(), expected);
+                assert_eq!(host.counts, counts);
+
+                // External SetKey changes enumeration, never the table index.
+                let mut found = Some(STORED);
+                assert!(cache.get(&mut host, K, &mut found));
+                assert_eq!(found, Some(R));
+                host.release(R);
+                found = Some(STORED);
+                assert!(!cache.get(&mut host, L, &mut found));
+                assert_eq!(found, Some(STORED));
+                assert_eq!(host.counts, counts);
+                finish_pr5(&mut cache, &mut host);
+            }
+        }
+    }
+
+    #[test]
+    fn pr5_e_duplicate_current_keys_and_type_filter_keep_stored_entries() {
+        use Event::GetKey as G;
+        for output in [true, false] {
+            let (mut cache, mut host) = pr5_fixture();
+            host.resource_set_key(R, L);
+            host.resource_set_key(S, L);
+            let counts = host.counts.clone();
+            let mut list = KeyList::new();
+            list.insert(SENTINEL);
+            host.events.clear();
+            let out = if output { Some(&mut list) } else { None };
+            assert_eq!(cache.enumerate(&mut host, out, None), 2);
+            assert_enumeration_events(&cache, &host, vec![G(S), G(R)]);
+            assert_eq!(list.keys(), if output { vec![SENTINEL, L, L] } else { vec![SENTINEL] });
+            assert_eq!(cache.len(), 2);
+            for (ty, count) in [(1, 0), (9, 2)] {
+                host.events.clear();
+                assert_eq!(cache.enumerate_type(&mut host, None, ty), count);
+                assert_enumeration_events(&cache, &host, vec![G(S), G(R)]);
+            }
+            assert_eq!(host.counts, counts);
+            assert!(cache.contains(&mut host, K));
+            assert!(cache.contains(&mut host, J));
+            assert!(!cache.contains(&mut host, L));
+            finish_pr5(&mut cache, &mut host);
+        }
+    }
+
+    #[test]
+    fn pr5_f_either_filter_can_set_key_without_changing_this_calls_copy() {
+        use Event::{Filter as F, GetKey as G, SetKey as Set};
+        // PR5-F mutates through the stored filter; also exercise supplied-filter mutation.
+        for mutator in [STORED, SUPPLIED] {
+            for output in [true, false] {
+                let (mut cache, mut host) = pr5_fixture();
+                host.resource_set_key(R, L);
+                for filter in [STORED, SUPPLIED] {
+                    let mutation = if filter == mutator { Some((R, M)) } else { None };
+                    predicate(&mut host, filter, L, mutation);
+                }
+                cache.set_filter(&mut host, Some(Filter::Foreign(STORED)));
+                let counts = host.counts.clone();
+                host.events.clear();
+                let mut list = KeyList::new();
+                list.insert(SENTINEL);
+                let out = if output { Some(&mut list) } else { None };
+                assert_eq!(cache.enumerate(&mut host, out, Some(Filter::Foreign(SUPPLIED))), 1);
+                let mut trace = vec![G(S), F(STORED, J), G(R), F(STORED, L)];
+                if mutator == STORED {
+                    trace.push(Set(R, M));
+                }
+                trace.push(F(SUPPLIED, L));
+                if mutator == SUPPLIED {
+                    trace.push(Set(R, M));
+                }
+                assert_enumeration_events(&cache, &host, trace);
+                assert_eq!(list.keys(), if output { vec![SENTINEL, L] } else { vec![SENTINEL] });
+                assert_eq!(host.keys[&R], M);
+                assert_eq!(host.counts, counts);
+
+                // Next call reads M once; rejection still reads both resources.
+                host.events.clear();
+                assert_eq!(cache.enumerate(&mut host, None, Some(Filter::Foreign(SUPPLIED))), 0);
+                assert_enumeration_events(&cache, &host, vec![G(S), F(STORED, J), G(R), F(STORED, M)]);
+                assert_eq!(host.counts, counts);
+                finish_pr5(&mut cache, &mut host);
+            }
+        }
+    }
 
     #[test]
     fn pm19_null_only_entries_are_removed_without_a_successful_resource_purge() {

@@ -16,16 +16,19 @@
 // goes to the saved native method. Entries are written only when all six hold
 // the published originals; PreAppShutdown writes the originals back.
 //
-// Counters are split by origin: "constructed" = calls made on the thread of
-// the span565_trace fixture while it runs, "shipped" = every other call.
+// Exact published context CALL return addresses distinguish constructed native
+// context, constructed direct, natural native context, and other calls.
 //
 // `span565_trace = 1` (needs the bridge): at PostAppInit a constructed buffer
-// (cGZBuffer 0xC470D325, Init(5, 3, 5, 16), stride 12) gets a native
-// RenderToBuffer context from the draw system (slot 4), Init, then every
-// untextured DrawPreclippedSpanList path is drawn twice, the native method
-// forced and ours, and every byte of the buffer (padding included) compared;
-// RenderBlt is compared by direct slot calls on a second constructed buffer
-// (no texture setter is published). Log lines start "span565".
+// (cGZBuffer 0xC470D325, Init(17, 12, 5, 16), stride 36) gets a native
+// RenderToBuffer context from draw-system slot 4. Public Init/setters/slot 22
+// produce all four untextured paths and 156 reachable texture row/kind pairs.
+// The original draws once on the live native target; independent Rust receives
+// guarded copies of the complete padded preimage and captured source/records.
+// No native result is restored or resynchronized. Public reference/lock probes
+// check source clearing, Suspend/Resume, Shutdown and final releases. These
+// constructed fixtures establish no natural usage or replacement-owner credit.
+// Log lines start "span565". SR565-6's unresolved failure exits are unchanged.
 #pragma once
 
 namespace fc4 {

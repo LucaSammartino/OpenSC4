@@ -141,3 +141,4 @@ pub mod terrain_ripples;
 pub mod occupant_groups;
 pub mod animated_sprite;
 pub mod draw_context;
+pub mod gdrivers_director;
