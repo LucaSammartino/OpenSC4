@@ -1,6 +1,6 @@
 # Spec: graphics-driver COM director (`cSC4GDriversCOMDirector`)
 
-Status: **implementation spec for this director's complete attributed inventory and dispatch surface**.
+Status: **director dispatch specified; round-2 coverage inventory and reachable-body contracts below**.
 Clean-room behavior contract for SimCity 4
 Deluxe GOG 1.1.641. Prose, constants and address citations are the implementer-facing output; original
 program material must not be consulted by implementers.
@@ -11,12 +11,22 @@ This owner publishes factories through the COM director protocol. It is separate
 operations in [renderer-driver.md](renderer-driver.md). No new coverage of `nSGLDX7`, `nRZSimGL`,
 `cGZBufferSimGLCache`, or RD3–RD5 is claimed here.
 
-The export's exact owner spelling is **`cSC4GDriversCOMDirector`**, without `8068B`. Its directly named
-inventory is **two bodies, 85 bytes**. A folded deleting destructor also names this class among eight
-aliases, but its 30 bytes are shared and must not be counted as another exclusive director body.
-The task's `8068B` suffix is not evidence for an 8,068-byte body inventory. The singleton accessor,
-registered factories and inherited bodies below are supporting evidence, separately accounted for.
-No native object layout is prescribed.
+The coverage-attributed inventory is **65 bodies, 8,068 bytes**. The two directly named methods
+account for only **85 bytes**; they are not the completion denominator. The remaining **63 bodies,
+7,983 bytes** include the first two registered factories, their constructors/destructors, interface
+thunks, OpenGL operations, and software-driver support. These are real reachable bodies, retained in
+scope even where their export names misleadingly mention DX7. A folded deleting destructor also names
+this class among eight aliases; its 30 shared bytes are supporting dispatch evidence outside the 8,068.
+The singleton accessor and inherited methods are likewise additional supporting evidence, not a
+substitute inventory. No native object layout is prescribed.
+
+The exact checklist is in [the attributed-body inventory](renderer-gdrivers-director-inventory.md).
+It preserves the current attribution, including neighbor rules; neither ownership nor the coverage
+denominator is changed. In particular, the constructor really passes factory addresses
+`0x0087E1D0` and `0x008DCD30` to registration (`0x00466265`, `0x00466277`); their calls to
+`0x0087DEE0` and `0x008DC960` are executable calls, not false constant references. Those constructors
+install the tables whose methods lead to the remaining bodies. The separate factory
+`0x00886700` and capped DX7 driver are not added to this inventory.
 
 | Attributed body | Address | Export size | Checklist / contract |
 |---|---|---:|---|
@@ -314,9 +324,10 @@ not additions to the two directly attributed owner bodies.
 | String length / character-data getters | `0x0090E4B6` / `0x009D7E63` | §3; length excludes terminator, data getter returns stored buffer |
 | Constant zero helper | `0x00949B47` | primary slot 15, §6.1 |
 
-No attributed body or primary/secondary slot remains unexamined. This does not claim completion of
-the driver constructors, device/rendering behavior, allocator/string/container general APIs, the
-containing `cSC4COMDirector`, or any other director sharing these helpers. Those remain separate owners.
+All director primary/secondary slots above are specified. Round 1's stronger assertion about all
+attributed bodies was incorrect: the reachable 7,983 bytes require the additional contracts and
+checklist linked in §1. No completion of the capped DX7 driver, allocator/string/container general
+APIs, containing `cSC4COMDirector`, or other directors is implied.
 
 ## 7. Independent discriminating vectors
 

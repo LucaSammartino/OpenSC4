@@ -1,6 +1,20 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-gdrivers-director4: graphics COM director native behavior specification | `re-gdrivers-director4` / (RE lane, detached worktree) | ready; direct owner 2/2 bodies, 85/85 B; all 17 primary slots and 11 secondary entries; 31 paper vectors; native inventory/table audit and diff check PASS; cargo/clippy/ctest n/a; game n/a; ABI unchanged; no questions | 1. Merge docs. 2. Reconcile brief's 8068B figure against exact attribution; no whole-DX7-family credit. |
+| re-gdrivers-director4: graphics COM director native behavior specification | `re-gdrivers-director4` / (RE lane, detached worktree) | in progress, round 2; reconciling coverage-attributed 8068 B; prior exclusive-body completion claim superseded; cargo/clippy/ctest n/a; game n/a; ABI unchanged | 1. Recover exact coverage body set. 2. Trace remaining helpers or prove false reference edges. 3. Publish per-body checklist and vectors. |
+
+## Handoff
+
+- Goal: reconcile all 8068 coverage-attributed bytes without changing ownership/tools/maps; specify remaining director behavior only.
+- Prior milestone: `724a6f1b` contains round-1 director dispatch spec and 31 vectors, but its 85-byte exclusive inventory does not discharge the task.
+- Done this round: reused reserved detached worktree; checked clean status and read re-driverdraw4 scope (do not reopen capped driver/RD3-RD5).
+- Done: recovered exact current attribution: 65 bodies / 8068 bytes, including 63 reachable/neighbor bodies / 7983 bytes. Factory edges are actual instructions; no ownership change justified.
+- Done: corrected parent spec's 85-byte completion claim; new attributed-helper spec covers factories, constructors, pool/working-array failures, integer coefficient tables; GD32-GD38.
+- Next: complete OpenGL branch bodies 0x0087D260..0x0087FBD0, software branch 0x008DC4A0..0x008EC050, then publish the 65-row checklist.
+- Inventory snapshot (ignored): `build-runs/director-attributed.tsv`, produced read-only without accessing engine/.
+- Primary evidence: main checkout `tools/re_query.py`, `decomp/`, `ghidra/export/windows`, `bin/SimCity4.exe`; never engine/.
+- q.py cannot start Bash (`E_ACCESSDENIED`); use bounded PowerShell calls.
+- Guard manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-gdrivers-director4-r2-manifest.json`.
+- No game requests, ABI proposals, external communication, or subagents.
 
 ## Report (2026-10-22, round 1/1)
 
