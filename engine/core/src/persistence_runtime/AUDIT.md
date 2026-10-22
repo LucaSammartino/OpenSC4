@@ -90,7 +90,7 @@ verification or combined manager/runtime coverage credit in this lane.
 Full foreign resource subclasses, stream vtables, constructors, allocator
 failure effects and undefined malformed input domains remain unsupported.
 
-## R2 boundary review (validation pending)
+## R2 boundary review
 
 Rechecked persistence sections 2-7 against the concrete bodies and test
 expectations. Typed widths, integer-only swapping (including failed reads),
@@ -121,3 +121,34 @@ integration test consumes literal QFS bytes and separately checks literal
 decoded pixels and saved headers; the encoder round trip is supplemental.
 None of this establishes native conversion, malformed-memory effects,
 native constructor defaults, shipped data or native/shadow equivalence.
+
+## Measured focused test inventory
+
+The coherent quick cargo-test substep ran every test below once successfully
+(12 main core, 5 edge core, 1 formats integration). Its complete log contains
+12 `test result:` suites / 3,225 passed / 0 failed / 0 ignored, including
+successful formats doctests. At this checkpoint dependent compilation and
+the complete quick/fmt/all gates are still pending. Evidence:
+`build-runs/fc4verify-quick-test.log` and the generated
+`build-runs/runtime-execution-summary.json` (individual exact-name counts).
+
+| Test function | File relative to engine/ | Discriminating expectation |
+|---|---|---|
+| `independent_integer_widths_signed_bits_and_array_order` | core/src/persistence_runtime/tests.rs | Literal signed/unsigned 8/16/32/64 bytes, both orders, unchanged source array |
+| `float_bytes_are_never_swapped_and_failed_get_still_swaps` | same | Literal LE IEEE floats with flag 0; swap after false; zero-length write |
+| `string_exact_lengths_empty_short_header_and_failure_channels` | same | Literal lengths, empty/short header, failed length short-circuit, valid UTF-16 |
+| `record_close_failure_is_once_and_destruction_only_releases` | same | Segment event ordering, false close once, flags/key/QI/logical references |
+| `views_share_position_and_resource_buffer_replacement_balances_references` | same | Borrowed shared cursor and buffer reference/QI replacement effects |
+| `literal_v0_v1_raw_prefix_and_stored_format_conversion_failure` | same | Raw prefix despite flag 0, swapped later fields, literal packed pixels, stored-format failure cleanup |
+| `bmp_headers_palette_padding_row_choice_and_save_ignored_write_failures` | same | Literal BMP headers/rows, ignored offset, palettes/nibbles, padding, three writes despite false |
+| `factory_defaults_type_failures_temporary_cleanup_and_settings` | same | Published target/stack, wrong type/IID, temporary release and load |
+| `factory_record_type_order_fail_read_qi_and_forwarded_arguments` | same | Key before Read, allocation/Read/output-QI failure cleanup, forwarded arguments |
+| `variant_no_marker_unsupported_tags_and_temporary_publication` | same | Literal marker-free tags/values, unsupported write/read tags and preserved output after failure |
+| `colour_table_and_explicit_owned_storage_limits` | same | Published bits table, explicit 16-byte bound and checked invalid sizes |
+| `independent_get_widths_floats_and_defined_partial_host_bytes` | same | Literal typed reads and known Cursor partial-prefix modification before failed-read swap |
+| `padded_v1_choice_v2_correct_rows_and_save_drops_padding` | core/src/persistence_runtime/edge_tests.rs | Separate PR3 padded-v1 choice, correct v2 rows, packed save excluding padding |
+| `serial_qi_failure_does_not_call_read_or_release_unacquired_record` | same | Failed serial QI leaves record reference untouched; resource temporary released |
+| `delegated_resource_iid_releases_the_buffer_reference_only` | same | Unsupported foreign resource-IID case releases acquired buffer, not resource |
+| `legacy_string_total_size_and_key_failure_stop_at_first_raw_failure` | same | Legacy total-size iteration and key partial bytes/short-circuit |
+| `file_access_close_failure_and_module_target_selection_are_runtime_owned` | same | In-memory access 1/3, close calls/result choice, null save no open, own/given-module targets |
+| `literal_qfs_load_exact_size_failure_and_save_header` | formats/tests/persistence_runtime.rs | Literal RefPack input/pixels, decoded-size/signature failure unlock, saved header and supplemental encoder round trip |
