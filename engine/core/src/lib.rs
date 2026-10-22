@@ -126,3 +126,4 @@ pub mod lua_script_server;
 pub mod graphics_rules;
 pub mod lighting;
 pub mod view_utilities;
+pub mod glyph_textures;
