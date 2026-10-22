@@ -66,12 +66,12 @@ impl ImageArgb8 {
     }
     pub fn find_min_red_component_value(&self) -> f32 {
         let mut minimum = 255;
-        for y in 0..self.height {
-            for x in 0..self.width {
-                minimum = minimum.min((self.pixels[y * self.stride + x] >> 16) & 255);
-            }
+        for pixel in &self.pixels {
+            minimum = minimum.min((pixel >> 16) & 255);
         }
-        minimum as f32 / 255.0
+        // LT7: this product of an 8-bit integer and a binary32 constant is
+        // exact in binary64; the sole final binary32 store is Init's boundary.
+        (f64::from(minimum) * f64::from(f32::from_bits(0x3b808081))) as f32
     }
     fn color_linear(&self, index: usize) -> Result<Color> {
         let p = *self.pixels.get(index).ok_or(LightingError::SampleOutsideImage)?;

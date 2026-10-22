@@ -18,3 +18,11 @@
 - **LT4 - §5.6:** the meaning of the decal shadow values `0x085489C9` (a float pair the shipped exemplar lacks) and
   `0x085489CA` (12.0), and of the shadow parameters `0x085489CC` (0.4) and `0x085489CD` (0.55). Their users draw
   decal shadows outside this lane.
+
+<!-- from: core-lighting-complete4 (2026-10-22) -->
+- **LT12 - §2.2, §5.7, §5.8.2 inherited numeric environment:** which precision-control and
+  rounding-control modes reach these lighting entries in the normal game call paths? §5.8 says inherited
+  control word, and vectors 19–22 hold at 53/64 significant bits, but does not establish the caller's
+  mode or whether it changes between entries. [Portable core requires an explicit 24/53/64-bit register
+  precision at construction; implemented arithmetic assumes nearest-even and masked exceptions. No
+  implicit game-mode default or whole-owner numeric exactness is claimed for unproved CW modes.]

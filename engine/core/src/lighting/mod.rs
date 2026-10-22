@@ -6,9 +6,12 @@
 //! they do not clamp valid samples or conceal missing own-class logic (LT7).
 
 mod colors;
+#[cfg(test)]
+mod contracts;
 mod image;
 mod projection;
 mod properties;
+mod register;
 mod shadows;
 #[cfg(test)]
 mod tests;
@@ -17,6 +20,7 @@ mod types;
 pub use image::*;
 pub use projection::{fit_shadow_plane, ProjectionTransform};
 pub use properties::*;
+pub use register::RegisterPrecision;
 pub use shadows::LightingMessage;
 use std::sync::Arc;
 pub use types::*;
@@ -30,6 +34,7 @@ pub const SUBSCRIPTIONS: [u32; 7] = [
 
 pub struct LightingManager {
     statics: LightingStatics,
+    register_precision: RegisterPrecision,
     refs: u32,
     released: bool,
     initialized: bool,
@@ -74,12 +79,13 @@ pub struct LightingManager {
 }
 
 impl LightingManager {
-    pub fn new(statics: LightingStatics) -> Self {
-        // [choice, LT5] Unspecified constructor fields are zero, reference count
-        // starts at 1, and last-announced/cached light colours start white.
+    pub fn new(statics: LightingStatics, register_precision: RegisterPrecision) -> Self {
+        // LT5: geometry/map slots without native defaults use safe empty storage.
+        // LT12: the caller supplies inherited register precision; no guessed CW.
         Self {
             statics,
-            refs: 1,
+            register_precision,
+            refs: 0,
             released: false,
             initialized: false,
             view_applied: false,
@@ -95,24 +101,24 @@ impl LightingManager {
             fill: [0.0; 3],
             key: [0.0; 3],
             shadow_direction: [0.0; 3],
-            scaled_light: WHITE,
+            scaled_light: [0.0; 3],
             rotation: 0,
             zoom: 0,
             global_light: WHITE,
             day_light: WHITE,
-            announced_global: WHITE,
-            announced_day: WHITE,
-            day_fraction: 0.0,
+            announced_global: [0.0; 3],
+            announced_day: [0.0; 3],
+            day_fraction: 1.0,
             night_fraction: 0.0,
             maps: std::array::from_fn(|_| None),
             minimum_red: 0.0,
-            sun: [0.0; 3],
-            axes: [WHITE; 6],
+            sun: [1.0, -1.0, -1.0],
+            axes: [[0.0; 3]; 6],
             cells: (0, 0),
             fade_origin: [0.0; 3],
             fade_gradient: [0.0; 3],
             fade_strength: 0.0,
-            fade_color: WHITE,
+            fade_color: [0.0; 3],
             tint: None,
             heights: Vec::new(),
             shadows: Vec::new(),
@@ -128,7 +134,7 @@ impl LightingManager {
             MESSAGE_TARGET_IID => Interface::MessageTarget,
             _ => return Ok(None),
         };
-        // [choice, LT5] Successful QueryInterface acquires one reference.
+        // LT5: successful QueryInterface acquires one reference.
         self.add_ref()?;
         Ok(Some(interface))
     }
@@ -150,10 +156,16 @@ impl LightingManager {
     fn destroy(&mut self) {
         self.refs = 0;
         self.released = true;
-        self.exemplar = None;
-        self.terrain = None;
         self.city_terrain = None;
-        self.maps = std::array::from_fn(|_| None);
+        self.terrain = None;
+        self.exemplar = None;
+        // LT7: native destruction is NOT Shutdown. Un-shut-down maps leak;
+        // do not invent map cleanup or unsubscribe in the destructor.
+        for map in &mut self.maps {
+            if let Some(map) = map.take() {
+                std::mem::forget(map);
+            }
+        }
         self.day_keys = Vec::new();
         self.strength_keys = Vec::new();
         self.fade_keys = Vec::new();
@@ -188,12 +200,8 @@ impl LightingManager {
         self.exemplar = exemplar;
         self.read_properties();
         if self.statics.snapshot().test_pattern {
-            self.maps = [
-                Some(ImageArgb8::make_test_pattern()),
-                Some(ImageArgb8::make_test_pattern()),
-                None,
-                None,
-            ];
+            self.maps[0] = Some(ImageArgb8::make_test_pattern());
+            self.maps[1] = Some(ImageArgb8::make_test_pattern());
         } else {
             for (index, instance) in [0x0917660c, 0x0917660d, 0x0917660e, 0x0917660f].into_iter().enumerate() {
                 self.maps[index] = create_color_map(resources, instance)?;
@@ -315,9 +323,11 @@ impl LightingManager {
         self.time = time;
         self.set_time_dependent_lighting_values(suppress_fade)?;
         let p = self.statics.snapshot();
-        // [literal, LT6] "distance" means Euclidean length, not squared distance.
-        let delta = sub(self.global_light, self.announced_global);
-        if dot(delta, delta).sqrt().partial_cmp(&p.change_threshold) != Some(std::cmp::Ordering::Greater) {
+        // LT6: all differences/squares/sums and sqrt remain in registers.
+        let r = |x| register::Number::new(x, self.register_precision);
+        let delta: [_; 3] = std::array::from_fn(|i| r(self.announced_global[i]) - r(self.global_light[i]));
+        let distance = ((delta[2] * delta[2] + delta[1] * delta[1]) + delta[0] * delta[0]).sqrt();
+        if distance.partial_cmp(&r(p.change_threshold)) != Some(std::cmp::Ordering::Greater) {
             return Ok(false);
         }
         if self.terrain.is_some() {
@@ -362,6 +372,12 @@ impl LightingManager {
             events.emit(Event::Redraw);
         }
         Ok(())
+    }
+}
+
+impl Drop for LightingManager {
+    fn drop(&mut self) {
+        self.destroy();
     }
 }
 
