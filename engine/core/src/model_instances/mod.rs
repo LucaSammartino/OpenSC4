@@ -84,6 +84,19 @@ impl NativeCount {
     pub fn is_destroyed(&self) -> bool {
         self.destroyed.load(Ordering::SeqCst)
     }
+    // Keep the atomic update compatible with the crate's Rust 1.75 MSRV.
+    fn update_count(&self, operation: impl Fn(u32) -> u32) -> u32 {
+        let mut previous = self.count.load(Ordering::SeqCst);
+        loop {
+            match self
+                .count
+                .compare_exchange_weak(previous, operation(previous), Ordering::SeqCst, Ordering::SeqCst)
+            {
+                Ok(old) => return old,
+                Err(current) => previous = current,
+            }
+        }
+    }
     pub fn add_ref(&self) -> u32 {
         let _lock = (self.policy == CountPolicy::Factory32)
             .then(|| self.factory_lock.lock().unwrap_or_else(|e| e.into_inner()));
@@ -93,10 +106,7 @@ impl NativeCount {
         } else {
             u32::MAX
         };
-        let old = self
-            .count
-            .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| Some(n.wrapping_add(1) & mask))
-            .unwrap();
+        let old = self.update_count(|n| n.wrapping_add(1) & mask);
         old.wrapping_add(1) & mask
     }
     pub fn release(&self) -> u32 {
@@ -104,16 +114,13 @@ impl NativeCount {
             .then(|| self.factory_lock.lock().unwrap_or_else(|e| e.into_inner()));
         assert!(!self.is_destroyed(), "Release after native destruction");
         let resource = self.policy == CountPolicy::Resource32;
-        let old = self
-            .count
-            .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
-                Some(if resource {
-                    n.wrapping_sub(1)
-                } else {
-                    n.saturating_sub(1)
-                })
-            })
-            .unwrap();
+        let old = self.update_count(|n| {
+            if resource {
+                n.wrapping_sub(1)
+            } else {
+                n.saturating_sub(1)
+            }
+        });
         let result = if resource {
             old.wrapping_sub(1)
         } else {

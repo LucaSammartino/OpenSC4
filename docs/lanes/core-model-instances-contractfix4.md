@@ -9,7 +9,9 @@
 - Initial all: Rust 4707 PASS, clippy 0 diagnostics, build 208/208; ctest 67/68 but cargo_test overlapped edits (tree changed), so native baseline invalid. Logs preserved with baseline- prefix.
 - Quick PASS: 2721 core initially, then 2732 core, dependent crates compiled, native build 4/4. Formatting helper mistake fixed before expanded quick PASS. Final ownership-order review keeps saved originals through destructor container release.
 - Questions: MI11 precision/store boundaries; MI12 vector 15 stage ambiguity; MI13 wrapped interior-zero keys; docs/specs/questions/model-instances.md. Index stale MI3 slot was not reused because revised spec already assigns MI3-MI10.
-- Next: stable final qbuild all with no edits, then final lane report/queue commit.
+- f778bcf4: 42 module tests covering the 20 vectors (vector 15 staging qualified by MI12), exclusions and MI11-MI13 recorded.
+- Stable all: Rust 4718 PASS, native build 4/4 PASS, ctest 68/68 PASS; clippy rejected two uses of try_update (stable 1.95 vs MSRV 1.75). Replaced with compare_exchange_weak loop; no count-policy change.
+- Next: repeat final all after this specific MSRV fix, no edits during the run; final report/queue afterward.
 - Quiet q.py Bash launcher fails E_ACCESSDENIED; use bounded PowerShell reads.
 - No game requests; pure core task, no runtime or whole-owner claims.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-model-instances-contractfix4-r1-manifest.json.
