@@ -1,0 +1,20 @@
+# graphics-formats: open questions
+<!-- Append-only implementation questions; generated index reconciliation belongs to the coordinator. -->
+
+<!-- from: core-model-effects4 (2026-10-22) -->
+- **GF19 - §3.11 Consumer 1, complete owner inventory:** the task names cSC4ModelRegEffects as 23 functions / 8406 bytes, but this section specifies only InitEffectsList, AddEffect, update, name lookup and start/stop, and interfaces.tsv contains 12 rows (slots 0, 2, 4–10, 12, 13, 16). Please publish the complete 23-function inventory with behavior for every constructor/destructor/helper and unidentified slot, including arguments, return values, defaults, and branches. Which functions are genuinely absent or shared? [Only the public subset is implemented; no complete-owner credit or fabricated slots.]
+
+<!-- from: core-model-effects4 (2026-10-22) -->
+- **GF20 - §3.11 instance/effect lifetime:** what are constructor defaults, native AddRef/Release/QueryInterface semantics (if any), SetModelInstance null/same/new-pointer behavior, model-resource acquisition, destructor/release/clear order, and stop argument used during replacement/destruction? Does attaching immediately rebuild/start, preserve entries, or defer until Init? [Portable Arc attachment owns one acquired model reference, clears/stops(false)/drops old effects before releasing that model, then rebuilds; created effect Boxes own one reference and getters borrow. This is a safety policy, not native lifecycle evidence.]
+
+<!-- from: core-model-effects4 (2026-10-22) -->
+- **GF21 - §3.11 controls, lookup and indexing:** define StartAll/StopAll bool meanings, StartEffectsNamed's third argument and return, effect-name versus REGP-key matching, case-folding locale, repeated start/stop forwarding, GetEffect case sensitivity, AddEffectAtRegion missing-region behavior, and all index getters/order. Which stop argument is used by AddEffect? [Named controls compare effect names with ASCII folding; key lookup is exact; map iteration is key-sorted; opaque control values are passed through; portable counts are not native returns; missing region does nothing; replacement uses stop(false). No native index slots claimed.]
+
+<!-- from: core-model-effects4 (2026-10-22) -->
+- **GF22 - §3.11 visibility, spaces and public flags:** the task requires camera/visibility, global/local space, and public flags, but Consumer 1 only specifies started-effect updates, instance×local composition and incoming transform flag byte 5. Please specify visibility getter/setter bodies, camera tests, hidden/revisible transitions, start/stop interaction, global/local switching, effect-placement composition, and every owner flag with defaults and bit semantics. [Only started-state gating, instance×local transforms and incoming flags=5 are implemented; no guessed camera/visibility/native flag APIs. Transform composition also supports the explicitly described outer effect-placement transform.]
+
+<!-- from: core-model-effects4 (2026-10-22) -->
+- **GF23 - §3.11 unchecked frame domain:** the public contract says record=current frame with no C check. What should the portable core expose for an empty REGP record list, frame≥C, or an attached instance with no usable model? [Never clamp/wrap/fall back: report missing key/frame/count and send no transform for that entry, while continuing valid entries. Detached update sends nothing. This is a checked safety extension, not a native result.]
+
+<!-- from: core-model-effects4 (2026-10-22) -->
+- **GF24 - §3.11 update slot 4 motion inputs:** interfaces.tsv labels the three arguments (pos, dir, speed), but Consumer 1 only says parameter 15=speed×direction. What are their exact types, units and sources, which effects receive parameter 15 (including stopped/hidden effects), what does pos change, and is parameter assignment before or after transform update? [Portable update_with_motion accepts explicit scalar speed/direction, updates transforms then sets parameter 15 on every extant effect as the section's “each effect” literally says; it does not claim a native slot-4 binding.]
