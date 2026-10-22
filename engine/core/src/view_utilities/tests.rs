@@ -82,6 +82,7 @@ fn update_copies_inputs_scales_basis_and_does_not_depend_on_borrowed_storage() {
     let mut c = camera();
     let v = owner(c);
     c.position.x = -1000.0;
+    assert_eq!(c.position.x, -1000.0);
     assert_eq!(v.camera().position.x, 100.0);
     assert_eq!(v.get_zoom_and_rotation(), (4, 0));
     assert_eq!(v.camera().near_clip_distance, 9.0);

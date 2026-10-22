@@ -12,6 +12,9 @@
 - Questions VU4–VU11 appended to docs/specs/questions/view-utilities.md; no generated index edit or tools/ run.
 - Initial quick: one over-tight analytic perspective tolerance fixed. Second quick PASS: 2388/0 core tests, dependencies compiled, CMake 4/4.
 - Latest three tests and bounded malformed-resource walk will be verified by final all. Both caches now literally clear every draw (VU9).
+- Done: 37d82b6b inventory/refinements; full workspace Rust tests and clippy passed, build/ctest pending (session 34962).
+- Formatting: all five new .rs files PASS. Shared lib.rs FAIL is baseline module-order debt; build-runs/check-view-format-baseline.py confirms only additive registration.
+- Ownership test now explicitly reads mutated source, removing unused-assignment warning; commit then rerun final all on stable code.
 - Inventory: engine/core/src/view_utilities/README.md maps 38 contracts and explicitly marks missing RotateVectorByViewRotation; 49-function accounting unresolved.
 - Next: commit refinements then qbuild all on committed code; formatting wrapper needs absolute file paths (cwd engine).
 - Spec has no complete 49-function inventory; do not award whole-owner/19670-byte credit. Missing lifecycle bodies tracked VU4.
