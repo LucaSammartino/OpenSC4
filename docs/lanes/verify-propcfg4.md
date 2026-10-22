@@ -1,14 +1,12 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-propcfg4 (prop and lot independent verification) | `verify-propcfg4` / (engine lane, detached HEAD) | continue: guard context budget reached after final report1113f298; cargo4938, clippy0, ctest68/68; six clean2032/ref0 save/reload controls; PL23 retained; ABI unchanged | Fresh agent: write merge queue for committed delivery; no further implementation or game runs required. |
+| verify-propcfg4 (prop and lot independent verification) | `verify-propcfg4` / (engine lane, detached HEAD) | ready: code ff4388f3/99d9b5aa, report1113f298 finalized; cargo4938/4938, clippy0, ctest68/68; six clean2032/ref0 full-save/shutdown controls including own/current40 reloads; native exact/total catalogue3318/4862, prop queries11840/11840, create2336/2336, lot queries9354/9354 turbo and9361/9361 normal, fixtures5/5, arrays1/1909, C++ getters87814/87814; PL23 padding1544/run and arrays1908/run retained; raw shadow NOT exact; ABI unchanged | 1. Coordinator reviews and integrates the queued opt-in delivery. 2. Resolve PL23 through published specs; no whole-configuration coverage promotion. |
 
-## Handoff
-- Goal: deliver opt-in independent native-versus-Rust prop/lot verification with complete evidence and no whole-owner overclaim.
-- Done: code ff4388f3 and99d9b5aa; final report1113f298 below; stable full gate cargo4938/clippy0/ctest68; all six unique-label game requests clean2032/ref0, own/current40 full-save/reload/shutdown validated.
-- Native query/create subsets exact; raw profile padding1544/run and complete arrays1908/run remain visible under PL23; no whole-configuration owner promotion.
-- Context guard denied merge-queue creation (152k/150k). No merge-queue file written. Stop this round; no request outstanding.
-- Exact next step in fresh context: retain the report, commit final ready lane row, then write build-runs/merge-queue/verify-propcfg4.json with actual HEAD, branch verify-propcfg4, kind engine, abi false, state ready and the six labels in the report below. No source changes or new tests needed.
-- DLL SHA25604b93bd72ee847fad54084520d5492c48518176e6746d8b31a1dc2be357339db; evidence and save receipts preserved in ignored build-runs; full report below contains exact counts/hashes/limitations.
+## Delivery
+
+Final round3/3 closes the already committed delivery. Reviewed HEAD entering this round was `68fe7c7707cfe197d8ba7630d8e5965fb8945e46` (handoff after report `1113f298`); implementation commits remain `ff4388f3` and `99d9b5aa`. The ready report is committed on top of that detached HEAD. The queue's `tip` records the actual full delivery HEAD obtained after that commit, rather than a branch ref or a predicted hash. Queue: `build-runs/merge-queue/verify-propcfg4.json`, reserved branch `verify-propcfg4`, kind `engine`, state `ready`, ABI exports unchanged. All six unique labels below are included.
+
+This round only finalizes documentation and the queue; no new source, build or game run was needed. No request is outstanding. No RE, maps, defaults, tools or ABI tables changed; no external communication, restart, merge or push was performed. Evidence, immutable DLL and save receipts remain in ignored `build-runs/`; no game files are committed.
 
 ## Implementation and scope
 
@@ -36,6 +34,10 @@ All games used immutable `build-runs/dll/propcfg4-r2-v1/FreeCity4.dll`, SHA256 `
 | Configuration complete ordered arrays (C++/Rust decoder) | 1/1909 | 1/1909 | 1908 each, no foundation removal or normalization |
 | Configuration supported getters (C++) | 87814/87814 | 87814/87814 | 0; no complete-owner credit |
 
+Every native comparison scope in this table has `refused=0`, `fallback=0`, `resync=0`, `natural_calls=0`, `copied_record_credit=0` and `native_random_draws=0`. Per run, report counts are catalogue1, live prop queries74, prop creation73, lot queries74, expansion fixtures1, complete arrays1 and supported getters1. Counts are diagnostic pair totals, not intercepted simulation calls or independent evolution. Catalogue inputs contain1544/1544 types and112/112 families (native/ours), with1136 family members; keys, validity, specified profile fields and ordered families have zero differences, while all1544 raw-padding differences remain counted. Complete arrays cover1909 configurations and25210 objects at detail1, with1908 foundations and0 unbound objects.
+
+At each speed the legacy line summaries are prop221/222 exact (1 mismatched,0 incomplete) and lot296/297 exact (1 mismatched,0 incomplete). Those line-level fractions are distinct from the pair-level denominators above and do not erase raw differences. For each manager at each speed, all74/74 native-Write roundtrips report read=1, consumed=1, init=1 and differences=0: read failures0/74, unconsumed records0/74 and initialization failures0/74. These are bootstrapped record checks with algorithmic_credit=0 and independent_evolution=0, not independently generated saved-state equivalence.
+
 Each native run also compared74/74 prop and74/74 lot-manager record roundtrips with zero read/consume failures, separately from algorithmic evidence. Turbo/normal live inputs: lot cells1618/1619, returned props2232/2224, lot configurations308/312, object expansions1770/1765. Zone/pricezone calls succeeded but accepted0/16 cells; no zoning-mutation credit. Native manager pointers: turbo prop1443E514/lot1443E4D4, normal prop1447E514/lot1447E4D4. Source is the city's unreplaced interfaces; runtime IsOurObject checks also refuse replacements.
 
 ## Game controls and persistence
@@ -50,6 +52,8 @@ Each native run also compared74/74 prop and74/74 lot-manager record roundtrips w
 | vpc4-r2-current40-reload-20261022a | Literal current40; saved2031-10-07 | 2032-01-01 | clean/ref0 |
 
 All six executed full SaveCity successfully and quit through the full shutdown verdict. All four replacement controls refused two native shadows each: **no** replacement self-comparison or zero-pair exact credit. Current40 controls report switches_off=- and disabled=-. Runtime current40 factories created cSC4LotConfigManager0C573988 and cSC4PropManager03819D58; lotcfg Init loaded1909 configurations and282 families at detail1. Reload again loaded1909/282, and the observer recorded the expected saved date before advancing. This tests persistence and shutdown, not cross-process simulation equality.
+
+Replacement refusal scope is one refusal per owner per run: each reports pairs=0, exact=0, refused=1, fallback=0 and resync=0. Thus the four own/current40 fresh/reload controls total8 refusals and0 native comparison pairs; their clean verdicts earn persistence/shutdown credit only. All six final verdicts separately report foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0 and ref_warnings=0, with switches_off=- and disabled=-. Full-save success is6/6; saved-city reload controls are2/2 (own and current40), not six reloads. No failure-injection, whole-owner equality or cross-process simulation-equality claim is made.
 
 Literal profile: landvalue, weather, ordinance, demand, power, plumbing, flammability, pollution, protection, crime, aura, flora, landfill, residential, neighbors, zones, development, tract, history, clock24, commercial, industrial, civic, parks, lotdev, zonedev, traffic, automata, netmgr, netlot, nettool, demolition, occmgr, propmgr, lotcfg, citysit, propdev, simgrids, citydetail, ports.
 
