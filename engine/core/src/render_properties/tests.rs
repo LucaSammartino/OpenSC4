@@ -21,13 +21,13 @@ fn all_77_registry_vectors() {
                 check_entry(&properties.bool_properties()[index as usize], &fields);
                 assert_eq!(properties.get_bool(index), Some(fields[4].parse().unwrap()));
                 assert_eq!(properties.bool_name(index), Some(fields[2]));
-                assert_eq!(properties.find_bool(&fields[2].to_ascii_uppercase()), index);
+                assert_eq!(properties.find_bool(fields[2].to_ascii_uppercase()), index);
                 let winner = match index {
                     22 => 11,
                     28 => 9,
                     _ => index,
                 };
-                assert_eq!(properties.find_bool(&fields[3].to_ascii_uppercase()), winner);
+                assert_eq!(properties.find_bool(fields[3].to_ascii_uppercase()), winner);
             }
             "int" => {
                 assert_eq!(index, counts[1]);
@@ -35,9 +35,9 @@ fn all_77_registry_vectors() {
                 check_entry(&properties.int_properties()[index as usize], &fields);
                 assert_eq!(properties.get_int(index), Some(fields[4].parse().unwrap()));
                 assert_eq!(properties.int_name(index), Some(fields[2]));
-                assert_eq!(properties.find_int(&fields[2].to_ascii_uppercase()), index);
+                assert_eq!(properties.find_int(fields[2].to_ascii_uppercase()), index);
                 let winner = if index == 19 { 4 } else { index };
-                assert_eq!(properties.find_int(&fields[3].to_ascii_uppercase()), winner);
+                assert_eq!(properties.find_int(fields[3].to_ascii_uppercase()), winner);
             }
             "float" => {
                 assert_eq!(index, counts[2]);
@@ -45,9 +45,9 @@ fn all_77_registry_vectors() {
                 check_entry(&properties.float_properties()[index as usize], &fields);
                 assert_eq!(properties.get_float(index), Some(fields[4].parse().unwrap()));
                 assert_eq!(properties.float_name(index), Some(fields[2]));
-                assert_eq!(properties.find_float(&fields[2].to_ascii_uppercase()), index);
+                assert_eq!(properties.find_float(fields[2].to_ascii_uppercase()), index);
                 let winner = if index == 4 { 3 } else { index };
-                assert_eq!(properties.find_float(&fields[3].to_ascii_uppercase()), winner);
+                assert_eq!(properties.find_float(fields[3].to_ascii_uppercase()), winner);
             }
             kind => panic!("unrecognised vector type: {kind}"),
         }
@@ -61,8 +61,10 @@ where
     T::Err: std::fmt::Debug,
 {
     assert_eq!(entry.index(), fields[1].parse().unwrap());
-    assert_eq!(entry.name(), fields[2]);
-    assert_eq!(entry.short_name(), fields[3]);
+    assert_eq!(entry.name(), Some(fields[2]));
+    assert_eq!(entry.short_name(), Some(fields[3]));
+    assert_eq!(entry.name_bytes(), fields[2].as_bytes());
+    assert_eq!(entry.short_name_bytes(), fields[3].as_bytes());
     assert_eq!(entry.value(), &fields[4].parse::<T>().unwrap());
     assert_eq!(
         entry.extra_values(),
@@ -154,7 +156,7 @@ fn ranges_are_metadata_and_floats_are_stored_without_arithmetic() {
     }
     for i in 0..3 {
         let metadata = *p.floats[i as usize].extra_values();
-        // Raw writes in §2 preserve signed zero, infinities and NaN payloads.
+        // Core storage extension: raw bits, not a native NaN/x87 conformance claim.
         for bits in [0x8000_0000, 0xc000_0000, 0x7f80_0000, 0xff80_0000, 0x7fc1_2345] {
             assert!(p.set_float(i, f32::from_bits(bits)));
             assert_eq!(p.get_float(i).unwrap().to_bits(), bits);
@@ -164,7 +166,7 @@ fn ranges_are_metadata_and_floats_are_stored_without_arithmetic() {
 }
 
 #[test]
-fn invalid_indices_fail_at_safe_boundary_without_mutation_rp4() {
+fn core_safety_only_invalid_indices_fail_without_mutation_rp4() {
     let mut p = RenderProperties::new();
     let baseline = p.clone();
     for index in [i32::MIN, -1, 38, 39, i32::MAX] {
@@ -207,24 +209,26 @@ fn find_is_exact_typed_and_first_match_wins() {
     assert_eq!(p.find_float("sd"), -1);
     // The match order is entry-first, rather than a full-name pass then an acronym pass.
     let mut table = p.bools.clone();
+    table[0].index = 91; // Find returns table position, not entry metadata (RP5).
     table[0].short_name = "latername".into();
     table[1].name = "latername".into();
-    assert_eq!(find(&table, "LaterName"), 0);
+    assert_eq!(find(&table, b"LaterName", &CLocale), 0);
 }
 
 #[test]
 fn naming_helper_handles_capital_runs() {
-    assert_eq!(short_name("RenderUI"), "rui");
-    assert_eq!(short_name("LODOffset"), "lodo");
-    assert_eq!(short_name("ParticleLODOffset"), "plodo");
-    assert_eq!(short_name("OpaqueUIAlphaValue"), "ouiav");
-    assert_eq!(short_name("NoAddSigned"), "nas");
+    assert_eq!(short_name(b"RenderUI", &CLocale), b"rui");
+    assert_eq!(short_name(b"LODOffset", &CLocale), b"lodo");
+    assert_eq!(short_name(b"ParticleLODOffset", &CLocale), b"plodo");
+    assert_eq!(short_name(b"OpaqueUIAlphaValue", &CLocale), b"ouiav");
+    assert_eq!(short_name(b"NoAddSigned", &CLocale), b"nas");
 }
 
 #[test]
-fn string_boundary_policy_is_explicit_rp5() {
+fn c_locale_string_boundary_policy_rp5() {
     let p = RenderProperties::new();
-    for query in ["rendershadows\0suffix", "renderſhadows", "réndershadows"] {
+    assert_eq!(p.find_bool("rendershadows\0suffix"), 9);
+    for query in ["renderſhadows", "réndershadows"] {
         assert_eq!(p.find_bool(query), -1);
     }
 }

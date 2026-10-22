@@ -3,12 +3,18 @@
 //!
 //! Each construction copies the registered defaults into independent tables. These are
 //! portable core records, not the game's 32-bit entry layout. Rust ownership frees all
-//! three tables on drop; COM identity/refcount slots are not modelled (question RP3).
+//! three tables on drop. `RenderPropertiesOwner` models both interface views and lifetime;
+//! it is not a native vtable or a promise of the game's 32-bit memory layout.
 //! Getters borrow immutably and setters require exclusive access, so there is no interior
 //! mutable state for a second thread to race. A glue owner can supply its own lock.
 
+mod lifetime;
 mod registry;
 
+pub use lifetime::{Deletion, InterfaceView, RenderPropertiesOwner};
+
+#[cfg(test)]
+mod contract_tests;
 #[cfg(test)]
 mod tests;
 
@@ -17,8 +23,8 @@ mod tests;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Property<T> {
     index: i32,
-    name: String,
-    short_name: String,
+    name: Vec<u8>,
+    short_name: Vec<u8>,
     value: T,
     extra_values: [T; 2],
 }
@@ -28,11 +34,20 @@ impl<T> Property<T> {
         self.index
     }
 
-    pub fn name(&self) -> &str {
+    /// UTF-8 convenience view; foreign CRT profiles can produce non-UTF-8 names.
+    pub fn name(&self) -> Option<&str> {
+        std::str::from_utf8(&self.name).ok()
+    }
+
+    pub fn short_name(&self) -> Option<&str> {
+        std::str::from_utf8(&self.short_name).ok()
+    }
+
+    pub fn name_bytes(&self) -> &[u8] {
         &self.name
     }
 
-    pub fn short_name(&self) -> &str {
+    pub fn short_name_bytes(&self) -> &[u8] {
         &self.short_name
     }
 
@@ -63,10 +78,17 @@ impl Default for RenderProperties {
 impl RenderProperties {
     /// Spec §1.3: copy registrations, remove `k`, derive acronyms, lowercase names.
     pub fn new() -> Self {
+        Self::with_ctype(&CLocale)
+    }
+
+    /// Construction-time CRT classification/folding (RP5/RP6). The caller supplies
+    /// the active foreign CRT service, not original-owner lookup results. No locale
+    /// is frozen here: each later `find_*_with_ctype` receives its call-time service.
+    pub fn with_ctype(ctype: &dyn ByteCtype) -> Self {
         Self {
-            bools: copy_registrations(&registry::BOOLS),
-            ints: copy_registrations(&registry::INTS),
-            floats: copy_registrations(&registry::FLOATS),
+            bools: copy_registrations(&registry::BOOLS, ctype),
+            ints: copy_registrations(&registry::INTS, ctype),
+            floats: copy_registrations(&registry::FLOATS, ctype),
         }
     }
 
@@ -112,30 +134,58 @@ impl RenderProperties {
         set(&mut self.floats, index, value)
     }
 
-    /// Slots 12–14: exact case-insensitive full-name OR acronym match, in table order.
-    pub fn find_bool(&self, name: &str) -> i32 {
-        find(&self.bools, name)
+    /// Slots 12–14 under the explicit C-locale profile. A byte slice is a safe
+    /// counted boundary: its end supplies the terminator if no NUL is present.
+    /// Only the prefix before the first NUL is copied, folded and compared.
+    /// These convenience methods do not follow the game's global CRT locale (RP6).
+    pub fn find_bool(&self, name: impl AsRef<[u8]>) -> i32 {
+        self.find_bool_with_ctype(name.as_ref(), &CLocale)
     }
 
-    pub fn find_int(&self, name: &str) -> i32 {
-        find(&self.ints, name)
+    pub fn find_int(&self, name: impl AsRef<[u8]>) -> i32 {
+        self.find_int_with_ctype(name.as_ref(), &CLocale)
     }
 
-    pub fn find_float(&self, name: &str) -> i32 {
-        find(&self.floats, name)
+    pub fn find_float(&self, name: impl AsRef<[u8]>) -> i32 {
+        self.find_float_with_ctype(name.as_ref(), &CLocale)
+    }
+
+    pub fn find_bool_with_ctype(&self, name: &[u8], ctype: &dyn ByteCtype) -> i32 {
+        find(&self.bools, name, ctype)
+    }
+
+    pub fn find_int_with_ctype(&self, name: &[u8], ctype: &dyn ByteCtype) -> i32 {
+        find(&self.ints, name, ctype)
+    }
+
+    pub fn find_float_with_ctype(&self, name: &[u8], ctype: &dyn ByteCtype) -> i32 {
+        find(&self.floats, name, ctype)
     }
 
     /// Slots 15–17: return the stored lowercase full name, without the `k`.
     pub fn bool_name(&self, index: i32) -> Option<&str> {
-        entry(&self.bools, index).map(Property::name)
+        entry(&self.bools, index).and_then(Property::name)
     }
 
     pub fn int_name(&self, index: i32) -> Option<&str> {
-        entry(&self.ints, index).map(Property::name)
+        entry(&self.ints, index).and_then(Property::name)
     }
 
     pub fn float_name(&self, index: i32) -> Option<&str> {
-        entry(&self.floats, index).map(Property::name)
+        entry(&self.floats, index).and_then(Property::name)
+    }
+
+    /// Byte-exact name getters, including names produced by a foreign CRT profile.
+    pub fn bool_name_bytes(&self, index: i32) -> Option<&[u8]> {
+        entry(&self.bools, index).map(Property::name_bytes)
+    }
+
+    pub fn int_name_bytes(&self, index: i32) -> Option<&[u8]> {
+        entry(&self.ints, index).map(Property::name_bytes)
+    }
+
+    pub fn float_name_bytes(&self, index: i32) -> Option<&[u8]> {
+        entry(&self.floats, index).map(Property::name_bytes)
     }
 
     pub fn bool_properties(&self) -> &[Property<bool>] {
@@ -151,26 +201,59 @@ impl RenderProperties {
     }
 }
 
-/// Spec §1.3 helper: capital letters only, converted to lowercase.
-fn short_name(name_without_prefix: &str) -> String {
+/// Only these primitive CRT operations may be foreign. The owner itself performs
+/// prefix removal, acronym generation, first-NUL scanning, query copying, folding,
+/// comparison and first-match selection. Inputs are sign-extended bytes, including
+/// negative ints for 0x80–0xFF; only the low byte of `tolower` is stored (RP5).
+pub trait ByteCtype {
+    fn tolower(&self, signed_byte: i32) -> i32;
+    fn isupper(&self, signed_byte: i32) -> bool;
+}
+
+/// Spec §1.3's C-locale path, not a resolution of active-locale binding RP6.
+#[derive(Clone, Copy, Debug)]
+pub struct CLocale;
+
+impl ByteCtype for CLocale {
+    fn tolower(&self, signed_byte: i32) -> i32 {
+        if (0x41..=0x5a).contains(&signed_byte) {
+            signed_byte + 0x20
+        } else {
+            signed_byte
+        }
+    }
+
+    fn isupper(&self, signed_byte: i32) -> bool {
+        (0x41..=0x5a).contains(&signed_byte)
+    }
+}
+
+fn signed(byte: u8) -> i32 {
+    i32::from(byte as i8)
+}
+
+/// Spec §1.3 helper: CRT uppercase bytes only, then CRT lowering.
+fn short_name(name_without_prefix: &[u8], ctype: &dyn ByteCtype) -> Vec<u8> {
     name_without_prefix
-        .bytes()
-        .filter(u8::is_ascii_uppercase)
-        .map(|ch| char::from(ch.to_ascii_lowercase()))
+        .iter()
+        .copied()
+        .filter(|&ch| ctype.isupper(signed(ch)))
+        .map(|ch| ctype.tolower(signed(ch)) as u8)
         .collect()
 }
 
-fn copy_registrations<T: Copy>(registrations: &[registry::Registration<T>]) -> Vec<Property<T>> {
+fn copy_registrations<T: Copy>(registrations: &[registry::Registration<T>], ctype: &dyn ByteCtype) -> Vec<Property<T>> {
     registrations
         .iter()
         .enumerate()
         .map(|(index, registration)| {
             // All public registrations have an ASCII `k` prefix (§3).
-            let name = &registration.name[1..];
+            let name = &registration.name.as_bytes()[1..];
+            let short_name = short_name(name, ctype);
             Property {
                 index: index as i32,
-                name: name.to_ascii_lowercase(),
-                short_name: short_name(name),
+                name: name.iter().map(|&ch| ctype.tolower(signed(ch)) as u8).collect(),
+                short_name,
                 value: registration.value,
                 extra_values: registration.extra_values,
             }
@@ -190,12 +273,24 @@ fn set<T>(table: &mut [Property<T>], index: i32, value: T) -> bool {
     true
 }
 
-fn find<T>(table: &[Property<T>], query: &str) -> i32 {
-    // All registry names are ASCII. Literal ASCII folding leaves non-ASCII bytes
-    // unmatched; locale-dependent folding and embedded NULs are unresolved (RP5).
-    let query = query.to_ascii_lowercase();
+fn find<T>(table: &[Property<T>], query: &[u8], ctype: &dyn ByteCtype) -> i32 {
+    let end = query.iter().position(|&ch| ch == 0).unwrap_or(query.len());
+    // Own the scratch copy; never write caller storage or fold bytes after NUL.
+    let mut query = query[..end].to_vec();
+    for ch in &mut query {
+        *ch = ctype.tolower(signed(*ch)) as u8;
+    }
     table
         .iter()
-        .find(|p| p.name == query || p.short_name == query)
-        .map_or(-1, |p| p.index)
+        .position(|p| p.name == query || p.short_name == query)
+        .map_or(-1, |index| index as i32)
+}
+
+impl Drop for RenderProperties {
+    fn drop(&mut self) {
+        // RP3: ordinary destruction releases float, integer, then Boolean tables.
+        drop(std::mem::take(&mut self.floats));
+        drop(std::mem::take(&mut self.ints));
+        drop(std::mem::take(&mut self.bools));
+    }
 }
