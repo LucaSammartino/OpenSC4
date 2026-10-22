@@ -98,8 +98,10 @@ def codex_git_permissions(m):
     if common != (Path(m['main'])/'.git').resolve() or not metadata.is_relative_to(common/'worktrees'):
         raise ValueError('Invalid Codex Git permission roots')
     # A whole TOML table preserves dots in path keys. Shared refs/config/hooks stay read-only.
-    rules = {common.as_posix(): 'read', metadata.as_posix(): 'write',
-             (common/'objects').as_posix(): 'write'}
+    # Do not add an explicit read-only common-dir carveout: Codex exec's Windows
+    # runtime cannot represent writable descendants of one. The inherited root
+    # read policy already keeps common refs/config/hooks read-only.
+    rules = {metadata.as_posix(): 'write', (common/'objects').as_posix(): 'write'}
     table = '{' + ','.join(json.dumps(k)+'='+json.dumps(v) for k, v in rules.items()) + '}'
     return ['-c', 'default_permissions="fc4-lane"',
             '-c', 'permissions.fc4-lane.extends=":workspace"',

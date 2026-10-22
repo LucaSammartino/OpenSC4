@@ -275,7 +275,7 @@ class CodexGitTransport(unittest.TestCase):
         value = next(x.split('=', 1)[1] for x in args if x.startswith('permissions.fc4-lane.filesystem='))
         rules = tomllib.loads('rules=' + value)['rules']
         common = (self.main/'.git').resolve()
-        self.assertEqual(rules[common.as_posix()], 'read')
+        self.assertNotIn(common.as_posix(), rules)
         self.assertEqual({k for k,v in rules.items() if v == 'write'},
                          {Path(self.m['git_dir']).as_posix(), (common/'objects').as_posix()})
         self.assertNotIn((common/'refs').as_posix(), rules)
