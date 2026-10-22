@@ -191,6 +191,104 @@ void LogCallers() {
         g_count.listsFC4.load(), g_count.listsFixture.load(), g_count.listsOther.load());
 }
 
+// EX50 entry tracing: the concrete property / serialization virtual entries
+// record the return address of THEIR caller (taken in the entry with
+// _ReturnAddress and passed in), only for the outermost of our entries on the
+// thread. Calls nested inside another of our entries (the rebuild's
+// GetPropertyList on the parent, say) are counted under that outer entry, so
+// an internal FC4 frame never stands for a consumer. Classes: game
+// (SimCity 4.exe), other (any other module), fc4 (our plugin outside the
+// contract fixture), fixture (the contract test). Evidence only.
+enum EntryId { kEnGetList, kEnSetCohort, kEnSetParent, kEnRebuild, kEnTag, kEnCreateRec, kEnFRead, kEnFWrite,
+               kEnSerialWrite, kEnCount };
+const char* const kEntryNames[kEnCount] = {"GetPropertyList", "SetCohort", "SetParent", "RebuildEffective",
+                                           "DebugInstanceTag", "CreateInstance(record)", "Factory.Read",
+                                           "Factory.Write", "SerialWrite"};
+enum CallerClass { kClGame, kClOther, kClFC4, kClFixture, kClCount };
+const char* const kClassNames[kClCount] = {"game", "other", "fc4", "fixture"};
+std::atomic<uint32_t> g_entryOuter[kEnCount][kClCount];
+std::atomic<uint32_t> g_listsNestedUnder[kEnCount];
+thread_local int t_entry = -1;
+
+CallerClass ModuleClass(void* ra) {
+    HMODULE mod = nullptr;
+    GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                       static_cast<LPCSTR>(ra), &mod);
+    HMODULE self = nullptr;
+    GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                       reinterpret_cast<LPCSTR>(&ModuleClass), &self);
+    if (mod != nullptr && mod == GetModuleHandleA(nullptr)) return kClGame;
+    if (mod != nullptr && mod == self) return t_fixture ? kClFixture : kClFC4;
+    return kClOther;
+}
+
+struct EntrySite {
+    int entry = -1;
+    void* ra = nullptr;
+    uint32_t count = 0;
+    CallerClass cls = kClOther;
+};
+constexpr size_t kMaxSites = 48;
+std::mutex g_siteLock;
+EntrySite g_sites[kMaxSites];
+size_t g_siteCount = 0;
+std::atomic<uint32_t> g_siteOverflow{0};
+
+class EntryScope {
+public:
+    EntryScope(EntryId id, void* ra) : outer_(t_entry < 0) {
+        if (!outer_) {
+            if (id == kEnGetList) ++g_listsNestedUnder[t_entry];
+            return;
+        }
+        t_entry = id;
+        const CallerClass cls = ModuleClass(ra);
+        ++g_entryOuter[id][cls];
+        std::lock_guard<std::mutex> g(g_siteLock);
+        for (size_t i = 0; i < g_siteCount; ++i) {
+            if (g_sites[i].entry == id && g_sites[i].ra == ra) {
+                ++g_sites[i].count;
+                return;
+            }
+        }
+        if (g_siteCount == kMaxSites) {
+            ++g_siteOverflow;
+            return;
+        }
+        g_sites[g_siteCount++] = EntrySite{id, ra, 1, cls};
+        char where[MAX_PATH + 48];
+        DescribeAddress(ra, where, sizeof where);
+        Log("exemplars: EX50 entry %s new caller %s class=%s thread=%s", kEntryNames[id], where, kClassNames[cls],
+            GetCurrentThreadId() == g_mainThread.load() ? "main" : "other");
+    }
+    ~EntryScope() {
+        if (outer_) t_entry = -1;
+    }
+    EntryScope(const EntryScope&) = delete;
+    EntryScope& operator=(const EntryScope&) = delete;
+
+private:
+    bool outer_;
+};
+
+void LogEntries() {
+    {
+        std::lock_guard<std::mutex> g(g_siteLock);
+        for (size_t i = 0; i < g_siteCount; ++i) {
+            char where[MAX_PATH + 48];
+            DescribeAddress(g_sites[i].ra, where, sizeof where);
+            Log("exemplars: EX50 entry %s caller %s class=%s count=%u", kEntryNames[g_sites[i].entry], where,
+                kClassNames[g_sites[i].cls], g_sites[i].count);
+        }
+    }
+    if (g_siteOverflow.load() != 0) Log("exemplars: EX50 entry callers past the table: %u calls", g_siteOverflow.load());
+    for (int e = 0; e < kEnCount; ++e) {
+        Log("exemplars: EX50 entry %s natural game=%u other=%u | ours fc4=%u fixture=%u | lists_nested=%u",
+            kEntryNames[e], g_entryOuter[e][kClGame].load(), g_entryOuter[e][kClOther].load(),
+            g_entryOuter[e][kClFC4].load(), g_entryOuter[e][kClFixture].load(), g_listsNestedUnder[e].load());
+    }
+}
+
 // §8.2 (EX49): the list GetPropertyList returns. The original's class has no
 // GZCOM class ID, so it is rebuilt here with the documented slot table: 3
 // count, 4 element QI, 5/17 visit, 6/8 insert a list front/back, 7/9 insert
@@ -869,6 +967,7 @@ void* ExHolder::DeletingDestructor(uint32_t flags) {
 // out-pointer. EX50: the caller's return address is recorded.
 bool ExHolder::GetPropertyList(cIGZUnknownList** list) const {
     const uint32_t call = ++g_count.lists;
+    EntryScope scope(kEnGetList, _ReturnAddress());
     NoteCaller(_ReturnAddress(), call);
     if (list == nullptr) {
         ++g_count.listFails;
@@ -1015,13 +1114,22 @@ public:
         std::lock_guard<std::recursive_mutex> g(lock_);
         return parent_;
     }
-    bool SetCohort(cISCResExemplarCohort* c, bool b) override { return SetParent(c, b); }
+    bool SetCohort(cISCResExemplarCohort* c, bool b) override {
+        EntryScope scope(kEnSetCohort, _ReturnAddress());
+        return SetParent(c, b);
+    }
     bool GetKey(cGZPersistResourceKey& k) override { return ExCore::GetKey(k); }
     bool SetKey(cGZPersistResourceKey const& k) override { return ExCore::SetKey(k); }
     bool CompactProperties() override { return true; }
     // §8.2 (EX47): slot 14 DebugInstanceTag(out), slot 15 rebuild(dest).
-    virtual bool DebugInstanceTag(cIGZString& out) { return DebugTag(out); }
-    virtual bool RebuildEffective(void* dest) { return RebuildInto(dest); }
+    virtual bool DebugInstanceTag(cIGZString& out) {
+        EntryScope scope(kEnTag, _ReturnAddress());
+        return DebugTag(out);
+    }
+    virtual bool RebuildEffective(void* dest) {
+        EntryScope scope(kEnRebuild, _ReturnAddress());
+        return RebuildInto(dest);
+    }
     // cIGZPersistResource
     void GetKey(cGZPersistResourceKey& k) const override { ExCore::GetKey(k); }
     uint32_t GetType() const override { return Key().type; }
@@ -1079,15 +1187,24 @@ public:
         std::lock_guard<std::recursive_mutex> g(lock_);
         return parent_;
     }
-    bool SetParent(cISCResExemplarCohort* c, bool b) override { return ExCore::SetParent(c, b); }
+    bool SetParent(cISCResExemplarCohort* c, bool b) override {
+        EntryScope scope(kEnSetParent, _ReturnAddress());
+        return ExCore::SetParent(c, b);
+    }
     cISCPropertyHolder* AsISCPropertyHolder() override { return HolderSdk(); }
     cISCPropertyHolder* AsISCPropertyHolder() const override { return const_cast<cFC4ResCohort*>(this)->HolderSdk(); }
     bool IsPropertyLocal(uint32_t id) override { return own_.HasProperty(id); }
     bool GetKey(cGZPersistResourceKey& k) override { return ExCore::GetKey(k); }
     bool SetKey(cGZPersistResourceKey const& k) override { return ExCore::SetKey(k); }
     bool CompactProperties() override { return true; }
-    virtual bool DebugInstanceTag(cIGZString& out) { return DebugTag(out); }  // §8.2, as the exemplar's
-    virtual bool RebuildEffective(void* dest) { return RebuildInto(dest); }
+    virtual bool DebugInstanceTag(cIGZString& out) {  // §8.2, as the exemplar's
+        EntryScope scope(kEnTag, _ReturnAddress());
+        return DebugTag(out);
+    }
+    virtual bool RebuildEffective(void* dest) {
+        EntryScope scope(kEnRebuild, _ReturnAddress());
+        return RebuildInto(dest);
+    }
     void GetKey(cGZPersistResourceKey& k) const override { ExCore::GetKey(k); }
     uint32_t GetType() const override { return Key().type; }
     uint32_t GetGroup() const override { return Key().group; }
@@ -1143,6 +1260,7 @@ public:
     // QueryInterface for the caller; our own reference released in every
     // case. The manager closes or aborts the record.
     bool CreateInstance(cIGZPersistDBRecord& record, uint32_t riid, void** ppv, uint32_t, cIGZUnknown*) override {
+        EntryScope scope(kEnCreateRec, _ReturnAddress());
         std::lock_guard<std::recursive_mutex> g(lock_);
         if (ppv == nullptr) return false;
         *ppv = nullptr;
@@ -1160,6 +1278,7 @@ public:
     // Slot 5 Read(resource, record) (§8.1: through the serial record to
     // SerialRead).
     bool Read(cIGZPersistResource& resource, cIGZPersistDBRecord& record) override {
+        EntryScope scope(kEnFRead, _ReturnAddress());
         void* c = nullptr;
         if (!resource.QueryInterface(kIIDFC4Core, &c) || c == nullptr) return false;
         auto* core = static_cast<ExCore*>(c);
@@ -1170,6 +1289,7 @@ public:
     // Slot 6 Write(resource, record) (§8.2): QueryInterface of the record for
     // the serial record (0xC56B8F08), then SerialWrite.
     bool Write(cIGZPersistResource const& resource, cIGZPersistDBRecord& record) override {
+        EntryScope scope(kEnFWrite, _ReturnAddress());
         void* s = nullptr;
         if (!record.QueryInterface(kIIDSerialRecord, &s) || s == nullptr) return false;
         auto* sr = static_cast<cIGZPersistDBSerialRecord*>(s);
@@ -1184,6 +1304,7 @@ public:
     // §8.2 (EX46) slot 8 (record, iid, out): slot 3 with the trailing 0, 0.
     virtual bool CreateFromRecord(cIGZPersistDBRecord& record, uint32_t riid, void** ppv) {
         ++g_count.slot8;
+        EntryScope scope(kEnCreateRec, _ReturnAddress());  // the inner call below is nested
         return CreateInstance(record, riid, ppv, 0, nullptr);
     }
     // Slot 9 CreateInstance(type, IID, out) (§8.1).
@@ -1213,6 +1334,7 @@ public:
     // lacks the raw write at slot 28 (its slots from 28 on are one lower), so
     // the record is called by the spec's slot numbers.
     virtual bool SerialWrite(cIGZPersistResource* resource, cIGZPersistDBSerialRecord* record) {
+        EntryScope scope(kEnSerialWrite, _ReturnAddress());
         ++g_count.serialWrites;
         if (resource == nullptr || record == nullptr || resource->GetType() != type_) return false;
         if (writeMode_ != 0) {
@@ -1594,12 +1716,22 @@ void RunSide2(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, st
         // The buffer is left allocated: which game allocator 0x0067CB20 uses
         // is question EX52, so it is not freed here (a few bytes, once).
         // 2. SerialWrite (factory slot 11) into the recording record.
+        // Setup, the same on both sides: the binary form (factory slot 12
+        // SetWriteMode(false), §8.2 EX51 d) on both factories, and explicit
+        // keys (SerialWrite returns false unless the resource's type is the
+        // factory's own; CreateInstance(type) alone leaves the key's type 0 on
+        // the native side). The native factories are no longer registered
+        // (ours replaced them, §8.1), so their mode does not reach a save.
+        using WM = void(__thiscall*)(void*, bool);
+        Slot<WM>(fe, 12)(fe, false);
+        Slot<WM>(fc, 12)(fc, false);
         FakeRec* rec = MakeRec();
         g_recLog = &out[2];
         Holder* h3 = HolderOf(e[3]);
         h3->AddPropertyU32(0x30, 9, false);
         h3->AddPropertyU32(0x20, 5, false);
         if (cIGZPersistResource* r = ResOf(e[3])) {
+            r->SetKey(cGZPersistResourceKey(kTypeExemplar, 0x33, 0x44));
             Add(out[2], "ex:", 0);
             Add(out[2], " ret=%lu", Slot<SW>(fe, 11)(fe, r, rec));  // [abi-ret] probed: data-formats 8.2 / EX51
             FC4_RELEASE(r);
@@ -1616,6 +1748,7 @@ void RunSide2(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, st
         h4->AddPropertyU32(0x40, 1, false);
         e[4]->SetCohort(c, false);
         if (cIGZPersistResource* r = ResOf(e[4])) {
+            r->SetKey(cGZPersistResourceKey(kTypeExemplar, 0x33, 0x45));
             Add(out[2], " child:", 0);
             Add(out[2], " ret=%lu", Slot<SW>(fe, 11)(fe, r, rec));  // [abi-ret] probed: data-formats 8.2 / EX51
             FC4_RELEASE(r);
@@ -1700,6 +1833,7 @@ void ExemplarFactoryRestore() {
         g_count.msgPosted.load(), g_count.msgFailed.load(), g_count.tags.load(), g_count.rebuilds.load(),
         g_count.rebuildDest.load(), g_count.serialStubs.load(), g_count.holderStubs.load(), g_count.slot8.load());
     LogCallers();
+    LogEntries();
     if (rm) {
         Restore(rm, 0, kTypeExemplar, kClsExemplarFactory);
         Restore(rm, 1, kTypeCohort, kClsCohortFactory);

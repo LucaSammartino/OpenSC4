@@ -192,6 +192,9 @@ bool FirstU32(const cFC4IGZVariant& v, uint32_t* out) {
 
 }  // namespace
 
+// cFC4Variant::GetValString's bytes (cFC4Variant.h).
+bool fc4::VariantValueBytes(const cFC4IGZVariant& v, std::vector<uint8_t>& out) { return ValueBytes(v, out); }
+
 // ---- helpers ----------------------------------------------------------------------------------------
 
 bool fc4::VariantU32(const cFC4IGZVariant& v, uint32_t* out) {

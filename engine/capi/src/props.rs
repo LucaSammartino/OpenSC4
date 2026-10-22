@@ -242,6 +242,60 @@ pub unsafe extern "C" fn fc4_variant_get_u32(
 
 /// [`fc4_variant_get_u32`]'s value, through `fc4_formats`' converting getter.
 unsafe fn variant_u32(var_type: u16, data: *const u8, count: usize) -> Option<u32> {
+    match variant_value(var_type, data, count)? {
+        GameValue::Prop(p) => p.get_u32(),
+        // The scalar Char and RZUnicodeChar have no fc4_formats form (only
+        // their arrays are readable there): by number, Char as a signed byte.
+        GameValue::CharScalar(c) => Some(i32::from(c as i8) as u32),
+        GameValue::UnicodeScalar(u) => Some(u32::from(u)),
+    }
+}
+
+/// One game variant's value as `fc4_formats` reads it, or one of the two
+/// scalar types it has no form for.
+enum GameValue {
+    Prop(fc4_formats::exemplar::Property),
+    CharScalar(u8),
+    UnicodeScalar(u16),
+}
+
+/// `GetValString` (variant slot 55, data-formats §5.1) on one value held as a
+/// game variant, laid out as for [`fc4_variant_get_u32`]. The value's text
+/// goes to `sink` (one call, possibly empty) and the result is 1 when the
+/// getter returns true (a string, RZChar array `0x800E`) or 0 when it writes
+/// the round-trip text and returns false (every other type, Empty included:
+/// a Uint32 7 gives `7` and 0). -1 when nothing is written: a pointer or
+/// object value (*[choice]* of §5.1, a missing property), a bad layout, no
+/// sink, and the scalar Char and RZUnicodeChar, whose text §5.1 does not give
+/// (question EX53; literal reading: unsupported, output unchanged).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_variant_get_string(
+    var_type: u16,
+    data: *const std::ffi::c_void,
+    count: usize,
+    sink: fc4_bytes_sink,
+    ctx: *mut std::ffi::c_void,
+) -> i32 {
+    let Some(f) = sink else { return -1 };
+    let r = guard(None, || match variant_value(var_type, data as *const u8, count)? {
+        GameValue::Prop(p) => {
+            let mut out = Vec::new();
+            let ok = p.get_string_into(&mut out);
+            p.text().map(|_| (out, ok))
+        }
+        GameValue::CharScalar(_) | GameValue::UnicodeScalar(_) => None,
+    });
+    match r {
+        Some((b, ok)) => {
+            f(ctx, b.as_ptr(), b.len());
+            i32::from(ok)
+        }
+        None => -1,
+    }
+}
+
+/// The value of [`fc4_variant_get_u32`]'s arguments.
+unsafe fn variant_value(var_type: u16, data: *const u8, count: usize) -> Option<GameValue> {
     use fc4_formats::exemplar::{Property, Values};
     let is_array = var_type & fc4_core::variant::ARRAY != 0;
     let base = var_type & !fc4_core::variant::ARRAY;
@@ -249,7 +303,7 @@ unsafe fn variant_u32(var_type: u16, data: *const u8, count: usize) -> Option<u3
         // The Empty value (type 0) and the void array (0x8000): their text is
         // empty, which parses as 0 (data-formats §5.1). The void array's bytes
         // are never read.
-        return Property::single(0, Values::Empty).get_u32();
+        return Some(GameValue::Prop(Property::single(0, Values::Empty)));
     }
     let size = elem_size(base)?;
     if !is_array && count != 1 {
@@ -260,13 +314,11 @@ unsafe fn variant_u32(var_type: u16, data: *const u8, count: usize) -> Option<u3
         None if count == 0 => &[],
         None => return None,
     };
-    // The scalar Char and RZUnicodeChar have no fc4_formats form (only their
-    // arrays are readable there): by number, Char as a signed byte.
     if !is_array && base == mem::CHAR {
-        return Some(i32::from(bytes[0] as i8) as u32);
+        return Some(GameValue::CharScalar(bytes[0]));
     }
     if !is_array && base == mem::UNICODE_CHAR {
-        return Some(u32::from(u16::from_ne_bytes([bytes[0], bytes[1]])));
+        return Some(GameValue::UnicodeScalar(u16::from_ne_bytes([bytes[0], bytes[1]])));
     }
     fn each<T>(b: &[u8], n: usize, f: impl Fn(&[u8]) -> T) -> Vec<T> {
         b.chunks_exact(n).map(f).collect()
@@ -299,12 +351,52 @@ unsafe fn variant_u32(var_type: u16, data: *const u8, count: usize) -> Option<u3
     } else {
         Property::single(0, values)
     };
-    p.get_u32()
+    Some(GameValue::Prop(p))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    unsafe extern "C" fn collect(ctx: *mut std::ffi::c_void, data: *const u8, len: usize) {
+        let v = &mut *(ctx as *mut Vec<u8>);
+        v.clear();
+        if len != 0 {
+            v.extend_from_slice(std::slice::from_raw_parts(data, len));
+        }
+    }
+
+    fn text_of(var_type: u16, bytes: &[u8], count: usize) -> (i32, Vec<u8>) {
+        let mut out = b"old".to_vec();
+        let r = unsafe {
+            fc4_variant_get_string(
+                var_type,
+                bytes.as_ptr().cast(),
+                count,
+                Some(collect),
+                (&mut out as *mut Vec<u8>).cast(),
+            )
+        };
+        (r, out)
+    }
+
+    /// data-formats §5.1 `GetValString`: true only for a string; every other
+    /// type writes its round-trip text and returns false; objects write nothing.
+    #[test]
+    fn get_val_string_text_and_result() {
+        const A: u16 = 0x8000;
+        assert_eq!(text_of(A | mem::RZ_CHAR, b"Fc4Test", 7), (1, b"Fc4Test".to_vec()));
+        assert_eq!(text_of(A | mem::RZ_CHAR, b"abc", 3), (1, b"abc".to_vec()));
+        assert_eq!(text_of(mem::UINT32, &7u32.to_ne_bytes(), 1), (0, b"7".to_vec()));
+        assert_eq!(text_of(mem::SINT32, &(-5i32).to_ne_bytes(), 1), (0, b"-5".to_vec()));
+        assert_eq!(text_of(A | mem::UINT32, &[5, 0, 0, 0, 9, 0, 0, 0], 2), (0, b"5".to_vec()));
+        assert_eq!(text_of(A | mem::CHAR, b"12", 2), (0, b"12".to_vec()));
+        assert_eq!(text_of(mem::FLOAT32, &2.75f32.to_ne_bytes(), 1), (0, b"2.75".to_vec()));
+        assert_eq!(text_of(mem::EMPTY, &[], 0), (0, Vec::new()));
+        // Char / RZUnicodeChar scalars (EX53, unsupported) and objects: nothing.
+        assert_eq!(text_of(mem::CHAR, b"x", 1), (-1, b"old".to_vec()));
+        assert_eq!(text_of(0x10, &[0; 4], 1), (-1, b"old".to_vec()));
+    }
 
     fn u32_of(var_type: u16, bytes: &[u8], count: usize) -> Option<u32> {
         let mut out = 0xDEAD_BEEF;

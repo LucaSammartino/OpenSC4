@@ -25,6 +25,15 @@
 #include "cIGZVariant.h"
 #include "cRZBaseVariant.h"
 
+#include <cstdint>
+#include <vector>
+
+namespace fc4 {
+// The value's bytes in its own layout (scalars: the one value; arrays: the
+// elements); false for pointers and objects (FC4PropertyHolder.cpp).
+bool VariantValueBytes(const cFC4IGZVariant& v, std::vector<uint8_t>& out);
+}  // namespace fc4
+
 class cFC4Variant final : public cFC4IGZVariant {
 public:
     cFC4Variant() = default;
@@ -96,7 +105,9 @@ public:
     bool GetValVoidPtrTo(void** value) const override { return v_.GetValVoidPtr(value); }
     void SetValVoidPtr(void* value) override { v_.SetValVoidPtr(value); }
     bool CreateValString(cIGZString** value) const override { return v_.CreateValString(value); }
-    bool GetValString(cIGZString& value) const override { return v_.GetValString(value); }
+    // Slot 55 (data-formats §5.1): not the SDK's (it answers false and writes
+    // nothing); see cFC4Variant.cpp.
+    bool GetValString(cIGZString& value) const override;
     void SetValString(cIGZString const& value) override { v_.SetValString(value); }
     // Slots 57 / 58, the raw bytes (type 0x8000): not the SDK's (it answers
     // false and stores nothing); see cFC4Variant.cpp (NG37, data-formats §5.2).

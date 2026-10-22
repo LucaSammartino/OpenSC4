@@ -12152,6 +12152,14 @@ bool fc4_dlayer_go_to_next(fc4_dlayer* d);
 bool fc4_dlayer_assessing(fc4_dlayer* d);
 uint32_t fc4_dlayer_refused(fc4_dlayer* d);
 
+/* data-formats §5.1 GetValString (variant slot 55) on one value laid out as
+ * for fc4_variant_get_u32: the value's text goes to `sink` (one call), then 1
+ * when the getter returns true (a string, RZChar array 0x800E) or 0 when it
+ * writes the round-trip text and returns false (every other type, Empty
+ * included). -1 and no sink call for pointers, objects, a bad layout and the
+ * scalar Char / RZUnicodeChar (EX53). Additive; no FC4_ABI_VERSION bump. */
+int32_t fc4_variant_get_string(uint16_t var_type, const void* data, size_t count, fc4_bytes_sink sink, void* ctx);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

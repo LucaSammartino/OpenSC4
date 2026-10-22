@@ -13,6 +13,8 @@
 
 #include "cFC4Variant.h"
 
+#include "fc4.h"
+
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -83,6 +85,28 @@ bool cFC4Variant::GetValVoid(void* value, uint32_t& length) const {
     const void* src = v_.RefVoid();
     if (value != nullptr && src != nullptr && length != 0) std::memcpy(value, src, length);
     return true;
+}
+
+// Slot 55, GetValString (data-formats §5.1), in the core
+// (fc4_variant_get_string): the value's text replaces `value`; true only for
+// a string (RZChar array), false with the round-trip text for every other
+// type (Uint32 7 gives "7"). [choice] of §5.1: objects and pointers are a
+// missing property (false, `value` unchanged). The scalar Char and
+// RZUnicodeChar: false, unchanged (EX53, §5.1 gives no text for them).
+namespace {
+void SinkToString(void* ctx, const uint8_t* data, size_t len) {
+    static_cast<cIGZString*>(ctx)->FromChar(reinterpret_cast<const char*>(data), static_cast<uint32_t>(len));
+}
+}  // namespace
+
+bool cFC4Variant::GetValString(cIGZString& value) const {
+    const uint16_t type = v_.GetType();
+    const bool isArray = (type & cIGZVariant::TypeArray) != 0;
+    std::vector<uint8_t> b;
+    if ((type & ~cIGZVariant::TypeArray) != 0 && !fc4::VariantValueBytes(*this, b)) return false;
+    const size_t n = isArray ? v_.GetCount() : 1;
+    return fc4_variant_get_string(type, b.empty() ? nullptr : b.data(), (type & ~cIGZVariant::TypeArray) != 0 ? n : 0,
+                                  SinkToString, &value) == 1;
 }
 
 // foundations §17.1: slot 60 is GetValUnknown(riid, void**).
