@@ -16,5 +16,7 @@
 - First stable all: cargo4962 PASS, clippy0 diagnostics PASS, CTest67/68; ret_channel_check falsely aliases SDK cIGZPersistDBSegment Open/Close to distinct cIGZPersistDBSegment(SC4) streaming interface. Added scoped [abi-ret] comments; no map/table changes. MSVC groups overloaded Init methods, so typed SDK Open is slot6 and OpenRecord is slot21, consistent with spec.
 - EX54 appended for unspecified ReadRecordRaw return/in-out contract; no malformed raw-read calls.
 - Stable all after return-contract comments: cargo4962/4962, clippy0 diagnostics, CTest68/68 PASS. Source tip1c53058b. Next: freeze DLL and queue native2032/fullsave/shutdown.
+- Frozen DLL SHA256 524CD1243584A4613969B49B28870A0F1CF0D3DF242133B431DA002304288A5A, build-runs/dbpf-native-frozen/FreeCity4.dll. Fixture manifest SHA256 3FD0E623041B954870C2043A10B30582B35092AE4831F19ED6F37A8FD5C70D4B; .dat files readonly.
+- OUTSTANDING: vdbpf4-r1-native-1c53058b-a, turbo to2032, scripted fullsave2031-12-01/shutdown; qwait verdict path build-runs/game-results/vdbpf4-r1-native-1c53058b-a.verdict. No second request until completed.
 - No game requests or serialized probe state. Need coordinator exacthouse40 profile: absent from brief/permitted coordination script; do not reconstruct from obsolete lists.
 - Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-dbpf-native4-r1-manifest.json.
