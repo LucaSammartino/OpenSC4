@@ -92,3 +92,5 @@ Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-graphics-rules4-r1-mani
 ## Coordinator phase review
 
 Bounded preparation and diagnostic source publication is approved for train83; the worker result remains incomplete. GR4-GR6 remain unanswered owner contracts. No complete-owner, exact shadow, default or replacement credit is granted. The original worktree is parked awaiting answers, and its existing round budget is retained. The train must pass the full native gate and current default union before landing.
+
+Integration83: RP80 changes the convenience name view to Option<&str>; the UTF-8-only logging adapter now enforces its existing string-name domain explicitly. GR6 records the unsupported native byte-name boundary. This is compilation compatibility for the unbound subset, not a native contract answer or owner promotion.
