@@ -4002,7 +4002,7 @@ va	name	source	confidence	note
 005b2440	cSC4ParticlesEffect::Shutdown	auto:B0	medium	mac 0041376e score 0.979 support 2.0
 005b2730	cSC4ParticlesEffect::UpdateRandomWalk	auto:B1	medium	mac 00416028 score 0.95 support 1.0
 005b2a40	cSC4DummyAutoOccupant::cSC4DummyAutoOccupant	auto:B8	medium	mac 00796266 score 0.98 support 2.0
-005b2b00	cSC4PowerLineOccupant::GetPosition	manual:power-poles.tsv	high	network-occupants.md §5.1 occupant slot 8
+005b2b00	cSC4PowerLineOccupant::GetPosition	auto:C	high	mac 00254d34 score 1.0 support 1
 005b2fd0	__ZThn4_N19cSC4ParticlesEffectD0Ev	auto:B0	low	mac 00796086 score 0.96 support 1.0
 005b2fe0	cSC4ParticlesEffect::~cSC4ParticlesEffect	auto:C	high	mac 00796090 score 1.0 support 1
 005b3000	cSC4ParticlesEffect::Start	auto:B2	medium	mac 0041674e score 0.926 support 2.0
@@ -4407,7 +4407,7 @@ va	name	source	confidence	note
 005dda90	SC4WriteCityRegionViewThumbnails	auto:A	high	mac 0015754e score 1.0 support 0
 005dddc0	SC4WriteDefaultCityRegionViewThumbnail	auto:A	high	mac 001578a4 score 0.568 support 0
 005ddec0	SC4WriteCityRegionViewThumbnail	auto:A	high	mac 0015856e score 0.661 support 0
-005dea50	cSC4PowerLineOccupant::Init	manual:power-poles.tsv	high	network-occupants.md §5.1 occupant slot 3
+005dea50	cSC4PowerLineOccupant::Init	auto:C	low	mac 00254b0c score 1.0 support 1
 005dea60	cSC4LotBaseTextureOccupant::Shutdown	auto:C	high	mac 00082d1c score 1.0 support 1
 005dea80	cSC4LotBaseTextureOccupant::QueryInterface	auto:C	high	mac 00082d54 score 1.0 support 1
 005deab0	cSC4CellTextureModel::~cSC4CellTextureModel (body)	manual:lot-models.tsv	high	lot-models.md descriptive name, no Mac match; Â§4
@@ -5056,7 +5056,7 @@ va	name	source	confidence	note
 00604bc0	cSC4NetworkBridgeOccupant::QueryInterface	auto:B0	medium	mac 00156a1e score 0.9 support 1.5
 00604bf0	cSC4NetworkBridgeOccupant::Init	auto:C	high	mac 00156a6e score 1.0 support 1
 00604c10	cSC4NetworkBridgeOccupant::Shutdown	auto:C	high	mac 00156b68 score 1.0 support 1
-00604ca0	cSC4NetworkOccupantWithPreBuiltModel::~cSC4NetworkOccupantWithPreBuiltModel	manual:network-occupant.tsv	high	sets the prebuilt-model vtables, releases +0x1C8/+0x1C4, then the network body 0x0061C170
+00604ca0	cSC4NetworkOccupant::~cSC4NetworkOccupant	auto:D	medium	mac 001363ac score 0.5 support 1
 00604d10	cSC4NetworkOccupant::HasNetworkFlag	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 8
 00604d30	cSC4NetworkOccupant::HasAnyNetworkFlag	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 9
 00604d50	cSC4NetworkOccupant::IsImmovable	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 17
@@ -5227,24 +5227,24 @@ va	name	source	confidence	note
 00616360	lib::_M_initialize_buckets	library	medium	Function ID
 00616800	cSC4NetworkOccupantModelInstance::FlipAndLight	auto:B3	medium	mac 004c9fa0 score 0.894 support 2.5
 00618b00	cSC4NetworkOccupantModelInstance::Clip	auto:B0	medium	mac 004ca294 score 0.978 support 1.5
-00619040	cSC4NetworkOccupant::GetGZCLSID	manual:network-occupant.tsv	high	network-occupants.md §2.1
+00619040	cSC4NetworkOccupant::GetGZCLSID	auto:C	low	mac 00676484 score 1.0 support 1
 00619050	cSC4NetworkOccupant::Init	manual:network-occupant.tsv	high	network-occupants.md §2.5 main slot 3
 00619100	cSC4NetworkOccupant::Shutdown	auto:C	low	mac 00132328 score 1.0 support 1
 00619110	cSC4NetworkOccupant::GetConnectionNodeEdgeTypes	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 13
 00619150	cSC4NetworkOccupant::GetConnectionPathIDOverride	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 15
 00619180	cSC4NetworkOccupant::CheckForRetrofit	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 6
-006191a0	(anonymous_namespace)::ConvertV5FlagsToCurrentFlags	manual:network-occupant.tsv	high	network-occupants.md §2.3
-006192c0	cSC4NetworkOccupant::QueryInterface	manual:network-occupant.tsv	high	network-occupants.md §2.1
+006191a0	(anonymous_namespace)::ConvertV5FlagsToCurrentFlags	auto:B0	medium	mac 001323f8 score 0.983 support 3.0
+006192c0	cSC4NetworkOccupant::QueryInterface	auto:B1	medium	mac 00132544 score 0.961 support 3.0
 00619320	cSC4NetworkOccupant::ConnectsToNeighbor	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 47
-00619360	cSC4NetworkOccupant::GetBoundingBox	manual:network-occupant.tsv	high	network-occupants.md §2.9
+00619360	cSC4NetworkOccupant::GetBoundingBox	auto:C	high	mac 00133c2c score 1.0 support 2
 006193a0	cSC4NetworkOccupant::GetOwner	manual:network-occupant.tsv	high	network-occupants.md §2.1 model instance slot 3
 006193d0	cSC4NetworkOccupant::GetPosition	manual:network-occupant.tsv	high	network-occupants.md §2.9 main slot 75
 006194c0	cSC4NetworkOccupant::GetVertexHeight	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 35
 006194e0	cSC4NetworkOccupant::GetWorldBounds	manual:network-occupant.tsv	high	network-occupants.md §2.1 model instance slot 8
-00619500	cSC4NetworkOccupant::HasProperty	manual:network-occupant.tsv	high	network-occupants.md §2.2
+00619500	cSC4NetworkOccupant::HasProperty	auto:A	high	mac 00132b28 score 1.0 support 0
 00619520	cSC4NetworkOccupant::IsOfType	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 22
 00619540	cSC4NetworkOccupant::MarkLightingUpdateNeeded	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 46
-00619550	cSC4NetworkOccupant::SetTextureCoordinates	manual:network-occupant.tsv	high	network-occupants.md §2.11
+00619550	cSC4NetworkOccupant::SetTextureCoordinates	auto:B5	medium	mac 001325f8 score 0.979 support 1.0
 00619650	cSC4NetworkOccupant::SetVertexHeights	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 36
 00619680	cSC4NetworkOccupant::ReleasePathInfo	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 50
 006196a0	cSC4NetworkOccupant::PathConnectionExists	manual:network-occupant.tsv	high	network-occupants.md §2.6 slot 53
@@ -5272,16 +5272,16 @@ va	name	source	confidence	note
 0061a020	cSC4NetworkOccupant::SetConnectionNodeEdgeTypes	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 14
 0061a090	cSC4NetworkOccupant::SetConnectionPathIDOverride	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 16
 0061a120	cSC4NetworkOccupant::SetRetrofitFlag	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 7
-0061a190	cSC4NetworkOccupant::Write	manual:network-occupant.tsv	high	network-occupants.md §2.3
+0061a190	cSC4NetworkOccupant::Write	auto:C	high	mac 00134f7a score 1.0 support 2
 0061a430	cSC4NetworkOccupant::ComputeBox	manual:network-occupant.tsv	high	network-occupants.md §2.9 slot 80
-0061a850	cSC4NetworkOccupant::Draw	manual:network-occupant.tsv	high	network-occupants.md §2.11
-0061ac70	cSC4NetworkOccupant::DrawOneWayArrow	manual:network-occupant.tsv	high	network-occupants.md §2.11
+0061a850	cSC4NetworkOccupant::Draw	auto:A	high	mac 00133da8 score 0.56 support 0
+0061ac70	cSC4NetworkOccupant::DrawOneWayArrow	auto:A	high	mac 0013270a score 0.824 support 0
 0061ae90	cSC4NetworkOccupant::GetActiveEdges	manual:network-occupant.tsv	high	network-occupants.md §2.10 slot 40
 0061aee0	cSC4NetworkOccupant::GetActiveEdgesForType	manual:network-occupant.tsv	high	network-occupants.md §2.10 slot 41
 0061af10	cSC4NetworkOccupant::GetActiveEdgesForTypeNoGroup	manual:network-occupant.tsv	high	network-occupants.md §2.10 slot 42
 0061af40	cSC4NetworkOccupant::GetGroupedEdges	manual:network-occupant.tsv	high	network-occupants.md §2.10 slot 43
 0061af80	cSC4NetworkOccupant::GetEdgeTypesFlag	manual:network-occupant.tsv	high	network-occupants.md §2.10 slot 38
-0061af90	cSC4NetworkOccupant::GetModelInstances	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 33
+0061af90	cSC4NetworkOccupant::GetModelInstances	auto:D	medium	mac 001335fa score 0.5 support 1
 0061b010	cSC4NetworkOccupant::GetOccupiedCell	manual:network-occupant.tsv	high	network-occupants.md §2.9
 0061b060	cSC4NetworkOccupant::GetSortValue	manual:network-occupant.tsv	high	network-occupants.md §2.11
 0061b0b0	cSC4NetworkOccupant::GetTransform	manual:network-occupant.tsv	high	network-occupants.md §2.1 model instance slot 9
@@ -5290,19 +5290,19 @@ va	name	source	confidence	note
 0061b3a0	cSC4NetworkOccupant::Pick	manual:network-occupant.tsv	high	network-occupants.md §2.9
 0061b430	cSC4NetworkOccupant::SetEdgeType	manual:network-occupant.tsv	high	network-occupants.md §2.10 slot 39
 0061b480	cSC4NetworkOccupant::SetEdgeTypesFlag	manual:network-occupant.tsv	high	network-occupants.md §2.10 slot 37
-0061b490	cSC4NetworkOccupant::SetQuadDraw	manual:network-occupant.tsv	high	network-occupants.md §2.11
-0061b510	cSC4NetworkOccupant::GetPathInfo	manual:network-occupant.tsv	high	traffic-network.md §7.2; network-rules.md
+0061b490	cSC4NetworkOccupant::SetQuadDraw	auto:B6	medium	mac 00132cd2 score 0.937 support 2.0
+0061b510	cSC4NetworkOccupant::GetPathInfo	auto:A	high	mac 00132da0 score 1.0 support 0
 0061b6c0	cSC4NetworkOccupant::GetNormal	manual:network-occupant.tsv	high	network-occupants.md §2.9
 0061b750	cSC4NetworkOccupant::SetTranslucency	manual:network-occupant.tsv	high	network-occupants.md §2.11
 0061b7f0	cSC4NetworkOccupant::SetVariation	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 27; §2.7
 0061b880	cSC4NetworkOccupant::SetUnderTexture	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 29; §2.7
-0061b910	cSC4NetworkOccupant::SetLit	manual:network-occupant.tsv	high	network-occupants.md §2.7
-0061b9a0	cSC4NetworkOccupant::SetPassageCeiling	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 68
-0061b9f0	cSC4NetworkOccupant::SetOneWayDirections	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 70
+0061b910	cSC4NetworkOccupant::SetLit	auto:A	high	mac 00133298 score 1.0 support 0
+0061b9a0	cSC4NetworkOccupant::SetPassageCeiling	auto:B17	medium	mac 00135ebe score 0.942 support 1.5
+0061b9f0	cSC4NetworkOccupant::SetOneWayDirections	auto:B0	medium	mac 00135f4c score 0.932 support 1.5
 0061ba90	cSC4NetworkOccupant::SetComplexPieceOrigin	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 72
-0061bb60	cSC4NetworkOccupant::UpdateLighting	manual:network-occupant.tsv	high	network-occupants.md §2.7
+0061bb60	cSC4NetworkOccupant::UpdateLighting	auto:B7	medium	mac 001344b2 score 0.965 support 1.0
 0061bd80	cSC4NetworkOccupant::IsIntersection	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 55
-0061bdd0	cSC4NetworkOccupant::cSC4NetworkOccupant	manual:network-occupant.tsv	high	network-occupants.md §2.1, §2.5
+0061bdd0	cSC4NetworkOccupant::cSC4NetworkOccupant	auto:B1	medium	mac 001361dc score 0.947 support 4.0
 0061bfc0	cSC4NetworkOccupant::QueryInterface (thunk)	manual:network-occupant.tsv	high	network-occupants.md §2.1; this - 4
 0061bfd0	__ZThn4_N19cSC4NetworkOccupant8ShutdownEv	auto:B0	low	mac 00676676 score 0.96 support 1.0
 0061bfe0	cSC4NetworkOccupant::QueryInterface (thunk)	manual:network-occupant.tsv	high	network-occupants.md §2.1; this - 8
@@ -5323,15 +5323,15 @@ va	name	source	confidence	note
 0061c150	__ZThn56_N19cSC4NetworkOccupant4DrawEP14SC4DrawContextb	auto:B0	low	mac 00676bd0 score 0.96 support 1.0
 0061c160	cSC4NetworkOccupant::GetSortValue (thunk)	manual:network-occupant.tsv	high	network-occupants.md §2.11; this-adjusted copy
 0061c170	cSC4NetworkOccupant::~cSC4NetworkOccupant	manual:network-occupant.tsv	high	network-occupants.md §2.1 destructor body
-0061c480	GZCOM_CreatecSC4NetworkOccupant	manual:network-occupant.tsv	high	network-occupants.md §2.1
-0061c4c0	cSC4NetworkOccupant::~cSC4NetworkOccupant	manual:network-occupant.tsv	high	network-occupants.md §2.1 deleting destructor
+0061c480	GZCOM_CreatecSC4NetworkOccupant	auto:B2	medium	mac 0013636c score 0.958 support 1.0
+0061c4c0	cSC4NetworkOccupant::~cSC4NetworkOccupant	auto:C	high	mac 0013657e score 1.0 support 1
 0061c520	cSC4NetworkOccupant::StaticShutdown	manual:network-occupant.tsv	high	network-occupants.md §2.5
 0061c5f0	cSC4NetworkOccupant::SetTextureZoom	manual:network-occupant.tsv	high	network-occupants.md §2.11 slot 78
-0061c690	cSC4NetworkOccupant::StaticInit	manual:network-occupant.tsv	high	network-occupants.md §2.5
+0061c690	cSC4NetworkOccupant::StaticInit	auto:B1	medium	mac 0013486e score 0.914 support 3.0
 0061c800	cSC4NetworkOccupant::AddPart	manual:network-occupant.tsv	high	network-occupants.md §2.11
 0061c950	cSC4NetworkOccupant::GetTexture	manual:network-occupant.tsv	high	network-occupants.md §2.11 slot 77
-0061cb50	cSC4NetworkOccupant::Init	manual:network-occupant.tsv	high	network-occupants.md §2.5 occupant slot 3
-0061cc00	cSC4NetworkOccupant::Read	manual:network-occupant.tsv	high	network-occupants.md §2.3
+0061cb50	cSC4NetworkOccupant::Init	auto:B0	medium	mac 00134aaa score 0.963 support 2.5
+0061cc00	cSC4NetworkOccupant::Read	auto:A	high	mac 0013550a score 1.0 support 0
 0061d030	cSC4NetworkOccupant::Read (thunk)	manual:network-occupant.tsv	high	network-occupants.md §2.3; this - 4
 0061d060	cSC4NetworkOccupantWithPreBuiltModel::QueryInterface	auto:B2	medium	mac 00147f92 score 0.9 support 1.5
 0061d0d0	cSC4NetworkOccupantWithPreBuiltModel::Shutdown	auto:C	high	mac 00147cea score 1.0 support 1
@@ -5625,81 +5625,81 @@ va	name	source	confidence	note
 00648f40	icf::cSC4PipeOccupant::GetGZCLSID	folded	folded	2 names: cSC4PipeOccupant::GetGZCLSID | cSC4UndergroundConnectionOccupant::Init
 00648f70	cSC4PipeTool::FindPipeOccupant	auto:D	medium	mac 0012cca4 score 0.5 support 1
 00649080	cSC4PipeTool::FindPipeConnectionOccupant	auto:D	medium	mac 0012cbb8 score 0.5 support 1
-00649190	cSC4PowerPoleOccupant::GetOwner	manual:power-poles.tsv	high	network-occupants.md §4.1; model instance slot 3
+00649190	cSC4PowerPoleOccupant::GetOwner	auto:C	high	mac 0025499a score 1.0 support 1
 006491c0	cSC4PropOccupant::AddRef	auto:B0	low	mac 001026ec score 0.912 support 1.0
 006491d0	icf::cSC4ConstructionOccupant::Release	folded	folded	5 names: cSC4ConstructionOccupant::Release | cSC4PowerPoleOccupant::Release | cSC4PropOccupant::Release | cSC4PropOccupantBurntBuilding::Release | cSC4PylonOccupant::Release
-006491e0	cSC4PowerPoleOccupant::SetHighlight	manual:power-poles.tsv	high	network-occupants.md §4.2
-00649200	cSC4PowerPoleOccupant::GetSortValue	manual:power-poles.tsv	high	network-occupants.md §4.2
+006491e0	cSC4PowerPoleOccupant::SetHighlight	auto:C	high	mac 002549c8 score 1.0 support 1
+00649200	cSC4PowerPoleOccupant::GetSortValue	auto:A	high	mac 002549e4 score 1.0 support 0
 00649210	cSC4PowerPoleOccupant::GetCell	manual:power-poles.tsv	high	network-occupants.md §4.2 slot 8
 00649230	cSC4PowerPoleOccupant::IsDistressed	manual:power-poles.tsv	high	network-occupants.md §4.2 slot 11
 00649240	cSC4PowerPoleOccupant::IsPreview	manual:power-poles.tsv	high	network-occupants.md §4.2 slot 13; power.md §5.1
 00649250	cSC4PowerPoleOccupant::SetPreview	manual:power-poles.tsv	high	network-occupants.md §4.2 slot 14
-00649260	cSC4PowerLineOccupant::GetGZCLSID	manual:power-poles.tsv	high	network-occupants.md §5.1
-00649270	cSC4PowerLineOccupant::Shutdown	manual:power-poles.tsv	high	network-occupants.md §5.1 occupant slot 4
+00649260	cSC4PowerLineOccupant::GetGZCLSID	auto:C	low	mac 006d90c8 score 1.0 support 1
+00649270	cSC4PowerLineOccupant::Shutdown	auto:C	high	mac 00254b26 score 1.0 support 1
 00649290	cSC4PowerLineOccupant::GetConnectedPoles	manual:power-poles.tsv	high	network-occupants.md §5.1 main slot 3
 006492d0	cSC4PowerLineOccupant::SetConnectedPoles	manual:power-poles.tsv	high	network-occupants.md §5.1 main slot 4
 00649330	cSC4PowerLineOccupant::GetCell	manual:power-poles.tsv	high	network-occupants.md §5.1 main slot 5
-00649350	cSC4PowerLineOccupant::QueryInterface	manual:power-poles.tsv	high	network-occupants.md §5.1
+00649350	cSC4PowerLineOccupant::QueryInterface	auto:A	high	mac 00254c28 score 1.0 support 0
 00649390	cSC4PowerLineOccupant::IsPreview	manual:power-poles.tsv	high	network-occupants.md §5.1 main slot 6
 006493a0	cSC4PowerLineOccupant::SetPreview	manual:power-poles.tsv	high	network-occupants.md §5.1 main slot 7
 006493b0	cSC4PowerPoleOccupant::EvaluateBezier	manual:power-poles.tsv	high	power-line-tool.md §5.5
 006499b0	cSC4PowerPoleOccupant::GetConnectedPole	manual:power-poles.tsv	high	network-occupants.md §4.2 slot 7
 006499d0	cSC4PowerPoleOccupant::operator.new	auto:B3	medium	mac 00255cfa score 0.821 support 1.0
-00649a00	cSC4PowerPoleOccupant::GetBoundingBox	manual:power-poles.tsv	high	network-occupants.md §4.2
-00649b30	cSC4PowerPoleOccupant::InitConnectionPoints	manual:power-poles.tsv	high	network-occupants.md §4.6
+00649a00	cSC4PowerPoleOccupant::GetBoundingBox	auto:C	high	mac 00255356 score 1.0 support 1
+00649b30	cSC4PowerPoleOccupant::InitConnectionPoints	auto:B2	medium	mac 002556ac score 0.965 support 2.0
 00649ba0	cSC4PowerPoleOccupant::GetAttachmentPoints	manual:power-poles.tsv	high	network-occupants.md §4.6
 00649d00	cSC4PowerPoleOccupant::GetModelInstances	manual:power-poles.tsv	high	network-occupants.md §4.2 slot 17
 00649d80	cSC4PowerPoleOccupant::GetConnectionCount	manual:power-poles.tsv	high	network-occupants.md §4.2 slot 4
-00649da0	cSC4PowerPoleOccupant::GetPosition	manual:power-poles.tsv	high	network-occupants.md §4.7
+00649da0	cSC4PowerPoleOccupant::GetPosition	auto:C	high	mac 00254d0e score 1.0 support 1
 00649dd0	cSC4PowerPoleOccupant::GetLineCellsTo	manual:power-poles.tsv	high	network-occupants.md §4.2 slot 16
 00649e50	cSC4PowerPoleOccupant::GetBounds	auto:C	high	mac 00254f1c score 1.0 support 1
 00649e60	cSC4PowerPoleOccupant::GetWorldBounds	auto:C	high	mac 0025591e score 1.0 support 1
 00649e80	cSC4PowerPoleOccupant::GetTransform	auto:C	high	mac 00254efe score 1.0 support 1
 00649f10	cSC4PowerPoleOccupant::SetTransform	auto:C	high	mac 00254ee0 score 1.0 support 1
-00649fa0	cSC4PowerPoleOccupant::Init	manual:power-poles.tsv	high	network-occupants.md §4.3 occupant slot 3
-0064a030	cSC4PowerPoleOccupant::QueryInterface	manual:power-poles.tsv	high	network-occupants.md §4.1
+00649fa0	cSC4PowerPoleOccupant::Init	auto:C	high	mac 00255618 score 1.0 support 1
+0064a030	cSC4PowerPoleOccupant::QueryInterface	auto:A	high	mac 00254f40 score 0.652 support 0
 0064a0f0	cSC4PowerPoleOccupant::OnOccupantInserted	manual:power-poles.tsv	high	network-occupants.md §4.3
 0064a140	cSC4PowerPoleOccupant::DoMessage	manual:power-poles.tsv	high	network-occupants.md §4.3 message target slot 3
-0064a170	cSC4PowerPoleOccupant::InitPowerLineControlVariables	manual:power-poles.tsv	high	network-occupants.md §4.3
-0064a270	cSC4PowerLineOccupant::cSC4PowerLineOccupant	manual:power-poles.tsv	high	network-occupants.md §5.1
-0064a310	cSC4PowerLineOccupant::Write	manual:power-poles.tsv	high	network-occupants.md §5.1
-0064a3a0	cSC4PowerLineOccupant::Read	manual:power-poles.tsv	high	network-occupants.md §5.1
-0064a460	cSC4PowerLineOccupant::SetPosition	manual:power-poles.tsv	high	network-occupants.md §5.1 occupant slot 9
-0064a4a0	cSC4PowerLineOccupant::GetBoundingBox	manual:power-poles.tsv	high	network-occupants.md §5.1 occupant slot 10
+0064a170	cSC4PowerPoleOccupant::InitPowerLineControlVariables	auto:A	high	mac 002554da score 0.729 support 0
+0064a270	cSC4PowerLineOccupant::cSC4PowerLineOccupant	auto:A	high	mac 002550ac score 1.0 support 0
+0064a310	cSC4PowerLineOccupant::Write	auto:C	high	mac 002569f4 score 1.0 support 1
+0064a3a0	cSC4PowerLineOccupant::Read	auto:C	high	mac 00256238 score 1.0 support 1
+0064a460	cSC4PowerLineOccupant::SetPosition	auto:C	high	mac 00254d54 score 1.0 support 1
+0064a4a0	cSC4PowerLineOccupant::GetBoundingBox	auto:C	high	mac 00254e1e score 1.0 support 1
 0064a4d0	cSC4PowerPoleOccupant::WalkLineCells	manual:power-poles.tsv	high	network-occupants.md §4.6
-0064a560	cSC4PowerPoleOccupant::RemoveConnection	manual:power-poles.tsv	high	network-occupants.md §4.6 (record overload)
+0064a560	cSC4PowerPoleOccupant::RemoveConnection	auto:B5	medium	mac 00255c1e score 0.987 support 2.5
 0064a650	cSC4PowerPoleOccupant::InsertLines	manual:power-poles.tsv	high	network-occupants.md §4.2 slot 9
 0064a6c0	cSC4PowerPoleOccupant::GetControlPoints	manual:power-poles.tsv	high	power-line-tool.md §5.5
-0064a870	cSC4PowerPoleOccupant::Pick	manual:power-poles.tsv	high	network-occupants.md §4.2
-0064aa40	cSC4PowerPoleOccupant::SetDistressed	manual:power-poles.tsv	high	network-occupants.md §4.7
-0064ab70	GZCOM_CreatecSC4PowerLineOccupant	manual:power-poles.tsv	high	network-occupants.md §5.1
+0064a870	cSC4PowerPoleOccupant::Pick	auto:C	high	mac 0025571c score 1.0 support 1
+0064aa40	cSC4PowerPoleOccupant::SetDistressed	auto:A	high	mac 00255134 score 0.717 support 0
+0064ab70	GZCOM_CreatecSC4PowerLineOccupant	auto:B0	medium	mac 002593e8 score 0.97 support 1.0
 0064abf0	cSC4PowerLineOccupant::~cSC4PowerLineOccupant	auto:C	high	mac 0025945c score 1.0 support 1
-0064ac70	cSC4PowerPoleOccupant::SetModelPosition	manual:power-poles.tsv	high	network-occupants.md §4.7
-0064ad90	cSC4PowerPoleOccupant::LoadModel	manual:power-poles.tsv	high	network-occupants.md §4.7
-0064b010	cSC4PowerPoleOccupant::Write	manual:power-poles.tsv	high	network-occupants.md §4.4
+0064ac70	cSC4PowerPoleOccupant::SetModelPosition	auto:A	high	mac 00255a48 score 0.717 support 0
+0064ad90	cSC4PowerPoleOccupant::LoadModel	auto:B0	medium	mac 00255d0c score 0.926 support 3.0
+0064b010	cSC4PowerPoleOccupant::Write	auto:C	high	mac 002564a2 score 1.0 support 2
 0064b660	cSC4PowerPoleOccupant::tConnection::~tConnection	auto:B0	medium	mac 006d9866 score 0.829 support 1.0
 0064b6e0	cSC4PowerPoleOccupant::AttachLines	manual:power-poles.tsv	high	power-line-tool.md §5.3 step 4; was attributed to the power line tool by reach
-0064b750	cSC4PowerPoleOccupant::DrawPowerlines	manual:power-poles.tsv	high	network-occupants.md §4.7
+0064b750	cSC4PowerPoleOccupant::DrawPowerlines	auto:B3	medium	mac 00257810 score 0.921 support 2.5
 0064bba0	std::list<cSC4PowerLineOccupant*,std::allocator<cSC4PowerLineOccupant*>>::resize	auto:D	medium	mac 006d9a9c score 0.5 support 1
-0064bc80	cSC4PowerPoleOccupant::Shutdown	manual:power-poles.tsv	high	network-occupants.md §4.3
+0064bc80	cSC4PowerPoleOccupant::Shutdown	auto:B2	medium	mac 00255944 score 0.999 support 2.5
 0064bd80	cSC4PowerPoleOccupant::StaticShutdown	manual:power-poles.tsv	high	network-occupants.md §4.3
 0064be50	cSC4PowerPoleOccupant::GetLineCells	manual:power-poles.tsv	high	network-occupants.md §4.6 slot 5
-0064bfd0	cSC4PowerPoleOccupant::CreateFloor	manual:power-poles.tsv	high	network-occupants.md §4.7
-0064c2c0	cSC4PowerPoleOccupant::AddWallQuad	manual:power-poles.tsv	high	network-occupants.md §4.7
-0064c470	cSC4PowerPoleOccupant::CreateWalls	manual:power-poles.tsv	high	network-occupants.md §4.7
-0064c540	cSC4PowerPoleOccupant::SetPosition	manual:power-poles.tsv	high	network-occupants.md §4.7
-0064c6c0	cSC4PowerPoleOccupant::ChangeZoomLevel	manual:power-poles.tsv	high	network-occupants.md §4.7 slot 18
-0064c800	cSC4PowerPoleOccupant::Draw	manual:power-poles.tsv	high	network-occupants.md §4.7
-0064cc20	cSC4PowerPoleOccupant::StaticInit	manual:power-poles.tsv	high	network-occupants.md §4.3
-0064ce40	cSC4PowerPoleOccupant::Init	manual:power-poles.tsv	high	network-occupants.md §4.3 main slot 15
+0064bfd0	cSC4PowerPoleOccupant::CreateFloor	auto:A	high	mac 00257236 score 0.748 support 0
+0064c2c0	cSC4PowerPoleOccupant::AddWallQuad	auto:B2	medium	mac 00256f94 score 1.0 support 2.5
+0064c470	cSC4PowerPoleOccupant::CreateWalls	auto:B1	medium	mac 00257144 score 0.967 support 2.0
+0064c540	cSC4PowerPoleOccupant::SetPosition	auto:B0	medium	mac 002573fa score 0.965 support 2.0
+0064c6c0	cSC4PowerPoleOccupant::ChangeZoomLevel	auto:B0	medium	mac 002575b8 score 0.967 support 2.0
+0064c800	cSC4PowerPoleOccupant::Draw	auto:B1	medium	mac 00257e6c score 0.968 support 2.0
+0064cc20	cSC4PowerPoleOccupant::StaticInit	auto:B0	medium	mac 00256ac8 score 0.977 support 6.0
+0064ce40	cSC4PowerPoleOccupant::Init	auto:B1	medium	mac 00256d38 score 0.968 support 2.5
 0064cf40	cRZAutoRefCount<cIS3DModelInstance>::operator=	auto:B0	medium	mac 006373e8 score 0.924 support 2.0
 0064d3d0	std::vector<cSC4PowerPoleOccupant::tConnection,std::allocator<cSC4PowerPoleOccupant::tConnection>>::erase	auto:D	medium	mac 006da46c score 0.5 support 1
 0064d510	cSC4PowerPoleOccupant::RebuildWires	manual:power-poles.tsv	high	network-occupants.md §4.3
-0064d910	cSC4PowerPoleOccupant::SetDefaultExemplar	manual:power-poles.tsv	high	network-occupants.md §4.3
-0064da00	cSC4PowerPoleOccupant::RemoveConnection	manual:power-poles.tsv	high	network-occupants.md §4.6 (pole overload); power.md §11.2
+0064d910	cSC4PowerPoleOccupant::SetDefaultExemplar	auto:B2	medium	mac 0025879a score 0.95 support 1.0
+0064da00	cSC4PowerPoleOccupant::RemoveConnection	auto:B3	medium	mac 0025882e score 0.961 support 2.0
 0064dae0	cSC4PowerPoleOccupant::BreakAllConnectionsAtDestination	auto:B4	medium	mac 002588de score 0.899 support 1.0
-0064db30	cSC4PowerPoleOccupant::cSC4PowerPoleOccupant	manual:power-poles.tsv	high	network-occupants.md §4.1
-0064dd50	cSC4PowerPoleOccupant::GetGZCLSID	manual:power-poles.tsv	high	network-occupants.md §4.1
+0064db30	cSC4PowerPoleOccupant::cSC4PowerPoleOccupant	auto:B2	medium	mac 00256e10 score 0.927 support 2.5
+0064dd50	cSC4PowerPoleOccupant::GetGZCLSID	auto:C	low	mac 006d9100 score 1.0 support 1
 0064dd60	cSC4PowerPoleOccupant::GetCostOfDemolition	manual:power-poles.tsv	high	network-occupants.md §4.2 slot 10
 0064de30	cSC4PowerPoleOccupant::AddRef	auto:C	high	mac 002549ac score 1.0 support 1
 0064de40	cSC4PowerPoleOccupant::Release	auto:C	high	mac 002549ba score 1.0 support 1
@@ -5711,10 +5711,10 @@ va	name	source	confidence	note
 0064df80	__ZThn60_N21cSC4PowerPoleOccupant12SetTransformERK13cS3DTransform	auto:B0	low	mac 006d95bc score 0.96 support 1.0
 0064df90	__ZThn60_N21cSC4PowerPoleOccupant4PickEP15cSC4PickContext	auto:B0	low	mac 006d9732 score 0.96 support 1.0
 0064dfb0	__ZThn60_N21cSC4PowerPoleOccupant4DrawEP14SC4DrawContextb	auto:B2	low	mac 006d9d6e score 0.96 support 1.0
-0064e340	GZCOM_CreatecSC4PowerPoleOccupant	manual:power-poles.tsv	high	network-occupants.md §4.1
-0064e380	cSC4PowerPoleOccupant::~cSC4PowerPoleOccupant	manual:power-poles.tsv	high	network-occupants.md §4.1
+0064e340	GZCOM_CreatecSC4PowerPoleOccupant	auto:B3	medium	mac 002594aa score 0.958 support 1.0
+0064e380	cSC4PowerPoleOccupant::~cSC4PowerPoleOccupant	auto:C	high	mac 00259668 score 1.0 support 1
 0064e3e0	cSC4PowerPoleOccupant::AddConnection	manual:power-poles.tsv	high	power-line-tool.md §5.3; called by the power line tool, was attributed to it by reach
-0064ea00	cSC4PowerPoleOccupant::Read	manual:power-poles.tsv	high	network-occupants.md §4.4
+0064ea00	cSC4PowerPoleOccupant::Read	auto:A	high	mac 00258952 score 0.742 support 0
 0064efe0	cSC4PowerLineTool::ComputePolePosition	auto:B3	medium	mac 0022b69c score 0.999 support 3.0
 0064f2b0	cSC4PowerLineTool::SetTerrainHilight	auto:A	high	mac 0022bbcc score 1.0 support 0
 0064f570	cSC4PowerLineTool::GetFailureReasonString	auto:A	high	mac 0022bab6 score 1.0 support 0
@@ -5786,35 +5786,35 @@ va	name	source	confidence	note
 00653d90	icf::cSC4SubwayOccupant::GetGZCLSID	folded	folded	2 names: cSC4SubwayOccupant::GetGZCLSID | cSC4UndergroundConnectionOccupant::Init
 00653da0	cSC4UndergroundConnectionOccupant::StaticShutdown	manual:network-occupant.tsv	high	network-occupants.md §3.6
 00653dc0	icf::cSC4UndergroundConnectionOccupant::GetBoundingBox	folded	folded	2 names: cSC4UndergroundConnectionOccupant::GetBoundingBox | cSC4UndergroundConnectionOccupant::GetBounds
-00654030	cSC4UndergroundConnectionOccupant::QueryInterface	manual:network-occupant.tsv	high	network-occupants.md §3.6
+00654030	cSC4UndergroundConnectionOccupant::QueryInterface	auto:A	high	mac 0022f364 score 1.0 support 0
 00654090	cSC4UndergroundConnectionOccupant::GetSortValue	manual:network-occupant.tsv	high	network-occupants.md §3.6; the class ID 0x8A139184
-006540a0	cSC4UndergroundConnectionOccupant::GetHiddenTriangles	manual:network-occupant.tsv	high	network-occupants.md §3.6
-006540c0	cSC4UndergroundConnectionOccupant::GetPosition	manual:network-occupant.tsv	high	network-occupants.md §3.6
-006540f0	cSC4UndergroundConnectionOccupant::SetPosition	manual:network-occupant.tsv	high	network-occupants.md §3.6
+006540a0	cSC4UndergroundConnectionOccupant::GetHiddenTriangles	auto:B5	medium	mac 0022f440 score 0.992 support 1.0
+006540c0	cSC4UndergroundConnectionOccupant::GetPosition	auto:C	high	mac 0022f458 score 1.0 support 2
+006540f0	cSC4UndergroundConnectionOccupant::SetPosition	auto:C	high	mac 0022f47e score 1.0 support 2
 00654120	cSC4UndergroundConnectionOccupant::AddRef	auto:C	low	mac 0022f4a6 score 1.0 support 3
 00654130	cSC4UndergroundConnectionOccupant::Release	auto:C	low	mac 0022f4b0 score 1.0 support 3
 00654140	cSC4UndergroundConnectionOccupant::GetWorldBounds	manual:network-occupant.tsv	high	network-occupants.md §3.6; the occupant box
-00654160	cSC4UndergroundConnectionOccupant::RefreshAttachedOccupant	manual:network-occupant.tsv	high	network-occupants.md §3.6 main slot 43; was a Mac-matched GetWorldBounds name
-00654180	cSC4UndergroundConnectionOccupant::PostOccupantMessage	manual:network-occupant.tsv	high	network-occupants.md §3.6
+00654160	cSC4UndergroundConnectionOccupant::GetWorldBounds	auto:C	high	mac 0022f4ba score 1.0 support 2
+00654180	cSC4UndergroundConnectionOccupant::PostOccupantMessage	auto:C	high	mac 0022f5aa score 1.0 support 2
 00654260	cSC4UndergroundConnectionOccupant::SetupPackedRenderState	auto:B1	medium	mac 0022f6e8 score 0.795 support 2.5
-006542f0	cSC4UndergroundConnectionOccupant::ModelStateChanged	manual:network-occupant.tsv	high	network-occupants.md §3.6
-00654620	cSC4UndergroundConnectionOccupant::SetLinkedOccupant	manual:network-occupant.tsv	high	network-occupants.md §3.6 main slot 40; was a Mac-matched HasViewDependentModel name
-00654670	cSC4UndergroundConnectionOccupant::Init	manual:network-occupant.tsv	high	network-occupants.md §3.6 main slot 3
-00654710	cSC4UndergroundConnectionOccupant::Init	manual:network-occupant.tsv	high	network-occupants.md §3.6; main slot 34 Init(classID, descriptor), 1,341 bytes; was the folded name icf::cSC4PipeConnectionOccupant::~cSC4PipeConnectionOccupant (the code at 0x0065471D is inside it)
+006542f0	cSC4UndergroundConnectionOccupant::ModelStateChanged	auto:D	medium	mac 0022f3da score 0.5 support 1
+00654620	cSC4UndergroundConnectionOccupant::HasViewDependentModel	auto:C	high	mac 006d3146 score 1.0 support 2
+00654670	cSC4UndergroundConnectionOccupant::Init	auto:B0	medium	mac 0022f87a score 0.997 support 3.0
+00654710	icf::cSC4PipeConnectionOccupant::~cSC4PipeConnectionOccupant	folded	folded	2 names: cSC4PipeConnectionOccupant::~cSC4PipeConnectionOccupant | cSC4SubwayConnectionOccupant::~cSC4SubwayConnectionOccupant
 0065471d	cSC4UndergroundConnectionOccupant::Init	auto:B0	medium	mac 0022f916 score 0.985 support 3.0
-00654c50	cSC4UndergroundConnectionOccupant::Write	manual:network-occupant.tsv	high	network-occupants.md §3.6
+00654c50	cSC4UndergroundConnectionOccupant::Write	auto:C	high	mac 00230344 score 1.0 support 1
 00654db0	cSC4UndergroundConnectionOccupant::~cSC4UndergroundConnectionOccupant	auto:B0	medium	mac 0023067c score 0.988 support 2.0
-00654e70	cSC4UndergroundConnectionOccupant::GetGZCLSID	manual:network-occupant.tsv	high	network-occupants.md §3.6
-00654f00	cSC4UndergroundConnectionOccupant::cSC4UndergroundConnectionOccupant	manual:network-occupant.tsv	high	network-occupants.md §3.6
+00654e70	cSC4UndergroundConnectionOccupant::GetGZCLSID	auto:C	low	mac 006d313c score 1.0 support 1
+00654f00	cSC4UndergroundConnectionOccupant::cSC4UndergroundConnectionOccupant	auto:B2	medium	mac 0023239e score 0.855 support 3.0
 00655380	cSC4UndergroundConnectionOccupant::~cSC4UndergroundConnectionOccupant	auto:C	high	mac 00230510 score 1.0 support 1
-006553a0	cSC4UndergroundConnectionOccupant::Shutdown	manual:network-occupant.tsv	high	network-occupants.md §3.6
+006553a0	cSC4UndergroundConnectionOccupant::Shutdown	auto:B0	medium	mac 0022ff94 score 0.994 support 3.0
 00655520	cSC4UndergroundConnectionOccupant::GetModelInstances	auto:C	high	mac 0022f258 score 1.0 support 2
 006555e0	cSC4UndergroundConnectionOccupant::AddWallQuad	auto:B0	medium	mac 00231386 score 0.991 support 2.5
 00655850	cSC4UndergroundConnectionOccupant::CreatePieceModel	auto:B2	medium	mac 00230c2e score 0.985 support 4.5
 00655f10	cSC4UndergroundConnectionOccupant::CreateWalls	auto:D	medium	mac 00231506 score 0.5 support 1
 00656010	cSC4UndergroundConnectionOccupant::CreateFloor	auto:D	medium	mac 00230b96 score 0.5 support 1
 006562b0	cSC4UndergroundConnectionOccupant::CreateGeometry	auto:B2	medium	mac 002315e4 score 0.811 support 2.5
-00656c80	cSC4UndergroundConnectionOccupant::DoMessage	manual:network-occupant.tsv	high	network-occupants.md §3.6
+00656c80	cSC4UndergroundConnectionOccupant::DoMessage	auto:B3	medium	mac 0023197a score 0.984 support 3.0
 00656e90	cSC4UndergroundConnectionOccupant::Draw	auto:B2	medium	mac 00231ba6 score 0.947 support 2.0
 006574a0	ReadFromStream	auto:D	medium	mac 0013f5f8 score 0.5 support 1
 00657590	cSC4UndergroundConnectionOccupant::Read	manual:network-occupant.tsv	high	network-occupants.md §3.6
@@ -5834,47 +5834,47 @@ va	name	source	confidence	note
 006597e0	cSC4UndergroundNetworkTool::AddCellPreview	auto:B4	medium	mac 0013bbc2 score 0.954 support 2.0
 006599d0	cSC4UndergroundNetworkTool::InsertOccupantsForSolvedCells	auto:B2	medium	mac 0013b30c score 0.957 support 1.5
 00659b00	cSC4UndergroundOccupant::GetBoundingBox	auto:C	high	mac 0013cf54 score 1.0 support 3
-00659d70	cSC4UndergroundOccupant::GetModelInstances	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 33 (also slot 36 of the connections); was a Mac-matched Read name
+00659d70	cSC4UndergroundConnectionOccupant::Read	auto:C	high	mac 0023089a score 1.0 support 2
 00659db0	cSC4UndergroundOccupant::SetCeilingParameters	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 97, §3.2
 00659dd0	cSC4UndergroundOccupant::GetOriginalHeights	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 94
 00659e00	cSC4UndergroundOccupant::ComputeBox	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 80
-0065a080	cSC4UndergroundOccupant::QueryInterface	manual:network-occupant.tsv	high	network-occupants.md §3.1
-0065a0e0	cSC4UndergroundOccupant::GetSortValue	manual:network-occupant.tsv	high	network-occupants.md §3.1
+0065a080	cSC4UndergroundOccupant::QueryInterface	auto:A	high	mac 0013d196 score 0.728 support 0
+0065a0e0	cSC4UndergroundOccupant::GetSortValue	auto:A	high	mac 0013d208 score 1.0 support 0
 0065a120	cSC4UndergroundOccupant::CountRun	manual:network-occupant.tsv	high	network-occupants.md §3.2 main slot 98
-0065a200	cSC4UndergroundOccupant::GetZipperPieceType	manual:network-occupant.tsv	high	network-occupants.md §3.2 main slot 99
+0065a200	cSC4UndergroundOccupant::GetZipperPieceType	auto:B4	medium	mac 0013d342 score 0.98 support 2.0
 0065a3f0	cSC4UndergroundOccupant::UpdateQuadTriangles	manual:network-occupant.tsv	high	network-occupants.md §3.2 main slot 88
-0065a640	cSC4UndergroundOccupant::IsImaginaryConnection	manual:network-occupant.tsv	high	network-occupants.md §3.2
+0065a640	cSC4UndergroundOccupant::IsImaginaryConnection	auto:B7	medium	mac 0013d71e score 0.983 support 2.0
 0065a6c0	cSC4NetworkOccupant::GetVertexHeights	manual:network-occupant.tsv	high	network-occupants.md §2.4 slot 34
 0065a6f0	cSC4UndergroundOccupant::GetQuadBools	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 92
-0065a720	cSC4UndergroundOccupant::GetPosition	manual:network-occupant.tsv	high	network-occupants.md §3.1 occupant slot 8
+0065a720	cSC4UndergroundOccupant::GetPosition	auto:C	high	mac 0013d7f6 score 1.0 support 3
 0065a810	cSC4UndergroundOccupant::GetModelKey	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 96
 0065a860	icf::cSC4NetworkBridgeOccupant::AddRef	folded	folded	5 names: cSC4NetworkBridgeOccupant::AddRef | cSC4NetworkOccupantWithPreBuiltModel::AddRef | cSC4RiotPolice::AddRef | cSC4SimFireCrew::AddRef | cSC4UndergroundOccupant::AddRef
 0065a870	icf::cSC4NetworkBridgeOccupant::Release	folded	folded	5 names: cSC4NetworkBridgeOccupant::Release | cSC4NetworkOccupantWithPreBuiltModel::Release | cSC4RiotPolice::Release | cSC4SimFireCrew::Release | cSC4UndergroundOccupant::Release
 0065a880	cSC4UndergroundOccupant::GetWallTextures	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 104; network-manager.md §5
 0065a900	cSC4UndergroundOccupant::SetNetworkFlag	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 10
 0065a940	cSC4UndergroundOccupant::ClearNetworkFlag	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 11
-0065a980	cSC4UndergroundOccupant::PostOccupantMessage	manual:network-occupant.tsv	high	network-occupants.md §3.1 occupant slot 15
+0065a980	cSC4UndergroundOccupant::PostOccupantMessage	auto:C	high	mac 0013dc20 score 1.0 support 3
 0065aa70	cSC4UndergroundOccupant::GetCeiling	manual:network-occupant.tsv	high	network-occupants.md §3.2 main slot 93
 0065ab50	cSC4UndergroundOccupant::ComputeModelYPosition	manual:network-occupant.tsv	high	network-occupants.md §3.2
 0065adb0	cSC4UndergroundOccupant::SetQuadDraw	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 30
 0065add0	cSC4UndergroundOccupant::Rebuild	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 86
 0065ae30	cSC4UndergroundOccupant::SetCornerHeights	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 84
-0065ae80	cSC4UndergroundOccupant::StaticInit	manual:network-occupant.tsv	high	network-occupants.md §3.1
+0065ae80	cSC4UndergroundOccupant::StaticInit	auto:D	medium	mac 0013e226 score 0.5 support 1
 0065af10	cSC4UndergroundOccupant::Refresh	manual:network-occupant.tsv	high	network-occupants.md §3.2 main slot 100
 0065b020	cSC4UndergroundOccupant::GetTint	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 103
 0065b040	std::vector<float,std::allocator<float>>::operator[]	auto:D	medium	mac 00609f5c score 0.5 support 2
 0065b070	cSC4UndergroundOccupant::WriteVertexList	manual:network-occupant.tsv	high	network-occupants.md §3.4 row 5; also used by the connection record
-0065b140	cSC4UndergroundOccupant::Write	manual:network-occupant.tsv	high	network-occupants.md §3.4
-0065b290	cSC4UndergroundOccupant::Draw	manual:network-occupant.tsv	high	network-occupants.md §3.2
+0065b140	cSC4UndergroundOccupant::Write	auto:C	high	mac 0013f032 score 1.0 support 1
+0065b290	cSC4UndergroundOccupant::Draw	auto:B3	medium	mac 0013e8ac score 0.922 support 2.5
 0065b6b0	cSC4UndergroundOccupant::SetOriginalHeights	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 95
 0065b700	cSC4UndergroundOccupant::BuildMeshTransform	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 85
-0065c070	cSC4UndergroundOccupant::Init	manual:network-occupant.tsv	high	network-occupants.md §3.1 occupant slot 3
+0065c070	cSC4UndergroundOccupant::Init	auto:C	high	mac 0013e260 score 1.0 support 1
 0065c0c0	cSC4UndergroundOccupant::~cSC4UndergroundOccupant	auto:B0	medium	mac 00140f3c score 0.981 support 2.0
 0065c2f0	__ZThn56_NK23cSC4UndergroundOccupant12GetSortValueERm	auto:B0	low	mac 00679214 score 0.96 support 1.0
 0065c330	cSC4UndergroundOccupant::cSC4UndergroundOccupant	manual:network-occupant.tsv	high	network-occupants.md §3.1
 0065c650	cSC4UndergroundOccupant::~cSC4UndergroundOccupant	auto:C	high	mac 00141090 score 1.0 support 1
-0065c6b0	cSC4UndergroundOccupant::Init	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 81
-0065cd90	cSC4UndergroundOccupant::Shutdown	manual:network-occupant.tsv	high	network-occupants.md §3.1
+0065c6b0	cSC4UndergroundOccupant::Init	auto:B0	medium	mac 0013e4bc score 0.887 support 2.5
+0065cd90	cSC4UndergroundOccupant::Shutdown	auto:C	high	mac 0013e34e score 1.0 support 1
 0065cf20	cSC4UndergroundOccupant::SetTextureZoom	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 78
 0065cfe0	cSC4UndergroundOccupant::Shutdown (thunk)	manual:network-occupant.tsv	high	network-occupants.md §3.1; this - 4
 0065cff0	cSC4UndergroundOccupant::AddWallQuad	auto:B7	medium	mac 00140bc0 score 0.991 support 2.5
@@ -5882,7 +5882,7 @@ va	name	source	confidence	note
 0065d810	cSC4UndergroundOccupant::CreateUndergroundModel	auto:B2	medium	mac 0013fe30 score 0.946 support 4.5
 0065e260	cSC4UndergroundOccupant::CreateWalls	auto:B6	medium	mac 00140d40 score 0.962 support 2.0
 0065e410	cSC4UndergroundOccupant::BuildCap	manual:network-occupant.tsv	high	network-occupants.md §3.1 main slot 90
-0065e510	cSC4UndergroundOccupant::Read	manual:network-occupant.tsv	high	network-occupants.md §3.4
+0065e510	cSC4UndergroundOccupant::Read	auto:C	high	mac 0013f752 score 1.0 support 1
 0065e690	cSC4UndergroundOccupant::Read (thunk)	manual:network-occupant.tsv	high	network-occupants.md §3.4; this - 4
 0065e710	cSC4VertexHtConstraintSatisfier::Init	auto:D	medium	mac 0014a1b0 score 0.5 support 1
 0065e740	std::_Rb_tree<int,int,std::_Identity<int>,std::less<int>,std::allocator<int>>::~_Rb_tree	auto:D	medium	mac 006069b2 score 0.5 support 1

@@ -277,7 +277,7 @@ property list (answers NO5: the slots that use them carry the SDK names):
 | `0x4835C6AC` | an empty variant | 6, 7: `CheckForRetrofit` / `SetRetrofitFlag` (present = set) |
 
 The property holder's `HasProperty` (`0x00619500`) is true for `0x88696402` without looking; other IDs go to the
-exemplar property holder (NO32).
+exemplar property holder (NO38).
 
 ### 2.3 The base save record *[compat]*
 
@@ -298,7 +298,7 @@ version ≥ 4 (below that it fails at once) and has conversions for 4/5/6/7. In 
 | 9 | the box | 6 × f32 | interleaved min/max per axis: min x `+0x124`, max x `+0x130`, min y `+0x128`, max y `+0x134`, min z `+0x12C`, max z `+0x138` (loop of 3 at `0x0061A3B8`, slot `+0x30`) (NO16 c) |
 | 10 | the network flags | u32 | object `+0x13C`. Read: below v6 converted by `ConvertV5FlagsToCurrentFlags` (rule below), then always `& 0xFFFF1FFF`, which clears `0x2000` (path connections built), `0x4000` and `0x8000` (lighting up to date) |
 | 11 | the path-id override | u32 | object `+0x164` |
-| 12 | the cached path info's key | 0 or 3 × u32 | `SC4WriteGZPersistRef` (`0x005D9940`): only through a database segment stream — the stream is asked for `cISC4DBSegmentOStream` (`0x6999A8FB`); when it refuses, **nothing** is written. Otherwise, when the path info `+0x140` answers `cIGZPersistResource` (`0x456B8F1D`), its slots 5, 6 and 7 are written *[inferred: type, group, instance]*; with no path info, or one that does not answer, three zeros. `SC4ReadGZPersistRef` (`0x005D9820`) reads the three u32 only through `cISC4DBSegmentIStream` (`0x4999A8F5`) and asks the resource manager (`0x00B43CA8`, slot 3) for that key as interface `0xA9667793`; the result (or null) becomes the cached path info. Read in **every** accepted version. Where the city file keeps the piece's own path info is NO33 |
+| 12 | the cached path info's key | 0 or 3 × u32 | `SC4WriteGZPersistRef` (`0x005D9940`): only through a database segment stream — the stream is asked for `cISC4DBSegmentOStream` (`0x6999A8FB`); when it refuses, **nothing** is written. Otherwise, when the path info `+0x140` answers `cIGZPersistResource` (`0x456B8F1D`), its slots 5, 6 and 7 are written *[inferred: type, group, instance]*; with no path info, or one that does not answer, three zeros. `SC4ReadGZPersistRef` (`0x005D9820`) reads the three u32 only through `cISC4DBSegmentIStream` (`0x4999A8F5`) and asks the resource manager (`0x00B43CA8`, slot 3) for that key as interface `0xA9667793`; the result (or null) becomes the cached path info. Read in **every** accepted version. Where the city file keeps the piece's own path info is NO39 |
 | 13 | the cost of demolition | s64 (`SetSint64`, slot `+0x28`) | low dword `+0x170`, high `+0x174`. Read in every accepted version |
 
 `Write` returns early (to the error-flag return) when the occupant base record fails; otherwise it writes all 13
@@ -695,7 +695,7 @@ Fields past the network occupant's (§2.2):
 | `+0x260`, `+0x261` | 2 × bool | refresh pending, model rebuild needed (slot 100, §3.2) |
 | `+0x262` | bool | cleared by `Read`; the subway builds its model before its paths while it is clear |
 | `+0x264` | u32 | the layer's class ID (`0x49C05B9F` pipe, `0xCA16374F` subway), given to `Init` (slot 82) |
-| `+0x268` | u32 | saved and returned by slot 96; nothing in these classes sets it (NO35) |
+| `+0x268` | u32 | saved and returned by slot 96; nothing in these classes sets it (NO41) |
 | `+0x26C` | pointer | the static model descriptor (slot 101) |
 
 A vertex list is a vector of the 24-byte vertices of §2.2 (begin/end/capacity).
@@ -716,9 +716,9 @@ Slots (main unless noted):
 | 84 | `0x0065AE30` | `SetCornerHeights(h[4])`: the corners' y (`+0xA0`, `+0xB8`, `+0xD0`, `+0xE8`); the ceiling; slots 89 and 90 with true |
 | 85 | `0x0065B700` | the mesh transform `+0x1FC` from the rotation, flip and position (`GetObjectYRotationAngle`) *[summary]* |
 | 86 | `0x0065ADD0` | `Rebuild(s)`: the ceiling, slot 85, slot 87 (rotation, flip, `s`), slot 89 (`s`), slot 90 (`s`) |
-| 87 | `0x0065D810` | `CreateUndergroundModel(rotation, flip, s)` (§3.2; NO34) |
+| 87 | `0x0065D810` | `CreateUndergroundModel(rotation, flip, s)` (§3.2; NO40) |
 | 88 | `0x0065A3F0` | the quad's triangles (§3.2) |
-| 89 | `0x0065E260` | `CreateWalls(s)` (§3.2; NO34) |
+| 89 | `0x0065E260` | `CreateWalls(s)` (§3.2; NO40) |
 | 90 | `0x0065E410` | `BuildCap(s)`: the cap list `:=` the four corners with white colour and their own alpha; with `s`, slot 100 with true |
 | 91 | `0x00648F10` | nothing |
 | 92 | `0x0065A6F0` | `GetQuadBools(&diagonal, &hideFirst, &hideSecond)` |
@@ -831,7 +831,7 @@ all-`FLT_MAX` heights give `FLT_MAX`. Example: corner x 0/16/16/0, z 0/0/16/16, 
    102), the neighbour of the same layer across it gets `Refresh(true)`.
 The pending flag stops the recursion; the draw pass clears it.
 
-**Model and drawing** *[summary; NO34]*:
+**Model and drawing** *[summary; NO40]*:
 - `CreateUndergroundModel(rotation, flip, s)` (slot 87): empties the lists, releases the six wall textures and the
   mesh, loads the three wall texture pairs through the texture manager, builds the face lists of the piece
   (`MakeCustomUndergroundPiece`, `0x0065D160`, which looks at the neighbours and their ceilings, slot 93), loads the
@@ -890,7 +890,7 @@ u16 version 3 followed by the complete base network record** (§2.3, with its ow
 | 10 | the four original heights | 4 × f32 | `+0x24C`, `+0x250`, `+0x254`, `+0x258` |
 | 11 | the ceiling height | f32 | `+0x25C` |
 | 12 | the layer's class ID | u32 | `+0x264` (the field `GetZipperPieceType` and `IsImaginaryConnection` read) |
-| 13 | one word | u32 | `+0x268` (NO35) |
+| 13 | one word | u32 | `+0x268` (NO41) |
 
 A **vertex list** (helper `0x0065B070` write / `0x006574A0` read, NO17 c) is a u32 count = `(end − begin) / 0x18`
 (magic division `0x2AAAAAAB`, `SAR 2`) followed by `count` vertices in the corner form of §2.3 field 4: f32 x, y,
@@ -946,18 +946,18 @@ themselves, before the base `Init`: `0x2A183167` for the pipe connection and `0x
 
 | Offset | Type | Field |
 |---|---|---|
-| `+0x68` | u32 | saved; meaning not known (NO35) |
+| `+0x68` | u32 | saved; meaning not known (NO41) |
 | `+0x6C`, `+0x78`, `+0x84`, `+0x90`, `+0xA0`, `+0xAC`, `+0xBC` | 7 vertex lists | the connection's model *[summary]* |
 | `+0xC8` | pointer | the **attached** underground occupant (the one at this cell), counted |
 | `+0xCC` | pointer | a **linked** occupant (slot 40), counted |
 | `+0x150`, `+0x154` | 2 × s32 | the cell |
 | `+0x160`…`+0x16C` | 4 × f32 | four heights |
-| `+0x170` | f32 | saved (NO35) |
-| `+0x178` | s32 | saved (NO35) |
+| `+0x170` | f32 | saved (NO41) |
+| `+0x178` | s32 | saved (NO41) |
 | `+0x17C` | bool | the model state has been taken into account |
 | `+0x180`, `+0x18C` | 2 × 3 × f32 | the box (slot 42) |
 | `+0x230` | 3 × f32 | the position (occupant slots 8 `GetPosition`, 9 `SetPosition`) |
-| `+0x240` | u32 | saved (NO35) |
+| `+0x240` | u32 | saved (NO41) |
 | `+0x244` | bool | set by `Read` |
 
 **Record** (`Write` `0x00654C50`, `Read` `0x00657590`):
@@ -1011,7 +1011,7 @@ connection `0xCA15ED6B` in 1 save, pipe connection `0xEA0A5ACF` in 4).
   geometry (`CreateGeometry`, `0x006562B0`).
 - `Draw` (`0x00656E90`): builds the geometry when needed (`CreateGeometry`: `CreatePieceModel` `0x00655850`,
   `CreateWalls` `0x00655F10`, `CreateFloor` `0x00656010`, from the zoom and rotation; `AddWallQuad` `0x006555E0`),
-  then draws the lists with two packed states (`0x00B46864`, `0x00B46854`) (NO34).
+  then draws the lists with two packed states (`0x00B46864`, `0x00B46854`) (NO40).
 - Other bodies: `GetTransform`/`SetTransform` `0x00648360`/`0x006540F0`; `GetModelInstances` (slot 36) the
   underground's `0x00659D70`.
 
@@ -1040,24 +1040,6 @@ points. Poles can be distressed (they then show a "powerpolezap" effect) and pre
 
 | Item | Value |
 |---|---|
-<<<<<<< HEAD
-| `+0x68` | transform; matrix starts +6C (identity 0/1), scalar +9C=1.0 |
-| `+0xA0/+0xA4/+0xA8` | position x/y/z (`GetPosition` `0x00649DA0` receives occupant-view +8) |
-| `+0xAC/+0xB0` | connection vector (records of stride **0x2C**: +0 pole ref, +4 wire-point list, +8 byte flag, +9 byte, +0xC u32, +0x10 u32, +0x14…+0x24 two vertex lists) |
-| `+0xB4` | connection vector capacity end (third word of the +AC vector) |
-| `+0xB8` | wire-exemplar index (set by `Init`'s `param_3`) |
-| `+0xBC` | delegate object (QI `0x26A68448` jump-dispatches to its vtable slot 0 — identity unknown, NO2/§12) |
-| `+0xC0/+0xC4` | model ids (from `0x00B43DD8+0x10/+0xC`) |
-| `+0xC8/+0xCC` | signed cell x/z, returned by primary GetCell |
-| `+0xD0` | bbox-dirty byte (constructor 1) |
-| `+0xE8/+0xF4/+0x100` | three 24-byte vertex vectors (reader `0x006574A0`) |
-| `+0xE4` | connection-points table pointer (`InitConnectionPoints` `0x00649B30` picks `0x00B0C0D8` or `0x00B0C198` by the exemplar sub-type nibble: 1, 2 → first; 3, 4 → second) |
-| `+0xE8` | vertex array, stride 0x18 |
-| `+0x10C` | float (model Y) |
-| `+0x110` | bool |
-| `+0x112` | distressed byte (`IsDistressed` `0x00649230` reads it) |
-| `+0x118` | stored by primary slot 14 (`0x00649250`) |
-=======
 | Class ID (`GetGZCLSID` `0x0064DD50`) | `0x09C05C6A` |
 | `QueryInterface` (`0x0064A030`) | `0xA8C86142` (`cISC4PowerPoleOccupant`), `0x09C05C6A`, `0xA9764C8C` → main; `0x452294AA` → the message target (`+4`); `0x26A68448` (a model instance's mesh container, model-instances.md) → forwarded to the model instance `+0xBC` when there is one; any other → the occupant base, then the model instance base |
 | Occupant type (`+0x2C`, the occupant view's `+0x24`) | `0x2890D4DE` |
@@ -1085,12 +1067,11 @@ a virtual base at `+0x120` (`0x00AA9D30`, 19 slots).
 | `+0xE4` | pointer | the attachment table (§4.6) |
 | `+0xE8`, `+0xF4`, `+0x100` | 3 vertex lists | the floor and walls drawn in the underground view *[summary]* (stride 0x18) |
 | `+0x10C` | f32 | the floor height: the lowest corner altitude of the cell (§4.7) |
-| `+0x110` | bool | saved; meaning not known (NO36) |
+| `+0x110` | bool | saved; meaning not known (NO42) |
 | `+0x111` | bool | subscribed to `0x99EF1142` |
 | `+0x112` | bool | **distressed** (slots 11, 12) |
 | `+0x114` | pointer | the "powerpolezap" effect while distressed |
 | `+0x118` | bool | **preview** (slots 13, 14) |
->>>>>>> a33fa02e (network-occupants.md: the power pole and power line occupants, corrected)
 
 ### 4.2 Interface slots *[compat]*
 
@@ -1147,7 +1128,23 @@ manager (service `0x1AC0E11A`, interface `0xFAC0E219`, `0x00B46758`); read the t
 `0xC9AF0FCD`, `0x0912220E` and `0x08080004` in the texture cache (`0x00B46784`, empty bindings); pack the render
 state `0x00B4677C` = (1, 1, 1, 1, 0, 1, 0, 3, 4, 5, 4, 0.1, 1, −1) (draw-context.md §5.1).
 
-<<<<<<< HEAD
+- **Main slot 15 `Init(exemplar, kind)`** (`0x0064CE40`, pop 8): the static set-up; unless initialised: the occupant
+  `Init` (below); rotation and zoom from the view utilities; `kind` stored (`+0xB8`); the exemplar set
+  (`SetDefaultExemplar`); the model loaded (`LoadModel`, §4.7) and the attachment table chosen (§4.6); the three
+  vertex lists emptied; draw attributes cleared and opacity 1; when distressed, `SetDistressed(true)`. True.
+- **Occupant slot 3 `Init()`** (`0x00649FA0`): the occupant base `Init`; the city's cell width and depth (city
+  slots 91, 92) into two statics; unless already subscribed, the message target subscribes to `0x99EF1142` (message
+  server slot 5); the model instance is released.
+- **The message target** (`+4` slot 3, `0x0064A140`): on `0x99EF1142` whose occupant is this pole, it unsubscribes
+  and inserts its connections' lines (slot 9). So the lines join the occupant manager when their pole does.
+- **`SetDefaultExemplar`** (`+0x24` slot 3, `0x0064D910`): when the exemplar is not the current one, hold it, reload
+  the model and the attachment table, and rebuild the wires of every connection on both poles (`0x0064D510`)
+  *[summary]*.
+- **`Shutdown`** (occupant slot 4, `0x0064BC80`): `BreakAllConnections(true)`; the stale flag cleared; the model
+  instance released; the vertex lists emptied; the subscription removed; the effect stopped and released; the
+  occupant base `Shutdown`.
+
+
 **Demolition quote is independent of those six controls.** The signed 64-bit quote at
 `0x00B46770/74` starts at zero. In the same one-time `StaticInit`, a second lookup of the
 same control exemplar reads property **`0x0A2ECED8`** through the signed-int64 property
@@ -1240,50 +1237,6 @@ release. Both Write and Read then return `GetError()==0`; a failed reference loo
 alone is not separately promoted to a false result by the owner. Unsupported version
 returns false directly. Allocation failure and malformed excessive counts have no
 additional owner validation contract.
-=======
-- **Main slot 15 `Init(exemplar, kind)`** (`0x0064CE40`, pop 8): the static set-up; unless initialised: the occupant
-  `Init` (below); rotation and zoom from the view utilities; `kind` stored (`+0xB8`); the exemplar set
-  (`SetDefaultExemplar`); the model loaded (`LoadModel`, §4.7) and the attachment table chosen (§4.6); the three
-  vertex lists emptied; draw attributes cleared and opacity 1; when distressed, `SetDistressed(true)`. True.
-- **Occupant slot 3 `Init()`** (`0x00649FA0`): the occupant base `Init`; the city's cell width and depth (city
-  slots 91, 92) into two statics; unless already subscribed, the message target subscribes to `0x99EF1142` (message
-  server slot 5); the model instance is released.
-- **The message target** (`+4` slot 3, `0x0064A140`): on `0x99EF1142` whose occupant is this pole, it unsubscribes
-  and inserts its connections' lines (slot 9). So the lines join the occupant manager when their pole does.
-- **`SetDefaultExemplar`** (`+0x24` slot 3, `0x0064D910`): when the exemplar is not the current one, hold it, reload
-  the model and the attachment table, and rebuild the wires of every connection on both poles (`0x0064D510`)
-  *[summary]*.
-- **`Shutdown`** (occupant slot 4, `0x0064BC80`): `BreakAllConnections(true)`; the stale flag cleared; the model
-  instance released; the vertex lists emptied; the subscription removed; the effect stopped and released; the
-  occupant base `Shutdown`.
-
-### 4.4 Save record *[compat]*
-
-`Write` (`0x0064B010`) and `Read` (`0x0064EA00`) on the serialisation interface; class ID `0x09C05C6A`. Encodings as
-lot-records.md §2.1; `ref` as foundations §2.7.
-
-| # | Field | Encoding |
-|---|---|---|
-| 1 | version | u16 **5** (`PUSH 0x5` at `0x0064B01D`) |
-| 2 | the occupant base record | lot-records.md §2.3 |
-| 3 | the instance transform (`+0x68`) | `xform` (`operator<<` `0x005DA8C0`) |
-| 4 | the position | 3 × f32 |
-| 5 | the connections | u32 count; per connection: `ref` the other pole (its serialisation interface; read as `0x09C05C6A`); u32 line count and a `ref` per line (read as `0xC9C05C5D`); `bool` inserted; `bool` owner; s32 cell x; s32 cell z; the wires (u32 count, then per wire u32 point count and `vec3` points); the coarse curves (same) |
-| 6 | the pole kind | u32 |
-| 7 | rotation, zoom, cell x, cell z | 4 × s32 |
-| 8 | the first four attachment points of the table (`+0xE4`) | 4 × `vec3` |
-| 9 | the lists `+0xE8`, `+0xF4`, `+0x100` | as §3.4's vertex lists |
-| 10 | the floor height | f32 |
-| 11 | `+0x110` | `bool` |
-| 12 | the draw attributes' two bytes and opacity | u8, u8, f32 |
-| 13 | distressed | u8 |
-
-`Read`: the static set-up first; a version below 4 → false; version 4 reads the 56-byte legacy transform
-(`0x005DA930`). After row 7 it chooses the attachment table from the exemplar (§4.6) and then reads row 8 **into that
-shared table**, so a loaded pole overwrites the orientation-0 points of every pole of its kind *[quirk]* (the saved
-values are the table's own, so nothing changes in practice). At the end it releases the model instance, which the
-next draw remakes. Both return true exactly when the stream has no error.
->>>>>>> a33fa02e (network-occupants.md: the power pole and power line occupants, corrected)
 
 ### 4.5 Creation and consumption
 
@@ -1915,15 +1868,10 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
 10. **The path connections are 8 × 4 bytes at `+0x144`** (§2.6): a byte per (path type, entry side), a bit per exit
     side; path type 0 is always set along with the requested type, and the whole thing is gated by network flag
     `0x2000`.
-<<<<<<< HEAD
 11. **Pole records use class-ID-valued IIDs for distinct ref kinds** (§4.4): each destination
     pole uses `0x09C05C6A`, each linked-list power line uses `0xC9C05C5D`. Neither is an
     alternative fallback IID for the other kind. Four xyz vectors are saved/read through
     the selected shared connection-point table pointer, not inline object storage.
-=======
-11. **The pole's record reads two kinds of reference** (§4.4): the other pole of each connection comes back as
-    `0x09C05C6A`, each line under it as `0xC9C05C5D`.
->>>>>>> a33fa02e (network-occupants.md: the power pole and power line occupants, corrected)
 12. **The demolition cost is an int64** (§2.4, slot 63): returned in `EDX:EAX`, saved as one `SetInt64`
     (§2.3 field 13).
 13. **The prebuilt primary's appendix** (§2.8): the vtable at `0x00AA7038` continues past the shared 81 slots with
@@ -1965,7 +1913,7 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
   **5** (`PUSH 0x5` at `0x0064B01D`); `Read` rejects < 4. No question remains.
 - **NO10.** ~~The pylon's occupant type~~ — **settled while writing this spec**: the ctor writes `0xA9B6D7DE`
   at `+0x2C` (`0x005F19F9`). No question remains.
-- NO32–NO35 (re-ugbase) and NO36–NO37 (re-powerpoles), 2026-10-21, are in [questions/network-occupants.md](questions/network-occupants.md).
+- NO38–NO41 (re-ugbase) and NO36–NO37 (re-powerpoles), 2026-10-21, are in [questions/network-occupants.md](questions/network-occupants.md).
 
 ---
 
@@ -2009,7 +1957,6 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     resolved to each other (traffic-network.md §4.8).
 15. **Connection occupants** (§3.6). A pipe connection saves as class `0xEA0A5ACF` with the seven wall writes and
     reloads; `QueryOccupantInterface` (subway, slot 44) QIs `0xCA16374F` then `0x4A10AFC2`.
-<<<<<<< HEAD
 16. **Pole record** (§4.4). Round-trip a v5 pole with two destination refs. The first
     connection has line list [L1,L2], the second an empty list: reference read IIDs are
     respectively 0x09C05C6A, 0xC9C05C5D, 0xC9C05C5D, 0x09C05C6A, with list counts
@@ -2036,12 +1983,6 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     the quote is identical. After the first static init, changing `0x0A2ECED8` and
     initializing another pole also leaves the old quote intact. Calling only the
     six-control reload does not reset an already supplied quote.
-=======
-16. **Pole record** (§4.4). A pole with two connections saves version 5; version 3 fails; on read the other poles
-    resolve with IID `0x09C05C6A` and the lines with `0xC9C05C5D` (quirk 11); `InitConnectionPoints` runs again.
-17. **Pole cost** (§4.2, §4.3). `GetCostOfDemolition` (slot 10) returns the `EDX:EAX` pair `0x00B46770/0x00B46774`,
-    the tuning `0x0A2ECED8`: 5 with the shipped exemplar, 0 without it.
->>>>>>> a33fa02e (network-occupants.md: the power pole and power line occupants, corrected)
 18. **Line slots** (§5.1). `GetConnectedPoles` returns the three refs with `AddRef`; `SetConnectedPoles` releases
     the old ones; `IsPreview`/`SetPreview` round-trip.
 19. **Pylon record** (§6.3). A v5 fixture starts its derived body with dirty=1,

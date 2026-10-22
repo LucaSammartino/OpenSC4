@@ -41,6 +41,10 @@ NO14 and NO29–NO32 were not reached. Work was bounded to finish and land verif
 answers within the measured lane budget rather than declaring these wider questions answered.
 
 ## Handoff
+- Harvest commits: `3393a1a2` (a8b30439), `36a3a300` (a33fa02e), author amarret retained.
+- A failed UTF-8 patch generation left conflict text in the second harvest commit; normalization in the next commit removes it. Initial doccheck passed only after normalization; do not use the intermediate tree.
+- Normalization unions symbol rows (pre-round addresses win), retains NO34/35/37 answers/vectors, renumbers PR questions NO32-37 to NO38-43, regenerates QUESTIONS. Coverage additions set spec only; core/shadow/replace remain '-'.
+- Validation after normalization: questions index/check and doccheck check passed. No ABI edits.
 - Round 2 manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-netocc-answers5-r2-manifest.json`.
 - Harvesting a8b30439 then a33fa02e, preserving amarret authorship. Duplicate PR questions NO32-35 become NO38-41.
 - REA returned target_unavailable (no app open); use export/decomp fallback, no new tools/session changes.

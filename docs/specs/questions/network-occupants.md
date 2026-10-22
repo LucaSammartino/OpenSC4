@@ -123,10 +123,10 @@ implementer of the class tables and records.
   classes) and the connection's `+0x68`, `+0x170`, `+0x178` and `+0x240` hold. [as read]
 
 <!-- from: re-powerpoles (2026-10-21) -->
-- **NO36 - §4.1, §4.4:** what the pole's saved bool `+0x110` means (record row 11); nothing read in this lane sets
+- **NO42 - §4.1, §4.4:** what the pole's saved bool `+0x110` means (record row 11); nothing read in this lane sets
   it. [as read]
 
 <!-- from: re-powerpoles (2026-10-21) -->
-- **NO37 - §4.2, §4.6, §4.7:** the pole's floor and walls (`CreateFloor` `0x0064BFD0`, `AddWallQuad` `0x0064C2C0`,
+- **NO43 - §4.2, §4.6, §4.7:** the pole's floor and walls (`CreateFloor` `0x0064BFD0`, `AddWallQuad` `0x0064C2C0`,
   `CreateWalls` `0x0064C470`), `Draw` and `DrawPowerlines` (`0x0064C800`, `0x0064B750`), `GetBoundingBox`
   (`0x00649A00`), `Pick` (`0x0064A870`) and the cell walk under a wire (`0x0064A4D0`) in detail. [summary]
