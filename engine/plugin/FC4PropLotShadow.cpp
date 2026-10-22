@@ -26,6 +26,7 @@
 #include "FC4TractInterfaces.h"
 #include "FC4WriteCapture.h"
 #include "cFC4LotDeveloper.h"
+#include "cFC4LotConfiguration.h"
 #include "cFC4Tutorial.h"
 
 #include "GZServPtrs.h"
@@ -118,6 +119,26 @@ struct Totals {
     }
 };
 Totals g_propTotals, g_lcmTotals, g_tutTotals;
+
+// These are diagnostic probes against the live ORIGINAL owner, not natural
+// calls intercepted from simulation. Never credit copied records as algorithm
+// comparisons. Keep every result, including missing inputs and refusals.
+struct NativeEvidence {
+    uint32_t pairs = 0, exact = 0, different = 0, refused = 0;
+    void Pair(bool same) {
+        ++pairs;
+        if (same) ++exact;
+        else ++different;
+    }
+};
+
+void NativeReport(const NativeEvidence& e, const char* owner, const char* operation, const void* native,
+                  const char* implementation = "Rust", const char* source = "diagnostic-probe") {
+    Log("proplot native_verify owner=%s operation=%s native=%p source=%s natural_calls=0 "
+        "pairs=%u exact=%u different=%u refused=%u fallback=0 resync=0 copied_record_credit=0 "
+        "native_random_draws=0 implementation=%s",
+        owner, operation, native, source, e.pairs, e.exact, e.different, e.refused, implementation);
+}
 
 // ---- formatting -----------------------------------------------------------------------------------------
 
@@ -374,10 +395,10 @@ intptr_t CompareRecords(bool oursOk, std::string& body) {
     if (a.size() != b.size() || firstDiff != SIZE_MAX) ++m;
     // References: the objects written in the same places (the bytes number
     // them in order of first appearance, so equal bytes pair them up). The
-    // capture numbers references 1..63 (FC4WriteCapture.h), so a record with
-    // more than 63 written references pairs only the first 63.
+    // WriteCapture has a dynamic reference table. Walk every captured identity;
+    // an old 63-reference cap silently omitted the rest of a prop record.
     uint32_t refs = 0, refsDiff = 0;
-    for (uint32_t id = 1; id < 64; ++id) {
+    for (uint32_t id = 1; ; ++id) {
         const void* x = g_capOrig.Object(id);
         const void* y = g_capOurs.Object(id);
         if (x == nullptr && y == nullptr) break;
@@ -710,6 +731,7 @@ std::vector<uint32_t> OursU32s(size_t (*fn)(const fc4_prop_manager*, uint32_t*, 
 
 // Catalogue: slots 5-9, 14 and data2.
 intptr_t PropCatalogue(cISC4PropManager* pm, fc4_prop_manager* s, std::string& body) {
+    NativeEvidence evidence;
     GameU32s ot, of;
     pm->GetAllPropTypes(AsSdk(ot));        // slot 5
     pm->GetAllPropFamilyTypes(AsSdk(of));  // slot 6
@@ -742,6 +764,8 @@ intptr_t PropCatalogue(cISC4PropManager* pm, fc4_prop_manager* s, std::string& b
         first.Add("families@%u:%08X/%08X", static_cast<unsigned>(famOrder),
                   famOrder < origFams.size() ? origFams[famOrder] : 0, famOrder < ourFams.size() ? ourFams[famOrder] : 0);
     }
+    evidence.Pair(typeOrder == SIZE_MAX);
+    evidence.Pair(famOrder == SIZE_MAX);
     // Per type: key (7), validity (8), profile (14).
     uint32_t keyDiff = 0, profDiff = 0, padOnly = 0, validDiff = 0;
     for (uint32_t id : origTypes) {
@@ -749,15 +773,19 @@ intptr_t PropCatalogue(cISC4PropManager* pm, fc4_prop_manager* s, std::string& b
         const bool ok = pm->GetPropKeyFromType(id, k);
         fc4_res_key rk{};
         const bool ours = fc4_prop_manager_prop_key_from_type(s, id, &rk);
+        evidence.Pair(ok == ours && (!ok || (k.type == rk.type_id && k.group == rk.group && k.instance == rk.instance)));
         if (ok != ours || (ok && (k.type != rk.type_id || k.group != rk.group || k.instance != rk.instance))) {
             ++keyDiff;
             first.Add("key %08X", id);
         }
-        if (pm->IsPropTypeValid(id) != fc4_prop_manager_is_prop_type_valid(s, id)) ++validDiff;
+        const bool validSame = pm->IsPropTypeValid(id) == fc4_prop_manager_is_prop_type_valid(s, id);
+        evidence.Pair(validSame);
+        if (!validSame) ++validDiff;
         const cISC4PropOccupant::PropProfile* op = pm->GetPropProfilePtr(id);  // slot 14
         fc4_prop_profile pp{};
         const bool havePp = fc4_prop_manager_prop_profile_ptr(s, id, &pp);
         if ((op != nullptr) != havePp) {
+            evidence.Pair(false);
             ++profDiff;
             first.Add("profile %08X present %d/%d", id, op != nullptr ? 1 : 0, havePp ? 1 : 0);
         } else if (op != nullptr) {
@@ -779,6 +807,11 @@ intptr_t PropCatalogue(cISC4PropManager* pm, fc4_prop_manager* s, std::string& b
             } else if (pad) {
                 ++padOnly;
             }
+            // Raw comparisons include padding differences. They are never
+            // removed from the numerator to manufacture an exact result.
+            evidence.Pair(!diff && !pad);
+        } else {
+            evidence.Pair(true);
         }
     }
     if (keyDiff != 0) ++m;
@@ -793,13 +826,34 @@ intptr_t PropCatalogue(cISC4PropManager* pm, fc4_prop_manager* s, std::string& b
         std::vector<uint32_t> uv;
         const uint32_t un = fc4_prop_manager_prop_types_by_family(s, f, nullptr, 0, &CollectU32s, &uv);
         members += static_cast<uint32_t>(ov.size());
-        if (on != un || ov != uv || pm->IsPropFamilyTypeValid(f) != fc4_prop_manager_is_prop_family_type_valid(s, f)) {
+        const bool validSame = pm->IsPropFamilyTypeValid(f) == fc4_prop_manager_is_prop_family_type_valid(s, f);
+        evidence.Pair(on == un && ov == uv);
+        evidence.Pair(validSame);
+        if (on != un || ov != uv || !validSame) {
             ++memberDiff;
             first.Add("family %08X n=%u/%u size=%u/%u", f, on, un, static_cast<unsigned>(ov.size()),
                       static_cast<unsigned>(uv.size()));
         }
     }
     if (memberDiff != 0) ++m;
+    // Missing outcomes: use identical nonzero output sentinels on both sides.
+    for (uint32_t id : {0u, 0xFFFFFFFFu}) {
+        cGZPersistResourceKey k(0x12345678, 0x23456789, 0x3456789A);
+        fc4_res_key rk{0x12345678, 0x23456789, 0x3456789A};
+        const bool a = pm->GetPropKeyFromType(id, k);
+        const bool b = fc4_prop_manager_prop_key_from_type(s, id, &rk);
+        const bool same = a == b && k.type == rk.type_id && k.group == rk.group && k.instance == rk.instance;
+        evidence.Pair(same);
+        if (!same) ++m;
+        GameU32s v;
+        v.push_back(0xDEADBEEF);
+        std::vector<uint32_t> uv{0xDEADBEEF};
+        const uint32_t on = pm->GetPropTypesByFamily(AsSdk(v), id);
+        const uint32_t un = fc4_prop_manager_prop_types_by_family(s, id, uv.data(), uv.size(), &CollectU32s, &uv);
+        const bool familySame = on == un && ToStd(v) == uv;
+        evidence.Pair(familySame);
+        if (!familySame) ++m;
+    }
     // data2 (PL2): the type count.
     if (g_catalogueData2Known && g_catalogueData2 != static_cast<uint32_t>(origTypes.size())) {
         ++m;
@@ -815,11 +869,13 @@ intptr_t PropCatalogue(cISC4PropManager* pm, fc4_prop_manager* s, std::string& b
             static_cast<unsigned>(origFams.size()), static_cast<unsigned>(ourFams.size()), keyDiff, validDiff, profDiff,
             padOnly, members, memberDiff, g_catalogueData2Known ? "" : "unknown ", g_catalogueData2,
             static_cast<unsigned>(origTypes.size()), cs.types, cs.families, cs.profiles, first.Str());
-    return m;
+    NativeReport(evidence, "cSC4PropManager", "resource-catalogue-ordered-and-missing", pm);
+    return m + padOnly;
 }
 
 // Queries: slots 17, 18, 23, 30, 31 on sample cells.
 intptr_t PropQueries(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, std::string& body) {
+    NativeEvidence evidence;
     const int32_t cx = static_cast<int32_t>(r.city->CellCountX());
     const int32_t cz = static_cast<int32_t>(r.city->CellCountZ());
     if (cx <= 0 || cz <= 0) {
@@ -836,6 +892,7 @@ intptr_t PropQueries(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, st
         TakeOccupantList(ol, os);
         ++calls;
         props += static_cast<uint32_t>(os.size());
+        evidence.Pair(ro == rs && os == us);
         if (ro != rs) {
             ++resultDiff;
             first.Add("%s(%d,%d) result %d/%d", what, x, z, ro ? 1 : 0, rs ? 1 : 0);
@@ -904,11 +961,15 @@ intptr_t PropQueries(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, st
     const intptr_t m = static_cast<intptr_t>(resultDiff + listDiff);
     AppendF(body, "calls=%u cells=%ld lotCells=%u props=%u resultsDiffering=%u listsDiffering=%u first: %s", calls,
             g_cells, lots, props, resultDiff, listDiff, first.Str());
+    NativeReport(evidence, "cSC4PropManager", "live-city-ordered-queries-record-bootstrap", pm);
+    Log("proplot live_inputs owner=cSC4PropManager date=%s event=%s lot_cells=%u returned_props=%u "
+        "record_bootstrap=1 independent_evolution=0 natural_calls=0", r.date, r.event, lots, props);
     return m;
 }
 
 // CreateProp (slot 15) on sample prop types.
 intptr_t PropCreate(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, std::string& body) {
+    NativeEvidence evidence;
     const std::vector<uint32_t> types = OursU32s(&fc4_prop_manager_all_prop_types, s);
     if (types.empty()) {
         body += "no prop types";
@@ -950,12 +1011,15 @@ intptr_t PropCreate(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, std
         const uint32_t uc =
             g_pctx.gzClass != 0 ? g_pctx.gzClass : (g_pctx.builtinKind < 3 ? kBuiltinClass[g_pctx.builtinKind] : 0);
         ++n;
+        evidence.Pair(ro == rs);
         if (ro != rs) {
             ++resultDiff;
             first.Add("%08X result %d/%d", id, ro ? 1 : 0, rs ? 1 : 0);
             continue;
         }
         if (!ro) continue;
+        evidence.Pair(oc == uc);
+        evidence.Pair(g_pctx.typeSet && ot == g_pctx.propType);
         if (oc != uc) {
             ++classDiff;
             first.Add("%08X class %08X/%08X", id, oc, uc);
@@ -967,6 +1031,7 @@ intptr_t PropCreate(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, std
         const float ob[6] = {omn.fX, omn.fY, omn.fZ, omx.fX, omx.fY, omx.fZ};
         const float ub[6] = {g_pctx.boxMin[0], g_pctx.boxMin[1], g_pctx.boxMin[2],
                              g_pctx.boxMax[0], g_pctx.boxMax[1], g_pctx.boxMax[2]};
+        evidence.Pair(g_pctx.boxSet && memcmp(ob, ub, sizeof(ob)) == 0);
         if (!g_pctx.boxSet || memcmp(ob, ub, sizeof(ob)) != 0) {
             ++boxDiff;
             first.Add("%08X box (%g,%g,%g)-(%g,%g,%g)/(%g,%g,%g)-(%g,%g,%g)", id, ob[0], ob[1], ob[2], ob[3], ob[4],
@@ -976,6 +1041,7 @@ intptr_t PropCreate(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, std
     const intptr_t m = static_cast<intptr_t>(resultDiff + classDiff + typeDiff + boxDiff);
     AppendF(body, "props=%u resultsDiffering=%u classesDiffering=%u typesDiffering=%u boxesDiffering=%u first: %s", n,
             resultDiff, classDiff, typeDiff, boxDiff, first.Str());
+    NativeReport(evidence, "cSC4PropManager", "create-uninserted-resource-props", pm);
     return m;
 }
 
@@ -1033,6 +1099,11 @@ void PropRunStep(void* p) {
         AppendF(body, " read=%u atEnd=%u init=%u", read ? 1u : 0u, in.atEnd() ? 1u : 0u, inited ? 1u : 0u);
         if (!in.atEnd()) ++m;
         Line("propmgr", g_propTotals, r, "record", m, body);
+        Log("proplot roundtrip owner=cSC4PropManager date=%s event=%s native=%p "
+            "source=native-Write captured_bytes=%u read=%u consumed=%u init=%u differences=%ld "
+            "record_bootstrap=1 independent_evolution=0 algorithmic_credit=0",
+            r.date, r.event, pm, static_cast<unsigned>(g_capOrig.Bytes().size()), read, in.atEnd(), inited,
+            static_cast<long>(m));
     }
     if (r.load) {
         std::string body;
@@ -1093,12 +1164,15 @@ public:
 
 LcmView* AsView(cISC4LotConfigurationManager* p) { return reinterpret_cast<LcmView*>(p); }
 
-// A configuration ours loads, bound to the original's configuration of the
-// same ID (the token is odd: no reference).
+// Independently loaded resource configuration. Never ask the original manager
+// to supply this host's Load outcome, families, size or objects. The loader is
+// existing C++ glue, not a Rust configuration-owner implementation: only the
+// manager algorithms and object decoder receive Rust comparison credit.
 struct Binding {
     uint32_t id = 0;
     uint32_t type = 0, group = 0, instance = 0;
     bool loaded = false;
+    std::unique_ptr<cFC4LotConfiguration> independent;
 };
 // Process lifetime: the catalogue caches configurations by these stand-in
 // tokens, so they must outlive every run (cleared only at app shutdown).
@@ -1120,11 +1194,10 @@ Binding* BindingOf(uint64_t t) {
     return i >= 1 && i <= g_bindings.size() ? &g_bindings[i - 1] : nullptr;
 }
 
-// The original's configuration a binding stands for (borrowed), or null.
-cISC4LotConfiguration* OrigCfg(void* u, uint64_t t) {
+// Borrowed from shadow-owned storage, never from the original manager.
+cFC4LotConfiguration* IndependentCfg(uint64_t t) {
     Binding* b = BindingOf(t);
-    if (b == nullptr || !b->loaded || LC(u)->orig == nullptr) return nullptr;
-    return LC(u)->orig->GetLotConfiguration(b->id);  // slot 8, no reference
+    return b != nullptr && b->loaded ? b->independent.get() : nullptr;
 }
 
 // The city detail preference (city-detail.md §2: the byte at +0xF16 of the
@@ -1144,14 +1217,16 @@ uint64_t LcmCreateConfiguration(void*) {
     return (static_cast<uint64_t>(g_bindings.size()) << 1) | 1u;
 }
 
-bool LcmLoadConfiguration(void* u, uint64_t cfg, uint32_t t, uint32_t g, uint32_t i, uint32_t) {
+bool LcmLoadConfiguration(void*, uint64_t cfg, uint32_t t, uint32_t g, uint32_t i, uint32_t detail) {
     Binding* b = BindingOf(cfg);
     if (b == nullptr) return false;
     b->id = i;  // lot-configuration.md §3.1 step 4
     b->type = t;
     b->group = g;
     b->instance = i;
-    b->loaded = LC(u)->orig != nullptr && LC(u)->orig->GetLotConfiguration(i) != nullptr;
+    b->independent = std::make_unique<cFC4LotConfiguration>();
+    const cGZPersistResourceKey key(t, g, i);
+    b->loaded = b->independent->Load(key, static_cast<uint8_t>(detail));
     return b->loaded;
 }
 
@@ -1160,13 +1235,13 @@ uint32_t LcmConfigId(void*, uint64_t cfg) {
     return b ? b->id : 0;
 }
 
-bool LcmBelongs(void* u, uint64_t cfg, uint32_t f) {
-    cISC4LotConfiguration* c = OrigCfg(u, cfg);
+bool LcmBelongs(void*, uint64_t cfg, uint32_t f) {
+    cFC4LotConfiguration* c = IndependentCfg(cfg);
     return c != nullptr && c->BelongsToFamily(f);  // configuration slot 5
 }
 
-void LcmFamilies(void* u, uint64_t cfg, fc4_u32s_sink out, void* ctx) {
-    cISC4LotConfiguration* c = OrigCfg(u, cfg);
+void LcmFamilies(void*, uint64_t cfg, fc4_u32s_sink out, void* ctx) {
+    cFC4LotConfiguration* c = IndependentCfg(cfg);
     std::vector<uint32_t> v;
     if (c != nullptr) {
         if (SC4Vector<uint32_t>* f = c->GetFamilyIDArray()) {  // configuration slot 6
@@ -1176,15 +1251,15 @@ void LcmFamilies(void* u, uint64_t cfg, fc4_u32s_sink out, void* ctx) {
     if (out != nullptr) out(ctx, v.empty() ? nullptr : v.data(), v.size());
 }
 
-void LcmSize(void* u, uint64_t cfg, uint32_t* x, uint32_t* z) {
+void LcmSize(void*, uint64_t cfg, uint32_t* x, uint32_t* z) {
     uint32_t w = 0, d = 0;
-    if (cISC4LotConfiguration* c = OrigCfg(u, cfg)) c->GetSize(w, d);  // configuration slot 7
+    if (cFC4LotConfiguration* c = IndependentCfg(cfg)) c->GetSize(w, d);
     *x = w;
     *z = d;
 }
 
-void LcmObjects(void* u, uint64_t cfg, fc4_lotdev_cfg_object_callback visit, void* ctx) {
-    cISC4LotConfiguration* c = OrigCfg(u, cfg);
+void LcmObjects(void*, uint64_t cfg, fc4_lotdev_cfg_object_callback visit, void* ctx) {
+    cFC4LotConfiguration* c = IndependentCfg(cfg);
     if (c == nullptr || visit == nullptr) return;
     SC4Vector<cSC4LotConfigurationObject>* v = c->GetLotConfigurationObjectArray();  // configuration slot 23
     if (v == nullptr) return;
@@ -1397,8 +1472,15 @@ std::vector<uint32_t> SetValues(const GameHashSetU32<>& s) {
     for (size_t b = 0; b < s.bucket_count(); ++b) {
         for (auto* p = s.bucket(b); p != nullptr && v.size() < kMaxList; p = p->next) v.push_back(p->value);
     }
-    std::sort(v.begin(), v.end());
     return v;
+}
+
+// Match the caller's container and insertion order. Sorting would hide
+// selection-order differences (and is not evidence of equal candidates).
+std::vector<uint32_t> OrderedResultSet(const std::vector<uint32_t>& ids) {
+    GameHashSetU32<> set(1);
+    for (uint32_t id : ids) set.insert(id);
+    return SetValues(set);
 }
 
 std::vector<uint32_t> OursIds(fc4_lot_config_manager* s, uint32_t which, uint64_t a, uint32_t b) {
@@ -1430,8 +1512,11 @@ void CopyObject(void* ctx, const fc4_lotdev_cfg_object* o) {
     v->push_back(std::move(c));
 }
 
-// Arrays (load only): every configuration of the original's map.
+// Independently load identical resource keys, then compare the complete object
+// arrays, including the appended foundation and its unspecified object ID.
+// No normalization, trimming, or copied-native-configuration host answers.
 intptr_t LcmArrays(const std::vector<uint32_t>& ids, std::string& body) {
+    NativeEvidence decoder, getters;
     FirstList first;
     uint32_t cfgs = 0, objects = 0, diffCfgs = 0, noKey = 0, foundations = 0;
     for (uint32_t id : ids) {
@@ -1440,12 +1525,41 @@ intptr_t LcmArrays(const std::vector<uint32_t>& ids, std::string& body) {
         for (const Binding& x : g_bindings) {
             if (x.loaded && x.id == id) b = &x;  // the last load of the ID wins (§B3.4)
         }
-        if (c == nullptr) continue;
-        ++cfgs;
-        if (b == nullptr) {
+        if (c == nullptr) {
+            ++decoder.refused;
             ++noKey;
             continue;
         }
+        ++cfgs;
+        if (b == nullptr) {
+            ++decoder.refused;
+            ++noKey;
+            continue;
+        }
+        uint32_t ow = 0, od = 0, uw = 0, ud = 0;
+        c->GetSize(ow, od);
+        b->independent->GetSize(uw, ud);
+        getters.Pair(ow == uw && od == ud);
+        auto* u = b->independent.get();
+        // Use the published slot table's integer arguments, rather than the
+        // SDK's narrower enum declarations (lot-configuration §8).
+        auto* native = reinterpret_cast<cFC4ISC4LotConfiguration*>(c);
+        getters.Pair(c->GetID() == u->GetID());
+        auto sameFloat = [](float a, float b) { return std::memcmp(&a, &b, sizeof(a)) == 0; };
+        getters.Pair(sameFloat(c->GetMaximumSlope(), u->GetMaximumSlope()));
+        getters.Pair(sameFloat(c->GetMinimumSlope(), u->GetMinimumSlope()));
+        getters.Pair(sameFloat(c->GetMaximumSlopeBeforeFoundation(), u->GetMaximumSlopeBeforeFoundation()));
+        getters.Pair(c->GetGrowthStage() == u->GetGrowthStage());
+        getters.Pair(c->IsCompatibleWithWater() == u->IsCompatibleWithWater());
+        getters.Pair(c->IsDoConstruction() == u->IsDoConstruction());
+        for (uint32_t q = 0; q < 16; ++q) getters.Pair(native->IsCompatibleWithZoneType(q) == u->IsCompatibleWithZoneType(q));
+        for (uint32_t q = 0; q < 4; ++q) getters.Pair(native->IsCompatibleWithWealthType(q) == u->IsCompatibleWithWealthType(q));
+        for (uint32_t q = 0; q < 9; ++q) getters.Pair(native->IsCompatibleWithPurposeType(q) == u->IsCompatibleWithPurposeType(q));
+        for (uint32_t q = 0; q < 8; ++q) getters.Pair(c->HasObjectsOfType(q) == u->HasObjectsOfType(q));
+        std::vector<uint32_t> of, uf;
+        if (auto* f = c->GetFamilyIDArray()) of.assign(f->begin(), f->end());
+        if (auto* f = b->independent->GetFamilyIDArray()) uf.assign(f->begin(), f->end());
+        getters.Pair(of == uf);
         std::vector<ObjectCopy> orig;
         {
             SC4Vector<cSC4LotConfigurationObject>* v = c->GetLotConfigurationObjectArray();
@@ -1457,16 +1571,14 @@ intptr_t LcmArrays(const std::vector<uint32_t>& ids, std::string& body) {
                 }
             }
         }
-        if (!orig.empty() && orig.back().o.object_type == kObjectTypeFoundation) {
-            orig.pop_back();  // lot-configuration.md §3.7: appended by Load, not by the reader
-            ++foundations;
-        }
+        if (!orig.empty() && orig.back().o.object_type == kObjectTypeFoundation) ++foundations;
         std::vector<ObjectCopy> ours;
-        fc4_props* ex = LoadProps(b->type, b->group, b->instance);
-        if (ex != nullptr) {
-            // The process-wide serial, not a fresh one per call (§3.5).
-            fc4_lot_config_object_array(ex, g_lctx.detail, NextLotSerial(), &CopyObject, &ours);
-            fc4_props_destroy(ex);
+        if (auto* v = u->GetLotConfigurationObjectArray()) {
+            for (auto* obj = v->begin(); obj != v->end(); ++obj) {
+                std::vector<uint32_t> tmp;
+                const auto co = LotDevObjectOf(obj, tmp);
+                CopyObject(&ours, &co);
+            }
         }
         objects += static_cast<uint32_t>(orig.size());
         bool diff = orig.size() != ours.size();
@@ -1479,18 +1591,41 @@ intptr_t LcmArrays(const std::vector<uint32_t>& ids, std::string& body) {
             first.Add("%08X n=%u/%u @%u", id, static_cast<unsigned>(orig.size()), static_cast<unsigned>(ours.size()),
                       static_cast<unsigned>(at == 0 ? 0 : at - 1));
         }
+        decoder.Pair(!diff);
     }
     AppendF(body, "configurations=%u objects=%u detail=%u foundations=%u unbound=%u configurationsDiffering=%u first: %s",
             cfgs, objects, g_lctx.detail, foundations, noKey, diffCfgs, first.Str());
-    return static_cast<intptr_t>(diffCfgs + noKey);
+    NativeReport(decoder, "cSC4LotConfiguration", "resource-complete-ordered-objects", g_lctx.orig,
+                 "C++-loader-with-Rust-object-decoder");
+    NativeReport(getters, "cSC4LotConfiguration", "resource-getters-and-compatibility", g_lctx.orig, "C++");
+    Log("proplot native_verify owner=cSC4LotConfiguration unsupported=name,roads,fences,building-info,editor-save "
+        "whole_owner_credit=0 foundation_object_id=raw-including-unspecified-bytes");
+    return static_cast<intptr_t>(diffCfgs + noKey + getters.different);
 }
 
 intptr_t LcmQueries(const Run& r, fc4_lot_config_manager* s, const std::vector<uint32_t>& ids,
                     const std::vector<uint32_t>& families, std::string& body) {
+    NativeEvidence evidence;
+    NativeEvidence fixtures;
+    bool fixtureType[5]{};
     LcmView* o = g_lctx.orig;
     uint32_t seed = Seed(r.julian, 0x4C434D51u);
     FirstList first;
     uint32_t famDiff = 0, sizeDiff = 0, hasDiff = 0, idArrDiff = 0, idArrays = 0, hasTests = 0;
+    std::vector<uint32_t> queryIds;
+    auto* lm = r.city->GetLotManager();
+    const uint32_t cx = r.city->CellCountX(), cz = r.city->CellCountZ();
+    if (lm != nullptr && cx != 0 && cz != 0) {
+        for (long i = 0; i < g_cells; ++i) {
+            const uint32_t x = NextRandom(seed) % cx, z = NextRandom(seed) % cz;
+            if (auto* lot = AsGame(lm)->GetLot(x, z, false)) {
+                if (auto* cfg = lot->GetLotConfiguration()) queryIds.push_back(cfg->GetID());
+            }
+        }
+    }
+    const size_t liveLotConfigs = queryIds.size();
+    for (uint32_t i = 0; i < kLcmConfigSamples && !ids.empty(); ++i)
+        queryIds.push_back(ids[NextRandom(seed) % ids.size()]);
     for (uint32_t i = 0; i < kLcmFamilySamples && !families.empty(); ++i) {
         const uint32_t f = families[NextRandom(seed) % families.size()];
         GameHashSetU32<> set(1);
@@ -1498,11 +1633,19 @@ intptr_t LcmQueries(const Run& r, fc4_lot_config_manager* s, const std::vector<u
         const std::vector<uint32_t> os = SetValues(set);
         std::vector<uint32_t> us = OursIds(s, 1, f, 0);
         const uint32_t un = static_cast<uint32_t>(us.size());
-        std::sort(us.begin(), us.end());
+        us = OrderedResultSet(us);
+        evidence.Pair(on == un && os == us);
         if (on != un || os != us) {
             ++famDiff;
             first.Add("family %08X n=%u/%u", f, on, un);
         }
+        // Reuse the populated caller set: duplicates must still count in the
+        // return value, while the ordered candidate set remains unchanged.
+        const uint32_t again = o->IDsByFamily(set, f);
+        const std::vector<uint32_t> repeated = OursIds(s, 1, f, 0);
+        const bool sameAgain = again == repeated.size() && SetValues(set) == OrderedResultSet(repeated);
+        evidence.Pair(sameAgain);
+        if (!sameAgain) ++famDiff;
     }
     for (uint32_t i = 0; i < kLcmSizeSamples; ++i) {
         const uint32_t x = 1 + NextRandom(seed) % 6u, z = 1 + NextRandom(seed) % 6u;
@@ -1511,16 +1654,17 @@ intptr_t LcmQueries(const Run& r, fc4_lot_config_manager* s, const std::vector<u
         const std::vector<uint32_t> os = SetValues(set);
         std::vector<uint32_t> us = OursIds(s, 2, x, z);
         const uint32_t un = static_cast<uint32_t>(us.size());
-        std::sort(us.begin(), us.end());
+        us = OrderedResultSet(us);
+        evidence.Pair(on == un && os == us);
         if (on != un || os != us) {
             ++sizeDiff;
             first.Add("size %ux%u n=%u/%u", x, z, on, un);
         }
     }
-    for (uint32_t i = 0; i < kLcmConfigSamples && !ids.empty(); ++i) {
-        const uint32_t id = ids[NextRandom(seed) % ids.size()];
+    for (uint32_t id : queryIds) {
         cISC4LotConfiguration* c = o->GetLotConfiguration(id);
         const uint64_t ours = fc4_lot_config_configuration(s, id);
+        evidence.Pair((c != nullptr) == (ours != 0));
         if (c == nullptr || ours == 0) {
             ++hasDiff;
             first.Add("cfg %08X present %d/%d", id, c ? 1 : 0, ours ? 1 : 0);
@@ -1544,6 +1688,7 @@ intptr_t LcmQueries(const Run& r, fc4_lot_config_manager* s, const std::vector<u
                     const bool rs = fc4_lot_config_has_building(s, ours, q, byType != 0, &idx);
                     const uint32_t oidx = hit ? static_cast<uint32_t>(hit - base) : 0xFFFFFFFFu;
                     ++hasTests;
+                    evidence.Pair(ro == rs && (!ro || oidx == idx));
                     if (ro != rs || (ro && oidx != idx)) {
                         ++hasDiff;
                         first.Add("has%s %08X/%08X %d@%d/%d@%d", byType ? "Type" : "Family", id, q, ro ? 1 : 0,
@@ -1566,13 +1711,63 @@ intptr_t LcmQueries(const Run& r, fc4_lot_config_manager* s, const std::vector<u
             std::vector<uint32_t> us(fc4_lot_config_object_id_array(s, &co, nullptr, 0));
             if (!us.empty()) us.resize(fc4_lot_config_object_id_array(s, &co, us.data(), us.size()));
             ++idArrays;
+            evidence.Pair(os == us);
             if (os != us) {
                 ++idArrDiff;
                 first.Add("ids %08X#%u type %u n=%u/%u", id, static_cast<unsigned>(k), co.object_type,
                           static_cast<unsigned>(os.size()), static_cast<unsigned>(us.size()));
             }
+            // Constructed fixtures, separately counted: repeated real IDs and
+            // a missing ID between them. Preserve duplicate/order semantics,
+            // including B5.6's building-family overwrite of preceding entries.
+            if (r.load && !tmp.empty() && !fixtureType[co.object_type]) {
+                fixtureType[co.object_type] = true;
+                for (bool missing : {false, true}) {
+                    cSC4LotConfigurationObject f{};
+                    f.type = base[k].type;
+                    f.data.push_back(tmp[0]);
+                    if (missing) f.data.push_back(0xFFFFFFFFu);
+                    f.data.push_back(tmp[0]);
+                    GameU32s nativeIds;
+                    nativeIds.push_back(0xDEADBEEF);
+                    o->GetObjectIDArray(&f, nativeIds);
+                    std::vector<uint32_t> input;
+                    const auto object = LotDevObjectOf(&f, input);
+                    std::vector<uint32_t> rustIds(fc4_lot_config_object_id_array(s, &object, nullptr, 0));
+                    if (!rustIds.empty())
+                        rustIds.resize(fc4_lot_config_object_id_array(s, &object, rustIds.data(), rustIds.size()));
+                    const bool same = ToStd(nativeIds) == rustIds;
+                    fixtures.Pair(same);
+                    if (!same) {
+                        ++idArrDiff;
+                        first.Add("fixture type=%u missing=%u input=%08X sizes=%u/%u", co.object_type, missing,
+                                  tmp[0], static_cast<unsigned>(nativeIds.size()), static_cast<unsigned>(rustIds.size()));
+                    }
+                }
+            }
         }
     }
+    for (uint32_t id : {0u, 0xFFFFFFFFu}) {
+        const bool same = (o->GetLotConfiguration(id) != nullptr) == (fc4_lot_config_configuration(s, id) != 0);
+        evidence.Pair(same);
+        if (!same) ++hasDiff;
+    }
+    NativeReport(evidence, "cSC4LotConfigurationManager", "ordered-resource-queries", o);
+    if (r.load) {
+        GameU32s nativeIds;
+        nativeIds.push_back(0xDEADBEEF);
+        o->GetObjectIDArray(nullptr, nativeIds);
+        const bool same = nativeIds.empty() && fc4_lot_config_object_id_array(s, nullptr, nullptr, 0) == 0;
+        fixtures.Pair(same);
+        if (!same) ++idArrDiff;
+        NativeReport(fixtures, "cSC4LotConfigurationManager", "ordered-duplicate-missing-null-expansion", o,
+                     "Rust", "constructed-object-fixture");
+    }
+    Log("proplot live_inputs owner=cSC4LotConfigurationManager date=%s event=%s live_lot_configs=%u "
+        "catalogue_samples=%u object_expansions=%u natural_calls=0 weighted_selection=not-in-owner-contract "
+        "random_source=private-probe-LCG native_random_draws=0",
+        r.date, r.event, static_cast<unsigned>(liveLotConfigs),
+        static_cast<unsigned>(queryIds.size() - liveLotConfigs), idArrays);
     AppendF(body,
             "families=%u/%u differing sizes=%u/%u differing hasBuilding=%u/%u differing objectIDArrays=%u/%u "
             "differing first: %s",
@@ -1634,6 +1829,11 @@ void LcmRunStep(void* p) {
         AppendF(body, " read=%u atEnd=%u init=%u", read ? 1u : 0u, in.atEnd() ? 1u : 0u, inited ? 1u : 0u);
         if (!in.atEnd()) ++m;
         Line("lotcfg", g_lcmTotals, r, "record", m, body);
+        Log("proplot roundtrip owner=cSC4LotConfigurationManager date=%s event=%s native=%p "
+            "source=native-Write captured_bytes=%u read=%u consumed=%u init=%u differences=%ld "
+            "record_bootstrap=1 independent_evolution=0 algorithmic_credit=0",
+            r.date, r.event, raw, static_cast<unsigned>(g_capOrig.Bytes().size()), read, in.atEnd(), inited,
+            static_cast<long>(m));
     }
     std::vector<uint32_t> origIds, ourIds, origFams, ourFams;
     const char* why = nullptr;
@@ -1834,19 +2034,10 @@ void PropLotShadowStartup(bool propmgrReplaced, bool lotcfgReplaced, bool tutori
     };
     for (const Item& it : items) {
         if (!*it.on) continue;
-        // glue21: a replacement is installed (`enable = <key>`) and the shadow
-        // stays on. It reads whatever the city holds - FreeCity4's class when
-        // the replacement is in, the game's otherwise - writes that class's own
-        // record and runs a private core over it on a read-only host. With a
-        // replacement that is a class-layer self-check (the vtable, the QI
-        // table and the record round trip against the core's answers); with the
-        // original it is the original-vs-core differential of glue15. The two
-        // keep separate process catalogues and neither tears the other's down.
         if (it.replaced) {
-            Log("%s shadow: ON over FreeCity4's replacement (`enable = %s`): at PostCityInit, each SimNewMonth and "
-                "PreSave, the live class's own record (its Write into memory) loads a private core over a read-only "
-                "host and the answers are compared with the live class's. %s",
-                it.name, it.key, it.what);
+            Log("%s shadow: REFUSED native comparison: enable=%s installs our owner; "
+                "pairs=0 exact=0 refused=1 fallback=0 resync=0", it.name, it.key);
+            *it.on = false;
             continue;
         }
         Log("%s shadow: ON: at PostCityInit, each SimNewMonth and PreSave, FreeCity4's core loaded from the "
