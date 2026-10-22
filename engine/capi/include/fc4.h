@@ -12743,6 +12743,7 @@ void fc4_feature_snapshot_destroy(fc4_feature_snapshot* snapshot);
 uint32_t fc4_feature_snapshot_query(const fc4_feature_snapshot* snapshot, uint32_t kind, uint32_t arg);
 #ifdef __cplusplus
 }
+static_assert(sizeof(fc4_feature_file) == (sizeof(void*) == 4 ? 12 : 24), "fc4_feature_file layout");
 #endif
 
 #endif /* FC4_H */

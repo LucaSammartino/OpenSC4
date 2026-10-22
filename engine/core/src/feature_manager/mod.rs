@@ -145,7 +145,13 @@ impl FeatureProcess {
     /// Verification query domain: every parsed key, including disabled IDs.
     /// Collected during the single scan, independently of native query answers.
     pub fn mentioned_features(&self) -> Vec<u32> {
-        self.0.read().unwrap_or_else(|e| e.into_inner()).mentioned_features.iter().copied().collect()
+        self.0
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .mentioned_features
+            .iter()
+            .copied()
+            .collect()
     }
 
     pub fn is_expansion_pack_installed(&self, n: u32) -> bool {

@@ -143,11 +143,12 @@ void FeatureShadowLoaded() {
     }
     FC4_ACQUIRED(sc4, "feature app QI");
     cISC4FeatureManager* borrowed = sc4->GetFeatureManager(); // no AddRef, never Release this borrow.
+    cISC4FeatureManager* candidate = nullptr;
     if (compat::FeatureManagerSupported(borrowed) && borrowed->QueryInterface(0x0B562673u,
-        reinterpret_cast<void**>(&g_owned)) && g_owned == borrowed) {
-        FC4_ACQUIRED(g_owned, "feature manager QI owned hold");
-    } else {
-        g_owned = nullptr;
+        reinterpret_cast<void**>(&candidate)) && candidate) {
+        FC4_ACQUIRED(candidate, "feature manager QI owned hold");
+        if (candidate == borrowed) g_owned = candidate;
+        else FC4_RELEASE(candidate);
     }
     FC4_RELEASE(sc4);
     if (!g_owned) { ++g_refusal; Log("feature-shadow: REFUSED native ABI/ownership"); return; }
