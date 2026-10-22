@@ -20,7 +20,7 @@
 - Per suite 65562reads/56writes/56messages/19reference checks; read_failures65553/65553,write_failures42/42; read_bytes131106/131106,write_bytes56/56.
 - Immutable DLL SHA256 A52DF4AC728379280876A1C2E1A46C20D6217BED0B9620F252605337AA8DB1CB.
 - Outstanding ind4-r2-off-ff173d78-03 (qwait35906), off control full/fast saves through2032.
-- Full gate rerun64738 pending; previous final run only ret-channel annotations failed.
+- Full qbuild all PASS on current engine ff173d78: cargo4938/0,clippy0,CMake2/2,ctest68/68 (98s fc4verify).
 - DLL immutable build-runs/dll/industrial-r2-92f61086/FreeCity4.dll SHA256 DCFA504194029630A2C1698605FBC8EDC54F4DE43DBDEDC5925708ECDE47C3D7.
 - Full gate: cargo4938/clippy0/build PASS; ctest67/68, ret_channel_check needs local [abi-ret] annotations for published AL=1 lifecycle slots (now added). No ABI changes/new questions.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-industrial4-r2-manifest.json.
