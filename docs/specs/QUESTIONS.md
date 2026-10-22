@@ -188,7 +188,7 @@ generated index: the questions live one file per spec, so read only the file for
 | demand | 0 | 13 | DQ14 | - |
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 2 | 44 | DS47 | questions/disasters.md |
-| dispatch | 0 | 9 | DP10 | - |
+| dispatch | 4 | 9 | DP14 | questions/dispatch.md |
 | draw-context | 2 | 0 | DC3 | questions/draw-context.md |
 | drawing-fonts | 0 | 17 | FN18 | questions/drawing-fonts.md |
 | drive-tool | 2 | 0 | DR3 | questions/drive-tool.md |
@@ -203,14 +203,14 @@ generated index: the questions live one file per spec, so read only the file for
 | geometry-utilities | 1 | 0 | GU2 | questions/geometry-utilities.md |
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 0 | 35 | FS18, GF19 | - |
-| graphics-rules | 0 | 3 | GR4 | questions/graphics-rules.md |
+| graphics-rules | 3 | 3 | GR7 | questions/graphics-rules.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 1 | 6 | HD8 | questions/html-document.md |
 | landfill | 0 | 36 | LF7, LG31 | - |
 | landvalue | 3 | 6 | LV8 | questions/landvalue.md |
 | language-utility | 3 | 0 | LU4 | questions/language-utility.md |
 | legacy-control | 3 | 4 | LC9 | questions/legacy-control.md |
-| lighting | 4 | 0 | LT5 | questions/lighting.md |
+| lighting | 11 | 0 | LT12 | questions/lighting.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
 | lot-models | 1 | 0 | LM2 | questions/lot-models.md |
@@ -277,14 +277,14 @@ generated index: the questions live one file per spec, so read only the file for
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | vehicles | 2 | 0 | VH3 | questions/vehicles.md |
 | view-input-controls | 2 | 0 | VIC3 | questions/view-input-controls.md |
-| view-utilities | 2 | 1 | VU4 | questions/view-utilities.md |
+| view-utilities | 10 | 1 | VU12 | questions/view-utilities.md |
 | view3d-window | 5 | 1 | VW7 | questions/view3d-window.md |
 | water-ripples | 3 | 0 | WR4 | questions/water-ripples.md |
-| watercraft | 2 | 0 | WC3 | questions/watercraft.md |
+| watercraft | 7 | 0 | WC8 | questions/watercraft.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
 | win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **312** | **1176** | | |
+| **total** | **339** | **1176** | | |
