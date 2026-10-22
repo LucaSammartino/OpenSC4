@@ -29,8 +29,8 @@ vertex buffer.
   texture (`SetPathTexture`, `0x007DCE20`, through the texture binding factory), and two packed render states made
   by `Init` (`0x007DCD90`): plain and textured (one texture), both colour write with no depth write and no depth
   test, culling, blended (source alpha, one minus source alpha) unless boolean 33 `kPreferOpaque` is on.
-- `NewPath(id, priority, flags)` (`0x007DDC50`): a new path, inserted before the first path of higher priority
-  (equal priorities keep their order), with the current texture. Flag bit 0 draws an arrowhead at the start, bit 1
+- `NewPath(colourBits, priority, flags)` (`0x007DDC50`): a new path, inserted before the first path whose
+  binary32 priority is not less than the new priority (equal priorities are newest first). Flag bit 0 draws an arrowhead at the start, bit 1
   at the end.
 - `AddPathVertex(p)` (`0x007DDB30`): appends p to the newest path, unless it lies within √(10⁻⁵) m of the previous
   vertex in x and z.
@@ -50,9 +50,83 @@ A path of n ≥ 2 vertices becomes one triangle strip of 2n vertices (vertex for
   r ÷ (2 t), where r is the path's repeat factor.
 - **Arrowheads** (`DrawArrowhead`, `0x007DD0D0`): with the start or end flag, a single triangle (format 10) is drawn
   at that end along the end segment, sized from t, and the ribbon's end point moves back to the arrow's base; no
-  arrow is drawn when the end segment is shorter than t.
+  arrow is drawn when its available 3D segment is shorter than 2t. See §1.2 for exact geometry.
 - A path with a texture draws with the textured state, that texture and repeat wrapping; the plain state is
   restored after.
+
+### 1.2 Exact path record, geometry and boundaries (OVV2–OVV3)
+
+`NewPath`'s first 32 bits are the **packed vertex colour**, copied unchanged to DrawPath's colour
+field (`0x007DD427–0x007DD42C`); no separate opaque ID lookup, default white colour, or colour setter
+is established by these bodies. Priority is a **float**, not a signed or unsigned integer
+(`0x007DDC64–0x007DDC76`). Search continues only while oldPriority < newPriority; equal values insert
+before the old one. An unordered comparison (NaN) also stops the search. NewPath selects this newly
+inserted record for subsequent AddPathVertex/SetPathTexture, irrespective of its list position.
+
+Relative to a record (excluding its two list links): +0 colour bits, +4 flags, +8 binary32 priority,
++0x0C..+0x33 owned point deque, +0x34 texture binding, +0x38 binary32 repeat factor. NewPath creates
+an empty deque and a null binding. It copies the repeat slot from an **uninitialized stack slot**;
+there is no native default repeat factor to promise. `SetPathTexture(key, repeat)` takes **two**
+arguments, releases and nulls the selected record's previous binding, asks factory slot 5 for the
+new one, then stores the second argument as repeat, whether or not loading succeeded. It does not
+set a process/view-wide texture for future paths (`0x007DCE20–0x007DCE5F`). With no selected path,
+this method has no sentinel guard; do not invent successful empty-list semantics.
+
+The constructor sets thickness to binary32 2, initialized=false, both packed state words/masks to
+zero, and an empty circular path list with selected=sentinel (`0x007DDD50`). SetThickness simply
+stores its float. AddPathVertex without a selected path is a no-op. Otherwise it rejects the new
+point only when dx²+dz² < **binary64 1e−5**, using x87 arithmetic; y is ignored, equality appends,
+and NaN does not trigger the reject (`0x007DDB73–0x007DDB99`, constant `0x00A95620`). There is no
+finite/thickness validation. ClearPaths releases each texture and point deque and empties the list;
+its body does **not reset selected**. Thus AddPathVertex/SetPathTexture after clearing a nonempty
+list requires a new NewPath; otherwise selected is stale. Allocation failure is not translated to
+a public false result. There is no path bounding-box cache, bounds getter, selection by ID, terrain
+projection, or dirty/update invalidation in these bodies: Update rebuilds world-space geometry from
+the list every draw. Empty list Update does nothing and succeeds; n<2 draws no primitives.
+
+For ordinary finite, nonzero horizontal segments define N(A,B) = (dz,0,−dx)/sqrt(dx²+dz²).
+An end emits P+tN followed by P−tN. At a joint let M=(N(previous,P)+N(P,next))/2 and q=M·M.
+If q < **binary64 0.0001**, emit P±N(P,next), **without multiplying by t**. Otherwise emit
+P±M×(t/q): this is a miter, not a normalized unit bisector. Equality takes the miter branch.
+Evidence: `0x007DCE60`, `0x007DCFF8–0x007DD09F`, constant `0x00A84E60`. Zero horizontal
+segments divide by zero; neither normal helper supplies a safe finite substitute.
+
+DrawArrowhead receives mutable tip P and inward neighbor Q. Let L=|Q−P| in **3D**, and
+a=min(binary32(L−t), binary32(binary64(4.5)×t)). If a<t, return false without drawing or moving P;
+otherwise B=P+(Q−P)×a/L. Draw one triangle in order **P, B−2tN(P,Q), B+2tN(P,Q)**, format 10,
+primitive 0, with the supplied packed colour at each vertex and zero texture coordinates for finite
+inputs; then replace P with B. No separate arrow texture state is selected. This means an ordinary
+positive-thickness arrow first becomes possible at L=2t. Evidence: `0x007DD10F–0x007DD160`
+(4.5 is a double at `0x00ABB628`), `0x007DD188–0x007DD37B`.
+
+Start arrow is drawn while processing the first segment, before its strip pair; the end arrow is
+drawn after processing all points and before the final pair. Both precede the ribbon draw. With just
+two points, the end arrow sees the already-shortened first point. Original L=4t therefore draws only
+the start arrow, moves it 3t inward, and leaves the last t for the strip; both flags do not force two
+triangles. Original L=6.5t draws the start at 4.5t and end at t, leaving a t-long strip.
+Only the local endpoint copies move; the stored point deque is unchanged.
+
+Format 10 has position, packed colour, then **(longitudinal coordinate, side coordinate)**, not the
+reverse. Side is 0 for the plus-normal vertex and 1 for minus. Let k=repeat/(2t), s initially 0.
+For each working segment A→B, D=(B−A)×k/|B−A|₃D, b=s−D·A. Both vertices X of the pair at A
+receive longitudinal D·X+b; then s increases by |B−A|₃D×k. The final pair uses the last D,b
+(computed before end-arrow shortening). Joint miters can therefore give the two sides different
+longitudinal coordinates. This is not just a single accumulated value copied to both sides.
+Evidence: `0x007DD410`, binary32 local stores and x87 operations through `0x007DD8B9`.
+
+Independent geometric discriminators, with t=2 and horizontal points unless stated:
+
+| Input | Native result |
+|---|---|
+| (0,0,0)→(10,0,0), no arrows | First strip pair (0,0,−2), (0,0,2); last (10,0,−2), (10,0,2). |
+| Right-angle joint (0,0,0)→(10,0,0)→(10,0,10) | Joint pair (12,0,−2), (8,0,2), rather than unit-bisector offsets of length 2. |
+| Exact reversal at (10,0,0), next=(0,0,0) | Fallback pair (10,0,1), (10,0,−1), even though t=2. |
+| Start arrow on (0,0,0)→(8,0,0), both flags | Triangle (0,0,0),(6,0,4),(6,0,−4); end arrow suppressed. |
+| First priority=1.0, then priority=1.0 | Second path draws first. |
+
+Lifecycle residual: Init is idempotent and succeeds even without a render service, setting its flag;
+Shutdown `0x0053C940` only clears that flag. Destruction clears paths and frees the list sentinel.
+Complete shared COM/destructor and nonfinite bit-level behavior are not certified by this section.
 
 ## 2. The marked-cell view (`SC4MarkedCellView`) *[compat]*
 
@@ -79,6 +153,76 @@ colour), batched up to 1,024 vertices per indexed draw.
   `0x304`), and is skipped for a lot with flag `0x100000` that does not show marks.
 - **Other sizes:** the corners are the cell's grid corners times the cell size, clamped to the terrain, at the
   altitude of the terrain vertex nearest to each corner; the diagonal is always the same.
+
+### 2.2 Exact marked-cell colour, corner and ordering corrections (OVV4–OVV5)
+
+The preceding nearest-vertex/clamping description is approximate; this section controls. Constructor
+defaults (`0x007DCC10`) are: ignoreDepth=true, useWater=false, useLots=false, size=(16,16), inverse
+=(1/16,1/16), common packed colour **0x80C000C0** (RGBA 192,0,192,128), empty cells and colour vector,
+outlineEnabled=false, zero packed state and null lot filter. The outline colour itself is not
+initialized; it is unused until SetOutlineColor. Both colour setters take a pointer/reference to
+**four binary32 floats in r,g,b,a order**, not four stack scalar arguments.
+
+Conversion is the same for common and outline colours. For each channel c, add binary32 49152 in
+x87, store the sum as binary32, reinterpret its bits u, subtract 0x47400000 modulo 2³², then form
+the byte `(lowByte(u) − secondByte(u)) modulo 256`. Pack B in bits 0–7, G in 8–15, R in 16–23,
+A in 24–31 (`0x007DCB37–0x007DCBCF`, `0x007DC2F0`; constant `0x00ABB5B4`). There is **no clamp**
+or multiply-by-255 instruction. Under round-to-nearest-even, c=0,.5,1 gives 0,128,255; c=2 gives
+254 and c=−.5 gives 129. Halfway c=1/512 gives 0 and c=3/512 gives 2. Nonfinite values have no
+validation/reject branch; resulting bits depend on native floating-point state and payload.
+
+SetCellColor stores the common colour and clears the per-cell colour vector's logical size, retaining
+storage. Update uses common colour exactly when that vector is empty; otherwise it indexes one
+packed colour per cell without a length guard. SetOutlineColor stores its packed value and sets
+outlineEnabled=true. There is no proved independent disable method in this inventory; constructor
+starts disabled and kPreferOpaque suppresses the second pass. No default outline colour is promised.
+`0x007DCCF0` copies a vector of packed u32 colours; `0x007DCD30` appends a pair of 32-bit cell
+coordinates; ClearCells `0x007DCD00` empties cells only, retaining allocation and colours. These
+mutations do not deduplicate or sort. `0x007DC1C0` stores useLots. SetCellSize stores the two float
+sizes and 1/size without rejecting zero, negative, infinity or NaN (`0x007DC1D0`).
+
+Corner order is **(x,z), (x,z+1), (x+1,z+1), (x+1,z)**. The two index sequences (relative to
+the first vertex of a quad) are:
+
+| Terrain split / size | Six u16 indices |
+|---|---|
+| 16m, terrain split false | 0,1,2, 0,2,3 |
+| 16m, terrain split true | 0,1,3, 3,1,2 |
+| Other sizes | 0,1,2, 0,2,3 |
+
+For exactly binary32 16×16, reject a cell unless its coordinates compare unsigned <W,<H. Fetch all
+four terrain heights; with water enabled, replace each by its water height only if higher. **Then**
+frustum-test corners 0 and 2; if neither passes, skip before looking for a lot. With useLots, city
+lookup slot 32 uses the cell and the retained filter; QueryInterface ID is 0xA821EF94. The filter
+allocation is 16 bytes and its construction sets mask **0x1F4F** (`0x007DC200`). An accepted lot with
+flags 0x100000 and show-marks false suppresses the cell; otherwise **replace**, rather than max,
+all y values with lot altitude at that corner, plus 15.5 if flags &0x304. Water is not reapplied to
+lot heights and frustum is not retested after lot replacement. Temporary lot and occupant interfaces
+are released even on the hidden-lot skip (`0x007DC54C–0x007DC6C7`).
+
+For **other sizes**, independently add the corner's 0/1 grid offsets to the signed cell coordinates,
+clamp those **grid coordinates** to [0,W],[0,H], and only then multiply by w,h. The world positions
+are not clamped to 16W,16H and the whole cell is not rejected for an outside lower corner. Thus
+large outside cells can produce collapsed quads. Select altitude indices from worldX/16 and worldZ/16
+using the lower-vertex conversion: subtract .5, add binary32 12582912, store binary32, subtract
+0x4B400000 from its bits, then increment only if the unrounded coordinate equals that candidate+1.
+For ordinary nonnegative coordinates this is **floor**, not nearest and not half-up: 0.5→0, 0.75→0,
+1→1, 1.5→1. Water-max applies here too, before the same corner-0/2 frustum test. Lots are never
+queried in this branch (`0x007DC7C2–0x007DC8E7`; constants `0x00ABB5AC/0x00ABB5B0`).
+
+There is no independent safety check for the computed terrain index with arbitrary cell sizes;
+out-of-range terrain access is not a defined successful native boundary. Zero size may collapse all
+corners; negative/nonfinite sizes are accepted by the setter but do not imply a safe draw. Empty
+cells cause Update to return success without state changes. All cells are visited in insertion order,
+four format-1 vertices and six u16 indices each, flushing after 1024 accepted vertices. No persistent
+geometry/grid cache exists. Update applies identity model, offset 4, first pass, optional additive
+outline pass with depth greater, then restores only the old depth offset (`0x007DC9F0`).
+
+Independent discriminators: w=h=8, cell(1,1) has world corners (8,8),(8,16),(16,16),(16,8), and
+altitude indices (0,0),(0,1),(1,1),(1,0). W=H=4,w=h=8,cell(7,7) collapses all corners to
+(32,32), rather than being skipped. For a 16m cell with terrain y=2, water y=10 and lot y=3,
+the frustum sees y=10 but accepted unraised lot geometry draws at y=3. Setting RGBA floats
+(1,.5,0,1) gives packed **0xFFFF8000** and clears per-cell colours.
 
 ## 3. The terrain vertex-buffer extension (`cSTEVertBufExtn`) *[compat]*
 

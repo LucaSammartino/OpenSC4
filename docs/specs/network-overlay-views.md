@@ -113,7 +113,8 @@ tracked in NOV2 until the remaining lifecycle evidence is reconciled.
 - `Update(context)` (`0x005657A0`): over the visible cell rectangle, for each network occupant and each of its four
   entry edges, the network manager (slot 41) gives the routes leaving that edge and the one chosen; a junction with
   routes is drawn (`DrawTrainJunction`, `0x00564BE0`).
-- **Drawing a junction:** its transparency is 0.8 at the junction the player's train is at or heads for, else 0.5.
+- **Drawing a junction:** selected-route/marker transparency is 0.8 at either stored train cell, else 0.5;
+  unselected-route transparency is respectively 0.7 or 0.4 (§2.1).
   Each route but the chosen one gets its plain picture (`GetPathBitmap`, `0x00564A60`): with d the unit direction
   of the route's last segment (taken over its last three points, or the whole route when that is shorter than
   0.25 m) and e the entry direction, c = d.x e.z − d.z e.x chooses the picture pair `0x6BE09923`/`24` below −0.25,
@@ -122,6 +123,86 @@ tracked in NOV2 until the remaining lifecycle evidence is reconciled.
   ground height (3 m higher on elevated rail, track type 7), each one a little above the last (+0.01 per quad). The
   chosen route is drawn last in its selected picture, then the marker model is placed there 0.2 m up (3 m more on
   elevated rail) and drawn.
+
+### 2.1 Exact junction draw contract and remaining lifecycle boundary (NOV3)
+
+Constructor `0x005649D0` sets initialized=false, packed state zero, both stored cell pairs
+(+0x1C/+0x20 and +0x24/+0x28) to (−1,−1), and both models null. It does not initialize the
+stacking offset or the six texture-binding slots. Init is guarded by initialized, sets the flag
+before resource loading, and returns true without aggregating resource failures. It recomputes the
+process-wide 4×4 direction table: D(i,j)=normalize(edge[j]−edge[i]), with zero on its diagonal.
+All y components are zero. The native packed-state argument tuple (draw-context §5.1 order) is
+**(1,1,1,1,1,1,1,3,4,5,4,0,1,−1)** (`0x005633E3–0x00563402`): notably depth write **on**,
+depth test ≤, alpha test greater than zero, one texture, source-alpha blending, culling on.
+
+The six binding keys have type **0x7AB50E44**, group 0x1ABE787D, instances 0x6BE09921–26.
+The two animated models retain the keys in §2. Model assignment retains a changed successful result
+before releasing the old model; temporary model and service references are released at the end of
+Init. A missing render service skips packing but still sets initialized and attempts resources. A
+missing resource service is not guarded before its calls; no graceful false-return contract is proved.
+Failed/null individual route/path/bitmap results are skipped in the drawing loops; null models skip
+the marker. Init does not certify that a failing provider initializes every output slot.
+
+Update first obtains the network manager: absent means true with no draw. Otherwise set the
+stacking offset to **binary32 0.1 once per Update**, not once per junction. Iterate x outer, z inner,
+inclusive visible limits, linked occupants, then entry bytes 0,1,2,3. Network-manager slot 41 gives
+route count, key vector and chosen index. Only nonzero route counts call DrawTrainJunction. The
+route vector is temporary and freed after the occupant. There is no frustum test or geometric cache
+in this owner (`0x005657A0`).
+
+DrawTrainJunction obtains world-space origin O from path-info slot 22 for the **first route**;
+all route quads in this junction share O. There is no `(16×cellX,16×cellZ)` translation. For each
+route key its entry is byte 1 and exit byte 0, selecting e=D(entry,exit). GetPathBitmap uses the
+full path vector: Q=point[max(0,N−3)], E=last; if the **horizontal** chord length |E−Q| < .25,
+replace Q by the first point. Normalize the resulting horizontal chord d and compare
+`d.x×e.z−d.z×e.x`: below −.25 uses instances 23/24, [−.25,+.25] uses 25/26, above +.25 uses
+21/22 (plain/selected). These are literal thresholds; no directional turn names are asserted.
+Zero/empty paths are not protected by a public reject branch: N=0 reads before the vector and a
+zero full chord divides by zero. There is no native finite-input validation (`0x00564A60`).
+
+GetArrowBitmapQuad (`0x005637E0–0x00563968`) uses e, with perpendicular n=(−e.z,0,e.x).
+Query terrain height at **O+12e**, take max(result,O.y), add current stacking offset, then add
+3 if key bits 24–27 equal 7. Use this same height h on all four corners:
+
+| Vertex order | x,z position | u,v |
+|---|---|---|
+| 0 | O+6n | 0,0 |
+| 1 | O+6n+12e | 0,1 |
+| 2 | O−6n+12e | 1,1 |
+| 3 | O−6n | 1,0 |
+
+This is a 12m-wide, 12m-long quad, format **2** (xyz,uv, 20 bytes), primitive **6**, count 4,
+in that winding. The height query does not use the quad center, four independent corner heights, or
+the route endpoint. Degenerate e=0 produces a collapsed quad; no substitute direction is chosen.
+
+The draw resets transparency, sets identity model and its packed state, then draws unchosen routes
+in vector index order, skipping the chosen **low-16-bit** index. Plain transparency is binary32 .7
+if either stored cell pair matches, else .4. Then set transparency to .8 or .5 respectively and draw
+the chosen index last. This latter indexing has no bounds check, even for a directly supplied empty
+vector. Every successful bitmap quad uses the current offset, then increments it by binary32 .01;
+null path/bitmap skips do not increment. Offset carries across junctions within the frame.
+Evidence: `0x00564C19–0x00564C75`, `0x00564D20–0x00564E78`; constants are immediate .7/.8/.4/.5
+bit patterns and .01 at `0x00A823A4`.
+
+Marker uses model 0x8BB80000 **only** when cell matches pair +0x24/+0x28; otherwise 0x8BB70000,
+including a match only to pair +0x1C/+0x20. It is temporarily retained during draw. Translation is
+the shared origin, with y=O.y+currentOffset+binary32(.2), plus 3 for selected key type 7; unlike the
+quad, it does not max with terrain height. Orientation is derived from e of the **first route**,
+not necessarily the chosen route (`0x00564CA0–0x00564CD7`, `0x00564E78–0x00565085`). The exact
+rotation-helper handedness/remaining model state and the public setters which populate the two
+cell pairs remain unproved; this section does not certify those methods or train-current/target names.
+
+Shutdown `0x00563730` is guarded by initialized; clear flag, release/null binding slots in order
++0x34,+0x38,+0x2C,+0x30,+0x3C,+0x40, then release/null both model references. It does not flush
+draws or clear train cells. Repeated shutdown is a no-op. Destruction/refcount transitions beyond
+these resource releases remain part of OVV6/NOV3 residuals.
+
+Independent discriminators: for O=(0,7,8), entry west/exit east, terrain at (12,8)=5,
+offset=.1 and type not 7, quad xyz are (0,7.1,14),(12,7.1,14),(12,7.1,2),(0,7.1,2).
+With no matched train cell, one plain route then selected route draw at .4 then .5 transparency,
+at offsets .1 then binary32(.1+.01); the next junction starts at the offset left by those draws.
+Matching only +0x1C/+0x20 gives .7/.8 but still model 0x8BB70000. A route whose last three points
+have a vertical-only chord falls back to the horizontal whole-route chord, irrespective of its 3D length.
 
 ## 3. Users
 
