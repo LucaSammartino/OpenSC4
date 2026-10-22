@@ -230,6 +230,12 @@ Every y is 0. Any output pointer may be null.
 
 A pick record holds the ray origin (`+0x00`), its direction (`+0x0C`) and the nearest hit distance so far (`+0x28`).
 
+That nearest field is Euclidean distance from origin to the intersection point, **not** the signed triangle
+ray parameter. Both TrianglePick and MeshPick call LengthOfLine after intersection (`0x007F6B23`,
+`0x007F9993`). Only a strict ordered decrease updates it: ties and NaNs do not improve it. An accepted hit
+behind the origin still has positive distance, and a nonunit direction does not rescale that distance.
+See model-instances §2.1 and its conformance vector 17 (MI5).
+
 - `TrianglePick(pick, a, b, c)` (`0x007F6AF0`): when the ray hits the triangle (`SC4GeometryUtilities::
   RayIntersectsTriangle`) closer than the nearest distance, that distance is updated and the result is true.
 - `MeshPick(pick, mesh, transform)` (`0x007F91C0`): for a mesh with vertices, each of its primitive groups is walked
@@ -266,6 +272,10 @@ quads and quad strips (graphics-formats.md §3.7); their second triangles do not
 model uses either type *[quirk]*. The index reader
 (`0x0080B090`) knows eight index formats (signed and unsigned 8 and 16 bits, two 32-bit codes, float and double,
 floored), but the walk only uses unsigned 16 bits.
+
+The native count helper uses signed subtraction without saturation for n−1/n−2 (`0x0080AEA8`, `0x0080AEB8`);
+the iterator's signed comparison makes nonpositive counts stop immediately (`0x0080B3B6`). Invalid vertex
+or index references are unchecked memory accesses, not native skip rules (model-instances §9.1, MI9).
 
 ## 8. Users
 
