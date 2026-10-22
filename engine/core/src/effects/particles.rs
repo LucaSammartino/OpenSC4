@@ -10,8 +10,9 @@
 //! Only what the finish test (§7) observes is modelled: `started`, the
 //! delayed-stop request, the live particles and the emitter state (phase,
 //! loop counter, carry, countdown). Drawing, motion and the per-particle
-//! render data are the host's. A particle's own update (main slot 20) is not
-//! in the spec; it is modelled by a caller-given life ([`EmitterDesc::life`]).
+//! render data are outside this model. EF14 supplies the slot-20 age test
+//! and the first init draw (life); motion, terrain kills and other init
+//! draws/birth hooks are not modelled. Native owner outputs are not inputs.
 //!
 //! The protocol (§7.1):
 //! - base `Stop(mode1, _)` with `started` set: `delayed := mode1`; mode1 == 0
@@ -75,14 +76,16 @@ impl EmitterKind {
 }
 
 /// The particle description fields the emitters read (§7.1.1), plus the
-/// detail scales and the particle life the caller supplies.
+/// detail scales. Life is sampled by particle init, not supplied by an owner.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EmitterDesc {
     /// Flags A (`D+0x00`).
     pub flags_a: u32,
     /// `D+0x08`; bit 0 set: the burst is not scaled.
     pub flags_b: u32,
-    /// Max burst age (`D+0x10`), seconds.
+    /// Lower particle-life bound (`D+0x0C`), seconds.
+    pub life_min: f32,
+    /// Upper particle-life bound and max burst age (`D+0x10`), seconds.
     pub max_age: f32,
     /// Period (`D+0x14`), seconds per loop.
     pub period: f32,
@@ -100,18 +103,18 @@ pub struct EmitterDesc {
     pub scales: [f32; 3],
     /// The rate scale `+0xC0`.
     pub rate_scale: f32,
-    /// Each particle's life in effect-seconds (the slot-20 model).
-    pub life: f32,
 }
 
 impl EmitterDesc {
     /// A description with no scaling, no delays (both ranges negative), no
-    /// pre-roll, period 1 s, one loop, a one-entry curve.
+    /// pre-roll, period 1 s, one loop, a one-entry curve, and a degenerate
+    /// life range `[life, life]` (init still consumes a random draw).
     pub fn new(flags_a: u32, count: f32, life: f32) -> EmitterDesc {
         EmitterDesc {
             flags_a,
             flags_b: 0,
-            max_age: f32::MAX,
+            life_min: life,
+            max_age: life,
             period: 1.0,
             loop_count: 1,
             preroll: 0.0,
@@ -120,7 +123,6 @@ impl EmitterDesc {
             curve: vec![count],
             scales: [1.0; 3],
             rate_scale: 1.0,
-            life,
         }
     }
 
@@ -134,7 +136,7 @@ impl EmitterDesc {
     }
 
     /// `m'`: `m` times `+0xC0` once, squared or cubed for bits 19/20/21.
-    /// [choice, EF14] With several bits set the lowest wins; with none the
+    /// EF14: with several bits set the lowest wins; with none the
     /// rate scale is not applied.
     fn m_rate(&self) -> f32 {
         let k = self.rate_scale;
@@ -151,18 +153,39 @@ impl EmitterDesc {
     }
 
     /// The rate at loop fraction `frac`: one entry → `curve[0]`, else linear
-    /// interpolation at `(len − 1)·frac`. [choice] An empty curve is 0.
+    /// interpolation at `(len − 1)·frac`. EF14's documented safe choices:
+    /// an empty curve is 0; clamp out-of-range fractions (native UB).
     fn rate_at(&self, frac: f64) -> f32 {
         match self.curve.len() {
             0 => 0.0,
             1 => self.curve[0],
             len => {
-                let pos = ((len - 1) as f64 * frac).max(0.0);
-                let i = (pos.floor() as usize).min(len - 2);
-                let t = (pos - i as f64) as f32;
-                self.curve[i] + t * (self.curve[i + 1] - self.curve[i])
+                let pos = (len - 1) as f64 * frac.clamp(0.0, 1.0);
+                let i = pos.floor() as usize;
+                let t = pos - i as f64;
+                if t > 0.0 {
+                    (f64::from(self.curve[i])
+                        + t * (f64::from(self.curve[i + 1]) - f64::from(self.curve[i])))
+                        as f32
+                } else {
+                    self.curve[i]
+                }
             }
         }
+    }
+}
+
+/// The stored float age and life used by main slot 20 (EF14).
+#[derive(Clone, Debug, PartialEq)]
+struct Particle {
+    age: f32,
+    life: f32,
+}
+
+impl Particle {
+    fn update(&mut self, t: f32) -> bool {
+        self.age += t;
+        self.age < self.life
     }
 }
 
@@ -175,8 +198,8 @@ pub struct ParticleSimulator {
     started: bool,
     /// `+0x0C`: a delayed stop was requested.
     delayed_stop: bool,
-    /// The live particles' remaining lives (`+0x14` is their count).
-    live: Vec<f32>,
+    /// The live particles (`+0x14` is their count).
+    live: Vec<Particle>,
     /// `P` (`+0x120`), in loops.
     phase: f64,
     /// `n` (`+0x128`).
@@ -229,13 +252,14 @@ impl ParticleSimulator {
     }
 
     /// `SetDescription` `0x005B7C90`: `ρ := 1 / D+0x14`, the period replaced
-    /// by `1e-6` unless greater; clears `+0x21A`. [choice, EF14] The
-    /// replacement is used for `ρ` only; the burst age and the gap still
-    /// use the description's period as stored.
-    pub fn set_description(&mut self, desc: EmitterDesc) {
+    /// by the local float `1e-6` unless greater; clears `+0x21A` and resets
+    /// scale `+0x1E0`. EF14: the replacement is used for `ρ` only; burst
+    /// age and gaps still use the description's raw period.
+    pub fn set_description(&mut self, mut desc: EmitterDesc) {
         let period = if desc.period > 1e-6 { desc.period } else { 1e-6 };
         self.rho = 1.0 / f64::from(period);
         self.suppressed = false;
+        desc.scales[1] = 1.0;
         self.desc = desc;
     }
 
@@ -307,9 +331,10 @@ impl ParticleSimulator {
         self.live.len()
     }
 
-    /// The live particles' remaining lives, in creation order.
-    pub fn live(&self) -> &[f32] {
-        &self.live
+    /// Diagnostic remaining lives, in creation order, computed from the
+    /// stored age and life (updates accumulate age, not remaining life).
+    pub fn live(&self) -> Vec<f32> {
+        self.live.iter().map(|p| p.life - p.age).collect()
     }
 
     /// `n` (`+0x128`).
@@ -356,25 +381,29 @@ impl ParticleSimulator {
         }
         self.dt = t;
         self.age += t;
-        // [choice] The slot-20 particle update is modelled as a remaining
-        // life: a particle whose life reaches 0 returns false and dies.
-        for l in &mut self.live {
-            *l -= t;
-        }
-        self.live.retain(|&l| l > 0.0);
+        self.live.retain_mut(|p| p.update(t));
         if !self.suppressed {
             self.dispatch(rng);
         }
         self.check_for_stop();
     }
 
-    /// Creates one particle initialised (slot 20) with age `a`. [choice] Its
-    /// init fails (it is destroyed) when the age has used up its life.
-    fn create(&mut self, a: f32) {
+    /// Init always sets alive and age 0 and draws life first, even for a
+    /// degenerate range or a particle rejected by the later slot-20 test.
+    /// Plain emitters skip slot 20 entirely (`initial_age == None`).
+    fn create(&mut self, initial_age: Option<f32>, rng: &mut RzRandom) {
         self.created += 1;
-        let rest = self.desc.life - a;
-        if rest > 0.0 {
-            self.live.push(rest);
+        let mut p = Particle {
+            age: 0.0,
+            life: rng.range_f64(f64::from(self.desc.life_min), f64::from(self.desc.max_age))
+                as f32,
+        };
+        let alive = match initial_age {
+            Some(a) => p.update(a),
+            None => true,
+        };
+        if alive {
+            self.live.push(p);
         }
     }
 
@@ -397,7 +426,7 @@ impl ParticleSimulator {
             e = (pre - 0.01) as f32;
         }
         match self.desc.kind() {
-            EmitterKind::Plain => self.emit_plain(e),
+            EmitterKind::Plain => self.emit_plain(e, rng),
             EmitterKind::LoopBudget => self.emit_loop_budget(e, rng),
             EmitterKind::Rate => self.emit_rate(e, rng),
         }
@@ -421,7 +450,7 @@ impl ParticleSimulator {
             let a = ((self.phase - f64::from(self.loops)) * f64::from(period)) as f32;
             if a < max_age && burst != 0 {
                 for _ in 0..burst {
-                    self.create(a);
+                    self.create(Some(a), rng);
                 }
             }
             self.loops += 1;
@@ -476,7 +505,7 @@ impl ParticleSimulator {
             self.carry = x - n;
             let n = n.max(0.0) as u32;
             for k in 0..n {
-                self.create(e - k as f32 * s / n as f32);
+                self.create(Some(e - k as f32 * s / n as f32), rng);
             }
             e -= s;
             if gap {
@@ -489,21 +518,18 @@ impl ParticleSimulator {
         }
     }
 
-    /// The plain emitter `0x005B3CF0`. [choice, EF14] Its body is not in the
-    /// spec beyond "a plain rate-integral emitter with no self-stop": the
-    /// rate emitter's integral over the whole step (`P += e·ρ`, wrapped to
-    /// the loop; `x := r·e·m' + c`, `N := floor(x)`, ages `e − k·e/N`)
-    /// without loop counting, gaps or a stop.
-    fn emit_plain(&mut self, e: f32) {
+    /// EF14(a): top up to ceil(curve[0]), with no scaling, wrapping,
+    /// counter/carry/countdown updates, slot 20 or birth hook.
+    fn emit_plain(&mut self, e: f32, rng: &mut RzRandom) {
         self.phase += f64::from(e) * self.rho;
-        self.phase -= self.phase.floor();
-        let r = self.desc.rate_at(self.phase);
-        let x = r * e * self.desc.m_rate() + self.carry;
-        let n = x.floor();
-        self.carry = x - n;
-        let n = n.max(0.0) as u32;
-        for k in 0..n {
-            self.create(e - k as f32 * e / n as f32);
+        if self.phase <= f64::from(self.loops) {
+            return;
+        }
+        // [choice, EF14] Empty curve -> 0; T <= live -> no creations,
+        // avoiding the native unsigned-underflow loop (~2^32 attempts).
+        let target = self.desc.curve.first().copied().unwrap_or(0.0).ceil().max(0.0) as u32;
+        for _ in self.live.len() as u64..u64::from(target) {
+            self.create(None, rng);
         }
     }
 

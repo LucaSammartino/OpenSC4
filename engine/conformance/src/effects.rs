@@ -731,7 +731,8 @@ fn particles(op: &Json) -> R<()> {
     d.period = f("period", 1.0);
     d.loop_count = u("loop_count", 1)?;
     d.preroll = f("preroll", 0.0);
-    d.max_age = f("max_age", f32::MAX);
+    // EF14: D+0x10 is both the life upper bound and the burst-age limit.
+    d.max_age = f("max_age", d.max_age);
     d.start_delay = pair("start_delay")?;
     d.interval = pair("interval")?;
     d.rate_scale = f("rate_scale", 1.0);
