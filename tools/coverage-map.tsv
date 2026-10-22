@@ -427,6 +427,7 @@ nGZDrawSoftRender*	2D drawing and fonts	renderer	-	-	-	-
 cGZAlphaBlt	2D drawing and fonts	renderer	-	-	-	-
 cGZCanvas*	2D drawing and fonts	renderer	-	-	-	-
 CachedBitmapData	2D drawing and fonts	renderer	drawing-fonts.md	-	-	-
+cGZFontSys	2D drawing and fonts	renderer	drawing-fonts.md	core/src/fonts	-	-
 cGZFont*	2D drawing and fonts	renderer	drawing-fonts.md	-	-	-
 cFontCOMDirector	2D drawing and fonts	renderer	drawing-fonts.md	-	-	-
 cRZTileSetup	2D drawing and fonts	renderer	-	-	-	-
