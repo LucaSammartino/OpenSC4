@@ -299,9 +299,7 @@ impl ViewUtilities {
         self.right = right.normalized();
         self.view = Frustum::build(
             camera.position,
-            self.forward,
-            self.right,
-            self.up,
+            (self.forward, self.right, self.up),
             v,
             camera.projection,
             self.city,
@@ -570,9 +568,7 @@ impl ViewUtilities {
             - self.forward * volume.near;
         self.draw = Frustum::build(
             position,
-            self.forward,
-            self.right,
-            self.up,
+            (self.forward, self.right, self.up),
             volume,
             self.camera.projection,
             self.city,

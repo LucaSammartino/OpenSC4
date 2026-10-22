@@ -173,7 +173,8 @@ pub fn ray_intersects_ground_plane(ray: Ray, out: &mut Vec3) -> bool {
     ray_intersects_plane(ray, Vec3::new(0.0, 1.0, 0.0), 0.0, Some(out))
 }
 
-pub const GEOMETRY_TOLERANCE: f32 = f32::from_bits(0x3c23_d70a);
+// Exact binary32 word 0x3C23D70A; literal keeps the project's Rust 1.75 MSRV.
+pub const GEOMETRY_TOLERANCE: f32 = 0.01;
 
 pub fn ray_intersects_plane(ray: Ray, normal: Vec3, offset: f32, out: Option<&mut Vec3>) -> bool {
     let a = normal.dot(ray.origin) + offset;

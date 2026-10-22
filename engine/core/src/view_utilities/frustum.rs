@@ -54,14 +54,13 @@ pub struct Frustum {
 impl Frustum {
     pub(crate) fn build(
         position: Vec3,
-        forward: Vec3,
-        right: Vec3,
-        up: Vec3,
+        basis: (Vec3, Vec3, Vec3),
         volume: ViewVolume,
         projection: Projection,
         city: (f32, f32),
         previous: &[Vec3; 8],
     ) -> Self {
+        let (forward, right, up) = basis;
         let n = position + forward * volume.near;
         let f = position + forward * volume.far;
         let h = right * ((volume.right - volume.left) / 2.0);
