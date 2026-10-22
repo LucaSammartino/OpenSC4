@@ -7,7 +7,9 @@
 - Goal: continue native cSC4WinLotConfigurationEditor only; docs-only round 2/3.
 - Prior milestone `ffa85bcf`: exact 109-entry/52646B inventory and partial contracts; LE1–LE5 open. Do not repeat arithmetic.
 - Save As entry is `00485390`; `00485445` is an interior mislabel. Preserve correction.
-- Next: read contract sections and companion rows, then query export first for save/identity and largest selectors/render bodies.
+- Done: `45b6a09a` resolves LE2, native identity success/new-name/Save As reference transfer, preserving corrected entry.
+- Done: LE1 instruction operands now resolve all 15/3/8 grid rows, row+1 bit maps, full-vector clear, missing-grid fault ordering, and absent first-scalar write-back.
+- Next: finish native family/texture row selection and callback contracts, then numeric/edit/render gaps within guard.
 - Sources: absolute main-checkout export/decomp/executable only; no engine, implementation/test evidence, tools or ABI-table edits.
 - q.py cannot start Bash (`E_ACCESSDENIED`); use bounded PowerShell/Python calls.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-loteditor-window4-r2-manifest.json`.

@@ -1,5 +1,17 @@
 # Native lot configuration editor answered questions
 
+**LE1 — Compatibility multi-selection maps and first scalar write-back**
+
+**ANSWERED 2026-10-22 (re-loteditor-window4):** DIFFERS — The three grids use
+row+1 as the model bit, clear the entire vector before rebuilding, and require
+all three controls on acceptance despite guarded initialisation. Control
+`0x294053DB` has no write-back at all. All 15/3/8 descriptions, bit bases,
+selection-record widths, ordering and missing-control effects are specified in
+[§4.1](../../lot-configuration-editor.md), from native instruction operands.
+
+Original scope: reconcile all rows and selected-index maps in `0x00480D10`,
+optional controls, and the first scalar write-back lost by the decompiler.
+
 **LE2 — Corrected Save As, identity-path success and new-name source**
 
 **ANSWERED 2026-10-22 (re-loteditor-window4):** DIFFERS — Native identity-path

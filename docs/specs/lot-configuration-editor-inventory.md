@@ -45,7 +45,7 @@ are hexadecimal and decimal respectively; function names omit the class prefix.
 
 | Entry | Attributed B | Current export B | Method / label | Contract |
 |---|---:|---:|---|---|
-| 00480D10 | 6818 | 6818 | DoSetLotCompatibilitiesUI | P §4, LE1 |
+| 00480D10 | 6818 | 6818 | DoSetLotCompatibilitiesUI | C §4 |
 | 00487B30 | 5971 | 5971 | DoLotConfigurationObjectMenu | P §3, LE4 |
 | 004871B0 | 2425 | 2425 | DoEditAreaMenu | C §2 |
 | 0047CF90 | 1652 | 1652 | DrawLotConfigurationObject | O LE5 |

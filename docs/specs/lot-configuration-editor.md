@@ -119,7 +119,7 @@ key/label table at `0x00A8E6C8`, writing the selected key to payload word 1
 These payload writes also bypass dirty/title/redraw helpers. Exact edge names
 are deliberately not inferred from their numbers.
 
-## 4. Lot compatibility dialog: established subset *[compat]*
+## 4. Lot compatibility dialog *[compat]*
 
 `DoSetLotCompatibilitiesUI` (`0x00480D10`, 6,818 bytes) calls the script-window
 factory with selector `0xE9264B49` and key words `(0, 0x96A006B0, 0xE9263D4D)`
@@ -133,7 +133,7 @@ are not assigned without a confirmed interface mapping:
 
 | Child ID / queried interface | Initial source | Accepted write-back |
 |---|---|---|
-| `0x294053DB` / `0x8810` | Configuration virtual `+0x38`, to child `+0x24`. | Not yet reconciled. |
+| `0x294053DB` / `0x8810` | Configuration virtual `+0x38`, to child `+0x24`. | No write-back: this control is never queried in the accepted branch. |
 | `0x294053DA` / `0x612CE0C3` | Configuration virtual `+0x28`, x87-to-integer conversion, child `+0x24`; clear child flag `0x4000`. | Signed 32-bit child value becomes binary32 at configuration `+0x38`. |
 | `0xE9B98665` / `0x612CE0C3` | Configuration virtual `+0x20`, same conversion/flag handling. | Signed 32-bit child value becomes binary32 at configuration `+0x30`. |
 | `0xE9B98666` / `0x612CE0C3` | Configuration virtual `+0x24`, same conversion/flag handling. | Signed 32-bit child value becomes binary32 at configuration `+0x34`. |
@@ -152,9 +152,65 @@ clear their bit, and bits 4..7 are lost. The loop is bounded to four
 and updates the title even if the values did not change
 (`0x0048270E..0x00482717`). No redraw helper follows that commit.
 
-Three multi-selection bit-vector controls and their complete row-to-bit maps
-are unresolved: [LE1](questions/lot-configuration-editor.md). The corrupted
-stack-based pseudocode is not a sufficient basis for those mappings.
+### 4.1 Multi-selection grids and acceptance order
+
+All three grids query IID `0xDAA6B9BE`, initialise with `(2,32,0)` through
+`+0x78`, then clear their rows through `+0xB8`. Each has two columns: column 0
+contains decimal text `1` through its last model bit (format `%d` at
+`0x00A8281C`), column 1 contains the description below. Row numbers are zero
+based; **row r maps to model bit r+1**. Initial selection tests that bit in the
+corresponding bit vector and selects column 0 of the row through `+0xB0`.
+The full initialisation is at `0x00480F1A..0x00482359`.
+
+| Row | Bit | `0x49405340`, vector `+0x44` | `0x49405342`, vector `+0x58` | `0x49405343`, vector `+0x6C` |
+|---:|---:|---|---|---|
+| 0 | 1 | Low Density Residential | Low Wealth | Residence |
+| 1 | 2 | Medium Density Residential | Medium Wealth | Services |
+| 2 | 3 | High Density Residential | High Wealth | Office |
+| 3 | 4 | Low Density Commercial | — | Tourism |
+| 4 | 5 | Medium Density Commercial | — | Agriculture |
+| 5 | 6 | High Density Commercial | — | Processing |
+| 6 | 7 | Resource Industrial | — | Manufacturing |
+| 7 | 8 | Light Industrial | — | High Tech |
+| 8 | 9 | Heavy Industrial | — | — |
+| 9 | 10 | Military | — | — |
+| 10 | 11 | Airport | — | — |
+| 11 | 12 | Seaport | — | — |
+| 12 | 13 | Spaceport | — | — |
+| 13 | 14 | ` Landfill` (leading space) | — | — |
+| 14 | 15 | Plopped Building | — | — |
+
+The one-based bit indices and vector bases are direct operands of the native
+bit-access calls, e.g. `0x0048102F..0x00481043`,
+`0x00481B5F..0x00481B73`, `0x0048230F..0x00482323`.
+There are no rows for bit 0 or for bits beyond the listed last bit.
+
+Acceptance processes grids in the table's left-to-right order. For each it
+requests up to 32 selection records through `+0xA4`, clears the **entire
+current logical bit-vector range**, then sets bit `selectedRow+1` for each
+returned record. It reads the row word of each 8-byte record, not the displayed
+decimal string and not a separate row-ID map. Column is ignored. Consequently
+an empty selection clears the vector, formerly set bit 0 and other undisplayed
+bits are lost, and repeated records merely set the same bit again
+(`0x004823F8..0x0048263F`). This body does not resize the vector or validate a
+returned row against the displayed rows.
+
+Then it writes the four available numeric controls in table order excluding
+`0x294053DB`, rebuilds the checkbox byte, and marks dirty/updates title.
+`0x294053DB` is seeded and later Released, with **no accepted getter or model
+write** (`0x00480D74..0x00480DEA`, `0x004823F8..0x00482734`). Changing its
+displayed value alone therefore does not change that model field, although
+acceptance still marks the editor dirty.
+
+Missing scalar controls skip their initialisation and write-back. Missing
+grids skip initialisation, but accepted write-back **unconditionally
+dereferences all three grid pointers**. Thus a missing first grid faults before
+vector writes; a missing second/third may fault after earlier vectors changed.
+Cancellation skips these dereferences and all model changes. This is not a
+supported optional-grid configuration. On normal exit the editor Releases
+each non-null acquired scalar/grid/checkbox reference, shuts down and Releases
+the dialog window (`0x00482723..0x004827B8`). Return is the acceptance byte;
+creation failure and cancellation leave it false.
 
 ## 5. Independent conformance vectors
 
