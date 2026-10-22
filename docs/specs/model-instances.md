@@ -29,6 +29,33 @@ the draw context. `cS3DModelInstanceAnimated` plays the frames of an S3D animati
 its meshes. The sprite-animation resources (`cS3DResSpriteAnim*`) hold the per-zoom sheets that sprite instances
 draw.
 
+### 0.1 Exact scope of the portable eight-owner subset
+
+The eight published owner names below identify the scope of MI3–MI10. They are not a claim that every native
+method of those classes, every renderer integration, or the complete model-instance family is portable.
+In particular, `cS3DResSpriteAnimTable` and `cS3DResSpriteAnimFactory` are separate owners; a bare mesh
+container and an animated **sprite instance** are not additional owners in this subset. The following
+inventory distinguishes actual entry points from inherited/shared bodies and omitted native surfaces.
+
+| Owner | Published contract and original entry inventory | Boundary |
+|---|---|---|
+| `cS3DModelInstanceBasic` | Constructor `0x00801CF0`, deleting destruction `0x00801D70`; all 19 instance slots in §1, of which world-bounds and sort are pure/derived; the other entries are shared bodies or adjustment thunks to §1 | Foundation thunks `0x005D5420`–`0x005D54F0` reach this contract but belong to a derived object's interface, not fourteen extra owner algorithms |
+| `cS3DModelInstance` | Constructor `0x00802950`; body/deleting/container-deleting destruction `0x00802620`, `0x00802B00`, `0x00802920`; pool new/delete `0x00801B00`, `0x008020F0`; 19 instance slots at vtable `0x00ABD508`; 9 container slots at `0x00ABD554`; SetModel/UpdateBounds `0x00801C40`, `0x00801CD0` | Instance/container parts share the 32-bit count; duplicate const/nonconst mesh and material slots share bodies. Mesh-frame creation is supplied by the resource, not SetModel itself |
+| `cS3DModelInstanceAnimated` | Constructor `0x007FD870`; the inherited static/basic/container surfaces; GetFrame, SetAnimMode, GetFrameCount, SetSpeed, Advance, BuildFrame, SetAnimation, SetFrame, Step at `0x007FAF90`, `0x007FAFC0`, `0x007FC150`, `0x007FC170`, `0x007FC1C0`, `0x007FC2E0`, `0x007FDA90`, `0x007FDAF0`, `0x007FDB80` | Native animation vtable `0x00ABD088` additionally has slots 0–8 at `0x007FAF40`, `0x007FB680`, `0x007FD950`, `0x007FB6B0`, `0x007FBF30`, `0x007FBE90`, `0x007FC020`, `0x007FBFC0`, `0x007FC0A0`; these extra transform/access convenience entries are outside the published playback subset, not silently counted as implemented |
+| `cS3DModelProcessor` | Constructor/destructor `0x00803060`, `0x008030A0`; ReleaseModel, SortMeshes, CreateVertexNormals, SetModel, LightModel and triangle-normal helper at `0x00802B30`, `0x00802DB0`, `0x00803370`, `0x008038D0`, `0x00803E10`, `0x0080B490` | Native assignment `0x00513FF0` is a separate additional entry, outside the published operations; no copy/assignment equivalence is claimed |
+| `cS3DResSpriteAnim` | Own interface vtable `0x00ABD6B4`: QueryInterface `0x008085C0`, counted wrappers `0x00808600`/`0x00808610`, borrowed data getter `0x008085F0`, CreateModelInstance `0x00808A30`; deleting destruction `0x00808A00`; constructor is inlined in factory | Parser is factory ReadAnim. Persistence-base services are inherited. CreateModelInstance delegates sprite-instance initialization, outside this subset (§6) |
+| `cS3DResSpriteAnimTable` | Own interface vtable `0x00ABD6FC`: QueryInterface `0x00808630`, the same counted wrappers, borrowed block getter `0x00808620`; constructor/destruction `0x00808BA0`, `0x00808AD0` | Parser is factory ReadTable. The data getter returns the block pointer, unlike animation's address-of-data getter; both are borrowed |
+| `cS3DResSpriteAnimFactory` | ReadAnim `0x00808660`, ReadTable `0x00808920`, SerialRead `0x00808B20`, destruction `0x00808B70`, CreateInstance `0x00808BD0`; persistence factory vtable `0x00ABD714` delegates the other factory service slots | Factory does not own a newly read resource merely because SerialRead was called; inherited generic persistence services are not new sprite algorithms |
+| `cS3DTransform` | Dirty-gated identity `0x00801DC0`; caller-driven copy/change semantics in static Get/SetTransform `0x00801B80`/`0x00801BE0`; point transforms consumed by picking and full bounds transform `0x007F8170` | Not a counted object or virtual interface. Picking kind dispatch and full bounds transformation are different consumers; byte counter semantics are shared (§1.2) |
+
+These tables count interfaces and list actual entries rather than using substring search totals as a coverage
+denominator. For example, the export's auto-name `cS3DTransform::TransformDirection` at `0x009F0090` is not
+evidence of another vector-transform contract: its instructions consume an x87 value and call math/runtime
+helpers without reading a vector or the transform. It is excluded pending corrected symbol ownership.
+Animated count wrappers `0x007FB530`/`0x007FB540` reach the same static 32-bit reference bodies; animation does
+not inherit the basic class's 16-bit count. No whole-owner/family implementation, runtime or shadow credit is
+established by this RE contract audit.
+
 ## 1. The basic instance (`cS3DModelInstanceBasic`) *[compat]*
 
 A virtual base (IID `0x26A68449`; constructor `0x00801CF0`) of every model instance. The instance interface, as the
@@ -128,7 +155,7 @@ Instance slots (vtable `0x00ABD508`, thunks `0x008026A0`–`0x008027C0` to the b
 | 5, 6 | custom data | (`0x00801700`, `0x00801710`) |
 | 7 | `GetBounds(box)` | the model's box, refreshed from the model (its slot 7) when marked stale (`0x00801FC0`) |
 | 8 | `GetWorldBounds(box)` | the same box, then transformed by the instance's transform (`0x00802010`) |
-| 9, 10 | `GetTransform`, `SetTransform` | the 56-byte transform; setting it bumps the change counter (`0x00801B80`, `0x00801BE0`) |
+| 9, 10 | `GetTransform`, `SetTransform` | transform words/kind copied with destination-local byte-counter increment; §1.2 (`0x00801B80`, `0x00801BE0`) |
 | 11 | `Pick(context)` | view-utilities §7 over the meshes (`0x00801720`) |
 | 12 | `Draw(context, …)` | `RenderModelInstance(context, instance, transform, draw attributes, …)` (`0x00801750`; draw-context.md) |
 | 13, 14 | properties | a 16-bit value here (`0x00801790`, `0x008017A0`) |
@@ -298,6 +325,19 @@ animation destructor destroys the persistence base and allocation, with no sheet
 (`0x00808A00`). Both own-IID queries retain the returned interface and otherwise delegate to the persistence
 base (`0x008085C0`, `0x00808630`); the table's **resource type is not its own IID**.
 
+The persistence base initializes its count to zero (`0x00975633`). Both sprite resources use a **32-bit atomic**
+increment/decrement through `0x009753B7`/`0x009753C5`, via wrappers `0x00808600`/`0x00808610`. Release decrements
+first and destroys only when the result is zero. Consequently Release on constructor count 0 wraps to
+`0xFFFFFFFF` without destruction, unlike basic/static instance Release; a successful factory query first
+produces count 1. Overflow from `0xFFFFFFFF` to 0 is likewise unprotected. The inherited factory count also
+starts 0 (`0x0097564D`), increments a 32-bit word under its lock (`0x009756CF`), and destroys on Release when
+the pre-release count is 0 or 1 (`0x0097545B`). These are distinct native count policies, not a universal rule.
+
+Animation CreateModelInstance allocates a sprite instance, takes a temporary reference, calls its resource
+binding operation, and on success writes a counted result; failure writes null and drops the temporary
+reference (`0x00808A30`–`0x00808AC5`). Sprite binding/drawing belongs to animated-sprite.md. Allocation failure
+is not a proved safe false/null path: the original contains dereferences after the allocation-failure branch.
+
 ### 6.1 Sprite animation (`ReadAnim`)
 
 All fields are little-endian `u32`:
@@ -372,7 +412,7 @@ and n−1 for type 5, with no saturation (`0x0080AEA8`, `0x0080AEB8`). The itera
 less-than against that result (`0x0080B3B6`–`0x0080B3BE`), so negative or zero results yield no triangles.
 For ordinary nonnegative counts this has the same traversal outcome as a saturating count; it does not prove
 that the native helper saturates. Counts with the high bit set, overflowed offsets, malformed short table
-headers (§6.2), null models in operations that dereference material 0 (§2), reference overflow (§1.1), and
+headers (§6.2), absent material 0 in SetModel (§2), reference overflow (§1.1), and
 released/dangling processor pointers (§4.1) do not acquire safe semantics merely by entering a portable API.
 Floating-point NaNs/infinities have the explicit comparison behaviour above and in §§2.1/4.1; invalid memory
 access has no deterministic portable outcome to reproduce.
@@ -436,3 +476,8 @@ from a reimplementation:
     count 0 does likewise. An out-of-range vertex index is a portable rejection/skip vector only, with no
     native expected safe result. Table total size 36 with n=0 is valid; total size 44 with n=1 is valid;
     size 44 with n=0 fails. A wrapped count such as n=`0x20000000` is outside the safe native table contract.
+20. **Resource counts and interface:** a newly constructed sprite table has count 0 and null block; querying
+    `0x69B6F01C` succeeds and yields count 1, then Release destroys it. Querying resource type `0x09ADCD75` as
+    an IID fails and leaves the supplied query-output sentinel untouched; factory CreateInstance failure
+    instead writes null. On a separately constructed zero-count resource, Release returns `0xFFFFFFFF`
+    without destruction. These distinguish resource count policy, instance policy and type-vs-IID.
