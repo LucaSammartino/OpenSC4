@@ -565,14 +565,19 @@ def hook(data, main=None):
         return "pass", ""   # the workflow's gate agent, or an fc4-lane agent spawned by hand
     lane = label[5:].split("#")[0]
     agent_id = data["agent_id"]
+    return guard_call(main, lane, agent_id, label, data.get("tool_name") or "",
+                      data.get("tool_input") or {}, transcript)
+
+
+def guard_call(main, lane, agent_id, label, tool, tin, transcript, *, limits=None,
+               context_reader=context_tokens, allowed_when_tripped=call_allowed_when_tripped):
+    """Provider-independent policy; adapters supply identity, context usage and tool syntax."""
     gd = guard_dir(main)
     wt = worktree(main, lane).replace("\\", "/")
-    tool = data.get("tool_name") or ""
-    tin = data.get("tool_input") or {}
     apath = os.path.join(gd, "agents", f"{agent_id}.json")
     ag = read_json(apath, None)
     if ag is None:
-        budget, calls = read_limits(transcript)
+        budget, calls = limits or read_limits(transcript)
         ag = {"lane": lane, "label": label, "transcript": transcript, "budget": budget, "max_calls": calls,
               "started": now_iso(), "trip": None}
     if tool == "StructuredOutput":
@@ -599,7 +604,7 @@ def hook(data, main=None):
         # outranks the budget: the lane must end "blocked", not "continue" into a fresh round
         reason, info = "watchdog", ag.get("trip_info") or "watchdog tripped"
     if not reason:
-        t = context_tokens(transcript) if transcript else None
+        t = context_reader(transcript) if transcript else None
         if t and t > ag["budget"]:
             reason, info = "budget", f"context {t // 1000}k is over the lane budget {ag['budget'] // 1000}k"
     if not reason:
@@ -609,7 +614,7 @@ def hook(data, main=None):
                     f"{' ' + head[:9] if head else ' (no worktree commit yet)'} (limit {ag['max_calls']})")
     ag["calls"] = ag.get("calls", 0) + 1
     if reason:
-        allowed = call_allowed_when_tripped(tool, tin, wt, lane)
+        allowed = allowed_when_tripped(tool, tin, wt, lane)
         if not ag.get("trip") or ag["trip"] in ("budget", "stop"):
             if ag.get("trip") != reason:
                 ag["trip"], ag["trip_info"] = reason, info
