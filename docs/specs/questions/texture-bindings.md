@@ -8,4 +8,3 @@
 <!-- from: re-texbind (2026-10-19) -->
 - **TB2 - §1.9:** who sets the factory's display bit depth (slot 10) and its LOD offset (slot 9), and from which
   settings? graphics-formats.md §2.10 infers the texture-quality option for the LOD offset.
-

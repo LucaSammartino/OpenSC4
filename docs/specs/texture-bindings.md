@@ -330,6 +330,23 @@ export, name map and ABI tables gives:
 | NextPowerOfTwo, `0080A700` | 1 | 23 |
 | Total | **58** | **4883** |
 
+The class-body membership is below (hexadecimal address / decimal export body bytes). Repeated
+adjustor entries count as distinct bodies; repeated vtable uses of the same address do not.
+
+| Class / body group | Addresses / bytes |
+|---|---|
+| Binding | `004664A0`/8, `008090C0`/32, `008090E0`/49 |
+| Material | `00800D20`/65 |
+| Material manager | `00800C00`/39, `00800C50`/21, `00800C70`/8, `00800CA0`/8, `00800CD0`/8, `00800CE0`/52, `00800D70`/192 |
+| Factory: QI/refcount/Shutdown/stats/driver | `00809130`/115, `008091B0`/8, `008091C0`/8, `008091D0`/108, `00809260`/140, `008092F0`/62 |
+| Factory: params/Init/lookup/dimensions | `00809330`/104, `008093A0`/286, `008094C0`/48, `008094F0`/134 |
+| Factory: key erasure/destruction/LOD | `00809690`/122, `00809890`/118, `00809910`/10 |
+| Factory: adjusted entries, first group | `00809920`/8, `00809930`/8, `00809940`/8, `00809950`/8, `00809960`/8, `00809970`/8, `00809980`/8 |
+| Factory: adjusted entries, second group | `00809990`/8, `008099A0`/8, `008099B0`/8, `008099C0`/8, `008099D0`/8, `008099E0`/8 |
+| Factory: message/group/upload/free lookup/info/destruction | `008099F0`/264, `00809B00`/140, `00809B90`/311, `00809CD0`/311, `00809E10`/147, `00809EB0`/114, `00809FF0`/30 |
+| Factory: flush/trim/create/lookup | `0080A010`/137, `0080A0A0`/100, `0080A110`/522, `0080A320`/89, `0080A380`/332 |
+| Factory: return/limit/pool flush/construction | `0080A4D0`/163, `0080A580`/15, `0080A590`/25, `0080A5B0`/200 |
+
 The earlier name-only count **55/4758** additionally includes two folded names: the 5-byte
 CreateMaterialVariant tail jump at `005BE2E0` and the 4-byte GetResGroup getter at `00809240`.
 These shared entries are callable contracts (§§1.10/3), but attribution does not assign them to

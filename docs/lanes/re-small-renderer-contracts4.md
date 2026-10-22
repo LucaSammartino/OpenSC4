@@ -12,7 +12,9 @@
 - Done: GT4 exact 43/4475 scope, tree insertion and unrelated ordinance-thunk boundary; FF3 complete placement stores and z-cancellation vector; TB4/GT4/FF3 moved to exact answered files; questions index/check passed.
 - Done: flame legacy 16/3513 found in main archived coverage-owner TSVs: three flame bodies/555 plus thirteen sampler-reachability helpers/2958, excluding actual sampler/constructor.
 - Remaining/PARK final 3/3: FF2 twelve non-triangle reachability-helper contracts and inherited-occupant wrapper membership. Exact addresses/sizes in fire-flames §4.4. No fourth round or blanket owner completion.
-- Next: verify numeric vectors and documentation consistency; final report/queue with wip due FF2 residual.
+- Done: native startup PC=24 verified at 0045236C/005F85E0/008929E0; per-instruction significand rounding distinguished from explicit binary32 exponent clamps. Added normal-PC24 exponent-overflow vector; labeled cancellation vector PC53 (PC24 gives zero).
+- Done: full texture class-body address table and seven native fire adjustor wrappers; numeric vector checks, archive sums, question check and corrected diff check passed.
+- Next: final full report and wip queue; parked FF2 residual is twelve helper operand/byte contracts and inherited shared-slot membership beyond seven proved wrappers.
 - Ignored evidence: `build-runs/inventory-{texture,glyph,flame,entry}.tsv`, `renderer-inventory.py`; legacy targets 58/4883, 43/4475, 16/3513 must not be forced with unrelated shared slots.
 - FF3 published: ignored first-index offset, physical trailing triples, cRZRandom(-1), unchecked normalization, unordered selection and one-past-end fallthrough.
 - FF3 remaining: area accumulation and complete barycentric/placement store sequence.

@@ -92,8 +92,15 @@ every arithmetic instruction.
 ### 2.2 Native area accumulation (FF3)
 
 Here **F** means a store to binary32 followed by reload; arithmetic without F remains in the x87
-register format under the active control word. Round-to-nearest examples below assume the ordinary
-nearest/even mode. This helper does not set the floating-point control word.
+register format under the active control word. **Each arithmetic operation still rounds its
+significand according to that control word.** Main-thread startup sets 24-bit precision:
+`0045236C` calls `005F85E0`, which supplies mode 0 to the setter at `008929E0–00892A09`.
+The setter clears both PC bits for mode 0; mode 1 selects 53-bit and mode 2 selects 64-bit.
+Foundations §18 describes thread/caller exceptions. These flame helpers neither change nor restore
+the control word. Normal main-thread evaluation therefore rounds each arithmetic instruction to
+24 significant bits, retaining the wider x87 exponent until an explicit float store. It is not
+unconditionally double or 80-bit-significand arithmetic. Examples assume nearest/even with masked
+exceptions; any different precision assumption is stated explicitly.
 
 TwiceTriangleArea (`0x005D75D0–0x005D7653`) uses a different subtraction origin and different spill
 pattern from the normal calculation. Let a = v₀ − v₁, b = v₂ − v₁. All three a differences and b.z
@@ -154,11 +161,11 @@ The weighted local coordinates are:
 
 The output position is repeatedly overwritten on the way to its final value. The normal-offset
 coordinates (`00472248–00472279`) are Lx = F(n.x + X), Ly = n.y + Y, Lz = Z + n.z.
-Float copies of Ly/Lz are written to the output, but their **unrounded register values** feed the
+Float copies of Ly/Lz are written to the output, but their **register values before float-store conversion** feed the
 matrix. Lx feeds it through its float local copy. For each matrix row j, the evaluation order is
 (Lz × M[j,2] + Ly × M[j,1]) + Lx × M[j,0] (`0047227F–004722D1`). Rows 0/1 are F before
 scaling; row 2 is retained, even though a float copy is written. Translation, matrix and scale are
-the instance transform fields described in transforms.md; here the matrix starts at +4, translation
+the instance's 56-byte transform fields; here the matrix starts at +4, translation
 at +0x28 and scale at +0x34 of the transform pointer.
 
 After multiplication by scale, rows 0/1 are again F before adding translation; row 2 stays in its
@@ -167,12 +174,22 @@ stored as F (`004722D4–0047230B`). In particular the z path is not equivalent 
 intermediate position or every matrix/scale output to float before continuing. Wall/side bytes are
 copied from the triangle before placement; they are not recomputed after the instance transform.
 
-Independent cancellation vector (prescribed draw outputs, nearest/even): v₀=(0,0,1), v₁=(1,0,1),
+Independent cancellation vector (**53-bit precision**, prescribed draw outputs, nearest/even): v₀=(0,0,1), v₁=(1,0,1),
 v₂=(0,1,67108864), u=0.25, v=0.25, hence w=0.5. The stored normal is (0,−1,2⁻²⁶). Use identity
 matrix, scale 1 and translation (0,0,−33554432). The weighted Z is 33554432.5, retained across
 its output float copy; final position is **(0.25,−0.5,0.5)**. Reloading the float z after each
 position/matrix/scale write instead gives z=0. This is an arithmetic conformance vector, not a
-claim that a clock-seeded run reproduces those exact draws.
+claim that a clock-seeded run reproduces those exact draws. At the normal main-thread **24-bit**
+precision the arithmetic itself rounds away the half-unit, and this vector's native z is **0**.
+
+Independent exponent-range vector (**24-bit precision**, nearest/even, masked exceptions):
+v₀=(0,0,2¹²⁷), v₁=(1,0,2¹²⁷), v₂=(0,1,2¹²⁷), with u=v=0.25, w=0.5, normal (0,0,1).
+Use matrix diag(1,1,4), scale 0.25 and zero translation. Weighted z and normal-offset z are 2¹²⁷;
+the third matrix row yields **2¹²⁹** in the x87 register. Its float output copy overflows to
+positive infinity, but the register survives and scaling returns it to 2¹²⁷. Final position is
+**(0.0625,0.125,2¹²⁷)**, all finite. Reloading that intermediate float copy instead leaves z at
+positive infinity. Thus even 24-bit significand rounding does not license substituting binary32
+exponent-range arithmetic for every register operation.
 
 ## 3. Making the flames (`CreateFlames`, `0x00472380`) *[compat]*
 
@@ -370,8 +387,26 @@ cannot stand in for a complete class/API contract. Current attribution assigns t
 to cSC4FireOccupant by free-neighbor rules and counts 35/6518 for that owner, plus 3/555 for
 cSC4Flame; these are again different scopes. No coverage-map or name-map change is proposed here.
 
-FF2 is parked after the final round for the exact remaining **semantic classification of the twelve
-non-triangle reachability helpers** above, and complete inherited-occupant wrapper membership.
+Seven additional native fire-occupant adjustor bodies can be classified without expanding that
+legacy subtotal:
+
+| Body / bytes | Receiver adjustment and target |
+|---|---|
+| `00471230`/8 | −4, QueryInterface `0046FE30` |
+| `00471240`/8 | −8, QueryInterface `0046FE30` |
+| `00471250`/8 | −12, QueryInterface `0046FE30` |
+| `00471260`/8 | −12, deleting destructor `00471600` |
+| `00471270`/8 | −32, QueryInterface `0046FE30` |
+| `00471280`/8 | −4, Write `00470130` |
+| `00471B90`/8 | −4, Read `00471A70` |
+
+Each is a tail jump after the stated adjustment, with no independent lifecycle work. They do not
+turn direct destruction into Shutdown. Their target contracts are in §4.3. They are included in
+the current 35-body fire-occupant attribution above, not added a second time to that number.
+
+FF2 is parked after the final round for the exact remaining **complete operand/byte contracts of
+the twelve non-triangle reachability helpers** above, and complete inherited-occupant shared-slot
+membership beyond the seven proved wrappers.
 Triangle construction, sampler arithmetic, the 21 lifecycle/visual bodies in §4.3 and the exact
 legacy membership/count are preserved. Numerical reconciliation alone does not close the complete
 owner-contract request or authorize blanket completion credit.
@@ -390,8 +425,9 @@ spec. `GetPointsOnModel` has no other caller.
 
 ## 7. Open questions
 
-See [questions/fire-flames.md](questions/fire-flames.md) FF1: whether the "n.z > 0" wall flag is meant for model
-space with z up or is an original slip (with y up, roofs get top flames and only faces towards +z get wall flames).
+See [questions/fire-flames.md](questions/fire-flames.md): FF1 asks whether the "n.z > 0" wall flag is meant for
+model space with z up or is an original slip; FF2 retains only the exact parked helper/shared-slot
+contracts of §4.4. FF3's numeric/index boundaries are answered in §§2.1–2.3.
 
 ## 8. Conformance tests
 

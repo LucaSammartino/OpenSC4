@@ -8,5 +8,3 @@
 <!-- from: re-glyphs (2026-10-19) -->
 - **GT2 - §1.2:** which framework services `Init` registers the glyph manager with through framework slots 3 and 9
   (`0x005D7D50`); the tick list is inferred from `OnTick`.
-
-
