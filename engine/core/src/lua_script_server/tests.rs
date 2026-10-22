@@ -35,6 +35,44 @@ fn counters_use_32_bit_wrap_and_signed_pause_comparison() {
     assert_eq!(s.records[&7].resume_transitions, 0);
     s.references = u32::MAX;
     assert_eq!(s.add_ref(), Ok(0));
+    s.tick_depth = u32::MAX;
+    assert_eq!(s.on_tick(&mut Minimal), Ok(true));
+    assert_eq!(s.tick_depth(), u32::MAX);
+}
+
+#[test]
+fn display_serial_wraps_and_formats_as_signed_decimal() {
+    struct CompileOnly {
+        display: Vec<u8>,
+    }
+    impl Foreign for CompileOnly {
+        fn invoke(&mut self, _: &mut ScriptServer, call: Primitive) -> Result<Value> {
+            Ok(match call {
+                Primitive::MainThread(_) => Value::Handle(Some(Handle(10))),
+                Primitive::LoadBuffer { .. } => Value::Int(0),
+                Primitive::FileExists(_) => Value::Bool(false),
+                Primitive::Stack {
+                    op: StackOp::PushString(s),
+                    ..
+                } => {
+                    self.display = s;
+                    Value::Unit
+                }
+                Primitive::CreateThread { .. } => Value::CreatedThread { id: -1, thread: None },
+                _ => Value::Unit,
+            })
+        }
+    }
+    let mut s = ScriptServer::new();
+    s.lua = Some(Handle(1));
+    s.attempt_serial = i32::MAX as u32;
+    let mut h = CompileOnly { display: vec![] };
+    assert_eq!(s.run_script_string(&mut h, b"s", b"job", b""), Ok(-1));
+    assert_eq!(h.display, b"Main - \"job\" - -2147483648");
+    s.attempt_serial = u32::MAX;
+    assert_eq!(s.run_script_string(&mut h, b"s", b"job", b""), Ok(-1));
+    assert_eq!(s.attempt_serial(), 0);
+    assert_eq!(h.display, b"Main - \"job\" - 0");
 }
 
 #[test]

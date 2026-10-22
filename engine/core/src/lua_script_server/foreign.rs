@@ -38,7 +38,8 @@ pub enum StackOp {
 }
 
 /// Each return type is documented here and checked by the owner. Handles returned by
-/// factories/CreateThread/FindMessageService/AllocateMessage are owned references;
+/// factories/CreateThread/FindMessageService are owned references. AllocateMessage
+/// returns a newly constructed zero-reference message, which the owner AddRefs;
 /// MainThread, GeneratorTarget and BaseQuery follow their foreign interface contracts.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Primitive {

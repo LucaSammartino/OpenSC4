@@ -660,13 +660,13 @@ impl ScriptServer {
         if self.destroyed {
             return Err(Failure::Destroyed);
         }
-        self.tick_depth = self.tick_depth.checked_add(1).ok_or(Failure::CounterExhausted)?;
+        self.tick_depth = self.tick_depth.wrapping_add(1);
         if self.tick_depth != 1 {
-            self.tick_depth -= 1;
+            self.tick_depth = self.tick_depth.wrapping_sub(1);
             return Ok(true);
         }
         let result = self.tick_pass(host);
-        self.tick_depth -= 1;
+        self.tick_depth = self.tick_depth.wrapping_sub(1);
         result.map(|()| true)
     }
     fn tick_pass(&mut self, host: &mut impl Foreign) -> Result<()> {

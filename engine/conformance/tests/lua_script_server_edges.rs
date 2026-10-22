@@ -740,3 +740,46 @@ fn malformed_primitive_replies_and_foreign_failures_are_typed() {
         Err(Failure::Foreign("unavailable"))
     );
 }
+
+#[test]
+fn thread_supplied_id_and_map_lookup_id_are_distinct_protocol_values() {
+    let (mut s, mut h) = Mock::with_script(7);
+    h.thread_ids.insert(Handle(1007), 99);
+    s.set_breakpoint_exists(&mut h, 7, b"other", 10, false).unwrap();
+    assert_eq!(s.record(7).unwrap().breakpoints[0].id, 99);
+    h.clear();
+    h.hook(
+        |c| matches!(c, Primitive::ResumeThread { .. }),
+        |host, owner| {
+            assert_eq!(owner.get_current_running_script_id(host), Ok(99));
+        },
+    );
+    assert_eq!(s.on_tick(&mut h), Ok(true));
+    assert!(h.calls.contains(&Primitive::ResumeThread {
+        lua: Handle(1),
+        id: 99,
+        count: 0,
+        arguments: None
+    }));
+    h.clear();
+    assert_eq!(s.kill_script(&mut h, 7), Ok(true));
+    assert!(h.calls.contains(&Primitive::DestroyThread { lua: Handle(1), id: 7 }));
+    assert_eq!(h.sent, [(TERMINATED, 99, Some(0))]);
+}
+
+#[test]
+fn breakpoint_blocking_still_reads_second_status_and_performs_terminal_cleanup() {
+    let (mut s, mut h) = Mock::with_script(7);
+    s.set_breakpoint_exists(&mut h, 7, b"job", 10, false).unwrap();
+    h.clear();
+    h.status(&s, 7, &[1, 0]);
+    assert_eq!(s.on_tick(&mut h), Ok(true));
+    assert_eq!(h.count(|c| matches!(c, Primitive::Status(_))), 2);
+    assert_eq!(h.count(|c| matches!(c, Primitive::ResumeThread { .. })), 0);
+    assert_eq!(h.sent, [(TERMINATED, 7, Some(0))]);
+    assert!(
+        h.position(|c| matches!(c, Primitive::SendMessage { .. }))
+            < h.position(|c| matches!(c, Primitive::DestroyThread { id: 7, .. }))
+    );
+    assert!(s.record(7).is_none());
+}
