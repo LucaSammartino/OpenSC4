@@ -8,7 +8,10 @@
 - Read lane/report format, merge train, short HANDOFF index, question entries and relevant spec sections.
 - Bash q.py unavailable (WSL CreateInstance E_ACCESSDENIED); use native PowerShell with bounded output.
 - Published first substantive contract: shared dword count/adjustments; pulse-based microsecond signal and destruction/failure; equality receiver; server-2 counted snapshots; server-1 directed raw target + value copy.
-- Next: verify registry pending callback/release ordering, directed local holds/cancellation iterator effects, and native directed callers. Then add independent vectors and move GZ1–GZ7 answers.
+- First substantive contract committed a62435e4 (GZ1/2/5/6a/7).
+- Published registry callback windows/pending ownership, full directed local-pair lifetime and cancellation iterator defect; positive UI/server2 native callers.
+- Next: add independent vectors and method/body inventory, move GZ1–GZ7 answers, run question index and docs checks; finish report/queue.
+- Cancellation native bug: [B,C,A,A], cancel A -> [B,C,A] via suffix shift; last-match invalid scan has no safe bounded promise. Directed local pair persists across callbacks, cleanup after unlock.
 - Primary results: server2 snapshot references last until vector destruction after all callbacks; server1 directed entries have no AddRef/Release. Queue mode0 Signal uses PulseEvent, Wait unsigned /1000.
 - Main RE inputs: C:/Users/tlori/FreeCity4; manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-gz-messaging-contracts4-r1-manifest.json.
 - No game runs or ABI proposals; no implementation sources read.

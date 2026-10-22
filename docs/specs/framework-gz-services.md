@@ -25,9 +25,10 @@ Owner bytes are from `tools/coverage.py --owners` (subsystem "framework services
 exposes, in its own vtable, `GetType` at +0x10 and an equality test against another message at
 +0x18. A message target exposes `DoMessage(message)` at +0x0C.
 
-Reference counting: every queue slot, registry entry and pending entry holds one counted reference
-(AddRef on store, Release on removal). Every "out" message pointer handed back to a caller is
-AddRef'd for that caller.
+Reference counting: server 2's queue slots, registry entries and pending entries hold counted
+references (AddRef on store, Release on removal). Every "out" message pointer handed back to a
+caller is AddRef'd for that caller. Server 1's directed records and pending removals are raw
+pointers; its pending adds have the special transfer rules in §4A.
 
 ## 2. Message queue (`cGZMessageQueue2`)
 
@@ -177,6 +178,36 @@ A target registers for one message type; type **0 is the wildcard** (receives ev
   order; an add appends the target if absent (creating the type's list); a remove deletes every
   occurrence of the target from the type's list and frees an emptied list; then clears the list.
 
+**Re-entry and removal timing (GZ3, GZ6b).** Depth is a 32-bit dword, tested against zero,
+incremented/decremented with dword instructions. Removal unlinks the registry node **before**
+calling the target's Release, and frees the node afterwards. That Release runs with depth still
+1 and the registry lock held (`0x0092E603`, erase `0x007E9330`, then depth decrement
+`0x0092E627`). A final Release/destructor can therefore call back into AddNotification or
+RemoveNotification and create pending work. Appending a registry entry also calls target
+AddRef while depth is 1 (`0x0092E895`, helper `0x005447B0`). MessageSend calls the message's
+GetType at `0x0092EA94` and snapshot target AddRef at `0x0092EAD7` while depth is positive.
+The premise that no foreign code runs in these windows is false. The pending path is a live
+interface contract, even without a measured in-game occurrence of a particular re-entrant
+target. Ordinary DoMessage callbacks run after depth decrement/unlock; those calls alone do
+not create pending work. Cross-thread callers serialize on the registry critical section.
+
+Pending records carry a byte add/remove discriminator, a target interface pointer and a dword
+type. Both add and remove keep a counted target reference in server 2. Construction uses two
+temporary counted wrappers before copying the record into the list; temporary releases occur
+before unlocking (`0x0092E57D–0x0092E5BF`, `0x0092E7B4–0x0092E7F6`). These are observable
+foreign calls, not a single atomic reference transfer.
+
+Flush replays the **still-linked** front record through virtual slot 5 or 6, then unlinks it and
+releases its pending hold (`0x0092DF65–0x0092DF85`, `0x0092D9AF`, `0x009491FF`). Replay's
+registry AddRef/Release occurs before the pending reference is dropped. Its process-wide byte
+guard suppresses recursively entered flushes, including flushes on another server-2 instance;
+it does not suppress registry changes themselves. The guard is cleared before the outer unlock.
+Apply-pending instead walks records directly and clears the list after the walk, releasing all
+pending holds then (`0x0092E9F6`, `0x0092DA64`). It runs **before** MessageSend increments depth;
+there is no depth/flush-guard gate on that call (`0x0092EA87–0x0092EA8F`). Thus a nested send can
+apply pending work before the enclosing send finishes. General re-entry that invalidates a live
+native list iterator has no promised safe outcome; the controlled callbacks in §5.1 avoid that.
+
 ### 4.3 MessageSend (synchronous)
 
 Under the registry lock: apply pending registrations, increment the depth, read the message type T,
@@ -192,8 +223,7 @@ appends a null reference, then assigns the target (`0x0092EAC2–0x0092EAD7`, as
 `0x005447B0`). All snapshot holds survive **all** DoMessage calls. After the last callback,
 the vector destructor releases its entries in forward order (`0x0092EB12–0x0092EB15`,
 `0x006C6E90`). It does not release each target immediately after that target's delivery.
-Vector growth may also copy/release existing reference wrappers; these are real reference
-callbacks, not just pointer moves. MessageSend itself borrows the message; it does not AddRef it.
+MessageSend itself borrows the message; it does not AddRef it.
 
 ### 4.4 MessagePost, the tick and the counters
 
@@ -216,14 +246,63 @@ ahead of the simulator (-2,000,000), see docs/specs/flammability.md §SimCycleCo
 ### 4.5 Directed messages
 
 - **Post directed (msg, target)** (slot 7, argument order message then target): under the directed
-  lock append (target, msg) (both referenced) to the deque.
-- **Cancel (target)** (slot 8): under the directed lock erase every deque entry whose target is the
-  argument.
+  lock append an 8-byte (target, msg) counted pair. The temporary first AddRefs target, then message;
+  deque copy construction repeats target then message AddRef; temporary destruction releases message
+  then target, before unlock. Net hold: one of each (`0x0092EA00`, `0x0092D1C5`, `0x0092D293`,
+  `0x004E4BB0`, `0x00473180`). Slot 7 is void, with no success result.
+- **Cancel (target)** (slot 8, void): scan by raw interface-pointer identity under the directed
+  lock. On a match, advance the scan iterator before erasing the old position, ignoring erase's
+  returned iterator (`0x0092E685–0x0092E69D`). Consequently the intended remove-all operation has
+  an iterator defect; see below. It does not change the directed countdown or cancel a record
+  already copied out for delivery. Erasure releases references while the directed lock is held.
 - **Delivery** (`0x0092DFA3`, end of OnTick): under the directed lock, if the countdown is <= 0 it is
   set to the deque size (nothing to do when 0). While the countdown is > 0: decrement it; if the deque
   is not empty, pop the front entry, release the lock, call `target->DoMessage(msg)`, retake the lock.
   Finally decrement the countdown once more and release the lock. Entries added during delivery wait
-  for the next tick; a nested delivery shares the countdown.
+  for the next tick **when the original entries consume the remaining quota**; cancellation can
+  make room for a newly posted entry in the same pass. A nested delivery shares the countdown.
+
+**Delivery holds (GZ6c).** There is one initially null local pair for the **entire** delivery pass,
+not one temporary per callback. Before each pop, assign front target into local target, then front
+message into local message (`0x0092DFF8`, helper `0x004731D0`). For each changed nonnull pointer,
+assignment AddRefs the new object, stores it, then Releases the previous local object; equal
+pointers cause no reference calls. Pop destroys the deque pair, releasing message then target
+under the lock (`0x004732E0`, boundary path `0x00473290`). Both local references survive DoMessage.
+After its callback the local pair persists until assignment of the next front or final cleanup.
+Final cleanup is **after unlocking**, message Release then target Release (`0x0092E026–0x0092E036`,
+`0x00473180`). Thus the previous target may be released during the next iteration before the
+previous message; simply releasing message then target immediately after every callback differs.
+
+The countdown is **signed 32-bit**, using signed positive tests (`0x0092DFC5`, `0x0092E024`),
+not an unsigned size. Normal nonempty completion leaves -1; an empty direct invocation also
+decrements 0 to -1. Nested completion may leave smaller negative values. No floating arithmetic
+is involved. Callback bools are ignored; directed delivery does not consult the registry or wildcard.
+
+**Cancellation iterator defect.** Erase computes the index and compares it with floor(size/2).
+In the first half it shifts the prefix and pops front; otherwise it shifts the suffix left and
+pops back (`0x0092E17F–0x0092E1FA`). The already-advanced iterator remains usable on the prefix
+path, but on the suffix path it can skip the element shifted into the erased position. Example
+within a single block: targets [B,C,A,A], cancel A: index 2 takes the suffix path, leaves [B,C,A],
+and the scan equals the new end, so the final A survives. Cancelling the last entry instead can
+leave the scan beyond the new end; the native equality-only end test provides no safe bounded
+result. Do not invent a deterministic delivery/crash for that invalid-iterator case. The defect
+also exists in server 1 (`0x0092FFAA`, `0x0092F023`, erase `0x0092FD24`). Server-2 suffix shifts
+assign pairs in forward order, target then message (`0x0092DD3F`, `0x0092DB38`, `0x0092D62A`,
+`0x004731D0`), so erasure can call AddRef/Release on surviving entries as well as the removed one.
+
+**Native uses (GZ4).** `cSC4WinIntroVideoScreen::DoUserStop` obtains server 1 through RZ::MS
+and posts a stack record of type `0xEAAD620A` to its own unadjusted target pointer
+(`0x0079D423–0x0079D452`). GZPaint does likewise for `0xEAAC1A96` and `0xCAAC6A52`
+(`0x0079D55E–0x0079D581`, `0x0079D5B7–0x0079D5DA`). This is concrete shipped UI use of
+slot 7, with FIFO deferred delivery observable by that screen.
+Server-2 call site `0x007724A3` acquires the exact service/IID `0x04FA845B`/`0x652294C7`,
+posts type `0x0A344006` to its supplied target, then releases the message (`0x00772440`).
+The exported unnamed body `0x009851F9` similarly obtains RZ::MS2 and posts type `0x6AE76406`
+to its +0x24 target when nonnull (`0x00985289`), otherwise uses ordinary MessagePost.
+No class name is inferred for those two unnamed bodies. The acquisition-seeded native caller
+search proves positive uses, not an exhaustive list of all indirect calls; no concrete slot-8
+game caller was established in this bounded trace. This does not weaken the native cancellation
+body's ordering/lifetime contract or imply that it is unused.
 
 ### 4.6 CreateMessage (slot 13, `0x0092D1FE`)
 
@@ -258,6 +337,18 @@ directed deque +0x84. Interface slots (addresses take the +0x1C interface pointe
 | 11 | `0x0092ED9B` | Set drain-all flag |
 
 Differences that matter:
+- **Pending ownership differs.** A pending add copies raw (flag,target,type) then AddRefs target
+  once (`0x00930051–0x00930071`); a pending remove copies the raw pointer without AddRef
+  (`0x0092FC4B–0x0092FC62`). Flush uses a separate global byte guard `0x00B629F3`. Replaying an
+  add calls AddNotification then Releases its pending-add hold before popping the record;
+  replaying a remove has no pending hold to release (`0x0092F8C2–0x0092F8ED`). Direct apply at
+  MessageSend start appends the raw target for an absent registration, transferring the pending-add
+  hold; it does not create server 2's counted wrapper. A pending add already present in the list
+  is skipped, and bulk clearing does not release those raw records, so this path leaks that extra
+  hold (`0x00930121`, add/duplicate branches through `0x009301EB`, clear `0x00930269`).
+  Normal removal unlinks matching raw entries, then Releases the target at depth 1, before
+  decrementing depth and flushing (`0x0092FCAD–0x0092FCE0`). Re-entrant callbacks must preserve
+  the lifetime of raw pending-removal targets themselves.
 - **Directed entries have no reference holds (GZ5).** Each entry is exactly 20 bytes: raw target
   interface pointer followed by a copied 16-byte message record. Append constructs and copies
   those values without target AddRef (`0x00930273`, `0x009DB1A1`, `0x0092EE7C`, `0x0097BF85`).
