@@ -731,6 +731,26 @@ selected, +0x29 enabled.
   to dst and, when moving, erased from src (0x009AB66B). Layout-dirty = 1. Returns 1. **CopyRows** 0x009ADB72 is
   the same with rows, the row extra data map +0x250, row headings and the per-column width cache.
 
+### 5.14 Per-cell formats
+
+A format is 36 bytes whose first field is a ref-counted font (see the paint record, §5.12, for the colour and
+alignment fields).
+
+- **SetCellFormat(col, row, format)** 0x009AC519. (-1, -1): the default format at +0x208 (36 bytes) is replaced:
+  AddRef the new font, Release the old one, copy; returns 1 without dirty or hook. (-1, row) / (col, -1): the
+  row entry (+0x1C0 at (0, row)) / column entry (+0x19C at (col, 0)) is found or inserted, the font AddRef'd and
+  the old one Released, and 40 bytes built from the format by 0x009A5C4A are copied over the entry
+  *[pending: what 0x009A5C4A writes into the size words +0x24/+0x26]*; returns 1 without dirty or hook. (col, row):
+  out of bounds (slot 54) returns 0. No cell record: a new empty record (type 0) with a copy of the format is
+  inserted (changed). Existing record: AddRef the new font; no format yet -> one is allocated (changed); else the
+  old font is Released (changed when it was non-null); the 36 bytes are copied. A non-null new font also counts
+  as a change. Change -> layout-dirty = 1; hook 0x009A5FAA always. Returns 1.
+- **SetCellFont(col, row, font)** slot 90, 0x009AC741: out of bounds (slot 54) returns 0. AddRef font; a missing
+  record is created (type 0, default-constructed format) and inserted; a record without format gets one; an old
+  font is Released. Hook 0x009A5FAA when the new font is non-null or an old font was released (no layout-dirty).
+  Returns 1. *[the store of the font into the format is not visible in the decompilation; its absence would make
+  the call a no-op, so the store is assumed at format +0x00]*
+
 ## 6. Conformance (planned vectors)
 
 1. SetDefaultFontColor(c, 6) returns false and leaves all six colours unchanged; index 5 succeeds.
@@ -910,7 +930,7 @@ See `questions/win-grid.md`.
 | 009ac24d | 28 | ~cGZWinGrid | 5.1 |
 | 009ac43b | 111 | SetColumnWidth [slot 65] | 5.8 |
 | 009ac4aa | 111 | SetRowHeight [slot 67] | 5.8 |
-| 009ac519 | 552 | SetCellFormat | pending |
+| 009ac519 | 552 | SetCellFormat | 5.14 |
 | 009ac741 | 293 | SetCellFont [slot 90] | pending |
 | 009ac866 | 250 | SetCellColors [slot 91] | pending |
 | 009ac960 | 242 | SetCellWrapping [slot 92] | pending |
@@ -949,5 +969,5 @@ See `questions/win-grid.md`.
 | 009af121 | 71 | Init | 5.1 |
 | 009af168 | 2813 | GZPaint | 5.12 |
 
-Specified 164 of 198 functions, 25551 of 32735 bytes; remaining 34 functions, 7184 bytes.
+Specified 165 of 198 functions, 26103 of 32735 bytes; remaining 33 functions, 6632 bytes.
 <!-- END INVENTORY -->

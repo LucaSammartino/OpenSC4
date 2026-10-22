@@ -1,15 +1,29 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-wingrid4: cGZWinGrid owner spec (198 functions, 32735 B) in docs/specs/win-grid.md | `re-wingrid4` / (RE lane) | wip after round 2 of 3, docs only, no ABI change; 127/198 functions, 11433/32735 B specified (remaining 71 fn, 21302 B, listed in spec §A as `pending`); WG1 answered (DIFFERS: slot 141 is PlaySound), WG2-WG4 open | Round 3 (last): cell data, scroll bars, layout/RecalculateAll, sort, copy/delete, GZPaint. |
+| re-wingrid4: cGZWinGrid owner spec (198 functions, 32735 B) in docs/specs/win-grid.md | `re-wingrid4` / (RE lane) | parked after round 3 of 3 (final), docs only, no ABI change; 165/198 functions, 26103/32735 B specified (remaining 33 fn, 6632 B, spec §A `pending`); WG1, WG2 answered; WG3, WG4 open | Successor lane (if any): Sort*, SetCell{Font,Colors,Wrapping,Alignment,Border,ExtraData}, SetDefaultFormatting, ScrollCells*, ResizeColumnToFitCellWindows, 0x009A5FE3 text x-position, 17 small template helpers 0x009AABC6..0x009AB9C5 |
 
-## Handoff (round 3)
+## Report (round 3, final)
 
-Round 3 in progress (2026-10-22), static only. §5.10 scroll bars/RecalculateAll/sizes, §5.11 cell data/windows/
-copy/MakeRoom (f5f77b85), §5.12 GZPaint (9fcde01a), §5.13 rect/delete/copy committed; WG2 answered. Coverage 156/198, 20021/32735 B; remaining 42 functions, 12714 B.
-Next: GZPaint 0x009AF168 + FUN_009A7E52 (§5.12), Sort/Copy/Delete rows+columns, SetCellFormat family,
-SetDefaultFormatting, ScrollCells*, GetCellRect, ResizeColumnToFitCellWindows, remaining FUN_ helpers.
-Tools: build-runs/cdec.py <decompfile> <addr> (compact decomp), rdf.py VA[:f|d|i|s] (read constants),
-appendix.py (status.tsv -> §A). Round 3 is the last: park if not complete.
+Round 3 (2026-10-22), static only (REA not used; decomp/, re_query.py asm and raw exe reads via build-runs/rdf.py).
+Commits: f5f77b85 §5.10 scroll bars, RecalculateAll, row/column sizes, CalculateCellHeight, size caches;
+§5.11 cell record, SetCellText/Bitmap/Window, attach/place cell windows, dispose, ClearCell, CopyCellData (both),
+FindCellText, GetCellTextValue, MakeRoom/ForRow/ForColumn; WG2 answered (MATCHES: +0x140 default column width,
++0x144 default row height). 9fcde01a §5.12 GZPaint order, paint record, background helper 0x009A60BB, default
+cell drawer 0x009A7E52. 5a88e089 §5.13 GetCellRect, Delete/Copy Rows/Columns. Last commit §5.14 SetCellFormat
+(SetCellFont described but left pending: its font store is not visible in the decompilation).
+
+Measured (appendix.py, spec §A): 165/198 functions, 26103/32735 B; remaining 33 functions, 6632 B:
+SetDefaultFormatting 560, 0x009A5FE3 216, SetCellFont 293, SetCellColors 250, SetCellWrapping 242,
+SetCellAlignment 260, SetCellBorder 260, SetCellExtraData 167, SortColumn 786, SortRow 810,
+ScrollCellsHorizontally 282, ScrollCellsVertically 285, ResizeColumnToFitCellWindows 315, and 20 FUN_ helpers
+0x009AABC6..0x009AB9C5 (2107 B total, container/map templates).
+
+Quirks recorded (compat): horizontal scroll-bar test reads the row limit and flag 0x10000; extra +1 only on the
+horizontal bar's left edge; RecalculateAll adds a partial column/row only when the fraction > 0.05f; column
+widths never measure content; MakeRoom limit clip uses the limit itself; GZPaint forces the pause counter to 0;
+Place sets the area but PlaceAllCellWindows does not; DoCellWindowMove has no effect.
+Open: WG3, WG4 (no new evidence); 0x009A5C4A content for row/column format entries; flag 0x20000/0x80000 names.
+Lane parked per brief (3/3 rounds, no fourth round).
 
 ## Report (round 2)
 
