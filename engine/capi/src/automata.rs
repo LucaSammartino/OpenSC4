@@ -1511,7 +1511,18 @@ pub unsafe extern "C" fn fc4_automata_manager_destroy(m: *mut fc4_automata_manag
     }
     guard((), || {
         let h = Box::from_raw(m as *mut MgrHandle);
-        let tokens = h.m.try_borrow().map(|x| mgr_tokens(x.record())).unwrap_or_default();
+        // AT24: the aircraft deleting destructor frees storage only. Public
+        // final Release must enter virtual Shutdown before reaching this API.
+        let tokens =
+            h.m.try_borrow()
+                .map(|x| {
+                    if x.kind() == ManagerKind::Aircraft {
+                        Vec::new()
+                    } else {
+                        mgr_tokens(x.record())
+                    }
+                })
+                .unwrap_or_default();
         h.release_all(&tokens);
     });
 }
@@ -1547,6 +1558,9 @@ pub unsafe extern "C" fn fc4_automata_manager_init(m: *mut fc4_automata_manager)
 
 #[no_mangle]
 pub unsafe extern "C" fn fc4_automata_manager_shutdown(m: *mut fc4_automata_manager) -> bool {
+    if with_mgr(m, false, |_, x| x.kind() == ManagerKind::Aircraft) {
+        return fc4_automata_aircraft_lifecycle(m, 1, std::ptr::null(), None, std::ptr::null_mut());
+    }
     with_mgr(m, false, |_, x| x.shutdown())
 }
 
@@ -1682,8 +1696,84 @@ pub unsafe extern "C" fn fc4_automata_manager_instances_of_group(m: *const fc4_a
 /// ferry entries go (their host references are released).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_automata_manager_occupant_removed(m: *mut fc4_automata_manager, occupant: *const fc4_ref) {
+    if with_mgr(m, false, |_, x| x.kind() == ManagerKind::Aircraft) {
+        fc4_automata_aircraft_lifecycle(m, 2, occupant, None, std::ptr::null_mut());
+        return;
+    }
     let r = ref_from_c(occupant);
     mutate_mgr(m, (), |x| x.occupant_removed(&r))
+}
+
+/// AT24 public lifecycle bridge. Operation 0 = PreCityShutdown base-list
+/// cleanup, 1 = initialized Shutdown, 2 = accepted airport removal.
+/// Events: 1 plane Shutdown, 2 plane Activate(false), 3 airport Release,
+/// 4 map plane Release, 5 base plane Release. The callback borrows tokens;
+/// the existing reference host performs all owning releases after the event.
+/// It must not reenter or destroy the manager. No private refcount access.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_automata_aircraft_lifecycle(
+    m: *mut fc4_automata_manager,
+    operation: u32,
+    airport: *const fc4_ref,
+    event: Option<unsafe extern "C" fn(U, u32, u64)>,
+    user: U,
+) -> bool {
+    with_mgr(m, false, |h, x| {
+        if x.kind() != ManagerKind::Aircraft || operation > 2 {
+            return false;
+        }
+        if operation == 1 && !x.is_initialized() {
+            return true;
+        }
+        let notify = |kind, r: &RefValue| {
+            if let (Some(f), Some(token)) = (event, host_token(r)) {
+                // SAFETY: caller supplies a valid non-reentrant callback.
+                unsafe { f(user, kind, token) };
+            }
+        };
+        let release = |kind, r: &RefValue| {
+            notify(kind, r);
+            h.release_all(&host_token(r).into_iter().collect::<Vec<_>>());
+        };
+        if operation == 2 {
+            let key = ref_from_c(airport);
+            if let ManagerPart::Aircraft { pairs, .. } = &mut x.record_mut().part {
+                if let Some(index) = pairs
+                    .iter()
+                    .position(|(a, _)| host_token(a).is_some() && host_token(a) == host_token(&key))
+                {
+                    notify(2, &pairs[index].1);
+                    let (a, p) = pairs.remove(index);
+                    release(4, &p);
+                    release(3, &a);
+                }
+            }
+            return true;
+        }
+        if operation == 1 {
+            if let ManagerPart::Aircraft { pairs, spots } = &mut x.record_mut().part {
+                // Native compares unsigned x86 pointers, not stream order.
+                pairs.sort_by_key(|(a, _)| host_token(a).unwrap_or(0) as u32);
+                for (a, p) in pairs.iter() {
+                    release(3, a);
+                    release(4, p);
+                }
+                pairs.clear();
+                spots.clear();
+            }
+        }
+        // Separate retained base-list references survive segment disposal.
+        // PreCityShutdown clears only this list; Shutdown does it after map.
+        for p in &x.record().base.automata {
+            notify(1, p);
+            release(5, p);
+        }
+        x.record_mut().base.automata.clear();
+        if operation == 1 {
+            x.shutdown();
+        }
+        true
+    })
 }
 
 #[no_mangle]

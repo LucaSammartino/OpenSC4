@@ -42,15 +42,63 @@
 
 namespace {
 
+// AT24: observe public reference events without taking an observer reference
+// or reading private game refcounts. Release's return is the measured count.
+thread_local const char* managerPhase = "runtime";
+struct ManagerPhase {
+    const char* previous = managerPhase;
+    explicit ManagerPhase(const char* phase) { managerPhase = phase; }
+    ~ManagerPhase() { managerPhase = previous; }
+};
+thread_local const fc4_istream* tracedInput = nullptr;
+thread_local cFC4AutomataManager* readingManager = nullptr;
+thread_local uint32_t readRefIndex = 0;
+thread_local uint32_t aircraftReleaseEvent = 0;
+thread_local void* aircraftReleaseOwner = nullptr;
+void AircraftLifecycleEvent(void* user, uint32_t kind, uint64_t token) {
+    fc4::Log("AT24 lifecycle manager=%p phase=%s event=%u receiver=%016llX", user, managerPhase,
+        kind, static_cast<unsigned long long>(token));
+    auto* plane = reinterpret_cast<cISC4Automaton*>(token);
+    if (kind == 1) plane->Shutdown();
+    if (kind == 2) plane->Remove(false);  // public slot 13 (AT24)
+    aircraftReleaseEvent = kind >= 3 ? kind : 0;
+    aircraftReleaseOwner = user;
+}
+bool TraceManagerReadRef(void* user, uint32_t iid, fc4_ref* out) {
+    const bool ok = tracedInput->get_ref(user, iid, out);
+    fc4::Log("AT24 acquire manager=%p class=%08X phase=Read index=%u iid=%08X receiver=%016llX ok=%d",
+        static_cast<void*>(readingManager), readingManager->GetGZCLSID(), readRefIndex++, iid,
+        static_cast<unsigned long long>(ok ? out->token : 0), ok);
+    return ok;
+}
+
 // The cores' reference host (FC4AutomataHost.h): an object is its game
 // pointer as the token.
-void HostAddRef(void* /*user*/, uint64_t token) {
+void HostAddRef(void* user, uint64_t token) {
     cIGZUnknown* o = reinterpret_cast<cIGZUnknown*>(token);
-    if (o != nullptr) FC4_ADDREF(o);
+    if (o != nullptr) {
+        const uint32_t count = FC4_ADDREF(o);
+        fc4::Log("AT24 AddRef manager=%p phase=%s receiver=%p after=%u", user, managerPhase, o, count);
+    }
 }
-void HostRelease(void* /*user*/, uint64_t token) {
+void HostRelease(void* user, uint64_t token) {
     cIGZUnknown* o = reinterpret_cast<cIGZUnknown*>(token);
-    if (o != nullptr) FC4_RELEASE(o);
+    if (o != nullptr) {
+        const auto* manager = static_cast<cFC4AutomataManager*>(user);
+        fc4::Log("AT24 Release begin manager=%p class=%08X phase=%s receiver=%p", user,
+            manager != nullptr ? const_cast<cFC4AutomataManager*>(manager)->GetGZCLSID() : 0, managerPhase, o);
+        // AT24 permits the final owning release at these exact lifecycle
+        // events, including Shutdown entered by final manager Release.
+        // Read replacement, failed Read and destruction remain ordinary audit.
+        const bool nativeHolder = manager != nullptr &&
+            const_cast<cFC4AutomataManager*>(manager)->GetGZCLSID() == kFC4_CLSID_cSC4AircraftManager &&
+            aircraftReleaseOwner == user && aircraftReleaseEvent >= 3 && aircraftReleaseEvent <= 5;
+        aircraftReleaseEvent = 0;
+        aircraftReleaseOwner = nullptr;
+        const uint32_t count = nativeHolder ? FC4_RELEASE_LAST_HOLDER(o) : FC4_RELEASE(o);
+        fc4::Log("AT24 Release end manager=%p phase=%s receiver=%p before_inferred=%u after=%u", user,
+            managerPhase, o, count + 1, count);
+    }
 }
 // The controller manager's release (user = the cFC4AutomataControllerManager).
 // While its destructor runs, a game object's release is the one the manager
@@ -81,9 +129,10 @@ void CmHostRelease(void* user, uint64_t token) {
 uint32_t HostControllerFlags(void* /*user*/, uint64_t /*controller*/) { return 0; }
 void HostLog(void* /*user*/, const char* text) { fc4::Log("automata: %s", text); }
 
-fc4_automata_ref_host RefHost() {
+fc4_automata_ref_host RefHost(cFC4AutomataManager* owner) {
     fc4_automata_ref_host h{};
     h.struct_size = sizeof(h);
+    h.user = owner;
     h.add_ref = &HostAddRef;
     h.release = &HostRelease;
     return h;
@@ -290,13 +339,14 @@ bool cFC4AutomataControllerManager::DoMessage(cIGZMessage2* message) {
 // ---- components 43-46: the four managers --------------------------------
 
 cFC4AutomataManager::cFC4AutomataManager(uint32_t classId) : classId_(classId) {
-    const fc4_automata_ref_host h = RefHost();
+    const fc4_automata_ref_host h = RefHost(this);
     core_ = fc4_automata_manager_create(classId, &h);
     fc4::Log("cFC4AutomataManager(%p, class 0x%08X) created, core %p", static_cast<void*>(this), classId,
         static_cast<void*>(core_));
 }
 
 cFC4AutomataManager::~cFC4AutomataManager() {
+    ManagerPhase phase("destructor");
     fc4_automata_manager_destroy(core_);
     core_ = nullptr;
     // The wrappers this manager created (7.2): the handles go with them.
@@ -331,6 +381,7 @@ uint32_t cFC4AutomataManager::AddRef() { return ++refCount_; }
 uint32_t cFC4AutomataManager::Release() {
     if (refCount_ == 0) return 0;
     if (--refCount_ != 0) return refCount_;
+    if (classId_ == kFC4_CLSID_cSC4AircraftManager) Shutdown();
     delete this;
     return 0;
 }
@@ -345,18 +396,36 @@ bool cFC4AutomataManager::Write(cIGZOStream& out) {
 }
 
 bool cFC4AutomataManager::Read(cIGZIStream& in) {
+    ManagerPhase phase("Read-replacement");
     fc4::IStreamAdapter a(in);
-    const bool ok = core_ != nullptr && fc4_automata_manager_read(core_, a.Get());
+    const auto* previousInput = tracedInput;
+    auto* previousManager = readingManager;
+    const uint32_t previousIndex = readRefIndex;
+    tracedInput = a.Get();
+    readingManager = this;
+    readRefIndex = 0;
+    fc4_istream input = *a.Get();
+    input.get_ref = &TraceManagerReadRef;
+    const bool ok = core_ != nullptr && fc4_automata_manager_read(core_, &input);
+    fc4_automata_manager_state state{};
+    fc4_automata_manager_get_state(core_, &state);
+    fc4::Log("AT24 Read manager=%p class=%08X base-list=%u refs=%u ok=%d", static_cast<void*>(this),
+        classId_, state.automata, readRefIndex, ok);
+    tracedInput = previousInput;
+    readingManager = previousManager;
+    readRefIndex = previousIndex;
     fc4::Log("cFC4AutomataManager(0x%08X) Read -> %d", classId_, ok ? 1 : 0);
     return ok;
 }
 
-// 10: the messages of automata.md 10 (animation tick, PreCityShutdown,
-// PostCityInit and the rest) drive the managers' simulation. The records are
-// all this class keeps (0: animation is stubbed), so a message is accepted and
-// dropped.
+// AT24 adds the proven aircraft base-list teardown to the existing message
+// skeleton. Other messages (including the acceptance filter for airport
+// removal) retain their existing behaviour; no unrelated automata answers.
 bool cFC4AutomataManager::DoMessage(cIGZMessage2* message) {
-    (void)message;
+    if (classId_ == kFC4_CLSID_cSC4AircraftManager && message != nullptr && message->GetType() == 0x26D31EC2) {
+        ManagerPhase phase("PreCityShutdown-base");
+        return fc4_automata_aircraft_lifecycle(core_, 0, nullptr, &AircraftLifecycleEvent, this);
+    }
     return true;
 }
 
@@ -522,6 +591,10 @@ bool cFC4AutomataManager::Init() {
 }
 
 bool cFC4AutomataManager::Shutdown() {
+    ManagerPhase phase("Shutdown");
+    fc4::Log("AT24 Shutdown manager=%p class=%08X", static_cast<void*>(this), classId_);
+    if (classId_ == kFC4_CLSID_cSC4AircraftManager)
+        return fc4_automata_aircraft_lifecycle(core_, 1, nullptr, &AircraftLifecycleEvent, this);
     return fc4_automata_manager_shutdown(core_) != 0;
 }
 
