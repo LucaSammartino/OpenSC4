@@ -14,7 +14,8 @@
 - e1 fontsys4-r2-original-off-20261022e1 clean/ref0 date2032-01-04; probe OFF (no FontSys lines, no 0/0 equivalence credit), two full saves ok1; capture/metrics at matching fixture/summary paths.
 - f1 fontsys4-r2-original-on-reload-20261022f1 clean/ref0 date2032-01-05: staged d1 fixture SHA5ca51d83fbd2cb739a0a445915fc13bb09dd0b75b3d88cfbb92bb121eec6e994; loads saved2031-06-02, full saves both2031-06-03 ok1. Four phases each2890exact/0diff/0refusal, route23/23; fallback/resync0/natural0.
 - g1 fontsys4-r2-house40-on-20261022g1 clean/ref0 date2032-01-01: four phases each2890exact/0diff/0refusal, route23/23; fallback/resync0/natural0; full saves2026-03-01(12234ms)/2031-06-01(11703ms) ok1, captured fixture. Ports enabled, terrain/dispatch/effects OFF confirmed.
-- Next: HOUSE40 OFF h1 and both reloads; original OFF reload remains. No native differences or new questions.
+- h1 fontsys4-r2-house40-off-20261022h1 clean/ref0 date2032-01-01; probeOFF/no-equivalence-credit, full saves2026-03-01(11125ms)/2031-06-01(11156ms) ok1, captured fixture. Profile40 includes simgrids/ports, excludes terrain/dispatch/effects.
+- Next: HOUSE40 ON reload i1 of g1 fixture, OFF reload j1 of h1 fixture, original OFF reload k1 of e1 fixture; audit all evidence. No native differences or new questions.
 - Required controls: exact HOUSE40 profile from current task, ON/OFF full save/shutdown and supported reload to2032/ref0; no experimental keys.
 - Request labels are unique; wait via build-runs/fontsys4-wait-verdict.py (never qwait). Helper fontsys4-submit.py fixes HOUSE40 explicitly, rejects reused labels/outstanding requests and checks frozen hashes.
 - No new questions or code edits yet. Preserve all historical evidence below until final report.
