@@ -51,7 +51,11 @@ struct Shadow {
     void Check(const void* p, size_t n, const std::vector<uint8_t>& expected, const char* what) {
         ++comparisons;
         if (expected.size() == n && (n == 0 || std::memcmp(p, expected.data(), n) == 0)) ++exact;
-        else if (comparisons - exact <= 8) Log("simgrids-shadow: difference op=%s clsid=%08X actual_bytes=%u expected_bytes=%u comparison=%llu", what, kind, static_cast<unsigned>(n), static_cast<unsigned>(expected.size()), comparisons);
+        else if (comparisons - exact <= 8) {
+            const auto* bytes=static_cast<const uint8_t*>(p); size_t at=0;
+            while(at<std::min(n,expected.size()) && bytes[at]==expected[at]) ++at;
+            Log("simgrids-shadow: difference op=%s clsid=%08X actual_bytes=%u expected_bytes=%u comparison=%llu offset=%u actual=%02X expected=%02X", what, kind, static_cast<unsigned>(n), static_cast<unsigned>(expected.size()), comparisons,static_cast<unsigned>(at),at<n?bytes[at]:0,at<expected.size()?expected[at]:0);
+        }
     }
     void Update(uint32_t op, int32_t x = 0, int32_t z = 0, const void* data = nullptr, uint32_t n = 0) {
         std::vector<uint8_t> out;
@@ -73,6 +77,11 @@ struct Shadow {
 };
 std::mutex mu;
 std::map<uint64_t, Shadow> natural;
+std::map<uint64_t, uint64_t> rejected;
+std::map<uint64_t, Shadow>::iterator Find(uint64_t t) {
+    auto r=rejected.find(t); if(r!=rejected.end()) ++r->second;
+    return natural.find(t);
+}
 
 // Input stream exclusively for constructed native Read cases. No segment refs.
 class Input final : public cIGZIStream {
@@ -133,6 +142,13 @@ template<class T> void Fixture(uint32_t kind, const std::vector<uint8_t>& city) 
         for (int32_t v2 : {g->GetTractSize(),g->GetTractShift(),g->GetTractCountX(),g->GetTractCountZ()}) Append(geometry,v2);
         for(float v2 : {g->GetTractWidthX(),g->GetTractWidthZ(),g->GetOneOverTractWidthX(),g->GetOneOverTractWidthZ()}) Append(geometry,v2);
         if(s.Apply(12,out)) s.Check(geometry.data(),geometry.size(),out,"geometry");
+        geometry.clear(); int32_t tx=0,tz=0; float px=0,pz=0;
+        g->PositionToTract(100.0f,-10.0f,tx,tz); Append(geometry,tx); Append(geometry,tz);
+        g->TractCornerToPosition(3,4,px,pz); Append(geometry,px); Append(geometry,pz);
+        g->TractCenterToPosition(3,4,px,pz); Append(geometry,px); Append(geometry,pz);
+        for(uint8_t v2 : {uint8_t(g->TractIsInBounds(uint32_t(-1),0)),uint8_t(g->TractIsInBounds(g->GetTractCountX()-1,g->GetTractCountZ()-1)),uint8_t(g->TractIsInBounds(g->GetTractCountX(),0))}) Append(geometry,v2);
+        Append(geometry,g->GetInstanceID());
+        if(s.Apply(13,out)) s.Check(geometry.data(),geometry.size(),out,"coordinates-bounds-instance");
     }
     cIGZSerializable* serial=nullptr;
     if(g->QueryInterface(GZIID_cIGZSerializable,reinterpret_cast<void**>(&serial)) && serial) {
@@ -142,6 +158,12 @@ template<class T> void Fixture(uint32_t kind, const std::vector<uint8_t>& city) 
         Input input(saved); boolean(serial->Read(input),"Read-return");
         // Intentional fixture Read: replay identical supplied record in Rust.
         s.record=saved; s.Update(0); s.RecordCheck(g);
+        // Valid fields are literal, not recomputed from the city on Read.
+        auto stored=saved; uint32_t storedClass=0x49B9E603;
+        std::memcpy(stored.data()+3,&storedClass,4);
+        float storedWidth=37.0f; std::memcpy(stored.data()+27,&storedWidth,4);
+        Input literal(stored); boolean(serial->Read(literal),"Read-literal-return");
+        s.record=stored; s.Update(0); s.RecordCheck(g);
         std::vector<uint8_t> consumed; Append(consumed,static_cast<uint32_t>(saved.size()));
         uint32_t pos=static_cast<uint32_t>(input.Position()); s.Check(&pos,4,consumed,"Read-consumed");
         saved[0]=2; Input invalid(saved); uint8_t result=serial->Read(invalid)?1:0;
@@ -151,6 +173,7 @@ template<class T> void Fixture(uint32_t kind, const std::vector<uint8_t>& city) 
     boolean(g->Shutdown(),"Shutdown-return"); s.Update(9); s.RecordCheck(g);
     // Only our extra reference is released; final reference belongs to this fixture.
     const uint32_t raised=FC4_ADDREF(g); uint32_t lowered=FC4_RELEASE(g);
+    std::vector<uint8_t> raisedExpected; Append(raisedExpected,uint32_t(2)); s.Check(&raised,4,raisedExpected,"AddRef-count");
     std::vector<uint8_t> expected; Append(expected,raised-1); s.Check(&lowered,4,expected,"Release-decrement");
     uint32_t last=FC4_RELEASE_CREATED(g); expected.clear(); Append(expected,uint32_t(0)); s.Check(&last,4,expected,"Release-destroy");
     Log("simgrids-shadow: source=fixture clsid=%08X exact=%llu/%llu differences=%llu refused=%llu failures=%llu allocation=1 final_release=%u bootstrap=1 resync=0 fallback=0",kind,s.exact,s.comparisons,s.comparisons-s.exact,s.refused,s.failures,last);
@@ -179,13 +202,13 @@ void SimGridsShadowFixtures() {
 void SimGridsShadowTrack(const char* owner,uint64_t t) {
     if(!Enabled() || !t || !owner || std::strcmp(owner,"power")!=0) return;
     std::lock_guard<std::mutex> lock(mu);
-    if(natural.count(t)) return;
+    if(natural.count(t) || rejected.count(t)) return;
     Shadow s;
     if(!s.Capture(FromToken(t),s.record)) { Log("simgrids-shadow: source=natural owner=power bootstrap_failed=1 token=%p",FromToken(t)); return; }
     s.kind=Field<uint32_t>(s.record,3);
     if(FindEnabledClass(s.kind)) { // Public factory provenance, no vtable guesses.
-        static uint64_t refused=0; ++refused;
-        if(refused<=4) Log("simgrids-shadow: source=natural owner=power refused_replacement=%llu token=%p comparisons=0",refused,FromToken(t));
+        rejected.emplace(t,0);
+        Log("simgrids-shadow: source=natural owner=power refused_replacement=1 token=%p comparisons=0",FromToken(t));
         return;
     }
     std::vector<uint8_t> roundtrip;
@@ -194,24 +217,24 @@ void SimGridsShadowTrack(const char* owner,uint64_t t) {
     natural.emplace(t,std::move(s));
 }
 void SimGridsShadowValue(uint64_t t,int32_t x,int32_t z,const void* value,uint32_t size) {
-    if(!Enabled()) return; std::lock_guard<std::mutex> lock(mu); auto it=natural.find(t); if(it==natural.end()) return;
+    if(!Enabled()) return; std::lock_guard<std::mutex> lock(mu); auto it=Find(t); if(it==natural.end()) return;
     auto& s=it->second; ++s.calls; ++s.get; std::vector<uint8_t> out;
     if(s.Apply(1,out,x,z)) s.Check(value,size,out,"natural-get");
 }
 void SimGridsShadowBulkRead(uint64_t t,const void* values,uint32_t count,uint32_t size) {
-    if(!Enabled()) return; std::lock_guard<std::mutex> lock(mu); auto it=natural.find(t); if(it==natural.end()) return;
+    if(!Enabled()) return; std::lock_guard<std::mutex> lock(mu); auto it=Find(t); if(it==natural.end()) return;
     auto& s=it->second; ++s.calls; ++s.bulkRead;
     std::vector<uint8_t> expected(s.record.begin()+43,s.record.end());
     s.Check(values,static_cast<size_t>(count)*size,expected,"natural-bulk-read");
     s.RecordCheck(FromToken(t));
 }
 void SimGridsShadowSet(uint64_t t,int32_t x,int32_t z,const void* value,uint32_t size) {
-    if(!Enabled()) return; std::lock_guard<std::mutex> lock(mu); auto it=natural.find(t); if(it==natural.end()) return;
+    if(!Enabled()) return; std::lock_guard<std::mutex> lock(mu); auto it=Find(t); if(it==natural.end()) return;
     auto& s=it->second; ++s.calls; ++s.set; s.Update(5,x,z,value,size);
     // Full result checked at bulk read/write, Shutdown and release; scalar get checked immediately.
 }
 void SimGridsShadowFill(uint64_t t,double value) {
-    if(!Enabled()) return; std::lock_guard<std::mutex> lock(mu); auto it=natural.find(t); if(it==natural.end()) return;
+    if(!Enabled()) return; std::lock_guard<std::mutex> lock(mu); auto it=Find(t); if(it==natural.end()) return;
     auto& s=it->second; ++s.calls; ++s.fill;
     std::vector<uint8_t> v;
     switch(s.kind) {
@@ -226,19 +249,22 @@ void SimGridsShadowFill(uint64_t t,double value) {
     s.Update(6,0,0,v.data(),static_cast<uint32_t>(v.size())); s.RecordCheck(FromToken(t));
 }
 void SimGridsShadowBulkWrite(uint64_t t,const uint32_t* indices,const void* values,uint32_t count,uint32_t size) {
-    if(!Enabled()) return; std::lock_guard<std::mutex> lock(mu); auto it=natural.find(t); if(it==natural.end()) return;
+    if(!Enabled()) return; std::lock_guard<std::mutex> lock(mu); auto it=Find(t); if(it==natural.end()) return;
     auto& s=it->second; ++s.calls; ++s.bulkWrite; std::vector<uint8_t> data;
     const auto* v=static_cast<const uint8_t*>(values);
     for(uint32_t i=0;i<count;++i) { Append(data,indices[i]); data.insert(data.end(),v+i*size,v+(i+1)*size); }
     s.Update(11,0,0,data.data(),static_cast<uint32_t>(data.size())); s.RecordCheck(FromToken(t));
 }
 void SimGridsShadowShutdown(uint64_t t,bool result) {
-    if(!Enabled()) return; std::lock_guard<std::mutex> lock(mu); auto it=natural.find(t); if(it==natural.end()) return;
+    if(!Enabled()) return; std::lock_guard<std::mutex> lock(mu); auto it=Find(t); if(it==natural.end()) return;
     auto& s=it->second; ++s.calls; ++s.shutdown; uint8_t r=result?1:0;
     s.Check(&r,1,std::vector<uint8_t>{1},"natural-Shutdown-return"); s.Update(9); s.RecordCheck(FromToken(t)); s.Report("natural-shutdown",t);
 }
 void SimGridsShadowRelease(uint64_t t) {
-    if(!Enabled()) return; std::lock_guard<std::mutex> lock(mu); auto it=natural.find(t); if(it==natural.end()) return;
+    if(!Enabled()) return; std::lock_guard<std::mutex> lock(mu);
+    auto r=rejected.find(t);
+    if(r!=rejected.end()) { Log("simgrids-shadow: source=natural-release owner=power token=%p refused_replacement=1 unverified_calls=%llu exact=0/0 resync=0 fallback=0",FromToken(t),r->second); rejected.erase(r); return; }
+    auto it=natural.find(t); if(it==natural.end()) return;
     it->second.RecordCheck(FromToken(t)); it->second.Report("natural-release",t); natural.erase(it);
 }
 } // namespace fc4
