@@ -136,3 +136,4 @@ pub mod persistence_manager;
 pub mod geometry_utilities;
 pub mod model_reg_effects;
 pub mod overlay_views;
+pub mod lot_models;

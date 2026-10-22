@@ -77,3 +77,4 @@ pub(crate) mod paths;
 
 pub(crate) mod animation_coordinator;
 pub(crate) mod feature_manager;
+pub(crate) mod lot_models;
