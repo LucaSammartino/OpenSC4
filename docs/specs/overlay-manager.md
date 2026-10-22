@@ -662,8 +662,8 @@ OV4–OV6 lifecycle/handles/alpha and OV9 outline partition are answered in the 
    "3 decals, 2 shadows"; empty selection and disabled passes preserve their previous counters (§4.4).
 7. **Outline:** §3.1's width-256 vector produces eight specified rectangles and omits centre cell `(8,8)`.
 8. **Split precision:** cell-space height 20 yields split offsets 3 and 5, using the shipped binary32 constants.
-9. **Shadow mapping:** §3.5's byte flipV changes primary/secondary V at the upper edge from 1/3⁄4 to 0/1⁄4
-   without changing the placement getter; flags `0x100` and `0x101` discriminate the low-byte test.
+9. **Shadow mapping:** §3.5's byte flipV changes upper-edge primary V from 1 to 0 and secondary V from 3/4
+   to 1/4 without changing the placement getter; `0x100` and `0x101` discriminate the low-byte test.
 10. **Selection order/stamps:** §4.5's lists yield `[9,2,7]`; stamp wrap does not reset record stamps.
 11. **Camera order:** §4.7's translation vector yields row-3 U=1.5, not 16.5.
 

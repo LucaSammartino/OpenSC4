@@ -32,7 +32,7 @@ equivalence for unproved owner bodies. No engine files were read or edited; no t
 - Evidence comes from paginated export instructions with bytes and PE constants, plus tightly bounded existing
   same-owner decompilation. No decompiled code/assembly/game binary is committed. Previous REA requests failed
   target_unavailable; this round used export/raw-byte fallback throughout, without adding tools or sessions.
-- questions.py index/check passed. Final git diff --check is required below before publication. The intermediate
+- questions.py index/check and final git diff --check passed before publication. The intermediate
   OV9 milestone had one blank EOF line; the following milestone removed it and passed diff --check.
 - cargo/clippy/ctest and game/shadow runs: n/a, docs-only; no requested run labels and no exactness verdict.
 - ABI false; no proposed rows or abi-rows file required. Git commits succeeded detached, with the known
