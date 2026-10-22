@@ -57,9 +57,15 @@ pub struct CityScroll {
 impl Default for CityScroll {
     fn default() -> Self {
         Self {
-            anchor: Pixel { x: 0, y: 0 }, inner: 12, outer: 80,
-            stored_speed: (0, 0), cursor: NEUTRAL, has_scrolled: false,
-            was_capturing: false, initialized: false, picture: None,
+            anchor: Pixel { x: 0, y: 0 },
+            inner: 12,
+            outer: 80,
+            stored_speed: (0, 0),
+            cursor: NEUTRAL,
+            has_scrolled: false,
+            was_capturing: false,
+            initialized: false,
+            picture: None,
         }
     }
 }
@@ -76,61 +82,122 @@ impl CityScroll {
         if !self.initialized {
             self.inner = inner;
             self.outer = outer;
-            if host.set_cursor(NEUTRAL) { self.cursor = NEUTRAL; }
+            if host.set_cursor(NEUTRAL) {
+                self.cursor = NEUTRAL;
+            }
             self.was_capturing = host.am_capturing();
-            if !self.was_capturing { host.capture(); }
+            if !self.was_capturing {
+                host.capture();
+            }
             self.initialized = true;
         }
         Ok(())
     }
-    pub fn is_self_scrolling_view(&self) -> bool { true }
-    pub fn stored_speed(&self) -> (i32, i32) { self.stored_speed }
-    pub fn has_scrolled(&self) -> bool { self.has_scrolled }
-    pub fn cursor(&self) -> u32 { self.cursor }
+    pub fn is_self_scrolling_view(&self) -> bool {
+        true
+    }
+    pub fn stored_speed(&self) -> (i32, i32) {
+        self.stored_speed
+    }
+    pub fn has_scrolled(&self) -> bool {
+        self.has_scrolled
+    }
+    pub fn cursor(&self) -> u32 {
+        self.cursor
+    }
     pub fn set_mouse_scroll(&mut self, host: &mut impl ScrollHost, at: Pixel) -> Result<(), Unsupported> {
         self.anchor = at;
-        if self.picture.is_some() { return Ok(()); }
+        if self.picture.is_some() {
+            return Ok(());
+        }
         let pic = host.load_picture(PICTURE_KEY).ok_or(Unsupported::ResourceUnavailable)?;
         self.picture = Some(pic);
         host.picture_transparent_color(pic, (255, 0, 255));
         let (w, h) = host.picture_size(pic);
         let x = at.x - w / 2;
         let y = at.y - h / 2;
-        let win = host.create_picture_window(ANCHOR_WINDOW, pic, PixelRect::new(x, y, x + w, y + h))
+        let win = host
+            .create_picture_window(ANCHOR_WINDOW, pic, PixelRect::new(x, y, x + w, y + h))
             .ok_or(Unsupported::ResourceUnavailable)?;
         host.window_flag(win, 2, false);
         host.window_flag(win, 4, true);
         host.window_show(win);
-        if host.child_add(win) { host.window_front(win); } else { host.window_destroy(win); }
+        if host.child_add(win) {
+            host.window_front(win);
+        } else {
+            host.window_destroy(win);
+        }
         Ok(())
     }
     /// `physical_button_down` is the right button, or left when swapped, sampled
     /// by the input adapter. It is not inferred from event modifiers.
     pub fn mouse_move(&mut self, host: &mut impl ScrollHost, at: Pixel, physical_button_down: bool) -> bool {
-        if !physical_button_down { return self.mouse_up_right(host); }
+        if !physical_button_down {
+            return self.mouse_up_right(host);
+        }
         // Widen subtraction to avoid debug overflow on extreme input pixels.
         let dx = -((i64::from(self.anchor.x) - i64::from(at.x)) / 2);
         let dz = -((i64::from(self.anchor.y) - i64::from(at.y)) / 2);
         let i = i64::from(self.inner);
         let o = i64::from(self.outer);
-        let axis = |d: i64| if d.abs() > o { (d.signum() * o) as i32 } else if d.abs() > i { d as i32 } else { 0 };
+        let axis = |d: i64| {
+            if d.abs() > o {
+                (d.signum() * o) as i32
+            } else if d.abs() > i {
+                d as i32
+            } else {
+                0
+            }
+        };
         self.stored_speed = (axis(dx), axis(dz));
         let moving = dx.abs() > i || dz.abs() > i;
-        let cursor = if !moving { NEUTRAL } else {
-            let row = if dz <= -i { 0 } else if dz >= i { 2 } else { 1 };
-            let col = if dx <= -i { 0 } else if dx >= i { 2 } else { 1 };
-            [[0x02A6_7691, 0x62A6_7606, 0x82A6_76A8],
-             [0x62A6_7694, NEUTRAL, 0xC2A6_76A4],
-             [0xA2A6_7698, 0x62A6_769B, 0x22A6_76A0]][row][col]
+        let cursor = if !moving {
+            NEUTRAL
+        } else {
+            let row = if dz <= -i {
+                0
+            } else if dz >= i {
+                2
+            } else {
+                1
+            };
+            let col = if dx <= -i {
+                0
+            } else if dx >= i {
+                2
+            } else {
+                1
+            };
+            [
+                [0x02A6_7691, 0x62A6_7606, 0x82A6_76A8],
+                [0x62A6_7694, NEUTRAL, 0xC2A6_76A4],
+                [0xA2A6_7698, 0x62A6_769B, 0x22A6_76A0],
+            ][row][col]
         };
-        if cursor != NEUTRAL { self.has_scrolled = true; }
-        if cursor != self.cursor && host.set_cursor(cursor) { self.cursor = cursor; }
+        if cursor != NEUTRAL {
+            self.has_scrolled = true;
+        }
+        if cursor != self.cursor && host.set_cursor(cursor) {
+            self.cursor = cursor;
+        }
         let (dx, dz) = (dx as f32, dz as f32);
         let speed = ((dx * dx + dz * dz).sqrt() / (self.outer - self.inner) as f32).min(1.0);
-        let angle = if !moving { 0.0 } else if dx > 0.0 { (dz / dx).atan() }
-            else if dx < 0.0 { (dz / dx).atan() + std::f32::consts::PI }
-            else if dz < 0.0 { 3.0 * std::f32::consts::FRAC_PI_2 } else { std::f32::consts::FRAC_PI_2 };
-        host.scroll(ScrollMotion { on: moving, angle, speed });
+        let angle = if !moving {
+            0.0
+        } else if dx > 0.0 {
+            (dz / dx).atan()
+        } else if dx < 0.0 {
+            (dz / dx).atan() + std::f32::consts::PI
+        } else if dz < 0.0 {
+            3.0 * std::f32::consts::FRAC_PI_2
+        } else {
+            std::f32::consts::FRAC_PI_2
+        };
+        host.scroll(ScrollMotion {
+            on: moving,
+            angle,
+            speed,
+        });
         false
     }
     pub fn end_input(&mut self, host: &mut impl ScrollHost) {
@@ -138,13 +205,22 @@ impl CityScroll {
         host.child_delete_id(ANCHOR_WINDOW);
         host.remove_top_control(false);
     }
-    pub fn mouse_up_right(&mut self, host: &mut impl ScrollHost) -> bool { self.end_input(host); true }
+    pub fn mouse_up_right(&mut self, host: &mut impl ScrollHost) -> bool {
+        self.end_input(host);
+        true
+    }
     pub fn shutdown(&mut self, host: &mut impl ScrollHost) {
-        if !self.initialized { return; }
+        if !self.initialized {
+            return;
+        }
         host.scroll_stop();
         host.child_delete_id(ANCHOR_WINDOW);
-        if !self.was_capturing { host.release_capture(); }
-        if let Some(pic) = self.picture.take() { host.release_picture(pic); }
+        if !self.was_capturing {
+            host.release_capture();
+        }
+        if let Some(pic) = self.picture.take() {
+            host.release_picture(pic);
+        }
         self.initialized = false;
     }
 }

@@ -11,9 +11,15 @@ pub trait TerrainAccess {
     fn set_altitude_rect(&mut self, rect: VertRect, height: f32, redisplay: bool, data4: u32);
 }
 impl TerrainAccess for Terrain {
-    fn cell_width(&self) -> f32 { CELL_WIDTH }
-    fn cell_dimensions(&self) -> (u32, u32) { (self.cells_x(), self.cells_z()) }
-    fn altitude_at_index(&self, index: u32) -> f32 { Terrain::altitude_at_index(self, index) }
+    fn cell_width(&self) -> f32 {
+        CELL_WIDTH
+    }
+    fn cell_dimensions(&self) -> (u32, u32) {
+        (self.cells_x(), self.cells_z())
+    }
+    fn altitude_at_index(&self, index: u32) -> f32 {
+        Terrain::altitude_at_index(self, index)
+    }
     fn set_altitude_rect(&mut self, rect: VertRect, height: f32, redisplay: bool, data4: u32) {
         Terrain::set_altitude_rect(self, rect, height, redisplay, data4);
     }
@@ -39,13 +45,32 @@ impl LevelTerrain {
     pub const CURSOR: u32 = 0x071E_5703;
     pub fn new(terrain: &impl TerrainAccess) -> Result<Self, Unsupported> {
         let width = terrain.cell_width();
-        if !width.is_finite() || width <= 0.0 { return Err(Unsupported::PrimitiveData); }
-        Ok(Self { width, dragging: false, start: (0, 0), end: (0, 0), old_cursor: false })
+        if !width.is_finite() || width <= 0.0 {
+            return Err(Unsupported::PrimitiveData);
+        }
+        Ok(Self {
+            width,
+            dragging: false,
+            start: (0, 0),
+            end: (0, 0),
+            old_cursor: false,
+        })
     }
-    pub fn dragging(&self) -> bool { self.dragging }
-    pub fn key_down(&self, _key: u32, _modifiers: u32) -> bool { false }
+    pub fn dragging(&self) -> bool {
+        self.dragging
+    }
+    /// Local supported Init work. Terrain/view reference acquisition belongs
+    /// to a future adapter; this core does not implement the base COM lifetime.
+    pub fn init(&self, host: &mut impl LevelView) {
+        host.set_cursor(Self::CURSOR);
+    }
+    pub fn key_down(&self, _key: u32, _modifiers: u32) -> bool {
+        false
+    }
     pub fn mouse_down(&mut self, host: &mut impl LevelView, at: Pixel) -> bool {
-        if !host.has_city_view() { return false; }
+        if !host.has_city_view() {
+            return false;
+        }
         if let Some(p) = host.pick_city_terrain(at) {
             self.dragging = true;
             host.capture();
@@ -57,30 +82,50 @@ impl LevelTerrain {
         true
     }
     pub fn mouse_move(&mut self, host: &mut impl LevelView, at: Pixel) -> bool {
-        if !self.dragging { return false; }
+        if !self.dragging {
+            return false;
+        }
         if let Some(p) = host.pick_city_terrain(at) {
             let reciprocal = 1.0 / self.width;
             let cell = ((p.x * reciprocal) as i32, (p.z * reciprocal) as i32);
-            if cell != self.end { self.end = cell; self.compute_and_mark(host); }
+            if cell != self.end {
+                self.end = cell;
+                self.compute_and_mark(host);
+            }
         }
         true
     }
     pub fn selected_area(&self) -> VertRect {
-        VertRect::new(self.start.0.min(self.end.0), self.start.1.min(self.end.1),
-            self.start.0.max(self.end.0), self.start.1.max(self.end.1))
+        VertRect::new(
+            self.start.0.min(self.end.0),
+            self.start.1.min(self.end.1),
+            self.start.0.max(self.end.0),
+            self.start.1.max(self.end.1),
+        )
     }
-    pub fn compute_and_mark(&self, host: &mut impl LevelView) { host.mark_selected(self.selected_area(), 2, true); }
+    pub fn compute_and_mark(&self, host: &mut impl LevelView) {
+        host.mark_selected(self.selected_area(), 2, true);
+    }
     pub fn level(&self, terrain: &mut impl TerrainAccess) -> Result<(), Unsupported> {
         let (cx, cz) = terrain.cell_dimensions();
         // VIC3: picks outside the city have no specified vertex-index contract.
-        if self.start.0 < 0 || self.start.1 < 0 || self.end.0 < 0 || self.end.1 < 0
-            || self.start.0 as u32 > cx || self.start.1 as u32 > cz
-            || self.end.0 as u32 > cx || self.end.1 as u32 > cz
-            || cx > i32::MAX as u32 - 1 || cz > i32::MAX as u32 - 1 {
+        if self.start.0 < 0
+            || self.start.1 < 0
+            || self.end.0 < 0
+            || self.end.1 < 0
+            || self.start.0 as u32 > cx
+            || self.start.1 as u32 > cz
+            || self.end.0 as u32 > cx
+            || self.end.1 as u32 > cz
+            || cx > i32::MAX as u32 - 1
+            || cz > i32::MAX as u32 - 1
+        {
             return Err(Unsupported::PrimitiveData);
         }
-        let index = (cx + 1).checked_mul(self.start.1 as u32)
-            .and_then(|n| n.checked_add(self.start.0 as u32)).ok_or(Unsupported::PrimitiveData)?;
+        let index = (cx + 1)
+            .checked_mul(self.start.1 as u32)
+            .and_then(|n| n.checked_add(self.start.0 as u32))
+            .ok_or(Unsupported::PrimitiveData)?;
         let height = terrain.altitude_at_index(index);
         let mut rect = self.selected_area();
         rect.x1 = (rect.x1 + 1).min(cx as i32);
@@ -88,8 +133,15 @@ impl LevelTerrain {
         terrain.set_altitude_rect(rect, height, true, 1);
         Ok(())
     }
-    pub fn mouse_up(&mut self, host: &mut impl LevelView, terrain: &mut impl TerrainAccess, at: Pixel) -> Result<bool, Unsupported> {
-        if !self.dragging { return Ok(false); }
+    pub fn mouse_up(
+        &mut self,
+        host: &mut impl LevelView,
+        terrain: &mut impl TerrainAccess,
+        at: Pixel,
+    ) -> Result<bool, Unsupported> {
+        if !self.dragging {
+            return Ok(false);
+        }
         if let Some(p) = host.pick_city_terrain(at) {
             self.end = ((p.x / self.width) as i32, (p.z / self.width) as i32);
         }

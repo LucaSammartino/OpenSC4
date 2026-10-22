@@ -16,9 +16,15 @@ pub struct PropId(pub u64);
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Text(pub Vec<Vec<u8>>);
 impl Text {
-    pub fn is_empty(&self) -> bool { self.0.is_empty() }
-    pub fn glyph_count(&self) -> usize { self.0.len() }
-    pub fn from_single_bytes(bytes: &[u8]) -> Self { Self(bytes.iter().map(|b| vec![*b]).collect()) }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+    pub fn glyph_count(&self) -> usize {
+        self.0.len()
+    }
+    pub fn from_single_bytes(bytes: &[u8]) -> Self {
+        Self(bytes.iter().map(|b| vec![*b]).collect())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -31,14 +37,19 @@ pub struct PropInfo {
 
 /// These predicates are the filter owners, independent of renderer traversal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PropFilter { Label, Sign, SignOrLabel }
+pub enum PropFilter {
+    Label,
+    Sign,
+    SignOrLabel,
+}
 impl PropFilter {
     pub fn accepts(self, p: PropInfo) -> bool {
-        p.is_prop && match self {
-            Self::Label => p.text_decal,
-            Self::Sign => p.signpost,
-            Self::SignOrLabel => p.prop_type == SIGN_TYPE || p.prop_type == LABEL_TYPE,
-        }
+        p.is_prop
+            && match self {
+                Self::Label => p.text_decal,
+                Self::Sign => p.signpost,
+                Self::SignOrLabel => p.prop_type == SIGN_TYPE || p.prop_type == LABEL_TYPE,
+            }
     }
 }
 
@@ -70,7 +81,20 @@ pub fn project(utilities: &ViewUtilities, point: Vec3) -> Vec3 {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum MouseState { #[default] Idle, Pressed, Dragging, Typing }
+pub enum MouseState {
+    #[default]
+    Idle,
+    Pressed,
+    Dragging,
+    Typing,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Key { Delete, Home, End, Escape, V, Other(u32) }
+pub enum Key {
+    Delete,
+    Home,
+    End,
+    Escape,
+    V,
+    Other(u32),
+}

@@ -3,20 +3,20 @@
 //! full cSC4ViewInputControl base implementation; see README.md for inventory.
 //! Hosts expose primitive input, resource, GUI and world operations only.
 
+mod demolish;
+mod label;
 mod level;
 mod props;
 mod scroll;
-mod label;
 mod sign;
-mod demolish;
 
+pub use crate::view_utilities::{Pixel, Vec3};
+pub use demolish::SignLabelDemolish;
+pub use label::*;
 pub use level::{LevelTerrain, LevelView, TerrainAccess};
 pub use props::*;
 pub use scroll::{CityScroll, ScrollHost, ScrollMotion, ScrollTunables};
-pub use label::*;
 pub use sign::*;
-pub use demolish::SignLabelDemolish;
-pub use crate::view_utilities::{Pixel, Vec3};
 
 pub const PICK_UP: u32 = 0x2C16_DA45;
 pub const PUT_DOWN: u32 = 0x2C16_DA29;
