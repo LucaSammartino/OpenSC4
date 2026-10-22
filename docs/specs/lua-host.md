@@ -42,6 +42,13 @@ random draws. It has no save record (§2.2).
 `cSCLuaCOMDirector` (constructor `0x008800F0`, getter `0x00880180`) registers the four class IDs. The factory for
 `0xEA10C4A2` and `0x4B2811AA` constructs a `cSCLua` (constructor `0x008809E0`, base constructor `0x008B9670`).
 
+**ScriptServer is a separate registration (LH1).** The four entries above are the Lua director's
+registrations, not an exhaustive list of owners using Lua. `cSC4COMDirector` registers CLSID
+`0xCBD101A9` with no-argument object factory `0x008B10D0`: the factory pointer is supplied at
+`0x0046021A`, the CLSID getter `0x008AE770` returns that value, and AddCls is called at
+`0x00460227`. The public SDK independently names it `GZCLSIDDefs::kcGZLuaScriptServer`.
+This is neither the service ID `0x4BD10133` nor its priority `0xFFF0BDC1`.
+
 A `cSCLua` object holds, as sub-objects: a primary `cIGZUnknown` (vtable `0x00AC4444`), its **main thread**
 (`cIGZLua5Thread`, vtable `0x00AC42C0`), its `cIGZLua5` (vtable `0x00AC4280`), its `cISCLua` (vtable `0x00AC4148`)
 and a game-data-registry notification target (vtable `0x00AC4138`, §9). Every one of them answers QI through
@@ -494,8 +501,13 @@ Offsets in subsequent tables are relative to the primary object, unless explicit
 | `+3C`, `+40` | Signed 32-bit script-ID ordered map and its count, empty |
 | `+48` | Borrowed current-running record, null |
 
-Construction `0x008B07C0` initializes the base system service with identifiers `0x4BD10133` and
-`0xFFF0BDC1`, installs the three interface views and allocates the empty map sentinel.
+Construction `0x008B07C0` initializes the base system service with **service ID `0x4BD10133`** and
+**signed priority `0xFFF0BDC1` (`-999999`)**, installs the three interface views and
+allocates the empty map sentinel. These are the first and second constructor arguments, respectively
+(`0x008B07C5–0x008B07DA`). The base constructor stores the first as service ID and the second as both
+service priority and initial tick priority (`0x0091DE23–0x0091DE37`); the public SDK constructor
+`cRZBaseSystemService(uint32_t serviceID, int32_t servicePriority)` agrees. Neither argument is a
+CLSID; the actual CLSID is `0xCBD101A9` (§1.2).
 QI `0x008AE7D0` recognizes `1` and `0x4BD10129`, writes the primary pointer and calls AddRef;
 other IDs delegate to the base service. AddRef increments the unsigned 32-bit count at +20.
 Release `0x008AE810` decrements only when the unsigned count exceeds one; count zero or one both
@@ -531,6 +543,44 @@ on the smallest current signed ID until the map is empty. It obtains generator +
 calls that interface +10, clears/releases the generator, closes the Lua, and clears/releases the Lua, in this
 order. It does not reset last-created ID or the attempt serial. Clearing pointers before Release is observable
 to callbacks. Shutdown has no independent map snapshot or recursion guard.
+
+##### Foreign command endpoint identity (LH2)
+
+The temporary constructed at `0x008B091D` is **a CommandServer service reference**, despite the
+export's misleading `cRZAutoRefCount<cIGZLua5>::operator=` name for `0x00562DA0`. Its instructions
+zero the output, get the framework and call `GetSystemService(0xEB903A32, 0xCB90253A, out)`
+(`0x00562DA3–0x00562DC1`). No framework leaves it null. The public SDK's `GZServPtrs.h` declares
+`cIGZCommandServerPtr` with those IID/service-ID template arguments; `cRZSysServPtr.h` acquires
+through `RZGetFrameWork()->GetSystemService` and releases a nonnull reference on destruction.
+Thus acquisition needs no fixed-address accessor and no invented CommandSystem API.
+
+All offsets below are byte offsets on 32-bit Windows interface vtables, with `this` in ECX.
+Object/interface pointers and string-reference arguments are 32-bit; Boolean status is in AL.
+
+| Receiver and slot | Typed native boundary | Ownership |
+|---|---|---|
+| Lua-generator IID `0x2BD144DF`, `+0x10`, `0x008B6750` | Init taking `cIGZCommandServer*`, `cIGZLua5*`, `const cIGZString&`, returning bool; callee pops 12 argument bytes | Inputs are borrowed for the call; the caller owns the temporary CommandServer acquisition, Lua and the temporary string |
+| Same receiver, `+0x0C`, `0x008B59B0` | AsIGZCommandGenerator taking no arguments, returning `cIGZCommandGenerator*` | Borrowed sibling view; no AddRef and no matching Release |
+| Returned CommandGenerator IID `0x0B90251F`, `+0x10`, `0x008B68D0` | Shutdown taking no arguments, returning bool | Does not consume the returned view; ScriptServer ignores this status and releases its owned Lua-generator reference next |
+
+The two generator views are distinct: QI returns allocation +`0x0C` for `0x2BD144DF`, allocation
++`0x08` for `0x0B90251F`, and AddRefs either successful query (`0x008B59C0–0x008B5A01`).
+The Lua-generator vtable is `0x00AC8BB0`; its sibling vtable is `0x00AC8BC4`. AsIGZCommandGenerator
+subtracts four from its receiver and returns immediately; it does not query or acquire anything
+(`0x008B59B0–0x008B59BD`). It must not be confused with the generic generator's `+0x0C` Init(),
+which has no three-argument signature. The public SDK supplies `cIGZCommandGenerator` with
+Init/Shutdown at `+0x0C`/`+0x10`; a declaration of the Lua-specific generator remains separate
+from that public interface.
+
+The three Init arguments are, in order, the temporary's contained CommandServer pointer, the
+owned Lua5 pointer, and a reference to the freshly constructed `cRZString("sc4app")`
+(`0x008B0911–0x008B0945`). After the call the CommandServer temporary is destroyed/released
+(`0x008B0954`, destructor `0x00562DD0`) and the string is destroyed (`0x008B096A`), before a false
+result clears/releases the generator. Neither temporary is transferred to ScriptServer's state.
+The actual generator checks string length first, then null Lua and null CommandServer, and
+returns false for those invalid inputs (`0x008B6751–0x008B677A`); a null string-reference address is
+not a supported input. It registers the borrowed generic view through public
+`cIGZCommandServer::RegisterCommandGenerator`, `+0x3C` (`0x008B678E–0x008B6796`).
 
 #### 6.3.3 Control and inspection
 
