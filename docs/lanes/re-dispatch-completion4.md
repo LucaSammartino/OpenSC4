@@ -1,8 +1,8 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-dispatch-completion4: DP10–DP13 native contracts | `re-dispatch-completion4` / (RE lane, detached worktree) | in progress: round 2 tracing DP10–DP12 residual contracts; DP13 already answered | Finish native view update, pylon string prefix and station spawn/route ownership contracts. |
+| re-dispatch-completion4: DP10–DP13 native contracts | `re-dispatch-completion4` / (RE lane, detached worktree) | WIP: DP11 and DP12 answered; DP10 drawing remains; DP13 unchanged; docs checks pass | Coordinator review of published contracts; complete DP10 rendering before replacement credit. |
 
-## Handoff
+## Round 2 report
 
 - Goal: finish DP10–DP12 exact native contracts in one guarded round; no engine/tools/ABI edits.
 - Prior milestones: f1135c91 (DP13); c83804c4 (pylon geometry, caller descriptors, view tracking).
@@ -11,12 +11,54 @@
 - Done: DP12 remaining constants verified from original PE bytes; shared RNG initializer traced; cell conversion/x87 order published; DP12 archived/indexed.
 - Next: DP10 screen-rectangle/call-display texture generation and draw submission remain; no complete-owner/replacement credit.
 - Newly verified quirk: non-traffic slot17 rejection leaks the acquired pathfinder; normal routing exits release it.
-- Residuals: DP10 renderer update/delayed untrack; DP11 bitmap string input/prefix; DP12 road spawn/route failure.
+- Residual DP10 only: call-display texture generation, screen rectangles and draw submission.
 - Public glue reports two unsaved viewHandle differences; no original runtime trace requested.
 - Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-dispatch-completion4-r2-manifest.json.
 - Detached HEAD is intentional; commit normally without updating refs. No subagents/restart/network.
 
-## Report
+### Results
+
+DP11 is answered in dispatch §§4.1.1–4.1.2 and DP12 in §§4.2–4.2.1; both entries were moved
+to questions/answered/dispatch.md and the generated index refreshed. DP13 was already answered
+at c83804c4 and was not re-investigated. No complete-owner, supported replacement, exact-shadow,
+default or runtime promotion is claimed while DP10 drawing remains incomplete.
+
+Round-2 commits: 75f733f3 (DP11 string/prefix), 19650cbe (traffic/view ownership),
+86939110 (DP12 numeric/road-placement completion). Native instruction citations and independent
+distinguishing vectors are in dispatch.md, not fitted to implementation or test output.
+
+DP11: SetBitmapInfo takes a non-null cIGZString interface, copies explicit length/bytes through
+source slots7/6 and destination slot3, and acquires no source reference. Corrected GetCallNumber
+to AX-only (upper EAX unspecified), GetDragState to AL-only; setters preserve narrow values.
+
+DP12: exact seven-argument creation wrapper, five-argument traffic route call, exemplar selection,
+GZCOM creation, manager registration, callback/record/view acquisitions and failure cleanup.
+Fifth routing argument is a low-byte minimum-entry count (new0, retarget2), not creation priority255.
+Route source uses occupant/lot bounds; null retarget source uses current vehicle position and
+preserves prior return source. Road choice walks the first route cell's network list, pops once,
+and derives heading from chosen path endpoints. The selector receives shared cRZRandomSuper,
+not coordinates. Documented mutation on route failure and the exceptional non-traffic pathfinder leak.
+
+Static PE-byte measurements: heading epsilon bits3727C5AC (float32 0.00001), fade speed2.0,
+cell scale0.0625, half0.5, bias12582912.0, reciprocal numerator1.0. The spec states x87/store
+order and the exact point-cell bit operation, including negative/edge cases. The read-only helper
+is ignored build-runs/dispatch_constants.py; no binary/decomp output is committed.
+
+DP10 progress: renderer Update takes one borrowed SC4DrawContext pointer and returns AL true;
+two pre-walk gates can delay removals. Published fade threshold/store order, reference/resource
+release sequence, message-target adjustment and refresh ID, texture service/key order. Remaining
+work begins at BuildCallNumberDisplay 0046C8B0 (2112B), Update 0046D990 (5618B) drawing branches,
+and their helpers. Those are real unresolved contracts, so DP10 stays open and callbacks unsupported.
+
+Validation: git diff c83804c4 --check passed; only five public doc/spec/question files changed.
+No cargo/clippy/ctest or game run: docs-only. Public glue results only identify the measured gap
+(1694/1696 values, two unsaved view handles); no implementation/test outputs were read as contract.
+No ABI export/table edits or proposals, engine/tools/maps edits, network, subagents, restart,
+merge or push. Export/decomp and bounded original-PE reads sufficed; REA was not needed/invoked.
+Detached commits succeeded despite a packed-refs.lock permission diagnostic; no ref repair attempted.
+No game request is outstanding. This round ends WIP for DP10; it does not self-schedule another round.
+
+### Prior round record (historical; superseded by the results above)
 
 This bounded round is incomplete: DP13 is answered; DP10–DP12 remain open with narrower, explicit gaps.
 No complete-owner, supported replacement, exact-shadow, default or runtime promotion is claimed.
