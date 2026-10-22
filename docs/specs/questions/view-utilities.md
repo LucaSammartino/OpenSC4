@@ -50,8 +50,8 @@
 - **VU9 - §§2,5,6 cache identity/source:** are +0x444/+0x445 the visible-rectangle and viewport-ground
   caches respectively? §5 says both caches clear on every draw rectangle yet full viewport ground
   points are computed only "if not cached". Is §6 always based on full viewport points, even while
-  draw-frustum is narrowed? [clear visible area each draw; retain full viewport ground points until
-  camera update; §6 uses full viewport points literally; no native cache-identity credit]
+  draw-frustum is narrowed? [literally clear both caches each draw and camera update; recompute full
+  viewport ground points on draw; §6 uses full viewport points literally; no native cache-identity credit]
 
 <!-- from: core-view-utilities4 (2026-10-22) -->
 - **VU10 - §7 resource edge contracts:** define undersized group counts for n-1/n-2, invalid index/
@@ -59,3 +59,11 @@
   transform matrix applied by row dot products or column combinations? [typed owned resources; reject
   malformed byte input, saturate undersized triangle counts to zero, skip invalid triangles; row-dot
   matrix application literally from "rows"; preserve specified type6/7 indices even out of bounds]
+
+<!-- from: core-view-utilities4 (2026-10-22) -->
+- **VU11 - introductory related-spec paragraph / missing owned rotation method:**
+  `RotateVectorByViewRotation` at 0x007F6CC0 is named as documented by lighting.md, but no body is given
+  in view-utilities §§1–7,9,11 (this task's specified behavior source). Is it one of the attributed 49
+  owner functions? Please include its full rotation/sign/output and invalid-input contract here or
+  explicitly reconcile its ownership/source in the requested inventory. [unimplemented, no guessed
+  alias to fixed-view projection; report 38 implemented named contracts, no whole-owner credit]

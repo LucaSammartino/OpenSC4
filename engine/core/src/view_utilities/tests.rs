@@ -241,7 +241,10 @@ fn perspective_choice_uses_current_near_corners_without_compounding() {
     c.projection = Projection::Perspective;
     let mut v = owner(c);
     let first = v.view_frustum();
-    vector(first.corners[4], Vec3::new(610.0, 208.18733, -152.43706));
+    // Analytic geometry; f32 near-corner cancellation is amplified by far/near=51.
+    let expected = Vec3::new(610.0, 208.18733, -152.43706);
+    let delta = first.corners[4] - expected;
+    assert!(delta.x.abs() < 0.001 && delta.y.abs() < 0.001 && delta.z.abs() < 0.001);
     assert!(v.update_camera_position(Some(&c)));
     assert_eq!(first, v.view_frustum());
 }
@@ -281,6 +284,21 @@ fn box_visibility_strict_side_boundaries_but_no_near_far_test() {
     }));
     let p = Vec3::new(111.0, 80.0, 80.0);
     assert!(!v.is_bounding_box_in_view_frustum(Aabb { min: p, max: p }));
+}
+
+#[test]
+fn rotated_city_clip_rejects_aabb_overlap_when_ground_polygon_misses_city() {
+    let mut c = camera();
+    c.look_at = Vec3::new(101.0, 99.0, 99.0);
+    let mut v = owner(c);
+    v.set_city_size(100.0, 50.0);
+    v.update_camera_position(Some(&c));
+    // This diagonal ground band has x+z >= 200-10*sqrt(2) > 185.
+    // The city has x+z <= 150. Their AABBs overlap but the polygons do not.
+    let b = v.get_frustum_aabb_city_clipped(true);
+    assert_eq!((b.min.x, b.min.z, b.max.x, b.max.z), (0.0, 0.0, 0.0, 0.0));
+    assert!(v.view_frustum().corners[3].x < 100.0);
+    assert!(b.max.y > 0.0);
 }
 
 #[test]
@@ -418,6 +436,43 @@ fn cached_getters_can_be_shared_across_threads() {
 }
 
 #[test]
+fn every_draw_rectangle_invalidates_both_caches_and_keeps_full_view_visible_area() {
+    let mut v = owner(camera());
+    let original = Rays::new(0.0);
+    assert_eq!(
+        v.get_ground_plane_visible_area_rectangle(Some(&original))
+            .unwrap()
+            .inner
+            .min
+            .x,
+        100.0
+    );
+    let changed = Rays::new(1000.0);
+    v.build_draw_frustum_data_from_viewport_rect(PixelRect::new(50, 25, 150, 75), Some(&changed));
+    assert_eq!(
+        v.get_ground_plane_visible_area_rectangle(None).unwrap().inner.min.x,
+        1100.0
+    );
+    assert_eq!(changed.calls.load(Ordering::SeqCst), 8); // four viewport + four dirty corners
+    let outside_draw = Aabb {
+        min: Vec3::new(108.0, 80.0, 80.0),
+        max: Vec3::new(108.0, 80.0, 80.0),
+    };
+    assert!(v.is_bounding_box_in_view_frustum(outside_draw));
+    assert!(!v.is_bounding_box_in_draw_frustum(outside_draw));
+    let inside_draw = Aabb {
+        min: Vec3::new(100.0, 80.0, 80.0),
+        max: Vec3::new(100.0, 80.0, 80.0),
+    };
+    assert!(v.is_bounding_box_in_draw_frustum(inside_draw));
+    v.build_draw_frustum_data_from_viewport_rect(PixelRect::new(0, 0, 200, 100), Some(&original));
+    assert_eq!(
+        v.get_ground_plane_visible_area_rectangle(None).unwrap().inner.min.x,
+        100.0
+    );
+}
+
+#[test]
 fn draw_full_copy_narrowed_extents_and_integer_centres() {
     let mut v = owner(camera());
     let rays = Rays::new(0.0);
@@ -537,6 +592,37 @@ fn bounding_rectangle_uses_selected_corners_and_ties_even() {
         let mut out = PixelRect::default();
         assert!(v.project_bounding_box_to_viewport_rectangle(b, &mut out));
         assert_eq!(out, rect);
+    }
+}
+
+#[test]
+fn selected_rectangle_corners_match_exhaustive_box_extrema_for_all_rotations() {
+    let bounds = Aabb {
+        min: Vec3::new(2.5, 3.5, 4.5),
+        max: Vec3::new(6.5, 7.5, 8.5),
+    };
+    for rotation in 0..4 {
+        let mut c = camera();
+        c.rotation = rotation;
+        let v = owner(c);
+        let mut all = Vec::new();
+        for x in [bounds.min.x, bounds.max.x] {
+            for y in [bounds.min.y, bounds.max.y] {
+                for z in [bounds.min.z, bounds.max.z] {
+                    all.push(v.project_point_to_viewport_coordinates_2d(Vec3::new(x, y, z)));
+                }
+            }
+        }
+        let all = Aabb::from_points(&all);
+        let expected = PixelRect::new(
+            crate::x87::rhe(all.min.x - 0.5),
+            crate::x87::rhe(all.min.y - 0.5),
+            crate::x87::rhe(all.max.x),
+            crate::x87::rhe(all.max.y),
+        );
+        let mut out = PixelRect::default();
+        assert!(v.project_bounding_box_to_viewport_rectangle(bounds, &mut out));
+        assert_eq!(out, expected);
     }
 }
 
@@ -727,6 +813,19 @@ fn vertex_stride_count_padding_and_owned_resource_lifetime() {
     assert!(Mesh::from_vertex_data(&bytes, 8, 3, None, groups.clone()).is_none());
     assert!(Mesh::from_vertex_data(&bytes[..10], 16, 3, None, groups).is_none());
     assert!(Mesh::from_vertex_data(&[], 0, 0, None, vec![]).is_some());
+}
+
+#[test]
+fn hostile_group_counts_are_bounded_by_available_resource_elements() {
+    for kind in 0..=8 {
+        let mut mesh = triangle_mesh(&[1.0]);
+        mesh.groups[0].kind = kind;
+        mesh.groups[0].count = u32::MAX;
+        let mut p = pick();
+        p.ray.direction = Vec3::new(1.0, 0.0, 0.0);
+        assert!(!mesh_pick(&mut p, &mesh, &Transform::default()));
+        assert_eq!(p.nearest_distance, 100.0);
+    }
 }
 
 #[test]

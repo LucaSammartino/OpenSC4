@@ -485,12 +485,12 @@ impl ViewUtilities {
         camera: Option<&dyn CameraRayProvider>,
     ) {
         self.visible_area.take();
+        self.viewport_ground.take();
         self.draw_rect = rect;
         let full = PixelRect::new(0, 0, self.camera.viewport_width, self.camera.viewport_height);
         self.draw_narrowed = rect != full;
-        // Separate viewport-ground and visible-rectangle caches (§§5–6).
-        // VU9: spec says both caches cleared, yet also says compute viewport
-        // points "if not cached"; keep ground points until camera changes.
+        // VU9: literally clear both caches on every draw rectangle (§5), even
+        // though its later "if not cached" wording is then redundant.
         let points = *self
             .viewport_ground
             .get_or_init(|| self.get_viewport_rect_ground_corners(camera, full));

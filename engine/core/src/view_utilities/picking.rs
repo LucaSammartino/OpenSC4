@@ -184,7 +184,13 @@ pub fn mesh_pick(pick: &mut Pick, mesh: &Mesh, transform: &Transform) -> bool {
         return false;
     }
     for &group in &mesh.groups {
-        for i in 0..group.triangle_count() {
+        // Every table row references at least one element >= i. Past the
+        // available input length all subsequent triangles must be invalid;
+        // avoid walking billions of known misses from malformed resource counts.
+        let source_len = mesh.indices.as_ref().map_or(mesh.vertices.len(), Vec::len);
+        let available = source_len.saturating_sub(group.first as usize);
+        let limit = group.triangle_count().min(u32::try_from(available).unwrap_or(u32::MAX));
+        for i in 0..limit {
             let Some(indices) = triangle_indices(group, i) else {
                 continue;
             };
