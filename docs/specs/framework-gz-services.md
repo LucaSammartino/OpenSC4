@@ -63,8 +63,39 @@ the table gives the behaviour (proposed names in `build-runs/abi-rows-re-gzservi
 | 23 | `0x0092E27C` | Destructor (deleting when bit 0 of the flag is set): releases every queued message. |
 | 24 | `0x0092D940` | Get anywhere (msg, out): as slot 17, then remove the found message. |
 
-The signal is set only on the empty to non-empty transition; it is never explicitly reset by the
-queue (the signal object's own semantics decide whether a wait consumes it).
+**Equality receiver (GZ7).** All five equality operations invoke the queued message's slot 6
+(vtable +0x18), passing the search argument: `queued.equals(argument)`. Only the low byte of the
+return value is tested. Equality need not be symmetric. Native call sites: `0x0092D698`,
+`0x0092D6F6`, `0x0092D756`, `0x0092D482`, `0x0092D969` (slots 6/8/10/17/24 respectively).
+
+**Blocking signal primitive (GZ2).** The embedded signal is constructed with a 32-bit mode of 0
+(`0x0092DD9D–0x0092DDA2`). Its vtable `0x00AD1F48` has Signal at slot 1 (`0x00932DA7`),
+Pulse at slot 2 (`0x00932D95`), Wait at slot 3 (`0x00932DE0`), and handle-valid test at slot 4
+(`0x00932E3A`). Constructor `0x00932E65` allocates 0x24 bytes of platform state and calls
+CreateEventA with no name, initially nonsignalled, manual-reset iff mode is nonzero.
+
+Wait takes an **unsigned 32-bit microsecond timeout**: `0xFFFFFFFF` is passed through as infinite;
+every other value is divided by 1,000 with unsigned division, discarding the remainder
+(`0x00932DF6–0x00932E11`). Thus 999 means a zero-millisecond poll, 1,000 means 1 ms, and the
+queue's 1,000,000 means **1 second**. Wait holds the signal platform critical section across
+WaitForSingleObject; it returns dword 0 for WAIT_FAILED, 2 for WAIT_TIMEOUT (0x102), otherwise 1.
+It does not explicitly call ResetEvent. The queue ignores this return and retries its get until
+successful (`0x0092CFC1`, `0x0092CFF7`); it has no timeout/failure return to its caller.
+
+Signal's mode-0 branch calls **PulseEvent**, returning normalized Win32 success. Its nonzero-mode
+branch calls SetEvent but returns 0 even on success (`0x00932DA7–0x00932DCD`). Slot 2 always pulses.
+The queue calls Signal only on an empty-to-nonempty transition. Consequently a pulse without an
+eligible waiter leaves no persistent notification: a producer can insert between a failed get
+and the wait, and the consumer then finds that message only after its wait times out. Do not
+model this as a permanently set event. The unused reset body `0x00932DCE` calls ResetEvent; it
+is not one of these five vtable slots.
+
+The signal is an embedded, uncounted resource. Queue destruction closes its event and destroys
+its platform critical section/string and frees platform state before destroying the queue lock
+and releasing queued messages (`0x0092DDB0`, `0x00932EC8`, `0x00932EB4`). There is no waiter join,
+cancellation wake, or deferred close. A live blocking call therefore requires the queue to remain
+alive. Allocation failure is not recovered (constructor dereferences null platform state);
+CreateEventA failure leaves a null handle, detectable by slot 4, but the queue never tests it.
 
 ## 3. Queue manager (`cGZMessageQueueManager2`)
 
@@ -110,8 +141,21 @@ Interface `cIGZMessageServer2` (vtable `0x00AD1BF4`):
 | 9 | `0x0092E040` | OnTick (§4.4); also reached from the service tick slot 10 via thunk `0x00473000` |
 | 10 | `0x0092D0F4` | Posted-message count (§4.4) |
 | 11 | `0x0092D11F` | Set drain-all flag (§4.4) |
-| 12 | `0x0092D0B3` | Reference count of the +8 interface (returns its stored count) |
+| 12 | `0x0092D0B3` | Shared system-service reference count, unsigned dword at server +0xC (GZ1) |
 | 13 | `0x0092D1FE` | CreateMessage (§4.6) |
+
+**Counter forwarding (GZ1).** Slot 12 adds 8 to the server pointer and tail-calls that
+interface's slot 5; `0x009D7E63` reads its +4, hence server +0xC. The export's name
+`cRZString::ToChar` on that shared four-byte body is not evidence of string semantics.
+The system-service constructor at server +4 constructs cRZUnknown at server +8 and initializes
+this count to 0 (`0x0091DE0F`, `0x0090DA1E`). The service ID is instead at server +0x10;
+priority fields are +0x14/+0x18, and the running byte is +0x1C.
+Interface AddRef/Release (`0x0093056F`/`0x00930577`) first adjust +4 to the service base;
+base wrappers (`0x009297A0`/`0x0091DD89`) adjust another +4 to the unknown interface.
+Its AddRef increments the same dword (`0x00968B60`). The +8 vtable's AddRef thunk
+`0x00473020` first adjusts -8 before using this chain. RemoveRef at +8-interface slot 4
+(`0x0090D981`) only decrements a positive unsigned count and returns it, without destruction.
+This is one shared count, not the posted-message count or 64-bit messages-taken counter.
 
 ### 4.2 Notification registry
 
@@ -141,6 +185,15 @@ a copy of the wildcard (type 0) list. Decrement the depth and release the lock. 
 `DoMessage(msg)` on each copied target in array order; return values are ignored. A target that
 registers or unregisters during delivery does not change the current delivery. A target registered
 for both T and 0 receives the message twice. Returns true.
+
+**Snapshot holds (GZ6a).** Each copied target is AddRef'd while depth is positive and the
+registry lock is held, including a separate hold for its wildcard occurrence. The vector first
+appends a null reference, then assigns the target (`0x0092EAC2–0x0092EAD7`, assignment helper
+`0x005447B0`). All snapshot holds survive **all** DoMessage calls. After the last callback,
+the vector destructor releases its entries in forward order (`0x0092EB12–0x0092EB15`,
+`0x006C6E90`). It does not release each target immediately after that target's delivery.
+Vector growth may also copy/release existing reference wrappers; these are real reference
+callbacks, not just pointer moves. MessageSend itself borrows the message; it does not AddRef it.
 
 ### 4.4 MessagePost, the tick and the counters
 
@@ -205,6 +258,13 @@ directed deque +0x84. Interface slots (addresses take the +0x1C interface pointe
 | 11 | `0x0092ED9B` | Set drain-all flag |
 
 Differences that matter:
+- **Directed entries have no reference holds (GZ5).** Each entry is exactly 20 bytes: raw target
+  interface pointer followed by a copied 16-byte message record. Append constructs and copies
+  those values without target AddRef (`0x00930273`, `0x009DB1A1`, `0x0092EE7C`, `0x0097BF85`).
+  Delivery copies all five dwords to its local record (`0x00473110`), removes the deque front
+  without releasing anything (`0x00473240`), then calls the raw target with a pointer to the
+  local message (`0x0092F97E–0x0092F987`). Unlike server 2, neither cancellation nor delivery
+  owns a target/message reference; the caller must keep the target and pointed-to payloads alive.
 - **Messages are values.** A first-generation message is a 16-byte record whose first dword is the
   type; the queue stores copies, OnTick takes the front record into a zeroed local copy and sends a
   pointer to it, and nothing is reference counted for the message.
