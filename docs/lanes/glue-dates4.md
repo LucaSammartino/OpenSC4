@@ -10,7 +10,9 @@
 - Done: opt-in dates_probe via existing simulator GetSimDate; only published original cGZDate vptr qualifies. Live stateless comparisons separate from explicitly seeded owned-clone fixtures.
 - Done: foreign Copy, native/foreign owning outputs, byte/NUL/high-byte/page-boundary fixtures, full EAX counters; DT4/DT5 filed for executable CRT locale/timezone acquisition.
 - Checks: quick PASS cargo3453/0 and119/119 build edges; four touched Rust files fmt PASS. Earlier quick failures (return-type mocks, logging macro) corrected.
-- Next: stable qbuild all after final x86 assertions; freeze DLL, unique original/adapter/40-key game requests with scripted save and shutdown; preserve complete mismatches/refusals.
+- Full gate first attempt: Rust4940/0, clippy0, CTest67/68; plugin_load_test expected old diagnostic Year text. Updated trace assertion and old Set(100) bool assertion to published EAX100.
+- Added explicit refs7/incoming-EAX/source-release Clone fixture and complete SetTime/locale-unresolved counters before final stable gate.
+- Next: stable qbuild all; freeze DLL, unique original/adapter/40-key game requests with scripted save and shutdown; preserve complete mismatches/refusals.
 - Published B string cleanup entry is already supplied by compat::StlNodeAllocator; capture EAX after that call, never synthesize success.
 - Executable CRT locale acquisition is not published; park precisely rather than use plugin CRT locale as evidence.
 - Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-dates4-r1-manifest.json.

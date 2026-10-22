@@ -12517,7 +12517,7 @@ int main(int argc, char** argv) {
                     CHECK(sentinel == reinterpret_cast<void*>(0xDEADBEEF));
                     CHECK(CallSlot(other, 6, {2, 30, 2000}).eax == 0); // invalid setter clears day
                     CHECK(other->DayNumber() == 0);
-                    CHECK((CallSlot(other, 4, {100}).eax & 0xFF) == 1);  // Set(uint32 dayNumber)
+                    CHECK(CallSlot(other, 4, {100}).eax == 100);  // published new day number
                     const fc4test::SlotCall m1 = CallSlot(date, 33, {7});  // operator-(int32)
                     const fc4test::SlotCall m2 = CallSlot(date, 34, {reinterpret_cast<uint32_t>(other)});  // operator-(date)
                     const fc4test::SlotCall p1 = CallSlot(date, 35, {7});  // operator+(int32)
@@ -13373,7 +13373,7 @@ int main(int argc, char** argv) {
           std::string::npos);
     CHECK(text.find("post 0x4A7FB7E9 d1=2") != std::string::npos);  // SpeedChanged
     CHECK(text.find("GetSimDate() #1 -> date object") != std::string::npos);
-    CHECK(text.find("::Year() -> 2000") != std::string::npos);
+    CHECK(text.find("::slot13 day=2451545 -> 2000") != std::string::npos);
     CHECK(text.find("GetSimDateNumber() #1 -> 2451545") != std::string::npos);
     // Limit-timer calibration (spec 5.5): installed and published, but this test
     // process is not SimCity 4, so the compat guard must refuse to write.

@@ -45,6 +45,18 @@ void DateCheck(const char* kind, uint32_t slot, uint32_t native, uint32_t ours, 
     if (native == ours) (live ? dateLiveExact : dateFixtureExact)++;
     else Log("dates-probe mismatch: kind=%s slot=%u native=%u rust=%u", kind, slot, native, ours);
 }
+uint32_t DateCloneEax(cFC4IGZDate* source, cFC4IGZDate** out, uint32_t incoming) {
+    uint32_t result;
+    __asm {
+        mov ecx, source
+        mov edx, [ecx]
+        push out
+        mov eax, incoming
+        call dword ptr [edx + 36]
+        mov result, eax
+    }
+    return result;
+}
 void DateQueries(cFC4IGZDate* native, cFC4IGZDate* ours, bool live) {
     for (uint32_t slot : {12u,13u,14u,15u,16u,17u,18u,19u,20u,23u,25u,26u,33u,35u,42u,43u,44u,45u}) {
         unsigned argc = slot == 42 || slot == 44 ? 3 :
@@ -151,7 +163,23 @@ void DateProbeStep(void* raw) {
         DateCheck("fixture-foreign-Copy-no-mutation", 41,
             std::strcmp(n.ToChar(), "PREFIX") == 0 && std::strcmp(r.ToChar(), "PREFIX") == 0, 1);
     }
-    DateCheck("fixture-release", 2, FC4_RELEASE_CREATED(copy), 0);
+    copy->SetDayNumber(0x12345678u);
+    ours.SetDayNumber(0x12345678u);
+    for (unsigned i = 0; i < 6; ++i) DateCheck("fixture-source-refs", 1, FC4_ADDREF(copy), i + 2);
+    cFC4IGZDate* independent = reinterpret_cast<cFC4IGZDate*>(0xDEADBEEF);
+    cFC4IGZDate* ourIndependent = reinterpret_cast<cFC4IGZDate*>(0xDEADBEEF);
+    DateCheck("fixture-incoming-eax", 9, DateCloneEax(copy, &independent, 0xA5A55A00u),
+              DateCloneEax(&ours, &ourIndependent, 0xA5A55A00u));
+    FC4_ACQUIRED(independent, "dates-probe refs7 Clone");
+    DateCheck("fixture-source-refs-unchanged", 1, FC4_ADDREF(copy), 8);
+    DateCheck("fixture-source-refs-unchanged", 2, FC4_RELEASE(copy), 7);
+    for (unsigned i = 0; i < 6; ++i) DateCheck("fixture-release-source", 2, FC4_RELEASE(copy), 6 - i);
+    DateCheck("fixture-release-source", 2, FC4_RELEASE_CREATED(copy), 0);
+    DateCheck("fixture-after-source-release", 26, independent->DayNumber(), ourIndependent->DayNumber());
+    DateCheck("fixture-independent-modify", 4, independent->SetDayNumber(0), ourIndependent->SetDayNumber(0));
+    DateCheck("fixture-independent-ref1", 1, FC4_ADDREF(independent), ourIndependent->AddRef());
+    DateCheck("fixture-independent-ref1", 2, FC4_RELEASE(independent), ourIndependent->Release());
+    DateCheck("fixture-independent-release", 2, FC4_RELEASE_CREATED(independent), ourIndependent->Release());
     Log("dates-probe fixture coverage: null/allocation faults=not-executed outer-lock-depth=not-executed executable-locale=uncaptured(DT4) SetTime=refused(DT5); fixtures are not natural calls");
 }
 }
@@ -165,8 +193,8 @@ void DatesProbe(cISC4City* city, const char* phase) {
 }
 void DatesProbeSummary(const char* phase) {
     if (SettingInt("dates_probe", "FC4_DATES_PROBE", 0) == 0) return;
-    Log("dates-probe summary: phase=%s live_exact=%llu/%llu fixture_exact=%llu/%llu refusals=%llu failures=%llu fallback=0 resync=0 adapter_natural_value_calls=%llu adapter_fixture_value_calls=%llu owner_complete=0 DT4,DT5",
+    Log("dates-probe summary: phase=%s live_exact=%llu/%llu fixture_exact=%llu/%llu refusals=%llu failures=%llu fallback=0 resync=0 adapter_natural_value_calls=%llu adapter_fixture_value_calls=%llu SetTime_refusals=%llu locale_unresolved_calls=%llu owner_complete=0 DT4,DT5",
         phase, dateLiveExact, dateLiveTotal, dateFixtureExact, dateFixtureTotal, dateRefusals, dateFailures,
-        g_dateNatural.load(), g_dateFixtureCalls.load());
+        g_dateNatural.load(), g_dateFixtureCalls.load(), g_dateTimeRefused.load(), g_dateLocaleUnresolved.load());
 }
 }

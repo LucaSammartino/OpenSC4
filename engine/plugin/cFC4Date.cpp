@@ -11,6 +11,7 @@ namespace {
 std::atomic<unsigned> g_dateTraces{0};
 thread_local bool g_dateFixture = false;
 std::atomic<uint64_t> g_dateNatural{0}, g_dateFixtureCalls{0};
+std::atomic<uint64_t> g_dateTimeRefused{0}, g_dateLocaleUnresolved{0};
 }
 
 cFC4Date::cFC4Date(int32_t julian, bool heapOwned)
@@ -43,6 +44,7 @@ uint32_t cFC4Date::Release() {
     return 0;
 }
 uint32_t cFC4Date::SetMonthNameDayYear(const char* name, uint32_t d, uint32_t y) {
+    g_dateLocaleUnresolved.fetch_add(1);
     // DT2: no fourth read, stop at NUL. Null faults before storing. DT4:
     // C-locale-only until an executable CRT map acquisition is published.
     uint8_t bytes[3]{};
@@ -53,6 +55,7 @@ uint32_t cFC4Date::SetMonthNameDayYear(const char* name, uint32_t d, uint32_t y)
 }
 uint32_t cFC4Date::SetDayNumber(uint32_t n) { return Store(n); }
 uint32_t cFC4Date::SetTime(cRZTime const&) {
+    g_dateTimeRefused.fetch_add(1);
     // DT5: preserved unimplemented path; executable CRT timezone is missing.
     fc4::Log("dates: REFUSED SetTime (DT5); date unchanged");
     return 0;
