@@ -46,7 +46,9 @@ impl Buffer for Padded {
         }
     }
     fn initialize(&mut self, width: u32, height: u32, format: Format) -> bool {
-        assert_eq!(format, Format::new(3, 16));
+        if format != Format::new(3, 16) {
+            return false;
+        }
         self.layout = BufferLayout {
             width,
             height,
@@ -129,8 +131,8 @@ fn padded_v1_choice_v2_correct_rows_and_save_drops_padding() {
     let mut output = serial(&[]);
     assert!(resource.save(&mut output, 2, &LiteralCodec));
     assert_eq!(output.raw().get_ref(), &v2);
-    assert_eq!((buffer.lock().unwrap().locks), 3);
-    assert_eq!((buffer.lock().unwrap().unlocks), 3);
+    assert_eq!(buffer.lock().unwrap().locks, 3);
+    assert_eq!(buffer.lock().unwrap().unlocks, 3);
     buffer.lock().unwrap().fail_lock = true;
     assert!(!resource.save(&mut output, 2, &LiteralCodec));
     assert_eq!(buffer.lock().unwrap().unlocks, 3);
@@ -189,4 +191,95 @@ fn legacy_string_total_size_and_key_failure_stop_at_first_raw_failure() {
     assert!(!record.get_key(&mut key));
     assert_eq!(key, Key::new(0x04030201, 0x11223388, 0xaabbccdd));
     assert_eq!(record.raw().position(), 5); // partial read belongs to this known host
+}
+
+#[test]
+fn file_access_close_failure_and_module_target_selection_are_runtime_owned() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    struct Opened {
+        raw: Cursor<Vec<u8>>,
+        closes: Arc<AtomicUsize>,
+    }
+    impl RawStream for Opened {
+        fn read(&mut self, out: &mut [u8]) -> bool {
+            RawStream::read(&mut self.raw, out)
+        }
+        fn write(&mut self, bytes: &[u8]) -> bool {
+            RawStream::write(&mut self.raw, bytes)
+        }
+        fn position(&self) -> u64 {
+            self.raw.position()
+        }
+        fn size(&self) -> u64 {
+            RawStream::size(&self.raw)
+        }
+        fn seek(&mut self, position: u64) -> bool {
+            RawStream::seek(&mut self.raw, position)
+        }
+        fn close(&mut self) -> bool {
+            self.closes.fetch_add(1, Ordering::SeqCst);
+            false
+        }
+    }
+    struct Opener {
+        closes: Arc<AtomicUsize>,
+        access: Vec<u16>,
+        modules: Vec<Option<usize>>,
+    }
+    impl Opener {
+        fn record(&self) -> SerialRecord<Opened> {
+            SerialRecord::new(
+                Opened {
+                    raw: Cursor::new(vec![
+                        1, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0, 0x34, 0x12,
+                        0xcd, 0xab,
+                    ]),
+                    closes: self.closes.clone(),
+                },
+                true,
+            )
+        }
+    }
+    impl RecordOpener for Opener {
+        type Stream = Opened;
+        fn open_file(&mut self, path: &str, access: u16) -> Option<SerialRecord<Opened>> {
+            assert_eq!(path, "memory-only");
+            self.access.push(access);
+            Some(self.record())
+        }
+        fn open_bitmap(&mut self, module: Option<usize>, id: u32) -> Option<SerialRecord<Opened>> {
+            assert_eq!(id, 17);
+            self.modules.push(module);
+            Some(self.record())
+        }
+    }
+    let closes = Arc::new(AtomicUsize::new(0));
+    let mut opener = Opener {
+        closes: closes.clone(),
+        access: vec![],
+        modules: vec![],
+    };
+    let mut factory = BufferResourceFactory::new(
+        LiteralCodec,
+        || Some(Arc::new(Mutex::new(Padded::new())) as BufferHandle),
+        1,
+    );
+    factory.set_colour_type(Format::new(9, 32));
+    let output = factory
+        .load_file(&mut opener, "memory-only", Format::new(3, 16))
+        .unwrap();
+    assert_eq!(closes.load(Ordering::SeqCst), 1); // false close does not replace successful load result
+    assert!(factory.save_file(&mut opener, "memory-only", Some(output.clone())));
+    assert_eq!(closes.load(Ordering::SeqCst), 2);
+    assert!(!factory.save_file(&mut opener, "memory-only", None));
+    assert_eq!(opener.access, [1, 3]); // null buffer did not open a file
+    output.lock().unwrap().release();
+    let output = factory
+        .load_resource_id(&mut opener, None, 17, Format::new(3, 16))
+        .unwrap();
+    output.lock().unwrap().release();
+    assert!(factory
+        .load_resource_id(&mut opener, Some(99), 17, Format::new(3, 16))
+        .is_none());
+    assert_eq!(opener.modules, [None, Some(99)]); // module form uses factory target, not caller target
 }

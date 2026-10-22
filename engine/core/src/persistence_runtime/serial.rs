@@ -12,11 +12,11 @@ pub trait RawStream {
     fn close(&mut self) -> bool;
 }
 
-/// Standard portable in-memory byte/seek primitive. read_exact may update a
-/// prefix before failing; typed readers preserve those effects.
+/// Standard portable in-memory byte/seek primitive. A short read copies the
+/// available prefix and returns false; typed readers preserve those effects.
 impl RawStream for std::io::Cursor<Vec<u8>> {
     fn read(&mut self, out: &mut [u8]) -> bool {
-        std::io::Read::read_exact(self, out).is_ok()
+        std::io::Read::read(self, out).is_ok_and(|n| n == out.len())
     }
     fn write(&mut self, bytes: &[u8]) -> bool {
         std::io::Write::write_all(self, bytes).is_ok()
