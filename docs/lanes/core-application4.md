@@ -1,22 +1,117 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-application4: portable application owner | Codex / `core-application4` (engine lane) | in progress | Audit interrupted checks; one stable full gate; report published and withheld scope. |
+| core-application4: portable application spans, verification round 2 | Codex / `core-application4` (engine lane, reserved detached HEAD) | ready for bounded portable scope: Rust 5064 passed/0 failed/0 ignored (21 result lines), application 25/25, fmt 5/5, clippy clean, CMake build passed, CTest 68/68; ABI unchanged; no game requests; AP6-AP9 retained | (1) Land the reserved lane tip. (2) Resolve AP3-AP9 and independently assigned owners before claiming application integration or replacement coverage. |
 
-## Handoff
-- Goal: implement published portable non-region application algorithms; keep AP3-AP5, section 12 and region/city ownership explicitly incomplete.
-- Worktree: reserved detached HEAD; commit normally, do not update refs.
-- Done: confirmed worktree is clean; no commits ahead of main. Bash q.py unavailable (E_ACCESSDENIED); use capped PowerShell and qbuild directly.
-- Done: first substantive source implements published spans; missing owner methods are blocking boundaries, never host final-output callbacks. Added initial discriminating tests and AP6-AP9 questions.
-- Done: source milestone `2ddc32c8` (before call 30). Initial baseline Rust 5039 passed/0 failed/0 ignored (21 suites), clippy clean; CTest 67/68 because editing overlapped its cargo check (missing module during creation); final gate must run on stable source.
-- Done: source/test/method-map milestone `71c3daa9`. First quick core test 3016 passed/0 failed; dependent compile and CMake subsequently passed. Expanded to 25 application tests with literal expected operation traces and failure/ownership/timer/command cases. Removed rustfmt stdout's warning/path prologue accidentally captured during formatting; all five new Rust files now pass qbuild fmt. Shared lib.rs fmt reports existing unsorted module declarations; deliberately no mass reformat.
-- Done: cleanup/format milestone `a7d4967c`; Rust has remained unchanged since that commit. Source review confirms no assigned region/city algorithm and no C ABI change. README records v1 quit-request arguments (false, false).
-- Done: passing application-test milestone `87b88c1a`: all 25 application tests individually passed. Final all has passed CAPI 532/0 (157.20 s) and subsequent suites 3/0, 1/0, 31/0, 27/0, 40/0. Full aggregate, clippy, CMake/CTest still pending; baseline logs must not be mistaken for final results.
-- Round 1 guard handoff: `35a8ef64`; no queue. Old exec session 6992 is not liveness evidence. All three recorded wrapper PIDs 21192/27000/21876 are absent on round 2 inspection; lane qbuild descendant inspection returns none. CIM process access denied; ctypes process metadata is available.
-- Old all log ends during automata_records (only one of two tests reported); old clippy/CTest are baseline. Earlier overlapping quicks left NUL/stale errors. These artifacts cannot establish a final gate and will be preserved under build-runs/application-r2-interrupted.
-- Round 2 audit: no attributable live wrapper/orphan/delegated process. Preserved actual old logs and audit.txt in build-runs/application-r2-interrupted; old all interrupted, old clippy/CTest stale baseline. Milestone `bd924120`.
-- First durable supervisor PID 26040 finished fmt preparation only: relative engine/... paths were not found by qbuild's fmt working directory. No all was invoked. Evidence build-runs/application-r2-final/result.json confirms unchanged tracked engine bytes and fmt_exit=1; no Rust formatting diagnostic was produced.
-- Round 2 gate in progress: durable supervisor PID 26328 started 22:09:39 BST; sole qbuild all PID 36964. Live descendant chain independently observed during automata_records; no quicks or other lane checks. Gate source head `e0f9fb19`, tracked engine initially clean; source.json records engine tree and per-file SHA256 values. Do not resubmit based on old exec session state.
-- New fmt passed for all five application Rust files (exit 0; only canonicalize-path environment warning). Current Rust workspace stage finished: 21 result lines, 5064 passed/0 failed/0 ignored; all 25 application tests passed; 0 NUL bytes. Clippy --workspace --all-targets -- -D warnings finished cleanly in 10m23s. Fresh CMake configure and release/native build passed; full CTest observed live 22:40:59 BST with CTest PID 21668 and Cargo child 11524 running the CAPI test executable. No stranded delegated compiler/cache process. Full CTest still pending, not ready.
-- Next: collect sole stable gate via build-runs/application-r2-gate/complete.verdict; latest qwait collector shell session 48515 will parse on completion within its window (started about 22:39 BST). Earlier wait windows timed out, not the gate. Sessions are not liveness proof. Parser saves raw final logs and summary.json, checks all result lines/freshness/68 CTests/source hashes. No duplicate build was submitted. Do not overlap or edit source during gate. Scope/provenance-report draft: build-runs/application-r2-report-scope.md.
-- No game requests; source-only task forbids cosmetic game runs.
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-application4-r2-manifest.json`.
+## Verification and source correspondence
+
+Resumed `35a8ef64`. Round 2 made no production source corrections: the published
+contract audit and actual checks found none necessary. Production Rust remains
+as committed in `a7d4967c`; the per-method README last changed in `6269658c`.
+Earlier implementation/test milestones are `2ddc32c8` and `71c3daa9`.
+
+Exactly one new full `qbuild all` ran, with no overlapping baseline/quick/all
+and no engine edits. Its supervisor recorded source head
+`e0f9fb1973e6e617a7a2fef058eeccc15572890c`, engine tree
+`17997eb8d4b21bceaed53cbe89cf070c4fa31b77`, and identical before/after SHA256
+maps for tracked engine files. It ran 22:09:39-22:48:25 BST on 2026-10-22;
+fmt and all exited 0. The final checked HEAD was `6fc7141f`.
+
+Measured final results:
+
+- Formatting: all five application Rust files passed. No mass reformat of the
+  existing shared module list was made.
+- Workspace Rust: all 21 result lines parsed with suite attribution;
+  **5064 passed, 0 failed, 0 ignored, 0 measured, 0 filtered**. All **25 application
+  tests passed**. ANSI escapes were stripped for parsing; raw logs were retained.
+- Clippy: `--workspace --all-targets -- -D warnings`, exit 0, zero diagnostics;
+  finished in 10m23s.
+- CMake: fresh configure and release/native build passed, 4/4 edges, 788.2s.
+  Generated ABI entries remained unchanged (185 interfaces).
+- Full CTest: **68/68 passed**, 0 failed, 459.60s. Its Cargo workspace test is
+  included among those 68 cases and is not added to the separate Rust total.
+- Every required final log is fresh, with zero parsed diagnostics and zero NUL
+  bytes. Canonicalize-path environment warnings remain visible in the raw logs.
+
+`fc4verify` reports "the tree changed during the run" because milestone lane
+documentation commits advanced HEAD. No engine source changed: the supervisor's
+before/after file hashes agree, and `git diff e0f9fb19 HEAD -- engine` is empty.
+Subsequent report commits likewise change documentation only. This establishes
+the correspondence between checked source and the landing tip.
+
+Raw final logs, every parsed Rust result and CTest case, log hashes/freshness,
+and all readiness predicates are retained in
+`build-runs/application-r2-gate/{source.json,result.json,summary.json}` and the
+copied qbuild/fc4verify logs there. `summary.json` reports all checks true and
+`ready: true`. The ordinary step logs also remain in `build-runs/`.
+
+## Earlier artifacts and supervision
+
+Before submitting the full gate, process metadata inspection found no live
+wrapper, orphan or delegated compiler attributable to this worktree. Recorded
+old PIDs 21192/27000/21876 were absent; old session 6992 was not treated as proof
+of liveness. Actual old logs and audit metadata were preserved under
+`build-runs/application-r2-interrupted` before the wrapper replaced step logs.
+
+The old all stopped mid-automata_records. Old clippy/CTest were baseline logs;
+that baseline had Rust 5039/0 and CTest 67/68 after source editing overlapped its
+Cargo check. Earlier overlapping quicks contained NUL/stale errors. None of
+those artifacts supplies final source evidence or final counts above.
+
+The first round-2 supervisor stopped at a fmt input-path error before invoking
+all. Its unchanged-source result is retained separately under
+`build-runs/application-r2-final`; absolute fmt inputs corrected the invocation.
+The real full gate was supervised by `verify-application-r2.py` (supervisor
+26328, qbuild 36964). Process metadata also attributed native/cache work and the
+live full CTest; it advanced normally. Wait-window timeouts did not fail or
+restart the gate. Audit, Rust, clippy and native-build milestones were committed
+as `bd924120`, `162a99d1`, `94f02603` and `6fc7141f` respectively.
+
+## Published implementation and withheld scope
+
+`engine/core/src/application/README.md` retains the per-method map for the
+primary vtable, cISC4App slot groups and published sections 1-10. Implemented
+portable spans include service/director ordering and temporary-reference
+discipline, lifecycle ordering around missing owners, both distinct Init
+failures, message routing, focus pause, strict idle timers, command option
+effects, resolution rules, and byte-path/lazy-directory behavior.
+
+The 25 tests assert literal operation traces, failure stops, created versus
+borrowed references, timer edges, parser effects and persistent owner blocking.
+Tests acknowledge boundaries only to inspect subsequent published spans.
+Acknowledgment does not implement a missing body. Host supplies primitive
+operations, never a fabricated final result for an app-owned method. The v1
+quit-request boundary still means RequestQuit(false, false).
+
+All 26 unsupported continuations remain explicit:
+
+- Startup: BuildVersion, ResolveUserDataDirectory, RestartWait,
+  FindAndPossiblyFixIniFiles, CursorAndOsSettings, PluginDateChecks,
+  AddCodePlugins, OpenLogs, FindAndRegisterLanguages, PreferencesChanged.
+- Init/post-init: DriverConfiguration, SetupResources, LanguageManagerHookup,
+  RenderPropertyVector, SlOnAppInit1, InitAlphaSystem, FindTestScript.
+- Persistence/shutdown/quit: SavePreferences, ShutdownMessageServer1,
+  ShutdownHelperOrder, QuitService, CloseCity, RequestQuit, CityObliteration.
+- Validation: ResolutionAcceptance and UserDirectoryAcceptance; neither commits
+  guessed preference/path acceptance.
+
+AP3 aliases/flag, AP4 interface/primary-method identity and AP5 restart,
+configuration, shutdown and quit-service gaps remain. AP6-AP9 remain filed in
+`docs/specs/questions/application.md`: startup/failure/freeing, path append,
+numeric/parser/validation and cheat ambiguities. No new question was filed in
+round 2, and none is declared answered.
+
+Section 12 remains withheld: resource/font/window setup, code plugins and
+dynamic libraries, preferences read/save/change bodies, DB callbacks,
+LoadRegistry, city save-path/scoped-object/unknown slots, residual app inventory,
+and cWinSC4App, COM-director bodies, cSC4Preferences, cSC4GameDataRegistry and
+cSC4AutoGamePause. Section 11 request/load/save/new-city/close/obliteration and
+all assigned region/new-region/import/establish/city-transition owners remain
+excluded. A passing portable gate does not implement those owners or establish
+native integration, native getter synchronization or default/replacement
+application coverage.
+
+No ABI, native/plugin, tools, maps or default changes were made by this round.
+No game request or real user/game file change was made; game verdict, shadow and
+reference-warning evidence are n/a for this unbound portable module. The next
+step is to land this bounded portable work, keeping those owners and questions
+separate. No additional family round is needed for this verification task.
