@@ -1,0 +1,7 @@
+{
+  "format": 1,
+  "name": "overlay_views_network_limit",
+  "spec": ["network-overlay-views.md §1", "network-overlay-views.md §6.2"],
+  "description": "A 40-point path submits a 25-point line strip.",
+  "steps": [{"op": "ov_path_info", "key": 33554432, "count": 40, "expect": [25, [0, 0, 255, 200]]}]
+}

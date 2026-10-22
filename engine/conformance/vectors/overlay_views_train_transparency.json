@@ -1,0 +1,8 @@
+{
+  "format": 1,
+  "name": "overlay_views_train_transparency",
+  "spec": ["network-overlay-views.md §2", "network-overlay-views.md §6.4"],
+  "description": "Distant junctions use 0.5 and train current/target junctions use 0.8.",
+  "steps": [{"op": "ov_train_alpha", "near": false, "expect": 0.5},
+    {"op": "ov_train_alpha", "near": true, "expect": 0.8}]
+}

@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "name": "overlay_views_train_choice",
+  "spec": ["network-overlay-views.md §2", "network-overlay-views.md §6.3"],
+  "description": "Literal cross-product sign selects the documented plain/selected pair.",
+  "steps": [{"op": "ov_train_arrow", "points": [[4, 7, 5], [4, 7, 1]], "entry": [1, 0], "selected": false, "expect": 1809881377},
+    {"op": "ov_train_arrow", "points": [[4, 7, 5], [4, 7, 1]], "entry": [1, 0], "selected": true, "expect": 1809881378},
+    {"op": "ov_train_arrow", "points": [[4, 7, 5], [8, 7, 5]], "entry": [1, 0], "selected": false, "expect": 1809881381},
+    {"op": "ov_train_arrow", "points": [[4, 7, 5], [8, 7, 5]], "entry": [1, 0], "selected": true, "expect": 1809881382}]
+}

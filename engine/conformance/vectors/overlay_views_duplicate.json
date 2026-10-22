@@ -1,0 +1,7 @@
+{
+  "format": 1,
+  "name": "overlay_views_duplicate",
+  "spec": ["overlay-views.md §1", "overlay-views.md §7.3"],
+  "description": "One millimetre x-z movement is suppressed even when height differs.",
+  "steps": [{"op": "ov_duplicate", "points": [[3, 7, 5], [3.001, 100, 5], [3.01, 7, 5]], "expect": [true, false, true]}]
+}

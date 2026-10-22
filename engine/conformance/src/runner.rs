@@ -1269,6 +1269,7 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
             .or_else(|| crate::dates::exec(host, other, op))
             .or_else(|| crate::paths::exec(host, other, op))
             .or_else(|| crate::feature_manager::exec(host, other, op))
+            .or_else(|| crate::overlay_views::exec(host, other, op))
             .unwrap_or_else(|| Err(format!("unknown op '{other}'"))),
 }}
 

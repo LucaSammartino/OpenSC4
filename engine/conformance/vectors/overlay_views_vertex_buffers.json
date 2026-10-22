@@ -1,0 +1,7 @@
+{
+  "format": 1,
+  "name": "overlay_views_vertex_buffers",
+  "spec": ["overlay-views.md §3", "overlay-views.md §7.5"],
+  "description": "Bool 25 off prevents even querying the driver for a vertex buffer.",
+  "steps": [{"op": "ov_vb_disabled", "expect": 0}]
+}
