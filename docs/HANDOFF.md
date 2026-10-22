@@ -6,6 +6,8 @@ lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
 ## 0. Current state (2026-10-21, run4 open-ended)
+**Coordinator parked re-wingrid4:** 3/3:165/198 functions26103/32735B documented;33functions6632B plusWG3/WG4 remain. No fourth round.
+
 
 **train59 landed 882cfb7380:** Six-lane engine batch full65-test clean gate and current38+citydetail regression PASS2032/ref0. Complete RZOStream/NullOStream cores credited (18functions610B); timer/otherstream/budget/powerline/model whole-owner credit withheld for declared gaps. Citydetail lifecycle verified but default withheld pending actual lotcfg preference host fix. Powerline NO21 collision renamedNO24; native model NO21-23 preserved. Span565 conflicts excluded, separately reconciled with6CAPItestsPASS. Construction actual2/3 eligible afterOP13-16 answers, finalthirdround queued; prior landed occprops setup not doublecounted. Coverage45.4/34.5/16.4/17.8; rounds188 (open-ended).
 
