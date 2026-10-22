@@ -15,7 +15,10 @@
 - Shadow-OFF control39 sgv4-r1-control39-off-20261022b CLEAN 2032-01-01/ref0; full SaveCity control executed. Failed ON run retained, not excused by control.
 - Fixture now establishes Init+SetTractSize before first capture; SG2 parks constructor/pre-init Write contract (no causal assertion about exception). SG1 unchanged.
 - Final code f5902bb7: quick PASS529; stable all cargo4940/clippy0/buildPASS/ctest68. New frozen DLL build-runs/dll-sgv4-r2 SHA256 CAD1864980992DAA5F352043EF456F3B25EC9D0323027DA9FF19E3381C5E8AFB.
-- Native retry sgv4-r1-native39-20261022c queued/outstanding; qwait/script session86153. Script then preserves native save and submits current40-reload-20261022c, then native39-roundtrip-20261022c only if clean. At most one request outstanding. Inspect final counts including refusals/failures and all differences; file questions, no exact credit from bootstrap/digests.
+- Native39 c CLEAN2032/ref0; ten formats each60/60=600/600 constructed checks, 0 differences/refusals/failures, 10 finalRelease0. ZERO natural calls: no natural credit. Power does not exercise shared adapter in this trace; weather mirror also bypasses it. Natural scope corrected to power+pollution (published adapter tag).
+- Native c full save preserved main build-runs/fixtures/sgv4-r1-native39-20261022c.sc4 SHA256 F03DA3420CD8FABE50BD887890310D2D5577E5C5C109F76E3906EF84E255FB7A.
+- Current40-reload c CLEAN2033/ref0 and full save; script stopped on ambiguous source-save filename (two matches). No native roundtrip c request was submitted. Exact source is slot1/Regions/FC4 Test/City - Konradshohe.sc4, subject to slot reuse; do not claim preserved unless copied/hashed.
+- Next: focused+stable full gate committed power/pollution scope; new immutable DLL and labels; natural source same preserved native save. Complete native/current40/native saved roundtrip and capture complete natural totals. No request outstanding.
 - Natural domain is all power-owner grid adapter calls; other owners outside scope. Native allocation failure and replacement-factory refusal cannot count as equality.
 - No game request outstanding; no questions filed. SG1 boundaries unchanged.
 - Only published contracts, public SDK and implementation may be read. No RE, tools, subagents or default changes.
