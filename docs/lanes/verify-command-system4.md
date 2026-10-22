@@ -13,8 +13,9 @@
 - Game reached 2032-01-01, ref_warnings=0, full save succeeded (10860 ms), full shutdown reached. Harness verdict stalled because save caused watchdog_stalls=1; do not call clean. Completed verdict retained.
 - Final source `5eb61637`: focused quick PASS (530 capi tests), full gate PASS (4961 Rust tests, clippy clean, ctest 68/68 in 99.3 s). Aggregate counters added without changing semantics.
 - Frozen DLL SHA256 `1F8594269BE9926AB1EA047D721195B6D5C03819B6D2A99194C0D7DB4B5A16D2`; old label-a DLL hash `B633D033A3778553DC6F6AC253466FE3FDB58BA31B4A997B4146EE9A8D285375` retained in completed verdict.
-- Outstanding: native label `commands4-native-r1-e50c5bbc-b` (request sent). Exec session 73044 waits, then queues own/default and supported fixture reload sequentially. At most one request is outstanding. Save is now 2026-03-01; old stalled verdict retained.
-- Next: collect label-b native/default/reload verdicts and aggregate differences; finish WIP report unless canonical current40 is supplied. No semantic correction is authorized by this verification task.
+- Label-b native: stalled at early full save (2026-03-01), ref0. Label-b own/default: clean through 2032-01-03, watchdog0/ref0; full save succeeded in 11109 ms; shutdown completed. Both measured 7414 / 7243 exact / 171 element-count differences / 0 other differences / 0 refusals. All 171 differences covered by GC8.
+- Exec session 73044 completed. No outstanding request; reload was skipped because native fixture was not retained from a failed run. Next retain successful own/default save from its logged slot path, validate timestamp, then supported fixture reload with the same frozen DLL.
+- Current40 still unavailable; finish WIP unless canonical profile is supplied. No command/core semantics changed.
 - Canonical current40 profile is not in the permitted named files; do not mislabel the two default-on keys as current40.
 - Formatting caveat: wrapper requires absolute file paths; checking lib.rs recursively reports pre-existing child-module formatting. No mass reformat performed.
 - No game request outstanding. Core receives only raw literals, never native computed values; no registrations or executions.
