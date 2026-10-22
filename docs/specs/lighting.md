@@ -42,6 +42,28 @@ use the rounding of §4.7.
 
 ### 1.2 State (0x1D8 bytes)
 
+**Constructor boundary (LT5):** the reference count starts at **0**, not 1 (`0x007DA0BE`). Each successful
+QueryInterface stores the requested interface and calls primary slot 1 once, including the `+4` message
+interface; an unsupported IID returns false without overwriting the output (`0x007D65E0–0x007D6642`).
+The adjustment thunks subtract four from the incoming message-interface pointer before forwarding.
+
+At construction, current global/day light and tint colour are white; last-announced global/day light,
+fill/key/shadow directions, scaled light, view rotation, all six cached axis colours, fade origin/gradient
+and fade colour are **zero**. Day fraction is 1 and night fraction 0. The unrotated sun starts at
+**(1, −1, −1)**, not a normalized direction. Time is 12, month 0, minimum red 0, tint amount 0, tint disabled,
+shadows disabled, view-applied and initialized flags clear. Vector headers for the three key lists and
+the two terrain grids are empty. Evidence: constructor `0x007DA0A0–0x007DA3D1`, zero data
+`0x00B4E334–0x00B4E340`, white data `0x00B0DCA4–0x00B0DCAC`.
+
+This is **not** a zero-fill constructor. In particular, it does not write map pointers `+0xCC/+0xD0`,
+city dimensions/cell widths `+0x12C…+0x148`, dirty/sweep rectangle coordinates, or grid strides. Their
+pre-initialization contents are not a native default. The normal map-loading Init path assigns all four
+map pointers; the test-pattern path assigns only `+0xC4/+0xC8`. City-start establishes the geometry.
+DoZoomAndRotationChange computes the fade formula *before* checking for terrain (`0x007DB840–0x007DBA60`):
+before geometry exists it consumes those unset dimensions. Consequently no universal zero-gradient
+result is specified for that call. A portable safety policy may initialize these fields, but must not
+claim that policy as an observed constructor result.
+
 | Offset | Field |
 |---|---|
 | `+0x08` | initialised (Init done) |
@@ -88,7 +110,7 @@ use the rounding of §4.7.
 2. Load the exemplar `0x6534284A / 0xA9189CF0 / 0x00000001` into `+0x10`; `ReadProperties` (§1.4).
 3. Unless the test-pattern property is true: load the four colour maps (§1.5); when the `+0xCC` map exists,
    `+0xD4` := its minimum red byte ÷ 255 (1.0 for an empty map; `cImageARGB8::FindMinRedComponentValue`
-   `0x007D6870`). With the test pattern: `+0xC4` and `+0xC8` get the 64×64 test pattern (§1.5), the others stay null.
+   `0x007D6870`). With the test pattern: `+0xC4` and `+0xC8` get the 64×64 test pattern (§1.5); the other two pointers are not assigned.
 4. Subscribe to `0xC53D10AA`, `0xC9F775BB`, `0x2B96B3EA`, `0xA6B79601`, `0xEA3B0AF1`, `0x6A3B0AFD`, `0x278E6003`
    (§6), in that order; initialised := true.
 
@@ -98,6 +120,25 @@ frees the four maps and clears initialised. The deleting destructor (slot 29, `0
 when bit 0 of its argument is set.
 
 ### 1.4 Properties (`ReadProperties`, `0x007DA7E0`) *[compat]*
+
+**Initial shared configuration (LT5):** before any exemplar read, the original image seeds the following
+values. These are shared across instances; construction and Shutdown do not restore them. Missing-property
+retention therefore refers to the previous shared value, not necessarily to the shipped exemplar.
+Float decimals in this table mean their binary32 encodings. Property-to-storage bindings are in
+`0x007DA7F3–0x007DA9F2`; initial data is `0x00B0DC50–0x00B0DC98`, `0x00B0DCBC–0x00B0DCDC` and
+zero-initialized `0x00B4E32C–0x00B4E354`.
+
+| Properties | Initial value |
+|---|---|
+| `29189BEB`, `29189BEC`, `29189BED`, `29189BEF` | 0.1, true, false, false |
+| `29189BEE`, `29189BF1`, `29189BF2`, `29189BF3` | 0.6 each |
+| `29189BF0`, `09B6D6AE` | (1,1,1) each |
+| `29189BF4`, `29189BF5` | (0,0.5,1), 0.5 |
+| `29189BF6`, `29189BF7` | 0.0001, 0.8 |
+| `085489C8`, `085489C9`, `085489CA` | `0x0917660E`, (0,0), 8 |
+| `085489CB`, `085489CC`, `085489CD` | (0,0,0), 0.5, 0 |
+| `085489CE`, `085489CF`, `085489D0` | 90, 45, 1 |
+| `085489D1`, `085489D2`, `085489D3` | 0.7, 50, 0.6 |
 
 Read from the exemplar into statics, every time it runs (also on `0xC53D10AA`). A missing property keeps the
 static's previous value. The shipped values are those of the exemplar in `SimCity_1.dat`; "—" marks a property the
@@ -141,6 +182,13 @@ Then:
 
 ### 1.5 Colour maps *[compat]*
 
+**Storage boundary (LT7):** `FindMinRedComponentValue` scans every 32-bit element from vector begin to
+vector end, irrespective of width, height or stride. Padding elements inside that range participate; spare
+capacity after end does not. The empty-vector accumulator is 255. The result is the minimum byte multiplied
+by the binary32 constant `0x3B808081` (approximately 0.003921568859368563), using x87 arithmetic; Init stores
+the result as binary32. Thus the empty result at the Init storage boundary is 1.0. Evidence:
+`0x007D6871–0x007D689E`, constant `0x00A90BBC`. This supersedes an active-width-only scan.
+
 Each map is a `cImageARGB8` (0x18 bytes: a vector of 32-bit pixels, width, height, row stride). `CreateColorMap`
 (`0x007DB4D0`) loads the image of group `0xA9179251` and the given instance through `cSLBuffer` (`0x00602B70`, type
 0 and format 9) and copies it pixel by pixel (`0x007DB450`); a missing image leaves the map null. A pixel's red,
@@ -154,6 +202,32 @@ green and blue are bits 16–23, 8–15 and 0–7, each ÷ 255.
 | `+0xD0` | `0x0917660F` | 32×32 | fade colour over time × month (§2.1) |
 
 The shipped images are PNGs (type `0x856DDBAC`) in `SimCity_1.dat`.
+
+**Failure and lifetime boundary (LT7):** a false buffer Load result assigns that map pointer null and
+destroys the temporary buffer. Init continues with subsequent maps, performs subscriptions when a message
+server exists, sets initialized and returns true. It does not return false because an image is missing;
+false is the already-initialized path. Image copying sets width, height and stride (= width), resizes to
+width×height pixels and obtains each pixel from image slot 21; the lighting helper has no per-pixel failure
+test or rollback path (`0x007DB450–0x007DB4CD`, `0x007DB4D0–0x007DB565`, `0x007DB6A0–0x007DB838`). An
+allocation failure or foreign decoder exception has no lighting-level recovery contract; it is not a
+second, normal false-return path. Do not invent transactional cleanup or a successful retry after such an
+interruption.
+
+Shutdown is the explicit cleanup protocol: unsubscribe when the message server exists, release exemplar
+and general terrain, destroy all four map allocations, null their pointers, and clear initialized and
+view-applied. It retains the city-terrain reference, key lists, terrain grids, shared properties and
+lighting values. A second Shutdown returns false. The destructor frees the key/grid vectors and releases
+city terrain, general terrain and exemplar, but **does not call Shutdown, unsubscribe or free maps**.
+Deleting destruction alone is not equivalent to the Shutdown-then-Release protocol.
+
+SampleRowLerp computes linear addresses `begin + 4×(stride×row + column)` without bounds tests, including
+both horizontal sample addresses even when their interpolation weight is zero. Row spill is ordinary
+linear addressing when storage exists. Beyond allocated storage there is no defined colour/error result
+from this owner. Similarly, GetModelColor tests the *surface* map pointer to enter its map path, then
+dereferences the model map using coordinates bounded by the surface dimensions: it does not test model
+presence/length. Absent or too-short model storage has no native fallback/error contract. Portable checked
+errors are safety policies for these invalid reads, not observed native outcomes (`0x007D6690–0x007D6861`,
+`0x007D83C0–0x007D854E`).
 
 The **test pattern** (`MakeTestPattern`, `0x007DB570`) is 64×64: opaque, red 255 where x > 32, green 255 where
 y > 32, blue 0 (so the dark half is 33 pixels wide) *[quirk]*.
@@ -180,6 +254,13 @@ lerped toward the pixel (x1, y) by x − x0. There is no clamp: for u above (W �
 the next row *[quirk]* (between 23:15 and midnight on the shipped 32-wide maps).
 
 ### 2.2 `SetTimeOfDay(t)` (slot 6, `0x007D9DF0`)
+
+**Distance and precision (LT6):** subtract the current RGB components from the last-announced components,
+square them, sum in the order blue squared plus green squared, then red squared, and take the square root.
+All operands are binary32 fields, but these intermediate operations stay on the x87 stack without a
+binary32 store. Compare that length directly with the binary32 threshold: only an ordered, strictly greater
+length proceeds. Equality and unordered comparisons return false. There is no squared-threshold shortcut.
+Evidence: `0x007D9E21–0x007D9E68` (including the square root at `0x007D9E55`).
 
 1. If t is below the current time (the day wrapped), month := slot 15 of the city object at global `0x00B43DAC` (city
    slot 70) − 1 *[inferred: the month 1–12]*.
@@ -323,6 +404,18 @@ stored row and X rows (the city grids are square):
 
 The whole grid is swept on every call.
 
+**Dimensions and zero horizontal direction (LT8):** the sweep always allocates the running vector to
+vertex-count Z (`+0x138`), takes exactly vertex-count X (`+0x134`) rows, and advances each physical row by Z
+floats. These counts are not exchanged for rotations 1 or 3. Rectangular inputs follow that same flat
+X-by-Z scan; do not substitute a rotation-dependent rectangular traversal. Terrain copying uses §3's
+strides independently. Evidence: `0x007DAEBF–0x007DAF32` and the row advance at the end of the sweep.
+
+The drift is computed as **(−1 / sx) × sz**, then stored binary32; drop is
+**((cellWidth / sx) × sy) × slopeFactor**, also stored binary32 (`0x007DAF5F–0x007DAF85`). With the ordinary
+masked floating-point exceptions and sx = 0, drift is infinite or NaN and fails the ordered [−1,1] tests;
+the sweep rectangle is retained. No special sx = 0 reset or rectangular-city rejection occurs. For an
+executed sweep with no differences, the rectangle is **(−1, −1, 0, 0)**, not four −1 values.
+
 ### 5.3 Depth and the bent normal
 
 - `ShadowDepth(p)` (`0x007D6950`) := shadow height at (p.x, p.z) − p.y; positive means p is in a hill shadow.
@@ -340,6 +433,15 @@ s := 1 − `0x085489D3` × night fraction, × (1 − d / 50) when d > 0.
 (x, z) is clamped to [0, W − ε] × [0, D − ε] (ε the double at `0x00AA2270`), then terrain slot 27 (a normal read,
 terrain.md §15.1).
 
+**Upper endpoint precision (LT8):** ε is binary64 **0.001**, verified from the original image's data at
+`0x00AA2270`. Subtract it from the binary32 extent in x87 precision. Compare the incoming binary32 coordinate
+against that unrounded upper bound; only when the coordinate is greater, store the bound back to the
+binary32 argument before forwarding it to terrain slot 27. Negative coordinates become positive zero.
+There is no conversion to a cell index in this helper. For W = 1024 and x = 1024 the forwarded x is
+**1023.9990234375**; x = 1023.9990234375 itself also compares above the extended-precision bound but stores
+the same value. Evidence: `0x007D8340–0x007D83BA` (double subtraction at `0x007D8346`/`0x007D836D`,
+binary32 replacement at `0x007D83A3`/`0x007D83B6`).
+
 ### 5.6 Shadow parameters and projections
 
 - `GetShadowParams(a&, b&, colour&)` (slot 14, `0x007D6B70`): `0x085489CC`, `0x085489CD`, `0x085489CB`.
@@ -347,14 +449,245 @@ terrain.md §15.1).
   `0x085489C8`, `0x085489CC`, `0x085489CD`, `0x085489CA`, `0x085489C9`, `0x085489CB`, each then overridden by the
   given property holder when it has them, so a model exemplar can change its own decal shadow.
 - `CalcShadowTerrainRect(…, box, outRect)` (slot 18, `0x007D6CC0`): the cell rectangle ⌊min / 16⌋ … ⌈max / 16⌉ of the
-  box's x and z, clipped to the city, then extended cell by cell in the shadow direction while a ray from the box top
-  (falling by the shadow direction's slope per cell) stays above the terrain heights; always true *[inferred: the
-  cells a shadow cast from the box can reach]*.
-- `CalcShadowProjection(points, uvs, count, xform, inout)` (slot 17, `0x007D8C80`): fits, by least squares, the
+  box's x and z, intersected with the city and then extended by the ordered edge probes in §5.7; always true.
+- `CalcShadowProjection(count, points, uvs, xform, out)` (slot 17, `0x007D8C80`): fits, by least squares, the
   texture coordinates of the points as an affine function of their position in a plane perpendicular to the shadow
   direction (expressed in the model's frame, `0x0080B9F0` building the plane basis), and writes the resulting texture
-  matrix, composed with the transform, into `inout`; false when the 3×3 normal-equation determinant is below 0.01
-  *[inferred: the exact composition with the transform's flags]*.
+  matrix into `out`. The complete direction, mixed-precision fit, inverse-transform composition and output layout
+  are specified in §5.8; false on the signed determinant test there. The flag byte gates composition as a whole.
+
+### 5.7 Exact terrain rectangle extension (LT11)
+
+Slot 18 takes **(unused word, unused word, box, outRect)**. The box is six binary32 values
+(minX,minY,minZ,maxX,maxY,maxZ); minY is unused. The first two arguments are never read. Output is four
+signed integers (minXcell,minZcell,maxXcell,maxZcell), with inclusive vertex-index endpoints, and the normal
+return is always true. The method reads the **view-rotated** direction `+0x64`, not the unrotated sun or
+the slope-factor-adjusted hill-shadow direction.
+
+First obtain floor(minX/cellWidth), floor(minZ/cellWidth), ceil(maxX/cellWidth), ceil(maxZ/cellWidth), using
+the stored inverse cell width for multiplication. For the finite city-scale domain the native rounding
+sequence uses binary32 storage of `(q − 0.5) + 12582912` for floor, or `(q + 0.5) + 12582912` for ceil,
+then integer bit-pattern subtraction by `0x4B400000`, with an exact-integer correction (+1 for floor,
+−1 for ceil). This is not truncation toward zero. Intersect inclusively with [0,cellCountX] ×
+[0,cellCountZ]. A disjoint intersection sets all four bounds to zero; its false result is ignored, and
+extension still proceeds. The inclusive intersection helper is `0x0048ED90–0x0048EE0A`; the call and
+rounding are `0x007D6CC0–0x007D6E06`.
+
+Let the current bounds be L,T,R,B, direction (dx,dy,dz), cell width C, and binary32 slopes
+px = dy/dx, pz = dy/dz. The two divisions occur unconditionally (`0x007D6E0B–0x007D6E24`), including zero
+components. An X extension starts at height **maxY + (edge×C − corresponding box X face)×px**;
+a Z extension starts at **maxY + (edge×C − corresponding box Z face)×pz**. Use the max box face for
+increasing extensions and the min face for decreasing ones. Heights accumulate in x87 arithmetic; slopes
+are stored binary32. Read the terrain-height grid, not the hill-shadow grid, at the current world-index
+pair using §3's strides and base. There is no bilinear sample, fractional cross-axis drift, or edge-wide
+ray sweep.
+
+The following table is the complete ordered sequence. A two-probe extension keeps the height and moving
+edge reached by the first probe; it does **not** restart at the original face for the second probe.
+The last extension initializes its own height from its box face using the then-current edge index.
+
+| Direction signs | First extension: probes in order | Last extension: probe |
+|---|---|---|
+| dx > 0, dz ≤ 0 | increase R at z=B, then z=T | decrease T at x=R |
+| dx > 0, dz > 0 | increase B at x=L, then x=R | increase R at z=B |
+| dx ≤ 0, dz ≤ 0 | decrease T at x=R, then x=L | decrease L at z=T |
+| dx ≤ 0, dz > 0 | decrease L at z=T, then z=B | increase B at x=L |
+
+For each probe, while the moving edge is inside its extension limit (R < cellCountX, B < cellCountZ,
+L > 0, or T > 0), compare its current height with that grid vertex. Only **ordered height > terrain**
+advances the edge by one. Add C×slope on increasing steps and subtract it on decreasing steps. Equality
+or NaN stops the probe; reaching the city limit stops without sampling that boundary vertex. The stopped
+vertex remains an output endpoint. Thus the output can include the first unshadowed vertex. The second
+probe, when present, can continue after the first probe hits high ground. No clipping/expansion follows
+extension, and untouched edges retain the initially intersected values. Evidence for the four branches:
+`0x007D6E25–0x007D7147`, `0x007D7170–0x007D72BC`, `0x007D72BD–0x007D73D4`; common final output stores at
+`0x007D7149–0x007D7168`.
+
+### 5.8 Exact shadow projection (LT10)
+
+The actual slot-17 argument order is **(unsigned count, points, uvs, transform, out)**, correcting the
+earlier points-first summary. Points are contiguous three-binary32 vectors (12-byte stride); UVs are
+contiguous two-binary32 vectors (8-byte stride). The transform and output are **separate pointers**.
+Transform fields read are a flag byte at byte offset 1, nine binary32 matrix entries at offsets 4…36,
+three translation entries at 40…48 and a scale at 52. Output is sixteen binary32 entries (64 bytes).
+Evidence: transform reads `0x007D8C87–0x007D8D05`; count/array accesses `0x007D8F26–0x007D90F3`, and output
+stores `0x007D96A1–0x007D9801`. The mathematical convention is defined below; do not treat the transform's
+first word as a matrix component or require transform and output to alias.
+
+The attributed basis helper accepts direction d and writes three consecutive three-float rows. With
+nonzero horizontal length h = sqrt(dx²+dz²), row 0 is (dz/h,0,−dx/h), row 1 is d cross row 0, row 2 is d.
+It does **not** normalize d or row 1. The length/reciprocal use x87 arithmetic; row 0 is stored binary32
+before the cross product, whose components are also stored binary32. For a vertical direction, including
+the zero vector, rows 0 and 1 are fixed **(0,0,1)** and **(1,0,0)**, independent of dy; row 2 still copies d.
+Evidence: `0x0080B9F0–0x0080BAC6`. Thus the vertical fallback is not a general cross-product construction.
+
+The determinant check is **signed**, with no absolute value. The assembled determinant remains on the
+x87 stack and is compared directly with binary64 **0.01** at `0x00A92688`. An *ordered* value below that
+constant returns false, before any output store; equality proceeds. The instruction branch also lets an
+unordered (NaN) determinant proceed into reciprocal/composition, rather than returning false. The false
+path leaves all 64 output bytes untouched. Count zero supplies a zero normal-equation matrix and takes
+this false path, after reading the transform and obtaining/building the direction basis; it does not read
+the point/UV arrays (`0x007D91CC–0x007D9205`, count skip `0x007D8F33–0x007D8F35`).
+
+#### 5.8.1 Model-frame direction (LT10)
+
+Name the nine transform floats at offsets 4…36 **R**, in three consecutive rows, and the byte at offset 1
+**f**. Let **A = transpose(R)** when f has bit `0x04`, otherwise **A = R**. This is a conditional transpose,
+not a general matrix inverse: no determinant, orthogonality test or normalization is performed. The
+transpose swaps the three off-diagonal pairs (`0x007D8D13–0x007D8D4A`).
+
+Slot 13 supplies **s**, copied directly from the manager's three floats at +0x64…+0x6C
+(`0x007D6B50–0x007D6B65`). Negate all three components and form each direction component as
+**dᵢ = binary32((Aᵢ₀ × (−sₓ) + Aᵢ₂ × (−s_z)) + Aᵢ₁ × (−s_y))**. The two additions occur in that
+order in x87 registers; the products and intermediate sum are not first rounded to binary32. Each final
+component is stored binary32 before the basis helper runs. Evidence: `0x007D8E36–0x007D8EC5`.
+
+The direction does **not** use translation or the scale at +52, including when f has bit `0x02`.
+The bit-2 inverse-scale path only changes separate local scale/translation fields
+(`0x007D8DB1–0x007D8DE6`), and the direction reads only A. Do not divide d by that scale or normalize d
+before building the basis. Unknown flag bits do not change this direction calculation; their later
+composition effect is a separate issue.
+
+#### 5.8.2 Arithmetic notation and plane coordinates
+
+In the formulas below **q(v)** means a binary32 store. All other operations are separate x87 operations
+in the parenthesized order, under the inherited control word, with no fused multiply-add. Neither this
+entry nor its basis helper changes that control word. An unmarked intermediate stays in a register;
+do not silently insert q, use binary64 as a universal substitute, reassociate, or exploit symmetry of the
+normal-equation matrix. The worked examples use round-to-nearest, ties-to-even, and masked exceptions;
+their finite results hold with either 53- or 64-significand-bit x87 intermediates.
+
+For the nonvertical basis in §5.8, the precise horizontal setup is **h = sqrt(dx×dx + (−dz)×(−dz))**,
+followed by **k = 1/(−h)**, both kept in x87 registers. Row B₀ is
+**(q((−dz)×k), q(0×k), q(dx×k))**, and B₁ is the componentwise cross product d cross B₀, with each
+product difference rounded once to binary32. B₂ copies d. The helper selects this path only for an
+ordered −h < 0; zero or unordered −h takes the fixed fallback rows described above. In particular, the
+zero in the ordinary B₀.y is obtained by multiplication, whereas fallback zeros are literal positive zero.
+Evidence: `0x0080BA09–0x0080BAA5`; the binary32 constants are 0 at `0x00A81054` and 1 at `0x00B0EC64`.
+
+For each input point p, in increasing unsigned array-index order, compute two stored plane coordinates:
+
+| Coordinate | Ordered arithmetic, including the only binary32 store |
+|---|---|
+| a | q((B₀.x×p.x + B₀.y×p.y) + B₀.z×p.z) |
+| b | q((B₁.z×p.z + B₁.y×p.y) + B₁.x×p.x) |
+
+No translation or uniform scale is applied to the point before this fit. Evidence:
+`0x007D8F50–0x007D8F96`. The two dot products have different addition orders.
+
+#### 5.8.3 Accumulation and cofactor solve
+
+Initialize all accumulators to positive zero from the shared zero at `0x00B4E334`. Maintain the following
+**distinct** sums; their names specify storage, not alternative formulas for one shared value:
+
+| Sums retained in x87 registers | Update for each (a,b) |
+|---|---|
+| X2 | X2 + q(a×a) |
+| XYe | XYe + q(a×b) |
+| Xe | Xe + a |
+| Ye | Ye + b |
+| N | N + 1 |
+
+Separately update four binary32 memory sums: **XYf := q(q(a×b) + XYf)**,
+**Y2f := q(q(b×b) + Y2f)**, **Xf := q(a + Xf)**, **Yf := q(b + Yf)**. The two copies of the xy sum
+can differ, as can the copies of x and y. Do not replace this with a symmetric matrix accumulated in one
+precision. For each input UV component w, keep three binary32 right-hand sums
+**Wa := q(a×w + Wa)**, **Wb := q(q(b×w) + Wb)**, **W0 := q(w + W0)**.
+The a×w product stays in x87 precision until its addition; the b×w product spills first. U and V sums
+are independent. Evidence: product spills `0x007D8F9E–0x007D8FE4`, normal-sum updates
+`0x007D8FEF–0x007D905A`, UV product spills and updates `0x007D9060–0x007D90E1`.
+
+Conceptually the stored/retained matrix is
+**H = [(X2,XYe,Xe); (XYf,Y2f,Ye); (Xf,Yf,N)]**. Calculate all nine **cofactors**, rounding each once:
+
+| C | Ordered expression |
+|---|---|
+| C₀₀ | q(Y2f×N − Ye×Yf) |
+| C₀₁ | q(Ye×Xf − N×XYf) |
+| C₀₂ | q(Yf×XYf − Y2f×Xf) |
+| C₁₀ | q(Xe×Yf − N×XYe) |
+| C₁₁ | q(X2×N − Xe×Xf) |
+| C₁₂ | q(XYe×Xf − X2×Yf) |
+| C₂₀ | q(Ye×XYe − Xe×Y2f) |
+| C₂₁ | q(Xe×XYf − X2×Ye) |
+| C₂₂ | q(X2×Y2f − XYe×XYf) |
+
+The determinant is **D = (C₀₂×Xe + C₀₁×XYe) + C₀₀×X2**, with no binary32 store before the signed
+binary64 0.01 test above. This is a row-0 cofactor expansion in reverse column order. Cofactor stores:
+`0x007D9101`, `0x007D9119`, `0x007D913B`, `0x007D914E`, `0x007D9161`, `0x007D917B`, `0x007D918E`,
+`0x007D91A4`, `0x007D91C1`; determinant assembly `0x007D91C8–0x007D91DE`.
+
+On success keep **r = 1/D** in x87 precision (`0x007D91FF`). The inverse coefficients K are the transposed
+cofactors times r: **K₀ⱼ = Cⱼ₀×r** remain in registers without q, whereas
+**K₁ⱼ = q(Cⱼ₁×r)** and **K₂ⱼ = q(Cⱼ₂×r)** are stored binary32, j=0,1,2.
+Evidence: `0x007D9205–0x007D9267`. Then fit the three coefficients for each UV component:
+
+| Coefficient | Ordered expression | Result storage |
+|---|---|---|
+| uₐ | (K₀₂×U0 + K₀₁×Ub) + K₀₀×Ua | q |
+| u_b | (K₁₀×Ua + K₁₂×U0) + K₁₁×Ub | q |
+| u₀ | (K₂₀×Ua + K₂₂×U0) + K₂₁×Ub | q |
+| vₐ | (K₀₂×V0 + K₀₁×Vb) + K₀₀×Va | retain x87 |
+| v_b | (K₁₀×Va + K₁₂×V0) + K₁₁×Vb | retain x87 |
+| v₀ | (K₂₀×Va + K₂₂×V0) + K₂₁×Vb | q |
+
+The asymmetric coefficient stores are native, even for identical U and V inputs. Evidence:
+`0x007D926E–0x007D9338`. Lift the two fitted linear rows into model coordinates with these exact spills:
+
+| Component | Binary32 result |
+|---|---|
+| u.x | q(uₐ×B₀.x + u_b×B₁.x) |
+| u.y | q(q(uₐ×B₀.y) + u_b×B₁.y) |
+| u.z | q(q(uₐ×B₀.z) + q(u_b×B₁.z)) |
+| v.x | q(vₐ×B₀.x + q(v_b×B₁.x)) |
+| v.y | q(vₐ×B₀.y + q(v_b×B₁.y)) |
+| v.z | q(q(vₐ×B₀.z) + v_b×B₁.z) |
+
+Evidence: `0x007D933F–0x007D9491`. These six rounded components, together with the two fitted constants,
+feed the composition; they are not a matrix that can be replaced by an arbitrarily ordered multiplication.
+
+#### 5.8.4 Inverse fields, flag composition and output
+
+Read the transform translation as **t**, scale as **s**. The local matrix **A** is defined in §5.8.1.
+Initially **T = −t** and **S = s**. When f has bit `0x04`, replace each component by
+**Tᵢ = q((Aᵢ₀×(−t.x) + Aᵢ₂×(−t.z)) + Aᵢ₁×(−t.y))**. When f has bit `0x02`, next set
+**S = q(1/s)**, then **Tᵢ = q(Tᵢ×S)** independently. Otherwise retain the initial scale without using
+it in the result. These are the only inverse operations; the function does not invert a general matrix.
+Evidence: transpose/translation `0x007D8D13–0x007D8DAD`, reciprocal scale `0x007D8DB8–0x007D8DE6`.
+
+The later composition gate is **the entire byte f != 0**, not a test of bit 4, a masked set of known
+flags, or a test that the numeric transform differs from identity (`0x007D935C`, `0x007D949C`).
+
+- For **f = 0**, use the already rounded u and v rows, constants u₀/v₀, third row (0,0,1), third
+  constant 0. Skip all matrix/translation composition and final scaling, even if R/t/s are nonidentity.
+  The earlier direction calculation still used R.
+- For **any nonzero f**, compute, for each column j=0,1,2,
+  **u′ⱼ = q((A₂ⱼ×u.z + A₁ⱼ×u.y) + u.x×A₀ⱼ)** and
+  **v′ⱼ = q((A₂ⱼ×v.z + A₁ⱼ×v.y) + v.x×A₀ⱼ)**.
+  The third row comes from **w′ⱼ = (A₁ⱼ + A₀ⱼ)×0 + A₂ⱼ**: q the x and z components here,
+  but keep the y component in x87 precision until its final output store. Do not simplify the zero
+  products: nonfinite matrix entries can propagate through them.
+  The three constants are **u′₀const = q(q((T.z×u.z + T.y×u.y) + u.x×T.x) + u₀)**,
+  **v′₀const = q(((T.z×v.z + T.y×v.y) + v.x×T.x) + v₀)**,
+  **w′₀const = q((T.y + T.x)×0 + T.z)**.
+  In particular, the u translation dot product spills before addition of u₀; the v dot product does not.
+
+Composition evidence: constants/zero products `0x007D94A4–0x007D956F`; column products/stores
+`0x007D9576–0x007D9688`. For nonzero f with bit `0x02`, finally multiply **only the nine linear
+components** by S and store each binary32. Eight components were already rounded as above; w′.y was
+retained until this multiply/store. Do not multiply the constants again. Bit 4 controls the transpose
+and translation rotation; bit 2 controls reciprocal scale; every other nonzero flag byte still enables
+composition with all matrix and translation fields. No separate translation-presence bit is consulted.
+Evidence: `0x007D95E0`, `0x007D969F–0x007D97D7`.
+
+The output is a **column-major 4×4** float array. As mathematical rows it is
+**[(u.x,u.y,u.z,uconst); (v.x,v.y,v.z,vconst); (w.x,w.y,w.z,wconst); (0,0,0,1)]** after the applicable
+branch and scale. Thus flat indices 0/4/8/12 hold the u row, 1/5/9/13 the v row, 2/6/10/14 the w row;
+3/7/11 are literal positive zero and 15 is literal 1. All sixteen entries are written on success and
+the return boolean is true (`0x007D96A1–0x007D9811`). This is a texture-affine output with a separately
+composed third row, not the original flagged transform layout. There is no allocation, bounds check,
+singular-transform rejection, scale-zero rejection, or NaN recovery. Under masked exceptions, values
+that reach arithmetic follow x87 behavior; an unordered determinant proceeds as already specified.
 
 ## 6. Messages (`DoMessage`, `0x007DBCF0`) *[compat]*
 
@@ -367,6 +700,30 @@ terrain.md §15.1).
 | `0x6A3B0AFD` long terrain operation ends | flag off; with shadows on and a non-empty rectangle, as above, then also terrain slot 68 (`RedisplayTerrain(0, 0, rect, 0)`) |
 | `0xC53D10AA` exemplar changed | §1.4 |
 | `0xC9F775BB` render properties changed | the change threshold := the float `+0x10C` of the settings object's `+0x24` member *[quirk: overrides the exemplar]*; shadows on := settings slot 7 (`0x0C`) ≥ 2; when that changed: §3, send `0xC9DA96EA` with the stored fractions and call `0x00B43DD0` slot 20 |
+
+**Dirty rectangles and notifications (LT9):** the incoming rectangle is passed directly to terrain slot
+15 as an inclusive *vertex-index* rectangle, with its starting grid address and the world-X/world-Z
+strides. The owner does not enlarge it to neighboring cells. During a long operation it unions incoming
+rectangles; end clears the flag before testing whether work is required. Both immediate and deferred
+paths sweep the whole shadow grid. Only when the sweep's first changed row is nonnegative do they transform
+the **sweep-changed** rectangle and call terrain slot 67. Deferred end then calls slot 68 with
+(0,0,the same transformed rectangle,0). An executed no-change sweep causes neither call; a skipped sweep
+retains the old rectangle and can therefore notify it again. There is no fallback to the incoming dirty
+rectangle for the no-change case. Evidence: `0x007DBD36–0x007DBE12`, `0x007DBF3F–0x007DC030`.
+
+For changed stored bounds (c0,r0,c1,r1) and world vertex counts X,Z, helper `0x007D6540` writes the following
+world bounds. It only permutes/subtracts indices, with **no** cell expansion, +1 endpoint conversion or
+clipping; rotations outside 0…3 leave the destination unchanged. Branch table data is at `0x007D65D0`.
+
+| Rotation | Output (x0,z0,x1,z1) |
+|---|---|
+| 0 | (r0,c0,r1,c1) |
+| 1 | (X−1−c1,r0,X−1−c0,r1) |
+| 2 | (X−1−r1,Z−1−c1,X−1−r0,Z−1−c0) |
+| 3 | (c0,Z−1−r1,c1,Z−1−r0) |
+
+Slot 67/68 receives those integer endpoints verbatim. Any further vertex-to-cell update expansion belongs
+to the terrain recipient, not to lighting; these calls do not establish that recipient's primitive output.
 
 ## 7. Slot table (vtable `0x00ABB530`)
 
@@ -427,3 +784,144 @@ See QUESTIONS.md LT1–LT4: the meaning of the settings byte `+0x39C` (§2.1), t
    the same column of row n gets the shadow height 100 − 11.2 n (16 × 0.7 per row) until that reaches the ground,
    so rows 1–8 are shadowed and depth(row 1, ground) = 88.8.
 9. **Bytes:** 0.5 → 128, 0.999 → 255, 0.0019 → 0.
+10. **RGB change discriminator (LT6):** threshold = binary32 0.0001; last-announced RGB = (0,0,0),
+    current RGB = (binary32 0.00008, binary32 0.00008, 0). The length exceeds the threshold, so the call
+    proceeds (and returns true even without terrain). A squared-distance comparison with 0.0001 would fail.
+    With current RGB = (threshold,0,0), equality returns false. A NaN component also returns false.
+11. **Stored padding discriminator (LT7):** width = height = 1, stride = 2, vector contains a red-255 active
+    pixel followed by a red-0 padding pixel. Minimum red is 0; one white element of unused capacity beyond
+    vector end must have no effect. With vector end equal to begin, Init's stored minimum is 1.0.
+12. **Normal clamp discriminator (LT8):** a terrain spy receiving (1024, −1) for a 1024-by-1024 world must
+    see (1023.9990234375, +0), with its output otherwise passed through unchanged.
+13. **Constructor discriminator (LT5):** construct in storage prefilled with a nonzero sentinel. Count is 0;
+    current global/day light is white, announced global/day light and all six cached colours are black;
+    day/night fractions are 1/0; city geometry and `+0xCC/+0xD0` retain the sentinel. Successful queries of
+    IID 1 then IID `452294AA` acquire two references total and return base then base+4. Unsupported IID leaves
+    an output sentinel unchanged. After balancing to count 1, one Release deletes and returns zero.
+14. **Missing image/lifetime discriminator (LT7):** make buffer Load return false for each of the four maps,
+    with an otherwise usable exemplar/settings/message service. First Init returns true with null maps;
+    second Init returns false and performs no reload/subscription. First Shutdown unsubscribes and returns
+    true; second returns false. Destruction without Shutdown must not be used as evidence of map cleanup.
+15. **Rectangular sweep discriminator (LT8):** vertex counts X=3,Z=5 always give three physical rows of five
+    floats, at every rotation. With zero initialized shadow/terrain arrays and a valid sweep, the changed
+    rectangle is (−1,−1,0,0). Following a prior nonempty changed rectangle, sun (0,−1,0) skips and retains it
+    under masked floating-point exceptions.
+16. **Dirty notification discriminator (LT9):** X=9,Z=5, changed stored rectangle (1,2,3,4) transforms at
+    rotation 1 into (5,2,7,4). Slot 67 receives those exact endpoints. Long-operation end also calls slot 68
+    with (0,0,the same rectangle,0). Repeat with an executed no-change sweep: neither slot is called.
+17. **Edge-probe discriminator (LT11):** C=16, city cell counts 8×8, box (16,0,16,32,32,32), direction
+    (1,−1,−1), flat height 0 everywhere. Initial bounds are (1,1,2,2). Increasing R probes z=2: heights 32,
+    16,0 at R=2,3,4; the zero stops at R=4. The z=1 probe also stops at (4,1). Decreasing T then starts
+    at height 32 and moves from 1 to boundary 0. Output is **(1,0,4,2)**. With height 32 at (2,2) alone,
+    the first probe stops immediately, but the second continues from (2,1) to R=4: the same output results.
+    Sampling every top-edge ray, excluding the stopped vertex, or comparing ≥ instead of > would not
+    implement the specified procedure.
+18. **Projection failure and vertical fallback (LT10):** with count 0, null points/UVs, a valid fully initialized
+    transform, a manager supplying a finite direction, and a sentinel-filled 64-byte output, return false
+    without modifying any output byte. The transform/direction work still occurs. Separately, the basis
+    helper for d=(0,−1,0) has rows (0,0,1), (1,0,0), (0,−1,0); computing row 1 as d cross row 0 in this
+    special case would incorrectly give (−1,0,0).
+
+19. **Model-frame direction discriminator (LT10):** set the manager's direction to (1,−2,0), and transform
+    rows R=(0,0,1), (0,1,0), (−1,0,0), translation (8,16,32), scale 2. With f=0 or 2 the helper receives
+    **d=(0,2,1)** and produces rows (1,0,0), (0,1,−2), (0,2,1). With f=4 or 6 it receives
+    **d=(0,2,−1)** and produces rows (−1,0,0), (0,1,2), (0,2,−1). All displayed nonzero components
+    are exact binary32 values; zeros here are compared numerically. This independently distinguishes
+    transpose selection, omission of translation/scale, the negation, and absence of normalization.
+    It is an intermediate native arithmetic vector, not a claim of an observed game run.
+20. **Whole-byte flag and inverse-composition discriminator (LT10):** direction s=(0,−1,0); points
+    (0,0,0), (1,0,0), (0,0,1); UVs (0,0), (1,0), (0,1). Transform R has rows (0,0,1), (0,1,0),
+    (−1,0,0), t=(8,16,32), scale=2. Both direction branches are vertical, so the fallback yields a=z,
+    b=x; the independent affine fit is u=b, v=a, with D=1. Expected output **mathematical rows** below
+    must be flattened column-major as in §5.8.4. The last row is always (0,0,0,1).
+
+    | f | u row | v row | w row |
+    |---|---|---|---|
+    | 0 | (1,0,0,0) | (0,0,1,0) | (0,0,1,0) |
+    | 1 or 128 | (0,0,1,−8) | (−1,0,0,−32) | (−1,0,0,−32) |
+    | 2 | (0,0,0.5,−4) | (−0.5,0,0,−16) | (−0.5,0,0,−16) |
+    | 4 | (0,0,−1,32) | (1,0,0,−8) | (1,0,0,−8) |
+    | 6 | (0,0,−0.5,16) | (0.5,0,0,−4) | (0.5,0,0,−4) |
+
+    All nonzero results are exact binary32. This distinguishes whole-byte gating, unknown flag bits,
+    transpose selection, inverse translation, reciprocal scale, and unscaled constants. Zeros in this
+    table are numerical zeros; signed-zero outcomes follow the arithmetic schedule.
+21. **Product-spill rejection (LT10):** f=0, identity R, direction s=(0,0,−1); points
+    (4096,0,0), (4097,0,0), (4096,1,0); UVs (0,0), (1,0), (0,1). Basis coordinates are exactly a=x,
+    b=y. Exact arithmetic gives Σa²=50,339,841 and determinant **1**. Native q(4097²)=16,785,408
+    instead of 16,785,409, giving X2=50,339,840. With XYe=XYf=4096, Xe=Xf=12289, Ye=Yf=Y2f=1,
+    N=3, the first-row cofactors are (2,1,−8193), and
+    **D = (−8193×12289 + 1×4096) + 2×50339840 = −1**. Return **false**, leaving every output byte
+    unchanged. A generic least-squares fit of this noncollinear triangle would succeed; omitting the
+    per-product binary32 spill changes observable success/failure.
+22. **Different U/V translation rounding with identical UV columns (LT10):** f=1, identity R,
+    t=(16777216,0,1), direction s=(0,−1,0), points (0,0,0), (1,0,0), (0,0,1), UVs (1,1), (2,2),
+    (2,2). D=1; both fitted model rows are exactly (1,0,1), both constants 1. The translation dot product
+    is −16777217. U rounds it first to −16777216, then adds 1: **uconst=−16777215**. V adds 1 before
+    storing: **vconst=−16777216**. The complete output rows are **(1,0,1,−16777215)**,
+    **(1,0,1,−16777216)**, **(0,0,1,−1)**, **(0,0,0,1)**, stored column-major. Rounding only the final
+    sum, or imposing one uniform rounding policy on both fitted rows, fails this vector.
+
+## 12. Individual owner and attributed-helper checklist
+
+The exact lighting inventory is **43 cSC4LightingManager bodies / 21,714 bytes** and
+**2 cImageARGB8 bodies / 517 bytes**, measured against the native export's body sizes. The former
+includes two adjustment thunks and both destructors; shared AddRef bodies are dependencies, not extra
+lighting bodies. Each row below identifies an individual entry, even where several entries share a section.
+Existing sections describe baseline behaviour; open LT items explicitly withhold complete-owner credit.
+The export's original names alone omit manually attributed entries; this inventory uses the export addresses
+plus `re/symbols/lighting.tsv`, not a name-only export count.
+
+| Entry | Behaviour section | Remaining exact-contract review |
+|---|---|---|
+| `007D65E0` QueryInterface | §1.1, §1.2 | LT5 answered |
+| `007D6650` Release | §1.1, §1.2 | LT5 answered |
+| `007D6670` GetTimeOfDay | §2 | baseline |
+| `007D6680` IsNight | §2 | baseline |
+| `007D68B0` BendShadowedNormal | §5.3 | baseline |
+| `007D6950` ShadowDepth | §5.1, §5.3 | baseline |
+| `007D6A00` HeightAboveLand | §5.1, §5.3 | baseline |
+| `007D6AB0` SetLightingTint | §2.3 | baseline |
+| `007D6B00` ResetLightingTint | §2.3 | baseline |
+| `007D6B20` GetGlobalLight | §4.6 | baseline |
+| `007D6B50` GetShadowDirection | §4.6 | baseline |
+| `007D6B70` GetShadowParams | §5.6 | baseline |
+| `007D6BB0` GetShadowStrengthFromLocation | §5.4 | baseline |
+| `007D6CC0` CalcShadowTerrainRect | §5.7 | LT11 answered |
+| `007D73E0` GetColor(out) | §4.1 | baseline |
+| `007D7420` GetColor(bytes) | §4.1 | baseline |
+| `007D7460` GetColor(out, normal) | §4.1 | baseline |
+| `007D7730` GetColor(normal, bytes) | §4.1 | baseline |
+| `007D77C0` GetColor(out, normal, position) | §4.1 | baseline |
+| `007D7840` GetColor(position, normal, bytes) | §4.1 | baseline |
+| `007D7940` GetTerrainColor | §4.5 | baseline |
+| `007D7AE0` GetTerrainColorFloor | §4.5 | baseline |
+| `007D7BF0` GetVertexColors | §4.4 | baseline |
+| `007D7F00` GetTerrainVertexColors | §4.5 | baseline |
+| `007D8340` GetTerrainNormalClamped | §5.5 | epsilon/upper rounding proved |
+| `007D83C0` GetModelColor | §1.5, §4.2 | LT7 answered |
+| `007D8550` GetModelLight | §4.3 | baseline |
+| `007D8B20` GetTerrainLighting | §4.5 | baseline |
+| `007D8C80` CalcShadowProjection | §5.6, §5.8.1–§5.8.4 | LT10 native arithmetic/flags/layout proved; vectors 18–22 |
+| `007D9820` SetTimeDependentLightingValues | §1.5, §2.1 | LT7 answered |
+| `007D9DF0` SetTimeOfDay | §2.2 | LT6 proved |
+| `007DA0A0` constructor | §1.1, §1.2 | LT5 answered |
+| `007DA3E0` QueryInterface adjustment thunk | §1.2, §7 | LT5 answered |
+| `007DA3F0` Release adjustment thunk | §1.2, §7 | LT5 answered |
+| `007DA400` destructor | §1.3, §1.5 | LT5/LT7 answered |
+| `007DA490` GetDecalShadowParams | §5.6 | baseline |
+| `007DA670` deleting destructor | §1.3, §1.5 | LT5/LT7 answered |
+| `007DA690` Shutdown | §1.3, §1.5 | LT7 answered |
+| `007DA7E0` ReadProperties | §1.4 | LT5 answered |
+| `007DAE70` FindHillShadows | §5.2 | LT8 answered |
+| `007DB6A0` Init | §1.3, §1.5 | LT7 answered |
+| `007DB840` DoZoomAndRotationChange | §1.2, §3 | LT5/LT8 answered |
+| `007DBCF0` DoMessage | §6 | LT9 answered |
+| `007D6690` cImageARGB8::SampleRowLerp | §1.5, §2.1 | LT7 answered |
+| `007D6870` cImageARGB8::FindMinRedComponentValue | §1.5 | vector boundary/constant proved |
+
+Attributed helpers are `007D6540` RotateLightingRectToWorld (§6), `007DB450` CopyImageToARGB8 (§1.5),
+`007DB4D0` CreateColorMap (§1.5), `007DB570` MakeTestPattern (§1.5), `007F6CC0` RotateVectorByViewRotation (§3),
+and `0080B9F0` BuildBasisFromDirection (§5.6). The shared CRT `_CIfmod` at `009F068A` is a numeric dependency
+of model lighting (§4.3), not a lighting-owned primitive. Foreign terrain normal/height reads, image decode
+and property/message services remain dependency boundaries; this spec does not prescribe their outputs.
