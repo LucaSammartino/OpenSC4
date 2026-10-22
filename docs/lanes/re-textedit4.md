@@ -1,8 +1,21 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-textedit4 (cGZWinTextEdit native behavior specification) | `re-textedit4` / (RE lane, detached worktree) | ready for docs merge; partial owner only; commits f6875240, 24a4278a, b7db002c; 134 direct labels/19,415B inventoried, 20 native-derived vectors; questions check and diff check PASS; no engine/C ABI/game change; TE2 answered, TE1 and TE3-TE8 open | Coordinator: merge bounded spec only; reconcile 19,999B attribution and remaining U/B entries before owner credit. No restart/extra round requested. |
+| re-textedit4 (cGZWinTextEdit round 2 native contracts) | `re-textedit4` / (RE lane, detached worktree) | in progress; preserving b613685e, TE2 and 20 vectors; no owner promotion | Reconcile actual coverage attribution, then prove TE3-TE8 body contracts. |
 
-## Report
+## Handoff
+
+- Goal: reconcile actual coverage-owner output before extending native TextEdit contracts; no code/tools/maps/ABI edits.
+- Baseline: b613685e (134 direct labels/19,415B; 20 vectors; TE2 answered).
+- Done: actual coverage reconciled: 150 bodies/19,999B, all 134 old rows plus 16 exact measured additions, no size mismatches; public attribution evidence added.
+- Done: TE4 native range erase, action copy/destruction and asymmetric history limit proved; section 6 extended, four vectors added (24 total), TE4 moved to answered.
+- Next: native raw-insertion/empty-removal domain (TE3), then largest unclosed metrics/layout/lifecycle bodies (TE5-TE8); retain attribution-only closure for TE8.
+- Main: C:/Users/tlori/FreeCity4; WT: C:/Users/tlori/FreeCity4/.claude/worktrees/re-textedit4.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-textedit4-r2-manifest.json.
+- q.py cannot start Bash (E_ACCESSDENIED); use bounded PowerShell shell calls.
+- Keep original 20 vectors and answered TE2; newly traced bodies only; no whole-owner credit before inventory reconciliation.
+- No game/clipboard/network actions; no REA used. No ABI proposals yet.
+
+## Prior report (b613685e; retained during round 2)
 
 Published [text-edit.md](../specs/text-edit.md) and the
 [address-by-address inventory](../specs/text-edit-inventory.md). The request's

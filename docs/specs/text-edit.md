@@ -186,10 +186,41 @@ Insertion/deletion record helpers (`0x009C068D`, `0x009C075F`) require
 `0x100`, save the five-word pre-edit state, push an action, and clear redo.
 An insertion action can also contain the replaced bytes; thus replacing a
 selection can be undone together. There is no evidenced typing coalescing.
-The insertion helper's count-limit eviction and the deletion helper's
-absence of that test remain TE4; do not substitute a conventional bounded
-undo stack. SetMaxUndoLevelCount (`0x00994ED7`) merely stores T+0xAC;
-it does not immediately prune either stack.
+SetMaxUndoLevelCount (`0x00994ED7`) merely stores T+0xAC (W+0x184);
+it does not immediately prune either stack. The following limit rule is
+specific to **insertion record creation**, not a general history capacity.
+
+### Insertion history eviction and action lifetime (TE4)
+
+For a valid history vector containing n complete 60-byte actions, compare
+n with the configured unsigned limit. If n is at least the limit, erase
+the earliest **floor(n/4)** actions, then append the new insertion action.
+If n is below the limit, append without eviction. The count calculation
+uses signed division of the vector byte difference by 60, then an unsigned
+comparison against the stored limit; the quarter uses a logical shift by
+2 (`0x009C06AA-06D5`). This rule presupposes a valid representable vector,
+not fabricated pointers or overflowed allocation sizes.
+
+The callee labelled vector `clear` (`0x009C04CB`) is actually a range erase:
+it assigns the surviving suffix forward into the erased range, destroys
+the vacated tail actions and updates the end pointer. The chain
+`0x009C04DF -> 0x009C04AE -> 0x009C017D -> 0x009BFF03` establishes
+forward 60-byte assignment; `0x009C04EA -> 0x009BF518 -> 0x009BEA0D`
+destroys each trailing action's owned string, without freeing each action
+slot. Scalar action fields and the five saved state words are copied;
+the string is assigned through its own operator. No bytewise relocation
+or loss of retained actions follows from the misleading `clear` label.
+
+Deletion record creation (`0x009C075F-07DE`) has no count-limit branch:
+with history enabled it appends one action and erases the entire redo range.
+Insertion creation also erases redo after appending. Both return true on
+their normal enabled path and false with bit 0x100 clear; no owner-level
+allocation-failure recovery is evidenced. Record creation does not merge
+adjacent typing. The maximum setter therefore does **not** impose a hard
+stack bound, and zero does **not** disable recording. Starting empty with
+limit zero, insertion-only counts are 1,2,3,4,4,...; deletion-only recording
+can continue growing. A preexisting larger stack is reduced by a quarter
+per insertion, rather than instantly resized to the configured limit.
 
 ## 7. Key routing and clipboard boundary
 
@@ -453,16 +484,23 @@ These are specification examples derived from bodies, not game-run results.
 | Two far-apart left downs within timer interval | Second takes double-click word-selection path; no spatial test in owner |
 | Noneditable widget, clipboard bits permit copy; Ctrl+Escape | Runs copy gates; editable Escape instead sends message 5 |
 | Only editor bit 0x400 set; Return key-down | Sends 0x9B1552D5 with (T,13,0); editable bit 1 is not required |
+| History enabled, limit 8, eight distinct undo actions; create an insertion record | Oldest two are destroyed, six survive in order, new action appended: count 7; redo emptied |
+| Same eight actions and limit 8; create a deletion record | All eight survive, new deletion appended: count 9; redo emptied |
+| Empty enabled history, limit 0; create five insertion records | Counts 1,2,3,4,4; the fifth evicts only the first record |
+| Enabled history with three actions; lower limit to 0 | Setter preserves all three; next insertion keeps them and appends a fourth |
 
 ## 12. Whole-owner checklist and current limits
 
 The name search contains 146 matching functions including adjusted thunks,
 STL helpers, a factory and a nested action constructor. Direct, non-nested
 `cGZWinTextEdit::` labels account for **134 bodies / 19,415 bytes**.
-See the [address-by-address checklist](text-edit-inventory.md). That is a
-label inventory, not yet reconciliation to the task's 19,999-byte
-owner attribution. Folded aliases and unnamed native helpers must be
-counted separately; no whole-owner credit is claimed.
+The actual coverage owner output assigns **150 bodies / 19,999 bytes**:
+all 134 direct entries plus five adjustment thunks and eleven unnamed
+reach/neighbour helpers. The address join has no missing direct entries
+or changed sizes. See the [measured attribution](text-edit-attribution.md)
+and [address-by-address checklist](text-edit-inventory.md). This reconciles
+the brief's byte total, not its behavior coverage; no whole-owner credit
+is claimed while body and foreign-boundary residuals remain.
 
 | Area | Current evidence disposition |
 |---|---|

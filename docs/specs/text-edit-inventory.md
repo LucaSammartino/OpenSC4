@@ -2,8 +2,9 @@
 
 Companion to [text-edit.md](text-edit.md). This is the exact **direct-label**
 inventory from the Windows export queried on 2026-10-22: 134 unique entries,
-19,415 body bytes. It is not a reconciled claim for the brief's 19,999-byte
-attribution. P = a substantive contract is present in the cited section,
+19,415 body bytes. The [round 2 attribution audit](text-edit-attribution.md)
+reconciles actual coverage's 150 bodies / 19,999 bytes, including all direct
+entries and sixteen measured additions. P = a substantive contract is present in the cited section,
 B = only a bounded call-site contract is present, U = method-specific
 behavior remains unspecified. P does not close foreign primitive contracts.
 Addresses and byte counts are metadata, not decompiler listings.
@@ -195,8 +196,8 @@ Inherited base/stub slots are not additional primary text-editor bodies.
 - [x] Establish clipboard gates through injected calls without live clipboard.
 - [x] Publish font/window/service contracts and independent vectors.
 - [x] Track exact direct-label address/size inventory without inventing a suffix.
-- [ ] Reconcile the requested 19,999B attribution to primary bodies, folded
-  aliases, generated thunks, nested actions and foreign/library bodies (TE8).
+- [x] Reconcile the requested 19,999B attribution using actual coverage-owner
+  output, exact address/size join and primary helper/vtable evidence (TE8).
 - [ ] Complete U/B method contracts, raw-mutation domains, encoding and
   composition, word navigation, metrics/scrollbar resource/range behavior,
   history eviction and exceptional resource lifetimes (TE1, TE3-TE8).
