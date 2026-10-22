@@ -93,3 +93,13 @@
   "active" check of the gate? [MySim state != 0]. (e) §4.6 `destination_subject` "when travelling": the new trip
   state = 2, or the dispatch's current state = 2? [new trip state].~~
   **ANSWERED 2026-10-22 (re-mysim-final-gaps4):** DIFFERS — §§4.6/4.7/7.2: CheckCommute 0042D9E0–0042DB40 uses slots 5(1),9(3),18(1),19(home occupant bounds),20(job occupant bounds or MySim stored commute cell),23; success is exactly 1, then slot26 scaled-display getter and _ftol2 low32 store without clamping. No lot lookup or dispatch destination source. Missing references/null factory output return false without FailCommute. Other results run FailCommute fully before Release, including replacement-search owner callbacks (0042C8E0–0042C930). Trip congestion uses local world position (00427D1C–00427D4A), ratio local cells including forced zero (00427C60,00427D85–00427D96); active is state != 0 (00449550); subject uses new-state argument (00427980). b–e MATCHES, with local-copy/subject-retention rules added. Vectors: §12 cases 23–25; inherited factory defaults remain MS16.
+
+<!-- from: re-mysim-final-gaps4 (2026-10-22), native CheckCommute request audit -->
+- **MS16 - section 4.7 / 7.2:** CheckCommute leaves destination flags, travel-type masks, starting costs,
+  maximum trip length and maximum work time untouched. What exact configuration does traffic
+  `CreatePathFinder` slot 6 (`0x0070D860`) leave in the returned object (constructor plus Init/factory
+  overrides)? [unproved; inherit the returned object, no invented numeric defaults]. Constructor bytes
+  at `0x006D89C0` alone do not establish the factory result. The static export does not decode the factory,
+  its decomp file lacks it, re_query's raw-disassembly fallback lacks capstone, and REA returns
+  `target_unavailable: No app is open`. Resolve from factory/Init bytes before asserting numeric defaults.
+  **ANSWERED 2026-10-22 (re-mysim-pathfinder4):** MATCHES — §§4.7.2/7.2: factory bytes 0070D860–0070D89F prove fresh constructor, AddRef, Init, borrowed traffic pointer, output publication and AL=true, with no request overrides or Init-result test. Init 006D78B0–006D7951 only initializes distance tables. Inherited strategy=3, destination byte=0, allowed/starting uint16 masks=2/2 (Car ID 1), costs=null (traffic-array fallback), max trip=float32 +0.0 and max work=uint32 0. Flags/density start 0/0 and CheckCommute changes them to 1/1. Flag 1 bypasses cost-budget rejection; work time 0 disables timed suspension. One owned reference; native null-allocation/null-out paths fault rather than normally returning false. Evidence obtained with installed MSVC dumpbin after export fallback and REA failed. Discriminating cases: §12 case 26. No remaining MS16 contract gap.

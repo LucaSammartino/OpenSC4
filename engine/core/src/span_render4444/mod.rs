@@ -148,23 +148,17 @@ impl Target<'_> {
     }
 }
 
-/// The shared 4444 colour blend (§4, §9.4 op 1 helper): for each of R, G, B
-/// `out = floor((16*d + a*(s - d) + 8) / 16)`, output alpha nibble 0xF. `s`
-/// and `d` are 4444 pixels; their alpha nibbles are ignored.
-///
-/// `a` is 0..16 for every caller whose spec range is stated (§4: 0..16, op 1
-/// and op 3: 0..15, §6: 0..16 for alpha 0..255). For `a` > 16 (only reachable
-/// from §6 with an alpha ramp outside 0..255) the spec's packed register form
-/// is not specified bit-for-bit; this evaluates the per-channel formula in
-/// wrapping 32-bit maths and keeps the low nibble of each channel
-/// ([choice], question SP1).
+/// Packed 4444 blend (§6.1, SP1): red/blue share a wrapping dword;
+/// green is separate. Logical shifts and final masks preserve carries/borrows
+/// between blue and red at weights 17..31. Source/destination alpha is ignored.
 pub fn blend4444(s: u16, d: u16, a: u32) -> u16 {
-    let mut out: u16 = 0xF000;
-    for shift in [8u32, 4, 0] {
-        let sc = ((s >> shift) & 0xF) as i32;
-        let dc = ((d >> shift) & 0xF) as i32;
-        let v = (16 * dc).wrapping_add((a as i32).wrapping_mul(sc - dc)).wrapping_add(8) >> 4;
-        out |= ((v as u16) & 0xF) << shift;
-    }
-    out
+    let (srb, drb) = (u32::from(s & 0x0F0F), u32::from(d & 0x0F0F));
+    let (sg, dg) = (u32::from(s & 0x00F0), u32::from(d & 0x00F0));
+    let rb = srb
+        .wrapping_sub(drb)
+        .wrapping_mul(a)
+        .wrapping_add(16 * drb)
+        .wrapping_add(0x808);
+    let g = sg.wrapping_sub(dg).wrapping_mul(a).wrapping_add(16 * (dg + 8));
+    (0xF000 | ((rb >> 4) & 0x0F0F) | ((g >> 4) & 0x00F0)) as u16
 }

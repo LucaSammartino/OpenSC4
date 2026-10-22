@@ -492,8 +492,8 @@ cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	27	+0x6C	00809240	icf::cS3DTextureBin
 cISC4Lot	cSC4Lot	00ab19b0	0	+0x0	006bf190	cSC4Lot::QueryInterface	8	2	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	2	+0x8	006bf460	cSC4Lot::Release	0	0	eax-or-void	medium	
-cISC4Lot	cSC4Lot	00ab19b0	3	+0xC	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
-cISC4Lot	cSC4Lot	00ab19b0	4	+0x10	006c2050	AsISCPropertyHolder (shared thunk, returns this+0x1C)	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	3	+0xC	006c2040	cSC4Lot::AsPropertyHolder	0	0	eax	high	re-lotrecords-boundary4 LR9: bytes 006c2040-006c204a return null or primary+8, borrowed; constructor 006c2372 installs property-holder vtable there; shared target name must not determine interface semantics
+cISC4Lot	cSC4Lot	00ab19b0	4	+0x10	006c2050	cSC4Lot::AsTrafficSource	0	0	eax	high	re-lotrecords-boundary4 LR9: bytes 006c2050-006c205a return null or primary+1c, borrowed; native TrafficSourceIterator caller 00710841 stores source then AddRefs lot at 0071084e; corrects old property-holder label
 cISC4Lot	cSC4Lot	00ab19b0	5	+0x14	006bf490	cSC4Lot::Init	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	6	+0x18	006c2020	cSC4Lot::IsInitialized	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	7	+0x1C	006c3060	cSC4Lot::Shutdown	0	0	eax-or-void	medium	

@@ -46,6 +46,8 @@ std::atomic<uint64_t> g_calls[kSpanRendererCount][kClasses][6];
 std::atomic<uint64_t> g_sites[kSpanRendererCount][2][7];  // [native context | shipped][site]
 std::atomic<uint64_t> g_refused[kSpanRendererCount];
 std::atomic<uint32_t> g_activeTid{0};
+std::atomic<uint32_t> g4444TextureModes[14];
+std::atomic<uint64_t> g4444KeyMaskErrors{0};
 bool g_fixtureDone = false;
 
 const compat::SpanContextVA* VA() {
@@ -63,7 +65,9 @@ int SiteOf(unsigned renderer, uintptr_t ret) {
     if (va == nullptr) return -1;
     if (renderer == kSpanR1555) return Span1555ContextSite(ret, va->sites);
     for (int i = 0; i < 7; ++i)
-        if (ret > va->sites[i] && ret <= va->sites[i] + 7) return i;
+        // SP6b resolves 4444 specifically; leave the sibling classifier unchanged.
+        if (renderer == kSpanR4444 ? ret == va->sites[i] + 3
+                                  : ret > va->sites[i] && ret <= va->sites[i] + 7) return i;
     return -1;
 }
 
@@ -300,7 +304,7 @@ void RunCase(unsigned r, void* ctx, Buf& dst, const std::vector<uint8_t>& init, 
     size_t first = len, n = 0;
     for (size_t i = 0; i < len; ++i)
         if (a[i] != dst.bits[i]) n++, first = first == len ? i : first;
-    if (sp1 && n != 0) {  // a known open difference, reported apart (never counted exact)
+    if (r != kSpanR4444 && sp1 && n != 0) {  // preserve the sibling's existing question accounting
         if (t.sp1Diff++ < 4)
             Log("spanctx: %s SP1 (alpha ramp outside 0..255, open question) differs: %zu byte(s), first at arena "
                 "offset %zu: original 0x%02X ours 0x%02X",
@@ -327,6 +331,9 @@ const float kGrad[5][12] = {
     {0.1f, 0.6f, 0.9f, 0.05f, 0.02f, -0.01f, -0.02f, 0.02f, 0.03f, 0.02f, -0.05f, 0.03f},
     {0.5f, 0.5f, 0.5f, 0.95f, -0.01f, 0.01f, 0.005f, -0.025f, 0.01f, -0.02f, 0.02f, -0.02f},
 };
+
+// Renderer-specific SP6 conformance; uses the shared native creation/lock/draw helpers.
+#include "FC4Span4444Context.inc"
 
 // Steps 2-5 for one destination type.
 #include "FC4Span1555ContextCases.h"
@@ -380,6 +387,7 @@ void RunDestination(unsigned r, uint32_t type, const compat::SpanContextVA& va, 
         static_cast<unsigned long>(wantRenderer), lc0, lc1, lf0, lf1);
     Totals t;
     if (inited == 1 && rendVt == wantRenderer && dst.bits == Field<uint8_t*>(ctx, 0x78)) {
+        if (r == kSpanR4444) Run4444Context(ctx, dst, init, va);
         std::vector<Case> cases;
         for (uint32_t argb : {0x80FF8040u, 0x00000000u, 0xFFFFFFFFu, 0x12345678u})
             cases.push_back({kSolid, argb, nullptr, 0, 0, nullptr, 1, 1, false, 0, 0});
@@ -547,6 +555,16 @@ void SpanNoteRefused(unsigned renderer) {
     if (renderer < kSpanRendererCount) g_refused[renderer].fetch_add(1, std::memory_order_relaxed);
 }
 
+void Span4444NoteTexture(uint32_t format, uint8_t keyed, uint32_t key, uint32_t mode) {
+    static const uint32_t masks[] = {0xFFF, 0x7FFF, 0x7FFF, 0xFFFF, 0xFFFFFF, 0xFFFFFF, 0};
+    if (format >= 7 || keyed > 1 || mode >= 12) {
+        ++g4444KeyMaskErrors;
+        return;
+    }
+    g4444TextureModes[2*format+keyed].fetch_or(1u << mode);
+    if (keyed && ((key & ~masks[format]) != 0 || format == 6)) ++g4444KeyMaskErrors;
+}
+
 bool SpanContextFixtureThread() {
     const uint32_t t = g_activeTid.load(std::memory_order_relaxed);
     return t != 0 && t == GetCurrentThreadId();
@@ -558,6 +576,10 @@ void SpanContextCityLoaded() {
 #if defined(_M_IX86)
     RunFixture();
     LogCounts("after fixture");
+    for (unsigned row = 0; row < 14; ++row)
+        Log("span4444 native descriptor row=%u format=%u keyed=%u observed_modes=0x%03X",
+            row,row/2,row%2,g4444TextureModes[row].load());
+    Log("span4444 native descriptor key_mask_errors=%llu", g4444KeyMaskErrors.load());
 #endif
 }
 
