@@ -11,7 +11,9 @@
 - Focused qbuild quick PASS after SDK enum declaration correction. No Rust files touched; C++ build 4/4.
 - Extended evidence: all captured record references (removed 63 cap), explicit bootstrap/no evolution credit, live-lot configuration inputs, duplicate/missing/null object-expansion fixtures separately reported; full ordered arrays keep every foundation ID difference.
 - Focused quick PASS after each substantive addition (latest C++ 4/4). Next stable full gate precedes any game request.
+- Stable full gate at code 99d9b5aa PASS: cargo 4938/4938, clippy 0, CTest 68/68 (81.91 s), qbuild PASS, no tree-change warning.
+- Immutable game DLL: build-runs/dll/propcfg4-r2-v1/FreeCity4.dll (copied from stable gate).
 - q.py cannot start Bash (E_ACCESSDENIED); use capped PowerShell and quiet build wrappers.
 - Next: finish evidence coverage (failure/roundtrip/activity labels), full stable gate, immutable unique-label native, own replacement and current40 save/reload2032 game requests.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-propcfg4-r2-manifest.json.
-- No game requests outstanding; no ABI changes planned.
+- Native request vpc4-r2-native-20261022a to 2032, script zone/pricezone/full-save 2031-10-02; queued immediately after this commit. No ABI changes.
