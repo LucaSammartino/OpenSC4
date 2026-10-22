@@ -278,9 +278,55 @@ AL false for zero/absent handle, true for found. Non-immediate removal of an ent
 flag bit 3 sets bit 4 and returns true without immediate removal. Otherwise it temporarily
 AddRefs the occupant, removes track info, sorts remaining indicator priority, then Releases
 that temporary hold. View Shutdown releases every retained tracked occupant and clears its
-map. DP10 remains open: full renderer Update/refresh argument semantics, visual resources
-and all delayed-untrack completion effects have not been established here. These boundary
-facts alone do not justify wiring a complete native view provider or claiming exact shadow.
+map. Further update/removal contracts are below; DP10 remains open for the complete drawing
+protocol. These boundary facts alone do not establish a complete native view provider.
+
+**Update, refresh and delayed removal (DP10).** Primary slot 3 is a thiscall taking one
+borrowed `SC4DrawContext*`, callee pops 4, AL true on every normal exit (`0x0046D990`,
+`0x0046EFA5`). It is not a no-argument refresh or an elapsed-time callback. It reads the
+context at `+0x38`, then that object's `+0x0C` pointer and byte `+0x39C`; a set byte skips
+all per-track update/drawing. Otherwise it also requires global `0x00B43DC4` slot 22 to
+return 1 (`0x0046D9F8`–`0x0046DAA8`). These are separate gates, before the track walk.
+The internal static timer stops and samples elapsed time before either gate; it restarts
+only after the normal track walk. Consequently removal is not guaranteed to complete while
+a gate suppresses the walk (body `0x0046D990`).
+
+TrackInfo's dword flags are at `+0xFC` and fade value at `+0xF8`, relative to the info,
+not the tree node (which prefixes 0x14 bytes). Dispatch kinds 0 and 1 start with flags
+`0x2A` and fade zero (`0x0046F240` kind switch). Non-immediate untrack sets bit 4 only;
+it does not change the count, release the occupant, or allocate another handle.
+For an info with bit 3 set, each eligible Update decreases fade for pending removal,
+clamps at zero, stores float32, and tests the still-live x87 result against float32
+0.01. Removal occurs strictly below 0.01, not at equality. A nonpending entry increases
+fade and clamps at 1.0. Delta is the timer's float32 milliseconds multiplied in x87 by
+float32 0.001 and the global float32 at `0x00B07F84`, then stored as float32 before use
+(`0x0046D9EB`–`0x0046DA15`, `0x0046DC1E`–`0x0046DC51`, `0x0046DC92`–`0x0046DCB4`).
+Do not round the subtraction to float32 before the threshold comparison.
+
+Completion holds a temporary occupant reference, calls RemoveTrackInfo, sorts priorities
+with that occupant, then releases the temporary hold (`0x0046DC53`–`0x0046DC8D`). Both
+immediate untracking and delayed completion use the same removal body `0x0046D650`:
+decrement the per-kind count if nonzero; release the generated texture if nonzero; QI
+automaton IID `0xA9B40F05` and, on success, clear flag `0x200000` through automaton slot 30
+`(0x200000,false)`; release the held animated model (with its virtual-base adjustment),
+destroy/free its model processor if present, Release the tracked occupant, erase the
+tree entry, then Release the temporary QI result. Texture/model release therefore precedes
+the retained occupant release; the QI hold survives erasure (`0x0046D650`–`0x0046D721`).
+
+Direct HandleViewChanged `0x0046D2B0` takes no arguments and rebuilds each retained info's
+call-number display with `0x0046C8B0`, in map order. Message-target slot 3 DoMessage receives
+one message pointer with ECX = primary+12; message ID `0x8ACAA95F` performs the same rebuild,
+others do nothing; AL true (`0x0046D0F0`–`0x0046D16F`). Init subscribes that adjusted target
+to this ID (`0x0046B743`–`0x0046B75B`). This does not re-track occupants or advance handles.
+
+Init loads seven texture-resource handles through service class `0x1AC0E11A`, IID
+`0xFAC0E219`, slot 6 `(key3&,out handle)`. Keys use type `0x7AB50E44`, group `0x1ABE787D`,
+with instance IDs, in member order `+0x2C` through `+0x44`:
+`144161A1,144161A2,144161A3,4BB0ECF3,2BB12D1F,4BB0ECF3,144161A2`
+(`0x0046B61C`–`0x0046B72B`). Kinds 0/1 use the first/second handle respectively and use
+their number as the call display, with flags `0x2A`; they do not require the optional label.
+Complete call-display texture generation, screen rectangles and renderer submission remain
+unresolved DP10 requirements, rather than an authorization to invent SDK view slots.
 
 ### 4.2 `Dispatch(type, x, z)` (`0x0046A630`, slot 6) → ID *[compat]*
 
@@ -333,6 +379,119 @@ AL false; the enclosing Dispatch revokes its already-appended record through the
 DP12 remains open for the internal station-to-road spawn position/heading and complete
 slot-17 route failure/ownership contract. The descriptor/caller contracts above do not
 authorize treating zero modelKey as a world position or guessing that missing routing rule.
+
+#### 4.2.1 Native traffic creation and routing protocol (DP12)
+
+This is the actual owner chain, not a second dispatch-manager forwarder. Traffic manager
+primary slot 18 is `0x0054DBF0`, slot 17 is `0x00551730`; exported data references at
+`0x00A9A4B4`/`0x00A9A4B8` establish their numbering relative to `0x00A9A470`.
+The other two tables containing this pair use the same bodies (`0x00A9BDCC`/`0x00A9BDD0`,
+`0x00A9D224`/`0x00A9D228`). All pointers below are borrowed unless an acquisition is stated.
+
+**Creation wrapper.** Slot 18's fifth argument is a route-entry minimum (low byte), not
+a position, heading or priority; its seventh is creation priority (low byte). It first copies
+the three model-key dwords. If instance (third dword) is zero, it calls manager slot 20
+`(source descriptor, out rect4i)`. Only when that returns AL true does it call slot 25
+`(group,0,rect.minX,rect.minZ)` to choose an exemplar, copying its key at exemplar `+0x10`
+when non-null. The rect's max coordinates are not passed. Otherwise it keeps the supplied key.
+Then call manager slot 46 `(group,flags,&localKey,exemplar-or-null,priority)`; EAX null
+ends creation immediately (`0x0054DBF0`–`0x0054DC7D`). Slot 46 here is the base
+CreateAutomatonInternal `0x00510690`, **not** CreateDispatchAutomaton `0x0054F8A0`.
+It obtains an acquired automaton IID `0xA9B40F05` through GZCOM using the selected group
+template's class ID, falling back to the manager's default class (`0x00510773`–`0x005107CD`).
+The broader group/exemplar/model setup is automata.md §7.2; no station position or heading
+is passed to slot 46, and creation here is not a spawn-at-station call.
+
+On success, call manager slot 7 `(vehicle)`, then slot 17
+`(vehicle,source,destination,flags,minimum)`, and **then** vehicle Release, regardless of
+the routing result. Null routing result calls manager slot 8 `(vehicle,true)` and returns
+null. This ordering releases the initial GZCOM reference before asking the manager to remove
+its retained entry. Non-null result remains borrowed from the manager. If the manager's
+byte `+0x4C` is false and the created vehicle's slot 31 `(0x80)` is false, call the returned
+automaton's slot 9 `(false)` before returning it (`0x0054DC7F`–`0x0054DCF9`). This extra
+activation call does not change the returned pointer. BeginDispatch subsequently acquires
+its separate record reference, installs its callback, sets IDs/state, and tracks, as §4.2 says.
+
+**Source geometry for the route.** Manager slot 20 (`0x00506F50`) accepts a tagged
+descriptor and writes four signed dwords `(minX,minZ,maxX,maxZ)`; pops 8, AL success.
+For tag 0 a null occupant fails. A building-class occupant (`GetType` = `0x278128A0`)
+supplies slot 11 bounds, followed by city slot 33's lot-manager slot 6
+`(minX,minZ,0)`; if it finds a lot, lot slot 14 overwrites the bounds. A different occupant
+supplies slot 8 GetPosition, then city slot 95 `(x,z,&cellX,&cellZ)`; both max coordinates
+equal their minimum. Tag 1 converts its x and z to the containing 16-unit cells and likewise
+makes a point rect; it does not use Y. Tags 2 and 3 copy a cell pair or rect respectively.
+Unknown tags fail. Unlike pylon parking (§4.1.2), this route conversion can consult the lot
+manager (`0x00506F6D`–`0x00507021`, `0x0050702E`–`0x0050710E`).
+
+**Five-argument route method.** Slot 17 returns a borrowed vehicle pointer on success,
+null on failure, pops 20. A null vehicle fails immediately. Convert source through slot 20;
+if that fails (including retarget's tag0/null), use the vehicle's current position from
+automaton slot 7, convert x/z to cells, form a point rect, and reject out-of-city cells
+using city slots 93/94. Failure converting the destination through slot 20 always fails.
+Acquire a pathfinder through the pointer at manager `+0xA88`, slot 6 `(out pathfinder)`;
+null output fails. Reject non-traffic automata: the native check uses automaton slot 5's
+occupant type, accepting only `0xC7CC75F1` or `0x496E5783` (`0x00551730`–`0x00551885`,
+`0x0054D150`–`0x0054D191`). The non-traffic rejection jumps straight to the early null
+return, **without releasing** an already acquired non-null pathfinder *[quirk]*. After that
+gate, every routing/placement exit releases it (`0x00551885`, `0x00551A21`, `0x00551A3A`).
+
+The exact issued sequence is below. Rects are passed as four **by-value** dwords, not
+pointers. The pathfinder method names are deliberately not invented from a public SDK.
+There is no boolean check of any setter here (`0x00551887`–`0x00551958`).
+
+| Receiver | Slot | Arguments / observation |
+|---|---|---|
+| vehicle | 30 | `(flags,true)` |
+| pathfinder | 19 | four source-rect dwords |
+| pathfinder | 13 | `(1 << (manager[+0xA90] & 31),true)` |
+| pathfinder | 18 | `(0)` |
+| pathfinder | 5 | `(1)`, then `(2)`, then `(16)` in separate calls |
+| pathfinder | 9 | `(3)` |
+| pathfinder | 8 | address of the vehicle's route deque, vehicle `+0x22C` |
+| pathfinder | 20 | four destination-rect dwords |
+| vehicle | 30 | `(4,false)` |
+| pathfinder | 23 | no arguments; EAX must equal **1**, not merely nonzero |
+
+If the result is 1, compare route deque size **unsigned** against the zero-extended low byte
+of the fifth argument (`0x00551964`–`0x00551972`, deque-distance body `0x00431DB0`).
+Too few entries fails. New creation uses minimum 0; retarget uses 2. Only then call vehicle
+slot 142 `(false)` BeginRoute; AL false fails. No rollback restores earlier flag/deque changes
+on any routing failure. On successful placement, set flag `0x40`, clear flags `0x2000`,
+`0x100`, `0x200`, `0x20` in that order through slot 30, then slot 160 ReturnToDefaultSpeed.
+Finally manager slot 19 (`0x00507120`) converts the source descriptor to a world vec3.
+For tag0/non-null it uses occupant slot 8 GetPosition; for tag1 it copies the three floats.
+On conversion success, vehicle slot 80 receives `(world source vec3&, source occupant)`;
+the latter is descriptor `+4` only for tag0, otherwise null. Conversion failure skips slot 80
+but still returns the placed vehicle. Thus retarget's tag0/null preserves the vehicle's
+previous return source (`0x00551978`–`0x00551A4E`).
+
+**Road placement and heading.** BeginRoute at `0x00554AB0` (vehicle slot 142, pops 4,
+AL success) obtains the traffic-network map from city slot 40. Zero route entries, from
+vehicle slot 174, fail. Otherwise clear lookahead, call slot 90 `(true)`, clear flag `0x2000`.
+A true input would return here without road placement; dispatch passes false. Save and pop
+the first three-byte route entry `(u8 cellX,u8 cellZ,u8 extra)`. With a following entry, choose
+direction 1 for negative ΔZ, 3 for positive ΔZ, otherwise 0 for negative ΔX and 2 otherwise;
+with no following entry use 255. Fetch the cell's network list with traffic-network slot 14
+`(cellX,cellZ)`, walk links `+0x54` in order, skipping null occupants or null occupant slot 49
+path info. Ask manager slot 68 `(vehicle)` for a path type, then path-info slot 9
+`(pathType,255,direction,&global[0x00B21D78],&outPathIndex,0)`, then path-info slot 3
+`(returned path ID)`. First non-null path wins. Exhaustion returns false, after the deque
+has already been popped (`0x00554AB0`–`0x00554C25`).
+
+For the winner, vehicle slot 132 `(network occupant,pathIndex,path pointer,true)` attaches
+it. Heading comes from the last path point minus the first path point in **three dimensions**,
+normalized when length exceeds native float32 constant `0x00A9BCD8`; otherwise `(0,0,1)`.
+Y difference is rounded to float32 before the squared sum; X/Z differences remain in x87;
+each normalized output is stored float32 (`0x00554C3B`–`0x00554CB7`). If no route remains,
+path-info slot 22 `(path,&world position)` chooses position and flag 4 is set; otherwise use
+the path's first point. Call vehicle slot 16 `(position vec3&,heading vec3&)`, then AL true
+(`0x00554CB7`–`0x00554D13`). It is not the station/pylon diagonal, a random road heading,
+or a separately invented station-spawn SDK function.
+
+DP12 remains open for the measured value of the heading threshold, the path-selector's
+global vector value/meaning and the complete numeric point-to-cell edge contract. The native
+call/ownership sequence above is established; those remaining numeric owner details must
+be settled before claiming the full question answered.
 
 The enclosing Dispatch sequence is:
 
@@ -650,6 +809,21 @@ DP10/DP12 boundary vectors (specified, not claimed executed; remaining open cont
   slot 17 with source tag0/**null**, mode2, then callback; it leaves the view handle unchanged.
 - Return AL false from source slot 11 after writing the outputs: creation still uses those outputs.
   Return null from creation: no vehicle AddRef/callback/tracking/begin; enclosing revoke performs end.
+- Native creation wrapper: supply model instance zero and a source rect with different min/max.
+  Capture exemplar slot 25 receiving minX/minZ only; change the instance to nonzero and observe no
+  source-rect/exemplar call before slot 46. A failed source conversion still attempts creation.
+- Supply pathfinder result 2, with a nonempty route: routing fails (only 1 succeeds). With result 1
+  and one entry, minimum 0 permits BeginRoute; minimum 2 rejects it. Minimum 258 is narrowed to 2.
+  On wrapper failure observe vehicle Release before manager slot 8 `(vehicle,true)`; no tracking.
+- Retarget with tag0/null: source rect comes from current vehicle position; destination conversion
+  is mandatory; successful routing skips return-source setter slot 80. Keep an independent original
+  return source and verify it survives. Do not replace null with the station pointer.
+- Give two network occupants in the first route cell: first has no matching path, second does.
+  Choose the second, derive heading from its path endpoints, and pop the first route entry once.
+  With no match, fail after the pop; do not silently restore the deque or choose a nearby road.
+- Track a kind-0 occupant and request delayed removal before any eligible Update: it remains held
+  and counted. A context gate can postpone completion; an eligible update below fade 0.01 removes
+  it with texture/model release before the retained occupant Release. Refresh leaves the handle intact.
 
 1. Empty record: a fresh manager writes `02 00 00000000 00000000 00000000 00000000 08000000`.
 2. Round trip of the 22-byte corpus forms, including `toolType` 4; after `Init`, `toolType` is 8.
