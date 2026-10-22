@@ -9,10 +9,12 @@
 - Copied successful control: build-runs/evidence-run4/vpm4-r1-native-f875545f.{req,log,verdict}; script saves2031-12-01, mark2031-12-15, end2032-01-01; enable empty, disable budget, simulator retained. This is a hypothesis to test, not a cause finding.
 - Confirmed engine diff92e01745..HEAD empty; engine/build-x86 and immutable-b DLL hashes both053BD7A077A43A31ACB065C3B985D792CD9FEBFADAA82B0E7A343D742621FABC. Stable33596de3 records final source gate cargo4963/clippy0/ctest68; logs retained, DLL19:46:52 precedes gate completion19:49:01. No rebuild justified for unchanged source.
 - Source inspection confirms independent GetCommandLineA -> production CAPI/Rust parser, actual borrowed public SDK dispatch, no native seeding or clone. Same fixed query inventory and exclusions as round2.
-- Next: submit unique cmdline4-r3-native-off-2032-e, immutable-b DLL, Konradshohe, enable empty/disable budget, turbo1, save2031-12-01/mark2031-12-15/end2032-01-01, seconds420/timeout600. ON only if clean; current40 only if both pass.
-- All round2 disable-all stalls and prior current40 evidence retained below and in build-runs. No new request outstanding at commit; OFF submission is next.
+- NativeOFF cmdline4-r3-native-off-2032-e CLEAN2032-01-07, full save ok1 at real2026-10-22 21:19:10.807/game2031-12-09,10984ms, PostSystemServiceShutdown, ref0/stalls0. Probe disabled: no comparisons/coverage credit. Actual enabled set simulator only; budget disabled; optional owners original.
+- Next: unique cmdline4-r3-native-on-2032-f with identical immutable-b DLL, city/profile/script/timing and cmdline_probe=1. current40 only if ON clean.
+- All round2 disable-all stalls and prior current40 evidence retained below and in build-runs. No request outstanding at commit; ON submission is next.
 - No source changes, no new questions, no new gate; task explicitly permits inspecting existing stable gate for unchanged source.
 - q.py Bash transport failed with E_ACCESSDENIED; use bounded PowerShell reads, apply_patch for all files.
+- Audit script build-runs/cmdline4-r3-audit.py gate recomputes4963/0/0 and exact hashes; run audit corrected empty-enable whitespace parsing before recording configuration counts. Completed OFF verdict accepted without resubmission.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-cmdline-native4-r3-manifest.json. No fourth/renamed round, external reads, agents, ref updates or private owner work.
 
 ## Round 2 report (2026-10-22)
