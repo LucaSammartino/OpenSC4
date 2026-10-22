@@ -1,6 +1,17 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-language-native4 (native utility verification) | `Codex` / `verify-language-native4` (engine lane; detached HEAD) | WIP: source06d71bb2; cargo4961/0, clippy clean, ctest68/68; owned/native-no-save2032 clean/ref0; strict116235/116235, host2484/4140, gaps2629/3043; LU4 filed; native full-save controls stalled; exact current40 control missing | (1) Supply exact current40 profile; (2) reconcile native save failures; (3) publish LU1-LU4/SL1 contracts before broader verification credit. |
+| verify-language-native4 (native utility verification) | `Codex` / `verify-language-native4` (engine lane; detached HEAD) | in progress: round2; source06d71bb2; prior cargo4961/0, clippy clean, ctest68/68; owned/native-no-save2032 clean/ref0; strict116235/116235; two native full-save stalls retained | Diagnose identical-script no-verifier native full-save control, then corrected literal current40; retain LU1-LU4/SL1 gaps. |
+
+## Handoff
+
+- Goal: round2 of at most3; diagnose full-save stall before any owned fix; exact supplied house40 control.
+- Done: prior round report at35a599ca; source06d71bb2; all five prior attempts and raw counts retained below.
+- Baseline: qbuild all launched this round; inspect wrapper result/log summaries next.
+- Next: inspect owned request/script/log save boundary and PDB availability; submit unique no-verifier native identical-script control.
+- Facts: corrected immutable2 DLL SHA25678ea9b099f55d8abd95ea76cea21f34ced2caf72fc68ec305f35da43185c9342; no prior request outstanding.
+- Strict116235/116235; host2484/4140; gaps2629/3043. No production algorithm fit is permitted.
+- Current40 literal supplied in round2 prompt; excludes terrain/dispatch/effects. Preserve every failure, no unchanged failed-setup repeat.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-language-native4-r2-manifest.json.
 
 ## Result and scope
 
