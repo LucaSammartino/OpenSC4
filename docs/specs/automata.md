@@ -423,6 +423,121 @@ base record of that version (the leading `u16` is the base's own).
 
 Corpus: 12 records, 11 of version 5 and 1 of version 4.
 
+#### 5.2.1 Retained airport/aircraft references and teardown (AT24) *[compat]*
+
+**The map owns one reference to each airport key and one to each aircraft value. Its payload references
+are released by aircraft-manager `Shutdown`, not by its deleting destructor.** This rule is specific to
+the aircraft manager; the controller-manager removal rule in §7.1 is not evidence for this lifecycle.
+The following offsets are from the complete manager object `M`. The serializable interface passed as
+`this` to Read is `M + 8`, so Read uses `this + 0xA80` for the map at `M + 0xA88`.
+
+| Entry point / call signature | Native role and evidence |
+|---|---|
+| Constructor `0x004FBB40`, `this=M`, no stack arguments | Calls base constructor `0x005125E0`; installs primary vtable `0x00A94850` and serializable vtable `0x00A94828`. Builds an empty map at `M+0xA88` (header there, count at `+0xA8C`), an empty runway list at `+0xA94`, and nulls the filter at `+0xA98` (`0x004FBB49–0x004FBBB7`). |
+| `Init()`, primary slot 3, `0x004FA9E0` | With initialized byte `M+0x34` clear, calls base Init, creates/AddRefs the filter, sets the global tuning pointer and eventually sets this byte to 1 (`0x004FA9E3–0x004FAA38`). Repeated Init returns true. |
+| `Read(stream)`, `0x004FBE70`, serializable `this=M+8`, callee pops 4 bytes | Version 5 reads the base record, then the airport/aircraft pairs. Earlier versions use the base-version reader directly; later versions fail (§5.2). |
+| `Shutdown()`, primary slot 4, `0x004FB7D0`, `this=M`, no stack arguments | If initialized, releases map payloads and clears map nodes, clears runway nodes, releases/nulls the filter, calls base Shutdown `0x005110A0`, then clears the global tuning pointer. Returns true, including when already uninitialized. |
+| Final manager `Release()`, primary slot 2, `0x00507B50` | Count `M+0x38 > 1`: decrements only. Count at most 1: calls virtual slot 4, then virtual slot 38 with deleting flag 1, and returns zero (`0x00507B53–0x00507B74`). Thus final Release can enter Shutdown without an earlier explicit call. |
+| Deleting destructor, primary slot 38, `0x004FBCF0`, `this=M`, one 32-bit flags argument | Destroys runway storage, destroys map storage through `0x004FB780`, calls base destructor `0x00512780`, and frees M if flags bit 0 is set (`0x004FBCF3–0x004FBD23`). It does not call aircraft Shutdown or Release on the airport/aircraft payloads. |
+
+The slot identifications follow the constructor-written primary vtable: export data references
+`0x00A9485C -> 0x004FA9E0`, `0x00A94860 -> 0x004FB7D0`, `0x00A948E8 -> 0x004FBCF0`,
+and `0x00A94904 -> 0x00511990` (slot 45). Names attached to generic STL helpers in the export are
+not their ownership semantics: `0x004FB270` recursively frees tree nodes without touching their
+key/value pointers (`0x004FB280–0x004FB29B`); `0x004FB780` uses it and frees the sentinel.
+The base destructor also destroys storage; it does not provide a deferred aircraft-map Release pass.
+
+**Acquisition and loaded lifetime.** Each version-5 pair makes two calls to the stream overload
+`SC4ReadGZSerializable(stream, iid, out, 0)` at `0x005D9730`: airport IID `0x26BB767E`
+(`0x004FBEE7–0x004FBEFB`) and automaton IID `0xA9B40F05` (`0x004FBF00–0x004FBF0C`).
+It then uses the returned airport pointer as the map key and stores the returned automaton pointer
+as the value (`0x004FBF14–0x004FBF24`). There is no additional AddRef and no temporary Release of
+either returned interface in this loop. These are the references retained by the map.
+
+This is a transfer of acquired interfaces, not a borrowed object-table lookup. The stream helper
+queries the serializable segment IID `0x4999A8F5`, calls the segment overload `0x005D96C0`, and
+releases its temporary segment interface (`0x005D9748–0x005D9782`). The segment overload reads a
+serializable reference through slot 26 (`+0x68`), queries that object for the requested IID, and
+releases the temporary serializable interface (`0x005D96D1–0x005D970E`). The successful QI result
+is left in `out`. Airport occupant QI AddRefs the result (`0x005E8A0C–0x005E8A14`). The observed
+airplane primary vtable `0x00A94B38` uses aircraft QI `0x004FA7A0`, which delegates this IID to
+automaton QI `0x00505D80`; IID `0xA9B40F05` returns the primary interface and AddRefs it
+(`0x00505DC5–0x00505DCA`, `0x00505E01–0x00505E09`). Ending a loaded segment therefore does not
+consume either retained map reference.
+
+The base record separately reads every automaton list entry with the same automaton IID and retains
+that QI result in a list node (`0x0050FF40–0x0050FF7E`). Thus a plane present in both the base list
+and the airport map has **two manager-owned references**, plus any object-table or other owners.
+Runtime airport insertion independently confirms the map ownership: after successful creation via
+manager slot 15, it AddRefs the airport and plane, then stores the plane in the map
+(`0x004FC1AB–0x004FC1D6`, reachable from occupant-insert handler `0x004FBFE0`).
+
+**Release events and exact relative order.** These operations are distinct:
+
+1. `PreCityShutdown` `0x26D31EC2` reaches the base message handler, which calls manager slot 45
+   (`0x005069F7–0x005069FD`). For aircraft that slot is base `RemoveAllAutomata` `0x00511990`.
+   It releases automaton sets first, then walks the base automaton list: unplace, stop camera follow
+   when applicable, automaton `Shutdown()` (slot 4), automaton `Release()` (slot 2), then clear the
+   list (`0x005119B7–0x00511A72`). **This does not clear the airport map.** A plane still in the map
+   survives that base-list release unless another operation has already removed its map entry.
+2. An accepted `RemoveOccupant` message `0x99EF1143` invokes aircraft handler `0x004FB8D0`
+   (`0x004FC72A–0x004FC755`; the existing occupant-property filter still applies). On a map hit,
+   it calls the mapped plane slot 13 (`+0x34`) with false, erases/frees the map node and decrements
+   its count, then releases **plane first, airport second** (`0x004FB8FE–0x004FB940`). It does not
+   call plane slot 4 here. A miss performs no map-payload releases. This order differs from bulk Shutdown.
+3. Aircraft-manager `Shutdown`, if initialized, walks the map in its pointer-key order. For **each**
+   entry it fetches the plane pointer, releases **airport first** (`0x004FB7F4–0x004FB7FC`), then
+   releases **plane** (`0x004FB7FF–0x004FB803`). There is no plane Shutdown or detach call in this
+   loop. Only after all payloads are released does it free all map nodes and reset header/count
+   (`0x004FB84F–0x004FB874`). It then clears runways, releases/nulls the filter, and calls base
+   Shutdown (`0x004FB877–0x004FB8BE`). Base Shutdown calls slot 45 again **after** the map releases
+   (`0x005110B1–0x005110B4`), and eventually clears `M+0x34` (`0x00511257`).
+4. City `Shutdown` explicitly calls aircraft Shutdown and then aircraft Release at city field
+   `+0x1D8`, nulling that field (`0x0045B266–0x0045B280`). A final Release consequently sees an
+   already uninitialized manager: it does not repeat payload releases. The deleting destructor
+   that follows frees the now-empty storage. Bypassing Shutdown and directly invoking that
+   destructor on a nonempty map frees nodes without balancing their payload references; this is
+   not the public Release lifecycle.
+
+**Final-owner conditions.** A map release is allowed to destroy a plane when it holds the last
+reference. For example, start with one base-list reference, one map reference and no other owners
+after loaded-segment disposal. PreCityShutdown shuts down the plane and drops its list reference
+(2 to 1); aircraft Shutdown subsequently drops its map reference (1 to 0). If PreCityShutdown was
+not delivered and both references remain, aircraft Shutdown drops the map reference first (2 to 1),
+then its base Shutdown shuts down/releases the list entry (1 to 0). If an external reference is
+retained, neither manager release destroys the plane. An already removed airport entry contributes
+no later map release. These conclusions count actual reference events, not occurrences of a pointer
+in a save or the number of observed warnings.
+
+**AT24 audit boundary.** Three `cSC4Airplane` warnings at generic `HostRelease:53` in both
+`train84-ports-union-reload-20261022-a` and `train84-ports-union-control-20261022-a` establish a
+shared existing path. They do not identify which native lifetime event the replacement performed.
+The native contract permits a final owning release **during aircraft Shutdown**, including Shutdown
+entered by final manager Release; it does not justify postponing map ownership to a member/deleting
+destructor or applying a destructor-only annotation by controller-manager analogy. If a replacement
+keeps these references until member destruction after Shutdown, its timing differs. If its generic
+helper is executing the specified Shutdown event, a zero result alone is not a native ownership error.
+Determining which case produced those three warnings requires receiver identities, before/after
+reference counts and the Shutdown-versus-destructor phase at that helper; none is inferred here.
+No warning suppression, audit-macro change, coverage/default change or ports promotion follows.
+
+#### 5.2.2 Independent discriminating ownership vectors (AT24)
+
+These are required behavioural probes, **specified here, not executed in this RE lane**. Use counted
+airport/plane interfaces, an initialized manager, valid unique map keys and an independently controlled
+segment/table owner. Log IID/out receiver, AddRef/Release, plane Shutdown and manager phase. Keep
+an observer reference when necessary to inspect events after manager cleanup; remove it explicitly.
+
+| Vector | Required observation; distinguishes |
+|---|---|
+| Load one pair and the same plane once in the base list; destroy the segment/table before manager cleanup | After table disposal, two plane references remain owned by the manager and one airport reference by the map. Table disposal cannot substitute for either map release. |
+| Same loaded state, deliver PreCityShutdown, inspect before calling manager Shutdown | Plane Shutdown then one list Release; map still has the pair and owns the remaining plane reference. Manager Shutdown later gives airport Release then final plane Release. Distinguishes base-list clearing from map clearing. |
+| Same state, omit PreCityShutdown, call manager Shutdown | Map airport Release, map plane Release, then base-list plane Shutdown and plane Release. Distinguishes map-first Shutdown from destructor-held references and from shutting down each mapped plane in the map loop. |
+| Retain one extra plane reference across either sequence | Manager cleanup leaves that reference alive; dropping it later, outside the manager, destroys the plane. Distinguishes legitimate final ownership from a fixed three-warning expectation. |
+| Two map pairs inserted/read in reverse pointer-key order | Shutdown releases each pair airport then plane in ascending key order; it does not release every airport before every plane. Keep independent observer owners to avoid reentrant deletion affecting the probe. |
+| Accepted RemoveOccupant for one present key, then repeat, then manager Shutdown | First hit: plane slot 13(false), erase, plane Release, airport Release. Second hit: no map releases. Shutdown must not release that pair again. Distinguishes removal from bulk Shutdown ordering. |
+| Explicit manager Shutdown twice, then final Release; separately final Release without explicit Shutdown | First case: one payload pass, no payload releases in deleting destruction. Second case: one payload pass in virtual Shutdown before deleting destruction. Distinguishes final Release from directly invoking a destructor. |
+
 ### 5.3 Watercraft (46), version 6
 
 Write `0x0056FA70`, Read `0x005749E0`. Read: a version above 6 fails (`0x00574A26`, AM9); a version below 6 means
