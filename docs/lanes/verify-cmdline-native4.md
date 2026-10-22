@@ -1,6 +1,17 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-cmdline-native4: public native read-only queries | `verify-cmdline-native4` / detached worktree | wip: 492/492 bounded queries exact; cargo4963/clippy0/ctest68 pass; current40 full-save/shutdown clean; native lifecycle control fails | Establish a supported native load/full-save/shutdown control, then rerun probe-on with a unique label. CL4 remains open outside this phase. |
+| verify-cmdline-native4: public native read-only queries | `verify-cmdline-native4` / detached worktree | in progress: final round3 supported-profile lifecycle validation | Check immutable-b correspondence, then matched native probeOFF/ON and conditional current40 controls; stop on OFF failure. |
+
+## Handoff
+
+- Goal: final3/3 bounded lifecycle continuation of borrowed production/native queries; CL1-CL4 exclusions persist.
+- Reused detached HEAD088f78a2, initially clean. No production changes planned; immutable-b source92e01745, SHA256053BD7A077A43A31ACB065C3B985D792CD9FEBFADAA82B0E7A343D742621FABC.
+- Copied successful control: build-runs/evidence-run4/vpm4-r1-native-f875545f.{req,log,verdict}; script saves2031-12-01, mark2031-12-15, end2032-01-01; enable empty, disable budget, simulator retained. This is a hypothesis to test, not a cause finding.
+- Next: inspect exact gate/source/artifact correspondence and supported request fields; submit unique nativeOFF using same city/profile/timing, then nativeON only if clean; current40 only if both pass.
+- All round2 disable-all stalls and prior current40 evidence retained below and in build-runs. No new request outstanding.
+- No source changes, no new questions, no new gate; task explicitly permits inspecting existing stable gate for unchanged source.
+- q.py Bash transport failed with E_ACCESSDENIED; use bounded PowerShell reads, apply_patch for all files.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-cmdline-native4-r3-manifest.json. No fourth/renamed round, external reads, agents, ref updates or private owner work.
 
 ## Round 2 report (2026-10-22)
 
