@@ -1,25 +1,73 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-language-native4 (native utility verification) | `Codex` / `verify-language-native4` (engine lane; detached HEAD) | in progress FINAL round3/3: retained source06d71bb2, cargo4961/0, clippy0, CTest68/68; eight historical attempts preserved; LU1-LU4/SL1 open | (1) Audit immutable2/source/gate; (2) supported simulator-only OFF then matched ON; (3) conditional literal40 plus simulator/budget defaults; stop on prerequisite failure. |
+| verify-language-native4 (native utility verification) | `Codex` / `verify-language-native4` (engine lane; detached HEAD) | Ready within bounded constructed utility scope; FINAL3/3; source06d71bb2 unchanged; retained cargo4961/0, clippy0, CTest68/68; r3 i/j/k clean/ref0 full-save/full-shutdown; ON j/k strict116235/116235 each, host1656/gap414 differences each; actual42=40+2 defaults; all8 historical attempts retained; LU1-LU4/SL1 open; lane retains3 private ABI exports | (1) Published answers for LU1-LU4/SL1 before expanding credit; (2) reload only if a supported isolated fixture becomes available; no fourth lane round, owner/default/replaced promotion or further experiment. |
 
-## Handoff
+## Final round3 report (2026-10-22)
 
-- Goal: FINAL bounded round3 supported lifecycle controls; no source/owner/default expansion, no fourth round.
-- Done: initial round3 handoff9ca61786; all round2 ledger and copied evidence reviewed; engine tree b5044770680594c46e936d71a4b5bec83a63c10f equals 06d71bb2; no working/untracked engine changes.
-- Done: built DLL/PDB and immutable2 hashes match; retained cargo4961/0, clippy0, CTest68/68 audited from logs (CTest93.03s); no redundant rebuild/fmt.
-- Done: OFF vlun4-r3-supported-off-2032-i clean2032-01-04/ref0; simulator-only actual1, budget disabled; full save returned1 in10953ms at22:10:06.574 (executed2031-12-16), mark completed; PostAppShutdown22:10:07.222 and PostSystemServiceShutdown22:10:07.302.
-- Done: ON vlun4-r3-supported-on-2032-j clean2032-01-24/ref0; simulator-only actual1, budget disabled; full save returned1 in11079ms at22:12:51.795 (executed2031-12-14); mark completed; PostAppShutdown22:12:52.524, PostSystemServiceShutdown22:12:52.597.
-- Done: ON strict116235/116235, host2484/4140 (1656 differences), gaps2629/3043 (414 differences); 46 IDs finalRelease0/0, refused0, resync0, fallback0, managerUnchanged1; natural0/0 unexercised; raw DIFF2070 retained.
-- Next: vlun4-r3-current40-budget-2032-k ALREADY SUBMITTED; wait for/accept its existing unique verdict, never resubmit. Audit actual42=literal40+simulator+budget, extra0/missing0 and full-save/shutdown/ref0; no further experiments or rounds.
-- New hypothesis: disable=all/turbo0 historical failures differ from supported simulator-only/disablebudget/turbo1; prior OWNc already passed the latter effective profile.
-- Requests planned: unique probeOFF first, then exact matched ON if OFF passes, then literal40 enable/defaultbudget if ON passes; seconds420/timeout600, Konradshohe, target2032-01-01.
-- Immutable2 expected DLL SHA256: 78ea9b099f55d8abd95ea76cea21f34ced2caf72fc68ec305f35da43185c9342.
-- Retain strict116235/116235 separately from foreign host2484/4140 and question gaps2629/3043 per enabled run; 46 constructed lifetimes, natural0/0.
-- One request outstanding: CURRENT40 k above. OFF/ON raw verdicts/logs retained. OFF SHA2566287c403b90a7c46698418dab76233e078a313c1598824350649224a3f3e1fe5 / 36e78eb55aaf0e935cf6f333764744c517d565163a2e0e39bc05c1f1eed29c45; ON SHA256f17efbfe7dc2fbc62917b4f97a1da619671bb29b9cbab70187a7d2d15d5751f4 / 0a4a46b40d64ff832aa586737c2e22cb942b0f22a1182032c27f6aacbdc1490a.
-- OFF/ON request comparison PASS: only label and probe flag differ; requests SHA25662fac407f1f17e90118a3003861e0bd73a641e047d87464fa7e578a81b9834c7 / d0b5103bd5b069cb4bf675d73153344995ed2a9b20b9ea9fa5058bea2a5a0cd5.
-- Use copied evidence-run4/cmdline4-r3-supported-save.script unchanged, SHA25670a903f02158b86981fbc3d5411c8e2ace5a9ea6539b5ab3806f0ae07fa24ac6; no cmdline DLL use.
-- No supported isolated reload fixture supplied; reload remains unmeasured. LU1-LU4/SL1 open. q.py Bash unavailable (access denied); run bounded lane-local Python directly.
-- Guard: C:/Users/tlori/FreeCity4/build-runs/run4-verify-language-native4-r3-manifest.json; original family final3/3, maxCalls100.
+**Ready for the bounded constructed utility verifier and the three explicit supported lifecycle controls below.** This is the final original-family round3/3. No engine source, core behavior, provider, CRT, locale, lifetime, unrelated owner, default, public ABI table or generated entry was changed this round. No fourth or renamed continuation is requested. The historical reports below retain their state and conclusions as of those earlier rounds; this report adds the supported-profile results without rewriting their failures.
+
+### Artifact and retained stable gate
+
+Before the experiment and again after all three verdicts, the actual committed engine tree equals `06d71bb2:engine`: `b5044770680594c46e936d71a4b5bec83a63c10f`. There are no working or untracked engine changes. The built `engine/build-x86/FreeCity4.dll` and this lane's `build-runs/language-immutable2/FreeCity4.dll` both hash to **78ea9b099f55d8abd95ea76cea21f34ced2caf72fc68ec305f35da43185c9342**. Both PDB copies hash to `ab9ee7606d4ea62a51ab6bccc142bc989264334c55aab2dfbd384ef4cd406786`. All three new harness verdicts record actual DLL hash prefix `78ea9b09`. No cmdline-lane DLL was used.
+
+The audited retained stable gate is **cargo4961 passed/0 failed, clippy0 errors, CTest68/68** (retained CTest log93.03s). Following this round's unchanged-source instruction, no redundant qbuild all, focused source check or Rustfmt was run. Gate logs and their SHA256 values remain:
+
+| Lane-local log | SHA256 |
+|---|---|
+| build-runs/qbuild-test.log | 3d008cfe487b3a5bc5dc8a5187c7f20f1f169565317c4e85b686f9932e56be72 |
+| build-runs/qbuild-clippy.log | dba89f1c7ac2b84fddbb8114ea2f767e31defb34d36231ba1fafa66c492a365e |
+| build-runs/fc4verify-build.log | d86b00917a1b2b8de291b35e8ae963baaca9639586b29b929c5e9e85aea413d0 |
+| build-runs/fc4verify-ctest.log | 88d42603acdd8c7825982b6ee2a16f135c3a2b800222e3f33b9620f4e11df13b |
+
+### Controlled supported profile
+
+All three requests used **Konradshohe, seconds420, timeout600, turbo1, end_date2032-01-01**, the same immutable2 DLL, `ref_audit=1`, popup dialogs off, and full quit. They used the already copied lane-local `build-runs/evidence-run4/cmdline4-r3-supported-save.script` unchanged: `2031-12-01 save`, then `2031-12-15 mark persist-control-fullsave-complete`. Its SHA256 is `70a903f02158b86981fbc3d5411c8e2ace5a9ea6539b5ab3806f0ae07fa24ac6` before and after the experiment.
+
+The copied cmdline round3 controls demonstrate this harness setup with a different artifact; they establish no language compatibility or failure cause. The prior own-DLL `vlun4-r1-own-06d7-2032-c` already passed the equivalent effective simulator-only/budget-disabled/turbo profile with full save/ref0. This round adds an OFF-first matched pair on the precise420/600/save+mark profile; it is not first-ever proof of that effective profile. Historical language native-fullsave failures all used disable-all/normal-speed, and remain failed evidence for that distinct setup.
+
+OFF and ON request dictionaries differ **only in label and language_native_verify (0 versus1)**. Both have empty enable and `disable=budget`. Their actual production enabled set is exactly **simulator-only (1)**: our simulator supplies the harness clock, budget is disabled/original, and optional owners remain original. This is not an all-original simulator run or owner binding.
+
+CURRENT40 changes only label/enable/disable relative to ON. Its enable value is exactly these40 distinct literal keys:
+
+`landvalue,weather,ordinance,demand,power,plumbing,flammability,pollution,protection,crime,aura,flora,landfill,residential,neighbors,zones,development,tract,history,clock24,commercial,industrial,civic,parks,lotdev,zonedev,traffic,automata,netmgr,netlot,nettool,demolition,occmgr,propmgr,lotcfg,citysit,propdev,simgrids,citydetail,ports`
+
+With disable empty, its actual logged enabled set is **42 = 40 requested + 2 defaults (simulator, budget), extra0/missing0**. Terrain/dispatch/effects are absent. Forty literal keys are not relabelled as42 keys, and42 actual providers are not relabelled as40 providers.
+
+### New raw lifecycle results
+
+All timestamps below are the log's2026-10-22 timestamps; SaveCity timestamps are the completion log lines. All saves returned `ok=1` for `SaveCity(full)`. The mark completed in all three runs. Each reached both full shutdown hooks and the final clean verdict with **ref_warnings0, foreign_exceptions0, watchdog_stalls0, rtc0, overruns0**.
+
+| Unique label | Probe / actual providers | Verdict date | Full save completion / duration / execution date | PostAppShutdown / PostSystemServiceShutdown |
+|---|---|---|---|---|
+| vlun4-r3-supported-off-2032-i | OFF / simulator1, budget disabled | clean2032-01-04/ref0 | 22:10:06.574 /10953ms /2031-12-16 | 22:10:07.222 /22:10:07.302 |
+| vlun4-r3-supported-on-2032-j | ON / simulator1, budget disabled | clean2032-01-24/ref0 | 22:12:51.795 /11079ms /2031-12-14 | 22:12:52.524 /22:12:52.597 |
+| vlun4-r3-current40-budget-2032-k | ON / literal40+simulator+budget=42 | clean2032-01-01/ref0 | 22:16:28.844 /11093ms /2031-12-01 | 22:16:30.940 /22:16:31.089 |
+
+Turbo can execute dated actions after their scheduled day and overshoot the requested end date; the actual execution/final dates are retained. Session seeds and simulation trajectories are not asserted identical. OFF executed zero language comparisons and receives zero verification credit.
+
+On **each** new enabled run j/k, actual production `fc4_core::language::LanguageUtility` versus independently owned ORIGINAL utility comparisons are **strict116235/116235**. Separate foreign `LocaleHost` observations are **host2484/4140,1656 differences**; separate open-question observations are **gaps2629/3043,414 differences**. All2070 raw DIFF lines per enabled run remain in its log. Exact strict results do not erase those differences or make the foreign host normative.
+
+Each enabled run constructed46 caller-owned utilities, IDs0..45, with46 final native/core Release results0/0, refused0, resync0, fallback0 and managerUnchanged1. The borrowed manager utility was neither mutated nor released, the acquired service reference and extra AddRef/QI holds were balanced, and no global locale switch or foreign/private CRT binding was added. ID0 construction/results remain conditional on **SL1**. Natural calls remain **0/0, unexercised**. No arbitrary parser/codec, string, detokenizer, encoding or manager-owner completeness is claimed.
+
+The two new ON runs repeat the same bounded corpus: **232470 strict comparisons = 2 x116235**,92 constructed lifetimes over the same46 IDs. They add stability/lifecycle observations, not twice the unique input coverage. Their combined raw foreign-host3312 and question828 differences remain separately classified. **LU1-LU4/SL1 all remain open**: LU1 negative year46 and LU2 case return368 account for414 differences per run; LU3 shutdown and SL1 retain conditional observations even where matched; LU4 retains the foreign printf/signed-zero/exponent boundary. No new question was filed this round.
+
+The budget-enabled current42 result passes the required ref0 control, while both historical budget-disabled current40 controls remain clean/ref4 failures of that criterion. This is compatibility evidence for the tested supported profile, not a causal diagnosis of the old warnings or stalls. Timing/script and simulator/budget setup differ across the historical profiles. No budget/ports/parks/landfill fix, language behavior fitting, owner promotion or default change follows from this experiment.
+
+### Evidence retention and final limits
+
+All eight historical attempts remain below and in lane-local raw artifacts: the359 audit warnings, all three full-save stalls, the omitted-save control, both current40/ref4 controls and the corrected OWNc success. Together with the three unique round3 requests this is **11 retained attempts:10 full-save attempts (7 returned,3 stalled) and1 omitted-save control**. No label reuse, discarded completed verdict, reroll, failed-start/harness-error retry or fourth-round variant occurred. No request remains outstanding. Each wait was launched once with the existing lane-local waiter accepting an already completed verdict; no qwait freshness reset or process-completion polling was used.
+
+| New label suffix | Request SHA256 | Raw verdict SHA256 | Raw log SHA256 |
+|---|---|---|---|
+| supported-off-2032-i | 62fac407f1f17e90118a3003861e0bd73a641e047d87464fa7e578a81b9834c7 | 6287c403b90a7c46698418dab76233e078a313c1598824350649224a3f3e1fe5 | 36e78eb55aaf0e935cf6f333764744c517d565163a2e0e39bc05c1f1eed29c45 |
+| supported-on-2032-j | d0b5103bd5b069cb4bf675d73153344995ed2a9b20b9ea9fa5058bea2a5a0cd5 | f17efbfe7dc2fbc62917b4f97a1da619671bb29b9cbab70187a7d2d15d5751f4 | 0a4a46b40d64ff832aa586737c2e22cb942b0f22a1182032c27f6aacbdc1490a |
+| current40-budget-2032-k | 1bc5fc18413afbe8198ab89e0f5b0894742da62a43a68cb5cb7e9801a1bd591b | 346fd87e031ead7c45bb60f0fea9675560caea3aad947578d04d945d57e30594 | d9cc165186b43307c5389a6f25e5d58dba23c0cfd0dda0a2ea9a702748a9cdce |
+
+Full labels have prefix `vlun4-r3-`; requests are retained under `build-runs/game-queue/done/`, raw verdicts/logs under `build-runs/game-results/`. Read-only checks are reproducible with `python build-runs/audit-language-round3.py gate`, `pair`, or any of the full new labels. The q.py wrapper's Bash transport was unavailable (access denied); bounded lane-local Python was used directly. No prohibited source, private executable, other worktree, game slot or Documents file was inspected. No subagents, tools/maps edits, shared refs/config edits, merge/rebase/push or external communication occurred. Commits stayed detached; git's post-commit packed-refs lock attempt was denied by the read-only shared-ref boundary, while each commit itself succeeded.
+
+No already available supported isolated fixture from these immutable runs was supplied. Original/simulator-only/current42 **reloads remain unmeasured**; no fixture lookup outside the worktree, slot copy, save-as/export guess or Documents access was attempted. Published answers in `docs/specs/questions/language-utility.md` (LU1-LU4) and `docs/specs/questions/strings-language.md` (SL1), and an authorized supported fixture, are prerequisites for any later scope expansion. Bounded constructed utility/lifecycle readiness gives no full-owner/default/replaced or arbitrary parser/codec credit.
+
+Round3 milestones: handoff9ca61786, provenance/gate auditdf3e80ef, OFF86fee1c2, ON2ef73713, pending-label ledgerdfc0b29e. Final reporting retains source milestone06d71bb2. This round changes **no C ABI exports**; the lane as a whole still adds the three private transport exports listed in the retained report, so the merge-queue/result ABI flag remains **true**. No public ABI-table edit or ABI-version bump.
 
 ## Round2 diagnosis and controls (2026-10-22)
 
