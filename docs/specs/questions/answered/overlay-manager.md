@@ -1,6 +1,11 @@
 # overlay-manager: answered questions
 
 <!-- from: core-terrain-overlays4 (2026-10-22) -->
+- ~~**OV9 - §3.1 slot7:** specify radius/centre fields, the eight-part partition, half-chord row sample coordinates/rounding, city-edge clipping, texture mapping and terrain redisplay order, and empty/failing part cleanup. The prose states eight rectangles but not their equations/partition. [no host-computed eight rectangles or guessed disc approximation accepted; round add reports a gap]~~
+
+  **ANSWERED 2026-10-22 (re-overlays-contract4):** DIFFERS — §3.1 proves an eight-part outline partition omitting the centre, outer/90% inner radii, four integer split-row chord samples, ordered rounding and binary32 partition constants, shared full-footprint texture matrix, per-part clipping and redisplay order. Empty parts remain allocated; the native add has no partial-allocation rollback path. The H=20 split-row discriminator detects substituting exact decimal constants.
+
+<!-- from: core-terrain-overlays4 (2026-10-22) -->
 - ~~**OV4 - §§1,2,3 getters:** please specify constructor overlay/handle defaults, Init failure/repeat-Init behavior, factory slot used for key 0xAA592B77, slot 22's field identity/type, and scalar getter behavior for groups and handle -1 (besides alpha=0). [core owns acquired Arc references, rejects invalid/repeated Init atomically, defers shadow-binding lookup until its slot is known; unidentified/group scalar getters report a gap, null output getters leave output untouched]~~
 
   **ANSWERED 2026-10-22 (re-overlays-contract4):** DIFFERS — §§1.1/2.3 specify defaults and unspecified inactive scratch, mutating repeat Init with no rollback/failure result, binding factory slot5, slot22 boolean shown, slot26 self-lit, group part0 getters, and −1/null-output behavior. No atomic native stale/null/Init rejection is implied.

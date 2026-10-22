@@ -90,7 +90,7 @@ literal 1 established at `0x00735FF2`, colour loads `0x007360BE–0x007360DC`, a
   its eight parts where the method supports group recursion. Handle −1 is "none"; scalar getters return their
   sentinels and placement getters leave their output untouched (§2.3).
 
-Counters: the decals and shadows drawn in the last frame (`+0xD8`, `+0xDC`).
+Counters: the last invoked nonempty decal/shadow passes (`+0xD8`, `+0xDC`); skipped passes preserve them (§4.4).
 
 ### 2.2 The cell index (static managers)
 
@@ -193,11 +193,81 @@ Slots 0–2 are `QueryInterface`, `AddRef`, `Release`. The ordinary decal add si
 stored placement and owner computations are in §3.2. `ComputeCellRect` (`0x007354E0`) is a different helper;
 its margin must not be imported into ordinary `PlaceOverlay` coverage.
 
-### 3.1 Round decals (`0x007394B0`)
+### 3.1 Round decals: eight outline parts (`0x007394B0`, OV9)
 
-A disc of radius r is split into eight rectangles of cells that follow its outline (half-chords of the circle at
-the cells' rows); each becomes one part of the group, flagged as a part (bit 4), so that the decal touches only the
-cells inside the disc *[inferred: the coverage circles shown when placing a building]*.
+This is an **outline partition with an omitted centre**, not eight filled-disc strips or exact cell-circle
+intersection. Slot 7 resolves its key through factory slot 5 and returns −1 before allocation if the binding
+output is null. It allocates eight shown decal records, retains the same binding in each, allocates one group,
+and places the group without redisplay. All eight parts receive the same full-footprint primary texture
+matrix/repeat flag computed by §3.2; a part is not independently stretched to fill its rectangle. The public
+width is a full width, not a radius. Evidence: `0x0073B170–0x0073B2F1`, group matrix stores
+`0x0073A67A–0x0073AB75`.
+
+The partition helper receives the **unclipped binary32 cell-space bounding rectangle** already produced by
+placement, including any rotation/aspect expansion. Call its endpoints `(fx0,fz0,fx1,fz1)`. It first converts
+that rectangle to integers `(x0,z0,x1,z5)` using floor minima and ceil maxima (§2.2). Calculations below use
+the original floating endpoints, not the city-clipped bounds. The formulas apply to ordinary finite city-sized
+inputs under native round-to-nearest FP state; E/F have the meaning in §3.2.
+
+| Quantity | Native evaluation |
+|---|---|
+| W, H | `W=E(fx1−fx0)` retained in x87; `H=F(E(fz1−fz0))` |
+| cx, cz | `F(E(fx0+fx1)×1/2)`, `F(E(fz0+fz1)×1/2)` |
+| R² | `F(E(W×1/2)²)` |
+| I² | `F(E(E((1−g8)×W)×1/2)²)` |
+| n1, n2 | `ceil(E(E(g4×H)×1/2))`, `ceil(E(E(g0×H)×1/2))` |
+| Four sample rows | `z1=z0+n1`, `z2=z0+n2`, `z3=z5−n2`, `z4=z5−n1` |
+
+Here g0/g4/g8 are the **binary32** image globals `0x00B0D4D0/D4/D8`:
+0.4000000059604645, 0.20000000298023224, 0.10000000149011612. The radius multipliers use binary64
+1/2 (`0x00A92D28`), while the centre uses binary32 1/2. Replacing these constants with exact decimal
+fractions changes split rows: H=20 yields n1=3 and n2=5, not 2 and 4. Source:
+`0x007394BD–0x00739645`. The integer conversion uses the same bias/correction operations as
+`0x00735380` (bias binary32 12582912 at `0x00AB390C`); mathematical floor/ceil here describe their
+normal finite range, not a saturating conversion for arbitrary nonfinite or huge inputs.
+
+At each sample row zi, let `S=F(E(cz−zi)²)`. The outer half-chord is
+`Oi=F(sqrt(E(R²−min(S,R²))))` and the inner half-chord is
+`Ji=F(sqrt(E(I²−min(S,I²))))`. The clamp is on the **stored square**, before subtraction/sqrt; no negative
+radicand repair after sqrt is substituted. The fourth inner half-chord J4 alone stays in x87 precision until
+its subsequent endpoint conversions rather than first passing through F. Define
+`Li=floor(E(cx−Oi))`, `Ri=ceil(E(cx+Oi))`, `li=ceil(E(cx−Ji))`, `ri=floor(E(cx+Ji))`.
+Outer endpoints round outward; inner endpoints round inward. Chord evaluation is at the integer split rows,
+not cell centres. Evidence: `0x0073963D–0x0073979F`, endpoint conversions `0x007397A1–0x00739B9D`.
+
+Let `b=min(r2,r3)` and `a=min(max(l2,l3),b)`. The eight pre-clipping rectangles, in **group part order**, are:
+
+| Part | `(x0,z0,x1,z1)` |
+|---|---|
+| 0 | `(L1,z0,R1,z1)` |
+| 1 | `(L4,z4,R4,z5)` |
+| 2 | `(x0,z2,a,z3)` |
+| 3 | `(b,z2,x1,z3)` |
+| 4 | `(L2,z1,l1,z2)` |
+| 5 | `(L3,z3,l4,z4)` |
+| 6 | `(r1,z1,R2,z2)` |
+| 7 | `(r4,z3,R3,z4)` |
+
+This central-boundary adjustment permits parts 2/3 to meet when inward endpoints cross; it does not fill a
+normal nondegenerate centre. No general rectangle normalization or re-partition after clipping occurs.
+Assembly evidence: `0x00739B9F–0x00739CE9`. Each rectangle is independently intersected with the city's
+cell bounds. For placement without redisplay, the helper writes the eight clipped rectangles directly in part
+order. For re-placement with redisplay, it calls UpdatePartRect in that same order, with the remove/mark-old/
+write/insert/mark-new ordering of §2.3. Evidence: `0x00739CF0–0x00739EB6`.
+
+After initial placement, slot 7 visits parts 0 through 7, inserts each into the static cell index and redisplays
+each positive-area clipped rectangle via terrain slot 68. A dynamic manager skips that index/redisplay loop.
+Empty clipped parts remain allocated in the group; they are not removed or replaced by −1. The add path has
+no partial-allocation failure branch or rollback loop: its only explicit −1 return is the initial missing
+binding. Allocation exceptions/invalid allocation results must not be specified as a clean atomic failed add.
+Evidence: `0x0073B2F6–0x0073B3A6`.
+
+Paper vector: a square texture, zero turns, cellScale=1/16, centre `(128,128)`, width 256, city containing
+cell box `(0,0,16,16)` gives parts
+`(2,0,14,2)`, `(2,14,14,16)`, `(0,4,3,12)`, `(13,4,16,12)`,
+`(1,2,5,4)`, `(1,12,5,14)`, `(11,2,15,4)`, `(11,12,15,14)`.
+Cell `(8,8)` belongs to none; the centre still maps to texture `(1/2,1/2)` in every part's shared matrix.
+Clipping the city edge changes only the intersections, not the chord samples or texture matrix.
 
 ### 3.2 Placement record and owner calculations (OV1/OV5)
 
@@ -481,8 +551,9 @@ shadows through the terrain view's `GetOverlayManager(index)` (slot 18) or the t
 
 ## 8. Open questions
 
-See [questions/overlay-manager.md](questions/overlay-manager.md) OV1–OV3: the placement record's nine floats and
-the add calls' last arguments; slot 20 and the add forms of slots 8, 9 and 11; what message `0xC9F775BB` is.
+See [questions/overlay-manager.md](questions/overlay-manager.md): OV1 model-shadow add; OV2 remaining add-form
+differences; OV3 message `0xC9F775BB`; OV7 complete camera-inverse rounding; OV8 remaining rendering details.
+OV4–OV6 lifecycle/handles/alpha and OV9 outline partition are answered in the named sections above.
 
 ## 9. Conformance tests
 

@@ -25,4 +25,5 @@
 - ABI: no export changes, no ABI rows/proposal required in this milestone; docs/abi untouched.
 - Git commits succeed detached despite nonfatal packed-refs.lock permission diagnostic; supervisor must publish branch. No branch/config/ref operations performed.
 - Last unincorporated proof: DrawDecals empty input exits at 007367A6 before resetting D8 at 007367E4; both shadow routines likewise exit on empty vectors (00737886/00736C0A). Dynamic snapshot Draw exits at 00738A76. Complete counter contract still pending.
-- Round 2 milestone: §3.5 proves slot9 key/placement/flipV/secondary matrix and slot10 three-word key; §4.4 proves empty/disabled counters, masks and increment sites. Commit recorded in next milestone.
+- Done round 2: 96b4dc27 proves keyed slots9/10, byte flipV, ordered secondary matrix; independent counters/masks/increment sites.
+- New milestone: OV9 §3.1 exact eight-part outline (omitted centre), binary32 split constants, four chord samples/inner90%, shared matrix, clipping/redisplay/empty parts; move OV9 answered.

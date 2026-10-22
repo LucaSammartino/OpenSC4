@@ -36,5 +36,3 @@
   pass-disabled and snapshot counter preservation, nonempty pass resets, masks and increment-after-submission.
   Visible-row endpoints, stamp wrap, DrawRect inputs and shadow arithmetic/state restoration remain open.
 
-<!-- from: core-terrain-overlays4 (2026-10-22) -->
-- **OV9 - §3.1 slot7:** specify radius/centre fields, the eight-part partition, half-chord row sample coordinates/rounding, city-edge clipping, texture mapping and terrain redisplay order, and empty/failing part cleanup. The prose states eight rectangles but not their equations/partition. [no host-computed eight rectangles or guessed disc approximation accepted; round add reports a gap]
