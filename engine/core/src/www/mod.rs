@@ -4,12 +4,17 @@
 //! `Unsupported` is a contract boundary, never a native false return. Reference
 //! effects are explicit: dropping Rust storage must not silently balance native leaks.
 
+pub mod ftp;
+pub mod http;
 pub mod listing;
+pub mod service;
+pub mod worker;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Unsupported {
     NativeInputDomain(&'static str),
     OwnedBody(&'static str),
+    PrimitiveContract(&'static str),
 }
 
 pub type Contract<T> = Result<T, Unsupported>;
@@ -54,7 +59,9 @@ pub fn native_path(input: &[u8]) -> Vec<u8> {
 
 /// 00812b10: narrow Windows Splitpath filename + extension, no URL decoding.
 pub fn leaf(path: &[u8]) -> &[u8] {
-    let start = path.iter().rposition(|b| matches!(b, b'/' | b'\\'))
+    let start = path
+        .iter()
+        .rposition(|b| matches!(b, b'/' | b'\\'))
         .map_or(if path.get(1) == Some(&b':') { 2 } else { 0 }, |n| n + 1);
     &path[start..]
 }
@@ -63,13 +70,22 @@ pub fn leaf(path: &[u8]) -> &[u8] {
 pub fn path_preference(path: &[u8]) -> i32 {
     let name = leaf(path);
     let extension = name.iter().rposition(|b| *b == b'.').map(|i| &name[i..]);
-    if extension.is_some_and(|ext| [b".html".as_slice(), b".htm", b".shtml", b".asp", b".plg"]
-        .iter().any(|known| ext.eq_ignore_ascii_case(known))) { 1 } else { 3 }
+    if extension.is_some_and(|ext| {
+        [b".html".as_slice(), b".htm", b".shtml", b".asp", b".plg"]
+            .iter()
+            .any(|known| ext.eq_ignore_ascii_case(known))
+    }) {
+        1
+    } else {
+        3
+    }
 }
 
 pub fn directory(path: &[u8]) -> Vec<u8> {
     let mut out = path.to_vec();
-    if out.last().is_some_and(|b| !matches!(b, b'/' | b'\\')) { out.push(b'\\'); }
+    if out.last().is_some_and(|b| !matches!(b, b'/' | b'\\')) {
+        out.push(b'\\');
+    }
     out
 }
 
@@ -81,9 +97,13 @@ mod tests {
     fn published_native_path_vectors() {
         for (input, expected) in [
             (b"/C|/a%20b".as_slice(), b"C:\\a b".as_slice()),
-            (b"/1|/x", b"1:\\x"), (b"a%ZZb%2", b"a b%2"),
-            (b"a%252Fb+c%2F", b"a%2Fb+c\\"), (b"%00+", b"\0+"),
-        ] { assert_eq!(native_path(input), expected); }
+            (b"/1|/x", b"1:\\x"),
+            (b"a%ZZb%2", b"a b%2"),
+            (b"a%252Fb+c%2F", b"a%2Fb+c\\"),
+            (b"%00+", b"\0+"),
+        ] {
+            assert_eq!(native_path(input), expected);
+        }
         assert_eq!(leaf(b"C:dir/a.bin"), b"a.bin");
         assert_eq!(leaf(b"out/"), b"");
         assert_eq!(path_preference(b"x.HTML"), 1);
