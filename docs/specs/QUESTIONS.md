@@ -283,8 +283,8 @@ generated index: the questions live one file per spec, so read only the file for
 | watercraft | 2 | 0 | WC3 | questions/watercraft.md |
 | web-network | 0 | 0 | - | questions/web-network.md |
 | widget-toolkit | 5 | 1 | WT7 | questions/widget-toolkit.md |
-| win-filebrowser | 6 | 0 | FBQ7 | questions/win-filebrowser.md |
+| win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **308** | **1167** | | |
+| **total** | **307** | **1168** | | |
