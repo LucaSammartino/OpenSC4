@@ -424,11 +424,12 @@ target), so instruction queries and the existing class decompilation supply the 
 
 The export has 40 names containing `cGZLuaScriptServer`, totalling 6,724 body bytes, including the factory,
 class-ID getter, adjustment thunks and the misnamed 71-byte map-find helper `0x006C0030` (already corrected
-in `re/symbols/lua-host.tsv`). This count alone is **not** complete-owner coverage: shared/folded and unnamed
-helpers also participate. In particular `0x006AAC50` is the last-created-ID getter; `0x008B3200` constructs a
-script record and `0x008B2250` destroys it. No coverage promotion follows from this inventory.
+in `re/symbols/lua-host.tsv`). The existing attribution pass instead assigns **51 functions / 7,700 bytes**
+to this owner. All 51 were audited, including the attribution artifact described below. Shared/folded methods
+and foreign helpers were inspected separately; the two totals measure different sets. No coverage promotion
+or attribution-table change follows from this audit.
 
-Audit order was descending body size (bytes):
+Named-body inventory, descending size (bytes):
 
 | Entry | Bytes | Responsibility |
 |---|---:|---|
@@ -448,6 +449,27 @@ Audit order was descending body size (bytes):
 | `008B04E0`, `008B04A0`, `008AE7D0` | 55, 49, 44 | Set/get auto-yield, QI |
 | `008AECF0`, `008B10D0`, `008AE810`, `008AE830` | 24, 24, 21, 21 | Current ID, factory, Release, destruction dispatch |
 | `008AE800`, `008B10C0`, `008B0400`, `008AE770`, `00A6CAB0` | 8, 8, 8, 6, 4 | AddRef, Init/Shutdown adjustments, class ID, GetLua |
+
+Additional attributed bodies, also audited:
+
+| Entry | Bytes | Responsibility |
+|---|---:|---|
+| `008B3200`, `008B1540`, `008B0320` | 170, 149, 126 | Record construction; unlink/destroy/free one breakpoint node; plain server destruction |
+| `008B0520`, `008AE8B0`, `008B2250` | 111, 108, 93 | Default breakpoint payload; global `arg` lookup callback; record destruction |
+| `008B1D00`, `008AFCF0`, `008AFD40` | 90, 79, 51 | Destroy breakpoint-list sentinel; map iterator post-increment; recursive map-node freeing |
+| `00677261` | 42 | False reach attribution through the bytes of the string `arg`, **not a server callback** |
+| `008B0840` | 30 | Server deleting destructor |
+| `008B03A0`, `008B03B0`, `008B03C0`, `008B03E0`, `008B03F0` | 8 each | +4 QI/Release; +8 QI/Release/deleting-destructor adjustments |
+
+The attribution total excludes the named map-find, factory, class-ID getter and folded AddRef/GetLua above;
+it also excludes shared `0x006AAC50` and +8 AddRef adjustment `0x008B03D0`. It includes the string artifact:
+the sole exported reference to `0x00677261` is data at `0x00AC77E8`, whose actual bytes are `arg` plus NUL
+(little-endian value `0x00677261`). `0x008AED2F` passes that address to PushString. There are zero direct
+calls to the alleged function; it begins in a misdecoded instruction fragment. Thus 50 attributed bodies /
+7,658 bytes carry actual owner behavior, with 42 bytes reconciled as an export/attribution artifact. Do not
+implement an extra callback from that address. Shared list helpers `0x008B02B0`, `0x008B15E0`,
+`0x008B17C0`, `0x008B1F30` construct/clear/copy/allocate breakpoint storage; the latter's exported
+`cRZString::IsEqual` name is incorrect for this allocator, as its instructions show.
 
 The primary interface has slots 0 QI, 1 AddRef, 2 Release, 3 Init, 4 Shutdown, 5 GetLua,
 6 RunScriptString, 7 RunScriptFile, 8 KillScript, 9 PauseScript, 10 ResumeScript, 11 GetBreakpointExists,
@@ -479,6 +501,12 @@ other IDs delegate to the base service. AddRef increments the unsigned 32-bit co
 Release `0x008AE810` decrements only when the unsigned count exceeds one; count zero or one both
 dispatch slot 25 and return zero. Destruction dispatch `0x008AE830` calls virtual Shutdown before the
 deleting-destructor path through the +8 view. There is no extra Release-to-zero Shutdown after that dispatch.
+The +8 slot-3 adjustment subtracts eight and enters `0x008B0840`: run plain destruction `0x008B0320`,
+free the primary allocation only when the caller's flag has bit zero set, then return its address. Plain
+destruction reinstalls the three server vtables, frees map nodes and sentinel, releases remaining generator
+then Lua references, and invokes base-service destruction on +4. It does not itself KillScript or Close;
+the normal slot-25 path already performed Shutdown. Factory `0x008B10D0` allocates `0x4C` bytes and
+constructs the object, returning null on allocation failure; its reference count is still zero.
 
 Init `0x008B0860` tests and sets the latch **before** doing external work. With a clear latch and null Lua:
 
@@ -546,6 +574,140 @@ Independent state/result examples (foreign calls are recorded, not executed):
 | Existing output vector `[99]`, IDs `{8,2}`; enumerate | `[99,2,8]` |
 | Missing ID; info outputs prefilled; auto-yield get/set | Info false with all outputs untouched; get false; set false |
 | GetLua followed by GetScriptInfo with thread output | Lua is borrowed; thread output owns one added reference |
+
+#### 6.3.4 Creation, IDs, foreign execution and tick decisions
+
+RunScriptString consumes three string-interface inputs: source, chunk name, command-line arguments
+(`0x008B32B0`, stack cleanup 12 bytes). There is no auto-Init, null-input check, or execution in this method.
+
+1. Allocate and construct a `0x54` record; increment the 32-bit attempt serial at object +2C **even if
+   compilation will fail** (`0x008B32DB`). Copy source and name, set eligibility false and last line `-1`.
+   Allocation failure is unchecked before record dereference, not a defined `-1` recovery path.
+2. Obtain the main thread through Lua +0C. Call its LoadBuffer (+134) with source bytes, source byte length,
+   and chunk-name C string. Only integer result zero is success. On nonzero, Pop(1) from the main Lua stack,
+   release any record thread after clearing its pointer, destroy/free the record and return `-1`.
+3. On success, obtain a display-name component from the chunk name. When FileExists(name) is false, use
+   the name unchanged; when true, use GetPathName(name, output, 0). Format `Main - "<component>" - <serial>`
+   with signed decimal `%d`. On the main stack, push this name, duplicate the compiled value at -2 and
+   RawSet(globals, `-10001`): the named global receives the compiled function while the original function
+   remains on the stack (`0x008B33E8–0x008B3403`). No rollback of this global is attempted on later failure.
+4. Clear/release any old record thread, then call Lua CreateThread (+18) with the **address of the record's
+   thread field**, integer `1` and `0x2B2810F7`. This foreign call supplies the script ID; the server's display
+   serial is **not** its ID allocator. Only ID `-1` is rejected. On rejection, clear/release any returned thread,
+   destroy/free the record and return `-1`. Source/name temporary strings are freed on both paths.
+5. For an accepted ID, call thread SetUserContext (+18) with the record address; write last-created ID;
+   copy arguments; build the thread argument table (§6.3.5), ignoring that helper's Boolean result; set
+   eligibility true; look up the ID in the signed map. Insert `(ID, record)` only when absent. Then obtain
+   the thread's raw context (+10), install `LuaYieldHook` with Lua hook mask `4` and count `0`, and finally
+   post creation message `0x6BA990D8`, payload zero. Return the supplied ID.
+
+The native duplicate-ID branch clears/releases the **new** record's thread and then unconditionally
+dereferences it to install the hook (`0x008B3496–0x008B34AB`). It is an invalid foreign-service outcome,
+not a supported replace/retry case. The map's old entry survives that branch up to the fault. A valid VM
+service must return distinct live IDs and a nonnull owned thread on successful creation. No server retry
+or transactional rollback is present. Main-stack effects beyond the explicit operations above are those
+of the foreign LoadBuffer/CreateThread calls; this method does not save/restore the original stack height.
+
+RunScriptFile (`0x008B1A80`) takes filename and arguments. It copies the filename bytes to a temporary
+path string and asks ReadFileIntoString to fill a temporary source string with limit argument **1,000,000**.
+If that service fails it returns **zero**, leaves the attempt serial/last-created ID unchanged, and does not
+call RunScriptString. Otherwise it calls its own virtual slot 6 with `(source, original filename, arguments)`
+and returns that result unchanged, freeing temporaries afterward. The one-million argument is the server's
+request, not a separately established truncation/oversize policy for the foreign file reader.
+
+OnTick (`0x008B2380`) receives the service pointer at primary +4. It increments the 32-bit recursion depth
+at primary +28; only new depth one performs a pass. Nested calls decrement the depth and return true with
+no scheduling. An empty pass also decrements and returns true. The pass traverses the **live** map in
+ascending signed-ID order:
+
+| Record/state | Owner decision |
+|---|---|
+| Signed pause count >0, or eligibility byte zero | Skip entirely, including status checks and cleanup |
+| Eligible, count ≤0 | Read thread Status (+34) |
+| First status =1 and ShouldBreak false | Set current record, call Lua ResumeThread (+20) with `(thread.GetID(), 0, null)`, clear current record |
+| First status =1 and ShouldBreak true | Do not resume; no pause count, transition count or notification changes |
+| Any eligible path | Read Status **again**, independently of first result and ignored ResumeThread result |
+| Second status =1 | Retain record and advance |
+| Second status ≠1 | Post termination `0xCBA990D3`, payload zero; if second status =0 also call Lua DestroyThread (+1C) with thread.GetID(); clear/release record thread; destroy/free record; erase map node and decrement count |
+
+ResumeThread is always on the server's Lua, not the generator. Its Boolean result does not decide retention.
+For the foreign execution service the input is `(ID,0,null)`; a test supplies its result and subsequent Status.
+The server itself decides whether to call it, the map order, current-ID scope, and termination cleanup.
+Negative pause counts are runnable. A paused dead script remains enumerable until unpaused or explicitly
+killed. Successful returns from the pass always restore recursion depth to its incoming value.
+
+KillScript (`0x008B22B0`) returns false on a map miss. On a hit it calls Lua DestroyThread(ID) **first**,
+posts termination using the record thread's GetID (not necessarily the lookup key under a faulty foreign
+service), clears/releases the thread, destroys/frees the record, erases its map node, decrements count and
+returns true. It does not inspect Status or pause count. Unlike tick completion it destroys the foreign thread
+regardless of Status. Neither kill nor completion resets last-created ID or removes the display-name global.
+
+Only OnTick's ResumeThread interval sets current record. In creation/control calls and the tick's terminal
+notification/cleanup it is normally null. The server does not hold an extra thread/record reference around
+foreign execution or notification calls. Nested OnTick is specifically suppressed, but other callbacks are
+not serialized, deferred, or protected by the depth counter. Map traversal is not a pre-pass snapshot;
+ordinary insertion of later IDs can extend a pass. Self-kill, Shutdown or removal of an iterator still in use
+can invalidate native borrowed pointers. Do not infer a safe deferred-kill protocol or a stable post-callback
+result for such invalidating reentry. Pause/Resume's all-scripts selectors are the explicit snapshot exception.
+
+#### 6.3.5 Global `arg`, per-thread arguments and automatic yielding
+
+Global setup `0x008AED10` runs at each Init tail with a nonnull Lua. Save the main thread's GetTop;
+push string `arg`, allocate **one byte** of Lua userdata, duplicate it, move the duplicate before the key,
+RawSet(globals, `-10001`), create a metatable with `__index` equal to C callback `0x008AE8B0` (zero
+upvalues), attach that metatable to the remaining userdata at -2, then SetTop to the saved height. Return
+true. The one byte is not initialized/read by the server. Thus global `arg` is a userdata proxy, replaced
+on repeated Init; it is not the per-thread table itself (`0x008AED2F–0x008AEDB0`).
+
+Thread setup `0x008B2540` returns false without stack changes for a null record or null record thread.
+Otherwise, on that thread, PushLightUserData(thread interface pointer), create table T and set numeric
+key **0.0** to the copied chunk-name string. If the argument string is nonempty, construct cRZCmdLine
+from its C string and traverse its parsed tokens in increasing argv index, starting with index zero.
+Tokenization/quoting belong to that parser; the following rules apply to the tokens it supplies:
+
+- Skip empty tokens and tokens consisting entirely of `-`/`/` prefixes.
+- Strip all leading `-` and `/` for the named-key calculation. Split at the first subsequent `:`.
+  With a colon, T[name] is the suffix string (possibly empty); without a colon it is Boolean true.
+  The name can be empty when the first unstripped character is a colon. No numeric conversion is performed.
+- Also append the **original full parsed token**, with prefixes and colon, to numeric T[1], T[2], etc.
+  Skipped tokens consume no numeric index. Repeated names overwrite their named fields but still append.
+- Finally assign T["count"] to the **next numeric index**, starting at one, so an empty token list gives
+  count 1, not zero. This final write overrides any named token `count`.
+- RawSet(registry, `-10000`) with the lightuserdata key and T; return true. The temporary key/table pair is
+  consumed; there is no general GetTop/SetTop restoration around this helper.
+
+The initial zero is a 64-bit double from `0x00A80990`; numeric indices/count are signed 32-bit integers
+converted with x87 FILD to double (`0x008B257A`, `0x008B279E`, `0x008B2855`). Integer increments are
+32-bit, not floating-point accumulation. These operations and table write order are established by bytes.
+
+`arg.__index` (`0x008AE8B0`) obtains the thread wrapper from raw Lua-state address -4. If null, or GetTop ≤0,
+return zero Lua results. Otherwise push lightuserdata(wrapper), RawGet(registry). If that result is a table
+(type 5), duplicate the original lookup key at -2, RawGet on that table at -2, return one result. Otherwise
+push nil and return one result. It does not fall back to another script's arguments. It leaves temporary
+values below the returned top value; Lua's C-return protocol discards them. Null-key/type errors on unusual
+direct calls are delegated to Lua. The server has no explicit registry-entry deletion during KillScript.
+
+The installed line hook (`0x008AE850`) obtains that same wrapper and its user context (+14). With either
+missing, a nonzero **16-bit** field at raw-state +2E, or record auto-yield byte false, it does nothing. Otherwise
+call lua_getinfo with option `l`, read the 32-bit line at debug-record +14, compare with the saved record line,
+and only on a difference store the line and lua_yield(state, **0**). It does not inspect breakpoint lists or
+pause counts. Repeated hooks for the same source line do not yield; toggling auto-yield does not reset the
+saved line. No event-kind test or wall-clock budget is added. The VM owns the meaning of the raw-state
+field and the yield transfer; the server owns the gating, comparison and update order.
+
+Independent creation/scheduling/stack vectors:
+
+| Input/service responses | Required owner outputs |
+|---|---|
+| Attempt serial 8, last ID 40; LoadBuffer returns 3 | Serial 9, last ID 40; Pop(1); no CreateThread or notification; result `-1` |
+| Next attempt: compile zero, CreateThread returns ID 71 and owned thread | Serial 10, last ID 71; user-context/arg setup, map insert, line-hook install then creation notification; result 71 |
+| File reader false before either attempt | Result zero; no compile, serial increment or last-ID change |
+| Eligible record, pause count -2; Status responses `[1,1]`, no matching breakpoint | One ResumeThread(ID,0,null), current ID exposed inside it, record retained; ResumeThread result ignored |
+| Eligible records 2 then 8; record 2 Status `[0,0]`, record 8 pause count 1 | Terminate 2 then DestroyThread(2), release/erase; no Status call for 8 |
+| Eligible record Status `[2,2]` | Termination/release/erase without DestroyThread |
+| ResumeThread calls nested OnTick | Nested call true with no Status/Resume work; outer pass continues |
+| Chunk `job`; parsed tokens `--fast`, `/n:12`, `:x`, `---`, `count:9` | T[0]="job"; T.fast=true; T.n="12"; T[""]="x"; T[1..4] are the four original accepted tokens; T.count=5 |
+| Auto-yield true, saved line 4; hook lines `4,5,5,4`, raw +2E zero | Yields only on second and fourth hooks, each with zero results; saved lines `4,5,5,4` |
 
 ---
 
