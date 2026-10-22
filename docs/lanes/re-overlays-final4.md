@@ -5,8 +5,9 @@
 ## Handoff
 
 - Goal: final RE round for remaining overlay questions; preserve OV4/OV5/OV6/OV9.
-- Done: a300262d city/helper/message; bfcdc36b model construction/fallback/lifecycle; now rendering branches, local-strength counter correction and 93-entry body checklist.
-- Next: validate question index, diff and checklist; finalize report and queue within this sole round.
+- Done: a300262d city/helper/message; bfcdc36b model construction/fallback/lifecycle; a7d5e49a rendering branches, local-strength counter correction and 93-entry body checklist.
+- Validation: questions index/check and diff --check passed; 93 unique checklist rows exactly match reconciled export starts.
+- Next: finalize report and queue within this sole round after archive-preservation check.
 - OV2/OV3 answered; OV1 narrowed to lighting producers; OV7 cofactor/all-entry order and OV8 outside-owner consumers remain parked. No fourth round requested.
 - City primary matrix has only M[1,1]=F(2/nx), M[2,2]=1, M[3,3]=1 nonzero; do not infer X/Z mapping.
 - Handler 00736100 refreshes quality/debug/+20 only, always true; never re-places overlays.

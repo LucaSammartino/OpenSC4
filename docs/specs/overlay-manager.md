@@ -595,8 +595,8 @@ A dynamic manager is not drawn under `kRenderSnapshot` (boolean 28). Otherwise:
 
 1. The model-reset helper is called and the resulting context matrix is inverted, so that a camera-space
    position can be taken back to world; composition order and the reset guard are specified in §4.7.
-2. The overlays: for a static manager with its cell index, those that cover visible cells; otherwise every overlay
-   in use.
+2. Selection: a static manager with byte `+0x20` nonzero collects through its cell index; otherwise scan all
+   live overlay records in increasing index order (`0x00739245–0x007392DD`). The message in §5 refreshes that byte.
 3. With `kRenderDecals` (boolean 10): the decals (§4.2). With `kRenderShadows` (boolean 9): the shadows, the rough
    form (`DrawShadowsRough`, `0x00737870`) when `kShadowQuality` < 3 or `kUseSecondStage` is off, else the full form
    (`DrawShadows`, `0x00736BF0`).
@@ -718,7 +718,8 @@ when ordered s>0 they enable alpha testing and set comparison function 6 (greate
 `F(E(q×s))`; when s≤0 or unordered they disable alpha testing. They do **not** skip shadow submission on that
 branch and do not clamp the reference. Evidence: full `0x00736C49–0x00736CAD`, rough
 `0x007378E2–0x0073793A`. The old wording “above a minimum” must not be implemented with a guessed positive
-epsilon. For q=1/2,s=1/4 the reference is 1/8; s=0 disables testing without suppressing the counter increment.
+epsilon. For q=1/2,s=1/4 the reference is 1/8; s=0 disables testing and does not itself suppress a submission.
+The full normal pass still has the distinct qLocal rejection in §4.8.
 
 After a nonempty decal pass, the owner calls ResetTransparency and ResetShade and requests vertex colours
 enabled with both arguments 1 (`0x00736BC1–0x00736BDA`); this is a reset, not saving/restoring arbitrary
@@ -759,8 +760,8 @@ as binary32; intermediate products and additions use x87, without a store after 
 output row 3 column 0 is `F(E(C[3,2]×M[2,0])+E(C[3,0]×M[0,0])+E(C[3,1]×M[1,0])+E(C[3,3]×M[3,0]))`,
 added left to right (`0x007368E9–0x00736905`), whereas row 3 column 1 sums terms in order 3,1,2,0
 (`0x00736907–0x00736923`). A uniform dot-product accumulation order is therefore not proven bit-exact.
-Final submission: `0x00736B7C`. Complete sixteen-entry evaluation order and the shadow camera/height
-composition branches remain explicitly open in OV7/OV8.
+Final submission: `0x00736B7C`. Complete sixteen-entry evaluation order in the decal and shadow
+compositions remains explicitly open in OV7; the shadow branch/stage choices are specified in §4.8.
 
 Paper order discriminator: C=translation `(16,0,0)` and M from a square, width-16 decal centred at zero
 give submitted row-3 U translation 1.5. Reversing the multiplication gives 16.5. This tests composition order
@@ -786,7 +787,7 @@ that composition; it is not evidence for an extra direct terrain slot-15 height 
 
 After the two normal transforms, byte global `0x00B0D4CC` gates a **location-strength** operation (shipped
 initial byte 1). When zero, skip this entire block. Otherwise start with the global q of §4.6, compute
-world midpoint `(F(E((x0+x1)×cellWidth×1/2)), F(E((z0+z1)×cellWidth×1/2)))` from the overlay's
+world midpoint `(F(E(E(cellWidth×1/2)×(x0+x1))), F(E(E(cellWidth×1/2)×(z0+z1))))` from the overlay's
 **clipped stored** rectangle. Integer endpoint sums are native 32-bit sums converted as signed; 1/2 is
 binary64 at `0x00A92D28`. On land only, request lighting slot 15's strength at that X/Z pair and store
 `qLocal=F(E(result×q))`. On water use qLocal=q without the lighting call. Reject only an **ordered**
