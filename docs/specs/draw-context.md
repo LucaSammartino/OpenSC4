@@ -123,6 +123,13 @@ is **white**, not zero: the constructor copies three binary32 1.0 values from ex
 `0x00B0DC44`–`0x00B0DC4F` at `0x007D5FA0`–`0x007D5FBE`. Additional constructor/transform details
 and the attributed method inventory appear below as they are resolved.
 
+The two stored compact transforms (`+0x13C`, `+0x174`) start with counter/flags bytes zero, a
+3 × 3 identity rotation, zero translation and binary32 scale 1 (`0x007D60DB`–`0x007D626B`).
+Fog enabled `+0xA0` and lighting enabled `+0x90` start false. Fog colour cache `+0xA4`–`+0xB0`
+and its two scalar caches `+0xB4`, `+0xB8` start at binary32 maximum finite `0x7F7FFFFF`
+(`0x007D6000`, `0x007D62F0`–`0x007D630B`); these are cache sentinels, not the loaded driver fog state.
+The constructor zeros the 0x38 bytes at `+0xF4` but makes no driver calls.
+
 ### 1.4 Stage storage defaults (DC5)
 
 `Init` uses unsigned max(driver count, 2) records. The constructor `0x007D3C60` establishes the
@@ -160,6 +167,9 @@ operations have out-of-line methods.
 | Shade / environment | `2A20` transparency; `2A30` reset transparency; `30D0` lighting toggle; `3140` shade; `31B0` self-lit shade; `31E0` model shade; `3290` reset shade; `32D0` fog |
 | State setup / replay | `4530` packed state; `47E0` emulated second pass; `4F80` write indexed highlight RGBA; `4FB0` highlight by index; `5200` default/top replay; `5230` unilateral reset; `5310` material; `5670` highlight material |
 | Drawing | `2970` vertex buffer; `2980` index buffer; `2990`, `29C0`, `29F0` primitive overloads; `4A80` mesh; `5030` bounding box; `5710` model instance |
+
+There is also a forwarding primitive body at `0x007FC2D0`: it replaces the receiver with context
+`+0x30` and tail-calls driver slot 3. This does not introduce a lifecycle or stack operation.
 
 Two export labels need owner correction: `0x007D30D0` and `0x007D32D0` are labelled
 `cSC43DRender::TurnOnLighting` / `TurnOnFog`. They operate on the **draw context**. For example,
@@ -236,10 +246,10 @@ reference) means "keep".
 
 ## 4. Render-property overrides *[compat]*
 
-Besides the two "force no" switches of §3: the texture filters and wrap modes are overridden by
-`kForcePointSampling`, `kForceBilinear` and `kForceTextureRepeat` exactly as graphics-formats.md §3.8 states, and
-nothing above stage 0 reaches the driver without `kUseSecondStage` (§7). Model culling and bounding boxes follow
-two more booleans (§9.2).
+Besides the two "force no" switches of §3: texture filters and wrap modes are overridden by
+`kForcePointSampling`, `kForceBilinear` and `kForceTextureRepeat` as graphics-formats.md §3.8 states.
+The boolean-11 gate is operation-specific; combiner, clear-transform, unilateral reset and stages above 1
+in environment-mode setup are exceptions (§7.2–7.3). Model culling and bounding boxes follow two more booleans (§9.2).
 
 ## 5. Packed render states *[compat]*
 
@@ -388,8 +398,9 @@ no safe-error contract here. Enum setters use the shifts/masks shown in §§2–
 validation. Alpha values are not clamped before packing. A portable wrapper's validation errors are
 policy outside this native contract.
 
-For a foreign call that **returns normally**, even if its return register denotes failure to that
-foreign implementation, the owner continues: it neither tests that value nor attempts cleanup/retry.
+For the driver calls in §§7.2–7.3 that **return normally**, even if a return register denotes failure
+to that foreign implementation, the owner continues without testing it or attempting cleanup/retry.
+The model-light query is a separate, explicitly checked foreign result (§8.1).
 Texture/coordinate/wrap/filter caches advance after their calls; packed-state and alpha-function
 caches advance before their calls; combiner mode/bytes advance after its call; transform-present is
 set/cleared after its driver sequence. Therefore an equal retry of a cached coordinate or wrap/filter
@@ -419,6 +430,88 @@ the override flag, then unconditionally set alpha multiplier to binary32 1.0
   (`0x007D31B0`): rgb as is; `ResetShade()` (`0x007D3290`): the default shade, when an override is pending.
 - `SetModelShade(instance, tint)` (`0x007D31E0`): the lighting manager's `GetModelLight(instance)` (slot 11,
   lighting.md §4.3), times the tint when given, as the colour multiplier.
+
+### 8.1 Shade population, persistence and arithmetic (DC8)
+
+`TurnOnLighting(on)` (`0x007D30D0`, corrected owner in §1.5) compares the requested byte with `+0x90`.
+Equal means no calls or refresh. On a change to nonzero, a nonnull lighting manager receives slot 10
+with a pointer to the **stored default shade** at `+0x94`. Its result is not checked. Then driver
+slot 32 receives that stored RGB. A change to zero sends white RGB without overwriting the stored
+default. The enabled byte changes after the driver call. This method does not change shade-override
+`+0x1F8`. Consequently the stored default can remain the most recently obtained lighting colour even
+while lighting is disabled (`0x007D30D8`–`0x007D3128`).
+
+`SetModelShade` asks a nonnull lighting manager's slot 11 for model light into a temporary RGB.
+It tests the returned **AL byte**; false, or a null manager, falls back to the stored default.
+With a tint pointer, each component is multiplied by that tint and stored to binary32 separately
+(`0x007D323B`–`0x007D3257`). It then calls driver slot 32 and sets shade-override true
+(`0x007D326F`–`0x007D3275`). It never updates default shade or the lighting-enabled byte.
+`SetShade` similarly sets override true after its driver call; `SetSelfLitShade` does so without
+default-shade multiplication. `ResetShade` sends the stored default only when override is true,
+and clears override afterward (`0x007D3293`–`0x007D32BD`). These are not success-tested mutations.
+
+Material grey bit 3 sends `(a,a,a)` directly and clears the **local fade decision**, leaving both the
+stored default and shade-override byte untouched (`0x007D5365`–`0x007D5379`). It neither sends alpha
+multiplier 1 nor cancels an earlier multiplier. A previous mesh's fade therefore remains pending until
+another multiplier call or normal model cleanup. Even a non-grey fade with a ≥ 1 makes no multiplier
+call. Transparency setters themselves are uncached forwards (§3).
+
+### 8.2 Numeric packing and texture matrix (DC8)
+
+Alpha packing uses x87 multiply by binary32 15 (`0x00AB3CC8`), add binary32 12582912
+(`0x00ABB4D4`, bits `0x4B400000`), **one binary32 store**, and extraction of the low four bits.
+It is not an integer conversion or floor(x + 0.5). The multiply/add do not have an intervening binary32
+store (`0x007D2CA2`–`0x007D2CC1`; `0x007D2FD7`–`0x007D2FF7`). With x87 round-to-nearest/even and
+ordinary [0,1] references, this rounds 15r to nearest with **even half ties**, then retains its low nibble.
+The ambient x87 control word is not changed by these bodies; other rounding modes must not be treated
+as half-up. Binary32 input 0.5 gives q=8; binary32 0.7 (`0x3F333333`) gives q=10, since its product
+with 15 is slightly below 10.5. There is no clamping step for out-of-domain values.
+
+Direct `SetAlphaFunc` compares the incoming reference with the cached q reconstructed as binary32
+q × binary32 `0x3D888889` (approximately 1/15). On dispatch, the driver receives the selected **original
+reference**, while the owner stores its quantized nibble. Packed replay instead sends that reconstructed
+binary32 reference (`0x007D46BE`–`0x007D46E1`). Thus equal packed q does not generally imply that repeated
+direct calls with the same unquantized reference are suppressed. The −1 reference/function sentinels
+retain the corresponding cached field. Material threshold conversion uses an x87 multiply by the
+**binary64** constant at `0x00ABB4E0`, then stores binary32 before any fade multiplication
+(`0x007D5348`–`0x007D5361`). Its binary64 bits are `0x3F70101010101010` (nearest binary64 1/255);
+a decimal pseudocode literal is not evidence of a binary32 division.
+
+For the material texture transform, the full 16-word buffer in column-major order is:
+
+| Column | Row 0 | Row 1 | Row 2 | Row 3 |
+|---|---|---|---|---|
+| 0 | k | Z | Z | Z |
+| 1 | Z | −k | Z | Z |
+| 2 | Z | Z | Z | Z |
+| 3 | −k·tx | k·ty | Z | Z |
+
+Here k is x87 `1.0f / slot-scale`, tx/ty are stored composed translation, and Z is the loaded word
+at `0x00B4E324`. That address is in the executable's PE zero-fill range (section RVA `0x00707000`,
+raw size `0x1A000`, virtual size `0xB40D8`); its image-initial value is positive binary32 zero.
+The exported direct references to it are loads, with no direct writer. This supplies the provenance
+for the zero entries; neither z diagonal nor homogeneous diagonal is filled with 1.
+The buffer goes to slot 53 with `(matrix,4,2,1)`, not a general model-view `LoadMatrix`.
+Evidence: `0x007D55AA`–`0x007D5619`. k is stored to binary32 for element 0 while the x87 value remains
+live for negation and translation multiplication, whose results are each separately stored to
+binary32. Do not force an extra binary32 reciprocal rounding before those products. No zero-scale check exists.
+
+### 8.3 Transform flags: proved boundary and residual (DC8)
+
+The second byte of each compact transform is tested as a **whole byte**, not as independent presence
+bits for rotation, translation and scale (`0x007D3530`–`0x007D3543`). Model flags zero skip composition
+entirely. Nonzero model flags with zero view flags copy the complete model payload/flags into the
+composed record. When both are nonzero, the body composes the stored rotations/translations/scales,
+ORs the two flag bytes and increments the composed counter byte (`0x007D376F`–`0x007D3797`). The
+matrix-load path multiplies the rotation entries by scale only when composed flags have bit `0x02`
+(`0x007D3826`–`0x007D38EB`); otherwise it copies stored rotation entries. Translation is always copied
+and the last matrix row is explicitly `(0,0,0,1)` (`0x007D3969`–`0x007D3996`). Model-view-valid is cleared
+after `LoadMatrix` (`0x007D39A3`–`0x007D39A9`).
+
+Therefore the former portable assumption that each absent component flag substitutes an identity
+component is unsupported. Exact arithmetic grouping/spill behavior for every mixed-flag composition
+and the raw-matrix path `0x007D4B80` remains open in DC8; the algebraic summary in §8 is not a bitwise
+floating-point recipe for those paths.
 
 ## 9. Drawing *[compat]*
 
@@ -475,8 +568,9 @@ terrain view, the ripples and the selection (water-ripples.md) use the state set
 
 ## 12. Open questions
 
-See [questions/draw-context.md](questions/draw-context.md) DC1–DC2: the driver record of `Init` (slot 64) and the
-bytes kept at `+0x78`, `+0x79`; the draw flags' bits and who sets them.
+See [questions/draw-context.md](questions/draw-context.md): DC1–DC2 remain; DC3 retains stack-mutation and
+full out-of-line inventory limits; DC8 retains exact mixed-transform arithmetic. DC4–DC7 are answered
+by §§1.2, 1.4 and 7.2–7.4. No runtime conformance result is implied by the source-derived vectors below.
 
 ## 13. Conformance tests
 
@@ -491,3 +585,25 @@ bytes kept at `+0x78`, `+0x79`; the draw flags' bits and who sets them.
 8. **Second pass:** stage 1 mode 1 gives blend (0, 2), depth function equal, alpha test off.
 9. **Culling:** with boolean 30 set, a model whose largest extent × pixels per metre is below the threshold is
    skipped.
+
+### 13.1 Independent contract vectors for DC3–DC8
+
+These are expected traces/state from native instructions, not measurements of a replacement. Select(i)
+means driver slot 51; coordinate(n) means slot 52; matrix arguments are in slot-53 argument order.
+
+| ID | Input / prior state | Expected observations |
+|---|---|---|
+| DC-V01 | Construct then Init once | Owner combiners exactly §1.2; all stage records exactly §1.4 except unspecified padding; default shade white; no fabricated loaded model-view matrix. |
+| DC-V02 | Fresh stage 0, coordinate(0), then coordinate(2) twice | First call no driver effect; second Select(0), coordinate(2); third silent. Texture(T,0) twice instead sends slot 58 twice, no Select. |
+| DC-V03 | Boolean 11 off, allocated stage 2; wrap(1,2,2), then turn boolean 11 on and repeat | First call stores 1/2 with no driver calls; second is silent due to requested cache equality. Change T to 3: Select(2), parameters (0,2,1), (0,3,3). |
+| DC-V04 | Allowed stage 0, coordinate cache 0; set transform M twice | First Select(0), coordinate(16), Select(0), matrix(M,4,2,1). Second Select(0), matrix(M,4,2,1). Matrix cache stays identity because only stage 1 copies M. |
+| DC-V05 | Boolean 11 off, stage 1 coordinate 7, transform flag false; set M then clear | Set: flag true and all 16 saved words=M, coordinate remains 7, no driver calls. Clear: coordinate becomes 0, Select(1), matrix(null,3,2,1), flag false; saved M persists. |
+| DC-V06 | Three allocated stages, boolean 11 off; unilateral reset | For i=0,1,2 first emit Select(i), matrix(null,3,2,1), coordinate(0), with no gate. Only after the whole loop reset records and force default word replay. Stage-0 requested wrap/filter ends 3/3, mag/min 1/7; stages 1/2 remain −1 pairs. Stack top is ignored. |
+| DC-V07 | Cached word already equals packed request; stage-1 transform flag true | No changed-word dispatch, but packed tail still executes and clears stage 1 before stage 0; stage-1 Select/clear occurs even with boolean 11 off. |
+| DC-V08 | Coordinate changed 0→3; foreign coordinate call returns a failure-valued register normally | Owner stores 3. Identical retry emits no select/coordinate calls. A repeated texture bind still dispatches. No safe-error result or rollback is provided by owner. |
+| DC-V09 | Default shade (0.5,0.25,1), manager slot 11 returns false, tint (0.5,2,0.25) | Multiplier (0.25,0.5,0.25); stored default unchanged; override true. Reset sends (0.5,0.25,1) and clears override. |
+| DC-V10 | Fade mesh a=0.25 followed by grey mesh a=0.75 in one model draw | Fade sends alpha multiplier 0.25. Grey sends RGB (0.75,0.75,0.75), makes no alpha call, so 0.25 persists. Normal model cleanup restores pending shade first, then alpha 1. |
+| DC-V11 | Pack alpha r=0.7f, nearest/even control mode | q=10, not 11. Replay sends binary32 10 × 0x3D888889. Direct SetAlphaFunc sends original 0x3F333333, storing q=10. |
+| DC-V12 | Texture scale 2, composed tx=3, ty=−4 | Full columns: (0.5,0,0,0), (0,−0.5,0,0), (0,0,0,0), (−1.5,−2,0,0), subject to image-initial Z=0. No z/homogeneous identity entries. |
+| DC-V13 | SetDefaultRenderState with one 8-byte record at stack end−8 | Replays that record without decrementing end. Empty begin=end replays owner +0x88. No push/pop is implied. |
+| DC-V14 | Initialized context; shutdown twice | First clears initialized then properties pointer, no foreign calls. Second does nothing. Stage texture values, stack pointers and camera pointer remain untouched. |
