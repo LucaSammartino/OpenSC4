@@ -403,7 +403,8 @@ Horizontal gutter changes (`0x009BFE03`) recalculate width and full layout;
 vertical gutter changes (`0x009BCA09`) only invalidate when initialized.
 They are not symmetric reflow setters.
 
-Shutdown (`0x009BD003`) stops running caret/scroll timers, releases and
+Shutdown (`0x009BD003`) first clears the held font reference, then stops
+running caret/scroll timers, releases and
 nulls both scrollbar interfaces, both scrollbar images and clipboard
 service, then calls base Shutdown. The deleting destructor wrapper
 `0x009BFF52` calls helper `0x009BFAE3` then deallocates storage. The helper
@@ -412,7 +413,10 @@ caret callback timer, invokes cleanup for the +0x208 member, releases the
 font, destroys redo then undo storage, destroys the strings at +0x144 and
 +0x130, frees nonnull line-start storage, destroys mask and main strings,
 and tail-calls cGZWin's destructor. Native order is `0x009BFAE6–FB81`;
-foreign cleanup internals and exceptional paths remain TE7.
+foreign cleanup internals and exceptional paths remain TE7. Because
+Shutdown has already cleared the font, the later conditional font-release
+site normally sees null. Background-image release is not established by
+this sequence; its exact ownership endpoint remains TE7.
 
 The primary +0x26C hook is natively a sound-service adapter at
 `0x009BD9F2`, despite the folded label `cGZWinIMEComposition::SetFont`.
