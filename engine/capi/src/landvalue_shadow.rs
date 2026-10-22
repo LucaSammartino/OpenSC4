@@ -922,8 +922,7 @@ impl Shadow {
                 line += if r.flag == 0 {
                     "; settled=1"
                 } else {
-                    "; settled=0 (the original's record says dirty or a pass running: an input changed since its \
-                     pass)"
+                    "; settled=0 (the original's record says dirty or a pass running)"
                 };
             }
             None => line += "; meanAlt not read (no record); settled=?",
@@ -932,6 +931,11 @@ impl Shadow {
             "; desirability={desirability}; mismatches={mismatches}; passes={} clean={}",
             self.stats.compared, self.stats.clean
         );
+        // LV1, section 6.1: matching output does not prove matching inputs.
+        // This shadow samples at pass end (and retries a previous D); it has
+        // no record of the native per-Step tract/developer reads. Keep that
+        // limitation on every compared line, including zero-difference lines.
+        line += "; input_capture=pass-end-sample; native_step_capture=0";
         if pass.posts != 1 || pass.history != Some(i32::from(pass.average)) || pass.foreign_writes != 0 {
             line += &format!(
                 "; ours: posts={} history={:?} blocked writes={} (expected 1, the average, 0)",

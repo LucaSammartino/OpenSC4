@@ -485,9 +485,11 @@ void LandValueShadowStartup(bool landValueReplaced) {
         src, g_cells);
     Log("landvalue shadow: NOT readable read-only (left out of the comparison): the scratch grid, the histogram, the "
         "minimum / maximum altitude, pivot and ranges (no getter, not saved: they show only through the intrinsic "
-        "grid), the pipeline state and the dirty flag apart (the record holds only their OR: logged as settled), the "
-        "inputs as each state read them (the pass is compared on the inputs at its end; settled=0 means one "
-        "changed)");
+        "grid), the dirty flag apart (the record holds dirty OR running: logged as settled), the "
+        "inputs as each state read them (input_capture=pass-end-sample; native_step_capture=0; "
+        "settled=0 means dirty OR running, not proof of an input change). LV1 section 6.1 describes native "
+        "progress fields; using those fields is blocked on their docs/abi layout record (LV6). A clean sampled "
+        "comparison is not independent per-Step input evidence");
 }
 
 void LandValueShadowStart() {
