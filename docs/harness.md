@@ -29,7 +29,7 @@ with an existing label overwrites that label's results).
 
 ## Request format
 
-`key = value` lines, `#` starts a comment. Every line after `[ini]` is copied into `FreeCity4.ini` as it is (the
+`key = value` lines, `#` starts a comment. Plugin settings after `[ini]` are copied into `FreeCity4.ini` (the harness consumes `fixture_city`; the
 switches are in `engine/README.md`).
 
 | Key | Default | Meaning |
@@ -37,12 +37,21 @@ switches are in `engine/README.md`).
 | `label` | the file name | names the results; letters, digits, `.`, `_`, `-`, at most 64 |
 | `dll` | `engine\build-x86\FreeCity4.dll` | your DLL, relative to your worktree (paths outside it are refused); the `.pdb` next to it is copied too |
 | `city` | `Konradshohe` | a city of the FC4 Test region (`Konradshohe` has a water system; `Spandau` has none) |
+
 | `seconds` | 150 | how long the city runs after it has loaded, in real seconds (the plugin's `autotest_seconds`); with `end_date` it is the timeout for reaching that date |
 | `end_date` | - | `YYYY-MM-DD`: the run ends when the game date reaches it (`autotest_end_date`). Konradshohe starts on 2026-01-27 |
 | `turbo` | 0 | `1`: our simulator's turbo clock (`sim_turbo = 1`): days are not paced by real time, about 0.3 s per game month instead of about 2 s. It starts after the city's first ConnectionsReady |
 | `turbo_from` | - | `YYYY-MM-DD`: start the turbo clock at this game date instead (a script action; for DLLs older than 0786064) |
 | `timeout` | seconds + 150 | hard limit for the whole run in real seconds; the game is stopped after it |
 | `priority` | `normal` | `high`: honoured only for the coordinator's requests (see "For the coordinator"); in a lane's request it is ignored and the verdict says so |
+
+For a persisted save fixture, add `fixture_city = C:\absolute\path\to\build-runs\fixtures\name.sc4`
+under the request's `[ini]`. The absolute source must be inside the main checkout's `build-runs/fixtures`,
+be a DBPF `.sc4`, and is read only. Keep `city` as an existing FC4 Test alias, such as `Konradshohe`:
+the harness stages a writable copy at that alias in the isolated slot after mirroring the region. It strips
+`fixture_city` before writing the plugin ini and records the copy's SHA256. Documents and the source fixture
+are preserved; the next run mirrors the ordinary city again. Direct `ingame_run.ps1` accepts the same ini key
+only with `-Slot` and `-City`. This uses the existing queue, with no daemon restart or new request-header key.
 
 Write paths with plain single backslashes (or `/`). A tool or a string literal that reads `\b`, `\t`, `\n` as escapes
 turns `build-runs\dll\b\FreeCity4.dll` into a backspace or `build-runs\dll\tract.dll` into a tab; such a request is
