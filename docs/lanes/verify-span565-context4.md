@@ -80,3 +80,15 @@ No new questions. Existing SR565-1/5 natural-use questions and SR565-6 lock-poli
 this lane does not close SR565-2/3/4 from its bounded constructed inputs. No unsupported format was
 forced into normal game drawing. No default promotion, whole-owner replacement or natural-path
 algorithm exactness is claimed. Keep span565 opt-in and retain the published unresolved questions.
+
+## Coordinator measured-shadow audit (2026-10-22)
+
+span565_source_own 249/249; span565_source_current40 249/249; span565_joint97 249/249.
+Actual original context route versus production Rust pixel CAPI, full107568byte arenas,
+3257bytes changed by native,156/156 reachable pairs. Joint train97 DLL8a7160ca,
+current40+span565, clean2032/ref0, fullsave and shutdown5/5entries restored;
+zero mismatches/refusals/fallback/resync/contract failures. Source final DLL6600f862.
+This qualifies the measured same-process shadow under COVERAGE.md, as for1555/4444.
+Natural renderer calls remain0; SR565-1/5/6 and unexercised cases remain.
+No natural-use/full-owner exhaustive proof or replacement/default promotion.
+Raw joint evidence/hash: build-runs/run4-train97-native-audit.json.

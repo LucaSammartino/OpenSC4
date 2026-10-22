@@ -6,6 +6,12 @@ lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
 ## 0. Current state (2026-10-22, run4 open-ended)
+**train97 measured-shadow audit:** Production industrial CAPI versus original263052/263052 source and131526/131526 joint;565 independent native-context249/249 source+joint,156reachable pairs,3257changed bytes, clean2032/ref0/fullsave/shutdown. Qualified measured-shadow evidence recorded under COVERAGE.md; natural565calls0/IN3 remain, no default/replaced promotion. Coverage regeneration below is authoritative.
+
+**Heartbeat:** Windows task `FreeCity4-run4-lane-heartbeat` runs read-only `tools/lane_heartbeat.py --once` every5minutes. Actual registered PID counts, pending queue, provider pauses and train-ready alerts go to `build-runs/run4-heartbeat.json`/`.log`; active coordinator bridge surfaces them every5minutes. It cannot wake an ended chat. Full tools143PASS; no guard/spawn authority changed.
+
+**Final grid methods phase parked:** logical3/3 exhausted at d8fbc36d. Actual shipped-C++ native methods now compared independently;31 fixture differences persist at normal speed (SG3), native controls include ref1/early exit and complete save/reload chain remains unproved. SG1/SG2 retained; no method-owner promotion/fourth, preserve WT.
+
 **Run4 checkpoint375:** 375 rounds; 65 trains landed; coverage57.8/36.0/18.6/18.1, delta+21.0/+7.7/+6.5/+2.2 points since run4 start; 83 parked lanes. RE paused;9actual verification workers restarted after proven provider-capacity recovery. Train93 full68gatePASS, current40+span8888 replacement/shadow regress running; no new coverage credit yet.
 
 **train97 landed d5a4005e2f:** Five real source lanes landed after full68native gate and current40+span565/industrial_shadow regressPASS. Independent industrial263052/263052 and constructed565249/249 are retained with their bounded/native-reachability limits; joint565 supplemental audit pending, no default or whole-owner promotion inferred. Font FN18-FN22, PL23 mismatches and CD6/CD8 remain parked; capped source worktrees preserved. Coverage57.8/36.0/18.6/18.1; rounds387 (open-ended).
@@ -60,7 +66,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **After every train:** gen_handoff_tables.py, coverage.py, coverage_treemap.py; one status line here, commit/push. `run4-post-train.py` applies explicit tested maps and question-index upkeep after actual PASS+land. Remove landed nonparked worktrees only after verifying lane ancestor of main and clean state; keep branches and ignored evidence. Never remove active, unlanded or parked worktrees. C:>85% stops spawning until cleanup. Keep this section about60lines; archive older status lines to [today's history](history/handoff-2026-10-22.md).
 
-**Main/tools:** keep checkout clean; tool changes require full tools tests and immediate separate commit. Latest139PASS. Candidate union supports --add-shadow and --add-replace.40 default replacement keys include simgrids,propdev,citysit,occmgr,propmgr,lotcfg; ports included in the default replacement regression profile after joint saved-city/control proof.
+**Main/tools:** keep checkout clean; tool changes require full tools tests and immediate separate commit. Latest143PASS. Candidate union supports --add-shadow and --add-replace.40 default replacement keys include simgrids,propdev,citysit,occmgr,propmgr,lotcfg; ports included in the default replacement regression profile after joint saved-city/control proof.
 
 **Runtime:** elevated game queue6slots(pid23444) restarted after Windows elevation blocked non-elevated launches. Native CLI BG_WAIT_CEILING_MS=0; qwait without--fresh, unique labels. RE preflight must GO. Never set gate verdicts by hand.
 
