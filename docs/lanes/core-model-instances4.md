@@ -4,11 +4,11 @@
 
 ## Result
 
-Implemented the complete published pure Rust owner contracts in `engine/core/src/model_instances`, exported by one additive line at the end of `engine/core/src/lib.rs`. Behavior sources are model-instances §§1–6,10, graphics-formats §§3.9/3.12 (and material/vertex definitions those sections reference), geometry-utilities bounds/ray helpers, view-utilities §7, and lighting §4.4. No native analysis, game files, CAPI/plugin/ABI edits, or coverage-map edits.
+Implemented the published pure Rust owner subset in `engine/core/src/model_instances`, exported by one additive line at the end of `engine/core/src/lib.rs`. Behavior sources are model-instances §§1–6,10, graphics-formats §§3.9/3.12 (and material/vertex definitions those sections reference), geometry-utilities bounds/ray helpers, view-utilities §7, and lighting §4.4. No native analysis, game files, CAPI/plugin/ABI edits, or coverage-map edits.
 
 Milestones: `912f9519` adds the owners and initial vectors; `4ed5725a` completes the lifecycle/factory audit, 31 independent vectors, formatting and the local clippy annotation preserving the spec's playback operand order. The final gate ran on `4ed5725a` with frozen sources. This report-only commit follows it.
 
-## Complete published owners and checklist
+## Published subset and owner checklist
 
 | Exact owner name | Implemented public contract |
 |---|---|
@@ -40,3 +40,7 @@ Appended **MI3–MI10** to `docs/specs/questions/model-instances.md` only; the g
 ## Next steps
 
 Coordinator may merge the portable owners and tests. Resolve the numbered native-contract questions before ABI adapters or native/default replacement credit. No lane-side merge, push, restart, game request, ABI change, or coverage-map update is needed.
+
+## Coordinator review
+
+Portable preparation code and independent vectors may land, but complete-owner coverage is WITHHELD pending MI3-MI10. Constructor/default state and counter behavior, picking distance, processor ownership/returns, repeated-sort ordering and sprite-sheet initialization include explicit unconfirmed choices. Those are owner behavior, so passing tests over the chosen values does not establish native conformance. Resolve the contracts and reconcile these choices before any whole-owner, shadow or replacement promotion. No coverage-map/default change is included.
