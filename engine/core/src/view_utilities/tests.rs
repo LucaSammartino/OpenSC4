@@ -1,5 +1,322 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::*;
+
+// Independent native prose vectors, view-utilities §11.10–21 (published before
+// this reconciliation). Expectations below are not derived from implementation.
+#[test]
+fn native_signed_rotation_partial_writes_and_wrapping_centres() {
+    for (r, expected) in [
+        (1, Vec3::new(-11.0, 7.0, 2.0)),
+        (2, Vec3::new(-2.0, 7.0, -11.0)),
+        (3, Vec3::new(11.0, 7.0, -2.0)),
+        (-1, Vec3::new(2.0, 7.0, 11.0)),
+        (-3, Vec3::new(2.0, 7.0, 11.0)),
+        (5, Vec3::new(-11.0, 7.0, 2.0)),
+    ] {
+        let mut v = Vec3::new(2.0, 7.0, 11.0);
+        rotate_vector_by_view_rotation(&mut v, r);
+        assert_eq!(v, expected);
+    }
+    let mut v = Vec3::new(9.0, 8.0, 7.0);
+    get_vector_for_edge_into(-1, &mut v);
+    assert_eq!(v, Vec3::new(9.0, 0.0, 7.0));
+    assert_eq!(PixelRect::new(i32::MAX, 0, i32::MAX, 0).center().x, -1);
+    assert_eq!(round_down_to_nearest_block_boundary(-65.0, -64), Some(0));
+    assert_eq!(round_up_to_nearest_block_boundary(65.0, -64), Some(0));
+}
+
+#[test]
+fn native_triangle_line_metric_tolerance_barycentrics_and_nan() {
+    let a = Vec3::ZERO;
+    let b = Vec3::new(1.0, 0.0, 0.0);
+    let c = Vec3::new(0.0, 1.0, 0.0);
+    for (b, c) in [(b, c), (c, b)] {
+        let mut p = Pick {
+            ray: Ray {
+                origin: Vec3::new(0.25, 0.25, 2.0),
+                direction: Vec3::new(0.0, 0.0, 2.0),
+            },
+            nearest_distance: 3.0,
+        };
+        assert!(triangle_pick(&mut p, a, b, c));
+        assert_eq!(p.nearest_distance, 2.0);
+        assert!(!triangle_pick(&mut p, a, b, c));
+        let sentinel = Vec3::new(9.0, 8.0, 7.0);
+        let mut hit = sentinel;
+        p.ray.direction.z = 1.0 / 128.0;
+        assert!(!ray_intersects_triangle(p.ray, a, b, c, Some(&mut hit)));
+        assert_eq!(hit, sentinel);
+        p.ray.direction.z = 1.0 / 64.0;
+        assert!(ray_intersects_triangle(p.ray, a, b, c, Some(&mut hit)));
+        assert_eq!(hit, Vec3::new(0.25, 0.25, 0.0));
+        p.ray.direction.z = f32::NAN;
+        assert!(ray_intersects_triangle(p.ray, a, b, c, Some(&mut hit)));
+        assert!(hit.x.is_nan());
+        assert!(!triangle_pick(&mut p, a, b, c));
+    }
+}
+
+#[test]
+fn native_plane_tolerance_writes_and_negative_t() {
+    let mut out = Vec3::new(9.0, 8.0, 7.0);
+    let mut ray = Ray {
+        origin: Vec3::new(3.0, 1.0, 4.0),
+        direction: Vec3::new(1.0, 1.0 / 128.0, 0.0),
+    };
+    assert!(!ray_intersects_ground_plane(ray, &mut out));
+    assert_eq!(out, Vec3::ZERO);
+    ray.origin.y = 1.0 / 256.0;
+    assert!(ray_intersects_ground_plane(ray, &mut out));
+    assert_eq!(out, ray.origin);
+    ray.origin.y = 2.0;
+    ray.direction = Vec3::new(0.0, 1.0, 0.0);
+    assert!(ray_intersects_ground_plane(ray, &mut out));
+    assert_eq!(out, Vec3::new(3.0, 0.0, 4.0));
+    assert!(ray_intersects_plane(ray, Vec3::new(0.0, 1.0, 0.0), 0.0, None));
+}
+
+#[test]
+fn native_minmax_angles_and_rotation_word_rules() {
+    for (zoom, bits) in [0x3f06_0a92, 0x3f1c_61aa, 0x3f32_b8c2, 0x3f49_0fdb, 0x3f49_0fdb]
+        .into_iter()
+        .enumerate()
+    {
+        assert_eq!(
+            get_camera_view_angles_for_rotation(0, zoom as u32)
+                .unwrap()
+                .pitch
+                .to_bits(),
+            bits
+        );
+    }
+    assert_eq!(min_of_four_floats([f32::NAN; 4]), f32::MAX);
+    assert_eq!(max_of_four_floats([f32::NAN; 4]), -f32::MAX);
+    assert_eq!(min_of_four_floats([f32::INFINITY; 4]), f32::MAX);
+    assert_eq!(max_of_four_floats([f32::NEG_INFINITY; 4]), -f32::MAX);
+    assert_eq!(
+        min_of_four_floats([-0.0, 0.0, 1.0, f32::NAN]).to_bits(),
+        (-0.0_f32).to_bits()
+    );
+    let y = f32::from_bits(0x7fa0_0001); // y is a raw untouched word
+    let mut v = Vec3::new(0.0, y, -0.0);
+    rotate_vector_by_view_rotation(&mut v, 1);
+    assert_eq!(v.x.to_bits(), 0);
+    assert_eq!(v.z.to_bits(), 0);
+    assert_eq!(v.y.to_bits(), y.to_bits());
+    let mut v = owner(camera());
+    v.camera.rotation = -3;
+    assert_eq!(v.get_visible_edges(), (-2, -1));
+    v.camera.rotation = i32::MAX;
+    assert_eq!(v.get_visible_edges(), (0, -3));
+}
+
+#[test]
+fn native_reachable_aabb_and_aliasing_cross_helpers() {
+    let nan = Vec3::new(f32::NAN, 2.0, 3.0);
+    let points = [nan, Vec3::new(-10.0, -20.0, 30.0)];
+    let bounds = point_array_aabb(&points, 2).unwrap();
+    assert!(bounds.min.x.is_nan() && bounds.max.x.is_nan());
+    assert_eq!((bounds.min.y, bounds.max.z), (-20.0, 30.0));
+    assert_eq!(
+        point_array_aabb(&points[1..], -1),
+        Some(Aabb {
+            min: points[1],
+            max: points[1]
+        })
+    );
+    assert_eq!(point_array_aabb(&[], 0), None);
+    for (output, expected) in [
+        (2, Vec3::new(-3.0, 6.0, -3.0)),
+        (0, Vec3::new(-3.0, 30.0, -135.0)),
+        (1, Vec3::new(-3.0, -15.0, -9.0)),
+    ] {
+        let mut storage = [Vec3::new(1.0, 2.0, 3.0), Vec3::new(4.0, 5.0, 6.0), Vec3::ZERO];
+        assert_eq!(cross_in_storage(&mut storage, 0, 1, output), Some(()));
+        assert_eq!(storage[output], expected);
+    }
+}
+
+#[test]
+fn native_matrix_rows_and_checked_model_abort() {
+    let mut transform = Transform {
+        kind: 4,
+        matrix: [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]],
+        translation: Vec3::new(10.0, 20.0, 30.0),
+        scale: 2.0,
+    };
+    let p = Vec3::new(1.0, 2.0, 4.0);
+    assert_eq!(transform.apply(p), Vec3::new(17.0, 38.0, 59.0));
+    transform.kind = 5;
+    assert_eq!(transform.apply(p), Vec3::new(27.0, 58.0, 89.0));
+    transform.kind = 255;
+    assert_eq!(transform.apply(p), Vec3::new(44.0, 96.0, 148.0));
+    struct Instance(AtomicUsize);
+    impl ModelInstance for Instance {
+        fn fill_transform(&self, _: usize, _: &mut Transform) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    let instance = Instance(AtomicUsize::new(0));
+    let mut invalid = triangle_mesh(&[8.0]);
+    invalid.indices = Some(vec![99, 1, 2]);
+    let model = Model {
+        meshes: vec![invalid, triangle_mesh(&[2.0])],
+    };
+    let mut p = pick();
+    assert_eq!(model_pick_checked(&mut p, &instance, &model), Err(InvalidMeshReference));
+    assert_eq!(instance.0.load(Ordering::SeqCst), 1);
+    assert_eq!(p.nearest_distance, 100.0);
+}
+
+#[test]
+fn native_integer_conversion_low_words_and_checked_faults() {
+    assert_eq!(round_down_to_nearest_block_boundary(4_294_967_808.0, 64), Some(512));
+    assert_eq!(round_up_to_nearest_block_boundary(f32::INFINITY, 64), Some(0));
+    assert_eq!(round_down_to_nearest_block_boundary(-2_147_483_648.0, -1), None);
+    assert_eq!(round_up_to_nearest_block_boundary(2.0, 0), None);
+    let mut out = [9, 8, 7];
+    let bytes: Vec<_> = [f32::NAN, 0.0, 0.0].into_iter().flat_map(f32::to_le_bytes).collect();
+    assert_eq!(decode_indices(6, &bytes, [0, 1, 2], &mut out), None);
+    assert_eq!(out, [9, 8, 7]);
+}
+
+#[test]
+fn native_clipping_order_winding_duplicates_empty_and_undefined_crossing() {
+    let p = |x, z| Vec3::new(x, 0.0, z);
+    let clip = [p(0.0, 0.0), p(0.0, 4.0), p(4.0, 4.0), p(4.0, 0.0)];
+    let subject = [p(1.0, 1.0), p(1.0, 3.0), p(3.0, 3.0), p(3.0, 1.0)];
+    assert_eq!(clip_polygon_to_polygon_2d(&subject, &clip, 10).unwrap(), subject);
+    let boundary = [p(0.0, 0.0), subject[1], subject[2], subject[3]];
+    assert_eq!(clip_polygon_to_polygon_2d(&boundary, &clip, 10).unwrap(), boundary);
+    let duplicate = [p(-1.0, 0.0), p(0.0, 0.0), p(0.0, 1.0), p(-1.0, 1.0)];
+    assert_eq!(
+        clip_polygon_to_polygon_2d(&duplicate, &clip, 10).unwrap(),
+        [p(0.0, 0.0), p(0.0, 0.0), p(0.0, 1.0), p(0.0, 1.0)]
+    );
+    let mut reverse = clip;
+    reverse.reverse();
+    assert!(clip_polygon_to_polygon_2d(&subject, &reverse, 10).unwrap().is_empty());
+    let disjoint = [p(8.0, 8.0), p(8.0, 9.0), p(9.0, 9.0), p(9.0, 8.0)];
+    assert!(clip_polygon_to_polygon_2d(&disjoint, &clip, 10).unwrap().is_empty());
+    let tiny = [p(-0.001, 1.0), p(0.001, 1.0), p(0.001, 2.0), p(-0.001, 2.0)];
+    assert_eq!(
+        clip_polygon_to_polygon_2d(&tiny, &clip, 10),
+        Err(IndeterminateClipIntersection)
+    );
+}
+
+#[test]
+fn native_raw_iterator_and_index_formats_preserve_outputs_on_stop() {
+    let mut out = [9, 8, 7];
+    primitive_vertex_indices(99, 0, &mut out);
+    assert_eq!(out, [9, 8, 7]);
+    primitive_vertex_indices(0, u32::MAX, &mut out);
+    assert_eq!(out, [u32::MAX - 2, u32::MAX - 1, u32::MAX]);
+    primitive_vertex_indices(7, u32::MAX, &mut out);
+    assert_eq!(out, [u32::MAX - 1, u32::MAX, 0]);
+    for (format, data, expected) in [
+        (0, vec![255, 0, 127], [u32::MAX, 0, 127]),
+        (1, vec![255, 0, 127], [255, 0, 127]),
+        (2, vec![255, 255, 0, 0, 0, 128], [u32::MAX, 0, 0xffff_8000]),
+        (3, vec![255, 255, 0, 0, 0, 128], [65535, 0, 32768]),
+    ] {
+        assert_eq!(decode_indices(format, &data, [0, 1, 2], &mut out), Some(()));
+        assert_eq!(out, expected);
+    }
+    let raw = [u32::MAX, 0, 0x8000_0000];
+    let bytes: Vec<_> = raw.into_iter().flat_map(u32::to_le_bytes).collect();
+    for format in [4, 5] {
+        assert_eq!(decode_indices(format, &bytes, [0, 1, 2], &mut out), Some(()));
+        assert_eq!(out, raw);
+    }
+    for format in [6, 7] {
+        let bytes: Vec<_> = if format == 6 {
+            [-1.25_f32, 2.0, 3.75].into_iter().flat_map(f32::to_le_bytes).collect()
+        } else {
+            [-1.25_f64, 2.0, 3.75].into_iter().flat_map(f64::to_le_bytes).collect()
+        };
+        assert_eq!(decode_indices(format, &bytes, [0, 1, 2], &mut out), Some(()));
+        assert_eq!(out, [(-2_i32) as u32, 2, 3]);
+    }
+    let sentinel = out;
+    assert_eq!(decode_indices(99, &[], [0, 1, 2], &mut out), Some(()));
+    assert_eq!(out, sentinel);
+    assert_eq!(decode_indices(3, &[], [0, 1, 2], &mut out), None);
+    assert_eq!(out, sentinel);
+    let mesh = Mesh {
+        groups: vec![PrimitiveGroup {
+            kind: 1,
+            first: 0,
+            count: 1,
+        }],
+        ..Mesh::default()
+    };
+    assert_eq!(mesh.groups[0].triangle_count(), -1);
+    let mut iterator = TriangleIterator::select_group(&mesh, 0).unwrap();
+    let mut triangle = [Vec3::new(9.0, 8.0, 7.0); 3];
+    assert_eq!(iterator.next_triangle(&mut triangle), Ok(false));
+    assert_eq!(triangle, [Vec3::new(9.0, 8.0, 7.0); 3]);
+    let mut mesh = triangle_mesh(&[8.0, 2.0]);
+    mesh.indices = Some(vec![99, 1, 2, 3, 4, 5]);
+    assert_eq!(
+        mesh_pick_checked(&mut pick(), &mesh, &Transform::default()),
+        Err(InvalidMeshReference)
+    );
+}
+
+#[test]
+fn native_offcentre_and_missing_camera_draw_state() {
+    let c = camera();
+    let mut shifted = c;
+    shifted.volume.left += 3.0;
+    shifted.volume.right += 3.0;
+    let a = owner(c);
+    let b = owner(shifted);
+    assert_eq!(a.view_frustum().corners, b.view_frustum().corners);
+    close(
+        b.project_point_to_viewport_coordinates(Vec3::ZERO).x - a.project_point_to_viewport_coordinates(Vec3::ZERO).x,
+        -3.0 * a.scales().0.x,
+    );
+    let rays = Rays::new(0.0);
+    let mut v = owner(c);
+    assert!(v.build_draw_frustum_data_from_viewport_rect(PixelRect::new(1, 2, 99, 98), Some(&rays)));
+    let previous = *v.draw_frustum();
+    assert!(!v.update_camera_position(None));
+    let rect = PixelRect::new(3, 4, 89, 88);
+    assert!(!v.build_draw_frustum_data_from_viewport_rect(rect, None));
+    assert_eq!(v.draw_rect(), rect);
+    assert!(v.draw_is_narrowed());
+    assert_eq!(*v.draw_frustum(), previous);
+    assert!(v.viewport_ground.get().is_none());
+    assert!(v.visible_area.get().is_none());
+}
+
+#[test]
+fn native_independent_cache_observations() {
+    use std::cell::Cell;
+    struct Changing(Cell<usize>);
+    impl CameraRayProvider for Changing {
+        fn eye_ray(&self, x: f32, y: f32) -> Option<Ray> {
+            let count = self.0.get();
+            self.0.set(count + 1);
+            Some(Ray {
+                origin: Vec3::new(x + (count / 4) as f32 * 1000.0, 10.0, y),
+                direction: Vec3::new(0.0, -1.0, 0.0),
+            })
+        }
+    }
+    for rect in [PixelRect::new(0, 0, 200, 100), PixelRect::new(20, 10, 180, 90)] {
+        let mut v = owner(camera());
+        let rays = Changing(Cell::new(0));
+        v.build_draw_frustum_data_from_viewport_rect(rect, Some(&rays));
+        assert_eq!(rays.0.get(), 4);
+        let area = v.get_ground_plane_visible_area_rectangle(Some(&rays)).unwrap();
+        assert_eq!(rays.0.get(), 8);
+        assert_eq!(area.inner.min.x, 1100.0);
+        assert_eq!(v.get_ground_plane_visible_area_rectangle(Some(&rays)), Some(area));
+        assert_eq!(rays.0.get(), 8);
+    }
+}
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn close(a: f32, b: f32) {
@@ -237,17 +554,18 @@ fn frustum_corner_order_and_plane_signs_follow_basis_not_euler_projection() {
 }
 
 #[test]
-fn perspective_choice_uses_current_near_corners_without_compounding() {
+fn native_perspective_reuses_previous_far_corners_and_compounds() {
     let mut c = camera();
     c.projection = Projection::Perspective;
+    c.position = Vec3::new(1.0, 2.0, 3.0);
+    c.look_at = Vec3::new(1.0, 2.0, 2.0);
+    c.volume.near = 1.0;
+    c.volume.far = 2.0;
     let mut v = owner(c);
     let first = v.view_frustum();
-    // Analytic geometry; f32 near-corner cancellation is amplified by far/near=51.
-    let expected = Vec3::new(610.0, 208.18733, -152.43706);
-    let delta = first.corners[4] - expected;
-    assert!(delta.x.abs() < 0.001 && delta.y.abs() < 0.001 && delta.z.abs() < 0.001);
+    assert_eq!(&first.corners[4..], &[Vec3::new(-1.0, -2.0, -3.0); 4]);
     assert!(v.update_camera_position(Some(&c)));
-    assert_eq!(first, v.view_frustum());
+    assert_eq!(&v.view_frustum().corners[4..], &[Vec3::new(-3.0, -6.0, -9.0); 4]);
 }
 
 #[test]
@@ -258,13 +576,13 @@ fn clipped_city_polygon_is_clipped_as_a_polygon_not_as_its_aabb() {
     let mut v = owner(c);
     v.set_city_size(5.0, 95.0);
     v.update_camera_position(Some(&c));
-    let b = v.get_frustum_aabb_city_clipped(true);
+    let b = v.get_frustum_aabb_city_clipped(true).unwrap();
     vector(b.min, Vec3::new(0.0, 0.0, 0.0));
     vector(b.max, Vec3::new(5.0, 102.12132, 95.0));
     c.position.x = -100.0;
     c.look_at.x = -100.0;
     v.update_camera_position(Some(&c));
-    let b = v.get_frustum_aabb_city_clipped(true);
+    let b = v.get_frustum_aabb_city_clipped(true).unwrap();
     assert_eq!(b.min, Vec3::ZERO);
     vector(b.max, Vec3::new(0.0, 102.12132, 0.0));
 }
@@ -296,7 +614,7 @@ fn rotated_city_clip_rejects_aabb_overlap_when_ground_polygon_misses_city() {
     v.update_camera_position(Some(&c));
     // This diagonal ground band has x+z >= 200-10*sqrt(2) > 185.
     // The city has x+z <= 150. Their AABBs overlap but the polygons do not.
-    let b = v.get_frustum_aabb_city_clipped(true);
+    let b = v.get_frustum_aabb_city_clipped(true).unwrap();
     assert_eq!((b.min.x, b.min.z, b.max.x, b.max.z), (0.0, 0.0, 0.0, 0.0));
     assert!(v.view_frustum().corners[3].x < 100.0);
     assert!(b.max.y > 0.0);
@@ -326,21 +644,20 @@ fn ground_ray_contract_and_checked_parallel_behind_surface_cases() {
     let mut out = Vec3::new(7.0, 8.0, 9.0);
     assert!(ray_intersects_ground_plane(r, &mut out));
     vector(out, Vec3::new(0.0, 0.0, 100.0));
-    let previous = out;
-    assert!(!ray_intersects_ground_plane(
+    assert!(ray_intersects_ground_plane(
         Ray {
             direction: Vec3::new(0.0, 1.0, 0.0),
             ..r
         },
         &mut out
     ));
-    assert_eq!(out, previous);
+    assert_eq!(out, Vec3::ZERO);
     let parallel = Ray {
         direction: Vec3::new(1.0, 0.0, 0.0),
         ..r
     };
     assert!(!ray_intersects_ground_plane(parallel, &mut out));
-    assert_eq!(out, previous);
+    assert_eq!(out, Vec3::ZERO);
     assert!(!get_ray_intersection_with_ground_plane(parallel).x.is_finite());
     assert!(ray_intersects_ground_plane(
         Ray {
@@ -372,8 +689,8 @@ fn camera_eye_ray_is_normalized_and_failures_preserve_direct_output() {
     assert_eq!(out, previous);
     assert_eq!(rays.calls.load(Ordering::SeqCst), 1);
     let mut ground = Vec3::ZERO;
-    assert!(v.get_viewport_point_intersection_with_ground_plane(None, 0.0, 0.0, &mut ground));
-    assert!(ground.x.is_nan() && ground.y.is_nan() && ground.z.is_nan());
+    assert!(!v.get_viewport_point_intersection_with_ground_plane(None, 0.0, 0.0, &mut ground));
+    assert_eq!(ground, Vec3::ZERO); // checked adapter; no native failure coordinate
 }
 
 #[test]
@@ -381,7 +698,8 @@ fn ground_corner_order_visible_area_truncation_and_cache_invalidation() {
     let mut v = owner(camera());
     let rays = Rays::new(-0.5);
     assert_eq!(
-        v.get_viewport_rect_ground_corners(Some(&rays), PixelRect::new(0, 0, 200, 100)),
+        v.get_viewport_rect_ground_corners(Some(&rays), PixelRect::new(0, 0, 200, 100))
+            .unwrap(),
         [
             Vec3::new(-0.5, 0.0, 0.0),
             Vec3::new(199.5, 0.0, 0.0),
@@ -409,7 +727,7 @@ fn ground_corner_order_visible_area_truncation_and_cache_invalidation() {
     assert_eq!(rays.calls.load(Ordering::SeqCst), calls);
     v.build_draw_frustum_data_from_viewport_rect(PixelRect::new(10, 10, 20, 20), Some(&rays));
     assert!(v.visible_area.get().is_none());
-    assert_eq!(v.get_ground_plane_visible_area_rectangle(None), Some(a));
+    assert_eq!(v.get_ground_plane_visible_area_rectangle(Some(&rays)), Some(a));
     assert!(v.update_camera_position(Some(&camera())));
     let shifted = Rays::new(1000.0);
     assert_eq!(
@@ -451,10 +769,14 @@ fn every_draw_rectangle_invalidates_both_caches_and_keeps_full_view_visible_area
     let changed = Rays::new(1000.0);
     v.build_draw_frustum_data_from_viewport_rect(PixelRect::new(50, 25, 150, 75), Some(&changed));
     assert_eq!(
-        v.get_ground_plane_visible_area_rectangle(None).unwrap().inner.min.x,
+        v.get_ground_plane_visible_area_rectangle(Some(&changed))
+            .unwrap()
+            .inner
+            .min
+            .x,
         1100.0
     );
-    assert_eq!(changed.calls.load(Ordering::SeqCst), 8); // four viewport + four dirty corners
+    assert_eq!(changed.calls.load(Ordering::SeqCst), 8); // four dirty + four fresh viewport corners
     let outside_draw = Aabb {
         min: Vec3::new(108.0, 80.0, 80.0),
         max: Vec3::new(108.0, 80.0, 80.0),
@@ -468,7 +790,11 @@ fn every_draw_rectangle_invalidates_both_caches_and_keeps_full_view_visible_area
     assert!(v.is_bounding_box_in_draw_frustum(inside_draw));
     v.build_draw_frustum_data_from_viewport_rect(PixelRect::new(0, 0, 200, 100), Some(&original));
     assert_eq!(
-        v.get_ground_plane_visible_area_rectangle(None).unwrap().inner.min.x,
+        v.get_ground_plane_visible_area_rectangle(Some(&original))
+            .unwrap()
+            .inner
+            .min
+            .x,
         100.0
     );
 }
@@ -568,8 +894,11 @@ fn clipping_and_block_rounding_contract_vectors_and_invalid_inputs() {
         assert_eq!(round_up_to_nearest_block_boundary(value, 64), Some(up));
     }
     assert_eq!(round_down_to_nearest_block_boundary(1.0, 0), None);
-    assert_eq!(round_up_to_nearest_block_boundary(f32::NAN, 64), None);
-    assert_eq!(round_up_to_nearest_block_boundary(2147483520.0, 1000), None);
+    assert_eq!(round_up_to_nearest_block_boundary(f32::NAN, 64), Some(0));
+    assert_eq!(
+        round_up_to_nearest_block_boundary(2147483520.0, 1000),
+        Some(-2147482000)
+    );
 }
 
 #[test]
@@ -589,7 +918,7 @@ fn bounding_rectangle_uses_selected_corners_and_ties_even() {
         PixelRect::new(6, -8, 2, -4),
     ];
     for (rotation, rect) in expected.into_iter().enumerate() {
-        v.camera.rotation = rotation as u32;
+        v.camera.rotation = rotation as i32;
         let mut out = PixelRect::default();
         assert!(v.project_bounding_box_to_viewport_rectangle(b, &mut out));
         assert_eq!(out, rect);
@@ -668,20 +997,20 @@ fn triangle_pick_distance_strict_improvement_winding_and_failures() {
     assert_eq!(p.nearest_distance, 5.0);
     assert!(!triangle_pick(&mut p, a, a, a));
     let [a, b, c] = triangle(-1.0);
-    assert!(!triangle_pick(&mut p, a, b, c));
+    assert!(triangle_pick(&mut p, a, b, c));
     p.ray.direction = Vec3::new(1.0, 0.0, 0.0);
     let [a, b, c] = triangle(1.0);
     assert!(!triangle_pick(&mut p, a, b, c));
-    assert_eq!(p.nearest_distance, 5.0);
+    assert_eq!(p.nearest_distance, 1.0);
 }
 
 #[test]
-fn triangle_boundaries_and_nonunit_ray_parameter_choice() {
+fn triangle_boundaries_and_nonunit_euclidean_distance() {
     let mut p = pick();
     p.ray.direction.z = 2.0;
     let [a, b, c] = triangle(10.0);
     assert!(triangle_pick(&mut p, a, b, c));
-    assert_eq!(p.nearest_distance, 5.0);
+    assert_eq!(p.nearest_distance, 10.0);
     p = pick();
     p.ray.origin = Vec3::new(0.0, -1.0, 0.0);
     assert!(triangle_pick(&mut p, a, b, c));
@@ -709,7 +1038,7 @@ fn all_primitive_tables_include_unusual_quad_walk_and_degenerate_groups() {
         for (i, indices) in triangles.into_iter().enumerate() {
             assert_eq!(triangle_indices(g, i as u32), Some(indices));
         }
-        assert_eq!(triangle_indices(g, g.triangle_count()), None);
+        assert_eq!(triangle_indices(g, g.triangle_count() as u32), None);
     }
     for kind in [1, 2, 5, 7, 99] {
         assert_eq!(
@@ -719,7 +1048,11 @@ fn all_primitive_tables_include_unusual_quad_walk_and_degenerate_groups() {
                 count: 0
             })
             .triangle_count(),
-            0
+            match kind {
+                1 | 2 | 7 => -2,
+                5 => -1,
+                _ => 0,
+            }
         );
     }
     for kind in 3..=5 {
@@ -811,7 +1144,7 @@ fn vertex_stride_count_padding_and_owned_resource_lifetime() {
     let mut p = pick();
     assert!(mesh_pick(&mut p, &mesh, &Transform::default()));
     assert_eq!(p.nearest_distance, 4.0);
-    assert!(Mesh::from_vertex_data(&bytes, 8, 3, None, groups.clone()).is_none());
+    assert!(Mesh::from_vertex_data(&bytes, 8, 3, None, groups.clone()).is_some());
     assert!(Mesh::from_vertex_data(&bytes[..10], 16, 3, None, groups).is_none());
     assert!(Mesh::from_vertex_data(&[], 0, 0, None, vec![]).is_some());
 }
