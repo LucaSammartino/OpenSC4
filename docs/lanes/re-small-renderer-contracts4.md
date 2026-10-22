@@ -1,6 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-small-renderer-contracts4: native renderer and path owner contracts | Codex / `re-small-renderer-contracts4` (RE lane, detached worktree) | wip: round 2 proofs committed; PA4/FF4 answered (12 cumulative); questions check and diff check passed; no ABI/game changes | 1. Reconcile TB4/GT4/FF2 inventory scopes. 2. Finish FF3 numeric stores; retain exact residuals. |
+| re-small-renderer-contracts4: native renderer and path owner contracts | Codex / `re-small-renderer-contracts4` (RE lane, detached worktree) | in progress: final round 3/3 | Reconcile TB4/GT4/FF2 inventories and FF3 numeric stores; park exact residuals. |
+
+## Handoff
+
+- Goal: only committed TB4/GT4/FF2 inventory residuals and FF3 numeric boundaries; no fourth round or unsupported whole-owner credit.
+- Prior milestones: `bea42a5f` flame lifecycle; `a2e1f920` material lifetime/PA4; `b0bdd07a` glyph lifetime/flame geometry/FF4; `f9d0d03d` round-2 report below.
+- Reserved detached worktree reused; clean at start. Main checkout read-only, absolute source paths.
+- Done this round: texture 58/4883 reconciled exactly (53 class bodies/4749 plus five free functions/134); native area subtraction origin, asymmetric spills, cumulative float stores and distinguishing 2²⁴+1+1 vector published.
+- Next: finish glyph inventory helper semantics and FF3 barycentric/transform stores; investigate flame legacy scope separately.
+- Ignored evidence: `build-runs/inventory-{texture,glyph,flame,entry}.tsv`, `renderer-inventory.py`; legacy targets 58/4883, 43/4475, 16/3513 must not be forced with unrelated shared slots.
+- FF3 published: ignored first-index offset, physical trailing triples, cRZRandom(-1), unchecked normalization, unordered selection and one-past-end fallthrough.
+- FF3 remaining: area accumulation and complete barycentric/placement store sequence.
+- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-small-renderer-contracts4-r3-manifest.json`; codexguard status after milestone commits.
+- No game requests, ABI proposals, REA, new questions or tool/engine/map/ABI changes. Final questions index/check and diff check required.
 
 ## Report
 

@@ -314,12 +314,33 @@ becomes 1 with no binding calls. Acquiring a material at 65535 wraps to 0 before
 material. Assigning an equal binding performs no reference calls; assigning a different binding
 acquires it before releasing the old binding.
 
-The brief's 58 bodies / 4883 bytes is not reproduced by named rows: 55 bodies carry the four owner
-names (including folded `icf::` names), totaling 4758 bytes; three additional named rows are data.
-Class/create helpers `0x00800BF0` (6), `0x00800E30` (72), `0x00809120` (6), `0x0080A680` (27) add
-111 bytes, giving **59 / 4869**, before unnamed material/value helpers or inherited shared slots.
-These are different counting scopes; the exact legacy scope remains TB4's residual, not evidence
-of a missing virtual material API. The material lifetime and manager slots 6/7 are established.
+### 3.2 Inventory scope (TB4)
+
+The brief's **58 bodies / 4883 bytes** is the coverage-map subsystem scope, including five free
+functions, rather than 58 class methods. Replaying the attribution against the main checkout's
+export, name map and ABI tables gives:
+
+| Owner / grouping | Bodies | Export body bytes |
+|---|---:|---:|
+| cS3DTextureBindingFactory | 42 | 4267 |
+| cS3DTextureBinding | 3 | 89 |
+| cS3DMaterialManager | 7 | 328 |
+| cS3DMaterial | 1 | 65 |
+| Class/create free functions: `00800BF0`, `00800E30`, `00809120`, `0080A680` | 4 | 111 (6 + 72 + 6 + 27) |
+| NextPowerOfTwo, `0080A700` | 1 | 23 |
+| Total | **58** | **4883** |
+
+The earlier name-only count **55/4758** additionally includes two folded names: the 5-byte
+CreateMaterialVariant tail jump at `005BE2E0` and the 4-byte GetResGroup getter at `00809240`.
+These shared entries are callable contracts (§§1.10/3), but attribution does not assign them to
+these class owners. Subtract 2/9, then add the five free functions' 5/134 to obtain 58/4883 exactly.
+The bits-per-texel table and two named vtable addresses are **data**, not bodies. The earlier
+59/4869 helper subtotal was a different scope and omitted NextPowerOfTwo.
+
+This reconciliation does not remove material acquisition/release, assignment, value-copy and
+range-cleanup contracts in §3.1 just because their shared/unnamed bodies are outside this subtotal.
+Inherited shared system-service slots are likewise entries, not additional exclusive owner bodies.
+No extra virtual material API follows from the subsystem count.
 
 ## 4. Users
 

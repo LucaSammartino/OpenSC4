@@ -86,7 +86,38 @@ exceptions its normal components become NaNs. No nonfinite-coordinate validation
 The u draw is stored as float (`0x00472142–0x00472147`); `1−u` is stored as float and also passed as
 double for the v range (`0x0047214B–0x00472170`). Thus replacing the complete sampler with arithmetic
 rounded to float after every operation is not proved equivalent. Exact area accumulation and all
-placement intermediate stores remain the precision residual in FF3.
+placement stores are specified in §2.2; these explicit stores do not imply a float operation after
+every arithmetic instruction.
+
+### 2.2 Native area accumulation (FF3)
+
+Here **F** means a store to binary32 followed by reload; arithmetic without F remains in the x87
+register format under the active control word. Round-to-nearest examples below assume the ordinary
+nearest/even mode. This helper does not set the floating-point control word.
+
+TwiceTriangleArea (`0x005D75D0–0x005D7653`) uses a different subtraction origin and different spill
+pattern from the normal calculation. Let a = v₀ − v₁, b = v₂ − v₁. All three a differences and b.z
+remain in registers; b.x and b.y are stored as F (`0x005D75DB–0x005D7606`). It computes:
+
+| Quantity | Expression and store boundary |
+|---|---|
+| c.x | F(a.y × b.z − a.z × F(b.y)) |
+| c.y | F(a.z × F(b.x) − a.x × b.z) |
+| c.z | a.x × F(b.y) − a.y × F(b.x), retained in a register |
+| Returned twice-area | sqrt((c.z × c.z + c.y × c.y) + c.x × c.x), retained in a register |
+
+Cross-component stores are `0x005D7612` and `0x005D7621`; c.z is not spilled before squaring.
+The ordered square/add/square-root sequence is `0x005D7636–0x005D764E`. There is no division by two.
+The caller adds the previous **stored float** cumulative total to this register result, then stores
+the new cumulative total as F (`0x00470F08–0x00470F17`). The mesh loop copies that stored word to
+the next triangle's accumulator (`0x00471FC4–0x00471FCB`). It does not sum all triangle areas in
+double and round only once; nor does it first round the returned twice-area to float.
+
+Independent area vector: start with vertices (0,0,0), (4096,0,0), (0,4096,0), then append two
+triangles with vertices (0,0,0), (1,0,0), (0,1,0). Their twice-areas are 2²⁴, 1, 1. Stored cumulative
+totals are **16777216, 16777216, 16777216**, whereas rounding only the final sum gives 16777218.
+Thus the two appended nondegenerate triangles can have no positive-width selection interval.
+The full barycentric/transform spill sequence remains FF3's residual until specified below.
 
 ## 3. Making the flames (`CreateFlames`, `0x00472380`) *[compat]*
 
