@@ -8,6 +8,8 @@
 - Read rules and lane format; no forbidden sources opened.
 - Task-specific validation overrides baseline request: no unchanged baseline full build; one focused quick, touched-file fmt, one stable final all.
 - No GUI/game/network, C ABI, plugin or capped-family changes permitted.
-- Next: finish bounded spec reads, create independent expected fixtures before production implementation.
+- Audit complete: exact 45 contracted owner functions; Custom shared stub is additional, not owner credit.
+- Frozen independent expected fixtures BEFORE implementation: 393 ordered vocabulary entries plus lifecycle, typed scans, fallback, two-pass, resource, Tree/Grid and boundary effect vectors.
+- Next: implement primitive-only Foreign seam and production algorithms; tests deliberately reference this forthcoming API.
 - Unknown LC4 (12 interpreters), LC5 opaque default parent, LC8 (19 foreign writers) stay explicit.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-legacy-control4-r1-manifest.json.
