@@ -52,7 +52,7 @@ visible, where a point lands on screen, and which ground point lies under a pixe
 | `+0x160`–`+0x1BC` | the view frustum's 6 planes (§3.2) |
 | `+0x208`–`+0x224` | the view frustum's two ground lines (§3.2) |
 | `+0x228`–`+0x3D8` | the draw frustum (§5): narrowed flag, rectangle, boxes, corners, view box, planes, ground lines |
-| `+0x414`–`+0x440` | the cached visible-area rectangles (§6); `+0x444`, `+0x445` their cache flags |
+| `+0x414`–`+0x440` | the cached visible-area rectangles (§6); `+0x444` validates these, `+0x445` validates `+0x120`–`+0x14C` only |
 | `+0x448`–`+0x454` | sin and cos of −yaw, sin and cos of pitch |
 | `+0x458`–`+0x46C` | the viewport scales sx, sy, sz and their inverses |
 
@@ -176,6 +176,38 @@ A rotation outside 0–3 leaves the outputs unwritten.
 - `GetViewportRectGroundCorners` (`0x007F9EA0`): for a pixel rectangle (top-left, bottom-right), the ground (x, z) of
   its four corners in the order top-left, top-right, bottom-left, bottom-right.
 
+**Failure writes (VU7):** `ViewportPositionToRay` returns false without writing either caller output when
+the renderer, camera or camera eye-ray operation is absent/fails (`0x007F9080`–`0x007F90E3`,
+`0x007F9150`). Its zero-initialized private eye-ray temporaries are not copied on failure. The ground wrapper
+instead allocates six **uninitialized** float slots, passes them as the two outputs, ignores the boolean, and
+immediately divides their y components (`0x007F9160`–`0x007F9183`). Its failure result is always true but its
+coordinate is indeterminate stack-dependent data, not specified zeroes or NaNs. A portable implementation
+may expose a checked adapter; zero-initializing that adapter does not reproduce a native failure coordinate.
+On success the wrapper evaluates t = −(origin.y / direction.y), then each output component as
+direction.component × t + origin.component; it does not force output.y to literal zero.
+
+### 4.3 Discrete vector rotation (VU11)
+
+`RotateVectorByViewRotation(&v, rotation)` (`0x007F6CC0`, a free cdecl helper; export name supplied by
+lighting) belongs to this utility family, not to the yaw/pitch projection. It changes v in place using
+the **signed C remainder** r = rotation % 4:
+
+| r | resulting (x, y, z) |
+|---|---|
+| 0 | unchanged |
+| 1 | (−old.z, old.y, old.x) |
+| 2 | (−old.x, old.y, −old.z) |
+| 3 | (old.z, old.y, −old.x) |
+| −1, −2, −3 | unchanged |
+
+There is no angle, normalization, translation, validity check or pointer check. The y word is never written.
+Rotation −4 is unchanged, −3 is unchanged, and 5 acts as 1. The signed remainder adjustment is at
+`0x007F6CC4`–`0x007F6CCF`; negations use x87 sign change and store float32, while the unnegated swapped
+component is copied as a raw word (`0x007F6CD9`–`0x007F6D0A`). Finite inputs, infinities and signed zero
+follow those operations; a signaling NaN is subject to the active x87 exception mode. No null-vector fallback
+exists. `GetVectorForEdge` uses the same signed remainder: negative nonmultiples of four set y to +0 but
+leave x/z untouched (`0x007F6D18`–`0x007F6D2D`), rather than selecting the Euclidean-modulo edge.
+
 ### 4.2 City helpers
 
 - `GetCityCornerPosition(corner, &out)` (`0x007F6BA0`): out = (x, 0, z) by corner and rotation, with W = `+0x20`,
@@ -225,6 +257,18 @@ viewport corners (top-left, top-right, bottom-left, bottom-right):
   the minimum rounded down and the maximum up to multiples of **64 m**, after truncation as in §4.2.
 
 Every y is 0. Any output pointer may be null.
+
+**Cache source and ordering (VU9):** `+0x444` validates the four visible-area vectors at `+0x414`–`+0x440`.
+On a miss §6 casts four fresh full-viewport rays in TL, TR, BL, BR order, even when all four output pointers
+are null (`0x007F9B46`–`0x007F9BC7`). It neither reads nor sets `+0x445` and does not consume the draw-corner
+array. `+0x445` exclusively validates the full-viewport ground-corner array at `+0x120`–`+0x14C` for the
+**whole-viewport branch** of §5. Both flags are cleared at the entry to every camera update and every draw
+rectangle build (`0x007F83FE`, `0x007F9F64`–`0x007F9F6A`). Consequently the whole-viewport branch always
+recasts its four rays before setting `+0x445` (`0x007FA1AB`–`0x007FA210`), and copies that array into the
+draw ground corners; a narrowed rectangle casts its own four rays and leaves `+0x445` clear. Calling §6 after
+either branch casts another four full-viewport rays once, then reuses only its own rectangle cache. A second
+§6 call, without an intervening invalidation, makes no ray calls. Thus the two caches agree in steady camera
+state but are independent observations of a mutable camera provider.
 
 ## 7. Picking *[compat]*
 
@@ -299,3 +343,10 @@ quads and quad strips (graphics-formats.md §3.7), which no shipped model uses.
 7. **Clip:** (−3, 7, 2000) in a 1024 m city becomes (0, 7, 1023).
 8. **Pick:** a strip of 4 vertices (type 1) yields triangles (0, 1, 2) and (1, 2, 3).
 9. **Viewport depth:** a point at depth near has vz 0; at depth far, −1.
+10. **Signed rotation:** v=(2,7,11), rotations 1/2/3 give (−11,7,2)/(−2,7,−11)/(11,7,−2);
+    rotation −1 leaves (2,7,11). For edge −1 and output sentinel (9,8,7), the result is (9,0,7).
+11. **Failed eye ray:** with a missing renderer and sentinel origin/direction, direct ray creation returns
+    false and preserves both vectors. The ground wrapper returns true; assert no deterministic coordinate.
+12. **Independent caches:** with a counting eye-ray provider, full draw, §6, §6 produces ray-call totals
+    4, 8, 8; narrowed draw, §6, §6 likewise produces 4, 8, 8 from a fresh state. Return a different ground
+    mapping for the second set of four calls to distinguish fresh §6 rays from reuse of draw ground corners.

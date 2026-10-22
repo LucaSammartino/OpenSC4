@@ -33,11 +33,6 @@
   [own literal two-sided Moller–Trumbore, no epsilon, inclusive edges, t>=0, parameter t; exact parallel
   ray-plane miss preserves output; inclusive convex clipping x>=0,x<=W,z>=0,z<=D; unresolved fidelity]
 
-<!-- from: core-view-utilities4 (2026-10-22) -->
-- **VU7 - §4.1 failed camera eye ray:** the viewport ground helper always returns true and ignores
-  camera/ray failure; what are the temporary origin/direction contents and output in those cases?
-  [safe Rust initializes the temporary ray to zero, then performs unguarded intersection, producing NaNs;
-  direct ViewportPositionToRay failure preserves caller output; no guess at uninitialized native data]
 
 <!-- from: core-view-utilities4 (2026-10-22) -->
 - **VU8 - §§4,4.2,5 integer conversions:** specify nearest rounding tie handling and out-of-range
@@ -46,12 +41,6 @@
   pixel bounds; block helpers truncate finite int32 input then mathematical floor/ceil, fail on invalid
   block/result; widened integer centre sum/2 truncates toward zero]
 
-<!-- from: core-view-utilities4 (2026-10-22) -->
-- **VU9 - §§2,5,6 cache identity/source:** are +0x444/+0x445 the visible-rectangle and viewport-ground
-  caches respectively? §5 says both caches clear on every draw rectangle yet full viewport ground
-  points are computed only "if not cached". Is §6 always based on full viewport points, even while
-  draw-frustum is narrowed? [literally clear both caches each draw and camera update; recompute full
-  viewport ground points on draw; §6 uses full viewport points literally; no native cache-identity credit]
 
 <!-- from: core-view-utilities4 (2026-10-22) -->
 - **VU10 - §7 resource edge contracts:** define undersized group counts for n-1/n-2, invalid index/
@@ -59,11 +48,3 @@
   transform matrix applied by row dot products or column combinations? [typed owned resources; reject
   malformed byte input, saturate undersized triangle counts to zero, skip invalid triangles; row-dot
   matrix application literally from "rows"; preserve specified type6/7 indices even out of bounds]
-
-<!-- from: core-view-utilities4 (2026-10-22) -->
-- **VU11 - introductory related-spec paragraph / missing owned rotation method:**
-  `RotateVectorByViewRotation` at 0x007F6CC0 is named as documented by lighting.md, but no body is given
-  in view-utilities §§1–7,9,11 (this task's specified behavior source). Is it one of the attributed 49
-  owner functions? Please include its full rotation/sign/output and invalid-input contract here or
-  explicitly reconcile its ownership/source in the requested inventory. [unimplemented, no guessed
-  alias to fixed-view projection; report 38 implemented named contracts, no whole-owner credit]
