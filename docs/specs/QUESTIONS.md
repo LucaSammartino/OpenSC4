@@ -195,7 +195,7 @@ generated index: the questions live one file per spec, so read only the file for
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 2 | 44 | DS47 | questions/disasters.md |
 | dispatch | 4 | 9 | DP14 | questions/dispatch.md |
-| draw-context | 8 | 0 | DC9 | questions/draw-context.md |
+| draw-context | 3 | 5 | DC9 | questions/draw-context.md |
 | drawing-fonts | 5 | 17 | FN23 | questions/drawing-fonts.md |
 | drive-tool | 2 | 0 | DR3 | questions/drive-tool.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
@@ -231,10 +231,10 @@ generated index: the questions live one file per spec, so read only the file for
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
 | network-manager | 0 | 13 | NM14 | questions/network-manager.md |
-| network-occupants | 18 | 8 | NO27 | questions/network-occupants.md |
+| network-occupants | 17 | 9 | NO27 | questions/network-occupants.md |
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
 | network-rules | 2 | 10 | NR16 | questions/network-rules.md |
-| network-tools | 14 | 0 | NT21 | questions/network-tools.md |
+| network-tools | 14 | 4 | NT25 | questions/network-tools.md |
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
 | occupants-props | 12 | 5 | OP18 | questions/occupants-props.md |
@@ -282,7 +282,7 @@ generated index: the questions live one file per spec, so read only the file for
 | text-edit | 2 | 6 | TE9 | questions/text-edit.md |
 | texture-bindings | 6 | 1 | TB8 | questions/texture-bindings.md |
 | timers | 0 | 3 | TM4 | questions/timers.md |
-| tools-com-director | 3 | 1 | TD5 | questions/tools-com-director.md |
+| tools-com-director | 2 | 2 | TD5 | questions/tools-com-director.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
 | tutorial | 0 | 6 | TU10 | questions/tutorial.md |
@@ -300,4 +300,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **411** | **1225** | | |
+| **total** | **404** | **1236** | | |
