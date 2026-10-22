@@ -828,7 +828,7 @@ thread activation and existing objects, not a live HTTP endpoint:
 
 | Input / setup | Result |
 |---|---|
-| Method converter length 1 with `GETaway` | ID 2; admission's length 0xffffffff instead returns unknown method 0 |
+| Method converter with `GETaway`, length 1 versus 0xffffffff | Method ID 2 versus unknown method 0; unknown is not itself an admission rejection |
 | Zero comparison length with any valid input pointer | ID 1 (OPTIONS) |
 | Wrapper IDs 8/9/10, otherwise valid arguments | Zero before request allocation |
 | Wrapper PUT and absent body | Zero after releasing its temporary request; no queue entry |

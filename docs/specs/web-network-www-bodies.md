@@ -11,7 +11,7 @@ Native attribution snapshot: main `build-runs/run4-owners-current.tsv`, read 202
 | O | 73 | 10941 |
 | Total | 148 | 34049 |
 
-Q7 covers the unresolved FTP command/listing/scheduler closure; Q8 covers 008f7a50; Q9 covers the remaining reached scheduler/resource/container helpers and adapters. 008f9bad has only its capacity/default state inspected (section 3.6); the whole cookie constructor is not credited. Existing URL/cookie contracts are not duplicated. The public Release thunk 009cc22d and several folded getter bodies belong to other snapshot owners and are not added to this total.
+Q7 covers remaining FTP login, listing acquisition, commands and outer scheduler; Q8 is answered in §4.12; Q9 covers remaining scheduler/resource/container helpers and adapters beyond §4.14. Round 2 adds 24 documented bodies / 11466 B over ad775348's 47 / 7239 B; the 148 / 34049 B inventory is unchanged. C includes explicit native unsafe-input limitations, not deterministic output for uninitialized bytes. 008f9bad has only its capacity/default state inspected (§3.6); its whole constructor is not credited. Existing URL/cookie contracts are not duplicated. Public Release thunk 009cc22d and folded getters attributed to other owners are not added to this total.
 
 | Address | Body bytes | Attribution | Contract status / section or gap | Export name |
 |---|---:|---|---|---|
