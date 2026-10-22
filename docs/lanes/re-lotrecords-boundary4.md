@@ -7,8 +7,11 @@
 - Goal: answer LR9 first, then LR8 in lot-records; LR6/LR7 stay open unless independently proved.
 - Worktree reused at detached HEAD; initial status clean; no commits beyond main.
 - Read HANDOFF short index, lane format, merge-queue format, open LR6-LR9 questions.
-- Milestone: published LR9 slot/QI/caller byte proof, LR8 direct source/target table and supported combined-owner boundary, and T26-T30 discriminators in lot-records.md (first evidence commit).
-- Next: verify secondary traffic QI, creator/helper ownership and exact parameter order; create narrow pending ABI corrections, move LR8/LR9 to answered, and validate docs.
+- Done: `81a2532b` published LR9 slot/QI/caller byte proof, LR8 direct source/target table and combined-owner boundary, T26-T30 discriminators (before call 30).
+- Done: proved secondary-view QI/refcount thunks, lot pool lifetime and caller/list references, unit zero-count/member cycles, wall SetLot/creation references; LR8/LR9 moved to answered.
+- Proposals: `build-runs/pending-abi/re-lotrecords-boundary4-{interfaces,vtables}.tsv` (2 corrections each), rationale `.md`; interface mirror `build-runs/abi-rows-re-lotrecords-boundary4.tsv`. Coordinator must apply/gate; docs/abi unchanged.
+- Validation: questions index/check passed; diff-check found one trailing blank line, now removed; rerun next.
+- Next: validate proposals and final diff, commit evidence, then publish final report and queue.
 - Main RE sources: `C:/Users/tlori/FreeCity4`; edits only here; never read engine/.
 - ABI edits disallowed: proposals only under `build-runs/pending-abi/`, named in report.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-lotrecords-boundary4-r1-manifest.json`.
