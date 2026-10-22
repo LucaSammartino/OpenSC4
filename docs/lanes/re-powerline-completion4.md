@@ -7,7 +7,8 @@
 - Goal: final round 3 native-evidence completion of bounded power-line contracts; no owner promotion without proof.
 - Preserved: round-2 tip `27cc9cf9`, prior `67f996cf`; 46 functions / 16156 B, 48 unique vectors.
 - Done: §5.3 native trace of all 1338 B in `0064E3E0`: record gate, four geometry pairs, sample counts, optional vector/reference lifetime and cleanup.
-- Next: numeric curve-helper contract remains NT21; then zone entry/cleanup, type-5 regional Attempt, containers and +398 construction.
+- Done: §6.4 zone entry/query/pole/cleanup; §5.4 all 1438 B of regional Attempt's type-5 path. Backward split invariant unproved.
+- Next: numeric curve-helper contract NT21, container ownership/count NT24, +398 construction NT18; move answered NT23 and add vectors.
 - Remaining public questions: NT18, NT21–NT24 in questions/network-tools.md; prior report below gives exact residuals.
 - Main checkout read-only; no engine/tools/ABI-table changes. Detached HEAD: commit without ref changes.
 - Bash q.py fails E_ACCESSDENIED; bounded native PowerShell used. No REA required for exported bodies.

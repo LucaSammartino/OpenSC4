@@ -94,9 +94,16 @@
   **Precise residual:** prove the entry/query and pole branch `0x006522F0–0x006525B9`, final pole-removal
   cleanup `0x00652883–0x00652979`, and the caller invariant allowing backward relocation `(k,count,-1)`
   at `0x00652828` to find an outside clear cell before indexing below zero. The helper has no such guard.
+  **Final-round partial answer 2026-10-22 (re-powerline-completion4):** §6.4 proves entry/query,
+  signed pole bounds, per-connection relocation arguments and final removal/ref-release order.
+  The remaining NT22 obligation is the backward split's data/reachability invariant: none of the
+  local guards proves a clear outside cell at or before k. No safe lower bound is inferred.
 - **NT23 - regional Attempt:** full type-5 AttemptNeighborConnections `0x00628BD0` endpoint/direction
   derivation, failure/consent behavior, vector mutations and preview effects need instruction checks.
   NT20 resolves the wrapper pairing only. [not proved]
+  **Final-round answer 2026-10-22 (re-powerline-completion4):** power-line-tool.md §5.4 now traces
+  all 1438 B for type 5, including direction, border probes, class 4, rejection behavior and paired
+  append-only pending vectors. This entry is moved to answered/network-tools.md when final checks pass.
 - **NT24 - power-line-tool.md §9 support inventory:** prove full classifier `0x0064FD00` zone/occupant
   precedence, FindPoleOccupant `0x0064FFE0` candidate filters, wire probe `0x0064FBF0` selection/ref ownership,
   allocator `0x0064A2E0`, and the 13 container helpers' copy/erase ownership. Reconcile brief 49 functions

@@ -362,6 +362,51 @@ for the AddRefs taken by §5.2 to the stored connection. The caller's optional v
 cleared nor consumed (`0x0064E886–0x0064E91C`). The nested-copy helper's full allocation details
 remain outside this bounded trace; no completion credit for that dependency follows from the call.
 
+### 5.4 Regional Attempt for network type 5
+
+`0x00628BD0(mode,5)` examines the final two anchor cells (+0x118..+0x11C), copies them and invokes
+tool slot 18 with their addresses, mode and type 5. Subsequent tests use the resulting copies. Equal
+endpoints return false. This body assumes at least two anchors; the power-line wrapper's guard is
+specified in §3. Let M and D be the type-5 rule entry's dwords +0x1C/+0x20, W/H the city dimensions,
+and the last dragged step's inclusive cell interval be [first,last]. It does not inspect the tool's
+real/preview byte (`0x00628BD8–0x00628C59`).
+
+If straightSteps >= draggedSteps, direction d is signed penDirection/2. Otherwise require D=1;
+when the final step has at most one cell, replace d by
+`(endDirection−penDirection+penDirection/2) & 3`. The offset tables map d=0,1,2,3 to west,north,east,
+south. Add that offset to the resulting final endpoint to obtain candidate (nx,nz). If both coordinates
+are unsigned less than W/H, return false. For the straight case edgeWord is `2 << (8*d)`; for the
+diagonal case it is `3 << (8*d)` when signed endDirection−2*d lies in [0,4], otherwise
+`1 << (8*d)` (`0x00628C5F–0x00628DC9`). These formulas describe the stored word, not a compass mask.
+
+When M>1, compare regional-service slot 12 results at the two final-step extreme cells projected onto
+the candidate border. The straight case uses candidate z for odd d and candidate x for even d; the
+diagonal case uses candidate z. Unequal results return false. Let low=edgeWord & 0x01010101;
+low!=0 with mode>1 also returns false. Require a regional service and a nonzero regional-type table
+entry. Original PE `0x00AA84C4+5*4` is **4**: type 5 therefore skips the special branch for regional
+types 3,12,8 (`0x00628CC1–0x00628ECA`). No consent UI is called on this type-5 path.
+
+Validate final-step cells in increasing index order, inclusive. For each available GetCellInfo result,
+require its type flags at +8 to include 0x20 (the type-5 mask at `0x00AA835C+5*4`). If its aggregate
+edge byte at +0x4C for direction d is nonzero, visit all 13 per-type edge bytes in type order. Every
+nonzero byte must equal `(edgeWord >> (8*d)) & 255`. For a different type with greater priority than
+type 5 (signed table comparison at `0x00AA83B0`), also require its bit in the type-5 rule entry's
++0xFC compatibility word. For each cell, ask regional-service slot 11 `(4,x,z)`, replacing the varying
+border coordinate with the cell's coordinate: x at a north/south border, z at a west/east border.
+A nonzero result rejects. Missing cell-info skips its local checks, not the regional probe
+(`0x00628EC9–0x00629008`). No rejection writes a failure code or changes the pending vectors.
+
+If low=0, append one 24-byte record per final-step cell to **both** vectors +0x100 and +0x10C, preserving
+existing entries. Record fields are local cell key `(z<<16)+x`, edgeWord, external neighbor x,z,
+regional type 4, and a byte at +20. That byte is false for the first record, true for every later
+record on the type-5 path. The varying external coordinate follows the local cell. If low!=0,
+require mode=1 and append one record to both vectors: key is the candidate clamped from negative
+coordinates to 0 and from coordinates equal to W/H to W−1/H−1; retain the original external nx,nz
+in the record, and byte +20 is false. Other out-of-range positive values are not generally clamped.
+Both paths return true after appending (`0x00629008–0x0062916D`). Attempt itself creates no preview,
+clears no vectors and neither requests consent nor places a regional connection. Its paired Place
+operation remains a separate call in the power-line wrapper.
+
 ## 6. Reserved-tile walk and zone update
 
 Slot 81 (`0x0064FED0`) is specified by network-geometry §11. For NT20(b), its `last` starts at input
@@ -374,16 +419,15 @@ count because last was initialised to count-1. The uninitialised first previous-
 
 UpdateOnZoneChange, slot 10 (`0x006522F0`), takes `(minX,minZ,maxX,maxZ,enabled)` (pop 20).
 Enabled=0 is an immediate no-op; otherwise force real=true before querying occupants in the rectangle.
-It distinguishes poles (QI `0xA8C86142`) from wire occupants (QI `0xC98F3B24`), repairs connections,
-and manages temporary occupant/pole lists. Full ordering and boundary cases remain NT22; the existing
-decompile has invalid stack/register attribution in this function, so that text alone is insufficient.
+The entry, query, pole and cleanup contracts are in §6.4; wire handling is in §6.3. The unchecked
+backward split boundary remains NT22. The existing decompile has invalid register attribution.
 
 FindNewPolePosition (`0x006520C0`, pop 40) accepts an inclusive rectangle, start index, exclusive stop
 index, signed index increment, a cell-vector reference, and two endpoint interfaces. Starting at the
 given index, skip cells inside the rectangle or whose CellIsOKForPlacement result is nonzero; choose
 the first cell outside the rectangle with result 0. If the exclusive stop is reached, return without
 repair. For a chosen cell it rebuilds the input anchors and draws/determines/places a replacement span;
-exact endpoint and release behavior remains NT22. Bounds are unsigned inclusive comparisons
+endpoint and release behavior is in §6.2. Bounds are unsigned inclusive comparisons
 (`0x006520E3–0x00652120`); classifier is not called for cells inside the rectangle.
 
 ### 6.1 Classifier and occupant probes
@@ -475,6 +519,45 @@ then the retained wire QI. Evidence: guards `0x006526D0–0x00652758`, first-mat
 `0x0065275E–0x00652795`, detachment/call arguments `0x0065279A–0x00652828`, cleanup
 `0x00652835–0x0065286A`. The entry/query and pole-branch orchestration remain outside this bounded
 contract. The source/reachability of `+0x398` adjacency groups has not been established by this trace.
+
+### 6.4 Zone query, pole repair and cleanup
+
+For enabled!=0, set real byte +0x50 to 1 and allocate separate empty pole and wire lists. Prepare a
+third, allocator-backed occupant list, clear it, then call occupant-manager slot 40 with
+`(list,&minimumCell,&maximumCell,0,-1)`. The two cell pairs preserve the supplied rectangle; there is
+no expansion here (`0x00652309–0x006523EB`). Visit the query list in returned order.
+
+Try pole QI `0xA8C86142` **first**. Only a failed pole QI permits the wire QI from §6.3. For a pole,
+get the original queried occupant's position through its slot 8 and convert its x,z through manager
+slot 19 to a cell. Accept this cell only within the supplied rectangle, with **signed inclusive**
+comparisons on all four bounds. A rejected pole QI is released; the queried occupant is then released.
+These signed comparisons differ from FindNewPolePosition's unsigned rectangle tests
+(`0x00652410–0x00652497`, `0x006525B1`, `0x006526A0–0x006526BA`).
+
+For an accepted pole, read connection count from pole slot 4, then visit connection indices from zero
+upwards. Slot 5 copies that connection's cells into a temporary vector. Ignore vectors of size <=1.
+If the first cell equals this pole's converted cell, call FindNewPolePosition with start=1, stop=count,
+increment=+1. Otherwise use start=count−1, stop=0, increment=−1. Pass this pole as the unused ninth
+argument and the result of pole slot 7(connectionIndex) as the optional tenth argument. Free each
+temporary cell buffer after the call. Append the accepted pole QI to the pole list without another
+AddRef, even with no connections, and release the queried occupant. This branch does not deduplicate
+accepted poles (`0x0065249D–0x006525AC`).
+
+Repair retained wires as in §6.3, releasing their endpoint references and each retained wire QI during
+that walk. Then visit retained poles in insertion order: pole slot 6(true), manager slot 21
+`(pole+8,true,false)`, and release the retained pole QI. Finally clear query-list **nodes**, free its
+sentinel through its allocator, and free both retained-list nodes and sentinels. Query-list clearing
+`0x00413E60` frees nodes without releasing interface payloads; their releases already happened in the
+query walk. End cleanup does not restore real=false (`0x00652883–0x00652979`).
+
+**Unchecked split boundary:** the wire branch supplies `(k,count,−1)` to its second relocation call,
+not `(k,−1,−1)` or `(k,0,−1)`. Its preceding guards establish two endpoints, neither in the retained
+pole list, more than one cell and a first match for the wire's cell. They do **not** test for a clear
+outside-rectangle cell at or before k. FindNewPolePosition indexes before testing the next stop and
+has no nonnegative-index check. Thus a safe backward exit is an additional caller/data invariant,
+not proved by these guards (`0x0065270C–0x00652828`, `0x006520E1–0x00652120`). NT22 remains open for
+the reachable connection-cell/rectangle invariant; no out-of-bounds result is asserted as an observed
+game outcome.
 
 ## 7. Resources
 
