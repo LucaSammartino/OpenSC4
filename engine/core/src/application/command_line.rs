@@ -1,6 +1,3 @@
-warn: could not canonicalize path C:\Users\tlori
-\\?\C:\Users\tlori\FreeCity4\.claude\worktrees\core-application4\engine\core\src\application\command_line.rs:
-
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Published command-line effects and resolution selection (application.md section 8).
 

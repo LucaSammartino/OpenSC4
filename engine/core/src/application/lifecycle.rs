@@ -1,6 +1,3 @@
-warn: could not canonicalize path C:\Users\tlori
-\\?\C:\Users\tlori\FreeCity4\.claude\worktrees\core-application4\engine\core\src\application\lifecycle.rs:
-
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Ordered continuations for published lifecycle spans; missing owner methods stop execution.
 

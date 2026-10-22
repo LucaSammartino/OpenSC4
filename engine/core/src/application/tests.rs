@@ -1,6 +1,3 @@
-warn: could not canonicalize path C:\Users\tlori
-\\?\C:\Users\tlori\FreeCity4\.claude\worktrees\core-application4\engine\core\src\application\tests.rs:
-
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::*;
 use crate::cmdline::CmdLine;
