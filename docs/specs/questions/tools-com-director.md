@@ -13,15 +13,11 @@ contract or an evidence-backed attribution correction approved by the coordinato
 
 ## TD2 — Registered services' full slot contracts
 
-For classes `3CEC2B47` (table `00AD4ED8`) and `9CEC2B58` (table `00AD4EC0`), resolve
-all S rows in §1: file/decode setup, open/read/seek/close, list/cache identity,
-ownership, failure cleanup, service interface IDs and native argument/return widths.
-The registrations and direct factory behavior are established. Do not infer named
-tool classes, message behavior, or service-singleton status from attribution alone.
-
-## TD3 — Exceptions and singleton construction guard
-
-`0094AC43` sets the static bit before constructor/exit registration. If construction
-or AddCls throws, does the compiler unwind path reset the bit, release allocations,
-or leave a partially constructed singleton? Trace handlers `00A6F1FC`/`00A6F214`
-and the exit-registration helper rather than assuming retry or exception translation.
+The slot bodies, native widths, open/read/seek/close, creation/list behavior and
+reference lifetime now have contracts in §5. Remaining precise dependencies:
+what system-service ID and interface does `004496C0` obtain for `0094A977`'s
+resource-to-path chain? What are the native semantic names of the two registered
+interfaces (IDs `FCEFF549` and `3AFD825F`) and forwarded embedded-file slots?
+What does `_ftol2` return/store on NaN, infinity or out-of-range estimates at
+`0094AE63`? The open path checks none of these cases. Names must come from native
+evidence. Decoder/header contracts remain TD1, not implied by the stream wrapper.

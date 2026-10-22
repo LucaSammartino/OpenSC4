@@ -17,7 +17,7 @@ does **not** yet justify complete-owner coverage; see §1 and questions TD1–TD
 ## 1. Complete attributed-body checklist
 
 Sizes are exported body-byte sums, not address-span estimates. `D` means director
-contract in §2–§4; `S` means registered-service boundary with remaining details in
+contract in §2–§4; `S` means registered-service boundary with rules in
 §5/questions; `U` means the body remains uncontracted (TD1). All rows other than the
 constructor/getter and `00A66A31` have attribution rule `reach`; the two named bodies
 have `name-medium`, and `00A66A31` has `neighbour`.
@@ -28,9 +28,9 @@ have `name-medium`, and `00A66A31` has `neighbour`.
 | `00420036` | 21 | U; distant reached helper |
 | `0094A079` | 107 | U; decoder input helper |
 | `0094A0E4` | 455 | U |
-| `0094A2AB` | 22 | U |
+| `0094A2AB` | 22 | S; decoder reset boundary (§5.3) |
 | `0094A2C1` | 311 | U |
-| `0094A3F8` | 58 | U |
+| `0094A3F8` | 58 | S; ID3 prefix length (§5.4) |
 | `0094A437` | 32 | S; small-service constructor |
 | `0094A457` | 37 | S; small-service QueryInterface |
 | `0094A47C` | 28 | S; small-service deleting destructor |
@@ -49,7 +49,7 @@ have `name-medium`, and `00A66A31` has `neighbour`.
 | `0094A8CA` | 8 | S; large-service slot +4C |
 | `0094A8D2` | 53 | S; large-service slot +50 |
 | `0094A907` | 107 | S; large-service slot +20 |
-| `0094A972` | 5 | U; tail thunk to `00A66BBE` |
+| `0094A972` | 5 | S; tail thunk to decoder destruction |
 | `0094A977` | 293 | S; large-service slot +14 |
 | `0094AA9C` | 28 | S; large-service deleting destructor |
 | `0094AAB8` | 75 | S; large-service destructor |
@@ -104,8 +104,15 @@ The exit callback `00A7F63C` and base-destructor thunk `0094A432` are examples.
 On the first call (bit 0 of `00B6351C` clear), it sets that bit **before** constructing
 the object, constructs in place, and registers exit callback `00A7F63C`. Later calls
 skip both actions. There is no lock, wait, or atomic instruction in this path; concurrent
-construction is not promised. Construction failure/reentrancy must not be modeled as
-an automatic retry, since the flag has already been set; exception policy is TD3.
+construction is not promised. A recursive call during construction observes the
+already-set flag and returns the same storage without waiting for completion.
+Exception unwind **does** clear the flag: handler `00A6F214` uses descriptor
+`00B03278`, whose state-0 unwind entry at `00B03270` names `00A6F206`; that cleanup
+clears bit 0 only. Constructor handler `00A6F1FC` uses descriptor `00B03254`, with
+state-0 cleanup `00A6F1F4` invoking base destruction. Neither descriptor has a catch
+table. An exception after the base constructor has completed destroys that base,
+propagates, and permits a later getter call to try construction again. Exit-handler
+registration's own result is ignored. This answers TD3 for the observed handlers.
 
 The constructor first runs `cRZCOMDllDirector` construction (`0090E18D`), then installs
 primary table `00AD4F60` at object +0 and the hooks table `00AD4F34` at +4. Base
@@ -212,8 +219,171 @@ Its default-format setup (`0094A54E–0094A5AC`) includes fields 1, 2, 44100,
 from the **prior, uninitialized** 16-bit contents at +10FA before 16 is stored;
 do not silently replace this instruction order with an assumed constant 4.
 No stable external class/interface names are asserted for these services here.
-Service slot semantics, decoder behavior, and complete lifetime decisions remain
-explicitly open; this is not a complete decoder specification.
+The calculation is unsigned-zero-extension of the old word, multiplication by 2,
+then signed integer division by 8 (all inputs here nonnegative), before the new
+format is written. This is not a complete decoder specification.
+
+### 5.1 Small service: creation and reference lifetime
+
+Its method at +0C (`0094AB03`) takes `(path,iid,out)` and pops 12 argument bytes.
+It copies the supplied path into a temporary string, allocates and constructs a
+**fresh** large service, invokes that service's +0C with the copied character path,
+then invokes its QueryInterface with `(iid,out)` and returns that QI's AL result.
+It neither examines the open result nor Release-cleans the newly created object
+when QI fails. The small service's list is not consulted or modified by this method:
+there is no cached-instance lookup or retained-child ownership in this path.
+Allocation-null is not handled after allocation: the following virtual call
+dereferences the null pointer. Successful QI yields the new object's first reference.
+An open failure can therefore coexist with a successful interface result.
+
+The small service's +04 is AddRef (`00968B60`, increments +4), +08 is Release
+(`00892A51`), and +10 is its deleting destructor. A Release starting at 1 calls
+the destructor with flag 1 and returns 0. Every other count is decremented modulo
+2^32, including 0 becoming `FFFFFFFF` without destruction. List construction makes
+an empty circular sentinel (`004F5A00`); destruction (`005650A0`) frees list nodes
+and sentinel, with no virtual Release on node payloads. The shipped creation method
+leaves this list empty.
+
+### 5.2 Large service: interface and slot surface
+
+QI (`0096C390`) accepts ID 1 and `3AFD825F`, returns the base pointer and AddRefs;
+unsupported IDs return false without touching `out`. AddRef increments +4.
+Release (`0094A5C0`) starting at 1 first stores zero, invokes its +54 deleting
+destructor with flag 1, and returns 0. Otherwise it decrements modulo 2^32, including
+zero underflow. Destruction (`0094AAB8`) installs its own table, calls close below,
+destroys the path string, then the embedded file; +54 wrapper `0094AA9C` frees the
+object only when flag bit 0 is set and returns the original pointer.
+
+Offsets are within `00AD4ED8`. Stack sizes below exclude `this` and the return address.
+
+| Slot | Native body | Arguments/result and behavior |
+|---|---|---|
+| +0C | `0094AEAE` | 4 bytes, path. Clear override-valid via +58; copy path to +10D4; call +1C and return its AL. Does not first close an already active stream. |
+| +10, +18 | `0093878E` | 4 bytes each; return false AL, no side effects. |
+| +14 | `0094A977` | 4 bytes, resource key pointer; resource-to-path chain below; returns AL. |
+| +1C | `0094AC88` | No stack arguments; initialize/open current path; AL. |
+| +20 | `0094A907` | No stack arguments; close/release resources; always true AL. |
+| +24 | `0094A5DB` | Tail-forward to embedded file +10, with adjusted `this` (+20). |
+| +28 | `0094A5E3` | Return raw 32-bit +1100 estimate in EAX. |
+| +2C | `0093877E` | 8 bytes; return false AL, no side effects. |
+| +30, +34 | `0094A5EA` | No arguments; return false AL, no side effects. |
+| +38 | `0094A5ED` | 8 bytes, `(destination,byteRequest)`; PCM delivery below; EAX byte count. |
+| +3C | `0094A81A` | No arguments; rewind/skip ID3 below; AL. |
+| +40 | `0094A892` | Return borrowed pointer to format at +10EC; no copy or AddRef. |
+| +44 | `0094A899` | Return byte +10E8 if +10E9 nonzero, otherwise false AL. |
+| +48 | `0094A8AC` | 4 bytes; copy argument's low byte to +10E8, set +10E9=1, return true AL. No normalization of the copied byte. |
+| +4C | `0094A8CA` | Tail-forward to embedded file +18 with adjusted `this`. |
+| +50 | `0094A8D2` | 4 bytes, offset; zero calls +3C then returns false regardless; nonzero requires embedded file +10 true, then calls file +30(offset), returning EAX=1 only if the returned value equals offset, otherwise 0. No decoder-buffer reset on the nonzero path. |
+| +54 | `0094AA9C` | 4 bytes, deleting-destructor flags. |
+| +58 | `0094A8C2` | No arguments; clear +10E9; no defined return value. |
+
+The +14 path constructs its temporary system-service reference (`004496C0`), then
+calls that interface's +80 with `(key,&object)`. On success it QIs the object for
+`856C8CF7`; on that success it calls the obtained interface's +48 `(key,&string)`.
+If this produces a path, it calls this large service's +0C and returns its AL.
+Failure at any of these Boolean steps returns false. All obtained nonnull temporary
+interfaces are Released and the temporary string/reference destroyed along the
+normal return paths, including callbacks that return false with nonnull output.
+The service pointer and Boolean-success outputs are dereferenced without independent
+null checks. Semantic names and the dependency service ID are left in TD2.
+
+### 5.3 Open, close, and partial-failure ownership
+
+Open (+1C, `0094AC88`) gets the extension of the current path, lowercases it, and
+compares against the static string initialized to `.mp3` by `00A793D6`
+(`00A92EA8` literal; static object `00B63524`). A mismatch invokes +48(false),
+returns false, and does not free/close any preexisting stream. Comparison includes
+the dot. Matching extension with +10D0 already nonzero returns true without
+replacing resources or recalculating metadata. Consequently assigning a new path
+through +0C while active does not itself switch the open file.
+
+For an inactive matching path, set active +10D0=1 **before allocation**. Destroy
+and CRT-free any old decoder at +A0, allocate `4A60` hex bytes by CRT malloc, run
+decoder construction `00A667B4` and reset `0094A2AB`, store its pointer, then reset
+it again. Reset clears decoder +4A48 and +4A50 and sets byte +4A5C=1; it establishes
+no return value. Allocate two independent `2000` hex-byte PCM buffers into +A4/+A8;
+clear pending/current frame counts +10BC/+10C0; assign the embedded file's path via
+file +70, and call file +0C with arguments `(1,2,1)` in that order. A false AL from
+file open returns false **without clearing active or freeing allocations**. A retry
+of +1C then returns true from the active branch, without another file-open call.
+Decoder allocation-null is unchecked before the second reset, and PCM malloc
+results are not checked here. No recoverable allocator-failure policy is promised.
+
+After successful file open, call +3C and ignore its result. If override-valid
++10E9 is zero, call +38 with a 4-byte scratch buffer and request 4 bytes; set the
+override through +48 according to whether the read's EAX is nonzero, then call +3C
+again. This probe's underlying decode behavior is subject to TD1.
+
+The +1100 estimate is then computed from full file size (embedded file +1C),
+parsed bitrate +1C, and format average-byte-rate +10F4. The exact instruction order
+at `0094AE1F–0094AE68` is: form the signed-32-bit wrapped value `(bitrate << 10)`;
+convert it with x87 integer load and store to binary32; form the unsigned-32-bit
+wrapped `(fileSize << 3)` and load to x87, adding exactly 2^32 for a negative signed
+interpretation; divide by the stored binary32 denominator; load unsigned +10F4 by
+the same signed-load/2^32 correction; multiply in x87; convert with `_ftol2` and
+store low EAX. It is not simply fileSize times a rational number in double precision.
+The positive finite in-range conversion truncates toward zero; invalid/overflow
+conversion behavior is part of TD2. The full file size includes any ID3 prefix.
+After this sequence open returns true. There is no check for zero bitrate, failed
+probe/rewind, or a nonsensical estimate.
+
+Close (+20, `0094A907`) does nothing if +10D0 is zero and still returns true.
+Otherwise it calls embedded file +14, ignores the result, CRT-frees and nulls each
+PCM buffer +A4/+A8, destroys (`0094A972` -> `00A66BBE`) and CRT-frees/nulls +A0,
+then clears active +10D0. It does not reset the estimate, format, override, pending
+counts or path. Decoder destruction reinstalls its table and, only if decoder byte
++4A38 was nonzero, delegates cleanup to `00A66BA7`; the latter's subobject contract
+remains TD1. CRT allocations are paired with CRT free, whereas the outer object
+is paired with `GlobalHeapFree`.
+
+### 5.4 Rewind and ID3 prefix handling
+
+Rewind (+3C, `0094A81A`) clears current/pending frame counts, calls embedded file
++24 (reset), then file +38 with `(scratch,10)`. False AL returns false directly.
+On success `0094A3F8` examines the first three bytes only. Unless they are ASCII
+`ID3`, it returns 0; otherwise it returns
+`10 + (((b6 * 128 + b7) * 128 + b8) * 128 + b9)`, using zero-extended bytes and
+32-bit arithmetic. It does not mask the high bits of these size bytes or validate
+version/flags. Thus `ID3` with size bytes 0,0,0,128 gives length 138, rather than 10.
+
+Store this length at +10B8. Length zero calls file +24 again, putting non-ID3 data
+back at the beginning. A nonzero length consumes `length-10` one-byte file reads
+(signed-positive loop bound); individual Boolean results are ignored. The method
+then returns true, even if these skip reads failed. An ID3 prefix of size zero
+leaves the cursor at 10. Rewind does not reset the decoder object or override.
+
+### 5.5 PCM delivery boundary
+
+Read (+38, `0094A5ED`) computes its requested frame count by signed integer division:
+first zero-extend the stored 16-bit channels and bits/sample, multiply in 32 bits,
+divide by 8; then divide signed `byteRequest` by that result. Zero divisor faults
+are unchecked. There is no active/file-open/destination-null precondition check.
+It clears this call's frame counter +10C0 and first copies pending 16-bit samples
+from +10C8 (left) and, only for stored channels=2, +10CC (right), advancing each
+used pointer by 2 per delivered frame. Output is interleaved left/right.
+
+While more frames are requested, it reads a 4-byte compressed header through file
++38, parses it with `0094A2C1` into six words at +8..+1C, and stops on a false file
+read or zero parsed layer. It then reads `parsedFrameBytes-4` more bytes into its
+inline compressed buffer, stopping on false AL. It submits the complete frame to
+`0094A079` with limit -1 (the helper return is ignored), assigns the two PCM buffers
+as output planes, and calls `0094A0E4` with parsed samples/frame as the limit.
+That helper's EAX becomes the new decoded-frame count and contributes to total
+available frames; decoding/error/concealment details remain TD1. It resets the
+plane cursors to buffer starts, aliases right to left for mono, then copies 16-bit
+samples until this decoded block or the request is exhausted. The new-block copy
+tests parsed channels at +14, whereas pending-block copy tests stored format channels.
+
+At exit, pending +10BC is total available frames minus delivered frames. The format
+is rewritten from the latest parsed fields: channels=low16(+14), sample rate=+18,
+PCM tag=1, bits/sample=16, block alignment=channels*2, average byte rate=alignment
+times sample rate; 32-bit products wrap and stored word fields truncate. Clear +10FC.
+Return EAX=delivered frames times this **new** alignment, not the original request
+size and not a Boolean. Unaligned byte requests truncate to whole requested frames;
+an error after some frames returns a short byte count. This body has no frame-size
+bound check before reading into its inline buffer. Behavior before any valid
+header has initialized the parsed words is not a defined successful empty stream;
+those words are not initialized by `0094A4D8`.
 
 ## 6. Independent discriminating vectors
 
