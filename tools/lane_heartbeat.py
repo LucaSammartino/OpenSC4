@@ -17,6 +17,8 @@ def summarize(state, queue, train, *, is_alive, paused=False, stopped=False,
     target = state.get('concurrency', 7)
     pending = [entry['name'] for entry in queue if entry.get('status') == 'pending']
     current = train.get('current') or {}
+    gate = current.get('gate') or {}
+    regress = current.get('regress') or {}
     refill_alive = is_alive(refill_pid)
     alerts = []
     if not stopped and not paused:
@@ -30,7 +32,7 @@ def summarize(state, queue, train, *, is_alive, paused=False, stopped=False,
         alerts.append('PROVIDER PAUSED: verify availability before resuming')
     if stopped:
         alerts.append('STOP: no spawning')
-    if current.get('gate', {}).get('ok') and current.get('regress', {}).get('ok'):
+    if gate.get('ok') and regress.get('ok'):
         alerts.append('LAND: gate and regress passed; coordinator review required')
     return dict(live=len(live), target=target, lanes=live,
                 roles=dict(Counter(lanes[name].get('role', 'unknown') for name in live)),
@@ -38,8 +40,8 @@ def summarize(state, queue, train, *, is_alive, paused=False, stopped=False,
                 queue_states=dict(Counter(entry.get('status', 'unknown') for entry in queue)),
                 rounds=state.get('rounds'), provider=state.get('provider', 'claude'),
                 provider_paused=paused, stop=stopped, refiller_alive=refill_alive,
-                train=current.get('id'), gate_ok=current.get('gate', {}).get('ok'),
-                regress=current.get('regress', {}).get('verdict'), alerts=alerts)
+                train=current.get('id'), gate_ok=gate.get('ok'),
+                regress=regress.get('verdict'), alerts=alerts)
 
 
 def read_json(path):
@@ -82,7 +84,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument('--once', action='store_true', help='For a scheduler or coordinator poll')
-    parser.add_argument('--interval', type=int, default=180)
+    parser.add_argument('--interval', type=int, default=300)
     args = parser.parse_args()
     if args.interval < 1:
         parser.error('--interval must be positive')

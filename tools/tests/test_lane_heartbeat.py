@@ -43,3 +43,12 @@ def test_pending_queue_and_train_ready_are_separate():
     assert result['refiller_alive']
     assert any(alert.startswith('LAND:') for alert in result['alerts'])
     assert not any(alert.startswith('REVIEW QUEUE:') for alert in result['alerts'])
+
+
+def test_train_with_unstarted_nullable_stages():
+    result = heartbeat.summarize({'lanes': {}}, [], {
+        'current': {'id': 'train8', 'gate': None, 'regress': None}},
+        is_alive=lambda pid: False)
+    assert result['train'] == 'train8'
+    assert result['gate_ok'] is None and result['regress'] is None
+    assert not any(alert.startswith('LAND:') for alert in result['alerts'])
