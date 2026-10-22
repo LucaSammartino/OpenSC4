@@ -1,6 +1,21 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-lighting-contracts4: LT5–LT11 native lighting contracts | Codex / `re-lighting-contracts4` (RE docs, detached supervisor checkout) | wip; LT5–LT9/LT11 answered, LT10 partial; 43+2 owner bodies inventoried; docs checks PASS; ABI unchanged; cargo/clippy/ctest and game n/a | 1. Prove LT10 direction/flag composition and rounding at 007D8C80. 2. Implementers reconcile answered contracts before complete-owner credit. |
+| re-lighting-contracts4: LT10 native projection contract | Codex / `re-lighting-contracts4` (RE docs, detached supervisor checkout) | in progress; round 2; six earlier answers retained; ABI unchanged | Prove model-frame direction, flag composition and exact rounding at 007D8C80. |
+
+## Handoff
+
+- Goal: resolve only remaining LT10; no engine/tools/maps/ABI-table changes.
+- Start: reserved detached HEAD 9a236cfd; clean tracked state; reuse without branch/ref changes.
+- Prior milestones: 69fd2874 numeric/storage inventory, 82a5c8c2 lifecycle/terrain, 40622e51 six answers/partial projection.
+- LT5–LT9/LT11 are already answered; do not repeat them or claim runtime exactness.
+- LT10 partial: count-first, separate transform/output, basis fallback, signed binary64 0.01 cutoff, count-zero output untouched.
+- Round-2 milestone: §5.8.1 proves conditional transpose, negated direction, x/z/y order, binary32 stores, no scale/translation/normalization; vector 19 distinguishes flags 0/2 from 4/6.
+- Next: native 007D8F50–007D91E4 accumulation/solve, then through 007D9801 composition/stores; first 280 instruction lines inspected.
+- Exact inventory/checklist already in lighting.md; only projection status needs updating.
+- Primary evidence: main export via re_query.py asm --bytes and executable constants; foreign outputs remain boundaries.
+- q.py cannot start Bash (E_ACCESSDENIED); use capped PowerShell/Python commands.
+- No game requests, ABI proposal, REA, network or subagents; docs checks pending.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-lighting-contracts4-r2-manifest.json.
 
 ## Report (2026-10-22)
 

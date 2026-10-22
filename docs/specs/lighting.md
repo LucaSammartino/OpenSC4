@@ -529,11 +529,30 @@ path leaves all 64 output bytes untouched. Count zero supplies a zero normal-equ
 this false path, after reading the transform and obtaining/building the direction basis; it does not read
 the point/UV arrays (`0x007D91CC–0x007D9205`, count skip `0x007D8F33–0x007D8F35`).
 
-**Still open:** the exact model-frame direction transform, full flag-dependent composition and coefficient
-layout, and the complete accumulation/cofactor/composition spill-and-round schedule. In particular, a
+#### 5.8.1 Model-frame direction (LT10)
+
+Name the nine transform floats at offsets 4…36 **R**, in three consecutive rows, and the byte at offset 1
+**f**. Let **A = transpose(R)** when f has bit `0x04`, otherwise **A = R**. This is a conditional transpose,
+not a general matrix inverse: no determinant, orthogonality test or normalization is performed. The
+transpose swaps the three off-diagonal pairs (`0x007D8D13–0x007D8D4A`).
+
+Slot 13 supplies **s**, copied directly from the manager's three floats at +0x64…+0x6C
+(`0x007D6B50–0x007D6B65`). Negate all three components and form each direction component as
+**dᵢ = binary32((Aᵢ₀ × (−sₓ) + Aᵢ₂ × (−s_z)) + Aᵢ₁ × (−s_y))**. The two additions occur in that
+order in x87 registers; the products and intermediate sum are not first rounded to binary32. Each final
+component is stored binary32 before the basis helper runs. Evidence: `0x007D8E36–0x007D8EC5`.
+
+The direction does **not** use translation or the scale at +52, including when f has bit `0x02`.
+The bit-2 inverse-scale path only changes separate local scale/translation fields
+(`0x007D8DB1–0x007D8DE6`), and the direction reads only A. Do not divide d by that scale or normalize d
+before building the basis. Unknown flag bits do not change this direction calculation; their later
+composition effect is a separate issue.
+
+**Still open:** full flag-dependent composition and coefficient layout, and the complete
+accumulation/cofactor/composition spill-and-round schedule. In particular, a
 mathematical least-squares result with arbitrary binary32 rounding is not yet an exact native projection
-contract. The executable tests flag bits 4 and 2 in inverse setup and later the entire flag byte as well
-as bit 2; their complete mathematical meaning is not established here. Keep LT10 open and withhold
+contract. The executable later tests the entire flag byte as well as bit 2; that composition remains to
+be specified. Keep LT10 open and withhold
 complete-owner projection credit; the inferred §5.6 composition is not sufficient to implement this entry.
 
 ## 6. Messages (`DoMessage`, `0x007DBCF0`) *[compat]*
@@ -668,6 +687,14 @@ See QUESTIONS.md LT1–LT4: the meaning of the settings byte `+0x39C` (§2.1), t
     without modifying any output byte. The transform/direction work still occurs. Separately, the basis
     helper for d=(0,−1,0) has rows (0,0,1), (1,0,0), (0,−1,0); computing row 1 as d cross row 0 in this
     special case would incorrectly give (−1,0,0).
+
+19. **Model-frame direction discriminator (LT10):** set the manager's direction to (1,−2,0), and transform
+    rows R=(0,0,1), (0,1,0), (−1,0,0), translation (8,16,32), scale 2. With f=0 or 2 the helper receives
+    **d=(0,2,1)** and produces rows (1,0,0), (0,1,−2), (0,2,1). With f=4 or 6 it receives
+    **d=(0,2,−1)** and produces rows (−1,0,0), (0,1,2), (0,2,−1). All displayed nonzero components
+    are exact binary32 values; zeros here are compared numerically. This independently distinguishes
+    transpose selection, omission of translation/scale, the negation, and absence of normalization.
+    It is an intermediate native arithmetic vector, not a claim of an observed game run.
 
 ## 12. Individual owner and attributed-helper checklist
 
