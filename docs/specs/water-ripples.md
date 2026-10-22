@@ -62,15 +62,66 @@ and a unit tangent; with N the tangent turned a quarter, the **outer** vertex is
 growing by 0.1 per step. N = (tangent z, −tangent x) *[inferred: it points over the water for the traced shore
 direction]*.
 
-A strip (`StartNewRipple`, `0x00760EE0`) collects pairs: a new outer or inner point is kept only when it is at
-least the spacing from the previous one and the turn from the previous segment is at most `0x491C9C0B`; the texture
-coordinate grows by `0x491C9C04` per kept pair; a point too close to the previous one is simply skipped. A strip
-ends, and the next starts, when a point comes within 0.2 m of the city's edge, when the turn is too sharp, or after
-1000 pairs; strips of fewer than 8 vertices are dropped.
+A strip (`StartNewRipple`, `0x00760EE0`) is an ordered vertex stream, with separate outer and inner acceptance.
+The following is the WR5 native contract, including asymmetric partial-pair behavior.
 
-Each strip then (`PrepareRippleForDisplay`, `0x0075FEE0`) gets a random start frame, a random frame period, an even
-vertex count, and alpha ramps over the first and last min(pairs / 2, `0x491C9C0D`) pairs up to the zoom's inner and
-outer alpha.
+**Parameter and endpoint domain.** For n stored shore points, start span index i = 0 and binary32 local parameter
+t = 0; sample while i < n − 3, using points i through i + 3. There is no endpoint padding, duplication or wrapping
+in this owner, even for a closed trace. After every candidate, including a rejected/splitting candidate, add the
+binary32 zoom step spacing/64 to t. If t ≥ 1, remove its integral floor and advance i by that amount. The native
+floor conversion uses the binary32 `(t − 0.5) + 12582912` bit-conversion with exact-integer correction
+(`0x007614A8–0x00761529`), rather than a cast truncating the whole shore parameter on every step.
+
+**Spline and phase.** This is the four-point uniform cubic B-spline, with weights
+`(1−3t+3t²−t³, 4−6t²+3t³, 1+3t+3t²−3t³, t³)/6`. Differentiate those weights and normalize the resulting
+2D derivative; there is no zero-length fallback. The constants 1/6 and 1/2, intermediates spilled to binary32,
+and x87 evaluation order belong to `0x0075FC40–0x0075FE65`; an algebraically rearranged polynomial need not be
+bit-identical. Phase is a binary32 owner field, reset to zero once per `CreateRipples`, before its shore loop,
+not per shore or strip (`0x00761E1A`, `0x00761E48`). Each spline evaluation uses sin of the old phase, then
+adds binary32 `0.1` (`0x3DCCCCCD` at `0x00A8C950`; `0x0075FDF8–0x0075FE1C`). Rejected samples consume phase too.
+
+**Vertices.** The first vertex is outer, the second inner. Outer position is `(P.x + rN.x, waterY, P.z + rN.z)`,
+where r = D + (D × wobble)sin(phase); inner is `(P.x − dN.x, waterY + height, P.z − dN.z)`.
+Thus the configured height raises only the inner side (`0x007603F3–0x00760420`, `0x0075FE22–0x0075FE5C`).
+Both have white RGB and their zoom alpha. Texture coordinates are `(u,1)` outer, `(u,0)` inner. Starting a strip
+zeros both u values; its first pair uses u = 0. Each subsequently completed pair uses the current u and then
+advances both u fields by the zoom texture advance. In particular, the second complete pair also uses u = 0
+(`0x0076126F–0x00761282`, `0x0076144C–0x00761481`).
+
+**Candidate processing, in order** (`0x007611A3–0x007614A8`):
+
+1. Test inner position, then outer position, against the city inset. For each coordinate the accepted interval is
+   `[binary32(0.2), binary32(cityExtent − 0.2))`: equality at the lower edge is accepted, equality at the upper
+   edge rejected. An outside candidate calls StartNewRipple immediately, arms a new start, and is consumed.
+2. If a new start is armed, call StartNewRipple, reset u, append the current outer then inner, save both positions,
+   set the completed-followup counter to zero, and arm the outer-side test. Consume this candidate.
+3. If the outer-side test is armed, compare squared outer displacement from the last accepted outer with squared
+   spacing. Strictly less consumes the candidate. Otherwise normalize that displacement. From the second followup
+   onward, compare acos of its dot with the previous accepted outer direction to the zoom angle in radians;
+   equality passes. A failed turn arms a new start and consumes the candidate, without calling StartNewRipple yet.
+   Passing appends the outer vertex immediately, saves its position/direction and disarms the outer test.
+4. Test inner displacement and turn by the corresponding inner history and same comparisons. A spacing rejection
+   leaves the accepted outer pending: the next sample bypasses the outer test and tries only its inner vertex.
+   It can therefore complete a pair whose two sides came from different spline parameters. An inner turn failure
+   arms a new start and consumes the candidate; it does not undo the already appended outer vertex.
+5. An accepted inner appends the vertex, increments the followup counter, advances both u fields, and rearms the
+   outer test. Only then test the counter: values through 1000 continue; value 1001 arms a new start. Including
+   the initial pair, the maximum before this split is **1002 pairs**, not 1000 (`0x0076145A–0x00761488`).
+
+Neither turn nor size splitting retries the candidate. Saved direction vectors initially contain zero; the counter
+suppresses turn comparisons for the first followup. StartNewRipple reuses/clears a current strip with fewer than
+8 vertices, otherwise appends a new strip; after traversal the final strip is removed if it has fewer than 8
+vertices. It does not close a strip back onto its first pair (`0x00760F54–0x00760F87`, `0x0076152F–0x00761569`).
+
+**Display preparation and alpha.** Each retained strip gets its random frame/period and clock zero (§1.5), then
+loses one trailing vertex if its count is odd. Let V be that even count and R = min(floor(V/4), configured fade
+pair count). For each side with full alpha A, the first ramp value is low-byte(trunc(A × binary32(0.1))) and
+the increment is max(1, low-byte(trunc(A × binary32(0.9) / configured fade pair count))). The denominator is the
+configured count, **not R**. For R pairs from each end, write that start value first, then add the byte increment
+with byte wrap, then clamp the resulting byte down to A if greater. The tail ramp is visited backwards with
+inner written before outer; middle pairs retain A. There is no zero-alpha endpoint or normalization to reach A
+within a shortened ramp (`0x00761D36–0x00761E09`, `0x0075FF27–0x00760055`; 0.9 is `0x3F666666` at
+`0x00B0D7D8`). Nonpositive/invalid tuning is not sanitized by this preparation.
 
 The texture is the FSH (`0x7AB50E44`, `0x891B0E1A`, `0xE9A44A88`) bound through the texture binding factory (slot
 6); without it no strip is kept.
@@ -152,3 +203,9 @@ terrain flag meanings `0x10` / `0x01` (shore and water *[inferred]*), and the by
 6. **Frames:** a strip whose period is 150000 advances one frame after ticks totalling 150000.
 7. **Selection:** marking a cell plain after textured leaves it only in the plain table.
 8. **Palette:** index 3 gives (0.4, 0.3, 0) with alpha 1 and mode 2.
+9. **WR5 partial pair:** with a strip already started, outer spacing passing and inner spacing failing, retain
+   the outer. A later inner success appends only the later inner, even if that later outer would pass spacing.
+10. **WR5 UV/size:** an initial pair and first followup both use u = 0; the next pair uses one texture advance.
+    A 1001st followup is appended before splitting, giving 1002 pairs including the initial pair.
+11. **WR5 fade:** A = 100, configured fade = 6 and V = 8 give R = 2, start = 10, increment = 14 (binary32 0.9
+    is below 0.9). Pair alpha is `[10,24,24,10]`, not `[0,100,100,0]` or a fade divided by R.

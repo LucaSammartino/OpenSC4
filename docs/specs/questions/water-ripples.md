@@ -16,9 +16,6 @@
 - **WR4 - §1.2 ordered shore trace:** publish the terrain-helper trace algorithm: connectivity and neighbor priority, seed enumeration, initial direction, flag mutation/restoration, duplicate suppression, open/closed termination, and conversion from vertex indices to ordered control points. Neither §1.2 nor terrain.md defines the trace. [Core implements the exact seed bit test and returns `ShoreTraceWr4` on any seed; no original-owner output callback, no guessed flood fill or contour tracing. Blocks complete cSTEWaterRipple.]
 
 <!-- from: core-terrain-ripples4 (2026-10-22) -->
-- **WR5 - §1.3 complete strip construction:** specify spline parameter start/end, endpoint padding/wrapping, phase reset between shores/strips, whether outer and inner spacing/turn tests must both pass, which previous segments define the angle, ordering of spacing/edge/turn/1000-pair checks, retry of a split candidate, outer/inner vertex and UV ordering, initial texture coordinate, and alpha ramp endpoints/denominator/rounding. [Core evaluates explicit cubic spans and literal local filters: both spacing/turn tests, edge at <=0.2, outer then inner, texture advance initially 0; full shore traversal and display preparation remain blocked.]
-
-<!-- from: core-terrain-ripples4 (2026-10-22) -->
 - **WR6 - §§1.3,1.5 animation:** what RNG distribution/rounding generates the initial frame and 0.7–1.3 period, what is the initial clock, and on elapsed overshoot does Update advance one frame or catch up, discard or preserve remainder, and redraw a period for each crossed boundary? §6 vector 6 requires equality to advance despite §1.5 saying "past". [Raw units retained; exact-boundary advance/wrap implemented; overshoot returns a named gap without mutation. Random inputs are primitive bounded draws, integer range floor(7P/10)..floor(13P/10), not a claim about native sampling.]
 
 <!-- from: core-terrain-ripples4 (2026-10-22) -->

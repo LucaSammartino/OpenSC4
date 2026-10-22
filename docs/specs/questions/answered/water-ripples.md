@@ -1,0 +1,5 @@
+# water-ripples: answered questions
+
+<!-- from: core-terrain-ripples4 (2026-10-22) -->
+- **WR5 - §1.3 complete strip construction:** specify spline parameter start/end, endpoint padding/wrapping, phase reset between shores/strips, whether outer and inner spacing/turn tests must both pass, which previous segments define the angle, ordering of spacing/edge/turn/1000-pair checks, retry of a split candidate, outer/inner vertex and UV ordering, initial texture coordinate, and alpha ramp endpoints/denominator/rounding. [Core evaluates explicit cubic spans and literal local filters: both spacing/turn tests, edge at <=0.2, outer then inner, texture advance initially 0; full shore traversal and display preparation remain blocked.]
+  **ANSWERED 2026-10-22 (re-ripples-contracts4):** DIFFERS — §1.3 specifies spans 0..n−4 without padding/wrapping, shared rebuild phase, separate side histories and pending outer acceptance, exact edge interval, consumed split candidates, 1002-pair maximum, duplicated initial u, and configured-denominator byte alpha ramps. Native proof: 0x00761140, 0x0075FC40, 0x0075FEE0, 0x00761CF0; vectors 9–11.
