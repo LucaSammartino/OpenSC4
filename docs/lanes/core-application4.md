@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-application4: portable application owner | Codex / `core-application4` | in progress | Read published algorithms, baseline, implement bounded non-region owner. |
+| core-application4: portable application owner | Codex / `core-application4` (engine lane) | in progress | Audit interrupted checks; one stable full gate; report published and withheld scope. |
 
 ## Handoff
 - Goal: implement published portable non-region application algorithms; keep AP3-AP5, section 12 and region/city ownership explicitly incomplete.
@@ -11,7 +11,8 @@
 - Done: source/test/method-map milestone `71c3daa9`. First quick core test 3016 passed/0 failed; dependent compile and CMake subsequently passed. Expanded to 25 application tests with literal expected operation traces and failure/ownership/timer/command cases. Removed rustfmt stdout's warning/path prologue accidentally captured during formatting; all five new Rust files now pass qbuild fmt. Shared lib.rs fmt reports existing unsorted module declarations; deliberately no mass reformat.
 - Done: cleanup/format milestone `a7d4967c`; Rust has remained unchanged since that commit. Source review confirms no assigned region/city algorithm and no C ABI change. README records v1 quit-request arguments (false, false).
 - Done: passing application-test milestone `87b88c1a`: all 25 application tests individually passed. Final all has passed CAPI 532/0 (157.20 s) and subsequent suites 3/0, 1/0, 31/0, 27/0, 40/0. Full aggregate, clippy, CMake/CTest still pending; baseline logs must not be mistaken for final results.
-- Guard: CONTEXT BUDGET denial at 150k; stop and return continue. Handoff milestone `2b32d322`. No queue entry. Resume by collecting the already-running all result/logs (session 6992), not launching another overlapping gate. Source has remained stable since `a7d4967c`; only report/docs commits followed. All pointers/ABI/native owner gaps and AP6-AP9 questions are recorded in the source README and questions file.
-- Next: final all running (session 6992; own qbuild PID 21192), alongside quick (PID 27000) and an older failed quick finishing dependent compilation (PID 21876). Build introspection helper reads only process metadata for this lane's qbuild descendants. Cargo lock/contention delayed compilation. Earlier quick overlap left NUL/stale errors in quick logs; use the current test pass lines and eventual full all logs. Final `qbuild-test.log` is from one stable all invocation; clippy/CTest logs still baseline until overwritten. Require full Rust/clippy/CMake/CTest completion before ready/queue; no game requests.
+- Round 1 guard handoff: `35a8ef64`; no queue. Old exec session 6992 is not liveness evidence. All three recorded wrapper PIDs 21192/27000/21876 are absent on round 2 inspection; lane qbuild descendant inspection returns none. CIM process access denied; ctypes process metadata is available.
+- Old all log ends during automata_records (only one of two tests reported); old clippy/CTest are baseline. Earlier overlapping quicks left NUL/stale errors. These artifacts cannot establish a final gate and will be preserved under build-runs/application-r2-interrupted.
+- Next: audit attributable orphan/delegated build processes; if none, record interrupted checks, freeze source and run ONE qbuild all with persistent supervisor evidence. Parse every Rust result and require fresh clippy, CMake and all 68 CTests before ready.
 - No game requests; source-only task forbids cosmetic game runs.
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-application4-r1-manifest.json`.
+- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-application4-r2-manifest.json`.
