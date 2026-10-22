@@ -45,6 +45,9 @@ impl AmbienceLayer for TLayer {
         self.rec("init", 0, 0);
         self.ok
     }
+    fn shutdown(&mut self) {
+        self.rec("shutdown", 0, 0);
+    }
     fn set_score_master_volume(&mut self, v: u32) {
         self.rec("volume", v as i64, 0);
     }
@@ -83,6 +86,9 @@ struct Host {
     init_walk: Vec<OccupantInfo>,
     cell_occ: Vec<(i32, i32, u32)>,
     load_ok: bool,
+    lot_cond: u8,
+    lot_occ: Vec<LotOccupant>,
+    on_off: Option<u32>,
 }
 
 impl Host {
@@ -102,6 +108,9 @@ impl Host {
             init_walk: vec![],
             cell_occ: vec![],
             load_ok: true,
+            lot_cond: 0,
+            lot_occ: vec![],
+            on_off: Some(0x55),
         }
     }
     fn push(&self, c: Call) {
@@ -185,8 +194,8 @@ impl AmbienceHost for Host {
     fn world_to_cell(&mut self, x: f32, z: f32) -> (i32, i32) {
         ((x / 16.0).floor() as i32, (z / 16.0).floor() as i32)
     }
-    fn zoom_index(&mut self) -> u32 {
-        self.zoom
+    fn zoom_index(&mut self) -> Option<u32> {
+        Some(self.zoom)
     }
     fn listener(&mut self) -> ([f32; 3], [f32; 3]) {
         (self.listener, [0.0, 0.0, 1.0])
@@ -206,8 +215,13 @@ impl AmbienceHost for Host {
     fn lot_of_occupant(&mut self, o: OccupantRef) -> Option<u32> {
         Some(o + 1)
     }
-    fn condition_update_unspecified(&mut self, lot: u32, v: Option<(u32, u32)>) {
-        self.push(Call::Cond(lot, v));
+    fn lot_condition(&mut self, lot: u32) -> u8 {
+        self.push(Call::Cond(lot, None));
+        self.lot_cond
+    }
+    fn lot_occupants(&mut self, lot: u32) -> Vec<LotOccupant> {
+        self.push(Call::Cond(lot, Some((0, 0))));
+        self.lot_occ.clone()
     }
     fn link_automaton(&mut self, o: OccupantRef) {
         self.push(Call::Link(o));
@@ -215,11 +229,14 @@ impl AmbienceHost for Host {
     fn unlink_automaton(&mut self, o: OccupantRef) {
         self.push(Call::Unlink(o));
     }
-    fn occupant_position(&mut self, _o: OccupantRef) -> [f32; 3] {
-        [10.7, 2.2, -3.9]
-    }
-    fn on_off_sound_property(&mut self, _o: OccupantRef) -> Option<u32> {
-        Some(0x55)
+    fn occupant_info(&mut self, o: OccupantRef) -> OccupantInfo {
+        OccupantInfo {
+            occupant: o,
+            flags_1_and_4: true,
+            position: [10.7, 2.2, -3.9],
+            on_off_alarm_sound: self.on_off,
+            ..Default::default()
+        }
     }
     fn clock(&mut self) -> Option<(u32, u32)> {
         self.clock
@@ -246,6 +263,7 @@ fn ready(h: &mut Host) -> M {
 fn occ(id: u32) -> OccupantInfo {
     OccupantInfo {
         occupant: id,
+        flags_1_and_4: true,
         position: [1.9, 2.5, -3.7],
         ..Default::default()
     }
@@ -267,7 +285,7 @@ fn constructor_values() {
     assert!(!m.city_ready);
     assert_eq!(m.stage, Stage::Begin0);
     assert_eq!(m.tracked_count, 0);
-    assert!(m.margins.is_none());
+    assert!(m.margins.is_empty() && m.layer_ids.is_empty());
 }
 
 // §10.1
@@ -276,11 +294,11 @@ fn missing_margins_default_to_70() {
     let mut h = Host::new();
     let mut m = M::new();
     m.read_tuning(&mut h);
-    assert_eq!(m.margins, Some([70.0; 5]));
+    assert_eq!(m.margins, vec![70.0; 5]);
     assert_eq!(DEFAULT_MARGIN.to_bits(), 0x428C_0000);
     h.tuning.margins = Some(vec![0.0, 0.0, 188.0, 150.0, 73.0]);
     m.read_tuning(&mut h);
-    assert_eq!(m.margins, Some([0.0, 0.0, 188.0, 150.0, 73.0]));
+    assert_eq!(m.margins, vec![0.0, 0.0, 188.0, 150.0, 73.0]);
 }
 
 // §10.2
@@ -388,9 +406,15 @@ fn city_shutdown_stops_ticking_and_clears() {
     o.alarm_times = Some(vec![7.0]);
     o.one_shot_alarm_sound = Some(3);
     ins(&mut m, &mut h, &o, MSG_INSERT_OCCUPANT);
+    let before = m.alarms.clone();
+    assert_eq!(before.len(), 1);
+    h.take();
+    // §10.24 (AA9c): returns 1, layers shut down and released, alarms kept.
     assert!(m.do_message(&mut h, true, &AmbienceMessage::PreCityShutdown));
-    assert!(!m.ticking && m.layers.is_empty() && m.alarms.is_empty());
-    assert!(h.take().contains(&Call::TickRemove));
+    assert!(!m.ticking && m.layers.is_empty());
+    assert_eq!(m.alarms, before);
+    assert_eq!(m.tracked_count, 1);
+    assert_eq!(h.take(), vec![Call::TickRemove, Call::Layer(1, "shutdown", 0, 0)]);
     m.on_tick(&mut h, 5, || true);
     assert!(h.take().is_empty());
 }
@@ -479,12 +503,18 @@ fn on_off_alarm_22_to_6() {
     m.update_alarms(&mut h);
     assert_eq!(
         h.posts(),
-        vec![SndRequest::Start {
-            sound_id: 0x55,
-            instance_id: iid,
-            looping: true,
-            position: [10, 2, -3]
-        }]
+        vec![
+            SndRequest::Start {
+                sound_id: 0x55,
+                instance_id: iid,
+                looping: true,
+                position: [10, 2, -3]
+            },
+            SndRequest::SetPosition {
+                instance_id: iid,
+                position: [10, 2, -3]
+            }
+        ]
     );
     for hr in [23, 0, 3] {
         h.clock = Some((hr, 30));
@@ -580,22 +610,24 @@ fn insert_move_remove_sounds() {
                 }
             ),
             Call::Cond(0x5001, None),
+            Call::Cond(0x5001, Some((0, 0))),
         ]
     );
     assert_eq!(m.tracked_count, 1);
     ins(&mut m, &mut h, &o, MSG_INSERT_OCCUPANT);
     assert_eq!(m.tracked_count, 1, "a second insert does not count twice");
     h.take();
+    // §10.20 (AA8b): the bare occupant address, not `o + id`.
     ins(&mut m, &mut h, &o, MSG_MOVE_OCCUPANT);
     assert_eq!(
         h.posts(),
         vec![
             SndRequest::SetPosition {
-                instance_id: 0x5010,
+                instance_id: 0x5000,
                 position: p
             },
             SndRequest::SetPosition {
-                instance_id: 0x5030,
+                instance_id: 0x5000,
                 position: p
             },
         ]
@@ -678,7 +710,8 @@ fn condition_changed_needs_lot() {
         values: (1, 2),
     };
     m.do_message(&mut h, true, &msg);
-    assert_eq!(h.take(), vec![Call::Cond(9, Some((1, 2)))]);
+    // new = 2 >= 0: the lot condition is not read; the occupants are.
+    assert_eq!(h.take(), vec![Call::Cond(9, Some((0, 0)))]);
 }
 
 #[test]
@@ -687,37 +720,48 @@ fn automata_codes() {
     let mut m = ready(&mut h);
     let mut o = occ(0x100);
     o.ambient_sound = Some(0x1);
+    let o = o;
     let ev = |code, kind, slot| {
         AmbienceMessage::AutomataEvent(AutomatonEvent {
             code,
             kind,
             slot_e4_0x10: slot,
-            occupant: o.clone(),
+            automaton_position: [5.5, 6.6, -7.7],
+            occupant: Some(o.clone()),
+            base_occupant: Some(o.clone()),
         })
     };
     let p = [1, 2, -3];
+    // Code 9: `o + id` at the automaton's position.
     m.do_message(&mut h, true, &ev(9, 0, 0));
     assert_eq!(
         h.posts(),
         vec![SndRequest::SetPosition {
             instance_id: 0x101,
-            position: p
+            position: [5, 6, -7]
         }]
     );
+    // Codes 12/13: `_PlayOccupantSound`, start flag 1 (AA8), no link.
     m.do_message(&mut h, true, &ev(13, 0x14, 1));
     assert_eq!(
-        h.posts(),
+        h.take(),
         vec![
-            SndRequest::Start {
-                sound_id: 1,
-                instance_id: 0x101,
-                looping: false,
-                position: p
-            },
-            SndRequest::SetPosition {
-                instance_id: 0x101,
-                position: p
-            },
+            Call::Post(
+                PostKind::Normal,
+                SndRequest::Start {
+                    sound_id: 1,
+                    instance_id: 0x101,
+                    looping: true,
+                    position: p
+                }
+            ),
+            Call::Post(
+                PostKind::Normal,
+                SndRequest::SetPosition {
+                    instance_id: 0x101,
+                    position: p
+                }
+            ),
         ]
     );
     m.do_message(&mut h, true, &ev(13, 0x10, 1));
@@ -729,48 +773,68 @@ fn automata_codes() {
     m.do_message(&mut h, true, &ev(13, 0x11, 0));
     m.do_message(&mut h, true, &ev(5, 0x10, 0));
     assert!(h.posts().is_empty());
+    // AA8f: no preview or flag test in the automaton handlers.
+    let mut pv = o.clone();
+    pv.preview = true;
+    pv.flags_1_and_4 = false;
+    let pv_msg = AmbienceMessage::AutomataEvent(AutomatonEvent {
+        code: 13,
+        kind: 0x14,
+        base_occupant: Some(pv),
+        ..Default::default()
+    });
+    m.do_message(&mut h, true, &pv_msg);
+    assert_eq!(h.posts().len(), 2);
+    // Null occupant / null base: nothing.
+    let none = AmbienceMessage::AutomataEvent(AutomatonEvent {
+        code: 13,
+        kind: 0x14,
+        ..Default::default()
+    });
+    m.do_message(&mut h, true, &none);
+    assert!(h.posts().is_empty());
 }
 
+// §10.21 (AA8e): instance = the automaton address `A`, flag 1.
 #[test]
 fn railway_crossing() {
     let mut h = Host::new();
     let mut m = ready(&mut h);
-    let mut o = occ(0x200);
-    m.do_message(
-        &mut h,
-        true,
-        &AmbienceMessage::ApproachingIntersection {
-            automaton: Some(o.clone()),
-        },
-    );
-    m.do_message(
+    let mut a = CrossingAutomaton {
+        automaton: 0x200,
+        position: [1.9, 2.5, -3.7],
+        crossing_sound: None,
+    };
+    let msg = |a: CrossingAutomaton| AmbienceMessage::ApproachingIntersection { automaton: Some(a) };
+    assert!(m.do_message(&mut h, true, &msg(a)));
+    assert!(m.do_message(
         &mut h,
         true,
         &AmbienceMessage::ApproachingIntersection { automaton: None },
-    );
+    ));
     assert!(h.posts().is_empty());
-    o.crossing_sound = Some(0x7);
-    m.do_message(
-        &mut h,
-        true,
-        &AmbienceMessage::ApproachingIntersection { automaton: Some(o) },
-    );
+    a.crossing_sound = Some(0x55);
+    assert!(m.do_message(&mut h, true, &msg(a)));
     let p = [1, 2, -3];
     assert_eq!(
         h.posts(),
         vec![
             SndRequest::Start {
-                sound_id: 7,
-                instance_id: 0x207,
-                looping: false,
+                sound_id: 0x55,
+                instance_id: 0x200,
+                looping: true,
                 position: p
             },
             SndRequest::SetPosition {
-                instance_id: 0x207,
+                instance_id: 0x200,
                 position: p
             },
         ]
     );
+    // No sound system: returns 1, nothing posted.
+    m.snd_sys = false;
+    assert!(m.do_message(&mut h, true, &msg(a)));
+    assert!(h.posts().is_empty());
 }
 
 #[test]
@@ -837,7 +901,8 @@ fn stage_update_cell_order_and_stages() {
         }
     );
     m.on_tick(&mut h, 33, || true);
-    assert_eq!(m.seeded_blocks(), &[(1, 1)]);
+    let it = &m.iterator;
+    assert_eq!((it.x0, it.z0, it.x1, it.z1, it.count), (1, 1, 1, 1, 1));
     assert_eq!(
         h.take(),
         vec![
@@ -931,7 +996,8 @@ fn events_master_volume_and_fresh_player() {
         fresh_player: fresh,
         score_tgi: Some((1, 2, 3)),
     };
-    assert!(m.do_event(&mut h, &ev(EVT_MASTER_VOLUME, 42, false)));
+    // §10.24 (AA9b): the master volume returns 0 after setting volumes.
+    assert!(!m.do_event(&mut h, &ev(EVT_MASTER_VOLUME, 42, false)));
     assert_eq!(
         h.take(),
         vec![Call::Layer(1, "volume", 42, 0), Call::Layer(2, "volume", 42, 0)]
@@ -977,6 +1043,11 @@ fn events_master_volume_and_fresh_player() {
         h.take(),
         vec![Call::Load(1, 2, 3), Call::Log(score_load_failure_message(1, 2, 3))]
     );
+    // §10.24 (AA9b): an event that does not answer 0x65297976 → 1, no load.
+    let mut no_payload = ev(EVT_FRESH_LOAD_SCORE, 0, true);
+    no_payload.score_tgi = None;
+    assert!(m.do_event(&mut h, &no_payload));
+    assert!(h.take().is_empty());
     assert_eq!(
         score_load_failure_message(1, 2, 0xABC),
         "Error: cSC4AudioAmbienceLayer::DoEvent : Failed to load freshness score (00000001:00000002:00000abc)\n"
@@ -988,12 +1059,42 @@ fn focus_pauses_layers_and_exemplar_rereads_tuning() {
     let mut h = Host::new();
     h.tuning.layer_ids = Some(vec![1]);
     let mut m = ready(&mut h);
-    assert!(m.do_message(&mut h, true, &AmbienceMessage::AppFocus { flag: true }));
+    // §10.23 (AA9a): focus lost → stage 4, Pause(1), result 1; no walk.
+    assert!(m.do_message(&mut h, true, &AmbienceMessage::AppFocus { flag: false }));
     assert_eq!(h.take(), vec![Call::Layer(1, "pause", 1, 0)]);
+    assert_eq!(m.stage, Stage::Unfocused);
+    m.on_tick(&mut h, 5, || true);
+    assert!(h.take().is_empty());
+    // Focus regained → stage 1, Pause(0); the next tick begins a walk.
+    assert!(m.do_message(&mut h, true, &AmbienceMessage::AppFocus { flag: true }));
+    assert_eq!(h.take(), vec![Call::Layer(1, "pause", 0, 0)]);
+    assert_eq!(m.stage, Stage::Begin1);
+    m.on_tick(&mut h, 5, || false);
+    let r = m.current;
+    assert_eq!(h.take()[0], Call::Layer(1, "begin", r.x0 as i64, r.x1 as i64));
+    // AA6: absent properties keep the vectors; present ones give n values.
+    let saved = h.tuning.clone();
+    h.tuning = AmbienceTuning {
+        margins: Some(vec![3.0; 7]),
+        layer_ids: None,
+    };
+    m.read_tuning(&mut h);
+    assert_eq!(m.margins.len(), 7);
+    h.tuning.margins = None;
+    m.read_tuning(&mut h);
+    assert_eq!(m.margins, vec![70.0, 70.0, 70.0, 70.0, 70.0, 3.0, 3.0]);
+    assert_eq!(m.layer_ids, vec![1]);
+    h.tuning.margins = Some(vec![9.0, 8.0]);
+    h.tuning.layer_ids = Some(vec![]);
+    m.read_tuning(&mut h);
+    assert_eq!(m.margins, vec![9.0, 8.0, 70.0, 70.0, 70.0]);
+    assert!(m.layer_ids.is_empty());
+    h.tuning = saved;
+
     h.tuning.margins = Some(vec![1.0; 5]);
     h.tuning.layer_ids = Some(vec![5, 6]);
     assert!(m.do_message(&mut h, true, &AmbienceMessage::ExemplarChanged));
-    assert_eq!(m.margins, Some([1.0; 5]));
+    assert_eq!(m.margins, vec![1.0; 5]);
     assert_eq!(m.layer_ids, vec![5, 6]);
     assert_eq!(m.layers.len(), 1, "layers are not recreated");
 }
@@ -1001,4 +1102,217 @@ fn focus_pauses_layers_and_exemplar_rereads_tuning() {
 #[test]
 fn instance_id_wraps() {
     assert_eq!(occupant_instance_id(0xFFFF_FFF0, 0x20), 0x10);
+}
+
+// §10.19 (AA5): created at 14:37 → last = 14.0; 14:xx fires nothing, the
+// first 15:00 tick fires once.
+#[test]
+fn alarm_created_at_current_hour() {
+    let mut h = Host::new();
+    let mut m = ready(&mut h);
+    h.clock = Some((14, 37));
+    let mut o = occ(0x2100);
+    o.alarm_times = Some(vec![14.0, 15.0]);
+    o.one_shot_alarm_sound = Some(9);
+    ins(&mut m, &mut h, &o, MSG_INSERT_OCCUPANT);
+    assert_eq!(m.alarms.len(), 1);
+    assert_eq!(m.alarms[0].last, 14.0);
+    assert!(!m.alarms[0].on);
+    h.take();
+    for min in [37, 59] {
+        h.clock = Some((14, min));
+        m.update_alarms(&mut h);
+        assert!(h.posts().is_empty());
+    }
+    h.clock = Some((15, 0));
+    m.update_alarms(&mut h);
+    let starts = h
+        .posts()
+        .into_iter()
+        .filter(|r| matches!(r, SndRequest::Start { sound_id: 9, .. }))
+        .count();
+    assert_eq!(starts, 1);
+    h.clock = Some((15, 30));
+    m.update_alarms(&mut h);
+    assert!(h.posts().is_empty());
+}
+
+// AA5: refused without flags 1+4 or with flag 0x10; appended at the tail.
+#[test]
+fn alarm_creation_flags_and_order() {
+    let mut h = Host::new();
+    let mut m = ready(&mut h);
+    h.clock = Some((3, 0));
+    let mk = |id: u32, f14: bool, f10: bool| {
+        let mut o = occ(id);
+        o.flags_1_and_4 = f14;
+        o.flag_0x10 = f10;
+        o.alarm_times = Some(vec![5.0]);
+        o.one_shot_alarm_sound = Some(1);
+        o.on_off_alarm_sound = Some(2);
+        o
+    };
+    for o in [
+        mk(1, false, false),
+        mk(2, true, true),
+        mk(3, true, false),
+        mk(4, true, false),
+    ] {
+        ins(&mut m, &mut h, &o, MSG_INSERT_OCCUPANT);
+    }
+    let got: Vec<_> = m.alarms.iter().map(|a| (a.occupant, a.kind, a.last)).collect();
+    assert_eq!(
+        got,
+        vec![
+            (3, AlarmKind::OneShot, 3.0),
+            (3, AlarmKind::OnOff, 3.0),
+            (4, AlarmKind::OneShot, 3.0),
+            (4, AlarmKind::OnOff, 3.0)
+        ]
+    );
+}
+
+// §3 `_AddOccupantSndInstance`: no flags 1+4 → nothing posted, no link.
+#[test]
+fn snd_instance_needs_flags() {
+    let mut h = Host::new();
+    let mut m = ready(&mut h);
+    let mut o = occ(0x40);
+    o.flags_1_and_4 = false;
+    o.is_automaton = true;
+    o.ambient_sound = Some(1);
+    ins(&mut m, &mut h, &o, MSG_INSERT_OCCUPANT);
+    assert!(h.take().is_empty());
+    assert_eq!(m.tracked_count, 1);
+}
+
+// §10.22 (AA7): rectangle (0,0)-(8,6) → 20 blocks, step 7, first (2,1),
+// last (0,0); the second walk repeats the order.
+#[test]
+fn prime_step_block_order() {
+    let mut h = Host::new();
+    h.tuning.layer_ids = Some(vec![1]);
+    let mut m = ready(&mut h);
+    m.current = CellRect {
+        x0: 0,
+        z0: 0,
+        x1: 8,
+        z1: 6,
+    };
+    m.stage = Stage::Begin1;
+    let walk = |m: &mut M, h: &mut Host| {
+        m.on_tick(h, 1, || true);
+        let blocks: Vec<(i64, i64)> = h
+            .take()
+            .into_iter()
+            .filter_map(|c| match c {
+                Call::Layer(_, "cell", x, z) if x % 2 == 0 && z % 2 == 0 => Some((x / 2, z / 2)),
+                _ => None,
+            })
+            .collect();
+        blocks
+    };
+    let first = walk(&mut m, &mut h);
+    assert_eq!((m.iterator.count, m.iterator.step), (20, 7));
+    let cur: Vec<i64> = first.iter().map(|(x, z)| z * 5 + x).collect();
+    assert_eq!(
+        cur,
+        vec![7, 14, 1, 8, 15, 2, 9, 16, 3, 10, 17, 4, 11, 18, 5, 12, 19, 6, 13, 0]
+    );
+    assert_eq!(first[0], (2, 1));
+    assert_eq!(first[19], (0, 0));
+    assert_eq!(m.stage, Stage::Begin1);
+    let second = walk(&mut m, &mut h);
+    assert_eq!(second, first);
+}
+
+// AA7: `current` carries over (Reset(0) does not reseed) when the count
+// changes; inclusive halved bounds, x1 raised to x0.
+#[test]
+fn iterator_current_carries_over() {
+    let mut h = Host::new();
+    let mut m = ready(&mut h);
+    m.current = CellRect {
+        x0: 0,
+        z0: 0,
+        x1: 4,
+        z1: 0,
+    };
+    m.stage = Stage::Begin1;
+    m.on_tick(&mut h, 1, || true);
+    assert_eq!(m.iterator.count, 3);
+    let after_first = m.iterator.current;
+    m.current = CellRect {
+        x0: 6,
+        z0: 2,
+        x1: 2,
+        z1: 2,
+    };
+    m.on_tick(&mut h, 1, || false);
+    let it = &m.iterator;
+    assert_eq!((it.x0, it.z0, it.x1, it.z1, it.count), (3, 1, 3, 1, 1));
+    assert_eq!(it.current, after_first, "Reset(0) keeps current");
+}
+
+// §10.7 / §10.8 (§3.4): lot condition rows.
+#[test]
+fn lot_condition_update_rows() {
+    let mut h = Host::new();
+    let mut m = ready(&mut h);
+    let mut b = occ(0x9000);
+    b.condition_sound_a = Some(0x10); // C = 0xCA19D7CA
+    b.condition_sound_b = Some(0x20); // A = 0x0A4C13CB
+    b.condition_sound_c = Some(0x30); // R = 0x4A4C132E
+    let lo = LotOccupant {
+        building_or_prop: true,
+        has_holder: true,
+        info: b.clone(),
+    };
+    let other = LotOccupant {
+        building_or_prop: false,
+        has_holder: true,
+        info: b.clone(),
+    };
+    h.lot_occ = vec![other, lo];
+    let cond = |old, new| AmbienceMessage::ConditionChanged {
+        lot: Some(7),
+        values: (old, new),
+    };
+    let p = [1, 2, -3];
+    let start = |iid, sid| SndRequest::Start {
+        sound_id: sid,
+        instance_id: iid,
+        looping: true,
+        position: p,
+    };
+    let setp = |iid| SndRequest::SetPosition {
+        instance_id: iid,
+        position: p,
+    };
+    let stop = |iid| SndRequest::Stop { instance_id: iid };
+    // 1 → 0: stop A, start C, start R.
+    m.do_message(&mut h, true, &cond(1, 0));
+    assert_eq!(
+        h.posts(),
+        vec![
+            stop(0x9020),
+            start(0x9010, 0x10),
+            setp(0x9010),
+            start(0x9030, 0x30),
+            setp(0x9030)
+        ]
+    );
+    // 2: stop C, start A.
+    m.do_message(&mut h, true, &cond(0, 2));
+    assert_eq!(h.posts(), vec![stop(0x9010), start(0x9020, 0x20), setp(0x9020)]);
+    // 1 or 4: stop A, stop C.
+    m.do_message(&mut h, true, &cond(2, 4));
+    assert_eq!(h.posts(), vec![stop(0x9020), stop(0x9010)]);
+    // 7: nothing.
+    m.do_message(&mut h, true, &cond(1, 7));
+    assert!(h.posts().is_empty());
+    // Insert: U(lot, -1, -1) reads the lot condition (0): only C starts.
+    h.lot_cond = 0;
+    ins(&mut m, &mut h, &b, MSG_INSERT_OCCUPANT);
+    assert_eq!(h.posts(), vec![stop(0x9020), start(0x9010, 0x10), setp(0x9010)]);
 }

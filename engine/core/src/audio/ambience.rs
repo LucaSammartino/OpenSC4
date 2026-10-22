@@ -16,18 +16,30 @@
 //! audio preferences, the freshness player) is a host method. Nothing here
 //! fakes a sound: a sound is a [`SndRequest`] handed to the host.
 //!
-//! # Partial owner
+//! Inputs are typed providers only: the host reports what the world holds
+//! (occupant properties and flags, lot occupants and condition, clock,
+//! listener, tuning); the manager's own sound outputs are never fed back to
+//! it as inputs.
 //!
-//! Unsupported because the spec does not define them (open questions):
-//! - the ambience layer's own behaviour (**AA1**): layers are the host's
-//!   [`AmbienceLayer`] objects; the manager only calls the slots of §8;
-//! - `_UpdateLotOccupantsForConditionChange` (**AA2**): the manager resolves
-//!   the lot and reports [`AmbienceHost::condition_update_unspecified`]; it
-//!   starts or stops nothing itself;
-//! - the `RandomIterator` order: blocks are visited row-major (§5 allows any
-//!   budget and requires only that every block is visited) *[choice]*.
+//! # Method inventory (§2-§7)
+//!
+//! `Init`, `Shutdown`, `_HandleInitMessage`, city shutdown + `0x004E9660`,
+//! `_ReadTuningValues`, `_UpdateAttentionRect`, `OnTick`, `_DoStageUpdate`
+//! (prime-step `RandomIterator`, AA7), `_AddOccupantSndInstance`,
+//! `_RemoveOccupantSndInstance`, `HandleInsertOccupant`/`HandleInitOccupant`,
+//! `HandleMoveOccupant`, `HandleRemoveOccupant`,
+//! `_UpdateLotOccupantsForConditionChange`, `_HandleAutomatonMessage`,
+//! `_PlayOccupantSound`, `_HandleRailwayCrossingMessage`, `_UpdateAlarms`,
+//! `_AddAlarmOccupant`, `_RemoveAlarmOccupant`, `DoEvent`, the focus handler
+//! and `DoMessage`. The ambience **layer** (`cSC4AudioAmbienceLayer`, §8) is
+//! a separate class: the manager only calls its slots through
+//! [`AmbienceLayer`]. Open: the init walk's third type `0xC7CC75F1` (**AA4**,
+//! passed through as a type id only).
 
 use std::collections::BTreeSet;
+
+use crate::grid::CellIterator;
+use crate::rng::CrtRand;
 
 /// Object size (§1).
 pub const AMBIENCE_MANAGER_SIZE: usize = 0x120;
@@ -186,6 +198,11 @@ pub enum PostKind {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct OccupantInfo {
     pub occupant: OccupantRef,
+    /// `IsFlagSet(5)`: occupant flags 1 (in the occupant manager) and 4
+    /// (visible) both set (§3 `_AddOccupantSndInstance`, §3.6).
+    pub flags_1_and_4: bool,
+    /// `IsFlagSet(0x10)` (§3.6 alarm creation).
+    pub flag_0x10: bool,
     /// `0x029244DB` true.
     pub preview: bool,
     /// Answers [`IID_AUTOMATON`].
@@ -278,7 +295,7 @@ pub struct SndEventIn {
 }
 
 /// An automaton event message `0x09D92FC3` (§3.5).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct AutomatonEvent {
     /// Message slot `+0x38`.
     pub code: u32,
@@ -286,8 +303,38 @@ pub struct AutomatonEvent {
     pub kind: u32,
     /// The automaton's slot `+0xE4(0x10)`.
     pub slot_e4_0x10: u32,
-    /// The automaton's occupant.
-    pub occupant: OccupantInfo,
+    /// The automaton's position (slot `+0x1C`), used by code 9.
+    pub automaton_position: [f32; 3],
+    /// The automaton's occupant (slot `+0x14`), used by code 9; `None` =
+    /// null.
+    pub occupant: Option<OccupantInfo>,
+    /// The automaton's occupant base `A + 4`, used by codes 12/13
+    /// (`_PlayOccupantSound`); `None` = null.
+    pub base_occupant: Option<OccupantInfo>,
+}
+
+/// The automaton of `0x8A878385` (§3.5), when the message object answers
+/// [`IID_AUTOMATON`].
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct CrossingAutomaton {
+    /// The automaton interface address `A`: the instance id (AA8e).
+    pub automaton: u32,
+    /// `A` slot `+0x1C`.
+    pub position: [f32; 3],
+    /// `0xAA87817A` read from `A`'s occupant (slot `+0x14`); `None` = absent.
+    pub crossing_sound: Option<u32>,
+}
+
+/// One occupant of a lot as `_UpdateLotOccupantsForConditionChange` sees it
+/// (§3.4).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct LotOccupant {
+    /// Answers `cISC4BuildingOccupant` (`0x87DDA3A9`) or `cISC4PropOccupant`
+    /// (`0xE9793A65`).
+    pub building_or_prop: bool,
+    /// The property holder (slot `+0x18`) is non-null.
+    pub has_holder: bool,
+    pub info: OccupantInfo,
 }
 
 /// The messages `DoMessage` dispatches (§7). Each carries the inputs the host
@@ -315,7 +362,7 @@ pub enum AmbienceMessage {
     AutomataEvent(AutomatonEvent),
     /// `automaton` is `None` when the object does not answer [`IID_AUTOMATON`].
     ApproachingIntersection {
-        automaton: Option<OccupantInfo>,
+        automaton: Option<CrossingAutomaton>,
     },
     Other(u32),
 }
@@ -324,6 +371,8 @@ pub enum AmbienceMessage {
 pub trait AmbienceLayer {
     /// Slot 4.
     fn init(&mut self) -> bool;
+    /// Slot 5 (`0x004E9660`, before the layer's `Release`).
+    fn shutdown(&mut self);
     /// Slot 17 (raw volume word).
     fn set_score_master_volume(&mut self, volume: u32);
     /// Slot 20.
@@ -382,8 +431,8 @@ pub trait AmbienceHost {
     fn cell_to_world(&mut self, x: i32, z: i32) -> (f32, f32);
     /// Occupant-manager slot `+0x4C`.
     fn world_to_cell(&mut self, x: f32, z: f32) -> (i32, i32);
-    /// View-utilities `+0x0C`.
-    fn zoom_index(&mut self) -> u32;
+    /// View-utilities `+0x0C`; `None` = no view-utilities global (AA6d).
+    fn zoom_index(&mut self) -> Option<u32>;
     /// Audio director listener: (position words 9-11, vector words 3-5).
     fn listener(&mut self) -> ([f32; 3], [f32; 3]);
 
@@ -394,16 +443,17 @@ pub trait AmbienceHost {
     fn occupants_in_cell(&mut self, x: i32, z: i32) -> Vec<OccupantRef>;
     /// Lot manager slot `+0x38`.
     fn lot_of_occupant(&mut self, occupant: OccupantRef) -> Option<u32>;
-    /// **AA2**: the per-lot condition update is unspecified; the host gets
-    /// the request and the manager posts nothing for it.
-    fn condition_update_unspecified(&mut self, lot: u32, values: Option<(u32, u32)>);
+    /// Lot slot `+0x8C` (`GetCondition`, byte).
+    fn lot_condition(&mut self, lot: u32) -> u8;
+    /// Lot slot `+0xC4` (`GetLotOccupants`), in list order (§3.4).
+    fn lot_occupants(&mut self, lot: u32) -> Vec<LotOccupant>;
     /// Automaton slot `+0x9C` / `+0xA0`.
     fn link_automaton(&mut self, occupant: OccupantRef);
     fn unlink_automaton(&mut self, occupant: OccupantRef);
-    /// Current position of an alarm occupant (slot `+0x20`).
-    fn occupant_position(&mut self, occupant: OccupantRef) -> [f32; 3];
-    /// Re-read `0x2A53BE13` (§3.6 on/off).
-    fn on_off_sound_property(&mut self, occupant: OccupantRef) -> Option<u32>;
+    /// The occupant as it is now (flags, position, properties re-read), for
+    /// the alarm clock (§3.6). Properties are `None` when the holder is
+    /// absent or the property does not read.
+    fn occupant_info(&mut self, occupant: OccupantRef) -> OccupantInfo;
 
     // ---- clock / freshness
     /// Simulation clock (hour, minute); `None` = absent.
@@ -425,7 +475,7 @@ pub enum AlarmKind {
 pub struct AlarmEntry {
     pub occupant: OccupantRef,
     pub sound_id: u32,
-    /// `+0x10`. Initial value unspecified (**AA5**): 0.0 *[choice]*.
+    /// `+0x10`: the time of day at creation (AA5), then the last tick's `t`.
     pub last: f32,
     pub times: Vec<f32>,
     /// `+0x24`.
@@ -440,6 +490,8 @@ pub enum Stage {
     Begin1,
     Walk,
     End,
+    /// Stage 4 (focus lost, AA9a): no `OnTick` case.
+    Unfocused,
 }
 
 /// The manager state (§1).
@@ -453,9 +505,12 @@ pub struct AmbienceManager<L> {
     pub alarms: Vec<AlarmEntry>,
     /// `+0x50`.
     pub ticking: bool,
-    /// `+0x54`; `None` until the tuning is read.
-    pub margins: Option<[f32; MARGIN_COUNT]>,
+    /// `+0x54` (a `std::vector<float>`, empty after the constructor, AA6).
+    pub margins: Vec<f32>,
+    /// `+0x60` (a `std::vector<u32>`, empty after the constructor, AA6).
     pub layer_ids: Vec<u32>,
+    /// `+0x20` `cIGZSndSys` held (Init step 3 until `Shutdown`).
+    pub snd_sys: bool,
     pub current: CellRect,
     pub previous: CellRect,
     pub attention_world: WorldRect,
@@ -463,9 +518,9 @@ pub struct AmbienceManager<L> {
     /// `+0xAC`.
     pub city_ready: bool,
     pub stage: Stage,
-    /// Remaining blocks of the iterator (front = next).
-    blocks: Vec<(i32, i32)>,
-    block_pos: usize,
+    /// `+0xB4` the block `RandomIterator` (prime-step mode, AA7); its
+    /// `current` carries over between walks and cities.
+    pub iterator: CellIterator,
     /// `+0x118` (`None` until created) and `+0x11C`.
     pub tracked: Option<BTreeSet<OccupantRef>>,
     pub tracked_count: i32,
@@ -493,16 +548,16 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
             listener_vec: [0.0; 3],
             alarms: Vec::new(),
             ticking: true,
-            margins: None,
+            margins: Vec::new(),
             layer_ids: Vec::new(),
+            snd_sys: false,
             current: CellRect::default(),
             previous: CellRect::default(),
             attention_world: WorldRect::default(),
             city_world: WorldRect::default(),
             city_ready: false,
             stage: Stage::Begin0,
-            blocks: Vec::new(),
-            block_pos: 0,
+            iterator: CellIterator::constructed(),
             tracked: None,
             tracked_count: 0,
             cell_counts: (0, 0),
@@ -515,6 +570,7 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
         if !host.framework_init() || !host.acquire_scape_manager() || !host.acquire_snd_sys() {
             return false;
         }
+        self.snd_sys = true;
         host.register_event_target();
         // The spec does not say what an absent message server does: the
         // literal reading of "any failure returns 0" *[choice]*.
@@ -542,32 +598,49 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
         }
         self.release_layers();
         host.release_services();
+        self.snd_sys = false;
         self.running = false;
         true
     }
 
-    /// `0x004E9660`: release every layer and empty the lists (layers and
-    /// alarms; "the lists" read as both) *[choice]*.
+    /// `0x004E9660` (AA9c): each layer's `Shutdown` then `Release`, in list
+    /// order; only the layer list is emptied. The alarm list and the tracked
+    /// set survive *[compat]*. Returns 1.
     fn release_layers(&mut self) -> bool {
-        self.layers.clear();
-        self.alarms.clear();
+        for mut l in self.layers.drain(..) {
+            l.shutdown();
+        }
         true
     }
 
-    /// `_ReadTuningValues` (§4.1).
+    /// `_ReadTuningValues` (§4.1, AA6). Absent properties leave the vectors as
+    /// they were; present ones give exactly their `n` values.
     pub fn read_tuning<H: AmbienceHost<Layer = L>>(&mut self, host: &mut H) {
         let t = host.read_tuning();
-        let mut m = [DEFAULT_MARGIN; MARGIN_COUNT];
-        if let Some(v) = t.margins {
-            // A list shorter than 5 keeps 70.0 for the rest; longer lists are
-            // cut (**AA6**) *[choice]*.
-            for (d, s) in m.iter_mut().zip(v) {
-                *d = s;
+        match t.margins {
+            Some(v) => {
+                self.margins = v;
+                // Fewer than 5 values: the missing entries are 70.0 (the game
+                // reads past the vector's end) *[choice, §4.1]*.
+                while self.margins.len() < MARGIN_COUNT {
+                    self.margins.push(DEFAULT_MARGIN);
+                }
+            }
+            None => {
+                // The game stores five 70.0 through the begin pointer without
+                // resizing (null on a first read); the replacement holds five
+                // 70.0 *[choice, §4.1]*, with any values past the fifth kept.
+                if self.margins.len() < MARGIN_COUNT {
+                    self.margins.resize(MARGIN_COUNT, DEFAULT_MARGIN);
+                }
+                for m in self.margins.iter_mut().take(MARGIN_COUNT) {
+                    *m = DEFAULT_MARGIN;
+                }
             }
         }
-        self.margins = Some(m);
-        // Missing layer ids: the vector is left empty (**AA6**) *[choice]*.
-        self.layer_ids = t.layer_ids.unwrap_or_default();
+        if let Some(ids) = t.layer_ids {
+            self.layer_ids = ids;
+        }
     }
 
     /// City init (§2.2).
@@ -614,6 +687,8 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
     pub fn handle_city_shutdown<H: AmbienceHost<Layer = L>>(&mut self, host: &mut H) -> bool {
         self.ticking = false;
         host.remove_from_tick_list();
+        // AA9c: the alarms are kept (stale entries reach the next city)
+        // *[compat; the spec's "should drop" is a choice not taken]*.
         self.release_layers()
     }
 
@@ -622,11 +697,14 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
         let (pos, vec) = host.listener();
         self.listener_pos = pos;
         self.listener_vec = vec;
-        self.zoom = host.zoom_index();
-        // "no bounds check" in the game; an index past the five margins (or
-        // margins never read) has no defined value here, so the rectangle is
-        // left unchanged (**AA6**) *[choice]*.
-        let Some(m) = self.margins.and_then(|ms| ms.get(self.zoom as usize).copied()) else {
+        // AA6d: the game checks neither the view global nor the margin
+        // vector; no global, an empty vector or a zoom past its end keeps the
+        // previous rectangle *[choice, §4.2]*.
+        let Some(zoom) = host.zoom_index() else {
+            return;
+        };
+        self.zoom = zoom;
+        let Some(m) = self.margins.get(zoom as usize).copied() else {
             return;
         };
         let (x, z) = (pos[0], pos[2]);
@@ -655,28 +733,22 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
         self.current = r;
     }
 
+    /// `Reset(0)` (`0x0049D1C0`, AA7): no shuffle, so no `rand()` and
+    /// `current` is not reseeded. The `CrtRand` is never drawn from.
     fn reset_iterator(&mut self) {
-        self.blocks.clear();
-        self.block_pos = 0;
+        let mut unused = CrtRand::default();
+        self.iterator.reset(false, &mut unused);
     }
 
-    /// Seed the iterator with the current rectangle halved (§5). The bounds
-    /// are read inclusive (`x0/2 ..= x1/2`) and the order row-major (z outer)
-    /// (**AA7**) *[choice]*.
+    /// Stage 0/1 (§5, AA7): `SetClipRect` with the current rectangle halved
+    /// by an arithmetic shift, inclusive bounds (x1/z1 raised to x0/z0 when
+    /// smaller), then `Reset(0)`.
     fn seed_iterator(&mut self) {
-        self.blocks.clear();
-        self.block_pos = 0;
         let r = self.current;
-        for bz in (r.z0 / 2)..=(r.z1 / 2) {
-            for bx in (r.x0 / 2)..=(r.x1 / 2) {
-                self.blocks.push((bx, bz));
-            }
-        }
-    }
-
-    /// Blocks the seeded iterator visits.
-    pub fn seeded_blocks(&self) -> &[(i32, i32)] {
-        &self.blocks
+        let (x0, z0) = (r.x0 >> 1, r.z0 >> 1);
+        let (x1, z1) = ((r.x1 >> 1).max(x0), (r.z1 >> 1).max(z0));
+        self.iterator.set_rect(x0, z0, x1, z1);
+        self.reset_iterator();
     }
 
     /// `OnTick` (§5). `elapsed_ms` is the tick timer's elapsed time;
@@ -692,6 +764,7 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
             return;
         }
         self.update_alarms(host);
+        // Stage 4 (`Unfocused`) matches no case below *[compat, AA9a]*.
         if matches!(self.stage, Stage::Begin0 | Stage::Begin1) {
             self.seed_iterator();
             let r = self.current;
@@ -720,11 +793,10 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
     ) -> bool {
         let mut finished = false;
         while budget() {
-            let Some(&(bx, bz)) = self.blocks.get(self.block_pos) else {
+            let Some((bx, bz)) = self.iterator.next_cell() else {
                 finished = true;
                 break;
             };
-            self.block_pos += 1;
             let cells = [
                 (2 * bx, 2 * bz),
                 (2 * bx + 1, 2 * bz),
@@ -753,50 +825,58 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
 
     // ---- occupants (§3)
 
-    fn start_occupant_sound<H: AmbienceHost<Layer = L>>(
+    /// `_AddOccupantSndInstance(o, id, loop)` (`0x004E8AD0`, §3) in full.
+    /// Returns false when nothing was posted for a missing flag or a preview
+    /// occupant.
+    fn add_occupant_snd_instance<H: AmbienceHost<Layer = L>>(
         &mut self,
         host: &mut H,
         occ: &OccupantInfo,
         sound_id: u32,
         looping: bool,
-    ) {
+    ) -> bool {
+        if !occ.flags_1_and_4 || occ.preview {
+            return false;
+        }
         if occ.is_automaton {
             host.link_automaton(occ.occupant);
         }
-        let instance_id = occupant_instance_id(occ.occupant, sound_id);
-        let position = occ.int_position();
-        host.post(
-            PostKind::Normal,
-            SndRequest::Start {
-                sound_id,
-                instance_id,
-                looping,
-                position,
-            },
-        );
-        host.post(PostKind::Normal, SndRequest::SetPosition { instance_id, position });
+        if self.snd_sys {
+            let instance_id = occupant_instance_id(occ.occupant, sound_id);
+            let position = occ.int_position();
+            host.post(
+                PostKind::Normal,
+                SndRequest::Start {
+                    sound_id,
+                    instance_id,
+                    looping,
+                    position,
+                },
+            );
+            host.post(PostKind::Normal, SndRequest::SetPosition { instance_id, position });
+        }
+        true
     }
 
-    fn stop_occupant_sound<H: AmbienceHost<Layer = L>>(&mut self, host: &mut H, occ: &OccupantInfo, sound_id: u32) {
+    /// `_RemoveOccupantSndInstance(o, id)` (`0x004E8BF0`, §3).
+    fn remove_occupant_snd_instance<H: AmbienceHost<Layer = L>>(
+        &mut self,
+        host: &mut H,
+        occ: &OccupantInfo,
+        sound_id: u32,
+    ) -> bool {
         if occ.is_automaton {
             host.unlink_automaton(occ.occupant);
         }
-        host.post(
-            PostKind::Normal,
-            SndRequest::Stop {
-                instance_id: occupant_instance_id(occ.occupant, sound_id),
-            },
-        );
-    }
-
-    fn set_position<H: AmbienceHost<Layer = L>>(host: &mut H, occ: &OccupantInfo, sound_id: u32) {
-        host.post(
-            PostKind::Normal,
-            SndRequest::SetPosition {
-                instance_id: occupant_instance_id(occ.occupant, sound_id),
-                position: occ.int_position(),
-            },
-        );
+        if self.snd_sys {
+            host.post(
+                PostKind::Normal,
+                SndRequest::Stop {
+                    instance_id: occupant_instance_id(occ.occupant, sound_id),
+                },
+            );
+        }
+        true
     }
 
     /// Insert (`insert = true`) and the init walk (§3.1).
@@ -811,40 +891,109 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
         }
         if insert {
             if let Some(s) = occ.ambient_sound {
-                self.start_occupant_sound(host, occ, s, true);
+                self.add_occupant_snd_instance(host, occ, s, true);
             }
         }
         if let Some(times) = &occ.alarm_times {
             if let Some(s) = occ.one_shot_alarm_sound {
-                self.add_alarm(occ.occupant, s, times, AlarmKind::OneShot);
+                self.add_alarm(host, occ, s, times, AlarmKind::OneShot);
             }
             if let Some(s) = occ.on_off_alarm_sound {
-                self.add_alarm(occ.occupant, s, times, AlarmKind::OnOff);
+                self.add_alarm(host, occ, s, times, AlarmKind::OnOff);
             }
         }
         if insert {
             if let Some(s) = occ.second_sound {
-                // "start that sound once": the same start + set-position as
-                // the ambient sound, non-looping *[choice]* (**AA8**).
-                self.start_occupant_sound(host, occ, s, false);
+                // AA8a: start once (loop 0), instance `o + value`.
+                self.add_occupant_snd_instance(host, occ, s, false);
             }
         }
         if occ.condition_sound_a.is_some() || occ.condition_sound_b.is_some() || occ.condition_sound_c.is_some() {
-            if let Some(lot) = host.lot_of_occupant(occ.occupant) {
-                host.condition_update_unspecified(lot, None);
+            let lot = host.lot_of_occupant(occ.occupant);
+            self.update_lot_condition(host, lot, -1, -1);
+        }
+    }
+
+    /// `_UpdateLotOccupantsForConditionChange(lot, old, new)` (`0x004E9DA0`,
+    /// §3.4). Names: spec `A` = `0x0A4C13CB` (`condition_sound_b`), `C` =
+    /// `0xCA19D7CA` (`condition_sound_a`), `R` = `0x4A4C132E`
+    /// (`condition_sound_c`).
+    fn update_lot_condition<H: AmbienceHost<Layer = L>>(&mut self, host: &mut H, lot: Option<u32>, old: i32, new: i32) {
+        let Some(lot) = lot else {
+            return;
+        };
+        let new = if new < 0 {
+            i32::from(host.lot_condition(lot))
+        } else {
+            new
+        };
+        for lo in host.lot_occupants(lot) {
+            // No preview check here *[compat]*; `_AddOccupantSndInstance`
+            // makes its own.
+            if !lo.building_or_prop || !lo.has_holder {
+                continue;
+            }
+            let o = &lo.info;
+            let (a, c, r) = (o.condition_sound_b, o.condition_sound_a, o.condition_sound_c);
+            match new {
+                0 | 5 | 6 => {
+                    if let Some(a) = a {
+                        self.remove_occupant_snd_instance(host, o, a);
+                    }
+                    if let Some(c) = c {
+                        self.add_occupant_snd_instance(host, o, c, true);
+                    }
+                }
+                2 | 3 => {
+                    if let Some(c) = c {
+                        self.remove_occupant_snd_instance(host, o, c);
+                    }
+                    if let Some(a) = a {
+                        self.add_occupant_snd_instance(host, o, a, true);
+                    }
+                }
+                1 | 4 => {
+                    if let Some(a) = a {
+                        self.remove_occupant_snd_instance(host, o, a);
+                    }
+                    if let Some(c) = c {
+                        self.remove_occupant_snd_instance(host, o, c);
+                    }
+                }
+                _ => {}
+            }
+            if new == 0 && old == 1 {
+                if let Some(r) = r {
+                    self.add_occupant_snd_instance(host, o, r, true);
+                }
             }
         }
     }
 
-    fn add_alarm(&mut self, occupant: OccupantRef, sound_id: u32, times: &[f32], kind: AlarmKind) {
+    /// `_AddAlarmOccupant(o, id, &times, kind)` (`0x004EA690`, §3.6, AA5).
+    fn add_alarm<H: AmbienceHost<Layer = L>>(
+        &mut self,
+        host: &mut H,
+        occ: &OccupantInfo,
+        sound_id: u32,
+        times: &[f32],
+        kind: AlarmKind,
+    ) -> bool {
+        if !occ.flags_1_and_4 || occ.flag_0x10 {
+            return false;
+        }
+        // The game does not null-check the clock (absent → crash); here an
+        // absent clock gives `last = 0.0` *[choice; question AA10]*.
+        let last = host.clock().map_or(0.0, |(h, m)| time_of_day(h, m));
         self.alarms.push(AlarmEntry {
-            occupant,
+            occupant: occ.occupant,
             sound_id,
-            last: 0.0,
+            last,
             times: times.to_vec(),
             on: false,
             kind,
         });
+        true
     }
 
     /// `_RemoveAlarmOccupant`: the entry of this occupant and kind.
@@ -858,18 +1007,33 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
         }
     }
 
-    /// Move (§3.2).
+    /// Move (§3.2, AA8b): both set-positions carry the **bare occupant
+    /// address** as instance id *[quirk]*.
     fn handle_move<H: AmbienceHost<Layer = L>>(&mut self, host: &mut H, occ: &OccupantInfo) {
         if occ.preview {
             return;
         }
-        if let Some(s) = occ.ambient_sound {
-            Self::set_position(host, occ, s);
-            // The condition sound's instance id is `occupant + 0xCA19D7CA's
-            // value` (**AA8**) *[choice]*.
-            if let Some(c) = occ.condition_sound_a {
-                Self::set_position(host, occ, c);
-            }
+        let position = occ.int_position();
+        if occ.ambient_sound.is_some() && self.snd_sys {
+            host.post(
+                PostKind::Normal,
+                SndRequest::SetPosition {
+                    instance_id: occ.occupant,
+                    position,
+                },
+            );
+        }
+        // `0x004E8C70` is entered whenever `0xCA19D7CA` reads; whether it
+        // tests the sound system itself is not stated, so it is tested like
+        // the first post *[choice; question AA11]*.
+        if occ.condition_sound_a.is_some() && self.snd_sys {
+            host.post(
+                PostKind::Normal,
+                SndRequest::SetPosition {
+                    instance_id: occ.occupant,
+                    position,
+                },
+            );
         }
     }
 
@@ -887,7 +1051,7 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
             .into_iter()
             .flatten()
         {
-            self.stop_occupant_sound(host, occ, s);
+            self.remove_occupant_snd_instance(host, occ, s);
         }
         if occ.one_shot_alarm_sound.is_some() {
             self.remove_alarm(occ.occupant, AlarmKind::OneShot);
@@ -897,60 +1061,95 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
         }
     }
 
-    /// Automaton event (§3.5).
+    /// Automaton event (§3.5). No preview or flag test (AA8f).
     fn handle_automaton<H: AmbienceHost<Layer = L>>(&mut self, host: &mut H, ev: &AutomatonEvent) {
-        let occ = &ev.occupant;
-        // Without `0x6A36AFAC` there is no sound to play (**AA8**) *[choice]*.
-        let Some(s) = occ.ambient_sound else {
-            return;
-        };
         match ev.code {
-            9 => Self::set_position(host, occ, s),
+            9 => {
+                if !self.snd_sys {
+                    return;
+                }
+                let Some(o) = &ev.occupant else {
+                    return;
+                };
+                let Some(id) = o.ambient_sound else {
+                    return;
+                };
+                host.post(
+                    PostKind::Normal,
+                    SndRequest::SetPosition {
+                        instance_id: occupant_instance_id(o.occupant, id),
+                        position: truncate(ev.automaton_position),
+                    },
+                );
+            }
             12 | 13 if AUTOMATON_SOUND_KINDS.contains(&ev.kind) => {
                 let start = ev.code == 13 && (ev.kind != 0x10 || ev.slot_e4_0x10 == 0);
-                if start {
-                    let instance_id = occupant_instance_id(occ.occupant, s);
-                    let position = occ.int_position();
-                    host.post(
-                        PostKind::Normal,
-                        SndRequest::Start {
-                            sound_id: s,
-                            instance_id,
-                            looping: false,
-                            position,
-                        },
-                    );
-                    host.post(PostKind::Normal, SndRequest::SetPosition { instance_id, position });
-                } else {
-                    host.post(
-                        PostKind::Normal,
-                        SndRequest::Stop {
-                            instance_id: occupant_instance_id(occ.occupant, s),
-                        },
-                    );
-                }
+                self.play_occupant_sound(host, ev.base_occupant.as_ref(), start);
             }
             _ => {}
         }
     }
 
-    /// Railway crossing (§3.5).
-    fn handle_crossing<H: AmbienceHost<Layer = L>>(&mut self, host: &mut H, occ: &OccupantInfo) {
-        let Some(s) = occ.crossing_sound else {
+    /// `_PlayOccupantSound(o, start)` (`0x004E8720`, §3.5, AA8c): start flag
+    /// 1, no automaton link.
+    fn play_occupant_sound<H: AmbienceHost<Layer = L>>(
+        &mut self,
+        host: &mut H,
+        occ: Option<&OccupantInfo>,
+        start: bool,
+    ) {
+        let Some(o) = occ else {
             return;
         };
-        let instance_id = occupant_instance_id(occ.occupant, s);
-        let position = occ.int_position();
+        if !self.snd_sys {
+            return;
+        }
+        let Some(id) = o.ambient_sound else {
+            return;
+        };
+        let instance_id = occupant_instance_id(o.occupant, id);
+        if start {
+            let position = o.int_position();
+            host.post(
+                PostKind::Normal,
+                SndRequest::Start {
+                    sound_id: id,
+                    instance_id,
+                    looping: true,
+                    position,
+                },
+            );
+            host.post(PostKind::Normal, SndRequest::SetPosition { instance_id, position });
+        } else {
+            host.post(PostKind::Normal, SndRequest::Stop { instance_id });
+        }
+    }
+
+    /// Railway crossing (§3.5, AA8e): instance id = the automaton interface
+    /// address, flag 1. Returns 1.
+    fn handle_crossing<H: AmbienceHost<Layer = L>>(&mut self, host: &mut H, a: Option<&CrossingAutomaton>) -> bool {
+        if !self.snd_sys {
+            return true;
+        }
+        let Some(a) = a else {
+            return true;
+        };
+        let Some(id) = a.crossing_sound else {
+            return true;
+        };
+        let instance_id = a.automaton;
+        let position = truncate(a.position);
         host.post(
             PostKind::Normal,
             SndRequest::Start {
-                sound_id: s,
+                sound_id: id,
                 instance_id,
-                looping: false,
+                looping: true,
                 position,
             },
         );
         host.post(PostKind::Normal, SndRequest::SetPosition { instance_id, position });
+        true
     }
 
     /// `_UpdateAlarms` (§3.6).
@@ -969,7 +1168,7 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
                     AlarmKind::OneShot => {
                         if a.last < ai && ai <= t {
                             let instance_id = host.generate_instance_id();
-                            let position = truncate(host.occupant_position(a.occupant));
+                            let position = truncate(host.occupant_info(a.occupant).position);
                             host.post(
                                 PostKind::Extended,
                                 SndRequest::Start {
@@ -988,30 +1187,20 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
                         if !inside {
                             continue;
                         }
-                        // The property is re-read; when it is gone nothing
-                        // happens (**AA8**) *[choice]*.
-                        let Some(s) = host.on_off_sound_property(a.occupant) else {
+                        // AA8d: `0x2A53BE13` is re-read; no holder or no
+                        // value → nothing, `on` unchanged *[compat]*.
+                        let o = host.occupant_info(a.occupant);
+                        let Some(v) = o.on_off_alarm_sound else {
                             continue;
                         };
-                        // Instance id `occupant + sound id`, like every other
-                        // occupant loop (**AA8**) *[choice]*.
-                        let instance_id = occupant_instance_id(a.occupant, s);
                         if i % 2 == 0 {
                             if !a.on {
-                                let position = truncate(host.occupant_position(a.occupant));
-                                host.post(
-                                    PostKind::Normal,
-                                    SndRequest::Start {
-                                        sound_id: s,
-                                        instance_id,
-                                        looping: true,
-                                        position,
-                                    },
-                                );
+                                // `on := 1` whatever the call returned.
+                                self.add_occupant_snd_instance(host, &o, v, true);
                                 a.on = true;
                             }
                         } else if a.on {
-                            host.post(PostKind::Normal, SndRequest::Stop { instance_id });
+                            self.remove_occupant_snd_instance(host, &o, v);
                             a.on = false;
                         }
                     }
@@ -1030,7 +1219,8 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
             for l in &mut self.layers {
                 l.set_score_master_volume(ev.value);
             }
-            return true;
+            // AA9b: 0 after setting the volumes *[compat]*.
+            return false;
         }
         if !ev.fresh_player {
             return false;
@@ -1042,13 +1232,13 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
             }
             EVT_FRESH_PLAY_PERCENT => host.fresh_player_call(FreshCall::SetPlayPercent(ev.value)),
             EVT_FRESH_LOAD_SCORE => {
-                // A payload that does not answer 0x65297976: not handled
-                // (**AA9**) *[choice]*.
-                let Some((t, g, i)) = ev.score_tgi else {
-                    return false;
-                };
-                if !host.fresh_player_load_score(t, g, i) {
-                    host.log(&score_load_failure_message(t, g, i));
+                // AA9b: the event itself is QI'd for 0x65297976; when it
+                // does not answer, nothing is loaded or logged and the
+                // result is still 1 *[compat]*.
+                if let Some((t, g, i)) = ev.score_tgi {
+                    if !host.fresh_player_load_score(t, g, i) {
+                        host.log(&score_load_failure_message(t, g, i));
+                    }
                 }
             }
             EVT_FRESH_FADE_OUT => host.fresh_player_call(FreshCall::FadeVolume {
@@ -1082,10 +1272,12 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
             AmbienceMessage::PostCityInit => self.handle_city_init(host),
             AmbienceMessage::PreCityShutdown => self.handle_city_shutdown(host),
             AmbienceMessage::AppFocus { flag } => {
+                // AA9a: stage 1 on focus gained, 4 on focus lost; then
+                // `Pause(f == 0)` on every layer; returns 1.
+                self.stage = if *flag { Stage::Begin1 } else { Stage::Unfocused };
                 for l in &mut self.layers {
-                    l.pause(*flag);
+                    l.pause(!*flag);
                 }
-                // The focus handler's result is not given (**AA9**): 1.
                 true
             }
             AmbienceMessage::ListenerPosChanged => {
@@ -1100,12 +1292,7 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
                 self.handle_automaton(host, ev);
                 true
             }
-            AmbienceMessage::ApproachingIntersection { automaton } => {
-                if let Some(a) = automaton {
-                    self.handle_crossing(host, a);
-                }
-                true
-            }
+            AmbienceMessage::ApproachingIntersection { automaton } => self.handle_crossing(host, automaton.as_ref()),
             AmbienceMessage::Occupant { msg_type, occupant } => {
                 if let Some(o) = occupant {
                     match *msg_type {
@@ -1119,8 +1306,10 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
                 true
             }
             AmbienceMessage::ConditionChanged { lot, values } => {
-                if let Some(lot) = lot {
-                    host.condition_update_unspecified(*lot, Some(*values));
+                // old := data1, new := data2 (§3.4); `lot` None = void1 does
+                // not answer the lot IID.
+                if lot.is_some() {
+                    self.update_lot_condition(host, *lot, values.0 as i32, values.1 as i32);
                 }
                 true
             }
