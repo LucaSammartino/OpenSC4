@@ -66,7 +66,9 @@ generated index: the questions live one file per spec, so read only the file for
 | FQ | flora |
 | FS | graphics-formats |
 | GC | command-system |
+| GD | renderer-gdrivers-director |
 | GF | graphics-formats |
+| GI | renderer-gdrivers-director-inventory |
 | GLUE | lot-configuration, prop-developer |
 | GR | graphics-rules |
 | GT | glyph-textures |
@@ -263,6 +265,8 @@ generated index: the questions live one file per spec, so read only the file for
 | render-properties | 3 | 3 | RP7 | questions/render-properties.md |
 | render3d | 3 | 1 | RND5 | questions/render3d.md |
 | renderer-driver | 4 | 1 | RD6 | questions/renderer-driver.md |
+| renderer-gdrivers-director | 1 | 0 | GD2 | questions/renderer-gdrivers-director.md |
+| renderer-gdrivers-director-inventory | 2 | 0 | GI3 | questions/renderer-gdrivers-director-inventory.md |
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | simgrid | 1 | 0 | SG2 | questions/simgrid.md |
@@ -296,4 +300,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **388** | **1222** | | |
+| **total** | **391** | **1222** | | |
