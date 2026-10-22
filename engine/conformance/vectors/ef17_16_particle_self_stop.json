@@ -11,8 +11,9 @@
     {"op": "ef_particles", "flags": 0, "count": 8, "life": 0.25, "dt": 0.0625, "loop_count": 1, "expect_updates": 19, "expect_created": 8, "expect_loops": 1},
     {"op": "ef_particles", "flags": 8, "count": 8, "life": 0.5, "dt": 0.1, "loop_count": 1, "max": 200, "expect_updates": null, "expect_loops": 0},
     {"op": "ef_particles", "flags": 4, "count": 4, "life": 1.0, "dt": 0.5, "max": 1000, "expect_updates": null},
-    {"op": "ef_particles", "flags": 4, "count": 4, "life": 1.5, "dt": 0.5, "stop_after": 4, "stop_mode": 0, "expect_updates": 6},
+    {"op": "ef_particles", "flags": 4, "count": 4, "life": 1.5, "dt": 0.5, "stop_after": 4, "stop_mode": 0, "expect_updates": 7},
     {"op": "ef_particles", "flags": 4, "count": 4, "life": 1.5, "dt": 0.5, "stop_after": 4, "stop_mode": 1, "expect_updates": 4},
-    {"op": "ef_particles", "flags": 2, "count": 1, "life": 1.0, "start_arg": 1, "max": 5, "expect_updates": 1, "expect_created": 0}
+    {"op": "ef_particles", "flags": 2, "count": 1, "life": 1.0, "start_arg": 1, "max": 5, "expect_updates": 1, "expect_created": 0},
+    {"op": "ef_particles", "flags": 4, "count": 2.3, "life": 1.0, "dt": 0.5, "stop_after": 2, "stop_mode": 0, "expect_updates": 3, "expect_created": 3, "expect_loops": 0}
   ]
 }

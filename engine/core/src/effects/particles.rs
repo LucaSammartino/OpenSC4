@@ -164,9 +164,7 @@ impl EmitterDesc {
                 let i = pos.floor() as usize;
                 let t = pos - i as f64;
                 if t > 0.0 {
-                    (f64::from(self.curve[i])
-                        + t * (f64::from(self.curve[i + 1]) - f64::from(self.curve[i])))
-                        as f32
+                    (f64::from(self.curve[i]) + t * (f64::from(self.curve[i + 1]) - f64::from(self.curve[i]))) as f32
                 } else {
                     self.curve[i]
                 }
@@ -395,8 +393,7 @@ impl ParticleSimulator {
         self.created += 1;
         let mut p = Particle {
             age: 0.0,
-            life: rng.range_f64(f64::from(self.desc.life_min), f64::from(self.desc.max_age))
-                as f32,
+            life: rng.range_f64(f64::from(self.desc.life_min), f64::from(self.desc.max_age)) as f32,
         };
         let alive = match initial_age {
             Some(a) => p.update(a),

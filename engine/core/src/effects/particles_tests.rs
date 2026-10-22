@@ -424,7 +424,10 @@ fn rate_scale_uses_lowest_bit_and_set_description_resets_density() {
         (emitter_flag::SCALE_1, 2.0),
         (emitter_flag::SCALE_2, 4.0),
         (emitter_flag::SCALE_3, 8.0),
-        (emitter_flag::SCALE_1 | emitter_flag::SCALE_2 | emitter_flag::SCALE_3, 2.0),
+        (
+            emitter_flag::SCALE_1 | emitter_flag::SCALE_2 | emitter_flag::SCALE_3,
+            2.0,
+        ),
         (emitter_flag::SCALE_2 | emitter_flag::SCALE_3, 4.0),
     ] {
         let mut d = EmitterDesc::new(bits, 16.0, 10.0);
@@ -470,7 +473,14 @@ fn period_floor_is_float_and_does_not_replace_raw_burst_or_gap_period() {
 fn curve_edges_return_exact_entries_and_clamp_native_out_of_bounds() {
     let mut d = EmitterDesc::new(0, 0.0, 1.0);
     d.curve = vec![2.0, 6.0, 10.0];
-    for (frac, rate) in [(-0.25, 2.0), (0.0, 2.0), (0.25, 4.0), (0.5, 6.0), (1.0, 10.0), (2.0, 10.0)] {
+    for (frac, rate) in [
+        (-0.25, 2.0),
+        (0.0, 2.0),
+        (0.25, 4.0),
+        (0.5, 6.0),
+        (1.0, 10.0),
+        (2.0, 10.0),
+    ] {
         assert_eq!(d.rate_at(frac), rate);
     }
     d.curve = vec![f32::NAN, 7.0, f32::NAN];
@@ -482,4 +492,36 @@ fn curve_edges_return_exact_entries_and_clamp_native_out_of_bounds() {
     assert_eq!(d.rate_at(0.5), 0.0);
     d.curve.push(9.0);
     assert_eq!(d.rate_at(f64::NAN), 9.0);
+}
+
+#[test]
+fn short_period_rate_clamps_curve_when_a_substep_passes_multiple_loops() {
+    let mut d = EmitterDesc::new(0, 0.0, 1.0);
+    d.curve = vec![0.0, 32.0];
+    d.period = 1.0 / 64.0;
+    d.loop_count = 0;
+    let mut p = ParticleSimulator::new(d);
+    let mut r = rng();
+    p.start(0, &mut r);
+    p.update(0.0625, &mut r);
+    assert_eq!((p.phase(), p.loops_emitted()), (4.0, 1));
+    assert_eq!(p.particles_created(), 2);
+}
+
+#[test]
+fn plain_suppressed_or_stopped_only_ages_without_new_life_draws() {
+    let mut p = ParticleSimulator::new(EmitterDesc::new(emitter_flag::PLAIN, 1.0, 0.5));
+    let mut r = rng();
+    p.start(0, &mut r);
+    p.update(0.125, &mut r);
+    let state = r.mul_state();
+    p.set_suppressed(true);
+    p.update(0.25, &mut r);
+    assert_eq!(p.live(), &[0.25]);
+    assert_eq!(r.mul_state(), state);
+    p.set_suppressed(false);
+    p.stop(0);
+    p.update(0.25, &mut r);
+    assert!(!p.is_active());
+    assert_eq!((p.particles_created(), r.mul_state()), (1, state));
 }
