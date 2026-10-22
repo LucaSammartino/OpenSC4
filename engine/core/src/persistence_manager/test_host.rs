@@ -3,10 +3,27 @@
 use super::*;
 use std::collections::BTreeMap;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Event {
+    AddRef(Object),
+    Release(Object),
+    GetKey(Object),
+    SetKey(Object, Key),
+    Filter(Object, Key),
+    Lock(Lock, bool),
+}
+
+pub(super) struct Predicate {
+    pub key: Key,
+    pub set_key: Option<(Object, Key)>,
+}
+
 #[derive(Default)]
 pub(super) struct Host {
     pub counts: BTreeMap<Object, u32>,
     pub keys: BTreeMap<Object, Key>,
+    pub filters: BTreeMap<Object, Predicate>,
+    pub events: Vec<Event>,
 }
 macro_rules! unused {
     ($(fn $name:ident($($arg:ident: $ty:ty),*) $(-> $ret:ty)?;)*) => {$(
@@ -17,12 +34,17 @@ macro_rules! unused {
     )*};
 }
 impl Primitives for Host {
+    fn lock(&mut self, lock: Lock, enter: bool) {
+        self.events.push(Event::Lock(lock, enter));
+    }
     fn add_ref(&mut self, object: Object) -> u32 {
+        self.events.push(Event::AddRef(object));
         let count = self.counts.entry(object).or_default();
         *count = count.wrapping_add(1);
         *count
     }
     fn release(&mut self, object: Object) -> u32 {
+        self.events.push(Event::Release(object));
         let count = self.counts.get_mut(&object).unwrap();
         assert!(*count > 0);
         *count -= 1;
@@ -32,10 +54,23 @@ impl Primitives for Host {
         self.counts[&object]
     }
     fn resource_set_key(&mut self, object: Object, key: Key) {
+        self.events.push(Event::SetKey(object, key));
         self.keys.insert(object, key);
     }
     fn resource_key(&mut self, object: Object) -> Key {
+        self.events.push(Event::GetKey(object));
         self.keys[&object]
+    }
+    fn filter_accepts(&mut self, filter: Object, key: Key) -> bool {
+        self.events.push(Event::Filter(filter, key));
+        let predicate = &self.filters[&filter];
+        let accepted = predicate.key == key;
+        if accepted {
+            if let Some((object, key)) = predicate.set_key {
+                self.resource_set_key(object, key);
+            }
+        }
+        accepted
     }
     unused! {
         fn resource_type(r: Object) -> u32;
@@ -53,7 +88,6 @@ impl Primitives for Host {
         fn segment_close(s: Object, r: Object) -> bool;
         fn segment_abort(s: Object, r: &mut Option<Object>) -> bool;
         fn record_close(r: Object) -> bool;
-        fn filter_accepts(f: Object, key: Key) -> bool;
         fn cache_get(c: Object, key: Key, out: &mut Option<Object>) -> bool;
         fn cache_insert(c: Object, key: Key, r: Object) -> bool;
         fn cache_erase(c: Object, key: Key) -> bool;
