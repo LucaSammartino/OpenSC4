@@ -4,7 +4,7 @@
 // Copyright (C) 2026 FreeCity4 contributors
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
-//! Tests of the particle emitters (effects.md §7.1, §7.1.1, EF13).
+//! Tests of the particle emitters (effects.md §7.1, §7.1.1, EF13/EF14).
 
 use super::*;
 use crate::rng::FixedSeeds;
@@ -290,4 +290,238 @@ fn volcano_particle_ends_within_its_life() {
         let n = run(&mut p, &mut r, 1.0 / 30.0, 10_000).expect("ends") as f32 / 30.0;
         assert!(n <= life + 0.1 && n < 50.0, "{life}: {n}");
     }
+}
+
+#[test]
+fn plain_tops_up_unscaled_at_zero_age_after_aging_existing_particles() {
+    let mut d = EmitterDesc::new(emitter_flag::PLAIN | emitter_flag::SCALE_3, 2.3, 0.5);
+    d.curve.push(1000.0); // Only the first entry is the target.
+    d.scales = [0.0, 0.0, 0.0];
+    d.rate_scale = 0.0;
+    let (mut r, mut want) = (rng(), rng());
+    let mut p = ParticleSimulator::new(d);
+    p.start(0, &mut r);
+    p.update(0.0, &mut r);
+    assert_eq!(p.live_count(), 0);
+    assert_eq!(r.mul_state(), want.mul_state());
+    p.update(0.25, &mut r);
+    assert_eq!(p.live(), &[0.5; 3]);
+    p.update(0.25, &mut r);
+    assert_eq!(p.live(), &[0.25; 3]);
+    assert_eq!(p.particles_created(), 3);
+    p.update(0.25, &mut r); // Old particles die at equality, then top up.
+    assert_eq!(p.live(), &[0.5; 3]);
+    assert_eq!(p.particles_created(), 6);
+    for _ in 0..6 {
+        want.range_f64(0.5, 0.5);
+    }
+    assert_eq!(r.mul_state(), want.mul_state());
+    assert_eq!((p.loops_emitted(), p.carry(), p.countdown()), (0, 0.0, 0.0));
+}
+
+#[test]
+fn plain_preserves_dispatch_state_and_safe_underflow_choices() {
+    let mut p = ParticleSimulator::new(EmitterDesc::new(emitter_flag::PLAIN, 2.3, 10.0));
+    let mut r = rng();
+    p.start(0, &mut r);
+    p.phase = 7.0;
+    p.loops = 4;
+    p.carry = 0.375;
+    p.countdown = -0.125;
+    p.emit_plain(0.5, &mut r);
+    assert_eq!(p.phase(), 7.5); // No phase wrap, even beyond a full loop.
+    assert_eq!((p.loops_emitted(), p.carry(), p.countdown()), (4, 0.375, -0.125));
+    assert!(!p.delayed_stop_requested());
+    let state = r.mul_state();
+    for curve in [vec![1.0], vec![-2.3], vec![]] {
+        p.desc.curve = curve;
+        p.emit_plain(0.5, &mut r);
+        assert_eq!((p.live_count(), p.particles_created()), (3, 3));
+        assert_eq!(r.mul_state(), state);
+    }
+}
+
+#[test]
+fn plain_does_not_test_life_at_birth_even_if_zero_or_nan() {
+    for life in [0.0, f32::NAN] {
+        let mut p = ParticleSimulator::new(EmitterDesc::new(emitter_flag::PLAIN, 1.0, life));
+        let mut r = rng();
+        p.start(0, &mut r);
+        p.update(0.25, &mut r);
+        assert_eq!(p.live_count(), 1);
+        assert_eq!(p.live[0].age, 0.0);
+        p.stop(0);
+        p.update(0.0, &mut r); // First slot-20 call, age < life is false.
+        assert_eq!(p.live_count(), 0);
+        assert!(!p.is_active());
+    }
+}
+
+#[test]
+fn particle_life_draws_follow_start_delay_and_precede_loop_gap_draw() {
+    let mut d = inject(4.0, 0.5);
+    d.life_min = 0.0;
+    d.loop_count = 0;
+    d.start_delay = (0.0, 0.0);
+    d.interval = (2.0, 4.0);
+    let (mut r, mut want) = (rng(), rng());
+    want.range_f64(0.0, 0.0);
+    let lives: Vec<f32> = (0..4).map(|_| want.range_f64(0.0, 0.5) as f32).collect();
+    assert!(lives.iter().any(|&l| l <= 0.25));
+    assert!(lives.iter().any(|&l| l > 0.25));
+    let gap = want.range_f64(2.0, 4.0);
+    let mut p = ParticleSimulator::new(d);
+    p.start(0, &mut r);
+    p.update(0.25, &mut r);
+    assert_eq!(p.particles_created(), 4); // Failed inits still draw life.
+    let surviving: Vec<_> = lives.into_iter().filter(|&l| l > 0.25).collect();
+    assert_eq!(p.live.iter().map(|p| p.life).collect::<Vec<_>>(), surviving);
+    assert!(p.live.iter().all(|p| p.age == 0.25));
+    assert_eq!(p.countdown(), (1.0 - (0.25 - gap)) as f32);
+    assert_eq!((r.mul_state(), r.lcg_state()), (want.mul_state(), want.lcg_state()));
+}
+
+#[test]
+fn rate_pairs_life_draws_with_oldest_first_initial_ages() {
+    let mut d = EmitterDesc::new(0, 32.0, 0.25);
+    d.life_min = 0.125;
+    let (mut r, mut want) = (rng(), rng());
+    let lives = [want.range_f64(0.125, 0.25) as f32, want.range_f64(0.125, 0.25) as f32];
+    let mut p = ParticleSimulator::new(d);
+    p.start(0, &mut r);
+    p.update(0.0625, &mut r);
+    assert_eq!(p.live.len(), 2);
+    assert_eq!((p.live[0].age, p.live[0].life), (0.0625, lives[0]));
+    assert_eq!((p.live[1].age, p.live[1].life), (0.03125, lives[1]));
+    assert_eq!(r.mul_state(), want.mul_state());
+}
+
+#[test]
+fn slot20_accumulates_float_age_and_rejects_exact_life_boundary() {
+    // A remaining-life subtraction model differs: 1.0 - 0.1 ten times
+    // stays positive, while stored float age reaches/exceeds 1.0.
+    let mut p = ParticleSimulator::new(inject(1.0, 1.0));
+    let mut r = rng();
+    p.start(0, &mut r);
+    p.create(Some(0.0), &mut r);
+    p.stop(0);
+    for _ in 0..9 {
+        p.update(0.1, &mut r);
+        assert_eq!(p.live_count(), 1);
+    }
+    p.update(0.1, &mut r);
+    assert!(!p.is_active());
+    p.create(Some(1.0), &mut r);
+    assert_eq!(p.live_count(), 0);
+    p.create(Some(f32::NAN), &mut r);
+    assert_eq!(p.live_count(), 0);
+}
+
+#[test]
+fn rate_scale_uses_lowest_bit_and_set_description_resets_density() {
+    for (bits, factor) in [
+        (0, 1.0),
+        (emitter_flag::SCALE_1, 2.0),
+        (emitter_flag::SCALE_2, 4.0),
+        (emitter_flag::SCALE_3, 8.0),
+        (
+            emitter_flag::SCALE_1 | emitter_flag::SCALE_2 | emitter_flag::SCALE_3,
+            2.0,
+        ),
+        (emitter_flag::SCALE_2 | emitter_flag::SCALE_3, 4.0),
+    ] {
+        let mut d = EmitterDesc::new(bits, 16.0, 10.0);
+        d.rate_scale = 2.0;
+        d.scales = [0.5, 99.0, 4.0];
+        let mut p = ParticleSimulator::new(d.clone());
+        assert_eq!(p.desc.scales, [0.5, 1.0, 4.0]);
+        let mut r = rng();
+        p.start(0, &mut r);
+        p.update(0.0625, &mut r);
+        assert_eq!(p.particles_created(), (2.0 * factor) as u64);
+        p.set_suppressed(true);
+        d.scales[1] = 123.0;
+        p.set_description(d);
+        assert_eq!(p.desc.scales[1], 1.0);
+        assert!(!p.suppressed);
+    }
+}
+
+#[test]
+fn period_floor_is_float_and_does_not_replace_raw_burst_or_gap_period() {
+    for period in [0.0, -1.0, 1e-7, 1e-6, f32::NAN] {
+        let mut d = inject(1.0, 1.0);
+        d.period = period;
+        let p = ParticleSimulator::new(d);
+        assert_eq!(p.rho, 1.0 / f64::from(1e-6f32));
+        assert!(p.desc.period.to_bits() == period.to_bits());
+    }
+    let mut d = inject(1.0, 1.0);
+    d.period = 0.0;
+    d.loop_count = 0;
+    d.start_delay = (0.0, 0.0);
+    d.interval = (1.0, 1.0);
+    let mut p = ParticleSimulator::new(d);
+    let mut r = rng();
+    p.start(0, &mut r);
+    p.update(1e-6, &mut r);
+    assert_eq!(p.live[0].age, 0.0);
+    assert_eq!((p.phase(), p.countdown(), p.loops_emitted()), (1.0, 0.0, 1));
+}
+
+#[test]
+fn curve_edges_return_exact_entries_and_clamp_native_out_of_bounds() {
+    let mut d = EmitterDesc::new(0, 0.0, 1.0);
+    d.curve = vec![2.0, 6.0, 10.0];
+    for (frac, rate) in [
+        (-0.25, 2.0),
+        (0.0, 2.0),
+        (0.25, 4.0),
+        (0.5, 6.0),
+        (1.0, 10.0),
+        (2.0, 10.0),
+    ] {
+        assert_eq!(d.rate_at(frac), rate);
+    }
+    d.curve = vec![f32::NAN, 7.0, f32::NAN];
+    assert_eq!(d.rate_at(0.5), 7.0); // f == 0 must not interpolate.
+    d.curve = vec![3.0, f32::INFINITY];
+    assert_eq!(d.rate_at(0.0), 3.0);
+    assert_eq!(d.rate_at(1.0), f32::INFINITY);
+    d.curve.clear();
+    assert_eq!(d.rate_at(0.5), 0.0);
+    d.curve.push(9.0);
+    assert_eq!(d.rate_at(f64::NAN), 9.0);
+}
+
+#[test]
+fn short_period_rate_clamps_curve_when_a_substep_passes_multiple_loops() {
+    let mut d = EmitterDesc::new(0, 0.0, 1.0);
+    d.curve = vec![0.0, 32.0];
+    d.period = 1.0 / 64.0;
+    d.loop_count = 0;
+    let mut p = ParticleSimulator::new(d);
+    let mut r = rng();
+    p.start(0, &mut r);
+    p.update(0.0625, &mut r);
+    assert_eq!((p.phase(), p.loops_emitted()), (4.0, 1));
+    assert_eq!(p.particles_created(), 2);
+}
+
+#[test]
+fn plain_suppressed_or_stopped_only_ages_without_new_life_draws() {
+    let mut p = ParticleSimulator::new(EmitterDesc::new(emitter_flag::PLAIN, 1.0, 0.5));
+    let mut r = rng();
+    p.start(0, &mut r);
+    p.update(0.125, &mut r);
+    let state = r.mul_state();
+    p.set_suppressed(true);
+    p.update(0.25, &mut r);
+    assert_eq!(p.live(), &[0.25]);
+    assert_eq!(r.mul_state(), state);
+    p.set_suppressed(false);
+    p.stop(0);
+    p.update(0.25, &mut r);
+    assert!(!p.is_active());
+    assert_eq!((p.particles_created(), r.mul_state()), (1, state));
 }
