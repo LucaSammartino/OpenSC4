@@ -14,8 +14,9 @@
 - Added explicit refs7/incoming-EAX/source-release Clone fixture and complete SetTime/locale-unresolved counters before final stable gate.
 - Second full gate:4940/0, clippy0,67/68; exact Year trace still absent after cap200 exhausted. Assertion now checks capped date trace presence; functional Year assertions remain above. No runtime behavior changed.
 - lib.rs fmt traverses unrelated modules and reports existing diffs (advisors.rs etc.); no mass reformat. Four date Rust files fmt PASS.
-- Next: stable qbuild all; freeze DLL, unique original/adapter/40-key game requests with scripted save and shutdown; preserve complete mismatches/refusals.
+- Final stable all gate at70c454c4: PASS Rust4940/0, clippy0, CTest68/68, build4/4; no tree-change flag. DLL code f32af464.
+- Next: frozen DLL build-runs/dll/gd4-r1-final; native request gd4-r1-native-a-20261022, then adapter andunion40 labels with same pattern. Script build-runs/dates-save.txt saves2027-01-02 and2031-12-01, end2032, quit/shutdown.
 - Published B string cleanup entry is already supplied by compat::StlNodeAllocator; capture EAX after that call, never synthesize success.
 - Executable CRT locale acquisition is not published; park precisely rather than use plugin CRT locale as evidence.
 - Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-dates4-r1-manifest.json.
-- Game requests: none. At most one outstanding; unique immutable labels, wait without qwait.
+- Game requests: native submission next in same shell call. At most one outstanding; unique immutable labels, wait without qwait.
