@@ -4,6 +4,8 @@
 
 ## Result and completion boundary
 
+Coordinator source-publication review (2026-10-22): accept these committed portable corrections for merge-train integration after reviewing the changed owner inventory, explicit I/P/C/R boundaries, stable gate evidence and clean tree. This acceptance does not close VU12/VU13, credit 19748 implemented bytes, or authorize another logical-family round. Preserve the parked worktree and all numerical/decoder exclusions; the train must gate the actual merged source.
+
 Reconciled the portable view family with the landed VU2–VU11 contracts. The
 README now maps all **50 distinct native entries / 19748 catalogue bytes**:
 48 attributed entries / 19574 bytes, including the **free 78-byte rotation
