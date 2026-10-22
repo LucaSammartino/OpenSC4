@@ -1,7 +1,7 @@
 # Pending ABI publication: land-value native Step capture
 
 Lane: re-landvalue-step-abi4. Target: append the section below to `docs/abi/layouts.md`.
-Status: proposed, not applied. Coordinator review/application and a **full train gate** are required;
+Status: coordinator-reviewed and applied to docs/abi/layouts.md in train78; a **full train gate** is required;
 do not land this ABI record through a docs-only bypass. No C ABI export/version change is proposed.
 The existing `interfaces.tsv` rows already cover every virtual call named below; no TSV changes are requested.
 Behaviour, ownership and the unresolved installation boundary are in landvalue §6.1.1–§6.1.2 and §11.3.

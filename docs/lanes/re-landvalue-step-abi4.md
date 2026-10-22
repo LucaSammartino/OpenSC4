@@ -112,3 +112,8 @@ No cargo/clippy/ctest/full gate or game runs performed; no runtime fidelity cred
 **Coordinator must review/apply the ABI proposal and run a full train gate.** Queue state is
 `wip` to prevent an ordinary docs-only merge from bypassing that requirement. Once ABI records
 are gated, installation proof and LV2/LV7 runtime capture remain separate prerequisites.
+
+
+### Coordinator publication review (train78)
+
+Applied the bounded native layout proposal to docs/abi/layouts.md after independent checks against the native executable of QI +4/+8 views, initialized/refcount widths, iterator allocation/state, message-target adjustment and developer cursor/header. Entry-prefix lengths were independently decoded as6/5/7 bytes for DoMessage/Init/Shutdown. Full native gate required before landing. These read-only observations grant no installation or construction permission; LV2/LV6/LV7 remain open and native_step_capture stays0. Original report queue wording above predates final ready publication.
