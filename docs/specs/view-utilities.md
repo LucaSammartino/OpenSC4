@@ -142,8 +142,9 @@ v = up × (top − bottom)/2, the corners are:
 
 and corners 4–7 are the same at f, for the orthographic camera (projection type 1) that the city view uses
 *[inferred]*. For a perspective camera the original pushes the **previous** corners 4–7 away from the camera
-position by far ÷ near, so they compound across updates *[quirk]*; FreeCity4 should push corners 0–3 instead
-*[choice]*. The box (`+0x78`) is the axis-aligned box of the 8 corners (`0x005D6900`).
+position by far ÷ near, so they compound across updates *[quirk]*. Compatibility follows those previous
+corners; correcting the perspective projection would require a separate adapter policy. The box (`+0x78`)
+is the axis-aligned box of the 8 corners (`0x005D6900`).
 
 **Off-centre volume (VU3):** centering is an assumption of the corner builder, not an enforced input
 contract. It uses the two differences only and never adds (left+right)/2 or (bottom+top)/2 to the
@@ -236,28 +237,6 @@ may expose a checked adapter; zero-initializing that adapter does not reproduce 
 On success the wrapper evaluates t = −(origin.y / direction.y), then each output component as
 direction.component × t + origin.component; it does not force output.y to literal zero.
 
-### 4.3 Discrete vector rotation (VU11)
-
-`RotateVectorByViewRotation(&v, rotation)` (`0x007F6CC0`, a free cdecl helper; export name supplied by
-lighting) belongs to this utility family, not to the yaw/pitch projection. It changes v in place using
-the **signed C remainder** r = rotation % 4:
-
-| r | resulting (x, y, z) |
-|---|---|
-| 0 | unchanged |
-| 1 | (−old.z, old.y, old.x) |
-| 2 | (−old.x, old.y, −old.z) |
-| 3 | (old.z, old.y, −old.x) |
-| −1, −2, −3 | unchanged |
-
-There is no angle, normalization, translation, validity check or pointer check. The y word is never written.
-Rotation −4 is unchanged, −3 is unchanged, and 5 acts as 1. The signed remainder adjustment is at
-`0x007F6CC4`–`0x007F6CCF`; negations use x87 sign change and store float32, while the unnegated swapped
-component is copied as a raw word (`0x007F6CD9`–`0x007F6D0A`). Finite inputs, infinities and signed zero
-follow those operations; a signaling NaN is subject to the active x87 exception mode. No null-vector fallback
-exists. `GetVectorForEdge` uses the same signed remainder: negative nonmultiples of four set y to +0 but
-leave x/z untouched (`0x007F6D18`–`0x007F6D2D`), rather than selecting the Euclidean-modulo edge.
-
 ### 4.2 City helpers
 
 - `GetCityCornerPosition(corner, &out)` (`0x007F6BA0`): out = (x, 0, z) by corner and rotation, with W = `+0x20`,
@@ -280,6 +259,28 @@ leave x/z untouched (`0x007F6D18`–`0x007F6D2D`), rather than selecting the Euc
   v is first **truncated** to an integer, then rounded down (up) to a multiple of block. So RoundUp(0.5, 64) = 0
   and RoundDown(−0.5, 64) = 0 *[quirk]*.
 
+### 4.3 Discrete vector rotation (VU11)
+
+`RotateVectorByViewRotation(&v, rotation)` (`0x007F6CC0`, a free cdecl helper; export name supplied by
+lighting) belongs to this utility family, not to the yaw/pitch projection. It changes v in place using
+the **signed C remainder** r = rotation % 4:
+
+| r | resulting (x, y, z) |
+|---|---|
+| 0 | unchanged |
+| 1 | (−old.z, old.y, old.x) |
+| 2 | (−old.x, old.y, −old.z) |
+| 3 | (old.z, old.y, −old.x) |
+| −1, −2, −3 | unchanged |
+
+There is no angle, normalization, translation, validity check or pointer check. The y word is never written.
+Rotation −4 is unchanged, −3 is unchanged, and 5 acts as 1. The signed remainder adjustment is at
+`0x007F6CC4`–`0x007F6CCF`; negations use x87 sign change and store float32, while the unnegated swapped
+component is copied as a raw word (`0x007F6CD9`–`0x007F6D0A`). Finite inputs, infinities and signed zero
+follow those operations; a signaling NaN is subject to the active x87 exception mode. No null-vector fallback
+exists. `GetVectorForEdge` uses the same signed remainder: negative nonmultiples of four set y to +0 but
+leave x/z untouched (`0x007F6D18`–`0x007F6D2D`), rather than selecting the Euclidean-modulo edge.
+
 ### 4.4 Integer operations (VU8)
 
 Pixel bounds use the **float-bit bias conversion**, not FISTP or a saturating float-to-int operation:
@@ -300,8 +301,10 @@ multiply the quotient by block, returning the signed product through x87 FILD
 (`0x007F6D75`–`0x007F6DA0`, `0x007F6DB5`–`0x007F6DE0`). They do not reject block≤0 or overflow.
 Block zero raises integer divide error; INT_MIN divided by −1 can also raise it. Negative blocks
 follow these same steps, e.g. Down(−65,−64)=0 and Up(65,−64)=0. Up(2147483647,64) wraps to
-−2147483584. Invalid/nonfinite `_ftol2` input follows the processor/runtime invalid-conversion path,
-not a helper-supplied failure value; a portable checked adapter must document its different policy.
+−2147483584. With invalid conversion masked, nonfinite/out-of-int64 input makes the runtime's
+signed64 conversion return integer indefinite (high word `0x80000000`, low word zero); these helpers
+therefore consume n=0. With invalid conversion unmasked, execution can trap instead
+(`0x009EEF13`, `0x009EEF63`–`0x009EEF78`). There is no helper-supplied failure result.
 
 The draw rectangle centre uses a **32-bit wrapping sum** of the two coordinates and signed division
 by two, truncating toward zero; subtractions from that centre also wrap before conversion to float.
@@ -444,7 +447,11 @@ stops on its first strict improvement, preserving model order (`0x007F9A70`–`0
 The matrix wording in §7 is literal **row dot products**: output x uses +04/+08/+0C, y uses
 +10/+14/+18, z uses +1C/+20/+24 (`0x007F943C`–`0x007F949A`). Kind5 adds translation to the row results.
 The default kind applies uniform scale after each row dot and
-then translation. Do not transpose M or rotate its translation. A kind byte above 5 always takes the
+then translation. Its row sums evaluate z×row[2], then add y×row[1], then x×row[0]. In the first
+vertex's default arm, x/y row sums stay extended until multiplying scale and storing float32, then
+translation is added; the z row sum is first stored float32, reloaded for scale, and translation is
+added before its final float32 store (`0x007F977B`–`0x007F9820`). This store asymmetry matters to
+bit-level reproductions. Do not transpose M or rotate its translation. A kind byte above 5 always takes the
 default, including 255; there is no malformed-kind rejection.
 
 ## 8. Users
@@ -586,6 +593,6 @@ draw ground corners to four required P2 outputs (87 bytes); `0x007F8340` is a ca
 **outside the measured 50-entry attribution set**; retain these native getter contracts without adding
 their bytes to that set. `0x007F8170` is a transform/AABB helper (273 bytes) and `0x007F82F0` computes
 atan2(−first,−second) (15 bytes); neither is a missing camera setter. No shared-map edits are proposed.
-The constructor at `0x0080AE60` initializes the iterator vtable and its defaults but is shared by
+The constructor at `0x0080AE60` writes only the iterator vtable (no other defaults) and is shared by
 attribution, not a 51st family-owned body. Geometry triangle/plane/clipping dependencies in §7.2 likewise
 retain their geometry owner rather than being double-counted here.
