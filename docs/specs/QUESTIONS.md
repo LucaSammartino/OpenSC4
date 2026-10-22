@@ -216,7 +216,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-models | 1 | 0 | LM2 | questions/lot-models.md |
 | lot-records | 2 | 7 | LR10 | questions/lot-records.md |
 | map-view | 4 | 0 | QV5 | questions/map-view.md |
-| model-instances | 2 | 0 | MI3 | questions/model-instances.md |
+| model-instances | 10 | 0 | MI11 | questions/model-instances.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
 | mysims | 0 | 16 | MS17 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
@@ -239,7 +239,7 @@ generated index: the questions live one file per spec, so read only the file for
 | pathfinder | 0 | 15 | PF16 | - |
 | paths | 3 | 0 | PA4 | questions/paths.md |
 | pedestrians | 2 | 0 | PN3 | questions/pedestrians.md |
-| persistence | 4 | 0 | PR5 | questions/persistence.md |
+| persistence | 3 | 1 | PR5 | questions/persistence.md |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
 | pollution | 0 | 16 | PG17 | - |
 | port-developers | 0 | 12 | PD13 | questions/port-developers.md |
@@ -287,4 +287,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **305** | **1175** | | |
+| **total** | **312** | **1176** | | |
