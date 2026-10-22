@@ -34,3 +34,7 @@ Implementation commits: 226c963c (owners/helpers/entry state), 1563e7a1 (buffers
 ## Coordinator source-phase review
 
 Bounded portable code/findings publication only; PA4-PA8 remain. No complete-owner, shadow or replacement credit is granted for this partial phase. Preserve the parked original worktree and existing round budget. Any engine change requires the joint full native gate and current default-union regression.
+
+## Coordinator source-phase review
+
+Bounded portable code/findings publication only; PA4-PA8 remain. No complete-owner, shadow or replacement credit is granted for this partial phase. Preserve the parked original worktree and existing round budget. Any engine change requires the joint full native gate and current default-union regression.

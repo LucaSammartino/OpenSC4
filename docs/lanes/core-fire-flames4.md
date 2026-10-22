@@ -75,3 +75,7 @@ independently. No further round, merge, push or branch/ref update was performed.
 ## Coordinator source-phase review
 
 Bounded portable code/findings publication only; FF2-FF4 remain. No complete-owner, shadow or replacement credit is granted for this partial phase. Preserve the parked original worktree and existing round budget. Any engine change requires the joint full native gate and current default-union regression.
+
+## Coordinator source-phase review
+
+Bounded portable code/findings publication only; FF2-FF4 remain. No complete-owner, shadow or replacement credit is granted for this partial phase. Preserve the parked original worktree and existing round budget. Any engine change requires the joint full native gate and current default-union regression.

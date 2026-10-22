@@ -84,3 +84,7 @@ Commits: **4336efc6** implementation/questions; **7c730cac** checkpoint;
 ## Coordinator source-phase review
 
 Bounded portable code/findings publication only; TB4-TB7 remain. No complete-owner, shadow or replacement credit is granted for this partial phase. Preserve the parked original worktree and existing round budget. Any engine change requires the joint full native gate and current default-union regression.
+
+## Coordinator source-phase review
+
+Bounded portable code/findings publication only; TB4-TB7 remain. No complete-owner, shadow or replacement credit is granted for this partial phase. Preserve the parked original worktree and existing round budget. Any engine change requires the joint full native gate and current default-union regression.

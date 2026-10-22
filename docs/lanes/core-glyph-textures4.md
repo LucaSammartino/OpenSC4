@@ -48,3 +48,7 @@ Commits: **b46c697a** scope/handoff; **d2abd604** substantive implementation and
 ## Coordinator source-phase review
 
 Bounded portable code/findings publication only; GT3-GT6 remain. No complete-owner, shadow or replacement credit is granted for this partial phase. Preserve the parked original worktree and existing round budget. Any engine change requires the joint full native gate and current default-union regression.
+
+## Coordinator source-phase review
+
+Bounded portable code/findings publication only; GT3-GT6 remain. No complete-owner, shadow or replacement credit is granted for this partial phase. Preserve the parked original worktree and existing round budget. Any engine change requires the joint full native gate and current default-union regression.

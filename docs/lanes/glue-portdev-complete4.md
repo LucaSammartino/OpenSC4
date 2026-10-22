@@ -67,3 +67,7 @@ Coordinator must run `ports` with the current replacement union before any defau
 ## Coordinator same-process receipt
 
 Independently checked pdc4-final-shadow-20261022-a.verdict: **ports 144/144**, airport72 plus seaport72, resynced lines0, clean2032/ref0. This is the final same-DLL real-city shadow, separate from saved-city reload and the combined replacement-union check.
+
+## Coordinator same-process receipt
+
+Independently checked pdc4-final-shadow-20261022-a.verdict: **ports 144/144**, airport72 plus seaport72, resynced lines0, clean2032/ref0. This is the final same-DLL real-city shadow, separate from saved-city reload and the combined replacement-union check.
