@@ -118,4 +118,5 @@ pub use simulator::{AgentInfo, DebugInfo, PacingHooks, Simulator, Snapshot, Tuni
 pub mod fonts;
 pub mod timers;
 pub mod terrain_overlays;
+pub mod watercraft;
 pub mod render_properties;
