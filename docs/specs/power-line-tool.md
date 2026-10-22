@@ -111,9 +111,9 @@ second endpoint. Link index -1 denotes an adjacent join without a wire-cell vect
 
 ### 4.1 DeterminePolePositions (`0x00650840`)
 
-The following covers the ordinary drag and its terrain test. The old-wire interception branch and the
-full adjacency-group construction remain NT18; callers must not substitute a simple fixed-spacing walk
-for that branch.
+The following covers the ordinary drag, terrain test and interception gate. The break and saved-endpoint
+rules below extend that path; NT18 still tracks any unproved surrounding construction, not permission
+to substitute a simple fixed-spacing walk.
 
 Reset wire count; release old pole infos; clear wire vectors. Traverse every inclusive cell range of every
 valid step in order. Track the next input-anchor index, the last clear cell/step, the last emitted-pole
@@ -156,11 +156,26 @@ At completion valid becomes last-clear-step+1 (the last-clear-step local starts 
 becomes generated-record count. An empty result is subsequently forced to valid=0 by slot 53.
 The wire counter is incremented during accumulation; it is not recomputed from the final vector sizes.
 
-**Zoning and blocked cells:** a zone result breaks an active span and requests a restart; it can remove
-an isolated generated pole or close the span at the last clear cell. Building/road handling depends on
-span state and whether this is a forced point. These branches are not the slot-81 table: Determine
-calls the classifier itself, and writes building/road failure codes internally. NT18 retains the exact
-break/old-wire cases pending proof. There is no call of slot 81 in the direct Determine/PlacePoles chain.
+**Zoning and blocked cells:** Determine calls the classifier directly, without slot 81. Let C be the
+number of poles emitted since the last span restart, L the remembered clear-cell index (initially -1,
+reset to -1 on emission), A the span-active byte, and P the last emitted step (initially -1).
+
+| Classifier result | Exact action |
+|---|---|
+| 1 (zone) | If C=1 and L=-1, set C=0 and remove the final pole record only if its link vector is empty; free its link storage if allocated. This branch does **not** release its saved endpoint references. Otherwise, if L>0 and A, emit a closure pole at L, link it to the previous pole, copy the accumulator to a new wire vector and clear the accumulator; reset descriptor pointers/state, C=0, L=-1, P=current step. In every zone case clear A and set the pending pole request. |
+| 2 (building) | If neither (A and P>=0) nor forced, use the ordinary non-emitted-cell accumulation path, without assigning a failure. Otherwise assign failure `0xF0000012` and take the blocked termination below, even when unforced. |
+| 3 (road) | Same initial guard. On passing it, assign failure `0xF0000013`; take blocked termination only when forced. An unforced road uses non-emitted-cell accumulation. |
+| other nonzero result | Same initial guard; do not assign a failure. Only forced takes blocked termination; otherwise accumulate. |
+
+Blocked termination: if C=1 and L=-1, set C=0 and, if the final record has no links, release each
+nonnull saved endpoint, remove the record and free its link storage. Set L=-1. This branch does not
+clear A or force a restart request. At traversal end, C=1 likewise removes a final linkless record,
+with both saved-reference releases. Empty link vectors are tested by begin=end, irrespective of capacity.
+The strict **L>0** zone-closure test excludes cell index 0. Neither discarded poles nor breaks recompute
+the running wire count. Evidence: zone `0x006510C8–0x0065118E`, reset `0x006512A3–0x006512DB`,
+blocked dispatch `0x006512E0–0x00651323`, release `0x00651323–0x0065139E`, end cleanup
+`0x006514A4–0x00651505`. The zone path's missing saved-reference releases are an observable native
+ownership asymmetry; do not infer those releases from the blocked/end paths.
 
 #### Existing-wire interception: eligibility and reference transfer
 
@@ -215,8 +230,13 @@ tests the argument at `0x00651F9D–0x00651FA6`; the recursive PlacePoles call p
 
 Proved order and mode differences:
 
-1. Consider pairs of generated pole indices within each adjacency group. Manhattan cell distance exactly
-   1 adds a reciprocal link with wire-vector index -1. This precedes occupant creation.
+1. Read the groups of **step indices** at `+0x398..+0x39C` in order. For each group member, scan pole
+   records from the start and collect the first record with that step index (`record+0x0C`). In draft,
+   also require its pole pointer to be null; real mode has no such filter. Missing members add nothing;
+   duplicate members are not deduplicated. Consider every ordered pair in the resulting index vector.
+   Manhattan cell distance exactly 1 adds a reciprocal link with wire-vector index -1. Coordinates are
+   converted as unsigned 32-bit values to x87 before subtraction/absolute-value/sum, so this comparison
+   does not wrap at 32 bits. This precedes occupant creation (`0x00651640–0x00651800`).
 2. Clear those temporary adjacency groups; call CreatePowerPole for **all** pole records before processing
    the generated links. CreatePowerPole reuses the pole in that cell or creates and initialises one
    (network-occupants §4.5).
@@ -242,8 +262,20 @@ Proved order and mode differences:
    saved endpoints with snap=0 and current network type, sets valid=dragged, determines poles, and calls
    PlacePoles(false). Real mode with allowRepair=false skips that rebuilding. Release the queued pair refs.
 
-The old-endpoint state flags and duplicate/repair queue details still require the NT18 proof. The above
-order is not an authorisation to treat all wire crossings as new independent spans.
+For each record, saved endpoints A/B and state bytes a/b are at +0x24/+0x28/+0x2C/+0x2D. Read A's
+cell first, then B's (missing endpoint coordinates remain -1). If both exist, detach A→B, then B→A:
+real mode calls RemoveConnection(other,0), draft calls `0x00649910(other,false)`. Detachment does not
+depend on a/b. If A exists and a is nonzero, AddRef A and the record's new pole and append **(A,new)**
+to the temporary repair vector. Do the analogous append for B/b afterwards. There is **no pair
+deduplication**, no endpoint sorting and no suppression when the two pointers compare equal.
+
+Draft with both saved endpoints transfers the descriptor, including state bytes, to the undo list
+`+0x394`, with no extra AddRefs. Otherwise release each nonnull saved endpoint in A,B order. Null
+both record pointers before processing generated links. Temporary repair-pair references are separate
+from these descriptor references. Each queued pair is processed in append order after pole insertion;
+in draft it invokes the connection builder in both directions, even when allowRepair=false. Only the
+real recursive rebuild is gated by allowRepair. Evidence: `0x00651880–0x0065192E`,
+`0x00651A08–0x00651A76`, `0x00651B4B–0x00651BD0`, `0x00651F6E–0x0065209D`.
 
 ### 5.1 Slot 16: undo preview (`0x0064F3F0`)
 
@@ -308,6 +340,11 @@ These are host-observation vectors, not claimed in-game measurements.
 | PL-I4 | same duplicate as I3, forced spacing point | accept descriptor and pending request; no endpoint release in the interception branch |
 | PL-I5 | eligible axis-aligned span; descriptor matches only after endpoint reversal; no coordinate predicate matches | ordered descriptor comparison alone does not reject; no pointer-order normalisation |
 | PL-I6 | current step equals previously placed count; axis-aligned old wire; forced | reject on equality boundary before duplicate probes; release both endpoints and wire |
+| PL-B1 | zone, active span, C=2; L=0 versus L=1 | L=0 does not close; L=1 emits closure; both clear active and request restart |
+| PL-B2 | building, active, P>=0, unforced; versus road with same state | building sets failure 0xF0000012 and terminates; road sets 0xF0000013 and accumulates |
+| PL-B3 | zone after a solitary linkless pole, L=-1; versus blocked termination with same descriptor | both remove record; only blocked path releases saved endpoint refs |
+| PL-P1 | saved endpoints A,B both present; a=1,b=0 | detach both directions; queue (A,new) only; draft transfers descriptor to undo list, real releases A,B |
+| PL-P2 | saved A=B, a=b=1 | two repair entries, each with two AddRefs; no deduplication; two descriptor releases in real mode |
 | PL-L1 | fresh object, exemplar unavailable; Init twice | type 5; defaults 20,7,0,0; resource attempt/base Init only on first Init; both return true |
 | PL-L2 | successful Init; change cost fields; Shutdown; Init with missing properties | Shutdown clears latch before base; Init resets only spacing/clearance; costs retain prior values |
 | PL-L3 | first resource lookup fails, second object initialises | process resource enumeration is not retried |
