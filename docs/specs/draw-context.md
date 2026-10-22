@@ -32,7 +32,8 @@ the second stage is off.
 ## 1. The object *[compat]*
 
 0x200 bytes, created by the 3D renderer's constructor (view3d.md §3.1, `+0x11C`); constructor `0x007D5F10` clears
-every field, gives the highlight-colour vector (`+0x54`) 11 entries and the texture-stage table (`+0xE0`) none.
+the scalar fields described below, gives the highlight-colour vector (`+0x54`) 11 white entries and the
+texture-stage table (`+0xE0`) none. It does **not** clear the entire object (see §1.3).
 The renderer's `Init` (`0x007C6410`, at `0x007C670C`–`0x007C67F0`) then fills the links and calls `Init`:
 
 | Offset | Content | Source |
@@ -67,8 +68,60 @@ max(count, 2) default stage records (`0x007D3C60`); two of its bytes go to `+0x7
   9 (0, 0.7, 0.2, 0.3), 10 (0.7, 0, 0.2, 0.3);
 - the default packed state `0x230A8587` with mask all ones, and the highlight state `0x030A85B5` with mask
   `0x1FFFFFFF` (§5.2);
-- the two combiner records (bytes `+0xC0` 2, 0, 1, …, `+0xC4` 0, 1 and `+0xD4` 2, 2, 0, …, `+0xD8` 1, 2, 0)
-  *[inferred: texture-combiner settings for the highlight blend]*.
+- the two complete 12-byte combiner records in §1.2.
+
+### 1.2 Combiner byte records (DC4)
+
+Offsets below are byte offsets within each record. All twelve bytes are copied by `SetTexCombiner`
+(`0x007D3085`–`0x007D30A1`), independently of the meanings assigned by a particular driver.
+
+| Record / point in lifecycle | 00 | 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 | 09 | 0A | 0B |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Owner default `+0xC0`, constructor | 01 | 00 | 03 | 01 | 01 | 00 | 03 | 01 | 00 | 00 | 00 | 00 |
+| Owner highlight `+0xD4`, constructor | 01 | 00 | 03 | 01 | 01 | 00 | 03 | 01 | 00 | 00 | 00 | 00 |
+| Owner default, after `Init` | 02 | 00 | 01 | 01 | 00 | 01 | 03 | 01 | 00 | 00 | 00 | 00 |
+| Owner highlight, after `Init` | 02 | 02 | 00 | 01 | 01 | 02 | 00 | 01 | 00 | 00 | 00 | 00 |
+| Stage default at stage `+0x18` | 01 | 00 | 03 | 01 | 01 | 00 | 03 | 01 | 00 | 00 | 01 | 00 |
+
+Values are hexadecimal bytes. Evidence: constructor stores `0x007D6011`–`0x007D609E`, including **word**
+zeros at `+0xCA` and `+0xDE`; `Init` changes only the bytes written at `0x007D64CB`–`0x007D6521`.
+The stage constructor writes word zero at `0x007D3C84`, then overwrites that word with 1 at
+`0x007D3D75`. These zeros are established stores, not inferred padding. The records occupy 12 bytes;
+the next owner fields are the highlight packed state at `+0xCC` and the stage vector at `+0xE0`.
+
+### 1.3 Native lifecycle and owner boundary (DC3)
+
+`SC4DrawContext` is a directly allocated, non-virtual helper here. The constructor writes an initialized
+**byte**, initially false, at offset zero (`0x007D5F1A`), not a vtable. The renderer constructs it at
+`0x007C9F6B`. No native draw-context `Begin` or `End` body or signature is established by these call sites;
+the request to implement those as owner methods is withdrawn.
+
+In particular, `DrawPreDynamicView` gets each list node's callback pointer from node `+8`, loads **that
+callback's** vtable, and calls its slot 3 with the draw context as the single argument
+(`0x007C3E30`–`0x007C3E3E`). `DrawPostDynamicView` does the same using a different list
+(`0x007C3E70`–`0x007C3E7E`). The context is the argument, not the receiver. The former inference in
+view3d.md §3.3 must not be used as an owner API contract.
+
+The shutdown helper `0x007D2720` is called from renderer shutdown (`0x007C713D`). If initialized, it
+clears the initialized byte, then nulls only the render-properties pointer `+0x38`; otherwise it does
+nothing. It performs no driver calls, reference releases, stage clearing or stack clearing. `Init`
+tests that byte first; a repeated call skips all setup (`0x007D632A`–`0x007D6330`). After shutdown,
+the renderer must repopulate the properties link before operations needing properties; there is no
+automatic pointer recovery.
+
+The destructor-shaped helper `0x007D5BB0`, called by renderer destruction at `0x007CA063`, frees each
+nonnull backing allocation in this order: `+0x1EC`, `+0x12C`, `+0xE0`, `+0x6C`, `+0x60`, `+0x54`.
+It does not walk stage textures or release camera, lighting manager, driver or renderer references.
+The renderer then frees the context allocation (`0x007CA069`). No draw-context reference-count API
+is evidenced. The stage texture field is a borrowed pointer/value: `SetTexture` calls driver slot 58
+when permitted, then overwrites the field without AddRef/Release (`0x007D4070`–`0x007D40AD`).
+
+Constructor defaults already proved: stage-count fields `+0x7C` and `+0xEC` are 1 despite the empty
+stage vector; state word and both packed records are zero; depth offset and index base are zero;
+shade override and model-view-valid bytes are false; stack begin/end/capacity are null. Default shade
+is **white**, not zero: the constructor copies three binary32 1.0 values from executable data
+`0x00B0DC44`–`0x00B0DC4F` at `0x007D5FA0`–`0x007D5FBE`. Additional constructor/transform details
+and the attributed method inventory appear below as they are resolved.
 
 ## 2. The state word (`+0x80`) *[compat]*
 
