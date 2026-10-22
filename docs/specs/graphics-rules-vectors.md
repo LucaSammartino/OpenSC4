@@ -111,7 +111,8 @@ After parse: three groups; group 2 has four options, 0–2 empty; all recommenda
 to six groups; auto(2)=3, auto(5)=99, auto(99)=0; no property writes. Explicit apply(2,3) writes int(0,7).
 Apply(2,0), (5,99), (99,0), or unsigned (-1,0) writes nothing and leaves recommendations unchanged.
 Reopen group 2/option 3 and append `property TestInt 8`: its next application writes 7 then 8.
-Evidence: `007E54C0`, `007E4910`, `007CE870`, `007CE8D0`, `007D10B0`.
+Evidence: default-group zeroing `007D0410–007D041F`, fill-value construction/resize call
+`007E5542–007E5552`; selection/application `007E4910`, `007CE870`, `007CE8D0`, `007D10B0`.
 
 ## V6. Persistent hardware clearing
 

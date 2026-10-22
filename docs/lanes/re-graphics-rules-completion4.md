@@ -1,20 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-graphics-rules-completion4: graphics rules contracts | Codex / `re-graphics-rules-completion4` (RE spec) | in progress | Trace GR1–GR3 and inventory manager/parser contracts. |
+| re-graphics-rules-completion4: graphics rules contracts | Codex / `re-graphics-rules-completion4` (RE spec) | in progress | Publish final report and docs merge-queue entry. |
 
 ## Handoff
 
-- Goal: complete graphics-rules owner contract, including GR1–GR3 and independent vectors; docs only.
-- Worktree is reserved, detached HEAD; commit normally without branch/ref changes.
-- Done: `bcc68cf5` early contract publication, GR2/GR3. Current milestone closes GR1 with exact 0x34-byte provider record offsets, FSAA readback outcome and bogo defaults; corrects driver description header skipping and memory rounding.
-- Done: `17009529` GR1/provider milestone; current milestone inventories all named manager entries and callbacks, fills numeric/lifecycle/logging/state contracts and adds ten independent vector groups.
-- Done: `320daea8` owner inventory and ten vector groups. Final reviewed correction (included with this handoff): LogConfigInfo prints flags as true/false and has a date/time header, not numeric 0/1.
-- Validation: `git diff --check HEAD~3 HEAD` passed before the last logging-text correction; `python tools/questions.py check` passed. Initial q.py Bash failed; PowerShell/export queries worked. No REA needed, no game/native-shadow runs, no ABI changes/proposals.
-- Exact next step: inspect native constructor `007D0410` (16 bytes, used by `007E5549`) to confirm the new-group recommendation-zero claim in §4.1/V5; run diff/question checks; replace this Handoff with final report, commit, then write the docs merge-queue JSON with actual detached HEAD.
-- Guard reached context 150k before final verification/report. Return continue; no merge-queue record written. Do not claim completed queue/ready or measured owner-byte coverage.
-- Numeric discovery: atLeast/atMost call ParseFloat then _ftol2 and store low EAX; thresholds are signed integers, not floats. Native bytes verified at 007E435B/00918F08/007D1782 and capability reads using build-runs/read-native-graphics.py.
-- Facts: fallback hardware rule is unconditional; child depth 1/index 8/integer threshold 2. Wildcard third argument 0 lowercases both copies; only `*` and `?` special.
-- Main evidence root: `C:/Users/tlori/FreeCity4`; all edits in this worktree.
-- `q.py` Bash backend fails with E_ACCESSDENIED; use direct PowerShell, capped output.
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-graphics-rules-completion4-r1-manifest.json`.
-- No game requests, ABI changes or engine reads authorized/needed.
+- Goal: finish the remaining group-default proof, preserve `2523f3f3`, and publish the docs lane.
+- Reserved detached HEAD; no branch/ref changes, merge, push or main-checkout edits.
+- Done: `bcc68cf5` GR2/GR3; `17009529` GR1/provider; `320daea8` owner inventory and ten independent vector groups; `2523f3f3` logging correction and prior handoff.
+- Current milestone: native `007D0410–007D041F` clears all four dwords; caller `007E5549` supplies the zero group to resize `007D0FD0`. Added precise evidence to §4.1, §12 and V5; no behavior correction needed.
+- Primary evidence: read-only export instruction bytes agree with original executable bytes read using existing `build-runs/read-native-graphics.py`. Export class name on the shared zeroing body is misleading for this caller.
+- Validation: `git diff --check cb178caa HEAD`, working-tree `git diff --check`, and `python tools/questions.py check` passed on 2026-10-22.
+- Exact next step: replace this Handoff with final report/whole-owner checklist, commit, then write docs merge-queue JSON with actual detached HEAD and return ready.
+- No unresolved group-default body or new question. Existing open graphics question file says no open questions.
+- No engine reads/edits, ABI changes/proposals, game/native-shadow runs or executable conformance tests. Ten vector groups are prose fixtures, not measured implementation coverage.
+- Native discovery retained: thresholds are signed integers after ParseFloat/_ftol2; wildcard mode 0 lowercases both copies; fallback hardware rule is unconditional with depth-1 textureStages>=2 child.
+- Main evidence root: `C:/Users/tlori/FreeCity4`; edits only in this worktree. q.py Bash previously failed with E_ACCESSDENIED; direct PowerShell/export queries work; no REA needed.
+- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-graphics-rules-completion4-r2-manifest.json`.

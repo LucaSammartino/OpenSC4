@@ -162,6 +162,11 @@ end
 
 Group and option numbers are unsigned 32-bit numbers and grow dense tables through index+1 as needed.
 New intervening groups have recommendation 0 and no options; new options are empty property sets.
+The 16-byte default group is zeroed at all four dword offsets (`+0`, `+4`, `+8`, `+0xC`) by
+`0x007D0410–0x007D041F`: recommendation 0 followed by an empty options list. The option-group parser
+constructs this fill value at `0x007E5549` and passes it with the requested group count (index+1) to
+the resize helper at `0x007E5552`. The export's `cSC4ResponseCurve` name for the shared zeroing body
+does not describe its use here; the caller establishes the option-group contract.
 Reopening a group/option selects its existing set and appends properties (`0x007E54C0`, `0x007E4910`).
 Group `end` clears the parser's current-group selection to -1 (`0x007E3B50`). A property line requires a
 preceding option selection; `DoProperty` constructs no implicit option (`0x007E4490`). This is a structural
@@ -399,6 +404,7 @@ described in §1; they add no rule syntax. The inventory is not a new coverage-b
 
 | Supporting entries | Contract |
 |---|---|
+| default group value `007D0410`, used at `007E5549`; group resize `007D0FD0` | §4.1 zero recommendation and empty options list used to fill newly added groups |
 | cSC4ConfigRule constructor `007D0500` | name `unknown`, depth 0, non-partial/all mode, empty conditions/actions |
 | cSC4RuleParser constructor `007E4DE0` with export continuation `007E4DE9`; destructor `007E5030` | own parser lists/provider reference; vendor/device IDs initially 0; dispose parser-owned lists after swaps |
 | parser RegisterCommands `007E3DF0`; ParseBegin `007E5580`, thunk `007E5620` | register rule/partialRule, optionGroup, vendor; parse-begin clears depth/rules/groups and acquires render-property service |
