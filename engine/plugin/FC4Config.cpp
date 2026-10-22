@@ -343,6 +343,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "dates_probe",
                                   // Opt-in owned original / production Rust FontSys comparison.
                                   "fontsys_verify",
+                                  "span8_shadow",
+                                  "feature_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

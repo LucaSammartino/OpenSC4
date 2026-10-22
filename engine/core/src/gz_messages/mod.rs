@@ -35,9 +35,14 @@
 //! a lock around a callback, and those points are kept (delivery runs with no
 //! internal borrow held).
 //!
-//! Not covered (unknown, see GZ1-GZ4): the slot 12 counter of message server 2
-//! (GZ1), the wait unit of the blocking gets (GZ2, the wait is a host
-//! callback), and which game classes use directed messages (GZ4).
+//! The fourteen published GZ1-GZ7 vectors are represented here. Whole-owner
+//! completion remains withheld: GZ8-GZ10 cover residual cleanup traces,
+//! base-service behavior and the complete body inventory. Platform resources,
+//! pointer adjustment and service base lifecycle remain host responsibilities.
+//! Native invalid-iterator re-entry and cancellation are unsupported: callers
+//! must preserve any live traversal/assignment/pop and must not cancel a last/sole deque
+//! element. Raw generation-1 pending removals/directed targets require external
+//! lifetime holds. No deterministic behavior is promised for native UB.
 
 pub mod manager;
 pub mod queue;
@@ -49,7 +54,7 @@ pub mod server2;
 mod tests;
 
 pub use manager::{QueueHost, QueueManager2};
-pub use queue::{MessageHost, MessageQueue2};
+pub use queue::{signal_wait_millis, signal_wait_result, MessageHost, MessageQueue2};
 pub use server1::{MessageServer1, Record, Server1Host, SERVER1_SNAPSHOT_LIMIT};
 pub use server2::{MessageServer2, Server2Host};
 
@@ -74,7 +79,7 @@ pub const TICK_PRIORITY: i32 = 5_000_000;
 /// The only class id `CreateMessage` knows (§4.6).
 pub const STANDARD_MESSAGE_CLSID: u32 = 0x46DF_45E7;
 /// Timeout argument the blocking gets pass to the signal wait (§2 slots
-/// 20/21; unit unknown, GZ2).
+/// 20/21; unsigned microseconds, GZ2).
 pub const BLOCKING_WAIT_TIMEOUT: u32 = 1_000_000;
 /// The wildcard notification type (§4.2).
 pub const WILDCARD_TYPE: u32 = 0;

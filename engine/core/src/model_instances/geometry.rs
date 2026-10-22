@@ -32,18 +32,15 @@ pub fn matrix_vector(m: Matrix3, v: Vec3) -> Vec3 {
 /// cS3DTransform; semantic state, deliberately not an ABI struct.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Transform {
-    pub dirty: bool,
     pub kind: u8,
     pub rotation: Matrix3,
     pub translation: Vec3,
     pub scale: f32,
-    // MI3: counter width/wrap is unpublished; Rust uses a wrapping u32 token.
-    pub change_counter: u32,
+    pub change_counter: u8,
 }
 impl Transform {
     pub fn identity() -> Self {
         Self {
-            dirty: false,
             kind: 0,
             rotation: IDENTITY,
             translation: [0.; 3],
@@ -52,11 +49,11 @@ impl Transform {
         }
     }
     pub fn make_identity(&mut self) {
-        if self.dirty {
+        if self.kind != 0 {
             self.rotation = IDENTITY;
             self.translation = [0.; 3];
             self.scale = 1.;
-            self.dirty = false;
+            self.kind = 0;
             self.change_counter = self.change_counter.wrapping_add(1);
         }
     }
@@ -113,19 +110,29 @@ impl BoundingBox {
         result
     }
     pub fn transformed(self, transform: &Transform) -> Self {
-        if self.is_empty() {
-            return self;
-        }
-        // MI4: literal enclosing AABB over all eight transformed corners.
-        Self::from_points((0..8).map(|corner| {
-            transform.point(std::array::from_fn(|i| {
-                if corner & (1 << i) == 0 {
-                    self.min[i]
+        // MI4: full row matrix, independent of kind and endpoint ordering.
+        let lo = self.min.map(|v| v * transform.scale);
+        let hi = self.max.map(|v| v * transform.scale);
+        let mut result = Self {
+            min: transform.translation,
+            max: transform.translation,
+        };
+        for r in 0..3 {
+            for j in 0..3 {
+                let a = transform.rotation[r][j] * lo[j]; // native binary32 store
+                                                          // MI11 [compat-limit]: f64 models wider transients, not every
+                                                          // x87 precision-control setting. Keep the published stores.
+                let b = f64::from(transform.rotation[r][j]) * f64::from(hi[j]);
+                let (small, large) = if f64::from(a) < b {
+                    (f64::from(a), b)
                 } else {
-                    self.max[i]
-                }
-            }))
-        }))
+                    (b, f64::from(a))
+                };
+                result.min[r] = (f64::from(result.min[r]) + small) as f32;
+                result.max[r] = (f64::from(result.max[r]) + large) as f32;
+            }
+        }
+        result
     }
 }
 
@@ -136,18 +143,18 @@ pub struct Primitive {
     pub count: u32,
 }
 impl Primitive {
-    pub fn triangle_count(self) -> u32 {
+    pub fn triangle_count(self) -> i32 {
         match self.kind {
-            0 => self.count / 3,
-            1 | 2 | 7 => self.count.saturating_sub(2),
-            3 => self.count,
-            4 | 6 => self.count / 2,
-            5 => self.count.saturating_sub(1),
+            0 => (self.count as i32) / 3,
+            1 | 2 | 7 => (self.count as i32).wrapping_sub(2),
+            3 => self.count as i32,
+            4 | 6 => (self.count as i32) / 2,
+            5 => (self.count as i32).wrapping_sub(1),
             _ => 0,
         }
     }
     pub fn triangle(self, i: u32) -> Option<[usize; 3]> {
-        if i >= self.triangle_count() {
+        if i64::from(i) >= i64::from(self.triangle_count()) {
             return None;
         }
         let i = u64::from(i);
@@ -175,7 +182,7 @@ impl Primitive {
 }
 
 /// MI9: invalid references in malformed meshes are skipped, never dereferenced;
-/// primitive counts below the triangle minimum saturate to zero.
+/// native signed nonpositive primitive counts produce no visits.
 pub(crate) fn walk_triangles(mesh: &Mesh, mut visit: impl FnMut([Vec3; 3], [usize; 3]) -> bool) -> bool {
     let Some(block) = &mesh.vertices else {
         return false;
@@ -187,7 +194,7 @@ pub(crate) fn walk_triangles(mesh: &Mesh, mut visit: impl FnMut([Vec3; 3], [usiz
     };
     for group in groups.read().iter() {
         for i in 0..group.triangle_count() {
-            let Some(mut ids) = group.triangle(i) else {
+            let Some(mut ids) = group.triangle(i as u32) else {
                 continue;
             };
             let mut valid = true;
@@ -234,13 +241,18 @@ impl PickContext {
         let u = dot(s, p) / det;
         let q = cross(s, e1);
         let v = dot(self.direction, q) / det;
-        if !(0. ..=1.).contains(&u) || v < 0. || u + v > 1. {
+        // Native unordered barycentrics pass; the ordered nearest comparison
+        // below still rejects a resulting NaN distance (view-utilities §7.2).
+        #[allow(clippy::manual_range_contains)]
+        if u < 0. || u > 1. || v < 0. || u + v > 1. {
             return false;
         }
         let t = dot(e2, q) / det;
-        // MI5: nearest distance is taken literally as ray parameter t (including t<0).
-        if t < self.nearest {
-            self.nearest = t;
+        let hit = add(self.origin, mul(self.direction, t));
+        let delta = sub(hit, self.origin);
+        let distance = dot(delta, delta).sqrt();
+        if distance < self.nearest {
+            self.nearest = distance;
             true
         } else {
             false

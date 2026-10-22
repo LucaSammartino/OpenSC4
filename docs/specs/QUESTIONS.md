@@ -199,13 +199,13 @@ generated index: the questions live one file per spec, so read only the file for
 | drawing-fonts | 5 | 17 | FN23 | questions/drawing-fonts.md |
 | drive-tool | 2 | 0 | DR3 | questions/drive-tool.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
-| feature-manager | 2 | 2 | FM5 | questions/feature-manager.md |
+| feature-manager | 3 | 2 | FM6 | questions/feature-manager.md |
 | fire-flames | 4 | 0 | FF5 | questions/fire-flames.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | foundations | 4 | 8 | AO4, HG4, RN6, SV2 | questions/foundations.md |
-| framework-gz-services | 0 | 7 | GZ8 | questions/framework-gz-services.md |
-| framework-rz-files | 8 | 0 | RZ9 | questions/framework-rz-files.md |
+| framework-gz-services | 3 | 7 | GZ11 | questions/framework-gz-services.md |
+| framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
 | geometry-utilities | 6 | 0 | GU7 | questions/geometry-utilities.md |
 | glyph-textures | 6 | 0 | GT7 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
@@ -216,7 +216,7 @@ generated index: the questions live one file per spec, so read only the file for
 | landvalue | 3 | 6 | LV8 | questions/landvalue.md |
 | language-utility | 3 | 0 | LU4 | questions/language-utility.md |
 | legacy-control | 3 | 4 | LC9 | questions/legacy-control.md |
-| lighting | 4 | 7 | LT12 | questions/lighting.md |
+| lighting | 6 | 7 | LT14 | questions/lighting.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-configuration-editor | 3 | 2 | LE6 | questions/lot-configuration-editor.md |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
@@ -224,7 +224,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-records | 2 | 9 | LR12 | questions/lot-records.md |
 | lua-host | 0 | 4 | LH3 | questions/lua-host.md |
 | map-view | 4 | 0 | QV5 | questions/map-view.md |
-| model-instances | 2 | 0 | MI3 | questions/model-instances.md |
+| model-instances | 5 | 0 | MI14 | questions/model-instances.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
 | mysims | 0 | 16 | MS17 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
@@ -300,4 +300,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **399** | **1225** | | |
+| **total** | **411** | **1225** | | |
