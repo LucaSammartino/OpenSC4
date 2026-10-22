@@ -10,9 +10,7 @@ pub struct Entry {
 fn len(line: &[u8]) -> Contract<usize> {
     line.iter()
         .position(|b| *b == 0)
-        .ok_or(Unsupported::NativeInputDomain(
-            "listing requires NUL backing",
-        ))
+        .ok_or(Unsupported::NativeInputDomain("listing requires NUL backing"))
 }
 fn contains(s: &[u8], sub: &[u8]) -> bool {
     s.windows(sub.len()).any(|w| w == sub)
@@ -87,25 +85,15 @@ pub fn parse(line: &mut [u8], selector: u32, output: &mut Entry) -> Contract<boo
                 return Err(Unsupported::NativeInputDomain("317 fixed columns"));
             }
             // Never fill native uninitialized holes or invent a full-extension terminator.
-            let end = line[..8]
-                .iter()
-                .rposition(|b| *b != b' ')
-                .map_or(0, |i| i + 1);
+            let end = line[..8].iter().rposition(|b| *b != b' ').map_or(0, |i| i + 1);
             let name_end = line[..end].iter().position(|b| *b == 0).unwrap_or(end);
-            if line[..name_end].contains(&b' ')
-                || !line[9..12].iter().any(|b| matches!(b, 0 | b' '))
-            {
-                return Err(Unsupported::NativeInputDomain(
-                    "317 uninitialized name/extension",
-                ));
+            if line[..name_end].contains(&b' ') || !line[9..12].iter().any(|b| matches!(b, 0 | b' ')) {
+                return Err(Unsupported::NativeInputDomain("317 uninitialized name/extension"));
             }
             let mut name = line[..name_end].to_vec();
             if line[9..12].iter().any(|b| *b != b' ') {
                 name.push(b'.');
-                let extension_end = line[9..12]
-                    .iter()
-                    .position(|b| matches!(b, 0 | b' '))
-                    .unwrap_or(3);
+                let extension_end = line[9..12].iter().position(|b| matches!(b, 0 | b' ')).unwrap_or(3);
                 name.extend_from_slice(&line[9..9 + extension_end]);
             }
             *output = Entry { name, kind: 8 };
@@ -114,9 +102,7 @@ pub fn parse(line: &mut [u8], selector: u32, output: &mut Entry) -> Contract<boo
         302 => {
             fixed(line, 30)?;
             let start = last_field(line)?;
-            let dir = line
-                .get(..5)
-                .is_some_and(|s| s.eq_ignore_ascii_case(b"<dir>"));
+            let dir = line.get(..5).is_some_and(|s| s.eq_ignore_ascii_case(b"<dir>"));
             emit(line, start, if dir { 4 } else { 8 }, 2, output)
         }
         303 => {
@@ -129,13 +115,10 @@ pub fn parse(line: &mut [u8], selector: u32, output: &mut Entry) -> Contract<boo
             fixed(line, 18)?;
             trim_spaces(line, 0, 2)?;
             let n = len(line)?;
-            let space =
-                line[..n]
-                    .iter()
-                    .position(|b| *b == b' ')
-                    .ok_or(Unsupported::NativeInputDomain(
-                        "304 missing space dereference",
-                    ))?;
+            let space = line[..n]
+                .iter()
+                .position(|b| *b == b' ')
+                .ok_or(Unsupported::NativeInputDomain("304 missing space dereference"))?;
             line[space] = b'.';
             let mut from = space + 1;
             while from < n && line[from] == b' ' {
@@ -204,9 +187,7 @@ pub fn parse(line: &mut [u8], selector: u32, output: &mut Entry) -> Contract<boo
             emit(line, 0, if dir { 4 } else { 8 }, 2, output)
         }
         314 => {
-            let b = line
-                .get(8)
-                .ok_or(Unsupported::NativeInputDomain("314 byte 8 read"))?;
+            let b = line.get(8).ok_or(Unsupported::NativeInputDomain("314 byte 8 read"))?;
             if *b == b'-' {
                 return parse(line, 310, output);
             }
@@ -215,21 +196,13 @@ pub fn parse(line: &mut [u8], selector: u32, output: &mut Entry) -> Contract<boo
             let Some(space) = line[start..n].iter().rposition(|b| *b == b' ') else {
                 return Ok(false);
             };
-            emit(
-                line,
-                start + space + 1,
-                if marker.is_some() { 4 } else { 8 },
-                2,
-                output,
-            )
+            emit(line, start + space + 1, if marker.is_some() { 4 } else { 8 }, 2, output)
         }
         315 => {
             let dir = line[..n].windows(5).position(|w| w == b"d    ");
             let found = dir
                 .or_else(|| line[..n].windows(5).position(|w| w == b"     "))
-                .ok_or(Unsupported::NativeInputDomain(
-                    "315 missing fixed-column prefix",
-                ))?;
+                .ok_or(Unsupported::NativeInputDomain("315 missing fixed-column prefix"))?;
             let start = found + 51;
             if start >= line.len() {
                 return Err(Unsupported::NativeInputDomain("315 name backing"));
@@ -408,10 +381,7 @@ mod tests {
         assert_eq!(replace(b"? rejected\n", 310, &mut list), Ok(true));
         assert!(list.is_empty());
         assert_eq!(replace(b"- meta a\nd meta b", 310, &mut list), Ok(true));
-        assert_eq!(
-            list.iter().map(|e| e.name.as_slice()).collect::<Vec<_>>(),
-            [b"a", b"b"]
-        );
+        assert_eq!(list.iter().map(|e| e.name.as_slice()).collect::<Vec<_>>(), [b"a", b"b"]);
         let mut cursor = 50;
         let mut output = b"unchanged".to_vec();
         assert!(!next_line(b"a", &mut cursor, &mut output));

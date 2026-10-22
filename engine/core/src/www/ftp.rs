@@ -106,10 +106,7 @@ impl Responses {
         loop {
             if let Some(lf) = self.buffered.iter().position(|b| *b == b'\n') {
                 let mut reply: Vec<_> = self.buffered.drain(..=lf).collect();
-                while reply
-                    .last()
-                    .is_some_and(|b| matches!(b, b'\r' | b'\n' | b' '))
-                {
+                while reply.last().is_some_and(|b| matches!(b, b'\r' | b'\n' | b' ')) {
                     reply.pop();
                 }
                 if reply.len() < 4 {
@@ -121,9 +118,7 @@ impl Responses {
                 return Ok(true);
             }
             if self.buffered.len() >= 2048 {
-                return Err(Unsupported::NativeInputDomain(
-                    "00812ba0 full unterminated reply",
-                ));
+                return Err(Unsupported::NativeInputDomain("00812ba0 full unterminated reply"));
             }
             if !io.wait(Socket::Control, timeout) {
                 return Ok(false);
@@ -133,9 +128,7 @@ impl Responses {
                 return Ok(false);
             };
             if bytes.len() > capacity {
-                return Err(Unsupported::PrimitiveContract(
-                    "receive exceeds requested capacity",
-                ));
+                return Err(Unsupported::PrimitiveContract("receive exceeds requested capacity"));
             }
             // A successful zero receive makes no progress, just as the native loop.
             self.buffered.extend_from_slice(&bytes);
@@ -185,10 +178,7 @@ pub fn classify(io: &mut impl Io, path: &[u8], output: &mut u32) -> Contract<boo
         let capacity = io.file_length().min(512) as usize;
         match io.file_read(capacity) {
             Ok(bytes) if bytes.len() <= capacity => {
-                *output = if bytes
-                    .iter()
-                    .all(|b| matches!(b, b'\r' | b'\n' | 0x20..=0x7e))
-                {
+                *output = if bytes.iter().all(|b| matches!(b, b'\r' | b'\n' | 0x20..=0x7e)) {
                     201
                 } else {
                     203
@@ -538,14 +528,7 @@ impl Session {
         Self::close_if_open(io, Socket::Data);
         self.event(io, kind, result);
     }
-    fn progress(
-        &mut self,
-        io: &mut impl Io,
-        total: i32,
-        previous: &mut i32,
-        upload: bool,
-        length: u32,
-    ) {
+    fn progress(&mut self, io: &mut impl Io, total: i32, previous: &mut i32, upload: bool, length: u32) {
         if self.target.is_some() && total >= previous.wrapping_add(16384) {
             let rounded = (total / 16384).wrapping_mul(16384);
             self.message(
@@ -687,12 +670,7 @@ impl Session {
     }
     /// 008163d0 entry + control acquisition. The published data loop cannot be
     /// reached portably through the still-O 00811f00 option helper; see `listing_bytes`.
-    pub fn acquire_listing(
-        &mut self,
-        io: &mut impl Io,
-        path: &[u8],
-        borrowed_list: Option<u32>,
-    ) -> Contract<bool> {
+    pub fn acquire_listing(&mut self, io: &mut impl Io, path: &[u8], borrowed_list: Option<u32>) -> Contract<bool> {
         if self.state != 2 {
             self.work = false;
             return Ok(false);
@@ -709,9 +687,7 @@ impl Session {
             ));
         }
         if path.is_empty() {
-            return Err(Unsupported::NativeInputDomain(
-                "008163d0 empty path last-byte read",
-            ));
+            return Err(Unsupported::NativeInputDomain("008163d0 empty path last-byte read"));
         }
         self.state = 4;
         self.operation = 111;
@@ -719,11 +695,7 @@ impl Session {
         self.transferred = 0;
         self.start_time = io.now();
         self.remote = path.to_vec();
-        if self
-            .remote
-            .last()
-            .is_some_and(|b| matches!(b, b'/' | b'\\'))
-        {
+        if self.remote.last().is_some_and(|b| matches!(b, b'/' | b'\\')) {
             self.remote.pop();
         }
         if !ensure_listener(io) || !ensure_data(io) {
@@ -820,17 +792,13 @@ impl Session {
                     return Ok(0);
                 }
                 // A live borrowed native second argument cannot be recovered from an ID.
-                return Err(Unsupported::NativeInputDomain(
-                    "dispatcher borrowed second argument",
-                ));
+                return Err(Unsupported::NativeInputDomain("dispatcher borrowed second argument"));
             }
             111 => {
                 let path = self.deferred.first.clone();
                 self.acquire_listing(io, &path, self.deferred.borrowed_argument)?;
             }
-            105 | 106 | 108..=110 | 112 | 113 => {
-                return Err(Unsupported::OwnedBody("Q7 dispatcher command body"))
-            }
+            105 | 106 | 108..=110 | 112 | 113 => return Err(Unsupported::OwnedBody("Q7 dispatcher command body")),
             _ => {}
         }
         Ok(0)
@@ -1003,22 +971,14 @@ mod tests {
             }
             self.effects.push(effect);
         }
-        fn notify(
-            &mut self,
-            session: &mut Session,
-            message: Message,
-            _: Option<&[listing::Entry]>,
-        ) {
+        fn notify(&mut self, session: &mut Session, message: Message, _: Option<&[listing::Entry]>) {
             self.events.push((message, session.state, self.destroyed));
             if message.kind == 0x5738692c || message.kind == 0x5738692e {
                 assert!(!self.open[1] && !self.open[2]);
                 if self.reenter {
                     self.reenter = false;
                     session.async_preference = true;
-                    assert_eq!(
-                        session.transfer(self, false, b"again", None, None),
-                        Ok(true)
-                    );
+                    assert_eq!(session.transfer(self, false, b"again", None, None), Ok(true));
                 }
             }
         }
@@ -1045,8 +1005,7 @@ mod tests {
             job: &super::super::worker::Job,
             success: bool,
         ) {
-            self.worker_callbacks
-                .push((job.status, job.progress, success));
+            self.worker_callbacks.push((job.status, job.progress, success));
         }
     }
 
@@ -1139,11 +1098,7 @@ mod tests {
         };
         let mut io = Fake::ready(b"220 greeting\r\n530 rejected\r\n221 bye\r\n");
         worker
-            .transfer_current(
-                &mut io,
-                &mut s,
-                &mut crate::rzurl::RzUrl::from_text(b"ftp://1.2.3.4/x"),
-            )
+            .transfer_current(&mut io, &mut s, &mut crate::rzurl::RzUrl::from_text(b"ftp://1.2.3.4/x"))
             .unwrap();
         assert_eq!(io.worker_callbacks, [(3, 100, false)]);
     }
@@ -1192,10 +1147,7 @@ mod tests {
         let mut s = session();
         s.async_preference = true;
         let mut io = Fake::default();
-        assert_eq!(
-            s.transfer(&mut io, false, b"dir/a", Some(b"out/"), Some(99)),
-            Ok(true)
-        );
+        assert_eq!(s.transfer(&mut io, false, b"dir/a", Some(b"out/"), Some(99)), Ok(true));
         assert_eq!(s.state, 4);
         assert!(s.work);
         assert_eq!(s.deferred.borrowed_argument, Some(99));
@@ -1214,20 +1166,13 @@ mod tests {
         let mut s = session();
         s.requested_type = 200;
         s.current_type = 200;
-        let mut io =
-            Fake::ready(b"299 port\r\n150-first\r\n125 ready\r\n150 extra\r\n226 done\r\n");
-        assert_eq!(
-            s.transfer(&mut io, false, b"dir/a.bin", Some(b"out/"), None),
-            Ok(true)
-        );
+        let mut io = Fake::ready(b"299 port\r\n150-first\r\n125 ready\r\n150 extra\r\n226 done\r\n");
+        assert_eq!(s.transfer(&mut io, false, b"dir/a.bin", Some(b"out/"), None), Ok(true));
         assert_eq!(s.local, b"out/a.bin");
         assert_eq!(s.transferred, 0);
         assert_eq!(
             io.sends,
-            [
-                b"PORT 1,2,3,4,18,52\r\n".to_vec(),
-                b"RETR dir/a.bin\r\n".to_vec()
-            ]
+            [b"PORT 1,2,3,4,18,52\r\n".to_vec(), b"RETR dir/a.bin\r\n".to_vec()]
         );
         assert_eq!(io.events[0].1, 2);
         assert_eq!(io.events[0].0.words[4], 1);
@@ -1295,9 +1240,7 @@ mod tests {
     fn accepted_login_and_deferred_disconnect_literal_101() {
         let mut s = session();
         s.state = 0;
-        let mut io = Fake::ready(
-            b"500 greeting\r\n331 password\r\n332 account\r\n230 ok\r\n215 UNIX Windows_NT\r\n",
-        );
+        let mut io = Fake::ready(b"500 greeting\r\n331 password\r\n332 account\r\n230 ok\r\n215 UNIX Windows_NT\r\n");
         assert_eq!(s.login(&mut io), Ok(true));
         assert_eq!(s.selector, 314);
         assert_eq!(s.state, 2);

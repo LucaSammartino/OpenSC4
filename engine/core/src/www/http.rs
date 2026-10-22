@@ -8,8 +8,7 @@ const METHODS: [&[u8]; 10] = [
 ];
 /// 00817d00.
 pub fn method_name(id: u32) -> Option<&'static [u8]> {
-    id.checked_sub(1)
-        .and_then(|i| METHODS.get(i as usize).copied())
+    id.checked_sub(1).and_then(|i| METHODS.get(i as usize).copied())
 }
 /// 00817bd0, C strncmp semantics, including zero length and embedded NUL.
 pub fn method_id(input: &[u8], length: u32) -> u32 {
@@ -167,9 +166,7 @@ impl Client {
         if matches!(method, 8..=10) {
             return Ok(0);
         }
-        let name = method_name(method).ok_or(Unsupported::NativeInputDomain(
-            "method converter returned null",
-        ))?;
+        let name = method_name(method).ok_or(Unsupported::NativeInputDomain("method converter returned null"))?;
         let id = self.identity();
         host.effect(Effect::ConstructRequest(id));
         let mut request = Request {
@@ -195,12 +192,7 @@ impl Client {
         result
     }
     /// 0081ca90. Normalization helper calls are explicit owned O barriers.
-    pub fn admit(
-        &mut self,
-        host: &mut impl Host,
-        request: Option<u32>,
-        custom: u32,
-    ) -> Contract<u32> {
+    pub fn admit(&mut self, host: &mut impl Host, request: Option<u32>, custom: u32) -> Contract<u32> {
         let Some(id) = request else {
             return Ok(0);
         };
@@ -216,9 +208,7 @@ impl Client {
             return Err(Unsupported::OwnedBody("0081acf0 request normalization"));
         }
         if method != 0 && method != 1 && req.records.first().is_some_and(|r| r[3] == r[4]) {
-            return Err(Unsupported::OwnedBody(
-                "0081ac20 first record normalization",
-            ));
+            return Err(Unsupported::OwnedBody("0081ac20 first record normalization"));
         }
         req.refs = req.refs.wrapping_add(1);
         host.effect(Effect::AddRequest(id));
@@ -264,9 +254,7 @@ impl Client {
             host.effect(Effect::Unlock);
             return true;
         }
-        let active = self
-            .active
-            .and_then(|w| self.workers.get(&w).map(|r| (w, r.current)));
+        let active = self.active.and_then(|w| self.workers.get(&w).map(|r| (w, r.current)));
         if let Some((worker, Some(job))) = active {
             if job.id() == id {
                 let record = self.workers.get_mut(&worker).expect("located worker");
@@ -344,10 +332,7 @@ impl Client {
         if !stop {
             self.complete(host, job)?;
         }
-        self.workers
-            .get_mut(&worker)
-            .expect("worker still alive")
-            .current = None;
+        self.workers.get_mut(&worker).expect("worker still alive").current = None;
         Ok(())
     }
     /// FOREIGN stop/drain/shutdown boundaries. No request release or join.
@@ -436,9 +421,7 @@ mod tests {
         assert_eq!(client.submit(&mut host, 5, b"url", None, 0, &[], 0), Ok(0));
         assert!(client.requests.is_empty());
         assert_eq!(client.admit(&mut host, None, 0), Ok(0));
-        assert!(client
-            .submit(&mut host, 5, b"url", Some(b"data"), 0, &[], 0)
-            .is_err());
+        assert!(client.submit(&mut host, 5, b"url", Some(b"data"), 0, &[], 0).is_err());
     }
     #[test]
     fn admission_wrap_raw_cancel_leaks_and_first_match_wins() {
@@ -524,9 +507,7 @@ mod tests {
     fn shutdown_replacement_then_raw_drain_no_join() {
         let mut client = Client::new(None);
         let mut host = Fake::default();
-        client
-            .submit(&mut host, 2, b"url", None, 0, &[], 0)
-            .unwrap();
+        client.submit(&mut host, 2, b"url", None, 0, &[], 0).unwrap();
         let old = client.active.unwrap();
         assert!(client.shutdown(&mut host));
         assert_eq!(client.queue.len(), 1);

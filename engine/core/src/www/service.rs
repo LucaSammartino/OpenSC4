@@ -80,14 +80,7 @@ pub trait Host: http::Host {
     fn cache_data(&mut self, url: &[u8]) -> Option<Vec<u8>>;
     fn cache_file(&mut self, url: &[u8]) -> Option<Vec<u8>>;
     fn new_cache_file(&mut self) -> Vec<u8>;
-    fn insert_cache(
-        &mut self,
-        url: &[u8],
-        data: &[u8],
-        file: bool,
-        flags: (u32, u32),
-        expiry: u32,
-    ) -> bool;
+    fn insert_cache(&mut self, url: &[u8], data: &[u8], file: bool, flags: (u32, u32), expiry: u32) -> bool;
     fn cache_directory(&mut self) -> Vec<u8>;
     fn set_cache_directory(&mut self, directory: &[u8]) -> bool;
     fn header(&mut self, foreign: u32, family: u32, index: u32) -> Option<Vec<u8>>;
@@ -275,11 +268,7 @@ impl Www {
             return Ok(0);
         };
         effect(host, Effect::AddTarget(target));
-        let custom = if custom == 0 {
-            self.default_custom
-        } else {
-            custom
-        };
+        let custom = if custom == 0 { self.default_custom } else { custom };
         if preference == 4 {
             preference = path_preference(url.absolute_path());
         }
@@ -344,12 +333,7 @@ impl Www {
         self.deliver(host, &mut job);
         Ok(returned)
     }
-    fn admit_http(
-        &mut self,
-        host: &mut impl Host,
-        mut job: Job,
-        allow_cache: bool,
-    ) -> Contract<u32> {
+    fn admit_http(&mut self, host: &mut impl Host, mut job: Job, allow_cache: bool) -> Contract<u32> {
         effect(host, Effect::Lock);
         if self.cache != 0 && allow_cache && host.cache_present(&job.url) {
             let size = host.cache_size(&job.url);
@@ -400,12 +384,7 @@ impl Www {
         Ok(id)
     }
     pub fn status(&self, id: u32) -> u32 {
-        if self
-            .active
-            .iter()
-            .chain(&self.waiting)
-            .any(|job| job.id == id)
-        {
+        if self.active.iter().chain(&self.waiting).any(|job| job.id == id) {
             2
         } else {
             0
@@ -420,9 +399,7 @@ impl Www {
             .map_or(0, |j| j.foreign)
     }
     pub fn ftp_id(&self, id: u32) -> u32 {
-        self.get_job(id)
-            .filter(|j| j.kind == 3)
-            .map_or(0, |j| j.foreign)
+        self.get_job(id).filter(|j| j.kind == 3).map_or(0, |j| j.foreign)
     }
     /// 008f7e76 / 008f7451: erasure does NOT release job target or notify.
     pub fn cancel(&mut self, host: &mut impl Host, id: u32) -> bool {
@@ -444,12 +421,7 @@ impl Www {
     }
     pub fn cancel_all(&mut self, host: &mut impl Host) -> u32 {
         effect(host, Effect::Lock);
-        let ids: Vec<_> = self
-            .active
-            .iter()
-            .chain(&self.waiting)
-            .map(|j| j.id)
-            .collect();
+        let ids: Vec<_> = self.active.iter().chain(&self.waiting).map(|j| j.id).collect();
         for id in &ids {
             self.cancel(host, *id);
         }
@@ -471,15 +443,9 @@ impl Www {
         effect(host, Effect::Lock);
         if !ftp && foreign.is_none() && !self.active.is_empty() {
             effect(host, Effect::Unlock);
-            return Err(Unsupported::NativeInputDomain(
-                "HTTP progress null foreign job",
-            ));
+            return Err(Unsupported::NativeInputDomain("HTTP progress null foreign job"));
         }
-        let job = self
-            .active
-            .iter()
-            .find(|j| Some(j.foreign) == foreign)
-            .cloned();
+        let job = self.active.iter().find(|j| Some(j.foreign) == foreign).cloned();
         effect(host, Effect::Unlock);
         if let (Some(job), Some(words)) = (job, words) {
             self.envelope(host, &job, Notification::Progress(words));
@@ -513,9 +479,7 @@ impl Www {
         if job.target.is_none() {
             // Q10: no delivery is specified, but this exceptional snapshot's
             // conversion/cache/fanout/cleanup suffix is not distinguished.
-            return Err(Unsupported::OwnedBody(
-                "Q10 HTTP completion without target suffix",
-            ));
+            return Err(Unsupported::OwnedBody("Q10 HTTP completion without target suffix"));
         }
         let mut resource = resource;
         job.foreign_pointer = Some(foreign);
@@ -526,12 +490,7 @@ impl Www {
             job.progress = 100;
             job.data = r.strings[1].clone();
             job.file = r.file;
-            cache_policy(
-                host,
-                self.cache != 0,
-                Some((&job.url, &r.strings[1], r.file)),
-                foreign,
-            );
+            cache_policy(host, self.cache != 0, Some((&job.url, &r.strings[1], r.file)), foreign);
             if self.cookies != 0 {
                 for family in [0x35, 0x34] {
                     for index in 0..32 {
@@ -571,24 +530,14 @@ impl Www {
         Ok(true)
     }
     /// 008f815f: no cache, cookies or fanout. Pointer validity is a precondition.
-    pub fn complete_ftp(
-        &mut self,
-        host: &mut impl Host,
-        foreign: u32,
-        success: bool,
-        filename: &[u8],
-    ) -> bool {
+    pub fn complete_ftp(&mut self, host: &mut impl Host, foreign: u32, success: bool, filename: &[u8]) -> bool {
         let Some(mut job) = self.take_foreign(host, foreign) else {
             return true;
         };
         job.result = u32::from(success);
         job.progress = if success { 100 } else { 0 };
         job.file = success;
-        job.data = if success {
-            filename.to_vec()
-        } else {
-            Vec::new()
-        };
+        job.data = if success { filename.to_vec() } else { Vec::new() };
         if success && job.preference != 3 {
             convert(host, job.preference, &mut job.data, &mut job.file);
         }
@@ -717,12 +666,7 @@ fn trim(mut value: &[u8]) -> &[u8] {
     value
 }
 /// 008f7a50: header occurrences zero only; no repaired max-age argument parsing.
-pub fn cache_policy(
-    host: &mut impl Host,
-    enabled: bool,
-    resource: Option<(&[u8], &[u8], bool)>,
-    foreign: u32,
-) -> bool {
+pub fn cache_policy(host: &mut impl Host, enabled: bool, resource: Option<(&[u8], &[u8], bool)>, foreign: u32) -> bool {
     let Some((url, data, file)) = resource else {
         return false;
     };
@@ -881,14 +825,7 @@ mod tests {
         fn new_cache_file(&mut self) -> Vec<u8> {
             b"new-file".to_vec()
         }
-        fn insert_cache(
-            &mut self,
-            _: &[u8],
-            _: &[u8],
-            file: bool,
-            flags: (u32, u32),
-            expiry: u32,
-        ) -> bool {
+        fn insert_cache(&mut self, _: &[u8], _: &[u8], file: bool, flags: (u32, u32), expiry: u32) -> bool {
             self.insertions.push((file, flags, expiry));
             true
         }
@@ -965,10 +902,7 @@ mod tests {
                 Effect::ReleaseTarget(9)
             ]
         );
-        assert_eq!(
-            w.load_text(&mut h, b"http://host/x", 0, None, 0, true),
-            Ok(0)
-        );
+        assert_eq!(w.load_text(&mut h, b"http://host/x", 0, None, 0, true), Ok(0));
         assert!(h.callbacks.is_empty());
     }
     #[test]
@@ -980,10 +914,7 @@ mod tests {
         };
         w.add_handler(&mut h, 1);
         w.add_handler(&mut h, 2);
-        assert_eq!(
-            w.load_text(&mut h, b"http://host/x", 0, Some(9), 0, true),
-            Ok(2)
-        );
+        assert_eq!(w.load_text(&mut h, b"http://host/x", 0, Some(9), 0, true), Ok(2));
         assert_eq!(h.handlers, [1, 1]);
         assert_eq!(h.callbacks[0].0.result, 0);
         assert_eq!(h.effects.last(), Some(&Effect::ReleaseTarget(9)));
@@ -999,10 +930,7 @@ mod tests {
                 size,
                 ..Fake::default()
             };
-            assert_eq!(
-                w.load_text(&mut h, b"file:///C|/x", 1, Some(9), 0, false),
-                Ok(2)
-            );
+            assert_eq!(w.load_text(&mut h, b"file:///C|/x", 1, Some(9), 0, false), Ok(2));
             assert_eq!(h.reads, reads);
             assert_eq!(h.callbacks[0].0.file, file);
         }
@@ -1011,30 +939,21 @@ mod tests {
             read: false,
             ..Fake::default()
         };
-        assert_eq!(
-            w.load_text(&mut h, b"file:///C|/x", 0, Some(9), 0, false),
-            Ok(2)
-        );
+        assert_eq!(w.load_text(&mut h, b"file:///C|/x", 0, Some(9), 0, false), Ok(2));
         assert_eq!(h.callbacks[0].0.result, 0);
         let mut w = service();
         let mut h = Fake {
             open: false,
             ..Fake::default()
         };
-        assert_eq!(
-            w.load_text(&mut h, b"file:///C|/x", 0, Some(9), 0, false),
-            Ok(2)
-        );
+        assert_eq!(w.load_text(&mut h, b"file:///C|/x", 0, Some(9), 0, false), Ok(2));
         assert!(h.callbacks[0].0.file);
         let mut w = service();
         let mut h = Fake {
             exists: false,
             ..Fake::default()
         };
-        assert_eq!(
-            w.load_text(&mut h, b"file:///C|/x", 0, Some(9), 0, false),
-            Ok(0)
-        );
+        assert_eq!(w.load_text(&mut h, b"file:///C|/x", 0, Some(9), 0, false), Ok(0));
         assert_eq!(h.callbacks[0].0.progress, 0);
     }
     #[test]
@@ -1047,10 +966,7 @@ mod tests {
                 cached: true,
                 ..Fake::default()
             };
-            assert_eq!(
-                w.load_text(&mut h, b"http://host/x", 1, Some(9), 0, true),
-                Ok(2)
-            );
+            assert_eq!(w.load_text(&mut h, b"http://host/x", 1, Some(9), 0, true), Ok(2));
             assert_eq!(h.reads, reads);
             assert_eq!(w.status(2), 0);
         }
@@ -1062,10 +978,7 @@ mod tests {
             cache_file: false,
             ..Fake::default()
         };
-        assert_eq!(
-            w.load_text(&mut h, b"http://host/x", 0, Some(9), 0, true),
-            Ok(2)
-        );
+        assert_eq!(w.load_text(&mut h, b"http://host/x", 0, Some(9), 0, true), Ok(2));
         assert_eq!(w.status(2), 2);
         assert!(h.callbacks.is_empty());
         assert_eq!(w.http.queue.len(), 1);
@@ -1091,21 +1004,11 @@ mod tests {
         assert!(w.get_job(3).is_none());
         h.cancel_in_callback = Some(3);
         let mut r = resource(false);
-        w.complete_http(&mut h, Some(1), true, Some(&mut r))
-            .unwrap();
-        assert_eq!(
-            h.callbacks.iter().map(|c| c.0.id).collect::<Vec<_>>(),
-            [2, 4]
-        );
+        w.complete_http(&mut h, Some(1), true, Some(&mut r)).unwrap();
+        assert_eq!(h.callbacks.iter().map(|c| c.0.id).collect::<Vec<_>>(), [2, 4]);
         assert!(h.callbacks[1].0.file);
         assert_eq!(h.callbacks[1].0.preference, 3);
-        assert_eq!(
-            h.effects
-                .iter()
-                .filter(|e| **e == Effect::ReleaseTarget(9))
-                .count(),
-            2
-        );
+        assert_eq!(h.effects.iter().filter(|e| **e == Effect::ReleaseTarget(9)).count(), 2);
         assert!(r.strings[1].is_empty());
         assert!(!r.file);
     }
@@ -1113,26 +1016,19 @@ mod tests {
     fn cancellation_late_resource_and_foreign_admission_zero_hold() {
         let mut w = service();
         let mut h = Fake::default();
-        w.load_text(&mut h, b"http://host/x", 0, Some(9), 0, false)
-            .unwrap();
+        w.load_text(&mut h, b"http://host/x", 0, Some(9), 0, false).unwrap();
         assert!(w.cancel(&mut h, 2));
         assert!(!w.cancel(&mut h, 2));
         assert!(h.callbacks.is_empty());
         assert!(!h.effects.contains(&Effect::ReleaseTarget(9)));
         let mut r = resource(true);
         let before = r.clone();
-        assert_eq!(
-            w.complete_http(&mut h, Some(1), true, Some(&mut r)),
-            Ok(true)
-        );
+        assert_eq!(w.complete_http(&mut h, Some(1), true, Some(&mut r)), Ok(true));
         assert_eq!(r, before);
         let mut w = service();
         w.http.counter = u32::MAX;
         let mut h = Fake::default();
-        assert_eq!(
-            w.load_text(&mut h, b"http://host/x", 0, Some(9), 0, false),
-            Ok(0)
-        );
+        assert_eq!(w.load_text(&mut h, b"http://host/x", 0, Some(9), 0, false), Ok(0));
         assert!(!h.effects.contains(&Effect::ReleaseTarget(9)));
         assert_eq!(w.http.queue.len(), 1);
     }
@@ -1150,11 +1046,9 @@ mod tests {
                     .insert((family, index), format!("{family}:{index}").into_bytes());
             }
         }
-        w.load_text(&mut h, b"http://host/x", 3, Some(9), 0, false)
-            .unwrap();
+        w.load_text(&mut h, b"http://host/x", 3, Some(9), 0, false).unwrap();
         let mut r = resource(false);
-        w.complete_http(&mut h, Some(1), true, Some(&mut r))
-            .unwrap();
+        w.complete_http(&mut h, Some(1), true, Some(&mut r)).unwrap();
         assert_eq!(h.callbacks[0].0.result, 1);
         assert!(!h.callbacks[0].0.file);
         assert_eq!(h.cookies.len(), 64);
@@ -1176,10 +1070,7 @@ mod tests {
         ] {
             let mut h = Fake::default();
             h.headers.insert((family, 0), text.to_vec());
-            assert_eq!(
-                cache_policy(&mut h, true, Some((b"url", b"data", false)), 1),
-                insert
-            );
+            assert_eq!(cache_policy(&mut h, true, Some((b"url", b"data", false)), 1), insert);
             if insert {
                 assert_eq!(h.insertions[0].2, 260200);
             }
@@ -1190,46 +1081,22 @@ mod tests {
         assert_eq!(h.insertions[0], (true, (0, 1), 0x2f480));
         h.headers.insert((0x2c, 0), b"7".to_vec());
         h.headers.insert((0x2d, 0), b"900".to_vec());
-        assert!(cache_policy(
-            &mut h,
-            true,
-            Some((b"url", b"data", false)),
-            1
-        ));
+        assert!(cache_policy(&mut h, true, Some((b"url", b"data", false)), 1));
         assert_eq!(h.insertions[1].2, 7);
         h.headers.insert((1, 0), b"max-age\0=60".to_vec());
         h.headers.insert((3, 0), b"1000".to_vec());
-        assert!(cache_policy(
-            &mut h,
-            true,
-            Some((b"url", b"data", false)),
-            1
-        ));
+        assert!(cache_policy(&mut h, true, Some((b"url", b"data", false)), 1));
         assert_eq!(h.insertions[2].2, 1060);
-        assert!(!cache_policy(
-            &mut h,
-            false,
-            Some((b"url", b"data", false)),
-            1
-        ));
+        assert!(!cache_policy(&mut h, false, Some((b"url", b"data", false)), 1));
         assert!(!cache_policy(&mut h, true, None, 1));
     }
     #[test]
     fn splitter_empty_slots_quote_and_directory_side_effects() {
         assert_eq!(
             cache_tokens(b",a,,b, ,"),
-            vec![
-                b"".to_vec(),
-                b"a".to_vec(),
-                b"".to_vec(),
-                b"b".to_vec(),
-                b"".to_vec()
-            ]
+            vec![b"".to_vec(), b"a".to_vec(), b"".to_vec(), b"b".to_vec(), b"".to_vec()]
         );
-        assert_eq!(
-            cache_tokens(b"\"a,b\",c"),
-            vec![b"a,b".to_vec(), b"c".to_vec()]
-        );
+        assert_eq!(cache_tokens(b"\"a,b\",c"), vec![b"a,b".to_vec(), b"c".to_vec()]);
         assert!(cache_tokens(b"\"\"").is_empty());
         let mut w = service();
         let mut h = Fake::default();
@@ -1251,10 +1118,8 @@ mod tests {
     fn progress_borrowed_no_waiter_update_and_cancel_all() {
         let mut w = service();
         let mut h = Fake::default();
-        w.load_text(&mut h, b"http://host/x", 0, Some(9), 0, false)
-            .unwrap();
-        w.load_text(&mut h, b"http://host/x", 1, Some(9), 0, false)
-            .unwrap();
+        w.load_text(&mut h, b"http://host/x", 0, Some(9), 0, false).unwrap();
+        w.load_text(&mut h, b"http://host/x", 1, Some(9), 0, false).unwrap();
         // Progress callbacks observe live membership (unlike terminal callbacks).
         let before = w.active[0].progress;
         assert_eq!(w.progress(&mut h, true, None, Some([1, 2, 3])), Ok(true));
