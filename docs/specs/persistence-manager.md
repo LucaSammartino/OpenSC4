@@ -245,7 +245,7 @@ zero and the key filter to null; it constructs a resource hash table and two cri
 | 9 / `0x0097C3BB` | Erase exact key under entries lock, Release stored reference; return whether found. |
 | 10 / `0x0097C41A` | Exact-key membership under entries lock. |
 | 11 / `0x0097BFAC` | Accept key if no filter or filter slot 3 `(key)` returns true; no lock. |
-| 12 / `0x0097C2D3` | Enumerate entries under entries lock, applying stored filter then supplied filter (short-circuit AND; null means accept). Count accepted entries, optionally append resource.GetKey() to supplied key list via its slot 4, ignoring insertion result. Return accepted count. |
+| 12 / `0x0097C2D3` | Enumerate entries under entries lock. Read resource.GetKey() once per visited entry; apply stored filter then supplied filter to that copied current key (short-circuit AND; null means accept). Count accepted entries, optionally append that same key to supplied key list via its slot 4, ignoring insertion result. Return accepted count. |
 | 13 / `0x0097BFCA` | Wrap supplied type in a referenced type-equality filter, delegate to slot 12, release filter and return count. |
 | 14 / `0x0097BF43` | Maintenance tick with ignored argument. If flag nonzero, increment 32-bit counter; if the **signed** result exceeds 128, reset counter to 0 and invoke slot 20 once. Always true. Disabled ticks leave counter unchanged. |
 | 15 / `0x0097BEF6` | Return automatic-purge byte under reference lock. |
@@ -262,7 +262,27 @@ count (`0x0097C049`, equality `0x00431180`). Unique insertion links new keys at 
 and growth rule match §4.1, using key.instance for rehashing (`0x0096F614`, `0x0097C0C5`). Enumeration walks
 ascending buckets then each chain (`0x0097C081`, `0x0096F5B7`, `0x0097C1EA`), not insertion order. Distinct
 keys with equal instance remain distinct. Changing a resource's key externally does not reindex its cache
-entry: membership/lookup uses the stored key, but enumeration uses the resource's **current** GetKey().
+entry: membership/lookup uses the stored key, but enumeration uses the resource's **current** GetKey()
+for **both predicates and output**, not just output (PR5).
+
+**Enumeration key snapshot (PR5).** Before either predicate, slot 12 calls resource slot 3 with a
+local 12-byte key destination (`0x0097C306–0x0097C312`). It passes that destination to the stored
+filter (`0x0097C315–0x0097C327`), then, only if accepted, the supplied filter
+(`0x0097C329–0x0097C33A`), then, only if both accept and a list was supplied, list slot 4
+(`0x0097C33C–0x0097C348`). There is no second GetKey and no load of the entry's stored key in
+this path. Changing a resource from current key K to L between calls makes **both** filters see L
+on the next enumeration, while lookup and bucket/chain position remain those of K. A predicate
+that changes only the resource's current key after the copy cannot change the copied key used
+later in that same iteration. This does not specify behavior for callbacks that erase/reindex the
+table, invalidate objects, or write through a predicate's key argument.
+
+The list is appended to, never cleared here. Rejected entries produce neither append nor count;
+accepted entries increment the count even with a null list or a false list-slot-4 result
+(`0x0097C33C–0x0097C34B`). Duplicate current keys remain separate accepted entries. Traversal
+order is the stored table's ascending buckets and chains, even if the current keys would hash
+elsewhere. Enumeration acquires no temporary resource or filter references: its only per-resource
+virtual call is GetKey. The lock is released before returning the accepted count
+(`0x0097C35E–0x0097C36B`).
 
 Changing the filter does not remove existing entries or inhibit direct lookup, erase or direct cache
 insertion. Enumeration reapplies the current filter; purge is independent of it. Resource references held
@@ -430,6 +450,28 @@ changes after manager temporaries are released. A “call trace” lists only se
 | PM28 | Query unknown IID on manager or built-in cache, sentinel output | false, sentinel unchanged. Successful cache AddRef from count 0 returns 0 but stores 1; manager AddRef from count 0 returns/stores 1. |
 | PM29 | Segment callback returns true for A, false for B with C later | Callback trace A,B only; null callback has no trace. No AddRefs around callbacks. Registration mutation inside callback has no safe-iteration result vector. |
 | PM30 | Service update with caches C1,C2 returning 0/1 | Both receive argument in order; native return has bit 0 set, other bits depend on S. Chosen clean-room return true. See §9.1–9.2 and the independent PR4 cases below. |
+
+### 10.1a Independent cache key-mutation vectors (PR5)
+
+These are source-derived expectations, not executed measurements. Use the built-in cache directly,
+with a stable table and valid owned resources/filters. Let K=(1,2,194), J=(1,2,1), L=(9,7,8),
+M=(10,7,9). Insert K->R then J->S into the initial 193-bucket table: both stored entries are in
+bucket 1, and traversal is S then R. Insertion gives each resource one cache reference. Each
+predicate logs its full input key; equality below means equality of all three words. Reset the
+output to `[sentinel]` for each call. Except where stated, predicates do not mutate anything.
+
+| Vector | Operation / predicates | Required result |
+|---|---|---|
+| PR5-A | Before mutation, stored accepts K, supplied accepts K | Stored trace `[J,K]`, supplied trace `[K]`; count 1, output `[sentinel,K]`. |
+| PR5-B | Change only R.GetKey() to L; repeat A | Stored trace `[J,L]`, supplied not called; count 0, output `[sentinel]`. Lookup K still finds R; lookup L misses. |
+| PR5-C | After mutation, stored accepts L, supplied accepts L | Stored trace `[J,L]`, supplied trace `[L]`; count 1, output `[sentinel,L]`. |
+| PR5-D | After mutation, stored accepts L, supplied accepts K | Stored trace `[J,L]`, supplied trace `[L]`; count 0, output `[sentinel]`. Distinguishes the supplied predicate independently. |
+| PR5-E | Set S.GetKey() to L too; no predicates | Count 2; output `[sentinel,L,L]`, with append calls for S then R. With null output, still count 2. With a recording list whose append always returns false, still count 2 and two append attempts. |
+| PR5-F | Restore S to J and R to L. Stored rejects J; when given L it sets R's current key to M and accepts. Supplied accepts L | This call supplies/appends L, count 1; the next enumeration sees M. No second GetKey in the first call. |
+
+For A–F enumeration itself performs no resource/filter AddRef or Release. Lookup in B separately
+adds its usual caller reference on the K hit; release that reference before checking the cache's
+ownership balance. Dropping a cache entry releases its one stored reference under its stored key.
 
 ### 10.1 Independent service Update vectors (PR4)
 

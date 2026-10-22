@@ -194,7 +194,7 @@ generated index: the questions live one file per spec, so read only the file for
 | drawing-fonts | 0 | 17 | FN18 | questions/drawing-fonts.md |
 | drive-tool | 2 | 0 | DR3 | questions/drive-tool.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
-| feature-manager | 4 | 0 | FM5 | questions/feature-manager.md |
+| feature-manager | 2 | 2 | FM5 | questions/feature-manager.md |
 | fire-flames | 4 | 0 | FF5 | questions/fire-flames.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
@@ -241,7 +241,7 @@ generated index: the questions live one file per spec, so read only the file for
 | paths | 8 | 0 | PA9 | questions/paths.md |
 | pedestrians | 2 | 0 | PN3 | questions/pedestrians.md |
 | persistence | 3 | 1 | PR5 | questions/persistence.md |
-| persistence-manager | 1 | 0 | PR6 | questions/persistence-manager.md |
+| persistence-manager | 0 | 1 | PR6 | questions/persistence-manager.md |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
 | pollution | 0 | 16 | PG17 | - |
 | port-developers | 0 | 12 | PD13 | questions/port-developers.md |
@@ -290,4 +290,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **365** | **1184** | | |
+| **total** | **362** | **1187** | | |
