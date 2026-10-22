@@ -10,11 +10,13 @@
 - Confirmed engine diff92e01745..HEAD empty; engine/build-x86 and immutable-b DLL hashes both053BD7A077A43A31ACB065C3B985D792CD9FEBFADAA82B0E7A343D742621FABC. Stable33596de3 records final source gate cargo4963/clippy0/ctest68; logs retained, DLL19:46:52 precedes gate completion19:49:01. No rebuild justified for unchanged source.
 - Source inspection confirms independent GetCommandLineA -> production CAPI/Rust parser, actual borrowed public SDK dispatch, no native seeding or clone. Same fixed query inventory and exclusions as round2.
 - NativeOFF cmdline4-r3-native-off-2032-e CLEAN2032-01-07, full save ok1 at real2026-10-22 21:19:10.807/game2031-12-09,10984ms, PostSystemServiceShutdown, ref0/stalls0. Probe disabled: no comparisons/coverage credit. Actual enabled set simulator only; budget disabled; optional owners original.
-- Next: unique cmdline4-r3-native-on-2032-f with identical immutable-b DLL, city/profile/script/timing and cmdline_probe=1. current40 only if ON clean.
-- All round2 disable-all stalls and prior current40 evidence retained below and in build-runs. No request outstanding at commit; ON submission is next.
+- NativeON cmdline4-r3-native-on-2032-f CLEAN2032-01-04,123/123 exact/failures0/differences0,argc5/raw174; full save ok1 at real2026-10-22 21:22:27.908/game2031-12-03,11266ms; shutdown/ref0/stalls0. Actual enabled simulator only; otherwise matches OFF. No source change or causal claim about old failures.
+- Next: unique cmdline4-r3-current40-2032-g using SAME immutable-b DLL/city/script/timing, cmdline_probe1, exactly40 specified literal enable keys, disable empty; attribute actual simulator/budget defaults separately and confirm42-entry enabled set.
+- All round2 disable-all stalls and prior current40 evidence retained below and in build-runs. No request outstanding at commit; current40 submission is next.
 - No source changes, no new questions, no new gate; task explicitly permits inspecting existing stable gate for unchanged source.
 - q.py Bash transport failed with E_ACCESSDENIED; use bounded PowerShell reads, apply_patch for all files.
 - Audit script build-runs/cmdline4-r3-audit.py gate recomputes4963/0/0 and exact hashes; run audit corrected empty-enable whitespace parsing before recording configuration counts. Completed OFF verdict accepted without resubmission.
+- ON method op0..9 exact/total1,6,1,12,12,16,16,14,24,21; present/absent op3..9=10/2,10/2,6/10,4/12,6/8,2/22,2/19. Audit failure matcher corrected to exclude the successful failures=0 summary. No .sc4 fixture exists in this worktree's build-runs; replay not exercised or claimed.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-cmdline-native4-r3-manifest.json. No fourth/renamed round, external reads, agents, ref updates or private owner work.
 
 ## Round 2 report (2026-10-22)
