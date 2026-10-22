@@ -50,6 +50,31 @@ fn asymmetric_lengths_area_plane_and_unbounded_distance() {
 }
 
 #[test]
+fn separate_binary32_operations_and_first_bound_signed_zero() {
+    // GU2: these distinguish the documented provisional association from
+    // a fused cross product or a double-precision dot followed by one store.
+    let plane = point_and_vector_to_plane_equation([16_777_216., 1., -16_777_216.], [1.; 3]);
+    assert_eq!(plane[3].to_bits(), (-0.0f32).to_bits());
+    let normal = get_normal_to_triangle([8193., 0., 8192.], [0.; 3], [8192., 0., 8191.]);
+    assert_eq!(normal[1], 0.);
+    let mut min = [99.; 3];
+    assert!(bounding_boxes_intersect(
+        [-0.0; 3],
+        [1.; 3],
+        [0.0; 3],
+        [2.; 3],
+        Some(&mut min),
+        None
+    ));
+    // GU5: the first operand wins a tie, retaining its signed zero.
+    assert!(min.iter().all(|x| x.to_bits() == (-0.0f32).to_bits()));
+    // The published strict inequalities do not separately reject empty boxes.
+    assert!(bounding_boxes_intersect(
+        [0.; 3], [0.; 3], [-1.; 3], [1.; 3], None, None
+    ));
+}
+
+#[test]
 fn rectangle_distance_regions_and_half_open_membership() {
     let min = [-2., 3.];
     let max = [4., 8.];
@@ -312,6 +337,15 @@ fn random_draw_count_rejection_and_zero_degeneracy() {
     };
     assert_eq!(random_direction_3(&mut random), [0.6, 0.8, 0.]);
     assert_eq!(random.count, 12);
+    let mut random = Draws {
+        values: vec![0.01, 0., 0., 1., 0., 0.].into_iter(),
+        count: 0,
+    };
+    // Both closed rejection boundaries are accepted, in exactly three draws.
+    assert_eq!(random_direction_3(&mut random), [1., 0., 0.]);
+    assert_eq!(random.count, 3);
+    assert_eq!(random_direction_3(&mut random), [1., 0., 0.]);
+    assert_eq!(random.count, 6);
 }
 
 #[test]

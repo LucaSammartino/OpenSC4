@@ -43,7 +43,7 @@ fn store<T>(out: Option<&mut T>, value: T) {
     }
 }
 fn closed(value: f32, lo: f32, hi: f32) -> bool {
-    value >= lo && value <= hi
+    (lo..=hi).contains(&value)
 }
 
 pub fn length_of_line_squared(a: Vec3, b: Vec3) -> f32 {
@@ -306,7 +306,7 @@ pub fn random_direction_3(random: &mut impl DirectionRandom) -> Vec3 {
             random.range_uniform(-1.0, 1.0) as f32,
         ];
         let squared = dot(v, v);
-        if squared <= 1.0 && squared >= 0.0001 {
+        if (0.0001..=1.0).contains(&squared) {
             let length = squared.sqrt();
             return v.map(|x| x / length);
         }

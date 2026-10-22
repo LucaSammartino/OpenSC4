@@ -145,7 +145,7 @@ fn colour_byte(value: f32) -> u8 {
         floor
     };
     // GU2: integer width/nonfinite behaviour unpublished; x87 i32 indefinite.
-    let c = if rounded.is_finite() && rounded >= f64::from(i32::MIN) && rounded <= f64::from(i32::MAX) {
+    let c = if rounded.is_finite() && (f64::from(i32::MIN)..=f64::from(i32::MAX)).contains(&rounded) {
         rounded as i32
     } else {
         i32::MIN
