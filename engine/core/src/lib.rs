@@ -111,6 +111,7 @@ pub mod x87;
 pub mod zones;
 pub mod rzurl;
 pub mod html_document;
+pub mod www;
 
 pub use calibration::Calibration;
 pub use host::{AgentDelivery, AgentHandle, Broadcast, Clock, Host, Message, TimerSource};
