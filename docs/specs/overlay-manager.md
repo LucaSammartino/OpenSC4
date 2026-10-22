@@ -172,8 +172,8 @@ if no other frees occur. For a group with differing part colours/alpha, getters 
 | 6 | `0x007361B0` | `AddDecal(key, positionXZ, width, turns)` | the same with factory slot 5 |
 | 7 | `0x0073B170` | `AddRoundDecal(key, positionXZ, width, turns)` | a **group** of eight parts covering a disc (§3.1) |
 | 8 | `0x0073C9A0` | `AddCityDecal(key)` | one overlay over the whole city (`0x0073B8A0`, flags `0x12`) *[inferred]* |
-| 9 | `0x0073B3B0` | `AddShadow(binding, …)` | a shadow overlay |
-| 10 | `0x00735480` | `AddShadow(…)` | −1 when `kShadowQuality` is 0; else the factory's shadow binding (factory slot 11) and slot 9 |
+| 9 | `0x0073B3B0` | `AddShadow(key, positionXZ, width, turns, flipV)` | factory slot 6 resolves the key; shadow matrices as §3.5 |
+| 10 | `0x00735480` | `AddShadow(groupWord, positionXZ, width, turns, flipV)` | −1 when `kShadowQuality` is 0; otherwise constructs the key described in §3.5 and calls slot 9 |
 | 11 | `0x0073C0D0` | `AddModelShadow(…)` *[inferred]* | a shadow built from a model's footprint |
 | 12 | `0x0073AD80` | `SetPosition(handle, xz)` | for a handle record: when the two floats change, the overlay is placed again |
 | 13 | `0x0073ADE0` | `SetPlacement(handle, nine floats)` | the whole placement, then placed again |
@@ -346,6 +346,50 @@ Evidence: `0x00738160–0x00738220`, especially stores `0x007381D7–0x00738207`
 Paper vector: size=16, offset=8 gives rows `[1/16,0,0,0]`, `[0,−1/16,0,0]`, `[1/16,0,1,0]`,
 `[0,1.5,0,1]`; input `[16,8,16,1]` produces `[2,1,16,1]`.
 
+### 3.5 Keyed shadows: slots 9/10 (OV1, proven subset)
+
+Both calls take five stack words. Slot 9's first argument is a **resource-key address**, not a texture binding.
+It returns −1 without resolving that key when shadow quality is zero; otherwise factory slot 6 receives the
+key and an initially null binding output. A null result returns −1. On success, factory slot 8 supplies the
+dimensions and the owner retains binary32 `height/width` (unsigned dimension conversion), constructs
+`[cx,cz,width,turns,1,1,1,0,0]`, allocates one overlay with shadow bit 3, and places it with redisplay disabled.
+The last argument is tested as a **byte**, so `0x100` is false and `0x101` is true. Evidence:
+`0x0073B3B9–0x0073B49A`, `0x0073B4CD–0x0073B520`.
+
+Let M be the primary row-vector matrix produced by placement. For true flipV, replace column 1, in each
+row r, with `F(M[r,3] + F(−M[r,1]))`; other columns stay unchanged. Thus the homogeneous texture output
+becomes `(u,w−v,z,w)`. This changes the matrix, not the nine public placement words or the cell rectangle.
+Evidence: `0x0073B526–0x0073B5A8`.
+
+The owner next derives a separate sixteen-float secondary matrix N from this possibly flipped M. For ordinary
+finite inputs its real-number action is `(u,v,z,w) → (u/2+w/4,v/2+w/4,z,w)`. It must not replace M with N.
+The native constants are binary32 +0 at `0x00A81054`, 1/4 at `0x00A8821C` and 1/2 at `0x00A84D2C`.
+For each source row `(a,b,c,d)`, the native store boundaries are:
+
+| Intermediate/output | Evaluation (E and F as §3.2; additions evaluated left to right) |
+|---|---|
+| C, Q, B, A | `C=F(E(c×0))`; `Q=F(E(d×1/4)+C)`; `B=F(E(b×0))`; `A=F(E(a×0))` |
+| N column 0 | `F(E(a×1/2)+B+Q)` |
+| N column 1 | `F(E(b×1/2)+A+Q)` |
+| N column 2, rows 1–3 | `F(E(d×0)+c+A+B)` |
+| N column 2, row 0 | `F(E(d×0)+A+c+B)` |
+| N column 3 | `F(E(A+B)+C+d)` |
+
+Products/additions without an F remain x87 intermediates; zero products really occur, including for
+nonfinite inputs. Rows are computed 3,2,1,0 and then stored to the secondary matrix. Evidence:
+`0x0073B5AA–0x0073B83A`. The owner then performs its static index/redisplay operation (`0x00738A10`),
+allocates an indirect handle retaining the placement/aspect, and releases temporary references. The matrices
+are owner-derived; callers do not supply a projected rectangle or a completed transform.
+
+Slot 10 obtains one word from factory slot 11 and constructs a temporary three-word key, in address order:
+`[0x7AB50E44, groupWord, factorySlot11Result]`. It forwards its other four arguments unchanged to slot 9.
+This is a key construction, not passing the slot-11 result as a binding. Evidence: `0x00735497–0x007354D3`.
+
+Paper discriminator: with square texture, centre `(0,0)`, width 16, turns 0, flipV false, the centre maps to
+primary `(1/2,1/2,0,1)` and secondary `(1/2,1/2,0,1)`; at world `(0,0,8)` primary v=1 and secondary v=3/4.
+With flipV true the latter primary v=0 and secondary v=1/4. The placement getter is identical in both cases.
+Model-shadow slot 11 remains a separate unresolved contract (OV1); these rules must not be substituted for it.
+
 ## 4. Drawing (`Draw`, `0x00738A50`) *[compat]*
 
 A dynamic manager is not drawn under `kRenderSnapshot` (boolean 28). Otherwise:
@@ -388,6 +432,36 @@ slot 14) as the environment colour, alpha testing at "greater or equal" scaled b
 above a minimum, a texture combiner; the full form adds a second stage with the shadow texture (`+0xD4`, clamped,
 point-sampled) and a second texture transform, and on land reads a terrain height there (terrain slot 15)
 *[inferred]*. Each shadow's cells are then drawn as for decals.
+
+### 4.4 Counters and skipped draws (OV8, proven subset)
+
+The two manager words are independent **last invoked nonempty pass** counters, not unconditional frame totals.
+Slot 27 formats the decal word `+0xD8`, then shadow word `+0xDC`, as `%d decals, %d shadows`.
+No reset occurs at entry to Draw. The following paths preserve both previous words:
+
+- A dynamic manager under snapshot returns before camera or selection setup (`0x00738A61–0x00738A76`).
+- An empty selected-ID vector skips both passes (`0x007392F1–0x00739301`).
+- Disabling a pass preserves that pass's word (`0x00739309–0x00739340`).
+
+Each pass independently returns on an empty input vector before its reset. On a nonempty vector, decals reset
+`+0xD8` at `0x007367E4`; full shadows reset `+0xDC` at `0x00736D4A`; rough shadows reset it at
+`0x00737983`. Each visits the supplied IDs in vector order. An eligible decal is an in-use record (first word
+−1) with all mask bits `0x11`, or `0x91` in a static snapshot. An eligible shadow in **both** shadow passes is
+an in-use record with all bits `0x09`; no snapshot bit-7 test is added there. Bit 4 is decal eligibility;
+bit 3 is shadow eligibility. Neither test excludes the other bit, so a record carrying both can count in both.
+
+The counter increments exactly once **after** calling the cell-draw helper for each eligible record, with no
+triangle count, draw-success, alpha, or nonempty-rectangle test at the increment. The full shadow pass selects
+DrawRect or DrawShadowRect before their common increment. Evidence: decal `0x00736813–0x00736831`,
+`0x00736B88–0x00736B9C`; full shadow `0x00736D7F–0x00736D95`, `0x00737814–0x0073782D`;
+rough shadow `0x007379C1–0x007379D3`, `0x00737CDB–0x00737CEB`. This is a count of eligible submitted
+records; eight eligible group parts count eight, even when a helper emits no geometry.
+
+Paper discriminators starting from counters `(3,2)`: empty selection leaves `(3,2)`; a nonempty selection
+containing only one hidden in-use record with both passes enabled gives `(0,0)`; the same selection with
+decals disabled gives `(3,0)`; a nonempty selection of one visible decal with alpha zero counts that decal.
+These are expected native outcomes, not executed game verdicts. Remaining DrawRect/state/visibility and
+shadow arithmetic details are tracked in OV8.
 
 ## 5. Messages
 

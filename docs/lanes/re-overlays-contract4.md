@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-overlays-contract4: native overlay owner contracts | Codex / `re-overlays-contract4` (RE docs) | in progress | 1. Prove OV1 placement and publish vectors. 2. Resolve OV4-OV9 in dependency order. |
+| re-overlays-contract4: native overlay owner contracts | Codex / `re-overlays-contract4` (RE docs) | in progress | Finish round partition and bounded Draw/model-shadow contracts; publish remaining methods. |
 
 ## Handoff
 - Goal: native nine-float placement equations first, then constructor/handles/alpha/matrices/draw/round contracts.
@@ -15,7 +15,7 @@
 - Edit docs only; never read engine; ABI proposals only under build-runs/pending-abi, with exact rows also in abi-rows file.
 - No game requests or runtime gates required for docs-only work; no verdicts claimed.
 - REA batch (PlaceOverlay/ComputeCellRect/SplitDiscIntoParts/AddDecalFromBinding) failed target_unavailable; export/bytes fallback used.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-overlays-contract4-r1-manifest.json.
+- Manifest (active round 2): C:/Users/tlori/FreeCity4/build-runs/run4-re-overlays-contract4-r2-manifest.json.
 - Done: 1ebda27a adds rotated rounding, defaults, clipping/index rules; OV4/OV5/OV6 archived, OV1/OV7/OV8 narrowed, OV2/OV3/OV9 preserved.
 - Validation: questions.py index/check passed; git diff --check passed at all three milestones. Runtime cargo/clippy/ctest/game n/a (docs only).
 - Guard reached OVER 150000 after a9a8a5c4; continuation required, no merge-queue record.
@@ -25,3 +25,4 @@
 - ABI: no export changes, no ABI rows/proposal required in this milestone; docs/abi untouched.
 - Git commits succeed detached despite nonfatal packed-refs.lock permission diagnostic; supervisor must publish branch. No branch/config/ref operations performed.
 - Last unincorporated proof: DrawDecals empty input exits at 007367A6 before resetting D8 at 007367E4; both shadow routines likewise exit on empty vectors (00737886/00736C0A). Dynamic snapshot Draw exits at 00738A76. Complete counter contract still pending.
+- Round 2 milestone: §3.5 proves slot9 key/placement/flipV/secondary matrix and slot10 three-word key; §4.4 proves empty/disabled counters, masks and increment sites. Commit recorded in next milestone.

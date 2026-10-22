@@ -7,8 +7,9 @@
   (`0x0073A1B0`) turns it into a cell rectangle and a texture matrix. [the record as copied]
 
   Partial resolution (2026-10-22, re-overlays-contract4): §3.2/§3.2.1 now give all nine fields, retained aspect,
-  ordinary/round add arguments, owner placement and ordered rotated coefficients. Still open: complete shadow
-  add/model add argument roles and their post-placement transforms (slots 9–11); do not treat them as plain decals.
+  ordinary/round add arguments, owner placement and ordered rotated coefficients. §3.5 now proves slots 9/10's
+  resource-key arguments, byte flipV, primary V flip and ordered secondary transform. Still open: slot 11 model
+  add argument roles and its owner-derived placement/post-transforms; do not treat it as a plain decal.
 
 <!-- from: re-overlays (2026-10-20) -->
 - **OV2 - §3:** what slot 20 (`0x007364F0`, no function in the export) does, and how the add forms of slots 8, 9
@@ -31,8 +32,9 @@
 
   Partial resolution (2026-10-22, re-overlays-contract4): §§2.1–2.3 and §3.2 distinguish shadow bit3/decal bit4,
   half-open bounds, floor/ceil conversion without a margin, strict separation versus touching-edge clipping,
-  native index traversal/prepend/removal and same/changed-rectangle redisplay. Visible-row endpoints, stamp wrap,
-  DrawRect inputs, shadow arithmetic/state restoration and all counter paths remain open.
+  native index traversal/prepend/removal and same/changed-rectangle redisplay. §4.4 proves selection-empty,
+  pass-disabled and snapshot counter preservation, nonempty pass resets, masks and increment-after-submission.
+  Visible-row endpoints, stamp wrap, DrawRect inputs and shadow arithmetic/state restoration remain open.
 
 <!-- from: core-terrain-overlays4 (2026-10-22) -->
 - **OV9 - §3.1 slot7:** specify radius/centre fields, the eight-part partition, half-chord row sample coordinates/rounding, city-edge clipping, texture mapping and terrain redisplay order, and empty/failing part cleanup. The prose states eight rectangles but not their equations/partition. [no host-computed eight rectangles or guessed disc approximation accepted; round add reports a gap]
