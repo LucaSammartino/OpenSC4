@@ -1,6 +1,17 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-lua-scriptserver4: ScriptServer owner contract | Codex / `re-lua-scriptserver4` (RE docs, detached worktree) | ready; audited 51 functions / 7700B, including reconciled 42B attribution artifact; docs diff-check PASS; cargo/clippy/ctest and game n/a; no questions or ABI changes | 1. Implement lua-host.md §6.3. 2. Separately reconcile false owner reach at 00677261; no coverage promotion in this lane. |
+| re-lua-scriptserver4: ScriptServer owner contract | Codex / `re-lua-scriptserver4` (RE docs, detached worktree) | continue: contract complete; guard stopped queue write; audited 51 functions / 7700B; docs diff-check PASS; tests/game n/a; no questions/ABI changes | 1. Coordinator finalize ready queue at actual HEAD. 2. Implement §6.3; separately reconcile false 42B attribution. |
+
+## Handoff
+- Goal: complete ScriptServer owner specification before core implementation.
+- Done: 0ff88e05 lifetime/control; 50a497be scheduling/arguments; edead1b4 breakpoints/notifications; cf71d0b2 final report and scope/whitespace check PASS.
+- Contract is complete in lua-host.md §6.3; full report preserved below. Only two docs changed from starting commit 0ff88e05^.
+- Guard exceeded context at queue-write call; that entire call was denied. No merge-queue file written.
+- Exact next step: coordinator publish actual detached HEAD and create ready docs queue, abi false, game_runs empty; no further RE needed.
+- No selfrestart/subagents/additional round requested. No engine/tools/ABI/coverage edits, questions, game requests or claims.
+- 51 attributed functions / 7700B audited: 50 real / 7658B plus false 42B reach at 00677261 through literal arg at 00AC77E8.
+- Inventory scratch: build-runs/owner-inventory-re-lua-scriptserver4.tsv. All critical address evidence is in committed spec.
+- REA unavailable (target_unavailable); used export/decomp/native bytes. Final worktree was clean before handoff.
 
 ## Report
 
