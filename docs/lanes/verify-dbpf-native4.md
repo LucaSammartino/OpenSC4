@@ -17,7 +17,8 @@
 - Completed vdbpf4-r2-own-archive-normal-02d08687 clean2032/ref0/save12719ms/shutdown; natural60440/60440 and constructed10/10 exact transports.
 - EX55 split: constructed list_false1/key_differences1/count_differences0; natural list_false0/key_differences1/count_differences0; combined2+1 preserved. Missing DIR key in both nonempty mismatches.
 - Completed own-save-on clean2035-01-12/ref0/save11500ms/shutdown; saved fixture153/153 transport exact (compressed80), constructed10/10; combined EX55 differences1+2 unchanged; refusal0/failed0.
-- Next own-save-off, current40-save-on/off sequentially; no outstanding request at this milestone.
+- Own-save-off-02d08687 exited(code1) without verdict after58s; last day2033-11-15; no native verifier lines, warnings/foreign/SEH0 in harness summary. Preserve failure; no clean/ref0 claim.
+- Next own-save-off-normal (changed pacing, same fixture/DLL) then current40-save-on/off sequentially. No outstanding request at this milestone.
 - Supported fixture_city imports existing saved fixtures commands4-own-e50c5bbc.sc4 and commands4-r2-house40.sc4; do not claim new save roundtrip.
 - Round1 turbo and normal both natural60440/60440 + constructed10/10; three EX55 combined differences each; refusal0/failed0/fallback0/resync0.
 - No game-attempt cap: originalcap3 meant lane rounds, this is round2/3.
