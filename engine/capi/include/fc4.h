@@ -175,8 +175,9 @@ extern "C" {
  * 81 = merge-train batch train64 (re-budget-slider-ownership4, re-landvalue-inputs4, re-wingrid4, core-streams-contractfix4, core-audio-inputfix4, glue-advisors-activate4, core-url-final4, core-callbacktimer-final4, glue-span-context-final4, core-fonts-final4, core-construction-contractfix4, core-lotrecords-final4, core-mysims-contractfix4): merged (no C ABI history entry of its own)
  * 82 = merge-train batch train65 (re-networkmodel-answers4, glue-exemplar-final4): merged (no C ABI history entry of its own)
  * 83 = merge-train batch train73 (glue-lotrecords4, re-netrules-underground4, glue-span8888-impl4, core-budgetwindow-ownership4, core-terrain-overlays4, verify-landvalue-step4): merged (no C ABI history entry of its own)
- * 84 = merge-train batch train91 (glue-rng4, glue-portdev-union-final4, core-camera-contractfix4): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 84u
+ * 84 = merge-train batch train91 (glue-rng4, glue-portdev-union-final4, core-camera-contractfix4): merged (no C ABI history entry of its own)
+ * 85 = merge-train batch train98 (glue-span8-native4): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 85u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
