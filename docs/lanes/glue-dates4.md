@@ -23,3 +23,5 @@
 - Frozen DLL SHA256 4FCF41E234C93150A770B55CA013BDD13359B2528C5B8BBF65D78F3617279EC0. Never rebuild/mutate during requests.
 - Next adapter request omits script as lifecycle control; union40 retains script. Native-nosave separate control if budget permits. Original save/reload remains failed/unproven, never a lucky-rerun fix.
 - q.py Bash runtime unavailable (E_ACCESSDENIED); local quiet Python waiter run directly in PowerShell. No qwait or game launch.
+- Adapter gd4-r1-adapter-a-20261022: clean2032-01-12, foreign0/ref0, full city/app shutdown;706710 natural adapter value calls. Probe0/0live,0/0fixtures,73refusals (our vptr, no independent original), failures0/fallback0/resync0, SetTime refusals0/locale-unresolved0. No equality credit for0/0.
+- Next: union40 request (same frozen DLL) retains both scripted saves; native-nosave control if budget permits. No game request outstanding after completed adapter verdict.
