@@ -197,6 +197,8 @@ class PromptAndTransport(unittest.TestCase):
                 self.assertNotIn('--sandbox', cmd)
                 self.assertNotIn('danger-full-access', cmd)
                 self.assertIn('default_permissions="fc4-lane"', cmd)
+                self.assertTrue(any(x.startswith('shell_environment_policy.set=') and 'maintenance.auto' in x
+                                    for x in cmd))
                 self.assertTrue(any(c.startswith('hooks.PreToolUse=') for c in cmd))
             with patch('lane_backend.subprocess.run', return_value=subprocess.CompletedProcess([],0,'Logged in using an API key','')):
                 with self.assertRaisesRegex(RuntimeError, 'subscription login'):

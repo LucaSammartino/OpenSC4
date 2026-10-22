@@ -40,12 +40,6 @@ def codex_environment():
     env = {k: v for k, v in os.environ.items()
             if k not in ('OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_API_BASE')
             and (not k.startswith('CODEX_') or k == 'CODEX_HOME')}
-    count = int(env.get('GIT_CONFIG_COUNT', '0'))
-    for key, value in (('gc.auto', '0'), ('maintenance.auto', 'false')):
-        env[f'GIT_CONFIG_KEY_{count}'] = key
-        env[f'GIT_CONFIG_VALUE_{count}'] = value
-        count += 1
-    env['GIT_CONFIG_COUNT'] = str(count)
     return env
 
 
@@ -134,7 +128,9 @@ def codex_command(m, schema, final, env):
             '-c', 'hooks.PreToolUse=' + hook, '-c', 'hooks.SessionStart=' + hook,
             '-c', 'forced_login_method="chatgpt"', '-c', 'model_provider="openai"',
             '-c', 'features.multi_agent=false', '-c', 'web_search="disabled"',
-            '-c', 'approval_policy="never"', '-c', 'tool_output_token_limit=2000']
+            '-c', 'approval_policy="never"', '-c', 'tool_output_token_limit=2000',
+            '-c', 'shell_environment_policy.set={GIT_CONFIG_COUNT="2",GIT_CONFIG_KEY_0="gc.auto",'
+                  'GIT_CONFIG_VALUE_0="0",GIT_CONFIG_KEY_1="maintenance.auto",GIT_CONFIG_VALUE_1="false"}']
     options = codex_defaults() | m.get('codex', {})
     if options.get('sandbox', 'workspace-write') != 'workspace-write':
         raise ValueError('Codex lanes require the scoped workspace permission profile')
