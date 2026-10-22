@@ -33,6 +33,53 @@ registry with its defaults.
   object]*. `cSC4View3DWin`'s constructor builds a second one for the view.
 - Destruction (`0x007DE960`; deleting `0x007DEEB0`) frees the three tables.
 
+#### Two interface views and reference ownership (RP3)
+
+Let **P** be the complete object / render-properties interface pointer and **U = P + 4** the
+`cRZUnknown` interface pointer. Both views share the 32-bit reference count at **P + 8**.
+Construction starts at **0**, not 1: `0x007E3658–0x007E3668` passes U to the base constructor,
+whose `0x0090DA20` clears U + 4. The constructor installs the final U and P vtables at
+`0x007E366D` and `0x007E3675`. Constructing the tables does not itself acquire a reference.
+
+The exported data references identify these actual slots (some shared bodies have unrelated
+automatic names in the export; those names do not define the behavior):
+
+| Operation | P vtable `0x00ABB6C0` | U vtable `0x00ABB6A8` | Effective receiver/body |
+|---|---|---|---|
+| QueryInterface, slot 0 | `0x005BCB40` | `0x005BCB50` | U / `0x009457C6` |
+| AddRef, slot 1 | `0x005BE3E0` | `0x005BE420` | U / `0x00968B60` |
+| Release, slot 2 | `0x005BCB30` | `0x005BCB60` | U / `0x0090D997` |
+| Deleting destructor, slot 3 | not a destructor (GetBoolCount) | `0x007DE9F0` | P / `0x007DEEB0` |
+
+The P thunks add 4 to the receiver; the U thunks subtract 4 and enter the corresponding P
+thunk, giving U again. Thus QueryInterface through **either** view accepts **only integer
+IID 1** and writes **U**, never P, to the caller-provided output cell. It then calls U slot 1
+(one AddRef) and returns true in AL. Every other 32-bit ID returns false in AL **without
+writing the output cell or changing the count** (`0x009457C6–0x009457DE`). This is a Boolean
+result, not an HRESULT or a promised value in all 32 bits of EAX. A successful query requires
+a writable output cell; there is no null-output check. An unsupported ID does not dereference
+the output pointer. No render-properties-specific IID is accepted by these slots.
+
+AddRef increments the shared 32-bit field and returns the new value in EAX
+(`0x00968B60–0x00968B66`). It is a plain, non-atomic increment, with no saturation or overflow
+check; the literal arithmetic wraps modulo 2^32. Reference ownership must avoid overflow.
+
+Release compares the count **unsigned** with 1 (`0x0090D99A–0x0090D99D`). Above 1 it decrements
+and returns the new count. At **either 1 or 0** it invokes U slot 3 with deletion flag 1 and
+returns 0; it does not first store a decremented count (`0x0090D9A4–0x0090D9AB`). In particular,
+Release at the constructor count of zero destroys the object; it does not underflow to
+`0xFFFFFFFF` or leave the object alive. A further operation through either stale pointer is
+outside the lifetime contract.
+
+U slot 3 adjusts back to P (`0x007DE9F0`) and enters the deleting destructor. The latter always
+runs the ordinary destructor, then frees the **complete object P** with `GlobalHeapFree`
+**iff flag bit 0 is set**; other flag bits have no effect on that decision
+(`0x007DEEB3–0x007DEEC0`). It returns P in EAX, including after freeing it; this is not a live
+object reference. Flags 0 or 2 destroy the contents without freeing the outer allocation;
+flags 1 or 3 also free that allocation. Ordinary destruction releases the instance float,
+integer and Boolean tables, in that order, then destroys the base (`0x007DE974–0x007DE9E5`).
+Direct destructor calls are lifetime termination, not reference-count operations.
+
 ### 1.2 Tables and entries
 
 `+0x0C`, `+0x18`, `+0x24` are the boolean, integer and float tables (begin, end, capacity). An entry holds:
