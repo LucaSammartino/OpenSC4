@@ -12,7 +12,9 @@
 - Done: 2a906396 factory/material correction and independent vectors; formatting passed five touched Rust files.
 - Done: order-independent repeated-alias restore now reloads the current record key once per table entry; distinct-record order withheld under TB8.
 - Done: f471bdc8 stable source; fmt PASS five files. Baseline all interrupted after 639 passed/0 failed completed results; C API second-thread clock test stalled over 60 seconds. No baseline clippy/native completion.
-- Next: final all running on source f471bdc8 with RUST_TEST_THREADS=1 (wrapper session 53854); record exact counts and review queue.
+- Done: quick old snapshot 3044 passed/3 failed (stale bulk-delete assertions); first stable all stopped on missing destroy_base in formats' independent MaterialBase mock. Both corrected; no tests skipped.
+- Done: invalid last factory-reference release now explicitly marks Unsupported::InvalidBinding before safe token cleanup. Reader integration verifies material count/header unknown byte.
+- Next: corrected stable source all with RUST_TEST_THREADS=1; record exact counts and review queue. Old failed wrapper session 53854 stopped.
 - Facts: build-runs/summarize-contractfix4.py summarizes only gate logs; review record below reconciles every published body/shared entry.
 - TB8 filed: native hash/growth/chain rules absent; distinct-record restore explicitly unsupported.
 - Baseline wrapper session 62872 interrupted with Ctrl-C; focused quick native build still pending.
@@ -97,9 +99,9 @@ Shared entries outside that subtotal remain real contracts:
 ### Validation record
 
 - Baseline `qbuild all`: interrupted after completed result lines totaling **639 passed / 0 failed**; the C API second-thread clock test stalled. No baseline clippy/native result is claimed.
-- During-work `qbuild quick`: invoked; native log `build-runs/fc4verify-quick-test.log` pending.
-- `qbuild fmt` on the five touched absolute Rust paths: **PASS**, exit 0; no other Rust files formatted.
-- Final stable-source `qbuild all` on source commit `f471bdc8`, with `RUST_TEST_THREADS=1`: pending. Serial tests avoid the observed baseline interaction without changing other subsystems.
+- During-work `qbuild quick`: old snapshot **3044 passed / 3 failed**; the failures were stale exact event lists missing the added bulk-delete call. All three assertions were corrected. Its native dependent build may still be completing; no current-source pass is claimed from this snapshot.
+- `qbuild fmt` on six touched absolute Rust paths (the five owner files and independent `engine/formats/src/s3d/tests.rs`): **PASS**, exit 0; no other Rust files formatted.
+- First stable-source `qbuild all` on `f471bdc8` stopped at `E0046` in the independent reader test's foreign-base mock, which needed the new destruction primitive. Mock corrected; no production reader changes. The replacement final stable-source all uses `RUST_TEST_THREADS=1` and is pending. Serial tests avoid the observed baseline interaction without changing other subsystems.
 - Distinguishing vectors cover signed rounding/nontermination, masked/wrapping LOD and products, zero levels/frames, 65536-square size zero, binding ref underflow/overflow, each wrapping pool counter, stale-zero reuse/eviction/alias restore, first/third-frame failure and prior zero handles, ignored upload errors/null pointers, material counts 0/1/2/65535, equal/different binding assignment, reverse-stage releases and forward range order.
 
 ### Questions and next steps

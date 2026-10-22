@@ -113,7 +113,8 @@ impl<P: Provider> BindingFactory<P> {
         &self.provider
     }
 
-    /// Most recent get/upload/restore boundary. Some means no native failure
+    /// Most recent get/upload/restore boundary, or invalid factory-reference
+    /// release. Some means no native failure
     /// result is claimed. Ordinary resource/driver failures leave this unset.
     pub fn unsupported(&self) -> Option<Unsupported> {
         self.unsupported
@@ -295,7 +296,12 @@ impl<P: Provider> BindingFactory<P> {
         let result = self.records.get_mut(&id)?.binding.release()?;
         match result {
             Release::FreeToPool => self.free_binding(id),
-            Release::Destroyed => self.destroy(id),
+            Release::Destroyed => {
+                // Releasing the factory's own reference leaves a dangling
+                // native record. Safe token cleanup is not native parity.
+                self.unsupported = Some(Unsupported::InvalidBinding);
+                self.destroy(id);
+            }
             Release::Live(_) => {}
         }
         // Return 1 even when trimming has immediately destroyed the pooled object.

@@ -612,6 +612,7 @@ fn service_init_failure_order_optional_messages_and_shutdown_reference_balance()
     assert_eq!(
         f.provider().events,
         vec![
+            Event::DeleteBatch(vec![1]),
             Event::Delete(1),
             Event::Release(Service::Driver, 30),
             Event::Release(Service::GraphicSystem, 20),
@@ -638,6 +639,7 @@ fn driver_identity_change_flushes_before_release_and_retains_only_new_pointer() 
     assert_eq!(
         f.provider().events,
         vec![
+            Event::DeleteBatch(vec![1]),
             Event::Delete(1),
             Event::Release(Service::Driver, 30),
             Event::Retain(Service::Driver, 55)
@@ -845,6 +847,7 @@ fn init_shuts_down_existing_records_before_acquiring_services_again() {
     assert_eq!(
         f.provider().events,
         vec![
+            Event::DeleteBatch(vec![1]),
             Event::Delete(1),
             Event::Release(Service::Driver, 30),
             Event::Release(Service::GraphicSystem, 20),
@@ -1270,6 +1273,16 @@ fn constructor_count_and_material_binding_lifetime_reach_the_real_factory() {
     assert_eq!((f.stats().in_use, f.stats().pooled), (0, 2));
     assert_eq!(f.binding(a).unwrap().reference_count(), 1);
     assert_eq!(f.binding(b).unwrap().reference_count(), 1);
+}
+
+#[test]
+fn releasing_factory_owned_last_reference_marks_the_unsupported_record_history() {
+    let mut f = factory(Image::new(8, 8, 1, 1, 9));
+    let id = f.get_binding_by_key(key(1)).unwrap();
+    assert_eq!(f.release_binding(id), Some(1));
+    assert_eq!(f.release_binding(id), Some(0));
+    assert_eq!(f.unsupported(), Some(Unsupported::InvalidBinding));
+    assert!(f.binding(id).is_none());
 }
 
 #[test]

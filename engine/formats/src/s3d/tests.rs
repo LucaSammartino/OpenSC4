@@ -457,6 +457,9 @@ impl fc4_core::textures_materials::SystemService for MaterialBase {
     fn release(&mut self) -> u32 {
         0
     }
+    fn destroy_base(&mut self) {
+        // This independent reader/owner test uses a stateless foreign base.
+    }
 }
 
 #[test]
@@ -465,6 +468,7 @@ fn parsed_mats_feeds_portable_owner_with_versioned_filters() {
     let manager = MaterialManager::new(MaterialBase);
     for (model, filter) in [(T::new().model(), 1), (T::old(1, 4).model(), 0)] {
         let material = manager.create_material(&model.materials[0]).unwrap();
+        assert_eq!((material.references, material.header_tail), (1, None));
         assert_eq!((material.flags, material.alpha_threshold), (0x01AB, 0x7F));
         assert_eq!(
             (
