@@ -19,7 +19,9 @@ import lane_launch
 import lane_refill
 
 WAIT_EVENT, WAIT_TIMEOUT, WAIT_USAGE, WAIT_BACKLOG, WAIT_HALT = 0, 2, 3, 4, 5
+WAIT_ERROR = 1
 MAX_WAIT = 3600
+READ_ATTEMPTS, READ_SECONDS, READ_DELAY = 5, 2.0, 0.25
 
 STALL_HOURS = 2.0      # a live worker with no commit (or launch) this long is stalled
 LAND_LAG_HOURS = 2.0   # a ready queue entry waiting this long means the train is not being run
@@ -81,6 +83,73 @@ def read_json(path):
     return json.loads(path.read_text(encoding='utf-8-sig'))
 
 
+class CriticalReadError(RuntimeError):
+    """No valid critical state was obtained; never substitute a healthy default."""
+    def __init__(self, message, *, timed_out=False):
+        super().__init__(message)
+        self.timed_out = timed_out
+
+
+class RecoveryHalt(RuntimeError):
+    pass
+
+
+class CriticalReader:
+    """One bounded policy for coordinator/queue/train reads, including train freshness stat."""
+    def __init__(self, *, sleep=time.sleep, now=time.monotonic, deadline=None, check=None):
+        self.sleep, self.now, self.deadline, self.check = sleep, now, deadline, check
+
+    def __call__(self, path, expected=dict, *, fresh_since=None):
+        end = self.now() + READ_SECONDS
+        if self.deadline is not None:
+            end = min(end, self.deadline)
+        last = None
+        attempts = 0
+        for _ in range(READ_ATTEMPTS):
+            if last is not None:
+                if self.check:
+                    self.check()
+                if self.now() >= end:
+                    break
+            attempts += 1
+            try:
+                value = read_json(path)
+                if not isinstance(value, expected):
+                    raise ValueError(f'expected JSON {expected.__name__}, got {type(value).__name__}')
+                modified = path.stat().st_mtime if fresh_since is not None else None
+                return None if fresh_since is not None and modified < fresh_since else value
+            except (OSError, ValueError) as exc:
+                last = exc
+            if self.check:
+                self.check()
+            left = end - self.now()
+            if attempts == READ_ATTEMPTS or left <= 0:
+                break
+            self.sleep(min(READ_DELAY, left))
+        raise CriticalReadError(f'cannot read critical JSON {path} after {attempts} attempts '
+                                f'(retry/deadline exhausted): {type(last).__name__}: {last}',
+                                timed_out=self.deadline is not None and self.now() >= self.deadline) from last
+
+
+def recovery_halt(root):
+    """Check flags afresh between read attempts, without recursively retrying coordinator state.
+
+    An unreadable coordinator cannot identify a provider; it never supplies a cached healthy value.
+    The critical read still has to succeed or report its persistent failure.
+    """
+    runs = root / 'build-runs'
+    if (runs / 'STOP').exists():
+        raise RecoveryHalt('HALT: STOP set; no spawning')
+    try:
+        state = read_json(runs / 'run4-coordinator-state.json')
+    except (OSError, ValueError):
+        return
+    if isinstance(state, dict):
+        provider = state.get('provider', 'claude')
+        if lane_launch.provider_pause(root, provider):
+            raise RecoveryHalt(f'HALT: provider {provider} paused')
+
+
 def last_progress(root, name, entry):
     """Epoch of the lane worktree's last commit, or of its launch (manifest written), whichever is newer."""
     times = []
@@ -130,15 +199,16 @@ def deps_checker(root):
     return waiting_on
 
 
-def snapshot(root):
+def snapshot(root, *, reader=None):
+    reader = reader or CriticalReader()
     runs = root / 'build-runs'
-    state = read_json(runs / 'run4-coordinator-state.json')
+    state = reader(runs / 'run4-coordinator-state.json')
     pid_path = runs / 'run4-refill.pid'
     refill_pid = int(pid_path.read_text().strip()) if pid_path.exists() else None
     lanes = state.get('lanes', {})
     progress = {n: last_progress(root, n, e) for n, e in lanes.items() if lane_launch.alive(e.get('pid'))}
-    value = summarize(state, read_json(runs / 'run4-refill-queue.json'),
-                      read_json(runs / 'merge-train/state.json'),
+    value = summarize(state, reader(runs / 'run4-refill-queue.json', list),
+                      reader(runs / 'merge-train/state.json'),
                       is_alive=lane_launch.alive, refill_pid=refill_pid,
                       paused=bool(lane_launch.provider_pause(root, state.get('provider', 'claude'))),
                       stopped=(runs / 'STOP').exists(),
@@ -188,25 +258,18 @@ def train_event(train, train_id):
     return None
 
 
-def wait_until(root, event, *, timeout=540, poll=10, fresh=False, snap=snapshot,
-               sleep=time.sleep, now=time.time):
+def _wait_until(root, event, *, timeout, poll, fresh, snap, sleep, now):
     """(exit code, one line): the named event, BACKLOG LOW, STOP/pause or the timeout, whichever comes first."""
     start = now()
+    reader = CriticalReader(sleep=sleep, now=now, deadline=start + timeout,
+                            check=lambda: recovery_halt(root))
     train_path = root / 'build-runs' / 'merge-train' / 'state.json'
 
     def read_train():
-        try:
-            # --fresh: merge-train.py rewrites the state with every verdict; an unchanged file holds an old one.
-            if fresh and train_path.stat().st_mtime < start:
-                return None
-            return read_json(train_path)
-        except (OSError, ValueError):
-            return None    # missing, or caught mid-write
+        # --fresh: an unchanged file holds an old verdict, but must still be valid JSON.
+        return reader(train_path, fresh_since=start if fresh else None)
     if event == 'train':
-        try:
-            train_id = (read_json(train_path).get('current') or {}).get('id')
-        except (OSError, ValueError):
-            train_id = None
+        train_id = (reader(train_path).get('current') or {}).get('id')
         if not train_id:
             return WAIT_USAGE, f'WAIT: no current train in {train_path}'
 
@@ -229,7 +292,7 @@ def wait_until(root, event, *, timeout=540, poll=10, fresh=False, snap=snapshot,
         line = happened()
         if line:
             return WAIT_EVENT, line
-        value = snap(root)
+        value = snap(root) if snap is not None else snapshot(root, reader=reader)
         if value['stop']:
             return WAIT_HALT, 'HALT: STOP set; no spawning'
         if value['provider_paused']:
@@ -242,6 +305,19 @@ def wait_until(root, event, *, timeout=540, poll=10, fresh=False, snap=snapshot,
             return WAIT_TIMEOUT, (f'TIMEOUT after {timeout:g}s waiting for {event}; '
                                   f'live {value["live"]}/{value["target"]}, {backlog(value)}')
         sleep(min(poll, left))
+
+
+def wait_until(root, event, *, timeout=540, poll=10, fresh=False, snap=None,
+               sleep=time.sleep, now=time.time):
+    try:
+        return _wait_until(root, event, timeout=timeout, poll=poll, fresh=fresh,
+                           snap=snap, sleep=sleep, now=now)
+    except RecoveryHalt as exc:
+        return WAIT_HALT, str(exc)
+    except CriticalReadError as exc:
+        if exc.timed_out:
+            return WAIT_TIMEOUT, f'TIMEOUT after {timeout:g}s waiting for {event}; {exc}'
+        return WAIT_ERROR, f'ERROR: {exc}'
 
 
 def main():
@@ -267,7 +343,11 @@ def main():
         print(line, flush=True)
         sys.exit(code)
     while True:
-        value = report(args.root.resolve())
+        try:
+            value = report(args.root.resolve())
+        except CriticalReadError as exc:
+            print(f'ERROR: {exc}', flush=True)
+            sys.exit(WAIT_ERROR)
         if args.once or value['stop']:
             return
         time.sleep(args.interval)

@@ -86,6 +86,13 @@ coordinator can add `--lane <name>` to look in another worktree.
 
 ## Run 4: the heartbeat backlog and `--wait-until`
 
+Reviewed briefs may omit `evidence` or use `[]`; otherwise it must be a list of nonempty file-path
+strings. Relative sources are read against `--root`, including when the spec or process cwd is elsewhere;
+absolute sources remain supported. `lane_refill.py --queue` validates every requested spec before writing
+the queue, and direct launch rechecks readable regular files before setup. Errors name the spec,
+`evidence[index]` (or the invalid container), value and filesystem/type reason. Evidence basenames and
+overwrite order are unchanged; prose belongs in the brief text, not in `evidence`.
+
 `python tools/lane_heartbeat.py --once` (the five-minute scheduled task) writes `build-runs/run4-heartbeat.json` and
 one log line. Pending briefs in `build-runs/run4-refill-queue.json` are split the way the refiller decides:
 a brief is **launchable** when every one of its `args.deps` is an ancestor of `main` (`lane_refill.unmet_deps`, the
@@ -110,6 +117,7 @@ and exits:
 
 | Exit | Line | When |
 |---|---|---|
+| 1 | `ERROR: cannot read critical JSON <path> ...` | coordinator, refill queue or train data stays unreadable/malformed after bounded recovery; no heartbeat artifact is written |
 | 0 | `TRAIN <id>: gate FAIL`, `TRAIN <id>: gate ok, regress <verdict>`, `TRAIN <id>: no longer current (landed or cleared)` | `train`: the current train in `build-runs/merge-train/state.json` needs the coordinator (`RUNNING` does not count) |
 | 0 | `FILE <path>: present` | a file path (relative to `--root`: the checkout holding the script, the main checkout for the coordinator) exists |
 | 4 | `BACKLOG LOW: ...; live x/y, pending L launchable / W waiting [...]` | the heartbeat alert above |
@@ -122,3 +130,11 @@ the point, the wait never starts while slots are going to empty. `--fresh` ignor
 there before the call (for a re-run gate, whose old `gate.ok: false` stays in the state file until the new one is
 written). `backlog` waits for the backlog only. The default `--timeout` is 540 s, under a 10-minute tool-call
 limit; the maximum is 3600. The wait is read-only: it does not write the heartbeat files.
+
+Critical JSON reads share at most five attempts, separated by 0.25 s, within a 2 s read-recovery budget
+and the caller's remaining wait deadline. Recovery checks STOP and the current provider pause freshly
+between attempts. Deadline exhaustion returns exit 2 with the read diagnostic; persistent failure before
+that deadline returns exit 1, including initial train discovery (valid JSON with no current train remains
+exit 3). `--once`/scheduled reports use the same bounded read policy and leave existing report/log bytes
+unchanged on failed snapshots. These limits bound retries and sleeps; they cannot interrupt an OS read
+already in progress. They do not imply a proven cause for the observed sharing/partial-write failures.
