@@ -270,7 +270,7 @@ generated index: the questions live one file per spec, so read only the file for
 | timers | 0 | 3 | TM4 | questions/timers.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
-| tutorial | 3 | 3 | TU10 | questions/tutorial.md |
+| tutorial | 1 | 5 | TU10 | questions/tutorial.md |
 | underground-occupants | 4 | 0 | UG5 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | vehicles | 2 | 0 | VH3 | questions/vehicles.md |
@@ -285,4 +285,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **302** | **1153** | | |
+| **total** | **300** | **1155** | | |

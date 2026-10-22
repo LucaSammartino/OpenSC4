@@ -1,6 +1,24 @@
 # tutorial: answered questions (archive)
 
 <!-- from: glue-tutorial4 (2026-10-21) -->
+- **TU9 - sections 4.2 / 4.4 (the tutorial window as direct calls):** What allocator, constructor/Init/close/event
+  arguments, reference counts, base pointer, slots 6-11 and tutorial-owner callbacks are required to retain the
+  original window? **ANSWERED 2026-10-22 (re-tutorial-contracts4):** DIFFERS — §4.2.2 and §4.4.1 give the native
+  boundary: heap C(100), constructor refcount0/base result/no arguments, two explicit owner references,
+  Init/close thiscall/no arguments/pop0, event uint32/pop4/AL true, base table00A8638C slots6-11. Init obtains
+  system slots7/12/11 from borrowed global00B20E88; task advancement uses slots12/11/20/11, and completion posts
+  the ordinary end message. There is no Init owner/GUID/Lua/flags argument. Slot10 takes coordinate addresses.
+  ABI proposal: build-runs/abi-rows-re-tutorial-contracts4.tsv. Scope is the tutorial owner's external window
+  protocol; no complete UI-class implementation/coverage or runtime-reopen verification is claimed.
+
+<!-- from: glue-tutorial4 (2026-10-21) -->
+- **TU8 - section 4.4 slot 13 (`FilterMessage`'s argument):** What record/interface and offsets hold the kind,
+  ID and forwarded data? **ANSWERED 2026-10-22 (re-tutorial-contracts4):** DIFFERS — §4.4.2 proves a plain
+  window-message prefix of four dwords, kind+0, ID+4, payload+8/+12, no vtable. Kind3 with F6/F7 IDs forwards
+  +8, with ID49D993D4 forwards +12 to original-window slot6. All returns true, but forwarding can advance a task
+  and call back into system slot20, so an unconditional no-op differs when the window is present.
+
+<!-- from: glue-tutorial4 (2026-10-21) -->
 - **TU6 - sections 4.2 / 4.3 and TU1 (registry calls as direct calls):** What are the calling convention,
   arguments, returns and ownership of `SetActive` / `GetItem`, and the preferences-save execution context?
   **ANSWERED 2026-10-22 (re-tutorial-contracts4):** DIFFERS — tutorial.md §4.2.1 proves ECX = app slot49's

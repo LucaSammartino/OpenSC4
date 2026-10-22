@@ -99,8 +99,9 @@ Is-tutorial is set by `startTutorial` and by `Read`, and cleared by `endTutorial
 
 - **`startTutorial`** (slot 5, `0x0043F080`): when there is no tutorial window, create one (100 bytes,
   constructor `0x00442920`), take **two** references and initialise it. The two `AddRef`s are the one in the
-  "replace the old window" step and the one just before `Init`; with no old window to release, the count ends at
-  2. Then is-tutorial := 1, end-pending := 0, and tell the registry that the GUID is active
+  "replace the old window" step and the one just before `Init`; with no old window to release, these establish
+  two owner-held references before `Init` (framework registrations may hold additional references). Then
+  is-tutorial := 1, end-pending := 0, and tell the registry that the GUID is active
   (`SetActive(GUID, true)`, `0x004B5D80`, through `cISC4App` slot 49 on the global `0x00B43C94`). AL is whatever
   the registry call left *[quirk]*.
 - **`endTutorial(endRegistry)`** (slot 6, `0x0043F110`): when a window exists, close it (`0x00442C80`), release
@@ -156,6 +157,63 @@ message flow, not a guarantee that concurrent registry mutation or saving on ano
 using the native registry must preserve that execution context. Start's AL is consequently this changed-state
 result, rather than an unconditional success flag.
 
+#### 4.2.2 Original window boundary and callbacks (TU9)
+
+This is the tutorial owner's protocol for retaining the **original** `cSC4TutorialUIWinProc`, not a specification
+of the entire UI class. Native direct calls require the GOG 1.1.641 executable.
+
+| Operation | Native boundary |
+|---|---|
+| Allocate | Global heap C, `0x005E55E0`, `__cdecl`, one uint32 byte count = **100**; caller pops 4. Do not use the plugin heap |
+| Construct | `0x00442920`, `__thiscall`, ECX = allocated base, **no stack arguments**, plain RET; EAX = same base. Base constructor `0x0090DA1E` sets the reference count at base+4 to **0** |
+| Retain/release | Base vtable `0x00A8638C`, slots 1/2 = `0x0057EB00` / `0x0057EB70`, no arguments, EAX count. They tail-call `0x00968B60` / `0x0090D997`; final Release invokes the deleting destructor with flag 1. Let it free the original allocation |
+| Store and open | Store the returned **base**, not base+8 or base+12, at tutorial-system+0x40; AddRef once for assignment, once more before `Init`. `Init` = `0x00443E60`, `__thiscall`, ECX = window base, **no stack arguments**, plain RET, no defined result consumed |
+| Close | `0x00442C80`, `__thiscall`, ECX = window base, **no stack arguments**, plain RET (`0x00442E34`); no result consumed. Call before the two owner releases, as in §4.2/§4.3 |
+| Deliver event | `0x00443970`, `__thiscall`, ECX = window base, event code: uint32 by value, pop4; AL = true on every path (`0x00443989`, `0x004439E1`–`0x004439E7`) |
+
+The constructor installs the base table and interface subobjects at +8 (window procedure table `0x00A86378`)
+and +12 (message target table `0x00A86368`); these are internal to the original window. It does **not** accept
+a tutorial-system pointer, GUID, index, Lua pointer or flags. Start does not test an `Init` success result
+(`0x0043F0C7`–`0x0043F0D7`). Allocation failure is not a supported without-window fallback: start proceeds
+to dereference its stored pointer.
+
+**Required system binding.** `Init` obtains its tutorial owner from the executable global pointer at
+`0x00B20E88`, not from an argument or a city lookup. The original system constructor writes its **base
+`cISC4TutorialSystem*`** there (`0x0043F5BF`–`0x0043F5C4`); destruction clears it (`0x0043F746`). It is a
+borrowed singleton binding, with no AddRef on the global assignment. Keeping the original window requires that
+binding to designate the live system implementing the callbacks below throughout opening and task steps.
+Merely supplying city slot 82 with a replacement does not redirect these reads. Binding/lifetime integration
+must be implemented explicitly; never pass an extra owner argument to `Init`.
+
+On successful script-window creation, `Init` attaches window-procedure subobject base+8, obtains and retains
+the scripting context from system **slot 7**, reads the GUID from **slot 12**, gets that registry item, then
+reads the relative task number from **slot 11**. Its absolute task index becomes
+`(registryItem.startIndex - 1) + system.taskNumber`, using 32-bit integer arithmetic
+(`0x00443EDA`–`0x00443EE2`, `0x00443F37`–`0x00443F6B`). `GetItem` is dereferenced without a null check here:
+opening requires a registered GUID, not an invented empty entry. The task script is read through the returned
+Lua context and tasks are built by the original window; no Lua pointer is passed to `Init`.
+
+After the script-window branch, it loads arrows, subscribes its message-target subobject base+12 to
+`0x07699455`, `0x99EF1142`, `0xE94671EB`, `0x894671F6`, `0x66956816`, `0x99EF1143`, `0xE8BDA2E7`, in that
+order when the server exists, and calls `ReStartCurrentTask` (`0x00444145`–`0x00444152`). That final call is
+also made if script-window creation failed; there is no owner-facing Boolean Init contract.
+
+During `moveToNext` (`0x00443BD0`), when a current task and the global owner exist, the window temporarily
+retains the owner, reads owner slot **12** for the registry bounds and slot **11** for the prospective relative
+step. In the valid-next-step branch, after ending the old task, it calls owner slot **20** (increment) and then
+slot **11** again; it uses that returned value plus the registry start offset as the new absolute index
+(`0x00443C10`–`0x00443C56`, `0x00443CE3`–`0x00443CFD`). The owner must update the task number before returning
+from slot 20. These are virtual callbacks on the global interface, not writes to an original-system layout.
+At the end-of-range branch the window calls `finish_tutorial(true)` instead (`0x00443DF0`–`0x00443DF4`).
+That posts `0xAA3840E6` with message slot-9 data equal to 0 (server slot 4, second argument 0), causing the
+system's ordinary end handler to call `endTutorial(true)`. `finish_tutorial(false)` uses data 1 instead
+(`0x00441E94`–`0x00441EBE`). Do not replace this with an immediate invented end callback.
+
+Close ends the current task through task slot 16, removes the same seven message subscriptions, detaches and
+releases the script window, kills arrows and clears the UI state; it does not consume either explicit owner
+reference. `OnTutorialEvent` temporarily retains the current task, handles event **1** as §4.4 describes, and
+releases it. It has no direct tutorial-system callback.
+
 ### 4.3 Messages (`DoMessage`, sub-object +4; every case returns true)
 
 | Message | Handling |
@@ -208,12 +266,48 @@ Each forwards to the tutorial window when there is one:
 | 14 `ShowUIHintsForUsers` | nothing | window slot 7 |
 | 15 `HandleCatalogMenu(menu)` | true | window slot 8, true |
 | 16 `FilterLeftMouseClick(x, z, n)` | true | window slot 10's result |
-| 17 `ResetTutorialNumAndIndex(a, b)` | false | GUID := `a`, task number := window slot 11 `(a, b)`; true |
+| 17 `ResetTutorialNumAndIndex(a, b)` | false | first call window slot 11 `(a, b)`; then GUID := `a`, task number := returned signed dword (including -1 on failure); true |
 | 18 (not in the SDK) `OnTutorialEvent(e)` | true | passes `e` to the window (`0x00443970`); true. `e` is a 32-bit event code, not a pointer: the window compares the whole dword with 1 (`0x00443989`) and acts only on 1 (if the current task's slot 20 returns 1, it calls the task's slot 15, then refreshes the instruction text from task slot 9); any other value does nothing (TU3) |
 | 19 (not in the SDK) `SetTutorialTaskNumber(n)` | task number := `n` (the whole dword into the s32 at +0x20, the field slot 11 returns) | same |
 | 20 (not in the SDK) `IncrementTutorialTaskNumber()` | task number += 1 | same |
 
 Slots 11 and 12 return the task number and the GUID. The SDK header stops at slot 17.
+
+#### 4.4.1 Consumed original-window virtual slots (TU9)
+
+All slots below belong to the **base** table `0x00A8638C`, use ECX = window base and callee-pop stack arguments.
+Use them only on the original window constructed above. `void` means the owner consumes no return channel.
+
+| Slot | Target | Arguments in declaration order | Pop | Return / owner contract |
+|---|---|---|---|---|
+| 6 | `0x00443E10` | one uint32 message payload by value | 4 | void; owner always returns true after forwarding |
+| 7 | `0x00443180` | none | 0 | void; show the original task's hints |
+| 8 | `0x00442340` | borrowed catalog-menu interface pointer | 4 | void; owner returns true; native entry uses the argument's slot 3 to obtain its window |
+| 9 | `0x00442320` | none | 0 | EAX = borrowed current-task pointer or null, no AddRef; uses unsigned index < vector length |
+| 10 | `0x00441C50` | two borrowed pointers to 32-bit coordinate values, then a signed 32-bit click-stage value | 12 | AL Boolean, forwarded by system slot 16. Coordinate arguments are **addresses**, not two scalar stack values: `0x00441C83`–`0x00441CA8` dereferences each once and passes the bits to 3D-view slot 36 |
+| 11 | `0x00443B40` | GUID:uint32 by value, requested relative index:int32 by value | 8 | EAX signed relative index after reset, or -1; system slot 17 still returns true whenever a window existed |
+
+Slot 6 clears window+0x39, obtains the current task and, when the task vector is nonempty and task slot 20
+returns 4, forwards the dword to task slot 21; if its AL is true it advances the task
+(`0x00443E16`–`0x00443E55`). Thus a filter notification may synchronously call back through owner slot 20.
+Slot 11 obtains the registry entry for the requested GUID without a null check, forms an absolute candidate
+`startIndex - 1 + requestedIndex`, and requires it to be nonnegative, below the task-vector length and below
+`startIndex - 1 + taskCount`. It also requires a current task. On success it ends that current task, stores the
+candidate, restarts the selected task and returns the resulting absolute index minus the start offset; otherwise
+it returns -1 (`0x00443B54`–`0x00443BCC`). The caller's GUID/task fields are updated **after** this operation.
+
+#### 4.4.2 FilterMessage payload (TU8)
+
+System slot 13 accepts a pointer/reference to a **plain window-message record**, not a `cIGZMessage2` interface.
+The consumed prefix is four consecutive 32-bit fields: kind at +0, command/message ID at +4, payload at +8,
+payload at +12. There is no vtable dereference or virtual message getter. This specifies the bytes consumed,
+not an assertion that every window-message variant is exactly 16 bytes.
+
+Only kind = 3 is inspected. With a window, IDs `0x287259F6` and `0x287259F7` forward the dword at +8 by value
+to window slot 6; ID `0x49D993D4` forwards +12 instead. All other kinds/IDs do nothing. The input is read-only;
+the owner neither retains it nor uses the forwarded value as an interface pointer. AL is true in every case,
+including a window slot-6 task advance (`0x0043F3C0`–`0x0043F40A`). Example: kind 3, ID `0x49D993D4`, +8=17,
++12=23 forwards **23**; changing kind to 2 forwards nothing, with the same true return.
 
 ## 5. Quirks
 
