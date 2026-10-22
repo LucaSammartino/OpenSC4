@@ -159,7 +159,7 @@ helper, then conditionally repairs line starts and scroll state when the
 base window is initialized. Return value is the retained byte count.
 This raw entry does not itself create an undo action or send text-change
 notification. The behavior when a lowered maximum is already below the
-existing text length is not a safe general insertion contract (TE3).
+existing text length depends on the selector; see the call domains below.
 
 Raw RemoveText (`0x009BF8A8`, T) rejects an unsigned start at or beyond
 length by returning zero. Otherwise it caps count to the remaining bytes,
@@ -172,7 +172,42 @@ mode, composed-character length for false, optionally copies removed
 bytes, erases and repairs view/lines. An out-of-range index becomes
 length-minus-one, including unsigned underflow for empty text: no benign
 empty-text result is promised by this body. Normal guarded key callers
-avoid that case. Its return is true, not a removed-byte count.
+avoid that case. Its normal return is true, not a removed-byte count.
+
+### Raw-call domains and failure paths (TE3)
+
+Use valid byte buffers and a nonoverflowing existing-plus-input length.
+For ordinary-selector insertion the supported domain includes existing
+length L <= maximum M. If filtered input exceeds the remaining space,
+the retained count is M-L, not a saturating subtraction. With L > M,
+that subtraction wraps at 32 bits (`0x009BF649-64E`): it must not be
+implemented as an evidenced clean rejection or clamped no-op. For L-M >= 2,
+the downstream string insertion's unsigned length guard takes its length
+failure helper before source copying (`0x0090E8D3-8DE`, `0x0079C6E0`).
+For L-M = 1 that guard does not take the same path; the wrapped source
+range is invalid and no successful result is promised. No owner recovery
+or rollback handler surrounds these calls.
+
+Selectors 8/100 have a different lowered-limit outcome: if L >= M and
+filtered input is nonempty, their stepping loop starts with zero retained
+bytes and skips all stepping (`0x009BF650-687`). Reason 1 still runs and
+the owner continues through zero-byte insertion, zero glyph movement and
+its normal initialized-widget view updates, returning zero. An already
+empty filtered input returns earlier without that truncation hook. The
+input filtering/composition hooks precede all of these limit decisions.
+
+RemoveChar requires nonempty text and a character-valid byte position.
+An excessive unsigned index on nonempty text is replaced by L-1, which
+need not itself be the start of a multibyte character. On empty text the
+owner manufactures index 0xFFFFFFFF, remaining count 1 and address
+textBegin-1 (`0x009BF789-7A6`). With ordinary-character mode, selector 0
+or 16, and no output string, GetCharLength returns 1 without dereferencing
+that address; string erase then invokes its out-of-range failure path
+(`0x004425CE-5D9`, `0x009DD0A0`). Other selector/composed/output-copy paths
+can use the invalid address earlier. Thus empty removal has neither a
+portable no-op nor a universal single exception contract. These are
+native failure boundaries, not instructions to dereference invalid memory
+in a clean-room implementation.
 
 Undo (`0x009C027E`) and Redo (`0x009C0396`) return false if editor bit
 `0x100` is clear or their respective stack is empty. Otherwise they build
@@ -341,7 +376,7 @@ With editor bit 0x2000 it builds a separate mask string of one mask byte
 per GetGlyphCountFromString result; selection endpoints are translated to
 glyph counts for drawing. The underlying text is not overwritten. This
 does not establish correct mapping for every multibyte line arrangement;
-that exact interaction is TE6.
+the exact mixed-coordinate behavior is specified below.
 
 With background bit 0x20 it fills when no image exists, or draws the image.
 The boolean stored with the image chooses direct blit versus edge drawing
@@ -369,6 +404,42 @@ context +0x64 receives this width as a **32-bit float**, a vertical line
 is drawn through +0x88, then +0x64 is explicitly reset to float 1.0
 (`0x009BF0FA–F132`). This restores width to 1, not its previous value.
 Editor bit 0x10 plus focus finally draws a one-pixel outline.
+
+### Password coordinates and pixel selection (TE6)
+
+Password mode changes the draw buffer and translates each selection
+endpoint from original-prefix byte length to glyph count. It does **not**
+translate the line-start array, line byte counts, horizontal visible-span
+indices, insertion line or insertion column. Painting still obtains line
+starts from W+0x108 and calls the ordinary GetHorizontalLineMetrics;
+caret measurement passes maskBegin+originalLineStart and the **stored
+byte column** to font +0xC0 (`0x009BECAE-ED07`, `0x009BEFEB-F071`).
+Thus a multibyte prefix can yield a glyph-based selection endpoint while
+the caret measures more mask bytes. Native calls can describe a span
+beyond the mask's logical length; actual foreign drawing/memory behavior
+there is outside the safe buffer domain, not corrected Unicode rendering.
+
+GetLineAndColumnFromPosition (`0x009BF162`, T, 387B) also chooses the
+mask in password mode and sets its stepping selector to zero, but retains
+the original line starts/counts. Signed negative y first resets **both**
+x and y to zero; negative x is then clamped to zero. Its adjusted x is
+x-gutterX+horizontalScroll. Its row is firstVisible+unsigned(y/lineHeight),
+capped to the last line: there is **no gutterY subtraction**. Empty chosen
+buffer yields (0,0). The line-height division precedes this empty check.
+
+Within a nonempty row it measures successive chosen-buffer prefixes until
+the signed measured width exceeds adjusted x. Let p be the preceding
+prefix width and q the new width. It backs up one character when
+(x-p-1) < (q-x), with signed 32-bit comparison (`0x009BF2B9-2CA`). For a
+10-pixel character, x=5 chooses its start and x=6 its end; this differs
+from the separate GetColumnFromPosition's whole-prefix test. On this
+interior-hit branch only, password mode converts the selected mask column
+through LengthFromGlyphCount using the **beginning of the original whole
+text**, its original selector and that column (`0x009BF2CC-2E3`). If no
+prefix exceeds x, it instead returns the original line byte count directly,
+without that conversion. No original-line-relative conversion is inserted.
+These rules specify the mixed indices, not multibyte shaping or graphemes;
+the encoding primitive residual is TE1.
 
 ## 10. Mouse, messages, flags and resource lifetime
 
@@ -458,6 +529,66 @@ on either path, and returns the play result or false. Native evidence
 `0x009BD9FC–DA62`. No user-facing error dialog or text mutation is implied;
 foreign sound service interpretation is outside this owner.
 
+### Additional resource and callback contracts (TE7)
+
+SetBackgroundImage (`0x009BC9AC`, T) compares identity first: a changed
+nonnull image is AddRef'd before releasing the old nonnull image and
+storing it at W+0x17C. Unchanged identity performs neither reference call.
+The separate byte option at W+0x180 can still change. Either change
+invalidates; neither change does not. **Native editor Shutdown and its
+destructor contain no matching release of W+0x17C**. In particular the
+W+0x208 destructor helper is just a return (`0x00A6D837`), not hidden
+background-image cleanup. Replacing/clearing through the setter releases
+the prior image; do not infer balanced teardown of this retained reference.
+
+The two scrollbar-image setters (`0x009BD278`, `0x009BD2F9`, T) differ:
+they always AddRef the incoming nonnull image, then Release the old
+nonnull image, **even on identity replacement**. They store it at
+W+0x1DC / W+0x1E0 and copy four rectangle words to W+0x1E4 / W+0x1F4.
+The rectangle pointer must be valid even when the image is null. With a
+nonnull image and existing corresponding bar, call bar +0x44 with
+(rectangle,image,0). If the supplied rectangle is empty (right <= left or
+bottom <= top, signed comparisons in `0x007C1870`), use the image's +0x30
+rectangle for that call instead. A null image updates storage without
+notifying an existing bar. Both normal paths return true and do not
+inspect the bar's result. Shutdown releases and clears both stored images,
+after releasing/clearing both bars; the background image is a separate field.
+
+Color storage is unchecked: SetColor/GetColor directly access
+W+0x1A8+4*index and return true (`0x009BC967`, `0x009BC97B`). No invalid
+index returns false; callers must keep accesses within the intended color
+fields. ClearFontColor writes 0xFF000000 for indices 0/2, 0xFFFFFFFF for
+4, and 0x40000000 otherwise, at that same unchecked address; it does not
+invalidate. Raw color storage differs from SetFontColor, which first calls
+the base +0x200 conversion; GetFontColor uses base +0x1FC conversion and
+writes the caller's output only when virtual GetColor succeeds. Its own
+default GetColor always succeeds. SetOutlineUse toggles bit 0x10 and
+converts/stores its color at W+0x1C8; GetOutlineUse writes both the bit and
+the reverse-converted color. Neither outline body invalidates or checks
+output pointers (`0x009BD4B4-50D`).
+
+Scroll timer start checks running state and requests interval 100 with
+argument zero only when stopped; stop calls the timer only when running
+(`0x009BCC74-CAE`). Neither wrapper defines a boolean success result or
+recovers timer failures. The scroll callback obtains RZ::WM, does nothing
+if null, otherwise calls +0x38 with (callback argument,0x631B56CD,0,0,0).
+The caret callback similarly sends 0x631B56CC through its temporary service
+wrapper, then destroys that wrapper (`0x009BD16C-19A`). Neither callback
+changes selection, scrolls or paints synchronously, retries, or branches
+on dispatch success. Timer delivery and queued-message cancellation remain
+foreign service contracts.
+
+Init returns true on its normal completion even if WCM is absent or both
+font lookups return null; it does not test the base Init result. The
+editable-cursor path dereferences the cursor-manager result without a null
+test (`0x009BFC24-33`). Such a missing manager has no owner-level clean
+failure result. Pixel hit mapping divides by stored line height without a
+zero guard, and font-dependent metrics dereference the font; these methods
+require initialized, coherent layout and valid font/service inputs. No
+generic pre-init/null-resource safety is promised. Destruction's history
+cleanup destroys every owned action string then frees nonnull vector
+storage, using the range helpers specified in section 6.
+
 ## 11. Independent distinguishing vectors
 
 These are specification examples derived from bodies, not game-run results.
@@ -488,6 +619,16 @@ These are specification examples derived from bodies, not game-run results.
 | Same eight actions and limit 8; create a deletion record | All eight survive, new deletion appended: count 9; redo emptied |
 | Empty enabled history, limit 0; create five insertion records | Counts 1,2,3,4,4; the fifth evicts only the first record |
 | Enabled history with three actions; lower limit to 0 | Setter preserves all three; next insertion keeps them and appends a fourth |
+| Selector 8 or 100, existing length 5, maximum 2, nonempty input unchanged by filtering/composition; raw insertion | Reason 1, zero retained bytes and zero glyph movement; normal return 0, existing bytes retained |
+| Ordinary selector, existing `abcde`, maximum 2; raw insertion of `x` | Retained count wraps to 0xFFFFFFFD; downstream string length-failure helper is called, rather than a clean return 0 |
+| Empty text, ordinary-character RemoveChar, selector 0, no output string | Manufactured index 0xFFFFFFFF reaches string erase's out-of-range failure path; no normal true/no-op contract |
+| Password text has original bytes C3 A9 7A under selector 8; glyph helper counts two; caret/selection endpoint 2; mask byte `*` | Mask length 2 and translated selection endpoint 1, but caret metric still receives stored column 2; observe call arguments without reading an invalid span |
+| Monospace 10-pixel prefixes, gutters/scroll zero, one nonempty line; pixel hit x=5 then x=6 | GetLineAndColumnFromPosition returns columns 0 then 1; separate GetColumnFromPosition returns 0 for both |
+| Two rows, firstVisible 0, line height 10, gutterY 7; pixel hit y=10 | Row 1; gutterY is not subtracted |
+| Same background pointer and option, then same pointer with changed option | First call no reference calls/invalidation; second invalidates with no reference calls |
+| Same nonnull scrollbar image assigned again with valid empty rectangle and existing bar | Incoming AddRef precedes old Release, rectangle copied, image +0x30 rectangle passed to bar +0x44 with image and 0 |
+| Null WM/service result in scroll/caret callback | No dispatcher call and no direct widget mutation; no retry |
+| SetOutlineUse with valid color and either enable value | Bit/color change but no invalidation by this method |
 
 ## 12. Whole-owner checklist and current limits
 
@@ -505,9 +646,9 @@ is claimed while body and foreign-boundary residuals remain.
 | Area | Current evidence disposition |
 |---|---|
 | Identity, state, whole-text replacement, selection, overwrite, character input, high-level insertion, caret timer | Rules above; external helper contracts remain bounded |
-| Raw insertion/deletion, undo/redo, key navigation/clipboard, mouse, focus | Sections 6-10; TE3/TE4 and exact word/composed motion remain bounded |
-| Line starts, metrics, painting, hit mapping, scrollbars | Sections 8-9; TE5/TE6 prevent full owner closure |
-| Init/shutdown, images/font ownership, flags/messages | Section 10; destructor ordering and other resource edges TE7 |
+| Raw insertion/deletion, undo/redo, key navigation/clipboard, mouse, focus | Sections 6-10; TE3/TE4 domains and eviction resolved; word/composed motion remains TE5 |
+| Line starts, metrics, painting, hit mapping, scrollbars | Sections 8-9; mixed password coordinates resolved, remaining metrics/scrollbars TE5 |
+| Init/shutdown, images/font ownership, flags/messages | Section 10 specifies owner cleanup, including absent background-image release; foreign resource implementations remain boundaries |
 | Every label, folded alias, thin method and helper | Companion inventory and questions required; no credit beyond documented contracts |
 
 Open contracts live in [questions/text-edit.md](questions/text-edit.md).

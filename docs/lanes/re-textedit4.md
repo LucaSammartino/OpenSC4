@@ -7,8 +7,9 @@
 - Goal: reconcile actual coverage-owner output before extending native TextEdit contracts; no code/tools/maps/ABI edits.
 - Baseline: b613685e (134 direct labels/19,415B; 20 vectors; TE2 answered).
 - Done: actual coverage reconciled: 150 bodies/19,999B, all 134 old rows plus 16 exact measured additions, no size mismatches; public attribution evidence added.
-- Done: TE4 native range erase, action copy/destruction and asymmetric history limit proved; section 6 extended, four vectors added (24 total), TE4 moved to answered.
-- Next: native raw-insertion/empty-removal domain (TE3), then largest unclosed metrics/layout/lifecycle bodies (TE5-TE8); retain attribution-only closure for TE8.
+- Done: eeeaf4ac reconciles attribution and proves TE4 history eviction; original 20 vectors preserved.
+- Done: TE3 numeric failure domains, TE6 mixed password/hit coordinates and TE7 cleanup/image/color/callback failures specified; ten further vectors (34 total).
+- Next: largest unclosed metrics/layout/selection/navigation bodies (TE5), then remaining thin/helper inventory dispositions (TE8); no whole-owner promotion.
 - Main: C:/Users/tlori/FreeCity4; WT: C:/Users/tlori/FreeCity4/.claude/worktrees/re-textedit4.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-textedit4-r2-manifest.json.
 - q.py cannot start Bash (E_ACCESSDENIED); use bounded PowerShell shell calls.
