@@ -246,7 +246,7 @@ fn:GZCOM_CreatecSC4RegionalCity	region	region	regional-city.md	-	-	-
 fn:SC4ReadRegionalCity	region	region	regional-city.md, region.md, foundations.md	-	-	-
 fn:SC4WriteRegionalCity	region	region	region.md	-	-	-
 fn:SC4CreateCitySerialNumber	region	region	region.md	-	-	-
-cSC4Region	region	region	region.md	-	-	-
+cSC4Region	region	region	region-model.md, region.md	-	-	-
 cSC4Region*	region	region	-	-	-	-
 cSC4WinRegionScreen	region	region	region-screen.md	-	-	-
 cSC4WinRegion*	region	region	-	-	-	-
