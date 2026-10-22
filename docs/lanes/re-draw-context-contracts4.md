@@ -2,7 +2,20 @@
 |---|---|---|---|
 | re-draw-context-contracts4 (DC3–DC8 native contracts) | `re-draw-context-contracts4` / (RE spec lane, detached worktree) | wip: native proof a0a0d989, a81f458d, 14f8afbe; DC4–DC7 answered DIFFERS; questions check and diff check passed; cargo/clippy/ctest and game n/a; no ABI change | (1) Attribute stack mutation or establish no population; (2) finish exact mixed-transform and raw-matrix arithmetic for DC3/DC8. |
 
-## Report
+## Handoff
+
+- Round 2 in progress: resolve only DC3 stack mutation/raw-matrix attribution and DC8 mixed-transform grouping/spills.
+- Prior proof: a0a0d989 lifecycle/combiner bytes; a81f458d inventory/cache order; 14f8afbe DC4–DC7/numerics; 44e79acd report.
+- Done: §8.4 attributes raw-matrix receiver/signature and four callers; exact grouped four-term arithmetic, explicit zero products, binary32 stores, transpose/load and failure/retry order.
+- Next: finish stack access attribution and compact-transform grouped expressions/spills at 0x007D3400.
+- Raw-matrix callers: 005DCE50 border masks; 006572B0/006573B2 underground connection; 0065B5DA underground occupant.
+- Stack replay is non-popping; no Push/Pop signatures established. Whole-byte compact-transform flag tests already proved.
+- Unsupported context Begin/End request already withdrawn (§1.3); callbacks own renderer brackets. DC4–DC7 stay untouched.
+- No engine reads, runtime/coverage/ABI claims or game requests. Worktree stays detached; no ref updates.
+- q.py Bash wrapper fails E_ACCESSDENIED; use bounded PowerShell commands.
+- Active manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-draw-context-contracts4-r2-manifest.json.
+
+## Prior round report
 
 Substantive native evidence is committed in `a0a0d989` (lifecycle and combiner bytes), `a81f458d`
 (inventory, stage defaults, ordered cache/driver effects), and `14f8afbe` (numeric/shade contracts,

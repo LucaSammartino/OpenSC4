@@ -513,6 +513,50 @@ component is unsupported. Exact arithmetic grouping/spill behavior for every mix
 and the raw-matrix path `0x007D4B80` remains open in DC8; the algebraic summary in §8 is not a bitwise
 floating-point recipe for those paths.
 
+### 8.4 Raw-matrix load (`0x007D4B80`, DC3/DC8)
+
+This is an owner operation with one pointer argument to sixteen binary32 values (callee removes four
+argument bytes at `0x007D4F71`). The receiver is the draw context; it is not a stack operation.
+The four direct callers pass their context in ECX and a matrix pointer on the stack: border-mask draw
+at `0x005DCE50`, underground-connection draws at `0x006572B0`/`0x006573B2`, and underground-occupant
+draw at `0x0065B5DA`. These establish a raw-matrix overload; no Begin/End or Push/Pop API follows.
+
+If model-view-valid `+0x138` is zero, fetch the camera view transform, increment the composed counter
+byte `+0x174` modulo 256, and copy its thirteen payload floats and whole flag byte into `+0x178` through
+`+0x1A8` and `+0x175` (`0x007D4B8A`–`0x007D4C1F`). Otherwise use the stored composed payload.
+Unlike the compact overload's matrix expansion, this path **does not inspect flags or multiply by
+the compact scale**. It neither records a model compact transform nor composes back into its payload.
+
+For an unambiguous arithmetic description, number the input floats M[0] through M[15] in increasing
+address order. Let v[i,j] be the stored rotation at owner `+0x178 + 4(3i+j)`, and t[i] the stored
+translation at `+0x19C + 4i`, for i,j in 0..2. Products and each indicated addition are separate x87
+operations under the ambient control word; intermediate expressions stay in x87 registers unless a
+binary32 store is stated. There is no fused multiply-add. Let Q denote a binary32 store under the
+ambient rounding mode. For i in 0..2 and j in 0..3 define p0=v[i,0]×M[j], p1=v[i,1]×M[4+j],
+p2=v[i,2]×M[8+j], and p3=t[i]×M[12+j]. The temporary row values are:
+
+| Temporary | Exact grouping before its single Q store |
+|---|---|
+| B[i,0] | Q(((p1+p3)+p2)+p0) |
+| B[i,j], j=1,2,3 | Q(((p2+p1)+p0)+p3) |
+| B[3,0] | Q(((M[4]+M[0])+M[8])×(+0.0)+M[12]) |
+| B[3,j], j=1,2,3 | Q(((M[j]+M[8+j])+M[4+j])×(+0.0)+M[12+j]) |
+
+The zero is executable binary32 data `0x00A81054` (bits `0x00000000`), explicitly multiplied at
+`0x007D4C80`, `0x007D4CBE`, `0x007D4CD0`, `0x007D4CE6`. Do not replace these expressions by a direct
+copy for nonfinite inputs. The four-term row grouping is established at `0x007D4CF3`–`0x007D4F29`.
+Every B entry is stored to binary32 before the transpose; no partial sum or product within those
+four-term expressions has a binary32 spill. For example B[2,2]/B[2,3] spill at `0x007D4D58`/`0x007D4D7E`,
+B[1,2]/B[1,3] at `0x007D4DE7`/`0x007D4E0D`, and B[0,0..3] at
+`0x007D4E32`/`0x007D4E5E`/`0x007D4E88`/`0x007D4EEE`; other live results spill in the final drain.
+
+Write owner matrix float [4j+i] := B[i,j], then call driver slot 41 once with owner `+0x1AC`
+(`0x007D4F30`–`0x007D4F5B`). No MatrixMode call occurs. The completed matrix is already stored when the
+driver runs. Ignore its return value, then clear model-view-valid (`0x007D4F62`); no status is returned,
+rollback performed or cleanup call issued. A normal-returning driver failure follows this same mutation
+order. An equal retry still performs the load, and the cleared byte causes a camera refresh. If a call
+does not return normally, there is no evidenced guaranteed post-call clear.
+
 ## 9. Drawing *[compat]*
 
 ### 9.1 Primitives and meshes
