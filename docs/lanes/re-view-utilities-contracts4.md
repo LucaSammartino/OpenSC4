@@ -11,6 +11,7 @@ No engine files were read or edited. No tools, ownership maps, ABI tables, HANDO
 Commits: `f16fdbb5` proves rotation, failed-ray writes and independent cache sources; `ade418c6`
 publishes numeric/geometry/resource contracts and the complete measured family checklist. This final
 report commit includes final source review, coordinate-heading ordering and documentation validation.
+Final follow-up records the narrowed-draw null-renderer/null-camera failure and retained stale state.
 
 ### Measured ownership
 

@@ -329,6 +329,15 @@ points (`+0x120`) are computed if not cached. Otherwise (flag := 1), with c the 
 
 `IsBoundingBoxInDrawFrustum` then tests against this frustum.
 
+**Failure state:** no valid-flag check precedes this operation. The whole-viewport branch copies the
+cached view state and runs its ground wrappers even with an absent renderer/camera; failed wrappers
+have the indeterminate coordinates described in §4.1. The narrowed branch directly dereferences the
+borrowed renderer to ask for its camera (`0x007FA31D`–`0x007FA322`), so a null renderer can fault.
+If that renderer returns a null camera, it exits after the initial rectangle stores/cache invalidations,
+before writing the narrowed flag, draw geometry or draw ground corners (`0x007FA325`–`0x007FA32B`).
+Those earlier draw fields remain stale; no zero-frustum or false-return contract exists. Likewise a
+failed §2 camera update clears validity/caches but retains previously computed geometry.
+
 ## 6. Visible area (`GetGroundPlaneVisibleAreaRectangle(&innerMin, &innerMax, &outerMin, &outerMax)`, `0x007F9B40`)
 
 Computed once per camera update or draw rectangle (cache flag `+0x444`) from the ground points P₀–P₃ under the
