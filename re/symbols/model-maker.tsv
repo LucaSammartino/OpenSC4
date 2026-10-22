@@ -1,0 +1,86 @@
+va	name	evidence	mac_x86
+0048c960	cSC4ModelBackgroundLoader::Pause	model-maker.md §15.5; descriptive name, no Mac match; +0x28 := 1	
+0048c970	cSC4ModelBackgroundLoader::Resume	model-maker.md §15.5; descriptive name, no Mac match; +0x28 := 0	
+0048ca40	cSC4ModelBackgroundLoader::ExpandLoadRect	model-maker.md §15.3; max(min_z, M x factor_z)	
+0048cc30	cSC4ModelBackgroundLoader::ClearResourceSet	model-maker.md §15.3	
+0048cc90	cSC4ModelBackgroundLoader::Shutdown	model-maker.md §15.1; descriptive name	
+0048cd60	cSC4ModelBackgroundLoader::CancelAllLoadTasks	model-maker.md §15.3	
+0048cf10	cSC4ModelBackgroundLoader::ReadTunableValues	model-maker.md §15.2; exemplar 0x6534284A/0x7A4A8458/0x0B579C20 + speed	
+0048d630	cSC4ModelBackgroundLoader::LoadResourcesForOccupant	model-maker.md §15.4	
+0048d800	cSC4ModelBackgroundLoader::ProcessLoadedCells	model-maker.md §15.5; minimum cells, then the time limit	
+0048da50	cSC4ModelBackgroundLoader::PostCommand	model-maker.md §15.4; descriptive name, no Mac match; appends a command for the main thread	
+0048dae0	cSC4ModelBackgroundLoader::StartLoadingForZoomAndRotation	model-maker.md §15.3	
+0048dcd0	cSC4ModelBackgroundLoader::ContinueLoadTask	model-maker.md §15.4; spiral, cost 1 or 0.1, 1000 cells waiting	
+0048e170	cSC4ModelBackgroundLoader::ProcessBackgroundThreadToMainThreadCommunications	model-maker.md §15.5; message 0x86AD10EE	
+0048e2b0	cSC4ModelBackgroundLoader::cSC4ModelBackgroundLoader	model-maker.md §15.1; 0x188 bytes, default curves	
+0048e460	cSC4ModelBackgroundLoader::ThreadFunction	model-maker.md §15.4; slice time, budget, commands 0-4, sleep	
+0048e8f0	cSC4ModelBackgroundLoader::StaticBackgroundThreadFunction	model-maker.md §15.1; thread entry	
+0048e900	cSC4ModelBackgroundLoader::Init	model-maker.md §15.1; tuning, filter, thread start	
+0048ea60	cSC4ModelMaker::GetGZCLSID	model-maker.md §1; descriptive name; returns 0xA9C741B3	
+0048ea70	cSC4ModelMaker::QueryInterface	model-maker.md §1; descriptive name; primary slot 0; 0xA9C741B3, 1, 0x452294AA, 0xE4FDA3D4 (this + 4)	
+0048eae0	cSC4ModelBackgroundLoader::RefocusLoadToNewViewLocation	model-maker.md §10.2 (a model-maker method; the export name is kept)	
+0048eb50	cSC4ModelMaker::DetermineLoadRadiusAroundVisibleArea	model-maker.md §7.1; max(min, floor(M / 2^(z+1))), min 8, 8, 6, 6, 6	
+0048ed20	cSC4ModelMaker::ComputeCityExclusionRects	model-maker.md §7.3; four rectangles around the load rectangle	
+0048ef60	cSC4ModelMaker::Write	model-maker.md §4; descriptive name; version 2, the fields of §4	
+0048f090	cSC4ModelMaker::Read	model-maker.md §4; version 2 only	
+0048f290	cSC4ModelMaker::ChangeModels	model-maker.md §12.4; scene slot 31 with the change kind (default 3)	
+0048f4d0	cSC4ModelMaker::LoadNetworkModels	model-maker.md §12.6; networks and power poles	
+0048f5b0	cSC4ModelMaker::LoadUndergroundConnectionModels	model-maker.md §12.6; pipe and subway connections	
+0048f660	cSC4ModelMaker::UpdateModelLoadRect	model-maker.md §7.2	
+0048f920	cSC4ModelMaker::CreatePlaceHolderModelInstance	model-maker.md §20 remainder; missing model data	
+0048fa40	cSC4ModelMaker::FindModelTransform	model-maker.md §20 remainder; the instance transform	
+0048fff0	cSC4ModelMaker::DoBuildingCompletionChanged	model-maker.md §9.5; sinks unfinished buildings by (1 - c) x extent x 1.05	
+004902e0	cSC4ModelMaker::AddModel	model-maker.md §20 remainder (outline §14); animated model or S3D key, fallback key, kRenderModelThreshold, placeholder, transform	
+00490c70	cSC4ModelMaker::LoadModelsCommon	model-maker.md §20 remainder; instance flags 0x40 buildings, 0x80 flora, 0x20 props	
+00491040	cSC4ModelMaker::LoadFoundationModels	model-maker.md §20 remainder; foundations	
+00491230	cSC4ModelMaker::CreateOccupantShadow	model-maker.md §20 remainder; power poles	
+00491a30	cSC4ModelMaker::LoadPropModels	model-maker.md §12.2; props	
+00491ad0	cSC4ModelMaker::cSC4ModelMaker	model-maker.md §2; vtables 0x00A8EDF8 and 0x00A8EDE0 (save)	
+00491c90	cSC4ModelMaker::~cSC4ModelMaker	model-maker.md §3.4; descriptive name; the destructor body	
+00491cd0	cSC4ModelMaker::DoTerrainHidingForCells	model-maker.md §20 remainder	
+00492440	cSC4ModelMaker::DoTerrainHidingForOccupantCells	model-maker.md §13.1	
+00492530	cSC4ModelMaker::UnloadUnnecessaryModels	model-maker.md §7.4; free memory <= 32, exclusion rectangles	
+00492780	cSC4ModelMaker::RemoveModelsInappropriateForRotation	model-maker.md §7.5	
+004929b0	GZCOM_CreatecSC4ModelMaker	model-maker.md §1	
+004929d0	cSC4ModelMaker::~cSC4ModelMaker (deleting destructor)	model-maker.md §3.4; descriptive name; 0x00491C90 then GlobalHeapFree on bit 0	
+004929f0	cSC4ModelMaker::Shutdown	model-maker.md §3.3; descriptive name	
+00492cc0	cSC4ModelMaker::RebuildDynamicTexture	model-maker.md §20 remainder; five state textures	
+004930f0	cSC4ModelMaker::DoLightingChanged	model-maker.md §11.1; 0.0001 threshold	
+00493340	cSC4ModelMaker::RemoveModels	model-maker.md §12.1; terrain un-hidden, instances released	
+004933a0	cSC4ModelMaker::ApplyStateEffect	model-maker.md §9.1; descriptive name, no Mac match; property 0x09F00E59, states 0 and 2-6	
+00493750	cSC4ModelMaker::DoOccupantDestroyed	model-maker.md §8.2	
+004937d0	cSC4ModelMaker::DoOccupantMoved	model-maker.md §8.8 (outline); flora, props and buildings	
+00493a00	cSC4ModelMaker::DoOccupantHilighted	model-maker.md §8.9	
+00493b90	cSC4ModelMaker::DoOccupantShown	model-maker.md §8.4; occupant flag 2, terrain hiding, handle visibility	
+00493c80	cSC4ModelMaker::ApplyStateEffectToModels	model-maker.md §9.3; by occupant type	
+00493d60	cSC4ModelMaker::DoLotStateChanged	model-maker.md §9.2	
+00493ec0	cSC4ModelMaker::FinalRelease	model-maker.md §1	
+00493ef0	cSC4ModelMaker::CreateOccupantFilters	model-maker.md §6.1	
+00494290	cSC4ModelMaker::DoOccupantInserted	model-maker.md §8.3; descriptive name, no Mac match; 0x99EF1142	
+00494310	cSC4ModelMaker::DoOccupantRemoved	model-maker.md §8.3; descriptive name, no Mac match; 0x99EF1143	
+00494390	cSC4ModelMaker::AddModels	model-maker.md §20 remainder (outline §14); by occupant type, zoom and rotation masks, load rectangle test	
+004947f0	cSC4ModelMaker::FinalRelease (thunk)	model-maker.md §1; descriptive name; this - 4	
+00494800	cSC4ModelMaker::Init	model-maker.md §3.1; once; filters, PostCityInit/PreSave/PostSave, kModelLODOffset 0-2, load radii	
+00494900	cSC4ModelMaker::DoPropStateChanged	model-maker.md §9.4; property 0x4A70D491	
+00494970	cSC4ModelMaker::DoOccupantCreated	model-maker.md §8.1	
+00494a30	cSC4ModelMaker::DoOccupantChanged	model-maker.md §8.5	
+00494b30	cSC4ModelMaker::EnableDeferredOccupantOperations	model-maker.md §8.7; replays the queue	
+00494da0	cSC4ModelMaker::DoPostCityInit	model-maker.md §3.2; -backgroundLoader, -IgnoreMissingModelDataBugs, loader, coordinator, existing occupants, subscriptions	
+00495360	cSC4ModelMaker::OccupantFilterIterationFunction	model-maker.md §6.3	
+00495430	cSC4ModelMaker::LoadOccupantModelsForZoomAndRotation	model-maker.md §10.4	
+00495970	cSC4ModelMaker::DoDeferOccupantOperations	model-maker.md §8.6; descriptive name, no Mac match; 0x49D968C4 counter +0xF0	
+004959c0	cSC4ModelMaker::DoViewFilterChange	model-maker.md §10.3	
+00495b00	cSC4ModelMaker::DoZoomAndRotationChange	model-maker.md §10.1	
+00495d90	cSC4ModelMaker::DoViewTranslationChange	model-maker.md §10.2	
+00495f10	cSC4ModelMaker::DoMessage	model-maker.md §5; primary slot 3	
+00496590	cSC4ModelMakerUtility::GetModelProperty1Instance	graphics-formats.md §4.2; model-maker.md §14	
+004965b0	cSC4ModelMakerUtility::FoundationOccupantUsesBuildingStyleModels	graphics-formats.md §4.2; model-maker.md §14	
+004965f0	cSC4ModelMakerUtility::OccupantUsesBuildingStyleModels	graphics-formats.md §4.2; model-maker.md §14	
+00496670	cSC4ModelMakerUtility::GetOccupantOrientationAndState	graphics-formats.md §4.2; model-maker.md §14	
+00496830	cSC4ModelMakerUtility::GetModelInstanceID	graphics-formats.md §4.2; model-maker.md §14	
+00496950	cSC4ModelMakerUtility::GetOccupantModelClass	graphics-formats.md §4.2; model-maker.md §14	
+00496ac0	cSC4ModelMakerUtility::HasOccupantModelClass	graphics-formats.md §4.2; model-maker.md §14	
+00496c90	cSC4ModelMakerUtility::GetAllModelInstanceIDs	graphics-formats.md §4.2; model-maker.md §14	
+00497120	cSC4ModelMakerUtility::GetAllModelInstanceIDs	graphics-formats.md §4.2; model-maker.md §14	
+00497180	cSC4ModelMakerUtility::GetModelInstanceID	graphics-formats.md §4.2; model-maker.md §14	
+005bfe60	std::vector<unsigned_long,std::allocator<unsigned_long>>::insert	model-maker.md §15.4; shared vector insert, called by four classes (PostCommand, cSC4RegionalCity, cSC4WinMapView, cSC4LightingManager); not a loader method	
