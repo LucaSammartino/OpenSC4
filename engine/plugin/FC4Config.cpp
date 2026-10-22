@@ -341,6 +341,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "simgrids_shadow",
                                   // glue-dates4: independent native date interface probe
                                   "dates_probe",
+                                  // verify-dbpf-native4: read-only public packed-file comparison.
+                                  "dbpf_native", "dbpf_native_fixtures", "dbpf_native_file",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
