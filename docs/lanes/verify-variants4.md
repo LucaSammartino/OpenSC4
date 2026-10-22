@@ -1,6 +1,17 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-variants4 (bounded native variants) | `verify-variants4` / detached engine lane | BLOCKED round2: stable cargo4947/0 clippy0 ctest68/68; same-request train97 corrupt/ref0; candidate minus terrain clean2032/ref0/full save/shutdown; native322/350,28 HG7 unchanged; ABI unchanged | (1) Complete terrain/view compatibility contract. (2) Repeat immutable native/own/current40 ON+OFF2032/ref0, save/shutdown and supported reload. HG4-HG7 remain open; no readiness or coverage credit. |
+| verify-variants4 (bounded native variants) | `verify-variants4` / detached engine lane | in progress round3: retained round1/2 evidence below; tracing production native count mapping; baseline all started | Correct production raw count, test and reproduce350 comparisons, exact house40 ON/OFF save/shutdown/reload |
+
+## Handoff
+- Goal: final round3; published scalar GetCount=0, array length; preserve logical count consumers.
+- Done: retained HEAD32bbaa27; read data-formats5.2/9 text/10.5 item42 and foundations4.1 exact count rules.
+- Baseline qbuild all started19:17; inspect qbuild/fc4verify logs for completion.
+- Next: audit cFC4Variant/FC4PropertyHolder, core Variant, CAPI props and FC4VariantShadow; code by call30.
+- Exact house40 from task excludes terrain/dispatch/effects and includes all default keys; validate equality before submission.
+- Original profile cap exhausted3/3; use corrected house40 only. Unique labels, preserve completed verdict, no qwait.
+- Prior scalar mismatches28 and opt-in profile crashes remain evidence; HG4-HG6 unresolved. HG7 already published.
+- Detached HEAD; no shared tools/maps/defaults/ABI tables, no terrain edits, no subagents, no restart/merge/push.
+- Main q.py Bash transport denied access; use capped PowerShell local commands.
 
 ## Round2 report: terrain/view integration blocker
 
