@@ -299,7 +299,8 @@ insertion is LF. It does not change insertion line or selection itself.
 New native byte/word stepping, line/index conversion, horizontal visible
 spans, scroll offsets, scrollbar geometry/range arithmetic, page scrolling
 and drag-timer routing are specified in [text-edit-layout.md](text-edit-layout.md).
-The remaining TE5 paths are listed there individually.
+Foreign TE5 composition results are parked there individually; the native
+owner navigation/view paths have final-round instruction proofs.
 
 CalculateVisibleWidth/Height (`0x009BCBC5`, `0x009BCC0E`) subtract twice
 the corresponding gutter plus the orthogonal scrollbar thickness from
@@ -359,7 +360,8 @@ line when above, or insertionLine-visibleRows+1 when below the visible
 range. In unwrapped horizontal-pixel mode, it adds a negative caret x to
 scroll offset, or adds caretX-visibleWidth when x >= visibleWidth.
 Single-line bit 0x200 uses a separate character-offset scroll path and a
-three-quarter-width target; its helper contracts remain TE5.
+three-quarter-width target; the exact strict comparisons and update gate
+are specified in the layout companion.
 
 Automatic scrollbar check (`0x009BE7AF`) adds vertical only with bit 8,
 line count greater than visible rows and nonzero visible width/height;
@@ -674,6 +676,15 @@ inputs and no claims of execution:
 | Text `a` + LF + `b`, starts [0,2]; GetCharacterCountOfLine(0), then (99) | Returns byte spans 2 then 1 |
 | Bit 0x200, selector 0; filter CR LF `x` through string overload | Removes only LF; resulting string CR `x`, removed count 1 |
 | Composition candidate `AB`; consumed length 1 for each; level rejects A and accepts B; initial previous P | A erased, B retained; B's level test still receives previous P; removed count 1 |
+
+Final-round proposed vectors (61-64), also not executed:
+
+| Independent case | Distinguishing expected behavior |
+|---|---|
+| FirstVisible 0, horizontal byte offset 0, pixel offset 5; ScrollToStart | Returns false, leaves pixel offset 5, no update/invalidation |
+| Nonempty starts [0,2], D=3, requested entry count 1; AdjustLinePositionArray | Writes starts[0]=0 but keeps vector length 2; no general shrinking |
+| Stored flags include only bit 1; IsFlagSet(mask 3) | True because any requested bit suffices |
+| Controlled color service records slots; set caret then highlight fill colors | Caret setter uses primary +0x200; highlight setter uses +0x1FC; neither invalidates |
 
 ## 12. Whole-owner checklist and current limits
 

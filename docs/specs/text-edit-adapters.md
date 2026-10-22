@@ -139,3 +139,95 @@ erase, returning total removed bytes. No owner validation of helper bounds,
 UTF16 values, nonprogress or context index is present. The conversion and
 Thai-level helper implementations are explicit foreign inputs, not inferred
 from their names (`0x009BE63C`, `0x009BE66D`, `0x009BE689`).
+
+## Flags, images and color adapters
+
+ClearFlag (`0x009BC837`, T) does nothing if no requested bit is currently
+set. Otherwise it calls text SetFlags +0x134 with flags AND NOT mask.
+There is no explicit Boolean return construction. IsFlagSet
+(`0x009BC854`) returns true if **any** mask bit is set, not only if all are.
+
+GetScrollBarImageVertical/Horizontal (`0x009BC864/88E`, T) write the
+stored image pointer then copy all four saved rectangle words, even if the
+pointer is null. They return whether the pointer output is nonnull **after**
+the rectangle copy. Images are borrowed, with no AddRef. Both outputs are
+required; ordinary separate outputs avoid aliasing the pointer with the
+rectangle copy. Source fields are W+0x1DC/+0x1E4 vertically and
+W+0x1E0/+0x1F4 horizontally.
+
+GetBackgroundImage (`0x009BC991`, T) writes the stored image pointer
+from T+0xA4 and option **byte** from T+0xA8, in that order, without AddRef
+or output guards. It does not construct a Boolean success value.
+GetFontStyle (`0x009BC94E`, T) returns false without an output write when
+T+0xCC is null; otherwise writes the stored borrowed pointer and returns
+true, without AddRef.
+
+SetFillColor (`0x009BC8DB`, W) calls base SetFillColor and retains its
+Boolean result. If editor bit 0x20 is then set, it additionally invalidates
+through primary +0x170, independent of the base result; it returns the saved
+base result. The editor does not add an identity/no-change shortcut.
+
+SetCaretColor (`0x009BD37A`, T) sends the argument to primary +0x200
+and stores the returned word at W+0x1C0. GetCaretColor (`0x009BD399`)
+sends that stored word through primary +0x1FC, writes the result to its
+required output, and returns true. GetHighlightFillColor (`0x009BD47F`)
+returns primary +0x1FC applied to W+0x1C4 directly, with no output pointer.
+SetHighlightFillColor (`0x009BD495`) also uses **+0x1FC**, applying it to
+the incoming word before storing W+0x1C4. Preserve that measured slot,
+even though the caret setter uses +0x200. None of these four adapters
+invalidates. Conversion primitive semantics remain the base-window boundary.
+
+## Scroll endpoints, geometry and search
+
+The four vertical scroll methods below take T and leave insertion and
+selection unchanged. All successful paths call SetScrollBarValues(false),
+invalidate and return true; false paths do neither. Arithmetic wraps at
+32 bits, including the differences tested as signed.
+
+| Method | Native condition and mutation |
+|---|---|
+| ScrollLineUp, 0x009BDE57 | Only if signed(firstVisible)>0; decrement by one. High-bit values do not decrement. |
+| ScrollLineDown, 0x009BDE87 | Only if signed(lineCount-visibleRows-firstVisible)>0; increment firstVisible by one. |
+| ScrollToStart, 0x009BDFC7 | Only if firstVisible or horizontal byte offset is nonzero; zero firstVisible and both byte/pixel horizontal offsets. A nonzero pixel offset **alone** does not trigger the path. |
+| ScrollToEnd, 0x009BE009 | Only if signed(lineCount-visibleRows-firstVisible)>0; set firstVisible=lineCount-visibleRows and zero both horizontal offsets. Already at/beyond the endpoint does not reset horizontal state. |
+
+RemoveScrollBar (`0x009BCDBA`, W) handles requested nonnull vertical
+then horizontal bars. For each it obtains bar +0x0C, calls primary
++0x40(RemoveChild) with that result, calls the stored bar's Release +0x08,
+then clears the stored pointer. Callback results are ignored. If any bar
+was handled it calls RecalculateAll once after both directions; no attempt
+means no final call. It does not clear the enable bits or explicitly run
+SetScrollBarSizes/Values. No rollback for callback failure is present.
+
+SetArea (`0x009BFCA5`, W) calls base SetArea with all four coordinates,
+then CalculateVisibleWidth and stores W+0x160, RecalculateAll,
+SetScrollBarSizes, SetScrollBarValues(true), and primary invalidation,
+in that order. It does not gate those calls on base success, compare areas
+for equality or return a saved base result. Underlying geometry/failure
+semantics remain in the base-window contract.
+
+GetIndexFromPosition (`0x009BD510`, T) writes zero for empty text.
+Otherwise it asks text +0xEC for line/column from the supplied pixel
+position, then writes lineStarts[line]+column, with wrapping addition and
+no further bound/character clamp. It ignores any status from the pixel
+mapping call; the returned line must index a coherent line-start array.
+It does not move insertion or selection.
+
+AdjustLinePositionArray (`0x009BF2E5`, W) takes a byte increment D and
+requested entry count N. If unsigned N exceeds current count it first
+reads starts[N-2], adds D, and passes N and that fill value to vector resize.
+Thus the ordinary one-entry extension of a nonempty array is safe; a larger
+jump or empty-array extension can read outside the old entries **before**
+resize. If N<=current and N>1 it writes starts[N-1]=starts[N-2]+D without
+shrinking the vector. If N<=1 it writes starts[0]=0 without checking
+emptiness. This method is not a general safe resize API; negative-bit-pattern
+N follows the unsigned excessive-count path. All additions wrap.
+
+FindText (`0x009BE96A`, T) takes byte pointer, byte count, starting
+position and a Boolean. True calls string find `0x004427F0`; false calls
+`0x005C23E0`, both with (pointer,position,count). It returns their result
+only if unsigned result<text byte length, otherwise 0xFFFFFFFF. Thus a
+helper returning exactly text length is converted to not-found. There is
+no owner null-pointer, case-folding, character or selection adjustment.
+Exact search primitive empty-pattern/direction/malformed-buffer semantics
+are parked, not inferred from a typical editor or the helper's label.

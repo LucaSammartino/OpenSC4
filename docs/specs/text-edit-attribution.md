@@ -62,3 +62,27 @@ The 146-label / 19,908-byte name-search result is a **different set**:
 it includes nested/generated/foreign/folded labels and omits unnamed reach
 helpers. It must not be used as the owner denominator. TE8 attribution is
 closed by the actual address join; TE8 method-contract residuals remain.
+
+## Final-round proof disposition (3/3)
+
+Attribution remains **150 / 19,999B**, with no owner-map changes or new
+denominator. The direct inventory now has 97 P (10,136B), 37 P/B (9,279B)
+and zero U rows. Its final reconciliation lists the exact bounded scope of
+all 37 P/B rows. This is a method-contract count, not headline owner credit.
+
+The sixteen additions have the following conservative dispositions:
+
+| Address | Disposition and contract source |
+|---|---|
+| 00994F37, 00994F6E, 009BFB86, 009BFB91, 009BFF47 | P for the five 11B thunks: subtract 0xD8 from incoming T and tail-call SetArea, SetFillColor, QueryInterface, Shutdown, Init respectively. Final-round native instructions prove the entire adjustment bodies; callee bounds still apply. |
+| 009BC5CC (21B) | P: exact space/LF byte predicate, text-edit-layout.md navigation. |
+| 009BD0AF (50B) | P: preceding-LF insertion correction, text-edit.md section 7. |
+| 009BDDF2 (76B) | P: bounded byte copy/count/start-failure branch, text-edit-adapters.md. |
+| 009BDE3E, 009BE9ED, 009BEA0D, 009BF518, 009BFA74, 009BFA92, 009BFABB, 009BFAE3 | B: allocation/initial-line/action range destruction/copy/destructor roles in the measured table and sections 6/10. Full generated-helper copy, allocation-failure, unwind and foreign destruction behavior is not proved by those role/stride observations. |
+
+This is **8 P / 202B** plus **8 B / 382B** among the additions, exactly
+584B; direct and additional body sizes still sum to 19,999B. In particular,
+the 163B destructor has an owner cleanup-order contract, but no full foreign
+destruction/unwind promise. Metadata, role recognition and an adjustment
+thunk do not certify a callee's unproved body. TE5/TE8 are parked at the
+third-round cap: preserve the original worktree, no fourth round or restart.

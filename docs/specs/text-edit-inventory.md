@@ -36,16 +36,16 @@ Addresses and byte counts are metadata, not decompiler listings.
 | 0x009BC79D | 64 | GZOnKillFocus | P/B; section 10; TE7 |
 | 0x009BC7DD | 63 | SetFlag | P/B; section 10; TE7 |
 | 0x009BC81C | 27 | SetFlag | P/B; section 10; TE7 |
-| 0x009BC837 | 29 | ClearFlag | U; TE8 |
-| 0x009BC854 | 16 | IsFlagSet | U; TE8 |
-| 0x009BC864 | 42 | GetScrollBarImageVertical | U; TE8 |
-| 0x009BC88E | 42 | GetScrollBarImageHorizontal | U; TE8 |
-| 0x009BC8DB | 41 | SetFillColor | U; TE8 |
+| 0x009BC837 | 29 | ClearFlag | P; text-edit-adapters.md, conditional full-flags dispatch |
+| 0x009BC854 | 16 | IsFlagSet | P; text-edit-adapters.md, any mask bit |
+| 0x009BC864 | 42 | GetScrollBarImageVertical | P; text-edit-adapters.md, borrowed image/rectangle/write order |
+| 0x009BC88E | 42 | GetScrollBarImageHorizontal | P; text-edit-adapters.md, borrowed image/rectangle/write order |
+| 0x009BC8DB | 41 | SetFillColor | P; text-edit-adapters.md, base result/bit 0x20 invalidate |
 | 0x009BC904 | 74 | SetFontStyle | P/B; section 10; TE7 |
-| 0x009BC94E | 25 | GetFontStyle | U; TE8 |
+| 0x009BC94E | 25 | GetFontStyle | P; text-edit-adapters.md, nullable borrowed output |
 | 0x009BC967 | 20 | SetColor | P; section 10, unchecked color index |
 | 0x009BC97B | 22 | GetColor | P; section 10, unchecked color index/output |
-| 0x009BC991 | 27 | GetBackgroundImage | U; TE8 |
+| 0x009BC991 | 27 | GetBackgroundImage | P; text-edit-adapters.md, borrowed pointer/option byte |
 | 0x009BC9AC | 93 | SetBackgroundImage | P; section 10, identity/ref order and teardown asymmetry |
 | 0x009BCA09 | 48 | SetTextGutterY | P/B; section 10; TE7 |
 | 0x009BCA39 | 50 | InsertText | P/B; sections 6-7; TE3/TE4 |
@@ -64,7 +64,7 @@ Addresses and byte counts are metadata, not decompiler listings.
 | 0x009BCC93 | 28 | StopScrollTimer | P; section 10, running-state gate |
 | 0x009BCCAF | 31 | ScrollTimerCallback | P; section 10, nullable dispatcher boundary |
 | 0x009BCCCE | 236 | DoCursorScroll | P; text-edit-layout.md, thresholds/priority/routing |
-| 0x009BCDBA | 131 | RemoveScrollBar | U; TE8 |
+| 0x009BCDBA | 131 | RemoveScrollBar | P; text-edit-adapters.md, child/remove/release/clear ordering |
 | 0x009BCE3D | 454 | SetScrollBarSizes | P; text-edit-layout.md, four bar-presence cases |
 | 0x009BD003 | 172 | Shutdown | P/B; section 10; TE7 |
 | 0x009BD0E1 | 139 | DoMessage | P/B; section 10; TE7 |
@@ -74,18 +74,18 @@ Addresses and byte counts are metadata, not decompiler listings.
 | 0x009BD1F6 | 130 | GZOnMouseMove | P/B; section 10; TE7 |
 | 0x009BD278 | 129 | SetScrollBarImageVertical | P; section 10, reference/rectangle/callback order |
 | 0x009BD2F9 | 129 | SetScrollBarImageHorizontal | P; section 10, reference/rectangle/callback order |
-| 0x009BD37A | 31 | SetCaretColor | U; TE8 |
-| 0x009BD399 | 32 | GetCaretColor | U; TE8 |
+| 0x009BD37A | 31 | SetCaretColor | P; text-edit-adapters.md, +0x200 conversion/store/no invalidate |
+| 0x009BD399 | 32 | GetCaretColor | P; text-edit-adapters.md, +0x1FC/output/true |
 | 0x009BD3B9 | 7 | GetFont | P; text-edit-adapters.md, borrowed raw font |
 | 0x009BD3C0 | 33 | SetFontColor | P; section 10, converted default color |
 | 0x009BD3E1 | 37 | SetFontColor | P; section 10, indexed conversion/dispatch |
 | 0x009BD406 | 65 | GetFontColor | P; section 10, success-only output write |
 | 0x009BD447 | 56 | ClearFontColor | P; section 10, sentinels and unchecked index |
-| 0x009BD47F | 22 | GetHighlightFillColor | U; TE8 |
-| 0x009BD495 | 31 | SetHighlightFillColor | U; TE8 |
+| 0x009BD47F | 22 | GetHighlightFillColor | P; text-edit-adapters.md, direct +0x1FC result |
+| 0x009BD495 | 31 | SetHighlightFillColor | P; text-edit-adapters.md, measured +0x1FC/store/no invalidate |
 | 0x009BD4B4 | 48 | SetOutlineUse | P; section 10, bit/color and no invalidation |
 | 0x009BD4E4 | 44 | GetOutlineUse | P; section 10, bit and reverse-converted output |
-| 0x009BD510 | 68 | GetIndexFromPosition | U; TE8 |
+| 0x009BD510 | 68 | GetIndexFromPosition | P; text-edit-adapters.md, mapped line-start sum/coherent-array domain |
 | 0x009BD554 | 63 | GetCharacterCountOfLine | P; text-edit-adapters.md, byte span including LF |
 | 0x009BD593 | 125 | GetLineAndColumnFromIndex | P; text-edit-layout.md, valid-index domain/LF branch |
 | 0x009BD610 | 94 | GetIndexFromLineAndColumn | P; text-edit-layout.md, whole-text clamp/status |
@@ -100,12 +100,12 @@ Addresses and byte counts are metadata, not decompiler listings.
 | 0x009BDB83 | 334 | GetHorizontalLineMetrics | P; text-edit-layout.md, exact boundary/width loops |
 | 0x009BDCD1 | 241 | SetScrollBarValues | P; text-edit-layout.md, ranges/division/callback order |
 | 0x009BDDC2 | 48 | GetHorizontalScrollPixels | P; text-edit-layout.md, original-prefix versus pixel offset |
-| 0x009BDE57 | 48 | ScrollLineUp | U; TE8 |
-| 0x009BDE87 | 66 | ScrollLineDown | U; TE8 |
+| 0x009BDE57 | 48 | ScrollLineUp | P; text-edit-adapters.md, signed positive first-visible gate |
+| 0x009BDE87 | 66 | ScrollLineDown | P; text-edit-adapters.md, signed remaining-row gate |
 | 0x009BDEC9 | 112 | ScrollLeft | P; text-edit-layout.md, character/pixel modes and no zero clamp |
 | 0x009BDF39 | 142 | ScrollRight | P; text-edit-layout.md, visible-width cap |
-| 0x009BDFC7 | 66 | ScrollToStart | U; TE8 |
-| 0x009BE009 | 90 | ScrollToEnd | U; TE8 |
+| 0x009BDFC7 | 66 | ScrollToStart | P; text-edit-adapters.md, byte/vertical gate ignores pixel-only offset |
+| 0x009BE009 | 90 | ScrollToEnd | P; text-edit-adapters.md, signed gate and horizontal reset |
 | 0x009BE063 | 70 | ScrollPageUp | P; text-edit-layout.md, native status/update domain |
 | 0x009BE0A9 | 104 | ScrollPageDown | P; text-edit-layout.md, signed gate/uncapped increment |
 | 0x009BE111 | 104 | ResizeWindowForExactLineHeights | P; text-edit-adapters.md, unsigned division/minimum-one/zero-height failure |
@@ -119,11 +119,11 @@ Addresses and byte counts are metadata, not decompiler listings.
 | 0x009BE7AF | 179 | TestForPossibleScrollBarAdditionOrRemoval | P/B; section 8; TE5 |
 | 0x009BE862 | 227 | GZOnMouseDownL | P/B; section 10; TE7 |
 | 0x009BE945 | 37 | UpdateScrollBarsAndWindowPosition | P; text-edit-adapters.md, initialization gate/unconditional invalidate |
-| 0x009BE96A | 53 | FindText | U; TE8 |
+| 0x009BE96A | 53 | FindText | P/B; text-edit-adapters.md, primitive routing/result filter; foreign search (TE8) |
 | 0x009BE99F | 16 | ShowWindow | P; text-edit-adapters.md, update before base show/hide |
 | 0x009BEA28 | 1850 | GZPaint | P/B; section 9; TE6 |
 | 0x009BF162 | 387 | GetLineAndColumnFromPosition | P; section 9, numeric/pixel/password branches |
-| 0x009BF2E5 | 80 | AdjustLinePositionArray | U; TE8 |
+| 0x009BF2E5 | 80 | AdjustLinePositionArray | P; text-edit-adapters.md, pre-resize indexed read/unsafe grow domains |
 | 0x009BF335 | 171 | RemoveBadCharacters | P/B; text-edit-adapters.md, LF chunk filtering/copy primitive boundary |
 | 0x009BF3E0 | 312 | CalculateAllLineLengths | P/B; section 8; TE5 |
 | 0x009BF578 | 63 | RemoveBadCharacters | P; text-edit-adapters.md, buffer delegation/resize |
@@ -132,7 +132,7 @@ Addresses and byte counts are metadata, not decompiler listings.
 | 0x009BF8A8 | 227 | RemoveText | P/B; sections 6-7; TE3/TE4 |
 | 0x009BF98B | 233 | RecalculateAll | P/B; section 8; TE5 |
 | 0x009BFB9C | 265 | Init | P/B; section 10; TE7 |
-| 0x009BFCA5 | 74 | SetArea | U; TE8 |
+| 0x009BFCA5 | 74 | SetArea | P; text-edit-adapters.md, unconditional base/layout/bar/invalidation order |
 | 0x009BFCEF | 215 | SetFlags | P/B; section 10; TE7 |
 | 0x009BFDC6 | 61 | SetFont | P/B; section 10; TE7 |
 | 0x009BFE03 | 72 | SetTextGutterX | P/B; section 10; TE7 |
@@ -189,6 +189,31 @@ Inherited base/stub slots are not additional primary text-editor bodies.
 
 ## Whole-owner acceptance checklist
 
+Final round 3/3 direct-body reconciliation: **97 P / 10,136B**, **37 P/B /
+9,279B**, **0 U**; together 134 / 19,415B. A P/B row contains a substantive
+owner or call-site contract with bounded dependencies; it is not counted as
+a complete body/owner proof. Historical TE3/TE4/TE6/TE7 references in rows
+name the questions that motivated their contracts; those questions are
+answered, not newly reopened. The remaining exact scope is:
+
+| Direct P/B body group (addresses identify every row) | Bounded dependency / unclosed scope |
+|---|---|
+| Input/focus: 009BC6D8, 009BC705, 009BC75D, 009BC79D, 009BD1CD, 009BD1F6, 009BE862 | Manager/capture, focus, timer delivery and callback/reentrancy behavior; section 10 specifies owner gates and calls, not foreign delivery outcomes. |
+| Flags/font/gutters: 009BC7DD, 009BC81C, 009BC904, 009BCA09, 009BFCEF, 009BFDC6, 009BFE03 | Base geometry/flag effects, foreign font/style reference and metric outcomes, recalc/bar callbacks. Do not promote foreign implementations from owner ordering. |
+| Layout: 009BCBC5, 009BCC0E, 009BD19B, 009BE179, 009BE239, 009BE7AF, 009BF3E0, 009BF98B | Window dimensions/bar thickness, font prefix/wrapping/height and service callbacks remain controlled inputs; progress and invalid/incoherent array domains are not universal recovery promises. |
+| Raw/history: 009BCA39, 009BCA6B, 009BCA9D, 009BF8A8, 009C027E, 009C0396 | Wrapper/replay call contracts are present; generated vector/action copy/allocation failure and partial-update/unwind semantics remain unproved. |
+| Lifecycle/messages: 009BD003, 009BD0E1, 009BFB9C, 009BFF52 | Owner cleanup/forwarding order is present; base lifecycle, timer cancellation/late delivery and external callbacks/allocations are not specified here. |
+| Composition/filter/search: 009BE614, 009BF335, 009BE96A | TE5 UTF16/Thai helper values, lib::_strncpy exact padding/termination, 004427F0/005C23E0 empty-pattern/direction/error behavior. |
+| Paint/key: 009BEA28, 009C0A95 | Owner paint/key branches and byte/cache behavior are present; font raster/draw/clip, base conversions, dispatch/clipboard service and foreign composed-motion outcomes remain boundaries. |
+
+No P/B row is promoted merely because it was inventoried, renamed or cited
+by another method. Eight additional attributed thunks/helpers have their
+small body contracts documented; eight retain bounded roles, including
+generated-action failure/copy scope, in text-edit-attribution.md. The folded
+maximum setter is specified but remains outside the actual 150-body set.
+Thus zero direct U rows does **not** close TE5/TE8 or authorize whole-owner
+coverage. The exact parked questions take precedence over an aggregate.
+
 - [x] Trace largest actual primary methods first: key handling 2938B, paint
   1850B, member initialization 471B, scrollbar sizes 454B, raw insertion
   447B, high-level insertion 437B, AddScrollBar 413B, SetText 399B.
@@ -200,8 +225,11 @@ Inherited base/stub slots are not additional primary text-editor bodies.
   output, exact address/size join and primary helper/vtable evidence (TE8).
 - [x] Prove raw-mutation domains, history eviction, mixed password coordinates
   and owner resource/callback failure semantics (TE3/TE4/TE6/TE7).
-- [ ] Complete remaining U/B method contracts, encoding/composition and the
-  individually named navigation/resource residuals (TE1/TE5/TE8).
+- [x] Publish a method-specific contract for each direct entry, including
+  exact label/signature corrections and valid/unsafe domains; TE1 answered.
+- [ ] Complete all P/B dependencies and the generated-helper failure/copy
+  contracts; exact residuals TE5/TE8 are parked at final round 3/3. A partial
+  body is not complete-owner evidence. No fourth round; preserve worktree.
 - [ ] Implementation, conformance execution, shadow/game verification and
   replacement: none performed or claimed by this RE-only lane.
 
