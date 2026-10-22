@@ -337,8 +337,11 @@ not rewrite byte 6. Only clear-marking or Init refreshes these shared states; Up
 
 For key k and stride s, x = binary32(signed32(k % s)) × 16, z = binary32(signed32(k / s)) × 16. Corner height
 is selected from the two live terrain render arrays at globals `0x00B4C758`/`0x00B4C75C`, each with 32-byte
-records and binary32 height at +4: take their maximum for the corner index (ordinary finite inputs; NaN operand
-selection remains a residual). Plain helper `0x00750820` supplies corners in order NW, NE, SE, SW; textured
+records and binary32 height at +4. Let A be the first array's height and B the second's: choose B only when
+A is ordered strictly less than B; otherwise copy A's original 32 bits. Thus a NaN in A propagates, a NaN
+only in B is ignored, and equal signed zeros preserve A's sign. This is not an operand-independent maximum.
+The x87 status test uses C0/C2 parity (`0x0075086A–0x0075088D`, `0x007509AA–0x007509C3`), repeated at
+the other corners. Plain helper `0x00750820` supplies corners in order NW, NE, SE, SW; textured
 helper `0x00750960` supplies NW, SW, SE, NE. Corner indices are k, k+1, k+s+1, k+s, reordered accordingly.
 No normal is supplied in either vertex stream. Plain format token 1 is position plus packed colour; textured
 token 2 is position plus two texture coordinates (`0x0075096E–0x00750A9E`, `0x00751417–0x00751450`).
@@ -355,6 +358,21 @@ diagonal from (x,z). False gives `(0,3,2,0,2,1)`, true `(0,3,1,1,3,2)`; there ar
 for plain/textured at `0x00AB42B4–0x00AB42E3`. No per-tile frustum test occurs in these bodies. Traversal is
 native hash-table bucket order ascending, linked-node order inside each bucket, **not sorted key order**.
 
+**Submission history.** The constructor's requested 100 buckets becomes **193**, the first prime not less
+than 100 (`0x00829BC0`, lower-bound helper `0x0079FA90`, prime data `0x00A829B0–0x00A82A1F`). Hashing
+is unsigned32(key) modulo bucket count. An existing-key update preserves position and does not resize;
+an absent-key insertion first requests capacity for size+1, then prepends a node (plain 12 bytes, textured
+44 bytes) to its bucket (`0x007515E0–0x00751640`, `0x00750C30`, `0x00750BC0`). When size+1 exceeds
+bucket count, choose the first prime not less than size+1; if none, use 4294967291. Rehash visits old buckets
+ascending and repeatedly removes each old head, prepending it to its new bucket. Consequently collisions
+can reverse at growth, and nodes from a later old bucket precede nodes from an earlier bucket when they
+collide in the new table (`0x004F0940–0x004F0A26`). No node-address comparison participates. Clear frees
+all nodes and zeroes count and heads, but **retains bucket count** (`0x008EBA60–0x008EBAB3`), so clearing
+a previously grown selection is not equivalent to a fresh constructor for later submission order.
+The capacity ladder is 53,97,193,389,769,1543,3079,6151,12289,24593,49157,98317,196613,393241,
+786433,1572869,3145739,6291469,12582917,25165843,50331653,100663319,201326611,402653189,
+805306457,1610612741,3221225473,4294967291. There is no checked allocation-failure return in these insertions.
+
 The textured binding cache lasts one draw call: initial key `(0,0,0)`, binding null; on key change release the
 old binding and request the new key from factory slot 6. False acquisition skips this tile. Repeated adjacent
 equal keys reuse the cached binding, or keep skipping after failure without retry. A first all-zero key does
@@ -367,8 +385,12 @@ Plain marking's 32-bit value is used as an **unchecked palette index**, not a pa
 red/green/blue/yellow/black; alpha table is `(0.5,0.5,0.5,0.5,1)` at `0x00AB42E4`. RGB values are converted
 to packed BGRA bytes using q = low32(bits(binary32(value + 49152)) − `0x47400000`), byte = low8(q − (q >> 8));
 alpha uses the same conversion. This gives 255 for 1 and 128 for 0.5. There is no clamp or palette bounds check
-(`0x0075110E–0x00751413`). Dynamic black-entry RGB initialization and hash allocation/rehash ordering require
-further proof before whole selection-draw equivalence; WR7 stays open for those and NaN height selection.
+(`0x0075110E–0x00751413`). First plain draw copies RGB triples into the shared palette once, guarded by bit 0
+at `0x00B4BDFC` (`0x00750FC0–0x00751084`). Entries 0..3 copy the executable's red/green/blue/yellow
+constants at `0x00B0D6B4–0x00B0D6E3`; entry 4 copies `0x00B4BD94–0x00B4BD9F`, process-zero-filled
+storage (PE section virtual tail). Each of those three source addresses has only its copy load in the exported
+instruction stream and its address is not otherwise present as an immediate in the executable. Their initial
+triple is therefore (0,0,0); no owner path changes it. This palette survives instance Shutdown/destruction.
 
 ### 2.4 Lifecycle evidence and residual (WR8)
 
@@ -446,3 +468,11 @@ bit 1 is a temporary trace visit mask here, not evidence that it means water.
 15. **WR10 thresholds:** accumulated edit area 0 plus area 12 returns without union. A subsequent area 1
     resets the accumulated area and performs contact. Armed clock exactly 2000000 does not rebuild; one more
     unit does. Snapshot `0xFFFFFFF0` and minimum 50 give wrapped threshold 234: current counter 100 does not arm.
+16. **WR7 operand identity:** A=`0x7FC01234`, B=5 copies `0x7FC01234`; A=5, B=that NaN copies 5.
+    A=-0, B=+0 copies `0x80000000` for either vertex stream. These distinguish operand-independent maxima.
+17. **WR7 history:** in a fresh table insert keys 0,193,386: submission order is 386,193,0. Updating 193
+    preserves that order. Insert all keys 0..192, then key 193: growth to 389 gives ascending key order
+    0..193. Clear that grown table, insert 0 then 193: order is 0,193; the same pair in a fresh table draws
+    193,0. This distinguishes retained capacity from rebuilding a table on clear.
+18. **WR7 palette:** the first plain draw with index 4 submits packed opaque black `0xFF000000`, including
+    when no prior draw initialized any of the other palette entries.

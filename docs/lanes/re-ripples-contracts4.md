@@ -1,12 +1,13 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-ripples-contracts4: exact ripple and selection contracts | Codex / `re-ripples-contracts4` (RE spec lane; reserved detached worktree) | continue: guard context limit; WR4-WR6, WR9-WR10 answered; WR7-WR8 partial; docs checks passed; ABI unchanged; no game runs | 1. Coordinator reviews committed bounded result and residuals. 2. No merge-queue file written. |
+| re-ripples-contracts4: exact ripple and selection contracts | Codex / `re-ripples-contracts4` (RE spec lane; reserved detached worktree) | in progress: round 2, WR7-WR8 residual proof | Finish native draw/lifecycle residuals and per-owner checklist; preserve previous answers. |
 
 ## Handoff
-- Goal: exact native WR4-WR10 behavior contracts, spec text only.
+- Goal: round 2 resolves ONLY remaining WR7/WR8 contracts, spec text only.
 - Done: 3b970a37 WR5; 33ace687 WR4/WR6/WR9/WR10; c7cfb5ae partial WR7/WR8; 613177cf final report/inventory and signed IDIV correction.
-- Exact next step: coordinator reviews remaining WR7/WR8 obligations in report below; do not assume another round is authorized.
-- WR7 residual: dynamic plain black RGB initialization, hash allocation/rehash submission history, NaN height operand selection.
+- Done round 2 milestone 1: WR7 residual proof published in §2.3 and vectors 16–18; moved WR7 to answered.
+- Exact next step: query WR8 owner vtables, Cleanup/deleting/refcount paths, ReadTuningParameters and texture failure.
+- WR7 closed: black source PE zero-fill, 193 initial buckets/prime resize/prepend rehash/clear retains capacity, first-operand NaN/equality.
 - WR8 residual: complete inherited/public API/signatures/attribution, Cleanup/destructor/refcount, tuning absence/type/ownership/reset, texture acquisition failure.
 - Native address-window inventory 69 bodies/15276 bytes is not the brief's 65/15308 owner attribution; no whole-owner credit.
 - Native findings and vectors: docs/specs/water-ripples.md; five dated answers moved to questions/answered/water-ripples.md; WR7/WR8 remain open with partial notes.
@@ -27,7 +28,7 @@
 - Native scan: ripple range 0075fb20..00762100 = 43 bodies/9374 B; selection 007505c0..00751c80 = 24/5635 B; reconcile owner attribution later.
 - WR5 differences: partial outer survives inner spacing rejection; lower edge equal accepted; 1002 total pairs maximum; fade denominator configured count.
 - New differences: period bounds [122499,227499); raw 64-bit RNG product participates; single frame step/discard overshoot; strict >2M delay; all clear-mark overloads refresh preference; packed b3=low colour byte.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-ripples-contracts4-r1-manifest.json.
+- Manifest (current round): C:/Users/tlori/FreeCity4/build-runs/run4-re-ripples-contracts4-r2-manifest.json.
 
 ### Result and evidence
 
