@@ -46,6 +46,30 @@ pub struct Parameters {
     pub night_reduction: f32,
 }
 impl Parameters {
+    /// LT5: image-seeded shared configuration, before any exemplar reads.
+    /// Construct one LightingStatics per process; managers share it explicitly.
+    pub fn initial() -> Self {
+        Self {
+            terrain_weight: 0.6,
+            night: WHITE,
+            flora_weight: 0.6,
+            model_weight: 0.6,
+            mobile_weight: 0.6,
+            fade_color: [0.0, 0.5, 1.0],
+            fade_strength: 0.5,
+            decal: DecalShadowParams {
+                texture: 0x0917660e,
+                a: 0.5,
+                b: 0.0,
+                c: 8.0,
+                pair: [0.0; 2],
+                color: [0.0; 3],
+            },
+            azimuth: 90.0,
+            normal_bend: 1.0,
+            ..Self::shipped()
+        }
+    }
     /// §1.4's shipped exemplar values, with the explicit initial values for
     /// absent properties. This is NOT a claim about unspecified static defaults (LT5).
     pub fn shipped() -> Self {

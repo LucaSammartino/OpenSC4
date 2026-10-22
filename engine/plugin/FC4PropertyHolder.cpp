@@ -211,6 +211,7 @@ bool CoreGetValString(const cFC4IGZVariant& v, cIGZString& value) {
     return fc4_variant_get_string(type, b.empty() ? nullptr : b.data(), n, GetValStringSink, &value) == 1;
 }
 const bool kGetValStringHooked = (fc4::gVariantGetValString = CoreGetValString, true);
+const bool kGetCountHooked = (fc4::gVariantGetCount = fc4_variant_get_count, true);
 }  // namespace
 
 // ---- helpers ----------------------------------------------------------------------------------------

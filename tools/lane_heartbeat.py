@@ -1,22 +1,45 @@
-"""Read-only lane heartbeat. Counts registered live processes, never worktree activity."""
+"""Read-only lane heartbeat. Counts registered live processes, never worktree activity.
+
+Liveness is not progress: a live worker that has not committed for STALL_HOURS, or a ready merge-queue entry that has
+waited LAND_LAG_HOURS, is an alert of its own (an idle lane must not go unnoticed for days).
+
+--wait-until train|backlog|<file> blocks until that event or BACKLOG LOW, prints one line and exits
+(0 event, 2 timeout, 3 usage, 4 backlog low, 5 STOP or provider pause)."""
 import argparse
 from collections import Counter
 from datetime import datetime
 import json
 import os
 from pathlib import Path
+import subprocess
+import sys
 import time
 
 import lane_launch
+import lane_refill
+
+WAIT_EVENT, WAIT_TIMEOUT, WAIT_USAGE, WAIT_BACKLOG, WAIT_HALT = 0, 2, 3, 4, 5
+MAX_WAIT = 3600
+
+STALL_HOURS = 2.0      # a live worker with no commit (or launch) this long is stalled
+LAND_LAG_HOURS = 2.0   # a ready queue entry waiting this long means the train is not being run
 
 
 def summarize(state, queue, train, *, is_alive, paused=False, stopped=False,
-              refill_pid=None):
+              refill_pid=None, progress=None, ready=None, now=None, waiting_on=None):
+    """progress: {lane: epoch of its last commit or launch}; ready: {lane: epoch its ready queue entry was written};
+    waiting_on(entry): the deps a pending brief still waits on (empty: the refiller can launch it)."""
     lanes = state.get('lanes', {})
     live = sorted(name for name, entry in lanes.items() if is_alive(entry.get('pid')))
     target = state.get('concurrency', 7)
-    pending = [entry['name'] for entry in queue if entry.get('status') == 'pending']
+    pending = [entry for entry in queue if entry.get('status') == 'pending']
+    waiting = {entry['name']: list(waiting_on(entry)) if waiting_on else [] for entry in pending}
+    waiting = {name: deps for name, deps in waiting.items() if deps}
+    launchable = [entry['name'] for entry in pending if entry['name'] not in waiting]
+    open_slots = max(target - len(live), 0)
     current = train.get('current') or {}
+    gate = current.get('gate') or {}
+    regress = current.get('regress') or {}
     refill_alive = is_alive(refill_pid)
     alerts = []
     if not stopped and not paused:
@@ -24,26 +47,87 @@ def summarize(state, queue, train, *, is_alive, paused=False, stopped=False,
             alerts.append('REFILL: live workers below target')
             if not pending:
                 alerts.append('REVIEW QUEUE: no pending briefs')
+        if len(launchable) < open_slots:
+            alerts.append(f'BACKLOG LOW: {len(launchable)} launchable < {open_slots} open slots')
         if not refill_alive:
             alerts.append('REFILLER: process is not running')
     if paused:
         alerts.append('PROVIDER PAUSED: verify availability before resuming')
     if stopped:
         alerts.append('STOP: no spawning')
-    if current.get('gate', {}).get('ok') and current.get('regress', {}).get('ok'):
+    now = time.time() if now is None else now
+    stalled = sorted(n for n in live if (progress or {}).get(n) and now - progress[n] > STALL_HOURS * 3600)
+    if stalled:
+        alerts.append(f'STALLED: no commit for {STALL_HOURS:g}h+ from ' + ', '.join(
+            f'{n} ({(now - progress[n]) / 3600:.1f}h)' for n in stalled))
+    lagging = sorted(n for n, at in (ready or {}).items() if now - at > LAND_LAG_HOURS * 3600)
+    if lagging:
+        alerts.append(f'LAND LAG: {len(lagging)} ready queue entr{"y" if len(lagging) == 1 else "ies"} waiting '
+                      f'{LAND_LAG_HOURS:g}h+ (oldest {(now - min(ready[n] for n in lagging)) / 3600:.1f}h): python tools/merge-train.py status, then land or fix them')
+    if gate.get('ok') and regress.get('ok'):
         alerts.append('LAND: gate and regress passed; coordinator review required')
     return dict(live=len(live), target=target, lanes=live,
                 roles=dict(Counter(lanes[name].get('role', 'unknown') for name in live)),
-                glue_limit=state.get('glue_limit', 3), pending=pending,
+                glue_limit=state.get('glue_limit', 3), pending=[entry['name'] for entry in pending],
+                launchable=launchable, waiting=waiting, open_slots=open_slots,
                 queue_states=dict(Counter(entry.get('status', 'unknown') for entry in queue)),
                 rounds=state.get('rounds'), provider=state.get('provider', 'claude'),
                 provider_paused=paused, stop=stopped, refiller_alive=refill_alive,
-                train=current.get('id'), gate_ok=current.get('gate', {}).get('ok'),
-                regress=current.get('regress', {}).get('verdict'), alerts=alerts)
+                train=current.get('id'), gate_ok=gate.get('ok'),
+                regress=regress.get('verdict'), stalled=stalled, land_lag=lagging, alerts=alerts)
 
 
 def read_json(path):
     return json.loads(path.read_text(encoding='utf-8-sig'))
+
+
+def last_progress(root, name, entry):
+    """Epoch of the lane worktree's last commit, or of its launch (manifest written), whichever is newer."""
+    times = []
+    manifest = entry.get('manifest')
+    if manifest and Path(manifest).exists():
+        times.append(Path(manifest).stat().st_mtime)
+    wt = root / '.claude' / 'worktrees' / name
+    if wt.is_dir():
+        p = subprocess.run(['git', '-C', str(wt), 'log', '-1', '--format=%ct', 'HEAD'],
+                           capture_output=True, text=True)
+        if p.returncode == 0 and p.stdout.strip().isdigit():
+            times.append(float(p.stdout.strip()))
+    return max(times) if times else None
+
+
+def ready_entries(root):
+    """{lane: mtime} of merge-queue files in state ready (main checkout and every worktree; .merged files skipped)."""
+    out = {}
+    dirs = [root / 'build-runs' / 'merge-queue'] + sorted((root / '.claude' / 'worktrees').glob('*/build-runs/merge-queue'))
+    for d in dirs:
+        for f in sorted(d.glob('*.json')) if d.is_dir() else []:
+            if f.name.endswith('.merged.json'):
+                continue
+            try:
+                rec = read_json(f)
+            except (OSError, ValueError):
+                continue
+            if rec.get('state', 'ready') == 'ready':
+                lane = rec.get('lane') or f.stem
+                out[lane] = min(out.get(lane, f.stat().st_mtime), f.stat().st_mtime)
+    return out
+
+
+def deps_checker(root):
+    """waiting_on for summarize: the refiller's own deps rule, one git call per distinct dep."""
+    landed = {}
+
+    def waiting_on(entry):
+        try:
+            deps = lane_refill.spec_deps(read_json(Path(entry['spec'])))
+        except (KeyError, OSError, ValueError, AttributeError):
+            return ['(unreadable spec)']
+        for dep in deps:
+            if dep not in landed:
+                landed[dep] = not lane_refill.unmet_deps(root, [dep])
+        return [dep for dep in deps if not landed[dep]]
+    return waiting_on
 
 
 def snapshot(root):
@@ -51,13 +135,24 @@ def snapshot(root):
     state = read_json(runs / 'run4-coordinator-state.json')
     pid_path = runs / 'run4-refill.pid'
     refill_pid = int(pid_path.read_text().strip()) if pid_path.exists() else None
+    lanes = state.get('lanes', {})
+    progress = {n: last_progress(root, n, e) for n, e in lanes.items() if lane_launch.alive(e.get('pid'))}
     value = summarize(state, read_json(runs / 'run4-refill-queue.json'),
                       read_json(runs / 'merge-train/state.json'),
                       is_alive=lane_launch.alive, refill_pid=refill_pid,
                       paused=bool(lane_launch.provider_pause(root, state.get('provider', 'claude'))),
-                      stopped=(runs / 'STOP').exists())
+                      stopped=(runs / 'STOP').exists(),
+                      progress={n: v for n, v in progress.items() if v}, ready=ready_entries(root),
+                      waiting_on=deps_checker(root))
     value['at'] = datetime.now().astimezone().isoformat(timespec='seconds')
     return value
+
+
+def backlog(value):
+    text = f'pending {len(value["launchable"])} launchable / {len(value["waiting"])} waiting'
+    if value['waiting']:
+        text += ' [' + '; '.join(f'{name}: {",".join(deps)}' for name, deps in value['waiting'].items()) + ']'
+    return text
 
 
 def report(root):
@@ -69,7 +164,7 @@ def report(root):
     temporary.replace(output)
     message = (f'{value["at"]} HEARTBEAT live {value["live"]}/{value["target"]}, '
                f'glue {value["roles"].get("glue", 0)}/{value["glue_limit"]}, '
-               f'pending {len(value["pending"])}, rounds {value["rounds"]}; '
+               f'{backlog(value)}, rounds {value["rounds"]}; '
                f'train {value["train"]} gate={value["gate_ok"]} regress={value["regress"]}; '
                f'pause={value["provider_paused"]} STOP={value["stop"]}; ' + '; '.join(value['alerts']))
     with (runs / 'run4-heartbeat.log').open('a', encoding='utf-8') as log:
@@ -78,14 +173,99 @@ def report(root):
     return value
 
 
+def train_event(train, train_id):
+    """A line once the train needs the coordinator: gate failed, regress finished, or no longer current."""
+    current = train.get('current') or {}
+    if current.get('id') != train_id:
+        return f'TRAIN {train_id}: no longer current (landed or cleared)'
+    gate, regress = current.get('gate'), current.get('regress')
+    if gate is not None and not gate.get('ok'):
+        return f'TRAIN {train_id}: gate FAIL'
+    if regress is not None and regress.get('verdict') != 'RUNNING':
+        verdict = regress.get('verdict') or ('PASS' if regress.get('ok') else 'FAIL')
+        skipped = f' (skipped: {regress["skipped"]})' if regress.get('skipped') else ''
+        return f'TRAIN {train_id}: gate ok, regress {verdict}{skipped}'
+    return None
+
+
+def wait_until(root, event, *, timeout=540, poll=10, fresh=False, snap=snapshot,
+               sleep=time.sleep, now=time.time):
+    """(exit code, one line): the named event, BACKLOG LOW, STOP/pause or the timeout, whichever comes first."""
+    start = now()
+    train_path = root / 'build-runs' / 'merge-train' / 'state.json'
+
+    def read_train():
+        try:
+            # --fresh: merge-train.py rewrites the state with every verdict; an unchanged file holds an old one.
+            if fresh and train_path.stat().st_mtime < start:
+                return None
+            return read_json(train_path)
+        except (OSError, ValueError):
+            return None    # missing, or caught mid-write
+    if event == 'train':
+        try:
+            train_id = (read_json(train_path).get('current') or {}).get('id')
+        except (OSError, ValueError):
+            train_id = None
+        if not train_id:
+            return WAIT_USAGE, f'WAIT: no current train in {train_path}'
+
+        def happened():
+            train = read_train()
+            return train_event(train, train_id) if train is not None else None
+    elif event == 'backlog':
+        def happened():
+            return None
+    else:
+        path = Path(event) if Path(event).is_absolute() else root / event
+
+        def happened():
+            try:
+                modified = path.stat().st_mtime
+            except OSError:
+                return None
+            return None if fresh and modified < start - 2 else f'FILE {path}: present'
+    while True:
+        line = happened()
+        if line:
+            return WAIT_EVENT, line
+        value = snap(root)
+        if value['stop']:
+            return WAIT_HALT, 'HALT: STOP set; no spawning'
+        if value['provider_paused']:
+            return WAIT_HALT, f'HALT: provider {value["provider"]} paused'
+        low = [alert for alert in value['alerts'] if alert.startswith('BACKLOG LOW')]
+        if low:
+            return WAIT_BACKLOG, f'{low[0]}; live {value["live"]}/{value["target"]}, {backlog(value)}'
+        left = start + timeout - now()
+        if left <= 0:
+            return WAIT_TIMEOUT, (f'TIMEOUT after {timeout:g}s waiting for {event}; '
+                                  f'live {value["live"]}/{value["target"]}, {backlog(value)}')
+        sleep(min(poll, left))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument('--once', action='store_true', help='For a scheduler or coordinator poll')
-    parser.add_argument('--interval', type=int, default=180)
+    parser.add_argument('--interval', type=int, default=300)
+    parser.add_argument('--wait-until', metavar='EVENT',
+                        help='train (current train gate fail / regress verdict), backlog, or a file path')
+    parser.add_argument('--timeout', type=float, default=540, help=f'--wait-until seconds (max {MAX_WAIT})')
+    parser.add_argument('--poll', type=float, default=10, help='--wait-until seconds between checks')
+    parser.add_argument('--fresh', action='store_true',
+                        help='--wait-until: ignore a train verdict or file already there when the wait starts')
     args = parser.parse_args()
     if args.interval < 1:
         parser.error('--interval must be positive')
+    if args.wait_until is not None:
+        if not 0 < args.timeout <= MAX_WAIT or args.poll <= 0:
+            print(f'WAIT: --timeout must be in (0, {MAX_WAIT}] and --poll positive', flush=True)
+            sys.exit(WAIT_USAGE)
+        code, line = wait_until(args.root.resolve(), args.wait_until, timeout=args.timeout,
+                                poll=args.poll, fresh=args.fresh)
+        print(line, flush=True)
+        sys.exit(code)
     while True:
         value = report(args.root.resolve())
         if args.once or value['stop']:

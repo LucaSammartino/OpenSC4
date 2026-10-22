@@ -6,7 +6,7 @@ impl LightingManager {
     pub fn get_color(&self, normal: Vector) -> Result<Color> {
         if self.statics.snapshot().use_maps {
             if let Some(map) = &self.maps[0] {
-                let (x, y) = map.normal_pixel(normal, self.rotation)?;
+                let (x, y) = map.normal_pixel(self.map_normal(normal), self.rotation)?;
                 return map.pixel_color(x, y);
             }
         }
@@ -36,7 +36,7 @@ impl LightingManager {
     pub fn get_model_color(&self, normal: Vector) -> Result<Color> {
         if self.statics.snapshot().use_maps {
             if let Some(surface) = &self.maps[0] {
-                let (x, y) = surface.normal_pixel(normal, self.rotation)?;
+                let (x, y) = surface.normal_pixel(self.map_normal(normal), self.rotation)?;
                 let model = self.maps[1].as_ref().ok_or(LightingError::MissingModelMap)?;
                 return model.pixel_color(x, y);
             }

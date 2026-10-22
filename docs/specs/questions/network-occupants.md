@@ -98,3 +98,34 @@ implementer of the class tables and records.
 - **NO24 - §5.2, `ComputePolePosition` "guarded against `-FLT_MAX`":** what happens when the terrain answers
   `-FLT_MAX` (`0x00AA9F0C`): is y left at `-FLT_MAX`, replaced by a value (0? the previous y?), or does the call fail
   and the pole is skipped? The core returns no position. [ambiguous]
+
+<!-- from: core-networkmodel-contractfix4 (2026-10-22) -->
+- **NO27 - §10.3 Bind constants and format:** what numeric colour is stored at `0x00B0E37C`, what numeric
+  format does `PackStandardVertexFormat(2)` return, and what is the processor's destination format?
+  The core requires these three constants explicitly; there is no assumed default. [missing]
+
+<!-- from: core-networkmodel-contractfix4 (2026-10-22) -->
+- **NO28 - §10.3 processor LightModel:** the owner dispatch, flip-adjusted lighting transform and
+  ReleaseModel order are published, but the processor's normal generation and colour-lighting arithmetic
+  are not. What are those contracts? The core records an explicit pending LightingRequest and releases
+  its processor source references, without accepting an original owner output or inventing colours. [missing]
+
+<!-- from: core-networkmodel-contractfix4 (2026-10-22) -->
+- **NO29 - §10.3 Clip mode 0:** the six-plane clipping path is expressly unspecified. What is its exact
+  edge walk/interpolation/output order? The core returns UnspecifiedClipMode for a non-null box in mode 0;
+  the network caller always uses the fully implemented mode 1. Null lo still returns immediately. [missing]
+
+<!-- from: core-networkmodel-contractfix4 (2026-10-22) -->
+- **NO30 - §10.2 clipped path with option `0x6A845768`:** does the true option skip Bind and FlipAndLight
+  after Clip, or does the clipped row override the options-skip row for all three calls? The core treats
+  the explicit parenthesis as an exception for Clip alone: Clip runs, Bind/FlipAndLight skip. [ambiguous]
+
+<!-- from: core-networkmodel-contractfix4 (2026-10-22) -->
+- **NO31 - §10 instance constructor/destructor inventory:** beyond the published object size, base-class
+  identity, processor member, resource reference and prebuilt cache lifetimes, what are the initial state
+  and teardown side effects of instance ctor `0x00614A30` and destructor `0x00614830`? The pure core models
+  resource/mesh/processor reference lifetime with RAII; it does not claim unreported native body effects. [missing]
+
+  NO29 implementation refinement: the published mode-0 x/z bounds early-out is implemented too. Only a
+  mode-0 call that actually needs six-plane cutting returns `UnspecifiedClipMode`; null lo or contained
+  x/z bounds return unchanged. No six-plane output is fabricated.

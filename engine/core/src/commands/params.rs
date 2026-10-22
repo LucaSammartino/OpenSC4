@@ -25,6 +25,33 @@ pub const PARAMETER_SET_IIDS: [u32; 3] = [0x4B8C_39E4, 0x4B8C_39E5, 1];
 /// A shared parameter set, as the generator, the dispatcher and handlers hold it.
 pub type SetRef = Rc<RefCell<CommandParameterSet>>;
 
+/// Borrowed native-interface projection of a stored command parameter.
+/// The underlying variant retains its logical-element API.
+#[derive(Clone, Copy, Debug)]
+pub struct NativeParameter<'a> {
+    value: &'a Variant,
+}
+
+impl<'a> NativeParameter<'a> {
+    pub fn variant(self) -> &'a Variant {
+        self.value
+    }
+
+    pub fn get_type(self) -> u16 {
+        self.value.mem_type()
+    }
+
+    /// Native cIGZVariant::GetCount: data-formats §5.2 and §10.5 item 42.
+    /// Scalars (including object values) and Empty have no array elements.
+    /// This deliberately does not change Variant::count's logical count.
+    pub fn get_count(self) -> usize {
+        match self.value {
+            Variant::Array { items, .. } => items.len(),
+            Variant::Empty | Variant::Scalar(_) | Variant::Object(_) => 0,
+        }
+    }
+}
+
 /// A sparse map from parameter ID to variant, iterated in ascending unsigned ID order (§1.1).
 #[derive(Debug)]
 pub struct CommandParameterSet {
@@ -147,6 +174,18 @@ impl CommandParameterSet {
     /// more reference), everything else duplicated.
     pub fn set_parameter(&mut self, id: u32, v: &Variant) {
         self.map.insert(id, v.clone());
+    }
+
+    /// Slot 6 value exposed with native variant metadata, without copying it.
+    pub fn get_native_parameter(&self, id: u32) -> Option<NativeParameter<'_>> {
+        self.get_parameter(id).map(|value| NativeParameter { value })
+    }
+
+    /// Slot 5 value exposed with the same metadata, including the shared fallback.
+    pub fn get_native_or_fallback(&self, id: u32) -> NativeParameter<'_> {
+        NativeParameter {
+            value: self.get_or_fallback(id),
+        }
     }
 
     /// Slot 8: `SetParameter(k, v)` with `k` = 0 for an empty set, else the highest ID + 1,

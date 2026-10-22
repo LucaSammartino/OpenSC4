@@ -547,6 +547,8 @@ const Subsystem kSubsystems[] = {
     {"span1555", nullptr, nullptr, 0, false},
     // cSpanRender8888 native bridge; opt-in until SR8888-6 has shipped producer evidence.
     {"span8888", nullptr, nullptr, 0, false},
+    // SR8-2: constructed type2 evidence does not enable this by default.
+    {"span8", nullptr, nullptr, 0, false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

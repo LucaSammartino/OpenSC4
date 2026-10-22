@@ -1476,3 +1476,95 @@ pub unsafe extern "C" fn fc4_landfill_read(p: *mut fc4_landfill, inp: *const fc4
         })
     })
 }
+
+/// Isolated occupant verification over caller-authored public record inputs.
+/// No native output is accepted as an expected state or a Rust seed.
+#[repr(C)]
+#[derive(Default)]
+pub struct fc4_landfill_occupant_probe_result {
+    pub read_ok: u32,
+    pub write_ok: u32,
+    pub orientation: i32,
+    pub empty: u32,
+    pub occupant_type: u32,
+    pub flags: u32,
+    pub previous_tile: u32,
+    pub class_id: u32,
+    pub qi_mask: u32,
+    pub ref_delta: u32,
+    pub position: [f32; 3],
+    pub bounds: [f32; 6],
+}
+
+/// `mutate` changes orientation/position and exercises SetTileID's same-ID
+/// branch. The null-parent fixtures deliberately do not mutate an exemplar.
+/// Empty input means construction queries only; no record is written.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_landfill_occupant_probe(
+    bytes: *const u8,
+    len: usize,
+    mutate: u32,
+    orientation: i32,
+    position: *const f32,
+    sink: crate::stream::fc4_bytes_sink,
+    user: *mut c_void,
+    result: *mut fc4_landfill_occupant_probe_result,
+) -> bool {
+    use fc4_core::stream::{ByteReader, ByteWriter};
+    crate::guard(false, || {
+        let Some(result) = result.as_mut() else { return false };
+        if (len != 0 && bytes.is_null()) || (mutate != 0 && position.is_null()) {
+            return false;
+        }
+        let o = LandfillOccupant::empty();
+        let before = Rc::strong_count(&o);
+        let extra = o.clone();
+        let ref_delta = (Rc::strong_count(&o) - before) as u32;
+        drop(extra);
+        let mut r = fc4_landfill_occupant_probe_result {
+            ref_delta,
+            ..Default::default()
+        };
+        for (bit, iid) in [1, 0x2A15_F262, IID_OCCUPANT, 0xE4FD_A3D4, 0xDEAD_BEEF]
+            .into_iter()
+            .enumerate()
+        {
+            r.qi_mask |= u32::from(o.answers_iid(iid)) << bit;
+        }
+        r.class_id = o.class_id();
+        if len != 0 {
+            let mut input = ByteReader::new(std::slice::from_raw_parts(bytes, len));
+            r.read_ok = u32::from(o.read(&mut input));
+        }
+        if mutate != 0 && r.read_ok != 0 {
+            r.previous_tile = o.set_tile_id(o.tile_id());
+            o.set_orientation(orientation);
+            let p = std::slice::from_raw_parts(position, 3);
+            o.set_position([p[0], p[1], p[2]]);
+        }
+        r.orientation = o.orientation();
+        r.empty = u32::from(o.is_empty_landfill_tile());
+        r.occupant_type = o.snapshot().base.occupant_type;
+        r.flags = u32::from(o.snapshot().base.flags);
+        r.position = o.position();
+        let (lo, hi) = o.bounding_box();
+        r.bounds = [lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]];
+        if r.read_ok != 0 {
+            let mut output = ByteWriter::new();
+            r.write_ok = u32::from(o.write(&mut output));
+            // Persistence uses only our own write as our reload input. Native
+            // captures never enter this function.
+            let reloaded = LandfillOccupant::empty();
+            let mut reload_input = ByteReader::new(output.bytes());
+            let mut second = ByteWriter::new();
+            if !reloaded.read(&mut reload_input) || !reloaded.write(&mut second) || second.bytes() != output.bytes() {
+                return false;
+            }
+            if let Some(sink) = sink {
+                sink(user, output.bytes().as_ptr(), output.bytes().len());
+            }
+        }
+        *result = r;
+        true
+    })
+}

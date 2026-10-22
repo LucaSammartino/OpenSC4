@@ -1,5 +1,5 @@
 tag: cmdline4-r3-native-on-2032-f
-run: 252
+run: 257
 date: 2026-10-22
 lane: verify-cmdline-native4
 dll: immutable-b source92e01745 SHA256053BD7A077A43A31ACB065C3B985D792CD9FEBFADAA82B0E7A343D742621FABC

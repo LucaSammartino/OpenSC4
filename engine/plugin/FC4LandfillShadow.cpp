@@ -39,6 +39,8 @@
 #include <cstring>
 #include <vector>
 
+#include "FC4LandfillOccupantProbe.h"
+
 namespace fc4 {
 namespace {
 
@@ -408,6 +410,15 @@ bool LandfillShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cI
         if (day != g_settingsJulian) {
             g_settingsJulian = day;
             ReadSettings();  // once per day (FreeCity4.ini may change between city loads)
+            // Independent of the developer shadow/replacement. The local
+            // objects never enter the city or post Init/insertion messages.
+            static bool occupantProbed = false;
+            if (g_enabled && !occupantProbed && CurrentCity() != nullptr) {
+                occupantProbed = true;
+                if (!SehGuard("landfill occupant probe", &RunLandfillOccupantProbe, nullptr)) {
+                    Log("landfill occupant probe INCOMPLETE: guarded native call failed");
+                }
+            }
         }
     }
     if (type != kMsgSimNewMonth || target == nullptr || msg == nullptr || finished == nullptr) return false;

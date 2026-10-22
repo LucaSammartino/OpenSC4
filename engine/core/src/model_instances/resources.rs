@@ -17,6 +17,9 @@ pub struct SpriteAnimation {
 }
 impl SpriteAnimation {
     pub fn read(instance_id: u32, bytes: &[u8]) -> Option<Self> {
+        if instance_id == 0 {
+            return None;
+        }
         let mut reader = Words { bytes, offset: 0 };
         if reader.next()? != SPRITE_ANIMATION_TYPE {
             return None;
@@ -35,6 +38,12 @@ impl SpriteAnimation {
             if *key < instance_id {
                 *key = key.wrapping_add(instance_id);
             }
+        }
+        // MI13 [choice]: a wrapped zero cannot supply a downward source.
+        // Until the interior-zero path is specified, fail rather than invent
+        // a sheet/scale for it. The published I=0 failure is handled above.
+        if keys.contains(&0) {
+            return None;
         }
         let trailing_value = reader.next()?;
         let mut source_zooms = [0; 5];
@@ -124,7 +133,8 @@ impl Interfaces for SpriteAnimationTable {
 }
 
 /// Unread resources have no invented header/entry defaults. A successful read
-/// atomically installs a complete value; failed reads leave the old value intact.
+/// installs a complete value. [choice] Failed reads leave the old value intact;
+/// this is not a generic native persistence implementation or rollback guarantee.
 pub enum SpriteResource {
     Animation(Option<SpriteAnimation>),
     Table(Option<SpriteAnimationTable>),
@@ -183,6 +193,22 @@ impl Interfaces for SpriteResource {
 
 pub struct SpriteAnimationFactory;
 impl SpriteAnimationFactory {
+    pub fn create_instance_into(
+        &self,
+        resource_type: u32,
+        iid: u32,
+        output: &mut Option<Reference<SpriteResource>>,
+    ) -> bool {
+        *output = None; // unlike failed QueryInterface, creation clears output
+        let Some(resource) = self.create_instance(resource_type) else {
+            return false;
+        };
+        if resource.read().interface(iid).is_none() {
+            return false;
+        }
+        *output = Some(resource);
+        true
+    }
     pub fn create_instance(&self, resource_type: u32) -> Option<Reference<SpriteResource>> {
         match resource_type {
             SPRITE_ANIMATION_TYPE => Some(Reference::new(SpriteResource::Animation(None))),
@@ -190,9 +216,13 @@ impl SpriteAnimationFactory {
             _ => None,
         }
     }
+    pub fn serial_read_into(&self, resource: &Reference<SpriteResource>, instance_id: u32, bytes: &[u8]) -> bool {
+        resource.write().read(instance_id, bytes)
+    }
+    /// Portable create-and-read convenience, distinct from native SerialRead.
     pub fn serial_read(&self, resource_type: u32, instance_id: u32, bytes: &[u8]) -> Option<Reference<SpriteResource>> {
         let resource = self.create_instance(resource_type)?;
-        if resource.write().read(instance_id, bytes) {
+        if self.serial_read_into(&resource, instance_id, bytes) {
             Some(resource)
         } else {
             None

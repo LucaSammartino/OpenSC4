@@ -6,66 +6,68 @@ lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
 ## 0. Current state (2026-10-22, run4 open-ended)
-**Run4 checkpoint375:** 375 rounds; 65 trains landed; coverage57.8/36.0/18.6/18.1, delta+21.0/+7.7/+6.5/+2.2 points since run4 start; 83 parked lanes. RE paused;9actual verification workers restarted after proven provider-capacity recovery. Train93 full68gatePASS, current40+span8888 replacement/shadow regress running; no new coverage credit yet.
 
-**train97 landed d5a4005e2f:** Five real source lanes landed after full68native gate and current40+span565/industrial_shadow regressPASS. Independent industrial263052/263052 and constructed565249/249 are retained with their bounded/native-reachability limits; joint565 supplemental audit pending, no default or whole-owner promotion inferred. Font FN18-FN22, PL23 mismatches and CD6/CD8 remain parked; capped source worktrees preserved. Coverage57.8/36.0/18.6/18.1; rounds387 (open-ended).
+**train102 landed 54feae7de3:** all10 reviewed deliveries landed without skips; real68gate/current40 regressionPASS, all10 actual ancestors proved, doccheck ok. Coverage57.8/36.1/19.7/18.1; third flat train changes selection to first published WWW/FTP and TextEdit implementations plus independent AdviceSubject/flora verification, rather than further blocked binding audits. User requested more subagents: three coordinator helpers prepared reviewed refill work; actual registered workers8/9 at21:14, with3 launchable briefs/zero waiting and BACKLOG LOW cleared. Textures/glyph corrections launched within inherited2-round remainder; paths/TextEdit/tooling briefs pending normal guards. Flora malformed evidence-path brief failed before consuming a round, was corrected and final3/3 launched; tooling validation fix queued. Native netrules qualification retained its explicit NR16 gap. Next: finish postchecks/commit/push/eligible cleanup, run next train with all ready input/snapshot/editor work, maintain9live and launchable backlog. Tools unchanged in102; latest full suite161PASS from101.
 
-**Grid method audit:** original8,621,314 native comparisons include8,620,930 scalar reads through a retained-record transport fast path, not actual production SimGrid methods. Preserve probe evidence without production-method coverage credit. Final logical3/3 methods phase queued after parent source lands; compare actual shipped C++ grid or persistent real Rust SimGrid objects, retain SG1/SG2 and complete failure/refusal accounting.
+**Restart checkpoint after train100 (20:34 BST):** main `add060142b`; all four lane ancestors proved.
+Instruction cleanup, lighting corrections, cRZDirectory and model-instance corrections landed after the real
+68-test gate and full current40 regression PASS. No native/default/whole-owner promotion is inferred.
+Coverage **57.8/36.1/19.7/18.1**; 412 rounds, 72 landed trains; checkpoint425 next. No total round cap.
 
-**train96 landed 1e4c8d553f:** Joint68native gate (including40reviewed SR9 ABI rows) and current40+simgrids_shadow regressPASS. Real2-lane ancestry retained after additive module/config conflict resolution. Joint grid fixtures600/600, natural0/0 not exercised; prior scalar retained-record probe gets no production-method credit. Final3/3 actual-method phase and bounded span8 glue now unblocked/launched. Date compatibility DT4/DT5/save failures and SG1/SG2 retained; no default or whole-owner promotion. Coverage57.8/36.0/18.6/18.1; rounds385 (open-ended).
+**User policy:** RE/spec-writing paused. Target9 actual live workers, max3glue, max3 rounds per lane and
+logical family; no fourth round, renamed budget or provider workaround. Prioritize proven shadows, exercised
+replacements and promotion; use published contracts. Skip `region` (LucaSammartino, through2026-11-21).
+STOP: `python tools/lanes.py stop "<reason>"`; land ready on-disk work, commit, push, end.
 
-**train94 landed 47bc60b881:** Published already-written PR5/FM3/FM4 answers and STOP-RE handoff (no RNG spec/ABI changes, RN4/RN5 remain open). No RE worker launched. Real ancestry releases old feature/foundations claims so guarded verification can proceed; docs-only gate/regress skip. Coverage57.8/36.0/15.6/18.1; rounds379 (open-ended).
+**Authority:** `build-runs/run4-coordinator-state.json`, `build-runs/run4-refill-queue.json`,
+`build-runs/merge-train/state.json` and `build-runs/run4-heartbeat.json`; reread these and run guard after restart.
+State edits require `build-runs/run4_coord_lock.py`. The tracked Codex refiller uses the existing guarded
+subscription adapter; each launch needs fresh slots/check/dependencies/parking/round/glue/CPU/disk checks.
 
-**Coordination recovery (17:28):** Codex model-capacity error paused refills16:32; all workers subsequently finished,0live at17:26 and no coverage advance. Same-model/subscription availability probe succeeded17:28, pause archived with evidence; guarded resumes and verification-only refills restarted. No RE authorized. WY1/SV3/PV14-PV15 and final lot/date/8888 contract boundaries remain parked; no fourth rounds or guessed exactness.
+**Live lanes at this checkpoint:**
+- `verify-persist-manager4`: round 1/3, verify, supervisor PID 10648.
+- `core-view-inputcontrols4`: round 1/3, core, supervisor PID 15200.
+- `core-snapshots4`: round 1/3, core, supervisor PID 38540.
+- `core-key-accelerator4`: round 1/3, core, supervisor PID 15244.
+- `core-resource-editor4`: round 1/3, core, supervisor PID 26832.
 
-**train93 landed b97b56fafa:** Full68native gate and current40+span8888 replacement/shadow regressPASS. Landed actual source-window correction and bounded graphics-director core. Fresh8888 own386/386/reload133/133 exact and combined427Rust-rendered are distinct; historical third refusal/SR8888-1/5/6 and director GD1/GI1/GI2 remain, no default or whole-owner promotion. Parked source worktrees preserved. Coverage57.8/36.0/15.6/18.1; rounds379 (open-ended).
+**Queue/train update:** train101 landed; heartbeat dependency and required next-train landing satisfied. Run the next batch with every ready source. Corrected stale
+worktree queue tips for re-tools-director-questions4, re-powerline-completion4 and re-draw-context-contracts4
+after proving own clean commits; each remains incomplete/parked, no additional RE round.
+Train100 skipped verify-variants4 (3/3), verify-fontsys4 (2/3), verify-landfill-records4 (2/3, LG32/LG33 parked)
+and verify-command-system4 (2/3) for additive CAPI conflicts. Recover those sources promptly after landing,
+within remaining caps; never start a fourth round or unpark a contract gap for a rebase.
+No pending refill briefs. Review launchable work before any long wait; unlanded dependencies do not count.
 
-**User course correction (2026-10-22): STOP RE.** All eight RE workers stopped under per-agent guard PARK denial, committed findings, and left clean preserved worktrees; no further RE refills. Three glue plus five verify delivery briefs are queued through normal guards alongside the existing graphics-director core worker. Target9 remains subject to eligible work/max3glue/caps. Prioritize exact native shadows, real-game replacement and promotion of proven candidates; use already-published contracts and land existing answers that unblock delivery. Contract gaps remain parked questions, never guessed or relabeled as verify.
+**Open alerts/evidence:** LAND LAG on old ready entries; handle the train now. Three worker vacancies were
+guard/contract constrained; resource-editor first implementation launched after fresh GO. Native candidates
+with unresolved binding contracts, raw mismatches or exhausted families remain parked. Current40 is still40
+keys (including ports); no new defaults. Train100 first attempt exited1 in both game slots with Windows
+Application Hang1002; original supervisor was absent. Evidence retained in `build-runs/train100-interrupted-2015/`.
+The real retry passed; cause remains unresolved. Netmgr71/73 is worse than train99's72/73; traffic72/72 does
+not repair historical traffic failures. Preserve failures, refusals, resyncs and native0/0 as unverified.
+Codex pause20:15 was cleared only after the real same-model/subscription one-call success saved beside
+`build-runs/provider-pauses/codex-cleared-20261022-2018.json`; refiller PID23912 restarted hidden.
 
-**Final native caps:** TextEdit3/3 retains TE5/TE8; dispatch RE3/3 retains DP10 rendering; small-renderer RE3/3 retains FF2 helper/slot inventory. Other texture/glyph/path questions answered. No fourth rounds; preserve source worktrees/evidence. Graphics director65/65 complete is separate from capped DX7driver.
+**Heartbeat/main/tools:** use `python tools/lane_heartbeat.py --wait-until train` while a train runs, else
+`--wait-until backlog`, with a yield of at least600s; act on exit0/2/3/4/5 as prompt.txt specifies. Launchable
+briefs cover open slots before long waits; waiting dependencies do not count. Use --fresh only after rerunning
+a gate/regress yourself. Windows scheduled checks remain read-only; active coordinator handles alerts. Latest161PASS.
+Game queue6slots, PID23444; unique game labels, no qwait--fresh for already valid completed verdicts.
 
-**Capped final RE phases:** span8 ABI SR9 answered with40 pending native proposals (SR8-2/3/4 remain); graphics rules GR4/GR6, overlays OV1/OV7/OV8, WWW57body7292B and LotEditor LE3-LE5 remain. Logical3/3 exhausted for each; no fourth rounds, preserve worktrees and ignored ABI/evidence. Bounded specs may publish without whole-owner credit.
+**After every train:** gen_handoff_tables.py, coverage.py, coverage_treemap.py, `python tools/doccheck.py check`
+(fix FAIL first), full tools tests when tools/changed, one status line here, commit, push; worktrees per
+ops/rules.md Worktrees. Preserve ignored evidence, branches and all parked/active/unlanded worktrees.
+Every10 trains write this full restart checkpoint; every25 rounds compare measured coverage, change selection
+after3 flat trains, and record why. Current selection moved to eligible published UI source after native gaps.
 
-**Coordinator parked re-wingrid4:** 3/3:165/198 functions26103/32735B documented;33functions6632B plusWG3/WG4 remain. No fourth round. FileBrowser final phase also parked at logical3/3:114entries21878B remain; keep its worktree, no fourth round. Font final phase exhausted2+1 logical implementation rounds:FN18-FN22 remain, no cGZFont owner credit/fourth round; preserve worktree.
-
-**Capped3/3:** glue-tutorial-complete4 exhausted parent1+phase2: shipped init/active reload/union clean2032ref0, closed-save reloads CORRUPT and catalog/modal gaps; no tutorial shadow or promotion/fourth round. re-hittrack4 exhausted3/3: committed opcode draft unreconciled, 22body8049B residual inventory needs final reconciliation; no whole-owner credit/fourth round. Preserve both worktrees and evidence.
-
-
-**train63 landed e7b3f2d7dc:** Rebuilt failed62 with typed MySim shadow payload decoding and poison-callback regression test. Full66-test gate and current38+citydetail+span565 union2032/ref0 PASS. Lotcfg realpreference host fix removes implementation blocker; citydetail promoted after implemented boundary/native-compatible8byte record proof and jointcleanrun. CD6/CD7/PL22 increase/two-session reload remain testgaps. Span565 remains opt-in, no whole-native replacement credit. Original null-read failing message type was not captured; failedDLL/PDB/evidence preserved. Advisor/MySim sourcephases parked3/3 with AD12-15/MS13-15 and remaining bodies; no fourth rounds, WTs preserved. Coverage45.4/34.5/16.4/17.8; rounds208 (open-ended).
-
-**Parked at3/3: glue-advisors-activate4.** Wrapper/CAPI/weak-drop changes compile and fullgate passes, but no registered factory or advisor game trace. AD12-AD15 plus known value/list/history/world callbacks and system Read/Write remain. No fourth round; preserve this worktree. Compiled inactive stage may be reviewed through the train, without replacement credit.
-
-**Parked at3/3: core-mysims-contractfix4.** MS11/MS12, literal congestion position and FailCommute corrections compile/fullgatePASS. Invented CheckCommute/pathfinder methods removed; real body needsMS15, withMS13/MS14 also open. No wholepool/dispatch credit or fourthround; preserve this worktree. Compiled documented fixes may land through the train.
-
-**Assigned outside work** ([assignments.tsv](assignments.tsv)): the `region` subsystem is assigned to LucaSammartino
-(RE specs, by PR) until 2026-11-21. `lanes.py check` refuses a lane that names `region`. Do not spawn region work.
-
-**User policy:** Open-ended, no total round limit. Latest user raised target by2: keep9 live workers; target/concurrency9, max3glue, max3rounds per lane. Refill immediately from reviewed queue after fresh slots/check, never bypass guard, STOP, usage/rate or CPU/disk limits. Park capped lanes; no fourth round. STOP: `python tools/lanes.py stop "<reason>"`, land ready on-disk work, push, end.
-
-**Coverage after train97:**57.8/36.0/18.6/18.1; baseline36.8/28.3/12.1/15.9, delta+21.0/+7.7/+6.5/+2.2 points. 69 trains landed; 387 rounds used, no total cap. Next25-round checkpoint 400.
-
-**Live authority:** `build-runs/run4-coordinator-state.json`; tracked `tools/lane_refill.py --provider codex` launches reviewed briefs through tracked `tools/lane_launch.py` and guarded Codex subscription adapter. Legacy build-runs launch/refill scripts are Claude-only. Target9; fresh slots/check/dependency/STOP/parking/3glue gates retained. After compaction reread section0 and run guard before adding work. State writes use run4_coord_lock.py.
-
-**Verification follow-up:** train80 traffic71/73 and landvalue71/72 drop verified16.5 to13.5; source regress/game evidence preserved. Earlier train73 traffic408mismatches and train75/79 exact runs remain unresolved, not fixed by a lucky rerun. verify-traffic-delivery4 final family3/3 parked: diagnostic72/72 exact, TS68 continuation/provider-read evidence missing, no causal fix. LV2/LV6 runtime timing/install gaps remain. Original re-placelot-final4 resume denial remains stopped; no alias bypass.
-
-**Train authority:** `build-runs/merge-train/state.json`; latest landed train97. Start next batch when2+ ready; guard and ancestry remain authoritative.
-
-**Parked at3/3, never fourth:** verify-netmgrfix4(aed635a8,2/73exact,21missing RNGdraw batches,ABIadditionsunreviewed), glue-exemplars4(581778a9,3/3candidateclean2032ref0 butEX46-EX50open; registry conflict waits), core-construction4(f6dddaa7,v4 NO15 reader fixed; OP13-OP16 remain; actual2/3; prior occprops phase landed; remains parked pending OP13-OP16), core-netocc-records4(c5e769ae,partial NO15-NO17 records; NO14/NO18-NO20 remain; logical3/3 with netocc4), re-view3dwin4(78a7bd7c,partial input/AddGUI specs;VW2-VW6/helpers remain;preserveWT/ABI proposals), re-legacycontrol4(603ed696,45/57functions;12interpreters andLC4/LC5/LC8 remain;partialdocs queued, preserveWT), re-rzservices4(File/INI/Directory/OFStream complete; CmdLine slot10/SysServPtr incomplete), glue-terrain3(97b1c237), re-driverdraw4(partial DX7, landed32), re-editors4(partial curves, landed30), re-particles4(partial drawing, landed30), re-widgets4(partial base, landed28), re-application4(partial57/322, landed27), re-terrain4(answers landed25). Preserve parked worktrees, even when supported portions landed.
-
-**Terrain:** crash fixed earlier, final diagnostics trace apparent stall to missing TerrainReconciliation/ConnectionsReady leaving dialogs enabled. Auto-close d8 reached2032 with refwarning1, NOT a pass. Tick/reconcile behavior, texture step7part2/TR37/Save unfinished. TR42/TR43 filed (preference width, edge comparison); no replacement credit or fourth round.
-
-**Other pending:** follow the current guarded refill queue and lane reports. Complete published owner methods before credit; contract gaps remain questions. Prior merged construction/disaster branches were denied resume and remain stopped with worktrees preserved.
-
-**Choosing work:** User has paused RE. Prioritize unblocked delivery lanes within their remaining caps, then candidate shadows/game validation/regress/promotion. Current delivery queue: lotrecords final, dates, span8888 final; weather/simgrid/ordinance/prop-config/prop-developer shadows. Never rename capped unfinished work into a fresh budget or relabel RE as verify. Max3glue; skip glue26 and abi/unreconciled-rows.tsv.
-
-**After every train:** gen_handoff_tables.py, coverage.py, coverage_treemap.py; one status line here, commit/push. `run4-post-train.py` applies explicit tested maps and question-index upkeep after actual PASS+land. Remove landed nonparked worktrees only after verifying lane ancestor of main and clean state; keep branches and ignored evidence. Never remove active, unlanded or parked worktrees. C:>85% stops spawning until cleanup. Keep this section about60lines; archive older status lines to [today's history](history/handoff-2026-10-22.md).
-
-**Main/tools:** keep checkout clean; tool changes require full tools tests and immediate separate commit. Latest139PASS. Candidate union supports --add-shadow and --add-replace.40 default replacement keys include simgrids,propdev,citysit,occmgr,propmgr,lotcfg; ports included in the default replacement regression profile after joint saved-city/control proof.
-
-**Runtime:** elevated game queue6slots(pid23444) restarted after Windows elevation blocked non-elevated launches. Native CLI BG_WAIT_CEILING_MS=0; qwait without--fresh, unique labels. RE preflight must GO. Never set gate verdicts by hand.
+**Next three actions:** (1) Finish train101 postchecks/commit/push and eligible worktree cleanup.
+(2) Run the next train with every ready source, including recovered conflicts, without resetting caps.
+(3) Refill only reviewed launchable briefs through fresh guards, then resume the prescribed heartbeat wait.
+Parked lane details and prior status are preserved in the state ledger and today's history below.
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 247 (Gate and union regress required; exemplar opt-in7/8 no promotion; native model answers unblock core.); 246 (Full gate and union regression required; no default additions, inactive advisor wrappers only.); 245 (Typed MySim shadowpayload repair; full66gatePASS, union2032/ref0. Citydetail promoted after lotcfg realpref fix; reload/increase testgaps remain. Span565 opt-in.); 244 (6lanes; gate65PASS andunion2032/ref0. Only complete stream2owners18functions610B corecredited; otherpartialowners/citydetaildefault withheld. Span565 repaired separately.); 243 (NetRule setter+layer-only disaster API; fullgate65PASS; house2032/ref0. Disaster wrapper deferredDS46; no unsupported full-owner credit.). See `docs/manual-checks.md`.
+- **Latest in-game run:** 255 (Ten reviewed source and existing-contract deliveries landed without skips after actual gate and full current40 regression.); 254 (Heartbeat backlog/blocking-wait update landed in the very next train after instruction cleanup, with three existing bounded contract publications.); 253 (Instruction cleanup and three bounded core deliveries landed; no native/default or whole-owner promotion inferred. Full tools152PASS, doccheck check ok.); 252 (Current40+span8 replacement profile clean; span8 stays opt-in with SR8-2/3/4 gaps preserved.); 251 (Opt-in span8 constructed native route proven, SR8-2/3/4 preserved; no default promotion.). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
@@ -84,7 +86,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 | [lanes/README.md](lanes/README.md) | lane-file and run-file formats, the queue contract | every lane at its end |
 | [lanes/INDEX.md](lanes/INDEX.md) | generated table: every lane's state and next steps | coordinator; a lane resuming another's work |
 | [manual-checks.md](manual-checks.md) | generated in-game run log | coordinator; engine lanes comparing runs |
-| [PROGRESS.md](PROGRESS.md) | milestones M0-M6 | coordinator |
+| [history/progress-2026-10-14.md](history/progress-2026-10-14.md) | retired milestone history | nobody by default |
 | [coverage-report.md](coverage-report.md) | measured coverage | coordinator; tooling lanes |
 | [specs/questions/README.md](specs/questions/README.md) | the question workflow | RE lanes; engine lanes filing questions |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | the clean-room roles (the single source) | everyone |
@@ -102,7 +104,7 @@ ABI facts in `docs/abi/`.
 
 ## 4. Milestones
 
-[PROGRESS.md](PROGRESS.md); keep it current at every merge. M0-M2 done, M3 exit met (run 103), M4-M6 in progress.
+[ARCHITECTURE.md#roadmap](ARCHITECTURE.md#roadmap) and [coverage-report.md](coverage-report.md) describe the roadmap and measured progress.
 
 ## Section numbers cited elsewhere
 

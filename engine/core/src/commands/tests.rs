@@ -7,6 +7,60 @@ use std::rc::Rc;
 use super::*;
 use crate::variant::{Elem, Variant};
 
+#[test]
+fn native_parameter_metadata_preserves_logical_counts() {
+    let cases = [
+        (Variant::Empty, 0, 0, 0),
+        (Variant::Scalar(Elem::U32(7)), 6, 0, 1),
+        (Variant::Scalar(Elem::I32(-7)), 7, 0, 1),
+        (Variant::Scalar(Elem::Bool(true)), 1, 0, 1),
+        (Variant::Scalar(Elem::F32(2.5)), 10, 0, 1),
+        (Variant::Array { elem: 6, items: vec![] }, 0x8006, 0, 0),
+        (
+            Variant::Array {
+                elem: 6,
+                items: vec![Elem::U32(7)],
+            },
+            0x8006,
+            1,
+            1,
+        ),
+        (
+            Variant::Array {
+                elem: 6,
+                items: vec![Elem::U32(7), Elem::U32(8), Elem::U32(9)],
+            },
+            0x8006,
+            3,
+            3,
+        ),
+        (Variant::string(b"abc"), 0x800e, 3, 3),
+    ];
+    let mut set = CommandParameterSet::new();
+    for (value, kind, native_count, logical_count) in cases {
+        set.set_parameter(5, &value);
+        let projected = set.get_native_parameter(5).unwrap();
+        assert_eq!(projected.get_type(), kind);
+        assert_eq!(projected.get_count(), native_count);
+        assert_eq!(projected.variant().count(), logical_count);
+        assert_eq!(projected.variant(), &value);
+        assert!(std::ptr::eq(projected.variant(), set.get_parameter(5).unwrap()));
+        assert_eq!(set.get_native_or_fallback(5).get_count(), native_count);
+    }
+    set.remove_parameter(5);
+    assert!(set.get_native_parameter(5).is_none());
+    assert_eq!(set.get_native_or_fallback(5).get_count(), 0);
+    *set.get_or_fallback_mut(5) = Variant::Scalar(Elem::U32(7));
+    assert_eq!(set.get_native_or_fallback(6).get_count(), 0);
+    assert_eq!(set.get_native_or_fallback(6).variant().count(), 1);
+    *set.get_or_fallback_mut(5) = Variant::Array {
+        elem: 6,
+        items: vec![Elem::U32(7), Elem::U32(8)],
+    };
+    assert_eq!(set.get_native_or_fallback(6).get_count(), 2);
+    assert_eq!(set.get_parameter_count(), 0);
+}
+
 /// A test converter, exact for the values these tests use (strings, integers, Empty); the
 /// full one is `fc4_formats::command_values`.
 struct TestConv;

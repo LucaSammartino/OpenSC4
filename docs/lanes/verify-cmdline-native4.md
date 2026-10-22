@@ -225,3 +225,16 @@ The prerequisite audit stopped before 15 tool calls. No fully documented owned o
 ### Next steps
 
 Publish CL4's exact construction/copy/nondeleting-destruction ABI and storage/lifetime contract, or a supported original owned factory/parse/copy service. Then compare actual production core/CAPI with independently supplied ASCII ordinary/quoted/slash/colon fixtures and safe insert/erase/join/copy/lookup operations, retain every difference/refusal, run focused checks and one final full gate, and perform uniquely labelled 2032 controls with save/shutdown. Lane remains blocked; any merge-queue record is `wip` and carries no verification claim.
+
+## Coordinator integration after final round
+
+Reviewed the final bounded borrowed-query evidence at `eeacd340`: unchanged engine source and immutable DLL,
+three clean2032/full-save/shutdown/ref0 controls, and246/246 repeated natural comparisons across the enabled
+runs. The earlier blocked report above remains historical; CL1-CL4 and owned construction/reload stay unproved.
+All four historical native stalls remain preserved. No whole-owner, default or constructor promotion follows.
+
+Merged current main additively, preserving both module sets, configuration keys and startup calls. This changes
+the integrated artifact and therefore requires the next train's actual gate and regression; retained worker
+evidence is not a gate for the merge. No additional worker round was used. Assigned new run metadata256-258 to
+the three previously unlanded records so they do not reuse main's251-253; labels, hashes and measured fields
+remain unchanged.
