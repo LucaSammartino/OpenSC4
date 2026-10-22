@@ -104,7 +104,7 @@ pub const LIST_ROWS_VISIBLE: u32 = 9;
 pub const LINE_ITEM_INCOME: u32 = 1;
 /// §4.1: line-item display flag bit 0 (ShowLineItem) and the ID bound.
 pub const LINE_ITEM_SHOW: u32 = 0x1;
-pub const LINE_ITEM_ALWAYS_ID_ABOVE: u32 = 100;
+pub const LINE_ITEM_ALWAYS_ID_MAX: u32 = 100;
 /// §5 ordinance check boxes and info buttons.
 pub const BTN_ORDINANCE_CHECK_FIRST: u32 = 300;
 pub const BTN_ORDINANCE_CHECK_LAST: u32 = 499;

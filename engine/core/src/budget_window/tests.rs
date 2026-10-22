@@ -7,6 +7,7 @@
 //! Tests from budget-window.md §9 plus the routing edge cases of §2-§7.
 
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use super::ids::*;
 use super::*;
@@ -14,6 +15,29 @@ use super::*;
 const WIN: WinRef = 77;
 const NESTED_WIN: WinRef = 78;
 const CONTENT: WinRef = 900;
+
+#[derive(Debug, Default)]
+struct RefLedger {
+    depts: Mutex<HashMap<DeptRef, i32>>,
+    events: Mutex<Vec<(char, u64)>>,
+}
+
+impl BudgetWindowReferences for RefLedger {
+    fn add_ref_dept(&self, dept: DeptRef) {
+        *self.depts.lock().unwrap().entry(dept).or_default() += 1;
+        self.events.lock().unwrap().push(('+', dept));
+    }
+    fn release_dept(&self, dept: DeptRef) {
+        let mut counts = self.depts.lock().unwrap();
+        let count = counts.entry(dept).or_default();
+        *count -= 1;
+        assert!(*count >= 0, "released unowned department {dept}");
+        self.events.lock().unwrap().push(('-', dept));
+    }
+    fn release_win(&self, win: WinRef) {
+        self.events.lock().unwrap().push(('w', win));
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default)]
 struct Deal {
@@ -28,6 +52,9 @@ struct Deal {
 /// dialog, `nested_script` to the nested one.
 #[derive(Default)]
 struct Rec {
+    refs: Arc<RefLedger>,
+    painted: Vec<(bool, DeptRef, Option<u32>, u32)>,
+    slider_children: Vec<(WinRef, u32, DeptRef)>,
     log: Vec<String>,
     create_fails: bool,
     created: u64,
@@ -80,6 +107,9 @@ impl Rec {
 }
 
 impl BudgetWindowHost for Rec {
+    fn references(&self) -> Arc<dyn BudgetWindowReferences> {
+        self.refs.clone()
+    }
     fn create_window_generator(&mut self) -> Option<WinRef> {
         self.l("create".into());
         if self.create_fails {
@@ -93,6 +123,7 @@ impl BudgetWindowHost for Rec {
     }
     fn release_win(&mut self, w: WinRef) {
         self.l(format!("release {w}"));
+        self.refs.release_win(w);
     }
     fn set_generator_flag(&mut self, _: WinRef, f: u32, on: bool) {
         self.l(format!("genflag {f:#x} {on}"));
@@ -304,8 +335,14 @@ impl BudgetWindowHost for Rec {
         self.funding.insert(d, f);
         self.l(format!("fund {d} {:#x} {a}", f.to_bits()));
     }
-    fn add_department_row(&mut self, _: WinRef, _: u32, d: DeptRef) -> u32 {
-        1000 + d as u32
+    fn paint_group_row(&mut self, content: WinRef, _: u32, d: DeptRef, item: Option<LineItem>, income: bool, row: u32) {
+        assert_eq!(content, CONTENT);
+        self.painted.push((income, d, item.map(|i| i.id), row));
+    }
+    fn create_department_slider(&mut self, win: WinRef, d: DeptRef, _: Option<LineItem>, _: u32) -> u32 {
+        let id = 1001 + self.slider_children.len() as u32;
+        self.slider_children.push((win, id, d));
+        id
     }
     fn update_values(&mut self, _: WinRef) {
         self.l("values".into());
@@ -580,9 +617,9 @@ fn tab_commands_run_show_window() {
 fn group_slider_then_cancel_restores_start_fractions() {
     let mut h = group_host();
     let mut d = open(&mut h, GROUP_UTILITIES, 0);
-    assert_eq!(d.sliders().len(), 3);
+    assert_eq!(d.sliders().len(), 6);
     h.slider_pos = 30;
-    assert!(!d.do_win_msg(&mut h, WIN, SubBudgetMsg::Slider(1002)));
+    assert!(!d.do_win_msg(&mut h, WIN, SubBudgetMsg::Slider(1003)));
     assert!(h.has("fund 2 0x3e999999 0"));
     assert_eq!(h.count("values"), 1);
     assert!(d.do_win_msg(&mut h, WIN, SubBudgetMsg::Button(BTN_CANCEL)));
@@ -1198,7 +1235,7 @@ fn empty_group_keeps_saved_pairs() {
     };
     h.funding.extend([(1, 0.25f32), (2, 0.5)]);
     for d in 1..=2 {
-        h.items.insert(d, vec![item(2, 5, 1, 0, 0)]);
+        h.items.insert(d, vec![item(2, 101, 1, 0, 0)]);
     }
     let mut d = open(&mut h, GROUP_CIVIC, 0);
     assert_eq!((d.list_a().len, d.list_b().len), (0, 0));
@@ -1229,8 +1266,8 @@ fn group_initial_arrows() {
         ..Default::default()
     };
     h.funding.insert(1, 0.5);
-    let mut items: Vec<_> = (0..8).map(|i| item(1, 200 + i, 1, 0, 0)).collect();
-    items.extend((0..9).map(|i| item(2, 300 + i, 1, 0, 0)));
+    let mut items: Vec<_> = (0..8).map(|i| item(1, 200 + i, 1, 1, 0)).collect();
+    items.extend((0..9).map(|i| item(2, 300 + i, 1, 0, 1)));
     h.items.insert(1, items);
     let d = open(&mut h, GROUP_UTILITIES, 0);
     assert_eq!((d.list_a().len, d.list_b().len), (9, 10));
@@ -1309,4 +1346,247 @@ fn selector_initial_arrows() {
         assert_eq!(ord(n, n), if ord_hidden { &all[..] } else { &ups[..] }, "ordinance {n}");
         assert_eq!(nb(n, n), if nb_hidden { &all[..] } else { &ups[..] }, "neighbour {n}");
     }
+}
+
+fn ownership_host() -> Rec {
+    let mut host = group_host();
+    host.items.insert(1, vec![item(1, 101, 5, 25, 0)]);
+    host.items
+        .insert(2, vec![item(2, 101, 5, 0, 25), item(2, 102, 5, 0, 25)]);
+    host.items
+        .insert(3, (0..12).map(|i| item(2, 101 + i, 5, 0, 25)).collect());
+    host
+}
+
+fn department_counts(refs: &RefLedger) -> Vec<(DeptRef, i32)> {
+    let mut counts: Vec<_> = refs.depts.lock().unwrap().iter().map(|(&d, &n)| (d, n)).collect();
+    counts.sort_unstable();
+    counts
+}
+
+fn department_releases(refs: &RefLedger) -> Vec<DeptRef> {
+    refs.events
+        .lock()
+        .unwrap()
+        .iter()
+        .filter_map(|&(op, d)| (op == '-').then_some(d))
+        .collect()
+}
+
+/// §9 tests 20-21: no departments, all hidden, vector growth, null refs.
+#[test]
+fn saved_pairs_own_references_even_without_visible_rows() {
+    let mut h = Rec::default();
+    let d = open(&mut h, GROUP_CIVIC, 0);
+    assert!(d.sliders().is_empty() && d.saved_fractions().is_empty());
+    assert!(department_counts(&h.refs).is_empty());
+    drop(d);
+
+    for shutdown in [false, true] {
+        let mut h = Rec {
+            group: (1..=64).collect(),
+            ..Default::default()
+        };
+        for dept in 1..=64 {
+            h.funding.insert(dept, 0.5);
+            h.items.insert(dept, vec![item(2, 101, 4, 0, 25)]);
+        }
+        let mut d = open(&mut h, GROUP_CIVIC, 0);
+        assert_eq!(d.saved_fractions().len(), 64);
+        assert!(d.sliders().is_empty());
+        assert_eq!(department_counts(&h.refs), (1..=64).map(|d| (d, 1)).collect::<Vec<_>>());
+        // Exact temporary / stored copy / temporary release for each pair;
+        // moving Rust Vec elements requires no extra reference operations.
+        let events = h.refs.events.lock().unwrap().clone();
+        assert_eq!(
+            events,
+            (1..=64)
+                .flat_map(|d| [('+', d), ('+', d), ('-', d)])
+                .collect::<Vec<_>>()
+        );
+        if shutdown {
+            d.on_shutdown(&mut h);
+        }
+        let refs = h.refs.clone();
+        drop(h); // the reference provider must outlive the host
+        drop(d);
+        assert!(department_counts(&refs).iter().all(|&(_, n)| n == 0));
+    }
+
+    let mut h = Rec {
+        group: vec![0],
+        ..Default::default()
+    };
+    h.funding.insert(0, 0.5);
+    let d = open(&mut h, GROUP_CIVIC, 0);
+    assert_eq!(d.saved_fractions(), &[(0.5, 0)]);
+    drop(d);
+    assert!(department_counts(&h.refs).is_empty());
+}
+
+/// §9 tests 22-24: exact per-row ownership, shared cap, repeated init,
+/// shutdown order and destructor order. A slider ID owns no window ref.
+#[test]
+fn department_ownership_reinit_shutdown_and_drop() {
+    for shutdown in [false, true] {
+        let mut h = ownership_host();
+        let mut d = open(&mut h, GROUP_UTILITIES, 0);
+        let rows = [2, 2, 2, 3, 3, 3, 3, 3, 3];
+        assert_eq!(d.sliders().iter().map(|s| s.dept).collect::<Vec<_>>(), rows);
+        assert_eq!(department_counts(&h.refs), [(1, 1), (2, 4), (3, 7)]);
+        assert_eq!((d.list_a().len, d.list_b().len), (2, 16));
+        let mut ids = std::collections::HashSet::new();
+        for (&(win, id, dept), slider) in h.slider_children.iter().zip(d.sliders()) {
+            assert_eq!(win, WIN);
+            assert_eq!((id, dept), (slider.slider, slider.dept));
+            assert!(ids.insert(id));
+        }
+        assert_eq!(ids.len(), 9);
+        // Pair references precede slider references. Each append has the
+        // same temporary+copy+release sequence, irrespective of capacity.
+        let expected = [1, 2, 3]
+            .into_iter()
+            .chain(rows)
+            .flat_map(|dept| [('+', dept), ('+', dept), ('-', dept)])
+            .collect::<Vec<_>>();
+        assert_eq!(*h.refs.events.lock().unwrap(), expected);
+        let before = h.refs.events.lock().unwrap().clone();
+        let saved = d.saved_fractions().to_vec();
+        let sliders = d.sliders().to_vec();
+        assert!(d.on_init(&mut h, Some(WIN)));
+        assert_eq!(*h.refs.events.lock().unwrap(), before);
+        assert_eq!(d.saved_fractions(), saved);
+        assert_eq!(d.sliders(), sliders);
+        assert_eq!(h.paused, 1);
+
+        h.refs.events.lock().unwrap().clear();
+        if shutdown {
+            assert!(d.on_shutdown(&mut h));
+            assert_eq!(
+                department_releases(&h.refs),
+                rows.into_iter().chain([1, 2, 3]).collect::<Vec<_>>()
+            );
+            assert_eq!(department_counts(&h.refs), [(1, 0), (2, 0), (3, 0)]);
+            let after = h.refs.events.lock().unwrap().clone();
+            assert!(d.on_shutdown(&mut h));
+            assert_eq!(*h.refs.events.lock().unwrap(), after);
+            assert!(d.on_init(&mut h, Some(WIN)));
+            assert_eq!(department_counts(&h.refs), [(1, 1), (2, 4), (3, 7)]);
+            assert_eq!(d.sliders().iter().map(|s| s.dept).collect::<Vec<_>>(), rows);
+            d.on_shutdown(&mut h);
+            h.refs.events.lock().unwrap().clear();
+        }
+        let refs = h.refs.clone();
+        drop(h);
+        drop(d);
+        assert_eq!(department_counts(&refs), [(1, 0), (2, 0), (3, 0)]);
+        if shutdown {
+            assert!(refs.events.lock().unwrap().is_empty());
+        } else {
+            assert_eq!(
+                department_releases(&refs),
+                [1, 2, 3].into_iter().chain(rows).collect::<Vec<_>>()
+            );
+            let events = refs.events.lock().unwrap();
+            assert_eq!(&events[events.len() - 2..], &[('w', CONTENT), ('w', WIN)]);
+        }
+    }
+}
+
+#[test]
+fn explicit_final_release_then_drop_is_idempotent() {
+    let mut h = ownership_host();
+    let mut d = open(&mut h, GROUP_UTILITIES, 0);
+    h.refs.events.lock().unwrap().clear();
+    d.release_final(&mut h);
+    assert_eq!(department_releases(&h.refs), [1, 2, 3, 2, 2, 2, 3, 3, 3, 3, 3, 3]);
+    let events = h.refs.events.lock().unwrap().clone();
+    d.release_final(&mut h);
+    d.on_shutdown(&mut h);
+    drop(d);
+    assert_eq!(*h.refs.events.lock().unwrap(), events);
+    assert_eq!(h.paused, 1); // destructor and shutdown never HiddenResume
+    assert_eq!(department_counts(&h.refs), [(1, 0), (2, 0), (3, 0)]);
+}
+
+/// §9 tests 19 and 25 (BW13): deliberate safe continuation on null content.
+#[test]
+fn failed_content_keeps_pause_and_department_ownership() {
+    let mut h = ownership_host();
+    h.content_fails = true;
+    let mut d = open(&mut h, GROUP_UTILITIES, 0);
+    assert!(d.is_initialised());
+    assert_eq!(d.content(), None);
+    assert!(h.painted.is_empty()); // no child insertions into missing content
+    assert_eq!(d.saved_fractions().len(), 3);
+    assert_eq!(
+        d.sliders().iter().map(|s| s.dept).collect::<Vec<_>>(),
+        [2, 2, 2, 3, 3, 3, 3, 3, 3]
+    );
+    assert!(h.slider_children.iter().all(|&(parent, _, _)| parent == WIN));
+    assert_eq!(department_counts(&h.refs), [(1, 1), (2, 4), (3, 7)]);
+    assert_eq!(h.paused, 1);
+    assert!(d.destroy(&mut h));
+    assert_eq!(h.paused, 0);
+    d.on_shutdown(&mut h);
+    drop(d);
+    assert_eq!(department_counts(&h.refs), [(1, 0), (2, 0), (3, 0)]);
+}
+
+/// §9 tests 26-27: the same predicate drives counts and built rows, for
+/// both lists, flags 5/4/1, and IDs just below/at/above the boundary.
+#[test]
+fn bw16_id_boundary_counts_and_built_rows() {
+    for income in [true, false] {
+        for flags in [5, 4, 1] {
+            let mut h = Rec {
+                group: vec![1],
+                ..Default::default()
+            };
+            h.funding.insert(1, 0.5);
+            let items = [0, 25]
+                .into_iter()
+                .flat_map(|amount| {
+                    [99, 100, 101].map(|id| {
+                        item(
+                            if income { 1 } else { 2 },
+                            id,
+                            flags,
+                            if income { amount } else { 0 },
+                            if income { 0 } else { amount },
+                        )
+                    })
+                })
+                .collect();
+            h.items.insert(1, items);
+            let d = open(&mut h, GROUP_UTILITIES, 0);
+            let list = if income { d.list_a() } else { d.list_b() };
+            assert_eq!(list.len, if flags == 4 { 1 } else { 6 });
+            let ids = h
+                .painted
+                .iter()
+                .filter_map(|&(inc, dept, id, _)| {
+                    assert_eq!((inc, dept), (income, 1));
+                    id
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                ids,
+                if flags == 4 {
+                    vec![]
+                } else {
+                    vec![99, 100, 99, 100, 101]
+                }
+            );
+            assert_eq!(d.sliders().len(), if income { 0 } else { list.len as usize });
+        }
+    }
+    // The test is on a full signed 64-bit amount; either nonzero half counts.
+    for kind in [1, 2, u32::MAX] {
+        for amount in [1_i64 << 32, -(1_i64 << 32), i64::MIN, -1, i64::MAX] {
+            assert!(line_item_shown(&item(kind, 101, 1, amount, amount)));
+        }
+    }
+    assert!(!line_item_shown(&item(2, 101, 1, 25, 0)));
+    assert!(!line_item_shown(&item(1, 101, 1, 0, 25)));
 }

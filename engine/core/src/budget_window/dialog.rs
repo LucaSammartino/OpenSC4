@@ -10,7 +10,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use super::ids::*;
-use super::{BudgetWindowHost, DealRef, DeptRef, FundingPair, ItemRef, LineItem, OrdId, WinRef};
+use super::{
+    BudgetWindowHost, BudgetWindowReferences, DealRef, DeptRef, FundingPair, ItemRef, LineItem, OrdId, WinRef,
+};
 
 /// One group-mode slider row (`SliderInfo`, vector `+0x2C`).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -140,7 +142,7 @@ pub fn line_item_shown(item: &LineItem) -> bool {
     } else {
         item.full_expenses
     };
-    item.display_flags & LINE_ITEM_SHOW != 0 && (item.id > LINE_ITEM_ALWAYS_ID_ABOVE || amount != 0)
+    item.display_flags & LINE_ITEM_SHOW != 0 && (item.id <= LINE_ITEM_ALWAYS_ID_MAX || amount != 0)
 }
 
 /// `end_dialog(win, code)` (`0x00779850`, §6): null → false; a modal window
@@ -176,6 +178,7 @@ pub(crate) fn show_sequence<H: BudgetWindowHost + ?Sized>(host: &mut H, win: Win
 /// `cSC4SubBudgetWindow`.
 #[derive(Debug)]
 pub struct SubBudgetWindow {
+    references: Option<Arc<dyn BudgetWindowReferences>>,
     /// `+0x08`: initialised.
     initialised: bool,
     /// `+0x0C`: the dialog window.
@@ -223,6 +226,7 @@ impl SubBudgetWindow {
 
     pub fn with_slider_guard(slider_guard: Arc<AtomicBool>) -> Self {
         Self {
+            references: None,
             initialised: false,
             window: None,
             content: None,
@@ -329,6 +333,7 @@ impl SubBudgetWindow {
         context: u32,
         department: u32,
     ) -> Option<WinRef> {
+        self.references = Some(host.references());
         let win = host.create_window_generator()?;
         host.add_ref_win(win);
         self.window = Some(win);
@@ -394,6 +399,7 @@ impl SubBudgetWindow {
         if self.initialised {
             return true;
         }
+        self.references = Some(host.references());
         host.hidden_pause();
         // The string loads between the pause and the content window are
         // layout (§8); nothing the core keeps.
@@ -436,9 +442,9 @@ impl SubBudgetWindow {
     /// §4 (BW10a): the content window `+0x10`, in every mode, before the
     /// selector branch.
     fn create_content<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef) {
-        // Literal reading of "if that fails, +0x10 stays null and nothing
-        // below runs": the flag/ID/ChildAdd steps are skipped and on_init
-        // goes on to the mode branch (BW13).
+        // BW13 deliberate safe divergence: skip this block on failure, retain
+        // the hidden pause and continue the mode branch. Child insertions
+        // into absent content are no-ops; sliders still belong to `win`.
         let Some(c) = host.create_content_window() else { return };
         // cRZAutoRefCount<cIGZWin>::operator=: the reference +0x10 holds.
         host.add_ref_win(c);
@@ -492,14 +498,17 @@ impl SubBudgetWindow {
     fn init_group<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef, group: u32) {
         let depts = host.department_budgets_in_group(group);
         let (mut a, mut b) = (0u32, 0u32);
-        // BW10b: +0x38 is emptied, then one pair per department is saved
-        // inside the counting loop, before any visibility test. The pair
-        // holds the department "with a reference"; DeptRef is an opaque
-        // host handle and the matching release is not specified (BW14).
-        self.saved_fractions.clear();
+        // BW14: clear old pairs, then temporary +1, stored copy +1,
+        // temporary -1, before any visibility test. Rust vector growth moves
+        // ownership rather than copy-constructing then destroying old pairs;
+        // it preserves the specified one-reference-per-element invariant.
+        self.clear_saved_fractions();
         for &dept in &depts {
             let f = host.funding_percentage(dept);
+            self.add_ref_dept(dept);
+            self.add_ref_dept(dept);
             self.saved_fractions.push((f, dept));
+            self.release_dept(dept);
             let (mut first_a, mut first_b) = (true, true);
             for item in host.department_line_items(dept) {
                 let income = item.kind == LINE_ITEM_INCOME;
@@ -529,12 +538,89 @@ impl SubBudgetWindow {
             return;
         }
         host.setup_window_big(win, a.min(LIST_ROWS_VISIBLE), b.min(LIST_ROWS_VISIBLE));
-        for dept in depts {
-            let slider = host.add_department_row(win, group, dept);
-            self.sliders.push(SliderInfo { slider, dept });
+        self.clear_sliders();
+        // Separate A/B build loops, in department and line-item order, with
+        // one shared nine-row cap per list. Only B rows own SliderInfo refs.
+        for income in [true, false] {
+            let mut row = 0;
+            for &dept in &depts {
+                let mut first = true;
+                for item in host.department_line_items(dept) {
+                    if (item.kind == LINE_ITEM_INCOME) != income {
+                        continue;
+                    }
+                    if std::mem::replace(&mut first, false) && header_shown(host, group, dept, income) {
+                        self.build_group_row(host, win, group, dept, None, income, &mut row);
+                    }
+                    if line_item_shown(&item) {
+                        self.build_group_row(host, win, group, dept, Some(item), income, &mut row);
+                    }
+                }
+            }
         }
         // BW10c: unclamped counts, inclusive bound.
         self.create_scroll_arrows(host, win, true);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn build_group_row<H: BudgetWindowHost + ?Sized>(
+        &mut self,
+        host: &mut H,
+        win: WinRef,
+        group: u32,
+        dept: DeptRef,
+        item: Option<LineItem>,
+        income: bool,
+        row: &mut u32,
+    ) {
+        if *row >= LIST_ROWS_VISIBLE {
+            return;
+        }
+        if let Some(content) = self.content {
+            host.paint_group_row(content, group, dept, item, income, *row);
+        }
+        if !income {
+            let slider = host.create_department_slider(win, dept, item, *row);
+            // BW15: temporary and copied element each AddRef; then drop the
+            // temporary. The slider ID itself has no reference ownership.
+            self.add_ref_dept(dept);
+            self.add_ref_dept(dept);
+            self.sliders.push(SliderInfo { slider, dept });
+            self.release_dept(dept);
+        }
+        *row += 1;
+    }
+
+    fn add_ref_dept(&self, dept: DeptRef) {
+        if dept != 0 {
+            self.references
+                .as_ref()
+                .expect("reference provider before init")
+                .add_ref_dept(dept);
+        }
+    }
+
+    fn release_dept(&self, dept: DeptRef) {
+        if dept != 0 {
+            self.references
+                .as_ref()
+                .expect("reference provider before init")
+                .release_dept(dept);
+        }
+    }
+
+    fn clear_saved_fractions(&mut self) {
+        for &(_, dept) in &self.saved_fractions {
+            self.release_dept(dept);
+        }
+        self.saved_fractions.clear();
+    }
+
+    fn clear_sliders(&mut self) {
+        for slider in &self.sliders {
+            self.release_dept(slider.dept);
+        }
+        self.sliders.clear();
     }
 
     /// `on_shutdown` (`0x0077E440`, §4).
@@ -543,8 +629,8 @@ impl SubBudgetWindow {
             return true;
         }
         self.initialised = false;
-        self.sliders.clear();
-        self.saved_fractions.clear();
+        self.clear_sliders();
+        self.clear_saved_fractions();
         self.restore.clear();
         // Held deals are emptied without a per-deal Release.
         self.deals.clear();
@@ -874,6 +960,8 @@ impl SubBudgetWindow {
     /// Of these the core holds all but `+0x18`, which nothing in the spec
     /// sets.
     pub fn release_final<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H) {
+        self.clear_saved_fractions();
+        self.clear_sliders();
         if let Some(mut n) = self.nested.take() {
             n.release_final(host);
         }
@@ -885,6 +973,24 @@ impl SubBudgetWindow {
         }
         if let Some(w) = self.window.take() {
             host.release_win(w);
+        }
+    }
+}
+
+impl Drop for SubBudgetWindow {
+    fn drop(&mut self) {
+        // Destructor, not DestroySubBudgetWindow: never resume the simulator
+        // here. Drain exactly once, including when the host borrow has ended.
+        self.clear_saved_fractions();
+        self.clear_sliders();
+        drop(self.nested.take());
+        if let Some(refs) = &self.references {
+            for win in [self.inner_child.take(), self.content.take(), self.window.take()]
+                .into_iter()
+                .flatten()
+            {
+                refs.release_win(win);
+            }
         }
     }
 }
