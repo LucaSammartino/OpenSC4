@@ -468,3 +468,18 @@ fn fence_preserves_extended_product_low_byte_and_rejects_invalid_conversion() {
     e.scale = f32::NAN;
     assert_eq!(e.toggle_fence_pixels(0, 0, &mut h), Err(Unsupported::NumericConversion));
 }
+
+#[test]
+fn redraw_helper_remains_distinct_from_direct_draw_and_invalidate() {
+    let (mut e, mut h) = editor();
+    let id = e.insert(object(0, [1.0, 1.0, 7.0, 7.0]), false);
+    e.record_mut(id).unwrap().foundation = 5;
+    e.object_action(id, 2, &mut h).unwrap();
+    assert_eq!(h.events, vec![Effect::Title, Effect::RedrawRequired]);
+    h.events.clear();
+    e.object_action(id, 2, &mut h).unwrap();
+    assert!(h.events.is_empty());
+    e.set_selection(Some(id), &mut h);
+    e.key_down(0x24, 0, false, &mut h).unwrap();
+    assert_eq!(h.events, vec![Effect::Title, Effect::RedrawRequired]);
+}

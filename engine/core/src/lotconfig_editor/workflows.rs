@@ -429,7 +429,7 @@ impl Editor {
                 if self.record(id).unwrap().foundation != 0 {
                     self.record_mut(id).unwrap().foundation = 0;
                     self.set_dirty(1, h);
-                    h.effect(Effect::Draw);
+                    h.effect(Effect::RedrawRequired);
                 }
             }
             (0, 4) | (1, 4) | (2, 3) | (4, 1) => {
@@ -540,7 +540,7 @@ impl Editor {
                             if o.offset[1] != 0.0 {
                                 o.offset[1] = 0.0;
                                 self.set_dirty(1, h);
-                                h.effect(Effect::Draw);
+                                h.effect(Effect::RedrawRequired);
                             }
                         }
                         0x4E => return Err(Unsupported::Dependency("LE5 CycleSelectedObject")),

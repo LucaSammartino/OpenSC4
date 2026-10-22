@@ -81,6 +81,9 @@ pub struct Identity {
 pub enum Effect {
     Title,
     Draw,
+    /// Pending call to the unresolved TriggerLotConfigurationRedraw helper;
+    /// deliberately distinct from known direct DrawCurrent/Invalidate calls.
+    RedrawRequired,
     Invalidate,
     Refresh,
     Prepare3D,

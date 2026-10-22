@@ -7,9 +7,10 @@
 - Worktree reused, detached HEAD; no initial changes. Baseline `qbuild all` started.
 - Published inventory read: 109 bodies / 52,646 B, C44/P20/O40/R5. Relevant §§1–4,7–12,16–17 read.
 - Independent expected fixtures written before production implementation; first source milestone covers state/geometry, compatibility/text dialogs, selector kernels/callbacks, save/save-as/close/provider identity sequencing.
-- Milestones: `3bda4ec3` initial production kernels/pre-implementation fixtures; `1b0e8080` audit and stronger fixtures. Final source has 18 fixtures (17 appeared in preceding quick run, final precision fixture awaits full gate).
+- Milestones: `3bda4ec3` initial kernels/fixtures; `1b0e8080` audit/fixtures; `2f9dc417` focused gate record. Final source has 19 fixtures (17 passed in earlier quick run).
 - Audit corrected to include no-confirm delete: 16 focused complete bodies/3,274 B; 36 partial/30,842 B; 52 unsupported/18,103 B; 5 foreign/427 B. No byte-equivalent or whole-owner credit.
-- Next: collect final stable `qbuild all` (launched 23:52), fix any failures; report/queue. Read/Open retain explicit dependency barriers; no lifecycle completeness claim.
+- Next: run/collect `build-runs/final-editor-gate.py`, result `build-runs/core-lotconfig-editor4-final.verdict`; fix failures; report/queue. Read/Open remain explicitly incomplete.
+- Final review distinguishes RedrawRequired from direct Draw/Invalidate for foundation deletion/Home, with a new fixture. Earlier full gate was canceled (session 58904) after this correction; do not credit its partial results. Stable final source requires the new runner.
 - Baseline all overlapped source edits; doctest/clippy saw erroneous filename headers from initial formatter and failed. Corrected via UTF-8 stdin rustfmt + apply_patch. Evidence build-runs/baseline-failure.txt; do not credit baseline as clean.
 - Quick Rust tests passed 3,117/0, including 17 editor fixtures; dependent/native build still running/queued. Final all writes qbuild-test/clippy and fc4verify logs.
 - New files fmt PASS (5 files), after matching engine max_width=120 and UTF-8 stdin. Required lib.rs fmt check FAIL: 173 pre-existing module-order diff lines; no broad reformat made. Initial relative-path fmt also failed and is retained as a diagnostic.
