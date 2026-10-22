@@ -125,7 +125,7 @@ destruction removes registrations without releasing driver products or children 
 
 ## Explicit specification boundaries
 
-- GDQ1: general registry rehash chain order/table beyond the 193-bucket regime is
+- Question GD1: general registry rehash chain order/table beyond the 193-bucket regime is
   absent. Growth reports a specification-boundary fault, not a native false result.
 - GI1: no matrix shape or aggregate placement among constructor subobjects is given.
   Initial matrix words are zero without an invented shape. Pool-before-aggregate-before-

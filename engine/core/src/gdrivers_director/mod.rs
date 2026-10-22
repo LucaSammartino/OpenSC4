@@ -169,7 +169,7 @@ impl Registry {
             return Ok(false);
         }
         if self.len == self.buckets.len() as u32 {
-            // General rehash chain order is not specified; see GDQ1. Reject rather
+            // General rehash chain order is not specified; see question GD1. Reject rather
             // than silently inventing observable callback ordering on that path.
             return Err(Fault::UnspecifiedGrowth);
         }
@@ -189,6 +189,7 @@ impl Registry {
     }
     pub fn clear(&mut self) {
         self.buckets.clear();
+        self.buckets.shrink_to_fit();
         self.len = 0;
     }
 }

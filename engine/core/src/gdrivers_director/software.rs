@@ -49,6 +49,7 @@ impl Pool {
             host.free(self.descriptor_storage, Allocation::Heap);
         }
         self.descriptors.clear();
+        self.descriptors.shrink_to_fit();
         host.observe(Event::PoolSetDestroyed);
     }
 }
@@ -235,6 +236,7 @@ impl Buffers {
         self.storage = 0;
         self.capacity = 0;
         self.slots.clear();
+        self.slots.shrink_to_fit();
     }
     pub fn save(&mut self, frame: Frame, args: [i32; 7], host: &mut impl Host) -> Result<bool> {
         let [handle, rx, ry, width, height, sx, sy] = args;

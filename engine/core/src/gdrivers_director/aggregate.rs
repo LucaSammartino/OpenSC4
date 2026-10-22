@@ -75,7 +75,7 @@ impl<T: ValueRecord> Sequence<T> {
         }
         let snapshot = value.clone();
         let mut records = self.records[..position].to_vec();
-        records.extend(std::iter::repeat_n(snapshot, count as usize));
+        records.extend(std::iter::repeat(snapshot).take(count as usize));
         if omit_suffix == 0 {
             records.extend_from_slice(&self.records[position..]);
         }
@@ -96,7 +96,7 @@ impl<T: ValueRecord> Sequence<T> {
             return self.reallocate(position, count, &snapshot, 0, host);
         }
         self.records
-            .splice(position..position, std::iter::repeat_n(snapshot, count as usize));
+            .splice(position..position, std::iter::repeat(snapshot).take(count as usize));
         Ok(())
     }
     pub fn insert_from(&mut self, position: usize, count: u32, source: usize, host: &mut impl Host) -> Result<()> {
