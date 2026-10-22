@@ -16,6 +16,8 @@ pub trait VertexLighting {
 pub struct ModelProcessor {
     instance: Option<InstanceReference>,
     container: Option<InstanceReference>,
+    borrowed_container: Option<BorrowedInstanceReference>,
+    already_released: bool,
     originals: Vec<Option<Reference<VertexBlock>>>,
     normals: Option<Vec<Vec<Vec3>>>,
     mesh_order: Vec<usize>,
@@ -31,7 +33,20 @@ impl ModelProcessor {
         self.instance.is_some()
     }
     pub fn has_container(&self) -> bool {
+        self.container.is_some() || self.borrowed_container.is_some()
+    }
+    pub fn container_is_retained(&self) -> bool {
         self.container.is_some()
+    }
+    fn access_container(&self) -> Option<InstanceReference> {
+        self.container
+            .as_ref()
+            .map(InstanceReference::borrowed_access)
+            .or_else(|| {
+                self.borrowed_container
+                    .as_ref()
+                    .and_then(BorrowedInstanceReference::access)
+            })
     }
     pub fn normals(&self) -> Option<&[Vec<Vec3>]> {
         self.normals.as_deref()
@@ -40,38 +55,44 @@ impl ModelProcessor {
         &self.mesh_order
     }
     fn restore_originals(&mut self) {
-        if let Some(container) = &self.container {
+        if let Some(container) = self.access_container() {
             container.with_instance_mut(|instance| {
-                for (i, original) in self.originals.drain(..).enumerate() {
+                for (i, original) in self.originals.iter().enumerate() {
                     if let Some(mesh) = instance.mesh_mut(i) {
-                        mesh.vertices = original;
+                        // Retain the restored slot before releasing the replaced
+                        // block, then discard the saved reference (MI6).
+                        mesh.vertices = original.clone();
                     }
                 }
             });
         }
-        self.originals.clear();
     }
     pub fn set_model(&mut self, instance: Option<&InstanceReference>) -> bool {
         self.restore_originals();
-        self.release_model();
+        self.originals.clear();
+        self.normals = None;
+        self.mesh_order.clear();
+        self.instance = None;
+        self.container = None;
+        self.borrowed_container = None;
+        self.already_released = false;
         let Some(instance) = instance else {
-            return true;
+            return false;
         };
-        if instance.animated_frame_count().is_some_and(|n| n > 1) {
+        if !instance.has_mesh_container() || instance.animated_frame_count().is_some_and(|n| n > 1) {
+            return false;
+        }
+        let valid = instance.with_instance(|model| {
+            model.mesh_count() != 0
+                && model
+                    .meshes()
+                    .iter()
+                    .all(|mesh| mesh.vertices.as_ref().is_some_and(|v| v.read().format == 2))
+        });
+        if !valid {
             return false;
         }
         self.instance = Some(instance.clone());
-        let valid = instance.with_instance(|model| {
-            model
-                .meshes()
-                .iter()
-                .all(|mesh| mesh.vertices.as_ref().is_some_and(|v| v.read().format == 2))
-        });
-        // MI6: only multi-frame animation is explicitly refused. Other formats
-        // keep the instance but no container; true means the instance was kept.
-        if !valid {
-            return true;
-        }
         self.container = Some(instance.clone());
         instance.with_instance_mut(|instance| {
             for i in 0..instance.mesh_count() {
@@ -102,7 +123,7 @@ impl ModelProcessor {
         true
     }
     pub fn create_vertex_normals(&mut self) {
-        let Some(container) = &self.container else {
+        let Some(container) = self.access_container() else {
             return;
         };
         self.normals = Some(container.with_instance(|instance| {
@@ -110,6 +131,8 @@ impl ModelProcessor {
                 .meshes()
                 .iter()
                 .map(|mesh| {
+                    // MI11: retain wider sums until the published score store;
+                    // exact x87 control-word-dependent last bits are not claimed.
                     let count = mesh.vertices.as_ref().map_or(0, |v| v.read().vertices.len());
                     let mut sums = vec![[0.; 3]; count];
                     let mut weights = vec![0_f32; count];
@@ -142,7 +165,7 @@ impl ModelProcessor {
         if self.normals.is_none() {
             self.create_vertex_normals();
         }
-        let (Some(container), Some(normals)) = (&self.container, &self.normals) else {
+        let (Some(container), Some(normals)) = (self.access_container(), &self.normals) else {
             return;
         };
         container.with_instance_mut(|instance| {
@@ -175,41 +198,56 @@ impl ModelProcessor {
         });
     }
     pub fn sort_meshes(&mut self, direction: Vec3) {
-        let Some(container) = &self.container else {
+        let Some(container) = self.access_container() else {
             return;
         };
         let depths = container.with_instance(|model| {
             model
                 .meshes()
                 .iter()
-                .map(|mesh| dot(mesh.bounds().center(), direction))
+                .map(|mesh| {
+                    let b = mesh.bounds();
+                    let center: [f64; 3] = std::array::from_fn(|i| (f64::from(b.min[i]) + f64::from(b.max[i])) * 0.5);
+                    ((center[0] * f64::from(direction[0]) + center[1] * f64::from(direction[1]))
+                        + center[2] * f64::from(direction[2])) as f32
+                })
                 .collect::<Vec<_>>()
         });
         // MI8: every invocation starts with the container's original mesh order.
-        self.mesh_order = (0..depths.len()).collect();
-        // Literal stable insertion sort, including unordered (NaN) comparisons.
-        for i in 1..self.mesh_order.len() {
-            let value = self.mesh_order[i];
-            let mut j = i;
-            while j > 0 && depths[value] > depths[self.mesh_order[j - 1]] {
-                self.mesh_order[j] = self.mesh_order[j - 1];
-                j -= 1;
-            }
-            self.mesh_order[j] = value;
+        self.mesh_order.clear();
+        // Scan from the front: a NaN can make backward insertion differ.
+        for value in 0..depths.len() {
+            let position = self
+                .mesh_order
+                .iter()
+                .position(|&old| depths[value].partial_cmp(&depths[old]) != Some(std::cmp::Ordering::Less))
+                .unwrap_or(self.mesh_order.len());
+            self.mesh_order.insert(position, value);
         }
     }
-    pub fn release_model(&mut self) {
-        // The published ReleaseModel releases references, without promising to
-        // restore vertices. SetModel does that explicitly before calling here.
-        self.container = None;
+    pub fn release_model(&mut self) -> Result<(), ReleaseModelError> {
+        // MI6 [choice]: reject undefined native no-container/repeated releases.
+        // Keep a weak borrowed pointer and arrays for later destruction/rebind;
+        // the caller must independently keep the container alive.
+        if self.already_released || self.container.is_none() {
+            return Err(ReleaseModelError);
+        }
+        self.borrowed_container = self.container.as_ref().map(InstanceReference::downgrade);
         self.instance = None;
+        self.container = None;
+        self.already_released = true;
+        Ok(())
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ReleaseModelError;
+impl Drop for ModelProcessor {
+    fn drop(&mut self) {
+        self.instance = None;
+        self.restore_originals();
+        self.container = None;
         self.originals.clear();
         self.normals = None;
         self.mesh_order.clear();
-    }
-}
-impl Drop for ModelProcessor {
-    fn drop(&mut self) {
-        self.release_model();
     }
 }

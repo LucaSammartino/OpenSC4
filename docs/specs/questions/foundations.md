@@ -41,3 +41,54 @@
   [No `rng` enable key, invented registration, vtable/constructor hook, private-field patch or native-operation
   forwarding replacement is installed. Existing defaults, maps/tools and RNG-owning subsystem behavior stay
   unchanged; same-name simulation/renderer generators are outside this request.]
+
+<!-- from: verify-variants4 bounded native variant verification (2026-10-22) -->
+- **HG4 - sections 9.2, 10.1, 17.1, independent native serialization fixture:** What published SDK acquisition,
+  ownership and disposal route supplies an isolated ORIGINAL segment input/output stream capable of executing
+  its own ReadVariant/WriteVariant against caller-owned bytes? A property Write into a plugin segment stream
+  only calls that plugin's WriteVariant, so comparing its Rust serialization with Rust is not native
+  verification. Include error-state access, reset/position/lifetime and null-object read-into behavior.
+  [Native serialization/read-into not exercised; Rust serialization is used only to expose the independently
+  populated Rust Variant's typed storage. No native serialization equivalence or save-payload claim.]
+
+<!-- from: verify-variants4 bounded native variant verification (2026-10-22) -->
+- **HG5 - sections 9.1 and 17.1, variant behavior beyond typed storage:** Please publish the behavioral
+  contract for cross-type GetVal/As/CanGetVal, string create/get/set, reference-alias operations, and object/
+  pointer acquisition/retention/release, including empty/invalid values and failure output preservation.
+  The slot table proves call ABI but not these conversions or lifetimes. Confirm CreateCopy hands back one
+  owned reference and that numeric SetRefX copies input storage. [Literal published SDK reading for owned
+  numeric clones and copying setters only; two scalar values and 0/1/3-element arrays per numeric/character
+  type, clone isolation, CopyFrom and Erase are bounded experiments. No whole 127-method owner equivalence;
+  unsupported conversions, string operations, pointers, objects and reference aliasing are excluded.]
+
+<!-- from: verify-variants4 return-channel gate and first native run (2026-10-22) -->
+- **HG6 - section 17.1 slots 5/6/7 return channel and clone identity:** The ABI gate describes Erase,
+  CopyFrom and CreateCopy as eax-or-void. What return values, if any, are contractual? Does SDK CreateCopy
+  return a distinct COM implementation of the same published 127-slot cIGZVariant interface? The owned
+  result in vv4-original-a567f1-1820 had a different native vtable from the published borrowed source,
+  was released to zero with ref_warnings=0, and was refused before testing. [Discard nominal bool results;
+  judge CreateCopy by its independent owned non-null pointer and supported-image interface validation,
+  CopyFrom/Erase by resulting state. No unpublished clone address/layout is called or baked into code.]
+
+<!-- from: verify-variants4 independent owned native variants (2026-10-22) -->
+- **HG7 - section 9.1 scalar GetCount:** What does GetCount return on a scalar, including after typed
+  setters and native CreateCopy/CopyFrom? Rust Variant::count returns 1 for scalars. Original run
+  vv4-original2-7c5ca4-1810 executed 70 literal cases/420 checks, 392 exact and 28 scalar-shape differences,
+  with 71 successful native owned clones, no refusals and clean2032/ref_warnings=0. Every typed getter,
+  array count/data, copy isolation, CopyFrom state and Erase state passed. Please specify the native scalar
+  metadata contract separately from the one serialized scalar element. [Keep literal Rust scalar count=1;
+  preserve the 28 differences as failures rather than adjusting the oracle to native results. A normal-speed
+  third original run with explicit scalar metadata and a current40 control are planned to isolate pacing.]
+
+  **HG7 measurement update:** vv4-normal3-e78179-1815, normal speed through 2032-01-01, clean/ref0,
+  reproduces 70 cases/420 checks/392 exact/28 HG7 differences/0 unexplained/0 refusals/71 clones.
+  Every tested native scalar type 0x01 through 0x0E reports its matching type and GetCount=0 (Rust count=1).
+  This is not a turbo-only difference. The full scripted save succeeds. No core semantics were changed.
+
+  **HG7 published-contract correction (round3, 2026-10-22):** This question is already answered by
+  data-formats §5.2 (scalar GetCount=0, array element count), its text writer discussion
+  (fresh SetValUint32 count0), §10.5 item42 (scalar7 count0, array-one count1), and foundations §4.1
+  (scalar variant count0). The previous instruction to retain logical count1 as the native metadata
+  oracle was incorrect. Keep the old 28 failures as historical measurements; preserve logical storage
+  count1 for existing consumers, and compare the actual production native GetCount path instead.
+  HG4-HG6 remain unresolved; this correction establishes no conversion/serialization/return-channel contract.

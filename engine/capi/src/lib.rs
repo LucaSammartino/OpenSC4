@@ -1124,6 +1124,11 @@ mod simgrids_verify;
 // glue-dates4: published cIGZDate scalar/text contracts.
 pub mod dates;
 
+// verify-command-system4: private ORIGINAL comparison transport (no DLL exports).
+mod commands_verify;
+// Opt-in persistent production FontSys verification transport.
+mod fontsys_verify;
+
 // Independent app-owned feature-manager query verification.
 pub mod feature_manager;
 

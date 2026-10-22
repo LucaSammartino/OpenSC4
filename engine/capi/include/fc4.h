@@ -12796,6 +12796,36 @@ uint32_t fc4_feature_snapshot_lifetime(fc4_feature_snapshot* snapshot, uint32_t 
 static_assert(sizeof(fc4_feature_file) == (sizeof(void*) == 4 ? 12 : 24), "fc4_feature_file layout");
 #endif
 
+/* cIGZVariant GetCount: scalar 0, array storage length. data-formats §5.2.
+ * Separate from the logical element counts accepted by typed setters. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+uint32_t fc4_variant_get_count(uint16_t var_type, uint32_t storage_count);
+#ifdef __cplusplus
+}
+#endif
+
+/* Independent landfill occupant probe: input bytes must be caller-authored,
+ * never native output. len=0 queries construction only. mutate=1 changes
+ * orientation/position and calls SetTileID with the current ID (no exemplar
+ * mutation). Output bytes are the independently written Rust record. */
+typedef struct fc4_landfill_occupant_probe_result {
+    uint32_t read_ok, write_ok;
+    int32_t orientation;
+    uint32_t empty, occupant_type, flags, previous_tile, class_id, qi_mask, ref_delta;
+    float position[3], bounds[6];
+} fc4_landfill_occupant_probe_result;
+#ifdef __cplusplus
+extern "C" {
+#endif
+bool fc4_landfill_occupant_probe(const uint8_t* bytes, size_t len, uint32_t mutate,
+    int32_t orientation, const float* position, fc4_bytes_sink sink, void* user,
+    fc4_landfill_occupant_probe_result* result);
+#ifdef __cplusplus
+}
+#endif
+
 /* Resource-only persistence-manager verification; no original answers as inputs. */
 typedef struct fc4_pm_session fc4_pm_session;
 typedef struct fc4_pm_key { uint32_t ty, group, instance; } fc4_pm_key;
