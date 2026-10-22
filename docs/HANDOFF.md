@@ -8,6 +8,8 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 ## 0. Current state (2026-10-22, run4 open-ended)
 **Lua native phase parked:** db4e9202 gate68/game clean2032/ref0, but nativecallbacks0/0. LH4 stock insertion and LH5 slot25 ABI remain; parent1+phase1=2 logical, only1final round after actual causes fixed. Preserve WT, no owner/default promotion.
 
+**train99 landed 8e80ddfa12:** GZ message and persistence PR5 cores landed after real68-test gate and current40 regressPASS. Persistence109-start implementation audit completed; native ABI/recursive locking remain embedding boundaries, PR4 initialized-OR policy explicit, no native shadow/replacement claim. GZ8-GZ10 remain parked; preserved unresolved GZ worktree. Native queue-manager and persistence verification briefs released through fresh guards. Coverage57.8/36.1/19.7/18.1; rounds405 (open-ended).
+
 Older status lines: [today's archive](history/handoff-2026-10-22.md).
 
 **Run4 checkpoint400:** 400 rounds, 70 trains landed, coverage57.8/36.0/19.7/18.1, delta+21.0/+7.7/+7.6/+2.2 points since run4 start; 92 parked lanes. RE paused; native delivery/verification continue under remaining caps. Five-minute heartbeat active; next checkpoint425.
@@ -44,13 +46,13 @@ Older status lines: [today's archive](history/handoff-2026-10-22.md).
 
 **User policy:** Open-ended, no total round limit. Latest user raised target by2: keep9 live workers; target/concurrency9, max3glue, max3rounds per lane. Refill immediately from reviewed queue after fresh slots/check, never bypass guard, STOP, usage/rate or CPU/disk limits. Park capped lanes; no fourth round. STOP: `python tools/lanes.py stop "<reason>"`, land ready on-disk work, push, end.
 
-**Coverage after train98:**57.8/36.0/19.7/18.1; baseline36.8/28.3/12.1/15.9, delta+21.0/+7.7/+7.6/+2.2 points. 70 trains landed; 399 rounds used, no total cap. Next25-round checkpoint425.
+**Coverage after train99:**57.8/36.1/19.7/18.1; baseline36.8/28.3/12.1/15.9, delta+21.0/+7.8/+7.6/+2.2 points. 71 trains landed; 405 rounds used, no total cap. Next25-round checkpoint 425.
 
 **Live authority:** `build-runs/run4-coordinator-state.json`; tracked `tools/lane_refill.py --provider codex` launches reviewed briefs through tracked `tools/lane_launch.py` and guarded Codex subscription adapter. Legacy build-runs launch/refill scripts are Claude-only. Target9; fresh slots/check/dependency/STOP/parking/3glue gates retained. After compaction reread section0 and run guard before adding work. State writes use run4_coord_lock.py.
 
 **Verification follow-up:** train80 traffic71/73 and landvalue71/72 drop verified16.5 to13.5; source regress/game evidence preserved. Earlier train73 traffic408mismatches and train75/79 exact runs remain unresolved, not fixed by a lucky rerun. verify-traffic-delivery4 final family3/3 parked: diagnostic72/72 exact, TS68 continuation/provider-read evidence missing, no causal fix. LV2/LV6 runtime timing/install gaps remain. Original re-placelot-final4 resume denial remains stopped; no alias bypass.
 
-**Train authority:** `build-runs/merge-train/state.json`; latest landed train98. Start next batch when2+ ready; guard and ancestry remain authoritative.
+**Train authority:** `build-runs/merge-train/state.json`; latest landed train99. Start next batch when2+ ready; guard and ancestry remain authoritative.
 
 **Parked at3/3, never fourth:** verify-netmgrfix4(aed635a8,2/73exact,21missing RNGdraw batches,ABIadditionsunreviewed), glue-exemplars4(581778a9,3/3candidateclean2032ref0 butEX46-EX50open; registry conflict waits), core-construction4(f6dddaa7,v4 NO15 reader fixed; OP13-OP16 remain; actual2/3; prior occprops phase landed; remains parked pending OP13-OP16), core-netocc-records4(c5e769ae,partial NO15-NO17 records; NO14/NO18-NO20 remain; logical3/3 with netocc4), re-view3dwin4(78a7bd7c,partial input/AddGUI specs;VW2-VW6/helpers remain;preserveWT/ABI proposals), re-legacycontrol4(603ed696,45/57functions;12interpreters andLC4/LC5/LC8 remain;partialdocs queued, preserveWT), re-rzservices4(File/INI/Directory/OFStream complete; CmdLine slot10/SysServPtr incomplete), glue-terrain3(97b1c237), re-driverdraw4(partial DX7, landed32), re-editors4(partial curves, landed30), re-particles4(partial drawing, landed30), re-widgets4(partial base, landed28), re-application4(partial57/322, landed27), re-terrain4(answers landed25). Preserve parked worktrees, even when supported portions landed.
 
