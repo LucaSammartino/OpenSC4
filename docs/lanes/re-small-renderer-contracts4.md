@@ -1,8 +1,9 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-small-renderer-contracts4: native renderer and path owner contracts | Codex / `re-small-renderer-contracts4` (RE lane, detached worktree) | continue: guard context 151k/150k; 10 questions answered; questions check passed; no ABI/game changes | 1. Publish pending native flame evidence below. 2. Resolve six exact residuals; no family completion claim. |
+| re-small-renderer-contracts4: native renderer and path owner contracts | Codex / `re-small-renderer-contracts4` (RE lane, detached worktree) | in progress: round 2; preserved flame evidence published; ten prior answers retained | 1. Prove TB4, GT4, FF2–FF4, PA4 residuals. 2. Validate questions and report. |
 
 ## Handoff
+- Round 2: preserved native flame evidence published in fire-flames §4.1; Init corrected in §4. No FF question closed yet.
 - Goal: resolve TB4–TB7, GT3–GT6, FF2–FF4, PA4–PA8 with primary native evidence; specs/questions only.
 - Worktree reused at detached HEAD; initial status clean and no commits ahead of main.
 - Read handoff index, lane row format, merge train instructions, texture/path question entries.

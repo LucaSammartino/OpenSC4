@@ -81,12 +81,43 @@ With T and S the top-flame and side-flame counts (disasters.md §5.11) and the 3
 
 - `SetStage(s)` (`0x004728B0`): when s differs, it is stored; with no flames yet, `CreateFlames` runs; then every
   flame's `Update(s)`.
-- `Init` (`0x00471170`): the occupant `Init`, the fire joins occupant group `0x5005`, and every flame gets
-  `Update(stage)`.
+- `Init` (`0x00471170`): an already initialized occupant returns true immediately. Otherwise it calls the
+  base occupant `Init`, joins occupant group `0x5005`, sets each existing flame's made byte to one and calls
+  its `Update(stage)`. It returns true regardless of the base return and does **not** call `CreateFlames`
+  (`0x00471173–0x004711BC`). This is the call-order rule where disasters §5.11 says that Init builds flames.
 - `ViewUpdate` (`0x00472790`, on the view messages of disasters.md §5.3 step 6): only for flames on the model, and only
   when `GetPointsOnModel` gives as many points as there are flames: every flame is **placed afresh** at a new random
   point (its wall flag, side and position), and hidden when the view level is not 1. So model flames jump to new
   places on every view update *[quirk]*.
+
+### 4.1 Construction, visibility and replacement boundaries
+
+The native flame constructor is `0x00470BC0–0x00470C9F` (224 body bytes), despite its vector-resize
+label in the export. Fresh flame allocations call it at `0x00472420` and `0x00472527`. Its initial
+made/visible/wall bytes are **0/1/0**, side is zero, effect is null, and the embedded transform is
+identity. The position comes from the shared word at `0x00B21640`; its numeric value is not established
+here. Box top/flora flames inherit the initial wall=false and side=0 unless explicitly overwritten.
+
+The fire constructor (`0x004711C0–0x0047122A`) leaves the flame vector empty, on-model false and stage
+**−1** (complete-object `+0x44`). Init receives an interface pointer four bytes into that object;
+its `+0x40` is the same stage. `SetStage` compares before doing anything: an equal stage, including
+−1 on a fresh object, creates nothing and updates nothing. A changed stage is stored before
+create-if-empty and updates; there is no failure propagation (`0x004728B0–0x004728F7`). Update directly
+indexes the two effect-name tables with the stage (`0x004710FD–0x00471110`); there is no clamp or
+defined fallback for stages outside 0–4.
+
+Visibility assignment writes the flame's visible byte even when there is no effect; with an effect,
+show starts it with argument 1 and hide stops it with argument 1 (`0x00470270–0x00470290`). Update
+instead stops an old effect with argument 0, clears/releases it, then attempts replacement. Failure
+does not restore the old effect (`0x004710D3–0x00471160`). During Shutdown, a made flame's effect is
+queried for activity (slot 5) and stopped with argument 0 only if active before release. An unmade
+flame's effect is released without that stop (`0x00470DE0–0x00470E28`). This establishes shutdown
+cleanup; it is not a claim that every destruction entry has been reconciled.
+
+`UpdateTransform` with no effect does nothing. Its temporary transform starts with header bytes 2
+and 5. Rotation uses x87 FSIN/FCOS with intermediate float stores (`0x00470CD1–0x00470D1A`), rather
+than an established portable f64 library-trigonometry rule. Matrix signs, counter writes and the
+remaining placement arithmetic are specified only when independently proved below.
 
 ## 5. Users
 
