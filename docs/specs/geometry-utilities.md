@@ -149,8 +149,8 @@ primitive list of (type, first vertex, vertex count), a light direction L, the c
 
 | VA | Call | Behaviour |
 |---|---|---|
-| `0x008012F0` | constructor | all fields zero, no arrays |
-| `0x00801660` | `Reset()` | no vertices, no primitives |
+| `0x008012F0` | constructor | null vertex/index/primitive pointers; copies the float at `0x00B4E708` to L, n, RGB and alpha; changed := false (the executable's zero-filled image gives that float +0; no literal alpha-one default) |
+| `0x00801660` | `Reset()` | if present, sets the 16-bit vertex count to zero and resizes vertex bytes to zero; resizes the primitive sequence to zero; retains the two builder handles; does **not** write changed or bounds |
 | `0x00800F80` | `SetLightDirection(L)` | |
 | `0x00800F10` | `SetNormal(n)` | |
 | `0x00800F30` | `SetColour(r, g, b)` | alpha := 1 |
@@ -160,9 +160,30 @@ primitive list of (type, first vertex, vertex count), a light direction L, the c
 | `0x00801140` | `Mesh()` | when changed, the vertex array's bounds are recomputed (`0x00801040`: the minimum and maximum over the vertices, starting from the first vertex when the box is empty) and the flag cleared; the builder is the mesh |
 
 `AddVertex(p)` appends p with the colour k × (r, g, b) and alpha a, where k = 0.3 + 0.7 (L·n). Each channel
-becomes a byte as follows: c = 256 × value rounded to nearest (ties to even), byte = (c − (c >> 8)) mod 256. So
-0–1 maps to 0–255 with exactly 1 giving 255, but values outside 0–1 **wrap** rather than clamp *[quirk]* (with
-L·n = −1, k = −0.4 and a full red channel gives 155). The colour is stored as bytes B, G, R, A.
+uses a float-bit conversion, **not** an x87 integer conversion. Add the float32 constant 49152 (`0x00ABD444`),
+store as float32, reinterpret its bits as uint32, add `0xB8C00000` modulo 2³², then subtract bits 8–15 from
+bits 0–7 modulo 256. This agrees with the former nearest-even 256×value shortcut in its small ordinary range,
+but that shortcut is not the extreme-input contract. There is no clamp, `FIST`, or indefinite-i32 step.
+For example, +infinity gives byte 0; a quiet NaN's payload can affect the byte. The stored order is B, G, R, A.
+Lighting evaluates `(L.z*n.z + L.y*n.y) + L.x*n.x`, multiplies by the **float64** constant 0.7
+(`0x00ABD458`), then adds **float64** 0.3 (`0x00ABD450`). G and B products are stored as float32 before the
+49152 addition; R stays on the x87 stack until that addition; alpha is loaded from its float32 field
+(`0x00801388`–`0x0080146E`). Follow the active x87 precision/rounding controls at each arithmetic operation.
+
+The four setters only copy fields (RGB also copies float32 1 to alpha); none writes changed. `BeginPrimitive`
+sets changed even before allocating, appends a new zero-count primitive, and does not close its predecessor
+(`0x0080120E`, `0x00801285`–`0x008012E7`). `AddVertex` requires an existing vertex array: it dereferences it
+without a null check, appends at the old unsigned-16-bit vertex count, and stores count+1 modulo 65536. It
+neither sets changed nor changes any primitive count (`0x008013BC`, `0x0080146A`–`0x008014B3`). Thus adding
+after `Mesh()` alone does not invalidate bounds. `Mesh()` clears changed only when changed is true **and**
+the vertex handle is nonnull (`0x00801143`–`0x00801155`). Reset after a completed Mesh leaves changed false.
+The called array resize and bounds methods have separate owners; retention of their backing allocation,
+empty bounds and unordered bound selection are not established by these builder bodies (§11).
+
+There is no separately exported `EndPrimitive` or builder destructor in the 37-entry inventory (§11).
+`AddBoxMesh` supplies an inline closure, described below; this alone does not establish a general
+EndPrimitive-on-empty or destructor contract. The constructor's null-handle release branches cannot prove
+destructor ownership. In particular, native destruction must not be inferred from a language's automatic drop.
 
 ### 6.2 `AddBoxMesh(builder, corners)` (`0x008014D0`)
 
@@ -214,6 +235,31 @@ texture manager uses it for its glyph and string textures (glyph-textures.md §1
      (`0x0080A720`: 0, 2, 3, 5 → 14; 4, 6 → 10; 7 → 13; 8, 9 → 1, bytes); another code is false.
 5. `size`, when given, receives (W, H); `rect`, when given, four floats (x₀ + w, y₀ + h, x₀, y₀). The result is
    the upload's.
+
+#### 6.4.1 Failures, widths and ownership
+
+The only early false return is failure to obtain a font: no mode or output is changed. With a font, it is
+AddRef'd (slot 1), its mode is saved, and mode 3 is set. Missing GS, a false surface-factory result, or a false
+surface-create result all join the **same** epilogue as upload failure: restore the saved mode, write size and
+rect, release a nonnull surface (slot 2), then release the font (slot 2). Result is false unless an upload was
+actually called and returned true. Mode 3 remains active during the upload. Evidence: `0x0080ABCE`–`0x0080AC24`,
+failure branches at `0x0080AC8B/ACB8/ACDD`, common epilogue `0x0080ADE9`–`0x0080AE51`.
+
+The clear-access request `0x8001` and border-access request `0x8004` each gate only their own surface operations;
+failure of either does not skip text drawing or upload. Each successful request is paired with its matching
+end-access before proceeding; draw and line results are ignored (`0x0080ACE3`–`0x0080ADB5`). A factory that
+returns true with a null surface is not checked before dereference. Font lookup's framework pointer and text
+pointer are likewise assumed valid. The caller's texture pointer is passed through; this function never
+AddRefs or releases it. It releases a nonnull surface even on a false factory/create result.
+
+Width, height, length and placement are 32-bit integer quantities, not float dimensions. The NUL-terminated
+byte string is counted before font lookup; its byte count is passed to both font measurement calls and draw.
+Width/height + 2 and successive doublings wrap in 32 bits; loop comparisons are **signed**. There is no
+negative-size or overflow rejection (`0x0080AC24`–`0x0080AC78`). For a wrapped target ≤1 the dimension is 1;
+a target in `(2³⁰, 2³¹−1]` never terminates (doubling reaches `0x80000000`, then zero forever). Placement
+differences/additions also wrap; halving uses signed truncation toward zero. The output rect converts the
+signed integer results through x87 integer loads to float32, writing x₀, y₀ first at offsets 8,12 and the
+far coordinates at 0,4 (`0x0080AE0A`–`0x0080AE3A`). No normalized UV division occurs here.
 
 ## 7. Users
 
