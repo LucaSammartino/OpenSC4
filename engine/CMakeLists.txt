@@ -526,7 +526,11 @@ if(FC4_IS_WIN32_X86)
         "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp"
         "${FC4_GZCOM_DIR}/src/SC4String.cpp"
         "${FC4_GZCOM_DIR}/src/cRZBaseVariant.cpp"
-        "${FC4_GZCOM_DIR}/src/StringResourceManager.cpp")
+        "${FC4_GZCOM_DIR}/src/StringResourceManager.cpp"
+        # Constructed-native industrial verification; no replacement or natural interception.
+        plugin/FC4IndustrialShadow.cpp
+        plugin/FC4IndustrialShadow.h
+        plugin/compat/FC4IndustrialCompat.h)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
