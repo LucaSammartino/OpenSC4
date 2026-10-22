@@ -14,7 +14,7 @@ mod taker;
 pub use album::{album_directory_name, AlbumAction, SnapshotAlbum};
 pub use info::{CaptionFields, CityContext, GraphicInfo, Information, ViewPosition};
 pub use primitives::{
-    DateText, Entry, EntryKind, FileSystem, ImageDepth, ImagePrimitives, MemoryFs, MemoryUi, SnapshotClock,
+    DateText, Entry, EntryKind, FileSystem, ImageDepth, ImagePrimitives, MemoryFs, MemoryUi, SnapshotClock, UiEvent,
     UiPrimitives, VPath, Zoom,
 };
 pub use taker::{

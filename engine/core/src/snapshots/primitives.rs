@@ -207,6 +207,17 @@ pub enum Zoom {
     Out,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UiEvent {
+    FrameVisible(bool),
+    PostCapture {
+        message: u32,
+        counter: u8,
+        close_afterwards: bool,
+    },
+    LuaEvent(u32),
+}
+
 /// Primitive UI effects. Lists, fields, count text, selection and modal state are
 /// derived by the owners, not returned by a native snapshot window.
 pub trait UiPrimitives {
@@ -214,6 +225,8 @@ pub trait UiPrimitives {
     fn set_paused(&mut self, paused: bool);
     fn set_album_visible(&mut self, visible: bool);
     fn set_frame_visible(&mut self, visible: bool);
+    fn post_capture_message(&mut self, message: u32, counter: u8, close_afterwards: bool);
+    fn raise_lua_event(&mut self, event: u32);
     fn zoom_picture(&mut self, direction: Zoom);
 }
 
@@ -223,6 +236,7 @@ pub struct MemoryUi {
     pub album_visible: bool,
     pub frame_visible: bool,
     pub zoom_requests: Vec<Zoom>,
+    pub events: Vec<UiEvent>,
 }
 
 impl UiPrimitives for MemoryUi {
@@ -237,6 +251,17 @@ impl UiPrimitives for MemoryUi {
     }
     fn set_frame_visible(&mut self, visible: bool) {
         self.frame_visible = visible;
+        self.events.push(UiEvent::FrameVisible(visible));
+    }
+    fn post_capture_message(&mut self, message: u32, counter: u8, close_afterwards: bool) {
+        self.events.push(UiEvent::PostCapture {
+            message,
+            counter,
+            close_afterwards,
+        });
+    }
+    fn raise_lua_event(&mut self, event: u32) {
+        self.events.push(UiEvent::LuaEvent(event));
     }
     fn zoom_picture(&mut self, direction: Zoom) {
         self.zoom_requests.push(direction);

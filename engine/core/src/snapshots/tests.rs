@@ -618,3 +618,68 @@ fn selected_same_file_import_replaces_old_dirty_description() {
         Some(b"new import".to_vec())
     );
 }
+
+#[test]
+fn ui_hides_before_post_and_capture_message_reposts_are_owned() {
+    let size = Size { width: 100, height: 80 };
+    let mut taker = SnapshotTaker::new(vec![size], size).unwrap();
+    let mut ui = MemoryUi {
+        frame_visible: true,
+        ..MemoryUi::default()
+    };
+    taker
+        .on_key(
+            Key::Enter,
+            Modifiers {
+                alt: true,
+                ..Modifiers::default()
+            },
+            true,
+            &mut ui,
+        )
+        .unwrap();
+    assert!(!ui.frame_visible);
+    assert_eq!(
+        ui.events,
+        vec![
+            UiEvent::FrameVisible(false),
+            UiEvent::PostCapture {
+                message: 0x1a5d_056d,
+                counter: 0,
+                close_afterwards: false
+            },
+            UiEvent::LuaEvent(0xaa8b_82a9),
+        ]
+    );
+    for _ in 0..3 {
+        taker.on_capture_message(&mut ui).unwrap();
+    }
+    assert_eq!(
+        &ui.events[3..],
+        &[
+            UiEvent::PostCapture {
+                message: 0x1a5d_056d,
+                counter: 1,
+                close_afterwards: false
+            },
+            UiEvent::PostCapture {
+                message: 0x1a5d_056d,
+                counter: 2,
+                close_afterwards: false
+            },
+            UiEvent::PostCapture {
+                message: 0x1a5d_056d,
+                counter: 3,
+                close_afterwards: false
+            },
+        ]
+    );
+    assert_eq!(
+        taker.on_capture_message(&mut ui).unwrap(),
+        CaptureDelivery::Ready {
+            target: CaptureTarget::WholeView,
+            close_afterwards: false,
+        }
+    );
+    assert_eq!(ui.events.len(), 6);
+}

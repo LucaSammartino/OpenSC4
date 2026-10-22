@@ -272,6 +272,33 @@ impl SnapshotTaker {
         }
     }
 
+    /// Production UI entry point: hiding precedes the queued delivery and Lua event,
+    /// so all three intervening frames actually omit the capture frame (§2).
+    pub fn on_key(
+        &mut self,
+        key: Key,
+        modifiers: Modifiers,
+        frame_slot71_passes: bool,
+        ui: &mut impl UiPrimitives,
+    ) -> Result<KeyResult> {
+        let result = self.key(key, modifiers, frame_slot71_passes)?;
+        match result {
+            KeyResult::PostCapture {
+                message,
+                counter,
+                close_afterwards,
+                lua_event,
+            } => {
+                ui.set_frame_visible(false);
+                ui.post_capture_message(message, counter, close_afterwards);
+                ui.raise_lua_event(lua_event);
+            }
+            KeyResult::Closed => ui.set_frame_visible(false),
+            _ => {}
+        }
+        Ok(result)
+    }
+
     pub fn left_mouse_down(&mut self, x: i32, y: i32) {
         if self.visible && !self.closed && matches!(self.phase, Phase::Idle) {
             // SN6: preserve the pointer-to-frame offset instead of jumping to the pointer.
@@ -323,6 +350,19 @@ impl SnapshotTaker {
             target,
             close_afterwards: close,
         })
+    }
+
+    /// Route a capture-message delivery through the primitive UI queue. The owner
+    /// retains the counter/close decision; the host never computes either.
+    pub fn on_capture_message(&mut self, ui: &mut impl UiPrimitives) -> Result<CaptureDelivery> {
+        let delivery = self.deliver_capture()?;
+        if let CaptureDelivery::Repost { message, counter } = delivery {
+            let Phase::Waiting { close, .. } = self.phase else {
+                return Err(Error::InvalidState);
+            };
+            ui.post_capture_message(message, counter, close);
+        }
+        Ok(delivery)
     }
 
     /// Invoked after the fourth delivery. Capturing/encoding are primitive image
