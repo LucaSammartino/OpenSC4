@@ -9,7 +9,11 @@
 - Baseline evidence: build-runs/evidence-run4/train97-gated-8a7160ca.dll/.pdb; SHA8a7160cad839f19b8fd9f6d685926a6d07defa11d116b0ff97589a302f17a0c7.
 - OFF owned frames: DLL+DC6841,DC6437,911AB5,91127C,9176A9; resolve with retained PDB next.
 - Same fixture is harness Konradshohe alias; script build-runs/variants-save.txt; exact request in game-queue/done.
-- Baseline qbuild all running exec session97202; no game request outstanding.
+- Initial qbuild all PASS cargo4947/0 clippy0 ctest68/68 (tree changed due to lane report edit); stable final gate still needed.
+- Control vv4-r2-train97-off-1853 completed corrupt/ref0 before date, same request except DLL/label. Baseline success in different setup does not transfer.
+- Retained owned PDB frames resolve SC4String::FromChar+51, constructor+57, Attempt+F5, AutoloadOnTick+37C, observer OnTick+89; raw stack scan may include stale frames, not a proven call chain.
+- Symbol helper build-runs/owned-symbols.py reads only owned image/PDB. Both reports show identical owned frames.
+- Next: inspect owned adapter/string contracts and configuration differences; control failure is reproducible outside variant changes.
 - q.py Bash launch E_ACCESSDENIED; bounded PowerShell used. No guard denial.
 
 ## Retained round1 report
