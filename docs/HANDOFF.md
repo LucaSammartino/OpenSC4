@@ -7,89 +7,92 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-22, run4 open-ended)
 
-**Restart checkpoint, 22:17 BST:** main `f01d1ce4`, train102 landed `54feae7de3` with all10 actual
-ancestors proved, real68-test gate and full current40 regression PASS. Postchecks, push and eligible cleanup
-completed. Coverage **57.8/36.1/19.7/18.1**; 431 rounds, checkpoint425 recorded, next450. The delta since400
-is 0.0/+0.1/0.0/0.0. After three flat trains selection changed to first published WWW/FTP, TextEdit and
-lot-editor owners, settled renderer corrections and independent native controls. No partial-owner credit.
+**train103 landed `bd75fb53b9`, 22:46 BST:** all4 actual lane ancestors proved, no skips.
+Real gate on `a26ca9328d`: cargo5140/0, clippy clean, build50/50, CTest68/68. Standard shadow and
+current40 regression both clean2032/ref0/full app/service shutdown. DLL SHA256
+`6d36ce4dd0f92241fe94b216cce8bbabc10846f9cfcf1475b61b22f54f5475e8`.
+Run259 records the evidence. Aura71/71, traffic72/72; netmgr72/73,14resyncs and NM10 differences60 on25lines
+remain unverified. No owner/native/default promotion. Coverage **57.8/36.1/19.7/18.1**, fourth flat train.
+Selection now adds genuine first persistence runtime and LegacyControl owners to prior WWW/TextEdit/lot-editor
+work; persistence launched, LegacyControl reviewed and queued. New module presence is not completion credit.
+434 rounds; checkpoint425 recorded (delta since400:0.0/+0.1/0.0/0.0), next450.
 
-**Policy and authority:** RE/spec-writing paused; skip region (LucaSammartino through2026-11-21).
-Target9 actual live workers, max3glue and max3 rounds per lane/logical family; no fourth, renamed budget or
+**Policy/authority:** RE/spec-writing paused; skip region (LucaSammartino through2026-11-21).
+Target9 actual live workers, max3glue, max3 rounds per lane/logical family; no fourth, renamed budget or
 provider workaround. Read `build-runs/run4-coordinator-state.json`, `run4-refill-queue.json`,
-`merge-train/state.json`, `run4-heartbeat.json` and run guard after restart. These current files outrank
-this timestamped checkpoint. State edits use `build-runs/run4_coord_lock.py`.
+`merge-train/state.json`, `run4-heartbeat.json` and run guard after restart. Current state files outrank
+this timestamped note. State edits use `build-runs/run4_coord_lock.py`.
 STOP: `python tools/lanes.py stop "<reason>"`; land ready work, commit, push, end.
 
-**Live9/9 at 22:16:32, glue0/3:** three extra coordinator helpers are reviews/briefs, not implementation lanes.
+**Live9/9 at22:49, glue0/3:** coordinator helpers review/prepare briefs and are not implementation lanes.
 - verify-flora-records4: final3/3, PID33348.
-- verify-language-native4: final3/3, PID22964.
-- core-powerline-contractfix4: final2/2, parent1 makes logical3/3, PID38384.
+- core-powerline-contractfix4: final2/2 after parent1, logical3/3, PID38384.
 - core-application4: 2/3, PID12812.
-- core-textures-contractfix4: final2/2, parent1 makes logical3/3, PID23844.
+- core-paths-contractfix4: final2/2 after parent1, logical3/3, PID12324.
+- core-textures-contractfix4: final2/2 after parent1, logical3/3, PID23844.
+- core-glyph-contractfix4: final2/2 after parent1, logical3/3, PID22856.
 - core-ftp4: 2/3, PID5732.
 - verify-advice-subject4: 2/3, PID26200.
-- core-text-edit4: 1/3, PID21236.
-- tools-build-singleflight4: 1/3, PID12444.
+- core-persist-runtime4: first1/3, PID36468.
 
-**Train103 running:** integration `a26ca9328d94ea6d6ca47fc71f36fccb224f9df2`, pipelinePID12384,
-`build-runs/run4-train-pipeline.py train103`; status in `train103-pipeline-status.json`.
-All four merged, no skips: re-model-effects-contracts4, core-view-inputcontrols4, core-snapshots4,
-core-resource-editor4. Clippy clean; native build completed; actual CTest/cargo test compilation running at
-22:16. No gate/regress verdict yet. Never set one by hand or restart on observation timeout. Root heartbeat
-wait session7619 was live. Verify actual process identity/progress, not an old worker session number.
+**Refill:**5 launchable/0 waiting after103 dependencies landed. Priority tooling repair tools-build-singleflight4
+resume2/3; core-model-effects-contractfix4 phase1/2 after parent1; first core-lotconfig-editor4;
+first core-legacy-control4; core-text-edit4 resume2/3. RefillerPID23912 alive, no STOP/provider pause.
+Every launch still needs fresh full guards and original caps. Held FileBrowser draft retains both subsystem
+keys and TextEdit dependency; no narrower check to bypass its earlier denial.
 
-**Next ready train work:** verify-cmdline-native4 own clean integrated tip
-`3a5313c3dce3cee8a709a69ad90e8f277188a49b`: bounded borrowed queries246/246, three clean2032/full-save/
-shutdown/ref0 runs; CL1-CL4 and owned construction/reload unverified. Retained worker artifact hash starts
-053BD7A0; integrated source needs the next actual train gate/regress. Run records256-258 reconciled;
-next unused main train record259. tools-refill-validation4 own clean tip
-`452d8b93effe32d5d67ef463c05f19ab245703f9` now ready: actual full pytest **180 passed,1 POSIX-only skipped**,
-134.79s, log in its worktree `build-runs/coordinator-full-tools-2220.log`. Earlier missing-pytest failures
-remain documented. Combined suite must rerun when tools land. Main's latest full suite remains161 from101.
+**Next train ready sources:** completed language verifier own clean integrated tip `08808cd829daac74b0ebae19da94108ad275f0de`,
+command-line verifier `3a5313c3dce3cee8a709a69ad90e8f277188a49b`, tooling evidence/read recovery
+`452d8b93effe32d5d67ef463c05f19ab245703f9`. All require the actual next combined gate/regression.
+Language run records260-270 preserve all11 attempts, final matched OFF/ON/current42 controls and full raw
+differences: strict116235/116235 per ON, host1656 and gap414 differences; natural0/0/reload unmeasured.
+Current42 is literal40 plus simulator/budget defaults; earlier budget-disabled controls41/ref4 remain failures.
+Command-line records256-258 preserve246/246 repeated borrowed queries and CL1-CL4/owned/reload gaps.
+**Next unused run271** (259 now on main;256-258 and260-270 reserved in these ready branches).
+Refill-validation's actual full pytest180passed/1POSIXskip is separate from main's latest full161PASS from101.
+Tools unchanged in103; rerun full combined tools suite when tools land.
 
-**Refill queue:** two launchable reviewed final continuations, core-glyph-contractfix4 and
-core-paths-contractfix4, each phase2/2 after parent1, logical3/3. Two waiting: core-model-effects-contractfix4
-(phase at most2 after parent1) waits re-model-effects-contracts4; first core-lotconfig-editor4 waits
-core-snapshots4. Both dependencies are in103. Fresh guards and normal refiller remain mandatory; waiting
-briefs do not cover vacancies. RefillerPID23912 was alive; no STOP or provider pause at latest snapshot.
-Resume only actual remaining rounds; don't requeue capped work or reopen unresolved native contracts.
+**Tooling error repair:** first singleflight source stays HELD at own clean report tip
+`dd50e233d18d45313f829d744e86e3309ce12c27`; actual full pytest9failed/168passed306.40s.
+Isolated copies of both committed helpers reproduced6/6 descendant exclusion violations after direct
+normal/abrupt exit and timeout, with live OS-handle-identified output-writing grandchildren. All fixture
+processes exited; no real compiler/cache was stopped. Legitimate Windows venv redirector/actual-peer mismatch
+also reproduced with explicit rejection. Static half-open authentication/unbounded-close finding needs its
+actual regression. These three issues are in the reviewed same-family2/3 repair brief, not a new budget.
+Evidence in `build-runs/coordinator-singleflight-descendant-repro-evidence.md` and copied summaries/scripts;
+full failed-suite log remains in the tool worktree. Do not promote on the historical40/161 unittest passes.
 
-**Errors and evidence:** overlapping same-worktree quick/all checks caused locks and overwritten logs.
-Singleflight tooling owns the fix; no extra checks while an existing invocation is live. Old worker tool
-handles are not durable OS processes. Glyph/paths final briefs name actual remaining clippy errors and
-require one stable gate. TextEdit's match lint is fixed in current source but needs measured final validation;
-retained CAPI slot42 concurrency failure remains a failure. Flora/application retained Ninja recompaction
-PermissionDenied evidence; do not erase it or infer a final pass from partial builds.
-Train103 sccache fallback happened910.341s after client start, matching configured900s idle plus10s drain.
-Installed0.18 source supports that causal inference; no daemon debug log proves the exit cause. Local fallback
-progressed and completed the build. Draft cache follow-up
-`build-runs/run4-tools-build-singleflight4-sccache-followup-DRAFT-spec.json` must wait until current worker
-finishes and remaining family budget is known. Existing daemon reuse ignores changed child environment;
-do not kill the shared server, globally disable caching or queue this draft without review.
+**Build/test ownership:** no new check while an attributable existing operation is live; worker session numbers
+are not durable PIDs. Powerline's fresh Rust5058/0 and36cases/clippy pass still need its actual native/CTest end.
+Glyph has one live serial pipeline; final32test/clippy/doctest/CTest proof pending. FTP core3043/0 plus32WWW
+fixtures passed, one quick pipeline live, full all pending. TextEdit37 written scenarios remain unmeasured;
+its original CAPI536/537 failure and TE5/TE8/TE9 limits are retained. First persistence code owns real scalar/
+record algorithms with literal tests; variants/resources/image owners remain partial, PR9-PR12 explicit.
+Flora's r3 guard passed but final stable gate and OFF/reload controls remain unproved. No fourth round.
 
-**Preserved gaps:** region excluded; paused geometry/lotmodels/sprites/overlay/ripples publications remain
-held for contradictory old summaries or missing contracts. Only coherent existing bounded model-effects
-publication entered103. No new RE/spec rewrite authorized. Current40 remains40 literal keys, no new defaults.
-Native0/0, refusals, resyncs and unresolved provider/factory/typed ABI gaps remain unverified. Historical
-train100 hang evidence and native-control failures stay preserved. Provider pause20:15 was cleared with
-the real same-model/subscription probe beside the pause file; elapsed time is never clearance evidence.
+**Cache and preserved gaps:**103 fallback at910.341s matches900s idle plus10s drain; installed0.18 source
+supports the inference, not proof of the daemon exit cause. Fallback finished and the real gate passed.
+A read-only stats RPC to actual train port4390 confirmed that daemon; default-port stats are unrelated.
+Cache lifetime follow-up draft remains deferred until the ownership repair and remaining third-round review.
+Existing daemon reuse ignores changed child environment; no shared server kill, global cache disable or
+idle-policy change. Paused geometry/lotmodels/sprites/overlay/ripples publications stay held for unresolved
+contradictions/contracts. Region excluded; raw differences, refusals, resyncs, native0/0 and old hangs remain.
+Current40 stays40 literal keys, no new defaults. Provider pause clearance always needs an actual same-provider
+probe saved beside the pause file, never elapsed time.
 
-**Next three actions:** (1) Continue actual train103 gate/regress, handle real verdict, land and prove all4
-ancestors. (2) Regenerate handoff/coverage/treemap, doccheck, record actual run259, update this note,
-commit/push and clean only eligible landed worktrees; then run every ready entry in the next train.
-(3) Maintain9live through reviewed launchable briefs, inspect finished worker diagnostics and give bounded
-same-family reliability follow-up its remaining budget. Checkpoint450 next.
-
-**Loop:** while train running use `python tools/lane_heartbeat.py --wait-until train`, otherwise
-`--wait-until backlog`, yield at least600s; act on exits0/2/3/4/5 exactly as prompt.txt says.
-New heartbeat critical-read exit1 (after tooling lands) requires inspecting the explicit path/error; no healthy
-snapshot or pause may be inferred. Use --fresh only immediately after actually rerunning gate/regress.
-Before long waits launchable briefs cover open slots. After every train: gen_handoff_tables.py, coverage.py,
-coverage_treemap.py, doccheck.py check (fix FAIL), full tools suite if tools changed, one status line, commit,
-push and worktree cleanup per ops/rules.md. Every10 trains full restart note; every25 rounds coverage comparison.
+**Next three actions:** (1) Finish103 postchecks/run259/commit/push and eligible cleanup, then immediately run
+the next train with every ready source. (2) Maintain9live through reviewed launchable briefs and fresh guards;
+repair actual singleflight errors in existing budget, preserve active checks and partial evidence.
+(3) Handle actual next gate/regress verdict, ancestry and postchecks; checkpoint450 next.
+Use `python tools/lane_heartbeat.py --wait-until train` while a train runs, else `--wait-until backlog`,
+yield at least600s; exits0/2/3/4/5 exactly per prompt.txt. New critical-read exit1 after tooling lands requires
+inspection, not a healthy snapshot or pause. --fresh only immediately after actually rerunning a gate/regress.
+After every train gen_handoff_tables.py, coverage.py, coverage_treemap.py, doccheck.py check (fix FAIL),
+full tools suite if tools changed, status line, commit/push; worktrees per ops/rules.md. Every10 trains full
+restart note, every25 rounds coverage comparison. Preserve branches/ignored evidence and parked worktrees.
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 255 (Ten reviewed source and existing-contract deliveries landed without skips after actual gate and full current40 regression.); 254 (Heartbeat backlog/blocking-wait update landed in the very next train after instruction cleanup, with three existing bounded contract publications.); 253 (Instruction cleanup and three bounded core deliveries landed; no native/default or whole-owner promotion inferred. Full tools152PASS, doccheck check ok.); 252 (Current40+span8 replacement profile clean; span8 stays opt-in with SR8-2/3/4 gaps preserved.); 251 (Opt-in span8 constructed native route proven, SR8-2/3/4 preserved; no default promotion.). See `docs/manual-checks.md`.
+- **Latest in-game run:** 259 (Four reviewed deliveries landed without skips after real5140 Rust tests,68-test gate and standard regression PASS; raw native gaps preserved.); 255 (Ten reviewed source and existing-contract deliveries landed without skips after actual gate and full current40 regression.); 254 (Heartbeat backlog/blocking-wait update landed in the very next train after instruction cleanup, with three existing bounded contract publications.); 253 (Instruction cleanup and three bounded core deliveries landed; no native/default or whole-owner promotion inferred. Full tools152PASS, doccheck check ok.); 252 (Current40+span8 replacement profile clean; span8 stays opt-in with SR8-2/3/4 gaps preserved.). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
