@@ -21,7 +21,9 @@ especially `0x0087E1D0–0x0087E1F2` and `0x008DCD30–0x008DCD54`.
 
 The first constructor installs the OpenGL implementation's interface identities, starts with no
 bound external resources, empty mode/working collections and zeroed matrix storage, and copies the
-name **Maxis 3D GDriver OpenGL 1.1**. Its 13-word selected-mode record is initially all zero except
+name with the exact bytes `Maxis 3D GDriver\nOpenGL\n1.1\n` (each `\n` is one line-feed byte,
+including the final one). The source pointer at `0x00B1225C` selects the terminated string at
+`0x00AC3F44`; loading it and measuring its length begins at `0x0087E003`. Its 13-word selected-mode record is initially all zero except
 its first word, which is `0xFFFFFFFF`. Eight light-state records begin with their two stored values
 and two flags zero. Three scalar values start at binary32 `1.0`, a fourth at binary32 `0.5`; the
 constructor performs no floating arithmetic. The later operations in §3 identify these states;
@@ -518,3 +520,31 @@ the same body. No false-reference exclusion is proposed: none is needed to recon
 85 + 7983**. This checklist records this director's attributed coverage only; it confers no
 whole-DX7-family or capped-driver completion credit. The parent spec's 17 primary and 11 secondary
 director entries remain a separate dispatch checklist, not a competing function denominator.
+
+## 8. Final proof reconciliation and boundaries (2026-10-22)
+
+The §7 address/size/rule checklist matches a fresh attribution of the original executable and
+export. Every listed body has the cited native-derived contract from rounds 1–2, with the final
+default-record and exact-name corrections above. This is static specification evidence; the paper
+vectors are not executed game or implementation tests. The final round reconciles those contracts
+without repeating the 65 body investigations.
+
+| Attribution rule | Bodies with contracts | Exported bytes |
+|---|---:|---:|
+| name-medium | 1 | 79 |
+| name-low | 1 | 6 |
+| reach | 56 | 7,088 |
+| free-neighbour | 1 | 6 |
+| neighbour | 6 | 889 |
+| **Total** | **65** | **8,068** |
+
+Thus the 63 reach/neighbor bodies account for **7,983 = 7,088 + 6 + 889** bytes. Neither the
+neighbor entries nor an inconvenient failure path are removed to obtain completion. The parent
+spec's 17 primary slots, 11 secondary entries and supporting shared functions remain separate
+dispatch evidence. GD1–GD65 are the independent discriminating paper vectors across both files.
+
+No row in the exact 65-body set remains without a contract. This does not establish transitive
+completion of called functions or a whole driver family. **PARKED outside this claim:** the third
+factory's capped DX7 product, RD3–RD5, delegated OpenGL mode/device helpers, other named/shared
+owners, and general allocator/string/container APIs beyond the specified calls. Their internal
+behavior receives no completion credit here. This is the final round 3/3; no fourth round is requested.

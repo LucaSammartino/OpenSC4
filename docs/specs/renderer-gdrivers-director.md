@@ -23,7 +23,8 @@ substitute inventory. No native object layout is prescribed.
 The exact checklist is in [the attributed-body inventory](renderer-gdrivers-director-inventory.md).
 It preserves the current attribution, including neighbor rules; neither ownership nor the coverage
 denominator is changed. In particular, the constructor really passes factory addresses
-`0x0087E1D0` and `0x008DCD30` to registration (`0x00466265`, `0x00466277`); their calls to
+`0x0087E1D0` and `0x008DCD30` to registration (factory arguments at `0x00466258`, `0x00466277`;
+registration calls at `0x00466272`, `0x00466284`); their calls to
 `0x0087DEE0` and `0x008DC960` are executable calls, not false constant references. Those constructors
 install the tables whose methods lead to the remaining bodies. The separate factory
 `0x00886700` and capped DX7 driver are not added to this inventory.
@@ -304,8 +305,9 @@ supported recreation path; the native guard would still bypass construction.
 
 ### 6.6 Supporting-body checklist and boundaries
 
-Every row below was checked in native instructions. These are dependencies of the contract above,
-not additions to the two directly attributed owner bodies.
+Every row below was checked in native instructions. This is a supporting dispatch checklist, not a
+second coverage denominator. Bodies also present in the 65-row attributed checklist count there
+once; other dependencies add no bytes to that denominator.
 
 | Supporting body | Address | Checked behavior |
 |---|---|---|
@@ -324,9 +326,9 @@ not additions to the two directly attributed owner bodies.
 | String length / character-data getters | `0x0090E4B6` / `0x009D7E63` | §3; length excludes terminator, data getter returns stored buffer |
 | Constant zero helper | `0x00949B47` | primary slot 15, §6.1 |
 
-All director primary/secondary slots above are specified. Round 1's stronger assertion about all
-attributed bodies was incorrect: the reachable 7,983 bytes require the additional contracts and
-checklist linked in §1. No completion of the capped DX7 driver, allocator/string/container general
+All director primary/secondary slots above are specified. The additional 63 reach/neighbor bodies
+(7,983 bytes) have their own contracts and exact checklist linked in §1; the 85 directly named bytes
+alone do not discharge that inventory. No completion of the capped DX7 driver, allocator/string/container general
 APIs, containing `cSC4COMDirector`, or other directors is implied.
 
 ## 7. Independent discriminating vectors

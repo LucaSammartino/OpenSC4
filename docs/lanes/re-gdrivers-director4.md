@@ -14,7 +14,9 @@
 - Done: complete 65-row / 8068-byte checklist published; no false-edge removal or ownership changes; no whole-driver/family completion credit.
 - Audit PASS: ignored `build-runs/audit-director-round2.py` matches all 65 addresses/sizes/rules against `director-attributed.tsv`; 8068 bytes unchanged; GD1-GD65 contiguous. `git diff --check` PASS.
 - Round 3: preserved corrections reviewed; native `0x008DF260` instructions confirm nine pointer zeros, eight associated value zeros, and a flag byte. Parent wording accurately says reach/neighbor rather than all reachable.
-- Next exact: commit corrections, run guard, reconcile the full checklist without re-proving 65 bodies, then replace historical report and stale queue. PARK any unproved residual.
+- Done `8fc7231c`: committed both preserved corrections first; native default-template check PASS.
+- Done round 3: fresh native attribution unchanged, 65 bodies / 8068 bytes; both checklist/dispatch audits PASS; exact product-name line feeds and constructor citation checked/corrected; §8 reconciles proof and PARK boundaries.
+- Next exact: commit final reconciliation, run guard, validate docs, replace historical report and stale queue with final 65-body result. No fourth round.
 - Final attempted native string/root query was DENIED before execution. No REA, game or implementation/test output used. No merge-queue file written this round; existing queue file is stale round 1 and must not be consumed for round 2.
 - Inventory snapshot (ignored): `build-runs/director-attributed.tsv`, produced read-only without accessing engine/.
 - Primary evidence: main checkout `tools/re_query.py`, `decomp/`, `ghidra/export/windows`, `bin/SimCity4.exe`; never engine/.
