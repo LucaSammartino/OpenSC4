@@ -6,8 +6,10 @@
 
 - Goal: round2 of at most3; diagnose full-save stall before any owned fix; exact supplied house40 control.
 - Done: prior round report at35a599ca; source06d71bb2; all five prior attempts and raw counts retained below.
-- Baseline: qbuild all launched this round; inspect wrapper result/log summaries next.
-- Next: inspect owned request/script/log save boundary and PDB availability; submit unique no-verifier native identical-script control.
+- Baseline: round2 qbuild all complete; cargo4961/0, clippy clean, CTest68/68; DLL hash unchanged.
+- Done: vlun4-r2-native-noprobe-save-f stalled2031-12-01/ref0; identical immutable2 DLL/script/native profile, only verifier switched off. No language native BEGIN/END or callback executed.
+- Diagnosis: owned PDB resolves all eight plugin stack candidates identically to prior probe-on stall: observer/script SaveCity pending; no language probe frame. Watchdog kills at10s without OnTick. Native baseline/setup failure reproduced, no owned language fix justified.
+- Next: run literal current40 profile full-save control; preserve native failures. Reload requires supported main build-runs/fixtures staging, not arbitrary save_as.
 - Facts: corrected immutable2 DLL SHA25678ea9b099f55d8abd95ea76cea21f34ced2caf72fc68ec305f35da43185c9342; no prior request outstanding.
 - Strict116235/116235; host2484/4140; gaps2629/3043. No production algorithm fit is permitted.
 - Current40 literal supplied in round2 prompt; excludes terrain/dispatch/effects. Preserve every failure, no unchanged failed-setup repeat.
