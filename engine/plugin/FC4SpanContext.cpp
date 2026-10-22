@@ -44,6 +44,8 @@ std::atomic<uint64_t> g_calls[kSpanRendererCount][kClasses][6];
 std::atomic<uint64_t> g_sites[kSpanRendererCount][2][7];  // [native context | shipped][site]
 std::atomic<uint64_t> g_refused[kSpanRendererCount];
 std::atomic<uint32_t> g_activeTid{0};
+std::atomic<uint32_t> g4444TextureModes[14];
+std::atomic<uint64_t> g4444KeyMaskErrors{0};
 bool g_fixtureDone = false;
 
 const compat::SpanContextVA* VA() {
@@ -54,14 +56,15 @@ const compat::SpanContextVA* VA() {
     return p;
 }
 
-// §1.3 counts by return address; span-render-565.md §1.1 lists the call
-// instruction addresses. Literal reading: a return address 1..7 bytes after a
-// listed site (the length of one CALL instruction) belongs to that site.
-int SiteOf(uintptr_t ret) {
+// 4444 §1.3.2 resolves exact site+3 returns. Preserve the older sibling
+// classifier pending that renderer's own reconciliation.
+int SiteOf(uintptr_t ret, unsigned renderer) {
     const compat::SpanContextVA* va = VA();
     if (va == nullptr) return -1;
     for (int i = 0; i < 7; ++i)
-        if (ret > va->sites[i] && ret <= va->sites[i] + 7) return i;
+        // SP6b resolves 4444 specifically; leave the sibling classifier unchanged.
+        if (renderer == kSpanR4444 ? ret == va->sites[i] + 3
+                                  : ret > va->sites[i] && ret <= va->sites[i] + 7) return i;
     return -1;
 }
 
@@ -161,10 +164,12 @@ uint32_t FreeBuf(Buf* b) {
 
 struct DrawCall {
     void* ctx;
+    const uint32_t* spans = kSpans;
+    uint32_t count = kSpanCount;
 };
 void DrawGuarded(void* p) {
-    void* ctx = static_cast<DrawCall*>(p)->ctx;
-    VSlot<DrawSpansFn>(ctx, 22)(ctx, nullptr, kSpans, kSpanCount);
+    const auto& c = *static_cast<DrawCall*>(p);
+    VSlot<DrawSpansFn>(c.ctx, 22)(c.ctx, nullptr, c.spans, c.count);
 }
 
 enum Kind { kSolid, kAlpha, kGradient, kAlphaGradient, kTexture };
@@ -181,7 +186,7 @@ struct Case {
 
 // The state of the path under test (§1.3 "Set first").
 void SetupCase(void* ctx, const Case& c) {
-    const int32_t dstRect[4] = {0, 0, int32_t(kDW), int32_t(kDH)};  // at the origin: (x, y, w, h) = (l, t, r, b)
+    int32_t dstRect[4] = {0, 0, int32_t(kDW), int32_t(kDH)};  // writable output, not a crop request (§1.3.1)
     const int32_t tile[4] = {0, 0, 8, 8};                          // same in both readings (question SP7)
     VSlot<ColorTableFn>(ctx, 7)(ctx, nullptr, 0, 1, &c.argb);
     if (c.kind == kTexture) {
@@ -287,7 +292,7 @@ void RunCase(unsigned r, void* ctx, Buf& dst, const std::vector<uint8_t>& init, 
     size_t first = len, n = 0;
     for (size_t i = 0; i < len; ++i)
         if (a[i] != dst.bits[i]) n++, first = first == len ? i : first;
-    if (sp1 && n != 0) {  // a known open difference, reported apart (never counted exact)
+    if (r != kSpanR4444 && sp1 && n != 0) {  // preserve the sibling's existing question accounting
         if (t.sp1Diff++ < 4)
             Log("spanctx: %s SP1 (alpha ramp outside 0..255, open question) differs: %zu byte(s), first at arena "
                 "offset %zu: original 0x%02X ours 0x%02X",
@@ -314,6 +319,9 @@ const float kGrad[5][12] = {
     {0.1f, 0.6f, 0.9f, 0.05f, 0.02f, -0.01f, -0.02f, 0.02f, 0.03f, 0.02f, -0.05f, 0.03f},
     {0.5f, 0.5f, 0.5f, 0.95f, -0.01f, 0.01f, 0.005f, -0.025f, 0.01f, -0.02f, 0.02f, -0.02f},
 };
+
+// Renderer-specific SP6 conformance; uses the shared native creation/lock/draw helpers.
+#include "FC4Span4444Context.inc"
 
 // Steps 2-5 for one destination type.
 void RunDestination(unsigned r, uint32_t type, const compat::SpanContextVA& va, std::vector<Buf>& textures) {
@@ -364,6 +372,7 @@ void RunDestination(unsigned r, uint32_t type, const compat::SpanContextVA& va, 
         static_cast<unsigned long>(wantRenderer), lc0, lc1, lf0, lf1);
     Totals t;
     if (inited == 1 && rendVt == wantRenderer && dst.bits == Field<uint8_t*>(ctx, 0x78)) {
+        if (r == kSpanR4444) Run4444Context(ctx, dst, init, va);
         std::vector<Case> cases;
         for (uint32_t argb : {0x80FF8040u, 0x00000000u, 0xFFFFFFFFu, 0x12345678u})
             cases.push_back({kSolid, argb, nullptr, 0, 0, nullptr, 1, 1, false, 0, 0});
@@ -478,7 +487,7 @@ void LogCounts(const char* when) {
 
 void SpanNoteCall(unsigned renderer, unsigned slot, uintptr_t ret, bool fixtureDirect) {
     if (renderer >= kSpanRendererCount || slot < 1 || slot > 5) return;
-    const int site = SiteOf(ret);
+    const int site = SiteOf(ret, renderer);
     const unsigned c = site >= 0 ? (SpanContextFixtureThread() ? kNative : kShipped) : (fixtureDirect ? kDirect : kOther);
     g_calls[renderer][c][slot].fetch_add(1, std::memory_order_relaxed);
     if (site >= 0) g_sites[renderer][c == kNative ? 0 : 1][site].fetch_add(1, std::memory_order_relaxed);
@@ -486,6 +495,16 @@ void SpanNoteCall(unsigned renderer, unsigned slot, uintptr_t ret, bool fixtureD
 
 void SpanNoteRefused(unsigned renderer) {
     if (renderer < kSpanRendererCount) g_refused[renderer].fetch_add(1, std::memory_order_relaxed);
+}
+
+void Span4444NoteTexture(uint32_t format, uint8_t keyed, uint32_t key, uint32_t mode) {
+    static const uint32_t masks[] = {0xFFF, 0x7FFF, 0x7FFF, 0xFFFF, 0xFFFFFF, 0xFFFFFF, 0};
+    if (format >= 7 || keyed > 1 || mode >= 12) {
+        ++g4444KeyMaskErrors;
+        return;
+    }
+    g4444TextureModes[2*format+keyed].fetch_or(1u << mode);
+    if (keyed && ((key & ~masks[format]) != 0 || format == 6)) ++g4444KeyMaskErrors;
 }
 
 bool SpanContextFixtureThread() {
@@ -499,6 +518,10 @@ void SpanContextCityLoaded() {
 #if defined(_M_IX86)
     RunFixture();
     LogCounts("after fixture");
+    for (unsigned row = 0; row < 14; ++row)
+        Log("span4444 native descriptor row=%u format=%u keyed=%u observed_modes=0x%03X",
+            row,row/2,row%2,g4444TextureModes[row].load());
+    Log("span4444 native descriptor key_mask_errors=%llu", g4444KeyMaskErrors.load());
 #endif
 }
 

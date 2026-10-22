@@ -154,7 +154,11 @@ impl Target<'_> {
 pub fn blend4444(s: u16, d: u16, a: u32) -> u16 {
     let (srb, drb) = (u32::from(s & 0x0F0F), u32::from(d & 0x0F0F));
     let (sg, dg) = (u32::from(s & 0x00F0), u32::from(d & 0x00F0));
-    let rb = srb.wrapping_sub(drb).wrapping_mul(a).wrapping_add(16 * drb).wrapping_add(0x808);
+    let rb = srb
+        .wrapping_sub(drb)
+        .wrapping_mul(a)
+        .wrapping_add(16 * drb)
+        .wrapping_add(0x808);
     let g = sg.wrapping_sub(dg).wrapping_mul(a).wrapping_add(16 * (dg + 8));
     (0xF000 | ((rb >> 4) & 0x0F0F) | ((g >> 4) & 0x00F0)) as u16
 }

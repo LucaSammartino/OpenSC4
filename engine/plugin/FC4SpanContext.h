@@ -39,6 +39,8 @@ enum SpanRendererId : unsigned { kSpanR1555 = 0, kSpanR4444 = 1, kSpanRendererCo
 void SpanNoteCall(unsigned renderer, unsigned slot, uintptr_t ret, bool fixtureDirect);
 // From a bridge: ours refused a call and the original's pixels were kept.
 void SpanNoteRefused(unsigned renderer);
+// 4444-only observation of the real native texture descriptor.
+void Span4444NoteTexture(uint32_t format, uint8_t keyed, uint32_t key, uint32_t mode);
 // True on the thread whose fixture slot-22 call is active.
 bool SpanContextFixtureThread();
 

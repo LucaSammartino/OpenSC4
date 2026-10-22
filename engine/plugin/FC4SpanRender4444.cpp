@@ -156,6 +156,14 @@ void Bridge(Slot s, uintptr_t ret, void* self, const uint32_t* spans, uint32_t c
             uint32_t a, uint32_t b, const uint32_t* rectB, const uint8_t* src, uint32_t mode) {
     g.calls[s].fetch_add(1, std::memory_order_relaxed);
     SpanNoteCall(kSpanR4444, s + 1, ret, false);  // this module's fixture never calls through the vtable
+    if (s == kBlt && src != nullptr && SpanContextFixtureThread()) {
+        // Observe the actual context-built format/key descriptor, never infer
+        // coverage from a texture's requested type or from a sibling renderer.
+        uint32_t format = 0, key = 0;
+        std::memcpy(&format, src + 0x10, 4);
+        std::memcpy(&key, src + 0x18, 4);
+        Span4444NoteTexture(format, src[0x1C], key, mode);
+    }
     Region r;
     const bool bridged = RegionOf(spans, count, buffer, &r) && (s != kBlt || (rectB != nullptr && src != nullptr));
     const int32_t stride = bridged ? static_cast<int32_t>(buffer[1]) : 0;
@@ -180,6 +188,7 @@ void Bridge(Slot s, uintptr_t ret, void* self, const uint32_t* spans, uint32_t c
     Original(s, self, spans, count, buffer, a, b, rectB, src, mode);
     if (Ours(s, spans, count, copy.data(), r, stride, a, b, rectB, src, mode) != 0) {
         g.fallback[s].fetch_add(1, std::memory_order_relaxed);
+        SpanNoteRefused(kSpanR4444);
         return;
     }
     g.compared[s].fetch_add(1, std::memory_order_relaxed);
