@@ -1,7 +1,8 @@
 # Persistence manager attributed-body mapping
 
 Source: `docs/specs/persistence-manager.md` sections 1–11, including PR4's
-initialized logical-OR policy. The 109 starts below are exactly the section 11
+initialized logical-OR policy and PR5's current-key enumeration contract. The
+109 starts below are exactly the section 11
 checklist (8,437 native bytes); they identify contracts, not code translations.
 All algorithms execute in this Rust module. `Primitives` exposes foreign
 factory/resource/record/segment/filter/cache calls only, never manager outputs.
@@ -15,9 +16,30 @@ movement and erase; VecDeque handles the block-pointer map's allocation.
 Type-filter temporaries use owned `Filter::Type` values and Rust destruction.
 Final Release/destruction and explicit Shutdown remain different operations.
 
-PR5 remains open: after an external SetKey, the spec does not name the key
-passed to enumeration predicates. The literal entry-key implementation is
-marked in cache.rs; do not claim measured native equivalence for that case.
+PR5 (§8.1 slot 12, §10.1a): enumeration copies each visited resource's current
+key once, before stored then supplied predicates, and appends that same copy.
+External SetKey does not reindex the stored lookup key. Resource-key mutation
+from a predicate affects subsequent enumerations, not this entry's copied key.
+This implements the published contract; it is not measured native equivalence.
+
+PR4 (§9.2) deliberately uses initialized canonical logical OR and visits every
+cache. The native initial byte is uninitialized: empty/all-false native returns
+are not determinate, and even a true callback does not fix every returned bit.
+The Rust policy does not reproduce that byte or claim exact native returns.
+Stable tables/registries and valid objects remain the callback preconditions;
+native reentrancy and unspecified domains have no equivalence claim.
+
+The three `cache.rs` PR5 tests exercise the published A-D predicates, E's
+duplicate/current-key and null-output cases, and F's mutation from either
+predicate. Exact primitive traces check GetKey once before filtering, stored
+then supplied order, short-circuit rejection, and no enumeration AddRef/Release.
+They also check old-key lookup, type filtering, sentinel preservation, later
+observation of SetKey, and balanced cache/filter ownership after cleanup.
+The concrete portable KeyList always succeeds on append; PR5-E's foreign list
+returning false is not executable through this API. The owner ignores insert's
+return, but no native list-failure or ABI comparison is claimed by these tests.
+The 109-row mapping below is a complete source-contract inventory, not a
+measurement of native executions or runtime owner coverage.
 
 | Body start | Rust implementation |
 |---|---|
@@ -118,7 +140,7 @@ marked in cache.rs; do not claim measured native equivalence for that case.
 | 0097BFCA | BuiltinCache::enumerate_type |
 | 0097C23F | BuiltinCache::destroy: no resource Clear |
 | 0097C26D | BuiltinCache::shutdown / shutdown_with |
-| 0097C2D3 | BuiltinCache::enumerate (PR5 key question) |
+| 0097C2D3 | BuiltinCache::enumerate (PR5 current-key copy) |
 | 0097C36E | BuiltinCache::get |
 | 0097C3BB | BuiltinCache::erase |
 | 0097C41A | BuiltinCache::contains |

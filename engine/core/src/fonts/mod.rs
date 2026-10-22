@@ -9,12 +9,14 @@
 //! through [`FontRenderer`].
 
 pub mod aa;
+pub mod advance;
 pub mod cache;
 pub mod director;
 pub mod encoding;
 pub mod font;
 pub mod fontsys;
 pub mod layout;
+mod names;
 pub mod thai;
 pub mod words;
 
@@ -125,11 +127,10 @@ pub trait FontLibrary: Send + Sync {
     }
     /// The screen colour format the palette builder splits and composes with (§9, FN12).
     fn screen_format(&self) -> ScreenFormat;
-    /// The process-wide character → PostScript glyph-name table (479 pairs at `0x00B150F0`, §7 FN9).
-    /// The spec names only a few entries (question FN15): a provider without the table returns
-    /// `None`, and the lookup goes straight to the `uniXXXX` name.
-    fn ps_glyph_name(&self, _ch: u16) -> Option<String> {
-        None
+    /// The calling thread's x87 control (§7 FN16). Hosts without x87 use the application's
+    /// startup default (PC24, nearest-even); hosts with ambient changes must report them here.
+    fn x87_control(&self) -> advance::X87Control {
+        advance::X87Control::default()
     }
 }
 
@@ -162,6 +163,13 @@ impl CodePageConverter for Latin1Converter {
 /// Opaque drawing target handle.
 pub type SurfaceId = u64;
 
+/// Arguments supplied on the renderer's lock/unlock edges (§9 FN17).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FontUse {
+    pub font_id: usize,
+    pub mode: u32,
+}
+
 /// The colour argument handed to the renderer with the records (§9 step 4).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DrawColour {
@@ -173,8 +181,8 @@ pub enum DrawColour {
 pub trait FontRenderer: Send + Sync {
     fn attach(&self, _font_id: usize) {}
     fn detach(&self, _font_id: usize) {}
-    fn lock_surface(&self, target: SurfaceId) -> bool;
-    fn unlock_surface(&self, target: SurfaceId);
+    fn lock_surface(&self, target: SurfaceId, font: FontUse) -> bool;
+    fn unlock_surface(&self, target: SurfaceId, font: FontUse) -> bool;
     /// `source` is the active cache's bitmap; every record's `src_offset` indexes it.
     fn draw(&self, target: SurfaceId, records: &[DrawRecord], source: &[u8], colour: &DrawColour);
 }

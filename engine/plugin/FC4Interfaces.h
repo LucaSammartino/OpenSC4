@@ -247,13 +247,14 @@ template <typename T> class cISC4SimGrid;
 // day number and do not modify the date.
 class cFC4IGZDate : public cIGZUnknown {
 public:
-    virtual bool SetMonthNameDayYear(char const* monthName, uint32_t day, uint32_t year) = 0;  // 3  Set(char const*, d, y)
-    virtual bool SetDayNumber(uint32_t dayNumber) = 0;                         // 4  Set(uint32)
-    virtual bool SetTime(cRZTime const& time) = 0;                             // 5  Set(cRZTime const&)
-    virtual bool SetMonthDayYear(uint32_t month, uint32_t day, uint32_t year) = 0;  // 6  Set(m, d, y)
-    virtual bool SetDayOfYear(uint32_t day, uint32_t year) = 0;                // 7  Set(d, y)
-    virtual bool Copy(cFC4IGZDate const& from) = 0;                            // 8
-    virtual bool Clone(cFC4IGZDate** out) = 0;                                 // 9
+    // dates.md §3.2: full EAX, even when the SDK declares bool.
+    virtual uint32_t SetMonthNameDayYear(char const* monthName, uint32_t day, uint32_t year) = 0;  // 3
+    virtual uint32_t SetDayNumber(uint32_t dayNumber) = 0;                     // 4
+    virtual uint32_t SetTime(cRZTime const& time) = 0;                         // 5
+    virtual uint32_t SetMonthDayYear(uint32_t month, uint32_t day, uint32_t year) = 0;  // 6
+    virtual uint32_t SetDayOfYear(uint32_t day, uint32_t year) = 0;            // 7
+    virtual uint32_t Copy(cFC4IGZDate const& from) = 0;                        // 8
+    virtual uint32_t Clone(cFC4IGZDate** out) = 0;                             // 9: AddRef = 1
     virtual bool Between(cFC4IGZDate const& start, cFC4IGZDate const& end) = 0;  // 10
     virtual int32_t CompareTo(cFC4IGZDate const& other) = 0;                   // 11
     virtual uint32_t WeekDay() = 0;                                            // 12
@@ -265,8 +266,8 @@ public:
     virtual uint32_t Hash() = 0;                                               // 18
     virtual bool IsValid() = 0;                                                // 19
     virtual bool Leap() = 0;                                                   // 20
-    virtual bool MaxDate(cFC4IGZDate const& other, cFC4IGZDate& out) = 0;      // 21
-    virtual bool MinDate(cFC4IGZDate const& other, cFC4IGZDate& out) = 0;      // 22
+    virtual uint32_t MaxDate(cFC4IGZDate const& other, cFC4IGZDate& out) = 0;  // 21: out.Copy EAX
+    virtual uint32_t MinDate(cFC4IGZDate const& other, cFC4IGZDate& out) = 0;  // 22
     virtual uint32_t Month() = 0;                                              // 23
     virtual uint32_t Previous(uint32_t dayOfPriorWeek, cFC4IGZDate& out) = 0;  // 24
     virtual uint32_t YearLastTwoDigits() = 0;                                  // 25
@@ -285,7 +286,7 @@ public:
     virtual cFC4IGZDate& Decrement() = 0;                                      // 38  operator--
     virtual cFC4IGZDate& AddDays(int32_t days) = 0;                            // 39  operator+=
     virtual cFC4IGZDate& SubtractDays(int32_t days) = 0;                       // 40  operator-=
-    virtual bool DateString(cIGZString& out, uint32_t formatID) = 0;           // 41
+    virtual uint32_t DateString(cIGZString& out, uint32_t formatID) = 0;       // 41: cleanup depth
     virtual bool DayWithinMonth(uint32_t month, uint32_t day, uint32_t year) = 0;  // 42
     virtual uint32_t DaysInYear(uint32_t year) = 0;                            // 43
     virtual uint32_t Jday(uint32_t month, uint32_t day, uint32_t year) = 0;    // 44

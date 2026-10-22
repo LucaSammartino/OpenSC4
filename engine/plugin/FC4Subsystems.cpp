@@ -12,6 +12,7 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4Subsystems.h"
+#include "FC4IndustrialShadow.h"
 
 #include "FC4Autotest.h"
 #include "FC4Checked.h"
@@ -546,6 +547,8 @@ const Subsystem kSubsystems[] = {
     {"span1555", nullptr, nullptr, 0, false},
     // cSpanRender8888 native bridge; opt-in until SR8888-6 has shipped producer evidence.
     {"span8888", nullptr, nullptr, 0, false},
+    // SR8-2: constructed type2 evidence does not enable this by default.
+    {"span8", nullptr, nullptr, 0, false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -736,6 +739,7 @@ void Resolve() {
     Span1555Startup(enabledKey("span1555"));
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.
     ScriptReload();
+    IndustrialShadowStartup(enabledKey("industrial"));
 }
 
 }  // namespace

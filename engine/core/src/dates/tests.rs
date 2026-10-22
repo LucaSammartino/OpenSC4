@@ -184,6 +184,27 @@ fn t9_text() {
 }
 
 #[test]
+fn dt2_bytes_nul_and_captured_locale() {
+    for name in [b"Ma\0".as_slice(), b"", b"M\0ay", b"Ma\xdd", b"Ma\xfd"] {
+        assert_eq!(month_from_name(name), 1);
+    }
+    for name in [b"mAy".as_slice(), b"mAyX", b"May\0Jun"] {
+        assert_eq!(month_from_name(name), 5);
+    }
+    // Synthetic host mapping, not a claim about the game's active locale.
+    assert_eq!(
+        month_from_name_folded(b"Ma\xdd", |b| {
+            if b == 0xdd {
+                u32::from(b'y')
+            } else {
+                u32::from(b.to_ascii_lowercase())
+            }
+        }),
+        5
+    );
+}
+
+#[test]
 fn t10_com_object() {
     let mut g = GzDate::from_day(0);
     assert_eq!(g.refs, 0);
