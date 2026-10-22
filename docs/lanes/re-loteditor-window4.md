@@ -1,91 +1,76 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-loteditor-window4 (RE: native lot configuration editor) | `re-loteditor-window4` / RE spec lane, detached HEAD | in progress: round 2/3; preserve exact inventory and resolve LE1–LE5 from native evidence | Trace largest save/edit/input/family/render bodies; publish substantive additions and retain genuine gaps. |
-
-## Handoff
-
-- Goal: continue native cSC4WinLotConfigurationEditor only; docs-only round 2/3.
-- Prior milestone `ffa85bcf`: exact 109-entry/52646B inventory and partial contracts; LE1–LE5 open. Do not repeat arithmetic.
-- Save As entry is `00485390`; `00485445` is an interior mislabel. Preserve correction.
-- Done: `45b6a09a` resolves LE2, native identity success/new-name/Save As reference transfer, preserving corrected entry.
-- Done: `f577d079` resolves LE1: 15/3/8 grid rows, row+1 bits, full-vector clear, missing-grid faults and absent scalar write-back.
-- Done: this milestone traces four selectors/callbacks, duplication retries, signed fences, cleanup/containment unordered cases, type-7 payload discrepancy, allocation faults, insertion/selection/draw order and height labels; adds independent vectors.
-- Correction: cleanup requires full containment, updates dirty/title on removals and does not select/redraw/invalidate. Prior intersection/selection claims superseded.
-- Next: final documentation validation/report and queue as wip; LE3–LE5 remain open, no owner completion or self-restart.
-- Sources: absolute main-checkout export/decomp/executable only; no engine, implementation/test evidence, tools or ABI-table edits.
-- q.py cannot start Bash (`E_ACCESSDENIED`); use bounded PowerShell/Python calls.
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-loteditor-window4-r2-manifest.json`.
-- Detached HEAD is intentional; commit normally without refs/config maintenance; no subagents or self-restart.
-- No game requests, ABI changes or ABI proposals. Report below describes prior round until replaced at finish.
+| re-loteditor-window4 (RE: native lot configuration editor) | `re-loteditor-window4` / RE spec lane, detached HEAD | wip: round 2/3 published; LE1/LE2 answered, LE3–LE5 narrowed; exact inventory preserved; no complete-owner credit | Coordinator review native contracts and corrections; remaining fence/dialog/input/render/lifecycle branches require further native tracing. No self-restart. |
 
 ## Report
 
-Work is confined to native cSC4WinLotConfigurationEditor. Prior re-editors4 report
-was read only to exclude resource/property/value editors. No engine, tools,
-ABI tables, external assets, main checkout or Git refs were edited.
+This round changes only the native lot configuration editor specifications,
+their question records/index and this lane report. No engine, tools, maps,
+ABI tables, other windows, external assets, Git refs/config or main-checkout
+files were edited. The exact `ffa85bcf` 109-entry/52646B inventory is preserved;
+only its per-entry contract statuses/references changed. Save As still uses
+the corrected real entry `0x00485390`.
 
-### Published contracts
+### Commits and substantive results
 
-- `docs/specs/lot-configuration-editor.md`: popup dispatch, selection/capture,
-  dirty/title side effects, compatibility-modal and byte/float conversions,
-  interface/lifecycle rules, new/open/read/save/copy/close sequencing, finite
-  geometry and bounds, addition/duplication/deletion subsets, keyboard and
-  mouse-state subsets, and independent state/action/result vectors.
-- `docs/specs/lot-configuration-editor-inventory.md`: every attributed row with
-  old and current bytes and explicit C/P/O/R status. Largest bodies were read
-  first; substantial initial contracts committed at `3ce25ffe`, followed by
-  lifecycle/save/object contracts at `f250b347`. The final inventory/input
-  milestone accompanies this report.
-- Deletion and direct menu flag/payload changes bypass dirty/title updates;
-  Page Up and Page Down use the same rotation increment; Escape cancels
-  placement rather than discarding configuration edits. These are native
-  rules, not implementation-derived expectations.
+- `45b6a09a`: LE2 answered. Native identity resolution can succeed; lowercased
+  directory equality precedes provider-derived keys. New name is `New Lot`.
+  Save As flags, teardown order and shallow-reference ownership transfers are
+  specified, including restoration and copy outcomes.
+- `f577d079`: LE1 answered. All 15/3/8 compatibility rows map to bit row+1;
+  acceptance clears the entire vectors. Missing grids can fault after partial
+  mutation. The first scalar control has no accepted write-back.
+- `32513732`: four family/texture selector contracts, callback dispatch and
+  prop-only first-byte letter search; duplicate candidates and unchecked final
+  fallback; signed fence filtering; unordered containment/cleanup; type-7
+  logical-size/four-store discrepancy; record-allocation faults; append vs
+  front insertion and resulting selection/draw order; rendering subset and
+  height-label zero/unordered/negative-sign behavior. Independent discriminating
+  vectors are in spec §14.
 
-### Measurements and native corrections
+### Material corrections and numeric evidence
 
-Old coverage attribution: 111 rows/52880B; mapped current export: 109 entries/
-52646B, matching owner52646B. Named editor entries: 92/51054B; other current
-entries: 17/1592B. The exact reconciliation is +10B at00604920, +173B at
-006049CD, minus non-entry fragments147B at006049D4 and270B at00604A67.
-Shared decoder reach does not establish exclusive editor ownership.
+Cleanup requires full containment for types 0/1/4, not intersection. It returns
+the combined object/fence removal count, updates dirty/title on nonzero count,
+and does not select, draw or invalidate. The older contrary partial contract
+and vector were corrected, not retained as alternative behavior.
 
-Save As true entry is00485390, proven by vtable word00A8DAE8. Label00485445
-is inside MOV ECX,EBP at00485444; 180B prefix +1 uncovered byte +700B labelled
-continuation =881B workflow. The spec records supplemental evidence separately
-instead of silently modifying name/coverage databases.
+Duplication tests offsets (+4,+4), (−4,−4), (0,−4), then inserts at (−8,+4)
+without another containment check. Fence coordinate bytes are signed and have
+no lower-bound rejection. Quiet NaN comparisons pass individual containment
+and cleanup tests when x87 invalid exceptions are masked. These findings use
+native instruction status masks, widths, store order and executable constants.
+They do not extrapolate movement/hit-test or integer-conversion NaN behavior.
 
-Numeric rules were checked against exported instructions and native constants:
-compatibility signed integer-to-float stores, truncation-before-byte-clamp,
-four-bit checkbox rebuilding, movement modifiers, rotation spill ordering and
-binary32 epsilon. Finite-only scope and unresolved x87 unordered cases are
-explicit. No pseudocode or assembly listings are pasted into the specs.
+The spec records type-7 resize to three dwords followed by a fourth store,
+without inventing safe capacity. It also records reversed common default-bound
+stores and the negative-height label's doubled minus. Allocator consequences,
+normal drawing details and other unresolved behavior remain explicitly open.
+
+### Questions and remaining work
+
+LE1 and LE2 moved to `docs/specs/questions/answered/lot-configuration-editor.md`
+with dated DIFFERS answers and rules in the main spec. The question index was
+regenerated. LE3–LE5 remain in the open question file with resolved subsets
+identified: fence toggles/foundation, physical payload consequences, other
+numeric conversions/unordered cases, other dialogs/popups, sort interpretation
+and name fallbacks, lifecycle/input/hit-test/3D/render phases and shared-helper
+ownership still block completion. No other question files were read or changed.
 
 ### Validation and limits
 
-Documentation validation: exact inventory audit, question-index regeneration
-and `git diff --check`; final audit output is in
-`build-runs/loteditor-inventory-audit.json`. Native gates (cargo/clippy/ctest)
-are n/a for this spec-only lane. No game runs, shadow comparisons, ABI exports
-or ABI-row proposals. No runtime/implementation coverage claimed.
+`git diff --check` passed; question-index regeneration completed. This is
+documentation validation only: cargo/clippy/ctest are n/a. No implementation or
+test outputs supplied expected behavior, no game runs/shadow verdicts, no ABI
+changes or proposed rows, and no runtime or complete-owner coverage claim.
 
-The owner remains incomplete. LE1-LE5 are in
-`docs/specs/questions/lot-configuration-editor.md`; the generated index is
-updated. No existing question was answered/moved. Large selectors, rendering,
-3D preparation, fences, callback details and identity edge paths still require
-native reconciliation. Read/partial status is not spec credit. See the exact
-inventory for each uncontracted body.
+Evidence came from absolute main-checkout export/decomp/executable paths.
+Export queries preceded function tracing; instruction bytes were used for
+numeric and lost-stack branches. REA was unnecessary and no REA failure occurred.
+q.py could not start Bash (`E_ACCESSDENIED`), so bounded PowerShell/Python reads
+were used. Git reported a packed-refs.lock permission error during commits,
+but detached-HEAD commits succeeded; refs/config/hooks were left untouched.
 
-Sources were read by absolute path from the main export/decomp/executable.
-REA was not used (relevant pseudocode exists, although several stack traces
-are corrupt); no REA failure occurred. Capstone is unavailable; native PE bytes
-and export instructions were used. q.py failed to start Bash with E_ACCESSDENIED,
-so bounded PowerShell/Python commands were used. Git emitted a packed-refs.lock
-permission diagnostic during commits but detached-HEAD commits succeeded;
-shared refs/config/hooks were not changed.
-
-### Next steps
-
-Coordinator may review/merge this WIP documentation without granting complete
-owner credit. Complete LE1-LE5 and reconcile every O/P/R entry before owner
-promotion. This lane consumed its single authorized round and did not restart,
-spawn agents, merge or push.
+This authorized round ends here. Coordinator review can use the committed
+contracts now; genuine remaining branches retain open status. No merge, push,
+subagents, external communication or self-restart was performed.
