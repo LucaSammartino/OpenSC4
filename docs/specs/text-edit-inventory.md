@@ -232,4 +232,3 @@ coverage. The exact parked questions take precedence over an aggregate.
   body is not complete-owner evidence. No fourth round; preserve worktree.
 - [ ] Implementation, conformance execution, shadow/game verification and
   replacement: none performed or claimed by this RE-only lane.
-
