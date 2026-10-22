@@ -28,3 +28,17 @@ Baseline all passed. Focused quick passed531 CAPI tests and plugin compilation. 
 No new spec questions. SR8-2 shipped reachability remains unproved (zero shipped observations earn no credit); SR8-3 row13 remains explicitly unsupported (safety refusal measured, never compared against native); SR8-4 antialiased context bypass remains outside this bridge. No whole-owner or default replacement promotion. Native records outside the owned positive-stride/nonalias bounds conservatively retain the original path; the C adapter also supports bounded signed strides through the core.
 
 Next: coordinator may merge this bounded opt-in implementation. Further reachability or antialiased-context coverage requires answers/evidence under the existing questions. Supervisor publishes detached commits to the reserved branch; this lane did not modify shared refs.
+
+## Coordinator measured-shadow audit (2026-10-22)
+
+span8_source_own_direct 160/160; span8_source_own_native 160/160; span8_source_current40_direct 160/160; span8_source_current40_native 160/160; span8_joint98_direct 160/160; span8_joint98_native 160/160.
+
+All6 measured sets compare actual original output against production Rust/CAPI
+from independent equal inputs; each case changes output,156/156 positive kernel
+pairs per class, zero differences/guard faults/refusals/fallback/resync.
+Final joint98 DLLbfbdd88b, real68gate/regressPASS, exact house40+span8, fullsave
+and shutdown clean2032/ref0; original slot0 retained and hooked entries restored.
+Source final DLLb02d0a03. Joint/source raw log hashes: build-runs/run4-train98-span8-audit.json.
+This qualifies measured same-process shadow under COVERAGE.md. Natural/shipped
+calls remain0: no default/replaced promotion, no SR8-2/3/4 closure or exhaustive
+whole-owner claim; unsupported row13 refusal is not a native comparison.
