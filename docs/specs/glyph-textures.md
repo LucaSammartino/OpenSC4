@@ -47,6 +47,61 @@ restored, the string cache is dropped and every glyph texture is rendered again.
 The other interfaces start with `this − n` thunks (`0x005D8980`…`0x005D89F0`); `+0x08` slot 3 runs the deleting
 destructor (`0x005D89C0` → `0x005D8D40`, which runs `0x005D8900` and frees on bit 0).
 
+### 1.1.1 Native manager construction, inherited slots and destruction (GT4)
+
+The constructor is `0x005D8CA0–0x005D8D36` (151 bytes); `0x005D8900` is **destruction**, not
+construction. The manager starts with reference count **0**, initialized=false, an empty glyph tree
+and string list, budget 1048576, cached bytes=0, last-sweep time=0 and entry count=0
+(`0x005D8CE2–0x005D8D2B`). The base service sets ID `0xABEB5E37`, both initial priority words to
+`0xFFE17B80`, and running=false (`0x0091DE23–0x0091DE41`). Manager AddRef/Release operate on the
+complete object's `+0x24` modulo 2^32; Release at zero wraps to 0xFFFFFFFF; decrement to zero invokes
+the auxiliary deleting destructor with flags 1 (`0x005D7B40–0x005D7B66`).
+
+For the +4 system-service receiver, offsets in the following table are relative to that receiver.
+Names attached to shared bodies in the export do not determine these methods' semantics.
+
+| Slot | Body | Native behavior |
+|---|---|---|
+| 3 | `0x009CEDE1` | Return u32 at +0x0C (service ID). |
+| 4 | `0x00894F6D` | Store argument word at +0x0C; no defined boolean result. |
+| 5 | `0x0099BE66` | Return word at +0x10 (priority). |
+| 6 | `0x00932B83` | Return byte at +0x18 (running). |
+| 7 | `0x0091DD91` | Store argument low byte at +0x18; no normalization to 0/1. |
+| 11 | `0x0091559A` | Return true, discard one word, no mutation. |
+| 12 | `0x009D4714` | Return word at +0x14 (second priority word). |
+
+For the +8 auxiliary receiver, slot 4 (`0x0090D981`) decrements its unsigned word at +4 only when
+positive, returning that word; zero saturates and nothing is deleted. Slot 5 (`0x009D7E63`) reads the
+same word. This is a **different** counter from manager +0x24. The +4/+8 AddRef thunks at `0x0080BCD0`
+and `0x0080BD00` subtract 4/8 then call manager AddRef. Message-target QI/AddRef/Release at
+`0x005D89D0/0x005D89E0/0x005D89F0` subtract 0x20 and delegate to the manager's primary entries.
+
+Destruction (`0x005D8900–0x005D8971`) restores the four vtables, frees string-cache list nodes and
+sentinel, destroys glyph-tree key strings and nodes and its sentinel, then destroys the +4 base
+service. The list helper `0x005650A0–0x005650DD` frees node storage without releasing texture-info
+pointers; tree cleanup `0x005D82E0–0x005D8329` destroys key strings without releasing mapped glyph
+pointers. The destructor **does not call Shutdown**, clear glyph manager links, unsubscribe, or
+release cached string-info entries. Its deleting wrapper (`0x005D8D40–0x005D8D5D`) always performs
+that cleanup, frees the complete allocation iff flags bit 0 is set, and returns the object address.
+Shutdown (§1.2) is a separate required lifecycle call for its documented link/unsubscription work.
+
+SetManager acquires the new nonnull manager **before** storing it and releasing the old manager;
+equal pointers cause no reference operations (`0x005D7C49–0x005D7C66`). RemoveGlyph walks the map
+by **glyph pointer identity**, not a supplied key; absent pointer/empty map returns without erasure
+or Release. On a match it erases that node then calls the glyph's Release
+(`0x005D8800–0x005D886F`). Thus removing an absent pointer does not consume a reference.
+
+Inventory boundary: 38 owner-named function bodies total **4047 bytes** (manager 25, glyph-info 8,
+string-info 5); the three additional named vtable rows are data. The two AddRef thunks above and
+shared slot bodies are outside this name count. This does not reproduce the brief's 43 / 4475 scope.
+Info-object slot 0 and complete lifetime are established in §3.1; the legacy inventory scope remains
+the exact residual, not a reason to invent further virtual methods.
+
+Distinguishing vectors: a fresh manager has references=0 and sweep time=0; Release immediately
+returns 0xFFFFFFFF. Auxiliary slot 4 at zero returns zero without deleting. Destruction with cache
+entries frees container storage without texture-info Release calls; Shutdown has its separate glyph
+link/release behavior. Replacing a manager link records new AddRef, store, old Release in that order.
+
 ### 1.2 `Init` (system-service slot 8, `0x005D7D50`) and `Shutdown` (slot 9, `0x005D8A00`)
 
 `Init` runs once: initialised := true; budget := the render property `kStringTextureCacheSize` (KB, default 1024;

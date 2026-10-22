@@ -58,6 +58,36 @@ position (x, y, z at `+0x08`), a transform and its effect (`+0x4C`).
    - the point moves 1 m along the unit normal, then through the instance's transform, s (M p) + t;
    - the entry is (point, the triangle's flag, its side). True.
 
+### 2.1 Physical index and selection boundaries (FF3)
+
+The first primitive supplies its **count**, but its first-index offset is **ignored**. The index
+pointer starts at the index-buffer data plus two bytes, and each iteration reads the preceding,
+current and following u16, then advances six bytes (`0x00471E00–0x00471E06`,
+`0x00471E33–0x00471E5A`, `0x00471E80–0x00471EA2`, `0x00471FC7–0x00471FD7`). Thus the triangles
+use physical indices 0,1,2; 3,4,5; etc., even when the first primitive requests a different offset.
+For nonzero k the loop count is `(k−1)/3 + 1`; the final partial triple reads beyond the primitive's
+count. Index values multiply the vertex stride and add the vertex data pointer without bounds
+checking. Missing buffers, short physical storage or out-of-range vertex indices are unsafe native
+reads, not established false/error returns. For k=4 with six readable indices, two triples are read;
+changing only the primitive first-index field does not change those triples.
+
+No model instances and no collected triangle return false (§2). Otherwise a local **cRZRandom** is
+constructed with seed −1 (`0x004720B3–0x004720BC`), and requested count zero can return true without
+placement draws. The area draw promotes the stored float total to double for RandomDoubleRangeUniform.
+Selection compares float cumulative totals against its still-register result. It selects the first
+**greater/equal or unordered** comparison: a NaN comparison also stops the search. If all comparisons
+are ordered-less, it computes a triangle pointer **one past the vector**, then continues sampling;
+there is no native fallback triangle or false result (`0x004720F0–0x00472142`).
+
+The normal helper stores the cross-product components as floats, sums their squares and takes x87
+FSQRT, divides 1 by the result without a zero-length check, then multiplies and stores each component
+as float (`0x00470F86–0x00470FD9`). Zero-area geometry is not rejected: under ordinary masked floating
+exceptions its normal components become NaNs. No nonfinite-coordinate validation is added here.
+The u draw is stored as float (`0x00472142–0x00472147`); `1−u` is stored as float and also passed as
+double for the v range (`0x0047214B–0x00472170`). Thus replacing the complete sampler with arithmetic
+rounded to float after every operation is not proved equivalent. Exact area accumulation and all
+placement intermediate stores remain the precision residual in FF3.
+
 ## 3. Making the flames (`CreateFlames`, `0x00472380`) *[compat]*
 
 With T and S the top-flame and side-flame counts (disasters.md §5.11) and the 3D view's current view level
@@ -106,7 +136,8 @@ create-if-empty and updates; there is no failure propagation (`0x004728B0–0x00
 indexes the two effect-name tables with the stage (`0x004710FD–0x00471110`); there is no clamp or
 defined fallback for stages outside 0–4.
 
-Visibility assignment writes the flame's visible byte even when there is no effect; with an effect,
+Visibility assignment first compares the requested byte; an equal byte makes no effect call. A changed
+byte is stored even when there is no effect; with an effect,
 show starts it with argument 1 and hide stops it with argument 1 (`0x00470270–0x00470290`). Update
 instead stops an old effect with argument 0, clears/releases it, then attempts replacement. Failure
 does not restore the old effect (`0x004710D3–0x00471160`). During Shutdown, a made flame's effect is
@@ -118,6 +149,118 @@ cleanup; it is not a claim that every destruction entry has been reconciled.
 and 5. Rotation uses x87 FSIN/FCOS with intermediate float stores (`0x00470CD1–0x00470D1A`), rather
 than an established portable f64 library-trigonometry rule. Matrix signs, counter writes and the
 remaining placement arithmetic are specified only when independently proved below.
+
+### 4.2 Rotation bytes and placement call order (FF4)
+
+UpdateTransform constructs a **temporary** 56-byte transform. Its change-counter byte (+0) is 2 and
+kind byte (+1) is 5 (matrix plus translation); the remaining two header bytes are not written. The
+scale is float 1, translation copies the flame's position, and effect slot 7 receives the temporary.
+It does not update the flame's embedded transform or increment its counter. With no effect it
+returns before constructing that temporary (`0x00470CA2–0x00470CAA`, `0x00470CB8`,
+`0x00470CD7–0x00470CF9`, `0x00470D9E–0x00470DAC`). This does not prescribe downstream effect-counter
+behavior outside that call.
+
+The side is an unsigned 32-bit word: native conversion loads it signed, adds exactly 2^32 if its
+sign bit is set, then multiplies by float **90.0**, retaining the angle in x87
+(`0x00470CB0–0x00470CC8`; constants `0x00A80AA8`, `0x00A882A8`). No degrees-to-radians conversion
+occurs. With c=cos(angle), s=sin(angle), the matrix's **rows**, at temporary +4,+0x10,+0x1C, are:
+
+| Row | Real-valued entries |
+|---|---|
+| 0 | c, 0, s |
+| 1 | 0, 1, 0 |
+| 2 | −s, 0, c |
+
+The actual instructions compute two additional angles equal to double zero (`0x00A80990`). Their
+cosines and sines are each stored to float before combination. The side-angle cosine is stored to
+float before the matrix products, while its sine stays in x87 until the individual matrix stores
+(`0x00470CFA–0x00470D1A`, `0x00470D24–0x00470DA6`). Each final entry is stored to float; there is no
+f64-library-trig guarantee. The table gives signs/geometry, not permission to erase native signed
+zeros: side zero stores −0 at matrix +8 and +0x18, and +0 at +0x1C under ordinary nearest rounding.
+For side 1, the first basis vector rotates toward negative z: approximately (−0.448074,0,−0.893997).
+
+Box placement draws side first, **free horizontal coordinate second, height third**; each coordinate
+draw is stored to float before assignment. Sides 0/2 draw z, sides 1/3 draw x
+(`0x00472612–0x004726D0`). Top flames with T>1 draw Gaussian x then z
+(`0x004725CD–0x00472609`). Flora inherits constructor wall=false and side=0; top flames explicitly
+write wall=false and retain side=0; wall flames write wall=true and their selected side. Hiding clears
+the visible byte even without an effect (§4.1); view level 1 does not automatically re-show a flame
+previously hidden by these placement paths.
+
+Call order is also observable with existing effects: model construction writes wall/position, calls
+UpdateTransform, then writes side and calls again (`0x00472433–0x0047245A`). ViewUpdate writes wall/side,
+calls UpdateTransform using the old position, then writes the new position and calls again
+(`0x00472836–0x0047285C`). Box wall creation calls once after side assignment with the old position,
+then again after position assignment (`0x004726D4–0x004726F3`); fresh flames have null effects so those
+calls make no effect-slot calls. None of these direct position/side writes mutates the embedded
+transform or its counter. Test the two successive slot-7 calls with a live effect during ViewUpdate,
+and separately test that a fresh flame's embedded identity transform stays unchanged.
+
+### 4.3 Persistence, destruction and inventory boundary (FF2)
+
+The fire writer (`0x00470130–0x0047020A`) writes u16 version **3**, then calls the base occupant writer.
+On base success it writes the three words at adjusted receiver +0x38,+0x3C,+0x40, the serializable
+field at +0x4C, and the flame vector count. Each flame is written inline: u16 version **3**, wall via
+stream slot 5, side via slot 9, position via the vector writer, embedded transform via the transform
+writer. There is no separate standalone flame-write body in this path. Made, visible and effect
+pointer are omitted. A per-flame stream error returns false immediately; the final result is the
+inverse stream-error flag, including the base-failure branch. There is no rollback.
+
+The transform writer (`0x005DA8C0–0x005DA92B`) writes its kind byte, then matrix if bit 2 is set,
+translation if bit 0 is set, scale if bit 1 is set, in that order. It omits the change counter and
+padding bytes. A freshly constructed flame's kind-zero embedded identity therefore writes no matrix,
+translation or scale, even though its separate position is serialized.
+
+Fire Read (`0x00471A70–0x00471B8A`) accepts **only version 3**; unlike flame Read it rejects higher
+versions too. On base success it reads those three words, releases/clears the old serializable field,
+reads its replacement with IID `0x26BB767E` and argument 0, then reads the flame count. It constructs
+and reads fresh 0x50-byte flames and appends each successful one without first clearing existing
+flames. On a flame read failure it returns false with earlier additions retained; the failed fresh
+allocation is not reclaimed on that branch. Made/visible/effect state therefore starts from the
+flame constructor and is not restored by this wire record. A failed allocation reaches a null flame
+read; no clean allocation-failure result is established. Outside explicit version/flame failure,
+the result is the inverse final stream-error flag, even if the base reader returned false.
+
+Shutdown first checks initialized state; if false it returns true **without** cleaning flames
+(`0x00470DC3–0x00470DCA`). Its initialized path performs §4.1's stop/release rules and frees each
+flame allocation while erasing pointers. Direct destruction is different: `0x00471290–0x004712DC`
+restores vtables, frees the flame-vector **storage**, Releases the nonnull target at complete-object
++0x54, then destroys the base occupant. It neither calls Shutdown nor walks/reclaims flame pointees
+or their effects. Deleting wrapper `0x00471600–0x0047161D` runs that body and frees the complete object
+iff flags bit 0 is set. The caller must not assume direct destruction reproduces Shutdown's cleanup.
+
+The following is the measured owner-name inventory, with two independently identified owner bodies
+added. Lengths are function body bytes, not address-span estimates; shared inherited/thunk bodies
+are not silently included.
+
+| Owner | Address / body bytes | Body |
+|---|---|---|
+| Fire occupant | `0046FDC0` / 6 | Class ID |
+| Fire occupant | `0046FE00` / 36 | Extinguish |
+| Fire occupant | `0046FE30` / 39 | QueryInterface |
+| Flame | `004700A0` / 135 | Read |
+| Fire occupant | `00470130` / 219 | Write, including inline flame writer |
+| Fire occupant | `00470210` / 19; `00470230` / 19 | Position and bounds forwarding |
+| Fire occupant | `00470250` / 80 | Visibility |
+| Flame | `00470BC0` / 224 | Constructor, mislabeled vector resize |
+| Flame | `00470CA0` / 275 | UpdateTransform |
+| Fire occupant | `00470DC0` / 242 | Shutdown |
+| Flame | `004710D0` / 145 | Update |
+| Fire occupant | `00471170` / 77 | Init |
+| Fire occupant | `004711C0` / 107 | Constructor |
+| Fire occupant | `00471290` / 77 | Destructor body, unnamed |
+| Fire occupant | `00471600` / 30 | Deleting wrapper |
+| Fire occupant | `00471900` / 367 | SetTarget |
+| Fire occupant | `00471A70` / 283 | Read |
+| Fire occupant | `00472380` / 1013 | CreateFlames |
+| Fire occupant | `00472790` / 275 | ViewUpdate |
+| Fire occupant | `004728B0` / 72 | SetStage |
+
+The 19 named bodies total **3439 bytes**; with the constructor and destructor identified above this
+is **21 / 3740**, not the brief's 16 / 3513. Triangle construction (`0x00470EC0`, 418) and
+GetPointsOnModel (`0x00471CF0`, 1662) are separate non-owner helpers. The legacy owner/count scope
+and any additional inherited wrappers remain FF2's inventory residual. This table is not a claim
+that every inherited occupant method belongs to this small owner surface.
 
 ## 5. Users
 
