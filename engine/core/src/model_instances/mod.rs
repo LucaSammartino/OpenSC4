@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Portable owners from model-instances §§1–6,10. No native layouts or game services.
-//! References own their pointees, and shared getters use RwLock rather than RefCell.
+//! Published operations of the eight-owner subset in model-instances §0.1.
+//! Excludes animated convenience slots 0–8, processor assignment, generic
+//! persistence and sprite-instance binding/rendering. No whole-owner claim.
 mod animation;
 mod geometry;
 mod instance;
@@ -14,59 +15,173 @@ pub use processor::*;
 pub use resources::*;
 
 use std::sync::{
-    atomic::{AtomicU16, Ordering},
-    Arc, RwLock, RwLockReadGuard, RwLockWriteGuard,
+    atomic::{AtomicBool, AtomicU32, Ordering},
+    Arc, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak,
 };
 
-struct Allocation<T> {
-    count: AtomicU16,
-    value: RwLock<T>,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CountPolicy {
+    Basic16,
+    Instance32,
+    Resource32,
+    Factory32,
+    /// Foreign services/vertex blocks have no count contract in this spec.
+    Portable32,
+}
+pub trait ReferenceTarget {
+    const COUNT_POLICY: CountPolicy;
+}
+impl<T: ?Sized> ReferenceTarget for Box<T> {
+    const COUNT_POLICY: CountPolicy = CountPolicy::Portable32;
+}
+impl<T> ReferenceTarget for Vec<T> {
+    const COUNT_POLICY: CountPolicy = CountPolicy::Portable32;
+}
+impl ReferenceTarget for VertexBlock {
+    const COUNT_POLICY: CountPolicy = CountPolicy::Portable32;
+}
+impl ReferenceTarget for BasicInstance {
+    const COUNT_POLICY: CountPolicy = CountPolicy::Basic16;
+}
+impl ReferenceTarget for StaticInstance {
+    const COUNT_POLICY: CountPolicy = CountPolicy::Instance32;
+}
+impl ReferenceTarget for AnimatedInstance {
+    const COUNT_POLICY: CountPolicy = CountPolicy::Instance32;
+}
+impl ReferenceTarget for SpriteResource {
+    const COUNT_POLICY: CountPolicy = CountPolicy::Resource32;
+}
+impl ReferenceTarget for SpriteAnimation {
+    const COUNT_POLICY: CountPolicy = CountPolicy::Resource32;
+}
+impl ReferenceTarget for SpriteAnimationTable {
+    const COUNT_POLICY: CountPolicy = CountPolicy::Resource32;
+}
+impl ReferenceTarget for SpriteAnimationFactory {
+    const COUNT_POLICY: CountPolicy = CountPolicy::Factory32;
 }
 
-/// A counted owned reference. Dropping the final reference destroys the entire owner.
-/// MI10 [choice]: a newly returned Rust handle already owns one reference. The published
-/// 16-bit counter wraps; Arc keeps overflow from causing a memory safety failure.
+/// MI10 native count state, independent of the safety lifetime of Rust handles.
+pub struct NativeCount {
+    count: AtomicU32,
+    destroyed: AtomicBool,
+    policy: CountPolicy,
+}
+impl NativeCount {
+    pub fn new(policy: CountPolicy) -> Self {
+        Self { count: AtomicU32::new(0), destroyed: AtomicBool::new(false), policy }
+    }
+    pub fn get(&self) -> u32 {
+        self.count.load(Ordering::SeqCst)
+    }
+    pub fn is_destroyed(&self) -> bool {
+        self.destroyed.load(Ordering::SeqCst)
+    }
+    pub fn add_ref(&self) -> u32 {
+        assert!(!self.is_destroyed(), "AddRef after native destruction");
+        let mask = if self.policy == CountPolicy::Basic16 { 0xFFFF } else { u32::MAX };
+        let old = self.count.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| Some(n.wrapping_add(1) & mask)).unwrap();
+        old.wrapping_add(1) & mask
+    }
+    pub fn release(&self) -> u32 {
+        assert!(!self.is_destroyed(), "Release after native destruction");
+        let resource = self.policy == CountPolicy::Resource32;
+        let old = self.count.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
+            Some(if resource { n.wrapping_sub(1) } else { n.saturating_sub(1) })
+        }).unwrap();
+        let result = if resource { old.wrapping_sub(1) } else { old.saturating_sub(1) };
+        if result == 0 {
+            self.destroyed.store(true, Ordering::SeqCst);
+        }
+        result
+    }
+}
+struct Allocation<T> {
+    count: NativeCount,
+    value: RwLock<Option<T>>,
+}
+
+/// Counted handle: `new` returns count 1; `constructed` exposes native count 0.
+/// [choice] Arc protects memory only. Native destruction removes the value, so
+/// overflow never gives surviving handles access to a natively destroyed owner.
+/// Dropping the last Rust handle also reclaims memory, even if native resource
+/// underflow would leak it. NativeCount separately exposes that native state.
 pub struct Reference<T>(Arc<Allocation<T>>, bool);
 
-impl<T> Reference<T> {
+impl<T: ReferenceTarget> Reference<T> {
+    pub fn constructed(value: T) -> Self {
+        Self(Arc::new(Allocation {
+            count: NativeCount::new(T::COUNT_POLICY),
+            value: RwLock::new(Some(value)),
+        }), true)
+    }
     pub fn new(value: T) -> Self {
-        Self(
-            Arc::new(Allocation {
-                count: AtomicU16::new(1),
-                value: RwLock::new(value),
-            }),
-            true,
-        )
+        let result = Self::constructed(value);
+        result.0.count.add_ref();
+        result
     }
-    pub fn reference_count(&self) -> u16 {
-        self.0.count.load(Ordering::Relaxed)
+}
+pub struct ReferenceRead<'a, T>(RwLockReadGuard<'a, Option<T>>);
+impl<T> std::ops::Deref for ReferenceRead<'_, T> {
+    type Target = T;
+    fn deref(&self) -> &T { self.0.as_ref().expect("access after native destruction") }
+}
+pub struct ReferenceWrite<'a, T>(RwLockWriteGuard<'a, Option<T>>);
+impl<T> std::ops::Deref for ReferenceWrite<'_, T> {
+    type Target = T;
+    fn deref(&self) -> &T { self.0.as_ref().expect("access after native destruction") }
+}
+impl<T> std::ops::DerefMut for ReferenceWrite<'_, T> {
+    fn deref_mut(&mut self) -> &mut T { self.0.as_mut().expect("access after native destruction") }
+}
+pub(crate) struct BorrowedReference<T>(Weak<Allocation<T>>);
+impl<T> BorrowedReference<T> {
+    pub(crate) fn access(&self) -> Option<Reference<T>> {
+        let allocation = self.0.upgrade()?;
+        if allocation.count.is_destroyed() { return None; }
+        Some(Reference(allocation, false))
     }
-    pub fn read(&self) -> RwLockReadGuard<'_, T> {
-        self.0.value.read().unwrap_or_else(|e| e.into_inner())
+}
+impl<T> Reference<T> {
+    pub fn reference_count(&self) -> u32 {
+        self.0.count.get()
     }
-    pub fn write(&self) -> RwLockWriteGuard<'_, T> {
-        self.0.value.write().unwrap_or_else(|e| e.into_inner())
+    pub fn read(&self) -> ReferenceRead<'_, T> {
+        ReferenceRead(self.0.value.read().unwrap_or_else(|e| e.into_inner()))
+    }
+    pub fn write(&self) -> ReferenceWrite<'_, T> {
+        ReferenceWrite(self.0.value.write().unwrap_or_else(|e| e.into_inner()))
     }
     pub fn ptr_eq(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
     }
-    pub fn release(mut self) -> u16 {
-        self.1 = false;
-        let count = self.0.count.fetch_sub(1, Ordering::Relaxed).wrapping_sub(1);
-        drop(self);
+    pub(crate) fn downgrade(&self) -> BorrowedReference<T> {
+        BorrowedReference(Arc::downgrade(&self.0))
+    }
+    fn release_native(&self) -> u32 {
+        let count = self.0.count.release();
+        if self.0.count.is_destroyed() {
+            let value = self.0.value.write().unwrap_or_else(|e| e.into_inner()).take();
+            drop(value);
+        }
         count
+    }
+    pub fn release(mut self) -> u32 {
+        self.1 = false;
+        self.release_native()
     }
 }
 impl<T> Clone for Reference<T> {
     fn clone(&self) -> Self {
-        self.0.count.fetch_add(1, Ordering::Relaxed);
+        self.0.count.add_ref();
         Self(Arc::clone(&self.0), true)
     }
 }
 impl<T> Drop for Reference<T> {
     fn drop(&mut self) {
-        if self.1 {
-            self.0.count.fetch_sub(1, Ordering::Relaxed);
+        if self.1 && !self.0.count.is_destroyed() {
+            self.release_native();
         }
     }
 }

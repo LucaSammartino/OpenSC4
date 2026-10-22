@@ -17,6 +17,9 @@ pub struct SpriteAnimation {
 }
 impl SpriteAnimation {
     pub fn read(instance_id: u32, bytes: &[u8]) -> Option<Self> {
+        if instance_id == 0 {
+            return None;
+        }
         let mut reader = Words { bytes, offset: 0 };
         if reader.next()? != SPRITE_ANIMATION_TYPE {
             return None;

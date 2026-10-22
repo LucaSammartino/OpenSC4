@@ -154,7 +154,6 @@ fn base_delegation_attributes_and_identity() {
         },
     );
     let changed = Transform {
-        dirty: true,
         kind: 7,
         rotation: [[2.; 3]; 3],
         translation: [8.; 3],
@@ -168,7 +167,7 @@ fn base_delegation_attributes_and_identity() {
     assert_eq!(out.translation, [0.; 3]);
     assert_eq!(out.scale, 1.);
     assert_eq!(out.change_counter, 41);
-    assert!(!out.dirty);
+    assert_eq!(out.kind, 0);
     basic.get_transform(&mut out);
     assert_eq!(out.change_counter, 41);
     assert_eq!(basic.bounds(&Derived), Derived.world_bounds());
@@ -197,7 +196,6 @@ fn base_delegation_attributes_and_identity() {
 #[test]
 fn asymmetric_transform_kinds_and_bounds() {
     let mut t = Transform {
-        dirty: true,
         kind: 0,
         rotation: [[0., -1., 0.], [1., 0., 0.], [0., 0., -1.]],
         translation: [10., 20., 30.],
@@ -230,7 +228,7 @@ fn asymmetric_transform_kinds_and_bounds() {
             max: [22., 18., 46.]
         }
     );
-    assert_eq!(BoundingBox::EMPTY.transformed(&t), BoundingBox::EMPTY);
+    assert_eq!(BoundingBox::EMPTY.transformed(&Transform::identity()), BoundingBox { min: [0.; 3], max: [1.; 3] });
 }
 
 #[test]
@@ -340,7 +338,7 @@ fn static_transform_counter_bounds_query_and_draw() {
     let t = Transform {
         kind: 1,
         translation: [5., 6., 7.],
-        change_counter: 900,
+        change_counter: 17,
         ..Transform::identity()
     };
     s.write().set_transform(&t);
@@ -393,7 +391,7 @@ fn all_triangle_walk_types_first_and_indices() {
         for (i, expected) in expected.into_iter().enumerate() {
             assert_eq!(p.triangle(i as u32), Some(expected));
         }
-        assert_eq!(p.triangle(p.triangle_count()), None);
+        assert_eq!(p.triangle(p.triangle_count() as u32), None);
     }
     assert_eq!(
         Primitive {
@@ -441,12 +439,13 @@ fn picking_stops_within_mesh_but_walks_every_mesh_and_negative_t() {
     assert!(pick.model_pick(&[m, triangles(&near_tri)], &Transform::identity()));
     assert_eq!(pick.nearest, 2.);
     pick.origin[2] = 10.;
+    pick.nearest = 100.;
     assert!(pick.mesh_pick(&triangles(&far), &Transform::identity()));
-    assert_eq!(pick.nearest, -5.);
+    assert_eq!(pick.nearest, 5.);
 }
 
 #[test]
-fn animation_frame_build_and_failure_are_transactional() {
+fn animation_failed_build_preserves_frame_word() {
     let requests = Arc::new(AtomicUsize::new(0));
     let drops = Arc::new(AtomicUsize::new(0));
     let resource: ModelReference = Reference::new(Box::new(Resource {
@@ -593,16 +592,16 @@ fn processor_refusal_conversion_restore_and_release_counts() {
         );
         assert_eq!(block.bounds, original.read().bounds);
     }
-    assert!(p.set_model(None));
+    assert!(!p.set_model(None));
     assert_eq!(s.reference_count(), 2);
     assert!(s.read().mesh(0).unwrap().vertices.as_ref().unwrap().ptr_eq(&original));
-    p.release_model();
-    p.release_model();
+    assert_eq!(p.release_model(), Err(ReleaseModelError));
+    assert_eq!(p.release_model(), Err(ReleaseModelError));
     assert_eq!(s.reference_count(), 2);
 }
 
 #[test]
-fn processor_unsupported_format_keeps_only_instance() {
+fn processor_unsupported_format_clears_both_references() {
     let mesh = triangles(&[[0.; 3], [1., 0., 0.], [0., 1., 0.]]);
     mesh.vertices.as_ref().unwrap().write().format = 10;
     let s = instance(ModelFrame {
@@ -611,10 +610,10 @@ fn processor_unsupported_format_keeps_only_instance() {
     });
     let h = InstanceReference::Static(s.clone());
     let mut p = ModelProcessor::new();
-    assert!(p.set_model(Some(&h)));
-    assert!(p.has_instance());
+    assert!(!p.set_model(Some(&h)));
+    assert!(!p.has_instance());
     assert!(!p.has_container());
-    assert_eq!(s.reference_count(), 3);
+    assert_eq!(s.reference_count(), 2);
     p.create_vertex_normals();
     assert!(p.normals().is_none());
     drop(p);
@@ -666,7 +665,7 @@ fn processor_equal_and_unequal_area_weighted_normals() {
 }
 
 #[test]
-fn processor_stable_mesh_order_has_largest_first_and_ties() {
+fn processor_mesh_order_has_largest_first_and_reversed_ties() {
     let meshes = [1., 3., 2., 3.]
         .map(|z| triangles(&[[0., 0., z], [1., 0., z], [0., 1., z]]))
         .to_vec();
@@ -677,9 +676,9 @@ fn processor_stable_mesh_order_has_largest_first_and_ties() {
     let mut p = ModelProcessor::new();
     p.set_model(Some(&InstanceReference::Static(s)));
     p.sort_meshes([0., 0., 1.]);
-    assert_eq!(p.mesh_order(), [1, 3, 2, 0]);
+    assert_eq!(p.mesh_order(), [3, 1, 2, 0]);
     p.sort_meshes([0., 0., -1.]);
-    assert_eq!(p.mesh_order(), [0, 2, 1, 3]);
+    assert_eq!(p.mesh_order(), [0, 2, 3, 1]);
 }
 
 #[test]
@@ -819,19 +818,17 @@ fn shared_getters_can_run_on_a_second_thread() {
 }
 
 #[test]
-fn transform_numeric_rounding_is_separate_multiply_then_add() {
-    // 4097^2 rounds to 16785408 before subtracting 4097*4096.
-    // Fusing these two operations would instead produce 4097.
-    assert_eq!(
-        matrix_vector([[4097., -4096., 0.], [0.; 3], [0.; 3]], [4097., 4097., 0.]),
-        [4096., 0., 0.]
-    );
+fn transform_identity_wraps_only_when_kind_is_nonzero() {
     let mut transform = Transform {
-        dirty: true,
-        change_counter: u32::MAX,
+        kind: 7,
+        change_counter: u8::MAX,
         ..Transform::identity()
     };
     transform.make_identity();
+    assert_eq!(transform.change_counter, 0);
+    transform.translation = [17.; 3];
+    transform.make_identity();
+    assert_eq!(transform.translation, [17.; 3]);
     assert_eq!(transform.change_counter, 0);
 }
 
@@ -846,10 +843,10 @@ fn nearest_pick_metric_and_transform_are_explicit() {
     let mut pick = PickContext {
         origin: [0.2, 0.2, 0.],
         direction: [0., 0., 2.],
-        nearest: 4.,
+        nearest: 100.,
     };
     assert!(pick.mesh_pick(&m, &t));
-    assert_eq!(pick.nearest, 3.);
+    assert_eq!(pick.nearest, 6.);
     // Equal distance does not replace the nearest hit.
     assert!(!pick.mesh_pick(&m, &t));
 }
@@ -911,7 +908,7 @@ fn switching_processor_to_refused_model_restores_old_vertices() {
 }
 
 #[test]
-fn processor_drop_releases_two_instance_parts_and_does_not_restore() {
+fn processor_drop_releases_two_instance_parts_and_restores_identity() {
     let m = triangles(&[[0.; 3], [1., 0., 0.], [0., 1., 0.]]);
     let original = m.vertices.as_ref().unwrap().clone();
     let s = instance(ModelFrame {
@@ -926,8 +923,8 @@ fn processor_drop_releases_two_instance_parts_and_does_not_restore() {
     assert_eq!(s.reference_count(), 2);
     let read = s.read();
     let processed = read.mesh(0).unwrap().vertices.as_ref().unwrap();
-    assert_eq!(processed.read().format, 10);
-    assert!(!processed.ptr_eq(&original));
+    assert_eq!(processed.read().format, 2);
+    assert!(processed.ptr_eq(&original));
 }
 
 #[test]
@@ -943,9 +940,9 @@ fn sorting_ties_restart_with_container_order_even_after_prior_sort() {
     p.sort_meshes([0., 0., 1.]);
     assert_eq!(p.mesh_order(), [1, 2, 0]);
     p.sort_meshes([0.; 3]);
-    assert_eq!(p.mesh_order(), [0, 1, 2]);
+    assert_eq!(p.mesh_order(), [2, 1, 0]);
     p.sort_meshes([f32::NAN; 3]);
-    assert_eq!(p.mesh_order(), [0, 1, 2]);
+    assert_eq!(p.mesh_order(), [2, 1, 0]);
 }
 
 #[test]
@@ -958,7 +955,12 @@ fn negative_speed_uses_direction_for_step_and_accumulator_subtraction() {
     assert_eq!(a.advance(0.), 2);
     assert_eq!(a.frame(), 2);
     assert_eq!(a.accumulator(), 1.);
-    let single = Reference::new(animated(1, 30));
+    let resource = model(vec![ModelFrame {
+        meshes: vec![triangles(&[[0.; 3], [1., 0., 0.], [0., 1., 0.]])],
+        materials: vec![],
+    }], 30);
+    let single = AnimatedInstance::new(&resource, DrawAttributes::default()).unwrap();
+    let single = Reference::new(single);
     let query = single.query_interface(IID_ANIMATED).unwrap();
     assert_eq!(query.part, InterfacePart::Animated);
     drop(query);

@@ -4,12 +4,22 @@ use std::any::Any;
 
 pub type OwnerReference = Reference<Box<dyn Any + Send + Sync>>;
 
-/// Semantic 20-byte record: flags and sixteen uninterpreted bytes. MI3: the
-/// native flag offset is not published; this type is never copied across an ABI.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// Semantic 20-byte record. The low byte of flags is byte 0; higher bytes
+/// preserve bytes 1..3, including the constructor's unwritten bytes 2..3.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DrawAttributes {
     pub flags: u32,
     pub opaque: [u8; 16],
+}
+impl Default for DrawAttributes {
+    fn default() -> Self {
+        let mut opaque = [0; 16];
+        for word in opaque.chunks_exact_mut(4) {
+            word.copy_from_slice(&1_f32.to_bits().to_le_bytes());
+        }
+        // MI3 [choice]: initialize the two unwritten bytes to zero.
+        Self { flags: 0, opaque }
+    }
 }
 
 pub trait BasicDerived {
@@ -25,7 +35,7 @@ pub struct BasicInstance {
     attributes: DrawAttributes,
 }
 impl BasicInstance {
-    /// [choice] Unpublished base constructor defaults are explicit inputs (MI3).
+    /// Portable convenience constructor with explicitly supplied initial fields.
     pub fn new(custom_data: u32, properties: u32, attributes: DrawAttributes) -> Self {
         Self {
             owner: None,
@@ -38,6 +48,11 @@ impl BasicInstance {
         self.owner.as_ref()
     }
     pub fn set_owner(&mut self, owner: Option<&OwnerReference>) {
+        if self.owner.as_ref().zip(owner).is_some_and(|(a, b)| a.ptr_eq(b)) {
+            return;
+        }
+        // Basic releases old before retaining new (MI3).
+        self.owner = None;
         self.owner = owner.cloned();
     }
     pub fn custom_data(&self) -> u32 {
@@ -77,6 +92,11 @@ impl BasicInstance {
     pub fn draw(&self) {}
     pub fn resource_model(&self) -> Option<&ModelReference> {
         None
+    }
+}
+impl Default for BasicInstance {
+    fn default() -> Self {
+        Self::new(0, 2, DrawAttributes::default())
     }
 }
 impl Interfaces for BasicInstance {
@@ -187,15 +207,14 @@ pub struct StaticInstance {
 }
 impl StaticInstance {
     pub fn new(attributes: DrawAttributes) -> Self {
-        // MI3: zero properties/custom data are Rust construction choices.
         Self {
-            basic: BasicInstance::new(0, 0, attributes),
+            basic: BasicInstance::new(0, 2, attributes),
             transform: Transform::identity(),
             model: None,
             frame: ModelFrame::default(),
             bounds: BoundingBox::EMPTY,
-            bounds_stale: false,
-            properties: 0,
+            bounds_stale: true,
+            properties: 2,
         }
     }
     pub fn set_model(&mut self, model: Option<&ModelReference>) -> bool {
@@ -206,13 +225,17 @@ impl StaticInstance {
             self.bounds_stale = false;
             return true;
         };
-        let Some(frame) = model.read().model_frame(0) else {
-            return false;
-        };
-        self.model = Some(model.clone());
-        // MI6: the published 52-byte materials are copied into the instance;
-        // mutation here leaves the resource provider's material copy untouched.
-        self.frame = frame;
+        if !self.model.as_ref().is_some_and(|old| old.ptr_eq(model)) {
+            let Some(frame) = model.read().model_frame(0) else {
+                return false;
+            };
+            // Retain/store new before releasing old. A same-pointer set skips
+            // binding/frame creation, but still inspects the material below.
+            let old = std::mem::replace(&mut self.model, Some(model.clone()));
+            drop(old);
+            // MI6: material fields are instance-local; block references can share.
+            self.frame = frame;
+        }
         if let Some(material) = self.frame.materials.first_mut() {
             let special = material.source_blend == 8 && material.destination_blend == 1;
             if special || material.flags & 0x10 != 0 {
@@ -236,7 +259,12 @@ impl StaticInstance {
         self.basic.owner()
     }
     pub fn set_owner(&mut self, owner: Option<&OwnerReference>) {
-        self.basic.set_owner(owner);
+        if self.basic.owner.as_ref().zip(owner).is_some_and(|(a, b)| a.ptr_eq(b)) {
+            return;
+        }
+        // Static retains new, stores it, then releases old (MI3).
+        let old = std::mem::replace(&mut self.basic.owner, owner.cloned());
+        drop(old);
     }
     pub fn custom_data(&self) -> u32 {
         self.basic.custom_data()
@@ -277,6 +305,11 @@ impl StaticInstance {
     pub fn transform(&self) -> Transform {
         self.transform
     }
+    pub fn get_transform(&self, output: &mut Transform) {
+        let counter = output.change_counter.wrapping_add(1);
+        *output = self.transform;
+        output.change_counter = counter;
+    }
     pub fn set_transform(&mut self, transform: &Transform) {
         let counter = self.transform.change_counter.wrapping_add(1);
         self.transform = *transform;
@@ -286,8 +319,10 @@ impl StaticInstance {
         self.bounds_stale = true;
     }
     pub fn refresh_bounds(&mut self) {
-        self.bounds = self.model.as_ref().map_or(BoundingBox::EMPTY, |m| m.read().bounds());
-        self.bounds_stale = false;
+        if let Some(model) = &self.model {
+            self.bounds = model.read().bounds();
+            self.bounds_stale = false;
+        }
     }
     pub fn bounds(&mut self) -> BoundingBox {
         if self.bounds_stale {

@@ -105,19 +105,22 @@ impl AnimatedInstance {
     // Keep the published (dt * speed) * direction + acc operand order.
     #[allow(clippy::assign_op_pattern)]
     pub fn advance(&mut self, dt: f32) -> u32 {
-        // MI9: preserve literal f32 arithmetic/comparison behavior for non-finite
-        // inputs too; unordered magnitudes take the one-step catch-up branch.
         if self.speed.to_bits() == (-100_f32).to_bits() {
             self.set_speed(-200.);
         }
         if self.speed == 0. {
             return 0;
         }
-        self.accumulator = (dt * self.speed) * f32::from(self.direction) + self.accumulator;
-        if self.accumulator.abs() < 1. {
+        // MI9: transient precision differs from the binary32 accumulator store.
+        // f64 approximates x87 here; control-word dependent last bits are a
+        // portable numeric limit, not blanket per-operation f32 rounding.
+        let transient = (f64::from(dt) * f64::from(self.speed)) * f64::from(self.direction)
+            + f64::from(self.accumulator);
+        self.accumulator = transient as f32;
+        if transient.is_nan() || transient.abs() < 1. {
             return 0;
         }
-        if self.accumulator.abs() < 2. {
+        if transient.abs() < 2. {
             self.step();
             self.accumulator -= f32::from(self.direction);
         } else {
@@ -142,7 +145,28 @@ pub enum InstanceReference {
     Static(Reference<StaticInstance>),
     Animated(Reference<AnimatedInstance>),
 }
+pub(crate) enum BorrowedInstanceReference {
+    Static(BorrowedReference<StaticInstance>),
+    Animated(BorrowedReference<AnimatedInstance>),
+}
+impl BorrowedInstanceReference {
+    pub(crate) fn access(&self) -> Option<InstanceReference> {
+        match self {
+            Self::Static(v) => v.access().map(InstanceReference::Static),
+            Self::Animated(v) => v.access().map(InstanceReference::Animated),
+        }
+    }
+}
 impl InstanceReference {
+    pub(crate) fn downgrade(&self) -> BorrowedInstanceReference {
+        match self {
+            Self::Static(v) => BorrowedInstanceReference::Static(v.downgrade()),
+            Self::Animated(v) => BorrowedInstanceReference::Animated(v.downgrade()),
+        }
+    }
+    pub(crate) fn borrowed_access(&self) -> Self {
+        self.downgrade().access().expect("live container")
+    }
     pub fn with_instance<R>(&self, f: impl FnOnce(&StaticInstance) -> R) -> R {
         match self {
             Self::Static(v) => f(&v.read()),
