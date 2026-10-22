@@ -24,5 +24,7 @@
 - LC9/LC10 filed for unsafe/malformed/duplicate domains; allowed indeterminate-field choices labeled in code.
 - No unchanged baseline or game run. Full gate pending; no verified cargo/clippy/CMake/CTest counts. Shared Git packed-refs.lock warning occurs during commit, but detached commits succeed; do not change shared config/refs.
 - Unknown LC4 (12 interpreters), LC5 opaque default parent, LC8 (19 foreign writers) stay explicit.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-legacy-control4-r1-manifest.json.
-- STOP: guard denied final log inspection at context 151k/150k. Preserve all logs, await running gate, then finish validation/report or fix evidenced failures. No merge-queue file written.
+- Round 2 OS audit: no surviving attributable validator; limited-query fallback obtained candidate command lines/creation/PID. Only own matching Python is supervisor PID 33956, not a check. No other process touched.
+- Old all/native logs end during compilation with no exit/results; fmt result absent. Mixed quick has 3717 NUL bytes. Original result/stderr and transport failure retained; overwrite-prone logs moved to r1-* with original hashes in build-runs/legacy-control-validation-reconciliation.md.
+- Next: finish production/contracts/22-fixture audit, resolve owner-only formatting, then exactly one necessary replacement stable committed-source all. No baseline or duplicate quick.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-legacy-control4-r2-manifest.json. Round-1 stop ce60e13a preserved as ancestor; no queue.
