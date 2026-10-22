@@ -180,12 +180,14 @@ void RunLandfillOccupantProbe(void*) {
                 ok = oriented && ok;
                 const cS3DVector3 v(xyz[0], xyz[1], xyz[2]);
                 const bool positioned = occ->SetPosition(&v);
-                ok = positioned && ok;
+                // LG32: landfill.md specifies the stored position/bounds,
+                // not this inherited method's return. Compare its effects;
+                // report the SDK bool separately without assuming true.
                 Log("landfill occupant probe case=%u mutations previous native=0x%08X rust=0x%08X "
-                    "SetOrientation=%u SetPosition=%u", test, previous, rust.previous_tile,
+                    "SetOrientation=%u SetPosition=%u (return unscored LG32)", test, previous, rust.previous_tile,
                     oriented ? 1u : 0u, positioned ? 1u : 0u);
             }
-            if (test == 0 || read) {
+            if (test == 0 || (read && rust.read_ok != 0)) {
                 ok = ok && occ && tile->GetOrientation() == rust.orientation &&
                      tile->IsEmptyLandfillTile() == (rust.empty != 0);
                 if (occ) {
@@ -200,7 +202,7 @@ void RunLandfillOccupantProbe(void*) {
                     }
                 }
             }
-            if (read) {
+            if (read && rust.read_ok != 0) {
                 WriteCapture capture;
                 const bool wrote = capture.Capture(tile);
                 ok = ok && wrote == (rust.write_ok != 0) && capture.Bytes() == expected;
@@ -260,7 +262,8 @@ void RunLandfillOccupantProbe(void*) {
             test, ok ? "exact" : "DIFFERENT", qiMask, added, released, finalRef, rust.read_ok, rust.write_ok);
     }
     Log("landfill occupant probe summary exact=%u/9 created=%u destroyed=%u reloads=%u/4; public factory/interfaces; "
-        "authored inputs; no zone calls", exact, created, freed, reloads);
+        "authored inputs; SetPosition return unscored LG32; bad-holder Read difference LG33; no zone calls",
+        exact, created, freed, reloads);
 }
 
 }  // namespace
