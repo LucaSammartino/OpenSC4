@@ -446,6 +446,8 @@ and `0x00A94904 -> 0x00511990` (slot 45). Names attached to generic STL helpers 
 not their ownership semantics: `0x004FB270` recursively frees tree nodes without touching their
 key/value pointers (`0x004FB280–0x004FB29B`); `0x004FB780` uses it and frees the sentinel.
 The base destructor also destroys storage; it does not provide a deferred aircraft-map Release pass.
+The shared map lookup uses unsigned 32-bit key comparisons (`0x00497A17–0x00497A33`), confirming
+that the native traversal order is ascending pointer value, rather than insertion or stream order.
 
 **Acquisition and loaded lifetime.** Each version-5 pair makes two calls to the stream overload
 `SC4ReadGZSerializable(stream, iid, out, 0)` at `0x005D9730`: airport IID `0x26BB767E`
@@ -495,7 +497,10 @@ manager slot 15, it AddRefs the airport and plane, then stores the plane in the 
 4. City `Shutdown` explicitly calls aircraft Shutdown and then aircraft Release at city field
    `+0x1D8`, nulling that field (`0x0045B266–0x0045B280`). A final Release consequently sees an
    already uninitialized manager: it does not repeat payload releases. The deleting destructor
-   that follows frees the now-empty storage. Bypassing Shutdown and directly invoking that
+   that follows frees the now-empty storage. This precedes occupant-manager Shutdown: the occupant
+   manager is city field `+0x12C` (`GetOccupantManager`, `0x00423710`), whose slot 4 is called later
+   at `0x0045B833`. Normal city teardown therefore does not rely on occupant-manager shutdown
+   notifications to empty the aircraft map. Bypassing Shutdown and directly invoking that
    destructor on a nonempty map frees nodes without balancing their payload references; this is
    not the public Release lifecycle.
 
