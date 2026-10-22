@@ -1,22 +1,35 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-ripples-contracts4: exact ripple and selection contracts | Codex / `re-ripples-contracts4` (RE spec lane; reserved detached worktree) | in progress: round 2, WR7-WR8 residual proof | Finish native draw/lifecycle residuals and per-owner checklist; preserve previous answers. |
+| re-ripples-contracts4: exact ripple and selection contracts | Codex / `re-ripples-contracts4` (RE spec lane; reserved detached worktree) | blocked: coordinator STOP; parked after two substantive round-2 commits | Coordinator reviews committed WR7 answer and WR8 bounded proof; no further RE round authorized. |
 
 ## Handoff
 - Goal: round 2 resolves ONLY remaining WR7/WR8 contracts, spec text only.
 - Done: 3b970a37 WR5; 33ace687 WR4/WR6/WR9/WR10; c7cfb5ae partial WR7/WR8; 613177cf final report/inventory and signed IDIV correction.
 - Done round 2 milestone 1: 69fc2a72 publishes WR7 proof in §2.3/vectors 16–18; moved WR7 to answered.
-- Done round 2 milestone 2: §§2.4–2.5 publish actual owner dispatch tables/refcounts/deletion, process reset, global tuning copies and unsafe resource failure; vectors 19–21.
-- Exact next step: validate citations/remaining signature attribution and update WR8 residual; final per-owner report.
+- Done round 2 milestone 2: 539764ee publishes §§2.4–2.5 actual owner dispatch tables/refcounts/deletion, process reset, global tuning copies and unsafe resource failure; vectors 19–21.
+- Exact next step: coordinator review only. Guard PARKED: user directed STOP RE, prioritize verified/replaced; no further RE round authorized.
 - WR7 closed: black source PE zero-fill, 193 initial buckets/prime resize/prepend rehash/clear retains capacity, first-operand NaN/equality.
 - WR8 residual: literal helper signatures/attribution and 65/15308 vs 69/15276 reconciliation; shared scalar ConvertTypes matrix. Lifecycle/array/resource paths proved.
 - Native address-window inventory 69 bodies/15276 bytes is not the brief's 65/15308 owner attribution; no whole-owner credit.
-- Native findings and vectors: docs/specs/water-ripples.md; five dated answers moved to questions/answered/water-ripples.md; WR7/WR8 remain open with partial notes.
+- Native findings and vectors: docs/specs/water-ripples.md; WR7 moved to answered, WR8 remains open; its older partial note is superseded by §§2.4–2.5.
 - REA failed target_unavailable/No app is open; export, decomp and executable-data fallback used.
 - Last successful checks: questions index generated, git diff --check passed; no engine tests/game runs or ABI changes.
-- Guard denied final queue command at context 150k; it never executed. No merge-queue file was written. Stop with continue as instructed.
+- Latest guard denial prevented the next spec/question patch entirely. No queue file written. Return blocked, not continue.
 
-## Report (2026-10-22)
+## Round 2 report (2026-10-22; supersedes historical report below)
+
+- `69fc2a72`: WR7 answered. Actual black palette source is PE zero-fill, copied once at first plain draw; corner heights choose the second operand only for ordered first<second, preserving first NaN/equal-zero bits; constructor request 100 gives 193 buckets, head insertion, prime-ladder growth, ascending-old-bucket prepend rehash, clear retaining capacity. Spec §2.3 and independent vectors 16–18.
+- `539764ee`: WR8 substantive proof. Actual primary/reference/message vtables and adjustment paths are in §2.5, including folded-name corrections. Constructor refcount 0; Release deletes at count 0/1, RemoveRef never deletes; destructor does not Shutdown. Reset callback only clears shared tuning flag. Tuning resource/property absence is not transactional; owned global vectors copy raw variant arrays without type/length validation, then spacing/turn elements 0..4 transform unchecked. False texture acquisition nulls current-strip then appends a strip; unresolved cached binding later dereferences +4. Spec §§1.3,2.4–2.5 and vectors 19–21.
+- Native scalar storage initializers are explicitly distinguished from shipped exemplar values. Re-Init/Shutdown, temporary factory/exemplar ownership and retained global tuning are described from native bodies; no implementation/default/coverage equivalence claimed.
+- WR8 residual: literal signatures/ownership attribution for all storage/copy/template helpers; reconciliation of brief 65 bodies/15308 B against bounded inventory 69/15276; full shared ConvertTypes matrix. All actual owner dispatch slots are listed, but Pick's four argument types remain unresolved beyond 32-bit slots and false/no-output behavior. No complete-owner claim.
+- Additional evidence inspected immediately before STOP, not yet incorporated into spec: numeric source tags 1..14 targeting bool/uint32 pass through integer helper `00915AA5` (168 B), jump data `00915B4D`, and `009173D0–009173F0`/dispatch data `009174BE`. Float/double route uses `_ftol2` `009EEF04–009EEF78`, finite representable values truncate toward zero; bool checks all 64 integer bits, uint32 copies low32. Distinguishing candidate: float32 enabled 0.75 becomes false; float32 minimum -1.75 becomes FFFFFFFF and survives unsigned clamp. Full string/other-tag/exceptional-float conversion remains unproved (`ConvertToString 00916EAA` 887 B, `ConvertFromString 009167C5` 1622 B).
+- Additional distinguishing vector not yet in spec: insert 0,75077,1..191,192; growth 193→389 reverses old bucket-0 chain 75077,0 to 0,75077 because 75077=193×389. This distinguishes prepend from stable rehash.
+- Inventory below retains previous-round A/R markings. Newly examined in round 2: ripple thunks `00761820/30/40/50/60` (40 B) and deleting destruction `007619D0` (40 B); selection insertions `00750BC0` (111 B), `00750C30` (102 B). Moving just those eight R rows to A would yield ripple 28 A/7588 B, selection 22 A/5478 B, remaining R 19/2210 B. A denotes examined paths, never whole-body/all-input proof.
+- Validation: `git diff --check` passed before each substantive commit; questions index regenerated with WR7 move. No cargo/clippy/ctest/game runs, ABI edits/proposals, engine reads, external communication, subagents, merges or pushes. q.py failed WSL E_ACCESSDENIED, so bounded PowerShell/export/decomp/executable-data reads were used. No REA request in round 2; prior-round REA unavailable fallback remains historical.
+- Last successful guard status after `539764ee`: context 83957/150000, within budget. Subsequent guard PARKED supersedes budget status; denied spec/question patch and following checks never executed. Preserve current question file's older WR8 partial note for coordinator reconciliation; no further edit authorized.
+- Commit output included a nonfatal packed-refs.lock permission error; both substantive detached-HEAD commits were created. Supervisor publishes reserved branch refs. No merge queue is authorized after STOP.
+
+## Historical round 1 report (2026-10-22; preserved evidence inventory)
 - Goal: resolve WR4-WR10 from native export/decomp/instructions; spec text only.
 - Done: 3b970a37 answers WR5; native WR4/WR6/WR9/WR10 contracts now in §§1.2,1.5,2.2, with vectors 12-15.
 - Done: 33ace687 answers WR4/WR6/WR9/WR10; WR7 drawing subset and WR8 direct lifecycle facts added, questions remain open with narrowed residuals.
