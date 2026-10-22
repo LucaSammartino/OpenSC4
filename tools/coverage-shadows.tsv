@@ -34,3 +34,4 @@ span8888_shadow	span8888_ctx8	254	254	docs/lanes/glue-span8888-impl4.md	Construc
 span8888_shadow	span8888_ctx9	254	254	docs/lanes/glue-span8888-impl4.md	Constructed native type9;zero refusal/fallback/resync
 span8888_shadow	span8888_direct	198	198	docs/lanes/glue-span8888-impl4.md	Direct fixture exact;does not override unproven shipped calls
 span8888_shadow	span8888_shipped	369	372	docs/lanes/glue-span8888-impl4.md	3ordinary-call fallbacks UNPROVEN;entire key remains NOT VERIFIED
+ports_shadow	ports_joint_followed	24	24	docs/lanes/glue-portdev-union-final4.md	JointDLL saved-city original ports;24followed exact,2bootstrap snapshots excluded;zero resync/regrow;save2033ref0
