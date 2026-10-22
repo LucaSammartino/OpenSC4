@@ -406,6 +406,7 @@ std::string RunDispatch(const harness::ScriptAction& a, int32_t julian, cISC4Cit
             FC4_ACQUIRED(station, "script dispatch GetStations");
             FC4_RELEASE(station);
         }
+        station = nullptr;  // cleanup above owns the release, not SC4List's destructor
     }
     return result;
 }

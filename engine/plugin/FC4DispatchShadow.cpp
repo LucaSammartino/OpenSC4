@@ -99,6 +99,7 @@ size_t SourceStations(void*, uint64_t source, fc4_station_units* out, size_t cap
             FC4_ACQUIRED(station, "dispatch shadow GetStations");
             FC4_RELEASE(station);  // protection.md §15.4: slot 6 AddRefs elements
         }
+        station = nullptr;  // SC4List's destructor releases non-null elements
     }
     return n;
 }
