@@ -5,7 +5,8 @@
 ## Handoff
 - Goal: resolve WR4-WR10 from native export/decomp/instructions; spec text only.
 - Done: 3b970a37 answers WR5; native WR4/WR6/WR9/WR10 contracts now in §§1.2,1.5,2.2, with vectors 12-15.
-- Next: finish WR7 geometry/bounds/state proof and WR8 owner lifecycle/inventory; retain precise residuals if capped.
+- Done: 33ace687 answers WR4/WR6/WR9/WR10; WR7 drawing subset and WR8 direct lifecycle facts added, questions remain open with narrowed residuals.
+- Next: finalize report with exact bounded native inventory and residuals; no further round/restart requested.
 - Evidence roots: C:/Users/tlori/FreeCity4/{ghidra/export/windows,decomp,bin/SimCity4.exe}.
 - Questions: docs/specs/questions/water-ripples.md; target docs/specs/water-ripples.md.
 - Constraints: no engine reads, no ABI table edits, no runtime/coverage claims, no subagents.

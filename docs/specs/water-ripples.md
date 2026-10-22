@@ -40,7 +40,7 @@ Read once (the first `Init`) from the exemplar `0x6534284A / 0x88CD66E9 / 2` ("R
 | `0x491C9C04` | 0.15, 0.3, 0.3, 0.6, 0.75 | per zoom: texture advance per segment |
 | `0x491C9C05` | 45, 40, 35, 30, 26 | per zoom: the outer distance (m) |
 | `0x491C9C06` | 1 ×5 | per zoom: the inner distance (m, inland) |
-| `0x491C9C07` | 175000 | frame period; frames last a random 0.7–1.3 of it (122500–227500) *[inferred: µs]* |
+| `0x491C9C07` | 175000 | base period; exact native sampled range 122499..227498 (§1.5); time unit unresolved |
 | `0x491C9C08`, `0x491C9C09` | 100, 150, 200, 255, 255 | per zoom: the inner and outer alpha |
 | `0x491C9C0A` | 0.2 ×5 | per zoom: the wobble as a fraction of the outer distance |
 | `0x491C9C0B` | 60 ×5 | per zoom: the largest turn between segments (degrees) |
@@ -164,8 +164,9 @@ inner written before outer; middle pairs retain A. There is no zero-alpha endpoi
 within a shortened ramp (`0x00761D36–0x00761E09`, `0x0075FF27–0x00760055`; 0.9 is `0x3F666666` at
 `0x00B0D7D8`). Nonpositive/invalid tuning is not sanitized by this preparation.
 
-The texture is the FSH (`0x7AB50E44`, `0x891B0E1A`, `0xE9A44A88`) bound through the texture binding factory (slot
-6); without it no strip is kept.
+The texture is the FSH (`0x7AB50E44`, `0x891B0E1A`, `0xE9A44A88`) requested through texture binding factory slot
+6. The old statement that failure safely leaves no strips is withdrawn: exact acquisition-failure control flow
+remains a WR8 obligation; StartNewRipple's failure path and later preparation must be reconciled together.
 
 ### 1.4 Drawing (`Update`, `0x00761FF0`; `DrawRipple`, `0x0075FE70`)
 
@@ -173,6 +174,26 @@ The first `Update` detects the shores and makes the strips. Strips are drawn onl
 properties have `kRenderWaterEffects` (boolean 3) set, with an alpha-blended render state; a zoom change
 rebuilds the strips for the new zoom. Each shore and each strip is tested against the view frustum; a strip is drawn
 as one triangle strip with its current frame's texture.
+
+**Proved WR7 draw preparation.** After creating all strips, `0x00761010` calls `0x007609B0` for each strip.
+Partition its vertex stream into consecutive groups of at most **20 vertices**, without overlap. Each group
+gets a cell rectangle `(floor(minX/16), floor(minZ/16), ceil(maxX/16), ceil(maxZ/16))`; the strip cell box is
+the union of those rectangles. Native floor/ceil use the binary32 magic-constant conversion with exact-integer
+correction (§1.5), not truncation (`0x00760C70–0x00760D62`; scale `0x3D800000` at `0x00B0D7CC`).
+Thus a segment between the last vertex of one group and the first vertex of the next has no separate contact
+rectangle. Shore cell bounds union all its strip bounds. Empty shores use all-INT_MAX cell bounds.
+
+Strip and shore render boxes multiply those integer x/z bounds by binary32 16 and store binary32 coordinates;
+both minY and maxY equal current terrain waterY. They do **not** enclose the raised inner-side height.
+Instruction stores `0x00760DBC–0x00760DFB` and `0x007610E4–0x00761122` disambiguate misleading integer casts
+in decompilation. Update frustum-tests a nonempty shore box first; DrawRipple tests its strip box and requires
+a nonnull binding. A passing strip binds frame[frameIndex], texture unit 0, then submits primitive token 7,
+vertex-format token 10, the whole vertex count and vertex stream (`0x0075FE70–0x0075FEDE`).
+
+The ripple packed-state arguments, in native PackRenderState parameter order, are
+`(1,0,1,0,1,1,1,3,4,5,FFFFFFFF,BF800000,1,FFFFFFFF)`; the last two hexadecimal words here and in §2.3 are
+raw 32-bit arguments (`BF800000` is binary32 −1). State is packed lazily once process-wide. Update sets this
+state and the default model transform; it does not restore the prior state/texture afterwards (`0x00762027–0x0076207A`).
 
 ### 1.5 Updates (`DoMessage`, `0x00761F80`)
 
@@ -240,7 +261,7 @@ the nonempty-shore and water-effects-enabled draw branch (`0x00761CF7–0x00761D
 
 ### 2.1 State
 
-Two tables keyed by vertex index (z × (cells x + 1) + x): **plain** cells (a 32-bit colour) and **textured** cells (a
+Two tables keyed by vertex index (z × (cells x + 1) + x): **plain** cells (a 32-bit palette index) and **textured** cells (a
 texture key, two bytes, a byte, an RGB colour, an alpha, a mode). Putting a cell in one table removes it from the
 other. `Init` (`0x00750AA0`) takes the terrain, its cell counts and the texture binding factory, and builds the render
 states (§2.3).
@@ -297,6 +318,90 @@ textured ones (`DrawTexturedSelections` `0x00750CF0`), then the previous depth o
 (`InitRenderState` `0x00750600`) are opaque or blended variants chosen by `kPreferOpaque` (boolean 33), rebuilt when
 that property changes.
 
+**Proved WR7 selection geometry/state subset.** Both draw routines execute **one pass**, with plain state A
+and textured state C below. The B/D states and 0.67 multipliers occur in the bodies, but their second-pass
+branches are unreachable: loop bounds are literal 1 (`0x007514D2–0x007514DA`, `0x00750F94–0x00750FA0`).
+The four parameter sets are still initialized; list their arguments in native PackRenderState order:
+
+| State | kPreferOpaque false | kPreferOpaque true |
+|---|---|---|
+| A, plain `00B4BDA0` | `(1,1,1,0,1,0,0,3,4,5,FFFFFFFF,BF800000,FFFFFFFF,FFFFFFFF)` | `(1,1,1,0,0,0,0,3,FFFFFFFF,FFFFFFFF,FFFFFFFF,BF800000,FFFFFFFF,FFFFFFFF)` |
+| B, plain `00B4BDA8` | A with argument 8 = 4 | A with argument 8 = 4 |
+| C, textured `00B4BDB0` | A with argument 6 = 1 and argument 13 = 1 | A with argument 6 = 1 and argument 13 = 1 |
+| D, textured `00B4BDB8` | C with argument 8 = 4 | C with argument 8 = 4 |
+
+Arguments are numbered from 1, excluding the output-state pointer (`0x00750600–0x00750795`). Shared combiner
+bytes 0..7 after initialization are `(2,0,2,32,!preferOpaque, preferOpaque?3:0,3,1)`; opaque initialization does
+not rewrite byte 6. Only clear-marking or Init refreshes these shared states; Update does not.
+
+For key k and stride s, x = binary32(signed32(k % s)) × 16, z = binary32(signed32(k / s)) × 16. Corner height
+is selected from the two live terrain render arrays at globals `0x00B4C758`/`0x00B4C75C`, each with 32-byte
+records and binary32 height at +4: take their maximum for the corner index (ordinary finite inputs; NaN operand
+selection remains a residual). Plain helper `0x00750820` supplies corners in order NW, NE, SE, SW; textured
+helper `0x00750960` supplies NW, SW, SE, NE. Corner indices are k, k+1, k+s+1, k+s, reordered accordingly.
+No normal is supplied in either vertex stream. Plain format token 1 is position plus packed colour; textured
+token 2 is position plus two texture coordinates (`0x0075096E–0x00750A9E`, `0x00751417–0x00751450`).
+
+UV tables at `0x00AB42A4` and `0x00AB4294` are respectively `(0,0,1,1)` and `(0,1,1,0)`. b1 is the first
+table index, then the three succeeding indices wrap with &3. The first lookup does **not** mask b1, so b1 > 3
+reads unrelated data. Nonzero b2 mirrors: even b1 swaps u of vertices 0/3 and 1/2; odd b1 swaps their v instead
+(`0x007504F0–0x007505BA`). b3 sets transparency to binary32(b3 × binary32(1/255)). For textured drawing,
+bind unit 0, wrap `(2,2)`, filtering `(1,1)`; if draw-context byte +0x78 is nonzero, set RGB/alpha texture colour
+on change and send the low byte of mode as combiner byte 0 on mode change (`0x00750DBA–0x00750EBB`).
+
+Each selection submits 4 vertices, primitive token 0 and six unsigned16 indices. Terrain slot 70 selects the
+diagonal from (x,z). False gives `(0,3,2,0,2,1)`, true `(0,3,1,1,3,2)`; there are separate identical tables
+for plain/textured at `0x00AB42B4–0x00AB42E3`. No per-tile frustum test occurs in these bodies. Traversal is
+native hash-table bucket order ascending, linked-node order inside each bucket, **not sorted key order**.
+
+The textured binding cache lasts one draw call: initial key `(0,0,0)`, binding null; on key change release the
+old binding and request the new key from factory slot 6. False acquisition skips this tile. Repeated adjacent
+equal keys reuse the cached binding, or keep skipping after failure without retry. A first all-zero key does
+not request a binding. Release the last binding at the end, then reset transparency. Plain drawing sets white
+self-lit shade, transparency 1 and default model transform; resets shade/transparency at the end. Update saves
+the incoming depth offset at context +0xBC, sets 4, draws plain then textured, and restores exactly that saved
+offset. Other render state is not saved/restored (`0x00750CF0–0x00750FB8`, `0x007514F0–0x0075153B`).
+
+Plain marking's 32-bit value is used as an **unchecked palette index**, not a packed colour: RGB palette is
+red/green/blue/yellow/black; alpha table is `(0.5,0.5,0.5,0.5,1)` at `0x00AB42E4`. RGB values are converted
+to packed BGRA bytes using q = low32(bits(binary32(value + 49152)) − `0x47400000`), byte = low8(q − (q >> 8));
+alpha uses the same conversion. This gives 255 for 1 and 128 for 0.5. There is no clamp or palette bounds check
+(`0x0075110E–0x00751413`). Dynamic black-entry RGB initialization and hash allocation/rehash ordering require
+further proof before whole selection-draw equivalence; WR7 stays open for those and NaN height selection.
+
+### 2.4 Lifecycle evidence and residual (WR8)
+
+Both constructors initialize their inherited reference count to **0** through `0x0090DA1E`, not 1. Selection
+constructor initializes two empty hash tables with requested bucket count 100, terrain/factory pointers null;
+it does not initialize cell counts or the scratch vertex buffers (`0x00751BC0`). Ripple constructor initializes
+initialized=false, first-Update=false, null terrain/texture, empty shores, zoom 0, pending=false, accumulated
+area/counter snapshot zero and the empty dirty rectangle (§1.5); scratch vertices and pending clock are not
+generally zeroed (`0x00761790`).
+
+Selection Init(terrain*) returns true on its normal path, AddRefs terrain, gets cell dimensions and stride,
+acquires factory service `(0x1AC0E11A,0xFAC0E219)`, retains a reference and releases the temporary service
+reference. There is no already-initialized guard or release of the old pointers on repeated Init. Null terrain
+or unavailable factory is not a graceful false-return path: subsequent calls dereference them. Shutdown returns
+true, releases/non-null-clears terrain then factory; repeated Shutdown is harmless for these pointers and does
+not clear selections (`0x00750AA0–0x00750B5B`, `0x007505C0–0x007505F8`). The deleting destructor frees both
+tables and invokes its base destructor; its direct body does not call Shutdown (`0x00751C40`).
+
+Ripple Init() rejects an already-initialized instance with false. Otherwise the process-wide tuning-read flag
+is set before reading tuning and a reset callback registered. The object marks itself initialized, obtains city
+extents and retained terrain, dimensions/stride, water height and current zoom, initializes white RGB/UV-side
+constants, then subscribes to animation ticks (mask `0xC0`) and the terrain edit/immediate rebuild messages;
+returns true on the normal path. Missing optional subscription services are skipped, but missing required city/
+terrain services have no checked false path. The texture is acquired lazily in StartNewRipple, not Init.
+Shutdown, guarded by initialized, clears that flag, unsubscribes messages/tick, releases/nulls terrain and binding,
+and returns true. It does not clear shores, reset first-Update, zoom or dirty rectangle. Re-Init after Shutdown
+therefore is not construction of fresh state (`0x00760330–0x00760477`, `0x0075FBB0–0x0075FC31`).
+
+WR8 remains open: required complete owner attribution and all public/inherited signatures; Cleanup/deleting
+destructor/reference paths; tuning property absence/type/array ownership and process reset defaults; resource
+failure control flow; exact repeated Init consequences. The above are bounded direct-body facts, not a complete
+owner policy. In particular neither Arc/Drop ownership nor retaining tuning only after successful Init is native
+evidence.
+
 ## 3. Users
 
 The terrain's 3D view creates both (terrain.md §15); the tools mark selections (zone, lot and terrain tools); the
@@ -306,7 +411,7 @@ animation tick drives the ripples.
 
 1. The palette index of §2.2 is not checked.
 2. `0x491C9C01` serves both as the minimum shore length and as the base of the edit threshold (§1.5).
-3. A failed texture leaves the shores with no strips until the next rebuild (§1.3).
+3. Texture acquisition failure needs the WR8 control-flow proof; no safe empty-strip behavior is promised (§1.3).
 
 ## 5. Open questions
 
