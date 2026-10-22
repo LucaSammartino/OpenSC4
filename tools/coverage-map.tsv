@@ -105,10 +105,10 @@ cSTETerrain	terrain	simulation	terrain.md	core/src/terrain	terrain_shadow	-
 cSTESurfaceWater	terrain	simulation	terrain.md	core/src/terrain	terrain_shadow	-
 cSTEVolcanoLava	terrain	simulation	terrain.md	core/src/terrain	-	-
 cSC4CityDetailManager	city detail	simulation	city-detail.md	core/src/city_detail	-	citydetail
-cSC4PortDeveloper	port developers	simulation	port-developers.md	core/src/port_developer	-	-
-cSC4AirportDeveloper	port developers	simulation	port-developers.md	core/src/port_developer	-	-
-cSC4SeaportDeveloper	port developers	simulation	port-developers.md	core/src/port_developer	-	-
-cPortTypeConfig	port developers	simulation	port-developers.md	core/src/port_developer	-	-
+cSC4PortDeveloper	port developers	simulation	port-developers.md	core/src/port_developer	ports_shadow	-
+cSC4AirportDeveloper	port developers	simulation	port-developers.md	core/src/port_developer	ports_shadow	-
+cSC4SeaportDeveloper	port developers	simulation	port-developers.md	core/src/port_developer	ports_shadow	-
+cPortTypeConfig	port developers	simulation	port-developers.md	core/src/port_developer	ports_shadow	-
 cSC4PropDeveloper	prop developer	simulation	prop-developer.md	core/src/prop_developer	-	propdev
 cSC4WealthRequester	prop developer	simulation	prop-developer.md	core/src/prop_developer	-	-
 cSC4NetworkTool	network tools	simulation	network-tools.md,network-geometry.md,network-bridges.md	core/src/network_tools,core/src/network_geometry,core/src/network_bridge	-	nettool

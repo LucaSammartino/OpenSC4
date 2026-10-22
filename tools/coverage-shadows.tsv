@@ -23,3 +23,4 @@ formats_shadow	formats_exemplar_own	8959	8959	docs/runs/train31-232.md	train31 s
 formats_shadow	formats_exemplar_effective	8959	8959	docs/runs/train31-232.md	train31 same-process install package steps1/3/4; reads only, not factory replacement
 formats_shadow	formats_cohort_own	388	388	docs/runs/train31-232.md	train31 same-process install package steps1/3/4; reads only, not factory replacement
 formats_shadow	formats_cohort_effective	388	388	docs/runs/train31-232.md	train31 same-process install package steps1/3/4; reads only, not factory replacement
+ports_shadow	ports	144	144	docs/lanes/glue-portdev-complete4.md	Final real-city same-process shadow72airport+72seaport,0resync,clean2032ref0; actual saved-port reloads separately tested
