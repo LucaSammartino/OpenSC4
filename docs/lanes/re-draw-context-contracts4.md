@@ -1,15 +1,24 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-draw-context-contracts4 (DC3–DC8 native contracts) | `re-draw-context-contracts4` / (RE spec lane, detached worktree) | wip: native proof a0a0d989, a81f458d, 14f8afbe; DC4–DC7 answered DIFFERS; questions check and diff check passed; cargo/clippy/ctest and game n/a; no ABI change | (1) Attribute stack mutation or establish no population; (2) finish exact mixed-transform and raw-matrix arithmetic for DC3/DC8. |
+| re-draw-context-contracts4 (DC3/DC8 native contracts, round 2) | `re-draw-context-contracts4` / (RE spec lane, detached worktree) | blocked: parked by coordinator STOP RE; proof 68cd0285, 97a08d63, f2150aaf; DC8 answered DIFFERS; questions check and diff check passed; cargo/clippy/ctest and game n/a; no ABI change | DC3 only: attribute native stack mutation or prove no population; no further RE work without coordinator release. |
 
 ## Handoff
 
-- Round 2 in progress: resolve only DC3 stack mutation/raw-matrix attribution and DC8 mixed-transform grouping/spills.
+- PARKED: guard directed STOP RE, prioritizing verified/replaced work; no further RE round is authorized.
+- Goal remaining: DC3 stack mutation attribution or proof of no population. Do not infer Push/Pop signatures.
 - Prior proof: a0a0d989 lifecycle/combiner bytes; a81f458d inventory/cache order; 14f8afbe DC4–DC7/numerics; 44e79acd report.
 - Done: §8.4 attributes raw-matrix receiver/signature and four callers; exact grouped four-term arithmetic, explicit zero products, binary32 stores, transpose/load and failure/retry order.
 - Done: §8.3 proves all nine compact rotation groupings, asymmetric translation spills, scale/flag branches, counter copies, matrix expansion and failure/retry mutation order.
 - Done: DC8 moved to answered with full rule; §13.2 adds DC-V15–V26 cancellation/spill/scale/flag/state/failure vectors (26 total independent vectors).
-- Next: finish stack access attribution, then validate question index and spec diffs. DC3 remains open for stack population only.
+- Commits: 68cd0285 raw-matrix contract; 97a08d63 compact grouping/spills; f2150aaf DC8 answer and vectors.
+- Gates at f2150aaf: questions index regenerated, questions check ok, git diff --check passed; cargo/clippy/ctest/game n/a.
+- Native offset scan: 963 references to +0x1EC/+0x1F0/+0x1F4 in 311 export bodies; not all refer to this owner.
+- Within the owner region, only constructor writes (007D6271/6277/627D), default replay reads (007D5200/5206/521B) and destructor read (007D5BB3) were found.
+- This is bounded negative evidence, not proof against all foreign/aliased writes; DC3 stays open.
+- Ignored evidence: build-runs/dc2-offset-owners.txt labels 248 non-stack/non-call candidate bodies; dc2-audit.py, dc2-symbolic.py, dc2-vectors.py reproduce audits/calculations.
+- SetDefaultRenderState has two direct callers: 005CC7DD construction draw and 005EEDB2 burnt-building draw; zero exported data references.
+- Container helper direct-call chains: 5AB0 from 5D60; 5D60 from 5EB0; 5EB0 only Init at 638A (receiver owner+E0, stages); 5C20 only constructor at 62DC (16-byte colour records). No stack mutation follows from these helpers.
+- Next if released: classify the remaining whole-export offset candidates by actual receiver, including aliases; then decide whether DC3 can be answered. Minor wording follow-up: new vectors say "bit 2" where mask 0x02 is intended.
 - Raw-matrix callers: 005DCE50 border masks; 006572B0/006573B2 underground connection; 0065B5DA underground occupant.
 - Stack replay is non-popping; no Push/Pop signatures established. Whole-byte compact-transform flag tests already proved.
 - Unsupported context Begin/End request already withdrawn (§1.3); callbacks own renderer brackets. DC4–DC7 stay untouched.
@@ -17,7 +26,28 @@
 - q.py Bash wrapper fails E_ACCESSDENIED; use bounded PowerShell commands.
 - Active manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-draw-context-contracts4-r2-manifest.json.
 
-## Prior round report
+## Round 2 report
+
+Published exact native raw-matrix attribution, pointer argument/callers, grouped arithmetic, explicit zero
+products, binary32 stores, transpose and driver/mutation/failure/retry order in §8.4 (68cd0285).
+Published every compact rotation grouping and the asymmetric translation spills: x/y spill after scale,
+z before scale. Whole-byte flag branches, model/composed counters, scale store, matrix expansion and
+driver/failure/retry order are in §8.3 (97a08d63). Added DC-V15–V26, bringing source-derived independent
+vectors to 26, and answered DC8 DIFFERS (f2150aaf). DC4–DC7 were not reopened. Unsupported owner
+Begin/End remains withdrawn; no Push/Pop API was invented.
+
+DC3's raw-matrix residual is closed; its stack-population residual remains open in
+docs/specs/questions/draw-context.md. The whole-export offset scan found only constructor/replay/destructor
+uses within the attributed owner region, but unrelated receivers and possible aliases prevent an honest
+whole-program non-population claim from this scan alone. The lane guard then parked the lane with an
+explicit STOP RE direction. No further investigation or merge-queue write was attempted after that stop.
+
+Validation at f2150aaf: question index regenerated, questions check ok, git diff --check passed.
+No engine files read/changed, ABI proposals, runtime/coverage/replacement claims or game runs.
+REA was not needed. The local export, bounded decompilation and executable data supplied all evidence.
+Git commits succeed despite a packed-refs.lock permission warning; HEAD remains detached as required.
+
+## Prior round report (historical; its DC8 residual is superseded above)
 
 Substantive native evidence is committed in `a0a0d989` (lifecycle and combiner bytes), `a81f458d`
 (inventory, stage defaults, ordered cache/driver effects), and `14f8afbe` (numeric/shade contracts,
