@@ -15,7 +15,8 @@
 - Reuse already gated immutable DLL if citydetail code unchanged; task explicitly forbids blind baseline rebuild.
 - Preserve actual DBPF SHA256, 8-byte records, original/reference controls, shutdown/ref0; no Documents writes.
 - Native control cd7-r2-native-save-20261022a CLEAN2033-01-01/ref0; citydetail factory off, shadow four constructed cases mismatch0. Output captured in live slot2, hash AB2BF8E6D134FCA26167C9250FAF66A2FFF162A42E78758D49D66BEF309D00D1, exact8-byte v0/level1.
-- Outstanding: cd7-r2-repl-reload-20261022a in slot1; script then queues cd7-r2-native-reload-20261022a. Never discard an existing verdict. No parallel requests.
+- Replacement cd7-r2-repl-reload-20261022a CLEAN2034-01-01/ref0; harness receipt matches AB2BF8E6... native output; output captured live slot1 hash686902287B0CA90652F69F5DD2EAB6BB0611E2B374498A6F6F79D90662419523, exact8-byte v0/level1.
+- Outstanding: cd7-r2-native-reload-20261022a in slot1. Never discard an existing verdict. No parallel requests. Next: finish final native reload, audit full logs/lifecycles/hashes, report+queue and park3/3.
 - Own build-runs/cd7_record.py audits DBPF index/class framing and exact8-byte records, refuses compressed CD entry. cd7_run.py waits without qwait and preserves input/output hashes and capture metadata.
 - q.py fails with Bash E_ACCESSDENIED; use capped native PowerShell for read-only shell work.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-citydetail-reload4-r2-manifest.json.
