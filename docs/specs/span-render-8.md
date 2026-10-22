@@ -199,6 +199,12 @@ the buffer methods); no sibling renderer was used as evidence.
 
 ### 10.1 The renderer object and its vtable
 
+The six entries were re-read as little-endian dwords from the native image for SR9 (2026-10-22).
+All calls use MSVC thiscall, ECX = `this`; stack arguments are pushed right to left. Slot 4 is a tail jump
+(`0x0085E742`) to slot 2, so its 16-byte cleanup is inherited, not a separate return instruction. Cleanup
+instructions for slots 0, 1, 2, 3 and 5 are at `0x0082FF1C`, `0x0085E696`, `0x0085E70F`, `0x0085E739`
+and `0x0085E7DF`. Only the deleting destructor promises an EAX result; render scratch values are not results.
+
 The object is **4 bytes: the vtable pointer only**, no fields. `this` is used only by §3 and §5 to re-dispatch
 through the vtable (so a subclass overriding slot 1 or 2 would change them; nothing in the shipped program does).
 
@@ -307,6 +313,12 @@ the record is not refreshed per draw.
    The texture branch is the one of `span-render-565.md` §6.1 (format index, key masking, kind bits, tiling and
    stretch origins), unchanged for this target; it unlocks the texture with `0x800` after the call. A texture of an
    unsupported colour type, or a failed texture lock, draws nothing. `ctx+0xB0` is never null-checked.
+
+**Slot-22 return contract (SR9):** void, popping 8 bytes. Its six exits (`0x008305A7`, `0x008305BC`,
+`0x008305EF`, `0x00830604`, `0x0083062F`, `0x0083064F`) have identical cleanup but no common return-value
+definition: texture success/unsupported format leaves Unlock scratch, lock failure leaves Lock scratch,
+and untextured paths leave renderer scratch. The triangle rasterizer calls it at `0x0082E5AA` and proceeds
+directly to restoring registers. Do not promote any incidental AL/EAX contents to a bool or count.
 
 Worked route (constructed fixture): create a `cGZBuffer`, `Init(8, 2, 2, 8)` (stride 8); `CreateDrawContext` →
 `Init` → renderer `0x00AC188C`, destination record {pointer, 8, 8, 2, 2, 1}; `SetColorTable(0, 1, {0xFF336699})`
