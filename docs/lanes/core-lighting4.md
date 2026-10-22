@@ -12,7 +12,9 @@
 - Quick PASS: core 2334/2334 (18 lighting), dependents compiled, native build 4/4 (141.5s).
 - Added drift in both directions, all rotated grids, deferred dirty messages, render settings, terrain/vertex color rules, decal overrides and bounds/failure cases.
 - Literal review correction: terrain vertex normals bend by grid depth even at zero; point color tests retain positive-depth checks. Terrain color lowers directly to stored land height.
-- Next: format new files, run full all and new-file fmt; review any gate errors, then final owner-by-owner report and queue.
+- 4f7dc86f: 27 lighting tests. Full workspace tests PASS (core 2343); first final clippy found Rust-1.75 MSRV and test precedence errors, both corrected. Native portion pending.
+- New-module fmt PASS (8 files); lib.rs formatter diffs are inherited module ordering/line wrapping, plus additive registration.
+- Next: finish failed gate, rerun all after two clippy fixes; final owner-by-owner report and queue.
 - Formatting: new files formatted; qbuild fmt with absolute paths detects inherited lib.rs ordering/line-wrap diffs (no unrelated reformat). q.py Bash is denied by environment; native PowerShell rustfmt works.
 - Clean room: only allowed docs and engine source; no tools scripts or analysis sources.
 - Filed LT5-LT11 in docs/specs/questions/lighting.md. Projection and terrain rectangle are explicit ContractGap; upper terrain clamp and rectangular sweep also unresolved.

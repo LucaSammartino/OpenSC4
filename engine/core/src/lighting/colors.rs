@@ -157,7 +157,7 @@ impl LightingManager {
     ) -> Result<()> {
         check_stream(count, normal_stride, 12, normals.len())?;
         check_stream(count, color_stride, 6, colors.len())?;
-        if j > self.cells.1 || i0.checked_add(count).is_none_or(|end| end > self.cells.0 + 1) {
+        if j > self.cells.1 || i0.checked_add(count).map_or(true, |end| end > self.cells.0 + 1) {
             return Err(LightingError::LocationOutsideGrid);
         }
         for t in 0..count {

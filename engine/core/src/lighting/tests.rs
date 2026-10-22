@@ -337,7 +337,7 @@ fn image_sampling_stride_row_spill_minimum_and_test_pattern() {
 fn surface_map_size_drives_model_map_coordinates_and_rotation() {
     let mut m = manager();
     m.maps[0] = Some(ImageArgb8::new(2, 2, 2, vec![0; 4]).unwrap());
-    m.maps[1] = Some(ImageArgb8::new(4, 4, 4, (0..16).map(|i| 0xff000000 | i * 0x110000).collect()).unwrap());
+    m.maps[1] = Some(ImageArgb8::new(4, 4, 4, (0..16).map(|i| 0xff000000 | (i * 0x110000)).collect()).unwrap());
     close_color(m.get_model_color(UP).unwrap(), [85.0 / 255.0, 0.0, 0.0]); // (1,1) using 2x2 coordinates
     m.maps[0] = Some(ImageArgb8::make_test_pattern());
     m.maps[1] = m.maps[0].clone();
