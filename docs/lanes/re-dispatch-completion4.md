@@ -4,6 +4,14 @@
 
 ## Handoff
 
+- Round 3/3 active 2026-10-22: ONLY residual DP10 call-display generation, screen rectangles and draw submission; do not repeat DP11-DP13 proofs.
+- Start HEAD 7e093616; existing detached worktree reused; clean tracked status.
+- Current manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-dispatch-completion4-r3-manifest.json.
+- Next exact evidence: query export 0046C8B0 and 0046D990, find decomp bodies, verify numeric paths against instructions.
+- Round-3 milestone: published instruction-verified DP10 number-texture slot recipe, font/style ownership, surface/texture failures and independent size/failure vectors; rectangles/draw submission still pending.
+- q.py Bash startup denied (E_ACCESSDENIED); use bounded native PowerShell. No REA request made.
+- Final round: publish substantive contract, archive DP10 only if complete; otherwise PARK exact residual, no fourth round.
+
 - Goal: finish DP10–DP12 exact native contracts in one guarded round; no engine/tools/ABI edits.
 - Prior milestones: f1135c91 (DP13); c83804c4 (pylon geometry, caller descriptors, view tracking).
 - Done this round: DP11 resolved at 75f733f3; string-interface copy, prefix/return-width audit and independent vectors published.

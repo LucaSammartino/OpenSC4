@@ -328,6 +328,49 @@ their number as the call display, with flags `0x2A`; they do not require the opt
 Complete call-display texture generation, screen rectangles and renderer submission remain
 unresolved DP10 requirements, rather than an authorization to invent SDK view slots.
 
+**Call-number texture rebuild (DP10; instruction-verified).** Direct
+BuildCallNumberDisplay `0x0046C8B0` operates on one TrackInfo pointer. Flag bit 6 causes
+an immediate return, before releasing or modifying its existing texture. Otherwise a
+non-null texture at info `+0x0C` is passed to ReleaseTexture `(global 0x00B43CA4,texture)`
+and that member is cleared first (`0x0046C8CB`–`0x0046C91A`). Rebuild failure therefore
+does not preserve the previous texture. Kinds 3/4 have separate image branches; for the
+dispatch kinds 0/1, flag bit 1 selects the following number branch.
+
+WCM slot 5 receives `0x68963C4C`; its returned font is AddRef'd. Font slot 15 returns the
+old style, then slot 16 receives 3. The dword display number at info `+0x10` is formatted
+with the string at `0x00A8281C`. Font slot 48 receives `(bytes,length)` for width, then
+slot 37 receives the same pair for height. Start the square surface side at 32; only
+when width or height is greater than 32, replace it with the smallest power of two at
+least their signed maximum. This is ceiling-to-power-of-two, despite the helper's
+name GetNearestPowerOfTwo (`0x0046C950`–`0x0046CA08`; helper `0x006046B0`).
+
+If global surface service `0x00B43C9C` is non-null, its slot 3 is called with an output
+surface pointer. Only AL success continues. On that surface, slot 3 receives
+`(side,side,descriptor8)`; the 8-byte by-value descriptor is constructed from value 9
+by `0x0044A490`. Only AL success continues. Slot 6 receives `0x8001`; if AL succeeds,
+slot 18 receives `(0,0)` and slot 7 receives `0x8001`. A false slot-6 result skips
+those two calls but **does not** skip text drawing. Font slot 51 then receives
+`(surface,0,0,bytes,length,0xFF000000,0x08000000,0,0)`, with its return ignored.
+If global texture service `0x00B43CA4` exists, SetupTexture is called with
+`(surface,service,&info.texture,1,0,0,0)`; its return is ignored. The surface is Released
+after slot-3 success from the service, including when surface initialization fails
+(`0x0046CA08`–`0x0046CAD6`). These are observed native slot calls, not proposed SDK names.
+
+Every normal number-branch exit restores the old font style through slot 16, Releases
+the acquired font and destroys the temporary string. Even when surface creation or
+texture setup fails, info `+0xD0` is set to the measured width converted to float32 and
+`+0xD4` to float32 14.0. The branch's geometry depths are float32 0 and
+`0x3E99999A` (approximately 0.3); absence of a texture does not suppress geometry
+construction (`0x0046CADD`–`0x0046CB34`). If neither the kinds-3/4 branch nor bit 1
+applies, both dimensions are zero (`0x0046CB39`–`0x0046CB4D`).
+
+Independent distinguishing vectors: measured sizes (31,32), (32,32), (33,14) and
+(65,14) require sides 32,32,64,128 respectively. With an old texture, a surface-service
+failure must release/clear the old texture, restore the font style, Release the font,
+retain the measured dimensions and leave no generated texture. A surface slot-6 false
+result must still draw text and attempt SetupTexture; a bit-6 entry must perform none
+of those calls. These vectors derive from native branches, not replacement outputs.
+
 ### 4.2 `Dispatch(type, x, z)` (`0x0046A630`, slot 6) → ID *[compat]*
 
 **BeginDispatch's native call layout (DP12, partial).** All calls below use ECX for this;
