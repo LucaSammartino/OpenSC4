@@ -166,7 +166,10 @@ void RunLandfillOccupantProbe(void*) {
             ok = ok && read == (rust.read_ok != 0);
             auto* occ = tile->AsOccupant();  // borrowed
             if (mutate && read && occ) {
-                ok = ok && tile->SetTileID(0x02F10010) == rust.previous_tile;
+                // [abi-ret] landfill.md 7.3: corrected interface returns the
+                // previous uint32 ID in EAX, not the SDK's bool/AL.
+                const uint32_t previous = tile->SetTileID(0x02F10010);
+                ok = ok && previous == rust.previous_tile;
                 ok = tile->SetOrientation(-123) && ok;
                 const cS3DVector3 v(xyz[0], xyz[1], xyz[2]);
                 ok = occ->SetPosition(&v) && ok;
