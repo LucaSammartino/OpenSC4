@@ -10,3 +10,7 @@
 - Done: worktree created at main 511d0ab6.
 - Next: baseline `qbuild all`, then code + tests 19-27.
 - Facts: only tests.rs Rec implements BudgetWindowHost; no glue/CAPI user.
+
+
+## Coordinator quota pause (2026-10-22)
+Provider weekly limit; resets 18:00 Europe/London. This round stopped. Existing work is preserved as WIP, not ready or verified. Resume only after the provider limit clears and fresh slots/check --resume pass; the round still counts.
