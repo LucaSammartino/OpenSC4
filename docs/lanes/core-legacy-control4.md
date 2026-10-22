@@ -26,5 +26,7 @@
 - Unknown LC4 (12 interpreters), LC5 opaque default parent, LC8 (19 foreign writers) stay explicit.
 - Round 2 OS audit: no surviving attributable validator; limited-query fallback obtained candidate command lines/creation/PID. Only own matching Python is supervisor PID 33956, not a check. No other process touched.
 - Old all/native logs end during compilation with no exit/results; fmt result absent. Mixed quick has 3717 NUL bytes. Original result/stderr and transport failure retained; overwrite-prone logs moved to r1-* with original hashes in build-runs/legacy-control-validation-reconciliation.md.
-- Next: finish production/contracts/22-fixture audit, resolve owner-only formatting, then exactly one necessary replacement stable committed-source all. No baseline or duplicate quick.
+- Round 2: all five moved r1-* logs verified SHA256-identical; original failure snapshots and UTF16 transport failure unchanged. Audited production builder/lifecycle/readers, seven published type bodies, fragment limits and original 22 tests; no new owner defect found, no expected fixture changed.
+- Formatting replacement: qbuild fmt with absolute paths for all nine owner .rs files returned exit=0, files=9, diff_lines=1 (only canonicalize-path warning). Engine max_width=120 configuration applied; shared lib.rs not reformatted.
+- Next: run the one necessary replacement stable committed-source all via build-runs/legacy-control-final-gate.py; collect actual workspace/clippy/native/CTest exits and source hashes, then finalize exact 45-entry report. No duplicate quick or baseline.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-legacy-control4-r2-manifest.json. Round-1 stop ce60e13a preserved as ancestor; no queue.
