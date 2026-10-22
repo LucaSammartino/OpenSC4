@@ -1,48 +1,44 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-citydetail-reload4: CD7 persistence validation | `verify-citydetail-reload4` / engine lane, detached HEAD | in progress; final logical round 3/3; CD6/CD8 retained; no engine/ABI changes | 1. Locate gated immutable DLL and supported save fixtures. 2. Measure both save/reload directions or precise persistence blocker. 3. Report and park. |
+| verify-citydetail-reload4: CD7 persistence validation | `verify-citydetail-reload4` / engine lane, detached HEAD | ready: both save/reload directions PASS; 3 CLEAN2033/2034/2035 ref0; exact8-byte records; constructed shadow8/8; reused gate cargo4940/0 clippy0 ctest68/68; no engine/ABI changes | Park final logical3/3; CD6/CD8 remain open; no fourth round or algorithm/full-owner exactness claim. |
 
-## Handoff
+## Report
 
-- Goal: narrowed CD7 native-save/replacement-reload and replacement-save/native-reload validation; no CD8 reduction work.
-- Start: HEAD 63b0c2bd; previous round stopped at CD8 boundary without runtime checks.
-- Done: reused reserved detached worktree; working tree initially clean; no refs/config changed.
-- Done: immutable DLL copied from verify-simgrids-shadow4/dll-sgv4-r4, SHA256 ED12FAE2F0A13F6FDE1A03E4171CD29C7D5CB5EDF264A004C5C0294D17A1E1C1.
-- Gate reused per explicit task: original qbuild logs re-read, cargo4940/0, clippy clean, ctest68/68; no baseline rebuild.
-- Citydetail core/capi/plugin/shadow diff vs gated source7e9f580e is empty. No source files changed this round.
-- Input fixture sgv4-r1-native39-20261022c.sc4 rehashed F03DA3420CD8FABE50BD887890310D2D5577E5C5C109F76E3906EF84E255FB7A; exact8-byte payload 0000000001000000.
-- Next: wait existing local Python session49390 (build-runs/cd7_run.py); it queues sequential native39/replacement40/native39 runs through2033/2034/2035 and captures each changed DBPF while slot is live.
-- Reuse already gated immutable DLL if citydetail code unchanged; task explicitly forbids blind baseline rebuild.
-- Preserve actual DBPF SHA256, 8-byte records, original/reference controls, shutdown/ref0; no Documents writes.
-- Native control cd7-r2-native-save-20261022a CLEAN2033-01-01/ref0; citydetail factory off, shadow four constructed cases mismatch0. Output captured in live slot2, hash AB2BF8E6D134FCA26167C9250FAF66A2FFF162A42E78758D49D66BEF309D00D1, exact8-byte v0/level1.
-- Replacement cd7-r2-repl-reload-20261022a CLEAN2034-01-01/ref0; harness receipt matches AB2BF8E6... native output; output captured live slot1 hash686902287B0CA90652F69F5DD2EAB6BB0611E2B374498A6F6F79D90662419523, exact8-byte v0/level1.
-- Outstanding: cd7-r2-native-reload-20261022a in slot1. Never discard an existing verdict. No parallel requests. Next: finish final native reload, audit full logs/lifecycles/hashes, report+queue and park3/3.
-- Own build-runs/cd7_record.py audits DBPF index/class framing and exact8-byte records, refuses compressed CD entry. cd7_run.py waits without qwait and preserves input/output hashes and capture metadata.
-- q.py fails with Bash E_ACCESSDENIED; use capped native PowerShell for read-only shell work.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-citydetail-reload4-r2-manifest.json.
-- No subagents, RE, tools scripts, ABI/default/map edits, merge/push/restart, or fourth round.
+Completed the narrowed CD7 persistence task: **native-save → replacement-reload** and **replacement-save → native-reload** both passed in isolated supported fixtures. This report replaces the earlier persistence stop; CD8's natural reduction capture boundary did not block these independent checks.
 
-## Prior round (superseded scope; evidence retained)
+Only this lane report changed in Git. No plugin/core/capi behavior, C ABI exports/version, maps, defaults, preferences or private fields changed. No game files were committed. Detached HEAD was retained; no merge, push, restart, subagents or real Documents/user-config writes occurred.
 
-Stopped at the task's initial boundary audit, within 15 tool calls. No plugin change was justified by a fully published safe native reduction capture boundary. The lane preserves the existing implementation and makes no new coverage claim.
+## Immutable DLL and reused gate
 
-## Evidence and scope
+All three requests used the same frozen `build-runs/dll-cd7-final/FreeCity4.dll`, copied with its PDB from `verify-simgrids-shadow4/build-runs/dll-sgv4-r4`. Full DLL SHA256: `ED12FAE2F0A13F6FDE1A03E4171CD29C7D5CB5EDF264A004C5C0294D17A1E1C1`. Every verdict identifies that path and harness hash `ed12fae2`; the binary was rehashed before every request and after completion.
 
-- `docs/specs/city-detail.md` §3.1 initializes detail last; §3.2 removes through the live flora/prop managers; §3.4 additionally redevelops all network lots. §6 exposes no input-provider injection or city-owned detail-manager accessor. The public `cISC4City.h` interface supplies no detail-manager accessor either.
-- `engine/plugin/FC4Observer.cpp` invokes `CityDetailShadowCityLoaded` at `PostCityInit`. This is after the authoritative city-owned reduction, so it cannot capture that pass's original inputs there.
-- `engine/plugin/FC4CityDetailShadow.cpp` obtains a fresh original through `GetClassObject` and QI, releases its references, and compares four constructed cases: fresh Init, same-level Read/Init, none-level Read/Init, and version-1 Read refusal. Only the first three compare levels/serialized records. These are serialization/no-pass comparisons, not natural city-owned reduction events.
-- The same shadow's `DryRun` creates only Rust with a read-only live host. Its reduction/increase counts are explicitly not compared with native. Repeating a native reduce after city Init would mutate the current city again, including network redevelopment; it would not establish the required comparison over the natural pass's captured inputs.
-- `CityDetailContext::pool` retains references for Rust's host call; it does not publish an original-native interception or replay boundary. CD8 asks for the supported capture point, ownership/lifetime across destruction, and complete native event accounting.
-- `docs/harness.md` documents read-only, SHA256-recorded `fixture_city` staging from main `build-runs/fixtures`. This resolves CD7's transport limitation; it supplies no reduction capture point. CD7's question text was preserved; no answer or spec rewrite was made by this engine lane.
+The citydetail core/capi/plugin/shadow diff against that DLL's gated source `7e9f580e` is empty. Per the explicit instruction to reuse a gated immutable DLL, no blind baseline/final rebuild was run. Re-read its existing qbuild/fc4verify logs: **cargo4940 passed/0 failed** across21 result lines, **clippy clean**, build PASS, **ctest68/68**. Copies of the four logs are retained in this worktree's `build-runs/gate-reused/`. The DLL includes that lane's opt-in simgrids verifier; `simgrids_shadow=0` in all requests here. No Rust files were touched, so fmt is n/a.
 
-## Validation and limitations
+## Profiles and isolated save chain
 
-No builds or game requests were issued: the task explicitly requires stopping if the boundary is absent and forbids a code-free baseline build. No compared, different, refused, fallback or unaccounted runtime events were measured in this round; there is no algorithm-exactness denominator. No new immutable DBPF hashes, 8-byte save records, 2032 clean/ref0 verdicts, reload directions, reduce-owner behavior or shutdown measurements are claimed. No source fixture or game file was touched. No C ABI export changed.
+The middle run uses the supplied current40 list verbatim. Both native controls use the same list minus only `citydetail` (39 keys, including `simgrids` and `ports`). `citydetail_shadow=1` on those native sessions; it is0 on the replacement session. Requests are preserved under `build-runs/game-queue/done/`; all use turbo1 and scripted full SaveCity followed by digest. One request was outstanding at a time, labels were unique, and the local helper waited without qwait. There were no failed-start/harness-error retries.
 
-Existing shadow capability is limited to constructed serialization/no-pass comparisons plus unpaired Rust dry runs; it does not establish reduction algorithm exactness or eligible owner/domain coverage. CD6 increase timing remains open and was not bypassed with preference/config writes.
+All fixtures are under main `build-runs/fixtures/`. The supported harness `fixture_city` transport stages a writable alias in the isolated slot and records the input SHA256. The helper first observes that exact staged input, then captures the changed complete DBPF after it has stabilized while its game is still active, checks source/copy hashes, and marks the new immutable fixture read-only. It never infers a save from a subsequently reused slot. Each next harness receipt equals the previous captured output hash; all source fixtures were rehashed unchanged.
 
-## Question and next step
+- Initial input: `sgv4-r1-native39-20261022c.sc4`, 1,007,107 bytes, SHA256 `F03DA3420CD8FABE50BD887890310D2D5577E5C5C109F76E3906EF84E255FB7A`.
+- **cd7-r2-native-save-20261022a**: original citydetail, slot2, full save2032-12-01, ok1. CLEAN2033-01-01, ref_warnings0, real_seconds50.297. Preserved output `cd7-r2-native-save-20261022a.sc4`, 1,009,722 bytes, SHA256 `AB2BF8E6D134FCA26167C9250FAF66A2FFF162A42E78758D49D66BEF309D00D1`.
+- **cd7-r2-repl-reload-20261022a**: reloads exactly that native output with replacement citydetail, slot1. Full save2033-12-01, ok1 (12,359ms). CLEAN2034-01-01, ref_warnings0, real_seconds50.953. Preserved output `cd7-r2-repl-reload-20261022a.sc4`, 1,003,217 bytes, SHA256 `686902287B0CA90652F69F5DD2EAB6BB0611E2B374498A6F6F79D90662419523`.
+- **cd7-r2-native-reload-20261022a**: reloads exactly that replacement output with original citydetail, slot1. Full save2034-12-01, ok1 (11,563ms). CLEAN2035-01-01, ref_warnings0, real_seconds36.094. Additional preserved native output `cd7-r2-native-reload-20261022a.sc4`, 1,007,611 bytes, SHA256 `55FE02243F2D476BEFF07EE320A2778F3EC0730DD63E582A5ABFF41BBECC2856`.
 
-Appended **CD8** to `docs/specs/questions/city-detail.md` (next free ID in `QUESTIONS.md`). Question index generation was not run because scripts in `tools/` are forbidden and this lane may edit only the per-spec question file under `docs/specs/`. Publish CD8's boundary before implementing a native/Rust reduction comparison. Both requested save/reload directions remain unmeasured in this stopped round.
+## Exact records, original controls and lifecycle
 
-Operational note: the first q.py read attempt failed with Bash `E_ACCESSDENIED`; subsequent reads used capped PowerShell. Detached HEAD was retained; no shared refs, config or hooks changed.
+The initial fixture and all three preserved outputs contain exactly one citydetail class entry `(EAD4BA36,299B2D1B,0)` and one object payload of **exactly8 bytes**: `00 00 00 00 01 00 00 00` (version0, level1). The read-only audit validates DBPF index bounds, class entry framing and DIR compression status before extracting the payload. Object IDs differ between saves (60096548 →343064664 →82840068 →345845848); identity is not inferred from matching IDs. The exact payload is compared, not the DBPF wrapper/CRC or a hash alone.
+
+The replacement log records one object `04F00A00`: `Read ->1 (level1)`; `Init: setting=1 level1->1 pass=none removed=0 created=0 draws=0 network-lots=0`; `Write ->1 (level1)`; `Shutdown ->1`, followed by destruction of that same object. Shutdown records inits1, QueryInterface own1/serializable2/refused0, GetCityDetail0. Thus the actual reload exercised Read before Init and a no-pass persistence lifecycle through final Release.
+
+Both native logs explicitly show the citydetail replacement factory off and contain no replacement citydetail object. Each contains one fresh-original shadow line from public GetClassObject+QI, comparing fresh Init, Read same-level, Read none-level and version1 refusal against Rust. Across both sessions: **8/8 constructed cases exact**, comprising6 record/level comparisons and2 matching Read refusals; mismatches0, missing cases0, incomplete/faulted cases0. Acquired references are released by the existing shadow; all run verdicts report ref_warnings0. The constructed originals are separate from the city's original manager; no unlogged live-manager GetCityDetail call is claimed.
+
+All three complete logs show successful full SaveCity, digest, end-date quit and **PostSystemServiceShutdown**. All verdicts have foreign_exceptions0, watchdog_stalls0, rtc0, overruns0 and ref_warnings0. No turbo-only differences were observed, so no normal-speed rerun was required or claimed.
+
+## Evidence, questions and limits
+
+Local audit helpers: `build-runs/cd7_run.py`, `cd7_record.py`, `cd7_audit.py`. Final parsed evidence: `build-runs/cd7-final-audit.json` (input/output hashes, every log/verdict/request hash, save lines, shadow lines and capture times); each `*-capture.json` records the in-slot/copy hash match. Complete logs/verdicts remain under `build-runs/game-results/`, with citydetail lines also retained in `*-detail-lines.txt`. Final audit PASS covers both persistence directions; no request remains outstanding.
+
+No new question was filed and no spec/question text was rewritten. Existing **CD7** now has measured transport and two-session persistence evidence for this level1 no-pass/current40 fixture chain. This does not prove every detail level, malformed natural saves, increase timing, reduction algorithms or full-owner/domain behavior. **CD6 and CD8 remain open** in `docs/specs/questions/city-detail.md`; native/Rust algorithm comparisons=0. Rust-only dry-run reductions in the existing shadow are explicitly excluded from exactness counts. No preference/field patch was used to force a pass.
+
+Milestones: `4ab60995` scope/handoff; `af45ac49` immutable gate/fixture; `5dacc327` native save control; `68d4551a` native→replacement result; final report records the replacement→native audit. The earlier CD8 boundary audit/question remains in parent `63b0c2bd`. This is final logical round3/3: **park after report/queue; no fourth round**.
