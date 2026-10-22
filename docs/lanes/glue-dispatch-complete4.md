@@ -41,3 +41,7 @@ Next: obtain and reconcile DP10-DP13, then complete actual host/provider callbac
 - a3 shadow 75/77 exact lines, 1694/1696 exact values. Only 2 unsaved viewHandle differences (1/2 vs0), both DP10; all records byte-exact, independent source identities/free counts exact.
 - Replacement gdc4-replace-20261022-a1 currently outstanding; qwait session81525. Final all session43546 (build2/2 PASS; ctest running).
 - DP10-DP13 in docs/specs/questions/dispatch.md: missing view, pylon, BeginDispatch and air-list ownership contracts. Completion blocked; no ABI export changes.
+
+## Coordinator phase review
+
+Bounded preparation and diagnostic source publication is approved for train83; the worker result remains incomplete. DP10-DP13 remain unanswered owner contracts. No complete-owner, exact shadow, default or replacement credit is granted. The original worktree is parked awaiting answers, and its existing round budget is retained. The train must pass the full native gate and current default union before landing.

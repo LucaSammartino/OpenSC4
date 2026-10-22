@@ -100,3 +100,7 @@ repeat the full gate. No whole-owner publication or coverage promotion is ready.
 
 Supervisor owns branch publication from this detached worktree. No branch switch,
 merge, push, new agent, workflow, restart, or game launch occurred.
+
+## Coordinator phase review
+
+Bounded preparation and diagnostic source publication is approved for train83; the worker result remains incomplete. VU4-VU11 remain unanswered owner contracts. No complete-owner, exact shadow, default or replacement credit is granted. The original worktree is parked awaiting answers, and its existing round budget is retained. The train must pass the full native gate and current default union before landing.

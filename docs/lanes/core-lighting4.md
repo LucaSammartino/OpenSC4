@@ -96,3 +96,7 @@ Reserved detached worktree was reused; no branch switch, ref update, merge or pu
 Git commits succeeded despite the nonfatal packed-refs maintenance-lock denial.
 The Bash-backed q.py wrapper is unavailable (E_ACCESSDENIED); native PowerShell formatting worked.
 Guard manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-lighting4-r1-manifest.json`.
+
+## Coordinator phase review
+
+Bounded preparation and diagnostic source publication is approved for train83; the worker result remains incomplete. LT5-LT11 remain unanswered owner contracts. No complete-owner, exact shadow, default or replacement credit is granted. The original worktree is parked awaiting answers, and its existing round budget is retained. The train must pass the full native gate and current default union before landing.

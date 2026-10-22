@@ -123,3 +123,7 @@ without a spec or replaced without a module.
   bytes. The five map rows sit *before* the `nGZDrawSoftRender*` catch-all (first match wins) and each gets its own
   subsystem line, so the report shows the split instead of one blob. The 25 vtable methods already carry a name and
   reach their class by rule 2; the 768 unnamed instantiations take `owner-range`.
+
+### Proven non-code references
+
+`tools/coverage-noncode-refs.tsv` lists exact exported data-reference pairs proved to be data, with a public evidence citation. These pairs cannot propagate an owner as a function-pointer table. Every other edge, including a real call to the same target, remains eligible. Malformed, duplicate or stale records fail the measurement. The input is hashed in the report. This changes attribution only: no function or byte is removed from the denominator. The current `arg` string correction leaves the 42-byte export artifact uncredited and attributes exactly the 50 real ScriptServer bodies (7658 bytes).

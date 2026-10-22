@@ -74,3 +74,7 @@ The specification does not enumerate the attributed 79 functions. WC3 requests t
 | DoFollowingTick | Behind-target geometry only; speed/radius/turn details WC4/WC7 |
 | DoMessage | Reload, tow landing from foreign world point, Rust nearest-boat selection and links, forward disposition; distance tie WC7 |
 | GetDebugExtraText | Watercraft::debug_extra_text |
+
+## Coordinator phase review
+
+Bounded preparation and diagnostic source publication is approved for train83; the worker result remains incomplete. WC3-WC7 remain unanswered owner contracts. No complete-owner, exact shadow, default or replacement credit is granted. The original worktree is parked awaiting answers, and its existing round budget is retained. The train must pass the full native gate and current default union before landing.

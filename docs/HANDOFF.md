@@ -54,7 +54,7 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 **After every train:** gen_handoff_tables.py, coverage.py, coverage_treemap.py; one status line here, commit/push. `run4-post-train.py` applies explicit tested maps and question-index upkeep after actual PASS+land. Remove landed nonparked worktrees only after verifying lane ancestor of main and clean state; keep branches and ignored evidence. Never remove active, unlanded or parked worktrees. C:>85% stops spawning until cleanup. Keep this section about60lines; archive older status lines to [today's history](history/handoff-2026-10-21.md).
 
-**Main/tools:** keep checkout clean; tool changes require full tools tests and immediate separate commit. Latest135PASS. Candidate union supports --add-shadow and --add-replace.39 default replacement keys include simgrids,propdev,citysit,occmgr,propmgr,lotcfg; ports remain candidate-only.
+**Main/tools:** keep checkout clean; tool changes require full tools tests and immediate separate commit. Latest139PASS. Candidate union supports --add-shadow and --add-replace.39 default replacement keys include simgrids,propdev,citysit,occmgr,propmgr,lotcfg; ports remain candidate-only.
 
 **Runtime:** elevated game queue6slots(pid23444) restarted after Windows elevation blocked non-elevated launches. Native CLI BG_WAIT_CEILING_MS=0; qwait without--fresh, unique labels. RE preflight must GO. Never set gate verdicts by hand.
 
