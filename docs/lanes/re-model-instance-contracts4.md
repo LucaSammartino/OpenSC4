@@ -6,9 +6,10 @@
 
 - Goal: resolve MI3–MI10 for the published portable8owner subset; preserve opaque MI1 and literal MI2.
 - Worktree is reserved and detached; commit normally, never switch branches or update shared refs.
-- Done: proved MI3/MI10, documented defaults/record packing, byte counter sources, distinct basic/static count widths and owner-event order; five independent vectors. First substantive milestone in this commit.
-- Next: finish sprite resources/factory, then processor sorting/lifetime, bounds/picking and malformed/numeric limits.
+- Done: `91e7137e` proves MI3/MI10. Current milestone proves MI6/MI7/MI8: resource initialization, material copy, processor refusal/destructor restoration, borrowed ReleaseModel pointer and reverse ties; four further vectors.
+- Next: original bounds transform, pick distance, playback/primitive numeric limits, then exact portable-eight inventory and reconciliation.
 - Facts: properties default 2; draw +2..3 unwritten; counter u8; basic ref u16, static ref u32, both destroy at count <=1.
+- Facts: processor false/clear for empty/ineligible container; destructor restores; ReleaseModel is non-idempotent and leaves borrowed pointer. Sort equal/unordered inserts before prior entries.
 - Main evidence root: `C:/Users/tlori/FreeCity4`; edit docs/specs and this lane file only.
 - `q.py` cannot launch Bash (E_ACCESSDENIED); use bounded PowerShell commands directly.
 - No ABI exports, game runs or runtime gate needed for this documentation lane.

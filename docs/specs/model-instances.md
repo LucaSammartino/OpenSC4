@@ -164,8 +164,8 @@ normals per mesh, and the mesh order. Constructor `0x00803060`; destructor `0x00
 - `SetModel(instance)` (`0x008038D0`):
   1. A previous instance first gets its original vertex blocks back; then the new instance is taken.
   2. An animated instance (IID `0xA818EDD8`) with more than one frame is refused: false, nothing kept.
-  3. Its mesh container (IID `0x26A68448`) is kept only when every mesh's vertex block is standard format 2
-     (position, uv); otherwise the processor keeps no container and does nothing later.
+  3. Its mesh container (IID `0x26A68448`) must exist, be nonempty and have every vertex block in standard
+     format 2 (position, uv). Otherwise both instance and container references are cleared and the result is false.
   4. Each mesh's vertex block is replaced by a new one in format 10 with the same vertices: position and uv copied,
      colour white (`0xFFFFFFFF`), the same bounds. The original blocks are kept for step 1. True.
 - `CreateVertexNormals()` (`0x00803370`): for each mesh, each triangle (the triangle walk, view-utilities §7.1)
@@ -177,10 +177,50 @@ normals per mesh, and the mesh order. Constructor `0x00803060`; destructor `0x00
   *[inferred: use vertex colours]*; takes the instance's rotation (slot 9), negated when `flip` is set; then for
   each mesh whose original block was format 2, the lighting manager's `GetVertexColors` (lighting.md §4.4) writes
   the vertex colours from the normals and that rotation.
-- `SortMeshes(direction)` (`0x00802DB0`): orders the meshes by the dot product of their box centre with
-  `direction`, largest first (an insertion sort, so equal values keep mesh order), into the processor's mesh order.
-- `ReleaseModel()` (`0x00802B30`): releases the instance and the container and marks the container released, so the
-  destructor does not release it twice.
+- `SortMeshes(direction)` (`0x00802DB0`): rebuilds the order from container indices 0 upwards on every call.
+  It inserts each index before the first previous score for which the new score is **not strictly less**.
+  Scores are the dot product of mesh-box centre with direction, largest first for finite unequal values.
+  Equal scores (including signed zeros) reverse container order. An unordered comparison also inserts before
+  that entry; this is not a stable sort (`0x00802E82`–`0x00802EFC`).
+- `ReleaseModel()` (`0x00802B30`): clears/releases the instance, releases the container, leaves the container
+  pointer stored, and marks that reference already released. It does not restore vertices or clear the saved
+  original blocks. It requires a nonnull container and is not safe to repeat as a native operation.
+
+### 4.1 Ownership, returns and restoration (MI6, MI8)
+
+Construction has null instance/container, target vertex format 10, empty saved-block/normal/order arrays, and
+the already-released flag false (`0x00803060`). A successful SetModel owns separate counted references to the
+instance and its queried mesh container, even when they are parts of the same allocation. It also owns one
+reference per saved original vertex block; each container mesh owns its replacement block. The target format
+does not relax the eligibility check for original format 2. Null input, absent container, zero meshes and any
+non-format-2 block all return false with neither instance nor container retained
+(`0x00803AFC`–`0x00803B0D`, `0x00803DD6`–`0x00803E03`). The multi-frame animation case is an earlier refusal.
+Only completion of a nonempty conversion returns true (`0x00803DCA`).
+
+On SetModel, the previous container's vertex slots are restored before its saved originals and normals are
+cleared and its container reference is dropped. Rebinding the same instance still performs that restoration
+and conversion. Destruction also restores saved originals: **first** release/clear the instance, **then** restore
+each original vertex slot, **then** release/clear the container unless ReleaseModel already released it,
+and finally discard the processor arrays (`0x008030A4`–`0x0080312F`). Reference replacement retains the restored
+block before releasing the replaced block. Thus ordinary destruction restores vertices, unlike ReleaseModel
+alone. After ReleaseModel, a later destruction/rebind can still use that borrowed container pointer; an external
+owner must keep it valid. Repeated ReleaseModel, ReleaseModel with no container, and use of a dangling released
+container have no defined safe native result. An idempotent portable clear is a separate API choice.
+The shipped direct caller is network `FlipAndLight`, which calls ReleaseModel after LightModel
+(`0x00616CA6`–`0x00616CAD`); this supports its transfer-of-ownership use, not an idempotency guarantee.
+
+Static SetModel's material changes affect the **instance material copy**, not the source resource material.
+The original frame builder copies source material fields into the destination material array
+(`0x00806E41`–`0x00806E59`, copy helper `0x00802240`), while retaining shared texture bindings. SetModel changes
+the instance's first material bytes at `+4` and `+0x18` (`0x00801C92`, `0x00801C9B`). Sharing texture bindings
+does not make the material flags shared. A second instance built from the resource therefore starts with the
+resource's original flags. The model pointer itself is counted, with retain-new/store/release-old order and a
+same-pointer shortcut, but the material inspection still runs after that shortcut (`0x00801C40`).
+
+Sort's centre computation uses each original container mesh's current vertex-block bounds. It resets the
+output list, not the container mesh array (`0x00802DF8`, `0x00802E22`). The three min+max sums and dot product
+use x87 operations; the score is stored as binary32 before comparison (`0x00802E28`–`0x00802E79`). The insertion
+rule above applies literally to NaNs as well as finite scores; it does not establish a total order for NaNs.
 
 ## 5. Bounding boxes and small types *[compat]*
 
@@ -197,7 +237,15 @@ The factory (destructor `0x00808B70`) creates two resource types (`0x00808BD0`) 
 | `0x29A5D1EC` | sprite animation (`0x5C` bytes) | `0x29A5D1EC` (`0x008085C0`) | `ReadAnim` (`0x00808660`) |
 | `0x09ADCD75` | sprite-animation table (`0x20` bytes) | `0x69B6F01C` (`cS3DResSpriteAnimTable::QueryInterface`, `0x00808630`) | `ReadTable` (`0x00808920`) |
 
-A failed read releases the new object and gives null.
+CreateInstance allocates an unread object and queries the requested interface; successful query supplies the
+returned counted reference. Unsupported type or unsupported requested interface returns false and null;
+the latter destroys the new allocation (`0x00808BD0`). SerialRead dispatches on the existing resource's type
+and returns the reader's Boolean; it does not itself release or null the resource on failure (`0x00808B20`).
+Neither constructor invents unread animation headers. The table constructor sets its block pointer null
+(`0x00808BA0`); its destructor frees that block once, then destroys the persistence base (`0x00808AD0`). The
+animation destructor destroys the persistence base and allocation, with no sheet references to release
+(`0x00808A00`). Both own-IID queries retain the returned interface and otherwise delegate to the persistence
+base (`0x008085C0`, `0x00808630`); the table's **resource type is not its own IID**.
 
 ### 6.1 Sprite animation (`ReadAnim`)
 
@@ -213,8 +261,17 @@ Then each zoom z gets a source zoom and a scale s_z, with the zoom sizes P = (8,
 
 - **Downwards:** zoom 4 is its own source (s₄ = 1). For z = 3, 2, 1, 0: a key equal to the current source's
   shares it, s_z = P_z ÷ P_source; a different key becomes the source, s_z = 1.
-- **Upwards, only when k₄ = I:** for z = 0 … 4, a key other than I becomes the source; a key equal to I takes the
-  last source's key with s_z = P_z ÷ P_source.
+- **Upwards, only when k₄ = I:** start with no source. For z = 0 … 4, a key other than I becomes the source,
+  leaving its downward scale unchanged; a key equal to I takes the last source's key and scale P_z ÷ P_source
+  **only if a nonzero source has already been found**. Leading I keys retain their downward key and scale.
+  The source is not inherited from the downward pass (`0x0080884E`–`0x008088D9`). All-I keys therefore retain
+  the downward scales (8/146, 16/146, 32/146, 73/146, 1); they do not get reset to five unit scales (MI7).
+
+The key comparison is unsigned and relative-key addition wraps at 32 bits (`0x00808731`–`0x0080873B`). Each
+scale ratio is evaluated by x87 division then stored as binary32. A zero key cannot supply a downward source;
+if the downward pass finishes without a nonzero source the reader returns false (`0x00808839`). In particular,
+I=0 forces keys 0 and 1 to zero and fails at that gate, even if higher keys were nonzero. This is separate from
+opaque MI1 fields, which this reader still only copies.
 
 The sprite instance scales a frame by s_z when it differs from 1 (animated-sprite.md §4.1). Zooms 0 and 1 always end
 up with the instance's own key or a shared one, but the sprite draws nothing there.
@@ -224,6 +281,11 @@ up with the instance's own key or a shared one, but the sprite draws nothing the
 A type tag `0x09ADCD75`, then the rest of the resource as one block: valid when its size is 32 + 8 n, where n is
 the 32-bit value at block offset `0x1C`. So a table is a 32-byte header holding the entry count n at `+0x1C`,
 followed by n entries of 8 bytes (animated-sprite.md AS1 asks what the header and entries hold).
+
+For well-formed tables, total stream size is 36+8n including the tag. Native validation subtracts 4 from the
+stream size and compares the remaining byte count to **wrapping u32** (32+8n), without first checking a
+32-byte minimum (`0x00808957`–`0x00808988`). Checked arithmetic and rejection of short headers or wrapped
+counts in a portable reader are memory-safety choices, not evidence that the native parser rejected them.
 
 ## 7. Users
 
@@ -272,3 +334,19 @@ from a reimplementation:
     destruction is part of this vector.
 11. **Owner events:** replacing A by B gives `Release(A), AddRef(B)` on basic and `AddRef(B), Release(A)` on
     static; setting B again gives no calls. Clear then destroy produces only one Release(B).
+12. **All-own sheets:** I=1000 and all five input keys 0 produce five keys 1000 with scales
+    (8/146,16/146,32/146,0.5,1), rounded on binary32 storage. With inputs (arbitrary,arbitrary,2000,2000,0),
+    output keys are (1000,1000,2000,2000,2000) and scales (8/16,1,32/73,1,146/73): the first two retain their
+    downward results, zoom 2 keeps its downward scale when it becomes the upward source. I=0 fails.
+13. **Sort restart and ties:** container centres A=(0,0,0), B=(1,0,0), C=(2,0,0). Direction +x gives C,B,A;
+    direction +y next gives C,B,A again, since equal scores reverse original container order. Starting with
+    direction −x instead gives A,B,C, but +y still gives C,B,A. Scores (2,NaN,1) in container order give C,B,A;
+    scores (+0,−0,+0) do too. These distinguish restart, ties and unordered insertion separately.
+14. **Processor return/lifetime:** a two-frame animated instance, a non-format-2 container, an empty container,
+    a missing container, and null input each give false and no retained instance/container. A nonempty
+    format-2 container gives true. Hold an external container reference: after successful conversion,
+    ReleaseModel alone leaves format-10 vertices; subsequent destruction restores the exact original block
+    identities without a second container Release. Destruction without ReleaseModel restores them too.
+15. **Material isolation:** build two instances from a material with blend bytes (8,1), flag `0x80` and nonzero
+    byte `+0x18`. SetModel on the first clears its flag `0x80` and byte `+0x18`, and ORs draw byte 0 with `0x0E`;
+    source and second instance retain their flag and byte. Texture binding identities may remain shared.
