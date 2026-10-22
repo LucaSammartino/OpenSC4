@@ -15,5 +15,6 @@
 - Next: stable all gate and immutable DLL, native request with scripted full save and shutdown to 2032; stop precise refusal if factory unavailable.
 - First stable all: cargo4962 PASS, clippy0 diagnostics PASS, CTest67/68; ret_channel_check falsely aliases SDK cIGZPersistDBSegment Open/Close to distinct cIGZPersistDBSegment(SC4) streaming interface. Added scoped [abi-ret] comments; no map/table changes. MSVC groups overloaded Init methods, so typed SDK Open is slot6 and OpenRecord is slot21, consistent with spec.
 - EX54 appended for unspecified ReadRecordRaw return/in-out contract; no malformed raw-read calls.
+- Stable all after return-contract comments: cargo4962/4962, clippy0 diagnostics, CTest68/68 PASS. Source tip1c53058b. Next: freeze DLL and queue native2032/fullsave/shutdown.
 - No game requests or serialized probe state. Need coordinator exacthouse40 profile: absent from brief/permitted coordination script; do not reconstruct from obsolete lists.
 - Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-dbpf-native4-r1-manifest.json.
