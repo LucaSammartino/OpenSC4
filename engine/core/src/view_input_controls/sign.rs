@@ -184,16 +184,13 @@ impl SignTool {
         true
     }
     pub fn append_text(&mut self, host: &mut impl SignWorld, text: &Text) {
-        let mut count = self.edit.glyph_count();
-        for glyph in &text.0 {
-            if count > 32 {
-                break;
-            }
+        // Budget counts input glyphs, including skipped LF, not output length.
+        let budget = 33_usize.saturating_sub(self.edit.glyph_count());
+        for glyph in text.0.iter().take(budget) {
             // VIC4: literal newline (LF); CR/CRLF normalization is unpublished.
             if glyph.as_slice() != b"\n" {
                 self.edit.0.push(glyph.clone());
             }
-            count += 1;
         }
         if let Some(prop) = self.selected {
             host.set_text(prop, &self.edit);
