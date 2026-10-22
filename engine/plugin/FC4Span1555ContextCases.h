@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Included inside FC4SpanContext.cpp's native fixture namespace; only 1555 calls this.
 // span-render-1555 §§1.3,6.1 explicitly share the setters specified by 4444 SP6.
+uint32_t Span1555SourceReferences(cIGZBuffer* b) {
+    // Buffer reference storage has no published offset. Observe only the public
+    // interface, balancing our own probe reference before returning its count.
+    FC4_ADDREF(b);
+    return FC4_RELEASE(b);
+}
+
 void Run1555SourceCases(void* ctx, Buf& dst, const std::vector<uint8_t>& init, Totals& totals) {
     struct Placement {
         float x, y, sx, sy;
@@ -23,7 +30,7 @@ void Run1555SourceCases(void* ctx, Buf& dst, const std::vector<uint8_t>& init, T
             FreeBuf(&src);
             continue;
         }
-        const auto refs = Field<uint32_t>(src.b, 4);
+        const auto refs = Span1555SourceReferences(src.b);
         const auto locks = LockCount(src), flags = LockFlags(src);
         for (unsigned keyed = 0; keyed < (type == 2 ? 1u : 2u); ++keyed) {
             uint32_t raw = 0;
@@ -47,8 +54,17 @@ void Run1555SourceCases(void* ctx, Buf& dst, const std::vector<uint8_t>& init, T
                     ok = ok && Field<uint8_t>(ctx, 0x40) == (p.sx != 1 || p.sy != 1);
                     ok = ok && Field<int32_t>(ctx, 0xA8) == rect[2] - rect[0];
                     ok = ok && Field<int32_t>(ctx, 0xAC) == rect[3] - rect[1];
-                    ok = ok && Field<void*>(ctx, 0x24) == src.b && Field<uint32_t>(src.b, 4) == refs + 1;
+                    const auto heldRefs = Span1555SourceReferences(src.b);
+                    ok = ok && Field<void*>(ctx, 0x24) == src.b && heldRefs == refs + 1;
                     ok = ok && LockCount(src) == locks && LockFlags(src) == flags;
+                    if (!ok && keyed == 0 && type == 2 && mode == 0)
+                        Log("spanctx: span1555 SP6 FAIL placement (%g,%g,%g,%g): rect=%d,%d,%d,%d "
+                            "ox/oy=%08X,%08X du/dv=%08X,%08X forward=%08X,%08X mode=%u refs=%u base=%u",
+                            p.x, p.y, p.sx, p.sy, rect[0], rect[1], rect[2], rect[3],
+                            Field<uint32_t>(ctx, 0x28), Field<uint32_t>(ctx, 0x2C),
+                            Field<uint32_t>(ctx, 0x38), Field<uint32_t>(ctx, 0x3C),
+                            Field<uint32_t>(ctx, 0x30), Field<uint32_t>(ctx, 0x34),
+                            Field<uint8_t>(ctx, 0x40), heldRefs, refs);
                     ++checks; failures += !ok;
                 }
             }
@@ -66,7 +82,7 @@ void Run1555SourceCases(void* ctx, Buf& dst, const std::vector<uint8_t>& init, T
         int32_t sentinel[] = {-111, 222, -333, 444};
         const uint8_t cleared = VSlot<BltSourceFn>(ctx, 13)(ctx, nullptr, nullptr, 0, 0, 1, 1, sentinel);
         const bool balanced = cleared == 0 && Field<void*>(ctx, 0x24) == nullptr &&
-            Field<uint32_t>(src.b, 4) == refs && LockCount(src) == locks && LockFlags(src) == flags &&
+            Span1555SourceReferences(src.b) == refs && LockCount(src) == locks && LockFlags(src) == flags &&
             sentinel[0] == -111 && sentinel[1] == 222 && sentinel[2] == -333 && sentinel[3] == 444;
         ++checks; failures += !balanced;
         Log("spanctx: span1555 source type %u keyed_variants=%u setter/lifetime=%s Release -> %u",
