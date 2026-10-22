@@ -10,6 +10,10 @@
 - No GUI/game/network, C ABI, plugin or capped-family changes permitted.
 - Audit complete: exact 45 contracted owner functions; Custom shared stub is additional, not owner credit.
 - Frozen independent expected fixtures BEFORE implementation: 393 ordered vocabulary entries plus lifecycle, typed scans, fallback, two-pass, resource, Tree/Grid and boundary effect vectors.
-- Next: implement primitive-only Foreign seam and production algorithms; tests deliberately reference this forthcoming API.
+- Done: fixtures commit 02bd46f2 precedes all production source.
+- Done: portable lifecycle/build, 21 vocabulary tables/maps, common + seven published type bodies + Custom shared stub; fragment wrapper/frame/common with explicit LC8 coverage.
+- Next: focused quick, fix compiler/tests, add remaining effect fixtures; touched-file fmt and stable final all after production committed.
+- LC9/LC10 filed for unsafe/malformed/duplicate domains; allowed indeterminate-field choices labeled in code.
+- No baseline/full or game runs performed. Existing shared Git packed-refs.lock warning occurs during commit, but detached commits succeed; do not change shared config/refs.
 - Unknown LC4 (12 interpreters), LC5 opaque default parent, LC8 (19 foreign writers) stay explicit.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-legacy-control4-r1-manifest.json.

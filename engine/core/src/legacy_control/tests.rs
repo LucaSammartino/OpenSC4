@@ -9,7 +9,8 @@ enum Event {
     Create(u32, u32), Query(Handle, u32), Add(Handle), Release(Handle),
     Word(Handle, String, u32), Read(Handle, Read), Write(Handle, Write),
     Widget(Handle, u32, Vec<Value>), FontId(String), Font(u32),
-    Colour([u8; 3]), GridColour(Handle, [u8; 3]),
+    Colour([u8; 3]), ColourFour([u8;3],u32), GridColour(Handle, [u8; 3]),
+    NotifyCell(Handle,i32,i32,CellDescriptor), NotifyAxis(Handle,Notifier,[i32;3]),
     Image(u32, u32), StringResource(u32, u32), ImageRect(Handle),
     ManagerSlot3, NewString, Append(Handle, String),
 }
@@ -45,10 +46,13 @@ impl Foreign for Fake {
     fn font_id(&mut self, n: &str) -> u32 { self.events.push(Event::FontId(n.into())); 7 }
     fn font(&mut self, id: u32) -> Handle { self.events.push(Event::Font(id)); 700 }
     fn colour(&mut self, c: [u8;3]) -> u32 { self.events.push(Event::Colour(c)); u32::from_le_bytes([c[0],c[1],c[2],0]) }
+    fn colour_four(&mut self,c:[u8;3],fourth:u32)->u32 {self.events.push(Event::ColourFour(c,fourth));0}
     fn grid_colour(&mut self, h: Handle, c: [u8;3]) -> u32 { self.events.push(Event::GridColour(h,c)); u32::from_le_bytes([c[0],c[1],c[2],0]) }
     fn load_image(&mut self, g:u32, i:u32) -> Option<Handle> { self.events.push(Event::Image(g,i)); self.images.get(&(g,i)).copied() }
     fn load_string(&mut self, g:u32, i:u32) -> Option<String> { self.events.push(Event::StringResource(g,i)); self.strings.get(&(g,i)).cloned() }
     fn image_rect(&mut self, h:Handle) -> Rect { self.events.push(Event::ImageRect(h)); [0,0,16,20] }
+    fn notify_cell(&mut self,h:Handle,col:i32,row:i32,d:CellDescriptor) {self.events.push(Event::NotifyCell(h,col,row,d));}
+    fn notify_axis(&mut self,h:Handle,kind:Notifier,v:[i32;3]) {self.events.push(Event::NotifyAxis(h,kind,v));}
     fn winmgr_slot3(&mut self) -> Handle { self.events.push(Event::ManagerSlot3); 900 }
     fn new_string(&mut self) -> Handle { self.events.push(Event::NewString); 800 }
     fn append_string(&mut self, h:Handle, text:&str) { self.events.push(Event::Append(h,text.into())); }
