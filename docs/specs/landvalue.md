@@ -287,6 +287,172 @@ snapshot taken at load (or at the first frame, slot 10 true) is the map it used.
 the developer's state 17 instead, D-now is right and the load snapshot is the wrong candidate; the rule "previous
 = last snapshot while slot 10 was true" covers both.
 
+### 6.1.1 Native capture ownership and delivery order (LV6, static proof)
+
+The verified native field widths and canonical interface bases are proposed in
+`build-runs/pending-abi/re-landvalue-step-abi4-layouts.md` for publication in `docs/abi/layouts.md`.
+**They are not yet a published ABI prerequisite.** Coordinator review, application and a full train gate
+are required before an adapter depends on them; a docs-only gate bypass is insufficient.
+
+Use two separately queried interfaces, each held by its own successful QueryInterface reference:
+L = `cISC4LandValueSimulator` (IID `0xE7781D8C`), M = `cIGZMessageTarget2` (IID `0x452294AA`).
+For this native build M = L + 4; serializable is L + 8 (`0x006BD4DF–0x006BD4F9`).
+Progress offsets in §6.1 are relative to L. Native slot-3 forwarding uses M as `this` and the
+original message pointer, one 4-byte argument, callee pop 4, bool in AL. Passing L to that slot
+reads the wrong fields: DoMessage itself subtracts 4 before Step (`0x006BF113`, `0x006BF15D`).
+Only the named 1.1.641 GOG build is established. Executable identity, native vtable/slot identity
+and expected bases must be validated before any private-field read; a failure disables capture.
+
+**Proven synchronous boundary.** The two direct calls to Step (`0x006BE7B0`) are in DoMessage:
+SimNewDay supplies 5 ms at `0x006BF111–0x006BF116`; SimIdle gets the message's 32-bit data3
+through slot 19 and calls Step at `0x006BF155–0x006BF160`. Calendar dispatch invokes target
+slot 3 at `0x007039CB`, then releases the message at `0x007039D4`, then tests the saved AL and
+advances its cursor. Idle dispatch calls SendAgentMessage at `0x00702EE0`; that function invokes
+target slot 3 at `0x00702520`, saves AL and releases the message at `0x00702529` before returning.
+Thus the synchronous forwarder's required observation order, **if safely installed**, is:
+
+1. At entry for the actual land-value SimIdle/SimNewDay delivery, copy L's state, ignoreZoning,
+   relevant iterator contents and developer cursor/header, then copy the world inputs needed by
+   that state's read table. Capture no speculative next-state work; at most one state executes.
+2. Forward that same message exactly once to the saved native slot, with native M, in this delivery.
+   Preserve the native budget and message fields. Save the native bool result.
+3. Before returning to the caller, copy the after-state and progress, and associate the pre-call
+   input copies with the work actually performed. State 8 can already have recorded history and
+   queued LandValueMapChanged; a later message-server notification is not this boundary.
+4. Return the native bool. Both paths retain message ownership in the dispatcher, which releases
+   its reference only after the target returns. The observer borrows the message during the call;
+   it keeps owned input copies rather than message, iterator, tree-node or grid-storage pointers.
+
+For unchanged tract states, a fresh iterator's stored coordinate is included on its first yield;
+a running iterator's stored coordinate has already been yielded and is excluded from new work.
+Next advances x first, wraps x to x0 and increases z, with inclusive signed int32 bounds
+(`0x0060C8D0–0x0060C92A`). Iterator state 2 is exhaustion, not a valid final tract. An unchanged fresh
+iterator means no tract was read. On a pipeline transition attribute work to the old state under
+§6's rules, including its skip cases; a newly reset iterator does not imply new-state work.
+In the state-3 fallback, ignoreZoning changes to true, statistics
+and the tract iterator reset, and state remains 3 (`0x006BEBED–0x006BEC2B`); discard the old
+scan's inputs rather than interpreting the reset as ordinary forward progress.
+
+State 6 establishes the first developer cursor without reading its desirability map
+(`0x006BEEB3–0x006BEEC3`). A state-7 call with cursor unequal to header reads that one node's
+borrowed developer interface, float32 weight and current int16 desirability map, then advances
+the cursor and returns (`0x006BEEE7–0x006BEF2E`). Copy that developer's map **before** forwarding;
+never substitute a later publication. A state-7 call already at the header processes no developer
+and advances to state 8. Developer slot 13's map return is borrowed (plain pointer getter
+`0x007C9FB0–0x007C9FB6`); copying it confers no reference on the underlying storage. Successful
+L and M QueryInterface references must remain alive through observation and be balanced after
+capture stops; they do not transfer ownership of developers, iterators or tree nodes.
+
+**Still unproved: installation and startup.** QueryInterface obtains an interface, not an
+interceptor installation. Init registers native M at levels 0, 10, 4 and 6
+(`0x006BE6EB–0x006BE724`); AddAgent references the supplied target
+(`0x007043C4–0x007043D7`). The proof above does not establish a way to put a proxy in those
+existing deliveries while preserving target identity, registration order, shutdown removal and
+all notifications. Removing/re-adding an agent or changing a vtable is not approved by this
+proof. An additional independent subscription does not bracket the native call. The native
+startup windows are established in §6.1.2; a complete safe adapter installation is still unproved.
+LV6 stays open for this installation/lifetime/order gap and pending ABI application. LV2 and LV7
+still require actual per-Step/developer/startup captures in the preserved runtime traces;
+static layout proof and output-exact pass-end samples do not resolve them.
+
+### 6.1.2 Native installation window and lifetime (LV6, bounded static proof)
+
+The original provides a synchronous **pre-city-init notification**, not a land-value
+interceptor service. The table below distinguishes availability of that notification from
+availability of the particular land-value object. These are native facts for the build in
+§6.1.1; they do not establish that an adapter has registered or installed a hook.
+
+| Boundary | Native ordering and consequence |
+|---|---|
+| Loaded city, before city Init | After successful application Read, LoadCity sends city message `0x26D31EC0` with queued=false at `0x00455886–0x00455898`, then calls city Init at `0x004558A2`. City Read requests the saved land-value interface IID `0xE7781D8C` at `0x0045CF23–0x0045CF30`. The loaded interface can therefore already exist before city Init; validate the actual queried result rather than assuming a new owner will be allocated. |
+| New city, before city Init | NewCity constructs a city at `0x004548FF`, sends the same message synchronously at `0x00454926–0x00454937` (new-city data1=1), then calls city Init at `0x00454941`. This notification precedes CreateCityComponents: a land-value getter result is **not guaranteed to exist here**. |
+| City creates missing components | City Init calls CreateCityComponents at `0x0045BEBF`. That function retains an existing land-value interface or, when absent, requests CLSID `0xE990C18E` / IID `0xE7781D8C` at `0x0045AE6C–0x0045AE8B`. Thus a pre-init object-only forwarder cannot cover the new-city path merely by querying once. |
+| Land-value construction | Allocation helper `0x006BDEF0` requests `0xA4` bytes and enters constructor `0x006BDDF0`. The constructor installs L/M/S vtables at `0x006BDE04–0x006BDE11`, clears initialized and reference count at `0x006BDE18–0x006BDE1B`, and clears both iterator pointers at `0x006BDEBB–0x006BDEBE`. Construction alone does not initialize the pipeline or make its progress fields readable. |
+| Land-value Init | City Init invokes land-value slot 3 at `0x0045C088`. Native Init checks its one-byte initialized flag at L+`0x0C`; when clear, it reads tuning and prepares the grids, sets pipelineState to 0 at `0x006BE5CA`, and prepares both iterators. It registers **M**, without substituting another target, at levels 0, 10, 4, 6 at `0x006BE6F1`, `0x006BE702`, `0x006BE713`, `0x006BE724`; then subscribes M to the five change notifications. It sets initialized=1 only at `0x006BE79D`. Do not read constructor-era progress or infer initialized from a successful QI. |
+| Post-init is a different boundary | NewCity queues `0x26D31EC1` at `0x0045496B`; LoadCity queues it at `0x004558CE`, both after city Init. Simulator DoMessage handles that message, removes its subscription at `0x00703746` and calls HiddenResume at `0x0070374F` (simulator slot 13). A late subscriber or a callback ordered after that handler is not proof of interception before the first Step. |
+| Before city Shutdown | PartialCloseCity calls SC4GamePause at `0x00454A7C`, performs application dispatch calls, sends `0x26D31EC2` synchronously at `0x00454AAE–0x00454ABF`, then calls city Shutdown at `0x00454AC9`. It queues `0x26D31EC3` at `0x00454ADD`, releases the city at `0x00454AE7` and clears the application city pointer at `0x00454AEC`. The post-shutdown notification is too late to inspect land-value grids. |
+| Owner Shutdown and final release | City Shutdown calls land-value Shutdown at `0x0045B4D2`, releases its interface at `0x0045B4DD` and clears its pointer at `0x0045B4E0`. Native land-value Shutdown clears initialized first (`0x006BDF81`), removes M from all agent levels (`0x006BDF9E`), removes all five subscriptions, then releases dependencies and destroys grids/iterators (§4.2). Final Release calls Shutdown and the deleting destructor at `0x006BD8B5–0x006BD8BE`. A held QI reference can retain the allocation, **not** initialized grids or a usable city. |
+
+The synchronous/queued distinction above is verified in the message sender, not inferred
+from the name PostCityMessage. Its final queued argument selects message-server slot 4
+(two arguments, including priority=false) at `0x00449B69–0x00449B6E`, or slot 3 (one message
+argument) at `0x00449B81–0x00449B84`. Slot 3's body (`0x0092EA65`) collects referenced
+notification targets and invokes each target's slot 3 before returning
+(`0x0092EB00–0x0092EB20`). Slot 4's body (`0x0092D0BB`) appends to a message queue instead.
+Synchronous delivery does not establish exclusion from framework ticks, other threads or
+callbacks that pump dispatch. In particular the message server releases its collection lock
+before invoking targets (`0x0092EAF1–0x0092EAF8`).
+The copy at `0x0092EAD7` obtains a reference through target slot 1 (`0x005447C7`);
+the references survive until vector cleanup at `0x0092EB15`, which releases each target
+through slot 2 (`0x006C6EA8`).
+Removing a subscription does not cancel a target already copied into that dispatch;
+unsubscription alone therefore cannot justify reclaiming its callback/table or saved context.
+
+**Earliest dispatch and pause.** The agent cannot receive its registered calendar/idle
+deliveries before its registration in Init. There is no initialized-flag guard in native
+land-value DoMessage or Step (Step reads state directly at `0x006BE7CD`), so registration
+itself must not be treated as permission to call it during Init. OnTick's active/reentrancy
+tests are at `0x00703EFE–0x00703F0A`; its
+hidden-pause test skips the dispatch loop at `0x00703F25–0x00703F2A`. Ordinary pause skips
+calendar work but still permits idle work (`0x00703F2C–0x00703F4E`). A paused city or a
+pass-end callback is consequently not a demonstrated installation barrier.
+
+**Native entry spans, not detour instructions.** For DoMessage entry `0x006BF0D0`, a
+five-byte branch would need a **six-byte whole-instruction span**, ending before
+`0x006BF0D6`: the two one-byte register saves are followed by a four-byte stack-argument
+load. A displaced-instruction continuation starts at `0x006BF0D6`; none of those three
+instructions uses a relative address. The load must see the native stack arrangement;
+calling a displaced prefix with an extra unaccounted return address changes its argument.
+The only exported data reference to the entry is native M-vtable slot 3 at `0x00AB166C`.
+The export reports no data references to `0x006BF0D1` or `0x006BF0D2`; this is not proof
+against arbitrary computed entry. Init's first five bytes are three whole instructions
+(three-byte stack reservation, two one-byte register saves), continuation `0x006BE3B5`.
+Shutdown requires seven bytes to cover complete instructions, continuation
+`0x006BDF77` (two one-byte saves, a two-byte register copy, a three-byte flag load).
+All three are x86 __thiscall entries: Init/Shutdown receive L and no stack
+arguments; DoMessage receives M and the single four-byte message argument, returning AL
+and removing four bytes. This span evidence supplies neither a branch displacement nor
+permission to patch executable memory.
+
+**Installation and restoration preconditions (still required, not implemented).**
+
+1. Register the observer for synchronous pre-init and pre-shutdown early enough to receive
+   them for every supported city entry path. Validate executable identity, entry bytes and
+   native interface identities under §6.1.1 before any private read or mutation. A missed
+   pre-init means no startup/per-Step completeness claim for that city.
+2. Before any land-value registration can dispatch, establish the interceptor at an actual
+   exclusion point. A global entry interceptor installed during pre-init could cover both
+   loaded and newly constructed owners without changing agent identity/order. An object
+   vtable route additionally needs a proved callback after creation and before registration
+   on the new-city branch, and a complete preserved native M-vtable, not a replacement
+   object registered in the agent sets. QI alone satisfies neither route.
+3. Prove that no thread/tick/notification can enter the affected span or vtable during its
+   mutation, that the native function is forwarded once with its original stack/register
+   contract, and that reentrant observation cannot pump simulation. Do not manufacture a
+   first Step to initialize the owner. Begin progress reads only on actual initialized
+   deliveries, and use the state-7 pre-call map copies of §6.1.1 even for the first loaded
+   pass; a later post-init/pass-end map cannot replace them.
+4. Before owner Shutdown destroys inputs, disable capture and finish outstanding observer
+   calls. At a proved exclusion point restore only the entry bytes/vptr still owned by
+   this interceptor, preserving any other installed owner. Keep continuation code and any
+   cloned table alive while reachable; retire them only after no in-flight call can use
+   them. Release the observer's L/M references after restoration, never by manipulating
+   the native reference-count field. Clear all owner identity/progress at city teardown;
+   an address reused by the next city is a new owner.
+
+**Remaining LV6 installation gap.** The native lifecycle and the six-byte DoMessage span
+are established, but a complete safe installation is not. The unproved branches are
+(a) observer registration/executable-mutation availability before the synchronous calls
+at `0x00454937` and `0x00455898`, (b) exclusion of OnTick/notification/in-flight entry
+while installing or restoring, including during the pre-shutdown call `0x00454ABF`, and
+(c), for an object-only route, the interval from CreateCityComponents's return to
+land-value registration on the new-city path. No native callback into the observer has
+been established in that interval. These obligations need a reconciled adapter/host
+lifecycle or additional native dispatch proof, not guessed detour bytes or proxy
+re-registration. Keep `input_capture=pass-end-sample; native_step_capture=0` until they,
+the published ABI prerequisite and actual capture implementation are satisfied. LV2/LV7
+still require runtime traces at the real read boundaries.
+
 ## 7. Formulas *[compat]*
 
 ### 7.1 Water bonus (state 2)
@@ -570,6 +736,11 @@ callers read only AL, so declaring them `uint8_t` is correct.
 |---|---|---|---|
 | 0–2 | QueryInterface / AddRef / Release | 8 / 0 / 0 | as above |
 | 3 | `DoMessage(cIGZMessage2*)` | 4 | AL = 1 always (§5) |
+
+This interface's native `this` is M = L + 4, where L is the separately queried land-value
+interface. Slot 0's thunk subtracts 4 (`0x006BDDB0`); slot 3 expects M directly. The forwarding
+contract and the unresolved installation boundary are in §6.1.1. Obtaining M by QueryInterface
+does not install a forwarder or change the simulator's existing agent targets.
 
 ## 12. Dependencies (methods the original calls) *[compat]*
 
