@@ -127,7 +127,31 @@ A lot is a rectangle of cells with a configuration (the lot plan), a state, a zo
 populations and a trip list. The zone developer creates lots during parcellization and owns them through its cell
 map (`zones.md` §10.2); the lot developer develops them. The constructor (`0x006C2340`) installs four vtables:
 `cISC4Lot` primary `0x00AB19B0`, `cIGZSerializable` `0x00AB1994` (sub-object +4), the plain property holder
-`0x00AB1930` (sub-object +8), `cISC4TrafficSource` `0x00AB1914` (sub-object +0x1C). It zeroes every field.
+`0x00AB1930` (sub-object +8), `cISC4TrafficSource` `0x00AB1914` (sub-object +0x1C). It initializes the record
+fields, constructs the property holder and allocates the empty containers; it does not zero the whole object.
+
+**View access (LR9).** The offsets above are correct. On the primary `cISC4Lot` view, **slot 3**
+(`0x006C2040`) is `AsPropertyHolder`, returning object +8, and **slot 4** (`0x006C2050`) is
+`AsTrafficSource`, returning object +0x1C. Both are non-owning casts (`__thiscall`, no stack arguments,
+EAX pointer, no AddRef); both return null for a null ECX. The names attached to these shared functions in
+the export and the old ABI rows are not reliable interface names: the same address serves different classes.
+In particular, the old `cISC4Lot` slot-4 name `AsISCPropertyHolder` is wrong; its +0x1C result is right.
+
+Primary `QueryInterface` (`0x006BF190`, callee pops 8, result AL) accepts exactly IID 1 and lot IID
+`0xE818FCED` (the primary pointer), and Serializable IID `0xE4FDA3D4` (object +4). Each success AddRefs
+the primary object once. Any other IID returns false **without writing the destination**. Neither secondary
+view is acquired through this QI. QI through the property-holder view first subtracts 8
+(`0x006C2280`) and delegates to the same restricted primary QI.
+
+Native source/target evidence, checked with instruction bytes:
+
+| Source | Target/result | Discrimination |
+|---|---|---|
+| Constructor `0x006C2345`, `0x006C2357`, `0x006C2372`, `0x006C2378` | construct property holder at +8; install `0x00AB1930` there and `0x00AB1914` at +0x1C | The views are not exchanged. The parameterized constructor repeats this at `0x006C1E55`–`0x006C1E88`. |
+| Primary vtable entries `0x00AB19BC`, `0x00AB19C0` | slots 3/4 target `0x006C2040` / `0x006C2050` | Slot numbers are zero-based. |
+| `0x006C2044` / `0x006C2054` | EAX = ECX +8 / +0x1C, respectively | Neither function calls AddRef. |
+| Traffic source iterator `GetNext`, `0x0071083D`–`0x0071084E` | call lot slot 4 at `0x00710841`, store its result in source output, then AddRef the **lot** | A native caller consumes +0x1C as a traffic source, not a property holder. The iterator supplies the reference; the cast does not. |
+| QI `0x006BF194`–`0x006BF1F2`; property-view QI `0x006C2280` | only the three IIDs above; property-view QI adjusts back to primary | The vtable's presence does not imply QI accepts that secondary view's IID. |
 
 The lot does **not** save its occupants. `GetBuilding` and `GetLotOccupants` query the occupant manager over the
 lot's bounding rect (with an "inside lot" filter) each time *[compat]*. The occupants' only link back is the
@@ -970,6 +994,8 @@ A replacement returns a clean 0/1 in EAX; callers in the original test AL only (
 
 | Interface | Slot (offset) | Use | Pop | Return |
 |---|---|---|---|---|
+| `cISC4Lot` (vtable `0x00AB19B0`) | 3 (+0xC) `AsPropertyHolder` `0x006C2040` | §3.1 (LR9) | 0 | EAX = this +8, or null; borrowed |
+| | 4 (+0x10) `AsTrafficSource` `0x006C2050` | §3.1 (LR9) | 0 | EAX = this +0x1C, or null; borrowed |
 | `cISC4Lot` (vtable `0x00AB19B0`) | 5 (+0x14) `Init` `0x006BF490` | §3.5 | 0 | AL = 1 |
 | | 7 (+0x1C) `Shutdown` `0x006C3060` | §3.5 | 0 | AL = 1 |
 | | 8 (+0x20) `PostCityInit` `0x006BF200` | §3.5 | 0 | none defined (tail of SetFlags) |
@@ -1034,6 +1060,38 @@ the zone developer (`zones.md` §1.2).
 ---
 
 ## 15. Replaceability
+
+### 15.1 New-object paths bypass the class registry (LR8)
+
+Registering lot, business-unit and retaining-wall class factories covers serialized-object creation, not
+creation during play. With native developers retained, the following are fixed direct edges, not directory
+lookups or replaceable owner vtable slots. Addresses in this table were checked against native instruction bytes.
+
+| Native source | Direct target | ABI/ownership at the edge |
+|---|---|---|
+| Zone developer CreateLot body `0x0072E520`: `0x0072E530`, `0x0072E557` | pool allocation `0x006BF430`, then parameterized lot constructor `0x006C1E50` | allocation called with one caller-cleaned 4-byte size (0x8C); constructor ECX = allocated storage, five stack words, callee pops 20, EAX = same lot. At `0x0072E564` store output; `0x0072E56B` AddRef; `0x0072E573` Init. No GZCOM lookup. |
+| PickUnitToJoin `0x006CB44C`–`0x006CB474` | allocate 0x20 via `0x005E55E0`, constructor `0x006C0800`, then unit slot 3 twice | allocation caller cleans 4; constructor `__thiscall`, no stack args, EAX = storage. Adds candidate then current lot; no creation AddRef or Release. Member lots acquire the unit through SetUnit (§4). |
+| ClearLot `0x006C8A3D`; AddLotFoundation `0x006C8C23` | static wall helper `0x005E3070` | `__cdecl(lot*, add)`, two 4-byte stack slots, caller cleans 8; low byte is boolean. Clear uses false; foundation uses true. Return AL ignored. |
+| ClearLot `0x006C8A62`; AddLotFoundation `0x006C8C34` | `0x005E3960` UpdateSurroundingRetainingWalls | `__cdecl(lot*)`, caller cleans 4; no defined return. |
+| lot-developer slot 62 wrapper `0x006C4190`, direct call `0x006C4195` | `0x005E37F0` UpdateRetainingWalls | target is `__cdecl(lot*)`, not an owner virtual method. It can call `0x005E3070` itself (`0x005E392E`, `0x005E3947`). |
+| AddRetainingWallOccupant `0x005E30E7`, `0x005E30F5` | wall pool allocation `0x005E2A50` (0x6C), constructor `0x005E2F40` | direct storage construction, not a class-factory call; helper AddRefs the new wall and later releases its creation reference (§7.1). |
+
+**Supported replacement boundary:** use a replacement zone developer/lot manager together with replacement
+lots, and a replacement lot developer together with replacement business units and retaining-wall creation/
+update helpers. Their ordinary interface calls can then create the replacement objects and implement the
+specified wall operations without entering the direct native edges above. This is a dependency requirement,
+not evidence of a native plugin installation API. The city holds both zone-developer and lot-manager views
+of one owner (foundations §3.6); replacing only one view is not this boundary.
+
+No supported installation/restoration contract for independently intercepting these direct edges has been
+established by these bytes or the class-object-store contract. Consequently **standalone complete-owner
+activation with both native developers retained is unsupported by this spec**. Method addresses and factory
+registration are insufficient. This does not claim machine-code interception is impossible; such an approach
+would need a separately proved patch, calling convention, storage, lifetime, and restoration contract before
+being used. No hook contract is implied here. Existing objects and saved references are not migrated by changing
+a factory registration; restoration while such objects survive has no specified native mechanism.
+
+### 15.2 Other coupling
 
 - **Class registry**: the loader creates every object by class ID through GZCOM (foundations §2.7). A replacement
   must register all classes of §1 (including the prop subclasses and `cSC4Occupant`) or loading a city fails for
@@ -1226,3 +1284,30 @@ writes `0F 00 00 00` at payload offset 40. A conforming writer of an unmodified 
 - **T25** `UpdateSurroundingRetainingWalls(B)` with lot C touching only ring row z1 − 1 and lot A touching only
   column x1 − 1 at rows z1..z2 (so C comes first in the zones.md ring order): `UpdateRetainingWalls(C)`, then `(A)`; never `(B)`; each of A and C ends with its reference count
   unchanged.
+
+### 17.4 Native boundary discriminators (LR8/LR9)
+
+These are conformance vectors derived from native bytes, not reported game executions.
+
+- **T26** For a live lot at symbolic address P = `0x10000000`, slot 3 returns `0x10000008`, slot 4 returns
+  `0x1000001C`; neither changes the reference count. Null ECX gives null for both. A slot-4 property-holder
+  interpretation fails this vector. Through the traffic source iterator, the same slot-4 result is written to
+  the source output, with one additional reference acquired through the primary lot at `0x0071084E`.
+- **T27** Starting with a destination sentinel and a live lot P, QI with lot IID `0xE818FCED` returns P,
+  Serializable IID `0xE4FDA3D4` returns P+4, and IID 1 returns P; each success increments the owner's count once.
+  An unsupported IID leaves the sentinel unchanged and returns AL = 0. Property-view QI on P+8 behaves the
+  same way after adjusting to P; it does not expose more IIDs.
+- **T28** Observe class-factory invocations in two separate scenarios: resolving an unseen serialized lot
+  reference uses the class store's GZCOM creation (foundations §2.7), while native zone-developer CreateLot
+  follows `0x0072E530` → `0x006BF430` and `0x0072E557` → `0x006C1E50` without a factory lookup.
+  Factory-only substitution therefore cannot claim all lots are replacement lots.
+- **T29** PickUnitToJoin with exactly one eligible candidate lacking a unit creates one native 0x20-byte
+  business unit at `0x006CB45C`, calls Add(candidate), then Add(current lot). No creation reference is acquired
+  by PickUnitToJoin. The two member back-pointers retain two references to the unit (§4); a replacement
+  factory returning one owned reference must release that extra reference after membership is established.
+  With a candidate already in a unit, no constructor is called and only the current lot is added.
+- **T30** ClearLot's trace includes `0x006C8A3D` → `0x005E3070(lot, false)` and `0x006C8A62` →
+  `0x005E3960(lot)`. AddLotFoundation on its wall-creation branch includes `0x006C8C23` →
+  `0x005E3070(lot, true)` and `0x006C8C34` → `0x005E3960(lot)`. Merely registering a replacement wall
+  factory changes neither trace. Where edge flags require a new wall, `0x005E30F5` still constructs the
+  native wall; the AL = 0 success quirk remains (§7.1).
