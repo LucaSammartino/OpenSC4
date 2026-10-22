@@ -21,6 +21,7 @@ void Compare(Result& r, const std::vector<uint8_t>& initial, const std::vector<u
     ++r.cases;
     bool diff = std::memcmp(native.data(),actual,native.size()) != 0;
     diff ? ++r.diff : ++r.exact;
+    if(fixtureKernel) { if(diff) ++fixtureKernel->diff; else ++fixtureKernel->exact; }
     bool changed = false;
     for (size_t i=0;i<initial.size();++i) {
         changed |= native[i] != initial[i];
@@ -84,10 +85,16 @@ void DirectFixture() {
     }
     for (uint32_t row=0;row<13;++row) for (uint32_t k=0;k<12;++k) {
         params[4]=row/2; params[7]=row%2;
+        const unsigned bpp=row/2<4?2:row/2<6?4:1;
+        params[6]=0;
+        std::memcpy(&params[6],src.data()+256+4*bpp,bpp);
+        const uint32_t masks[7]={0xFFF,0x7FFF,0x7FFF,0xFFFF,0xFFFFFF,0xFFFFFF,0xFF};
+        params[6]&=masks[row/2];
         Call c{&self,5,fixtureSpans,fixtureN,dst}; c.src=source; c.params=params; c.kind=k; run(c);
     }
     fixtureClass=3;
     Report("constructed_direct",r);
+    fixtureKernel=nullptr;
     // Owned adapter's unsupported row is checked without ever calling its native body.
     params[4]=6; params[7]=1;
     Call row13{&self,5,fixtureSpans,fixtureN,dst}; row13.src=source;row13.params=params;
@@ -125,6 +132,7 @@ void NativeFixture() {
             std::memcpy(dst.bits,init.data(),init.size());
             if(!Entries(false)) { ++r.faults; return; }
             auto calls=fixtureCalls, refused=fixtureRefusals;
+            fixtureKernel=nullptr;
             fixtureClass=1;
             if(!SehGuard("span8 native Rust",NativeGuard,&draw)) ++r.faults;
             fixtureClass=3;
@@ -146,8 +154,16 @@ void NativeFixture() {
             Buffer src;
             if(!src.Make(64,32,types[f],f<4?16:f<6?32:8)) { ++r.refused; continue; }
             uint16_t sl=Field<uint16_t>(src.p,0x38), sf=Field<uint16_t>(src.p,0x44);
-            // Only unkeyed buffers here: the bounded SR9 native rows do not approve a key setter.
-            // Direct fixtures cover both keys. Zero native keyed counts earn no credit.
+            // Construct buffer key state from the exact §10.7 fields consumed by GetColorKey.
+            // Context setup stays entirely through public setters. No unreviewed key setter call.
+            const uint32_t savedKey=Field<uint32_t>(src.p,0x24), savedFlags=Field<uint32_t>(src.p,0x28);
+            uint32_t key=0; std::memcpy(&key,src.bits+src.stride+4*(f<4?2:f<6?4:1),f<4?2:f<6?4:1);
+            const uint32_t masks[7]={0xFFF,0x7FFF,0x7FFF,0xFFFF,0xFFFFFF,0xFFFFFF,0xFF};
+            key &= masks[f];
+            for(unsigned keyed=0;keyed<(f==6?1u:2u);++keyed) {
+            const uint32_t flags=(savedFlags&~2u)|(keyed?2u:0u);
+            std::memcpy(reinterpret_cast<uint8_t*>(src.p)+0x24,&key,4);
+            std::memcpy(reinterpret_cast<uint8_t*>(src.p)+0x28,&flags,4);
             for(unsigned k=0;k<12;++k) {
                 int32_t out[4]={}; const int32_t tile[4]={0,0,8,8};
                 Slot<GradientSetter>(ctx,12)(ctx,nullptr,nullptr,0,0);
@@ -157,6 +173,9 @@ void NativeFixture() {
                 if(k/4==2) Slot<TileSetter>(ctx,15)(ctx,nullptr,tile); else Slot<VoidContext>(ctx,14)(ctx,nullptr);
                 run();
             }
+            }
+            std::memcpy(reinterpret_cast<uint8_t*>(src.p)+0x24,&savedKey,4);
+            std::memcpy(reinterpret_cast<uint8_t*>(src.p)+0x28,&savedFlags,4);
             Slot<SourceSetter>(ctx,13)(ctx,nullptr,nullptr,0,0,0,0,nullptr);
             Log("span8 fixture texture type=%u locks_restored=%u",types[f],unsigned(sl==Field<uint16_t>(src.p,0x38) && sf==Field<uint16_t>(src.p,0x44)));
         }

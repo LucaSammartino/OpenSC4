@@ -54,7 +54,9 @@ pub unsafe extern "C" fn fc4_span8_render(job: *const Job) -> i32 {
     if !(1..=5).contains(&j.slot) || j.spans.is_null() || j.count == 0 || j.count > 65536 {
         return 1;
     }
-    let Some(d) = region(j.dst.bytes, j.dst.len) else { return 1 };
+    let Some(d) = region(j.dst.bytes, j.dst.len) else {
+        return 1;
+    };
     let spans: Vec<_> = std::slice::from_raw_parts(j.spans, j.count as usize * 2)
         .chunks_exact(2)
         .map(|p| Span { start: p[0], end: p[1] })
@@ -77,13 +79,21 @@ pub unsafe extern "C" fn fc4_span8_render(job: *const Job) -> i32 {
         }
         let p = std::slice::from_raw_parts(j.params, 8);
         b = BltParams {
-            u0: p[0], v0: p[1], du: p[2], dv: p[3], format: p[4], colour: p[5], key: p[6],
+            u0: p[0],
+            v0: p[1],
+            du: p[2],
+            dv: p[3],
+            format: p[4],
+            colour: p[5],
+            key: p[6],
             key_flag: p[7] as u8,
         };
         if b.row() == 13 {
             return 3; // SR8-3: intentionally unsupported even though the core models the literal reading.
         }
-        let Some(s) = region(j.src.bytes, j.src.len) else { return 1 };
+        let Some(s) = region(j.src.bytes, j.src.len) else {
+            return 1;
+        };
         if d.0 < s.1 && s.0 < d.1 {
             return 1;
         }
@@ -99,12 +109,24 @@ pub unsafe extern "C" fn fc4_span8_render(job: *const Job) -> i32 {
         3 => sr::render_alpha(&spans, &mut t, j.colour, j.argb),
         4 => sr::render_alpha_gradient(&spans, &mut t, &g),
         _ => sr::render_blt(
-            &spans, &mut t, std::slice::from_raw_parts(j.src.bytes, j.src.len),
-            &SourceImage { origin: j.src.origin, stride: j.src.stride, width: j.src.width, height: j.src.height },
-            &b, j.kind,
+            &spans,
+            &mut t,
+            std::slice::from_raw_parts(j.src.bytes, j.src.len),
+            &SourceImage {
+                origin: j.src.origin,
+                stride: j.src.stride,
+                width: j.src.width,
+                height: j.src.height,
+            },
+            &b,
+            j.kind,
         ),
     };
-    if result.is_ok() { 0 } else { 2 }
+    if result.is_ok() {
+        0
+    } else {
+        2
+    }
 }
 
 #[cfg(test)]
@@ -117,14 +139,32 @@ mod tests {
         let mut src = [0x40; 16];
         let spans = [0, 3, 0x10001, 0x10004];
         let p = [0, 0, 0x10000, 0x10000, 6, 0xC0123456, 0, 0];
-        let image = |bytes: *mut u8, len| Image { bytes, len, origin: 0, stride: 8, width: 5, height: 2 };
-        let mut j = Job { slot: 5, count: 2, spans: spans.as_ptr(), dst: image(dst.as_mut_ptr(), 24),
-            colour: 0, argb: 0, gradient: std::ptr::null(), src: image(src.as_mut_ptr(), 16),
-            params: p.as_ptr(), kind: 2 };
+        let image = |bytes: *mut u8, len| Image {
+            bytes,
+            len,
+            origin: 0,
+            stride: 8,
+            width: 5,
+            height: 2,
+        };
+        let mut j = Job {
+            slot: 5,
+            count: 2,
+            spans: spans.as_ptr(),
+            dst: image(dst.as_mut_ptr(), 24),
+            colour: 0,
+            argb: 0,
+            gradient: std::ptr::null(),
+            src: image(src.as_mut_ptr(), 16),
+            params: p.as_ptr(),
+            kind: 2,
+        };
         j.dst.origin = 4;
         assert_eq!(unsafe { fc4_span8_render(&j) }, 0);
-        let expected = [0xA5,0xA5,0xA5,0xA5,0x30,0x30,0x30,0xA5,0xA5,0xA5,0xA5,0xA5,
-            0xA5,0x30,0x30,0x30,0xA5,0xA5,0xA5,0xA5,0xA5,0xA5,0xA5,0xA5];
+        let expected = [
+            0xA5, 0xA5, 0xA5, 0xA5, 0x30, 0x30, 0x30, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0x30, 0x30, 0x30, 0xA5, 0xA5,
+            0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5,
+        ];
         assert_eq!(dst, expected);
         j.dst.len = 14; // Later span out of bounds: no first-span partial write.
         assert_eq!(unsafe { fc4_span8_render(&j) }, 2);

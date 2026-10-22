@@ -28,6 +28,8 @@ using Blt = void(__fastcall*)(void*, void*, const uint32_t*, uint32_t, const uin
 struct Count { std::atomic<uint64_t> calls{0}, ours{0}, exact{0}, diff{0}, refusal{0}, fallback{0}; };
 Count counts[4][6]; // constructed direct, constructed native context, shipped context, other
 std::atomic<uint64_t> kernels[4][13][12];
+Count kernelResults[4][13][12];
+thread_local Count* fixtureKernel = nullptr;
 thread_local unsigned fixtureClass = 3;
 thread_local bool bypass = false;
 thread_local uint64_t fixtureRefusals = 0, fixtureCalls = 0;
@@ -109,9 +111,16 @@ void Dispatch(const Call& c, uintptr_t ret) {
     if (cls < 2) ++fixtureCalls;
     FC4Span8Job j = {};
     bool ready = Job(c, j);
+    Count* kt = nullptr;
+    if (c.slot == 5 && Window(c.params,32) && c.params[4]<7 && (c.params[7]&255)<2 && c.kind<12) {
+        unsigned row=2*c.params[4]+(c.params[7]&255);
+        if(row<13) { kt=&kernelResults[cls][row][c.kind]; ++kt->calls; }
+    }
+    if (cls<2) fixtureKernel=kt;
     if (c.slot == 5 && ready) ++kernels[cls][2 * c.params[4] + (c.params[7] & 255)][c.kind];
     if (!ready) {
         ++t.refusal; ++t.fallback;
+        if (kt) { ++kt->refusal; ++kt->fallback; }
         if (cls < 2) ++fixtureRefusals;
         Original(c);
         return;
@@ -123,12 +132,13 @@ void Dispatch(const Call& c, uintptr_t ret) {
         j.dst.bytes = scratch.data();
         int status = fc4_span8_render(&j);
         Original(c);
-        if (status) { ++t.refusal; ++t.fallback; }
-        else if (!std::memcmp(actual, scratch.data(), scratch.size())) ++t.exact;
-        else ++t.diff;
-    } else if (fc4_span8_render(&j) == 0) ++t.ours;
+        if (status) { ++t.refusal; ++t.fallback; if(kt) { ++kt->refusal; ++kt->fallback; } }
+        else if (!std::memcmp(actual, scratch.data(), scratch.size())) { ++t.exact; if(kt) ++kt->exact; }
+        else { ++t.diff; if(kt) ++kt->diff; }
+    } else if (fc4_span8_render(&j) == 0) { ++t.ours; if(kt) ++kt->ours; }
     else {
         ++t.refusal; ++t.fallback;
+        if (kt) { ++kt->refusal; ++kt->fallback; }
         if (cls < 2) ++fixtureRefusals;
         Original(c);
     }
@@ -199,6 +209,11 @@ void Span8Stop() {
                 c,r/2,r%2,kernels[c][r][0].load(),kernels[c][r][1].load(),kernels[c][r][2].load(),kernels[c][r][3].load(),
                 kernels[c][r][4].load(),kernels[c][r][5].load(),kernels[c][r][6].load(),kernels[c][r][7].load(),
                 kernels[c][r][8].load(),kernels[c][r][9].load(),kernels[c][r][10].load(),kernels[c][r][11].load());
+            for(unsigned k=0;k<12;++k) {
+                auto& t=kernelResults[c][r][k];
+                Log("span8 kernel: class=%u format=%u key=%u kind=%u calls=%llu ours=%llu exact=%llu diff=%llu refusals=%llu fallback=%llu resync=0",
+                    c,r/2,r%2,k,t.calls.load(),t.ours.load(),t.exact.load(),t.diff.load(),t.refusal.load(),t.fallback.load());
+            }
         }
     }
     Log("span8: restored=%u slot0_original=1; classes0=constructed_direct 1=constructed_native 2=shipped_context 3=other; zero counts earn no credit", unsigned(restored));
