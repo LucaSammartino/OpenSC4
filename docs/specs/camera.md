@@ -42,13 +42,18 @@ World coordinates: x and z on the ground (metres, a cell is 16 m), y up. Screen 
 | `+0x60` | the **view transform** (world to camera), same layout, rebuilt from the local one when its counter differs (§1.3) | identity |
 | `+0x9C`…`+0xD8` | the projection matrix (4×4, row-major, column vectors: `p' = M p`) | |
 | `+0x11C`…`+0x158` | its inverse | |
-| `+0x160` / `+0x170` | the last look-at target and up vector | |
-| `+0x17C` | projection change counter (the matrix is rebuilt when it differs from `+0x15C`) | |
+| `+0x160` / `+0x170` | the last look-at target and up vector | both (0, 0, 0) |
+| `+0x17C` | u32 projection change counter (the matrix is rebuilt when it differs from u32 `+0x15C`) | 1; cached counter 0 |
 | `+0x180` | projection type: 2 perspective, anything else orthographic (`SetOrtho` stores 1) | 0 |
-| `+0x184`, `+0x188` | near, far | 1, 2 *[inferred]* |
-| `+0x18C`, `+0x190`, `+0x198`, `+0x194` | left, right, bottom, top | a unit box *[inferred]* |
+| `+0x184`, `+0x188` | near, far | 1, 2 |
+| `+0x18C`, `+0x190`, `+0x198`, `+0x194` | left, right, bottom, top | −1, +1, −1, +1 |
 | `+0x19C`, `+0x1A0` | pixel offset x, y | 0, 0 |
 | `+0x1A4` | depth bias, set by `SetDepthBias` (§1.2) | 0 |
+
+The constructor's box has side length **2**, not 1. The remembered up is zero, not Y-up:
+`0x007FFCB4–0x007FFCF3` copies the zero word at `0x00B4E660` into both remembered vectors;
+`0x007FFD10–0x007FFD4D` stores the box, near/far and counters. The local/view transforms start as
+identity with byte counters zero. These are constructor state facts, independent of later look-at calls.
 
 ### 1.2 Methods
 
@@ -84,6 +89,12 @@ World coordinates: x and z on the ground (metres, a cell is 16 m), y up. Screen 
 `SetLookAt(target, up)`: `back := normalize(position − target)`, `right := normalize(up × back)`,
 `trueUp := back × right`; the local rotation's columns are (right, trueUp, back). So the camera looks along
 `−back`, right-handed.
+
+There is no zero-length or parallel-vector fallback. Each normalization computes a square root and its
+reciprocal, then multiplies the components (`0x007FFD85–0x007FFDAF`, `0x007FFDE5–0x007FFE09`). With the
+normal masked x87 exceptions, a coincident position/target or a parallel up/back produces NaNs in the
+rotation; the method still remembers the arguments and performs its counter/flag updates. NaN payloads
+and signs are not a portable contract.
 
 The view transform is the inverse of the local one: rotation transposed (when the local one is rotated), translation
 `−Rᵀ · position`, and, when the local one is scaled, scale `1 / s` with the translation multiplied by it. A world
@@ -247,8 +258,14 @@ ViewTChange3.
 ### 2.8 Save record (class `0xC9C628EC`; `Write` slot 3 `0x007CBB10`, `Read` slot 4 `0x007CBBA0`)
 
 u16 version **1**; the view target (three floats); then six u32: previous zoom, previous rotation, zoom, rotation,
-new zoom, new rotation. `Read` accepts only version 1 and sets "loaded" (§2.6 `Init`). Both return true unless the
-stream reports an error.
+new zoom, new rotation. `Read` is **not transactional**. It sets loaded true before reading even the version
+(`0x007CBBAC`); a version other than 1 returns false with loaded still true. For version 1 it passes the actual
+target and six field addresses to the stream in order, without intermediate error checks
+(`0x007CBBC7–0x007CBC25`), then returns the inverse of the stream error flag. Earlier writes survive a later
+failure. A failed primitive read's effect on its own destination belongs to the stream implementation;
+there is no camera rollback. Successful version-1 reads retain raw indices and float bits without validation,
+and neither recompute the camera nor access the city. `Write` emits the same 38-byte layout and returns the
+inverse stream error flag.
 
 ## 3. Users
 
@@ -292,3 +309,13 @@ stream reports an error.
 8. **Record:** version 1, three floats, six u32; version 2 is refused.
 9. **Ground intersection:** origin (0, 100, 0), direction (1, −1, 0) → (100, 0, 0); direction (1, 0, 0) → false;
    direction (0, 1, 0) → false (behind).
+10. **Native constructor discriminator:** before look-at, remembered target and up are both zero, the box is
+    (−1, +1, −1, +1, 1, 2), projection type 0 and projection/cache counters 1/0. The first matrix request gives
+    orthographic diagonal (1, 1, −2, 1) and depth translation −3, then cache counter 1. A centred side-1 box fails.
+11. **Degenerate look-at:** identity camera at zero, target zero, up Y produces NaN rotation components;
+    position (0, 0, 1), target zero, up Z produces finite back Z and NaN right/trueUp. Neither call substitutes
+    identity or an alternate up; local counter advances by 2.
+12. **Failed record mutation:** begin with loaded false and target (1, 2, 3). Reading version 2 returns false
+    but loaded becomes true. With a version-1 mock stream that writes target (7, 8, 9) and previous zoom 17,
+    then flags an error and leaves all remaining destinations untouched, Read returns false but preserves
+    those writes. All six integer reads are attempted. No atomic commit is permitted.
