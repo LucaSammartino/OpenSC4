@@ -229,7 +229,8 @@ fn constructor_and_square_city_defaults() {
 #[test]
 fn independent_filter_vectors() {
     // Input model classes, properties, flags -> animatable, shown-animatable.
-    let vectors: &[(&[u32], &[u32], u32, bool, bool)] = &[
+    type FilterVector<'a> = (&'a [u32], &'a [u32], u32, bool, bool);
+    let vectors: &[FilterVector<'_>] = &[
         (&[], &[], 4, false, false),
         (&[0xEA12_3BE1], &[], 0, true, false),
         (&[0xAA12_3BF9], &[], 4, true, true),
