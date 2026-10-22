@@ -206,6 +206,7 @@ void LanguageVerifyRun() {
         if (!native || native == borrowed) {
             Log("language native REFUSED: id=%u new utility null/borrowed", id); ++refused; continue;
         }
+        FC4_ACQUIRED(native, "GetNewLanguageUtility created owned reference");
         ++objects;
         Probe p(native, id);
         for (uint32_t iid : {1u, 0x1054B7D5u, 0u, 0x0054B7D5u, 0xffffffffu}) p.Check(Op(0, iid));
@@ -242,9 +243,10 @@ void LanguageVerifyRun() {
             }
         for (const char* invalid : {"plain", "%%", "%d", "%n", "%", "%q"}) p.Check(Op(17), "old", invalid);
         for (uint32_t method : {20u, 21u}) {
-            p.Check(Op(method), "", "AbC");
-            p.Check(Op(method), "xyz", "AbC");
-            p.Check(Op(method), "x", "AbC");
+            // LU2 also leaves the return value unspecified for these lengths.
+            p.Check(Op(method), "", "AbC", "", 2);
+            p.Check(Op(method), "xyz", "AbC", "", 2);
+            p.Check(Op(method), "x", "AbC", "", 2);
             p.Check(Op(method), "toolong", "AbC", "", 2); // LU2
         }
         for (uint32_t sensitive : {0u, 1u})
