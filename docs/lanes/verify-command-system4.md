@@ -1,23 +1,86 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| verify-command-system4: native command verification | Codex / `verify-command-system4` (engine lane, detached HEAD) | in progress; binding feasibility audit before baseline | 1. Confirm published native acquisition, variant storage and lifetime within 15 calls. 2. Implement only if fully supported. |
+| verify-command-system4: native command verification | Codex / `verify-command-system4` (engine lane, detached HEAD) | WIP; source 5eb61637; cargo 4961 PASS, clippy clean, ctest 68/68; own/reload clean through 2032 ref0; 7414 assertions, 7243 exact, 171 GC8 metadata differences; native saves stalled; current40 pending | 1. Resolve GC8 binding distinction. 2. Supply canonical current40 profile and complete clean native/current40 save regression. |
 
-## Handoff
-- Goal: compare production command core methods with independently owned ORIGINAL parameter sets and documented public generator operations.
-- Done: confirmed public service/IID (section 5, GZServPtrs/cRZSysServPtr), slot 5 owned factory, parameter slots 3-14 and SDK typed variant calls before baseline; no layout-dependent native storage needed (scratch ORIGINAL variant).
-- Done: added opt-in commands_verify load probe and private persistent production-core transport. No public C ABI/export map/default changes.
-- Milestones: implementation `39531ad2`; baseline full PASS (4961 Rust tests, clippy 0 diagnostics, ctest 68/68). Focused quick PASS (530 capi tests, C++ 5/5 build edges).
-- Focused new Rust fmt PASS. Full candidate gate: Rust 4961 PASS, clippy clean, C++ build PASS; ctest 67/68 because return-channel audit required factory-result discard, published parser AL citation and removal of a local Create-name collision. Corrected without maps/table edits.
-- Stable full gate PASS at source `f844935e`: Rust 4961/4961, clippy 0 diagnostics, C++ build 4/4 edges, ctest 68/68 (96.0 s). No subsequent source edits.
-- Native run `commands4-native-r1-e50c5bbc-a`: 7414 assertions / 7243 exact / 171 mismatches / 0 refusals; first twelve differences scalar variant GetCount 0 native / 1 core. GC8 filed; production semantics unchanged. Original vtables in refaudit: service game+0x6D17A0, sets game+0x6D16C8. Probe took ~2 ms.
-- Game reached 2032-01-01, ref_warnings=0, full save succeeded (10860 ms), full shutdown reached. Harness verdict stalled because save caused watchdog_stalls=1; do not call clean. Completed verdict retained.
-- Final source `5eb61637`: focused quick PASS (530 capi tests), full gate PASS (4961 Rust tests, clippy clean, ctest 68/68 in 99.3 s). Aggregate counters added without changing semantics.
-- Frozen DLL SHA256 `1F8594269BE9926AB1EA047D721195B6D5C03819B6D2A99194C0D7DB4B5A16D2`; old label-a DLL hash `B633D033A3778553DC6F6AC253466FE3FDB58BA31B4A997B4146EE9A8D285375` retained in completed verdict.
-- Label-b native: stalled at early full save (2026-03-01), ref0. Label-b own/default: clean through 2032-01-03, watchdog0/ref0; full save succeeded in 11109 ms; shutdown completed. Both measured 7414 / 7243 exact / 171 element-count differences / 0 other differences / 0 refusals. All 171 differences covered by GC8.
-- Exec session 73044 completed. No outstanding request; reload was skipped because native fixture was not retained from a failed run. Next retain successful own/default save from its logged slot path, validate timestamp, then supported fixture reload with the same frozen DLL.
-- Current40 still unavailable; finish WIP unless canonical profile is supplied. No command/core semantics changed.
-- Canonical current40 profile is not in the permitted named files; do not mislabel the two default-on keys as current40.
-- Formatting caveat: wrapper requires absolute file paths; checking lib.rs recursively reports pre-existing child-module formatting. No mass reformat performed.
-- No game request outstanding. Core receives only raw literals, never native computed values; no registrations or executions.
-- GC1-GC7 remain outside measured domain; never seed core from native computations.
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-verify-command-system4-r1-manifest.json`.
+## Changes and provenance
+
+Added the opt-in `commands_verify = 1` city-load comparison in `engine/plugin/FC4CommandsVerify.h`,
+called additively from the observer. `engine/capi/src/commands_verify.rs` retains actual production
+`CommandParameterSet` objects and calls production methods and `StringCommandGenerator` parsing.
+It is private static-link transport: no public C ABI exports, export maps, ABI tables, defaults or ABI version changed.
+Implementation committed at `39531ad2`, return-channel correction at `f844935e`, final instrumentation at `5eb61637`.
+
+Bindings were confirmed before baseline builds, within the initial 15-call audit: command-system section 5,
+SDK command/variant declarations, `GZServPtrs` and `cRZSysServPtr`. The app-owned command server is acquired
+through public service `0xEB903A32` / IID `0xCB90253A`. Slot 5 makes independently owned ORIGINAL sets.
+An additional ORIGINAL scratch set supplies native variants; SDK strings only carry input/output bytes.
+No private native storage layout is needed. Refaudit recorded game vtables at module+`0x6D17A0` for the service
+and module+`0x6D16C8` for the sets, consistent with the published class tables.
+
+No commands are registered or executed. No global dispatcher, generator or app-owned server is replaced or shut down.
+Created references use audited created-release; the acquired service uses audited acquired/release.
+Core receives identical raw literal inputs, never native computed output or a resynchronized native map.
+
+## Measured domain
+
+Owned-set insertion, overwrite, deep string copy after source mutation, set-to-set copy, typed retrieval,
+missing lookup and writable fallback, sparse unsigned order, iteration, removal, count growth/shrink/clear,
+append after the highest ID, wrapping append after `0xFFFFFFFF`, and ordinary signed status storage.
+Typed inputs cover empty, strings, true/false, positive/negative Sint32, high Uint32, and exact positive/negative Float32.
+
+Fourteen generator cases cover known/unknown commands, unchanged outputs on blank input, case-insensitive name lookup,
+positive/negative numeric and boolean literals retained as strings, whitespace/tabs/newlines, empty quoted words,
+embedded/unbalanced quotes, explicit input length, strlen sentinel, and truncation after 256 words.
+The core server fixture has the fixed spec section-0 `SetDebugLevel` name/ID; the app prerequisite is checked separately.
+Native lookup results never populate that fixture. Parse-only converting/execution callbacks refuse unused operations.
+
+Each completed fixture makes **7,414 assertions**: 3,708 set assertions and 3,706 parser/prerequisite assertions.
+These include repeated observations of retained objects; they are not counts of unique methods or commands.
+On the final DLL, **7,243 match, 171 differ, zero refuse**. Aggregate counters prove all 171 differences concern
+variant element-count metadata; **zero other fields differ**. Native scalar `GetCount()` is 0, production
+`Variant::count()` is 1. [GC8](../specs/questions/command-system.md) records the native-interface versus logical-count
+binding question and cites the already-published data-formats scalar-count contract. No semantics were fitted.
+
+GC1-GC7, secondary QI identities, ValidateParameter, any-parameter comparison, status meanings, dispatch/nesting,
+non-space delimiters, VoidPtr conversion and generator formatting remain outside measured coverage.
+This is bounded verification, with no whole-owner or replacement promotion claim.
+
+## Gates
+
+Baseline: 4,961 Rust tests PASS, clippy 0 diagnostics, ctest 68/68 PASS.
+Final source `5eb61637`: focused quick 530 capi tests PASS; full qbuild PASS with 4,961 Rust tests,
+clippy 0 diagnostics, C++ build PASS and ctest **68/68** (99.3 s). Return-channel audit passes without map edits.
+New Rust transport fmt PASS. Checking the touched `lib.rs` recursively reports pre-existing formatting in
+unchanged children (first `advisors.rs`); no mass reformat performed. Wrapper fmt requires absolute paths.
+
+## Game evidence
+
+All labels are unique; requests were sequential and waited through the local shell helper, without qwait.
+Completed verdicts were retained. The original comparison itself takes about 2 ms at load.
+
+- `commands4-native-r1-e50c5bbc-a`: all replacements disabled; **stalled** harness verdict. Reached 2032-01-01,
+  ref_warnings=0, full save succeeded in 10860 ms and full shutdown completed. One watchdog stall during saving.
+  7,414 / 7,243 exact / 171 differences / 0 refusals; only the first twelve differences were individually logged.
+- `commands4-native-r1-e50c5bbc-b`: all replacements disabled; **stalled** during early full save at 2026-03-01,
+  ref_warnings=0. 7,414 / 7,243 exact / 171 element-count differences / 0 other differences / 0 refusals.
+- `commands4-own-r1-e50c5bbc-b`: ordinary plugin defaults (simulator and budget; **not current40**), **clean**
+  through 2032-01-03, watchdog_stalls=0, ref_warnings=0. Full save succeeded in 11109 ms and full shutdown completed.
+  Same 7,414 / 7,243 / 171 element-count differences / 0 other differences / 0 refusals.
+- `commands4-reload-r1-e50c5bbc-b`: supported harness fixture reload of that successful save, **clean**
+  through 2032-01-14, watchdog_stalls=0, ref_warnings=0. Full save succeeded in 12297 ms and full shutdown completed.
+  Same 7,414 / 7,243 / 171 element-count differences / 0 other differences / 0 refusals.
+
+The successful own-save source timestamp was validated against its run window before copying the 1,018,906-byte
+save to main `build-runs/fixtures/commands4-own-e50c5bbc.sc4`; harness staging records hash prefix `ff38a466`.
+No save or game file is committed. Logs/verdicts are under this worktree's `build-runs/game-results/`.
+The full label-b gate and all label-b games use frozen DLL SHA256
+`1F8594269BE9926AB1EA047D721195B6D5C03819B6D2A99194C0D7DB4B5A16D2`.
+Label a used `B633D033A3778553DC6F6AC253466FE3FDB58BA31B4A997B4146EE9A8D285375` before aggregate instrumentation.
+
+## Remaining work
+
+WIP: resolve GC8's production logical-count/native-interface distinction without fitting command semantics.
+Obtain the canonical current40 profile from the coordinator: the permitted named files identify it but do not
+publish its exact settings, and the two default-on keys must not be substituted. Complete its guarded regression
+and a clean native save/shutdown run; both all-native full-save attempts here stalled. No requests remain outstanding.
+No restart, merge, rebase, push, subagent, shared-tool or ABI-table change was performed.
