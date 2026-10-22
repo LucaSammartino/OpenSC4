@@ -150,7 +150,10 @@ where
         return;
     }
     let flag = if S::RAW_PENDING { &FLUSH1 } else { &FLUSH2 };
-    if flag.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+    if flag
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
         return;
     }
     let _guard = FlushGuard(flag);

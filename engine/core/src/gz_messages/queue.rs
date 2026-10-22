@@ -39,7 +39,11 @@ pub trait MessageHost {
 
 /// GZ2: all finite microsecond timeouts truncate to milliseconds.
 pub const fn signal_wait_millis(timeout_us: u32) -> u32 {
-    if timeout_us == u32::MAX { u32::MAX } else { timeout_us / 1_000 }
+    if timeout_us == u32::MAX {
+        u32::MAX
+    } else {
+        timeout_us / 1_000
+    }
 }
 
 /// GZ2: WAIT_FAILED -> 0, WAIT_TIMEOUT -> 2, every other status -> 1.

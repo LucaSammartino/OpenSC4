@@ -52,6 +52,19 @@ impl<H: Server2Host + ?Sized> RegistryHost<MessageServer2> for H {
     }
 }
 
+#[cfg(test)]
+mod counter_boundary {
+    use super::MessageServer2;
+    #[test]
+    fn shared_unsigned_counter_wraps_without_deletion() {
+        let mut server = MessageServer2::new();
+        server.ref_count = u32::MAX;
+        assert_eq!(server.add_ref(), 0);
+        assert_eq!(server.remove_ref(), 0);
+        assert_eq!(server.ref_count(), 0);
+    }
+}
+
 /// Message server 2 state (§4.1).
 #[derive(Debug, Clone)]
 pub struct MessageServer2 {
