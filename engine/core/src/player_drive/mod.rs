@@ -437,6 +437,7 @@ impl PlayerDrive {
             id: sound,
             start: false,
         });
+        // DR8: literal state10 scope; other states get no extra state setter.
         if host.state(a)? == 0x10 {
             if host.flags31(a)? & 0x0800_0000 == 0 && host.group(a)? != 0x4003 {
                 host.emit(Operation::State13 { automaton: a, value: 0 });
