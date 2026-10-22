@@ -52,6 +52,26 @@ fn blend_above_32_is_the_packed_form() {
 }
 
 #[test]
+fn packed_1555_carry_and_mask_edges() {
+    // §5's 32-bit packed R/B arithmetic. SP1's 4444 weights/masks do not apply.
+    for (s, d, w, expected) in [
+        (0, 0x7c1f, 33, 0xfc1f),
+        (0x7c1f, 0, 33, 0x8000),
+        (0, 0x7c1f, 63, 0x8802),
+        (0x7c1f, 0, 63, 0xf41d),
+        (0, 31, 33, 0x801f),
+        (31, 0, 63, 0x801d),
+    ] {
+        assert_eq!(blend(s, d, w), expected);
+    }
+    // For 1555, weights 17..31 still interpolate each five-bit channel.
+    for w in 17..=31 {
+        let expected = 0x8000 | ((31 * w + 16) / 32) << 10 | ((31 * (32 - w) + 16) / 32);
+        assert_eq!(blend(0x7c00, 0x001f, w), expected as u16);
+    }
+}
+
+#[test]
 fn alpha_weight_thresholds() {
     let t = [
         8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 87, 95, 103, 111, 119, 127, 135, 143, 151, 159, 167, 174, 182, 190, 198,

@@ -17,6 +17,7 @@
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Span1555Shadow.h"
+#include "FC4Span1555Context.h"
 #include "FC4SpanRender4444.h"
 #include "compat/FC4Compat.h"
 
@@ -57,9 +58,10 @@ const compat::SpanContextVA* VA() {
 // §1.3 counts by return address; span-render-565.md §1.1 lists the call
 // instruction addresses. Literal reading: a return address 1..7 bytes after a
 // listed site (the length of one CALL instruction) belongs to that site.
-int SiteOf(uintptr_t ret) {
+int SiteOf(unsigned renderer, uintptr_t ret) {
     const compat::SpanContextVA* va = VA();
     if (va == nullptr) return -1;
+    if (renderer == kSpanR1555) return Span1555ContextSite(ret, va->sites);
     for (int i = 0; i < 7; ++i)
         if (ret > va->sites[i] && ret <= va->sites[i] + 7) return i;
     return -1;
@@ -240,7 +242,8 @@ bool UseOriginal(unsigned r, bool original) {
 void RunCase(unsigned r, void* ctx, Buf& dst, const std::vector<uint8_t>& init, const Case& c, Totals& t) {
     const size_t len = size_t(dst.stride) * dst.h;
     SetupCase(ctx, c);
-    const bool sp1 = c.kind == kAlphaGradient && !AlphaInRange(ctx);
+    // SP1 is a 4444-only contract; 1555 §5 specifies the entire packed domain.
+    const bool sp1 = r == kSpanR4444 && c.kind == kAlphaGradient && !AlphaInRange(ctx);
     t.sp1Cases += sp1;
     DrawCall call{ctx};
     // Original: the published functions in the renderer's vtable.
@@ -478,7 +481,7 @@ void LogCounts(const char* when) {
 
 void SpanNoteCall(unsigned renderer, unsigned slot, uintptr_t ret, bool fixtureDirect) {
     if (renderer >= kSpanRendererCount || slot < 1 || slot > 5) return;
-    const int site = SiteOf(ret);
+    const int site = SiteOf(renderer, ret);
     const unsigned c = site >= 0 ? (SpanContextFixtureThread() ? kNative : kShipped) : (fixtureDirect ? kDirect : kOther);
     g_calls[renderer][c][slot].fetch_add(1, std::memory_order_relaxed);
     if (site >= 0) g_sites[renderer][c == kNative ? 0 : 1][site].fetch_add(1, std::memory_order_relaxed);
