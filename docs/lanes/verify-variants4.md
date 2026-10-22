@@ -17,6 +17,10 @@
 - Immutable first DLL SHA256 52E213A0FC81C1E2E4E6215068B5EB528EE30698B075E0F1B16F47B7B462E175, build-runs/dlls/vv4-a567f1/FreeCity4.dll; FC4_CHECKED OFF (support-image/interface guard, not RTC build).
 - Second original vv4-original2-7c5ca4-1810 clean2032/ref0/save ok=1: native cases70 checks420 exact392 failures28 refusals0 clones71. All 28 failures scalar shape; HG7 filed. Typed values/arrays/clone isolation/CopyFrom/Erase pass.
 - Added per-type totals, scalar metadata and classified HG7/unexplained counters without changing expected semantics. Final normal-speed original uses last original slot (3/3), then current40 control.
-- Corrected full gate running session40271; tree changed for diagnostics, so final stable all still required. Next: commit diagnostics, quick, pin DLL, normal3 then current40; stable fullgate. No request outstanding.
+- Stable final qbuild all PASS at e7817958: cargo4947/0, clippy0 diagnostics, ctest68/68; no tree-changed warning (session43582 complete).
+- Normal original vv4-normal3-e78179-1815 clean2032-01-01/ref0/save ok=1: 70/420/392exact/28HG7/0unexplained/0refusals/71clones. Native scalar count=0 for all fourteen tested types vs Rust1. Not turbo-only. Original cap3/3 exhausted; no further original runs.
+- Final pinned DLL read-only build-runs/dlls/vv4-e78179/FreeCity4.dll SHA256 A7BAE0DBBAF83CA32C22B836704F4D050C1D1C2615E23235E29C0453382E0EFF.
+- OUTSTANDING: vv4-current40-e78179-1819 (wait session88753), current40 turbo2032 plus same save script and native shadow; at most this one request outstanding.
+- Next: read its existing verdict/log without resubmission; verify hash; report all four run labels, bounded exclusions, HG4-HG7; final report commit and merge queue. Native serialization and edited-save reload unsupported by this ephemeral SDK clone fixture (HG4).
 - No game requests outstanding; original cap 3, unique labels required, wait without qwait.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-verify-variants4-r1-manifest.json.

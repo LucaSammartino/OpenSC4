@@ -79,3 +79,8 @@
   metadata contract separately from the one serialized scalar element. [Keep literal Rust scalar count=1;
   preserve the 28 differences as failures rather than adjusting the oracle to native results. A normal-speed
   third original run with explicit scalar metadata and a current40 control are planned to isolate pacing.]
+
+  **HG7 measurement update:** vv4-normal3-e78179-1815, normal speed through 2032-01-01, clean/ref0,
+  reproduces 70 cases/420 checks/392 exact/28 HG7 differences/0 unexplained/0 refusals/71 clones.
+  Every tested native scalar type 0x01 through 0x0E reports its matching type and GetCount=0 (Rust count=1).
+  This is not a turbo-only difference. The full scripted save succeeds. No core semantics were changed.
