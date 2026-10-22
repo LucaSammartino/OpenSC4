@@ -43,7 +43,7 @@ The constructor (`0x00545F20`) builds a traffic automaton with occupant type `0x
 push (§2.4) and its collision timer, and sets the **default speed**: a uniform random integer between `T+0x18` and
 `T+0x1C` (tuning `0x4998C905`, shipped 15 and 20) × 1/3600, which also becomes the speed tween's target.
 
-`Init` (`0x005444F0`): on the first call only, slot 158 (not traced); then the traffic automaton's `Init`.
+`Init` (`0x005444F0`): on the first call only, virtual slot158; then the traffic automaton's `Init`. For the concrete pedestrian, the primary table at `0x00A9A718` maps slot158 to `0x00544620`: draw one uniform double in the range `T+0x120` to `T+0x124` from the automata RNG (`0x00B21D78`) and store the result as f32 at `+0x200`. The field's semantic name is not established; this specifies its value without guessing a name. Bounds are promoted from f32 to double before the draw. The first-call test is the state interface's slot5 at `this+4` (`0x005444F9`).
 
 ### 2.2 The animation tick (`0x00544580`)
 
@@ -214,3 +214,9 @@ See [questions/pedestrians.md](questions/pedestrians.md) (PN1–PN2).
    `0x21020000`; one of competence 0.5 has level 2, models `0x21030000` and `0x21040000`, and hoses with strength 1.
 3. Entering state 4 sets flags 2 and `0x2000` and clears `0x4000`; entering state 7 changes no flag.
 4. Two pedestrians 0.005 apart: the first one's test gives the second a push with |x|, |z| ≤ 0.5 and y = 0.
+
+### PR review conformance: initial random parameter
+
+For concrete `cSC4Pedestrian` with equal tuning bounds -0.5 (the shipped values of property `0x29DD40C1`), first initialization performs one double-range draw and stores f32 -0.5 at+0x200 before the base Init. An already initialized object skips this draw. For unequal bounds, use the existing RNG contract; do not substitute the default-speed integer draw from section2.1. Overrides of slot158 retain their own behavior. The identity is byte-proved by the constructor table store `0x00545F4A`, table entry+0x278, and body `0x00544620`-`0x0054464A`.
+
+The primary tables of `cSC4PedestrianOneShot` (`0x00A9AB50`, first entry `0x00544780`) and `cSC4SimFireCrew` (`0x00A9B488`, first entry `0x00547920`) also map slot158 to `0x00544620`, so the same initial-parameter operation applies to these two inherited calls.

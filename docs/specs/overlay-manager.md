@@ -87,7 +87,7 @@ marks it changed (`0x00737D40`); a round decal (slot 7) also redisplays the terr
 | 17 | `0x00737F00` | `SetAlpha(handle, a)` | `+0x9C`; a static manager only redraws when a reaches 0 or 1 or moves by more than the step `0x00AB39A0` |
 | 18 | `0x00738010` | `SetColor(handle, rgb)` | `+0xA0` |
 | 19 | `0x007380C0` | `SetDrawState(handle, index)` | `+0x08` |
-| 20 | `0x007364F0` | — | not read *[inferred: a setter like 19]* |
+| 20 | `0x007364F0` | `EnableSelfLighting(handle, on)` (descriptive name) | when the low bit of `on` is set, OR flag bit 6; false does not clear it; groups recurse over all eight parts |
 | 21 | `0x00738160` | `SetTextureScale(handle, size, offset)` | the matrix becomes a scale of 1 ÷ size with the second axis flipped and an offset of 1 + offset ÷ size; flag bit 5 |
 | 22–26 | `0x00736580`–`0x00736720` | getters | an overlay field; the alpha (`+0x9C`, 0 for none); the colour (`+0xA0`); the draw state byte; shown |
 | 27 | `0x007352A0` | `GetStatsString(out)` | "%d decals, %d shadows" from the counters |
@@ -174,3 +174,9 @@ the add calls' last arguments; slot 20 and the add forms of slots 8, 9 and 11; w
 4. **Texture scale:** `SetTextureScale(h, 16, 0)` sets flag bit 5 and a matrix scale of 1/16.
 5. **Snapshot:** a dynamic manager draws nothing while `kRenderSnapshot` is on.
 6. **Stats:** after drawing 3 decals and 2 shadows, slot 27 gives "3 decals, 2 shadows".
+
+### PR review: slot 20 self-lighting
+
+The body at `0x007364F0` ignores handle -1, resolves indirect handles as in section2.1, and applies itself recursively to all eight indices of a group. For a resolved overlay it sets flag bit6 only when the low bit of the second argument is1. It does not clear the bit for0, and makes no redraw call. This is a two-argument member call, callee pops8; no return value is specified. Evidence: branches at `0x007364FA`, `0x00736515`, recursion at `0x00736548`, bit test at `0x00736558` and flag update at `0x0073656F`.
+
+Conformance: starting with flags0, calls with on=0,1,0 yield flags0,0x40,0x40. A group applies that same operation to its eight indices; -1 leaves every record unchanged.
