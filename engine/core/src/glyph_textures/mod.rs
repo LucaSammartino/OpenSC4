@@ -12,6 +12,7 @@
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicU32, Ordering as AtomicOrdering};
 
 use crate::fonts::FontRef;
 
@@ -23,6 +24,13 @@ pub const SERVICE_ID: u32 = 0xABEB_5E37;
 pub const SERVICE_PRIORITY: i32 = -2_000_000;
 pub const RESTORE_TEXTURES: u32 = 0x8ACA_A95F;
 pub const DEFAULT_CACHE_BYTES: u32 = 1_048_576;
+
+static CACHE_MISSES: AtomicU32 = AtomicU32::new(0);
+
+/// §1.4's process-wide miss counter (including failed render attempts).
+pub fn global_cache_misses() -> u32 {
+    CACHE_MISSES.load(AtomicOrdering::Relaxed)
+}
 
 /// Owned foreign font reference. Dropping this value releases precisely the
 /// reference transferred by lookup; the provider must not transfer a borrowed one.
@@ -290,8 +298,7 @@ impl<P: TextureServices> GlyphTextureManager<P> {
         self.last_sweep
     }
 
-    /// The native counter is process-wide; an adapter must accumulate this delta
-    /// across managers. This portable owner records only its own misses.
+    /// This manager's contribution to [`global_cache_misses`].
     pub fn cache_misses(&self) -> u32 {
         self.misses
     }
@@ -394,7 +401,9 @@ impl<P: TextureServices> GlyphTextureManager<P> {
             Err(index) => index,
         };
         let font = self.services.lookup_font(key.font_id)?;
-        let rendered = self.services.render_text(&font, &key.character, Some([0.0, 0.0, 1.0, 1.0]))?;
+        let rendered = self
+            .services
+            .render_text(&font, &key.character, Some([0.0, 0.0, 1.0, 1.0]))?;
         // GT3: extents divided by the renderer's full dimensions before the
         // independent u16 field assignments; zero follows IEEE division.
         let [w, h] = rendered.texture_size;
@@ -452,7 +461,10 @@ impl<P: TextureServices> GlyphTextureManager<P> {
             if length == 0 || length > text.len() - offset {
                 break;
             }
-            let key = GlyphKey { character: text[offset..offset + length].to_vec(), font_id };
+            let key = GlyphKey {
+                character: text[offset..offset + length].to_vec(),
+                font_id,
+            };
             if let Some(id) = self.get_glyph_texture(key) {
                 out.push(id);
             }
@@ -467,9 +479,21 @@ impl<P: TextureServices> GlyphTextureManager<P> {
         // GT6: null font behavior is not published. Return a typed error without
         // rendering or modifying owner state; successful calls still always true.
         let font = self.services.lookup_font(font_id).ok_or(StringError::MissingFont)?;
-        let size = [padded_dimension(font.text_width(text))?, padded_dimension(font.height())?];
+        let size = [
+            padded_dimension(font.text_width(text))?,
+            padded_dimension(font.height())?,
+        ];
         let id = StringId(self.allocate_id());
-        self.strings.insert(id, StringTextureInfo { size, refs: 1, manager: true, text: text.to_vec(), font });
+        self.strings.insert(
+            id,
+            StringTextureInfo {
+                size,
+                refs: 1,
+                manager: true,
+                text: text.to_vec(),
+                font,
+            },
+        );
         self.refs = self.refs.wrapping_add(1);
         Ok(id)
     }
@@ -503,11 +527,16 @@ impl<P: TextureServices> GlyphTextureManager<P> {
         if let Some(index) = self.cache.iter().position(|entry| entry.owner == id) {
             let mut entry = self.cache.remove(index);
             entry.used = true;
-            let handle = entry.binding.first_texture();
             self.cache.push(entry);
-            return handle;
+            return self
+                .cache
+                .last()
+                .expect("just appended cache hit")
+                .binding
+                .first_texture();
         }
         self.misses = self.misses.wrapping_add(1);
+        CACHE_MISSES.fetch_add(1, AtomicOrdering::Relaxed);
         let info = &self.strings[&id];
         let Some(rendered) = self.services.render_text(&info.font, &info.text, None) else {
             return 0;
@@ -516,11 +545,19 @@ impl<P: TextureServices> GlyphTextureManager<P> {
         // whether native accounting instead uses render outputs is unpublished.
         let [w, h] = info.size();
         let bytes = w.wrapping_mul(h).wrapping_mul(4);
-        let handle = rendered.binding.first_texture();
         self.add_ref_string(id);
-        self.cache.push(CacheEntry { binding: rendered.binding, owner: id, bytes, used: true });
+        self.cache.push(CacheEntry {
+            binding: rendered.binding,
+            owner: id,
+            bytes,
+            used: true,
+        });
         self.bytes = self.bytes.wrapping_add(bytes);
-        handle
+        self.cache
+            .last()
+            .expect("just appended cache miss")
+            .binding
+            .first_texture()
     }
 
     fn drop_cache_entry(&mut self, index: usize) {
@@ -563,11 +600,10 @@ impl<P: TextureServices> GlyphTextureManager<P> {
                     let info = self.glyphs.get_mut(id).expect("live glyph map reference");
                     drop(info.binding.take()); // Must precede lookup and re-render.
                     if let Some(font) = self.services.lookup_font(info.key.font_id) {
-                        if let Some(rendered) = self.services.render_text(
-                            &font,
-                            &info.key.character,
-                            Some([0.0, 0.0, 1.0, 1.0]),
-                        ) {
+                        if let Some(rendered) =
+                            self.services
+                                .render_text(&font, &info.key.character, Some([0.0, 0.0, 1.0, 1.0]))
+                        {
                             // §1.6 only replaces the binding. GT5 asks if restore
                             // also writes dimensions/UVs, or retains on failure.
                             info.binding = Some(rendered.binding);

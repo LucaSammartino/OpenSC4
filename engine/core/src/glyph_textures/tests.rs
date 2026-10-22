@@ -101,7 +101,10 @@ impl TextureServices for Services {
         }
         self.serial += 1;
         Some(RenderedText {
-            binding: Binding { handle: self.serial, log: self.log.clone() },
+            binding: Binding {
+                handle: self.serial,
+                log: self.log.clone(),
+            },
             texture_size: self.texture_size,
             glyph_size: self.glyph_size,
             extents: self.extents,
@@ -115,7 +118,8 @@ impl TextureServices for Services {
 
     fn char_length(&self, remaining: &[u8]) -> usize {
         // A test code page with a two-byte lead; deliberately not UTF-8.
-        self.char_length_override.unwrap_or(if remaining[0] == 0x81 { 2 } else { 1 })
+        self.char_length_override
+            .unwrap_or(if remaining[0] == 0x81 { 2 } else { 1 })
     }
 
     fn binding_factory_exists(&self) -> bool {
@@ -142,7 +146,10 @@ fn manager() -> GlyphTextureManager<Services> {
 }
 
 fn key(character: &[u8], font_id: u32) -> GlyphKey {
-    GlyphKey { character: character.to_vec(), font_id }
+    GlyphKey {
+        character: character.to_vec(),
+        font_id,
+    }
 }
 
 fn log(m: &GlyphTextureManager<Services>) -> Vec<String> {
@@ -214,7 +221,10 @@ fn glyph_outputs_sizes_uv_and_case_font_order() {
     m.get_glyph_texture(key(b"a", 2)).unwrap();
     m.get_glyph_texture(key(b"A", 9)).unwrap();
     m.get_glyph_texture(key(b"A", 1)).unwrap();
-    assert_eq!(m.glyph_keys().cloned().collect::<Vec<_>>(), [key(b"A", 1), key(b"A", 9), key(b"Z", 7), key(b"a", 2)]);
+    assert_eq!(
+        m.glyph_keys().cloned().collect::<Vec<_>>(),
+        [key(b"A", 1), key(b"A", 9), key(b"Z", 7), key(b"a", 2)]
+    );
     assert!(log(&m).iter().any(|s| s.ends_with("Some([0.0, 0.0, 1.0, 1.0])")));
 }
 
@@ -254,7 +264,10 @@ fn character_array_appends_code_page_characters_and_skips_failure() {
 
 #[test]
 fn published_size_vectors_and_padded_dimension_boundaries() {
-    for line in include_str!("size-vectors.txt").lines().filter(|s| !s.starts_with('#') && !s.is_empty()) {
+    for line in include_str!("size-vectors.txt")
+        .lines()
+        .filter(|s| !s.starts_with('#') && !s.is_empty())
+    {
         let v: Vec<u32> = line.split_whitespace().map(|s| s.parse().unwrap()).collect();
         let mut m = manager();
         m.services.width = v[0];
@@ -264,7 +277,10 @@ fn published_size_vectors_and_padded_dimension_boundaries() {
         assert_eq!(m.services.serial, 0);
     }
     assert_eq!(padded_dimension(u32::MAX), Err(StringError::UnrepresentablePowerOfTwo));
-    assert_eq!(padded_dimension(0x8000_0000), Err(StringError::UnrepresentablePowerOfTwo));
+    assert_eq!(
+        padded_dimension(0x8000_0000),
+        Err(StringError::UnrepresentablePowerOfTwo)
+    );
 }
 
 #[test]
@@ -298,7 +314,10 @@ fn failed_string_render_retries_and_typed_precreation_failures() {
     assert_eq!(m.get_cached_string_texture(9, b"x"), Err(StringError::MissingFont));
     assert_eq!(m.reference_count(), 1);
     m.services.width = u32::MAX;
-    assert_eq!(m.get_cached_string_texture(1, b"x"), Err(StringError::UnrepresentablePowerOfTwo));
+    assert_eq!(
+        m.get_cached_string_texture(1, b"x"),
+        Err(StringError::UnrepresentablePowerOfTwo)
+    );
     assert_eq!(m.reference_count(), 1);
     m.services.width = 61;
     let s = m.get_cached_string_texture(1, b"x").unwrap();
@@ -406,8 +425,14 @@ fn restore_clears_cache_then_releases_glyphs_in_key_order_before_rendering() {
     assert_eq!((m.cached_entries(), m.cached_bytes()), (0, 0));
     assert!(m.string(s).is_none());
     let events = log(&m);
-    assert_eq!(&events[..3], ["binding-release:3", "font-release:7", "binding-release:2"]);
-    assert_eq!(&events[3..5], ["font-lookup:7", "render:7:[65]:Some([0.0, 0.0, 1.0, 1.0])"]);
+    assert_eq!(
+        &events[..3],
+        ["binding-release:3", "font-release:7", "binding-release:2"]
+    );
+    assert_eq!(
+        &events[3..5],
+        ["font-lookup:7", "render:7:[65]:Some([0.0, 0.0, 1.0, 1.0])"]
+    );
     assert_eq!(m.glyph(a).unwrap().binding().unwrap().first_texture(), 4);
     assert_eq!(m.glyph(z).unwrap().binding().unwrap().first_texture(), 5);
     let serial = m.services.serial;
@@ -487,4 +512,20 @@ fn getters_are_send_sync_when_the_foreign_primitives_are() {
     send_sync::<GlyphTextureManager<Services>>();
     send_sync::<GlyphTextureInfo<Binding>>();
     send_sync::<StringTextureInfo<Font>>();
+}
+
+#[test]
+fn misses_increment_process_counter_for_success_and_failure_only() {
+    let mut m = manager();
+    let a = m.get_cached_string_texture(1, b"a").unwrap();
+    let b = m.get_cached_string_texture(1, b"b").unwrap();
+    m.services.failed_text.push(b"b".to_vec());
+    let before = global_cache_misses();
+    assert_eq!(m.string_texture(a), 1);
+    assert_eq!(m.string_texture(a), 1);
+    assert_eq!(m.string_texture(b), 0);
+    assert_eq!(m.cache_misses(), 2);
+    // Other tests may increment the process counter concurrently; this owner's
+    // exact contribution is two, and the global value includes at least that.
+    assert!(global_cache_misses() >= before + 2);
 }
