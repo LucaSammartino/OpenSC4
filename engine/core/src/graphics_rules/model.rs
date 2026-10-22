@@ -46,9 +46,19 @@ impl Properties for RenderProperties {
         i32::try_from(index).is_ok_and(|i| self.set_float(i, value))
     }
     fn dump(&self) -> Vec<(String, PropertyValue)> {
-        self.bool_properties().iter().map(|p| (p.name().to_owned(), PropertyValue::Bool(*p.value())))
-            .chain(self.int_properties().iter().map(|p| (p.name().to_owned(), PropertyValue::Int(*p.value()))))
-            .chain(self.float_properties().iter().map(|p| (p.name().to_owned(), PropertyValue::Float(*p.value()))))
+        self.bool_properties()
+            .iter()
+            .map(|p| (p.name().to_owned(), PropertyValue::Bool(*p.value())))
+            .chain(
+                self.int_properties()
+                    .iter()
+                    .map(|p| (p.name().to_owned(), PropertyValue::Int(*p.value()))),
+            )
+            .chain(
+                self.float_properties()
+                    .iter()
+                    .map(|p| (p.name().to_owned(), PropertyValue::Float(*p.value()))),
+            )
             .collect()
     }
 }
@@ -63,9 +73,15 @@ pub struct PropertySet {
 impl PropertySet {
     /// Do not coalesce writes or stop after a failed setter (§1).
     pub fn apply(&self, properties: &mut impl Properties) {
-        for &(i, v) in &self.bools { properties.set_bool(i, v); }
-        for &(i, v) in &self.ints { properties.set_int(i, v); }
-        for &(i, v) in &self.floats { properties.set_float(i, v); }
+        for &(i, v) in &self.bools {
+            properties.set_bool(i, v);
+        }
+        for &(i, v) in &self.ints {
+            properties.set_int(i, v);
+        }
+        for &(i, v) in &self.floats {
+            properties.set_float(i, v);
+        }
     }
 }
 
@@ -94,9 +110,17 @@ pub struct Rule {
 impl Default for Rule {
     fn default() -> Self {
         Self {
-            name: "unknown".into(), depth: 0, partial: false, any: false,
-            flag_mask: 0, flag_expected: 0, lower: Vec::new(), upper: Vec::new(),
-            positive: Vec::new(), negative: Vec::new(), properties: PropertySet::default(),
+            name: "unknown".into(),
+            depth: 0,
+            partial: false,
+            any: false,
+            flag_mask: 0,
+            flag_expected: 0,
+            lower: Vec::new(),
+            upper: Vec::new(),
+            positive: Vec::new(),
+            negative: Vec::new(),
+            properties: PropertySet::default(),
             recommendations: Vec::new(),
         }
     }
@@ -115,7 +139,9 @@ pub struct MatchError;
 pub struct AsciiLowercase;
 impl Lowercase for AsciiLowercase {
     fn lowercase(&self, bytes: &[u8]) -> Result<Vec<u8>, MatchError> {
-        if !bytes.is_ascii() { return Err(MatchError); }
+        if !bytes.is_ascii() {
+            return Err(MatchError);
+        }
         Ok(bytes.to_ascii_lowercase())
     }
 }
@@ -126,15 +152,23 @@ pub fn wildcard_match(value: &str, pattern: &str, strings: &impl Lowercase) -> R
     let pattern = strings.lowercase(pattern.as_bytes())?;
     let (mut v, mut p, mut star) = (0, 0, None);
     while v < value.len() {
-        if p < pattern.len() && (pattern[p] == b'?' || pattern[p] == value[v]) {
-            v += 1; p += 1;
+        if p < pattern.len() && pattern[p] != b'*' && (pattern[p] == b'?' || pattern[p] == value[v]) {
+            v += 1;
+            p += 1;
         } else if p < pattern.len() && pattern[p] == b'*' {
-            star = Some((p, v)); p += 1;
+            star = Some((p, v));
+            p += 1;
         } else if let Some((s, end)) = star {
-            v = end + 1; p = s + 1; star = Some((s, v));
-        } else { return Ok(false); }
+            v = end + 1;
+            p = s + 1;
+            star = Some((s, v));
+        } else {
+            return Ok(false);
+        }
     }
-    while p < pattern.len() && pattern[p] == b'*' { p += 1; }
+    while p < pattern.len() && pattern[p] == b'*' {
+        p += 1;
+    }
     Ok(p == pattern.len())
 }
 
@@ -142,34 +176,54 @@ impl Rule {
     pub fn matches(&self, env: &super::Environment, strings: &impl Lowercase) -> Result<bool, MatchError> {
         let agrees = (env.flags ^ self.flag_expected) & self.flag_mask;
         if self.any {
-            if agrees != self.flag_mask { return Ok(true); }
+            if agrees != self.flag_mask {
+                return Ok(true);
+            }
             for &(i, bound) in &self.lower {
-                if f64::from(env.numbers[i]) >= f64::from(bound) { return Ok(true); }
+                if f64::from(env.numbers[i]) >= f64::from(bound) {
+                    return Ok(true);
+                }
             }
             for &(i, bound) in &self.upper {
-                if f64::from(env.numbers[i]) <= f64::from(bound) { return Ok(true); }
+                if f64::from(env.numbers[i]) <= f64::from(bound) {
+                    return Ok(true);
+                }
             }
             for (i, pattern) in &self.positive {
-                if wildcard_match(&env.strings[*i], pattern, strings)? { return Ok(true); }
+                if wildcard_match(&env.strings[*i], pattern, strings)? {
+                    return Ok(true);
+                }
             }
             for (i, pattern) in &self.negative {
-                if !wildcard_match(&env.strings[*i], pattern, strings)? { return Ok(true); }
+                if !wildcard_match(&env.strings[*i], pattern, strings)? {
+                    return Ok(true);
+                }
             }
             return Ok(false);
         }
-        if agrees != 0 { return Ok(false); }
+        if agrees != 0 {
+            return Ok(false);
+        }
         // GR5: literal §4.2 behavior; V1 contradicts it. NaN passes all mode.
         for &(i, bound) in &self.lower {
-            if f64::from(env.numbers[i]) < f64::from(bound) { return Ok(false); }
+            if f64::from(env.numbers[i]) < f64::from(bound) {
+                return Ok(false);
+            }
         }
         for &(i, bound) in &self.upper {
-            if f64::from(env.numbers[i]) > f64::from(bound) { return Ok(false); }
+            if f64::from(env.numbers[i]) > f64::from(bound) {
+                return Ok(false);
+            }
         }
         for (i, pattern) in &self.positive {
-            if !wildcard_match(&env.strings[*i], pattern, strings)? { return Ok(false); }
+            if !wildcard_match(&env.strings[*i], pattern, strings)? {
+                return Ok(false);
+            }
         }
         for (i, pattern) in &self.negative {
-            if wildcard_match(&env.strings[*i], pattern, strings)? { return Ok(false); }
+            if wildcard_match(&env.strings[*i], pattern, strings)? {
+                return Ok(false);
+            }
         }
         Ok(true)
     }
@@ -187,7 +241,9 @@ pub(super) fn grow<T: Default + Clone>(values: &mut Vec<T>, index: u32) -> Resul
     // GR6: reject index+1 overflow rather than reproduce undefined allocation behavior.
     let count = index.checked_add(1).ok_or("Index overflow")? as usize;
     if count > values.len() {
-        values.try_reserve(count - values.len()).map_err(|_| "Allocation failed")?;
+        values
+            .try_reserve(count - values.len())
+            .map_err(|_| "Allocation failed")?;
         values.resize(count, T::default());
     }
     Ok(())

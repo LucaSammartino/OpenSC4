@@ -5,9 +5,9 @@
 //! expression/lexical grammar. Unsupported expressions fail rather than being
 //! evaluated by an OS provider or an original rule-manager callback.
 
-use std::collections::BTreeMap;
 use super::environment::{FLAGS, NUMBERS, STRINGS};
 use super::model::{grow, threshold_from_real, OptionGroup, Properties, PropertySet, Rule};
+use std::collections::BTreeMap;
 
 /// Filesystem acquisition only. None means absent; Err means acquisition failed.
 pub trait ScriptFiles {
@@ -56,32 +56,55 @@ impl<'a, P: Properties> RuleParser<'a, P> {
     pub fn new(properties: &'a P, vendor_id: u32, device_id: u32, prefs_first_time: bool) -> Self {
         let mut symbols = BTreeMap::new();
         symbols.insert("prefsFirstTime".into(), prefs_first_time.to_string());
-        Self { properties, output: ParsedRules::default(), blocks: Vec::new(), symbols,
-            vendor_id, device_id, active_vendor: None, include_stack: Vec::new() }
+        Self {
+            properties,
+            output: ParsedRules::default(),
+            blocks: Vec::new(),
+            symbols,
+            vendor_id,
+            device_id,
+            active_vendor: None,
+            include_stack: Vec::new(),
+        }
     }
 
     /// Both root paths are acquired before command parsing starts (§3).
-    pub fn parse_files(mut self, files: &mut impl ScriptFiles, rules_path: &str, options_path: &str) -> Result<ParsedRules, ParseError> {
+    pub fn parse_files(
+        mut self,
+        files: &mut impl ScriptFiles,
+        rules_path: &str,
+        options_path: &str,
+    ) -> Result<ParsedRules, ParseError> {
         let rules = files.read(rules_path);
         let options = files.read(options_path);
-        let rules = rules.map_err(|message| error(rules_path, 0, message))?
+        let rules = rules
+            .map_err(|message| error(rules_path, 0, message))?
             .ok_or_else(|| error(rules_path, 0, "Missing rules file"))?;
         let options = options.map_err(|message| error(options_path, 0, message))?;
         // GR4: registration 1/0 semantics are not specified. The literal optional
         // user file is skipped when absent; the primary rules file is required.
         self.source(files, rules_path, &rules)?;
-        if let Some(options) = options { self.source(files, options_path, &options)?; }
+        if let Some(options) = options {
+            self.source(files, options_path, &options)?;
+        }
         self.finish(options_path)
     }
 
     /// In-memory root script, with the same internal parser and include handling.
-    pub fn parse_text(mut self, files: &mut impl ScriptFiles, path: &str, text: &str) -> Result<ParsedRules, ParseError> {
+    pub fn parse_text(
+        mut self,
+        files: &mut impl ScriptFiles,
+        path: &str,
+        text: &str,
+    ) -> Result<ParsedRules, ParseError> {
         self.source(files, path, text)?;
         self.finish(path)
     }
 
     fn finish(self, path: &str) -> Result<ParsedRules, ParseError> {
-        if !self.blocks.is_empty() { return Err(error(path, 0, "Unclosed block")); }
+        if !self.blocks.is_empty() {
+            return Err(error(path, 0, "Unclosed block"));
+        }
         Ok(self.output)
     }
 
@@ -100,17 +123,25 @@ impl<'a, P: Properties> RuleParser<'a, P> {
         for (line, text) in text.split('\n').enumerate() {
             let line = line + 1;
             let mut args = tokenize(text).map_err(|m| error(path, line, m))?;
-            if args.is_empty() { continue; }
+            if args.is_empty() {
+                continue;
+            }
             // GR4: only the explicitly described whole-token $name form.
             for arg in &mut args[1..] {
                 if let Some(name) = arg.strip_prefix('$') {
-                    *arg = self.symbols.get(name).cloned().ok_or_else(|| error(path, line, "Unknown symbol"))?;
+                    *arg = self
+                        .symbols
+                        .get(name)
+                        .cloned()
+                        .ok_or_else(|| error(path, line, "Unknown symbol"))?;
                 }
             }
             if args[0] == "sinclude" {
                 arity(&args, 2).map_err(|m| error(path, line, m))?;
                 let include_path = relative_path(path, &args[1]);
-                let included = files.read(&include_path).map_err(|m| error(path, line, m))?
+                let included = files
+                    .read(&include_path)
+                    .map_err(|m| error(path, line, m))?
                     .ok_or_else(|| error(path, line, "Missing included file"))?;
                 self.source(files, &include_path, &included)?;
             } else {
@@ -133,7 +164,9 @@ impl<'a, P: Properties> RuleParser<'a, P> {
             "rule" | "partialRule" => self.begin_rule(a)?,
             "optionGroup" => {
                 arity(a, 2)?;
-                if !self.blocks.is_empty() { return Err("Unexpected optionGroup".into()); }
+                if !self.blocks.is_empty() {
+                    return Err("Unexpected optionGroup".into());
+                }
                 let group = unsigned(&a[1])?;
                 grow(&mut self.output.groups, group)?;
                 self.blocks.push(Block::Group { group, option: None });
@@ -141,7 +174,9 @@ impl<'a, P: Properties> RuleParser<'a, P> {
             "vendor" => self.begin_vendor(a)?,
             "card" => {
                 arity(a, 3)?;
-                if !matches!(self.blocks.last(), Some(Block::Vendor)) { return Err("Unexpected card".into()); }
+                if !matches!(self.blocks.last(), Some(Block::Vendor)) {
+                    return Err("Unexpected card".into());
+                }
                 let device = unsigned(&a[1])?;
                 if self.output.card_identity.is_none() && device == self.device_id {
                     if let Some(vendor) = &self.active_vendor {
@@ -158,7 +193,9 @@ impl<'a, P: Properties> RuleParser<'a, P> {
                 }
                 Some(Block::Rule(index)) => {
                     arity(a, 3)?;
-                    self.output.rules[*index].recommendations.push((unsigned(&a[1])?, unsigned(&a[2])?));
+                    self.output.rules[*index]
+                        .recommendations
+                        .push((unsigned(&a[1])?, unsigned(&a[2])?));
                 }
                 _ => return Err("Unexpected option".into()),
             },
@@ -167,7 +204,10 @@ impl<'a, P: Properties> RuleParser<'a, P> {
                 let properties = self.properties;
                 let set = match self.blocks.last() {
                     Some(Block::Rule(index)) => &mut self.output.rules[*index].properties,
-                    Some(Block::Group { group, option: Some(option) }) => &mut self.output.groups[*group as usize].options[*option as usize],
+                    Some(Block::Group {
+                        group,
+                        option: Some(option),
+                    }) => &mut self.output.groups[*group as usize].options[*option as usize],
                     // §4.1 gives a structural precondition, no implicit option.
                     _ => return Err("Property requires a rule or selected option".into()),
                 };
@@ -178,23 +218,32 @@ impl<'a, P: Properties> RuleParser<'a, P> {
                 let bit = 1 << enum_index(&FLAGS, &a[1])?;
                 let rule = self.current_rule()?;
                 rule.flag_mask |= bit;
-                if a[0] == "has" { rule.flag_expected |= bit; }
-                else { rule.flag_expected &= !bit; }
+                if a[0] == "has" {
+                    rule.flag_expected |= bit;
+                } else {
+                    rule.flag_expected &= !bit;
+                }
             }
             "atLeast" | "atMost" => {
                 arity(a, 3)?;
                 let index = enum_index(&NUMBERS, &a[1])?;
                 let threshold = threshold_from_real(real(&a[2])?);
                 let rule = self.current_rule()?;
-                if a[0] == "atLeast" { rule.lower.push((index, threshold)); }
-                else { rule.upper.push((index, threshold)); }
+                if a[0] == "atLeast" {
+                    rule.lower.push((index, threshold));
+                } else {
+                    rule.upper.push((index, threshold));
+                }
             }
             "stringMatch" | "stringNotMatch" => {
                 arity(a, 3)?;
                 let index = enum_index(&STRINGS, &a[1])?;
                 let rule = self.current_rule()?;
-                if a[0] == "stringMatch" { rule.positive.push((index, a[2].clone())); }
-                else { rule.negative.push((index, a[2].clone())); }
+                if a[0] == "stringMatch" {
+                    rule.positive.push((index, a[2].clone()));
+                } else {
+                    rule.negative.push((index, a[2].clone()));
+                }
             }
             _ => return Err("Unknown command".into()),
         }
@@ -215,7 +264,11 @@ impl<'a, P: Properties> RuleParser<'a, P> {
         let mut rule = Rule {
             depth: self.blocks.len() as u32,
             partial: a[0] == "partialRule",
-            name: self.output.rules.last().map_or_else(|| "unknown".into(), |r| format!("{}>", r.name)),
+            name: self
+                .output
+                .rules
+                .last()
+                .map_or_else(|| "unknown".into(), |r| format!("{}>", r.name)),
             ..Rule::default()
         };
         let mut named = false;
@@ -223,7 +276,10 @@ impl<'a, P: Properties> RuleParser<'a, P> {
             match arg.as_str() {
                 "-partial" => rule.partial = true,
                 "-any" => rule.any = true,
-                _ if !named && !arg.starts_with('-') => { rule.name.clone_from(arg); named = true; }
+                _ if !named && !arg.starts_with('-') => {
+                    rule.name.clone_from(arg);
+                    named = true;
+                }
                 _ => return Err("Bad rule arguments".into()),
             }
         }
@@ -233,15 +289,23 @@ impl<'a, P: Properties> RuleParser<'a, P> {
     }
 
     fn begin_vendor(&mut self, a: &[String]) -> Result<(), String> {
-        if a.len() < 3 { return Err("Bad argument count".into()); }
-        if !self.blocks.is_empty() { return Err("Unexpected vendor".into()); }
+        if a.len() < 3 {
+            return Err("Bad argument count".into());
+        }
+        if !self.blocks.is_empty() {
+            return Err("Unexpected vendor".into());
+        }
         if self.output.card_identity.is_none() {
             self.active_vendor = None;
             for id in &a[2..] {
-                if unsigned(id)? == self.vendor_id { self.active_vendor = Some(a[1].clone()); }
+                if unsigned(id)? == self.vendor_id {
+                    self.active_vendor = Some(a[1].clone());
+                }
             }
         } else {
-            for id in &a[2..] { unsigned(id)?; }
+            for id in &a[2..] {
+                unsigned(id)?;
+            }
         }
         self.blocks.push(Block::Vendor);
         Ok(())
@@ -249,33 +313,52 @@ impl<'a, P: Properties> RuleParser<'a, P> {
 }
 
 fn error(path: &str, line: usize, message: impl Into<String>) -> ParseError {
-    ParseError { path: path.to_owned(), line, message: message.into() }
+    ParseError {
+        path: path.to_owned(),
+        line,
+        message: message.into(),
+    }
 }
 
 fn arity(a: &[String], expected: usize) -> Result<(), String> {
-    if a.len() == expected { Ok(()) } else { Err("Bad argument count".into()) }
+    if a.len() == expected {
+        Ok(())
+    } else {
+        Err("Bad argument count".into())
+    }
 }
 
 fn enum_index(names: &[&str], name: &str) -> Result<usize, String> {
-    names.iter().position(|&n| n == name).ok_or_else(|| format!("Unknown enum: {name}"))
+    names
+        .iter()
+        .position(|&n| n == name)
+        .ok_or_else(|| format!("Unknown enum: {name}"))
 }
 
 fn unsigned(s: &str) -> Result<u32, String> {
     // GR4: decimal plus the hexadecimal literal form in published V9.
     if let Some(hex) = s.strip_prefix("0x") {
-        if hex.is_empty() || !hex.bytes().all(|b| b.is_ascii_hexdigit()) { return Err("Bad integer".into()); }
+        if hex.is_empty() || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err("Bad integer".into());
+        }
         u32::from_str_radix(hex, 16).map_err(|_| "Bad integer".into())
     } else {
-        if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) { return Err("Bad integer".into()); }
+        if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
+            return Err("Bad integer".into());
+        }
         s.parse().map_err(|_| "Bad integer".into())
     }
 }
 
 fn signed(s: &str) -> Result<i32, String> {
     // GR4: literal signed decimals, and unsigned hex bit patterns, only.
-    if s.starts_with("0x") { return unsigned(s).map(|n| n as i32); }
+    if s.starts_with("0x") {
+        return unsigned(s).map(|n| n as i32);
+    }
     let digits = s.strip_prefix(['-', '+']).unwrap_or(s);
-    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) { return Err("Bad integer".into()); }
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return Err("Bad integer".into());
+    }
     s.parse().map_err(|_| "Bad integer".into())
 }
 
@@ -284,32 +367,54 @@ pub fn real(s: &str) -> Result<f64, String> {
     let b = s.as_bytes();
     let mut p = usize::from(b.first().is_some_and(|c| *c == b'+' || *c == b'-'));
     let mut digits = 0;
-    while p < b.len() && b[p].is_ascii_digit() { p += 1; digits += 1; }
+    while p < b.len() && b[p].is_ascii_digit() {
+        p += 1;
+        digits += 1;
+    }
     if p < b.len() && b[p] == b'.' {
         p += 1;
-        while p < b.len() && b[p].is_ascii_digit() { p += 1; digits += 1; }
+        while p < b.len() && b[p].is_ascii_digit() {
+            p += 1;
+            digits += 1;
+        }
     }
-    if digits == 0 { return Err("Bad real number".into()); }
+    if digits == 0 {
+        return Err("Bad real number".into());
+    }
     if p < b.len() && (b[p] == b'e' || b[p] == b'E') {
         p += 1;
-        if p < b.len() && (b[p] == b'+' || b[p] == b'-') { p += 1; }
+        if p < b.len() && (b[p] == b'+' || b[p] == b'-') {
+            p += 1;
+        }
         let start = p;
-        while p < b.len() && b[p].is_ascii_digit() { p += 1; }
-        if start == p { return Err("Bad real number".into()); }
+        while p < b.len() && b[p].is_ascii_digit() {
+            p += 1;
+        }
+        if start == p {
+            return Err("Bad real number".into());
+        }
     }
-    if p != b.len() { return Err("Bad real number".into()); }
+    if p != b.len() {
+        return Err("Bad real number".into());
+    }
     s.parse().map_err(|_| "Bad real number".into())
 }
 
 fn add_property(set: &mut PropertySet, properties: &impl Properties, name: &str, value: &str) -> Result<(), String> {
     if let Some(index) = properties.find_bool(name) {
-        let value = match value { "true" => true, "false" => false, _ => return Err("Bad boolean".into()) };
+        let value = match value {
+            "true" => true,
+            "false" => false,
+            _ => return Err("Bad boolean".into()),
+        };
         set.bools.push((index, value));
     } else if let Some(index) = properties.find_int(name) {
         set.ints.push((index, signed(value)?));
     } else if let Some(index) = properties.find_float(name) {
         set.floats.push((index, real(value)? as f32));
-    } else { return Err("Unknown render property".into()); }
+    } else {
+        return Err("Unknown render property".into());
+    }
     Ok(())
 }
 
@@ -319,8 +424,13 @@ fn tokenize(line: &str) -> Result<Vec<String>, String> {
     let mut chars = line.chars().peekable();
     let mut out = Vec::new();
     while let Some(&c) = chars.peek() {
-        if matches!(c, ' ' | '\t' | '\r') { chars.next(); continue; }
-        if c == '#' { break; }
+        if matches!(c, ' ' | '\t' | '\r') {
+            chars.next();
+            continue;
+        }
+        if c == '#' {
+            break;
+        }
         let mut word = String::new();
         if c == '"' {
             chars.next();
@@ -336,9 +446,14 @@ fn tokenize(line: &str) -> Result<Vec<String>, String> {
             }
         } else {
             while let Some(&c) = chars.peek() {
-                if matches!(c, ' ' | '\t' | '\r' | '#') { break; }
-                if c == '"' { return Err("Missing argument separator".into()); }
-                word.push(c); chars.next();
+                if matches!(c, ' ' | '\t' | '\r' | '#') {
+                    break;
+                }
+                if c == '"' {
+                    return Err("Missing argument separator".into());
+                }
+                word.push(c);
+                chars.next();
             }
         }
         out.push(word);
@@ -348,7 +463,9 @@ fn tokenize(line: &str) -> Result<Vec<String>, String> {
 
 pub(super) fn relative_path(current: &str, file: &str) -> String {
     // GR4: parent-relative literal paths; normalization/search policy is unspecified.
-    if file.starts_with(['/', '\\']) || file.as_bytes().get(1) == Some(&b':') { return file.to_owned(); }
+    if file.starts_with(['/', '\\']) || file.as_bytes().get(1) == Some(&b':') {
+        return file.to_owned();
+    }
     match current.rfind(['/', '\\']) {
         Some(p) => format!("{}{file}", &current[..=p]),
         None => file.to_owned(),
@@ -357,10 +474,16 @@ pub(super) fn relative_path(current: &str, file: &str) -> String {
 
 pub fn card_ids(version: &str) -> Result<(u32, u32), String> {
     let bytes = version.as_bytes();
-    if bytes.len() <= 26 { return Ok((0, 0)); }
+    if bytes.len() <= 26 {
+        return Ok((0, 0));
+    }
     let parse = |part| {
         // GR6: malformed hexadecimal returns an error, not a guessed PCI ID.
-        std::str::from_utf8(part).ok().and_then(|s| u32::from_str_radix(s, 16).ok()).ok_or_else(|| "Bad card ID".to_owned())
+        std::str::from_utf8(part)
+            .ok()
+            .filter(|s| s.bytes().all(|b| b.is_ascii_hexdigit()))
+            .and_then(|s| u32::from_str_radix(s, 16).ok())
+            .ok_or_else(|| "Bad card ID".to_owned())
     };
     Ok((parse(&bytes[8..12])?, parse(&bytes[22..26])?))
 }

@@ -1,9 +1,46 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Hardware/OS acquisition boundary and manager-owned conversions (§§2–2.1).
 
-pub const FLAGS: [&str; 7] = ["hardwareDriver", "DXT", "fullscreen", "MMX", "FPU", "backingStore", "forcedFSAA"];
-pub const NUMBERS: [&str; 11] = ["cpuSpeed", "memory", "freeMemory", "screenWidth", "screenHeight", "screenBPP", "videoMemory", "textureMemory", "textureStages", "bogoFPS", "bogoMPPS"];
-pub const STRINGS: [&str; 16] = ["userName", "appName", "version", "osVersion", "computerName", "CPU", "sglDriverName", "sglDriverVersion", "driverName", "driverVersion", "cardName", "cardVersion", "cardIdentity", "soundDriverName", "soundCardName", "buildType"];
+pub const FLAGS: [&str; 7] = [
+    "hardwareDriver",
+    "DXT",
+    "fullscreen",
+    "MMX",
+    "FPU",
+    "backingStore",
+    "forcedFSAA",
+];
+pub const NUMBERS: [&str; 11] = [
+    "cpuSpeed",
+    "memory",
+    "freeMemory",
+    "screenWidth",
+    "screenHeight",
+    "screenBPP",
+    "videoMemory",
+    "textureMemory",
+    "textureStages",
+    "bogoFPS",
+    "bogoMPPS",
+];
+pub const STRINGS: [&str; 16] = [
+    "userName",
+    "appName",
+    "version",
+    "osVersion",
+    "computerName",
+    "CPU",
+    "sglDriverName",
+    "sglDriverVersion",
+    "driverName",
+    "driverVersion",
+    "cardName",
+    "cardVersion",
+    "cardIdentity",
+    "soundDriverName",
+    "soundCardName",
+    "buildType",
+];
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Environment {
@@ -13,7 +50,11 @@ pub struct Environment {
 }
 impl Default for Environment {
     fn default() -> Self {
-        Self { flags: 0, strings: std::array::from_fn(|_| String::new()), numbers: [0.0; 11] }
+        Self {
+            flags: 0,
+            strings: std::array::from_fn(|_| String::new()),
+            numbers: [0.0; 11],
+        }
     }
 }
 
@@ -58,7 +99,9 @@ impl Environment {
         self.numbers[0] = m.cpu_mhz as f32;
         self.numbers[1] = memory_mib(m.physical_bytes);
         self.numbers[2] = memory_mib(m.available_bytes);
-        for (out, value) in self.numbers[3..6].iter_mut().zip(m.screen) { *out = value as f32; }
+        for (out, value) in self.numbers[3..6].iter_mut().zip(m.screen) {
+            *out = value as f32;
+        }
         self.numbers[6] = (m.video_bytes >> 20) as f32;
         self.numbers[7] = (m.texture_bytes >> 20) as f32;
         self.numbers[8] = u32::from_le_bytes(m.driver_record[0x24..0x28].try_into().expect("four-byte field")) as f32;
@@ -78,5 +121,6 @@ impl Environment {
 
 /// Optional provider helper: alpha is ignored, exactly two colored samples suffice.
 pub fn forced_fsaa_from_samples(hardware: bool, samples: Option<&[[u8; 4]; 64]>) -> bool {
-    hardware && samples.is_some_and(|pixels| pixels.iter().filter(|p| p[..3].iter().any(|&c| c != 0)).take(2).count() > 1)
+    hardware
+        && samples.is_some_and(|pixels| pixels.iter().filter(|p| p[..3].iter().any(|&c| c != 0)).take(2).count() > 1)
 }
