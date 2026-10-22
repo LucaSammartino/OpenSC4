@@ -472,6 +472,42 @@ impl Material {
     }
 }
 
+// Parsed records feed the portable material owner without a second parser or
+// duplicating the reader's version/default/last-ID-zero decisions.
+impl fc4_core::textures_materials::MaterialRecord for Material {
+    fn stored_flags(&self) -> u32 {
+        self.stored_flags
+    }
+    fn alpha_func(&self) -> u8 {
+        self.alpha_func
+    }
+    fn depth_func(&self) -> u8 {
+        self.depth_func
+    }
+    fn src_blend(&self) -> u8 {
+        self.src_blend
+    }
+    fn dst_blend(&self) -> u8 {
+        self.dst_blend
+    }
+    fn alpha_threshold(&self) -> u16 {
+        self.alpha_threshold
+    }
+    fn texture_count(&self) -> usize {
+        self.texture_count
+    }
+    fn texture(&self, index: usize) -> fc4_core::textures_materials::MaterialTexture {
+        let source = &self.textures[index];
+        fc4_core::textures_materials::MaterialTexture {
+            id: source.id,
+            wrap_s: source.wrap_s,
+            wrap_t: source.wrap_t,
+            mag_filter: source.mag_filter,
+            min_filter: source.min_filter,
+        }
+    }
+}
+
 /// One animated mesh (§3.9): its four block indices per frame (all valid: an invalid one drops the mesh).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AnimMesh {
@@ -917,7 +953,7 @@ fn material(r: &mut Reader<'_>, version: Version) -> Result<Material> {
     };
     Ok(Material {
         stored_flags,
-        flags: (stored_flags & 0xFFFF) as u16 | material_flags::ALWAYS,
+        flags: fc4_core::textures_materials::material_flags(stored_flags),
         alpha_func,
         depth_func,
         src_blend,

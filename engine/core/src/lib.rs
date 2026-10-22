@@ -127,3 +127,4 @@ pub mod graphics_rules;
 pub mod lighting;
 pub mod view_utilities;
 pub mod glyph_textures;
+pub mod textures_materials;
