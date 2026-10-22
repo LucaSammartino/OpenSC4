@@ -217,7 +217,7 @@ generated index: the questions live one file per spec, so read only the file for
 | map-view | 4 | 0 | QV5 | questions/map-view.md |
 | model-instances | 2 | 0 | MI3 | questions/model-instances.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
-| mysims | 1 | 15 | MS17 | questions/mysims.md |
+| mysims | 0 | 16 | MS17 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
@@ -285,4 +285,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **303** | **1152** | | |
+| **total** | **302** | **1153** | | |
