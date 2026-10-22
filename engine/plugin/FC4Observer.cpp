@@ -85,6 +85,7 @@
 #include "FC4Span1555Shadow.h"  // the glue-span1555-impl4 lane
 #include "FC4SpanContext.h"  // the glue-span-context-final4 lane
 #include "FC4SpanRender8.h"
+#include "FC4FeatureShadow.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -622,6 +623,7 @@ public:
                 fc4::AutomataDriverCityLoaded(CurrentCity());  // the automata riot / fire driver (automata.md 8)
                 fc4::MySimsShadowCityLoaded(CurrentCity());  // mysims_shadow = 1 only
                 fc4::FormatsShadowCityLoaded();  // the glue-formats4 lane: formats_shadow = 1 only
+                fc4::FeatureShadowLoaded();
                 fc4::Span1555CityLoaded();  // glue-span1555-impl4: enable = span1555 only (constructed fixture)
                 fc4::SpanContextCityLoaded();  // glue-span-context-final4: span1555 / span4444 on only
                 fc4::Span8CityLoaded();
@@ -681,6 +683,7 @@ public:
                 IndustrialShadowProbe(CurrentCity(), "shutdown");
                 AutotestOnCityShutdown(false);
                 DatesProbeSummary("city-shutdown");
+                fc4::FeatureShadowShutdown();
                 break;
             case kMsgPostCityShutdown:
                 AutotestOnCityShutdown(true);
@@ -708,6 +711,7 @@ public:
                 if (ok) PublishJulian(static_cast<int32_t>(j));
                 const int32_t julian = ok ? static_cast<int32_t>(j) : static_cast<int32_t>(PublishedJulian());
                 if (digest_) WriteDigest(julian);
+                fc4::FeatureShadowMonth();
                 if (observe_) {
                     WriteObserve(&ObserveMonthStep, "observe month", julian, nullptr);
                     FpuLog("observe month");

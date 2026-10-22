@@ -7,7 +7,8 @@
 //!
 //! An adapter supplies the highest-priority raw file for each resource key (no
 //! resource cache). File bytes must be available for the scan; native streaming
-//! read-error behavior is unspecified (FM3), rather than silently mapped to a miss.
+//! FM3 streaming failures cannot be injected by this complete-byte provider. An
+//! adapter must refuse an incomplete capture, never silently map it to a miss.
 
 use std::collections::BTreeSet;
 use std::sync::{Arc, RwLock};
@@ -34,7 +35,8 @@ pub trait PackResources {
     /// Register the process's static shutdown callback with context 0. The caller
     /// supplies the app-owned callback binding; the callback calls static_shutdown.
     fn register_static_shutdown(&mut self, process: &FeatureProcess);
-    /// Resolve one raw resource file. None means that its key did not resolve.
+    /// Acquire one raw resource file. None means acquisition failed; merely
+    /// locating a record does not prove acquisition succeeds (FM3).
     fn open_resource(&mut self, key: ResourceKey) -> Option<Self::File>;
     /// Release precisely the reference returned by open_resource, after parsing.
     fn release_file(&mut self, file: Self::File);
@@ -45,6 +47,7 @@ struct StaticState {
     scan_done: bool,
     installed_packs: u32,
     enabled_features: BTreeSet<u32>,
+    mentioned_features: BTreeSet<u32>,
 }
 
 /// Explicit process scope permits isolated tests without altering process-wide
@@ -72,6 +75,7 @@ impl FeatureProcess {
             let mut state = self.0.write().unwrap_or_else(|e| e.into_inner());
             state.installed_packs = 0;
             state.enabled_features.clear();
+            state.mentioned_features.clear();
         }
         for k in 0..32 {
             let key = ResourceKey {
@@ -111,6 +115,7 @@ impl FeatureProcess {
     pub fn apply_entry(&self, key: &[u8], value: &[u8]) {
         let id = rule_n(key);
         let mut state = self.0.write().unwrap_or_else(|e| e.into_inner());
+        state.mentioned_features.insert(id);
         if value.eq_ignore_ascii_case(b"off") {
             state.enabled_features.remove(&id);
         } else {
@@ -125,6 +130,7 @@ impl FeatureProcess {
             state.scan_done = false;
             state.installed_packs = 0;
             state.enabled_features.clear();
+            state.mentioned_features.clear();
         }
         true
     }
@@ -135,6 +141,18 @@ impl FeatureProcess {
             .unwrap_or_else(|e| e.into_inner())
             .enabled_features
             .contains(&id)
+    }
+
+    /// Verification query domain: every parsed key, including disabled IDs.
+    /// Collected during the single scan, independently of native query answers.
+    pub fn mentioned_features(&self) -> Vec<u32> {
+        self.0
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .mentioned_features
+            .iter()
+            .copied()
+            .collect()
     }
 
     pub fn is_expansion_pack_installed(&self, n: u32) -> bool {
@@ -249,7 +267,7 @@ impl FeatureManager {
     /// Slot 1: return the incremented count's 32-bit register representation.
     pub fn add_ref(&mut self) -> Option<u32> {
         let state = self.object_mut()?;
-        // Literal 32-bit increment; overflow behavior is not published (FM4).
+        // FM4: preserve the incremented register bits; Release compares signed.
         state.references = state.references.wrapping_add(1);
         Some(state.references as u32)
     }

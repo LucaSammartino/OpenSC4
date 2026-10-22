@@ -1123,3 +1123,6 @@ pub mod span_render8;
 mod simgrids_verify;
 // glue-dates4: published cIGZDate scalar/text contracts.
 pub mod dates;
+
+// Independent app-owned feature-manager query verification.
+pub mod feature_manager;

@@ -13,3 +13,13 @@
 - **FM2 - §6:** the key `tutorial_registry`'s `add_default_region(n, dir)` writes into `default_regions`, and so
   whether pack 1 reaches `timbuktu` through key 1 of the registry's map (`0x004B79A4`). Belongs with the tutorial
   registry. [reachability only: the spec's answers stand either way]
+
+<!-- from: verify-feature-manager4 (2026-10-22) -->
+- **FM5 - §5.1 shipped input size:** the supported 1.1.641 game provider in
+  `fm4-r1-query-1022-171537` reports pack 1 key `(0,0x8A5971C5,0x2B563701)`
+  acquired, file Length **378 bytes**, FNV-1a `BC8924D4`, whereas §5.1 records
+  263 bytes. Is that measurement specific to a data-package variant, or is there
+  a published distinction between raw record and adapter file size to document?
+  [No size assumption/normalization in Rust: independently capture the actual
+  provider bytes once. Native queries exact 13172/13172; no query difference or
+  FM1/FM2 reachability evidence inferred from this input-size discrepancy.]
