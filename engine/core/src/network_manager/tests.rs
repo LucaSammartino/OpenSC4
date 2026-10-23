@@ -1455,6 +1455,65 @@ fn lot_objects_props_and_flora() {
 }
 
 #[test]
+fn lot_objects_replay_configuration_prop_and_flora_draws_across_reload() {
+    use crate::rng::{FixedSeeds, RzRandomSuper};
+    let configs = (1..=3)
+        .map(|id| {
+            let mut c = cfg(id, 0x100, &[0]);
+            c.objects = vec![
+                NetworkLotObject {
+                    kind: OBJECT_PROP,
+                    ..NetworkLotObject::default()
+                },
+                NetworkLotObject {
+                    kind: OBJECT_FLORA,
+                    ..NetworkLotObject::default()
+                },
+                NetworkLotObject {
+                    kind: OBJECT_PROP,
+                    flags: 1,
+                    ..NetworkLotObject::default()
+                },
+                NetworkLotObject {
+                    kind: OBJECT_PROP,
+                    ..NetworkLotObject::default()
+                },
+            ];
+            c
+        })
+        .collect();
+    let (f, m, _) = lot_manager(configs);
+    for token in 1..=3 {
+        let mut s = f.s.borrow_mut();
+        s.object_ids.insert((token, 0), vec![0xAA]);
+        s.object_ids.insert((token, 1), vec![0xBB, 0xCC]);
+        // Optional index 2 and empty expanded IDs at index 3 consume no draws.
+        s.object_ids.insert((token, 2), vec![0xDD]);
+    }
+    let mut original = RzRandomSuper::new(
+        0x9e3d9501,
+        &FixedSeeds {
+            wall_clock: 0,
+            process_clock: 0,
+        },
+    );
+    for _ in 0..622 {
+        original.next_u32();
+    }
+    let (state, index) = original.raw_state();
+    m.set_random(Box::new(RzRandomSuper::from_state(state, index).unwrap()));
+    let selected = original.uniform_u32(3) + 1;
+    original.uniform_u32(1); // a mandatory prop consumes a word even with one ID
+    let flora = [0xBB, 0xCC][original.uniform_u32(2) as usize];
+    f.piece(50, street(0x100, (2, 3)));
+    m.update_roads_in_cell(2, 3);
+    assert_eq!(m.get_network_lot(2, 3).unwrap().config.unwrap().id, selected);
+    assert_eq!(m.random_state().unwrap(), original.raw_state());
+    assert_eq!(f.s.borrow().street_props.len(), 1);
+    assert_eq!(f.s.borrow().floras[0].0, flora);
+}
+
+#[test]
 fn usable_and_removed_messages() {
     let (f, m, _) = lot_manager(vec![cfg(1, 0x100, &[0])]);
     f.piece(50, street(0x100, (5, 5)));

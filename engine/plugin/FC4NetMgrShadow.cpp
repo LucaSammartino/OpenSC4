@@ -41,6 +41,8 @@
 #include "cIGZPersistResourceManager.h"
 #include "cISC4App.h"
 #include "cISC4City.h"
+#include "cISC4LotConfigurationManager.h"
+#include "cSC4LotConfigurationObject.h"
 #include "cISC4NetworkLot.h"
 #include "cISC4NetworkLotManager.h"
 #include "cISC4NetworkManager.h"
@@ -57,6 +59,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
@@ -118,6 +121,52 @@ bool g_randomReady = false;
 // per process (the exemplars do not change), in the key list's order.
 bool g_configsRead = false;
 std::vector<fc4_props*> g_configs;
+struct ConfigObjects {
+    std::vector<fc4_netlot_object> core;
+    // Each SDK record owns its SC4Vector payload: never copy a record by value.
+    std::vector<std::unique_ptr<cSC4LotConfigurationObject>> native;
+};
+std::vector<ConfigObjects> g_configObjects;
+
+void ReadConfigObject(void* ctx, const fc4_lotdev_cfg_object* o) {
+    auto& objects = *static_cast<ConfigObjects*>(ctx);
+    fc4_netlot_object core{};
+    core.kind = static_cast<uint8_t>(o->object_type);
+    core.flags = o->flags;
+    core.orientation = o->orientation;
+    std::copy(o->offset, o->offset + 3, core.offset);
+    core.field_24 = o->tag;
+    objects.core.push_back(core);
+
+    auto r = std::make_unique<cSC4LotConfigurationObject>();
+    r->type = static_cast<cSC4LotConfigurationObject::Type>(o->object_type);
+    r->flags = o->flags;
+    r->rotation = static_cast<cSC4LotConfigurationObject::Rotation>(o->orientation);
+    r->mirrored = o->byte3 != 0;
+    r->x = o->offset[0];
+    r->y = o->offset[1];
+    r->z = o->offset[2];
+    r->rectMaxX = o->footprint_max[0];
+    r->rectMaxZ = o->footprint_max[1];
+    r->rectMinX = o->footprint_min[0];
+    r->rectMinZ = o->footprint_min[1];
+    r->foundationIID = o->foundation;
+    r->objectID = o->tag;
+    for (uint32_t i = 0; i < o->n_ids; ++i) r->data.push_back(o->ids[i]);
+    objects.native.push_back(std::move(r));
+}
+
+void ObjectIds(void*, uint64_t config, uint32_t index, fc4_u32_callback cb, void* ctx) {
+    if (!cb || !g_city || config == 0 || config > g_configObjects.size()) return;
+    auto& objects = g_configObjects[static_cast<size_t>(config - 1)].native;
+    if (index >= objects.size()) return;
+    // Borrowed city interface; §8.6 requires the game's family expansion.
+    if (auto* manager = g_city->GetLotConfigurationManager()) {
+        SC4Vector<uint32_t> ids;
+        manager->GetObjectIDArray(objects[index].get(), ids);
+        for (const uint32_t id : ids) cb(ctx, id);
+    }
+}
 uint32_t g_exemplarKeys = 0;
 
 // Counters since the last line.
@@ -342,7 +391,12 @@ void ReadConfigurations() {
         const cISCPropertyHolder* h = ex->AsISCPropertyHolder();
         std::vector<uint32_t> t;
         if (h != nullptr && props::GetU32s(h, kPropExemplarType, t) && !t.empty() && t[0] == kNetworkLotExemplarType) {
-            if (fc4_props* p = props::ToCoreAll(h, ex)) g_configs.push_back(p);
+            if (fc4_props* p = props::ToCoreAll(h, ex)) {
+                g_configs.push_back(p);
+                g_configObjects.emplace_back();
+                // prop-lotconfig §B3.3: network configurations always use detail 3.
+                fc4_lot_config_object_array(p, 3, nullptr, &ReadConfigObject, &g_configObjects.back());
+            }
         }
         FC4_RELEASE(ex);
     }
@@ -577,6 +631,7 @@ void MakeHosts(cISC4City* city) {
     g_mhost.tool_update_underground_heights = &ToolUpdateUnderground;
     g_mhost.occupants_in_rect = &OccupantsInRect;
     g_lhost = MakeNetLotReadOnlyHost(&g_ctx);
+    g_lhost.object_ids = &ObjectIds;
     g_lhost.set_network_flag = &SetNetworkFlag;
     g_lhost.set_under_texture = &SetUnderTexture;
     g_lhost.set_variation = &SetVariation;
@@ -612,7 +667,11 @@ bool StartLot(cISC4NetworkLotManager* orig) {
     }
     g_lot = fc4_netlot_create(&g_lhost, TokenOf(orig), SessionSeed());
     if (g_lot == nullptr) return false;
-    for (fc4_props* p : g_configs) fc4_netlot_add_configuration_props(g_lot, 0, p, nullptr, 0);
+    for (size_t i = 0; i < g_configs.size(); ++i) {
+        const auto& objects = g_configObjects[i].core;
+        fc4_netlot_add_configuration_props(g_lot, i + 1, g_configs[i], objects.data(),
+                                           static_cast<uint32_t>(objects.size()));
+    }
     CaptureIStream in(g_origLot);
     const bool ok = fc4_netlot_read(g_lot, in.Get());
     fc4_netlot_init(g_lot);
@@ -1486,6 +1545,11 @@ void NetMgrShadowCityShutdown() {
     g_wideNotes.clear();
     g_wideListed = 0;
     DropCores();
+    // Release SDK vector payloads while the city's allocator service is alive.
+    g_configObjects.clear();
+    for (fc4_props* p : g_configs) fc4_props_destroy(p);
+    g_configs.clear();
+    g_configsRead = false;
     g_city = nullptr;
     g_ctx.city = nullptr;
     g_lines = g_exactLines = g_draws = g_resyncs = 0;

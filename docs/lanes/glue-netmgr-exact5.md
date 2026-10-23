@@ -3,6 +3,9 @@
 | glue-netmgr-exact5: network-lot record 11 shadow | Codex, `.claude/worktrees/glue-netmgr-exact5` | in progress | Continue: supply missing shadow object arrays/ID callback, then verify and rerun. |
 
 ## Handoff
+- Round 2 resumed on detached HEAD e806aeeb. Added decoded shadow objects and SDK family-ID expansion; focused RNG test added, gate pending.
+- Focused object tests PASS 2/2, including RNG reload and one-ID prop draw. Operations 63326/18266 collected; no outstanding test. q.py Bash startup failed (CreateFileMapping access denied); use direct PowerShell with bounded output. fmt paths are relative to engine/.
+- Round 2 source ready for required all gate: object arrays decoded by Rust at detail 3, stable nonzero config tokens, SDK records uniquely owned, public family expansion, SDK payload cleanup at city shutdown. R1 game record saved as docs/runs/netmgr-exact5-r1-2032-322.md.
 - Goal: fix netmgr record 11 mismatch and investigate 19 resynced lines; real-city shadow exact to 2032.
 - Done: initial handoff commit; diagnosed missing (20,103) as absent north-column walk (§6.3 NM10/NM11).
 - Implemented origin walk, SGI pending order (§8.5 NM13), captured RNG input (§17.3), exact config comparison; removed NM10 suppression and record resyncs.
@@ -23,4 +26,4 @@
 - After object fix add focused test for config + mandatory prop/flora draw advance; gate and fresh unique-label turbo run to 2032. Do not reuse r1 label or discard its completed verdict. No questions filed, no spec blocker, ABI exports changed (3 additions), no merge queue written.
 - Game wait helper: `python build-runs/wait-netmgr-result.py build-runs/game-results/<label>.verdict`, collect same operation; no qwait. Summary helper `build-runs/summarize-netmgr.py <label>` prints exact clean/total and resync count.
 - Constraints: no tools/ access; no native signature guesses; game requests unique, wait with same exec session (no qwait).
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-glue-netmgr-exact5-r1-manifest.json`.
+- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-glue-netmgr-exact5-r2-manifest.json`.
