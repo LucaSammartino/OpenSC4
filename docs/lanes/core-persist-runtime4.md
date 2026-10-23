@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-persist-runtime4 (portable persistence runtime) | `core-persist-runtime4` / detached HEAD (engine lane) | ready: bounded Rust algorithms; six owners partial; cargo 5098/0, clippy clean, CTest 68/68; ABI unchanged | Coordinator combined integration gate; resolve PR1-PR3 and PR9-PR13 before native/default promotion |
+| core-persist-runtime4 (portable persistence runtime) | `core-persist-runtime4` / detached HEAD (engine lane) | in progress: all validation passed; R2 guard stopped queue creation | R3 reuse completed results, finalize report and enqueue actual tip; combined integration gate remains |
 
 ## Result and source
 
@@ -45,3 +45,18 @@ External primitives remain raw byte I/O/seek/position/size/close, buffer allocat
 Existing lane questions **PR9-PR13** remain in `docs/specs/questions/persistence.md`: constructors/failure outputs/reentrancy; malformed strings/partial bytes; dimensions/BMP/colour conversion; malformed sizes/QFS framing/failure cleanup; shared stream errors/file-close result precedence. Retain **PR1-PR3**. No new R2 questions.
 
 Game runs: n/a, explicitly excluded for this portable-core task. No game/native probe, live-user-file action, network, native/shadow/replaced/default promotion or ABI change. Ready applies only to the tested bounded source. Coordinator must run the next combined integration gate; resolve questions and implement native adapters/hosts before broader promotion.
+
+## Handoff
+- Goal: finalize existing bounded runtime lane; original R2/3 completed, not a new family/budget reset.
+- Done: full truthful report above committed as 1f33a38e. Preserve it; no implementation work remains for the bounded scope.
+- Done: f32318db commits scoped formatting only in eight owned .rs files; all algorithms still from 7921d6fe. lib.rs/qfs.rs/unrelated descendants unchanged.
+- Done: quick exit 0, 3225/0/0 in 12 suites; 17 new core + 1 formats runtime tests independently accounted, dependent compile and CMake 4/4.
+- Done: scoped touched-file fmt exit 0; skip_children=true,reorder_modules=false, 12 absolute paths.
+- Done: ONE final all exit 0 on f32318db; workspace 5098/0/0 in 22 suites, exact-name 17+1 pass; formats doctests pass; strict clippy exit 0/0 diagnostics; CMake 4/4; CTest 68/68, Total Test time 497.35s. Helper and qbuild/fc4verify all completed.
+- Source: engine tree 35d3aa7e613c6f0b87eb21cdf827e701be0a0147; verified engine diff f32318db..HEAD empty before final report. Later commits only lane document. No new checker needed for documentation.
+- Evidence: build-runs/runtime-gates/all/, all-console.log, status.json (all finished, exit 0, tip f32318db); quick/ and quick-console.log; full per-name runtime-execution-summary.json.
+- Retain baseline-mixed-r1-retained/: real E0433 after 5080 historic passes, CMake214/214, incomplete CTest20/68. Retain both fmt failures and helper recovery notes. No disappearance cause claimed.
+- All six owners remain partial, denominator131/13721B, no exact implemented-byte subtotal. Existing KeyList22/1071B separate unchanged; manager/cache109/8437B untouched. PR1-PR3/PR9-PR13 retained; no native/shadow/default promotion.
+- STOP: queue creation denied by R2 guard at context151k/150k. NO merge-queue file was written. Obeyed immediately; only this handoff/message/commit follows.
+- Exact next: R3 read this report and completed source-corresponding evidence; remove Handoff, restore bounded-ready row, commit, then create merge-queue/core-persist-runtime4.json with actual HEAD tip, kind engine, abi false, game_runs [], state ready. Do not rerun long gates for documentation-only changes. Coordinator combined integration gate still required.
+- Final result must state continue for this stopped R2; R3 is original last allowed round, no fourth/renamed budget. Detached HEAD remains intentional; no refs/switch/merge/push.
