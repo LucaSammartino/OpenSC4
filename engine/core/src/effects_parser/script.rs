@@ -5,6 +5,8 @@
 use super::{Descriptor, Identity};
 use std::collections::BTreeMap;
 
+pub mod commands;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Error {
     Parse(String),

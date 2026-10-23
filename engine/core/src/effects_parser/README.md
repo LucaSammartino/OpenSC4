@@ -62,6 +62,46 @@ their order, allocation size and block construction. All test items below are in
 | Parser trace ledgers; effects-parser §7 | operations above | `r1_*`–`r6_*`, `m1_*`–`m4_*`, `q1_*`; stipulated foreign fixtures, not native golden executions |
 | Coverage boundary; effects-parser §8 | module-level documentation, typed `Unsupported` | error-prefix tests retain earlier writes; whole parser remains partial as specified |
 
+## Owner closure: settled command follow-up
+
+This table records executable owner work from commands5b. It supersedes the
+old EFP1–EFP6 open annotations above for the newly implemented dependencies.
+Whole-family closure is still **in progress**: rotation integration (§13),
+definition owners (§§19.13–16), and nested command execution (§§19.17–52)
+remain implementation work, not newly discovered spec gaps. Only EF15 residual
+families and EFP7 numeric qualification are genuinely open in the spec.
+
+| Owner / spec section | Code item | Tests |
+|---|---|---|
+| Reader, effects-parser §9 | script::find_switch, find_positional, check_switches | sw1_through_sw8_reader_records_and_failure_prefix |
+| Error prefix, effects-parser §10 | script::Error; Commands fallible operations | ec31_through_ec42_priorities_visual_reset_flags_and_failure_prefixes; ec47_ec48_ec49_ec50_preview_failure_gates_and_late_error_prefix |
+| Directory, effects-parser §11.1 | script::Directory | di1_through_di5_type_names_replacement_and_anonymous_identity |
+| Parser lifetime, effects-parser §11.2 | script::Lifetime | lt1_lt2_lt3_final_release_order_and_aliased_held_slots |
+| Registrar, effects-parser §12.1 | script::Dictionary::root, child, destroy_root, destroy_block | dr1_dr2_dr3_duplicate_ownership_and_case |
+| Dispatcher, effects-parser §12.2 | script::Dictionary::dispatch | dr4_dr5_dr6_nested_precedence_throwing_end_and_switch_asymmetry |
+| cRenderPropCommand, effects §19.2 | Commands::render_property | ec1_ec2_ec3_ec4_renderer_precedence_and_arity |
+| cEffectGroupIDCommand, effects §19.2 | Commands::enter_group; return-only exit | ec5_through_ec15_identifier_order_and_exception_prefixes |
+| textureID descriptor 00A9F86C, effects §19.4 | Commands::declare_id(0) | ec5_through_ec15_identifier_order_and_exception_prefixes |
+| modelID descriptor 00A9F87C, effects §19.4 | Commands::declare_id(1) | ec5_through_ec15_identifier_order_and_exception_prefixes |
+| soundID descriptor 00A9F88C, effects §19.4 | Commands::declare_id(2) | ec5_through_ec15_identifier_order_and_exception_prefixes |
+| brushID descriptor 00A9F89C, effects §19.4 | Commands::declare_id(3) | ec5_through_ec15_identifier_order_and_exception_prefixes |
+| effectID descriptor 00A9F8AC, effects §19.4 | Commands::effect_id(false) | ec5_through_ec15_identifier_order_and_exception_prefixes |
+| instance descriptor 00A9FA08, effects §19.4 | Commands::effect_id(true) | ec5_through_ec15_identifier_order_and_exception_prefixes |
+| messageTrigger descriptor 00A9F8E8, effects §19.4 | Commands::message | ec5_through_ec15_identifier_order_and_exception_prefixes |
+| cEffectsResourceCommand, effects §19.5 | Commands::enter_resource, exit_resource | ec16_through_ec24_resource_gates_order_and_retained_error_state |
+| cLoadResourceCommand, effects §19.5 | Commands::load_resource | ec16_through_ec24_resource_gates_order_and_retained_error_state |
+| cCameraParamsCommand, effects §19.7 | Commands::camera | ec25_through_ec30_camera_expansion_switch_order_span_and_null_collection |
+| setPriority descriptor 00A9F908, effects §19.7 | Commands::priority | ec31_through_ec42_priorities_visual_reset_flags_and_failure_prefixes |
+| cGroupEffectCommand, effects §19.9 | Commands::enter_visual, exit_visual; existing effects::EffectDescription payload | ec31_through_ec42_priorities_visual_reset_flags_and_failure_prefixes |
+| cTestEffectCommand, effects §19.11 | Commands::preview | ec43_ec44_ec45_ec46_preview_defaults_positions_and_ordered_setters; ec47_ec48_ec49_ec50_preview_failure_gates_and_late_error_prefix |
+
+Root conformance groups implement the static EC1–EC50 expectations with
+individual primitive/service replies. They are portable tests, not game or
+native-parser executions. Commands enter/exit methods return before the generic
+caller pushes/pops a block; failed methods must never trigger a stack mutation.
+The new script byte-token boundary coexists with the original immutable
+primitive-input option ledgers; neither introduces lexing or catch/recovery.
+
 ## effects.md §17 conformance scope
 
 §17 assigns runtime behavior to the manager, brush and particle owners, not the

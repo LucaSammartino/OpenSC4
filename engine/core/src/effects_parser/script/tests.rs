@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::*;
 
-fn tokens(values: &[&str]) -> Vec<ScriptToken> {
+pub(super) fn tokens(values: &[&str]) -> Vec<ScriptToken> {
     values
         .iter()
         .enumerate()
@@ -41,6 +41,8 @@ fn sw1_through_sw8_reader_records_and_failure_prefix() {
     assert_eq!(s, [1]);
     assert!(check_switches(&t, &mut Ascii).is_err());
     t = tokens(&["cmd", "-k", "1"]);
+    assert!(!find_switch(&mut t, b"missing", 4, &mut s, &mut Ascii).unwrap());
+    assert!(s.is_empty());
     find_positional(&t, 1, &mut s, &mut Ascii).unwrap_err();
     assert!(s.is_empty());
 }

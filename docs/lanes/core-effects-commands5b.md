@@ -10,3 +10,6 @@
 - No game requests outstanding; core-only task.
 - Focused cargo test passed; fmt two new files clean. q.py cannot launch Bash (Win32 error 5); use native PowerShell; evidence build-runs/q/20261023-183457-12916.log.
 - Formatting helper build-runs/format-patch.py emits apply_patch input from rustfmt stdin (no filename headers); uses engine/rustfmt.toml.
+- Milestone be2e2dbb: readers/dispatch/directory/lifetime.
+- Root owners through effects §19.11 now implemented in script/commands.rs with EC1–50 fixtures; focused script tests 12/12 passed, fmt four files clean.
+- Owner progress table added; final closure still requires definitions/children and integration. No new questions or ABI changes.
