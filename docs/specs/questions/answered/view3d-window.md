@@ -1,6 +1,58 @@
 # view3d-window: answered questions
 <!-- Answered entries moved from ../view3d-window.md. -->
 
+<!-- from: the cSC4View3DWin window lane (re-view3dwin4, 2026-10-21) -->
+- **VW6 - §6b:** (narrowed 2026-10-21, re-view3dwin4: the `AddGUI` tail `0x007EED41`-`0x007EF1B6` and `+0x190`/`+0x194`/`+0x3D0` are now in §6b) still open: who creates `+0x2EC` and `+0x2F0` (no direct store in any `cSC4View3DWin` method; `RemoveGUI` releases them), (the object `0x00B43C9C` is the graphic system, re-view3dwin 2026-10-21: slot 3 `CreateBuffer` makes the `+0x3D0` surface, slot 12 `IsFullScreenMode` gates edge scrolling, §6c), and the per-panel extras of the five-panel loop between `0x007EE39B` and `0x007EE610` (flag `0x800` slots 23/24 calls). What settles it: a walk of `0x007EE39B`-`0x007EE610` and a search for indirect stores to `+0x2EC`/`+0x2F0`.
+  **ANSWERED 2026-10-23 (re-view3dwin-vw5):** MATCHES — §6m: no owner creator for +0x2EC/+0x2F0; mayor/MySim extra children use transient 0x800 around SendToBack. VW-T26.
+
+<!-- from: re-view3dwin (2026-10-21) -->
+- **VW7 - §6i:** what message `0x470BD214` (data1 0 or 1, posted by two landscape items and the global terrain tool
+  cases 5 and 6) asks for, and who handles it. [as read]
+  **ANSWERED 2026-10-23 (re-view3dwin-vw5):** MATCHES — §6m: terrain handles a whole-map erosion request, data1 0 includes water erosion and 1 selects the alternate pass; both refresh. VW-T29.
+
+<!-- from: re-view3dwin (2026-10-21) -->
+- **VW8 - §6d, §4:** the objects at `+0x184`, `+0x188` and `+0x410` (stopped and released at `Shutdown`); no
+  function read in this lane creates them. [as read]
+  **ANSWERED 2026-10-23 (re-view3dwin-vw5):** MATCHES — §6m: all three fields are dormant zero-initialized references; no mandatory creator or active operation is required. VW-T26.
+
+<!-- from: core-view3dwin5 (2026-10-23) -->
+- **VW9 - §3 step 2, §6g:** Init registers 104 exact `(id, name, 0)` records, but §6g groups several commands
+  without their full IDs/names (zone, network and place-lot commands), and the registry order beyond the first
+  nine is absent. Please give the complete ordered 104-record table, including records deliberately unhandled
+  here. An implementer can route typed commands literally but cannot reproduce exact registration or numeric
+  dispatch from the current inventory. [spec gap]
+  **ANSWERED 2026-10-23 (re-view3dwin-vw5):** MATCHES — §6g supplement: exact ordered 104-record ID/name table, every third word zero, including bus-stop and pipe command IDs. VW-T28.
+
+<!-- from: core-view3dwin5 (2026-10-23) -->
+- **VW12 - §3.1, §6k:** which hash/bucket traversal determines trigger pair order in the version-4 save record?
+  What are the overflow/absent-retraction rules for trigger counts? The logical core uses wrapping uint32
+  increment and absent retract as no-op, and preserves pairs without claiming original byte ordering. Also,
+  does SizeOf's `RZAtofA` support a locale-specific decimal separator or hex floats? The provisional parser uses
+  dot-decimal prefix semantics and NaN/Inf. [spec gap]
+  **ANSWERED 2026-10-23 (re-view3dwin-vw5):** DIFFERS — §§3.1/6k supplement in §6l: unsigned wrap and absent retract no-op; modulo-current-bucket traversal, initial 193 buckets; bundled CRT locale decimal parser rejects hex floats, NaN and Inf. VW-T30–T31.
+
+<!-- from: core-view3dwin5 (2026-10-23, round 2) -->
+- **VW14 - §§6a–6b failure paths and overlay lifetime:** which camera/control/renderer/script-window/helper
+  allocation or QI failures abort city/window initialization, and which skip dependent calls? The core currently
+  keeps null fields and skips dependent configuration, with balanced successful references. Also, §6b releases
+  the unstored full-size overlay creation reference immediately and omits its destruction from RemoveGUI, but
+  requires no AddGUI-created window to survive RemoveGUI. Should RemoveGUI explicitly destroy the parent-owned
+  overlay, or does that requirement apply after the city window's base teardown? [null-safe skips; retain only a
+  borrowed stable overlay handle and destroy it at RemoveGUI without releasing that borrowed handle]
+  **ANSWERED 2026-10-23 (re-view3dwin-vw5):** DIFFERS — §6m: required factory failures try concrete fallbacks, unchecked allocation/QI failures are fatal preconditions; explicitly guarded optional operations skip. Overlay is parent-owned through base teardown, not explicitly destroyed by RemoveGUI. VW-T27.
+
+<!-- from: core-view3dwin5 (2026-10-23, round 3) -->
+- **VW17 - §6i remaining menu inventory:** what script/catalog kinds, groups, backgrounds and remembered-state
+  fields do buttons `0x36`/`0x8A32DDDB`, `0x49E95D2B`, `0x8991EE08`, `0x2B79E398`, `0xEA6E379D`,
+  `0xABB27B91`, `0x09DE87AE` and `0xE9DE87A7` select? Which landscape catalogs correspond to the five default
+  state pairs at `+0x2A8` through `+0x2C8`? Which catalog identity is used for utilities and zoning, and which
+  background is used where none is listed? What caller-data argument do the scripted menu buttons pass?
+  What are the bus-stop and pipe buttons' command-server IDs (VW9)?
+  [unidentified buttons return unhandled; specified typed bus/pipe tools are callable; catalog 0/background 0
+  means unspecified to the foreign provider, not a claimed resource identity; unspecified state fields use
+  logical per-button memory keys; exact inventory remains open]
+  **ANSWERED 2026-10-23 (re-view3dwin-vw5):** DIFFERS — §6i supplement in §6l: exact script/menu/catalog/background/state mapping, button ID caller data, dormant +0x2C0 pair and literal no-op/generic-catalog routes. VW-T32.
+
 <!-- from: core-view3dwin5 (2026-10-23); moved by re-view3dwin-vw5 -->
 - **VW10 - view3d.md §5.1 step 14, §5/§6j:** which paint-tail operations, guards, callback contracts and returns?
   **ANSWERED 2026-10-23 (re-view3dwin-vw5):** DIFFERS — §6n: the function ends at 0x007F6405;
