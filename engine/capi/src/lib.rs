@@ -1138,3 +1138,6 @@ pub mod feature_manager;
 
 // Resource-only public-manager verification transport; actual production core.
 pub mod persist_manager_verify;
+
+// Private overlay getter-contract comparison; live record enumeration awaits OV12.
+mod overlays_verify;

@@ -990,3 +990,8 @@ if(TARGET FreeCity4)
     target_compile_options(fc4_advisors_shadow_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME advisors_shadow_test COMMAND fc4_advisors_shadow_test "$<TARGET_FILE:FreeCity4>")
 endif()
+
+# Read-only overlay getter-contract shadow (record enumeration awaits OV12).
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4OverlaysShadow.cpp plugin/FC4OverlaysShadow.h)
+endif()

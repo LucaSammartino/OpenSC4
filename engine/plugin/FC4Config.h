@@ -612,4 +612,7 @@ std::string IniPath();
 // advisors_shadow = 0 / 1 (default 0): round-trip original advisor records
 // through the core at city load and each month; no replacement or simulation.
 
+// overlays_shadow = 0 / 1 (default 0): original/core getter sentinel probes at
+// city load and each month. Live records/cells/textures await OV12; no rendering.
+
 }  // namespace fc4

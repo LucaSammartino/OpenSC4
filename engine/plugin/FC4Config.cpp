@@ -355,6 +355,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "prop_occupant_verify",
                                   // Record-only original advisor snapshot (default off).
                                   "advisors_shadow",
+                                  // Read-only overlay getter contracts; full record walk awaits OV12.
+                                  "overlays_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
