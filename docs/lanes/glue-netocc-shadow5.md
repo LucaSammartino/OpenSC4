@@ -23,7 +23,16 @@
 - Next: full gate on corrected capture, then unique netocc-r2-2032-2 game request. No outstanding game requests.
 - Corrected-source gate PASS: cargo 6233/0, clippy 0 diagnostics; native 75/75 edges, CTest 68/68.
 - Native request qbuild-20261023-211011-build-ctest completed; tree-change note is documentation commits only.
-- OUTSTANDING GAME: netocc-r2-2032-2, turbo to 2032; collect SAME event waiter session 21718.
+- netocc-r2-2032-2 completed CLEAN to 2032-01-01, ref_warnings=0; harness reports netocc-r2-2032-2 0/72 dated lines.
+- Including unknown-date load: 0/73 actual comparisons, each has 3 mismatches (all poles); 1280 other records exact.
+- No outstanding builds or games. bbdb3554 engine source passed full gate: cargo 6233/0, clippy clean, native 75/75, CTest 68/68.
+- NEXT: fix pole host input: §4.6 says exemplar RESOURCE KEY, but ModelInstance reads model PROPERTY 0x27812821.
+- Observed wrong input 0x0AD30000 has subtype zero; core returns AttachmentInvariant at byte 1163/1193 (360 bytes remain).
+- Likely use decoded OccupantBase.holder.parent_key().instance; confirm API and §4.6 before editing, never force a table.
+- Add focused regression, explicit-file fmt, full gate after diagnostic source change; next game label netocc-r2-2032-3.
+- Second run record still needs creation (next available run number was 323): DLL d271da95, real_seconds=62.125.
+- Evidence build-runs/game-results/netocc-r2-2032-2.log/.verdict; monthly fixups=857, records=1283, bytes=478251.
+- Guard context OVER: continuation required, no merge-queue entry. Keep default-off and NO45 normalization unchanged.
 - Event waiter: build-runs/wait-netocc.ps1. Never discard an existing unique-label verdict.
 
 ## Changes
