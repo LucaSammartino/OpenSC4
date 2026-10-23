@@ -195,6 +195,21 @@ only. The unattached connection floor/wall builders and their slope-UV quirk are
 network-occupants.md §3.6.2, with conformance cases in its §13 tests 49–50. Descriptor-dependent
 geometry/drawing and remaining message/view/transform decisions remain UG5.
 
+*[compat; UG5 message subset, 2026-10-24]* Connection message decisions are now fully specified in
+network-occupants.md §3.6.4/tests 60–61. Insertion queries the layer interface and compares both
+cell coordinates before replacing the attached reference; an equal pointer still goes through
+Release/store/AddRef. The own-primary-pointer fallback applies only when that query fails. Removal
+clears a matching attachment, sets +17C and updates lower height +174 from position.y−cellSize;
+it does not rebuild immediately or change +170. A matching linked-removal message clears/releases
+linked before manager removal `(primary,0,0)`, attached Refresh(true), and Shutdown. Context-change
+messages compare the two payloads' u32 at +4, not their pointer identities. Every message returns true.
+
+The model-view bounds wrapper `0x00654140` adjusts this by −0x24C and delegates the two output
+vectors to primary slot 10. `0x00654160` is the attached Refresh(true) call, despite its exported
+GetWorldBounds label. Together with the mislabelled `0x00648360` layer-interface query (§4 table),
+these names must not be used to invent transform accessors. Complete geometry, Draw and
+view-dependent transform/bounds generation remain open under UG5/NO40.
+
 ## 5. Vtables and thunks
 
 Each occupant has a main vtable, three sub-object vtables at `+4` (the occupant interface), `+8` (serialisation) and

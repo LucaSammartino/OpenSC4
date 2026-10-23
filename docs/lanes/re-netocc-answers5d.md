@@ -29,6 +29,8 @@ Git commits succeeded despite an incidental packed-refs.lock permission message;
 ## Handoff
 - Goal: answer NO33, NO36, NO40, NO41, NO43 and UG5 without engine reads or edits.
 - Round 2 milestone: NO36 completed in §6.2.4/tests 56–59, archived and index regenerated; doccheck and diff check pass.
+- Done c617504ae: pylon model/MySim/label construction; next milestone: connection §3.6.4/underground §4 messages, tests 60–61; all document checks passed.
+- Research stopped after measured context 102701 (includes writing/validation); no further native queries this round.
 - Round 2 evidence: pylon 005F12D0/005F1D00/005F20A0 instruction bytes; PE constants via ignored build-runs/evidence_constants.py.
 - Correction: pylon +150 is the call-number texture ID; MySim uploads main +148.
 - Done: NO41 answered (2869269f9); pylon Draw/messages (cb51c38e8); pole bounds (9162e3b21), tests 54–55.

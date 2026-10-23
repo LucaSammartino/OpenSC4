@@ -1139,6 +1139,35 @@ primary vtables are 45 slots (`0x00AA9578`, `0x00AAA188`) with the same slot ord
 GetGZCLSID (37), the folded 38 and slot 44 differ.
 ---
 
+#### 3.6.4 Connection message decisions *[compat; UG5 partial]*
+
+DoMessage receives the message-target view at primary+34 and always returns true, including for
+unknown messages and all ignored payloads. Its four decisions are:
+
+| Message | Payload and action |
+|---|---|
+| `0x8B87A974` | Read message +28's pointer. For a nonnull pointer accepted by main slot 44 (the layer-specific interface query), ask the returned occupant's slot 59 (+EC) for cell x/z. Only an exact match with live +150/+154 replaces attached +C8: Release old if present, store the query result, AddRef it, then ModelStateChanged. Release the query result afterward even on a cell mismatch. A successful interface query completes this branch; it never falls through to the own-pointer case. |
+| `0x8B87A974`, interface query failed | If the original payload pointer equals the connection's **primary pointer**, and +C8 is nonnull, call the attached occupant's slot 89 (+164) with true. Null payload and other pointers do nothing. This is the own-connection insertion notification, not a new attachment. |
+| `0x8B87A975` | Query the nonnull payload through main slot 44. If the returned pointer equals attached +C8, Release the stored reference, clear +C8, set +17C=true, get the connection position and store +174=`f32(position.y−cellSize)`. Release the query result regardless of equality. No ModelStateChanged, immediate geometry build or renderer notification is performed here. |
+| `0x8B8B2CEE` | Only a nonnull payload exactly equal to linked +CC triggers action: Release it, clear +CC, remove this connection through occupant manager +54 with `(primary,0,0)`, invoke main slot 43 (refresh the attached occupant with true), then main slot 4 (Shutdown). Other pointers do nothing. |
+| `0xA6B79602` | Fetch the two pointers through message +28 and +3C; compare their **u32 at +4**. Different values call CreateGeometry; equal values do nothing. The handler contains no null guards for those two context pointers and does not compare the pointers themselves. |
+
+Replacement on insertion does not have an equal-pointer fast path: even reattaching the same
+occupant performs Release, store, AddRef, ModelStateChanged, and the final temporary Release.
+ModelStateChanged still has its independent +17C latch (§3.6.1), so inserting while that latch is
+already true does not by itself rebuild geometry or notify the renderer. The removal branch does
+not recompute +170; it changes the lower height +174 only. Sources: insertion
+`0x00656D43–0x00656DF0`, removal `0x00656CC2–0x00656D35`, linked removal
+`0x00656DFD–0x00656E42`, context comparison `0x00656E50–0x00656E79`.
+
+The model-view method at `0x00654140` subtracts **0x24C** to the primary pointer, then calls
+main slot 10 with the supplied box pointer and that pointer+12: it delegates to occupant bounds,
+without independently transforming a box or ensuring geometry is current. The function at
+`0x00654160` instead calls attached +C8's slot 100 (+190) with true if attached, otherwise does
+nothing; it is main slot 43 Refresh, despite the export's GetWorldBounds name. Neither function
+establishes a missing general GetTransform/SetTransform contract. Complete geometry, Draw and
+view-dependent transform/bounds generation remain open under NO40/UG5.
+
 ## 4. The power pole *(cSC4PowerPoleOccupant, 0x09C05C6A)*
 
 *Rewritten 2026-10-21 (re-powerpoles), from the instruction bytes. Offsets are object offsets (the earlier layout
@@ -2581,3 +2610,14 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     S=32, the vertices have x=−10/+10, top y=127, bottom y=113, z bits `0x3C23D70A`,
     right u=0.625 and bottom v=0.3125. Changing only the first geometry argument W leaves
     these unchanged. A MySim upload writes main +148; a call-number upload writes +150.
+60. **Connection attachment messages** (§3.6.4). Query an inserted occupant with matching cell
+    and +17C=true: replace/hold attached, release the temporary query ref, but do not rebuild or
+    notify the renderer. Repeat with the same pointer: old Release and new AddRef still occur.
+    A cell mismatch releases only the temporary and preserves attached. A failed interface query
+    with payload=primary calls attached slot 89(true); a successful query never uses this fallback.
+61. **Connection removal messages** (§3.6.4). With position.y=40, cellSize=16, +170=91, and
+    a matching queried removal, attached becomes null, +17C=true, +174=24, +170 stays 91;
+    no immediate build occurs. A linked-removal message for an unrelated pointer is inert; one
+    for linked clears it before manager removal `(primary,0,0)`, attached refresh and Shutdown.
+    Equal context +4 words suppress CreateGeometry even for different pointers; unequal +4 words
+    request exactly one geometry build. All these cases, and an unknown message, return true.
