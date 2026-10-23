@@ -12,6 +12,10 @@
 - Engine tree c30f4d9ac1d78880e81cae198b7a461307350c58 unchanged for baseline; tree-change flag was docs-only.
 - Owned core and16 literal tests moved from held drafts into engine/core/src/game_data_registry; additive lib export only.
 - GDR5 filed for anonymous leaf entry-token/raw-key collision; portable input is tagged unsupported.
-- Next: one serial module-focused test run, source review, then committed-source qbuild all once.
+- Implementation c8b461a4: owned algorithms, borrowed views, explicit unsupported domain,16 literal tests.
+- Serial module-focused cargo run passed16/0 (3328 filtered), actual launcher exit0; log build-runs/registry-focused-cargo.log.
+- q.py could not launch Bash (Access denied); failed transport log retained in build-runs/registry-focused.log.
+- A local quiet Python adapter executed the single focused cargo run; no duplicate cargo/test/CTest run.
+- Draft formatting check passed before installation; final formatting check and one stable-source all gate next.
 - Authority: docs/specs/game-data-registry.md; safe tokens model identity only.
 - No game requests; no native or whole-owner promotion intended.
