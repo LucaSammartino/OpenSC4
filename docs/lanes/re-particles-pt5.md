@@ -26,8 +26,8 @@ renderer records/random precision, dynamic static-sector/terrain construction, a
 contact/joint solver. Existing PT1–PT3 remain open; no archived answers changed. Questions index
 regenerated. These are limits of the evidence reviewed, not measured runtime failures.
 
-Validation: `python -X utf8 tools/doccheck.py check` passed at spec milestone; final doccheck,
-question-index check and whitespace check recorded below after the report edit. Cargo/clippy/ctest
+Validation: `python -X utf8 tools/doccheck.py check` passed at spec milestone and final review;
+`python -X utf8 tools/questions.py check` and `git diff --check` also passed. Cargo/clippy/ctest
 are n/a for this spec-only lane. No game runs, shadow verdicts or pixel-equivalence claims.
 No C ABI exports changed; no proposed docs/abi rows. All original-program evidence used the local
 export/decomp; REA was deliberately not queried because the brief says no binary is open.
