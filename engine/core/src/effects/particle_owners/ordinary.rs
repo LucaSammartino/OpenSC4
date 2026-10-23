@@ -97,7 +97,7 @@ impl Motion {
         if self.description.value.words[&4] & 1 != 0 {
             return Err(Unsupported::PT1);
         }
-        if !self.description.value.floats.get(&0x1a4).map_or(true, Vec::is_empty) {
+        if !self.description.value.floats.get(&0x1a4).map_or(true, Vec::is_empty) && self.scalar(0x1b0) > 0. {
             return Err(Unsupported::PT1);
         }
         Ok(())

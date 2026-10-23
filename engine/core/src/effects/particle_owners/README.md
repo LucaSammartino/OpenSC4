@@ -38,7 +38,7 @@ than substituting free flight for terrain response.
 | cSC4ParticlesEffect §5.1 | `Motion::init`, simulator `create` | `full_records_share_existing_emitter_and_preserve_init_rng_order`; height helper open: PT1 |
 | cSC4ParticlesEffect §6 | `start_checked`, `Motion::prepare_start` | `start_walk_turn_sea_priority_and_last_countdown_draw`, existing start/countdown tests; immediate non-turn walk helper open: PT1 |
 | cSC4ParticlesEffect §6.1 | `Motion::new`, `configure_source`, `configure_preferred`, `resolve_collision_effects` | `ordinary_description_preparation_and_parameter_projection`; city volume open: PT1; static baseline open: PT3 |
-| cSC4ParticlesEffect §7 | `update_with_draw`, `DrawCommand` | `drawing_dispatch_self_lit_and_empty_no_draw_are_before_finish`; attractor/walk helpers open: PT1 |
+| cSC4ParticlesEffect §7 | `update_with_draw`, `DrawCommand`, `Motion::validate` | `drawing_dispatch_self_lit_and_empty_no_draw_are_before_finish`, `inactive_attractor_curve_does_not_require_unsettled_helper`; active attractor/walk helpers open: PT1 |
 | cSC4ParticlesEffect §7.1 | `Particle::update`, `Motion::update`, `update_stepped` | `stepped_kill_uses_old_velocity_and_strict_city_bounds`, existing slot20 boundary tests; tractor/terrain/building/attractor helpers open: PT1 |
 | cSC4ParticlesEffect §8 | existing simulator dispatch | `particles::tests::emitter_choice_by_flags` |
 | cSC4ParticlesEffect §8.1 | simulator `dispatch` | existing countdown, preroll and delayed-stop tests |
@@ -60,10 +60,10 @@ than substituting free flight for terrain response.
 | cSC4RigidBodySimulator2D §17.1 | `simulator::Simulator` lifetime; existing raw `storage` module | PO28–31 test; exact mass/extents open: PT11 |
 | cSC4RigidBodySimulator2D §17.2 | `integrate_list`, `advance_time` | PO28–31 test; nonzero angle/cache precision, friction and extent registration open: PT11 |
 | cSC4RigidBodySimulator2D §17.3 | `primary_collision_sector`; existing parent narrow-phase helpers | PO28–31 test; impulse/joint/pass order open: PT11; conflicting minimum/maximum spec open: PT12 |
-| cSC4SequenceDescription §18.1 | `SequenceDescription`, primitive `read`/`write`, allocation factory retaining `Arc` | PO32–35 test; failures propagate as foreign stream errors |
+| cSC4SequenceDescription §18.1 | `SequenceDescription`, primitive `read`/`write`, allocation factory retaining `Arc` | PO32–35 test, `sequence_factory_retains_description_and_stream_errors_preserve_only_prefix`; success retains the description, primitive failures propagate without rollback |
 | cSC4ParticlesDescriptionBase §2 | constructor and both primitive readers | `particle_binary_readers_preserve_field_widths_and_consume_both_layouts`, PO36 test; runtime global defaults open: PT3 |
 | cSC4ParticlesDescriptionBase §3 | flag widths/masks and retained raw words | binary-reader test; untraced meanings open: PT1 |
-| cSC4ParticlesDescriptionBase §18.2 | `Clone`, `assign` over owned parser storage | PO36 test; no derived refcount field in this value object |
+| cSC4ParticlesDescriptionBase §18.2 | `assign` over owned parser storage | PO36 test covers independent curves, strings, tractor/wiggle and event vectors; native base assignment preserves destination derived refcount and excludes the source's trailing refcount word |
 | All requested owners §19.2 | PO01–PO36 groups in core unit tests | proposed portable fixtures, not measured native golden outputs |
 
 The coverage-radius helper delegated by §19.1 is outside these seven owners and

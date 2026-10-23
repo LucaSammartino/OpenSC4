@@ -345,6 +345,16 @@ struct Stream {
     values: std::collections::VecDeque<u32>,
     strings: std::collections::VecDeque<Vec<u8>>,
     writes: Vec<String>,
+    fail_after: Option<usize>,
+}
+impl Stream {
+    fn write_primitive(&mut self, value: String) -> Result<(), ()> {
+        if self.fail_after == Some(self.writes.len()) {
+            return Err(());
+        }
+        self.writes.push(value);
+        Ok(())
+    }
 }
 impl descriptions::Read for Stream {
     type Error = ();
@@ -367,20 +377,16 @@ impl descriptions::Read for Stream {
 impl descriptions::Write for Stream {
     type Error = ();
     fn u16(&mut self, v: u16) -> Result<(), ()> {
-        self.writes.push(format!("word:{v}"));
-        Ok(())
+        self.write_primitive(format!("word:{v}"))
     }
     fn u32(&mut self, v: u32) -> Result<(), ()> {
-        self.writes.push(format!("dword:{v}"));
-        Ok(())
+        self.write_primitive(format!("dword:{v}"))
     }
     fn f32(&mut self, v: f32) -> Result<(), ()> {
-        self.writes.push(format!("float:{v}"));
-        Ok(())
+        self.write_primitive(format!("float:{v}"))
     }
     fn string(&mut self, v: &[u8]) -> Result<(), ()> {
-        self.writes.push(format!("string:{v:?}"));
-        Ok(())
+        self.write_primitive(format!("string:{v:?}"))
     }
 }
 #[test]
@@ -436,6 +442,94 @@ fn po32_through_po35_sequence_primitive_order_and_factory_failure() {
         ]
     );
 }
+#[test]
+fn sequence_factory_retains_description_and_stream_errors_preserve_only_prefix() {
+    struct Allocation;
+    impl descriptions::SequenceAllocator for Allocation {
+        type Allocation = ();
+        type Component = Arc<descriptions::SequenceDescription>;
+        fn allocate(&mut self, bytes: usize) -> Option<()> {
+            assert_eq!(bytes, 168);
+            Some(())
+        }
+        fn construct(&mut self, _: (), description: Self::Component) -> Self::Component {
+            description
+        }
+    }
+    let mut d = descriptions::SequenceDescription::default();
+    let mut s = Stream {
+        values: [
+            2,
+            2,
+            3_f32.to_bits(),
+            1_f32.to_bits(),
+            5_f32.to_bits(),
+            6_f32.to_bits(),
+            u32::MAX,
+        ]
+        .into(),
+        strings: [b"effect".to_vec(), vec![]].into(),
+        ..Stream::default()
+    };
+    d.read(&mut s).unwrap();
+    assert_eq!(d.elements[0].first, 3.);
+    assert_eq!(d.elements[0].second, 1.); // No duration sorting.
+    assert_eq!(d.elements[0].name, b"effect");
+    assert!(d.elements[1].name.is_empty()); // Wait stays a description element.
+    assert_eq!(d.flags, 7);
+    let description = Arc::new(d);
+    let component = description.create(&mut Allocation).unwrap();
+    assert!(Arc::ptr_eq(&description, &component));
+    assert_eq!(Arc::strong_count(&description), 2);
+    drop(component);
+    assert_eq!(Arc::strong_count(&description), 1);
+
+    let mut complete = Stream::default();
+    description.write(&mut complete).unwrap();
+    for count in 0..complete.writes.len() {
+        let mut failing = Stream {
+            fail_after: Some(count),
+            ..Stream::default()
+        };
+        assert_eq!(description.write(&mut failing), Err(()));
+        assert_eq!(failing.writes, complete.writes[..count]);
+    }
+    let mut d = (*description).clone();
+    let mut failing = Stream {
+        values: [99, 1, 9_f32.to_bits()].into(),
+        ..Stream::default()
+    };
+    assert_eq!(d.read(&mut failing), Err(()));
+    assert_eq!(d.elements.len(), 1);
+    assert_eq!(d.elements[0].first, 9.);
+    assert_eq!(d.elements[0].second, 1.);
+    assert_eq!(d.elements[0].name, b"effect");
+    assert_eq!(d.flags, 7);
+}
+
+#[test]
+fn inactive_attractor_curve_does_not_require_unsettled_helper() {
+    for strength in [0., -1.] {
+        let mut d = particle_description();
+        d.value.floats.insert(0x1a4, vec![1., 2.]);
+        d.value.scalar(0x1b0, strength);
+        let motion = ordinary::Motion::new(&d).unwrap();
+        assert_eq!(motion.validate(), Ok(()));
+        let mut simulator = ParticleSimulator::new(EmitterDesc::new(0, 0., 0.));
+        simulator.set_motion(motion).unwrap();
+        let seeds = FixedSeeds {
+            wall_clock: 1,
+            process_clock: 2,
+        };
+        let mut rng = RzRandom::new(123, &seeds);
+        simulator.start_checked(0, &mut rng, None).unwrap();
+        simulator.update_checked(0.1, &mut rng).unwrap();
+    }
+    let mut d = particle_description();
+    d.value.floats.insert(0x1a4, vec![1., 2.]);
+    assert_eq!(ordinary::Motion::new(&d).unwrap().validate(), Err(Unsupported::PT1));
+}
+
 fn particle_description() -> descriptions::ParticleDescriptionBase {
     descriptions::ParticleDescriptionBase::new(Some(descriptions::ParticleGlobals {
         scalar: 0.,
@@ -449,12 +543,29 @@ fn po36_particle_value_copy_is_deep_and_unknown_globals_remain_unknown() {
     let mut a = particle_description();
     a.value.floats.insert(0x88, vec![2., 4.]);
     a.value.strings.insert(0x160, b"before".to_vec());
+    a.value.vectors.insert(0x108, vec![[1., 2., 3.], [4., 5., 6.]]);
+    a.value.vectors.insert(0x1b8, vec![[7., 8., 9.], [10., 11., 12.]]);
+    a.value.timed_effects.push((b"event".to_vec(), 0.5));
+    a.value.words.insert(0x204, 19);
     let mut b = particle_description();
+    b.value.words.insert(0x204, 7);
     b.assign(&a);
     a.value.floats.get_mut(&0x88).unwrap()[0] = 9.;
     a.value.strings.get_mut(&0x160).unwrap().clear();
+    a.value.vectors.get_mut(&0x108).unwrap()[0][0] = 99.;
+    a.value.vectors.get_mut(&0x1b8).unwrap().clear();
+    a.value.timed_effects[0].0.clear();
     assert_eq!(b.value.floats[&0x88], [2., 4.]);
     assert_eq!(b.value.strings[&0x160], b"before");
+    assert_eq!(b.value.vectors[&0x108], [[1., 2., 3.], [4., 5., 6.]]);
+    assert_eq!(b.value.vectors[&0x1b8], [[7., 8., 9.], [10., 11., 12.]]);
+    assert_eq!(b.value.timed_effects, [(b"event".to_vec(), 0.5)]);
+    assert_eq!(b.value.words[&0x204], 7);
+    let mut copy = particle_description();
+    copy.assign(&b);
+    assert!(!copy.value.words.contains_key(&0x204));
+    b.assign(&a);
+    assert_eq!(b.value.words[&0x204], 7);
 }
 #[test]
 fn full_records_share_existing_emitter_and_preserve_init_rng_order() {

@@ -109,7 +109,15 @@ impl ParticleDescriptionBase {
         Self { value }
     }
     pub fn assign(&mut self, source: &Self) {
+        // Literal §18.2: parser storage can also carry the derived description's
+        // +204 refcount. Base assignment must never copy that trailing word.
+        let derived_count = self.value.words.get(&0x204).copied();
         self.value.clone_from(&source.value);
+        if let Some(count) = derived_count {
+            self.value.words.insert(0x204, count);
+        } else {
+            self.value.words.remove(&0x204);
+        }
     }
 
     pub fn read<S: Read>(&mut self, version: u16, stream: &mut S) -> Result<(), S::Error> {
