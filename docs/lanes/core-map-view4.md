@@ -8,9 +8,9 @@
 - Done: preimplementation inventory/questions/fixtures `b59d16e7`; bounded production source and 24 fixtures committed `f1c71dd6`.
 - Baseline all: cargo 5262/0, clippy 0 diagnostics, CMake 215/215 edges; CTest 67/68, cargo_test compile error u32 & i32 in new premultiply closure. Tree changed during run; not a clean baseline. Initial failure retained in baseline evidence before next gate.
 - Focused native-shell command via q.py direct argv passed 24/24 (3220 filtered); log `build-runs/focused-map-view.log`. A single-string Bash attempt failed E_ACCESSDENIED; retained q log.
-- Quick launched once after source commit: raw logs show i686 core 3244/0, dependents compile-only, CMake 4/4; wrapper still outstanding session 18825 (no final summary yet). Do not launch duplicate quick.
-- Formatting: first wrong paths (wrapper runs in engine) then 100-column output refused; engine/rustfmt.toml requires 120. Helper `build-runs/format-map-view.py` now uses engine cwd, emits apply_patch input only. Apply its output after quick ends. Base and current lib.rs both fail style comparison; current is exactly one additive final module declaration (audit-lib-format.py).
-- Next: finish collecting quick session, apply new-module-only 120-column format, commit; scoped fmt then frozen-source final all; retain failures, audit totals/artifact flags, final report/queue.
+- Quick once: i686 core 3244/0, dependents compile-only, CMake 4/4. Wrapper remained outstanding long after logs completed, interrupted with Ctrl-C (exit 1, no summary); no duplicate quick. Logs archived under build-runs/quick/.
+- Formatting: new seven files now follow engine/rustfmt.toml max_width=120; scoped qbuild fmt exit0, files7. Full eight-file fmt has inherited lib.rs/module-child differences; base/current root-only style comparison both fail, current lib.rs exactly one additive final declaration. No broad reformat.
+- Next: commit formatting-only source; run final all with source frozen; audit sums/artifacts, final report/queue. Focused 24/24 and quick 3244/0 predate whitespace-only correction; final all must cover corrected source.
 - Scope: new map_view module/tests, additive lib.rs declaration, appended map-view questions, this report only.
 - No game/native probes, ABI/plugin/CAPI/default changes, subagents, branch/ref mutation, or forbidden paths.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-map-view4-r1-manifest.json`.

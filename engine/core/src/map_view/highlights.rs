@@ -21,26 +21,10 @@ pub struct HighlightRequest {
 /// Only raw simulator primitive requests, never an external GetHighlights.
 pub fn highlight_request(kind: u32) -> Result<HighlightRequest, Unsupported> {
     let (provider, building_slot, coverage) = match kind {
-        1 => (
-            Provider::Residential,
-            47,
-            CoverageRequest::ResidentialSlot45,
-        ),
-        2 => (
-            Provider::Residential,
-            49,
-            CoverageRequest::ResidentialSlot45,
-        ),
-        3 => (
-            Provider::Fire,
-            22,
-            CoverageRequest::FireSlot21 { level: 0.5 },
-        ),
-        4 => (
-            Provider::Police,
-            21,
-            CoverageRequest::PoliceSlot20 { level: 0.5 },
-        ),
+        1 => (Provider::Residential, 47, CoverageRequest::ResidentialSlot45),
+        2 => (Provider::Residential, 49, CoverageRequest::ResidentialSlot45),
+        3 => (Provider::Fire, 22, CoverageRequest::FireSlot21 { level: 0.5 }),
+        4 => (Provider::Police, 21, CoverageRequest::PoliceSlot20 { level: 0.5 }),
         5 => return Err(Unsupported::CrimeHotspot),
         6 => (Provider::Pollution, 46, CoverageRequest::Unspecified),
         7 => (Provider::Power, 25, CoverageRequest::Unspecified),
@@ -107,10 +91,7 @@ pub struct HighlightCollection {
     pub candidates: Vec<HighlightCandidate>,
 }
 
-pub fn collect_highlights(
-    kind: u32,
-    buildings: &[RawBuilding],
-) -> Result<HighlightCollection, Unsupported> {
+pub fn collect_highlights(kind: u32, buildings: &[RawBuilding]) -> Result<HighlightCollection, Unsupported> {
     highlight_request(kind)?;
     let building_kind = match kind {
         1 => BuildingKind::School,

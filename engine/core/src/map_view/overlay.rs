@@ -34,11 +34,7 @@ impl OverlayState {
     /// Emit one Mark per supplied coloured cell, verbatim. No alpha threshold,
     /// damaged-road selection, geometry construction or unregistration is claimed.
     /// Registration-once is explicit in §4.3; it requires no highlight equality.
-    pub fn plan(
-        &mut self,
-        overlay_on: bool,
-        cells: &[ColoredCell],
-    ) -> Result<Vec<OverlayEffect>, Unsupported> {
+    pub fn plan(&mut self, overlay_on: bool, cells: &[ColoredCell]) -> Result<Vec<OverlayEffect>, Unsupported> {
         if !overlay_on {
             return Ok(Vec::new());
         }

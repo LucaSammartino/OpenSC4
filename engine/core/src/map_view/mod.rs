@@ -258,9 +258,7 @@ impl MapView {
     pub fn activate(&mut self) -> Vec<Effect> {
         self.animation_registered = true;
         self.active = true;
-        vec![Effect::RegisterAnimation(
-            AnimationPriority::UnspecifiedActivation,
-        )]
+        vec![Effect::RegisterAnimation(AnimationPriority::UnspecifiedActivation)]
     }
 
     pub fn deactivate(&mut self) -> Vec<Effect> {
@@ -400,10 +398,7 @@ impl MapView {
             }
             _ => {}
         }
-        if self
-            .update_subscription
-            .is_some_and(|s| s.message == message)
-        {
+        if self.update_subscription.is_some_and(|s| s.message == message) {
             self.dirty = true;
         }
         Ok(Vec::new())
@@ -421,11 +416,7 @@ impl MapView {
     /// is clean or throttled; no caller-supplied "highlights changed" answer.
     /// Only a known dirty cause establishes a due redraw while equality is
     /// unpublished. An unsupported attempt retains dirty and last-redraw time.
-    pub fn tick(
-        &mut self,
-        now_ms: u64,
-        buildings: &[RawBuilding],
-    ) -> Result<TickProgress, Unsupported> {
+    pub fn tick(&mut self, now_ms: u64, buildings: &[RawBuilding]) -> Result<TickProgress, Unsupported> {
         // [literal bounded clock, QV9] No guessed wrapping/subtraction width.
         let elapsed = now_ms
             .checked_sub(self.last_redraw_ms)

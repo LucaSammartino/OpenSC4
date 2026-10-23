@@ -87,11 +87,7 @@ impl Values<'_> {
 
 /// Portable helper contract: refuse unsupported inputs before writing any
 /// output. Native malformed-buffer/failure behavior is not specified (QV6).
-pub fn emit_colors(
-    values: Values<'_>,
-    palette: &RawPalette,
-    output: &mut [u32],
-) -> Result<(), Unsupported> {
+pub fn emit_colors(values: Values<'_>, palette: &RawPalette, output: &mut [u32]) -> Result<(), Unsupported> {
     if values.len() != output.len() {
         return Err(Unsupported::BufferLength);
     }

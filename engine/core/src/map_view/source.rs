@@ -100,8 +100,7 @@ pub fn select_source(source: u32, layer: u32, debug: bool) -> Result<SourceSelec
         30 => grid(Residential, 41, None, U8, false),
         64..=75 => {
             const TYPES: [u32; 12] = [
-                0x1010, 0x1020, 0x1030, 0x3110, 0x3120, 0x3130, 0x3320, 0x3330, 0x4100, 0x4200,
-                0x4300, 0x4400,
+                0x1010, 0x1020, 0x1030, 0x3110, 0x3120, 0x3130, 0x3320, 0x3330, 0x4100, 0x4200, 0x4300, 0x4400,
             ];
             let layer = if debug { 6 } else { layer };
             let grid = match layer {
