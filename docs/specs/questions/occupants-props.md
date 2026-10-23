@@ -2,23 +2,12 @@
 <!-- Questions about lot-records.md (§9, §10.3, §10.4, §12), occupant-manager.md (§13.1, §13.2) and prop-occupant.md. Append new entries at the END; when one is answered, move it to answered/occupants-props.md. Rules: README.md. -->
 
 <!-- from: re-occprops (2026-10-20) -->
-- **OP1:** text-decal field roles `+0x78`, `+0x84`, `+0x88`, `+0x8C`, `+0xAC` (lot-records.md §10.4): the
-  constructor writes `+0x78` = a message-target-derived pointer, `+0x7C` = 0, `+0x84`/`+0x88` = −1, `+0x8C` = 0,
-  `+0xAC` = 1 (`0x005F8300`); `SetPosition` writes x→`+0x88`, z→`+0x8C` (`0x005F7AA0`); `UpdateDecal` stores decal
-  IDs into `+0x84`/`+0x88` and tests `+0x8C` as the dynamic flag; `SetOrientation` writes `+0xAC` as a u32 but
-  `Shutdown` (`0x005F76C0`) treats `+0xAC` as a manager pointer and `+0x7C` as its decal id; `SetAlpha`/`SetTextColor`
-  treat `+0x84`/`+0x88` as ids and `+0xA8` as alpha. Settle with a live save: run the CreateTextDecal debug command
-  (`0x0BEAF1A2`), save, decode the record, and trace Write `0x005F7DB0`. [the ctor is the truth; the setter
-  addresses above are all measured]
-
-<!-- from: re-occprops (2026-10-20) -->
-- **OP2:** the `cIGZOStream`/`cIGZIStream` slot `+0x3C` semantic: lot-records.md §13.2 names it "GZStr", but the
-  signpost Write (`0x005F5080`) and Read (`0x005F50F0`) pass `&+0x88` (a u32 field) and the decal Write/Read pass
-  `&+0x5C` (the prop's lot tag u32). Also settle slot `+0x30` = Float32 vs Uint32 (the decal reads `+0x70` via
-  slot 0x24 in v1 with FILD, via slot 0x30 in v2+; SetTextHeight writes f32 to `+0x80` — so 0x30 = Float32 fits,
-  and the `+0x84`/`+0x88` pair read as f32 would be NaN bit patterns of the −1 sentinel, which the integer
-  compares treat as −1). One live trace of either Write or the SDK header order settles both.
-  [0x30 = Float32; 0x3C = ???]
+- **OP2:** remaining signpost stream/receiver semantic: lot-records.md §13.2 calls stream
+  +0x3C GZStr, but signpost Write (`0x005F5080`) / Read (`0x005F50F0`) were interpreted
+  as passing a u32 field. Reconcile that class's receiver and field independently before
+  changing its record. TextDecal scope is answered in text-decal-occupant.md §7 and archive
+  OP2-TD: +0x3C is GZStr, +0x30 Float32; its receiver-relative +0x5C is text, not lot tag,
+  and its repeated pair is position, not IDs. No signpost source analysis was done in that lane.
 
 <!-- from: re-occprops (2026-10-20) -->
 - **OP3:** signpost `SetDynamic` (`0x005F4BA0`) colour tables: it copies 4 bytes from `0x00AA5204 + 4·(arg!=0)`

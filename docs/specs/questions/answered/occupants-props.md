@@ -1,4 +1,25 @@
 # occupants-props: answered questions (archive)
+
+- **OP1:** text-decal field roles `+0x78`, `+0x84`, `+0x88`, `+0x8C`, `+0xAC` (lot-records.md §10.4): the
+  constructor writes `+0x78` = a message-target-derived pointer, `+0x7C` = 0, `+0x84`/`+0x88` = −1, `+0x8C` = 0,
+  `+0xAC` = 1 (`0x005F8300`); `SetPosition` writes x→`+0x88`, z→`+0x8C` (`0x005F7AA0`); `UpdateDecal` stores decal
+  IDs into `+0x84`/`+0x88` and tests `+0x8C` as the dynamic flag; `SetOrientation` writes `+0xAC` as a u32 but
+  `Shutdown` (`0x005F76C0`) treats `+0xAC` as a manager pointer and `+0x7C` as its decal id; `SetAlpha`/`SetTextColor`
+  treat `+0x84`/`+0x88` as ids and `+0xA8` as alpha. Settle with a live save: run the CreateTextDecal debug command
+  (`0x0BEAF1A2`), save, decode the record, and trace Write `0x005F7DB0`. [the ctor is the truth; the setter
+  addresses above are all measured]
+  **ANSWERED 2026-10-23 (re-text-decal-owner4):** DIFFERS — independently traced receiver
+  transformations settle the aliases statically. Complete O: +78 string bookkeeping, +84/+88
+  IDs, +8C dynamic byte, +AC orientation. SetPosition and Shutdown receive O+12; serializable
+  Read/Write receive O+16. Their raw displacements must be converted before assigning roles.
+  Rule and instruction citations: text-decal-occupant.md §§1–2 and lot-records.md §10.4.
+
+- **OP2-TD:** TextDecal portion of OP2, slot +3C and +30 semantics and supposed ID/height repeats.
+  **ANSWERED 2026-10-23 (re-text-decal-owner4):** DIFFERS — compiled stream interface facts
+  identify +3C GZStr and +30 four-byte Float32. O+16 record receiver maps +5C to O+6C text,
+  repeated pair +84/+88 to O+94/+98 position, +70 to height, +80 to size. No saved IDs here.
+  Version1 height is numeric Uint32-to-f32; version2+ Float32. Canonical rule:
+  text-decal-occupant.md §7. OP2 remains open only for its signpost scope.
 <!-- Archive for [occupants-props.md](../occupants-props.md). Lanes do not read this file. Open questions are in ../occupants-props.md. -->
 
 <!-- from: re-occprops (2026-10-20) -->

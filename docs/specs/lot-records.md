@@ -1020,106 +1020,17 @@ Behaviour:
 
 ### 10.4 `cSC4TextDecalOccupant` (`0x8B79C707`) *[compat]*
 
-A terrain text label drawn by the terrain overlay manager (the city-detail label tool creates it). It also embeds
-a complete `cSC4PropOccupant` at `+0x04` (constructor `0x005F8300`), with the same consequences as §10.3. Object
-size `0x40`-strided group of the prop allocator (operator new `0x005F7D80`).
+The city-detail terrain text label embeds a prop at complete-object +4. Its corrected
+state, record and owned behavior contract is [text-decal-occupant.md](text-decal-occupant.md),
+with independent **UNEXECUTED** [vectors](text-decal-vectors.md).
 
-| # | Field | Type | Meaning |
-|---|---|---|---|
-| 1 | version | u16 | 3 |
-| 2 | prop record | §10.1 | complete inline, from the prop's own version 6 (base occupant type `0xA823821E`) |
-| 3 | u32 at `+0x5C` | u32 | the **prop's lot tag** re-written through the stream slot 0x3C helper (a duplicate of record #12 of §10.1) *[quirk — see Q5]* |
-| 4 | decal ID pair | 2 × f32 | `+0x84`, `+0x88` (`operator<<` `0x005DA520`), written again as a pair later *[quirk: the pair is written twice]* |
-| 5 | text height | f32 | `+0x80` (slot 0x30) |
-| 6 | text height (repeat) | f32 | `+0x80` again via the pair-helper with `+0x84` *[quirk — verify with a save]* |
-| 7 | position / orientation triple | 3 × f32 | `+0x8C`, `+0x90`, `+0x94` (`operator<<` `0x005DA580`) |
-| 8 | y | f32 | `+0x98` (slot 0x30) |
-| 9 | colour index byte | u8 | the low byte of `+0x9C` (slot 0x14; the dword holds the blue colour f32) |
-
-Read (`0x005F7E50`) mirrors this: version < 3 reads one extra u32 (slot 0x24) into a scratch and drops it;
-version == 1 reads `+0x70`'s value as u32→f32 (slot 0x24 then `FILD`/`FSTP`) instead of slot 0x30; the rest
-symmetric. Returns `GetError() == 0` in EAX (the `NEG AL; SBB EAX,EAX; INC EAX` epilogue form, §13.1).
-
-State (decal-specific, from the object base; prop fields end at `+0x6C`):
-
-| Offset | Type | Role |
-|---|---|---|
-| `+0x6C` | `cRZString` | the text (empty-string vtable `0x00A80810` initially) |
-| `+0x78`, `+0x7C` | 2 × u32 | overlay-manager decal IDs, −1 = none (constructor 0 for `+0x7C`? measured: `+0x7C` = 0, `+0x78` = msg-target-8) — **OP1** |
-| `+0x80` | f32 | text height (default 1.0) |
-| `+0x84`, `+0x88` | 2 × s32 | terrain-decal IDs, −1 = none |
-| `+0x8C` | u8 | dynamic flag |
-| `+0x90` | f32 | computed decal size (default 100.0) |
-| `+0x94`, `+0x98` | 2 × f32 | position x, z (SetPosition writes +0x88/+0x8C — the **OP1** conflict) |
-| `+0x9C…+0xA4` | 3 × f32 | colour RGB (default 255, 255, 255) |
-| `+0xA8` | f32 | alpha (default 1.0) |
-| `+0xAC` | u32 | orientation (default 1) |
-| `+0xB0` | ptr | texture binding for the text |
-| `+0xB4`, `+0xB8` | 2 × ptr | the two overlay-manager handles |
-
-Interfaces: `+0x00` the 11-slot class view `0x00AA5680` (QI `0x005F7650` answers `0x2B3B7D86` with this, else
-`ADD ECX,4`; slot 3 `AsOccupant` `0x005F8400` shared → this+0xC; slots 4–10 `SetText` `0x005F82E0`, `GetText`
-`0x005F8410`, `SetTextHeight` `0x005F7B10`, `SetDynamic` `0x005F8170`, `SetTextColor` `0x005F7B50`,
-`SetOrientation` `0x005F7D60`, `SetAlpha` `0x005F7C00`); `+0x04` prop view `0x00AA5620`; `+0x08` message target
-`0x00AA5610` (`DoMessage` `0x005F8030`); `+0x0C` the 34-slot occupant view `0x00AA5588` (QI-12 `0x005F8460`;
-overrides `Init` `0x005F7F40`, `Shutdown` `0x005F76C0`, `GetPosition` `0x005ED1F0` shared with the signpost,
-`SetPosition` `0x005F7AA0`, slots 27/28 prop lot-tag pair, `SetAllFlags` `0x005F81F0`); `+0x10` serializable
-`0x00AA556C`; `+0x14` the 26-slot holder view `0x00AA5508` (slot 22 `0x005F8490` thunk `SUB ECX,0x14` → dtor;
-23/24 → Write/Read); `+0x28` `cISCExemplarPropertyHolder` `0x00AA54F0`. The prop-relative bbox max is set to
-0.1 in the constructor (`+0x4C/+0x50/+0x54` = prop-relative `+0x48/+0x4C/+0x50`).
-
-Behaviour:
-
-- **`SetText(text)`** `0x005F82E0` — copies into `+0x6C` (string slot 0x34) and calls `UpdateTexture`.
-- **`SetTextHeight(f)`** `0x005F7B10` — accepts 0 < f < 8.0 (constants `0x00A81054` / `0x00A8E178`); stores `+0x80`
-  and calls `UpdateDecal`. Text values outside the range are ignored.
-- **`SetTextColor(r, g, b)`** `0x005F7B50` — per-channel |new − old| > 1e-4 (constant `0x00AA54A0`) → store all
-  three; if dynamic (`+0x8C`), push the colour to both live decals (mgr slot 0x48 with id `+0x84`/`+0x88` and
-  `&+0x9C`); else `UpdateDecal`.
-- **`SetAlpha(f)`** `0x005F7C00` — if f ≠ `+0xA8`: store; dynamic → mgr slot 0x44 on both ids; else `UpdateDecal`.
-- **`SetOrientation(u)`** `0x005F7D60` — if u ≠ `+0xAC`: store, `UpdateDecal`.
-- **`SetDynamic(bool)`** `0x005F8170` — if ≠ byte `+0x8C`: store and `UpdateOverlayManager`.
-- **`SetPosition(vec3*)`** `0x005F7AA0` — writes `+0x88 = arg[0]` and `+0x8C = arg[8]` (the x and z of the vector),
-  translates the prop box, asks the terrain service (`0x00B43CEC` slot 0x17C) for the altitude at that x/z into
-  the stack pair, and then either `MoveDecal` (when `+0x80`'s flag byte is set) or `UpdateDecal`. **This is the
-  measured conflict with the ctor's `+0x88` = −1 (a decal ID): the live field roles are the OP1 question; the
-  table above records both readings.**
-- **`UpdateDecal`** `0x005F7810` — releases both decal IDs (mgr slot 0x3C, set −1); returns early when the texture
-  `+0xB0` is null or flag 2 is clear (occupant view slot 32). Computes the cell-size aspect from the overlay
-  manager (`+0xB0` slot 0xC out pair, `FILD` × 2 / `FDIV`), scales `+0x90` from `+0x98 * +0x80 * 16.0`
-  (`0x00A8D45C`), reads the city cell size (`0x00B43CF4` slot 0x34), computes width/height (`+0x80` × 8.0 and the
-  half-constants `0x00A84D2C`), swaps them when `+0xAC` == 0, takes the view-level scale from the renderer's
-  table (`0x00B43DD0` slot 0x28 → `0x00B0A978 + level·4`), recomputes the prop box (`+0x40…+0x54`) around the
-  position with 0.1 margins (`0x00A8C950`), then `AddDecal` on both managers (slot 0xC with the box and colour
-  `+0x9C`) storing ids `+0x84`/`+0x88`, pushes colour (slot 0x48) and alpha (slot 0x44) to each, and finally asks
-  the occupant manager (`0x00B43D0C`) slot 0x60/4=24 (`MoveOccupant`) with (this, 0) to re-index the cells.
-- **`UpdateOverlayManager`** `0x005F7C80` — releases both ids, then asks `SL::TerrainView` (`0x00602160`) for 1 or
-  2 handles (dynamic ? 2 : 1; the second call passes the count 2 when dynamic via `NEG/SBB/AND 2`), storing them
-  in `+0xB4`/`+0xB8`.
-- **`UpdateTexture`** `0x005F8190` — releases `+0xB0`, asks the resource service (`0x00B43CE4`) slot 0x10 for RID
-  `0xCC1FD62C` (keys `0x7AB50E44`/`0x1ABE787D`) with the text → binding; when it answers, `UpdateDecal`.
-- **`MoveDecal`** `0x005F7A50` — when dynamic, mgr slot 0x30 on both ids with `&+0x94` (the position pair).
-- **`RemoveDecals`** `0x005F77C0` — mgr slot 0x3C per id (each ≥ 0), reset both to −1.
-- **`Init`** `0x005F7F40` — prop type `0xCB79919B` via prop-view slot 8; prop `Init`; when **not** loaded:
-  `UpdateOverlayManager`, then ask the overlay service (`0x00B43DC4` slot 0x48) for a manager, QI it (slot 0xC)
-  with this or null (the `NEG/SBB/AND` trick), and when it answers and the city config slot 0x28 says so, set flag
-  2 (view slot 0x74); release the manager. Subscribe `0xA6B79602`, `0x06CDB65B`, `0x26D31EC1` (message server slot
-  0x14, target `+0x4`). Returns 1.
-- **`Shutdown`** `0x005F76C0` — unsubscribe the three; then per live manager handle (`+0xA8`, `+0xAC` — see OP1
-  for the ctor conflict) release its decal id (`+0x78`/`+0x7C`) and the manager itself; finally release `+0xA4`'s
-  object, free the date pair (`FUN_005EE160`) and tail-call the base `Shutdown`.
-- **`DoMessage`** `0x005F8030` — `0x06CDB65B`: the same flag-2 dance as the signpost. `0x26D31EC1`:
-  `UpdateOverlayManager`, re-ask the overlay service and set/clear flag 2 per its answer, then the prop's
-  `DoMessage`. `0xA6B79602`: `UpdateDecal`, then the prop's `DoMessage`. Default: the prop's `DoMessage`.
-- **`SetAllFlags`** `0x005F81F0` — the signpost's protection plus: with bit 2 turning on, if `+0xA8` or `+0xAC` is
-  0 → `UpdateOverlayManager` else `UpdateDecal`; when `+0xA4` is 0 and the prop view's slot 0x1C returns non-zero,
-  also `UpdateTexture`. With bit 2 turning off: `RemoveDecals`.
-- **Creation** — GZCOM creator `0x005F84D0` (pool `0x00B0A9B8`); registered at `0x00460851`. The label tool
-  (`cSC4ViewInputControlLabelTool::UpdateTextDecal` `0x004BD320`, creation in `OnMouseDownL` `0x004BD890`) drives
-  the setters: terrain altitude from `0x00B43CEC` slot 0x17C, water from `0x00B43CF4` slot 0x88, tile from
-  `0x00B43D54` slot 0x20 (constant `0x44B`), then occupant slots 0x20/0x18/0xC/0x24 with the float arguments
-  `0x40000000`/`0x3F000000`/`0x3F800000` etc. The debug command `0x0BEAF1A2` reaches the same setters through the
-  prop manager (prop-lotconfig.md §A4.3, PL1).
+**OP1 correction (2026-10-23):** occupant methods use O+12, serializable methods O+16,
+constructor and internal rebuild O. Record +5C is O+6C text (GZStr); repeated +84/+88 is
+O+94/+98 position (Float32), not IDs or repeated height. Complete-object +84/+88 are IDs;
+Shutdown's +A8/+AC are O+B4/+B8 managers, while SetOrientation's +AC is O+AC orientation.
+The former mixed-frame tables and geometry summary are withdrawn, not alternative behavior.
+TextDecal-only OP2 is resolved by compiled stream-width/slot facts in the dedicated spec §7;
+the signpost part of OP2 remains separate.
 
 ---
 
@@ -1342,8 +1253,8 @@ lot trip list appended on read (§3.4); lot `Read` sets "initialised" before che
 skips Init's altitude step (§3.4); retaining-wall mask grows on load (§7); effect props lose their name while
 live (§10.2); prop and construction readers accept unknown newer versions (§9, §10.1); u8 map counts (§3.2); the lot
 configuration ID is dropped when the configuration is missing (§3.5); the crime-only lot (§14); the text-decal
-record re-writes the prop's lot tag and writes the decal-ID pair twice (§10.4); the decal's colour byte is the low
-byte of an f32 colour dword (§10.4); the signpost `SetText` skip requires both an equal string *and* an unchanged
+record writes position twice and stores only the low orientation byte (§10.4, text-decal-occupant.md §7);
+the signpost `SetText` skip requires both an equal string *and* an unchanged
 capacity pair (§10.3); construction `+0xCC` (record #8) is written as `(+0xF8 != 0)`, i.e. from the live crane
 pointer rather than a stored bool (§9.1).
 
@@ -1364,12 +1275,12 @@ Open questions:
   and u32 (§10.2).
 - **Q5** Who sets lot flag bit 7 (§3.2)?
 - **Q6** Layouts of the burnt-building, terrain-decal and automata-controller prop subclasses (absent from saves).
-- **Q7** (from re-occprops, 2026-10-20) The text-decal record fields 4/6/9 (§10.4): the decal-ID pair is written
-  twice and the second write carries `+0x84` again — which live field is record field 6? Filed as OP1/OP2 in
-  questions/occupants-props.md with the live-vs-saved conflict.
-- **Q8** (from re-occprops, 2026-10-20) The signpost record field 3 (`+0x88`, stream slot 0x3C) and the decal
-  record field 3 (`+0x5C`, the same helper): what the helper writes is not resolved from the callers alone
-  (lot-records §13.2 calls slot 0x3C "GZStr"; the signpost/decal pass u32 object addresses). Filed as OP2.
+- **Q7** Answered statically 2026-10-23: the text-decal serializable receiver is O+16. Its
+  extension writes position twice, height then size, RGB, alpha and orientation byte; no decal
+  IDs or duplicate lot tag. See text-decal-occupant.md §§1–2,7; archived OP1 and OP2-TD.
+- **Q8** TextDecal portion answered in text-decal-occupant.md §7: stream +3C is GZStr and
+  receiver +5C is O+6C text. Signpost's independent receiver/field reconciliation remains OP2
+  in questions/occupants-props.md; this correction makes no new signpost-owner claim.
 
 ---
 
