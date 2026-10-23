@@ -1,8 +1,16 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-simgrid-lots-shadow5: sim grid and lot record shadows | Codex, `.claude/worktrees/glue-simgrid-lots-shadow5` (reserved detached HEAD) | wip: SG3 discovery contract missing | Specify complete original-grid inventory or explicitly bound persisted-grid scope; resume both shadows. |
+| glue-simgrid-lots-shadow5: sim grid and lot record shadows | Codex, `.claude/worktrees/glue-simgrid-lots-shadow5` (reserved detached HEAD) | in progress | Implement SG3 inventory record shadow and investigate lot record full walk. |
 
-## Report
+## Handoff
+
+- Round 2: merged re-simgrid-sg3 as 62809139. SG3 answered: 38 fixed roles + 4 per dynamically enumerated growth developer (86 shipped).
+- Merge printed packed-refs.lock permission warning but completed with clean tree and merge commit; detached HEAD retained.
+- Next: implement owner/getter inventory from simgrid sections 6.2.1/6.2.2 using fc4_simgrids_verify; inspect lot-record discovery contract.
+- All single-grid getters borrowed; residential three-output getters AddRef all outputs. Reacquire each observation.
+- No gate or game requested; no outstanding label.
+
+## Prior round report
 
 Implementation stopped at the task's missing-contract condition. No engine/plugin code, C ABI exports,
 configuration defaults, or coverage tables changed. Neither requested new shadow is implemented.
