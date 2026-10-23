@@ -9,4 +9,3 @@
 - **LD34:** lot-developer.md §11.1 gives slot 8 AbandonBuilding as "AL of SetState", and lot-records.md §13.2 gives lot
   slot 34 SetState as "none defined". So is AbandonBuilding's result undefined? tract-developer.md's interface table
   lists it as plain AL. [passed through; the tract core never reads it]
-

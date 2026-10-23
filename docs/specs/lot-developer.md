@@ -1239,13 +1239,14 @@ of the side's area by `RemoveRectangle`.
 extent (sides 0 / 2) and z otherwise (sides 1 / 3); the side is drawn as in §6.7.7. The size is the first `k` with
 `width[k] > 0` and `back[k] + reach[k] < L`; none → no crane. The crane stands on the building, offset along the long
 axis from the middle by `(back + reach) / 2 − back`, with a swing range chosen as for the outer crane from the half of
-the short extent *[summary]*.
+the short extent *[summary; exact side mapping and signed positions are in §6.7.15]*.
 
 **`RemoveRectangle(area, r)`** (`0x005CCD70`): of the four parts of `area` outside `r` (below it in z, right of it in
 x, above it in z, left of it in x, each spanning the area's full other extent) the area becomes the one with the
 largest x·z product, ties keeping the earlier one; when none is larger than 0, the area becomes empty.
 
-**`SetCraneAngle(a)`** (`0x005CBE10`): the crane model turns to `a + π`, reduced below 2π *[summary]*. During state 0
+**`SetCraneAngle(a)`** (`0x005CBE10`): the crane model turns to `a + π`, reduced to at most 2π (equality is retained;
+§6.7.15). During state 0
 of §6.7.6 the angle is `start + (target − start) · s`, `s := t² (3 − 2t)` with `t := acc / duration`.
 
 #### 6.7.13 Prop tables (`StaticInit`)
