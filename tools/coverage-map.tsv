@@ -112,7 +112,7 @@ cPortTypeConfig	port developers	simulation	port-developers.md	core/src/port_deve
 cSC4PropDeveloper	prop developer	simulation	prop-developer.md	core/src/prop_developer	-	propdev
 cSC4WealthRequester	prop developer	simulation	prop-developer.md	core/src/prop_developer	-	-
 cSC4NetworkTool	network tools	simulation	network-tools.md,network-geometry.md,network-bridges.md	core/src/network_tools,core/src/network_geometry,core/src/network_bridge	-	nettool
-cSC4PowerLineTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
+cSC4PowerLineTool	network tools	simulation	network-tools.md,network-geometry.md	core/src/network_tools	-	-
 cSC4UndergroundNetworkTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
 cSC4PipeTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
 cSC4SubwayTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
@@ -143,7 +143,7 @@ cSC4CitySituationAdvice	advisors	simulation	advisors.md	core/src/advisors	-	-
 cSC4MySimAgentSimulator	mysims	simulation	mysims.md	core/src/mysims	-	-
 cSC4MySim	mysims	simulation	mysims.md	core/src/mysims	mysims_shadow	-
 cSC4MySimPool	mysims	simulation	mysims.md	core/src/mysims	-	-
-cSC4MySimDispatch*	mysims	simulation	mysims.md	-	-	-
+cSC4MySimDispatch*	mysims	simulation	mysims.md	core/src/mysims	-	-
 cSC4MyStreetSim	mysims	simulation	mysims.md	core/src/mysims	mysims_shadow	-
 cSC4MySimAdvice	mysims	simulation	mysims.md	core/src/mysims	-	-
 cSC4MySimBalloonAdvice	mysims	simulation	mysims.md	core/src/mysims	-	-
@@ -327,7 +327,7 @@ cSC4MadCowPlayerWin	audio	audio	-	-	-	-
 # cGroupLayer: the sound group layer under the ambience layer (every caller is cSC4AudioAmbienceLayer)
 cGroupLayer	audio	audio	-	-	-	-
 # ---- renderer
-nSGLDX7*	3D driver (DirectX 7)	renderer	-	-	-	-
+nSGLDX7*	3D driver (DirectX 7)	renderer	renderer-driver.md	-	-	-
 nRZSimGL*	3D driver (DirectX 7)	renderer	-	-	-	-
 cGZBufferSimGLCache	3D driver (DirectX 7)	renderer	-	-	-	-
 cSC4GDriversCOMDirector	3D driver (DirectX 7)	renderer	renderer-gdrivers-director.md,renderer-gdrivers-director-inventory.md	-	-	-
@@ -386,7 +386,7 @@ cSC4GlyphTextureInfo	glyph and string textures	renderer	glyph-textures.md	-	-	-
 cSC4StringTextureInfo	glyph and string textures	renderer	glyph-textures.md	-	-	-
 cSTETerrainView3D	3D scene and models	renderer	terrain.md, terrain-view.md	core/src/terrain	terrain_shadow	-
 cSTEOverlayManager	terrain overlays	renderer	overlay-manager.md	core/src/terrain_overlays	-	-
-cSTEWaterRipple	terrain ripples and selection	renderer	water-ripples.md	-	-	-
+cSTEWaterRipple	terrain ripples and selection	renderer	water-ripples.md	core/src/terrain_ripples	-	-
 cSTEVertBufExtn	overlay views	renderer	terrain-view.md, overlay-views.md	-	-	-
 cSTESelectedTerrainArea	terrain ripples and selection	renderer	water-ripples.md	-	-	-
 SC4ViewUtilities	view utilities	renderer	view-utilities.md	core/src/view_utilities	-	-
@@ -520,7 +520,7 @@ fn:getDefaultValue	resource and exemplar editor	ui	-	-	-	-
 fn:getUnquotedString	resource and exemplar editor	ui	-	-	-	-
 fn:convertStringToFloatValue	resource and exemplar editor	ui	-	-	-	-
 # ---- framework
-cSC4App	application	framework	application.md	-	-	-
+cSC4App	application	framework	application.md	core/src/application	-	-
 cWinSC4App	application	framework	-	-	-	-
 cSC4AutomataCOMDirector	application	framework	automata-managers.md	-	-	-
 cSC4*COMDirector	application	framework	-	-	-	-

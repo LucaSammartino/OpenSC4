@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000" font-family="Segoe UI, Helvetica, Arial, sans-serif">
 <rect width="1600" height="1000" fill="#f6f7f4"/>
 <text x="16" y="44" font-size="30" font-weight="700" fill="#1d2320">OpenSC4 coverage of SimCity 4.exe</text>
-<text x="16" y="74" font-size="17" fill="#4a544f">Game code: 5.33 MB of machine code, libraries excluded. Specified 64.6% · implemented 45.3% · verified 19.6% · replaced in game 18.1%.</text>
-<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). main af9d4f29, regress-train147.out.</text>
+<text x="16" y="74" font-size="17" fill="#4a544f">Game code: 5.33 MB of machine code, libraries excluded. Specified 67.1% · implemented 47.7% · verified 19.6% · replaced in game 18.1%.</text>
+<text x="16" y="100" font-size="14" fill="#6b746f">Box area = bytes. Colour = furthest status of the owning class (tools/coverage.py, docs/COVERAGE.md). main 7cc55b1f, regress-train148.out.</text>
 <rect x="18.0" y="146.0" width="74.7" height="112.3" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="18.0" y="258.3" width="74.7" height="105.5" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="92.7" y="146.0" width="95.4" height="80.5" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
@@ -50,7 +50,7 @@
 <rect x="251.8" y="146.0" width="164.3" height="217.8" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <text x="255.8" y="160.0" font-size="11.5" font-weight="600" fill="#1d2320" stroke="#f6f7f4" stroke-width="3" paint-order="stroke">traffic</text>
 <rect x="416.1" y="146.0" width="152.0" height="153.5" fill="#c97b2a" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="416.1" y="299.5" width="50.4" height="64.3" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="416.1" y="299.5" width="50.4" height="64.3" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="466.5" y="299.5" width="50.3" height="36.9" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="466.5" y="336.3" width="50.3" height="27.4" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="516.9" y="299.5" width="26.0" height="49.9" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
@@ -111,12 +111,12 @@
 <rect x="346.5" y="363.8" width="113.3" height="163.8" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <text x="350.5" y="377.8" font-size="11.5" font-weight="600" fill="#1d2320" stroke="#f6f7f4" stroke-width="3" paint-order="stroke">terrain</text>
 <rect x="459.9" y="363.8" width="108.2" height="76.5" fill="#4fa36b" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="459.9" y="440.3" width="52.0" height="87.3" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="459.9" y="440.3" width="52.0" height="87.3" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="511.9" y="440.3" width="56.2" height="32.1" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="511.9" y="472.4" width="39.5" height="30.0" fill="#4fa36b" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="511.9" y="502.4" width="39.5" height="25.2" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="551.4" y="472.4" width="16.7" height="35.4" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="551.4" y="507.8" width="16.7" height="18.7" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="551.4" y="507.8" width="16.7" height="18.7" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="551.4" y="526.6" width="16.7" height="1.0" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="459.9" y="363.8" width="108.2" height="163.8" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <text x="463.9" y="377.8" font-size="11.5" font-weight="600" fill="#1d2320" stroke="#f6f7f4" stroke-width="3" paint-order="stroke">mysims</text>
@@ -436,16 +436,16 @@
 <rect x="775.3" y="543.0" width="7.5" height="3.2" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="572.1" y="375.2" width="210.7" height="171.0" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <text x="576.1" y="389.2" font-size="11.5" font-weight="600" fill="#1d2320" stroke="#f6f7f4" stroke-width="3" paint-order="stroke">effects</text>
-<rect x="782.7" y="146.0" width="155.4" height="158.5" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="782.7" y="304.5" width="71.6" height="50.2" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="782.7" y="146.0" width="155.4" height="158.5" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="782.7" y="304.5" width="71.6" height="50.2" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="854.3" y="304.5" width="34.3" height="50.2" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="888.6" y="304.5" width="25.5" height="29.2" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="914.2" y="304.5" width="24.0" height="29.2" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="888.6" y="304.5" width="25.5" height="29.2" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="914.2" y="304.5" width="24.0" height="29.2" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="888.6" y="333.6" width="29.3" height="21.0" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="917.9" y="333.6" width="20.2" height="17.7" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="917.9" y="351.3" width="7.0" height="3.3" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="925.0" y="351.3" width="6.7" height="3.3" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
-<rect x="931.7" y="351.3" width="6.5" height="3.3" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="917.9" y="351.3" width="7.0" height="3.3" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="925.0" y="351.3" width="6.7" height="3.3" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="931.7" y="351.3" width="6.5" height="3.3" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="782.7" y="146.0" width="155.4" height="208.7" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <text x="786.7" y="160.0" font-size="11.5" font-weight="600" fill="#1d2320" stroke="#f6f7f4" stroke-width="3" paint-order="stroke">3D driver (DirectX 7)</text>
 <rect x="782.7" y="354.7" width="53.9" height="64.1" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
@@ -634,7 +634,7 @@
 <rect x="1076.0" y="540.4" width="6.9" height="5.7" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1082.9" y="540.4" width="2.4" height="5.7" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1022.2" y="494.3" width="63.1" height="51.9" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
-<rect x="1085.3" y="352.6" width="42.9" height="48.2" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="1085.3" y="352.6" width="42.9" height="48.2" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1128.2" y="352.6" width="24.9" height="48.2" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1085.3" y="352.6" width="67.8" height="48.2" fill="none" stroke="#f6f7f4" stroke-width="1.6"/>
 <rect x="1153.1" y="352.6" width="32.9" height="25.8" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
@@ -926,7 +926,7 @@
 <text x="1076.4" y="850.2" font-size="11.5" font-weight="600" fill="#1d2320" stroke="#f6f7f4" stroke-width="3" paint-order="stroke">resource and exempla…</text>
 <rect x="570.1" y="548.2" width="650.9" height="389.8" fill="none" stroke="#1d2320" stroke-width="2"/>
 <text x="576.1" y="567.2" font-size="16" font-weight="700" fill="#1d2320">UI  19.8%</text>
-<rect x="1223.0" y="146.0" width="133.0" height="138.0" fill="#9cc3e4" stroke="#f6f7f4" stroke-width="0.4"/>
+<rect x="1223.0" y="146.0" width="133.0" height="138.0" fill="#e8b04a" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1355.9" y="146.0" width="89.2" height="74.1" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1355.9" y="220.1" width="36.5" height="33.6" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
 <rect x="1355.9" y="253.7" width="36.5" height="30.3" fill="#d5d9d4" stroke="#f6f7f4" stroke-width="0.4"/>
