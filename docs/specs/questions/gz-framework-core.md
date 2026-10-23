@@ -35,4 +35,3 @@ These questions belong to [gz-framework-core](../gz-framework-core.md). Filed
   vocabulary and AddToken overload semantics; numeric textual syntax/overflow,
   unassigned-parameter default variant, final/error callbacks, short reads and
   embedded NUL behavior. Confirm malformed quoted/tagged EOF cases with vectors.
-

@@ -831,7 +831,7 @@ on failure. Rows involving existing buffer/command specs inherit their fixtures.
 | GZC70 | Backend name X exists; AddOutputStream(X, stream, 0, out) | true; new caller-owned backend retains stream; original stays routed |
 | GZC71 | Uninitialized logger output; initialized output with null category or format | no category insertion, formatting or delivery |
 | GZC72 | Initialized logger, accepting backend; Output(C, `x=%d`, 4), OutputLevel(C, 7, `y=%d`, 5) | observed set contains C once; `x=4` level 0, `y=5` level 7 |
-| GZC73 | Log set getters before use and after Shutdown with ref recorder | borrowed distinct empty sets initially, no AddRef; null after Shutdown; prior borrows invalid |
+| GZC73 | Initialized logger: set getters before output and after Shutdown, with ref recorder | borrowed distinct sets; observed-category set empty before output; no AddRef; null after Shutdown; prior borrows invalid |
 | GZC74 | Dump with no category overrides, backend dump recorder | global heading/default description/separators emitted; backend receives same borrowed stream; no routing or tick |
 
 ## 11. Remaining work
