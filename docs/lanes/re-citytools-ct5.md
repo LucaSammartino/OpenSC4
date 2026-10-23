@@ -1,21 +1,49 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-citytools-ct5: place-lot CT closure | Codex / re-citytools-ct5 | in progress | Resolve CT2, CT16, CT17, CT22–CT24; doccheck |
+| re-citytools-ct5: place-lot CT closure | Codex / re-citytools-ct5 | ready; doccheck and questions check PASS; CT2, CT16, CT17, CT22–CT24 answered; ABI unchanged | Coordinator lands docs; core-place-lot5 applies the contracts and vectors |
+
+## Report
+
+Completed all six requested place-lot questions in [city-tools-input.md](../specs/city-tools-input.md).
+All six entries are in [the answered archive](../specs/questions/answered/city-tools-input.md), marked
+2026-10-23 / re-citytools-ct5. Regenerated the questions index. No new questions or ABI rows proposed.
+Other lanes' query-tool questions remain open and unchanged.
+
+- `8e1a3294`: CT2 input-queue flush; CT22 ring-finished coverage cleanup; CT23 exact zoning options,
+  short-circuiting failures and no rollback; CT24 equality at the four-point facing boundary.
+- `e84899bf`: CT16 side bytes/alignment bit, all six road/wide-network footprint cases, configuration IDs,
+  position offsets and compatible-network search. Search includes depth 2 and rejects `0x400000` on a
+  matching network as well as other selected-mask types.
+- `aa91c471`: CT17 preview building/prop creation and filtering, coverage category precedence,
+  independent visibility/validity, model transforms and highlight selectors, footprint/arrow effects,
+  constraint rotations/colour arrays and Water/subway-building view selection. Updated coverage text.
+- Final report commit also cites the verified renderer palette instructions for model highlight colours.
+
+There are 21 named conformance vectors for these six IDs, including 5 for CT16 and 8 for CT17.
+The valid model uses highlight selector 3 (default blue-grey), invalid uses 4 (default dark red),
+with white RGB and alpha 0.4. Constraint colours encode water/land requirements independently of validity.
+Footprint rotation uses a positive binary32 angle; the arrow uses a negative binary64 angle. Numeric
+instructions and constant data were checked rather than trusting the corrupted toll-picker pseudocode.
+
+Validation: `python tools/doccheck.py check` PASS; `python tools/questions.py check` PASS;
+`git diff --check` PASS. These are documentation checks; conformance vectors were specified, not run
+against an implementation. Cargo, clippy and ctest are n/a. Game runs and shadow comparisons are n/a.
+
+Evidence came from the main checkout's read-only export via `tools/re_query.py`, the class decompilation,
+and read-only executable constant inspection. REA was not attempted: the brief says it has no open binary.
+No REA errors or substituted game measurements are claimed. The owner's report maps the remaining
+closure rows to CT16/CT17; its closure table itself is under `engine/` and was not read, per the explicit
+RE-lane restriction. No engine, plugin, C API, coverage-map or ABI files were read/edited for implementation.
+No game files or decompiled material were committed. All committed changes are documentation.
+
+Git prints a `packed-refs.lock` permission diagnostic during commits, but each commit completed and the
+detached HEAD advanced. No refs/config were changed manually. The supervisor publishes the commits.
 
 ## Handoff
-Goal: close CT2, CT16, CT17, CT22–CT24 with prose and vectors; no code changes.
-Done: 8e1a3294 answers CT2/22/23/24; e84899bf closes CT16 with five vectors; CT17 now closes preview/feedback/constraints with eight vectors. Coverage updated; all six target questions moved to answered.
-Next: run doccheck, review target closure and diff, commit final report + queue (kind re, ready, full HEAD).
-Owner closure table is in forbidden engine README; owner's docs report and question rows provide closure mapping.
-Main evidence: C:/Users/tlori/FreeCity4/decomp/cSC4ViewInputControlPlaceLot.c; function boundaries at lines 1099 Seek, 1225 toll pick, 1753 preview, 2904 constraints, 3129 feedback, 32 prop drawing.
-CT16 toll pseudocode is corrupt; ASM verified: network types priority 0,2,6,12, masked flags 0x1f4f must contain only chosen type; side bytes low2 reject 1/3, 2 connected, 0 disconnected, bit2 orientation marker; exactly two opposite connected sides. Rotation1 for sides0/2, rotation2 sides1/3.
-CT16 table constants at 0xA90650: type0 cfg EBF9A440, type2 8BF9B356, type6 ABF9A45C, type12 2BF9B222. Cell(x,z) obtained from cursor then snapped to cell corner; initial position z+=8. Road rotation1 rect(x,z,x+1,z), pos x+=8,z-=8; road rotation2 rect(x,z,x,z+1), unchanged after initial shift.
-CT16 wide types2/6/12: sides0/2 marker(side1) set: rect(x,z-1,x+1,z), pos x+=8,z-=16; clear: rect(x,z,x+1,z+1), x+=8. Sides1/3 marker(side0) set: rect(x-1,z,x,z+1), x-=8; clear: rect(x,z,x+1,z+1), x+=8,z-=16. Position deltas here AFTER initial z+=8. ASM 004BFB30–004BFEAE.
-CT16 Seek scans each rect cell inclusive, queries map mask1045,true; breadth-first follows low4 connection bits from slot40(+A0) up to depth2 inclusive; rejects slot9 AnyFlag(mask) with mask=((~(1<<type))&1fff)|400000. Missing occupants terminate that branch, no visited set; offsets side0(-1,0),1(0,-1),2(1,0),3(0,1), constants A90708/A90718.
-CT17 preview: first building entry +60; stores rot byte+2 and position+4/+8/+C; x/z subtract half cfg width/depth times terrain cellsize; collects candidate exemplars via service+4C, first hash entry profile+38 then occupant manager+40. New preview properties029244DB and29F013E6 true, occupant flag10; initial draw hidden.
-CT17 coverage categories OR police1/fire2/health4/education8 in that order; last matching strings PlopMode_{Police,Fire,Health,Education}_{Plop,Inactive}; simulator radius queries default32 on failure; health/education property presence091B42A2/691B42B3. View ID water group1401=>A, else subway1302=>F2, else unchanged. Need finish view identity proof (water map10 in map-view; subway F2 inferred currently).
-CT17 props: only cfg entries type1, flag bit0 clear, exactly one exemplar; manager+20 availability and +3C create; property4A89FCF3 value true required; flag10 and both preview properties, local offset centre-adjusted, store rot/position/ref. Prop draw rotation0 subtract(x,z),1 add(z,-x),2 add(x,z),3 add(-z,x); orientation=(local+tool)%4; model draw mode5 and attributes; register/update/remove occupant on visible flag1.
-CT17 feedback boolean2 is visibility/pick flag95; false hides grid, stops ring/footprint/arrow, hidden building draw type2 mode0 RGBwhite alpha0 and removes models; stops/clears constraint vectors. True grid at pos, hidden when terrain slot66 slot20 true; ring if radius>0 scale2radius, starts if idle. Footprint building_footprint_ok/notok recreated on validity change/missing/stopped, texture binding parameter6; arrow Lot_Direction_Arrow recreated when validity changes/missing. Final building attrs type3 mode3(valid)/4(invalid), RGBwhite alpha0.4, visible=true; cursor validity transition IDs valid417EE36B / invalid88E70B76. Need verify transform constants before specifying numerics (pseudocode rotation/locals unreliable).
-CT17 constraints cfg entries type5 selection_blue / type6 selection_red independent of validity; bounds convert local(min+8,max+8) to cells then max-=1, rotate via004BDFD0 using cfg dimensions, translate snapped lot lower cell, effect parameter C four floats(x0,z0,x1+1,z1+1), start0; reuse vectors and stop surplus effects. Read helper ASM for exact rotation.
-Scratch build-runs/ct5-evidence.py reads PE constants safely; never commit RE data. Calls use tools/re_query.py first; no REA attempted because no binary.
-Round 2 active; reserve remaining budget for checks/report/queue. No game/ABI changes. Detached HEAD; no ref changes. Git emits packed-refs.lock permission diagnostic but commits succeed. No merge queue until checks complete.
+
+Goal complete: CT2, CT16, CT17, CT22–CT24 answered with prose, citations and 21 vectors.
+Done: first-round `8e1a3294`; round-two `e84899bf` / `aa91c471`; final report and palette citation committed.
+Gate: doccheck, questions index consistency and whitespace checks PASS; game/runtime checks n/a.
+Next: coordinator lands the ready RE queue entry; core-place-lot5 consumes §3.13/§3.14 and §6.
+Queue: build-runs/merge-queue/re-citytools-ct5.json, kind re, state ready, actual full detached-HEAD tip.
+No outstanding target questions, ABI proposals, game requests or external prerequisites.

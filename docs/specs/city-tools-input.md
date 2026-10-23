@@ -544,7 +544,8 @@ A validity transition selects cursor `0x417EE36B` (valid) or `0x88E70B76` (inval
 the hidden branch. Missing optional visual effects are skipped; no replacement colour effect is made.
 Evidence: hide path `0x004C2D4F–0x004C2EDF`, ring/grid `0x004C2675–0x004C27CE`, footprint
 `0x004C27CE–0x004C2A1A`, arrow `0x004C2A1A–0x004C2CEC`, attributes `0x004C2CEC–0x004C2D45`,
-cursor `0x004C2EDF–0x004C2F0D`; occupant transforms/draw calls `0x004BE180–0x004BE5AA`.
+cursor `0x004C2EDF–0x004C2F0D`; occupant transforms/draw calls `0x004BE180–0x004BE5AA`;
+default highlight palette `0x007D63C6–0x007D63FC` and palette selection `0x007D5670`.
 
 #### 3.14.3 Constraint tiles (`SetConstraintFeedback`, `0x004C2090`)
 
