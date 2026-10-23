@@ -497,7 +497,7 @@ fn:script_tag_*	widget toolkit	ui	-	-	-	-
 fn:GetGZWinFont	widget toolkit	ui	-	-	-	-
 cGZGraph	widget toolkit	ui	-	-	-	-
 cGZ*Graph	widget toolkit	ui	-	-	-	-
-cHTMLDocument	widget toolkit	ui	html-document.md	-	-	-
+cHTMLDocument	widget toolkit	ui	html-document.md	core/src/html_document	-	-
 cHTML*	widget toolkit	ui	-	-	-	-
 cGZUIScript*	widget toolkit	ui	-	-	-	-
 cSC4ScriptedWindowCOMDirector	widget toolkit	ui	-	-	-	-
