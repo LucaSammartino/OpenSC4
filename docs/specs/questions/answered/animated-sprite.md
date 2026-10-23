@@ -1,5 +1,33 @@
 # Answered questions: animated sprite
 
+<!-- from: re-sprites (2026-10-20) -->
+- **AS2 - §2, §7:** which models are sprite animations (resource type `0x29A5D1EC`) in the shipped data and
+  which occupants use them, and whether the swapped-looking names of `0x007FD7D0` / `0x007FED50` reflect the Mac
+  build. [the behaviour as read]
+
+  **ANSWERED 2026-10-23 (re-animsprite-as5b):** DIFFERS — §7.1 and the linked complete
+  animated-sprite-data.md identifier inventory enumerate 1,084 models and their 469 literal
+  exemplar-property references across eight installed DATs. All models and 2,253 tables are in
+  SimCity_1.dat. A missing literal reference is not evidence of non-use. The two names have only
+  tier-D/0.5/one-support Mac match provenance; §2 Windows dispatch is authoritative, not their labels.
+  This answers the static census, with runtime/inherited/script reachability explicitly unmeasured.
+
+<!-- from: core-animsprite5 (2026-10-23) -->
+- **AS10 - §3.1 LookAt and §4.1 Draw angle numeric boundaries:** which normalization intermediates
+  are stored to binary32 in LookAt (squares/sums, length, reciprocal, normalized components and cross
+  products), and what are the exact argument/return/store boundaries of Draw's asin/atan2 primitives?
+  The formulas specify the geometric rule but do not give the complete spill schedule as they now do for
+  SetOrientation. [literal difference/cross/component stores and reciprocal FSQRT formula on exact
+  stages only; nonexact/degenerate LookAt and nonzero Draw angle acquisition remain Unsupported,
+  also subject to AS6 whole-call PC/RC and native numeric qualification]
+
+  **ANSWERED 2026-10-23 (re-animsprite-as5b):** DIFFERS — §3.1.5 publishes the mixed
+  transient/binary32 normalization and cross-product boundaries, including retained dx/q/bx/by/rx/rz
+  and asymmetric stored-reciprocal/component uses. §4.1.1 publishes hardware FPATAN, binary32
+  yaw/asin argument/result boundaries, the classification-only binary64 asin copy, and temporary
+  CRT CW `(incoming & 0x0300) | 0x007F`. AS6/AS7 retain runtime PC/RC, exceptional-input and native
+  backend qualification; this answer closes the requested boundaries, not those independent gates.
+
 <!-- from: core-animated-sprites4 (2026-10-22) -->
 - **AS4 - §2 loading:** AS1 remains open; model-instances §6 identifies a 0x09ADCD75 table queried via
   IID 0x69B6F01C, whereas §2 calls that IID a resource type. Confirm the exact Load/LoadFromResource inputs,
