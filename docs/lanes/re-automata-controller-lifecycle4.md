@@ -12,7 +12,9 @@
 - Core contract committed `4a4fc554`; initialization record committed `77321b20`.
 - Extended milestone: §§6–12 cover Init/activation, raw-byte flag predicate, binary32 scaled tick and expiry equality, position/world bounds/grid storage, first-match removal, foreign primitives, concrete dispatch, 13 proposed UNEXECUTED traces and per-body ledger. AT22 partial integrated; automata §3.5 corrected without changing historical measurements.
 - PE read-only constants SHA256 matches prior contract: 3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b. Runtime 00B227CC initialization remains unknown (virtual zero fill is not runtime proof).
-- Next: independent self-audit of references/signatures and literal numeric traces; questions index/check, doccheck, changed-link/table checks, diff; finalize report and WIP queue pending mandated independent coordinator peer.
-- Copied eligibility requires independent content/family peer before normal queue; no worker subagents authorized. Keep this as a coordinator review dependency if no peer result is supplied.
+- R2 admission audited: SAME provider availability exit0 07:48:19 and host census 07:50:19 copied in build-runs/evidence-run4; prior commits/ignored evidence and sole dirty automata.md lifetime-label correction preserved. No process/build/native actions.
+- R2 goal: qualify owned PlaySFX 00515770, base slot25 CheckEffectTriggers 00516B40, base slot27 HandleViewChanged 00515870 from primary vtable 00A95D90 and instruction bytes, then literal composition/self-audit/checks.
+- Next: trace these three finite helper CFGs, publish first helper proof by call25; then integrate preserved correction and run questions/doc/link/literal checks.
+- R2 admission clarifies original independent brief peer already satisfied; normal own DOCS queue allowed after actual checks. No additional worker peer/subagent required; coordinator reviews before landing.
 - Initial command quoting attempt failed in PowerShell; no command executed. Corrected manifest extraction succeeded.
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-automata-controller-lifecycle4-r1-manifest.json`; one round, 150000 context, maxCalls 100.
+- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-automata-controller-lifecycle4-r2-manifest.json`; SAME R2of3, 150000 context, maxCalls 100; detached HEAD commits only, no ref changes.

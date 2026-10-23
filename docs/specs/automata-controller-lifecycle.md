@@ -37,7 +37,8 @@ Saved flags S+0x3C (`0051808E`) are C+0x40; saved list head S+0x40
 | +0x14, +0x18, +0x1C | position, three binary32 words | copies global `00B227CC`; value qualification below |
 | +0x20 | unsigned 32-bit reference count | 0 |
 | +0x24…+0x27 | four grid-bound bytes | each 0 |
-| +0x28…+0x3C | embedded string/storage state | vtable `00A80810`; eight-byte allocation, empty terminator, begin=end and capacity=begin+8; +0x38/+0x3C zero |
+| +0x28…+0x38 | embedded string/storage state | vtable `00A80810`; eight-byte allocation, empty terminator, begin=end and capacity=begin+8; +0x38 zero |
+| +0x3C | selected sound ID, unsigned word (not a returned playback handle) | 0 |
 | +0x40 | unsigned 32-bit flags | 2 |
 | +0x44 | controlled-item list sentinel pointer | twelve-byte allocation; next and previous point to sentinel |
 | +0x48 | unsigned 32-bit controlled-item count | 0 |
@@ -148,9 +149,9 @@ including unchanged words when that is what a primitive does.
 Finally Init calls virtual Activate(true), virtual CheckEffectTriggers, and
 owned PlaySFX(true), in that order, then returns true. Initialized was already
 stored before all service calls. No cleanup rollback is visible if a call does
-not return. The transitive effects of the two owned helpers are **Partial** in
-this supplement; they are not foreign primitives an implementation may replace
-with a supplied whole-controller result.
+not return. Sections 6.1–6.3 specify the selected inherited sound/view/effect
+helpers. Virtual overrides and unsupported domains remain separate; no owned
+helper may be replaced with a supplied whole-controller result.
 
 Base Activate (`00516AA0–00516B33`, one four-byte slot whose low byte is used,
 no defined result) does nothing when uninitialized. Otherwise it compares the
@@ -163,7 +164,7 @@ nonnull template whose binary32 +0x50 is ordered-greater-than zero additionally
 calls SetFlag(0x400,true). There is no manager remove call on this base path.
 All returned values from these operations are ignored. Manager may be null
 without an immediate dereference on the false direction, but the true direction
-dereferences it unchecked. Owned sound/view helpers remain partial.
+dereferences it unchecked. The inherited sound/view expansion follows below.
 
 CheckFlag (`00517E60`) returns EAX=0 or 1 for any overlapping mask bit, not
 an all-bits test. SetFlag (`00517E70`) sets masked bits only when the input
@@ -178,6 +179,109 @@ of masks 2,4 and delay. NotifySourceDataChanged (`00514E30`) with a nonnull
 template calls SetFlag(template+0x58,true), then SetFlag(2,true), copies
 template+0x4C to lifetime and zeros delay elapsed. It does not replace the
 entire flags word, reset lifetime elapsed, or activate; null template does nothing.
+
+### 6.1. Owned PlaySFX: selection, start, position and stop
+
+Primary vtable `00A95D90` resolves slot 25 to `00516B40` and slot 27 to
+`00515870`, both with C as receiver; there is no S adjustment on these calls.
+PlaySFX is a direct ECX=C call, with one four-byte stack slot whose low byte
+is used, `ret 4`, and no defined result. Its two exported direct callers are
+Init `005169D9` and Activate `00516AE5`. The following is its owned CFG, not
+the implementation of the sound service.
+
+PlaySFX snapshots sound service D from `00B43CB8`. Null D returns immediately,
+preserving selected ID C+0x3C. For request byte zero, a zero selected ID also
+returns; otherwise it calls D+0x2C with the five words
+`(6A451908,C,0,0,0)`, ignores the return, and returns. It does **not** clear
+the selected ID or release anything (`00515846–00515865`). Thus repeated direct
+stops can repeat the same command; selection ID zero suppresses a later stop
+even if an earlier start operation returned success.
+
+For any nonzero request byte (including 2), null template or equal template
+begin/end pointers at +0x60/+0x64 returns without changing the selected ID.
+Otherwise construct a local random object with seed word FFFFFFFF; call its
+uniform-unsigned operation with `(end-begin) arithmetic-shift-right 2`; take
+returned index i and store the word at template.begin[i] to C+0x3C **before**
+obtaining position or issuing sound commands (`00515791–005157D8`). The domain
+here is a valid contiguous four-byte-element range, positive representable
+count and in-range returned index. Malformed ranges/indices, random internals
+and allocation/exception effects are not normalized to failure.
+
+Initialize a temporary vec3 with three copies of the raw word at `00B227CC`,
+then virtual GetPosition(out). Its output mutation, rather than its ignored
+return, supplies coordinates; inherited GetPosition is §8. Call D+0x2C with
+`(EA451903,selectedID,C,0,0)`. Then convert z, y, x, in that order, through
+CRT `_ftol2` (`009EEF04`), taking each EAX low word; call D+0x2C with
+`(CA45190F,C,ix,iy,iz)`. The second command is issued even if the first returned
+zero/false, and the selected ID is not replaced with either return value.
+Stack-relative loads `00515812–00515831` establish z/y/x conversion and x/y/z
+argument order. This contract uses exact small integer coordinates for literal
+examples; invalid conversions, traps and values outside signed 32-bit range
+are unsupported here. No sound AddRef/Release or playback-handle ownership is
+established. No initialization, active, suppression, visibility or delay flag
+test exists inside PlaySFX.
+
+### 6.2. Owned CheckEffectTriggers: ordered predicates and source Release
+
+Base slot 25 has no explicit arguments, no stack cleanup and no defined result.
+Null template returns immediately. Otherwise snapshot R=`00B43DC8`; null R
+returns. Zero a local output word Q; call R.QI(`FA47B3F9`,&Q), testing only AL
+(`00516B46–00516B7E`). False AL returns immediately: even a nonnull written Q
+is neither used nor released. True AL proceeds without null-checking Q.
+
+Template+0x44 and +0x48 are pointers to circular sentinel lists, next at node+0,
+predicate ID at node+8. Start predicate p=1. Visit the first list in order while
+p is nonzero: call Q+0xB8(ID), replace p by 0/1 according to nonzero AL, then
+read the node's next link. For the second list, continue only while p is nonzero;
+each Q+0xB8(ID) instead sets p to 1 iff AL was zero. Stop after the first failed
+condition, with no later predicate calls. Therefore the condition is all positive
+IDs true AND all negative IDs false; positive failure prevents all negative
+queries. Repeated IDs remain repeated calls (`00516B86–00516C0A`).
+
+If either list was nonempty, virtual Activate(p) follows; if both are empty,
+there is no Activate call (not Activate(true)). Only the argument's low byte is
+defined as p; upper bytes are scratch. Finally call **R.Release**, not Q.Release,
+and ignore its result (`00516C10–00516C37`). Q is the receiver of predicate
+calls, R is the receiver of the final Release even when these pointer identities
+differ. This asymmetry is an observed call rule, not a claim about the foreign
+QI's retention convention or a repair to it. True-with-null Q is a defined
+normal path only with both lists empty (no Q dereference); with a nonempty
+list it reaches an unchecked null dereference, outside the supported domain.
+There is no extra AddRef or local cleanup on false QI, nor a rollback of a
+completed Activate if the final Release returns a failure-like value.
+
+### 6.3. Owned HandleViewChanged: ordered point tests and visibility store
+
+Base slot 27 takes no arguments, returns true in AL on every normal path,
+and pops no arguments. Snapshot V=`00B43DD8`; if V or terrain global `00B43CF4`
+is null, return true with **no flag update**. Otherwise CheckFlag(0x200);
+nonzero forces SetFlag(4,1) and returns true, skipping bounds, position, city,
+terrain and frustum calls (`00515870–005158AC`, `00515A13–00515A35`).
+
+For zero flag 0x200, call virtual GetBoundingBox(&A,&B). A and B are two local
+vec3 outputs; their initial words are not established here. The inherited
+bounds computation is §8, not a foreign whole-bounds oracle. Its returned
+status is ignored. Initialize local P with three copies of raw `00B227CC`,
+then GetPosition(&P). Snapshot city J=`00B43CEC` (unchecked). Query J+0x188
+with A.x,A.z; nonzero AL replaces A.y with binary32 terrain+0x34(A.x,A.z),
+zero copies P.y. Do the same for B.x,B.z and B.y. These queries happen even
+though inherited GetBoundingBox already sampled heights; they do not update
+C's stored position (`005158AC–0051595D`).
+
+Initialize another temporary P2 from the same raw global, call GetPosition(&P2)
+again, and call `007F7E50` with ECX=V and pointer to P2. This single foreign
+frustum predicate returns AL. If false, test the following points in order,
+stopping at the first nonzero AL: A; (B.x,A.y,A.z); B; (A.x,B.y,B.z).
+These are constructed by local raw word copies, not vector interpolation
+(`0051595D–00515A11`). There are at most five frustum calls, and the second
+GetPosition is not reused from P (a foreign occupant may produce different
+positions on separate calls). SetFlag(4,1) on any true predicate, else
+SetFlag(4,0), then return true regardless of visibility or SetFlag's return.
+Only the setter's low-byte argument is initialized; higher bytes are scratch.
+No controller list, sound ID or reference count is modified by this helper's
+own stores. Returned false predicates are ordinary alternatives, not a false
+HandleViewChanged result. Bounds output not written before use, invalid service
+pointers, reentry and traps remain unsupported, with no invented fallback.
 
 ## 7. Animation time and expiry
 
