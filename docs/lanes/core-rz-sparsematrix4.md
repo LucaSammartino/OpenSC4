@@ -2,7 +2,17 @@
 |---|---|---|---|
 | core-rz-sparsematrix4: bounded sparse matrix, original R2 | Codex; core-rz-sparsematrix4 | WIP: quick PASS/0; corrected-source Rust 5393/0 incl. 21 sparse tests, clippy clean; canonical all live in stats | Root decision on exact stats PID 4940; preserve/collect same all session 14747; native terminal/CTest unknown |
 
-## Report
+## Handoff
+
+- Original FINAL3/3, two rounds consumed; no fourth round or new family.
+- Goal: qualify unchanged engine `57061af0` with a genuine terminal all gate.
+- R2 report and copied eligibility/process evidence reviewed; no retained complete all verdict found.
+- Initial CIM inspection was denied; targeted psutil inspection is next. No liveness conclusion from denial.
+- Next: inspect current own checker/cache chain and retained logs; archive evidence, then run one serial canonical all only if no legitimate checker/result remains.
+- Preserve 21 tests, MSRV-safe CAS, SM1–5, unreconciled 39/21 census, native ownership limits.
+- No game request outstanding; standalone core, ABI unchanged.
+
+## Retained R2 report
 
 Original round 2, not a new lane/family. Started clean at detached
 `b94fe174f1c65a9a3b2a0dac5abfa74e92b69c6d`, engine tree
@@ -45,7 +55,13 @@ First new-source `qbuild quick` on engine `f4bb6e0d`:
   4/4 edges (163.1 s), fc4verify 474.6 s, qbuild PASS. Its explicit tree-changed
   warning limits it to the pre-correction compilation; CTest not requested.
   Exact terminal: `build-runs/r2-quick-terminal.json`. Ending cause of the prior
-  stats wait is unknown; no lane process action was taken.
+  stats wait includes a documented coordinator intervention: ROOT terminated
+  QUICK read-only stats PID 33108 at 04:52:14.339806–04:52:15.442573 (BST),
+  exit 15; SAME fc34652/qbuild29848 and daemon28648 remained alive. Exact
+  evidence: `build-runs/coordinator-optional-stats-20261023-045212.json`.
+  Cache stats were unavailable; underlying cause UNKNOWN. No lane action,
+  daemon/compiler/validator kill or checker restart occurred. This does not
+  establish any intervention on final-all stats4940 or repair of that gate.
 
 Actual warning: AtomicU64::fetch_update is deprecated on installed Rust;
 try_update is newer than workspace Rust 1.75. `4c22040f` uses an equivalent
