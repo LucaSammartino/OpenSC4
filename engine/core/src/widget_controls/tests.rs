@@ -40,6 +40,8 @@ struct Recording {
     buffer_ok: bool,
     lock_ok: bool,
     icon_calls: Vec<&'static str>,
+    child_ops: Vec<(&'static str, Handle)>,
+    grid_dimensions: [i32; 2],
 }
 
 impl file_browser::BrowserIo for Recording {
@@ -50,13 +52,183 @@ impl file_browser::BrowserIo for Recording {
         self.patterns.push(pattern.to_vec());
         pattern == b"second"
     }
-    fn clear_grid(&mut self, _: Handle) { self.installed.clear(); }
+    fn clear_grid(&mut self, _: Handle) {
+        self.installed.clear();
+    }
     fn grid_set_text(&mut self, _: Handle, column: i32, row: i32, text: &[u8]) {
         self.installed.push((column, row, text.to_vec()));
     }
     fn grid_set_bitmap(&mut self, _: Handle, _: i32, _: i32, _: Handle) {}
-    fn combo_select(&mut self, _: Handle, index: u32) { self.combo_indices.push(index); }
-    fn base_set_area(&mut self, _: Handle, _: Rect) { self.icon_calls.push("area"); }
+    fn combo_select(&mut self, _: Handle, index: u32) {
+        self.combo_indices.push(index);
+    }
+    fn base_set_area(&mut self, _: Handle, _: Rect) {
+        self.icon_calls.push("area");
+    }
+}
+
+impl grid::GridForeign for Recording {
+    fn language_value(&mut self) -> Option<u32> {
+        None
+    }
+    fn window_size(&mut self, _: Handle) -> [i32; 2] {
+        self.grid_dimensions
+    }
+    fn set_area(&mut self, window: Handle, _: Rect) {
+        self.child_ops.push(("area", window));
+    }
+    fn child_add(&mut self, _: Handle, child: Handle) {
+        self.child_ops.push(("add", child));
+    }
+    fn child_remove(&mut self, _: Handle, child: Handle) {
+        self.child_ops.push(("remove", child));
+    }
+    fn child_delete(&mut self, _: Handle, child: Handle) {
+        self.child_ops.push(("delete", child));
+    }
+    fn window_flag(&mut self, _: Handle, flag: u32, value: bool) {
+        self.window_flags.push((flag, value));
+    }
+    fn send_to_back(&mut self, window: Handle) {
+        self.child_ops.push(("back", window));
+    }
+    fn move_window(&mut self, window: Handle, _: i32, _: i32) {
+        self.child_ops.push(("move", window));
+    }
+    fn set_width(&mut self, window: Handle, _: i32) {
+        self.child_ops.push(("width", window));
+    }
+    fn set_height(&mut self, window: Handle, _: i32) {
+        self.child_ops.push(("height", window));
+    }
+    fn line_count(&mut self, _: Handle, _: &[u8], _: i32) -> i32 {
+        2
+    }
+    fn grid_notification(&mut self, _: Handle, _: u32, _: &[i32]) {}
+    fn sound_instance(&mut self, _: u32, _: [u32; 5]) -> Option<Handle> {
+        Some(999)
+    }
+    fn play_instance(&mut self, _: Handle) -> bool {
+        true
+    }
+}
+
+#[test]
+fn grid_vectors_1_to_6_and_literal_selection_modes() {
+    let mut g = grid::Grid::new(100, 0);
+    let mut f = Recording::default();
+    assert!(!g.set_default_color(6, 42));
+    assert_eq!(g.default_colors, [0; 6]);
+    assert!(g.set_default_color(5, 42));
+    g.set_text((0, 99), Some(b"last"), 0, 1, &mut f).unwrap();
+    g.scroll_pages(1, 2);
+    assert_eq!(g.position[1], 8);
+    assert!(g.set_selection((1, 2)));
+    g.set_selection_rules(2, 10);
+    assert!(g.selection.is_empty());
+    g.limits = [10, 10];
+    g.enable_fixed_ranges(false, true);
+    assert_eq!(g.limits, [-1, 10]);
+    assert_eq!(
+        [
+            g.pause_recalculations(true),
+            g.pause_recalculations(true),
+            g.pause_recalculations(false),
+            g.pause_recalculations(false),
+            g.pause_recalculations(false)
+        ],
+        [1, 2, 1, 0, -1]
+    );
+    assert_eq!(g.get_axis_extra(0, 7), 0);
+    g.enable_fixed_ranges(true, true);
+    g.limits[0] = 5;
+    assert!(!g.set_axis_extra(0, 7, 42));
+    g.set_selection_rules(1, 10);
+    assert!(g.add_selection((2, 3), true));
+    assert!(g.add_selection((4, 3), true));
+    assert!(g.add_selection((2, 3), false));
+    assert!(g.selection.is_empty());
+    g.set_selection_rules(0, 10);
+    g.add_selection((2, 3), true);
+    g.add_selection((2, 8), true);
+    assert!(g.add_selection((2, 3), false));
+    assert!(g.selection.is_empty());
+    g.act_like_listbox(3, 1, false);
+    assert_eq!(g.selection, [(0, 0)]);
+    assert_eq!(g.flags & (8 | 16 | 0x4000), 0);
+}
+
+#[test]
+fn grid_append_copy_window_ownership_and_place_asymmetry() {
+    let mut g = grid::Grid::new(100, 0);
+    let mut f = Recording {
+        grid_dimensions: [310, 110],
+        ..Recording::default()
+    };
+    g.initialized = true;
+    g.visible = [3.0, 5.0];
+    assert!(g.set_window((0, 0), Some(200), true, true, 1, &mut f));
+    assert_eq!(f.refs, [(true, 200), (true, 200), (false, 200)]);
+    assert!(f.child_ops.contains(&("area", 200)));
+    f.child_ops.clear();
+    g.place_all_windows(&mut f);
+    assert!(!f.child_ops.contains(&("area", 200)));
+    assert!(f.child_ops.contains(&("move", 200)));
+    assert!(g.copy_cell((0, 0), (1, 0), true, &mut f));
+    assert_eq!(g.cells[&(1, 0)].value, grid::Value::Empty);
+    assert!(g.set_bitmap((2, 0), Some(300), 1, &mut f));
+    assert!(g.copy_cell((2, 0), (3, 0), true, &mut f));
+    assert_eq!(f.refs.iter().filter(|&&(add, h)| add && h == 300).count(), 2);
+    g.set_text((i32::MAX, 4), Some(b"A"), -1, 1, &mut f).unwrap();
+    assert_eq!(g.last_set, (0, 4));
+    g.set_text((i32::MAX, 4), Some(b"B"), -1, 1, &mut f).unwrap();
+    assert_eq!(g.last_set, (1, 4));
+    g.shutdown(&mut f);
+    assert_eq!(f.refs.iter().filter(|&&(add, h)| !add && h == 300).count(), 2);
+    assert_eq!(
+        f.child_ops
+            .iter()
+            .filter(|&&(op, h)| op == "remove" && h == 200)
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn grid_size_cache_float_fraction_and_pause_dirty_contract() {
+    let mut g = grid::Grid::new(100, 0);
+    let mut f = Recording {
+        grid_dimensions: [260, 110],
+        ..Recording::default()
+    };
+    g.initialized = true;
+    g.set_text((2, 0), Some(b"x"), 1, 1, &mut f).unwrap();
+    let mut context = grid::LayoutContext::default();
+    g.recalculate_content(&mut context, &mut f);
+    assert_eq!(g.visible[0], 2.5);
+    f.grid_dimensions[0] = 215;
+    g.recalculate_content(&mut context, &mut f);
+    assert_eq!(g.visible[0], 2.0);
+    g.sizes[0].clear();
+    g.set_size(0, 0, 1, 65537);
+    assert_eq!(g.column_width(0), 1);
+    g.dirty = false;
+    g.set_cell_gutters([9; 4]);
+    assert!(!g.dirty);
+    g.dirty = true;
+    g.pause = 1;
+    g.visible = [8.0, 9.0];
+    g.recalculate_content(&mut context, &mut f);
+    assert_eq!(g.visible, [8.0, 9.0]);
+    assert!(!g.dirty);
+    context.depth = 2;
+    g.dirty = true;
+    g.recalculate_content(&mut context, &mut f);
+    assert!(g.dirty);
+    assert_eq!(context.depth, 2);
+    g.sizes[0].entry(8).or_default().cached = 10;
+    g.reset_cached(0, 100, i32::MAX, -1);
+    assert_eq!(g.sizes[0][&8].cached, -1);
 }
 
 impl file_browser::IconIo for Recording {
@@ -65,26 +237,39 @@ impl file_browser::IconIo for Recording {
         self.icon_calls.push("factory");
         None
     }
-    fn graphics_buffer(&mut self) -> Option<Handle> { self.icon_calls.push("graphics"); Some(700) }
+    fn graphics_buffer(&mut self) -> Option<Handle> {
+        self.icon_calls.push("graphics");
+        Some(700)
+    }
     fn init_buffer(&mut self, _: Handle, width: i32, height: i32) -> bool {
         assert!(matches!((width, height), (18, 17) | (84, 22)));
-        self.icon_calls.push("init"); self.buffer_ok
+        self.icon_calls.push("init");
+        self.buffer_ok
     }
     fn icon_strip(&mut self, id: u32) -> Option<Handle> {
-        assert_eq!(id, 0xa896_3eea); Some(701)
+        assert_eq!(id, 0xa896_3eea);
+        Some(701)
     }
     fn lock_buffer(&mut self, _: Handle, flags: u32) -> bool {
-        assert_eq!(flags, 0x8010); self.icon_calls.push("lock"); self.lock_ok
+        assert_eq!(flags, 0x8010);
+        self.icon_calls.push("lock");
+        self.lock_ok
     }
     fn copy_buffer(&mut self, _: Handle, _: Handle, from: Rect, to: Rect) {
-        assert_eq!((from, to), ([36, 0, 54, 17], [0, 0, 18, 17])); self.icon_calls.push("copy");
+        assert_eq!((from, to), ([36, 0, 54, 17], [0, 0, 18, 17]));
+        self.icon_calls.push("copy");
     }
-    fn unlock_buffer(&mut self, _: Handle) { self.icon_calls.push("unlock"); }
+    fn unlock_buffer(&mut self, _: Handle) {
+        self.icon_calls.push("unlock");
+    }
     fn convert_rgb(&mut self, _: Handle, rgb: [u8; 3]) -> u32 {
-        assert_eq!(rgb, [255, 0, 255]); self.icon_calls.push("rgb"); 0x1234
+        assert_eq!(rgb, [255, 0, 255]);
+        self.icon_calls.push("rgb");
+        0x1234
     }
     fn set_color_key(&mut self, _: Handle, color: u32) {
-        assert_eq!(color, 0x1234); self.icon_calls.push("key");
+        assert_eq!(color, 0x1234);
+        self.icon_calls.push("key");
     }
 }
 
@@ -98,10 +283,22 @@ fn fb_c19_patterns_are_alternatives_and_directories_bypass_them() {
     b.filter_labels.push(b"group".to_vec());
     b.filter_patterns.push(vec![b"first".to_vec(), b"second".to_vec()]);
     f.enumerated = [vec![b"Z".to_vec(), b"A".to_vec()], vec![b"Data.TXT".to_vec()]];
-    let column = |index| Some(Column { index, width: 100, font: None });
+    let column = |index| {
+        Some(Column {
+            index,
+            width: 100,
+            font: None,
+        })
+    };
     b.populate_files([None, column(1), column(2)], &[], 0, &mut f).unwrap();
     assert_eq!(f.patterns, [b"first".to_vec(), b"second".to_vec()]);
-    assert_eq!(b.entries.iter().map(|e| e.as_ref().unwrap().name.as_slice()).collect::<Vec<_>>(), [b"A".as_slice(), b"Z", b"Data.TXT"]);
+    assert_eq!(
+        b.entries
+            .iter()
+            .map(|e| e.as_ref().unwrap().name.as_slice())
+            .collect::<Vec<_>>(),
+        [b"A".as_slice(), b"Z", b"Data.TXT"]
+    );
     assert!(f.installed.contains(&(2, 2, b"txt".to_vec())));
     assert_eq!(b.entries[2].as_ref().unwrap().name, b"Data.TXT");
 }
@@ -128,7 +325,10 @@ fn fb_c20_c21_c25_c26_icon_loader_failure_and_ownership() {
     f.lock_ok = true;
     f.icon_calls.clear();
     assert_eq!(b.load_default_icon(2, &mut f), Ok(true));
-    assert_eq!(f.icon_calls, ["factory", "graphics", "init", "lock", "copy", "unlock", "rgb", "key"]);
+    assert_eq!(
+        f.icon_calls,
+        ["factory", "graphics", "init", "lock", "copy", "unlock", "rgb", "key"]
+    );
 }
 
 #[test]

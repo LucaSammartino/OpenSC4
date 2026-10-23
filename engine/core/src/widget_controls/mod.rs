@@ -6,6 +6,7 @@
 //! Handles reuse the window layer's opaque identities, never native pointers.
 
 pub mod file_browser;
+pub mod grid;
 pub mod list_box;
 pub mod tree_view;
 

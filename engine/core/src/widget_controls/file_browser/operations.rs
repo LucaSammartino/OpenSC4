@@ -71,22 +71,38 @@ impl FileBrowser {
         }
         self.clear_file_entries();
         if self.flags & 1 != 0 && f.split_directory(&self.current, 2, 260).0 >= 2 {
-            self.entries.push(Some(Entry { tag: PARENT, id: 0, name: self.parent_label.clone() }));
+            self.entries.push(Some(Entry {
+                tag: PARENT,
+                id: 0,
+                name: self.parent_label.clone(),
+            }));
         }
         if self.flags & 4 != 0 {
             let mut directories = f.enumerate(&self.current, Enumeration::Directories);
             directories.sort();
-            self.entries.extend(directories.into_iter().map(|name| Some(Entry { tag: DIRECTORY, id: 0, name })));
+            self.entries.extend(directories.into_iter().map(|name| {
+                Some(Entry {
+                    tag: DIRECTORY,
+                    id: 0,
+                    name,
+                })
+            }));
         }
         if self.flags & 8 != 0 {
             let patterns = if self.filter_labels.is_empty() {
                 &[][..]
             } else {
-                self.filter_patterns.get(self.filter_index as usize)
-                    .ok_or(Unsupported::Precondition("valid selected filter group"))?.as_slice()
+                self.filter_patterns
+                    .get(self.filter_index as usize)
+                    .ok_or(Unsupported::Precondition("valid selected filter group"))?
+                    .as_slice()
             };
             for name in f.enumerate(&self.current, Enumeration::Files) {
-                if patterns.is_empty() || patterns.iter().any(|p| f.wildcard_match(p, &name, self.wildcard_option)) {
+                if patterns.is_empty()
+                    || patterns
+                        .iter()
+                        .any(|p| f.wildcard_match(p, &name, self.wildcard_option))
+                {
                     self.entries.push(Some(Entry { tag: FILE, id: 0, name }));
                 }
             }
@@ -95,7 +111,16 @@ impl FileBrowser {
         // Insertion sorting calls the specified Boolean predicate directly.
         for i in 1..self.entries.len() {
             let mut j = i;
-            while j > 0 && precedes(self.entries[j].as_ref().expect("new entry"), self.entries[j - 1].as_ref().expect("new entry"), self.sort_words[0], self.sort_words[1], directory_mode, f) {
+            while j > 0
+                && precedes(
+                    self.entries[j].as_ref().expect("new entry"),
+                    self.entries[j - 1].as_ref().expect("new entry"),
+                    self.sort_words[0],
+                    self.sort_words[1],
+                    directory_mode,
+                    f,
+                )
+            {
                 self.entries.swap(j, j - 1);
                 j -= 1;
             }
@@ -110,9 +135,15 @@ impl FileBrowser {
                 }
                 for (field, column) in columns.iter().enumerate().skip(1) {
                     if let Some(column) = column {
-                        let mut text = if field == 1 { entry.name.clone() } else { f.path_extension(&entry.name) };
+                        let mut text = if field == 1 {
+                            entry.name.clone()
+                        } else {
+                            f.path_extension(&entry.name)
+                        };
                         if field == 2 {
-                            if text.len() > 1 && text[0] == b'.' { text.remove(0); }
+                            if text.len() > 1 && text[0] == b'.' {
+                                text.remove(0);
+                            }
                             f.lowercase(&mut text);
                         }
                         if let Some(font) = column.font.or(self.common_font) {
@@ -134,7 +165,10 @@ impl FileBrowser {
     /// §8.3, FB-C25/C26. A failed lock is still a successful loader. The
     /// procedural glyph branch is the one genuine open contract here.
     pub fn load_default_icon(&mut self, index: u32, f: &mut impl IconIo) -> Result<bool> {
-        let Some(buffer) = f.factory_buffer(0xc470_d325, 0x2073_2180).or_else(|| f.graphics_buffer()) else {
+        let Some(buffer) = f
+            .factory_buffer(0xc470_d325, 0x2073_2180)
+            .or_else(|| f.graphics_buffer())
+        else {
             return Ok(false);
         };
         if !f.init_buffer(buffer, 18, 17) {
@@ -159,13 +193,19 @@ impl FileBrowser {
 
     /// FB-C20 is independent of the unsettled nonnull glyph recipe.
     pub fn create_default_icon(buffer: Option<Handle>) -> Result<bool> {
-        if buffer.is_none() { Ok(true) } else { Err(Unsupported::Open("FBQ1")) }
+        if buffer.is_none() {
+            Ok(true)
+        } else {
+            Err(Unsupported::Open("FBQ1"))
+        }
     }
 
     /// FB-C21. This operation only promises allocation/initialization. A
     /// successful initialization cannot establish the unproved draw/result.
     pub fn create_default_button_buffer(output: &mut Option<Handle>, f: &mut impl IconIo) -> Result<()> {
-        *output = f.factory_buffer(0xc470_d325, 0x2073_2180).or_else(|| f.graphics_buffer());
+        *output = f
+            .factory_buffer(0xc470_d325, 0x2073_2180)
+            .or_else(|| f.graphics_buffer());
         if let Some(buffer) = *output {
             if !f.init_buffer(buffer, 84, 22) {
                 f.release(buffer);

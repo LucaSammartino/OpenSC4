@@ -1,29 +1,28 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-widgets5: widget control owners | Codex / core-widgets5 | in progress | Inspect existing modules and implement widget-controls owner contracts |
+| core-widgets5: widget control owners | Codex / core-widgets5 | in progress | Continue Grid owner orchestration, implement TextEdit, finish browser and lifecycle audit |
 
 ## Handoff
-- Round 2: collected qbuild-20261023-213040-build-ctest.verdict: PASS build 59/59, CTest 68/68; verifier marks tree changed. Original Rust 6390/clippy clean evidence remains.
-- Round 2 milestone: FileBrowser explicit population with resolved columns/icons, filter index, icon-strip loading and initialization failures; focused widget_controls 24 passed, 4138 filtered (before Grid edits). Grid module now under construction, not tested yet. No ready/closure claim.
-- Next: finish Grid state/layout/data/input, TextEdit, then audit ListBox/TreeView lifecycle; one final all gate on stable source. Manifest is run4-core-widgets5-r2-manifest.json.
-- Goal: close Grid, TextEdit, ListBox, TreeView and FileBrowser against widget-controls.
-- Done: 0de6813c adds ListBox/TreeView models and all family vectors; FileBrowser partial state/string/ownership layer now adds seven tests (21 total pass).
-- Next: FIRST collect existing qbuild operation with write_stdin session_id=81518 (60-second waits); do NOT launch another build. Then finish FileBrowser refresh bodies/resources/lifecycle/vectors; implement Grid/TextEdit. README lists remaining gaps.
-- Focused test: cargo test --manifest-path engine/Cargo.toml -p fc4-core widget_controls --lib: 21 passed, 4138 filtered.
-- q.py Bash failed with CreateFileMapping access denied; use direct PowerShell cargo/qbuild. Failed evidence: build-runs/q/20261023-210713-7296.log.
-- Formatting applied through apply_patch from rustfmt --check diffs, never emit-stdout. qbuild fmt needs absolute filenames.
-- Filed WC4/WC5/WC6 in docs/specs/questions/widget-controls.md. Existing WC1–WC3 remain open.
-- Tree native insert ordering intentionally open WC2; insert_at is semantic fixture construction, not native mapping. Root included literally (WC6).
-- First full gate: 6383 tests, clippy 0 diagnostics, CMake 217/217, CTest 68/68 PASS; verifier flagged tree changed (unlinked FileBrowser file added during native queue). Full logs preserved as build-runs/pre-browser-{qbuild-test,qbuild-clippy,fc4verify-build,fc4verify-ctest}.log.
-- Current full gate on d5e44377: Rust 6390 passed, 0 failed/ignored; clippy 0 diagnostics. Native queued as qbuild-20261023-213040-build-ctest; still running at context stop, terminal result NOT collected. Full logs build-runs/qbuild-test.log and qbuild-clippy.log; source has remained unchanged since starting this gate.
-- fmt: PASS all 5 owned Rust files. No game requests, no plugin/capi wiring, no ABI changes. No merge-queue entry: incomplete scope, continue required.
-- FileBrowser refresh_work currently records required calls, does NOT populate. This is incomplete work, never owner closure. Grid/TextEdit absent.
-- FileBrowser read: §§1–9 and A.1, known partial §§8.2/8.3; unknown bodies stay FBQ1/2/4/5/6. Raw ctor defaults and shutdown asymmetry +0x280 preserved.
-- Grid review (not implemented): read §§5.9–5.14 plus much of §§1–2/5.1–5.8. Still read full slot/flag inventory and missing section prefixes before implementing.
-- Grid facts: ordered selection; mode controls removal matching, not additions; AddCellToSelection always recalculates. Page API = 4 cells, keyboard page = visible float count. Empty arrow anchor (0,1).
-- Grid layout: context-wide depth <=2, pause can go negative, paused recalc clears dirty; partial visible fraction included only abs(f)>0.05f. Horizontal always-wanted bar deliberately tests ROW limit/flag.
-- Grid cells: attach owns a reference; copy retains bitmap/font, drops extra data and cannot copy a window; Place adds final SetArea, PlaceAll does not. Paint forces pause=0 and uses separate owner-draw protocol.
-- Grid pending paragraphs need a numbered WG5 question before closure: horizontal text alignment (§5.12) and format-copy size words (§5.14). Existing questions file only WG3/WG4; QUESTIONS.md says next WG5. No Grid question filed yet because no Grid code exists.
-- Guard at stop: 149531/150000 before this final handoff; preserve pending native operation across continuation. Prepared commit message: build-runs/msg-core-widgets5-3.txt.
-- No game requests; no ABI or plugin changes authorized.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-widgets5-r1-manifest.json.
+- Goal: close all five owners against widget-controls; incomplete, no ready/merge-queue claim.
+- Round 1 commits: 0de6813c ListBox/TreeView, d5e44377 Browser state. Round 2 a88ea3be adds Browser population/resource branches; this checkpoint adds Grid state helpers.
+- Collected old qbuild-20261023-213040-build-ctest.verdict: native PASS 59/59, CTest 68/68, marked tree changed.
+- Current all operation collected to terminal: qbuild-20261023-225614-build-ctest, qbuild PASS; Rust 6396 passed/0 failed/0 ignored, clippy 0 diagnostics, native 159/159, CTest 68/68. No outstanding operation.
+- Full logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log; exact native verdict in build-runs/build-results/qbuild-20261023-225614-build-ctest.verdict.
+- Full gate ran on unchanged implementation source before final formatting-only width correction; do not call it an exact final-tip gate.
+- Focused suite: 27 passed, 4138 filtered. Includes all six Grid vectors; browser adds FB-C19–C21/C25–C27.
+- fmt initially failed (1175 diff lines): helper used default width 100 instead of engine/rustfmt.toml width 120. Applied width-120 patches; qbuild fmt PASS five explicit owned files, zero diff.
+- Helper build-runs/format-owned.py reads via stdin and emits apply_patch diffs; never writes rustfmt stdout to source. Use python -X utf8 and apply via tool; skip empty patches.
+- Failed focused compile extra brace corrected; evidence build-runs/grid-initial-compile-failure.txt. Width failure evidence build-runs/fmt-width-failure.md.
+- FIRST next: read module README progress table, finish Grid dispatch/recalculation hooks and bars, input, paint and data/format wrappers. Existing methods are raw state helpers, not complete native slots.
+- Grid remaining known work: init/lifecycle adapter; recalc hooks even no-change selection; bar creation/removal/ranges/placement/second layout pass; mouse/hit/key/focus; editable text/find/extras/format/delete-copy wrappers; paint. ClearCell native return is true, helper currently reports deselection.
+- Grid provisional dependencies documented and asked as WG5; initialization/text alignment/format-copy discrepancy as WG6 in docs/specs/questions/win-grid.md. Do not treat provisional helpers as proved behavior.
+- Grid facts: selection removal matches mode; additions exact ordered pairs. API pages=4, keyboard pages=visible count; empty arrow anchor=(0,1). Pause may go negative; paused recalc clears dirty; depth is context-wide, max 2; fractions only abs(f)>0.05f.
+- Grid ownership: bitmap/font copies retain; window copies leave empty; extra not copied. Attach owns one ref. Place calls final SetArea, PlaceAll omits it. Horizontal always-wanted bar test deliberately uses ROW limit/flag. Paint forces pause=0.
+- TextEdit absent. Read all incorporated text-edit/encoding/layout/adapters/inventory specs before implementing; read so far: identity and byte replacement/selection/character prefixes, raw history domains and eviction, first layout navigation and encoding/adapters prefixes (not complete).
+- TextEdit facts: byte offsets and reversed endpoints; SetText count 0=strlen; selectors 8/100 truncate to finish character (may exceed max); insertion history evicts floor(n/4), limit 0 does not disable; deletion history has no eviction; undo replays raw bytes and 5 state words.
+- Browser populate_files executes proved enumeration/filter/sort/cell work with resolved column/icon inputs. refresh_work still records automatic refresh, so automatic directory/file population/lifecycle owner remains incomplete.
+- Browser remainder known: AddControls factory/fallback prefix, Init/paint/property dispatch, resource success branches not covered by FBQ1; open FBQ1/2/4/5/6 recipes/sizing/restoration/unproved bodies remain Unsupported. Keep asymmetric shutdown omission +0x280.
+- ListBox/TreeView family vectors all represented; audit remaining specified default/resource/lifetime branches and deepen tests. Native insert sentinel mapping WC2, root WC6 and drawing WC1/WC3/WC5 remain explicitly open.
+- Existing WC4/WC5/WC6 questions retained; new WG5/WG6 appended only to question file. Coordinator regenerates question index (tools forbidden to engine lane).
+- No game requests, plugin/capi wiring, ABI changes, generated ABI entry edits or merge-queue entry. Core-only work remains unfinished.
+- Guard last observed 135309/150000 before final checkpoint; context continuation required rather than ready. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-widgets5-r2-manifest.json.
