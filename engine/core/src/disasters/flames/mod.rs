@@ -8,11 +8,15 @@
 
 mod flame;
 mod model;
+mod numeric;
 mod occupant;
 
-pub use flame::{EffectFactory, Flame, FlameInitial, Stage, VisualEffect};
+pub use flame::{EffectFactory, Flame, FlameInitial, SharedPositionWord, Stage, VisualEffect};
 pub use model::{get_points_on_model, Mesh, ModelInstance, ModelPoint, PlacementError, Unsupported};
 pub use occupant::{FireFlames, OccupantInit, Placement, FIRE_OCCUPANT_GROUP, FLORA_TYPE};
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod contracts_tests;

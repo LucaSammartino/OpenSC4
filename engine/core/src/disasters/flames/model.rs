@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-use crate::camera::geometry::{add, cross, dot, mul, sub, transform};
+use super::numeric;
 use crate::camera::Vec3;
 use crate::network_occupants::Xform;
 use crate::rng::{RzRandom, SeedSource, CLOCK_SEED};
@@ -39,10 +39,6 @@ pub struct ModelPoint {
 pub enum PlacementError {
     /// Outside the qualified portable domain, never a native false/fallback.
     Unsupported(Unsupported),
-    MissingFirstPrimitive,
-    MissingIndex,
-    MissingVertex,
-    NoSelectableTriangle,
     CountOverflow,
     AlreadyPopulated,
     UnpublishedInitialStage,
@@ -84,22 +80,17 @@ pub(super) fn classify(normal: Vec3) -> (bool, u32) {
 }
 
 impl Triangle {
-    fn new(vertices: [Vec3; 3], previous_area: f32, transform: Xform) -> Self {
-        let area_cross = cross(sub(vertices[0], vertices[1]), sub(vertices[2], vertices[1]));
-        let twice_area = dot(area_cross, area_cross).sqrt();
-        let normal_cross = cross(sub(vertices[1], vertices[0]), sub(vertices[2], vertices[0]));
-        let length = dot(normal_cross, normal_cross).sqrt();
-        // FF3: no invented degenerate-face filter or zero-normal fallback.
-        let normal = normal_cross.map(|v| v / length);
+    fn new(vertices: [Vec3; 3], previous_area: f32, transform: Xform) -> Result<Self, PlacementError> {
+        let (normal, cumulative_area) = numeric::triangle(vertices, previous_area)?;
         let (wall, side) = classify(normal);
-        Self {
+        Ok(Self {
             vertices,
             normal,
-            cumulative_area: previous_area + twice_area,
+            cumulative_area,
             wall,
             side,
             transform,
-        }
+        })
     }
 }
 
@@ -118,20 +109,33 @@ pub fn get_points_on_model(
             continue;
         };
         for mesh in *meshes {
-            let range = mesh.first_primitive().ok_or(PlacementError::MissingFirstPrimitive)?;
+            let range = mesh
+                .first_primitive()
+                .ok_or(PlacementError::Unsupported(Unsupported::UnsafeIndex))?;
+            let count = range
+                .end
+                .checked_sub(range.start)
+                .filter(|count| u32::try_from(*count).is_ok())
+                .ok_or(PlacementError::Unsupported(Unsupported::UnsafeIndex))?;
             // FF3: ceil(k/3), NOT chunks_exact: a partial final triple reads
             // trailing physical indices if they exist, otherwise an error.
-            for first in (0..range.len()).step_by(3) {
+            for first in (0..count).step_by(3) {
                 let mut vertices = [[0.0; 3]; 3];
                 for (offset, vertex) in vertices.iter_mut().enumerate() {
-                    let physical = first.checked_add(offset)
+                    let physical = first
+                        .checked_add(offset)
                         .ok_or(PlacementError::Unsupported(Unsupported::UnsafeIndex))?;
-                    let index = mesh.index(physical)
+                    let index = mesh
+                        .index(physical)
                         .ok_or(PlacementError::Unsupported(Unsupported::UnsafeIndex))?;
-                    *vertex = mesh.vertex(index)
+                    if u16::try_from(index).is_err() {
+                        return Err(PlacementError::Unsupported(Unsupported::UnsafeVertex));
+                    }
+                    *vertex = mesh
+                        .vertex(index)
                         .ok_or(PlacementError::Unsupported(Unsupported::UnsafeVertex))?;
                 }
-                let triangle = Triangle::new(vertices, total, *transform);
+                let triangle = Triangle::new(vertices, total, *transform)?;
                 total = triangle.cumulative_area;
                 triangles.push(triangle);
             }
@@ -152,18 +156,22 @@ fn sample(
 ) -> Result<Vec<ModelPoint>, PlacementError> {
     let mut points = Vec::new();
     for _ in 0..count {
-        let r = random.range_f64(0.0, f64::from(total));
+        let r = numeric::range(random.uniform_f64(), 0.0, numeric::input(total)?)?;
         let triangle = triangles
             .iter()
-            .find(|triangle| f64::from(triangle.cumulative_area) >= r)
-            .ok_or(PlacementError::NoSelectableTriangle)?;
-        let u = random.uniform_f64() as f32;
-        let v = random.range_f64(0.0, f64::from(1.0_f32 - u)) as f32;
-        let w = (1.0_f32 - u) - v;
-        let [a, b, c] = triangle.vertices;
-        let local = add(add(add(mul(a, u), mul(b, v)), mul(c, w)), triangle.normal);
+            // Unordered would stop natively too. Nonfinite geometry/draws are
+            // rejected by the qualified numeric boundary before reaching here.
+            .find(|triangle| {
+                !matches!(
+                    f64::from(triangle.cumulative_area).partial_cmp(&r),
+                    Some(std::cmp::Ordering::Less)
+                )
+            })
+            .ok_or(PlacementError::Unsupported(Unsupported::SelectionOnePast))?;
+        let u = random.uniform_f64();
+        let second = random.uniform_f64();
         points.push(ModelPoint {
-            position: transform(&triangle.transform, local),
+            position: numeric::place(triangle.vertices, triangle.normal, &triangle.transform, u, second)?,
             wall: triangle.wall,
             side: triangle.side,
         });
@@ -175,6 +183,23 @@ fn sample(
 mod tests {
     use super::*;
     use crate::rng::FixedSeeds;
+
+    #[test]
+    fn all_ordered_less_is_unsupported_after_only_the_area_draw() {
+        let seeds = FixedSeeds {
+            wall_clock: 1,
+            process_clock: 0,
+        };
+        let mut random = RzRandom::new(1, &seeds);
+        let mut triangle = Triangle::new([[0., 0., 0.], [1., 0., 0.], [0., 1., 0.]], 0., Xform::default()).unwrap();
+        triangle.cumulative_area = 0.;
+        assert_eq!(
+            sample(1, &[triangle], 2., &mut random),
+            Err(PlacementError::Unsupported(Unsupported::SelectionOnePast))
+        );
+        // Independent recurrence seed1 * 0x278dde6d; no u/v draw or retry.
+        assert_eq!(random.mul_state(), 0x278dde6d);
+    }
 
     #[test]
     fn cumulative_boundary_and_zero_draw_choose_first_ge_not_next() {
@@ -189,9 +214,10 @@ mod tests {
             [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
             0.0,
             Xform::default(),
-        );
+        )
+        .unwrap();
         first.cumulative_area = 1.0;
-        let mut second = Triangle::new(first.vertices, 1.0, Xform::default());
+        let mut second = Triangle::new(first.vertices, 1.0, Xform::default()).unwrap();
         second.transform.translation = [100.0, 0.0, 0.0];
         let triangles = [first, second];
         let point = sample(1, &triangles, 2.0, &mut random).unwrap()[0];
