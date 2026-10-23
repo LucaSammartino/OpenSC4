@@ -23,7 +23,9 @@ syntax as read, §3.4 open and lifetime, §3.5 reads and types, §3.6 writeback,
 | `cRZIniFile` | 6,617 | vtable `0x00ACF150`, 20 slots, no QueryInterface (slot 0 is the deleting destructor); `cHitIniFile` (vtable `0x00AD23B8`) derives from it |
 
 Sparse matrix/column iterator behavior is separately bounded in [rz-sparse-matrix.md](rz-sparse-matrix.md).
-Not in this spec yet: `cRZSysServPtr`,
+The compiled `cRZSysServPtr` utility bodies have a separate bounded contract in
+[system-service-pointer.md](system-service-pointer.md).
+Not in this spec yet:
 `cRZTimer` (same subsystem, later rounds); the language utility (docs/specs/language-utility.md, owned
 by the strings lane).
 
