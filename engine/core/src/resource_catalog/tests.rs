@@ -99,9 +99,7 @@ impl<'a> RowPrimitives<'a> for PrimitiveHost<'a> {
     }
     fn post_order(&mut self, rows: &[Row<'a>]) -> Vec<usize> {
         self.trace.push(Trace::Order);
-        self.permutation
-            .clone()
-            .unwrap_or_else(|| (0..rows.len()).collect())
+        self.permutation.clone().unwrap_or_else(|| (0..rows.len()).collect())
     }
     fn selected_coordinates(&mut self) -> (i32, i32) {
         self.trace.push(Trace::Coordinates);
@@ -177,10 +175,7 @@ fn v01_group_duplicates_raw_identity_and_count_call_order() {
     ];
     let mut h = PrimitiveHost::new(&entries);
     let mut c = catalog(0x20);
-    assert_eq!(
-        c.update_key_list(Key::default(), &mut h),
-        Ok(Rebuild::Ordered(2))
-    );
+    assert_eq!(c.update_key_list(Key::default(), &mut h), Ok(Rebuild::Ordered(2)));
     assert!(std::ptr::eq(c.rows[0].data, &entries[0]));
     assert!(std::ptr::eq(c.rows[1].data, &entries[2]));
     assert_eq!(
@@ -228,10 +223,7 @@ fn v02_literal_zero_group_and_returned_type_is_not_rechecked() {
     let mut h = PrimitiveHost::new(&entries);
     h.name = Some("raw helper name".into());
     let mut c = catalog(0);
-    assert_eq!(
-        c.update_key_list(Key::default(), &mut h),
-        Ok(Rebuild::Ordered(1))
-    );
+    assert_eq!(c.update_key_list(Key::default(), &mut h), Ok(Rebuild::Ordered(1)));
     assert_eq!(c.rows[0].data.identity, 1);
     assert_eq!(c.rows[0].text, "raw helper name");
 }
@@ -243,8 +235,7 @@ fn v03_v05_missing_key_uses_post_order_first_without_numeric_sort() {
         let mut h = PrimitiveHost::new(&entries);
         h.permutation = Some(permutation);
         let mut c = catalog(0x20);
-        c.update_key_list(Key::new(0x10, 0x20, 0xff), &mut h)
-            .unwrap();
+        c.update_key_list(Key::new(0x10, 0x20, 0xff), &mut h).unwrap();
         assert_eq!(selected_rows(&h), vec![0]);
         assert_eq!(
             &h.effects()[h.effects().len() - 2..],
@@ -266,8 +257,7 @@ fn v04_last_full_key_duplicate_selected_after_primitive_reorder() {
     let mut h = PrimitiveHost::new(&entries);
     h.permutation = Some(vec![1, 2, 0]);
     let mut c = catalog(0x20);
-    c.update_key_list(Key::new(0x10, 0x20, 0x2a), &mut h)
-        .unwrap();
+    c.update_key_list(Key::new(0x10, 0x20, 0x2a), &mut h).unwrap();
     assert_eq!(selected_rows(&h), vec![0, 2]);
     assert_eq!(
         c.rows.iter().map(|r| r.data.identity).collect::<Vec<_>>(),
@@ -282,8 +272,7 @@ fn v04_last_full_key_duplicate_selected_after_primitive_reorder() {
     );
     // Full T/G/I equality, not instance-only equality.
     h.trace.clear();
-    c.update_key_list(Key::new(0x11, 0x20, 0x2a), &mut h)
-        .unwrap();
+    c.update_key_list(Key::new(0x11, 0x20, 0x2a), &mut h).unwrap();
     assert_eq!(selected_rows(&h), vec![0]);
 }
 
@@ -298,19 +287,13 @@ fn v06_invalid_descriptor_and_null_list_retain_before_clear() {
     });
     for index in [u32::MAX, 1] {
         c.descriptor_index = index;
-        assert_eq!(
-            c.update_key_list(Key::default(), &mut h),
-            Ok(Rebuild::Retained)
-        );
+        assert_eq!(c.update_key_list(Key::default(), &mut h), Ok(Rebuild::Retained));
         assert_eq!(c.rows[0].text, "prior");
         assert!(h.trace.is_empty());
     }
     c.descriptor_index = 0;
     c.list = None;
-    assert_eq!(
-        c.update_key_list(Key::default(), &mut h),
-        Ok(Rebuild::Retained)
-    );
+    assert_eq!(c.update_key_list(Key::default(), &mut h), Ok(Rebuild::Retained));
     assert_eq!(c.rows[0].text, "prior");
     assert!(h.trace.is_empty());
 }
@@ -332,10 +315,7 @@ fn v07_failure_happens_after_clear_and_before_ordering() {
     );
     assert!(c.rows.is_empty());
     assert_eq!(c.current_preview, Some(80));
-    assert_eq!(
-        h.trace,
-        vec![Trace::Effect(Effect::ClearRows), Trace::Enum(0x10)]
-    );
+    assert_eq!(h.trace, vec![Trace::Effect(Effect::ClearRows), Trace::Enum(0x10)]);
 }
 
 #[test]
@@ -345,14 +325,8 @@ fn v08_zero_passes_still_order_and_leave_preview() {
         let mut h = PrimitiveHost::new(entries);
         let mut c = catalog(0x20);
         c.current_preview = Some(80);
-        assert_eq!(
-            c.update_key_list(Key::default(), &mut h),
-            Ok(Rebuild::Ordered(0))
-        );
-        assert_eq!(
-            h.effects(),
-            vec![Effect::ClearRows, Effect::Order([0, 0, 1, 0])]
-        );
+        assert_eq!(c.update_key_list(Key::default(), &mut h), Ok(Rebuild::Ordered(0)));
+        assert_eq!(h.effects(), vec![Effect::ClearRows, Effect::Order([0, 0, 1, 0])]);
         assert_eq!(c.current_preview, Some(80));
     }
 }
@@ -408,10 +382,7 @@ fn v10_v11_picker_permutation_and_zero_on_failure() {
         (c.type_filter, c.group_filter, c.read_only, c.byte_dd),
         (0x10, 0x20, 0, 0)
     );
-    assert_eq!(
-        h.effects(),
-        vec![Effect::AssignInputVariant, Effect::ReadVariantData]
-    );
+    assert_eq!(h.effects(), vec![Effect::AssignInputVariant, Effect::ReadVariantData]);
 }
 
 #[test]
@@ -432,16 +403,10 @@ fn v12_output_available_for_both_modal_results_but_acceptance_separate() {
 fn v13_qi_effect_order_is_owner_specific_only() {
     let mut h = PrimitiveHost::new(&[]);
     assert_eq!(catalog_qi(0x7a368ee3, 10, &mut h), Ok(true));
-    assert_eq!(
-        h.effects(),
-        vec![Effect::WriteQiPointer(10), Effect::AddRef(10)]
-    );
+    assert_eq!(h.effects(), vec![Effect::WriteQiPointer(10), Effect::AddRef(10)]);
     h.trace.clear();
     assert_eq!(picker_qi(0x06c5ff7b, 11, &mut h), Ok(true));
-    assert_eq!(
-        h.effects(),
-        vec![Effect::AddRef(11), Effect::WriteQiPointer(11)]
-    );
+    assert_eq!(h.effects(), vec![Effect::AddRef(11), Effect::WriteQiPointer(11)]);
     h.trace.clear();
     assert_eq!(catalog_qi(0, 10, &mut h), Err(Boundary::UnknownMethod));
     assert!(h.trace.is_empty());
@@ -502,10 +467,7 @@ fn v14_v15_descriptor_admission_mapping_and_store_only_setters() {
 fn v16_v17_byte_sanitation_and_lower_hex_display_only() {
     assert_eq!(filename(b"A9-b c", 0x1234), "A__b_c_00001234");
     assert_eq!(filename(b"", 0xabcdef01), "abcdef01");
-    assert_eq!(
-        filename(&[b'Z', 0xc3, 0xa9, b'0', b'_', b'z'], 0),
-        "Z____z_00000000"
-    );
+    assert_eq!(filename(&[b'Z', 0xc3, 0xa9, b'0', b'_', b'z'], 0), "Z____z_00000000");
 }
 
 #[test]
@@ -531,10 +493,7 @@ fn v19_v20_occupancy_wrap_has_different_initial_and_later_normalization() {
     for (current, requested, first, second) in [(0x7ffe, 0x7fff, 0x7fff, 0), (2, 1, 1, 0x7fff)] {
         let mut s = Search::new(Key::new(0x10, 0x20, current), requested);
         assert_eq!(s.query().i, first);
-        assert_eq!(
-            s.reply(true),
-            SearchProgress::Query(Key::new(0x10, 0x20, second))
-        );
+        assert_eq!(s.reply(true), SearchProgress::Query(Key::new(0x10, 0x20, second)));
         let SearchProgress::Complete(done) = s.reply(false) else {
             panic!("free must complete")
         };
@@ -592,11 +551,7 @@ fn v22_reentrant_spinner_returns_true_before_search_or_effects() {
 #[test]
 fn v23_shutdown_aliases_release_each_descriptor_not_current_preview() {
     let mut h = PrimitiveHost::new(&[]);
-    let mut c = Catalog::new(
-        vec![descriptor(0x10, 0x20, 80), descriptor(0x10, 0x21, 80)],
-        Some(90),
-    )
-    .unwrap();
+    let mut c = Catalog::new(vec![descriptor(0x10, 0x20, 80), descriptor(0x10, 0x21, 80)], Some(90)).unwrap();
     c.current_preview = Some(80);
     c.shutdown(&mut h);
     assert_eq!(
@@ -633,10 +588,7 @@ fn v23_shutdown_aliases_release_each_descriptor_not_current_preview() {
 fn v24_base_creation_failure_still_success_and_success_release_once() {
     let mut h = PrimitiveHost::new(&[]);
     assert!(base_init(false, None, &mut h));
-    assert_eq!(
-        h.effects(),
-        vec![Effect::ConfigureBase, Effect::CreateBaseChild]
-    );
+    assert_eq!(h.effects(), vec![Effect::ConfigureBase, Effect::CreateBaseChild]);
     h.trace.clear();
     assert!(base_init(true, Some(7), &mut h));
     assert!(h.trace.is_empty());
@@ -671,20 +623,13 @@ fn preview_switch_identity_order_no_refs_and_same_preview_still_updates() {
     );
     h.trace.clear();
     c.set_view_key(key, &mut h).unwrap();
-    assert_eq!(
-        h.effects(),
-        vec![Effect::PreviewKey(80, key), Effect::FocusList(90)]
-    );
+    assert_eq!(h.effects(), vec![Effect::PreviewKey(80, key), Effect::FocusList(90)]);
 }
 
 #[test]
 fn selector_missing_child_qi_failure_success_and_checked_index() {
     let mut h = PrimitiveHost::new(&[]);
-    let mut c = Catalog::new(
-        vec![descriptor(0x10, 0x20, 80), descriptor(0x10, 0x21, 81)],
-        Some(90),
-    )
-    .unwrap();
+    let mut c = Catalog::new(vec![descriptor(0x10, 0x20, 80), descriptor(0x10, 0x21, 81)], Some(90)).unwrap();
     c.visible_to_original = vec![1];
     c.descriptor_index = 0;
     assert_eq!(
@@ -700,24 +645,14 @@ fn selector_missing_child_qi_failure_success_and_checked_index() {
     assert_eq!(h.effects().last(), Some(&Effect::FocusList(90)));
     h.trace.clear();
     assert_eq!(
-        c.selector_command(
-            0xe8711255,
-            0x04c9303e,
-            SelectorReply::VisibleIndex(0),
-            &mut h
-        ),
+        c.selector_command(0xe8711255, 0x04c9303e, SelectorReply::VisibleIndex(0), &mut h),
         Ok(false)
     );
     assert_eq!(c.descriptor_index, 1);
     assert_eq!(h.effects()[0], Effect::ReleaseSelector);
     h.trace.clear();
     assert_eq!(
-        c.selector_command(
-            0xe8711255,
-            0x04c9303e,
-            SelectorReply::VisibleIndex(99),
-            &mut h
-        ),
+        c.selector_command(0xe8711255, 0x04c9303e, SelectorReply::VisibleIndex(99), &mut h),
         Err(Boundary::CheckedIndex)
     );
     assert_eq!(h.effects(), vec![Effect::ReleaseSelector]);
@@ -729,11 +664,7 @@ fn button_maps_and_foreign_al_are_distinct_and_add_resource_unsupported() {
     let mut c = catalog(0x20);
     c.current_preview = Some(80);
     for (id, modal, expected) in [
-        (
-            0x24c93018,
-            true,
-            vec![Effect::PreviewClear(80), Effect::ModalClose(1)],
-        ),
+        (0x24c93018, true, vec![Effect::PreviewClear(80), Effect::ModalClose(1)]),
         (0x24c9301a, true, vec![Effect::ModalClose(0)]),
         (
             0x24c93018,
@@ -746,10 +677,7 @@ fn button_maps_and_foreign_al_are_distinct_and_add_resource_unsupported() {
         assert_eq!(h.effects(), expected);
     }
     h.trace.clear();
-    assert_eq!(
-        c.button(0x24c93019, true, &mut h),
-        Err(Boundary::AddResource)
-    );
+    assert_eq!(c.button(0x24c93019, true, &mut h), Err(Boundary::AddResource));
     assert!(h.trace.is_empty());
     assert_eq!(c.button(0x24c9301b, true, &mut h), Ok(true));
     assert!(h.trace.is_empty());
@@ -761,10 +689,7 @@ fn button_maps_and_foreign_al_are_distinct_and_add_resource_unsupported() {
         assert_eq!(input.command(0x287259f6, id, &mut h), al);
         assert_eq!(
             h.trace,
-            vec![
-                Trace::Input(InputEffect::ModalClose(result)),
-                Trace::Close(result)
-            ]
+            vec![Trace::Input(InputEffect::ModalClose(result)), Trace::Close(result)]
         );
     }
     h.trace.clear();
@@ -794,9 +719,7 @@ fn spinner_continuation_releases_qi_only_when_adjusting_and_qi_succeeds() {
         assert!(!input.spinner_finish(done, &mut h));
         let events = h.inputs();
         assert_eq!(
-            events
-                .iter()
-                .any(|e| matches!(e, InputEffect::SpinnerWrite(_))),
+            events.iter().any(|e| matches!(e, InputEffect::SpinnerWrite(_))),
             expect_write
         );
         assert_eq!(events.contains(&InputEffect::ReleaseSpinner), expect_write);
@@ -826,10 +749,7 @@ fn all_occupied_cycle_is_noncompletion_with_no_probe_limit_or_failure() {
     }
     assert_eq!(search.query(), Key::new(0x10, 0x20, 1));
     // Another probe still progresses. This is a suspended domain, not native failure.
-    assert_eq!(
-        search.reply(true),
-        SearchProgress::Query(Key::new(0x10, 0x20, 2))
-    );
+    assert_eq!(search.reply(true), SearchProgress::Query(Key::new(0x10, 0x20, 2)));
 }
 
 #[test]
@@ -838,10 +758,7 @@ fn count_requery_can_end_traversal_and_malformed_primitive_is_checked_extension(
     let mut h = PrimitiveHost::new(&entries);
     h.counts = VecDeque::from([2, 1]);
     let mut c = catalog(0x20);
-    assert_eq!(
-        c.update_key_list(Key::default(), &mut h),
-        Ok(Rebuild::Ordered(1))
-    );
+    assert_eq!(c.update_key_list(Key::default(), &mut h), Ok(Rebuild::Ordered(1)));
     assert!(!h.trace.contains(&Trace::Entry(1)));
     h.counts.clear();
     h.permutation = Some(vec![0, 0]);
@@ -901,11 +818,83 @@ fn notification_dispatch_and_key_input_shutdown_explicit_intent_order() {
     input.shutdown(&mut h);
     assert_eq!(
         h.effects(),
-        vec![
-            Effect::HideOwner,
-            Effect::Window158Zero,
-            Effect::BaseShutdown
-        ]
+        vec![Effect::HideOwner, Effect::Window158Zero, Effect::BaseShutdown]
     );
     assert!(h.inputs().is_empty());
+}
+
+#[test]
+fn scoped_destructors_keep_picker_catalog_and_key_input_orders_distinct() {
+    let mut h = PrimitiveHost::new(&[]);
+    let mut c = catalog(0x20);
+    let mut p = Picker { raw: [1, 2, 3] };
+    p.destroy(&mut c, 2, &mut h);
+    assert_eq!(
+        h.effects(),
+        vec![
+            Effect::InstallPickerTables,
+            Effect::DestroyVariant,
+            Effect::InstallCatalogTables,
+            Effect::Release(80),
+            Effect::DestroyDescriptorName,
+            Effect::DestroyVectorMap,
+            Effect::DestroyBaseWindow,
+        ]
+    );
+    // Catalog destruction does not imply Shutdown or a list Release.
+    assert_eq!(c.list, Some(90));
+    h.trace.clear();
+    let mut input = KeyInput::new(Key::default());
+    input.held[0] = Some(10);
+    input.destroy(1, &mut h);
+    assert_eq!(
+        h.trace,
+        vec![
+            Trace::Input(InputEffect::InstallTables),
+            Trace::Effect(Effect::HideOwner),
+            Trace::Effect(Effect::Window158Zero),
+            Trace::Input(InputEffect::HeldSlot10(10)),
+            Trace::Effect(Effect::Release(10)),
+            Trace::Effect(Effect::BaseShutdown),
+            Trace::Input(InputEffect::DestroyFilename),
+            Trace::Effect(Effect::DestroyBaseWindow),
+            Trace::Effect(Effect::HeapFree),
+        ]
+    );
+}
+
+#[test]
+fn checked_extensions_refuse_invalid_storage_without_native_false_claims() {
+    let entries = [raw(1, 0x10, 0x20, 1)];
+    let mut h = PrimitiveHost::new(&entries);
+    let mut c = catalog(0x20);
+    c.list = None;
+    assert_eq!(c.set_view_key(Key::default(), &mut h), Err(Boundary::CheckedControls));
+    assert!(h.trace.is_empty());
+    c.list = Some(90);
+    c.descriptor_index = u32::MAX;
+    assert_eq!(c.set_view_key(Key::default(), &mut h), Err(Boundary::CheckedIndex));
+    assert!(h.trace.is_empty());
+    c.descriptor_index = 0;
+    c.descriptors[0].preview = None;
+    assert_eq!(
+        c.init_descriptor_map(&mut h),
+        Err(Boundary::RegistrationOrEmptyAdmission)
+    );
+    assert!(h.trace.is_empty());
+    h.entries.clear();
+    h.counts.push_back(1);
+    assert_eq!(
+        c.update_key_list(Key::default(), &mut h),
+        Err(Boundary::InvalidEnumerationEntry)
+    );
+    assert_eq!(
+        h.trace,
+        vec![
+            Trace::Effect(Effect::ClearRows),
+            Trace::Enum(0x10),
+            Trace::Count(1),
+            Trace::Entry(0)
+        ]
+    );
 }

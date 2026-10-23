@@ -47,13 +47,7 @@ pub fn filename(name: &[u8], instance: u32) -> String {
     }
     let clean: String = name
         .iter()
-        .map(|&b| {
-            if b.is_ascii_alphabetic() {
-                char::from(b)
-            } else {
-                '_'
-            }
-        })
+        .map(|&b| if b.is_ascii_alphabetic() { char::from(b) } else { '_' })
         .collect();
     format!("{clean}_{instance:08x}")
 }
@@ -221,11 +215,7 @@ impl KeyInput {
 
     /// Resume only after the steppable search obtains a free reply. This owns
     /// the remaining decoded continuation, not allocator setup at RC5's split.
-    pub fn spinner_finish(
-        &mut self,
-        completed: SearchComplete,
-        host: &mut impl InputPrimitives,
-    ) -> bool {
+    pub fn spinner_finish(&mut self, completed: SearchComplete, host: &mut impl InputPrimitives) -> bool {
         self.key.i = completed.key.i;
         if self.key.i != completed.supplied {
             self.spinner_write(true, host);
@@ -238,11 +228,7 @@ impl KeyInput {
     }
 
     /// Typed primitive message fields, not native pointer decoding.
-    pub fn message(
-        &mut self,
-        message: Message,
-        host: &mut impl InputPrimitives,
-    ) -> MessageProgress {
+    pub fn message(&mut self, message: Message, host: &mut impl InputPrimitives) -> MessageProgress {
         match message {
             Message::Spinner { control, value } => match self.spinner_start(control, value) {
                 SpinnerStart::Return(al) => MessageProgress::Return(al),
@@ -255,9 +241,7 @@ impl KeyInput {
                 });
                 MessageProgress::Return(true)
             }
-            Message::TextNotification { source } => {
-                MessageProgress::Return(self.text_notification(source, host))
-            }
+            Message::TextNotification { source } => MessageProgress::Return(self.text_notification(source, host)),
             Message::Other(id) => {
                 host.input_effect(InputEffect::DelegateMessage(id));
                 MessageProgress::Return(host.delegate_message(id))

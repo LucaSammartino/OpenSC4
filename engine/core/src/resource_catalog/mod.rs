@@ -214,10 +214,7 @@ impl<'a> Catalog<'a> {
             return Err(Boundary::RegistrationOrEmptyAdmission);
         }
         // Known Init mapping assumes valid registered preview interfaces (RC3).
-        if admitted
-            .iter()
-            .any(|&i| self.descriptors[i].preview.is_none())
-        {
+        if admitted.iter().any(|&i| self.descriptors[i].preview.is_none()) {
             return Err(Boundary::RegistrationOrEmptyAdmission);
         }
         for &i in &admitted {
@@ -235,11 +232,7 @@ impl<'a> Catalog<'a> {
         Ok(())
     }
 
-    pub fn update_key_list(
-        &mut self,
-        requested: Key,
-        host: &mut impl RowPrimitives<'a>,
-    ) -> Result<Rebuild, Boundary> {
+    pub fn update_key_list(&mut self, requested: Key, host: &mut impl RowPrimitives<'a>) -> Result<Rebuild, Boundary> {
         let Some(d) = self.descriptors.get(self.descriptor_index as usize) else {
             return Ok(Rebuild::Retained);
         };
@@ -257,9 +250,7 @@ impl<'a> Catalog<'a> {
             let key = host.entry(i).ok_or(Boundary::InvalidEnumerationEntry)?;
             // Literal exact group; no returned-type check and no deduplication.
             if key.words.g == g {
-                let text = host
-                    .name(key)
-                    .unwrap_or_else(|| format!("0x{:08X}", key.words.i));
+                let text = host.name(key).unwrap_or_else(|| format!("0x{:08X}", key.words.i));
                 host.emit(Effect::Append {
                     row: self.rows.len(),
                     text: text.clone(),
@@ -312,10 +303,7 @@ impl<'a> Catalog<'a> {
         }
     }
 
-    pub fn refresh(
-        &mut self,
-        host: &mut impl RowPrimitives<'a>,
-    ) -> Result<Option<Rebuild>, Boundary> {
+    pub fn refresh(&mut self, host: &mut impl RowPrimitives<'a>) -> Result<Option<Rebuild>, Boundary> {
         let mut key = Key::default();
         if Self::get_selected_key(&mut key, host) {
             self.update_key_list(key, host).map(Some)
@@ -469,12 +457,7 @@ impl Picker {
         (modal_result == 0).then(|| Key::new(raw[1], raw[0], raw[2]))
     }
 
-    pub fn destroy<'a>(
-        &mut self,
-        catalog: &mut Catalog<'a>,
-        delete_flag: u32,
-        host: &mut impl Effects,
-    ) {
+    pub fn destroy<'a>(&mut self, catalog: &mut Catalog<'a>, delete_flag: u32, host: &mut impl Effects) {
         host.emit(Effect::InstallPickerTables);
         host.emit(Effect::DestroyVariant);
         catalog.destroy(0, host);
@@ -508,11 +491,7 @@ pub fn picker_word_output(output: &mut u32) {
 }
 
 /// Base Init's known control-flow only; no widget geometry or construction ABI.
-pub fn base_init(
-    initialized: bool,
-    created_child: Option<Handle>,
-    host: &mut impl Effects,
-) -> bool {
+pub fn base_init(initialized: bool, created_child: Option<Handle>, host: &mut impl Effects) -> bool {
     if initialized {
         return true;
     }
