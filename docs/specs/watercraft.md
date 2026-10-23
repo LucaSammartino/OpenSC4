@@ -1685,7 +1685,7 @@ below the translation threshold unless specified otherwise.
 
 | ID | Inputs | Expected observable result |
 |---|---|---|
-| WC5-K01 | H0=H1=(0,0,1), theta=pi/6, both direction bytes zero | F=(0,0.5,sqrt(3)/2); R=(3,-sqrt(3),1)/sqrt(13); U=F cross R. New runtime and inherited headings equal F. Publish rotation, no translation flag/lift, then calls 100,104,107. |
+| WC5-K01 | H0=H1=(0,0,1), theta=pi/6, both direction bytes zero | F=(0,0.5,sqrt(3)/2); R=(3,-sqrt(3),1)/sqrt(13); U=F cross R. New runtime and inherited headings equal F. Publish rotation, add no translation flag/lift, then calls 100,104,107. |
 | WC5-K02 | Same as K01, +0x2C8=2 | F=(0,-0.5,sqrt(3)/2); nonzero value 2 selects the same pitch sign as 1. Derive R/U from the unchanged roll reference B=(0.5,sqrt(3)/2,0). |
 | WC5-K03 | Same as K01, +0x2C9=1 | F unchanged from K01; roll reference B=(-0.5,sqrt(3)/2,0). R=normalize(B cross F), U=F cross R; roll sign changes the basis but not the F result for H1=(0,0,1). |
 | WC5-K04 | H0=(1,0,0), H1=(1,0,0), theta=0, incoming rotation arbitrary, scale=2 | Basis columns R=(0,0,-1), U=(0,1,0), F=(1,0,0). New runtime heading=(0,0,-1), not F; previous heading stays (1,0,0). Scale remains 2 and incoming rotation is replaced. |
@@ -1694,5 +1694,5 @@ below the translation threshold unless specified otherwise.
 
 | ID | Inputs | Expected observable result |
 |---|---|---|
-| WC3-L01 | Call debug text on boat A, retain the borrowed pointer, then call on boat B with different runtime data | Same returned string-object address; borrowed pointer now refers to B's formatted text. Neither boat gains a retained per-instance debug string. |
-| WC3-L02 | Q=2, D=3; runtime P=(1,2,3), H=(0,0,1); city conversion leaves outputs untouched | Text contains `(Q,D): (2,3)`, `Cell( -1, -1)`, `Pos(1.00,2.00,3.00)`, `Ornt<0.00,0.00,1.00>`. Uses initialized -1 cells; no failure boolean or early return. |
+| WC3-DBG01 | Call debug text on boat A, retain the borrowed pointer, then call on boat B with different runtime data | Same returned string-object address; borrowed pointer now refers to B's formatted text. Neither boat gains a retained per-instance debug string. |
+| WC3-DBG02 | Q=2, D=3; runtime P=(1,2,3), H=(0,0,1); city conversion leaves outputs untouched | Text contains `(Q,D): (2,3)`, `Cell( -1, -1)`, `Pos(1.00,2.00,3.00)`, `Ornt<0.00,0.00,1.00>`. Uses initialized -1 cells; no failure boolean or early return. |
