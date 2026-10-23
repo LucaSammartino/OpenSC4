@@ -73,6 +73,10 @@ pub trait Buffer: Send {
     }
     fn layout(&self) -> BufferLayout;
     fn lock(&mut self, write: bool) -> bool;
+    /// Native lock mode is separate from allocation flags.
+    fn lock_with_flags(&mut self, flags: u32) -> bool {
+        self.lock(flags & 0x8000 != 0)
+    }
     fn unlock(&mut self);
     fn bytes(&self) -> &[u8];
     fn bytes_mut(&mut self) -> &mut [u8];
