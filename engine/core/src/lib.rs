@@ -168,3 +168,4 @@ pub mod rigid_body_2d;
 pub mod game_of_life;
 pub mod video_preferences;
 pub mod network_transport;
+pub mod text_decal_occupant;
