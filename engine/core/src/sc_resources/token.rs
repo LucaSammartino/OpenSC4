@@ -93,13 +93,13 @@ impl<'a, S: RawStream> TextIo<'a, S> {
         *out = Descriptor { id, ty: ty as u16, count: count as u16 }; true
     }
     pub fn write_definition(&mut self, name: &[u8], descriptor: Descriptor) -> bool {
-        let mut bytes = b"\r\n".to_vec(); bytes.extend(name);
+        let mut bytes = b"\r\n".to_vec(); bytes.extend(crate::rz_streams::c_str(name));
         bytes.extend(format!("[ {}, {}, {} ]= ", descriptor.id, descriptor.ty, descriptor.count).as_bytes());
         self.record.set_string(&bytes)
     }
     pub fn write_number<T: TextNumber>(&mut self, value: T) -> bool { self.record.set_string(format!("{}, ", value.render()).as_bytes()) }
     pub fn write_string(&mut self, value: &[u8]) -> bool {
-        let mut bytes = value.to_vec(); bytes.extend(b", "); self.record.set_string(&bytes)
+        let mut bytes = crate::rz_streams::c_str(value).to_vec(); bytes.extend(b", "); self.record.set_string(&bytes)
     }
     pub fn write_key(&mut self, key: Key) -> bool { self.write_number(key.ty) && self.write_number(key.group) && self.write_number(key.instance) }
     pub fn write_values(&mut self, values: &Values) -> bool {

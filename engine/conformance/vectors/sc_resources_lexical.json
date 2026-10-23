@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "sc_resources_lexical",
+  "spec": ["sc-resources 2", "sc-resources 9 SCR-V01–04,22–23"],
+  "description": "Independent published argument, expression, boolean, color and vector results; no open grammar choices pinned.",
+  "steps": [
+    {"op":"scr_lexical","method":"split","input":"cmd 'a b' [c d]","expect":["cmd","a b","c d"]},
+    {"op":"scr_lexical","method":"split","input":"cmd 'a","error":5},
+    {"op":"scr_lexical","method":"split","input":"cmd [a","error":6},
+    {"op":"scr_lexical","method":"float","input":"2+3*4","expect":14},
+    {"op":"scr_lexical","method":"float","input":"2+3junk","error":"parse"},
+    {"op":"scr_lexical","method":"float","input":"","error":"parse"},
+    {"op":"scr_lexical","method":"bool","input":"ON","expect":true},
+    {"op":"scr_lexical","method":"bool","input":"false","expect":false},
+    {"op":"scr_lexical","method":"bool","input":"","expect":false},
+    {"op":"scr_lexical","method":"bool","input":"2","expect":true},
+    {"op":"scr_lexical","method":"color_alpha","input":"2 -1 0.5","expect":[2,-1,0.5,1]},
+    {"op":"scr_lexical","method":"vector3","input":"7","expect":[7,0,0]},
+    {"op":"scr_lexical","method":"vector2","input":"","expect":[0,0]},
+    {"op":"scr_lexical","method":"vector2","input":"1 2 3","error":"parse"}
+  ]
+}

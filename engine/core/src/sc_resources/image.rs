@@ -72,6 +72,7 @@ impl PersistBufferResource {
         let width = le32(&info[4..]); let height = le32(&info[8..]); let depth = le16(&info[14..]); let compression = le32(&info[16..]);
         if le32(&info) != 40 || width == 0 || height == 0 || width > i32::MAX as u32 || height > i32::MAX as u32 || !matches!(depth, 4 | 8 | 24) || compression > 1 { return Ok(false); }
         if !bmp_translation(depth, self.target.bits) { return Ok(false); }
+        if self.target.colour_type == 7 { return Err(Error::Unsupported("SCR5: 4444 dithering")); }
         if !file { return Err(Error::Unsupported("SCR5: record BMP offset handling")); }
         let colours = if depth <= 8 { let n = le32(&info[32..]); if n == 0 { 1usize << depth } else { n as usize } } else { 0 };
         if colours > 256 { return Ok(false); }
@@ -113,6 +114,7 @@ impl PersistBufferResource {
         if !raw.seek(0) { return Ok(false); }
         let mut h = [0u8; 18]; if !raw.read(&mut h) || !matches!(h[2], 2 | 10) { return Ok(false); }
         let (width, height) = (u32::from(le16(&h[12..])), u32::from(le16(&h[14..])));
+        if self.target.colour_type == 7 { return Err(Error::Unsupported("SCR5: 4444 dithering")); }
         let palette = u64::from(le16(&h[5..])) * u64::from(h[7]).div_ceil(8);
         if !raw.seek(18 + u64::from(h[0]) + palette) { return Ok(false); }
         let Some(handle) = &self.buffer else { return Ok(false) };
@@ -125,6 +127,10 @@ impl PersistBufferResource {
 }
 impl Drop for PersistBufferResource { fn drop(&mut self) { self.clear(); } }
 pub fn bmp_translation(source: u16, target: u32) -> bool { matches!((source, target), (4,16) | (8,8 | 16 | 32) | (24,16 | 24 | 32)) }
+pub fn bmp_stride(width: u32, depth: u16, file: bool) -> Option<usize> {
+    let row = if depth == 4 && file { (width as usize).div_ceil(2) } else { (width as usize).checked_mul(usize::from(depth >> 3))? };
+    Some(row.checked_add(3)? & !3)
+}
 fn le16(bytes: &[u8]) -> u16 { u16::from_le_bytes([bytes[0], bytes[1]]) }
 fn le32(bytes: &[u8]) -> u32 { u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) }
 fn rle8(raw: &mut impl RawStream, width: u32, height: u32) -> Option<Vec<u8>> {

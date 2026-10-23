@@ -32,7 +32,7 @@ pub fn next_token(input: &[u8], cursor: &mut usize) -> Result<Option<Vec<u8>>> {
     }
     while let Some(&b) = input.get(*cursor) {
         if white(b) || b == b'#' { break; }
-        if matches!(b, b'\\' | b'\'' | b'"' | b'[' | b'(' | b'{') {
+        if matches!(b, b'\\' | b'\'' | b'"' | b'[' | b'(') || (b == b'{' && (*cursor == 0 || input[*cursor - 1] != b'$')) {
             return Err(Error::Unsupported("SCR1: embedded grouping/escapes"));
         }
         *cursor += 1;

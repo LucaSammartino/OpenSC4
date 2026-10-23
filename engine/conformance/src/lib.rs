@@ -80,3 +80,4 @@ pub(crate) mod animation_coordinator;
 pub(crate) mod feature_manager;
 pub(crate) mod lot_models;
 pub(crate) mod gdrivers_director;
+pub(crate) mod sc_resources;

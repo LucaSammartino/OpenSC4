@@ -4,10 +4,10 @@ use std::sync::{Arc, Mutex};
 
 /// ReadLine false is EOF to this owner, including foreign read failures.
 pub trait Lines { fn read_line(&mut self) -> Option<Vec<u8>>; }
+pub trait Watcher: Send { fn shutdown(&mut self); }
 pub trait Files {
     fn open(&mut self, path: &str) -> Option<Box<dyn Lines>>;
-    fn watch(&mut self, path: &str, class: u32, iid: u32) -> Option<u64>;
-    fn unwatch(&mut self, watcher: u64);
+    fn watch(&mut self, path: &str, class: u32, iid: u32) -> Option<Box<dyn Watcher>>;
 }
 pub trait ParseHooks {
     fn begin(&mut self, parser: &mut CommandParser) -> Result<()>;
@@ -20,7 +20,7 @@ pub struct FileParser {
     references: u32,
     parser: Option<ParserHandle>,
     inputs: Vec<(String, u32)>,
-    watchers: Vec<u64>,
+    watchers: Vec<Box<dyn Watcher>>,
     modified: bool,
     errors: Vec<Error>,
 }
@@ -31,9 +31,9 @@ impl FileParser {
         self.add_ref(); *out = true; true
     }
     pub fn add_ref(&mut self) -> u32 { self.references = self.references.wrapping_add(1); self.references }
-    pub fn release(&mut self, files: &mut impl Files) -> u32 {
+    pub fn release(&mut self) -> u32 {
         self.references = self.references.wrapping_sub(1);
-        if self.references == 0 { self.shutdown(files); self.set_parser(None); }
+        if self.references == 0 { self.shutdown(); self.set_parser(None); }
         self.references
     }
     pub fn init(&self) {}
@@ -52,7 +52,7 @@ impl FileParser {
             if let Some(w) = files.watch(path, 0xe953_da68, 0xe953_da64) { self.watchers.push(w); }
         }
     }
-    pub fn shutdown(&mut self, files: &mut impl Files) { for w in self.watchers.drain(..) { files.unwatch(w); } }
+    pub fn shutdown(&mut self) { for mut w in self.watchers.drain(..) { w.shutdown(); } }
     pub fn num_inputs(&self) -> usize { self.inputs.len() }
     pub fn input_path(&self, index: usize) -> Option<&str> { self.inputs.get(index).map(|i| i.0.as_str()) }
     pub fn modified(&self) -> bool { self.modified }
@@ -80,6 +80,9 @@ impl FileParser {
         hooks.finish(&mut parser);
         Ok(success)
     }
+}
+impl Drop for FileParser {
+    fn drop(&mut self) { self.shutdown(); self.set_parser(None); }
 }
 fn parse_file(files: &mut impl Files, parser: &mut CommandParser, path: &str) -> Result<()> {
     let mut lines = files.open(path).ok_or_else(|| parse_error(2, format!("Cannot open {path}")))?;
