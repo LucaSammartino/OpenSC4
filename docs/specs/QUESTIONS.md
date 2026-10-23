@@ -64,6 +64,7 @@ generated index: the questions live one file per spec, so read only the file for
 | FM | feature-manager |
 | FN | drawing-fonts |
 | FQ | flora |
+| FR | font-renderer |
 | FS | graphics-formats |
 | GC | command-system |
 | GD | renderer-gdrivers-director |
@@ -204,6 +205,7 @@ generated index: the questions live one file per spec, so read only the file for
 | fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
+| font-renderer | 3 | 0 | FR4 | questions/font-renderer.md |
 | foundations | 8 | 8 | AO4, HG8, RN6, SV2 | questions/foundations.md |
 | framework-gz-services | 3 | 7 | GZ11 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
@@ -302,4 +304,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **440** | **1239** | | |
+| **total** | **443** | **1239** | | |

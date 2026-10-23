@@ -533,6 +533,10 @@ Example: W 50, "Hello world" (L 11) fits 7 characters, ellipsis "..." 9 pixels: 
 
 ## 9. Drawing text
 
+The separate [default renderer contract](font-renderer.md) specifies the 8-byte class `0x08CDA30B`
+behind these callbacks, with corrected identity, slot types, clipping and pixel effects. Renderer behavior
+remains outside this font-owner spec's coverage claim.
+
 `DrawTextLine(target, x, y, text, n, fg, bg, clip, pen)` (slot 51, `0x0089A099`), returns false only when the
 surface lock fails, else `initialised`:
 

@@ -30,10 +30,16 @@ stores null and then dereferences it; the factory's clean null return does not i
 The auto-labelled constructor `cGZDrawFontRenderer::cGZDrawFontRenderer` at **00829F70** is a
 different, larger holder: factory `0082A2B0` allocates **450 hex bytes**, it installs **00AC14BC**,
 and asks COM for **08CDA30B / A8BC2A75 into member +43C** (`00829FAE–00829FE6`). Its associated
-class getter `00829910` returns **8B3255F9**. Its QI `00829920` also accepts A8BC2A75 and 1;
+class getter `00829910` returns **8B3255F9**. This pairing is instruction-proved: the drawing
+director pushes factory `0082A2B0`, calls that getter, pushes its result, then calls AddCls
+(`00825BAB–00825BB8`). Its QI `00829920` also accepts A8BC2A75 and 1;
 sharing an interface does not make these the same object. Its Release `00829960` decrements to
 zero then calls its own deleting-destructor slot +20, unlike the small object's direct free.
 This establishes the separate pointer views, without specifying that holder's drawing/cache system.
+There is also a concrete delegation edge: with its +444 flag set, the holder's unlock body
+loads member +43C and calls its +18 with the original three arguments (`00829A20–00829A44`).
+Its draw body loads +43C and calls +1C with seven arguments (`0082A878–0082A8B3`). These are
+foreign callers of the small interface, not extra small-object slots.
 The inherited **4,444-byte labelled owner is unaudited** and is not renderer coverage credit.
 
 Raw PE dwords at `00AC55B4–00AC55D0` give the eight slots below; `00AC55D4` is zero and the
@@ -66,6 +72,15 @@ virtual methods, the larger holder, font layout/cache/palette production, FreeTy
 kernels. None receives byte credit here. No span kernel is called by the small raster body: its three
 direct calls are the packed helpers above. Unknown: correspondence of these bodies to the inherited
 4,444 bytes and behavior of substitute renderer/target implementations.
+
+Identity/caller evidence bodies kept **foreign** to this inventory: drawing-director constructor
+`00825B60` (115 bytes), holder class getter `00829910` (6), holder factory `0082A2B0` (27),
+holder constructor `00829F70` (128), holder QI `00829920` (53), holder Release `00829960` (19),
+holder unlock `00829A20` (99, forwarding branch only), and holder draw `0082A7D0`
+(1,016, forwarding branch only). No full behavior claim for the latter two or the holder's other bodies.
+The export's `vtable <function>` query has no slot metadata for the small object; the slot evidence
+here is the original PE dword table plus the constructor and instruction dispatches, not an inferred
+absence of methods from that query's zero results.
 
 ## 2. Typed slots and lifetime
 
@@ -130,6 +145,29 @@ For each eligible record, before testing emptiness, `00896E63` calls target +24 
 +40 (depth). **Only mode exactly 3** calls target +38 with the local format output storage
 (`00896E73–00896EBB`); its result is ignored. These are the target pointer's virtual offsets,
 not offsets in the renderer. Concrete target implementations are outside this contract.
+
+A bounded concrete target view checks these meanings independently of auto-labels. The buffer
+factory `008298F0` allocates 4C bytes and calls `008272E0`, whose constructor installs **00AC1400**
+at object +0. The drawing director registers that factory with getter `00825C80` (class C470D325,
+`00825BBD–00825BCA`). Raw dwords in that vtable map:
+
+| Virtual offset | Body | Concrete buffer value/effect |
+|---|---|---|
+| +24 | 00808620 | dword field +1C (width used by raster) |
+| +28 | 004ED900 | dword field +20 (height used by raster) |
+| +38 | 008268F0 | writes format field +0C and depth field +10 into two output dwords |
+| +40 | 0040CE60 | depth field +10 |
+| +88 | 008265C0 | pixel base field +3C |
+| +8C | 0068D1B0 | byte pitch field +40 |
+| +18 | 00826AA0 | false if pixel base null; otherwise OR flags into +44, increment word +38, and increment dword +30 when flag bit 15 is set; true |
+| +1C | 00826490 | clear supplied flag bits from +44, decrement word +38, true |
+
+Each getter body is four instruction bytes; their unrelated folded names do not determine target
+semantics. Format output is a two-dword structure in this concrete view; `008268F0` has no boolean
+return contract. It writes both values and pops four bytes. This is a pointer-view/dispatch check,
+not a specification of buffer allocation or a claim that every renderer target uses this vtable.
+With the renderer's 8080 flag, this target's lock increments +30 as well as +38; its unlock does
+not decrement +30. Those are target effects, not state held by the 8-byte renderer.
 
 All rectangle comparisons are signed 32-bit. With destination (L,T,R,B) and initial source
 origin (Sx,Sy)=(0,0), first apply optional clip, in this order:
@@ -209,6 +247,100 @@ Evidence: multiplies `00897180–008971B4`, logical shift and XOR/mask packing
 
 ## 6. Literal traces and limits
 
-Further discriminating traces and unresolved boundaries are recorded with this section and in
-[questions/font-renderer.md](questions/font-renderer.md). This contract does not establish native
-equivalence, renderer replacement eligibility or completion of the larger labelled owner.
+These are independent literal consequences of the cited instructions, with valid backing storage
+and ordinary positive pitches. Integer calculations were checked with a local arithmetic worksheet;
+no original instructions were executed. They are specification vectors, not engine tests or game verdicts.
+
+### 6.1 Clipping, emptiness and order
+
+| Input | Expected trace |
+|---|---|
+| count 0; null records and target | true; no record/target/colour/source access |
+| one record, character 1F hex | copy source width/height and read character; skip raster; true, no target calls |
+| same record, character 20 hex | enter raster; queries width, height, depth even if destination is empty |
+| target 8×6, destination (−2,−1,7,5), clip (1,1,6,4), source pitch 12 | source origin becomes (3,2), destination (1,1,6,4), extent 5×3; source offsets 27..31, 39..43, 51..55 |
+| preceding input, depth 32, target byte pitch 36 | first-pixel byte offsets 40, 76, 112 on the three destination rows; five dwords on each row |
+| target 8×6, destination (8,1,10,3), no clip | right lowers to 8, hence empty; no colour read, +8C or +88 call |
+| destination (2,2,4,4), clip (4,0,8,6) | left advances to 4, source x advances by 2, width becomes zero; no pixels |
+| destination (5,1,3,4), no clip | reversed width remains empty; no normalization |
+| nonempty destination, depth 8 | width/height/depth (plus format query only in mode 3); then true without colour read or pixel access |
+| nonempty destination, depth 24, byte pitch 15 | dword pixel path, effective row stride 12 bytes; no 3-byte pixel packing |
+
+For the 5×3 clipped vector, setting record source width/height to (1,1) changes no pixel extent;
+the copied right/bottom are unused. Storage must still cover the listed source offsets.
+Evidence: batch gate `00897250–00897299`, clipping/empty branch `00896EBE–00896F4A`,
+source addressing `00896F80–00896FA1` / `00897107–00897122`.
+
+### 6.2 Threshold, palette and packing
+
+For mode 1 with F=89ABCDEF hex and any initial D, coverage **0,127,128,255** yields
+**D,D,CDEF,CDEF** at depth 16, or **D,D,89ABCDEF,89ABCDEF** at depth 24/32.
+For mode 2, let palette[0]=DEADBEEF, [1]=12345678, [128]=89ABCDEF, [255]=76543210:
+coverage **0,1,128,255** yields **D,5678,CDEF,3210** at depth 16, or
+**D,12345678,89ABCDEF,76543210** at depth 24/32. The first palette dword is read but is not
+written for coverage zero; indices 128 and 255 demonstrate the absence of a 127 clamp.
+The palette example presumes at least 256 readable entries; it makes no such allocation claim
+for the font's own palette producer. Evidence: `00897075–008970AC`, `008971E1–00897216`.
+
+At depth 16 in mode 3, with the format output set as listed:
+
+| Format | D | F | a | Result | Discriminator |
+|---|---|---|---:|---|---|
+| 7 | 0000 | FFFF | 0 | 0000 | zero coverage skips store |
+| 7 | 0000 | FFFF | 1 or 7 | F000 | q=0 but alpha forced |
+| 7 | 0000 | FFFF | 255 | FEEE | greatest coverage is 31/32 |
+| 4 or 6 | 8000 | 0000 | 1 | 0000 | high bit cleared even at q=0 |
+| 4 or 6 | 0000 | 7FFF | 255 | 7BDE | five-bit table blend |
+| 5 | 0020 | 0000 | 1 | 0000 | low green bit discarded |
+| 5 | 0000 | FFFF | 255 | F79E | green lookup is bits 6..10 |
+
+All pixel words above are hexadecimal. With mode 4 instead of 3, format is not fetched and stays
+3; the same nonempty depth-16 records make no pixel changes, even at a=255.
+These distinguish a renderer-specific lookup from a general span kernel's blend.
+
+For depth 24/32 in mode 3 (packed formula of §5):
+
+| D | F | a | Result |
+|---|---|---:|---|
+| 11223344 | FFEEDDCC | 0 | 11223344 (a store still occurs) |
+| 11223344 | FFEEDDCC | 128 | 88888888 |
+| 00000000 | FFFFFFFF | 128 | 80808080 |
+| 00000000 | FFFFFFFF | 255 | FEFEFEFE |
+
+The dword zero-coverage case reads and writes D; the 16-bit zero-coverage case skips both
+the helper and store. A read-only destination is therefore not interchangeable with an untouched
+pixel even when the resulting value is unchanged (`00896FF9–00897010` versus `00897180–008971D0`).
+
+### 6.3 Lifetime, lock failures and pen
+
+| Starting state / operation | Expected result/effect |
+|---|---|
+| fresh small object, count 0; QI(unknown, &sentinel) | false; sentinel and count unchanged |
+| same live object; QI(A8BC2A75, &out) | out=this, count 1, true |
+| count 1; AddRef, Release, Release | returns 2, then 1, then 0 and frees object |
+| separate fresh count-0 object; Release | free and return 0 |
+| count bit pattern FFFFFFFF; Release | signed value −1 ≤ 1, so free, return 0 |
+| target +18 returns false; renderer Lock(font,target,3) | one +18(8080) call, false; no renderer count/state change |
+| target +1C returns false; renderer Unlock(font,target,1) | one +1C(8080) call, false; no renderer state change |
+
+For the concrete 00AC1400 target view, null pixel base makes Lock false before its counter/flag
+changes. With pixel base nonnull, lock starts with word +38=0, dword +30=0, flags +44=0:
+Lock gives word 1, dword 1, flags 8080; Unlock gives word 0, dword **1**, flags 0, true.
+This follows `00826AA0–00826AC7` and `00826490–008264A6`; renderer forwarding does not
+repair or supplement those target effects.
+
+Font-side ordering trace (not additional renderer state): assume initialized font, nonempty text,
+target present, font lock count 0, supplied pen (30,40), and call x/y (10,20). If automatic lock
+returns false, DrawTextLine returns false before reading/writing that pen or building records,
+and does not increment the lock count or unlock. Palette preparation may already have occurred.
+If lock succeeds and one valid glyph has offset (0,0), size 3×3, advance 4, zero spacing,
+and clip (0,0,5,5), it emits no record but advances the pen to **(34,40)**, then unlocks.
+If an emitted batch instead returns false from a substitute renderer, the font still writes its
+advanced pen and unlocks; it ignores the batch AL. Sources: `0089A162–0089A186`,
+`0089A253–0089A2BF`, `0089A315–0089A34B`. The small renderer itself always returns true
+from the batch on normal completion; a fault has no promised normal-return result or rollback.
+
+Unresolved boundaries are filed in [questions/font-renderer.md](questions/font-renderer.md).
+This contract does not establish native equivalence, renderer replacement eligibility or completion
+of the larger labelled owner. Arbitrary invalid pointers, overflowing geometry, negative/zero pitch,
+concurrency, and foreign target fault behavior have no safe equivalence promise here.
