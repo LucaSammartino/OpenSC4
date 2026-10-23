@@ -336,6 +336,7 @@ va	name	source	confidence	note
 00424eba	lib::Catch@00424eba	library	medium	Function ID
 00424ec0	std::deque<cSC4MySimDispatch::cLocation,std::allocator<cSC4MySimDispatch::cLocation>>::_M_pop_front_aux	auto:B0	medium	mac 007f283a score 0.814 support 1.0
 00424ee0	__ZThn4_N18cSC4OccupantFilter14QueryInterfaceEmPPv	auto:B0	medium	mac 0061e314 score 0.96 support 1.0
+00424ef0	cSC4OccupantFilter::Release (thunk at +4)	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.1
 00424fe0	SendMySimsChangedMessage	auto:B2	medium	mac 0054133c score 0.932 support 2.5
 00425100	cSC4MySimAdvice::DoLink	auto:B0	medium	mac 00541c28 score 0.949 support 1.0
 004251a0	cSC4MySim::Write	auto:B4	medium	mac 00544118 score 0.938 support 1.0
@@ -1033,11 +1034,14 @@ va	name	source	confidence	note
 004663f0	cSC4ScriptedWindowCOMDirector::GetDirectorID	auto:A	low	mac 007f3b2a score 1.0 support 0
 00466400	SC4GetSC4ScriptedWindowCOMDirector	auto:B0	medium	mac 0048cde0 score 0.896 support 1.0
 00466440	GetSC4GDriversCOMDirector	auto:D	medium	mac 0048ce68 score 0.5 support 1
+00466480	cSC4DefaultOccupantFilter::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; 0xC9C75EAE
 004664a0	cS3DTextureBinding::AddRef	auto:B2	low	mac 000a02b0 score 0.861 support 2.0
 004664b0	cSC4Demolition::QueryInterface	auto:C	high	mac 000ad23c score 1.0 support 1
 00466530	cSC4OccupantImmovabilityFilter::IsOccupantIncluded	auto:B1	medium	mac 00631c86 score 0.984 support 3.5
 004665c0	cSTETerrainView3D::SetWaterColorUpdateRect	manual:terrain-view.tsv	high	terrain-view.md Â§9.2; merges two rectangles (min corner, max corner)
 00466610	SC4CellRegion<long>::IncludesCell	manual:m4zone.tsv	high	zones.md
+004666c0	cSC4RealisticOccupantFilter::cSC4RealisticOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; flags +0xC..+0xE clear
+004666f0	cSC4RealisticOccupantFilter::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; 0x8A7A1C2C, shared with the demolition filter
 00466700	cSC4DemolitionOccupantFilter::cSC4DemolitionOccupantFilter	auto:B5	medium	mac 00632e6c score 0.95 support 1.0
 00466730	cSC4DemolitionOccupantFilter::IsOccupantIncluded	auto:B0	medium	mac 006326f6 score 0.987 support 6.5
 00466920	cSC4Demolition::~cSC4Demolition	auto:C	high	mac 000ad1be score 1.0 support 1
@@ -1436,6 +1440,8 @@ va	name	source	confidence	note
 0048c6d0	cSC4MissingPluginDataReporter::DoPostCityInit	auto:B0	medium	mac 001e3af8 score 0.923 support 1.5
 0048c8f0	cSC4MissingPluginDataReporter::DoMessage	auto:B1	medium	mac 001e3c8e score 0.953 support 1.5
 0048c940	cSCParticleSimulatorBase::QueryInterface	auto:C	high	mac 004bcce2 score 1.0 support 1
+0048c960	cSC4ModelBackgroundLoader::Pause	manual:model-maker.tsv	high	model-maker.md §15.5; descriptive name, no Mac match; +0x28 := 1
+0048c970	cSC4ModelBackgroundLoader::Resume	manual:model-maker.tsv	high	model-maker.md §15.5; descriptive name, no Mac match; +0x28 := 0
 0048c9f0	cRZLock::~cRZLock	auto:B0	medium	mac 005f269c score 0.967 support 9.0
 0048ca40	cSC4ModelBackgroundLoader::ExpandLoadRect	auto:B5	medium	mac 0028ce50 score 0.952 support 1.0
 0048cc30	cSC4ModelBackgroundLoader::ClearResourceSet	auto:B0	medium	mac 0028cf2a score 0.987 support 2.0
@@ -1444,6 +1450,7 @@ va	name	source	confidence	note
 0048cf10	cSC4ModelBackgroundLoader::ReadTunableValues	auto:A	high	mac 0028d198 score 0.8 support 0
 0048d630	cSC4ModelBackgroundLoader::LoadResourcesForOccupant	auto:B0	medium	mac 0028dd8c score 0.989 support 3.0
 0048d800	cSC4ModelBackgroundLoader::ProcessLoadedCells	auto:B3	medium	mac 0028cf84 score 0.978 support 1.0
+0048da50	cSC4ModelBackgroundLoader::PostCommand	manual:model-maker.tsv	high	model-maker.md §15.4; descriptive name, no Mac match; appends a command for the main thread
 0048daa0	std::vector<PieGraphSeriesInfo,std::allocator<PieGraphSeriesInfo>>::resize	auto:D	medium	mac 006f0bcc score 0.5 support 1
 0048dac0	cSCParticleSimulatorBase::~cSCParticleSimulatorBase	auto:C	high	mac 004bcda2 score 1.0 support 1
 0048dae0	cSC4ModelBackgroundLoader::StartLoadingForZoomAndRotation	auto:B1	medium	mac 0028e598 score 0.964 support 2.0
@@ -1453,12 +1460,15 @@ va	name	source	confidence	note
 0048e460	cSC4ModelBackgroundLoader::ThreadFunction	auto:B2	medium	mac 0028e996 score 0.917 support 1.0
 0048e8f0	cSC4ModelBackgroundLoader::StaticBackgroundThreadFunction	auto:B3	low	mac 0028ecaa score 0.948 support 1.0
 0048e900	cSC4ModelBackgroundLoader::Init	auto:B2	medium	mac 0028d7fe score 0.978 support 1.0
+0048ea60	cSC4ModelMaker::GetGZCLSID	manual:model-maker.tsv	high	model-maker.md §1; descriptive name; returns 0xA9C741B3
+0048ea70	cSC4ModelMaker::QueryInterface	manual:model-maker.tsv	high	model-maker.md §1; descriptive name; primary slot 0; 0xA9C741B3, 1, 0x452294AA, 0xE4FDA3D4 (this + 4)
 0048eae0	cSC4ModelBackgroundLoader::RefocusLoadToNewViewLocation	auto:B9	medium	mac 0028d8f4 score 0.85 support 1.0
 0048eb50	cSC4ModelMaker::DetermineLoadRadiusAroundVisibleArea	auto:B2	medium	mac 002453f2 score 0.857 support 1.0
 0048ed20	cSC4ModelMaker::ComputeCityExclusionRects	auto:D	medium	mac 002454e8 score 0.5 support 1
 0048ee50	cRZStackAllocator<cIS3DModelInstance*,10,1>::New	auto:B3	medium	mac 006d8082 score 0.957 support 2.0
 0048eea0	cRZAutoRefCount<cS3DTextureBinding>::operator=	auto:B3	medium	mac 0062b7c2 score 0.951 support 2.0
 0048eef0	std::bitset<32ul>::test	auto:D	medium	mac 0078fe50 score 0.5 support 1
+0048ef60	cSC4ModelMaker::Write	manual:model-maker.tsv	high	model-maker.md §4; descriptive name; version 2, the fields of §4
 0048f090	cSC4ModelMaker::Read	auto:A	high	mac 00247862 score 1.0 support 0
 0048f290	cSC4ModelMaker::ChangeModels	auto:B3	medium	mac 0024a16a score 0.963 support 1.0
 0048f4d0	cSC4ModelMaker::LoadNetworkModels	auto:B1	medium	mac 0024995e score 0.958 support 2.0
@@ -1472,18 +1482,24 @@ va	name	source	confidence	note
 004902e0	cSC4ModelMaker::AddModel	auto:A	high	mac 00248ce4 score 0.532 support 0
 00490c70	cSC4ModelMaker::LoadModelsCommon	auto:A	high	mac 002490ec score 0.576 support 0
 00491040	cSC4ModelMaker::LoadFoundationModels	auto:A	high	mac 00249518 score 0.816 support 0
+00491210	cSC4OccupantTypesFilter::~cSC4OccupantTypesFilter (body)	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; frees the list
 00491230	cSC4ModelMaker::CreateOccupantShadow	auto:B1	medium	mac 0024696c score 0.994 support 10.0
 00491a30	cSC4ModelMaker::LoadPropModels	auto:B0	medium	mac 00249716 score 0.942 support 2.0
 00491ad0	cSC4ModelMaker::cSC4ModelMaker	auto:D	medium	mac 00247a2a score 0.5 support 1
+00491c90	cSC4ModelMaker::~cSC4ModelMaker	manual:model-maker.tsv	high	model-maker.md §3.4; descriptive name; the destructor body
 00491cd0	cSC4ModelMaker::DoTerrainHidingForCells	auto:A	high	mac 00246020 score 0.552 support 0
 00492440	cSC4ModelMaker::DoTerrainHidingForOccupantCells	auto:B0	medium	mac 00246820 score 0.929 support 2.0
 00492530	cSC4ModelMaker::UnloadUnnecessaryModels	auto:B0	medium	mac 00245e1a score 0.962 support 3.0
 00492780	cSC4ModelMaker::RemoveModelsInappropriateForRotation	auto:D	medium	mac 00245d4e score 0.5 support 1
 004929b0	GZCOM_CreatecSC4ModelMaker	auto:B0	medium	mac 00247c62 score 0.939 support 1.0
+004929d0	cSC4ModelMaker::~cSC4ModelMaker (deleting destructor)	manual:model-maker.tsv	high	model-maker.md §3.4; descriptive name; 0x00491C90 then GlobalHeapFree on bit 0
 004929f0	cSC4ModelMaker::Shutdown	auto:B4	medium	mac 00247da0 score 0.92 support 15.0
 00492cc0	cSC4ModelMaker::RebuildDynamicTexture	auto:B5	medium	mac 002471e4 score 0.977 support 2.5
 004930f0	cSC4ModelMaker::DoLightingChanged	auto:B8	medium	mac 00248b50 score 0.898 support 3.5
 00493340	cSC4ModelMaker::RemoveModels	auto:B1	medium	mac 00249834 score 0.932 support 2.0
+004933a0	cSC4ModelMaker::ApplyStateEffect	manual:model-maker.tsv	high	model-maker.md §9.1; descriptive name, no Mac match; property 0x09F00E59, states 0 and 2-6
+00493700	cSC4OccupantTypesFilterHashed::IsOccupantTypeIncluded	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3
+00493720	cSC4OccupantTypesFilterHashed::~cSC4OccupantTypesFilterHashed	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; deleting
 00493750	cSC4ModelMaker::DoOccupantDestroyed	auto:B4	medium	mac 002498c0 score 0.988 support 2.0
 004937d0	cSC4ModelMaker::DoOccupantMoved	auto:B3	medium	mac 00249a7c score 0.958 support 2.0
 00493a00	cSC4ModelMaker::DoOccupantHilighted	auto:B5	medium	mac 00249c86 score 0.973 support 4.0
@@ -1511,6 +1527,11 @@ va	name	source	confidence	note
 00496670	cSC4ModelMakerUtility::GetOccupantOrientationAndState	auto:A	high	mac 0020567e score 0.656 support 0
 00496790	cSC4ZoomRotationModelChangeOccupantFilter::cSC4ZoomRotationModelChangeOccupantFilter	auto:B5	medium	mac 002057a6 score 0.938 support 2.0
 004967b0	cSC4ZoomRotationModelChangeOccupantFilter::SetZoomAndRotation	auto:B2	medium	mac 002057d2 score 0.979 support 2.0
+00494290	cSC4ModelMaker::DoOccupantInserted	manual:model-maker.tsv	high	model-maker.md §8.3; descriptive name, no Mac match; 0x99EF1142
+00494310	cSC4ModelMaker::DoOccupantRemoved	manual:model-maker.tsv	high	model-maker.md §8.3; descriptive name, no Mac match; 0x99EF1143
+004947f0	cSC4ModelMaker::FinalRelease (thunk)	manual:model-maker.tsv	high	model-maker.md §1; descriptive name; this - 4
+00495970	cSC4ModelMaker::DoDeferOccupantOperations	manual:model-maker.tsv	high	model-maker.md §8.6; descriptive name, no Mac match; 0x49D968C4 counter +0xF0
+004967e0	cSC4ZoomRotationModelChangeOccupantFilter::IsOccupantIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.6; placeable object +0x2C
 00496830	cSC4ModelMakerUtility::GetModelInstanceID	auto:D	medium	mac 002059d4 score 0.5 support 1
 00496950	cSC4ModelMakerUtility::GetOccupantModelClass	auto:B0	medium	mac 00205bc2 score 0.993 support 4.0
 00496ac0	cSC4ModelMakerUtility::HasOccupantModelClass	auto:B1	medium	mac 0020582e score 0.998 support 3.0
@@ -1863,6 +1884,7 @@ va	name	source	confidence	note
 004b8f30	cSC4ViewInputControlDemolish::Shutdown	manual:bulldozer-tool.tsv	high	bulldozer-tool.md Â§1
 004b9020	cSC4ViewInputControlDemolish::OnMouseExit	manual:bulldozer-tool.tsv	high	bulldozer-tool.md Â§3
 004b9040	cSC4ViewInputControlDemolish::EndInput	manual:bulldozer-tool.tsv	high	bulldozer-tool.md Â§3
+004b9070	cSC4ViewInputControlDemolish::cSC4ViewInputControlDemolish	manual:city-view.tsv	high	view3d-window.md §6l; writes the class vtable
 004b91c0	cSC4ViewInputControlDemolish::~cSC4ViewInputControlDemolish	manual:bulldozer-tool.tsv	high	bulldozer-tool.md Â§1
 004b91e0	cSC4ViewInputControlDemolish::~cSC4ViewInputControlDemolish (body)	manual:bulldozer-tool.tsv	high	bulldozer-tool.md descriptive name, no Mac match; Â§1
 004b9250	SC4MarkedCellView::AddRegionCells	manual:bulldozer-tool.tsv	high	bulldozer-tool.md descriptive name, no Mac match; Â§4; appends the region's set cells
@@ -1945,9 +1967,13 @@ va	name	source	confidence	note
 004bde30	cSC4ViewInputControlLevelTerrain::OnMouseMove	manual:view-input-controls.tsv	high	view-input-controls.md Â§3
 004bdf00	cSCParticleSimulatorBase::AddRef	auto:D	low	mac 004bcb80 score 0.5 support 1
 004bdf10	icf::cSC4ViewInputControlPlaceLot::QueryInterface	folded	folded	2 names: cSC4ViewInputControlPlaceLot::QueryInterface | cSC4ViewInputControlQuery::QueryInterface
+004bdf70	cSC4PlaceLotDemolishFilter::cSC4PlaceLotDemolishFilter	manual:plop-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §3.12; keeps power poles and lines
+004bdf90	cSC4OccupantFilter::IsOccupantIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.1; IsOccupantTypeIncluded(GetType())
+004bdfb0	cSC4PlaceLotDemolishFilter::IsOccupantTypeIncluded	manual:plop-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §3.12; not 0x2890D4DE or 0x0990B2EA
 004be0a0	cSC4ViewInputControlPlaceLot::DoPlopRingEffectFinished	auto:B1	medium	mac 002d417c score 0.921 support 2.0
 004be0c0	cSC4LotConfigurationFilterMonopoly::cSC4LotConfigurationFilterMonopoly	auto:D	medium	mac 006f8b1e score 0.5 support 1
 004be100	cSC4LotConfigurationFilterByBuildingType::cSC4LotConfigurationFilterByBuildingType	auto:B0	medium	mac 006f8ae4 score 0.945 support 2.0
+004be150	cSC4ViewInputControlPlaceLot::AddPlopAuraEffect	manual:plop-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §3.12; aura slot 6 with type 2
 004be180	cSC4ViewInputControlPlaceLot::SetPropOccupantDrawAttributes	auto:B0	medium	mac 002d5d4c score 0.947 support 2.0
 004be5d0	cSC4ViewInputControlPlaceLot::GetLotFacingStreetCount	auto:B3	medium	mac 002d4264 score 0.998 support 1.0
 004be750	cSC4ViewInputControlPlaceLot::GetLotCenterAndCellCoverage	auto:B0	medium	mac 002d43d0 score 0.999 support 4.0
@@ -1978,12 +2004,27 @@ va	name	source	confidence	note
 004c37a0	std::vector<unsigned_char,std::allocator<unsigned_char>>::operator[]	auto:D	medium	mac 005f5a4a score 0.5 support 1
 004c37b0	cSC4HoverQueriableOccupantFilter::IsOccupantIncluded	auto:B0	medium	mac 006cd3ee score 0.982 support 4.5
 004c3860	cSC4ViewInputControlQuery::GetRouteTravelTypes	auto:B5	medium	mac 0020cac2 score 0.986 support 2.0
+004c3810	cSC4ViewInputControlQuery::GetOccupantNameTipInfo	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §2.3; 0x899AFBAD, 0x8A416A99, 0x20
 004c38d0	SafeGetAltitude	auto:B3	medium	mac 00206fbc score 0.99 support 2.0
+004c39a0	cSC4QueryRouteOccupantFilter::IsOccupantIncluded	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §2.1; vtable 0x00A909E4
+004c3ab0	cSC4QueryAutomatonFilter::IsOccupantTypeIncluded	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §3.1; vtable 0x00A90A18
+004c3ad0	cSC4QueryStoplightFilter::IsOccupantIncluded	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §3.1; groups 0x5002, 0x5003
+004c3b10	cSC4ViewInputControlQuery::GetLoadMeterValue	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.1; L(used, cap)
+004c3b90	cSC4ViewInputControlQuery::SetEditControlText	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1000
 004c3c00	cSC4ViewInputControlQuery::SetStaticControlText	auto:B0	medium	mac 0020735c score 0.948 support 3.5
+004c3c50	cSC4ViewInputControlQuery::GetSliderControlValue	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.1
 004c3ca0	cSC4ViewInputControlQuery::SetPerformanceMeterValue	auto:B3	medium	mac 0020755e score 0.968 support 2.0
+004c3d70	cSC4ViewInputControlQuery::SetOrGetSeaportTrafficVolume	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1015 (zone)
+004c3e10	cSC4ViewInputControlQuery::SetOrGetLandfillUsage	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1026 (zone)
+004c3e70	cSC4ViewInputControlQuery::SetOrGetGarbageBuildingEfficiency	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1029
+004c3ee0	cSC4ViewInputControlQuery::SetOrGetRecyclingCenterEfficiency	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x105E
+004c3f90	cSC4ViewInputControlQuery::SetOrGetPowerPlantEfficiency2	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1034
+004c3fd0	cSC4ViewInputControlQuery::SetOrGetTransitStationServiceQuality	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1041
 004c4160	cSC4ViewInputControlQuery::GetOccupantCapacity	auto:D	medium	mac 0020862e score 0.5 support 1
 004c4210	cSC4ViewInputControlQuery::GetLandValue	auto:B2	medium	mac 002081b8 score 0.944 support 1.0
 004c4260	cSC4ViewInputControlQuery::GetRatingIn3DegreesFromPercent	auto:B2	medium	mac 002079de score 0.977 support 3.0
+004c42f0	cSC4ViewInputControlQuery::SetOrGetWaterBuildingEfficiency	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x103A, 0x106D
+004c4340	cSC4ViewInputControlQuery::EnumFuncAddWinProc	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §4.1 step 4
 004c4370	cSC4ViewInputControlQuery::EnumFuncClearFilter	auto:A	high	mac 00207ce2 score 0.88 support 0
 004c44e0	icf::cSC4QueryDialogWinProc::QueryInterface	folded	folded	2 names: cSC4QueryDialogWinProc::QueryInterface | cSC4TutorialUIWinProc::QueryInterface
 004c4570	cSC4LegendDialogWinProc::~cSC4LegendDialogWinProc	auto:C	high	mac 00206cd4 score 1.0 support 1
@@ -2002,21 +2043,87 @@ va	name	source	confidence	note
 004c53a0	cSC4ViewInputControlQuery::GetCurrentOccupancyValue	auto:D	medium	mac 0020a202 score 0.5 support 1
 004c5490	cSC4ViewInputControlQuery::GetMayorRatingPercent	auto:B4	medium	mac 0020ae60 score 0.957 support 1.0
 004c55a0	cSC4ViewInputControlQuery::SetOrGetOccupantIsHistorical	auto:B1	medium	mac 0020a4c2 score 0.957 support 2.0
+004c4750	cSC4ViewInputControlQuery::RateSubjectiveSchoolGrade	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §6; rating 2
+004c47f0	cSC4ViewInputControlQuery::RateSubjectiveHospitalGrade	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §6; rating 3
+004c4890	cSC4ViewInputControlQuery::RateSubjectiveCrime	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §6; rating 4
+004c4930	cSC4ViewInputControlQuery::RateSubjectiveCommercialTraffic	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §6; rating 5
+004c4a30	cSC4ViewInputControlQuery::RateSubjectiveCommute	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §6; rating 6
+004c4d10	cSC4ViewInputControlQuery::PickAutomaton	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §3.1; vehicles and pedestrians
+004c5180	cSC4ViewInputControlQuery::SetOrGetFireStationEfficiency	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1001
+004c51c0	cSC4ViewInputControlQuery::SetOrGetPoliceStationEfficiency	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1006
+004c5200	cSC4ViewInputControlQuery::SetOrGetJailLoad	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x100C
+004c5310	cSC4ViewInputControlQuery::SetOrGetSeaportOccupantTrafficVolume	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1015
+004c5350	cSC4ViewInputControlQuery::SetOrGetPowerPlantEfficiency	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x102D
+004c5620	cSC4QueryDialogWinProc::cSC4QueryDialogWinProc	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §4.1 step 4; holds the occupant
 004c5690	cSC4QueryDialogWinProc::EndDialog	auto:B1	medium	mac 0020a56e score 0.914 support 2.0
 004c56f0	std::_Rb_tree<unsigned_long,std::pair<unsigned_long_const,SC4Percentage>,std::_Select1st<std::pair<unsigned_long_const,SC4Percentage>>,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,SC4Percentage>>>::~_Rb_tree	auto:D	medium	mac 0065d05a score 0.5 support 1
 004c5730	cSC4ViewInputControlQuery::~cSC4ViewInputControlQuery	auto:C	high	mac 006ce2b8 score 1.0 support 1
+004c5750	cSC4ViewInputControlQuery::~cSC4ViewInputControlQuery (body)	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §1
 004c57a0	cSC4ViewInputControlQuery::Init	auto:A	high	mac 00218642 score 0.76 support 0
 004c5ba0	cSC4ViewInputControlQuery::SetTip	auto:B1	medium	mac 0020c624 score 0.999 support 2.0
+004c5c90	cSC4ViewInputControlQuery::RateSubjectivePollution	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §6; rating 0
+004c5d70	cSC4ViewInputControlQuery::RateSubjectiveGarbage	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §6; rating 1
 004c5e20	cSC4ViewInputControlQuery::MakeRoutePath	auto:B2	medium	mac 0020cb24 score 0.967 support 1.5
 004c67f0	cSC4ViewInputControlQuery::SetOrGetAirportOccupantAirTrafficVolume	auto:B0	medium	mac 0021b282 score 0.938 support 1.0
 004c69a0	std::vector<std::map<unsigned_long,unsigned_short,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,unsigned_short>>>,std::allocator<std::map<unsigned_long,unsigned_short,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,unsigned_short>>>>>::_M_insert_aux	auto:B5	medium	mac 006587fa score 0.87 support 1.0
 004c6a60	WriteConnectionInfo	auto:A	high	mac 0020a5f2 score 1.0 support 0
+004c6b10	cSC4ViewInputControlQuery::GetEditControlText	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1000
 004c6bf0	cSC4ViewInputControlQuery::SetStaticControlNumeric	auto:B2	medium	mac 002073b6 score 0.865 support 2.0
 004c6ca0	cSC4ViewInputControlQuery::SetStaticControlNumericPercent	auto:D	medium	mac 00207420 score 0.5 support 1
 004c6d50	cSC4ViewInputControlQuery::SetStaticControlSimoleons	auto:B1	medium	mac 0020748a score 0.867 support 3.0
 004c6e30	cSC4ViewInputControlQuery::SetSliderControlValue	auto:A	high	mac 002177d2 score 0.789 support 0
+004c70c0	cSC4ViewInputControlQuery::SetOrGetBuildingName	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1000
+004c7200	cSC4ViewInputControlQuery::SetOrGetFireStationFunding	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1002
+004c72e0	cSC4ViewInputControlQuery::SetOrGetFireStationDispatchCount	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1003
+004c7350	cSC4ViewInputControlQuery::SetOrGetFireStationCost	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1004
+004c7390	cSC4ViewInputControlQuery::SetOrGetPoliceStationArrests	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1007
+004c73d0	cSC4ViewInputControlQuery::SetOrGetPoliceStationCrimes	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1008
+004c7410	cSC4ViewInputControlQuery::SetOrGetPoliceStationFunding	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1009
+004c74f0	cSC4ViewInputControlQuery::SetOrGetPoliceStationDispatchCount	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x100A
+004c7560	cSC4ViewInputControlQuery::SetOrGetPoliceStationCost	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x100B
+004c75a0	cSC4ViewInputControlQuery::SetOrGetJailComfortableCapacity	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x100D; 0.8 x capacity
+004c75f0	cSC4ViewInputControlQuery::SetOrGetJailInmates	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x100E
+004c7660	cSC4ViewInputControlQuery::SetOrGetJailUpkeepCost	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x100F
 004c7690	cSC4ViewInputControlQuery::SetOrGetAirportMaintenanceCost	auto:D	medium	mac 002082de score 0.5 support 1
+004c76f0	cSC4ViewInputControlQuery::SetOrGetAirportUsage	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x107B (zone)
+004c7760	cSC4ViewInputControlQuery::SetOrGetAirportCapacity	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x107C (zone)
+004c77d0	cSC4ViewInputControlQuery::SetOrGetSeaportUsage	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x107D (zone)
+004c7840	cSC4ViewInputControlQuery::SetOrGetSeaportCapacity	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x107E (zone)
+004c78b0	cSC4ViewInputControlQuery::SetOrGetSeaportMaintenanceCost	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1078 (zone)
+004c7910	cSC4ViewInputControlQuery::SetOrGetOccupantWaterPollution	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1016
+004c7980	cSC4ViewInputControlQuery::SetOrGetSchoolGrade	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1017
+004c7a70	cSC4ViewInputControlQuery::SetOrGetSchoolStaffFunding	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1018
+004c7bb0	cSC4ViewInputControlQuery::SetOrGetSchoolBusFunding	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1019
+004c7ce0	cSC4ViewInputControlQuery::SetOrGetCivicBuildingEstimatedCapacity	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x101B, 0x101D, 0x101F, 0x1024
+004c7d30	cSC4ViewInputControlQuery::SetOrGetSchoolServed	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x101C, 0x101E
+004c7e10	cSC4ViewInputControlQuery::SetOrGetHospitalGrade	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1020
+004c7f00	cSC4ViewInputControlQuery::SetOrGetHospitalStaffFunding	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1021
+004c8030	cSC4ViewInputControlQuery::SetOrGetHospitalAmbulanceFunding	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1022
+004c8160	cSC4ViewInputControlQuery::SetOrGetCivicBuildingEstimatedStaff	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x101A, 0x1023
+004c81b0	cSC4ViewInputControlQuery::SetOrGetHospitalServed	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1025
+004c8290	cSC4ViewInputControlQuery::SetOrGetLandfillGarbageAmount	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1027 (zone)
+004c82f0	cSC4ViewInputControlQuery::SetOrGetLandfillBudget	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1028 (zone)
+004c8330	cSC4ViewInputControlQuery::SetOrGetIncineratorUsagePercent	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x102A
+004c83b0	cSC4ViewInputControlQuery::SetOrGetIncineratorGarbageAmount	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x102B
+004c8420	cSC4ViewInputControlQuery::SetOrGetOccupantAirPollution	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x102C
+004c8470	cSC4ViewInputControlQuery::SetOrGetRecyclingPercent	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x105F
+004c8550	cSC4ViewInputControlQuery::SetOrGetRecyclingAmountPerCenter	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1060
+004c85f0	cSC4ViewInputControlQuery::SetOrGetWasteToEnergyGarbageAmount	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1033
+004c8660	cSC4ViewInputControlQuery::SetOrGetPowerPlantUsagePercent	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x102E, 0x1035
+004c86d0	cSC4ViewInputControlQuery::SetOrGetPowerPlantMaxOutput	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x102F, 0x1036
+004c8710	cSC4ViewInputControlQuery::SetOrGetPowerPlantOutput	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1030, 0x1037
+004c8760	cSC4ViewInputControlQuery::SetOrGetPowerPlantFunding	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1063
+004c8880	cSC4ViewInputControlQuery::SetOrGetWaterBuildingUsagePercent	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x103B
+004c8900	cSC4ViewInputControlQuery::SetOrGetWaterBuildingMaxOutput	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x103C
+004c8950	cSC4ViewInputControlQuery::SetOrGetWaterBuildingOutput	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x103D
+004c89a0	cSC4ViewInputControlQuery::SetOrGetWaterBuildingUsedOutput	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x103E
+004c89f0	cSC4ViewInputControlQuery::SetOrGetWaterBuildingCondition	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1073
+004c8a60	cSC4ViewInputControlQuery::SetOrGetTransitStationUsagePercent	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1042
+004c8b30	cSC4ViewInputControlQuery::SetOrGetTransitStationMaintenanceCost	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1043
+004c8bc0	cSC4ViewInputControlQuery::SetOrGetTransitStationUsage	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1044
+004c8c50	cSC4ViewInputControlQuery::SetOrGetTransitStationCapacity	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1045
 004c8ce0	cSC4ViewInputControlQuery::SetOrGetTransitStationGlobalFunding	auto:A	high	mac 0020b01c score 1.0 support 0
+004c8d40	cSC4ViewInputControlQuery::SetOrGetTransitStationLocalCost	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1047
 004c8e30	cSC4ViewInputControlQuery::SetOrGetNeighborConnectionNeighborCityMayorName	auto:D	medium	mac 0020a728 score 0.5 support 1
 004c8f20	cSC4ViewInputControlQuery::SetOrGetNeighborConnectionCongestion	auto:D	medium	mac 0020b47e score 0.5 support 1
 004c8ff0	cSC4ViewInputControlQuery::SetOrGetRCIBuildingCurrentOccupancy	auto:A	high	mac 0020a436 score 1.0 support 0
@@ -2028,8 +2135,17 @@ va	name	source	confidence	note
 004c9470	std::vector<std::map<unsigned_long,unsigned_short,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,unsigned_short>>>,std::allocator<std::map<unsigned_long,unsigned_short,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,unsigned_short>>>>>::push_back	auto:B4	medium	mac 006589b4 score 0.829 support 2.0
 004c9520	cSC4ViewInputControlQuery::WriteDesirabilityEquation	auto:A	high	mac 0020b61e score 1.0 support 0
 004c9e60	cSC4ViewInputControlQuery::SetOrGetAirportOccupantMaintenanceCost	auto:B0	medium	mac 00208f86 score 0.938 support 1.0
+004c9ea0	cSC4ViewInputControlQuery::SetOrGetAirportOccupantUsage	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x107B
+004c9ee0	cSC4ViewInputControlQuery::SetOrGetAirportOccupantCapacity	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x107C
+004c9f20	cSC4ViewInputControlQuery::SetOrGetSeaportOccupantUsage	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x107D
+004c9f60	cSC4ViewInputControlQuery::SetOrGetSeaportOccupantCapacity	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x107E
+004c9fa0	cSC4ViewInputControlQuery::SetOrGetSeaportOccupantMaintenanceCost	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1078
+004c9ff0	cSC4ViewInputControlQuery::SetOrGetPowerPlantUsedOutput	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1031, 0x1038
+004ca040	cSC4ViewInputControlQuery::SetOrGetPowerPlantCondition	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1061, 0x1062
 004ca090	cSC4ViewInputControlQuery::SetOrGetWaterBuildingPumpCondition	auto:A	high	mac 002098e4 score 0.735 support 0
 004ca1e0	cSC4ViewInputControlQuery::SetOrGetNeighborConnectionNeighborCityName	auto:B2	medium	mac 0020a7b2 score 0.924 support 3.0
+004ca2c0	cSC4ViewInputControlQuery::SetOrGetOccupantIsPowered	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1076
+004ca390	cSC4ViewInputControlQuery::SetOrGetOccupantIsWatered	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1077
 004ca460	cSC4ViewInputControlQuery::ShowAllRoutesThatIntersectCityRect	auto:B1	medium	mac 0020e00e score 0.948 support 8.5
 004caa60	cSC4ViewInputControlQuery::GetBuildingOccupantPaths	auto:B3	medium	mac 0020e9a4 score 0.949 support 2.0
 004caae0	cSC4ViewInputControlQuery::GetNetworkOccupantPaths	auto:B2	medium	mac 0020f3e6 score 0.93 support 2.5
@@ -2049,6 +2165,8 @@ va	name	source	confidence	note
 004cc160	cSC4ViewInputControlQuery::SetOrGetAirportLostLuggage	auto:A	high	mac 0020f256 score 0.715 support 0
 004cc1d0	cSC4ViewInputControlQuery::SetOrGetNeighborConnectionDealGarbageAmount	auto:D	medium	mac 0020de16 score 0.5 support 1
 004cc240	cSC4ViewInputControlQuery::SetOrGetControlValue	auto:B0	medium	mac 0021b55e score 0.947 support 1.0
+004cc660	cSC4ViewInputControlQuery::EnumFuncFillCellControl	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §4.2; fill = true
+004cc6a0	cSC4ViewInputControlQuery::EnumFuncWriteBackCellControl	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §4.2; fill = false
 004cc6e0	cSC4ViewInputControlQuery::DoNeighborConnectionQueryDialog	auto:A	high	mac 00219668 score 0.684 support 0
 004cccb0	cSC4ViewInputControlQuery::DoZoneBasedQueryDialog	auto:A	high	mac 00219306 score 0.725 support 0
 004ccf60	cSC4ViewInputControlQuery::DescribeBuilding	auto:A	high	mac 002119c0 score 0.926 support 0
@@ -2066,14 +2184,26 @@ va	name	source	confidence	note
 004cfd20	cSC4ViewInputControlQuery::CalculateTripVolumeFromTrafficPaths	auto:B6	medium	mac 0021560e score 0.983 support 5.5
 004d0190	cSC4ViewInputControlQuery::GetBuildingOccupantTrafficInfo	auto:A	high	mac 00215b18 score 0.918 support 0
 004d07c0	cSC4ViewInputControlQuery::GetNetworkOccupantTrafficInfo	auto:A	high	mac 0021625c score 0.944 support 0
+004d0d30	cSC4ViewInputControlQuery::SetStaticControlCostPerUnit	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.1
 004d0ee0	cSC4ViewInputControlQuery::SetOrGetWhyOccupantAbandoned	auto:A	high	mac 0020f650 score 0.785 support 0
+004d10f0	cSC4ViewInputControlQuery::SetOrGetPowerPlantCostPerUnit	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1032, 0x1039
+004d1190	cSC4ViewInputControlQuery::SetOrGetWaterBuildingCostPerUnit	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x103F
 004d1230	cISC4BuildingOccupant::BuildingProfile::BuildingProfile	auto:D	medium	mac 00658a5e score 0.5 support 1
 004d12a0	cSC4ViewInputControlQuery::WriteDetailedDebugInfo	auto:A	high	mac 00212c2e score 0.962 support 0
 004d3260	cSC4ViewInputControlQuery::GetBuildingWealth	auto:B1	medium	mac 0020ea48 score 1.0 support 2.0
 004d32d0	cSC4ViewInputControlQuery::FindBestDeveloper	auto:B2	medium	mac 0020eab6 score 0.977 support 3.0
 004d3470	cSC4ViewInputControlQuery::GetSubjectiveOccupantRatingString	auto:B1	medium	mac 0020ec54 score 0.943 support 2.5
 004d3500	cSC4ViewInputControlQuery::SetOrGetRCIBuildingWealthLevel	auto:B2	medium	mac 0021716c score 0.98 support 2.5
+004d3730	cSC4ViewInputControlQuery::SetOrGetOccupantPollutionRating	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1054; rating 0
+004d37a0	cSC4ViewInputControlQuery::SetOrGetOccupantGarbageRating	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1075; rating 1
+004d3810	cSC4ViewInputControlQuery::SetOrGetOccupantCrimeRating	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1055; rating 4
 004d3880	cSC4ViewInputControlQuery::SetOrGetResidentialBuildingCommute	auto:A	high	mac 0020ee7a score 0.581 support 0
+004d3940	cSC4ViewInputControlQuery::SetOrGetOccupantTrafficRating	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1074; rating 5
+004d39b0	cSC4ViewInputControlQuery::SetOrGetOccupantSchoolRating	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x1059; rating 2
+004d3a20	cSC4ViewInputControlQuery::SetOrGetOccupantHospitalRating	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §5.2 0x105A; rating 3
+004d3ae0	cSC4ViewInputControlQuery::EnumFuncFillControl	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §4.1 step 5; fill = true
+004d3b40	cSC4ViewInputControlQuery::EnumFuncRefreshControl	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §4.1 step 6
+004d3bd0	cSC4ViewInputControlQuery::EnumFuncWriteBackControl	manual:query-tool.tsv	high	city-tools-input.md descriptive name, no Mac match; §4.1 step 8; fill = false
 004d3c30	cSC4ViewInputControlQuery::DoQueryDialog	auto:B0	medium	mac 00218ed0 score 0.95 support 5.5
 004d3f40	cSC4QueryDialogWinProc::DoWinProcMessage	auto:A	high	mac 002182da score 0.723 support 0
 004d4140	cSC4ViewInputControlQuery::DescribePick	auto:A	high	mac 00219cde score 0.804 support 0
@@ -4117,6 +4247,7 @@ va	name	source	confidence	note
 005cb9f0	cSC4ConstructionOccupant::DivideLot	auto:D	medium	mac 00118d9e score 0.5 support 1
 005cbc10	cSC4ConstructionOccupant::CreateDustClouds	auto:A	high	mac 00118950 score 1.0 support 0
 005cbd20	cSC4ConstructionOccupant::SendConstructionMessage	auto:B0	medium	mac 00119044 score 0.928 support 2.0
+005cbe10	cSC4ConstructionOccupant::SetCraneAngle	manual:construction-occupant.tsv	high	lot-developer.md §6.7.12
 005cc020	cSC4ConstructionOccupant::SetScaffoldHeight	auto:B1	medium	mac 00118ad8 score 0.944 support 2.5
 005cc410	cSC4ConstructionOccupant::Draw	auto:B3	medium	mac 00119100 score 0.931 support 5.0
 005cc820	cSC4ConstructionOccupant::CreateCrane	auto:B1	medium	mac 00119b22 score 0.9 support 2.5
@@ -4544,16 +4675,59 @@ va	name	source	confidence	note
 005e9350	cSC4Occupant::AddOccupantGroup	auto:A	high	mac 000899ce score 0.523 support 0
 005e9410	cSC4Occupant::GetOccupantGroups	auto:B1	medium	mac 00089902 score 0.959 support 2.5
 005e9500	cSC4Occupant::GetOccupantGroups	auto:B7	medium	mac 00089aa2 score 0.972 support 2.0
+005e95b0	cSC4OccupantFilter::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.1; 0xA9C74DC9
+005e95c0	cSC4OccupantFilter::~cSC4OccupantFilter (body)	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.1
 005e95d0	cSC4OccupantFilter::QueryInterface	auto:C	high	mac 0007939a score 1.0 support 4
 005e9630	cSC4DefaultOccupantFilter::IsOccupantIncluded	auto:A	high	mac 00079460 score 1.0 support 0
 005e96e0	cSC4DefaultOccupantFilter::IsPropertyHolderIncluded	auto:A	high	mac 0007952a score 1.0 support 0
+005e9730	cSC4OccupantTypeFilter::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2; 0xE9C75ED1
+005e9740	cSC4OccupantTypeFilter::IsOccupantTypeIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2; type == +0xC
+005e9760	cSC4OccupantTypesFilter::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; 0xE9C75EE8
+005e9770	cSC4OccupantTypesFilterHashed::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; 0xAA25CB90
+005e9780	cSC4ViewLevelOccupantFilter::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.4; 0xAAC3C01D
+005e9790	cSC4OccupantFilter::~cSC4OccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.1; deleting
+005e97c0	cSC4OccupantFilter::Write	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.1; u16 3
+005e97e0	cSC4OccupantFilter::Read	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.1; u16 3
+005e9810	cSC4DefaultOccupantFilter::Write	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; u16 3, u16 3
+005e9840	cSC4DefaultOccupantFilter::Read	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3
+005e9890	cSC4OccupantTypeFilter::Write	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2; u16 3, u16 3, u32 type
+005e98e0	cSC4OccupantTypeFilter::Read	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2
+005e9950	cSC4OccupantTypesFilter::IsOccupantTypeIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; empty list -> true
 005e9990	cSC4RealisticOccupantFilter::IsOccupantIncluded	auto:A	high	mac 000795c8 score 0.834 support 0
+005e9af0	cSC4RealisticOccupantFilter::Write	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; u16 4, three flag bytes, the default's record
+005e9b50	cSC4RealisticOccupantFilter::Read	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; version 3 copies +0xD into +0xE
+005e9bd0	cSC4NetworkOccupantFilter::IsOccupantIncluded	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; GetNetworkFlag() & mask
+005e9c30	cSC4NetworkOccupantFilter::Write	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; u16 1, u32 mask
+005e9c60	cSC4NetworkOccupantFilter::Read	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3
 005e9ca0	SC4GetOccupantViewLevel	auto:A	high	mac 00079a36 score 0.904 support 0
 005e9e40	cSC4ViewLevelOccupantFilter::IsOccupantIncluded	auto:B0	medium	mac 00079dbe score 0.987 support 1.0
+005e9e60	cSC4ViewLevelOccupantFilter::Write	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.4; u16 1, u8 level
+005e9e90	cSC4ViewLevelOccupantFilter::Read	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.4
+005e9ee0	cSC4StringSpecificationOccupantFilter::GetOccupants	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.5; occupant manager slot 36 with the box
 005e9f20	cSC4StringSpecificationOccupantFilter::IsOccupantIncluded	auto:B0	medium	mac 00079c72 score 0.947 support 1.0
+005ea020	cSC4OccupantGroupFilter::IsOccupantIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; any group, empty list -> false
 005ea080	cRZAutoRefCount<cISC4OccupantFilter>::operator=	auto:B6	medium	mac 00631c4c score 0.875 support 5.0
+005ea0a0	cSC4OccupantTypesFilter::Write	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; u16 3, u16 3, u32 n, n types
+005ea120	cSC4NetworkOccupantFilter::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; 0xEAC3A3D2
+005ea130	GZCOM_CreatecSC4OccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2; 12 bytes
+005ea160	GZCOM_CreatecSC4DefaultOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2, §13.2.3
+005ea190	GZCOM_CreatecSC4OccupantTypeFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2; 16 bytes, type 0; occupant-manager.md §4.4
+005ea1c0	GZCOM_CreatecSC4NetworkOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.2, §13.2.3; mask 0x1FFF
+005ea200	GZCOM_CreatecSC4ViewLevelOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2, §13.2.4; level 1
+005ea240	GZCOM_CreatecSC4RealisticOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2, §13.2.3
+005ea280	cSC4OccupantGroupFilter::cSC4OccupantGroupFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; one group, added when not 0
+005ea2f0	cSC4OccupantGroupFilter::AddGroup	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; slot 7
+005ea330	GZCOM_CreatecSC4OccupantTypesFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.2, §13.2.3; 24 bytes
+005ea370	cSC4OccupantTypesFilterHashed::Write	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; u16 3, u16 3, u32 count, the types
+005ea420	cSC4OccupantTypesFilter::~cSC4OccupantTypesFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3; deleting; also the group filter's
+005ea490	cSC4OccupantTypesFilter::Read	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.3
+005ea550	cSC4OccupantTypesFilterHashed::Read	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3
 005ea610	cSC4StringSpecificationOccupantFilter::BuildSpecification	auto:A	high	mac 0007a3f2 score 0.825 support 0
 005eb850	cSC4StringSpecificationOccupantFilter::cSC4StringSpecificationOccupantFilter	auto:B3	medium	mac 0007b5e4 score 0.97 support 1.0
+005eb8f0	cSC4StringSpecificationOccupantFilter::GetGZCLSID	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.5; 0x0BCEB6C2
+005eb900	cSC4StringSpecificationOccupantFilter::~cSC4StringSpecificationOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.5; deleting
+005eb920	cSC4StringSpecificationOccupantFilter::~cSC4StringSpecificationOccupantFilter (body)	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.5; frees the three lists
+005eb970	GZCOM_CreatecSC4OccupantTypesFilterHashed	manual:occupant-filters.tsv	high	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.2, §13.2.3; 32 bytes, hash set hint 100
 005eb9c0	std::vector<cRZString,std::allocator<cRZString>>::vector	auto:B3	medium	mac 0061e540 score 0.902 support 2.0
 005eba70	cSC4StringSpecificationOccupantFilter::BuildSpecification	auto:B2	medium	mac 0007b2ea score 0.987 support 2.0
 005ebb10	cSC4StringSpecificationOccupantFilter::cSC4StringSpecificationOccupantFilter	auto:B3	medium	mac 0007b4ae score 0.998 support 1.5
@@ -4733,8 +4907,10 @@ va	name	source	confidence	note
 005f26f0	cSC4PylonOccupant::DoMessage	auto:B0	medium	mac 0019a9fa score 0.99 support 3.5
 005f2830	cSC4PylonOccupant::Draw	auto:B3	medium	mac 0019a800 score 0.94 support 2.5
 005f29b0	__ZThn60_N17cSC4PylonOccupant4DrawEP14SC4DrawContextb	auto:B4	low	mac 006a4f2a score 0.96 support 1.0
+005f29c0	SC4QuadGrid::GetClampedGridRect	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §2; round-half-even edges, clamped to the grid
 005f2a90	SC4QuadGrid::SetGridRectForElement	auto:D	medium	mac 002904e2 score 0.5 support 2
 005f2b30	SC4QuadGrid::RemoveElement	auto:D	medium	mac 00290962 score 0.5 support 1
+005f2c70	SC4QuadGrid::GetQuadrantsInRect	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §8; at most n quadrants
 005f2d40	SC4QuadGrid::SetQuadrantFlagsForElement	auto:B0	medium	mac 00290636 score 0.993 support 2.0
 005f3040	SC4QuadGridQuadrant::RemoveAllElements	auto:B5	medium	mac 00290b48 score 0.969 support 1.0
 005f30a0	SC4QuadGrid::RemoveAllElements	auto:B4	medium	mac 00290ba8 score 0.995 support 2.0
@@ -4762,17 +4938,29 @@ va	name	source	confidence	note
 005f4870	cSC4ScriptServiceResourceFactory::GZUIScriptLoadBuffer	auto:B2	medium	mac 002407ea score 0.936 support 2.0
 005f48b0	cSC4ScriptServiceResourceFactory::GZUIScriptLoadString	auto:C	high	mac 00240878 score 1.0 support 1
 005f4930	cSC4SignpostOccupant::QueryInterface	auto:A	high	mac 004c5416 score 1.0 support 0
+005f4960	cSC4SignpostOccupant::AdvanceCaretTimer	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3; flips at 500 ms
 005f4a90	cSC4SignpostOccupant::SetAllFlags	auto:C	high	mac 004c545a score 1.0 support 1
 005f4ba0	cSC4SignpostOccupant::SetDynamic	auto:C	high	mac 004c551a score 1.0 support 1
+005f4d10	cSC4SignpostOccupant::SetBoxFromCorners	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
 005f4e90	cSC4SignpostOccupant::SetPosition	auto:C	high	mac 004c59fa score 1.0 support 1
 005f5080	cSC4SignpostOccupant::Write	auto:C	high	mac 004c5c76 score 1.0 support 1
 005f50f0	cSC4SignpostOccupant::Read	auto:C	high	mac 004c5d0c score 1.0 support 1
 005f5200	cSC4SignpostOccupant::Draw	auto:B4	medium	mac 004c5734 score 0.877 support 8.0
+005f5510	cSC4SignpostOccupant::cSC4SignpostOccupant	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
 005f5519	cSC4NetworkOccupant::cSC4NetworkOccupant	auto:B1	medium	mac 0013604c score 0.804 support 1.0
 005f5920	cSC4SignpostOccupant::GetText	auto:C	high	mac 00806a7e score 1.0 support 1
 005f5940	cSC4SignpostOccupant::GetGZCLSID	auto:C	low	mac 00806afa score 1.0 support 1
+005f5950	cSC4SignpostOccupant::QueryInterface (thunk at +4)	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
+005f5970	cSC4SignpostOccupant::QueryInterface (thunk at +0xC)	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
+005f5980	cSC4SignpostOccupant::QueryInterface (thunk at +0x10)	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
+005f5990	cSC4SignpostOccupant::QueryInterface (thunk at +0x14)	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
+005f59a0	cSC4SignpostOccupant::~cSC4SignpostOccupant (thunk at +0x14)	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
+005f5ac0	cSC4SignpostOccupant::Write (thunk at +0x14)	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
+005f5ad0	cSC4SignpostOccupant::Read (thunk at +0x14)	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
 005f5cd0	__ZThn108_N20cSC4SignpostOccupant4DrawEP14SC4DrawContextb	auto:B5	low	mac 00806fc6 score 0.96 support 1.0
+005f5ce0	GZCOM_CreatecSC4SignpostOccupant	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3; pool 0x00B0A970
 005f5d20	cSC4SignpostOccupant::~cSC4SignpostOccupant	auto:C	high	mac 00807796 score 1.0 support 1
+005f5d80	cSC4SignpostOccupant::~cSC4SignpostOccupant (body)	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
 005f5e20	cSC4SignpostOccupant::Shutdown	auto:C	high	mac 004c5ba6 score 1.0 support 1
 005f5ef0	cSC4SignpostOccupant::LoadTextures	auto:A	high	mac 004c5b20 score 1.0 support 0
 005f5fb0	cSC4SignpostOccupant::RebuildModel	auto:B1	medium	mac 004c5ddc score 0.946 support 5.0
@@ -4804,8 +4992,18 @@ va	name	source	confidence	note
 005f8400	icf::cSC4PropOccupantAutomataController::AsOccupant	folded	folded	5 names: cSC4PropOccupantAutomataController::AsOccupant | cSC4PropOccupantVisualEffect::AsOccupant | cSC4SignpostOccupant::AsOccupant | cSC4TextDecalOccupant::AsOccupant | cSC4View3DWin::AsIGZWin
 005f8410	cSC4TextDecalOccupant::GetText	auto:C	high	mac 008078fe score 1.0 support 1
 005f8430	cSC4TextDecalOccupant::GetGZCLSID	auto:C	low	mac 0080793a score 1.0 support 1
+005f8440	cSC4TextDecalOccupant::QueryInterface (thunk at +4)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
+005f8450	cSC4TextDecalOccupant::QueryInterface (thunk at +8)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
+005f8460	cSC4TextDecalOccupant::QueryInterface (thunk at +0xC)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
+005f8470	cSC4TextDecalOccupant::QueryInterface (thunk at +0x10)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
+005f8480	cSC4TextDecalOccupant::QueryInterface (thunk at +0x14)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
+005f8490	cSC4TextDecalOccupant::~cSC4TextDecalOccupant (thunk at +0x14)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
+005f84a0	cSC4TextDecalOccupant::QueryInterface (thunk at +0x28)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
+005f84b0	cSC4TextDecalOccupant::Write (thunk at +0x14)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
+005f84c0	cSC4TextDecalOccupant::Read (thunk at +0x14)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
 005f84d0	GZCOM_CreatecSC4TextDecalOccupant	auto:B1	medium	mac 004c8218 score 0.97 support 1.0
 005f8510	cSC4TextDecalOccupant::~cSC4TextDecalOccupant	auto:C	high	mac 00807c28 score 1.0 support 1
+005f8570	cSC4TextDecalOccupant::~cSC4TextDecalOccupant (body)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
 005f8610	SC4FlushInputMessageQueue	auto:B0	medium	mac 00023c10 score 0.912 support 1.0
 005f8630	cSC4AutoFlushInputMessageQueue::cSC4AutoFlushInputMessageQueue	auto:D	medium	mac 00023c2e score 0.5 support 4
 005f8660	cSC4WinGameDelay::Init	auto:B0	medium	mac 005f60a2 score 0.853 support 2.0
@@ -5176,6 +5374,7 @@ va	name	source	confidence	note
 0060fc30	cSC4NetworkLotManager::DoMessage	auto:B0	medium	mac 0030f02a score 0.956 support 6.0
 00610020	cSC4NetworkLot::GetLotConfigurationObjectArray	auto:C	high	mac 0030d084 score 1.0 support 1
 00610120	cSC4NetworkLotManager::Init	auto:A	high	mac 0030d6d4 score 0.505 support 0
+006104d0	cSC4WaterOccupantFilter::~cSC4WaterOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.6; deleting
 00610500	cSC4SubwayOccupantFilter::~cSC4SubwayOccupantFilter	auto:C	high	mac 00673768 score 1.0 support 1
 00610540	cSC4NetworkManager::IsOccupantSubwayStation	auto:B1	medium	mac 00110214 score 0.94 support 1.0
 00610550	cSC4NetworkManager::FindPipeOccupant	auto:C	high	mac 0011022a score 1.0 support 1
@@ -5617,6 +5816,7 @@ va	name	source	confidence	note
 00648a90	cSC4PipeOccupant::StaticInit	manual:underground-occupants.tsv	high	underground-occupants.md Â§2.5; five xz lengths from 0x00B0BA68 with index lists 0x00B0BC60 / 0x00B0BC88, ratios to 0x00B46708 and 0x00B46720, flag 0x00B46730
 00648bc0	cSC4PipeOccupant::Init	manual:underground-occupants.tsv	high	underground-occupants.md Â§2.2; slot 3 of the occupant interface 0x00AA9730: StaticInit once, then unless IsInitialized the base Init 0x0065C070 and 0x0065AE80
 00648bf0	cSC4PipeOccupant::Init	manual:underground-occupants.tsv	high	underground-occupants.md Â§2.2; main slot 3, pop 4: StaticInit once, unless IsInitialized the base Init 0x0065C6B0(arg, 0x49C05B9F, 0x00B0BED0), watered := 0
+00648c40	cSC4WaterOccupantFilter::IsOccupantIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.6
 00648cc0	cSC4WaterOccupantFilter::IsPropertyHolderIncluded	auto:A	high	mac 0012cb26 score 1.0 support 0
 00648ec0	cSC4PipeTool::cSC4PipeTool	auto:D	medium	mac 0012cb84 score 0.5 support 1
 00648ef0	cSC4ViewInputControl::OnMouseExit	manual:view-input-controls.tsv	high	city-tools-input.md Â§2; false
@@ -6829,6 +7029,8 @@ va	name	source	confidence	note
 006bfa30	cSC4Lot::GetBuilding	auto:C	high	mac 0011e16c score 1.0 support 1
 006bfac0	cSC4InsideLotOccupantFilter::SetLot	auto:D	medium	mac 0066a490 score 0.5 support 1
 006bfb20	cSC4InsideLotOccupantFilter::cSC4InsideLotOccupantFilter	auto:D	medium	mac 0066a252 score 0.5 support 1
+006bfb80	cSC4InsideLotOccupantFilter::IsOccupantIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.6; inclusive box, default and realistic
+006bfc10	cSC4InsideLotOccupantFilter::~cSC4InsideLotOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.6; deleting
 006bfc40	cSC4Lot::UpdateZoneType	auto:C	high	mac 0011da2e score 1.0 support 1
 006bfc60	cSC4Lot::GetLandValue	auto:C	high	mac 0011dcba score 1.0 support 1
 006bfce0	cSC4Lot::HasJobAccess	auto:C	high	mac 0011e126 score 1.0 support 1
@@ -6903,6 +7105,7 @@ va	name	source	confidence	note
 006c3b10	IsEmptyLotSuitableForZot	manual:development.tsv	high	UpdateLot callee order
 006c3b80	cSC4LotDeveloper::QueryInterface	auto:C	high	mac 000ec4de score 1.0 support 1
 006c3c00	cSC4BlockingLotOccupantFilter::cSC4BlockingLotOccupantFilter	auto:D	medium	mac 0065001a score 0.5 support 1
+006c3c20	cSC4BlockingLotOccupantFilter::IsOccupantTypeIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.6; flora only
 006c3c40	cSC4LotDeveloper::GetSimulatorType	manual:development.tsv	high	slot 5
 006c3c50	cSC4LotDeveloper::ClearLotBuildings	auto:D	medium	mac 000ec5f6 score 0.5 support 3
 006c3cf0	cSC4LotDeveloper::GetPositionForBuilding	auto:C	high	mac 000ec6de score 1.0 support 1
@@ -8381,6 +8584,7 @@ va	name	source	confidence	note
 00762c80	cSC4AdvisorPopupTracker::Shutdown	auto:C	high	mac 0025fb7c score 1.0 support 1
 00762cd0	cSC4AdvisorPopupTracker::EndDialog	auto:A	high	mac 0025fbe4 score 1.0 support 0
 00762d30	cSC4AdvisorPopupTracker::DoWinProcMessage	auto:A	high	mac 00260322 score 0.704 support 0
+00762e70	cSC4AdvisorPopupTracker::cSC4AdvisorPopupTracker	manual:city-view.tsv	high	view3d-window.md §6l; advisors.md; writes both vtables
 00762eb0	__ZThn4_N23cSC4AdvisorPopupTracker14QueryInterfaceEmPPv	auto:B0	low	mac 006ddcd6 score 0.96 support 1.0
 00762ed0	cSC4AdvisorPopupTracker::~cSC4AdvisorPopupTracker	auto:C	high	mac 002604ac score 1.0 support 1
 00762f20	cSC4AdvisorPopupTracker::SetupDialog	auto:A	high	mac 0025fc6c score 0.797 support 0
@@ -8392,8 +8596,10 @@ va	name	source	confidence	note
 00764700	cSC4BudgetUIIncomeWinProc::DoWinProcMessage	auto:A	high	mac 001aa3b2 score 0.662 support 0
 00764820	cSC4BudgetUIWinProc::IsVisible	auto:C	low	mac 00224710 score 1.0 support 1
 00764830	cSC4BudgetUIWinProc::Update	auto:C	high	mac 002247fe score 1.0 support 1
+00764850	cSC4BudgetUIWinProc::RestoreTaxRates	manual:budget-window.tsv	high	budget-window-bodies.md descriptive name, no Mac match; §9; Cancel
 007648d0	cSC4BudgetUIWinProc::RegisterMessageNotification	auto:B1	medium	mac 00224612 score 0.929 support 2.5
 00764ad0	cSC4BudgetUIWinProc::HideWindow	auto:C	high	mac 00224d6a score 1.0 support 1
+00764be0	cSC4BudgetUIWinProc::IssueNewLoans	manual:budget-window.tsv	high	budget-window-bodies.md descriptive name, no Mac match; §10; IssueBond for the loans added
 00764c70	std::vector<cISC4BudgetSimulator::LoanInfo,std::allocator<cISC4BudgetSimulator::LoanInfo>>::~vector	auto:B0	medium	mac 006d03d6 score 0.908 support 1.0
 00764cd0	cSC4BudgetUIWinProc::~cSC4BudgetUIWinProc	auto:C	high	mac 00226fe8 score 1.0 support 1
 00764cf0	cSC4BudgetUIWinProc::RemoveLoanWindow	auto:A	high	mac 00225f22 score 1.0 support 0
@@ -8407,6 +8613,7 @@ va	name	source	confidence	note
 00766e10	cSC4BudgetUIWinProc::Init	auto:A	high	mac 0022a866 score 0.985 support 0
 00767270	cSC4BudgetUIWinProc::CalculateValues	auto:A	high	mac 00225fb4 score 0.918 support 0
 00767990	cSC4BudgetUIWinProc::UpdateBalanceSheetInfo	auto:A	high	mac 00228806 score 0.977 support 0
+007680d0	cSC4BudgetUIWinProc::CloseTaxesWindow	manual:budget-window.tsv	high	budget-window-bodies.md descriptive name, no Mac match; §9; OK
 00768130	cSC4BudgetUIWinProc::DisplayTaxesWindow	auto:B0	medium	mac 00229680 score 0.983 support 3.0
 00768460	cSC4BudgetUIWinProc::DoSubBudgetWindow	auto:B0	medium	mac 002293ae score 0.957 support 2.5
 00768620	cSC4BudgetUIWinProc::DoMessage	auto:B0	medium	mac 00229358 score 0.976 support 2.5
@@ -8418,6 +8625,7 @@ va	name	source	confidence	note
 007695f0	cSC4BuildingSelectWinProc::Shutdown	auto:B0	medium	mac 004fdbba score 0.949 support 1.5
 007696b0	cSC4BuildingSelectWinProc::HideWindow	auto:D	low	mac 004fdc92 score 0.5 support 1
 007696d0	cSC4BuildingSelectWinProc::EnableStyleButtons	auto:B1	medium	mac 004fdcaa score 0.945 support 4.0
+00769750	cSC4BuildingSelectWinProc::cSC4BuildingSelectWinProc	manual:city-view.tsv	high	view3d-window.md §6l; writes the class vtable
 00769790	cSC4BuildingSelectWinProc::~cSC4BuildingSelectWinProc	auto:C	high	mac 004fe58e score 1.0 support 1
 00769920	cSC4BuildingSelectWinProc::DoWinProcMessage	auto:A	high	mac 004fe278 score 0.934 support 0
 00769b30	cSC4BuildingSelectWinProc::ShowWindow	auto:A	high	mac 004fe004 score 1.0 support 0
@@ -8452,6 +8660,8 @@ va	name	source	confidence	note
 0076c910	cSC4GraphsViewWinProc::SetTimeScale	auto:A	high	mac 00222702 score 0.599 support 0
 0076ca60	cSC4GraphsViewWinProc::Init	auto:A	high	mac 002227d4 score 0.748 support 0
 0076cc80	cSC4GraphsViewWinProc::DoMessage	auto:B1	medium	mac 0022412c score 0.948 support 1.5
+0076cfe0	cSC4GraphsViewWinProc::cSC4GraphsViewWinProc	manual:city-view.tsv	high	view3d-window.md §6l; writes vtable_1
+0076d080	cSC4GraphsViewWinProc::~cSC4GraphsViewWinProc	manual:city-view.tsv	high	view3d-window.md §6l; resets vtable_1, Shutdown
 0076d3d0	cSC4GraphsViewWinProc::ShowGraph	auto:A	high	mac 00222a72 score 0.775 support 0
 0076e420	cSC4GraphsViewWinProc::ShowWindow	auto:D	medium	mac 00224072 score 0.5 support 1
 0076e470	cSC4GraphsViewWinProc::HideWindow	auto:D	medium	mac 00224008 score 0.5 support 1
@@ -8495,6 +8705,7 @@ va	name	source	confidence	note
 00774070	cSC4NewsTickerWinProc::DoFlipperMessage	auto:B7	medium	mac 002544f8 score 0.983 support 1.5
 00774450	cSC4PanelUIWinProc::~cSC4PanelUIWinProc	auto:C	high	mac 002849c8 score 1.0 support 1
 00774470	cSC4PanelUIWinProc::DoWinProcMessage	auto:A	high	mac 00284a4e score 0.853 support 0
+00774550	cSC4PanelUIWinProc::cSC4PanelUIWinProc	manual:city-view.tsv	high	view3d-window.md §6l; vtable 0x00AB51E4, one zero field
 00774560	icf::cSC4BudgetUIExpenseWinProc::QueryInterface	folded	folded	4 names: cSC4BudgetUIExpenseWinProc::QueryInterface | cSC4BudgetUIIncomeWinProc::QueryInterface | cSC4BudgetUIWinProc::QueryInterface | cSC4PickSimWinProc::QueryInterface
 007745c0	cSC4PickSimWinProc::EndDialog	manual:mysim-windows.tsv	high	mysim-windows.md Â§2
 00774620	cSC4PickSimWinProc::TickSelf	manual:mysim-windows.tsv	high	mysim-windows.md Â§2
@@ -8543,6 +8754,7 @@ va	name	source	confidence	note
 0077a480	cSC4SubBudgetWindow::SetupWindow	auto:A	high	mac 002655a4 score 0.853 support 0
 0077a6f0	cSC4SubBudgetWindow::SetupWindowBig	auto:A	high	mac 002658fe score 0.853 support 0
 0077a960	cSC4SubBudgetWindow::SetupWindowIndiv	auto:A	high	mac 00265c58 score 0.784 support 0
+0077ab40	cSC4SubBudgetWindow::ApplyDealEdits	manual:budget-window.tsv	high	budget-window.md descriptive name (the spec's ApplyDealEdits), no Mac match; §5.4; OK 0xCF
 0077ad20	std::vector<cSC4SubBudgetWindow::IndividualRestoreInfo,std::allocator<cSC4SubBudgetWindow::IndividualRestoreInfo>>::erase	auto:B6	medium	mac 006de620 score 0.957 support 1.0
 0077ada0	cSC4SubBudgetWindow::updateOrdinanceBudget	auto:A	high	mac 002628da score 0.717 support 0
 0077b7b0	cSC4SubBudgetWindow::add_image_button1	auto:A	high	mac 00261e94 score 0.583 support 0
@@ -8761,11 +8973,17 @@ va	name	source	confidence	note
 0079ed90	(anonymous_namespace)::MakeMapColorBuffer<std::vector<std::vector<unsigned_char,std::allocator<unsigned_char>>,std::allocator<std::vector<unsigned_char,std::allocator<unsigned_char>>>>>	auto:B8	medium	mac 006e1130 score 0.997 support 2.0
 0079efd0	(anonymous_namespace)::SC4InterpolateGrid<std::vector<std::vector<signed_char,std::allocator<signed_char>>,std::allocator<std::vector<signed_char,std::allocator<signed_char>>>>,128l>	auto:D	medium	mac 006e1366 score 0.5 support 1
 0079f230	(anonymous_namespace)::MakeMapColorBuffer<std::vector<std::vector<signed_char,std::allocator<signed_char>>,std::allocator<std::vector<signed_char,std::allocator<signed_char>>>>>	auto:B9	medium	mac 006e15f2 score 0.998 support 2.0
+0079f7f0	cSC4DataViewOccupantFilter::IsOccupantIncluded	manual:occupant-filters.tsv	high	occupant-manager.md §13.2.8; descriptive class name (CLSID 0xCA0E3852 is not in the exe's ID table); slot 3 of 0x00AB7E44
 0079fa90	__gnu_cxx::hashtable<unsigned_long,unsigned_long,__gnu_cxx::hash<unsigned_long>,std::_Identity<unsigned_long>,std::equal_to<unsigned_long>,std::allocator<unsigned_long>>::hashtable	auto:D	medium	mac 0061946a score 0.5 support 1
 0079fb20	cSC4WinMapView::UnhookUpdateMessages	manual:map-view.tsv	high	map-view.md Â§3.1, Â§7
+0079fb90	cSC4DataViewOccupantFilter::AddType	manual:occupant-filters.tsv	high	occupant-manager.md §13.2.8; descriptive name; push_back on the type vector +0xC
 0079fc90	cSC4WinMapView::Shutdown	auto:B0	medium	mac 0027c26e score 0.931 support 5.5
+0079fe60	cSC4DataViewOccupantFilter::cSC4DataViewOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md §13.2.8; descriptive name; vtables 0x00AB7E44 / 0x00AB7E2C, +0x2E := 1
 0079fef0	(anonymous_namespace)::BlockMapByLot<std::vector<std::vector<unsigned_char,std::allocator<unsigned_char>>,std::allocator<std::vector<unsigned_char,std::allocator<unsigned_char>>>>,std::vector<std::vector<unsigned_char,std::allocator<unsigned_char>>,std::allocator<std::vector<unsigned_char,std::allocator<unsigned_char>>>>>	manual:map-view.tsv	high	map-view.md Â§4.3 (outline)
 007a03e0	__ZThn8_N14cSC4WinMapViewD0Ev	auto:B0	low	mac 006e1cc6 score 0.96 support 1.0
+007a0420	GZCOM_CreatecSC4DataViewOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md §13.2.2; descriptive name; 0x30 bytes, registered at 0x004608AB
+007a0480	cSC4DataViewOccupantFilter::~cSC4DataViewOccupantFilter	manual:occupant-filters.tsv	high	occupant-manager.md §13.2.8; descriptive name; slot 6, deleting
+007a04a0	cSC4DataViewOccupantFilter::~cSC4DataViewOccupantFilter (body)	manual:occupant-filters.tsv	high	occupant-manager.md §13.2.8; descriptive name
 007a04f0	cSC4WinMapView::DisplayLegend	manual:map-view.tsv	high	map-view.md Â§6
 007a0f10	cSC4WinMapView::~cSC4WinMapView	auto:C	high	mac 0027a7fc score 1.0 support 1
 007a0f30	cSC4WinMapView::OnViewModeButtonSelected	manual:map-view.tsv	high	map-view.md Â§3.2
@@ -8818,6 +9036,8 @@ va	name	source	confidence	note
 007a77e0	cSC4WinMiniMap::OnCityShutdown	auto:B1	medium	mac 003ff4be score 0.929 support 2.0
 007a7840	cSC4WinMiniMap::InitTZMap	auto:B2	medium	mac 003ff990 score 0.988 support 2.0
 007a7900	cSC4SurfaceNetworkOccupantFilter::cSC4SurfaceNetworkOccupantFilter	auto:B3	medium	mac 0077c758 score 0.937 support 1.0
+007a7930	cSC4SurfaceNetworkOccupantFilter::QueryInterface	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.6; 1, 0x46A80026
+007a7970	cSC4SurfaceNetworkOccupantFilter::IsOccupantIncluded	manual:occupant-filters.tsv	high	occupant-manager.md descriptive name, no Mac match; §13.2.6; flag & 0x1F4F
 007a79b0	cSC4WinMiniMap::GZPaint	auto:A	high	mac 003ffa3e score 1.0 support 0
 007a7ff0	cSC4WinMiniMap::UpdateTerrainAndZoneMap	auto:A	high	mac 003fe66e score 0.515 support 0
 007a8640	cSC4WinMiniMap::Update	auto:A	high	mac 003ff536 score 1.0 support 0
@@ -9114,16 +9334,19 @@ va	name	source	confidence	note
 007c2c10	cSC43DRender::SetViewFogEnabled	auto:C	high	mac 00503dca score 1.0 support 1
 007c2c30	cSC43DRender::GetLightingEnabled	auto:C	low	mac 00503e62 score 1.0 support 1
 007c2c40	cSC43DRender::SetLightingEnabled	auto:C	high	mac 00503e72 score 1.0 support 1
+007c2c70	cSC43DRender::ClipRectToViewport	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §7.2
 007c2cd0	cSC43DRender::BorrowRenderSystem	auto:C	low	mac 00503ea8 score 1.0 support 1
 007c2ce0	cSC43DRender::ReturnRenderSystem	auto:C	high	mac 00503eba score 1.0 support 1
 007c2d50	cSC43DRender::GetStatsString1	auto:A	high	mac 00503f30 score 1.0 support 0
 007c2db0	cSC43DRender::GetStatsString2	auto:A	high	mac 00503fa8 score 1.0 support 0
 007c2e50	cS3DBoundingBox::cS3DBoundingBox	auto:D	medium	mac 0066830e score 0.5 support 1
+007c2eb0	cSC43DRender::MakeDrawSortKey	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §6; sort value halves + depth x 65535
 007c2f80	(anonymous_namespace)::SC4ComputeViewportZProjection	auto:B7	medium	mac 00504150 score 0.996 support 2.5
 007c3060	cSC43DRender::Release	auto:C	high	mac 005029b0 score 1.0 support 2
 007c3090	cSC43DRender::StaticShutdown	auto:B1	medium	mac 00502ad6 score 0.947 support 1.0
 007c30f0	cSC43DRender::Write	auto:C	high	mac 00506190 score 1.0 support 1
 007c3180	cSC43DRender::Read	auto:A	high	mac 0050630a score 1.0 support 0
+007c3230	cSC43DRender::AccumulateViewTranslation	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §7.2; pending translated update
 007c32a0	cSC43DRender::DoSingleModelStaticDrawAddition	auto:B5	medium	mac 00504496 score 0.972 support 2.0
 007c3350	cSC43DRender::ClearViewportWithSolidColor	auto:B3	medium	mac 00504032 score 0.935 support 1.0
 007c3400	cSC43DRender::DrawViewportRectangle	auto:A	high	mac 00504680 score 1.0 support 0
@@ -9131,8 +9354,11 @@ va	name	source	confidence	note
 007c3790	cSC43DRender::MoveGridElement	auto:D	medium	mac 0050adfa score 0.5 support 1
 007c3810	cSC43DRender::StaticSetGDriver	auto:A	high	mac 00503b82 score 1.0 support 0
 007c38d0	cSC43DRender::RestoreBackingStore	auto:D	medium	mac 00503d02 score 0.5 support 1
+007c3950	cSC43DRender::PartitionDrawListDescending	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §6
+007c3a10	cSC43DRender::PartitionDrawListAscending	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §6
 007c3ad0	std::vector<cSC43DRender::ModelChangeQueueItem,std::allocator<cSC43DRender::ModelChangeQueueItem>>::push_back	auto:D	medium	mac 00821600 score 0.5 support 1
 007c3b30	cSC43DRender::FindInViewObjectList	auto:D	medium	mac 005048e8 score 0.5 support 1
+007c3b60	cSC43DRender::ClearViewObjectList	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §11
 007c3be0	cSC43DRender::SetGDriver	auto:C	high	mac 00508070 score 1.0 support 1
 007c3c60	cSC43DRender::SetClipRect	auto:B7	medium	mac 00508102 score 0.911 support 1.0
 007c3d50	SC43DGridElement::SC43DGridElement	auto:D	medium	mac 0081ffbe score 0.5 support 1
@@ -9151,6 +9377,8 @@ va	name	source	confidence	note
 007c5370	cSC43DRender::RebuildQuadGrid	auto:B2	medium	mac 0050ba52 score 0.989 support 2.0
 007c5540	cSC43DRender::ModelShouldGoIntoBackingStore	auto:B5	medium	mac 00505a36 score 0.886 support 3.0
 007c55c0	cSC43DRender::ReevaluateBackingStoreObjectFlags	auto:B4	medium	mac 00505b10 score 0.953 support 1.0
+007c56d0	cSC43DRender::SortDrawListDescending	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §6
+007c5710	cSC43DRender::SortDrawListAscending	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §6
 007c5ac0	cSC43DRender::RemoveViewObject	auto:C	high	mac 00505d56 score 1.0 support 1
 007c5c80	cSC43DRender::InsertIntoViewObjectList	auto:D	medium	mac 00505c10 score 0.5 support 1
 007c5d00	cSC43DRender::SetGraphicSystem	auto:C	high	mac 00506258 score 1.0 support 1
@@ -9161,6 +9389,7 @@ va	name	source	confidence	note
 007c6830	cSC43DRender::Pick	auto:C	high	mac 0050c64e score 1.0 support 1
 007c6bc0	cSC43DRender::StartScreenShake	auto:A	high	mac 00507940 score 0.686 support 0
 007c6d80	cSC43DRender::ClearDirtyRectangleQueue	auto:B6	medium	mac 00505538 score 0.91 support 2.0
+007c6e30	cSC43DRender::FlushModelChangeQueue	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §11; queued models removed at shutdown
 007c6fe0	std::vector<cSC43DRender::ModelChangeQueueItem,std::allocator<cSC43DRender::ModelChangeQueueItem>>::size	auto:B0	medium	mac 00820456 score 0.924 support 3.0
 007c7070	cSC43DRender::Shutdown	auto:B2	medium	mac 005056d6 score 0.948 support 7.0
 007c7310	cSC43DRender::DoFullViewUpdate	auto:B23	medium	mac 005055a2 score 0.952 support 3.0
@@ -9199,6 +9428,11 @@ va	name	source	confidence	note
 007cb0b0	cSC43DRender::DoMessage	auto:B0	medium	mac 0050be0e score 0.99 support 7.0
 007cb530	cSC43DRender::Draw	auto:B3	medium	mac 0050b252 score 0.955 support 3.5
 007cb920	cSC4OccupantTypesFilter::cSC4OccupantTypesFilter	auto:B7	medium	mac 0061ebe2 score 0.831 support 2.0
+007c9fe0	cSC43DRender::QueryInterface (thunk at +4)	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §11
+007c9ff0	cSC43DRender::QueryInterface (thunk at +8)	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §11
+007ca000	cSC43DRender::Release (thunk at +4)	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §11
+007ca010	cSC43DRender::Release (thunk at +8)	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §11
+007ca020	cSC43DRender::~cSC43DRender (body)	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §11
 007cb940	cSC4CameraControl::QueryInterface	manual:camera.tsv	high	camera.md Â§2.1; descriptive name; slot 0 of 0x00ABAD18; IIDs 1, 0xC9C628EC and 0xE4FDA3D4
 007cb970	cSC4CameraControl::DetachFromCamera	manual:camera.tsv	high	camera.md Â§2.6; descriptive name, no Mac match; releases +0xC; callers 0x007AC3F0, 0x007F15C2
 007cb990	cSC4CameraControl::GetViewportSize	manual:camera.tsv	high	camera.md Â§2.6; +0x12C, +0x130
@@ -9311,6 +9545,7 @@ va	name	source	confidence	note
 007d4530	SC4DrawContext::SetRenderState	manual:draw-context.tsv	high	draw-context.md Â§5.2; the packed form: (value ^ word) & mask, then the stage-0 defaults
 007d47e0	SC4DrawContext::SetTexEnvMode	manual:draw-context.tsv	high	draw-context.md Â§7.1; Mac name kept; prepares the emulated second-stage pass
 007d4a80	SC4DrawContext::RenderMesh	manual:draw-context.tsv	high	draw-context.md Â§9.1; DrawArrays or DrawElements per group
+007d4f80	SC4DrawContext::SetHighlightColor	manual:render-core.tsv	high	render3d.md descriptive name, no Mac match; §11; colour i of the 11
 007d4fb0	SC4DrawContext::SetRenderStateHighlight	manual:draw-context.tsv	high	draw-context.md Â§5.2; highlight state +0xCC, colour from +0x54, combiner +0xD4
 007d5030	SC4DrawContext::DrawBoundingBox	manual:draw-context.tsv	high	draw-context.md Â§9.3; packed state 0x020A8197 / 0x1E1FE3FF
 007d5200	SC4DrawContext::SetDefaultRenderState	manual:draw-context.tsv	high	draw-context.md Â§5.2; top of the stack +0x1EC or the default +0x88
@@ -9539,6 +9774,7 @@ va	name	source	confidence	note
 007e5890	cSC4View3DWin::PickOccupant	auto:C	high	mac 0051c55e score 1.0 support 1
 007e5900	cSC4View3DWin::GetTerrainQueryEnabled	auto:C	low	mac 0051c622 score 1.0 support 1
 007e5910	cSC4View3DWin::InvokeLandscapeTool	auto:B0	medium	mac 0051c632 score 0.942 support 3.0
+007e5960	cSC4View3DWin::IsCatalogItemWrongViewLevel	manual:city-view.tsv	high	view3d-window.md §6i descriptive name, no Mac match
 007e59b0	cSC4View3DWin::UpdateSpeedButtons	auto:A	high	mac 00520068 score 1.0 support 0
 007e5b00	cSC4View3DWin::UpdateZoomButtons	auto:A	high	mac 0051c704 score 1.0 support 0
 007e5b40	cSC4View3DWin::DoTemporarySimHiddenPause	auto:B3	medium	mac 0051c19c score 0.925 support 2.0
@@ -9608,6 +9844,7 @@ va	name	source	confidence	note
 007e9390	cSC4View3DWin::RemoveCurrentViewInputControl	auto:A	high	mac 00528bcc score 1.0 support 0
 007e9460	cSC4View3DWin::GZOnMouseMove	auto:B5	medium	mac 005297fe score 0.968 support 2.0
 007e96e0	cSC4View3DWin::GZOnMouseExit	auto:B5	medium	mac 00529c5e score 0.956 support 2.0
+007e9780	cSC4View3DWin::DoPreCityShutdown	manual:city-view.tsv	high	view3d-window.md §4 descriptive name, no Mac match; message 0x26D31EC2
 007e97a0	cSC4View3DWin::DoCityObliterated	auto:A	high	mac 0051ebca score 1.0 support 0
 007e97f0	cSC4ToolTipManager::~cSC4ToolTipManager	auto:B0	medium	mac 00524d92 score 0.981 support 1.0
 007e9850	std::list<cRZAutoRefCount<cISC4Advice>,std::allocator<cRZAutoRefCount<cISC4Advice>>>::pop_front	auto:D	medium	mac 006ddd0c score 0.5 support 1
@@ -9651,6 +9888,7 @@ va	name	source	confidence	note
 007ed720	cSC4View3DWin::DoLandscapeMenu	auto:A	high	mac 0052b3c2 score 0.973 support 0
 007edcd0	cSC4View3DWin::DoEarnedVehicleCatalogView	auto:A	high	mac 0052ac12 score 1.0 support 0
 007ede30	cSC4View3DWin::SetRenderPropertiesStatic	auto:B1	medium	mac 0051cdb4 score 0.904 support 1.0
+007ede50	cSC4View3DWin::ClearCursorTextEntries	manual:city-view.tsv	high	view3d-window.md §6j descriptive name, no Mac match
 007edeb0	cSC4View3DWin::AddGUI	auto:A	high	mac 005268a6 score 0.879 support 0
 007ef200	cSC4View3DWin::RemoveGUI	auto:B1	medium	mac 00525fb2 score 0.947 support 3.0
 007ef610	cSC4View3DWin::DoVehicleMenu	auto:A	high	mac 0052ad2e score 1.0 support 0
@@ -9669,7 +9907,17 @@ va	name	source	confidence	note
 007f1040	cSC4View3DWin::SetLastSelectedLot	auto:C	high	mac 00825bde score 1.0 support 1
 007f1060	cSC4View3DWin::GetLastSelectedBuilding	auto:C	high	mac 00825bf6 score 1.0 support 1
 007f1080	cSC4View3DWin::GetLastSelectedLot	auto:C	high	mac 00825c12 score 1.0 support 1
+007f10a0	cSC4View3DWin::QueryInterface (thunk at +4)	manual:city-view.tsv	high	view3d-window.md §1 descriptive name
+007f10b0	cSC4View3DWin::AddRef (thunk at +4)	manual:city-view.tsv	high	view3d-window.md §1 descriptive name
+007f10c0	cSC4View3DWin::Release (thunk at +4)	manual:city-view.tsv	high	view3d-window.md §1 descriptive name
+007f10d0	cSC4View3DWin::QueryInterface (thunk at +8)	manual:city-view.tsv	high	view3d-window.md §1 descriptive name
+007f10e0	cSC4View3DWin::AddRef (thunk at +8)	manual:city-view.tsv	high	view3d-window.md §1 descriptive name
+007f10f0	cSC4View3DWin::Release (thunk at +8)	manual:city-view.tsv	high	view3d-window.md §1 descriptive name
+007f1100	cSC4View3DWin::QueryInterface (thunk at +0xC)	manual:city-view.tsv	high	view3d-window.md §1 descriptive name
+007f1110	cSC4View3DWin::AddRef (thunk at +0xC)	manual:city-view.tsv	high	view3d-window.md §1 descriptive name
+007f1120	cSC4View3DWin::Release (thunk at +0xC)	manual:city-view.tsv	high	view3d-window.md §1 descriptive name
 007f1130	__ZThn12_N13cSC4View3DWinD0Ev	auto:B0	low	mac 0082753a score 0.96 support 1.0
+007f1140	cSC4View3DWin::~cSC4View3DWin (complete)	manual:city-view.tsv	high	view3d-window.md §4 descriptive name; called by 0x007F3E30
 007f1320	cSC4View3DWin::Shutdown	auto:B5	medium	mac 005264f6 score 0.967 support 7.5
 007f1640	cSC4View3DWin::AddBackgroundImageToRenderer	auto:A	high	mac 005232b4 score 1.0 support 0
 007f1c10	cSC4View3DWin::ProcessCommand	auto:A	high	mac 0052c908 score 0.703 support 0
@@ -9681,6 +9929,7 @@ va	name	source	confidence	note
 007f41b0	cSC4View3DWin::DoPreCityInit	auto:A	high	mac 00528030 score 0.758 support 0
 007f4690	cSC4View3DWin::HandleButtonActivated	auto:A	high	mac 0052ec46 score 0.977 support 0
 007f53c0	cSC4View3DWin::DoMessage	auto:A	high	mac 0052c250 score 0.613 support 0
+007f58e0	cSC4View3DWin::FilterWinMessage	manual:city-view.tsv	high	view3d-window.md §6h descriptive name, no Mac match; slot 3 of vtable 0x00ABCE1C
 007f5cf0	cSC4View3DWin::SetCursorText	auto:C	high	mac 0052146e score 1.0 support 1
 007f5f00	cSC4RenderProperties::operator=	auto:B2	medium	mac 0082747a score 0.802 support 1.0
 007f6160	cSC4View3DWin::DoScrollEnd	auto:B2	medium	mac 00523784 score 0.969 support 2.5

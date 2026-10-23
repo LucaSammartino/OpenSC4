@@ -1,0 +1,101 @@
+va	name	evidence	mac_x86
+00424ee0	__ZThn4_N18cSC4OccupantFilter14QueryInterfaceEmPPv	occupant-manager.md §13.2.1; thunk at +4	
+00424ef0	cSC4OccupantFilter::Release (thunk at +4)	occupant-manager.md descriptive name, no Mac match; §13.2.1	
+00466480	cSC4DefaultOccupantFilter::GetGZCLSID	occupant-manager.md descriptive name, no Mac match; §13.2.3; 0xC9C75EAE	
+00466530	cSC4OccupantImmovabilityFilter::IsOccupantIncluded	occupant-manager.md §13.2.6; 0x29F013E6	
+004666c0	cSC4RealisticOccupantFilter::cSC4RealisticOccupantFilter	occupant-manager.md descriptive name, no Mac match; §13.2.3; flags +0xC..+0xE clear	
+004666f0	cSC4RealisticOccupantFilter::GetGZCLSID	occupant-manager.md descriptive name, no Mac match; §13.2.3; 0x8A7A1C2C, shared with the demolition filter	
+00466ec0	cSC4DemolitionOccupantFilter::~cSC4DemolitionOccupantFilter (body)	occupant-manager.md descriptive name, no Mac match; §13.2.3; releases +0x2C and +0x30 (demolition.md §4.2); was cSC4RealisticOccupantFilter::~cSC4RealisticOccupantFilter	
+004696c0	std::find<unsigned_long*,unsigned_long>	occupant-manager.md §13.2.8; was auto-named vector::push_back: an unrolled-by-4 search for a u32 in [first, last)	
+0046fd70	cSC4ActiveFireOccupantFilter::IsOccupantIncluded	occupant-manager.md §13.2.6	
+0048c300	cSC4MissingPluginPackOccupantFilter::AreModelsAvailableForZoomAndRotation	occupant-manager.md §13.2.6; 0 found, 1 missing, 2 none listed	
+0048c420	cSC4MissingPluginPackOccupantFilter::AreModelsAvailable	occupant-manager.md §13.2.6	
+0048c4d0	cSC4MissingPluginPackOccupantFilter::IsOccupantIncluded	occupant-manager.md §13.2.6; 0x6A871B82 and a missing model	
+00491210	cSC4OccupantTypesFilter::~cSC4OccupantTypesFilter (body)	occupant-manager.md descriptive name, no Mac match; §13.2.3; frees the list	
+00493700	cSC4OccupantTypesFilterHashed::IsOccupantTypeIncluded	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3	
+00493720	cSC4OccupantTypesFilterHashed::~cSC4OccupantTypesFilterHashed	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; deleting	
+00496790	cSC4ZoomRotationModelChangeOccupantFilter::cSC4ZoomRotationModelChangeOccupantFilter	occupant-manager.md §13.2.6	
+004967b0	cSC4ZoomRotationModelChangeOccupantFilter::SetZoomAndRotation	occupant-manager.md §13.2.6	
+004967e0	cSC4ZoomRotationModelChangeOccupantFilter::IsOccupantIncluded	occupant-manager.md descriptive name, no Mac match; §13.2.6; placeable object +0x2C	
+004bdf90	cSC4OccupantFilter::IsOccupantIncluded	occupant-manager.md descriptive name, no Mac match; §13.2.1; IsOccupantTypeIncluded(GetType())	
+004c37b0	cSC4HoverQueriableOccupantFilter::IsOccupantIncluded	occupant-manager.md §13.2.6	
+004c46c0	cSC4QueriableOccupantFilter::IsOccupantIncluded	occupant-manager.md §13.2.6; 0xCAA9AB92, then §13.2.6	
+005e95b0	cSC4OccupantFilter::GetGZCLSID	occupant-manager.md descriptive name, no Mac match; §13.2.1; 0xA9C74DC9	
+005e95c0	cSC4OccupantFilter::~cSC4OccupantFilter (body)	occupant-manager.md descriptive name, no Mac match; §13.2.1	
+005e9630	cSC4DefaultOccupantFilter::IsOccupantIncluded	occupant-manager.md §13.2.3	
+005e96e0	cSC4DefaultOccupantFilter::IsPropertyHolderIncluded	occupant-manager.md §13.2.3	
+005e9730	cSC4OccupantTypeFilter::GetGZCLSID	occupant-manager.md descriptive name, no Mac match; §13.2.2; 0xE9C75ED1	
+005e9740	cSC4OccupantTypeFilter::IsOccupantTypeIncluded	occupant-manager.md descriptive name, no Mac match; §13.2.2; type == +0xC	
+005e9760	cSC4OccupantTypesFilter::GetGZCLSID	occupant-manager.md descriptive name, no Mac match; §13.2.3; 0xE9C75EE8	
+005e9770	cSC4OccupantTypesFilterHashed::GetGZCLSID	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; 0xAA25CB90	
+005e9780	cSC4ViewLevelOccupantFilter::GetGZCLSID	occupant-manager.md descriptive name, no Mac match; §13.2.4; 0xAAC3C01D	
+005e9790	cSC4OccupantFilter::~cSC4OccupantFilter	occupant-manager.md descriptive name, no Mac match; §13.2.1; deleting	
+005e97c0	cSC4OccupantFilter::Write	occupant-manager.md descriptive name, no Mac match; §13.2.1; u16 3	
+005e97e0	cSC4OccupantFilter::Read	occupant-manager.md descriptive name, no Mac match; §13.2.1; u16 3	
+005e9810	cSC4DefaultOccupantFilter::Write	occupant-manager.md descriptive name, no Mac match; §13.2.3; u16 3, u16 3	
+005e9840	cSC4DefaultOccupantFilter::Read	occupant-manager.md descriptive name, no Mac match; §13.2.3	
+005e9890	cSC4OccupantTypeFilter::Write	occupant-manager.md descriptive name, no Mac match; §13.2.2; u16 3, u16 3, u32 type	
+005e98e0	cSC4OccupantTypeFilter::Read	occupant-manager.md descriptive name, no Mac match; §13.2.2	
+005e9950	cSC4OccupantTypesFilter::IsOccupantTypeIncluded	occupant-manager.md descriptive name, no Mac match; §13.2.3; empty list -> true	
+005e9990	cSC4RealisticOccupantFilter::IsOccupantIncluded	occupant-manager.md §13.2.3	
+005e9af0	cSC4RealisticOccupantFilter::Write	occupant-manager.md descriptive name, no Mac match; §13.2.3; u16 4, three flag bytes, the default's record	
+005e9b50	cSC4RealisticOccupantFilter::Read	occupant-manager.md descriptive name, no Mac match; §13.2.3; version 3 copies +0xD into +0xE	
+005e9bd0	cSC4NetworkOccupantFilter::IsOccupantIncluded	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; GetNetworkFlag() & mask	
+005e9c30	cSC4NetworkOccupantFilter::Write	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; u16 1, u32 mask	
+005e9c60	cSC4NetworkOccupantFilter::Read	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3	
+005e9ca0	SC4GetOccupantViewLevel	occupant-manager.md §13.2.4; occupant in ESI	
+005e9e40	cSC4ViewLevelOccupantFilter::IsOccupantIncluded	occupant-manager.md §13.2.4	
+005e9e60	cSC4ViewLevelOccupantFilter::Write	occupant-manager.md descriptive name, no Mac match; §13.2.4; u16 1, u8 level	
+005e9e90	cSC4ViewLevelOccupantFilter::Read	occupant-manager.md descriptive name, no Mac match; §13.2.4	
+005e9ee0	cSC4StringSpecificationOccupantFilter::GetOccupants	occupant-manager.md descriptive name, no Mac match; §13.2.5; occupant manager slot 36 with the box	
+005e9f20	cSC4StringSpecificationOccupantFilter::IsOccupantIncluded	occupant-manager.md §13.2.5; types, groups, levels	
+005ea020	cSC4OccupantGroupFilter::IsOccupantIncluded	occupant-manager.md descriptive name, no Mac match; §13.2.3; any group, empty list -> false	
+005ea080	cSC4OccupantFilter::cSC4OccupantFilter	occupant-manager.md descriptive name, no Mac match; §13.2.1; vtables 0x00AA42C8/0x00AA42B0, count 0; was cRZAutoRefCount<cISC4OccupantFilter>::operator=	
+005ea0a0	cSC4OccupantTypesFilter::Write	occupant-manager.md descriptive name, no Mac match; §13.2.3; u16 3, u16 3, u32 n, n types	
+005ea120	cSC4NetworkOccupantFilter::GetGZCLSID	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; 0xEAC3A3D2	
+005ea130	GZCOM_CreatecSC4OccupantFilter	occupant-manager.md descriptive name, no Mac match; §13.2.2; 12 bytes	
+005ea160	GZCOM_CreatecSC4DefaultOccupantFilter	occupant-manager.md descriptive name, no Mac match; §13.2.2, §13.2.3	
+005ea190	GZCOM_CreatecSC4OccupantTypeFilter	occupant-manager.md descriptive name, no Mac match; §13.2.2; 16 bytes, type 0; occupant-manager.md §4.4	
+005ea1c0	GZCOM_CreatecSC4NetworkOccupantFilter	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.2, §13.2.3; mask 0x1FFF	
+005ea200	GZCOM_CreatecSC4ViewLevelOccupantFilter	occupant-manager.md descriptive name, no Mac match; §13.2.2, §13.2.4; level 1	
+005ea240	GZCOM_CreatecSC4RealisticOccupantFilter	occupant-manager.md descriptive name, no Mac match; §13.2.2, §13.2.3	
+005ea280	cSC4OccupantGroupFilter::cSC4OccupantGroupFilter	occupant-manager.md descriptive name, no Mac match; §13.2.3; one group, added when not 0	
+005ea2f0	cSC4OccupantGroupFilter::AddGroup	occupant-manager.md descriptive name, no Mac match; §13.2.3; slot 7	
+005ea330	GZCOM_CreatecSC4OccupantTypesFilter	occupant-manager.md descriptive name, no Mac match; §13.2.2, §13.2.3; 24 bytes	
+005ea370	cSC4OccupantTypesFilterHashed::Write	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3; u16 3, u16 3, u32 count, the types	
+005ea420	cSC4OccupantTypesFilter::~cSC4OccupantTypesFilter	occupant-manager.md descriptive name, no Mac match; §13.2.3; deleting; also the group filter's	
+005ea490	cSC4OccupantTypesFilter::Read	occupant-manager.md descriptive name, no Mac match; §13.2.3	
+005ea550	cSC4OccupantTypesFilterHashed::Read	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.3	
+005ea610	cSC4StringSpecificationOccupantFilter::BuildSpecification	occupant-manager.md §13.2.5; from words	
+005eb850	cSC4StringSpecificationOccupantFilter::cSC4StringSpecificationOccupantFilter	occupant-manager.md §13.2.5; from words	
+005eb8f0	cSC4StringSpecificationOccupantFilter::GetGZCLSID	occupant-manager.md descriptive name, no Mac match; §13.2.5; 0x0BCEB6C2	
+005eb900	cSC4StringSpecificationOccupantFilter::~cSC4StringSpecificationOccupantFilter	occupant-manager.md descriptive name, no Mac match; §13.2.5; deleting	
+005eb920	cSC4StringSpecificationOccupantFilter::~cSC4StringSpecificationOccupantFilter (body)	occupant-manager.md descriptive name, no Mac match; §13.2.5; frees the three lists	
+005eb970	GZCOM_CreatecSC4OccupantTypesFilterHashed	occupant-manager.md class name from the exe's ID table (re/class_id_table.tsv); §13.2.2, §13.2.3; 32 bytes, hash set hint 100	
+005eba70	cSC4StringSpecificationOccupantFilter::BuildSpecification	occupant-manager.md §13.2.5; from a text, at most 64 words	
+005ebb10	cSC4StringSpecificationOccupantFilter::cSC4StringSpecificationOccupantFilter	occupant-manager.md §13.2.5; an empty text	
+005ebbd0	GZCOM_CreatecSC4StringSpecificationOccupantFilter	occupant-manager.md §13.2.2, §13.2.5; 72 bytes	
+006104d0	cSC4WaterOccupantFilter::~cSC4WaterOccupantFilter	occupant-manager.md descriptive name, no Mac match; §13.2.6; deleting	
+00610500	cSC4SubwayOccupantFilter::~cSC4SubwayOccupantFilter	occupant-manager.md §13.2.6	
+0061f590	cSC4DemolishByNetworksOccupantFilter::IsOccupantIncluded	occupant-manager.md §13.2.6; 0xA9764C8C	
+00648c40	cSC4WaterOccupantFilter::IsOccupantIncluded	occupant-manager.md descriptive name, no Mac match; §13.2.6	
+00648cc0	cSC4WaterOccupantFilter::IsPropertyHolderIncluded	occupant-manager.md §13.2.6	
+00653b80	cSC4SubwayOccupantFilter::IsOccupantSubwayStation	occupant-manager.md §13.2.6; any byte 6 of 0xE90E25A1	
+00653c00	cSC4SubwayOccupantFilter::IsOccupantIncluded	occupant-manager.md §13.2.6	
+00653cc0	cSC4SubwayOccupantFilter::IsPropertyHolderIncluded	occupant-manager.md §13.2.6	
+006bfac0	cSC4InsideLotOccupantFilter::SetLot	occupant-manager.md §13.2.6; CellCornerToPosition of the rectangle	
+006bfb20	cSC4InsideLotOccupantFilter::cSC4InsideLotOccupantFilter	occupant-manager.md §13.2.6; embedded default and realistic filters	
+006bfb80	cSC4InsideLotOccupantFilter::IsOccupantIncluded	occupant-manager.md descriptive name, no Mac match; §13.2.6; inclusive box, default and realistic	
+006bfc10	cSC4InsideLotOccupantFilter::~cSC4InsideLotOccupantFilter	occupant-manager.md descriptive name, no Mac match; §13.2.6; deleting	
+006c3c00	cSC4BlockingLotOccupantFilter::cSC4BlockingLotOccupantFilter	occupant-manager.md §13.2.6	
+006c3c20	cSC4BlockingLotOccupantFilter::IsOccupantTypeIncluded	occupant-manager.md descriptive name, no Mac match; §13.2.6; flora only	
+0079f7f0	cSC4DataViewOccupantFilter::IsOccupantIncluded	occupant-manager.md §13.2.8; descriptive class name (CLSID 0xCA0E3852 is not in the exe's ID table); slot 3 of 0x00AB7E44	
+0079fb90	cSC4DataViewOccupantFilter::AddType	occupant-manager.md §13.2.8; descriptive name; push_back on the type vector +0xC	
+0079fe60	cSC4DataViewOccupantFilter::cSC4DataViewOccupantFilter	occupant-manager.md §13.2.8; descriptive name; vtables 0x00AB7E44 / 0x00AB7E2C, +0x2E := 1	
+007a0420	GZCOM_CreatecSC4DataViewOccupantFilter	occupant-manager.md §13.2.2; descriptive name; 0x30 bytes, registered at 0x004608AB	
+007a0480	cSC4DataViewOccupantFilter::~cSC4DataViewOccupantFilter	occupant-manager.md §13.2.8; descriptive name; slot 6, deleting	
+007a04a0	cSC4DataViewOccupantFilter::~cSC4DataViewOccupantFilter (body)	occupant-manager.md §13.2.8; descriptive name	
+007a7900	cSC4SurfaceNetworkOccupantFilter::cSC4SurfaceNetworkOccupantFilter	occupant-manager.md §13.2.6	
+007a7930	cSC4SurfaceNetworkOccupantFilter::QueryInterface	occupant-manager.md descriptive name, no Mac match; §13.2.6; 1, 0x46A80026	
+007a7970	cSC4SurfaceNetworkOccupantFilter::IsOccupantIncluded	occupant-manager.md descriptive name, no Mac match; §13.2.6; flag & 0x1F4F	
+007cb920	cSC4OccupantFilter::Release	occupant-manager.md descriptive name, no Mac match; §13.2.1; also cSC4CameraControl's (0x00ABAD20); was cSC4OccupantTypesFilter::cSC4OccupantTypesFilter (Mac match 0.831)	

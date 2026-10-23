@@ -2,6 +2,8 @@
 
 Scope: the whole `cSC4ModelMaker` owner as tools/coverage.py assigns it (105 functions, 34,705 bytes; inventory
 in §20). The model-ID rules it calls (`cSC4ModelMakerUtility`) are graphics-formats §4.2 and are not repeated.
+§14 outlines model making and §15 specifies the background loader `cSC4ModelBackgroundLoader`, an owner of its
+own (re-modelmaker, 2026-10-22).
 The 3D renderer it feeds is render3d.md / view3d.md. Evidence: the GOG 1.1.641 exe through the Ghidra export
 (`tools/re_query.py`) and decomp/; REA was unavailable for this lane ("No app is open"), so every branch and
 constant below was read from the instructions at the cited addresses.
@@ -99,7 +101,7 @@ If `+0x08` is set, return true. Otherwise: take `+0x58` from the View3D window (
 1. Command line (framework slot `+0x54`, option lookup slot `+0x20`), each value lowercased:
    `backgroundLoader`: a value of exactly "off" clears `+0xB8`, a value equal to "on" sets it;
    `IgnoreMissingModelDataBugs`: "off" clears `+0xC1`, "on" sets it. Any other value leaves the default.
-2. If `+0xB8`: create the background loader (0x188 bytes), AddRef it, `Init` it with this object, store `+0xBC`.
+2. If `+0xB8`: create the background loader (0x188 bytes), AddRef it, `Init` it with this object (§15.1), store `+0xBC`.
    *[quirk]* It is not tested for an existing loader, so a second PostCityInit leaks the first.
 3. If `+0x74` is null: create, AddRef and `Init` the animation coordinator.
 4. Fill each null reference: `+0x54` occupant manager, `+0x68` lot manager, `+0x6C` (`0x00B43D68` slot `+0x90`),
@@ -175,12 +177,12 @@ data4.
 | `0xA6B79601` | zoom/rotation change | p = slot `+0x28`, q = slot `+0x3C` (pairs). If `+0x44` is clear: `UpdateModelLoadRect`, then `DoZoomAndRotationChange(p0, p1, q0, q1)` (§10.1). If set: store q into `+0x48`/`+0x4C` |
 | `0xA6B79602`, `0xA6B79620` | view update, post view init | if `+0x44` is clear and the View3D window exists: q = slot `+0x3C`; `+0x10C` = `+0x20` = q0, `+0x110` = `+0x24` = q1 |
 | `0xA6B79611` | view translated | `UpdateModelLoadRect`, `DoViewTranslationChange` (§10.2) |
-| `0xCAD61E00` | translation start | `+0xC3` = 1; if `+0xB8` and the loader exists, loader `+0x28` = 1 (`0x0048C960`; *[inferred]* a pause flag) |
-| `0xEAD61E16` | translation end | `+0xC3` = 0, `UpdateModelLoadRect`, loader `+0x28` = 0 under the same test, `DoViewTranslationChange` |
+| `0xCAD61E00` | translation start | `+0xC3` = 1; if `+0xB8` and the loader exists, loader `Pause` (`0x0048C960`, §15.5: `+0x28` = 1, the worker ends its slice at once) |
+| `0xEAD61E16` | translation end | `+0xC3` = 0, `UpdateModelLoadRect`, loader `Resume` (`0x0048C970`, `+0x28` = 0) under the same test, `DoViewTranslationChange` |
 | `0xC9DA96EA` | lighting changed | `DoLightingChanged` (§11) |
 | `0xBA44EB51` | game idle | `UnloadUnnecessaryModels` (§7.4) |
 | `0xC9F775BB` | options changed | re-read `0x00B216FC` (option `0x16`, clamped 0..2) |
-| `0x86AD10EE` | animation tick (from the tick manager) | if the loader exists, `ProcessBackgroundThreadToMainThreadCommunications` |
+| `0x86AD10EE` | animation tick (from the tick manager) | if the loader exists, `ProcessBackgroundThreadToMainThreadCommunications` (§15.5) |
 | `0x4AB04CBE`, `0x4AB04CBF` | | subscribed but not handled |
 
 *[quirk]* In `0xA6B79601` with `+0x44` set, only q is stored; p is dropped.
@@ -516,9 +518,9 @@ city" passes null min and max.
    (`0x007F7780`); `+0xF8` = (`+0x18` object) `+0x1C`.
 5. Background loader enabled (`+0xB8`):
    - not saving (`+0xC0` clear): if oldRot ≠ newRot, `RemoveModelsInappropriateForRotation(newRot)` (§7.5); `+0xA4`
-     = 1; loader `StartLoadingForZoomAndRotation(newZoom, newRot, &+0x8C, &+0x9C)` (`0x0048DAE0`); `+0xA8`/`+0xAC`
+     = 1; loader `StartLoadingForZoomAndRotation(newZoom, newRot, &+0x8C, &+0x9C)` (`0x0048DAE0`, §15.3); `+0xA8`/`+0xAC`
      = `+0x9C`/`+0xA0`; go to step 7.
-   - saving: loader `CancelAllLoadTasks` (`0x0048CD60`), `+0xA4` = 0, then step 6.
+   - saving: loader `CancelAllLoadTasks` (`0x0048CD60`, §15.3), `+0xA4` = 0, then step 6.
 6. Loader disabled (or saving): the zoom/rotation filter `+0x64` gets `SetZoomAndRotation(newZoom, newRot)`
    (§6.4); reload pass over the whole-city list for filter `+0x64`, the step being
    `LoadOccupantModelsForZoomAndRotation(o, newZoom, newRot)` (§10.4).
@@ -530,7 +532,7 @@ If a translation is in progress (`+0xC3`): return. Set `+0xC2`. Then:
 
 - Loader enabled and not saving: if `+0xA4` is set, the refocus step `0x0048EAE0` (a model-maker method despite
   its export name `cSC4ModelBackgroundLoader::RefocusLoadToNewViewLocation`): when `+0xB8` is set and
-  |`+0xA0` − `+0xAC`| + |`+0x9C` − `+0xA8`| > 4, loader `0x0048CB40(&+0x8C, &+0x9C)` and `+0xA8`/`+0xAC` =
+  |`+0xA0` − `+0xAC`| + |`+0x9C` − `+0xA8`| > 4, loader `0x0048CB40(&+0x8C, &+0x9C)` (the loader's refocus, §15.3) and `+0xA8`/`+0xAC` =
   `+0x9C`/`+0xA0`. If `+0xA4` is clear: `StartLoadingForZoomAndRotation(+0x10C, +0x110, &+0x8C, &+0x9C)`, copy
   the focus to `+0xA8`/`+0xAC`, `+0xA4` = 1.
 - Otherwise: list the occupants in the load rect (min (`+0x8C`, `+0x90`), max (`+0x94`, `+0x98`), filter `+0x5C`)
@@ -714,6 +716,125 @@ slot `+0x24` = 2) (released after). If `DoTerrainHidingForCells(r, mode)` (`0x00
 return false. Otherwise make r end-exclusive (x1 + 1, z1 + 1) and ask the terrain (`+0x70`) to refresh it: slot
 `+0x110(0, 0, &r, 0)`; return true. `RemoveModels` (§12.1) passes flag 0, so removal always uses mode false.
 
+## 14. Making models (`AddModels` `0x00494390`, `AddModel` `0x004902E0`) *[outline; MM2]*
+
+*Added 2026-10-22 (re-modelmaker).* The two bodies stay in the §20 remainder; this is what they do.
+
+`AddModels(o, zoom, rotation, type, shown)`: an occupant outside the load rectangle (§7.2) gets no models.
+Otherwise, by occupant type:
+
+| Type | Loader | Visible at |
+|---|---|---|
+| building `0x278128A0` | building models; then completion (§9.5) and the state effect | the zoom |
+| flora `0x74758926` | the same models path | the zoom |
+| prop `0xA823821E` | prop models (§12.2); the state effect when its state is 2 | every zoom unless it uses building-style models |
+| foundation `0x68FD0C69` | foundation models (`LoadFoundationModels` `0x00491040`), the state effect | every zoom unless building style |
+| network `0xC772BF98` | network models (§12.6), the state effect | every zoom when the network occupant's slot 32 is false |
+| power pole `0x2890D4DE` | network models, a shadow (`CreateOccupantShadow` `0x00491230`), the state effect | the zoom |
+| pipe and subway connection `0x2A183167`, `0x8A13918A` | underground connection models (§12.6), the state effect | the zoom |
+| retaining wall `0x895D1169` | the wall's own `AddRetainingWallModels` | every zoom |
+| landfill `0x6A11BD2B`, base texture `0x497F6D9D` | the common loader (`LoadModelsCommon` `0x00490C70`) / the base-texture loader | the zoom / every zoom |
+
+"Every zoom" is the mask `+0xB0`; "the zoom" is `1 << zoom`. The occupant's model handle (occupant slot 19) gets the
+zoom mask (slot 13) and the rotation mask (slot 15).
+
+`AddModel` makes one model instance: an animated model when the key names one, else the S3D resource of the key
+(graphics-formats.md §4.2) through the resource manager; a missing key falls back to (`0x5AD0E817`, `0xBADB57F1`,
+instance). A model whose extent × the scene's scale is below `kRenderModelThreshold` (render-properties float 9,
+read at the table's `+0x184`) is dropped. Without a resource, a **placeholder** (`CreatePlaceHolderModelInstance`
+`0x0048F920`) is made unless `+0xC1` (`-IgnoreMissingModelDataBugs:on`, §3.2) is set and the exemplar lacks
+property `0x6A871B82`. The instance gets its transform (`FindModelTransform` `0x0048FA40`), the occupant's flag
+`0x10` keeps only bit 0 of its flags, and it is added to the occupant's handle. Buildings set instance flag `0x40`,
+flora `0x80`, props `0x20` (`0x22` without bit 0 when the exemplar has `0x4A70D491`).
+
+When the occupant is shown and passes the view filter: the terrain under it is hidden (the hiding filter `+0x60`,
+§13), its handle is made visible and its animation started.
+
+## 15. The background loader (`cSC4ModelBackgroundLoader`) *[compat]*
+
+*Added 2026-10-22 (re-modelmaker).* With `+0xB8` set (§3.2) the model maker owns one loader (0x188 bytes, `+0xBC`).
+It loads the model resources of the load rectangle on a worker thread, in a spiral around the view, paced by
+response curves from a tuning exemplar; the main thread turns the loaded cells into models a few at a time.
+
+### 15.1 Lifetime
+
+- **Constructor** (`0x0048E2B0`): the default curves of §15.2; vtable `0x00A8ED5C`. **Destructor** (`0x0048CDE0`):
+  `Shutdown` when still initialised, then frees its curve arrays and containers.
+- **`Init(modelMaker)`** (`0x0048E900`, once, byte `+0x04`): the speed `+0x184` := 3 when the global `0x00B43D44`
+  slot 13 answers true, else the option `0x15` (`kBuildingLoaderSpeed`, `0x00B43CC4` slot 7); `ReadTunableValues`
+  (§15.2); hold the model maker (`+0x18`), a new `cSC4ZoomRotationModelChangeOccupantFilter` (`+0xEC`, §6.4), the
+  resource manager (`0x00B43CA8`, `+0x1C`), the occupant manager (`0x00B43D0C`, `+0x20`) and the simulator
+  (`0x00B43D5C`, `+0x24`); `+0x0C`/`+0x10` := the city's `CellCountX` / `CellCountZ` − 1 (slots 93, 94); when the thread object `+0x60` is not
+  running (its slot 11), clear the stop byte `+0x68`, give it `StaticBackgroundThreadFunction` (`0x0048E8F0`) with
+  this object (slot 2) and call its slot 10 with 3 *[inferred: start]*. True.
+- **`Shutdown`** (`0x0048CC90`, when initialised): clear `+0x04`; with a running thread: set the stop byte `+0x68`,
+  wake it when suspended (state `+0x14` = 2: slots 5 and 7, state 1) and wait for it (slot 8 with 2,000,000); when
+  the loader holds the simulator paused (`+0x29`), resume it (slot 13) and clear `+0x29`; `ClearResourceSet`;
+  release `+0x1C`, `+0x20`, `+0x24`, `+0xEC`, `+0x18`. True.
+
+### 15.2 Tuning (`ReadTunableValues` `0x0048CF10`)
+
+The exemplar `0x6534284A / 0x7A4A8458 / 0x0B579C20 + s`, s = the speed of §15.1. Shipped (`SimCity_1.dat`):
+
+| Property | Meaning | s = 0 "Background Loader" | s = 1, 2 "Aggressive" | s = 3 |
+|---|---|---|---|---|
+| `0x0B579C20` | query occupants per cell (`+0xF0`) | true | true | true |
+| `0x0B579C21` | thread slice time limit vs. progress *[inferred: µs; MM1]* | 30000 … 1500 | 15000 … 1000 | 40000 … 1500 |
+| `0x0B579C22` | sleep between slices vs. progress | 40000 … 400000 | 40000 … 50000 | 50000 … 400000 |
+| `0x0B579C23` | main-thread time limit per step | 400000 … 50 | 2000000 … 10000 / 3000000 … 50000 | 50000 … 50 |
+| `0x0B579C24` | main-thread minimum cells per step | 100 … 30 | 100 … 30 | 20 … 10 |
+| `0x0B579C25`, `0x0B579C26` | cost of a cell with / without occupants | 1, 0.1 | 1, 0.1 | 1, 0.1 |
+| `0x0B579C27` | budget per slice | 8 | 8 | 8 |
+| `0x0B579C28` | minimum radius per zoom | 40, 30, 20, 10, 5 | 40, 30, 20, 10, 5 | 32, 16, 8, 4, 2 |
+| `0x0B579C29` | radius factor per zoom | 0.2 … 0.0125 | 0.4 … 0.025 | 0.1 … 0.01 |
+| `0x0B579C2A` | maximum loaded cells waiting | 1000 | 4000 / 5000 | 1000 |
+| `0x0B579C2B` | progress at which the pause ends | 0.9 | 0.9 | 1.0 |
+
+The curves are read at the task's progress (0 … 2) *[inferred: piecewise linear; MM1]*. Without the exemplar the
+defaults are 16384, 65536, 400000, 100, 1, 0.1, 8, radii 8, 8, 6, 6, 4, factors 0, 1000 cells and 0.7.
+
+### 15.3 Radius and tasks
+
+- **Radius** (`ExpandLoadRect(rect, zoom)`, `0x0048CA40`): with m the system memory in MiB (§7.1; 0 when the call
+  fails), `r := trunc(m × factor[zoom])`, then `r := max(r, minimum[zoom])` (unsigned); the rectangle grows by `r`
+  on every side. §7.2 uses it in place of the model maker's own radius while the loader is on.
+- **Start** (`StartLoadingForZoomAndRotation(zoom, rotation, &rect, &centre)`, `0x0048DAE0`, §10.1): re-read the
+  tuning if the speed changed, drop the tasks and the loaded resources (`ClearResourceSet` `0x0048CC30`), keep the
+  zoom and rotation, estimate the cell count from the screen size and a per-zoom factor, add one task (the
+  rectangle and the centre) and post "pause" (§15.4); restart the thread if it had stopped.
+- **Refocus** (`0x0048CB40(&rect, &centre)`, from the model maker's refocus step §10.2): under the lock (`+0x6C`),
+  the first unfinished task gets progress 0, the new centre and rectangle; the waiting loaded cells are dropped; the
+  spiral restarts at the centre, clamped into the rectangle. Without an unfinished task nothing changes.
+- **Cancel** (`CancelAllLoadTasks` `0x0048CD60`, §10.1 while saving): under the lock, every task is freed, the
+  waiting cells are dropped and `ClearResourceSet` runs.
+
+### 15.4 The worker thread (`ThreadFunction` `0x0048E460`)
+
+Under the loader's lock the worker runs the tasks: for each, while the slice time (curve `0x0B579C21` at the task's
+progress) is not used up, `ContinueLoadTask` (`0x0048DCD0`) walks the next cells of a spiral around the centre inside
+the rectangle, spending the budget (`0x0B579C27`) at 1 per cell with occupants and 0.1 per empty cell, loading the
+resources of each occupant that passes the zoom/rotation filter (`LoadResourcesForOccupant` `0x0048D630`), and stops
+when 1000 cells (`0x0B579C2A`) wait. It then posts commands (`PostCommand` `0x0048DA50`: append to `+0x7C`, set
+`+0x88`): 0 cells ready, 1 task done, 2 all done, 3 pause, 4 resume (once progress exceeds `0x0B579C2B`). It sleeps
+for curve `0x0B579C22`. The stop byte `+0x68` ends it.
+
+### 15.5 The main thread
+
+- **`ProcessBackgroundThreadToMainThreadCommunications`** (`0x0048E170`, on the animation tick `0x86AD10EE`, §5):
+  nothing unless `+0x88` is set. Under the lock, the commands in order:
+  - 0: when cells wait (`+0xC8` ≠ `+0xCC`), `ProcessLoadedCells` (`0x0048D800`): for each waiting cell,
+    `LoadOccupantModelsForZoomAndRotation` (§10.4) for its occupants; after the minimum number of cells
+    (`0x0B579C24`) it stops once the time limit (`0x0B579C23`) is passed. When it stops with cells left, the
+    command list is kept as it is for the next tick (`0x0048E1D3`–`0x0048E1DB`).
+  - 1: the model maker's "background load started" byte `+0xA4` is cleared (`0x0048EAD0`).
+  - 2: when no task is left and the thread is not suspended: suspend it (slot 4), state `+0x14` := 2.
+  - 3: unless already done, the simulator's `HiddenPause` (slot 10; budget-window.md §6) and `+0x29` := 1.
+  - 4: when `+0x29` is set, `HiddenResume` (slot 13) and `+0x29` := 0.
+
+  Then the list is emptied and `+0x88` cleared.
+- **`Pause`** (`0x0048C960`) and **`Resume`** (`0x0048C970`) set and clear `+0x28` (§5, `0xCAD61E00` and
+  `0xEAD61E16`); while it is set the worker ends its slice at once.
+
 ## 19. Conformance cases
 
 | case | setup | expected |
@@ -753,6 +874,17 @@ Round 2 cases (§6, §7, §9, §10):
 - M23 (§10.4): loaded (4, 0), requested (4, 0) with zoom bit and rotation bit present → returns at step 1;
   requested (3, 0) with equal id lists → nothing happens and the masks stay without bit 3.
 
+re-modelmaker cases (§14, §15):
+
+- M24 (§15.3): m = 2048 MiB, speed 0, zoom 4 → radius max(5, trunc(2048 × 0.0125)) = 25.
+- M25 (§15.5): commands 3, 3, 4 in one tick → one `HiddenPause` and one `HiddenResume`; `+0x29` ends at 0.
+- M26 (§15.5): command 0 with `ProcessLoadedCells` stopping on its time limit with cells left → the command list
+  is unchanged and processed again on the next tick.
+- M27 (§3.2, §15): `-backgroundLoader:off` → no loader is made and a zoom change reloads synchronously (§10.1
+  step 6).
+- M28 (§14): an occupant outside the load rectangle gets no models; a prop without building-style models gets the
+  zoom mask `0x1F`, a building `1 << zoom`.
+
 ## 20. Function inventory (owner `cSC4ModelMaker`, tools/coverage.py --owners)
 
 Specified: 20607 bytes; remainder (not yet specified or only outlined): 14098 bytes. The remainder is **not empty**,
@@ -762,7 +894,9 @@ Remainder after round 3 (lane parked, 26 rows): model loading `AddModels` 0x4943
 `LoadModelsCommon` 0x490C70, `LoadFoundationModels` 0x491040, `FindModelTransform` 0x48FA40,
 `CreatePlaceHolderModelInstance` 0x48F920; `CreateOccupantShadow` 0x491230; `DoTerrainHidingForCells` 0x491CD0;
 `RebuildDynamicTexture` 0x492CC0; and the out-of-class helpers 0x445F10..0x447B00 (10 rows) and
-0x8D08E0..0x8D0E10 (6 rows), not yet identified.
+0x8D08E0..0x8D0E10 (6 rows), not yet identified. re-modelmaker (2026-10-22) outlines `AddModels` and `AddModel`
+in §14 (they stay in the remainder, MM2), names thirteen functions in the table below and moves `0x0048C960` and
+`0x0048C970` to the loader owner (§15).
 
 | address | bytes | name | section |
 |---|---|---|---|
@@ -776,18 +910,18 @@ Remainder after round 3 (lane parked, 26 rows): model loading `AddModels` 0x4943
 | `0x00447750` | 86 | FUN_00447750 | remainder |
 | `0x00447A00` | 139 | FUN_00447a00 | remainder |
 | `0x00447B00` | 30 | FUN_00447b00 | remainder |
-| `0x0048C960` | 5 | FUN_0048c960 | §5 |
-| `0x0048C970` | 5 | FUN_0048c970 | §5 |
+| `0x0048C960` | 5 | cSC4ModelBackgroundLoader::Pause | §15.5 (loader owner) |
+| `0x0048C970` | 5 | cSC4ModelBackgroundLoader::Resume | §15.5 (loader owner) |
 | `0x0048EA00` | 36 | FUN_0048ea00 | §7.6 |
 | `0x0048EA30` | 36 | FUN_0048ea30 | §7.6 |
-| `0x0048EA60` | 6 | FUN_0048ea60 | §1 |
-| `0x0048EA70` | 92 | FUN_0048ea70 | §1 |
+| `0x0048EA60` | 6 | cSC4ModelMaker::GetGZCLSID | §1 |
+| `0x0048EA70` | 92 | cSC4ModelMaker::QueryInterface | §1 |
 | `0x0048EB50` | 462 | cSC4ModelMaker::DetermineLoadRadiusAroundVisibleArea | §7.1 |
 | `0x0048ED20` | 107 | cSC4ModelMaker::ComputeCityExclusionRects | §7.3 |
 | `0x0048ED90` | 123 | FUN_0048ed90 | §7.3 |
 | `0x0048EE10` | 59 | FUN_0048ee10 | §12.3 |
 | `0x0048EF20` | 55 | FUN_0048ef20 | §8.3 |
-| `0x0048EF60` | 301 | FUN_0048ef60 | §4 |
+| `0x0048EF60` | 301 | cSC4ModelMaker::Write | §4 |
 | `0x0048F090` | 360 | cSC4ModelMaker::Read | §4 |
 | `0x0048F200` | 142 | FUN_0048f200 | §12.5 |
 | `0x0048F290` | 229 | cSC4ModelMaker::ChangeModels | §12.4 |
@@ -800,7 +934,7 @@ Remainder after round 3 (lane parked, 26 rows): model loading `AddModels` 0x4943
 | `0x0048FA40` | 1295 | cSC4ModelMaker::FindModelTransform | remainder |
 | `0x0048FF50` | 65 | GZCOM_Interface<cISC4EffectsResource,cISC4EffectsCollection> | §12.5 |
 | `0x0048FFF0` | 730 | cSC4ModelMaker::DoBuildingCompletionChanged | §9.5 |
-| `0x004902E0` | 968 | cSC4ModelMaker::AddModel | remainder |
+| `0x004902E0` | 968 | cSC4ModelMaker::AddModel | remainder (outline §14) |
 | `0x004906B0` | 358 | FUN_004906b0 | §12.4 |
 | `0x00490820` | 565 | FUN_00490820 | §12.4 |
 | `0x00490A60` | 70 | FUN_00490a60 | §12.5 |
@@ -817,19 +951,19 @@ Remainder after round 3 (lane parked, 26 rows): model loading `AddModels` 0x4943
 | `0x00491A80` | 80 | FUN_00491a80 | §3.3 |
 | `0x00491AD0` | 421 | cSC4ModelMaker::cSC4ModelMaker | §2 |
 | `0x00491C80` | 8 | FUN_00491c80 | §1 |
-| `0x00491C90` | 60 | FUN_00491c90 | §3.4 |
+| `0x00491C90` | 60 | cSC4ModelMaker::~cSC4ModelMaker | §3.4 |
 | `0x00491CD0` | 1874 | cSC4ModelMaker::DoTerrainHidingForCells | remainder |
 | `0x00492440` | 233 | cSC4ModelMaker::DoTerrainHidingForOccupantCells | §13.1 |
 | `0x00492530` | 584 | cSC4ModelMaker::UnloadUnnecessaryModels | §7.4 |
 | `0x00492780` | 311 | cSC4ModelMaker::RemoveModelsInappropriateForRotation | §7.5 |
 | `0x004928C0` | 232 | FUN_004928c0 | §12.5 |
 | `0x004929B0` | 27 | GZCOM_CreatecSC4ModelMaker | §1 |
-| `0x004929D0` | 30 | FUN_004929d0 | §3.4 |
+| `0x004929D0` | 30 | cSC4ModelMaker::~cSC4ModelMaker (deleting destructor) | §3.4 |
 | `0x004929F0` | 718 | cSC4ModelMaker::Shutdown | §3.3 |
 | `0x00492CC0` | 1068 | cSC4ModelMaker::RebuildDynamicTexture | remainder |
 | `0x004930F0` | 585 | cSC4ModelMaker::DoLightingChanged | §11.1 |
 | `0x00493340` | 86 | cSC4ModelMaker::RemoveModels | §12.1 |
-| `0x004933A0` | 729 | FUN_004933a0 | §9.1 |
+| `0x004933A0` | 729 | cSC4ModelMaker::ApplyStateEffect | §9.1 |
 | `0x004936A0` | 96 | FUN_004936a0 | §8 |
 | `0x00493700` | 25 | FUN_00493700 | §6.2 |
 | `0x00493720` | 40 | FUN_00493720 | §6.2 |
@@ -841,10 +975,10 @@ Remainder after round 3 (lane parked, 26 rows): model loading `AddModels` 0x4943
 | `0x00493D60` | 346 | cSC4ModelMaker::DoLotStateChanged | §9.2 |
 | `0x00493EC0` | 37 | cSC4ModelMaker::FinalRelease | §1 |
 | `0x00493EF0` | 924 | cSC4ModelMaker::CreateOccupantFilters | §6.1 |
-| `0x00494290` | 113 | FUN_00494290 | §8.3 |
-| `0x00494310` | 126 | FUN_00494310 | §8.3 |
-| `0x00494390` | 1112 | cSC4ModelMaker::AddModels | remainder |
-| `0x004947F0` | 8 | FUN_004947f0 | §1 |
+| `0x00494290` | 113 | cSC4ModelMaker::DoOccupantInserted | §8.3 |
+| `0x00494310` | 126 | cSC4ModelMaker::DoOccupantRemoved | §8.3 |
+| `0x00494390` | 1112 | cSC4ModelMaker::AddModels | remainder (outline §14) |
+| `0x004947F0` | 8 | cSC4ModelMaker::FinalRelease (thunk) | §1 |
 | `0x00494800` | 248 | cSC4ModelMaker::Init | §3.1 |
 | `0x00494900` | 99 | cSC4ModelMaker::DoPropStateChanged | §9.4 |
 | `0x00494970` | 177 | cSC4ModelMaker::DoOccupantCreated | §8.1 |
@@ -853,7 +987,7 @@ Remainder after round 3 (lane parked, 26 rows): model loading `AddModels` 0x4943
 | `0x00494DA0` | 1463 | cSC4ModelMaker::DoPostCityInit | §3.2 |
 | `0x00495360` | 193 | cSC4ModelMaker::OccupantFilterIterationFunction | §6.3 |
 | `0x00495430` | 1329 | cSC4ModelMaker::LoadOccupantModelsForZoomAndRotation | §10.4 |
-| `0x00495970` | 66 | FUN_00495970 | §8.6 |
+| `0x00495970` | 66 | cSC4ModelMaker::DoDeferOccupantOperations | §8.6 |
 | `0x004959C0` | 313 | cSC4ModelMaker::DoViewFilterChange | §10.3 |
 | `0x00495B00` | 642 | cSC4ModelMaker::DoZoomAndRotationChange | §10.1 |
 | `0x00495D90` | 369 | cSC4ModelMaker::DoViewTranslationChange | §10.2 |

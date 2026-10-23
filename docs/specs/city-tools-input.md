@@ -10,7 +10,8 @@ with all the evidence, not proven; *[quirk]* original behaviour that looks unint
 
 Outline: §1 scope; §2 the base class `cSC4ViewInputControl` (identity, layout, slot table, lifecycle, cursor,
 capture, stack queries, result sound); §3 the place-lot tool `cSC4ViewInputControlPlaceLot` (construction, Init,
-Shutdown, messages, key, mouse); §4 quirks; §5 open questions; §6 conformance tests; §7 coverage; §8 the query
+Shutdown, messages, key, mouse, the lot's cells, the placement test, the automatic facing, placing, toll booths,
+feedback); §4 quirks; §5 open questions; §6 conformance tests; §7 coverage; §8 the query
 tool `cSC4ViewInputControlQuery` (creation, layout, slots, Init, Shutdown, mouse, messages, pick filters,
 inventory).
 
@@ -26,7 +27,8 @@ input to while a tool is active. The 3D view keeps a stack of them (`SetCurrentV
 the 3D view's (not specified here). This spec covers:
 
 - the shared base `cSC4ViewInputControl` (17 functions), which every tool class derives from;
-- the place-lot tool (plop a building or lot from the catalog), its lifecycle and input dispatch.
+- the place-lot tool (plop a building or lot from the catalog): its lifecycle, input dispatch, placement test,
+  facing and placing.
 
 Not here: the network tools' back end (network-tools.md; `cSC4NetworkToolUI::DoPlacement` §8.2 there), the
 dispatch tool (dispatch.md), the back ends of zone, demolish, disaster, flora tools (their specs), the window and
@@ -157,9 +159,11 @@ class does not call it itself; derived tools call it after an action.
   destructor (`0x004C0070`). Every other slot is the base's (§2.3): right button, mouse up, wheel, `OnKeyUp`,
   `OnCharacter` return false; `ShouldStack` true.
 - Constructor `0x004C0430`: `(buildingType, lotConfigId, buildingExemplar, monopolyFlag)` stored at `+0x2C`,
-  `+0x30`, `+0x34` and the byte `+0x50` respectively *[inferred names, from their use in Init]*. Created by
+  `+0x30`, `+0x34` and the byte `+0x50` respectively *[inferred names, from their use in Init; the first is a mode:
+  0 = by lot configuration, otherwise by building type (re-plop)]*. Created by
   `cSC4View3DWin::InvokeCatalogItemCommand` (`0x007EA49B`), by two cheat codes in `cSC4View3DWin::ProcessCheatCode`
-  (`0x007F35D9`, `0x007F363B`, all arguments 0) and by `cGZToolCommandSystemSupport::DoMessage` (`0x005C5441`).
+  (`LotPlop` `0x007F35D9` with `(0, 0, 0, 0)`, `BuildingPlop` `0x007F363B` with `(1, 0, 0, 0)`, view3d-window.md;
+  corrected 2026-10-22, re-plop: not all 0) and by `cGZToolCommandSystemSupport::DoMessage` (`0x005C5441`).
   The catalog path installs it with the 3D view's `SetCurrentViewInputControl(tool, 2)` (slot 25).
 - Constructor defaults worth matching: rotation `+0x38` = `+0x3C` = 0, last rotation shown `+0x40` = -1, last mouse
   `+0x44`/`+0x48` = 0, last placed rectangle `+0x78..+0x84` = (0, 0, -1, -1), cursor world position
@@ -190,12 +194,22 @@ Only when not initialised (the initialised byte `+0x04`). Steps:
      `+0x64` is zero (an empty set *[inferred]*) `Init` calls the tool's own `Shutdown` and returns false
      *[compat]*. Otherwise start from the 3D
      view's last selected lot (slot 52), let the user pick a lot configuration, store it back (slot 54).
-5. Resolve the building exemplar (directly, or the first building of the chosen lot configuration) and read two
-   dwords at record offsets `+0x30`/`+0x34` from the building-development service (slot 40 `+0xA0`) into
-   `+0x128`/`+0x12C` (Q CT3).
+   - The pickers (`DoUserLotConfigurationTypePick`, `DoUserBuildingTypePick`) build a "Lot Plop" list window of
+     the candidates, each shown as `0x%08x`, and return the chosen one. They therefore appear only on the debug
+     cheats: `LotPlop` (mode 0 without a configuration) and `BuildingPlop` (mode 1: the building picker, as no
+     building is given, then always the configuration picker). The catalog and the tool command pass a
+     configuration in mode 0 (2026-10-22, re-plop).
+5. Resolve the building exemplar (directly, or the first building of the chosen lot configuration) and read the
+   int64 **plop cost** (`BuildingProfile` `+0x30`, exemplar property `0x49CAC341`, building-development.md)
+   from the building-development service's `GetBuildingProfilePtr` (slot 40 `+0xA0`) into `+0x128`/`+0x12C`; a
+   null profile leaves the constructor's −100000. `CanPlaceLot` reads it (§3.10; CT3 answered 2026-10-22,
+   re-plop).
 6. Build the preview model (`GetBuildingPreviewModel`, `0x004C0680`), init the local grid helper `+0xAC`, create
    the ring effect `+0xD8` from the effects manager (`0x00B43D1C`) if absent, and register the coverage view
-   `+0x140` with the view manager (slot 4 `+0x10`) when it is non-zero.
+   `+0x140` with the view manager (slot 4 `+0x10`) when it is non-zero. The preview model sets `+0x140`: `0xA`
+   for a building in occupant group `0x1401` (water), `0xF2` for group `0x1302` (subway), otherwise it keeps its
+   value (0 from the constructor); the view manager is the city view's (slot 6 `GetViewManager`, through
+   `0x00602180`) (re-plop; what the two views show is CT17).
 7. Return true.
 
 ### 3.3 Shutdown (`0x004C0300`) *[compat]*
@@ -213,7 +227,7 @@ Always returns false (the message is not consumed).
 
 | Message | Action |
 |---|---|
-| `0x277A9364` | show or hide the local-grid effect: show when the city's (`0x00B43CF4`) slot 66 object reports slot 20 false |
+| `0x277A9364` | show or hide the local-grid effect: show when the terrain's (`0x00B43CF4`, not the city; corrected 2026-10-22, re-plop) slot 66 object reports slot 20 false |
 | `0x49D5B83F` | `DoPlopRingEffectFinished` (`0x004BE0A0`) |
 | `0x99EF1142`, `0x99EF1143` | unless `+0x118` is set: recalc the 3D view's coverage helper |
 | `0xA6B79602`, `0xC9F775BB` | stop and release the two preview effects `+0xDC`, `+0xE0` (stop with slot 4(0) when slot 5 says running), then `SetVisualUserFeedback(+0x94, +0x95, +0x88)` to rebuild them |
@@ -235,7 +249,8 @@ true. Any other key, or no translation: false.
 1. Pick the terrain under `(x, z)` (3D view slot 36, `PickTerrain(x, z, &pos, 0)`, `pos` preset to 0).
 2. Only if a point was hit **and** the last move said placeable (`+0x94`): `PlaceLot(pos, rotation +0x3C, true,
    &rect)` (`0x004C1740`).
-3. On success: read a float from the city (`0x00B43CF4`, slot 6 `+0x18`; the cell size *[inferred]*) and store the placed rectangle in world
+3. On success: read the cell width from the terrain (`0x00B43CF4`, slot 6 `+0x18`, as in lot-developer.md; corrected
+   2026-10-22, re-plop) and store the placed rectangle in world
    units: `+0x78` = `x0*size`, `+0x7C` = `z0*size`, `+0x80` = `(x1+1)*size`, `+0x84` = `(z1+1)*size`, each
    truncated to an unsigned 32-bit integer (§4 Q4); `SetVisualUserFeedback(true, false, pos)`; stop and release
    the effects `+0xDC` and `+0xE0`; clear the cost indicator (slot 44, true); placeable := false. Then
@@ -271,6 +286,109 @@ Returns the `PlaceLot` result (false when it was not called).
 Flag `+0x95` := false; `SetVisualUserFeedback(+0x94, false, +0x88)`; empty the cursor-text buffer; clear the cursor
 text (`0xE9C877FA`) and the cost indicator (false); return true.
 
+### 3.9 The lot's cells (`GetLotCenterAndCellCoverage`, `0x004BE750`) *[compat]*
+
+*Added 2026-10-22 (re-plop).* `GetLotCenterAndCellCoverage(rotation, x, z, &cx, &cz, &rect)` → bool. The lot
+configuration's size `(sx, sz)` (configuration slot 7) is swapped for rotations 1 and 3. With `w` the terrain's cell
+width (`0x00B43CF4`, slot 6), on each axis with size `s` and coordinate `p`:
+
+- `s` odd: `c := trunc(p / w)` (the cell under the point); the centre is `(c + 0.5) · w`; the cells are
+  `c − s/2 … c + s/2`.
+- `s` even: `c := trunc((p + w/2) / w)` (the nearest cell corner); the centre is `c · w`; the cells are
+  `c − s/2 … c + s/2 − 1`.
+
+(`s/2` is a whole division.) The centre replaces `(x, z)`. The result is true when the rectangle lies inside the
+terrain (`x0 ≥ 0`, `x1 <` terrain slot 7, `z0 ≥ 0`, `z1 <` terrain slot 8: the cell counts).
+
+### 3.10 The placement test (`CanPlaceLot`, `0x004C1110`) *[compat]*
+
+*Added 2026-10-22 (re-plop).* `CanPlaceLot(&point, rotation, &rect, &valid, &cost, &code, &message)` → bool:
+
+The initial outputs are rectangle (−1, −1, −1, −1), validity false, int64 cost 0,
+code 0 and an empty message. Checks have the following precedence; failure leaves
+later checks unevaluated and returns false:
+
+| Check | Required outcome and output effect |
+|---|---|
+| Configuration lookup | Manager slot 8 with `+0x30` must provide a lot configuration |
+| Cell coverage (§3.9) | Publishes the rectangle and `valid`; invalid coverage rejects placement |
+| Repeat-click exclusion | Rejects a centre whose integer-truncated x/z coordinates are inside the last placed world rectangle `+0x78..+0x84`, including all edges (§3.6) |
+| Price | With plop cost `+0x128` zero, cost remains zero; otherwise it is plop cost plus `GetLotDevelopmentCost(rect)` (development service slot 36 `GetLotDeveloper`, developer slot 32; lot-developer.md §11.4) |
+| Lot creation test | Publishes `CanCreatePloppedLot(rect, rotation, cfg)` from lot manager `0x00B43D08`, slot 21 (zones.md §8.4.1) |
+
+Creation code 8 (free) permits the demolition dry run below. Its success adds the
+demolition cost and makes the overall result true; its failure produces message
+`0x6A711969`. Codes 0–7 reject placement with the messages in zones.md §8.4.1
+(group `0x0A419226`); larger codes reject it without a message.
+
+**`CanDemolishLot(rect, …, &cost)`** (`0x004BEAB0`): a dry run of `DemolishRegion(false, rect cells, privilege 1,
+flags, …, &cost)` (demolition.md §4.4) with flags `0x2800`, or `0x800` when `+0x140` is `0xF2` (a subway station,
+§3.2 step 6); its result.
+
+### 3.11 The automatic facing *[compat]*
+
+*Added 2026-10-22 (re-plop).*
+
+- **`GetAutomaticFacingAndCellCoverage(cfg, &point, &rotation, &rect)`** (`0x004BEB70`): for each rotation 0–3,
+  when §3.9 is valid, `CanCreatePloppedLot` gives 8 and `CanDemolishLot` succeeds, the rotation's score is the
+  street count below, otherwise −8. The best rotation is the first with the highest score. The player's rotation
+  (`+0x38`) is kept when (its score ≠ 0 or the best score < 1) and its score ≥ best − 4; otherwise the best one is
+  taken. The rectangle and centre are the chosen rotation's; the result is whether any rotation was placeable.
+- **Street count** (`GetLotFacingStreetCount`, `0x004BE5D0`): along the row of cells just outside the lot on its
+  facing side (rotation 0: `z0 − 1`, 1: `x1 + 1`, 2: `z1 + 1`, 3: `x0 − 1`), for each cell inside the city, the
+  network occupant of a road, street, avenue or one-way road (traffic network map slot 8, mask `0x449`) adds 4 for
+  an avenue (flag `0x40`), 2 for a road (flag 1), 1 for a street or one-way road (flags `0x408`).
+
+### 3.12 Placing (`PlaceLot(&point, rotation, effects, &rect)`, `0x004C1740`) *[compat]*
+
+*Added 2026-10-22 (re-plop).*
+
+1. `rect` := (−1, −1, −1, −1). With an unknown cost (`+0x138` is −100000), `CanPlaceLot` runs first (false →
+   false) and fills `+0x138`.
+2. The lot configuration must exist. The lot's cells and centre: in toll-booth mode §3.13 (another configuration
+   swaps the preview: `ReleaseLotConfigurationEffects`, `+0x30` := it, `GetBuildingPreviewModel`; its rotation goes
+   to `+0x3C`), else §3.9.
+3. **Tutorial:** when the city's tutorial system (city slot 82) reports a tutorial (its slot 8, `IsTutorial`) with a
+   current task (slot 10, `GetCurrentTask`), the lot's cell rectangle must equal the task's rectangle (task slot 5;
+   the four-int test `0x00441B20`).
+4. **Funds:** a cost of 0 is free; otherwise the budget's (`0x00B43D64`) `GetTotalFunds` (slot 6) must be at least
+   the cost.
+5. **Clearing:** `DemolishRegion(true, cells, privilege 1, 0x2000, false, filter, …)` with the tool's filter
+   `cSC4PlaceLotDemolishFilter` (`0x004BDF70`; its type test `0x004BDFB0` leaves power poles `0x2890D4DE` and power
+   lines `0x0990B2EA` standing); then `PlaceZone(cells, 0, commit, skipFunds := cost is 0, checkSlope, skipSize, …)`
+   (dezoning, zones.md §6).
+6. **Zoning:** the zone type is 15 (plopped); 11 when the preview building is in occupant group `0x1508`; 12 when it
+   is in group `0x1509` or the configuration is compatible with water (configuration slot 14) *[inferred: airports,
+   seaports]*. `PlaceZone(cells, type, commit, skipFunds, checkSlope, skipSize, …)`.
+7. **The lot:** `CreateLotIfPossible(x0, z0, w, h, rotation, &lot, true, water-compatible, cfg)` (lot manager slot 22).
+8. **The building:** the lot developer's `ConstructDefaultLot(lot, cfg, +0x34, cfg slot 20)` (its slot 7,
+   lot-developer.md §6.4). On success: the cost is withdrawn (`WithdrawFunds`, budget slot 8) when it is not 0; the
+   aura simulator gets a transient effect of type 2 at the building's position (`AddTransientEffect`, aura slot 6;
+   `AddPlopAuraEffect`, `0x004BE150`); a building with property `0x88ED3303` (water production) gets a **pipe
+   connection occupant** at the lot's centre cell, and a subway station (`IsOccupantSubwayStation`) a **subway
+   connection occupant**, each inserted into the occupant manager (underground-occupants.md §6). When the builder
+   fails, the cost is **deposited** (`DepositFunds`, budget slot 7) although nothing was withdrawn *[quirk]*; the lot
+   stays.
+9. **Effects** (when `effects`, also after a failed building): `placement_effects_1x1`, `_2x2`, `_3x3` or `_4x4` for
+   the lot's larger side in cells (1, 2, 3, 4 or more) at the lot's position, and the plop ring effect scaled by the
+   lot's size, which posts `0x49D5B83F` when it ends (§3.4).
+10. The result is whether the building was made.
+
+### 3.13 Toll booths (`PickTollBoothLotAndOrientation`, `0x004BFB30`) *[summary; CT16]*
+
+*Added 2026-10-22 (re-plop).* The configuration is `0xEBF9A440` with rotation 2 by default. The cell under the
+cursor must hold a network occupant of exactly one of road, highway, avenue or ground highway (types 0, 2, 6, 12)
+whose sides form a straight piece (two opposite sides connected, none half-connected); the booth's cells and
+rotation follow the piece's direction, and `SeekCompatibleNetworks` (`0x004BF6B0`) must find, within 2 steps along
+the network (mask `0x1045`), no occupant with another surface network.
+
+### 3.14 Feedback *[summary; CT17]*
+
+*Added 2026-10-22 (re-plop).* `GetBuildingPreviewModel` (`0x004C0680`) builds the preview building (marked with
+property `0x029244DB`, civic-buildings.md) and its props and sets `+0x140` (§3.2 step 6); `SetVisualUserFeedback`
+(`0x004C2660`), `SetConstraintFeedback` (`0x004C2090`) and `SetPropOccupantDrawAttributes` (`0x004BE180`) tint the
+preview and the constraint tiles by validity.
+
 ## 4. Quirks
 
 1. `IsOnTop` and the place-lot handlers use the 3D view pointer without a null test (§2.6).
@@ -282,9 +400,20 @@ text (`0xE9C877FA`) and the cost indicator (false); return true.
 5. On the automatic-facing path, when there is no lot configuration or automatic facing fails, the gate for the
    `CanPlaceLot` call is the **previous** placeable value (a stack slot reused from step 1) *[quirk, inferred]*.
 
+6. Query tool: sliders apply on every move; the close-time write-back (result 0 only) applies them again
+   (§8.12.2, §8.13) (re-query).
+7. Query tool: the hospital staff slider's related-id list claims four ids but holds two (§8.12.4) (re-query).
+8. Query tool: a network occupant both tries the neighbour dialog and continues to the query dialog (§8.12.1).
+9. Place-lot: after a successful click no lot is placeable while the lot's centre stays inside the placed lot's
+   world rectangle (§3.6, §3.10) (re-plop).
+10. Place-lot: the automatic facing keeps the player's rotation unless another has at least 4 more street points
+    (§3.11) (re-plop).
+11. Place-lot: a building that fails after its lot was made credits the city with the lot's cost (§3.12)
+    *[quirk]* (re-plop).
+
 ## 5. Open questions
 
-See docs/specs/questions/city-tools-input.md (CT1-CT12).
+See docs/specs/questions/city-tools-input.md (CT1-CT17).
 
 ## 6. Conformance tests
 
@@ -319,15 +448,37 @@ See docs/specs/questions/city-tools-input.md (CT1-CT12).
     dialog is open and the previous categories are restored on close; cancelling (result non-zero) applies no
     set pass and `DoQueryDialog` returns false.
 
+Query tool (re-query, 2026-10-21):
+
+- `L(80, 100)` = 1.0; `L(90, 100)` = 0.5; `L(120, 100)` = 0; `L(5, 0)` = 0 (§8.12.4).
+- A mayor rating percent of 33.2 shows low, 33.3 medium, 66.6 high (§8.12.4).
+- Moving a fire station's funding slider to 80 calls `SetStationFunding(o, 0.8)` before the dialog closes, and the
+  cost text shows `trunc(80 × 0.01 × c)` (§8.13).
+- A Shift-click that finds no automaton still runs `DescribePick` (§8.6).
+
+Place-lot tool (re-plop, 2026-10-22):
+
+- Odd size: a 3 × 3 lot at point (40, 40) with 16 m cells covers cells 1–3 on both axes, centre (40, 40) (§3.9).
+- Even size: a 2 × 2 lot at (40, 40) snaps to corner 3 (48): cells 2–3, centre (48, 48) (§3.9).
+- Frontage: an avenue cell and two road cells in front give a score of 8 (§3.11).
+- Keep facing: player score 3 with best 6 keeps the player's rotation; best 8 changes it; player score 0 with
+  best 1 changes it (§3.11).
+- A plop on cells (2, 2)–(3, 3) with 16 m cells stores (32, 32, 64, 64); a placement centred at (48, 48) then
+  fails (§3.6, §3.10).
+- A builder that fails on a lot costing 500 deposits 500 and withdraws nothing (§3.12).
+
 ## 7. Coverage
 
 `cSC4ViewInputControl` (all 17 functions) is specified by §2. `cSC4ViewInputControlPlaceLot` is specified for its
-lifecycle and input dispatch (§3); the bodies of `PlaceLot`, `CanPlaceLot`, the facing/coverage helpers, the
-preview model and the visual feedback are not, so it is **not** claimed as specified.
+lifecycle and input dispatch (§3.1–§3.8) and for its cells, placement test, automatic facing and placing
+(§3.9–§3.12; re-plop 2026-10-22), so it is claimed as specified, with `cSC4PlaceLotDemolishFilter`. The toll
+booths (§3.13) and the preview and feedback drawing (§3.14) stay at summary level (CT16, CT17).
 
 `cSC4ViewInputControlQuery` is specified for its creation, lifecycle, input dispatch, message dispatch and pick
-filters (§8; 19 of its 215 functions, 5,907 of 76,564 bytes). The description builders, the dialog fillers and the
-route/path code are not (§8.10), so it is **not** claimed as specified.
+filters (§8.1–§8.9), its tips (§8.11), the query click and every dialog filler (§8.12), the other dialogs (§8.13),
+the building values (§8.14) and route mode in outline (§8.15; re-query 2026-10-21), so it is claimed as specified,
+with `cSC4QueryDialogWinProc`. The neighbour dialog and the debug description writers stay at summary level
+(CT14).
 
 ## 8. The query tool `cSC4ViewInputControlQuery`
 
@@ -457,7 +608,8 @@ the occupant (as step 4), clear `+0x88`; returns true.
    and call the residential simulator (`0x00B43DA4`) slot 59 with (cellX / 4, cellZ / 4), C division rounding
    toward zero (Q CT10).
 4. Set `+0x89`. Mode 1: `GetOccupantPaths` (`0x004CAC50`) and return; `+0x89` stays set until `OnMouseUpL`.
-5. Mode 0: clear `+0x89`; when step 2 did not run (bit `0x01` clear), `DescribePick(x, z, <three static strings
+5. Mode 0: clear `+0x89`; unless step 2 found an automaton (the pointer it fills stays null otherwise,
+   `0x004D4F43`; corrected 2026-10-21, re-query), `DescribePick(x, z, <three static strings
    0x00B2185C, 0x00B21870, 0x00B21884>, IsDebugQueryEnabled())` (`0x004D4140`, the query dialog; §8.10);
    then `PlayResultSound(0)` (slot 28, which does nothing, §2.8).
 
@@ -703,8 +855,8 @@ the sound are the visible effect.
 
 1. Reset the strings: `text` := `Query`, `extra` := `Query extra: none`, `extra2` := `Query extra2: none`.
 2. No 3D view (`0x00B43DC4`): return.
-3. Building name := `empty`. Build a plain occupant filter (`cSC4OccupantFilter`, 0x0C bytes, vtable `0x00A90B18`,
-   accepts everything) and `PickQueriableOccupant(x, z, &occ, filter)` (§8.8).
+3. Building name := `empty`. Build a `cSC4QueriableOccupantFilter` (0x0C bytes, vtable `0x00A90B18`;
+   occupant-manager.md §13.2.6: the hover test, and nothing whose holder has `0xCAA9AB92`) and `PickQueriableOccupant(x, z, &occ, filter)` (§8.8).
    - Hit: if the lot manager (`0x00B43D08` slot 14) finds the occupant's lot and that lot has a building (lot
      slot 48), the building's occupant (building slot 3) replaces the hit (no property test, unlike hover §8.5).
    - Miss: pick the terrain (3D view slot 36); on a hit take the cell (`PositionToCell`, city slot 95), the lot
@@ -782,111 +934,285 @@ Two filler shapes, exact for the samples read:
   occupant: false.
 
 The per-index table (index = control ID & 0xFFF; ID = `0x1000 | index`), from the data at `0x00A92488`. Bytes
-from `decomp/index.tsv`; `own` = in this owner's coverage rows. Unlisted indexes are null.
+from `decomp/index.tsv`; `own` = in this owner's coverage rows. Unlisted indexes are null. Names and kinds:
+re-query (2026-10-21); what each entry shows is §8.12.4.
 
 
-| Index | ID | Filler | Name | Bytes | Own | Family |
+| Index | ID | Filler | Name | Bytes | Own | Kind (§8.12.4) |
 |---|---|---|---|---|---|---|
-| 0 | `0x1000` | `0x004C70C0` | FUN_004c70c0 | 314 | own | unnamed |
-| 1 | `0x1001` | `0x004C5180` | FUN_004c5180 | 60 | own | unnamed |
-| 2 | `0x1002` | `0x004C7200` | FUN_004c7200 | 221 | own | unnamed |
-| 3 | `0x1003` | `0x004C72E0` | FUN_004c72e0 | 110 | own | unnamed |
-| 4 | `0x1004` | `0x004C7350` | FUN_004c7350 | 60 | own | unnamed |
-| 6 | `0x1006` | `0x004C51C0` | FUN_004c51c0 | 60 | own | unnamed |
-| 7 | `0x1007` | `0x004C7390` | FUN_004c7390 | 50 | own | unnamed |
-| 8 | `0x1008` | `0x004C73D0` | FUN_004c73d0 | 50 | own | unnamed |
-| 9 | `0x1009` | `0x004C7410` | FUN_004c7410 | 221 | own | unnamed |
-| 10 | `0x100A` | `0x004C74F0` | FUN_004c74f0 | 110 | own | unnamed |
-| 11 | `0x100B` | `0x004C7560` | FUN_004c7560 | 60 | own | unnamed |
-| 12 | `0x100C` | `0x004C5200` | FUN_004c5200 | 113 | own | unnamed |
-| 13 | `0x100D` | `0x004C75A0` | FUN_004c75a0 | 66 | own | unnamed |
-| 14 | `0x100E` | `0x004C75F0` | FUN_004c75f0 | 100 | own | unnamed |
-| 15 | `0x100F` | `0x004C7660` | FUN_004c7660 | 43 | own | unnamed |
+| 0 | `0x1000` | `0x004C70C0` | SetOrGetBuildingName | 314 | own | edit |
+| 1 | `0x1001` | `0x004C5180` | SetOrGetFireStationEfficiency | 60 | own | meter |
+| 2 | `0x1002` | `0x004C7200` | SetOrGetFireStationFunding | 221 | own | slider |
+| 3 | `0x1003` | `0x004C72E0` | SetOrGetFireStationDispatchCount | 110 | own | number |
+| 4 | `0x1004` | `0x004C7350` | SetOrGetFireStationCost | 60 | own | money |
+| 6 | `0x1006` | `0x004C51C0` | SetOrGetPoliceStationEfficiency | 60 | own | meter |
+| 7 | `0x1007` | `0x004C7390` | SetOrGetPoliceStationArrests | 50 | own | number |
+| 8 | `0x1008` | `0x004C73D0` | SetOrGetPoliceStationCrimes | 50 | own | number |
+| 9 | `0x1009` | `0x004C7410` | SetOrGetPoliceStationFunding | 221 | own | slider |
+| 10 | `0x100A` | `0x004C74F0` | SetOrGetPoliceStationDispatchCount | 110 | own | number |
+| 11 | `0x100B` | `0x004C7560` | SetOrGetPoliceStationCost | 60 | own | money |
+| 12 | `0x100C` | `0x004C5200` | SetOrGetJailLoad | 113 | own | meter |
+| 13 | `0x100D` | `0x004C75A0` | SetOrGetJailComfortableCapacity | 66 | own | number |
+| 14 | `0x100E` | `0x004C75F0` | SetOrGetJailInmates | 100 | own | number |
+| 15 | `0x100F` | `0x004C7660` | SetOrGetJailUpkeepCost | 43 | own | money |
 | 16 | `0x1010` | `0x004C9E50` | SetOrGetOccupantCost | 5 | own | Occupant |
 | 17 | `0x1011` | `0x004C67F0` | SetOrGetAirportOccupantAirTrafficVolume | 62 | own | Airport |
 | 18 | `0x1012` | `0x004CC120` | SetOrGetAirportOccupantNoisePollution | 62 | own | Airport |
 | 19 | `0x1013` | `0x004C9E60` | SetOrGetAirportOccupantMaintenanceCost | 62 | own | Airport |
 | 20 | `0x1014` | `0x004CDC80` | SetOrGetAirportOccupantLostLuggage | 62 | own | Airport |
-| 21 | `0x1015` | `0x004C5310` | FUN_004c5310 | 62 | own | unnamed |
-| 22 | `0x1016` | `0x004C7910` | FUN_004c7910 | 109 | own | unnamed |
-| 23 | `0x1017` | `0x004C7980` | FUN_004c7980 | 235 | own | unnamed |
-| 24 | `0x1018` | `0x004C7A70` | FUN_004c7a70 | 305 | own | unnamed |
-| 25 | `0x1019` | `0x004C7BB0` | FUN_004c7bb0 | 292 | own | unnamed |
-| 26 | `0x101A` | `0x004C8160` | FUN_004c8160 | 68 | own | unnamed |
-| 27 | `0x101B` | `0x004C7CE0` | FUN_004c7ce0 | 69 | own | unnamed |
-| 28 | `0x101C` | `0x004C7D30` | FUN_004c7d30 | 218 | own | unnamed |
-| 29 | `0x101D` | `0x004C7CE0` | FUN_004c7ce0 | 69 | own | unnamed |
-| 30 | `0x101E` | `0x004C7D30` | FUN_004c7d30 | 218 | own | unnamed |
-| 31 | `0x101F` | `0x004C7CE0` | FUN_004c7ce0 | 69 | own | unnamed |
-| 32 | `0x1020` | `0x004C7E10` | FUN_004c7e10 | 235 | own | unnamed |
-| 33 | `0x1021` | `0x004C7F00` | FUN_004c7f00 | 304 | own | unnamed |
-| 34 | `0x1022` | `0x004C8030` | FUN_004c8030 | 291 | own | unnamed |
-| 35 | `0x1023` | `0x004C8160` | FUN_004c8160 | 68 | own | unnamed |
-| 36 | `0x1024` | `0x004C7CE0` | FUN_004c7ce0 | 69 | own | unnamed |
-| 37 | `0x1025` | `0x004C81B0` | FUN_004c81b0 | 218 | own | unnamed |
-| 41 | `0x1029` | `0x004C3E70` | FUN_004c3e70 | 100 | own | unnamed |
-| 42 | `0x102A` | `0x004C8330` | FUN_004c8330 | 121 | own | unnamed |
-| 43 | `0x102B` | `0x004C83B0` | FUN_004c83b0 | 106 | own | unnamed |
-| 44 | `0x102C` | `0x004C8420` | FUN_004c8420 | 78 | own | unnamed |
-| 45 | `0x102D` | `0x004C5350` | FUN_004c5350 | 66 | own | unnamed |
-| 46 | `0x102E` | `0x004C9FE0` | thunk_FUN_004c8660 | 5 | own | unnamed |
-| 47 | `0x102F` | `0x004C86D0` | FUN_004c86d0 | 58 | own | unnamed |
-| 48 | `0x1030` | `0x004C8710` | FUN_004c8710 | 76 | own | unnamed |
-| 49 | `0x1031` | `0x004C9FF0` | FUN_004c9ff0 | 77 | own | unnamed |
-| 50 | `0x1032` | `0x004D3250` | thunk_FUN_004d10f0 | 5 | own | unnamed |
-| 51 | `0x1033` | `0x004C85F0` | FUN_004c85f0 | 106 | own | unnamed |
-| 52 | `0x1034` | `0x004C3F90` | FUN_004c3f90 | 63 | own | unnamed |
-| 53 | `0x1035` | `0x004C8660` | FUN_004c8660 | 98 | own | unnamed |
-| 54 | `0x1036` | `0x004C86D0` | FUN_004c86d0 | 58 | own | unnamed |
-| 55 | `0x1037` | `0x004C8710` | FUN_004c8710 | 76 | own | unnamed |
-| 56 | `0x1038` | `0x004C9FF0` | FUN_004c9ff0 | 77 | own | unnamed |
-| 57 | `0x1039` | `0x004D10F0` | FUN_004d10f0 | 156 | own | unnamed |
-| 58 | `0x103A` | `0x004C42F0` | FUN_004c42f0 | 79 | own | unnamed |
-| 59 | `0x103B` | `0x004C8880` | FUN_004c8880 | 113 | own | unnamed |
-| 60 | `0x103C` | `0x004C8900` | FUN_004c8900 | 71 | own | unnamed |
-| 61 | `0x103D` | `0x004C8950` | FUN_004c8950 | 71 | own | unnamed |
-| 62 | `0x103E` | `0x004C89A0` | FUN_004c89a0 | 71 | own | unnamed |
-| 63 | `0x103F` | `0x004D1190` | FUN_004d1190 | 150 | - | unnamed |
+| 21 | `0x1015` | `0x004C5310` | SetOrGetSeaportOccupantTrafficVolume | 62 | own | meter |
+| 22 | `0x1016` | `0x004C7910` | SetOrGetOccupantWaterPollution | 109 | own | number |
+| 23 | `0x1017` | `0x004C7980` | SetOrGetSchoolGrade | 235 | own | meter |
+| 24 | `0x1018` | `0x004C7A70` | SetOrGetSchoolStaffFunding | 305 | own | slider |
+| 25 | `0x1019` | `0x004C7BB0` | SetOrGetSchoolBusFunding | 292 | own | slider |
+| 26 | `0x101A` | `0x004C8160` | SetOrGetCivicBuildingEstimatedStaff | 68 | own | number |
+| 27 | `0x101B` | `0x004C7CE0` | SetOrGetCivicBuildingEstimatedCapacity | 69 | own | number |
+| 28 | `0x101C` | `0x004C7D30` | SetOrGetSchoolServed | 218 | own | number |
+| 29 | `0x101D` | `0x004C7CE0` | SetOrGetCivicBuildingEstimatedCapacity | 69 | own | number |
+| 30 | `0x101E` | `0x004C7D30` | SetOrGetSchoolServed | 218 | own | number |
+| 31 | `0x101F` | `0x004C7CE0` | SetOrGetCivicBuildingEstimatedCapacity | 69 | own | number |
+| 32 | `0x1020` | `0x004C7E10` | SetOrGetHospitalGrade | 235 | own | meter |
+| 33 | `0x1021` | `0x004C7F00` | SetOrGetHospitalStaffFunding | 304 | own | slider |
+| 34 | `0x1022` | `0x004C8030` | SetOrGetHospitalAmbulanceFunding | 291 | own | slider |
+| 35 | `0x1023` | `0x004C8160` | SetOrGetCivicBuildingEstimatedStaff | 68 | own | number |
+| 36 | `0x1024` | `0x004C7CE0` | SetOrGetCivicBuildingEstimatedCapacity | 69 | own | number |
+| 37 | `0x1025` | `0x004C81B0` | SetOrGetHospitalServed | 218 | own | number |
+| 41 | `0x1029` | `0x004C3E70` | SetOrGetGarbageBuildingEfficiency | 100 | own | meter |
+| 42 | `0x102A` | `0x004C8330` | SetOrGetIncineratorUsagePercent | 121 | own | percent |
+| 43 | `0x102B` | `0x004C83B0` | SetOrGetIncineratorGarbageAmount | 106 | own | number |
+| 44 | `0x102C` | `0x004C8420` | SetOrGetOccupantAirPollution | 78 | own | number |
+| 45 | `0x102D` | `0x004C5350` | SetOrGetPowerPlantEfficiency | 66 | own | meter |
+| 46 | `0x102E` | `0x004C9FE0` | thunk_FUN_004c8660 | 5 | own | percent |
+| 47 | `0x102F` | `0x004C86D0` | SetOrGetPowerPlantMaxOutput | 58 | own | number |
+| 48 | `0x1030` | `0x004C8710` | SetOrGetPowerPlantOutput | 76 | own | number |
+| 49 | `0x1031` | `0x004C9FF0` | SetOrGetPowerPlantUsedOutput | 77 | own | number |
+| 50 | `0x1032` | `0x004D3250` | thunk_FUN_004d10f0 | 5 | own | per-unit |
+| 51 | `0x1033` | `0x004C85F0` | SetOrGetWasteToEnergyGarbageAmount | 106 | own | number |
+| 52 | `0x1034` | `0x004C3F90` | SetOrGetPowerPlantEfficiency2 | 63 | own | meter |
+| 53 | `0x1035` | `0x004C8660` | SetOrGetPowerPlantUsagePercent | 98 | own | percent |
+| 54 | `0x1036` | `0x004C86D0` | SetOrGetPowerPlantMaxOutput | 58 | own | number |
+| 55 | `0x1037` | `0x004C8710` | SetOrGetPowerPlantOutput | 76 | own | number |
+| 56 | `0x1038` | `0x004C9FF0` | SetOrGetPowerPlantUsedOutput | 77 | own | number |
+| 57 | `0x1039` | `0x004D10F0` | SetOrGetPowerPlantCostPerUnit | 156 | own | per-unit |
+| 58 | `0x103A` | `0x004C42F0` | SetOrGetWaterBuildingEfficiency | 79 | own | meter |
+| 59 | `0x103B` | `0x004C8880` | SetOrGetWaterBuildingUsagePercent | 113 | own | percent |
+| 60 | `0x103C` | `0x004C8900` | SetOrGetWaterBuildingMaxOutput | 71 | own | number |
+| 61 | `0x103D` | `0x004C8950` | SetOrGetWaterBuildingOutput | 71 | own | number |
+| 62 | `0x103E` | `0x004C89A0` | SetOrGetWaterBuildingUsedOutput | 71 | own | number |
+| 63 | `0x103F` | `0x004D1190` | SetOrGetWaterBuildingCostPerUnit | 150 | - | per-unit |
 | 64 | `0x1040` | `0x004CA090` | SetOrGetWaterBuildingPumpCondition | 159 | own | Water |
-| 65 | `0x1041` | `0x004C3FD0` | FUN_004c3fd0 | 223 | own | unnamed |
-| 66 | `0x1042` | `0x004C8A60` | FUN_004c8a60 | 204 | own | unnamed |
-| 67 | `0x1043` | `0x004C8B30` | FUN_004c8b30 | 141 | own | unnamed |
-| 68 | `0x1044` | `0x004C8BC0` | FUN_004c8bc0 | 139 | own | unnamed |
-| 69 | `0x1045` | `0x004C8C50` | FUN_004c8c50 | 139 | own | unnamed |
+| 65 | `0x1041` | `0x004C3FD0` | SetOrGetTransitStationServiceQuality | 223 | own | meter |
+| 66 | `0x1042` | `0x004C8A60` | SetOrGetTransitStationUsagePercent | 204 | own | percent |
+| 67 | `0x1043` | `0x004C8B30` | SetOrGetTransitStationMaintenanceCost | 141 | own | money |
+| 68 | `0x1044` | `0x004C8BC0` | SetOrGetTransitStationUsage | 139 | own | number |
+| 69 | `0x1045` | `0x004C8C50` | SetOrGetTransitStationCapacity | 139 | own | number |
 | 70 | `0x1046` | `0x004C8CE0` | SetOrGetTransitStationGlobalFunding | 92 | own | TransitStation |
-| 71 | `0x1047` | `0x004C8D40` | FUN_004c8d40 | 97 | own | unnamed |
-| 73 | `0x1049` | `0x004C8DB0` | ? | ? | - | unnamed |
-| 74 | `0x104A` | `0x004CA130` | ? | ? | - | unnamed |
+| 71 | `0x1047` | `0x004C8D40` | SetOrGetTransitStationLocalCost | 97 | own | money |
+| 73 | `0x1049` | `0x004C8DB0` | ? | ? | - | money |
+| 74 | `0x104A` | `0x004CA130` | ? | ? | - | text |
 | 81 | `0x1051` | `0x004C8FF0` | SetOrGetRCIBuildingCurrentOccupancy | 170 | own | RCIBuilding |
 | 82 | `0x1052` | `0x004C90A0` | SetOrGetRCIBuildingMaxOccupancy | 115 | own | RCIBuilding |
 | 83 | `0x1053` | `0x004D3500` | SetOrGetRCIBuildingWealthLevel | 554 | own | RCIBuilding |
-| 84 | `0x1054` | `0x004D3730` | FUN_004d3730 | 105 | own | unnamed |
-| 85 | `0x1055` | `0x004D3810` | FUN_004d3810 | 105 | own | unnamed |
+| 84 | `0x1054` | `0x004D3730` | SetOrGetOccupantPollutionRating | 105 | own | text |
+| 85 | `0x1055` | `0x004D3810` | SetOrGetOccupantCrimeRating | 105 | own | text |
 | 86 | `0x1056` | `0x004C9120` | SetOrGetRCIBuildingLandValue | 215 | own | RCIBuilding |
 | 87 | `0x1057` | `0x004D3880` | SetOrGetResidentialBuildingCommute | 190 | own | ResidentialBuilding |
 | 88 | `0x1058` | `0x004C9200` | SetOrGetResidentialBuildingMayorApproval | 156 | own | ResidentialBuilding |
-| 89 | `0x1059` | `0x004D39B0` | FUN_004d39b0 | 105 | own | unnamed |
-| 90 | `0x105A` | `0x004D3A20` | FUN_004d3a20 | 105 | own | unnamed |
+| 89 | `0x1059` | `0x004D39B0` | SetOrGetOccupantSchoolRating | 105 | own | text |
+| 90 | `0x105A` | `0x004D3A20` | SetOrGetOccupantHospitalRating | 105 | own | text |
 | 91 | `0x105B` | `0x004CDCC0` | SetOrGetResidentialBuildingMySimicon | 576 | own | ResidentialBuilding |
 | 92 | `0x105C` | `0x004C92A0` | SetOrGetCommercialServiceBuildingCustomers | 101 | own | CommercialServiceBuilding |
-| 94 | `0x105E` | `0x004C3EE0` | FUN_004c3ee0 | 167 | own | unnamed |
-| 95 | `0x105F` | `0x004C8470` | FUN_004c8470 | 217 | own | unnamed |
-| 96 | `0x1060` | `0x004C8550` | FUN_004c8550 | 157 | own | unnamed |
-| 97 | `0x1061` | `0x004CA040` | FUN_004ca040 | 70 | own | unnamed |
-| 98 | `0x1062` | `0x004CA040` | FUN_004ca040 | 70 | own | unnamed |
-| 99 | `0x1063` | `0x004C8760` | FUN_004c8760 | 276 | own | unnamed |
-| 107 | `0x106B` | `0x004CB880` | ? | ? | - | unnamed |
+| 94 | `0x105E` | `0x004C3EE0` | SetOrGetRecyclingCenterEfficiency | 167 | own | meter |
+| 95 | `0x105F` | `0x004C8470` | SetOrGetRecyclingPercent | 217 | own | percent |
+| 96 | `0x1060` | `0x004C8550` | SetOrGetRecyclingAmountPerCenter | 157 | own | number |
+| 97 | `0x1061` | `0x004CA040` | SetOrGetPowerPlantCondition | 70 | own | percent |
+| 98 | `0x1062` | `0x004CA040` | SetOrGetPowerPlantCondition | 70 | own | percent |
+| 99 | `0x1063` | `0x004C8760` | SetOrGetPowerPlantFunding | 276 | own | slider |
+| 107 | `0x106B` | `0x004CB880` | ? | ? | - | number |
 | 108 | `0x106C` | `0x004C9310` | SetOrGetOccupantCost | 282 | own | Occupant |
-| 109 | `0x106D` | `0x004C42F0` | FUN_004c42f0 | 79 | own | unnamed |
-| 115 | `0x1073` | `0x004C89F0` | FUN_004c89f0 | 100 | own | unnamed |
-| 116 | `0x1074` | `0x004D3940` | FUN_004d3940 | 105 | own | unnamed |
-| 117 | `0x1075` | `0x004D37A0` | FUN_004d37a0 | 105 | own | unnamed |
-| 118 | `0x1076` | `0x004CA2C0` | FUN_004ca2c0 | 206 | own | unnamed |
-| 119 | `0x1077` | `0x004CA390` | FUN_004ca390 | 206 | own | unnamed |
-| 120 | `0x1078` | `0x004C9FA0` | FUN_004c9fa0 | 62 | own | unnamed |
+| 109 | `0x106D` | `0x004C42F0` | SetOrGetWaterBuildingEfficiency | 79 | own | meter |
+| 115 | `0x1073` | `0x004C89F0` | SetOrGetWaterBuildingCondition | 100 | own | percent |
+| 116 | `0x1074` | `0x004D3940` | SetOrGetOccupantTrafficRating | 105 | own | text |
+| 117 | `0x1075` | `0x004D37A0` | SetOrGetOccupantGarbageRating | 105 | own | text |
+| 118 | `0x1076` | `0x004CA2C0` | SetOrGetOccupantIsPowered | 206 | own | text |
+| 119 | `0x1077` | `0x004CA390` | SetOrGetOccupantIsWatered | 206 | own | text |
+| 120 | `0x1078` | `0x004C9FA0` | SetOrGetSeaportOccupantMaintenanceCost | 62 | own | zone money |
 | 121 | `0x1079` | `0x004D0EE0` | SetOrGetWhyOccupantAbandoned | 490 | own | Why |
 | 122 | `0x107A` | `0x004C55A0` | SetOrGetOccupantIsHistorical | 124 | own | Occupant |
-| 123 | `0x107B` | `0x004C9EA0` | FUN_004c9ea0 | 62 | own | unnamed |
-| 124 | `0x107C` | `0x004C9EE0` | FUN_004c9ee0 | 62 | own | unnamed |
-| 125 | `0x107D` | `0x004C9F20` | FUN_004c9f20 | 62 | own | unnamed |
-| 126 | `0x107E` | `0x004C9F60` | FUN_004c9f60 | 62 | own | unnamed |
+| 123 | `0x107B` | `0x004C9EA0` | SetOrGetAirportOccupantUsage | 62 | own | zone number |
+| 124 | `0x107C` | `0x004C9EE0` | SetOrGetAirportOccupantCapacity | 62 | own | zone number |
+| 125 | `0x107D` | `0x004C9F20` | SetOrGetSeaportOccupantUsage | 62 | own | zone number |
+| 126 | `0x107E` | `0x004C9F60` | SetOrGetSeaportOccupantCapacity | 62 | own | zone number |
+
+#### 8.12.4 What each entry shows (re-query)
+
+*Added 2026-10-21 (re-query), from the instruction bytes; the table above now carries the fillers' names and kinds.*
+Each entry is `(child window, id, fill, occupant)`. With fill = false only sliders and the two editable entries
+(`0x1000`, `0x107A`) do anything. The kinds write to a child of the window:
+
+- **number**: `"%d"` into the text control (IID `0x212CDC1F`, its slot 4); **percent**: `"%d%%"`; **money**:
+  `SC4MakeMoneyString` of an int64; **text**: a string.
+- **meter**: the child with IID `0xC12CEA13` gets the float window property `0xEA563AB0`
+  (`SetPerformanceMeterValue`).
+- **slider** (`SetSliderControlValue`, `0x004C6E30`, given a funding `f`, a cost `c` and a list of related ids): the
+  slider (IID `0x21325207`) is set to `v + 1` and then `v`, `v = round(100 × f)`; its window properties `0x6A8CC9D6`
+  (the entry), `0x2AA6E8AD` (`c`, int64) and `0x0AB3F6DB` (the related ids) are stored; the money text of **id +
+  0x100** := `trunc(v × 0.01 × c)`. An entry run with fill = false reads the slider's value `v` back and sets the
+  funding `v × 0.01` (§8.13).
+- **load meter** `L(used, cap)` (`0x004C3B10`): 0 when `cap` is 0; 1.0 while `used ≤ 0.8 · cap`; otherwise
+  `max(cap − used, 0) / (0.2 · cap)`.
+- **per-unit cost** (`0x004D0D30`): a double formatted by the locale manager into a text.
+- **level** strings (group `0xEA5524EB`): `0x4A5FE266` (low), `0x0A5FE260` (medium), `0xAA5FE249` (high).
+  `GetRatingIn3DegreesFromPercent(p)`: `p < 33.3` low, `p < 66.6` medium, else high.
+
+"Fire" is the fire simulator (`0x00B43D78`), "police" `0x00B43D98`, "school" and "hospital" the residential
+simulator's `GetSchoolQueryData` / `GetHospitalQueryData` record (slots 26 / 27). Absent ids (`0x1005`,
+`0x1026`–`0x1028` in this table, `0x1048`, `0x104B`–`0x1050`, `0x105D`, `0x1064`–`0x106A`, `0x106E`–`0x1072`) do
+nothing.
+
+- `0x1000` (edit): the building's name (`cISC4BuildingOccupant` slot 19); write-back renames it (slot 18) when the
+  text changed.
+- `0x1001` (meter): fire slot 10 `GetStationEfficiency`. `0x1002` (slider): fire slot 8 `GetStationFunding`
+  (percentage, cost); write-back slot 9. `0x1003` (number): the fire dispatch interface (`0xC9C00435`) slot 7: the
+  third output (the count). `0x1004` (money): the cost of fire slot 8.
+- `0x1006` (meter): police slot 25 `GetStationEfficiency`. `0x1007`, `0x1008` (number): police slots 43 (arrests) and
+  44 (crimes). `0x1009` (slider): police slot 7 `GetStationFunding`; write-back slot 8. `0x100A` (number): the
+  police dispatch interface slot 7: the count. `0x100B` (money): the cost of police slot 7.
+- `0x100C` (meter): `L(trunc(jailed × capacity), capacity)`: police slots 36 `GetJailedPercentage`, 28
+  `GetJailCapacity`. `0x100D` (number): `trunc(0.8 × GetJailCapacity)`. `0x100E` (number): `trunc(GetJailedPercentage
+  × GetJailCapacity)` (the inmates). `0x100F` (money): police slot 37 `GetJailCurrentUpkeepCost`.
+- `0x1010`, `0x106C` (money): the sum of the costs of the budget items (budget slot 51) for each purpose in `o`'s
+  property `0xEA54D285`.
+- `0x1011` (meter): airport: `L(usage, cap)` of the airport developer's slot 12 for the cell's lot. `0x1012`
+  (number): airport noise: the lot's buildings' pollution property `0x27812851` *[summary]*. `0x1013` (money):
+  airport developer slot 14 `GetMaintenanceCost(lot)`. `0x1014` (number): lost luggage: the goofy stat (below) of the
+  shipped airport exemplar (`0x6534284A`, `0x67CD5FA1`, `0xCA270E9D`). `0x1015` (meter): seaport: `L(usage, cap)` of
+  the seaport developer's slot 12.
+- `0x1016` (number): the water value (element 1) of `o`'s pollution at centre `0x27812851` (pollution.md).
+- `0x1017` (meter): school grade (`+0x28`). `0x1018` (slider): school staff funding and cost (`+0x2C`, `+0x30`),
+  related ids `0x101A`, `0x101B`, `0x101D`, `0x101F`; write-back residential slot 19 `(o, staff, bus, true)`. `0x1019`
+  (slider): school bus funding and cost (`+0x34`, `+0x38`); write-back as `0x1018`. `0x101A`, `0x1023` (number):
+  residential slot 28 `EstimateCurrentOccupantCapacity`: the staff. `0x101B`, `0x101D`, `0x101F`, `0x1024` (number):
+  the same: the capacity. `0x101C`, `0x101E` (number): school served (`+0x24`).
+- `0x1020` (meter): hospital grade. `0x1021` (slider): hospital staff funding, related ids `0x1023`, `0x1024`
+  *[quirk: the count word is 4]*; write-back slot 19. `0x1022` (slider): hospital ambulance funding; write-back slot
+  19. `0x1025` (number): hospital served.
+- `0x1026` (zone meter): landfill: `L(usage, cap)` of `GetLandfillUsage` (landfill developer slot 10). `0x1027` (zone
+  number): `trunc(GetGarbageLandfilledLastMonth × GetGarbageScalingFactor)` (pollution slots 41, 48). `0x1028` (zone
+  money): the landfill developer's slot 8 `GetCurrentBudget` (city slot 78).
+- `0x1029` (meter): `trunc(100 × GetCurrentOccupantEfficiency)` (pollution slot 57). `0x102A` (percent): `100 × used /
+  current` of `GetIncineratorUsedCapacity` / `GetIncineratorCurrentCapacity` (slots 58, 60); 0 when current is 0.
+  `0x102B` (number): `trunc(incinerator used × scaling)`. `0x102C` (number): the air value (element 0) of `o`'s
+  pollution at centre `0x27812851`.
+- `0x102D`, `0x1034` (meter): power slot 45 `GetCurrentPlantEfficiencyPercent`. `0x102E`, `0x1035` (percent):
+  `100 × used / produced` of power slot 33 `GetOccupantPowerProduced`; 0 when produced is 0. `0x102F`, `0x1036`
+  (number): power slot 34 `GetOccupantMaxPowerProduced`. `0x1030`, `0x1037` (number): produced (slot 33). `0x1031`,
+  `0x1038` (number): used (slot 33). `0x1032`, `0x1039` (per-unit): power slot 49 `GetMonthlyPowerGenerationCost` /
+  produced; 0 when produced is 0. `0x1033` (number): `trunc(GetWasteToEnergyUsedCapacity × scaling)` (slot 59).
+- `0x103A`, `0x106D` (meter): plumbing slot 24 `GetWaterProducerInfo`: the efficiency. `0x103B` (percent): `100 ×
+  used / current` of slot 24; 0 when current is 0. `0x103C`, `0x103D`, `0x103E` (number): slot 24: the maximum, the
+  current, the used. `0x103F` (per-unit): plumbing slot 26 `GetOccupantMonthlyUpkeepCost` / current; 0 when current
+  is 0. `0x1040` (text): slot 24's polluted flag: `0x0A5D4F43` when polluted, else `0x2A5D4F3B`.
+- `0x1041` (meter): station (traffic simulator slot 35 at `o`'s cell, traffic-simulator.md §4.16): `min(available /
+  usage, 1)`; 1.0 when usage is 0; 0 when available is 0 or no record. `0x1042` (percent): `trunc(100 × usage /
+  maximum)`; 0 when maximum is 0 or no record. `0x1043` (money): the station's monthly maintenance cost (`+0x10`).
+  `0x1044`, `0x1045` (number): the station's usage (`+0x0C`), its maximum capacity (`+0x04`).
+- `0x1046` (percent): the transit department's funding (budget slot 28 `GetDepartmentBudget(0xC921CEEB)`, its slot
+  10); 0 without it. `0x1047` (money): the cost of `o`'s budget item for purpose `0xAA59670C` (budget slot 51).
+  `0x1049` (money): that cost times its department's funding percentage.
+- `0x104A` (text): the string named by `o`'s two-word property `0xAA5C23FA` (group, instance).
+- `0x1051` (text): `"%d/%d"` of the occupancy and the capacity (§8.14). `0x1052` (text): `"%d"` of the capacity;
+  nothing when 0. `0x1053` (meter): the wealth level (§8.14). `0x1054`, `0x1075`, `0x1059`, `0x105A`, `0x1055`,
+  `0x1074` (text): the subjective ratings 0–5 (§8.14). `0x1056` (text): land value type at `o`'s cell (land value
+  slot 5): 2 medium, 3 high, else low. `0x1057` (text): commute: an abandoned lot (state 4) with reason 4 shows
+  `0x0A71FAD3`; else subjective rating 6 with the strings `0xAA71FAE3`, `0x6A71FADC`, `0x0A71FAD3`. `0x1058` (text):
+  the level of the mayor rating percent (§8.14). `0x105B` (icon): the MySim icon of a resident *[summary; CT14]*.
+  `0x105C` (number): `trunc(100 × occupancy / capacity)`.
+- `0x105E` (meter): recycling: `min(GetRecyclingCenterMaxCapacity / GetRecyclingCenterCurrentCapacity, 1)` (slots 54,
+  55); 0 when current ≤ 0. `0x105F` (percent): `trunc(100 × min(r / current, 1))`, `r` = recycled / produced last
+  month (slots 38, 35; 0 when none produced); 0 when current ≤ 0. `0x1060` (number): `trunc(recycled × scaling) /
+  GetRecyclingCenterCount` (slot 44); 0 without centres.
+- `0x1061`, `0x1062` (percent): `trunc(100 × GetCurrentPlantConditionPercent)` (power slot 46). `0x1063` (slider):
+  power slot 50 `GetPowerPlantFundingPercentage`, cost slot 49; write-back slot 51.
+- `0x106B` (number): the goofy stat of `o`. `0x1073` (percent): `trunc(100 × GetWaterProducerConditionPercent)`
+  (plumbing slot 25). `0x1076`, `0x1077` (text): `0xCA5D4F33` when powered (power slot 31) / watered (plumbing slot
+  9), else `0x6A5D4F37`. `0x1078` (zone money): seaport developer slot 14 `GetMaintenanceCost(lot)`.
+- `0x1079` (text): an abandoned lot's reason (lot slot 45): 1 `0xCC06A5DE`, 2 `0xCC06A5DF`, 3 `0xCC06A5E0`, 4
+  `0xCC06A5E1`, 6 `0xCC06A5E2`; otherwise empty. `0x107A` (toggle): the lot's historical flag (lot slot 43);
+  write-back slot 44. `0x107B`, `0x107C` (zone number): airport developer slot 12: the usage, the capacity. `0x107D`,
+  `0x107E` (zone number): seaport developer slot 12: the usage, the capacity.
+
+The occupant entries `0x1011`–`0x1015` and `0x1078`, `0x107B`–`0x107E` take the cell from `o`'s slot 11 and call
+the zone entries. The **goofy stat** (`SetOrGetGoofyStat`, `0x004CB740`): a response curve, by default the single
+point (256, 256), replaced by the holder's property (`0xAA60E745`) when present, evaluated at the aura simulator's
+`GetMayorRating()` (slot 8) and truncated.
+
+### 8.13 The other dialogs and the dialog's win proc *[compat]*
+
+*Added 2026-10-21 (re-query).*
+
+**`PlayOccupantQuerySound(o)`** (`0x004C4F40`): with the sound system and `o`'s lot (lot manager slot 14): a lot
+whose condition (lot slot 35) is 4 plays the u32 property `0x0A902434`; condition 2 or 3 plays `0xAA905AB9`.
+Otherwise (or when that property is missing) the property `0xAA1DD397` plays. "Plays" is the sound system's slot 11
+with `(1, sound, o, 0, 0)`.
+
+**`DoZoneBasedQueryDialog(zone, x, z)`** (`0x004CCCB0`): the window (group `0x96A006B0`, flags `0x10000005`) is
+`0x6A561B3A` for zone 11 (airport), `0x4A562DA5` for 12 (seaport), `0xAA561F93` for 14 (landfill, which also plays
+`0x2A62C927`). The dialog runs as `DoQueryDialog` steps 4–11 (§8.12.2) with the handler `SetOrGetControlValue`
+(`0x004CC240`), which takes the cell instead of an occupant: ids `0x1011`–`0x1015`, `0x1078`, `0x107B`–`0x107E`
+(the airport and seaport rows) and `0x1026`–`0x1028` (the landfill rows) of §8.12.4.
+
+**`DoNeighborConnectionQueryDialog(o)`** (`0x004CC6E0`) *[summary; CT14]*: only for an occupant on the city's edge
+(cell x or z equal to 0 or to the city size − 1). The kind comes from the network type (network occupant slot 22
+tests; code 2, 3, 5, 6, 7 or 8) or 4 for a power pole. For each of the four edge directions with a valid neighbour
+connection cell (`IsValidConnectionCell`) a row is added (cell, row offset `n × 0x200`, kind); one or two rows open a
+window by kind: `0xCA566F94` / `0xAA5E14CC` (one / two rows) for kinds 1, 6, 7, 11; `0xEA566A49` / `0x4A5E7ED3` for
+kinds 2, 3, 8, 10, 12; a looked-up window for 4 and 5. Its controls `0x104B`–`0x104E`, `0x1066`–`0x106A` (plus the
+row offset) show the neighbour city's name and mayor, the congestion, whether a deal exists, its commodity amount,
+value, direction and garbage amount.
+
+**The dialog's win proc** (`cSC4QueryDialogWinProc::DoWinProcMessage`, `0x004D3F40`, the proc `0x004C5620` attaches
+in `DoQueryDialog` step 4). Only notifications (type 3) from the dialog window are handled:
+- `0x287259F6` with a value below 2 ends the dialog (`EndDialog`).
+- `0x887113A3` from a slider child: with its value `v`, the money text of id + 0x100 := `trunc(v × 0.01 × c)` (`c`
+  from `0x2AA6E8AD`, 0 when missing); with an occupant held, the slider's entry (`0x6A8CC9D6`) runs at once as
+  `entry(window, id, false, occupant)`, so the new funding applies while the dialog is open; then each related id
+  (`0x0AB3F6DB`) is refilled (fill = true).
+
+### 8.14 Building values *[compat]*
+
+*Added 2026-10-21 (re-query).*
+
+- **Capacity** (`GetOccupantCapacity`, `0x004C4160`): the lot at `o`'s cell; its slot 51 with its occupant wealth (slot
+  41); 0 → the building's (`0x87DDA3A9`) slot 11 record's u16 at `+8`. No lot → 0.
+- **Occupancy** (`GetCurrentOccupancyValue`, `0x004C53A0`): with the lot's building type (slot 46 with true) non-zero,
+  `trunc(GetOccupancy × capacity)` (lot slot 61); else 0.
+- **Mayor rating percent** (`GetMayorRatingPercent`, `0x004C5490`): over the cells of the lot's rect (slot 14), `100 ×
+  mean(GetAuraValue + 128) / 255` (aura slot 5).
+- **Wealth level** (`0x1053`): `w` := the wealth of the lot's building type (building development slot 39), else the
+  lot's occupant wealth; the meter is `min(occupantWealth / w, 1)`, and the meter window is resized by `min(k · w, 1)`
+  *[summary]*; without a lot or a wealth the meter is 1.0.
+- **Subjective ratings** (`GetSubjectiveOccupantRatingString`, `0x004D3470`): the lot's centre cell, the best growth
+  developer for the lot (`FindBestDeveloper`, `0x004D32D0`) and a rating function. Rating `i` reads a value at the cell
+  through one of the developer's desirability curves and compares it with the developer's slot 30
+  `GetSubjectiveThresholds(i, min, max)`: below `min` → high, at least `max` → low, else medium.
+
+| `i` | Function | Value |
+|---|---|---|
+| 0 | `0x004C5C90` | the sum of the curves of pollution types 0, 1 and 3 (pollution slot 5 grids) |
+| 1 | `0x004C5D70` | pollution type 2 |
+| 2 | `0x004C4750` | the school average grade map (residential slot 39) |
+| 3 | `0x004C47F0` | the hospital average grade map (residential slot 40) |
+| 4 | `0x004C4890` | the crime grid (crime slot 5) |
+| 5 | `0x004C4930` | the commercial traffic map (traffic simulator slot 9) |
+| 6 | `0x004C4A30` | the commute *[summary]* |
+
+### 8.15 Route mode *[summary; CT15]*
+
+*Added 2026-10-21 (re-query).* A click in mode 1 (`GetOccupantPaths`, `0x004CAC50`) removes the old path view
+(renderer slot 33) and, for a building, shows the routes crossing its lot's rect (`GetBuildingOccupantPaths`), for a
+network occupant those crossing its cell (`GetNetworkOccupantPaths`). `ShowAllRoutesThatIntersectCityRect`
+(`0x004CA460`) builds a `cSC4PathView` (renderer slot 32, thickness by zoom), reads the legend's travel-type toggles
+(`0xEBB0F666`, `0x2BB0F616`, `0x4BB0F628`, `0xEBB0F630`, `0x4BB91326`, `0x6BB91318`, `0x2BB9131F`, `0xABB0F639`,
+`0x4C081783`, …) and draws each route that crosses the rect (`DoesRouteCrossCell`, `GetRouteTravelTypes`). The
+message `0x69247DC7` with a path view clears and redraws it for the same rect (§8.7).

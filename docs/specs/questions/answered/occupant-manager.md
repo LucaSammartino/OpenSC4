@@ -48,3 +48,11 @@ filed here under their own prefix. The implementers' choices are in brackets.
 - ~~**OM8:** do `Write`/`Read` and slot 25 take the manager's lock? [yes]~~ **ANSWERED 2026-10-16 (re-answers16):**
   **DIFFERS**: none of them does (`0x0049ECF0`, `0x004A1A20`, `0x0049E490`). The extra recursive lock is not
   observable and may stay. occupant-manager §13, §14.
+
+<!-- from: re-occfilters (2026-10-20) -->
+- ~~**OM10 - §13.2.3:** which cheat word reaches the 3D view's code at `0x007F365D` that installs a realistic filter
+  with all three flags clear? [as read]~~
+  **ANSWERED 2026-10-21 (re-view3dwin):** DIFFERS — `Zoneria` (`0x6A7A276E`): its new realistic filter starts with all
+  three flags clear, then, when the current view filter is realistic, flips `+0xC` and copies `+0xD`, leaving `+0xE`
+  clear; `TastyZots` (`0x007F391F`) flips `+0xD` and copies the other two (view3d-window.md §3.1, occupant-manager.md
+  §13.2.3).

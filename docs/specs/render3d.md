@@ -196,12 +196,28 @@ Grid-element flag word at element `+6`:
 | `0x0004` | added to the quad grid |
 | `0x0008` | **in the backing store** (static image) |
 | `0x0010` | has a queued change (cleared when processed) |
-| `0x0020`/`0x0040`/`0x0100`/`0x0200`/`0x0400`…`0x2000` | object-class bits copied from `model+0x34` / `model+0x3C` by `UpdateGridElementObjectFlags` (`0x007C2B40`) |
+| `0x0001`, `0x0020`/`0x0040`/`0x0100`/`0x0200`/`0x0400`…`0x2000` | object-class bits from the model's properties and draw attributes, set by `UpdateGridElementObjectFlags` (`0x007C2B40`, below) |
 | `0x0080` | set by `ChangeModel(…, 1)` from property byte 1 |
+| `0x0002` | collected by a pick (§11.5) |
+| `0x4000` | collected by `GetAllElements` (§5.1) |
+
+`UpdateGridElementObjectFlags(instance, e)` (re-render3d, 2026-10-21) keeps bits 0–4 and 14–15 and sets the rest
+from the instance's properties p (slot 13, `model+0x34`) and draw attributes a (slot 15, `model+0x3C`):
+
+| Flag | Set when |
+|---|---|
+| `0x0020` | p bit 0 |
+| `0x0101` | a bit 2 |
+| `0x0100` | a bit 1, or p bit 2 (only when a bits 1 and 2 are clear) |
+| `0x0040` | p bit 1 (only when a bits 1 and 2 are clear) |
+| `0x0200` | p bit 3 |
+| `0x0400`, `0x0800`, `0x1000`, `0x2000` | p bits 4, 5, 6, 7; `0x0800` also when p bits 4–7 are all clear |
 
 `ModelShouldGoIntoBackingStore` (`0x007C5540`): false if `0x100`; true only if `0x20` clear and `0x40` set and one
 of: `0x400` with draw-context `+0x14` < props `+0x1AC`; `0x1800` with `+0x14` < props `+0x184`; `0x2000` with
-`+0x14` < props `+0x1D4` (props = `*(*(+0x48)+0x18)`, signed compares).
+`+0x14` < props `+0x1D4` (props = `*(*(+0x48)+0x18)`, signed compares). The three limits are the integer render
+properties 10 `kBackingStoreMaxZoomTerrain` (`+0x1AC`), 9 `kBackingStoreMaxZoomBuildingsProps` (`+0x184`) and 11
+`kBackingStoreMaxZoomFlora` (`+0x1D4`) (render-properties.md §3), compared with the draw context's zoom.
 
 Queue item layout (`0x007C2E50`, a plain field copy, `RET 0x14`):
 
@@ -263,6 +279,55 @@ Entry points:
 **Overflow:** after each push, if the queue length is **exactly 200**, `DoFullViewUpdate(4)` (§4). It is an
 equality test, so pushes 201+ do not re-trigger.
 
+
+### 5.1 The quad grid (`SC4QuadGrid`, `+0x120`) *[compat]*
+
+*Added 2026-10-21 (re-render3d).* The renderer files every inserted model's grid element in a 256 × 256 grid over
+screen-projected space, so a pass only visits the quadrants it can see.
+
+- **Space.** Container coordinates are the fixed-view projection of world positions (view-utilities.md) plus a
+  per-rotation offset, x and y: rotation 0 (3000, 4500), 1 (1400, 6400), 2 (5200, 7200), 3 (6800, 5300), each times
+  the map scale s (`+0x264`, §3.1 slot 5). `CreateQuadGrid` (`0x007C2390`) makes a 0x20-byte grid (constructor
+  `0x005F41F0`) of size 8192 s (`0x00ABA9E8`) with quadrants of 32 s (`0x00ABA9EC`): `SetSize(size, unused,
+  quadrant)` (`0x005F40B0`) keeps n = trunc(size ÷ quadrant + 0.5) = **256** quadrants a side and the scale
+  1 ÷ quadrant.
+- **Cells of a rectangle** (`SetGridRectForElement`, `0x005F2A90`): each edge c ↦ round(c × scale − 0.5), rounded
+  to nearest with ties to even (the `+ 1.5 × 2²³` float trick), so an exact multiple k of the quadrant size falls in
+  quadrant k when k is even but k − 1 when k is odd *[quirk]*. Lookups clamp the cell range to [0, n − 1]
+  (`0x005F29C0`).
+- **Quadrants** hold a list of elements and a 16-bit flag word; bit 0 means "holds something the dynamic pass must
+  visit".
+- `AddElement(e, flags)` (`0x005F3270`): e joins every quadrant of its clamped range, gaining one reference per
+  quadrant, and those quadrants OR in `flags`; false when the range is empty; the element count grows by one.
+  `RemoveElement(e)` (`0x005F2B30`) takes it out of each quadrant (swapping in the last element) and drops the
+  references. `MoveElement(e, rect, flags)` (`0x005F3390`): true at once when the cell range is unchanged; else
+  remove, set the new range, add. `SetQuadrantFlagsForElement(e, flags)` (`0x005F2D40`) ORs `flags` into the
+  quadrants of e's range. `GetAllElements(out, n)` (`0x005F34B0`): each element once (marked with bit `0x4000`
+  while collecting), at most n. `RemoveAllElements` (`0x005F30A0`) releases everything.
+- **A grid element** (pool `0x00B0DC34`) holds a reference count, the flag word (`+0x06`), its cell range
+  (`+0x08`–`+0x14`), the model instance (`+0x18`) and the instance's last world box (`+0x1C`–`+0x30`). The instance
+  keeps a pointer to its element (instance slots 5 and 6, model-instances.md).
+
+### 5.2 The two passes (`DrawStaticView`, `DrawDynamicView`) *[compat]*
+
+*Added 2026-10-21 (re-render3d); view3d.md §4.2 gives what calls them and the pass words.*
+
+**Static** (`DrawStaticView`, `0x007C7370`; pass 1): over the quadrants of the draw-frustum rectangle, each static
+element is taken once (in the first visible quadrant of its range). Its sort key is (the instance's sort value, slot
+17, its two 16-bit halves added, in the high 16 bits) + the depth of its box along the view (`0x007C2EB0`: the box
+centre and half-extents projected to viewport z, × 65535, rounded). The list is sorted **descending** by key.
+
+**Dynamic** (`DrawDynamicView`, `0x007C7830`; pass 4): over the quadrants of the view-frustum rectangle that have
+flag 1, each non-static element (or highlighted one) is taken once into one of three lists: elements with `0x0001`
+(list C), with `0x0100` (list B), the others (list A, keyed like the static pass); highlighted elements also go to a
+fourth list. A is sorted descending, B and C ascending, and they are drawn A, B, C.
+
+**Rounds.** Each element is drawn with instance slot 12 `Draw(context, highlighted = false)`. A draw that returns 2
+asks to be drawn again: after each round the draw context's round counter (`+0x04`, 0 at the start of the pass)
+goes up, and the elements that asked are drawn again, until none asks or the counter reaches 12. Lot cell textures
+use this to draw translucent cells in a later round (lot-models.md §4). In the dynamic pass the three lists
+**share** the counter: once it reaches 12, the lists not yet drawn are skipped *[quirk]*. Then the highlighted
+elements are drawn once each, with the counter at 0, depth offset 4 and `Draw(context, true)`.
 ---
 
 ## 6. Dirty rectangles: entry points *[compat]*
@@ -373,16 +438,14 @@ overloads and the per-frame `SetShakeOffsets` are §10. Fields used here: `+0x08
 Picking (§11 covers view objects, `IsModelVisible`, both `Pick`, both `PickTerrain` and the screen
 `PickTerrainAlways`): the ray `PickTerrainAlways` (`0x007C7E20`) clip arithmetic (precision, order, the point
 insert helper `0x007C6EC0`) is outline only (§11.6); `GetViewportRayContainerRect` and the quad-grid cell query
-`0x005F2C70` used by `Pick`. Lifecycle (`Init`, `Shutdown`, `ReadProperties` are §9): `SetGraphicSystem`, `SetGDriver`, `StaticSetGDriver`, `StaticShutdown` (outline:
-releases the globals `0x00B4E1EC`, `0x00B4E1F0`, `0x00B4E1F4` once, destroying the backing store first),
-destructor body `0x007CA020`. (Shake is complete: §6.3 and §10.)
-Backing store (§12 covers create, destroy, save, both restores, re-evaluation): `DoSingleModelStaticDrawAddition`. Dirty rects (merge scoring and the rect filter are now §6.1): the writer of `+0x1FD`. View updates:
-`DoTranslatedViewUpdate`, `DoViewZoomChange3`, `DoViewRotationChange2`, `AttemptTranslatedViewUpdate`,
-`UpdateVisibleTerrainMetrics`. Geometry: `WorldToContainerRect`, `Get{View,Draw}FrustumContainerRect`,
-`GetVisibleContainerRect`, `GetViewportRayContainerRect`, `GetModelContainerRect`, `RebuildQuadGrid`,
-`SetClipRect`, `UnsetClipRect`. Drawing helpers: `ClearViewport` (2433 bytes), `ClearViewportWithSolidColor`,
-`DrawViewportRectangle`, `DrawTexturedViewportRectangle`, `SetBackgroundPicture` ×2, `TakeSnapshot` ×2,
-`GetStatsString1/2`, `DrawStaticView`/`DrawDynamicView` bodies beyond view3d.md §4.2, `TurnOnLighting`, `TurnOnFog`.
+`0x005F2C70` used by `Pick`. Lifecycle (`Init`, `Shutdown`, `ReadProperties` are §9; `SetGDriver` and
+`StaticSetGDriver` §13.4): `SetGraphicSystem`, `StaticShutdown` (outline: releases the globals `0x00B4E1EC`,
+`0x00B4E1F0`, `0x00B4E1F4` once, destroying the backing store first), destructor body `0x007CA020`. (Shake is
+complete: §6.3 and §10.) Dirty rects (merge scoring and the rect filter are §6.1): the writer of `+0x1FD`.
+Geometry: `WorldToContainerRect`, `Get{View,Draw}FrustumContainerRect`, `GetVisibleContainerRect`,
+`GetViewportRayContainerRect`, `GetModelContainerRect`. Drawing: `TurnOnLighting`, `TurnOnFog`. (Added
+2026-10-21: the quad grid §5.1, the passes §5.2, single-model additions, view updates, clearing, backgrounds,
+snapshots, clipping, terrain metrics and the statistics strings §13.)
 
 ---
 
@@ -409,6 +472,13 @@ Backing store (§12 covers create, destroy, save, both restores, re-evaluation):
 11. Areas whose running total reaches `+0x1E4` turn the add into `DoFullViewUpdate(4)`; after that, adds are ignored
     until the next `Draw` clears `+0x109`.
 12. With 199 queued items the next backing-store insert forces `DoFullViewUpdate(4)`; the 201st does not.
+13. Quad grid (§5.1): map scale 1 gives 256 × 256 quadrants of 32 units; an edge at exactly 64 (quadrant 2, even)
+    falls in quadrant 2, one at exactly 96 (3, odd) in quadrant 2.
+14. Rounds (§5.2): an instance whose `Draw` always returns 2 is drawn 12 times in the static pass.
+15. Backing store (§5): a building (p bit 5) at zoom 4 with `kBackingStoreMaxZoomBuildingsProps` 5 is static; at
+    zoom 5 it is dynamic.
+16. Translated update (§13.1): a scroll of more than 14/16 of the width rebuilds the frustum and empties the dirty
+    queue instead of shifting the copy.
 
 Merge cases (§6.1), default globals (merge on, 16 nodes, −2500.0), limit `+0x1E4` = INT_MAX, all modes 1 unless said:
 
@@ -763,6 +833,8 @@ buffer handles `0x00B4E1E4` (kind 0) and `0x00B4E1E8` (kind 1), and the driver `
   `+0x130` and **probes** the full size: save buffer 0, restore buffer 0, save buffer 1, restore buffer 1, each
   (0, 0, w, h, 0, 0); the first failure frees both (handles = 0). Returns handle 0 ≠ 0.
 - `DestroyBackingStore` (`0x007C2910`): no service → 0. Frees and zeroes each existing handle; returns 1.
+- `+0x64` (partial saves allowed) is set by `Init` when the driver supports partial copies and boolean 30
+  `kNoPartialBackingStoreCopies` is off (re-render3d, 2026-10-21).
 - `SaveBackingStore(x, y, w, h)` (`0x007C2960`), with the shake offsets sx = `+0x258`, sy = `+0x25C`
   (§10.3):
   1. When either offset is non-zero: srcX = x − sx; if srcX < 0 → dstX = x + sx, w −= sx, srcX = 0, and w ≤ 0
@@ -786,3 +858,53 @@ Cases: B1. `SaveBackingStore(0, 0, 800, 600)` on 800×600, no shake → slot 6 t
 B2. `+0x64` clear, `Save(10, 10, 50, 50)` → 0, nothing copied. B3. Shake (3, −2): `Restore()` →
 `Restore(0, 2, 797, 598, 3, 0)`. B4. Shake sx = 5, `Save(2, 0, 10, 600)` with `+0x64` set: srcX = −3 <0 → dstX = 7,
 w = 5, srcX = 0.
+
+---
+
+## 13. The methods §7 listed: view updates, clearing, the driver and the rest *[compat]*
+
+*Added 2026-10-21 (re-render3d), from the instruction bytes.*
+
+### 13.1 Scrolling, zooming and rotating
+
+- `AttemptTranslatedViewUpdate(dx, dy)` (`0x007CABE0`): when |dx| < 14/16 of the width and |dy| < 14/16 of the
+  height, partial copies are allowed (`+0x64`, §12), the backing store is on and holds a valid copy, the queued dirty
+  rectangles move by (−dx, dy) and the view scrolls (`DoTranslatedViewUpdate` `0x007CA4D0`: the saved copy shifts
+  and the uncovered strips are redrawn); true. Otherwise the draw frustum is rebuilt, the queue emptied, and the
+  caller redraws everything.
+- A **zoom change** (`DoViewZoomChange3`, `0x007CAA60`): the change queue is processed; the backing store is switched
+  on only below integer property 8 `kBackingStoreMaxZoomAll`; a full update is marked; the draw context takes the new
+  zoom; the quad grid is rebuilt for the new projection (`RebuildQuadGrid` `0x007C5370`: every element gets a fresh
+  rectangle; one that fits nowhere is filed in quadrant (0, 0) to (1, 1)); the draw frustum is rebuilt, the static
+  set re-evaluated (`ReevaluateBackingStoreObjectFlags`, §12), the view counter (`+0x15C`) bumped and the queue
+  emptied.
+- A **rotation change** (`DoViewRotationChange2`, `0x007CAB30`) does the same without the backing-store switch and
+  the re-evaluation.
+
+### 13.2 Single-model additions
+
+A mode-0 dirty rectangle with a model (§5) draws only that model into the static view:
+`DoSingleModelStaticDrawAddition` (`0x007C32A0`) sets the draw context's `+0x20` to 8, draws the model with the rounds
+of §5.2, then saves that rectangle into the backing store (§12).
+
+### 13.3 Clearing and backgrounds
+
+- `ClearViewport(full)` (slot 47, `0x007C3F80`): without a background picture, a depth clear, or a colour and depth
+  clear when `full` or when the ground plane does not cover the screen; with one, the picture is tiled over the
+  viewport (or the ground-plane rectangle, block-aligned) as a textured quad, then the depth is cleared.
+- `ClearViewportWithSolidColor` (slot 48), `DrawViewportRectangle` (slot 49: an untextured quad, colour `0xFF000000`
+  unless given) and `DrawTexturedViewportRectangle` (slot 50) draw in the UI camera.
+- `SetBackgroundPicture` (slots 53, 54) takes an image (uploaded with its width, height and format) or a ready
+  texture; `GetBackgroundPicture` (slot 52) returns it. `SetViewportClearColor` (slot 46) keeps the colour.
+
+### 13.4 The driver, snapshots, clipping and statistics
+
+- `SetGDriver` (slot 7, with `StaticSetGDriver` `0x007C3810`): keeps the driver and asks it for its backing-store
+  (`0x669565FE`, the global `0x00B4E1F0` of §12) and snapshot (`0xE69BFE2A`) services, then makes the backing
+  store (§12); the camera depth range is set again. `TakeSnapshot` (slots 22, 23) reads the screen through
+  the snapshot service, and the second form writes it out as an image through a Gimex factory.
+- `SetClipRect` (`0x007C3C60`, only with boolean 24 `kUseUpdateRectClipping`) sets the driver's clip and both cameras'
+  subviews to a rectangle; `UnsetClipRect` (`0x007FF0B0`) clears a camera's subview.
+- `UpdateVisibleTerrainMetrics` (`0x007C4910`, on `0x4A9F2FFE` and after city init): terrain picks at the screen
+  centre and 100 pixels around it give the view utilities their visible terrain area, clipped to the city.
+- `GetStatsString1` / `GetStatsString2` (slots 73, 74) format the frame counters (`SPS:%.1f BST:%u …`) *[summary]*.

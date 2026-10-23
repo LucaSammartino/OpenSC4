@@ -1,0 +1,178 @@
+va	name	evidence	mac_x86
+004c3810	cSC4ViewInputControlQuery::GetOccupantNameTipInfo	city-tools-input.md descriptive name, no Mac match; §2.3; 0x899AFBAD, 0x8A416A99, 0x20	
+004c3860	cSC4ViewInputControlQuery::GetRouteTravelTypes	city-tools-input.md §8.15	
+004c39a0	cSC4QueryRouteOccupantFilter::IsOccupantIncluded	city-tools-input.md descriptive name, no Mac match; §2.1; vtable 0x00A909E4	
+004c3ab0	cSC4QueryAutomatonFilter::IsOccupantTypeIncluded	city-tools-input.md descriptive name, no Mac match; §3.1; vtable 0x00A90A18	
+004c3ad0	cSC4QueryStoplightFilter::IsOccupantIncluded	city-tools-input.md descriptive name, no Mac match; §3.1; groups 0x5002, 0x5003	
+004c3b10	cSC4ViewInputControlQuery::GetLoadMeterValue	city-tools-input.md descriptive name, no Mac match; §5.1; L(used, cap)	
+004c3b90	cSC4ViewInputControlQuery::SetEditControlText	city-tools-input.md descriptive name, no Mac match; §5.2 0x1000	
+004c3c00	cSC4ViewInputControlQuery::SetStaticControlText	city-tools-input.md §8.12.4	
+004c3c50	cSC4ViewInputControlQuery::GetSliderControlValue	city-tools-input.md descriptive name, no Mac match; §5.1	
+004c3ca0	cSC4ViewInputControlQuery::SetPerformanceMeterValue	city-tools-input.md §8.12.4; property 0xEA563AB0	
+004c3d70	cSC4ViewInputControlQuery::SetOrGetSeaportTrafficVolume	city-tools-input.md descriptive name, no Mac match; §5.2 0x1015 (zone)	
+004c3e10	cSC4ViewInputControlQuery::SetOrGetLandfillUsage	city-tools-input.md descriptive name, no Mac match; §5.2 0x1026 (zone)	
+004c3e70	cSC4ViewInputControlQuery::SetOrGetGarbageBuildingEfficiency	city-tools-input.md descriptive name, no Mac match; §5.2 0x1029	
+004c3ee0	cSC4ViewInputControlQuery::SetOrGetRecyclingCenterEfficiency	city-tools-input.md descriptive name, no Mac match; §5.2 0x105E	
+004c3f90	cSC4ViewInputControlQuery::SetOrGetPowerPlantEfficiency2	city-tools-input.md descriptive name, no Mac match; §5.2 0x1034	
+004c3fd0	cSC4ViewInputControlQuery::SetOrGetTransitStationServiceQuality	city-tools-input.md descriptive name, no Mac match; §5.2 0x1041	
+004c4160	cSC4ViewInputControlQuery::GetOccupantCapacity	city-tools-input.md §8.14	
+004c4210	cSC4ViewInputControlQuery::GetLandValue	city-tools-input.md §8.12.4 0x1056; land value slot 5	
+004c4260	cSC4ViewInputControlQuery::GetRatingIn3DegreesFromPercent	city-tools-input.md §8.12.4; 33.3, 66.6	
+004c42f0	cSC4ViewInputControlQuery::SetOrGetWaterBuildingEfficiency	city-tools-input.md descriptive name, no Mac match; §5.2 0x103A, 0x106D	
+004c4340	cSC4ViewInputControlQuery::EnumFuncAddWinProc	city-tools-input.md descriptive name, no Mac match; §4.1 step 4	
+004c4370	cSC4ViewInputControlQuery::EnumFuncClearFilter	city-tools-input.md §8.12.2 step 9	
+004c4590	cSC4ViewInputControlQuery::cSC4ViewInputControlQuery	city-tools-input.md §8.1; mode, tip delay 50	
+004c4700	cSC4ViewInputControlQuery::IsDebugQueryEnabled	city-tools-input.md §8.6; Shift, Ctrl and Alt	
+004c4750	cSC4ViewInputControlQuery::RateSubjectiveSchoolGrade	city-tools-input.md descriptive name, no Mac match; §6; rating 2	
+004c47f0	cSC4ViewInputControlQuery::RateSubjectiveHospitalGrade	city-tools-input.md descriptive name, no Mac match; §6; rating 3	
+004c4890	cSC4ViewInputControlQuery::RateSubjectiveCrime	city-tools-input.md descriptive name, no Mac match; §6; rating 4	
+004c4930	cSC4ViewInputControlQuery::RateSubjectiveCommercialTraffic	city-tools-input.md descriptive name, no Mac match; §6; rating 5	
+004c4a30	cSC4ViewInputControlQuery::RateSubjectiveCommute	city-tools-input.md descriptive name, no Mac match; §6; rating 6	
+004c4ae0	cSC4ViewInputControlQuery::DoesRouteCrossCell	city-tools-input.md §8.15	
+004c4c50	cSC4ViewInputControlQuery::OnMouseUpL	city-tools-input.md §8.5	
+004c4c90	cSC4ViewInputControlQuery::PickQueriableOccupant	city-tools-input.md §8.5; renderer slot 65	
+004c4d10	cSC4ViewInputControlQuery::PickAutomaton	city-tools-input.md descriptive name, no Mac match; §3.1; vehicles and pedestrians	
+004c4dc0	cSC4ViewInputControlQuery::PickStoplightProp	city-tools-input.md §8.6	
+004c4e70	cSC4ViewInputControlQuery::MouseTipCallback	city-tools-input.md §8.5 step 7; sends 0x0A456D95	
+004c4ee0	cSC4ViewInputControlQuery::CoverageRingCallback	city-tools-input.md §8.12.2 step 3; sends 0x0A456D96	
+004c4f40	cSC4ViewInputControlQuery::PlayOccupantQuerySound	city-tools-input.md §8.13	
+004c5180	cSC4ViewInputControlQuery::SetOrGetFireStationEfficiency	city-tools-input.md descriptive name, no Mac match; §5.2 0x1001	
+004c51c0	cSC4ViewInputControlQuery::SetOrGetPoliceStationEfficiency	city-tools-input.md descriptive name, no Mac match; §5.2 0x1006	
+004c5200	cSC4ViewInputControlQuery::SetOrGetJailLoad	city-tools-input.md descriptive name, no Mac match; §5.2 0x100C	
+004c5280	cSC4ViewInputControlQuery::SetOrGetAirportAirTrafficVolume	city-tools-input.md §8.12.4 0x1011 (zone)	
+004c5310	cSC4ViewInputControlQuery::SetOrGetSeaportOccupantTrafficVolume	city-tools-input.md descriptive name, no Mac match; §5.2 0x1015	
+004c5350	cSC4ViewInputControlQuery::SetOrGetPowerPlantEfficiency	city-tools-input.md descriptive name, no Mac match; §5.2 0x102D	
+004c53a0	cSC4ViewInputControlQuery::GetCurrentOccupancyValue	city-tools-input.md §8.14	
+004c5490	cSC4ViewInputControlQuery::GetMayorRatingPercent	city-tools-input.md §8.14	
+004c55a0	cSC4ViewInputControlQuery::SetOrGetOccupantIsHistorical	city-tools-input.md §8.12.4 0x107A	
+004c5620	cSC4QueryDialogWinProc::cSC4QueryDialogWinProc	city-tools-input.md descriptive name, no Mac match; §4.1 step 4; holds the occupant	
+004c5730	cSC4ViewInputControlQuery::~cSC4ViewInputControlQuery	city-tools-input.md §8.1; deleting	
+004c5750	cSC4ViewInputControlQuery::~cSC4ViewInputControlQuery (body)	city-tools-input.md descriptive name, no Mac match; §1	
+004c57a0	cSC4ViewInputControlQuery::Init	city-tools-input.md §8.1; ids by mode, six subscriptions, callout box	
+004c5ba0	cSC4ViewInputControlQuery::SetTip	city-tools-input.md §8.11	
+004c5c90	cSC4ViewInputControlQuery::RateSubjectivePollution	city-tools-input.md descriptive name, no Mac match; §6; rating 0	
+004c5d70	cSC4ViewInputControlQuery::RateSubjectiveGarbage	city-tools-input.md descriptive name, no Mac match; §6; rating 1	
+004c67f0	cSC4ViewInputControlQuery::SetOrGetAirportOccupantAirTrafficVolume	city-tools-input.md §8.12.4 0x1011	
+004c6b10	cSC4ViewInputControlQuery::GetEditControlText	city-tools-input.md descriptive name, no Mac match; §5.2 0x1000	
+004c6bf0	cSC4ViewInputControlQuery::SetStaticControlNumeric	city-tools-input.md §8.12.4; %d	
+004c6ca0	cSC4ViewInputControlQuery::SetStaticControlNumericPercent	city-tools-input.md §8.12.4; %d%%	
+004c6d50	cSC4ViewInputControlQuery::SetStaticControlSimoleons	city-tools-input.md §8.12.4	
+004c6e30	cSC4ViewInputControlQuery::SetSliderControlValue	city-tools-input.md §8.12.4	
+004c70c0	cSC4ViewInputControlQuery::SetOrGetBuildingName	city-tools-input.md descriptive name, no Mac match; §5.2 0x1000	
+004c7200	cSC4ViewInputControlQuery::SetOrGetFireStationFunding	city-tools-input.md descriptive name, no Mac match; §5.2 0x1002	
+004c72e0	cSC4ViewInputControlQuery::SetOrGetFireStationDispatchCount	city-tools-input.md descriptive name, no Mac match; §5.2 0x1003	
+004c7350	cSC4ViewInputControlQuery::SetOrGetFireStationCost	city-tools-input.md descriptive name, no Mac match; §5.2 0x1004	
+004c7390	cSC4ViewInputControlQuery::SetOrGetPoliceStationArrests	city-tools-input.md descriptive name, no Mac match; §5.2 0x1007	
+004c73d0	cSC4ViewInputControlQuery::SetOrGetPoliceStationCrimes	city-tools-input.md descriptive name, no Mac match; §5.2 0x1008	
+004c7410	cSC4ViewInputControlQuery::SetOrGetPoliceStationFunding	city-tools-input.md descriptive name, no Mac match; §5.2 0x1009	
+004c74f0	cSC4ViewInputControlQuery::SetOrGetPoliceStationDispatchCount	city-tools-input.md descriptive name, no Mac match; §5.2 0x100A	
+004c7560	cSC4ViewInputControlQuery::SetOrGetPoliceStationCost	city-tools-input.md descriptive name, no Mac match; §5.2 0x100B	
+004c75a0	cSC4ViewInputControlQuery::SetOrGetJailComfortableCapacity	city-tools-input.md descriptive name, no Mac match; §5.2 0x100D; 0.8 x capacity	
+004c75f0	cSC4ViewInputControlQuery::SetOrGetJailInmates	city-tools-input.md descriptive name, no Mac match; §5.2 0x100E	
+004c7660	cSC4ViewInputControlQuery::SetOrGetJailUpkeepCost	city-tools-input.md descriptive name, no Mac match; §5.2 0x100F	
+004c7690	cSC4ViewInputControlQuery::SetOrGetAirportMaintenanceCost	city-tools-input.md §8.12.4 0x1013 (zone)	
+004c76f0	cSC4ViewInputControlQuery::SetOrGetAirportUsage	city-tools-input.md descriptive name, no Mac match; §5.2 0x107B (zone)	
+004c7760	cSC4ViewInputControlQuery::SetOrGetAirportCapacity	city-tools-input.md descriptive name, no Mac match; §5.2 0x107C (zone)	
+004c77d0	cSC4ViewInputControlQuery::SetOrGetSeaportUsage	city-tools-input.md descriptive name, no Mac match; §5.2 0x107D (zone)	
+004c7840	cSC4ViewInputControlQuery::SetOrGetSeaportCapacity	city-tools-input.md descriptive name, no Mac match; §5.2 0x107E (zone)	
+004c78b0	cSC4ViewInputControlQuery::SetOrGetSeaportMaintenanceCost	city-tools-input.md descriptive name, no Mac match; §5.2 0x1078 (zone)	
+004c7910	cSC4ViewInputControlQuery::SetOrGetOccupantWaterPollution	city-tools-input.md descriptive name, no Mac match; §5.2 0x1016	
+004c7980	cSC4ViewInputControlQuery::SetOrGetSchoolGrade	city-tools-input.md descriptive name, no Mac match; §5.2 0x1017	
+004c7a70	cSC4ViewInputControlQuery::SetOrGetSchoolStaffFunding	city-tools-input.md descriptive name, no Mac match; §5.2 0x1018	
+004c7bb0	cSC4ViewInputControlQuery::SetOrGetSchoolBusFunding	city-tools-input.md descriptive name, no Mac match; §5.2 0x1019	
+004c7ce0	cSC4ViewInputControlQuery::SetOrGetCivicBuildingEstimatedCapacity	city-tools-input.md descriptive name, no Mac match; §5.2 0x101B, 0x101D, 0x101F, 0x1024	
+004c7d30	cSC4ViewInputControlQuery::SetOrGetSchoolServed	city-tools-input.md descriptive name, no Mac match; §5.2 0x101C, 0x101E	
+004c7e10	cSC4ViewInputControlQuery::SetOrGetHospitalGrade	city-tools-input.md descriptive name, no Mac match; §5.2 0x1020	
+004c7f00	cSC4ViewInputControlQuery::SetOrGetHospitalStaffFunding	city-tools-input.md descriptive name, no Mac match; §5.2 0x1021	
+004c8030	cSC4ViewInputControlQuery::SetOrGetHospitalAmbulanceFunding	city-tools-input.md descriptive name, no Mac match; §5.2 0x1022	
+004c8160	cSC4ViewInputControlQuery::SetOrGetCivicBuildingEstimatedStaff	city-tools-input.md descriptive name, no Mac match; §5.2 0x101A, 0x1023	
+004c81b0	cSC4ViewInputControlQuery::SetOrGetHospitalServed	city-tools-input.md descriptive name, no Mac match; §5.2 0x1025	
+004c8290	cSC4ViewInputControlQuery::SetOrGetLandfillGarbageAmount	city-tools-input.md descriptive name, no Mac match; §5.2 0x1027 (zone)	
+004c82f0	cSC4ViewInputControlQuery::SetOrGetLandfillBudget	city-tools-input.md descriptive name, no Mac match; §5.2 0x1028 (zone)	
+004c8330	cSC4ViewInputControlQuery::SetOrGetIncineratorUsagePercent	city-tools-input.md descriptive name, no Mac match; §5.2 0x102A	
+004c83b0	cSC4ViewInputControlQuery::SetOrGetIncineratorGarbageAmount	city-tools-input.md descriptive name, no Mac match; §5.2 0x102B	
+004c8420	cSC4ViewInputControlQuery::SetOrGetOccupantAirPollution	city-tools-input.md descriptive name, no Mac match; §5.2 0x102C	
+004c8470	cSC4ViewInputControlQuery::SetOrGetRecyclingPercent	city-tools-input.md descriptive name, no Mac match; §5.2 0x105F	
+004c8550	cSC4ViewInputControlQuery::SetOrGetRecyclingAmountPerCenter	city-tools-input.md descriptive name, no Mac match; §5.2 0x1060	
+004c85f0	cSC4ViewInputControlQuery::SetOrGetWasteToEnergyGarbageAmount	city-tools-input.md descriptive name, no Mac match; §5.2 0x1033	
+004c8660	cSC4ViewInputControlQuery::SetOrGetPowerPlantUsagePercent	city-tools-input.md descriptive name, no Mac match; §5.2 0x102E, 0x1035	
+004c86d0	cSC4ViewInputControlQuery::SetOrGetPowerPlantMaxOutput	city-tools-input.md descriptive name, no Mac match; §5.2 0x102F, 0x1036	
+004c8710	cSC4ViewInputControlQuery::SetOrGetPowerPlantOutput	city-tools-input.md descriptive name, no Mac match; §5.2 0x1030, 0x1037	
+004c8760	cSC4ViewInputControlQuery::SetOrGetPowerPlantFunding	city-tools-input.md descriptive name, no Mac match; §5.2 0x1063	
+004c8880	cSC4ViewInputControlQuery::SetOrGetWaterBuildingUsagePercent	city-tools-input.md descriptive name, no Mac match; §5.2 0x103B	
+004c8900	cSC4ViewInputControlQuery::SetOrGetWaterBuildingMaxOutput	city-tools-input.md descriptive name, no Mac match; §5.2 0x103C	
+004c8950	cSC4ViewInputControlQuery::SetOrGetWaterBuildingOutput	city-tools-input.md descriptive name, no Mac match; §5.2 0x103D	
+004c89a0	cSC4ViewInputControlQuery::SetOrGetWaterBuildingUsedOutput	city-tools-input.md descriptive name, no Mac match; §5.2 0x103E	
+004c89f0	cSC4ViewInputControlQuery::SetOrGetWaterBuildingCondition	city-tools-input.md descriptive name, no Mac match; §5.2 0x1073	
+004c8a60	cSC4ViewInputControlQuery::SetOrGetTransitStationUsagePercent	city-tools-input.md descriptive name, no Mac match; §5.2 0x1042	
+004c8b30	cSC4ViewInputControlQuery::SetOrGetTransitStationMaintenanceCost	city-tools-input.md descriptive name, no Mac match; §5.2 0x1043	
+004c8bc0	cSC4ViewInputControlQuery::SetOrGetTransitStationUsage	city-tools-input.md descriptive name, no Mac match; §5.2 0x1044	
+004c8c50	cSC4ViewInputControlQuery::SetOrGetTransitStationCapacity	city-tools-input.md descriptive name, no Mac match; §5.2 0x1045	
+004c8ce0	cSC4ViewInputControlQuery::SetOrGetTransitStationGlobalFunding	city-tools-input.md §8.12.4 0x1046	
+004c8d40	cSC4ViewInputControlQuery::SetOrGetTransitStationLocalCost	city-tools-input.md descriptive name, no Mac match; §5.2 0x1047	
+004c8ff0	cSC4ViewInputControlQuery::SetOrGetRCIBuildingCurrentOccupancy	city-tools-input.md §8.12.4 0x1051	
+004c90a0	cSC4ViewInputControlQuery::SetOrGetRCIBuildingMaxOccupancy	city-tools-input.md §8.12.4 0x1052	
+004c9120	cSC4ViewInputControlQuery::SetOrGetRCIBuildingLandValue	city-tools-input.md §8.12.4 0x1056	
+004c9200	cSC4ViewInputControlQuery::SetOrGetResidentialBuildingMayorApproval	city-tools-input.md §8.12.4 0x1058	
+004c92a0	cSC4ViewInputControlQuery::SetOrGetCommercialServiceBuildingCustomers	city-tools-input.md §8.12.4 0x105C	
+004c9310	cSC4ViewInputControlQuery::SetOrGetOccupantCost	city-tools-input.md §8.12.4 0x1010, 0x106C	
+004c9e60	cSC4ViewInputControlQuery::SetOrGetAirportOccupantMaintenanceCost	city-tools-input.md §8.12.4 0x1013	
+004c9ea0	cSC4ViewInputControlQuery::SetOrGetAirportOccupantUsage	city-tools-input.md descriptive name, no Mac match; §5.2 0x107B	
+004c9ee0	cSC4ViewInputControlQuery::SetOrGetAirportOccupantCapacity	city-tools-input.md descriptive name, no Mac match; §5.2 0x107C	
+004c9f20	cSC4ViewInputControlQuery::SetOrGetSeaportOccupantUsage	city-tools-input.md descriptive name, no Mac match; §5.2 0x107D	
+004c9f60	cSC4ViewInputControlQuery::SetOrGetSeaportOccupantCapacity	city-tools-input.md descriptive name, no Mac match; §5.2 0x107E	
+004c9fa0	cSC4ViewInputControlQuery::SetOrGetSeaportOccupantMaintenanceCost	city-tools-input.md descriptive name, no Mac match; §5.2 0x1078	
+004c9ff0	cSC4ViewInputControlQuery::SetOrGetPowerPlantUsedOutput	city-tools-input.md descriptive name, no Mac match; §5.2 0x1031, 0x1038	
+004ca040	cSC4ViewInputControlQuery::SetOrGetPowerPlantCondition	city-tools-input.md descriptive name, no Mac match; §5.2 0x1061, 0x1062	
+004ca090	cSC4ViewInputControlQuery::SetOrGetWaterBuildingPumpCondition	city-tools-input.md §8.12.4 0x1040; the polluted flag	
+004ca2c0	cSC4ViewInputControlQuery::SetOrGetOccupantIsPowered	city-tools-input.md descriptive name, no Mac match; §5.2 0x1076	
+004ca390	cSC4ViewInputControlQuery::SetOrGetOccupantIsWatered	city-tools-input.md descriptive name, no Mac match; §5.2 0x1077	
+004ca460	cSC4ViewInputControlQuery::ShowAllRoutesThatIntersectCityRect	city-tools-input.md §8.15 (outline)	
+004caa60	cSC4ViewInputControlQuery::GetBuildingOccupantPaths	city-tools-input.md §8.15	
+004caae0	cSC4ViewInputControlQuery::GetNetworkOccupantPaths	city-tools-input.md §8.15	
+004cac50	cSC4ViewInputControlQuery::GetOccupantPaths	city-tools-input.md §8.15	
+004cacc0	cSC4ViewInputControlQuery::SetHighlightState	city-tools-input.md §8.5 step 5	
+004cade0	cSC4ViewInputControlQuery::SetOrGetAirportNoisePollution	city-tools-input.md §8.12.4 0x1012 (zone, outline)	
+004cb740	cSC4ViewInputControlQuery::SetOrGetGoofyStat	city-tools-input.md §8.12.4; curve of GetMayorRating	
+004cba80	cSC4ViewInputControlQuery::Shutdown	city-tools-input.md §8.1	
+004cbc70	cSC4ViewInputControlQuery::OnMouseMove	city-tools-input.md §8.5	
+004cc0b0	cSC4ViewInputControlQuery::OnMouseExit	city-tools-input.md §8.5	
+004cc120	cSC4ViewInputControlQuery::SetOrGetAirportOccupantNoisePollution	city-tools-input.md §8.12.4 0x1012	
+004cc160	cSC4ViewInputControlQuery::SetOrGetAirportLostLuggage	city-tools-input.md §8.12.4 0x1014	
+004cc240	cSC4ViewInputControlQuery::SetOrGetControlValue	city-tools-input.md §8.13	
+004cc660	cSC4ViewInputControlQuery::EnumFuncFillCellControl	city-tools-input.md descriptive name, no Mac match; §4.2; fill = true	
+004cc6a0	cSC4ViewInputControlQuery::EnumFuncWriteBackCellControl	city-tools-input.md descriptive name, no Mac match; §4.2; fill = false	
+004cc6e0	cSC4ViewInputControlQuery::DoNeighborConnectionQueryDialog	city-tools-input.md §8.13 (outline)	
+004cccb0	cSC4ViewInputControlQuery::DoZoneBasedQueryDialog	city-tools-input.md §8.13	
+004cdc80	cSC4ViewInputControlQuery::SetOrGetAirportOccupantLostLuggage	city-tools-input.md §8.12.4 0x1014	
+004cdcc0	cSC4ViewInputControlQuery::SetOrGetResidentialBuildingMySimicon	city-tools-input.md §8.12.4 0x105B (outline)	
+004cf8a0	cSC4ViewInputControlQuery::GetNetworkOccupantSummaryInfo	city-tools-input.md §8.11 (outline)	
+004d0190	cSC4ViewInputControlQuery::GetBuildingOccupantTrafficInfo	city-tools-input.md §8.11, §8.15 (outline)	
+004d07c0	cSC4ViewInputControlQuery::GetNetworkOccupantTrafficInfo	city-tools-input.md §8.11, §8.15 (outline)	
+004d0d30	cSC4ViewInputControlQuery::SetStaticControlCostPerUnit	city-tools-input.md descriptive name, no Mac match; §5.1	
+004d0ee0	cSC4ViewInputControlQuery::SetOrGetWhyOccupantAbandoned	city-tools-input.md §8.12.4 0x1079	
+004d10f0	cSC4ViewInputControlQuery::SetOrGetPowerPlantCostPerUnit	city-tools-input.md descriptive name, no Mac match; §5.2 0x1032, 0x1039	
+004d1190	cSC4ViewInputControlQuery::SetOrGetWaterBuildingCostPerUnit	city-tools-input.md descriptive name, no Mac match; §5.2 0x103F	
+004d12a0	cSC4ViewInputControlQuery::WriteDetailedDebugInfo	city-tools-input.md §8.12.1 (outline); Query.txt	
+004d3260	cSC4ViewInputControlQuery::GetBuildingWealth	city-tools-input.md §8.14	
+004d32d0	cSC4ViewInputControlQuery::FindBestDeveloper	city-tools-input.md §8.14	
+004d3470	cSC4ViewInputControlQuery::GetSubjectiveOccupantRatingString	city-tools-input.md §8.14	
+004d3500	cSC4ViewInputControlQuery::SetOrGetRCIBuildingWealthLevel	city-tools-input.md §8.12.4 0x1053, §6	
+004d3730	cSC4ViewInputControlQuery::SetOrGetOccupantPollutionRating	city-tools-input.md descriptive name, no Mac match; §5.2 0x1054; rating 0	
+004d37a0	cSC4ViewInputControlQuery::SetOrGetOccupantGarbageRating	city-tools-input.md descriptive name, no Mac match; §5.2 0x1075; rating 1	
+004d3810	cSC4ViewInputControlQuery::SetOrGetOccupantCrimeRating	city-tools-input.md descriptive name, no Mac match; §5.2 0x1055; rating 4	
+004d3880	cSC4ViewInputControlQuery::SetOrGetResidentialBuildingCommute	city-tools-input.md §8.12.4 0x1057	
+004d3940	cSC4ViewInputControlQuery::SetOrGetOccupantTrafficRating	city-tools-input.md descriptive name, no Mac match; §5.2 0x1074; rating 5	
+004d39b0	cSC4ViewInputControlQuery::SetOrGetOccupantSchoolRating	city-tools-input.md descriptive name, no Mac match; §5.2 0x1059; rating 2	
+004d3a20	cSC4ViewInputControlQuery::SetOrGetOccupantHospitalRating	city-tools-input.md descriptive name, no Mac match; §5.2 0x105A; rating 3	
+004d3ae0	cSC4ViewInputControlQuery::EnumFuncFillControl	city-tools-input.md descriptive name, no Mac match; §4.1 step 5; fill = true	
+004d3b40	cSC4ViewInputControlQuery::EnumFuncRefreshControl	city-tools-input.md descriptive name, no Mac match; §4.1 step 6	
+004d3bd0	cSC4ViewInputControlQuery::EnumFuncWriteBackControl	city-tools-input.md descriptive name, no Mac match; §4.1 step 8; fill = false	
+004d3c30	cSC4ViewInputControlQuery::DoQueryDialog	city-tools-input.md §8.12.2	
+004d3f40	cSC4QueryDialogWinProc::DoWinProcMessage	city-tools-input.md §8.13	
+004d4140	cSC4ViewInputControlQuery::DescribePick	city-tools-input.md §8.12.1	
+004d4d70	cSC4ViewInputControlQuery::OnMouseDownL	city-tools-input.md §8.6	
+004d4fd0	cSC4ViewInputControlQuery::GetLotHeadlines	city-tools-input.md §8.11 (outline)	
+004d5e30	cSC4ViewInputControlQuery::GetBuildingOccupantTipInfo	city-tools-input.md §8.11 (outline)	
+004d6c70	cSC4ViewInputControlQuery::GetTerrainSummaryInfo	city-tools-input.md §8.11; zone strings	
+004d7160	cSC4ViewInputControlQuery::DoMessage	city-tools-input.md §8.7	

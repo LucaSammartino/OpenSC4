@@ -1,0 +1,36 @@
+va	name	evidence	mac_x86
+005f7650	cSC4TextDecalOccupant::QueryInterface	lot-records.md §10.4; 0x2B3B7D86 gives the object	
+005f76c0	cSC4TextDecalOccupant::Shutdown	lot-records.md §10.4	
+005f77c0	cSC4TextDecalOccupant::RemoveDecals	lot-records.md §10.4; overlay slot 15	
+005f7810	cSC4TextDecalOccupant::UpdateDecal	lot-records.md §10.4; w = 16 r h, angle table	
+005f7a50	cSC4TextDecalOccupant::MoveDecal	lot-records.md §10.4; overlay slot 12	
+005f7aa0	cSC4TextDecalOccupant::SetPosition	lot-records.md §10.4	
+005f7b10	cSC4TextDecalOccupant::SetTextHeight	lot-records.md §10.4; 0 < h < 8	
+005f7b50	cSC4TextDecalOccupant::SetTextColor	lot-records.md §10.4; 0.0001 threshold	
+005f7c00	cSC4TextDecalOccupant::SetAlpha	lot-records.md §10.4	
+005f7c80	cSC4TextDecalOccupant::UpdateOverlayManager	lot-records.md §10.4; managers 0/1 or 2/3	
+005f7d60	cSC4TextDecalOccupant::SetOrientation	lot-records.md §10.4	
+005f7d80	cSC4TextDecalOccupant::operator.new	lot-records.md §10.4; pool	
+005f7db0	cSC4TextDecalOccupant::Write	lot-records.md §10.4; version 3	
+005f7e50	cSC4TextDecalOccupant::Read	lot-records.md §10.4	
+005f7f40	cSC4TextDecalOccupant::Init	lot-records.md §10.4; prop type 0xCB79919B	
+005f8030	cSC4TextDecalOccupant::DoMessage	lot-records.md §10.4	
+005f8170	cSC4TextDecalOccupant::SetDynamic	lot-records.md §10.4	
+005f8190	cSC4TextDecalOccupant::UpdateTexture	lot-records.md §10.4; font 0xCC1FD62C	
+005f81f0	cSC4TextDecalOccupant::SetAllFlags	lot-records.md §10.4; flag 2 needs visible labels	
+005f82e0	cSC4TextDecalOccupant::SetText	lot-records.md §10.4	
+005f8300	cSC4TextDecalOccupant::cSC4TextDecalOccupant	lot-records.md §10.4	
+005f8410	cSC4TextDecalOccupant::GetText	lot-records.md §10.4	
+005f8430	cSC4TextDecalOccupant::GetGZCLSID	lot-records.md §10.4; 0x8B79C707	
+005f8440	cSC4TextDecalOccupant::QueryInterface (thunk at +4)	lot-records.md descriptive name, no Mac match; §10.4	
+005f8450	cSC4TextDecalOccupant::QueryInterface (thunk at +8)	lot-records.md descriptive name, no Mac match; §10.4	
+005f8460	cSC4TextDecalOccupant::QueryInterface (thunk at +0xC)	lot-records.md descriptive name, no Mac match; §10.4	
+005f8470	cSC4TextDecalOccupant::QueryInterface (thunk at +0x10)	lot-records.md descriptive name, no Mac match; §10.4	
+005f8480	cSC4TextDecalOccupant::QueryInterface (thunk at +0x14)	lot-records.md descriptive name, no Mac match; §10.4	
+005f8490	cSC4TextDecalOccupant::~cSC4TextDecalOccupant (thunk at +0x14)	lot-records.md descriptive name, no Mac match; §10.4	
+005f84a0	cSC4TextDecalOccupant::QueryInterface (thunk at +0x28)	lot-records.md descriptive name, no Mac match; §10.4	
+005f84b0	cSC4TextDecalOccupant::Write (thunk at +0x14)	lot-records.md descriptive name, no Mac match; §10.4	
+005f84c0	cSC4TextDecalOccupant::Read (thunk at +0x14)	lot-records.md descriptive name, no Mac match; §10.4	
+005f84d0	GZCOM_CreatecSC4TextDecalOccupant	lot-records.md §10.4	
+005f8510	cSC4TextDecalOccupant::~cSC4TextDecalOccupant	lot-records.md §10.4; deleting destructor, back to the pool	
+005f8570	cSC4TextDecalOccupant::~cSC4TextDecalOccupant (body)	lot-records.md descriptive name, no Mac match; §10.4	

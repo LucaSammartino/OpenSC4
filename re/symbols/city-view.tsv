@@ -1,0 +1,172 @@
+va	name	evidence	mac_x86
+0043fd00	cSC4View3DWin::GetRenderer	view3d-window.md §6d	
+004b9070	cSC4ViewInputControlDemolish::cSC4ViewInputControlDemolish	view3d-window.md §6l; writes the class vtable	
+00762e70	cSC4AdvisorPopupTracker::cSC4AdvisorPopupTracker	view3d-window.md §6l; advisors.md; writes both vtables	
+00769750	cSC4BuildingSelectWinProc::cSC4BuildingSelectWinProc	view3d-window.md §6l; writes the class vtable	
+0076cfe0	cSC4GraphsViewWinProc::cSC4GraphsViewWinProc	view3d-window.md §6l; writes vtable_1	
+0076d080	cSC4GraphsViewWinProc::~cSC4GraphsViewWinProc	view3d-window.md §6l; resets vtable_1, Shutdown	
+00774550	cSC4PanelUIWinProc::cSC4PanelUIWinProc	view3d-window.md §6l; vtable 0x00AB51E4, one zero field	
+007e5630	cSC4View3DWin::QueryInterface	view3d-window.md §1	
+007e56d0	cSC4View3DWin::AddRef	view3d-window.md §1	
+007e56e0	cSC4View3DWin::Release	view3d-window.md §1	
+007e5700	cSC4View3DWin::SetKeyAccelerator	view3d-window.md §6d	
+007e5740	cSC4View3DWin::ScrollStop	view3d-window.md §6f	
+007e5780	cSC4View3DWin::CanZoomIn	view3d-window.md §6f	
+007e57a0	cSC4View3DWin::CanZoomOut	view3d-window.md §6f	
+007e57c0	cSC4View3DWin::GetCurrentViewFilterInfo	view3d-window.md §6f	
+007e57e0	cSC4View3DWin::GetCurrentViewLevelInfo	view3d-window.md §6f	
+007e57f0	cSC4View3DWin::GetCurrentViewLevel	view3d-window.md §6f	
+007e5800	cSC4View3DWin::SetCurrentViewLevel	view3d-window.md §6f	
+007e5820	cSC4View3DWin::RemoveAllViewInputControls	view3d-window.md §6e	
+007e5840	cSC4View3DWin::PickTerrain	view3d-window.md §6f	
+007e5890	cSC4View3DWin::PickOccupant	view3d-window.md §6f	
+007e5900	cSC4View3DWin::GetTerrainQueryEnabled	view3d-window.md §6d, §3.1	
+007e5910	cSC4View3DWin::InvokeLandscapeTool	view3d-window.md §6i	
+007e5960	cSC4View3DWin::IsCatalogItemWrongViewLevel	view3d-window.md §6i descriptive name, no Mac match	
+007e59b0	cSC4View3DWin::UpdateSpeedButtons	view3d-window.md §6j	
+007e5b00	cSC4View3DWin::UpdateZoomButtons	view3d-window.md §6f	
+007e5b40	cSC4View3DWin::DoTemporarySimHiddenPause	view3d-window.md §6f	
+007e5b70	cSC4View3DWin::DoTemporarySimHiddenResume	view3d-window.md §6f	
+007e5ba0	cSC4View3DWin::GZOnCommand	view3d-window.md §1	
+007e5bb0	cSC4View3DWin::CreateProgressScreen	view3d-window.md §3	
+007e5c10	cSC4View3DWin::InvokeSecondaryMenu	view3d-window.md §6i, §6i; ui-windows.md §4.3	
+007e5d20	cSC4View3DWin::CloseSecondaryMenu	ui-windows.md §4.2	
+007e5d80	cSC4View3DWin::InvokeTertiaryMenu	view3d-window.md §6i; ui-windows.md §4.4	
+007e5e90	cSC4View3DWin::CloseTertiaryMenu	ui-windows.md §4.1	
+007e5f40	cSC4View3DWin::ChangeTerrainType	view3d-window.md §6f	
+007e5fb0	cSC4View3DWin::ToggleContourDisplay	view3d-window.md §6f	
+007e60b0	cSC4View3DWin::GetViewManager	ui-windows.md §3.2	
+007e60e0	cSC4View3DWin::SetZoom	view3d-window.md §6f	
+007e6150	cSC4View3DWin::SetZoomLimits	view3d-window.md §6f	
+007e61d0	cSC4View3DWin::SetRotation	view3d-window.md §6f	
+007e6220	cSC4View3DWin::RotateLeft	view3d-window.md §6f	
+007e6270	cSC4View3DWin::RotateRight	view3d-window.md §6f	
+007e62c0	cSC4View3DWin::ZoomIn	view3d-window.md §6f	
+007e6320	cSC4View3DWin::ZoomOut	view3d-window.md §6f	
+007e6380	cSC4View3DWin::SetZoomAndRotation	view3d-window.md §6f	
+007e63f0	cSC4View3DWin::SetCurrentViewFilterInfo	view3d-window.md §6f	
+007e6500	cSC4View3DWin::SetCurrentViewLevelInfo	view3d-window.md §6f	
+007e65e0	cSC4View3DWin::GetCurrentViewInputControl	view3d-window.md §6e	
+007e6600	cSC4View3DWin::GZOnCharacter	view3d-window.md §6c	
+007e66d0	cSC4View3DWin::ProcessKeyDown	view3d-window.md §6c	
+007e67d0	cSC4View3DWin::ProcessKeyUp	view3d-window.md §6c	
+007e68d0	cSC4View3DWin::GZOnMouseDownL	view3d-window.md §6c	
+007e6a00	cSC4View3DWin::GZOnMouseDownR	view3d-window.md §6c	
+007e6b50	cSC4View3DWin::GZOnMouseWheel	view3d-window.md §6c	
+007e6c60	cSC4View3DWin::RecalcScrollVelocity	view3d-window.md §6f	
+007e6da0	cSC4View3DWin::InvokeZoningTool	view3d-window.md §6i	
+007e6e00	cSC4View3DWin::DoBudgetFailure	view3d-window.md §6h; modal-dialogs.md §4.1	
+007e6e40	cSC4View3DWin::UpdateAmbientLightLevel	view3d-window.md §6j	
+007e6ee0	cSC4View3DWin::UpdateDayNightButtons	view3d-window.md §6i	
+007e6f60	cSC4View3DWin::ShowMayorSubPanel	view3d-window.md §6h	
+007e70c0	cSC4View3DWin::DoDayNightMenu	view3d-window.md §6i	
+007e7130	cSC4View3DWin::DoDisasterCopingMenu	view3d-window.md §6i	
+007e7220	cSC4View3DWin::SetCostIndicatorAlpha	view3d-window.md §6j	
+007e7270	cSC4View3DWin::InvokeSecondaryMenu	view3d-window.md §6i; the catalog-view variant of ui-windows.md §4.3	
+007e75b0	cSC4View3DWin::RunGlobalTerrainTool	view3d-window.md §6i	
+007e77f0	cSC4View3DWin::HideMissionStatusPanel	view3d-window.md §6j	
+007e7830	cSC4View3DWin::HandleAdviceLinkMessage	view3d-window.md §6	
+007e7f90	cSC4View3DWin::KillKeyboardScrolling	view3d-window.md §6f	
+007e7fb0	cSC4View3DWin::RemovePersistentViewInputControl	view3d-window.md §6e	
+007e8030	cSC4View3DWin::RemoveAllPersistentViewInputControls	view3d-window.md §6e	
+007e8090	cSC4View3DWin::SendViewInputControlChangeMessage	view3d-window.md §6e	
+007e8170	cSC4View3DWin::GZOnMouseUpL	view3d-window.md §6c	
+007e82e0	cSC4View3DWin::GZOnMouseUpR	view3d-window.md §6c	
+007e8510	cSC4View3DWin::UpdateMayorRatingBar	view3d-window.md §6j	
+007e8a90	cSC4View3DWin::UpdateAlertBorder	view3d-window.md §6j	
+007e8b90	cSC4View3DWin::ShowPanel	view3d-window.md §6h	
+007e8ca0	cSC4View3DWin::HidePanel	view3d-window.md §6h	
+007e8e40	cSC4View3DWin::CursorTextChanged	view3d-window.md §6j	
+007e8f30	cSC4View3DWin::UpdateCostIndicator	view3d-window.md §6j	
+007e9090	cSC4View3DWin::UpdateCursorTextPositions	view3d-window.md §6j	
+007e90f0	cSC4View3DWin::SetCursorTextPosition3D	view3d-window.md §6j	
+007e9150	cSC4View3DWin::ObliterateCity	view3d-window.md §6h	
+007e91e0	cSC4View3DWin::MinimizeUI	view3d-window.md §6h	
+007e9390	cSC4View3DWin::RemoveCurrentViewInputControl	view3d-window.md §6e	
+007e9460	cSC4View3DWin::GZOnMouseMove	view3d-window.md §6c, §6f	
+007e96e0	cSC4View3DWin::GZOnMouseExit	view3d-window.md §6c	
+007e9780	cSC4View3DWin::DoPreCityShutdown	view3d-window.md §4 descriptive name, no Mac match; message 0x26D31EC2	
+007e97a0	cSC4View3DWin::DoCityObliterated	view3d-window.md §6h	
+007e9900	cSC4View3DWin::Init	view3d-window.md §3	
+007e9db0	cSC4View3DWin::InvokeDisaster	view3d-window.md §6i	
+007e9fa0	cSC4View3DWin::InvokeCatalogItemCommand	view3d-window.md §6i	
+007ea5b0	cSC4View3DWin::DoSave	view3d-window.md §6k	
+007ea6e0	cSC4View3DWin::UpdateSimulationClock	view3d-window.md §6j	
+007ea810	cSC4View3DWin::Update24HourClockHover	view3d-window.md §6j	
+007ea970	cSC4View3DWin::UpdateBudget	view3d-window.md §6j	
+007eaaa0	cSC4View3DWin::UpdatePopulation	view3d-window.md §6j	
+007eab60	cSC4View3DWin::UpdateCityName	view3d-window.md §6j	
+007eabf0	cSC4View3DWin::UpdateProgressMessage	view3d-window.md §6a	
+007eac70	cSC4View3DWin::RenderCostIndicator	view3d-window.md §6j	
+007eaeb0	cSC4View3DWin::InvokeTertiaryMenu	view3d-window.md §6i; the catalog-view popup, 6 arguments	
+007eb320	cSC4View3DWin::DoEstablishCityDialog	view3d-window.md §6h	
+007eb850	cSC4View3DWin::GetGlobalEffectTriggerState	view3d-window.md §6k	
+007eb8a0	cSC4View3DWin::RetractGlobalEffectTrigger	view3d-window.md §6k	
+007eb970	cSC4View3DWin::UpdateMissionStatusPanel	view3d-window.md §6j	
+007ebb20	cSC4View3DWin::UpdateMissionProgress	view3d-window.md §6j	
+007ebd70	cSC4View3DWin::SetCurrentViewInputControl	view3d-window.md §6e	
+007ebea0	cSC4View3DWin::AddPersistentViewInputControl	view3d-window.md §6e	
+007ebf30	cSC4View3DWin::DoCityEstablished	view3d-window.md §6h	
+007ebfa0	cSC4View3DWin::DoLoad	view3d-window.md §6k	
+007ec0b0	cSC4View3DWin::Update24HourClock	view3d-window.md §6j	
+007ec2d0	cSC4View3DWin::DoPanelCommandGUI	view3d-window.md §6h	
+007ec620	cSC4View3DWin::DoLandscapeCatalogView	view3d-window.md §6i	
+007ec680	cSC4View3DWin::DoFloraCatalogView	view3d-window.md §6i	
+007ec6e0	cSC4View3DWin::DoZoneCatalogView	view3d-window.md §6i	
+007ec740	cSC4View3DWin::DoZoningMenu	view3d-window.md §6i	
+007ec800	cSC4View3DWin::SetCostIndicator	view3d-window.md §6j	
+007ec900	cSC4View3DWin::ClearCostIndicator	view3d-window.md §6j	
+007ec980	cSC4View3DWin::AddAutomataToItemList	view3d-window.md §6i	
+007ecce0	cSC4View3DWin::AssertGlobalEffectTrigger	view3d-window.md §6k	
+007ecda0	cSC4View3DWin::SetRenderProperties	view3d-window.md §3.1	
+007ecf60	cSC4View3DWin::ShowMissionStatusPanel	view3d-window.md §6j	
+007ed0f0	cSC4View3DWin::DoPostCityInit	view3d-window.md §6a	
+007ed720	cSC4View3DWin::DoLandscapeMenu	view3d-window.md §6i	
+007edcd0	cSC4View3DWin::DoEarnedVehicleCatalogView	view3d-window.md §6i	
+007ede30	cSC4View3DWin::SetRenderPropertiesStatic	view3d-window.md §6f, §3.1	
+007ede50	cSC4View3DWin::ClearCursorTextEntries	view3d-window.md §6j descriptive name, no Mac match	
+007edeb0	cSC4View3DWin::AddGUI	view3d-window.md §6b	
+007ef200	cSC4View3DWin::RemoveGUI	view3d-window.md §6b	
+007ef610	cSC4View3DWin::DoVehicleMenu	view3d-window.md §6i	
+007ef7a0	cSC4View3DWin::ClearCursorText	view3d-window.md §6j	
+007ef820	cSC4View3DWin::ReadTunableValues	view3d-window.md §6f	
+007eff40	cSC4View3DWin::AddBuildingsToItemList	view3d-window.md §6i, §3.1	
+007f06b0	cSC4View3DWin::CreateBuildingMenu	view3d-window.md §6i	
+007f0840	cSC4View3DWin::AddWinAnimationRecorder	view3d-window.md §6g, §3.1	
+007f0a70	cSC4View3DWin::cSC4View3DWin	view3d-window.md §2	
+007f0fe0	cSC4View3DWin::GetModelMaker	view3d-window.md §6d	
+007f0ff0	cSC4View3DWin::SetCostIndicator	view3d-window.md §6j	
+007f1010	cSC4View3DWin::GetCoverageHelper	view3d-window.md §6l	
+007f1020	cSC4View3DWin::SetLastSelectedBuilding	view3d-window.md §6d	
+007f1040	cSC4View3DWin::SetLastSelectedLot	view3d-window.md §6d	
+007f1060	cSC4View3DWin::GetLastSelectedBuilding	view3d-window.md §6d	
+007f1080	cSC4View3DWin::GetLastSelectedLot	view3d-window.md §6d	
+007f10a0	cSC4View3DWin::QueryInterface (thunk at +4)	view3d-window.md §1 descriptive name	
+007f10b0	cSC4View3DWin::AddRef (thunk at +4)	view3d-window.md §1 descriptive name	
+007f10c0	cSC4View3DWin::Release (thunk at +4)	view3d-window.md §1 descriptive name	
+007f10d0	cSC4View3DWin::QueryInterface (thunk at +8)	view3d-window.md §1 descriptive name	
+007f10e0	cSC4View3DWin::AddRef (thunk at +8)	view3d-window.md §1 descriptive name	
+007f10f0	cSC4View3DWin::Release (thunk at +8)	view3d-window.md §1 descriptive name	
+007f1100	cSC4View3DWin::QueryInterface (thunk at +0xC)	view3d-window.md §1 descriptive name	
+007f1110	cSC4View3DWin::AddRef (thunk at +0xC)	view3d-window.md §1 descriptive name	
+007f1120	cSC4View3DWin::Release (thunk at +0xC)	view3d-window.md §1 descriptive name	
+007f1140	cSC4View3DWin::~cSC4View3DWin (complete)	view3d-window.md §4 descriptive name; called by 0x007F3E30	
+007f1320	cSC4View3DWin::Shutdown	view3d-window.md §4	
+007f1640	cSC4View3DWin::AddBackgroundImageToRenderer	view3d-window.md §6l	
+007f1c10	cSC4View3DWin::ProcessCommand	view3d-window.md §6g	
+007f3510	cSC4View3DWin::ProcessCheatCode	view3d-window.md §3.1	
+007f39d0	cSC4View3DWin::DoUtilitiesMenu	view3d-window.md §6i	
+007f3c10	cSC4View3DWin::DoTransportMenu	view3d-window.md §6i	
+007f3e30	cSC4View3DWin::~cSC4View3DWin	view3d-window.md §4	
+007f3e50	cSC4View3DWin::DoMessage	view3d-window.md §5	
+007f41b0	cSC4View3DWin::DoPreCityInit	view3d-window.md §6a	
+007f4690	cSC4View3DWin::HandleButtonActivated	view3d-window.md §6i	
+007f53c0	cSC4View3DWin::DoMessage	view3d-window.md §5	
+007f58e0	cSC4View3DWin::FilterWinMessage	view3d-window.md §6h descriptive name, no Mac match; slot 3 of vtable 0x00ABCE1C	
+007f5cf0	cSC4View3DWin::SetCursorText	view3d-window.md §6j	
+007f6160	cSC4View3DWin::DoScrollEnd	view3d-window.md §6f	
+007f6200	cSC4View3DWin::GZPaint	view3d.md §5.1	
+007f6410	cSC4View3DWin::DoScrollBegin	view3d-window.md §6f	
+007f64f0	cSC4View3DWin::SetScrolling	view3d-window.md §6f	
+009efeb0	lib::__alldiv	view3d-window.md §6j; CRT signed 64-bit divide, was a wrong Mac match	
+009f0d10	lib::__allmul	view3d-window.md §6j; CRT 64-bit multiply, was a wrong Mac match	

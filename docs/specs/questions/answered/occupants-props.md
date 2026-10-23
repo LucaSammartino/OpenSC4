@@ -62,3 +62,60 @@
   swing, whether "6000" is sfCraneTimeOfFullRotation, and the duration kept by 1 → 2. The core takes min / max / k
   from the caller, starts the target at 0, uses the literal 6000 and keeps the duration.
   **ANSWERED 2026-10-21 (re-construction-answers4):** DIFFERS — lot-developer §6.7.6/§6.7.7: (a) sparks use max(x span, z span) of the scaffold box (record #7, object +0xC0), y excluded; ties 20 → 2, 30 → 3. (b) limits c ± h from AttemptAddOuterCrane (h = π/2 or asin(d/R)); k = 1/(2π) f32 at 0x00AA2098; the multiplier is the tunable sfCraneTimeOfFullRotation global 0x00B0A7EC, not a literal; SetLot starts target = min, previous = max, acc 1, duration 0, state 2; 1 → 2 keeps the duration.
+
+<!-- from: re-occprops (2026-10-20) -->
+- ~~**OP8:** the `0xCA0E3852` filter (creator `0x007A0420`, vtable `0x00AB7E44`, byte +0x2E = 1, registered at
+  `0x004608AB`), the `0xE9C75EE8` types-set filter body, and the hashed-variant filter bodies (vptrs
+  `0x00A8EE38`/`0x00A8EE20`). [identity untraced]~~
+  **ANSWERED 2026-10-21 (re-occfilters):** DIFFERS — occupant-manager.md §13.2: the `0xE9C75EE8` filter is `cSC4OccupantTypesFilter`, a type list filled only by `Read` (§13.2.3); the `0xAA25CB90` one is `cSC4OccupantTypesFilterHashed`, a hash set the model maker fills (§13.2.3); the `0xCA0E3852` filter is the data map view's filter for the 3D view (§13.2.8).
+
+<!-- from: re-occprops (2026-10-20) -->
+- ~~**OP9:** `cAutomataOccupantFilter` type identities {`0xC7CC75F1`, `0x496E5783`, `0x480E6151`, `0x897F7EC2`}
+  (`0x00562C90`): which occupant classes are these? [`0xC7CC75F1` is the subway-adjacent type per the subway
+  filter; the rest unknown]~~
+  **ANSWERED 2026-10-21 (re-occfilters):** DIFFERS — occupant-manager.md §13.2.7: they are the vehicle, pedestrian, aircraft and watercraft occupant types, the names the string specification filter's parser gives them (§13.2.5: `Vehicle` `0xC7CC75F1`, `Pedestrian` `0x496E5783`, `Aircraft` `0x480E6151`, `Watercraft` `0x897F7EC2`).
+
+<!-- from: re-occprops (2026-10-20) -->
+- ~~**OP4:** `cSC4RealisticOccupantFilter` flag bytes `+0xC`/`+0xD`/`+0xE` (creator `0x005EA240` zeroes them; ctor
+  `0x005EB850`?), the meaning of property `0x5001`, the `0x097F6D98` QI + lot slot 0x84==1 exclusion, and who sets
+  the flags (callers of the creator). [include iff byte set for base textures and props]~~
+  **ANSWERED 2026-10-21 (re-occfilters):** DIFFERS - occupant-manager.md §13.2.3: `+0xC`, `+0xD` and `+0xE` keep, when set, empty lots' base textures, the occupants of group `0x5001` and the signposts and text decals; `0x5001` is an occupant group (occupant slot 22), not a property; a base texture is dropped only when `+0xC` is clear and the lot under it is in state 1 (ready). The 3D view sets all three (`0x007F42C5`), the cheats `Zoneria` and `TastyZots` install copies with one flag flipped (OM10), the inside-lot filter and the region thumbnail writer use them clear. The group's meaning stays open (OM9).
+
+<!-- from: re-occprops (2026-10-20) -->
+- ~~**OP5:** `cSC4BlockingLotOccupantFilter` slot 3 (`0x004BDF90`, 26 bytes) body and users. [untraced]~~
+  **ANSWERED 2026-10-21 (re-occfilters):** MATCHES — occupant-manager.md §13.2.6: slot 3 `0x004BDF90` is the base's `IsOccupantTypeIncluded(GetType())`; the blocking-lot filter's own slot 4 (`0x006C3C20`) is true only for flora `0x74758926`; the lot developer uses it.
+
+<!-- from: re-occprops (2026-10-20) -->
+- **OP2:** remaining signpost stream/receiver semantic: lot-records.md §13.2 calls stream
+  +0x3C GZStr, but signpost Write (`0x005F5080`) / Read (`0x005F50F0`) were interpreted
+  as passing a u32 field. Reconcile that class's receiver and field independently before
+  changing its record. TextDecal scope is answered in text-decal-occupant.md §7 and archive
+  OP2-TD: +0x3C is GZStr, +0x30 Float32; its receiver-relative +0x5C is text, not lot tag,
+  and its repeated pair is position, not IDs. No signpost source analysis was done in that lane.
+
+  **ANSWERED 2026-10-23 (re-pr-harvest5):** DIFFERS — PR10's re-signposts evidence
+  identifies the signpost serializable receiver as O+0x10, so its +0x88 is O+0x98
+  text. Stream slot +0x3C (15) is GZStr, and +0x30 (12) is Float32. Rule: lot-records.md
+  §§10.3–10.4; original contributor evidence: Write 0x005F5080, Read 0x005F50F0.
+  Main's independent OP1 and OP2-TD answers above remain authoritative for TextDecal.
+
+<!-- from: re-occprops (2026-10-20) -->
+- ~~**OP3:** signpost `SetDynamic` (`0x005F4BA0`) colour tables: it copies 4 bytes from `0x00AA5204 + 4·(arg!=0)`
+  into the four corner rows at `+0x4D4…+0x4D7`, `+0x4E4…+0x4E7`, `+0x4F4…+0x4F7`, `+0x504…+0x507` (both byte
+  orders measured, with the same selected row used for each corner). What are the two
+  rows (static vs edit-time colours) and the corner order? [dynamic = row 1]~~
+  **ANSWERED 2026-10-22 (re-signposts):** MATCHES — row 0 is the static colour (144, 172, 190, 255), row 1 the dynamic
+  (edit-time) colour (255, 255, 255, 204), bytes in memory order (`0x00AA5204` = `90 AC BE FF`, `FF FF FF CC`;
+  *[inferred]* R, G, B, A); `SetDynamic(d)` copies row `d != 0` into the four corners.
+
+<!-- from: core-construction-contractfix4 (2026-10-22) -->
+- ~~**OP17:** lot-records.md §9.1 / §9.2: which code writes the world box (record #6, object `+0xA8…+0xBC`) that
+  `GetPosition` / `GetBoundingBox` read — `RebuildModel` (from the building's box, as `bbox` of ld §6.7.3), `SetLot`,
+  or only `Read`? And is it the building's box unchanged or a box derived from the scaffold? The core sets it to the
+  building's bounding box in `RebuildModel` (literal reading of "the building's bounding box" being the only box
+  `RebuildModel` reads), also on the refresh after a load.~~
+  **ANSWERED 2026-10-23 (re-construction):** DIFFERS — `RebuildModel` writes it (`0x005CB76D`–`0x005CB799`; the constructor only
+  initialises it): the scaffold box it stores at `+0xC0…+0xD4` (the building's footprint widened by sfScaffoldGap)
+  widened again by sfPostWidth (`0x00B0A7CC`, default 1.0) in x and z, with the same heights. It is not the building's
+  box unchanged; `SetLot` writes it only through its `RebuildModel` call, and `Read` restores the saved value
+  (lot-records.md §9.1, lot-developer.md §6.7.10).

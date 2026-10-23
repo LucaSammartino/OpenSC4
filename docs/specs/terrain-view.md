@@ -93,8 +93,9 @@ A cell row is drawn when either of its two vertex rows passed.
 `Update(drawContext)` does nothing unless `kRenderTerrain` (boolean 15) is set. It takes the terrain's maximum and
 minimum altitudes (`+0x64`, `+0x68`), a vertex-buffer extension when the driver offers one (`cSTEVertBufExtn`,
 which only changes how rows are submitted), depth offset −3, and a fixed packed state (colour and depth write, depth
-test less-or-equal, culling, one texture, no blending or alpha test). The draw context's `+0x50` selects the pass
-*[inferred: the draw registry's pass]*: 0 draws the land layers, anything else the water layers (§6). The depth
+test less-or-equal, culling, one texture, no blending or alpha test). The draw context's `+0x50` is the renderer's pass
+word (render3d.md §11.1; the view is registered at layers 0 and 2): 0 draws the land layers, anything else (2) the
+water layers (§6). The depth
 offset is restored after; with the plumbing display on (the static `0x00B4BC5C`, terrain slots 85–86) the land
 pass ends with the plumbing overlay (§8.2).
 
@@ -270,8 +271,7 @@ terrain's messages and the lighting manager keep the arrays current.
 
 ## 12. Open questions
 
-See [questions/terrain-view.md](questions/terrain-view.md) TV1–TV3: what the draw context's `+0x50` pass value is
-and who sets it; the meaning of the four plumbing colours and of `0x29AB15C2`, `0x29AB15C5`, `0x29AB15C7`; what the
+See [questions/terrain-view.md](questions/terrain-view.md) TV2–TV3 (TV1, the pass value, is answered): the meaning of the four plumbing colours and of `0x29AB15C2`, `0x29AB15C5`, `0x29AB15C7`; what the
 object at `+0x74` is.
 
 ## 13. Conformance tests

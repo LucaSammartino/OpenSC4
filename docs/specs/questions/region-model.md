@@ -44,3 +44,17 @@
   expected to rebuild the tutorial city from the game data instead (`ResetTutorialCity`)? [as read]
 
 PR review of RM7: the proposed import-command argument proof cites region-city-dialogs.md, which was not included. The available region-screen.md section6.5 still leaves QR2 open. Keep RM7 open until the public call-site analysis is supplied; preserve the inferred body reading meanwhile.
+
+<!-- from: region-city-dialogs (2026-10-21) -->
+- **RM13 - §7.3 (re RM7):** the public call-site evidence for `MoveCity` is now in
+  [region-city-dialogs.md](../region-city-dialogs.md) §3.5: the only call site found is the region screen's import
+  command (`0x4A560002`); it calls `MoveCity` on the active region with the source region (null for a city picked from
+  the Downloads folder, and a source equal to the active region counts as none), the chosen city, and the selected
+  tile's top-left region cell. The arguments, the new-serial-number rule and the deletion of the tile's previous city are
+  therefore seen from the caller as well. What is still not seen running is the serial-number and ` (n)` file rename in
+  play. [the maintainer may close RM7 on this evidence]
+<!-- from: region-city-dialogs (2026-10-21) -->
+- **RM14 - §6.1, §6.2 (re RM1, RM12):** region-city-dialogs.md §3.3 shows a second trigger for the `Init` and `Shutdown`
+  of regions that are not active: the import-city dialog runs them on every inactive region to list its cities, besides
+  `SetActiveRegion`. So the `region.ini` rewrite of RM1 and the Timbuktu overflow move of RM12 can happen when the dialog
+  opens, not only when a region is made active. This is read from the bytes only; RM1 and RM12 stay open. [as read]

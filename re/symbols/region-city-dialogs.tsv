@@ -1,0 +1,29 @@
+va	name	evidence	mac_x86
+00777c90	cSC4DialogWinProcBase::GZOnCommand	region-city-dialogs.md §1.5; descriptive name; button 0x8A5B9959 calls slot 10 (OK), 0xCA5B9966 calls slot 9 (cancel); slot 8 of the load, delete, delete-city and import dialogs	
+00777cc0	cSC4DialogWinProcBase::EndModalWithMinusOne	region-city-dialogs.md §1.1, §2.6; descriptive name; sends the end message (0xF, window, -1) through the window manager; slot 9 of the new-region dialog	
+00777cf0	cSC4DialogWinProcBase::EndModalWithZero	region-city-dialogs.md §1.1, §3.4; descriptive name; same with 0; slot 9 of the import-city dialog and three others	
+00777d10	cSC4DialogWinProcBase::EndModalWithOne	region-city-dialogs.md §1.1; descriptive name; same with 1; slot 10 (OK default) of the base	
+00777e50	cSC4NewRegionDialog::RegionNameExists	region-city-dialogs.md §2.4; descriptive name; true when cIGZString::IsEqual(name, false) holds against GetName() of any region of the nation; callers GZOnOK, GZOnAttach	
+00777eb0	cSC4NewRegionDialog::GetButton	region-city-dialogs.md §2.4; descriptive name; child window by id queried for interface 0x8810 (a button); callers GZOnOK and slot 8	
+00777f40	cSC4NewRegionDialog::GZOnCommand	region-city-dialogs.md §2.4; descriptive name; slot 8 of vtable 0x00AB5340; 0x1000 / 0x1001 exclusive toggles, 0x8A5B9959 to OK, 0xCA5B9966 to cancel	
+00777f20	cSC4NewRegionDialog::~cSC4NewRegionDialog	region-city-dialogs.md §2.1; descriptive name; base destructor body 0x00777BB0 then GlobalHeapFree on flag bit 0; reached from the thunk 0x00777F10 in the secondary vtable 0x00AB536C	
+007781a0	cSC4ImportCityDialog::GZOnDetach	region-city-dialogs.md §3.4; descriptive name; slot 7 of vtable 0x00AB5454; clears the tree view 0x1000 and resets the eight icon numbers to -1	
+00778cd0	cSC4ImportCityDialog::GZOnOK	region-city-dialogs.md §3.4; descriptive name; slot 10; selected tree row with user data -> copy the record, end modal with 1; otherwise end modal with 0	
+00778e20	cSC4ImportCityDialog::AddCityGroup	region-city-dialogs.md §3.3.1; descriptive name; (tree, &cityList, title, regionIndex, storePath): adds a sorted parent row (position -4) and, for each city of exactly the requested size, a row at position -3 whose user data is {regionIndex, x, z, path}	
+00778b50	cSC4ImportCityDialog::GetSelectedRecord	region-city-dialogs.md §3.4; descriptive name; copies the three ints at +0x28 and the string at +0x34 to the caller; sole caller SC4DisplayImportCityDialog+0x53	
+00778ba0	cSC4ImportCityDialog::CopyRecord	region-city-dialogs.md §3.4; descriptive name; copies {int, int, int, cRZString} from a tree row's user data; sole caller GZOnOK (0x00778CD0)	
+00778b00	cSC4ImportCityDialog::ConstructRecord	region-city-dialogs.md §3.3.1; descriptive name; copy-constructs a record into a new list node; sole caller AddCityGroup+0x173	
+00778ab0	cSC4ImportCityDialog::ClearRecordList	region-city-dialogs.md §3.1; descriptive name; destroys every node of the record list at +0x24; caller 0x00778BF0	
+00778bf0	cSC4ImportCityDialog::DestroyMembers	region-city-dialogs.md §3.1; descriptive name; ClearRecordList then frees the sentinel; caller 0x00778DF0	
+00778df0	cSC4ImportCityDialog::~cSC4ImportCityDialog	region-city-dialogs.md §3.1; descriptive name; destroys the selected-record string (0x00778430) and the record list (DestroyMembers), then runs the base destructor body 0x00777BB0, frees on flag bit 0; reached from the thunk 0x00778CC0 in the secondary vtable 0x00AB5440	
+0076a4e0	cSC4EstablishCityWinProc::CancelDialog	region-city-dialogs.md §4.2; descriptive name; EndDialog(this, 0); sole caller cSC4View3DWin::DoEstablishCityDialog+0x4ce after the modal loop	
+0076a3c0	cSC4EstablishCityKeyFilter::cSC4EstablishCityKeyFilter	region-city-dialogs.md §4.2; descriptive name; 0x1C-byte window message filter (vtable 0x00AB4B18) holding the dialog window at +0x18; callers DoEstablishCityDialog+0x187 and +0x28f	
+0076a390	cSC4EstablishCityKeyFilter::DoMessage	region-city-dialogs.md §4.2; descriptive name; slot 3 of vtable 0x00AB4B18; forwards character messages '\t' and '\r' to the dialog window's DoMessage	
+0076a3f0	cSC4EstablishCityKeyFilter::~cSC4EstablishCityKeyFilter	region-city-dialogs.md §4.2; descriptive name; slot 4 of vtable 0x00AB4B18; releases the window at +0x18	
+0049c7c0	cSC4ObliterateCity::ResetTuningFlag	region-city-dialogs.md §5.3; descriptive name; callback registered by Init (application slot 69); clears the 'tuning read' byte 0x00B21738	
+0049c7e0	cSC4ObliterateCity::IsOccupantTypeIncluded	region-city-dialogs.md §5.4; descriptive name; type test of the tool's occupant filter (vtable 0x00A8F694 slot 4); false for 0x74758926 (flora) and 0x69D25C5F (fire), true otherwise	
+0049cc30	cSC4ObliterateCity::EndScene	region-city-dialogs.md §5.5.3; descriptive name; state := 4, EndInput, posts 0xEA65224E; callers DoAnimationTick and the finale tick	
+0049ce20	cSC4ObliterateCity::DoFinaleTick	region-city-dialogs.md §5.5.3; descriptive name; state 3: finale clock += dt, stops the effect after 20,000,000 us, ends the scene when the handle is null	
+0049cea0	cSC4ObliterateCity::RemoveWholeCity	region-city-dialogs.md §5.5.3; descriptive name; (rect, dezone): DemolishRegion over the rect then PlaceZone type 0; its second stack argument is tested, not DemolishRegion's result	
+0049d070	cSC4ObliterateCity::DoSmokeTick	region-city-dialogs.md §5.5.3; descriptive name; state 2: smoke clock += dt; at 0x00B09534 us state := 3, RemoveOccupants(filter, true, 0), RemoveWholeCity(rect, 1)	
+00778430	cSC4ImportCityDialog::DestroySelectedRecord	region-city-dialogs.md §3.1; descriptive name; resets the string object at +0x34 (the selected record's path) and frees its buffer; caller 0x00778DF0	

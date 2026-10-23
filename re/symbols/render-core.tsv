@@ -1,0 +1,153 @@
+va	name	evidence	mac_x86
+005f29c0	SC4QuadGrid::GetClampedGridRect	render3d.md descriptive name, no Mac match; §2; round-half-even edges, clamped to the grid	
+005f2a90	SC4QuadGrid::SetGridRectForElement	render3d.md §5.1	
+005f2b30	SC4QuadGrid::RemoveElement	render3d.md §5.1	
+005f2c70	SC4QuadGrid::GetQuadrantsInRect	render3d.md descriptive name, no Mac match; §8; at most n quadrants	
+005f2d40	SC4QuadGrid::SetQuadrantFlagsForElement	render3d.md §5.1	
+005f3040	SC4QuadGridQuadrant::RemoveAllElements	render3d.md §5.1	
+005f30a0	SC4QuadGrid::RemoveAllElements	render3d.md §5.1	
+005f3270	SC4QuadGrid::AddElement	render3d.md §5.1	
+005f3390	SC4QuadGrid::MoveElement	render3d.md §5.1	
+005f34b0	SC4QuadGrid::GetAllElements	render3d.md §5.1	
+005f3eb0	SC4QuadGrid::~SC4QuadGrid	render3d.md §5.1	
+005f40b0	SC4QuadGrid::SetSize	render3d.md §5.1	
+005f41f0	SC4QuadGrid::SC4QuadGrid	render3d.md §5.1	
+007c1890	cSC43DRender::QueryInterface	render3d.md §9	
+007c1920	cSC43DRender::GetViewportSize	render3d.md §3.1	
+007c1940	cSC43DRender::SetViewportSize	render3d.md §3.1	
+007c1960	cSC43DRender::SetSubpixelImageBias	render3d.md §9	
+007c1980	cSC43DRender::SetCamera	render3d.md §3.2	
+007c1a00	cSC43DRender::SetCameraControl	render3d.md §3.2	
+007c1a50	cSC43DRender::Set3DCameraView	render3d.md §3.2	
+007c1a90	cSC43DRender::Set2DCameraView	render3d.md §3.2	
+007c1ac0	cSC43DRender::SetUICameraView	render3d.md §3.2	
+007c1b30	cSC43DRender::WorldToContainerRect	render3d.md §5.1; per-rotation offsets	
+007c1e10	cSC43DRender::GetViewFrustumContainerRect	render3d.md §5.1	
+007c1ef0	cSC43DRender::GetDrawFrustumContainerRect	render3d.md §5.1	
+007c1fd0	cSC43DRender::GetVisibleContainerRect	render3d.md §5.1	
+007c20e0	cSC43DRender::GetViewportRayContainerRect	render3d.md §5.1	
+007c2220	cSC43DRender::Pick	render3d.md §11	
+007c22b0	cSC43DRender::SetZoom	render3d.md §3.1	
+007c22d0	cSC43DRender::ZoomIn	render3d.md §3.1	
+007c22e0	cSC43DRender::ZoomOut	render3d.md §3.1	
+007c22f0	cSC43DRender::SetRotation	render3d.md §3.1	
+007c2300	cSC43DRender::RotateLeft	render3d.md §3.1	
+007c2310	cSC43DRender::RotateRight	render3d.md §3.1	
+007c2320	cSC43DRender::SetZoomAndRotation	render3d.md §3.1	
+007c2330	cSC43DRender::GetShakeOffsets	render3d.md §10	
+007c2350	cSC43DRender::SetViewportClearColor	render3d.md §13.3	
+007c2390	cSC43DRender::CreateQuadGrid	render3d.md §5.1	
+007c2400	cSC43DRender::DrawTexturedViewportRectangle	render3d.md §13.3	
+007c2530	cSC43DRender::TakeSnapshot	render3d.md §13.4	
+007c2570	cSC43DRender::TakeSnapshot	render3d.md §13.4	
+007c25e0	cSC43DRender::EnableBackgroundPicture	render3d.md §13.3	
+007c25f0	cSC43DRender::GetBackgroundPicture	render3d.md §13.3	
+007c2610	cSC43DRender::SetBackgroundPicture	render3d.md §13.3	
+007c26d0	cSC43DRender::SetBackgroundPicture	render3d.md §13.3	
+007c2750	cSC43DRender::GetBackingStoreEnabled	render3d.md §12	
+007c2760	cSC43DRender::SetBackingStoreEnabled	render3d.md §12	
+007c27a0	cSC43DRender::CreateBackingStore	render3d.md §12	
+007c2910	cSC43DRender::DestroyBackingStore	render3d.md §12	
+007c2960	cSC43DRender::SaveBackingStore	render3d.md §12	
+007c2ac0	cSC43DRender::RestoreBackingStore	render3d.md §12	
+007c2b40	cSC43DRender::UpdateGridElementObjectFlags	render3d.md §5	
+007c2c00	cSC43DRender::GetViewFogEnabled	render3d.md §3.1	
+007c2c10	cSC43DRender::SetViewFogEnabled	render3d.md §3.1	
+007c2c30	cSC43DRender::GetLightingEnabled	render3d.md §3.1	
+007c2c40	cSC43DRender::SetLightingEnabled	render3d.md §3.1	
+007c2c70	cSC43DRender::ClipRectToViewport	render3d.md descriptive name, no Mac match; §7.2	
+007c2cd0	cSC43DRender::BorrowRenderSystem	render3d.md §3.2	
+007c2ce0	cSC43DRender::ReturnRenderSystem	render3d.md §3.2	
+007c2d50	cSC43DRender::GetStatsString1	render3d.md §13.4	
+007c2db0	cSC43DRender::GetStatsString2	render3d.md §13.4	
+007c2eb0	cSC43DRender::MakeDrawSortKey	render3d.md descriptive name, no Mac match; §6; sort value halves + depth x 65535	
+007c2f80	(anonymous_namespace)::SC4ComputeViewportZProjection	render3d.md §3.1	
+007c3060	cSC43DRender::Release	render3d.md §9	
+007c3090	cSC43DRender::StaticShutdown	render3d.md §9	
+007c30f0	cSC43DRender::Write	render3d.md §2	
+007c3180	cSC43DRender::Read	render3d.md §2	
+007c3230	cSC43DRender::AccumulateViewTranslation	render3d.md descriptive name, no Mac match; §7.2; pending translated update	
+007c32a0	cSC43DRender::DoSingleModelStaticDrawAddition	render3d.md §13.2	
+007c3350	cSC43DRender::ClearViewportWithSolidColor	render3d.md §13.3	
+007c3400	cSC43DRender::DrawViewportRectangle	render3d.md §13.3	
+007c35c0	cSC43DRender::PickTerrain	render3d.md §11	
+007c3790	cSC43DRender::MoveGridElement	render3d.md §5	
+007c3810	cSC43DRender::StaticSetGDriver	render3d.md §13.4	
+007c38d0	cSC43DRender::RestoreBackingStore	render3d.md §12	
+007c3950	cSC43DRender::PartitionDrawListDescending	render3d.md descriptive name, no Mac match; §6	
+007c3a10	cSC43DRender::PartitionDrawListAscending	render3d.md descriptive name, no Mac match; §6	
+007c3b30	cSC43DRender::FindInViewObjectList	render3d.md §11.1	
+007c3b60	cSC43DRender::ClearViewObjectList	render3d.md descriptive name, no Mac match; §11	
+007c3be0	cSC43DRender::SetGDriver	render3d.md §13.4	
+007c3c60	cSC43DRender::SetClipRect	render3d.md §13.4	
+007c3e10	cSC43DRender::DrawPreDynamicView	render3d.md §5.2; pass word and layer	
+007c3e50	cSC43DRender::DrawPostDynamicView	render3d.md §5.2; pass word and layer	
+007c3e90	cSC43DRender::DrawPreStaticView	render3d.md §5.2; pass word and layer	
+007c3ed0	cSC43DRender::DrawPostStaticView	render3d.md §5.2; pass word and layer	
+007c3f10	cSC43DRender::GetModelContainerRect	render3d.md §5.1	
+007c3f80	cSC43DRender::ClearViewport	render3d.md §13.3	
+007c4910	cSC43DRender::UpdateVisibleTerrainMetrics	render3d.md §13.4	
+007c5000	cSC43DRender::PickTerrain	render3d.md §11	
+007c50f0	cSC43DRender::PickTerrainAlways	render3d.md §11	
+007c51d0	cSC43DRender::IsModelVisible	render3d.md §11.2	
+007c5260	cSC43DRender::IsModelVisible	render3d.md §11.2	
+007c52f0	cSC43DRender::FindViewObject	render3d.md §11.1	
+007c5370	cSC43DRender::RebuildQuadGrid	render3d.md §13.1	
+007c5540	cSC43DRender::ModelShouldGoIntoBackingStore	render3d.md §12	
+007c55c0	cSC43DRender::ReevaluateBackingStoreObjectFlags	render3d.md §12	
+007c56d0	cSC43DRender::SortDrawListDescending	render3d.md descriptive name, no Mac match; §6	
+007c5710	cSC43DRender::SortDrawListAscending	render3d.md descriptive name, no Mac match; §6	
+007c5ac0	cSC43DRender::RemoveViewObject	render3d.md §11.1	
+007c5c80	cSC43DRender::InsertIntoViewObjectList	render3d.md §11.1	
+007c5d00	cSC43DRender::SetGraphicSystem	render3d.md §9	
+007c5d90	cSC43DRender::AddViewObject	render3d.md §11.1	
+007c5e20	GetS3DPropertyValue	render3d.md §9.2	
+007c5f40	cSC43DRender::ReadProperties	render3d.md §9; highlight colours	
+007c6410	cSC43DRender::Init	render3d.md §9	
+007c6830	cSC43DRender::Pick	render3d.md §11	
+007c6bc0	cSC43DRender::StartScreenShake	render3d.md §10	
+007c6d80	cSC43DRender::ClearDirtyRectangleQueue	render3d.md §6	
+007c6e30	cSC43DRender::FlushModelChangeQueue	render3d.md descriptive name, no Mac match; §11; queued models removed at shutdown	
+007c7070	cSC43DRender::Shutdown	render3d.md §9	
+007c7310	cSC43DRender::DoFullViewUpdate	render3d.md §6	
+007c7370	cSC43DRender::DrawStaticView	render3d.md §5.2	
+007c7830	cSC43DRender::DrawDynamicView	render3d.md §5.2	
+007c7dd0	cSC43DRender::ForceFullRedraw	render3d.md §6	
+007c7e20	cSC43DRender::PickTerrainAlways	render3d.md §11	
+007c8630	cSC43DRender::StopScreenShake	render3d.md §10	
+007c86d0	cSC43DRender::SetShakeOffsets	render3d.md §10	
+007c8f30	cSC43DRender::AddDirtyRectangleInternal	render3d.md §6	
+007c9220	cSC43DRender::MoveModel	render3d.md §5	
+007c9320	cSC43DRender::ChangeModel	render3d.md §5	
+007c94c0	cSC43DRender::UpdateViewportRect	render3d.md §6	
+007c9540	cSC43DRender::AddDirtyRectangle	render3d.md §6	
+007c95b0	cSC43DRender::AddDirtyRectangle	render3d.md §6	
+007c9600	cSC43DRender::ProcessModelChangeQueue	render3d.md §5	
+007c9b10	cSC43DRender::cSC43DRender	render3d.md §9	
+007c9f90	cSC43DRender::GetGZCLSID	render3d.md §2	
+007c9fa0	cSC43DRender::SetMapScaleFactor	render3d.md §3.1	
+007c9fc0	cSC43DRender::GetCamera	render3d.md §9	
+007c9fe0	cSC43DRender::QueryInterface (thunk at +4)	render3d.md descriptive name, no Mac match; §11	
+007c9ff0	cSC43DRender::QueryInterface (thunk at +8)	render3d.md descriptive name, no Mac match; §11	
+007ca000	cSC43DRender::Release (thunk at +4)	render3d.md descriptive name, no Mac match; §11	
+007ca010	cSC43DRender::Release (thunk at +8)	render3d.md descriptive name, no Mac match; §11	
+007ca020	cSC43DRender::~cSC43DRender (body)	render3d.md descriptive name, no Mac match; §11	
+007ca180	cSC43DRender::IsModelInserted	render3d.md §5	
+007ca200	cSC43DRender::InsertModel	render3d.md §5	
+007ca3d0	cSC43DRender::RemoveModel	render3d.md §5	
+007ca4d0	cSC43DRender::DoTranslatedViewUpdate	render3d.md §13.1	
+007ca9c0	cSC43DRender::DoPartialViewUpdate	render3d.md §6	
+007caa60	cSC43DRender::DoViewZoomChange3	render3d.md §13.1	
+007cab30	cSC43DRender::DoViewRotationChange2	render3d.md §13.1	
+007cabe0	cSC43DRender::AttemptTranslatedViewUpdate	render3d.md §13.1	
+007cacd0	cSC43DRender::StartScreenShake	render3d.md §10	
+007cae00	cSC43DRender::ProcessDirtyRectangleQueue	render3d.md §6	
+007cafb0	cSC43DRender::DoViewCleanup	render3d.md §6	
+007cb070	GZCOM_CreatecSC43DRender	render3d.md §9	
+007cb090	cSC43DRender::~cSC43DRender	render3d.md §9	
+007cb0b0	cSC43DRender::DoMessage	render3d.md §9	
+007cb530	cSC43DRender::Draw	render3d.md §9	
+007d30d0	cSC43DRender::TurnOnLighting	render3d.md §3.1	
+007d32d0	cSC43DRender::TurnOnFog	render3d.md §3.1	
+007d4f80	SC4DrawContext::SetHighlightColor	render3d.md descriptive name, no Mac match; §11; colour i of the 11	
+007ff0b0	cSC43DRender::UnsetClipRect	render3d.md §13.4	

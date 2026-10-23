@@ -9,7 +9,8 @@ window/font/resource setup, code-plugin loading.
 
 Coverage status: partial owner spec. After round 2 the sections below cover about 52 of cSC4App's 322
 functions (vtable surface, lifecycle, city request/load/close/obliteration path, OnIdle, part of
-ReadCommandLine); section 12 lists what is still open. This is not a complete owner spec.
+ReadCommandLine); section 12 lists what is still open. This is not a complete owner spec. Sections 13-15
+(preferences, plugins and resources, message pumps) and the corrections marked re-app were added 2026-10-22.
 
 ## 1. Object layout (multiple inheritance)
 
@@ -73,10 +74,10 @@ Getters return the field and do nothing else unless the row says otherwise. Offs
 | Slot | Offset | Name | Behaviour |
 |---|---|---|---|
 | 3 | +0x0C | OnIdle | section 7.1 |
-| 4, 5 | +0x10, +0x14 | RunMessageServerPump / RunMessageServer2Pump | pump the v1 / v2 message servers (not traced) |
+| 4, 5 | +0x10, +0x14 | RunMessageServerPump / RunMessageServer2Pump | pump the v1 / v2 message servers (section 15) |
 | 6 to 12 | +0x18..+0x30 | RequestNewCity, RequestLoadCity, RequestCloseCity, RequestSaveCity, RequestQuit, RequestQuitFromRegion, RequestGoToRegionView | request entry points (all seven specified, sections 11.1-11.3, 11.10, 11.12-11.14) |
 | 13, 14, 15, 16 | +0x34..+0x40 | LoadCity, CloseCity, SaveCity, SaveCity (second overload) | sections 11.9, 11.4, 11.16, 11.11 |
-| 17 | +0x44 | SavePreferences | called by Init's failure path and by the autosave timer |
+| 17 | +0x44 | SavePreferences | called by Init's failure path and by the autosave timer (section 13.1) |
 | 18 | +0x48 | EnableFullGamePauseOnAppFocusLoss(b) | writes b to the preferences byte +0x4A4 and to +0x5D0 |
 | 21 / 22 | +0x54 / +0x58 | Get/SetDebugFunctionalityEnabled | byte +0x650 |
 | 23 / 24 | +0x5C / +0x60 | Get/SetPopupDialogsEnabled | byte +0x651 |
@@ -92,20 +93,30 @@ Getters return the field and do nothing else unless the row says otherwise. Offs
 | 49 | +0xC4 | GetTutorialRegistry | address of the embedded registry at +0x1CC |
 | 50 | +0xC8 | (named GetCDAppDirectory in the export) | returns the byte +0x668; it is a flag, not a path (AP3) |
 | 51 to 66 | +0xCC..+0x108 | directory getters | section 9 |
-| 67 / 68 | +0x10C / +0x110 | AddDynamicLibraryByName / ByPath | open |
+| 67 / 68 | +0x10C / +0x110 | AddDynamicLibraryByName / ByPath | section 14.1 |
 
-Slots 19, 20 (ApplyVideoPreferences, GetAutoVideoPreferences), 25, 26, 32 to 34, 37 resolve to code
-shared with other classes (folded getters) and are not described here.
+Slots 25, 26, 32 to 34, 37 resolve to code shared with other classes (folded getters) and are not described
+here. Slots 19 and 20 are the app's own `ApplyVideoPreferences` (`0x0044A1C0`) and `GetAutoVideoPreferences`
+(`0x0044A330`) (vtable words `0x00A86B3C`, `0x00A86B40`; section 13.3; corrected 2026-10-22, re-app).
 
 ## 3. Startup order
+
+**Entry** (`SC4AppStart`, `0x0044C170`, called by `_main` `0x0044C2B0`; added 2026-10-22, re-app) *[summary]*: the
+framework is a `cSC4Framework` when the byte `0x00B21428` is set, else a `cGZFramework` (0x150 bytes each); the
+application (0x670 bytes, name `"SimCity 4"`) is made and held; `sSetFrameWork`, `sSetApplication(app + 0x2C)`;
+`cGZFramework::Main(argc, argv)` runs everything below and the main loop; then the application is released and the
+framework's slot 40 is called with 1. When the byte `0x00B07EE0` is clear afterwards, `SC4DisplayResourceError`
+shows the text at `0x00B21420`.
 
 The framework drives the app through its `cIGZApp` and `cGZApp` faces. The observable order:
 
 1. `PreFrameWorkInit` (`0x00452360`), in this order: read the `DebugLevel` and `logging` options; build
    the version object; split the executable path into directory and name; resolve the user data
    directory (`SC4GetUserDataDirectory`); create the render properties object; read
-   `AllowMultipleInstances` and `Restart` (a `Restart` start waits in a sleep loop on a timer before
-   continuing; the exact wait is not traced, AP5); **AddCOMDirectors** (section 4.1); **AddSystemServices**
+   `AllowMultipleInstances` and `Restart` (when another instance runs, the instance object at `+0x648` answers 0 to its
+   slot 3; then start-up fails unless `AllowMultipleInstances` is given, except that with `Restart` it first polls
+   that slot again, sleeping 200,000 between polls, for up to 30 units of a timer of unit 5 *[inferred: seconds]*,
+   and goes on once the other instance is gone; `0x0045265D`–`0x004527AC`, re-app); **AddCOMDirectors** (section 4.1); **AddSystemServices**
    (section 4.2); query `SystemParametersInfo` / `GetVersion` and the `cursormode` option; date checks
    against the user `Plugins` and `Sku_Data` folders; launch the exception-report uploader;
    **AddCodePlugins**; open the `GZLog` (options `append`, `buffered`) and the `GZShutdownLog`;
@@ -130,12 +141,18 @@ Init returns a bool (true = continue start-up).
    driver can be obtained or it fails its check: set preferences byte +0xF13 to 0 and +0xF0C to 1
    (switch to the software driver), call SavePreferences, show a message box titled `SimCity 4`
    with the text `SimCity 4 will run with the software driver when next launched.`, return **false**.
+   After a driver passes its check, `0x0044AC30(driver, &prefs +0xF0C)`: when a byte of the driver's
+   description (driver slot 3, then slot 64, byte `+0x30`) is set, `+0xF13` := 1; otherwise, when `+0xF13` was
+   set, a message box (`SimCity 4`, `Could not initialize the hardware driver. Using the software driver
+   instead.`) is shown, `+0xF13` := 0 and `+0xF0C` := 1 (re-app).
 4. Driver-dependent settings: a GZCOM object of class `0x0A1D8285` (the config-rule manager in
    re/class_id_table.tsv) is requested with interface `0x0A1D8284`; a driver query with argument 13
    decides a preference byte under +0xF0C (result 1 writes 1, else 0). Exact targets: AP5.
 5. **Send** `kSC4MessagePreAppInit` `0x28E9397A` on message server 2 (constructed directly, data =
    the app interface).
-6. Register the app on message server 1 for `0xC7AA61C6` (the quit request, section 6.1).
+6. Register the app on message server 1 for `0xC7AA61C6` (the quit request, section 6.1). Then subscribe the
+   v2 target on message server 2 to `0xFA0C6390`, `0x7A104750`, `0xBA44EB51`, `0x49A780B2`, `0xEA65224E`,
+   `0xCBB5BB45`, `0x8BB5BB46`, `0xEA8AE29A` and `0x26D31EC2` (section 6.2; `0x0044C679`–`0x0044C74F`, re-app).
 7. Create the cheat-code manager and register three app cheats: `GP` `0x2AB5C431`,
    `CreateException` `0x2B60E45B`, `ForceIdle` `0x8B6D4F8D` (section 6.1).
 8. Create the glyph texture manager, the string detokenizer, `SetupResources`, the language manager
@@ -154,12 +171,19 @@ Adds three directors to the framework's COM DLL director, in order: the SC4 game
 ### 4.2 System services (`AddSystemServices` `0x00450350`)
 
 Created and registered in this order (each is constructed and added to the framework):
-allocator service; (one unnamed service); file system; then `FindAndPossiblyFixIniFiles`; SC4 message
-server (v1) over a GZ message server; SC4 message server 2 over a GZ message server 2; log service
-(with a null output stream); command server; **`cSC4GameDataRegistry`**; Lua script server; language
-manager; (one unnamed service); font system; window-control manager; clipboard manager; (one unnamed
-service); IME proxy; persist-resource manager; registry; S3D texture-binding factory; script-service
-resource factory; WWW system; (two unnamed services); audio AEMS event system.
+allocator service (`cGZAllocatorService`); `0x276C784B` (unnamed); file system (`cGZFileSystem`, `0xE0203660`); then
+`FindAndPossiblyFixIniFiles` (section 14.3); SC4 message server (v1) over a GZ message server (`0xC1085722`); SC4
+message server 2 over a GZ message server 2 (`0x652294C7`); log service (`nGZLog::cService`, with a null output
+stream); command server (`0xCB90253A`); **`cSC4GameDataRegistry`** (`0xE898ED03`); Lua script server (`0x4BD10129`);
+language manager (`0xA3024279`); `0x94AF390C` (unnamed, constructor `0x0081F4A0`); `0xA499932C` (it takes the
+graphics driver interface `0xC47B747C`; *[inferred]* the graphics system); `0x66B217A1` (unnamed); font system
+(`cGZFontSys`, `0x20673960`); `0x84174448` (unnamed); window-control manager (`0x22C2EB1F`); clipboard manager
+(`0x07EC0010`); `0x2AC44AE7` (unnamed, constructor `0x00996271`); IME proxy (`0x2AC44AE9`); persist-resource manager
+(`0x656B8EFC`); registry (`cGZRegistry`); S3D texture-binding factory (`0xFAC0E219`); `0xFAC0E21A` (unnamed);
+script-service resource factory (`0xFA3562FA`); WWW system (`0x449B1912`); two unnamed services (constructors
+`0x0078D050`, `0x005C22F0`); audio AEMS event system. Each is queried for the system-service interface `0x287FB697`
+and added. (Order and IDs re-read 2026-10-22, re-app: the earlier text had one unnamed service where the bytes have
+three before the font system and one after it; the unnamed ones are AP10.)
 
 ## 5. Shutdown
 
@@ -167,8 +191,10 @@ resource factory; WWW system; (two unnamed services); audio AEMS event system.
 
 1. **Send** `kSC4MessagePreAppShutdown` `0x28E9397C`.
 2. Release the app-owned helpers created by Init (tutorial registry, tooltip manager and the heap
-   objects of step 8 of section 3.1, freed with GlobalHeapFree); a call on message server 1
-   (`RZ::MS`, presumably the unregistration matching Init step 6; AP5).
+   objects of step 8 of section 3.1, freed with GlobalHeapFree); unregister the three cheats from the
+   cheat-code manager (`+0x318`), release it and clear the pointer; unsubscribe the nine messages of section
+   3.1 step 6 from message server 2, then `0xC7AA61C6` from message server 1 (`RZ::MS`, `0x00913B97`)
+   (`0x0044A5E1`–`0x0044A843`; AP5 part answered, re-app).
 3. Clear the field +0x314.
 4. **Send** `kSC4MessagePostAppShutdown` `0x28E9397D`.
 
@@ -265,7 +291,7 @@ Per-option effects traced in round 2 ("prefs" = the preferences object at +0x3B0
 | `r` (character switch `0x72`) | value `WxHxD` via `%ux%ux%u`, defaults from prefs; after FixStartupResolutionValuesIfNeeded (section 8 below) prefs +0xF1C width, +0xF20 height, +0xF24 depth (exact acceptance checks at `0x0044F21E`..`0x0044F253` not detailed) |
 | `f` / `w` | prefs byte +0xF17 := 1 (full screen) / := 0 (windowed) |
 | `g` | value starting with `p` or `P`: prefs byte +0x4A4 := 1 (the pause-on-focus-loss byte, section 2 slot 18) |
-| `d` | app +0x65C (driver id) := 0 first; then `opengl`/`gl` -> `0xC4554841`, `soft` -> `0x7ACA35C6`, `dx` or `directx` -> `0xBADB6906`; any other value is stored as parsed (hex parser present in the body) |
+| `d` | app +0x65C (driver id) := 0 first; then by **substring** of the value, in this order: `opengl` -> `0xC4554841`, `soft` -> `0x7ACA35C6`, `dx` -> `0xBADB6906`, `directx` -> `0xBADB6906`; any other value is parsed as a hexadecimal class ID (`0x0090FCEF`) (`0x0044F46D`–`0x0044F56B`; corrected 2026-10-22, re-app: there is no `gl` test and the match is a substring search). *[quirk]* `-d:xdx` selects DirectX |
 | `audio` or `sound` | both names are looked up before one shared value test (`audio` first, `sound` only when `audio` is absent); on: prefs bytes +0x04 and +0x69 := 1; off: both := 0; any other value: no change |
 | `radio` or `music` | same pattern; on: prefs dword +0x10 := 1; off: := 0; other: no change |
 | `ExceptionHandling` | value lower-cased, then three independent tests on the exception-handler object embedded at app +0x1E8 (the object section 2 lists under GetGlyphTextureManager; that export name does not fit this use): `off`/`disabled` -> its enable(0) (`0x0091DF5C`); `on`/`enabled` -> enable(1); `verbose` -> enable(1) and option byte 6 := 1 (`0x0091DEFE`, byte +0x118+index). enable(1) when not yet enabled sets byte +0x120, installs a process-wide unhandled-exception filter (import `0x00A80264`, *[inferred]* SetUnhandledExceptionFilter) and keeps the previous filter at +0x128; enable(0) when enabled restores the previous filter |
@@ -275,7 +301,7 @@ Per-option effects traced in round 2 ("prefs" = the preferences object at +0x3B0
 | `AutoZoomChange` | off/disabled -> render properties (app +0x630, section 2 GetRenderProperties) slot +0x24 with (`0x25`, 0); on/enabled -> (`0x25`, 1); other: nothing |
 | `sim` | value parsed as an English-locale float into prefs float +0x470 |
 | `RDD` | on: prefs byte +0x498 := 1; off: := 0 |
-| `CPUCount` | value parsed with `atol` and passed to `0x005F8CD0` |
+| `CPUCount` | value parsed with `atol` and passed to `0x005F8CD0`: n := max(n, 1), a mask of the n lowest bits, the process affinity read (`GetProcessAffinityMask`) and set to that mask (re-app) |
 
 All options of `ReadCommandLine` are now traced (AP1 answered 2026-10-21). Value matching: `off` and `on`
 are compared as exact 3- and 2-byte strings after lower-casing, `disabled`/`enabled` as whole strings.
@@ -601,11 +627,88 @@ becomes the new name. If the temp rename failed, the old file stays and the path
 
 ## 12. Open (not specified here)
 
-SetupWinCtrlMgr, SetupFontSet, SetupResources, AddCodePlugins,
-AddDynamicLibrary*, ReadPreferences/SavePreferences/DoPreferencesChanged bodies, the DB segment
-callbacks, LoadRegistry, SC4CreateSavePathForCity (`0x005DC790`) naming rule, the scoped object `0x005F88A0`, city
+SetupWinCtrlMgr, SetupFontSet, SetupResources and LoadRegistry beyond the summary of section 14.2,
+DoPreferencesChanged and the video preference bodies beyond section 13.3, the DB segment
+callbacks, SC4CreateSavePathForCity (`0x005DC790`) naming rule, the scoped object `0x005F88A0`, city
 vtable slots +0x1A4 (blocks saving), +0x3C, +0x30, +0x14, the message `0x26C63346` name, and the rest of
 cSC4App's 322 functions (this spec covers about 57). Not covered at all: cWinSC4App, the COM directors,
 cSC4Preferences, cSC4AutoGamePause. The distinct cSC4GameDataRegistry owner now has a
 [first bounded contract](game-data-registry.md), including its per-body evidence and remaining unknowns;
-it is not included in this cSC4App function count. Questions: docs/specs/questions/application.md (AP1 to AP5).
+it is not included in this cSC4App function count. Questions: docs/specs/questions/application.md (AP3 to AP11).
+
+## 13. Preferences (`cSC4Preferences`, `+0x3B0`) *[compat]*
+
+*Added 2026-10-22 (re-app).* `cSC4Preferences` (constructor `0x00449070`) is a 0x1734-byte block made by the app's
+constructor (`GetPreferences`, slot 38).
+
+### 13.1 The file
+
+`SimCity 4.cfg` (`GetAppPreferencesFileName`, in the user data directory) is a database package with **one record**,
+type `0xA9DD6E06`, group `0x49DD6E08`, instance 1, version **0x15**, holding the block as raw bytes.
+
+- **`ReadPreferences`** (primary slot 6, `0x0044BC50`): when the file opens and the record has version 0x15, the block
+  is read into a fresh preferences object and copied over the app's; any other version leaves the defaults.
+- **`SavePreferences`** (iface slot 17, `0x0044BDB0`): on the live block, `+0x4A8` := 1, the 64 bytes of the language
+  name `+0x4AC` are cleared and the IME byte `+0x4EF` := 1 *[quirk: so `-l` and `-IME:off` are never saved, and the
+  live block loses its `-l` name too]*; then the old file is deleted and the record (`0x1734` bytes) written
+  (`0x0044BDEE`–`0x0044BEBA`). Callers: Init's driver failure (§3.1) and the autosave timer of `OnIdle` (§7.1).
+
+### 13.2 Fields used by the app
+
+`+0` visual time mode (city-view.md §7.2), `+4` and `+0x69` sound, `+0x10` music, `+0x46C` difficulty (city-view.md
+§6.4), `+0x6C` / `+0x26C` the last city and mayor names, `+0x470` (`-sim`), `+0x498` (`-RDD`), `+0x4A4` pause on
+focus loss (slot 18 also sets the app's `+0x5D0`), `+0x4AC` language, `+0x4EF` IME, `+0xF09` edge scrolling, `+0xF0A`
+expanded tooltips, `+0xF0C` software driver, `+0xF10`, `+0xF13` hardware driver wanted, `+0xF16` city detail,
+`+0xF17` full screen, `+0xF1C`…`+0xF24` resolution (§8). What `+0x470`, `+0x498` control is AP11.
+
+### 13.3 Re-applying them *[summary]*
+
+`DoPreferencesChanged` (`0x0044CE40`, message `0x231BBF91`, §6.2) re-applies the preferences: the language manager,
+the graphics driver and video mode (software `0x7ACA35C6`, DirectX `0xBADB6906`), the configuration rules
+(graphics-rules.md), and erases `-x` from the command line *[inferred: a one-shot flag]*. `ApplyVideoPreferences`
+(iface slot 19, `0x0044A1C0`) writes twelve video settings to the render properties and posts `0xC9F775BB`;
+`GetAutoVideoPreferences` (slot 20, `0x0044A330`) reads fourteen.
+
+## 14. Plugins, resources and files *[compat]*
+
+*Added 2026-10-22 (re-app).*
+
+### 14.1 Code plugins
+
+`AddCodePlugins(dir)` (`0x00451260`) loads every `*.dll` of the directory through GZCOM. A DLL with a `<name>.ini`
+beside it whose `[Admin] Enabled` is `false` (`cRZString::IsEqual`) or exactly `0` is skipped
+(`0x00451740`–`0x004518CB`). `AddDynamicLibraryByPath` (iface slot 68, `0x0044EAF0`) and `AddDynamicLibraryByName`
+(slot 67, `0x00451A10`) apply the same test to one library. `PreFrameWorkInit` runs it for the plugin directories
+(§3); a change notification from a directory watcher runs it again for that directory (§6.1).
+
+### 14.2 Resources *[summary]*
+
+`LoadRegistry` (`0x004584A0`) reads `Sys\Resources.ini`: switches **`packedexemplars`** and **`packedtextures`**
+(`on`/`off`), and the sections `DBSegments` and `DBSegmentDirectoryFiles`, whose entries are `class;path` with
+`%DataDirectory%` and `%Language%` (the language name, `English` by default) substituted
+(`CreateDBSegmentCallback`). `SetupResources` (`0x004572B0`) opens every `*.dat` of the data directory, then the
+database files found recursively in the plugin directories (created when missing), each as a DB segment of the
+resource manager, and registers the resource factories by type (among them the key configuration `0xA2E3D533`, the
+exemplars `0x6534284A` and the scripts `0xCA63E2A3`). `SetupFontSet` and `SetupWinCtrlMgr` set up the fonts (the
+`Fonts` folder; CJK font aliases with `Gulim.ttc` and `micross.ttf` checks), `FontStyle.ini` (sections
+`Font Aliases` and `Font Styles`), the window colours, the standard control pictures (group `0x46A006B0`), the
+standard button captions, and the cursors: **`CustomCursors`** (`off`/`disabled`) and **`cursors`** (`bw`,
+`color16`, `color`, `color256`, `fullColor`) choose the cursor set.
+
+### 14.3 Files
+
+- The ini file is `SimCity 4.ini` (`GetAppIniFileName`), looked up by `GetAppIniFilePath`;
+  `FindAndPossiblyFixIniFiles` (`0x0044FE70`, §4.2) reads `[Directories] Data` and `PlugIn` from it and keeps them
+  when the folders exist.
+- The application's plugin directories are `Plugins` with the language name (`English` by default) inside the data
+  and CD directories (§9); `DoLoadCityUI` asks for a saved city under the `SavedCity` folder of the application
+  directory *[summary]*; `[Settings] Terrain Load/Save Location` of the ini file remembers the height-map dialog's
+  folder (§11.15).
+
+## 15. Message pumps (iface slots 4 and 5) *[compat]*
+
+*Added 2026-10-22 (re-app).* `RunMessageServerPump(min, max, ms)` (`0x004499F0`, message server `0x00B43CC8`) and
+`RunMessageServer2Pump` (`0x00449A70`, message server 2) deliver queued messages one at a time (server slot 10 tells
+whether one waits, slot 9 with 0 delivers it) until the queue is empty, `max` messages were delivered, or more than
+`min` were and the elapsed time (a timer of unit 4 started on entry, *[inferred: milliseconds]*) exceeds `ms`.
+Without the server nothing happens. The city life cycle uses (100, 500, 5000) (§11).

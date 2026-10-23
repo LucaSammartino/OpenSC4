@@ -392,8 +392,8 @@ reference (§7); *[choice]* FreeCity4 stops at the end of the list.
 
 ### 4.10 Global effect triggers (`0xAA375FE8`)
 
-For every prop in `triggerMap[data1]` (null entries erased): `SetPropTimerState(4, data2 ≠ 0)`. The 3D view posts
-the message from `AssertGlobalEffectTrigger` / `RetractGlobalEffectTrigger`. Three saves hold trigger `0xCACBDFC6`.
+For every prop in `triggerMap[data1]` (null entries erased): `SetPropTimerState(4, data2 ≠ 0)`. The 3D view **sends** (not
+posts) the message from `AssertGlobalEffectTrigger` / `RetractGlobalEffectTrigger` (view3d-window.md §6k). Three saves hold trigger `0xCACBDFC6`.
 
 ### 4.11 Signs
 

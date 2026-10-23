@@ -781,7 +781,7 @@ fields. The saved fields, in Write order (object frame; the Write-coded offset i
 |---|---|---|---|
 | `+0x68`/`+0x6C` [`+0x5C`/`+0x60`] | 2 × ref | the **live** lot / building references that `SetLot` holds (there is no separate saved copy); `Read` releases the old ones and reads into the same fields | 3, 4 |
 | `+0x70` [`+0x64`] | xform | `operator<<` `0x005DA8C0`, read with `0x005DA930` (v4) or `0x005DA710` (v5) | 5 |
-| `+0xA8` [`+0x9C`] | box | world bounds; the box `GetPosition` / `GetBoundingBox` read (their frame offset `+0xA0` = object `+0xA8`) | 6 |
+| `+0xA8` [`+0x9C`] | box | world bounds; the box `GetPosition` / `GetBoundingBox` read (their frame offset `+0xA0` = object `+0xA8`); `RebuildModel` writes it as the scaffold box `+0xC0` widened by sfPostWidth in x and z (`0x005CB76D`–`0x005CB799`; OP17, re-construction 2026-10-23) | 6 |
 | `+0xC0` [`+0xB4`] | box | the scaffold box `RebuildModel` stores (x / z = building footprint ∓/± 1.0, constant `0x00B0A7D0`); used by `CreateConstructionCrew`, `AddRoofProps`, `CreateSparks` | 7 |
 | `+0x104` [`+0xF8`] → `+0xD8` [`+0xCC`] | bool | written as (live crane model pointer `+0x104` != 0; `CreateCrane` sets it); read into the load-only flag `+0xD8`, never into `+0x104`. `Read` also sets `+0xD9` = 1 (refresh pending, §9.2) | 8 |
 | `+0x108` [`+0xFC`] | vec3 | crane position (`0x005DA580`) | 9 |
@@ -924,8 +924,13 @@ called inline by the signpost's own Write/Read. Object size `0x590` (the allocat
 |---|---|---|---|
 | 1 | version | u16 | 2 |
 | 2 | prop record | §10.1 | complete inline, from the prop's own version 6 (base occupant type `0xA823821E`) |
-| 3 | u32 at `+0x88` | u32 | written/read through the stream's slot 0x3C helper *(name unresolved — Q5)*; 0 in fresh objects |
-| 4 | position delta | vec3 | the three floats at `+0xCC/+0xD0/+0xD4` (`operator<<` `0x005DA580`) |
+| 3 | text | string | the sign text (object `+0x98`), stream slot 15 (`+0x3C`, a string; OP2) |
+| 4 | position | vec3 | the model's position, object `+0xDC/+0xE0/+0xE4` (`operator<<` `0x005DA580`) |
+
+*Corrected 2026-10-22 (re-signposts): `Write` (`0x005F5080`) and `Read` run on the `+0x10` serialisable view, so their
+`+0x88` and `+0xCC…+0xD4` are object `+0x98` (the text) and `+0xDC…+0xE4`; `SetPosition` runs on the `+0x0C`
+occupant view, whose `+0xD0…+0xD8` are the same three object fields (`0x005F4E9F`–`0x005F4EAE`). The offsets in
+the next paragraph are those views'.*
 
 The vec3 is the signpost's own position: `SetPosition` (occupant view slot 9, `0x005F4E90`) adds the requested
 delta into six 3×3 orientation matrices at `+0xDC…+0x118` (one per orientation), writes the absolute position into
@@ -939,7 +944,7 @@ State beyond the prop (measured on the object base):
 | Offset | Type | Role |
 |---|---|---|
 | `+0x6C`/`+0x70` | 2 × ptr | embedded `cS3DModelInstanceBasic` (`0x00801CF0`) sub-object; `+0x70` gets vtable `0x00AA5298` (edit mode) or `0x00AA5498` (game mode) from the constructor's bool argument |
-| `+0x88` | u32 | stream-slot-0x3C field, saved (record field 3) |
+| `+0x88` | u32 | not saved (corrected: record field 3 is the text at `+0x98`) |
 | `+0x98` | `cRZString` | the sign text; constructor installs the shared empty-string vtable `0x00A80810` |
 | `+0x9C…+0xA4` | 3 × ptr + u8 | model-table back pointer, edit target, load counter (`+0xA4`) |
 | `+0xA8`, `+0xA9` | 2 × u8 | change counter and moved flag (bit 0) |
@@ -953,9 +958,9 @@ State beyond the prop (measured on the object base):
 | `+0x4BC` | `cRZString*` | owned string (freed in the destructor) |
 | `+0x4C` | ptr | owned date-pair record (freed by `FUN_005EE160`) |
 | `+0x4D4…+0x507` | 4 rows × 4 bytes | corner colours copied from the static tables at `0x00AA5204` (row 0 = static colours, row 1 = dynamic) |
-| `+0x540…+0x564` | 10 × ptr | texture bindings, one per entry of the RID table `0x00AA5214…0x00AA523C` (keys `0x7AB50E44` / `0x1ABE787D`) |
-| `+0x568…+0x570` | vector | visual effects (`cRZAutoRefCount<cISC4VisualEffect>`) |
-| `+0x574` | | packed render state (`cSC4PackedRenderState::PackRenderState` `0x007D2B50`) |
+| `+0x54C…+0x570` | 10 × ptr | the ten piece textures, one per entry of the RID table `0x00AA5214…0x00AA523C` (instances `0x8B4A6560`–`0x8B4A6565`, `0x8B4A6564`, `0x8B4A6565`, `0x8B4A6566`, `0x8B4A6567`; keys `0x7AB50E44` / `0x1ABE787D`); `Init` fills them through the `+0x0C` view (`+0x540` there) |
+| `+0x574…+0x57C` | vector | the text textures `LoadTextures` makes (§10.3 below); `Shutdown` empties it through the `+0x0C` view (`+0x568` there). The element name in the export comes from a folded template (`0x00527180`) |
+| `+0x580` | | packed render state (`cSC4PackedRenderState::PackRenderState` `0x007D2B50`; `Init`'s `+0x574` is the `+0x0C` view's, `0x005F744F`) |
 
 Interfaces (sub-object map): `+0x00` the 8-slot class view `0x00AA5478` (`cSC4SignpostOccupant`: QI `0x005F4930`
 answers `0x4B44FBE2` with this, otherwise `ADD ECX,4` and the prop QI; slot 3 `AsOccupant` `0x005F8400` returns
@@ -984,11 +989,14 @@ Behaviour:
   prop's `Init` (`0x005EC940`), `PackRenderState(+0x574; args 1,1,1,0,1,1,1,0,3,4,5,-1,1.0f,1,-1)`, texture
   loading, three message subscriptions (`0xA6B79602`, `0x06CDB65B`, then a third via slot 0x14), and
   `RebuildModel`. Returns 1.
-- **`LoadTextures`** `0x005F5EF0` — for each of the ten RIDs in `0x00AA5214…0x00AA523C`: release the old binding,
-  ask the resource service (`0x00B43CD4`) slot 0x18 for (`0x7AB50E44`, `0x1ABE787D`, RID) → binding stored at
-  `+0x540 + 4·i`. `Shutdown` `0x005F5E20` unsubscribes, releases the ten bindings, empties the effect vector and,
-  when byte `+0xA0` says a model instance exists, unregisters from the animation tick manager (slot 0x18), then
-  frees the date pair and calls the base `Shutdown` (tail-jump).
+- **`LoadTextures`** `0x005F5EF0` *(rewritten 2026-10-22, re-signposts)* — empties the text-texture vector (object
+  `+0x574`); when the text (`+0x98`) is not empty, the text texture service (`0x00B43CE4`, its slot 4) renders it with
+  font `0x2C1FD612` into that vector *[inferred: one texture per piece of text]* (`0x005F5EF7`–`0x005F5F74`). The ten
+  piece textures are `Init`'s, not this function's: `Init` asks the resource service (`0x00B43CD4`) slot 6 for
+  (`0x7AB50E44`, `0x1ABE787D`, RID) for each entry of `0x00AA5214…0x00AA523C` (`0x005F745A`–`0x005F7465`).
+- **`Shutdown`** `0x005F5E20` unsubscribes, releases the ten bindings, empties the text-texture vector (object
+  `+0x574`) and, when byte `+0xA0` says a model instance exists, unregisters from the animation tick manager (slot
+  0x18), then frees the date pair and calls the base `Shutdown` (tail-jump).
 - **`SetText(text)`** `0x005F7600` — compares against the current text (`cRZString` slot 0x30 `CompareTo(arg, 1)`);
   if equal **and** `+0x9C == +0xA0` the call is skipped; otherwise copies (slot 0x34) and calls `LoadTextures` and
   `RebuildModel`. `GetText` `0x005F5920` tail-jumps the string's slot 0x34 copy into the caller's string.
@@ -996,7 +1004,9 @@ Behaviour:
   the object at `+0x9C`, i.e. the model instance's byte); no change → return. Sets the occupant view's flag 2 test
   (`IsFlagSet(2)`, slot 32) result aside, drives the model instance (`+0x70` view slots 0x34/0x38) with the new
   state, copies the four-byte colour row `0x00AA5204 + 4·(arg != 0)` into the four corner rows `+0x4D4…+0x4D7`,
-  `+0x4E4…+0x4E7`, `+0x4F4…+0x4F7`, `+0x504…+0x507` *(the row semantics are the OP3 question)*, and — only when
+  `+0x4E4…+0x4E7`, `+0x4F4…+0x4F7`, `+0x504…+0x507`: row 0 (static) is (144, 172, 190, 255), row 1 (dynamic)
+  (255, 255, 255, 204), in memory order *[inferred: R, G, B, A]* (`0x00AA5204` = `90 AC BE FF`, `FF FF FF CC`; OP3
+  answered 2026-10-22, re-signposts), and — only when
   the object is in edit mode (`+0xAC`) and the argument is false — calls the class-view slot 7 (`SetEditMode`, via
   `[EAX + 0x1C]` with 0).
 - **`SetEditMode(bool)`** `0x005F7320` — no change → return. Stores `+0xAC`. Turning on: class-view slot 6 with 1
@@ -1031,6 +1041,27 @@ Shutdown's +A8/+AC are O+B4/+B8 managers, while SetOrientation's +AC is O+AC ori
 The former mixed-frame tables and geometry summary are withdrawn, not alternative behavior.
 TextDecal-only OP2 is resolved by compiled stream-width/slot facts in the dedicated spec §7;
 the signpost part of OP2 remains separate.
+
+#### Contributor interface supplement (PR10, harvested 2026-10-23)
+
+The dedicated TextDecal spec above remains authoritative for numeric comparisons,
+geometry, resource ownership and persistence. The contributor independently agrees
+on complete-object field roles and the version-3 record; its duplicate summaries
+are superseded by that newer contract. The signpost portion of OP2 is now resolved
+by §10.3: its serializable receiver is O+0x10 and stream slot 15 receives O+0x98 text.
+
+| Complete-object view | Vtable | Interface facts |
+|---|---|---|
+| +0x00 | `0x00AA5680` | 11 slots; QI `0x005F7650` answers `0x2B3B7D86`; AsOccupant returns O+0x0C |
+| +0x04 | `0x00AA5620` | embedded prop |
+| +0x08 | `0x00AA5610` | message target; DoMessage `0x005F8030` |
+| +0x0C | `0x00AA5588` | 34-slot occupant; Init `0x005F7F40`, Shutdown `0x005F76C0`, SetPosition `0x005F7AA0`, SetAllFlags `0x005F81F0` |
+| +0x10 | `0x00AA556C` | serializable Read/Write |
+| +0x14 | `0x00AA5508` | 26-slot holder; slots 23/24 Write/Read |
+| +0x28 | `0x00AA54F0` | exemplar property holder |
+
+Creator `0x005F84D0` uses pool `0x00B0A9B8`; registration is at `0x00460851`.
+These are interface/provenance facts, not an alternative TextDecal behavior contract.
 
 ---
 
