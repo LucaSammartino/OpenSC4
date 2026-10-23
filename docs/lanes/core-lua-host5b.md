@@ -3,6 +3,10 @@
 | core-lua-host5b: Lua host owner closure | Codex / core-lua-host5b | in progress | Implement settled LH4/LH5 contracts and verify full gate |
 
 ## Handoff
+- FINAL GATE COMPLETE: corrected stable source passed qbuild all, 6380 workspace tests / 0 failed / 0 ignored, clippy 0 diagnostics; native 49/49 edges, CTest 68/68, 96.6 seconds. No tree-change warning. Request qbuild-20261023-215115-build-ctest and exec session 33608 are terminal PASS.
+- EXACT NEXT STEP: rewrite this lane file as the final ready report, commit it, then write build-runs/merge-queue/core-lua-host5b.json with actual HEAD, branch/lane core-lua-host5b, kind engine, abi false, game_runs [], state ready. Do NOT rerun tests: all required final checks passed. No outstanding operation or collector remains.
+- Source milestones: 021cc87e implementation, 7c162903 destructor correction; current documentation milestone a64de9dd. Focused tests 25/25; formatting 7 files PASS. Final logs build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log. Initial mixed-source evidence archived in build-runs/gate-before-destructor-correction/.
+- Budget stop during final report preparation; no merge-queue entry written. Remaining work is reporting/enqueue only. No new questions, no ABI/plugin/capi changes, no game runs. Only spec §15 Q1/Q2/Q5/Q8 remain unsettled. The older in-progress gate/next-step notes below are superseded by these final facts.
 - Goal: close all settled cGZLua5, cGZLua5Thread and command-generator owner behavior; interpreter remains foreign.
 - Done: implemented LH4 registry/thread lifecycle and LH5 setup, notifications, dispatch and cleanup; expanded owner table.
 - Done: implementation milestone 021cc87e; latest focused 24/24 in build-runs/focused-20261023-211944.log; fmt 7 owned files PASS. Earlier diagnostic failures preserved separately.
