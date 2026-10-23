@@ -50,3 +50,6 @@ pub mod placement_demolition;
 
 #[cfg(test)]
 mod tests_placement_demolition;
+
+#[cfg(test)]
+mod tests_power_pole;

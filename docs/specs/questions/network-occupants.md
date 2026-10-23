@@ -136,3 +136,31 @@ implementer of the class tables and records.
   `0x00B0B374` entries and exact `0x6000000` Draw predicate? How are normalized triangle normals encoded
   into the stated colour bytes (including degenerate normals)? The spec names these inputs and operations
   without publishing values/encoding. [missing; the base owner remains unclosed, with no invented rendering]
+
+<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
+- **NO33 - sections 4.1-4.3 power-pole owner algorithms:** please publish constructor defaults and
+  the numeric connection point tables `0x00B0C0D8`/`0x00B0C198`, their subtype extraction and unlisted
+  subtype behavior; connection lookup/copy ownership, RemoveConnection, BreakAllConnectionsAtDestination,
+  refresh, SetDistressed, unnamed flag storage, slots 16/17 outputs, ChangeZoomLevel, SetPosition,
+  SetModelPosition, LoadModel key/failure semantics, bounds/transform/sort, highlight and wire Pick,
+  Draw/DrawPowerlines, floor/wall generation, and shutdown/resource ownership. The spec gives member
+  names/addresses but no algorithms. The core implements published state, two table selections and Init's
+  known state changes; no owner-result callbacks or invented geometry are supplied. [missing; sections
+  4.1-4.3 remain open, including native pool allocation required by section 13 test 4]
+
+<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
+- **NO34 - sections 4.2-4.3 and section 13 test 17 demolition cost:** how do the control exemplar
+  properties (in particular float `0xE9A18D3F` at `0x00B46754`) update the signed int64 demolition
+  statics at `0x00B46770/74`? The published init table does not write those statics. The core can
+  return supplied low/high words verbatim, but does not invent a conversion or scaling formula.
+  [missing; exemplar-to-quote half of conformance test 17 remains open]
+
+<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
+- **NO35 - section 4.4 power-pole record and live layout:** please specify the wire-point list count
+  encoding, the three `0x006574A0` struct stream bodies, exact four vertex offsets/order and live-to-record
+  mapping. Section 4.1 places model IDs at C0/C4 while section 4.4 writes B8/BC/C0, and GetCell reads
+  C8/CC although layout says C8 is bbox dirty and CC/D0 are cells. Position and vector offsets likewise
+  overlap the record's unrelated words. Which is authoritative? What is released at B0 after Read,
+  given B0 is also the connection vector end? Which reference uses which of the two class-ID IIDs,
+  and what happens on failed reads? No pole record codec is fabricated. [missing; section 4.4,
+  section 11 quirk 11 and section 13 test 16 remain open]

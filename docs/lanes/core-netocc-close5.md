@@ -1,6 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-netocc-close5: core network occupant owner closure | Codex; core-netocc-close5 (detached HEAD; reserved branch core-netocc-close5) | ready: model instance subset, gate PASS | Review one owner closure; continue seven remaining owners |
+| core-netocc-close5: core network occupant owner closure round 2 | Codex; core-netocc-close5 (detached HEAD) | in progress | Close pole then pylon; assess connection; final full gate |
+
+## Handoff
+
+- Goal: PowerPole sections 1,4.1-4.4,11,13 then Pylon 1,6.1-6.3,11,13; connection if budget permits.
+- Preserve Round 1 model closure: implementation d1ca36d4, report 322ffb77; full gate Rust 5856 passed, clippy clean, CTest 68/68.
+- Initial HEAD 322ffb77, clean detached worktree; no branch/ref changes permitted.
+- Existing pole module only loads six static controls; pylon has identity only.
+- Spec names members without algorithms; pole layout aliases conflict with record offsets. Do not invent rendering/connection algorithms.
+- Pole milestone: explicit state/init contracts and signed static-word cost implemented; 3 focused tests PASS (q/20261023-122856-29052.log). First compile failed on private codec import; corrected to public re-export, failure preserved q/20261023-122714-37508.log.
+- Filed NO33-NO35: missing pole algorithms/table coordinates; missing exemplar-to-cost formula; conflicting/incomplete record layout. Pole owner remains open (sections 4.1-4.4).
+- Next: pylon record/lifecycle tests and spec questions; connection if budget remains. pylon.rs draft is not yet included in mod.rs.
+- No game requests or asynchronous build outstanding. Core only; ABI unchanged.
+- Final gate: qbuild all once on stable source. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-netocc-close5-r2-manifest.json.
 
 ## Report
 
