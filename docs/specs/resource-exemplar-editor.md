@@ -219,9 +219,11 @@ loop itself is modal-dialogs.md §2.
 - `GetPropertyNameStr` (0x0066E3E0) prints the property's name, or `0x%08X` of the ID when the definition has no
   name.
 
-The default-value parsers (`getDefaultValue`, eight per-type bodies 0x0066F8E0–0x00670940, and
-`convertStringToFloatValue` 0x00670300) split the quoted default into `count` items and convert each by type; a
-conversion failure makes the whole entry invalid (§4). `getUnquotedString` (0x00670E10) takes the next field: if it
+The default-value parser's measured contract is now [resource-editor-views.md §8](resource-editor-views.md#8-getdefaultvalue-contract-compat).
+It uses space-delimited numeric items, scalar shape only for signed count +1, and performs no numeric
+conversion-success check. Empty non-string defaults and unsupported types return false; STRING permits empty
+text. SINT64 defaults use 32-bit `atol` and sign-extension even for arrays. This supersedes the earlier inferred
+claim that numeric conversion failure drops the entry. `getUnquotedString` (0x00670E10) takes the next field: if it
 starts with `"` it returns the text up to the closing quote and consumes the following comma. *[inferred: per-item
 separator and range checks not read this round]*
 
