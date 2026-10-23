@@ -423,7 +423,7 @@ cSC4BrushDescription	effects	renderer	effects.md	core/src/effects	-	-
 cSC4ScrubberDescription	effects	renderer	effects.md	core/src/effects	-	-
 EffectsParser	effects	renderer	effects.md	-	-	-
 EffectsBootstrap	effects	renderer	effects.md	-	-	-
-(anonymous_namespace)::c*Command	effects	renderer	effects.md	-	-	-
+(anonymous_namespace)::c*Command	effects	renderer	effects.md	core/src/effects_parser	-	-
 cSC4EffectsParticle	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4ParticlesDescription	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4BrushEffect	effects	renderer	effects.md	-	-	-
