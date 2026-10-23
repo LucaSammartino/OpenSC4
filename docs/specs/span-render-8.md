@@ -275,7 +275,8 @@ the record is not refreshed per draw.
   format (rejected by the context, §10.3) and type 2 the unpaletted one.
 - **Lock** (`+0x18`, `0x00826AA0`, flags; `ret 4`): false if there is no storage; otherwise increments the 16-bit
   lock count `+0x38`, ORs the flags into `+0x44`, and if flag bit 15 (`0x8000`) is set also increments the change
-  counter `+0x30`; true. **Unlock** (`+0x1C`, `0x00826490`): decrements the count, clears the flags; always true.
+  counter `+0x30`; true. **Unlock** (`+0x1C`, `0x00826490`): decrements the 16-bit count, clears only the supplied
+  flag bits from the 32-bit accumulated mask; always true, even at zero nesting (GZF10, framework core §6).
   The context's `0x8040` therefore marks the buffer as modified once per `Init`, not per draw.
 - **Colour mapping** (`+0x78`, `0x00825DA0`, r, g, b as the low bytes of three dwords; `ret 0xC`): switch on the
   colour type with table `0x00825E60` over types 4–9; any other type, **including 2**, returns **0**. The second

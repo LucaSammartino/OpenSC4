@@ -61,9 +61,9 @@ Rows marked open require GZF1 before implementing that interface entry.
 | 15–16 | `0x0087A74B` / `0x0087A812` (open) |
 | 17–18 | `0x00472E30` / `0x00472E40` (application uses slot 18 as enable/disable; full semantics open) |
 | 19–20 | quit `0x0087963D`, abortive quit `0x0087A610` |
-| 21–23 | embedded helper accessor `0x00879479`, global framework accessor `0x008793F2`, embedded COM accessor `0x008793F9` |
+| 21–23 | borrowed embedded helper `0x00879479`, byte-flag getter `0x008793F2`, borrowed embedded COM `0x008793F9` |
 | 24–29 | `0x00472E50` (open), get debug level `0x00879480`, two aliases `0x00879487`, set level `0x008794BF`, propagated SetDebugLevel `0x0087948C` |
-| 30–35 | `0x00949B2B` (open), stream setters `0x008796BD`, `0x0087970D`, `0x0087975D`, stream operation `0x0087950F`, SetStream `0x008797AD` |
+| 30–35 | `0x00949B2B` (open), stream getters `0x008796BD`, `0x0087970D`, `0x0087975D`, stream QI `0x0087950F`, SetStream `0x008797AD` |
 | 36–39 | set application `0x00879427`, get application `0x00879473`, exception report `0x00879685`, `0x00949B32` (open) |
 | 40–46 | `0x0087AC20`, lifecycle callbacks `0x00879F15`, `0x00879FBC`, `0x0087A046`, `0x0087A4B6`, `0x0087A527`, `0x0087A59F` (full signatures/order open) |
 
@@ -94,8 +94,12 @@ also removes the service from tick/ordered callback lists (`0x0087A90E`).
 participant and retains a reference. Removal returns false for an absent participant.
 Mutation while that callback list is protected is rejected (`0x00879D21`,
 `0x00879DB3`). The ordered participant list avoids duplicate participant IDs and
-inserts according to its supplied ordering value (`0x00879BB9`); tie handling and
-the callback interface's semantic name remain GZF1.
+inserts in **descending signed 32-bit priority**, obtained from participant slot
+12 (`0x00879BE3`, signed comparison `0x00879C1F`–`0x00879C22`). Equal priorities
+are passed over, so distinct participants tied at insertion retain insertion
+order. Registration checks participant IDs along that traversal; it stops at
+the insertion point, rather than scanning the rest of the list for duplicates
+(`0x00879C02`–`0x00879C44`). The callback interface's semantic name remains GZF1.
 
 ### 2.3 Application lifetime and failures
 
@@ -123,6 +127,21 @@ Exception reporting uses `??? Unknown exception ???` for a null description,
 temporarily disables the framework through slot 18, presents an exception dialog,
 and re-enables it (`0x00879685`). *[choice]* The dialog's native presentation is
 host-specific; the text and disable/report/enable ordering are the contract.
+
+### 2.4 Accessor ownership (GZF10)
+
+*[compat]* The no-argument helper accessor (slot 21) returns embedded storage
+at primary+`0xE8`; COM (slot 23) returns the embedded COM primary face at
+primary+8; application (slot 37) returns the current global application pointer,
+possibly null. These are **borrowed**, with no AddRef, transfer, or output
+argument (`0x00879479`, `0x008793F9`, `0x00879473`). Keep the framework and
+application alive while using their borrowed pointers, or explicitly acquire a
+reference through the appropriate interface. Slot 22 is **not a framework
+pointer accessor**: `0x008793F2` returns only the byte stored at framework+`0xC8`.
+No semantic name for that flag is claimed here. SetApplication (slot 36) takes
+one pointer, permits null, stores it without retaining/releasing either old or
+new value, and has no promised result (`0x00879427`–`0x0087944E`). This differs
+from static sSetApplication, which explicitly AddRefs its argument (§2.1).
 
 ## 3. COM (`cGZCOM`)
 
@@ -229,6 +248,19 @@ in slot 5 (`0x005C3E70`), Init in slot 6 and Shutdown in slot 7. Concrete tables
 misc `0x00AA1CE4`, tool `0x00AA1AFC`. The tool table `0x00AA1648` has purecall
 in slot 3 and is not the concrete dispatch table. *[compat]*
 
+*[compat, GZF10]* QI(iid, out) accepts **only `0x452294AA`**, returns the
+primary pointer, adds one reference and returns true; even IID 1 fails, leaving
+out untouched. A successful query requires writable out storage. AddRef returns
+the incremented 32-bit count. Release with unsigned count greater than one
+decrements and returns it; with count zero or one it calls virtual FinalRelease
+and returns zero. FinalRelease calls the deleting destructor with flag 1; it
+does **not** call Shutdown (`0x005C3E30`–`0x005C3E7B`). Tool destruction frees
+the notification tree and object; misc destruction also destroys its pending
+wait collection and releases retained service pointers (`0x005C5110`,
+`0x005C7EC0`, `0x005C84F0`). Neither destructor unregisters commands or
+subscriptions. Call Shutdown while the object is live when that cleanup is
+required; a final Release is not a substitute, including when initialized=true.
+
 *[compat]* Both start with count zero and initialized=false. Their notification
 helpers are populated during construction. Init is guarded by initialized;
 it sets the flag, subscribes the notification list and registers names if the
@@ -321,10 +353,34 @@ Storage is row-major, each row padded to a four-byte boundary, and allocated
 without clearing. Thus 10×3 pixels at 8 bpp have stride 12 and occupy 36 bytes.
 Lock without storage fails; otherwise lock nesting is counted, flags accumulate,
 and bit `0x8000` increments the modification counter. Unlock decrements nesting,
-clears lock flags and returns true. A type-2 8-bit buffer has no palette; RGB
+clears only the supplied flag bits and returns true. A type-2 8-bit buffer has no palette; RGB
 mapping returns zero for that type. Consequently the linked renderer's solid
 fill writes zero even when a nonzero drawing color was selected. These rules
 and their instruction evidence are in span-render-8 §10.4.
+
+*[compat, GZF10]* Buffer QI(iid, out) accepts `1` and `0x20732180` at the
+primary face and `0x86D72B57` at primary+4. Each success writes the face, adds
+one reference and returns true; unsupported IDs return false without writing
+out. Writable out is required on success (`0x00825D00`–`0x00825D52`). The
+constructor starts the reference count, stored color key and color-key enable
+flags at zero (`0x00827315`–`0x0082731E`). GetColorKey(outKey) returns false
+and leaves outKey unchanged when disabled; when enabled it writes the full
+32-bit key and returns true (`0x00826620`–`0x00826636`). Thus fresh construction
+does not report a key of zero: it reports **no key**, with no output write.
+AddRef returns the incremented 32-bit count. Release at count one stores zero,
+deletes through slot 40 with flag 1, and returns zero; at every other count it
+decrements modulo 2^32, so Release at zero returns `0xFFFFFFFF` without deletion
+(`0x00825D60`–`0x00825D90`). References from all faces share that lifetime.
+
+*[compat, GZF10 correction]* Unlock(flags) is mask removal, not an all-flags
+reset: retained flags are old flags AND the 32-bit complement of flags. Nesting
+is decremented modulo 2^16, even at zero and without storage; no lock ownership
+or matching-mask check occurs, and the modification counter is unchanged
+(`0x00826490`–`0x008264A4`). For example, locks `0x8040`, `0x0800`, followed
+by Unlock(`0x0800`), leave `0x8040` and nesting 1. This resolves the old
+ambiguous “clears flags” wording in this section and span-render-8 §10.4 in
+favor of span-render-4444's audited bridge. Lock's accumulated mask and change
+counter are 32-bit, while its nesting count is 16-bit (`0x00826AAF`–`0x00826ABB`).
 
 *[choice]* Core memory need not expose the original object offsets. A native
 adapter must still obey the documented lock, stride, ownership and pointer
@@ -356,6 +412,14 @@ Additional delivery helpers are OutputLowLevel `0x00934A6E`, formatted Output
 belong to output-streams, not to the log router itself.
 
 ### 7.2 Routing and reentrancy
+
+*[compat, GZF10]* Delivery ownership is established by the thread executing
+the first Init while initialized=false, **not** by construction. That Init
+captures the current thread ID before backend setup (`0x009342D2`–`0x009342EA`);
+an Init while already initialized does not recapture it. After Shutdown resets
+initialization, another Init can bind a different thread. OutputLowLevel compares
+the submitting thread with this captured ID (`0x00934A6E`); OnTick drains the
+foreign-thread queue but does not establish a new owner (`0x00934F05`).
 
 *[compat]* Low-level output visits registered backends and asks each backend's
 filter (slot 3) whether it accepts the category/level before invoking its output
@@ -428,7 +492,15 @@ literal are GZF8.
 directory existence. It returns the existence result and sets its cache-valid
 flag on success (`0x008909AA`). Failure is therefore not an atomic rejection of
 the supplied path. SetPluginDirectory uses the corresponding pattern
-(`0x008909EE`). CD discovery/validation has its own expected-volume name,
+(`0x008909EE`). *[compat, GZF10]* Failure leaves the previous cache-valid flag
+unchanged: it does not invalidate a previously valid cache. Consequently, after
+an already valid directory is overwritten with a nonexistent path, the setter
+returns false but the next getter returns that newly stored path without lazy
+INI resolution. On a fresh invalid cache, the same failure leaves it invalid,
+and the getter still resolves lazily. The stores of true occur only on the
+success branches (`0x008909D9`–`0x008909E6`, `0x00890A1D`–`0x00890A2A`);
+getters test those same flags (`0x00890A40`, `0x00890B9B`).
+CD discovery/validation has its own expected-volume name,
 application-path and recursion/INI options; search ordering, validation rules
 and no-disc return values are GZF8. *[choice]* A platform adapter may report
 absence of a CD device, but must not fabricate a validated CD path.
@@ -555,6 +627,20 @@ on failure. Rows involving existing buffer/command specs inherit their fixtures.
 | GZC36 | Target starts another script from a callback | nested execution false; outer parse remains active |
 | GZC37 | Unknown command tag followed by plain text | unknown command skipped; later plain text callback still occurs |
 | GZC38 | Missing script resource or missing stream IID | false; acquired resource returned to manager |
+| GZC39 | Register ordered participants A=−1, B=7, C=7, D=0, with distinct IDs | traversal B, C, D, A; ties retain insertion order |
+| GZC40 | New buffer; QI `1`, `0x20732180`, `0x86D72B57`, then unknown IID with sentinel | primary, primary, primary+4; three added refs; final query false/sentinel unchanged |
+| GZC41 | Fresh buffer; GetColorKey with sentinel `0x12345678` | false; sentinel unchanged, despite stored key zero |
+| GZC42 | Buffer fixture with enabled key `0x89ABCDEF`; GetColorKey | true; writes exactly `0x89ABCDEF` |
+| GZC43 | Buffer count zero; AddRef twice and Release twice | 1, 2, 1, 0; exactly one destruction on last call |
+| GZC44 | Separate fresh buffer, Release without AddRef | `0xFFFFFFFF`; no destruction; dispose fixture separately |
+| GZC45 | Initialized buffer; Lock(`0x8040`), Lock(`0x0800`), Unlock(`0x0800`), Unlock(0) | mask `0x8040`, nesting 0; change count advanced once; both Unlock calls true |
+| GZC46 | Fresh buffer without pixels; Unlock(`0xFFFFFFFF`) | true; nesting becomes 65535, mask zero; no pixel access |
+| GZC47 | Each support; QI `0x452294AA`, then IID 1 with sentinel | primary/+1 ref, then false/unchanged output |
+| GZC48 | Support count 2; Release twice with destruction recorder | 1, then 0; FinalRelease/deleting destructor once; no implicit Shutdown |
+| GZC49 | Support at initial count zero; Release | returns zero and deletes; unlike buffer underflow |
+| GZC50 | Construct logger on A, Init on B, submit record on A, tick on B | delivery deferred until B drains; repeated Init on A does not rebind |
+| GZC51 | Valid cached data and plugin directories; respective setter given nonexistent P | false; each cache stays valid and getter returns P without INI lookup |
+| GZC52 | Framework helper/COM/application getters with reference recorders; SetApplication(P), then null | stable embedded addresses; application P then null; no AddRef/Release from these calls |
 
 ## 11. Remaining work
 
