@@ -58,8 +58,14 @@ switches, condition-byte cycling, drawing-style output bytes, and hit-test
 selected/forward-vector/popup priority. Hit-test numeric/fallback behavior,
 other lifecycle/input/render phases and shared-helper ownership remain open.
 
-Reconcile static family resources/Init flags; PostInit view/alpha setup;
-destructor/reference-array cleanup; other keyboard/mouse/capture state;
+2026-10-23 window integration addendum (§§19–22): raw Init flag requests,
+static-resource once timing/section names, destructor storage/reference effects,
+mouse wrapper region/fallback dispatch, draw acquisition/lock/Release boundaries
+and trigger ordering are now specified. These are resolved subsets, not an
+answer to the entire LE5 entry.
+
+Reconcile remaining static family path/name resources; PostInit view/alpha setup;
+other keyboard/mouse/capture state;
 hit-test numeric conversion and grid/resize/inside fallback; drawing,
 title/name helpers, 3D preparation and refresh. Callback adjustment and
 sort/scroll dispatch themselves are resolved (§12.1), while sort semantics
@@ -72,3 +78,17 @@ Shared attribution is exactly five current bodies/427 bytes: `0x00478360`,
 `0x006049D4`/`0x00604A67` are interior fragments. Direct callers prove reach,
 not exclusive ownership. The 109-entry/52,646-byte arithmetic stays resolved.
 PARK at 3/3; no owner-complete claim or fourth round.
+
+**LE7 — Chooser service and grid dependencies**
+
+The chooser's owner contracts, methods, constructor, messages, list rows,
+selection/key lookup, edit registration, cancelable/forced close and delete
+failure ordering are specified in §§19–22 (2026-10-23, re-lotcfg-editor5).
+Remaining dependency questions: identify the interfaces enumerated by PostInit
+`0x00480460` through IID `0x856C8CF7`, verify their acquisition/retention
+contract and purpose; identify the backing-store interface used by deletion
+`0x0047ED90` at virtual `+0x6C` and exact database item scope. Establish grid
+sort direction/collation and text search flag/range meaning for `+0x20C` and
+`+0x214`; raw calls alone must not become an assumption that row zero is
+unsearchable. Malformed hexadecimal row parsing belongs to `RZAtoUint32HexA`.
+The complete-owner label remains unsupported while these and LE3–LE6 remain.
