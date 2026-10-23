@@ -34,3 +34,23 @@
   enumeration/ranking and every CreateDevice/depth-attachment failure path in `0x0088BFC0`. Current spec covers
   cooperative flags, flip-count fallback, separate surfaces, clipper and presentation. [needs: callbacks
   `0x0088BDE0`, `0x0088BE40`, `0x0088BDC0` and all remaining setup instruction pages]
+
+<!-- from: core-gdriver5 (2026-10-23) -->
+- **RD9 - sections 2, 4.1, 4.4 and 10.1:** specify the complete texture-stage constructor/default-reset values,
+  initial material/clear state, the Shutdown error helper, adapter-info storage and zero-version fallback,
+  and driver/manager final-release destruction behavior. Section 4.4 refers to 5.4 for stage defaults, but
+  that section only specifies capability setters. [current: explicit Unsupported boundary for unknown
+  reset/helper/info operations; test defaults are supplied fixtures, not native claims]
+- **RD10 - section 8.3:** when compacting position-only, position+colour or position+UV into the format-11
+  buffer, what values are written to missing colour/UV elements? What are the exact generated index count
+  and buffer contents for incomplete quads and the result selected when several queued submissions fail?
+  [current: copy only specified source elements, leave missing destination bytes untouched; complete quads
+  only; retain the last failing submission HRESULT; these choices require confirmation]
+- **RD11 - section 8.6:** must portable core match x87 projection conversion bit-for-bit for all possible
+  float matrices/viewport sizes, including non-finite inputs and double-rounding cases, or are ordinary
+  finite conformance vectors sufficient? [current: f64 intermediates with single output rounding; exact
+  x87 quotient/extended accumulator emulation is pending clarification]
+  *Implementation follow-up 2026-10-23:* a rational discriminator (width 30, matrix words `3e2f59ff`
+  and `40a4645f`) proves f64 produces `30888888` versus x87 `30888889`. Core now uses a software
+  64-significand-bit accumulator and correctly rounds finite operations; the remaining question is the
+  FPU control-word assumptions and NaN-payload/exception behavior, which the spec does not prescribe.
