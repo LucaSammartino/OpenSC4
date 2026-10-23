@@ -429,7 +429,7 @@ fn pylon_position_visibility_and_explicit_model_gap_conformance_42() {
     p.record.transform.mask = 0x80;
     assert_eq!(
         p.set_position(Some([4.0, 5.0, 6.0]), &mut h),
-        Err(PylonUnsupported::ModelTextureGeometryDrawBoundsTransformMessagesNO36)
+        Err(PylonUnsupported::ModelCompositionDrawMessagesNO36)
     );
     assert_eq!((p.record.transform.counter, p.record.transform.mask), (0, 0x81));
     assert_eq!(
@@ -456,4 +456,183 @@ fn pylon_position_visibility_and_explicit_model_gap_conformance_42() {
     h.log.clear();
     p.set_visibility(true, 8, &mut h);
     assert_eq!(h.log, ["visibility/true/8"]);
+}
+
+#[test]
+fn pylon_constructor_conformance_45() {
+    for retained in [0xA5A5_A5A5u32 as i32, 0x1357_9BDF] {
+        let mut p = Pylon::fresh(retained);
+        assert_eq!(p.record.states, [1, 0, retained]);
+        p.record.dirty = false;
+        p.record.blink = true;
+        p.set_dispatch_type(4);
+        assert_eq!(p.dispatch_type(), 4);
+        assert!(p.record.dirty);
+        assert!(!p.record.blink);
+    }
+}
+
+#[test]
+fn pylon_cached_bounds_and_transforms_conformance_46() {
+    use super::xform::Xform;
+    let mut p = Pylon::fresh(2);
+    p.auxiliary = [[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [7.0, 8.0, 9.0, 10.0, 11.0, 12.0]];
+    let boxes = p.auxiliary;
+    assert_eq!(p.bounds(), [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    assert_eq!(p.world_bounds(), [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]]);
+    let (mut min, mut max) = ([0.0; 3], [0.0; 3]);
+    p.get_bounding_box(&mut min, &mut max);
+    assert_eq!([min, max], p.world_bounds());
+    assert_eq!(p.sort_value(), 0);
+    p.texture = 0x1234_5678;
+    assert_eq!(p.sort_value(), 0x1234_5678);
+    let input = Xform {
+        counter: 99,
+        mask: 0xA7,
+        matrix: [3.0; 9],
+        translation: [4.0, 5.0, 6.0],
+        scale: 7.0,
+    };
+    p.record.transform.counter = 255;
+    p.set_transform(&input);
+    assert_eq!(p.record.transform, Xform { counter: 0, ..input });
+    let mut output = Xform {
+        counter: 255,
+        ..Xform::default()
+    };
+    p.get_transform(&mut output);
+    assert_eq!(output, Xform { counter: 0, ..input });
+    output.counter = 17;
+    p.get_transform(&mut output);
+    assert_eq!(output.counter, 18);
+    assert_eq!(p.record.transform.counter, 0);
+    assert!(p.record.dirty);
+    assert_eq!(p.auxiliary, boxes);
+    p.record.dirty = false;
+    p.set_transform(&input);
+    assert!(!p.record.dirty);
+    assert_eq!(p.auxiliary, boxes);
+}
+
+struct PickHost {
+    boxes: Vec<[[f32; 3]; 2]>,
+    hit: Option<f32>,
+    pitch: f64,
+    units: f64,
+}
+impl PylonPickHost for PickHost {
+    fn viewport_units_to_world_units(&mut self, units: u32) -> f64 {
+        assert_eq!(units, 50);
+        self.units
+    }
+    fn view_pitch(&mut self) -> f64 {
+        self.pitch
+    }
+    fn ray_box_distance(&mut self, bounds: [[f32; 3]; 2]) -> Option<f32> {
+        self.boxes.push(bounds);
+        self.hit
+    }
+}
+
+#[test]
+fn pylon_pick_conformance_47() {
+    let mut p = Pylon::fresh(2);
+    p.auxiliary[1] = [-1.0, -999.0, -3.0, 4.0, 100.0, 6.0];
+    let mut h = PickHost {
+        boxes: Vec::new(),
+        hit: Some(8.0),
+        pitch: 0.0,
+        units: 20.0,
+    };
+    let mut distance = 10.0;
+    p.set_ui_state(0);
+    assert!(!p.pick(&mut distance, &mut h));
+    assert!(h.boxes.is_empty());
+    p.set_ui_state(1);
+    assert!(p.pick(&mut distance, &mut h));
+    assert_eq!(distance, 8.0);
+    assert_eq!(h.boxes[0], [[-1.0, 80.0, -3.0], [4.0, 100.0, 6.0]]);
+    assert!(!p.pick(&mut distance, &mut h));
+    assert_eq!(distance, 8.0);
+    for hit in [None, Some(9.0), Some(f32::NAN)] {
+        h.hit = hit;
+        assert!(!p.pick(&mut distance, &mut h));
+        assert_eq!(distance, 8.0);
+    }
+    h.pitch = 0.73;
+    p.pick(&mut distance, &mut h);
+    let expected = (100.0 - 20.0 / f64::from(0.73f64.cos() as f32)) as f32;
+    assert_eq!(h.boxes.last().unwrap()[0][1].to_bits(), expected.to_bits());
+    assert_eq!(p.auxiliary[1][1], -999.0);
+    assert!(p.record.dirty);
+}
+
+impl PylonTextureHost for Host {
+    fn request_texture_binding(&mut self, key: [u32; 3]) -> RefValue {
+        self.log.push(format!("texture{:x}/{:x}/{:x}", key[0], key[1], key[2]));
+        // An existing mock primitive controls successful resource acquisition.
+        if self.prepare {
+            reference(77)
+        } else {
+            RefValue::Null
+        }
+    }
+    fn binding_texture_id(&mut self, value: &RefValue) -> u32 {
+        assert_eq!(token(value), 77);
+        0x9876_5432
+    }
+}
+
+#[test]
+fn pylon_texture_replacement_conformance_48() {
+    let mut p = Pylon::fresh(6);
+    let mut h = Host::default();
+    let offsets = [0, 0x10, 0x20, 0x30, 0x40, 0x50, 0x20];
+    for (kind, base) in [
+        (0, 0xEA3E_E100u32),
+        (6, 0xEA3E_E100),
+        (1, 0x1431_5E00),
+        (5, 0x1431_5E00),
+    ] {
+        p.set_dispatch_type(kind);
+        for (state, offset) in offsets.into_iter().enumerate() {
+            p.set_dispatch_state(state as i32);
+            h.log.clear();
+            assert_eq!(p.rebuild_current_texture(&mut h), Ok(true));
+            assert!(h.log.contains(&format!("texture7ab50e44/1abe787d/{:x}", base + offset)));
+            assert_eq!(p.texture, 0x9876_5432);
+        }
+    }
+    p.set_dispatch_type(2);
+    p.set_dispatch_state(-1); // This type never indexes a table.
+    h.log.clear();
+    assert_eq!(p.rebuild_current_texture(&mut h), Ok(true));
+    assert_eq!(h.log, ["release77", "texture7ab50e44/1abe787d/0"]);
+    p.texture_binding = RefValue::Null;
+    p.texture = 7;
+    h.prepare = false;
+    h.log.clear();
+    assert_eq!(p.rebuild_current_texture(&mut h), Ok(true));
+    assert_eq!(p.texture, 7);
+    assert_eq!(h.log, ["texture7", "texture7ab50e44/1abe787d/0"]);
+    p.texture = 0;
+    assert_eq!(p.rebuild_current_texture(&mut h), Ok(false));
+    p.texture_binding = reference(33);
+    p.texture = 7;
+    h.log.clear();
+    assert_eq!(p.rebuild_current_texture(&mut h), Ok(true));
+    assert_eq!(h.log, ["release33", "texture7ab50e44/1abe787d/0"]);
+    p.set_dispatch_type(4);
+    assert_eq!(
+        p.rebuild_current_texture(&mut h),
+        Err(PylonUnsupported::ModelCompositionDrawMessagesNO36)
+    );
+    p.set_dispatch_type(0);
+    for state in [-1, 7] {
+        p.set_dispatch_state(state);
+        assert_eq!(
+            p.rebuild_current_texture(&mut h),
+            Err(PylonUnsupported::TextureStateOutsideTable)
+        );
+    }
 }

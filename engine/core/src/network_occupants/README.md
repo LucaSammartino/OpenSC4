@@ -61,14 +61,14 @@ partly open. Resolved record layouts are no longer treated as contradictory.
 | cSC4PowerPoleOccupant | network §§1,4.1–4.2 | constructor/getters/highlight/enumeration and identity tested; full model/pool/bounds open: NO33; detailed table below |
 | cSC4PowerPoleOccupant | network §4.3 | `PowerLineControl`, `PoleStatics::init_once`, `PowerPole::init_published_state`; open: NO33 |
 | cSC4PowerPoleOccupant | network §§4.4,11,13 tests 2,4,16,17 | nested record/shared tables/IIDs/cleanup and signed property quote tested; native pool open: NO33 |
-| cSC4PylonOccupant | network §§1,6.1–6.3,11,13 tests 2,19,20,40–42 | corrected one-transform record, placements, setters and shared timer tested; texture/model/render open: NO36; constructor enum inputs: NO44; detailed table below |
+| cSC4PylonOccupant | network §§1,6.1–6.3,11,13 tests 2,19,20,40–42,45–48 | record, constructor, placements, setters, timer, cached bounds/transforms, pick and ordinary textures tested; model composition/Draw/messages open: NO36; detailed table below |
 
 Network §§0,8,9 are overview/other owners. Section 13 tests 14–17,19–23,25
 exercise other owners or city integration; they are not model-instance closure
 tests. No real-game behavior is measured here: this module has no ABI/plugin
 wiring.
 
-### cSC4PowerPoleOccupant and ::tConnection
+### cSC4PowerPoleOccupant
 
 `power_pole.rs` owns the settled contracts below; tests are in
 `tests_power_pole.rs` unless qualified. NO34/NO35 are implemented, not open.
@@ -102,11 +102,25 @@ helpers and do not stand in for complete initialization.
 | network §11 quirk 23 off-map position | full position/model path remains unsettled | open: NO33; specified y fallback must accompany that implementation |
 | network §12 / §13 tests 2,4,16,17,35,38,39,43,44 | implementations/tests above | test 4 native allocation open: NO33; test 35 identity metadata tested, actual forwarding is ABI glue |
 
+### cSC4PowerPoleOccupant::tConnection
+
+`PoleConnection` is the connection-record owner within `power_pole.rs`; native
+pool layout and complete wire construction/cell walking remain NO33/NO43.
+
+| Spec section | Code item | Covering test or explicit open remainder |
+|---|---|---|
+| network §§4.1,4.4 record/layout/reference ownership | `PoleConnection`, nested `vertices` codec, `PowerPole::{write,read_into}` | `pole_nested_record_iids_shared_overwrite_and_failure_cleanup_conformance_16`, `pole_legacy_v4_future_versions_and_raw_bool_read`; distinct pole/line IIDs and nested empty vectors |
+| network §4.6 insertion/removal/retained records | `insert_lines`, `remove_connection_record`, `remove_connection`, `break_all_connections` | `pole_connections_effects_messages_and_model_attributes_conformance_38_39` |
+| network §4.6 line-cell lookup/delegation | `line_cells`, `line_cells_to` | connection test above; exact walk and complete wire construction open: NO33, NO43 |
+| network §7.2, §11 quirks 6,21, §13 tests 16,39 | counted refs, retained records, nested vectors | record and connection tests above; no additional settled algorithm |
+
 ### cSC4PylonOccupant
 
 `pylon.rs`, tests in `tests_pylon.rs`. There is one transform and one source ref;
 the source serialized at displacement +6C is exactly the source released at
-live +78. Constructor enum values are mandatory inputs (NO44). Position still
+live +78. `fresh(retained_dispatch_type)` initializes UI=1 and dispatch state=0;
+the uninitialized native dispatch-type word is an explicit retained input (NO44
+answered). `new(states)` remains an explicit live-state seed. Position still
 executes both placement attempts around `rebuild_model`; that computation
 returns `PylonUnsupported` until NO36 supplies its algorithm.
 
@@ -114,16 +128,19 @@ returns `PylonUnsupported` until NO36 supplies its algorithm.
 |---|---|---|
 | network §§1.1–1.3 identity/type/QI | `NetOccClass::Pylon`, `PylonRecord::new` | `tests::{class_ids_and_types,pole_line_pylon_qi}`; existing QI discrepancy open: NO10 |
 | network §1.4 | network-piece flag queries are another owner | no pylon-specific flag query |
-| network §6.1 fields/defaults | `Pylon::{new}`, `PylonRecord::new`, auxiliary transforms, texture/ref state | `pylon_lifecycle_packing_and_all_placement_edges`, record tests; enum defaults open: NO44 |
+| network §6.1 fields/defaults | `Pylon::{fresh,new}`, `PylonRecord::new`, cached boxes, texture/ref state | `pylon_constructor_conformance_45`, `pylon_lifecycle_packing_and_all_placement_edges`, record tests; dispatch type retains caller-supplied incoming word |
 | network §6.2 Init/guard/packing/shutdown | `Pylon::{init,shutdown}`, `PYLON_RENDER_STATES`, `PylonGlobals` | `pylon_lifecycle_packing_and_all_placement_edges`; renderer probe result intentionally discarded |
 | network §6.2 placement | `place_in_manager`, `place_in_renderer` | `pylon_lifecycle_packing_and_all_placement_edges` (matching states, null services, failures, other-bit preservation) |
 | network §6.2.1 enums/bitmap/call/drag/ref setters | setters, `same_ref`, `replace_ref` | `pylon_setters_references_and_shared_blink_conformance_40_41` |
 | network §6.2.1 animation | `animation_tick`, shared `PylonGlobals::blink_accumulator` | `pylon_setters_references_and_shared_blink_conformance_40_41` (sharing, discarded excess, modulo wrap, ineligible state) |
 | network §6.2.1 position/visibility | `get_position`, `set_position`, `set_visibility` | `pylon_position_visibility_and_explicit_model_gap_conformance_42`; middle RebuildModel open: NO36 |
-| network §6.2 texture/model/Draw/Pick/bounds/transform/sort/messages | `PylonUnsupported::ModelTextureGeometryDrawBoundsTransformMessagesNO36`, `rebuild_model` | explicit-error assertion in position test; open: NO36 |
+| network §6.2.2 cached local/world/occupant bounds, sort, transform copies | `bounds`, `world_bounds`, `get_bounding_box`, `sort_value`, `get_transform`, `set_transform` | `pylon_cached_bounds_and_transforms_conformance_46`; getters never rebuild |
+| network §6.2.2 Pick | `pick`, foreign view/ray primitives in `PylonPickHost` | `pylon_pick_conformance_47`; UI gate, adjusted box, strict nearest distance, tie/miss preservation |
+| network §6.2.2 ordinary texture selection/replacement | `rebuild_current_texture`, `PylonTextureHost` | `pylon_texture_replacement_conformance_48`; all table entries, ref/raw release, null binding and stale ID; state outside 0–6 explicitly unsupported by spec |
+| network §6.2 model/billboard construction, MySim/call-label composition, Draw/messages | `PylonUnsupported::ModelCompositionDrawMessagesNO36`, `rebuild_model` | explicit-error assertion in position/texture tests; open: NO36 |
 | network §6.3 record | `PylonRecord::{write,read_into}` | `pylon_record_bytes_one_transform_signed_enums_and_iids`, `pylon_v3_v4_future_and_tail_preservation` (one transform, signed bytes/u16/string, ref cleanup/IIDs, v3/v4/future) |
 | network §7.2, §11 quirks 6,8 | source/owner ownership, v5 write, type | record and lifecycle tests above; §6.3's corrected live offsets/IIDs govern older §7.2 shorthand |
-| network §12 / §13 tests 2,19,20,40–42 | implementations/tests above | test 42's RebuildModel step remains explicitly open: NO36 |
+| network §12 / §13 tests 2,19,20,40–42,45–48 | implementations/tests above | test 42's RebuildModel step remains explicitly open: NO36 |
 
 ### cSC4UndergroundConnectionOccupant
 
@@ -141,7 +158,9 @@ same gap; it does not call a renderer with fabricated bounds.
 | network §1.4 | network-piece flags belong to another owner | no connection-specific flag query |
 | network §3.6 record, §7.2; underground §4 | `ConnectionRecord::{write,read_into}`, `read_wall_into` | `connection_record_exact_version_seven_lists_refs_and_partial_failure` (exact v2, seven independent lists, IIDs, attached −4, post-read latches, reached mutations) |
 | network §3.6/3.6.1 static Init/callback/packing/subscriptions | `ConnectionStatics::{initialize,setup_packed_states,shutdown}`, `UndergroundConnection::init` | `connection_statics_latch_packing_enumeration_and_position_conformance_13` |
-| network §3.6.1 creation surface/matrices/search/foreign network changes | `UndergroundConnection::create`, `NEIGHBORS` | `connection_creation_search_order_fresh_loaded_and_own_hit_conformance_10_11`; final ComputeBox open: UG5/NO40 |
+| network §3.6.1 creation surface/matrices/search/foreign network changes, fresh/loaded refs and descriptor identity | `UndergroundConnection::create`, `NEIGHBORS`, `descriptor_kind` | `connection_creation_search_order_fresh_loaded_and_own_hit_conformance_10_11`; final ComputeBox open: UG5/NO40 |
+| network §3.6 slot 41 shared texture reload; underground §4 | `ConnectionTextures::reload`, `ConnectionTextureHost` | `connection_shared_texture_reload_release_null_and_zoom`; each entry release/null/request, changed zoom and wrapping instance key |
+| network §3.6.2 floor/wall builders; underground §4 | `create_floor`, `create_walls`, `add_wall_quad` | `connection_unattached_builders_conformance_49`, `connection_wall_slope_append_conformance_50`; attached early exits, alpha/UV, ordered edges, clear versus append; false-latch bounds/notification still open: UG5/NO40 |
 | network §3.6 hidden triangles/ref setter/refresh/shutdown/post messages | `hidden_triangles`, `set_linked_occupant`, `refresh_attached`, `shutdown`, `post_occupant_message` | `connection_linked_refs_refresh_messages_query_and_shutdown` |
 | network §3.6.1 ModelStateChanged | `model_state_changed` consumes false flag | explicit unsupported/repeat assertions in linked-ref test; bounds and therefore renderer notification remain open: UG5/NO40 |
 | network §3.6.1; underground §4 enumeration/position | `model_instances`, `set_position`, `position` | `connection_statics_latch_packing_enumeration_and_position_conformance_13` |
@@ -149,7 +168,7 @@ same gap; it does not call a renderer with fabricated bounds.
 | network §3.6 DoMessage/full view/transform/bounds/geometry/Draw; underground §8 | `ConnectionUnsupported::GeometryBoundsDrawTransformMessagesUG5NO40` | open: UG5, NO40; NO41 unknown words preserved without interpretation |
 | underground §5 thunks | `NetOccClass::sub_objects`; adapter supplies adjusted interfaces | `tests::subclass_qi_chains`; native thunk code is ABI glue outside core |
 | underground §6 callers / §7 quirks / §8 questions | no extra owner algorithm beyond rows above | constant subclass sort and saved-flag override tested above |
-| network §11 quirk 20 / §12 / §13 test 15; underground §9 tests 1,7,9–13 | record, creation, lifecycle, QI and enumeration tests above | §9 test 12 bounds/notification remains open: UG5/NO40; tests 2–6,8 belong to pipe/subway owners |
+| network §11 quirk 20 / §12 / §13 tests 15,49–50; underground §9 tests 1,7,9–13 | record, creation, lifecycle, QI, enumeration and builder tests above | §9 test 12 bounds/notification remains open: UG5/NO40; tests 2–6,8 belong to pipe/subway owners |
 
 
 ## Placement demolition helper
