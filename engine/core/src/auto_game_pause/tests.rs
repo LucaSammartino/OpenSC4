@@ -75,12 +75,15 @@ fn replies(epoch: u32) -> [Reply; 4] {
     ]
 }
 
+/// Shared storage cell and the bytes expected before the first callback.
+type Observation = (Rc<Cell<[u8; 4]>>, [u8; 4]);
+
 struct Script {
     pending: VecDeque<Reply>,
     active: Option<Reply>,
     trace: Trace,
     refs: BTreeMap<u32, i32>,
-    observe: Option<(Rc<Cell<[u8; 4]>>, [u8; 4])>,
+    observe: Option<Observation>,
 }
 
 impl Script {
