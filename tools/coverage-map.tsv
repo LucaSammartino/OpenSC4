@@ -490,7 +490,7 @@ cSC4SignOrLabelFilter	city tools and input	ui	view-input-controls.md	-	-	-
 cSC4ViewInputControlFlora	city tools and input	ui	city-tools.md	-	-	-
 cSC4ViewInputControlTorch	city tools and input	ui	city-tools.md	-	-	-
 # TerrainScrubber owner credit awaits CT3: mislabeled 0x008AE57B / library-boundary attribution.
-cSC4ViewInputControlTerrainScrubber	city tools and input	ui	-	-	-	-
+cSC4ViewInputControlTerrainScrubber	city tools and input	ui	city-tools.md	-	-	-
 cSC4ViewInputControlCitySituations	city tools and input	ui	city-tools.md	-	-	-
 cSC4ViewInputControlZone	city tools and input	ui	zone-tool.md	-	-	-
 cSC4ViewInputControlDemolish	city tools and input	ui	bulldozer-tool.md	-	-	-
