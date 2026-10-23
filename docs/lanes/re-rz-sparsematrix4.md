@@ -1,31 +1,72 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-rz-sparsematrix4: first sparse matrix owner contract | Codex, detached worktree `re-rz-sparsematrix4` (RE) | in progress: original round 3/3, copied host admission verified | Complete primary identity and bounded matrix/iterator contract |
+| re-rz-sparsematrix4: first sparse matrix owner contract | Codex, detached worktree `re-rz-sparsematrix4` (RE) | ready: bounded partial docs, original final 3/3; docs checks pass; SM1–SM5 open; ABI/game n/a | 1. Coordinator lands detached docs tip. 2. Retain explicit partials and unreconciled 39/3358 attribution; no automatic fourth round. |
 
-## Handoff
+## Final round 3 report (2026-10-23)
 
-- Goal: original final round 3/3, primary export/instruction matrix and iterator behavior only.
-- Initial HEAD `b1304240`, clean; prior R1/R2 reports preserved below.
-- Copied proof is in `build-runs/evidence-run4/coordinator-sparsematrix-final-host-proof.json` (not build-runs root).
-- Proof pins own b1304240, next_round 3, full host framework services (RZ) guard exit 0, dependency ancestor exit 0.
-- Actual main build-runs R3 manifest matches own lane, kind re, round 3 and exact worktree; no isolated spawn preflight rerun.
-- Catalog fixture metadata establishes supported host-admission workflow only; live REA target remains UNKNOWN. No live retry.
-- Current binary SHA256 matches prior export-summary hash 3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b; locate actual export summary next.
-- Name query: 18 matrix names, 1 iterator, 2 foreign AutoPtr entries; not 39 unique bodies.
-- Primary binary/export identity complete: version 1.1.641.0 and matching SHA above; export base 00400000.
-- Published substantive spec §1–9: signed coordinates, lookup, counts/ranges, bounds/replacement/alias order,
-  removal endpoint wrap, extrema/sentinel tie, fixed-column iterator, exact-entry ledger; initial 12 UNEXECUTED vectors.
-- Commit `78ccfb31` publishes bounded contract, questions/index and exclusion link; `d2a95cfd` records admission.
-- Added full owned E insertion instruction audit (§4.3), thirteen total proposed UNEXECUTED vectors; foreign helpers remain partial.
-- Filed SM1–SM5 in docs/specs/questions/rz-sparse-matrix.md; minimal framework-rz-files link added.
-- Important: 009a5bf2 and 009a5c36 are record initializers, not lookup/end; 009a7577 is iterator equality.
-- Public 39/3358 remains unreconciled: 18 matrix labels + iterator + 2 foreign AutoPtrs are not unique-owner proof.
-- Milestone `7268e16e`: E owned insertion copy audit and vector 13. Final refinement: exact EAX 0/1
-  iterator comparator; auxiliary per-entry foreign/partial ledger; 18 matrix labels sum 1784 bytes.
-- Checks passed: own/copied host metadata + prior manifest SHA + fixture identity, local doc links,
-  13 vectors, 5 question entries, questions.py check, git diff b1304240 --check. No runtime measurements.
-- Next: commit final refinement, replace Handoff with report, enqueue ready bounded docs and stop original 3/3.
-- No engine reads, builds, runtime/game requests, ABI proposals or native-executed vectors.
+Published [rz-sparse-matrix.md](../specs/rz-sparse-matrix.md), a bounded primary-evidence contract,
+with a minimal exclusion/link update in framework-rz-files and five indexed open questions.
+Ready means these partial documents can land, not that the matrix owner is complete.
+This closes the original third and final round; no fourth round or automatic restart is requested.
+
+### Authority and identity
+
+Initial detached HEAD was clean at `b1304240`. The copied immutable proof is
+`build-runs/evidence-run4/coordinator-sparsematrix-final-host-proof.json`; it pins that source,
+next round 3, full host framework services (RZ) admission exit 0 and dependency ancestor exit 0.
+The actual `C:/Users/tlori/FreeCity4/build-runs/run4-re-rz-sparsematrix4-r3-manifest.json`
+matches lane, kind re, round 3 and this worktree path. The prior manifest's SHA256 matches the
+proof. Supplied Catalog READY `904e55b6` result/host-proof metadata establishes the supported
+dispatcher context only; no Catalog algorithms or native outputs were used. No isolated host
+spawn preflight was rerun. Normal runtime guard remained active; latest milestone status was
+within budget (93599/150000).
+
+Canonical export queries preceded matching decomp support. Current binary SHA256 and export-summary
+hash both equal `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`;
+binary resource version is 1.1.641.0, original filename SimCity 4.exe, export base 00400000.
+Live REA target availability remains UNKNOWN: no retry, open/reset, added tool or server action.
+R1 NoApp `281dd777` and R2 isolated preflight failure `b1304240` remain preserved below, with
+their then-applicable instructions. R2's inaccessible npm path does not establish physical host absence.
+
+### Supported publication and limits
+
+Instruction-backed rules cover signed column/row keys, inclusive insertion bounds and range queries,
+lookup address/output effects, occupancy counts, row-major 12-byte range records, pointer and forty-byte
+payload replacement order, wrapped removal endpoints and erase scheduling, extrema/sentinel tie
+behavior, fixed-column iteration, and exact comparator return channels. Foreign helper success and
+valid tree invariants are explicit conditions. Thirteen small independently deduced literal vectors
+are **UNEXECUTED**; none is a native-exact comparison, coverage measure or default promotion.
+
+The two entries labeled GetCellPtr `009a5bf2` and E col_end `009a5c36` initialize records; they
+are not lookup/end bodies. `009a7577` is iterator equality. The ledger separates supported,
+partial and foreign/shared entries and includes auxiliary MatrixRow/tree dependency boundaries.
+Eighteen matrix-labeled entries sum 1784 bytes, iterator 1/82, foreign AutoPtrs 2/82: exact named
+entry total 21/1948. The public matrix 38/3276 plus iterator 1/82 = **39/3358 attribution remains
+unreconciled**, not a unique-body or whole-owner denominator. No byte-coverage fraction is claimed.
+
+SM1–SM5 in [questions/rz-sparse-matrix.md](../specs/questions/rz-sparse-matrix.md) retain attribution,
+foreign allocation/eraser failures, constructor/default/dimensions/resize/clear/copy/lifetime,
+invalid-pointer/iterator invalidation and specialization-equivalence gaps. No previous question was
+answered. No ABI proposal was needed; no docs/abi table/version/map edits were made.
+
+### Validation and work record
+
+- `python tools/questions.py index`: exit 0; generated docs/specs/QUESTIONS.md.
+- `python tools/questions.py check`: exit 0, questions: ok.
+- `python build-runs/check-sparsematrix-docs.py`: exit 0; own admission/manifest/prior hash and
+  fixture metadata, local links, thirteen vector rows, five indexed questions and diff check pass.
+  Its first run failed with KeyError because the fixture result is wrapped in structured_output;
+  the local checker was corrected and passed. This was metadata parsing, not a native failure.
+- `git diff b1304240 --check`: exit 0; only five documentation files changed.
+- One staging attempt named nonexistent questions/INDEX.md and failed; corrected to generated
+  docs/specs/QUESTIONS.md before commit. Detached commits succeeded despite restricted Git's
+  packed-refs.lock diagnostic; no shared refs/config/hooks were modified.
+- Commits: `d2a95cfd` admission handoff; `78ccfb31` substantive contract/questions/link;
+  `7268e16e` E copy-order audit; `496a132a` exact returns and dependency ledger; final report follows.
+
+Cargo, clippy, ctest, build/game/shadow checks are n/a. No engine source/tests, original runtime,
+game/build/cache RPCs, subagents, external messages, merge/rebase/push, branch switch or target
+control. Ignored docs queue records the actual detached final tip with abi=false and no game runs.
 
 ## Round 2 report (2026-10-23)
 
