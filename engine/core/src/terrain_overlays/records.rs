@@ -41,7 +41,7 @@ impl CellRect {
     /// Signed intersection with `(0, 0, nx, nz)` (`0x0048ED90`): a strictly
     /// separated rectangle becomes all zeros, a touching edge is retained.
     pub fn clipped(self, city_cells: [u32; 2]) -> Self {
-        let city = city_cells.map(|v| i64::from(v));
+        let city = city_cells.map(i64::from);
         let [x0, z0] = self.min.map(i64::from);
         let [x1, z1] = self.max.map(i64::from);
         if x1 < 0 || z1 < 0 || x0 > city[0] || z0 > city[1] {
