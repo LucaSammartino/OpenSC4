@@ -171,3 +171,4 @@ pub mod network_transport;
 pub mod text_decal_occupant;
 pub mod utf8_validation;
 pub mod property_setter_helpers;
+pub mod auto_game_pause;
