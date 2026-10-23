@@ -108,8 +108,150 @@ labels are not validation oracles.
 
 ## 5. Independent proposed byte ledger
 
-The literal cases and analytic traces for this section are added in the next publication milestone.
-No fixture or native execution is claimed by this initial rule publication.
+**PROPOSED / UNEXECUTED.** Every expectation below is derived from the instruction-established
+decision rows in §3, independently of a portable implementation or standard decoder. Hex cells
+are literal bytes in readable backing storage, not escaped source-language strings. Unless a
+count is given, count is exactly the number of listed bytes. `[]` denotes an empty span with
+readable backing storage. Results are the Boolean in AL, not a full-register return value.
+
+### 5.1 Empty, ASCII, lead boundaries and accepted extrema
+
+For accepted rows, the whole count is consumed. The minima/maxima here describe the helper's
+byte classes, not a claim about current Unicode. Single invalid leads below have count 1.
+
+| ID | Literal bytes | AL | Derivation |
+|---|---|---:|---|
+| V01 | `[]` | 1 | empty, start equals end, no read |
+| V02 | `00` | 1 | lowest one-byte value; no terminator semantics |
+| V03 | `01 41 7F` | 1 | three one-byte iterations including upper boundary |
+| V04 | `80` | 0 | lowest stray continuation |
+| V05 | `BF` | 0 | highest stray continuation |
+| V06 | `C0` | 0 | below first permitted lead |
+| V07 | `C1` | 0 | below first permitted lead |
+| V08 | `C2 80` | 1 | minimum two-byte form |
+| V09 | `DF BF` | 1 | maximum two-byte form |
+| V10 | `E0 9F BF` | 0 | continuations pass, extra lower bound fails |
+| V11 | `E0 A0 80` | 1 | minimum three-byte form |
+| V12 | `E0 BF BF` | 1 | upper continuation bound for special lead |
+| V13 | `E1 80 80` | 1 | next lead removes special lower bound |
+| V14 | `EF BF BF` | 1 | maximum three-byte form |
+| V15 | `F0 8F BF BF` | 0 | continuations pass, extra lower bound fails |
+| V16 | `F0 90 80 80` | 1 | minimum four-byte form |
+| V17 | `F0 BF BF BF` | 1 | upper continuation bound for special lead |
+| V18 | `F1 80 80 80` | 1 | next lead removes special lower bound |
+| V19 | `F4 8F BF BF` | 1 | no upper-bound check at modern maximum |
+| V20 | `F4 90 80 80` | 1 | still passes above that maximum |
+| V21 | `F5 80 80 80` | 1 | F5 belongs to four-byte row |
+| V22 | `F7 BF BF BF` | 1 | maximum four-byte form |
+| V23 | `F8 87 BF BF BF` | 0 | continuations pass, extra lower bound fails |
+| V24 | `F8 88 80 80 80` | 1 | minimum five-byte form |
+| V25 | `F8 BF BF BF BF` | 1 | upper continuation bound for special lead |
+| V26 | `F9 80 80 80 80` | 1 | next lead removes special lower bound |
+| V27 | `FB BF BF BF BF` | 1 | maximum five-byte form |
+| V28 | `FC 83 BF BF BF BF` | 0 | continuations pass, extra lower bound fails |
+| V29 | `FC 84 80 80 80 80` | 1 | minimum six-byte form |
+| V30 | `FC BF BF BF BF BF` | 1 | upper continuation bound for special lead |
+| V31 | `FD 80 80 80 80 80` | 1 | next lead removes special lower bound |
+| V32 | `FD BF BF BF BF BF` | 1 | maximum six-byte form |
+| V33 | `FE` | 0 | first lead above six-byte range |
+| V34 | `FF` | 0 | largest byte, invalid lead |
+| V35 | `ED 9F BF` | 1 | ordinary three-byte row |
+| V36 | `ED A0 80` | 1 | surrogate lower boundary has no special rejection |
+| V37 | `ED BF BF` | 1 | surrogate upper boundary has no special rejection |
+| V38 | `EE 80 80` | 1 | following lead still ordinary three-byte row |
+| V39 | `C0 80` | 0 | rejects at lead, not by decoding an overlong value |
+| V40 | `C1 BF` | 0 | rejects at lead even with a continuation available |
+| V41 | `E0 80 80` | 0 | three-byte short encoding fails A0 lower bound |
+| V42 | `F0 80 80 80` | 0 | four-byte short encoding fails 90 lower bound |
+| V43 | `F8 80 80 80 80` | 0 | five-byte short encoding fails 88 lower bound |
+| V44 | `FC 80 80 80 80 80` | 0 | six-byte short encoding fails 84 lower bound |
+
+The five shortest accepted multibyte forms V08/V11/V16/V24/V29 have only legal continuation
+bytes; their immediately lower restricted first bytes fail (C1 is rejected as a lead, and
+V10/V15/V23/V28 fail after continuation checks). V09/V14/V22/V27/V32 prove the upper edges
+of each width. This yields rejected contrasts without assuming Unicode scalar semantics.
+
+### 5.2 Truncation under the actual count protocol
+
+Every T row returns **AL=0** with the current pointer still at its lead. Its width guard fails
+after reading that lead; **no continuation is read**, even if some are present. The matching
+complete literals are V08, V11, V16, V24 and V29. Missing-first/middle/final cases are therefore
+count failures, not implied NUL terminators or out-of-span reads.
+
+| ID | Literal bytes | Required width | Count |
+|---|---|---:|---:|
+| T01 | `C2` | 2 | 1 |
+| T02 | `E0` | 3 | 1 |
+| T03 | `E0 A0` | 3 | 2 |
+| T04 | `F0` | 4 | 1 |
+| T05 | `F0 90` | 4 | 2 |
+| T06 | `F0 90 80` | 4 | 3 |
+| T07 | `F8` | 5 | 1 |
+| T08 | `F8 88` | 5 | 2 |
+| T09 | `F8 88 80` | 5 | 3 |
+| T10 | `F8 88 80 80` | 5 | 4 |
+| T11 | `FC` | 6 | 1 |
+| T12 | `FC 84` | 6 | 2 |
+| T13 | `FC 84 80` | 6 | 3 |
+| T14 | `FC 84 80 80` | 6 | 4 |
+| T15 | `FC 84 80 80 80` | 6 | 5 |
+
+### 5.3 Every continuation position and both rejected sides
+
+Each B row specifies **two independent literal cases**, both returning **AL=0**. They replace
+one continuation in an otherwise accepted sequence with the adjacent rejected byte `7F` or
+`C0`. Count equals the full width, so the width guard passes. All earlier continuation checks
+pass, the indicated position fails, and no later continuation or lower-bound condition is
+examined. Successful use of the accepted bounds `80/BF` is separately shown in §5.1.
+
+| ID | Width | Failing position | Literal with `7F` | Literal with `C0` |
+|---|---:|---:|---|---|
+| B01 | 2 | 1 | `C2 7F` | `C2 C0` |
+| B02 | 3 | 1 | `E1 7F 80` | `E1 C0 80` |
+| B03 | 3 | 2 | `E1 80 7F` | `E1 80 C0` |
+| B04 | 4 | 1 | `F1 7F 80 80` | `F1 C0 80 80` |
+| B05 | 4 | 2 | `F1 80 7F 80` | `F1 80 C0 80` |
+| B06 | 4 | 3 | `F1 80 80 7F` | `F1 80 80 C0` |
+| B07 | 5 | 1 | `F9 7F 80 80 80` | `F9 C0 80 80 80` |
+| B08 | 5 | 2 | `F9 80 7F 80 80` | `F9 80 C0 80 80` |
+| B09 | 5 | 3 | `F9 80 80 7F 80` | `F9 80 80 C0 80` |
+| B10 | 5 | 4 | `F9 80 80 80 7F` | `F9 80 80 80 C0` |
+| B11 | 6 | 1 | `FD 7F 80 80 80 80` | `FD C0 80 80 80 80` |
+| B12 | 6 | 2 | `FD 80 7F 80 80 80` | `FD 80 C0 80 80 80` |
+| B13 | 6 | 3 | `FD 80 80 7F 80 80` | `FD 80 80 C0 80 80` |
+| B14 | 6 | 4 | `FD 80 80 80 7F 80` | `FD 80 80 80 C0 80` |
+| B15 | 6 | 5 | `FD 80 80 80 80 7F` | `FD 80 80 80 80 C0` |
+
+### 5.4 Count, embedded NUL, stopping and ordered traces
+
+“Consumed prefix” below is an analytic description of internal pointer advancement, **not an
+output channel**. Read offsets include repeated reads of a lead when the native lower-bound
+test requires them. All backing buffers here are readable for their full listed size.
+
+| ID | Literal backing bytes | Count | AL | Decision trace |
+|---|---|---:|---:|---|
+| S01 | `FF` | 0 | 1 | no reads, consumed prefix 0; invalid backing byte excluded by count |
+| S02 | `41 FF` | 1 | 1 | read offset 0, consume 1; offset 1 excluded |
+| S03 | `00 41` | 2 | 1 | read/consume both; NUL does not stop scan |
+| S04 | `00 FF` | 2 | 0 | consume 00, reject FF at offset 1 |
+| S05 | `C2 00` | 2 | 0 | zero is not a continuation; consume 0 |
+| S06 | `C2 80 00` | 3 | 1 | consume widths 2 then 1 |
+| S07 | `C2 80` | 1 | 0 | lead read, width guard fails; backing continuation excluded |
+| S08 | `41 80 41` | 3 | 0 | consume prefix 1; reject offset 1; valid suffix offset 2 unread |
+| S09 | `41 80 FF` | 3 | 0 | same rejection and read offsets as S08; invalid suffix unread |
+| S10 | `E1 7F 41 41` | 4 | 0 | width passes, first continuation fails; offsets 2 and 3 unread |
+| S11 | `E1 7F FF FF` | 4 | 0 | same stopping point as S10 despite invalid suffix |
+| S12 | `E0 9F 80 41` | 4 | 0 | read offsets 0,1,2,0; then extra bound fails; offset 3 unread |
+| S13 | `E0 9F 7F 41` | 4 | 0 | read offsets 0,1,2; position 2 fails before lead re-read/bound check |
+| S14 | `F0 8F 80 80 41` | 5 | 0 | read offsets 0,1,2,3,0; then extra bound fails; offset 4 unread |
+| S15 | `F8 87 80 80 80 41` | 6 | 0 | read offsets 0,1,2,3,4,0; then extra bound fails; offset 5 unread |
+| S16 | `FC 83 80 80 80 80 41` | 7 | 0 | read offsets 0,1,2,3,4,5,0; then extra bound fails; offset 6 unread |
+| S17 | `41 C2 80 E0 A0 80 F0 90 80 80 F8 88 80 80 80 FC 84 80 80 80 80 00` | 22 | 1 | successful widths 1,2,3,4,5,6,1 total 22 |
+| S18 | `C2 80 BF` | 3 | 0 | consume 2; extra stray continuation fails as the next lead |
+
+These are **107 literal cases**: 44 V cases, 15 T cases, 30 B cases and 18 S cases.
+Native executions: **0**. No portable implementation has been run against them. Analytic checks
+of finite byte classes and table consistency do not convert these fixtures into native passes.
 
 ## 6. Coverage and limits
 
@@ -119,7 +261,7 @@ No fixture or native execution is claimed by this initial rule publication.
 | Calling interface and result channel | Supported | two stack words; AL Boolean; no optional outputs |
 | Other address/count domains | Unknown/unsupported | no pointer-validity guard; no supported negative/overflow/unreadable domain |
 | Foreign dependencies | None in this body | no calls; no host validator/converter substituted for the byte rules |
-| Independent byte fixtures | Partial | forthcoming analytic ledger, no execution |
+| Independent byte fixtures | Supported analytically; unexecuted | §5: 107 literal cases, full lead boundaries, every truncation and continuation position, extra bounds and stopping contrasts; no runtime parity claim |
 | Dispatcher and other encoding helpers | Not studied | caller admission only; no wider owner credit |
 
 This is one standalone body, not certification of the encoding library or all Unicode semantics.
