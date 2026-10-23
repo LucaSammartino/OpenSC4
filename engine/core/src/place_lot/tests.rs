@@ -248,8 +248,10 @@ fn construction_and_ct3_lifecycle() {
     assert_eq!((t.cost, t.plop_cost, t.plops_left), (-100000, -100000, 1000));
     assert!(t.should_stack());
     assert!(!t.unhandled_input());
-    let mut h = Fake::default();
-    h.groups = vec![0x1401];
+    let mut h = Fake {
+        groups: vec![0x1401],
+        ..Fake::default()
+    };
     assert!(t.init(&mut h));
     assert!(t.init(&mut h));
     assert_eq!((t.control_id, t.cursor_id), (ID, CURSOR));
@@ -331,9 +333,11 @@ fn activation_pickers_filters_and_failure_paths() {
     assert!(!t.init(&mut h));
     assert!(!t.initialized);
     assert!(effects(&h).contains(&Effect::Unsubscribe(MESSAGES[5])));
-    let mut h = Fake::default();
-    h.price = None;
-    h.groups = vec![0x1302];
+    let mut h = Fake {
+        price: None,
+        groups: vec![0x1302],
+        ..Fake::default()
+    };
     let mut t = PlaceLot::new(0, 0xEBF9_A440, 0, false);
     assert!(t.init(&mut h));
     assert!(t.toll_booth);
