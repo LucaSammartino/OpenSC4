@@ -5,11 +5,12 @@
 ## Handoff
 - Goal: default-off record-only strings shadow with real-city measurement through 2032.
 - Start: detached HEAD b2fc93ff6, clean tree.
-- Implemented: monthly constructed native cRZString probes, 16 variants x 4 inputs.
+- Implemented (a71dc7439): monthly constructed native cRZString probes, 16 variants x 4 inputs.
 - Inputs: live city-name prefix, ASCII, counted NUL, empty; private mutations only.
 - Added private stateless production-core transport and two focused tests.
-- Formatting check passed; focused cargo operation in progress (session 7838).
-- Next: collect focused tests, run final qbuild all and queued native verify; game to 2032.
+- Formatting check passed; focused cargo tests passed 2/2 (session 7838 complete).
+- Final qbuild all started, collecting the same operation.
+- Next: collect final gate and queued native verify; game to 2032.
 - Exclude RZS7 finite decimal extraction unless already implemented at starting HEAD.
 - No game requests outstanding.
 - Natural traffic interception, nonvirtual helpers, detokenizer and other language owners not measured.
