@@ -2080,7 +2080,11 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
   **5** (`PUSH 0x5` at `0x0064B01D`); `Read` rejects < 4. No question remains.
 - **NO10.** ~~The pylon's occupant type~~ — **settled while writing this spec**: the ctor writes `0xA9B6D7DE`
   at `+0x2C` (`0x005F19F9`). No question remains.
-- NO38–NO41 (re-ugbase) and NO36–NO37 (re-powerpoles), 2026-10-21, are in [questions/network-occupants.md](questions/network-occupants.md).
+- NO38–NO41 (re-ugbase) and NO42–NO43 (re-powerpoles), 2026-10-21, are in [questions/network-occupants.md](questions/network-occupants.md).
+- NO33 and NO36 remain open for complete pole/pylon owner algorithms; the partial rules and vectors added
+  2026-10-23 are in §§4.1/4.6/4.7.1 and §6.2.1. UG5 is tracked in
+  [questions/underground-occupants.md](questions/underground-occupants.md); §§3.6–3.6.1 specify its verified
+  record, creation-input, neighbor and state/ref subset.
 
 ---
 

@@ -98,7 +98,7 @@ From the pipe-corner geometry table (24-byte points at `0x00B0BA68`, x at +0 and
 
 With the shipped table: `L = (11.31371, 7.33553, 6.35335, 4.96035, 3.97818)`, so the ratios are 0.648375,
 0.5615625, 0.4384375 and 0.351625. The descriptor (§1) points at these tables; the base recomputes them in `Init`
-(network-occupants.md §3.2); how they enter the vertices is NO34. Finally, unless the base's static set-up already ran
+(network-occupants.md §3.2); how they enter the vertices is NO40. Finally, unless the base's static set-up already ran
 (`0x00B45250`), it runs it and returns its result; otherwise true. A second call returns false and does nothing.
 
 ## 3. Subway occupant *[compat]*
@@ -238,7 +238,7 @@ occupants' vtables.
 ## 8. Open questions
 
 - ~~**UG1:**~~ answered 2026-10-21 (re-ugbase): the base classes are network-occupants.md §3.1–§3.6; the model
-  builders' geometry is NO34.
+  builders' geometry is NO40.
 - ~~**UG2:**~~ answered 2026-10-21 (re-ugbase): they draw the surface quad's two triangles (network-occupants.md
   §2.11).
 - **UG3:** subway pieces `0x300` and `0x4B00` (the ones whose floor comes from the second vertex list), and what the
