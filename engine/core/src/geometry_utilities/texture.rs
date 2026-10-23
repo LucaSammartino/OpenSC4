@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Text texture generation (§6.4), with all external interfaces injected.
-//! GU4: the host owns native reference/resource handling; core owns pixel data.
+//! Qualified packed-surface/UTF-8 adapter. For observable native reference,
+//! access and descriptor choreography use `raw_texture` instead.
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Surface {
@@ -60,6 +61,7 @@ pub fn create_texture_from_text<H: TextureHost>(
     compressed: bool,
     host: &mut H,
 ) -> bool {
+    let text = text.split('\0').next().unwrap_or("");
     if let Some(font) = font {
         create_with_font(text, texture, font, size, rect, compressed, host)
     } else if let Some(mut font) = host.default_font(0x6896_3C4C) {
@@ -83,54 +85,48 @@ fn create_with_font<H: TextureHost>(
     font.set_mode(3);
     let w = font.width(text);
     let h = font.height();
-    // GU4: reject negative/unrepresentable dimensions, no guessed wraparound.
-    let dimension = |n: i32| u32::try_from(n).ok()?.checked_add(2)?.checked_next_power_of_two();
-    let dimensions = dimension(w).zip(dimension(h));
-    let Some((width, height)) = dimensions else {
+    // The bool adapter is only qualified for terminating dimensions. Raw API
+    // reports a typed exclusion for the native infinite-loop domain.
+    let Ok(layout) = super::raw_texture::text_layout(w, h) else {
         font.set_mode(mode);
         return false;
     };
-    let x = ((i64::from(width) - i64::from(w)) / 2 + 1) as i32;
-    let y = ((i64::from(height) - i64::from(h)) / 2 - 1) as i32;
-    let surface = host.create_surface(width, height, 9);
-    let Some(mut surface) = surface else {
-        font.set_mode(mode);
-        return false;
-    };
-    if surface.width != width
-        || surface.height != height
-        || surface.pixel_code != 9
-        || surface.pixels.len() as u64 != u64::from(width) * u64::from(height)
-    {
-        font.set_mode(mode);
-        return false;
-    }
-    surface.pixels.fill([0; 4]);
-    font.draw(text, &mut surface, x, y, 0xFFFF_FFFF);
-    font.set_mode(mode);
-    let width_usize = width as usize;
-    for row in 0..height as usize {
-        for column in 0..width_usize {
-            if row == 0 || row == height as usize - 1 || column == 0 || column == width_usize - 1 {
-                surface.pixels[row * width_usize + column] = [0; 4];
+    let [width, height] = layout.size.map(|v| v as u32);
+    let [x, y] = layout.origin;
+    let result = (|| {
+        let surface = host.create_surface(width, height, 9);
+        let Some(mut surface) = surface else {
+            return false;
+        };
+        if surface.width != width
+            || surface.height != height
+            || surface.pixel_code != 9
+            || surface.pixels.len() as u64 != u64::from(width) * u64::from(height)
+        {
+            return false;
+        }
+        surface.pixels.fill([0; 4]);
+        font.draw(text, &mut surface, x, y, 0xFFFF_FFFF);
+        let width_usize = width as usize;
+        for row in 0..height as usize {
+            for column in 0..width_usize {
+                if row == 0 || row == height as usize - 1 || column == 0 || column == width_usize - 1 {
+                    surface.pixels[row * width_usize + column] = [0; 4];
+                }
             }
         }
-    }
-    let Some(image) = encode_surface(&surface, compressed) else {
-        return false;
-    };
-    let result = host.upload(&image, texture);
-    // GU4: step 5 outputs are written even when upload reports failure.
+        let Some(image) = encode_surface(&surface, compressed) else {
+            return false;
+        };
+        host.upload(&image, texture)
+    })();
+    font.set_mode(mode);
+    // §6.4.1: common outputs include surface creation and upload failures.
     if let Some(size) = size {
         *size = [width, height];
     }
     if let Some(rect) = rect {
-        *rect = [
-            (i64::from(x) + i64::from(w)) as f32,
-            (i64::from(y) + i64::from(h)) as f32,
-            x as f32,
-            y as f32,
-        ];
+        *rect = [layout.far[0] as f32, layout.far[1] as f32, x as f32, y as f32];
     }
     result
 }
@@ -154,7 +150,7 @@ fn encode_surface(surface: &Surface, compressed: bool) -> Option<TextureImage> {
                 bytes.extend_from_slice(&[0, 0, 255, 255, 0x55, 0x55, 0x55, 0x55]);
             }
         }
-        (9, 1)
+        (9, 0)
     } else {
         // This public helper always requests code 9, whose type is bytes (1).
         // No assumptions about other pixel-code storage are needed here.

@@ -152,7 +152,7 @@ fn dxt3_alpha_nibbles_and_white_colour_blocks() {
 }
 
 #[test]
-fn text_failure_paths_and_provisional_output_policy() {
+fn text_failure_paths_and_published_common_output_policy() {
     let mut host = Host::default();
     let mut texture = 0;
     let mut size = [99; 2];
@@ -184,7 +184,8 @@ fn text_failure_paths_and_provisional_output_policy() {
         &mut host
     ));
     assert_eq!(font.mode, 9);
-    assert_eq!(size, [99; 2]);
+    // Public GU4 DIFFERS: surface failure also writes dimensions.
+    assert_eq!(size, [32, 16]);
     assert!(font.draws.is_empty());
     host.surface_failure = false;
     host.upload_result = false;
@@ -201,8 +202,10 @@ fn text_failure_paths_and_provisional_output_policy() {
     assert_eq!(size, [32, 16]);
     assert_eq!(texture, 1);
     font.w = -1;
+    // Public integer wrapping domain includes negative width -1 -> dimension 1.
     host.image = None;
-    assert!(!create_texture_from_text(
+    host.upload_result = true;
+    assert!(create_texture_from_text(
         "test",
         &mut texture,
         Some(&mut font),
@@ -212,7 +215,7 @@ fn text_failure_paths_and_provisional_output_policy() {
         &mut host
     ));
     assert_eq!(font.mode, 9);
-    assert!(host.image.is_none());
+    assert!(host.image.is_some());
 }
 
 #[test]
