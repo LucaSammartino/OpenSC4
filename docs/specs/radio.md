@@ -38,10 +38,11 @@ radio directory, 31 `StopPlayback`, 32 `GetCurrentSong`, 33 set the current song
 
 ## 2. The radio (`cRZRadio`)
 
-### 2.1 Two threads, one event channel
+### 2.1 The event channel
 
-Every control call is turned into a **sound-system event** and executed later in `DoEvent` on the sound side
-*[compat]*. The poster is the sound system's slot 7 (`+0x1C`, `(id, a, b, c, d)`), except "play file", which uses
+Every control call is turned into a **sound-system event** that is dispatched at once, under the sound system's
+lock, to its event handlers — the radio's own `DoEvent` among them ([sound-framework.md](sound-framework.md) §2.2)
+*[compat]*. The call is the sound system's slot 7 (`+0x1C`, `(id, a, b, c, d)`), except "play file", which uses
 slot 5 (`+0x14`) with a heap `cRZString` payload:
 
 | Call | Event | Data |

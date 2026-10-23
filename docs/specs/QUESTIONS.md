@@ -165,6 +165,7 @@ generated index: the questions live one file per spec, so read only the file for
 | SSP | system-service-pointer |
 | ST | my-street-sim |
 | SV | foundations, ordinance |
+| SY | sound-framework |
 | TB | texture-bindings |
 | TD | tools-com-director |
 | TDO | text-decal-occupant |
@@ -334,6 +335,7 @@ generated index: the questions live one file per spec, so read only the file for
 | sc-resources | 5 | 1 | SCR7 | questions/sc-resources.md |
 | simgrid | 2 | 0 | SG3 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
+| sound-framework | 4 | 0 | SY5 | questions/sound-framework.md |
 | sound-system | 11 | 0 | SS12 | questions/sound-system.md |
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 3 | 4 | SP8 | questions/span-render-4444.md |
@@ -369,4 +371,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **616** | **1359** | | |
+| **total** | **620** | **1359** | | |

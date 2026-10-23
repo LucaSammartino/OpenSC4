@@ -14054,6 +14054,7 @@ va	name	source	confidence	note
 0096655a	cGZSoundCOMDirector::OnStart	auto:A	high	mac 00719d3e score 0.839 support 0
 00966678	cGZSoundCOMDirector::PostAppInit	auto:B1	medium	mac 00719c36 score 0.949 support 2.5
 009666c9	GetGZSoundCOMDirector	auto:B0	medium	mac 0032b6e8 score 0.838 support 1.0
+009666f4	cGZSndSys::UpdateTimerCallback	manual:sound-system.tsv	high	sound-system.md §2.2 (20 ms callback timer)
 00966723	cGZSndSys::QueryInterface	auto:C	high	mac 00360076 score 1.0 support 3
 00966792	cGZSndSys::AddRef	auto:C	low	mac 003600e8 score 1.0 support 3
 00966799	cGZSndSys::Release	auto:C	high	mac 003600fa score 1.0 support 3
@@ -14066,6 +14067,7 @@ va	name	source	confidence	note
 0096693e	cGZSndSys::GetSoundSystemThreadId	auto:C	high	mac 0036059c score 1.0 support 1
 009669be	cGZSndSys::FindPlayingGZSnd	auto:C	high	mac 0036039a score 1.0 support 1
 009669f3	cGZSndSys::IsSndPlaying	auto:C	high	mac 003603f0 score 1.0 support 1
+00966a1b	cGZSndSys::DoMessage	manual:sound-system.tsv	high	sound-system.md §2.2 (message type 0xDB53383B)
 00966a95	cGZSndSys::PostEvent	auto:C	high	mac 0036042c score 1.0 support 1
 00966ab2	cGZSndSys::PostEvent	auto:C	high	mac 003614fe score 1.0 support 1
 00966b55	cGZSndSys::PostEvent	auto:C	high	mac 0036160e score 1.0 support 1
@@ -14086,7 +14088,7 @@ va	name	source	confidence	note
 009676d2	cGZSndSys::GetNumExtensionDefaultDataSourceClassIdMappings	auto:C	low	mac 003605a4 score 1.0 support 1
 009677e6	std::list<cRZAutoRefCount<cIGZWinMessageFilter>,std::allocator<cRZAutoRefCount<cIGZWinMessageFilter>>>::clear	auto:B1	medium	mac 00663ccc score 0.89 support 2.0
 00967819	cGZSndSys::UnregisterRenderer	auto:C	high	mac 00362182 score 1.0 support 1
-00967885	cGZSndSys::UpdateTargets	auto:B0	medium	mac 0036319c score 0.948 support 3.0
+00967885	cGZSndSys::UpdateTargets	manual:sound-system.tsv	high	sound-system.md §2.3 (250 ms slow round)
 009679ad	cGZSndSys::DoEvent	auto:C	high	mac 00363874 score 1.0 support 1
 00967acb	cGZSndSys::GetExtensionDefaultDataSourceClassIdMappingClassId	auto:C	high	mac 003608a0 score 1.0 support 1
 00967b1a	cGZSndSys::NumRenderers	auto:C	high	mac 00360718 score 1.0 support 1
@@ -14119,7 +14121,7 @@ va	name	source	confidence	note
 009689e9	cGZSndSys::SetExtensionDefaultDataSourceClassId	auto:B8	medium	mac 00360eb8 score 0.986 support 3.0
 00968a9d	cGZSndMgr::QueryInterface	auto:A	high	mac 00363b30 score 1.0 support 0
 00968ad1	cGZSndMgr::Release	auto:C	high	mac 00363b82 score 1.0 support 1
-00968ae7	cGZSndMgr::GetSound	auto:B3	medium	mac 00363c0c score 0.897 support 1.5
+00968ae7	cGZSndMgr::GetSound	manual:sound-system.tsv	high	sound-system.md §3.2 (name form: CRC24 | 0xFF000000)
 00968b1d	cGZSndMgr::SndAutoPlay	auto:C	high	mac 00363c68 score 1.0 support 1
 00968b2c	cGZSndMgr::SystemSndAutoPlay	auto:C	high	mac 00363c90 score 1.0 support 1
 00968b3b	cCompletionObj::QueryInterface	auto:A	high	mac 00730a3c score 1.0 support 0
@@ -14138,9 +14140,9 @@ va	name	source	confidence	note
 00969055	cGZSndMgr::GetSndDataSource	auto:C	high	mac 00364f50 score 1.0 support 1
 009692fc	cGZSndMgr::SystemSndID	auto:C	high	mac 003644be score 1.0 support 1
 00969335	cGZSndMgr::RegisterSndCreator	auto:A	high	mac 003645c2 score 1.0 support 0
-009693c0	cGZSndMgr::GetSound	auto:C	high	mac 0036474a score 1.0 support 1
+009693c0	cGZSndMgr::GetSound	manual:sound-system.tsv	high	sound-system.md §3.2 (id form)
 00969475	cGZSndMgr::AddSndToAutoPlayList	auto:C	high	mac 00363fb0 score 1.0 support 1
-009694a2	cGZSndMgr::SndAutoPlay	auto:C	high	mac 00364a86 score 1.0 support 1
+009694a2	cGZSndMgr::SndAutoPlay	manual:sound-system.tsv	high	sound-system.md §3.2
 00969536	cGZSndMgr::SystemSndAutoPlay	auto:C	high	mac 00364b8a score 1.0 support 1
 0096958d	cGZSndMgr::UnregisterSndDataSource	auto:C	high	mac 00365166 score 1.0 support 1
 009695cb	cGZSndMgr::UnregisterSndDataSource	auto:C	high	mac 00363d26 score 1.0 support 1
@@ -14156,16 +14158,29 @@ va	name	source	confidence	note
 00969a31	cGZSndMgr::RegisterSndDataSourceCreator	auto:C	high	mac 00364c8a score 1.0 support 1
 00969ab9	cGZSndMgr::~cGZSndMgr	auto:C	high	mac 003641c8 score 1.0 support 1
 00969af1	cGZSndMgr::cGZSndMgr	auto:A	high	mac 00363dbe score 1.0 support 0
+00969bf2	cGZSndSegmentDataSourceCreator::Create	manual:sound-system.tsv	high	sound-system.md §4.1 (XA, UTalk, MP3, WAV order)
+00969e08	cGZSndSegmentDataSourceCreator::cGZSndSegmentDataSourceCreator	manual:sound-system.tsv	high	sound-system.md §4.1 (CLSID 0xDC1F73D6)
 00969f0c	cGZSndPropertyCache::QueryInterface	auto:A	high	mac 0035621e score 1.0 support 0
 00969f31	cGZSndPropertyCache::RemoveInstanceProperty	auto:A	high	mac 003562fa score 1.0 support 0
 00969f64	cGZSndPropertyCache::SetGlobalProperty	auto:A	high	mac 00356358 score 1.0 support 0
 00969fbe	cGZSndPropertyCache::RemoveGlobalProperty	auto:A	high	mac 00356410 score 1.0 support 0
+0096a382	cGZSndPropertyCache::cGZSndPropertyCache	manual:sound-system.tsv	high	sound-system.md §4.2 (CLSID 0x9D4C6B95)
+0096a3de	cGZSndPropertyCache::CreateInstanceSet	manual:sound-system.tsv	high	sound-system.md §4.2
 0096a932	cGZSndDefaultEventHandler::QueryInterface	auto:A	high	mac 0072de5e score 1.0 support 0
 0096a957	cGZSndDefaultEventHandler::Release	auto:C	high	mac 0072dea8 score 1.0 support 1
-0096a972	cGZSndDefaultEventHandler::DoEvent	auto:A	high	mac 00355d00 score 0.776 support 0
+0096a972	cGZSndDefaultEventHandler::DoEvent	manual:sound-system.tsv	high	sound-system.md §4.3
+0096ac16	cGZSndDefaultEventHandler::cGZSndDefaultEventHandler	manual:sound-system.tsv	high	sound-system.md §4.3 (CLSID 0x7DC495CC)
 0096ac70	cGZSndDefaultEventHandler::~cGZSndDefaultEventHandler	auto:C	high	mac 00355c6c score 1.0 support 1
+0096ae6b	cGZSndWavFileDataSource::Open	manual:sound-system.tsv	high	sound-system.md §4.4 (mmio, PCM only)
+0096b078	cGZSndXAFileDataSource::Open	manual:sound-system.tsv	high	sound-system.md §4.5 ("XA" header)
 0096b1b1	lib::Catch@0096b1b1	library	medium	Function ID
+0096b1f5	cGZSndXAFileDataSource::cGZSndXAFileDataSource	manual:sound-system.tsv	high	sound-system.md §4.5 (CLSID 0x1D07EB4B, 0xF84 bytes)
+0096b28c	cGZSndXAFileDataSource::Read	manual:sound-system.tsv	high	sound-system.md §4.5
+0096b34f	cGZSndXAFileDataSource::DecodeMono	manual:sound-system.tsv	high	sound-system.md §4.5 (15-byte frames)
+0096b4de	cGZSndXAFileDataSource::FillBuffer	manual:sound-system.tsv	high	sound-system.md §4.5 (0xF00 bytes)
 0096b53e	lib::Catch@0096b53e	library	medium	Function ID
+0096b544	cGZSndXAFileDataSource::DecodeStereo	manual:sound-system.tsv	high	sound-system.md §4.5 (30-byte frames)
+0096b919	cGZSndWavFileDataSource::cGZSndWavFileDataSource	manual:sound-system.tsv	high	sound-system.md §4.4 (CLSID 0xBB7051F5)
 0096ba2b	cGZSndEventStd::QueryInterface	auto:B1	medium	mac 0046dafa score 0.92 support 1.5
 0096ba55	__ZThn44_N14cGZSndEventStd14QueryInterfaceEmPPv	auto:B2	low	mac 007eece4 score 0.96 support 1.0
 0096ba6d	cGZSndEventStd::cGZSndEventStd	auto:B1	medium	mac 0046db50 score 0.936 support 1.5

@@ -316,9 +316,9 @@ cGZSndEventStd	audio	audio	audio.md	-	-	-
 cSC4Audio*	audio	audio	-	-	-	-
 cGZSndSys	audio	audio	sound-system.md	-	-	-
 cGZSndMgr	audio	audio	sound-system.md	-	-	-
-cGZSnd*	audio	audio	-	-	-	-
+cGZSnd*	audio	audio	sound-framework.md	-	-	-
 cGZSoundCOMDirector	audio	audio	sound-system.md	-	-	-
-cGZSound*	audio	audio	-	-	-	-
+cGZSound*	audio	audio	sound-framework.md	-	-	-
 GZSndSysMacCOMDirector	audio	audio	sound-system.md	-	-	-
 GZSndSys*	audio	audio	-	-	-	-
 cHitTrackPlayer	audio	audio	sound-system.md	-	-	-

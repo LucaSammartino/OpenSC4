@@ -503,7 +503,9 @@ the sound system and manager using service IID `0x287FB697`, and adds nonnull
 created services to the framework. It also creates class `0x7DC495CC`
 with handler IID `0xBB523BB2` and registers a nonnull result with the sound
 system. It returns true even when individual creations produce null outputs.
-PreAppShutdown calls sound-system Panic if the service exists and returns true.
+PreAppShutdown calls sound-system DisableUpdates (slot 34, `call [edx+0x88]` at
+`0x00966551`) if the service exists and returns true; it does not call Panic (slot 47).
+The byte-level detail of this layer is in [sound-framework.md](sound-framework.md).
 PostAppInit returns false when the sound system is absent; when present it
 uses the property-cache interface and value `0xCC3014EE`. The meaning of that
 cache operation and its missing-cache behavior remain SS10.
