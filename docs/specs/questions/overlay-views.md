@@ -4,23 +4,9 @@
 <!-- from: re-overlayviews (2026-10-20) -->
 - **OVV1 - §1.1, §2.1:** which lot flags `0x304` (marks raised 15.5 m) and `0x100000` (marks hidden unless the lot
   says otherwise) stand for, and where a path's texture repeat factor r (path record `+0x38`) is set. [as read]
-
-<!-- from: core-overlay-views4 (2026-10-22) -->
-- **OVV2 - §1, cSC4PathView::PathInfo initialization and input contract:** publish the exact constructor,
-  NewPath and PathInfo fields/defaults (including colour, repeat factor, priority signedness and opaque ID),
-  colour/repeat mutation methods, duplicate-distance equality case, and path bounds/update invalidation rules.
-  Are distances in §1.1 measured in x-z or full 3D, including the arrow suppression threshold?
-  [Core uses explicit thickness and fixture-only colour/repeat inputs, signed stable priorities,
-  strict squared x-z duplicate distance <1e-5, full 3D accumulated texture distance. Missing attributes
-  fail with PathAttributesOvv2; no native initialization/default or complete-owner claim.]
-
-<!-- from: core-overlay-views4 (2026-10-22) -->
-- **OVV3 - §1.1, DrawPath / DrawArrowhead / normal helpers:** publish the exact bisector magnitude/miter rule,
-  normal handedness, strip side ordering, arrow triangle tip/base coordinates and dimensions in terms of t,
-  colour/UVs/winding, start/end shortening, draw ordering, and the two-arrow short-path case.
-  [Core takes the literal unit bisector, falls back to the next unit normal below 0.0001, and places ±t
-  sides with u=0/1. Eligible arrows fail with ArrowheadGeometryOvv3 before device mutation; no invented
-  arrow shape or successful no-op. Ribbon geometry remains provisional pending exact proof.]
+  **Partial answer 2026-10-23 (re-overlay-views-contracts4):** §1.2 establishes the second binary32
+  SetPathTexture argument as the repeat source; NewPath does not initialize a default. Lot-flag
+  identities remain open, so this bundled entry is retained here.
 
 <!-- from: core-overlay-views4 (2026-10-22) -->
 - **OVV4 - §2, SetCellColor and marked-cell state:** publish native r/g/b/a input types/ranges,
@@ -29,14 +15,10 @@
   [Core retains explicit RGBA byte channels with no packed representation claim; SetCellColor(float...)
   fails with PackedColourOvv4. Explicit byte/replace_cells helpers do not claim native API equivalence.]
 
-<!-- from: core-overlay-views4 (2026-10-22) -->
-- **OVV5 - §2.1, DrawCells corner/altitude/bounds rules:** publish corner/index ordering, nearest-vertex
-  half-way rounding, partially outside non-16m cell handling, fixed diagonal, lot-filter construction
-  parameters, and order of frustum, water-max and lot-altitude replacement. Does water also affect
-  non-16m cells or lot heights? What are zero/negative/nonfinite size and empty-cell behavior?
-  [Core follows terrain-view §4.2 winding, half-way ties up, skips outside lower corners, clamps upper
-  corners, and applies frustum then water then lot replacement only to 16m cells. Opaque flags 0x304 and
-  0x100000 stay literal. Invalid sizes are rejected as a core safety rule, not a native contract.]
+  **Native evidence 2026-10-22 (re-overlay-views-contracts4):** §2.2 now proves float-vector input,
+  bit-based conversion without clamping, common/per-cell/default/outline state and three unnamed mutation
+  wrappers. Residual: identify/prove an independent outline-disable API, or prove its absence across
+  the complete owner inventory; constructor-disabled and prefer-opaque suppression alone do not answer it.
 
 <!-- from: core-overlay-views4 (2026-10-22) -->
 - **OVV6 - owner catalogue and lifecycle:** the task inventory says 54 functions across cSC4PathView,
@@ -47,11 +29,13 @@
   Rust RAII does not claim native AddRef/Release or unpublished lifecycle. All six owners are withheld
   from complete-owner/runtime promotion.]
 
-<!-- from: core-overlay-views4 (2026-10-22) -->
-- **OVV7 - §3, cSTEVertBufExtn lifecycle and batching:** is index capacity min(capacity/(W+1), H)*W*6
-  or is one vertex row subtracted? Are source indices absolute terrain indices, what is their width,
-  and can hidden/degenerate indices point outside the copied range? Publish lock mode, initial lock,
-  flush/relock policy, zero-n, index-capacity flush, lock/draw failure behavior, and release while locked
-  or with pending indices. [Core uses literal row-count formula, explicit six-u32 absolute terrain
-  indices per cell, compact coordinate rebasing, flush before vertex OR index overflow, lazy lock,
-  no implicit draw on release, and balances its own lock on drop. These choices block promotion.]
+  **Native evidence 2026-10-22 (re-overlay-views-contracts4):** §3.2 lists all 49 currently named
+  non-template entries plus three unnamed marked-cell wrappers, all four five-slot primary interfaces,
+  and the proved/residual scope by owner. The claimed 54-entry inventory is not reconciled. Shared
+  QueryInterface/AddRef/Release dispatch, zero-release destruction and remaining setters still need proof.
+  **Qualification 2026-10-23 (re-overlay-views-contracts4):** §3.4 now independently proves the shared
+  ID-1 QI, u32 AddRef/Release and constructor-table-to-deleting-body chain for all four views,
+  including zero-count deletion and train deletion without Shutdown. These portions are supported;
+  OVV6 remains partial for historical inventory membership, additional public setters/interface
+  completeness and caller Shutdown discipline. Two newly traced train cleanup addresses do not by
+  themselves identify the historical 54 entries. §3.3 supplies the per-owner method ledger.
