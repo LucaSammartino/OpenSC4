@@ -45,9 +45,10 @@ This is source identity evidence, not execution evidence.
 
 The planning inventory “8 entries / 2886 bytes” is not a completion denominator.
 The four substantial named bodies total 2478 bytes; the jump is an alias.
-Nearby stop/clear `007D1DB0` and clear/free `007D1CF0` are not named lifecycle
-methods on this evidence. No constructor, destructor or registration claim is
-made from adjacency. Existing PlaceLot/Query consumer behavior in
+The unnamed constructor `007D26F0` is positively bound by the enclosing
+constructor call `007F0EB4–007F0EC0`, rather than by adjacency. Stop/clear
+`007D1DB0` and clear/free `007D1CF0` retain their bounded lifecycle roles below.
+Existing PlaceLot/Query consumer behavior in
 [city-tools-input.md](city-tools-input.md) remains consumer evidence, not proof
 of these helper bodies. Direct export callers connect setter/refresh to those
 consumers; update's four direct callers are the refresh passes.
@@ -247,6 +248,39 @@ effect/position primitives. The default triple source `00B4E2D4` has initial PE
 contents zero; a runtime constant-value guarantee is not established.
 
 ## Reset and teardown evidence
+
+### Construction and receiver identity
+
+*[compat]* Let B be the complete view receiver. Its constructor establishes
+the window subobject at B+12 (`007F0A72–007F0A8E`) and installs `00AB CBC0`
+(without the space: `00ABCBC0`) at that subobject (`007F0AB1`). That table's
+slots +10/+14 target Init/Shutdown. Consequently their receiver I=B+12,
+and I+`3D8` = B+`3E4` is the same helper H passed by the complete view
+constructor and teardown. These are distinct enclosing identities, not two
+helper allocations. Init independently forms I-12 at `007E9915`.
+
+The constructor calls `007D26F0` with H at `007F0EB4–007F0EC0`.
+The complete 33-byte helper body stores zero to H+4, H+8, H+12, H+16
+in that order, then calls `00829BC0` with request 100, then stores zero to
+H+20 (selected mask), and returns H (`007D26F6–007D2710`). H+4/+8/+12
+are bucket begin/end/allocation-end; H+16 is entry count. H+0 is not written
+by this helper body. No per-entry visited/scalar/effect storage exists yet.
+The mask zero store is **after** container setup and its allocation primitives;
+it must not be moved before them in an observation of construction prefixes.
+No helper effect callback, retain, release or registration call occurs in this
+body. Container setup selects a capacity and initializes null bucket heads,
+then zeroes count (`00829BC0–00829C29`); allocation internals remain foreign.
+Construction does not call refresh or the category setter. This identifies
+embedded helper construction, without asserting a standalone factory/class ID.
+
+Independent **PROPOSED UNEXECUTED** lifecycle literals (additional to the
+unchanged 30 cases below):
+
+| Case | Fixture | Exact expected observations |
+|---|---|---|
+| L0 | Complete receiver B=`10000000`; helper bytes initially `A5` | I=`1000000C`, H=`100003E4` both from I+`3D8` and B+`3E4`; constructor returns H. |
+| L1 | H initially filled `A5`; successful ordinary container setup | Stores H+4=0,+8=0,+12=0,+16=0; setup request=100; only after setup H+20=0. At setup entry mask remains `A5A5A5A5`; H+0 remains that value throughout this body. Empty count=0 and all allocated heads=null on return; no effect events. |
+| L2 | Constructed empty helper; manually selected mask=`8000000F`; stop/clear | No effect events; count=0, mask=`8000000F`, bucket allocation retained. Separate clear/free fixture frees nonnull bucket storage after clear, with no mask store and no bucket-pointer nulling. Neither fixture is a second constructor. |
 
 The alias call at `007E9CCB` passes the view-interface receiver plus `3D8` to
 refresh. The shutdown call at `007F14AE` passes receiver plus `3D8` to unnamed
