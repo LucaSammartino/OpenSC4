@@ -2894,3 +2894,98 @@ of the foreign color/vector/float readers beyond their returning values.
 | EC117 | color255 list parse succeeds `(255,0,0)`; vary returns `(0.5,2,0)` | vector range error, complete color list remains unscaled; all three old variation fields retained |
 | EC118 | color vary returns `(NaN,0.5,1)` | all components accepted and assigned, including NaN; no component normalization |
 | EC119 | alpha255 selected 256 with absent vary | result bits `3F808081`, above one; no owner clamp |
+
+### 19.27 Dynamic-particle child dictionary and contracts
+
+`cDynamicParticleEffectCommand::RegisterCommands` (`00595D40–00595DEC`)
+registers exactly four nested entries in the order below. Each uses a fresh
+four-byte ordinary command descriptor with wrapper `007E3BE0` at +04 and
+the listed direct handler at +0C. Registration/dispatch rules remain
+effects-parser §12. The dynamic-particle definition's live name is `P+2FC`,
+and its description is `Y=P+30C` (§19.13). All **four** child handlers require
+that name to be nonempty, throwing `Not in dynamic particle block` before
+selection or description writes. They test this name rather than the generic
+stack type; the particles name is irrelevant. No option omitted below is
+consumed, and generic leftover-switch errors can follow completed writes.
+
+| Order | Literal / pointer cell | Descriptor | Direct handler / verified class |
+|---:|---|---|---|
+| 1 | `effectBase` / `00B0A388` | `00A9FBB8` | `0059DA40`, unnamed |
+| 2 | `model` / `00B0A384` | `00A9FBA8` | `005A1C50`, `cDynamicParticleModelCommand` |
+| 3 | `mass` / `00B0A38C` | `00A9FB98` | `00598430`, unnamed |
+| 4 | `friction` / `00B0A390` | `00A9FB88` | `005984D0`, `cDynamicParticleFrictionCommand` |
+
+`effectBase` selects at least one nonswitch value, ignores the finder return,
+and copies the first selected string preserving case to `Y+0C` (`P+318`).
+Further selected values are ignored. There is no default empty assignment on
+a missing operand, collection lookup or existence test; the reader supplies
+the minimum-value exception. Empty string is assignable if the reader supplies
+it. No switches are queried, and the live definition name is unchanged.
+
+`mass` selects at least one nonswitch value, ignores the finder return, and
+stores ParseFloat of the first at binary32 `Y+18` (`P+324`). Further values
+are ignored. No switch lookup, clamp, inverse-mass calculation, positivity
+or finite-value test occurs. A conversion failure leaves the old mass.
+
+`friction` selects at least two nonswitch values, ignores the finder return,
+and stores ParseFloat first to binary32 `Y+20` (`P+32C`), then second to
+binary32 `Y+24` (`P+330`). Extra selected values are ignored. It then looks
+up `angular` with minimum one: if present convert its first value with
+ParseFloat to binary32 `Y+28` (`P+334`); if absent retain the existing angular
+value. These are direct scalar assignments, without range checks or angle
+factors. A failing second conversion retains the completed first store;
+a failing angular lookup/conversion retains both positional stores.
+
+`model` selects nonswitch values with minimum **zero** and tests the **full
+signed EAX** return. If EAX is zero or negative, return with the description
+unchanged. A positive return builds a temporary list of unsigned 32-bit IDs
+from **all** selected values, preserving order and duplicates. For each name,
+copy the selected string, lowercase each signed input byte through the same
+CRT locale service `009F0543` as modelID (§19.4), and look up that key in the
+model-name map at `P+B8`. In ASCII, `House` and `HOUSE` select the same key;
+the input token string is not modified. A missing key throws
+`No such model: '%s'` using the original selected string. It does not insert
+a zero map entry, call ParseUint, or load a resource. A present key contributes
+its mapped word, including zero, to the temporary list.
+
+Only after every selected name resolves is the description changed. With
+exactly one resulting ID, assign it to scalar `Y+30` (`P+33C`), then clear
+the word list at `Y+34` (`P+340`). With any other count, replace that word
+list with the temporary list **and retain the old scalar ID**. In the normal
+positive-return/no-selected-record fixture this replaces the list with empty;
+it does not reset the scalar to zero. No option lookups or flags occur.
+Unknown-name failure after an earlier successful name leaves both scalar
+and description list unchanged because only the temporary prefix was built.
+This is different from the incremental appearance and rate-list replacements.
+Foreign allocation/assignment exceptions have no added rollback guarantee.
+
+Evidence: dictionary allocations, vptr stores and registration calls
+`00595D40–00595DEC`; descriptor +0C words `00A9FBC4`, `00A9FBB4`,
+`00A9FBA4`, `00A9FB94`; base-name guard/selection/assignment
+`0059DA48–0059DAE4`; mass guard/conversion/store `00598438–005984B6`;
+friction guard `005984D8–0059852A`, two scalar stores and angular
+`00598533–005985A8`; model guard and signed-return comparison
+`005A1C58–005A1CC4`, name copy/lowercase/map-find `005A1D19–005A1D6B`,
+temporary append `005A1D6D–005A1DA7`, original-name error
+`005A1DE0–005A1E12`, scalar-versus-list publication `005A1E1B–005A1E5B`.
+Lowercase wrapper `009F055D` calls `___tolower_mt` (`009F047B`).
+
+### 19.28 Dynamic-particle child conformance vectors (unexecuted)
+
+Normal fixtures have a nonempty dynamic name, unrelated state sentinels,
+returning conversion/allocation/assignment services and no unlisted options.
+Cases stipulating EAX test the owner branch independently of the reader.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC120 | construct dynamicParticle descriptor, allocations succeed | four four-byte child descriptors registered in §19.27 order with exact literal/handler pairs |
+| EC121 | empty dynamic name; particles name nonempty; call each of effectBase/model/mass/friction with missing operands | each throws dynamic-block error before selecting or changing any state |
+| EC122 | effectBase selects `MiXeD`, extra | `Y+0C=MiXeD`; extra ignored; no name/collection validation or switch lookup |
+| EC123 | mass selects -2,99 | `Y+18=-2`; no inverse, clamp or second conversion |
+| EC124 | friction selects 2,bad; second conversion throws | `Y+20=2`; old `Y+24,+28` retained; angular unqueried |
+| EC125 | friction selects 2,3,99; angular selects -4 | fields `Y+20,+24,+28=2,3,-4`; 99 ignored, no angular unit conversion |
+| EC126 | model finder returns EAX=0 or `FFFFFFFF`, regardless of stipulated scratch indices | no description write or model lookup |
+| EC127 | model positive finder, selected `HOUSE`; map house=7; old scalar=9, list `[1,2]` | scalar becomes 7, list cleared; input spelling unchanged; no resource load |
+| EC128 | model positive finder, selected `A`, `B`, `a`; map a=7,b=0; old scalar=9 | list becomes `[7,0,7]`, old scalar remains 9; order/duplicates/zero preserved |
+| EC129 | model positive finder, selected A,Missing; map a=7 only; old scalar=9,list `[1,2]` | `No such model: 'Missing'`; scalar/list unchanged; no map insertion for missing |
+| EC130 | independently stipulated positive full EAX with empty selected list | description list becomes empty; scalar retained; no model lookup |
