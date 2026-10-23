@@ -1051,8 +1051,9 @@ Evidence: `0x0044DA29`–`0x0044DC7B`.
 FontStyle.ini is selected from slot 55 first, then slot 53 with language index 0, using the
 first existing candidate. If neither exists, request a temporary path and export resource key
 `(type=0, group=0x4A87BFE8, instance=0x2A87BFFC)` into it. Export result -1 clears the path;
-an empty path skips INI enumeration. A generated temporary file is removed after use, even
-when export fails; existing FontStyle.ini files are not removed (`0x0044DC80`–`0x0044DE92`).
+an empty path skips INI enumeration. Temporary-path cleanup is attempted afterward; when
+export failed and cleared the path, Remove receives the empty path, not a saved copy of the
+original temporary name. Existing FontStyle.ini files are not removed (`0x0044DC80`–`0x0044DE92`).
 
 Enumerate `Font Aliases` first. Each alias is forwarded to font-service +0x50
 as `(entry value, entry name)`, with no app-side normalization (`0x004499D0`). Each style
@@ -1190,5 +1191,38 @@ Paths below are literal Windows strings. Foreign primitive outcomes are fixture 
 | AP15-views | Source view absent; destination view present; rebuilding fails | Destination zoom=0 then rotation=0; missing destination instead makes neither setter call |
 | AP15-invalid | No city, temporary writer successfully opens segment | Native city dereference is invalid; not a native false/no-op vector |
 
-AP13's full font/control/cursor and malformed-registry cases, and AP14's full reapplication
-ordering, remain open in the question file until their remaining rules are published.
+| AP13-hex | Keys/classes `12junk`, `123456789`, `-1`, ` 0Xff` | Numeric results 0x12, 0x12345678, 0, 0xFF; no whole-file rejection |
+| AP13-separator | Value `086D4A89;C:\\a;b.dat`; separately value `C:\\a.dat` without semicolon | First class 0x086D4A89/path `C:\\a;b.dat`; second class 0/path entire value; failed class creation skips entry |
+| AP13-groups | Packed exemplars off; begin PACKED_EXEMPLARS twice, end with arbitrary value, then ordinary entry | First end clears shared condition bit despite outer group; ordinary entry no longer excluded by that condition |
+| AP13-unknown-group | Begin unknown name, ordinary entry, end arbitrary value | Unknown group imposes no condition; end pops that name |
+| AP13-bad-end | END_GROUP without any BEGIN_GROUP | Invalid unchecked empty-stack access; no native safe-ignore contract |
+| AP13-sources | Distinct roots and one accepted file per file pass | Registry; slot53(-1) files; slot53(0) files; slot57 directory; slot55 files then directory; slot59 files then directory; factories last |
+| AP13-recursive-filter | Recursive root contains valid DBPF `a.DAT`, valid `b.dll`, invalid `c.txt` returning -1 | Skip a before signature probe; probe and attempt b; reject c; directory segment still registered afterward |
+| AP13-order | Enumeration emits root files b,a; child directories z,y with files z1,y1 | File submissions b,a,z1,y1; no lexical sorting or cross-pass deduplication |
+| AP13-segment-failure | First source Open false, second succeeds | First shutdown/release; second registration still attempted; success releases local reference without shutdown |
+| AP13-factories | Valid resource manager records registrations, returns count 2 then 3 in separate runs | Fifteen ordered table registrations with third argument zero; false then true final result |
+| AP13-font-filter | Language 0x0F; enumerated names `MHei GB`, `MHei GB Regular`, `Arta` | Bare MHei GB survives trailing-space substring; other two removed; source directories added before removals |
+| AP13-font-limit | More than 64 registered names; matching name is only record 65 | App requests at most 64 and does not remove that name through this enumeration |
+| AP13-font-conditional | Language 0x13; micross.ttf exists but font-service +0x38 fails | No conditional cordiaupc removal; common and other language exclusions still apply |
+| AP13-font-defaults | Both Arta requests succeed | Request tuples (Arta,0,12,2,1), (Arta,0,20,2,1); bind four IDs then one, as table; local references released |
+| AP13-font-ini | Neither FontStyle.ini candidate exists; temp export returns -1 | Export exact type/group/instance key; skip aliases/styles on empty path; cleanup Remove receives empty path |
+| AP13-font-styles | Alias A=B; style parser returns null; next style returns font and ID 7 | Alias call (B,A); malformed style omitted; valid style registered as 7, named by its entry key, local font released |
+| AP13-font-style-gate | Alias section present; service +0x20 returns null | Aliases submitted, Font Styles not enumerated |
+| AP13-colours | Window-control manager present | Nineteen RGB writes in table order, including 0x68963F6F=(189,188,188) and final 0xBB5B2EC6=(124,144,255) |
+| AP13-pictures | First picture load succeeds, second fails, third succeeds | First binds A8963EB8/E8963EF1; second binds neither; third binds C8963EF6; later sources still attempted |
+| AP13-cursor-option | Existing setting15=4; option fullColor | No setting write; selected resource group32 from existing value |
+| AP13-cursor-map | Options OFF, BW, COLOR16, COLOR256 in four runs | Setting15=0,1,2,3; resource groups0,1,4,8 respectively |
+| AP13-cursor-filter | CustomCursors=disabled; selected group contains instances1 and2 | Skip1; construct/register2; cursor system remains active |
+| AP13-cursor-custom | Setting15=5 and no recognized option | Select group0x4A708F00 with unsigned addition; no fallback |
+| AP13-captions | All managers present | Seven localized captions in table order, followed by literal UTF-8 ellipsis for 0x5377BE31 |
+| AP14-name-filter | ASCII city name ` A<>:*?  B `; empty destination | Filename `City - A B .sc4`; prohibited bytes deleted and ASCII spaces collapsed; space before extension survives |
+| AP14-name-cap | ASCII city name long enough that full candidate exceeds256 bytes | Filtered filename capped256 bytes before suffix selection; no repair of a truncated .sc4 extension |
+| AP14-savedcity | Application directory C:\\Game\\; global suffix .sc4 | RequestLoadCity stub uses literal SavedCity.sc4, replacing the initially fetched directory |
+| AP14-preferences-partial | full=false, pause byte2, city/simulator present, speed50, command line has -x:GP | Pause true; no language/video work; simulator speed20; GP processed last from a command-line copy |
+| AP14-preferences-window | full=true, current800x600x16, requested1024x768x32, windowed0 | Set windowed1; request1024x768x32 then fullscreen=false; driver selection follows |
+| AP14-preferences-driver | full=true, driver override0x12345678, graphics interface present | Preference hardware byte255; select exactly that override; release queried interface |
+| AP14-preferences-speed | Binary32 speed input bits0xD1000000 (-34359738368) | Exact product converts to -2721563392; low32 signed1573403904 clamps7, speed80 rather than5 |
+| AP14-preferences-language | Named language unavailable, registry/system/repeated probes all unavailable | No language switch; preference language ID survives; full-only byte4EB cleared |
+| AP14-cheat-copy | Original arguments p,-x:GP,-x:ForceIdle; call twice | Each call processes GP then ForceIdle; original argument list remains unchanged |
+| AP14-cheat-erasure | Copied arguments p,axjunk,-x:GP | GP processed twice: unrelated axjunk erased first, then matching switch |
+| AP14-cheat-case | Copied arguments p,-X:GP only | Named lookup matches but lowercase-x erasure cannot progress; native loop may repeat; no false claim of safe original-switch removal |

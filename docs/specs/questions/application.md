@@ -30,10 +30,3 @@
 <!-- from: re-app (2026-10-22) -->
 - **AP11 - sections 8, 13.2:** what the preferences `+0x470` (`-sim`) and `+0x498` (`-RDD`) and the render
   properties setting `0x25` (`-AutoZoomChange`) control. [as read]
-
-<!-- from: core-app5 (2026-10-23) -->
-- **AP13 - sections 12, 14.2-14.3:** publish the Resources.ini packed-switch section and class-ID syntax, malformed-entry policy, DB directory filters/order, full resource-factory list, font/control/cursor setting tables, and GetAppIniFilePath resolution. [Implement the published enumeration/substitution summary with explicit paths/factory/packed-option inputs; preserve class bytes. Unknown details remain open, with no full resource/window setup claim.]
-  Partial 2026-10-23 (re-app-ap5): packed command switches/group syntax, hexadecimal key/class syntax, all fifteen factory mappings and INI path resolution published. Malformed-entry behavior, precise directory enumeration and full font/control/cursor tables still need completion.
-<!-- from: core-app5 (2026-10-23) -->
-- **AP14 - sections 2, 11.10, 11.16, 13.3:** publish SC4CreateSavePathForCity's naming rule, slot 29/31 and folded getters' contracts, the twelve/fourteen video setting mappings and preference-application ordering. Does the SavedCity stub concatenate the global suffix or resolve under the application directory as section 14.3 summarizes? [Save requires an explicit independently resolved target and otherwise returns SavePathNaming before mutation. Keep literal section 11.10 concatenation. Video bodies and undescribed interface slots remain open under section 12.]
-  Partial 2026-10-23 (re-app-ap5): getter contracts, video mapping/order/widths, filename collision/reuse rule and literal SavedCity concatenation published. Full DoPreferencesChanged ordering and platform filename-sanitizer details remain to finish.
