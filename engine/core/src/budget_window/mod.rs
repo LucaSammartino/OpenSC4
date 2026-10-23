@@ -10,13 +10,9 @@
 //! references (`§n`) point at that spec.
 //!
 //! External window, simulator, budget, ordinance, neighbour, deal and occupant
-//! calls use [`BudgetWindowHost`]. Group row selection and reference ownership
-//! are core algorithms; presentation uses external window callbacks. Other
-//! populate/refresh methods still delegate same-class bodies. They are
-//! incomplete core coverage, not external service contracts (BW17).
-//!
-//! Unspecified same-class populate/refresh bodies are tracked in the lane
-//! inventory; these callbacks do not establish whole-owner coverage.
+//! calls use [`BudgetWindowHost`]. Population and the settled refresh slices
+//! use raw public interfaces in [`SubBudgetSources`]. Unsettled BW17 paths
+//! report [`Unsupported`]; no native same-owner result is accepted as input.
 
 pub mod dialog;
 pub mod ids;
@@ -29,6 +25,7 @@ pub use dialog::{
     end_dialog, header_shown, line_item_shown, service_kind, slider_fraction, IndividualRestoreInfo, NeighborInit,
     OrdinanceInit, OrdinanceRow, ScrollList, ScrollView, SliderInfo, SubBudgetMode, SubBudgetMsg, SubBudgetWindow,
 };
+pub use dialog::{individual_amount, BodyPaint, ComboError, DealRow, SubBudgetSources, Unsupported};
 pub use panel::{panel_command, BudgetPanel, CommandOutcome, PanelCommand};
 
 /// An opaque handle to a host-side `cIGZWin` (or a window generator's window).
@@ -50,6 +47,9 @@ pub trait BudgetWindowReferences: std::fmt::Debug + Send + Sync {
     fn add_ref_dept(&self, dept: DeptRef);
     fn release_dept(&self, dept: DeptRef);
     fn release_win(&self, win: WinRef);
+    fn add_ref_item(&self, item: ItemRef);
+    fn release_item(&self, item: ItemRef);
+    fn release_deal(&self, deal: DealRef);
 }
 
 /// One department line item as `on_init` reads it (§4.1): `GetType()`,
@@ -72,10 +72,8 @@ pub struct FundingPair {
     pub vehicle: f32,
 }
 
-/// External operations plus legacy incomplete same-class callbacks (BW17).
-/// The latter are test scaffolding, not a supported replacement contract;
-/// an adapter must not supply the original owner's outputs as engine inputs.
-pub trait BudgetWindowHost {
+/// Foreign services and window primitives. Owner algorithms stay in the core.
+pub trait BudgetWindowHost: SubBudgetSources {
     fn references(&self) -> std::sync::Arc<dyn BudgetWindowReferences>;
     // ---- §3 window generator and window (cIGZWin) ----
     /// Create the window generator (class `0x4386D516`, interface
@@ -157,32 +155,15 @@ pub trait BudgetWindowHost {
     fn load_background(&mut self, win: WinRef, type_id: u32, group: u32, instance: u32);
 
     // ---- ordinances (§4, §5.6) ----
-    /// INCOMPLETE same-class body (BW17). `initOrdinanceBudget`: the rows, their
-    /// ordinance IDs and states (`+0xA4`, `+0xA8`) and the row map `+0x74`.
-    fn init_ordinance_budget(&mut self, win: WinRef) -> OrdinanceInit;
-    /// INCOMPLETE same-class body (BW17): `updateOrdinanceBudget`.
-    fn update_ordinance_budget(&mut self, win: WinRef, rows: &[OrdinanceRow], view: ScrollView);
     /// `OrdinanceSimulator.SetOrdinanceOn(id, edited)` (slot 13).
     fn set_ordinance_on(&mut self, ordinance: OrdId, on: u32);
     /// Child `id`'s check-box interface `0x8810`: its state's low byte, or
     /// `None` when the child does not answer.
     fn check_box_state(&mut self, win: WinRef, id: u32) -> Option<u8>;
-    /// INCOMPLETE same-class body (BW17). Build the info popup for `k` and return
-    /// the full-dialog child the dialog holds at `+0x14`.
-    fn open_ordinance_info(&mut self, win: WinRef, k: Option<u32>, ordinance: Option<OrdId>) -> Option<WinRef>;
 
     // ---- neighbour deals (§4, §5.4, §6) ----
     /// `NeighborsSimulator.SetUIDisableFlag`.
     fn set_neighbor_ui_disable(&mut self, on: bool);
-    /// INCOMPLETE same-class body (BW17). `initNeighborBudget`: `ProposeDeals(list,
-    /// true)` and the rows; returns the held deals (vector `+0x68`) and the
-    /// list counts it computed (BW12). The scroll arrows at its end are
-    /// built by the core.
-    fn init_neighbor_budget(&mut self, win: WinRef) -> NeighborInit;
-    /// INCOMPLETE same-class body (BW17): `updateNeighborBudget`.
-    fn update_neighbor_budget(&mut self, win: WinRef, deals: &[DealRef], view: ScrollView);
-    /// INCOMPLETE same-class body (BW17): rewrite `+0x50` after combo change.
-    fn rewrite_selected_deal_rows(&mut self, win: WinRef, combo: u32);
     fn add_ref_deal(&mut self, deal: DealRef);
     fn release_deal(&mut self, deal: DealRef);
     /// Deal slot 36.
@@ -215,10 +196,6 @@ pub trait BudgetWindowHost {
     fn department_total_income(&mut self, dept: DeptRef) -> i64;
     /// Department slot 14 `GetIdealMonthlyFunding()`.
     fn department_ideal_monthly_funding(&mut self, dept: DeptRef) -> i64;
-    /// INCOMPLETE same-class body (BW17): `SetEmptyWindow`, held at `+0x14`.
-    fn set_empty_window(&mut self, win: WinRef) -> Option<WinRef>;
-    /// INCOMPLETE same-class layout body (BW17): `SetupWindowBig`.
-    fn setup_window_big(&mut self, win: WinRef, rows_a: u32, rows_b: u32);
     /// The f32 read through department slot 10 (`+0x28`, returns a
     /// pointer): the funding fraction `on_init` saves in `+0x38` (BW10b).
     fn funding_percentage(&mut self, dept: DeptRef) -> f32;
@@ -241,24 +218,21 @@ pub trait BudgetWindowHost {
     /// it to `win`, releasing the creation reference. Returns its unique window
     /// ID; the core stores no slider-window reference (BW15).
     fn create_department_slider(&mut self, win: WinRef, dept: DeptRef, item: Option<LineItem>, row: u32) -> u32;
-    /// INCOMPLETE same-class body (BW17): `UpdateValues` (`0x007898A0`).
-    fn update_values(&mut self, win: WinRef);
 
     // ---- individual mode (§4.4, §5.5, §5.7) ----
-    /// INCOMPLETE same-class body (BW17). `initIndividualBudget` returns
-    /// the restore records (vector `+0x44`).
-    fn init_individual_budget(&mut self, win: WinRef, department: u32) -> Vec<IndividualRestoreInfo>;
     /// §4.4: the slider child by control ID (window slot 37, IID
     /// `0x21325207`); false = the lookup failed.
     fn find_slider(&mut self, win: WinRef, control: u32) -> bool;
     /// The slider's position (slider slot 4).
     fn slider_value(&mut self, win: WinRef, control: u32) -> i32;
-    /// `get_window_indiv_item(win, id)` (`0x00779600`).
-    fn indiv_item(&mut self, win: WinRef, id: u32) -> Option<ItemRef>;
+    /// Window slot 35, child lookup. Property handles are opaque and owned.
+    fn find_child(&mut self, win: WinRef, id: u32) -> Option<WinRef>;
+    fn get_property(&mut self, child: WinRef, key: u32) -> Option<u64>;
+    fn property_type(&mut self, property: u64) -> u32;
+    fn property_object(&mut self, property: u64) -> Option<ItemRef>;
+    fn release_property(&mut self, property: u64);
     /// The item's `GetID()` (slot 3): a department ID.
     fn item_id(&mut self, item: ItemRef) -> u32;
-    /// INCOMPLETE same-class body (BW17): `updateIndividualBudget(win, arg)`.
-    fn update_individual_budget(&mut self, win: WinRef, arg: u32);
     /// QueryInterface the occupant IID `0x26BB767E` into a holder.
     fn query_occupant(&mut self, item: ItemRef) -> bool;
     /// Release the holder `query_occupant` filled.

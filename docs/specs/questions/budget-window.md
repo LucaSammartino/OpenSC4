@@ -30,3 +30,9 @@ The original request follows.
 - **BW18 - budget-window-bodies.md §8, §10, the panel's summary parts:** the construction (`0x007658A0`) and
   `InitBalanceSheet` (`0x00764DF0`) labels, the rest of `Init` (`0x00766E10`), the loan slider's limits in
   `DisplayLoanWindow` (`0x00765C30`) and the row drawing of `UpdateLoanDisplay` (`0x00766680`). [summary]
+
+<!-- from: core-budget-window5 (2026-10-23) -->
+- **BW19 - budget-window-bodies.md §3.2 and §6 invalid raw inputs:** what safe replacement behavior is required when combo-edit signed division has a zero divisor or INT_MIN/-1, or UpdateValues receives an empty budget-group vector? The literal native operations would fault. Core returns InvalidDivision for the affected row (continues matching rows and records the single pending neighbor refresh), or None for the empty group vector while clearing its busy guard. These are explicit safe divergences, not successful empty rows. [open]
+
+<!-- from: core-budget-window5 (2026-10-23) -->
+- **BW20 - §4 group initialization / budget-window-bodies.md §6 raw department list references:** §6 explicitly releases each department returned by budget slot 31 during refresh; does initial group population own the same temporary references and release them after both build passes (including the empty branch)? Core uses that literal shared public-provider contract in both paths, separately from saved-pair and slider references. Please confirm the initial path's list ownership and release order. [open]
