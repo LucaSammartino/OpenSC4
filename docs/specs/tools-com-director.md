@@ -244,10 +244,10 @@ the new count. Release (`0090E242`) tail-dispatches primary +28 to RemoveRef
 (`0090DE43`): decrement if nonzero, otherwise retain zero, and return the count.
 It does not delete the singleton at zero.
 
-The +4 hooks face has nine lifecycle slots, +0C through +2C inclusive. **Every one**
+The +4 hooks face has eight lifecycle slots, +0C through +28 inclusive. **Every one**
 points to `00949ADE`, which only returns AL=1. Thus these native hooks have no
 tool creation, service registration, message subscription, start/stop side effects,
-or failure decision. The table ends at `00AD4F60`; continuing past +2C would read
+or failure decision. The table ends at `00AD4F60`; reading +2C would read
 the adjacent primary table, not more hooks. No director message-handler interface
 is accepted by its QueryInterface.
 
@@ -937,7 +937,7 @@ These are contract vectors to implement independently, not reports of execution.
 | TD-V1 | Call getter twice from an unconstructed process state | Same pointer; one constructor and one exit registration; no AddRef |
 | TD-V2 | Query director IDs 1, A21EE941, 03FA40BF, then an unrelated ID with output sentinel | First two base pointer; third base+4; three count increments; last false and sentinel unchanged |
 | TD-V3 | Release a director at count zero, then AddRef twice and Release once | Counts 0, 1, 2, 1; no destruction |
-| TD-V4 | Invoke each of nine hook slots with instrumented external services | True AL each time; no external call or state change |
+| TD-V4 | Invoke each of eight hook slots (+0C through +28) with instrumented external services | True AL each time; no external call or state change; +2C belongs to the adjacent primary table |
 | TD-V5 | InitializeCOM with null, then nonnull COM whose heap callback returns null | First false and no writes; second stores COM and null heap, assigns path, returns true |
 | TD-V6 | Enumerate with a callback returning false on its first call | Both registered IDs still visited; middle callback argument zero; no factory allocation |
 | TD-V7 | GetClassObject for an unknown class with output sentinel | False; sentinel retained; no allocation |
