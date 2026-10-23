@@ -45,15 +45,96 @@ fn commands_brake_before_reversing_and_do_not_overshoot_targets() {
         Some(Gear::Forward)
     );
     assert_eq!(b.speed, 0.3);
+    assert_eq!(b.player.gear, Gear::Forward);
+    command.throttle = 0.1;
+    b.translate_drive_commands(100.0, &mut command, &mut effects);
+    assert!((b.speed - 0.29).abs() < 1e-6);
     command.throttle = -1.0;
     command.reverse = 150.0;
     b.translate_drive_commands(10_000.0, &mut command, &mut effects);
     assert_eq!(b.speed, 0.0); // leftover braking time is not reverse acceleration
     b.translate_drive_commands(10_000.0, &mut command, &mut effects);
     assert_eq!(b.speed, -0.1);
+    assert_eq!(b.player.gear, Gear::Reverse);
     command.reverse = -1.0;
     b.translate_drive_commands(10_000.0, &mut command, &mut effects);
     assert_eq!(b.speed, 0.0);
+    assert_eq!(b.player.gear, Gear::Neutral);
+}
+
+#[test]
+fn tow_ahead_cancels_only_for_positive_heading_dot_product() {
+    let mut f = fleet();
+    f.insert(2, boat()).unwrap();
+    f.push_state(2, State::new(state::TOWED), &mut None).unwrap();
+    f.get_mut(1).unwrap().towed = Some(2);
+    f.get_mut(2).unwrap().tug = Some(1);
+    f.get_mut(2).unwrap().position = [0.0, 0.0, 10.0];
+    f.release_tow_ahead(1, &mut None).unwrap();
+    assert_eq!(f.get(1).unwrap().towed, Some(2)); // zero dot is not ahead
+    f.get_mut(2).unwrap().position[0] = 1.0;
+    f.release_tow_ahead(1, &mut None).unwrap();
+    assert_eq!(f.get(1).unwrap().towed, None);
+    assert_eq!(f.get(2).unwrap().tug, None);
+    assert_eq!(f.get(2).unwrap().top_state(), None);
+}
+
+#[test]
+fn following_target_is_radius_plus_ten_behind_tug() {
+    let b = boat();
+    assert_eq!(b.following_target([20.0, 3.0, 5.0], [1.0, 0.0, 0.0]), [5.0, 3.0, 5.0]);
+}
+
+#[test]
+fn backwards_and_still_timers_use_strict_boundaries_and_stack_membership() {
+    let mut b = boat();
+    b.speed = -0.1;
+    b.update_backwards_time(100.0);
+    b.update_backwards_time(200.0);
+    assert_eq!(b.backwards_elapsed, 300.0);
+    b.speed = 0.0;
+    b.update_backwards_time(100.0);
+    assert_eq!(b.backwards_elapsed, 0.0);
+    b.still_elapsed = 5000.0;
+    assert!(b.still_time_allows_animation());
+    b.still_elapsed = 5001.0;
+    assert!(!b.still_time_allows_animation());
+    for kind in [
+        state::IDLE,
+        state::PLAYER_DRIVE,
+        state::QUEUE,
+        state::PARKED,
+        state::TOWED,
+        state::UNDOCK,
+    ] {
+        b.record.base.states = vec![State::new(kind), State::new(state::DOCK)];
+        assert!(b.still_time_allows_animation());
+    }
+    b.record.base.states = vec![State::new(state::DOCK)];
+    assert!(!b.still_time_allows_animation());
+}
+
+#[test]
+fn parent_sound_set_enables_commands_and_tow_button_runs_before_base_translation() {
+    let mut f = fleet();
+    f.get_mut(1).unwrap().group = Arc::new(Group {
+        id: 0x4410,
+        parameters: None,
+        aems_value: None,
+        parent: Some(group()),
+    });
+    let mut effects = CommandEffects::default();
+    let mut command = DriveCommand {
+        tow: true,
+        ..DriveCommand::default()
+    };
+    f.player_commands(1, 0.0, &mut command, &mut effects, &mut None)
+        .unwrap();
+    assert!(f.get(1).unwrap().tow_armed);
+    assert_eq!(
+        f.get(1).unwrap().events,
+        [Event::PlayEffect("tugropethrow"), Event::BaseCommandTranslation]
+    );
 }
 
 #[test]

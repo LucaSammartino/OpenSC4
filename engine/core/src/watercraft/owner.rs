@@ -173,6 +173,7 @@ pub struct PlayerState {
     pub shots: u32,
     pub field_1ac: f32,
     pub skier_running: bool,
+    pub gear: super::Gear,
 }
 
 /// Runtime-only data is deliberately separate from the saved base record.

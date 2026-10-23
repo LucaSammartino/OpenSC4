@@ -55,13 +55,15 @@ impl Watercraft {
         effects: &mut dyn PlayerEffects,
     ) -> Option<Gear> {
         let (gear, input) = self.select_gear(command.throttle, command.reverse)?;
+        self.player.gear = gear;
         // WC8: literal target = signed gear input, clamped to entries 6–7.
         // Braking ends at zero this tick; leftover time is not reused.
         let target = input.max(self.drive.0[6]).min(self.drive.0[7]);
         let braking = self.speed * target < 0.0 || gear == Gear::Neutral;
+        let slowing = braking || self.speed.abs() > target.abs();
         let rate = dt
             * self.drive.0[10]
-            * if braking || gear == Gear::Reverse {
+            * if slowing || gear == Gear::Reverse {
                 self.drive.0[0]
             } else {
                 1.0
