@@ -1,26 +1,37 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-automata-ext5: remaining automata owner shadows | Codex / glue-automata-ext5 | in progress | Audit documented observation contracts, extend shadow where specified, verify through 2032. |
+| glue-automata-ext5: remaining automata owner shadows | Codex / glue-automata-ext5 | ready: gate PASS; automataowners 72/72 to 2032, 73/73 including load | Coordinator review and coverage credit; no outstanding requests. |
 
-## Handoff
-- Goal: compare AutomataManager, Automaton, TrafficAutomataManager, AutomataController and ConstructionOccupant state at load/month.
-- Done: initial handoff 98cb12128; audited automata §§0,3.5,4,5.1,6.1,11, manager §2.1, construction lot-records §9.
-- Implemented default-off automata_owners_shadow: inherited manager records, recursive automaton/controller records, indexed construction records via occupant-manager Write references.
-- Added one C export for construction record roundtrip, with tracked reference cleanup and explicit same-input live crane presence seeding (not a lifecycle comparison).
-- Focused test passes 1/1 (crane/scalars/refs preserved; failed reads release references); first fake-stream test failed because fake error callback never latched failure, corrected test to mimic CaptureIn.
-- Done: implementation 8d2297802; final fmt exit=0 files=2 diff_lines=0.
-- Full qbuild all completed PASS (session 38951 terminal exit=0).
-- Full Rust gate: test exit=0 passed=6673 failed=0 ignored=0; clippy exit=0 diagnostics=0.
-- Native request qbuild-20261023-233932-build-ctest PASS: build 220/220 edges; CTest 69/69; tree-change note is documentation-only commit 53b9bcb86 during wait, engine source unchanged.
-- Game a completed clean to 2032-01-05, ref_warnings=0; automata 72/72; automataowners 0/72 monthly, 0/73 incl load (docs/runs/automata-ext5-r1-2032-20261023-a.md).
-- Diagnostic: shared WriteCapture::WriteVariant was a false-return stub, stopping every automaton/construction capture in its holder; ini key missing known-key registration. Both corrected from foundations §§9.1–9.2,17.1; capture uses native getters and independently encodes disk tags/payload.
-- Corrected-source gate 7207ed6dc: Rust 6673/6673, clippy clean, native build 48/48; CTest 68/69 failed ret_channel_check for consuming GetValUnknownAs's uncertain EAX channel. Preserved full failure in build-runs/fc4verify-ctest-7207ed6dc-failed.log; changed caller to consume documented out-pointer only.
-- Final stable-source full gate 35981431d PASS: Rust 6673/6673, clippy diagnostics=0, build 47/47, CTest 69/69 (qbuild-20261024-000625-build-ctest); no tree-change note.
-- Next: collect game automata-ext5-r1-2032-20261024-b, turbo to 2032, using build-runs/wait-verdict.ps1; inspect exact owner lines before profile change. ABI exports changed; version unchanged.
-- q.py cannot start Git Bash in sandbox (CreateFileMapping denied); direct native cargo works. fmt needs absolute filenames.
-- No guessed native signatures. Unknown referenced automaton/controller classes fail rather than being silently skipped.
-- Manager fields: version/max count/active/time-of-day flag/automaton refs/source-building counts, embedded in each concrete record.
-- Traffic fields: version, embedded base, default path type, layer cursor and complete incident list, on vehicle/pedestrian routes.
-- Automaton fields: complete derived records including occupant base; vectors/radius/default speed/flags/dispatch/attractor/leader/state stack/model keys/callbacks/tweens/priority/group.
-- Controller fields: version/occupant/template/position/lifetime scalars/flags/controlled refs; generator periods/group/count or attractor curve.
-- Construction fields: occupant base/lot/building/transform/bounds/crane presence and position/prop and effect refs/all progress and crane scalars/crew tuples.
+## Report
+
+Added default-off `automata_owners_shadow` / `FC4_AUTOMATA_OWNERS_SHADOW` to FC4AutomataShadow. At load/month it compares inherited manager records, recursively captures referenced automata/controllers with cycle deduplication, and captures indexed constructions through occupant-manager Write references. Unsupported automaton/controller classes fail explicitly. Captured variants now use verified native getters and an independent encoder of foundations §9.2, rather than the former false-return stub.
+
+| Owner | Compared fields | Exact record comparisons across 73 samples |
+|---|---|---|
+| cSC4AutomataManager | Version, max count, active, time-of-day flag, ordered automaton refs, source-building count pairs; embedded in all four concrete managers | 292/292 |
+| cSC4TrafficAutomataManager | Version, embedded base, default path type, layer cursor, complete incident list; vehicle/pedestrian routes | 146/146 |
+| cSC4Automaton | Complete supported derived records, including occupant base/properties, position/destination/orientation, radius/default speed, flags/dispatch, attractor/distance/strength/composite vector, leader, state stack, model keys/instance, callbacks, tweens, priority/group | 46256/46256 |
+| cSC4AutomataController | Version, occupant, template, position, lifetime scalars, flags, controlled refs; generator periods/group/count or attractor tag/curve | 21863/21863 |
+| cSC4ConstructionOccupant | Occupant base/properties, lot/building, transform, both bounds, crane presence/position, ground/roof/effect refs, all progress/crane scalars, crew tuples | 150/150 |
+
+These validate record codecs from identical native inputs, not movement or lifecycle behavior. Manager byte counts include concrete extensions. Unsaved state such as hard limits is outside this comparison. Construction Read stores crane presence in a load-only flag; the shadow explicitly seeds live presence from that captured bit before Write, without creating a crane. One new C export, `fc4_automata_construction_roundtrip`, releases all input references on success/failure. ABI exports changed; ABI version unchanged.
+
+## Validation
+
+Final stable engine source `35981431d`: `qbuild all` PASS; Rust **6673 passed, 0 failed, 0 ignored**, clippy **0 diagnostics**, native build **47/47**, CTest **69/69**. Native request `qbuild-20261024-000625-build-ctest` completed through the coordinator queue. Owned Rust fmt: 2 files, zero diff. Focused construction test passes, covering crane/scalar preservation and reference cleanup on truncated input. Logs: `build-runs/qbuild-{test,clippy}.log`, `fc4verify-{build,ctest}.log`.
+
+[Corrected run record](../runs/automata-ext5-r1-2032-20261024-b.md): **automata-ext5-r1-2032-20261024-b 72/72**, `automataowners 72/72` monthly; **73/73 including load**. Konradshohe, turbo, reached 2032-01-01; clean, ref_warnings=0, foreign_exceptions=0, watchdog_stalls=0, other WARNING lines=0. DLL SHA prefix `ffe49742`. Exact log lines:
+
+```text
+automataowners shadow ? load: cSC4AutomataManager=4/4 bytes=5784 mismatches=0; cSC4TrafficAutomataManager=2/2 bytes=5512 mismatches=0; cSC4Automaton=649/649 bytes=208728 mismatches=0; cSC4AutomataController=300/300 bytes=24040 mismatches=0; cSC4ConstructionOccupant=7/7 bytes=1810 mismatches=0; mismatches=0
+automataowners shadow 2032-01-01 month: cSC4AutomataManager=4/4 bytes=5656 mismatches=0; cSC4TrafficAutomataManager=2/2 bytes=5384 mismatches=0; cSC4Automaton=633/633 bytes=203565 mismatches=0; cSC4AutomataController=297/297 bytes=27781 mismatches=0; cSC4ConstructionOccupant=0/0 bytes=0 mismatches=0; mismatches=0
+automataowners shadow: city shutdown: 73 lines, 73 with mismatches=0
+```
+
+Construction sample sizes ranged 0–11; 150 actual records were compared. Existing `automata` stayed exact 72/72. Full evidence is in `build-runs/game-results/automata-ext5-r1-2032-20261024-b.{log,verdict}`. Added the new key at the end of the regress shadows profile only after this exact verdict; no coverage maps changed.
+
+## Preserved diagnostics and next steps
+
+[Initial run](../runs/automata-ext5-r1-2032-20261023-a.md) reached 2032 clean but was 0/72 for the new shadow: variant capture was a stub. Its separate log/verdict remain intact. Source `7207ed6dc` then built but failed CTest 68/69 on consuming GetValUnknownAs's uncertain return; full failed log is `build-runs/fc4verify-ctest-7207ed6dc-failed.log`. The final caller uses only the documented output pointer. Each repeat followed a diagnostic and source correction.
+
+Questions: none; no remaining differences. No outstanding operations or game requests. Coordinator should review record-only coverage credit and land the detached-HEAD commits. No branch/ref changes or pushes were made.
