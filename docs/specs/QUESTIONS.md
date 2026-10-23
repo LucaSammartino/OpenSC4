@@ -69,7 +69,7 @@ generated index: the questions live one file per spec, so read only the file for
 | GC | command-system |
 | GD | renderer-gdrivers-director |
 | GF | graphics-formats |
-| GI | renderer-gdrivers-director-inventory |
+| GI | grid-interpolation, renderer-gdrivers-director-inventory |
 | GLUE | lot-configuration, prop-developer |
 | GR | graphics-rules |
 | GT | glyph-textures |
@@ -216,6 +216,7 @@ generated index: the questions live one file per spec, so read only the file for
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
 | graphics-rules | 2 | 4 | GR7 | questions/graphics-rules.md |
+| grid-interpolation | 3 | 0 | GI4 | questions/grid-interpolation.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 1 | 6 | HD8 | questions/html-document.md |
 | landfill | 1 | 38 | LF7, LG34 | questions/landfill.md |
@@ -308,4 +309,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **467** | **1241** | | |
+| **total** | **470** | **1241** | | |
