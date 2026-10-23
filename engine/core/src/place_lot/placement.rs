@@ -243,6 +243,8 @@ pub fn choose_facing(scores: [i32; 4], player: u8) -> u8 {
         }
     }
     let own = scores[usize::from(player)];
+    // Literal detailed §3.11 formula: exactly four more points still keeps
+    // the player rotation. The §4 shorthand disagrees at equality (CT24).
     if (own != 0 || scores[best] < 1) && own >= scores[best] - 4 {
         player
     } else {

@@ -45,7 +45,7 @@ only by the questions listed below; these paths must not be called exact shadows
 | 3.8 Exit | `mouse_exit` | `mouse_feedback_text_cost_exit_and_failed_coverage`; rendered feedback: open CT17 |
 | 3.9 Cell geometry | `cell_coverage`, `coverage` | `conformance_odd_even_rotated_cells_and_edges` |
 | 3.10 Validation, precedence, codes, price, demolition | `can_place`, `demolition`, `CREATION_MESSAGES` (zones.md §8.4.1) | `validation_precedence_price_codes_and_demolition_flags` |
-| 3.11 Automatic facing and frontage | `automatic_facing`, `street_count`, `choose_facing` | `conformance_frontage_hysteresis_ties_and_unplaceable_rotations` |
+| 3.11 Automatic facing and frontage | `automatic_facing`, `street_count`, `choose_facing` | `conformance_frontage_hysteresis_ties_and_unplaceable_rotations`; CT24: detailed formula retained at exactly four more points |
 | 3.12 Commit, tutorial/funds, filter, zones, lot/building, refund, aura, connections, effects | `place_lot`, `demolish_accepts`, `Zone`, `Demolition` | `commit_order_money_aura_connections_and_effects`, `conformance_builder_failure_deposits_without_withdrawal_and_keeps_lot`, `commit_guards_unknown_cost_free_zones_and_sizes`; toll selection: open CT16; exact ring rendering: open CT17; unspecified zoning flags/failure handling: open CT23 (literal sequence/default service arguments retained) |
 | 3.13 Toll booths | `toll_booth`, `Open::TollBoothCt16` | `activation_pickers_filters_and_failure_paths`, `messages_stop_only_running_release_both_and_open_boundaries`; open CT16 (no native helper callback) |
 | 3.14 Feedback | `build_preview`, `feedback`, `stop_previews`, marker/view selection | `construction_and_ct3_lifecycle`, `messages_stop_only_running_release_both_and_open_boundaries`; open CT17 |

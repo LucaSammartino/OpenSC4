@@ -92,3 +92,9 @@
   values for the two PlaceZone calls, and do failures from demolition/dezoning/zoning
   abort placement? [literal published sequence: run both calls, preserve the foreign
   service's default checkSlope/skipSize, no unspecified early returns]
+
+<!-- from: core-place-lot5 (2026-10-23) -->
+- **CT24 - §3.11 versus §4 quirk 10, facing equality:** the detailed formula keeps
+  the player's rotation when `own >= best - 4`, but quirk 10 says another facing
+  with "at least 4 more" points changes it. Which governs at exactly four more?
+  [literal §3.11 formula: own 3 / best 7 keeps the player; covered by a test]
