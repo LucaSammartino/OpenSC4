@@ -1677,3 +1677,749 @@ replacement is to survive the game's own direct field access.
 - The exact dispatch site that reaches `+0x08` before the first draw needs a runtime probe: log every call
   into the replacement after `Init` together with `this` and `this+8`, or break on `cIGZMessageTarget2`'s
   `DoMessage` in the original and record the caller.
+
+## 19. Effects-script command contracts *[compat]*
+
+This section concerns text-description commands, separate from the binary
+directory reader and the runtime components in §§3–10. Evidence is static
+Windows 1.1.641 export instructions and descriptor data, inspected 2026-10-23.
+Conformance examples are proposed, unexecuted predictions. An implementation
+must not treat this partial publication as whole-family closure of EF15.
+
+### 19.1 Shared input and service contracts
+
+The root registration inventory and descriptor/hook identities are in
+[effects-parser.md §6.1](effects-parser.md#61-root-dictionary-selected-by-the-owner).
+A handler receives a vector of 20-byte token records, including command token 0,
+and the effects parser context P. Numeric/vector conversions are individual
+foreign services; renderer, audio and resource calls are likewise separate
+services. Their successful replies must be supplied individually in owner tests.
+They must not be replaced by a foreign service returning a completed description.
+
+The switch and positional reader's concrete behavior, mutation and minimum-arity
+rules are in [effects-parser.md §9](effects-parser.md#9-switch-and-positional-reader-contract-compat).
+In particular, handled `-word` tokens become `+word`, the first duplicate wins
+each lookup, ordinary records are retained, and unknown unhandled switches can
+be rejected after a handler has already changed parser state.
+
+Error exits are C++ exceptions, with no command-local rollback; see
+[§10](effects-parser.md#10-error-transport-and-owner-failure-prefix-compat).
+The collection's named/anonymous identity, replacement and retained-reference
+contract is in [§11.1](effects-parser.md#111-component-directory-service-used-by-commands).
+The parser's positively identified final-release/destructor chain is in
+[§11.2](effects-parser.md#112-native-parser-final-release).
+The generic registrar, duplicate policy, descriptor ownership and block dispatch
+are in [§12](effects-parser.md#12-generic-registration-and-dispatch-dependency-compat).
+These dependencies and effects-parser.md §13 answer EFP1–EFP6 at their
+command-owner boundaries. Section 13 specifies all five rotation keys and
+their x87/binary32 intermediate stores; broader numeric qualification is EFP7.
+Descriptor registration alone does not
+prove a command's execution algorithm.
+
+### 19.2 Two root command owners
+
+`cRenderPropCommand` is the descriptor `00A9F85C`, root literal `renderprop`,
+handler `00596630`. It requires exactly three records: the command, property
+name and value; too few or too many constructs a parse error before renderer
+lookup. There are no defaults. It searches the renderer-properties service at
+`P+A8` in bool, integer, then float order (lookup slots `+30,+34,+38`), accepting
+the first nonnegative index. It converts only that selected value with the
+matching ParseBool, ParseInt or ParseFloat primitive and calls the corresponding
+setter (`+24,+28,+2C`). A name present in several property categories therefore
+uses the bool category first. If all three lookups return negative indices it
+throws `Unknown render property`. This changes renderer property state, not an
+effect-description record; renderer name matching and setter validation remain
+renderer-service contracts. A live renderer-properties pointer is required.
+Evidence: `00596630–0059673D`.
+
+`cEffectGroupIDCommand` is block descriptor `00A9F8BC`, root literal
+`effectGroup`, enter hook `00596750`. It requires at least one argument after the
+command; absence throws `No ID specified!`. It converts token 1 through
+ParseUint and stores the full returned word in `P+49C` before entering the
+generic block. It does not enforce an upper argument count, create an effect
+description, or install a default ID. Its own nested registrar `005967D0`
+registers only `instance` with descriptor `00A9FA08`; generic dispatch can still
+fall back to outer-block and root dictionaries (§19.1). The registered exit hook
+is `00648F10`, a return-only hook.
+No restoration of the prior group-ID word is performed by the enter hook.
+The `instance` execution contract is still open under EF15. Evidence:
+`00596750–005967F8` and root registration §6.1.
+
+### 19.3 Command and dependency conformance vectors
+
+Keep these as independent expectations when adding engine vectors; none has
+been executed against the original parser in this lane. No engine files are
+part of this publication.
+
+| ID | Input / independent primitive replies | Required observable result |
+|---|---|---|
+| EC1 | `renderprop property value`; bool lookup returns 7, int/float would also recognize it; ParseBool returns true | bool lookup then bool conversion then bool setter `(7,true)` only; no int/float lookup or conversion; no description mutation |
+| EC2 | same three records; bool returns -1, int returns 2; ParseInt returns -9 | bool lookup then int lookup, integer conversion and integer setter `(2,-9)` only |
+| EC3 | `renderprop property` | arity exception before renderer lookup; no setter |
+| EC4 | three records; all three renderer category lookups return -1 | bool, int, float lookups in that order, then unknown-property exception; no value conversion or setter |
+| EC5 | `effectGroup id surplus`; ParseUint(token 1) returns `FEDCBA98` hex | P+49C becomes `FEDCBA98`, then block entry; surplus not rejected by this owner |
+| EC6 | `effectGroup` only; P+49C initially 9 | `No ID specified!` exception, no uint conversion or block entry, P+49C stays 9 |
+
+The dependency vectors SW1–SW8, ER1–ER3, DI1–DI5 and LT1–LT3 in
+effects-parser.md §§9–11 cover the first-duplicate rule, retained records,
+failure prefixes, case-folded per-type names, anonymous indices, pointer
+replacement and final lifetime. They supplement the existing runtime vectors
+in §17 rather than claiming command coverage from runtime tests.
+
+### 19.4 Root identifiers and message-trigger records
+
+The four resource-ID declarations below take **exactly two arguments** (three
+token records including the command), not a minimum positional prefix. Missing
+or surplus records, including switch records, throw `Wrong number of arguments`
+before copying a name or changing a map. There are no default IDs.
+
+| Root literal | Descriptor / handler | Parser map / result |
+|---|---|---|
+| `textureID` | `00A9F86C` / `0059F890` | texture names, `P+AC` |
+| `modelID` | `00A9F87C` / `0059FE50` | model names, `P+B8` |
+| `soundID` | `00A9F88C` / `0059FF40` | sound names, `P+C4` |
+| `brushID` | `00A9F89C` / `005A0030` | brush names, `P+D0` |
+
+Argument 1 is copied as the key, then each copied byte is lowercased by the
+native CRT locale's tolower service (`009F0543` → `009F047B`). The input token
+string is unchanged. In the ASCII domain, `Smoke` and `SMOKE` select the same
+key. The four maps are separate: declaring a sound does not change a texture
+of the same name. Map lookup/insertion takes place **before** converting
+argument 2 through ParseUint; a missing key is inserted with unsigned value 0.
+On successful conversion its returned 32-bit word overwrites that entry.
+Duplicate declarations overwrite; there is no owner range check, resource
+lookup, loader call or description construction. On a throwing conversion a
+new zero entry remains, or an existing entry keeps its old value. These commands
+do not create a component record or apply component options.
+
+Evidence: arity/copy/fold/assignment in `0059F890–0059F975`,
+`0059FE50–0059FF35`, `0059FF40–005A0025`, `005A0030–005A0115`;
+zero insertion `0059F980–0059F9FD`, especially `0059F9CB` before insertion.
+These hooks have no confirmed `c*Command` class name in the export. They are
+identified by their positively registered descriptor/hook pairs, rather than
+inventing class names from their command literals.
+
+`effectID` (`00A9F8AC`, `0059A640`) requires **exactly three arguments**:
+group ID, instance ID, effect name. It converts the first two with ParseUint
+in that order, copies/lowercases the name by the same CRT service, then, if
+`P+90` is nonnull, calls collection slot `+50(name,groupID,instanceID)`.
+It does not resolve the name locally, change the current group-ID word, apply
+component options, or check the collection's return. With a null collection,
+conversion and folding still occur, but the collection call is omitted.
+Bad arity throws `Wrong number of arguments` before conversions.
+Evidence: `0059A640–0059A72A`.
+
+`instance` (`00A9FA08`, `0059A730`) is the same registered descriptor at root
+and within `effectGroup`. It requires **exactly two arguments**: instance ID,
+effect name. It converts the ID, copies/lowercases the name, and, if `P+90`
+is nonnull, calls `+50(name,P+49C,instanceID)`. It reads the current group word
+at the call, without restoring or defaulting it. A null collection does not
+skip conversion/folding. It has the same arity error and no local component
+append. Collection duplicate policy and how IDs resolve at runtime belong to
+that service. Evidence: `0059A730–0059A819`.
+
+`messageTrigger` (`00A9F8E8`, `0059E820`) asks the positional reader for at
+least two values. The first is converted with ParseUint; the second is copied
+**without case folding**. It builds a temporary record of that unsigned word
+and string, and, if `P+90` is nonnull, passes its address to collection slot
+`+54`. It destroys the temporary after the call returns. Extra selected
+positional values are ignored by this handler; a null collection still permits
+the reader/conversion/string copy. No component options or local description
+append occurs. Evidence: `0059E820–0059E8C3`; the owned call boundary is the
+record `(messageID,name)`, not a guessed message-system registration algorithm.
+
+### 19.5 Resource blocks and explicit resource import
+
+`effectsResource` is `cEffectsResourceCommand`, descriptor `00A9F918`, enter
+`00596810`, exit `00596970`. It requires exactly two arguments: resource
+instance ID and resource name. Arity errors precede the check for an already
+held resource at `P+94`; a nonnull resource then throws `Can't nest resource
+blocks`. Nesting is tested by that pointer, not by generic block-stack depth.
+The byte `P+A4` enables resource creation/saving. If it is zero, entry still
+performs both checks and enters the generic block, but does not convert either
+argument, create a resource, or change the collection.
+
+When enabled, argument 1 is converted with ParseUint. The resource key is three
+32-bit words `(EA5118B0,EA5118B1,instanceID)` hex. The live resource manager
+at `00B43CA8` is asked through slot `+18` for that key, interface `CA51189B`,
+output `P+94`, and final arguments 0,0. The owner ignores the call's status
+and tests the returned pointer. A null result is not a local parse error:
+entry continues with the old collection/key unchanged. A nonnull result gets
+slot `+0C` with the raw name pointer from argument 2, with no local case
+folding or numeric conversion; its result is ignored. The key is then copied
+to `P+98..A0`; QI for `C97CF5CE` obtains the resource's collection, which
+replaces retained `P+90` through the shared reference-assignment service.
+Finally the temporary QI reference is released. All enabled and disabled normal
+paths then enter the generic block. A manager pointer is required on enabled
+entry; this owner supplies no null-manager guard. The shared QI/assignment
+contracts govern reference operations, not a command-specific ownership transfer.
+Evidence: `00596810–0059696D`.
+
+On exit, if `P+A4` is zero or `P+94` null, the hook does nothing. Otherwise it
+asks the same manager through `+7C(P+9C,&segment)` with initially null output.
+A false AL throws `couldn't find segment for effect group 0x%08x` with the
+stored group word; there is no save or collection restoration. On success it
+calls manager `+30(&key,segment)`; false AL throws `couldn't save effects
+resource key 0x%08x` with the instance word. Both errors leave the current
+resource/collection held, and generic end dispatch does not pop a throwing hook.
+
+After a successful save, entry's previous arbitrary `P+90` is **not** restored.
+If `P+8C` is nonnull, QI for `C97CF5CE` on that object supplies the replacement
+collection, assigned with shared reference management and its temporary QI
+reference released. If `P+8C` is null, `P+90` is cleared before releasing its
+old nonnull value. Next `P+94` is cleared before releasing the resource, then
+the returned nonnull segment is released. The stored key remains unchanged.
+This is save-and-restore-to-base behavior, not a general stack of collections.
+Evidence: `00596970–00596AA5`.
+
+`loadResource` is `cLoadResourceCommand`, descriptor `00A9F934`, handler
+`00596AB0`. It asks for at least one initial positional value, converts only
+the first with ParseUint, and forms the same fixed-type/group key. Extra
+positionals are ignored. A null global resource manager makes it return after
+conversion. With a manager, it calls `+0C(&key,CA51189B,&resource,0,0)` with a
+null-initialized output. False AL throws `Effects resource 0x%08x not found`;
+there is no import. With true AL it calls returned resource slot
+`+14(P+90)` then releases that resource when nonnull. No guard protects the
+import call against a true status with null output; valid successful fixtures
+must supply a live resource. The current collection is passed even if null.
+Import behavior and resource lookup are individual foreign services; there is
+no local component append, P+90 replacement, or resource-block entry here.
+Evidence: `00596AB0–00596B6A`.
+
+### 19.6 Identifier and resource conformance vectors (unexecuted)
+
+Reader behavior is effects-parser §9. Unless a row says otherwise, foreign
+services return normally with live outputs. All constants in keys/IDs are hex.
+These expectations are independent static predictions, not recorded game runs.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC7 | `textureID Smoke 7`; ParseUint=7; texture map empty | key `smoke` inserted as 0 before conversion, then set to 7; original `Smoke` token retained; no loader/collection call |
+| EC8 | `modelID smoke bad`; empty model map; ParseUint throws | model key `smoke` remains 0; texture map unchanged; no successful assignment |
+| EC9 | same failure with model `smoke` initially 9 | old 9 retained; no duplicate error |
+| EC10 | `soundID Bell 8`, then `soundID BELL 10`; returned uints 8,10 | one sound entry `bell` ending at 10; brush/texture/model maps untouched |
+| EC11 | any of four ID declarations with one or three arguments | arity exception, no folding, insertion or conversion |
+| EC12 | `effectID G I Smoke`; uint replies FEDCBA98,89ABCDEF; collection C | conversions G then I, fold `smoke`, call `C+50(smoke,FEDCBA98,89ABCDEF)`; no P+49C write |
+| EC13 | `instance I Smoke`; group=12345678, null P+90 | convert I and fold name; no collection call; group unchanged |
+| EC14 | `effectGroup 9` entry, returning end, then `instance 7 Smoke` | group remains 9 after the block end; instance uses 9, not a restored outer value |
+| EC15 | `messageTrigger M MiXeD ignored`; uint reply 42; collection C | call `C+54` once with record `(42,MiXeD)`; no conversion/read of `ignored`; temporary destroyed after call |
+| EC16 | disabled `effectsResource bad name`, P+94 null | no uint conversion or resource call; generic block entered; exit hook does nothing |
+| EC17 | `effectsResource` with bad arity and P+94 nonnull | arity error wins over nesting error; neither creation nor block entry |
+| EC18 | enabled `effectsResource 7 Name`, null P+94; creation returns null | create request key `(EA5118B0,EA5118B1,7)`, IID CA51189B, 0,0; old key/P+90 unchanged; block entered |
+| EC19 | same creation returns R, QI gives C; base P+8C=B; successful exit returns segment S, base QI gives K | R name setter precedes key store and assignment P+90=C; block entered. Exit obtains S using EA5118B1, saves key with S, assigns K, clears/releases R, releases S; stored key retained |
+| EC20 | active enabled resource exit; segment request AL=0 | segment error; no save, restoration or resource release; generic block remains on stack |
+| EC21 | segment request succeeds; save AL=0 | save error; no restoration/resource/segment normal cleanup; active resource/collection and generic block retained |
+| EC22 | `loadResource 7 extra`; global manager null | reader/conversion of 7 occurs; extra ignored; no resource call |
+| EC23 | same import with manager: load AL=0 | not-found exception; no import or local collection replacement |
+| EC24 | same import with manager: load AL=1 and resource R | R+14 receives current P+90, then R released; no component-option lookup or block entry |
+
+### 19.7 Camera parameters and deferred priority declarations
+
+Root `camera` is `cCameraParamsCommand`, descriptor `00A9F8F8`, handler
+`0059A2A0`. It selects **at least one** initial positional value, converts
+every selected positional value with ParseFloat in order, and stores each
+binary32 into an ordered float list. With exactly one value it appends four
+more: each is the binary32 result of the preceding stored value multiplied by
+binary32 0.5. Thus one value 160 produces `[160,80,40,20,10]`; two or more
+values are used unchanged in length and order. It does not enforce five inputs,
+sort them, or reject negative distances. Numeric domains here require finite
+conversions and nonoverflowing arithmetic.
+
+It then processes the following switches in fixed key order. Each selected
+value is an individual ParseFloat followed by a binary32 store. Surplus values
+in a switch's list are ignored. Defaults are local to each invocation; a
+previous camera command does not supply absent values.
+
+| Key / minimum values | Result | Default |
+|---|---|---|
+| `parallax` / 2 | first and second parallax endpoints | 100, 101 |
+| `size` / 1 | camera size | 4 |
+| `sideSwipe` / 1 | side-swipe value | 7 |
+
+The temporary camera record has a copied float list at offsets `+00..08`,
+the **first** parallax endpoint at `+0C`, and a span at `+10`. To form the
+span, subtract the first stored endpoint from the second using x87, convert
+through `_ftol2` (`009EEF04`), inspect the signed low 32-bit result, replace
+nonpositive results with 0, then convert that signed integer to binary32.
+For finite differences whose truncation fits signed 32 bits this is
+`float(max(truncateTowardZero(second−first),0))`, including the final binary32
+store; it is not the original fractional difference. Size and side-swipe
+occupy `+14,+18`. With nonnull `P+90`, collection slot `+4C` receives the
+record address; its status is ignored. The command then destroys both the
+temporary camera record and its source float list. A null collection still
+performs all reader/conversion/list work, omitting only the final collection
+call. It neither creates a component record nor applies component options.
+An exception before that call causes no collection update; token marking from
+earlier switches remains. There is no command-local catch or rollback.
+
+Evidence: positionals and binary32 stores `0059A2A0–0059A40F`, four half-value
+appends `0059A416–0059A4E6` (constant `00A84D2C=3F000000`), switch order and
+stores `0059A4EC–0059A5A5`, span conversion/record call
+`0059A5A8–0059A63D`. `_ftol2` uses the x87 value and conversion correction
+(`009EEF04–009EEF78`); its misleading pseudocode name is not evidence for a
+Lua call. Values beyond the finite signed-32 span domain are not qualified here.
+
+Root `setPriority` selects descriptor `00A9F908`, handler `005A24C0`
+(export label `cEffectRemapCommand::Parse`). It selects at least two initial
+positional values: a copied effect name, a ParseInt priority, then an optional
+copied third string. The third string defaults empty; additional positional
+values are ignored. Both strings preserve case. There is no numeric range
+check, directory-name validation, component append, or immediate manager call.
+
+It offers the record `(name, signedPriority, optionalString, byte=0)` to the
+parser's ordered unique-name container at `P+4B0`. The retained record's layout
+is name `+00..08`, priority `+0C`, optional string `+10..18`, byte `+1C`.
+Insertion copies the record. Uniqueness compares only the first string's exact
+bytes and length, case-sensitively; priority and optional string are not part
+of the key. An existing equal name is retained **without replacement**; the
+owner ignores the insert-result boolean. `Smoke` and `smoke` are separate
+keys, whereas a second `Smoke` with a different priority is ignored after its
+reader/conversion/copy work. Empty optional text does not set the final byte;
+even a supplied third string leaves it zero. These are pending parser records;
+§19.9 defines their consumption at effect-block entry.
+Temporary strings are destroyed after the insertion returns. A throwing
+conversion precedes insertion, so it cannot insert a zero-priority entry as
+the resource-ID declarations do.
+
+Evidence: record construction and optional string `005A24C0–005A25B1`,
+container selection/insertion/cleanup `005A25B5–005A2619`, unique-key search
+and rejected-duplicate return `005A2620–005A26BD`, name-only comparison
+`004B5CA0–004B5D01`. All these are descriptor/behavior associations, without
+promoting a medium-confidence symbol label into a confirmed original class name.
+
+### 19.8 Camera and priority conformance vectors (unexecuted)
+
+| ID | Input / independent primitive replies | Required result |
+|---|---|---|
+| EC25 | `camera 160`; ParseFloat=160; collection C | C+4C receives list `[160,80,40,20,10]`, first parallax 100, span 1, size 4, sideSwipe 7; no distance sorting |
+| EC26 | `camera 160 90 30`; corresponding exact float replies | retained list `[160,90,30]`; no half-value expansion |
+| EC27 | `camera 160 -sideSwipe 2 -size 3 -parallax 10 13.75`; exact replies | switches/conversions in parallax, size, sideSwipe order; record first=10, span=3, size=3, sideSwipe=2; span fractional part discarded |
+| EC28 | `camera 160 -parallax 10 9.5` | record first=10, span=0; endpoints not swapped or rejected |
+| EC29 | `camera 160 -parallax 10`; otherwise valid | reader marks parallax, then minimum-arity exception; no collection call; prior positional float conversion already happened |
+| EC30 | camera as EC25 with null P+90 | complete local conversions/expansion/record cleanup; no collection call |
+| EC31 | `setPriority Smoke -4`; ParseInt=−4; empty pending container | inserted `(Smoke,−4,empty,0)`; no manager/collection call or case fold |
+| EC32 | repeat exact name `Smoke` with priority 9 and optional `Other` | original EC31 record retained; conversion and optional-string copy still occur, then duplicate insertion returns false |
+| EC33 | after EC31, `setPriority smoke 9 Other surplus` | second entry `(smoke,9,Other,0)`; `surplus` ignored; case-sensitive distinct key |
+| EC34 | `setPriority New bad`; ParseInt throws | no new pending entry; no default-zero insertion or manager call |
+
+### 19.9 Root visual-effect block
+
+Root `effect` selects `cGroupEffectCommand`, descriptor `00A9F944`, enter
+`005A0D40`, exit `0059EB50`. This is the definition of a visual effect, distinct
+from nested `visualEffect` references. Its live name is the parser string at
+`P+434`; its description is at `P+444`. A nonempty live name throws
+`Can't nest effects! (Perhaps you meant visualEffect?)` **before** selecting
+arguments. The guard is the name's length, not generic block depth. With an
+empty name, the positional reader requires at least one initial value and
+copies only its first selected string into that name, preserving case. Further
+positional names are ignored. It does not validate the name against the
+directory. A quoted empty-name token, if supplied by the tokenizer, leaves this
+guard empty; the owner supplies no additional nonempty-name validation.
+
+Entry then replaces the description with a fresh default description: flags=0,
+priority=1, no component records, no parameter bindings, empty trailing string,
+and first message word (`description+20`) zero. The constructor does **not**
+initialize message words `+24,+28`; assignment copies their indeterminate
+temporary contents. They are not specified as zero or as the old description's
+words. With a supplied `startMessage`, the selected words below replace this
+indeterminate/default state individually. This is the text-constructor behavior,
+not the binary-reader version defaults in §3.
+
+The following keys are processed in order, after assigning the name and resetting
+the description. Presence switches request a minimum of zero values; they OR
+the indicated bit into the **description's** 32-bit flags. They do not set
+component flags. Their surplus ordinary values have no additional effect.
+
+| Key | Minimum values / interpretation | Effect |
+|---|---|---|
+| `viewRelative` | 0 | OR 001 hex |
+| `noAutoStop` | 0 | OR 002 hex |
+| `rigid` | 0 | OR 008 hex |
+| `ignoreOrientation` | 0 | OR 040 hex |
+| `hardStop` | 0 | OR 004 hex |
+| `noPropagate` | 0 | OR 010 hex |
+| `applyCursor` | 0 | OR 020 hex |
+| `noLODStop` | 0 | OR 080 hex |
+| `startMessage` | at least 1; first up to three selected values, ParseUint in order | store words at description `+20,+24,+28`; ignore fourth and later values |
+| `manualRestart` | 0 | OR 100 hex |
+
+Each successful message conversion is stored before the next; a throwing second
+conversion retains the first word and all previous flag/name/reset writes.
+Missing `startMessage` leaves the constructor state above. The option does not
+set a separate presence flag or enforce an exact three-word count.
+
+After those options, entry searches the pending `setPriority` container (§19.7)
+for the current name using exact-case string comparison. If it finds a record,
+it copies its signed priority verbatim into description `+04`, without a [1,5]
+range check. A nonempty optional string replaces the live effect name,
+preserving case. The record's byte at `+1C` is then set to 1. The record is not
+erased, and the renamed name is not looked up again. This path does **not**
+look up, mark, convert or validate an explicit `-priority` option.
+
+With no matching pending record, `priority` is looked up with minimum one value.
+When absent, default 1 remains. When present, only its first selected value is
+converted with ParseInt. Results below 1 or above 5 throw
+`argument out of range: expecting [1..5], got %d` before assigning priority or
+entering the generic block. Earlier name/reset/options survive. Thus an inline
+`-priority 0` fails, while a previously retained `setPriority Name 0` overrides
+with 0 successfully at this owner boundary. Because this command is a root
+descriptor, the generic root-fallback path itself does not post-reject an
+unmarked inline priority on the override path (§19.1).
+
+On either normal priority path, entry zeros words `P+4A0,P+4A4` and byte
+`P+4AC`, then enters the generic block. It does not zero `P+4A8` here. These
+scratch addresses are interface facts for the remaining select/sequence
+contracts, not yet a complete definition of those algorithms. A null `P+90`
+does not bypass name, option, pending-record or generic-block processing.
+
+On normal exit, nonnull `P+90` receives collection slot
+`+14(currentName,&description)`. Its result is ignored; then the live name is
+cleared to empty. A null collection omits publication but still clears the name.
+Exit does not clear/reset the description or pending-priority record, restore a
+previous name, or parse more options. If publication throws, the clear is not
+reached and the generic block is not popped. The next normal entry performs its
+own description reset. Collection copy/validation/replacement remains the
+individual foreign call's contract.
+
+Evidence: enter nesting/name/default assignment `005A0D40–005A0E1E`,
+default constructor `0058A930–0058A979` and assignment `0058B4A0–0058B4FD`,
+ordered flag/message writes `005A0E23–005A0F87`, pending-record lookup and
+rename/mark `005A0F87–005A1003` (finder `005A12E0` uses comparator
+`004B5CA0`), inline validation and generic-block entry `005A1005–005A10A6`,
+exit publication/clear `0059EB50–0059EBDA`. Nested dictionary execution remains
+EF15; entry/exit publication does not establish its child command algorithms.
+
+### 19.10 Effect-block conformance vectors (unexecuted)
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC35 | nonempty live name `Outer`; attempted `effect` without arguments | nesting exception precedes positional minimum check; name/description unchanged |
+| EC36 | empty live name; `effect Name ignored`; no options/override; old description populated | live name `Name`, reset flags=0/priority=1/empty component and binding lists/empty trailing string/message0=0; message1,2 not constrained; scratch 4A0/4A4/4AC zero, generic block entered |
+| EC37 | `effect Name -manualRestart -applyCursor -viewRelative -startMessage 10 20 30 40`; uint replies 10,20,30 | name assigned and description reset, options processed in table order; flags=121 hex, message words 10/20/30; 40 not converted |
+| EC38 | `effect Name -rigid -startMessage 10 bad`; first uint=10, second throws | live name/reset/rigid bit and first message word retained; no manualRestart/priority lookup, scratch final reset or generic entry |
+| EC39 | no pending override; `effect Name -priority 0`; ParseInt=0 | range exception; name retained, default priority 1; no generic block entry |
+| EC40 | pending `(Name,0,Renamed,0)`; `effect Name -priority bad` | priority=0, live name `Renamed`, pending used byte=1; inline priority remains unmarked and unconverted; no second lookup for Renamed; block entered |
+| EC41 | returning exit with collection C and current name `Renamed` | C+14 receives `Renamed` and current description; name then empty, description/pending record retained. Null C instead clears name without publication |
+| EC42 | C+14 throws on exit | live name and description retained; generic block not popped; no implicit second exit |
+
+### 19.11 `testEffect`: preview creation and ordered instance setup
+
+The `cTestEffectCommand` descriptor `00A9F8D8` calls `0059D1D0`.
+This root command creates a preview instance; it does not add a component to
+the current effect description. It requires a nonnull preview manager at
+`P+8C`. There is no current-effect-name or collection-presence guard.
+The positional finder requests at least one value and its AL is ignored.
+The first selected record supplies the effect name, preserving case. Further
+selected records beyond the second are ignored by this owner.
+
+The second selected record, if any, supplies the source position. If its
+foreign CountArguments reply is exactly 3, ParseVector3 supplies `(x,y,z)`.
+Every other count takes the ParseVector2 path: its `(x,z)` reply is sent to
+terrain service `00B43CF4`, slot `+34(x,z)`, and source position becomes
+`(x, binary32(height + 4.0), z)`. The addition uses x87 with a binary32 4.0
+operand and one final binary32 store; do not narrow the returned height before
+adding. Absent a second record, the position is `(512,100,512)` and no terrain
+call occurs. CountArguments/ParseVector2 validation remains the reader's
+contract; this owner does not add an exactly-two requirement to that branch.
+
+Next the following options are read, in this order. Each lookup requests at
+least one value, uses only the first selected record, and applies no owner
+range check. Conversion failures propagate before manager lookup/creation.
+
+| Option | Conversion | Absent value | Purpose |
+|---|---|---|---|
+| `sourceScale` | ParseFloat, binary32 store | 1 | uniform scale of source transform |
+| `scale` | ParseFloat, binary32 store | 1 | uniform scale of instance transform |
+| `trans` | ParseVector3 | `(0,0,0)` | translation of instance transform |
+
+After these conversions, manager slot `+14(name)` tests existence. False throws
+`No such effect`; no create call, preview-list append, speed/target/hard lookup
+or description mutation occurs. True calls manager slot `+1C(name,&instance)`
+with an initially null output pointer. A false create result returns normally,
+releasing a nonnull returned pointer if supplied, and omits all remaining
+setup. A true reply is required to provide a usable nonnull instance for the
+remaining normal domain; this owner has no null-output recovery branch.
+
+On successful creation, the instance is appended to the retained preview list
+at `P+4BC` **before** any instance setter. The list takes a reference. This is
+followed by instance slot `+20(&sourceTransform)`, then slot
+`+1C(&instanceTransform)`. Each transform has identity 3-by-3 basis, the
+translation and scalar above, and flags byte 1 for scalar exactly equal to
+1, otherwise 3. The comparison is x87 equality: unordered also takes flags 3.
+The source transform's change byte is 2. The same temporary is reused for the
+instance transform: after the first setter, a nonzero flags byte causes basis
+reset and one change-byte increment; replacing translation/scale increments
+it twice more, modulo 256. Thus with ordinary setters that do not modify their
+input, the second transform has change byte 5. This byte is not a floating
+value. The transform layout is change byte `+00`, flags byte `+01`, basis
+`+04..+24`, translation `+28..+30`, scalar `+34`; padding bytes are not set by
+this command. The second setter is not omitted for identity values.
+
+Only after both setters return are these further options looked up:
+
+| Order | Option and minimum values | Required instance/list action |
+|---:|---|---|
+| 1 | `speed`, 1 | ParseFloat to binary32; slot `+30(0,&value,1)` |
+| 2 | `target`, 1 | ParseVector3; slot `+2C(5,&vector,1)` |
+| 3 | `hard`, 0 | append integer 1 if present, otherwise 0, to list `P+4C8` |
+
+Missing speed or target omits its setter; there is no synthesized speed zero
+or target vector. The hard list gets one entry even when `hard` is absent,
+but only after all preceding setup returns. There is no start/restart call
+in this command. Normal completion releases the local instance reference;
+the preview list retains its own. A later conversion or foreign-call exception
+does not undo an earlier preview append, transform setter or option mark, and
+may leave preview and hard-list lengths unequal. Do not infer exceptional
+reference cleanup from the normal release tail. No rollback is installed here.
+
+Evidence: selection/defaults `0059D1DE–0059D289`; vector/terrain choice and
+binary32 store `0059D292–0059D31E`; preliminary options
+`0059D322–0059D3D4`; existence/create gates `0059D3D8–0059D442`;
+retained-list append `0059D448–0059D453`, helper `0059D7E0`;
+transform stores/comparisons/setters `0059D458–0059D5BF`;
+late options and hard append `0059D5C2–0059D68E`, integer-list helper
+`0059D6C0`; normal release `0059D693–0059D6AD`. Default translation reads
+zero-fill word `00B22CC0` in the PE virtual data tail; it is not file data
+following the section's raw bytes. Terrain offset 4.0 is `00A8E17C`.
+
+### 19.12 Preview command conformance vectors (unexecuted)
+
+The manager and instance replies are independent foreign inputs; these cases
+do not call a renderer or claim an in-game verdict. Setter callbacks below
+return without modifying their input transform.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC43 | `testEffect Name`; exists=true, create=true with I | retain I in preview list; source setter gets identity basis, `(512,100,512)`, scale 1, flags 1/change 2; instance setter gets identity basis, `(0,0,0)`, scale 1, flags 1/change 5; no speed/target setter; append hard=0; release local I |
+| EC44 | `testEffect Name 10,20,30 ignored`; second record CountArguments=3 and vector reply `(10,20,30)` | source translation exactly that vector; no terrain call; extra selected record ignored |
+| EC45 | second record CountArguments=2, ParseVector2=`(10,30)`, terrain height=7 | terrain slot +34 called with `(10,30)`; source translation `(10,11,30)`; one binary32 store after height+4 |
+| EC46 | `testEffect Name -sourceScale 2 -scale 3 -trans 4,5,6 -speed 7 -target 8,9,10 -hard`; normal replies | source scalar 2, flags 3; instance scalar 3, translation `(4,5,6)`, flags 3; setters then speed slot +30 `(0,7,1)`, target slot +2C `(5,(8,9,10),1)`; hard=1 |
+| EC47 | invalid trans conversion and exists would be false | conversion exception precedes existence call; sourceScale/scale/trans marks survive; no preview/hard append |
+| EC48 | valid preliminary options; exists=false | `No such effect`; no create or late option lookup |
+| EC49 | exists=true, create=false with nonnull I; speed token invalid | no append or setter or speed conversion; normal local Release I |
+| EC50 | create=true with I; source/instance setters return; speed conversion throws | I already retained in preview list and both transforms sent; no target/hard lookup, hard list unchanged; exception propagated without rollback |
+
+### 19.13 Component definition blocks: names, defaults and inheritance
+
+These are six separate root owners, with entry/exit hooks established by the
+descriptor slots, rather than the sometimes reversed exported Parse/EndBlock
+names. They build named definitions in the collection at `P+90`; they do not
+append references to the current `effect` description. They have no owner
+guard against an already nonempty definition name and do not save an outer
+definition for restoration. Dispatch and generic block-stack rules remain
+effects-parser §12. Child algorithms remain separately required by EF15.
+
+| Literal / owner | Descriptor | Entry / exit | Live name / description | Collection inherit / publish slots |
+|---|---|---|---|---|
+| `particles` / `cParticleEffectCommand` | `00A9F960` | `005A1A50 / 0059D9B0` | `P+E0 / P+F0` | `+20 / +1C` |
+| `dynamicParticle` / `cDynamicParticleEffectCommand` | `00A9F97C` | `0059DB00 / 0059DCF0` | `P+2FC / P+30C` | `+28 / +24` |
+| `decal` / `cDecalEffectCommand` | `00A9F998` | `0059DD80 / 0059DF50` | `P+350 / P+360` | `+30 / +2C` |
+| `shake` / `cShakeEffectCommand` | `00A9F9B4` | `0059DFE0 / 0059E260` | `P+3C8 / P+3D8` | `+38 / +34` |
+| `light` / `cLightEffectCommand` | `00A9F9D0` | `0059E2F0 / 0059E4D0` | `P+404 / P+414` | `+40 / +3C` |
+| `sequence` / `cSequenceEffectCommand` | `00A9F9EC` | `0059E600 / 0059E780` | `P+480 / pointer at P+490` | no inheritance / `+44` |
+
+For the **first four blocks**, the entire token-container count must exceed
+one, otherwise entry throws `No name specified!` before changing the name or
+description. Raw record 1 is the name, including when it begins with a dash;
+the positional/switch finders are not called. Name bytes are copied with case
+preserved. Entry replaces the description with the defaults below, then checks
+the optional inheritance clause against **raw** records: if record 2 exists,
+its complete string must equal `:`, or `Expecting ':'` is thrown. Record 2
+alone is accepted as a trailing colon. If record 3 exists and the collection
+is nonnull, its string is sent to the inherit slot with the live description
+as output. A false reply throws `Unknown particle definition: %s` for
+particles, dynamicParticle **and decal**; shake uses
+`Unknown shake definition: %s`. The output is not restored on a false reply.
+With a null collection the inherit call and unknown-name error are omitted.
+Records after record 3 are not read by these owners. No inline options are
+recognized here; a dash in record 2 is a bad colon, not an option.
+
+For **light**, entry instead calls FindNonSwitchIndices with minimum one,
+ignores AL, and copies selected name 0 preserving case. It resets its
+description, then applies the same colon rule to selected record 1, if any.
+Selected record 2, if any, supplies the inherited name to collection slot +40.
+Failure throws `Unknown light definition: %s`. Further selected records are
+ignored. These selected records need not be adjacent raw records. No switch
+lookups are performed by light entry.
+
+On successful inheritance, the collection's output replaces/changes the reset
+description; defaults are not overlaid again. With no inheritance or with a
+null collection, reset values remain. Only after this work returns does entry
+invoke the generic block-entry service. Thus name assignment and reset survive
+a bad colon or failed inheritance, but no generic block is entered on those
+exception paths. The foreign collection performs the named lookup/copy;
+returning an already parsed child-command result is not an owner primitive.
+
+The **particles** entry additionally sets `P+494` to the four-byte word
+immediately before the end pointer of the description list at `P+2A8` (zero
+when empty), and `P+498` to binary32 1,
+after successful inheritance and before block entry. These scratch writes are
+omitted on a preceding failure. Other definition entries do not do them.
+
+The following tables specify the reset state in native field coordinates
+relative to each description, denoted D. They are logical values: lists are
+copied/cleared, not shallow-copied allocator pointers. Padding and allocation
+capacities are not conformance values. Field coordinates avoid inventing
+semantic names for fields whose child command is still being researched.
+All decimal scalar values below are binary32 unless explicitly called an
+integer, byte or word.
+
+**Dynamic particle reset:** integer `D+08=0`, empty string at `D+0C`,
+`D+18=1`, words `D+1C,+20,+24,+28,+2C,+30=0`, empty word list at `D+34`.
+The existing description's reference-count identity is retained; assignment
+does not replace it with the temporary's identity. Constructor `005836A0`
+and assignment `00583750–005837AC` establish these values.
+
+**Decal reset:** integer words `D+00,+04=0`, byte `D+08=0`, byte `D+09=1`,
+`D+0C=5`; float lists `D+10=[0]`, `D+1C=[1]`, `D+28=[1]`,
+`D+40=[1]`; vector list `D+34=[(1,1,1)]`; words `D+4C,+50,+54=0`,
+`D+58=1`, `D+5C,+60=0`. Bytes `+0A,+0B` are not assigned.
+Evidence: `00582FE0–00583123`, assignment `005833F0–00583471`, vector
+constant `00B0A214`; the list-construction helper `00581F20` uses signed
+integer-to-float conversion, so integer initializer 1 produces float 1.
+
+**Shake reset:** `D+00=5`, `D+04=1`, float list `D+08=[1]`, float list
+`D+14=[60]`, `D+20=1`, integer `D+24=0`. The lists are first cleared;
+these are single-element defaults, not appended to a previous definition.
+Evidence: `0059E09F–0059E17F` (constants `40A00000`, `3F800000`,
+`42700000`).
+
+**Light reset:** empty vector list `D+00`, empty float list `D+0C`,
+`D+18=2`. Unlike shake, these lists are populated with fallback values at
+**exit**, not entry (`0059E392–0059E3CD`).
+
+**Particles reset:** base constructor `005B0FE0–005B1527`, assignment
+`005B17F0–005B1C77`, wrapper `005B1CB0`. The scalar state is:
+
+| Field coordinates within D | Reset value |
+|---|---|
+| `+0C,+10` | 2 |
+| `+14,+34,+40,+118,+124,+154,+170,+1B0` | 1 |
+| `+20,+24,+28,+2C` | -1 |
+| `+50,+54,+58` | -1 |
+| `+5C,+60,+64` | 1 |
+| `+14C` | bit pattern `CE6E6B28` |
+| `+158,+15C` | -10000, +10000 |
+| word `+16C`, word `+16E` | integer 0, integer 1 |
+| `+174,+178`; `+17C,+180` | 5; 50 |
+| `+184,+188` | `3DCCCCCD`, `3E4CCCCD` (binary32 0.1, 0.2) |
+| `+1F0,+200` | 4 |
+| bytes `+D4,+D5` | 0 |
+
+Other **assigned scalar** words are zero: `+00,+04,+08,+18,+1C,+30,+38,
++3C,+44,+48,+4C,+68,+6C,+70,+74,+78,+7C,+80,+84,+D0,+D8,+DC,
++E0,+E4,+E8,+EC,+F0,+F4,+F8,+FC,+100,+104,+114,+11C,+120,+128,
++138,+13C,+140,+144,+148,+150,+18C,+190,+194,+198,+19C,+1A0,+1B4,
++1C4,+1D8,+1DC,+1EC`. In particular the zero vector defaults loaded from
+`00B22D54` are in the PE virtual zero-fill region. The string at `D+160`
+becomes empty. The description lists are:
+
+| List coordinate | Reset contents |
+|---|---|
+| `+88` | `[30]` |
+| `+94` | `[(1,1,1)]`, constant `00B0A5D4` |
+| `+A0,+AC,+B8` | each `[1]` |
+| `+C4` | `[0]` |
+| `+108,+12C,+1A4,+1B8,+1CC,+1E0` | each empty |
+| `+1F4` | `[400]` |
+
+Do not treat this as a byte-zeroed object: `D+1C8` is copied from an
+uninitialized temporary word, and padding at `+D6,+D7` is not assigned.
+The wrapper constructor sets its temporary `+204` to zero, but the assignment
+wrapper copies only the base; the live description's `D+204` therefore
+**retains its previous value** at entry. An implementation must not assert a
+deterministic zero for either `+1C8` or `+204` based on this reset. This
+distinguishes logical base assignment from constructing an entirely new live
+particles object.
+
+### 19.14 Definition publication and sequence ownership
+
+On normal exit, particles, dynamicParticle, decal and shake call the publish
+slot in §19.13 with `(currentName,&liveDescription)` when the collection is
+nonnull. They ignore its result, then clear their live name to empty. A null
+collection omits publication but still clears the name. The description stays
+in place; no default reset, inheritance, parent restoration or option parsing
+occurs at exit. If publication throws, the name clear is not reached. Exit
+does not itself guarantee a nonempty live name. Evidence: `0059D9B0–0059DA34`,
+`0059DCF0–0059DD74`, `0059DF50–0059DFD4`, `0059E260–0059E2E4`.
+
+**Light exit** first fills an empty float list at `D+0C` with `[1]`, then
+fills an empty vector list at `D+00` with `[(0,0,1)]`. Existing nonempty
+lists are left intact. These fallbacks occur even with a null collection.
+It then publishes/clears the name as above. Thus a publication exception leaves
+the fallback list mutations and name in place. Evidence:
+`0059E4D9–0059E590`, constant `00B0A518`, name clear `0059E590–0059E5EF`.
+
+**Sequence entry** uses FindNonSwitchIndices minimum one, ignores AL, and
+copies selected name 0, preserving case; all other positional selections are
+ignored. It does not interpret `:` or perform inheritance. It allocates a
+new 28-byte sequence description with empty element list (`+0C`) and flags
+word `+18=0` (`005BDF10–005BDF42`). It installs the new pointer at `P+490`,
+taking a reference through new object's slot +10 before the store, then
+releasing the old nonnull pointer through slot +14. Equal-pointer assignment
+omits those reference operations. It then processes presence-only switches
+`loop`, `noOverlap`, `hardStart` in that order, minimum zero values, ORing
+flags 1,2,4 respectively into the installed description. There are no owner
+range checks, positional upper bound, or automatic sequence elements. Finally
+it enters the generic block. Name assignment precedes allocation; description
+replacement precedes option lookups. Allocation failure is not a proven
+recoverable command error: it installs null, and present flags dereference that
+pointer. Do not add an inferred parse-error message for allocation failure.
+Evidence: `0059E60B–0059E6DF`, flags `0059E6DF–0059E748`, block entry
+`0059E748–0059E76F`.
+
+**Sequence exit** publishes `(currentName,currentDescriptionPointer)` to
+collection slot +44 if nonnull, ignoring its result. It clears the name, then
+clears `P+490` before invoking the old nonnull description's slot +14. With no
+collection it still clears/releases. Publication failure retains name and
+pointer. Unlike the other definition exits, a normal sequence exit does not
+retain the live description pointer (`0059E780–0059E812`). Collection-owned
+retention is the independent collection primitive's contract.
+
+### 19.15 Definition-block conformance vectors (unexecuted)
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC51 | each of particles/dynamicParticle/decal/shake with command token only | `No name specified!`; old name/description unchanged; no generic block entry |
+| EC52 | `decal Name :`; old lists populated | live name `Name`; exact decal defaults of §19.13; no inherit call; block entered |
+| EC53 | `shake Name wrong Parent` | live name assigned, shake defaults installed including `[1]` and `[60]`; `Expecting ':'`; no inherit/block entry |
+| EC54 | `dynamicParticle Name : Parent ignored`; collection inherit +28=false after writing a field | defaults then +28 called with Parent/output description; `Unknown particle definition: Parent`; foreign output mutation/name retained; no block entry |
+| EC55 | `decal Name : Missing`; null collection | defaults retained; no unknown-name error; block entered |
+| EC56 | `particles -Name`; two raw records, existing D+204=123 | name `-Name` accepted as raw string; defaults installed with D+204 still 123; D+1C8 unconstrained; P+494=0 from empty default +1B8 list, P+498=1; block entered |
+| EC57 | particles inheritance succeeds; list at P+2A8 is nonempty and word at end-4 has binary32 7 | P+494 copies that word bit-for-bit; P+498=1; inherited data retained; block entered |
+| EC58 | light selections `[Name,:,Parent,ignored]`, successful +40 output has empty float/vector lists | name assigned/reset then inheritance; lists remain empty until exit; no inline option lookup |
+| EC59 | light exit with null collection and empty lists | D+0C becomes `[1]`, D+00 becomes `[(0,0,1)]`; name cleared; scalar D+18 retained |
+| EC60 | light exit with nonempty float/vector lists; publish +3C throws | lists unchanged; live name/description retained; generic block not popped |
+| EC61 | each of particles/dynamicParticle/decal/shake normal exit, collection returns false | correct publish slot receives live name/description; false ignored; name cleared and description retained |
+| EC62 | `sequence Name : Parent -loop -noOverlap -hardStart`; allocation succeeds, old pointer O | no inheritance call; retain new empty description N, store N, release O; flags=7 in lookup order; positional colon/Parent ignored; generic block entered |
+| EC63 | sequence normal exit, null collection, installed N | no publication; name cleared, P+490 set null, then N+14 called |
+| EC64 | sequence +44 publication throws | name and installed pointer retained; no explicit exit release/clear |
+
+### 19.16 Particle `effectBase` string binding
+
+Particles' nested registrar associates literal `effectBase` with descriptor
+`00A9FA28`, direct handler `0059D8F0`, owner `cParticleEffectBaseCommand`
+(`00595C2D–00595C40`, literal pointer `00B0A378` to `00A9F500`).
+The handler first requires the live particles name at `P+E0` to be nonempty;
+otherwise it throws `Not in particles block` before positional selection.
+It does not check the generic block stack or the current `effect` name.
+
+For a nonempty particles name it requests at least one nonswitch value,
+ignores the returned AL, and copies selected value 0 into the particles
+description's string at `P+250` (`D+160` in §19.13), preserving case.
+Additional selected values are ignored. There is no owner option lookup,
+collection lookup, existence check, component creation or change to the live
+particles name. Empty string is a valid primitive value when the reader
+supplies it. A returning assignment replaces the previous binding; a later
+generic unhandled-switch error does not roll back that change. Missing-value
+failure follows the shared reader's exception contract.
+
+Evidence: name guard `0059D8F8–0059D94A`, positional selection
+`0059D94F–0059D95B`, selected string assignment `0059D960–0059D994`.
+
+| ID | Fixture | Required result (unexecuted) |
+|---|---|---|
+| EC65 | empty particles name; `effectBase` without a value | `Not in particles block` precedes minimum-value error; binding unchanged |
+| EC66 | particles name `P`; `effectBase MixedCase ignored`; old binding `Old` | binding becomes `MixedCase`; second selection ignored; no foreign existence/collection call |
+| EC67 | particles name `P`; selected empty string | binding becomes empty; live particles name remains `P` |
+| EC68 | particles name `P`; `effectBase New -unknown`; nested post-check enabled | binding becomes `New`, then generic unhandled-switch error; binding survives |

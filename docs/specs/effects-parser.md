@@ -39,7 +39,8 @@ host-produced completed description or parser verdict. The scratch is reread aft
 calls; neither reentrancy nor concurrent use is established.
 
 The finder owns dash recognition, case, delimiters, aliases, duplicate occurrence
-selection, insufficient-value handling, terminators, and any token marking/removal.
+selection, insufficient-value handling, terminators, and token marking; §9 now
+specifies that service at the token-record boundary.
 These are not inferred from the literal keys. There is no owner-side loop scanning
 all tokens, unknown-option rejection, explicit cursor increment or explicit erase
 in this body. Unknown or empty input for which all lookups return absent follows
@@ -51,7 +52,7 @@ The complete owner lookup order is finite:
 | Order | Literal key | Request count | Owner branch |
 |---|---|---:|---|
 | 1 | `offset` | 1 | vector copy and transform marks |
-| 2–6 | `rotateX`, `rotateY`, `rotateZ`, `rotateXYZ`, `rotateZXY` | 1, 1, 1, 3, 3 | rotation branches, numeric details pending |
+| 2–6 | `rotateX`, `rotateY`, `rotateZ`, `rotateXYZ`, `rotateZXY` | 1, 1, 1, 3, 3 | rotations and intermediate stores, §13 |
 | 7 | `scale` | 1 | scalar copy, scale flag decision |
 | 8 | `lodRange` | 2 | if present, skips lookup of `lod` |
 | 9 | `lod` | 1 | only when `lodRange` absent |
@@ -59,12 +60,12 @@ The complete owner lookup order is finite:
 | 12 | `prob` | 1 | select-only weight write |
 | 13–14 | `ignoreLength`, `respectLength` | 0 each | set then clear flag |
 
-These are distinct literal keys, not established aliases. Lookup order overrides
+These are distinct literal keys. Lookup order overrides
 textual order for distinct keys. `lodRange` has priority over `lod`; both length
 keys are queried, so `respectLength` wins when both lookups report present.
-The no-rotation subdomain (all five rotation lookups absent) is the finite normal
-option family fully described in §3. Rotation calculation/store order is explicitly
-outside that supported subdomain, rather than delegated as a host parser outcome.
+The no-rotation subdomain is described in §3. Section 13 extends this with the
+five rotation branches, including their intermediate binary32 stores. It does
+not determine the process-wide x87 control word or every nonfinite input (EFP7).
 
 ## 3. Supported non-rotation option state transitions
 
@@ -97,8 +98,8 @@ Forbidden LOD-in-select takes an error-construction call with literal
 `00B024F4` (`00599500–00599518`, `0059957E–00599596`). Forbidden `prob` outside
 select similarly uses `-prob only valid inside a select group`
 (`005996AF–005996CB`). The latter target's export name is misleading; its unwind
-semantics have not been established here. These are error exits, not a proved
-false return, rollback or recoverable continuation. Earlier writes precede them;
+semantics are specified in §10. These are exception exits, with no owner rollback
+or recoverable continuation. Earlier writes precede them;
 this publication's supported normal domain excludes these paths.
 
 ## 4. Independent literal option ledgers
@@ -277,13 +278,13 @@ pull in the queue algorithm at `0058E4E0`. Construction zeros pointers at main
 `+90,+94` (`0059EFAF–0059EFB5`) and component begin/end/capacity at
 `+44C,+450,+454` (`0059F2A4–0059F2B0`). Whole-constructor support is not claimed.
 
-Constructor-selected virtual slots route AddRef/Release through adjustment stubs
-`0059F3E0` / `0059F3F0` to shared bodies `00676000` / `00679330`; the stubs adjust
-ECX and tail-jump, rather than implementing a parser-exclusive refcount algorithm.
-The slot via `0059F4D0` reaches `0059EBE0`, a cleanup/callback body. It is **not
-proved to be this object's destructor**, and its internal collections are outside
-this contract. Final destruction, refcount-zero cleanup and release of all held
-interfaces remain Unknown, not an inferred consequence of these pointer stores.
+The constructor-selected unknown table `00AA04D4` routes AddRef/Release through
+`0059F3C0` / `0059F3D0` to shared bodies `00675FC0` / `00675FD0`. The earlier
+identification of `0059F3E0` / `0059F3F0` as those reference operations was wrong;
+the latter entries belong to the separate parser-service table `00AA04A0`.
+The callback via `0059F4D0` reaches `0059EBE0`; it is not the destructor.
+The actual deleting destructor is `005A27F0`, with member cleanup at `0059F4E0`.
+See §11 for reference counts and held-interface release order.
 
 ## 6. Command registration and one concrete command path
 
@@ -389,10 +390,11 @@ on the foreign QI's actual reference convention. No destruction trace is claimed
 ## 8. Individually bounded coverage statement
 
 `ParseDescRecOptions` (`005989D0`, exported size 3445 bytes) is **Partial**:
-supported no-rotation normal branches above; five rotation bodies and foreign
-reader language prevent whole-body/whole-parser support. The size is a metadata
+§3 and §13 specify its option and rotation calculations; process-wide numeric
+qualification and foreign reader language prevent whole-parser support. The size is a metadata
 anchor, not a newly certified byte-coverage count. No complete inventory, default
-grammar, native validation or runtime proof is claimed. Further own-body statuses
+grammar or runtime proof is claimed. §§9–11 add reader, validation and lifetime
+contracts without completing the command family. Further own-body statuses
 are measured individually below; **Supported** always means the stated normal
 domain with primitive results, not the entire language, errors or runtime.
 
@@ -408,13 +410,374 @@ domain with primitive results, not the entire language, errors or runtime.
 | `0059EEC0` / 1253 | Partial constructor anchors | ECX storage, one construction-mode arg, EAX storage; selected pointer/vector zero stores and factory relationship only |
 | `005997B0` / 264 | Foreign shared record constructor, measured field writes | ECX=D, EAX=D; §5.3 defaults are supporting input facts, not parser-exclusive coverage |
 | `0059F3B0`, `0059F490` / 8 each | Supported adjustment only | subtract incoming `[ECX-4]`, tail-jump to owned QI/SetManager; no separate return channel |
-| `0059F3E0`, `0059F3F0` / 14 each | Foreign shared reference operation | pointer adjustment and delegation only; no exclusive AddRef/Release implementation credited |
-| `0059F4D0` / 8; `0059EBE0` / 195 | Partial attribution / Unknown destruction role | callback path is linked; not certified as destructor; internal cleanup algorithms excluded |
+| `0059F3C0`, `0059F3D0` / 14 each | Shared reference operation | adjustment to `00675FC0` / `00675FD0`; §11 |
+| `0059F3E0`, `0059F3F0` / 14 each | Parser service delegation | not AddRef/Release |
+| `0059F4D0` / 8; `0059EBE0` / 195 | Reset callback | distinct from destructor; internal reset algorithms excluded |
 
-Generic `0067A7D0`, `0067A660`, `0067BBA0`, `0067BC70`, `0067C060`, base
-QI/registration/reference operations, string/allocator operations and vector
-copy/insertion are **Foreign**. Unexamined command hooks, rotation calculations,
-directory identity/collision rules, full destructor and complete tokenizer grammar
-are **Unknown** here. Exported sizes are function extents, never a sum of supported
+Generic readers, conversions, base QI/registration/reference operations,
+string/allocator operations and vector copy/insertion remain **Foreign** to the
+parser owner; §§9–11 specify several of those dependencies independently.
+Unexamined command hooks, numeric domains beyond §13 and complete tokenizer grammar
+remain **Unknown** here. Exported sizes are function extents, never a sum of supported
 bytes or a complete parser inventory. The concrete factory, caller and descriptor
 links above establish ownership more narrowly than name metadata alone.
+
+## 9. Switch and positional reader contract *[compat]*
+
+This section answers EFP1 for already tokenized, mutable token records. A token
+has a byte string, a recorded length and an index; command token 0 is included.
+Lexing quotes, bracketed vectors and whitespace happens before this boundary.
+There is no additional delimiter splitting inside these readers: `-scale=2`
+is not a lookup for `scale`, and `--scale` is not `-scale`.
+
+The initialized switch-matching prefix set is the one byte `-`; the value-list
+terminator prefix set is the two bytes `-+`. Initializers `00A742F0` and
+`00A74320` copy ranges `00A9F34C..4D` and `00A9F350..352` respectively.
+Recognition is byte-exact and case-sensitive, with no alias expansion.
+`00679F20` selects the first token, starting at index 0, whose length is exactly
+one plus the key length, whose first byte is `-`, and whose remaining bytes equal
+the whole key (`00679F77–0067A02C`, equality search `004426C0`).
+
+`FindSwitchArgumentIndices` (`0067A7D0`) clears the scratch **index list** on
+every call. An absent match returns false with an empty list and no token changes.
+A match changes only its first byte from `-` to `+`, before any arity check.
+It collects every subsequent token index until EOF or a token of length greater
+than one whose first byte is `-` or `+` and whose second byte satisfies CRT
+`isalpha`. The switch's own index is not returned. The request count is a
+**minimum**, not a maximum: zero still collects values; a request for one may
+return three. Fewer than the requested number throws `Expecting at least %d
+arguments for -%s`; the marking and partial scratch list already exist.
+Otherwise it returns true (`0067A81E–0067A94F`).
+
+Neither tokens nor values are erased, and token indices and string lengths do
+not change. A second lookup of the same key can find the next duplicate because
+the first now starts with `+`. It does not select the last occurrence. Negative
+numbers such as `-2`, positive numbers such as `+3`, lone `-`/`+`, and empty
+records are values. An unknown `-word` or `+word` terminates the preceding value
+list even if no command recognizes that word. `--` is not an end-of-options
+escape: its second byte is not alphabetic, so it is a value. Alphabetic testing
+uses the native CRT locale; the examples below use ASCII.
+
+`FindNonSwitchIndices` (`0067A660`) clears its scratch list, starts at token 1,
+and collects the initial positional prefix up to the same `-`/`+` followed by
+alphabetic test. It does not resume after switches, skip marked switches, mark
+positional tokens, or enforce an exact maximum. Insufficient initial positional
+values throw `Expecting at least %d arguments` (`0067A685–0067A7C5`).
+
+Unknown switches are checked separately after a command found in a nested block
+returns by the generic parser (`00679120`, helpers `00679E50` and `0067A040`): an unmarked
+`-` followed by alphabetic text can cause `Unexpected switch: %s`. A marked
+`+word` does not count as an unhandled switch. There is no reader-level error for
+unused ordinary values. These rules do not make whole-command parsing atomic.
+
+### 9.1 Reader conformance vectors (static predictions, unexecuted)
+
+Every row starts with new records and a nonempty old scratch list. Indices are
+zero-based and every record, including command token 0, remains after the call.
+The explicit empty string below is an existing empty token, not a lexer claim.
+
+| ID | Token records / lookup | Reply and scratch | Mutation / failure |
+|---|---|---|---|
+| SW1 | `cmd -scale 2 -scale 3`; key `scale`, minimum 1, twice | first true `[2]`; second true `[4]` | first token 1 becomes `+scale`; then token 3 becomes `+scale` |
+| SW2 | `cmd -Scale 2 --scale 3 -scale=4`; key `scale`, minimum 1 | false `[]` | unchanged |
+| SW3 | `cmd -k -2 +3 -- - + "" -next 9`; key `k`, minimum 1 | true `[2,3,4,5,6,7]` | token 1 becomes `+k`; `-next` terminates collection |
+| SW4 | `cmd -k +next`; key `k`, minimum 1 | exception, scratch `[]` | token 1 is already `+k`; `+next` remains |
+| SW5 | `cmd -k ""`; key `k`, minimum 1 | true `[2]` | token 1 becomes `+k`; numeric conversion of empty string is a separate operation |
+| SW6 | `cmd -k 1 2 3`; key `k`, minimum 0 | true `[2,3,4]` | token 1 becomes `+k`; no truncation to minimum |
+| SW7 | `cmd first -unknown value later`; positional minimum 1 | scratch `[1]`, normal return | no mutation; later handler completion can reject unhandled `-unknown` |
+| SW8 | `cmd -k 1`; key `missing`, minimum 4 | false `[]` | absence does not trigger minimum-count error |
+
+Earlier §4 vectors intentionally inject foreign primitive replies and leave
+records unchanged. In particular P7's `[3]` alternative is not the native reader
+outcome on its first lookup. SW1 supplies the native duplicate policy.
+
+## 10. Error transport and owner failure prefix *[compat]*
+
+`009EF84F` is a C++ throw helper, despite its exported vector-constructor name.
+It calls imported `KERNEL32!RaiseException` at IAT `00A8026C`, using exception
+code `E06D7363`, flags 1 (noncontinuable), and three information words:
+`19930520`, the supplied exception-object pointer, and supplied throw metadata.
+The template is at `00AE62EC`; instructions are `009EF85A–009EF87D`.
+Effects parse errors supply metadata `00B024F4`, whose destructor entry is
+`005998C0`. No boolean error status is returned by the command bodies.
+
+The LOD-in-select errors and prob-outside-select error in §3 occur after their
+switch is marked by §9 and after all earlier successful option writes. They
+occur before any conversion or write of the rejected LOD/prob value. No local
+catch, compensation or saved-description restoration is installed in
+`005989D0`. In `AddDescription`, a failed name validation occurs before name-copy,
+option processing and append; an option error occurs before append. Normal
+temporary cleanup after append is not an exception handler. The append and later
+option lookups are not executed on these throws. Likewise a command rejected
+outside an effects block throws before positional selection.
+
+The relevant owner frames (`005989D0`, `005A2810`, `005A3890`) install no local
+SEH cleanup/catch registration. In particular, the temporary record's ordinary
+string cleanup at `005A2935–005A2943` is only reached after successful append;
+it is not registered as an unwind action for a rejected option. No implicit
+block-exit hook is called by these frames when they throw. The generic `end`
+operation likewise removes the stack entry only after the end hook returns
+(§12). This answers EFP3 at the command-owner boundary; it does not certify a
+file-reader catch/recovery protocol.
+
+This defines the observable failure prefix, not permission to resume execution
+after the throw instruction. A caller may handle the C++ exception at a higher
+scope; the complete file-parser catch/report/recovery policy is not established
+by these owner bodies. Destruction of the transported exception is distinct
+from rollback of parser fields and token marking.
+
+| ID | Initial state and input | Predicted failure prefix (unexecuted) |
+|---|---|---|
+| ER1 | select active; fresh D; `cmd -scale 2 -lod 3`; exact finite conversions | scale stored and count incremented; both switches marked; LOD error throws before its uint conversion; no append |
+| ER2 | select inactive; `cmd -offset vector -prob 1`; vector primitive returns `(1,2,3)` | translation stored and count incremented; default LOD `(1,6)` written; prob marked; throw before probability conversion; no append |
+| ER3 | absent referenced description with nonnull collection | collection validation only, then `No such description: '%s'` throw; no options or append |
+
+## 11. Directory identity and actual final lifetime *[compat]*
+
+### 11.1 Component directory service used by commands
+
+The collection tables `00A9F040` and `00A9F198` bind slot `+44` to
+`AddComponentDescription` (`0058AC10`) and `+48` to `GetComponentDescription`
+(`00589070`). The type selects a separate component bucket: the native bucket
+stride is `20` hex, selected by `type - 3`. Valid component objects and supported
+types are required; these methods do not provide a checked invalid-type boundary.
+Keys are copies of the supplied name, transformed bytewise with CRT tolower
+(`0058909C–005890C6`, `0058ACAE` onward, helper `00586AC0`, callback `009F0543`).
+ASCII case differences identify the same entry within a type. Names of different
+types have separate namespaces. Empty nonnull name and null name are distinct.
+
+Named lookup returns false on missing key. It does not clear a nonnull output
+pointer on failure. With an existing key it returns true; a null output is a
+validation-only lookup and acquires no object reference. A nonnull output gets
+the stored pointer followed by its `+10` retain call (`005890CB–005890F8`).
+
+Registration determines the bucket by calling the supplied object's type getter
+at slot 0. A null name **always appends** to that bucket, returning the previous
+element count; it neither invents a name nor adds a key to the named dictionary.
+A new nonnull key appends and records that index. An existing nonnull key keeps
+its index and replaces the stored pointer; supplying the identical pointer makes
+no retain/release calls. Replacement retains the new pointer (`+10`) before
+publishing it, then releases the old pointer (`+14`). An append retains one net
+collection-owned reference; the caller's reference remains the caller's. In the
+direct spare-capacity anonymous path the exact calls are retain temporary,
+retain stored pointer, release temporary (`0058AC36–0058AC75`). Full-capacity
+insertion uses the same reference-holding container service; it is not a raw
+ownership transfer. The return is the per-type vector index, not a global
+anonymous counter or a text name (`0058AC10–0058AD4C`).
+
+| ID | Initial directory and operation | Predicted result (unexecuted) |
+|---|---|---|
+| DI1 | type 6 has `Mixed`→index 2/object A; register `mIXED`, type-6 B | return 2; B retained, entry becomes B, A released; bucket length unchanged |
+| DI2 | same entry; lookup `MIXED`, type 6, null out | true, no retain; type 7 lookup with no corresponding key returns false |
+| DI3 | type-6 length 4; register null name, object B twice | returns 4 then 5, each appends and holds one reference, no generated names |
+| DI4 | same named pointer registered again | same index, no retain/release |
+| DI5 | missing key with output sentinel A | false, output still A, no retain |
+
+### 11.2 Native parser final release
+
+The unknown table `00AA04D4` has QI/AddRef/Release entries
+`0059F3B0/0059F3C0/0059F3D0`. After the adjustment used by these stubs, let the
+shared receiver be S. The count lives at `S-88` hex. AddRef increments the u32
+count and returns it (`00675FC0`); Release with count greater than 1 decrements
+and returns it. With count at most 1, Release dispatches deleting destructor
+slot 0 on `S-90` with argument 1, then returns zero (`00675FD0–00675FF3`). It
+does not first store zero. This is a shared base operation, not a new parser-only
+reference-count algorithm.
+
+The parser's slot-0 deleting destructor `005A27F0` invokes `0059F4E0`; it then
+frees the allocation through `005E5620` when argument bit 0 is set. This positive
+vtable/call-chain identification separates destruction from callback `0059EBE0`.
+Member cleanup first disposes priority/name structures and the temporary
+descriptions. A held component at `P+490` is released through `+14` before the
+group-record arrays and other description storage are destroyed
+(`0059F5A0–0059F720`). After those structures and the four ID-map trees are
+disposed, it releases nonnull interfaces in this exact order:
+renderer-properties `P+A8`, current resource `P+94`, active collection `P+90`,
+manager `P+8C`, each through slot `+08`, then tail-calls base destruction
+`00679AB0` (`0059F818–0059F85D`). Aliased pointers still receive their separate
+held-reference releases. These are destructor reads/calls, not SetManager's
+acquire-before-release assignment protocol; the slots are not cleared first.
+
+| ID | Initial live parser references | Predicted calls (unexecuted) |
+|---|---|---|
+| LT1 | count 3 then Release | count 2 returned; no destructor |
+| LT2 | count 1; P+490=C, A8=R, 94=U, 90=K, 8C=M; successful returning cleanup | C.`+14`, description/container cleanup, R.Release, U.Release, K.Release, M.Release, base destruction, allocation free, Release returns 0 |
+| LT3 | final-release state as LT2 but 94 and 90 both K | K receives two releases in those positions; no alias suppression |
+
+## 12. Generic registration and dispatch dependency *[compat]*
+
+This answers EFP6 independently of effects-command execution algorithms. The
+generic library is a foreign dependency of the effects owner, with concrete
+behavior below; it does not stand in for unexamined command handlers.
+
+### 12.1 Registration, duplicates and ownership
+
+Root registrar `00676DB0` maps a byte string to an index in an ordered descriptor
+vector. Every registration appends its supplied descriptor, including duplicate
+names. A duplicate overwrites the name-to-index association with the newly
+appended index, so the most recent registration wins lookup; old descriptors
+remain in the owned vector. It then invokes the new descriptor's `+08`
+registration hook. This is **not AddRef** (`00676DEB–00676E40`).
+
+Block registrar `00676B80` maintains a separate name-to-descriptor dictionary.
+A duplicate overwrites that dictionary pointer and invokes the new descriptor's
+`+08` hook; it does not delete or release the overwritten descriptor. Both
+registrars store the supplied name pointer rather than copying its bytes
+(`006766F0`); published effects registrations use persistent literal storage.
+The names' storage must remain live while registered.
+
+Dictionary lookup uses full byte-string equality, including case, not pointer
+identity or the exported comparator name. The hash helper `006762F0` compares
+the actual bytes (`00676330–00676364`); hash collisions do not alias unequal
+names. `particleEffect` and `ParticleEffect` are different keys. This differs
+from the case-folded **description** directory in §11.1.
+
+Descriptors are owned objects, with deleting destructor at vslot 0. Root cleanup
+calls that slot with argument 1 on every nonnull vector entry (`00679330`).
+Block destruction calls it on every currently stored nonnull nested descriptor
+(`00676770`), then destroys its dictionary. Registration hooks are ordinary
+initialization calls, with no reference-count acquire/release. Registering the
+same owned descriptor pointer twice is not a supported sharing protocol.
+The native registrars do not guard null descriptors before calling their hook;
+allocation failure is not a graceful parse-error contract.
+
+### 12.2 Lookup precedence and dispatch hooks
+
+For an ordinary command outside macro capture, variable substitution runs on
+each token before dispatch. The parser searches active blocks from innermost
+to outermost, using each nonempty nested dictionary. The first matching key
+wins. If none matches, it searches the root dictionary. Missing everywhere
+throws `Unknown command '%s'` (`00679170–0067931F`). A block's local registration
+list therefore does not prohibit root commands or outer-block commands from
+being selected inside it. The selected owner's own context validation still
+applies.
+
+The descriptor's `+04` wrapper receives tokens and the generic parser interface.
+It obtains the effects context through that interface's `+28` and forwards:
+simple wrapper `007E3BE0` calls descriptor `+0C` with tokens/context; block
+wrapper `007E3B10` calls descriptor `+14` with tokens/context. This distinction
+explains why the root table's block enter hooks are not direct `+0C` handlers.
+The block enter owner invokes its `+0C` generic StartBlock when it is ready to
+enter. `00676B30` pushes that descriptor on the active block stack; it does not
+create a per-entry descriptor or reference-count it.
+
+The generic root command `end` (literal `00AA0A5C`, handler `00676110`) throws
+`Not inside a block!` for an empty stack. Otherwise it invokes the top block's
+`+10` wrapper, which obtains context through `+28` and calls its `+18` end hook
+(`006773D0`). It pops the stack entry **after the hook returns**. A throwing hook
+therefore leaves the entry present; there is no automatic end callback during
+the command-owner unwind. The end handler does not validate surplus arguments.
+For effectGroup, `+18` is `00648F10`, a return-only hook, so closing that block
+does not restore P+49C.
+
+After a command selected from a nested dictionary returns, the generic parser
+checks for unhandled switches (§9) and may throw `Unexpected switch: %s`.
+The root-fallback dispatch path returns without that check
+(`00679260–006792F4`). This asymmetry applies even when the root command was
+found while blocks were active; do not impose a uniform post-handler rejection
+policy. Neither path provides rollback of a successfully executed handler.
+Macro capture/substitution algorithms are generic-library services outside the
+effects-command family; this dispatch contract requires their returning results.
+
+### 12.3 Dispatch conformance vectors (unexecuted)
+
+| ID | Fixture | Required result |
+|---|---|---|
+| DR1 | root registers name `x` with A then B; vector initially empty | vector `[A,B]`, lookup `x` chooses index 1/B; both registration hooks called in order; cleanup destroys A then B |
+| DR2 | one block registers `x` with A then B | lookup selects B; B registration hook called; overwrite does not destroy A; block cleanup destroys currently stored B |
+| DR3 | distinct byte strings `x` and `X`; equal hash bucket allowed | exact spelling selects its corresponding descriptor; no case folding or pointer-identity requirement |
+| DR4 | outer and inner dictionaries both define `x`, root defines `y` | `x` dispatches inner; `y` falls back to root; missing key throws unknown-command error |
+| DR5 | top block A; end hook throws | A's end wrapper/hook called once; stack entry retained; no second implicit end hook; no pop |
+| DR6 | returning handler leaves `-unknown` unmarked | nested-selected handler: side effects then unexpected-switch exception; root-fallback handler: side effects and normal return from this dispatcher |
+
+## 13. Rotation options and stored matrix composition *[compat]*
+
+The five options in §2 compose with the existing matrix, including all earlier
+rotation writes; they do not replace it. Use a three-by-three array M with rows
+at `D+18,24,30` hex, each containing three consecutive binary32 values. This
+notation defines storage, without requiring a renderer's row/column convention.
+Offset (`D+3C..44`) and scalar scale (`D+48`) are unaffected by these branches.
+
+| Key | Selected arguments / conversion and composition order | Completed-transform count |
+|---|---|---:|
+| `rotateX` | one ParseFloat, X | 1 |
+| `rotateY` | one ParseFloat, Y | 1 |
+| `rotateZ` | one ParseFloat, Z | 1 |
+| `rotateXYZ` | first selected value X, second Y, third Z | 3 |
+| `rotateZXY` | first selected value Z, second X, third Y | 3 |
+
+All five keys can act in one call, in the table's order regardless of text
+order. A compound command's values follow its named axis order: `rotateZXY`
+does **not** reinterpret three XYZ coordinates. Each value is converted only
+when its axis is reached, using the then-current shared index scratch. After
+each complete axis, OR `04` hex into byte `D+15` and increment byte `D+14`
+modulo 256. A compound option increments three times, even with zero angles.
+There is no local angle-range check, normalization to a revolution, or special
+case for zero. Missing options leave the matrix and these marks unchanged.
+
+Inputs are **turns**, not degrees or radians. The ParseFloat result remains on
+the x87 stack and is multiplied by binary32 `40C90FDB` hex
+(`6.283185482025146484375`, at `00A9F384`). There is no binary32 angle temporary
+between this multiply and the trigonometric operations. FCOS and FSIN consume
+copies of that same x87 product. The cosine is stored to binary32 before any
+matrix products. The positive sine initially remains at x87 precision.
+
+For the formulas below, R means a binary32 store/reload under the active x87
+rounding mode; C = R(cos(angle)), S = sin(angle) at x87 precision, and
+N = R(−S). Each ordinary multiply/add/subtract in a formula is a distinct x87
+operation, with the active precision/rounding mode. Do not fuse operations,
+round S early, or expand the product to a host matrix routine. Values on the
+right are from before **that axis**, so an earlier output of the same axis
+must not feed another output. Every output on the left is stored binary32.
+The untouched column retains its exact input bits.
+
+| Axis | Changed columns | First output in each row | Second output in each row |
+|---|---|---|---|
+| X | 1 and 2; let A=M[row,1], B=M[row,2] | row 0: R(C×A + S×B); rows 1,2: R(R(C×A) + R(S×B)) | row 0: R(A×N + R(C×B)); rows 1,2: R(R(A×N) + R(C×B)) |
+| Y | 0 and 2; let A=M[row,0], B=M[row,2] | row 0: R(C×A − S×B); rows 1,2: R(R(C×A) − R(S×B)) | rows 0,1: R(R(S×A) + R(C×B)); row 2: R(S×A + R(C×B)) |
+| Z | 0 and 1; let A=M[row,0], B=M[row,1] | row 0: R(C×A + S×B); rows 1,2: R(R(C×A) + R(S×B)) | row 0: R(A×N + R(C×B)); rows 1,2: R(R(A×N) + R(C×B)) |
+
+For X and Z, compute the first-column outputs using S before storing N for
+the second-column outputs. Y uses the subtraction and retains positive S;
+there is no corresponding negative-sine store in Y. The completed axis's
+matrix stores precede its counter/flag update. In a compound option all of
+those writes precede the next ParseFloat. If that conversion throws, previous
+axes and their counter increments remain, with no rollback or later axes.
+The foreign reader's marking of the option precedes all its conversions (§9).
+
+Evidence: X `00598A68–00598B6D`, Y `00598B9D–00598C92`,
+Z `00598CC3–00598DCC`. The repeated axis arithmetic and stores were checked
+individually in XYZ `00598DFD–00599127` and ZXY `00599157–00599480`.
+In particular, X's first sum is at `00598AD2`, its negative-sine binary32
+store at `00598B19`; Y's first subtraction at `00598C01`, its row-2 second
+sum at `00598C70`; Z's first sum at `00598D2D`, negative-sine store at
+`00598D78`. These instruction bytes, rather than pseudocode float types,
+establish the asymmetries above.
+
+This is an instruction/store contract parameterized by x87 control state,
+not a certification of the process's PC/RC setting, transcendental accuracy
+on every CPU, or nonfinite/overflow handling. Those qualifications remain
+EFP7; an implementation may expose Unsupported outside its qualified numeric
+domain, retaining the already-established mutation prefix. EFP2's operation
+order no longer requires excluding every rotation option.
+
+### 13.1 Rotation conformance vectors (static, unexecuted)
+
+These use returning primitive conversions and nearest-even arithmetic. Positive
+nonzero integer matrices avoid relying on the sign of a zero sum in the zero
+angle examples. Intermediate-rounding tests must separately supply/check x87
+operation results, not derive all expectations from the completed output matrix.
+
+| ID | Input / initial state | Required result |
+|---|---|---|
+| RO1 | each single-axis key independently; ParseFloat=+0; M rows (1,2,3), (4,5,6), (7,8,9); count=255, flags=80 hex | angle=+0, C=3F800000, S=+0; matrix unchanged, count=0, flags=84 hex; one conversion only |
+| RO2 | `-rotateZXY 0 0 0 -rotateX 0 -rotateXYZ 0 0 0 -rotateZ 0 -rotateY 0`; each selected value converts +0; matrix as RO1, count=250 | nine conversions in order X, Y, Z, XYZ's X/Y/Z, ZXY's Z/X/Y; count=3, matrix unchanged; each compound selects three indices once, not three separate switch lookups |
+| RO3 | `rotateXYZ` present with three indices; first two conversions +0, third throws; initial count=10, flags=0, M as RO1 | X and Y completed, count=12, flags=04; matrix unchanged; third conversion attempted, no Z writes or later options; switch already marked |
+| RO4 | `rotateZXY` present; first conversion throws; preceding single-axis keys absent; initial M/count/flags arbitrary | first selected value is the Z input; no axis writes or marks; switch marked; no second conversion |
+| RO5 | X or Z staged arithmetic, row 0 A=B=1 | first output requires R(C+S), second R(N+C); rows 1,2 with A=B=1 instead require R(C+R(S)) for first output. This tests the sine store boundary independently of flags/count |
+| RO6 | Y staged arithmetic, all rows A=B=1 | first output row 0 R(C−S), rows 1,2 R(C−R(S)); second output rows 0,1 R(R(S)+C), row 2 R(S+C). A uniformly rounded sine changes this contract |
+
+RO5/RO6 are arithmetic-stage assertions, not arbitrary injected trigonometric
+results represented as a successful script parse. Supply the actual angle and
+x87 results when adding a native numeric oracle. A host golden generated solely
+from flags, probability, or final transforms cannot establish these store rules.
