@@ -1,0 +1,11 @@
+# game-of-life: open questions
+<!-- Questions about [game-of-life.md](../game-of-life.md). Append new entries at the END. -->
+
+<!-- from: re-game-of-life4 (2026-10-23), first original round -->
+- **GL1 — sections 2–3,7: exceptional primitive and dimension contracts.** What allocation/null-free/exception guarantees apply to `005E55E0` and `005E5620`, including repeated cleanup and low-32-bit multiplication overflow in Init `004BC277–004BC294`? What actual dimension range is admitted by the external parent provider, and what seed source/return/failure guarantees apply to fresh RNG construction with FFFFFFFF and bound-2 draw `004BBE97–004BBEC6`? Owner order, zero-to-16 defaults, null-skipping clears and unchecked seed stores are specified; no safe-false, maximum-size or reproducible random-sequence contract is claimed. Do not reopen generic allocator/RNG algorithms or supply a whole-grid oracle.
+
+<!-- from: re-game-of-life4 (2026-10-23), first original round -->
+- **GL2 — sections 5.1,5.3,7: callback reentry and partial publication.** Does any supported caller change dimensions, buffers, callback fields or suppress byte, invoke generation recursively, or destroy the parent from the raw callback at `004BC15B`? The generation swaps before traversal and invokes callbacks after each cell's stores without setting an in-progress guard. Ordinary field reloads and raw context do not prove safe reentry, retention, rollback or exception behavior. Preserve the non-destructive/non-reentrant precondition until lifetime evidence closes it.
+
+<!-- from: re-game-of-life4 (2026-10-23), first original round -->
+- **GL3 — sections 1–2,4: residual attribution and controls.** Are there additional folded/inlined simulator operations or a native callable setter for suppress/edit mode beyond the parent construction and mouse-mode assignment described here? Four out-of-line bodies and ten boundary contexts do not establish a complete owner body denominator. No standalone QI/GetCell/ClearCells/Shutdown/constructor interface has been demonstrated. Resolve any additional interface/body through concrete receiver and caller evidence rather than adding methods from class names or the approximate public 3 KB estimate.
