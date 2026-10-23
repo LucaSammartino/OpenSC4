@@ -3,9 +3,10 @@
 //!
 //! These owners retain their textures and geometry; providers supply only texture
 //! resources and lighting/height samples, never an original owner's result.
-//! Native buffer layouts, inherited basic-model behaviour and pool/GZCOM lifetime
-//! are deliberately not emulated. See `README.md` for the public inventory and
-//! the exact limits (LM2–LM8). All getters borrow immutable state.
+//! Ordered position/BGRA/UV records implement the settled LM3–7 subset.
+//! Native object layouts, inherited behaviour and pool/GZCOM lifetime remain
+//! unsupported. See `README.md` for the numeric and foreign-boundary limits.
+//! All getters borrow immutable state.
 
 mod cell;
 mod foundation;
@@ -26,10 +27,6 @@ pub const RETAINING_WALL_IID: u32 = 0xA9E2_831E;
 pub enum ContractError {
     /// Outside this portable API's domain; original behaviour is not published.
     InvalidInput,
-    /// LM5: key + zoom overflow is not defined by the public spec.
-    TextureKeyOverflow,
-    /// LM4: the published wall description does not determine a triangle buffer.
-    WallTriangleLayout,
 }
 
 /// The five published texture levels. No native out-of-range behaviour is implied.
@@ -84,7 +81,7 @@ impl Edge {
 }
 
 /// Factory queries retain only the namespace actually published for each owner.
-/// Foundation type/group and wall type are intentionally absent (LM5).
+/// Foundation ID-only requests use the factory's fixed type/group below.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TextureKey {
     FoundationSide(u32),
@@ -94,8 +91,15 @@ pub enum TextureKey {
 }
 
 pub trait Texture {
+    /// First WORD (32 bits) of the underlying texture, not the resource key.
     fn id(&self) -> u32;
     fn has_alpha(&self) -> bool;
+    fn element_count(&self) -> usize {
+        1
+    }
+    fn element_word(&self, index: usize) -> Option<u32> {
+        (index == 0).then(|| self.id())
+    }
 }
 
 /// Each successful load returns one owned lease. An adapter must acquire that
@@ -113,9 +117,41 @@ pub trait Lighting {
     fn at_corner(&mut self, position: Vec3, normal: Vec3) -> Vec3;
 }
 
-/// One primary attempt followed by fallback on absence/failure. LM5 records
-/// the ambiguity between a missing configured key and an unresolved resource;
-/// this is the literal "loaded again" reading, not a native failure contract.
+pub const FOUNDATION_TEXTURE_TYPE: u32 = 0x7AB5_0E44;
+pub const FOUNDATION_TEXTURE_GROUP: u32 = 0x1ABE_787D;
+
+/// Returning slot-20 integer outputs for normal-only foundation lighting.
+pub trait FoundationLighting {
+    fn components_for_normal(&mut self, normal: Vec3) -> [i32; 3];
+}
+
+pub trait FoundationTerrain {
+    fn width(&mut self) -> i32;
+    fn ground(&mut self, index: i32) -> f32;
+    fn water(&mut self, index: i32) -> f32;
+}
+
+/// LM5 foundation/wall policy only. Zero disables lookup; on failure mutate
+/// the key then retry once, even when fallback equals the original key.
+pub(super) fn load_owner_key<F: TextureFactory>(
+    factory: &mut F,
+    configured: &mut Option<u32>,
+    fallback: u32,
+    key: impl Fn(u32) -> TextureKey,
+) -> Option<F::Binding> {
+    let instance = configured.unwrap_or(0);
+    if instance == 0 {
+        return None;
+    }
+    if let Some(binding) = factory.load(key(instance)) {
+        return Some(binding);
+    }
+    *configured = Some(fallback);
+    factory.load(key(fallback))
+}
+
+/// Cell LM5 only: one primary attempt followed by one unmutated-key attempt.
+/// Equal keys still cause two calls; zero is handled by the owner beforehand.
 pub(super) fn load_with_fallback<F: TextureFactory>(
     factory: &mut F,
     primary: Option<TextureKey>,

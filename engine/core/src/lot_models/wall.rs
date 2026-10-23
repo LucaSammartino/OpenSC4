@@ -18,7 +18,11 @@ pub(super) fn lattice_index(q: f32, upper: bool) -> Result<i32, ContractError> {
         return Err(ContractError::InvalidInput);
     }
     let scaled = f64::from(q) * 0.0625;
-    let biased = if upper { scaled - f64::from(f32::from_bits(0x3f66_6666)) } else { scaled };
+    let biased = if upper {
+        scaled - f64::from(f32::from_bits(0x3f66_6666))
+    } else {
+        scaled
+    };
     let word = ((biased + 12_582_912.0) as f32).to_bits();
     Ok(word.wrapping_sub(0x4b40_0000).wrapping_add(u32::from(upper)) as i32)
 }
@@ -45,10 +49,26 @@ impl WallRange {
         let z0 = lattice_index(bounds.min[2], false)?;
         let x0 = lattice_index(bounds.min[0], false)?;
         Ok(match side {
-            Edge::North => Self { start: [x0,z0], end: x1, inner: [x0,z0] },
-            Edge::East => Self { start: [x1,z0], end: z1, inner: [x1-1,z0] },
-            Edge::South => Self { start: [x0,z1], end: x1, inner: [x0,z1-1] },
-            Edge::West => Self { start: [x0,z0], end: z1, inner: [x0,z0] },
+            Edge::North => Self {
+                start: [x0, z0],
+                end: x1,
+                inner: [x0, z0],
+            },
+            Edge::East => Self {
+                start: [x1, z0],
+                end: z1,
+                inner: [x1 - 1, z0],
+            },
+            Edge::South => Self {
+                start: [x0, z1],
+                end: x1,
+                inner: [x0, z1 - 1],
+            },
+            Edge::West => Self {
+                start: [x0, z0],
+                end: z1,
+                inner: [x0, z0],
+            },
         })
     }
 }
@@ -56,15 +76,15 @@ impl WallRange {
 /// Individual returning game-interface primitives only. Ownership/lifetime of
 /// any backing game objects belongs to the adapter, outside LM4.
 pub trait WallTerrain {
-    fn inner_lot_height(&mut self, cell: [i32;2]) -> Option<f32>;
-    fn terrain_height(&mut self, cell: [i32;2]) -> f32;
+    fn inner_lot_height(&mut self, cell: [i32; 2]) -> Option<f32>;
+    fn terrain_height(&mut self, cell: [i32; 2]) -> f32;
     fn extent_x(&mut self) -> i32;
     fn extent_z(&mut self) -> i32;
-    fn lot_flags(&mut self, cell: [i32;2], argument: u32) -> Option<u32>;
+    fn lot_flags(&mut self, cell: [i32; 2], argument: u32) -> Option<u32>;
 }
 
 pub trait WallLighting {
-    fn components(&mut self, position: Vec3, normal: Vec3) -> [i32;3];
+    fn components(&mut self, position: Vec3, normal: Vec3) -> [i32; 3];
 }
 
 /// Primitive edge coordinates and terrain sample, not owner-generated geometry.
@@ -74,8 +94,8 @@ pub struct WallSample {
     pub terrain_height: f32,
 }
 
-/// A semantic band between two 16 m edge samples. No triangle winding, diagonal
-/// or 0.001/0.002 offset assignment is asserted (LM4).
+/// Compatibility description of one band. Rendering uses the owned ordered
+/// `WallShape::records`, including any retained tail, rather than these labels.
 #[derive(Clone, Debug, PartialEq)]
 pub struct WallBand {
     pub edge_positions: [Vec2; 2],
@@ -120,8 +140,8 @@ impl WallShape {
         result.begin(lot_height, samples[0].position);
         for pair in samples.windows(2) {
             let [a, b] = [pair[0], pair[1]];
-            let dx = (b.position[0] - a.position[0]).abs();
-            let dz = (b.position[1] - a.position[1]).abs();
+            let dx = b.position[0] - a.position[0];
+            let dz = b.position[1] - a.position[1];
             let valid_segment = match side {
                 Edge::North | Edge::South => dx == CELL_METRES && dz == 0.0,
                 Edge::East | Edge::West => dx == 0.0 && dz == CELL_METRES,
@@ -167,140 +187,220 @@ impl WallShape {
     }
 
     pub fn empty(side: Edge) -> Self {
-        let bounds = Bounds { min: [0.;3], max: [0.;3] };
-        Self { side, bands: Vec::new(), outward_normal: side.normal(),
-            outward_offset_range: WALL_OUTWARD_OFFSET_RANGE, records: Vec::new(),
-            bounds, local_bounds: bounds, emitting_segments: 0, geometry_present: false, prefix_records: 0 }
+        let bounds = Bounds {
+            min: [0.; 3],
+            max: [0.; 3],
+        };
+        Self {
+            side,
+            bands: Vec::new(),
+            outward_normal: side.normal(),
+            outward_offset_range: WALL_OUTWARD_OFFSET_RANGE,
+            records: Vec::new(),
+            bounds,
+            local_bounds: bounds,
+            emitting_segments: 0,
+            geometry_present: false,
+            prefix_records: 0,
+        }
     }
 
-    fn axis(&self) -> usize { if matches!(self.side, Edge::North | Edge::South) { 0 } else { 2 } }
+    fn axis(&self) -> usize {
+        if matches!(self.side, Edge::North | Edge::South) {
+            0
+        } else {
+            2
+        }
+    }
 
     fn begin(&mut self, lot: f32, start: Vec2) {
         let axis = self.axis();
-        let across = 2-axis;
-        self.bounds.min = [start[0],lot,start[1]];
+        let across = 2 - axis;
+        self.bounds.min = [start[0], lot, start[1]];
         self.bounds.max = self.bounds.min;
         self.bounds.min[axis] = f32::MAX;
         self.bounds.max[axis] = -f32::MAX;
-        self.bounds.min[across] = stored_add(self.bounds.min[across],0.001);
-        self.bounds.max[across] = stored_add(self.bounds.max[across],0.002);
+        self.bounds.min[across] = stored_add(self.bounds.min[across], 0.001);
+        self.bounds.max[across] = stored_add(self.bounds.max[across], 0.002);
         self.emitting_segments = 0;
         self.prefix_records = 0;
         self.geometry_present = false;
     }
 
-    fn emit(&mut self, lot: f32, a: WallSample, b: WallSample, scale: f32) -> Result<(),ContractError> {
-        let t = stored_add(lot,-WALL_SEAM_METRES);
+    fn emit(&mut self, lot: f32, a: WallSample, b: WallSample, scale: f32) -> Result<(), ContractError> {
+        let t = stored_add(lot, -WALL_SEAM_METRES);
         let h0 = a.terrain_height;
         let h1 = b.terrain_height;
-        let ap = stored_add(h0,WALL_SEAM_METRES);
-        let bp = stored_add(h1,WALL_SEAM_METRES);
-        let am = stored_add(h0,-WALL_SEAM_METRES);
-        let bm = stored_add(h1,-WALL_SEAM_METRES);
-        if ![lot,h0,h1,scale,t,ap,bp,am,bm].into_iter().all(f32::is_finite) {
+        let ap = stored_add(h0, WALL_SEAM_METRES);
+        let bp = stored_add(h1, WALL_SEAM_METRES);
+        let am = stored_add(h0, -WALL_SEAM_METRES);
+        let bm = stored_add(h1, -WALL_SEAM_METRES);
+        if ![lot, h0, h1, scale, t, ap, bp, am, bm].into_iter().all(f32::is_finite) {
             return Err(ContractError::InvalidInput);
         }
         // Callers own eligibility. No interpolated crossing or side reversal.
         let (points, count) = if h0 > t && h1 > t {
-            ([(a,t),(b,t),(a,ap),(a,ap),(b,t),(b,bp)],6)
+            ([(a, t), (b, t), (a, ap), (a, ap), (b, t), (b, bp)], 6)
         } else if h0 > t {
-            ([(a,t),(b,bm),(a,ap),(a,t),(a,t),(a,t)],3)
+            ([(a, t), (b, bm), (a, ap), (a, t), (a, t), (a, t)], 3)
         } else {
-            ([(a,am),(b,t),(b,bp),(a,t),(a,t),(a,t)],3)
+            ([(a, am), (b, t), (b, bp), (a, t), (a, t), (a, t)], 3)
         };
-        if self.emitting_segments == 255 { return Err(ContractError::InvalidInput); }
+        if self.emitting_segments == 255 {
+            return Err(ContractError::InvalidInput);
+        }
         let axis = self.axis();
         // Portable allocation policy: Vec capacity is not a native heap claim.
         let offset = self.written_records();
-        self.records.try_reserve((offset+count).saturating_sub(self.records.len())).map_err(|_|ContractError::InvalidInput)?;
-        for (i,(sample,y)) in points.into_iter().take(count).enumerate() {
-            let position = [sample.position[0],y,sample.position[1]];
-            let uv = [(f64::from(position[axis])*f64::from(scale)) as f32,(f64::from(y)*f64::from(scale)) as f32];
-            if !uv.into_iter().all(f32::is_finite) { return Err(ContractError::InvalidInput); }
-            if offset+i < self.records.len() {
-                self.records[offset+i].position = position;
-                self.records[offset+i].uv = uv;
-            } else { self.records.push(WallVertex { position, uv, colour: [0;4] }); }
+        self.records
+            .try_reserve((offset + count).saturating_sub(self.records.len()))
+            .map_err(|_| ContractError::InvalidInput)?;
+        for (i, (sample, y)) in points.into_iter().take(count).enumerate() {
+            let position = [sample.position[0], y, sample.position[1]];
+            let uv = [
+                (f64::from(position[axis]) * f64::from(scale)) as f32,
+                (f64::from(y) * f64::from(scale)) as f32,
+            ];
+            if !uv.into_iter().all(f32::is_finite) {
+                return Err(ContractError::InvalidInput);
+            }
+            if offset + i < self.records.len() {
+                self.records[offset + i].position = position;
+                self.records[offset + i].uv = uv;
+            } else {
+                self.records.push(WallVertex {
+                    position,
+                    uv,
+                    colour: [0; 4],
+                });
+            }
         }
         self.prefix_records += count;
         self.emitting_segments += 1;
-        self.bounds.min[axis] = self.bounds.min[axis].min(a.position[axis/2]);
-        self.bounds.max[axis] = self.bounds.max[axis].max(b.position[axis/2]);
-        if h0 > t { self.bounds.max[1] = self.bounds.max[1].max(h0); }
-        else { self.bounds.min[1] = self.bounds.min[1].min(h0); }
-        if h1 > t { self.bounds.max[1] = self.bounds.max[1].max(h1); }
-        else { self.bounds.min[1] = self.bounds.min[1].min(h1); }
+        self.bounds.min[axis] = self.bounds.min[axis].min(a.position[axis / 2]);
+        self.bounds.max[axis] = self.bounds.max[axis].max(b.position[axis / 2]);
+        if h0 > t {
+            self.bounds.max[1] = self.bounds.max[1].max(h0);
+        } else {
+            self.bounds.min[1] = self.bounds.min[1].min(h0);
+        }
+        if h1 > t {
+            self.bounds.max[1] = self.bounds.max[1].max(h1);
+        } else {
+            self.bounds.min[1] = self.bounds.min[1].min(h1);
+        }
         Ok(())
     }
 
-    fn written_records(&self) -> usize { self.prefix_records }
+    fn written_records(&self) -> usize {
+        self.prefix_records
+    }
 
     fn finish(&mut self, start: WallSample) {
         self.geometry_present = self.emitting_segments != 0;
         if self.geometry_present {
             let axis = self.axis();
-            self.bounds.min[axis] = stored_add(self.bounds.min[axis],0.001);
-            self.bounds.max[axis] = stored_add(self.bounds.max[axis],-0.001);
-            self.local_bounds = Bounds { min: [0.;3], max: std::array::from_fn(|i|stored_add(self.bounds.max[i],-self.bounds.min[i])) };
+            self.bounds.min[axis] = stored_add(self.bounds.min[axis], 0.001);
+            self.bounds.max[axis] = stored_add(self.bounds.max[axis], -0.001);
+            self.local_bounds = Bounds {
+                min: [0.; 3],
+                max: std::array::from_fn(|i| stored_add(self.bounds.max[i], -self.bounds.min[i])),
+            };
         } else {
             self.bounds.min = [start.position[0], start.terrain_height, start.position[1]];
-            self.bounds.max = self.bounds.min.map(|v|stored_add(v,1.));
+            self.bounds.max = self.bounds.min.map(|v| stored_add(v, 1.));
             self.local_bounds = self.bounds;
         }
     }
 
     pub fn recolour<L: WallLighting>(&mut self, light: &mut L) {
-        let normal = self.side.normal().map(|v|-v);
+        let normal = self.side.normal().map(|v| -v);
         for v in &mut self.records {
-            let c = light.components(v.position,normal);
-            v.colour = [c[2] as u8,c[1] as u8,c[0] as u8,255];
+            let c = light.components(v.position, normal);
+            v.colour = [c[2] as u8, c[1] as u8, c[0] as u8, 255];
         }
     }
 
     /// Returns the published bounds-change result, distinct from presence.
-    pub fn rebuild<H: WallTerrain>(&mut self, box_: Bounds, scale: f32, host: &mut H) -> Result<bool,ContractError> {
-        let range = WallRange::new(self.side,box_)?;
+    pub fn rebuild<H: WallTerrain>(&mut self, box_: Bounds, scale: f32, host: &mut H) -> Result<bool, ContractError> {
+        let range = WallRange::new(self.side, box_)?;
         self.emitting_segments = 0;
         self.prefix_records = 0;
-        let Some(lot) = host.inner_lot_height(range.inner) else { return Ok(false); };
-        if !lot.is_finite() || !scale.is_finite() { return Err(ContractError::InvalidInput); }
+        let Some(lot) = host.inner_lot_height(range.inner) else {
+            return Ok(false);
+        };
+        if !lot.is_finite() || !scale.is_finite() {
+            return Err(ContractError::InvalidInput);
+        }
         let mut cell = range.start;
-        let varying = self.axis()/2;
-        let position = |c: [i32;2]| -> Vec2 { c.map(|v|(v*16) as f32) };
+        let varying = self.axis() / 2;
+        let position = |c: [i32; 2]| -> Vec2 { c.map(|v| (v * 16) as f32) };
         let first = host.terrain_height(cell);
-        if !first.is_finite() { return Err(ContractError::InvalidInput); }
+        if !first.is_finite() {
+            return Err(ContractError::InvalidInput);
+        }
         let previous = self.bounds;
-        self.begin(lot,position(cell));
+        self.begin(lot, position(cell));
         let mut h0 = first;
         while cell[varying] < range.end {
             let mut next = cell;
             next[varying] += 1;
             let h1 = host.terrain_height(next);
-            if !h1.is_finite() { return Err(ContractError::InvalidInput); }
+            if !h1.is_finite() {
+                return Err(ContractError::InvalidInput);
+            }
             if h0 > lot || h1 > lot {
                 let extent_x = host.extent_x();
                 let extent_z = host.extent_z();
                 let across = match self.side {
-                    Edge::North => [cell[0],cell[1]-1],
-                    Edge::West => [cell[0]-1,cell[1]],
+                    Edge::North => [cell[0], cell[1] - 1],
+                    Edge::West => [cell[0] - 1, cell[1]],
                     _ => cell,
                 };
-                let flat = across[0] >= 0 && across[1] >= 0 && across[0] < extent_x && across[1] < extent_z
-                    && host.lot_flags(across,0).is_some_and(across_edge_lot_is_flat);
+                let flat = across[0] >= 0
+                    && across[1] >= 0
+                    && across[0] < extent_x
+                    && across[1] < extent_z
+                    && host.lot_flags(across, 0).is_some_and(across_edge_lot_is_flat);
                 if !flat {
-                    self.emit(lot,WallSample { position:position(cell), terrain_height:h0 },WallSample { position:position(next), terrain_height:h1 },scale)?;
+                    self.emit(
+                        lot,
+                        WallSample {
+                            position: position(cell),
+                            terrain_height: h0,
+                        },
+                        WallSample {
+                            position: position(next),
+                            terrain_height: h1,
+                        },
+                        scale,
+                    )?;
                 }
             }
             h0 = h1;
             cell = next;
         }
-        let fallback = if self.emitting_segments == 0 { host.terrain_height(range.start) } else { first };
-        if !fallback.is_finite() { return Err(ContractError::InvalidInput); }
-        self.finish(WallSample { position:position(range.start), terrain_height:fallback });
-        Ok(self.geometry_present && [3,4,5,0,1,2].into_iter().any(|i| {
-            let (new,old) = if i<3 {(self.bounds.min[i],previous.min[i])} else {(self.bounds.max[i-3],previous.max[i-3])};
-            (f64::from(new)-f64::from(old)).abs() > f64::from(f32::from_bits(0x38d1_b717))
-        }))
+        let fallback = if self.emitting_segments == 0 {
+            host.terrain_height(range.start)
+        } else {
+            first
+        };
+        if !fallback.is_finite() {
+            return Err(ContractError::InvalidInput);
+        }
+        self.finish(WallSample {
+            position: position(range.start),
+            terrain_height: fallback,
+        });
+        Ok(self.geometry_present
+            && [3, 4, 5, 0, 1, 2].into_iter().any(|i| {
+                let (new, old) = if i < 3 {
+                    (self.bounds.min[i], previous.min[i])
+                } else {
+                    (self.bounds.max[i - 3], previous.max[i - 3])
+                };
+                (f64::from(new) - f64::from(old)).abs() > f64::from(f32::from_bits(0x38d1_b717))
+            }))
     }
 }
 
@@ -312,8 +412,8 @@ pub struct WallDraw<'a, T> {
     pub shape: &'a WallShape,
     pub texture: &'a T,
     pub state: DrawState,
-    /// A rotation change requires recolouring, whose formula is not published.
-    /// A native adapter must not treat this semantic plan as a ready triangle list.
+    /// The compatibility `draw` entry has no raw lighting argument. Use
+    /// `draw_lit` to recolour all stored records before consuming the list.
     pub recolour_required: bool,
 }
 
@@ -377,7 +477,21 @@ impl<T: Texture> RetainingWallModel<T> {
         samples: &[WallSample],
         texture_scale: f32,
     ) -> Result<(), ContractError> {
-        let shape = WallShape::from_samples(self.shape.side, lot_height, samples, texture_scale)?;
+        let mut shape = WallShape::from_samples(self.shape.side, lot_height, samples, texture_scale)?;
+        // LM4: overwrite only the newly emitted prefix. Geometry-only updates
+        // preserve old colour bytes and never shorten the stored record list.
+        for (new, old) in shape.records.iter_mut().zip(&self.shape.records) {
+            new.colour = old.colour;
+        }
+        if shape.records.len() < self.shape.records.len() {
+            shape
+                .records
+                .try_reserve(self.shape.records.len() - shape.records.len())
+                .map_err(|_| ContractError::InvalidInput)?;
+            shape
+                .records
+                .extend_from_slice(&self.shape.records[shape.records.len()..]);
+        }
         self.shape = shape;
         self.recolour_pending = true;
         Ok(())
@@ -389,19 +503,54 @@ impl<T: Texture> RetainingWallModel<T> {
             .map_or(0xC986_2A86, |texture| texture.id() | 0x2A86)
     }
 
+    /// Own the native box-to-cell traversal on this model's retained buffer.
+    pub fn setup_from_bounds<H: WallTerrain>(
+        &mut self,
+        bounds: Bounds,
+        scale: f32,
+        host: &mut H,
+    ) -> Result<bool, ContractError> {
+        let changed = self.shape.rebuild(bounds, scale, host)?;
+        self.recolour_pending = true;
+        Ok(changed)
+    }
+
     pub fn load_texture<F: TextureFactory<Binding = T>>(&mut self, zoom: Zoom, factory: &mut F) {
-        self.texture = load_with_fallback(
+        if self.zoom == Some(zoom) {
+            return;
+        }
+        self.zoom = Some(zoom);
+        self.texture = None;
+        self.texture = load_owner_key(
             factory,
-            self.keys[zoom.index()].map(|instance| TextureKey::Wall {
+            &mut self.keys[zoom.index()],
+            0x695C_00C6 + zoom.value(),
+            |instance| TextureKey::Wall {
                 group: WALL_TEXTURE_GROUP,
                 instance,
-            }),
-            TextureKey::Wall {
-                group: WALL_TEXTURE_GROUP,
-                instance: 0x695C_00C6 + zoom.value(),
             },
         );
         self.zoom = Some(zoom);
+    }
+
+    pub fn keys(&self) -> &[Option<u32>; 5] {
+        &self.keys
+    }
+
+    pub fn draw_lit<F: TextureFactory<Binding = T>, L: WallLighting>(
+        &mut self,
+        highlighted: bool,
+        zoom: Zoom,
+        rotation: Edge,
+        factory: &mut F,
+        lighting: &mut L,
+    ) -> Option<WallDraw<'_, T>> {
+        if !highlighted && (self.rotation != Some(rotation) || self.recolour_pending) {
+            self.shape.recolour(lighting);
+            self.rotation = Some(rotation);
+            self.recolour_pending = false;
+        }
+        self.draw(highlighted, zoom, rotation, factory)
     }
 
     pub fn draw<F: TextureFactory<Binding = T>>(
