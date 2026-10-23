@@ -57,6 +57,8 @@ impl Generator for StringGenerator {
 }
 #[derive(Default)]
 struct State {
+    refs: RefCount,
+    null_generator: bool,
     commands: BTreeMap<u32, Info>,
     generators: Vec<Rc<dyn Generator>>,
     active: Option<Rc<dyn Dispatcher>>,
@@ -67,6 +69,12 @@ struct State {
 pub struct Server {
     state: RwLock<State>,
     conv: Rc<dyn ValueConvert>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Face {
+    Primary,
+    Service,
+    Lifetime,
 }
 struct ServerLink(Weak<Server>);
 impl CommandServer for ServerLink {
@@ -86,6 +94,75 @@ impl CommandServer for ServerLink {
     }
 }
 impl Server {
+    pub fn query_interface(&self, source: Face, iid: u32, out: &mut Option<Face>) -> bool {
+        let face = match (source, iid) {
+            (Face::Service, 1) => Face::Lifetime,
+            (_, 1 | 0xCB90253A | 0xCB90253B) => Face::Primary,
+            (_, 0x287FB697) => Face::Service,
+            _ => return false,
+        };
+        self.add_ref();
+        *out = Some(face);
+        true
+    }
+    pub fn add_ref(&self) -> u32 {
+        self.state.write().unwrap().refs.add_ref()
+    }
+    pub fn destroyed(&self) -> bool {
+        self.state.read().unwrap().refs.is_destroyed()
+    }
+    pub fn release(&self) -> u32 {
+        let old = {
+            let mut s = self.state.write().unwrap();
+            let count = s.refs.release();
+            if !s.refs.is_destroyed() {
+                return count;
+            }
+            let refs = s.refs;
+            let old = std::mem::take(&mut *s);
+            s.refs = refs;
+            old
+        };
+        // Destruction drops held references without public Shutdown callbacks.
+        drop(old);
+        0
+    }
+    pub fn execute_formatted(
+        &self,
+        formatter: &mut impl crate::gz_framework::formatting::Formatter,
+        format: &[u8],
+        words: &[u32],
+        mut output_from_word: impl FnMut(u32) -> Option<SetRef>,
+    ) -> Result<i32> {
+        let mut failure = None;
+        let status =
+            crate::gz_framework::formatting::command(formatter, format, words, |text, length, word| {
+                match self.execute_text(text, length, output_from_word(word).as_ref()) {
+                    Ok(status) => status,
+                    Err(error) => {
+                        failure = Some(error);
+                        2
+                    }
+                }
+            });
+        failure.map_or(Ok(status), Err)
+    }
+    pub fn register_null_generator(&self) -> bool {
+        let mut s = self.state.write().unwrap();
+        if s.null_generator {
+            return true;
+        }
+        s.null_generator = true;
+        assert!(
+            s.commands.is_empty(),
+            "native null-generator replay recurses without progress"
+        );
+        true
+    }
+    pub fn unregister_null_generator(&self) -> bool {
+        self.state.write().unwrap().null_generator = false;
+        true
+    }
     pub fn new(conv: Rc<dyn ValueConvert>) -> Rc<Self> {
         Rc::new(Self {
             state: RwLock::new(State::default()),
@@ -96,7 +173,8 @@ impl Server {
         self.state.read().unwrap().commands.len()
     }
     pub fn generator_count(&self) -> usize {
-        self.state.read().unwrap().generators.len()
+        let s = self.state.read().unwrap();
+        s.generators.len() + usize::from(s.null_generator)
     }
     pub fn dispatcher(&self) -> Option<Rc<dyn Dispatcher>> {
         self.state.read().unwrap().active.clone()
@@ -123,9 +201,8 @@ impl Server {
         g.add_ref();
         g.init(Some(link));
         let g: Rc<dyn Generator> = Rc::new(StringGenerator(RwLock::new(g)));
-        let mut s = self.state.write().unwrap();
-        s.generators.push(g.clone());
-        s.default_generator = Some(g);
+        self.register_generator(g.clone());
+        self.state.write().unwrap().default_generator = Some(g);
         true
     }
     pub fn register(&self, id: u32, name: Option<&[u8]>, parameters: Option<&[u8]>) -> bool {
@@ -140,6 +217,10 @@ impl Server {
                 parameters: description(name, parameters, s.generate_description),
             };
             s.commands.insert(id, info.clone());
+            assert!(
+                !s.null_generator,
+                "native null-generator notification recurses without progress"
+            );
             (info, s.generators.clone())
         };
         // Callbacks run without a registry lock. Ordering among generators is GZF3.
@@ -195,19 +276,27 @@ impl Server {
         words.first().map_or(0, |w| self.get_command_id(w))
     }
     pub fn register_generator(&self, g: Rc<dyn Generator>) -> bool {
-        let mut s = self.state.write().unwrap();
-        if s.generators.iter().any(|v| Rc::ptr_eq(v, &g)) {
-            return false;
+        let commands = {
+            let mut s = self.state.write().unwrap();
+            if s.generators.iter().any(|v| Rc::ptr_eq(v, &g)) {
+                return true;
+            }
+            s.generators.push(g.clone());
+            s.commands.clone()
+        };
+        for (id, info) in commands {
+            g.registered(id, &info.name, &info.parameters);
         }
-        s.generators.push(g);
         true
     }
     pub fn unregister_generator(&self, g: &Rc<dyn Generator>) -> bool {
         let mut s = self.state.write().unwrap();
         let Some(i) = s.generators.iter().position(|v| Rc::ptr_eq(v, g)) else {
-            return false;
+            return true;
         };
-        s.generators.remove(i);
+        let removed = s.generators.remove(i);
+        drop(s);
+        drop(removed);
         true
     }
     pub fn execute(&self, id: u32, input: Option<&SetRef>, output: Option<&SetRef>) -> Result<i32> {
@@ -227,9 +316,12 @@ impl Server {
         gs.iter().any(|g| g.output_text(output, out))
     }
     pub fn execute_text(&self, text: &[u8], length: u32, output: Option<&SetRef>) -> Result<i32> {
+        let Some(generator) = self.state.read().unwrap().default_generator.clone() else {
+            return Ok(2);
+        };
         let mut id = 0;
         let mut input = None;
-        if !self.convert_string(text, length, &mut id, &mut input) {
+        if !generator.parse_text(text, length, &mut id, &mut input) {
             return Ok(2);
         }
         let result = self.execute(id, input.as_ref(), output);
@@ -257,6 +349,7 @@ impl Server {
         s.default_dispatcher = None;
         let g = s.default_generator.take();
         s.generators.clear();
+        s.null_generator = false;
         drop(s);
         if let Some(g) = g {
             g.shutdown();

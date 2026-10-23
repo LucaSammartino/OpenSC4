@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-use super::{Result, Unsupported};
+use super::{framework::Face, Result, Unsupported};
 /// The allocator supplies storage with unspecified contents. The core never
 /// clears it; safe Rust hosts may initialize it to any bytes of their choice.
 pub trait Allocator {
@@ -7,6 +7,10 @@ pub trait Allocator {
 }
 #[derive(Default, Debug)]
 pub struct Buffer {
+    refs: u32,
+    pub destroyed: bool,
+    key: u32,
+    key_enabled: bool,
     pixels: Option<Vec<u8>>,
     width: u32,
     height: u32,
@@ -18,8 +22,27 @@ pub struct Buffer {
     pub modifications: u32,
 }
 impl Buffer {
-    pub fn query_interface(&self, _iid: u32) -> Result<()> {
-        Err(Unsupported("GZF10"))
+    pub fn query_interface(&mut self, iid: u32, out: &mut Option<Face>) -> bool {
+        let face = match iid {
+            1 | 0x20732180 => Face::Primary,
+            0x86D72B57 => Face::Secondary,
+            _ => return false,
+        };
+        self.add_ref();
+        *out = Some(face);
+        true
+    }
+    pub fn add_ref(&mut self) -> u32 {
+        self.refs = self.refs.wrapping_add(1);
+        self.refs
+    }
+    pub fn release(&mut self) -> u32 {
+        self.refs = self.refs.wrapping_sub(1);
+        if self.refs == 0 {
+            self.destroyed = true;
+            self.pixels = None;
+        }
+        self.refs
     }
     pub fn init(
         &mut self,
@@ -61,9 +84,9 @@ impl Buffer {
         }
         true
     }
-    pub fn unlock(&mut self, _flags: u32) -> bool {
+    pub fn unlock(&mut self, flags: u32) -> bool {
         self.nesting = self.nesting.wrapping_sub(1);
-        self.lock_flags = 0;
+        self.lock_flags &= !flags;
         true
     }
     pub fn width(&self) -> u32 {
@@ -101,9 +124,17 @@ impl Buffer {
             _ => 0,
         })
     }
-    /// Color-key defaults and QI identity are not supplied by the bridge table.
-    pub fn colour_key(&self, _out: &mut u32) -> Result<bool> {
-        Err(Unsupported("GZF10"))
+    pub fn colour_key(&self, out: &mut u32) -> Result<bool> {
+        if !self.key_enabled {
+            return Ok(false);
+        }
+        *out = self.key;
+        Ok(true)
+    }
+    /// Fixture injection, not a claim about the uncovered native key setter.
+    pub fn attach_colour_key(&mut self, key: u32, enabled: bool) {
+        self.key = key;
+        self.key_enabled = enabled;
     }
     pub fn uncovered_storage_operation(&self) -> Result<()> {
         Err(Unsupported("GZF6"))
