@@ -1,6 +1,8 @@
 # simgrid: open questions
 <!-- Questions about [simgrid.md](../simgrid.md). Append new entries at the END; when one is answered, move it to answered/simgrid.md. Rules: README.md. -->
 
+<!-- SG3 (glue-simgrid-lots-shadow5): answered in simgrid sections 6.2.1–6.2.2; entry moved to answered/simgrid.md. -->
+
 <!-- from: glue-simgrids4 (2026-10-21) -->
 - **SG1 - section 6.3 (with sections 4 and 6.4.5):** a layout-compatible replacement of the grid class
   (`enable = simgrids`, engine/plugin/FC4SimGridLogic.h) keeps `vector<vector<T>>` in the STLport layout with
