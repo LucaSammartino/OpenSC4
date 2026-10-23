@@ -109,7 +109,8 @@ no width, depth, radius or orientation argument. Unequal rectangle dimensions
 are therefore not a native input case for this entry.
 
 The operation sequence is: read x; request s1 and compute the x floor-product;
-request s2 and finish x; read y and z; request s3 and compute the z floor-product;
+request s2, then read y and z while completing the x offset/add/store;
+request s3 and compute the z floor-product;
 request s4 and finish z; request s5 and compute scale/flags; reload H; send one
 transform. Primary ranges: `0x005FB3AF–0x005FB425`,
 `0x005FB428–0x005FB463`, `0x005FB466–0x005FB4C7`.
