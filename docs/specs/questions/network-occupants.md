@@ -108,6 +108,10 @@ implementer of the class tables and records.
   position/reinsertion and visibility. Existing §6.2/test 20 already supplies both packing tuples and
   the discarded renderer +28 result. Texture/model composition, Draw/Pick, transform/bounds/sort and
   message decisions remain open; these partial rules do not close NO36.
+  **Progress 2026-10-23 (re-netocc-poles5):** §6.2.2/tests 46–48 now settle cached local/world
+  bounds, transform counter/mask copies, texture-ID sorting, pick eligibility/height/strict distance,
+  ordinary texture resource tables and stale-ID behavior on replacement failure. Full model construction,
+  MySim/label composition, Draw and message owner algorithms remain open. NO44 is answered separately.
 
 <!-- from: re-ugbase (2026-10-20) -->
 - **NO38 - §2.1, §2.2:** what the property holder's fixed `true` for `HasProperty(0x88696402)` (`0x00619500`)
@@ -127,6 +131,10 @@ implementer of the class tables and records.
   `CreatePieceModel`, `CreateWalls`, `CreateFloor` and `Draw` (`0x006562B0`, `0x00655850`, `0x00655F10`,
   `0x00656010`, `0x00656E90`); which descriptor words they read and how the ratio tables T1 and T2 enter the
   vertices. [as read]
+  **Progress 2026-10-23 (re-netocc-poles5):** §3.6.2/tests 49–50 settle the connection's standalone
+  CreateFloor/CreateWalls/AddWallQuad behavior without an attached occupant, clearing/append semantics,
+  attached early exits and the shared-A-drop wall V quirk. Descriptor-dependent piece/geometry dispatch,
+  underground base geometry and Draw/transform/box algorithms remain open.
 
 <!-- from: re-ugbase (2026-10-20) -->
 - **NO41 - §3.1, §3.6:** what the saved underground `+0x268` (returned by slot 96, set by nothing in these
@@ -140,6 +148,3 @@ implementer of the class tables and records.
 - **NO43 - §4.2, §4.6, §4.7:** the pole's floor and walls (`CreateFloor` `0x0064BFD0`, `AddWallQuad` `0x0064C2C0`,
   `CreateWalls` `0x0064C470`), `Draw` and `DrawPowerlines` (`0x0064C800`, `0x0064B750`), `GetBoundingBox`
   (`0x00649A00`), `Pick` (`0x0064A870`) and the cell walk under a wire (`0x0064A4D0`) in detail. [summary]
-
-<!-- from: core-netocc-poles5 (2026-10-23) -->
-- **NO44 - §6.1 constructor enum defaults:** what initial 32-bit values does the pylon constructor assign to UI state +6C, dispatch state +70 and dispatch type +74? The published constructor defaults cover dirty, references, transform, call, blink, drag and the v5 tail but do not specify these three values. [unpublished; core construction requires the three values as explicit inputs rather than assuming zero]

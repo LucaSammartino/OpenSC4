@@ -191,7 +191,9 @@ The static resource callback Releases/nulls its manager but leaves the latch set
 tuples and renderer +28's discarded result are in §3.6.1. Main slot 40 is SetLinkedOccupant, not a
 view-dependent-model predicate; main slot 41 reloads zoom-dependent textures, not model enumeration.
 Main slot 36 enumerates one adjusted model-instance pointer with one AddRef. SetPosition copies position
-only. Geometry/drawing, remaining message/view/transform decisions and descriptor interpretation remain UG5.
+only. The unattached connection floor/wall builders and their slope-UV quirk are specified in
+network-occupants.md §3.6.2, with conformance cases in its §13 tests 49–50. Descriptor-dependent
+geometry/drawing and remaining message/view/transform decisions remain UG5.
 
 ## 5. Vtables and thunks
 

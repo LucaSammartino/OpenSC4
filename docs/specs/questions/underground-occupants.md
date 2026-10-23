@@ -21,3 +21,8 @@
   callback latch preservation, three packing tuples, linked-reference changes, model-state notification,
   model enumeration and position copies. Remaining: complete descriptor-dependent geometry, Draw,
   transform/view-dependent behavior, bounds and message decisions. Kept open for those owner requirements.
+  **Progress 2026-10-23 (re-netocc-poles5):** network §3.6.2/tests 49–50 publish standalone unattached
+  connection floor/wall generation, attached early exits and shared-A-drop wall UVs. The remaining
+  descriptor-dependent geometry, Draw, transform/view behavior, bounds and messages are still open.
+  Export address `0x00648360` is the pipe-interface query, not a transform getter; do not infer a
+  transform contract from its stale decompiler label.

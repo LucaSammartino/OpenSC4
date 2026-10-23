@@ -1,5 +1,11 @@
 # network-occupants: answered questions (archive)
 
+<!-- from: core-netocc-poles5 (2026-10-23) -->
+- ~~**NO44 - §6.1 constructor enum defaults:** what initial 32-bit values does the pylon constructor assign to UI state +6C, dispatch state +70 and dispatch type +74? The published constructor defaults cover dirty, references, transform, call, blink, drag and the v5 tail but do not specify these three values. [unpublished; core construction requires the three values as explicit inputs rather than assuming zero]~~
+  **ANSWERED 2026-10-23 (re-netocc-poles5):** DIFFERS — §6.1 and §13 test 45: UI=1,
+  dispatch state=0; dispatch type is not initialized and retains allocation bytes. No third numeric
+  default exists. Verified both most-derived and basic-model constructor instruction stores.
+
 <!-- from: core-netocc-close5 round 2 (2026-10-23) -->
 - ~~**NO35 - section 4.4 power-pole record and live layout:** please specify the wire-point list count
   encoding, the three `0x006574A0` struct stream bodies, exact four vertex offsets/order and live-to-record
