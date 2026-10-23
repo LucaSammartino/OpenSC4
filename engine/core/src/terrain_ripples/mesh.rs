@@ -243,8 +243,7 @@ pub fn fade(vertices: &mut Vec<Vertex>, alpha: [u8; 2], configured: u32) -> Resu
     }
     vertices.truncate(vertices.len() & !1);
     let ramp = (vertices.len() / 4).min(configured as usize);
-    for side in 0..2 {
-        let full = alpha[side];
+    for (side, &full) in alpha.iter().enumerate() {
         let first = (f64::from(full) * f64::from(0.1_f32)).trunc() as u32 as u8;
         let increment = ((f64::from(full) * f64::from(0.9_f32) / f64::from(configured)).trunc() as u32 as u8).max(1);
         let mut value = first;

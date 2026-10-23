@@ -11,12 +11,13 @@
 - Round 2: README Owner closure table covers §§1.1–1.5,2.4–2.7 and all ripple-applicable §6 vectors; CONFORMANCE and diagnostic-helper comments refreshed.
 - Round 2: filed WR14 for delayed pending flag; literal implementation retains double detection with code comment and fixture. WR12/WR13 were filed in round 1.
 - Round 2: empty retained collection does not require RNG on tick. Rust files formatted through apply_patch generated from rustfmt temp copies; explicit fmt check and full all gate next.
-- Done: initial plan commit 4d65410f; reserved detached worktree reused, initial status clean.
 - Done: added shore.rs (ordered trace), mesh.rs (partial-pair strip traversal, fade, RNG/animation), render.rs (bounds and foreign renderer trait).
 - Done: extended existing WaterRipple in ripple.rs with geometry ownership, drawing, native scheduling and reference/Pick/lifecycle entry points; extended foreign terrain primitives and shared process RNG/render-state storage.
-- Done: existing 51 focused tests passed after implementation, before adding tests_owner.rs; log build-runs/q/20261023-142627-42828.log.
 - Done: added tests_owner.rs owner fixtures/conformance tests; updated stale scheduling assertions in tests.rs; all compiled/executed in round 2.
-- Next: run qbuild all once on stable final source, inspect terminal PASS/FAIL and logs, report actual cargo/clippy/CTest counts.
+- Milestone 2c95ff89: closure table, owner fixtures and audit committed; fmt 9 files clean.
+- Gate 1 terminal FAIL: qbuild reports cargo 5923/0, clippy three code errors; CMake configure stalled 525.8s in Ninja compiler probes (no CPU/children). Stopped only this operation's checked probe/configure processes; CTest skipped.
+- Evidence: build-runs/gate1-clippy-failed.log; build-runs/fc4verify-configure.log (preserve before retry), build-runs/qbuild-test.log. Fix iterator/fixture constants; retry full gate once after actual diagnostics.
+- CMake diagnostic: Ninja 1.11.0 --version and dry-run work, real compiler probe also stalls with -j1 and no child process. Stopped only checked diagnostic Ninja PID 4456; collected session 25293. Compiler probe infrastructure remains unresolved.
 - Audit resolved as literal sequence + WR14; delayed path does not invent pending-clear. Native confirmation remains open.
 - Audit: exact x87 math unsupported (WR13); legacy diagnostics explicitly distinguished from owner algorithms in README.
 - README closure table created in round 2; no complete native-membership/byte/runtime coverage claimed while WR8 remains open.

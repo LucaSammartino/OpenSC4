@@ -84,7 +84,7 @@ fn parameters() -> Parameters {
     Parameters {
         step: 0.25,
         spacing_squared: 256.0,
-        turn_radians: 1.0471976,
+        turn_radians: std::f32::consts::FRAC_PI_3,
         advance: 0.15,
         outer: 45.0,
         inner: 1.0,
@@ -135,7 +135,7 @@ fn owner() -> (WaterRipple, Arc<Sea>, Arc<Factory>, Arc<Mutex<retained::RipplePr
             vec![45.0, 40.0, 35.0, 30.0, 26.0],
             vec![1.0; 5],
             vec![0.2; 5],
-            vec![1.0471976; 5],
+            vec![std::f32::consts::FRAC_PI_3; 5],
         ];
         p.tuning.bytes = [vec![100, 150, 200, 255, 255], vec![100, 150, 200, 255, 255]];
         p.random = Some(NativeRandom { state: 1 });
