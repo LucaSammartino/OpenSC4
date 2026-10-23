@@ -1,0 +1,8 @@
+# Framework strings: answered questions
+
+Questions about [rz-strings.md](../../rz-strings.md).
+
+<!-- from: core-rzstrings5 (2026-10-23) -->
+- **RZS6 — §5, Sprintf numeric conversion and unvectored flag combinations:** What exact digit conversion, default precision, rounding, exponent spelling, non-finite spelling and alternate-form rules apply to e/E/f/g/G, and what byte spelling does p produce? Please also pin integer zero with zero precision, alternate octal/hex prefixes and interaction of numeric precision with zero field padding. The syntax inventory alone does not define these outcomes. [Core owns parsing, argument selection, integer digits and field assembly; float/pointer digit conversion is an explicit caller-supplied FormatPrimitives boundary pending this answer, never an assumed whole-format host printf. Unvectored integer precision/prefix combinations use the literal conventional digit interpretation, marked in code; native parity for those combinations remains open.]
+
+  **ANSWERED 2026-10-23 (re-rzstrings-rzs5):** DIFFERS — §5.1 and RZ21–RZ40 specify the bundled runtime's 17-significant-digit intermediate, decimal half-up rounding, default precision 6 (zero `g` precision means 1), precision cap 512, three-digit signed exponents, alternate floating forms and legacy non-finite text. Pointer output is eight uppercase hex digits without a prefix. Integer zero is never suppressed by zero precision; alternate octal/hex prefixes are unconditional, precision excludes prefixes and does not disable zero field padding, which precedes the prefix. Conventional host printf combinations therefore differ. The vectors are static RE deductions, not native execution measurements; RZS1–RZS5 remain separate.
