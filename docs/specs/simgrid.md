@@ -230,8 +230,8 @@ can preserve geometry independently of current tuning. All entries cover the ent
 | power | `GetPoweredGrid` (35 const / 36 mutable) | uint8 | 1 / C (256 × 256) | `0x49D5BC86`; both slots alias one grid |
 | plumbing | `GetWateredGrid` (7) | uint8 | 1 / C (256 × 256) | published role; ID alternates `0x49D5BBA1` / `0x49D5BB8C` |
 | crime | `GetCrimeGrid` (5) | uint8 | tuning `0x47E2C200`, default 2 / D(S) (128 × 128) | `0x89D5B895` |
-| fire protection | coverage getter (5) | uint8 | 2 / D(2) (128 × 128) | adjusted `0x49D5B8F9` |
-| police | coverage getter (5) | uint8 | 2 / D(2) (128 × 128) | adjusted `0x49D5BBB9` |
+| fire protection | `GetFireProtectionGrid` (5) | uint8 | 2 / D(2) (128 × 128) | adjusted `0x49D5B8F9` |
+| police | `GetPolicePowerGrid` (5) | uint8 | 2 / D(2) (128 × 128) | adjusted `0x49D5BBB9` |
 | flammability | `GetFlammabilityGrid` (5) | uint8 | 1 / C (256 × 256) | adjusted `0x49D5B953` |
 | aura | `GetAuraGrid` (12) | int8 | 4 / D(4) (64 × 64) | `0x69D5B600` |
 | aura | `GetParkMap` (14) | int16 | 4 / D(4) (64 × 64) | `0x49D5B602` |
