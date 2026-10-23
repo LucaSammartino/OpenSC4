@@ -17,8 +17,9 @@
 - Milestone ebd8bba9: definitions/defaults/inheritance/publication and effectBase (EC51–68), particle registration (EC69–71), dynamic/sequence/shake/light children and registrars (EC120–160), rotation RO1–6.
 - Added rotation Arithmetic instruction backend and RO1–6 fixtures; legacy parse_options uses it, default absent backend returns Numeric (EFP7).
 - Latest focused parser suite 60/60 passed; fmt all 14 module .rs files clean; diff --check clean.
-- Full gate started once on current source: session 83508; cargo workspace 6182 passed/0 failed, clippy clean; CMake configure still pending at compiler ABI detection. Collect SAME session to terminal; do not start another gate.
+- Prior gate session 83508 is not available in resumed transport (write_stdin reports unknown session); preserved logs show cargo workspace 6182 passed/0 failed, clippy clean, CMake configure incomplete at compiler ABI detection. Do not describe this as a passed full gate.
 - Gate logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-configure.log. Configure log stalled since 18:58:28 local; Get-CimInstance process inspection denied, no process killed, no duplicate build. Session 83508 MUST be collected on resume.
 - Dynamic model keeps full signed EAX and selected indices as separate primitive inputs (EC126/130); no guessed native full-register return.
 - Definitions use sparse native-coordinate maps with absent indeterminate words; reuse existing effects::EffectDescription and ComponentRecord for visual/runtime payloads.
 - Commands methods return before generic push/pop; no turnkey script interpreter/lexer wired yet. Complete settled handler routing before claiming final closure.
+- Current milestone: particle §§19.18–26 implemented; five focused tests cover EC72–119 (5/5 passed). Next: decal §§19.35–38; resource/timed/warp/source/emit/force §§19.39–51; nested dictionaries §19.52; final owner table and full gate.
