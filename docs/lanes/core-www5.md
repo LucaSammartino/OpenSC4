@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-www5: web/network owner closure | Codex, core-www5 | in progress | Inspect existing core and spec; implement owner closure |
+| core-www5: web/network owner closure | Codex, core-www5 | in progress | Collect pending native request, then gate final source |
 
 ## Handoff
 - Goal: close WWWSystem, HTTPClient, CookieManager and NetworkFileCache in core only.
