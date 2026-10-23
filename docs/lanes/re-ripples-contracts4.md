@@ -1,31 +1,64 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-ripples-contracts4: exact ripple and selection contracts | Codex / `re-ripples-contracts4` (RE spec lane; reserved detached worktree) | in progress: original final round 3 | Publish finite WR8 caller conversion/state and nested storage contracts. |
+| re-ripples-contracts4: exact ripple and selection contracts | Codex / `re-ripples-contracts4` (RE spec lane; reserved detached worktree) | ready: bounded WR8 docs publication; questions/docs/analytic checks passed; no game or engine gates | Coordinator review/land; WR1–WR3 and narrowed WR8 remain open; no whole-owner credit. |
 
-## Handoff
-- Done milestone 1 `2e5c3c7d`: tuning conversion/state contract §2.6; numeric/array ledgers are independent and UNEXECUTED.
-- Done milestone 2: §2.7 nested geometry ownership/signatures, capacity/alias domains, destruction/reference order and P/F evidence ledger. Corrects misleading historical helper roles (60630 strip assignment; 60740 insertion; 60790 erase; 61630 range assignment).
-- Next: independent analytic script checks; reconcile WR8 partial note/WR7 overview and append proposed vector references; bounded docs validation then final report/own normal queue.
-- Round 3 milestone 1: §2.6 positively binds scalar helper slots, target temporaries and numeric range gates; raw-array copy versus conversion, absence/reset/re-Init ledger published. No native execution.
-- Evidence identity: working exe 1.1.641.0 SHA256 `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b` equals export-summary executable SHA256.
-- Next: finish instruction-backed nested storage contracts at `00760480–007607E6` and `00761590–00761789`; reconcile current question text and overview without archiving WR8 whole.
-- Round 3 authority: copied host proof and eligibility note admit original FINAL3, expected round 3; current manifest `run4-re-ripples-contracts4-r3-manifest.json`. Historical STOP below remains historical.
-- Round 3 next: primary export/instruction trace of `00760060`, then owned nested geometry copy/destruction helpers. Preserve all 21 prior unexecuted vectors and unresolved owner totals.
-- Local q.py Bash backend returns E_ACCESSDENIED; use bounded PowerShell commands and local apply_patch. No REA retry/process repair.
-- Goal: round 2 resolves ONLY remaining WR7/WR8 contracts, spec text only.
-- Done: 3b970a37 WR5; 33ace687 WR4/WR6/WR9/WR10; c7cfb5ae partial WR7/WR8; 613177cf final report/inventory and signed IDIV correction.
-- Done round 2 milestone 1: 69fc2a72 publishes WR7 proof in §2.3/vectors 16–18; moved WR7 to answered.
-- Done round 2 milestone 2: 539764ee publishes §§2.4–2.5 actual owner dispatch tables/refcounts/deletion, process reset, global tuning copies and unsafe resource failure; vectors 19–21.
-- Exact next step: coordinator review only. Guard PARKED: user directed STOP RE, prioritize verified/replaced; no further RE round authorized.
-- WR7 closed: black source PE zero-fill, 193 initial buckets/prime resize/prepend rehash/clear retains capacity, first-operand NaN/equality.
-- WR8 residual: literal helper signatures/attribution and 65/15308 vs 69/15276 reconciliation; shared scalar ConvertTypes matrix. Lifecycle/array/resource paths proved.
-- Native address-window inventory 69 bodies/15276 bytes is not the brief's 65/15308 owner attribution; no whole-owner credit.
-- Native findings and vectors: docs/specs/water-ripples.md; WR7 moved to answered, WR8 remains open; its older partial note is superseded by §§2.4–2.5.
-- REA failed target_unavailable/No app is open; export, decomp and executable-data fallback used.
-- Last successful checks: questions index generated, git diff --check passed; no engine tests/game runs or ABI changes.
-- Latest guard denial prevented the next spec/question patch entirely. No queue file written. Return blocked, not continue.
+## Round 3 final report (2026-10-23)
 
-## Round 2 report (2026-10-22; supersedes historical report below)
+This is the original same-name FINAL3 round, admitted by copied
+`build-runs/coordinator-ripples-final-host-proof.json` and eligibility note, using own current
+`C:/Users/tlori/FreeCity4/build-runs/run4-re-ripples-contracts4-r3-manifest.json` (lane/re/path/round 3).
+It supersedes the historical STOP-only handoff at `3b041896`; the round-1/2 findings, reports, old STOP and
+NoApp evidence below remain historical, not current host admission or a target-repair claim.
+
+- `2e5c3c7d`: substantive tuning caller contract in water-ripples §2.6. Actual helper slots/target tags
+  positively bind to published data-formats §5.1 conversion; matching-type fast paths, target temporary
+  mutation, output-on-success gate, numeric Bool..RZChar widening, all-64-bit bool versus low32 uint32 and
+  unsigned minimum clamp are explicit. No generic parser/locale/CRT conversion rewrite.
+- `66771b88`: substantive owned storage contract in §2.7. Literal `0x4C` strip / `0x54` node / `0x38`
+  shore layouts, deep point/vertex/rectangle/list copies, assignment capacity and alias domains, range
+  operations, forward destruction/free order and separate terrain/binding references. Selection insertion
+  copies literal records (one padding byte excluded); clear/destruction has no payload virtual Release.
+- Corrected historical helper labels: `00760630` assigns a strip; `00760740` inserts a copied node range;
+  `00760790` erases a list range; `00761630` assigns a shore range, with empty input at actual clear callers.
+  Historical A/R table below is not updated/promoted by subtraction; current per-body P/F ledger is §2.7.
+- Reconciled WR7 overview and WR8 partial question against §§2.4–2.7. WR8 is **not** archived as wholly
+  answered. WR1–WR3 remain untouched/open; no new question IDs. Current question file:
+  `docs/specs/questions/water-ripples.md`; index regenerated and check passed.
+- All original 21 proposed vectors retained. New §2.6/§2.7 literal ledgers and §6 groups 22–24 distinguish
+  numeric scalar conversion, absence/whole-exemplar failure/reset/re-Init, six-element copy/five-index
+  posttransform and independent nested copy/list assignment/free order. All remain **UNEXECUTED**.
+  §6 item 25 publishes the retained pending 0,75077,1..191,192 discriminator (193→389 reversal), not new
+  native execution or recycled old-vector credit. Applies to the positively matched selection helper
+  `004F0940`; no inference to TickTK4 or another owner.
+
+Evidence: primary `re_query.py` func/asm --bytes/callers/callees/vtable, main-checkout export and bounded local
+decomp navigation. Working exe FileVersion 1.1.641.0 SHA256
+`3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b` equals export-summary executable SHA256.
+No new REA request: historical NoApp fallback preserved; no target open/close, new server, npm preflight or
+process actions. q.py's Bash backend still returns E_ACCESSDENIED; bounded PowerShell used instead.
+
+Validation: ignored `build-runs/r3-ripple-analytic.py` passed executable/export identity, three getter slots,
+integer and target dispatch operands, relevant float operand, independent numeric/retained-array/free-order
+arithmetic and pending rehash derivation. It reads bytes only and never loads/calls native code or reads
+implementation outputs. Eight local Markdown file destinations passed existence checks; this is not a full
+anchor checker. `python tools/questions.py index`, `python tools/questions.py check` and `git diff --check`
+passed. Engine cargo/clippy/ctest and game/shadow checks are n/a for this docs-only role. No game runs,
+ABI exports/proposals/version changes, engine/tests/private implementation reads or generated coverage edits.
+
+Remaining WR8: positive complete-owner membership and remaining signatures beyond the bounded ledger;
+65 functions/15308 bytes versus 69 address-window bodies/15276 bytes remains **UNRECONCILED**. Pick's four
+semantic argument types remain opaque32/no-output-false, with no typed native-call recipe. Foreign
+text/object/exception/allocator/error/reentrancy policies outside already applicable common specs are not
+completed here. Invalid backing/short arrays remain unsafe, not safe-zero/fallback cases; no rollback,
+coherent-Drop, global floating PC/RC, runtime/default/native-equivalence or full owner/byte-coverage claim.
+
+Next: coordinator reviews and lands this coherent bounded docs publication via the lane's own normal queue;
+residual questions are explicitly available for separately authorized work. No fourth round/self-restart,
+subagents/messages, shared queue/state edits, branch/ref changes, merges/rebases or pushes performed.
+Detached commits succeeded despite nonfatal packed-refs.lock warnings; supervisor publishes reserved refs.
+Own normal queue: `build-runs/merge-queue/re-ripples-contracts4.json`, kind docs, abi false, game_runs empty.
+
+## Historical round 2 report (2026-10-22; retained, superseded by round 3 above)
 
 - `69fc2a72`: WR7 answered. Actual black palette source is PE zero-fill, copied once at first plain draw; corner heights choose the second operand only for ordered first<second, preserving first NaN/equal-zero bits; constructor request 100 gives 193 buckets, head insertion, prime-ladder growth, ascending-old-bucket prepend rehash, clear retaining capacity. Spec §2.3 and independent vectors 16–18.
 - `539764ee`: WR8 substantive proof. Actual primary/reference/message vtables and adjustment paths are in §2.5, including folded-name corrections. Constructor refcount 0; Release deletes at count 0/1, RemoveRef never deletes; destructor does not Shutdown. Reset callback only clears shared tuning flag. Tuning resource/property absence is not transactional; owned global vectors copy raw variant arrays without type/length validation, then spacing/turn elements 0..4 transform unchecked. False texture acquisition nulls current-strip then appends a strip; unresolved cached binding later dereferences +4. Spec §§1.3,2.4–2.5 and vectors 19–21.

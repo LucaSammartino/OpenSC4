@@ -28,8 +28,9 @@ drawn over the terrain with a depth offset.
 
 ### 1.1 Tuning (`ReadTuningParameters`, `0x00760060`)
 
-Read once (the first `Init`) from the exemplar `0x6534284A / 0x88CD66E9 / 2` ("Ripple Properties", `SimCity_1.dat`).
-"Per zoom" values are 5 entries, zoom 0–4.
+Read on the first eligible process-wide `Init`, and again after the process reset callback (§§2.4,2.6), from
+exemplar `0x6534284A / 0x88CD66E9 / 2` ("Ripple Properties", `SimCity_1.dat`). Shipped "per zoom" values
+have 5 entries, zoom 0–4; the native reader does not validate that count. "Shipped" is not an absent-property default.
 
 | Property | Shipped | Use |
 |---|---|---|
@@ -510,8 +511,9 @@ DoMessage(message pointer) at `0x00761F80` (§1.5). No Init, Shutdown or Cleanup
 | Ripple | DetectShores `00761B70`, AddShore `00761A00`, CreateRipples `00761CF0`, shore traversal `00761140`, spline `0075FC40`, StartNewRipple `00760EE0`, preparation `0075FEE0` | §§1.2–1.3; resource failure contract above |
 | Ripple | DrawRipple `0075FE70`, grouped bounds `007609B0/00761010`, contact `0075FB40/007607F0`, edit `00760E10`, tick `00761E70`, remove-last `007606B0` | §§1.4–1.5; message dispatch table above |
 
-WR8 remains open for a full literal signature/owner attribution of the allocation/copy/template helpers and
-reconciliation of the brief's 65 functions/15308 bytes with the 69-body/15276-byte address-window inventory.
+WR8 remains open for remaining literal signatures/owner attribution beyond the bounded storage contracts in
+§2.7, Pick's semantic argument types, and reconciliation of the brief's 65 functions/15308 bytes with the
+69-body/15276-byte address-window inventory.
 The vtable checklist, direct lifecycle/resource
 paths and array copy/failure rules above are proved independently of those residuals; no whole-owner credit.
 
@@ -710,6 +712,7 @@ sizes are export body bytes, not attribution totals.
 
 | Body range | Bytes | Status / published operation |
 |---|---:|---|
+| `00760060–0076032E` | 719 | P: tuning normal caller CFG, numeric/common converter binding and raw arrays (§2.6); foreign conversions and unsafe backing excluded |
 | `00760480–007605A5` | 294 | P: vertex assignment, all three ordinary size/capacity cases |
 | `007605B0–0076062A` | 123 | P: strip copy construction |
 | `00760630–007606A2` | 115 | P: strip assignment |
@@ -744,15 +747,20 @@ animation tick drives the ripples.
 
 1. The palette index of §2.2 is not checked.
 2. `0x491C9C01` serves both as the minimum shore length and as the base of the edit threshold (§1.5).
-3. Texture acquisition failure needs the WR8 control-flow proof; no safe empty-strip behavior is promised (§1.3).
+3. Texture acquisition failure follows the WR8 control-flow proof in §§1.3,2.4; no safe empty-strip behavior is promised.
 
 ## 5. Open questions
 
-See [questions/water-ripples.md](questions/water-ripples.md). WR4–WR6 and WR9–WR10 have native contracts here;
-WR7–WR8 retain explicit draw/lifecycle obligations. WR1–WR3 remain separate semantic questions; in particular,
+See [questions/water-ripples.md](questions/water-ripples.md). WR4–WR7 and WR9–WR10 have native contracts here;
+WR7 was answered in §2.3. WR8 has bounded lifecycle, caller and storage contracts in §§2.4–2.7 and retains
+the explicit owner-attribution/signature residuals. WR1–WR3 remain separate semantic questions; in particular,
 bit 1 is a temporary trace visit mask here, not evidence that it means water.
 
 ## 6. Conformance tests
+
+All entries are proposed **UNEXECUTED** vectors, not native/game outputs or implementation validation.
+Round 3 adds caller/storage ledgers in §§2.6–2.7 and entries 22–24 below. Entry 25 records a previously
+pending rehash discriminator; it is not new native execution or additional credit for the older WR7 vectors.
 
 1. **Spline:** with points (0, 0), (16, 0), (32, 0), (48, 0) and t = 0, P = (16, 0) and the tangent is +x.
 2. **Strip width:** at zoom 4, φ = 0: the outer vertex is 26 m out, the inner 1 m in.
@@ -795,3 +803,19 @@ bit 1 is a temporary trace visit mask here, not evidence that it means water.
 21. **WR8 failure:** a first failed ripple texture request nulls current-strip but appends a new strip; if no
     later request succeeds, preparation reaches null-binding+4. A first missing spacing property similarly
     reaches empty-vector element 0. Neither yields a safe empty successful result or transactional rollback.
+22. **WR8 scalar caller ledger:** use the literal typed rows in §2.6, including Float32 0.75 → enabled=false,
+    Float32 −1.75 → minimum `FFFFFFFF`, and Uint64 `00000001_00000000` → bool true but minimum 2.
+    Missing minimum preserves the old value before the unsigned clamp; this differs from a conversion to zero.
+23. **WR8 copy/absence/reset ledger:** copy spacing `[2,3,4,5,6,99]`, retaining count 6 and untransformed
+    sixth element; reset then reload with 02 absent gives the second-transform row in §2.6. In contrast,
+    missing whole exemplar does no transform; no reset before re-Init skips reading. Present count zero or
+    insufficient/wrong backing is an unsupported posttransform domain, not a safe fallback expected result.
+24. **WR8 nested ownership ledger:** use §2.7's independent two-strip deep-copy/free order and list grow/shrink
+    examples, plus vertex size/capacity examples. Verify source/destination allocation independence and no
+    geometry-path AddRef/Release, with Shutdown's terrain/binding reference order observed separately.
+25. **WR7 pending rehash discriminator (retained lead):** insert 0,75077,1..191, then 192 into a fresh
+    selection table. Before the last insertion there are 193 records and bucket 0 is `[75077,0]`.
+    The last insertion requests 194, selecting 389 buckets; because `75077=193×389`, prepend rehash
+    yields bucket 0 `[0,75077]`, whereas stable rehash would leave `[75077,0]`. The plain/textured insertion
+    callers both invoke the proved helper `004F0940` (§§2.3,2.7); no prime-ladder/hash inference is transferred
+    to another owner (including TickTK4) without its own helper/caller evidence.
