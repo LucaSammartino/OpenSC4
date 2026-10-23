@@ -1,21 +1,82 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-effects-commands5b: settled effects script commands | Codex / `core-effects-commands5b` | in progress | Implement settled parser owners and vectors; full gate |
+| core-effects-commands5b: settled effects script commands | Codex / `core-effects-commands5b` | ready; Rust tests 6201/0, clippy clean, fmt 20 files clean; native gate: coordinator; ABI unchanged | Coordinator native build/CTest on final tip, then integration; EF15 residual, EFP7 and EF16 remain open |
 
-## Handoff
-- Goal: close settled effects-parser §§9–13 and effects §19 in core; no ABI/plugin changes or game request.
-- Done be2e2dbb: concrete readers, dispatch dictionaries, directory identity and final lifetime; SW/DI/LT/DR fixtures.
-- Done 46e94dd6: root owners EC1–50. Done ebd8bba9: definition blocks/effectBase EC51–71, dynamic/sequence/shake/light EC120–160, rotation RO1–6.
-- Done 72c9268b: particle scalar/rate/collision/walk/appearance EC72–119. Done 4f911aa1: decal/resource/timed EC161–208 and nested dictionaries EC272–276.
-- Done 3ab5fb5e: warp/source/emit/force/tractor EC209–271 and owner table through §19.52. Typed lists reset/clone; EC57 reads inherited tractor end bits.
-- Focused final check session 59278 completed: 79/79 parser tests passed. Explicit fmt of all 20 module .rs files passed, zero diff lines.
-- Filed EF16 in docs/specs/questions/effects.md: effects §19.52 says instance handler 00596980; effects-parser §6.1 says 0059A730. Retain both literal ledgers, keep only equal-handler claim of EC275 open. Failure evidence build-runs/parser-check-ec275-failure.txt (78/79 before annotation).
-- Remaining spec domains: EF15 residual unpublished nested execution, EFP7 numeric qualification, EF16 identity conflict. No new implementation gaps known.
-- Current FULL qbuild all is session 82804: workspace Rust tests 6201 passed/0 failed; Clippy failed one needless_range_loop in nested registration TEST. Fixed via iter().enumerate(), explicit fmt nested.rs passed. Preserved failure build-runs/failed-final-gate-clippy-1.txt. Changed source is NOT yet checked by another all; do not claim full pass.
-- CMake portion of SAME session 82804 remains pending at C compiler ABI detection (configure log timestamp 19:27:24 local). Collect SAME operation to terminal before corrected all; never launch duplicate. Functions wait cell 55 may be pending on resume. Compiler ID C and CXX succeed; scratch engine/build-x86/CMakeFiles/CMakeScratch/TryCompile-4zlppm contains generated ninja files but no completed ABI result. No process killed.
-- Current logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-configure.log. Prior source's gate session 83508 unavailable after restart; it was incomplete (6182 Rust passed, old clippy clean, stalled CMake), not a full pass.
-- Round 3 instruction supersedes the native-gate steps above: do not collect session 82804 or run CMake/CTest. Native gate: coordinator, on final tip.
-- Round 3 review: existing owner table closes settled rows through effects §19.52 / EC276; README opening now consistently lists EF16 alongside EF15 residual and EFP7.
-- Next: run qbuild test, qbuild clippy and qbuild fmt on the 20 owned parser Rust files; record each terminal verdict, then final report/commit/ready merge queue with full HEAD. On guard OVER return continue without queue.
-- Renderer/resource/sound remain foreign primitive traits. No lexer; command enter/exit methods return before generic stack pushes/pops. Full EAX fixture inputs remain separate from selected indices.
-- Formatting helper build-runs/format-patch.py emits apply_patch input from stdin rustfmt with engine/rustfmt.toml; no filename headers. q.py Bash cannot launch here; use native PowerShell.
+## Changes
+
+Implemented the settled effects-script contracts in the existing portable core
+modules, without plugin or C ABI wiring. The owner-closure tables in
+`engine/core/src/effects_parser/README.md` map each published owner/section to
+its implementation and tests through effects §19.52 / EC276.
+
+- Concrete token readers, error-prefix semantics, dispatch dictionaries,
+  directory identity and explicit final-release ordering (effects-parser
+  §§9–12; SW1–8, DI1–5, LT1–3 and DR1–6).
+- Root identifier/resource/camera/priority/preview and visual-effect commands
+  (EC1–50), definition enter/exit and effectBase (EC51–71), plus rotation
+  instruction/store ordering (§13; RO1–6).
+- Particle scalar/rate/collision/walk/appearance commands (EC72–119),
+  dynamic-particle/sequence/shake/light children (EC120–160), and
+  decal/resource/timed-effect commands (EC161–208).
+- Warp/source/emit/force/tractor commands (EC209–271) and the published
+  visual-effect/effect-group registration dictionaries (EC272–276).
+  Typed timed-effect, wiggle and tractor payloads clone on inheritance and
+  clear on description reset. EC57 retains inherited tractor end bits.
+
+Renderer, sound, resource, conversion and generic command-library services
+remain foreign traits. No lexer, runtime renderer or native parser execution
+is claimed. Entry/exit methods complete before the generic caller changes
+the block stack; failure-prefix tests retain completed mutations and calls.
+
+Implementation milestones: `be2e2dbb` reader/dispatch/lifetime, `46e94dd6`
+root commands, `ebd8bba9` definitions/children/rotation, `72c9268b` particle
+commands, `4f911aa1` resources/decal/timed effects, `3ab5fb5e` motion/force and
+final dictionaries, `223dc7f7` final Clippy fixture correction. Round 3
+`6d372b83` made the README exception list consistent; no further settled
+implementation gaps were found in this final review.
+
+## Validation
+
+Final stable source, round 3:
+
+- `qbuild test`: **PASS**, 6,201 passed, 0 failed, 0 ignored. Full evidence:
+  `build-runs/qbuild-test.log` (session 1052 collected to terminal).
+- `qbuild clippy`: **PASS**, exit 0, zero diagnostics with warnings denied.
+  Full evidence: `build-runs/qbuild-clippy.log` (session 2273 collected to terminal).
+- `qbuild fmt`: **PASS**, all 20 owned parser Rust files, zero diff lines.
+  Paths are relative to `engine/`, using forward slashes. Two earlier path
+  invocation failures checked no source; recorded in
+  `build-runs/fmt-r3-invocation-failures.txt`.
+- Prior focused parser check: 79 passed, 0 failed. The earlier EC275 failure
+  (78/79) is preserved in `build-runs/parser-check-ec275-failure.txt`; it led
+  to EF16 and an explicitly bounded identity assertion, not an inferred fix.
+- Prior full-gate Clippy failure is preserved in
+  `build-runs/failed-final-gate-clippy-1.txt`; `223dc7f7` corrected its
+  needless-range-loop fixture, validated by this round's passing Clippy gate.
+- **Native gate: coordinator.** Per the round 3 instruction, no CMake/CTest
+  was run or collected, including old session 82804. The prior incomplete
+  native configure is not a passing gate. Coordinator must build and run
+  native CTest on the queued tip.
+- Game runs/shadow: n/a, portable core only; no game request outstanding.
+  ABI exports and FC4_ABI_VERSION unchanged.
+
+## Questions and remaining boundaries
+
+- **EF15 residual**, `docs/specs/questions/effects.md`: unpublished execution
+  for the §19.52 visual-effect nested families remains open. Their published
+  registration behavior is implemented; execution is not inferred. The
+  table identifies each residual family, including select/particleSequence
+  block enter/exit and nested aliases. The pre-existing settled sequenceEffect
+  execution remains implemented.
+- **EFP7**, `docs/specs/questions/effects-parser.md`: numeric qualification
+  remains open. Rotation uses a qualified foreign arithmetic backend;
+  unsupported/unqualified numeric domains do not claim arbitrary x87 parity.
+- **EF16**, filed by this lane in `docs/specs/questions/effects.md`: effects
+  §19.52 assigns instance handler `00596980`, whereas effects-parser §6.1
+  assigns `0059A730`. Both literal registration ledgers are retained. Only
+  EC275's claim of equal root/nested handlers is open; the settled §19.4
+  instance algorithm and other EC275 registration assertions are implemented.
+
+No other settled command rows are left unsupported. Native verification and
+integration are the coordinator's next steps; future spec answers are needed
+to close only the boundaries above.
