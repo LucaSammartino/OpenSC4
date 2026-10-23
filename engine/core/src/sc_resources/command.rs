@@ -22,7 +22,9 @@ pub const BUILTINS: [&str; 15] = [
 ];
 pub trait Command: Send + Sync {
     fn execute(&self, parser: &mut CommandParser, tokens: &mut [ScriptToken]) -> Result<()>;
-    fn end_block(&self, _parser: &mut CommandParser) -> Result<()> { Ok(()) }
+    fn end_block(&self, _parser: &mut CommandParser) -> Result<()> {
+        Ok(())
+    }
 }
 impl<F> Command for F
 where
@@ -52,9 +54,18 @@ pub struct CommandParser {
 }
 impl Default for CommandParser {
     fn default() -> Self {
-        Self { references: 0, version: 1, entries: Vec::new(), names: BTreeMap::new(),
-            blocks: Vec::new(), endings: Vec::new(), variables: BTreeMap::new(), namespaces: Vec::new(),
-            macros: BTreeMap::new(), active: None }
+        Self {
+            references: 0,
+            version: 1,
+            entries: Vec::new(),
+            names: BTreeMap::new(),
+            blocks: Vec::new(),
+            endings: Vec::new(),
+            variables: BTreeMap::new(),
+            namespaces: Vec::new(),
+            macros: BTreeMap::new(),
+            active: None,
+        }
     }
 }
 impl CommandParser {
@@ -114,13 +125,18 @@ impl CommandParser {
         self.variables.insert(key, value.to_vec());
     }
     fn prefix(&self, count: usize) -> Vec<u8> {
-        self.namespaces[..count].iter().flat_map(|n| n.iter().copied().chain([b':'])).collect()
+        self.namespaces[..count]
+            .iter()
+            .flat_map(|n| n.iter().copied().chain([b':']))
+            .collect()
     }
     pub fn get_variable(&self, name: &[u8]) -> Option<&[u8]> {
         for count in (0..=self.namespaces.len()).rev() {
             let mut key = self.prefix(count);
             key.extend(name);
-            if let Some(value) = self.variables.get(&key) { return Some(value); }
+            if let Some(value) = self.variables.get(&key) {
+                return Some(value);
+            }
         }
         None
     }
@@ -192,30 +208,52 @@ impl CommandParser {
         handler.execute(self, &mut tokens)
     }
     fn builtin(&mut self, name: &str, tokens: &[ScriptToken]) -> Result<()> {
-        let exact = |n| if tokens.len() == n { Ok(()) } else { Err(parse_error(0, "Argument count")) };
+        let exact = |n| {
+            if tokens.len() == n {
+                Ok(())
+            } else {
+                Err(parse_error(0, "Argument count"))
+            }
+        };
         match name {
             "end" => {
                 let ending = self.endings.last().cloned().ok_or_else(|| parse_error(0, "No block"))?;
-                if let Some(handler) = ending { handler.end_block(self)?; }
+                if let Some(handler) = ending {
+                    handler.end_block(self)?;
+                }
                 self.pop_block();
                 Ok(())
             }
-            "version" => { exact(2)?; self.version = decimal_atol(&tokens[1].bytes); Ok(()) }
+            "version" => {
+                exact(2)?;
+                self.version = decimal_atol(&tokens[1].bytes);
+                Ok(())
+            }
             "trace" => exact(2),
-            "eval" => { exact(2)?; self.dispatch(lexical::split(&tokens[1].bytes)?) }
+            "eval" => {
+                exact(2)?;
+                self.dispatch(lexical::split(&tokens[1].bytes)?)
+            }
             "namespace" => {
                 exact(2)?;
                 self.push_namespace(&tokens[1].bytes);
                 struct Namespace;
                 impl Command for Namespace {
-                    fn execute(&self, _: &mut CommandParser, _: &mut [ScriptToken]) -> Result<()> { Ok(()) }
-                    fn end_block(&self, p: &mut CommandParser) -> Result<()> { p.pop_namespace(); Ok(()) }
+                    fn execute(&self, _: &mut CommandParser, _: &mut [ScriptToken]) -> Result<()> {
+                        Ok(())
+                    }
+                    fn end_block(&self, p: &mut CommandParser) -> Result<()> {
+                        p.pop_namespace();
+                        Ok(())
+                    }
                 }
                 self.push_block_with_end(BTreeMap::new(), Arc::new(Namespace));
                 Ok(())
             }
             "set" | "seti" | "setf" | "setv3" | "setc" => {
-                if tokens.len() < 3 { return Err(parse_error(0, "Assignment arguments")); }
+                if tokens.len() < 3 {
+                    return Err(parse_error(0, "Assignment arguments"));
+                }
                 let value = match name {
                     "set" => tokens[2].bytes.clone(),
                     "seti" => lexical::parse_int(&tokens[2].bytes)?.to_string().into_bytes(),
@@ -230,7 +268,11 @@ impl CommandParser {
                 let count = lexical::parse_int(&tokens[2].bytes)? as u32;
                 for index in 0..count {
                     let args = format!("{index} {count}");
-                    self.dispatch(vec![ScriptToken::new(0, b"create"), tokens[1].clone(), ScriptToken::new(2, args.as_bytes())])?;
+                    self.dispatch(vec![
+                        ScriptToken::new(0, b"create"),
+                        tokens[1].clone(),
+                        ScriptToken::new(2, args.as_bytes()),
+                    ])?;
                 }
                 Ok(())
             }
@@ -269,7 +311,12 @@ impl CommandParser {
                 }
                 for mut line in m.lines {
                     for token in &mut line {
-                        token.bytes = substitute(&token.bytes, b'%', |param| m.formals.iter().position(|t| t.bytes == param).map(|i| actual[i].bytes.clone()))?;
+                        token.bytes = substitute(&token.bytes, b'%', |param| {
+                            m.formals
+                                .iter()
+                                .position(|t| t.bytes == param)
+                                .map(|i| actual[i].bytes.clone())
+                        })?;
                     }
                     self.dispatch(line)?;
                 }
@@ -284,53 +331,111 @@ fn substitute(input: &[u8], marker: u8, mut lookup: impl FnMut(&[u8]) -> Option<
     let mut out = Vec::new();
     let mut at = 0;
     while at < input.len() {
-        if input[at] != marker { out.push(input[at]); at += 1; continue; }
+        if input[at] != marker {
+            out.push(input[at]);
+            at += 1;
+            continue;
+        }
         let left = at;
         at += 1;
         let braced = input.get(at) == Some(&b'{');
         at += usize::from(braced);
         let start = at;
-        while input.get(at).is_some_and(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b':')) { at += 1; }
+        while input
+            .get(at)
+            .is_some_and(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b':'))
+        {
+            at += 1;
+        }
         let value = lookup(&input[start..at]).ok_or_else(|| parse_error(0, "Unknown substitution"))?;
-        if braced && input.get(at) == Some(&b'}') { at += 1; }
+        if braced && input.get(at) == Some(&b'}') {
+            at += 1;
+        }
         let white = |b: u8| matches!(b, b' ' | b'\t' | b'\r' | b'\n');
-        let wrap = !braced && (left == 0 || white(input[left-1])) && (at == input.len() || white(input[at])) && !(left == 0 && at == input.len());
-        if wrap { out.push(b'('); }
+        let wrap = !braced
+            && (left == 0 || white(input[left - 1]))
+            && (at == input.len() || white(input[at]))
+            && !(left == 0 && at == input.len());
+        if wrap {
+            out.push(b'(');
+        }
         out.extend(value);
-        if wrap { out.push(b')'); }
+        if wrap {
+            out.push(b')');
+        }
     }
     Ok(out)
 }
 fn decimal_atol(bytes: &[u8]) -> i32 {
-    let bytes = &bytes[bytes.iter().position(|b| !b.is_ascii_whitespace()).unwrap_or(bytes.len())..];
+    let bytes = &bytes[bytes
+        .iter()
+        .position(|b| !b.is_ascii_whitespace())
+        .unwrap_or(bytes.len())..];
     let negative = bytes.first() == Some(&b'-');
     let start = usize::from(matches!(bytes.first(), Some(b'+' | b'-')));
-    let n = bytes[start..].iter().take_while(|b| b.is_ascii_digit()).fold(0u32, |n,b| n.wrapping_mul(10).wrapping_add(u32::from(*b-b'0')));
-    if negative { n.wrapping_neg() as i32 } else { n as i32 }
+    let n = bytes[start..]
+        .iter()
+        .take_while(|b| b.is_ascii_digit())
+        .fold(0u32, |n, b| n.wrapping_mul(10).wrapping_add(u32::from(*b - b'0')));
+    if negative {
+        n.wrapping_neg() as i32
+    } else {
+        n as i32
+    }
 }
 fn transformed_value(name: &str, tokens: &[ScriptToken]) -> Result<Vec<u8>> {
     let color = name == "setc";
-    let mut value = if color { lexical::color_alpha(&tokens[2].bytes)? } else {
-        let v = lexical::vector3(&tokens[2].bytes)?; [v[0], v[1], v[2], 0.0]
+    let mut value = if color {
+        lexical::color_alpha(&tokens[2].bytes)?
+    } else {
+        let v = lexical::vector3(&tokens[2].bytes)?;
+        [v[0], v[1], v[2], 0.0]
     };
     for switch in [b"-scale".as_slice(), b"-mult", b"-add", b"-alpha"] {
-        let Some(i) = tokens.iter().position(|t| t.bytes == switch) else { continue; };
-        let arg = tokens.get(i+1).ok_or_else(|| parse_error(0, "Missing switch argument"))?;
+        let Some(i) = tokens.iter().position(|t| t.bytes == switch) else {
+            continue;
+        };
+        let arg = tokens
+            .get(i + 1)
+            .ok_or_else(|| parse_error(0, "Missing switch argument"))?;
         if switch == b"-scale" {
             let scale = lexical::parse_float(&arg.bytes)? as f32;
-            for v in &mut value[usize::from(color)..if color {4} else {3}] { *v *= scale; }
+            for v in &mut value[usize::from(color)..if color { 4 } else { 3 }] {
+                *v *= scale;
+            }
         } else if switch == b"-alpha" {
-            if color { value[1] = lexical::parse_float(&arg.bytes)? as f32; }
+            if color {
+                value[1] = lexical::parse_float(&arg.bytes)? as f32;
+            }
         } else {
-            let other = if color { lexical::color_alpha(&arg.bytes)? } else {
-                let v = lexical::vector3(&arg.bytes)?; [v[0], v[1], v[2], 0.0]
+            let other = if color {
+                lexical::color_alpha(&arg.bytes)?
+            } else {
+                let v = lexical::vector3(&arg.bytes)?;
+                [v[0], v[1], v[2], 0.0]
             };
-            for i in 0..if color {4} else {3} { value[i] = if switch == b"-mult" { value[i]*other[i] } else { value[i]+other[i] }; }
+            for i in 0..if color { 4 } else { 3 } {
+                value[i] = if switch == b"-mult" {
+                    value[i] * other[i]
+                } else {
+                    value[i] + other[i]
+                };
+            }
         }
     }
     let output = if color {
         let mut v = value[1..].to_vec();
-        if value[0] < 1.0 { v.push(value[0]); } v
-    } else { value[..3].to_vec() };
-    Ok(output.iter().map(|v| crate::rz_streams::format_g(f64::from(*v), b'.')).collect::<Vec<_>>().join(" ").into_bytes())
+        if value[0] < 1.0 {
+            v.push(value[0]);
+        }
+        v
+    } else {
+        value[..3].to_vec()
+    };
+    Ok(output
+        .iter()
+        .map(|v| crate::rz_streams::format_g(f64::from(*v), b'.'))
+        .collect::<Vec<_>>()
+        .join(" ")
+        .into_bytes())
 }

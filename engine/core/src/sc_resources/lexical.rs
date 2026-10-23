@@ -2,7 +2,7 @@
 use super::{parse_error, Result, ScriptToken};
 use std::sync::atomic::{AtomicU8, Ordering};
 
-/// Portable process-state model of foundations §18.2. A native adapter must
+/// Portable process-state model of foundations Ã‚Â§18.2. A native adapter must
 /// mirror this transition to its floating-point environment; never restore it.
 pub static EXPRESSION_PRECISION: AtomicU8 = AtomicU8::new(24);
 
@@ -33,7 +33,9 @@ pub fn next_token(input: &[u8], cursor: &mut usize) -> Result<Option<Vec<u8>>> {
         let start = *cursor;
         let mut depth = 1;
         while let Some(&b) = input.get(*cursor) {
-            if b == first { depth += 1; }
+            if b == first {
+                depth += 1;
+            }
             if b == end {
                 depth -= 1;
                 if depth == 0 {
@@ -48,15 +50,21 @@ pub fn next_token(input: &[u8], cursor: &mut usize) -> Result<Option<Vec<u8>>> {
     }
     let mut token = Vec::new();
     while let Some(&b) = input.get(*cursor) {
-        if white(b) { break; }
+        if white(b) {
+            break;
+        }
         if matches!(b, b'\'' | b'"') {
             let quote = b;
             *cursor += 1;
             let start = *cursor;
-            while input.get(*cursor).is_some_and(|b| *b != quote) { *cursor += 1; }
-            if *cursor == input.len() { return Err(parse_error(5, "Unterminated quote")); }
-            token.extend_from_slice(&input[start..*cursor]);
+            while input.get(*cursor).is_some_and(|b| *b != quote) {
                 *cursor += 1;
+            }
+            if *cursor == input.len() {
+                return Err(parse_error(5, "Unterminated quote"));
+            }
+            token.extend_from_slice(&input[start..*cursor]);
+            *cursor += 1;
         } else {
             token.push(b);
             *cursor += 1;
@@ -76,27 +84,132 @@ pub fn count_arguments(input: &[u8]) -> Result<usize> {
     Ok(split(input)?.len())
 }
 
+// Positive dyadic x87 intermediates for the English helper's fractional factor.
+// Keeping 64 significand bits avoids silently using a binary64 factor chain.
+#[derive(Clone, Copy)]
+struct Extended {
+    mantissa: u64,
+    exponent: i32,
+}
+impl Extended {
+    fn normalize(value: u128, exponent: i32) -> Self {
+        if value == 0 {
+            return Self {
+                mantissa: 0,
+                exponent: 0,
+            };
+        }
+        let bits = 128 - value.leading_zeros();
+        if bits <= 64 {
+            return Self {
+                mantissa: (value << (64 - bits)) as u64,
+                exponent: exponent - (64 - bits) as i32,
+            };
+        }
+        let shift = bits - 64;
+        let high = value >> shift;
+        let low = value & ((1u128 << shift) - 1);
+        let half = 1u128 << (shift - 1);
+        let rounded = high + u128::from(low > half || (low == half && high & 1 != 0));
+        if rounded == 1u128 << 64 {
+            Self {
+                mantissa: 1u64 << 63,
+                exponent: exponent + shift as i32 + 1,
+            }
+        } else {
+            Self {
+                mantissa: rounded as u64,
+                exponent: exponent + shift as i32,
+            }
+        }
+    }
+    fn from_f64(value: f64) -> Self {
+        let bits = value.to_bits();
+        let exp = ((bits >> 52) & 2047) as i32;
+        let mantissa = bits & ((1u64 << 52) - 1);
+        if exp == 0 {
+            Self::normalize(u128::from(mantissa), -1074)
+        } else {
+            Self::normalize(u128::from(mantissa | (1u64 << 52)), exp - 1023 - 52)
+        }
+    }
+    fn multiply(self, other: Self) -> Self {
+        Self::normalize(
+            u128::from(self.mantissa) * u128::from(other.mantissa),
+            self.exponent + other.exponent,
+        )
+    }
+    fn add(self, other: Self) -> Self {
+        if self.mantissa == 0 {
+            return other;
+        }
+        if other.mantissa == 0 {
+            return self;
+        }
+        let (large, small) = if self.exponent >= other.exponent {
+            (self, other)
+        } else {
+            (other, self)
+        };
+        let shift = (large.exponent - small.exponent) as u32;
+        if shift > 64 {
+            return large;
+        }
+        Self::normalize(
+            (u128::from(large.mantissa) << shift) + u128::from(small.mantissa),
+            small.exponent,
+        )
+    }
+    fn to_f64(self) -> f64 {
+        if self.mantissa == 0 {
+            return 0.0;
+        }
+        // Multiplication by a normal power of two is exact until final narrowing.
+        let exponent = self.exponent + 63;
+        if exponent < -1075 {
+            return 0.0;
+        }
+        if exponent > 1023 {
+            return f64::INFINITY;
+        }
+        if exponent < -1022 {
+            let shift = (-1074 - self.exponent) as u32;
+            let value = u128::from(self.mantissa);
+            let high = value >> shift;
+            let low = value & ((1u128 << shift) - 1);
+            let half = 1u128 << (shift - 1);
+            return f64::from_bits((high + u128::from(low > half || (low == half && high & 1 != 0))) as u64);
+        }
+        (self.mantissa as f64 / (1u64 << 63) as f64) * f64::from_bits(((exponent + 1023) as u64) << 52)
+    }
+}
 // The mantissa and exponent deliberately use the legacy helper, not strtod.
 fn english_decimal(bytes: &[u8]) -> Result<f64> {
     let mut at = 0;
     let mut value = 0.0;
     while bytes.get(at).is_some_and(u8::is_ascii_digit) {
-        value = value * 10.0 + f64::from(bytes[at] - b'0');
+        value = f64::mul_add(value, 10.0, f64::from(bytes[at] - b'0'));
         at += 1;
     }
     if bytes.get(at) == Some(&b'.') {
         at += 1;
-        let mut factor = 0.1f64;
+        let tenth = Extended::from_f64(0.1);
+        let mut factor = tenth;
         while bytes.get(at).is_some_and(u8::is_ascii_digit) {
-            value += f64::from(bytes[at] - b'0') * factor;
-            factor *= 0.1;
+            let term = factor.multiply(Extended::from_f64(f64::from(bytes[at] - b'0')));
+            if value.is_finite() {
+                value = Extended::from_f64(value).add(term).to_f64();
+            }
+            factor = factor.multiply(tenth);
             at += 1;
         }
     }
     if matches!(bytes.get(at), Some(b'e' | b'E')) {
         at += 1;
         let minus = bytes.get(at) == Some(&b'-');
-        if matches!(bytes.get(at), Some(b'+' | b'-')) { at += 1; }
+        if matches!(bytes.get(at), Some(b'+' | b'-')) {
+            at += 1;
+        }
         let mut exponent = 0u32;
         while bytes.get(at).is_some_and(u8::is_ascii_digit) {
             exponent = exponent.wrapping_mul(10).wrapping_add(u32::from(bytes[at] - b'0'));
@@ -105,9 +218,13 @@ fn english_decimal(bytes: &[u8]) -> Result<f64> {
         let signed = exponent as i32;
         let power = 10i32.wrapping_pow(signed.unsigned_abs());
         let power = if signed < 0 {
-            if power == 0 { return Err(parse_error(0, "Integer reciprocal of zero")); }
+            if power == 0 {
+                return Err(parse_error(0, "Integer reciprocal of zero"));
+            }
             1 / power
-        } else { power };
+        } else {
+            power
+        };
         let scale = f64::from(power);
         value *= if minus { 1.0 / scale } else { scale };
     }
@@ -136,7 +253,9 @@ impl Expression<'_> {
     }
     fn punctuation(&mut self, byte: u8) -> Result<()> {
         self.space();
-        if self.bytes.get(self.at) != Some(&byte) { return Err(parse_error(0, "Expected punctuation")); }
+        if self.bytes.get(self.at) != Some(&byte) {
+            return Err(parse_error(0, "Expected punctuation"));
+        }
         self.at += 1;
         Ok(())
     }
@@ -149,32 +268,59 @@ impl Expression<'_> {
         }
         if self.bytes.get(self.at).is_some_and(u8::is_ascii_alphabetic) {
             let start = self.at;
-            while self.bytes.get(self.at).is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_') { self.at += 1; }
+            while self
+                .bytes
+                .get(self.at)
+                .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_')
+            {
+                self.at += 1;
+            }
             let name = &self.bytes[start..self.at];
-            if name == b"pi" { return Ok(f64::from(f32::from_bits(0x4049_0fdb))); }
-            if name == b"e" { return Ok(1f64.exp()); }
+            if name == b"pi" {
+                return Ok(f64::from(f32::from_bits(0x4049_0fdb)));
+            }
+            if name == b"e" {
+                return Ok(1f64.exp());
+            }
             self.punctuation(b'(')?;
             let a = self.sum()?;
             let b = if matches!(name, b"pow" | b"atan2" | b"datan2") {
                 self.punctuation(b',')?;
                 self.sum()?
-            } else { 0.0 };
+            } else {
+                0.0
+            };
             self.punctuation(b')')?;
             let degrees = f64::from(f32::from_bits(0x3c8e_fa35));
             let inverse = f64::from(f32::from_bits(0x4265_2ee1));
             return Ok(match name {
-                b"sqrt" => a.sqrt(), b"exp" => a.exp(), b"log" => a.ln(),
-                b"abs" => a.abs(), b"floor" => a.floor(), b"ceil" => a.ceil(), b"sqr" => a*a,
-                b"sin" => a.sin(), b"cos" => a.cos(), b"tan" => a.tan(),
-                b"asin" => a.asin(), b"acos" => a.acos(), b"atan" => a.atan(),
-                b"sind" => (a*degrees).sin(), b"cosd" => (a*degrees).cos(), b"tand" => (a*degrees).tan(),
-                b"dasin" => a.asin()*inverse, b"dacos" => a.acos()*inverse, b"datan" => a.atan()*inverse,
-                b"pow" => a.powf(b), b"atan2" => a.atan2(b), b"datan2" => a.atan2(b)*inverse,
+                b"sqrt" => a.sqrt(),
+                b"exp" => a.exp(),
+                b"log" => a.ln(),
+                b"abs" => a.abs(),
+                b"floor" => a.floor(),
+                b"ceil" => a.ceil(),
+                b"sqr" => a * a,
+                b"sin" => a.sin(),
+                b"cos" => a.cos(),
+                b"tan" => a.tan(),
+                b"asin" => a.asin(),
+                b"acos" => a.acos(),
+                b"atan" => a.atan(),
+                b"sind" => (a * degrees).sin(),
+                b"cosd" => (a * degrees).cos(),
+                b"tand" => (a * degrees).tan(),
+                b"dasin" => a.asin() * inverse,
+                b"dacos" => a.acos() * inverse,
+                b"datan" => a.atan() * inverse,
+                b"pow" => a.powf(b),
+                b"atan2" => a.atan2(b),
+                b"datan2" => a.atan2(b) * inverse,
                 _ => return Err(parse_error(0, "Unknown function")),
             });
         }
         let start = self.at;
-        if self.bytes.get(self.at..self.at+2) == Some(b"0x") {
+        if self.bytes.get(self.at..self.at + 2) == Some(b"0x") {
             self.at += 2;
             let mut value = 0u32;
             let begin = self.at;
@@ -182,11 +328,21 @@ impl Expression<'_> {
                 value = value.saturating_mul(16).saturating_add(digit);
                 self.at += 1;
             }
-            if begin == self.at { return Err(parse_error(0, "Invalid hex")); }
+            if begin == self.at {
+                return Err(parse_error(0, "Invalid hex"));
+            }
             return Ok(f64::from(value));
         }
-        while self.bytes.get(self.at).is_some_and(|b| b.is_ascii_digit() || *b == b'.') { self.at += 1; }
-        if self.at == start { return Err(parse_error(0, "Invalid numeric term")); }
+        while self
+            .bytes
+            .get(self.at)
+            .is_some_and(|b| b.is_ascii_digit() || *b == b'.')
+        {
+            self.at += 1;
+        }
+        if self.at == start {
+            return Err(parse_error(0, "Invalid numeric term"));
+        }
         if matches!(self.bytes.get(self.at), Some(b'e' | b'E')) {
             self.at += 1;
             if matches!(self.bytes.get(self.at), Some(b'+' | b'-')) {
@@ -204,7 +360,9 @@ impl Expression<'_> {
         if self.bytes.get(self.at) == Some(&b'^') {
             self.at += 1;
             Ok(a.powf(self.power()?))
-        } else { Ok(a) }
+        } else {
+            Ok(a)
+        }
     }
     fn product(&mut self) -> Result<f64> {
         let mut n = self.power()?;
@@ -218,7 +376,11 @@ impl Expression<'_> {
             }
             self.at += 1;
             let r = self.power()?;
-            n = match op { b'*' => n*r, b'/' => n/r, _ => n - (n/r).floor()*r };
+            n = match op {
+                b'*' => n * r,
+                b'/' => n / r,
+                _ => n - (n / r).floor() * r,
+            };
         }
         Ok(n)
     }

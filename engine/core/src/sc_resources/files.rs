@@ -164,35 +164,35 @@ fn parse_file(files: &mut impl Files, parser: &mut CommandParser, path: &str) ->
         .ok_or_else(|| parse_error(2, format!("Cannot open {path}")))?;
     let mut line_number = 0;
     let result = (|| {
-    while let Some(line) = lines.read_line() {
-        line_number += 1;
-        let tokens = lexical::split(&line)?;
-        if tokens.is_empty() {
-            continue;
-        }
-        if matches!(tokens[0].bytes.as_slice(), b"include" | b"sinclude") {
-            if tokens.len() != 2 {
-                return Err(parse_error(0, "Include requires one argument"));
+        while let Some(line) = lines.read_line() {
+            line_number += 1;
+            let tokens = lexical::split(&line)?;
+            if tokens.is_empty() {
+                continue;
             }
-            let include = std::str::from_utf8(&tokens[1].bytes).map_err(|_| parse_error(0, "Invalid path"))?;
-            let joined = if include.starts_with(['/', '\\']) || include.as_bytes().get(1) == Some(&b':') {
-                include.to_owned()
-            } else {
-                let end = path.rfind(['/', '\\']).map_or(0, |n| n+1);
-                format!("{}{include}", &path[..end])
-            };
-            if let Err(e) = parse_file(files, parser, &joined) {
-                match e {
-                    Error::Parse { code: 2, .. } if tokens[0].bytes == b"sinclude" => {},
-                    Error::Parse { code: 2, message } => return Err(parse_error(3, message)),
-                    e => return Err(e),
+            if matches!(tokens[0].bytes.as_slice(), b"include" | b"sinclude") {
+                if tokens.len() != 2 {
+                    return Err(parse_error(0, "Include requires one argument"));
                 }
+                let include = std::str::from_utf8(&tokens[1].bytes).map_err(|_| parse_error(0, "Invalid path"))?;
+                let joined = if include.starts_with(['/', '\\']) || include.as_bytes().get(1) == Some(&b':') {
+                    include.to_owned()
+                } else {
+                    let end = path.rfind(['/', '\\']).map_or(0, |n| n + 1);
+                    format!("{}{include}", &path[..end])
+                };
+                if let Err(e) = parse_file(files, parser, &joined) {
+                    match e {
+                        Error::Parse { code: 2, .. } if tokens[0].bytes == b"sinclude" => {}
+                        Error::Parse { code: 2, message } => return Err(parse_error(3, message)),
+                        e => return Err(e),
+                    }
+                }
+            } else {
+                parser.dispatch(tokens)?;
             }
-        } else {
-            parser.dispatch(tokens)?;
         }
-    }
-    Ok(())
+        Ok(())
     })();
     result.map_err(|error| match error {
         Error::Parse { code, message } => parse_error(code, format!("{message}\n{path}:{line_number}")),

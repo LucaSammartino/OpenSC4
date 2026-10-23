@@ -36,8 +36,21 @@ pub enum ImageInterface {
     Buffer,
     Aggregator,
 }
+/// This owner's inherited type getter follows the key, rather than a factory type.
+pub struct ImageResourceBase(Resource);
+impl std::ops::Deref for ImageResourceBase {
+    type Target = Resource;
+    fn deref(&self) -> &Resource {
+        &self.0
+    }
+}
+impl ImageResourceBase {
+    pub fn resource_type(&self) -> u32 {
+        self.key().ty
+    }
+}
 pub struct PersistBufferResource {
-    pub base: Resource,
+    pub base: ImageResourceBase,
     pub target: Format,
     buffer: Option<BufferHandle>,
     aggregator: Option<AggregatorHandle>,
@@ -62,9 +75,9 @@ impl PersistBufferResource {
         if let Some(a) = &aggregator {
             a.lock().unwrap_or_else(|e| e.into_inner()).set_outer(true);
         }
-        // No image resource type constant is assigned by §7; base key remains 0.
+        // No image resource type constant is assigned by Ã‚Â§7; base key remains 0.
         Self {
-            base: Resource::new(0),
+            base: ImageResourceBase(Resource::new(0)),
             target,
             buffer,
             aggregator,
@@ -77,7 +90,9 @@ impl PersistBufferResource {
         b.lock().unwrap_or_else(|e| e.into_inner()).add_ref();
         Some(b.clone())
     }
-    pub fn resource_type(&self) -> u32 { self.base.key().ty }
+    pub fn resource_type(&self) -> u32 {
+        self.base.key().ty
+    }
     pub fn set_buffer(&mut self, new: Option<BufferHandle>) {
         if let Some(b) = &new {
             b.lock().unwrap_or_else(|e| e.into_inner()).add_ref();
@@ -201,98 +216,111 @@ impl PersistBufferResource {
         if seek.is_some_and(|at| !raw.seek(at)) {
             return Ok(false);
         }
-        let Some(handle) = &self.buffer else { return Ok(false); };
+        let Some(handle) = &self.buffer else {
+            return Ok(false);
+        };
         let mut b = handle.lock().unwrap_or_else(|e| e.into_inner());
         if !b.initialize_with_flags(width, height, self.target, self.create_flags) || !b.lock_with_flags(0x8040) {
             return Ok(false);
         }
         let result = (|| {
-        let pixels = if compression == 1 {
-            if depth != 8 {
-                return Ok(false);
-            }
-            let size = if le32(&info[20..]) == 0 {
-                let size = le32(&header[2..]).wrapping_sub(le32(&header[10..]));
-                if !file && size >= le32(&header[2..]) { return Ok(false); }
-                size
-            } else { le32(&info[20..]) };
-            let mut compressed = vec![0; size as usize];
-            if !raw.read(&mut compressed) { return Ok(false); }
-            let Some(p) = rle8(&mut std::io::Cursor::new(compressed), width, height) else {
-                return Ok(false);
-            };
-            p
-        } else {
-            let Some(stride) = bmp_stride(width, depth, file) else {
-                return Ok(false);
-            };
-            // Invalid bounds have no successful contract. The 4-bpp record stride
-            // quirk yields zero; reject safely instead of indexing empty rows.
-            if stride == 0 {
-                return Ok(false);
-            }
-            let Some(size) = stride.checked_mul(height as usize) else {
-                return Ok(false);
-            };
-            self.scratch.resize(size, 0);
-            if !raw.read(&mut self.scratch) {
-                return Ok(false);
-            }
-            let mut pixels = Vec::new();
-            for y in 0..height as usize {
-                for x in 0..width as usize {
-                    if depth == 24 {
-                        let at = y * stride + x * 3;
-                        pixels.extend_from_slice(&self.scratch[at..at + 3]);
-                    } else {
-                        let b = self.scratch[y * stride + if depth == 4 { x / 2 } else { x }];
-                        pixels.push(if depth == 4 {
-                            if x % 2 == 0 {
-                                b >> 4
-                            } else {
-                                b & 15
-                            }
+            let pixels = if compression == 1 {
+                if depth != 8 {
+                    return Ok(false);
+                }
+                let size = if le32(&info[20..]) == 0 {
+                    let size = le32(&header[2..]).wrapping_sub(le32(&header[10..]));
+                    if !file && size >= le32(&header[2..]) {
+                        return Ok(false);
+                    }
+                    size
+                } else {
+                    le32(&info[20..])
+                };
+                let mut compressed = vec![0; size as usize];
+                if !raw.read(&mut compressed) {
+                    return Ok(false);
+                }
+                let Some(p) = rle8(&mut std::io::Cursor::new(compressed), width, height) else {
+                    return Ok(false);
+                };
+                p
+            } else {
+                let Some(stride) = bmp_stride(width, depth, file) else {
+                    return Ok(false);
+                };
+                // Invalid bounds have no successful contract. The 4-bpp record stride
+                // quirk yields zero; reject safely instead of indexing empty rows.
+                if stride == 0 {
+                    return Ok(false);
+                }
+                let Some(size) = stride.checked_mul(height as usize) else {
+                    return Ok(false);
+                };
+                self.scratch.resize(size, 0);
+                if !raw.read(&mut self.scratch) {
+                    return Ok(false);
+                }
+                let mut pixels = Vec::new();
+                for y in 0..height as usize {
+                    for x in 0..width as usize {
+                        if depth == 24 {
+                            let at = y * stride + x * 3;
+                            pixels.extend_from_slice(&self.scratch[at..at + 3]);
                         } else {
-                            b
-                        });
+                            let b = self.scratch[y * stride + if depth == 4 { x / 2 } else { x }];
+                            pixels.push(if depth == 4 {
+                                if x % 2 == 0 {
+                                    b >> 4
+                                } else {
+                                    b & 15
+                                }
+                            } else {
+                                b
+                            });
+                        }
                     }
                 }
-            }
-            pixels
-        };
-        if depth == 24 && self.target.colour_type == 1 && b.layout().format == Format::new(7, 16) {
-            let mut rgba = Vec::with_capacity((width*height) as usize);
-            for y in (0..height as usize).rev() {
-                for x in 0..width as usize {
-                    let at = (y*width as usize+x)*3;
-                    rgba.push([pixels[at], pixels[at+1], pixels[at+2], 255]);
+                pixels
+            };
+            if depth == 24 && self.target.colour_type == 1 && b.layout().format == Format::new(7, 16) {
+                let mut rgba = Vec::with_capacity((width * height) as usize);
+                for y in (0..height as usize).rev() {
+                    for x in 0..width as usize {
+                        let at = (y * width as usize + x) * 3;
+                        rgba.push([pixels[at], pixels[at + 1], pixels[at + 2], 255]);
+                    }
                 }
+                return Ok(store_4444(
+                    &mut *b,
+                    width,
+                    height,
+                    &diffuse_4444(&rgba, width as usize, false),
+                ));
             }
-            return Ok(store_4444(&mut *b, width, height, &diffuse_4444(&rgba, width as usize, false)));
-        }
-        let mut success = true;
-        'rows: for y in 0..height {
-            for x in 0..width {
-                let at = (y * width + x) as usize;
-                let (rgb, index) = if depth == 24 {
-                    let at = at * 3;
-                    ([pixels[at + 2], pixels[at + 1], pixels[at]], None)
-                } else {
-                    let index = pixels[at];
-                    let p = usize::from(index) * 4;
-                    if p + 3 >= palette.len() {
+            let mut success = true;
+            'rows: for y in 0..height {
+                for x in 0..width {
+                    let at = (y * width + x) as usize;
+                    let (rgb, index) = if depth == 24 {
+                        let at = at * 3;
+                        ([pixels[at + 2], pixels[at + 1], pixels[at]], None)
+                    } else {
+                        let index = pixels[at];
+                        let p = usize::from(index) * 4;
+                        if p + 3 >= palette.len() {
+                            success = false;
+                            break 'rows;
+                        }
+                        ([palette[p + 2], palette[p + 1], palette[p]], Some(index))
+                    };
+                    if !b.rgb(x, height - 1 - y, rgb, index) {
                         success = false;
                         break 'rows;
                     }
-                    ([palette[p + 2], palette[p + 1], palette[p]], Some(index))
-                };
-                if !b.rgb(x, height - 1 - y, rgb, index) {
-                    success = false;
-                    break 'rows;
                 }
             }
-        }
-        Ok(success)
+            Ok(success)
         })();
         b.unlock();
         result
@@ -403,7 +431,11 @@ fn decode_tga(raw: &mut impl RawStream, buffer: &mut dyn Buffer, h: &[u8; 18], w
     let total = u64::from(width) * u64::from(height);
     let mut at = 0;
     let dither = depth == 4 && buffer.layout().format.colour_type == 7;
-    let mut rgba = if dither { vec![[0;4]; total as usize] } else { Vec::new() };
+    let mut rgba = if dither {
+        vec![[0; 4]; total as usize]
+    } else {
+        Vec::new()
+    };
     while at < total {
         let mut packet = [0];
         if h[2] == 10 && !raw.read(&mut packet) {
@@ -448,44 +480,51 @@ fn decode_tga(raw: &mut impl RawStream, buffer: &mut dyn Buffer, h: &[u8; 18], w
             let y = (at / u64::from(width)) as u32;
             let y = if h[17] & 32 == 0 { height - 1 - y } else { y };
             if dither {
-                rgba[(u64::from(y)*u64::from(width)+at%u64::from(width)) as usize] = [b as u8,g as u8,r as u8,a as u8];
+                rgba[(u64::from(y) * u64::from(width) + at % u64::from(width)) as usize] =
+                    [b as u8, g as u8, r as u8, a as u8];
             } else if !buffer.pixel32((at % u64::from(width)) as u32, y, (a << 24) | (r << 16) | (g << 8) | b) {
                 return false;
             }
             at += 1;
         }
     }
-    if dither { store_4444(buffer, width, height, &diffuse_4444(&rgba, width as usize, true)) } else { true }
+    if dither {
+        store_4444(buffer, width, height, &diffuse_4444(&rgba, width as usize, true))
+    } else {
+        true
+    }
 }
 
 /// Section 7.3: padded, serpentine low-nibble diffusion in B/G/R/A lanes.
-pub fn diffuse_4444(pixels: &[[u8;4]], width: usize, alpha: bool) -> Vec<u16> {
-    if width == 0 { return Vec::new(); }
-    let height = pixels.len()/width;
-    let mut current = vec![[0u32;4]; width+2];
+pub fn diffuse_4444(pixels: &[[u8; 4]], width: usize, alpha: bool) -> Vec<u16> {
+    if width == 0 {
+        return Vec::new();
+    }
+    let height = pixels.len() / width;
+    let mut current = vec![[0u32; 4]; width + 2];
     let mut next = current.clone();
     let mut output = vec![0; pixels.len()];
     for y in 0..height {
-        let direction = if y%2 == 0 {1isize} else {-1};
+        let direction = if y % 2 == 0 { 1isize } else { -1 };
         for step in 0..width {
-            let x = if direction == 1 {step} else {width-1-step};
-            let cell = x+1;
-            let forward = (cell as isize+direction) as usize;
-            let backward = (cell as isize-direction) as usize;
-            let mut word = if alpha {0} else {0xf000};
-            for channel in 0..if alpha {4} else {3} {
-                let value = (u32::from(pixels[y*width+x][channel]) + current[cell][channel]/16).min(255);
-                word |= ((value >> 4) as u16) << (channel*4);
+            let x = if direction == 1 { step } else { width - 1 - step };
+            let cell = x + 1;
+            let forward = (cell as isize + direction) as usize;
+            let backward = (cell as isize - direction) as usize;
+            let mut word = if alpha { 0 } else { 0xf000 };
+            for channel in 0..if alpha { 4 } else { 3 } {
+                let value = (u32::from(pixels[y * width + x][channel]) + current[cell][channel] / 16).min(255);
+                word |= ((value >> 4) as u16) << (channel * 4);
                 let error = value & 15;
-                current[forward][channel] += error*7;
-                next[backward][channel] += error*3;
-                next[cell][channel] += error*5;
+                current[forward][channel] += error * 7;
+                next[backward][channel] += error * 3;
+                next[cell][channel] += error * 5;
                 next[forward][channel] += error;
             }
-            output[y*width+x] = word;
+            output[y * width + x] = word;
         }
         std::mem::swap(&mut current, &mut next);
-        next.fill([0;4]);
+        next.fill([0; 4]);
     }
     output
 }
@@ -494,8 +533,10 @@ fn store_4444(buffer: &mut dyn Buffer, width: u32, height: u32, words: &[u16]) -
     let bytes = buffer.bytes_mut();
     for y in 0..height as usize {
         for x in 0..width as usize {
-            let Some(target) = bytes.get_mut(y*stride+x*2..y*stride+x*2+2) else { return false; };
-            target.copy_from_slice(&words[y*width as usize+x].to_le_bytes());
+            let Some(target) = bytes.get_mut(y * stride + x * 2..y * stride + x * 2 + 2) else {
+                return false;
+            };
+            target.copy_from_slice(&words[y * width as usize + x].to_le_bytes());
         }
     }
     true

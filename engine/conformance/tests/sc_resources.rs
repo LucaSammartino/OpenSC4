@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Independent executable vectors SCR-V01–30, docs/specs/sc-resources.md §9.
+//! Independent executable vectors SCR-V01Ã¢â‚¬â€œ30, docs/specs/sc-resources.md Ã‚Â§9.
 use fc4_core::{
     persistence_runtime::{Buffer, BufferHandle, BufferLayout, Format, Key, RawStream, SerialRecord},
     rz_streams::{GzOStream, RzTextOStream, TextSink},
@@ -34,6 +34,571 @@ fn scr_v01_grouped_tokens() {
     );
     assert_eq!(count_arguments(b"cmd 'a b' [c d]").unwrap(), 3);
     assert_eq!(v.iter().map(|t| t.index).collect::<Vec<_>>(), [0, 1, 2]);
+}
+
+#[test]
+fn scr_v31_nested_and_adjacent_tokens() {
+    for (input, expected) in [
+        (b"([)]".as_slice(), vec![b"[".as_slice(), b"]"]),
+        (b"(a(b)c)", vec![b"a(b)c".as_slice()]),
+        (b"a\"b c\"d", vec![b"ab cd".as_slice()]),
+    ] {
+        assert_eq!(
+            split(input)
+                .unwrap()
+                .iter()
+                .map(|t| t.bytes.as_slice())
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+    assert_eq!(split(b"a\\b").unwrap()[0].bytes, b"a\\b");
+}
+#[test]
+fn scr_v32_comment_precedes_quotes() {
+    assert!(matches!(split(b"'a#b'"), Err(sc::Error::Parse { code: 5, .. })));
+}
+#[test]
+fn scr_v33_power_and_floor_remainder() {
+    for (input, expected) in [
+        ("-2^2", 4.0),
+        ("2^3^2", 512.0),
+        ("2^-2", 0.25),
+        ("-5%3", 1.0),
+        ("5%-3", -1.0),
+    ] {
+        assert_eq!(parse_float(input.as_bytes()).unwrap(), expected);
+    }
+}
+#[test]
+fn scr_v34_permissive_decimal_cursor() {
+    for (input, expected) in [(".", 0.0), ("1.2.3", 1.2), ("1e+", 1.0)] {
+        assert!((parse_float(input.as_bytes()).unwrap() - expected).abs() < 1e-15);
+    }
+    for input in ["1e+x", "0X10"] {
+        assert!(parse_float(input.as_bytes()).is_err());
+    }
+}
+#[test]
+fn scr_v35_wrapping_exponent_helper() {
+    for (input, expected) in [("1e10", 1410065408.0), ("1e12", -727379968.0), ("1e32", 0.0)] {
+        assert_eq!(parse_float(input.as_bytes()).unwrap(), expected);
+    }
+    assert_eq!(parse_float(b"1e-32").unwrap(), f64::INFINITY);
+}
+#[test]
+fn scr_v36_hex_and_nonfinite_expressions() {
+    assert_eq!(parse_float(b"0x100000000").unwrap(), 4294967295.0);
+    for input in [b"inf".as_slice(), b"nan"] {
+        assert!(parse_float(input).is_err());
+    }
+    assert!(parse_float(b"sqrt(-1)").unwrap().is_nan());
+    assert_eq!(parse_int(b"1/0").unwrap(), 0x34400000);
+    assert_eq!(parse_uint(b"1/0").unwrap(), 0);
+}
+#[test]
+fn scr_v37_function_grammar() {
+    assert_eq!(parse_float(b"pow(2,3)").unwrap(), 8.0);
+    for input in [b"dsin(90)".as_slice(), b"sin(0,1)", b"Pi", b"2(3)"] {
+        assert!(parse_float(input).is_err());
+    }
+    for (input, expected) in [
+        ("sqrt(9)", 3.0),
+        ("log(e)", 1.0),
+        ("abs(-2)", 2.0),
+        ("floor(1.9)", 1.0),
+        ("ceil(1.1)", 2.0),
+        ("sqr(3)", 9.0),
+        ("sin(0)+cos(0)+tan(0)", 1.0),
+        ("asin(0)+acos(1)+atan(0)", 0.0),
+        ("sind(0)+cosd(0)+tand(0)", 1.0),
+        ("dasin(0)+dacos(1)+datan(0)+datan2(0,1)", 0.0),
+        ("atan2(0,1)", 0.0),
+    ] {
+        assert!(
+            (parse_float(input.as_bytes()).unwrap() - expected).abs() < 1e-12,
+            "{input}"
+        );
+    }
+}
+#[test]
+fn scr_v38_parser_lifecycle() {
+    let mut p = CommandParser::default();
+    assert_eq!((p.version, p.registration_count()), (1, 0));
+    p.init();
+    assert_eq!(p.registration_count(), 15);
+    p.set_variable(b"x", b"root");
+    p.parse(b"define m []").unwrap();
+    p.parse(b"enddef").unwrap();
+    p.push_namespace(b"a");
+    p.reset();
+    assert_eq!((p.version, p.registration_count()), (0, 15));
+    assert_eq!(p.get_variable(b"x"), Some(b"root".as_slice()));
+    assert!(p.parse(b"create m []").is_err());
+}
+#[test]
+fn scr_v39_namespace_lookup() {
+    let mut p = parser();
+    p.set_variable(b"x", b"root");
+    p.push_namespace(b"a");
+    p.set_variable(b"x", b"parent");
+    p.push_namespace(b"b");
+    p.set_variable(b"x", b"child");
+    for expected in [b"child".as_slice(), b"parent", b"root"] {
+        assert_eq!(p.get_variable(b"x"), Some(expected));
+        p.pop_namespace();
+    }
+    assert_eq!(p.get_variable(b"missing"), None);
+}
+#[test]
+fn scr_v40_exact_variable_removal() {
+    let mut p = parser();
+    p.push_namespace(b"a");
+    p.set_variable(b"x", b"v");
+    assert!(!p.remove_variable(b"x"));
+    assert!(p.get_variable(b"x").is_some());
+    assert!(p.remove_variable(b"a:x"));
+    assert!(p.get_variable(b"x").is_none());
+}
+#[test]
+fn scr_v41_embedded_substitutions() {
+    let mut p = parser();
+    p.set_variable(b"x", b"1+2");
+    for (input, expected) in [
+        ("$x", "1+2"),
+        ("$x*3", "1+2*3"),
+        ("a $x b", "a (1+2) b"),
+        ("${x}*3", "1+2*3"),
+        ("${x", "1+2"),
+    ] {
+        assert_eq!(p.substitute_variables(input.as_bytes()).unwrap(), expected.as_bytes());
+    }
+    p.set_variable(b"x", b"$unknown");
+    assert_eq!(p.substitute_variables(b"$x").unwrap(), b"$unknown");
+}
+#[test]
+fn scr_v42_macro_embedded_parameters() {
+    let mut p = parser();
+    p.parse(b"define m [x]").unwrap();
+    p.parse(b"set a [%x*3]").unwrap();
+    p.parse(b"set b [a %x b]").unwrap();
+    p.parse(b"enddef").unwrap();
+    p.parse(b"create m [1+2]").unwrap();
+    assert_eq!(p.get_variable(b"a"), Some(b"1+2*3".as_slice()));
+    assert_eq!(p.get_variable(b"b"), Some(b"a (1+2) b".as_slice()));
+    p.parse(b"define bad [x]").unwrap();
+    p.parse(b"set a %unknown").unwrap();
+    p.parse(b"enddef").unwrap();
+    assert!(p.parse(b"create bad [1]").is_err());
+}
+#[test]
+fn scr_v43_assignment_conversions() {
+    let mut p = parser();
+    for (input, expected) in [
+        ("set x first ignored", "first"),
+        ("seti x [2+3]", "5"),
+        ("setf x [1/2]", "0.5"),
+    ] {
+        p.parse(input.as_bytes()).unwrap();
+        assert_eq!(p.get_variable(b"x"), Some(expected.as_bytes()));
+    }
+}
+#[test]
+fn scr_v44_builtin_failures_and_end() {
+    let mut p = parser();
+    p.parse(b"version 12suffix").unwrap();
+    assert_eq!(p.version, 12);
+    p.parse(b"trace anything").unwrap();
+    for input in [b"trace".as_slice(), b"list", b"end"] {
+        assert!(p.parse(input).is_err());
+    }
+    p.parse(b"namespace a").unwrap();
+    p.parse(b"set x inside").unwrap();
+    p.parse(b"end extra").unwrap();
+    assert!(p.get_variable(b"x").is_none());
+    assert_eq!(p.get_variable(b"a:x"), Some(b"inside".as_slice()));
+}
+#[test]
+fn scr_v45_vector_transform_order() {
+    let mut p = parser();
+    p.parse(b"setv3 v [1 2 3] -add [1 1 1] -scale 2 -mult [3 4 5]").unwrap();
+    assert_eq!(p.get_variable(b"v"), Some(b"7 17 31".as_slice()));
+}
+#[test]
+fn scr_v46_rotated_color_transform() {
+    let mut p = parser();
+    for (input, expected) in [
+        ("setc c [1 2 3 4]", "2 3 4"),
+        ("setc c [1 2 3 4] -alpha 9", "9 3 4"),
+        ("setc c [1 2 3 4] -scale 2", "4 6 8"),
+    ] {
+        p.parse(input.as_bytes()).unwrap();
+        assert_eq!(p.get_variable(b"c"), Some(expected.as_bytes()));
+    }
+}
+#[test]
+fn scr_v47_color_optional_fourth() {
+    let mut p = parser();
+    p.parse(b"setc c [0.5 2 3]").unwrap();
+    assert_eq!(p.get_variable(b"c"), Some(b"2 3 1 0.5".as_slice()));
+}
+#[test]
+fn scr_v48_eval_and_array_create() {
+    let mut p = parser();
+    p.parse(b"eval [set x hello]").unwrap();
+    assert_eq!(p.get_variable(b"x"), Some(b"hello".as_slice()));
+    let trace = Arc::new(Mutex::new(Vec::new()));
+    let sink = trace.clone();
+    p.register(
+        b"out",
+        Arc::new(move |_: &mut CommandParser, t: &mut [sc::ScriptToken]| {
+            sink.lock().unwrap().push(t[1].bytes.clone());
+            Ok(())
+        }),
+    );
+    for line in [
+        "define m [index count]",
+        "out [%index %count]",
+        "enddef",
+        "arrayCreate m 2",
+    ] {
+        p.parse(line.as_bytes()).unwrap();
+    }
+    assert_eq!(*trace.lock().unwrap(), [b"(0) (2)".to_vec(), b"(1) (2)".to_vec()]);
+}
+#[test]
+fn scr_v49_recursive_relative_includes() {
+    let mut files = MemoryFiles::default();
+    for (name, line) in [
+        ("dir/a.txt", "include sub/b.txt"),
+        ("dir/sub/b.txt", "include ../c.txt"),
+        ("dir/sub/../c.txt", "trace ok"),
+    ] {
+        files.files.insert(name.into(), vec![line.as_bytes().to_vec()]);
+    }
+    let mut p = FileParser::default();
+    p.set_parser(Some(Arc::new(Mutex::new(parser()))));
+    p.add_input("dir/a.txt", 1, &mut files);
+    assert_eq!(p.parse_all(&mut files, &mut Hooks::default()), Ok(true));
+    assert_eq!(
+        files.trace,
+        ["open:dir/a.txt", "open:dir/sub/b.txt", "open:dir/sub/../c.txt"]
+    );
+}
+#[test]
+fn scr_v50_include_unwind_and_promotion() {
+    for (directive, expected) in [("sinclude", true), ("include", false)] {
+        let mut files = MemoryFiles::default();
+        files
+            .files
+            .insert("root".into(), vec![format!("{directive} missing").into_bytes()]);
+        let mut p = FileParser::default();
+        p.set_parser(Some(Arc::new(Mutex::new(parser()))));
+        p.add_input("root", 1, &mut files);
+        assert_eq!(p.parse_all(&mut files, &mut Hooks::default()), Ok(expected));
+        if !expected {
+            assert!(matches!(&p.errors()[0], sc::Error::Parse { code: 3, .. }));
+        }
+        files.files.insert("missing".into(), vec![b"unknown".to_vec()]);
+        files.files.get_mut("root").unwrap().push(b"set resumed yes".to_vec());
+        assert_eq!(p.parse_all(&mut files, &mut Hooks::default()), Ok(false));
+        assert!(p.parser().unwrap().lock().unwrap().get_variable(b"resumed").is_none());
+        assert!(p.error_string().contains("root:1"));
+        assert!(p.error_string().contains("missing:1"));
+    }
+}
+fn top_level_failure(required: u32) {
+    let mut files = MemoryFiles::default();
+    files.files.insert("bad".into(), vec![b"unknown".to_vec()]);
+    files.files.insert("good".into(), vec![b"set x yes".to_vec()]);
+    let mut p = FileParser::default();
+    let commands = Arc::new(Mutex::new(parser()));
+    p.set_parser(Some(commands.clone()));
+    p.add_input("bad", required, &mut files);
+    p.add_input("good", 1, &mut files);
+    let mut hooks = Hooks::default();
+    assert_eq!(p.parse_all(&mut files, &mut hooks), Ok(required == 0));
+    assert_eq!(p.errors().len(), 1);
+    assert_eq!(commands.lock().unwrap().get_variable(b"x"), Some(b"yes".as_slice()));
+    assert_eq!(
+        hooks.0,
+        if required == 0 {
+            vec!["begin", "end", "finish"]
+        } else {
+            vec!["begin", "finish"]
+        }
+    );
+}
+#[test]
+fn scr_v51_optional_failure_continues() {
+    top_level_failure(0);
+}
+#[test]
+fn scr_v52_required_failure_continues() {
+    top_level_failure(1);
+}
+#[test]
+fn scr_v53_binary_all_wire_types() {
+    let values = vec![
+        Values::U8(vec![255]),
+        Values::U16(vec![65535]),
+        Values::U32(vec![0x12345678]),
+        Values::I32(vec![-1]),
+        Values::F32(vec![1.5]),
+        Values::I64(vec![i64::MIN]),
+        Values::String(vec![b"raw".to_vec()]),
+        Values::Key(vec![Key::new(1, 2, 3)]),
+        Values::I8(vec![-2]),
+        Values::I16(vec![-3]),
+        Values::U64(vec![u64::MAX]),
+        Values::F64(vec![2.5]),
+    ];
+    let serial = Arc::new(Mutex::new(serial(&[])));
+    let mut writer = TokenRecord::default();
+    assert!(writer.init_write(serial.clone(), false));
+    for (i, v) in values.iter().enumerate() {
+        writer.set(i as u32 + 2, v.clone()).unwrap();
+    }
+    writer.shutdown();
+    let bytes = serial.lock().unwrap().raw().get_ref().clone();
+    let mut expected = b"TKB1".to_vec();
+    let payloads = vec![
+        vec![255],
+        65535u16.to_le_bytes().to_vec(),
+        0x12345678u32.to_le_bytes().to_vec(),
+        (-1i32).to_le_bytes().to_vec(),
+        1.5f32.to_le_bytes().to_vec(),
+        i64::MIN.to_le_bytes().to_vec(),
+        [3u32.to_le_bytes().as_slice(), b"raw"].concat(),
+        [1u32, 2, 3].iter().flat_map(|v| v.to_le_bytes()).collect(),
+        vec![254],
+        (-3i16).to_le_bytes().to_vec(),
+        u64::MAX.to_le_bytes().to_vec(),
+        2.5f64.to_le_bytes().to_vec(),
+    ];
+    for (i, payload) in payloads.iter().enumerate() {
+        expected.extend((i as u32 + 2).to_le_bytes());
+        expected.extend((i as u16 + 1).to_le_bytes());
+        expected.extend(1u16.to_le_bytes());
+        expected.extend(payload);
+    }
+    expected.extend(1u32.to_le_bytes());
+    expected.extend(3u16.to_le_bytes());
+    expected.extend(1u16.to_le_bytes());
+    expected.extend(0u32.to_le_bytes());
+    assert_eq!(bytes, expected);
+    serial.lock().unwrap().raw_mut().seek(0);
+    let mut reader = TokenRecord::default();
+    assert_eq!(reader.init_read(serial.clone(), None), Ok(true));
+    for (i, v) in values.iter().enumerate() {
+        assert_eq!(
+            reader.get(Descriptor {
+                id: i as u32 + 2,
+                ty: i as u16 + 1,
+                count: 1
+            }),
+            Some(v)
+        );
+    }
+    assert_eq!(serial.lock().unwrap().raw().position(), bytes.len() as u64 - 4);
+}
+#[test]
+fn scr_v54_binary_strict_boundary() {
+    for (total, success) in [(8, false), (9, true)] {
+        let mut record = serial(&vec![0; total]);
+        record.raw_mut().seek(4);
+        let mut io = BinaryIo::new(&mut record);
+        let mut out = 99u32;
+        assert_eq!(io.read_number(&mut out), success);
+        assert_eq!(io.counter, 8);
+        assert_eq!(io.record.raw().position(), if success { 8 } else { 4 });
+    }
+}
+#[test]
+fn scr_v55_binary_string_equality() {
+    let mut record = serial(&[0; 8]);
+    record.raw_mut().seek(4);
+    let mut io = BinaryIo::new(&mut record);
+    let mut out = b"old".to_vec();
+    assert!(io.read_string(&mut out));
+    assert!(out.is_empty());
+    assert_eq!(io.counter, 8);
+}
+#[test]
+fn scr_v56_token_name_is_not_payload() {
+    let serial = Arc::new(Mutex::new(serial(&[])));
+    let mut t = TokenRecord::default();
+    t.init_write(serial.clone(), true);
+    t.set(23, Values::U32(vec![42])).unwrap();
+    assert!(t.set_token_string(23, b"renamed"));
+    assert!(!t.set_token_string(24, b"absent"));
+    assert_eq!(
+        t.get(Descriptor {
+            id: 23,
+            ty: 3,
+            count: 1
+        }),
+        Some(&Values::U32(vec![42]))
+    );
+    t.shutdown();
+    assert_eq!(fragments(&serial.lock().unwrap())[0], b"\r\nrenamed[ 23, 3, 1 ]= ");
+}
+#[test]
+fn scr_v57_fragments_remain_raw() {
+    let mut record = serial(&[]);
+    record.set(&TEXT_COOKIE);
+    record.set_string(b"42, ");
+    record.raw_mut().write(b"!");
+    record.raw_mut().seek(4);
+    let mut out = 99u32;
+    assert!(!TextIo::new(&mut record).read_number(&mut out));
+    assert_eq!(out, 0);
+}
+#[test]
+fn scr_v58_modular_uint_scanner() {
+    let mut record = text_record(b"4294967296, -1, 0x10, ");
+    let mut io = TextIo::new(&mut record);
+    for expected in [0, u32::MAX, 0] {
+        let mut out = 99u32;
+        assert!(io.read_number(&mut out));
+        assert_eq!(out, expected);
+    }
+}
+#[test]
+fn scr_v59_small_integer_narrowing() {
+    let mut record = text_record(b"257, 257, 65535, ");
+    let mut io = TextIo::new(&mut record);
+    let (mut a, mut b, mut c) = (0u8, 0i8, 0i16);
+    assert!(io.read_number(&mut a));
+    assert!(io.read_number(&mut b));
+    assert!(io.read_number(&mut c));
+    assert_eq!((a, b, c), (1, 1, -1));
+}
+#[test]
+fn scr_v60_signed64_overflow_and_binary_uint64() {
+    let mut record = text_record(b"18446744073709551616, ");
+    let mut out = 9i64;
+    assert!(TextIo::new(&mut record).read_number(&mut out));
+    assert_eq!(out, 0);
+    let mut record = text_record(&0x123456789abcdef0u64.to_le_bytes());
+    let mut out = 0u64;
+    assert!(TextIo::new(&mut record).read_number(&mut out));
+    assert_eq!(out, 0x123456789abcdef0);
+    let mut record = serial(&[0; 12]);
+    record.raw_mut().seek(4);
+    assert!(!TextIo::new(&mut record).read_number(&mut out));
+}
+#[test]
+fn scr_v61_float_prefix_nonfinite() {
+    let mut record = text_record(b"1e9999, inf, 1.#INF, ");
+    let mut io = TextIo::new(&mut record);
+    let mut out = 0f64;
+    assert!(io.read_number(&mut out));
+    assert_eq!(out, f64::INFINITY);
+    assert!(!io.read_number(&mut out));
+    assert_eq!(out, 0.0);
+    assert!(io.read_number(&mut out));
+    assert_eq!(out, 1.0);
+}
+#[test]
+fn scr_v62_legacy_infinity_output() {
+    let mut record = serial(b"TKT1");
+    record.raw_mut().seek(4);
+    let mut io = TextIo::new(&mut record);
+    assert!(io.write_number(f64::INFINITY));
+    assert!(io.write_number(f32::INFINITY));
+    assert_eq!(fragments(&record), [b"1.#INF, ".as_slice(), b"1.#INF00, "]);
+}
+#[test]
+fn scr_v63_image_key_type() {
+    let (image, _) = image(32);
+    assert_eq!(image.resource_type(), 0);
+    image.base.set_key(Key::new(123, 2, 3));
+    assert_eq!(image.resource_type(), 123);
+    assert_eq!(image.base.resource_type(), 123);
+}
+#[test]
+fn scr_v64_record_uses_gap_as_pixels() {
+    let (mut image, state) = image(32);
+    let mut raw = bmp(24, 1, 1, 0, &[], &[1, 2, 3, 0, 4, 5, 6, 0]);
+    raw.get_mut()[10..14].copy_from_slice(&58u32.to_le_bytes());
+    assert_eq!(image.load_record(&mut raw), Ok(true));
+    assert_eq!(state.lock().unwrap().pixels, [0xff030201]);
+    raw.seek(0);
+    assert_eq!(image.load_file_bmp(&mut raw), Ok(true));
+    assert_eq!(state.lock().unwrap().pixels, [0xff060504]);
+}
+#[test]
+fn scr_v65_image_failure_state() {
+    let (mut image, state) = image(32);
+    image.load_file_bmp(&mut bmp(24, 1, 1, 0, &[], &[0; 4])).unwrap();
+    assert_eq!(image.load_file_bmp(&mut Cursor::new(b"invalid".to_vec())), Ok(false));
+    assert_eq!(state.lock().unwrap().width, 1);
+    assert_eq!(image.load_file_bmp(&mut bmp(24, 2, 1, 0, &[], &[])), Ok(false));
+    assert_eq!(state.lock().unwrap().width, 2);
+}
+#[test]
+fn scr_v66_bmp_diffusion() {
+    assert_eq!(
+        diffuse_4444(&[[15, 15, 15, 255]; 3], 3, false),
+        [0xf000, 0xf111, 0xf111]
+    );
+}
+#[test]
+fn scr_v67_argb_diffusion() {
+    assert_eq!(diffuse_4444(&[[15; 4]; 3], 3, true), [0, 0x1111, 0x1111]);
+}
+#[test]
+fn diffusion_serpentine_rows() {
+    assert_eq!(
+        diffuse_4444(&[[15, 15, 15, 255]; 6], 3, false),
+        [0xf000, 0xf111, 0xf111, 0xf111, 0xf111, 0xf000]
+    );
+    assert_eq!(diffuse_4444(&[[255; 4]; 6], 3, true), [0xffff; 6]);
+}
+#[test]
+fn decimal_extended_intermediates() {
+    assert_eq!(parse_float(b"0.1").unwrap().to_bits(), 0.1f64.to_bits());
+    assert_eq!(parse_float(b"0.123456789").unwrap().to_bits(), 0x3fbf9add37396360);
+    assert_eq!(parse_float(b"1e4294967296").unwrap(), 1.0);
+    assert!(parse_float(b"1e2147483648").is_err());
+}
+#[test]
+fn scr_v68_dither_selection() {
+    // A reported type 7 does not select BMP dithering unless requested type is 1.
+    let (mut image, state) = image(16);
+    image.target = Format::new(7, 16);
+    assert_eq!(
+        image.load_file_bmp(&mut bmp(24, 1, 1, 0, &[], &[15, 15, 15, 0])),
+        Ok(true)
+    );
+    assert_eq!(state.lock().unwrap().pixels, [0xff0f0f0f]);
+    state.lock().unwrap().reported = Some(Format::new(7, 16));
+    image.target = Format::new(1, 16);
+    assert_eq!(
+        image.load_file_bmp(&mut bmp(
+            24,
+            3,
+            1,
+            0,
+            &[],
+            &[15, 15, 15, 15, 15, 15, 15, 15, 15, 0, 0, 0]
+        )),
+        Ok(true)
+    );
+    let buffer = image.buffer().unwrap();
+    assert_eq!(&buffer.lock().unwrap().bytes()[..6], &[0, 240, 17, 241, 17, 241]);
+    buffer.lock().unwrap().release();
+    assert_eq!(state.lock().unwrap().lock_flags, 0x8040);
+    image.target = Format::new(7, 16);
+    let mut raw = tga(0x28, 32, 2, &[15; 12]);
+    raw.get_mut()[12] = 3;
+    raw.get_mut()[14] = 1;
+    assert_eq!(image.load_file_tga(&mut raw), Ok(true));
+    let buffer = image.buffer().unwrap();
+    assert_eq!(&buffer.lock().unwrap().bytes()[..6], &[0, 0, 17, 17, 17, 17]);
+    buffer.lock().unwrap().release();
+    assert_eq!(state.lock().unwrap().lock_flags, 0x8080);
 }
 #[test]
 fn scr_v02_unterminated_delimiters() {
@@ -265,6 +830,8 @@ struct BufferState {
     width: u32,
     height: u32,
     flags: u32,
+    lock_flags: u32,
+    reported: Option<Format>,
 }
 struct TestBuffer {
     state: Arc<Mutex<BufferState>>,
@@ -287,6 +854,7 @@ impl Buffer for TestBuffer {
         }
     }
     fn initialize(&mut self, w: u32, h: u32, f: Format) -> bool {
+        let f = self.state.lock().unwrap().reported.unwrap_or(f);
         self.layout = BufferLayout {
             width: w,
             height: h,
@@ -294,6 +862,7 @@ impl Buffer for TestBuffer {
             format: f,
         };
         let mut s = self.state.lock().unwrap();
+        self.bytes.resize(self.layout.stride * h as usize, 0);
         s.width = w;
         s.height = h;
         s.pixels = vec![0; (w * h) as usize];
@@ -309,6 +878,10 @@ impl Buffer for TestBuffer {
     fn lock(&mut self, _: bool) -> bool {
         self.state.lock().unwrap().trace.push("lock".into());
         true
+    }
+    fn lock_with_flags(&mut self, flags: u32) -> bool {
+        self.state.lock().unwrap().lock_flags = flags;
+        self.lock(true)
     }
     fn unlock(&mut self) {
         self.state.lock().unwrap().trace.push("unlock".into());
@@ -448,7 +1021,7 @@ fn scr_v19_tga_vertical_origin() {
         Ok(true)
     );
     assert_eq!(state.lock().unwrap().pixels, [0xffff_0000, 0xff00_00ff]);
-    assert_eq!(state.lock().unwrap().flags, 0x8080);
+    assert_eq!(state.lock().unwrap().flags, 0);
 }
 #[test]
 fn scr_v20_hex_and_key_labels() {
@@ -776,7 +1349,7 @@ fn tga_rle_alpha_and_unsupported_depth() {
     assert_eq!(state.lock().unwrap().pixels, [0x8003_0201; 2]);
     assert_eq!(image.load_file_tga(&mut tga(0x21, 16, 2, &[0, 0x80, 31, 0])), Ok(true));
     assert_eq!(state.lock().unwrap().pixels, [0xff00_0000, 0x0000_00ff]);
-    assert_eq!(state.lock().unwrap().flags, 0x8040);
+    assert_eq!(state.lock().unwrap().flags, 0);
     assert_eq!(image.load_record(&mut tga(0, 8, 2, &[])), Ok(true));
     let state = state.lock().unwrap();
     assert_eq!(
@@ -834,6 +1407,8 @@ fn bmp(depth: u16, width: u32, height: u32, compression: u32, palette: &[u8], pi
     bytes[46..50].copy_from_slice(&((palette.len() / 4) as u32).to_le_bytes());
     bytes.extend(palette);
     bytes.extend(pixels);
+    let size = bytes.len() as u32;
+    bytes[2..6].copy_from_slice(&size.to_le_bytes());
     Cursor::new(bytes)
 }
 #[test]
@@ -844,7 +1419,7 @@ fn bmp_file_palette_raw_and_rle8_escapes() {
         Ok(true)
     );
     assert_eq!(state.lock().unwrap().pixels, [0xffff_0000, 0xff00_00ff]);
-    assert_eq!(state.lock().unwrap().flags, 0x8040);
+    assert_eq!(state.lock().unwrap().flags, 0);
     let palette = [0, 0, 0, 0, 0, 0, 255, 0];
     assert_eq!(
         image.load_file_bmp(&mut bmp(8, 3, 2, 1, &palette, &[3, 1, 0, 0, 0, 3, 1, 0, 1, 0, 0, 1])),
@@ -866,10 +1441,7 @@ fn bmp_file_palette_raw_and_rle8_escapes() {
         Ok(true)
     );
     assert_eq!(state.lock().unwrap().pixels, [0xff00_0000, 0xffff_0000, 0xffff_0000]);
-    assert!(matches!(
-        image.load_record(&mut bmp(24, 1, 1, 0, &[], &[0; 4])),
-        Err(sc::Error::Unsupported("SCR5: record BMP offset handling"))
-    ));
+    assert_eq!(image.load_record(&mut bmp(24, 1, 1, 0, &[], &[0; 4])), Ok(true));
 }
 #[test]
 fn bmp_four_bit_nibbles_and_dither_boundary() {
@@ -881,10 +1453,7 @@ fn bmp_four_bit_nibbles_and_dither_boundary() {
     );
     assert_eq!(state.lock().unwrap().pixels, [0xffff_0000, 0xff00_0000, 0xffff_0000]);
     image.target = Format::new(7, 16);
-    assert!(matches!(
-        image.load_file_tga(&mut tga(0, 24, 2, &[0; 6])),
-        Err(sc::Error::Unsupported("SCR5: 4444 dithering"))
-    ));
+    assert_eq!(image.load_file_tga(&mut tga(0, 24, 2, &[0; 6])), Ok(true));
 }
 #[test]
 fn explicit_record_bmp_policy_preserves_record_flags() {
@@ -895,7 +1464,7 @@ fn explicit_record_bmp_policy_preserves_record_flags() {
         Ok(true)
     );
     let state = state.lock().unwrap();
-    assert_eq!(state.flags, 0x8080);
+    assert_eq!(state.flags, 0);
     assert_eq!(state.pixels, [0xff03_0201]);
 }
 struct Agg(Arc<Mutex<Vec<String>>>);
@@ -1009,13 +1578,13 @@ fn token_read_failure_cleans_attachment_and_fields() {
         })
         .is_err());
     t.set(23, Values::U32(vec![1])).unwrap();
-    assert!(matches!(
+    assert_eq!(
         t.create_field(Descriptor {
             id: 23,
             ty: 4,
             count: 1
         }),
-        Err(sc::Error::Unsupported(_))
-    ));
-    assert!(!t.available(23));
+        Ok(true)
+    );
+    assert!(t.available(23));
 }

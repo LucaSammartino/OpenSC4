@@ -2,69 +2,57 @@
 
 Portable owners from `docs/specs/sc-resources.md`. No plugin or C ABI wiring.
 Reuse `persistence_runtime::{SerialRecord, Resource, Buffer}`, `rz_streams`
-typed numeric output and `effects_parser::script` switch/position readers.
-Foreign traits provide files/watchers, buffer construction and pixel conversion,
-and graph surveying/serializable callbacks. They do not implement these owners'
-lexing, dispatch, wire parsing, image decoding or output ordering.
+typed output and `effects_parser::script` switch/position readers. Foreign
+traits supply files/watchers, buffer primitives and ordinary pixel conversion,
+and graph surveying/serializable callbacks. Parsing, dispatch, wire formats,
+image decoding, 4444 diffusion and graph output ordering stay in this module.
 
 ## Owner closure
 
-Tests are in `engine/conformance/tests/sc_resources.rs` unless stated otherwise.
-The JSON vector `sc_resources_lexical.json` also runs through the standard runner.
+Tests are in `engine/conformance/tests/sc_resources.rs`. SCR-V01–V68 all have
+named executable tests. The JSON `sc_resources_lexical.json` also runs through
+the standard runner. SCR1–SCR5 and SCR7 are answered; no section remains open.
 
-| Owner / spec section | Code item | Tests / explicit open boundary |
+| Owner / spec section | Code item | Covering tests |
 |---|---|---|
-| Shared contracts §1 | Existing SerialRecord, Resource, Buffer; re-exported switch readers | Existing persistence_runtime, rz_streams and effects_parser suites; new owner scenarios below |
-| nSCRes §2.1 | lexical::{next_token, split, count_arguments}; effects_parser::script::{find_switch, find_positional} | scr_v01_grouped_tokens, scr_v02_unterminated_delimiters; existing SW1–SW8 tests; open: SCR1 nesting/escapes |
-| nSCRes §2.2 | lexical::{parse_float, parse_int, parse_uint, parse_bool, EXPRESSION_PRECISION} | scr_v03_numeric_expression, scr_v04_boolean_spellings; JSON expression cases; open: SCR1 extended operand grammar/remainder, SCR7 minimal decimal grammar |
-| nSCRes §2.3 | lexical::{parse_enum, color, color_alpha, vector2, vector3} | scr_v22_unclamped_color_alpha, scr_v23_missing_vector_coordinates, scr_v24_enum_precedence; JSON components |
-| cCommandParser §3.1 | command::CommandParser lifecycle, register, register_commands, BUILTINS, no_op, unsettled_slot | scr_v05_latest_registration, scr_v06_command_failures; open: SCR2 unnamed slots/defaults and unpublished builtin argument contracts |
-| cCommandParser §3.2 | CommandParser::{dispatch, substitute_variables, builtin}, macro storage | scr_v06_command_failures, scr_v07_macro_count, macro_substitution_and_nested_switch_validation; open: SCR2 variable parenthesis insertion, SCR7 namespace/parameter boundaries |
-| cFileParser §4.1 | files::FileParser lifecycle, set_parser, getters; retained Watcher handles | scr_v08_file_modified, file_required_optional_order_and_hooks |
-| cFileParser §4.2 | FileParser::{parse_all, parse_range, message}, parse_file | scr_v25_file_messages, file_required_optional_order_and_hooks, include_suppresses_only_open_error; open: SCR3 relative include resolution/nested recovery |
-| cSLTokenRecord §5.1 | token::TokenRecord attach/init/read/write/shutdown/QI, getters/setters | scr_v09_token_attachment, scr_v10_missing_token, token_read_failure_cleans_attachment_and_fields; open: SCR4 other typed wire assignments |
-| cSLTokenRecord §5.2 | Descriptor, END, create_field, field, read_tokens, write_tokens | scr_v11_sorted_write_and_terminator, scr_v12_stop_before_end_payload, scr_v27_descriptor_count_must_match, token_read_failure_cleans_attachment_and_fields; open: SCR4 other wire types/binary payloads, SCR7 token name interpretation |
-| cSLTokenSerialRecordIO_Text §6.1 | token::{TextIo, TextNumber, Values} twelve typed payload kinds | text_comments_narrowing_and_all_value_writers; generic typed numeric reader retains caller width/sign |
-| cSLTokenSerialRecordIO_Text §6.2 | TextIo::{character, delimited, read_definition, read_number, read_key, read_string, write_definition, write_values} | scr_v13_text_descriptor, scr_v14_numeric_prefix_and_zeroing, scr_v15_key_preservation, scr_v26_final_physical_byte_excluded, text_comments_narrowing_and_all_value_writers; open: SCR7 scanner overflow/nonfinite and length-prefix/raw-reader relationship |
-| cGZPersistBufferResource §7.1 | image::PersistBufferResource lifecycle, interfaces, buffer, set_buffer; BufferProvider/Aggregator | scr_v16_self_set_buffer, aggregated_image_identity_and_destruction; open: SCR7 unassigned base type (zero key/type) |
-| cGZPersistBufferResource §7.2 | load_record, load_file_bmp, load_file_tga, bmp_translation, bmp_stride, rle8, decode_tga | scr_v17_seek_failure_aborts_fallback, scr_v18_bmp_conversion_pairs, scr_v19_tga_vertical_origin, bmp_file_palette_raw_and_rle8_escapes, bmp_four_bit_nibbles_and_dither_boundary, tga_rle_alpha_and_unsupported_depth; open: SCR5 record BMP offsets and 4444 diffusion |
-| cGZPersistASCIIWriter §8.1 | ascii::AsciiWriter reference lifecycle/stack, output_stream, SurveyorFactory | scr_v21_ascii_graph_order, ascii_references_identity_and_invalid_context |
-| cGZPersistASCIIWriter §8.2 | scalar, array, string, object, reference, unknown_reference, type_info, write_root, write_graph, hex, key | scr_v20_hex_and_key_labels, scr_v21_ascii_graph_order, scr_v28_ascii_bool_array, scr_v29_ascii_empty_array, scr_v30_ascii_null_inline_object, ascii_all_scalar_arrays_strings_and_inline_object, ascii_references_identity_and_invalid_context |
-| All owners §9 | Conformance SCR-V01–30 plus ownership/error scenarios | All thirty named scr_vNN tests; JSON cases use independent expected results |
+| Shared contracts §1 | SerialRecord, Resource, Buffer; re-exported switch readers | persistence_runtime, rz_streams, effects_parser suites and owner scenarios below |
+| nSCRes §2.1 | lexical::{next_token, split, count_arguments}; find_switch, find_positional | scr_v01, scr_v02, scr_v31_nested_and_adjacent_tokens, scr_v32_comment_precedes_quotes; SW1–SW8 |
+| nSCRes §2.2 | Expression::{sum, product, power, term, factor}, english_decimal, Extended, parse_float/int/uint/bool, EXPRESSION_PRECISION | scr_v03, scr_v04, scr_v33–scr_v37; decimal_extended_intermediates |
+| nSCRes §2.3 | parse_enum, color, color_alpha, vector2, vector3 | scr_v22–scr_v24 |
+| cCommandParser §3.1 | CommandParser lifecycle, version, register, register_commands, reset, clear_active_macro, no_op, get/remove_variable, namespace stack | scr_v05, scr_v06, scr_v38_parser_lifecycle, scr_v39_namespace_lookup, scr_v40_exact_variable_removal |
+| cCommandParser §3.2 | dispatch, substitute_variables, substitute, Macro, push_block_with_end, Command::end_block | scr_v06, scr_v07, scr_v41_embedded_substitutions, scr_v42_macro_embedded_parameters, macro_substitution_and_nested_switch_validation |
+| cCommandParser §3.3 | builtin, decimal_atol, transformed_value | scr_v43–scr_v48 (set variants, version, trace, list, end, namespace, eval, arrayCreate) |
+| cFileParser §4.1 | FileParser lifecycle, set_parser, getters, retained Watcher handles | scr_v08, file_required_optional_order_and_hooks |
+| cFileParser §4.2 | parse_all, parse_range, message, recursive parse_file and contextual unwinding | scr_v25, scr_v49–scr_v52, file_required_optional_order_and_hooks, include_suppresses_only_open_error |
+| cSLTokenRecord §5.1 | TokenRecord lifecycle/QI, attachment, getters/setters | scr_v09, scr_v10, token_read_failure_cleans_attachment_and_fields |
+| cSLTokenRecord §5.2 | Descriptor, END, Values wire map, create_field, field, read/write_tokens, BinaryIo | scr_v11, scr_v12, scr_v27, scr_v53_binary_all_wire_types, scr_v54_binary_strict_boundary, scr_v55_binary_string_equality, scr_v56_token_name_is_not_payload |
+| cSLTokenSerialRecordIO_Text §6.1 | TextIo, TextNumber, Values; binary uint64 read | text_comments_narrowing_and_all_value_writers, scr_v59, scr_v60 |
+| cSLTokenSerialRecordIO_Text §6.2 | character, delimited, read/write_definition, read/write_number/key/string/values, legacy_float | scr_v13–scr_v15, scr_v26, scr_v57–scr_v62 |
+| cGZPersistBufferResource §7.1 | PersistBufferResource lifecycle/interfaces/buffer/set_buffer, ImageResourceBase, BufferProvider/Aggregator | scr_v16, scr_v63_image_key_type, aggregated_image_identity_and_destruction |
+| cGZPersistBufferResource §7.2 | load_record/file_bmp/file_tga, bmp_translation, bmp_stride, rle8, decode_tga, independent create/lock flags | scr_v17–scr_v19, scr_v64_record_uses_gap_as_pixels, scr_v65_image_failure_state, scr_v68_dither_selection, bmp_file_palette_raw_and_rle8_escapes, bmp_four_bit_nibbles_and_dither_boundary, tga_rle_alpha_and_unsupported_depth |
+| cGZPersistBufferResource §7.3 | diffuse_4444, store_4444 | scr_v66_bmp_diffusion, scr_v67_argb_diffusion, scr_v68_dither_selection, diffusion_serpentine_rows |
+| cGZPersistASCIIWriter §8.1 | AsciiWriter reference lifecycle/stack, output_stream, SurveyorFactory | scr_v21, ascii_references_identity_and_invalid_context |
+| cGZPersistASCIIWriter §8.2 | scalar, array, string, object, reference, unknown_reference, type_info, write_root/graph, hex, key | scr_v20, scr_v21, scr_v28–scr_v30, ascii_all_scalar_arrays_strings_and_inline_object, ascii_references_identity_and_invalid_context |
+| All owners §9 | Independent conformance requirements | All 68 named scr_vNN tests plus ownership, error and cross-method scenarios |
 
 ## Compatibility boundaries
 
-Only published wire type 3 (uint32) is assigned in TokenRecord. All twelve
-typed IO operations exist independently in TextIo; no vtable-slot-to-wire-type
-guess is used. Binary record initialization is represented, but binary field
-encoding returns Unsupported(SCR4). Text output literally calls SetFieldString
-(length prefix included), while delimiter input reads raw bytes. These are
-tested independently; the spec does not establish their roundtrip relationship.
-Shutdown is void and drops any write error, as required.
+Text output uses SetFieldString, including each fragment's length prefix.
+Delimiter input reads raw bytes and does not unwrap those fragments. Binary
+fixed widths require counter < size; strings permit equality after the serial
+read. Shutdown is void and drops any write failure. The text uint64 read
+delegates binary IO even though its writer emits decimal text.
 
-The expression precision flag models shared process state without unsafe CPU
-instructions. An eventual native adapter must mirror the transition to its
-floating-point environment. No plugin is connected by this lane. Decimal
-operands implement the minimum required by the published vectors. Remainder,
-mixed nesting/escapes and non-whole-token variable insertion remain explicit
-Unsupported domains rather than invented grammar. Unpublished builtins are
-registered in the required order and return Unsupported(SCR2).
+Expression precision is modeled as shared process state; a future native
+adapter must mirror it to the floating-point environment. The English decimal
+helper preserves wrapped exponent powers and 64-bit fractional intermediates.
+Empty-stack namespace pop, invalid ASCII contexts and malformed RLE do not
+acquire an invented native success contract. ASCII invalid contexts are safely
+rejected; malformed images are bounded before indexing. BMP loading changes
+the retained buffer after creation, with no rollback on a later failure.
 
-Record BMP offset policy is explicitly open: supported record BMPs report
-Unsupported(SCR5), while invalid BMP headers can fall back to TGA after a
-successful absolute seek. Both published file/record stride formulas are
-available in bmp_stride; file BMP decoding uses the file formula. Explicit
-experimental RecordBmpOffset policies permit testing the settled record
-decoder independently of the open offset decision; load_record never picks
-one. Color type
-7 follows the existing core's 4444 mapping and rejects decoding with SCR5,
-instead of silently substituting truncation. Unsupported TGA source depth can
-succeed after creation/locking, as the spec requires. Malformed RLE is safely
-rejected; no claim is made about native invalid-buffer effects.
-
-Foreign-created objects carry creation references; borrowed buffers are retained
-before replacement, queried interfaces are acquired, and destruction detaches
-the aggregator before releasing it and its buffer. Watcher handles retain their
-own foreign cleanup capability, so FileParser destruction can clean up without
-borrowing the filesystem. Graph resource identity is independent of key/name.
-Invalid ASCII contexts are rejected, as expressly permitted by §8.2.
+Foreign-created objects carry creation references. Borrowed buffers are
+retained before replacement, queried interfaces are acquired, and destruction
+detaches the aggregator before releasing it and its buffer. File watcher
+handles retain their own cleanup capability. Graph identity is independent of
+display names and keys.
