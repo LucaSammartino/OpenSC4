@@ -6,11 +6,6 @@
   entry: which bytes are the page, the frame's pixel position and size, the two flip bits and the offsets, and
   what the animation table at `+0x34` (sequences with a first frame and a length) comes from. [the use as read]
 
-<!-- from: re-sprites (2026-10-20) -->
-- **AS2 - §2, §7:** which models are sprite animations (resource type `0x29A5D1EC`) in the shipped data and
-  which occupants use them, and whether the swapped-looking names of `0x007FD7D0` / `0x007FED50` reflect the Mac
-  build. [the behaviour as read]
-
 <!-- from: core-animated-sprites4 (2026-10-22) -->
 - **AS3 - §1, §3; owner inventory and lifetime:** the task identifies 60 owner functions/10482 bytes, but
   the spec publishes only slots 0–22 and a few named helpers. Please publish the full public owner-method
@@ -74,13 +69,4 @@
   Cited bodies include 007FE0A0–007FE0DB, 007FD680–007FD701, 007FD640–007FD670, 004E13E0,
   007FE230 and 007FEE90. These normal rules remain published; the question's complete 60-function
   inventory/thunk/lifetime reconciliation remains AS3, not proved by this finite-AS6 round.
-
-<!-- from: core-animsprite5 (2026-10-23) -->
-- **AS10 - §3.1 LookAt and §4.1 Draw angle numeric boundaries:** which normalization intermediates
-  are stored to binary32 in LookAt (squares/sums, length, reciprocal, normalized components and cross
-  products), and what are the exact argument/return/store boundaries of Draw's asin/atan2 primitives?
-  The formulas specify the geometric rule but do not give the complete spill schedule as they now do for
-  SetOrientation. [literal difference/cross/component stores and reciprocal FSQRT formula on exact
-  stages only; nonexact/degenerate LookAt and nonzero Draw angle acquisition remain Unsupported,
-  also subject to AS6 whole-call PC/RC and native numeric qualification]
 

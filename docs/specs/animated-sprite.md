@@ -461,6 +461,34 @@ The noncommuting geometric order and bitwise −100 omission/reset rule are prov
 finite partial-mask store schedules in §§3.1.1–3.1.3. AS6 remains partial for whole-call PC/RC provenance,
 native numeric qualification and the AS1 controller boundary; those gaps do not reopen the geometric rule.
 
+#### 3.1.5 LookAt arithmetic boundaries (AS10) *[compat]*
+
+Use the transient operations P/U/V and binary32 store B of §3.1.1. Let Q(x)
+mean x87 square root and D(x,y) mean x87 division x/y, under the incoming
+PC/RC. Neither implies a binary32 store. Inputs are the stored position p,
+target t and supplied up u. The following stages specify rounding boundaries
+of the geometric construction, for completing finite calls; they are not a
+portable NaN/trap or native-accuracy oracle.
+
+| Stage | Values and rounding boundaries |
+|---|---|
+| Difference | dx=V(px,tx) stays transient; dy=B(V(py,ty)), dz=B(V(pz,tz)). |
+| Back length | s=U(U(P(dx,dx),P(dz,dz)),P(dy,dy)); q=D(1,Q(s)). Neither squares, sums nor length are spilled. Save qb=B(q), while retaining q. |
+| Back | bx=P(dx,q), by=P(qb,dy) remain transient; bz=B(P(qb,dz)). Thus the first component uses the unspilled reciprocal, the other two use its binary32 copy. |
+| Unnormalized right | rx=V(P(bz,uy),P(by,uz)) stays transient; ry=B(V(P(bx,uz),P(bz,ux))); rz=V(P(by,ux),P(bx,uy)) stays transient and also saves rzb=B(rz). |
+| Right length | s=U(U(P(rz,rzb),P(ry,ry)),P(rx,rx)); qr=B(D(1,Q(s))). The first product deliberately mixes retained rz and its stored copy. There is no intermediate square/sum/length spill. |
+| Right | X=P(rx,qr), Y=P(ry,qr), Z=P(rzb,qr) remain transient; save Zb=B(Z), retaining Z. |
+| True up | Ux=B(V(P(Z,by),P(Y,bz))); Uy=B(V(P(X,bz),P(Zb,bx))); Uz=B(V(P(Y,bx),P(by,X))). The first component uses retained Z; the second uses Zb. |
+| Matrix commit | Columns become (B(X),B(Y),Zb), (Ux,Uy,Uz), (B(bx),B(by),bz). The B stores of X/Y/bx/by occur only after the cross products. |
+
+Difference/back evidence: `0x007FE257–007FE2AA`; right/length:
+`0x007FE2AE–007FE310`; cross/commit: `0x007FE314–007FE370`.
+The owner performs no CW save/change/restore in LookAt. Entry PC/RC therefore
+govern these arithmetic stages throughout, subject to the caller's environment.
+Zero distance and parallel up are still unguarded. Runtime entry-mode provenance
+and numerical qualification remain AS6/AS7; AS10's store-boundary question does
+not establish a qualified host square-root backend.
+
 ### 3.2 Shared instance surface and overrides
 
 The shared instance vtable at `0x00ABD1D0` has these 19 slots, separate from the sprite's 23-slot interface:
@@ -690,6 +718,46 @@ unchanged (`0x007FD3D0–007FD63E`).
 Independent vector: entry [2,6,48,32,16,−16,−3,4], frame 5 gives side 64, page 3, x=0,y=0 and
 UVs [(0,0.25),(0,0),(0.25,0),(0.25,0.25)]. Scale 2 gives [page 3,32,32,−6,8].
 
+#### 4.1.1 Draw angle primitive boundaries and floating environment *[compat]*
+
+Draw loads stored matrix back.x/back.z as binary32, computes yaw by **hardware
+x87 FPATAN**, then stores that result to binary32 under the ambient RC before
+calling the metric-selection wrapper. It passes back.y's stored binary32 word
+unchanged through a local slot, loads it to x87, calls CRT `__CIasin`, and stores
+the returned transient to binary32. There is no vector normalization, clamp to
+[−1,1], double-precision atan2 call, or yaw recomputation after asin. Evidence:
+`0x007FEB0D–007FEB62`. FPATAN's input order yields atan2(back.x,back.z).
+
+The asin boundary is **not** a C function taking a binary64 argument. At
+`0x009F03B0–009F03C3`, its x87 argument is copied to binary64 for classification
+without replacing the retained input. Here the input was already binary32, so
+that classification copy is exact for finite inputs. For |x|<1 the regular
+primitive computes sqrt((1+x)×(1−x)), then hardware FPATAN with x as numerator;
+the two adds, product, square root and angle remain x87 transients
+(`0x009F03E8–009F03F4`). Exact endpoints instead select an extended-precision
+π/2 constant and apply the sign (`0x009F0413–009F0438`). This is the CRT/hardware
+primitive contract, not an authorization to substitute a host asin golden.
+
+The helper saves the incoming x87 CW. Unless it already equals `0x027F`, its
+regular finite path temporarily uses `(incoming CW & 0x0300) | 0x007F`:
+**preserve precision control, set nearest rounding and mask exceptions**.
+It does not unconditionally select PC53. The regular math exit restores the
+saved CW before the caller's binary32 angle store. Software math/error mode
+and exceptional exits have additional handling; their result payloads, traps
+and callbacks are not qualified here (`0x009F03CD–009F03E1`,
+`0x009FAB25–009FAB3B`, `0x009FABBB–009FABE4`). In particular the yaw FPATAN and
+final binary32 asin store need not share the helper's internal RC.
+
+**Mode provenance limit.** CRT startup's `__setdefaultprecision` requests PC53
+through `__controlfp(value=0x10000, mask=0x30000)` at `0x009F6C30–009F6C41`.
+That establishes a startup request, not the renderer thread's CW at every
+owner entry or after foreign calls. SetOrientation, LookAt, the angle selector,
+UpdateView and Pick do not establish a universal renderer mode. A native
+bitwise test must record entry CW, relevant foreign primitive behavior, CPU and
+exception/software-math state. Finite exact rational vectors may be qualified
+by stated PC/RC; inexact trig/quad/pick results remain unqualified without that
+evidence. No native execution or mode capture was performed in this round.
+
 ## 5. Drawing (`Draw`, `0x007FEA90`; `UpdateView`, `0x007FE400`) *[compat]*
 
 ### 5.1 Quad construction and local box
@@ -843,6 +911,61 @@ or reject zooms itself (`0x007FD710–007FD7C6`).
 The model maker creates sprite instances for occupants whose models are sprite animations; the scene draws and
 picks them through the two thunks; animation ticks drive the clock.
 
+### 7.1 Shipped data census (2026-10-23) *[compat: measured data]*
+
+The installed GOG Deluxe packages were enumerated with `tools/dbpf.py`'s
+read-only DBPF/QFS and binary exemplar readers. The exact model keys and direct
+occupant-property references are in [animated-sprite-data.md](animated-sprite-data.md).
+This is a static shipped-data census, not a runtime creation census.
+
+| Package | DBPF entries | Animation headers `29A5D1EC` | Tables `09ADCD75` |
+|---|---:|---:|---:|
+| EP1.dat | 4,099 | 0 | 0 |
+| Intro.dat | 3 | 0 | 0 |
+| SimCity_1.dat | 60,440 | 1,084 | 2,253 |
+| SimCity_2.dat | 15,238 | 0 | 0 |
+| SimCity_3.dat | 7,495 | 0 | 0 |
+| SimCity_4.dat | 9,797 | 0 | 0 |
+| SimCity_5.dat | 5,619 | 0 | 0 |
+| Sound.dat | 2,776 | 0 | 0 |
+
+SimCity_1.dat has size 144,589,077 bytes, SHA256
+`84d935c8a7a53b3261a1385f1897167445dd85c14fef76baf61f8b4beec79348`.
+All 1,084 headers are 48 serialized bytes; their last/frame-count words range
+from 1 to 67. Group `49A593E7` has 851 headers and 1,707 tables; group
+`2A2458F9` has 233 headers and 546 tables. The 1,707 tables in the first group
+are 100 bytes each. The second group has 525 tables of 68 bytes and 21 of
+44 bytes. All 2,253 tables have the correct serialized tag and satisfy
+size=36+8×entry-count. These measured table counts are 8, 4 and 1 respectively;
+none is a sequence-controller count.
+
+Across all eight packages, 9,345 binary exemplars/cohorts parsed with no errors.
+Searching numeric property arrays for exact consecutive animation TGI triples
+finds 469 occurrences in 452 distinct exemplar records, referencing 389 distinct
+models. Of these, 143 occurrences use `09C80416` in exemplar group `C96E6806`;
+the other 326 use group `C977C536` and properties `27812820` (15), `27812920`
+(4), `27812824` (301), `27812924` (6). Repeated references are counted
+separately. The remaining 695 models have **no literal direct reference in this
+search**, which does not imply unused: inherited/family/state-derived/script
+references and runtime reachability are outside this measurement.
+
+Named examples (all type `6534284A` exemplars):
+
+| Exemplar group:instance | Property | Model group:instance | Exemplar name |
+|---|---|---|---|
+| `C96E6806:00300000` | `09C80416` | `49A593E7:00300000` | Ped_child-F-med01-walk_003000 |
+| `C977C536:1EAC0000` | `27812820` | `2A2458F9:1EAC0000` | ARW3x3x4_kinetic-sculpture_1EAC |
+| `C977C536:1F360000` | `27812824` | `2A2458F9:1F360000` | ARW7x0x4_$$$JumbotronMultiscreenAnimatedScreen1_1F36 |
+
+The swapped-looking factory names are symbol-match labels, not dispatch rules.
+The Mac matching ledger associates Windows `007FD7D0` with Mac `00139F04`
+(`GetSpriteAnimFromResourceKey`) and `007FED50` with `00138656`
+(`GetMeshAnimFromResourceKey`), each tier D, score 0.5, one supporting match.
+That provenance does not prove the Mac implementation's behavior. The proved
+Windows dispatch remains §2: `29A5D1EC` constructs this sprite owner;
+`5AD0E817` uses the foreign factory. Do not exchange resource types to follow
+those tentative names.
+
 ## 8. Quirks
 
 1. Sprites vanish at the two farthest zooms (§5).
@@ -853,8 +976,10 @@ picks them through the two thunks; animation ticks drive the clock.
 
 ## 9. Open questions
 
-See [questions/animated-sprite.md](questions/animated-sprite.md). AS1 controller provenance and AS2 shipped
-usage remain open; AS3 inventory accounting and remaining AS4–AS7/AS9 qualifications are tracked there.
+See [questions/animated-sprite.md](questions/animated-sprite.md). AS1 controller provenance,
+AS3 inventory accounting and remaining AS6–AS7/AS9 qualifications are tracked there.
+AS2's static census and AS10's arithmetic boundaries are answered in §§7.1/3.1.5/4.1.1;
+their runtime-reachability/native-numeric limits remain explicit.
 AS8's completing-path setter answer is archived with its explicit floating-comparison boundary.
 The record consumer and IID are specified in §§2/4.1; `0x69B6F01C` is an IID, not the resource key type.
 
@@ -879,3 +1004,21 @@ The record consumer and IID are specified in §§2/4.1; `0x69B6F01C` is an IID, 
    followed by slot 4 writing M/returning true returns true/M and releases R once. If slot 4 returns false
    without writing output, return false/S and still release R once. In each acquisition assert unchanged
    key, IID `0x9AD0E7E3`, options 0/0; in each slot-4 call assert `(0, caller-output)` and no model AddRef/QI.
+9. **LookAt reciprocal split, proposed UNEXECUTED analytic stage vector:** PC53, nearest RC,
+   position (3,4,0), target (0,0,0), up (0,0,1). Differences are exactly (3,4,0),
+   back sum is 25 and square root is 5. The transient reciprocal is the PC53 value
+   of 1/5; its binary32 copy is `3E4CCCCD`. Back y before its final store equals
+   4×that copy, exactly 0.800000011920928955078125, while back x uses three times
+   the retained reciprocal under PC53. Check those stages before right normalization;
+   do not replace both with a common stored or unstored reciprocal. No native golden is claimed.
+10. **Asin mode boundary, proposed UNEXECUTED contract vector:** for an ordinary finite
+    completing asin path, incoming CW `0x077F` gives internal `0x037F`, not `0x027F`;
+    incoming `0x0A7F` gives internal `0x027F`. Regular exit restores the respective
+    incoming CW before Draw's binary32 result store. These are CW transformation
+    facts, not evidence that either mode occurs in the renderer or an angle-result oracle.
+11. **Shipped census, measured static vector:** the eight packages of §7.1 yield
+    1,084 animation TGIs, 2,253 well-sized tables, 469 direct property occurrences,
+    452 referring exemplar TGIs and 389 directly referenced model TGIs. The model
+    `29A5D1EC:2A2458F9:1EAC0000` is referenced by exemplar
+    `6534284A:C977C536:1EAC0000`, property `27812820`. This checks identifiers
+    and literal references only; it is not a runtime renderer conformance result.
