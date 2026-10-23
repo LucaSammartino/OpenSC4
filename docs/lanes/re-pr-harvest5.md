@@ -1,28 +1,110 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-pr-harvest5: contributor spec harvest | Codex; re-pr-harvest5 | in progress: round 2 clean-room review | Finish review, doccheck, preservation audit, report and queue. |
+| re-pr-harvest5: contributor spec harvest | Codex; re-pr-harvest5 (reserved detached HEAD) | ready: eleven selected contributor commits harvested; clean-room review and doccheck pass | Merge train publishes the actual HEAD to the reserved lane branch and lands it. |
 
-## Handoff
+## Report
 
-- Goal: harvest ten selected PR10 commits and PR9 e968dbd1, preserving newer main material.
-- Worktree: reserved detached HEAD; do not switch branches or update refs.
-- Resumed 2026-10-23 after reboot; all eleven sources committed, latest harvest tip 229aeb6b. No queue yet; doccheck not run.
-- Taken in order: 46ecc345 -> a8dc40e6; 8853d10c -> 5e8196c6; 5517422f -> ec33f456; 128498f4 -> 5a106945; 4048a59f -> 4ee7425d; f02a528f -> c6ac2b76; 47f2fde4 -> 9b7befdc; 9087568e -> 16713743; 13cf2b33 -> 788f2a53; c95be639 -> 5cf8acf6; e968dbd1 -> 229aeb6b. Original authors and -x trailers retained.
-- Review progress: original added-text pages 0-42 reviewed (application through prop-developer); pages may shift after edits. Next review region-city-dialogs, render3d, save-records, terrain-view, ui-windows, view3d-window, view3d, zone-tool (original pages 43-83). Revisit placement sections 3.10/3.12 and inherited demolition-filter summary for behavioural phrasing.
-- Clean-room edits so far: region isolated removal control-flow block replaced with schedule/batch/effect rules; occupant data-view filter replaced with predicates; instruction mnemonic snippets removed from filter evidence. Preserve original facts and examples.
-- Coverage policy tightened to existing main rows and spec column only: omit contributor additions/reclassification/key renames to preserve row order and first-match semantics.
-- Conflict policy applied: regenerated QUESTIONS; symbol table retains pre-harvest rows on duplicate keys.
-- Git reports packed-refs.lock permission warnings during commit, but detached HEAD commits succeed; shared refs remain read-only.
-- Deferred: a8b30439 and a33fa02e (concurrent occupant specs); a12daabf (drawing-fonts implementation).
-- Resolve generated indexes by regeneration; coverage map changes limited to spec column; symbol duplicate keys retain main.
-- Review every added spec section for translated control flow; no engine/plugin/capi edits.
-- Review tooling: build-runs/harvest-normalize.py enforces prior symbol rows and original coverage row set; harvest-signposts.py already applied (do not rerun). INVENTORY-M6 unchanged; no inventory generator found in tools search.
-- Final coverage diff vs 66f935e6: only spec cells on cSC4ConstructionOccupant, SC4QuadGrid, four region-dialog classes, cSC4View3DWin and cSC4SubBudgetWindow. Original row order and every non-spec cell preserved; all contributor added rows/key renames/reclassifications omitted. Verify again before ready.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-pr-harvest5-r2-manifest.json.
-- Harvest milestone: e968dbd1 resolved via regenerated index and spec-only coverage normalization. All eleven requested sources applied; next clean-room review and validation.
-- Harvest milestone: c95be639 resolved; main's newer construction material merges cleanly. Next e968dbd1, then full clean-room review and doccheck.
-- Signpost milestone: 13cf2b33 resolved; main's dedicated TextDecal spec and vectors remain authoritative. Imported interface supplement; omitted superseded duplicate TextDecal behavior (including older color threshold). Main OP1/OP2-TD answers retained; main's signpost OP2 question moved to archive with contributor evidence. Next c95be639.
-- Harvest milestone: 9087568e resolved with generated index, symbol union, and spec-column-only coverage; next source 13cf2b33.
-- Harvest milestone: 47f2fde4 resolved with generated index, symbol union, and spec-column-only coverage; next source 9087568e.
-- Harvest milestone: f02a528f resolved with generated index, symbol union, and spec-column-only coverage; next source 47f2fde4.
-- Harvest milestone: 4048a59f resolved with generated index, symbol union, and spec-column-only coverage; next source f02a528f.
+Completed 2026-10-23 against pre-harvest main `66f935e6`. Ten selected PR10 commits
+and PR9's single commit are present in the requested order, with original authors
+and `cherry-pick -x` trailers. The round-1 reboot checkpoint is `dc6e9729`; round-2
+behavioural rewrites began at `dccfbcec`. This report accompanies the final review commit.
+
+### Commits taken
+
+| Source | Harvest commit | Material |
+|---|---|---|
+| PR10 `46ecc345` | `a8dc40e6` | occupant filters |
+| PR10 `8853d10c` | `5e8196c6` | 3D window commands, panels and displays |
+| PR10 `5517422f` | `ec33f456` | quad grid and rendering passes |
+| PR10 `128498f4` | `5a106945` | query tool dialogs and values |
+| PR10 `4048a59f` | `4ee7425d` | lot placement and facing |
+| PR10 `f02a528f` | `c6ac2b76` | budget sheet, taxes and loans |
+| PR10 `47f2fde4` | `9b7befdc` | model maker and background loader |
+| PR10 `9087568e` | `16713743` | application preferences, resources and plugins |
+| PR10 `13cf2b33` | `788f2a53` | signposts and TextDecal interface supplement |
+| PR10 `c95be639` | `5cf8acf6` | construction lot division, cranes and cleanup |
+| PR9 `e968dbd1` | `229aeb6b` | region/city dialogs and obliteration |
+
+Deferred as requested: PR10 `a8b30439` and `a33fa02e` (network/underground occupant
+specs under active extension in another lane); `a12daabf` (drawing-fonts under
+implementation in an engine lane). No fetch, push, GitHub action, merge or shared
+ref update was performed.
+
+### Conflicts and preservation
+
+- Kept main's existing spec sections and added contributor detail in their owning
+  sections. Main's newer construction contract remains. The two renamed original
+  headings retain their material: budget-window-bodies §4.2 now has the complete
+  display mapping; lot-developer's old §6.7.10 Open is now §6.7.15 Open.
+- Main's dedicated `text-decal-occupant.md` and all vectors remain authoritative.
+  Omitted the contributor's superseded duplicate TextDecal behaviour, including its
+  older colour threshold; retained the new interface supplement in lot-records.
+  Main's OP1 and OP2-TD answers remain; the signpost OP2 receiver/stream question
+  moves to the archive with the contributor's evidence.
+- Regenerated `docs/specs/QUESTIONS.md` with `tools/questions.py index` rather than
+  hand-merging. `INVENTORY-M6.md` remains unchanged; the round-1 tools search found
+  no inventory generator. Existing answered-question text is preserved.
+- Unioned RE symbol/name tables, retaining main's exact row on every duplicate
+  key. The audit verifies every pre-harvest key still has its original row.
+- Kept coverage row order, keys, classification and every non-spec cell exactly.
+  Omitted contributor row additions, key renames and reclassification so first-match
+  semantics are unchanged. No engine, plugin, capi or docs/abi edits; no ABI exports
+  changed and no ABI rows proposed.
+
+### Clean-room review
+
+Reviewed the complete harvested spec additions (84 review pages) and question
+additions (26 pages) against CONTRIBUTING.md Specs. Retained behaviour, equations,
+orderings, constants, record layouts and short interface/address facts. Rewrites:
+
+- region-city-dialogs §5.5.1: replaced the conditional/loop/goto block with removal
+  scheduling, batch, sparkle and state-transition rules, preserving its examples.
+- occupant-manager §13.2.8: replaced temporary-result branch tracing with type/group
+  acceptance predicates and explicit exceptions.
+- occupant-manager §13.2.3: replaced the inherited demolition-filter branch/mnemonic
+  summary with field roles and the authoritative demolition.md §4.2 contract;
+  retained bounds, privilege, filters, types, network mask and destructor facts.
+- occupant-manager filter evidence: removed instruction-mnemonic snippets.
+- city-tools-input §3.10: restated the placement test as ordered requirements and
+  output effects, preserving early-failure precedence and cost/message rules.
+- Archived OP3: replaced a register-indexed load phrase with the selected-row fact.
+  Added missing MATCHES/DIFFERS markers to imported answers, retaining attribution.
+- Escaped the filename-rule table's literal pipe for correct Markdown rendering.
+
+### Coverage-map spec cells
+
+Exactly eight existing rows changed, only column 4:
+
+| Row | Previous spec | Final spec |
+|---|---|---|
+| cSC4ConstructionOccupant | lot-records.md | lot-records.md, lot-developer.md |
+| SC4QuadGrid | - | render3d.md |
+| cSC4NewRegionDialog | - | region-city-dialogs.md |
+| cSC4ImportCityDialog | - | region-city-dialogs.md |
+| cSC4EstablishCityWinProc | - | region-city-dialogs.md |
+| cSC4ObliterateCity | - | region-city-dialogs.md |
+| cSC4View3DWin | - | view3d-window.md, ui-windows.md, view3d.md |
+| cSC4SubBudgetWindow | budget-window.md | budget-window.md, budget-window-bodies.md |
+
+### Validation and questions
+
+Final checks: `python tools/doccheck.py check` PASS; `python tools/questions.py
+check` PASS after index regeneration; `git diff --check` PASS. The read-only
+`build-runs/harvest-audit.py` passes scope, exact coverage preservation, prior symbol
+rows, prior answered-question lines and all eleven source-author/-x checks.
+No vectors were changed. Cargo, clippy and ctest: n/a for this spec/RE harvest.
+Game runs: none; no new runtime/shadow verdict or fresh numeric RE measurement is
+claimed. Contributor measurements in their imported lane reports are historical.
+
+Imported open questions: AP10–11 (application); BW18 (budget-window); CT14–17
+(city-tools-input); MM1–2 (model-maker); OM9 (occupant-manager); OP18–19
+(occupants-props); VW7–8 (view3d-window); CY1–12 (region-city-dialogs); RM13–14
+(region-model); QR4 (region-screen), all under `docs/specs/questions/`.
+Imported/archived answers: CT3/5/8/10/12, OM10, OP2/3/4/5/8/9/17, TV1 and VW2–5
+in the corresponding `docs/specs/questions/answered/` files. Remaining uncertainties
+stay open; this lane adds no new RE investigation.
+
+Next: merge train lands this batch; owners can pursue the open questions and the
+three deferred commits independently. Queue: `build-runs/merge-queue/re-pr-harvest5.json`,
+kind `re`, state `ready`, actual final HEAD. The worktree intentionally remains
+detached; the supervisor publishes the commits to the reserved lane branch.

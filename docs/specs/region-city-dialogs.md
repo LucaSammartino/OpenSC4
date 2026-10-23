@@ -184,7 +184,7 @@ edit that is consistent with a "notify on change" option; CY3).
 
 | Rule | Detail |
 |---|---|
-| characters | none of `< > : \ / " | * ?` (`IsFileNameCharAllowed`, `0x009180D4`, the same set that `SC4SanitizeFileName` removes, region-model §6.4). Bytes are tested one by one as signed bytes; any byte other than these nine passes, including controls, blanks and non-ASCII bytes |
+| characters | none of `< > : \ / " \| * ?` (`IsFileNameCharAllowed`, `0x009180D4`, the same set that `SC4SanitizeFileName` removes, region-model §6.4). Bytes are tested one by one as signed bytes; any byte other than these nine passes, including controls, blanks and non-ASCII bytes |
 | reserved names | the text up to the **first `.`** (the whole text when there is none), lower-cased, is none of `con prn aux clock$ nul com1`..`com9 lpt1`..`lpt9` (23 names). So `CON`, `con.txt` and `Com3` are refused, `Console` and ` con` are not |
 | not blank | the text contains at least one character that is **not** `.` or a blank. `""`, `"."`, `".."` and `"   "` are refused |
 | length | **a text longer than 256 bytes is accepted without any other check** *[quirk]* (the rules above are skipped; the length test returns "valid"). The edit's own limit keeps real input at 128 characters |

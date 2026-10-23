@@ -67,13 +67,13 @@
 - ~~**OP8:** the `0xCA0E3852` filter (creator `0x007A0420`, vtable `0x00AB7E44`, byte +0x2E = 1, registered at
   `0x004608AB`), the `0xE9C75EE8` types-set filter body, and the hashed-variant filter bodies (vptrs
   `0x00A8EE38`/`0x00A8EE20`). [identity untraced]~~
-  **ANSWERED 2026-10-21 (re-occfilters):** occupant-manager.md §13.2: the `0xE9C75EE8` filter is `cSC4OccupantTypesFilter`, a type list filled only by `Read` (§13.2.3); the `0xAA25CB90` one is `cSC4OccupantTypesFilterHashed`, a hash set the model maker fills (§13.2.3); the `0xCA0E3852` filter is the data map view's filter for the 3D view (§13.2.8).
+  **ANSWERED 2026-10-21 (re-occfilters):** DIFFERS — occupant-manager.md §13.2: the `0xE9C75EE8` filter is `cSC4OccupantTypesFilter`, a type list filled only by `Read` (§13.2.3); the `0xAA25CB90` one is `cSC4OccupantTypesFilterHashed`, a hash set the model maker fills (§13.2.3); the `0xCA0E3852` filter is the data map view's filter for the 3D view (§13.2.8).
 
 <!-- from: re-occprops (2026-10-20) -->
 - ~~**OP9:** `cAutomataOccupantFilter` type identities {`0xC7CC75F1`, `0x496E5783`, `0x480E6151`, `0x897F7EC2`}
   (`0x00562C90`): which occupant classes are these? [`0xC7CC75F1` is the subway-adjacent type per the subway
   filter; the rest unknown]~~
-  **ANSWERED 2026-10-21 (re-occfilters):** occupant-manager.md §13.2.7: they are the vehicle, pedestrian, aircraft and watercraft occupant types, the names the string specification filter's parser gives them (§13.2.5: `Vehicle` `0xC7CC75F1`, `Pedestrian` `0x496E5783`, `Aircraft` `0x480E6151`, `Watercraft` `0x897F7EC2`).
+  **ANSWERED 2026-10-21 (re-occfilters):** DIFFERS — occupant-manager.md §13.2.7: they are the vehicle, pedestrian, aircraft and watercraft occupant types, the names the string specification filter's parser gives them (§13.2.5: `Vehicle` `0xC7CC75F1`, `Pedestrian` `0x496E5783`, `Aircraft` `0x480E6151`, `Watercraft` `0x897F7EC2`).
 
 <!-- from: re-occprops (2026-10-20) -->
 - ~~**OP4:** `cSC4RealisticOccupantFilter` flag bytes `+0xC`/`+0xD`/`+0xE` (creator `0x005EA240` zeroes them; ctor
@@ -83,7 +83,7 @@
 
 <!-- from: re-occprops (2026-10-20) -->
 - ~~**OP5:** `cSC4BlockingLotOccupantFilter` slot 3 (`0x004BDF90`, 26 bytes) body and users. [untraced]~~
-  **ANSWERED 2026-10-21 (re-occfilters):** occupant-manager.md §13.2.6: slot 3 `0x004BDF90` is the base's `IsOccupantTypeIncluded(GetType())`; the blocking-lot filter's own slot 4 (`0x006C3C20`) is true only for flora `0x74758926`; the lot developer uses it.
+  **ANSWERED 2026-10-21 (re-occfilters):** MATCHES — occupant-manager.md §13.2.6: slot 3 `0x004BDF90` is the base's `IsOccupantTypeIncluded(GetType())`; the blocking-lot filter's own slot 4 (`0x006C3C20`) is true only for flora `0x74758926`; the lot developer uses it.
 
 <!-- from: re-occprops (2026-10-20) -->
 - **OP2:** remaining signpost stream/receiver semantic: lot-records.md §13.2 calls stream
@@ -102,9 +102,9 @@
 <!-- from: re-occprops (2026-10-20) -->
 - ~~**OP3:** signpost `SetDynamic` (`0x005F4BA0`) colour tables: it copies 4 bytes from `0x00AA5204 + 4·(arg!=0)`
   into the four corner rows at `+0x4D4…+0x4D7`, `+0x4E4…+0x4E7`, `+0x4F4…+0x4F7`, `+0x504…+0x507` (both byte
-  orders measured: the load is `[EAX*4 + 0xaa5204]` style with per-corner offsets shuffled). What are the two
+  orders measured, with the same selected row used for each corner). What are the two
   rows (static vs edit-time colours) and the corner order? [dynamic = row 1]~~
-  **ANSWERED 2026-10-22 (re-signposts):** row 0 is the static colour (144, 172, 190, 255), row 1 the dynamic
+  **ANSWERED 2026-10-22 (re-signposts):** MATCHES — row 0 is the static colour (144, 172, 190, 255), row 1 the dynamic
   (edit-time) colour (255, 255, 255, 204), bytes in memory order (`0x00AA5204` = `90 AC BE FF`, `FF FF FF CC`;
   *[inferred]* R, G, B, A); `SetDynamic(d)` copies row `d != 0` into the four corners.
 
@@ -114,7 +114,7 @@
   or only `Read`? And is it the building's box unchanged or a box derived from the scaffold? The core sets it to the
   building's bounding box in `RebuildModel` (literal reading of "the building's bounding box" being the only box
   `RebuildModel` reads), also on the refresh after a load.~~
-  **ANSWERED 2026-10-23 (re-construction):** `RebuildModel` writes it (`0x005CB76D`–`0x005CB799`; the constructor only
+  **ANSWERED 2026-10-23 (re-construction):** DIFFERS — `RebuildModel` writes it (`0x005CB76D`–`0x005CB799`; the constructor only
   initialises it): the scaffold box it stores at `+0xC0…+0xD4` (the building's footprint widened by sfScaffoldGap)
   widened again by sfPostWidth (`0x00B0A7CC`, default 1.0) in x and z, with the same heights. It is not the building's
   box unchanged; `SetLot` writes it only through its `RebuildModel` call, and `Read` restores the saved value

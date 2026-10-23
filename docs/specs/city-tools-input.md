@@ -304,17 +304,22 @@ terrain (`x0 ≥ 0`, `x1 <` terrain slot 7, `z0 ≥ 0`, `z1 <` terrain slot 8: t
 
 *Added 2026-10-22 (re-plop).* `CanPlaceLot(&point, rotation, &rect, &valid, &cost, &code, &message)` → bool:
 
-1. `rect` := (−1, −1, −1, −1), `valid` := false, `cost` := 0 (int64), `code` := 0, `message` := empty. The lot
-   configuration (manager slot 8 with `+0x30`) must exist, else false.
-2. `valid` := §3.9 for `(rotation, point)`; false → false.
-3. The centre's coordinates, truncated to integers, are compared with the last placed rectangle `+0x78..+0x84`
-   (world units, §3.6): `x0 ≤ cx ≤ x1` and `z0 ≤ cz ≤ z1` → false (the same click does not plop twice).
-4. `cost` := 0 when the plop cost `+0x128` is 0; otherwise the lot developer's (development service slot 36,
-   `GetLotDeveloper`) `GetLotDevelopmentCost(rect)` (its slot 32, lot-developer.md §11.4) plus the plop cost.
-5. `code` := the lot manager's (`0x00B43D08`) `CanCreatePloppedLot(rect, rotation, cfg)` (slot 21, zones.md §8.4.1).
-   Code 8 (free): when `CanDemolishLot` succeeds its cost is added to `cost` and the result is true; otherwise the
-   message is `0x6A711969`. Codes 0–7 give the messages zones.md §8.4.1 lists (group `0x0A419226`); a larger code
-   gives none. False.
+The initial outputs are rectangle (−1, −1, −1, −1), validity false, int64 cost 0,
+code 0 and an empty message. Checks have the following precedence; failure leaves
+later checks unevaluated and returns false:
+
+| Check | Required outcome and output effect |
+|---|---|
+| Configuration lookup | Manager slot 8 with `+0x30` must provide a lot configuration |
+| Cell coverage (§3.9) | Publishes the rectangle and `valid`; invalid coverage rejects placement |
+| Repeat-click exclusion | Rejects a centre whose integer-truncated x/z coordinates are inside the last placed world rectangle `+0x78..+0x84`, including all edges (§3.6) |
+| Price | With plop cost `+0x128` zero, cost remains zero; otherwise it is plop cost plus `GetLotDevelopmentCost(rect)` (development service slot 36 `GetLotDeveloper`, developer slot 32; lot-developer.md §11.4) |
+| Lot creation test | Publishes `CanCreatePloppedLot(rect, rotation, cfg)` from lot manager `0x00B43D08`, slot 21 (zones.md §8.4.1) |
+
+Creation code 8 (free) permits the demolition dry run below. Its success adds the
+demolition cost and makes the overall result true; its failure produces message
+`0x6A711969`. Codes 0–7 reject placement with the messages in zones.md §8.4.1
+(group `0x0A419226`); larger codes reject it without a message.
 
 **`CanDemolishLot(rect, …, &cost)`** (`0x004BEAB0`): a dry run of `DemolishRegion(false, rect cells, privilege 1,
 flags, …, &cost)` (demolition.md §4.4) with flags `0x2800`, or `0x800` when `+0x140` is `0xF2` (a subway station,

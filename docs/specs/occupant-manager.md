@@ -1033,12 +1033,22 @@ it (view3d-window.md §3.1; OM10); the inside-lot filter (§13.2.6); the region-
 thumbnail writer (`0x005DE18C`).
 
 **The demolition filter** (`cSC4DemolitionOccupantFilter`, 0x30 bytes, [demolition.md](demolition.md) §4.2) extends
-the realistic filter. `IsOccupantIncluded` `0x00466730`: Realistic test → continue; Default test → **exclude**;
-`+0x2C` filter slot 3 false → exclude; byte `+0x10` → box-containment test vs `+0x14…+0x20` (FCOMP); byte `+0x24` →
-`[occ vtable+0x38](+0x28)` continue; type switch `0x68FD0C69` foundation (QI `0xC8FCE101` → lot slot 0x24 == 1),
-`0x096E763C` construction, `0x278128A0` building, `0x74758926` flora, `0xA823821E` prop, `0xC772BF98` network →
-accept; else exclude; accept path: `+0x30` filter slot 3 false → exclude; network (`0xC772BF98`): `0x00B43DC4` slot
-0x58 == 1 skips the `0xA821EF94` QI + slot 0x24 (`0x1F4F`) test, else that test true → exclude. Its destructor body
+the realistic filter. Its complete inclusion contract (`IsOccupantIncluded`,
+`0x00466730`), including the foundation exception and surface-network restriction,
+is [demolition.md §4.2](demolition.md#42-the-demolition-filter-φ-compat).
+The inherited summary is expressed here by field roles rather than branch notation:
+
+| Field/interface fact | Role in that contract |
+|---|---|
+| `+0x10`; `+0x14…+0x20` | enable world-position bounds; x/z bounds, inclusive |
+| `+0x24`; `+0x28` | enable privilege test; removal level for occupant slot 14 (`+0x38`) |
+| `+0x2C`; `+0x30` | optional caller and view filters (slot 3 inclusion tests) |
+| foundation `0x68FD0C69`, IID `0xC8FCE101`, slot 9 (`+0x24`) | foundation-specific acceptance result 1 |
+| construction `0x096E763C`, building `0x278128A0`, flora `0x74758926`, prop `0xA823821E`, network `0xC772BF98` | ordinary eligible types; demolition.md also specifies power poles |
+| view `0x00B43DC4`, slot 22 (`+0x58`); network IID `0xA821EF94`, slot 9 (`+0x24`), mask `0x1F4F` | outside view level 1, exclude surface-network flags |
+
+The realistic/default acceptance relationship and the order of caller, bounds,
+privilege, type and view tests are specified in demolition.md §4.2. The destructor
 (`0x00466EC0`) releases the caller and view filters (`+0x2C`, `+0x30`).
 
 **The type list** (`cSC4OccupantTypesFilter`, vtable `0x00A8EDBC` / `0x00A8EDA4`). A vector of u32 types at `+0xC`.
