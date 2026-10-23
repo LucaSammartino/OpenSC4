@@ -1,22 +1,34 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-lua-host5b: Lua host owner closure | Codex / core-lua-host5b | in progress | Implement settled LH4/LH5 contracts and verify full gate |
+| core-lua-host5b: Lua host owner closure | Codex / core-lua-host5b | ready | Coordinator review and merge; only spec §15 Q1/Q2/Q5/Q8 remain unsettled |
 
-## Handoff
-- FINAL GATE COMPLETE: corrected stable source passed qbuild all, 6380 workspace tests / 0 failed / 0 ignored, clippy 0 diagnostics; native 49/49 edges, CTest 68/68, 96.6 seconds. No tree-change warning. Request qbuild-20261023-215115-build-ctest and exec session 33608 are terminal PASS.
-- EXACT NEXT STEP: rewrite this lane file as the final ready report, commit it, then write build-runs/merge-queue/core-lua-host5b.json with actual HEAD, branch/lane core-lua-host5b, kind engine, abi false, game_runs [], state ready. Do NOT rerun tests: all required final checks passed. No outstanding operation or collector remains.
-- Source milestones: 021cc87e implementation, 7c162903 destructor correction; current documentation milestone a64de9dd. Focused tests 25/25; formatting 7 files PASS. Final logs build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log. Initial mixed-source evidence archived in build-runs/gate-before-destructor-correction/.
-- Budget stop during final report preparation; no merge-queue entry written. Remaining work is reporting/enqueue only. No new questions, no ABI/plugin/capi changes, no game runs. Only spec §15 Q1/Q2/Q5/Q8 remain unsettled. The older in-progress gate/next-step notes below are superseded by these final facts.
-- Goal: close all settled cGZLua5, cGZLua5Thread and command-generator owner behavior; interpreter remains foreign.
-- Done: implemented LH4 registry/thread lifecycle and LH5 setup, notifications, dispatch and cleanup; expanded owner table.
-- Done: implementation milestone 021cc87e; latest focused 24/24 in build-runs/focused-20261023-211944.log; fmt 7 owned files PASS. Earlier diagnostic failures preserved separately.
-- Gate in progress: workspace 6379 passed / 0 failed / 0 ignored; clippy 0 diagnostics. Native queued as qbuild-20261023-212359-build-ctest (game regress delays it).
-- First full gate completed: qbuild PASS; workspace 6379/0, clippy 0 diagnostics, native 217/217 edges, CTest 68/68 (294.4 seconds native total). It flagged tree changed; this is mixed-source evidence, not final verification. Session 75902 and collector cell 76 are terminal.
-- Done: destructor now shuts down remaining registry even after a null-context failed main hook; regression added. Latest focused suite 25/25: build-runs/focused-20261023-213050.log.
-- Done: corrected source committed as 7c162903; final explicit fmt check passes all 7 owned Rust files; working tree clean before this handoff update.
-- First-gate cargo/clippy logs archived in build-runs/gate-before-destructor-correction/. Native source may include the correction because it was still queued; do not claim this mixed gate as final verification.
-- Next: run qbuild all once on corrected stable source. Initial logs archived before rerun in build-runs/gate-before-destructor-correction/ (including native logs).
-- Thread views share synchronized state; explicit release/destroy methods handle foreign lifetime operations. No RefCell.
-- Only pre-existing spec §15 Q1/Q2/Q5/Q8 remain unsettled; no new questions filed.
-- No game requests; core-only task, no plugin/C ABI changes authorized.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-lua-host5b-r1-manifest.json.
+## Changes
+
+Implemented the settled LH4 and LH5 contracts in the Lua host core. The module README's Owner closure table maps each owner/spec section to code and conformance tests; no LH4/LH5 Unsupported rows remain.
+
+- `vm/lifecycle.rs` owns main/child thread records, synchronized shared views, monotonic IDs, registry ownership, reference decisions, destruction, stack movement and result counts. Cloning a view borrows without AddRef; explicit release/destroy operations accept the foreign API.
+- `vm/generator.rs` owns setup, command notifications, binding, parameter conversion, dispatch, ordered outputs and cleanup. It initializes 500 records, grows by 20 and reuses free indices from the front.
+- Added LH4/LH5 conformance coverage, including failed factories/hooks, shared reference counts and destruction after a null-context failed main hook. Rechecked the existing VM/thread owner coverage and retained its spec-section mappings.
+- Lua interpreter primitives remain foreign traits. There are no plugin, capi or ABI changes and no coverage-map edits.
+
+Implementation commits: `021cc87e` (settled owner contracts) and `7c162903` (destructor correction and regression).
+
+## Verification
+
+The final stable source passed `qbuild.py --wt <WT> all`. The completed native request is `qbuild-20261023-215115-build-ctest`; its saved verdict is pass. No operation remains outstanding.
+
+- Workspace cargo tests: **6,380 passed, 0 failed, 0 ignored**, summed over every test-result line in `build-runs/qbuild-test.log`.
+- Clippy with `-D warnings`: **passed, 0 diagnostics** (`build-runs/qbuild-clippy.log`).
+- Native build: **49/49 edges passed**; full CTest: **68/68 passed**; native verification total **96.6 seconds** (`build-runs/fc4verify-build.log`, `build-runs/fc4verify-ctest.log`).
+- Focused Lua VM tests: **25/25 passed**; explicit formatting check: **7 owned Rust files passed**.
+- Earlier mixed-source evidence remains in `build-runs/gate-before-destructor-correction/`; it is not the final verification claim. The final gate had no tree-change warning. This reporting-only continuation did not rerun the completed gate.
+
+## Open boundaries and game runs
+
+No new questions were needed. Only the spec's existing §15 Q1/Q2 (panic-function identity and Lua 5.0 versus 5.0.1) and Q5/Q8 (default reporter output and exact text, affecting §4.3) remain unsettled. These boundaries are explicit in the Owner closure table; no other behavior assigned to the VM/thread/command-generator owners remains Unsupported.
+
+Game runs: none. This portable core change has no plugin integration and makes no real-game shadow claim.
+
+## Next steps
+
+Coordinator review and merge. A future spec answer can settle the four existing §15 questions; native adapter integration is outside this lane.
