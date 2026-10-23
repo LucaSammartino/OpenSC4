@@ -1,6 +1,27 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-legacy-control4 (portable LegacyControl owner) | Codex / core-legacy-control4 (engine lane, detached HEAD) | WIP: workspace cargo 5162/0 and owner 22/22 at 34dc4033; nine-file fmt passed before lint cleanup; clippy failed redundant_locals, two bindings removed but fix unverified; original all native build active, CTest not started; ABI unchanged; LC9/LC10 retained | (1) Collect original all by verified PID/creation/command, no duplicate; (2) focused clippy/fmt after it ends; (3) authorized passing stable full gate before ready |
+| core-legacy-control4 (portable LegacyControl owner) | Codex / core-legacy-control4 (engine lane, detached HEAD) | in progress: guard stopped round 2 at 152k/150k; workspace cargo 5162/0 and owner 22/22 at 34dc4033; nine-file fmt passed before lint cleanup; clippy redundant_locals fix committed 628ec2a1 but unverified; native/CTest incomplete; ABI unchanged; LC9/LC10 retained | (1) Reconcile original all by PID/creation/command, no duplicate; (2) focused clippy/fmt after it ends; (3) authorized stable full gate before ready; no queue written |
+
+## Handoff
+- Goal: finish portable LegacyControl owner validation; exact 45-entry scope, no GUI/game/network/ABI/native/default/coverage work.
+- Original clean ce60e13a remains ancestor; source milestones 02bd46f2 fixtures before bf469091 production, d8d3da6f source/tests.
+- Round 2 commits: 8949db4a validator reconciliation, 34dc4033 audit/fmt, 628ec2a1 actual two-line Clippy fix and full 45-entry report below.
+- Old all/fmt did not survive; limited-query OS audit found no own validator. Old logs moved byte-identically to r1-*; failures and UTF16 q.py transport evidence preserved.
+- Exactly ONE replacement all launched on clean 34dc4033, tree 736c76bcac18bc6173e2063d2d16853fc6cf9bcb. No quick or second all launched.
+- Cargo workspace completed: 5162 passed, zero failed/ignored/measured/filtered; 22 summaries. LegacyControl 22/22 passed, exact393 vocabulary.
+- Nine-file absolute owner fmt passed before final lint cleanup: exit0 files9 diff_lines1 (path warning). Shared lib.rs not reformatted; engine configuration unchanged.
+- Actual Clippy failure: redundant_locals tests.rs:225/226, let mut f=f and let mut g=g. Removed only those two statements in 628ec2a1; all fixtures/assertions/tests/production preserved. No lint suppression.
+- Focused post-fix clippy/fmt NOT run: original all continued into native. Never overlap checks. Original failed qbuild-clippy.log retained with hash in report below.
+- Original runner PID2284 created 2026-10-22T23:30:30.413866Z, qbuild PID29620 created 23:30:30.519874Z; commands/cwd this WT. Session9365 is not liveness proof.
+- Last OS native: fc4verify PID21424 created 23:52:18.665579Z, CMake PID38668 created 23:52:22.117063Z, release core rustc PID25156 created 23:52:24.690336Z CPU25.8125s; own engine cwd.
+- Native rc/complete progress/CTest expected count/end/full wrapper rc still uncollected. Configure succeeded. No denominator or pass fabricated.
+- Functions cell42's 300-second collection completed with no output and session9365 still running at that point; report's older 'outstanding' wording is superseded here.
+- Test-only lint fix changes source bundle after failed Clippy; do not treat original all as a passing stable final-tip gate. Runner will print original qbuild rc plus before/after HEAD/tree/dirty/hashes at exit.
+- NEXT EXACT STEP: inspect actual OS liveness/creation/command/cwd and own saved all/native logs; collect surviving operation without launching duplicate. Old PID/session alone is insufficient.
+- Once it ends: preserve failed clippy log, run focused qbuild clippy and absolute touched-test fmt, then obtain authorization for required stable full all (round2 used its one replacement). Report real wrapper failures accurately.
+- Full 45-entry classification below:42 complete safe-domain,3 partial; LC4 twelve unknown interpreters Unsupported, LC5 parent opaque, LC8 nineteen unknown writers partial, LC9/LC10 remain open.
+- Source/report committed 628ec2a1; final attempted status/log/hash inspection was DENIED before execution by context guard152k/150k. No final native or clean-tip result was collected.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-legacy-control4-r2-manifest.json. Guard denial requires stop, Handoff commit, continue result, NO merge-queue file.
 
 # Portable LegacyControl owner report
 
