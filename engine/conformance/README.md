@@ -4328,3 +4328,14 @@ nullable u32-array `property` and one primitive `draw`, then checks both
 or null for failure with unchanged output. `clear_effects` clears the owner
 map. Shared `set_turbo` operations execute through the existing harness.
 Unknown fields, operations and failed expectations are rejected.
+
+## Model registration effects owner
+
+`tests/model_reg_effects.rs::gf37_48_49_resource_to_registration_to_transform`
+executes graphics-formats §3.11, §8.2 vector 37, and §8.5 vectors 48–49 through
+the S3D reader and the core owner. It checks lower-casing, duplicate REGP append,
+borrowed-vector identity, separate attachment/Init, derived effect names, started
+gating, transform flags/version, position and axis-angle rotation (1e-6 tolerance).
+The owner module's README maps every owner section to its focused lifecycle,
+control, null/failure, lookup, motion and transform tests. Playback vectors 44–47
+and vector 49's fire-crew clause belong to other owners.

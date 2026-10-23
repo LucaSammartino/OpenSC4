@@ -25,12 +25,18 @@ impl Transform {
         let rotation = if ax == 0.0 && ay == 0.0 && az == 0.0 {
             Self::IDENTITY.rotation
         } else {
-            let inverse_length = 1.0 / (ax * ax + ay * ay + az * az).sqrt();
-            let half_angle = angle * -0.5;
+            // Binary32 loads, wider evaluation in the specified (z²+y²)+x²
+            // order, followed by separate binary32 normalized-component stores.
+            // Wider intermediates avoid binary32 overflow/underflow in x87's
+            // valid domain; these portable transcendentals are tolerance tested.
+            let [ax, ay, az] = [ax, ay, az].map(f64::from);
+            let inverse_length = 1.0 / ((az * az + ay * ay) + ax * ax).sqrt();
+            let [nx, ny, nz] = [ax, ay, az].map(|a| f64::from((a * inverse_length) as f32));
+            let half_angle = f64::from(angle) * -0.5;
             let sine = half_angle.sin();
-            let x = (ax * inverse_length) * sine;
-            let y = (ay * inverse_length) * sine;
-            let z = (az * inverse_length) * sine;
+            let x = nx * sine;
+            let y = ny * sine;
+            let z = nz * sine;
             let w = half_angle.cos();
             [
                 [
@@ -49,6 +55,7 @@ impl Transform {
                     1.0 - 2.0 * x * x - 2.0 * y * y,
                 ],
             ]
+            .map(|row| row.map(|value| value as f32))
         };
         Self {
             rotation,
