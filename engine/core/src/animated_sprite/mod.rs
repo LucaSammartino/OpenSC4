@@ -1,27 +1,27 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Specified parts of the animated sprite instance owner.
 //!
-//! Source: `docs/specs/animated-sprite.md` §§1–6, 10 and the published
-//! basic-instance/foreign-resource contracts in `model-instances.md` §§1, 6.
+//! Source: `docs/specs/animated-sprite.md` Â§Â§1â€“6, 10 and the published
+//! basic-instance/foreign-resource contracts in `model-instances.md` Â§Â§1, 6.
 //! This module is WIP, not a complete native-owner replacement. See README.md
-//! for the public method inventory and AS3–AS9 for blocking contract holes.
+//! for the public method inventory and AS3â€“AS9 for blocking contract holes.
 //! Getters use shared borrows; no RefCell or original-owner callbacks.
 
 mod cached;
 mod frames;
 mod geometry;
 mod lifetime;
+mod loading;
 mod numeric;
 mod placement;
 mod playback;
-mod loading;
 
 pub use cached::*;
 pub use frames::*;
 pub use geometry::*;
 pub use lifetime::*;
-pub use playback::*;
 pub use loading::*;
+pub use playback::*;
 
 use std::sync::Arc;
 
@@ -146,7 +146,7 @@ impl<O> AnimatedSprite<O> {
         self.state.playback.play_mode = mode;
     }
 
-    /// §4.2 stores every bit, including sentinels and nonfinite inputs.
+    /// Â§4.2 stores every bit, including sentinels and nonfinite inputs.
     pub fn set_explicit_rate(&mut self, rate: f32) -> Result<(), PlaybackError> {
         self.state.playback.rate = rate;
         Ok(())
@@ -157,7 +157,7 @@ impl<O> AnimatedSprite<O> {
         2
     }
 
-    /// §4.4, conditional on completing comparisons (no trap-mode guarantee).
+    /// Â§4.4, conditional on completing comparisons (no trap-mode guarantee).
     pub fn set_fade(&mut self, on: bool, alpha: f32) -> u32 {
         if on && alpha == -100.0 {
             return 2;
@@ -184,7 +184,7 @@ impl<O> AnimatedSprite<O> {
         2
     }
 
-    /// Ordinary source adapter; use the raw-byte method for §4.4 inputs.
+    /// Ordinary source adapter; use the raw-byte method for Â§4.4 inputs.
     pub fn set_self_lit(&mut self, on: bool) -> u32 {
         self.set_self_lit_raw(u8::from(on))
     }
@@ -221,7 +221,7 @@ impl<O> AnimatedSprite<O> {
     }
 }
 
-/// §1: symbolic constants avoid inventing native driver enum encodings.
+/// Â§1: symbolic constants avoid inventing native driver enum encodings.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DrawState {
     pub colour_write: bool,
@@ -280,5 +280,7 @@ impl MaterialState {
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod closure_tests;
 #[cfg(test)]
 mod contract_tests;

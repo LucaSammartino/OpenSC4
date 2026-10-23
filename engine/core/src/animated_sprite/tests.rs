@@ -101,7 +101,7 @@ impl SpriteResources for Resources {
     }
 }
 
-// §10's five prescribed vectors, each independently asserted.
+// Â§10's five prescribed vectors, each independently asserted.
 #[test]
 fn vector_zoom_one_suppressed_two_visible() {
     let mut s = sprite();
@@ -202,8 +202,8 @@ fn frame_narrows_without_modulo_or_empty_check() {
 #[test]
 fn clock_never_converts_elapsed_and_rate_zero_does_nothing() {
     let mut p = playback();
-    p.rate = 0.001;
-    p.tick_unsequenced(1000.0, 10).unwrap();
+    p.rate = 1.0 / 1024.0;
+    p.tick_unsequenced(1024.0, 10).unwrap();
     assert_eq!(p.frame, 1);
     p.rate = 0.0;
     p.position = 2.5;
@@ -217,9 +217,9 @@ fn reverse_interior_and_loop_endpoint() {
     let mut p = playback();
     p.frame = 3;
     p.direction = -1;
-    p.tick_unsequenced(0.15, 10).unwrap();
+    p.tick_unsequenced(0.125, 10).unwrap();
     assert_eq!(p.frame, 2);
-    assert_eq!(p.position, -0.5);
+    assert_eq!(p.position, -0.25);
     p.frame = 0;
     assert_eq!(p.advance_unsequenced(10), Ok(true));
     assert_eq!(p.frame, 9);
@@ -272,7 +272,7 @@ fn view_and_frame_dirty_and_independent_flags() {
     s.set_self_lit(true);
     s.set_highlight(9);
     assert_eq!(s.state.flags, 0x87);
-    assert!(!s.drawing_suppressed()); // DIFFERS §5.2: only incoming highlight-pass rejects.
+    assert!(!s.drawing_suppressed()); // DIFFERS Â§5.2: only incoming highlight-pass rejects.
     s.set_highlight(0);
     assert_eq!(s.state.flags, 0x86);
     assert!(!s.drawing_suppressed());
@@ -284,7 +284,7 @@ fn view_and_frame_dirty_and_independent_flags() {
 fn fade_bounds_nan_and_material_constants() {
     let mut s = sprite();
     assert_eq!(s.material().draw, DrawState::SPRITE);
-    // DIFFERS §§4.4/5.2: -1 enables, 1 disables, alpha reference is alpha/2.
+    // DIFFERS Â§Â§4.4/5.2: -1 enables, 1 disables, alpha reference is alpha/2.
     for (alpha, reference) in [(0.0, 0.0), (-1.0, -0.5), (0.375, 0.1875)] {
         s.set_fade(true, alpha);
         let m = s.material();
@@ -293,7 +293,7 @@ fn fade_bounds_nan_and_material_constants() {
     }
     for alpha in [-0.1, 1.1, f32::NAN] {
         s.set_fade(false, alpha);
-        // DIFFERS: §4.4 now explicitly requires disable/restore even for NaN.
+        // DIFFERS: Â§4.4 now explicitly requires disable/restore even for NaN.
         assert_eq!(s.state.alpha, 1.0);
         assert_eq!(s.material().transparency, None);
     }
@@ -494,7 +494,7 @@ fn picking_short_circuits_and_uses_fan_triangles() {
         assert_eq!(p.calls.len(), count);
         assert_eq!(p.calls[0], [c[0], c[1], c[2]]);
         if count == 2 {
-            // DIFFERS §6: preserve the primitive's actual argument order.
+            // DIFFERS Â§6: preserve the primitive's actual argument order.
             assert_eq!(p.calls[1], [c[2], c[3], c[0]]);
         }
     }

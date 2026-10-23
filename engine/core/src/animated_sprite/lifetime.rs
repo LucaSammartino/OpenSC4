@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! §1.1 reference semantics in a safe arena (no native pointer ABI).
+//! Â§1.1 reference semantics in a safe arena (no native pointer ABI).
 
 use super::{AnimatedSprite, BASIC_INSTANCE_IID, SPRITE_INSTANCE_IID};
 use std::collections::BTreeMap;

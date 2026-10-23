@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Qualified §§4.1/5/6 algorithms, not a complete owner or native entry ABI.
+//! Qualified Â§Â§4.1/5/6 algorithms, not a complete owner or native entry ABI.
 //! Arithmetic is deliberately restricted to exact stages (AS7); no x87 mode,
 //! hardware trig, factory defaults or native fault behavior is emulated.
-use super::*;
 use super::numeric::X;
+use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Unsupported {
@@ -67,7 +67,7 @@ fn times(a: f32, b: f32) -> Result<f32, Unsupported> {
     finite_operand(X::f(finite_operand(a)?).mul(X::f(finite_operand(b)?)).store())
 }
 
-/// §5.1's owned dependency/sign/order, exact-stage subset only. Requiring
+/// Â§5.1's owned dependency/sign/order, exact-stage subset only. Requiring
 /// exactness even for unstored native transients makes PC/RC immaterial here.
 /// Larger/inexact/tiny/overflow/nonfinite regions return Unsupported, rather
 /// than promising native bits from blanket f32/f64 arithmetic.
@@ -91,25 +91,39 @@ pub fn update_view_exact(metric: StoredMetric, view: ViewInputs) -> Result<Cache
             if context_width == 0 {
                 return Err(Unsupported::Arithmetic);
             }
-            finite_operand(X::f(right).sub(X::f(left)).div(X::integer(i64::from(context_width))).store())?
+            finite_operand(
+                X::f(right)
+                    .sub(X::f(left))
+                    .div(X::integer(i64::from(context_width)))
+                    .store(),
+            )?
         }
     };
     let r = view.matrix.map(|row| X::f(row[0]));
     let b = view.matrix.map(|row| X::f(row[2]));
     let uy = view.matrix[1][1];
-    if uy == 0.0 { return Err(Unsupported::Arithmetic); }
+    if uy == 0.0 {
+        return Err(Unsupported::Arithmetic);
+    }
     let [ox, oy] = metric.offset.map(X::f);
     let d = X::f(metric.height).sub(oy).b();
     let g = X::f(view.magnification);
     let t = X::f(m).div(X::f(uy)).mul(g).b();
-    let h = [r[0].mul(X::f(m)).b().mul(g).b(),
-        r[1].mul(X::f(m)).mul(g).b(), r[2].mul(X::f(m)).mul(g).b()];
+    let h = [
+        r[0].mul(X::f(m)).b().mul(g).b(),
+        r[1].mul(X::f(m)).mul(g).b(),
+        r[2].mul(X::f(m)).mul(g).b(),
+    ];
     let displacement = if d.ge(X::f(0.)) {
-        if view.matrix[1][2] == 0. { return Err(Unsupported::Arithmetic); }
+        if view.matrix[1][2] == 0. {
+            return Err(Unsupported::Arithmetic);
+        }
         let a = t.mul(d).div(b[1]);
         [b[0].mul(a), b[1].mul(a).b(), b[2].mul(a).b()]
-    } else { [X::f(0.); 3] };
-    // Literal B boundaries named in §5.1; remaining numeric qualification AS7.
+    } else {
+        [X::f(0.); 3]
+    };
+    // Literal B boundaries named in Â§5.1; remaining numeric qualification AS7.
     let w = X::f(metric.width).sub(ox);
     let upper_y = displacement[1].add(t.mul(oy));
     let lower_y = displacement[1].sub(t.mul(d)).b();
@@ -123,7 +137,9 @@ pub fn update_view_exact(metric: StoredMetric, view: ViewInputs) -> Result<Cache
         [right_x, lower_y.add(h[1].mul(w).b()).store(), right_z],
         [right_x, upper_y.add(h[1].mul(w).b()).store(), right_z],
     ];
-    for x in corners.into_iter().flatten() { finite_operand(x)?; }
+    for x in corners.into_iter().flatten() {
+        finite_operand(x)?;
+    }
     // Literal reset/origin/v0/v3/reflected-M, not all four corners.
     let mut bounds = Bounds {
         min: [0.0; 3],
@@ -153,7 +169,7 @@ pub struct SpriteCache {
     pub counter: u8,
 }
 
-/// Raw borrowed resource consumer fields (§4.1), not file/factory parsing.
+/// Raw borrowed resource consumer fields (Â§4.1), not file/factory parsing.
 #[derive(Clone, Debug)]
 pub struct RawSpriteHolder {
     pub divisors: [u32; 3],
@@ -162,20 +178,14 @@ pub struct RawSpriteHolder {
     pub scale: f32,
 }
 
-/// §4.1 valid-packing subset. Malformed records are not repaired into an atlas.
+/// Â§4.1 valid-packing subset. Malformed records are not repaired into an atlas.
 pub fn decode_entry_exact(entry: [u8; 8], frame: u8, scale: f32) -> Result<(StoredMetric, [[f32; 2]; 4]), Unsupported> {
     let side = 1_u32 << (entry[1] & 31);
     let width = i16::from(entry[4] as i8).unsigned_abs() as u32;
     let height = i16::from(entry[5] as i8).unsigned_abs() as u32;
     let mut x = u32::from(entry[2]);
     let mut y = u32::from(entry[3]);
-        if width == 0
-        || height == 0
-        || width > side
-        || height > side
-        || x > side - width
-        || y > side - height
-    {
+    if width == 0 || height == 0 || width > side || height > side || x > side - width || y > side - height {
         return Err(Unsupported::Packing);
     }
     let mut page = u32::from(entry[0]);
@@ -230,22 +240,50 @@ pub fn decode_entry_exact(entry: [u8; 8], frame: u8, scale: f32) -> Result<(Stor
 }
 
 impl RawSpriteHolder {
-    /// §4.1 stored-addition conversion (inherited RC), not a Rust cast/round.
-    pub fn convert_bin(value: f32) -> u32 {
-        X::f(value).add(X::f(12_582_912.)).store().to_bits().wrapping_add(0xb4c00000)
+    /// Â§4.1 stored-addition conversion (inherited RC), not a Rust cast/round.
+    pub fn convert_bin_nearest_even(value: f32) -> u32 {
+        // Conditional R2-D1 primitive, explicit nearest-even RC. f64 exactly
+        // holds this addition for finite small f32 inputs; final conversion is
+        // the required binary32 store. Not used as a mode-free owner oracle.
+        ((f64::from(value) + 12_582_912.) as f32)
+            .to_bits()
+            .wrapping_add(0xb4c00000)
     }
     pub fn select_angles(&self, a: f32, b: f32, rotation: i32) -> Result<usize, Unsupported> {
-        if !a.is_finite() || !b.is_finite() { return Err(Unsupported::Arithmetic); }
+        if !a.is_finite() || !b.is_finite() {
+            return Err(Unsupported::Arithmetic);
+        }
         let h = self.derive_metrics()?;
-        if h.p == 0 || h.divisor == 0 { return Err(Unsupported::Selection); }
-        let convert = |v: X| v.add(X::f(12_582_912.)).store().to_bits().wrapping_add(0xb4c00000);
+        if h.p == 0 || h.divisor == 0 {
+            return Err(Unsupported::Selection);
+        }
+        let convert = |v: X| {
+            let stored = v.add(X::f(12_582_912.)).store();
+            if stored.is_finite() {
+                Ok(stored.to_bits().wrapping_add(0xb4c00000))
+            } else {
+                Err(Unsupported::Arithmetic)
+            }
+        };
         let reciprocal = X::f(f32::from_bits(0x3e22f983));
-        let p = convert(X::f(a).add(X::f(f32::from_bits(0x40490fdb))).sub(X::f(h.bases[0]))
-            .mul(X::integer(i64::from(h.p))).mul(reciprocal)) % h.p;
+        let p = convert(
+            X::f(a)
+                .add(X::f(f32::from_bits(0x40490fdb)))
+                .sub(X::f(h.bases[0]))
+                .mul(X::integer(i64::from(h.p)))
+                .mul(reciprocal),
+        )? % h.p;
         let mut yaw = X::f(b).sub(X::integer(i64::from(rotation)).mul(X::f(f32::from_bits(0x3fc90fdb))));
-        if !yaw.ge(X::f(0.)) { yaw = yaw.add(X::f(f32::from_bits(0x40c90fdb))); }
-        let mut y = convert(X::integer(i64::from(h.divisor)).mul(reciprocal).mul(yaw));
-        if y >= h.divisor { y %= h.divisor; }
+        if !yaw.ge(X::f(0.)) {
+            yaw = yaw.add(X::f(f32::from_bits(0x40c90fdb)));
+        }
+        if !yaw.valid() {
+            return Err(Unsupported::Arithmetic);
+        }
+        let mut y = convert(X::integer(i64::from(h.divisor)).mul(reciprocal).mul(yaw))?;
+        if y >= h.divisor {
+            y %= h.divisor;
+        }
         let index = p.wrapping_mul(h.r).wrapping_add(y.wrapping_mul(h.product));
         // Address arithmetic is 32-bit, including the eight-byte stride.
         Ok((index.wrapping_mul(8) / 8) as usize)

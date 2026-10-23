@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Independent literal transcription of public §§4.4,5,6; native UNEXECUTED.
+// Independent literal transcription of public Â§Â§4.4,5,6; native UNEXECUTED.
 use super::*;
 
 const Q_CAMERA: [[f32; 3]; 3] = [[0.5, -0.5, 0.5], [0.0, 0.5, 1.0], [-0.5, -0.5, 0.5]];
@@ -87,7 +87,7 @@ fn setters_literal_completing_paths_and_unrelated_state() {
 
 #[test]
 fn raw_decoder_literal_packing_flips_scale_and_rejection() {
-    // Public §4.1 vector; UV/page expectations are literal, not derived here.
+    // Public Â§4.1 vector; UV/page expectations are literal, not derived here.
     let (m, uv) = decode_entry_exact([2, 6, 48, 32, 16, 240, 253, 4], 5, 2.0).unwrap();
     assert_eq!(
         m,
@@ -104,8 +104,8 @@ fn raw_decoder_literal_packing_flips_scale_and_rejection() {
         Err(Unsupported::Packing)
     );
     let mut c = camera(2.0);
-    c.matrix[1][1] = 3.0; // Inexact divisions now follow inherited x87 PC/RC.
-    assert!(update_view_exact(metric(), c).is_ok());
+    c.matrix[1][1] = 3.0; // PC/RC-sensitive stores remain explicitly open.
+    assert_eq!(update_view_exact(metric(), c), Err(Unsupported::Arithmetic));
     c = camera(2.0);
     c.mpp = MetresPerPixel::ViewVolume {
         left: -8.0,
@@ -114,7 +114,7 @@ fn raw_decoder_literal_packing_flips_scale_and_rejection() {
     };
     assert_eq!(update_view_exact(metric(), c), Err(Unsupported::Arithmetic));
     c = camera(f32::from_bits(1));
-    assert!(update_view_exact(metric(), c).is_ok());
+    assert_eq!(update_view_exact(metric(), c), Err(Unsupported::Arithmetic));
 }
 
 #[test]
