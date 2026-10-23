@@ -1,6 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-terrain-ripples-contracts4: bounded WR8 contracts | Codex / core-terrain-ripples-contracts4 | wip: stats client blocks terminal gate | Root adjudicate client38160, collect quick74315, then canonical all |
+| core-terrain-ripples-contracts4: bounded WR8 contracts | Codex / core-terrain-ripples-contracts4 | in progress: FINAL child2/2, original family3/3; inherited evidence archived | Run one canonical all on frozen source |
+
+## Handoff
+
+- Goal: qualify existing bounded WR8 implementation; FINAL child2/2, family3/3, no further round.
+- Source: clean inherited 9731b69b; engine tree 938080c528fea6f31ce22b6a0e982045cc20c4b5.
+- R2 authority: own round2 manifest, core/engine path; codexguard within budget; copied host proof admits drained operation.
+- Preserved 26 inherited files in build-runs/inherited-r1-final-child2; sha256.json records exact content.
+- Both specified quick/native log hashes matched; old quick handle unavailable in current invocation, terminal/native RC UNKNOWN.
+- Engine content SHA256 before all: 2420031778762d81d77754778de8504a4450719cf7e331f58a37d341e5346215.
+- Next: canonical qbuild all, retain same operation to terminal, record before/after content and log hashes.
+- No source changes, no quick rerun, no game requests; WR11 and other inherited limits stay open.
+- Below is the inherited R1 report; it is historical until replaced by the final R2 report.
 
 ## Result and implementation
 
