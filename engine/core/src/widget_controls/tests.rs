@@ -15,6 +15,24 @@ struct Recording {
     bar: i32,
     defaults: Vec<u32>,
     base_messages: Vec<Message>,
+    paths: Vec<Vec<u8>>,
+    exists: bool,
+    existing_checks: usize,
+    create_success: bool,
+    split_count: i32,
+    parent_path: Vec<u8>,
+    window_flags: Vec<(u32, bool)>,
+    selections: Vec<(u32, file_browser::SelectionDescriptor, file_browser::Selection)>,
+    editor_texts: Vec<Vec<u8>>,
+    grid_texts: std::collections::BTreeMap<i32, Vec<u8>>,
+    grid_last: u32,
+    grid_reads: usize,
+    removed: Vec<(Handle, Handle)>,
+    button_updates: Vec<(Handle, Option<Handle>)>,
+    fit_counts: std::collections::VecDeque<usize>,
+    fit_widths: Vec<i32>,
+    marker: Option<Vec<u8>>,
+    marker_width: i32,
 }
 
 impl Foreign for Recording {
@@ -523,4 +541,345 @@ fn tree_font_growth_shutdown_and_open_ordering() {
             (false, 302)
         ]
     );
+}
+
+impl file_browser::BrowserForeign for Recording {
+    fn directory_exists(&mut self, _: &[u8]) -> bool {
+        self.existing_checks += 1;
+        self.exists
+    }
+    fn create_directory(&mut self, path: &[u8]) -> bool {
+        self.paths.push(path.to_vec());
+        self.create_success
+    }
+    fn split_directory(&mut self, _: &[u8], capacity: usize, bytes: usize) -> (i32, Vec<u8>) {
+        assert_eq!((capacity, bytes), (2, 260));
+        (self.split_count, self.parent_path.clone())
+    }
+    fn split_file(&mut self, path: &[u8]) -> [Vec<u8>; 4] {
+        let split = path.iter().rposition(|&b| b == b'\\').map_or(0, |i| i + 1);
+        [Vec::new(), path[..split].to_vec(), path[split..].to_vec(), Vec::new()]
+    }
+    fn path_separator(&mut self, byte: u8) -> bool {
+        matches!(byte, b'\\' | b'/')
+    }
+    fn path_extension(&mut self, path: &[u8]) -> Vec<u8> {
+        path.iter()
+            .rposition(|&b| b == b'.')
+            .map_or_else(Vec::new, |i| path[i..].to_vec())
+    }
+    fn lowercase(&mut self, bytes: &mut [u8]) {
+        bytes.make_ascii_lowercase();
+    }
+    fn right_trim(&mut self, bytes: &mut Vec<u8>) {
+        while bytes.last().is_some_and(u8::is_ascii_whitespace) {
+            bytes.pop();
+        }
+    }
+    fn window_id(&mut self, _: Handle) -> u32 {
+        17
+    }
+    fn set_window_flag(&mut self, _: Handle, mask: u32, value: bool) {
+        self.window_flags.push((mask, value));
+    }
+    fn notify_path(&mut self, id: u32, win: u32, path: &[u8], fourth: u32) {
+        assert_eq!((id, win, fourth), (0x7abe_7205, 17, 0));
+        self.paths.push(path.to_vec());
+    }
+    fn notify_selection(
+        &mut self,
+        id: u32,
+        win: u32,
+        descriptor: file_browser::SelectionDescriptor,
+        selection: &file_browser::Selection,
+        fourth: u32,
+    ) {
+        assert_eq!((win, fourth), (17, 0));
+        self.selections.push((id, descriptor, selection.clone()));
+    }
+    fn set_editor_text(&mut self, _: Handle, text: &[u8]) {
+        self.editor_texts.push(text.to_vec());
+    }
+    fn grid_last_row(&mut self, _: Handle) -> u32 {
+        self.grid_last
+    }
+    fn grid_text(&mut self, _: Handle, _: i32, row: i32) -> Option<Vec<u8>> {
+        self.grid_reads += 1;
+        self.grid_texts.get(&row).cloned()
+    }
+    fn grid_scroll_to(&mut self, _: Handle, row: i32) {
+        self.bar = row;
+    }
+    fn grid_selected(&mut self, _: Handle, _: i32) -> bool {
+        false
+    }
+    fn grid_select(&mut self, _: Handle, row: i32) {
+        self.bar = row;
+    }
+    fn child_window(&mut self, control: Handle, accessor: u32) -> Handle {
+        control + u64::from(accessor)
+    }
+    fn remove_child(&mut self, parent: Handle, child: Handle) {
+        self.removed.push((parent, child));
+    }
+    fn set_button_buffer(&mut self, button: Handle, buffer: Option<Handle>) {
+        self.button_updates.push((button, buffer));
+    }
+    fn font_fit(&mut self, _: Handle, _: &[u8], width: i32, option: u32) -> usize {
+        assert_eq!(option, 0);
+        self.fit_widths.push(width);
+        self.fit_counts.pop_front().expect("fit count fixture")
+    }
+    fn text_resource(&mut self, id: u32) -> Option<Vec<u8>> {
+        assert_eq!(id, 0x5377_be31);
+        self.marker.clone()
+    }
+    fn font_rect(&mut self, _: Handle, _: &[u8]) -> Rect {
+        [0, 0, self.marker_width, 10]
+    }
+}
+
+#[test]
+fn fb_c01_c05_identity_failed_navigation_and_ordered_refresh_work() {
+    use file_browser::*;
+    let mut f = Recording::default();
+    let mut browser = FileBrowser::new(1000);
+    assert!(browser.children.iter().all(Option::is_none));
+    assert_eq!(browser.flags, 0xd);
+    assert_eq!((PRIMARY_SLOTS, WINDOW_SLOTS), (107, 151));
+    let mut out = None;
+    assert!(browser.query_interface(IID, &mut out, &mut f));
+    assert_eq!(out, Some(1000));
+    assert_eq!(f.refs, [(true, 1000)]);
+    browser.current = b"old\\".to_vec();
+    assert!(!browser.set_current_directory(b"missing\\", &mut f));
+    assert_eq!(browser.current, b"old\\");
+    assert!(browser.refresh_work.is_empty());
+    f.split_count = 1;
+    assert!(!browser.go_to_parent(&mut f));
+    let n = f.existing_checks;
+    f.split_count = 2;
+    f.parent_path = b"parent\\".to_vec();
+    assert!(browser.go_to_parent(&mut f));
+    assert_eq!(f.existing_checks, n + 1);
+    browser.fallback = b"also-missing\\".to_vec();
+    let n = f.existing_checks;
+    assert!(browser.update_path(&mut f));
+    assert_eq!(f.existing_checks, n + 1);
+    assert_eq!(f.paths.last().unwrap(), b"also-missing\\");
+    assert_eq!(browser.refresh_work, [Refresh::DirectoryList, Refresh::FileList]);
+}
+
+#[test]
+fn fb_c06_c09_grid_lookup_wraparound_and_ambiguous_zero() {
+    use file_browser::*;
+    let mut browser = FileBrowser::new(1);
+    let mut f = Recording::default();
+    assert_eq!(browser.get_row_of_entry_by_name(b"a", &mut f), 0);
+    assert_eq!(f.grid_reads, 0);
+    browser.children[5] = Some(500);
+    assert_eq!(browser.get_row_of_entry_by_name(b"a", &mut f), 0);
+    browser.name_column = Some(0);
+    f.grid_last = 3;
+    f.grid_texts.insert(1, b"a".to_vec());
+    f.grid_texts.insert(3, b"a".to_vec());
+    assert_eq!(browser.get_row_of_entry_by_name(b"a", &mut f), 1);
+    f.grid_texts.insert(0, b"a".to_vec());
+    assert_eq!(browser.get_row_of_entry_by_name(b"a", &mut f), 0);
+    for last in [u32::MAX - 1, u32::MAX] {
+        f.grid_last = last;
+        f.grid_reads = 0;
+        assert_eq!(browser.get_row_of_entry_by_name(b"absent", &mut f), 0);
+        assert_eq!(f.grid_reads, 1024);
+    }
+    f.grid_last = 0x8000_0000;
+    f.grid_reads = 0;
+    assert_eq!(browser.get_row_of_entry_by_name(b"a", &mut f), 0);
+    assert_eq!(f.grid_reads, 0);
+}
+
+#[test]
+fn fb_c10_c12_flag_precedence_and_any_bit_add() {
+    let mut browser = file_browser::FileBrowser::new(1);
+    let mut f = Recording::default();
+    browser.flags = 1;
+    browser.add_flags(5, &mut f);
+    assert_eq!(browser.flags, 1);
+    assert_eq!(f.existing_checks, 0);
+    browser.add_flags(4, &mut f);
+    assert_eq!(browser.flags, 5);
+    assert_eq!(f.existing_checks, 1);
+    browser.refresh_work.clear();
+    browser.set_flags(3, &mut f);
+    assert!(browser.refresh_work.is_empty());
+    assert_eq!(f.window_flags, [(0x20000, false), (0x40000, false), (0x10000, true)]);
+    f.window_flags.clear();
+    browser.clear_flags(2, &mut f);
+    assert_eq!(f.window_flags, [(0x20000, true), (0x40000, true)]);
+    assert_eq!(browser.any_flag(5), 1);
+}
+
+#[test]
+fn fb_c14_c18_creation_selection_and_double_click() {
+    use file_browser::*;
+    let mut browser = FileBrowser::new(1);
+    let mut f = Recording {
+        exists: true,
+        ..Recording::default()
+    };
+    browser.current = b"C:\\".to_vec();
+    assert!(!browser.create_new_directory(&mut f));
+    assert_eq!(f.existing_checks, 256);
+    assert_eq!(f.paths.last().unwrap(), b"C:\\New Folder (256)\\");
+    assert!(browser.refresh_work.is_empty());
+    browser.entries.push(Some(Entry {
+        tag: CUSTOM_FILE,
+        id: 42,
+        name: b"old.txt".to_vec(),
+    }));
+    browser.children[6] = Some(400);
+    assert_eq!(browser.selection_change(0, &mut f), Ok(true));
+    let descriptor = browser.descriptor();
+    assert_eq!(descriptor.id, 42);
+    assert_eq!(f.selections[0].0, 0x7abe_7203);
+    assert_eq!(f.editor_texts, [b"old.txt".to_vec()]);
+    browser.selected_row = 7;
+    assert_eq!(browser.selection_double_click(0, &mut f), Ok(true));
+    assert_eq!(browser.selected_row, 7);
+    assert_eq!(f.selections[1].0, 0x7abe_7204);
+    assert!(browser.set_selection(b"C:\\missing.txt", &mut f));
+    assert_eq!(browser.selection.id, 42);
+    assert_eq!(browser.selection.kind, 2);
+    assert_eq!(browser.borrowed_string(descriptor.strings[0]), b"C:\\missing.txt");
+    assert_eq!(f.selections.len(), 2);
+    assert!(browser.file_grid_double_click(0, &mut f));
+    assert!(!browser.file_grid_double_click(u32::MAX, &mut f));
+}
+
+#[test]
+fn fb_c23_c24_child_enable_and_reference_assignment() {
+    use file_browser::*;
+    let mut browser = FileBrowser::new(1);
+    let mut f = Recording::default();
+    browser.set_icon(0, Some(10), &mut f);
+    browser.set_icon(0, Some(11), &mut f);
+    browser.set_icon(0, Some(11), &mut f);
+    browser.set_icon(7, Some(12), &mut f);
+    assert_eq!(f.refs, [(true, 10), (true, 11), (false, 10)]);
+    browser.children[9] = Some(100);
+    browser.set_button_buffer(1, Some(20), &mut f);
+    browser.set_button_buffer(1, None, &mut f);
+    browser.set_button_buffer(1, None, &mut f);
+    browser.set_button_buffer(u32::MAX, Some(99), &mut f);
+    assert_eq!(f.button_updates, [(100, Some(20)), (100, None)]);
+    browser.children[6] = Some(600);
+    browser.children[5] = Some(500);
+    browser.enable_child(FIRST_CHILD_ID + 6, 0, &mut f);
+    assert_eq!(browser.children[6], None);
+    assert_eq!(f.removed, [(5, 620)]);
+    browser.enable_child(FIRST_CHILD_ID + 6, 2, &mut f);
+    assert_eq!(browser.children[6], None);
+    assert_eq!(browser.enabled[6], 2);
+    browser.enable_child(FIRST_CHILD_ID + 5, 0, &mut f);
+    assert_eq!(browser.children[5], Some(500));
+}
+
+#[test]
+fn browser_compare_full_tags_byte_order_secondary_once_and_fit_boundary() {
+    use file_browser::*;
+    let mut f = Recording::default();
+    let entry = |tag, text: &[u8]| Entry {
+        tag,
+        id: 0,
+        name: text.to_vec(),
+    };
+    let p = entry(PARENT, b"..");
+    assert!(precedes(&p, &p, 0, 0, 0, &mut f));
+    assert!(precedes(
+        &entry(FILE, b"file10"),
+        &entry(FILE, b"file2"),
+        0,
+        0,
+        0,
+        &mut f
+    ));
+    assert!(!precedes(&entry(FILE, b"A"), &entry(FILE, b"a"), 0, 0, 0, &mut f));
+    assert!(!precedes(&entry(FILE, b"a"), &entry(FILE, b"b"), 99, 0, 0, &mut f));
+    assert!(!precedes(
+        &entry(0xaaa8_8503, b"a"),
+        &entry(FILE, b"b"),
+        0,
+        0,
+        0,
+        &mut f
+    ));
+    assert!(precedes(&entry(DIRECTORY, b"z"), &entry(FILE, b"a"), 0, 0, 0, &mut f));
+    assert!(!precedes(&entry(DIRECTORY, b"z"), &entry(FILE, b"a"), 0, 0, 2, &mut f));
+    let mut text = b"some text".to_vec();
+    fit_string(&mut text, -10, None, &mut f).unwrap();
+    assert_eq!(text, b"some text");
+    f.fit_counts.push_back(1);
+    f.marker_width = 12;
+    fit_string(&mut text, 12, Some(100), &mut f).unwrap();
+    assert!(text.is_empty());
+    text = b"ab   tail".to_vec();
+    f.fit_counts.extend([3, 5]);
+    fit_string(&mut text, 13, Some(100), &mut f).unwrap();
+    assert_eq!(text, b"ab...");
+    assert_eq!(*f.fit_widths.last().unwrap(), 1);
+}
+
+#[test]
+fn browser_parent_directory_ids_and_shutdown_reference_order() {
+    use file_browser::*;
+    let mut browser = FileBrowser::new(1);
+    let mut f = Recording::default();
+    assert_eq!(browser.raw_words[&0x224], 20);
+    assert_eq!(browser.raw_words[&0x1f8], u32::MAX);
+    assert_eq!(browser.style_words[0][6], 0);
+    assert_eq!(browser.raw_bytes[&0x1dc], 1);
+    browser.entries = vec![Some(Entry {
+        tag: DIRECTORY,
+        id: 42,
+        name: b"folder".to_vec(),
+    })];
+    browser.selection_change(0, &mut f).unwrap();
+    assert_eq!(browser.selection.id, 0);
+    assert_eq!(browser.selection.leaf, b"folder\\");
+    browser.entries[0].as_mut().unwrap().tag = PARENT;
+    browser.selection_change(0, &mut f).unwrap();
+    assert_eq!(browser.selection.kind, 0);
+    for (i, child) in browser.children.iter_mut().enumerate() {
+        *child = Some(100 + i as u64);
+    }
+    browser.common_font = Some(200);
+    for (i, icon) in browser.icons.iter_mut().enumerate() {
+        *icon = Some(300 + i as u64);
+    }
+    for (i, buffer) in browser.button_buffers.iter_mut().enumerate() {
+        *buffer = Some(400 + i as u64);
+    }
+    browser.extra_reference = Some(500);
+    browser.style_fonts = [Some(600), Some(601), Some(602), Some(603)];
+    browser.custom_groups = vec![vec![CustomEntry {
+        interface: Some(700),
+        text: vec![],
+    }]];
+    browser.filter_labels = vec![b"All files".to_vec()];
+    browser.filter_index = 9;
+    browser.shutdown(&mut f);
+    let mut released = vec![700];
+    released.extend(100..113);
+    released.push(200);
+    released.extend(300..307);
+    released.extend(400..404);
+    released.extend([500, 600, 601, 603]);
+    assert_eq!(f.refs, released.into_iter().map(|h| (false, h)).collect::<Vec<_>>());
+    assert_eq!(browser.style_fonts[2], Some(602));
+    assert_eq!(browser.filter_index, 0);
+    assert_eq!(browser.filter_labels, [b"All files".to_vec()]);
+    assert!(browser.entries.is_empty());
+    let n = f.refs.len();
+    browser.shutdown(&mut f);
+    assert_eq!(f.refs.len(), n);
 }

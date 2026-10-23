@@ -5,6 +5,7 @@
 //! implement control state. OS windows, fonts, timers, drawing and IO are foreign.
 //! Handles reuse the window layer's opaque identities, never native pointers.
 
+pub mod file_browser;
 pub mod list_box;
 pub mod tree_view;
 
