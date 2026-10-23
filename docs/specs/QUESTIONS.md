@@ -252,7 +252,7 @@ generated index: the questions live one file per spec, so read only the file for
 | graphics-rules | 4 | 4 | GR9 | questions/graphics-rules.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
 | gz-framework-core | 9 | 2 | GZF12 | questions/gz-framework-core.md |
-| gz-graphics | 5 | 1 | GZG7 | questions/gz-graphics.md |
+| gz-graphics | 4 | 2 | GZG7 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 2 | 6 | HD9 | questions/html-document.md |
 | html-ui-hooks | 4 | 0 | HU5 | questions/html-ui-hooks.md |
@@ -279,7 +279,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
 | network-manager | 0 | 13 | NM14 | questions/network-manager.md |
-| network-occupants | 21 | 24 | NO45 | questions/network-occupants.md |
+| network-occupants | 21 | 25 | NO46 | questions/network-occupants.md |
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 2 | 12 | NR18 | questions/network-rules.md |
@@ -327,7 +327,7 @@ generated index: the questions live one file per spec, so read only the file for
 | resource-exemplar-editor | 8 | 0 | RE9 | questions/resource-exemplar-editor.md |
 | rigid-body-2d | 7 | 0 | RB8 | questions/rigid-body-2d.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
-| rz-strings | 5 | 1 | RZS7 | questions/rz-strings.md |
+| rz-strings | 5 | 2 | RZS8 | questions/rz-strings.md |
 | sc-resources | 0 | 7 | SCR8 | questions/sc-resources.md |
 | simgrid | 2 | 1 | SG4 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
@@ -352,7 +352,7 @@ generated index: the questions live one file per spec, so read only the file for
 | ui-feedback-owners | 0 | 0 | - | questions/ui-feedback-owners.md |
 | underground-occupants | 2 | 3 | UG6 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
-| vehicles | 7 | 2 | VH10 | questions/vehicles.md |
+| vehicles | 4 | 5 | VH10 | questions/vehicles.md |
 | video-preferences | 5 | 0 | VP6 | questions/video-preferences.md |
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 3 | 11 | VU16 | questions/view-utilities.md |
@@ -366,4 +366,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **591** | **1408** | | |
+| **total** | **587** | **1414** | | |
