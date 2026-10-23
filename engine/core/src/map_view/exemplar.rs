@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Typed raw resource properties (§2). No host-normalized MapView configuration.
+//! Typed raw resource properties (Â§2). No host-normalized MapView configuration.
 use super::Unsupported;
 
 pub const SOURCE: u32 = 0x4a0b_47e5;
@@ -74,7 +74,7 @@ pub struct SelectionFields {
 }
 
 impl RawExemplar {
-    fn find(&self, id: u32) -> Result<Option<&RawValue>, Unsupported> {
+    pub(super) fn find(&self, id: u32) -> Result<Option<&RawValue>, Unsupported> {
         let mut matches = self.0.iter().filter(|p| p.id == id);
         let first = matches.next().map(|p| &p.value);
         if matches.next().is_some() {
@@ -108,7 +108,7 @@ impl RawExemplar {
         }
     }
 
-    fn optional_u32(&self, id: u32) -> Result<Option<u32>, Unsupported> {
+    pub(super) fn optional_u32(&self, id: u32) -> Result<Option<u32>, Unsupported> {
         match self.find(id)? {
             Some(RawValue::U32(v)) => Ok(Some(*v)),
             Some(_) => Err(Unsupported::MalformedProperty(id)),
@@ -133,7 +133,7 @@ impl RawExemplar {
             scale,
             layer: self.optional_u32(LAYER)?.unwrap_or(1),
             interpolate: self.bool_field(INTERPOLATE)?,
-            // Presence, including argument zero, is significant (§2).
+            // Presence, including argument zero, is significant (Â§2).
             block_by_lot: self.optional_u32(BLOCK_BY_LOT)?,
             highlight_kind: self.u32_field(HIGHLIGHT)?,
             ramp_pairs: ramp.to_vec(),

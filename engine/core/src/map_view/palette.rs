@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Explicit supplied-palette helpers (§4.2), never owner palette construction.
+//! Explicit supplied-palette helpers (Â§4.2), never owner palette construction.
 use super::Unsupported;
 use crate::grid::{GridElem, TractGrid};
 
@@ -8,6 +8,48 @@ use crate::grid::{GridElem, TractGrid};
 /// This type cannot complete SetDataView or Update.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RawPalette(pub [u32; 256]);
+
+/// Both tables are built by the owner, never returned by a foreign renderer.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OwnedPalettes {
+    pub straight: RawPalette,
+    pub premultiplied: RawPalette,
+}
+
+pub fn build_palettes(pairs: &[u32]) -> Result<OwnedPalettes, Unsupported> {
+    // Literal interpolation between full-range, strictly ordered stops. QV8:
+    // only exact integer channel results are accepted: no endpoint extension,
+    // duplicate-stop policy or undocumented fractional rounding is invented.
+    if pairs.len() < 4 || pairs.len() % 2 != 0 || pairs[0] != 0 || pairs[pairs.len() - 2] != 255 {
+        return Err(Unsupported::RampGeneration);
+    }
+    let mut table = [0; 256];
+    for stops in pairs.chunks_exact(2).collect::<Vec<_>>().windows(2) {
+        let (left, right) = (stops[0], stops[1]);
+        if right[0] <= left[0] || right[0] > 255 {
+            return Err(Unsupported::RampGeneration);
+        }
+        let width = i64::from(right[0] - left[0]);
+        for index in left[0]..=right[0] {
+            let offset = i64::from(index - left[0]);
+            let mut color = 0;
+            for shift in [0, 8, 16, 24] {
+                let start = i64::from((left[1] >> shift) & 255);
+                let end = i64::from((right[1] >> shift) & 255);
+                let numerator = start * width + (end - start) * offset;
+                if numerator % width != 0 {
+                    return Err(Unsupported::RampGeneration);
+                }
+                color |= ((numerator / width) as u32) << shift;
+            }
+            table[index as usize] = color;
+        }
+    }
+    Ok(OwnedPalettes {
+        straight: RawPalette(table),
+        premultiplied: RawPalette(table.map(premultiply_argb)),
+    })
+}
 
 impl RawPalette {
     pub fn lookup(&self, index: u8) -> u32 {
@@ -47,7 +89,7 @@ pub fn i16_index(_value: i16, _scale: u32) -> Result<u8, Unsupported> {
     Err(Unsupported::SixteenBitConflict)
 }
 
-/// §3.1's per-channel alpha copy. Rounding to nearest is exact integer
+/// Â§3.1's per-channel alpha copy. Rounding to nearest is exact integer
 /// arithmetic; division by 255 has no integer-input halfway ties.
 pub fn premultiply_argb(argb: u32) -> u32 {
     let alpha = argb >> 24;
@@ -65,7 +107,7 @@ pub enum Values<'a> {
 }
 
 impl Values<'_> {
-    fn len(self) -> usize {
+    pub(super) fn len(self) -> usize {
         match self {
             Self::U8(v) => v.len(),
             Self::I8(v) => v.len(),
