@@ -9,6 +9,24 @@ Publication milestone: `8a73a6af`. A final documentation commit adds the depende
 documentation validation and this report; its actual detached HEAD is the queue/result tip. Ready means the
 bounded publication can land, not that its explicitly partial dependencies have been resolved.
 
+### Final provider error after publication
+
+The raw round-2 supervisor result is **ERROR**, not a successful structured final response:
+`Selected model is at capacity. Please try a different model.` The substantive publication
+`8a73a6af` was committed at 03:01:08 BST, the final documentation/report commit `390f2ef2` at
+03:05:06, and the own READY queue was written at 03:05:34.153602. The provider error result was
+written later, at 03:05:55.681662; the refiller paused at 03:06:04. The committed bounded
+publication and its clean exact READY tip therefore preceded the provider failure. The error
+remains preserved in `build-runs/run4-re-other-simulation4-r2-result.json` in the coordinator
+evidence root; it has not been converted into a successful model result or a new research round.
+
+This coordinator-authorized report-only correction records that provenance. It runs no query,
+validation, build, game or source check, changes no contract or engine source, and leaves both
+consumed original rounds counted (2/3). The separate later availability probe and provider-pause
+recovery do not qualify this round as a successful provider response or repair live REA target
+availability. Bounded documentation readiness rests on the already completed publication and
+retained validation below; TK1-TK3 and all native/whole-owner exclusions remain unchanged.
+
 ### Measured evidence and scope
 
 - Independently rechecked original version **1.1.641.0**, size **7,524,352 bytes** and exact SHA-256 match
