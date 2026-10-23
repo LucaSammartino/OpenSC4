@@ -154,3 +154,4 @@ pub mod player_drive;
 pub mod legacy_control;
 pub mod map_view;
 pub mod city_input_tools;
+pub mod resource_catalog;
