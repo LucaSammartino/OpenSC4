@@ -153,8 +153,7 @@ fn tween_seconds_and_straight_arrival_without_snap() {
 fn route_consumes_first_and_stops_failed_lookahead() {
     let mut a = TrafficAutomaton::default();
     let mut w = World::default();
-    a.owner()
-        .set_route_info(&[[1, 2, 3], [4, 5, 6], [7, 8, 9]], 1.0);
+    a.owner().set_route_info(&[[1, 2, 3], [4, 5, 6], [7, 8, 9]], 1.0);
     a.owner().begin_route(&mut w).unwrap();
     assert_eq!(a.record.route.len(), 2);
     w.fail_look_ahead = Some([7, 8, 9]);
@@ -249,11 +248,7 @@ fn vehicle_path_anchors_and_measures_but_traffic_does_not() {
         STOPPED | REACHED
     );
     assert_eq!(v.record.traffic.base.f3[1], 0.005);
-    assert_eq!(
-        v.traffic_owner()
-            .path_tick(100.0, movement(), false, &mut w),
-        Ok(None)
-    );
+    assert_eq!(v.traffic_owner().path_tick(100.0, movement(), false, &mut w), Ok(None));
     assert_eq!(v.record.traffic.base.vectors[1], [3.0, 0.0, 4.0]);
 }
 
@@ -267,10 +262,7 @@ fn movement_failures_remove_only_once_and_special_route_survives_reverse() {
     assert_eq!(w.calls.iter().filter(|c| c.as_str() == "remove").count(), 1);
     v.record.traffic.base.automata_flags = SPECIAL_ROUTE;
     v.record.traffic.base.f3[..4].copy_from_slice(&[-20.0, -20.0, 0.0, 0.0]);
-    assert_eq!(
-        v.path_tick(1.0, movement(), &mut w),
-        Err(Unsupported::RouteGeometryVh7)
-    );
+    assert_eq!(v.path_tick(1.0, movement(), &mut w), Err(Unsupported::RouteGeometryVh7));
     assert_eq!(v.record.traffic.base.automata_flags & REMOVE, 0);
     v.record.traffic.base.automata_flags = 0;
     assert_eq!(v.path_tick(1.0, movement(), &mut w), Ok(()));
@@ -284,14 +276,12 @@ fn default_and_chase_seek_scripted_does_not() {
     for kind in [0, 2, 17, 52] {
         v.record.traffic.base.states = vec![State::new(kind)];
         let old = v.record.traffic.base.vectors[0][0];
-        v.animation_tick(100.0, movement(), true, false, &mut w)
-            .unwrap();
+        v.animation_tick(100.0, movement(), true, false, &mut w).unwrap();
         assert_eq!(v.record.traffic.base.vectors[0][0], old + 1.0);
     }
     v.record.traffic.base.states = vec![State::new(10)];
     let old = v.record.traffic.base.vectors[0];
-    v.animation_tick(100.0, movement(), true, false, &mut w)
-        .unwrap();
+    v.animation_tick(100.0, movement(), true, false, &mut w).unwrap();
     assert_eq!(v.record.traffic.base.vectors[0], old);
 }
 
@@ -307,17 +297,9 @@ fn collision_final_timeout_disappears_and_train_minimum() {
     assert!(v.state_tick(1.0, movement(), &mut w).unwrap());
     assert_ne!(v.record.traffic.base.automata_flags & REMOVE, 0);
     let mut train = Train::default();
-    train
-        .vehicle
-        .enter_collision([1.0, 0.0, 0.0], &mut w)
-        .unwrap();
+    train.vehicle.enter_collision([1.0, 0.0, 0.0], &mut w).unwrap();
     train.collide_tick(100.0, &mut w);
-    assert_eq!(
-        train.vehicle.record.traffic.base.states[0]
-            .base
-            .countdown_ms,
-        9900.0
-    );
+    assert_eq!(train.vehicle.record.traffic.base.states[0].base.countdown_ms, 9900.0);
 }
 
 #[test]
@@ -362,13 +344,7 @@ fn splash_survives_until_timer_then_releases_exactly_once() {
     assert_eq!(v.record.traffic.base.automata_flags & REMOVE, 0);
     v.plummet_tick(1000.0, &mut w).unwrap();
     v.shutdown(&mut w);
-    assert_eq!(
-        w.calls
-            .iter()
-            .filter(|c| c.as_str() == "destroy:42")
-            .count(),
-        1
-    );
+    assert_eq!(w.calls.iter().filter(|c| c.as_str() == "destroy:42").count(), 1);
     assert_ne!(v.record.traffic.base.automata_flags & REMOVE, 0);
 }
 
@@ -408,10 +384,7 @@ fn record_roundtrip_and_every_truncation_atomic_before_init() {
     for end in 0..bytes.len() {
         let mut target = moving();
         let before = target.clone();
-        assert!(
-            !target.read(&mut ByteReader::new(&bytes[..end])),
-            "end={end}"
-        );
+        assert!(!target.read(&mut ByteReader::new(&bytes[..end])), "end={end}");
         assert_eq!(target, before);
     }
 }
@@ -429,13 +402,7 @@ fn train_shutdown_owns_cars_and_copies_measured_speed() {
     t.cars[0].vehicle.splash_effect = Some(42);
     t.shutdown(&mut w);
     assert!(t.cars.is_empty());
-    assert_eq!(
-        w.calls
-            .iter()
-            .filter(|c| c.as_str() == "destroy:42")
-            .count(),
-        1
-    );
+    assert_eq!(w.calls.iter().filter(|c| c.as_str() == "destroy:42").count(), 1);
 }
 
 #[test]
@@ -445,10 +412,7 @@ fn unresolved_train_records_touch_neither_stream_nor_owner() {
     let mut out = ByteWriter::new();
     assert_eq!(train.write(&mut out), Err(Unsupported::TrainRecordVh3));
     assert!(out.into_bytes().is_empty());
-    assert_eq!(
-        train.read(&mut ByteReader::new(&[])),
-        Err(Unsupported::TrainRecordVh3)
-    );
+    assert_eq!(train.read(&mut ByteReader::new(&[])), Err(Unsupported::TrainRecordVh3));
     assert_eq!(train, before);
     assert_eq!(train.init(), Err(Unsupported::TrainCompositionVh5));
 }

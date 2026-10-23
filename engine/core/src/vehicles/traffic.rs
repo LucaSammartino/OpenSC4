@@ -70,18 +70,11 @@ pub struct LeaderCandidate {
 }
 
 /// vehicles.md §2, conformance 4. Height never affects the distance.
-pub fn find_leader_in_tile(
-    position: Vec3,
-    lanes: u32,
-    candidates: &[LeaderCandidate],
-) -> Option<u64> {
+pub fn find_leader_in_tile(position: Vec3, lanes: u32, candidates: &[LeaderCandidate]) -> Option<u64> {
     candidates
         .iter()
         .filter(|c| !c.removed && c.may_follow && (c.straight || c.lane_bits == lanes))
-        .min_by(|a, b| {
-            horizontal_distance(a.position, position)
-                .total_cmp(&horizontal_distance(b.position, position))
-        })
+        .min_by(|a, b| horizontal_distance(a.position, position).total_cmp(&horizontal_distance(b.position, position)))
         .map(|c| c.id)
 }
 
@@ -166,13 +159,7 @@ impl TrafficAutomaton {
     ) -> Result<()> {
         advance_tweens(&mut self.record.base, dt_ms);
         world.effects(EffectAction::Update);
-        let kind = self
-            .record
-            .base
-            .states
-            .last()
-            .map(|s| s.state_type)
-            .unwrap_or(0);
+        let kind = self.record.base.states.last().map(|s| s.state_type).unwrap_or(0);
         let handled = if !moves {
             true
         } else {
@@ -182,9 +169,7 @@ impl TrafficAutomaton {
                     true
                 }
                 10 => self.record.base.automata_flags & REMOVE == 0,
-                13 => self
-                    .owner()
-                    .blocked_wait_tick(dt_ms, movement.speed_scale, world),
+                13 => self.owner().blocked_wait_tick(dt_ms, movement.speed_scale, world),
                 30 => {
                     if tween_value(&self.record.base.f3[..4]) > 0.0 {
                         self.owner().path_tick(dt_ms, movement, false, world)?;
@@ -204,8 +189,7 @@ impl TrafficAutomaton {
                 {
                     self.owner().path_tick(dt_ms, movement, false, world)?;
                 } else {
-                    self.owner()
-                        .straight_tick(dt_ms, movement.speed_scale, world);
+                    self.owner().straight_tick(dt_ms, movement.speed_scale, world);
                 }
             } else if !held {
                 self.owner().remove(world);
@@ -307,11 +291,7 @@ impl TrafficOwner<'_> {
 
     /// vehicles.md §2. Refresh is returned to the caller so the foreign
     /// occupant query can be made without borrowing this owner's state.
-    pub fn update_collision(
-        &mut self,
-        context: CollisionContext,
-        world: &mut impl TrafficWorld,
-    ) -> bool {
+    pub fn update_collision(&mut self, context: CollisionContext, world: &mut impl TrafficWorld) -> bool {
         let flags = self.record.base.automata_flags;
         let refresh = flags & COLLISION != 0 && (context.leader_gone || flags & BLOCKED != 0);
         if flags & 0x800 != 0 || (flags & 0x200000 != 0 && context.occupant_flags & 4 == 0) {
@@ -345,12 +325,7 @@ impl TrafficOwner<'_> {
         refresh
     }
 
-    pub fn blocked_wait_tick(
-        &mut self,
-        dt_ms: f32,
-        modifier: f32,
-        world: &mut impl TrafficWorld,
-    ) -> bool {
+    pub fn blocked_wait_tick(&mut self, dt_ms: f32, modifier: f32, world: &mut impl TrafficWorld) -> bool {
         let Some(state) = self.record.base.states.last_mut() else {
             return false;
         };
@@ -370,11 +345,7 @@ impl TrafficOwner<'_> {
         }
         return_to_default_speed(&mut self.record.base, modifier);
         self.record.base.automata_flags &= !(STOPPED | BLOCKED);
-        if world
-            .intersection(&self.record.network, self.record.base.vectors[0])
-            .0
-            == 0
-        {
+        if world.intersection(&self.record.network, self.record.base.vectors[0]).0 == 0 {
             self.record.base.pop_state();
             world.effects(EffectAction::ExitState(13));
         }
@@ -408,10 +379,7 @@ impl TrafficOwner<'_> {
         self.record.base.vectors[0] = next.position;
         self.record.base.vectors[2] = next.facing;
         self.record.base.vectors[1] = if vehicle {
-            sub(
-                next.position,
-                scale(next.facing, self.record.base.f1[0] * 0.5),
-            )
+            sub(next.position, scale(next.facing, self.record.base.f1[0] * 0.5))
         } else {
             next.position
         };

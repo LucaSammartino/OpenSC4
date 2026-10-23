@@ -58,8 +58,5 @@ fn vh11_4_nearest_eligible_leader_ignores_height() {
         position: [20.0, 0.0, 0.0],
         ..candidates[4].clone()
     };
-    assert_eq!(
-        find_leader([0.0; 3], 4, &[vec![farther], candidates]),
-        Some(6)
-    );
+    assert_eq!(find_leader([0.0; 3], 4, &[vec![farther], candidates]), Some(6));
 }

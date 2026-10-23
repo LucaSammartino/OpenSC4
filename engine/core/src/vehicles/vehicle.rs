@@ -102,12 +102,7 @@ impl Vehicle {
 
     /// Effects/SFX are interface operations. The original owner is never
     /// invoked to handle a state. The shared stack enforces final semantics.
-    pub fn set_state(
-        &mut self,
-        kind: u32,
-        args: SetStateArgs,
-        world: &mut impl VehicleWorld,
-    ) -> Result<bool> {
+    pub fn set_state(&mut self, kind: u32, args: SetStateArgs, world: &mut impl VehicleWorld) -> Result<bool> {
         if self
             .record
             .traffic
@@ -133,12 +128,7 @@ impl Vehicle {
         Ok(true)
     }
 
-    pub fn push_state(
-        &mut self,
-        kind: u32,
-        args: SetStateArgs,
-        world: &mut impl VehicleWorld,
-    ) -> Result<bool> {
+    pub fn push_state(&mut self, kind: u32, args: SetStateArgs, world: &mut impl VehicleWorld) -> Result<bool> {
         if kind == 0 && args.controller == 0 {
             return self.set_state(kind, args, world);
         }
@@ -176,16 +166,8 @@ impl Vehicle {
         popped
     }
 
-    pub fn path_tick(
-        &mut self,
-        dt_ms: f32,
-        movement: Movement,
-        world: &mut impl VehicleWorld,
-    ) -> Result<()> {
-        if let Some(speed) = self
-            .traffic_owner()
-            .path_tick(dt_ms, movement, true, world)?
-        {
+    pub fn path_tick(&mut self, dt_ms: f32, movement: Movement, world: &mut impl VehicleWorld) -> Result<()> {
+        if let Some(speed) = self.traffic_owner().path_tick(dt_ms, movement, true, world)? {
             self.measured_speed = speed;
         }
         Ok(())
@@ -212,8 +194,7 @@ impl Vehicle {
                 {
                     self.path_tick(dt_ms, movement, world)?;
                 } else {
-                    self.traffic_owner()
-                        .straight_tick(dt_ms, movement.speed_scale, world);
+                    self.traffic_owner().straight_tick(dt_ms, movement.speed_scale, world);
                 }
             } else if self.record.traffic.base.automata_flags & REMOVE == 0 && !held {
                 self.traffic_owner().remove(world);
@@ -224,12 +205,7 @@ impl Vehicle {
         Ok(())
     }
 
-    pub fn state_tick(
-        &mut self,
-        dt_ms: f32,
-        movement: Movement,
-        world: &mut impl VehicleWorld,
-    ) -> Result<bool> {
+    pub fn state_tick(&mut self, dt_ms: f32, movement: Movement, world: &mut impl VehicleWorld) -> Result<bool> {
         let kind = self
             .record
             .traffic
@@ -327,11 +303,7 @@ impl Vehicle {
         Err(Unsupported::CollisionDirectionVh6)
     }
 
-    pub fn enter_collision(
-        &mut self,
-        direction: Vec3,
-        world: &mut impl VehicleWorld,
-    ) -> Result<bool> {
+    pub fn enter_collision(&mut self, direction: Vec3, world: &mut impl VehicleWorld) -> Result<bool> {
         world.post_message(COLLISION_MESSAGE);
         self.record.traffic.base.automata_flags |= 0x10000000;
         self.record.traffic.base.vectors[2] = super::unit(direction);
@@ -456,25 +428,11 @@ impl Vehicle {
         };
         let position = self.record.traffic.base.vectors[0];
         if elapsed == 0.0 {
-            tween_speed(
-                &mut self.record.traffic.base,
-                f32::from_bits(0x3B88888A),
-                1.0,
-            );
+            tween_speed(&mut self.record.traffic.base, f32::from_bits(0x3B88888A), 1.0);
             self.pull_heading = self.record.traffic.base.vectors[2];
-            self.pull_sideways = [
-                -self.pull_heading[2],
-                self.pull_heading[1],
-                self.pull_heading[0],
-            ];
+            self.pull_sideways = [-self.pull_heading[2], self.pull_heading[1], self.pull_heading[0]];
             let delta = super::sub(position, world.controller_point());
-            if delta
-                .iter()
-                .zip(self.pull_sideways)
-                .map(|(a, b)| a * b)
-                .sum::<f32>()
-                < 0.0
-            {
+            if delta.iter().zip(self.pull_sideways).map(|(a, b)| a * b).sum::<f32>() < 0.0 {
                 self.pull_sideways = super::scale(self.pull_sideways, -1.0);
             }
         } else if elapsed < 1000.0 {
