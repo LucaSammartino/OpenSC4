@@ -31,6 +31,34 @@ Keep normal REA preflight and full admission checks; record unavailable live ses
 unavailable evidence unresolved. Do not invent an extra live-only condition that strands otherwise valid
 primary-export research. Work requiring live analysis still needs actual same-client target/query proof.
 
+### Changed phases within an original budget
+
+An already-merged same-name resume refusal does not prohibit a genuinely new implementation phase
+after missing public algorithms have been published. Use a new worktree only after auditing the entire
+original family and its historical round count. Under the coordinator lock, freeze the parent limit at
+the rounds actually consumed, retain its park and evidence, and reserve exactly one exclusive child
+for the known unused rounds. Record parentage and the reservation in the state and brief. Parent plus
+child must remain at most three; no sibling or parent may spend the child's reservation. Unknown
+historical budgets do not qualify. This is not FIRST work or a reset of exhausted work.
+
+The child still needs the full original subsystem keys, actual landed dependencies, assignment and
+STOP checks, a substantive reviewed task, and normal new-worktree admission. Do not reconstruct refs,
+change guards or rename unchanged denied work. Specific prohibitions, including CoreNetocc NO15–17,
+remain binding. Overlay, Ripples and their reservation evidence illustrate qualified changed phases.
+
+### Host evidence and isolated workers
+
+The host coordinator owns global process/service inspection and admission. Copy fresh, exact evidence
+into the worker's ignored build-runs directory. An isolated worker's inability to inspect host processes
+does not invalidate verified host evidence or prove the host service is down. Do not add a repeated
+global inspection as a worker prerequisite when its sandbox cannot perform it. Runtime role, STOP,
+round and scope guards still apply. Unknown ownership or unresolved host inspection errors remain
+unresolved; do not infer drainage or terminal success from process disappearance.
+
+Format explicit owned source files in place. Never redirect multi-file `rustfmt --emit stdout` output
+into a source file: filename headers have caused actual Rust compiler errors. Preserve the failed
+source and error evidence, then qualify the corrected final source with the normal stable gate.
+
 ## Spawning a lane
 
 **Provider selection:** the tracked `tools/lane_launch.py` and `tools/lane_refill.py` support explicit
