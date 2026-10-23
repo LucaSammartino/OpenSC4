@@ -5,7 +5,8 @@
 ## Handoff
 
 - Goal: specify HIT, freshness, sound-system directors and playlist contracts without engine changes.
-- Done: reused reserved detached worktree; read operating and lane rules.
-- Next: query exported owner inventories, related specs and decompiled routines.
+- Done: initial lane record fec8df29; drafted sound-system scope and HIT track interface/state contracts.
+- Next: complete remaining owner sections and vectors; verify numeric rules against instructions.
+- Facts: signed CheckedRegId upper bound 74; load count underflows and ignores child failure; dependent playback extends IsPlaying.
 - Sources: main checkout C:/Users/tlori/FreeCity4; edits only in this worktree.
 - No game runs requested; no ABI changes planned.

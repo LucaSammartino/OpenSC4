@@ -318,6 +318,7 @@ generated index: the questions live one file per spec, so read only the file for
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
 | simgrid | 2 | 0 | SG3 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
+| sound-system | 0 | 0 | - | questions/sound-system.md |
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 3 | 4 | SP8 | questions/span-render-4444.md |
 | span-render-565 | 6 | 2 | SR566 | questions/span-render-565.md |
