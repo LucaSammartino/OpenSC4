@@ -42,6 +42,7 @@ struct Fake {
     release_counts: BTreeMap<Handle, u32>,
     raw_sequences: BTreeMap<(Handle, u32), VecDeque<Value>>,
     images: BTreeMap<(u32, u32), Handle>,
+    rects: BTreeMap<Handle, Rect>,
     strings: BTreeMap<(u32, u32), String>,
 }
 impl Foreign for Fake {
@@ -112,7 +113,7 @@ impl Foreign for Fake {
     }
     fn image_rect(&mut self, h: Handle) -> Rect {
         self.events.push(Event::ImageRect(h));
-        [0, 0, 16, 20]
+        self.rects.get(&h).copied().unwrap_or([0, 0, 16, 20])
     }
     fn notify_cell(&mut self, h: Handle, col: i32, row: i32, d: CellDescriptor) {
         self.events.push(Event::NotifyCell(h, col, row, d));
@@ -972,11 +973,24 @@ fn every_published_type_traverses_the_production_builder() {
         (0xdaa6b9bf, 0xdaa6b9be),
         (0x078e8055, 0xa13351b8),
         (0x4303e5b6, 0xe303e5ae),
+        (0x592, 0x212cdc1f),
+        (0x231a1c58, 0x231a1c57),
+        (0x598, 0x4132242b),
+        (0x59b, 0x412ce496),
+        (0x22ecfc47, 0x8810),
+        (0x82fe68c4, 0xc12cea13),
+        (0x61325a2e, 0x61325a2d),
+        (0x21335c5a, 0x21335c59),
+        (0x612ce0c4, 0x612ce0c3),
+        (0xe32f0b31, 0x032f0b3c),
+        (0xa1336cc1, 0xa1336cc0),
+        (0x4386d516, 0x5386d516),
     ] {
         let (mut c, g, mut f) = initialized();
         f.creates.push_back(Some(10));
         f.queries.insert((10, iid), 11);
         f.raw.insert((11, 0x14), Value::Handle(12));
+        f.raw.insert((11, 0x140), Value::U32(0));
         for (slot, values) in [
             (0x88, vec![7, 8]),
             (0x98, vec![3, 4, 5]),
@@ -995,7 +1009,7 @@ fn every_published_type_traverses_the_production_builder() {
             .enumerate()
             .filter_map(|(k, e)| (*e == Event::Query(10, iid)).then_some(k))
             .collect();
-        assert_eq!(type_queries.len(), 2);
+        assert_eq!(type_queries.len(), if iid == GEN_IID { 3 } else { 2 });
         let common = f
             .events
             .iter()
@@ -1003,7 +1017,8 @@ fn every_published_type_traverses_the_production_builder() {
             .unwrap();
         let init = f.events.iter().position(|e| *e == win(10, Write::Init)).unwrap();
         let front = f.events.iter().position(|e| *e == win(10, Write::Front)).unwrap();
-        assert!(type_queries[0] < common && common < init && init < front && front < type_queries[1]);
+        let second = *type_queries.last().unwrap();
+        assert!(type_queries[0] < common && common < init && init < front && front < second);
         assert_eq!(f.events.last(), Some(&win(10, Write::Flag(2, false))));
     }
 }

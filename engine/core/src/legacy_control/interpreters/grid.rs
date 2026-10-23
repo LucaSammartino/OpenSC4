@@ -28,7 +28,7 @@ pub(super) fn run(h: Handle, t: Handle, p: Properties<'_>, first: bool, f: &mut 
         let c = grid_colour(t, c, f)?;
         call(f, t, 0x44, vec![n(c)]);
     }
-    if !font_word(h, t, p, 0xf000, 0, 0x3c, f)? {
+    if !font_word(h, t, p, 0xf000, 0, 0x3c, f) {
         let font = f.font(0x68963c4c);
         call(f, t, 0x3c, vec![Value::Handle(font)]);
     }

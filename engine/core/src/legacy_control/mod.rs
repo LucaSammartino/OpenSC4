@@ -36,6 +36,7 @@ pub const GEN_IID: u32 = 0x5386d516;
 /// physical representation. Interface views share one owner and reference count.
 pub const OBJECT_SIZE: u32 = 0x20;
 pub const VTABLES: [(u32, u32); 3] = [(0, 0x00ad5360), (4, 0x00ad5344), (8, 0x00ad5324)];
+pub const VTABLE_SLOT_COUNTS: [u32; 3] = [11, 8, 8];
 pub const FIELD_OFFSETS: [u32; 5] = [0x0c, 0x10, 0x14, 0x18, 0x1c];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -155,6 +156,7 @@ pub trait Foreign {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Unsupported {
+    Open(&'static str),
     Interpreter(u32),
     Malformed(&'static str),
     ForeignResult(&'static str),

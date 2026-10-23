@@ -2,12 +2,12 @@
 use super::parse::*;
 use super::*;
 
-mod file_browser;
-mod grid;
-mod tree;
 mod controls;
 mod feedback;
+mod file_browser;
+mod grid;
 mod options;
+mod tree;
 
 fn n(v: u32) -> Value {
     Value::U32(v)
@@ -35,16 +35,19 @@ fn font_word(
     index: u32,
     slot: u32,
     f: &mut impl Foreign,
-) -> Result<bool> {
+) -> bool {
     if let Some(id) = p.number(key) {
         let font = f.font(id);
         call(f, interface, slot, vec![Value::Handle(font)]);
         param(h, 0xfaa3be85u32.wrapping_add(index), n(id), f);
-        Ok(true)
-    } else if p.text(key).is_some() {
-        Err(Unsupported::Malformed("LC13 named-font helper"))
+        true
+    } else if let Some(s) = p.text(key) {
+        // Earlier §§9.3–9.6 explicitly publish this text payload; LC13 only
+        // leaves the newly inventoried §9.9 helper branches unsettled.
+        param(h, 0xfaa3be85u32.wrapping_add(index), text(s), f);
+        true
     } else {
-        Ok(false)
+        false
     }
 }
 
@@ -158,10 +161,10 @@ pub fn interpret(kind: Kind, h: Handle, p: Properties<'_>, first: bool, f: &mut 
         Kind::TreeView => tree::run(h, interface, p, first, f),
         Kind::FileBrowser => file_browser::run(h, interface, p, first, f),
         Kind::Grid => grid::run(h, interface, p, first, f),
-        Kind::Text | Kind::TextEdit | Kind::ListBox | Kind::Combo =>
-            controls::run(kind, h, interface, p, first, f),
-        Kind::Btn | Kind::Bmp | Kind::Scrollbar | Kind::LineInput | Kind::Spinner |
-        Kind::TextTicker => feedback::run(kind, h, interface, p, first, f),
+        Kind::Text | Kind::TextEdit | Kind::ListBox | Kind::Combo => controls::run(kind, h, interface, p, first, f),
+        Kind::Btn | Kind::Bmp | Kind::Scrollbar | Kind::LineInput | Kind::Spinner | Kind::TextTicker => {
+            feedback::run(kind, h, interface, p, first, f)
+        }
         Kind::Gen | Kind::OptGrp => options::run(kind, h, interface, p, first, f),
         Kind::Common | Kind::Custom => unreachable!(),
     };
@@ -296,7 +299,7 @@ fn outline(t: Handle, p: Properties<'_>, first: bool, f: &mut impl Foreign) -> R
 }
 fn folders(h: Handle, t: Handle, p: Properties<'_>, first: bool, f: &mut impl Foreign) -> Result<()> {
     if first {
-        font_word(h, t, p, 0xf000, 0, 0x28, f)?;
+        font_word(h, t, p, 0xf000, 0, 0x28, f);
         if let Some(s) = p.text(0xf016) {
             // Q11 choice explicitly allowed in §9.6: zero unparsed fields.
             let [g, inst] = zero_scan::<2>(&s, "{%x,%x}")?;
