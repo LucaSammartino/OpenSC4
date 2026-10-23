@@ -1,5 +1,41 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::*;
+
+// LM4 §8.1 analytical ledgers, not captured native executions. Expected record
+// words are public literals; side coordinates and request cells are independent.
+#[test]
+fn settled_wall_literal_four_side_ledger() {
+    let rows: &[(f32, f32, &[(bool, u32)], [f32; 2])] = &[
+        (12., 14., &[(false,0x411ccccd),(true,0x411ccccd),(false,0x41433333),(false,0x41433333),(true,0x411ccccd),(true,0x41633333)], [10.,14.]),
+        (10., 12., &[(false,0x411ccccd),(true,0x411ccccd),(false,0x41233333),(false,0x41233333),(true,0x411ccccd),(true,0x41433333)], [10.,12.]),
+        (12., 10., &[(false,0x411ccccd),(true,0x411ccccd),(false,0x41433333),(false,0x41433333),(true,0x411ccccd),(true,0x41233333)], [10.,12.]),
+        (12., 8., &[(false,0x411ccccd),(true,0x40f9999a),(false,0x41433333)], [8.,12.]),
+        (8., 12., &[(false,0x40f9999a),(true,0x411ccccd),(true,0x41433333)], [8.,12.]),
+        (10.,10., &[], [10.,10.]),
+        (8.,10., &[], [8.,9.]),
+        (10.,8., &[], [10.,11.]),
+        (12.,f32::from_bits(0x411ccccd), &[(false,0x411ccccd),(true,0x4119999a),(false,0x41433333)], [f32::from_bits(0x411ccccd),12.]),
+        (f32::from_bits(0x411ccccd),12., &[(false,0x4119999a),(true,0x411ccccd),(true,0x41433333)], [f32::from_bits(0x411ccccd),12.]),
+        (8.,9., &[], [8.,9.]),
+    ];
+    let endpoints = [([32.,80.],[48.,80.]),([48.,80.],[48.,96.]),([32.,96.],[48.,96.]),([32.,80.],[32.,96.])];
+    for (side, (a,b)) in Edge::ALL.into_iter().zip(endpoints) {
+        for &(h0,h1,expected,ys) in rows {
+            let samples = [WallSample{position:a,terrain_height:h0},WallSample{position:b,terrain_height:h1}];
+            let shape = WallShape::from_samples(side,10.,&samples,0.0625).unwrap();
+            assert_eq!(shape.records.len(),expected.len(),"{side:?} {h0},{h1}");
+            for (v,&(next,y)) in shape.records.iter().zip(expected) {
+                let p = if next { b } else { a };
+                assert_eq!(v.position,[p[0],f32::from_bits(y),p[1]]);
+                assert_eq!(v.uv[1].to_bits(),y-0x02000000);
+                assert_eq!(v.colour,[0;4]);
+            }
+            if !expected.is_empty() {
+                assert_eq!([shape.bounds.min[1],shape.bounds.max[1]],ys);
+            }
+        }
+    }
+}
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
@@ -392,7 +428,7 @@ fn wall_public_facing_vector_and_all_rotations() {
 }
 
 #[test]
-fn wall_bands_cover_above_below_crossing_but_do_not_invent_triangles() {
+fn wall_settled_triangles_differ_from_old_semantic_bands() {
     let level = WallShape::from_samples(Edge::North, 10.0, &samples(10.0, 10.0), 0.5).unwrap();
     assert!(level.bands.is_empty());
     let shape = WallShape::from_samples(Edge::South, 10.0, &samples(8.0, 12.0), 0.5).unwrap();
@@ -400,13 +436,15 @@ fn wall_bands_cover_above_below_crossing_but_do_not_invent_triangles() {
     assert_eq!(shape.bands[0].expanded_heights, [[7.8, 10.2], [9.8, 12.2]]);
     assert_eq!(shape.outward_normal, [0.0, 0.0, 1.0]);
     assert_eq!(shape.outward_offset_range, [0.001, 0.002]);
-    assert_eq!(shape.triangles(), Err(ContractError::WallTriangleLayout));
+    // DIFFERS: old fixture expected an LM4 gap. Settled §3.2 has a literal
+    // ascending triangle, without an interpolated intersection.
+    assert_eq!(shape.triangles().unwrap(), [[0.,7.8,0.],[16.,9.8,0.],[16.,12.2,0.]]);
     assert_eq!(
         WallShape::from_samples(Edge::North, 10.0, &samples(10.0, 9.0), 1.0)
             .unwrap()
             .bands
             .len(),
-        1
+        0
     );
 }
 

@@ -5,6 +5,68 @@ pub const WALL_TEXTURE_GROUP: u32 = 0x891B_0E1A;
 pub const WALL_SEAM_METRES: f32 = 0.2;
 pub const WALL_OUTWARD_OFFSET_RANGE: Vec2 = [0.001, 0.002];
 
+/// Published finite arithmetic subset: binary32 operands, PC=53/64,
+/// RC=nearest-even. No claim about the ambient native control word (LM8).
+fn stored_add(a: f32, b: f32) -> f32 {
+    (f64::from(a) + f64::from(b)) as f32
+}
+
+pub(super) fn lattice_index(q: f32, upper: bool) -> Result<i32, ContractError> {
+    // This bounded domain makes every operation in the bias technique exact
+    // before the final binary32 store under both published ledger precisions.
+    if !q.is_finite() || !(0.0..=16_777_216.0).contains(&q) {
+        return Err(ContractError::InvalidInput);
+    }
+    let scaled = f64::from(q) * 0.0625;
+    let biased = if upper { scaled - f64::from(f32::from_bits(0x3f66_6666)) } else { scaled };
+    let word = ((biased + 12_582_912.0) as f32).to_bits();
+    Ok(word.wrapping_sub(0x4b40_0000).wrapping_add(u32::from(upper)) as i32)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WallVertex {
+    pub position: Vec3,
+    /// In-memory BGRA bytes, not a host-packed colour.
+    pub colour: [u8; 4],
+    pub uv: Vec2,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WallRange {
+    pub start: [i32; 2],
+    pub end: i32,
+    pub inner: [i32; 2],
+}
+
+impl WallRange {
+    pub fn new(side: Edge, bounds: Bounds) -> Result<Self, ContractError> {
+        let z1 = lattice_index(bounds.max[2], true)?;
+        let x1 = lattice_index(bounds.max[0], true)?;
+        let z0 = lattice_index(bounds.min[2], false)?;
+        let x0 = lattice_index(bounds.min[0], false)?;
+        Ok(match side {
+            Edge::North => Self { start: [x0,z0], end: x1, inner: [x0,z0] },
+            Edge::East => Self { start: [x1,z0], end: z1, inner: [x1-1,z0] },
+            Edge::South => Self { start: [x0,z1], end: x1, inner: [x0,z1-1] },
+            Edge::West => Self { start: [x0,z0], end: z1, inner: [x0,z0] },
+        })
+    }
+}
+
+/// Individual returning game-interface primitives only. Ownership/lifetime of
+/// any backing game objects belongs to the adapter, outside LM4.
+pub trait WallTerrain {
+    fn inner_lot_height(&mut self, cell: [i32;2]) -> Option<f32>;
+    fn terrain_height(&mut self, cell: [i32;2]) -> f32;
+    fn extent_x(&mut self) -> i32;
+    fn extent_z(&mut self) -> i32;
+    fn lot_flags(&mut self, cell: [i32;2], argument: u32) -> Option<u32>;
+}
+
+pub trait WallLighting {
+    fn components(&mut self, position: Vec3, normal: Vec3) -> [i32;3];
+}
+
 /// Primitive edge coordinates and terrain sample, not owner-generated geometry.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WallSample {
@@ -29,6 +91,12 @@ pub struct WallShape {
     pub bands: Vec<WallBand>,
     pub outward_normal: Vec3,
     pub outward_offset_range: Vec2,
+    pub records: Vec<WallVertex>,
+    pub bounds: Bounds,
+    pub local_bounds: Bounds,
+    pub emitting_segments: u8,
+    pub geometry_present: bool,
+    prefix_records: usize,
 }
 
 impl WallShape {
@@ -48,6 +116,8 @@ impl WallShape {
             return Err(ContractError::InvalidInput);
         }
         let mut bands = Vec::new();
+        let mut result = Self::empty(side);
+        result.begin(lot_height, samples[0].position);
         for pair in samples.windows(2) {
             let [a, b] = [pair[0], pair[1]];
             let dx = (b.position[0] - a.position[0]).abs();
@@ -59,9 +129,8 @@ impl WallShape {
             if !valid_segment {
                 return Err(ContractError::InvalidInput);
             }
-            // Literal §3: an entirely level segment gets nothing. A segment with
-            // only one equal endpoint is retained as a band, not triangulated.
-            if a.terrain_height == lot_height && b.terrain_height == lot_height {
+            // §3.2 eligibility precedes the T split; all-below emits nothing.
+            if !(a.terrain_height > lot_height || b.terrain_height > lot_height) {
                 continue;
             }
             let heights = [a.terrain_height, b.terrain_height].map(|terrain| {
@@ -86,19 +155,152 @@ impl WallShape {
                 expanded_heights: heights,
                 vertical_repeats,
             });
+            result.emit(lot_height, a, b, texture_scale)?;
         }
-        Ok(Self {
-            side,
-            bands,
-            outward_normal: side.normal(),
-            outward_offset_range: WALL_OUTWARD_OFFSET_RANGE,
-        })
+        result.bands = bands;
+        result.finish(samples[0]);
+        Ok(result)
     }
 
-    /// Exact triangles cannot be recovered from the published offset range and
-    /// seam description. This is intentionally not an original-wall callback.
     pub fn triangles(&self) -> Result<Vec<Vec3>, ContractError> {
-        Err(ContractError::WallTriangleLayout)
+        Ok(self.records.iter().map(|v| v.position).collect())
+    }
+
+    pub fn empty(side: Edge) -> Self {
+        let bounds = Bounds { min: [0.;3], max: [0.;3] };
+        Self { side, bands: Vec::new(), outward_normal: side.normal(),
+            outward_offset_range: WALL_OUTWARD_OFFSET_RANGE, records: Vec::new(),
+            bounds, local_bounds: bounds, emitting_segments: 0, geometry_present: false, prefix_records: 0 }
+    }
+
+    fn axis(&self) -> usize { if matches!(self.side, Edge::North | Edge::South) { 0 } else { 2 } }
+
+    fn begin(&mut self, lot: f32, start: Vec2) {
+        let axis = self.axis();
+        let across = 2-axis;
+        self.bounds.min = [start[0],lot,start[1]];
+        self.bounds.max = self.bounds.min;
+        self.bounds.min[axis] = f32::MAX;
+        self.bounds.max[axis] = -f32::MAX;
+        self.bounds.min[across] = stored_add(self.bounds.min[across],0.001);
+        self.bounds.max[across] = stored_add(self.bounds.max[across],0.002);
+        self.emitting_segments = 0;
+        self.prefix_records = 0;
+        self.geometry_present = false;
+    }
+
+    fn emit(&mut self, lot: f32, a: WallSample, b: WallSample, scale: f32) -> Result<(),ContractError> {
+        let t = stored_add(lot,-WALL_SEAM_METRES);
+        let h0 = a.terrain_height;
+        let h1 = b.terrain_height;
+        let ap = stored_add(h0,WALL_SEAM_METRES);
+        let bp = stored_add(h1,WALL_SEAM_METRES);
+        let am = stored_add(h0,-WALL_SEAM_METRES);
+        let bm = stored_add(h1,-WALL_SEAM_METRES);
+        if ![lot,h0,h1,scale,t,ap,bp,am,bm].into_iter().all(f32::is_finite) {
+            return Err(ContractError::InvalidInput);
+        }
+        // Callers own eligibility. No interpolated crossing or side reversal.
+        let (points, count) = if h0 > t && h1 > t {
+            ([(a,t),(b,t),(a,ap),(a,ap),(b,t),(b,bp)],6)
+        } else if h0 > t {
+            ([(a,t),(b,bm),(a,ap),(a,t),(a,t),(a,t)],3)
+        } else {
+            ([(a,am),(b,t),(b,bp),(a,t),(a,t),(a,t)],3)
+        };
+        if self.emitting_segments == 255 { return Err(ContractError::InvalidInput); }
+        let axis = self.axis();
+        // Portable allocation policy: Vec capacity is not a native heap claim.
+        let offset = self.written_records();
+        self.records.try_reserve((offset+count).saturating_sub(self.records.len())).map_err(|_|ContractError::InvalidInput)?;
+        for (i,(sample,y)) in points.into_iter().take(count).enumerate() {
+            let position = [sample.position[0],y,sample.position[1]];
+            let uv = [(f64::from(position[axis])*f64::from(scale)) as f32,(f64::from(y)*f64::from(scale)) as f32];
+            if !uv.into_iter().all(f32::is_finite) { return Err(ContractError::InvalidInput); }
+            if offset+i < self.records.len() {
+                self.records[offset+i].position = position;
+                self.records[offset+i].uv = uv;
+            } else { self.records.push(WallVertex { position, uv, colour: [0;4] }); }
+        }
+        self.prefix_records += count;
+        self.emitting_segments += 1;
+        self.bounds.min[axis] = self.bounds.min[axis].min(a.position[axis/2]);
+        self.bounds.max[axis] = self.bounds.max[axis].max(b.position[axis/2]);
+        if h0 > t { self.bounds.max[1] = self.bounds.max[1].max(h0); }
+        else { self.bounds.min[1] = self.bounds.min[1].min(h0); }
+        if h1 > t { self.bounds.max[1] = self.bounds.max[1].max(h1); }
+        else { self.bounds.min[1] = self.bounds.min[1].min(h1); }
+        Ok(())
+    }
+
+    fn written_records(&self) -> usize { self.prefix_records }
+
+    fn finish(&mut self, start: WallSample) {
+        self.geometry_present = self.emitting_segments != 0;
+        if self.geometry_present {
+            let axis = self.axis();
+            self.bounds.min[axis] = stored_add(self.bounds.min[axis],0.001);
+            self.bounds.max[axis] = stored_add(self.bounds.max[axis],-0.001);
+            self.local_bounds = Bounds { min: [0.;3], max: std::array::from_fn(|i|stored_add(self.bounds.max[i],-self.bounds.min[i])) };
+        } else {
+            self.bounds.min = [start.position[0], start.terrain_height, start.position[1]];
+            self.bounds.max = self.bounds.min.map(|v|stored_add(v,1.));
+            self.local_bounds = self.bounds;
+        }
+    }
+
+    pub fn recolour<L: WallLighting>(&mut self, light: &mut L) {
+        let normal = self.side.normal().map(|v|-v);
+        for v in &mut self.records {
+            let c = light.components(v.position,normal);
+            v.colour = [c[2] as u8,c[1] as u8,c[0] as u8,255];
+        }
+    }
+
+    /// Returns the published bounds-change result, distinct from presence.
+    pub fn rebuild<H: WallTerrain>(&mut self, box_: Bounds, scale: f32, host: &mut H) -> Result<bool,ContractError> {
+        let range = WallRange::new(self.side,box_)?;
+        self.emitting_segments = 0;
+        self.prefix_records = 0;
+        let Some(lot) = host.inner_lot_height(range.inner) else { return Ok(false); };
+        if !lot.is_finite() || !scale.is_finite() { return Err(ContractError::InvalidInput); }
+        let mut cell = range.start;
+        let varying = self.axis()/2;
+        let position = |c: [i32;2]| -> Vec2 { c.map(|v|(v*16) as f32) };
+        let first = host.terrain_height(cell);
+        if !first.is_finite() { return Err(ContractError::InvalidInput); }
+        let previous = self.bounds;
+        self.begin(lot,position(cell));
+        let mut h0 = first;
+        while cell[varying] < range.end {
+            let mut next = cell;
+            next[varying] += 1;
+            let h1 = host.terrain_height(next);
+            if !h1.is_finite() { return Err(ContractError::InvalidInput); }
+            if h0 > lot || h1 > lot {
+                let extent_x = host.extent_x();
+                let extent_z = host.extent_z();
+                let across = match self.side {
+                    Edge::North => [cell[0],cell[1]-1],
+                    Edge::West => [cell[0]-1,cell[1]],
+                    _ => cell,
+                };
+                let flat = across[0] >= 0 && across[1] >= 0 && across[0] < extent_x && across[1] < extent_z
+                    && host.lot_flags(across,0).is_some_and(across_edge_lot_is_flat);
+                if !flat {
+                    self.emit(lot,WallSample { position:position(cell), terrain_height:h0 },WallSample { position:position(next), terrain_height:h1 },scale)?;
+                }
+            }
+            h0 = h1;
+            cell = next;
+        }
+        let fallback = if self.emitting_segments == 0 { host.terrain_height(range.start) } else { first };
+        if !fallback.is_finite() { return Err(ContractError::InvalidInput); }
+        self.finish(WallSample { position:position(range.start), terrain_height:fallback });
+        Ok(self.geometry_present && [3,4,5,0,1,2].into_iter().any(|i| {
+            let (new,old) = if i<3 {(self.bounds.min[i],previous.min[i])} else {(self.bounds.max[i-3],previous.max[i-3])};
+            (f64::from(new)-f64::from(old)).abs() > f64::from(f32::from_bits(0x38d1_b717))
+        }))
     }
 }
 
@@ -126,8 +328,8 @@ pub struct RetainingWallModel<T> {
 }
 
 impl<T: Texture> RetainingWallModel<T> {
-    /// The native box-to-cell enumeration is not specified (LM4). This input is
-    /// an explicitly sampled edge, never a delegated original-owner shape.
+    /// Convenience sampled-edge entry; `WallShape::rebuild` owns native ranges
+    /// and raw terrain/lot query order.
     pub fn init(
         side: Edge,
         lot_height: f32,
