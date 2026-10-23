@@ -846,3 +846,145 @@ thread activation and existing objects, not a live HTTP endpoint:
 
 HTTP/1.x client jobs, TimeStringToSeconds (HTTP dates), DoJobFinalization (resolves redirects with
 cRZURL::ChangeURL), cookie send and receive through 3.3 and 3.4, disk cache through NetworkFileCache.
+
+## 6. NetworkFileCache — storage and IO contract
+
+Added 2026-10-23, re-www-ww5. *[compat]* applies to the contracts below. Evidence is the
+Windows export, with numeric branches checked against instructions. There is no drawing interface:
+this owner exchanges strings, byte buffers and file paths. WWW's admission/cache policy remains
+in sections 4.6 and 4.12; the cache itself does not interpret HTTP headers. No live IO was run.
+
+### 6.1 Dispatch inventory and construction
+
+Native table `00acd418`, zero-based slots; each group below lists successive slots in order.
+These are interface facts, not a claim that every helper's behavior is settled.
+
+| Slots | Methods (entry addresses in the same order) |
+|---|---|
+| 0–4 | deleting destructor `008fd750`; Init `008fdde8`; Shutdown `008fd3d9`; AddRef `0094c4b1`; Release `008fc3ef` |
+| 5–8 | GetCacheDirectory `008fcc18`; SetCacheDirectory `008fcc2a`; GetCacheIniFileName `008fcc87`; SetCacheIniFileName `008fcc99` |
+| 9–11 | SetRAMCacheSize `00945edc`; SetFileCacheSize `00945ed0`; SetDefaultExpirationTime `0096c3cb` |
+| 12–14 | IsCachedDataPresent `008fd0dc`; IsCachedDataPresentAsRAMData `008fd145`; IsCachedDataPresentAsFileData `008fd1b4` |
+| 15–18 | GetCachedDataAsData `008fd3f6`; GetCachedDataAsFile `008fd5b0`; GetCachedFileInfo borrowed-pointer overload `008fc5b3`; copying overload `008fd227` |
+| 19–22 | ForceCachedDataIntoFile `008fc613`; GetCachedDataSize `008fc405`; GetTimeCreated `008fc426`; GetTimeNow `008fc447` |
+| 23–25 | AddNewCachedData bytes `008fd998`; AddNewCachedData source-file `008fd76c`; RemoveCachedData `008fd69c` |
+| 26–27 | GetNewCacheFileName `008fcd49`; GetNewCacheFilePath `008fceeb` |
+
+Nonvirtual support: RemoveCachedFile `008fc669`, RemoveUnusedCachedFiles `008fc6e0`,
+WriteDataToFile `008fc7d7`, GetFileLength `008fc887`, UpdateCacheIniFile `008fc9b1`,
+DoPeriodicCacheMaintenance `008fd258`, ClearCacheMap `008fd2cc`, IniFileCallbackFunction
+`008fdb0d`, ReadCacheIniFile `008fdd39`; constructor `008fd389`.
+
+Constructor defaults (`008fd38c–008fd3d5`): initialized=false (+4), reference count=0 (+8),
+empty directory string (+0xc), INI-name string (+0x20) from global pointer `00b16144`,
+empty map (+0x34), file-size setting=3,000,000 (+0x48), RAM-size setting=500,000 (+0x4c),
+default lifetime=432,000 seconds (+0x50), two operation counters=0 (+0x54/+0x58).
+The INI name's pointed-to literal is not qualified here. Setters for the three numeric settings
+store their entire 32-bit argument and return true; they perform no immediate trim, validation
+or IO (`00945ed0`, `00945edc`, `0096c3cb`). No capacity-enforcement promise follows from their names.
+
+### 6.2 Lifecycle and path settings
+
+Init is idempotent. On its first call, an empty directory is replaced by the temporary directory
+plus `Maxis Network Cache\`. It checks directory existence and attempts creation if absent,
+reads the INI, removes unused cache files, sets initialized and returns true. It ignores creation
+and read failures (`008fdde8–008fde3e`). Shutdown, only when initialized, writes the INI,
+clears the map and clears initialized; it returns true (`008fd3d9`). Thus a true lifecycle result
+does not certify a successful disk operation. No thread, callback or asynchronous message is
+created by these entries.
+
+SetCacheDirectory assigns before validation: empty returns false, leaving the empty assignment.
+A nonempty path gets a trailing backslash unless its last byte is already a path separator;
+an existing directory succeeds, otherwise return the directory-creation result. Failure does
+not restore the old directory (`008fcc2a–008fcc86`). SetCacheIniFileName first checks/removes the
+old directory+INI-name file, assigns the new name and returns true (`008fcc99`). It does not
+rename the old file or migrate cached records. Directory and INI getters return their stored strings.
+
+### 6.3 Entries, expiration and reads
+
+An entry has a key, relative filename string, optional reference-counted RAM data, byte length,
+an unsigned byte-derived attribute, lifetime, creation time, last-access time and expiration time.
+Relative to the info record these are filename +0, RAM holder +0x14, length +0x18,
+attribute +0x1c, lifetime +0x20, creation +0x24, access +0x28, expiration +0x2c.
+Offsets are interoperability facts for the borrowed/copy info methods, not a portable layout mandate.
+RAM holders contain buffer pointer +0, size +4, 16-bit reference count +8.
+
+Presence/read methods look up the key. A missing entry returns false. A found entry is live only
+when **signed 32-bit now < signed expiration**; equality is expired. On expiration they release
+the map's RAM hold, attempt to remove its file and erase the entry, returning false
+(`008fd10a–008fd133`, `008fd3f6`, `008fd5ef–008fd61b`). PresenceAsRAM additionally requires a
+non-null holder; PresenceAsFile requires a nonempty stored filename. Neither tests disk existence.
+Info getters do not perform this expiration test: borrowed lookup returns the entry address on
+success; copying lookup assigns its contents. Size/time getters use the info lookup and return
+zero on absence (`008fc405`, `008fc426`, `008fc5b3`, `008fd227`).
+
+GetCachedDataAsData(key, optional output-holder-pointer) returns true for a live record with no
+output requested, without loading its file. With an output requested, an existing RAM holder is
+retained (16-bit count increment) and returned. Otherwise read directory+filename, obtaining length
+from the file, allocate a holder and buffer and read that many bytes. Successful loading installs
+the RAM holder in the entry and gives the caller a second hold. Open failure, zero length or read
+failure removes the file and erases the entry; false leaves the caller's output untouched.
+Successful calls update last-access to the sampled now (`008fd3f6–008fd5af`). Allocation failure
+and oversized/refcount-overflow inputs have no qualified recoverable contract.
+
+GetCachedDataAsFile(key, optional output-path) differs: materialization is attempted **only when
+an output path is supplied**, the record has RAM and its filename is empty. Generate/reserve a
+filename and write the RAM bytes. A write failure clears that filename. The output is always
+assigned directory+the resulting filename for a live record; failure can therefore leave the
+directory alone in output. Update access time even if materialization failed, then return whether
+the filename is nonempty. With null output, do not generate or write: report existing filename
+state and update access (`008fd629–008fd698`). ForceCachedDataIntoFile uses a temporary output
+string and returns this same result (`008fc613`).
+
+### 6.4 Adding bytes, removal and maintenance
+
+AddNewCachedData(key, bytes, size, copy, attribute-byte, lifetime) rejects an empty key before
+changing counters or old entries. For a nonempty key, increment both counters and run periodic
+maintenance when the second is **unsigned >40**. Remove any old same-key record and file **before**
+testing bytes/size. Null bytes or zero size then returns false: this is destructive replacement,
+not a no-op (`008fd998–008fda27`).
+
+For non-null, nonempty data, create a holder. With copy=true allocate/copy the bytes; otherwise
+store the passed buffer pointer. Do not treat the latter as a const borrowed slice with automatic
+caller ownership: native holder destruction/allocator compatibility must be supplied by the
+adapter (Q11). Attribute is zero-extended from one byte. Lifetime=-1 selects the manager default;
+after substitution, any negative lifetime gives expiration `0x7fffffff`; otherwise expiration is
+32-bit now+lifetime, with creation=access=now. No saturation is performed
+(`008fda4b–008fda8d`). Insert the new entry and return true. Failed allocations are outside the
+qualified domain, rather than a promised false return.
+
+Data and file retrieval increment the same two counters before lookup, including misses.
+Periodic maintenance resets only +0x58 and erases expired entries with release/file cleanup.
+**Its comparison is unsigned now < expiration** (`008fd27f–008fd287`), unlike individual reads.
+For ordinary pre-2038 positive times the tests agree; sign-bit-set timestamps must preserve
+this distinction. No size-based eviction was established by this maintenance body.
+RemoveCachedData erases a matching record with RAM release and attempted file removal and
+returns true even on absence (`008fd69c`). File removal helper returns false for an empty
+filename, otherwise attempts deletion and returns true regardless of deletion success (`008fc669`).
+
+Persistence inventory: writer `008fc9b1` rebuilds section `Cache Entries` with sequential
+`CacheEntry%05u` keys. Its value format is `%s,%s,%u,%u,%u,%d,%d,%d`: key, filename,
+length, attribute, lifetime, creation, access, expiration. It attempts to materialize RAM-only
+entries first and omits those still lacking filenames. Writer returns true without aggregating
+individual write failures. Delimiter escaping, loader acceptance, source-file admission and
+filename allocation/collision behavior remain Q11; do not assume a CSV library or an LRU policy.
+
+### 6.5 Independent conformance vectors (PROPOSED / UNEXECUTED)
+
+Fixtures supply valid records and deterministic clock/file replies; these are spec vectors, not
+game observations. AL is the boolean channel; upper return bits are not asserted.
+
+| ID | Input / setup | Required outcome |
+|---|---|---|
+| NFC01 | Live RAM record, expiry=101, now=100; data output null | true; no file read; access=100 |
+| NFC02 | Same, now=101 | false; RAM released, file removal attempted if named, map entry erased |
+| NFC03 | Existing key K; add K with null bytes and size=10 | false; old K removed before rejection |
+| NFC04 | Existing K; add empty key with valid bytes | false; K and counters unchanged |
+| NFC05 | Add bytes at now=100 with lifetime=-1 and default=432000 | creation=access=100; expiry=432100 |
+| NFC06 | Add bytes with lifetime=-2 | expiry=2147483647 |
+| NFC07 | Live RAM-only K; file retrieval with null output | false; no filename reservation/write; access updated |
+| NFC08 | Live RAM-only K; output supplied; reserve succeeds, write fails | false; stored filename empty; output equals directory; access updated |
+| NFC09 | Counters +0x54=9, +0x58=40; data miss | +0x54=10; maintenance runs and resets +0x58=0; false |
+| NFC10 | now=`80000000`, expiry=`7fffffff` | individual presence sees live; periodic maintenance removes the same record |
+| NFC11 | Set directory to empty | false; stored directory remains empty |
+| NFC12 | Init; create-directory and INI-read both fail | initialized=true, result=true; second Init makes no retry |
