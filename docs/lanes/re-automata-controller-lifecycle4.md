@@ -9,7 +9,10 @@
 - Read rules, CONTRIBUTING, lane format, canonical RE workspace workflow. No live/native/game actions authorized or needed.
 - Authority/history complete: copied coordinator host proof GO0 at base d4f10281, dependency ancestor exit0, own runtime role RE/round1/unparked, no prior dedicated family found in current history and git path/log audit. Old re-specs13a is record scope, not an inherited lifecycle attempt.
 - Core milestone: new spec §§1–5 covers constructor, adjusted QI/refcount, template/occupant ownership, Shutdown versus direct destructor. Primary bytes resolve S=C+4 offset conflict; slot39 export Write is actually deleting cleanup.
-- Next: verify Init/activation/tick/constants and bounds/removal; publish proposed literal traces and supported/partial ledger, then AT22 partial integration and doc checks.
+- Core contract committed `4a4fc554`; initialization record committed `77321b20`.
+- Extended milestone: §§6–12 cover Init/activation, raw-byte flag predicate, binary32 scaled tick and expiry equality, position/world bounds/grid storage, first-match removal, foreign primitives, concrete dispatch, 13 proposed UNEXECUTED traces and per-body ledger. AT22 partial integrated; automata §3.5 corrected without changing historical measurements.
+- PE read-only constants SHA256 matches prior contract: 3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b. Runtime 00B227CC initialization remains unknown (virtual zero fill is not runtime proof).
+- Next: independent self-audit of references/signatures and literal numeric traces; questions index/check, doccheck, changed-link/table checks, diff; finalize report and WIP queue pending mandated independent coordinator peer.
 - Copied eligibility requires independent content/family peer before normal queue; no worker subagents authorized. Keep this as a coordinator review dependency if no peer result is supplied.
 - Initial command quoting attempt failed in PowerShell; no command executed. Corrected manifest extraction succeeded.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-automata-controller-lifecycle4-r1-manifest.json`; one round, 150000 context, maxCalls 100.

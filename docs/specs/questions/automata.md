@@ -68,6 +68,27 @@ AT21 stays here rather than being archived as wholly answered by inference.
   concrete route. AT21 separately covers the controller manager's final releases. [blocked; keep record
   support only, no invented base CLSID or complete-owner claim]
 
+**Partial source answer 2026-10-23 (re-automata-controller-lifecycle4):**
+[The inherited base lifecycle contract](../automata-controller-lifecycle.md),
+§§2–12, proves S=C+4: saved position S+0x10 is live C+0x14, flags S+0x3C
+are C+0x40 and list head is C+0x44. It specifies zero initial reference count,
+adjusted QI hit/miss output effects, raw template assignment without template
+ref acquisition, occupant replacement acquire/store/release order, Init and
+Shutdown direct state/reference chronology versus direct base destruction,
+finite bounds, mutable grid bytes, first-match controlled removal and float
+tick/expiry equality. The saved floats are elapsed lifetime and lifetime;
+animation age uses scaled delta, not integer 1. The actual serializable identity
+4A18672B is not a registered base factory: this director registers the two
+concrete routes, whose inherited/override provenance is tabulated. Thirteen
+literal discriminators are **proposed/unexecuted**, not native output evidence.
+**Remain open:** complete owned sound/view/effect/state/behavior/template-instance
+algorithms and callback signatures, Read ownership, allocation/partial failures,
+runtime position initialization, reentry/exception domains and complete derived
+contracts. Slots 22–24, 28–30, 32 and 36 retain explicit signature/body limits;
+the tick's last two argument types are unresolved. AT22 stays open; no live
+wrapper, new factory, whole-owner or family coverage admission follows. AT21
+registration/upstream residuals and AT23/AD3/AD4 remain unchanged.
+
 <!-- from: glue-automata-managers4 (2026-10-22) -->
 - **AT23 - §§6.1, 7.2, 11, 15; automata-managers.md §§1, 2.2:** Please publish the complete inherited
   `cSC4Automaton` construction/Init/Shutdown/destruction contract and its occupant/model/callback ownership,

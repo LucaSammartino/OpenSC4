@@ -232,35 +232,30 @@ Two controller classes occur in saves. Both start with the controller base recor
 | 7 | `u32` flags | mostly 7; `0x87` seen on `dog_make`; never contains 8 (§3.2) |
 | 8 | `u32` n, then n × `ref` automaton | `0xA9B40F05`; the automata it currently controls |
 
-**Object offsets and names (Q5, completed 2026-10-16, re-answers29).** The record fields map onto the object
-like this. The stream order above is the compatibility surface; the names below are for a replacement's own
-struct and come from the accessors that use them.
+**Object offsets and names (Q5, corrected 2026-10-23, AT22 partial).**
+The stream order above is unchanged. The earlier table mixed two receiver views:
+primary controller C and serializable interface S=C+4. Constructor, QI and
+secondary thunks prove the adjustment statically. See
+[the inherited lifecycle contract](automata-controller-lifecycle.md), §§2–8,
+for instruction citations, ownership, predicates and numeric qualifications.
 
-| Record field | Object offsets | Stream | Name from use |
+| Record field | Relative to S | Relative to C | Meaning |
 |---|---|---|---|
-| 2 | `+0x08` | `ref` (Write `0x005D99A0`, Read `0x005D9730`, IID `0x26BB767E`) | the **source occupant** the controller is attached to |
-| 3 | name object `+0x24`, its characters `+0x28` | `str` (stream slot 15) | the **template name**. `GetTemplateName` (`0x00517DF0`, slot 7) returns the *template's* name (`template + 4`) when the controller has a template, and otherwise the local characters at `+0x28` |
-| 4 | `+0x10`, `+0x14`, `+0x18` | `vec3` (`operator<<` `0x005DA580` / `operator>>` `0x005DA550`, three `f32` in x, y, z order) | the **position**; `GetPosition` (`0x00515A40`, slot 11) returns `+0x14`, `+0x18`, `+0x1C` when there is no template, so the live position is `+0x14`…`+0x1C` and the saved `vec3` starts one `f32` earlier *[see the note below]* |
-| 5a | `+0x4C` | `f32` | **unnamed**; 0 in the whole corpus. Not the radius: `GetRadius` (`0x00517E00`, slot 9) returns `template + 0x20`, never a field of the controller |
-| 5b | `+0x50` | `f32` | the controller's **age / tick counter**. It is incremented by 1 on every animation tick (`0x00514D90`); `IsExpired` (`0x00517EA0`) is true when the limit is > 0 and has been reached |
-| — | `+0x54` | *not saved* | the **lifetime limit**. `SetLifetime` (`0x00517EF0`) writes it, and `Init` copies it from the template (`template + 0x4C`). `IsExpired` = `limit > 0 && counter ≥ limit` |
-| 6 | `+0x38` | `u32` | **unnamed**; 0 in the whole corpus |
-| 7 | `+0x3C` | `u32` | the **flag dword** in the record (mostly 7, `0x87` on `dog_make`) |
-| 8 | `+0x44` | `u32` | the **count** of automata in the list (an `std::list`'s size) |
+| 2 | +0x08 | +0x0C | source occupant reference |
+| 3 | name object +0x24 | name object +0x28 | getter returns template+4 when present, else embedded name object; not a newly owned character buffer |
+| 4 | +0x10,+0x14,+0x18 | +0x14,+0x18,+0x1C | stored position; live getter delegates to occupant when occupant exists and flag 0x20 is clear |
+| 5a | +0x4C | +0x50 | binary32 elapsed lifetime, incremented by scaled animation delta, not integer 1 per call |
+| 5b | +0x50 | +0x54 | binary32 lifetime limit, **saved**; not the age field |
+| — | +0x54 | +0x58 | activation-delay elapsed; not saved in this base record |
+| 6 | +0x38 | +0x3C | unnamed u32; historical corpus value 0 retained |
+| 7 | +0x3C | +0x40 | flags u32; historical corpus mostly 7 / dog_make 0x87 retained |
+| 8 count | +0x44 | +0x48 | controlled-automata count u32 |
+| 8 list storage | +0x40 | +0x44 | list sentinel pointer; node payload at node+8 |
 
-The automata list itself is an `std::list` whose head pointer lives at `+0x40` and whose size is `+0x44`: Read
-allocates 12-byte nodes and splices them in at `+0x40`, and Write walks `*+0x40` until it returns to the
-sentinel.
-
-**The flag offset is not fully settled *[quirk]***. `CheckFlag` (`0x00517E60`) and `SetFlag` (`0x00517E70`)
-— controller interface **slots 12 and 13** — read and modify a `u32` at **`+0x40`**, and the Mac signature names
-the parameter type `cISC4AutomataController::tControllerFlag`. But `+0x40` is also the automata list's head
-pointer, and the record's flag dword is `+0x3C`. So either the original's flag accessors test the list head
-rather than the saved flags (which would make the state record's flag-8 test, `CheckFlag(8)` from the state
-Write at `0x00509D1E`, effectively a test of bit 3 of a heap pointer), or one of the two offsets is wrong.
-A breakpoint on `0x00517E60` while a controller is created would settle it. **What is certain:** the record
-carries one flag dword at `+0x3C`, mostly 7, never with bit 8 set; the flag-8 rule of §3.2 and §6.1 is
-"write a null ref when `CheckFlag(8)` is true".
+CheckFlag/SetFlag therefore use the actual flags C+0x40, not the list pointer.
+IsExpired uses `lifetime > 0 && elapsed >= lifetime`; tick deactivation uses
+strict `elapsed > lifetime`. Historical corpus measurements and the CheckFlag(8)
+null-reference serialization rule of §§3.2/6.1 are unchanged.
 
 **Generator** (class `0x4A1628C5`, Write `0x005183D0`, Read `0x00518450`): `u16` 4 (Read requires 4), the base
 record, `time` (period), `time` (second period), `u32`, `u32`. Corpus: 291,346 records; names `wildlife_generator`
