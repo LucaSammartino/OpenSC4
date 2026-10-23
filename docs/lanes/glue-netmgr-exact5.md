@@ -13,8 +13,8 @@
 - First all terminal: native build PASS 217/217 edges; CTest 67/68 (cargo_test failed). Queue label `qbuild-20261023-195549-build-ctest`, collected session 70839 to exit 1. No game request submitted.
 - Applied diagnostic corrections: pending comparison, conformance event order, formatting, fake-city coordinates. Native failed logs preserved with `-failed-r1` suffix.
 - Corrected source milestone `cb48b856`: owned fmt PASS (6 files); workspace tests PASS 6231/0/0; clippy PASS, zero diagnostics.
-- OUTSTANDING: corrected `qbuild test clippy verify`, session `67115`; native queue label `qbuild-20261023-202733-build-ctest`. Collect same session to terminal before another native check. Source fixed since cb48b856.
-- Next: collect native verdict; submit unique game label `netmgr-exact5-r1-2032` (draft `build-runs/netmgr-game-request.draft`).
+- Corrected native verdict PASS: build 50/50 edges, CTest 68/68, session 67115 collected to exit 0. Queue `qbuild-20261023-202733-build-ctest`. Tree-changed note is handoff-only commit f3c49406; engine source stayed cb48b856.
+- Next: real-city turbo run `netmgr-exact5-r1-2032` to 2032-01-01; netmgr_shadow=1, enable=simulator, disable=budget. Request and verdict under build-runs/game-{queue,results}.
 - Game wait helper: `python build-runs/wait-netmgr-result.py build-runs/game-results/<label>.verdict`, collect same operation; no qwait. Summary helper `build-runs/summarize-netmgr.py <label>` prints exact clean/total and resync count.
 - Constraints: no tools/ access; no native signature guesses; game requests unique, wait with same exec session (no qwait).
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-glue-netmgr-exact5-r1-manifest.json`.
