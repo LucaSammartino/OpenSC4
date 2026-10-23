@@ -14,6 +14,9 @@ use super::{
     BudgetWindowHost, BudgetWindowReferences, DealRef, DeptRef, FundingPair, ItemRef, LineItem, OrdId, WinRef,
 };
 
+mod bodies;
+pub use bodies::{individual_amount, BodyPaint, ComboError, DealRow, SubBudgetSources, Unsupported};
+
 /// One group-mode slider row (`SliderInfo`, vector `+0x2C`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SliderInfo {
@@ -30,29 +33,6 @@ pub struct OrdinanceRow {
     pub edited: u8,
 }
 
-/// What `initOrdinanceBudget` leaves in the dialog: the ordinances (count
-/// `+0xA0`) and the row map `+0x74` (button `300 + r` / `500 + r` → `k`).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct OrdinanceInit {
-    pub rows: Vec<OrdinanceRow>,
-    pub row_map: Vec<u32>,
-    /// How many ordinances the helper counted into list A / list B by the
-    /// ordinance's own test (`0x0077C734`/`0x0077C73C`, BW12). The helper
-    /// only increments `+0x124` / `+0x128`; it never resets them.
-    pub added_a: u32,
-    pub added_b: u32,
-}
-
-/// What `initNeighborBudget` leaves in the dialog: the held deals (vector
-/// `+0x68`) and the list counts it wrote (it zeroes `+0x124` / `+0x128`
-/// itself, then counts rows and section headers; BW12).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct NeighborInit {
-    pub deals: Vec<DealRef>,
-    pub count_a: u32,
-    pub count_b: u32,
-}
-
 /// `IndividualRestoreInfo` (12 bytes: item, level0 f32, level1 f32, in
 /// percent; vector `+0x44`; §5.1, BW8).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -67,13 +47,6 @@ pub struct IndividualRestoreInfo {
 pub struct ScrollList {
     pub pos: u32,
     pub len: u32,
-}
-
-/// The two list positions handed to the mode refresh.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct ScrollView {
-    pub a: u32,
-    pub b: u32,
 }
 
 /// The dialog mode, in the order `on_init` tests it (§4).
@@ -107,6 +80,19 @@ pub enum SubBudgetMsg {
 /// single store; the f64 product here is exact too for `|position| < 2^29`.
 pub fn slider_fraction(position: i32) -> f32 {
     (f64::from(position) * f64::from(FUNDING_SCALE)) as f32
+}
+
+/// §4.4: the property is owned and released; its object result is borrowed.
+pub fn get_window_indiv_item<H: BudgetWindowHost + ?Sized>(host: &mut H, win: WinRef, id: u32) -> Option<ItemRef> {
+    let child = host.find_child(win, id)?;
+    let property = host.get_property(child, 0x4BFEE088)?;
+    let item = if host.property_type(property) == 0xF {
+        host.property_object(property)
+    } else {
+        None
+    };
+    host.release_property(property);
+    item
 }
 
 /// §5.5: the service kind `+0x134` `initIndividualBudget` sets from the
@@ -200,11 +186,23 @@ pub struct SubBudgetWindow {
     sliders: Vec<SliderInfo>,
     saved_fractions: Vec<(f32, DeptRef)>,
     restore: Vec<IndividualRestoreInfo>,
+    restore_occupants: Vec<ItemRef>,
     ordinances: Vec<OrdinanceRow>,
     /// `+0xA0`: not reset by on_shutdown (§4).
     ordinance_count: u32,
     row_map: Vec<u32>,
     deals: Vec<DealRef>,
+    deal_types: Vec<u32>,
+    deal_rows: Vec<DealRow>,
+    active_deals: Vec<(u32, u32)>,
+    neighbor_totals: [i64; 6],
+    neighbor_refresh_requests: u64,
+    individual_visible: Vec<ItemRef>,
+    individual_total: Option<i64>,
+    group_total_a: Option<i64>,
+    amount_scale: Option<i64>,
+    refresh_busy: bool,
+    unsupported: Vec<Unsupported>,
     list_a: ScrollList,
     list_b: ScrollList,
     /// The process-wide slider re-entry byte (`0x00B4DFC8`); share one
@@ -239,10 +237,22 @@ impl SubBudgetWindow {
             sliders: Vec::new(),
             saved_fractions: Vec::new(),
             restore: Vec::new(),
+            restore_occupants: Vec::new(),
             ordinances: Vec::new(),
             ordinance_count: 0,
             row_map: Vec::new(),
             deals: Vec::new(),
+            deal_types: Vec::new(),
+            deal_rows: Vec::new(),
+            active_deals: Vec::new(),
+            neighbor_totals: [0; 6],
+            neighbor_refresh_requests: 0,
+            individual_visible: Vec::new(),
+            individual_total: None,
+            group_total_a: None,
+            amount_scale: None, // BW17: owner-scale initialization is unsettled.
+            refresh_busy: false,
+            unsupported: vec![Unsupported::ItemPropertySetter],
             list_a: ScrollList::default(),
             list_b: ScrollList::default(),
             slider_guard,
@@ -285,6 +295,33 @@ impl SubBudgetWindow {
     pub fn restore_records(&self) -> &[IndividualRestoreInfo] {
         &self.restore
     }
+    /// Every retained snapshot pointer, including BW17 records whose funding
+    /// values are unresolved. Only resolved values appear in restore_records.
+    pub fn restore_occupants(&self) -> &[ItemRef] {
+        &self.restore_occupants
+    }
+    pub fn individual_viewport(&self) -> &[ItemRef] {
+        &self.individual_visible
+    }
+    pub fn active_deal_pairs(&self) -> &[(u32, u32)] {
+        &self.active_deals
+    }
+    pub fn neighbor_section_totals(&self) -> &[i64; 6] {
+        &self.neighbor_totals
+    }
+    pub fn neighbor_refresh_requests(&self) -> u64 {
+        self.neighbor_refresh_requests
+    }
+    pub fn ordinance_row_map(&self) -> &[u32] {
+        &self.row_map
+    }
+    pub fn group_income_total(&self) -> Option<i64> {
+        self.group_total_a
+    }
+    #[cfg(test)]
+    pub(super) fn set_test_amount_scale(&mut self, scale: i64) {
+        self.amount_scale = Some(scale);
+    }
     pub fn ordinances(&self) -> &[OrdinanceRow] {
         &self.ordinances
     }
@@ -312,10 +349,9 @@ impl SubBudgetWindow {
         }
     }
 
-    /// Host input: the row count of list A or B in ordinance and neighbour
-    /// modes, which their populate routines set (layout out of scope, §8).
-    /// The position is not touched (no clamp in §5.3).
-    pub fn set_list_len(&mut self, list_b: bool, len: u32) {
+    /// Test-only precondition for the scroll/arrow boundary cases.
+    #[cfg(test)]
+    pub(super) fn set_list_len(&mut self, list_b: bool, len: u32) {
         if list_b {
             self.list_b.len = len;
         } else {
@@ -364,8 +400,7 @@ impl SubBudgetWindow {
             }
             SubBudgetMsg::Combo(id) => {
                 if self.mode() == SubBudgetMode::Neighbors {
-                    host.rewrite_selected_deal_rows(win, id);
-                    host.update_neighbor_budget(win, &self.deals, self.view());
+                    let _ = self.edit_deal_rows(host, win, id);
                 }
                 false
             }
@@ -386,13 +421,6 @@ impl SubBudgetWindow {
         }
     }
 
-    fn view(&self) -> ScrollView {
-        ScrollView {
-            a: self.list_a.pos,
-            b: self.list_b.pos,
-        }
-    }
-
     /// `on_init(win)` (`0x007876B0`, §4).
     pub fn on_init<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: Option<WinRef>) -> bool {
         let Some(win) = win else { return false };
@@ -407,31 +435,16 @@ impl SubBudgetWindow {
         match self.mode() {
             SubBudgetMode::Ordinances => {
                 host.load_background(win, BG_TYPE, BG_GROUP, BG_ORDINANCES);
-                let init = host.init_ordinance_budget(win);
-                self.ordinance_count = init.rows.len() as u32;
-                self.ordinances = init.rows;
-                self.row_map = init.row_map;
-                // Increments only, from whatever the fields hold (BW12).
-                self.list_a.len = self.list_a.len.wrapping_add(init.added_a);
-                self.list_b.len = self.list_b.len.wrapping_add(init.added_b);
-                // The helper's own arrow copy: strict bound (`JAE`).
-                self.create_scroll_arrows(host, win, false);
+                self.init_ordinances(host, win);
             }
             SubBudgetMode::Neighbors => {
                 host.load_background(win, BG_TYPE, BG_GROUP, BG_NEIGHBORS);
                 host.set_neighbor_ui_disable(true);
-                let init = host.init_neighbor_budget(win);
-                self.deals = init.deals;
-                self.list_a.len = init.count_a;
-                self.list_b.len = init.count_b;
-                self.create_scroll_arrows(host, win, true);
+                self.init_neighbors(host, win);
             }
             SubBudgetMode::Individual(dept) => {
-                // The kind is set inside initIndividualBudget; where in it,
-                // and when the restore records are filled, is not specified
-                // (§8): both are in place before any message after init.
                 self.service_kind = service_kind(dept);
-                self.restore = host.init_individual_budget(win, dept);
+                self.enumerate_individual(host, win, true);
             }
             SubBudgetMode::Group(group) => self.init_group(host, win, group),
         }
@@ -445,7 +458,9 @@ impl SubBudgetWindow {
         // BW13 deliberate safe divergence: skip this block on failure, retain
         // the hidden pause and continue the mode branch. Child insertions
         // into absent content are no-ops; sliders still belong to `win`.
-        let Some(c) = host.create_content_window() else { return };
+        let Some(c) = host.create_content_window() else {
+            return;
+        };
         // cRZAutoRefCount<cIGZWin>::operator=: the reference +0x10 holds.
         host.add_ref_win(c);
         self.content = Some(c);
@@ -464,7 +479,12 @@ impl SubBudgetWindow {
     /// `inclusive`: hide a down arrow when its count is `<= 9` (group and
     /// neighbour modes); otherwise when `< 9` (the ordinance helper). Up
     /// arrows are always hidden; a down arrow not hidden is left as created.
-    fn create_scroll_arrows<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef, inclusive: bool) {
+    pub(super) fn create_scroll_arrows<H: BudgetWindowHost + ?Sized>(
+        &mut self,
+        host: &mut H,
+        win: WinRef,
+        inclusive: bool,
+    ) {
         for (id, image) in [
             (BTN_LIST_A_UP, ARROW_UP_IMAGE),
             (BTN_LIST_A_DOWN, ARROW_DOWN_IMAGE),
@@ -497,6 +517,8 @@ impl SubBudgetWindow {
     /// §4, §4.1: group mode.
     fn init_group<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H, win: WinRef, group: u32) {
         let depts = host.department_budgets_in_group(group);
+        // BW20: literal shared provider contract with refresh (§6): returned
+        // department interfaces own temporary references, released after use.
         let (mut a, mut b) = (0u32, 0u32);
         // BW14: clear old pairs, then temporary +1, stored copy +1,
         // temporary -1, before any visibility test. Rust vector growth moves
@@ -534,10 +556,20 @@ impl SubBudgetWindow {
         host.load_background(win, BG_TYPE, BG_GROUP, BG_GROUP_MODE);
         if a == 0 && b == 0 {
             // BW10b: no slider rows, no arrows; +0x38 keeps its pairs.
-            self.inner_child = host.set_empty_window(win);
+            self.empty_body(host, win, None, 0x4A5CB4B6);
+            for dept in depts {
+                self.release_dept(dept);
+            }
             return;
         }
-        host.setup_window_big(win, a.min(LIST_ROWS_VISIBLE), b.min(LIST_ROWS_VISIBLE));
+        self.unsupported(Unsupported::Setup);
+        host.paint_body(
+            win,
+            BodyPaint::Lists {
+                a: a.min(LIST_ROWS_VISIBLE),
+                b: b.min(LIST_ROWS_VISIBLE),
+            },
+        );
         self.clear_sliders();
         // Separate A/B build loops, in department and line-item order, with
         // one shared nine-row cap per list. Only B rows own SliderInfo refs.
@@ -560,6 +592,9 @@ impl SubBudgetWindow {
         }
         // BW10c: unclamped counts, inclusive bound.
         self.create_scroll_arrows(host, win, true);
+        for dept in depts {
+            self.release_dept(dept);
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -631,7 +666,8 @@ impl SubBudgetWindow {
         self.initialised = false;
         self.clear_sliders();
         self.clear_saved_fractions();
-        self.restore.clear();
+        self.clear_restore();
+        self.clear_deal_rows();
         // Held deals are emptied without a per-deal Release.
         self.deals.clear();
         self.row_map.clear();
@@ -665,11 +701,11 @@ impl SubBudgetWindow {
                     host.set_funding_percentage(s.dept, p, 0);
                 }
             }
-            host.update_values(win);
-        } else if let Some(item) = host.indiv_item(win, control) {
+            self.refresh_group(host, win);
+        } else if let Some(item) = get_window_indiv_item(host, win, control) {
             let which = control >= OCCUPANT_LEVEL1_SLIDER_MIN;
             self.set_occupant_funding_level(host, item, which, position as f32);
-            host.update_individual_budget(win, 0);
+            self.enumerate_individual(host, win, false);
         }
         self.slider_guard.store(false, Ordering::Release);
     }
@@ -816,10 +852,12 @@ impl SubBudgetWindow {
             }
         }
         match self.selector {
-            SELECTOR_ORDINANCES => host.update_ordinance_budget(win, &self.ordinances, self.view()),
-            SELECTOR_NEIGHBORS => host.update_neighbor_budget(win, &self.deals, self.view()),
-            _ if list_b && self.department != 0 => host.update_individual_budget(win, 0),
-            _ => host.update_values(win),
+            SELECTOR_ORDINANCES => self.unsupported(Unsupported::OrdinanceRefresh),
+            SELECTOR_NEIGHBORS => self.request_neighbor_refresh(),
+            _ if list_b && self.department != 0 => self.enumerate_individual(host, win, false),
+            _ => {
+                self.refresh_group(host, win);
+            }
         }
     }
 
@@ -869,14 +907,14 @@ impl SubBudgetWindow {
                 false
             }
             BTN_NESTED_ROW_FIRST..=BTN_NESTED_ROW_LAST => {
-                if let Some(item) = host.indiv_item(win, id) {
+                if let Some(item) = get_window_indiv_item(host, win, id) {
                     let dept = host.item_id(item);
                     self.do_individual_budget_window(host, dept);
                 }
                 false
             }
             BTN_CAMERA_JUMP_FIRST..=BTN_CAMERA_JUMP_LAST if self.department != 0 => {
-                if let Some(item) = host.indiv_item(win, id) {
+                if let Some(item) = get_window_indiv_item(host, win, id) {
                     if host.query_occupant(item) {
                         let v = host.occupant_position(item, [CAMERA_JUMP_FILL; 3]);
                         host.camera_jump(v);
@@ -894,14 +932,15 @@ impl SubBudgetWindow {
                         r.edited = state;
                     }
                 }
-                host.update_ordinance_budget(win, &self.ordinances, self.view());
+                self.unsupported(Unsupported::OrdinanceRefresh);
                 false
             }
             BTN_ORDINANCE_INFO_FIRST..=BTN_ORDINANCE_INFO_LAST => {
                 self.close_child(host, win);
                 let k = self.row_map.get((id - BTN_ORDINANCE_INFO_FIRST) as usize).copied();
                 let ord = k.and_then(|k| self.ordinances.get(k as usize)).map(|r| r.ordinance);
-                self.inner_child = host.open_ordinance_info(win, k, ord);
+                let _ = (k, ord); // Popup/factory ownership remains BW17.
+                self.unsupported(Unsupported::OrdinanceInfo);
                 false
             }
             _ => false,
@@ -962,6 +1001,8 @@ impl SubBudgetWindow {
     pub fn release_final<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H) {
         self.clear_saved_fractions();
         self.clear_sliders();
+        self.clear_restore();
+        self.clear_deal_rows();
         if let Some(mut n) = self.nested.take() {
             n.release_final(host);
         }
@@ -983,6 +1024,8 @@ impl Drop for SubBudgetWindow {
         // here. Drain exactly once, including when the host borrow has ended.
         self.clear_saved_fractions();
         self.clear_sliders();
+        self.clear_restore();
+        self.clear_deal_rows();
         drop(self.nested.take());
         if let Some(refs) = &self.references {
             for win in [self.inner_child.take(), self.content.take(), self.window.take()]

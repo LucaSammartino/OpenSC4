@@ -12,13 +12,24 @@ use std::sync::{Arc, Mutex};
 use super::ids::*;
 use super::*;
 
+#[path = "source_tests.rs"]
+mod sources;
+
 const WIN: WinRef = 77;
 const NESTED_WIN: WinRef = 78;
 const CONTENT: WinRef = 900;
 
+#[derive(Clone, Default)]
+struct OrdinanceInit {
+    rows: Vec<OrdinanceRow>,
+    row_map: Vec<u32>,
+}
+
 #[derive(Debug, Default)]
 struct RefLedger {
     depts: Mutex<HashMap<DeptRef, i32>>,
+    items: Mutex<HashMap<ItemRef, i32>>,
+    deals: Mutex<HashMap<DealRef, i32>>,
     events: Mutex<Vec<(char, u64)>>,
 }
 
@@ -37,6 +48,21 @@ impl BudgetWindowReferences for RefLedger {
     fn release_win(&self, win: WinRef) {
         self.events.lock().unwrap().push(('w', win));
     }
+    fn add_ref_item(&self, item: ItemRef) {
+        *self.items.lock().unwrap().entry(item).or_default() += 1;
+    }
+    fn release_item(&self, item: ItemRef) {
+        let mut counts = self.items.lock().unwrap();
+        let count = counts.entry(item).or_default();
+        *count -= 1;
+        assert!(*count >= 0, "released unowned item {item}");
+    }
+    fn release_deal(&self, deal: DealRef) {
+        let mut counts = self.deals.lock().unwrap();
+        let count = counts.entry(deal).or_default();
+        *count -= 1;
+        assert!(*count >= 0, "released unowned deal {deal}");
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -46,6 +72,8 @@ struct Deal {
     last: i32,
     inc: i32,
     last_inc: i32,
+    m: u32,
+    monthly: i64,
 }
 
 /// A recording host. `script` is what `do_modal_win` delivers to the first
@@ -66,11 +94,23 @@ struct Rec {
     group: Vec<DeptRef>,
     items: HashMap<DeptRef, Vec<LineItem>>,
     total_income: HashMap<DeptRef, i64>,
+    total_income_reads: Vec<DeptRef>,
+    group_ids: Option<Vec<u32>>,
     ideal: HashMap<DeptRef, i64>,
     ord: OrdinanceInit,
     checks: HashMap<u32, u8>,
     deal_list: Vec<DealRef>,
     deals: HashMap<DealRef, Deal>,
+    deal_kinds: HashMap<DealRef, u32>,
+    combo: HashMap<u32, u32>,
+    blocked: bool,
+    paints: Vec<BodyPaint>,
+    ord_income: HashMap<OrdId, i64>,
+    ord_categories: HashMap<OrdId, bool>,
+    ord_observations: HashMap<OrdId, Vec<u8>>,
+    property_kind: Option<u32>,
+    released_properties: Vec<u64>,
+    property_object_reads: usize,
     restore: Vec<IndividualRestoreInfo>,
     by_id: HashMap<u32, ItemRef>,
     item_dept: HashMap<ItemRef, u32>,
@@ -79,7 +119,6 @@ struct Rec {
     slider_missing: bool,
     slider_pos: i32,
     content_fails: bool,
-    nb_counts: (u32, u32),
     paused: i32,
     pause_msgs: Vec<bool>,
     paused_in_modal: Vec<i32>,
@@ -232,43 +271,22 @@ impl BudgetWindowHost for Rec {
     fn load_background(&mut self, _: WinRef, _: u32, _: u32, i: u32) {
         self.l(format!("bg {i:#x}"));
     }
-    fn init_ordinance_budget(&mut self, _: WinRef) -> OrdinanceInit {
-        self.ord.clone()
-    }
-    fn update_ordinance_budget(&mut self, _: WinRef, _: &[OrdinanceRow], v: ScrollView) {
-        self.l(format!("upd_ord {} {}", v.a, v.b));
-    }
     fn set_ordinance_on(&mut self, o: OrdId, on: u32) {
         self.l(format!("ord {o} {on}"));
     }
     fn check_box_state(&mut self, _: WinRef, id: u32) -> Option<u8> {
         self.checks.get(&id).copied()
     }
-    fn open_ordinance_info(&mut self, _: WinRef, k: Option<u32>, o: Option<OrdId>) -> Option<WinRef> {
-        self.l(format!("info {k:?} {o:?}"));
-        Some(500)
-    }
     fn set_neighbor_ui_disable(&mut self, on: bool) {
         self.ui_disabled = on;
         self.l(format!("uidisable {on}"));
     }
-    fn init_neighbor_budget(&mut self, _: WinRef) -> NeighborInit {
-        NeighborInit {
-            deals: self.deal_list.clone(),
-            count_a: self.nb_counts.0,
-            count_b: self.nb_counts.1,
-        }
-    }
-    fn update_neighbor_budget(&mut self, _: WinRef, _: &[DealRef], v: ScrollView) {
-        self.l(format!("upd_nb {} {}", v.a, v.b));
-    }
-    fn rewrite_selected_deal_rows(&mut self, _: WinRef, c: u32) {
-        self.l(format!("combo {c}"));
-    }
     fn add_ref_deal(&mut self, d: DealRef) {
+        *self.refs.deals.lock().unwrap().entry(d).or_default() += 1;
         self.l(format!("addref_deal {d}"));
     }
     fn release_deal(&mut self, d: DealRef) {
+        self.refs.release_deal(d);
         self.l(format!("release_deal {d}"));
     }
     fn deal_flags(&mut self, d: DealRef) -> u32 {
@@ -310,23 +328,22 @@ impl BudgetWindowHost for Rec {
         self.l("dirty".into());
     }
     fn department_budgets_in_group(&mut self, _: u32) -> Vec<DeptRef> {
+        for &dept in &self.group {
+            if dept != 0 {
+                self.refs.add_ref_dept(dept);
+            }
+        }
         self.group.clone()
     }
     fn department_line_items(&mut self, d: DeptRef) -> Vec<LineItem> {
         self.items.get(&d).cloned().unwrap_or_default()
     }
     fn department_total_income(&mut self, d: DeptRef) -> i64 {
+        self.total_income_reads.push(d);
         self.total_income.get(&d).copied().unwrap_or(0)
     }
     fn department_ideal_monthly_funding(&mut self, d: DeptRef) -> i64 {
         self.ideal.get(&d).copied().unwrap_or(0)
-    }
-    fn set_empty_window(&mut self, _: WinRef) -> Option<WinRef> {
-        self.l("empty".into());
-        Some(600)
-    }
-    fn setup_window_big(&mut self, _: WinRef, a: u32, b: u32) {
-        self.l(format!("big {a} {b}"));
     }
     fn funding_percentage(&mut self, d: DeptRef) -> f32 {
         self.funding[&d]
@@ -344,27 +361,31 @@ impl BudgetWindowHost for Rec {
         self.slider_children.push((win, id, d));
         id
     }
-    fn update_values(&mut self, _: WinRef) {
-        self.l("values".into());
-    }
-    fn init_individual_budget(&mut self, _: WinRef, d: u32) -> Vec<IndividualRestoreInfo> {
-        self.l(format!("init_indiv {d:#x}"));
-        self.restore.clone()
-    }
     fn find_slider(&mut self, _: WinRef, _: u32) -> bool {
         !self.slider_missing
     }
     fn slider_value(&mut self, _: WinRef, _: u32) -> i32 {
         self.slider_pos
     }
-    fn indiv_item(&mut self, _: WinRef, id: u32) -> Option<ItemRef> {
-        self.by_id.get(&id).copied()
+    fn find_child(&mut self, _: WinRef, id: u32) -> Option<WinRef> {
+        self.by_id.contains_key(&id).then_some(u64::from(id))
+    }
+    fn get_property(&mut self, child: WinRef, key: u32) -> Option<u64> {
+        assert_eq!(key, 0x4BFEE088);
+        Some(child)
+    }
+    fn property_type(&mut self, _: u64) -> u32 {
+        self.property_kind.unwrap_or(0xF)
+    }
+    fn property_object(&mut self, property: u64) -> Option<ItemRef> {
+        self.property_object_reads += 1;
+        self.by_id.get(&(property as u32)).copied()
+    }
+    fn release_property(&mut self, property: u64) {
+        self.released_properties.push(property);
     }
     fn item_id(&mut self, i: ItemRef) -> u32 {
         self.item_dept[&i]
-    }
-    fn update_individual_budget(&mut self, _: WinRef, a: u32) {
-        self.l(format!("upd_indiv {a}"));
     }
     fn query_occupant(&mut self, i: ItemRef) -> bool {
         self.l(format!("qi {i}"));
@@ -702,7 +723,8 @@ fn group_counts_and_special_headers() {
     h.funding.insert(1, 0.5);
     let d = open(&mut h, GROUP_CIVIC, 0);
     assert_eq!((d.list_a().len, d.list_b().len), (0, 0));
-    assert_eq!(d.inner_child(), Some(600));
+    assert_eq!(d.inner_child(), None);
+    assert!(d.unsupported_operations().contains(&Unsupported::Setup));
     assert!(d.sliders().is_empty() && h.count("big") == 0);
 }
 
@@ -729,20 +751,19 @@ fn ordinance_apply_calls_only_changed_rows() {
             },
         ],
         row_map: vec![2, 0, 1],
-        ..Default::default()
     };
-    h.checks.extend([(300, 1u8), (301, 1), (302, 0)]);
+    h.checks.extend([(300, 1u8), (301, 0), (302, 1)]);
     let mut d = open(&mut h, 1, 0);
     assert!(h.has("bg 0x140155f2"));
     for id in [300, 301, 302] {
         assert!(!d.do_win_msg(&mut h, WIN, SubBudgetMsg::Button(id)));
     }
-    assert_eq!(h.count("upd_ord"), 3);
-    // Row 300 → k 2 (42 on), 301 → k 0 (40 on), 302 → k 1 (41 off).
+    assert!(d.unsupported_operations().contains(&Unsupported::OrdinanceRefresh));
+    // All-income provider order: 40 on, 41 off, 42 on.
     assert!(!d.do_win_msg(&mut h, WIN, SubBudgetMsg::Button(BTN_ORDINANCE_APPLY)));
     let ords: Vec<_> = h.log.iter().filter(|s| s.starts_with("ord ")).cloned().collect();
     assert_eq!(ords, ["ord 40 1", "ord 41 0", "ord 42 1"]);
-    assert_eq!(h.count("upd_ord"), 3);
+    assert_eq!(h.count("upd_ord"), 0);
 
     let mut h2 = Rec {
         ord: h.ord.clone(),
@@ -761,7 +782,7 @@ fn ordinance_apply_calls_only_changed_rows() {
     let mut d = open(&mut h3, 1, 0);
     d.do_win_msg(&mut h3, WIN, SubBudgetMsg::Button(300));
     assert_eq!(d.ordinances()[2].edited, 0);
-    assert_eq!(h3.count("upd_ord"), 1);
+    assert!(d.unsupported_operations().contains(&Unsupported::OrdinanceRefresh));
 }
 
 /// §5.6: the info popup and the close-child buttons.
@@ -779,14 +800,14 @@ fn info_popup_and_close_child() {
     assert!(!d.do_win_msg(&mut h, WIN, SubBudgetMsg::Button(BTN_CLOSE_CHILD)));
     assert_eq!(h.log.last().unwrap(), "remove_child None");
     assert!(!d.do_win_msg(&mut h, WIN, SubBudgetMsg::Button(500)));
-    assert!(h.has("info Some(0) Some(9)"));
-    assert_eq!(d.inner_child(), Some(500));
+    assert!(d.unsupported_operations().contains(&Unsupported::OrdinanceInfo));
+    assert_eq!(d.inner_child(), None);
     // A second info button closes the first popup.
     d.do_win_msg(&mut h, WIN, SubBudgetMsg::Button(500));
-    assert!(h.has("release 500"));
+    assert!(!h.has("release 500"));
     h.log.clear();
     assert!(!d.do_win_msg(&mut h, WIN, SubBudgetMsg::Button(BTN_CLOSE_CHILD_ALT)));
-    assert_eq!(h.log, ["remove_child Some(500)", "release 500"]);
+    assert_eq!(h.log, ["remove_child None"]);
     assert_eq!(d.inner_child(), None);
 }
 
@@ -839,7 +860,8 @@ fn neighbour_mode_apply_deal_edits() {
     h.script = vec![SubBudgetMsg::Init, SubBudgetMsg::Combo(5), SubBudgetMsg::Button(BTN_CF)];
     p.do_sub_budget_window(&mut h, SELECTOR_NEIGHBORS);
     assert_eq!(h.results, [true, false, false]);
-    assert!(h.pos("combo 5") < h.pos("upd_nb 0 0"));
+    // No native owner callback supplies combo rows or refresh output (BW17).
+    assert_eq!(h.count("upd_nb"), 0);
     let d1 = h.deals[&1];
     assert_eq!((d1.flags, d1.amount, d1.inc), (DEAL_ACTIVE, 50, 4));
     let d2 = h.deals[&2];
@@ -922,7 +944,6 @@ fn on_shutdown_releases_window_once_initialised() {
                 edited: 1,
             }],
             row_map: vec![0],
-            ..Default::default()
         },
         ..Default::default()
     };
@@ -985,7 +1006,8 @@ fn scroll_steps_arrows_and_refresh() {
     let mut d = open(&mut h, 1, 0);
     h.log.clear();
     d.do_win_msg(&mut h, WIN, SubBudgetMsg::Button(BTN_LIST_B_UP));
-    assert_eq!(h.log, ["arrow 0x453 false", "upd_ord 0 0"]);
+    assert_eq!(h.log, ["arrow 0x453 false"]);
+    assert!(d.unsupported_operations().contains(&Unsupported::OrdinanceRefresh));
     let mut h = Rec::default();
     let mut d = open(&mut h, 0, DEPT_FIRE);
     h.log.clear();
@@ -993,7 +1015,13 @@ fn scroll_steps_arrows_and_refresh() {
     d.do_win_msg(&mut h, WIN, SubBudgetMsg::Button(BTN_LIST_A_UP));
     assert_eq!(
         h.log,
-        ["arrow 0x453 false", "upd_indiv 0", "arrow 0x451 false", "values"]
+        [
+            "arrow 0x453 false",
+            "occupants 0x28f55a9f",
+            "empty",
+            "arrow 0x451 false",
+            "values"
+        ]
     );
 }
 
@@ -1011,7 +1039,7 @@ fn occupant_funding_levels() {
     let mut d = open(&mut h, 0, DEPT_SCHOOLS);
     assert_eq!(d.mode(), SubBudgetMode::Individual(DEPT_SCHOOLS));
     assert_eq!(d.service_kind(), KIND_SCHOOL);
-    assert!(h.has("init_indiv 0x4a538cc6"));
+    assert!(h.has("occupants 0x4a538cc6"));
     h.slider_pos = 75;
     h.log.clear();
     assert!(!d.do_win_msg(&mut h, WIN, SubBudgetMsg::Slider(0x0ABC_E500)));
@@ -1021,7 +1049,8 @@ fn occupant_funding_levels() {
             "qi 7",
             "occfund 7 0x3f000000 0x3f400000 true",
             "rel_occ 7",
-            "upd_indiv 0"
+            "occupants 0x4a538cc6",
+            "empty"
         ]
     );
     h.log.clear();
@@ -1072,6 +1101,10 @@ fn occupant_funding_levels() {
         ..Default::default()
     };
     let mut d = open(&mut h, 0, DEPT_HEALTH);
+    // RestoreStartSettings is settled; production service-value derivation
+    // remains explicitly Unsupported BW17. Seed its specified precondition.
+    let snapshot = h.restore[0];
+    d.retain_individual_restore(&mut h, snapshot);
     h.log.clear();
     assert!(d.do_win_msg(&mut h, WIN, SubBudgetMsg::Button(BTN_CANCEL)));
     let f: Vec<_> = h.log.iter().filter(|s| s.starts_with("occfund")).cloned().collect();
@@ -1118,7 +1151,7 @@ fn nested_individual_dialog() {
     assert_eq!(h.results, [true, true, true, false, true]);
     assert_eq!(h.paused_in_modal, [1, 2, 2, 1, 1]);
     assert_eq!(h.pause_msgs, [true, false]);
-    assert!(h.has("init_indiv 0x28f55a9f"));
+    assert!(h.has("occupants 0x28f55a9f"));
     assert_eq!(h.count("balance"), 1);
     assert_eq!(h.count("restore_loc"), 1);
     assert_eq!(h.count("focus"), 1);
@@ -1294,25 +1327,21 @@ fn group_initial_arrows() {
 #[test]
 fn selector_initial_arrows() {
     let ord = |a: u32, b: u32| {
-        let mut h = Rec {
-            ord: OrdinanceInit {
-                added_a: a,
-                added_b: b,
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-        let d = open(&mut h, SELECTOR_ORDINANCES, 0);
-        assert_eq!((d.list_a().len, d.list_b().len), (a, b));
+        let mut h = Rec::default();
+        let mut d = open(&mut h, SELECTOR_ORDINANCES, 0);
+        d.set_list_len(false, a);
+        d.set_list_len(true, b);
+        h.log.clear();
+        d.create_scroll_arrows(&mut h, WIN, false);
         arrows(&h)
     };
     let nb = |a: u32, b: u32| {
-        let mut h = Rec {
-            nb_counts: (a, b),
-            ..Default::default()
-        };
-        let d = open(&mut h, SELECTOR_NEIGHBORS, 0);
-        assert_eq!((d.list_a().len, d.list_b().len), (a, b));
+        let mut h = Rec::default();
+        let mut d = open(&mut h, SELECTOR_NEIGHBORS, 0);
+        d.set_list_len(false, a);
+        d.set_list_len(true, b);
+        h.log.clear();
+        d.create_scroll_arrows(&mut h, WIN, true);
         assert_eq!(h.count("button "), 4);
         arrows(&h)
     };
@@ -1401,7 +1430,9 @@ fn saved_pairs_own_references_even_without_visible_rows() {
         assert_eq!(
             events,
             (1..=64)
-                .flat_map(|d| [('+', d), ('+', d), ('-', d)])
+                .map(|d| ('+', d))
+                .chain((1..=64).flat_map(|d| [('+', d), ('+', d), ('-', d)]))
+                .chain((1..=64).map(|d| ('-', d)))
                 .collect::<Vec<_>>()
         );
         if shutdown {
@@ -1446,8 +1477,14 @@ fn department_ownership_reinit_shutdown_and_drop() {
         // same temporary+copy+release sequence, irrespective of capacity.
         let expected = [1, 2, 3]
             .into_iter()
-            .chain(rows)
-            .flat_map(|dept| [('+', dept), ('+', dept), ('-', dept)])
+            .map(|d| ('+', d))
+            .chain(
+                [1, 2, 3]
+                    .into_iter()
+                    .chain(rows)
+                    .flat_map(|dept| [('+', dept), ('+', dept), ('-', dept)]),
+            )
+            .chain([1, 2, 3].into_iter().map(|d| ('-', d)))
             .collect::<Vec<_>>();
         assert_eq!(*h.refs.events.lock().unwrap(), expected);
         let before = h.refs.events.lock().unwrap().clone();
