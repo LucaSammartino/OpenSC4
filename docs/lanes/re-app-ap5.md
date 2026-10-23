@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-app-ap5 (AP12–AP15 application owner closure) | Codex / `re-app-ap5` | in progress; AP12/AP15 answered, AP13/AP14 partial | Verify remaining font methods; publish AP13 tables, reconcile AP14, doccheck and enqueue |
+| re-app-ap5 (AP12–AP15 application owner closure) | Codex / `re-app-ap5` | in progress; all requested rules published, archive/vectors/checks pending | Add conformance cases; archive AP13/AP14, run doccheck and enqueue |
 
 ## Report
 
@@ -30,7 +30,7 @@ fixed before use; only the corrected section-table-based reads support the publi
 
 - Goal: answer AP12–AP15 in application spec; no implementation edits.
 - Done: `16700d84` getters/plugin/obliteration; `3e0ee22d` video/resources/naming/vectors and AP12/AP15 archive; `5bfec58d` consistency; `ecf78b6b` preference ordering and filename filtering. Last two checks predate ecf78b6b.
-- Next EXACT: query font-system methods 00894A3A (+44), 00893E5B (+48), 008942E3 (+24), 008954CB (+20); finish AP13 tables using facts below, then reconcile section 12/13.3/14.2 summaries, add vectors, archive AP13/AP14, questions index, doccheck, final report and ready queue.
+- Next EXACT: AP13 tables and AP14 corrections are now published; add vectors, archive AP13/AP14, questions index, doccheck, final report and ready queue.
 - Evidence: REA batch failed 7/7 with target_unavailable (no app open); using export assembly plus available decomp only.
 - Facts: false is case-insensitive; SaveCityForObliteration always returns true on normal completion; failed temp-name leaves outer result undefined; no-city temp writer dereferences null after successful open.
 - Helper `build-runs/inspect.py`: asm ADDR --match REGEX --skip N --take N; data ADDR...; refs ADDR (correct PE sections). It calls re_query --full internally but caps output to requested <=56 lines; do not commit it.
@@ -46,7 +46,7 @@ fixed before use; only the corrected section-table-based reads support the publi
 - Cursor options (44E2F7–E4F7): framework options CustomCursors lowercased off/disabled suppress specific IDs only; cursors option lowercased off/disabled→setting15=0,bw→1,color16→2,color/color256→3; comparison literal fullColor is mixed-case and unreachable after lowercasing! Unknown leaves setting15. Setting15 values0..4 map cursor group0,1,4,8,32; other values add4A708EFB wrapping. Enumerate typeAA5C3144; matching group only; CustomCursors disabled skips IDs1,3,15–18,43401C71,68024B0E,88024B02,C8024B17,E8024B13. Register nonnull cSLCursor result by instance with WM cursor manager+18. Does not suppress all cursors.
 - Captions WCM+90 IDs→SC4LoadString group6A231EAA instance (44E657–E8C7):5301814C→0A56B09E;53018149→8A56B0AF;5301814A→4A56B0B4;53018147→6A56B0BB;53018146→2A56B0BE;5301814B→AA56B0C3;53018148→CA56B0C8; final5377BE31 gets literal UTF8 ellipsis E280A6. No checked load result.
 - SetupFontSet 453A30: no FO→return; FO+3C first slot55 path, then data base whole-app+A4 character pointer with Fonts appended. Special language IDs0F/11/12/13/14 only: common name substrings 'arial mt','arta','courier ld','stoclet'; extras0F='mhei gb ' (trailing space),'mhei b5','hy round gothic','cordiaupc';11='hg-gothic','mhei b5','hy round gothic','cordiaupc';12='hg-gothic','mhei gb','hy round gothic','cordiaupc';13='hg-gothic','mhei gb','mhei b5','hy round gothic', plus 'cordiaupc' only if system micross.ttf exists and FO+38 succeeds;14='hg-gothic','mhei gb','mhei b5','cordiaupc', plus 'hy round gothic' if system Gulim.ttc exists and FO+38 succeeds. Enumerates <=64 font-name records stride136 via FO+48; lowercase each and substring-match each list entry; calls FO+44(name) for every match (can repeat). Determine +44 semantics next! Vtable00AC5488 +3C=894864 AddAllFontsFromDirectory,+44=894A3A,+48=893E5B,+50=89595D AddSubstitution.
-- Factory table and slot offsets verified in instruction bytes; no ABI rows proposed. Last doccheck and diff whitespace checks passed.
+- Round 3 corrections: font +44 removes fonts; SetupResources ends with slot59 directory segment. App slot32=feature mgr,33=cheat mgr. DoPreferencesChanged processes named x cheats on a COPY, not original erasure; lowercase-x index1 removal can repeat. _ftol2 returns int64, app clamps signed low32. Font Styles gated by service +20 object and table creation.
 - Main: `C:/Users/tlori/FreeCity4`; worktree: reserved detached HEAD, commit normally.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-app-ap5-r3-manifest.json`.
 - No game requests or ABI proposals. Engine access limited to expressly requested application README.

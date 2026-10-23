@@ -104,8 +104,8 @@ Their export labels describe other users of the same instructions, not app behav
 |---|---|---|---|
 | 25 | `0x0080BC00` | +0x38 / +0x44 | app mode |
 | 26 | `0x0068D1B0` | +0x40 / +0x4C | stored value; semantic name unconfirmed |
-| 32 | `0x006EFA20` | +0x308 / +0x314 | stored value; semantic name unconfirmed |
-| 33 | `0x006EFA30` | +0x30C / +0x318 | stored value; semantic name unconfirmed |
+| 32 | `0x006EFA20` | +0x308 / +0x314 | feature-manager pointer; Init stores constructor `0x0046F8B0` result at `0x0044CABF` relative to its +0x10 face |
+| 33 | `0x006EFA30` | +0x30C / +0x318 | cheat-code-manager pointer; Init stores constructor `0x00921970` result at `0x0044C76E` relative to its +0x10 face |
 | 34 | `0x00698CF0` | +0x48 / +0x54 | region pointer |
 | 37 | `0x0081F910` | +0x50 / +0x5C | city pointer |
 
@@ -713,14 +713,13 @@ collision suffix selection. These are filename rules, not validation of the base
 
 ## 12. Open (not specified here)
 
-SetupWinCtrlMgr, SetupFontSet, SetupResources and LoadRegistry beyond the summary of section 14.2,
-the DB segment callbacks beyond section 14.2,
+The internals of the font-style parser and resource factories called by section 14.2,
 the scoped object `0x005F88A0`, city
 vtable slots +0x1A4 (blocks saving), +0x3C, +0x30, +0x14, the message `0x26C63346` name, and the rest of
 cSC4App's 322 functions (this spec covers about 57). Not covered at all: cWinSC4App, the COM directors,
 cSC4Preferences, cSC4AutoGamePause. The distinct cSC4GameDataRegistry owner now has a
 [first bounded contract](game-data-registry.md), including its per-body evidence and remaining unknowns;
-it is not included in this cSC4App function count. Questions: docs/specs/questions/application.md (AP3 to AP11, AP13/AP14).
+it is not included in this cSC4App function count. Questions: docs/specs/questions/application.md (AP3 to AP11).
 
 ## 13. Preferences (`cSC4Preferences`, `+0x3B0`) *[compat]*
 
@@ -745,13 +744,13 @@ type `0xA9DD6E06`, group `0x49DD6E08`, instance 1, version **0x15**, holding the
 §6.4), `+0x6C` / `+0x26C` the last city and mayor names, `+0x470` (`-sim`), `+0x498` (`-RDD`), `+0x4A4` pause on
 focus loss (slot 18 also sets the app's `+0x5D0`), `+0x4AC` language, `+0x4EF` IME, `+0xF09` edge scrolling, `+0xF0A`
 expanded tooltips, `+0xF0C` software driver, `+0xF10`, `+0xF13` hardware driver wanted, `+0xF16` city detail,
-`+0xF17` full screen, `+0xF1C`…`+0xF24` resolution (§8). What `+0x470`, `+0x498` control is AP11.
+`+0xF17` windowed (zero requests fullscreen), `+0xF1C`…`+0xF24` resolution (§8).
+`+0x470` supplies simulator speed through section 13.3; the meaning of `+0x498` remains AP11.
 
 ### 13.3 Re-applying them *[compat]*
 
-`DoPreferencesChanged` (`0x0044CE40`, message `0x231BBF91`, §6.2) re-applies the preferences: the language manager,
-the graphics driver and video mode (software `0x7ACA35C6`, DirectX `0xBADB6906`), the configuration rules
-(graphics-rules.md), and erases `-x` from the command line *[inferred: a one-shot flag]*. `ApplyVideoPreferences`
+`DoPreferencesChanged` (`0x0044CE40`, message `0x231BBF91`, §6.2) applies focus-pause, language,
+graphics driver/video mode, simulator speed, then command-line cheats as detailed below. `ApplyVideoPreferences`
 (iface slot 19, `0x0044A1C0`) writes twelve video settings and posts `0xC9F775BB`;
 `GetAutoVideoPreferences` (slot 20, `0x0044A330`) reads fourteen.
 
@@ -808,7 +807,7 @@ argument gates language and graphics work only; it does not gate the first or la
    depth or fullscreen requests retain the current depth. Then enable fullscreen exactly when
    +0xF17 is zero. These two requests occur even when the sizes already agree; their return
    values do not abort later work (`0x0044CF2D`–`0x0044CFF2`).
-4. Query graphics interface `0xC47B747C`. If available, app driver override +0x65C selects the
+4. Still only when full, query graphics interface `0xC47B747C`. If available, app driver override +0x65C selects the
    driver and updates preference byte +0xF13: software `0x7ACA35C6` → 0, DirectX `0xBADB6906`
    → 1, another nonzero ID → 255. A zero override instead selects software for +0xF13=0,
    DirectX for 1, and leaves the driver alone for every other byte. Release this interface
@@ -818,15 +817,29 @@ argument gates language and graphics work only; it does not gate the first or la
    (exactly 0.079207919538021087646484375), convert toward zero to a signed integer, clamp
    to 0–7, and index `[5, 10, 15, 20, 30, 45, 60, 80]`. The multiply uses x87 precision with
    no intervening binary32 store; do not round the product to binary32 before conversion
-   (`0x0044D130`–`0x0044D1C8`). Ordinary examples: -1 → 5, 50 → 20, 100 → 80. The native
-   conversion's signed-overflow/NaN sentinel clamps to index 0; it is not a saturating float cast.
-6. Independently of full and city presence, if the app command-line object exists, remove
-   all occurrences of the one-character `x` switch from that object. Other arguments retain
-   their order. This happens last (`0x0044D1CB`–`0x0044D2DB`).
+   (`0x0044D130`–`0x0044D1C8`). Conversion uses `_ftol2`'s signed 64-bit result; interpret
+   its low 32 bits as signed before the clamp. Out-of-range 64-bit/NaN conversion produces
+   the integer-indefinite value whose low word is zero. Values outside signed 32-bit range
+   but within signed 64-bit range therefore wrap before clamping, rather than saturating.
+   Evidence: `0x009EEF0D`–`0x009EEF78`. Ordinary examples: -1 → 5, 50 → 20, 100 → 80.
+6. Independently of full and city presence, obtain the cheat-code manager through app slot
+   33. When nonnull, copy the framework command line, and process named `x` switches using
+   named-switch lookup with unquoting enabled (command-line.md section 4.1). This accepts
+   `-x:GP`, for example; bare `-x` is not such a switch. Supply each selected value to
+   `DoDefaultCheatCodeProcessing(value, outCheatID)` through manager +0x58; its result does
+   not stop subsequent requests. After each request, erase from the copy the first argument
+   whose first case-sensitive occurrence of lowercase `x` is at byte index 1, then look for
+   another named `x` switch. This erasure does not independently require a switch prefix or
+   colon. An earlier unrelated `ax...` argument can therefore be erased first and cause the
+   same cheat value to be processed twice. A matching uppercase `-X:GP` with no argument
+   eligible for erasure can repeat without progress. The framework command line is never
+   changed; another call makes a fresh copy and can run the same cheats again. Evidence:
+   `0x0044D1CB`–`0x0044D310`, copy constructor `0x00914A30`, case-sensitive Find
+   `0x0090F0DB`, cheat-manager table `0x00ACFCD0` +0x58 → `0x00921621`.
 
-This call does not invoke ApplyVideoPreferences, SetupFontSet or SetupWinCtrlMgr and does not
-save the preference file. Missing language/graphics services skip their own effects; they do
-not suppress simulator speed or one-shot switch removal.
+This call does not directly invoke configuration-rule evaluation, ApplyVideoPreferences,
+SetupFontSet or SetupWinCtrlMgr and does not save the preference file. Missing language/graphics
+services skip their own effects; they do not suppress simulator speed or cheat processing.
 
 ## 14. Plugins, resources and files *[compat]*
 
@@ -851,22 +864,12 @@ resolver to decide Enabled. By-path loading returns false before reading the INI
 absent or the DLL does not exist. A nonzero bypass flag skips the Enabled test
 (`0x0044EB27`–`0x0044EB2B`).
 
-### 14.2 Resources *[summary]*
+### 14.2 Resources *[compat]*
 
-`LoadRegistry` (`0x004584A0`) reads `Sys\Resources.ini`: switches **`packedexemplars`** and **`packedtextures`**
-(`on`/`off`), and the sections `DBSegments` and `DBSegmentDirectoryFiles`, whose entries are `class;path` with
-`%DataDirectory%` and `%Language%` (the language name, `English` by default) substituted
-(`CreateDBSegmentCallback`). `SetupResources` (`0x004572B0`) loads directory sources as DB segments of the
-resource manager and registers resource factories by type. Its first two nonrecursive `*.dat` enumerations
-use slot 53 with language index -1, then 0 (`0x0045749D`, `0x004576B9`), rather than a data-directory scan.
-Full directory filtering/order and malformed-entry handling remain AP13. Resource types include key configuration `0xA2E3D533`, the
-exemplars `0x6534284A` and the scripts `0xCA63E2A3`). `SetupFontSet` and `SetupWinCtrlMgr` set up the fonts (the
-`Fonts` folder; CJK font aliases with `Gulim.ttc` and `micross.ttf` checks), `FontStyle.ini` (sections
-`Font Aliases` and `Font Styles`), the window colours, the standard control pictures (group `0x46A006B0`), the
-standard button captions, and the cursors: **`CustomCursors`** (`off`/`disabled`) and **`cursors`** (`bw`,
-`color16`, `color`, `color256`, `fullColor`) choose the cursor set.
+#### Resource registry syntax and malformed entries (AP13)
 
-**Registry syntax correction (AP13, partial):** the packed options are command-line switches,
+`LoadRegistry` (`0x004584A0`) reads `Sys\Resources.ini`. The packed options
+**`packedexemplars`** and **`packedtextures`** are command-line switches,
 not INI section names. Their values are lowercased before exact `on`/`off` comparisons; other
 values leave the existing flags alone (`0x004585F2`–`0x004586EA`). `[DBSegments]` uses hexadecimal
 segment IDs as entry names and `hexadecimal-class-ID;path` as values. The key and class token
@@ -876,12 +879,73 @@ as the class ID or parse either ID as decimal. `%DataDirectory%` and `%Language%
 case-sensitive substitution spellings. The directory-files section is registered separately
 under `CN_DBSDF`, rather than passed through the same class/path callback.
 
+Hexadecimal conversion skips leading character-class whitespace, accepts optional `0x`/`0X`,
+and consumes at most eight hexadecimal digits. The first non-hexadecimal byte ends the
+number; trailing bytes and extra digits are ignored. No digits means zero; a leading sign
+is not accepted. Thus `12junk` means `0x12`, `123456789` means `0x12345678`, and `-1` means
+zero (`0x0090FCEF`–`0x0090FD8F`). There is no callback-level rejection of zero segment/class
+IDs. Only the first semicolon separates class and path; later semicolons belong to the path.
+With no semicolon, the class token is empty and the entire value remains the path
+(`SplitToken`, `0x0090E98C`). Such an entry attempts class zero; failure to create the
+requested segment skips that entry, without rolling back previously accepted entries.
+Initialization/path/open/registration failures similarly do not reject the whole INI.
+`[DBSegmentDirectoryFiles]` stores its raw entry names and values under `CN_DBSDF`; the
+app does not apply the class/path parser to that section.
+
 Within `[DBSegments]`, `BEGIN_GROUP=PACKED_EXEMPLARS`, `NON_PACKED_EXEMPLARS`, `PACKED_TEXTURES`
-or `NON_PACKED_TEXTURES` conditionally includes entries until `END_GROUP` with the corresponding
-group name. These group names and the two marker keys are case-sensitive. Nested active groups
-combine as conditions; a packed group requires its packed flag, a non-packed group requires its
-absence. They are section entries, not extra INI sections (`0x00458100`–`0x00458480`). Missing
-Resources.ini is not a LoadRegistry failure: it returns true (`0x00458784`–`0x004587AD`).
+or `NON_PACKED_TEXTURES` enables a corresponding inclusion condition: a packed group requires
+its packed flag, a non-packed group requires its absence. These group names and the two marker
+keys are case-sensitive. Groups are section entries, not extra INI sections. Conditions combine
+while their bits are set. The app keeps a stack of group names, but only one bit per recognized
+name: `END_GROUP` ignores its value and clears the bit for the most recently begun name.
+Duplicate nesting therefore loses the outer condition at the first end. Unknown group names
+still push/pop but impose no condition. Unclosed groups continue gating later entries; unmatched
+`END_GROUP` accesses an empty stack unchecked, so there is no native safe-ignore/error-return
+contract for that invalid input (`0x00458100`–`0x00458480`, especially `0x00458309`–`0x00458345`).
+Missing Resources.ini and failed enumerations are not LoadRegistry failures: it returns true
+(`0x00458784`–`0x004587AD`).
+
+#### Database sources and order (AP13)
+
+`SetupResources` (`0x004572B0`) submits sources in the following order, then registers
+the factories below. Slots identify the directory contracts in section 9; do not infer paths
+from the misleading export names.
+
+| Order | Source | Selection / segment class |
+|---|---|---|
+| 1 | Registry `CN_DB` entries | Enumerate with CreateDBSegmentCallback; entry supplies class and segment ID |
+| 2 | Slot 53, language index -1 | Nonrecursive `*.dat`, packed-file class `0x086D4A89` |
+| 3 | Slot 53, language index 0 | Nonrecursive `*.dat`, same class |
+| 4 | Slot 57 | Whole directory, directory-segment class `0x090F8619` |
+| 5 | Slot 55 | Recursive `*` files with the filter below, packed-file class |
+| 6 | Slot 55 | Whole directory, directory-segment class |
+| 7 | Slot 59 / interface +0xEC | Recursive `*` files with the same filter, packed-file class |
+| 8 | Slot 59 / interface +0xEC | Whole directory, directory-segment class |
+
+The last directory segment is explicit at `0x00457DCF`–`0x00457E9C`; it is not replaced by
+the recursive scan. The app attempts to create each missing recursive root, ignores creation's
+result, and still attempts enumeration. Nonrecursive scans do not probe signatures before
+opening. Recursive scans exclude extension `.dat`, case-insensitively, before testing other
+files with `IsDatabaseFile(path, 1)`; only return -1 rejects a tested file. In particular `.dll`
+is not the extension exclusion (`0x00457A42`–`0x00457AB2`, repeated at `0x00457CC1`–`0x00457D3C`;
+literal `.dat` at `0x00A870D8`). This is the native filter even for a valid DBPF with a `.dat`
+extension under a recursive root.
+
+Enumeration preserves Windows FindFirst/FindNext order: there is no lexical sort. Recursive
+enumeration emits the current directory's files first, then visits its enumerated child
+directories depth first, including files at the supplied root. Paths are prefixed with their
+directory (`cRZDirectory`, `0x0091B9C7`, `0x0091BD88`). The app does not deduplicate identical
+roots or files between these passes. Registration order is a submission contract; lookup
+precedence inside the foreign resource manager is not redefined here.
+
+For scan-created segments, successful initialization and path assignment precede `Open(1,0)`
+and resource-manager registration (+0x68). An initialization failure releases the local
+segment; path/open/registration failure shuts it down and releases it. Successful registration
+releases the local reference without shutting the registered segment down. One failed source
+does not cancel later sources. This assumes the standard segment factories and resource service
+exist: SetupResources does not provide a safe null-factory/service fallback.
+
+#### Resource factories (AP13)
 
 SetupResources registers the following complete type-to-factory-class list, in this order.
 Every registration supplies a third argument of zero; failed individual registration results
@@ -905,6 +969,172 @@ are not checked. The final success test is resource-manager slot +0x84 >= 3, uns
 | `0x296678F7` | `0x496678FE` |
 | `0xEA5118B0` | `0xEA5118B5` |
 | `0xA2E3D533` | `0x42E411C2` |
+
+#### Font sources and language filtering (AP13)
+
+`SetupFontSet` (`0x00453A30`) does nothing if the font service is absent. Otherwise it
+adds all fonts from the slot-55 directory, then from `Fonts` under the stored data-directory
+base. It performs the language-specific removal below after both additions; languages outside
+the table do not perform this removal. Names are enumerated once, at most 64 records, and
+lowercased before case-sensitive substring matching. Every matching substring requests removal
+of that full font name, so one name can produce repeated removal requests. Font-service +0x44
+removes the name's registration and cached fonts, releasing cached references; it does not add
+an alias (`0x00894A3A`–`0x00894ADE`). The enumeration snapshot remains valid while removals run
+(`0x00893E5B`–`0x00893ECA`).
+
+All five languages remove names containing `arial mt`, `arta`, `courier ld`, or `stoclet`,
+plus the substrings in their row. Spaces inside a substring are significant.
+
+| Language ID | Additional removal substrings | Conditional additional removal |
+|---|---|---|
+| `0x0F` | `mhei gb ` (trailing space), `mhei b5`, `hy round gothic`, `cordiaupc` | None |
+| `0x11` | `hg-gothic`, `mhei b5`, `hy round gothic`, `cordiaupc` | None |
+| `0x12` | `hg-gothic`, `mhei gb`, `hy round gothic`, `cordiaupc` | None |
+| `0x13` | `hg-gothic`, `mhei gb`, `mhei b5`, `hy round gothic` | `cordiaupc` only when system-directory `micross.ttf` exists and font-service +0x38 accepts it |
+| `0x14` | `hg-gothic`, `mhei gb`, `mhei b5`, `cordiaupc` | `hy round gothic` only when system-directory `Gulim.ttc` exists and font-service +0x38 accepts it |
+
+The conditional font is offered to the font service before enumerating names. These are
+substring exclusions from the loaded set, not a language-to-font alias table. Evidence:
+`0x00453A30`–`0x00454352`; path additions `0x00453AA3`/`0x00453B4E`, enumeration/removal
+`0x004541A5`–`0x00454304`.
+
+#### Window-control defaults and FontStyle.ini (AP13)
+
+`SetupWinCtrlMgr` (`0x0044D810`) applies colours, font defaults/styles, control pictures,
+cursors, then captions. The following colour table is in call order; triples are red,
+green, blue integers supplied to window-control-manager +0x84, not packed ARGB words
+(`0x0044D835`–`0x0044DA23`). Absent window-control manager skips this colour block.
+
+| Control colour ID | RGB |
+|---|---|
+| `0x08963F6C` | 255, 0, 255 |
+| `0x68963F6F` | 189, 188, 188 |
+| `0xC8963F7A` | 255, 255, 255 |
+| `0x68963F7D` | 0, 0, 0 |
+| `0x28963FC5` | 128, 0, 0 |
+| `0xA8963F82` | 0, 128, 0 |
+| `0x48963F84` | 128, 128, 64 |
+| `0x68963F8A` | 0, 0, 128 |
+| `0xA8963F8C` | 128, 0, 128 |
+| `0x68963F8F` | 0, 128, 128 |
+| `0x08963F91` | 128, 128, 128 |
+| `0x28963F93` | 192, 192, 192 |
+| `0xE8963F95` | 255, 0, 0 |
+| `0x28963F98` | 0, 255, 0 |
+| `0xE8963F9A` | 255, 255, 0 |
+| `0xC8963FA2` | 0, 0, 255 |
+| `0x08963FA5` | 0, 255, 255 |
+| `0x28963FA8` | 255, 255, 255 |
+| `0xBB5B2EC6` | 124, 144, 255 |
+
+When the font service exists, font setup first supplies 3 to its setting slot +0x1C.
+Presence of service `0xEB2EA3CB` / interface `0x4B2EA3B3` permits creation of the optional
+font helper class `0x8B3255F9` / interface `0xA8BC2A75`. On successful creation it is supplied
+to font-service +0x18 and locally released; absence does not suppress subsequent font setup.
+SetupFontSet is called before requesting the following two `Arta` fonts through
+font-service +0x2C. Its argument tuple is `(name, 0, size, 2, 1)`; font construction and
+rasterization remain font-service responsibilities. Each nonnull result receives the colour
+returned by service `0xC416025C` / interface `0x0073283C`, slot +0x88 with arguments
+`(0,0,0,0x08000000)`, then is registered under the listed IDs and locally released.
+
+| Size | Window-control font IDs, in order |
+|---|---|
+| 12 | `0x68963C4C`, `0xC8963C5C`, `0x68963C54`, `0xA2CAE9DF` |
+| 20 | `0x28963C70` |
+
+A null font result skips its bindings only. Font-service absence skips this font and INI
+block; it does not skip pictures/cursors/captions. Window-control-manager absence is not a
+general safe no-op: successful font creation and later captions use that manager unchecked.
+The colour service is likewise assumed present when a font needs its colour.
+Evidence: `0x0044DA29`–`0x0044DC7B`.
+
+FontStyle.ini is selected from slot 55 first, then slot 53 with language index 0, using the
+first existing candidate. If neither exists, request a temporary path and export resource key
+`(type=0, group=0x4A87BFE8, instance=0x2A87BFFC)` into it. Export result -1 clears the path;
+an empty path skips INI enumeration. A generated temporary file is removed after use, even
+when export fails; existing FontStyle.ini files are not removed (`0x0044DC80`–`0x0044DE92`).
+
+Enumerate `Font Aliases` first. Each alias is forwarded to font-service +0x50
+as `(entry value, entry name)`, with no app-side normalization (`0x004499D0`). Each style
+value is passed to `CreateFontStyleFromSpecification` (`0x005C11B0`), which returns a font
+and numeric style ID. A null result skips that entry. Otherwise register the font under that
+ID with window-control-manager +0x18, attach a copy of the entry name using +0x9C, and, when
+the auxiliary name table exists, add `(entry name, ID)` through its +0x0C. Release the local
+font afterward. The entry name is not itself parsed as a hexadecimal style ID
+(`0x0044D4D0`–`0x0044D563`). These are the app's parser inputs/outputs; the font specification
+grammar belongs to the font parser, rather than the Resources.ini class/path grammar.
+
+The `Font Styles` enumeration requires a nonnull object from service `0x5A356E15` /
+interface `0xFA3562FA`, slot +0x20, and successful creation of name-table class `0xBA2E7954` /
+interface `0x1A2BDEBB`. The app retains that object, supplies the new name table to its +0x34,
+enumerates styles, then releases its name-table reference, clears the temporary global table
+pointer, and releases the object. A null object or failed table creation skips styles, after
+aliases have already been submitted. The service itself is assumed present (unchecked
+dereference at `0x0044DDD9`). No previous table is restored (`0x0044DDB2`–`0x0044DE6E`).
+
+Control pictures all use resource type `0x856DDBAC`, group `0x46A006B0`. Load each source in
+table order, register nonnull pictures at window-control-manager +0x20 under each listed
+control ID, and release the local resource before the next source. A failed load skips only
+that source's bindings (`0x0044DEB7`–`0x0044E2A6`). Absent window-control manager skips pictures.
+
+| Source instance | Control picture IDs |
+|---|---|
+| `0x46A006A2` | `0xA8963EB8`, `0xE8963EF1` |
+| `0x144161EA` | `0x68963EBE`, `0xA8963EF3` |
+| `0x0000000A` | `0xC8963EF6` |
+| `0x82B99D9D` | `0x68963ED6` |
+| `0x62B99D31` | `0x68963ED8` |
+| `0x42E55FD4` | `0x48963EEE` |
+| `0xE78FFC90` | `0xE8963EDF` |
+| `0xC2B66DAA` | `0xE8963EE5` |
+| `0x46A006A4` | `0xC8963ED3` |
+| `0x46A006A6` | `0xE8963EC7` |
+| `0x46A006A7` | `0x88963EC1` |
+| `0x46A006A8` | `0xA8963EC4` |
+| `0x46A006A5` | `0xA8963EEA` |
+| `0xE2B14588` | `0xE2B14588` |
+| `0x62B19CE9` | `0xE2B14589` |
+
+#### Cursors and button captions (AP13)
+
+Framework options `CustomCursors` and `cursors` are lowercased before comparison; they are
+not Resources.ini sections. `CustomCursors=off` or `disabled` excludes only cursor instances
+`1`, `3`, `15`–`18` (decimal), `0x43401C71`, `0x68024B0E`, `0x88024B02`, `0xC8024B17`,
+`0xE8024B13`. It does not disable all cursors. Other values preserve inclusion of these IDs.
+
+| Lowercased `cursors` value | Write to video setting 15 |
+|---|---|
+| `off`, `disabled` | 0 |
+| `bw` | 1 |
+| `color16` | 2 |
+| `color`, `color256` | 3 |
+| Other / absent | No write |
+
+The comparison intended to select 4 uses the mixed-case literal `fullColor` after lowercasing,
+so no ordinary spelling of that option selects 4. Preserve the previous setting for `fullColor`
+as for other unknown values (`0x0044E402`–`0x0044E4F4`). Independently of whether an option
+wrote setting 15, read that setting to select the resource group: 0→0, 1→1, 2→4, 3→8, 4→32;
+other unsigned values map to `value + 0x4A708EFB`, wrapping to 32 bits
+(`0x0044E4F7`–`0x0044E545`). Enumerate resource type `0xAA5C3144` in resource-manager order,
+retain only that group and allowed instances, and construct a `cSLCursor` from each retained
+key. Register each nonnull cursor by its instance ID through cursor-manager +0x18; a null
+cursor result skips that key. No alternate-group fallback is attempted. The cursor manager
+comes from window-manager +0x80 (`0x0044E549`–`0x0044E64F`).
+
+Finally load localized strings with group `0x6A231EAA` and supply them to window-control-manager
++0x90 in the order below. Load results are not checked. The last caption is a literal UTF-8
+ellipsis, not a localized string key (`0x0044E657`–`0x0044E8C7`).
+
+| Caption control ID | String instance / literal |
+|---|---|
+| `0x5301814C` | `0x0A56B09E` |
+| `0x53018149` | `0x8A56B0AF` |
+| `0x5301814A` | `0x4A56B0B4` |
+| `0x53018147` | `0x6A56B0BB` |
+| `0x53018146` | `0x2A56B0BE` |
+| `0x5301814B` | `0xAA56B0C3` |
+| `0x53018148` | `0xCA56B0C8` |
+| `0x5377BE31` | `…` (bytes `E2 80 A6`) |
 
 ### 14.3 Files
 
