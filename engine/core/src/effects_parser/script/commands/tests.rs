@@ -4,18 +4,18 @@ use super::*;
 use std::collections::VecDeque;
 
 #[derive(Default)]
-struct Host {
-    expected: VecDeque<(Call, Result<Reply>)>,
-    calls: Vec<Call>,
+pub(super) struct Host {
+    pub(super) expected: VecDeque<(Call, Result<Reply>)>,
+    pub(super) calls: Vec<Call>,
 }
 impl Host {
-    fn returning(calls: Vec<(Call, Reply)>) -> Self {
+    pub(super) fn returning(calls: Vec<(Call, Reply)>) -> Self {
         Self {
             expected: calls.into_iter().map(|(c, r)| (c, Ok(r))).collect(),
             calls: Vec::new(),
         }
     }
-    fn done(&self) {
+    pub(super) fn done(&self) {
         assert!(self.expected.is_empty(), "{:?}", self.expected);
     }
 }
@@ -27,7 +27,7 @@ impl Services for Host {
         reply
     }
 }
-fn bytes(s: &str) -> Vec<u8> {
+pub(super) fn bytes(s: &str) -> Vec<u8> {
     s.as_bytes().to_vec()
 }
 fn u(s: &str, v: u32) -> (Call, Reply) {

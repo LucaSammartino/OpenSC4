@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Bounded portable owner of `effects-parser.md` §§2–7.
+//! Portable effects command owners and primitive-input option ledgers.
 //!
 //! This is a primitive-input model, not a lexer, native binding or full parser.
 //! Every finder/converter is foreign. Unsupported exits retain prefix writes and
 //! calls; `Ok(())` denotes a completed void routine, never a manufactured AL.
-//! Allocation failure, error transport, reentry, rotations and destruction are
-//! unsupported (EFP1–6 remain open). Rust drop frees memory only: it does not
-//! implement the unknown logical reference cleanup at refcount zero.
+//! Concrete token readers, dispatch, directory identity and explicit lifetime
+//! live in [`script`]; settled root/definition/child owners extend that boundary.
+//! Rotation instruction/store ordering lives in [`rotation`], parameterized by
+//! an arithmetic backend qualified for EFP7. Without one rotations return Numeric.
+//! Rust drop alone does not perform the explicit logical lifetime protocol.
 
 use crate::effects::ComponentRecord;
 
+pub mod nested;
+pub mod rotation;
 pub mod script;
 
 #[cfg(test)]
@@ -104,6 +108,11 @@ impl Record {
 /// Each call is one raw primitive. AL is tested only for zero; scratch length
 /// is independent of the requested count. No acceptance/consumption is inferred.
 pub trait OptionPrimitives {
+    /// A backend must qualify its x87 arithmetic/control state. No backend
+    /// means the numeric domain remains Unsupported (EFP7), not an open owner.
+    fn rotation_arithmetic(&mut self) -> Option<&mut dyn rotation::Arithmetic> {
+        None
+    }
     fn find(&mut self, tokens: &[Token], key: &'static str, request: u8, scratch: &mut Vec<Index>) -> u8;
     fn float(&mut self, token: &Token) -> RawFloat;
     fn uint(&mut self, token: &Token) -> u32;
@@ -186,15 +195,28 @@ pub fn parse_options<P: OptionPrimitives>(
         record.component.placement[1] |= 1;
         record.increment();
     }
-    for (key, count) in [
-        ("rotateX", 1),
-        ("rotateY", 1),
-        ("rotateZ", 1),
-        ("rotateXYZ", 3),
-        ("rotateZXY", 3),
+    for (key, axes) in [
+        ("rotateX", &[rotation::Axis::X][..]),
+        ("rotateY", &[rotation::Axis::Y][..]),
+        ("rotateZ", &[rotation::Axis::Z][..]),
+        (
+            "rotateXYZ",
+            &[rotation::Axis::X, rotation::Axis::Y, rotation::Axis::Z][..],
+        ),
+        (
+            "rotateZXY",
+            &[rotation::Axis::Z, rotation::Axis::X, rotation::Axis::Y][..],
+        ),
     ] {
-        if host.find(tokens, key, count, scratch) != 0 {
-            return Err(Unsupported::Rotation(key));
+        if host.find(tokens, key, axes.len() as u8, scratch) != 0 {
+            if host.rotation_arithmetic().is_none() {
+                return Err(Unsupported::Numeric);
+            }
+            for (n, &axis) in axes.iter().enumerate() {
+                let input = host.float(token(tokens, scratch, n)?);
+                let arithmetic = host.rotation_arithmetic().ok_or(Unsupported::Numeric)?;
+                rotation::apply(record, axis, input, arithmetic)?;
+            }
         }
     }
     if host.find(tokens, "scale", 1, scratch) != 0 {

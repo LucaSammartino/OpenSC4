@@ -5,6 +5,10 @@
 use super::*;
 use crate::effects::{EffectDescription, DIRECTORY_GROUP, DIRECTORY_TYPE};
 
+pub mod children;
+pub mod definitions;
+use definitions::{DefinitionKind, Definitions, Description};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Category {
     Bool,
@@ -63,12 +67,18 @@ impl Transform {
 /// Independent returning primitives at the effects-command boundary.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Call {
+    Inherit(Identity, DefinitionKind, Vec<u8>, Description),
+    PublishDefinition(Identity, DefinitionKind, Vec<u8>, Description),
+    AllocateSequence,
+    PublishSequence(Identity, Vec<u8>, Option<Identity>),
     Uint(Vec<u8>),
     Int(Vec<u8>),
     Float(Vec<u8>),
     Bool(Vec<u8>),
     Vector2(Vec<u8>),
     Vector3(Vec<u8>),
+    Color(Vec<u8>),
+    Enum(Vec<u8>, &'static [(&'static str, u32)]),
     CountArguments(Vec<u8>),
     PropertyIndex(Identity, Category, Vec<u8>),
     SetProperty(Identity, Category, i32, Box<Reply>),
@@ -95,10 +105,14 @@ pub enum Call {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub enum Reply {
+    Inherited(bool, Description),
     Void,
     Uint(u32),
     Int(i32),
     Float(f64),
+    /// Exact pre-store binary32-domain input, including nonfinite primitive
+    /// replies. No owner finite-value validation is implied by a direct store.
+    Float32(u32),
     Bool(bool),
     Vector2([f32; 2]),
     Vector3([f32; 3]),
@@ -125,16 +139,13 @@ fn int(host: &mut impl Services, bytes: &[u8]) -> Result<i32> {
 fn raw_float(host: &mut impl Services, bytes: &[u8]) -> Result<f64> {
     match host.call(Call::Float(bytes.to_vec()))? {
         Reply::Float(x) => Ok(x),
+        Reply::Float32(bits) => Ok(f64::from(f32::from_bits(bits))),
         _ => Err(Error::Unsupported("float reply")),
     }
 }
 fn float(host: &mut impl Services, bytes: &[u8]) -> Result<f32> {
     let x = raw_float(host, bytes)?;
-    if x.is_finite() && (x as f32).is_finite() {
-        Ok(x as f32)
-    } else {
-        Err(Error::Unsupported("EFP7 numeric domain"))
-    }
+    Ok(x as f32)
 }
 fn vector(host: &mut impl Services, bytes: &[u8]) -> Result<[f32; 3]> {
     match host.call(Call::Vector3(bytes.to_vec()))? {
@@ -172,6 +183,9 @@ fn key(instance: u32) -> [u32; 3] {
 
 #[derive(Default)]
 pub struct Commands {
+    pub definitions: Definitions,
+    pub word_494: u32,
+    pub scalar_498: f32,
     pub manager: Option<Identity>,
     pub collection: Option<Identity>,
     pub renderer: Option<Identity>,
@@ -316,7 +330,7 @@ impl Commands {
             side_swipe = float(host, self.value(tokens, 0))?;
         }
         let difference = (f64::from(endpoints[1]) - f64::from(endpoints[0])).trunc();
-        if difference < f64::from(i32::MIN) || difference > f64::from(i32::MAX) {
+        if !difference.is_finite() || difference < f64::from(i32::MIN) || difference > f64::from(i32::MAX) {
             return Err(Error::Unsupported("EFP7 ftol2 domain"));
         }
         let record = Camera {
