@@ -186,6 +186,30 @@ fn arithmetic_rounding_is_distinct_from_store_and_preserves_distant_sticky_bits(
                 assert_eq!(bits, store);
             }
             let three = Extended::input(RawFloat::Dyadic(3, 0)).unwrap();
+            let significand = match precision {
+                Precision::P24 => {
+                    if matches!(rounding, Rounding::Nearest | Rounding::Up) {
+                        0xaaaaab0000000000
+                    } else {
+                        0xaaaaaa0000000000
+                    }
+                }
+                Precision::P53 => {
+                    if rounding == Rounding::Up {
+                        0xaaaaaaaaaaaab000
+                    } else {
+                        0xaaaaaaaaaaaaa800
+                    }
+                }
+                Precision::P64 => {
+                    if matches!(rounding, Rounding::Nearest | Rounding::Up) {
+                        0xaaaaaaaaaaaaaaab
+                    } else {
+                        0xaaaaaaaaaaaaaaaa
+                    }
+                }
+            };
+            assert_eq!(three.reciprocal(c), Extended::new(0x3ffd, significand));
             assert_eq!(
                 three.reciprocal(c).store(c),
                 if matches!(rounding, Rounding::Nearest | Rounding::Up) {

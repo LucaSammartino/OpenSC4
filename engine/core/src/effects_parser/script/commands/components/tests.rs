@@ -505,8 +505,10 @@ fn anonymous_failure_prefix_ranges_missing_names_and_nonfinite_lengths() {
     assert!(h.payloads.is_empty());
     assert!(!h.calls.iter().any(|call| matches!(call, Call::Release(..))));
     let mut c = live();
-    let mut h = Host::default();
-    h.values = vec![Reply::Int(0)].into();
+    let mut h = Host {
+        values: vec![Reply::Int(0)].into(),
+        ..Host::default()
+    };
     assert!(c
         .anonymous_component(
             Kind::Camera,

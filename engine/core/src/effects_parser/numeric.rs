@@ -62,10 +62,13 @@ impl Extended {
         let dividend = 1u128 << 127;
         let shift = self.significand.leading_zeros();
         let divisor = u128::from(self.significand) << shift;
-        // Quotient has at least 64 significant bits; an extra jam bit keeps
-        // the rounding information independent of the destination store.
-        let quotient = ((dividend / divisor) << 1) | u128::from(dividend % divisor != 0);
-        finish(self.negative(), quotient, -self.power() + shift as i32 - 128, control)
+        // Keep three actual fractional guard bits and a separate sticky bit.
+        // Treating every nonzero remainder as exactly half a unit would lose
+        // the nearest-even decision at PC64, before the binary32 store.
+        let remainder = (dividend % divisor) << 3;
+        let quotient =
+            ((dividend / divisor) << 4) | ((remainder / divisor) << 1) | u128::from(remainder % divisor != 0);
+        finish(self.negative(), quotient, -self.power() + shift as i32 - 131, control)
     }
     pub const fn new(sign_exponent: u16, significand: u64) -> Self {
         Self {

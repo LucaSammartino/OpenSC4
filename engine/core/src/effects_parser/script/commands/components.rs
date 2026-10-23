@@ -308,8 +308,7 @@ impl Commands {
             .unwrap_or(&mut []);
         let z = range.iter().filter(|r| r.record.component.select_weight == 0).count() as u32;
         let mut a = (range.len() as u32).wrapping_sub(z);
-        if z != 0 {
-            let q = 65536u32.wrapping_sub(a) / z;
+        if let Some(q) = 65536u32.wrapping_sub(a).checked_div(z) {
             for r in range {
                 if r.record.component.select_weight == 0 {
                     r.record.component.select_weight = q as u16;
