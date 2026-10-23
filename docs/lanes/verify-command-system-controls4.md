@@ -152,3 +152,8 @@ assigned no legacy numeric run IDs, so `run` uses the unique label rather than a
 invented number; coordinator owns any sequential-index normalization needed by its
 table generator. Root/main/train remains the sole landing owner. No additional
 command-owner coverage or all-original lifecycle acceptance is claimed.
+
+Coordinator subsequently assigned numeric OFF/ON record IDs287/288 after an exact empty collision scan across123
+run directories. Only the two run fields changed; all unique harness labels, artifact/source hashes, scripts,
+raw outcomes, full-save/lifecycle evidence and historical failures remain unchanged. This is documentation
+normalization, not another game run or a new source gate. Original parent2 plus final1 remains exhausted3/3.

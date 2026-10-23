@@ -1,5 +1,5 @@
 tag: commands-controls4-r3-on-train108-20261023-b
-run: commands-controls4-r3-on-train108-20261023-b
+run: 288
 date: 2026-10-23
 lane: verify-command-system-controls4
 dll: train108 SHA256 45de4459b606931d384a166726a0b1df8870465af8f84fff89cb58cf781fcd36
