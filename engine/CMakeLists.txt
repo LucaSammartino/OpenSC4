@@ -980,3 +980,13 @@ endif()
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4DbpfNative.cpp)
 endif()
+
+# Record-only original advisor shadow (default off; no factory replacement).
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4AdvisorsShadow.cpp plugin/FC4AdvisorsShadow.h)
+    add_executable(fc4_advisors_shadow_test tests/advisors_shadow_test.cpp)
+    target_include_directories(fc4_advisors_shadow_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin capi/include)
+    target_compile_definitions(fc4_advisors_shadow_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_advisors_shadow_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME advisors_shadow_test COMMAND fc4_advisors_shadow_test "$<TARGET_FILE:FreeCity4>")
+endif()
