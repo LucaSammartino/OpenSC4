@@ -12,7 +12,9 @@
 - Cache processes24128/35784 left untouched; no RPC, client/service termination, environment or policy action.
 - R2 components retain 3126/0 across2 summaries, all26 fixtures, compile-only dependents, native4/4. Do not repeat quick.
 - Baseline is incomplete and predates registration: 5142/0, clippy clean, native215/215, CTest18/68; exit/cause UNKNOWN. Root's exact old client intervention is preserved, supplies no authorization.
-- Next: archive remaining component logs, run new-file fmt and separately report shared lib order drift, commit checkpoint, then exactly ONE final qbuild all with durable terminal capture.
+- Milestone75ccd5a8 records process ownership; all4 remaining component logs archived in quick-r2 with exact SHA256 unchanged (archive-r3-manifest.json); no recovered quick terminal verdict or completed final gate.
+- Fresh absolute-path new-file fmt: exit0, files2; shared lib separately exit1, diff_lines173 (baseline171 plus additive declaration). No mass formatting or engine edits; terminal logs fmt-new-r3-terminal.log and fmt-shared-r3-terminal.log.
+- Next: ONE final qbuild all through run-player-drive-r3.py, q.py direct argument transport (tested); final-r3-terminal.log durably captures wrapper output and exact wrapper_exit. Source/artifact preflight in source-r3-before-all.json. Do not repeat while alive or discard a complete matching gate for docs-only commits.
 - No game request outstanding; no ABI/plugin/CAPI/default/shadow promotion; DR1-DR8 retained.
 
 ## Previous report (round 2)
