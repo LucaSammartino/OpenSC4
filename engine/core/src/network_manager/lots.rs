@@ -67,7 +67,7 @@ pub struct NetworkLotState {
     /// resolve on load).
     pub potholes: OrderedMap<u16, Option<u64>>,
     /// Cells whose network lot must be re-examined (§8.5).
-    pub pending: BTreeSet<u16>,
+    pub pending: super::ordered::PendingCells,
 }
 
 /// The network lot manager.
@@ -103,6 +103,10 @@ impl NetworkLotManager {
     /// Replaces the generator (tests, replays).
     pub fn set_random(&self, rng: Box<dyn NetworkLotRandom>) {
         *self.rng.borrow_mut() = rng;
+    }
+
+    pub fn random_state(&self) -> Option<([u32; 624], usize)> {
+        self.rng.borrow().raw_state()
     }
 
     pub fn snapshot(&self) -> NetworkLotState {
@@ -300,18 +304,27 @@ impl NetworkLotManager {
         has_any(f, flag::SURFACE) && !has_all(f, flag::CONNECTION_NODE)
     }
 
-    /// The border cells (BoundaryIterator, simgrid.md §7.4) of `r` inside
-    /// the city, added to `pending` (§6.2 `0xE8BDA2E7`).
+    /// Lot-state BoundaryIterator starts at (0,0), not the rect's origin
+    /// (§6.3, NM10/NM11). Keep insertion order for the hash-set replay.
     pub fn add_border_to_pending(&self, r: CellRect) {
         let size = self.host.city_size();
         let mut s = self.s.borrow_mut();
-        for z in r.z1..=r.z2 {
-            for x in r.x1..=r.x2 {
-                let border = x == r.x1 || x == r.x2 || z == r.z1 || z == r.z2;
-                if border && inside(x, z, size) {
-                    s.pending.insert(lot_key(x, z));
-                }
+        let (x1, z1) = (r.x2.max(r.x1), r.z2.max(r.z1));
+        let (mut x, mut z, mut step) = (0, 0, 1);
+        loop {
+            if inside(x, z, size) {
+                s.pending.insert(lot_key(x, z));
             }
+            x += step;
+            if x <= x1 {
+                continue;
+            }
+            if z >= z1 {
+                break;
+            }
+            x = r.x1;
+            z += 1;
+            step = if z < z1 { (x1 - r.x1).max(1) } else { 1 };
         }
     }
 
@@ -524,8 +537,7 @@ impl NetworkLotManager {
         }
     }
 
-    /// `ProcessUpdateList()` (`0x0060FA10`): keys in ascending order
-    /// (the spec's *[choice]*).
+    /// `ProcessUpdateList()` in SGI hash-set order (§8.5).
     pub fn process_update_list(&self) {
         loop {
             let Some(&k) = self.s.borrow().pending.iter().next() else {

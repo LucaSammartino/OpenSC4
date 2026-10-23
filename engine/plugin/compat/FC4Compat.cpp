@@ -118,6 +118,7 @@ const ExecutableVersion kVersions[] = {
         {0x00847CE0, 0x00847D30, 0x00847E40, 0x00847F10, 0x008480C0},
         0x00B207C0,  // the advisor system's private global (advisors.md §14.2, §8.3.1),
         0x0061B490,  // cISC4NetworkOccupant slot 30 SetPiece (network-rules.md §11.2, NR14)
+        0x00B44870,  // network-manager §17.2
     },
 };
 
@@ -717,6 +718,37 @@ void** AdvisorSystemGlobal() {
         }
     }
     return state == 1 ? slot : nullptr;
+}
+
+bool CaptureNetworkLotRandom(uint32_t* words625) {
+    static const uint32_t* source = nullptr;
+    static bool checked = false;
+    if (!checked) {
+        checked = true;
+        const auto* v = IdentifiedVersion();
+        if (v && CheckAddress("network lot random", v->networkLotRandomVA, v->imageBase) &&
+            CheckAddress("network lot random end", v->networkLotRandomVA + 0x9C4, v->imageBase)) {
+            source = reinterpret_cast<const uint32_t*>(v->networkLotRandomVA);
+        }
+    }
+    if (!source || !words625) return false;
+    const int32_t left = static_cast<int32_t>(source[625]);
+    if (left < 0 || left > 624 || source[624] != reinterpret_cast<uintptr_t>(source + 624 - left)) return false;
+    std::memcpy(words625, source, 624 * sizeof(uint32_t));
+    words625[624] = 624 - left;
+    return true;
+}
+
+bool CaptureNetworkLotPending(const void* manager, uint32_t* buckets) {
+    if (!IdentifiedVersion() || !manager || !buckets) return false;
+    const auto* words = static_cast<const uint32_t*>(manager);
+    // §8.5: bucket vector +0x78/+0x7C, count +0x84. Called
+    // between handlers only; no copying of native nodes or output order.
+    if (words[0x84 / 4] != 0 || words[0x7C / 4] < words[0x78 / 4]) return false;
+    const uint32_t bytes = words[0x7C / 4] - words[0x78 / 4];
+    if (bytes % 4 != 0 || bytes == 0) return false;
+    *buckets = bytes / 4;
+    return true;
 }
 
 const ExecutableVersion* SupportedVersions(int* count) {

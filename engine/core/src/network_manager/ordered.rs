@@ -10,6 +10,74 @@
 
 use std::collections::BTreeMap;
 
+/// SGI hash_set<u16> processing order (network-manager §8.5, NM13).
+/// Empty buckets are implicit; erase never shrinks the bucket count.
+#[derive(Clone, Debug)]
+pub struct PendingCells {
+    buckets: BTreeMap<usize, Vec<u16>>,
+    count: usize,
+    bucket_count: usize,
+}
+
+impl Default for PendingCells {
+    fn default() -> Self {
+        Self {
+            buckets: BTreeMap::new(),
+            count: 0,
+            bucket_count: 193,
+        }
+    }
+}
+
+impl PendingCells {
+    pub fn len(&self) -> usize {
+        self.count
+    }
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+    pub fn bucket_count(&self) -> usize {
+        self.bucket_count
+    }
+    pub fn iter(&self) -> impl Iterator<Item = &u16> {
+        self.buckets.values().flatten()
+    }
+
+    pub fn insert(&mut self, key: u16) {
+        // Resize is requested even for a duplicate key. u16 keys cannot
+        // require a prime beyond 98317.
+        if self.count + 1 > self.bucket_count {
+            let next = [389, 769, 1543, 3079, 6151, 12289, 24593, 49157, 98317]
+                .into_iter()
+                .find(|&n| n >= self.count + 1)
+                .unwrap();
+            let old = std::mem::take(&mut self.buckets);
+            self.bucket_count = next;
+            for key in old.into_values().flatten() {
+                self.buckets.entry(usize::from(key) % next).or_default().insert(0, key);
+            }
+        }
+        let bucket = self.buckets.entry(usize::from(key) % self.bucket_count).or_default();
+        if !bucket.contains(&key) {
+            bucket.insert(0, key);
+            self.count += 1;
+        }
+    }
+
+    pub fn remove(&mut self, key: &u16) {
+        let b = usize::from(*key) % self.bucket_count;
+        if let Some(bucket) = self.buckets.get_mut(&b) {
+            if let Some(i) = bucket.iter().position(|k| k == key) {
+                bucket.remove(i);
+                self.count -= 1;
+            }
+            if bucket.is_empty() {
+                self.buckets.remove(&b);
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct OrderedMap<K: Ord + Copy, V> {
     slots: Vec<Option<(K, V)>>,

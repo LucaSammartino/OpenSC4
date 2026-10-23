@@ -1318,7 +1318,7 @@ fn t21_pothole() {
 }
 
 #[test]
-fn t23_lot_state_ring() {
+fn t23_lot_state_origin_walk() {
     let (f, m, _) = lot_manager(vec![]);
     f.s.borrow_mut().lot_rect.insert(600, rect(10, 20, 11, 22));
     m.do_message(&NetworkLotMessage {
@@ -1327,22 +1327,88 @@ fn t23_lot_state_ring() {
     });
     let queried: BTreeSet<(i32, i32)> = f.s.borrow().tile_queries.iter().copied().collect();
     let mut want = BTreeSet::new();
-    for x in 9..=12 {
-        for z in 19..=23 {
-            if !(10..=11).contains(&x) || !(20..=22).contains(&z) {
-                want.insert((x, z));
-            }
-        }
+    for x in 0..=12 {
+        want.insert((x, 0));
     }
-    assert_eq!(want.len(), 14);
+    for z in 1..23 {
+        want.insert((9, z));
+        want.insert((12, z));
+    }
+    for x in 9..=12 {
+        want.insert((x, 23));
+    }
+    assert!(!want.contains(&(10, 19)));
+    assert!(want.contains(&(12, 10)));
     assert_eq!(queried, want);
     assert!(m.snapshot().pending.is_empty());
     assert_eq!(f.refs(600), 0);
 
-    // Directly: the ring lands in `pending`, clipped to the city.
+    // The first cell is (0,0) even when the rectangle starts outside the city.
     m.add_border_to_pending(rect(-1, -1, 1, 1));
     let pending: Vec<(i32, i32)> = m.snapshot().pending.iter().map(|&k| key_cell(k)).collect();
-    assert_eq!(pending, vec![(0, 1), (1, 0), (1, 1)]);
+    assert_eq!(pending, vec![(0, 0), (0, 1), (1, 0), (1, 1)]);
+}
+
+#[test]
+fn pending_cells_sgi_order_and_rehash() {
+    let mut p = super::ordered::PendingCells::default();
+    for k in [1, 256, 2, 195] {
+        p.insert(k);
+    }
+    assert_eq!(p.iter().copied().collect::<Vec<_>>(), vec![1, 195, 2, 256]);
+    let mut p = super::ordered::PendingCells::default();
+    for z in 9..=22 {
+        for x in 9..=22 {
+            p.insert(lot_key(x, z));
+        }
+    }
+    assert_eq!(p.bucket_count(), 389);
+    assert_eq!(p.iter().next(), Some(&0x1409));
+    let bucket: Vec<_> = p.iter().copied().filter(|k| usize::from(*k) % 389 == 359).collect();
+    assert_eq!(bucket, vec![0x0c0a, 0x0f14]);
+    let keys: Vec<_> = p.iter().copied().collect();
+    for k in keys {
+        p.remove(&k);
+    }
+    assert!(p.is_empty());
+    assert_eq!(p.bucket_count(), 389);
+}
+
+#[test]
+fn lot_state_reaches_north_column_and_replays_configuration_draw() {
+    use crate::rng::{FixedSeeds, RzRandomSuper};
+    let configs = (1..=3).map(|id| cfg(id, 0x100, &[1])).collect();
+    let (f, m, _) = lot_manager(configs);
+    f.piece(50, street(0x100, (20, 103)));
+    f.zone(19, 103, 1);
+    f.s.borrow_mut().lot_rect.insert(600, rect(21, 120, 22, 122));
+    let mut original = RzRandomSuper::new(
+        0x9e3d9501,
+        &FixedSeeds {
+            wall_clock: 0,
+            process_clock: 0,
+        },
+    );
+    let (state, index) = original.raw_state();
+    assert!(RzRandomSuper::from_state(state, 625).is_none());
+    m.set_random(Box::new(RzRandomSuper::from_state(state, index).unwrap()));
+    m.do_message(&NetworkLotMessage {
+        unknown: Some(600),
+        ..NetworkLotMessage::of_type(msg::LOT_STATE_CHANGED)
+    });
+    // This cell lies north of the rect; the old local-border walk omitted it.
+    assert_eq!(m.get_network_lot(20, 103).unwrap().config.unwrap().id, original.uniform_u32(3) + 1);
+    assert_eq!(m.random_state().unwrap(), original.raw_state());
+    // Restoring just before a twist must preserve the stream across reload.
+    for _ in 1..623 {
+        original.next_u32();
+    }
+    let (state, index) = original.raw_state();
+    let mut replay = RzRandomSuper::from_state(state, index).unwrap();
+    for _ in 0..4 {
+        assert_eq!(replay.next_u32(), original.next_u32());
+    }
+    assert_eq!(replay.raw_state(), original.raw_state());
 }
 
 // ---- lot objects, removal and messages ----

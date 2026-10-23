@@ -315,9 +315,15 @@ impl NetworkLotMessage {
 /// `0x00B44870` (§17).
 pub trait NetworkLotRandom {
     fn uniform_u32(&mut self, n: u32) -> u32;
+    fn raw_state(&self) -> Option<([u32; 624], usize)> {
+        None
+    }
 }
 
 impl NetworkLotRandom for crate::rng::RzRandomSuper {
+    fn raw_state(&self) -> Option<([u32; 624], usize)> {
+        Some(crate::rng::RzRandomSuper::raw_state(self))
+    }
     fn uniform_u32(&mut self, n: u32) -> u32 {
         crate::rng::RzRandomSuper::uniform_u32(self, n)
     }

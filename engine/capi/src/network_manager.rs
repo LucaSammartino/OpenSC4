@@ -1340,3 +1340,44 @@ pub unsafe extern "C" fn fc4_netlot_read(p: *mut fc4_netlot, inp: *const fc4_ist
         })
     })
 }
+
+/// Shadow replay input: 624 MT words followed by the next-word index.
+/// `words` must point to 625 readable u32s; invalid indices are refused.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_netlot_set_random_state(p: *mut fc4_netlot, words: *const u32) -> bool {
+    if words.is_null() {
+        return false;
+    }
+    let raw = std::slice::from_raw_parts(words, 625);
+    let mut state = [0; 624];
+    state.copy_from_slice(&raw[..624]);
+    let Some(rng) = fc4_core::rng::RzRandomSuper::from_state(state, raw[624] as usize) else {
+        return false;
+    };
+    with_l(p, false, |h| {
+        h.sim.set_random(Box::new(rng));
+        true
+    })
+}
+
+/// `words` must point to 625 writable u32s; no game state is read here.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_netlot_get_random_state(p: *const fc4_netlot, words: *mut u32) -> bool {
+    if words.is_null() {
+        return false;
+    }
+    with_l(p, false, |h| {
+        let Some((state, index)) = h.sim.random_state() else {
+            return false;
+        };
+        let out = std::slice::from_raw_parts_mut(words, 625);
+        out[..624].copy_from_slice(&state);
+        out[624] = index as u32;
+        true
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_netlot_pending_buckets(p: *const fc4_netlot) -> u32 {
+    with_l(p, 0, |h| h.sim.snapshot().pending.bucket_count() as u32)
+}

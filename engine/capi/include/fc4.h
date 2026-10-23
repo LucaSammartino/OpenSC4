@@ -12862,4 +12862,16 @@ bool fc4_dbpf_read_record(const fc4_dbpf* p, uint32_t type, uint32_t group, uint
 }
 #endif
 
+/* Network-lot shadow replay, network-manager §8.5 and §17.3.
+ * State buffers contain exactly 625 u32s: 624 MT words, then index 0..624. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+bool fc4_netlot_set_random_state(fc4_netlot* l, const uint32_t* words);
+bool fc4_netlot_get_random_state(const fc4_netlot* l, uint32_t* words);
+uint32_t fc4_netlot_pending_buckets(const fc4_netlot* l);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */

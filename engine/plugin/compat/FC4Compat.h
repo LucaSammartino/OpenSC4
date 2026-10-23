@@ -187,11 +187,18 @@ struct ExecutableVersion {
     // §11.2, NR14): SetPiece(u32 id, orientation byte zero-extended), thiscall, ret 8, no result. The SDK
     // header names this slot SetQuadDraw.
     uint32_t networkOccupantSetPieceVA;
+    // network-manager §17.2: file-local cRZRandomSuper raw state.
+    uint32_t networkLotRandomVA;
 };
 
 // The running executable if it is a table entry loaded at its preferred base
 // (once per process, logged), else nullptr.
 const ExecutableVersion* IdentifiedVersion();
+
+// Read-only shadow inputs. Refuse an unidentified executable or invalid
+// generator cursor / in-flight pending set (network-manager §8.5, §17.3).
+bool CaptureNetworkLotRandom(uint32_t* words625);
+bool CaptureNetworkLotPending(const void* manager, uint32_t* buckets);
 
 using StlNodeAllocateFn = void*(__cdecl*)(uint32_t size);
 using StlNodeFreeFn = void(__cdecl*)(void* block);

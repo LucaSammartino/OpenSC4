@@ -46,13 +46,12 @@
 //     against the original's, entry by entry: occupant and configuration ID;
 //     the pothole keys), the original's GetZoneTypeForNetwork /
 //     GetWealthForNetwork (slots 9, 10) against ours at every lot cell, and
-//     for a configuration that differs, whether both are compatible now
-//     (IsLotCompatible, §8.4): then it is a random draw (the original's
-//     generator is seeded from the clock, §8.5, §17), counted, not a
-//     mismatch. A core whose record differs restarts from the original's.
-//   - NM10 (open): the original does not restyle the first row's inner cells
-//     of a lot state message's grown rect; differences at the cells our core
-//     updated there are counted under NM10, not as mismatches.
+//     configurations are compared exactly. The original's raw generator
+//     input is captured once at bootstrap (§17.3); before and after each
+//     message its state and pending bucket count are checked, never copied.
+//     Differences remain visible for the city's lifetime: no record resync.
+//   - lot-state updates use the origin walk (§6.3, NM10/NM11) and drain
+//     pending cells in SGI hash-set order (§8.5, NM13); no cells are exempt.
 //
 // Log lines (always written, not the verbose channel):
 //   netmgr shadow: ON (...) | requested but INACTIVE (...)        game start
