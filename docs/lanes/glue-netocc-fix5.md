@@ -9,6 +9,8 @@
 - Train157 failures did not reproduce in this fresh build; do not claim a confirmed source-level crash cause.
 - Variant support is now a netocc-only capture subclass; shared WriteCapture constructor/data layout and variant rejection match main. No new global objects.
 - Netocc requires its ini key; absent/off key stores no city pointer and never captures, including when the old environment variable is set.
-- Next: commit isolation and run final qbuild all, then one city run to 2032.
+- Isolation committed as 7ca6b5fe; final qbuild all running (shell session 19033); do not duplicate it.
+- Final workspace tests PASS 6653/0/0; clippy PASS, zero diagnostics.
+- Native request qbuild-20261023-231436-build-ctest outstanding; collect same shell operation, then city through 2032.
 - Detached HEAD is intentional; never switch or update refs.
 - No game request outstanding.
