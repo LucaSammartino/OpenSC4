@@ -1,21 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-animation-tick-manager4: portable tick manager, first substantive implementation | Codex; core-animation-tick-manager4 | in progress | R2: run one stable committed-source all; retain TK1–TK4 boundaries. |
-
-## Handoff
-
-- Goal: finish actual final validation of the existing portable owner; no source expansion.
-- Done: implementation/tests already committed; starting R2 from clean 31a8a055.
-- Own R2 manifest verified: engine lane, expected worktree, round 2; detached HEAD retained.
-- Copied 04:38 process proof: old qbuild13056/verifier23772/stats8880 absent;
-  references/outputs/errors empty. Root did not kill them; historical quick terminal/cause UNKNOWN.
-- Fresh exact-worktree qbuild audit found no current conflicting checker.
-- Final all started from f01e83b5: actual session93072, driver26192, qbuild24600.
-- Next: collect that same session to terminal; do not duplicate or restart it.
-- Process creation/argv/cwd/output captured in `build-runs/animation-final-r2-session.json`.
-- Engine Git tree before gate: 85a62cdf7acf9604653dcabb12ee284bf76b45e4.
-- Driver SHA256 is a separate namespace; require matching before/after plus unchanged Git engine tree.
-- No game request outstanding; no source changes planned. Earlier report below is retained history.
+| core-animation-tick-manager4: portable tick manager, first substantive implementation | Codex; core-animation-tick-manager4 | ready: Rust 5375/0, clippy 0, native build passed, ctest 68/68; stable engine source | Land portable scope only; TK1–TK4 remain open. No native/default/whole-owner promotion. |
 
 ## Implementation
 
@@ -76,7 +61,7 @@ helpers. Signed-load/unsigned-correction/literal3A83126F/store gives V20 bits
 premature f32 cast (16777217→46831270). Other inherited PC/RC settings remain
 conditional. Phase0 rate preserves wrap+3 and deliberately has no zero guard.
 
-## Verification and remaining gate
+## Verification
 
 - Independent V1–20 ledger: `engine/core/tests/animation_tick_manager_vectors.md`,
   written before module execution; these are twenty proposed spec vectors, not twenty native runs.
@@ -91,21 +76,41 @@ conditional. Phase0 rate preserves wrap+3 and deliberately has no zero guard.
   created2026-10-23T02:56:18.209986Z; durable summary `build-runs/animation-baseline.json`.
 - Focused `qbuild quick` original session70309, PID13056 created
   2026-10-23T03:20:20.565438Z. Rust results above and incremental native4/4 are logged,
-  but **the terminal result has not been collected**. Driver records:
+  but **the historical terminal result and cause remain UNKNOWN**. Driver records:
   `build-runs/animation-focused.json` / `.log`; native/Rust details in
   `fc4verify-quick-test.log`, `fc4verify-quick-deps.log`, `fc4verify-build.log`.
-- No overlapping checker, RPC, kill or restart. Baseline's delay was observed in its
-  stats child; final success must come from the actual checker terminal, not log inference.
+- Copied coordinator 04:38 audit found old qbuild13056/verifier23772/stats8880 absent,
+  own references/outputs/errors empty, daemon35268 with only conhost and no compilers.
+  The coordinator explicitly did not kill the old client. Fresh R2 worktree audit
+  found no conflicting checker. No overlapping checker, cache RPC, kill or restart.
+  Baseline's delay was observed in its stats child; this does not establish the
+  historical quick's terminal result or cause.
 - New module/tests `qbuild fmt` **exit0**. Shared lib check reports existing module-list
   ordering diffs, also reproduced from baseline lib via stdin; no mass reformat.
   Initial relative-path fmt failed lookup; absolute worktree paths are required.
   q.py's Bash fallback was denied (durable q/20261023-041710-31284.log); PowerShell
   performed the read-only baseline comparison instead.
-- Final stable committed-source canonical **all is not yet run**. This lane is WIP,
-  not a final gate PASS. Source engine tree85a62cdf7acf9604653dcabb12ee284bf76b45e4;
-  focused driver engine_before SHA256
+- R2 ran exactly one final canonical `python build-runs/check-animation.py all animation-final-r2`.
+  Actual session93072 was collected to **terminal exit0**, matching durable driver exit0.
+  Started2026-10-23T03:43:25.289975Z, completed03:46:57.469995Z;
+  driver26192 created1792727004.9364383, qbuild24600 created1792727005.3237126.
+  Exact argv/cwd/output/session: `build-runs/animation-final-r2-session.json`;
+  durable terminal: `animation-final-r2.json`; wrapper output: `animation-final-r2.log`.
+- Final all: **5375 passed,0 failed,0 ignored**, summed over all **24** Rust summary rows;
+  clippy **exit0,0 diagnostics**; native build **PASS 2/2 edges,0.6s**;
+  ctest **68/68,0 failed,94.7s**; fc4verify **PASS,97.6s**. Final qbuild **PASS**.
+  This reran the actual 21 integration tests and 3310 core tests including the new unit.
+  Details: `qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`,
+  `fc4verify-ctest.log`, and `animation-final-r2-summary.json` in `build-runs/`.
+  The build/clippy logs include the existing `warn: could not canonicalize path C:\Users\tlori`;
+  it is not a Rust diagnostic and neither stage failed.
+- Source proof: Git engine tree before **and** after final all is
+  `85a62cdf7acf9604653dcabb12ee284bf76b45e4`. Separately, the driver's tracked-engine
+  content SHA256 before **and** after is
   `7b83e4ad490a677f1653eb4d9bdfce5ea44f3be7d7ae5d66ea41403b0ef1d762`.
-  Require the driver's terminal exit and matching engine_before/engine_after.
+  These are distinct hash namespaces. Gate started at f01e83b5; report checkpoint
+  eae3241e changed HEAD during the gate, with no engine diff. Final summary observed
+  clean tracked status. R2 changed no engine source and needed no corrective retest.
 
 ## Questions, scope and next steps
 
@@ -115,10 +120,6 @@ No game requests, native execution, shadows, whole-owner/body-byte credit, defau
 promotion, C ABI exports, SDK, CMake, plugin, consumers or coordinator changes.
 The 44-body/4286-byte and 234-byte helper inventories are attribution, not coverage.
 
-Next: collect **the existing** focused checker result first (do not start another
-quick/all while it is active). If it exits cleanly, run exactly one canonical final
-`python build-runs/check-animation.py all animation-final` on this committed source.
-That foreground driver records the exact owned child PID/creation/output, terminal
-exit and before/after tracked-engine SHA256. Sum every final Rust test-result row,
-record clippy/native/ctest totals, then update this report and queue to ready only
-when the actual terminal and stable source hashes establish success.
+Ready for the coordinator to land the tested portable scope. TK1–TK4 require
+published answers before extending the corresponding boundaries. No further round,
+source expansion, native/default/whole-owner credit, or game request is proposed.
