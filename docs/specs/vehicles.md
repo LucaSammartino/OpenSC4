@@ -33,7 +33,8 @@ the bus (station stops) and the getaway van. Their records are automata.md §6.4
 | `cSC4TrafficAutomaton` | `cSC4Automaton` | record automata.md §6.3 | §2 |
 | `cSC4Vehicle` | traffic automaton | `0x896E714A` | §3 |
 | `cSC4TrailerVehicle` | vehicle | `0x4A5B69ED` | §4 |
-| `cSC4TrainCar`, `cSC4Train` | vehicle | train record with car refs (`0x4A416254`) and a network occupant (`0xA821EF94`) | §5 |
+| `cSC4TrainCar` | vehicle | version 2 + Vehicle record | §5, §12.1 |
+| `cSC4Train` | train car | version 2 + TrainCar record, car refs (`0x4A416254`), independent network ref (`0xA821EF94`) | §5, §12.1 |
 | `cSC4Tank` | vehicle | vehicle record + two dwords | §6 |
 | `cSC4EmergencyVehicle` | vehicle | emergency record | §7 |
 | `cSC4FireTruck`, `cSC4PatrolCar` | emergency vehicle | + a ref (`0xA9B40F05`) | §7.2, §7.3 |
@@ -75,6 +76,9 @@ Each class has the usual `GetGZCLSID`, `Read`/`Write` (automata.md §6.4) and ad
 
 ## 3. The vehicle *[compat]*
 
+Plummet entry constants, splash duration and the loaded PullOver quirk are specified in §12.2;
+that clarification resolves the earlier conflicting descent descriptions in automata.md §6.5.
+
 - `Init` (`0x0055B9B0`) sets its flags and calls the traffic automaton's `Init`; `DoStateTick` adds states 14 and 21
   (automata.md §6.2); `DoPathTick`, `DoPlummetTick`, `DoPullOverTick` are automata.md §6.5.
 - **Collisions.** `HandleCollision` (`0x0055C8C0`) posts `0x49E64802`, picks a random direction, sets flag
@@ -96,6 +100,8 @@ at the car spacing, by segment intersection); its record lists the cars and the 
 AM10) *[summary]*.
 
 ## 5. Trains
+
+The exact TrainCar and Train record contracts, including load failure and reconstruction rules, are in §12.1.
 
 - `Init` (`0x00557A20`) makes the cars (`cSC4TrainCar::Init`, flag `0x10000000`), with random lengths and
   colours *[summary]*; `Shutdown` releases them.
@@ -170,7 +176,7 @@ damages what it hits *[summary]*; `DoPlayerDriveTick` plays the AEMS events. Its
 
 ## 10. Open questions
 
-See [questions/vehicles.md](questions/vehicles.md) (VH1–VH2).
+See [questions/vehicles.md](questions/vehicles.md). Record and loaded-state clarifications are in §12.
 
 ## 11. Conformance tests
 
@@ -181,3 +187,108 @@ See [questions/vehicles.md](questions/vehicles.md) (VH1–VH2).
 3. A fire truck in state 5 with no fire and no spill nearby moves to state 2; with none in the city it then goes
    home.
 4. `FindLeaderInTile` returns the nearest eligible automaton of the tile, ignoring height.
+
+## 12. Vehicle owner clarifications *[compat]*
+
+### 12.1 Train and TrainCar records (VH3)
+
+Train **inherits TrainCar**, which inherits Vehicle. The two names in §1 must not be interpreted as two
+independent direct subclasses of Vehicle. TrainCar uses the same small version wrapper as Bus; the folded
+Windows function names happen to say Bus. TrainCar's serializable vtable at `0x00A9C894` selects Write
+`0x00524160`, Read `0x00557010`, and class ID getter `0x0055B240`. Its queried car interface is
+`0x4A416254` (`QueryInterface`, `0x00557040`).
+
+The wire sequence is as follows. Integers use the existing stream's little-endian scalar encoding; `ref`
+means the shared GZ-serializable reference protocol, not a pointer-sized integer or an inline class record.
+
+| Owner | Ordered wire fields |
+|---|---|
+| TrainCar | `u16 2`; complete Vehicle record from automata.md §6.4. No TrainCar-specific trailing fields. |
+| Train | `u16 2`; complete TrainCar record (therefore another `u16 2`, followed by Vehicle); `u32` car count; that many car `ref`s; one raw 32-bit field from owner `+0x2C0`; `vec3` from `+0x2D4`; network-occupant `ref`; one raw 32-bit field from `+0x2E4`. |
+
+The final four entries are independent of the nested traffic record's network reference. In particular,
+do not collapse the train's trailing network reference into the inherited reference. The car list is in
+stored order; the reference reader requests IID `0x4A416254` for each car and IID `0xA821EF94` for the
+train's trailing network occupant. The two raw 32-bit fields must round-trip bit-for-bit; their scalar
+encoding does not authorize converting them to a different native type.
+
+Each wrapper accepts **exactly** version 2, not every version at most 2. Train first consumes and checks its
+own two bytes; a mismatch returns false without entering TrainCar. It then consumes and checks the
+TrainCar version; a mismatch returns false without entering Vehicle. Vehicle failure returns false and
+prevents the train tail from being read. No rewind or transactional rollback is provided. TrainCar
+returns the result of Vehicle Read/Write. Train Write emits both version words before calling Vehicle
+Write, and emits its tail only if that succeeds.
+
+On a successful nested Vehicle Read, Train reads every declared car reference. A null reference is
+**skipped**, rather than occupying an empty element or failing the whole Train Read. Each non-null car is
+appended to the owned list; this routine does not clear an existing list first. After those reads it
+reads the raw field and vector, releases any previous trailing network occupant, reads its replacement,
+and reads the last raw field. Its result remains the nested Vehicle result: there is no additional
+explicit failure test for a null car or network reference. Reference/stream framework exceptions remain
+framework failures. There is no extra car placement, model generation or path-point reconstruction in
+this wrapper; inherited Vehicle/traffic Read behavior still applies. *[quirk]* Loading into an already
+populated object therefore must not be specified as atomic replacement of the car list.
+
+Evidence: Train Write `0x00557930`; Train Read version checks `0x0055AAE5–0x0055AB32`, car-reference and
+append instructions `0x0055AB50–0x0055ABB0`, trailing fields `0x0055ABB2–0x0055AC0A`; TrainCar wrapper
+version instructions `0x0052416A–0x00524174`, `0x00557021–0x00557033`.
+
+Conformance vectors:
+
+| Input / operation | Required observation |
+|---|---|
+| Read TrainCar with leading `u16 1` | False after consuming two bytes; Vehicle reader not entered. |
+| Read Train with leading versions `2, 3` | False after consuming four bytes; Vehicle reader not entered. |
+| Write empty Train with successful Vehicle writer | Prefix `u16 2, u16 2`, nested Vehicle record, `u32 0`, then both raw fields, vector and trailing network reference in the table's order. |
+| Successful Train Read declares three car refs `[A, null, B]` | All three references consumed; owned list gains `[A, B]` in that order; result is true. |
+| Same load with existing owned list `[X]` | Resulting list `[X, A, B]`; no implicit release of X by this reader. |
+| Nested Vehicle Read fails | False; no train car-count or tail read. |
+| Successful load has a null trailing network ref | Old trailing network reference released; replacement null; no extra Train failure solely for null. |
+
+### 12.2 Plummet entry, splash and loaded pull-over (VH8)
+
+The entry rule for state 14 is the base automaton's `HandleEnterState`, reached through the vehicle and
+traffic overrides. It sets plummet vertical speed (`state+0x28`) to binary32 **`0xBB88888A`**, approximately
+**−0.00416666735**, the orientation oscillation coefficient (`+0x2C`) to **0.5**, the saved orientation-Y
+centre (`+0x30`) to the current orientation Y, and the initial wobble countdown (`+0x34`) to a uniform
+double draw in **[1.0, 2.5)** multiplied by double **1000.0**, then stored as binary32 milliseconds.
+Splash countdown (`+0x38`) is zero and the unsaved splash effect (`+0x3C`) is null. These are entry values,
+not reconstructed values to apply after reading a saved plummet state.
+
+The separate **−0.00083333347** value is the later downward acceleration coefficient used by
+`DoPlummetTick`; it is not the entry vertical speed. The third value, binary32 **`0x3991A2B5`**
+(approximately **+0.000277777814**), replaces vertical speed when the falling vehicle reaches water above
+the ground. It is the splash-phase upward speed. Preserve these three distinct quantities rather than
+choosing one of the previously conflicting descriptions. Evidence: entry stores
+`0x00511517–0x00511539`; acceleration initialization in `0x0055E1F0`; splash-speed store in that same
+tick, before effect creation.
+
+On that water transition the effect named `car_splash` is placed at the contact point and started. There
+is **one uniform double draw in [0,1)** from the shared automata random generator, narrowed to binary32
+seconds, supplied to the automaton's fade-to-zero call. The same narrowed seconds value multiplied by
+binary32 **1000.0** becomes the state's splash countdown in milliseconds. There is no added minimum or
+separate random-duration draw. The effect itself is not serialized. Ground contact instead clears the
+countdown and removes the occupant. The existing state tick's strict expiration boundary remains in
+force; this clarification does not change it. Evidence: RNG call and narrowing `0x0055E4E0–0x0055E4EA`,
+fade `0x0055E4EE–0x0055E4F9`, milliseconds conversion `0x0055E4FF–0x0055E50A`.
+
+PullOver's unsaved direction vectors are **not rebuilt by Read** when its saved elapsed counter is
+nonzero. The initialization branch of `DoPullOverTick` tests exact equality of `state+0x28` to zero;
+only that branch captures and normalizes the current orientation and constructs the perpendicular
+pull-over direction. A loaded positive elapsed counter bypasses that branch and uses the state
+object's existing vectors. Do not reset elapsed or synthesize fresh vectors from the occupant's
+orientation. A portable loader must retain the state factory's initialization for the unsaved vectors;
+if a caller supplies an existing state, those vectors remain as supplied. This is literal behavior,
+even when it produces a stationary or otherwise odd loaded pull-over. *[quirk]* Evidence: the exact-zero
+branch and vector initialization in `0x0055E550`; the saved-state layout is automata.md §6.5.
+
+Conformance vectors:
+
+| Input / operation | Required observation |
+|---|---|
+| Enter plummet with orientation Y = 0.25; range RNG returns 1.75 | Speed bits `0xBB88888A`, oscillation 0.5, centre 0.25, wobble 1750 ms, splash 0, null effect. |
+| Load a plummet record with custom five saved floats | Preserve the five floats; do not rerun the preceding entry draw. |
+| Water contact; uniform RNG returns exactly 0.25 | One RNG call; fade-to-zero duration 0.25 s, splash countdown 250 ms, vertical speed bits `0x3991A2B5`. |
+| Ground contact | Removal; no random splash duration and no `car_splash` effect. |
+| PullOver elapsed 0, nonzero orientation | First tick captures/normalizes orientation and constructs its perpendicular. |
+| PullOver elapsed 250, existing unsaved vectors U and V | First tick bypasses initialization and uses U and V unchanged by load, even if occupant orientation differs. |
