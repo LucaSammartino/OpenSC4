@@ -5,8 +5,9 @@
 ## Handoff
 - Goal: close the seven assigned particle owners against particles.md; core only, no ABI changes.
 - Done: extended existing emitter with full creation/motion records and draw-before-finish commands; added geometry, decal, dynamic, description/sequence and noncontact body contracts.
-- Done: focused pre-review run passed 43 particle tests (26 existing plus 17 new); later ownership/bootstrap audit corrections require final verification.
-- Next: collect qbuild all session 84690 (pre-review source; do not duplicate); inspect diagnostics, run final stable gate after review corrections.
+- Done: implementation milestone be820a12; focused pre-review run passed 43 particle tests; later ownership/bootstrap audit corrections require final verification.
+- Gate 1: 6456 tests passed, 0 failed/ignored; clippy failed on four redundant conversions/casts, now fixed; full failed evidence build-runs/first-gate-clippy.log.
+- Next: collect SAME qbuild all session 84690, native queue qbuild-20261023-214445-build-ctest (pre-review source); then run all once on corrected stable source. Do not duplicate pending operation.
 - Review corrections: uninitialized geometry teardown source leak, pending decal handle retry leak, body angle/friction Unsupported prefix, constructor empty containers, explicit PT13 bootstrap boundary.
 - Open: PT1/2/3/8/9/10/11 existing numeric limits; filed PT12 primary-sector spec conflict and PT13 ordinary bootstrap/transform inventory.
 - Native game requests: none; core-only and no plugin/capi wiring.

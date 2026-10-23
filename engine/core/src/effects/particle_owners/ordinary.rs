@@ -204,9 +204,9 @@ impl Motion {
             self.preferred = direction.map(|v| {
                 std::array::from_fn(|i| {
                     let row = self.inverse_rotation[i];
-                    ((f64::from(row[0]) * f64::from(v[0])
-                        + f64::from(row[1]) * f64::from(v[1])
-                        + f64::from(row[2]) * f64::from(v[2]))
+                    ((f64::from(row[0]) * v[0]
+                        + f64::from(row[1]) * v[1]
+                        + f64::from(row[2]) * v[2])
                         / f64::from(self.inverse_scale)) as f32
                 })
             });
@@ -380,7 +380,7 @@ impl Motion {
                 } else {
                     (p[2] * r[2] + p[1] * r[1]) + p[0] * r[0]
                 } as f32;
-                ((sum * self.inverse_scale) + self.inverse_translation[i]) as f32
+                (sum * self.inverse_scale) + self.inverse_translation[i]
             });
             let inside = q[0] > 0. && q[2] > 0. && q[0] < extent[0] && q[2] < extent[1];
             if !inside && self.flags() & 0x800 != 0 {
