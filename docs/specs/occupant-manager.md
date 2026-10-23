@@ -941,7 +941,7 @@ made by the code that uses them. The 3D view's view filter is a realistic filter
 - `AreModelsAvailableForZoomAndRotation` returns 0 when the first model is **found** and 1 when it is missing, so the
   missing-plugin-pack filter takes the occupants whose model is missing;
 - the hover filter needs property `0x8A416A99` for props as well as for flora;
-- the demolish-by-networks filter **excludes** the occupants that answer `0xA9764C8C` (`NEG`/`SBB`/`INC`);
+- the demolish-by-networks filter **excludes** the occupants that answer `0xA9764C8C`;
 - the inside-lot box is the lot's cell rectangle (lot slot 14), not its centre;
 - the class names are the exe's own ID table's ([re/class_id_table.tsv](../../re/class_id_table.tsv)): `0xE9C75ED1`
   is `cSC4OccupantTypeFilter`, `0xE9C75EE8` `cSC4OccupantTypesFilter`, `0xAA25CB90` `cSC4OccupantTypesFilterHashed`
@@ -1170,7 +1170,7 @@ the others keep the base's true.
 
 **Missing plugin packs.** The filter holds a zoom (`+0xC`) and a rotation (`+0x10`), both 0 when made.
 **`IsOccupantIncluded(o)`**: false when `o`'s holder lacks property `0x6A871B82`; otherwise true exactly when
-`AreModelsAvailable(o)` is 1 (`DEC`/`NEG`/`SBB`/`INC`).
+`AreModelsAvailable(o)` is 1.
 - **`AreModelsAvailableForZoomAndRotation(o, zoom, rotation, …)`** (`0x0048C300`): the model instances of `o` at that
   zoom and rotation (`cSC4ModelMakerUtility::GetAllModelInstanceIDs`, graphics-formats.md GF7). No non-zero instance →
   2. Otherwise the first non-zero one is looked up in the resource manager (`0x00B43CA8`, slot 3, IID
@@ -1233,15 +1233,21 @@ field and set `+0x2E` to 1.
 
 **`IsOccupantIncluded(o)`** (`0x0079F7F0`), with `t` = `o`'s type:
 
-1. `t` = `0x497F6D9D` (a lot base texture): the lot at the low corner of `o`'s cell rectangle (occupant slot 11; lot
-   manager `0x00B43D08` slot 6, with 0). No lot, or a lot whose `GetState()` (lot slot 33) is below 2 (an empty lot)
-   → the answer is `+0x2E`.
-2. `r` := `+0x2C`, inverted when `t` is in the type list.
-3. When `r` is true, `t` is a network (`0xC772BF98`) and `o` answers `0xA821EF94`: `r` := `+0x2D`, inverted when the
-   network occupant's slot 22 is true for a group of the group list (tested in order, the first hit counts).
-4. `r` true → true. Otherwise either optional filter that accepts `o` (slot 3) → true.
-5. With `+0x2E` set, a prop (`0xA823821E`) that answers `cISC4PropOccupant` (`0xE9793A65`) with prop type (prop slot
-   7) `0xAB72FBB3` (a signpost) or `0xCB79919B` (a text decal) → true. Otherwise false.
+An empty-lot base texture has priority over all other rules: for type `0x497F6D9D`,
+the lot is found at the low corner of the occupant's cell rectangle (occupant slot
+11; lot manager `0x00B43D08` slot 6, with 0). With no lot, or with lot state below 2
+(lot slot 33), inclusion equals `+0x2E` and optional filters cannot override it.
+
+For other occupants, define type acceptance as membership in the type list XOR
+the invert-type flag `+0x2C`. A type-accepted network (`0xC772BF98`) that answers
+`0xA821EF94` additionally needs group acceptance: membership in any listed group
+(network slot 22, list order) XOR `+0x2D`. Non-networks and networks lacking that
+interface need only type acceptance for this route to inclusion.
+
+An occupant rejected by that route is still included if either optional filter
+accepts it (slot 3), or if `+0x2E` is set and it is a prop (`0xA823821E`) answering
+`cISC4PropOccupant` (`0xE9793A65`) whose prop type (slot 7) is signpost
+`0xAB72FBB3` or text decal `0xCB79919B`. Otherwise it is excluded.
 
 The map view builds it from the data view exemplar ([map-view.md](map-view.md) §2): the non-zero types of
 `0x4A0B47E0` go to the type list; `+0x2C` is the bool `0x4A0B47E1` when present, else 1 without `0x4A0B47E0` and 0

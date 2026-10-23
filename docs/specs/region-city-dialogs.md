@@ -601,27 +601,27 @@ effect directory, CY10).
 
 #### 5.5.1 Isolated removal (`DoIsolatedRemoval`, `0x0049D5A0`)
 
-```
-t        := sceneClock / 1,000,000                      // seconds, float
-if t < curve.maxInput:
-    target := round(curve(t))                           // nearest, ties to even (x87 default)
-    delta  := target - removed
-    if delta > 0:
-        removed := target
-        repeat up to delta times, while the iterator has blocks:
-            (bx, bz) := iterator.next()                 // random order
-            rect := the block's cells, clipped to the city
-            if processed == 0 or skipped >= 6 or occupied(rect):
-                sparkles at the rect's centre; skipped := 0
-            else:
-                skipped := skipped + 1
-            DemolishRegion(doIt = true, mask = all cells of rect, privilege = 0, flags = 0x2000,
-                           dezone = false, callerFilter = the tool's filter, no cost, no result set, 0, 0, 0)
-            processed := processed + 1
-        if the iterator ran out: goto smoke
-    return
-smoke: StartSmokeScreenFormingState
-```
+The removal schedule uses the scene clock in seconds, represented as a float:
+`t = sceneClock / 1,000,000`. At or beyond the curve's maximum input, the scene enters
+the smoke-forming state without another isolated-removal batch.
+
+Before that deadline, the cumulative block target is the curve value rounded to
+the nearest integer, with ties to even under the default x87 rounding mode. A tick
+whose target exceeds the previous target processes that increase in one batch;
+an unchanged or lower target does no work and leaves the previous target intact.
+The recorded target advances to the new value even if fewer blocks remain.
+
+Blocks follow the iterator's random order and their cell rectangles are clipped
+to the city. For each block, any sparkles are created before demolition. Sparkles
+occur for the first processed block, for an occupied block, or after six skipped
+blocks; a sparkle resets the skip count, and a block without one increments it.
+Every processed block is demolished, whether or not it sparkles, and contributes
+one to the processed count. Exhausting the iterator during a batch starts the
+smoke-forming state immediately.
+
+Demolition commits all cells of the clipped rectangle with privilege 0, flags
+`0x2000`, no dezoning, the tool's filter, no cost output and no result set; the
+remaining three optional arguments are zero (demolition.md §4.4).
 
 With the shipped curve the target is `round(4 + 1.6 t)`: 4 blocks on the first tick, 6 at 1 s, 8 at 2.5 s, 12 at
 5 s, 16 at 7.5 s and 20 just before 10 s. That is 20 of the 256 blocks of a small city (8 %), so the city is **mostly
