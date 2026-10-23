@@ -2443,7 +2443,7 @@ Only handlers with published sections have execution contracts here.
 
 | Order | Literal | Descriptor | Direct handler | Owner / contract |
 |---:|---|---|---|---|
-| 1 | `zoom` | `00A9FB78` | `005970E0` | unnamed |
+| 1 | `zoom` | `00A9FB78` | `005970E0` | unnamed; §19.18 |
 | 2 | `color` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand` |
 | 3 | `alpha` | `00A9FB58` | `0059C060` | unnamed |
 | 4 | `size` | `00A9FB48` | `005998E0` | unnamed |
@@ -2454,14 +2454,14 @@ Only handlers with published sections have execution contracts here.
 | 9 | `force` | `00A9FAF8` | `0059A820` | `cParticleForceCommand` |
 | 10 | `warp` | `00A9FAE8` | `0059B680` | `cParticleWarpCommand` |
 | 11 | `randomWalk` | `00A9FAD8` | `005979B0` | `cParticleRandomWalkCommand` |
-| 12 | `stretch` | `00A9FAC8` | `00597C60` | unnamed |
-| 13 | `life` | `00A9FAB8` | `00597CD0` | `cParticleLifeCommand` |
-| 14 | `rate` | `00A9FAA8` | `0059CA70` | `cParticleRateCommand` |
-| 15 | `inject` | `00A9FA98` | `0059CBB0` | `cParticleInjectCommand` |
-| 16 | `maintain` | `00A9FA88` | `0059CC20` | `cParticleMaintainCommand` |
+| 12 | `stretch` | `00A9FAC8` | `00597C60` | unnamed; §19.18 |
+| 13 | `life` | `00A9FAB8` | `00597CD0` | `cParticleLifeCommand`; §19.18 |
+| 14 | `rate` | `00A9FAA8` | `0059CA70` | `cParticleRateCommand`; §19.19 |
+| 15 | `inject` | `00A9FA98` | `0059CBB0` | `cParticleInjectCommand`; §19.19 |
+| 16 | `maintain` | `00A9FA88` | `0059CC20` | `cParticleMaintainCommand`; §19.19 |
 | 17 | `texture` | `00A9FA78` | `005A10B0` | `cParticleTextureCommand` |
 | 18 | `model` | `00A9FA68` | `005A1340` | `cParticleModelCommand` |
-| 19 | `align` | `00A9FA58` | `00597FB0` | `cParticleAlignmentCommand` |
+| 19 | `align` | `00A9FA58` | `00597FB0` | `cParticleAlignmentCommand`; §19.20 |
 | 20 | `collide` | `00A9FA48` | `00598120` | `cParticleCollisionCommand` |
 | 21 | `terrainRepel` | `00A9FA38` | `00598320` | `cParticleTerrainRepelCommand` |
 | 22 | `effectBase` | `00A9FA28` | `0059D8F0` | `cParticleEffectBaseCommand`; §19.16 |
@@ -2488,3 +2488,182 @@ remaining child algorithms.
 | EC69 | construct a particles command with successful allocations | 27 registrations in table order, 23 distinct descriptor identities, one four-byte allocation per entry |
 | EC70 | compare `color`, `color255`, `colour`, `colour255` registrations | four different descriptor objects with identical descriptor address and handler; no alias-specific object field |
 | EC71 | compare `alpha` and `alpha255` registrations | different descriptor objects, both `00A9FB58` and handler `0059C060`; neither is a block command |
+
+### 19.18 Particle `zoom`, `stretch` and `life`
+
+Coordinates in the particle child contracts use the same `P` as §19.13 and
+`D=P+F0`. Scalar stores described as floats are binary32. Numeric conversion,
+reader selection and exception transport remain services as in §19.1 and
+effects-parser §§9,12. A command's completed writes and switch marks survive
+a subsequent conversion, reader or generic post-check error. No transaction
+or automatic rollback is installed by these owners.
+
+`zoom` (`005970E0`, descriptor `00A9FB78`) requires at least two **raw**
+records including the command record. Otherwise it throws `Not enough
+arguments`. It calls ParseUint on raw record 1 and discards the result.
+There is no description write, live-name guard, positional finder, switch
+lookup or zoom-range validation in this handler. Later raw records are ignored
+by the owner. Thus this command can reject a malformed number while making
+no description change even on success. A dash-prefixed raw record is still
+the operand sent to conversion; generic switch handling is separate.
+
+`stretch` (`00597C60`, descriptor `00A9FAC8`) has the same raw-count rule
+and error, also without a live-name guard or switch lookup. It converts raw
+record 1 with ParseFloat and stores the result at `D+DC` (`P+1CC`). Extra
+records are ignored by the owner. It supplies no default when the operand is
+missing, performs no clamp, and does not change a flag word.
+
+`cParticleLifeCommand` (`00597CD0`) instead selects at least one nonswitch
+value, ignoring the finder's return value. Let `m` be ParseFloat of selected
+value 0 **rounded to binary32 before either arithmetic operation**. Let `r`
+be ParseFloat of selected value 1 if supplied, otherwise zero. The second
+conversion result is retained in x87 precision without a binary32 store
+before use. Store `m-r` at `D+0C` and `m+r` at `D+10`, each rounded to
+binary32 independently. Values after the second are ignored. No positivity,
+ordering, finite-value or nonnegative-radius test is added by the owner.
+Negative r therefore reverses the ordinary lower/upper ordering.
+
+After both bound stores, look up `preroll` with minimum one. If present,
+convert its first value with ParseFloat and store binary32 at `D+1C`.
+If absent, copy the stored binary32 `m` to `D+1C`, even when a previous
+life command set a different preroll. No other fields or flags change.
+There is no particles-name guard here. A second positional conversion failure
+precedes both bound writes; a preroll failure follows both and leaves the old
+preroll in place.
+
+Evidence: raw-count/conversion/no-write zoom `005970E0–00597138`; stretch
+`00597C60–00597CC2`, store `00597CB6`; life selection and first rounding
+`00597CD7–00597D01`, second operand `00597D05–00597D33`, arithmetic/store
+order `00597D37–00597D60`, preroll `00597D62–00597DA0`. All arithmetic and
+store widths were checked against instruction bytes.
+
+### 19.19 Particle rate list, injection, maintenance and rate options
+
+These three owners write the float list at `D+88` (`P+178`). They do not
+require the live particles name to be nonempty and do not look up a named
+collection or create a runtime particle system. Omitted options retain
+previous description values, except for the explicit defaults below. All
+bit operations preserve unrelated bits; none of these owners clears a mode
+bit left by an earlier command.
+
+| Owner | Initial selection and result | Further processing |
+|---|---|---|
+| `cParticleRateCommand`, `0059CA70` | First look up `inject` with minimum one. If present, resize the list to length one, ParseFloat only its first argument and replace element 0; OR `D+00` with 2. Positional values are not selected on this path. If absent, select at least one nonswitch value; on a nonzero **full EAX** finder result, clear the old list and append ParseFloat of every selected value, rounding each to binary32. A stipulated returning zero EAX preserves the old list. | Apply the common rate options below on either path. Normal minimum-value failure is the reader's exception, not a synthesized empty rate curve. |
+| `cParticleInjectCommand`, `0059CBB0` | Select at least one nonswitch value; ignore finder return. Resize list to length one, convert first selected value with ParseFloat, replace element 0, then OR `D+00` with 2. Further selected values are ignored. | Apply the common rate options below. It does not look up `inject`. |
+| `cParticleMaintainCommand`, `0059CC20` | Select at least one nonswitch value; ignore finder return. Resize list to length one, convert first selected value with ParseFloat, replace element 0, then OR `D+00` with 4. Further selected values are ignored. | Look up **only** `delay` with minimum one; if present, assign the endpoint pair below to `D+20,+24`. It does not run the common rate options. |
+
+Resizing to one retains the previous element 0 when one exists and initializes
+a newly grown element to zero; it truncates extra elements **before** conversion.
+Consequently a conversion failure can leave the truncated old first value or
+a new zero. The mode-bit OR occurs only after successful conversion/store.
+The ordinary rate-list path clears the old list before its first conversion:
+a failing conversion leaves the successfully appended prefix. The helper
+misnamed `normalized` in the export (`00464180`) erases a vector range; this
+is a list clear, not numeric normalization.
+
+The owned **endpoint-pair helper** `005965B0` converts selected value 0 with
+ParseFloat and rounds it to binary32. If there is a second selected value,
+convert that with ParseFloat and return the two endpoints, each binary32;
+otherwise return two copies of the first. Extra values are ignored. It does
+not interpret a midpoint/radius, reorder, clamp or test the endpoints. A
+failure of the second conversion precedes either destination-field write.
+
+The common rate-option handler `00597DB0` queries these options **in table
+order**, independently of their textual order. Each row completes before the
+next is queried. All finder comparisons use AL except the positional rate
+path's full-EAX comparison noted above.
+
+| Order | Option / minimum | Result when present; result when absent |
+|---:|---|---|
+| 1 | `loop` / 1 | ParseFloat first value to `D+14`; if at least two values, ParseUint second to integer `D+18`; otherwise retain old `D+18`. Absent retains both. |
+| 2 | `single` / 0 | First value, if any, ParseFloat to `D+14`; with zero values store binary32 bits `3A83126F` (0.001 rounded). Then set integer `D+18=1`. Absent retains both. It overrides completed `loop` writes. |
+| 3 | `sustain` / 0 | OR `D+00` with `00000008`; absent retains flags. |
+| 4 | `scale` / 0 | OR `D+00` with `00080000`; absent retains flags. |
+| 5 | `areaScale` / 0 | OR `D+00` with `00100000`; absent retains flags. |
+| 6 | `volumeScale` / 0 | OR `D+00` with `00200000`; absent retains flags. These three scale flags can coexist. |
+| 7 | `delay` / 1 | Endpoint pair to `D+20,+24`; absent retains both. |
+| 8 | `trigger` / 1 | Endpoint pair to `D+28,+2C`; if found, omit `retrigger` lookup entirely. |
+| 9 | `retrigger` / 1 | Queried only if trigger absent. Endpoint pair to the same `D+28,+2C`; if both absent retain both. |
+
+Zero-minimum flag options do not parse any supplied values. `loop` ignores
+values after its second; `single` ignores values after its first. No option
+sets an implicit count unless specified above. The two alias options trigger
+and retrigger are not both consumed when both appear. Their leftover-switch
+consequence follows the generic nested post-check policy, after completed
+description changes. A later failure retains the base rate/injection change
+and every earlier option's changes. For example, failed loop count conversion
+retains the new loop duration but old count and skips single and all later
+options.
+
+Evidence: rate injection and full-EAX branch `0059CA77–0059CB1B`, append
+loop `0059CB20–0059CB91`, common call `0059CB94–0059CB96`; inject list,
+flag and helper call `0059CBB7–0059CC12`; maintain `0059CC2A–0059CCBA`;
+resize service `00464130`, erase helper `00464180–004641A3`; endpoint helper
+`005965B0–00596622`; common loop/single `00597DB9–00597E75`, flag ORs
+`00597E7F–00597EFE`, endpoint destinations and alias priority
+`00597F08–00597F95`. These instructions establish float stores versus
+integer count/flag stores; the pseudocode alone is not the numeric evidence.
+
+### 19.20 Particle `align`
+
+`cParticleAlignmentCommand` (`00597FB0`, descriptor `00A9FA58`) first
+requires the live particles name at `P+E0` to be nonempty, otherwise throws
+`Not in particles block`. It then requires at least two raw records, otherwise
+throws `Not enough arguments`. The guard is the name test, not a generic
+stack-type test. It calls the foreign ParseEnum on **raw record 1**, table
+`00B0A450`, final argument 0, with pairs `camera=0`, `ground=1`, `dirX=2`,
+`dirY=3`, `dirZ=4` and a null terminator. It stores the low byte of the
+return value at `D+D5` (`P+1C5`). Enum text conversion/failure remains a
+primitive service; this owner supplies no extra fallback branch.
+
+Next look up `damp` with minimum one: if present, convert its first value
+with ParseFloat and store binary32 at `D+198` (`P+288`). If absent retain
+the previous value. Then look up `bank` with minimum two. If bank is found,
+do not query `windBank`. Otherwise look up `windBank` with minimum two;
+when it is found, OR `D+08` with `80` **before converting either value**.
+On either successful lookup, ParseFloat the first value to `D+19C`
+(`P+28C`), then the second to `D+1A0` (`P+290`), each binary32. If neither
+lookup succeeds, retain both fields and flags. There is no angle conversion,
+normalization, clamp, or clearing of the wind-bank bit on a later bank command.
+Extra raw/option values are ignored by the owner.
+
+An enum conversion failure leaves all these fields unchanged. A damp failure
+retains the new alignment byte. A windBank first-value failure still retains
+its newly set flag; a second-value failure additionally retains the new first
+bank field. When bank and windBank coexist, windBank remains unqueried, which
+can cause the later generic post-check failure.
+
+Evidence: name guard `00597FB8–00598009`; raw count, enum call and byte store
+`0059800E–00598072`; enum pairs `00B0A450–00B0A47C`; damp lookup/store
+`00598060–00598095`; bank/windBank precedence and flag
+`0059809E–005980D0`; separate binary32 stores `005980EB–0059810D`.
+
+### 19.21 Particle scalar/rate/alignment conformance vectors (unexecuted)
+
+These are static predictions with independently stipulated reader/conversion
+replies, not executed native or shadow results. Unless specified otherwise,
+the live name is `P`, all unrelated description state is sentinel-filled,
+conversions return the displayed exact values, and absent options return false.
+Generic reader and post-check behavior is as in effects-parser §§9,12.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC72 | direct zoom owner with only command record | `Not enough arguments`; no conversion or description write |
+| EC73 | empty live name; raw `zoom 9 ignored` | ParseUint on raw 1 only, result discarded; description unchanged; no name error or owner option lookup |
+| EC74 | empty live name; raw `stretch -2 ignored`; ParseFloat=-2 | `D+DC=-2`; no selection or option lookup and no flag change; raw dash operand still sent to conversion |
+| EC75 | `life 5 2 ignored`, preroll absent | bounds `D+0C=3,+10=7`, `D+1C=5`; third selected value unconverted |
+| EC76 | `life 5 -2 -preroll 9` with reader selecting the two displayed values | bounds 7,3 without reorder; preroll 9 |
+| EC77 | life selected m=5, r=2; preroll lookup returns value whose conversion throws; old preroll=99 | new bounds 3,7 survive; preroll stays 99 |
+| EC78 | life first ParseFloat returns extended `1+2^-24`, second returns zero | first rounds to binary32 1 (nearest-even); both bounds and absent preroll become 1 |
+| EC79 | old rate list `[9,8,7]`; `rate 2 bad 4`; second conversion throws | old list cleared; resulting prefix `[2]`; no common option lookup |
+| EC80 | old rate list `[9,8,7]`; `rate 100 -inject 6 7`; inject finder selects 6,7 | list `[6]`, flag bit 2 set; 7 unconverted and positional 100 unselected; common options still queried |
+| EC81 | old list `[9,8]`, flag word 0; direct `inject bad`; conversion throws | list truncated to `[9]`, no bit 2 write and no common options |
+| EC82 | empty list, flags=2; `maintain 8 99 -delay 7 3` | list `[8]`, flags=6, delay endpoints 7,3 without reorder; 99 ignored; only delay queried after base selection |
+| EC83 | direct inject with value 4, options `loop`=(8,6), `single`=zero values, sustain/scale/areaScale/volumeScale present | list `[4]`; duration bits `3A83126F`, integer count 1; flags OR mask `0038000A`; table-order lookups regardless of text order |
+| EC84 | rate with loop=(8,bad), single present; old loop count=7; uint conversion throws | new base rate list and duration 8 survive; count remains 7; single not queried |
+| EC85 | inject 4, old count=7; loop=(8) only | duration 8, count remains 7; injection does not imply single count |
+| EC86 | inject 4; delay=(6); trigger=(9,2); retrigger also present; nested post-check enabled | delay 6,6; trigger endpoints 9,2; retrigger unqueried; generic leftover-switch error occurs after writes |
+| EC87 | empty live name, raw `align` without operand | `Not in particles block` precedes raw-count error; no enum call |
+| EC88 | name P; raw `align dirZ ignored`; ParseEnum returns 4; damp/bank/windBank absent | byte `D+D5=4`; all three float fields and wind flag retained |
+| EC89 | name P; align returns 1; damp=2; bank=(3,4), windBank present | byte 1, damp 2, bank fields 3,4; windBank unqueried; no newly set wind flag; later post-check can fail |
+| EC90 | name P; bank absent; windBank selected values 3,bad; second conversion throws | wind flag OR 80 and first bank field 3 survive; second bank field retained |
