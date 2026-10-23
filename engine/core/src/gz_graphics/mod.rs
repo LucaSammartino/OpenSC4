@@ -23,17 +23,32 @@ pub struct Rect(pub i32, pub i32, pub i32, pub i32);
 impl Rect {
     pub fn intersect(self, b: Self) -> Self {
         let r = Self(self.0.max(b.0), self.1.max(b.1), self.2.min(b.2), self.3.min(b.3));
-        if r.0 >= r.2 || r.1 >= r.3 { Self::default() } else { r }
+        if r.0 >= r.2 || r.1 >= r.3 {
+            Self::default()
+        } else {
+            r
+        }
     }
-    pub fn width(self) -> i32 { self.2.wrapping_sub(self.0) }
-    pub fn height(self) -> i32 { self.3.wrapping_sub(self.1) }
-    pub fn points(self) -> [Point; 2] { [[self.0 as f32, self.1 as f32], [self.2 as f32, self.3 as f32]] }
+    pub fn width(self) -> i32 {
+        self.2.wrapping_sub(self.0)
+    }
+    pub fn height(self) -> i32 {
+        self.3.wrapping_sub(self.1)
+    }
+    pub fn points(self) -> [Point; 2] {
+        [[self.0 as f32, self.1 as f32], [self.2 as f32, self.3 as f32]]
+    }
 }
 
 /// Query failure deliberately preserves the output. Arc cloning is AddRef;
 /// dropping a retained Arc is Release. Service-base IIDs belong to the host.
 pub fn query<T: ?Sized>(object: &Arc<T>, iid: u32, supported: &[u32], out: &mut Option<Arc<T>>) -> bool {
-    if supported.contains(&iid) { *out = Some(Arc::clone(object)); true } else { false }
+    if supported.contains(&iid) {
+        *out = Some(Arc::clone(object));
+        true
+    } else {
+        false
+    }
 }
 pub const CONTEXT_IIDS: &[u32] = &[1, 0x2ae63219];
 pub const ENGINE_IIDS: &[u32] = &[1, 0x2ae78a07];
