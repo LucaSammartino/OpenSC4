@@ -9,9 +9,11 @@
 - Git merge reported packed-refs.lock permission denied but succeeded; detached HEAD intentional.
 - Implemented capture, epoch hooks, exact three-site validation, detached Rust replay and parsed tile table comparison at 1e9ada803.
 - Owner-thread rejection and non-vacuous exactness guards added; NR17 fixture asserts active under NDEBUG.
-- Follow-up guards committed at 8cdaae5d4. Resource-record temporaries now use RELEASE_CREATED; user documentation added.
+- Follow-up guards committed at 8cdaae5d4; documentation at 8ddfe4069.
+- Ownership review corrected OpenDBRecord: manager retains ownership until CloseDBRecord, no observer Release; out pointer is success channel (same as FC4NetToolHost).
 - Focused compile failed E0277 in snapshot fill; corrected Vec into_iter; preserved build-runs/focused-netrules.log.
 - Native verify queued: qbuild-20261023-233355-build-ctest, exec session 48101; collect same operation.
+- Verify remains unconsumed after 21 minutes (23:54 local), no DLL yet. functions cell 50 is collecting session 48101 through terminal result; do not duplicate.
 - Next: focused test + fmt, collect native result, diagnose, stable-source all, unique game request to 2032.
 - Contracts: network-rules.md sections 2.2–2.5 and docs/abi/network-rules-observation.md.
 - Capture actual requests only; no native prefetch. Intersection tables explicitly unobserved.

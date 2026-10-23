@@ -114,13 +114,14 @@ void LoadTile(uint32_t instance) {
     if (!rm) throw std::runtime_error("resource manager unavailable");
     const cGZPersistResourceKey key(0x0A5BCF4B, 0xAA5BCF57, instance);
     cIGZPersistDBRecord* record = nullptr;
-    const bool opened = rm->OpenDBRecord(key, &record, false);
-    if (!opened || !record) {
-        if (record) { FC4_ACQUIRED(record, "OpenDBRecord"); FC4_RELEASE_CREATED(record); }
+    // [abi-ret] slot 37's EAX is not a usable success channel. As in the
+    // network-tool host, test its out pointer. The manager owns this reference
+    // until CloseDBRecord; this observer neither AddRefs nor Releases it.
+    (void)rm->OpenDBRecord(key, &record, false);
+    if (!record) {
         if (!fc4_network_rules_load(g_rules, instance, nullptr, 0, nullptr)) throw std::runtime_error("missing tile load");
         return;
     }
-    FC4_ACQUIRED(record, "OpenDBRecord");
     bool ok = false;
     try {
         const uint32_t size = record->GetSize();
@@ -129,9 +130,9 @@ void LoadTile(uint32_t instance) {
         ok = (size == 0 || record->GetFieldVoid(data.data(), size)) &&
              fc4_network_rules_load(g_rules, instance, data.data(), size, nullptr);
     } catch (...) {
-        record->Close(); FC4_RELEASE_CREATED(record); throw;
+        rm->CloseDBRecord(key, &record); throw;
     }
-    record->Close(); FC4_RELEASE_CREATED(record);
+    rm->CloseDBRecord(key, &record);
     if (!ok) throw std::runtime_error("resource read/load");
 }
 void Invalidate() {
