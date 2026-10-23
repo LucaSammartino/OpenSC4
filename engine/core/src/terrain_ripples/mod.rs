@@ -11,6 +11,9 @@
 //! Resource lifetimes use `Arc`; getters never use interior mutability.
 
 mod geometry;
+pub mod mesh;
+pub mod render;
+pub mod shore;
 pub mod lifecycle;
 pub mod retained;
 mod ripple;
@@ -97,6 +100,9 @@ pub enum Error {
     InvalidGeometry,
     InvalidRandomValue,
     EmptyTexture,
+    MissingTerrainService,
+    UnsetRandomState,
+    UndefinedTexturePreparation,
     UnsupportedTuning(retained::Unsupported),
     Gap(ContractGap),
 }
@@ -161,6 +167,22 @@ pub trait TerrainProvider: Send + Sync {
     fn vertex_position(&self, cell: Cell) -> Point;
     fn water_level(&self) -> f32;
     fn edit_counter(&self) -> u64;
+    /// Foreign height and shoreline refresh services. No host tracing is accepted.
+    fn vertex_height(&self, _cell: Cell) -> Result<f32, Error> {
+        Err(Error::MissingTerrainService)
+    }
+    fn refresh_shore_flags(&self) -> Result<(), Error> {
+        Err(Error::MissingTerrainService)
+    }
+    fn set_vertex_flags(&self, _cell: Cell, _flags: u16) -> Result<(), Error> {
+        Err(Error::MissingTerrainService)
+    }
+    fn city_extent(&self) -> Result<Point, Error> {
+        Err(Error::MissingTerrainService)
+    }
+    fn current_zoom(&self) -> Result<Zoom, Error> {
+        Err(Error::MissingTerrainService)
+    }
 }
 
 /// External texture resource. Frame texture handles stay in the eventual adapter.
