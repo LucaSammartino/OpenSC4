@@ -773,8 +773,9 @@ Colour setters below receive the graphics service's packed colour for the three 
 low-byte component conversion. A numeric font either goes directly to a font-ID setter or is resolved through
 the window-control manager, as indicated. A String font goes through the existing named-font helper
 `0x0094C255`. Both forms record font metadata with helper `0x0094C222`/`0x0094C255`, selector 0 unless stated.
-The helper's resource/parameter representation remains the convention used elsewhere in this spec; it is not
-permission to pass a font name to a numeric interface setter. Where a default `main9` is stated, resolve the
+The String-font helper's exact stored payload and any indirect font application are not settled by this
+owner inventory (LC13). No direct font-object/ID setter is called on that branch; do not invent one.
+Where a default `main9` is stated, resolve the
 name to an ID and then obtain its font object from the window-control manager.
 
 For image keys, `{group,instance}` is hexadecimal; image type is `0x856DDBAC`. "Record image" means the §9.4
@@ -1077,6 +1078,7 @@ Second pass populates **all options before any option geometry**, then selects, 
 - LC10. TreeView duplicate map keys and Grid scratch/notifier domains.
 - LC11. Additional unchecked interpreter scans and allocation failures (§13.3).
 - LC12. SC3WinGen's installed procedure object and its external message behavior (§13.1).
+- LC13. Named-font helper payload and indirect application (§9.9).
 
 ## 12. Coverage of owner functions (honest)
 
@@ -1169,7 +1171,8 @@ variants (type 6), String variants (`0x800E`), a recording factory and recording
 and `T(k,text)` below describe fixture inputs, not original-program code. A pass-only test observes the
 selected type interpreter and interface query/release; a full-build test includes §6 and both common passes.
 Unless specified, other properties are absent and resources load successfully. Compare packed colours
-through the graphics-service fixture. Every successfully obtained per-type interface is released once.
+through the graphics-service fixture. Numeric float vectors use round-to-nearest, ties-to-even. Every
+successfully obtained per-type interface is released once. String-font helper internals are excluded (LC13).
 
 | ID | Fixture/input | Expected observation |
 |---|---|---|
