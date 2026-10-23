@@ -12,9 +12,10 @@ x87 precision (§18); the advisor system, advisors, advices, the event queue, th
 and the daily/monthly ticker (`docs/specs/advisors.md`, written separately); residential EQ/HQ, age and grade data
 (`residential.md`, `residential-education-health.md`); grids (`simgrid.md`); the mayor rating (`aura.md`).
 
-Out of scope (UI, automata, audio): window procs, the pick-sim and move-in input controls, balloons and their
-rendering, camera following, sounds, the U-Drive-It missions and the dispatch tool, the hearse and car automata.
-They are named only where the simulation side calls them.
+Window procs, the pick-sim and move-in input controls, balloon rendering, camera following, sounds and
+U-Drive-It mission definitions belong to their UI/automata owners. The dispatch's simulation state,
+destination queue, persistence and player-trip entry points belong here (§4.6.1, §6.2.1, §7.2.1).
+The remaining multimodal handoff questions are tracked explicitly as MS18; they do not permit immediate-arrival stubs.
 
 ---
 
@@ -40,7 +41,7 @@ Lua variables, advisor events, UI/audio messages and automata.
 | `cSC4MySimAgentSimulator` | `0x29E37DEC` | `cISC4MySimAgentSimulator` `0xA9E37EBB` (also answers `1`), `cIGZMessageTarget2` `0x452294AA`, `cIGZSerializable` `0xE4FDA3D4` | per-city dispatcher of messages to the MySims | this spec |
 | `cSC4MySim` | `0x4A1DBBBF` | `cISC4MySim` `0x0A1DA42F`, private class pointer `0x8BC01FFE` *[inferred: returns the object itself, AddRef'd]*, plus everything `cSC4Advisor` answers (`cISC4Advisor` `0xCA09F544`, `cIGZSerializable`, `cIGZMessageTarget2`, `1`) | one MySim | this spec |
 | `cSC4MyStreetSim` | `0x0BF606A5` | answers `cISC4MySim` `0x0A1DA42F` | the "My Street" sim (advisor id 30) | out of scope; it shares the agent's sixth slot (§1.3) |
-| `cSC4MySimDispatch` | `0xCBC14674` | read as IID `0xEB8B6F9A` | per-MySim trip controller (path, automaton, commute destination) | **automata**, out of scope; named where the simulation side calls it (§4.7) |
+| `cSC4MySimDispatch` | `0xCBC14674` | `0xEB8B6F9A`, message target `0x452294AA`, serializable `0xE4FDA3D4` | per-MySim trip controller (path, automaton, commute destination) | this spec, §4.6.1, §4.7, §6.2.1, §7.2.1; remaining handoffs MS18 |
 | `cSC4MySimPool` | — | — | imports Sim templates (names, portraits) for the pick-sim UI | **app/UI**; contract in §4.12 |
 | `cMySimBuildingFilter` | — | `cISC4OccupantFilter` | building query filter | this spec, §4.9 |
 | `cSC4AdviceSubject` | `0x6A26D049` | `0x6A26D050` | event subject | advisors.md |
@@ -196,6 +197,12 @@ Subscriptions, in `Init` order: `0x99EF1142`, `0x99EF1145`, `0x99EF1143`, `0xA6B
 | `0x230E27AC` cheat, data1 `0xEB6F3C97` | cheat text | debug only: posts `0x0B6F3E27` / `0xAB6F3E2D` / `0x4B6F3EBF` / `0x0BB04126` with data1 = a hex argument (print, new job, new house, dispatch) |
 
 ### 3.3 MySim's own messages (`cSC4MySim::DoMessage`)
+
+Dispatch notifications are **synchronous owner calls**, not broadcasts or queued message-server posts.
+They use type `0x2BA06B99`, data1 = notification ID, data2/data3 = old/new values for state or flag changes,
+data4 = 0 in the transitions specified here. No owner means no delivery. State and flags have already
+changed when the owner runs (`0x00431A30`, `0x00431BC0`, `0x00431C10`). Do not coalesce successive
+flag changes: each changed mask is separately observable. Notification production is specified in §4.6.1.
 
 The MySim subscribes (at its Init) to `0x0B6F3E27`, `0xAB6F3E2D`, `0x4B6F3EBF`, `0x0BB04126`, `0x4BC42C48`,
 `0x26D31EC1`, and to the automata manager's broadcast. Simulation-relevant ones:
@@ -387,6 +394,68 @@ but **skips that stack-restoration call** (`0x00427CBD`/`0x00427CC5`/`0x00427CD1
 
 The argument names follow the dispatch notification that calls it: `0x4BB2CFC0` passes (data3, data2, −1, −1)
 and `0x4BB2D020` passes (−1, −1, data3, data2) *[inferred: data3 = new, data2 = old]*.
+
+### 4.6.1 Dispatch trip state, destinations and clock *[compat]* (MS17, partial)
+
+The dispatch state is distinct from MySim state (§2.2): **−1** = unplaced/recovery, **2** = trip in progress,
+**3** = at a location. Constructor state and previous state are both −1; flags and the simulation-minute
+counter start at zero, travel type at `0xFF`. State 2 alone does not imply a moving visible automaton:
+an idle or transit-switch wait remains a trip. Current location, home/default destination, active destination
+and commute destination are four separate location values, at object offsets `+0x5C`, `+0x84`, `+0xAC`,
+`+0xD4`. Getters expose these values, not copies manufactured from MySim home/job fields
+(`0x00431290`–`0x004312B6`, `0x00698CD0`, constructor `0x00433A60`).
+
+**Clock and delivery.** Once a dispatch pathfinder exists, each `0x44778231` message adds **5** to its
+signed 32-bit minute counter; each animation message `0x86AD10EE` runs a state update. The minute message
+does not itself run a state update. These are neither wall-clock dwell timers nor one trip per daily tick
+(`0x0043793B`–`0x00437975`; message-target `this` is object+8).
+The at-location deadline is `+0x80`; location duration/deadline are `+0x20/+0x24` within each location.
+Use the strict comparison **now > deadline** for expiration; equality still waits where a tracked occupant
+exists (`0x0043660C`–`0x0043662F`, `0x00435B2F`–`0x00435B61`, `0x00436146`–`0x0043614F`).
+
+Each changed flag value sends `0x4BB2D020(oldFlags,newFlags)` and increments the change counter (`+0x34`).
+Each changed state sends `0x4BB2CFC0(oldState,newState)` and increments it. Setting state 3 first installs
+the new state, then sets flag 2 with its flag notification, then sends the state notification. Repeating
+state 3 still sets flag 2 if needed, but sends no state notification when the state is unchanged
+(`0x00431BC0`, `0x00431C10`). See §3.3 for the message envelope and owner reentrancy.
+
+The following transitions are settled independently of the remaining transport handoffs (MS18).
+Location equality here is §4.7.1's identity/cell comparison, not geometric proximity. The export's
+`0x00431690` name is misleading: instructions implement **location inequality**, not deque mutation.
+
+| State/input | Location, queue and timing effects | State/notifications, in order |
+|---|---|---|
+| −1, home flag `0x80` set, current differs from home | Clear flags with mask `0xFFFF01B2`, then clear `0x32`; copy home to current; travel type `0xFE`; deadline = now + current duration | `0xEBA06C12` trip-end/location notice; then enter 3 (flag-2 notification before state notification). Each preceding changed flag mask also notifies |
+| −1, home flag set, current already equals home | Apply initial mask above; current remains home | enter 3; no teleport/location notice |
+| −1, queued destinations remain | Queue is retained for at-location selection | enter 3 |
+| 3, any update | Invalidate the active destination; detach the current location's automaton occupant if present | no state change merely for this cleanup |
+| 3, now ≤ deadline, valid current location and an occupant to track | Stay at current location | no departure |
+| 3, current invalid, by-commute location can be resolved | Resolve it using §4.7.1; copy resolved location to commute destination | `0xEBA06BF4` job-location notice before destination selection |
+| 3, current invalid, resolution fails, valid home exists | Copy home to current | `0xEBA06C12` before destination selection |
+| 3, eligible to select a destination | Discard invalid queue heads. Pop first valid queued location; if none, choose home only when home flag is set and current differs from home. Reset neighbour retry count to 0. A selected unresolved by-commute location may resolve and update commute destination with `0xEBA06BF4` | A valid selection differing from current becomes active destination, with its deadline = now + its duration; enter 2, then clear flags `0x5800`. State notice precedes that flag notice |
+| 3, no valid selection, and no usable home return | Preserve current | enter −1 when home flag is absent or current differs from home; otherwise remain 3 at home |
+| 2, route-ready flag `0x1000`, player-driving flag `0x10000` | Retain trip and locations | no automatic progression |
+| 2, route-ready, stuck flag `0x40`, not player-driving | Leave recovery to the next update | enter −1 |
+| 2, path search still suspended (result 2) | Preserve request and destinations | remain 2 |
+| 2, path search fails, neighbour endpoint retries exhausted | Preserve location for recovery | enter −1, then `0xEBA06C12` |
+
+Evidence: `updateState` `0x004365C0`–`0x004370EC`; the destination deadline store is
+`0x004367CD`–`0x004367E0`; failure state/notice is `0x00436D61`–`0x00436D8A`.
+This table does not yet specify all route-ready/transport-switch branches; see MS18.
+
+**Destination queue.** `AddDestinationLocation(location, options)` copies the supplied location and always
+returns true: option bit 4 first clears the queue, bit 1 selects front insertion, otherwise insert at the
+back. Other option bits have no effect. This call does not force the dwell deadline to expire and does not
+itself depart (`0x00434BA0`). A by-commute destination uses the validation/job-found rules of §4.7.1.
+
+**Reported wait value.** The value sent to Lua as `trip_wait_length` is the dispatch's stored switch-start
+timestamp (`+0x54`), **not now minus that timestamp**. Entering a located transit switch stores now there
+and sets a deadline of now + minimum switch time (`0x00435F1F`–`0x00435F3D`). Its getter returns the stored
+value unchanged while flag `0x10` is set. Without that flag it clears the value only when the signed
+32-bit difference now − timestamp is **greater than 15**; the getter mutates that stored value
+(`0x004312C0`–`0x004312DF`, Lua call `0x00427DC4`–`0x00427DD4`). Thus timestamp 100 at now 115 reports 100,
+at now 116 without flag `0x10` reports 0, and at now 116 with the flag reports 100. Do not replace this
+quirk with an elapsed-time computation. Serialization preserves the timestamp (§6.2.1).
 
 ### 4.7 Job, commute and residence changes
 
@@ -758,6 +827,23 @@ default that stays when the key is missing *[inferred]*:
 | `MYSIM_TRIP_APPROACH_DISTANCE` | 10 | 8 | dispatch |
 | `MYSIM_TRIP_DEFAULT_CAR_MODEL` | 0 | `0x106A0000` | automata |
 
+The five dispatch values have the following effects; they are signed 32-bit values with no added
+nonnegative clamp. Object offsets below are interoperability facts, not required replacement layouts.
+
+| Tuning suffix (`MYSIM_TRIP_`) | Object field | Effect |
+|---|---|---|
+| `MIN_TIME_AT_LOCATION` | `+0x20` | `GoTo` raises a copied destination's duration to this minimum **only when it has an occupant**; destination selection/arrival derives deadlines from location durations. `AddDestinationLocation` alone does not apply this clamp |
+| `MIN_TIME_AT_TRANSIT_SWITCH` | `+0x24` | Transit waiting deadline = now + this value; switches to public modes 2/3/6/7/8 use this delay |
+| `MIN_TIME_IDLE` | `+0x1C` | Idle/retry deadline = now + this value; switching to foot/car uses this delay |
+| `DESTINATION_PROXIMITY_MIN` | `+0x18` | Compared as a signed 32-bit square against the integer distance helper result in final-segment/arrival decisions. The idle-completion branch tests distance < square; final route-marker handling accepts distance ≤ square. MS18 retains the exact geometry helper/transport consequences |
+| `APPROACH_DISTANCE` | `+0x14` | On a changed automaton cell, when not player-driving: flag `0x8000` = ((x − destination.x)² + (z − destination.z)² < value²), using signed 32-bit products/sum. Equality clears the flag; §4.6 turns a rising edge into `MYSIM_APPROACHING_LOCATION` |
+
+Evidence: the five named tuning assignments in MySim Init; duration clamp in `0x00437130`;
+deadline additions `0x00435CE7`–`0x00435CF2`, `0x00435F1F`–`0x00435F3A`, `0x00436333`–`0x00436357`;
+proximity comparisons `0x00435B94`–`0x00435BA3`, `0x004361FF`–`0x0043620F`; approach products and strict
+comparison `0x004377E4`–`0x0043781B` (message `this` is object+8). Do not apply the approach test on every
+minute message or substitute world coordinates for cells.
+
 The other `tuning_constants.MYSIM_*` values (ages, EQ/HQ/desirability thresholds, radii) are read only by the
 scripts.
 
@@ -1029,6 +1115,50 @@ Version **17** (`0x11`). All integers little-endian; "ref" is foundations §2.7;
 
 ---
 
+### 6.2.1 Dispatch record (`0xCBC14674`) *[compat]*
+
+This is the record referenced by MySim row 26, and the **same payload inline** in MySim version 12. It
+starts with **u32 1**, not the MySim's u16 version. All scalars are little-endian; `ref`, `GZStr` and
+resource keys use foundations §2. There is no raw pointer, C++ padding, RNG state or container capacity
+in the payload. Write returns whether stream status is clear. Read consumes the version but has no
+version-equality rejection (`0x00432440`–`0x0043285E`, `0x00434760`–`0x00434B9C`).
+
+For the opaque scalars below, preserving their bits is required even though their runtime meaning has
+not yet been settled. Offsets identify the **complete object**; the serializer receives object+`0x0C`.
+This distinction matters: the first location is object+`0x5C`, serializer+`0x50`.
+
+| Order | Encoded type | Value |
+|---|---|---|
+| 1 | u32 | version 1 |
+| 2 | bool (u8) | object `+0x10` auxiliary flag |
+| 3 | 18 × u32 | In ascending object-offset order `+0x14` through `+0x58`: approach distance, proximity, idle minimum, location minimum, switch minimum; opaque `+0x28`; path indices `+0x2C/+0x30`; change counters `+0x34/+0x38`; tracking value `+0x3C`; current/previous state; flags; minute clock; travel type; wait timestamp; neighbour retry count. Signed fields retain their two's-complement bits; travel type occupies a full u32 here |
+| 4 | 4 × location payload | current, home/default, active destination, commute destination, in that order |
+| 5 | ref | auxiliary occupant at `+0xFC`, read with IID `0x26BB767E` |
+| 6 | u32, GZStr | auxiliary value `+0x100`, string `+0x104` |
+| 7 | ref | automata occupant `+0x118`, IID `0x26BB767E` |
+| 8 | ref | owner MySim `+0x11C`, IID `0x8BC01FFE`; writing passes its serializable sub-object at owner+`0xB8` (null stays null) |
+| 9 | ref | simulation service `+0x120`, IID `0x681BD53A` (not the transient pathfinder at `+0x124`) |
+| 10 | u32 count; count × (u8,u8,u8) | route deque, in deque order; each element is cell x, cell z, travel type. No per-element alignment |
+| 11 | u32 count; count × (s32,key,s32) | travel-type/model map, ascending signed key order. Resource key = three u32; the final s32 is model offset |
+| 12 | s32 | route/switch marker at `+0x15C` |
+| 13 | u32 count; count × location payload | destination queue in front-to-back order |
+
+Each **location payload** is: occupant ref; world x/z as two f32; cell x/z as two s32; regional city x/z
+as two s32; in-city and by-commute as two u8 booleans; duration and deadline as two s32. It has no own
+version or padding (`0x004314F0`–`0x00431587`, read `0x00431590`). The occupant IID on read is
+`0x26BB767E`. Equality and validity use §4.7.1, not bytewise equality of this payload.
+
+Byte checks: version bytes are `01 00 00 00`; the auxiliary flag is byte 4; the first tuning u32 begins
+at byte 5; the first location begins at byte **77**, regardless of reference encoding, because no ref
+precedes it. −1 trip state is `FF FF FF FF`, not `FF`; a 0xFE travel type is `FE 00 00 00`.
+Record count arithmetic enumerates elements, not the implementation's deque blocks (`0x004325B8`–`0x004326BB`,
+`0x00432763`–`0x0043283B`); map entries are key + resource key + offset (`0x00432724`–`0x0043274C`).
+
+Read registers for `0x26D31EC1` and records whether the stream succeeded. Successful deferred setup on
+that message calls Init, clears the pending flag, unregisters the message, then sends a flags notification
+with old = 0 followed by a state notification with old = **−2**, using the restored current values
+(`0x004378CE`–`0x0043792A`). Do not replace the restored trip with an immediate home arrival on loading.
+
 ## 7. Interfaces *[compat]*
 
 Return channels were read from the epilogues; pops come from `abi_extract.py --check`. "AL" = bool in AL only.
@@ -1164,15 +1294,69 @@ configuration and the factory/Init ownership and failure contracts are specified
 
 ---
 
+### 7.2.1 Trip and player-control entry points *[compat]*
+
+`LeaveForWork` / `ReturnHome` are cISC4MySim slots 38/39 (`0x00426EF0`, `0x00426F60`). Their shared
+`DispatchCommute` (`0x00426CE0`) fails only when there is no residence; in the other cases below it reports
+success without testing the return of `AddDestinationLocation`.
+
+| Entry/current MySim state | Request and observable MySim result |
+|---|---|
+| LeaveForWork, 1/2/5 | Call DispatchCommute; success sets state 4; failure plays the existing home refusal sound |
+| LeaveForWork, any other state | No action |
+| ReturnHome, 3/4 | Call DispatchCommute; success sets state 5 |
+| ReturnHome, any other state | No action |
+| DispatchCommute, 2 | Copy commute destination if valid and by-commute; otherwise make a fresh by-commute placeholder. Duration is 5 before hour 8 or after hour 17; otherwise (17 − hour) × 60. Hour 17 gives **0**, not 5. Replace destination queue with this location (options 4) |
+| DispatchCommute, 1 | TeleportToCommuteLocation, then replace destination queue with home (options 4) |
+| DispatchCommute, 3 | Replace destination queue with home (options 4) |
+| DispatchCommute, other nonzero/zero state with residence | Success without changing the queue. Thus LeaveForWork in state 5 and ReturnHome in state 4 can change MySim state without issuing a new destination |
+
+Hour arithmetic is integer, verified `0x00426D56`–`0x00426D8D`. Queue insertion does not itself imply
+immediate departure (§4.6.1). Do not turn these entry points into unconditional GoTo calls.
+On a successful LeaveForWork or ReturnHome state change, copy the dispatch tracking value (`+0x3C`)
+to the MySim's last-player-trip field (`+0x150`); this is not a fresh wall-clock sample
+(`0x00426F1E`–`0x00426F27`, `0x00426F60`).
+
+**`GoTo(location)`** (`0x00437130`) copies the argument and applies the occupant-only duration minimum of
+§4.11. Outside dispatch state 2 it expires the current dwell by setting deadline = now − 1, clears the
+queue, queues that copy, and returns true. In state 2 it clears the queue and replaces the active destination.
+If the held automaton accepts cancellation (`0xA9B40F05`, slot `+0x7C`, argument true), it clears flags
+`0x5800` and then `0x4000`, separately notifying changed masks, and returns true. Otherwise it clears
+`0x5800`, sets `0x4000`, and runs an update. An empty resulting route or equal route indices invokes
+setStuck and returns false; otherwise true. It does not overwrite current location with the new destination.
+
+**U-Drive-It** (`0x00431D00`, `0x00437340`, `0x00434360`):
+
+- CanUDriveIt is true in state 2 only with an automata occupant answering `0xA9B40F05` and travel type 1
+  (Car); in state 3 it is true only when current equals home or commute destination. Otherwise false.
+- Enter first applies that guard. At home it sets pending-player flag `0x20000` then GoTo(commute); at
+  work it sets that flag then GoTo(home). These branches return true even if GoTo reports false. The
+  later held-automaton update clears the pending flag and re-enters player control. In state 2 the
+  existing automaton is handed to the player-drive/mission service, then active-player flag `0x10000`
+  is set; no new destination is queued. The trip update pauses automatic progression while it is set.
+- Exit with active-player flag set detaches player control, clears the queue, copies home to both current
+  and active destination, sets travel type `0xFF`, enters state −1, resets the path and releases the
+  automata occupant. Then, whether active or only pending, it clears **both** flags `0x30000` and returns
+  true. State notification precedes that final flag notification. Exit does not directly emit an arrival
+  notice; recovery runs on a subsequent state update.
+
+Dispatch-tool calls use this same GoTo destination contract. The remainder of transport selection,
+visual automaton construction, and mission-service callback details are MS18, not permission to report
+arbitrary successful arrivals. Conformance inputs must distinguish accepted requests from arrival.
+
 ## 8. Random numbers *[compat]*
 
 | Draw | Generator | Method | Draws |
 |---|---|---|---|
 | start position in `FindNewResidence` | the MySim's own `cRZRandom` member, seeded from the wall clock at construction (foundations §6.2, a new row: "MySim, per object") | `RandomUint32Uniform(n)` (foundations §6.1) | exactly 1 per call that reaches step 2 (n = 0 → no state change) |
 
-No other simulation-side draw exists in either class. The dispatch, automata, balloons and idle animation
-(`PickIdleOffset`) may draw from their own generators (out of scope). The advice scripts' randomness belongs to
-the advisor system (advisors.md).
+No other simulation-side draw exists in the agent or MySim class. The dispatch entry points, queue edits,
+clock/deadline arithmetic, wait getter, state/flag notification setters and record read/write specified above
+make **no RNG draw** and must not consume the MySim residence-search generator. Its constructor does not
+construct a cRZRandom member: its call to `0x008EC270` initializes deque storage (allocation
+and block arithmetic), not a seed. No RNG bytes appear in §6.2.1. The transport/automata handoff's delegated
+randomness remains MS18; do not infer a per-dispatch generator or replay a residence draw for it.
+Balloon/idle-animation and advice-script randomness belongs to the corresponding UI/advisor owners.
 
 ---
 
@@ -1251,9 +1435,11 @@ the MySims own no grid).
   tool and U-Drive-It code reach the MySim directly *[inferred]*); (3) the record format of §6.2 if old saves
   must load.
 - Nobody reads MySim or agent memory by offset outside these classes *[inferred: no raw offsets found]*.
-- *[choice]* FreeCity4 implements the simulation half (state, events, Lua variables, persistence) and leaves the
-  dispatch, balloons and automata as stubs that report "arrived" immediately, which keeps the observable Lua
-  variables except the trip fields.
+- **Dispatch**: the replacement must retain separate current/default/active/commute locations, destination
+  queue, time and state/flag notifications (§4.6.1), its own serialized record (§6.2.1), and request/arrival
+  distinction (§7.2.1). An immediate-arrival stub is not conformant. MS18 identifies the remaining transport
+  handoff work before the whole dispatch owner can be declared complete; balloon rendering may be provided
+  by its UI owner independently.
 
 ---
 
@@ -1289,6 +1475,20 @@ the MySims own no grid).
 ---
 
 ## 12. Conformance tests (must exist in `engine/conformance`)
+
+The following MS17 vectors are normative **specification vectors**, not captured game traces or claims
+of implemented tests. They may be implemented by the engine lane without access to RE material.
+
+| Vector | Sections | Input | Expected |
+|---|---|---|---|
+| `ms17_01_dispatch_identity` | 1.1, 4.6.1 | Fresh dispatch, then set current/home/destination/commute to four different valid locations | Initial state/previous = −1, flags/clock = 0, travel = 255; all four getters retain their own location. GoTo while travelling changes destination, not current |
+| `ms17_02_notification_order` | 3.3, 4.6.1 | State −1, flags 0; set state 3 twice | First owner calls are type `0x2BA06B99`: data1 `0x4BB2D020`, old/new 0/2; then data1 `0x4BB2CFC0`, old/new −1/3. Second call produces no notice. Owner callbacks see state 3 already installed |
+| `ms17_03_clock_and_wait` | 4.6.1 | Pathfinder exists; now 100, deadline 105, tracked valid location; one minute message then animation message | Now 105; dwell has not expired. Another minute message makes now 110; next update may depart. Separately, timestamp 100, flag `0x10` clear: getter at now 115 returns 100; at 116 returns/stores 0. With flag set, now 116 still returns 100 |
+| `ms17_04_tuning` | 4.11 | Minimum location time 30; GoTo duration 5 with occupant, then without occupant. Approach distance 8, changed current cell, no player flag, destination cell (0,0) | Copied durations 30 and 5 respectively. Approach cells (7,0), (8,0), (9,0) produce flag `0x8000` set, clear, clear; only a rising edge pushes approaching event. With player flag, preserve previous approach flag |
+| `ms17_05_queue_and_deadline` | 4.6.1, 7.2.1 | Queue [A,B], at-location now 100 with deadline 200; AddDestination(C,4), then AddDestination(D,1) | Queue [D,C], deadline still 200; both calls true, no forced departure. GoTo(E) in state 3 instead replaces queue by [E] and deadline by 99 |
+| `ms17_06_commute_requests` | 7.2.1 | Residence present, MySim state 2; LeaveForWork at hour 7/8/17/18 in separate cases | Replace queue with by-commute destination of duration 5/540/0/5; MySim state 4. No residence: no queued request or success state change. With residence, LeaveForWork in state 5 sets state 4 without changing queue; ReturnHome in state 4 sets 5 without changing queue |
+| `ms17_07_dispatch_record` | 6.2.1 | Flag true; tuning words [8,4,1,30,1]; state −1; travel `0xFE`; route [(2,3,1),(4,5,0)]; map entries with signed keys 2 and 1 inserted in that order; queue [A,B] | Prefix `01 00 00 00 01 08 00 00 00 04 00 00 00 01 00 00 00 1E 00 00 00 01 00 00 00`; first location at byte 77; state encoded four FF bytes, travel as `FE 00 00 00`; route count 2 then `02 03 01 04 05 00`; map writes key 1 then 2; queue writes A then B. MySim v12 has this payload inline; v17 row 26 is a ref to it |
+| `ms17_08_player_and_rng` | 7.2.1, 8, 10 | State 3 at home, EnterUDriveIt; then exit while only pending. Separate case: active-player exit from state 2 | First case sets `0x20000` and requests GoTo(commute), exit clears it without synthesizing arrival. Active exit copies home to current and destination, clears queue, travel 255, state −1, then clears `0x30000`. All these entry/queue/time/record operations leave the residence RNG unchanged; a subsequent recovery update is distinct from Exit |
 
 1. **Ownership.** New city with the shipped advisors table: the agent's vector holds MySim advisors 1–5 at
    indices 0–4 and the My Street sim at index 5. `get_count()` = 6. The city save contains no record for

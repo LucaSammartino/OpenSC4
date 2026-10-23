@@ -1,4 +1,7 @@
 # mysims: answered questions (archive)
+
+- **MS17 — dispatch owner scope (§1.1, §3.3, §4.6, §4.11, §6.2, §7.2, §8, §10), answered parts:** the trip controller was assigned away and an immediate-arrival stub permitted, leaving its queue, clocks, notifications, tuning, request entry points and record unspecified.
+  **ANSWERED 2026-10-23 (re-mysim-dispatch5):** DIFFERS — the dispatch belongs to this spec. New §4.6.1 specifies separate locations, queue, clock and settled transitions; §3.3 specifies synchronous owner delivery; §4.11 records the five tuning effects; §7.2.1 specifies LeaveForWork/ReturnHome, GoTo and player-control guards/exit. §6.2.1 publishes the u32-version-1 dispatch record, also used inline by MySim v12. The wait getter returns a stored switch timestamp, not elapsed wait. Covered operations consume no residence RNG; no RNG bytes are serialized. §10 removes permission for immediate-arrival stubs. Eight normative spec vectors added in §12. The remaining route-ready multimodal handoffs, complete dispatch-tool lifecycle and delegated automata RNG are explicitly **unanswered MS18**, not claimed complete.
 <!-- Archive for [mysims.md](../../mysims.md). Lanes do not read this file. Open questions are in ../mysims.md. -->
 
 ## From the mysims core audit (cores26, 2026-10-20); answered by re-answers35
