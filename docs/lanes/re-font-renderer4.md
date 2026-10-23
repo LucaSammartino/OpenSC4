@@ -9,7 +9,8 @@ FIRST1 stopped on 2026-10-23 before a substantive spec milestone. Both calls to 
 retryable false: **No app is open.** The service suggests `open_binary`, but that operation is outside this
 lane's explicitly configured two-tool allowance. No service was added or opened. The task's instruction
 to never downgrade/bypass failed service controls over the general export-fallback advice in the workspace
-notes. No further research follows this preflight failure, and there is no automatic retry request.
+notes. The second preflight batch also issued redundant export constructor checks before its error was
+assessed; no further research followed. There is no automatic retry request.
 
 ### Preliminary evidence and attribution conflict
 
@@ -44,11 +45,11 @@ and exclusions were preserved verbatim. No byte credit was reassigned from the i
 
 No font-renderer spec, question entry, ABI proposal, or cross-reference was published: research stopped
 before a coherent behavior section or bounded per-body checklist existed. No questions were answered or
-moved, so the question index did not need regeneration. No engine files, implementation/tests, tracked ABI
-tables, generated coverage, or tools were read or changed. No builds, tests, or game runs were performed.
+moved, so the question index did not need regeneration. No engine implementation/tests were read or changed.
+No tracked ABI tables, generated coverage, or tools were changed. No builds, tests, or game runs were performed.
 
 The `q.py` wrapper also failed with Bash `E_ACCESSDENIED`; subsequent bounded shell reads used PowerShell.
-This shell failure is separate from the REA blocker. The final documentation diff receives `git diff --check`;
+This shell failure is separate from the REA blocker. Documentation `git diff --check` passed;
 the merge queue is **wip**, with no game runs and no ABI changes.
 
 ### Next steps and retained context
