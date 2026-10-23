@@ -89,6 +89,7 @@ generated index: the questions live one file per spec, so read only the file for
 | LE | lot-configuration-editor |
 | LF | landfill |
 | LG | landfill |
+| LGH | local-grid-helper |
 | LH | lua-host |
 | LM | lot-models |
 | LR | lot-records |
@@ -240,6 +241,7 @@ generated index: the questions live one file per spec, so read only the file for
 | language-utility | 4 | 0 | LU5 | questions/language-utility.md |
 | legacy-control | 5 | 4 | LC11 | questions/legacy-control.md |
 | lighting | 6 | 7 | LT14 | questions/lighting.md |
+| local-grid-helper | 1 | 0 | LGH2 | questions/local-grid-helper.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-configuration-editor | 4 | 2 | LE7 | questions/lot-configuration-editor.md |
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
@@ -332,4 +334,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **504** | **1262** | | |
+| **total** | **505** | **1262** | | |

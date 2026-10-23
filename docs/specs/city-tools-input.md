@@ -16,6 +16,10 @@ inventory).
 
 ## 1. Scope
 
+The embedded local grid helper's own snapping, transform, resource and lifecycle
+rules are specified in [local-grid-helper.md](local-grid-helper.md). This spec
+describes the tools' calls into it.
+
 A *view input control* is the object the city's 3D view (`cSC4View3DWin`, ui-windows.md §3) forwards mouse and key
 input to while a tool is active. The 3D view keeps a stack of them (`SetCurrentViewInputControl` slot 25,
 `RemoveCurrentViewInputControl` slot 26, persistent controls slots 28-30; ui-windows.md §3.3). The stack itself is
