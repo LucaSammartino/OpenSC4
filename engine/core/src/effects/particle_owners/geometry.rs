@@ -78,11 +78,7 @@ impl GeometryParticles {
             resources.release(source);
         }
     }
-    pub fn set_model(
-        &mut self,
-        model: Reference,
-        resources: &mut impl Resources,
-    ) -> Result<(), Unsupported> {
+    pub fn set_model(&mut self, model: Reference, resources: &mut impl Resources) -> Result<(), Unsupported> {
         let source = resources.model_interface(model, 0x26a6_8448);
         self.set_source(source, resources);
         if let Some(source) = source {

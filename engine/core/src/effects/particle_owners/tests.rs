@@ -135,10 +135,7 @@ fn po01_through_po06_geometry_channels_and_reference_order() {
     assert!(f.calls.is_empty());
     assert_eq!(g.source, Some(1));
     g.set_source(Some(2), &mut f);
-    assert_eq!(
-        f.calls,
-        ["retain:2", "release:1", "release:101", "retain:102"]
-    );
+    assert_eq!(f.calls, ["retain:2", "release:1", "release:101", "retain:102"]);
     assert_eq!(g.textures, [102]);
     f.calls.clear();
     g.set_resource(9, &mut f);
@@ -244,10 +241,7 @@ fn decal_copy_preserves_handle_and_pointer_replacement_is_balanced() {
     assert!(f.calls.is_empty());
     d.started = true;
     d.handle = 42;
-    assert_eq!(
-        d.set_description(&d.description.clone(), &mut f),
-        Err(Unsupported::PT9)
-    );
+    assert_eq!(d.set_description(&d.description.clone(), &mut f), Err(Unsupported::PT9));
     assert!(d.started);
     assert_eq!(d.handle, 42);
     assert_eq!(f.calls, ["release:2"]);
@@ -262,10 +256,7 @@ fn po19_through_po27_dynamic_messages_sectors_and_lifetimes() {
         d.do_message(7, || panic!("must not read payload"), [100.; 2]),
         Ok(false)
     );
-    assert_eq!(
-        d.do_message(dynamic::MESSAGE, || 10000, [100.; 2]),
-        Ok(true)
-    );
+    assert_eq!(d.do_message(dynamic::MESSAGE, || 10000, [100.; 2]), Ok(true));
     assert_eq!(d.seconds, 0.01);
     assert!(d.steps.iter().all(|&s| s > 0. && s <= dynamic::MAX_STEP));
     d.tick(100000, [100.; 2]).unwrap();
@@ -282,8 +273,7 @@ fn po19_through_po27_dynamic_messages_sectors_and_lifetimes() {
     d.activate_sector(a, &mut f).unwrap();
     d.activate_sector(shared, &mut f).unwrap();
     f.calls.clear();
-    d.move_neighborhood(&[a, shared], &[shared, b], &mut f)
-        .unwrap();
+    d.move_neighborhood(&[a, shared], &[shared, b], &mut f).unwrap();
     assert_eq!(d.sectors[&shared].references, 1);
     assert!(!d.sectors.contains_key(&a));
     assert_eq!(f.calls, ["collect:(1, 1)"]);
@@ -326,9 +316,7 @@ fn po22_dynamic_live_zero_time_reaches_unsettled_transform_without_integrating()
 #[test]
 fn po28_through_po31_noncontact_body_stores_dead_sweep_and_list_order() {
     assert!(primary_collision_sector(0x00040005, 0x00020005, 0x00040003));
-    assert!(!primary_collision_sector(
-        0x00020005, 0x00020005, 0x00040003
-    ));
+    assert!(!primary_collision_sector(0x00020005, 0x00020005, 0x00040003));
     let mut s = Simulator::default();
     let a = s.add_object(&body(), false);
     s.advance_time(0.5).unwrap();
@@ -511,11 +499,7 @@ fn ordinary_identity_event_boundaries_and_open_physics() {
     assert_eq!(ordinary::component_kind(0, f32::NAN), Ordinary);
     assert_eq!(ordinary::component_kind(1, -0.), ModelBased);
     assert_eq!(ordinary::component_kind(1, f32::NAN), GeometrySourced);
-    let events = vec![
-        (b"birth".to_vec(), 0.),
-        (b"later".to_vec(), 1.),
-        (b"last".to_vec(), 0.),
-    ];
+    let events = vec![(b"birth".to_vec(), 0.), (b"later".to_vec(), 1.), (b"last".to_vec(), 0.)];
     assert_eq!(
         ordinary::birth_events(&events).collect::<Vec<_>>(),
         vec![b"birth".as_slice()]
@@ -600,10 +584,7 @@ fn particle_binary_readers_preserve_field_widths_and_consume_both_layouts() {
         assert_eq!(d.value.vectors[&0x1b8], [[14.; 3]; 2]);
         assert_eq!(d.value.get_scalar(0x200), Some(20.));
         assert_eq!(d.value.lists[&0x1e0], [0xdeadbeef, 0xfedcba98]);
-        assert_eq!(
-            d.value.timed_effects.len(),
-            if version == 1 { 0 } else { 1 }
-        );
+        assert_eq!(d.value.timed_effects.len(), if version == 1 { 0 } else { 1 });
     }
 }
 #[test]
@@ -691,10 +672,8 @@ fn drawing_dispatch_self_lit_and_empty_no_draw_are_before_finish() {
     let mut r = RzRandom::new(9, &seeds);
     let mut commands = Vec::new();
     p.start(0, &mut r);
-    p.update_with_draw(0.1, &mut r, true, true, &mut |command| {
-        commands.push(command)
-    })
-    .unwrap();
+    p.update_with_draw(0.1, &mut r, true, true, &mut |command| commands.push(command))
+        .unwrap();
     assert_eq!(
         commands,
         [
@@ -708,10 +687,8 @@ fn drawing_dispatch_self_lit_and_empty_no_draw_are_before_finish() {
     );
     p.stop(0);
     commands.clear();
-    p.update_with_draw(3., &mut r, true, true, &mut |command| {
-        commands.push(command)
-    })
-    .unwrap();
+    p.update_with_draw(3., &mut r, true, true, &mut |command| commands.push(command))
+        .unwrap();
     assert_eq!(commands, [Slot(19)]);
     assert!(!p.is_active());
 }

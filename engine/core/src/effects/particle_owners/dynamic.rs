@@ -91,11 +91,7 @@ impl DynamicParticles {
     }
     /// Settled refcount transition on explicit keys. Radius-to-key construction
     /// remains PT10, and is never guessed by this operation.
-    pub fn activate_sector(
-        &mut self,
-        key: SectorKey,
-        foreign: &mut impl Foreign,
-    ) -> Result<(), Unsupported> {
+    pub fn activate_sector(&mut self, key: SectorKey, foreign: &mut impl Foreign) -> Result<(), Unsupported> {
         if let Some(sector) = self.sectors.get_mut(&key) {
             sector.references += 1;
             return Ok(());
@@ -116,12 +112,7 @@ impl DynamicParticles {
         let sector = self.sectors.get_mut(&key).expect("active sector");
         sector.references -= 1;
         if sector.references == 0 {
-            for body in self
-                .sectors
-                .remove(&key)
-                .expect("active sector")
-                .static_bodies
-            {
+            for body in self.sectors.remove(&key).expect("active sector").static_bodies {
                 self.bodies.remove_object(body);
             }
         }
@@ -142,11 +133,7 @@ impl DynamicParticles {
         }
         Ok(())
     }
-    pub fn delete_particle(
-        &mut self,
-        id: EntryId,
-        foreign: &mut impl Foreign,
-    ) -> Result<(), Unsupported> {
+    pub fn delete_particle(&mut self, id: EntryId, foreign: &mut impl Foreign) -> Result<(), Unsupported> {
         let Some(entry) = self.entries.get(&id) else {
             return Ok(());
         };
@@ -215,10 +202,7 @@ impl DynamicParticles {
         Ok(())
     }
     pub fn draw(&self, foreign: &mut impl Foreign) -> Result<bool, Unsupported> {
-        let needs_shading = self
-            .entries
-            .values()
-            .any(|e| e.body.is_some() && e.drawable.is_some());
+        let needs_shading = self.entries.values().any(|e| e.body.is_some() && e.drawable.is_some());
         foreign.reset_shading();
         if needs_shading {
             Err(Unsupported::PT10)

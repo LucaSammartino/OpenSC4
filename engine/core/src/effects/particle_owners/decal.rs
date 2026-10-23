@@ -109,12 +109,7 @@ impl Decal {
         }
         true
     }
-    pub fn set_pointer(
-        &mut self,
-        id: u32,
-        texture: Option<u64>,
-        renderer: &mut impl Renderer,
-    ) -> bool {
+    pub fn set_pointer(&mut self, id: u32, texture: Option<u64>, renderer: &mut impl Renderer) -> bool {
         if id != 6 {
             return false;
         }
@@ -253,8 +248,7 @@ pub fn sample_colour(values: &[[f32; 3]], phase: f64) -> [f32; 3] {
         values[i]
     } else {
         std::array::from_fn(|j| {
-            ((1. - fraction) * f64::from(values[i][j]) + fraction * f64::from(values[i + 1][j]))
-                as f32
+            ((1. - fraction) * f64::from(values[i][j]) + fraction * f64::from(values[i + 1][j])) as f32
         })
     }
 }

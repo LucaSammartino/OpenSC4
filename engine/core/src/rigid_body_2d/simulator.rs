@@ -78,8 +78,7 @@ impl Simulator {
             // Reject before making unsupported stores, rather than free flight.
             let d = &mut body.description;
             for i in 0..2 {
-                d.position[i] =
-                    (f64::from(d.position[i]) + f64::from(dt) * f64::from(d.velocity[i])) as f32;
+                d.position[i] = (f64::from(d.position[i]) + f64::from(dt) * f64::from(d.velocity[i])) as f32;
             }
             d.height = (f64::from(d.height) + f64::from(dt) * f64::from(d.height_velocity)) as f32;
             d.angle = (f64::from(d.angle) + f64::from(dt) * f64::from(d.angular_velocity)) as f32;
@@ -88,9 +87,7 @@ impl Simulator {
             }
             body.axes = [d.angle.cos(), d.angle.sin()];
             for i in 0..2 {
-                d.velocity[i] = (f64::from(d.velocity[i])
-                    + f64::from(dt) * f64::from(d.acceleration[i]))
-                    as f32;
+                d.velocity[i] = (f64::from(d.velocity[i]) + f64::from(dt) * f64::from(d.acceleration[i])) as f32;
             }
             if d.friction {
                 return Err(Unsupported::PT11);
