@@ -1912,3 +1912,92 @@ These expectations are independent static predictions, not recorded game runs.
 | EC22 | `loadResource 7 extra`; global manager null | reader/conversion of 7 occurs; extra ignored; no resource call |
 | EC23 | same import with manager: load AL=0 | not-found exception; no import or local collection replacement |
 | EC24 | same import with manager: load AL=1 and resource R | R+14 receives current P+90, then R released; no component-option lookup or block entry |
+
+### 19.7 Camera parameters and deferred priority declarations
+
+Root `camera` is `cCameraParamsCommand`, descriptor `00A9F8F8`, handler
+`0059A2A0`. It selects **at least one** initial positional value, converts
+every selected positional value with ParseFloat in order, and stores each
+binary32 into an ordered float list. With exactly one value it appends four
+more: each is the binary32 result of the preceding stored value multiplied by
+binary32 0.5. Thus one value 160 produces `[160,80,40,20,10]`; two or more
+values are used unchanged in length and order. It does not enforce five inputs,
+sort them, or reject negative distances. Numeric domains here require finite
+conversions and nonoverflowing arithmetic.
+
+It then processes the following switches in fixed key order. Each selected
+value is an individual ParseFloat followed by a binary32 store. Surplus values
+in a switch's list are ignored. Defaults are local to each invocation; a
+previous camera command does not supply absent values.
+
+| Key / minimum values | Result | Default |
+|---|---|---|
+| `parallax` / 2 | first and second parallax endpoints | 100, 101 |
+| `size` / 1 | camera size | 4 |
+| `sideSwipe` / 1 | side-swipe value | 7 |
+
+The temporary camera record has a copied float list at offsets `+00..08`,
+the **first** parallax endpoint at `+0C`, and a span at `+10`. To form the
+span, subtract the first stored endpoint from the second using x87, convert
+through `_ftol2` (`009EEF04`), inspect the signed low 32-bit result, replace
+nonpositive results with 0, then convert that signed integer to binary32.
+For finite differences whose truncation fits signed 32 bits this is
+`float(max(truncateTowardZero(second−first),0))`, including the final binary32
+store; it is not the original fractional difference. Size and side-swipe
+occupy `+14,+18`. With nonnull `P+90`, collection slot `+4C` receives the
+record address; its status is ignored. The command then destroys both the
+temporary camera record and its source float list. A null collection still
+performs all reader/conversion/list work, omitting only the final collection
+call. It neither creates a component record nor applies component options.
+An exception before that call causes no collection update; token marking from
+earlier switches remains. There is no command-local catch or rollback.
+
+Evidence: positionals and binary32 stores `0059A2A0–0059A40F`, four half-value
+appends `0059A416–0059A4E6` (constant `00A84D2C=3F000000`), switch order and
+stores `0059A4EC–0059A5A5`, span conversion/record call
+`0059A5A8–0059A63D`. `_ftol2` uses the x87 value and conversion correction
+(`009EEF04–009EEF78`); its misleading pseudocode name is not evidence for a
+Lua call. Values beyond the finite signed-32 span domain are not qualified here.
+
+Root `setPriority` selects descriptor `00A9F908`, handler `005A24C0`
+(export label `cEffectRemapCommand::Parse`). It selects at least two initial
+positional values: a copied effect name, a ParseInt priority, then an optional
+copied third string. The third string defaults empty; additional positional
+values are ignored. Both strings preserve case. There is no numeric range
+check, directory-name validation, component append, or immediate manager call.
+
+It offers the record `(name, signedPriority, optionalString, byte=0)` to the
+parser's ordered unique-name container at `P+4B0`. The retained record's layout
+is name `+00..08`, priority `+0C`, optional string `+10..18`, byte `+1C`.
+Insertion copies the record. Uniqueness compares only the first string's exact
+bytes and length, case-sensitively; priority and optional string are not part
+of the key. An existing equal name is retained **without replacement**; the
+owner ignores the insert-result boolean. `Smoke` and `smoke` are separate
+keys, whereas a second `Smoke` with a different priority is ignored after its
+reader/conversion/copy work. Empty optional text does not set the final byte;
+even a supplied third string leaves it zero. These are pending parser records;
+the command itself does not prove when a later consumer applies them.
+Temporary strings are destroyed after the insertion returns. A throwing
+conversion precedes insertion, so it cannot insert a zero-priority entry as
+the resource-ID declarations do.
+
+Evidence: record construction and optional string `005A24C0–005A25B1`,
+container selection/insertion/cleanup `005A25B5–005A2619`, unique-key search
+and rejected-duplicate return `005A2620–005A26BD`, name-only comparison
+`004B5CA0–004B5D01`. All these are descriptor/behavior associations, without
+promoting a medium-confidence symbol label into a confirmed original class name.
+
+### 19.8 Camera and priority conformance vectors (unexecuted)
+
+| ID | Input / independent primitive replies | Required result |
+|---|---|---|
+| EC25 | `camera 160`; ParseFloat=160; collection C | C+4C receives list `[160,80,40,20,10]`, first parallax 100, span 1, size 4, sideSwipe 7; no distance sorting |
+| EC26 | `camera 160 90 30`; corresponding exact float replies | retained list `[160,90,30]`; no half-value expansion |
+| EC27 | `camera 160 -sideSwipe 2 -size 3 -parallax 10 13.75`; exact replies | switches/conversions in parallax, size, sideSwipe order; record first=10, span=3, size=3, sideSwipe=2; span fractional part discarded |
+| EC28 | `camera 160 -parallax 10 9.5` | record first=10, span=0; endpoints not swapped or rejected |
+| EC29 | `camera 160 -parallax 10`; otherwise valid | reader marks parallax, then minimum-arity exception; no collection call; prior positional float conversion already happened |
+| EC30 | camera as EC25 with null P+90 | complete local conversions/expansion/record cleanup; no collection call |
+| EC31 | `setPriority Smoke -4`; ParseInt=−4; empty pending container | inserted `(Smoke,−4,empty,0)`; no manager/collection call or case fold |
+| EC32 | repeat exact name `Smoke` with priority 9 and optional `Other` | original EC31 record retained; conversion and optional-string copy still occur, then duplicate insertion returns false |
+| EC33 | after EC31, `setPriority smoke 9 Other surplus` | second entry `(smoke,9,Other,0)`; `surplus` ignored; case-sensitive distinct key |
+| EC34 | `setPriority New bad`; ParseInt throws | no new pending entry; no default-zero insertion or manager call |

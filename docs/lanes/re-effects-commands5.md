@@ -33,7 +33,8 @@ validation, foreign-call ordering and vectors must be published before ready.
 - Done: effects-parser §§9–12, effects §19; 31 static vectors; EFP1/EFP3/EFP4/EFP5/EFP6 answered.
 - Done round 2: effects-parser §13 answers EFP2: all five rotation branches, turns not degrees, asymmetric intermediate stores, six static vectors; questions/doccheck passed.
 - Done round 2: eee0dd22 closes EFP2; effects §19.4–19.6 now documents seven identifier/trigger handlers plus resource enter/exit/import, 18 further static vectors.
-- Next: EF15 root camera/testEffect/setPriority, then effect/group blocks and nested setters. Map failure inserts zero before uint conversion; resource blocks restore base P+8C, not entry P+90.
+- Done: 790c6cff publishes identifier/resource contracts; §19.7–19.8 adds camera and priority declarations, ten static vectors; camera span truncates/clips, priority exact-name duplicates keep first.
+- Next: EF15 testEffect, effect/group blocks and nested setters. Most family remains incomplete; root descriptor names for FUN hooks unconfirmed (do not invent class names).
 - Then EF15: trace remaining root and nested handlers; current §19.2 covers ONLY renderprop and effectGroup; keep EF15 open.
 - Corrected prior spec error: AddRef/Release are F3C0/F3D0, not F3E0/F3F0; destructor 005A27F0 -> 0059F4E0.
 - Static evidence only; no game requests, no ABI changes. EFP7 deliberately outside task.
