@@ -1,6 +1,20 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-pr-harvest5: contributor spec harvest | Codex; re-pr-harvest5 (reserved detached HEAD) | ready: eleven selected contributor commits harvested; clean-room review and doccheck pass | Merge train publishes the actual HEAD to the reserved lane branch and lands it. |
+| re-pr-harvest5: contributor spec harvest | Codex; re-pr-harvest5 (reserved detached HEAD) | in progress: review and checks pass; context guard stopped queue creation | Resume handoff, finalize report and write queue at actual HEAD. |
+
+## Handoff
+
+- Goal: finish contributor harvest by writing the ready queue at final HEAD.
+- Done: all eleven requested cherry-picks, source mappings in Report below; deferred three remain excluded.
+- Done: full 84-page spec-addition and 26-page question-addition clean-room review; rewrites committed at dccfbcec and 8a568a2c.
+- Done: questions index regenerated; questions check, doccheck check, diff --check and preservation audit PASS before final report commit 8a568a2c.
+- Done: full Report below records conflicts, clean-room edits, coverage cells, questions and validation.
+- STOP: r2 guard reported context 151k over 150k immediately after final report commit; no queue written.
+- Next exact step: obtain actual HEAD; remove this Handoff, restore row to ready and clarify Report's final queue wording; commit report, then write build-runs/merge-queue/re-pr-harvest5.json with actual full HEAD, branch/lane re-pr-harvest5, kind re, abi false, game_runs [], state ready.
+- Do not redo harvest/review. Final report itself was not docchecked after its commit: optional final doccheck and clean status before queue.
+- Audit helper build-runs/harvest-audit.py is read-only; all prior symbol rows and answered lines retained, eight coverage spec cells only; two original headings renamed without losing their material.
+- Reserved detached HEAD: do not switch/update refs; supervisor publishes branch. Shared packed-refs.lock permission warning accompanies successful commits.
+- Manifest r2: C:/Users/tlori/FreeCity4/build-runs/run4-re-pr-harvest5-r2-manifest.json. Request a fresh round; no further work under exhausted guard.
 
 ## Report
 
