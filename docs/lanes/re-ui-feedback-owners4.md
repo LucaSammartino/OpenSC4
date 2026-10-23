@@ -34,9 +34,9 @@ The 12 names / 3532 bytes remain metadata extent only, not owner coverage.
 - 51 independent PROPOSED/UNEXECUTED traces: null/new/repeated text sources,
   failure prefixes, asymmetric rectangles/heights/text IDs, 0/999/1000/FFFFFFFF
   elapsed inputs, output/status distinctions, reference and paired/direct lifetime paths.
-- Documentation-only helper PASS: 4 files, 11 local links/fragments, 3 open IDs,
+- Documentation-only helper PASS: 4 files, 14 local links/fragments, 3 open IDs,
   51 unique trace IDs, 8 arithmetic/extent assertions, no code fences.
-  `git diff --check` PASS. Final report links are rechecked before its commit.
+  `git diff --check` PASS. Counts include the final report's three new links.
 - `python tools/questions.py index` succeeded after moving UIFO-2 to answered;
   the index change is one added row. No generated coverage metadata changed.
 - Initial optional helper failed to import pefile; corrected standard-library
