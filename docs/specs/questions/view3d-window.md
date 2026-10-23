@@ -71,7 +71,8 @@
   fields do buttons `0x36`/`0x8A32DDDB`, `0x49E95D2B`, `0x8991EE08`, `0x2B79E398`, `0xEA6E379D`,
   `0xABB27B91`, `0x09DE87AE` and `0xE9DE87A7` select? Which landscape catalogs correspond to the five default
   state pairs at `+0x2A8` through `+0x2C8`? Which catalog identity is used for utilities and zoning, and which
-  background is used where none is listed? What are the bus-stop and pipe buttons' command-server IDs (VW9)?
+  background is used where none is listed? What caller-data argument do the scripted menu buttons pass?
+  What are the bus-stop and pipe buttons' command-server IDs (VW9)?
   [unidentified buttons return unhandled; specified typed bus/pipe tools are callable; catalog 0/background 0
   means unspecified to the foreign provider, not a claimed resource identity; unspecified state fields use
   logical per-button memory keys; exact inventory remains open]

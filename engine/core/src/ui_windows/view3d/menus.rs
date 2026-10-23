@@ -101,10 +101,9 @@ pub struct OwnedPopup {
 
 impl View3DWin {
     fn close_popup(&mut self, host: &mut impl CommandHost, secondary: bool) {
-        if secondary && self.owner.popups.iter().all(Option::is_none) {
-            // Compatibility host closes both levels when neither is managed
-            // here (the older WinStore catalog adapter).
-            host.close_secondary();
+        if (secondary && self.secondary_win().is_none())
+            || (!secondary && self.tertiary_win().is_none())
+        {
             return;
         }
         if secondary {
@@ -139,8 +138,11 @@ impl View3DWin {
             }
         } else if secondary {
             host.close_secondary();
+            self.set_secondary(None, 0);
         } else {
             host.close_tertiary();
+            self.set_tertiary(None, 0);
+            self.set_catalog_state(None);
         }
     }
 
@@ -184,7 +186,8 @@ impl View3DWin {
             parent: self.as_igzwin(),
             group: 0x96A0_06B0,
             instance,
-            data: target,
+            // VW17: caller-data payload is unspecified for these buttons.
+            data: 0,
         }) {
             if let Some(gen) = host.popup(PopupCall::Query(token, 0x5386_D516)) {
                 host.popup(PopupCall::Filter(token, true));

@@ -493,6 +493,7 @@ fn catalog_item_guards_network_intersections_lot_move_and_null_allocation() {
     host.established = true;
     v.invoke_zoning_tool(&mut host, 16);
     assert!(host.ops.is_empty());
+    v.set_tertiary(Some(100), 1);
     v.invoke_catalog_item(&mut host, 0x4A2B_2467, 0x6A47_1234, true);
     assert_eq!(host.ops[0], Op::Close(true));
     assert_eq!(host.ops[1], Op::Tool(ToolSpec::Intersection(0x1234)));
@@ -521,6 +522,7 @@ fn disaster_properties_and_global_terrain_close_level_are_literal() {
     };
     v.invoke_disaster(&mut host, 42);
     assert!(host.ops.is_empty());
+    v.set_secondary(Some(100), 1);
     v.invoke_catalog_item(&mut host, 0x6A5A_C478, 6, true);
     assert_eq!(
         host.ops,
@@ -1793,12 +1795,20 @@ fn popup_row_limits_tutorial_and_view_level_gate_selection() {
             .iter()
             .any(|call| matches!(call, PopupCall::Catalog { layout, .. } if layout.rows == rows)));
         assert!(!h.ops.iter().any(|op| matches!(op, Op::Tool(_)))); // subway needs 2
-        v.close_owner_secondary(&mut h);
+        if secondary {
+            v.close_owner_secondary(&mut h);
+        } else {
+            v.close_owner_tertiary(&mut h);
+        }
         v.owner.view.level = 2;
         h.ops.clear();
         v.invoke_catalog_popup(&mut h, secondary, 88, 99, 0x290, CatalogQuery::default());
         assert!(h.ops.contains(&Op::Tool(ToolSpec::Network(7))));
-        v.close_owner_secondary(&mut h);
+        if secondary {
+            v.close_owner_secondary(&mut h);
+        } else {
+            v.close_owner_tertiary(&mut h);
+        }
         h.ops.clear();
         h.tutorial = false;
         v.invoke_catalog_popup(&mut h, secondary, 88, 99, 0x290, CatalogQuery::default());
@@ -2061,7 +2071,9 @@ impl StatusHost for Host {
     fn clock_widgets(&mut self, h: u32, m: u32, f: u32) {
         self.ops.push(Op::Clock(h, m, f));
     }
-    fn clock_hover_active(&self) -> bool { self.changed }
+    fn clock_hover_active(&self) -> bool {
+        self.changed
+    }
     fn clock_hover_widgets(&mut self, visible: bool, hour: u32, minute: u32) {
         self.hover.push((visible, hour, minute));
     }
@@ -2259,6 +2271,8 @@ fn vw_t15_query_tool_twice_is_one_tool_and_cancel_closes_both_menus() {
         1
     );
     h.ops.clear();
+    v.set_secondary(Some(100), 1);
+    v.set_tertiary(Some(101), 2);
     assert!(!v.process_motion_panel_command(&mut h, 0x6A93_5CF1));
     assert!(v.owner.stack.is_empty());
     assert_eq!(
