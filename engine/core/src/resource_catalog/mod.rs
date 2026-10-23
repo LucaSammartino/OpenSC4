@@ -112,6 +112,7 @@ pub enum Effect {
     DestroyVariant,
     HeapFree,
     ConfigureBase,
+    InstallBaseTable,
     CreateBaseChild,
     ConfigureAddChild(Handle),
 }
@@ -174,6 +175,8 @@ impl<'a> Catalog<'a> {
             descriptors,
             rows: Vec::new(),
             visible_to_original: Vec::new(),
+            // Portable uninitialized marker, not a native constructor default.
+            // Known selection is established by init_descriptor_map, not repair.
             descriptor_index: u32::MAX,
             current_preview: None,
             list,
@@ -525,6 +528,19 @@ pub fn base_init(initialized: bool, created_child: Option<Handle>, host: &mut im
         host.emit(Effect::Release(child));
     }
     true
+}
+
+pub fn base_shutdown(host: &mut impl Effects) {
+    host.emit(Effect::BaseShutdown);
+}
+
+/// Base destruction does not imply Shutdown; only the deleting wrapper frees.
+pub fn base_destroy(delete_flag: u32, host: &mut impl Effects) {
+    host.emit(Effect::InstallBaseTable);
+    host.emit(Effect::DestroyBaseWindow);
+    if delete_flag & 1 != 0 {
+        host.emit(Effect::HeapFree);
+    }
 }
 
 #[cfg(test)]

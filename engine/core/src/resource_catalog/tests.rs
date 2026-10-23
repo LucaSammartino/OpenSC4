@@ -410,6 +410,9 @@ fn v13_qi_effect_order_is_owner_specific_only() {
     h.trace.clear();
     assert_eq!(catalog_qi(0, 10, &mut h), Err(Boundary::UnknownMethod));
     assert!(h.trace.is_empty());
+    let mut word = 7;
+    picker_word_output(&mut word);
+    assert_eq!(word, 0xffffffff);
 }
 
 #[test]
@@ -854,6 +857,15 @@ fn scoped_destructors_keep_picker_catalog_and_key_input_orders_distinct() {
     );
     // Catalog destruction does not imply Shutdown or a list Release.
     assert_eq!(c.list, Some(90));
+    h.trace.clear();
+    base_shutdown(&mut h);
+    assert_eq!(h.effects(), vec![Effect::BaseShutdown]);
+    h.trace.clear();
+    base_destroy(1, &mut h);
+    assert_eq!(
+        h.effects(),
+        vec![Effect::InstallBaseTable, Effect::DestroyBaseWindow, Effect::HeapFree]
+    );
     h.trace.clear();
     let mut input = KeyInput::new(Key::default());
     input.held[0] = Some(10);
