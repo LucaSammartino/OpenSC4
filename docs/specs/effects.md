@@ -1710,8 +1710,10 @@ The parser's positively identified final-release/destructor chain is in
 [§11.2](effects-parser.md#112-native-parser-final-release).
 The generic registrar, duplicate policy, descriptor ownership and block dispatch
 are in [§12](effects-parser.md#12-generic-registration-and-dispatch-dependency-compat).
-These dependencies answer EFP1, EFP3–EFP6 at their command-owner boundaries;
-EFP2 remains open. Descriptor registration alone does not
+These dependencies and effects-parser.md §13 answer EFP1–EFP6 at their
+command-owner boundaries. Section 13 specifies all five rotation keys and
+their x87/binary32 intermediate stores; broader numeric qualification is EFP7.
+Descriptor registration alone does not
 prove a command's execution algorithm.
 
 ### 19.2 Two root command owners

@@ -1,11 +1,5 @@
 # Effects text parser questions
 
-**EFP2 — Rotation instruction/store semantics**
-
-In `effects-parser.md` §2/§8, establish the x87 operation and binary32 temporary/store
-order for all five rotation branches of `005989D0`; distinguish their key order
-from text order. Current supported domain requires those lookups absent.
-
 <!-- from: core-effects-parser4 (2026-10-23) -->
 - **EFP7 — Numeric qualification beyond exact finite inputs:** Which PC/RC modes,
   pre-store scalar domains, nonfinite/overflow cases and signed-zero conversions

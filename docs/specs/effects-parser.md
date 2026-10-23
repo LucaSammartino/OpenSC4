@@ -52,7 +52,7 @@ The complete owner lookup order is finite:
 | Order | Literal key | Request count | Owner branch |
 |---|---|---:|---|
 | 1 | `offset` | 1 | vector copy and transform marks |
-| 2–6 | `rotateX`, `rotateY`, `rotateZ`, `rotateXYZ`, `rotateZXY` | 1, 1, 1, 3, 3 | rotation branches, numeric details pending |
+| 2–6 | `rotateX`, `rotateY`, `rotateZ`, `rotateXYZ`, `rotateZXY` | 1, 1, 1, 3, 3 | rotations and intermediate stores, §13 |
 | 7 | `scale` | 1 | scalar copy, scale flag decision |
 | 8 | `lodRange` | 2 | if present, skips lookup of `lod` |
 | 9 | `lod` | 1 | only when `lodRange` absent |
@@ -63,9 +63,9 @@ The complete owner lookup order is finite:
 These are distinct literal keys. Lookup order overrides
 textual order for distinct keys. `lodRange` has priority over `lod`; both length
 keys are queried, so `respectLength` wins when both lookups report present.
-The no-rotation subdomain (all five rotation lookups absent) is the finite normal
-option family fully described in §3. Rotation calculation/store order is explicitly
-outside that supported subdomain, rather than delegated as a host parser outcome.
+The no-rotation subdomain is described in §3. Section 13 extends this with the
+five rotation branches, including their intermediate binary32 stores. It does
+not determine the process-wide x87 control word or every nonfinite input (EFP7).
 
 ## 3. Supported non-rotation option state transitions
 
@@ -390,8 +390,8 @@ on the foreign QI's actual reference convention. No destruction trace is claimed
 ## 8. Individually bounded coverage statement
 
 `ParseDescRecOptions` (`005989D0`, exported size 3445 bytes) is **Partial**:
-supported no-rotation normal branches above; five rotation bodies and foreign
-reader language prevent whole-body/whole-parser support. The size is a metadata
+§3 and §13 specify its option and rotation calculations; process-wide numeric
+qualification and foreign reader language prevent whole-parser support. The size is a metadata
 anchor, not a newly certified byte-coverage count. No complete inventory, default
 grammar or runtime proof is claimed. §§9–11 add reader, validation and lifetime
 contracts without completing the command family. Further own-body statuses
@@ -417,7 +417,7 @@ domain with primitive results, not the entire language, errors or runtime.
 Generic readers, conversions, base QI/registration/reference operations,
 string/allocator operations and vector copy/insertion remain **Foreign** to the
 parser owner; §§9–11 specify several of those dependencies independently.
-Unexamined command hooks, rotation calculations and complete tokenizer grammar
+Unexamined command hooks, numeric domains beyond §13 and complete tokenizer grammar
 remain **Unknown** here. Exported sizes are function extents, never a sum of supported
 bytes or a complete parser inventory. The concrete factory, caller and descriptor
 links above establish ownership more narrowly than name metadata alone.
@@ -689,3 +689,95 @@ effects-command family; this dispatch contract requires their returning results.
 | DR4 | outer and inner dictionaries both define `x`, root defines `y` | `x` dispatches inner; `y` falls back to root; missing key throws unknown-command error |
 | DR5 | top block A; end hook throws | A's end wrapper/hook called once; stack entry retained; no second implicit end hook; no pop |
 | DR6 | returning handler leaves `-unknown` unmarked | nested-selected handler: side effects then unexpected-switch exception; root-fallback handler: side effects and normal return from this dispatcher |
+
+## 13. Rotation options and stored matrix composition *[compat]*
+
+The five options in §2 compose with the existing matrix, including all earlier
+rotation writes; they do not replace it. Use a three-by-three array M with rows
+at `D+18,24,30` hex, each containing three consecutive binary32 values. This
+notation defines storage, without requiring a renderer's row/column convention.
+Offset (`D+3C..44`) and scalar scale (`D+48`) are unaffected by these branches.
+
+| Key | Selected arguments / conversion and composition order | Completed-transform count |
+|---|---|---:|
+| `rotateX` | one ParseFloat, X | 1 |
+| `rotateY` | one ParseFloat, Y | 1 |
+| `rotateZ` | one ParseFloat, Z | 1 |
+| `rotateXYZ` | first selected value X, second Y, third Z | 3 |
+| `rotateZXY` | first selected value Z, second X, third Y | 3 |
+
+All five keys can act in one call, in the table's order regardless of text
+order. A compound command's values follow its named axis order: `rotateZXY`
+does **not** reinterpret three XYZ coordinates. Each value is converted only
+when its axis is reached, using the then-current shared index scratch. After
+each complete axis, OR `04` hex into byte `D+15` and increment byte `D+14`
+modulo 256. A compound option increments three times, even with zero angles.
+There is no local angle-range check, normalization to a revolution, or special
+case for zero. Missing options leave the matrix and these marks unchanged.
+
+Inputs are **turns**, not degrees or radians. The ParseFloat result remains on
+the x87 stack and is multiplied by binary32 `40C90FDB` hex
+(`6.283185482025146484375`, at `00A9F384`). There is no binary32 angle temporary
+between this multiply and the trigonometric operations. FCOS and FSIN consume
+copies of that same x87 product. The cosine is stored to binary32 before any
+matrix products. The positive sine initially remains at x87 precision.
+
+For the formulas below, R means a binary32 store/reload under the active x87
+rounding mode; C = R(cos(angle)), S = sin(angle) at x87 precision, and
+N = R(−S). Each ordinary multiply/add/subtract in a formula is a distinct x87
+operation, with the active precision/rounding mode. Do not fuse operations,
+round S early, or expand the product to a host matrix routine. Values on the
+right are from before **that axis**, so an earlier output of the same axis
+must not feed another output. Every output on the left is stored binary32.
+The untouched column retains its exact input bits.
+
+| Axis | Changed columns | First output in each row | Second output in each row |
+|---|---|---|---|
+| X | 1 and 2; let A=M[row,1], B=M[row,2] | row 0: R(C×A + S×B); rows 1,2: R(R(C×A) + R(S×B)) | row 0: R(A×N + R(C×B)); rows 1,2: R(R(A×N) + R(C×B)) |
+| Y | 0 and 2; let A=M[row,0], B=M[row,2] | row 0: R(C×A − S×B); rows 1,2: R(R(C×A) − R(S×B)) | rows 0,1: R(R(S×A) + R(C×B)); row 2: R(S×A + R(C×B)) |
+| Z | 0 and 1; let A=M[row,0], B=M[row,1] | row 0: R(C×A + S×B); rows 1,2: R(R(C×A) + R(S×B)) | row 0: R(A×N + R(C×B)); rows 1,2: R(R(A×N) + R(C×B)) |
+
+For X and Z, compute the first-column outputs using S before storing N for
+the second-column outputs. Y uses the subtraction and retains positive S;
+there is no corresponding negative-sine store in Y. The completed axis's
+matrix stores precede its counter/flag update. In a compound option all of
+those writes precede the next ParseFloat. If that conversion throws, previous
+axes and their counter increments remain, with no rollback or later axes.
+The foreign reader's marking of the option precedes all its conversions (§9).
+
+Evidence: X `00598A68–00598B6D`, Y `00598B9D–00598C92`,
+Z `00598CC3–00598DCC`. The repeated axis arithmetic and stores were checked
+individually in XYZ `00598DFD–00599127` and ZXY `00599157–00599480`.
+In particular, X's first sum is at `00598AD2`, its negative-sine binary32
+store at `00598B19`; Y's first subtraction at `00598C01`, its row-2 second
+sum at `00598C70`; Z's first sum at `00598D2D`, negative-sine store at
+`00598D78`. These instruction bytes, rather than pseudocode float types,
+establish the asymmetries above.
+
+This is an instruction/store contract parameterized by x87 control state,
+not a certification of the process's PC/RC setting, transcendental accuracy
+on every CPU, or nonfinite/overflow handling. Those qualifications remain
+EFP7; an implementation may expose Unsupported outside its qualified numeric
+domain, retaining the already-established mutation prefix. EFP2's operation
+order no longer requires excluding every rotation option.
+
+### 13.1 Rotation conformance vectors (static, unexecuted)
+
+These use returning primitive conversions and nearest-even arithmetic. Positive
+nonzero integer matrices avoid relying on the sign of a zero sum in the zero
+angle examples. Intermediate-rounding tests must separately supply/check x87
+operation results, not derive all expectations from the completed output matrix.
+
+| ID | Input / initial state | Required result |
+|---|---|---|
+| RO1 | each single-axis key independently; ParseFloat=+0; M rows (1,2,3), (4,5,6), (7,8,9); count=255, flags=80 hex | angle=+0, C=3F800000, S=+0; matrix unchanged, count=0, flags=84 hex; one conversion only |
+| RO2 | `-rotateZXY 0 0 0 -rotateX 0 -rotateXYZ 0 0 0 -rotateZ 0 -rotateY 0`; each selected value converts +0; matrix as RO1, count=250 | nine conversions in order X, Y, Z, XYZ's X/Y/Z, ZXY's Z/X/Y; count=3, matrix unchanged; each compound selects three indices once, not three separate switch lookups |
+| RO3 | `rotateXYZ` present with three indices; first two conversions +0, third throws; initial count=10, flags=0, M as RO1 | X and Y completed, count=12, flags=04; matrix unchanged; third conversion attempted, no Z writes or later options; switch already marked |
+| RO4 | `rotateZXY` present; first conversion throws; preceding single-axis keys absent; initial M/count/flags arbitrary | first selected value is the Z input; no axis writes or marks; switch marked; no second conversion |
+| RO5 | X or Z staged arithmetic, row 0 A=B=1 | first output requires R(C+S), second R(N+C); rows 1,2 with A=B=1 instead require R(C+R(S)) for first output. This tests the sine store boundary independently of flags/count |
+| RO6 | Y staged arithmetic, all rows A=B=1 | first output row 0 R(C−S), rows 1,2 R(C−R(S)); second output rows 0,1 R(R(S)+C), row 2 R(S+C). A uniformly rounded sine changes this contract |
+
+RO5/RO6 are arithmetic-stage assertions, not arbitrary injected trigonometric
+results represented as a successful script parse. Supply the actual angle and
+x87 results when adding a native numeric oracle. A host golden generated solely
+from flags, probability, or final transforms cannot establish these store rules.

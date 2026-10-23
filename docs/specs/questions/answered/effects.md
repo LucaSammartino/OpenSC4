@@ -1,4 +1,16 @@
 # effects: answered questions (archive)
+
+- ~~**EFP2 — Rotation instruction/store semantics:** In effects-parser.md §2/§8,
+  establish x87 operations and binary32 store order for all five rotation branches,
+  including key order versus text order.~~
+  **ANSWERED 2026-10-23 (re-effects-commands5):** DIFFERS — effects-parser.md §13:
+  turns multiply binary32 2π without an intervening angle store; cosine stores
+  binary32, positive sine initially stays x87. X/Z store negative sine before
+  their second column; Y retains positive sine. Row-dependent product stores
+  are specified explicitly. XYZ executes X/Y/Z; ZXY executes Z/X/Y on successive
+  selected values. Each completed axis increments the byte count and sets bit 04;
+  earlier axes survive a later conversion exception. Six conformance rows.
+  Process PC/RC and broader numeric qualification remain EFP7.
 <!-- Archive for [effects.md](../../effects.md). Lanes do not read this file. Open questions are in ../effects.md. -->
 
 <!-- from: From the automata state behaviours and the effect-directory measurements (2026-10-16) -->

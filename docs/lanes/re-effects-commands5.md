@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-effects-commands5 — effects script command contracts | Codex / detached re-effects-commands5 | in progress: dependencies published, command family incomplete | Resume EFP2 rotations and EF15 remaining root/nested owners; no merge queue until complete. |
+| re-effects-commands5 — effects script command contracts | Codex / detached re-effects-commands5 | in progress: EFP1–EFP6 published, EF15 incomplete | Continue remaining root/nested owners; no merge queue until complete. |
 
 ## Report
 
@@ -31,7 +31,8 @@ validation, foreign-call ordering and vectors must be published before ready.
 - Goal: publish effects-script command behavior for the engine lane; no engine edits.
 - Done: 62390a5d publishes reader/directory/lifetime; 16f94ae2 adds dispatch/error contracts. Both pass doccheck/questions checks.
 - Done: effects-parser §§9–12, effects §19; 31 static vectors; EFP1/EFP3/EFP4/EFP5/EFP6 answered.
-- Next: page asm 005989D0 (3445 bytes; 56 lines/page) for five rotation branches, verify x87 intermediate stores, answer EFP2.
+- Done round 2: effects-parser §13 answers EFP2: all five rotation branches, turns not degrees, asymmetric intermediate stores, six static vectors; questions/doccheck passed.
+- Next: EF15 root resource/name commands, then effect/group blocks and nested setters. Commit checkpoint contains EFP2 closure.
 - Then EF15: trace remaining root and nested handlers; current §19.2 covers ONLY renderprop and effectGroup; keep EF15 open.
 - Corrected prior spec error: AddRef/Release are F3C0/F3D0, not F3E0/F3F0; destructor 005A27F0 -> 0059F4E0.
 - Static evidence only; no game requests, no ABI changes. EFP7 deliberately outside task.
@@ -45,4 +46,5 @@ validation, foreign-call ordering and vectors must be published before ready.
 - EFP1–EFP6 are in questions/effects-parser.md, EF15 in questions/effects.md.
 - Explicitly permitted engine read: main checkout effects_parser/README.md only.
 - q.py cannot start Git Bash (CreateFileMapping access denied); use bounded PowerShell calls.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-effects-commands5-r1-manifest.json.
+- Round 2 resumed 2026-10-23 at detached HEAD 5685fd80; existing publication retained.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-effects-commands5-r2-manifest.json.
