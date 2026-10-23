@@ -26,9 +26,9 @@ These questions belong to [gz-framework-core](../gz-framework-core.md). Filed
   specify resize, attached storage, palette, copy/conversion and allocation failure.
 - **GZF7 — Logging configuration (§7):** Recover the named level table, numeric
   parsing instructions, Init configuration, duplicate backend-name policy and
-  backend ownership. Distinguish the two deferred lists, recursive depth guard
-  boundaries, formatting overflow/allocation failure and shutdown pending output.
-- **GZF8 — File-system/CD policy (§8):** Settle service ID versus IID, application
+  backend ownership. Settle recursive drain behavior, formatting
+  overflow/allocation failure and shutdown pending output.
+- **GZF8 — File-system/CD policy (§8):** Settle application
   path splitting and string lifetime, INI filename/data-key literals, cache
   invalidation, CD scan order/recursive search, ValidateCDPath and no-disc failure.
 - **GZF9 — Script interpreter remainder (§9):** Recover constructor/IID/default

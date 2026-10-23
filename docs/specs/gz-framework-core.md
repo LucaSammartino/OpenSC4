@@ -76,7 +76,9 @@ Nonvirtual entry points are `sSetFrameWork` `0x008793BD`, `sSetApplication`
 phase to zero, and mutation/iteration flags to false. AddRef returns the incremented
 count under the framework lock. Release returns zero when the count is less than
 two; otherwise it decrements and returns the result. This entry does not delete
-the framework on a transition to zero (`0x00879355`, `0x00879383`).
+the framework when returning zero (`0x00879355`, `0x00879383`). In particular,
+the stored count remains one when Release returns zero at count one; the unsigned
+comparison and conditional decrement are at `0x008793A0`–`0x008793AE`.
 
 ### 2.2 Service and callback ownership
 
@@ -114,7 +116,8 @@ process with the supplied result (`0x0087A610`). An implementation needs a host
 boundary for this behavior. *[choice]* A test host may intercept termination to
 record the requested result.
 
-*[compat]* Setting the scheduling count below one stores one (`0x0087944F`).
+*[compat]* Setting the scheduling count below one stores one (signed test and
+store at `0x00879453`–`0x0087945F`).
 The basic debug-level setter stores the supplied value; the getter returns it.
 Exception reporting uses `??? Unknown exception ???` for a null description,
 temporarily disables the framework through slot 18, presents an exception dialog,
@@ -365,8 +368,9 @@ original caller returns; retaining a borrowed pointer is insufficient.
 *[compat]* OnTick drains deferred messages in FIFO order, releases the queue lock
 before delivering each item, and returns true (`0x00934F05`). Low-level delivery
 also drains its local deferred collection. Its recursion guard drops delivery
-when the incremented depth exceeds three (`0x00934AA0` vicinity). Exact assignment
-of the two deferred lists to reentrant versus foreign-thread output is GZF7.
+when the incremented depth exceeds three (unsigned comparison after dword
+increment, `0x00934AF4`–`0x00934B04`). Foreign-thread records use the queue at
+`+0x24`; reentrant owner-thread records use `+0x20` (`0x00934A8E`–`0x00934AC1`).
 
 *[compat]* SetOutputLevel with a backend name targets that backend. Without a
 backend name it updates all registered backends and remembers either the global
@@ -390,9 +394,9 @@ format truncation/allocation failure and initialization configuration remain GZF
 
 Service construction `0x008907AA`; QI `0x0089068A`. File-system face table
 `0x00AC5120`; system-service table `0x00AC5190`, lifetime table `0x00AC5178`.
-The application registers the file-system interface as `0xE0203660` (application
-§4.2). The precise IID/service-ID distinction is GZF8; do not reverse those IDs
-based only on an app registration call.
+The file-system IID is `0xE0203660`; QI returns its face at `+0x1C` and adds a
+reference (`0x0089068A`). Its service ID is `0x2073215D`, supplied to the base
+service constructor by `0x008907AA`. Application §4.2 lists the interface ID.
 
 | File-system slot | Method / address |
 |---|---|
