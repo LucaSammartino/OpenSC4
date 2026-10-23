@@ -1,17 +1,32 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-place-lot5b: place-lot owner closure | Codex; core-place-lot5b | in progress | Audit updated spec, implement all owner rows, test and gate |
+| core-place-lot5b: place-lot owner closure | Codex; core-place-lot5b (detached HEAD, reserved branch) | ready: settled owner paths implemented; full gate passed; CT25–CT26 remain spec conflicts | Review/land; resolve §3.7 and §4 quirk 5; regenerate question index |
 
-## Handoff
-- Goal: close every place-lot owner row against updated city-tools-input spec; core only, no ABI/plugin changes.
-- Done: updated queue flush, ring completion, toll picker/depth-two network search, clearing gates and explicit zoning flags, preview occupants/drawing/constraints; closure tests added.
-- Done: implementation milestone 64036f1c; first focused run 12/12, expanded focused run 23/23. Review added two more CT17 tests, rejected-prop/creation failures and preview-occupant zoning groups. Owned-file fmt passes (7 files), diff check clean.
-- Done: final source 4b9a1e39; qbuild all workspace tests 6455 passed / 0 failed / 0 ignored; clippy 0 diagnostics. All 25 place-lot tests pass.
-- Done: initial qbuild session 64979 collected to terminal PASS: tests 6455, clippy 0 diagnostics, native build 220/220, CTest 69/69. Logs preserved as build-runs/pre-precision-{qbuild-test,qbuild-clippy,fc4verify-build,fc4verify-ctest}.log. Its Rust phase predates the arithmetic correction; native phase completed after that correction.
-- Done: final corrected-source full gate Rust phase passes: 6456 tests, 0 failures/ignored; clippy 0 diagnostics.
-- Next: collect SAME final qbuild session 32154 to terminal. Native job qbuild-20261023-222004-build-ctest is pending. Then finalize report/queue. No game requests outstanding.
-- Late diagnostic fixed: binary32 cell width 0.7 is 0.699999988079071. Minimum cell 10 must truncate extended product to 6; old binary32 product truncated to 7. world_rectangle now preserves the product and low-dword storage; actual click and wrap regression passes. Corrected focused tests 26/26; formatting passes. Initial full gate's Rust phase predates this correction, so it is not final evidence.
-- Evidence: no full gate failures. Initial native queue eventually passed; first full gate was repeated only because of the measured arithmetic discrepancy.
-- Questions: CT25 visibility write missing in 3.7; CT26 detailed move validation conflicts with quirk 4.5. Literal detailed reading retained with comments.
-- Failed wrapper evidence: build-runs/q/20261023-214618-30012.log (Git Bash mapping error); direct cargo works and is compiling amid shared CPU load.
-- Evidence: no game requests outstanding; manifest is main build-runs/run4-core-place-lot5b-r1-manifest.json.
+## Report
+
+Implemented the settled place-lot owner contract in the core module only. Terrain, lot management, network occupants and renderer operations remain foreign primitives; no native owner callbacks, plugin/capi wiring, C ABI exports or ABI version changes. The module README has an Owner closure row for every §3 section/subsection and all place-lot §6 conformance vectors.
+
+- Queue flush and unconditional ring-finished flag clearing/recalculation now replace the CT2/CT22 placeholders.
+- Toll selection owns defaults, type priority/masks, side decoding, every aligned footprint/position, configuration switching and independent depth-two searches, including cycles and missing branches.
+- Preview building/profile selection preserves foreign hash-set order. Prop acceptance, centered offsets, coverage category priority/radius/names and water/subway view selection are owned here.
+- Feedback owns independent validity/visibility, grid/ring transforms, footprint/arrow creation/restart, exact angle/scale constants, highlight attributes, occupant transforms/insertion/removal, cursor transitions and constraint cell rotations/reuse/cleanup. Created and acquired references have separate releases.
+- Placement now gates demolition → dezoning → zoning → creation, passes all explicit zoning flags/null outputs, always skips funds on the second zone call, and reads groups from the retained preview occupant.
+- Rechecking §4 quirk 4 found a measured precision bug: binary32 width 0.7 × cell 10 rounded to 7 before truncation; the extended product truncates to 6. The click rectangle now preserves that product and stores low dwords rather than saturating. An actual-click regression and wrap vector cover this.
+
+Implementation milestones: 64036f1c (settled helpers/vectors), 4b9a1e39 (coverage table and completed tests), 05d34921 (measured click-rectangle correction).
+
+## Validation
+
+Final corrected source: 26/26 place-lot tests. Full qbuild all: **6456 passed, 0 failed, 0 ignored; clippy 0 diagnostics; CMake 46/46; CTest 69/69**. Owned Rust formatting passed (all seven files; changed three rechecked after the arithmetic correction); diff check clean.
+
+Final native job: qbuild-20261023-222004-build-ctest, collected to terminal PASS. Logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log and fc4verify-ctest.log. The native report's “tree changed” annotation is only the committed lane handoff: git diff d8e7518e..7e199355 names docs/lanes/core-place-lot5b.md alone, and both engine trees equal 953dd4e49073e8954700bedc1cf6a906a87e29a0. No implementation input changed during the final gate.
+
+Initial full operation qbuild-20261023-215904-build-ctest also reached terminal PASS (6455 tests, clippy 0, build 220/220, CTest 69/69); its Rust phase preceded the arithmetic correction. Its four full logs are preserved as build-runs/pre-precision-*.log. The second full check followed that concrete diagnostic and source/test change. An earlier Git Bash wrapper failure remains in build-runs/q/20261023-214618-30012.log; direct cargo supplied the focused runs.
+
+Game: n/a. This is an unwired core owner; no game request or shadow claim.
+
+## Questions and exact remaining scope
+
+Appended CT25 and CT26 to docs/specs/questions/city-tools-input.md. Only **§3.7** (the missing hit-path visibility write and conflicting failed-facing validation gate) and **§4 quirk 5** (its previous-placeability gate conflicts with §3.7) remain open for exact behavior. The implementation follows detailed §3.7 literally with comments; the complete §3.14 feedback algorithm is independently exposed/tested. All formerly open CT2, CT16, CT17 and CT22–CT24 helper contracts now have code and tests.
+
+Coordinator next: regenerate the question index (not edited by this lane), resolve CT25–CT26, review the closure table and claim coverage rows. No tools/coverage-map.tsv changes were made.
