@@ -1,5 +1,12 @@
 # effects: answered questions (archive)
 
+- **EF16 — §19.52 / EC275 conflicts with effects-parser §6.1 for instance:**
+  Which root/nested handler belongs to descriptor `00A9FA08`?
+  **ANSWERED 2026-10-23 (re-effects-ef5):** DIFFERS — §19.52's address
+  was wrong: both registrations use descriptor `00A9FA08`, whose +0C word
+  is `0059A730`. `00596980` is inside effectsResource's exit hook.
+  EC275's equal-handler assertion and §19.4's instance behavior stand.
+
 - ~~**EFP2 — Rotation instruction/store semantics:** In effects-parser.md §2/§8,
   establish x87 operations and binary32 store order for all five rotation branches,
   including key order versus text order.~~

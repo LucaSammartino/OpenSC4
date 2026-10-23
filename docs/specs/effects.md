@@ -3998,10 +3998,17 @@ failure is explicit. These are static predictions without a native oracle.
 ### 19.52 Visual-effect and effect-group nested dictionaries *[compat]*
 
 The root effectGroup owner (§19.2) registers exactly one child: `instance`,
-descriptor `00A9FA08`, direct handler `00596980`, already specified in
+descriptor `00A9FA08`, direct handler `0059A730`, already specified in
 §19.4. Registration `005967D0–00596808` allocates four bytes and installs
 that descriptor, or passes null to the generic registrar on allocation
 failure. It does not embed a second implementation of instance.
+
+EF16 clarification: the descriptor's +0C word is `0059A730` in both
+registrations (root and effectGroup). `00596980` is an instruction inside
+the effectsResource exit hook `00596970`, not an instance entry point.
+Thus §19.4 and effects-parser §6.1 apply unchanged; EC275's equal-handler
+assertion is literal equality. Evidence: descriptor bytes at
+`00A9FA08–00A9FA17`, nested registration `005967E2`, root inventory §6.1.
 
 The root effect owner (§19.9) registers the following **19** children in
 this order (`cGroupEffectCommand::RegisterCommands`, `00596B70`). The
