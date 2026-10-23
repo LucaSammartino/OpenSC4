@@ -17,6 +17,8 @@ Gate 1 (source 7954b9ed): workspace 6244/0; clippy failed 3 test-fixture initial
 Failed clippy preserved at build-runs/vehicles-all-1-clippy.log; all three fixtures corrected.
 Gate 1 terminal FAIL: cargo 6244/0; clippy 3 fixture lints; native build PASS 217/217,
 CTest PASS 68/68. Native queue label qbuild-20261023-194941-build-ctest completed.
-Next: corrected-source full qbuild all; collect that one operation to terminal.
+Gate 2 running session 63898: cargo 6244/0 PASS, clippy PASS (0 diagnostics).
+Native queue label qbuild-20261023-195939-build-ctest pending; no game requests.
+Next: collect session 63898 to terminal, record CMake/CTest, then final WIP report/queue.
 Closure incomplete; do not claim ready: module README gives exact open sections.
 Facts: no game requests outstanding; manifest is main build-runs/run4-core-vehicles5-r1-manifest.json.
