@@ -11,9 +11,6 @@ pub struct CityState {
     pub segment: Option<Token>,
     pub template_segment: Option<Token>,
     pub new_city_specification: Vec<u8>,
-    /// §12 leaves SC4CreateSavePathForCity's naming rule open. Composition
-    /// must supply its independently resolved result; no name is guessed here.
-    pub resolved_save_target: Option<Vec<u8>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -60,6 +57,8 @@ pub enum Query {
     RegionalValue(Token),
     Zoom,
     Rotation,
+    HasSourceView,
+    HasDestinationView,
     ObliterationWriteResult(Token),
     TerrainDirectory,
     TerrainModal,
@@ -70,6 +69,7 @@ pub enum Query {
     DialogWidth,
     DialogHeight,
     HasRootWindow,
+    HasGlobalApp,
 }
 
 /// A reply has separate channels so null pointers, empty strings and false
@@ -133,7 +133,7 @@ pub enum Effect {
     WriteAdjacent(Token),
     Zoom(i32),
     Rotation(i32),
-    TerrainIniOpen,
+    TerrainIniOpen(Vec<u8>),
     TerrainFlags(u32),
     TerrainSetDirectory(Vec<u8>),
     TerrainCenter(i32, i32),
@@ -156,7 +156,7 @@ pub struct RegionalCity {
 /// Only calls on foreign city/segment/region/window/OS objects occur here.
 /// App algorithms (dialogs, branching, ordering, replacement and cleanup) live
 /// below. create/read return one owned reference; all other tokens are borrowed.
-pub trait CityHost {
+pub trait CityHost: super::save_path::SavePathHost {
     fn query(&mut self, query: Query) -> Reply;
     fn effect(&mut self, effect: Effect);
     fn create(&mut self, object: Object) -> Token;
@@ -480,9 +480,8 @@ impl Application {
         self.save_city(&path, flag, host)
     }
 
-    /// Implements all published file handling. The naming function is explicitly
-    /// open in §12; absent an independently resolved target this stops before
-    /// mutating the city or touching files.
+    /// Target naming is app-owned; region interfaces and code-page conversion
+    /// remain primitive foreign operations.
     pub fn save_city(&mut self, path: &[u8], flag: bool, host: &mut dyn CityHost) -> Result<bool, Boundary> {
         let scopes = [Scope::BusyCursor, Scope::FlushInput, Scope::Pause, Scope::SaveUnknown];
         for scope in scopes {
@@ -492,11 +491,12 @@ impl Application {
             let Some(city) = self.city_state.city else {
                 return Ok(false);
             };
-            let target = self
-                .city_state
-                .resolved_save_target
-                .clone()
-                .ok_or(Boundary::SavePathNaming)?;
+            let base = host
+                .save_directory(city)
+                .ok_or(Boundary::InvalidNativeInput("save requires a selected region"))?;
+            let name = host.city_name(city);
+            let id = host.city_id(city);
+            let target = super::save_path::create_save_path(&base, &name, id, host);
             let old = host.query(Query::CityPath(city)).text;
             host.effect(Effect::SetCityPath(city, target.clone()));
             let temp = host.query(Query::TempPath).text;
@@ -688,32 +688,32 @@ impl Application {
 
     pub fn do_city_obliteration(&mut self, host: &mut impl CityHost) -> Result<bool, Boundary> {
         scoped(host, &[Scope::BusyCursor], |host| {
-            // Resolve §12's naming gap before deleting the original file, so
-            // retrying after supplying that input cannot repeat destructive work.
-            if self.city_state.city.is_some() && self.city_state.resolved_save_target.is_none() {
-                return Err(Boundary::SavePathNaming);
-            }
             let temp = host.query(Query::TempPath).text;
             if temp.is_empty() {
-                return Ok(false);
+                return Err(Boundary::InvalidNativeInput(
+                    "obliteration temp-name failure has indeterminate return byte",
+                ));
             }
             let Some(city) = self.city_state.city else {
-                return Ok(false);
+                return Err(Boundary::InvalidNativeInput("obliteration requires an open city"));
             };
             let output = host.create(Object::Segment);
             let init = host.query(Query::SegmentInit(output)).flag;
-            host.effect(Effect::SegmentPath(output, temp.clone()));
-            let mut saved = false;
-            if init && host.query(Query::SegmentOpen(output, true)).flag {
-                host.effect(Effect::WriteObliteration(city, output));
-                // The city slot's result is a foreign return, not an app algorithm.
-                saved = host.query(Query::ObliterationWriteResult(city)).flag;
-                host.effect(Effect::SegmentClose(output));
+            if init {
+                host.effect(Effect::SegmentPath(output, temp.clone()));
+                if host.query(Query::SegmentOpen(output, true)).flag {
+                    host.effect(Effect::WriteObliteration(city, output));
+                    host.query(Query::ObliterationWriteResult(city));
+                    host.effect(Effect::SegmentClose(output));
+                }
+                host.effect(Effect::SegmentShutdown(output));
             }
-            host.effect(Effect::SegmentShutdown(output));
             host.effect(Effect::Release(output));
-            let zoom = host.query(Query::Zoom).number;
-            let rotation = host.query(Query::Rotation).number;
+            let (zoom, rotation) = if host.query(Query::HasSourceView).flag {
+                (host.query(Query::Zoom).number, host.query(Query::Rotation).number)
+            } else {
+                (0, 0)
+            };
             let path = host.query(Query::CityPath(city)).text;
             host.effect(Effect::CitySlot5c(city, 0));
             self.partial_close_city(host);
@@ -721,10 +721,10 @@ impl Application {
                 host.query(Query::Remove(path.clone()));
             }
             let segment = host.create(Object::Segment);
-            let init = host.query(Query::SegmentInit(segment)).flag;
+            host.query(Query::SegmentInit(segment));
             host.effect(Effect::SegmentPath(segment, temp.clone()));
             let mut writeback = Ok(false);
-            if init && host.query(Query::SegmentOpen(segment, false)).flag {
+            if host.query(Query::SegmentOpen(segment, false)).flag {
                 self.city_state.template_segment = Some(segment);
                 self.new_city_inner(host);
                 if let Some(city) = self.city_state.city {
@@ -737,17 +737,28 @@ impl Application {
                     writeback = self.save_city(&path, false, host);
                 }
             }
-            host.effect(Effect::Zoom(zoom));
-            host.effect(Effect::Rotation(rotation));
+            if host.query(Query::HasDestinationView).flag {
+                host.effect(Effect::Zoom(zoom));
+                host.effect(Effect::Rotation(rotation));
+            }
             host.effect(Effect::SegmentShutdown(segment));
             host.effect(Effect::Release(segment));
             host.query(Query::Remove(temp));
-            writeback.map(|_| saved)
+            // SaveCityForObliteration returns true regardless of write outcome.
+            writeback.map(|_| true)
         })
     }
 
     pub fn load_height_field(&mut self, out: &mut Vec<u8>, host: &mut impl CityHost) -> bool {
-        host.effect(Effect::TerrainIniOpen);
+        let ini = if host.query(Query::HasGlobalApp).flag {
+            match self.app_interface_getter(29, None, host) {
+                Ok(super::compatibility::AppValue::String(path)) => path,
+                _ => unreachable!("INI path getter returns a string"),
+            }
+        } else {
+            Vec::new()
+        };
+        host.effect(Effect::TerrainIniOpen(ini));
         let directory = host.query(Query::TerrainDirectory).text;
         host.effect(Effect::TerrainFlags(0x10000));
         host.effect(Effect::TerrainFlags(0x100));

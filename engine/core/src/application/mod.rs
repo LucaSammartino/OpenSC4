@@ -10,6 +10,17 @@ pub mod command_line;
 pub mod compatibility;
 pub mod directories;
 mod lifecycle;
+pub mod preference_application;
+#[cfg(test)]
+mod resource_tests;
+pub mod resources;
+pub mod save_path;
+#[cfg(test)]
+mod settled_tests;
+pub mod ui;
+#[cfg(test)]
+mod ui_tests;
+pub mod video;
 
 use crate::commands::parse_delimited_text;
 use crate::gz_messages::Token;
@@ -57,7 +68,7 @@ pub enum Boundary {
     CityObliteration,
     ResolutionAcceptance { width: u32, height: u32, depth: u32 },
     UserDirectoryAcceptance(Vec<u8>),
-    SavePathNaming,
+    InvalidNativeInput(&'static str),
 }
 
 /// Opaque host failures have no inferred fallback/rollback (AP6).
@@ -222,7 +233,7 @@ pub struct Application {
     pub field_314: Option<Token>,
     pub city_state: city::CityState,
     pub preferences_image: compatibility::PreferencesImage,
-    pub resolved_ini_path: Option<Vec<u8>>,
+    pub resource_registry: resources::Registry,
     pub startup_plugin_directories: Option<Vec<Vec<u8>>>,
     pub(crate) instance_policy: (bool, bool),
     pub handles: compatibility::AppHandles,
@@ -258,7 +269,7 @@ impl Application {
             field_314: None,
             city_state: city::CityState::default(),
             preferences_image: compatibility::PreferencesImage::default(),
-            resolved_ini_path: None,
+            resource_registry: resources::Registry::default(),
             startup_plugin_directories: None,
             instance_policy: (false, false),
             handles: compatibility::AppHandles::default(),
@@ -298,6 +309,7 @@ impl Application {
 
     pub fn enable_full_game_pause_on_focus_loss(&mut self, enabled: bool) {
         self.preferences.pause_on_focus_loss = enabled;
+        self.preferences_image.0[0x4A4] = u8::from(enabled);
         self.pause_on_focus_loss = enabled;
     }
 

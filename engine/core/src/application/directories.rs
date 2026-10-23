@@ -38,6 +38,7 @@ pub struct Directories {
     pub data_7c: Vec<u8>,
     pub cd_data_90: Vec<u8>,
     pub plugin_a4: Vec<u8>,
+    pub cd_plugin_b8: Vec<u8>,
     pub sku_cc: Vec<u8>,
     pub user_data_e0: Vec<u8>,
     pub slot_e4_108: Vec<u8>,
@@ -49,7 +50,15 @@ impl Directories {
     /// Negative index: unmodified base. Nonnegative: the selected language,
     /// or English when no language name is supplied (section 9).
     pub fn plugin_directory(&self, index: i32, language: Option<&[u8]>) -> Vec<u8> {
-        let mut out = self.plugin_a4.clone();
+        self.language_directory(false, index, language)
+    }
+
+    pub fn language_directory(&self, cd: bool, index: i32, language: Option<&[u8]>) -> Vec<u8> {
+        let mut out = if cd {
+            self.cd_plugin_b8.clone()
+        } else {
+            self.plugin_a4.clone()
+        };
         if index >= 0 {
             append_folder(&mut out, language.unwrap_or(b"English"));
         }

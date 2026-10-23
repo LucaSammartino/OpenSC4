@@ -24,6 +24,13 @@ struct Foreign {
     step: u64,
     deliveries: u32,
     available: bool,
+    missing_region: bool,
+    naming_occupied: Vec<(Vec<u8>, Option<u32>)>,
+    missing_library: bool,
+    missing_gzcom: bool,
+    resolved_library: Option<Vec<u8>>,
+    library_events: Vec<&'static str>,
+    library_ini_paths: Vec<Vec<u8>>,
 }
 impl Foreign {
     fn reply(&mut self, query: Q, reply: Reply) {
@@ -72,7 +79,10 @@ impl CityHost for Foreign {
         if self.replies.front().is_some_and(|(q, _)| *q == query) {
             self.replies.pop_front().unwrap().1
         } else {
-            Reply::default()
+            Reply {
+                flag: matches!(query, Q::HasSourceView | Q::HasDestinationView),
+                ..Reply::default()
+            }
         }
     }
     fn effect(&mut self, effect: E) {
@@ -95,7 +105,45 @@ impl CityHost for Foreign {
         self.geometry.iter().map(|c| c.token).collect()
     }
 }
+impl super::save_path::SavePathHost for Foreign {
+    fn save_directory(&mut self, _: u64) -> Option<Vec<u8>> {
+        (!self.missing_region).then(Vec::new)
+    }
+    fn city_name(&mut self, _: u64) -> Vec<u8> {
+        b"New".to_vec()
+    }
+    fn city_id(&mut self, _: u64) -> u32 {
+        0
+    }
+    fn filename_system_roundtrip(&mut self, bytes: &[u8]) -> Vec<u8> {
+        bytes.to_vec()
+    }
+    fn filename_encoding_valid(&mut self, bytes: &[u8]) -> bool {
+        std::str::from_utf8(bytes).is_ok()
+    }
+    fn file_exists(&mut self, path: &[u8]) -> bool {
+        self.naming_occupied.iter().any(|(p, _)| p == path)
+    }
+    fn existing_city_id(&mut self, path: &[u8]) -> Option<u32> {
+        self.naming_occupied
+            .iter()
+            .find(|(p, _)| p == path)
+            .and_then(|(_, id)| *id)
+    }
+}
 impl CompatibilityHost for Foreign {
+    fn library_path(&mut self, library: &[u8]) -> Vec<u8> {
+        self.library_events.push("resolve");
+        self.resolved_library.clone().unwrap_or_else(|| library.to_vec())
+    }
+    fn library_exists(&mut self, _: &[u8]) -> bool {
+        self.library_events.push("exists");
+        !self.missing_library
+    }
+    fn gzcom_available(&mut self) -> bool {
+        self.library_events.push("gzcom");
+        !self.missing_gzcom
+    }
     fn read_preferences_record(&mut self, _: &[u8], key: [u32; 3]) -> Option<(u32, Vec<u8>)> {
         assert_eq!(key, PREFERENCES_KEY);
         self.record.take()
@@ -112,10 +160,13 @@ impl CompatibilityHost for Foreign {
     fn dll_files(&mut self, _: &[u8]) -> Vec<Vec<u8>> {
         self.files.clone()
     }
-    fn library_admin_enabled(&mut self, _: &[u8], _: bool) -> Option<Vec<u8>> {
+    fn library_admin_enabled(&mut self, path: &[u8], _: bool) -> Option<Vec<u8>> {
+        self.library_events.push("ini");
+        self.library_ini_paths.push(path.to_vec());
         self.enabled.clone()
     }
     fn add_library(&mut self, path: &[u8], _: bool) -> bool {
+        self.library_events.push("add");
         self.loaded.push(path.to_vec());
         true
     }
@@ -151,6 +202,99 @@ impl StartupHost for Foreign {
     }
     fn driver_description_hardware(&mut self) -> bool {
         false
+    }
+}
+impl super::preference_application::PreferenceHost for Foreign {
+    fn language_manager_present(&mut self) -> bool {
+        false
+    }
+    fn language_by_name(&mut self, _: &[u8], _: bool) -> Option<u32> {
+        None
+    }
+    fn installed_language(&mut self, _: bool) -> Option<u32> {
+        None
+    }
+    fn system_language(&mut self) -> u32 {
+        0
+    }
+    fn can_switch_language(&mut self, _: u32) -> bool {
+        false
+    }
+    fn select_language(&mut self, _: u32) {
+        unreachable!()
+    }
+    fn graphics_mode(&mut self) -> Option<[u32; 3]> {
+        None
+    }
+    fn request_mode(&mut self, _: [u32; 3]) {
+        unreachable!()
+    }
+    fn request_fullscreen(&mut self, _: bool) {
+        unreachable!()
+    }
+    fn query_graphics_interface(&mut self) -> Option<u64> {
+        None
+    }
+    fn select_driver(&mut self, _: u64, _: u32) {
+        unreachable!()
+    }
+    fn release_graphics_interface(&mut self, _: u64) {
+        unreachable!()
+    }
+    fn simulator(&mut self, _: u64) -> Option<u64> {
+        None
+    }
+    fn set_simulator_speed(&mut self, _: u64, _: u32) {
+        unreachable!()
+    }
+    fn framework_command_line(&mut self) -> crate::cmdline::CmdLine {
+        crate::cmdline::CmdLine::new(b"")
+    }
+    fn default_cheat(&mut self, _: u64, _: &[u8]) {
+        unreachable!()
+    }
+}
+impl super::resources::ResourceOwnerHost for Foreign {
+    fn language_name(&mut self, _: i32) -> Option<Vec<u8>> {
+        None
+    }
+    fn registry_entries(&mut self, _: &[u8], _: &[u8]) -> Vec<(Vec<u8>, Vec<u8>)> {
+        Vec::new()
+    }
+    fn directory_exists(&mut self, _: &[u8]) -> bool {
+        false
+    }
+    fn create_directory(&mut self, _: &[u8]) {}
+    fn enumerate(&mut self, _: &[u8], _: &[u8]) -> Vec<super::resources::DirectoryEntry> {
+        Vec::new()
+    }
+    fn is_database_file(&mut self, _: &[u8], _: u32) -> i32 {
+        -1
+    }
+    fn create_segment(&mut self, _: u32, _: u32) -> Option<u64> {
+        None
+    }
+    fn initialize_segment(&mut self, _: u64) -> bool {
+        unreachable!()
+    }
+    fn set_segment_path(&mut self, _: u64, _: &[u8]) -> bool {
+        unreachable!()
+    }
+    fn open_segment(&mut self, _: u64, _: u32, _: u32) -> bool {
+        unreachable!()
+    }
+    fn register_segment(&mut self, _: u64, _: Option<u32>) -> bool {
+        unreachable!()
+    }
+    fn shutdown_segment(&mut self, _: u64) {
+        unreachable!()
+    }
+    fn release_segment(&mut self, _: u64) {
+        unreachable!()
+    }
+    fn register_factory(&mut self, _: u32, _: u32, _: u32) {}
+    fn resource_count(&mut self) -> u32 {
+        3
     }
 }
 impl super::Host for Foreign {
@@ -430,7 +574,6 @@ fn save_fixture() -> (Application, Foreign) {
     let mut app = app();
     app.message_server2_available = true;
     app.city_state.city = Some(10);
-    app.city_state.resolved_save_target = Some(b"new".to_vec());
     let mut h = Foreign::default();
     h.text(Q::CityPath(10), b"old");
     h.text(Q::TempPath, b"temp");
@@ -443,12 +586,12 @@ fn save_fixture() -> (Application, Foreign) {
 #[test]
 fn save_replacement_failure_rolls_back_backup_and_live_path() {
     let (mut app, mut h) = save_fixture();
-    h.flag(Q::Exists(b"new".to_vec()), true);
-    h.flag(Q::Exists(b"new_".to_vec()), false);
-    h.flag(Q::Rename(b"new".to_vec(), b"new_".to_vec()), true);
-    h.flag(Q::Rename(b"temp".to_vec(), b"new".to_vec()), false);
+    h.flag(Q::Exists(b"City - New.sc4".to_vec()), true);
+    h.flag(Q::Exists(b"City - New.sc4_".to_vec()), false);
+    h.flag(Q::Rename(b"City - New.sc4".to_vec(), b"City - New.sc4_".to_vec()), true);
+    h.flag(Q::Rename(b"temp".to_vec(), b"City - New.sc4".to_vec()), false);
     h.flag(Q::Remove(b"temp".to_vec()), true);
-    h.flag(Q::Rename(b"new_".to_vec(), b"new".to_vec()), true);
+    h.flag(Q::Rename(b"City - New.sc4_".to_vec(), b"City - New.sc4".to_vec()), true);
     assert_eq!(app.save_city(b"old", false, &mut h), Ok(false));
     assert!(h.effects.contains(&E::SetCityPath(10, b"old".to_vec())));
     assert!(!h.queries.contains(&Q::Remove(b"old".to_vec())));
@@ -459,8 +602,8 @@ fn save_replacement_failure_rolls_back_backup_and_live_path() {
 #[test]
 fn save_success_removes_stale_file_and_orders_messages_before_object_store() {
     let (mut app, mut h) = save_fixture();
-    h.flag(Q::Exists(b"new".to_vec()), false);
-    h.flag(Q::Rename(b"temp".to_vec(), b"new".to_vec()), true);
+    h.flag(Q::Exists(b"City - New.sc4".to_vec()), false);
+    h.flag(Q::Rename(b"temp".to_vec(), b"City - New.sc4".to_vec()), true);
     h.flag(Q::Exists(b"old".to_vec()), true);
     assert_eq!(app.save_city(b"old", true, &mut h), Ok(true));
     assert!(h.queries.contains(&Q::Remove(b"old".to_vec())));
@@ -486,11 +629,15 @@ fn save_success_removes_stale_file_and_orders_messages_before_object_store() {
 }
 
 #[test]
-fn save_naming_gap_balances_scopes_without_changing_city_or_files() {
+fn save_invalid_region_balances_scopes_without_changing_city_or_files() {
     let mut app = app();
     let mut h = Foreign::default();
     app.city_state.city = Some(10);
-    assert_eq!(app.save_city(b"old", false, &mut h), Err(Boundary::SavePathNaming));
+    h.missing_region = true;
+    assert_eq!(
+        app.save_city(b"old", false, &mut h),
+        Err(Boundary::InvalidNativeInput("save requires a selected region"))
+    );
     assert!(h.queries.is_empty());
     assert_eq!(h.effects.len(), 8);
 }
@@ -643,7 +790,7 @@ fn owned_runner_executes_preference_failure_autosave_plugins_and_close() {
 }
 
 #[test]
-fn entry_and_resource_summary_keep_order_and_reject_missing_ini_directory() {
+fn entry_keeps_order_and_rejects_missing_ini_directory() {
     let mut app = app();
     let mut h = Foreign::default();
     app_start(true, &[], &mut h);
@@ -663,29 +810,11 @@ fn entry_and_resource_summary_keep_order_and_reject_missing_ini_directory() {
     app.directories.data_7c = b"data".to_vec();
     app.find_and_possibly_fix_ini_files(b"app.ini", &mut h);
     assert_eq!(app.directories.data_7c, b"data");
-    h.resource_log.clear();
-    app.load_registry_summary(None, [None, Some(b"on")], &mut h);
-    assert_eq!(h.resource_log, ["packed:true:true", "open:data/English"]);
-    h.resource_log.clear();
-    app.setup_resources_summary(&[b"plugins".to_vec()], &[0xA2E3_D533], &mut h);
-    assert_eq!(
-        h.resource_log,
-        [
-            "list:data:false",
-            "open:a.dat",
-            "mkdir:plugins",
-            "list:plugins:true",
-            "open:a.dat",
-            "open:b.sc4",
-            "factory:2732840243"
-        ]
-    );
 }
 
 #[test]
 fn obliteration_keeps_template_only_during_new_city_and_cleans_temp_on_read_failure() {
     let mut app = app();
-    app.city_state.resolved_save_target = Some(b"old".to_vec());
     app.city_state.city = Some(10);
     let mut h = Foreign::default();
     h.text(Q::TempPath, b"temp");
@@ -741,7 +870,10 @@ fn published_getters_preserve_identity_and_report_unpublished_slots() {
         app.app_interface_getter(48, None, &mut h),
         Ok(AppValue::Embedded(Embedded::GlyphTextureManager))
     );
-    assert_eq!(app.app_interface_getter(56, None, &mut h), Err(56));
+    assert_eq!(
+        app.app_interface_getter(56, None, &mut h),
+        Ok(AppValue::String(Vec::new()))
+    );
     assert_eq!(app.app_interface_getter(19, None, &mut h), Err(19));
     assert_eq!(
         app.app_interface_getter(59, None, &mut h),
@@ -751,6 +883,215 @@ fn published_getters_preserve_identity_and_report_unpublished_slots() {
     h.token(Q::Region(3), 4);
     assert_eq!(app.app_interface_getter(35, None, &mut h), Ok(AppValue::Token(Some(4))));
     assert!(!h.effects.iter().any(|e| matches!(e, E::Release(_))));
+}
+
+#[test]
+fn settled_directory_and_path_slots_use_distinct_sources_and_literal_concatenation() {
+    let mut app = app();
+    let mut h = Foreign::default();
+    app.app_name = b"SimCity 4".to_vec();
+    app.directories.data_7c = b"D".to_vec();
+    app.directories.cd_data_90 = b"CD".to_vec();
+    app.directories.plugin_a4 = b"P".to_vec();
+    app.directories.cd_plugin_b8 = b"CP".to_vec();
+    app.directories.sku_cc = b"SKU".to_vec();
+    app.directories.user_data_e0 = b"UD".to_vec();
+    app.directories.slot_e4_108 = b"108".to_vec();
+    app.directories.user_base_11c = b"BASE".to_vec();
+    assert_eq!(
+        app.app_interface_getter_language(53, -1, None, &mut h),
+        Ok(AppValue::String(b"P".to_vec()))
+    );
+    assert_eq!(
+        app.app_interface_getter_language(54, -1, None, &mut h),
+        Ok(AppValue::String(b"CP".to_vec()))
+    );
+    for (slot, value) in [
+        (51, b"D".as_slice()),
+        (52, b"CD"),
+        (53, b"P\\English\\"),
+        (54, b"CP\\English\\"),
+        (55, b"SKU"),
+        (56, b"UD"),
+        (57, b"108"),
+        (58, b"BASE"),
+    ] {
+        assert_eq!(
+            app.app_interface_getter(slot, None, &mut h),
+            Ok(AppValue::String(value.to_vec()))
+        );
+    }
+    h.flag(Q::Exists(b"DSimCity 4.ini".to_vec()), true);
+    assert_eq!(
+        app.app_interface_getter(29, None, &mut h),
+        Ok(AppValue::String(b"DSimCity 4.ini".to_vec()))
+    );
+    assert_eq!(
+        app.app_interface_getter(29, None, &mut h),
+        Ok(AppValue::String(b"BASESimCity 4.ini".to_vec()))
+    );
+    assert_eq!(
+        app.app_interface_getter(31, None, &mut h),
+        Ok(AppValue::String(b"BASESimCity 4.cfg".to_vec()))
+    );
+    app.mode = 3;
+    app.handles.stored_4c = 7;
+    app.field_314 = Some(8);
+    app.city_state.region_owner = Some(9);
+    app.city_state.city = Some(10);
+    for (slot, value) in [
+        (25, AppValue::Word(3)),
+        (26, AppValue::Word(7)),
+        (32, AppValue::Token(Some(8))),
+        (33, AppValue::Token(None)),
+        (34, AppValue::Token(Some(9))),
+        (37, AppValue::Token(Some(10))),
+    ] {
+        assert_eq!(app.app_interface_getter(slot, None, &mut h), Ok(value));
+    }
+    assert!(h.effects.is_empty());
+}
+
+#[test]
+fn admin_enabled_uses_only_exact_zero_or_case_insensitive_false_and_bypass() {
+    let app = app();
+    let mut h = Foreign::default();
+    for value in [b"FALSE".as_slice(), b"False", b"false", b"0"] {
+        h.enabled = Some(value.to_vec());
+        assert!(!app.add_dynamic_library(b"x.dll", false, &mut h));
+        assert!(app.add_dynamic_library_with_bypass(b"x.dll", true, true, &mut h));
+    }
+    for value in [b"00".as_slice(), b"no", b" false", b"false "] {
+        h.enabled = Some(value.to_vec());
+        assert!(app.add_dynamic_library(b"x.dll", false, &mut h));
+    }
+}
+
+#[test]
+fn plugin_resolution_precedes_filter_and_absence_or_bypass_skips_ini() {
+    let app = app();
+    let mut h = Foreign {
+        enabled: Some(b"FALSE".to_vec()),
+        resolved_library: Some(b"resolved/path.dll".to_vec()),
+        ..Foreign::default()
+    };
+    assert!(!app.add_dynamic_library(b"name", true, &mut h));
+    assert_eq!(h.library_events, ["resolve", "gzcom", "exists", "ini"]);
+    assert_eq!(h.library_ini_paths, [b"resolved/path.dll".to_vec()]);
+    h.library_events.clear();
+    h.missing_library = true;
+    assert!(!app.add_dynamic_library_with_bypass(b"name", true, true, &mut h));
+    assert_eq!(h.library_events, ["resolve", "gzcom", "exists"]);
+    h.library_events.clear();
+    h.missing_library = false;
+    h.missing_gzcom = true;
+    assert!(!app.add_dynamic_library(b"path", false, &mut h));
+    assert_eq!(h.library_events, ["gzcom"]);
+}
+
+#[test]
+fn terrain_ini_path_uses_slot29_when_global_app_exists() {
+    let mut app = app();
+    app.app_name = b"SimCity 4".to_vec();
+    app.directories.user_base_11c = b"User/".to_vec();
+    let mut h = Foreign::default();
+    h.flag(Q::HasGlobalApp, true);
+    let mut out = Vec::new();
+    assert!(!app.load_height_field(&mut out, &mut h));
+    assert!(h.effects.contains(&E::TerrainIniOpen(b"User/SimCity 4.ini".to_vec())));
+}
+
+#[test]
+fn save_names_filter_spaces_cap_encoding_and_resolve_collisions_without_accumulation() {
+    use super::save_path::{create_save_path, sanitize_filename};
+    let mut h = Foreign::default();
+    assert_eq!(
+        create_save_path(b"C:\\Region\\", b" A<>:*?  B ", 0, &mut h),
+        b"C:\\Region\\City - A B .sc4"
+    );
+    let long = create_save_path(b"", &vec![b'a'; 300], 0, &mut h);
+    assert_eq!(long.len(), 256);
+    assert!(!long.ends_with(b".sc4"));
+    let split_multibyte = [vec![b'a'; 255], vec![0xC3, 0xA9]].concat();
+    assert_eq!(sanitize_filename(&split_multibyte, true, &mut h), vec![b'a'; 255]);
+    assert_eq!(sanitize_filename(b"CON\x01<>:\\/\"|*?", true, &mut h), b"CON\x01");
+    h.naming_occupied = vec![
+        (b"C:\\Region\\City - Oak.sc4".to_vec(), None),
+        (b"C:\\Region\\City - Oak (2).sc4".to_vec(), None),
+    ];
+    assert_eq!(
+        create_save_path(b"C:\\Region\\", b"Oak", 0, &mut h),
+        b"C:\\Region\\City - Oak (3).sc4"
+    );
+    assert!(h.effects.is_empty());
+}
+
+#[test]
+fn save_names_reuse_only_readable_matching_or_zero_existing_id() {
+    use super::save_path::create_save_path;
+    for (existing, expected) in [
+        (Some(7), b"City - Oak.sc4".as_slice()),
+        (Some(0), b"City - Oak.sc4"),
+        (Some(8), b"City - Oak (2).sc4"),
+        (None, b"City - Oak (2).sc4"),
+    ] {
+        let mut h = Foreign {
+            naming_occupied: vec![(b"City - Oak.sc4".to_vec(), existing)],
+            ..Foreign::default()
+        };
+        assert_eq!(create_save_path(b"", b"Oak", 7, &mut h), expected);
+    }
+}
+
+#[test]
+fn obliteration_failed_writer_is_destructive_and_read_init_is_ignored() {
+    let mut app = app();
+    app.city_state.city = Some(10);
+    let mut h = Foreign::default();
+    h.text(Q::TempPath, b"temp");
+    h.flag(Q::SegmentInit(1), false);
+    h.flag(Q::HasSourceView, false);
+    h.text(Q::CityPath(10), b"old");
+    h.flag(Q::Remove(b"old".to_vec()), true);
+    h.flag(Q::SegmentInit(2), false);
+    h.flag(Q::SegmentOpen(2, false), false);
+    h.flag(Q::HasDestinationView, true);
+    assert_eq!(app.do_city_obliteration(&mut h), Ok(true));
+    assert_eq!(app.city_state.city, None);
+    assert!(h.replies.is_empty());
+    assert!(h.effects.contains(&E::Release(1)));
+    assert!(!h.effects.contains(&E::SegmentShutdown(1)));
+    assert!(h.effects.contains(&E::SegmentPath(2, b"temp".to_vec())));
+    assert!(h.effects.contains(&E::SegmentShutdown(2)));
+    assert!(!h.effects.contains(&E::SegmentClose(2)));
+    assert!(h.effects.contains(&E::Zoom(0)) && h.effects.contains(&E::Rotation(0)));
+    assert!(h.queries.contains(&Q::Remove(b"temp".to_vec())));
+}
+
+#[test]
+fn obliteration_view_checks_are_independent_and_invalid_inputs_are_explicit() {
+    let mut app = app();
+    let mut h = Foreign::default();
+    assert_eq!(
+        app.do_city_obliteration(&mut h),
+        Err(Boundary::InvalidNativeInput(
+            "obliteration temp-name failure has indeterminate return byte"
+        ))
+    );
+    h.text(Q::TempPath, b"temp");
+    assert_eq!(
+        app.do_city_obliteration(&mut h),
+        Err(Boundary::InvalidNativeInput("obliteration requires an open city"))
+    );
+    app.city_state.city = Some(10);
+    h.text(Q::TempPath, b"temp");
+    h.flag(Q::HasSourceView, true);
+    h.number(Q::Zoom, 7);
+    h.number(Q::Rotation, 2);
+    h.flag(Q::HasDestinationView, false);
+    assert_eq!(app.do_city_obliteration(&mut h), Ok(true));
+    assert!(!h.effects.iter().any(|e| matches!(e, E::Zoom(_) | E::Rotation(_))));
+    assert!(h.replies.is_empty());
 }
 
 #[test]
@@ -817,7 +1158,6 @@ fn successful_obliteration_restores_view_and_cleans_template_and_both_segments()
     let mut app = app();
     let mut h = Foreign::default();
     app.city_state.city = Some(10);
-    app.city_state.resolved_save_target = Some(b"old".to_vec());
     h.text(Q::TempPath, b"temp");
     h.flag(Q::SegmentInit(1), true);
     h.flag(Q::SegmentOpen(1, true), true);
@@ -870,8 +1210,8 @@ fn request_save_notification_uses_reread_filename_and_alt_flag() {
             ..Reply::default()
         },
     ));
-    h.flag(Q::Exists(b"new".to_vec()), false);
-    h.flag(Q::Rename(b"temp".to_vec(), b"new".to_vec()), true);
+    h.flag(Q::Exists(b"City - New.sc4".to_vec()), false);
+    h.flag(Q::Rename(b"temp".to_vec(), b"City - New.sc4".to_vec()), true);
     h.flag(Q::Exists(b"old".to_vec()), false);
     h.flag(Q::Remove(b"temp".to_vec()), true);
     h.flag(Q::SegmentInit(2), true);
