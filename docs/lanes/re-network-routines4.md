@@ -6,12 +6,15 @@
 
 - Goal: document `0061F7C0` and its owned temporary filter in `docs/specs/network-routines.md`.
 - Round 2/3 uses the authorized primary export/instruction workflow. First-round exact NoApp result below remains historical and carries zero behavior credit.
-- Done: reused reserved detached worktree; export query confirms the existing 1004-byte owner entry.
-- Next: measure export identity against original metadata, page instructions, reconcile typed foreign calls, publish contract/questions.
+- Done: start committed `2b1d638f`; matching export/executable SHA-256 and 1.1.641.0 metadata measured.
+- Done: standalone contract drafted; full helper and filter instructions read; typed occupant lookup and bitmap polarity corrected in caller summaries.
+- Next: run question index, doccheck/diff checks; review boundary/lifetime details and finish report/queue.
+- Facts: no zone eligibility method exists here; occupant-manager slot 32 miss marks selected bits; rects are per-input lots only, duplicates retained; cost untouched on FC00 reject.
+- Questions: NRT1 (unsupported-domain/allocation guarantees), `docs/specs/questions/network-routines.md`.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-network-routines4-r2-manifest.json`.
 - No live REA query repeated; live target remains unverified. No game, engine or native execution authorized.
 
-## Report
+## First-round historical report (zero behavior credit)
 
 The first bounded original round (1/3) stopped at its required REA prerequisite on 2026-10-23. This report records the blocker; it claims no new implementation-ready behavior, owner coverage, or closure of existing questions. The requested standalone `docs/specs/network-routines.md` contract remains unpublished.
 

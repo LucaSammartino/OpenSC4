@@ -963,9 +963,12 @@ For each tagged cell `(rx, rz, tag)` with its check type `ct`:
 Then, if the rule has no new cells (`+`), return **0**. Otherwise, for each new cell `(x + rx, z + rz)`: if the
 terrain says it holds water (terrain slot 34), return **1**; if the occupant manager has a network occupant there
 (slot 32 with the network-type filter `0x1F4F`), return **1**. Finally build the demolition region of the new cells
-(`ComputeDemolitionRegionForPlacementCells`, `0x0061F7C0`, with the tool's occupant filter `+0x364`): it fails when a
-lot on those cells has a zone type from 10 to 15 (the zone-type mask `0xFC00`, zones.md) or the demolition utility
-(query slot 6, flags `0x2001`) refuses; a failure returns **1**, success **0**.
+(`ComputeDemolitionRegionForPlacementCells`, `0x0061F7C0`, with the tool's occupant filter `+0x364`): its exact
+five-argument contract is [network-routines.md](network-routines.md). It collects whole-lot rects and marks
+nonzero-zone lot cells where occupant-manager slot 32 finds no occupant accepted by that filter. After the full
+scan, a marked zone type from 10 to 15 (`typeMask & 0xFC00`) rejects; merely having a high-zone lot does not.
+Otherwise demolition slot 6 previews those marked cells with flags `0x2001` and a separate temporary filter
+excluding QI `0xA9764C8C`. Helper failure returns **1** from `Test`, success **0**.
 
 **DoAutoComplete(x, z, tool)** (`0x006097E0`, returns 1). It adds the **extra cells** that complete the
 intersection's arms (the tool's list `+0xF0`, network-geometry.md NG3). For each tagged cell (optional ones included)
