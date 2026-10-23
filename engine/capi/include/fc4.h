@@ -12847,4 +12847,18 @@ void fc4_pm_destroy(fc4_pm_session* session);
 static_assert(sizeof(fc4_pm_result) == 60, "fc4_pm_result layout");
 #endif
 
+/* Independent packed-segment transport verification; production DBPF reader.
+ * entry writes 7 u32 words (T,G,I,offset,stored,logical,DIR-listed).
+ * read_record emits borrowed bytes once on success, including an empty read. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+size_t fc4_dbpf_entry_count(const fc4_dbpf* p);
+bool fc4_dbpf_entry(const fc4_dbpf* p, size_t index, uint32_t* seven_words);
+bool fc4_dbpf_read_record(const fc4_dbpf* p, uint32_t type, uint32_t group, uint32_t instance, bool raw,
+                          void (*emit)(void*, const uint8_t*, size_t), void* ctx);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */

@@ -12,6 +12,7 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4FormatsShadow.h"
+#include "FC4DbpfNative.h"
 
 #include "FC4Config.h"
 #include "FC4ExemplarFactory.h"
@@ -448,6 +449,7 @@ void FormatsShadowStartup() {
 
 void FormatsShadowCityLoaded() {
     variant_shadow::Run();
+    DbpfNativeCityLoaded();
     if (!g_enabled || g_done) return;
     g_done = true;
     // glue-exemplars4: with `enable = exemplars` GetResource returns the

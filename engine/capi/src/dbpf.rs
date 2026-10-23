@@ -88,6 +88,133 @@ pub unsafe extern "C" fn fc4_dbpf_key_of_type(
     true
 }
 
+/// Production parser's complete on-disk index (including duplicates).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_dbpf_entry_count(p: *const fc4_dbpf) -> usize {
+    let Some(pkg) = pkg_ref(p) else { return 0 };
+    guard(0, || pkg.entries().len())
+}
+
+/// Seven words: TGI, offset, stored size, logical size, DIR-listed flag.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_dbpf_entry(p: *const fc4_dbpf, index: usize, out: *mut u32) -> bool {
+    if out.is_null() {
+        return false;
+    }
+    let Some(pkg) = pkg_ref(p) else { return false };
+    guard(false, || {
+        let Some(e) = pkg.entries().get(index) else {
+            return false;
+        };
+        let words = [
+            e.tgi.type_id,
+            e.tgi.group,
+            e.tgi.instance,
+            e.offset,
+            e.size,
+            pkg.dir_size(e).unwrap_or(e.size),
+            u32::from(pkg.is_compressed(e)),
+        ];
+        std::ptr::copy_nonoverlapping(words.as_ptr(), out, words.len());
+        true
+    })
+}
+
+/// Reads by key through the actual Package find/read_raw/read methods.
+/// The callback borrows bytes only for the duration of the call, including
+/// an empty slice on successful reads of zero-length records.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_dbpf_read_record(
+    p: *const fc4_dbpf,
+    type_id: u32,
+    group: u32,
+    instance: u32,
+    raw: bool,
+    emit: Option<unsafe extern "C" fn(*mut std::ffi::c_void, *const u8, usize)>,
+    ctx: *mut std::ffi::c_void,
+) -> bool {
+    let Some(pkg) = pkg_ref(p) else { return false };
+    let Some(emit) = emit else { return false };
+    guard(false, || {
+        let Some(e) = pkg.find(&Tgi::new(type_id, group, instance)) else {
+            return false;
+        };
+        let bytes = if raw { pkg.read_raw(e) } else { pkg.read(e) };
+        let Ok(bytes) = bytes else { return false };
+        emit(ctx, bytes.as_ptr(), bytes.len());
+        true
+    })
+}
+
+#[cfg(test)]
+mod transport_tests {
+    use super::*;
+
+    #[test]
+    fn literal_index_duplicate_zero_and_qfs_use_production_reader() {
+        // Literal 7.0 input, independent of PackageBuilder and native results.
+        let mut bytes = vec![0u8; 96];
+        bytes[..4].copy_from_slice(b"DBPF");
+        for (offset, word) in [(4, 1u32), (32, 7), (36, 5), (40, 135), (44, 100)] {
+            bytes[offset..offset + 4].copy_from_slice(&word.to_le_bytes());
+        }
+        bytes.extend_from_slice(b"ABCD"); // 96
+        bytes.extend_from_slice(&[15, 0, 0, 0, 0x10, 0xfb, 0, 0, 4, 0xe0, 65, 66, 67, 68, 0xfc]); // 100
+        for word in [1u32, 2, 3, 4] {
+            bytes.extend_from_slice(&word.to_le_bytes()); // DIR at 115
+        }
+        bytes.extend_from_slice(b"last"); // duplicate at 131
+        for entry in [
+            [1u32, 2, 1, 96, 4],
+            [1, 2, 2, 100, 0],
+            [1, 2, 3, 100, 15],
+            [0xe86b1eef, 0xe86b1eef, 0x286b1f03, 115, 16],
+            [1, 2, 1, 131, 4],
+        ] {
+            for word in entry {
+                bytes.extend_from_slice(&word.to_le_bytes());
+            }
+        }
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../build-runs");
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join(format!("dbpf-transport-test-{}.dat", std::process::id()));
+        std::fs::write(&path, bytes).unwrap();
+        let text = path.to_str().unwrap();
+        unsafe extern "C" fn capture(ctx: *mut std::ffi::c_void, p: *const u8, n: usize) {
+            let state = &mut *ctx.cast::<(usize, Vec<u8>)>();
+            state.0 += 1;
+            state.1 = std::slice::from_raw_parts(p, n).to_vec();
+        }
+        unsafe {
+            let pkg = fc4_dbpf_open(text.as_ptr(), text.len());
+            assert!(!pkg.is_null());
+            assert_eq!(fc4_dbpf_entry_count(pkg), 5);
+            let mut words = [0u32; 7];
+            assert!(fc4_dbpf_entry(pkg, 2, words.as_mut_ptr()));
+            assert_eq!(words, [1, 2, 3, 100, 15, 4, 1]);
+            assert!(!fc4_dbpf_entry(pkg, 5, words.as_mut_ptr()));
+            assert!(!fc4_dbpf_entry(pkg, 0, std::ptr::null_mut()));
+            let mut state = (0usize, Vec::<u8>::new());
+            let ctx = (&mut state as *mut (usize, Vec<u8>)).cast();
+            for (instance, raw, expected) in [
+                (1, false, b"ABCD".as_slice()), // first duplicate wins
+                (2, false, b"".as_slice()),
+                (3, false, b"ABCD".as_slice()), // actual QFS path
+                (3, true, &[15, 0, 0, 0, 0x10, 0xfb, 0, 0, 4, 0xe0, 65, 66, 67, 68, 0xfc]),
+            ] {
+                let before = state.0;
+                assert!(fc4_dbpf_read_record(pkg, 1, 2, instance, raw, Some(capture), ctx));
+                assert_eq!(state.0, before + 1);
+                assert_eq!(state.1, expected);
+            }
+            assert!(!fc4_dbpf_read_record(pkg, 1, 2, 99, false, Some(capture), ctx));
+            assert_eq!(state.0, 4);
+            fc4_dbpf_close(pkg);
+        }
+        std::fs::remove_file(path).unwrap();
+    }
+}
+
 /// Native-endian bytes of a slice of plain numbers.
 fn ne_bytes<T: Copy, const N: usize>(v: &[T], f: impl Fn(T) -> [u8; N]) -> Vec<u8> {
     v.iter().flat_map(|&x| f(x)).collect()
