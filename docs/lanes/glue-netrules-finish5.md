@@ -14,7 +14,8 @@
 - Watcher 69334 timed out (not a game verdict); 61720 printed valid verdict then cleanup failed. Helper corrected to unregister events only, with Renamed notification added. No game outstanding at this commit.
 - Konrad b TERMINAL headline clean/ref0 to 2032-02-01, but full log has 14 caught placement SEH plus later foreign shutdown exception; not accepted. Run343: netrules-finish5-konrad-2032-20261024b 75/75 mismatch-clean, 74/75 exact, evaluations=54/tables=24.
 - Own DLL PDB resolves DC1FF1/DC1551 to RegionToC / cFC4Demolition::DemolishRegion. No shadow source defect demonstrated; change inputs only, leave demolition native too.
-- No game outstanding at this commit; session2405 collected to exit0. Next: request netrules-finish5-konrad-2032-20261024c, same profile minus demolition (38 providers), same script/end date; wait using build-runs/await-game.ps1 and inspect full log after verdict.
+- Konrad c TERMINAL ended/ref0 at 2029-03-01, no SEH or foreign exceptions. Run344: netrules-finish5-konrad-2032-20261024c 40/40 mismatch-clean, 39/40 exact, evaluations=366. Funds=-101143, R population0: bankruptcy after real placements.
+- No game outstanding at this commit; session98166 collected to exit0. Next: request netrules-finish5-konrad-2032-20261024d, same 38 providers, but short peripheral network runs at x120..121 /124..125 within known 128x128 map, build-runs/netrules-finish-peripheral-actions.txt. End date unchanged; collect event waiter then inspect full log.
 - Keep profile key out unless every shadow line exact. Existing load line exact=0 is a limitation, not a matched observation.
 - ABI inherited from prior lane adds fc4_network_rules_snapshot and fc4_network_rules_replay; report abi=true for this lane's merge queue.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-netrules-finish5-r1-manifest.json.
