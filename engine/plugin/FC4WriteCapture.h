@@ -33,8 +33,11 @@ class cIGZUnknown;
 
 namespace fc4 {
 
-class WriteCapture : public cFC4ISC4DBSegmentOStream {
+class WriteCapture final : public cFC4ISC4DBSegmentOStream {
 public:
+    // Opt-in for occupant property holders, using the traffic shadow's
+    // foundations §9.2 variant capture path. Other shadows keep their defaults.
+    explicit WriteCapture(bool variants = false) : variants_(variants) {}
     // Runs `obj`'s Write (the cIGZSerializable reference QueryInterface gives
     // is released); false when it does not answer, Write returns false or the
     // stream saw something it cannot hold. `answered` (optional): whether it
@@ -100,6 +103,7 @@ private:
     bool Put(const void* p, size_t n);
     bool PutStr(const char* s, size_t n);
 
+    bool variants_ = false;
     std::vector<uint8_t> bytes_;
     std::vector<Ref> refs_;
     std::unordered_map<const void*, size_t> index_;  // object -> refs_ index (records with many references)

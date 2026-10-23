@@ -993,3 +993,16 @@ if(TARGET FreeCity4)
     target_compile_options(fc4_advisors_shadow_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME advisors_shadow_test COMMAND fc4_advisors_shadow_test "$<TARGET_FILE:FreeCity4>")
 endif()
+
+# Cached MSVC /showIncludes output can retain another worktree's header paths.
+# A shared capture layout change must rebuild local users even with such cached
+# dependencies (otherwise static captures can crash in their destructors).
+if(TARGET FreeCity4)
+    get_target_property(fc4_capture_sources FreeCity4 SOURCES)
+    foreach(fc4_capture_source IN LISTS fc4_capture_sources)
+        if(fc4_capture_source MATCHES "^plugin/.*\\.cpp$")
+            set_property(SOURCE "${fc4_capture_source}" APPEND PROPERTY OBJECT_DEPENDS
+                "${CMAKE_CURRENT_SOURCE_DIR}/plugin/FC4WriteCapture.h")
+        endif()
+    endforeach()
+endif()
