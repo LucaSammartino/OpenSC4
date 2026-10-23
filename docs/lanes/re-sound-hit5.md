@@ -24,8 +24,8 @@ flag behavior at 0x00968BA7 and missing system-sound lookup result at 0x009692FC
 Other observations come from exported owner routines; the spec identifies numeric
 and format laws that still need instruction verification rather than guessing them.
 
-Validation: `python tools/doccheck.py check` passed after the owner-section
-milestone. Final documentation and question-index checks are recorded below.
+Validation: `python tools/doccheck.py check`, `python tools/questions.py check`
+and `git diff --check` passed for the final documentation changes.
 Cargo/clippy/ctest: n/a, documentation only. Game runs: none; shadow comparison:
 n/a. No REA calls: the brief explicitly states that session has no binary open;
 all RE evidence used the local export/decomp and re_query.py. No REA error or
