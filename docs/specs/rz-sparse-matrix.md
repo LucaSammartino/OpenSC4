@@ -212,8 +212,9 @@ It never produces another cell from the same row. It skips holes, not null paylo
 The body labeled `col_end` at `009a7577` actually **compares two iterator records**. It returns
 true if both current-record fields are null, regardless of matrix or row fields; otherwise true
 only if both row-node and record addresses match. The matrix fields are not compared.
-False is EAX=0; callers should consume the boolean in AL rather than depend on unpromised upper
-bits on the short true path (`009a7577–009a75a0`). The constructor-like `009a5c36` is unrelated.
+EAX is exactly 0 or 1: the short true path starts with the already-zero current-record value in
+EAX and sets AL to 1; the other paths explicitly clear EAX before returning zero or one
+(`009a7577–009a75a0`). The constructor-like `009a5c36` is unrelated.
 
 Incrementing end, retaining an iterator across erasure, or comparing unrelated live matrices is
 not promoted to a safe portable operation. There is no null-record validation in increment; it may
@@ -263,7 +264,10 @@ This is not a demonstrated unique-Windows-body denominator. Canonical name searc
 `--all`, returns **18 matrix-labeled entries**, one iterator and two foreign AutoPtrs. No matching
 `cRZSparseMatrix` row occurs in `re/symport/folded.tsv`; this is absence of a recorded folded row,
 not proof that no code sharing exists. The twenty-entry difference between 38 and 18 remains
-unreconciled; it cannot be assigned algorithms or bytes by subtraction alone.
+unreconciled; it cannot be assigned algorithms or bytes by subtraction alone. The eighteen
+matrix-labeled Windows entries sum to **1784 bytes**, the iterator to 82, and the two foreign
+AutoPtrs to 82: **21 named entries / 1948 bytes** total. These are export-entry sums, not owner
+coverage fractions or a claim that the public denominator's remaining bytes are disjoint.
 
 S = supported bounded normal-path behavior; P = partial, not completed-body credit;
 F = foreign/shared or misattributed to this owner. Template names below abbreviate pointer payload
@@ -293,9 +297,33 @@ as P and CellFormatExtra as E. Each row is an exact Windows entry, not an extra 
 | 0095a087 | 35 | AutoPtr Release | F: foreign smart-pointer owner; not matrix credit |
 | 0095a0aa | 47 | AutoPtr destructor | F: foreign smart-pointer owner; not matrix credit |
 
-Supporting entries `009a94a6` (36 bytes), `009a947f` (39), `0094c8f5` (56),
-`0040d4c0` (54), `0040d500` (64) establish helper lookup/order/traversal only. They are not added
-to 39/3358, nor promoted to independently audited whole owners. Insertion's `009a954e`, `009abc11`,
-`009ab299`, `009a9c2f`, `009a943e`, erasers `00927cf8`, `009ab2d3` and cleanup `009599a9` remain
-foreign/shared or uncertain. Their displayed template names are not proof of exclusive ownership.
+The following auxiliary ledger covers the remaining exact MatrixRow/MatrixCell-named entries
+and the directly cited unnamed/shared dependencies. F means excluded from matrix algorithm credit;
+a name identifies a dependency boundary, not a verified primitive contract.
+
+| Address | Bytes | Boundary/status |
+|---|---:|---|
+| 00927cf8 | 47 | F: shared inner-tree eraser; P effects/failures |
+| 0094c8f5 | 56 | F: shared exact signed-key lookup, instructions support §2/§3 |
+| 009a84cd | 45 | F: inner-tree destructor label; P body effects, no lifetime guarantee |
+| 009a8970 | 41 | F: MatrixRow destructor label; P body effects |
+| 009a943e | 23 | F: row-pair destructor dependency; P temporary-row cleanup |
+| 009a947f | 39 | F: MatrixRow GetMatrixCol helper; instructions support §3.1 |
+| 009a954e | 132 | F: shared cell insert_unique dependency; P allocation/result behavior |
+| 009aad36 | 31 | F: row-tree destroy_node label; P body effects |
+| 009ab299 | 29 | F: MatrixRow copy-construction dependency; P copy/failure guarantees |
+| 009ab2d3 | 61 | F: outer-tree eraser dependency; P destruction/failure guarantees |
+| 009ab347 | 55 | F: row-tree recursive erase label; P body effects |
+| 009ab5ea | 41 | F: row-tree clear label; P body effects, not an established matrix clear contract |
+| 009a94a6 | 36 | P: unnamed shared row-lookup wrapper, instructions support §3.1; exclusive owner unresolved |
+| 0040d4c0 | 54 | F: shared successor, instructions support §2; misleading destructor label |
+| 0040d500 | 64 | F: shared predecessor/header handling, instructions support §2/§5 |
+| 009abc11 | unknown here | P: unnamed outer insertion dependency; allocation/copy guarantees unresolved |
+| 009a9c2f | unknown here | F: shared map construction dependency; matrix defaults not inferred |
+| 009599a9 | 41 | P: conditional-cleanup dependency, no whole-lifetime guarantee |
+| 009a94ca, 009abb8d | unknown here | P: E cell/row insertion dependencies |
+| 009ab2b6, 009a9c16, 009a9427 | unknown here | P: E temporary-row construction/cleanup dependencies |
+
+These auxiliary entries are not added to 39/3358, nor promoted to independently audited whole
+owners. Their displayed template names are not proof of exclusive ownership or of folded aliases.
 No ABI row/version, implementation, game run, native-exact comparison or complete-owner credit results.

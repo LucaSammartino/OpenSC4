@@ -20,7 +20,11 @@
 - Filed SM1–SM5 in docs/specs/questions/rz-sparse-matrix.md; minimal framework-rz-files link added.
 - Important: 009a5bf2 and 009a5c36 are record initializers, not lookup/end; 009a7577 is iterator equality.
 - Public 39/3358 remains unreconciled: 18 matrix labels + iterator + 2 foreign AutoPtrs are not unique-owner proof.
-- Next: regenerate question index, verify caller/alias/ledger facts and docs links/diff; final bounded partial report.
+- Milestone `7268e16e`: E owned insertion copy audit and vector 13. Final refinement: exact EAX 0/1
+  iterator comparator; auxiliary per-entry foreign/partial ledger; 18 matrix labels sum 1784 bytes.
+- Checks passed: own/copied host metadata + prior manifest SHA + fixture identity, local doc links,
+  13 vectors, 5 question entries, questions.py check, git diff b1304240 --check. No runtime measurements.
+- Next: commit final refinement, replace Handoff with report, enqueue ready bounded docs and stop original 3/3.
 - No engine reads, builds, runtime/game requests, ABI proposals or native-executed vectors.
 
 ## Round 2 report (2026-10-23)
