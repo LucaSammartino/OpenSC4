@@ -213,13 +213,17 @@ a sound object was allocated. For 3D playback it also queries IID
 unchecked downstream pointers; backend/QI failure must not be advertised as
 a guaranteed graceful original path.
 
-*[compat]* Load is successful when there is no source. When a source exists,
-it forwards Load and returns that result, then refreshes source state.
+*[compat]* After patch refresh, Load's no-source branch returns true. When a
+source exists, it forwards Load and returns that result, then refreshes source state.
 NoteOn refreshes the patch and invokes the channel's Load slot (14);
 Load failure returns false without Play. With a source and successful Load,
 it calls source Play(one payload, loop, true), where loop tests property
 `0xFFF7B8DF` for nonzero. With no source it returns true without audible
-playback. Thus a true result is not proof that a sample was found.
+playback. These branches do not guarantee safe operation with a missing backend:
+UpdatePatch itself dereferences the source interface after attempting creation
+(`0x0093F687`). A backend creation failure can therefore fail before the
+no-source branch is reached. A replacement may reject such missing dependencies
+safely *[choice]*.
 
 ## 5. `cHitIniFile` and `cHitPropertySetTrackResource`
 
@@ -566,7 +570,7 @@ runs. Use fake services and child sounds to observe forwarding and ownership.
 | SS-V03 | CheckedRegId: 74, 75, -1 | 74, 1, -1; only 75 reports illegal-register error |
 | SS-V04 | Track execution ended; one dependent IsPlaying true | Track IsPlaying true |
 | SS-V05 | Already-playing track; restart property 0; Play again | true, no Kill/restart |
-| SS-V06 | Channel has no source; Load and NoteOn | true for each; no source Play |
+| SS-V06 | Channel source exists; Load returns true; loop property nonzero | NoteOn reaches source Play with loop=true |
 | SS-V07 | Channel source Load false; NoteOn | false; no source Play |
 | SS-V08 | FreeChannel with a retained matching pointer, then repeat | first removes/releases one retained entry; second does not release it again |
 | SS-V09 | New freshness player; Play, SetZoom(9), SetPlayPercent(25) before initialization | all return true; no playback registration; setters do not store those values |
