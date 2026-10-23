@@ -595,7 +595,7 @@ impl<H: HtmlHost> HtmlDocument<H> {
             hr.size = Some(convert_to_u32(&v));
         }
         if let Some(mut v) = self.find_attribute("WIDTH", true) {
-            if let Some(p) = find_byte(&v, b'%', 0) {
+            if let Some(p) = find_character(&self.host, &v, b"%", 0) {
                 hr.percent = true;
                 v.truncate(p);
             }
@@ -960,11 +960,11 @@ impl<H: HtmlHost> HtmlDocument<H> {
     fn apply_span_style(&mut self, css: &[u8]) {
         let mut s = 0;
         loop {
-            let colon = match find_byte(css, b':', s) {
+            let colon = match find_character(&self.host, css, b":", s) {
                 Some(c) => c,
                 None => return,
             };
-            let semi = find_byte(css, b';', colon + 1);
+            let semi = find_character(&self.host, css, b";", colon + 1);
             let mut name = css[s..colon].to_vec();
             let mut value = css[colon + 1..semi.unwrap_or(css.len())].to_vec();
             self.strip_white_space(&mut name);

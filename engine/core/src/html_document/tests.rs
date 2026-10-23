@@ -809,6 +809,25 @@ fn foreign_character_boundaries() {
     d.pos = 0;
     d.get_token(false);
     assert_eq!(d.pos, d.source.len()); // trail '>' is not the tag delimiter
+    assert_eq!(normalize_segment_text(&d.host, b"\x81\r\n", true), b"\x81\r\n");
+    let (mut span, root) = fragment("<span>x</span>");
+    span.host.dbcs = true;
+    span.attrs = vec![(b"STYLE".to_vec(), b"font-family:x\x81;y;color:#ff".to_vec())];
+    assert!(span.parse_span(root));
+    assert_eq!(texts(&span)[0].1.face, b"x\x81;y");
+    assert_eq!(texts(&span)[0].1.color, 255);
+    let (mut hr, root) = fragment("<hr>");
+    hr.host.dbcs = true;
+    hr.attrs = vec![(b"WIDTH".to_vec(), b"1\x81%z".to_vec())];
+    assert!(hr.parse_hr(root));
+    assert!(matches!(
+        hr.kind(hr.children(root)[0]),
+        Kind::Hr(Hr {
+            width: Some(1),
+            percent: false,
+            ..
+        })
+    ));
 }
 
 #[test]

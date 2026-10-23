@@ -1302,9 +1302,10 @@ pub fn normalize_segment_text<H: HtmlHost>(host: &H, text: &[u8], pre: bool) -> 
                     out.push(b'\n');
                     i += if text.get(i + 1) == Some(&b'\n') { 2 } else { 1 };
                 }
-                c => {
-                    out.push(c);
-                    i += 1;
+                _ => {
+                    let next = host.advance(text, i).min(text.len());
+                    out.extend_from_slice(&text[i..next]);
+                    i = next;
                 }
             }
         } else if host.is_space(text, i) {
@@ -1319,10 +1320,6 @@ pub fn normalize_segment_text<H: HtmlHost>(host: &H, text: &[u8], pre: bool) -> 
         }
     }
     out
-}
-
-pub(crate) fn find_byte(s: &[u8], b: u8, from: usize) -> Option<usize> {
-    s.get(from..)?.iter().position(|&c| c == b).map(|i| i + from)
 }
 
 /// Search only at host character boundaries (§2.1), so a DBCS trail byte is never a tag.
