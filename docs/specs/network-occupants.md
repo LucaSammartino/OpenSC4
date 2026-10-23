@@ -1124,11 +1124,11 @@ counts the active wall lists: construction gives zero, unattached CreateWalls re
 attached CreateWalls retains it despite clearing the lists (§3.6.2; `0x00655F5F`). Its +170 is the upper
 model anchor height: initially position.y, subsequently refreshed from the linked occupant (or the
 own-cell connection lookup) position in CreatePieceModel; +174 is the attached underground ceiling,
-or +170 minus the common underground depth when unattached (`0x006559A6–0x006559E5`,
+or +170 minus the cell size when unattached (`0x006559A6–0x006559E5`,
 `0x00655AC1–0x00655B05`). +178 is the signed **shade-table index**, initialized to 1, used as
 `0x00B0CFB0 + 12×index` for Draw's self-lit RGB; the saved value is retained without validation.
 +240 is the class ID supplied to creation Init, independently of the occupant type and descriptor
-(`0x0065473C`, `0x00656EDA–0x00656EF2`). Thus the opaque base word needs no invented meaning,
+(`0x0065476E–0x0065477C`, `0x00656E90–0x00657493`). Thus the opaque base word needs no invented meaning,
 and the shade word must not be normalized to a boolean.
 
 The subclasses differ in exactly three slots plus the type: the **pipe connection** ctor `0x006483E0` = the
@@ -1482,6 +1482,28 @@ Each list is rebuilt with AddWallQuad, not appended to old geometry (`0x0064C470
 table is indexed by the cached rotation without a range check; these rules require rotation 0…3.
 Wire sampling/cell walks, complete bounds/Pick/Draw and remaining resource/model decisions stay open
 in NO33/NO43. The construction and geometry facts here are not a complete pole-owner algorithm.
+
+#### 4.7.2 Occupant bounding rectangle *[compat; NO33/NO43 partial]*
+
+GetBoundingBox (`0x00649A00–0x00649B27`) receives the **occupant view at primary+8**. Its +C8 dirty
+test is therefore the primary +D0 flag; its apparent position +98/+9C/+A0 is primary +A0/+A4/+A8.
+When dirty, obtain the starting x/z cells by truncating position.x / cell-width and position.z /
+cell-depth toward zero, retaining their low 32 bits. Initialize both minimum and maximum cell
+coordinates to this cell. Consider only connection records whose sampled-wire vertex list is
+nonempty (record +14 differs from +18). Their destination cell x/z at record +0C/+10 expand the
+rectangle using **unsigned** comparisons. A smaller coordinate replaces the minimum; otherwise
+a larger one replaces the maximum. Empty-wire records do not contribute even when they retain
+destination coordinates. Store the four cached extrema at primary +D4/+D8/+DC/+E0 and clear +D0.
+No coordinate scan occurs on a clean call (`0x00649A11–0x00649AB1`).
+
+Return min `(signed(minX)×cellWidth, floorHeight, signed(minZ)×cellDepth)` and max
+`(signed(maxX+1)×cellWidth, position.y+60, signed(maxZ+1)×cellDepth)`, with 32-bit wrapping
+increments and f32 output stores. The extrema are compared as unsigned but converted to floating
+point as **signed** integers (`0x00649A6B–0x00649AA4`, `0x00649AB8–0x00649B22`). Each multiplication
+is done after signed conversion; the y addition is one x87 addition followed by an f32 store.
+This is a cell-covering rectangle, independent of the actual rendered wire extrema and model box.
+GetBounds/GetWorldBounds use this occupant box; the separate Pick path uses a model-derived box.
+The floor and wall lists do not expand this occupant rectangle.
 
 ## 5. The power line *(cSC4PowerLineOccupant, 0xC9C05C5D)*
 
@@ -2401,7 +2423,7 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     save both retain that word, independently of the live descriptor pointer. For a connection,
     retain shade index 2 rather than converting it to true/1; pass shade RGB at `0x00B0CFC8` to Draw.
     Starting from wall count 3, attached CreateWalls clears the lists and retains 3; after detachment
-    rebuilding gives count 4. A linked position y=40 and unattached depth=16 gives +170=40,+174=24.
+    rebuilding gives count 4. A linked position y=40 and cell size=16 gives +170=40,+174=24 when unattached.
 52. **Pylon pass and dirty behavior** (§6.2.3). With dirty=true, selfLit=true returns 1 and leaves
     dirty set with zero submissions. With selfLit=false and the context gate clear, pass one also
     leaves dirty set: dispatch state=0, call=7, type=0 submits main and label, while states 1/4,
@@ -2412,3 +2434,12 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     A visibility rejection while flag 2 is clear produces no renderer removal; when set, it clears
     the flag and removes once. Repeated acceptance adds only on the first clear-to-set transition.
     The view-change message marks dirty without a rebuild; `0x26D31EC1` rebuilds immediately.
+54. **Pole occupant bounds** (§4.7.2). Cell extents 16×16, position `(24,50,40)`, floor height=7,
+    no sampled wires, dirty=true: box min `(16,7,32)`, max `(32,110,48)`; dirty becomes false.
+    An empty-wire record targeting `(9,9)` changes nothing. A nonempty record targeting `(3,1)`
+    gives min `(16,7,16)`, max `(64,110,48)`. Changing that record while dirty=false leaves the
+    cached x/z rectangle unchanged; changing position.y still changes the returned maximum y.
+55. **Pole bounds unsigned quirk** (§4.7.2). Seed dirty=true, position cell `(1,2)`, and a nonempty
+    record targeting x=`0xFFFFFFFF`, z=2. With extents 16×16, minX stays 1 and maxX becomes
+    `0xFFFFFFFF`; the wrapped increment gives returned maximum world x=0, less than minimum x=16.
+    Do not sort the resulting endpoints or clamp the destination cell.

@@ -93,6 +93,9 @@ implementer of the class tables and records.
   §§4.2–4.7 also supply connection removal, distress, model/position and drawing summaries. Complete
   connection/cell-walk, model/resource, transform/bounds/Pick/Draw algorithms still require verification;
   the diagonal floor's numeric operation order remains NO43. NO33 stays open for full owner closure.
+  **Progress 2026-10-23 (re-netocc-answers5d):** §4.7.2/tests 54–55 settle the occupant bounding
+  rectangle, sampled-list eligibility, unsigned extrema comparisons, signed output conversion and
+  wrapping maximum-cell increment. Remaining model/Pick/wire/Draw contracts still prevent closure.
 
 <!-- from: core-netocc-close5 round 2 (2026-10-23) -->
 - **NO36 - sections 6.1-6.2 pylon owner algorithms:** please publish constructor defaults beyond the
