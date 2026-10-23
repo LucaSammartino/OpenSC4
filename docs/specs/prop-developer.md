@@ -449,6 +449,125 @@ The member generator is seeded **in the constructor** (`0x006F34A3`–`0x006F34B
 (mod 2³²); foundations §6.2 lists it under "at Init". FreeCity4 seeds it with `derive(0x89C48F47) × 28` (foundations
 §6.3).
 
+### 5.1 Live random-state observation (PV14, answered 2026-10-23)
+
+The save record is insufficient for a same-input shadow: it contains neither the member generator, the
+process-wide wealth generator, nor the calling thread's C runtime generator. A fixed shadow seed is therefore
+not a reconstruction of the original's current inputs. There is no serializable RNG interface to call here.
+An observer may use the read-only snapshots below, or the return-value transcript in §5.3. These are observation
+contracts *[choice]*, not new game interfaces or new record fields. Neither requires reseeding the original or
+calling a requester a second time.
+
+**Build guard.** These offsets and addresses apply to the 32-bit GOG 1.1.641 executable studied here
+(SHA-256 `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`). Addresses below use preferred
+image base `0x00400000`; translate them by the actual module-base displacement. Verify executable identity
+before interpreting memory. If identity, expected interface pointers or snapshot invariants fail, report the
+observation as unavailable; never try a guessed layout. The prop developer base is its primary
+`cISC4PropDeveloper*`, with vtable `0x00AB29F8`, not its message-target pointer (+4) or serializable pointer (+8).
+The constructor locates the member at primary base +`0x38` (`0x006F34AE`–`0x006F34B1`).
+
+For a live, fully constructed `cRZRandomSuper` at address G:
+
+| Offset from G | Width | Meaning for an independent snapshot |
+|---|---|---|
+| `+0x000` through `+0x9BC` | 624 little-endian u32 words | Complete current, untempered table, in order |
+| `+0x9C0` | 32-bit native pointer P | Next table word; export as index `k = (P − G) / 4` |
+| `+0x9C4` | signed 32-bit count r | Number of unread words, before the next draw |
+
+The object occupies `0x9C8` bytes and has no leading vtable. At a completed-call boundary require `0 ≤ r ≤ 624`,
+aligned P in the **inclusive** range `[G, G + 0x9C0]`, and `k + r = 624`. The endpoint `k = 624, r = 0` is valid:
+the pointer is one past the table and must not be dereferenced. Reject a partially constructed object or a
+snapshot taken during a draw/reload; negative r is not a valid quiescent snapshot. Copy all 624 words plus k and r
+into shadow-owned storage. A shadow using pointers must reconstruct P from **its own** table base and k;
+it must never retain the original's pointer. No native generator method is invoked to copy the state.
+
+The next draw consumes table[k], advances k by one and decreases r by one when r is positive. With r = 0,
+regenerate the table first, reset k = 0 and r = 624, then consume its first word. Regeneration and tempering
+are the `cRZRandomSuper` rules of foundations §6.1, with 32-bit wrapping arithmetic and logical shifts. This is
+not a seed import: do not seed, pre-draw, or regenerate an already readable table. Evidence: the constructor
+`0x00913B7B`–`0x00913B8C`, reload tail `0x00913961`–`0x0091396B`, and word draw
+`0x009139BD`–`0x00913A02`. The bounded draw uses the high 32 bits of an **unsigned** 64-bit product
+(`0x00913A06`–`0x00913A11`); the signed range method subtracts the endpoints and adds the lower endpoint
+(`0x00913A14`–`0x00913A26`). Even a bound of 1 consumes a word.
+
+Snapshot sources and lifetimes:
+
+| Source | G / state location | When the copy is valid |
+|---|---|---|
+| Prop developer member | primary developer base +`0x38` | Before the observed operation, outside any active member draw |
+| Wealth selector | module address `0x00B4A5C0` | Before the corresponding real selector call, or before an operation with all intervening uses accounted for |
+| Other custom selector | No generic RNG layout promised | Capture the actual selector return (§5.3); do not infer its generator from its satisfaction ID |
+| Night shuffle C runtime state | Calling thread's runtime data +`0x14` (u32) | On that same thread, immediately before the shuffle's first draw, or before each actual draw |
+
+Wealth selection draws from the file generator only after wealth filtering leaves a nonempty list
+(`0x006F1DB9`–`0x006F1DD2`); an empty filtered list returns zero without a draw. It is process-wide, not owned by
+the requester object and not reset by loading a city. A member snapshot can continue across operations only if
+every member draw was simulated; a wealth snapshot can continue only if every intervening use of that shared
+generator was accounted for. Otherwise take a fresh copy at the next observation boundary. Do not publish a
+shadow's resulting state back into either native generator.
+
+### 5.2 The thread-local C runtime state
+
+`rand` is `0x009EFB9F`; its genuine call to `__getptd` returns the calling thread's runtime-data pointer in EAX.
+At `0x009EFBA4`, before the state read, EAX +`0x14` holds the pre-draw state. An observer may read that word at
+this point in the **original call**, then let the call finish once and record its EAX result. This provides a
+concrete snapshot route without calling `__getptd` itself: that routine can allocate and initialize thread data
+when absent (`0x009F761C`–`0x009F765D`), so it is not a read-only accessor. A pointer observed on one thread must
+not be reused for another thread or after that thread exits. Never copy state from the plugin's own CRT.
+
+In independent storage use foundations §12.1: the next state is `(s × 214013 + 2531011) mod 2^32` and the
+result is `(nextState >> 16) & 0x7FFF` (`0x009EFBA4`–`0x009EFBBB`); `srand` writes the same +`0x14` field
+(`0x009EFB92`–`0x009EFB9E`). Copying only the 15-bit result does not reconstruct the 32-bit state. A night
+shuffle takes n − 1 draws for n > 1, visiting indexes 1 through n − 1 and swapping each with `rand() mod (i+1)`
+(call at `0x006F53A6`, shuffle `0x006DB010`–`0x006DB058`). With n ≤ 1 it draws nothing; no runtime-state
+snapshot is needed. Preserve the input list order and duplicate entries.
+
+All other callers on the same thread share this state, including callers outside the simulation. A snapshot
+at the previous dusk is not a valid starting state for the next dawn unless those intervening uses were also
+observed. An operation-local snapshot suffices only when no unaccounted same-thread draw occurs inside it.
+If an observer cannot establish that, capture the individual real draw results instead (§5.3). Reading while
+the original is running concurrently is not a coherent snapshot: obtain a quiescent boundary on the invoking
+thread, or use observation that suspends execution while copying. The observer itself must not draw, seed,
+invoke native getters with side effects, or dispatch messages into the simulation.
+
+### 5.3 Return-value transcripts and selectors
+
+A documented alternative to cloning any generator is to record the random inputs actually consumed by the
+original operation, then replay them into an independent shadow. Each event belongs to an operation sequence,
+thread and nested call depth. Record the source identity (member address, shared generator address or thread's
+CRT), the operation (raw/bounded/range/shuffle draw), bounds where applicable, and the actual return value.
+Capture either a raw draw and apply its recorded bound in the shadow, **or** the bounded/range result; do not
+consume both the wrapper result and its nested raw result as two draws. Event type, bounds, order and final
+event count must match. A missing, extra or mismatched event makes the comparison invalid; never silently
+fall back to a seed. Instrumentation must preserve the original call's arguments, return, registers and effects.
+Call/return capture may use hardware execution breakpoints or an existing execution trace: this contract does
+not require writing a trampoline, changing a native vtable, or writing native RNG/object storage. Observe the
+original operation once, collect its inputs and outputs, then replay in shadow-owned storage. Do not recursively
+run the shadow from inside a paused native selector call.
+
+For custom selectors, capture the original `SelectProp` call and its return, including zero. Record requester
+identity/index, call purpose (kept check or creation), ordered candidate IDs including duplicates, x and z, and
+the u32 returned ID. The ABI is §8.3 slot 6: thiscall, requester in ECX, three arguments (vector reference, s32 x,
+s32 z), callee pops 12 bytes, ID in EAX. The referenced vector is three 32-bit pointers: begin, end, storage-end;
+copy the `[begin,end)` u32 IDs at entry, not the vector's stack address for later use. In a kept check the list
+has just the current type; the call at `0x006F4677` returns to `0x006F467A`, where the ID is compared against that
+type. In a creation the call at `0x006F1804` returns to `0x006F1807`; the preceding coordinate loads are unsigned
+bytes (`0x006F17F4`–`0x006F17F8`), and zero means no creation. Capture the actual arguments rather than
+reconstructing coordinates. This covers wealth, crime and plugin requesters without guessing their private state.
+
+The shadow supplies the captured result only to the matching call; it must not call the live requester again,
+substitute a candidate ID, clamp a result into the candidate list, or suppress a zero return. Recording an
+already executed selector's return leaves its random draws and other side effects solely in the original.
+If the shadow separately implements that selector, it may compare its result using an independent pre-call RNG
+copy and the same environmental inputs; it must not both simulate its internal draws and consume them again
+as developer-level transcript events. Reentrant events need explicit nesting, not one global FIFO.
+
+An operation-level comparison requires all nonrandom inputs too (including ordered lists, requester replies
+and creation success/failure). A matching saved record or matching list counts alone does not verify random
+removal identities, selected types or creation attempts. Report separately what was compared. Resynchronization
+after a mismatch does not turn that operation into a pass. An exact-through-date claim requires a complete
+matched event stream and all claimed outputs throughout that interval; these RE findings alone make no such claim.
+
 ## 6. Tuning and data
 
 No tuning exemplar. Data read:
@@ -633,6 +752,7 @@ AL true, nothing transferred), 5 `GetGZCLSID` `0x006F0E00` → `0x89C49986`.
 
 See QUESTIONS.md, section "From the re-specs10 specs" (PV1–PV6). PV2 answered by re-answers19 (§10 quirk 1).
 PV7–PV13 answered by re-answers22 (§4.3, §4.4, §4.6, §4.7, §4.8, §4.13, §7).
+PV14 answered by re-propdev-pv14 (§5.1–§5.3; conformance vectors §12.15–§12.22).
 
 ## 12. Conformance tests
 
@@ -665,6 +785,40 @@ PV7–PV13 answered by re-answers22 (§4.3, §4.4, §4.6, §4.7, §4.8, §4.13, 
     `AreSignsAndLabelsVisible` follows.
 14. **Lot state**: a lot going 2 → 3 posts `0xCA5E5027` with data3 = 1; a prop with `0x6A5E0727 = 3` on it ends in
     state 0, and in state 1 once the lot leaves state 3.
+
+The following observation vectors are specification fixtures, not measurements of a live game shadow. Synthetic
+tables exercise copying and cursor boundaries independently of clock seeding. All native source bytes must be
+unchanged by every observation; only the original's own subsequent calls advance its state.
+
+15. **PV14-01, relocated table:** synthetic G = `0x10000000`, table words all zero except word 623 = 1,
+    P = `0x100009BC`, r = 1. Import at shadow base `0x20000000`: k = 623, r = 1, relocated pointer
+    `0x200009BC`. First raw output = `0x00400091`, then k = 624, r = 0. Native source remains byte-identical.
+16. **PV14-02, exhausted table:** continue PV14-01: another raw draw reloads before reading, returns 0, leaves
+    k = 1, r = 623. In the input table the first reloaded word is zero (old words 0, 1 and 397 were zero).
+    In contrast P = G +`0x9C0`, r = 1 is invalid and must be rejected, as must an unaligned P or r = −1.
+17. **PV14-03, integer scaling:** supplied raw word `0xFFFFFFFF`, bound 4 → 3; raw `0x80000000`, bound 3 → 1;
+    raw `0xFFFFFFFF`, range [−2, 2) → 1. Bound 1 yields 0 and consumes one word. A transcript with bound 3
+    where the shadow requests bound 4 is invalid even if both recorded and computed results happen to be 1.
+18. **PV14-04, night inputs:** ordered list [A, B, C, D], thread's pre-draw CRT state 1 → returns
+    [41, 18467, 6334], swap indexes [1, 2, 2], final list [A, B, D, C]. Three draws. Lists [] and [A] remain
+    unchanged with zero draws. A different thread's state is irrelevant. Advance the real thread once between
+    two operations: reusing the first operation's snapshot is invalid; a fresh pre-call snapshot or real-return
+    transcript supplies the second operation's inputs.
+19. **PV14-05, shared wealth:** filtered wealth candidates [A, B], live file generator snapshot with next raw
+    word `0x80000000` → bounded index 1, returns B, one shared-generator word consumed by the original call.
+    The independently copied generator predicts B without changing the original. Empty filtered candidates →
+    return 0, no draw. An unrelated intervening use invalidates continuation from the earlier snapshot.
+20. **PV14-06, kept selector:** original selector called once for requester R, singleton [A], x = 7, z = 9,
+    returns 0 → current A fails the kept check and is removed. Transcript replay returns 0, makes zero native
+    selector calls, and removes the same prop. Returning A as a placeholder incorrectly keeps it. A return of A
+    instead is the keep case; both consume precisely the one original selector invocation.
+21. **PV14-07, creation selector:** original receives ordered [A, B, A], returns B → shadow uses B at the
+    matching creation call. The same inputs with actual return 0 fail selection, consume the already selected
+    free slot for this update and leave need unchanged (§4.3/§4.4). Missing return, reordered [A, A, B], wrong
+    requester, wrong coordinates, or a leftover event at operation end → invalid comparison, not a pass.
+22. **PV14-08, unavailable observation:** wrong executable identity, a torn/invalid table, or lost nested
+    selector events → observation unavailable/invalid. Preserve native state; do not seed or call a selector
+    to fill the gap. Equal serialized records after such an operation do not certify random-output equivalence.
 
 ## 13. How `CreateProp` actually gets an occupant (GLUE21-2 — DIFFERS, answered 2026-10-16 by re-answers31)
 
