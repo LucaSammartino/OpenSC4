@@ -59,7 +59,7 @@ fn ca7_constructor_positive_zeros_and_live_preinit_conversions() {
         ..Xform::default()
     };
     local.counter = 1;
-    cam.write().unwrap().set_local_xform(local.clone());
+    cam.write().unwrap().set_local_xform(local);
     assert_eq!(c.convert_world_point_to_camera_plane_point([2.0, 3.0, 7.0]), [4.0, 6.0]);
     assert_eq!(c.convert_camera_plane_point_to_world_point([4.0, 6.0]), [2.0, 3.0, 0.0]);
     assert_eq!((c.metres_per_pixel, c.pixels_per_metre), (1.0, 1.0));
@@ -128,7 +128,7 @@ fn ca7_inverse_keeps_zero_depth_terms_and_float_reciprocal() {
         scale: 3.0,
         ..Xform::default()
     };
-    cam.write().unwrap().set_local_xform(xform.clone());
+    cam.write().unwrap().set_local_xform(xform);
     let view_scale = cam.read().unwrap().view_xform().scale;
     let reciprocal = 1.0_f32 / view_scale;
     assert_eq!(
