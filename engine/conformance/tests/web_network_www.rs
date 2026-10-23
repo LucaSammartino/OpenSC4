@@ -198,9 +198,10 @@ mod tests {
         let mut w = Www::construct_with_host(&mut h, Some(80), 77);
         assert_eq!(w.http.target, Some(77));
         assert_eq!(w.http.lookup, Some(80));
-        assert_eq!(h.effects.len(), 10);
+        assert_eq!(h.effects.len(), 11);
+        assert_eq!(h.effects[0], Effect::RegisterService(0x449b1939, 0));
         assert_eq!(
-            &h.effects[8..],
+            &h.effects[9..],
             [
                 Effect::Component("http", "connect-target"),
                 Effect::Component("ftp", "connect-target")

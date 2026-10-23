@@ -19,5 +19,6 @@
 - Relocation focused run: 26 passed, 0 failed; removed its two unused imports before final gate.
 - 77c7b8a2: conformance relocation committed; final fmt passes all 11 owned Rust files (zero diff).
 - Native request is still pending after repeated 60-second collects of the SAME session 1879; no duplicate check started.
+- Final contract review found WWW base service registration was absent; added the specified (0x449b1939,0) constructor effect and conformance assertion.
 - Next: collect session 1879 terminal native result, then qbuild all on final layout (real source/input change).
 - No game requests; unconnected core only, no ABI/plugin changes; detached HEAD retained.

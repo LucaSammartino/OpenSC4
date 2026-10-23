@@ -21,6 +21,7 @@ pub struct Job {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Effect {
+    RegisterService(u32, u32),
     Lock,
     Unlock,
     AddTarget(u32),
@@ -133,10 +134,13 @@ impl Www {
         }
     }
     pub fn construct() -> Contract<Self> {
+        // Pure default-state convenience. Native construction effects require
+        // construct_with_host, including service registration and component holds.
         Ok(Self::snapshot(http::Client::new(None)))
     }
     /// Adapter supplies allocated component identities and constructor literals.
     pub fn construct_with_host(host: &mut impl Host, lookup: Option<u32>, service_identity: u32) -> Self {
+        effect(host, Effect::RegisterService(0x449b1939, 0));
         for name in ["cache", "cookie", "http", "ftp"] {
             effect(host, Effect::Component(name, "construct"));
             effect(host, Effect::Component(name, "retain"));
