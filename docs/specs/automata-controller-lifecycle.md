@@ -551,6 +551,140 @@ above1. This analytic qualification is not a measurement of runtime PC/RC.
 L10's arithmetic was retained, while its formerly ambiguous owned/foreign
 boundary was corrected above. No R1 native/game result existed to reinterpret.
 
+## 11.2. Secondary Read: local mutation and reference chronology (R3 ADDS)
+
+`005180E0–005181E6` is secondary slot4 of `00A95D74` (data reference
+`00A95D84`), not a primary-C method. It preserves incoming ECX as **S=C+4**,
+takes one serializer pointer, pops four bytes, and returns **full EAX 0 or 1**.
+The constructor installs that table at C+4 (`00517D54`). Direct callers at
+`00518279` and `00518476` establish derived Read delegation, not a base factory
+or a complete derived read contract. The following order is owned by this body;
+all referenced primitives are opaque calls with independently supplied replies.
+
+| Order | Primitive or owned operation | Destination / consequence |
+|---|---|---|
+| 1 | serializer +0x1C, pointer to local word | header/version-like output is never tested or used by this body |
+| 2 | test S+8 (C+0x0C); if nonnull, store null there, then old occupant.Release | no identity comparison with the incoming serialized reference; Release result ignored |
+| 3 | `SC4ReadGZSerializable` `005D9730`, arguments serializer, ID `26BB767E`, address S+8, word 0 | writes directly into occupant field; no subsequent local AddRef or SetOccupant call; helper return ignored |
+| 4 | serializer +0x3C, address S+0x24 | C+0x28 embedded string; return ignored |
+| 5 | vector extraction `005DA550`, serializer and address S+0x10 | C+0x14 position; raw three-word output boundary; return ignored |
+| 6 | serializer +0x30 twice | addresses S+0x4C then S+0x50 = C+0x50 elapsed then C+0x54 lifetime |
+| 7 | serializer +0x24 three times | addresses S+0x38, S+0x3C, S+0x44 = C+0x3C sound ID, C+0x40 flags, C+0x48 count |
+| 8 | unsigned index initially zero; while index < current S+0x44 | each iteration initializes a local reference-output word to null, calls `005D9730` with ID `A9B40F05`, its address and word 0, then allocates/inserts a 12-byte node with that raw output as payload |
+| 9 | serializer +0x48, no arguments | only its AL is tested: zero yields EAX=1; any nonzero yields EAX=0 (`005181D5–005181E0`) |
+
+Step8 appends before the existing sentinel: reads sentinel.previous, writes
+new.next=sentinel and new.previous=old-tail, then old-tail.next=new and
+sentinel.previous=new (`0051819A–005181BE`). It neither clears existing nodes
+nor increments the stored count. It reloads the count for each unsigned loop
+comparison (`005181C5–005181CF`), but reentrant mutations are outside this
+contract. No local AddRef, payload Release, null-payload rejection or reference
+helper success test occurs. The list's storage allocator is foreign; only normal
+successful allocations are covered. An arbitrary allocation failure is not a
+supported empty-node alternative.
+
+Thus this Read is **not transactional**. False status from any earlier primitive
+does not stop later calls; a final failure result does not undo stores, occupant
+Release or appended nodes. Partial writes remain exactly the primitive's supplied
+mutations. This states normal returns with partial output, not exceptions, bad
+storage, unwind or corrupt-stream safety. Existing template C+0x10, clock C+0x4C,
+initialized byte, reference count, grid bytes and delay elapsed C+0x58 have no
+direct stores in this body; effects inside called primitives are not thereby
+forbidden. It does not apply SetTemplate lifetime/flag policy or recompute bounds.
+
+Reference acquisition by `005D9730` is **callee-supplied**, not proved here.
+For a retained old O and a helper that returns the same still-valid O, the local
+sequence remains null-store, Release(O), helper-write(O); it is not SetOccupant's
+identity no-op. This same-pointer case needs an independently held reference
+across the Release. With a retaining helper, its acquisition occurs within that
+later primitive; with a reference-neutral helper no acquisition may be invented.
+Null old/new and valid replacement follow the same conditional old Release and
+raw output store. Lifetime safety of reference-neutral results is not inferred.
+
+## 11.3. Base lot-facing point and radius rejection (R3 ADDS)
+
+Primary table `00A95D90` has slot22 `00516C40` and slot23 `00515A80`;
+attractor `00A95E48` and generator `00A95F00` inherit these entries. Their
+virtual inputs (notably generator radius) remain dispatch-dependent. Both bodies
+use C. Slot22 takes one writable vec3 pointer (ret4), with no defined status
+result. Slot23 takes a point pointer and nullable binary32 distance-output
+pointer (ret8), returning a boolean in **AL**, not normalized full EAX.
+
+**Lot-facing point.** `00516C46–00516C4C` constructs a local random object
+with seed FFFFFFFF but never asks it for a random number. Initially null occupant
+copies stored C+0x14/+0x18/+0x1C word-for-word (`00516E86–00516E98`). Otherwise
+city+0x84 supplies a lot service, then service+0x38 takes the current occupant
+and returns a lot pointer. A null service or null lot forwards the output pointer
+to occupant+0x20; the result is not tested (`00516E71–00516E83`). Nulling the
+occupant during those callbacks is not a supported fallback case.
+
+A lot receives +0x38 with a four-word output, then +0x5C with no args for a
+full-word direction. For signed words (a,b,c,d), the body shifts a and b left
+four bits; increments c and d then shifts left four. These are 32-bit operations,
+then **signed FILD** and binary32 stores (`00516CC9–00516D0B`). This is not
+unbounded integer multiplication. For the finite exact domain below write
+X0=16a, Z0=16b, X1=16(c+1), Z1=16(d+1). Directions 0..3 select these endpoints:
+
+| Raw direction | First endpoint (x,y,z) | Second endpoint (x,y,z) | Branch |
+|---|---|---|---|
+| 0 | (X0,0,Z0−1) | (X1,0,Z0−1) | `00516D22` |
+| 1 | (X1+1,0,Z0) | (X1+1,0,Z1) | `00516D59` |
+| 2 | (X1,0,Z1+1) | (X0,0,Z1+1) | `00516D8D` |
+| 3 | (X0−1,0,Z1) | (X0−1,0,Z0) | `00516DC1` |
+
+Direction dispatch is unsigned >3 to a separate path (`00516D12–00516D1B`),
+not direction modulo four. The +1/−1 constant at `00A81228` is binary32 1;
+half at `00A84D2C` is binary32 0.5. In the exact domain of signed lot words
+−64..63, each selected endpoint, difference and midpoint is exactly representable:
+output is first + half×(second−first) per component. Native order is x difference
+on the x87 stack; y/z differences stored binary32, their half-products stored
+binary32, x midpoint stored binary32, then z midpoint stored/copied and y
+midpoint stored (`00516DFD–00516E66`). No normalization, terrain-height or
+angle primitive is called. Output write order is z, x, y. This exact-domain rule
+does not generalize reassociation/precision across all signed words. Direction
+outside 0..3 uses copied `00B227CC` words; their runtime value remains Unknown.
+No output is claimed for that residual path here.
+
+**Radius rejection without distance output.** The controller calls its owned
+slot20 for raw min/max vectors, then virtual slot9 for radius, storing ST0 as
+binary32 r (`00515A98–00515AA2`). It compares, in order, min.x−r to point.x,
+min.z−r to point.z, max.x+r to point.x, max.z+r to point.z. Subtraction/addition
+has no intermediate binary32 store before each x87 comparison. Finite comparisons
+reject exactly when point.x < min.x−r, point.z < min.z−r,
+point.x > max.x+r or point.z > max.z+r; equality passes. This is an expanded
+rectangle test, **not a Euclidean radius** or clamped distance comparison.
+The lower tests use status bits C0/C3 parity (`00515AB6`, `00515ACC`);
+the upper tests use C0 (`00515AE1`, `00515AF7`). Unordered comparisons take
+rejection if reached with masked exceptions; this is not a payload/trap claim.
+
+Only after all four pass does CheckFlag(0x1000) run. If its AL is nonzero,
+height-service global `00B43CF4` +0x34 takes point.x,z raw binary32 words and
+returns ST0 h. Reject if point.y > h+5 (`00A84D28` = binary32 5;
+`00515B1F–00515B36`). Equality, less and masked unordered pass that particular
+test. No controller output write occurs on rejection. If the distance pointer
+is null, acceptance immediately returns true AL without querying flag0x10,
+position, facing or intersection (`00515B43–00515B4C`). With a nonnull distance
+pointer the acceptance decision is already true; §11.4 below specifies the
+separate distance-output call chain. No ambient FP/trap guarantee is added.
+
+### New independent literals, first proof milestone
+
+These **PROPOSED / UNEXECUTED** R rows are input fixtures and native-derived
+expectations, not portable outputs or original execution. Geometry arithmetic
+uses x87 PC=53 and round-to-nearest, masked exceptions, finite exact operands;
+no unspecified runtime initializer is used. References identify independently
+valid objects. Primitive mutations/return channels below are independent inputs.
+
+| ID | Raw inputs | Expected local behavior |
+|---|---|---|
+| R1 Read replacement / full-word status | old O1 retained; helper ID26BB767E writes O2; +0x24 replies sound=0x1234, flags=0x1002, count=0; final status EAX=0x12340000 | null occupant before Release(O1), then helper-write O2; no local AddRef(O2); EAX=1 despite nonzero full status word; template/clock unchanged locally |
+| R2 Read partial outputs | old O1; helper writes null and returns 0; vector primitive changes only x to −7 and returns 0; subsequent primitives leave their output unchanged except count=0; final AL=2 | Release(O1), occupant null; original y/z survive, x=−7; all later calls still occur; EAX=0 with stores retained |
+| R3 Read append / repeat | existing list [A], count initially1; incoming count2, helper outputs B then null; repeat Read with old occupant null, count1 and helper output D; helpers reference-neutral, independently live A/B/D | first physical list [A,B,null], stored count2, second [A,B,null,D], stored count1; one allocator/node per input entry, no local payload AddRef/Release or clearing; incoming nonzero count is not incremented |
+| R4 same/null occupant | independent keepalive O; old O; helper writes O, then next Read helper writes null, then third writes null; count0 throughout | first null-store/Release(O)/helper-write O even though identical; second null-store/Release(O)/helper-write null; third no old Release; helper retention remains its supplied behavior |
+| R5 asymmetric lot | lot words (−2,3,4,6), directions0,1,2,3; +0x38 AL=0 with valid outputs | X0=−32,Z0=48,X1=80,Z1=112; outputs respectively (24,0,47), (81,0,80), (24,0,113), (−33,0,80); +0x38 result ignored; no height call or random selection |
+| R6 radius equality / rectangle corner | flags0, stored bounds min=(−2,7,30), max=(9,8,80) from occupant+0x28; null lot service; base template radius4; no distance output | expanded xz=[−6,13]×[26,84]; points (−6,−100,26) and (13,999,84) accepted, (13.5,0,84) rejected; accepted corner disproves a circle assumption; y unused |
+| R7 height threshold / early exit | R6 fixture but flag0x1000 set; height returns11; point=(13,16,84), then (13,16.5,84), then (13.5,16,84) | first true AL at equality h+5; second false AL; third false before flag/height query; no distance-output writes |
+
 ## 12. Body and signature ledger; unsupported domains
 
 **Supported** means the stated local body behavior and channels are instruction
@@ -584,7 +718,7 @@ Stack sizes below are callee cleanup; AL booleans do not establish full EAX.
 | 18 Activate | raw byte in four-byte slot; void; ret4 | Supported normal inherited sound/view composition §§6,11.1; overrides and unsupported domains remain separate |
 | 19 SetLifetime | binary32 word; void; ret4 | Supported bit copy |
 | 20 occupant bounds / 21 world bounds | two writable vec3 pointers; void; ret8 | Supported finite domain §8; foreign output/height semantics remain raw |
-| 22 lot facing / 23 within radius | unreconciled | Unknown numeric body/signature in this supplement |
+| 22 lot facing / 23 within radius | vec3 output, ret4 / point and nullable distance output, AL bool, ret8 | Supported §11.3 finite facing and rejection/null-output paths; distance composition §11.4; copied-global direction residual Unknown |
 | 24 CheckTimeOfDay `006F7DC0` | two words popped; no defined result | Partial: empty ret8; typed parameter meanings Unknown |
 | 25 CheckEffectTriggers | no args; no defined result; ret0 | Supported §6.2 normal list/QI/activation/source-Release CFG; foreign QI retention unspecified |
 | 27 HandleViewChanged | no args; AL true; ret0 | Supported §6.3 normal outputs/predicate/store CFG and §8 finite bounds; foreign view algorithm separate |
@@ -599,7 +733,7 @@ Stack sizes below are callee cleanup; AL booleans do not establish full EAX.
 | 37 IsTickable | none; forwarded CheckFlag(1) | Supported |
 | 38 DoAnimationTick | first binary32 word, two untyped words; void; ret12 | Partial signature; finite local arithmetic and stated inherited deactivation supported; overrides separate |
 | 39 deleting cleanup `00519340` | none; no defined result | Supported calls Shutdown, destructor, heap free in order; not a Write method |
-| secondary 3/4 Write/Read | S receiver, serializer | Partial: pointer view and Write field roles settled; existing record scope retained, live Read ownership not closed here |
+| secondary 3/4 Write/Read | S receiver, serializer; Read full EAX0/1, ret4 | Supported Read local order/stores/appends §11.2; foreign reference acquisition/stream algorithms and exceptional failure remain Partial |
 | secondary 5 GetGZCLSID | none; EAX 4A18672B | Supported identity, not factory admission |
 | PlaySFX `00515770` | raw low byte in four-byte slot; no defined result; ret4 | Supported §6.1 normal range/index and exact-integer coordinate domain; foreign RNG/sound internals separate |
 | intersection `00514E70`, CreateTemplateInstance `0051BDF0` | unreconciled | Unknown owned helper bodies; no blanket credit from public attribution metadata |

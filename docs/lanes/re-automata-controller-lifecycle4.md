@@ -1,6 +1,17 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-automata-controller-lifecycle4: inherited base controller lifecycle | Codex / `re-automata-controller-lifecycle4` (RE lane; detached HEAD, supervisor publishes reserved branch) | ready: bounded docs publication; questions/doccheck/literal/link/table/diff checks passed; ABI unchanged; no game runs | Coordinator review/landing; AT22 remains partial for the named residuals. |
+| re-automata-controller-lifecycle4: inherited base controller lifecycle | Codex / `re-automata-controller-lifecycle4` (RE lane; detached HEAD, supervisor publishes reserved branch) | in progress: final R3 native proof; ABI unchanged; no game runs | Prove secondary Read and base geometry, then state/behavior local branches. |
+
+## Handoff
+
+- Goal: final authorized R3, two bounded native proof milestones; no fourth round.
+- Preserved R1 `77321b20`/`4a4fc554`/`77f5168b` and R2 through `3991b3b3`, with ignored evidence.
+- Ownership checked first: base table 00A95D90 slots22/23/28–30/32; attractor overrides29/30, generator inherits these but overrides activation/template/radius.
+- Next: finish byte-backed Read 005180E0 (receiver S=C+4), geometry 00516C40/00515A80, publish independent proposed unexecuted literals.
+- Then: base 0051BB60/0051BCA0/0051BCE0/0051BAB0 local signatures/branches and composition.
+- No original execution, portable/build/game/process/provider operations; AT22 stays partial.
+- q.py Bash backend returned Access denied before commands ran; using direct PowerShell read/query calls. This is tooling evidence only.
+- Historical R2 report below remains intact until final report replacement.
 
 ## Report — 2026-10-23, SAME R2of3
 
