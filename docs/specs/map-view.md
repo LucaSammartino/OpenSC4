@@ -57,8 +57,8 @@ through the resource manager (`0x00B43CA8`, slot 3, IID `0xA52160F5`). Its prope
 | `0x4A0B47E8` | u32 | **block by lot**: present → every lot is drawn as one value, with this argument (§4.3) |
 | `0x4A0B47ED` | u32 | the desirability layer for the per-wealth sources (default 1, §4.1) |
 | `0x4A0B47E9` | u32 | the **highlight** kind (§5) |
-| `0x4A0B47EA` | string | the plop mode name of the highlighted buildings (`"PlopMode_Police_Existing"` …) |
-| `0x4A0B47EE`, `0x4A0B47EF` | u32 | two highlight colours *[inferred]* |
+| `0x4A0B47EA` | string | named visual effect for highlights (`"PlopMode_Police_Existing"` …), §5.1 |
+| `0x4A0B47EE`, `0x4A0B47EF` | u32 | coverage-ring and building-footprint colours, respectively (§5.2) |
 | `0x4A0B47F2`, `0x4A0B47F3` | u32 lists | the legend colours and string ids (§6) |
 | `0x4A0B47F4` | u32 scalar | the legend title string id (§6); not a singleton list |
 | `0x4A0B47E0` | u32 list | occupant types for the 3D view's filter (the non-zero ones; occupant-manager.md §13.2.8) |
@@ -231,13 +231,105 @@ By the highlight kind, each building of a kind is collected with its coverage ra
 | 2 | hospitals (slot 49) | the same |
 | 3 | fire stations (fire slot 22) | fire slot 21 at level 0.5 |
 | 4 | police stations (police slot 21) | police slot 20 at level 0.5 |
-| 5 | the crime hot spot (crime slot 8 `GetCrimeHotspot`, with the effects manager) *[summary]* | — |
+| 5 | crime hotspot (crime slot 8 `GetCrimeHotspot`), §5.1 | 100 world units |
 | 6 | garbage buildings (pollution slot 46) | — |
 | 7 | power plants (power slot 25) | — |
 | 8 | water producers (plumbing slot 28) | — |
 | 9 | transit switches (traffic simulator slot 28) | none |
 
 The result is compared with the previous set (`0x007A1390`); a change marks the map dirty.
+
+### 5.1 Named effects and the crime hotspot *[compat]*
+
+`0x4A0B47EA` supplies the **visual-effect resource name**, not a command to enter a plop tool. A successful
+nonzero-view load clears the previous name, then copies this property when present. The two colours are
+also reset to zero before their properties are read (`0x007A52BD`–`0x007A5363`). An empty name suppresses
+effect creation; it does not suppress highlight records or their bitmap decorations.
+
+The effects manager's slot 7 (`+0x1C`, `CreateVisualEffect(name, out interface)`) creates each named effect.
+On success the owner calls visual-effect slot 8 (`+0x20`, `SetTransform`) and slot 3 (`+0x0C`, `Start(false)`).
+The common building-highlight effect has identity rotation, the collected world position and uniform scale
+**twice the coverage radius** (stored as binary32). Its transform flag bytes are 2, then 1 when the scale
+equals 1, otherwise 3. These are raw transform flags, not a choice of effect resource. Creation
+failure leaves the record without a newly created effect; it does not abort highlight reconciliation.
+Removing an old highlight stops its retained effect with slot 4 (`+0x10`, `Stop(false)`) and releases the
+record's references; building highlights are cleared with occupant slot 17 (`+0x44`, arguments false, 0).
+Adding a building marks it highlighted with that slot's arguments true, 0. The owner does not attach the
+visual effect to the occupant through visual-effect slot 9
+(`0x0079F620`–`0x0079F74E`, `0x007A1266`–`0x007A12A7`, `0x007A13EE`–`0x007A1408`,
+`0x007A1650`–`0x007A166B`). General building-set comparison remains QV7.
+
+For kind 5, the crime query returns a success flag and three optional outputs: a byte of hotspot strength
+and two signed 32-bit **cell coordinates**, x and z. The simulator reports false when its stored strength
+is not positive; on false it writes none of these outputs. On true it writes the low byte of strength and
+its stored grid coordinates multiplied by the crime grid's cell-size factor. The map uses the returned
+coordinates directly and does not apply that factor a second time; strength is not used in the decoration
+(`GetCrimeHotspot`, `0x0069F430`–`0x0069F48A`).
+
+A successful hotspot poll contributes one highlight with **no occupant**, radius 100 and world position
+`((x + 0.5) × 16, terrainAltitude, (z + 0.5) × 16)`. The x and z computations convert the signed integers,
+add the double constant 0.5, multiply by double 16 and store binary32; terrain slot 13 (`+0x34`) supplies
+altitude at that world x/z, also stored binary32. There is no building lookup or footprint for this record.
+A false query contributes no hotspot record, so an old one is removed during reconciliation
+(`0x007A1C21`–`0x007A1C8C`, `0x007A1DAE`–`0x007A1DC6`).
+
+Hotspot effect lifetime has two observable stages, even on an unchanged position:
+
+| Stage | Named-effect requests and ownership |
+|---|---|
+| Successful poll, nonempty name | Attempt a temporary effect with identity rotation, hotspot position, scale 100 and transform flag bytes 2, 3; start it with `false` on success. Put it in the candidate record. |
+| Reconcile a newly present hotspot | The common highlight-effect operation attempts another effect at the same position, scale 200, flag bytes 2, 3. On success this replaces the candidate's temporary effect reference; that temporary reference is released without an owner `Stop` call. Retain the resulting record. |
+| Reconcile an already present hotspot | Stop the previously retained effect with `false`, repeat the common scale-200 creation attempt and replace the old record with the candidate. Release the replaced references. This happens on **every** successful poll, even with identical coordinates. |
+| Hotspot disappears or highlight kind becomes zero | Stop the retained effect with `false` and release the record; do not create another hotspot effect. |
+
+Each successful hotspot poll therefore marks highlights changed, as does removal of an existing hotspot.
+The map's ordinary redraw throttle still applies; effects are processed on the poll, not deferred until a
+bitmap redraw. With an empty name there are no creation/start calls, but the null-occupant record still
+changes on every successful poll. If the common creation fails, any successfully created temporary effect
+remains in the candidate and can become the retained effect. A failed initial creation does not prevent
+the common creation attempt. Normally returning `SetTransform`, `Start` and `Stop` results are ignored
+(`0x007A1C90`–`0x007A1DDC`, `0x007A149D`–`0x007A1528`, `0x007A15A2`, `0x007A1707`–`0x007A1723`).
+
+### 5.2 Bitmap highlight colours *[compat]*
+
+These colours decorate the bitmap **after** its data grid is drawn; they do not tint or parameterize the
+named 3D effects. Both properties default to zero on a new nonzero selection. A zero colour disables its
+entire decoration pass (`0x007A5303`–`0x007A535D`, `0x007A45F6`–`0x007A481E`).
+
+- **EF (`0x4A0B47EF`): building footprints.** For each retained nonnull occupant, obtain its inclusive
+  cell rectangle from occupant slot 11 (`+0x2C`). With bitmap width/height `W,H` and city cell dimensions
+  `Cx,Cz`, the painted half-open rectangle is
+  `[trunc(left×W/Cx), trunc((right+1)×W/Cx)+1) ×
+  [trunc(top×H/Cz), trunc((bottom+1)×H/Cz)+1)`.
+  Products and divisions are signed 32-bit integer operations, division toward zero. Intersect this with
+  the buffer clip rectangle before painting. The alpha byte of EF is the blending weight. Acquire the
+  buffer with flags `0x8040` for the pass; if acquisition fails skip the pass; release that acquisition
+  afterwards. Hotspots have no occupant and receive no footprint
+  (`0x007A4608`–`0x007A474B`, rectangle helper `0x0079E0C0`–`0x0079E12A`).
+- **EE (`0x4A0B47EE`): coverage rings.** For every retained record with a positive radius, including a
+  hotspot, draw a ring at its world x/z and radius, each multiplied by
+  `q = binary32(binary32(W) / cityWorldWidth)`. Store each scaled argument as binary32. Both axes use
+  **width**, even on a rectangular bitmap. The ring helper obtains/releases the buffer with `0x8040`
+  independently for each ring; a failed acquisition skips only that ring. EE's RGB channels provide
+  the colour; its alpha byte is **ignored** by the ring rasterizer
+  (`0x007A474E`–`0x007A47D4`, helper `0x0079E130`–`0x0079E3F4`).
+
+For finite ordinary bitmap coordinates, the ring helper offsets the supplied centre by +0.5 on both axes.
+For supplied centre `(u,v)` and radius `r`, candidate rows run inclusively from `ceil(v−r−0.5)` to
+`floor(v+r+0.5)`, clipped to the buffer. At row `j`, store `dy² = binary32((j−binary32(v+0.5))²)` and
+`R² = binary32((r+1)²)`. If `R²−dy²` is negative, draw no pixels in that row. Otherwise candidates run
+from `ceil(binary32(u+0.5)−sqrt(R²−dy²))` to the corresponding `floor` with a plus sign, clipped to the
+buffer. A candidate pixel `(i,j)` has distance error
+`e = abs(sqrt((i−binary32(u+0.5))²+dy²)−r)`.
+Only `e < 2` is blended, with weight `b = 255−floor(128×e)`. This is a soft ring, not a filled disk.
+The native square roots and intermediate arithmetic use x87 precision between the stated binary32 stores
+(`0x0079E156`–`0x0079E3B3`; constants 0.5, 1, 2, 128 at `0x00A84D2C`, `0x00A81228`,
+`0x00A8825C`, `0x00AB7E10`). Invalid float/conversion domains remain QV10.
+
+Both passes share the pixel blend (`0x0079DC00`–`0x0079DCD8`). For source RGB `S`, destination ARGB `D`
+and weight `b`, each output RGB byte is `floor((Dchannel×(256−b)+Schannel×b+128)/256)`;
+output alpha is `255−floor(((255−Dalpha)×(256−b)+128)/256)`. Footprints use EF's alpha for `b`;
+rings use the distance weight above. Thus a nonzero EE with alpha zero can still draw a visible ring.
 
 ## 6. The legend (`DisplayLegend`, `0x007A04F0`) *[compat]*
 
@@ -312,3 +404,43 @@ calls), QV2 (the traffic volume source 76 and its travel types), QV3 (the panels
 2. **Mayor rating:** a signed 8-bit value of −128 gives index 0, +127 gives 255.
 3. **Throttle:** two pollution messages 200 ms apart cause one redraw at the first tick after 1000 ms.
 4. **Empty view:** choosing view `0x14` (residential desirability) leaves the map empty.
+5. **Selection guards:** inactive + any request → false, no side effects; active + current request → true,
+   no reload, shutdown, update or hook calls. `ResetDataView` targeting that same view still refreshes its
+   legend when visible, without bypassing the guard.
+6. **Failed replacement:** select A with custom handle H; request missing exemplar B → shutdown/release H,
+   remove A's hooks, false, current identity and source still A. Request A again → true without reinstalling
+   hooks. Through a mode button, the failed request for B still invokes legend B and remembers B.
+7. **Custom initialization:** a valid exemplar supplies class K. Factory success → one no-argument slot-3
+   call before highlights/update, identity commit and hooks, even if slot 3 returns false. Next different
+   selection shuts down/releases that handle. Factory false with null output → no slot-3 call, remaining
+   selection completes true. Child-interface query false likewise skips only child work.
+8. **Initialization failure policy:** make base window Init and subscription primitives return false while
+   providing valid required objects → their results alone do not make map Init false. With the needed
+   message server absent → false, with the initialization latch already set; no rollback calls.
+9. **Legend scalar/default:** F4 scalar `0x12345678` → title localized from `(0x6A231EAA,0x12345678)`;
+   absent F4 → `0x2A5E854F`. No list length is demanded. Failed exemplar load hides all nine row pairs
+   but preserves the old title. Failed title QI does not prevent valid rows from rendering.
+10. **Legend unequal rows:** colours `[0xFF112233,0]`, strings `[S]` → swatch/label 0 only, safe despite
+    unequal lengths. Colours `[0xFF112233]`, strings `[S,T]` → only S. Colours `[0,0xFF112233]`, strings
+    `[S]` → swatch 1 and an attempted out-of-range string read at index 1; no deterministic label expected.
+    A portable diagnostic is acceptable; returning a fabricated native empty label is not.
+11. **Hotspot position:** successful crime output `(strength=7,x=2,z=3)`, terrain altitude 12 → one
+    null-occupant record at `(40,12,56)`, radius 100. Changing only strength leaves those parameters unchanged.
+12. **Hotspot effect creation:** empty previous set, nonempty name N, both creations succeed → create N,
+    transform scale 100 / flags 2,3, Start(false); create N again, scale 200 / flags 2,3, Start(false).
+    Release the temporary reference without Stop; retain the second effect. Highlights changed = true.
+13. **Hotspot repeated/removal:** repeat vector 12 at identical coordinates → temporary creation/start,
+    Stop(false) on the old retained effect, second creation/start, release replaced references, changed=true.
+    Next crime query false → no creation, stop/release retained effect, changed=true. Another false with no
+    other highlights → no hotspot effect work. Empty name → no create/start, but successful polls still change.
+14. **Hotspot creation failures:** first creation false, second true → retain scale-200 effect; first true,
+    second false → retain scale-100 temporary effect; both false → retain record with no effect. Each successful
+    crime query still contributes radius 100, and false effect returns do not suppress the bitmap update.
+15. **Independent colours:** EF `0x80FF0000`, EE zero, occupant cell rectangle `(2,3,3,4)`, city 16×16 cells,
+    bitmap 32×32 → footprint `[4,9)×[6,11)`, no ring. Black opaque destination inside becomes `0xFF800000`.
+    A hotspot contributes no such footprint. EE `0x00FF0000` with EF zero still enables red rings and no
+    footprints. World width 256, bitmap width 32, hotspot `(40,12,56)`, radius 100 → ring arguments
+    `(5,7,12.5)`, independent of bitmap height; named-effect transforms are unchanged by either colour.
+16. **Ring blend:** ring arguments `(u=4.5,v=4.5,r=2)` in a sufficiently large clip: pixel `(7,5)` has
+    `e=0`, weight 255; pixel `(5,5)` is untouched (`e=2`). EE `0x000000FF` over `0xFF000000` at `(7,5)`
+    produces `0xFF0000FE`, demonstrating both the ignored source alpha and the division by 256.

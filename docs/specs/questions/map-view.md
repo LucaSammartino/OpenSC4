@@ -59,23 +59,3 @@
   slot-11 entries used to construct the layer-6 debug grid multiplied by 12? [default/unknown layers refused;
   preserve selected layer 3/4 in the raw request; debug selects layer 6 but does not construct its grid]
 
-<!-- from: core-map-view5 (2026-10-23) -->
-- **QV12 - §§1-3, §6-7: interface execution and summary edges:** what rollback/return behavior applies when
-  a foreign window/renderer/simulator primitive fails, what initialization/attachment follows creation of the
-  custom-view class with IID 0x8A175D6B, and does ResetDataView bypass SetDataView's same-view guard? Is the
-  legend title F4 a singleton u32 list as §2 says, and what happens for unequal color/string list lengths?
-  Must button handling continue with legend/panels after selection failure? [literal portable execution
-  stops on foreign failure, retains any completed prefix and reports an opaque adapter error; no native
-  failure code or rollback claimed. Only successfully created custom handles are shut down/released.
-  Reset calls SetDataView normally; F4 requires one list element and unequal rows are Unsupported.
-  Buttons stop on selection failure. Native custom attachment remains open; render settings pass only
-  the semantic filter/terrain/zone/lot intents, without claiming unknown native reset calls (QV1).
-  For QV8, only full-range strictly increasing ramps with exact integer linear channel results are built;
-  fractional interpolation, unordered/duplicate stops and endpoint extension remain Unsupported.]
-
-<!-- from: core-map-view5 (2026-10-23) -->
-- **QV13 - §5 crime hotspot and effects:** what raw hotspot data is obtained from crime slot 8 and which
-  effects-manager primitives/parameters render or remove it? How do the stored plop name and two highlight
-  colors affect hotspot/building rendering? [kind 5 remains Unsupported::CrimeHotspot; no guessed effect
-  geometry/style/lifecycle. Other kinds collect the specified raw buildings/radii but comparison remains
-  QV7. Plop name and highlight colors are retained as raw exemplar properties, without invented effects.]
