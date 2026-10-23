@@ -161,6 +161,27 @@ fn zero_derivative_reaches_math_boundary_without_a_guard_or_fake_tangent() {
 }
 
 #[test]
+fn asymmetric_coordinate_reduction_order_survives_large_cancellation() {
+    // At t=0, w2=1/6 and w1=4*w2. Large products cancel exactly.
+    // Px adds the small w0*x0 last; Pz adds it between the large products,
+    // losing it at binary64 precision. Equal input x/z must yield different
+    // output coordinates. A symmetric or left-to-right reduction fails this.
+    let large = f32::from_bits(0x7180_0000); // 2^100
+    let sample = arithmetic::spline(
+        &Portable,
+        [
+            point(1., 1.),
+            point(-large / 4., -large / 4.),
+            point(large, large),
+            point(0., 0.),
+        ],
+        0.0,
+    );
+    assert_eq!(sample.point.x.to_bits(), 0x3E2A_AAAB);
+    assert_eq!(sample.point.z.to_bits(), 0);
+}
+
+#[test]
 fn owner_uses_primitive_backend_for_mesh_and_turns() {
     use std::sync::atomic::{AtomicUsize, Ordering};
     static STORES: AtomicUsize = AtomicUsize::new(0);
@@ -201,14 +222,15 @@ fn owner_uses_primitive_backend_for_mesh_and_turns() {
     shared.lock().unwrap().random = Some(mesh::NativeRandom::from_effective_seed(0));
     w.init(
         Arc::new(ground),
-        Arc::new(Factory::default()),
+        Arc::new(Factory {
+            texture: Some(Arc::new(Texture(8))),
+            calls: AtomicUsize::new(0),
+        }),
         &Source::default(),
         shared,
         arithmetic(),
     )
     .unwrap();
-    // Even if a failed texture request prevents preparation, traversal must
-    // have called only primitive operations on the caller's backend.
-    let _ = w.update(zoom(0), true);
+    assert!(matches!(w.update(zoom(0), true), Ok(RippleUpdate::Prepared { strips, .. }) if strips > 0));
     assert!(STORES.load(Ordering::SeqCst) > 0);
 }
