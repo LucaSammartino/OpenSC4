@@ -1,5 +1,10 @@
 # watercraft: answered questions
 
+<!-- from: core-watercraft4 (2026-10-22) -->
+- **WC6 - section 6.2 command arithmetic:** please expand summarized speed/steering cases, input ranges/sentinels, counter-steer sign, neutral steering return, tween resets, sound selection and skier/fire positions into exact branches. In particular, how does throttle/reverse magnitude map to speed, and can braking consume leftover dt to accelerate in the opposite direction? [implement exact gear selection/coasting/button gates separately; full command translation unsupported]
+
+  **ANSWERED 2026-10-23 (re-watercraft-answers5):** DIFFERS — §6.2.1–§6.2.3 specify the nonlinear speed curve, ordered steering, complete command side effects, shared bookkeeping and return paths; §6.1/§6.2.3 distinguish unclamped channel/drag time from clamped movement. Opposite gear can cross zero, without a second leftover-time pass. Skier and rope use the complete boat transform with no owner-side offset; fire requests a named model action. Changed speed target clears tween elapsed and duration. Shared channel event is 0x14 through AEMS slots 6 then 5. Vectors WC8-01–13 and WC6-01–10 cover this contract.
+
 <!-- from: core-watercraft-close5 (2026-10-23) -->
 - **WC8 - section 6.2 literal command choices:** confirm signed gear input directly clamped to entries 6–7 as target speed; neutral brakes at entry 0 times entry 10; an opposite gear brakes to zero without reusing leftover time; left is negative and right positive, simultaneous inputs select neutral return at entry 1, and counter-steer multiplies entry 2 by entry 5. Does stopping clear the skier toggle, and can toggling while stopped arm a later start? [literal implementation: direct target; neutral braking; no leftover time; left negative/right positive; simultaneous neutral; multiplicative counter-steer; stop clears running state and toggle at rest cannot start it. Effect placement and inherited translation remain WC6.]
 

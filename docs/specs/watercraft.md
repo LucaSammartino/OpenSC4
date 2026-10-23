@@ -439,7 +439,79 @@ step a running effect is stopped whenever v <= 0; a running effect with v > 0 ha
 transform refreshed. This owner does **not** clear the toggle byte when stopped. A toggle
 supplied while stopped cannot start the effect in that call; if still supplied on a later
 forward-moving call, it can start it. No additional remembered arm bit exists in this method.
-Evidence: `0x0056E97D–0x0056EBAE`. Full effect placement remains part of WC6.
+Evidence: `0x0056E97D–0x0056EBAE`.
+
+#### 6.2.3 Command side effects and completion (WC6)
+
+The owner processes speed, fire, skier, steering, tow, final steering clamp, heading/rudder,
+speed tween, then the shared automaton translator, in that order. Time here is the supplied
+command time, without the movement clamp. There is no second acceleration pass using leftover
+braking time: the single speed update in §6.2.1 can cross zero. The shared translator's true
+result is the successful endpoint; the missing-group/AEMS failures in §6.2.1 are the only
+ordinary false returns. This owner does not choose an engine sound from the magnitude of
+throttle: the group AEMS lookup is a prerequisite and the shared translator handles the
+command event described below. Evidence: `0x0056E5E3–0x0056E601`, `0x0056EFBF–0x0056EFDB`.
+
+**Fire.** A nonnegative fire channel (+0x98) invokes the model's slot-5 hook. Only an armed
+byte +0x1FF requests the named model action `whalefire` (slot 12, two zero options).
+On successful action start, reset the cooldown accumulator +0x1E0, clear the armed byte,
+and increment the shot count +0x178. Failure or an unarmed byte leaves these three fields
+unchanged. The owner does not compute a projectile world position or place a separate
+fire effect: placement belongs to the named model action. A negative channel skips this
+entire fire step. Evidence: `0x0056E8A0–0x0056E959`.
+
+**Skier placement.** Both the start and refresh use the boat's complete current transform
+(GetTransform, slot 12), supplied directly to `waterski` slot 8. There is no owner-side
+distance-behind offset. Starting uses effect slot 3 with argument false; stopping uses
+slot 4 with true. A missing effect skips the skier processing. Group membership, rather
+than exact group ID equality, gates this feature. The effect asset supplies any visual
+offset. Evidence: `0x0056E959–0x0056EBAE`, notably `0x0056EA6B–0x0056EA87`.
+
+**Tow button.** Exact group ID 0x4410, exactly zero speed, and byte +0xED nonzero gate
+arming or ending a tow. With no towed boat, set the armed byte even if `tugropethrow`
+is absent. When present and stopped, give it the current complete boat transform and
+start it with false. With a towed boat, end the tow instead. Independently of that button
+gate, a running rope-throw effect gets the current boat transform every command call.
+Neither this button byte nor the armed byte is cleared by the command handler.
+Evidence: `0x0056EE30–0x0056EEC2`.
+
+**Rendered steering and heading.** Clamp the final steering to p[8]–p[9], storing it in
+both drive-state +0x5C and boat +0x2E0. Rudder fields are +0x238 = -0.125 times that
+steering, +0x23C = 0, +0x240 = f32(2π). For normalized heading h, let a = acos(h.z).
+The heading field +0x244 is a when h.x >= 0, otherwise f32(2π)-a; it is measured in
+radians and is not reduced again at the 2π endpoint. This preserves the two successive
+subtractions used by the negative-x case. Evidence: `0x0056EEC2–0x0056EF87`.
+
+**Speed tween.** If the stored target differs from abs(v), sample the existing tween
+into its start value, set its target to abs(v), and set both elapsed and duration to zero.
+Equal targets leave the tween untouched; there is no tolerance test. Evidence:
+`0x0056EF8D–0x0056EFBF`. Thus the 2000 ms duration set on entering player drive is not
+preserved when this target changes.
+
+**Shared command bookkeeping.** The final call consumes the modified drive-state record
+and dt. For each of its 13 channels i, first set edge byte +0xE4+i iff the float difference
+`previous-current` is strictly between 0 and 250 (current at +0x7C+4i, previous at
++0xB0+4i). Then copy current into previous. A channel is in its blocked/cooldown condition
+when its signed integer duration (+0x128+4i) is -1 or exceeds its signed integer limit
+(+0x15C+4i). In that condition, an unset armed byte (+0x1F8+i) accumulates dt into
+its timer (+0x1C4+4i) while that timer is below its float interval (+0x190+4i);
+otherwise it arms and resets the timer to zero. This is a pre-increment comparison,
+so crossing the interval arms on the next call. An already armed byte stays armed.
+Outside that condition clear the armed byte; if current is not the exact -1 sentinel,
+dispatch AEMS event 0x14 through slots 6 then 5. This call returns true. Evidence:
+`0x00505730–0x00505778`, `0x00509070–0x0050912A` (integer duration comparison verified
+at `0x0050909C`, `0x005090B2`).
+
+**Drive-step ordering.** Before the owner drive tick, base drive returns false if the
+removal predicate (slot 31, true) holds; otherwise it advances every nonnegative channel
+by dt, saturating at FLT_MAX, invokes virtual command translation, and updates the two
+terrain cell coordinates at drive-state +0x26C/+0x270 from the boat's x/z position.
+The owner ignores that base return. It then ends any tow whose normalized direction
+from this boat to the towed boat has positive dot product with this heading, performs
+neutral drag, checks movement permission, and only then clamps dt for movement and
+collision. Its return is always true, including when movement is denied. The drag uses
+the original dt, even above p[35]; channels must both equal -1 for drag to apply.
+Evidence: `0x00508C50–0x00508CF1`, `0x0056D310–0x0056D4C7`.
 
 ### 6.3 Towing
 
@@ -561,3 +633,18 @@ flags, channels assigned from parameters, and unchanged values.
 | WC7-U03 | Undocking: target displacement 0.5 with remaining outward radius gap | Return false; target displacement must be at least 1 to attempt motion. |
 | WC7-R01 | Direction helper base 0, alternatives 0 through 7 | Values 0,1,-1,2,-2,3,-3,4; negative results are not wrapped into 0–7. |
 | WC7-R02 | Backtrack from six travel points, survivor direction 3 and tried mask 0x01 | Drop five points; survivor mask becomes 0x09, regardless of rejected candidate direction. |
+
+### 11.3 Command completion and drive ordering vectors
+
+| ID | Inputs | Expected observable result |
+|---|---|---|
+| WC6-01 | Nonnegative fire channel, armed=1, model action start succeeds, shots=3 | Request whalefire; shots=4, cooldown=0, armed=0. |
+| WC6-02 | Same, action start fails | Shots, cooldown and armed remain unchanged. Negative fire channel makes no request. |
+| WC6-03 | Group member 0x4409, skier toggled on while v>0, boat transform M | Effect gets M, then start(false); a running skier gets M again in the refresh step; no owner-side translation offset. |
+| WC6-04 | Exact group 0x4410, v=0, tow button nonzero, no tow and no rope effect | Armed byte becomes 1; no failure return solely from missing effect. |
+| WC6-05 | T=3, default p[8]=-2/p[9]=2, h=(1,0,0) | Final T=2 in both records; rudder=-0.25, rudder base=0, period=f32(2π), heading approximately π/2. |
+| WC6-06 | Same heading with h=(-1,0,0) | Heading approximately 3π/2. For h=(0,0,1), heading=0. |
+| WC6-07 | Speed tween target=0.1, v=-0.2, current sample=0.15, elapsed=5, duration=2000 | Start=0.15, target=0.2, elapsed=duration=0. Equal abs(v) and target would preserve all four fields. |
+| WC6-08 | Shared channel previous=10/current=0; duration=2/limit=1; armed=0; timer=95/interval=100; dt=10 | Edge=1, previous=0, timer=105, armed stays 0. Next same call arms and resets timer to 0. Difference 0 or 250 gives edge=0. |
+| WC6-09 | Shared channel duration=limit=2, current=0, armed=1 | Clear armed and issue event 0x14 via slots 6 then 5. Current=-1 suppresses event. Duration=-1 uses cooldown condition instead. |
+| WC6-10 | Drive tick dt=200, both throttle/reverse=-1, v=0.1, default drag, movement allowed | Drag yields 0.09 using 200 ms; movement receives 100 ms. Owner returns true even when base drive returned false or movement is subsequently denied. |
