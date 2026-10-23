@@ -138,6 +138,7 @@ pub mod persistence_manager;
 pub mod persistence_runtime;
 pub mod geometry_utilities;
 pub mod model_reg_effects;
+pub mod effects_parser;
 pub mod overlay_views;
 pub mod lot_models;
 pub mod terrain_ripples;

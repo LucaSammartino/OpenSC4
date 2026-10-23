@@ -5,9 +5,12 @@
 ## Handoff
 - Goal: first portable effects_parser owner; no native/ABI/plugin work.
 - Start HEAD: 5fa5dbe8147531e9a8dafca083602370f820c7fe (detached, reserved).
-- Read rules, contribution rules, parser sections 1–4 and questions EFP1–6.
+- Read rules, contribution rules, parser sections 1–8 and questions EFP1–6.
 - Existing core-effects4 explicitly excludes parser; no core parser symbol found.
-- Next: finish sections 5–8, inspect reusable component record, transcribe literal tests before production comparisons.
+- Transcribed P1–8/R1–6/M1–4/Q1 as 19 independent portable fixture groups before production implementation.
+- Implemented option order/prefixes, local append, logical references/QI and ordered registrations.
+- Reuses ComponentRecord; type_word retains full +0C; placement/LOD shared-constructor projection differs from shipped defaults.
+- Next: focused tests, additional unsupported/numeric/registration cases, then commit stable source and canonical all.
 - Numeric scope: finite exact dyadic input, nearest binary32 stores; broader x87 unsupported.
 - No game request; portable tests only. EFP1–6 remain open.
 - Brief overrides general baseline/quick requirement: one canonical all on stable committed source.
