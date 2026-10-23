@@ -11,7 +11,8 @@
 - Filed DC9: spec attributes fog operation but supplies no contract; returns explicit gap. Other open attribution: DC3 native stack mutation.
 - Focused evidence: build-runs/q/20261023-133029-3340.log 29 passed/1 failed (accidental test property edit, corrected); 20261023-133339-24696.log 32 passed/1 failed (test read unsaved stage-0 matrix, corrected to observe driver matrix).
 - Milestone 2ffc1f53: implemented core contracts, conformance fixtures and owner table; owned-file fmt passed using absolute paths.
-- First full gate: cargo 5891 passed, 0 failed, 0 ignored (27 result lines); clippy reported one precedence warning in numeric.rs, now parenthesized. Other stages still running in session 32464; collect this same operation to terminal before repeating.
-- Next: preserve first gate logs after terminal; run qbuild all on corrected source, then finalize report and queue (fog closure depends on DC9).
+- First full gate terminal: qbuild FAIL solely for clippy precedence; cargo 5891/0/0 (27 result lines), CMake 217/217, CTest 68/68. Verify noted tree changed because the parentheses fix was committed while it ran. Evidence retained as build-runs/first-failed-{qbuild,fc4verify}-*.log.
+- Milestone 962d99ed: clippy parentheses fix. No semantic change.
+- Next: run corrected stable-source qbuild all (do not duplicate it), then finalize report and queue; owner fog closure depends on DC9.
 - Existing open questions DC1/DC2 concern foreign meanings; DC3 only native stack mutation attribution.
 - No game requests outstanding; no checks launched.
