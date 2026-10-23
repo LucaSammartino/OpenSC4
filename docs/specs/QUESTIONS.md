@@ -189,8 +189,8 @@ generated index: the questions live one file per spec, so read only the file for
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
 | advisors | 2 | 14 | AD17 | questions/advisors.md |
-| aircraft | 2 | 0 | AF3 | questions/aircraft.md |
-| animated-sprite | 7 | 4 | AS12 | questions/animated-sprite.md |
+| aircraft | 8 | 0 | AF9 | questions/aircraft.md |
+| animated-sprite | 5 | 6 | AS12 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
 | application | 9 | 6 | AP16 | questions/application.md |
@@ -253,11 +253,11 @@ generated index: the questions live one file per spec, so read only the file for
 | local-grid-helper | 1 | 0 | LGH2 | questions/local-grid-helper.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
 | lot-configuration-editor | 4 | 2 | LE7 | questions/lot-configuration-editor.md |
-| lot-developer | 2 | 36 | LD39 | questions/lot-developer.md |
+| lot-developer | 3 | 36 | LD40 | questions/lot-developer.md |
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 9 | LR12 | questions/lot-records.md |
 | lua-host | 0 | 5 | LH4 | questions/lua-host.md |
-| map-view | 11 | 0 | QV12 | questions/map-view.md |
+| map-view | 13 | 0 | QV14 | questions/map-view.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
 | model-instances | 5 | 0 | MI14 | questions/model-instances.md |
 | model-maker | 2 | 0 | MM3 | questions/model-maker.md |
@@ -350,4 +350,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **530** | **1344** | | |
+| **total** | **537** | **1346** | | |
