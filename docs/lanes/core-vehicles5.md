@@ -15,8 +15,8 @@ Formatting: qbuild fmt PASS for six owned files; applied through apply_patch usi
 UTF-8, repository width 120, no filename headers.
 Gate 1 (source 7954b9ed): workspace 6244/0; clippy failed 3 test-fixture initializer lints.
 Failed clippy preserved at build-runs/vehicles-all-1-clippy.log; all three fixtures corrected.
-Gate 1 still running session 27131, native queue label qbuild-20261023-194941-build-ctest;
-do not duplicate it. Latest collection: waiting for native steps (game regress delays queue).
-Next: collect session 27131 to terminal, then qbuild all once on corrected source.
+Gate 1 terminal FAIL: cargo 6244/0; clippy 3 fixture lints; native build PASS 217/217,
+CTest PASS 68/68. Native queue label qbuild-20261023-194941-build-ctest completed.
+Next: corrected-source full qbuild all; collect that one operation to terminal.
 Closure incomplete; do not claim ready: module README gives exact open sections.
 Facts: no game requests outstanding; manifest is main build-runs/run4-core-vehicles5-r1-manifest.json.
