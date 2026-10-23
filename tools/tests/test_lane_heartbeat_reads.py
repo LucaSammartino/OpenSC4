@@ -74,7 +74,9 @@ class CriticalReads(unittest.TestCase):
                     with patch.object(heartbeat, 'read_json', read):
                         value = heartbeat.snapshot(self.root, reader=self.reader())
                     self.assertEqual((value['rounds'], value['train']), (9, 'train9'))
-                    self.assertEqual(value['alerts'], ['REFILLER: process is not running'])
+                    self.assertEqual(len(value['alerts']), 1)
+                    self.assertTrue(value['alerts'][0].startswith('REFILLER UNKNOWN:'))
+                    self.assertFalse(value['refiller_alive'])
                     self.assertEqual(len(calls), 2)
                     self.assertEqual(self.clock.t, 1000 + heartbeat.READ_DELAY)
                     self.assertEqual(self.ledger(), before)
@@ -212,7 +214,7 @@ class CriticalReads(unittest.TestCase):
                     self.assertEqual(self.paths[1].read_bytes(), before[1])
                     self.assertEqual(self.paths[2].read_bytes(), before[2])
 
-    def test_train_discovery_recovers_and_event_still_wins_over_backlog(self):
+    def test_train_discovery_recovers_when_capacity_healthy(self):
         original, calls = heartbeat.read_json, []
         self.train({'id': 'train9', 'gate': {'ok': False}})
 
@@ -224,7 +226,7 @@ class CriticalReads(unittest.TestCase):
             return original(path)
         with patch.object(heartbeat, 'read_json', read):
             self.assertEqual(self.wait(), (heartbeat.WAIT_EVENT, 'TRAIN train9: gate FAIL'))
-        self.assertEqual(len(calls), 3)
+        self.assertEqual(len(calls), 4)
 
     def test_valid_no_current_train_remains_usage(self):
         self.train(None)

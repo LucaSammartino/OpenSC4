@@ -3,8 +3,9 @@
 Liveness is not progress: a live worker that has not committed for STALL_HOURS, or a ready merge-queue entry that has
 waited LAND_LAG_HOURS, is an alert of its own (an idle lane must not go unnoticed for days).
 
---wait-until train|backlog|<file> blocks until that event or BACKLOG LOW, prints one line and exits
-(0 event, 2 timeout, 3 usage, 4 backlog low, 5 STOP or provider pause)."""
+--wait-until train|backlog|<file> waits only at full capacity. All modes return
+4 for underfill/backlog shortage, 5 for STOP/provider pause, and 1 for supervision errors.
+Wait additionally returns 0 event, 2 timeout, 3 usage. Only local supervision artifacts are written."""
 import argparse
 from collections import Counter
 from datetime import datetime
@@ -17,6 +18,7 @@ import time
 
 import lane_launch
 import lane_refill
+import lane_supervision as supervision
 
 WAIT_EVENT, WAIT_TIMEOUT, WAIT_USAGE, WAIT_BACKLOG, WAIT_HALT = 0, 2, 3, 4, 5
 WAIT_ERROR = 1
@@ -32,8 +34,14 @@ def summarize(state, queue, train, *, is_alive, paused=False, stopped=False,
     """progress: {lane: epoch of its last commit or launch}; ready: {lane: epoch its ready queue entry was written};
     waiting_on(entry): the deps a pending brief still waits on (empty: the refiller can launch it)."""
     lanes = state.get('lanes', {})
-    live = sorted(name for name, entry in lanes.items() if is_alive(entry.get('pid')))
-    target = state.get('concurrency', 7)
+    live, counted = [], set()
+    for name, entry in sorted(lanes.items()):
+        pid = entry.get('pid')
+        if (type(pid) is int and pid > 0 and pid not in counted and
+                entry.get('role') != 'helper' and entry.get('status') not in ('pending', 'draft') and is_alive(pid)):
+            live.append(name)
+            counted.add(pid)
+    target = state.get('concurrency', 9)
     pending = [entry for entry in queue if entry.get('status') == 'pending']
     waiting = {entry['name']: list(waiting_on(entry)) if waiting_on else [] for entry in pending}
     waiting = {name: deps for name, deps in waiting.items() if deps}
@@ -200,21 +208,29 @@ def deps_checker(root):
 
 
 def snapshot(root, *, reader=None):
+    return supervision.capacity(root, lambda: _snapshot(root, reader=reader))
+
+
+def _snapshot(root, *, reader=None):
     reader = reader or CriticalReader()
     runs = root / 'build-runs'
     state = reader(runs / 'run4-coordinator-state.json')
-    pid_path = runs / 'run4-refill.pid'
-    refill_pid = int(pid_path.read_text().strip()) if pid_path.exists() else None
+    refiller = supervision.dispatcher(root, state.get('provider', 'claude'))
     lanes = state.get('lanes', {})
     progress = {n: last_progress(root, n, e) for n, e in lanes.items() if lane_launch.alive(e.get('pid'))}
     value = summarize(state, reader(runs / 'run4-refill-queue.json', list),
                       reader(runs / 'merge-train/state.json'),
-                      is_alive=lane_launch.alive, refill_pid=refill_pid,
+                      is_alive=lane_launch.alive,
                       paused=bool(lane_launch.provider_pause(root, state.get('provider', 'claude'))),
                       stopped=(runs / 'STOP').exists(),
                       progress={n: v for n, v in progress.items() if v}, ready=ready_entries(root),
                       waiting_on=deps_checker(root))
     value['at'] = datetime.now().astimezone().isoformat(timespec='seconds')
+    value['refiller'] = refiller
+    value['refiller_alive'] = refiller['verified']
+    value['alerts'] = [a for a in value['alerts'] if not a.startswith('REFILLER:')]
+    if not refiller['verified']:
+        value['alerts'].append('REFILLER UNKNOWN: ' + refiller['reason'])
     return value
 
 
@@ -225,16 +241,33 @@ def backlog(value):
     return text
 
 
+def capacity_line(value):
+    incident = value.get('capacity_incident', {})
+    age = incident.get('age_seconds')
+    age_text = f'{age:g}s' if age is not None else 'UNKNOWN (clock/history unverifiable)'
+    return (f'CAPACITY: {value["open_slots"]} actual workers missing; '
+            f'launchable deficit {max(value["open_slots"] - len(value["launchable"]), 0)}; '
+            f'observed age {age_text}; live {value["live"]}/{value["target"]}, {backlog(value)}')
+
+
+def action(value):
+    if value['stop']:
+        return WAIT_HALT, 'HALT: STOP set; no spawning'
+    if value['provider_paused']:
+        return WAIT_HALT, f'HALT: provider {value["provider"]} paused; no spawning'
+    if value['live'] < value['target'] or len(value['launchable']) < value['open_slots']:
+        return WAIT_BACKLOG, capacity_line(value)
+    return None
+
+
 def report(root):
     value = snapshot(root)
     runs = root / 'build-runs'
     output = runs / 'run4-heartbeat.json'
-    temporary = output.with_name(output.name + f'.{os.getpid()}.tmp')
-    temporary.write_text(json.dumps(value, indent=2) + '\n', encoding='utf-8')
-    temporary.replace(output)
+    supervision.atomic_json(output, value)
     message = (f'{value["at"]} HEARTBEAT live {value["live"]}/{value["target"]}, '
                f'glue {value["roles"].get("glue", 0)}/{value["glue_limit"]}, '
-               f'{backlog(value)}, rounds {value["rounds"]}; '
+               f'{capacity_line(value)}, rounds {value["rounds"]}; '
                f'train {value["train"]} gate={value["gate_ok"]} regress={value["regress"]}; '
                f'pause={value["provider_paused"]} STOP={value["stop"]}; ' + '; '.join(value['alerts']))
     with (runs / 'run4-heartbeat.log').open('a', encoding='utf-8') as log:
@@ -268,12 +301,14 @@ def _wait_until(root, event, *, timeout, poll, fresh, snap, sleep, now):
     def read_train():
         # --fresh: an unchanged file holds an old verdict, but must still be valid JSON.
         return reader(train_path, fresh_since=start if fresh else None)
+    train_id = None
     if event == 'train':
-        train_id = (reader(train_path).get('current') or {}).get('id')
-        if not train_id:
-            return WAIT_USAGE, f'WAIT: no current train in {train_path}'
-
         def happened():
+            nonlocal train_id
+            if train_id is None:
+                train_id = (reader(train_path).get('current') or {}).get('id')
+                if not train_id:
+                    return None
             train = read_train()
             return train_event(train, train_id) if train is not None else None
     elif event == 'backlog':
@@ -289,17 +324,15 @@ def _wait_until(root, event, *, timeout, poll, fresh, snap, sleep, now):
                 return None
             return None if fresh and modified < start - 2 else f'FILE {path}: present'
     while True:
+        value = snap(root) if snap is not None else snapshot(root, reader=reader)
+        decision = action(value)
+        if decision:
+            return decision
         line = happened()
         if line:
             return WAIT_EVENT, line
-        value = snap(root) if snap is not None else snapshot(root, reader=reader)
-        if value['stop']:
-            return WAIT_HALT, 'HALT: STOP set; no spawning'
-        if value['provider_paused']:
-            return WAIT_HALT, f'HALT: provider {value["provider"]} paused'
-        low = [alert for alert in value['alerts'] if alert.startswith('BACKLOG LOW')]
-        if low:
-            return WAIT_BACKLOG, f'{low[0]}; live {value["live"]}/{value["target"]}, {backlog(value)}'
+        if event == 'train' and train_id is None:
+            return WAIT_USAGE, f'WAIT: no current train in {train_path}'
         left = start + timeout - now()
         if left <= 0:
             return WAIT_TIMEOUT, (f'TIMEOUT after {timeout:g}s waiting for {event}; '
@@ -315,8 +348,18 @@ def wait_until(root, event, *, timeout=540, poll=10, fresh=False, snap=None,
     except RecoveryHalt as exc:
         return WAIT_HALT, str(exc)
     except CriticalReadError as exc:
+        try:
+            recovery_halt(root)
+        except RecoveryHalt as halt:
+            return WAIT_HALT, str(halt)
         if exc.timed_out:
             return WAIT_TIMEOUT, f'TIMEOUT after {timeout:g}s waiting for {event}; {exc}'
+        return WAIT_ERROR, f'ERROR: {exc}'
+    except (supervision.SupervisionError, OSError) as exc:
+        try:
+            recovery_halt(root)
+        except RecoveryHalt as halt:
+            return WAIT_HALT, str(halt)
         return WAIT_ERROR, f'ERROR: {exc}'
 
 
@@ -345,10 +388,19 @@ def main():
     while True:
         try:
             value = report(args.root.resolve())
-        except CriticalReadError as exc:
+        except (CriticalReadError, supervision.SupervisionError, OSError) as exc:
+            try:
+                recovery_halt(args.root.resolve())
+            except RecoveryHalt as halt:
+                print(str(halt), flush=True)
+                sys.exit(WAIT_HALT)
             print(f'ERROR: {exc}', flush=True)
             sys.exit(WAIT_ERROR)
-        if args.once or value['stop']:
+        decision = action(value)
+        if decision:
+            print(decision[1], flush=True)
+            sys.exit(decision[0])
+        if args.once:
             return
         time.sleep(args.interval)
 
