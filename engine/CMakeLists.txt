@@ -550,7 +550,10 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4PropOccupantVerify.h
         plugin/FC4PropOccupantFixtures.h
         plugin/FC4PropOccupantCompare.h
-        plugin/compat/FC4PropOccupantAuthority.h)
+        plugin/compat/FC4PropOccupantAuthority.h
+        # Default-off constructed ORIGINAL cRZString monthly shadow.
+        plugin/FC4StringsShadow.cpp
+        plugin/FC4StringsShadow.h)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN

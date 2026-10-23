@@ -1126,6 +1126,8 @@ pub mod dates;
 
 // Private transport to the production language utility for native verification.
 mod language_verify;
+// Private bounded original cRZString comparison transport.
+mod strings_shadow;
 // Private ephemeral process command-line read-only verification transport.
 mod cmdline_probe;
 // verify-command-system4: private ORIGINAL comparison transport (no DLL exports).
