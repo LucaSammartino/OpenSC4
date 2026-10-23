@@ -25,6 +25,12 @@ clean-room roles, assignments, logical-family round budgets and STOP. Never sati
 guard, renaming exhausted work, or counting a conditional brief as launchable. Record actual lane/process
 identities and corrective action at each heartbeat; do not enter a long wait while refill work remains.
 
+Research uses the documented [native export/query workflow](../re-workspace.md#querying-in-parallel-lanes)
+first. A successful live pseudocode query is not a universal prerequisite for instruction-supported research.
+Keep normal REA preflight and full admission checks; record unavailable live sessions accurately and leave
+unavailable evidence unresolved. Do not invent an extra live-only condition that strands otherwise valid
+primary-export research. Work requiring live analysis still needs actual same-client target/query proof.
+
 ## Spawning a lane
 
 **Provider selection:** the tracked `tools/lane_launch.py` and `tools/lane_refill.py` support explicit
