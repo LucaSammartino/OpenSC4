@@ -704,13 +704,13 @@ unpublished here; names containing only ordinary ASCII letters/spaces do not nee
 ## 12. Open (not specified here)
 
 SetupWinCtrlMgr, SetupFontSet, SetupResources and LoadRegistry beyond the summary of section 14.2,
-DoPreferencesChanged and the video preference bodies beyond section 13.3, the DB segment
-callbacks, SC4CreateSavePathForCity (`0x005DC790`) naming rule, the scoped object `0x005F88A0`, city
+DoPreferencesChanged beyond section 13.3, the DB segment callbacks beyond section 14.2,
+SC4CreateSavePathForCity's platform filename sanitizer beyond section 11.16, the scoped object `0x005F88A0`, city
 vtable slots +0x1A4 (blocks saving), +0x3C, +0x30, +0x14, the message `0x26C63346` name, and the rest of
 cSC4App's 322 functions (this spec covers about 57). Not covered at all: cWinSC4App, the COM directors,
 cSC4Preferences, cSC4AutoGamePause. The distinct cSC4GameDataRegistry owner now has a
 [first bounded contract](game-data-registry.md), including its per-body evidence and remaining unknowns;
-it is not included in this cSC4App function count. Questions: docs/specs/questions/application.md (AP3 to AP11).
+it is not included in this cSC4App function count. Questions: docs/specs/questions/application.md (AP3 to AP11, AP13/AP14).
 
 ## 13. Preferences (`cSC4Preferences`, `+0x3B0`) *[compat]*
 
@@ -802,9 +802,10 @@ absent or the DLL does not exist. A nonzero bypass flag skips the Enabled test
 `LoadRegistry` (`0x004584A0`) reads `Sys\Resources.ini`: switches **`packedexemplars`** and **`packedtextures`**
 (`on`/`off`), and the sections `DBSegments` and `DBSegmentDirectoryFiles`, whose entries are `class;path` with
 `%DataDirectory%` and `%Language%` (the language name, `English` by default) substituted
-(`CreateDBSegmentCallback`). `SetupResources` (`0x004572B0`) opens every `*.dat` of the data directory, then the
-database files found recursively in the plugin directories (created when missing), each as a DB segment of the
-resource manager, and registers the resource factories by type (among them the key configuration `0xA2E3D533`, the
+(`CreateDBSegmentCallback`). `SetupResources` (`0x004572B0`) loads directory sources as DB segments of the
+resource manager and registers resource factories by type. Its first two nonrecursive `*.dat` enumerations
+use slot 53 with language index -1, then 0 (`0x0045749D`, `0x004576B9`), rather than a data-directory scan.
+Full directory filtering/order and malformed-entry handling remain AP13. Resource types include key configuration `0xA2E3D533`, the
 exemplars `0x6534284A` and the scripts `0xCA63E2A3`). `SetupFontSet` and `SetupWinCtrlMgr` set up the fonts (the
 `Fonts` folder; CJK font aliases with `Gulim.ttc` and `micross.ttf` checks), `FontStyle.ini` (sections
 `Font Aliases` and `Font Styles`), the window colours, the standard control pictures (group `0x46A006B0`), the

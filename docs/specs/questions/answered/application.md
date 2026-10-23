@@ -1,8 +1,8 @@
 # application: answered questions (archive)
 
-- **AP12 - section 14.1:** is Admin Enabled=`false` case-sensitive, and does by-name loading resolve before testing?
+- **AP12 - section 14.1:** is the Admin Enabled comparison to `false` case-sensitive, and does by-name lookup resolve the adjacent INI before testing? [Literal exact bytes `false` or `0`; the foreign library resolver supplies the adjacent INI value for name/path lookup.]
   **ANSWERED 2026-10-23 (re-app-ap5):** DIFFERS — `false` is case-insensitive; `0` is exact. By-name loading constructs a path and calls slot 68, whose adjacent-INI check follows DLL existence testing. A bypass flag skips the check. See section 14.1 and AP12 conformance vectors.
-- **AP15 - sections 2, 9, 11.6:** complete slots 51–58 and obliteration failure/view/cleanup behavior.
+- **AP15 - sections 2, 9, 11.6:** give the complete 51-58 directory-slot mapping (including slot 56); and specify obliteration behavior with no city or failed temp-write, missing source/destination view managers, and cleanup after partial segment initialization. [Plain path getters follow section 9's listed order, leaving slot 56 unsupported; AP3 offset-named aliases preserved. Obliteration follows the five listed steps even when temporary writing fails, balances all known scopes and releases, and requires a resolved save target before destructive work. View effects are primitive no-ops when their foreign singleton is absent.]
   **ANSWERED 2026-10-23 (re-app-ap5):** DIFFERS — slot 56 copies its own stored user-data path. Temporary-write failure does not prevent destructive close/deletion; the writer returns true on normal completion even after failed initialization/open. Read initialization is ignored, read-open failure shuts down/releases without close; absent source view defaults zoom/rotation to zero. No-city temporary writing has an unchecked city dereference, not a safe no-op. See sections 9/11.6 and AP15 vectors.
 <!-- Archive for [application.md](../../application.md). Lanes do not read this file. Open questions are in ../application.md. -->
 

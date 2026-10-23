@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-app-ap5 (AP12–AP15 application owner closure) | Codex / `re-app-ap5` | in progress; AP12/AP15 answered, AP13/AP14 partial; doccheck passed | Finish remaining resource/UI tables and preference ordering; rerun doccheck and enqueue only when complete |
+| re-app-ap5 (AP12–AP15 application owner closure) | Codex / `re-app-ap5` | continuation needed; AP12/AP15 answered, AP13/AP14 partial; doccheck passed | Finish remaining resource/UI tables and preference ordering; rerun doccheck and enqueue only when complete |
 
 ## Report
 
@@ -25,12 +25,13 @@ fixed before use; only the corrected section-table-based reads support the publi
 ## Handoff
 
 - Goal: answer AP12–AP15 in application spec; no implementation edits.
-- Done: `16700d84` getter/plugin/obliteration milestone; subsequent spec changes and passing doccheck committed with this handoff.
+- Done: `16700d84` getter/plugin/obliteration milestone; `3e0ee22d` video/resources/naming/vectors, AP12/AP15 archive and passing doccheck. Final consistency corrections committed after that.
 - Next: finish AP13 malformed parsing, DB directory filters/order, full font/control/cursor tables; finish AP14 DoPreferencesChanged ordering and filename allowed-character/encoding contract. Then move only fully answered questions, regenerate index, doccheck, final report and kind=re ready queue.
 - Evidence: REA batch failed 7/7 with target_unavailable (no app open); using export assembly plus available decomp only.
 - Facts: false is case-insensitive; SaveCityForObliteration always returns true on normal completion; failed temp-name leaves outer result undefined; no-city temp writer dereferences null after successful open.
 - Helper `build-runs/inspect.py`: asm ADDR --match REGEX --skip N --take N; data ADDR...; refs ADDR (correct PE sections). It calls re_query --full internally but caps output to requested <=56 lines; do not commit it.
-- Resource bodies: 004584A0 LoadRegistry, 00458100 group registration, 00456BA0 CreateDBSegmentCallback (537 instructions), 004572B0 SetupResources (1157). Need replace stale summary claiming data-directory scan; actual first two scans call slot D4 with -1 then 0; next E4 directory segment; recursive DC then EC, excluding .dll before IsDatabaseFile.
+- Resource bodies: 004584A0 LoadRegistry, 00458100 group registration, 00456BA0 CreateDBSegmentCallback (537 instructions), 004572B0 SetupResources (1157). First two scans call slot D4 with -1 then 0 (published); next E4 directory segment; recursive DC then EC, excluding .dll before IsDatabaseFile (finish audit).
+- No merge-queue entry: incomplete owner closure, continuation required. Detached HEAD commits succeeded despite a packed-refs.lock permission diagnostic; do not change shared refs/config.
 - SetupWinCtrlMgr 0044D810: colours first, Arta sizes 12/20, FontStyle.ini aliases/styles, pictures group46A006B0/type856DDBAC, cursor options at E2F7 onward, captions at end. Full body not yet recorded into behavior tables.
 - SetupFontSet 00453A30 has usable decomp at main/decomp/cSC4App.c lines 1020–1405; language fallback switch and Gulim/micross tests need table extraction.
 - Preference DoPreferencesChanged 0044CE40 (365 instructions): pause byte first; bool argument controls language/graphics reapply; tail simulator speed and -x removal. Numeric float multiplier at A86D54 bytes c337a23d; verify exact value/rounding before publishing.
