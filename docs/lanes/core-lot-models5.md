@@ -13,6 +13,7 @@
 - Final audit: §4.2 loader boolean was missing (two failures returned unit success). Added true/false result and assertions for disabled key, fallback success and two failures. Draw deliberately ignores this boolean. This last change needs final gate coverage.
 - Final arithmetic correction: §2.2 signed32(N<<4) is now an explicit wrapping low-word shift after valid signed conversion; added literal N=134217729 case, expected base word 4F000000. Final module has 55 tests; requires final full gate.
 - Done: initial all session 8909 terminal PASS: native build 220/220 edges, CTest 69/69, 316.7 s, with explicit tree-changed notice. Rust 6766 passed/clippy clean were before later fixes. This is superseded evidence, not final-source coverage.
-- Next: collect corrected stable-source all session 42731 (started after 083e15f71); explicitly run requested qbuild verify after it finishes, final fmt and report. No game requests outstanding.
+- Done: corrected-source all Rust gate passed 6768 tests (55 lot_models), 0 failed/ignored; clippy 0 diagnostics. Code source is 083e15f71; later commits only update this lane file. Final fmt passed on all seven owned Rust files before the final arithmetic patch, which was also formatted via check hunks.
+- Next: collect final all session 42731, native label qbuild-20261024-005348-build-ctest, still pending. Then explicitly run requested qbuild verify on unchanged source, collect its terminal result, final fmt/report/merge queue. No game requests outstanding.
 - Native verification must use qbuild's coordinator queue, never fc4verify directly. qbuild all already queues build+ctest through that path.
 - No game requests outstanding. Manifest: main build-runs/run4-core-lot-models5-r1-manifest.json.
