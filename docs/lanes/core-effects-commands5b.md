@@ -14,11 +14,11 @@
 - Root owners through effects §19.11 now implemented in script/commands.rs with EC1–50 fixtures; focused script tests 12/12 passed, fmt four files clean.
 - Owner progress table added; final closure still requires definitions/children and integration. No new questions or ABI changes.
 - Milestone 46e94dd6: root owners EC1–50; be2e2dbb: dependencies.
-- Added definitions/defaults/inheritance/publication and effectBase (EC51–68), particle registration (EC69–71), dynamic/sequence/shake/light children and registrars (EC120–160).
+- Milestone ebd8bba9: definitions/defaults/inheritance/publication and effectBase (EC51–68), particle registration (EC69–71), dynamic/sequence/shake/light children and registrars (EC120–160), rotation RO1–6.
 - Added rotation Arithmetic instruction backend and RO1–6 fixtures; legacy parse_options uses it, default absent backend returns Numeric (EFP7).
 - Latest focused parser suite 60/60 passed; fmt all 14 module .rs files clean; diff --check clean.
 - Full gate started once on current source: session 83508; cargo workspace 6182 passed/0 failed, clippy clean; CMake configure still pending at compiler ABI detection. Collect SAME session to terminal; do not start another gate.
-- Gate logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-configure.log. No game run is needed/claimed for core-only owners.
+- Gate logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-configure.log. Configure log stalled since 18:58:28 local; Get-CimInstance process inspection denied, no process killed, no duplicate build. Session 83508 MUST be collected on resume.
 - Dynamic model keeps full signed EAX and selected indices as separate primitive inputs (EC126/130); no guessed native full-register return.
 - Definitions use sparse native-coordinate maps with absent indeterminate words; reuse existing effects::EffectDescription and ComponentRecord for visual/runtime payloads.
 - Commands methods return before generic push/pop; no turnkey script interpreter/lexer wired yet. Complete settled handler routing before claiming final closure.
