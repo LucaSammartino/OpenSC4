@@ -193,7 +193,6 @@ struct NetworkShadow {
     fc4_netgeom_state geom{};
     bool ok = false;
     uint32_t failure = 0;
-    int32_t cost = 0;
     std::vector<fc4_netgeom_cell> cells;
 
     ~NetworkShadow() {
@@ -234,7 +233,6 @@ struct NetworkShadow {
                                                 0, 0, true, -1);
         failure = fc4_nettool_get_failure_state(core);
         if (!fc4_netgeom_get_state(ctx.geom, &geom)) return false;
-        cost = fc4_netgeom_cost(ctx.geom, 0);
         const uint32_t count = fc4_netgeom_get_cells(ctx.geom, nullptr, 0);
         cells.resize(count);
         return fc4_netgeom_get_cells(ctx.geom, cells.data(), count) == count;
@@ -268,6 +266,11 @@ void NetworkStep(void* p) {
         const uint32_t straight = t->GetStraightStepCount();
         const uint32_t total = t->GetTotalStepCount();
         const int32_t cost = t->GetCostOfSolution();
+        // Both getters must see post-commit terrain. Native real placement
+        // grades it before returning; replaying against pre-commit heights
+        // would count earthwork that the native getter no longer counts.
+        // The solve itself still ran against the same pre-placement city.
+        const int32_t coreCost = fc4_netgeom_cost(s.ctx.geom, 0);
         uint32_t cellDiffs = cells.size() != s.cells.size() ? 1u : 0u;
         for (size_t i = 0; i < cells.size() && i < s.cells.size(); ++i) {
             if (static_cast<int32_t>(cells[i].x) != s.cells[i].x ||
@@ -275,14 +278,14 @@ void NetworkStep(void* p) {
         }
         const uint32_t mismatches = cellDiffs + (c->ok != s.ok) + (failure != s.failure) +
             (valid != s.geom.valid) + (straight != s.geom.straight_count) +
-            (total != s.geom.dragged_count) + (cost != s.cost);
+            (total != s.geom.dragged_count) + (cost != coreCost);
         Log("nettool shadow (type=%d drag=(%d,%d)-(%d,%d) scope=drag/status/cost): mismatches=%u "
             "cells=%u/%u cell_diffs=%u ok=%d/%d failure=%08X/%08X valid=%u/%u straight=%u/%u "
             "total=%u/%u cost=%d/%d uncovered=pieces,bridges,poles,wires question=NT27",
             a.type, a.x0, a.z0, a.x1, a.z1, mismatches,
             static_cast<uint32_t>(cells.size()), static_cast<uint32_t>(s.cells.size()), cellDiffs,
             c->ok ? 1 : 0, s.ok ? 1 : 0, failure, s.failure, valid, s.geom.valid,
-            straight, s.geom.straight_count, total, s.geom.dragged_count, cost, s.cost);
+            straight, s.geom.straight_count, total, s.geom.dragged_count, cost, coreCost);
     }
     c->tool->Shutdown();  // slot 4
 }

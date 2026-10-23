@@ -128,3 +128,19 @@
   unwired. The diagnostic replay uses the existing adapter's literal zero underground Init
   values, shipped geometry parameters and zero demolition cost: its differences in these
   paths are recorded, not suppressed or credited as exact whole-owner coverage.
+
+<!-- from: glue-nettool-shadow5 (engine lane, 2026-10-24) -->
+- **NT28 - observed public result differences in Konradshohe:** run
+  nettool-shadow5-r1-20261024-a is clean through 2032-01-02, but the original road
+  (20,4)-(28,12) getter returns 17 dragged cells where the core returns 9 (both
+  total=9, straight=0, valid=9). Avenue (4,28)-(16,28) returns 26 cells in a
+  different order from the core's 26. What is the ordered slot-23 projection
+  relative to geometry's drag cells/extra cells, including width ordering?
+  Rail (4,24)-(16,24) and avenue (4,28)-(16,28) return false, failure=1,
+  valid=0; the core returns true, failure=0, valid=0. Which failure path yields
+  literal 1 (rather than the section 5.3 F000xxxx codes), and what rule is
+  missing from the documented validation contract? The lowered-strip bridge
+  attempt has native valid=17 versus core 0; powerline has 13 versus 0
+  (known unwired adapter paths). [retain all differences, no exact owner credit;
+  costs are sampled against post-commit terrain in subsequent source so that
+  pre/post terrain phases are not mistaken for an engine cost difference]
