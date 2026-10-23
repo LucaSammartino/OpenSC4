@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! In-memory foreign services shared by dispatch tests and conformance.
-use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
-use std::rc::Rc;
+use super::{DispatchHost, LotAt, MySimDispatch};
 use crate::grid::{CellRect, CityDims, CoreGrids, GridProvider};
 use crate::pathfinder::{shared_work_check, PathfinderHost, TravelTables};
 use crate::traffic_network::{net_type, travel, NetworkHost, NetworkModel, PathInfo, Tuning};
-use super::{DispatchHost, LotAt, MySimDispatch};
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
+use std::rc::Rc;
 
 pub type OwnerCallback = Rc<dyn Fn(i32, u32, u32, u32)>;
 
@@ -432,10 +432,13 @@ impl DispatchHost for MemoryDispatchHost {
     fn notify(&self, sim: i32, sub_id: u32, data1: u32, data2: u32) {
         self.notifications.borrow_mut().push((sim, sub_id, data1, data2));
         let callback = self.on_notify.borrow().clone();
-        if let Some(callback) = callback { callback(sim, sub_id, data1, data2); }
+        if let Some(callback) = callback {
+            callback(sim, sub_id, data1, data2);
+        }
     }
 }
 impl Default for DispatchFixture {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
-

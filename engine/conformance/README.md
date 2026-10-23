@@ -2,6 +2,13 @@
 
 # Conformance vectors
 
+The eight MS17 dispatch specification vectors in mysims.md §12 are executable
+integration tests in `tests/mysim_dispatch.rs`, named `ms17_01` through `ms17_08`.
+They use the public dispatch API with foreign scripted services and real record
+streams. Vector 06 covers the dispatch request portion; MySim-owned state/sound
+handling remains outside this owner's closure. MS18 transport and MS19's missing
+comparison precedence/teleport effects are explicit open boundaries, not arrivals.
+
 MySim owner closure adds `mysim_location_arithmetic` (float32 `bits` as hex
 strings, target `cell`; returns converted cells, world position and preservation
 of other location fields) and `mysim_member_format` (`index`; returns signed

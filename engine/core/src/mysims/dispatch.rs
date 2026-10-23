@@ -36,9 +36,9 @@ use crate::traffic_network::NetworkModel;
 
 use super::{JobDestination, DISPATCH_CLSID, DISPATCH_IID};
 
-mod trip;
 mod record;
 pub mod scripted;
+mod trip;
 pub use record::DispatchRecordRefs;
 pub use trip::{DispatchTuning, TripOutcome, TripSearch, TripServices};
 
@@ -700,7 +700,8 @@ impl MySimDispatch {
         let new_flags = self.get_state(sim).search.flags;
         if old_flags != new_flags {
             self.edit(sim, |st| st.change_counter = st.change_counter.wrapping_add(1));
-            self.host.notify(sim, super::dispatch_note::TRIP_STATE_A, old_flags, new_flags);
+            self.host
+                .notify(sim, super::dispatch_note::TRIP_STATE_A, old_flags, new_flags);
         }
         if fire {
             self.host.notify(sim, super::dispatch_note::JOB_FOUND, 0, 0);

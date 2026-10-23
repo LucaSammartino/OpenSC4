@@ -9,8 +9,8 @@
 //! traffic network and pathfinder, and the `cSC4MySimPool` behaviours of
 //! §1.1.
 
-use std::cell::{Cell, RefCell};
 use crate::grid::CellRect;
+use std::cell::{Cell, RefCell};
 
 use super::dispatch::{
     destination_flag_for_wealth, set_current_commute_destination, set_state, world_to_cell, JobSearchState,
