@@ -990,3 +990,8 @@ if(TARGET FreeCity4)
     target_compile_options(fc4_advisors_shadow_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME advisors_shadow_test COMMAND fc4_advisors_shadow_test "$<TARGET_FILE:FreeCity4>")
 endif()
+
+# PL23: raw evidence and the narrower defined-field shadow comparison.
+add_executable(fc4_prop_lot_compare_test tests/prop_lot_compare_test.cpp)
+target_include_directories(fc4_prop_lot_compare_test PRIVATE plugin capi/include)
+add_test(NAME prop_lot_compare_test COMMAND fc4_prop_lot_compare_test)
