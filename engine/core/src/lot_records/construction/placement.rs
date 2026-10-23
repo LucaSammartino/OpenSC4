@@ -146,13 +146,13 @@ pub fn swing_limits(world: Bounds, position: [f32; 3], side: usize, reach: f32) 
         };
     }
     let centre = match side {
-        0 => 1.5 * std::f64::consts::PI,
-        2 => std::f64::consts::FRAC_PI_2,
-        3 => std::f64::consts::TAU,
-        _ => std::f64::consts::PI,
+        0 => 1.5 * PI,
+        2 => FRAC_PI_2,
+        3 => TAU,
+        _ => PI,
     };
-    let half = (f64::from(d) / f64::from(reach)).asin();
-    ((centre - half) as f32, (centre + half) as f32)
+    let half = (f64::from(d) / f64::from(reach)).asin() as f32;
+    (centre - half, centre + half)
 }
 
 pub fn outer_crane(
@@ -329,7 +329,7 @@ impl ConstructionOccupant {
                 let b = self.areas[a];
                 let w = b.1[0] - b.0[0];
                 let d = b.1[2] - b.0[2];
-                if w <= 0.0 || d <= 0.0 {
+                if !(w > 0.0 && d > 0.0) {
                     continue;
                 }
                 st.crt.random_shuffle(&mut st.ground);

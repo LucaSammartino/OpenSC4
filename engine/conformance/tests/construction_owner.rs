@@ -365,3 +365,126 @@ fn static_tables_filter_missing_profiles_and_reseed_plain_time() {
     assert_eq!((st.ground.len(), st.roof.len()), (1, 1));
     assert_eq!(st.rng.next_raw(), statics().rng.next_raw());
 }
+
+#[test]
+fn tests20_21_timing_and_queued_completion_day() {
+    let mut st = statics();
+    let g = rebuild_model(
+        &([0.0, 100.0, 0.0], [10.0, 110.0, 10.0]),
+        &st.tuning,
+        |_, _| 100.0,
+    );
+    assert_eq!(g.start_y.to_bits(), 0x42C8_3333);
+    let t = timing(&g, &st.tuning, Some(30));
+    assert_eq!((g.segments, t.a, t.b, t.c, t.e), (4, 0, 1, 1, 6));
+    let mut c = ConstructionOccupant::default();
+    let mut h = Host::default();
+    c.init(&mut h);
+    c.rec.lot = reference(1);
+    c.rec.building = reference(2);
+    c.rec.scalars.segments = 4;
+    c.rec.scalars.b = 1;
+    c.rec.scalars.c = 1;
+    c.rec.scalars.e = 6;
+    let mut starts = vec![];
+    let mut removal = 0;
+    let mut completed = 0;
+    for day in 1..=30 {
+        h.day = day;
+        h.events.clear();
+        c.do_message(&mut h, &mut st, MSG_SIM_NEW_DAY, u32::MAX);
+        if h.events.iter().any(|e| e == "post 49E7B1E2 1") {
+            starts.push(day);
+        }
+        if h.events.iter().any(|e| e == "removal") {
+            removal = day;
+        }
+        if h.events.iter().any(|e| e == "grown") {
+            completed = day;
+        }
+    }
+    assert_eq!(starts, [1, 8, 15, 22]);
+    assert_eq!((removal, completed), (29, 30));
+}
+
+#[test]
+fn tests23_24_25_texture_sparks_and_crane_random_sequence() {
+    let mut st = statics();
+    assert_eq!(
+        lot_texture(&mut st.rng, [1, 1, 2, 2], |_, _| true),
+        [
+            (1, 1, 0xA990_C100),
+            (1, 2, 0xA990_C400),
+            (2, 1, 0xA990_C200),
+            (2, 2, 0xA990_C400)
+        ]
+    );
+    let mut st = statics();
+    let p = scatter_sparks(&mut st, &([0.0, 100.0, 0.0], [20.0, 110.0, 30.0]), 1);
+    assert_eq!(p[0].map(f32::to_bits), [0x4138_7420, 0x42CC_C8DD, 0]);
+    let mut crt = CrtRand::new(1);
+    for _ in 0..3 {
+        crt.rand();
+    }
+    assert_eq!(st.crt, crt);
+    let mut st = statics();
+    let mut expected = st.rng.clone();
+    let mut s = ConstructionScalars {
+        crane_state: 0,
+        crane_duration: 0,
+        ..ConstructionScalars::default()
+    };
+    let duration = 1000 + expected.uniform_u32(1000);
+    animate_crane(&mut s, 0, &mut st.rng, 6000.0);
+    assert_eq!((s.crane_state, s.crane_duration), (1, duration));
+    animate_crane(&mut s, duration, &mut st.rng, 6000.0);
+    assert_eq!(s.crane_state, 2);
+    assert_eq!(st.rng.next_raw(), expected.next_raw());
+}
+
+#[test]
+fn rejected_props_draw_nothing_and_failed_rounds_terminate() {
+    let mut st = statics();
+    let mut expected = st.rng.clone();
+    let count = expected.range_i32(1, 4);
+    expected.range_i32(0, 1);
+    st.ground.push(PropSize {
+        type_id: 1,
+        x: 1.0,
+        z: 1.0,
+    });
+    st.roof.push(PropSize {
+        type_id: 2,
+        x: 1.0,
+        z: 1.0,
+    });
+    let mut h = Host {
+        reject: true,
+        ..Host::default()
+    };
+    let mut c = ConstructionOccupant::default();
+    c.set_lot(&mut h, &mut st, reference(1));
+    assert!(c.rec.ground_props.is_empty() && c.rec.roof_props.is_empty());
+    assert_eq!(st.rng.next_raw(), expected.next_raw());
+    let mut crt = CrtRand::new(1);
+    for _ in 0..(count * 7) {
+        crt.rand();
+    }
+    assert_eq!(st.crt, crt);
+    let mut st = statics();
+    let mut expected = st.rng.clone();
+    expected.range_i32(1, 4);
+    expected.range_i32(0, 1);
+    st.ground.push(PropSize {
+        type_id: 1,
+        x: 1000.0,
+        z: 1000.0,
+    });
+    c.set_lot(&mut h, &mut st, reference(1));
+    assert_eq!(st.rng.next_raw(), expected.next_raw());
+    let mut crt = CrtRand::new(1);
+    for _ in 0..7 {
+        crt.rand();
+    }
+    assert_eq!(st.crt, crt);
+}
