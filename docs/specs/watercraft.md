@@ -451,8 +451,55 @@ transform only. Splash is optional. Grounding is required in state 70; mushroom 
 required when its +0x2B2 gate is set: the null tests in those paths lead to a refresh
 that dereferences the missing effect, rather than safely skipping it. Missing effects
 do not turn this into a false-return recovery path. Evidence: `0x0057036D–0x005704BD`.
-The sinking/heel equations, random draws and collision response still require WC5;
+The remaining rotation-basis and shore-contact contracts still require WC5;
 this dispatch contract alone does not specify those motion helpers.
+
+#### 5.7.2 Crash angle ramps and bump rollback (WC5, partial)
+
+Let `t` be crash elapsed at +0x2C0 **after** the dispatch additions, `T=p[21]`,
+`a` the old angle at +0x2C4, `A=p[22]` and `B=p[25]`. These are float fields;
+the original uses x87 intermediates and rounds when storing them. Neither helper
+clamps elapsed or completes a last frame at its endpoint.
+
+| Helper | Angle update | Boundary result |
+|---|---|---|
+| Sinking, `0x0056A440` | Store `a' = ((t/T)*A - a) + a`. | If `a' >= A`, return false without publishing a new transform, heading, effects or model. The angle store still occurs. Otherwise publish the crash transform and return true. |
+| Grounding/heel, `0x0056AF90` | First reject `t >= T`. While the sliding/contact byte +0x2CA remains set and `t < T/2`, store `a' = a + ((t/T)*B-a)`; otherwise store `a' = a + (2.5*B*(t/T)-a)`. The difference inside parentheses is rounded to float before addition. | If `a' >= B`, return false without the final heel transform. The earlier contact/slide phase can already have changed speed/position and published its transform. Otherwise perform the heel rotation and return true. |
+
+This is a ramp in **total crash elapsed**, not integration of frame time into angle.
+In ordinary finite arithmetic the old angle cancels, but retaining the subtraction
+and addition matters for rounding. The fast heel branch can finish at `t=0.4T`;
+the contact branch switches to that branch at exactly `T/2`. Losing the contact byte
+earlier can therefore cause immediate completion in the same call. No random number
+draw occurs in either helper. Evidence: `0x0056A511–0x0056A562`,
+`0x0056B58B–0x0056B61E`, constants `0x00A949FC=-0.5`,
+`0x00A95530=2.5`; contact clearing at `0x0056B585`.
+
+Sinking begins its vertical displacement only for `a' > c*A`, where
+`c=float32(0.6)=0.6000000238418579`. Let `W` be terrain slot 29's level and
+`H` terrain slot 13's height at the boat's current x,z. Define
+`D=min((W-H)*0.5,0)` and `u=(a'-c*A)/(c*A)`. The published transform's y is
+`W-u*D`, whereas the runtime position field +0x2F8 is written as `W-D*(t/T)`.
+These are distinct writes, not an instruction to synchronize the two y values.
+The old runtime position is copied to +0x2E8 first; x,z stay unchanged. At exactly
+`a'=c*A` neither translation nor the old-position copy happens. Both samples of
+`W` are separate terrain calls; the equations assume the level is unchanged
+between them. Evidence: `0x0056ADE2–0x0056AF23`. This formula preserves the
+original sign and minimum even for terrain heights above the level; it must not
+be silently changed into a positive-depth clamp.
+
+After a successful sinking transform, current heading is copied into inherited
+heading +0x58, then slots 100 `(true,true)`, 104 and 107 are called, in that order
+(`0x0056AF23–0x0056AF6F`). The axes and complete transform composition remain
+unresolved; the scalar ramps above do not close that gap.
+
+The bump rollback helper `0x0056A310` restores runtime position from previous
+position (+0x2E8), preserves the current transform's orientation, replaces its
+translation with that restored position, publishes it through slot 75, copies the
+position to inherited +0x40, then calls slots 100 `(true,true)`, 104 and 107.
+It does not itself change speed, turn or heading; collision callers apply their
+speed response separately. Thus bump rollback is not a reversal of the whole
+movement state. Evidence: `0x0056A310–0x0056A434`.
 
 ## 6. U-Drive-It *[compat]*
 
@@ -831,3 +878,16 @@ they do not pass malformed buffers to a reader lacking bounds checks.
 | WC5-C02 | In-city state 71, crash elapsed=100, state tick dt=10 | Elapsed presented to sinking helper is 120; direct crash-sequence call with those initial values presents 110. |
 | WC5-C03 | Outside city, state 70, elapsed=100, state tick dt=10 | Dispatcher advances to 110; crash sequence pushes 72 without another increment or heel animation. |
 | WC5-C04 | State 71, +0x2B2=0, splash absent | No mushroom/splash call; sinking helper still runs. Do not generalize this tolerance to missing grounding in state 70. |
+
+### 11.6 Crash scalar and rollback vectors
+
+| ID | Inputs | Expected observable result |
+|---|---|---|
+| WC5-S01 | Sink helper directly: T=8000, A=1, t=2000, old angle=0 | Store angle 0.25 and continue; no vertical translation yet. |
+| WC5-S02 | Sink helper directly: T=8000, A=1, t=8000 | Store angle 1, return false without final transform/model publication. |
+| WC5-S03 | Sink helper: A=1, angle just above c, t/T=0.75, W=10, H=14 | D=-2; runtime y=11.5, transform y=10+2u. Separate terrain level samples and distinct y writes must be represented. |
+| WC5-S04 | Sink helper: W=10, H=6, angle above c*A | D=0; both y writes equal 10, regardless of positive depth below level. |
+| WC5-S05 | Heel: T=8000, B=1, t=3200, +0x2CA clear | Fast ramp reaches 1 and returns false; no final heel transform. |
+| WC5-S06 | Heel: T=8000, B=1, t=3200, contact byte remains set after slide phase | Slow ramp reaches 0.4 and continues. At t=4000 the fast ramp applies and completes instead. |
+| WC5-S07 | Heel: t=T | Return false before any contact phase or angle store. |
+| WC5-S08 | Bump rollback: previous position=(1,2,3), current=(4,5,6), speed=0.2, turn=0.7 | Runtime/inherited/transform translations become (1,2,3); orientation, speed and turn unchanged by helper; publication then slots 100,104,107. |
