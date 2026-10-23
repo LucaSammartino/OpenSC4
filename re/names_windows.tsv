@@ -4928,17 +4928,29 @@ va	name	source	confidence	note
 005f4870	cSC4ScriptServiceResourceFactory::GZUIScriptLoadBuffer	auto:B2	medium	mac 002407ea score 0.936 support 2.0
 005f48b0	cSC4ScriptServiceResourceFactory::GZUIScriptLoadString	auto:C	high	mac 00240878 score 1.0 support 1
 005f4930	cSC4SignpostOccupant::QueryInterface	auto:A	high	mac 004c5416 score 1.0 support 0
+005f4960	cSC4SignpostOccupant::AdvanceCaretTimer	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3; flips at 500 ms
 005f4a90	cSC4SignpostOccupant::SetAllFlags	auto:C	high	mac 004c545a score 1.0 support 1
 005f4ba0	cSC4SignpostOccupant::SetDynamic	auto:C	high	mac 004c551a score 1.0 support 1
+005f4d10	cSC4SignpostOccupant::SetBoxFromCorners	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
 005f4e90	cSC4SignpostOccupant::SetPosition	auto:C	high	mac 004c59fa score 1.0 support 1
 005f5080	cSC4SignpostOccupant::Write	auto:C	high	mac 004c5c76 score 1.0 support 1
 005f50f0	cSC4SignpostOccupant::Read	auto:C	high	mac 004c5d0c score 1.0 support 1
 005f5200	cSC4SignpostOccupant::Draw	auto:B4	medium	mac 004c5734 score 0.877 support 8.0
+005f5510	cSC4SignpostOccupant::cSC4SignpostOccupant	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
 005f5519	cSC4NetworkOccupant::cSC4NetworkOccupant	auto:B1	medium	mac 0013604c score 0.804 support 1.0
 005f5920	cSC4SignpostOccupant::GetText	auto:C	high	mac 00806a7e score 1.0 support 1
 005f5940	cSC4SignpostOccupant::GetGZCLSID	auto:C	low	mac 00806afa score 1.0 support 1
+005f5950	cSC4SignpostOccupant::QueryInterface (thunk at +4)	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
+005f5970	cSC4SignpostOccupant::QueryInterface (thunk at +0xC)	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
+005f5980	cSC4SignpostOccupant::QueryInterface (thunk at +0x10)	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
+005f5990	cSC4SignpostOccupant::QueryInterface (thunk at +0x14)	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
+005f59a0	cSC4SignpostOccupant::~cSC4SignpostOccupant (thunk at +0x14)	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
+005f5ac0	cSC4SignpostOccupant::Write (thunk at +0x14)	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
+005f5ad0	cSC4SignpostOccupant::Read (thunk at +0x14)	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
 005f5cd0	__ZThn108_N20cSC4SignpostOccupant4DrawEP14SC4DrawContextb	auto:B5	low	mac 00806fc6 score 0.96 support 1.0
+005f5ce0	GZCOM_CreatecSC4SignpostOccupant	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3; pool 0x00B0A970
 005f5d20	cSC4SignpostOccupant::~cSC4SignpostOccupant	auto:C	high	mac 00807796 score 1.0 support 1
+005f5d80	cSC4SignpostOccupant::~cSC4SignpostOccupant (body)	manual:signposts.tsv	high	lot-records.md descriptive name, no Mac match; §10.3
 005f5e20	cSC4SignpostOccupant::Shutdown	auto:C	high	mac 004c5ba6 score 1.0 support 1
 005f5ef0	cSC4SignpostOccupant::LoadTextures	auto:A	high	mac 004c5b20 score 1.0 support 0
 005f5fb0	cSC4SignpostOccupant::RebuildModel	auto:B1	medium	mac 004c5ddc score 0.946 support 5.0
@@ -4970,8 +4982,18 @@ va	name	source	confidence	note
 005f8400	icf::cSC4PropOccupantAutomataController::AsOccupant	folded	folded	5 names: cSC4PropOccupantAutomataController::AsOccupant | cSC4PropOccupantVisualEffect::AsOccupant | cSC4SignpostOccupant::AsOccupant | cSC4TextDecalOccupant::AsOccupant | cSC4View3DWin::AsIGZWin
 005f8410	cSC4TextDecalOccupant::GetText	auto:C	high	mac 008078fe score 1.0 support 1
 005f8430	cSC4TextDecalOccupant::GetGZCLSID	auto:C	low	mac 0080793a score 1.0 support 1
+005f8440	cSC4TextDecalOccupant::QueryInterface (thunk at +4)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
+005f8450	cSC4TextDecalOccupant::QueryInterface (thunk at +8)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
+005f8460	cSC4TextDecalOccupant::QueryInterface (thunk at +0xC)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
+005f8470	cSC4TextDecalOccupant::QueryInterface (thunk at +0x10)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
+005f8480	cSC4TextDecalOccupant::QueryInterface (thunk at +0x14)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
+005f8490	cSC4TextDecalOccupant::~cSC4TextDecalOccupant (thunk at +0x14)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
+005f84a0	cSC4TextDecalOccupant::QueryInterface (thunk at +0x28)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
+005f84b0	cSC4TextDecalOccupant::Write (thunk at +0x14)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
+005f84c0	cSC4TextDecalOccupant::Read (thunk at +0x14)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
 005f84d0	GZCOM_CreatecSC4TextDecalOccupant	auto:B1	medium	mac 004c8218 score 0.97 support 1.0
 005f8510	cSC4TextDecalOccupant::~cSC4TextDecalOccupant	auto:C	high	mac 00807c28 score 1.0 support 1
+005f8570	cSC4TextDecalOccupant::~cSC4TextDecalOccupant (body)	manual:text-decals.tsv	high	lot-records.md descriptive name, no Mac match; §10.4
 005f8610	SC4FlushInputMessageQueue	auto:B0	medium	mac 00023c10 score 0.912 support 1.0
 005f8630	cSC4AutoFlushInputMessageQueue::cSC4AutoFlushInputMessageQueue	auto:D	medium	mac 00023c2e score 0.5 support 4
 005f8660	cSC4WinGameDelay::Init	auto:B0	medium	mac 005f60a2 score 0.853 support 2.0

@@ -84,3 +84,26 @@
 <!-- from: re-occprops (2026-10-20) -->
 - ~~**OP5:** `cSC4BlockingLotOccupantFilter` slot 3 (`0x004BDF90`, 26 bytes) body and users. [untraced]~~
   **ANSWERED 2026-10-21 (re-occfilters):** occupant-manager.md §13.2.6: slot 3 `0x004BDF90` is the base's `IsOccupantTypeIncluded(GetType())`; the blocking-lot filter's own slot 4 (`0x006C3C20`) is true only for flora `0x74758926`; the lot developer uses it.
+
+<!-- from: re-occprops (2026-10-20) -->
+- **OP2:** remaining signpost stream/receiver semantic: lot-records.md §13.2 calls stream
+  +0x3C GZStr, but signpost Write (`0x005F5080`) / Read (`0x005F50F0`) were interpreted
+  as passing a u32 field. Reconcile that class's receiver and field independently before
+  changing its record. TextDecal scope is answered in text-decal-occupant.md §7 and archive
+  OP2-TD: +0x3C is GZStr, +0x30 Float32; its receiver-relative +0x5C is text, not lot tag,
+  and its repeated pair is position, not IDs. No signpost source analysis was done in that lane.
+
+  **ANSWERED 2026-10-23 (re-pr-harvest5):** DIFFERS — PR10's re-signposts evidence
+  identifies the signpost serializable receiver as O+0x10, so its +0x88 is O+0x98
+  text. Stream slot +0x3C (15) is GZStr, and +0x30 (12) is Float32. Rule: lot-records.md
+  §§10.3–10.4; original contributor evidence: Write 0x005F5080, Read 0x005F50F0.
+  Main's independent OP1 and OP2-TD answers above remain authoritative for TextDecal.
+
+<!-- from: re-occprops (2026-10-20) -->
+- ~~**OP3:** signpost `SetDynamic` (`0x005F4BA0`) colour tables: it copies 4 bytes from `0x00AA5204 + 4·(arg!=0)`
+  into the four corner rows at `+0x4D4…+0x4D7`, `+0x4E4…+0x4E7`, `+0x4F4…+0x4F7`, `+0x504…+0x507` (both byte
+  orders measured: the load is `[EAX*4 + 0xaa5204]` style with per-corner offsets shuffled). What are the two
+  rows (static vs edit-time colours) and the corner order? [dynamic = row 1]~~
+  **ANSWERED 2026-10-22 (re-signposts):** row 0 is the static colour (144, 172, 190, 255), row 1 the dynamic
+  (edit-time) colour (255, 255, 255, 204), bytes in memory order (`0x00AA5204` = `90 AC BE FF`, `FF FF FF CC`;
+  *[inferred]* R, G, B, A); `SetDynamic(d)` copies row `d != 0` into the four corners.

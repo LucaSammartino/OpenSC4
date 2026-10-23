@@ -16,6 +16,7 @@
 - Resolve generated indexes by regeneration; coverage map changes limited to spec column; symbol duplicate keys retain main.
 - Review every added spec section for translated control flow; no engine/plugin/capi edits.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-pr-harvest5-r1-manifest.json.
+- Signpost milestone: 13cf2b33 resolved; main's dedicated TextDecal spec and vectors remain authoritative. Imported interface supplement; omitted superseded duplicate TextDecal behavior (including older color threshold). Main OP1/OP2-TD answers retained; main's signpost OP2 question moved to archive with contributor evidence. Next c95be639.
 - Harvest milestone: 9087568e resolved with generated index, symbol union, and spec-column-only coverage; next source 13cf2b33.
 - Harvest milestone: 47f2fde4 resolved with generated index, symbol union, and spec-column-only coverage; next source 9087568e.
 - Harvest milestone: f02a528f resolved with generated index, symbol union, and spec-column-only coverage; next source 47f2fde4.

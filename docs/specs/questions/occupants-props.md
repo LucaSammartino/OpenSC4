@@ -1,19 +1,7 @@
 # occupants-props: open questions
 <!-- Questions about lot-records.md (§9, §10.3, §10.4, §12), occupant-manager.md (§13.1, §13.2) and prop-occupant.md. Append new entries at the END; when one is answered, move it to answered/occupants-props.md. Rules: README.md. -->
 
-<!-- from: re-occprops (2026-10-20) -->
-- **OP2:** remaining signpost stream/receiver semantic: lot-records.md §13.2 calls stream
-  +0x3C GZStr, but signpost Write (`0x005F5080`) / Read (`0x005F50F0`) were interpreted
-  as passing a u32 field. Reconcile that class's receiver and field independently before
-  changing its record. TextDecal scope is answered in text-decal-occupant.md §7 and archive
-  OP2-TD: +0x3C is GZStr, +0x30 Float32; its receiver-relative +0x5C is text, not lot tag,
-  and its repeated pair is position, not IDs. No signpost source analysis was done in that lane.
 
-<!-- from: re-occprops (2026-10-20) -->
-- **OP3:** signpost `SetDynamic` (`0x005F4BA0`) colour tables: it copies 4 bytes from `0x00AA5204 + 4·(arg!=0)`
-  into the four corner rows at `+0x4D4…+0x4D7`, `+0x4E4…+0x4E7`, `+0x4F4…+0x4F7`, `+0x504…+0x507` (both byte
-  orders measured: the load is `[EAX*4 + 0xaa5204]` style with per-corner offsets shuffled). What are the two
-  rows (static vs edit-time colours) and the corner order? [dynamic = row 1]
 
 <!-- from: re-occprops (2026-10-20) -->
 - **OP6:** body of `cSC4DummyAutoOccupant` (1 fn, 65 bytes). (The immovability and zoom-and-rotation filter
@@ -45,3 +33,13 @@
   or only `Read`? And is it the building's box unchanged or a box derived from the scaffold? The core sets it to the
   building's bounding box in `RebuildModel` (literal reading of "the building's bounding box" being the only box
   `RebuildModel` reads), also on the refresh after a load.
+
+<!-- from: re-signposts (2026-10-22) -->
+- **OP18 - lot-records.md §10.3:** the exact vertex layout `RebuildModel` (`0x005F5FB0`) builds: where the ten
+  piece quads, the backing quad, the text quads and the caret sit relative to the position, what the lengths 8 and
+  64 (screen units) are, and which table entry colours the text. [structure and sizes only]
+
+<!-- from: re-textdecals (2026-10-22) -->
+- **OP19 - lot-records.md §10.3, §10.4:** what the text texture service kept in `0x00B43CE4` (application slot
+  46) is, and how its slots 4 and 5 render the text with fonts `0x2C1FD612` (signposts) and `0xCC1FD62C`
+  (labels); and what `AddDecal`'s width and angle (turns) mean in overlay-manager.md's terms. [as read]

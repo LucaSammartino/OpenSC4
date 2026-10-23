@@ -1,0 +1,32 @@
+va	name	evidence	mac_x86
+005f4930	cSC4SignpostOccupant::QueryInterface	lot-records.md §10.3; 0x4B44FBE2 gives the object	
+005f4960	cSC4SignpostOccupant::AdvanceCaretTimer	lot-records.md descriptive name, no Mac match; §10.3; flips at 500 ms	
+005f4a90	cSC4SignpostOccupant::SetAllFlags	lot-records.md §10.3	
+005f4ba0	cSC4SignpostOccupant::SetDynamic	lot-records.md §10.3; table 0x00AA5204	
+005f4d10	cSC4SignpostOccupant::SetBoxFromCorners	lot-records.md descriptive name, no Mac match; §10.3	
+005f4e90	cSC4SignpostOccupant::SetPosition	lot-records.md §10.3; renderer slot 31 with 4	
+005f5080	cSC4SignpostOccupant::Write	lot-records.md §10.3; version 2	
+005f50f0	cSC4SignpostOccupant::Read	lot-records.md §10.3	
+005f5200	cSC4SignpostOccupant::Draw	lot-records.md §10.3	
+005f5510	cSC4SignpostOccupant::cSC4SignpostOccupant	lot-records.md descriptive name, no Mac match; §10.3	
+005f5519	cSC4SignpostOccupant::cSC4SignpostOccupant (tail)	lot-records.md descriptive name, no Mac match; §10.3; writes the signpost vtables; the auto name cSC4NetworkOccupant::cSC4NetworkOccupant was wrong	
+005f5920	cSC4SignpostOccupant::GetText	lot-records.md §10.3	
+005f5940	cSC4SignpostOccupant::GetGZCLSID	lot-records.md §10.3; 0xAB72FBB3	
+005f5950	cSC4SignpostOccupant::QueryInterface (thunk at +4)	lot-records.md descriptive name, no Mac match; §10.3	
+005f5970	cSC4SignpostOccupant::QueryInterface (thunk at +0xC)	lot-records.md descriptive name, no Mac match; §10.3	
+005f5980	cSC4SignpostOccupant::QueryInterface (thunk at +0x10)	lot-records.md descriptive name, no Mac match; §10.3	
+005f5990	cSC4SignpostOccupant::QueryInterface (thunk at +0x14)	lot-records.md descriptive name, no Mac match; §10.3	
+005f59a0	cSC4SignpostOccupant::~cSC4SignpostOccupant (thunk at +0x14)	lot-records.md descriptive name, no Mac match; §10.3	
+005f5ac0	cSC4SignpostOccupant::Write (thunk at +0x14)	lot-records.md descriptive name, no Mac match; §10.3	
+005f5ad0	cSC4SignpostOccupant::Read (thunk at +0x14)	lot-records.md descriptive name, no Mac match; §10.3	
+005f5cd0	__ZThn108_N20cSC4SignpostOccupant4DrawEP14SC4DrawContextb	lot-records.md §10.3	
+005f5ce0	GZCOM_CreatecSC4SignpostOccupant	lot-records.md descriptive name, no Mac match; §10.3; pool 0x00B0A970	
+005f5d20	cSC4SignpostOccupant::~cSC4SignpostOccupant	lot-records.md §10.3	
+005f5d80	cSC4SignpostOccupant::~cSC4SignpostOccupant (body)	lot-records.md descriptive name, no Mac match; §10.3	
+005f5e20	cSC4SignpostOccupant::Shutdown	lot-records.md §10.3	
+005f5ef0	cSC4SignpostOccupant::LoadTextures	lot-records.md §10.3; font 0x2C1FD612	
+005f5fb0	cSC4SignpostOccupant::RebuildModel	lot-records.md §10.3; screen-sized, faces the camera	
+005f7320	cSC4SignpostOccupant::SetEditMode	lot-records.md §10.3	
+005f73a0	cSC4SignpostOccupant::Init	lot-records.md §10.3; ten piece textures	
+005f7510	cSC4SignpostOccupant::DoMessage	lot-records.md §10.3	
+005f7600	cSC4SignpostOccupant::SetText	lot-records.md §10.3	
