@@ -553,7 +553,11 @@ if(FC4_IS_WIN32_X86)
         plugin/compat/FC4PropOccupantAuthority.h
         # SG3 complete owner/getter inventory record shadow (default off).
         plugin/FC4SimGridRecordShadow.cpp
-        plugin/FC4SimGridRecordShadow.h)
+        plugin/FC4SimGridRecordShadow.h
+        # LR12 current master-list full lot records (default off).
+        plugin/FC4LotRecordShadow.cpp
+        plugin/FC4LotRecordShadow.h
+        plugin/FC4LotRecordObservation.h)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
@@ -612,6 +616,11 @@ if(FC4_IS_WIN32_X86)
     target_include_directories(fc4_safe_lot_iterator_test PRIVATE plugin)
     target_compile_options(fc4_safe_lot_iterator_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME safe_lot_iterator_test COMMAND fc4_safe_lot_iterator_test)
+    # LR12 master-list observation accounting (T58-T65).
+    add_executable(fc4_lot_record_observation_test conformance/tests/lot_record_observation_test.cpp)
+    target_include_directories(fc4_lot_record_observation_test PRIVATE plugin)
+    target_compile_options(fc4_lot_record_observation_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME lot_record_observation_test COMMAND fc4_lot_record_observation_test)
 
     # foundations §16: the slot layout of every game interface we implement.
     add_executable(fc4_vtable_layout_test tests/vtable_layout_test.cpp)

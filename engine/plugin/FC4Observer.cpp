@@ -91,6 +91,7 @@
 #include "FC4SpanRender8.h"
 #include "FC4FeatureShadow.h"
 #include "FC4SimGridRecordShadow.h"
+#include "FC4LotRecordShadow.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -630,6 +631,7 @@ public:
                 fc4::FormatsShadowCityLoaded();  // the glue-formats4 lane: formats_shadow = 1 only
                 fc4::FeatureShadowLoaded();
                 SimGridRecordShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
+                LotRecordShadowObserve(CurrentCity(), static_cast<int32_t>(PublishedJulian()), true);
                 fc4::Span1555CityLoaded();  // glue-span1555-impl4: enable = span1555 only (constructed fixture)
                 fc4::SpanContextCityLoaded();  // glue-span-context-final4: span1555 / span4444 on only
                 fc4::commands_verify::Run();  // commands_verify = 1 only; app-owned service
@@ -726,6 +728,7 @@ public:
                 if (digest_) WriteDigest(julian);
                 fc4::FeatureShadowMonth();
                 SimGridRecordShadowObserve(CurrentCity(), julian, false);
+                LotRecordShadowObserve(CurrentCity(), julian, false);
                 if (observe_) {
                     WriteObserve(&ObserveMonthStep, "observe month", julian, nullptr);
                     FpuLog("observe month");

@@ -1138,3 +1138,5 @@ pub mod feature_manager;
 
 // Resource-only public-manager verification transport; actual production core.
 pub mod persist_manager_verify;
+// LR12 private record-only observation transport.
+mod lotrec_verify;

@@ -2405,3 +2405,12 @@ mismatches, unavailable roles, cells and bytes. Missing roles and refused reads
 cannot count as exact. This verifies record reads over simgrid.md sections
 6.2.1/6.2.2, not simulation algorithms or owner-private/map-view grids. The older
 `simgrids_shadow` fixture/natural-operation switch remains separate.
+# LR12 master lot record observation
+
+`lotrec_shadow = 1` (default `0`, environment `FC4_LOTREC_SHADOW`) captures all
+current master-list lots at PostCityInit and every month. It compares the full
+record, including properties/trips and reference identities, through the Rust
+record reader without Init. `lotrec-shadow:` reports expected/visited/captures/
+exact counts and explicit errors. Off-list lots, business-unit payloads and all
+occupants (including unspecified prop subclasses) are outside this scope.
+

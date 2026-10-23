@@ -43,6 +43,7 @@ use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 
 pub use crate::automata::OCCUPANT_BASE_VERSION;
 pub use lot::{BusinessUnit, BusinessUnitRecord, Lot, LotRecord};
+pub mod shadow;
 
 // ---- class IDs (§1) --------------------------------------------------------------------------------
 
