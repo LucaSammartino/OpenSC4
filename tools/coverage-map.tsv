@@ -386,6 +386,8 @@ fn:RotateLightingRectToWorld	lighting and shadows	renderer	lighting.md	-	-	-
 fn:BuildBasisFromDirection	lighting and shadows	renderer	lighting.md	-	-	-
 cSC4RenderProperties*	render properties	renderer	render-properties.md	core/src/render_properties	-	-
 cSC4ModelRegEffects	model effects	renderer	graphics-formats.md	core/src/model_reg_effects	-	-
+cSC4ModelMaker	model maker	renderer	model-maker.md	-	-	-
+cSC4ModelBackgroundLoader	model background loader	renderer	model-maker.md	-	-	-
 cSC4Model*	3D scene and models	renderer	-	-	-	-
 cSC4ConfigRuleManager	graphics rules	renderer	graphics-rules.md	core/src/graphics_rules	-	-
 cSC4RuleParser	graphics rules	renderer	graphics-rules.md	core/src/graphics_rules	-	-
