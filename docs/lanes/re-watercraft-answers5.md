@@ -1,31 +1,65 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-watercraft-answers5 (watercraft owner answers) | Codex / `re-watercraft-answers5` | in progress; WC8 answered, WC3/WC7 partial | Continue full owner trace; do not enqueue until WC1–WC7 gaps are resolved or explicitly reported. |
+| re-watercraft-answers5 (watercraft owner answers) | Codex / `re-watercraft-answers5` (RE lane) | ready to land spec work; WC6–WC8 answered, WC1–WC5 open; 90/90 unique spec vectors, 32 added in round 3; diff check passed; no ABI/game runs | 1. Land the spec commits. 2. Trace the remaining WC1–WC5 gaps in watercraft §10.2 before certifying whole-owner closure. |
 
-## Handoff
-- Goal: answer WC3-WC8, and WC1/WC2 where evidence permits, without engine edits.
-- Done: 9414cde9 initial lane; 94facf3f WC8 answered with command/steering equations and 13 vectors.
-- Done: 1b572698 WC3 Init/Read boundaries; WC7 final docking/undocking, signed remainder and backtracking; 75-entry attribution inventory; 16 more vectors.
-- Round 2: corrected §2 labels: p[1] is held-input steering gain per ms; p[2] is steering return rate per second (§6.2.2). Corrected movement-helper attribution (crash helpers are separate).
-- Round 2: WC6 answered: complete command side effects and shared translator/drive ordering, 10 more vectors. Prior correction commit 7ecb671b.
-- Round 2: WC7 answered: compressed route format and exhaustion, station reservation/held-byte ownership, following equations and first-list tow picker; 15 more vectors. WC6 milestone 7f2c873e.
-- Round 2: WC7 milestone 1f86fb4d; crash dispatch milestone 478e6759 specifies double elapsed accumulation, (0xB,0), and null grounding/mushroom failure paths; 4 more vectors. WC5 remains open for motion/collisions.
-- Round 3: added verified sink/heel angle ramps, endpoint returns, distinct runtime/transform sinking y writes, bump rollback and 8 vectors in sections5.7.2/11.6. WC5 still open for axes/contact/overlap and full response.
-- Round 3: boat collision maximum-extent gate (not combined radii), SAT contact equality, size tags, equal-size double loss, AI sinking after player win and exact speed transfer/returns specified; 10 vectors. Milestone b00cbc6b contains prior scalar work.
-- Round 3: WC3 constructor populated11-entry vector and nonrecovering allocation failure, destruction ordering, all10 adjustors and QueryInterface/Write/sign/erase contracts added with6 vectors. Collision milestone05d3d416.
-- Round 3: WC4 position clamping/straight and curved equations, scalar banking/bow and distinct visual lift, publication ordering added with8 vectors. Lifecycle milestone91eab585.
-- Next FIRST: validate new vectors/arithmetic and finish Report+ready queue; WC1/WC2 and WC3–WC5 remain open (AI/inherited steps, complete attitude/crash transforms, shore/footprint construction).
-- Main attribution now gives 75 functions/38073 bytes, versus brief 79/38556. Read-only reproducer: `build-runs/watercraft-owner-inventory.py 0` and `40`; imports Attribution only, no engine reads.
-- Numeric PE reader: `build-runs/watercraft-evidence.py <hex VA>...`; reads working exe, prints f32/bits; never commit these scripts or RE output.
-- WC8: tan/atan, f32 a=0.910000026226, b=1.57079637051; opposite gear crosses zero; neutral translator keeps speed. Steering channels +88/+84 are elapsed floats, ordered responses; owner never clears skier toggle +EB.
-- Docking completion ONLY before motion (00572A57–A87); moving path returns true (00572CE5). Final approach dt unclamped. OnLand pushes72 and continues. Earlier question brackets claiming post-motion completion are wrong.
-- Direction helper is signed remainder, NOT wrap: base2 produces2,3,1,4,0,5,-1,6. Step -1 does not move cell. Backtrack triggered on first eligible rejection once per outer round; survivor's own direction supplies tried bit.
-- Init flag missing in old spec is 0x8000; base Init/effect creation results ignored; returns true. Timers include lifetime limit reset. Read accepts exactly u16=2, then base result.
-- Watercraft decomp offsets: command2152, Init1835, AI pick2878, AI motion3161, docking3464, animation3653; 60-line reads only. Helpers in main decomp/_unnamed/region_00560000.c; grep headers first.
-- Crash sequence 00570270 absent in class decomp; asm works. Calls sink helper0056A440, heel0056AF90; body pseudocode at unnamed lines2013/2285. No REA call needed so far.
-- Following005694B0 returns false without tug; uses follower radius+10, endpoints helpers00567A50(back)/00567AB0(front); translation appears distance excess with no dt scale. Needs full verification before specifying.
-- Movement0056C430 calls00569940(curved),00568230(straight),00569E70(height/tilt); spec's reference to crash helper as position helper is suspect and needs correction.
-- Questions: WC6–WC8 moved to answered/watercraft.md; WC1–WC5 remain open. Regenerate QUESTIONS.md at each answer milestone.
-- Gate: final diff --check passed; clean tracked tree; inventory75/75 unique; vectors58/58 unique (29 prior +10 WC6 +15 WC7 +4 crash dispatch); handoff22 lines. No engine tests (RE-only), ABI proposals/exports. Round 2 context148852/150000 at final validation; continuation required, no merge queue.
-- Evidence source: main checkout `C:/Users/tlori/FreeCity4`; all edits stay in this worktree.
-- No game runs, ABI changes, or engine reads.
+## Report
+
+Ready to land the completed behavior specs. **The measured goal of complete
+cSC4Watercraft owner closure was not achieved.** WC6–WC8 are answered; WC1–WC5
+remain open, with the exact outstanding work recorded in watercraft §10.2 and
+their original question entries. Ready describes reviewable spec work, not a
+claim that an engine lane can close every owner row.
+
+### Changes and milestones
+
+- Prior rounds: `94facf3f` answered WC8 command/steering arithmetic; `1b572698`
+  covered Init/Read, docking/undocking boundaries and the attribution inventory;
+  `7ecb671b` corrected tuning labels; `7f2c873e` answered WC6 command effects;
+  `1f86fb4d` answered WC7 routes/reservations/following; `478e6759` specified
+  crash dispatch, double elapsed accumulation and missing-effect failure paths.
+- Round 3 `b00cbc6b`: sink/heel angle ramps and strict endpoint behavior,
+  distinct runtime/transform sink heights, bump rollback; 8 spec vectors.
+- Round 3 `05d3d416`: maximum-extent boat distance gate, SAT contact equality,
+  size tags, equal-size double losses, AI victims after player wins, exact bump
+  speed transfer and detector returns; 10 spec vectors.
+- Round 3 `91eab585`: constructor's eleven populated travel points and allocation
+  failure, destructor release ordering, all ten interface adjustors, query/record
+  forwarding, sign and vector erase contracts; 6 spec vectors.
+- Round 3 `327aae9e`: straight/curved position equations, radius/signed yaw,
+  reverse and zero/negative time behavior, scalar banking/bow/model lift and
+  publication ordering; 8 spec vectors. Parameter-use labels expanded.
+- Final report records partial progress on WC2–WC5 in the open-question file and
+  adds the explicit owner-closure boundary table. No partially resolved question
+  was moved to answered.
+
+### Measured results and verification
+
+- Spec-side vector IDs: **90/90 unique**, including **32** added this round
+  (8 crash scalar + 10 collision + 6 lifecycle + 8 movement).
+- Read-only inventory measurement retained: **75 functions / 38073 bytes**,
+  not the historical brief's 79 / 38556; the discrepancy remains explicit.
+- `python build-runs/validate-watercraft-spec-r3.py`: passed vector counts,
+  duplicate check, open-question set WC1–WC5 and single four-column lane row.
+- `python tools/questions.py index`: succeeded; regenerated index is unchanged.
+- `git diff --check`: passed. No cargo, clippy, ctest or game runs: documentation
+  only, with no engine files read or changed. Vectors are prose tables for an
+  engine lane to encode; no runnable engine conformance vectors were added.
+- Numeric work was checked against export instructions with byte/address
+  citations and executable constants. Local export/decomp evidence sufficed;
+  no REA request or REA failure occurred. No decompiled output/evidence scripts
+  are committed. No ABI rows proposed or C ABI exports changed.
+
+### Questions and next steps
+
+WC6–WC8 remain in `docs/specs/questions/answered/watercraft.md` with their prior
+answer markers. No new question IDs were filed. WC1 needs external idle-byte
+writers. WC2 needs the animation-false caller and remaining parameter uses.
+WC3 needs the remaining method signatures/failures and inherited contracts.
+WC4 needs full AI selection, inherited steps, attitude composition, effect/model
+details and far approach. WC5 needs model-to-footprint construction, inanimate
+detection and complete sink/heel rotation/contact transforms. These were left
+open because their behavior was not fully verified in the allotted final round.
+
+Land this lane's spec work, then assign the remaining RE work from §10.2 before
+certifying owner closure. The queue entry is `build-runs/merge-queue/re-watercraft-answers5.json`
+with kind `re`, state `ready`, no game runs and no ABI change, as requested.

@@ -961,7 +961,7 @@ untraced helper bodies still prevent a whole-owner closure claim.
 | Command curves | 00567080, 005671D0 | §6.2.1 |
 | Land, tow, city and movement gates | 00567DF0, 00567E80, 005681B0, 005698E0 | §§5.6, 6.3; reference/failure audit still WC3 |
 | Collision and bump | 00568570, 005687C0, 005690D0, 0056C090, 0056A310 | §§5.7.0–5.7.2 give boat selection/response, SAT and rollback; model-to-footprint and full shore path still WC5 |
-| Position and motion helpers | 00568230, 00569940, 00569E70, 0056C430 | summary §5.2; full equations still WC4 |
+| Position and motion helpers | 00568230, 00569940, 00569E70, 0056C430 | §5.1.1 gives straight/curved equations and publication; full visual attitude still WC4 |
 | Crash motion | 0056A440, 0056AF90, 00570270 | §§5.7.1–5.7.2 give dispatch, ramps, height writes and endpoints; rotation/contact still WC5 |
 | Message and movement ticks | 00569230, 005694B0, 0056BD80, 0056D310 | §§5.5, 6.1, 6.3, 7; partial WC4/WC7 |
 | Teardown/docking helpers | 0056D0E0, 0056D4D0, 0056D530 | §§3–5; full failure audit WC3 |
@@ -969,9 +969,28 @@ untraced helper bodies still prevent a whole-owner closure claim.
 | Small interface adjustors | 0056DC70, 0056DC80, 0056DC90, 0056DCA0, 0056DCB0, 0056DCC0, 0056DCD0, 0056DCE0, 0056DCF0, 0056F7B0 | §3.1 gives every offset/target, argument/result forwarding |
 | Initialization/state/command hooks | 0056DE40, 0056E340, 0056E5C0, 00570140 | §§3, 4, 6.2; inherited contract still WC3/WC6 |
 | Wake stop/start | 0056EFE0, 0056F1E0 | summary §5.1; WC4 |
-| Ferry and neighbour-route setup | 0056F3F0, 0056F480, 0056F510, 0056F670, 0056F700, 005704D0 | §§5.3–5.4; reader/errors/ownership still WC7 |
+| Ferry and neighbour-route setup | 0056F3F0, 0056F480, 0056F510, 0056F670, 0056F700, 005704D0 | §§5.3–5.4; WC7 reader, errors and ownership answered |
 | AI selection, motion, docking | 00570620, 00571880, 00572770 | §§5.2–5.3; final approach expanded, remaining WC4/WC7 |
 | Debug/animation/state dispatch | 00570AE0, 00572CF0, 00573340 | §§4, 5.1, 9; inherited animation and caller still WC2/WC4 |
+
+### 10.2 Final owner-closure boundary for this lane
+
+This lane supplies 90 individually named spec-side vectors. It does **not** certify
+complete owner closure: WC1–WC5 remain open; WC6–WC8 are answered. In particular,
+the equations in §5.1.1 are authored behavior requirements, not permission to
+substitute an opaque provider result for missing owner computation.
+
+| Open item | Evidence delivered | Remaining work before claiming closure |
+|---|---|---|
+| WC1 | Init clears +0x2CC; animation consumes it | Identify external writer(s) and activation semantics. |
+| WC2 | Additional parameter uses in §§2, 5.1.1 | Animation false-return caller, entries 13–14, 26, 30–31, 34 and any remaining uses of the original question's list. |
+| WC3 | 75-entry attribution inventory, Init/record boundaries, construction/destruction and ten adjustors | Complete signatures/results/failure contracts for every remaining helper; reconcile the historical 79-entry brief and inherited-call coverage. |
+| WC4 | Commands, routes/following/final docking, straight/curved integration, visual scalar rules | Full Engine_AIBoatMotion, inherited animation/player-drive behavior, attitude-basis composition, complete wake/effect/model behavior and far-approach contracts. |
+| WC5 | Dispatch/events, boat selection/SAT/response, rollback, scalar crash ramps and heights | Full model-to-footprint construction, inanimate detection, and sink/heel axes/contact/transform composition. |
+
+These gaps are not answered by an inventory count or by the existing summary
+sections. An engine lane can implement the newly specified arithmetic, but cannot
+mark every owner-closure row closed using this document yet.
 
 ## 11. Conformance tests
 
