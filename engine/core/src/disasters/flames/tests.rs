@@ -11,6 +11,7 @@ const INITIAL: FlameInitial = FlameInitial {
     visible: true,
     wall: false,
     side: 0,
+    position: SharedPositionWord(0.0),
 };
 const SEEDS: FixedSeeds = FixedSeeds {
     wall_clock: 0,
@@ -45,11 +46,16 @@ struct Effect {
     trace: Trace,
 }
 impl VisualEffect for Effect {
-    fn start(&mut self) {
+    fn start(&mut self, argument: u32) {
+        assert_eq!(argument, 1);
         self.trace.push(Event::Start(self.id));
     }
-    fn stop(&mut self) {
+    fn stop(&mut self, argument: u32) {
+        assert!(argument <= 1);
         self.trace.push(Event::Stop(self.id));
+    }
+    fn is_active(&mut self) -> bool {
+        true
     }
     fn set_transform(&mut self, transform: &Xform) {
         self.trace.push(Event::Apply(self.id, *transform));
@@ -134,6 +140,17 @@ fn stage(value: u32) -> Stage {
     Stage::new(value).unwrap()
 }
 
+fn temporary(position: [f32; 3]) -> Xform {
+    // Independent public FF4 literal, including two negative zero words.
+    Xform {
+        counter: 2,
+        mask: 5,
+        matrix: [1., -0., 0., 0., 1., -0., 0., 0., 1.],
+        translation: position,
+        scale: 1.,
+    }
+}
+
 #[test]
 fn published_effect_name_vectors_and_stage_domain() {
     for (value, top, wall) in [
@@ -155,8 +172,8 @@ fn published_effect_name_vectors_and_stage_domain() {
 fn replacement_stops_releases_creates_applies_starts_in_order() {
     let mut factory = Factory::default();
     let mut flame = Flame::from_initial(FlameInitial { wall: true, ..INITIAL });
-    flame.update(stage(2), &mut factory);
-    let transform = *flame.transform();
+    flame.update(stage(2), &mut factory).unwrap();
+    let transform = temporary([0.; 3]);
     assert_eq!(
         factory.trace.take(),
         vec![
@@ -165,7 +182,7 @@ fn replacement_stops_releases_creates_applies_starts_in_order() {
             Event::Start(1)
         ]
     );
-    flame.update(stage(0), &mut factory);
+    flame.update(stage(0), &mut factory).unwrap();
     assert_eq!(
         factory.trace.take(),
         vec![
@@ -185,10 +202,10 @@ fn replacement_stops_releases_creates_applies_starts_in_order() {
 fn creation_failure_releases_old_reference_and_is_retryable() {
     let mut factory = Factory::default();
     let mut flame = Flame::from_initial(INITIAL);
-    flame.update(stage(0), &mut factory);
+    flame.update(stage(0), &mut factory).unwrap();
     factory.trace.take();
     factory.fail = true;
-    flame.update(stage(4), &mut factory);
+    flame.update(stage(4), &mut factory).unwrap();
     assert_eq!(
         factory.trace.take(),
         vec![Event::Stop(1), Event::Release(1), Event::Create("fire_5".into())]
@@ -196,7 +213,7 @@ fn creation_failure_releases_old_reference_and_is_retryable() {
     assert!(!flame.has_effect());
     assert_eq!((flame.made(), flame.visible()), (9, true));
     factory.fail = false;
-    flame.update(stage(4), &mut factory);
+    flame.update(stage(4), &mut factory).unwrap();
     assert!(flame.has_effect());
 }
 
@@ -207,30 +224,38 @@ fn hidden_effect_is_transformed_but_never_started() {
         visible: false,
         ..INITIAL
     });
-    flame.update(stage(0), &mut factory);
+    flame.update(stage(0), &mut factory).unwrap();
     assert_eq!(
         factory.trace.take(),
-        vec![Event::Create("fire_1".into()), Event::Apply(1, *flame.transform())]
+        vec![Event::Create("fire_1".into()), Event::Apply(1, temporary([0.; 3]))]
     );
 }
 
 #[test]
 fn published_yaw_vectors_are_radians_with_translation() {
-    // Independent trigonometric constants, not expectations from the code.
-    for (side, cos, sin) in [
-        (0, 1.0, 0.0),
-        (1, -0.44807362, 0.89399666),
-        (2, -0.5984601, -0.80115265),
-        (3, 0.984381, -0.17604595),
-    ] {
+    // FF4 DIFFERS: former libm approximate side1/2/3 tests did not qualify
+    // native FSIN/FCOS. Keep the case, now testing the explicit domain boundary.
+    for side in [0, 1, 2, 3, u32::MAX] {
+        let mut factory = Factory::default();
         let mut flame = Flame::<Effect>::from_initial(INITIAL);
-        flame.place([3.0, 4.0, 5.0], false, side, 1);
-        let transform = flame.transform();
-        assert!((transform.matrix[0] - cos).abs() < 0.000001);
-        assert!((transform.matrix[2] - sin).abs() < 0.000001);
-        assert!((transform.matrix[6] + sin).abs() < 0.000001);
-        assert_eq!(transform.translation, [3.0, 4.0, 5.0]);
-        assert_eq!(transform.scale, 1.0);
+        flame.place([3.0, 4.0, 5.0], false, side, 1).unwrap(); // null-effect early return
+        assert_eq!(*flame.transform(), Xform::default());
+        if side == 0 {
+            flame.update(stage(0), &mut factory).unwrap();
+            let events = factory.trace.take();
+            assert_eq!(events[1], Event::Apply(1, temporary([3., 4., 5.])));
+            if let Event::Apply(_, t) = events[1] {
+                assert_eq!(
+                    t.matrix.map(f32::to_bits),
+                    [0x3f800000, 0x80000000, 0, 0, 0x3f800000, 0x80000000, 0, 0, 0x3f800000]
+                );
+            }
+        } else {
+            assert_eq!(
+                flame.update(stage(0), &mut factory),
+                Err(PlacementError::Unsupported(Unsupported::HardwareTrig))
+            );
+        }
     }
 }
 
@@ -303,7 +328,7 @@ fn read_rejects_old_versions_and_every_truncation_without_effect_calls() {
     }
     let mut factory = Factory::default();
     let mut flame = Flame::from_initial(INITIAL);
-    flame.update(stage(0), &mut factory);
+    flame.update(stage(0), &mut factory).unwrap();
     factory.trace.take();
     let (bytes, _) = flame_record(3);
     assert!(flame.read(&mut ByteReader::new(&bytes)));
@@ -360,8 +385,10 @@ fn biased_barycentrics_offset_then_scale_rotate_translate_vector() {
 #[test]
 fn only_first_primitive_and_ceil_partial_triples_are_used() {
     let mut mesh = TestMesh::triangle();
-    mesh.indices = vec![999, 999, 999, 0, 1, 2, 999, 999, 999];
-    mesh.first = Some(3..4); // ceil(1/3) reads physical indices 3,4,5.
+    // FF3 DIFFERS from the retained original assumption (see answered FF3):
+    // offset 3 is ignored; ceil(1/3) reads physical indices 0,1,2.
+    mesh.indices = vec![0, 1, 2, 999, 999, 999];
+    mesh.first = Some(3..4);
     let meshes: [&dyn Mesh; 1] = [&mesh];
     let instances = [ModelInstance::MeshContainer {
         transform: Xform::default(),
@@ -377,9 +404,21 @@ fn only_first_primitive_and_ceil_partial_triples_are_used() {
 fn missing_mesh_data_is_explicit_error_not_a_false_box_fallback() {
     let mut mesh = TestMesh::triangle();
     for (first, indices, expected) in [
-        (None, vec![0, 1, 2], PlacementError::MissingFirstPrimitive),
-        (Some(0..2), vec![0, 1], PlacementError::MissingIndex),
-        (Some(0..3), vec![0, 1, 999], PlacementError::MissingVertex),
+        (
+            None,
+            vec![0, 1, 2],
+            PlacementError::Unsupported(Unsupported::UnsafeIndex),
+        ),
+        (
+            Some(0..2),
+            vec![0, 1],
+            PlacementError::Unsupported(Unsupported::UnsafeIndex),
+        ),
+        (
+            Some(0..3),
+            vec![0, 1, 999],
+            PlacementError::Unsupported(Unsupported::UnsafeVertex),
+        ),
     ] {
         mesh.first = first;
         mesh.indices = indices;
@@ -390,6 +429,46 @@ fn missing_mesh_data_is_explicit_error_not_a_false_box_fallback() {
         }];
         assert_eq!(get_points_on_model(1, &instances, &SEEDS), Err(expected));
     }
+}
+
+#[test]
+fn physical_backing_not_primitive_count_limits_the_final_triple() {
+    // First triple twice-area 16, second 48. r=.5*64 selects second.
+    // A count of four still reads all SIX physical words; offset 100 is ignored.
+    let mesh = TestMesh {
+        vertices: vec![
+            [0., 0., 0.],
+            [4., 0., 0.],
+            [0., 0., 4.],
+            [100., 0., 0.],
+            [112., 0., 0.],
+            [100., 0., 4.],
+        ],
+        indices: vec![0, 1, 2, 3, 4, 5],
+        first: Some(100..104),
+    };
+    let meshes: [&dyn Mesh; 1] = [&mesh];
+    let instances = [ModelInstance::MeshContainer {
+        transform: Xform::default(),
+        meshes: &meshes,
+    }];
+    assert_eq!(
+        get_points_on_model(1, &instances, &SEEDS).unwrap().unwrap()[0].position,
+        [103., -1., 1.]
+    );
+    let short = TestMesh {
+        indices: vec![0, 1, 2, 3, 4],
+        ..mesh
+    };
+    let meshes: [&dyn Mesh; 1] = [&short];
+    let instances = [ModelInstance::MeshContainer {
+        transform: Xform::default(),
+        meshes: &meshes,
+    }];
+    assert_eq!(
+        get_points_on_model(0, &instances, &SEEDS),
+        Err(PlacementError::Unsupported(Unsupported::UnsafeIndex))
+    );
 }
 
 #[test]
@@ -525,9 +604,11 @@ fn view_repositions_model_flames_without_recreation_and_hides_once() {
     assert_eq!(
         events,
         vec![
-            Event::Apply(1, *fire.flames()[0].transform()),
+            Event::Apply(1, temporary([1., -1., 1.])),
+            Event::Apply(1, temporary([101., -1., 1.])),
             Event::Stop(1),
-            Event::Apply(2, *fire.flames()[1].transform()),
+            Event::Apply(2, temporary([1., -1., 1.])),
+            Event::Apply(2, temporary([101., -1., 1.])),
             Event::Stop(2)
         ]
     );
@@ -669,9 +750,12 @@ fn zero_area_is_not_filtered_and_nonfinite_area_is_an_explicit_error() {
             transform: Xform::default(),
             meshes: &meshes,
         }];
-        let point = get_points_on_model(1, &instances, &SEEDS).unwrap().unwrap()[0];
-        assert!(point.position.iter().all(|value| value.is_nan()));
-        assert_eq!((point.wall, point.side), (false, 3));
+        // FF3 DIFFERS: native masked exceptions produce NaNs and unordered
+        // selection. That nonnormal domain is explicitly unimplemented here.
+        assert_eq!(
+            get_points_on_model(1, &instances, &SEEDS),
+            Err(PlacementError::Unsupported(Unsupported::DegenerateNormal))
+        );
     }
     mesh.vertices[0][0] = f32::NAN;
     let meshes: [&dyn Mesh; 1] = [&mesh];
@@ -681,7 +765,7 @@ fn zero_area_is_not_filtered_and_nonfinite_area_is_an_explicit_error() {
     }];
     assert_eq!(
         get_points_on_model(1, &instances, &SEEDS),
-        Err(PlacementError::NoSelectableTriangle)
+        Err(PlacementError::Unsupported(Unsupported::Numeric))
     );
 }
 

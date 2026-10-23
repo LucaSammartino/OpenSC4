@@ -31,26 +31,47 @@ pub struct FireFlames<E: VisualEffect> {
     top_count: u32,
     side_count: u32,
     initial: FlameInitial,
-    stage: Option<Stage>,
+    stage: i32,
+    initialized: bool,
     on_model: bool,
     flames: Vec<Flame<E>>,
 }
 
 impl<E: VisualEffect> FireFlames<E> {
-    /// Portable composition, not the unpublished native constructor (FF2).
+    /// Visual composition only: use FlameInitial::native with the required
+    /// shared position word for fresh allocations. No full FireOccupant claim.
     pub fn new(top_count: u32, side_count: u32, initial: FlameInitial) -> Self {
         Self {
             top_count,
             side_count,
             initial,
-            stage: None,
+            stage: -1,
+            initialized: false,
             on_model: false,
             flames: Vec::new(),
         }
     }
 
     pub fn stage(&self) -> Option<Stage> {
+        Stage::new(self.stage as u32)
+    }
+    pub fn raw_stage(&self) -> i32 {
         self.stage
+    }
+    pub fn shutdown(&mut self) -> bool {
+        if !self.initialized {
+            return true;
+        }
+        for flame in &mut self.flames {
+            flame.shutdown();
+        }
+        self.flames.clear();
+        true
+    }
+    /// Native direct destruction has no effect-pointee walk. Transfer creation
+    /// references to the caller instead of representing it as Rust RAII Drop.
+    pub fn destroy_storage(self) -> Vec<E> {
+        self.flames.into_iter().filter_map(Flame::into_effect).collect()
     }
     pub fn on_model(&self) -> bool {
         self.on_model
@@ -73,7 +94,7 @@ impl<E: VisualEffect> FireFlames<E> {
             self.on_model = true;
             for point in points {
                 let mut flame = Flame::from_initial(self.initial);
-                flame.place(point.position, point.wall, point.side, placement.view_level);
+                flame.place_model(point.position, point.wall, point.side, placement.view_level)?;
                 self.flames.push(flame);
             }
         } else {
@@ -86,6 +107,7 @@ impl<E: VisualEffect> FireFlames<E> {
                 if placement.target_type == FLORA_TYPE {
                     position[1] = min[1];
                 } else if index < self.top_count {
+                    wall = false;
                     position[1] = (max[1] - 1.0).max(min[1]);
                     if self.top_count > 1 {
                         position[0] = placement
@@ -114,7 +136,7 @@ impl<E: VisualEffect> FireFlames<E> {
                     position[1] = placement.fire_random.range_f64(f64::from(min[1]), f64::from(max[1])) as f32;
                 }
                 let mut flame = Flame::from_initial(self.initial);
-                flame.place(position, wall, side, placement.view_level);
+                flame.place(position, wall, side, placement.view_level)?;
                 self.flames.push(flame);
             }
         }
@@ -128,8 +150,20 @@ impl<E: VisualEffect> FireFlames<E> {
         placement: &mut Placement<'_>,
         factory: &mut impl EffectFactory<Effect = E>,
     ) -> Result<(), PlacementError> {
-        if self.stage != Some(stage) {
-            self.stage = Some(stage);
+        self.set_raw_stage(stage.value() as i32, placement, factory)
+    }
+
+    pub fn set_raw_stage(
+        &mut self,
+        stage: i32,
+        placement: &mut Placement<'_>,
+        factory: &mut impl EffectFactory<Effect = E>,
+    ) -> Result<(), PlacementError> {
+        if self.stage != stage {
+            self.stage = stage;
+            if Stage::new(stage as u32).is_none() {
+                return Err(PlacementError::Unsupported(super::Unsupported::EffectTable));
+            }
             if self.flames.is_empty() {
                 self.create_flames(placement)?;
             }
@@ -139,7 +173,7 @@ impl<E: VisualEffect> FireFlames<E> {
     }
 
     /// §4: base Init, group membership, then Update(stage) for existing flames.
-    /// FF2 records the conflicting "builds flames" summary in disasters §5.11.
+    /// Settled FF2: this does not itself create flames.
     pub fn init(
         &mut self,
         base: &mut impl OccupantInit,
@@ -147,14 +181,15 @@ impl<E: VisualEffect> FireFlames<E> {
     ) -> Result<(), PlacementError> {
         base.init();
         base.join_group(FIRE_OCCUPANT_GROUP);
+        self.initialized = true;
         self.update_all(factory)
     }
 
     fn update_all(&mut self, factory: &mut impl EffectFactory<Effect = E>) -> Result<(), PlacementError> {
         if !self.flames.is_empty() {
-            let stage = self.stage.ok_or(PlacementError::UnpublishedInitialStage)?;
+            let stage = self.stage().ok_or(PlacementError::UnpublishedInitialStage)?;
             for flame in &mut self.flames {
-                flame.update(stage, factory);
+                flame.update(stage, factory)?;
             }
         }
         Ok(())
@@ -168,7 +203,7 @@ impl<E: VisualEffect> FireFlames<E> {
             if let Some(points) = get_points_on_model(count, placement.instances, placement.seeds)? {
                 if points.len() == self.flames.len() {
                     for (flame, point) in self.flames.iter_mut().zip(points) {
-                        flame.place(point.position, point.wall, point.side, placement.view_level);
+                        flame.place(point.position, point.wall, point.side, placement.view_level)?;
                     }
                 }
             }
