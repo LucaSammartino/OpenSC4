@@ -1,119 +1,67 @@
-# Animated sprite owner: WIP
+# Animated sprite owner
 
-Clean-room source: `docs/specs/animated-sprite.md` §§1–6/10;
-`model-instances.md` §§1/6; `view-utilities.md` §7 (transform algebra,
-triangle fan/pick primitive); `camera.md` §1.3 (rotation inverse).
+Clean-room behavior source: `docs/specs/animated-sprite.md`. Core only: no C ABI,
+plugin wiring, native pointer layout, replacement/shadow claim or resource parser.
+Renderer, resource acquisition and TrianglePick remain foreign interfaces.
 
-This is **not a complete owner replacement**. No C ABI, plugin, shadow,
-replacement map, resource reader/factory, or model_instances changes are made.
-AS1 remains unanswered; AS3–AS9 request the contracts needed to finish the
-requested 60-function owner. No missing native body is replaced by a provider.
-The native full 60-function inventory cannot be reconstructed from the published
-spec: the table below accounts for every public method it actually names.
+The owner is **WIP** while the spec's open numeric, provenance and inventory
+questions remain. Settled state and transaction contracts are implemented here.
+The safe exact-dyadic numeric path rejects inexact transients/stores rather than
+choosing host trig. Its signed-zero rules are conditional nearest-even rules;
+whole-call PC/RC and native qualification remain open under AS6/AS7.
+Nonzero hardware trig is explicitly Unsupported under AS6. There is no unsafe
+code, original-owner callback, computed-quad provider or guessed native success.
 
-## Public method reconciliation
+`AnimatedSprite::default` implements published initialized fields. Uninitialized
+zoom scales/metrics use `None`; the unpublished initial local-corner global is
+not exposed as valid geometry. The initial draw vertex block is zero/white.
+`from_snapshot` remains available for independently supplied state.
+The shared draw record aliases flags, highlight and fade alpha. Both setter
+surfaces stay synchronized; snapshot import takes the named fields as authoritative.
+Shade words default to one. The two unwritten base-record bytes use a documented
+portable zero choice and are preserved after any supplied record.
 
-| Published owner method | Implementation / remaining contract |
-|---|---|
-| Constructor / deleting destructor | Explicit `from_snapshot`; Rust destruction and arena final release drop counted data/owner references. Native defaults, initial count and allocator ABI absent: AS3. |
-| Sprite slot 0 (shared body) | Body/IIDs absent: AS3. Only the separately published basic IID behavior is implemented. |
-| SetPosition (slot 1) | Missing counter/kind/cache rules: AS3; no fabricated setter. |
-| LookAt / SetOrientation (2–3) | Missing target/direction/axis/Euler order and unset-component rule: AS6. |
-| Point/vector transforms and inverses (4–7) | `Transform::{point,vector,inverse_point,inverse_vector}` implement published kind-dependent algebra. Snapshot supplies rotation; inverse requires a rotation matrix, not a shear. |
-| SetView (8) | `set_view`, raw bytes; changes dirty the frame. |
-| SetAnimation (9) | Sequence representation, first-frame application and transition rules absent: AS1/AS5/AS6. |
-| SetFrame / GetFrame / GetFrameCount (10–12) | Modulo setter with explicit sequence length; snapshot/frame table expose values. Native selected-sequence state absent: AS5. Zero length is an error. |
-| AdvanceFrame (13) | Explicitly unsequenced path, forward loop/end/ping-pong and reverse interior. Reverse lower boundary is an error pending AS5, not an invented body. |
-| SetRate (14) | Explicit raw rate only. Sentinel resolution absent: AS5; no time conversion. |
-| Tick (15) | Explicitly unsequenced raw-unit clock; prescribed skip/no-skip quirk. Unresolved sentinels/non-progressing paths error transactionally. Native return codes other than documented 2 absent: AS5. |
-| SetPlayMode (16) | Raw byte setter; extra side effects unspecified: AS5. |
-| Shared slot 17 (always zero) | Published constant, no named API invented. |
-| SetFade / SetHighlight / SetSelfLit (18–20) | §4.4 completing-comparison contracts, byte truncation/raw self-lit byte, returns and unrelated state preservation. Bool self-lit adapter retained. No nonfinite whole-call or trap-mode guarantee. |
-| LoadFromResource / Load (21–22) | Typed foreign zoom prefix acquisition, IID 0x69B6F01C and stop-first-missing. Prefix is not reported as native Load success. Native return/reset/key/lifetime rules absent: AS4. |
-| GetTextureResourceData / GetTextureData | Direction equation, decoded record lookup, page-edge UV/flip and scale helpers. Native bytes, camera angles and packing absent: AS1/AS6. |
-| GetTransform / SetTransform | Snapshot getter/algebra; setter counter semantics absent: AS3. |
-| UpdateView | Owned §5.1 exact-stage finite quad and reset/reflected box, using stored decoded/scaled metrics and raw camera primitives. Other numeric regions explicitly Unsupported. |
-| Draw / Draw thunk | Owned cache invalidation, full-integer context comparisons, low-byte holder use, translation and individual context-call protocol. Refresh selection supports only the explicit zero-angle single-orientation raw-record domain below. No native thunk/ABI or complete owner claim. |
-| Pick / Pick thunk | Owned stale translated-vertex fan selection with first-hit short circuit; only the individual foreign TrianglePick primitive is delegated. No refresh or visibility rejection. |
-| GetAnimatedModelFromResourceKey / GetMeshAnimFromResourceKey / GetSpriteAnimFromResourceKey | `creation_route` retains the published swapped-looking type routing. No fake successful factory/load operation: AS4. |
+## Owner closure
 
-## Basic-instance contract
+Every row concerns `cS3DModelInstanceAnimatedSprite`. Tests below are Rust tests
+in `tests.rs`, `contract_tests.rs` or `closure_tests.rs`; conditional tests are
+implementation checks, never claims of native execution.
 
-`SpriteArena` implements the published 16-bit reference count, acquired basic
-interfaces (IIDs 1 and 0x26A68449), and most-derived final destruction. Initial
-count is explicit; overflow fails without mutation (AS3). Handles are monotonic
-Rust storage identities, not native addresses. The owner reference uses `Arc`;
-its borrowed getter does not acquire another reference. The core never calls a
-native Release on a borrowed pointer.
+| Spec section | Code item | Covering test / explicit open boundary |
+|---|---|---|
+| 0 Summary | `AnimatedSprite`, cached quad pipeline | `clean_cache_protocol_and_ignored_false_returns`; open: AS6/AS7 numeric qualification |
+| 1 Object/draw state | `DrawState::SPRITE`, `material` | `fade_bounds_nan_and_material_constants` |
+| 1.1 Defaults/lifetime | `InstanceState::default`, `AnimatedSprite::default`, `SpriteArena` | `defaults_shared_surface_copies_and_equal_position_counter_wrap`, `references_wrap_unknown_iid_preserves_and_zero_release_destroys`, `basic_query_addrefs_and_last_release_drops_owner_and_zooms`; open: AS3 unpublished initial corners/native allocator inventory |
+| 2 Creation/loading | `creation_route`, `create_sprite_from_key`, `load` | `resource_routes_keep_native_name_swap`, `load_transaction_repeated_prefix_binding_and_counted_lifetimes`; open: AS11 foreign factory IID/transfer |
+| 2.1 Load transaction | `load_from_resource`, `OwnerResources`, `ZoomSlot`, `derive_metrics` | `load_transaction_repeated_prefix_binding_and_counted_lifetimes`; open: AS4/AS6 malformed/numeric qualification |
+| 3 Sprite interface | position/view/frame/rate/playback/material methods | `view_and_frame_dirty_and_independent_flags`, `sequence_absolute_frames_boundary_equality_and_independent_clock_direction`; slot 0/native interface adjustment belongs to ABI, not a Rust pointer cast |
+| 3.1 Placement | `set_position`, `set_transform`, `get_transform`, `look_at`, `set_orientation`, `Transform` | `defaults_shared_surface_copies_and_equal_position_counter_wrap`, `noncommuting_transform_and_inverse_do_not_translate_vectors`; open: AS6 hardware trig/PC-RC and AS10 LookAt spills |
+| 3.1.1 Mask-1 schedule | `placement::stage`, zero-angle `set_orientation` | `conditional_stage_permutations_old_sources_and_signed_zero`; open: AS6 hardware transients/PC-RC |
+| 3.1.2 Partial stages/CFG | `placement::stage`, `set_orientation` | `conditional_direction_conversion_and_all_zero_angle_masks`, `conditional_stage_permutations_old_sources_and_signed_zero`; open: AS6 general PC-RC schedule execution |
+| 3.1.3 Full-mask schedule | full replacement branch in `set_orientation` | `conditional_direction_conversion_and_all_zero_angle_masks`; open: AS6 nonzero primitive transients |
+| 3.1.4 Conditional analytic vectors | exact permutation/zero subdomain of `stage` | `conditional_stage_permutations_old_sources_and_signed_zero`; open: AS6 R3-C/L mode-dependent cancellations and nonzero full R3-M; no invented angle reachability |
+| 3.2 Shared interface | owner/custom/properties/attributes, bounds/world bounds, sort/resource getters | `owner_replacement_counts_and_getters_are_shared_thread_safe`, `defaults_shared_surface_copies_and_equal_position_counter_wrap`, `shared_draw_record_aliases_material_fields_and_preserves_opaque_bytes`; open: AS3 exact native inventory/thunks, AS7 numeric getter qualification |
+| 3.3 Evidence inventory | no separate executable behavior | open: AS3 exact 60-function accounting; foreign camera/context bodies are not implemented here |
+| 4 Animation/clock | `Playback`, `tick`, `advance_frame`, `set_rate` | `vector_clock_raw_units_skip_and_no_skip`, `literal_reverse_single_frame_and_stopped_dirty_vectors`; open: AS5/AS6 numeric qualification; divergence returns a safe diagnostic, not a native status |
+| 4.1 Lookup/packing | `derive_metrics`, `select_angles`, `decode_entry_exact`, `convert_bin_nearest_even` | `raw_decoder_literal_packing_flips_scale_and_rejection`, `conditional_direction_conversion_and_all_zero_angle_masks`; open: AS6/AS7 general PC-RC and AS10 Draw angle-result boundaries |
+| 4.2 Exact stepping/returns | raw-byte setters, bidirectional `step`, `tick_with`, `TickResult::status` | `literal_reverse_single_frame_and_stopped_dirty_vectors`, `sentinel_nonfinite_and_nonprogress_clock_fail_transactionally` |
+| 4.3 Controller boundary | `SequenceController`, `set_animation`, `select_frame`, `advance_frame` | `sequence_absolute_frames_boundary_equality_and_independent_clock_direction`; open: AS1 controller provenance; snapshot is not a native allocation or ownership claim |
+| 4.4 Fade/highlight/self-light | `set_fade`, `set_highlight`, `set_self_lit_raw` | `setters_literal_completing_paths_and_unrelated_state`; open: AS7 unmasked/nonfinite whole-call qualification |
+| 5 Drawing | `draw`, `draw_loaded`, `update_view_exact` | `clean_cache_protocol_and_ignored_false_returns`; open: AS6/AS7/AS10 numeric selection/geometry |
+| 5.1 Quad/local box | `update_view_exact`, `update_stored_view_exact` | `independently_transcribed_q1_q2_q3_q4_q5`, `stored_metric_suboperation_shrinks_without_scale_rotation_or_dirty_changes`; open: AS7 mode-dependent numeric/malformed domain |
+| 5.2 Cache/draw protocol | `draw`, `SpriteCache`, `SpriteDrawContext` | `cache_staleness_dirty_frame_only_and_counter_wrap`, `full_context_comparison_early_exit_and_unsupported_refresh`, `clean_cache_protocol_and_ignored_false_returns` |
+| 6 Picking | `pick_cached`, `pick_quad`, `TrianglePicker` | `pick_uses_stale_vertices_and_actual_second_result`, `picking_short_circuits_and_uses_fan_triangles` |
+| 7 Users | no owner behavior; resource attribution | open: AS2 shipped usage |
+| 8 Quirks | native type routing, byte frames, no-skip clock | `resource_routes_keep_native_name_swap`, `frame_narrows_without_modulo_or_empty_check`, `no_skip_exact_two_differs_from_below_two` |
+| 9 Open questions | explicit Unsupported / snapshot boundaries | AS1-AS7/AS9 retained qualifications, AS10/AS11 appended; no claimed complete native owner |
+| 10.1 Zoom | signed early exit and actual Draw call protocol | `full_context_comparison_early_exit_and_unsupported_refresh`, `clean_cache_protocol_and_ignored_false_returns` |
+| 10.2 Direction | literal B conversion and zero-angle selector | `conditional_direction_conversion_and_all_zero_angle_masks`; open: AS6 general numeric mode |
+| 10.3 Loop | bidirectional loop and ping-pong | `vector_last_frame_loop_and_ping_pong`, `literal_reverse_single_frame_and_stopped_dirty_vectors` |
+| 10.4 Clock | skip/no-skip advancement and remainder | `vector_clock_raw_units_skip_and_no_skip` |
+| 10.5 Geometry/cache/orientation | Q1-Q5 and exact placement subdomain | `independently_transcribed_q1_q2_q3_q4_q5`, `cache_staleness_dirty_frame_only_and_counter_wrap`; open: AS6 R2-R1/R2/R3 nonzero hardware angles |
+| 10.6 Finite schedules | conditional primitive permutations and signed zeros | `conditional_stage_permutations_old_sources_and_signed_zero`; open: AS6 R3-C/L PC-RC-sensitive and full nonzero R3-M |
 
-Custom data, properties and the 20-byte draw attributes are owned/copied values.
-Getters use `&self`, without RefCell. Native derived GetWorldBounds/GetBounds,
-GetSortValue, GetResModel and their pre-load behavior remain unpublished (AS9),
-so no placeholder success/sort value/resource null is supplied.
-
-## Foreign boundary
-
-`AnimationRecord`, `SpriteTable`, `FrameEntry`, `TextureHandle` and `Arc` records
-are decoded foreign **data**, not resource-owner implementations. A provider
-only acquires a table by key/interface; it cannot compute sprite vertices,
-choose animation frames, step clocks or perform original owner methods.
-Direction-major typed entries are an explicit Rust data representation, not a
-claim about the native eight-byte layout. No factory parsing or source-zoom
-selection is duplicated from the separate resource lane.
-
-`billboard_corners` specifies its anchor explicitly; it does not silently bind
-that convention to native offsets. `Transform` algebra and metric quads are
-independent components until AS6/AS7 permit complete native owner integration.
-
-## Verification
-
-The 29-test paragraph below records the inherited component suite, not the
-current gate. New literal public-contract vectors and current measurements are
-recorded in the lane report and engine/conformance/animated-sprite-contracts.md.
-
-## Qualified cached algorithms
-
-The new cached path does not use the old provisional direction-major
-SpriteTable selector or billboard helper. Those remain portable components,
-not native SetOrientation or published resource-selection implementations.
-
-Callers explicitly install current stored cache state; this is a portable
-suboperation input, not a factory/default/load claim. UpdateView computes
-geometry itself from W/H/offsets and raw camera rows, magnification, and mpp
-or already rounded GetViewVolume endpoints. Scale has already affected metrics.
-Only arithmetic whose every stage is exact is admitted: nonzero operands and
-results must have magnitude in [2^-12,2^12], and rational divisions must be
-exact. This conservative subset makes the distinct native store boundaries
-irrelevant to admitted results. Other finite inputs return Unsupported.
-Signed-zero payloads are not promised. No x87 control-word closure is claimed.
-
-Dirty Draw refresh supports raw holder divisors [1,1,1], angle limits
-[binary32 pi, binary32 pi, 0, 0], owner back column (0,0,1), and low rotation
-zero. Then asin/atan2 inputs have exact zero results, P=R=1, and both selector
-B conversions receive zero. The engine selects entry zero and decodes its
-published eight bytes, including temporal frame packing, page, UV flips and
-qualified scale. This is an explicit narrow domain, not generic trig or
-native-angle goldens. Other orientation/holder domains return Unsupported.
-Clean cache draws do not run this selector. Out-of-range holders, absent
-resources, malformed packing and texture bounds are checked portable errors;
-native fault behavior and fault-time partial writes are outside this API.
-
-Draw takes raw context and shade-state snapshots and invokes individual
-foreign primitives; hosts never select a frame or return an entire quad/Draw.
-All boolean callback returns are ignored. Only ResetShade/ResetTransparency
-run at the end; no saved-state restoration or fault rollback is promised.
-The owned repr(C) vertex has position/colour/UV and stride 24; it is not a
-borrowed native instance layout, C ABI export or persistence schema.
-
-AS1/2/3/4/5/6/7/9 whole-call, resource, control-word, trig, controller,
-lifetime and default questions remain. The 60-function/10482-byte catalogue
-is unreconciled. Native/game owner coverage remains UNEXECUTED.
-
-29 Rust unit tests cover the five §10 scenarios at the supported component
-level, raw timing thresholds at 1/2, residual timing, looping/reversal/failure,
-asymmetric direction/base/zoom/UV/offset/flags, noncommuting transform and inverse,
-fan picking order, missing/invalid resources, repeated resource adoption, shared
-getters, counted owner replacement, reference overflow and final-release cleanup.
-The zoom vector checks visibility, not a fabricated draw-command count. These
-are executable Rust vectors; no complete owner conformance or game shadow is
-claimed while AS3–AS9 remain open.
+Legacy helpers (`direction_index`, decoded `SpriteTable`, `FrameEntry`,
+`billboard_corners`, zoom-prefix adoption) remain source conveniences. The owner
+Draw/load path uses the raw consumer/transaction rules above; those helpers are
+not evidence of the native record selection or successful Load contract.

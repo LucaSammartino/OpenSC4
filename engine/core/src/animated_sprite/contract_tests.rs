@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Independent literal transcription of public §§4.4,5,6; native UNEXECUTED.
+// Independent literal transcription of public Â§Â§4.4,5,6; native UNEXECUTED.
 use super::*;
 
 const Q_CAMERA: [[f32; 3]; 3] = [[0.5, -0.5, 0.5], [0.0, 0.5, 1.0], [-0.5, -0.5, 0.5]];
@@ -42,8 +42,10 @@ fn setters_literal_completing_paths_and_unrelated_state() {
     ];
     for (on, input, enabled, output) in cases {
         let mut s = cached_sprite();
-        s.state.flags = 0xfa;
-        s.state.alpha = 0.375;
+        let mut attributes = *s.draw_attributes();
+        attributes[0] = 0xfa;
+        attributes[16..20].copy_from_slice(&0.375_f32.to_le_bytes());
+        s.set_draw_attributes(attributes);
         s.frame_dirty = false;
         s.cache.as_mut().unwrap().view_dirty = true;
         let cache_before = s.cache;
@@ -53,6 +55,8 @@ fn setters_literal_completing_paths_and_unrelated_state() {
         assert_eq!(s.state.flags, 0xf8 | if enabled { 2 } else { 0 });
         s.state.alpha = before.alpha;
         s.state.flags = before.flags;
+        s.state.draw_attributes[0] = before.draw_attributes[0];
+        s.state.draw_attributes[16..20].copy_from_slice(&before.draw_attributes[16..20]);
         assert_eq!(s.state, before);
         assert!(!s.frame_dirty);
         assert_eq!(s.cache, cache_before);
@@ -87,7 +91,7 @@ fn setters_literal_completing_paths_and_unrelated_state() {
 
 #[test]
 fn raw_decoder_literal_packing_flips_scale_and_rejection() {
-    // Public §4.1 vector; UV/page expectations are literal, not derived here.
+    // Public Â§4.1 vector; UV/page expectations are literal, not derived here.
     let (m, uv) = decode_entry_exact([2, 6, 48, 32, 16, 240, 253, 4], 5, 2.0).unwrap();
     assert_eq!(
         m,
@@ -104,7 +108,7 @@ fn raw_decoder_literal_packing_flips_scale_and_rejection() {
         Err(Unsupported::Packing)
     );
     let mut c = camera(2.0);
-    c.matrix[1][1] = 3.0; // 2/3 is outside the exact-stage domain.
+    c.matrix[1][1] = 3.0; // PC/RC-sensitive stores remain explicitly open.
     assert_eq!(update_view_exact(metric(), c), Err(Unsupported::Arithmetic));
     c = camera(2.0);
     c.mpp = MetresPerPixel::ViewVolume {
@@ -441,6 +445,7 @@ fn full_context_comparison_early_exit_and_unsupported_refresh() {
     assert!(ctx.calls.is_empty());
     input.zoom = 2;
     input.rotation = 1;
+    s.state.transform.rotation[2] = 0.5;
     assert_eq!(s.draw(input, resources, &mut ctx), Err(Unsupported::Selection));
     assert!(ctx.calls.is_empty());
 }

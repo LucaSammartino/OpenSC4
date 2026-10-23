@@ -1,22 +1,26 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Specified parts of the animated sprite instance owner.
 //!
-//! Source: `docs/specs/animated-sprite.md` §§1–6, 10 and the published
-//! basic-instance/foreign-resource contracts in `model-instances.md` §§1, 6.
+//! Source: `docs/specs/animated-sprite.md` Â§Â§1â€“6, 10 and the published
+//! basic-instance/foreign-resource contracts in `model-instances.md` Â§Â§1, 6.
 //! This module is WIP, not a complete native-owner replacement. See README.md
-//! for the public method inventory and AS3–AS9 for blocking contract holes.
+//! for the public method inventory and AS3â€“AS9 for blocking contract holes.
 //! Getters use shared borrows; no RefCell or original-owner callbacks.
 
 mod cached;
 mod frames;
 mod geometry;
 mod lifetime;
+mod loading;
+mod numeric;
+mod placement;
 mod playback;
 
 pub use cached::*;
 pub use frames::*;
 pub use geometry::*;
 pub use lifetime::*;
+pub use loading::*;
 pub use playback::*;
 
 use std::sync::Arc;
@@ -25,9 +29,11 @@ pub const FLAG_HIGHLIGHT: u8 = 1;
 pub const FLAG_FADE: u8 = 2;
 pub const FLAG_SELF_LIT: u8 = 4;
 pub const BASIC_INSTANCE_IID: u32 = 0x26a6_8449;
+pub const SPRITE_INSTANCE_IID: u32 = 0xa818_edd8;
 
-/// Constructor defaults other than the draw state are unpublished (AS3).
-/// An explicit snapshot avoids claiming invented native initial values.
+/// Published constructor state, or an explicit source-level snapshot.
+/// The duplicated flags/highlight/alpha fields are authoritative on import;
+/// their bytes in the shared draw record are synchronized by the owner.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct InstanceState {
     pub playback: Playback,
@@ -52,16 +58,23 @@ pub struct AnimatedSprite<O> {
     zooms: Vec<LoadedZoom>,
     frame_dirty: bool,
     cache: Option<SpriteCache>,
+    pub(crate) loaded: OwnerResources,
+    pub(crate) sequence: Option<SequenceController>,
 }
 
 impl<O> AnimatedSprite<O> {
-    pub fn from_snapshot(state: InstanceState, owner: Option<Arc<O>>) -> Self {
+    pub fn from_snapshot(mut state: InstanceState, owner: Option<Arc<O>>) -> Self {
+        state.draw_attributes[0] = state.flags;
+        state.draw_attributes[1] = state.highlight as u8;
+        state.draw_attributes[16..20].copy_from_slice(&state.alpha.to_le_bytes());
         Self {
             state,
             owner,
             zooms: Vec::new(),
             frame_dirty: true,
             cache: None,
+            loaded: OwnerResources::default(),
+            sequence: None,
         }
     }
 
@@ -91,6 +104,9 @@ impl<O> AnimatedSprite<O> {
     }
     pub fn set_draw_attributes(&mut self, value: [u8; 20]) {
         self.state.draw_attributes = value;
+        self.state.flags = value[0];
+        self.state.highlight = u32::from(value[1]);
+        self.state.alpha = f32::from_le_bytes(value[16..20].try_into().unwrap());
     }
     pub fn transform(&self) -> Transform {
         self.state.transform
@@ -117,10 +133,8 @@ impl<O> AnimatedSprite<O> {
         }
     }
 
-    pub fn set_frame(&mut self, frame: u32, sequence_length: u32) -> Result<(), PlaybackError> {
-        self.state.playback.set_frame(frame, sequence_length)?;
-        self.frame_dirty = true;
-        Ok(())
+    pub fn set_frame(&mut self, frame: u32, _sequence_length: u32) -> Result<(), PlaybackError> {
+        self.select_frame(frame as i32).map(|_| ())
     }
 
     pub fn advance_unsequenced(&mut self, frame_count: u32) -> Result<bool, PlaybackError> {
@@ -139,20 +153,18 @@ impl<O> AnimatedSprite<O> {
         self.state.playback.play_mode = mode;
     }
 
-    /// Raw rate. Sentinel resolution is deliberately separate: §4 only infers
-    /// what SetRate(-200) means, and does not define the resource field (AS5).
+    /// Â§4.2 stores every bit, including sentinels and nonfinite inputs.
     pub fn set_explicit_rate(&mut self, rate: f32) -> Result<(), PlaybackError> {
-        if rate == -100.0 || rate == -200.0 {
-            return Err(PlaybackError::RateSentinel);
-        }
-        if !rate.is_finite() {
-            return Err(PlaybackError::NonFinite);
-        }
         self.state.playback.rate = rate;
         Ok(())
     }
 
-    /// §4.4, conditional on completing comparisons (no trap-mode guarantee).
+    pub fn set_rate(&mut self, rate: f32) -> u32 {
+        self.state.playback.rate = rate;
+        2
+    }
+
+    /// Â§4.4, conditional on completing comparisons (no trap-mode guarantee).
     pub fn set_fade(&mut self, on: bool, alpha: f32) -> u32 {
         if on && alpha == -100.0 {
             return 2;
@@ -165,6 +177,7 @@ impl<O> AnimatedSprite<O> {
             self.state.alpha = 1.0;
             self.set_flag(FLAG_FADE, false);
         }
+        self.state.draw_attributes[16..20].copy_from_slice(&self.state.alpha.to_le_bytes());
         2
     }
 
@@ -175,11 +188,12 @@ impl<O> AnimatedSprite<O> {
         // The existing u32 snapshot field is retained for source consumers;
         // its setter stores a byte, not a native-layout or ABI declaration.
         self.state.highlight = u32::from(index as u8);
+        self.state.draw_attributes[1] = index as u8;
         self.set_flag(FLAG_HIGHLIGHT, index != 0);
         2
     }
 
-    /// Ordinary source adapter; use the raw-byte method for §4.4 inputs.
+    /// Ordinary source adapter; use the raw-byte method for Â§4.4 inputs.
     pub fn set_self_lit(&mut self, on: bool) -> u32 {
         self.set_self_lit_raw(u8::from(on))
     }
@@ -198,6 +212,7 @@ impl<O> AnimatedSprite<O> {
         } else {
             self.state.flags &= !flag;
         }
+        self.state.draw_attributes[0] = self.state.flags;
     }
 
     /// Cached-zoom convenience for ordinary source consumers. Draw uses the
@@ -216,7 +231,7 @@ impl<O> AnimatedSprite<O> {
     }
 }
 
-/// §1: symbolic constants avoid inventing native driver enum encodings.
+/// Â§1: symbolic constants avoid inventing native driver enum encodings.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DrawState {
     pub colour_write: bool,
@@ -275,5 +290,7 @@ impl MaterialState {
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod closure_tests;
 #[cfg(test)]
 mod contract_tests;

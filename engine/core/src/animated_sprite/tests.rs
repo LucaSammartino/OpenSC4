@@ -101,7 +101,7 @@ impl SpriteResources for Resources {
     }
 }
 
-// §10's five prescribed vectors, each independently asserted.
+// Â§10's five prescribed vectors, each independently asserted.
 #[test]
 fn vector_zoom_one_suppressed_two_visible() {
     let mut s = sprite();
@@ -191,20 +191,19 @@ fn no_skip_exact_two_differs_from_below_two() {
 }
 
 #[test]
-fn frame_modulo_and_empty_failure_without_mutation() {
+fn frame_narrows_without_modulo_or_empty_check() {
     let mut p = playback();
     p.set_frame(14, 5).unwrap();
-    assert_eq!(p.frame, 4);
-    let before = p;
-    assert_eq!(p.set_frame(3, 0), Err(PlaybackError::EmptySequence));
-    assert_eq!(p, before);
+    assert_eq!(p.frame, 14);
+    assert_eq!(p.set_frame(259, 0), Ok(()));
+    assert_eq!(p.frame, 3);
 }
 
 #[test]
 fn clock_never_converts_elapsed_and_rate_zero_does_nothing() {
     let mut p = playback();
-    p.rate = 0.001;
-    p.tick_unsequenced(1000.0, 10).unwrap();
+    p.rate = 1.0 / 1024.0;
+    p.tick_unsequenced(1024.0, 10).unwrap();
     assert_eq!(p.frame, 1);
     p.rate = 0.0;
     p.position = 2.5;
@@ -214,32 +213,28 @@ fn clock_never_converts_elapsed_and_rate_zero_does_nothing() {
 }
 
 #[test]
-fn reverse_interior_and_unpublished_endpoint() {
+fn reverse_interior_and_loop_endpoint() {
     let mut p = playback();
     p.frame = 3;
     p.direction = -1;
-    p.tick_unsequenced(0.15, 10).unwrap();
+    p.tick_unsequenced(0.125, 10).unwrap();
     assert_eq!(p.frame, 2);
-    assert_eq!(p.position, -0.5);
+    assert_eq!(p.position, -0.25);
     p.frame = 0;
-    let before = p;
-    assert_eq!(
-        p.advance_unsequenced(10),
-        Err(PlaybackError::ReverseBoundaryUnspecified)
-    );
-    assert_eq!(p, before);
+    assert_eq!(p.advance_unsequenced(10), Ok(true));
+    assert_eq!(p.frame, 9);
 }
 
 #[test]
 fn stopped_and_single_frame_do_not_invent_changes() {
     let mut p = playback();
     p.direction = 0;
-    assert_eq!(p.advance_unsequenced(10), Ok(false));
+    assert_eq!(p.advance_unsequenced(10), Ok(true));
     let mut p = playback();
     assert_eq!(p.advance_unsequenced(1), Ok(false));
     p.frame = 3;
     p.play_mode = 1;
-    assert_eq!(p.advance_unsequenced(4), Ok(false));
+    assert_eq!(p.advance_unsequenced(4), Ok(true));
     assert_eq!((p.direction, p.position), (0, 0.0));
 }
 
@@ -248,9 +243,10 @@ fn sentinel_nonfinite_and_nonprogress_clock_fail_transactionally() {
     for rate in [-100.0, -200.0] {
         let mut p = playback();
         p.rate = rate;
-        let before = p;
-        assert_eq!(p.tick_unsequenced(1.0, 10), Err(PlaybackError::RateSentinel));
-        assert_eq!(p, before);
+        p.frame_skipping = false;
+        assert_eq!(p.tick_unsequenced(1.0, 10).unwrap().status(), 2);
+        assert_eq!(p.rate, -200.0);
+        assert_eq!((p.frame, p.position), (1, 1.0));
     }
     let mut p = playback();
     let before = p;
@@ -276,7 +272,7 @@ fn view_and_frame_dirty_and_independent_flags() {
     s.set_self_lit(true);
     s.set_highlight(9);
     assert_eq!(s.state.flags, 0x87);
-    assert!(!s.drawing_suppressed()); // DIFFERS §5.2: only incoming highlight-pass rejects.
+    assert!(!s.drawing_suppressed()); // DIFFERS Â§5.2: only incoming highlight-pass rejects.
     s.set_highlight(0);
     assert_eq!(s.state.flags, 0x86);
     assert!(!s.drawing_suppressed());
@@ -288,7 +284,7 @@ fn view_and_frame_dirty_and_independent_flags() {
 fn fade_bounds_nan_and_material_constants() {
     let mut s = sprite();
     assert_eq!(s.material().draw, DrawState::SPRITE);
-    // DIFFERS §§4.4/5.2: -1 enables, 1 disables, alpha reference is alpha/2.
+    // DIFFERS Â§Â§4.4/5.2: -1 enables, 1 disables, alpha reference is alpha/2.
     for (alpha, reference) in [(0.0, 0.0), (-1.0, -0.5), (0.375, 0.1875)] {
         s.set_fade(true, alpha);
         let m = s.material();
@@ -297,7 +293,7 @@ fn fade_bounds_nan_and_material_constants() {
     }
     for alpha in [-0.1, 1.1, f32::NAN] {
         s.set_fade(false, alpha);
-        // DIFFERS: §4.4 now explicitly requires disable/restore even for NaN.
+        // DIFFERS: Â§4.4 now explicitly requires disable/restore even for NaN.
         assert_eq!(s.state.alpha, 1.0);
         assert_eq!(s.material().transparency, None);
     }
@@ -498,7 +494,7 @@ fn picking_short_circuits_and_uses_fan_triangles() {
         assert_eq!(p.calls.len(), count);
         assert_eq!(p.calls[0], [c[0], c[1], c[2]]);
         if count == 2 {
-            // DIFFERS §6: preserve the primitive's actual argument order.
+            // DIFFERS Â§6: preserve the primitive's actual argument order.
             assert_eq!(p.calls[1], [c[2], c[3], c[0]]);
         }
     }
@@ -534,14 +530,19 @@ fn basic_query_addrefs_and_last_release_drops_owner_and_zooms() {
 }
 
 #[test]
-fn references_overflow_and_unknown_iid_do_not_mutate_count() {
+fn references_wrap_unknown_iid_preserves_and_zero_release_destroys() {
     let mut a = SpriteArena::default();
     let h = a.insert(sprite(), u16::MAX).unwrap();
-    assert_eq!(a.add_ref(h), Err(ReferenceError::Overflow));
-    assert_eq!(a.references(h), Some(u16::MAX));
+    assert_eq!(a.add_ref(h), Ok(0));
+    assert_eq!(a.references(h), Some(0));
     assert_eq!(a.query_basic_interface(h, 0), Err(ReferenceError::UnsupportedInterface));
-    assert_eq!(a.references(h), Some(u16::MAX));
-    assert_eq!(a.insert(sprite(), 0), Err(ReferenceError::ZeroInitialCount));
+    assert_eq!(a.references(h), Some(0));
+    assert_eq!(a.release(h), Ok(0));
+    assert!(a.get(h).is_none());
+    let zero = a.insert(sprite(), 0).unwrap();
+    assert_eq!(a.query_basic_interface(zero, SPRITE_INSTANCE_IID), Ok(zero));
+    assert_eq!(a.references(zero), Some(1));
+    assert_eq!(a.release(zero), Ok(0));
 }
 
 #[test]

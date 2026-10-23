@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Pure Rust lifetime arena for the published basic interface. Native initial
-//! reference count and 16-bit overflow policy remain unspecified (AS3).
+//! Â§1.1 reference semantics in a safe arena (no native pointer ABI).
 
-use super::{AnimatedSprite, BASIC_INSTANCE_IID};
+use super::{AnimatedSprite, BASIC_INSTANCE_IID, SPRITE_INSTANCE_IID};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -40,9 +39,6 @@ impl<O> SpriteArena<O> {
     /// Explicit count avoids guessing constructor state. Arena handles are
     /// monotonic so a stale handle cannot acquire a later instance's reference.
     pub fn insert(&mut self, sprite: AnimatedSprite<O>, references: u16) -> Result<SpriteHandle, ReferenceError> {
-        if references == 0 {
-            return Err(ReferenceError::ZeroInitialCount);
-        }
         let next = self.next.checked_add(1).ok_or(ReferenceError::HandlesExhausted)?;
         let handle = SpriteHandle(self.next);
         self.next = next;
@@ -62,13 +58,12 @@ impl<O> SpriteArena<O> {
 
     pub fn add_ref(&mut self, handle: SpriteHandle) -> Result<u16, ReferenceError> {
         let entry = self.entries.get_mut(&handle).ok_or(ReferenceError::Missing)?;
-        // AS3: detect overflow, never invent native wrapping/deletion behavior.
-        entry.references = entry.references.checked_add(1).ok_or(ReferenceError::Overflow)?;
+        entry.references = entry.references.wrapping_add(1);
         Ok(entry.references)
     }
 
     pub fn query_basic_interface(&mut self, handle: SpriteHandle, iid: u32) -> Result<SpriteHandle, ReferenceError> {
-        if iid != 1 && iid != BASIC_INSTANCE_IID {
+        if iid != 1 && iid != BASIC_INSTANCE_IID && iid != SPRITE_INSTANCE_IID {
             return Err(ReferenceError::UnsupportedInterface);
         }
         self.add_ref(handle)?;
@@ -77,10 +72,11 @@ impl<O> SpriteArena<O> {
 
     pub fn release(&mut self, handle: SpriteHandle) -> Result<u16, ReferenceError> {
         let entry = self.entries.get_mut(&handle).ok_or(ReferenceError::Missing)?;
-        entry.references -= 1;
-        let count = entry.references;
+        let count = entry.references.saturating_sub(1);
         if count == 0 {
             self.entries.remove(&handle);
+        } else {
+            entry.references = count;
         }
         Ok(count)
     }

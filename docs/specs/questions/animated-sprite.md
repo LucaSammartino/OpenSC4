@@ -93,3 +93,18 @@
   Cited bodies include 007FE0A0–007FE0DB, 007FD680–007FD701, 007FD640–007FD670, 004E13E0,
   007FE230 and 007FEE90. These normal rules remain published; the question's complete 60-function
   inventory/thunk/lifetime reconciliation remains AS3, not proved by this finite-AS6 round.
+
+<!-- from: core-animsprite5 (2026-10-23) -->
+- **AS10 - §3.1 LookAt and §4.1 Draw angle numeric boundaries:** which normalization intermediates
+  are stored to binary32 in LookAt (squares/sums, length, reciprocal, normalized components and cross
+  products), and what are the exact argument/return/store boundaries of Draw's asin/atan2 primitives?
+  The formulas specify the geometric rule but do not give the complete spill schedule as they now do for
+  SetOrientation. [literal difference/cross/component stores and reciprocal FSQRT formula on exact
+  stages only; nonexact/degenerate LookAt and nonzero Draw angle acquisition remain Unsupported,
+  also subject to AS6 whole-call PC/RC and native numeric qualification]
+
+<!-- from: core-animsprite5 (2026-10-23) -->
+- **AS11 - §2 foreign factory route:** for GetSpriteAnimFromResourceKey (type 0x5AD0E817), what IID,
+  resource-manager options, output interface and reference-transfer rules accompany the published
+  resource-manager fetch? [routing is preserved; no guessed successful foreign factory. The sprite
+  construction/load route for type 0x29A5D1EC is implemented separately.]
