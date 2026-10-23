@@ -1,30 +1,72 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-city-input-tools4: portable Flora, Torch, CitySituations | Codex; `core-city-input-tools4` (reserved detached worktree) | in progress: finite R2 validation checkpoint; R1 all failed | Run exactly one serial all on the unchanged committed engine; collect actual native exit and full CTest68. |
+| core-city-input-tools4: portable Flora, Torch, CitySituations | Codex; `core-city-input-tools4` (reserved detached worktree) | READY: R2 cargo5348/0, Clippy0, native exit0, CTest68/68 | Land bounded portable owners only; retain CT14-17/CT1/CT2 residuals and all native/wiring exclusions. |
 
-## Handoff
+## R2 completed validation and delivery
 
-- Goal: finish bounded production validation and honest delivery, no algorithm/owner expansion.
-- Done: inventory/fixtures d6ad7d1e; production 9ac71616; R1 report 19fd7e1c.
-- R1 all is collected FAIL/exit1, Rust5348/0/23 summaries, Clippy0, 19 owned tests pass.
-- R1 native174/174 is only a log count; native exit UNKNOWN, CTest unrun.
-- Own verifier29764 cancelled at02:52:29+01; stats-client29816 eventual exit cause UNKNOWN.
-- Read copied R1 result/report, module inventory/source boundaries, fixtures, coordinator lifetime proof.
-- Host admission proof03:26:16+01 names own path/tip/engine/role/dependency; runtime guards still apply.
-- Current source: clean19fd7e1c; engine1876418d76bfbfab03b1980068700566a4a430f9.
-- Six owned source SHA256s match retained R1 manifests; no source changes planned.
-- Copied coordinator03:07/03:26 evidence observes all three old PIDs absent and port4848 absent.
-- Own02:28:55UTC Get-Process read found none of old22964/29764/29816; no exit/cause inferred.
-- Local Python312 lacks psutil; no WMI/Bash workaround, process action, cache RPC or policy change.
-- R1 fixed/mixed/failed logs and quick archive copied byte-for-byte BEFORE canonical overwrite.
-- Archive: build-runs/r1-evidence-immutable/, 19 files plus SHA256 index.
-- Index SHA256:326418439191512d7073972328bd33a3d8ad63e2efcd83a3d1f93c3e664f050a.
-- Next: commit this checkpoint, record its exact source/tree, invoke one canonical qbuild all.
-- Keep tracked tree unchanged while check runs; retain async session identity and collect it.
-- If stalled, preserve read-only exact operation evidence/request coordinator review; never cancel/relaunch.
-- No game request outstanding. CT14-17/CT1/CT2 gaps and all ownership/wiring exclusions remain.
-- Budget: original round2/3, 150000 context/100 calls; at most one separately reviewed original round left.
-- R1 report below remains historical; this checkpoint supersedes its proposed hold pending this authorized check.
+This round changed only this lane report. Production remains9ac71616; independent
+inventory/fixtures remain d6ad7d1e. R1 report19fd7e1c remains a truthful failed
+gate, never retroactively PASS. The additional check was necessary because that
+cancelled gate had no actual native return or CTest result, not to repeat an
+already successful complete gate.
+
+Before canonical logs could be overwritten, archived19 files byte-for-byte in
+`build-runs/r1-evidence-immutable/`: fixed/mixed/failed logs, focused-quick evidence,
+source manifests, R1 result and copied coordinator lifetime/admission proof.
+`sha256-index.json` hashes every archived file; index SHA256 is
+`326418439191512d7073972328bd33a3d8ad63e2efcd83a3d1f93c3e664f050a`.
+R1 stats client's ultimate exit/cause remains UNKNOWN. Dated coordinator03:07
+and03:26+01 snapshots found old PIDs22964/29764/29816 and own port4848 absent.
+Own02:28:55UTC Get-Process read found none of those old PIDs. Python312 lacked
+psutil; no WMI/Bash fallback, process action, cache RPC or cache-policy change.
+Copied host proof supplies full admission/ownership/dependency evidence; normal
+runtime guards remained applicable. No global filtered-ref admission rerun.
+
+Committed finite checkpoint **43742876e51a49fcdf527ee02860c12d3e212bbb** before
+starting exactly one new serial canonical `qbuild.py --wt <WT> all` through
+Python312/PowerShell. Async transport cell12 returned session**23644**; subsequent
+cells14/16 collected that same session through actual **exit0**, no relaunch.
+Tracked tree stayed clean and identical throughout: full checkpoint tree
+**132ca1d9acb59b2649c2ef125179af819974879a**, engine tree
+**1876418d76bfbfab03b1980068700566a4a430f9**. Before/after manifests in
+`build-runs/r2-before.json` and `r2-after.json` match checkpoint/tree/engine/all
+source hashes, including the six retained R1 hashes below. Final report commits
+change only this document; the validated engine is identical.
+
+- Workspace: **exit0, 5348 passed, 0 failed, 0 ignored**, summed over23 summaries.
+- Clippy: **exit0, zero diagnostics**, reported compile duration0.13s.
+- Native: **return0 / fc4verify build PASS**, incremental **2/2** edges, **0.6s**.
+  This is the verifier's parsed successful build, not inference from Ninja's
+  last edge. It does not claim174 newly rebuilt edges or resolve R1's unknown exit.
+- Full CTest: **return0, 68/68**, log real time**126.09s** (verifier126.1s).
+  Verifier overall **PASS,128.9s**; outer qbuild **PASS,exit0** fully collected.
+  Exact outer total was not emitted; no inferred duration. CTest log completed
+  **2026-10-23T02:32:51.775911Z**, after before-snapshot02:29:53.841190Z.
+- All **19 owned tests** pass: Flora7, Torch6, CitySituations5, shared coordinate1.
+  The full case list and method scope map below remain unchanged. Independent
+  fixture inventory has21 numbered entries F1-F8/T1-T7/C1-C6; C6 is an exclusion
+  assertion, not a claimed native oracle. Primitive hosts supply no whole-tool
+  outcomes. All CT14-17/CT1/CT2 raw-modifier/event/lifetime gaps remain.
+- Retained five-file fmt pass remains applicable: no Rust changes this round.
+  No quick, manual Cargo/CTest/fmt duplicate, game, native probe or new tests.
+
+Canonical R2 log SHA256s (old quick logs remaining in the directory are not R2):
+
+| Log | SHA256 |
+|---|---|
+| qbuild-test.log | bb58329962daddcf97566ae8054d65632f769828676951e7c2d1b956ecd85e9e |
+| qbuild-clippy.log | 6b12b31954852a68dd1fff2d7668596cf6ce05447b0f6174f6585da8fdadb34b |
+| fc4verify-build.log | e54961e0ea8265299c47918f07ec5e9791b1ea076cbc85e7bea9793b6f105aa3 |
+| fc4verify-configure.log | f7582c26d8c87e96e475acc7a369a81d7071b873b495abf2b4e6e1fdd93ae1fe |
+| fc4verify-ctest-list.log | c6275de2f428021c173e310ea0a1b3e8541e4f2f0a2c75594fe1b248b2c448cd |
+| fc4verify-ctest.log | b7ebe86a01f450f5490941094c36895273f2478cc5fcbdd55cace8324aeef004 |
+
+Parent budget: original round2/3,150000 context/max100 calls, R1 already consumed
+one round; no automatic extra round or name reset. Guard status after checkpoint
+was35190/150000, within budget; final guard measurement accompanies report commit.
+No live validator or game request remains. READY means bounded portable production
+plus complete ordinary gate; no native owner, adapter, C ABI, UI/default/coverage
+promotion, spec answer or game/shadow conformance is asserted.
 
 ## Implementation and provenance
 
@@ -100,7 +142,7 @@ Int64 cost intents have no invented int32 wire conversion; release-clear intent
 does not fabricate a bool. CT1 key/modifier/settings and CT2 audio uncertainty
 remain intact.
 
-## Measured validation
+## Historical R1 measured validation (not the R2 result)
 
 - Exactly one focused `qbuild quick`: **exit1**. E0277 from deriving Eq for a
   new audio value containing existing Pixel (PartialEq only), zero Rust result
@@ -161,7 +203,7 @@ All 19 new individual results from final qbuild-test.log are **ok**:
 | torch_raw_modifier_bit_and_same_state_gate_are_literal | ok |
 | torch_release_replacement_and_next_tick_retain_last_active_move | ok |
 
-## Blocker, process provenance and operational errors
+## Historical R1 blocker, process provenance and operational errors
 
 Final command: `python <MAIN>/.claude/lane-bin/qbuild.py --wt <WT> all`, interpreter
 `C:/Program Files/Python312/python.exe`. Own qbuild PID22964 -> verifier PID29764
@@ -197,9 +239,8 @@ CitySituations empty-hover/release/reset behavior; Torch payload/timer/failure/
 deactivation details. Generated QUESTIONS.md was not edited, and prohibited
 tools scripts were not run. Coordinator may regenerate the index separately.
 
-Hold this clean committed lane as **WIP**, never READY on the native edge count.
-Coordinator must resolve the infrastructure block, preserve the unknown cache
-client exit, and obtain exact native exit plus the full required CTest68 gate
-before landing. Clarify CT14-CT17 before extending the stated portable domain.
-Any further implementation/round requires separate review; no automatic restart,
-extra round, native adapter or other-owner continuation is requested or claimed.
+R2 now supplies the missing actual native exit and full CTest68 gate on the
+identical engine; the historical R1 failed result and unknown client cause remain
+preserved. Land the **READY** portable safe-domain production only. Clarify
+CT14-CT17 before extending its stated domain. No further implementation/round,
+automatic restart, native adapter or other-owner continuation is requested.
