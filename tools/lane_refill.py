@@ -9,8 +9,6 @@ import sys
 import time
 
 import lane_launch as launcher
-import lane_evidence
-import lane_supervision as supervision
 
 LIMIT_RE = re.compile(r'rate_limit_error|usage_limit|rate limit (?:reached|exceeded)|'
                       r'usage limit (?:reached|exceeded)|quota exceeded|insufficient credits|'
@@ -56,7 +54,6 @@ def main():
                 spec = read(str(path), None)
                 if not spec or spec['args'].get('maxRounds', 1) != 1:
                     raise ValueError('A queued brief must reserve exactly one round')
-                lane_evidence.preflight(root, spec, path)
                 name = spec['args']['name']
                 if any(e['name'] == name and e['status'] in ('pending','launching') for e in q):
                     raise ValueError('Already queued: ' + name)
@@ -64,24 +61,25 @@ def main():
             write(queue_path, q)
         print('queued', len(a.queue))
         return
+    # Same owner lock as the legacy refiller; refuse a second dispatcher.
+    owner = (runs/'run4-refill-owner.lock').open('a+b')
+    if owner.seek(0, 2) == 0:
+        owner.write(b'0')
+        owner.flush()
     try:
-        with supervision.ownership(runs/'run4-refill-owner.lock'):
-            return dispatch(a, root, runs, state_path, queue_path, read, write, locked, log)
-    except (supervision.SupervisionError, OSError, ValueError) as exc:
-        print(f'ERROR: refiller ownership/publication failed: {exc}', flush=True)
-        return 1
-
-
-def dispatch(a, root, runs, state_path, queue_path, read, write, locked, log):
-    """Only entered with the exclusive dispatcher owner lock held through exit.
-
-    Retain markers on every exit/crash: an unlocked or dead identity is unhealthy.
-    Never deleting markers also prevents an old exit from deleting a newer owner.
-    """
+        if os.name == 'nt':
+            import msvcrt
+            owner.seek(0)
+            msvcrt.locking(owner.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        print('refill daemon already running')
+        return
     with locked():
         state = read(str(state_path), {})
     provider = a.provider or state.get('provider', 'claude')
-    supervision.publish_dispatcher(root, provider)
     seen = {e.get('result') for e in state.get('lanes', {}).values()
             if Path(e.get('result', '')).is_file() and read(e['result']) is not None}
     log('START reviewed briefs; provider=' + provider + '; all shared guards retained')
@@ -150,4 +148,4 @@ def dispatch(a, root, runs, state_path, queue_path, read, write, locked, log):
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    main()

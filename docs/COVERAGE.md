@@ -22,8 +22,7 @@ or the report's owner lists; they work from docs/specs only.
 - **Matching decompilation projects** count a function as done when their compiled C matches its bytes. FreeCity4 is
   clean-room, so nothing is matched byte for byte; instead every function is attributed to an *owner* (a class, or a
   free function) and the owner gets the statuses of its subsystem. The percentages are therefore exact sums under
-  stated rules. The legacy baseline has class granularity; the reviewed ledger below adds exact entries without
-  promoting their owners.
+  stated rules, at class granularity.
 
 ## Attribution rules (in this order; the first that applies wins)
 
@@ -62,7 +61,7 @@ statuses are computed from: spec files, core module paths, shadow ini key, repla
 missing spec or core files, unknown keys and rows that match nothing; it also lists the biggest owners only a
 catch-all row matches, the candidates for a new row.
 
-## Legacy statuses (per map row)
+## Statuses (per map row; a function has its owner's row's statuses)
 
 | Status | Rule |
 |---|---|
@@ -88,100 +87,18 @@ credited only when every compared set of a key is exact, so a shadow with one di
 the report shows its real counts (`fire 211/263, riot 2/354 (lane run, not exact)`) instead of implying the
 subsystem is proven. The regress path still wins whenever the regress shadows list sets the key.
 
-## Exact-function staged evidence: `tools/coverage-functions.json`
-
-This is a separate, conservative capability for an otherwise partial owner. The initial tracked ledger was empty;
-the [initial Registry review](coverage-functions/registry-review.md) withheld three entries until source-matched
-provenance and independent semantic review were published. The [completed Registry review](coverage-functions/registry-pilot-review.md)
-now admits those three exact functions for specified/implemented only through the unchanged resolver.
-It does not amend the completed Directory/HTML owner qualification. Neither this format nor a hash proves semantic
-correspondence. Reviewed, published evidence is required before adding a record; never fill records from generic
-getters, mock host outcomes, a test count, or a convenient supported subset of a known valid normal domain.
-
-`coverage.py.function_statuses()` is the shared resolver for report headline, area, subsystem, affected-owner
-breakdown, audit TSV and treemap. For each actual entry, each stage is the union of its accepted legacy row flag
-and its qualified entry flag. A function and its actual body bytes count once per stage; implemented and specified
-are independent. No stage implies another. Verified/replaced still come exclusively from the legacy policies;
-the new ledger cannot claim them. Shared, library and unowned functions receive no ledger credit. Attribution,
-names, body boundaries, exclusions, owner ranges and denominator do not change.
-
-The report exposes the owner-only baseline and exact additions separately. Newly covered owners remain **partial**,
-even if the ledger eventually covers every attributed entry. Each affected-owner/subsystem cell gives exact
-completed/total functions and bytes. Treemap aggregation splits the owner's entries by resolved stage; the colour
-of one completed method cannot colour its siblings. Header totals use independent flags rather than colour.
-Audit TSV retains its five original columns and appends four resolved flags and four `owner_` baseline flags (0/1).
-
-### Version 1 schema (all keys required; unknown keys rejected)
-
-The UTF-8 JSON root is exactly `{"version": 1, "claims": []}`. Each claim is an object with these fields:
-
-| Field | Required value |
-|---|---|
-| `address` | eight uppercase hexadecimal digits, exactly an existing native entry, never an interior/caller/context address |
-| `owner` | exact expected current Attribution owner, with no owner reassignment |
-| `stages` | nonempty unique list drawn only from `specified`, `implemented`; order must match qualification |
-| `artifact` | exact current object containing `exe_sha256`, `functions_sha256`, `details_sha256`, `attribution_sha256` |
-| `evidence` | roles `contract`, `qualification`; implemented additionally requires `production`, `assertions`, `validation` |
-
-`functions_sha256` and `details_sha256` hash the unchanged export files. `attribution_sha256` is SHA-256 of the
-ASCII full normalized digests joined by LF (no final LF), in this fixed order: export `calls.tsv`,
-`data-references.tsv`, `instructions.asm`, then repository `re/names_windows.tsv`, `docs/abi/vtables.tsv`,
-`docs/abi/interfaces.tsv`, `tools/coverage-libs.tsv`, `tools/coverage-ranges.tsv`, `tools/coverage-noncode-refs.tsv`.
-These are identity inputs, not permission to research original bodies. Bytes are never input in a claim.
-Current owner, library/shared status, folded-name rule, vtable ambiguity and overlapping bodies are checked
-against unchanged Attribution. Folded entries are conservatively withheld, including same-owner folds.
-
-Each evidence reference is exactly `{"path": "...", "sha256": "<64 lowercase hex>", "citation": "<path>#<section>"}`.
-The path must be a tracked repository file, with forward slashes, no absolute/drive paths, traversal, symlink
-escape or missing file. Contract paths are under `docs/specs/`; production under `engine/`; assertions under
-`engine/` or `tools/tests/`; qualification and retained public validation under `docs/coverage-functions/`.
-Roles use distinct files. The ledger itself is tracked under `tools/`. Missing, stale, duplicated or conflicting
-records, duplicate JSON fields, unsupported stages and malformed citations **fail the measurement closed** before
-writing a report, SVG or audit. Existing warnings and strict-input checks remain in force.
-
-The qualification file is human-reviewable UTF-8 JSON with exactly these fields:
-
-| Field | Required value |
-|---|---|
-| `address`, `owner`, `stages` | identical to the claim |
-| `review` | object with nonempty `by`, `citation` and Boolean `approved: true`; cite the actual independent review |
-| `normal_domain_complete` | Boolean `true`, only after reviewing every supported normal branch/effect |
-| `decisions` | nonempty list of objects with `contract`, `production`, `assertion` correspondence text |
-| `limitations` | explicit nonempty representation/native undefined-memory/reentry/other limitations, or `none` |
-| `validation` | specified-only: null; implemented: the object below |
-
-Each decision must cite contract text actually present in the bound public contract and, for implemented,
-authoritative production symbol/text and independent assertion symbol/text actually present in their bound files.
-For specified-only, production/assertion values must be null. Review must establish the whole function's
-published supported decision/effect contract, including null/zero/full-width cases where defined. A known valid
-unimplemented branch withholds the entire function; there is no 25/50/90 percent credit or safe-domain relabeling.
-Presence checks constrain references but do not prove that assertions independently establish the correspondence.
-
-Implemented `validation` has exactly `command`, `result`, `production_sha256`, `assertions_sha256`, `log_sha256`,
-`provenance`. Command and provenance are nonempty; result must be `PASS`; all three digests must match the bound
-current production/assertions/retained-validation files. The retained public validation must literally contain the
-command, `result=PASS`, `production_sha256=<digest>` and `assertions_sha256=<digest>`. It must preserve actual
-command/start/end/result, source stability and original log digests/provenance and exact limitations for human
-review. A summary invented from a test count is inadmissible even if it passes mechanical checks. No engine
-execution or new native proof is authorized by this accounting feature. Hash the qualification itself, too;
-editing it or any cited source/spec/test/log without renewed review invalidates the record.
-
-All new input hashes are full normalized SHA-256 values in report inputs and SVG metadata. Normalization reuses
-`coverage.py.text_sha256` (CRLF to LF), so line-ending changes alone do not withdraw credit. Repeated runs on
-identical inputs are deterministic; an empty ledger preserves every legacy count exactly.
-
 ## Running it
 
 ```
 python tools/coverage.py                               # writes docs/coverage-report.md
 python tools/coverage.py --regress build-runs/regress-<tag>.out
 python tools/coverage.py --owners build-runs/coverage-owners.tsv   # per-function audit TSV (address, bytes, owner, rule, subsystem); do not commit
-python tools/coverage_treemap.py --regress build-runs/regress-<tag>.out  # pin the same input as the report
+python tools/coverage_treemap.py                       # writes docs/coverage-map.svg from the same attribution
 ```
 
 About 6 seconds, deterministic (two runs write a byte-identical report; well under a minute). The report contains counts, class names, address ranges and statuses only, never
-code. `coverage_treemap.py` reads `coverage.py` as a module and calls its shared `function_statuses()` after
-`map_statuses()`, so the two use the same entry flags: it splits owners by each entry's furthest stage, and its
+code. `coverage_treemap.py` reads `coverage.py` as a module and calls its `map_statuses()` for the four statuses,
+so the two cannot drift: it colours the same owners by the furthest status their map row has reached, and its
 header shares are summed on each status's own flag rather than on that colour, since a row can be implemented
 without a spec or replaced without a module.
 

@@ -8,29 +8,10 @@ Game code, the denominator (every function outside the library and compiler buck
 
 | Status | Meaning | Bytes | % of game bytes | Functions | % of game functions |
 |---|---|---:|---:|---:|---:|
-| **specified** | accepted owner spec or reviewed exact-function contract | 3,226,982 | **57.8%** | 14,605 | 49.4% |
-| **implemented** | accepted owner module or reviewed exact-function implementation | 2,018,539 | **36.1%** | 8,985 | 30.4% |
+| **specified** | a spec in docs/specs covers its owner | 3,226,906 | **57.8%** | 14,602 | 49.4% |
+| **implemented** | a clean-room module in engine/ implements its owner | 2,018,463 | **36.1%** | 8,982 | 30.4% |
 | **verified** | its same-process shadow is exact in the run that measured it | 1,099,943 | **19.7%** | 4,325 | 14.6% |
 | **replaced** | our class runs instead of the original in the regress replace run | 1,012,661 | **18.1%** | 3,899 | 13.2% |
-
-### Accounting transition: owner baseline and exact-function additions
-
-The legacy owner-only subtotal is preserved. Additions are a set union over actual entries, not whole-owner completion.
-
-| Status | Owner-only functions | Owner-only bytes | Added functions | Added bytes |
-|---|---:|---:|---:|---:|
-| specified | 14,602 | 3,226,906 | 3 | 76 |
-| implemented | 8,982 | 2,018,463 | 3 | 76 |
-| verified | 4,325 | 1,099,943 | 0 | 0 |
-| replaced | 3,899 | 1,012,661 | 0 | 0 |
-
-### Owners with exact-function additions
-
-Completion remains partial unless the legacy owner row qualifies; each cell lists exact completed/total functions and bytes.
-
-| Owner | Specified | Implemented |
-|---|---|---|
-| `cSC4GameDataRegistry` | partial (3/48 fn; 76/5807 B) | partial (3/48 fn; 76/5807 B) |
 
 ## Whole executable
 
@@ -51,7 +32,7 @@ Each status cell is the share of the area's bytes, then (in brackets) of its fun
 | Area | Functions | Bytes | % of game | Specified | Implemented | Verified | Replaced |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | simulation | 8,632 | 1,965,688 | 35.2% | 98.5% (97.8%) | 75.4% (72.2%) | 45.1% (41.1%) | 51.5% (45.2%) |
-| framework | 4,866 | 631,930 | 11.3% | 36.6% (41.9%) | 24.9% (25.9%) | 0.7% (0.6%) | 0.0% (0.0%) |
+| framework | 4,866 | 631,930 | 11.3% | 36.6% (41.8%) | 24.9% (25.8%) | 0.7% (0.6%) | 0.0% (0.0%) |
 | renderer | 5,198 | 1,214,553 | 21.7% | 57.9% (58.3%) | 31.2% (28.7%) | 17.2% (14.5%) | 0.0% (0.0%) |
 | ui | 5,104 | 1,105,746 | 19.8% | 22.7% (13.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | audio | 1,965 | 223,456 | 4.0% | 12.8% (8.4%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
@@ -63,120 +44,120 @@ Each status cell is the share of the area's bytes, then (in brackets) of its fun
 
 ## By subsystem
 
-One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Status columns give exact completed/total functions and bytes; `yes` requires the legacy owner baseline. Shadow: clean/total lines in `regress-train123.out` (`not in regress` when the shadow exists but the regress shadows run does not use it), or the counts `tools/coverage-shadows.tsv` cites from a lane run (`lane run`, or `lane run, not exact` when a compared set differs).
+One line per subsystem of `tools/coverage-map.tsv`, by area, then by size. Status columns: `yes` when every map row of the subsystem has the status, `part` when some do, `-` when none does. Shadow: clean/total lines in `regress-train123.out` (`not in regress` when the shadow exists but the regress shadows run does not use it), or the counts `tools/coverage-shadows.tsv` cites from a lane run (`lane run`, or `lane run, not exact` when a compared set differs).
 
 | Area | Subsystem | Owners | Functions | Bytes | Specified | Implemented | Shadow | Verified | Replaced |
 |---|---|---:|---:|---:|---|---|---|---|---|
-| simulation | automata (vehicles, animation) | 33 | 820 | 231,259 | yes (820/820 fn; 231259/231259 B) | partial (27/820 fn; 5351/231259 B) | - | - (0/820 fn; 0/231259 B) | - (0/820 fn; 0/231259 B) |
-| simulation | traffic | 9 | 443 | 162,482 | yes (443/443 fn; 162482/162482 B) | yes (443/443 fn; 162482/162482 B) | 72/72 | yes (443/443 fn; 162482/162482 B) | yes (443/443 fn; 162482/162482 B) |
-| simulation | network tools | 12 | 395 | 151,726 | yes (395/395 fn; 151726/151726 B) | partial (322/395 fn; 127023/151726 B) | - | - (0/395 fn; 0/151726 B) | partial (248/395 fn; 105916/151726 B) |
-| simulation | automata (managers, records) | 10 | 502 | 120,972 | yes (502/502 fn; 120972/120972 B) | yes (502/502 fn; 120972/120972 B) | - | - (0/502 fn; 0/120972 B) | partial (276/502 fn; 70222/120972 B) |
-| simulation | network occupants | 22 | 850 | 117,922 | yes (850/850 fn; 117922/117922 B) | - (0/850 fn; 0/117922 B) | - | - (0/850 fn; 0/117922 B) | - (0/850 fn; 0/117922 B) |
-| simulation | terrain | 3 | 321 | 84,327 | yes (321/321 fn; 84327/84327 B) | yes (321/321 fn; 84327/84327 B) | 100/100 | partial (277/321 fn; 73905/84327 B) | - (0/321 fn; 0/84327 B) |
-| simulation | mysims | 8 | 347 | 80,570 | yes (347/347 fn; 80570/80570 B) | partial (256/347 fn; 50340/80570 B) | 73/73 | partial (185/347 fn; 43053/80570 B) | - (0/347 fn; 0/80570 B) |
-| simulation | advisors | 16 | 280 | 71,329 | yes (280/280 fn; 71329/71329 B) | yes (280/280 fn; 71329/71329 B) | - | - (0/280 fn; 0/71329 B) | - (0/280 fn; 0/71329 B) |
-| simulation | occupants and props | 31 | 442 | 66,071 | yes (442/442 fn; 66071/66071 B) | - (0/442 fn; 0/66071 B) | - | - (0/442 fn; 0/66071 B) | - (0/442 fn; 0/66071 B) |
-| simulation | development | 2 | 215 | 50,083 | yes (215/215 fn; 50083/50083 B) | yes (215/215 fn; 50083/50083 B) | 913/913 | yes (215/215 fn; 50083/50083 B) | yes (215/215 fn; 50083/50083 B) |
-| simulation | disasters | 17 | 337 | 46,988 | yes (337/337 fn; 46988/46988 B) | yes (337/337 fn; 46988/46988 B) | fire 124/124, riot 481/481 (lane run) | partial (282/337 fn; 39442/46988 B) | - (0/337 fn; 0/46988 B) |
-| simulation | city situation | 1 | 155 | 41,919 | yes (155/155 fn; 41919/41919 B) | yes (155/155 fn; 41919/41919 B) | citysit 73/73 (lane run) | yes (155/155 fn; 41919/41919 B) | yes (155/155 fn; 41919/41919 B) |
-| simulation | zone developer / lot manager | 1 | 102 | 41,866 | yes (102/102 fn; 41866/41866 B) | yes (102/102 fn; 41866/41866 B) | 365/365 | yes (102/102 fn; 41866/41866 B) | yes (102/102 fn; 41866/41866 B) |
-| simulation | network manager | 5 | 166 | 41,793 | yes (166/166 fn; 41793/41793 B) | yes (166/166 fn; 41793/41793 B) | 72/73; 17 resynced lines | - (0/166 fn; 0/41793 B) | partial (115/166 fn; 27570/41793 B) |
-| simulation | residential | 1 | 118 | 40,490 | yes (118/118 fn; 40490/40490 B) | yes (118/118 fn; 40490/40490 B) | 1136/1136 | yes (118/118 fn; 40490/40490 B) | yes (118/118 fn; 40490/40490 B) |
-| simulation | lot developer | 1 | 149 | 40,458 | yes (149/149 fn; 40458/40458 B) | yes (149/149 fn; 40458/40458 B) | 73/73 | yes (149/149 fn; 40458/40458 B) | yes (149/149 fn; 40458/40458 B) |
-| simulation | tract developer | 1 | 117 | 36,811 | yes (117/117 fn; 36811/36811 B) | yes (117/117 fn; 36811/36811 B) | 145/145 | yes (117/117 fn; 36811/36811 B) | yes (117/117 fn; 36811/36811 B) |
-| simulation | city and save file | 11 | 309 | 35,103 | partial (245/309 fn; 27464/35103 B) | partial (245/309 fn; 27464/35103 B) | - | - (0/309 fn; 0/35103 B) | - (0/309 fn; 0/35103 B) |
-| simulation | budget | 3 | 171 | 30,911 | yes (171/171 fn; 30911/30911 B) | yes (171/171 fn; 30911/30911 B) | 72/72 | yes (171/171 fn; 30911/30911 B) | yes (171/171 fn; 30911/30911 B) |
-| simulation | demand | 2 | 101 | 29,573 | yes (101/101 fn; 29573/29573 B) | yes (101/101 fn; 29573/29573 B) | 2239/2239 | yes (101/101 fn; 29573/29573 B) | yes (101/101 fn; 29573/29573 B) |
-| simulation | neighbours | 3 | 126 | 26,974 | yes (126/126 fn; 26974/26974 B) | yes (126/126 fn; 26974/26974 B) | 72/72 | yes (126/126 fn; 26974/26974 B) | yes (126/126 fn; 26974/26974 B) |
-| simulation | power | 1 | 81 | 26,475 | yes (81/81 fn; 26475/26475 B) | yes (81/81 fn; 26475/26475 B) | 393/393 | yes (81/81 fn; 26475/26475 B) | yes (81/81 fn; 26475/26475 B) |
-| simulation | lots and lot records | 5 | 174 | 24,736 | yes (174/174 fn; 24736/24736 B) | yes (174/174 fn; 24736/24736 B) | - | - (0/174 fn; 0/24736 B) | - (0/174 fn; 0/24736 B) |
-| simulation | pollution | 1 | 104 | 24,357 | yes (104/104 fn; 24357/24357 B) | yes (104/104 fn; 24357/24357 B) | 72/72 | yes (104/104 fn; 24357/24357 B) | yes (104/104 fn; 24357/24357 B) |
-| simulation | protection | 3 | 150 | 23,130 | yes (150/150 fn; 23130/23130 B) | yes (150/150 fn; 23130/23130 B) | 288/288 | yes (150/150 fn; 23130/23130 B) | yes (150/150 fn; 23130/23130 B) |
-| simulation | plumbing | 1 | 54 | 20,057 | yes (54/54 fn; 20057/20057 B) | yes (54/54 fn; 20057/20057 B) | 144/144 | yes (54/54 fn; 20057/20057 B) | yes (54/54 fn; 20057/20057 B) |
-| simulation | prop / lot configuration managers | 2 | 121 | 19,551 | yes (121/121 fn; 19551/19551 B) | yes (121/121 fn; 19551/19551 B) | - | - (0/121 fn; 0/19551 B) | yes (121/121 fn; 19551/19551 B) |
-| simulation | landfill | 3 | 100 | 18,940 | yes (100/100 fn; 18940/18940 B) | yes (100/100 fn; 18940/18940 B) | 72/72 | partial (37/100 fn; 6526/18940 B) | partial (37/100 fn; 6526/18940 B) |
-| simulation | weather | 1 | 68 | 18,299 | yes (68/68 fn; 18299/18299 B) | yes (68/68 fn; 18299/18299 B) | - | - (0/68 fn; 0/18299 B) | yes (68/68 fn; 18299/18299 B) |
-| simulation | network rules | 5 | 55 | 18,176 | yes (55/55 fn; 18176/18176 B) | yes (55/55 fn; 18176/18176 B) | - | - (0/55 fn; 0/18176 B) | - (0/55 fn; 0/18176 B) |
-| simulation | prop developer | 2 | 58 | 17,553 | yes (58/58 fn; 17553/17553 B) | yes (58/58 fn; 17553/17553 B) | - | - (0/58 fn; 0/17553 B) | partial (50/58 fn; 17047/17553 B) |
-| simulation | sim grids | 4 | 109 | 17,244 | yes (109/109 fn; 17244/17244 B) | yes (109/109 fn; 17244/17244 B) | - | - (0/109 fn; 0/17244 B) | partial (92/109 fn; 10331/17244 B) |
-| simulation | aura | 1 | 55 | 16,240 | yes (55/55 fn; 16240/16240 B) | yes (55/55 fn; 16240/16240 B) | 71/71 | yes (55/55 fn; 16240/16240 B) | yes (55/55 fn; 16240/16240 B) |
-| simulation | occupant manager | 1 | 77 | 16,082 | yes (77/77 fn; 16082/16082 B) | yes (77/77 fn; 16082/16082 B) | 72/72 | yes (77/77 fn; 16082/16082 B) | yes (77/77 fn; 16082/16082 B) |
-| simulation | flora | 3 | 79 | 15,743 | yes (79/79 fn; 15743/15743 B) | yes (79/79 fn; 15743/15743 B) | 72/72 | partial (57/79 fn; 14722/15743 B) | partial (57/79 fn; 14722/15743 B) |
-| simulation | tutorial | 3 | 91 | 14,968 | partial (40/91 fn; 3773/14968 B) | yes (91/91 fn; 14968/14968 B) | - | - (0/91 fn; 0/14968 B) | - (0/91 fn; 0/14968 B) |
-| simulation | port developers | 4 | 110 | 12,650 | yes (110/110 fn; 12650/12650 B) | yes (110/110 fn; 12650/12650 B) | ports 144/144, ports_joint_followed 24/24 (lane run) | yes (110/110 fn; 12650/12650 B) | yes (110/110 fn; 12650/12650 B) |
-| simulation | crime | 1 | 55 | 12,063 | yes (55/55 fn; 12063/12063 B) | yes (55/55 fn; 12063/12063 B) | 71/71 | yes (55/55 fn; 12063/12063 B) | yes (55/55 fn; 12063/12063 B) |
-| simulation | demolition | 2 | 29 | 10,968 | yes (29/29 fn; 10968/10968 B) | yes (29/29 fn; 10968/10968 B) | demolition 73/73 (lane run) | partial (26/29 fn; 10409/10968 B) | partial (26/29 fn; 10409/10968 B) |
-| simulation | other simulation | 3 | 71 | 9,797 | - (0/71 fn; 0/9797 B) | - (0/71 fn; 0/9797 B) | - | - (0/71 fn; 0/9797 B) | - (0/71 fn; 0/9797 B) |
-| simulation | lot configuration | 1 | 37 | 9,580 | yes (37/37 fn; 9580/9580 B) | yes (37/37 fn; 9580/9580 B) | - | - (0/37 fn; 0/9580 B) | - (0/37 fn; 0/9580 B) |
-| simulation | simulator | 1 | 74 | 9,346 | yes (74/74 fn; 9346/9346 B) | yes (74/74 fn; 9346/9346 B) | - | - (0/74 fn; 0/9346 B) | yes (74/74 fn; 9346/9346 B) |
-| simulation | ordinance | 8 | 81 | 9,326 | yes (81/81 fn; 9326/9326 B) | yes (81/81 fn; 9326/9326 B) | - | - (0/81 fn; 0/9326 B) | yes (81/81 fn; 9326/9326 B) |
-| simulation | dispatch | 1 | 40 | 7,425 | yes (40/40 fn; 7425/7425 B) | yes (40/40 fn; 7425/7425 B) | dispatch 73/73 (lane run) | yes (40/40 fn; 7425/7425 B) | - (0/40 fn; 0/7425 B) |
-| simulation | landvalue | 1 | 27 | 6,711 | yes (27/27 fn; 6711/6711 B) | yes (27/27 fn; 6711/6711 B) | 72/72 | yes (27/27 fn; 6711/6711 B) | yes (27/27 fn; 6711/6711 B) |
-| simulation | zones | 1 | 33 | 6,513 | yes (33/33 fn; 6513/6513 B) | yes (33/33 fn; 6513/6513 B) | 292/292 | yes (33/33 fn; 6513/6513 B) | yes (33/33 fn; 6513/6513 B) |
-| simulation | history | 2 | 42 | 6,285 | yes (42/42 fn; 6285/6285 B) | yes (42/42 fn; 6285/6285 B) | 79/79 | yes (42/42 fn; 6285/6285 B) | yes (42/42 fn; 6285/6285 B) |
-| simulation | flammability | 1 | 28 | 6,001 | yes (28/28 fn; 6001/6001 B) | yes (28/28 fn; 6001/6001 B) | 54/54 | yes (28/28 fn; 6001/6001 B) | yes (28/28 fn; 6001/6001 B) |
-| simulation | civic buildings | 1 | 27 | 4,463 | yes (27/27 fn; 4463/4463 B) | yes (27/27 fn; 4463/4463 B) | 72/72 | yes (27/27 fn; 4463/4463 B) | yes (27/27 fn; 4463/4463 B) |
-| simulation | 24-hour clock | 1 | 56 | 3,693 | yes (56/56 fn; 3693/3693 B) | yes (56/56 fn; 3693/3693 B) | 73/73 | yes (56/56 fn; 3693/3693 B) | yes (56/56 fn; 3693/3693 B) |
-| simulation | parks | 1 | 19 | 3,006 | yes (19/19 fn; 3006/3006 B) | yes (19/19 fn; 3006/3006 B) | 72/72 | yes (19/19 fn; 3006/3006 B) | yes (19/19 fn; 3006/3006 B) |
-| simulation | city detail | 1 | 13 | 2,081 | yes (13/13 fn; 2081/2081 B) | yes (13/13 fn; 2081/2081 B) | - | - (0/13 fn; 0/2081 B) | yes (13/13 fn; 2081/2081 B) |
-| simulation | commercial/industrial | 2 | 26 | 2,022 | yes (26/26 fn; 2022/2022 B) | yes (26/26 fn; 2022/2022 B) | 30/30, industrial_constructed_source 263052/263052, industrial_constructed_joint97 131526/131526 (lane run) | yes (26/26 fn; 2022/2022 B) | yes (26/26 fn; 2022/2022 B) |
-| simulation | automata groups | 2 | 15 | 1,662 | yes (15/15 fn; 1662/1662 B) | - (0/15 fn; 0/1662 B) | - | - (0/15 fn; 0/1662 B) | - (0/15 fn; 0/1662 B) |
-| simulation | foundations | 1 | 7 | 918 | yes (7/7 fn; 918/918 B) | yes (7/7 fn; 918/918 B) | - | - (0/7 fn; 0/918 B) | - (0/7 fn; 0/918 B) |
-| framework | application | 15 | 718 | 145,124 | partial (46/718 fn; 2724/145124 B) | partial (3/718 fn; 76/145124 B) | - | - (0/718 fn; 0/145124 B) | - (0/718 fn; 0/145124 B) |
-| framework | framework services (GZ) | 115 | 975 | 89,078 | partial (168/975 fn; 11502/89078 B) | partial (17/975 fn; 951/89078 B) | - | - (0/975 fn; 0/89078 B) | - (0/975 fn; 0/89078 B) |
-| framework | persistence and resources | 47 | 782 | 86,316 | partial (260/782 fn; 23177/86316 B) | partial (109/782 fn; 8437/86316 B) | - | - (0/782 fn; 0/86316 B) | - (0/782 fn; 0/86316 B) |
-| framework | web and network | 10 | 437 | 86,144 | partial (41/437 fn; 9498/86144 B) | partial (41/437 fn; 9498/86144 B) | - | - (0/437 fn; 0/86144 B) | - (0/437 fn; 0/86144 B) |
-| framework | data formats (DBPF, exemplars) | 24 | 557 | 71,329 | yes (557/557 fn; 71329/71329 B) | yes (557/557 fn; 71329/71329 B) | formats_exemplar_own 8959/8959, formats_exemplar_effective 8959/8959, formats_cohort_own 388/388, formats_cohort_effective 388/388 (lane run) | partial (27/557 fn; 4168/71329 B) | - (0/557 fn; 0/71329 B) |
-| framework | Lua host | 28 | 417 | 46,948 | partial (400/417 fn; 43988/46948 B) | partial (50/417 fn; 7658/46948 B) | - | - (0/417 fn; 0/46948 B) | - (0/417 fn; 0/46948 B) |
-| framework | strings and language | 12 | 221 | 43,129 | partial (81/221 fn; 19016/43129 B) | partial (81/221 fn; 19016/43129 B) | - | - (0/221 fn; 0/43129 B) | - (0/221 fn; 0/43129 B) |
-| framework | framework services (RZ) | 37 | 433 | 36,714 | partial (160/433 fn; 23159/36714 B) | partial (140/433 fn; 18774/36714 B) | - | - (0/433 fn; 0/36714 B) | - (0/433 fn; 0/36714 B) |
-| framework | foundations | 1 | 126 | 10,680 | yes (126/126 fn; 10680/10680 B) | yes (126/126 fn; 10680/10680 B) | - | - (0/126 fn; 0/10680 B) | - (0/126 fn; 0/10680 B) |
-| framework | command line | 1 | 19 | 3,359 | yes (19/19 fn; 3359/3359 B) | yes (19/19 fn; 3359/3359 B) | - | - (0/19 fn; 0/3359 B) | - (0/19 fn; 0/3359 B) |
-| framework | timers | 2 | 34 | 3,312 | yes (34/34 fn; 3312/3312 B) | partial (23/34 fn; 2250/3312 B) | - | - (0/34 fn; 0/3312 B) | - (0/34 fn; 0/3312 B) |
-| framework | streams | 5 | 50 | 2,517 | yes (50/50 fn; 2517/2517 B) | partial (37/50 fn; 1374/2517 B) | - | - (0/50 fn; 0/2517 B) | - (0/50 fn; 0/2517 B) |
-| framework | paths and directories | 10 | 28 | 2,377 | yes (28/28 fn; 2377/2377 B) | - (0/28 fn; 0/2377 B) | - | - (0/28 fn; 0/2377 B) | - (0/28 fn; 0/2377 B) |
-| framework | dates and times | 2 | 37 | 2,320 | yes (37/37 fn; 2320/2320 B) | yes (37/37 fn; 2320/2320 B) | - | - (0/37 fn; 0/2320 B) | - (0/37 fn; 0/2320 B) |
-| framework | random numbers and seeding | 2 | 19 | 1,105 | yes (19/19 fn; 1105/1105 B) | yes (19/19 fn; 1105/1105 B) | - | - (0/19 fn; 0/1105 B) | - (0/19 fn; 0/1105 B) |
-| framework | feature manager | 1 | 12 | 897 | yes (12/12 fn; 897/897 B) | - (0/12 fn; 0/897 B) | - | - (0/12 fn; 0/897 B) | - (0/12 fn; 0/897 B) |
-| framework | command system | 1 | 1 | 581 | yes (1/1 fn; 581/581 B) | yes (1/1 fn; 581/581 B) | - | - (0/1 fn; 0/581 B) | - (0/1 fn; 0/581 B) |
-| renderer | 3D scene and models | 16 | 713 | 228,585 | partial (134/713 fn; 42756/228585 B) | partial (134/713 fn; 42756/228585 B) | 100/100 | partial (134/713 fn; 42756/228585 B) | - (0/713 fn; 0/228585 B) |
-| renderer | effects | 60 | 604 | 168,821 | yes (604/604 fn; 168821/168821 B) | partial (354/604 fn; 98363/168821 B) | - | - (0/604 fn; 0/168821 B) | - (0/604 fn; 0/168821 B) |
-| renderer | 3D driver (DirectX 7) | 10 | 843 | 151,995 | partial (65/843 fn; 8068/151995 B) | - (0/843 fn; 0/151995 B) | - | - (0/843 fn; 0/151995 B) | - (0/843 fn; 0/151995 B) |
-| renderer | 2D drawing and fonts | 35 | 784 | 139,364 | partial (212/784 fn; 24926/139364 B) | partial (74/784 fn; 8358/139364 B) | - | - (0/784 fn; 0/139364 B) | - (0/784 fn; 0/139364 B) |
-| renderer | effects (particles, decals, visuals) | 23 | 243 | 67,799 | partial (3/243 fn; 87/67799 B) | - (0/243 fn; 0/67799 B) | - | - (0/243 fn; 0/67799 B) | - (0/243 fn; 0/67799 B) |
-| renderer | 2D drawing (span render 4444) | 1 | 172 | 51,809 | yes (172/172 fn; 51809/51809 B) | yes (172/172 fn; 51809/51809 B) | span4444_sp6 350/350, span4444_ctx7 126/126, span4444_direct 198/198 (lane run) | yes (172/172 fn; 51809/51809 B) | - (0/172 fn; 0/51809 B) |
-| renderer | 2D drawing (span render 1555) | 1 | 172 | 50,817 | yes (172/172 fn; 50817/50817 B) | yes (172/172 fn; 50817/50817 B) | span1555_ctx4 490/490, span1555_ctx6 490/490, span1555_direct 158/158 (lane run) | yes (172/172 fn; 50817/50817 B) | - (0/172 fn; 0/50817 B) |
-| renderer | 2D drawing (span render 565) | 1 | 145 | 39,051 | yes (145/145 fn; 39051/39051 B) | yes (145/145 fn; 39051/39051 B) | span565_source_own 249/249, span565_source_current40 249/249, span565_joint97 249/249 (lane run) | yes (145/145 fn; 39051/39051 B) | - (0/145 fn; 0/39051 B) |
-| renderer | 2D drawing (span render 8888) | 1 | 174 | 37,218 | yes (174/174 fn; 37218/37218 B) | yes (174/174 fn; 37218/37218 B) | span8888_ctx8 254/254, span8888_ctx9 254/254, span8888_direct 198/198, span8888_shipped 369/372 (lane run, not exact) | - (0/174 fn; 0/37218 B) | - (0/174 fn; 0/37218 B) |
-| renderer | terrain overlays | 1 | 93 | 30,436 | yes (93/93 fn; 30436/30436 B) | - (0/93 fn; 0/30436 B) | - | - (0/93 fn; 0/30436 B) | - (0/93 fn; 0/30436 B) |
-| renderer | 2D drawing (span render 8) | 1 | 130 | 24,545 | yes (130/130 fn; 24545/24545 B) | yes (130/130 fn; 24545/24545 B) | span8_source_own_direct 160/160, span8_source_own_native 160/160, span8_source_current40_direct 160/160, span8_source_current40_native 160/160, span8_joint98_direct 160/160, span8_joint98_native 160/160 (lane run) | yes (130/130 fn; 24545/24545 B) | - (0/130 fn; 0/24545 B) |
-| renderer | lighting and shadows | 4 | 52 | 23,453 | yes (52/52 fn; 23453/23453 B) | - (0/52 fn; 0/23453 B) | - | - (0/52 fn; 0/23453 B) | - (0/52 fn; 0/23453 B) |
-| renderer | render properties | 79 | 120 | 23,179 | yes (120/120 fn; 23179/23179 B) | yes (120/120 fn; 23179/23179 B) | - | - (0/120 fn; 0/23179 B) | - (0/120 fn; 0/23179 B) |
-| renderer | graphics rules | 7 | 112 | 22,162 | yes (112/112 fn; 22162/22162 B) | - (0/112 fn; 0/22162 B) | - | - (0/112 fn; 0/22162 B) | - (0/112 fn; 0/22162 B) |
-| renderer | view utilities | 3 | 50 | 19,748 | yes (50/50 fn; 19748/19748 B) | - (0/50 fn; 0/19748 B) | - | - (0/50 fn; 0/19748 B) | - (0/50 fn; 0/19748 B) |
-| renderer | model instances | 8 | 162 | 15,346 | yes (162/162 fn; 15346/15346 B) | - (0/162 fn; 0/15346 B) | - | - (0/162 fn; 0/15346 B) | - (0/162 fn; 0/15346 B) |
-| renderer | terrain ripples and selection | 2 | 65 | 15,308 | yes (65/65 fn; 15308/15308 B) | - (0/65 fn; 0/15308 B) | - | - (0/65 fn; 0/15308 B) | - (0/65 fn; 0/15308 B) |
-| renderer | overlay views | 6 | 54 | 14,867 | yes (54/54 fn; 14867/14867 B) | - (0/54 fn; 0/14867 B) | - | - (0/54 fn; 0/14867 B) | - (0/54 fn; 0/14867 B) |
-| renderer | camera and projection | 2 | 68 | 14,793 | yes (68/68 fn; 14793/14793 B) | - (0/68 fn; 0/14793 B) | - | - (0/68 fn; 0/14793 B) | - (0/68 fn; 0/14793 B) |
-| renderer | 3D draw context | 2 | 61 | 13,545 | yes (61/61 fn; 13545/13545 B) | - (0/61 fn; 0/13545 B) | - | - (0/61 fn; 0/13545 B) | - (0/61 fn; 0/13545 B) |
-| renderer | lot models | 3 | 82 | 11,439 | yes (82/82 fn; 11439/11439 B) | - (0/82 fn; 0/11439 B) | - | - (0/82 fn; 0/11439 B) | - (0/82 fn; 0/11439 B) |
-| renderer | animated sprites | 2 | 60 | 10,482 | yes (60/60 fn; 10482/10482 B) | - (0/60 fn; 0/10482 B) | - | - (0/60 fn; 0/10482 B) | - (0/60 fn; 0/10482 B) |
-| renderer | model effects | 1 | 23 | 8,406 | yes (23/23 fn; 8406/8406 B) | - (0/23 fn; 0/8406 B) | - | - (0/23 fn; 0/8406 B) | - (0/23 fn; 0/8406 B) |
-| renderer | animation coordinator | 1 | 45 | 7,726 | yes (45/45 fn; 7726/7726 B) | - (0/45 fn; 0/7726 B) | - | - (0/45 fn; 0/7726 B) | - (0/45 fn; 0/7726 B) |
-| renderer | geometry utilities | 3 | 37 | 7,509 | yes (37/37 fn; 7509/7509 B) | - (0/37 fn; 0/7509 B) | - | - (0/37 fn; 0/7509 B) | - (0/37 fn; 0/7509 B) |
-| renderer | textures and materials | 9 | 58 | 4,883 | yes (58/58 fn; 4883/4883 B) | - (0/58 fn; 0/4883 B) | - | - (0/58 fn; 0/4883 B) | - (0/58 fn; 0/4883 B) |
-| renderer | glyph and string textures | 3 | 43 | 4,475 | yes (43/43 fn; 4475/4475 B) | - (0/43 fn; 0/4475 B) | - | - (0/43 fn; 0/4475 B) | - (0/43 fn; 0/4475 B) |
-| renderer | fire flames | 2 | 16 | 3,513 | yes (16/16 fn; 3513/3513 B) | - (0/16 fn; 0/3513 B) | - | - (0/16 fn; 0/3513 B) | - (0/16 fn; 0/3513 B) |
-| renderer | graphics formats (FSH, S3D) | 3 | 17 | 3,279 | yes (17/17 fn; 3279/3279 B) | yes (17/17 fn; 3279/3279 B) | - | - (0/17 fn; 0/3279 B) | - (0/17 fn; 0/3279 B) |
-| ui | widget toolkit | 112 | 3,236 | 463,543 | partial (179/3236 fn; 39048/463543 B) | - (0/3236 fn; 0/463543 B) | - | - (0/3236 fn; 0/463543 B) | - (0/3236 fn; 0/463543 B) |
-| ui | windows and panels | 58 | 1,003 | 391,133 | partial (256/1003 fn; 159492/391133 B) | - (0/1003 fn; 0/391133 B) | - | - (0/1003 fn; 0/391133 B) | - (0/1003 fn; 0/391133 B) |
-| ui | city tools and input | 32 | 630 | 182,016 | partial (184/630 fn; 39301/182016 B) | - (0/630 fn; 0/182016 B) | - | - (0/630 fn; 0/182016 B) | - (0/630 fn; 0/182016 B) |
-| ui | resource and exemplar editor | 26 | 235 | 69,054 | partial (46/235 fn; 13488/69054 B) | - (0/235 fn; 0/69054 B) | - | - (0/235 fn; 0/69054 B) | - (0/235 fn; 0/69054 B) |
-| audio | audio | 56 | 1,965 | 223,456 | partial (165/1965 fn; 28674/223456 B) | - (0/1965 fn; 0/223456 B) | - | - (0/1965 fn; 0/223456 B) | - (0/1965 fn; 0/223456 B) |
-| region | region | 28 | 417 | 111,848 | partial (261/417 fn; 75734/111848 B) | - (0/417 fn; 0/111848 B) | - | - (0/417 fn; 0/111848 B) | - (0/417 fn; 0/111848 B) |
-| other | other free functions | 142 | 175 | 25,064 | - (0/175 fn; 0/25064 B) | - (0/175 fn; 0/25064 B) | - | - (0/175 fn; 0/25064 B) | - (0/175 fn; 0/25064 B) |
-| other | other | 57 | 155 | 12,549 | - (0/155 fn; 0/12549 B) | - (0/155 fn; 0/12549 B) | - | - (0/155 fn; 0/12549 B) | - (0/155 fn; 0/12549 B) |
-| other | other SC4 classes | 45 | 117 | 11,278 | - (0/117 fn; 0/11278 B) | - (0/117 fn; 0/11278 B) | - | - (0/117 fn; 0/11278 B) | - (0/117 fn; 0/11278 B) |
+| simulation | automata (vehicles, animation) | 33 | 820 | 231,259 | yes | part | - | - | - |
+| simulation | traffic | 9 | 443 | 162,482 | yes | yes | 72/72 | yes | yes |
+| simulation | network tools | 12 | 395 | 151,726 | yes | part | - | - | part |
+| simulation | automata (managers, records) | 10 | 502 | 120,972 | yes | yes | - | - | part |
+| simulation | network occupants | 22 | 850 | 117,922 | yes | - | - | - | - |
+| simulation | terrain | 3 | 321 | 84,327 | yes | yes | 100/100 | part | - |
+| simulation | mysims | 8 | 347 | 80,570 | yes | part | 73/73 | part | - |
+| simulation | advisors | 16 | 280 | 71,329 | yes | yes | - | - | - |
+| simulation | occupants and props | 31 | 442 | 66,071 | yes | - | - | - | - |
+| simulation | development | 2 | 215 | 50,083 | yes | yes | 913/913 | yes | yes |
+| simulation | disasters | 17 | 337 | 46,988 | yes | yes | fire 124/124, riot 481/481 (lane run) | part | - |
+| simulation | city situation | 1 | 155 | 41,919 | yes | yes | citysit 73/73 (lane run) | yes | yes |
+| simulation | zone developer / lot manager | 1 | 102 | 41,866 | yes | yes | 365/365 | yes | yes |
+| simulation | network manager | 5 | 166 | 41,793 | yes | yes | 72/73; 17 resynced lines | - | part |
+| simulation | residential | 1 | 118 | 40,490 | yes | yes | 1136/1136 | yes | yes |
+| simulation | lot developer | 1 | 149 | 40,458 | yes | yes | 73/73 | yes | yes |
+| simulation | tract developer | 1 | 117 | 36,811 | yes | yes | 145/145 | yes | yes |
+| simulation | city and save file | 11 | 309 | 35,103 | part | part | - | - | - |
+| simulation | budget | 3 | 171 | 30,911 | yes | yes | 72/72 | yes | yes |
+| simulation | demand | 2 | 101 | 29,573 | yes | yes | 2239/2239 | yes | yes |
+| simulation | neighbours | 3 | 126 | 26,974 | yes | yes | 72/72 | yes | yes |
+| simulation | power | 1 | 81 | 26,475 | yes | yes | 393/393 | yes | yes |
+| simulation | lots and lot records | 5 | 174 | 24,736 | yes | yes | - | - | - |
+| simulation | pollution | 1 | 104 | 24,357 | yes | yes | 72/72 | yes | yes |
+| simulation | protection | 3 | 150 | 23,130 | yes | yes | 288/288 | yes | yes |
+| simulation | plumbing | 1 | 54 | 20,057 | yes | yes | 144/144 | yes | yes |
+| simulation | prop / lot configuration managers | 2 | 121 | 19,551 | yes | yes | - | - | yes |
+| simulation | landfill | 3 | 100 | 18,940 | yes | yes | 72/72 | part | part |
+| simulation | weather | 1 | 68 | 18,299 | yes | yes | - | - | yes |
+| simulation | network rules | 5 | 55 | 18,176 | yes | yes | - | - | - |
+| simulation | prop developer | 2 | 58 | 17,553 | yes | yes | - | - | part |
+| simulation | sim grids | 4 | 109 | 17,244 | yes | yes | - | - | part |
+| simulation | aura | 1 | 55 | 16,240 | yes | yes | 71/71 | yes | yes |
+| simulation | occupant manager | 1 | 77 | 16,082 | yes | yes | 72/72 | yes | yes |
+| simulation | flora | 3 | 79 | 15,743 | yes | yes | 72/72 | part | part |
+| simulation | tutorial | 3 | 91 | 14,968 | part | yes | - | - | - |
+| simulation | port developers | 4 | 110 | 12,650 | yes | yes | ports 144/144, ports_joint_followed 24/24 (lane run) | yes | yes |
+| simulation | crime | 1 | 55 | 12,063 | yes | yes | 71/71 | yes | yes |
+| simulation | demolition | 2 | 29 | 10,968 | yes | yes | demolition 73/73 (lane run) | part | part |
+| simulation | other simulation | 3 | 71 | 9,797 | - | - | - | - | - |
+| simulation | lot configuration | 1 | 37 | 9,580 | yes | yes | - | - | - |
+| simulation | simulator | 1 | 74 | 9,346 | yes | yes | - | - | yes |
+| simulation | ordinance | 8 | 81 | 9,326 | yes | yes | - | - | yes |
+| simulation | dispatch | 1 | 40 | 7,425 | yes | yes | dispatch 73/73 (lane run) | yes | - |
+| simulation | landvalue | 1 | 27 | 6,711 | yes | yes | 72/72 | yes | yes |
+| simulation | zones | 1 | 33 | 6,513 | yes | yes | 292/292 | yes | yes |
+| simulation | history | 2 | 42 | 6,285 | yes | yes | 79/79 | yes | yes |
+| simulation | flammability | 1 | 28 | 6,001 | yes | yes | 54/54 | yes | yes |
+| simulation | civic buildings | 1 | 27 | 4,463 | yes | yes | 72/72 | yes | yes |
+| simulation | 24-hour clock | 1 | 56 | 3,693 | yes | yes | 73/73 | yes | yes |
+| simulation | parks | 1 | 19 | 3,006 | yes | yes | 72/72 | yes | yes |
+| simulation | city detail | 1 | 13 | 2,081 | yes | yes | - | - | yes |
+| simulation | commercial/industrial | 2 | 26 | 2,022 | yes | yes | 30/30, industrial_constructed_source 263052/263052, industrial_constructed_joint97 131526/131526 (lane run) | yes | yes |
+| simulation | automata groups | 2 | 15 | 1,662 | yes | - | - | - | - |
+| simulation | foundations | 1 | 7 | 918 | yes | yes | - | - | - |
+| framework | application | 15 | 718 | 145,124 | part | - | - | - | - |
+| framework | framework services (GZ) | 115 | 975 | 89,078 | part | part | - | - | - |
+| framework | persistence and resources | 47 | 782 | 86,316 | part | part | - | - | - |
+| framework | web and network | 10 | 437 | 86,144 | part | part | - | - | - |
+| framework | data formats (DBPF, exemplars) | 24 | 557 | 71,329 | yes | yes | formats_exemplar_own 8959/8959, formats_exemplar_effective 8959/8959, formats_cohort_own 388/388, formats_cohort_effective 388/388 (lane run) | part | - |
+| framework | Lua host | 28 | 417 | 46,948 | part | part | - | - | - |
+| framework | strings and language | 12 | 221 | 43,129 | part | part | - | - | - |
+| framework | framework services (RZ) | 37 | 433 | 36,714 | part | part | - | - | - |
+| framework | foundations | 1 | 126 | 10,680 | yes | yes | - | - | - |
+| framework | command line | 1 | 19 | 3,359 | yes | yes | - | - | - |
+| framework | timers | 2 | 34 | 3,312 | yes | part | - | - | - |
+| framework | streams | 5 | 50 | 2,517 | yes | part | - | - | - |
+| framework | paths and directories | 10 | 28 | 2,377 | yes | - | - | - | - |
+| framework | dates and times | 2 | 37 | 2,320 | yes | yes | - | - | - |
+| framework | random numbers and seeding | 2 | 19 | 1,105 | yes | yes | - | - | - |
+| framework | feature manager | 1 | 12 | 897 | yes | - | - | - | - |
+| framework | command system | 1 | 1 | 581 | yes | yes | - | - | - |
+| renderer | 3D scene and models | 16 | 713 | 228,585 | part | part | 100/100 | part | - |
+| renderer | effects | 60 | 604 | 168,821 | yes | part | - | - | - |
+| renderer | 3D driver (DirectX 7) | 10 | 843 | 151,995 | part | - | - | - | - |
+| renderer | 2D drawing and fonts | 35 | 784 | 139,364 | part | part | - | - | - |
+| renderer | effects (particles, decals, visuals) | 23 | 243 | 67,799 | part | - | - | - | - |
+| renderer | 2D drawing (span render 4444) | 1 | 172 | 51,809 | yes | yes | span4444_sp6 350/350, span4444_ctx7 126/126, span4444_direct 198/198 (lane run) | yes | - |
+| renderer | 2D drawing (span render 1555) | 1 | 172 | 50,817 | yes | yes | span1555_ctx4 490/490, span1555_ctx6 490/490, span1555_direct 158/158 (lane run) | yes | - |
+| renderer | 2D drawing (span render 565) | 1 | 145 | 39,051 | yes | yes | span565_source_own 249/249, span565_source_current40 249/249, span565_joint97 249/249 (lane run) | yes | - |
+| renderer | 2D drawing (span render 8888) | 1 | 174 | 37,218 | yes | yes | span8888_ctx8 254/254, span8888_ctx9 254/254, span8888_direct 198/198, span8888_shipped 369/372 (lane run, not exact) | - | - |
+| renderer | terrain overlays | 1 | 93 | 30,436 | yes | - | - | - | - |
+| renderer | 2D drawing (span render 8) | 1 | 130 | 24,545 | yes | yes | span8_source_own_direct 160/160, span8_source_own_native 160/160, span8_source_current40_direct 160/160, span8_source_current40_native 160/160, span8_joint98_direct 160/160, span8_joint98_native 160/160 (lane run) | yes | - |
+| renderer | lighting and shadows | 4 | 52 | 23,453 | yes | - | - | - | - |
+| renderer | render properties | 79 | 120 | 23,179 | yes | yes | - | - | - |
+| renderer | graphics rules | 7 | 112 | 22,162 | yes | - | - | - | - |
+| renderer | view utilities | 3 | 50 | 19,748 | yes | - | - | - | - |
+| renderer | model instances | 8 | 162 | 15,346 | yes | - | - | - | - |
+| renderer | terrain ripples and selection | 2 | 65 | 15,308 | yes | - | - | - | - |
+| renderer | overlay views | 6 | 54 | 14,867 | yes | - | - | - | - |
+| renderer | camera and projection | 2 | 68 | 14,793 | yes | - | - | - | - |
+| renderer | 3D draw context | 2 | 61 | 13,545 | yes | - | - | - | - |
+| renderer | lot models | 3 | 82 | 11,439 | yes | - | - | - | - |
+| renderer | animated sprites | 2 | 60 | 10,482 | yes | - | - | - | - |
+| renderer | model effects | 1 | 23 | 8,406 | yes | - | - | - | - |
+| renderer | animation coordinator | 1 | 45 | 7,726 | yes | - | - | - | - |
+| renderer | geometry utilities | 3 | 37 | 7,509 | yes | - | - | - | - |
+| renderer | textures and materials | 9 | 58 | 4,883 | yes | - | - | - | - |
+| renderer | glyph and string textures | 3 | 43 | 4,475 | yes | - | - | - | - |
+| renderer | fire flames | 2 | 16 | 3,513 | yes | - | - | - | - |
+| renderer | graphics formats (FSH, S3D) | 3 | 17 | 3,279 | yes | yes | - | - | - |
+| ui | widget toolkit | 112 | 3,236 | 463,543 | part | - | - | - | - |
+| ui | windows and panels | 58 | 1,003 | 391,133 | part | - | - | - | - |
+| ui | city tools and input | 32 | 630 | 182,016 | part | - | - | - | - |
+| ui | resource and exemplar editor | 26 | 235 | 69,054 | part | - | - | - | - |
+| audio | audio | 56 | 1,965 | 223,456 | part | - | - | - | - |
+| region | region | 28 | 417 | 111,848 | part | - | - | - | - |
+| other | other free functions | 142 | 175 | 25,064 | - | - | - | - | - |
+| other | other | 57 | 155 | 12,549 | - | - | - | - | - |
+| other | other SC4 classes | 45 | 117 | 11,278 | - | - | - | - | - |
 
 ## Excluded from the denominator
 
@@ -302,14 +283,6 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | tools/coverage-shadows.tsv | 9731b2ec2a260629 | |
 | tools/regress.ps1 | b0d5f185df98ccf4 | |
 | engine/plugin/FC4Subsystems.cpp | b315a0a4b162abfc | |
-| docs/coverage-functions/registry-00473b50.json | dcc02f34ab918107ab075a6fa2cbc3ad55805016a41a305c0e141ee5d5f09465 | exact-function evidence (normalized full SHA-256) |
-| docs/coverage-functions/registry-00473b70.json | f118da46248d7f74be6008104029cb2ee6936fec5f61ebfe8125bd3149c60e2d | exact-function evidence (normalized full SHA-256) |
-| docs/coverage-functions/registry-00473b90.json | dba9a590930e5cae834a9f0e6ba393495a6a88ecb728f7156fdaf118f5bb4e81 | exact-function evidence (normalized full SHA-256) |
-| docs/coverage-functions/registry-pilot-validation.txt | e9505d16d2b2aa0002ed67e621edf202a58b9d3dcd50a74d778ec15386cd848a | exact-function evidence (normalized full SHA-256) |
-| docs/specs/game-data-registry.md | 58225ab1eb363e2773f8b88900ce1bcd1c041cda59d07fd1a7d4db7a45d472d8 | exact-function evidence (normalized full SHA-256) |
-| engine/core/src/game_data_registry/mod.rs | f60200160d8c71741adda5f065f7d6bc30fea60b1a39300f803b95689af80ffd | exact-function evidence (normalized full SHA-256) |
-| engine/core/src/game_data_registry/tests.rs | c8584cea5020ab7df0d08b60e1db174ee6dee74538ce317d3751dcea203cea4e | exact-function evidence (normalized full SHA-256) |
-| tools/coverage-functions.json | f52f6bc45ffe813003c000851253a43b3d7f25d10b58dcae393634af28bfcfeb | exact-function evidence (normalized full SHA-256) |
 | build-runs/regress-train123.out | ac4baa856eeab522 | regress train123 (PASS; turbo to 2032-01-01, timeout 1800 s; queue (priority high, at the same time)); replace run clean |
 
 Read from tools/regress.ps1: 40 replace keys, 30 shadows. On by default in FC4Subsystems.cpp: budget, simulator.

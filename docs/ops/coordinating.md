@@ -5,90 +5,6 @@ was, in [docs/history/handoff-2026-10.md](../history/handoff-2026-10.md). Who re
 owner of `main`). Lanes read [docs/lanes/README.md](../lanes/README.md) and [docs/merge-train.md](../merge-train.md)
 instead: write the lane file, enqueue, stop.
 
-## Mandatory nine-worker capacity
-
-The user's 2026-10-23 instruction requires **nine actual running worker lanes**, with at most three glue
-lanes. Research, implementation, verification and tooling all count when they advance coverage. Helpers,
-reviews, queued briefs and blocked tasks do not count as running workers. The earlier research/spec-writing
-pause is lifted. The coordinator has authorization to resolve project blockers autonomously; waiting for the
-absent user to resolve routine blockers is not a recovery action.
-
-Whenever the live count drops below nine, immediately assign available helpers independent refill areas,
-prepare and peer-review useful briefs, and queue every eligible brief through the normal guarded dispatcher.
-Keep doing this until nine workers run and launchable replacements cover open slots. Maintain essential
-train acceptance in parallel so completed dependencies promptly release more work. Broaden selection to
-distinct owners and research missing contracts; repeatedly reviewing the same blocked shortlist is not refill.
-
-Prepare at least three independently launchable, reviewed replacements while all nine workers are busy.
-An empty backlog at nine is a refill task: completion waves otherwise recreate vacancies before a new brief
-can pass review. On every wake, check both actual worker identities and replacement eligibility. A provider
-failure consumes its actual round; preserve partial work and recover only with the documented real probe.
-Do not report a historical nine-worker snapshot as current capacity.
-
-Scheduling dependencies need actual published work on main. A newly created active branch may still point
-at its original main ancestor, so `merge-base --is-ancestor` alone can falsely call its dependent launchable.
-For such a prerequisite, the coordinator must hold the existing pending record as `blocked` under the normal
-coordinator lock, retaining its spec, reason and history. Release only after checking the real published tip,
-actual landing, fresh full admission and ordinary queue submission. Do not invent a ref or weaken the guard.
-The train121/122 AutoPause-to-Clip hold is retained in
-`build-runs/coordinator-clip-scheduling-hold-02a46c634f.json`.
-
-Treat a failed check or service error as work to resolve: inspect its actual evidence, repair the underlying
-operational or tooling fault, and repeat the normal check only after its cause changes. Preserve honest scope,
-clean-room roles, assignments, logical-family round budgets and STOP. Never satisfy capacity by disabling a
-guard, renaming exhausted work, or counting a conditional brief as launchable. Record actual lane/process
-identities and corrective action at each heartbeat; do not enter a long wait while refill work remains.
-
-Research uses the documented [native export/query workflow](../re-workspace.md#querying-in-parallel-lanes)
-first. A successful live pseudocode query is not a universal prerequisite for instruction-supported research.
-Keep normal REA preflight and full admission checks; record unavailable live sessions accurately and leave
-unavailable evidence unresolved. Do not invent an extra live-only condition that strands otherwise valid
-primary-export research. Work requiring live analysis still needs actual same-client target/query proof.
-
-### Changed phases within an original budget
-
-An already-merged same-name resume refusal does not prohibit a genuinely new implementation phase
-after missing public algorithms have been published. Use a new worktree only after auditing the entire
-original family and its historical round count. Under the coordinator lock, freeze the parent limit at
-the rounds actually consumed, retain its park and evidence, and reserve exactly one exclusive child
-for the known unused rounds. Record parentage and the reservation in the state and brief. Parent plus
-child must remain at most three; no sibling or parent may spend the child's reservation. Unknown
-historical budgets do not qualify. This is not FIRST work or a reset of exhausted work.
-
-The child still needs the full original subsystem keys, actual landed dependencies, assignment and
-STOP checks, a substantive reviewed task, and normal new-worktree admission. Do not reconstruct refs,
-change guards or rename unchanged denied work. Specific prohibitions, including CoreNetocc NO15–17,
-remain binding. Overlay, Ripples and their reservation evidence illustrate qualified changed phases.
-
-A parent worktree already removed by the normal qualified cleanup does not need to be recreated for a
-genuinely new published phase. Audit its retained exact branch and main ancestry, recorded original
-round/history/cleanup/archive identity and manifest, and prove the relevant current main production
-tree still equals the retained source. Use a finite outside-lock census of the absent old path and
-its service, plus a bounded blind archive inventory and integrity hashes. Under the short lock,
-revalidate the fixed inventory, branch/source, cleanup record, manifest, budget, exclusivity and STOP.
-Then reserve the original remaining rounds for one normal new child forked from current main. Never
-use Git's parent-directory fallback at a missing worktree, recreate parent refs/source, invent a
-historical archive checksum, or treat unknown historical budgets as permission. The TerrainOverlays
-reservation records this audited case; full-key/dependency/peer/normal admission remains mandatory.
-
-### Host evidence and isolated workers
-
-The host coordinator owns global process/service inspection and admission. Copy fresh, exact evidence
-into the worker's ignored build-runs directory. An isolated worker's inability to inspect host processes
-does not invalidate verified host evidence or prove the host service is down. Do not add a repeated
-global inspection as a worker prerequisite when its sandbox cannot perform it. Runtime role, STOP,
-round and scope guards still apply. Unknown ownership or unresolved host inspection errors remain
-unresolved; do not infer drainage or terminal success from process disappearance.
-
-Keep the coordinator state lock short: perform finite process/file-handle inspection outside it,
-then revalidate the relevant state and identities under the lock before reserving or launching.
-Never hold dispatch behind an unbounded global file-handle census. If an audit times out, record
-UNKNOWN and stop only its exact owned inspector; no reservation or cleanup is authorized by timeout.
-
-Format explicit owned source files in place. Never redirect multi-file `rustfmt --emit stdout` output
-into a source file: filename headers have caused actual Rust compiler errors. Preserve the failed
-source and error evidence, then qualify the corrected final source with the normal stable gate.
-
 ## Spawning a lane
 
 **Provider selection:** the tracked `tools/lane_launch.py` and `tools/lane_refill.py` support explicit
@@ -307,12 +223,8 @@ was recorded in the rounds ledger.
 - **Keep the backlog launchable before a long wait (run 4, 2026-10-22):** before starting any wait longer than a few
   minutes (a train gate/regress above all), queue at least as many *launchable* briefs (every dep already on
   `main`) as there are open slots, and wait with `python tools/lane_heartbeat.py --wait-until train` instead of a
-  plain train wait. STOP/provider pause exits 5 before capacity or train events. Any actual underfill exits 4,
-  even when pending launchable briefs cover the open slots; it never sleeps waiting for those briefs to launch.
-  The heartbeat persists first observation/age and suppression in its own capacity journal across restarts;
-  a covering backlog or resuming from pause does not resolve it. Only observed actual recovery does. On exit 4,
-  inspect the exact deficit and normal refiller ownership, replenish reviewed launchable backlog if short, and
-  let the normal guarded refiller launch before waiting again. Briefs that depend on the train do not count; they
+  plain train wait. It returns on the train verdict or as soon as the heartbeat says `BACKLOG LOW` (exit 4): then
+  queue more launchable briefs and wait again. Briefs that depend on the train being waited for do not count; they
   drained run 4 from 9 live lanes to 1 while the log showed `pending 2`. See
   [docs/lane-tools.md](../lane-tools.md) "Run 4: the heartbeat backlog".
 - **Read results, not transcripts:** the lane's structured result and `docs/lanes/<lane>.md` are the record; never

@@ -15,9 +15,9 @@ the regress was clean with no worsened comparison row vs train122 ([run 300](run
 lane tips are ancestors of main. No batch is in flight.
 
 **Coverage** (`tools/coverage.py`): specified 57.8%, implemented 36.1%, verified 19.7%, replaced 18.1%
-(3,226,982 / 2,018,539 / 1,099,943 / 1,012,661 of 5,584,842 bytes). Over the 12 hours ending at this stop
-(trains 103-123, ~590 commits, +103k lines) this moved by +76 B specified, +8.5 KB implemented, +64 KB verified
-and 0 replaced. Bounded/partial deliveries earn no owner credit; on resume, prefer finishing owners over
+(3,226,906 / 2,018,463 / 1,099,943 / 1,012,661 of 5,584,842 bytes). Over the 12 hours ending at this stop
+(trains 103-123, ~590 commits, +103k lines) this moved by +8.4 KB implemented, +64 KB verified and 0 replaced.
+The exact-function credit path (76 B, self-reviewed) was removed in the 2026-10-23 trim. Bounded/partial deliveries earn no owner credit; on resume, prefer finishing owners over
 parallel partial slices.
 
 **Unfinished work left in worktrees** (uncommitted or unqueued; inspect before reuse): Automata controller RE,

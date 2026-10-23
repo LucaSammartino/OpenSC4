@@ -107,4 +107,4 @@ before normal landing/postchecks/qualified cleanup; review Radius/Curve independ
 Restore actual9 and three disjoint usable spares through normal guards. No automatic
 Watercraft promotion, UTF8 admission, unpark, model switch or budget reset.
 The previous section0 is archived verbatim in
-[handoff-before-user-stop-2026-10-23.md](history/handoff-before-user-stop-2026-10-23.md).
+handoff-before-user-stop-2026-10-23.md (removed in the 2026-10-23 trim; see git history).

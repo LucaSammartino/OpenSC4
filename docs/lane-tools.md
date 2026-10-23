@@ -86,13 +86,6 @@ coordinator can add `--lane <name>` to look in another worktree.
 
 ## Run 4: the heartbeat backlog and `--wait-until`
 
-Reviewed briefs may omit `evidence` or use `[]`; otherwise it must be a list of nonempty file-path
-strings. Relative sources are read against `--root`, including when the spec or process cwd is elsewhere;
-absolute sources remain supported. `lane_refill.py --queue` validates every requested spec before writing
-the queue, and direct launch rechecks readable regular files before setup. Errors name the spec,
-`evidence[index]` (or the invalid container), value and filesystem/type reason. Evidence basenames and
-overwrite order are unchanged; prose belongs in the brief text, not in `evidence`.
-
 `python tools/lane_heartbeat.py --once` (the five-minute scheduled task) writes `build-runs/run4-heartbeat.json` and
 one log line. Pending briefs in `build-runs/run4-refill-queue.json` are split the way the refiller decides:
 a brief is **launchable** when every one of its `args.deps` is an ancestor of `main` (`lane_refill.unmet_deps`, the
@@ -117,78 +110,15 @@ and exits:
 
 | Exit | Line | When |
 |---|---|---|
-| 1 | `ERROR: ...` | critical JSON read, capacity journal or supervision I/O failure; inspect the full diagnostic and retained evidence |
 | 0 | `TRAIN <id>: gate FAIL`, `TRAIN <id>: gate ok, regress <verdict>`, `TRAIN <id>: no longer current (landed or cleared)` | `train`: the current train in `build-runs/merge-train/state.json` needs the coordinator (`RUNNING` does not count) |
 | 0 | `FILE <path>: present` | a file path (relative to `--root`: the checkout holding the script, the main checkout for the coordinator) exists |
-| 4 | `CAPACITY: N actual workers missing; launchable deficit D; observed age ...; live x/y, pending ...` | actual live below target, including a covering launchable backlog, or launchable backlog below open slots |
+| 4 | `BACKLOG LOW: ...; live x/y, pending L launchable / W waiting [...]` | the heartbeat alert above |
 | 5 | `HALT: STOP set` / `HALT: provider <p> paused` | the STOP flag or a provider pause |
 | 2 | `TIMEOUT after <s>s waiting for <event>; ...` | nothing happened; call it again |
 | 3 | `WAIT: ...` | no current train for `train`, or `--timeout` outside (0, 3600] |
 
-STOP/provider pause (exit 5) takes priority over capacity (exit 4), which takes priority over a train verdict or
-file (exit 0). Eight actual workers with a launchable ninth brief still returns 4 immediately, before any poll.
-No train state is acknowledged, consumed or rewritten: after capacity recovers the same verdict can be read on
-the next invocation. `--fresh` ignores a train verdict or file that was
+A verdict or file already there returns at once (exit 0), and so does a backlog that is already low (exit 4): that is
+the point, the wait never starts while slots are going to empty. `--fresh` ignores a train verdict or file that was
 there before the call (for a re-run gate, whose old `gate.ok: false` stays in the state file until the new one is
 written). `backlog` waits for the backlog only. The default `--timeout` is 540 s, under a 10-minute tool-call
-limit; the maximum is 3600. The wait writes only the capacity supervision journal, not the heartbeat report/log,
-coordinator, queue or train state. `--once` and default periodic mode also exit 4 on underfill and 5 on suppression;
-periodic mode only sleeps its default 300 seconds when no capacity action or suppression remains. Scheduler/callers
-must treat 4 as coordinator action required, 5 as halted, and 1 as an error. Full capacity with no event may wait.
-
-### Durable capacity observations
-
-Every successful snapshot updates `build-runs/capacity-supervision/incident-v1.json` under the selected `--root`.
-Only distinct positive PIDs registered as live workers in coordinator `lanes` count; pending/draft entries and
-helpers, queue entries and unregistered processes do not. The configured concurrency is the target (default nine);
-the heartbeat never changes it or bypasses a launch cap. A covering launchable backlog does not resolve shortage.
-Only an actual observation at or above target sets `active: false` and `resolved_at`; the last resolved incident
-is retained until the next shortage. A healthy initial observation has null `first_observed` and `resolved_at`.
-
-Version 1 records first/last observation epochs, age seconds, target/live/open slots, launchable/waiting counts,
-exact launchable deficit/shortfall and STOP/provider/suppression flags. JSON reports include `capacity_incident`;
-CLI/log lines include the age and both actual-worker and launchable deficits. Age is an **observation span**,
-including paused time and gaps between invocations, not proof of uninterrupted shortage during missed observations.
-Pause/STOP preserve an active incident and its first observation; resuming does not fabricate capacity recovery.
-Restart never resets an incident or backdates it from older heartbeat snapshots. On wall-clock rollback the first
-observation and last verified age are retained, `clock_uncertain` becomes true and `age_seconds` becomes null until
-actual recovery. CLI prints UNKNOWN rather than claiming a monotonic historical duration.
-
-A separate `capacity-supervision/writer.lock` serializes observation and journal update, with at most 0.5 seconds
-of lock contention. Unique temporary files are flushed/fsynced and atomically replaced; Windows sharing failures
-retry replacement for at most 0.5 seconds and artifact reads five times at 0.02-second intervals. These bounds
-exclude an already-blocked OS call. Invalid/old-schema/partial/unreadable journals fail actionably (exit 1), retain
-the original bytes and leave the existing report/log unchanged. Inspect and archive evidence before operator
-repair; there is no automatic discard/reset. STOP/pause still returns 5 if supervision cannot complete. Neither
-heartbeat nor this journal launches workers, writes reviewed briefs or changes coordinator/queue/round state.
-
-### Dispatcher process ownership
-
-The normal `lane_refill.py` dispatcher acquires `run4-refill-owner.lock` before atomically publishing
-`run4-refill-owner-v1.json` plus the compatible bare PID in `run4-refill.pid`. The companion records its actual
-`os.getpid()`, OS creation identity, canonical root/cwd, actual OS argv/executable, provider and dispatcher role.
-Queue-only invocations and refused second dispatchers never publish. Publication failure exits 1 before any
-launch. Exit, STOP, pause and crashes retain the markers as evidence; no old exit deletes a newer owner's marker.
-An unlocked or dead marker is unhealthy. Supplied coordinator evidence: stale PID 23912 once pointed away from
-live dispatcher 28668 until the coordinator verified and corrected it manually; a bare live PID is insufficient.
-
-Heartbeat JSON exposes `refiller` with VERIFIED/UNKNOWN and a reason; `refiller_alive` is true only for matching
-PID, creation, argv/executable, dispatcher role/root/provider and a held owner lock. Missing companion/creation,
-reused PID, unrelated live process, queue helper, wrong root or unheld lock is UNKNOWN/unhealthy. Windows uses
-GetProcessTimes, QueryFullProcessImageNameW and GetCommandLineW for self; other-process argv uses bounded (4-second)
-PowerShell 5.1 CIM, parsed with CommandLineToArgvW. Linux uses boot ID plus `/proc` start ticks and actual argv/exe.
-Unsupported platforms or identity access denial remain UNKNOWN with the original reason; there is no name-only
-fallback. Ordinary Python script invocation is supported; flags/module/wrapper forms with unverifiable role are
-rejected. The coordinator may restart the daemon after landing; worker lanes must not operate the live dispatcher.
-
-PowerShell exit transport matters: the bare tool wrapper was observed turning exit 4 into 1. Use
-`python tools/lane_heartbeat.py --once; exit $LASTEXITCODE` to preserve 4. This transport fact is not evidence that
-every exit 1 means capacity shortage: retain and read the full original error text.
-
-Critical JSON reads share at most five attempts, separated by 0.25 s, within a 2 s read-recovery budget
-and the caller's remaining wait deadline. Recovery checks STOP and the current provider pause freshly
-between attempts. Deadline exhaustion returns exit 2 with the read diagnostic; persistent failure before
-that deadline returns exit 1, including initial train discovery (valid JSON with no current train remains
-exit 3). `--once`/scheduled reports use the same bounded read policy and leave existing report/log bytes
-unchanged on failed snapshots. These limits bound retries and sleeps; they cannot interrupt an OS read
-already in progress. They do not imply a proven cause for the observed sharing/partial-write failures.
+limit; the maximum is 3600. The wait is read-only: it does not write the heartbeat files.

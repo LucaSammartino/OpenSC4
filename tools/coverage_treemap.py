@@ -35,34 +35,22 @@ def stage(st):
     return 5 if v and r else 4 if v else 3 if r else 2 if i else 1 if s else 0
 
 
-def collect(regress_path=None):
+def collect():
     export = cov.find_input("ghidra/export/windows", None)
     exe = cov.find_input("bin/SimCity4.exe", None)
     _, lo, hi = cov.pe_text(exe)
-    exe_sha = cov.sha256(exe)
-    if exe_sha != cov.EXE_SHA256:
-        raise ValueError("coverage_treemap: foreign executable")
-    if f"executable_sha256={cov.EXE_SHA256}" not in (export / "export-summary.txt").read_text(encoding="utf-8"):
-        raise ValueError("coverage_treemap: foreign export")
-    regress = Path(regress_path) if regress_path else cov.newest_regress()
+    regress = cov.newest_regress()
     att = cov.Attribution(export, REPO / "re" / "names_windows.tsv", REPO / "docs" / "abi" / "vtables.tsv",
                           REPO / "docs" / "abi" / "interfaces.tsv", REPO / "tools" / "coverage-libs.tsv",
                           REPO / "tools" / "coverage-ranges.tsv", lo, hi,
                           REPO / "tools" / "coverage-noncode-refs.tsv")
-    owner, rule = att.run()
+    owner, _ = att.run()
     rows = cov.read_map(REPO / "tools" / "coverage-map.tsv")
     replace_list, shadow_list = cov.regress_lists(REPO / "tools" / "regress.ps1")
     keys = cov.subsystem_keys(REPO / "engine" / "plugin" / "FC4Subsystems.cpp")
     reg = cov.read_regress(regress)
     shadow_ev, _ = cov.read_shadow_evidence(REPO / "tools" / "coverage-shadows.tsv", REPO)
     cov.map_statuses(rows, replace_list, shadow_list, keys, reg, shadow_ev, regress.name)
-    statuses, _, hashes = cov.function_statuses(att, owner, rule, rows, export, exe_sha)
-    tree, stat_b = collect_entries(att, owner, rows, statuses)
-    return tree, regress.name, stat_b, hashes
-
-
-def collect_entries(att, owner, rows, statuses):
-    """Group actual entries by resolved flags; mixed owners get separate boxes."""
     row_of = {}
 
     def match(o):
@@ -86,14 +74,14 @@ def collect_entries(att, owner, rows, statuses):
                 row_of[o] = match(o)
             r = rows[row_of[o]]
             for s in STAT:
-                if statuses[va][s]:
+                if r[s]:
                     stat_b[s] += size
-            k = (r["area"], r["subsystem"], o, stage([statuses[va][s] for s in STAT]))
+            k = (r["area"], r["subsystem"], o, stage([r[s] for s in STAT]))
         agg[k] += size
     tree = defaultdict(lambda: defaultdict(list))
     for (a, s, o, st), b in agg.items():
         tree[a][s].append((b, st, o))
-    return tree, stat_b
+    return tree, regress.name, stat_b
 
 
 def worst(row, w):
@@ -134,7 +122,7 @@ def squarify(values, x, y, w, h):
     return out
 
 
-def render(tree, regress, head, out, stat_b, hashes=None):
+def render(tree, regress, head, out, stat_b):
     W, H = 1600, 1000
     top, legend_h = 120, 46
     mx, my, mw, mh = 16, top, W - 32, H - top - legend_h - 16
@@ -148,8 +136,6 @@ def render(tree, regress, head, out, stat_b, hashes=None):
     e = html.escape
     svg.append(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" '
                'font-family="Segoe UI, Helvetica, Arial, sans-serif">')
-    evidence_metadata = "; ".join(f"{p}={h}" for p, h in sorted((hashes or {}).items()))
-    svg.append(f'<metadata>Exact-function evidence SHA-256 (CRLF normalized): {e(evidence_metadata)}</metadata>')
     svg.append(f'<rect width="{W}" height="{H}" fill="#f6f7f4"/>')
     svg.append('<text x="16" y="44" font-size="30" font-weight="700" fill="#1d2320">OpenSC4 coverage of SimCity 4.exe</text>')
     # the four headline shares, on each status's own flag (a row can be implemented without a spec, or replaced
@@ -203,15 +189,14 @@ def render(tree, regress, head, out, stat_b, hashes=None):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=str(REPO / "docs" / "coverage-map.svg"))
-    ap.add_argument("--regress", help="same pinned regress input as coverage.py")
     args = ap.parse_args()
     def git(*a):
         return subprocess.run(["git", "-C", str(REPO), *a], capture_output=True, text=True).stdout.strip()
     short = git("rev-parse", "--short", "HEAD")
     branch = git("rev-parse", "--abbrev-ref", "HEAD")  # a worktree is not on `main`; name the branch it is on
     head = f"{branch} {short}" if branch and branch != "HEAD" else short
-    tree, regress, stat_b, hashes = collect(args.regress)
-    total, shares = render(tree, regress, head, Path(args.out), stat_b, hashes)
+    tree, regress, stat_b = collect()
+    total, shares = render(tree, regress, head, Path(args.out), stat_b)
     print(f"coverage_treemap: {total} bytes; stage shares " + ", ".join(f"{s:.1%}" for s in shares)
           + f"; wrote {args.out}")
 
