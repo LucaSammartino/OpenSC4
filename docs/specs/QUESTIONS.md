@@ -72,6 +72,7 @@ generated index: the questions live one file per spec, so read only the file for
 | GF | graphics-formats |
 | GI | renderer-gdrivers-director-inventory |
 | GINT | grid-interpolation |
+| GL | game-of-life |
 | GLUE | lot-configuration, prop-developer |
 | GR | graphics-rules |
 | GT | glyph-textures |
@@ -219,6 +220,7 @@ generated index: the questions live one file per spec, so read only the file for
 | framework-gz-services | 3 | 7 | GZ11 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
 | game-data-registry | 4 | 0 | GDR5 | questions/game-data-registry.md |
+| game-of-life | 3 | 0 | GL4 | questions/game-of-life.md |
 | geometry-utilities | 6 | 0 | GU7 | questions/geometry-utilities.md |
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
@@ -320,4 +322,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **482** | **1257** | | |
+| **total** | **485** | **1257** | | |
