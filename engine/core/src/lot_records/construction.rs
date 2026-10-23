@@ -10,12 +10,12 @@
 //! of `CreateLotTexture`, the spark count and scatter, and the crane's state
 //! steps (§6.7.6, §6.7.7).
 //!
-//! Not owned (host callbacks, the spec leaves them open, §6.7.10): the crane
-//! fit geometry (`AttemptAddCrane`), `DivideLot`, ground / roof props, the
-//! construction crew, dust clouds, the scaffold model and the animation's
-//! scaffold / completion interpolation. OP13–OP16 are answered (lr §9.1
-//! object-frame roles); OP17 (`docs/specs/questions/occupants-props.md`)
-//! covers who writes the world box #6.
+//! Placement, resource tables and manager cleanup are owned here too.
+//! Explicitly unspecified visual operations are listed in `Unsupported`;
+//! see construction/README.md for the owner closure and open questions.
+
+mod placement;
+pub use placement::*;
 
 use crate::automata::OccupantBase;
 use crate::network_occupants::Xform;
@@ -344,7 +344,9 @@ impl OccupantRecord for ConstructionRecord {
     /// legacy transform (NO15); ≥ 5 read with the v5 layout.
     fn read(&mut self, inp: &mut dyn InStream) -> bool {
         let Some(v) = inp.get_u16() else { return false };
-        let Some(version) = Self::accepts(v) else { return false };
+        let Some(version) = Self::accepts(v) else {
+            return false;
+        };
         match OccupantBase::read(inp) {
             Some(b) => self.base = b,
             None => return false,
@@ -455,6 +457,9 @@ pub struct ConstructionStatics {
     pub tuning: ConstructionTuning,
     pub rng: RzRandom,
     pub crt: CrtRand,
+    pub cranes: [CraneSize; 3],
+    pub ground: Vec<PropSize>,
+    pub roof: Vec<PropSize>,
 }
 
 // ---- geometry and timing (ld §6.7.3, §6.7.4) --------------------------------------------------------
@@ -631,7 +636,7 @@ pub fn lot_texture(
 // ---- the crane's animation state (ld §6.7.6) --------------------------------------------------------
 
 /// What `AttemptAddCrane` produced when it created a crane model. The fit
-/// itself (sizes, sides, `DivideLot` areas, `asin`) is host geometry; the
+/// itself (sizes, sides, `DivideLot` areas, `asin`) is core geometry; the
 /// core stores the results in the record: type → #14j `+0x124`, position →
 /// #9 `+0x108`, swing limits `[c − h, c + h]` → #14f `+0x178`/`+0x17C`.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -732,14 +737,16 @@ pub trait ConstructionHost {
     fn cell_usable(&mut self, x: i32, z: i32) -> bool;
     /// One construction lot-texture cell.
     fn set_lot_texture(&mut self, x: i32, z: i32, instance: u32);
-    /// The visual placement steps of `SetLot` the spec leaves open, in
-    /// order; the host makes their draws on `st`. `AttemptAddCrane` returns
-    /// the crane it created, if any.
-    fn divide_lot(&mut self, st: &mut ConstructionStatics);
-    fn attempt_add_crane(&mut self, st: &mut ConstructionStatics) -> Option<CraneFit>;
-    fn add_ground_props(&mut self, st: &mut ConstructionStatics);
-    fn create_construction_crew(&mut self, st: &mut ConstructionStatics, scaffold: &Bounds);
-    fn add_roof_props(&mut self, st: &mut ConstructionStatics, scaffold: &Bounds);
+    /// City slot 96; conversion remains a foreign city service.
+    fn cell_corner(&mut self, x: i32, z: i32) -> [f32; 3];
+    /// Building uint8 property 0xAA83558F; absent is zero.
+    fn crane_policy(&mut self, building: &RefValue) -> u8;
+    fn create_prop(&mut self, type_id: u32) -> Option<RefValue>;
+    fn place_prop(&mut self, prop: &RefValue, position: [f32; 3], orientation: u8);
+    fn render_detail(&mut self) -> u32;
+    fn create_automaton(&mut self, type_id: u32, position: [f32; 3], roof: bool) -> Option<RefValue>;
+    fn worker_direction(&mut self, automaton: &RefValue, direction: [f32; 2]);
+    /// Foreign visual-effect creation; its parameters are unspecified (LD38).
     fn create_dust_clouds(&mut self);
     /// `CreateSparks`: create `count` spark effects; their references form
     /// the effect vector (record #12).
@@ -755,8 +762,22 @@ pub trait ConstructionHost {
     fn place_spark(&mut self, i: usize, pos: [f32; 3]);
     /// State 0/2 with `counter > N`: roof props removed (prop manager slot
     /// 29), the scaffold switched to removal.
-    fn remove_roof_props(&mut self);
     fn start_scaffold_removal(&mut self);
+    fn occupant_base_shutdown(&mut self);
+    /// Release texture bindings, free model buffers, then release crane model.
+    fn release_texture_bindings(&mut self);
+    fn free_model_buffers(&mut self);
+    fn release_crane_model(&mut self);
+    /// Prop manager slot 29; invoked before the owner drops its reference.
+    fn remove_prop(&mut self, prop: &RefValue);
+    /// Automata manager slot 8, second argument zero.
+    fn remove_automaton(&mut self, automaton: &RefValue);
+    /// Framework grid acquisition and render-state packing; IDs not specified (LD38).
+    fn prepare_render_state(&mut self);
+    /// Foreign visibility-test object and configuration resolved by the host.
+    fn visibility_result(&mut self) -> bool;
+    /// Dwords at +4 of the message slot 10 and 15 objects.
+    fn model_message_keys(&mut self) -> (u32, u32);
     /// Renderer slots 28 / 29.
     fn add_to_renderer(&mut self);
     fn remove_from_renderer(&mut self);
@@ -782,6 +803,9 @@ pub struct ConstructionOccupant {
     pub scaffold_height: f32,
     /// Byte +0x37 bit 0x02, "in the renderer".
     pub in_renderer: bool,
+    pub areas: [Bounds; 8],
+    pub model_dirty: bool,
+    pub unsupported: Vec<Unsupported>,
 }
 
 impl Default for ConstructionOccupant {
@@ -799,6 +823,15 @@ impl ConstructionOccupant {
             geometry: None,
             scaffold_height: 0.0,
             in_renderer: false,
+            areas: [([0.0; 3], [0.0; 3]); 8],
+            model_dirty: false,
+            unsupported: vec![
+                Unsupported::ModelGeometry,
+                Unsupported::ScaffoldHeight,
+                Unsupported::Draw,
+                Unsupported::RotationChange,
+                Unsupported::PhaseInterpolation,
+            ],
         }
     }
 
@@ -818,6 +851,7 @@ impl ConstructionOccupant {
             host.subscribe(m);
         }
         host.add_tickable(ANIMATION_TICK_PRIORITY);
+        host.prepare_render_state();
         self.add_occupant_group(host, OCCUPANT_GROUP_CONSTRUCTION);
         true
     }
@@ -850,12 +884,16 @@ impl ConstructionOccupant {
     }
 
     /// `RebuildModel` (ld §6.7.3) into the record: scaffold box #7, `N`,
-    /// span `r24(N · segH)`, `startY`. The world box #6 is set to the
-    /// building's box *[literal; who writes `+0xA8` is not specified: OP17]*.
+    /// span `r24(N · segH)`, `startY`, world box widened by post width (OP17).
     fn rebuild_model(&mut self, host: &mut dyn ConstructionHost, st: &ConstructionStatics) -> ConstructionGeometry {
         let bbox = host.building_bounds(&self.rec.building);
         let geom = rebuild_model(&bbox, &st.tuning, |x, z| host.altitude(x, z));
-        self.rec.world_bounds = bbox;
+        let (mut lo, mut hi) = geom.scaffold;
+        for axis in [0, 2] {
+            lo[axis] -= st.tuning.post_width;
+            hi[axis] += st.tuning.post_width;
+        }
+        self.rec.world_bounds = (lo, hi);
         self.rec.local_bounds = geom.scaffold;
         let s = &mut self.rec.scalars;
         s.segments = geom.segments;
@@ -875,17 +913,17 @@ impl ConstructionOccupant {
         };
         self.rec.building = b.clone();
         let geom = self.rebuild_model(host, st);
-        host.divide_lot(st);
-        if let Some(fit) = host.attempt_add_crane(st) {
-            self.rec.has_crane = true;
-            self.rec.crane_position = fit.position;
-            self.rec.scalars.crane_type = fit.crane_type;
-            self.rec.scalars.swing_min = fit.swing_min;
-            self.rec.scalars.swing_max = fit.swing_max;
-        }
-        host.add_ground_props(st);
-        host.create_construction_crew(st, &geom.scaffold);
-        host.add_roof_props(st, &geom.scaffold);
+        let rect = host.lot_cell_rect(&self.rec.lot);
+        let world = (
+            host.cell_corner(rect[0], rect[1]),
+            host.cell_corner(rect[2].wrapping_add(1), rect[3].wrapping_add(1)),
+        );
+        let bbox = host.building_bounds(&b);
+        self.areas = divide_lot(world, bbox, st.tuning.scaffold_gap);
+        self.attempt_crane(host, st, bbox);
+        self.ground_props(host, st);
+        self.crew(host, st);
+        self.roof_props(host, st);
         host.create_dust_clouds();
         self.rec.effects = host.create_sparks(spark_count(&geom.scaffold));
         let rect = host.lot_cell_rect(&self.rec.lot);
@@ -910,12 +948,13 @@ impl ConstructionOccupant {
             s.crane_acc = 1;
             s.crane_duration = 0;
             s.crane_state = 2;
-            host.pose_crane(s.swing_min);
+            host.pose_crane(crane_model_angle(s.swing_min));
         }
         host.post_construction_message(MSG_SEGMENT_START, 1);
         host.post_construction_message(MSG_CONSTRUCTION, 1);
         host.add_to_renderer();
         self.in_renderer = true;
+        self.rec.base.flags |= 2;
     }
 
     /// `DoDailySim` (ld §6.7.5); the date comes from the simulator, never
@@ -938,7 +977,9 @@ impl ConstructionOccupant {
                 s.counter = s.counter.wrapping_add(1);
                 let removal = s.counter > s.segments;
                 if removal {
-                    host.remove_roof_props();
+                    for prop in self.rec.roof_props.drain(..) {
+                        host.remove_prop(&prop);
+                    }
                     host.start_scaffold_removal();
                 } else {
                     host.post_construction_message(MSG_SEGMENT_START, 1);
@@ -977,6 +1018,7 @@ impl ConstructionOccupant {
         if self.in_renderer {
             host.remove_from_renderer();
             self.in_renderer = false;
+            self.rec.base.flags &= !2;
         }
         host.remove_from_occupant_manager();
         let lot = self.rec.lot.clone();
@@ -988,18 +1030,37 @@ impl ConstructionOccupant {
     /// the four, unregisters the tick, releases the lot, building, props,
     /// effects and crew.
     pub fn shutdown(&mut self, host: &mut dyn ConstructionHost) {
+        if !self.initialised {
+            return;
+        }
         host.post_construction_message(MSG_CONSTRUCTION, 0);
+        host.occupant_base_shutdown();
+        self.initialised = false;
+        self.rec.lot = RefValue::Null;
+        self.rec.building = RefValue::Null;
         for m in SUBSCRIPTIONS {
             host.unsubscribe(m);
         }
         host.remove_tickable();
-        self.rec.lot = RefValue::Null;
-        self.rec.building = RefValue::Null;
-        self.rec.ground_props.clear();
-        self.rec.roof_props.clear();
-        self.rec.effects.clear();
+        host.release_texture_bindings();
+        host.free_model_buffers();
+        host.release_crane_model();
+        self.rec.has_crane = false;
+        for prop in self
+            .rec
+            .ground_props
+            .drain(..)
+            .chain(self.rec.roof_props.drain(..))
+            .chain(self.rec.effects.drain(..))
+        {
+            host.remove_prop(&prop);
+        }
+        // Literal unconditional current-effect removal, including null (§6.7.14).
+        host.remove_prop(&self.rec.current_effect);
         self.rec.current_effect = RefValue::Null;
-        self.rec.crew.clear();
+        for crew in self.rec.crew.drain(..) {
+            host.remove_automaton(&crew.automaton);
+        }
     }
 
     /// `DoAnimationTick(ms)`: accumulates `msAcc` and runs `AnimateCrane` in
@@ -1031,10 +1092,11 @@ impl ConstructionOccupant {
         host.add_to_renderer();
         self.in_renderer = true;
         let was2 = self.rec.scalars.state == 2;
+        self.rec.base.flags |= 2;
         if was2 {
             self.rec.scalars.state = 1;
         }
-        self.do_animation_tick(st, 0);
+        self.animation_tick(host, st, 0);
         if was2 {
             self.rec.scalars.state = 2;
         }
@@ -1044,8 +1106,8 @@ impl ConstructionOccupant {
     /// `DoMessage` (object `+4` frame): SimNewDay → `DoDailySim` (data1
     /// unused); the tick (delivered directly by the tick manager) with
     /// `ms := data2 / 1000`, unsigned and truncating; `0x26D31EC1` → the
-    /// refresh. `0x06CDB65B` / `0xA6B79602` are visual and not handled
-    /// here. Returns true for all.
+    /// refresh; visibility and model messages resolve foreign message objects
+    /// through the host and perform owner state changes. Returns true for all.
     pub fn do_message(
         &mut self,
         host: &mut dyn ConstructionHost,
@@ -1055,8 +1117,16 @@ impl ConstructionOccupant {
     ) -> bool {
         match msg {
             MSG_SIM_NEW_DAY => self.do_daily_sim(host, st),
-            MSG_ANIMATION_TICK => self.do_animation_tick(st, data2 / 1000),
+            MSG_ANIMATION_TICK => self.animation_tick(host, st, data2 / 1000),
             MSG_VIEW_REFRESH => self.refresh(host, st),
+            MSG_VISIBILITY_TEST => {
+                let visible = host.visibility_result();
+                self.visibility_test(host, visible);
+            }
+            MSG_MODEL_AVAILABLE => {
+                let (first, second) = host.model_message_keys();
+                self.model_available(first, second);
+            }
             _ => {}
         }
         true
@@ -1067,5 +1137,45 @@ impl ConstructionOccupant {
     pub fn position(&self) -> [f32; 3] {
         let (a, b) = self.rec.world_bounds;
         [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5, (a[2] + b[2]) * 0.5]
+    }
+
+    pub fn bounding_box(&self) -> Bounds {
+        self.rec.world_bounds
+    }
+
+    /// Resolved visibility test from the foreign renderer (§9.2).
+    pub fn visibility_test(&mut self, host: &mut dyn ConstructionHost, visible: bool) {
+        if visible != self.in_renderer {
+            if visible {
+                host.add_to_renderer();
+            } else {
+                host.remove_from_renderer();
+            }
+            self.in_renderer = visible;
+        }
+        if visible {
+            self.rec.base.flags |= 2;
+        } else {
+            self.rec.base.flags &= !2;
+        }
+    }
+
+    /// Message slots 10/15 return objects; their +4 dwords are compared.
+    pub fn model_available(&mut self, first: u32, second: u32) {
+        if first != second {
+            self.model_dirty = true;
+        }
+    }
+
+    /// Phase interpolation is open (LD36); crane smoothstep is settled.
+    pub fn animation_tick(&mut self, host: &mut dyn ConstructionHost, st: &mut ConstructionStatics, ms: u32) {
+        self.do_animation_tick(st, ms);
+        let s = self.rec.scalars;
+        if self.rec.has_crane && (0..=2).contains(&s.state) && s.crane_state == 0 {
+            let t = s.crane_acc as f32 / s.crane_duration as f32;
+            let ease = t * t * (3.0 - 2.0 * t);
+            let angle = s.crane_previous + (s.crane_target - s.crane_previous) * ease;
+            host.pose_crane(crane_model_angle(angle));
+        }
     }
 }

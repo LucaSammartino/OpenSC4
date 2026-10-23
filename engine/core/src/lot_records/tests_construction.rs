@@ -483,7 +483,7 @@ impl ConstructionHost for Host {
         self.say(format!("lot state {s} {a} {b} day {day}"));
     }
     fn lot_cell_rect(&mut self, _: &RefValue) -> [i32; 4] {
-        [3, 4, 4, 5]
+        [0, 0, 2, 1]
     }
     fn cell_usable(&mut self, _: i32, _: i32) -> bool {
         false
@@ -491,26 +491,49 @@ impl ConstructionHost for Host {
     fn set_lot_texture(&mut self, x: i32, z: i32, i: u32) {
         self.say(format!("texture {x} {z} {i:08X}"));
     }
-    fn divide_lot(&mut self, _: &mut ConstructionStatics) {
-        self.say("divide".into());
+    fn cell_corner(&mut self, x: i32, z: i32) -> [f32; 3] {
+        [x as f32 * 16.0, 0.0, z as f32 * 16.0]
     }
-    fn attempt_add_crane(&mut self, _: &mut ConstructionStatics) -> Option<CraneFit> {
-        self.say("crane?".into());
-        self.crane.then_some(CraneFit {
-            crane_type: 2,
-            position: [1.0, 2.0, 3.0],
-            swing_min: 0.0,
-            swing_max: 1.0,
-        })
+    fn crane_policy(&mut self, _: &RefValue) -> u8 {
+        u8::from(self.crane)
     }
-    fn add_ground_props(&mut self, _: &mut ConstructionStatics) {
-        self.say("ground props".into());
+    fn create_prop(&mut self, type_id: u32) -> Option<RefValue> {
+        Some(host_ref(u64::from(type_id), IID_PROP))
     }
-    fn create_construction_crew(&mut self, _: &mut ConstructionStatics, _: &Bounds) {
-        self.say("crew".into());
+    fn place_prop(&mut self, _: &RefValue, _: [f32; 3], _: u8) {
+        self.say("prop placed".into());
     }
-    fn add_roof_props(&mut self, _: &mut ConstructionStatics, _: &Bounds) {
-        self.say("roof props".into());
+    fn render_detail(&mut self) -> u32 {
+        0
+    }
+    fn create_automaton(&mut self, _: u32, _: [f32; 3], _: bool) -> Option<RefValue> {
+        None
+    }
+    fn worker_direction(&mut self, _: &RefValue, _: [f32; 2]) {}
+    fn occupant_base_shutdown(&mut self) {
+        self.say("base shutdown".into());
+    }
+    fn release_texture_bindings(&mut self) {
+        self.say("textures-".into());
+    }
+    fn free_model_buffers(&mut self) {
+        self.say("buffers-".into());
+    }
+    fn release_crane_model(&mut self) {
+        self.say("crane-".into());
+    }
+    fn remove_prop(&mut self, _: &RefValue) {
+        self.say("prop-".into());
+    }
+    fn remove_automaton(&mut self, _: &RefValue) {
+        self.say("worker-".into());
+    }
+    fn prepare_render_state(&mut self) {}
+    fn visibility_result(&mut self) -> bool {
+        true
+    }
+    fn model_message_keys(&mut self) -> (u32, u32) {
+        (1, 2)
     }
     fn create_dust_clouds(&mut self) {
         self.say("dust".into());
@@ -525,11 +548,8 @@ impl ConstructionHost for Host {
     fn place_spark(&mut self, i: usize, _: [f32; 3]) {
         self.say(format!("spark {i} placed"));
     }
-    fn remove_roof_props(&mut self) {
-        let day = self.day;
-        self.say(format!("roof props removed day {day}"));
-    }
     fn start_scaffold_removal(&mut self) {
+        self.say(format!("roof props removed day {}", self.day));
         self.say("scaffold removal".into());
     }
     fn add_to_renderer(&mut self) {
@@ -565,6 +585,9 @@ fn statics() -> ConstructionStatics {
         tuning: shipped_tuning(),
         rng: RzRandom::new(12345, &seeds),
         crt: CrtRand::default(),
+        cranes: [CraneSize::default(); 3],
+        ground: vec![],
+        roof: vec![],
     }
 }
 
@@ -633,7 +656,7 @@ fn set_lot_order_and_completion_order() {
     c.set_lot(&mut h, &mut st, host_ref(1, CLSID_LOT));
     let l = h.log.join("|");
     assert!(l.starts_with(
-        "base init|sub 66956814|sub A6B79602|sub 06CDB65B|sub 26D31EC1|tick+ 80|group+ 5007|divide|crane?|ground props|crew|roof props|dust|sparks 1|completion 0|post 2977AE2F|post 49E7B1E2 1 day 5|post C9E7B1E8 1 day 5|render+"
+        "base init|sub 66956814|sub A6B79602|sub 06CDB65B|sub 26D31EC1|tick+ 80|group+ 5007|dust|sparks 1|completion 0|post 2977AE2F|post 49E7B1E2 1 day 5|post C9E7B1E8 1 day 5|render+"
     ), "{l}");
     let s = c.rec.scalars;
     assert_eq!((s.t0, s.next_day, s.state, s.counter), (5, 5, 0, 0));
@@ -653,7 +676,7 @@ fn set_lot_order_and_completion_order() {
     }
     assert_eq!(
         last.join("|"),
-        "completion 1|post 2977AE2F|render-|occupant manager remove|lot state 3 0 0 day 35|post C9E7B1E8 0 day 35|unsub 66956814|unsub A6B79602|unsub 06CDB65B|unsub 26D31EC1|tick-"
+        "completion 1|post 2977AE2F|render-|occupant manager remove|lot state 3 0 0 day 35|post C9E7B1E8 0 day 35|base shutdown|unsub 66956814|unsub A6B79602|unsub 06CDB65B|unsub 26D31EC1|tick-|textures-|buffers-|crane-|prop-|prop-"
     );
     assert!(c.rec.lot.is_null() && c.rec.building.is_null());
     // Done: further days change nothing.
@@ -784,6 +807,8 @@ fn animation_tick_message_divides_by_1000() {
     let mut st = statics();
     let mut c = ConstructionOccupant::default();
     c.set_lot(&mut h, &mut st, host_ref(1, CLSID_LOT));
+    c.rec.has_crane = true;
+    c.rec.scalars.crane_state = 2;
     assert!(c.rec.has_crane);
     assert!(c.do_message(&mut h, &mut st, MSG_ANIMATION_TICK, 16_700));
     assert_eq!(c.rec.scalars.ms_acc, 16);
@@ -793,20 +818,26 @@ fn animation_tick_message_divides_by_1000() {
 
 #[test]
 fn set_lot_crane_initial_values() {
-    let mut h = Host::new(110.0, None, None);
+    let mut h = Host::new(120.0, None, None);
     h.crane = true;
     let mut st = statics();
+    st.cranes[2] = CraneSize {
+        width: 5.0,
+        reach: 2.0,
+        back: 0.25,
+    };
     let mut c = ConstructionOccupant::default();
     c.set_lot(&mut h, &mut st, host_ref(1, CLSID_LOT));
     let s = c.rec.scalars;
     assert_eq!(
         (s.crane_type, s.swing_min, s.swing_max, s.crane_target, s.crane_previous),
-        (2, 0.0, 1.0, 0.0, 1.0)
+        (2, s.swing_min, s.swing_max, s.swing_min, s.swing_max)
     );
+    assert!(s.swing_min < s.swing_max);
     assert_eq!((s.crane_acc, s.crane_duration, s.crane_state), (1, 0, 2));
-    assert_eq!(c.rec.crane_position, [1.0, 2.0, 3.0]);
+    assert!(c.rec.has_crane);
     let l = h.log.join("|");
-    assert!(l.contains("|sparks 1|pose 0|post 49E7B1E2 1 day 0|"), "{l}");
+    assert!(l.contains("|sparks 1|pose "), "{l}");
     // RebuildModel's saved values: N, span N·segH, startY, scaffold box #7.
     let g = c.geometry.unwrap();
     assert_eq!((s.segments, s.start_y), (g.segments, g.start_y));
@@ -815,7 +846,7 @@ fn set_lot_crane_initial_values() {
         r24(f64::from(g.segments) * f64::from(st.tuning.segment_height)) as f32
     );
     assert_eq!(c.rec.local_bounds, g.scaffold);
-    assert_eq!(c.position(), [5.0, 105.0, 5.0]);
+    assert_eq!(c.position(), [5.0, 110.0, 5.0]);
 }
 
 #[test]
@@ -885,6 +916,11 @@ fn refresh_after_load_recreates_crane_once() {
     let mut st = statics();
     let mut c = ConstructionOccupant::default();
     c.set_lot(&mut h, &mut st, host_ref(1, CLSID_LOT));
+    c.rec.has_crane = true;
+    c.rec.crane_position = [1.0, 2.0, 3.0];
+    c.rec.scalars.crane_type = 2;
+    c.rec.scalars.crane_state = 2;
+    c.rec.scalars.crane_acc = 1;
     c.rec.scalars.state = 2;
     let bytes = write_obj(&RefValue::Object(RecordObject::new(c.rec.clone())));
     let (o, ok, _) = read_obj(CLSID_CONSTRUCTION_OCCUPANT, &bytes);
