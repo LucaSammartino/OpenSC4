@@ -167,6 +167,7 @@ is effect retirement, **not removal of the map entry**. Visited entries receive
 no final effect operation. A zero/high-only mask retires all live entries but
 does not empty the map. Repeated refresh of such a mask has no further effect
 calls once references are null.
+Refresh supplies no semantic return/status value (`RET`, `007D26DB`).
 
 Primary pass citations: `007D2145–007D227A`, `007D227D–007D23B9`,
 `007D23BC–007D24F4`, `007D24F7–007D262F`; retirement `007D2632–007D26DB`.
@@ -176,6 +177,8 @@ Primary pass citations: `007D2145–007D227A`, `007D227D–007D23B9`,
 *[compat]* Inputs are occupant identity, binary32 scalar and resource-name
 pointer. No selected-mask test occurs here. These three 32-bit stack arguments
 are proved by all four refresh call sites and `RET 0C` at `007D20D5`.
+Update supplies no semantic return/status value; incidental EAX contents must
+not be interpreted as a creation or update result.
 
 First call the position-object primitive. If null, return without map lookup,
 visited marking, effect creation or release. Otherwise retain that object,
@@ -263,6 +266,8 @@ identity/registration contract: the two view receiver conventions differ by
 `007E9915`). Constructor/default mask, registration, callable lifecycle names,
 and whether another enclosing stage already stopped effects remain unproved.
 No GZCOM factory, standalone allocation or default-enable policy is implied.
+Clear/free does not null the freed bucket-array pointer; reusing such an object
+as a live helper is not within the supported domain.
 
 ## Proposed literal traces
 
