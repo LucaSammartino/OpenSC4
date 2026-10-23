@@ -48,7 +48,7 @@ The boat's own state is runtime only (not saved). The names below come from the 
 | `+0x2B2` | sunk by a collision |
 | `+0x2B4`, `+0x2B8` | lifetime limit (0 = none) and lifetime elapsed, ms |
 | `+0x2BC`, `+0x2C0` | idle and crash accumulators (automata.md §6.6) |
-| `+0x2CB`, `+0x2CC` | being towed; count the idle budget in every tick (set outside this class *[inferred]*) |
+| `+0x2CB`, `+0x2CC` | being towed; visible-area spawn idle-budget mode (§5.1.2) |
 | `+0x2D0`, `+0x2D4` | time without moving; time going backwards, ms |
 | `+0x2D8` | tow armed |
 | `+0x2DC` (Speed), `+0x2E0` (Turn) | the current speed and turn |
@@ -71,7 +71,7 @@ default. Message `0x26D31EC1` (§7) reloads the list.
 | 1 | 0.001 | held-input steering gain per ms (§6.2.2) | 21 | 8000 | crash duration, ms (automata.md §6.6) |
 | 2 | 1.0 | steering return rate per second (§6.2.2) | 22 | 0.7854 | |
 | 3 | 0.05 | coasting drag | 23 | 0.95 | |
-| 4 | 0.2 | movement distance scale (§5.1.1) | 24 | 2.1817 | bow-lift angle cap and twice the model-height offset (§5.1.1) |
+| 4 | 0.2 | movement distance scale (§5.1.1) | 24 | 2.1817 | crash attitude parameter; not the normal bow cap (§5.7) |
 | 5 | 5.0 | counter-steer boost | 25 | 1.0472 (60°) | run-aground angle (automata.md §6.6) |
 | 6 | −0.1 | lowest speed (reverse) | 26 | 10 | |
 | 7 | 0.3 | highest speed | 27 | 0.5 | player boat-to-boat crash threshold |
@@ -85,7 +85,7 @@ default. Message `0x26D31EC1` (§7) reloads the list.
 | 15 | 0.1 | AI boat-to-boat crash threshold | 35 | 100 | longest tick, ms |
 | 16 | 0.5 | AI shore crash threshold | 36 | 300 | dock request distance |
 | 17 | entry 18 / entry 7 | speed-to-bow-lift gain | 37 | 90 | final approach distance |
-| 18 | 0.3142 | bow-lift gain numerator (cap is entry 24) | 38 | 1.0 | docking turn rate, degrees per ms |
+| 18 | 0.3142 | bow-angle cap, gain numerator and twice the visual height lift | 38 | 1.0 | docking turn rate, degrees per ms |
 | 19 | entry 20 / entry 9 | banking gain | 39 | 1.0 | docking move rate, units per ms |
 
 With no list at all the same defaults are used, with 8 = −2.0, 17 = 1.0472 and 19 = 0.1309. Uses not given are
@@ -297,13 +297,15 @@ that sample. It does not return a failure flag.
 After position/heading integration, call the visual attitude helper
 `0x00569E70` when speed or turn is nonzero. With zero speed that helper itself
 does nothing. With nonzero speed it applies banking helper `0x005682F0`, then
-bow attitude, and adds `p[24]/2` to **transform** y. Runtime position y is not
+bow attitude, and adds `p[18]/2` to **transform** y. Runtime position y is not
 changed by this lift. The banking angle is
 `clamp((v/p[7])*p[19]*turn, -p[20], p[20])`, only when `v>0`;
-reverse speed skips banking. The bow angle is `clamp(p[17]*v,0,p[24])`.
-Entry 18 is used to derive p[17], not as this helper's direct bow-angle cap.
+reverse speed skips banking. The bow angle is `clamp(p[17]*v,0,p[18])`.
+Entry 18 is both the default gain numerator and this helper's direct cap.
 These scalar rules are verified at `0x0056830A–0x00568361`,
-`0x00569F60–0x00569FA3`; the full attitude-basis composition remains unresolved.
+`0x00569EEE`, `0x00569F6F–0x00569FA3`, `0x0056A1B7–0x0056A1C3`;
+the full attitude-basis composition remains unresolved. This corrects the earlier
+identification of entry 24 as the normal bow cap/lift.
 
 Finally, publish the transform through slot 75, copy runtime position and heading
 to inherited +0x40/+0x58, then call slot 100 `(true,true)`, slot 104, slot 107,
@@ -311,6 +313,35 @@ in order. Publication still occurs at zero speed. These calls' results are
 ignored; Movement_PositionNew has no success/failure result
 (`0x0056C761–0x0056C84A`). AI speed/turn selection and inherited animation
 still require WC4; the integration equations do not close the whole tick.
+
+### 5.1.2 Visible-area idle mode (WC1)
+
+`Init` clears byte +0x2CC. The external writer is the watercraft manager's
+`PopulateVisibleArea(float dt)` (`0x005723D0`), after successful boat creation
+and placement: it writes lifetime limit 45000 ms, elapsed lifetime zero and
+the spawn mode byte to +0x2CC (`0x00572718–0x0057272C`). Failed creation does
+not perform these writes. This is a spawn attribute, not a stillness detector.
+
+The mode begins false for each population attempt. When manager slot 13 is
+true, an available RNG first admits the attempt only for a uniform double draw
+`r<=0.05000000074505806`. A second available draw selects mode true exactly
+when `r>0.5`; equality keeps false. A missing RNG leaves false and does not
+reject the attempt. When slot 13 is false, an available RNG admits only
+`r<=0.10000000149011612`, with mode false and no mode-selection draw. These
+decisions precede the edge-cell loop; the mode applies to all successful
+boats from that attempt. True chooses creation group `0x4417`, false chooses
+`0x4418`; both pass creation flags `0x10002` (`0x00572462–0x005724CC`,
+`0x0057262E–0x00572683`). No additional byte-sized +0x2CC writer is present
+in the exported instruction inventory.
+
+While true, animation adds the **second** frame time to +0x2BC even while
+moving; after the inherited step it bypasses ordinary lifetime accounting
+and autonomous movement (§5.1 step 9). The idle threshold is tested whether
+or not the byte is set: accumulated idle strictly above 60000 ms pushes 73;
+exactly 60000 does not. The early speed-modifier return precedes accumulation.
+The ordinary stillness timeout remains independent and can return false first.
+Clearing the mode itself does not clear an existing idle accumulator
+(`0x00572D14–0x00572D58`, `0x005730A6`).
 
 ### 5.2 Picking cells (`Engine_AIPickLocation`, `0x00570620`)
 
@@ -582,9 +613,8 @@ axis inequalities hold, for `n` in `{e_A,f_A,e_B,f_B}`:
 Edge and corner contact therefore overlap. This is a two-dimensional footprint
 test, after the three-dimensional distance gate. The original tests axes in
 A-first-axis, A-second-axis, B-first-axis, B-second-axis order and rejects on the
-first positive separation (`0x005064E6–0x005065F9`). The model-to-footprint
-construction, including offsets/scales passed to `0x0050A310`, is still unresolved;
-the inequalities alone do not close that construction contract.
+first positive separation (`0x005064E6–0x005065F9`). Construction is specified
+in §5.7.3; it uses model bounds rather than the broad-phase occupant bounds.
 
 Size class is 3 when the group has tag `0x4414`, otherwise 2 when it has tag
 `0x4413`, otherwise 1; tag `0x4414` wins if both occur. This classification
@@ -697,6 +727,102 @@ position to inherited +0x40, then calls slots 100 `(true,true)`, 104 and 107.
 It does not itself change speed, turn or heading; collision callers apply their
 speed response separately. Thus bump rollback is not a reversal of the whole
 movement state. Evidence: `0x0056A310–0x0056A434`.
+
+#### 5.7.3 Model-to-footprint construction (WC3/WC5)
+
+The shared builder `0x0050A310` takes a destination footprint, an automaton,
+three float offset components by value, and a float extent multiplier; it
+returns the destination address. The watercraft manager search `0x005690D0`
+takes `(boat,offset_x,offset_y,offset_z,multiplier)` on a **manager** receiver,
+not a boat receiver. It constructs the caller footprint once with those
+arguments and each candidate with `(0,0,0,1)`. Normal collision detection also
+uses `(0,0,0,1)` for the caller (`0x0056C0FC–0x0056C11D`).
+
+Use automaton slot 82 to obtain the model and the model's geometry interface
+slot 7 for local minimum/maximum bounds. Let `dx=max_x-min_x`,
+`dz=max_z-min_z`. Query the automaton for interface `0x4A416254`: on success
+reduce dx by 2 and dz by 1, otherwise reduce each by 0.5. Release any returned
+interface even if the query result is false. There is no clamp of negative
+dimensions. The query changes the margins; it does not supply the geometry.
+The geometry interface's slot 9 supplies the model transform, initialized to
+identity before the call. The builder ignores both geometry call results.
+
+For translation T and rotation values at transform offsets +4 and +0xC,
+the 2D rectangle is:
+
+- Center `C=(T_x+offset_x,T_z+offset_z)`. The y offset and the bounds' local
+  center are ignored; offsets are added in world coordinates without rotation.
+- Half extents `h=(dx-margin_x)*0.5*multiplier`,
+  `k=(dz-margin_z)*0.5*multiplier` (dx,dz above are before margin subtraction).
+  This multiplier does not scale the center or alter the broad-phase gate.
+- First axis `e=(R_at_+4,-R_at_+0xC)/length(R_at_+4,-R_at_+0xC)`;
+  the perpendicular axis is implicit in the overlap test. Model scale is not
+  multiplied into the extents. No zero-projection fallback is supplied.
+
+Differences, adjusted dimensions, centers, half extents, reciprocal axis length
+and final axis components pass through float storage. In particular dz*0.5 is
+stored before multiplying by the supplied multiplier. Evidence:
+`0x0050A37A–0x0050A3F6`, `0x0050A46F–0x0050A505`; constants at
+`0x00A8825C`=2, `0x00A81228`=1, `0x00A84D2C`=0.5.
+
+Failure is **not** a safe empty-footprint result: the builder clears six floats
+at destination +4 through +0x18, but does not clear its validity byte or axis.
+Only the successful geometry path writes validity=true and the axis. A null
+model or absent geometry interface returns the destination with those fields
+retained. The manager's scratch footprint is not initialized to a known valid
+byte before this call. Consequently missing-model overlap has no stable
+true/false contract to reproduce; do not invent a guaranteed noncollision.
+Ordinary collision conformance uses a valid model and nonzero projected axis.
+Evidence: `0x0050A31E–0x0050A374`, `0x0050A4E0–0x0050A51E`,
+`0x005690D0–0x00569109`.
+
+#### 5.7.4 Inanimate corner detection (WC3/WC5)
+
+`Crash_InanimateCollisionDetection()` returns a boolean and, on a hit, writes
+two crash-direction bytes +0x2C8/+0x2C9. Obtain the **occupant cell rectangle**
+through the +4 interface slot 11, not the oriented model footprint. For
+`(xmin,zmin,xmax,zmax)`, examine corners in this order:
+`(xmin,zmin)`, `(xmin,zmax)`, `(xmax,zmin)`, `(xmax,zmax)`.
+First scan all four for an occupant-grid slot 6 hit, passing third argument 0;
+stop at the first hit. Only with no occupant hit and docking byte +0x2B0 clear,
+scan water-navigability slot 8 with arguments `(x,z,0,0)` and select its first
+false result. Thus a later occupant corner outranks an earlier unnavigable
+corner. Docking bypasses the navigability scan, not the occupant scan. No
+selected corner returns false and leaves the two direction bytes unchanged.
+No null-service recovery or city-boundary test occurs inside this helper;
+Engine_DetectCollision tests outside-city first (§5.7.0).
+
+Classify inherited heading `(H_x,H_z)` from +0x58/+0x60, independently of speed:
+
+| Index | Dominant component | x sign | z sign |
+|---|---|---|---|
+| 0 | `abs(x)>abs(z)` | x>0 | z<0 |
+| 1 | same | x>0 | z>=0 |
+| 2 | same | x<=0 | z<0 |
+| 3 | same | x<=0 | z>=0 |
+| 4 | `abs(x)<=abs(z)` | x>0 | z<0 |
+| 5 | same | x>0 | z>=0 |
+| 6 | same | x<=0 | z<0 |
+| 7 | same | x<=0 | z>=0 |
+
+The selected corner and index write the following `(byte_2C8,byte_2C9)`;
+every cell returns true, including `(0,0)`. Equal magnitudes take the z-dominant
+half; zero x is nonpositive and zero z is nonnegative. A zero heading therefore
+uses column 7, without normalizing or raising an error.
+
+| Corner | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|---|---|---|---|---|---|---|---|
+| 0 | 1,0 | 1,0 | 0,1 | 0,1 | 0,0 | 1,1 | 0,0 | 1,1 |
+| 1 | 1,1 | 1,1 | 0,0 | 0,0 | 1,0 | 0,1 | 1,0 | 0,1 |
+| 2 | 0,0 | 0,0 | 1,1 | 1,1 | 0,1 | 1,0 | 0,1 | 1,0 |
+| 3 | 0,1 | 0,1 | 1,0 | 1,0 | 1,1 | 0,0 | 1,1 | 0,0 |
+
+Evidence: scan/order `0x005687D7–0x00568890`; classification
+`0x00568897–0x00568912` and equivalent blocks for the other corners;
+jump tables `0x00568B20–0x00568B9F`; result stores
+`0x00568919`, `0x005689B1`, `0x00568A49`, `0x00568AE1`, `0x00568AF7`.
+Several result tails are exported as separate functions: reading only the
+attributed helper's disassembly omits those writes.
 
 ## 6. U-Drive-It *[compat]*
 
@@ -976,17 +1102,17 @@ untraced helper bodies still prevent a whole-owner closure claim.
 ### 10.2 Final owner-closure boundary for this lane
 
 This lane supplies 90 individually named spec-side vectors. It does **not** certify
-complete owner closure: WC1–WC5 remain open; WC6–WC8 are answered. In particular,
+complete owner closure: WC2–WC5 remain open; WC1 and WC6–WC8 are answered. In particular,
 the equations in §5.1.1 are authored behavior requirements, not permission to
 substitute an opaque provider result for missing owner computation.
 
 | Open item | Evidence delivered | Remaining work before claiming closure |
 |---|---|---|
-| WC1 | Init clears +0x2CC; animation consumes it | Identify external writer(s) and activation semantics. |
+| WC1 (answered) | §5.1.2 identifies the manager spawn writer, mode/RNG choice and activation semantics | None for this question. |
 | WC2 | Additional parameter uses in §§2, 5.1.1 | Animation false-return caller, entries 13–14, 26, 30–31, 34 and any remaining uses of the original question's list. |
 | WC3 | 75-entry attribution inventory, Init/record boundaries, construction/destruction and ten adjustors | Complete signatures/results/failure contracts for every remaining helper; reconcile the historical 79-entry brief and inherited-call coverage. |
 | WC4 | Commands, routes/following/final docking, straight/curved integration, visual scalar rules | Full Engine_AIBoatMotion, inherited animation/player-drive behavior, attitude-basis composition, complete wake/effect/model behavior and far-approach contracts. |
-| WC5 | Dispatch/events, boat selection/SAT/response, rollback, scalar crash ramps and heights | Full model-to-footprint construction, inanimate detection, and sink/heel axes/contact/transform composition. |
+| WC5 | Dispatch/events, boat selection/SAT/response, rollback, scalar crash ramps/heights, model footprint and inanimate corner tables | Sink/heel axes/contact/transform composition. |
 
 These gaps are not answered by an inventory count or by the existing summary
 sections. An engine lane can implement the newly specified arithmetic, but cannot
@@ -1141,11 +1267,35 @@ publication order and unchanged fields are exact.
 
 | ID | Inputs | Expected observable result |
 |---|---|---|
-| WC4-M01 | Straight: P=(10,2,20), H=(3,4,0), p[4]=0.2, v=0.1, dt=100 | Runtime P'=(12,2,20); heading unchanged. Visual helper subsequently adds p[24]/2 to transform y only. |
+| WC4-M01 | Straight: P=(10,2,20), H=(3,4,0), p[4]=0.2, v=0.1, dt=100 | Runtime P'=(12,2,20); heading unchanged. Visual helper subsequently adds p[18]/2 to transform y only. |
 | WC4-M02 | Same with dt=-100 | Runtime P'=(8,2,20); integration has no internal nonnegative-time clamp. |
 | WC4-M03 | Curved: P=(0,0,0), H=(0,0,1), water=0, defaults, v=p[7]=0.3, turn=p[9]=2, dt=100 | R=75, theta=0.08, P'=(75*(1-cos(0.08)),0,75*sin(0.08)); heading=(sin(0.08),0,cos(0.08)). |
 | WC4-M04 | Same speed, turn=1 | R=100, theta=0.06; do not multiply theta again by turn. |
-| WC4-M05 | Reverse: v=p[6]=-0.1, turn=p[8]=-2, defaults, dt=100, level input | R=7.5, theta=+0.26666667, center on the opposite side from positive turn; no banking; bow angle=0, visual height still raised by p[24]/2. |
+| WC4-M05 | Reverse: v=p[6]=-0.1, turn=p[8]=-2, defaults, dt=100, level input | R=7.5, theta=+0.26666667, center on the opposite side from positive turn; no banking; bow angle=0, visual height still raised by p[18]/2. |
 | WC4-M06 | v=0, turn=1, previous/current positions differ initially | No position/heading integration; previous position becomes current; FindState(16) called, no pop. Visual helper no-op; transform and inherited fields still published, then slots 100,104,107. |
-| WC4-M07 | v=0.1, p[17]=1, p[24]=2, turn=0 | Bow angle=0.1, transform y increased by 1; runtime y unchanged by attitude helper. |
+| WC4-M07 | v=0.1, p[17]=1, p[18]=2, p[24]=4, turn=0 | Bow angle=0.1, transform y increased by 1; runtime y unchanged by attitude helper; p[24] has no effect here. |
 | WC4-M08 | Curved dt=0, R>0, finite H, P_y different from water level | Position is C+R*normalize(P-C), which can differ from P; no special zero-dt early return. |
+
+### 11.10 Spawn idle mode and collision construction vectors
+
+Use float tolerance 1e-5 for finite footprint values. Service order, selected
+corner, booleans and direction bytes are exact. RNG vectors assume all other
+population gates pass; mode draws are doubles.
+
+| ID | Inputs | Expected observable result |
+|---|---|---|
+| WC1-I01 | Manager slot 13 true, available RNG draws 0.05 then 0.500001, successful creation | Group 0x4417; limit=45000, elapsed=0, +0x2CC=1, even if the boat moves. |
+| WC1-I02 | Same, second draw exactly 0.5 | Group 0x4418 and +0x2CC=0. First draw above 0.05000000074505806 instead rejects before the mode draw. |
+| WC1-I03 | Slot 13 false with draw 0.1, or either slot-13 result with missing RNG | Group 0x4418 and mode false; missing RNG makes no draws. Failed creation never writes boat timers/mode. |
+| WC1-I04 | Speed modifier allows tick, mode true, idle=59990, second time=10 | Idle becomes 60000, no idle-triggered push; a following positive increment pushes 73. Mode bypasses ordinary autonomous motion/lifetime accounting after the inherited step. |
+| WC1-I05 | Mode false, idle=60001; separately speed modifier below 1e-5 | First case still tests idle and pushes 73; second case returns true before any idle addition or threshold test. |
+| WC5-F01 | Model bounds min=(-4,-1,-8), max=(6,3,12), translation=(100,5,200), identity rotation, offset=(3,99,-4), multiplier=2, query false | Center=(103,196), half extents=(9.5,19.5), axis=(1,0), valid=true. Local bounds center and y offset have no effect. |
+| WC5-F02 | Same, query true with returned interface | Half extents=(8,19); interface released. Returned interface with false query is still released but uses false-query margins. |
+| WC5-F03 | Same bounds, R_at_+4=0, R_at_+0xC=2, multiplier=1 | Axis=(0,-1); dimensions unchanged by model scale. Zero projected axis has no finite fallback. |
+| WC5-F04 | Destination has validity=true and axis=(0,1), model absent | Six floats +4..+0x18 cleared; validity and axis retained; destination address returned. No guaranteed noncollision for uninitialized scratch storage. |
+| WC5-F05 | Two candidate boats qualify, second is closer | First list entry wins. Candidate footprints use zero offset and multiplier 1 regardless of caller's offset/multiplier. |
+| WC5-I01 | Rectangle=(2,3,4,5), occupant hit only at corner 2, unnavigable corner 0, H=(2,0,1) | Query occupant corners (2,3),(2,5),(4,3); no navigability query; corner 2/column 1 writes (0,0), returns true. |
+| WC5-I02 | No occupant hits, docking false, first unnavigable corner 1, H=(1,0,1) | All occupant queries precede navigability; equality selects column 5; writes (0,1), returns true. |
+| WC5-I03 | No occupant hits, docking true, all water cells unnavigable, preexisting direction=(1,0) | No navigability calls, returns false and retains (1,0). An occupant hit would still count while docking. |
+| WC5-I04 | Occupant hit at corner 0, H=(0,0,0) | Column 7, writes (1,1), returns true. No heading normalization and no speed test. |
+| WC5-I05 | For each corner 0–3 and each finite representative heading for columns 0–7 | Verify all 32 cells of §5.7.4's direction table; return true even for (0,0). |
