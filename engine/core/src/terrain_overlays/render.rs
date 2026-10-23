@@ -44,7 +44,7 @@ const STANDARD: DrawState = DrawState {
     alpha_greater_than: None,
 };
 
-/// Â§4.1, including state 4 preserving the existing stage-0 mode.
+/// §4.1, including state 4 preserving the existing stage-0 mode.
 pub const DRAW_STATES: [DrawState; 5] = [
     STANDARD,
     DrawState {
@@ -86,7 +86,7 @@ pub struct RenderSelection {
 }
 
 impl OverlayManager {
-    /// Â§4. Static candidates are deduplicated across visible cells. [choice,
+    /// §4. Static candidates are deduplicated across visible cells. [choice,
     /// OV8] Internal order is ascending overlay ID; original draw order is open.
     pub fn select_frame(
         &mut self,
@@ -103,18 +103,14 @@ impl OverlayManager {
         }
         let candidates: Vec<u32> = if !self.dynamic && self.cell_index.is_some() {
             self.collection_stamp = self.collection_stamp.wrapping_add(1);
-            self.collect_cells_at_stamp(visible_cells)?
+            self.collect_cells_at_stamp(visible_cells.iter().map(|c| [c[0] as i32, c[1] as i32]))?
         } else {
             self.overlays.iter().map(|(i, _)| i).collect()
         };
         let decals = if options.decals {
             candidates
                 .into_iter()
-                .filter(|&i| {
-                    self.overlays
-                        .get(i)
-                        .is_some_and(|o| o.decal_visible(options.snapshot))
-                })
+                .filter(|&i| self.overlays.get(i).is_some_and(|o| o.decal_visible(options.snapshot)))
                 .collect()
         } else {
             Vec::new()
@@ -126,11 +122,11 @@ impl OverlayManager {
         })
     }
 
-    fn collect_cells_at_stamp(&mut self, cells: &[[u32; 2]]) -> Result<Vec<u32>, Error> {
+    fn collect_cells_at_stamp(&mut self, cells: impl IntoIterator<Item = [i32; 2]>) -> Result<Vec<u32>, Error> {
         let mut selected = Vec::new();
         if let Some(index) = &self.cell_index {
             for cell in cells {
-                if let Some(entries) = index.get(cell) {
+                if let Some(entries) = index.get(&cell) {
                     for &id in entries {
                         // Portable backing check only; no native in-use/shown filter here.
                         let overlay = self
@@ -167,22 +163,20 @@ impl OverlayManager {
             .ok_or(Error::Unsupported(Unsupported::VisibleRows))?;
         let mut cells = Vec::new();
         for row in row_begin..end {
-            let row =
-                usize::try_from(row).map_err(|_| Error::Unsupported(Unsupported::VisibleRows))?;
-            let start = *starts
-                .get(row)
-                .ok_or(Error::Unsupported(Unsupported::VisibleRows))?;
+            let row = usize::try_from(row).map_err(|_| Error::Unsupported(Unsupported::VisibleRows))?;
+            let start = *starts.get(row).ok_or(Error::Unsupported(Unsupported::VisibleRows))?;
             let end = ends
                 .get(row)
                 .and_then(|v| v.checked_sub(1))
                 .ok_or(Error::Unsupported(Unsupported::VisibleRows))?;
             for col in start..end {
-                let x =
-                    u32::try_from(col).map_err(|_| Error::Unsupported(Unsupported::VisibleRows))?;
-                cells.push([x, row as u32]);
+                if col < 0 {
+                    return Err(Error::Unsupported(Unsupported::VisibleRows));
+                }
+                cells.push([col, row as i32]);
             }
         }
-        self.collect_cells_at_stamp(&cells)
+        self.collect_cells_at_stamp(cells)
     }
 
     /// No fake successful renderer: camera inversion, placement matrices, shadow

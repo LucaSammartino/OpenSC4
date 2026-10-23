@@ -20,9 +20,7 @@ mod render;
 mod round;
 
 pub use records::{CellRect, Handle, OverlaySnapshot, Placement, TextureScale};
-pub use render::{
-    BlendFactor, DepthFunction, DrawState, FrameOptions, RenderSelection, DRAW_STATES,
-};
+pub use render::{BlendFactor, DepthFunction, DrawState, FrameOptions, RenderSelection, DRAW_STATES};
 
 use records::{Arena, HandleRecord, Overlay, Target};
 use std::collections::BTreeMap;
@@ -134,12 +132,7 @@ pub trait ModelLighting: Send + Sync {
         descriptor: ProjectionDescriptor<'_>,
         primary: &mut [f32; 16],
     ) -> bool;
-    fn terrain_rect_slot18(
-        &self,
-        n: i32,
-        source: GeometryToken<'_>,
-        world_box: [f32; 6],
-    ) -> Option<CellRect>;
+    fn terrain_rect_slot18(&self, n: i32, source: GeometryToken<'_>, world_box: [f32; 6]) -> Option<CellRect>;
     fn direction_slot13(&self) -> [f32; 3];
 }
 
@@ -158,7 +151,7 @@ struct Resources {
 }
 
 /// `None` is a dynamic manager; static managers index internal half-open cells.
-type CellIndex = BTreeMap<[u32; 2], Vec<u32>>;
+type CellIndex = BTreeMap<[i32; 2], Vec<u32>>;
 
 pub struct OverlayManager {
     collection_stamp: u16,
@@ -204,12 +197,7 @@ impl OverlayManager {
     }
 
     /// §1.1 mutating protocol; unsupported services preserve the documented prefix.
-    pub fn init(
-        &mut self,
-        view: Arc<dyn ViewProvider>,
-        dynamic: bool,
-        water: bool,
-    ) -> Result<(), Error> {
+    pub fn init(&mut self, view: Arc<dyn ViewProvider>, dynamic: bool, water: bool) -> Result<(), Error> {
         replace_reference(&mut self.resources.view, view.clone());
         self.dynamic = dynamic;
         self.water = water;
@@ -218,9 +206,7 @@ impl OverlayManager {
             .texture_factory()
             .ok_or(Error::Unsupported(Unsupported::MissingFactory))?;
         replace_reference(&mut self.resources.factory, factory.clone());
-        let terrain = view
-            .terrain()
-            .ok_or(Error::Unsupported(Unsupported::MissingTerrain))?;
+        let terrain = view.terrain().ok_or(Error::Unsupported(Unsupported::MissingTerrain))?;
         replace_reference(&mut self.resources.terrain, terrain.clone());
         let cells = terrain.cells();
         let width = terrain.cell_width();
@@ -252,7 +238,7 @@ impl OverlayManager {
         Ok(())
     }
 
-    /// Â§1. Unsubscribe while the view is alive, then drop owned references.
+    /// §1. Unsubscribe while the view is alive, then drop owned references.
     pub fn shutdown(&mut self) {
         if let Some(view) = &self.resources.view {
             view.unsubscribe(CHANGE_MESSAGE);
@@ -298,17 +284,7 @@ impl OverlayManager {
         self.add_ordinary(
             None,
             Some(source),
-            Placement([
-                position[0],
-                position[1],
-                width,
-                turns,
-                1.0,
-                1.0,
-                1.0,
-                0.0,
-                0.0,
-            ]),
+            Placement([position[0], position[1], width, turns, 1.0, 1.0, 1.0, 0.0, 0.0]),
             dimensions,
         )
     }
@@ -328,17 +304,7 @@ impl OverlayManager {
         self.add_ordinary(
             Some(binding),
             None,
-            Placement([
-                position[0],
-                position[1],
-                width,
-                turns,
-                1.0,
-                1.0,
-                1.0,
-                0.0,
-                0.0,
-            ]),
+            Placement([position[0], position[1], width, turns, 1.0, 1.0, 1.0, 0.0, 0.0]),
             dimensions,
         )
     }
@@ -357,11 +323,8 @@ impl OverlayManager {
         // Ordinary adds consume centre/width/turns and construct the other five defaults.
         let [cx, cz, w, turns, ..] = placement.0;
         let placement = Placement([cx, cz, w, turns, 1.0, 1.0, 1.0, 0.0, 0.0]);
-        let (primary, cells, repeat, _) = placement::calculate(
-            placement,
-            aspect,
-            self.geometry.ok_or(Error::NotInitialized)?,
-        )?;
+        let (primary, cells, repeat, _) =
+            placement::calculate(placement, aspect, self.geometry.ok_or(Error::NotInitialized)?)?;
         let index = self.overlays.insert(Overlay {
             stamp: 0,
             secondary: None,
@@ -430,13 +393,7 @@ impl OverlayManager {
         }
     }
 
-    pub fn add_round_decal(
-        &mut self,
-        key: u32,
-        position: [f32; 2],
-        width: f32,
-        turns: f32,
-    ) -> Result<Handle, Error> {
+    pub fn add_round_decal(&mut self, key: u32, position: [f32; 2], width: f32, turns: f32) -> Result<Handle, Error> {
         self.require_init()?;
         let Some(binding) = self
             .resources
@@ -452,17 +409,7 @@ impl OverlayManager {
             return Err(Error::Unsupported(Unsupported::InvalidResourceDimensions));
         }
         let aspect = (f64::from(dimensions[1]) / f64::from(dimensions[0])) as f32;
-        let p = Placement([
-            position[0],
-            position[1],
-            width,
-            turns,
-            1.0,
-            1.0,
-            1.0,
-            0.0,
-            0.0,
-        ]);
+        let p = Placement([position[0], position[1], width, turns, 1.0, 1.0, 1.0, 0.0, 0.0]);
         let (primary, _, repeat, bounds) = placement::calculate(p, aspect, self.geometry.unwrap())?;
         let rectangles = round::partition(bounds, self.geometry.unwrap().cells)?;
         let mut parts = [None; 8];
@@ -544,7 +491,7 @@ impl OverlayManager {
             binding,
             CellRect {
                 min: [0, 0],
-                max: cells,
+                max: cells.map(|v| v as i32),
             },
             matrix,
             0x12,
@@ -585,13 +532,7 @@ impl OverlayManager {
             .model_lighting_slot9()
             .ok_or(Error::Unsupported(Unsupported::MissingLighting))?;
         let mut primary = [0.0; 16];
-        if !lighting.projection_slot17(
-            n,
-            source,
-            &mut pairs[..n as usize],
-            descriptor,
-            &mut primary,
-        ) {
+        if !lighting.projection_slot17(n, source, &mut pairs[..n as usize], descriptor, &mut primary) {
             return Ok(Handle::NONE);
         }
         let cells = if view.shadow_quality() >= 5 {
@@ -629,12 +570,7 @@ impl OverlayManager {
     }
 
     /// Raw individual settings values supplied by the render-properties boundary (§5).
-    pub fn handle_settings_message(
-        &mut self,
-        message: u32,
-        integers: [i32; 2],
-        selection: u8,
-    ) -> bool {
+    pub fn handle_settings_message(&mut self, message: u32, integers: [i32; 2], selection: u8) -> bool {
         if message == CHANGE_MESSAGE {
             self.shadow_quality = integers[0];
             self.shadow_debug = integers[1];
@@ -672,11 +608,8 @@ impl OverlayManager {
             .get(handle.index())
             .ok_or(Error::Unsupported(Unsupported::InvalidHandle))?;
         let target = record.target;
-        let (matrix, cells, repeat, bounds) = placement::calculate(
-            placement,
-            record.aspect,
-            self.geometry.ok_or(Error::NotInitialized)?,
-        )?;
+        let (matrix, cells, repeat, bounds) =
+            placement::calculate(placement, record.aspect, self.geometry.ok_or(Error::NotInitialized)?)?;
         if let Target::Group(group) = target {
             let parts = self
                 .groups
@@ -810,7 +743,7 @@ impl OverlayManager {
         })
     }
 
-    /// Slot 20: test the low bit, OR only, and never mark changed (Â§9 correction).
+    /// Slot 20: test the low bit, OR only, and never mark changed (§9 correction).
     pub fn enable_self_lighting(&mut self, handle: Handle, on: u32) -> Result<(), Error> {
         self.edit(handle, false, |overlay| {
             if on & 1 != 0 {
@@ -820,12 +753,7 @@ impl OverlayManager {
         })
     }
 
-    pub fn set_texture_scale(
-        &mut self,
-        handle: Handle,
-        size: f32,
-        offset: f32,
-    ) -> Result<(), Error> {
+    pub fn set_texture_scale(&mut self, handle: Handle, size: f32, offset: f32) -> Result<(), Error> {
         if handle == Handle::NONE {
             return Ok(());
         }
@@ -884,8 +812,7 @@ impl OverlayManager {
     }
 
     pub fn draw_state(&self, handle: Handle) -> Result<Option<u8>, Error> {
-        self.optional_single(handle)
-            .map(|o| o.map(|o| o.draw_state))
+        self.optional_single(handle).map(|o| o.map(|o| o.draw_state))
     }
 
     pub fn shown(&self, handle: Handle) -> Result<Option<bool>, Error> {
@@ -894,10 +821,7 @@ impl OverlayManager {
     }
 
     pub fn stats_string(&self) -> String {
-        format!(
-            "{} decals, {} shadows",
-            self.decals_drawn, self.shadows_drawn
-        )
+        format!("{} decals, {} shadows", self.decals_drawn, self.shadows_drawn)
     }
 
     pub fn self_lit(&self, handle: Handle) -> Result<bool, Error> {
@@ -913,8 +837,7 @@ impl OverlayManager {
 
     /// Core diagnostics, not slot 22 or a construction entry point.
     pub fn snapshot(&self, handle: Handle) -> Result<Option<OverlaySnapshot>, Error> {
-        self.optional_single(handle)
-            .map(|o| o.map(Overlay::snapshot))
+        self.optional_single(handle).map(|o| o.map(Overlay::snapshot))
     }
 
     pub fn take_changed_rectangles(&mut self) -> Vec<CellRect> {

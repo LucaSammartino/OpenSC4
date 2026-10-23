@@ -60,12 +60,7 @@ pub(super) fn secondary(p: [f32; 16], pairs: &[[f32; 2]]) -> Result<[f32; 16], E
     let [umin, vmin, umax, vmax] = extrema(pairs)?;
     let du = (f64::from(umax) - f64::from(umin)) as f32;
     let dv2 = ((f64::from(vmax) - f64::from(vmin)) * 2.0) as f32;
-    if p.iter().any(|v| !v.is_finite())
-        || !du.is_finite()
-        || !dv2.is_finite()
-        || du <= 0.0
-        || dv2 <= 0.0
-    {
+    if p.iter().any(|v| !v.is_finite()) || !du.is_finite() || !dv2.is_finite() || du <= 0.0 || dv2 <= 0.0 {
         return Err(Error::Unsupported(Unsupported::ModelNumericDomain));
     }
     let ru = 1.0 / (f64::from(du) * 2.0);
@@ -76,8 +71,7 @@ pub(super) fn secondary(p: [f32; 16], pairs: &[[f32; 2]]) -> Result<[f32; 16], E
     let tv = f64::from((0.25 - rv * f64::from(vmin)) as f32);
     let mut out = [0.0; 16];
     for row in (0..4).rev() {
-        let [a, b, c, d] =
-            [p[row * 4], p[row * 4 + 1], p[row * 4 + 2], p[row * 4 + 3]].map(f64::from);
+        let [a, b, c, d] = [p[row * 4], p[row * 4 + 1], p[row * 4 + 2], p[row * 4 + 3]].map(f64::from);
         let z = f64::from((c * 0.0) as f32);
         let y = f64::from((b * 0.0) as f32);
         let x = f64::from((a * 0.0) as f32);

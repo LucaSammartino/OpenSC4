@@ -3,23 +3,11 @@
 use super::{CellRect, Error, Unsupported};
 
 pub(super) fn clip(b: [i32; 4], city: [u32; 2]) -> CellRect {
-    if b[2] < 0
-        || b[3] < 0
-        || i64::from(b[0]) > i64::from(city[0])
-        || i64::from(b[1]) > i64::from(city[1])
-    {
-        return CellRect {
-            min: [0, 0],
-            max: [0, 0],
-        };
-    }
     CellRect {
-        min: [b[0].max(0) as u32, b[1].max(0) as u32],
-        max: [
-            (b[2].max(0) as u32).min(city[0]),
-            (b[3].max(0) as u32).min(city[1]),
-        ],
+        min: [b[0], b[1]],
+        max: [b[2], b[3]],
     }
+    .clipped(city)
 }
 
 pub(super) fn partition(f: [f32; 4], city: [u32; 2]) -> Result<[CellRect; 8], Error> {
@@ -51,11 +39,7 @@ pub(super) fn partition(f: [f32; 4], city: [u32; 2]) -> Result<[CellRect; 8], Er
         let square = (delta * delta) as f32;
         let outer = (f64::from(r2) - f64::from(square.min(r2))).sqrt() as f32;
         let inner = (f64::from(i2) - f64::from(square.min(i2))).sqrt();
-        let inner = if i == 3 {
-            inner
-        } else {
-            f64::from(inner as f32)
-        };
+        let inner = if i == 3 { inner } else { f64::from(inner as f32) };
         left[i] = (f64::from(cx) - f64::from(outer)).floor() as i32;
         right[i] = (f64::from(cx) + f64::from(outer)).ceil() as i32;
         il[i] = (f64::from(cx) - inner).ceil() as i32;

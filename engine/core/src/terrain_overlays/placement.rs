@@ -10,8 +10,7 @@ pub(super) fn calculate(
 ) -> Result<([f32; 16], CellRect, bool, [f32; 4]), Error> {
     let [cx, cz, w, turns, stretch, ru, rv, offset, _] = p.0;
     let a = (f64::from(aspect) * f64::from(stretch)) as f32;
-    if p.0.iter().any(|x| !x.is_finite()) || !a.is_finite() || a <= 0.0 || w <= 0.0 || turns != 0.0
-    {
+    if p.0.iter().any(|x| !x.is_finite()) || !a.is_finite() || a <= 0.0 || w <= 0.0 || turns != 0.0 {
         return Err(Error::Unsupported(Unsupported::PlacementNumericDomain));
     }
     let hx = (f64::from(w) * 0.5) as f32;
@@ -48,9 +47,7 @@ pub(super) fn calculate(
         ((f64::from(cz) + f64::from(hz)) * f64::from(g.cell_scale)) as f32,
     ];
     if bounds.iter().chain(matrix.iter()).any(|x| !x.is_finite())
-        || bounds
-            .iter()
-            .any(|x| f64::from(*x).abs() >= f64::from(i32::MAX))
+        || bounds.iter().any(|x| f64::from(*x).abs() >= f64::from(i32::MAX))
     {
         return Err(Error::Unsupported(Unsupported::PlacementNumericDomain));
     }
@@ -60,24 +57,7 @@ pub(super) fn calculate(
         bounds[2].ceil() as i32,
         bounds[3].ceil() as i32,
     ];
-    let cells = if b[2] < 0
-        || b[3] < 0
-        || i64::from(b[0]) > i64::from(g.cells[0])
-        || i64::from(b[1]) > i64::from(g.cells[1])
-    {
-        CellRect {
-            min: [0, 0],
-            max: [0, 0],
-        }
-    } else {
-        CellRect {
-            min: [b[0].max(0) as u32, b[1].max(0) as u32],
-            max: [
-                (b[2].max(0) as u32).min(g.cells[0]),
-                (b[3].max(0) as u32).min(g.cells[1]),
-            ],
-        }
-    };
+    let cells = super::round::clip(b, g.cells);
     Ok((
         matrix,
         cells,

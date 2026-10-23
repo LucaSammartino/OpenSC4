@@ -27,9 +27,7 @@ struct Factory {
 impl TextureFactory for Factory {
     fn binding(&self, key: u32, lookup: BindingLookup) -> Option<Arc<dyn TextureBinding>> {
         self.calls.lock().unwrap().push((key, lookup));
-        self.texture
-            .as_ref()
-            .map(|b| b.clone() as Arc<dyn TextureBinding>)
+        self.texture.as_ref().map(|b| b.clone() as Arc<dyn TextureBinding>)
     }
 }
 
@@ -59,14 +57,10 @@ impl ViewProvider for View {
         self.lighting.clone()
     }
     fn terrain(&self) -> Option<Arc<dyn TerrainProvider>> {
-        self.terrain
-            .as_ref()
-            .map(|t| t.clone() as Arc<dyn TerrainProvider>)
+        self.terrain.as_ref().map(|t| t.clone() as Arc<dyn TerrainProvider>)
     }
     fn texture_factory(&self) -> Option<Arc<dyn TextureFactory>> {
-        self.factory
-            .as_ref()
-            .map(|f| f.clone() as Arc<dyn TextureFactory>)
+        self.factory.as_ref().map(|f| f.clone() as Arc<dyn TextureFactory>)
     }
     fn shadow_quality(&self) -> i32 {
         self.quality
@@ -105,7 +99,7 @@ fn manager(dynamic: bool) -> OverlayManager {
     manager
 }
 
-fn rect(min: [u32; 2], max: [u32; 2]) -> CellRect {
+fn rect(min: [i32; 2], max: [i32; 2]) -> CellRect {
     CellRect { min, max }
 }
 
@@ -116,10 +110,7 @@ fn public_ov2_rectangle_copies_every_word_without_clipping_or_handle() {
         0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0,
     ];
     let bounds = rect([7, 3], [10, 5]);
-    assert_eq!(
-        m.add_overlay_for_rect(None, bounds, matrix, 8),
-        Ok(Handle::NONE)
-    );
+    assert_eq!(m.add_overlay_for_rect(None, bounds, matrix, 8), Ok(Handle::NONE));
     let h = m
         .add_overlay_for_rect(Some(Arc::new(Texture)), bounds, matrix, 8)
         .unwrap();
@@ -138,6 +129,19 @@ fn public_ov2_rectangle_copies_every_word_without_clipping_or_handle() {
 }
 
 #[test]
+fn public_ov2_rectangle_keeps_signed_and_inverted_words() {
+    let mut m = manager(false);
+    for bounds in [rect([-3, 2], [1, 4]), rect([5, 3], [2, 1])] {
+        let h = m
+            .add_overlay_for_rect(Some(Arc::new(Texture)), bounds, [0.0; 16], 0)
+            .unwrap();
+        assert_eq!(m.snapshot(h).unwrap().unwrap().cells, bounds);
+    }
+    // Only the positive-area rectangle is redisplayed (§2.2 MarkChanged).
+    assert_eq!(m.take_changed_rectangles(), vec![rect([-3, 2], [1, 4])]);
+}
+
+#[test]
 fn public_ov2_city_matrix_uses_only_signed_nx() {
     for nz in [32, 48] {
         let mut v = view(2);
@@ -151,7 +155,7 @@ fn public_ov2_city_matrix_uses_only_signed_nx() {
         let h = m.add_city_decal(77).unwrap();
         let o = m.snapshot(h).unwrap().unwrap();
         assert_eq!(o.flags, 0x13);
-        assert_eq!(o.cells, rect([0, 0], [64, nz]));
+        assert_eq!(o.cells, rect([0, 0], [64, nz as i32]));
         assert_eq!(
             o.primary,
             [
@@ -173,10 +177,7 @@ fn public_ov2_city_matrix_uses_only_signed_nx() {
                 1.0
             ]
         );
-        assert_eq!(
-            factory.calls.lock().unwrap().last(),
-            Some(&(77, BindingLookup::Slot5))
-        );
+        assert_eq!(factory.calls.lock().unwrap().last(), Some(&(77, BindingLookup::Slot5)));
         assert!(m.take_changed_rectangles().is_empty());
         assert_eq!(m.handles.iter().count(), 0);
     }
@@ -270,10 +271,7 @@ fn public_ov9_literal_outline_and_binary32_height20_splits() {
         [11, 12, 15, 14],
     ]
     .map(|[x0, z0, x1, z1]| rect([x0, z0], [x1, z1]));
-    assert_eq!(
-        round::partition([0.0, 0.0, 16.0, 16.0], [64, 64]).unwrap(),
-        expected
-    );
+    assert_eq!(round::partition([0.0, 0.0, 16.0, 16.0], [64, 64]).unwrap(), expected);
     assert!(expected.iter().all(|r| !r.contains([8, 8])));
     let expected20 = [
         [2, 0, 18, 3],
@@ -286,10 +284,7 @@ fn public_ov9_literal_outline_and_binary32_height20_splits() {
         [15, 15, 19, 17],
     ]
     .map(|[x0, z0, x1, z1]| rect([x0, z0], [x1, z1]));
-    assert_eq!(
-        round::partition([0.0, 0.0, 20.0, 20.0], [64, 64]).unwrap(),
-        expected20
-    );
+    assert_eq!(round::partition([0.0, 0.0, 20.0, 20.0], [64, 64]).unwrap(), expected20);
 }
 
 #[test]
@@ -300,14 +295,9 @@ fn public_ov9_add_retains_empty_parts_and_full_texture_matrix() {
     assert_eq!(parts.len(), 8);
     assert_eq!(m.handles.iter().count(), 1);
     assert_eq!(m.groups.iter().count(), 1);
-    let matrices: Vec<_> = parts
-        .iter()
-        .map(|&i| m.overlays.get(i).unwrap().primary)
-        .collect();
+    let matrices: Vec<_> = parts.iter().map(|&i| m.overlays.get(i).unwrap().primary).collect();
     assert!(matrices.iter().all(|m| *m == matrices[0]));
-    assert!(parts
-        .iter()
-        .any(|&i| m.overlays.get(i).unwrap().cells.is_empty()));
+    assert!(parts.iter().any(|&i| m.overlays.get(i).unwrap().cells.is_empty()));
 }
 
 /// Explicit initial state, not claimed constructor defaults.
@@ -424,7 +414,7 @@ fn conformance_shadow_quality_zero_returns_none_before_factory_lookup() {
 fn conformance_texture_scale_sets_flag_and_semantic_coefficients() {
     let mut m = manager(false);
     let h = seed(&mut m, overlay(flag::SHOWN));
-    // Â§9 vector plus the offset/second-axis flip from Â§3 slot21.
+    // §9 vector plus the offset/second-axis flip from §3 slot21.
     for (size, offset, expected_scale, expected_offset) in [
         (16.0, 0.0, [0.0625, -0.0625], 1.0),
         (8.0, 4.0, [0.125, -0.125], 1.5),
@@ -452,10 +442,7 @@ fn conformance_dynamic_snapshot_draws_nothing_without_changing_stats() {
         snapshot: true,
         ..FRAME
     };
-    assert_eq!(
-        m.select_frame(frame, &[]).unwrap().decals,
-        Vec::<u32>::new()
-    );
+    assert_eq!(m.select_frame(frame, &[]).unwrap().decals, Vec::<u32>::new());
     assert!(m.select_frame(frame, &[]).unwrap().skipped_snapshot);
     m.draw(frame, &[]).unwrap();
     assert_eq!(m.stats_string(), "0 decals, 0 shadows");
@@ -464,7 +451,7 @@ fn conformance_dynamic_snapshot_draws_nothing_without_changing_stats() {
 #[test]
 fn conformance_stats_format_only_not_gpu_draw_count_coverage() {
     let mut m = manager(false);
-    // Â§9.6's output format is defined; no assertion that the missing renderer
+    // §9.6's output format is defined; no assertion that the missing renderer
     // produced these counters. OV8 asks when/how they are incremented/reset.
     m.decals_drawn = 3;
     m.shadows_drawn = 2;
@@ -591,14 +578,8 @@ fn removal_retains_payload_until_fifo_reuse_and_unlinks_cells() {
     assert_eq!(Arc::strong_count(&texture), 2);
     assert_eq!(Arc::strong_count(&source), 2);
     assert!(m.cell_index.as_ref().unwrap().is_empty());
-    assert_eq!(
-        m.snapshot(h),
-        Err(Error::Unsupported(Unsupported::InvalidHandle))
-    );
-    assert_eq!(
-        m.remove(h),
-        Err(Error::Unsupported(Unsupported::InvalidHandle))
-    );
+    assert_eq!(m.snapshot(h), Err(Error::Unsupported(Unsupported::InvalidHandle)));
+    assert_eq!(m.remove(h), Err(Error::Unsupported(Unsupported::InvalidHandle)));
     assert_eq!(seed(&mut m, overlay(0)), h);
     assert_eq!(Arc::strong_count(&texture), 1);
     assert_eq!(Arc::strong_count(&source), 1);
@@ -623,25 +604,15 @@ fn group_removal_cleans_eight_parts_group_and_indirect_record_then_reuses_slots(
 fn malformed_group_is_rejected_before_any_part_changes() {
     let mut m = manager(false);
     let h = seed(&mut m, overlay(0));
-    let index = m.groups.insert([
-        Some(h.index()),
-        Some(999),
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-    ]);
+    let index = m
+        .groups
+        .insert([Some(h.index()), Some(999), None, None, None, None, None, None]);
     let g = indirect(&mut m, Target::Group(index));
     assert_eq!(
         m.enable_self_lighting(g, 1),
         Err(Error::Unsupported(Unsupported::InvalidHandle))
     );
-    assert_eq!(
-        m.remove(g),
-        Err(Error::Unsupported(Unsupported::InvalidHandle))
-    );
+    assert_eq!(m.remove(g), Err(Error::Unsupported(Unsupported::InvalidHandle)));
     assert_eq!(m.snapshot(h).unwrap().unwrap().flags, 0);
     assert!(m.take_changed_rectangles().is_empty());
 }
@@ -680,11 +651,7 @@ fn lifecycle_holds_acquired_references_and_unsubscribes_once_before_release() {
     drop(m);
     assert_eq!(
         *v.messages.lock().unwrap(),
-        [
-            (true, CHANGE_MESSAGE),
-            (true, CHANGE_MESSAGE),
-            (false, CHANGE_MESSAGE)
-        ]
+        [(true, CHANGE_MESSAGE), (true, CHANGE_MESSAGE), (false, CHANGE_MESSAGE)]
     );
 }
 
@@ -704,11 +671,7 @@ fn destruction_does_not_unsubscribe_and_shutdown_supports_reinitialization() {
     }
     assert_eq!(
         *v.messages.lock().unwrap(),
-        [
-            (true, CHANGE_MESSAGE),
-            (false, CHANGE_MESSAGE),
-            (true, CHANGE_MESSAGE),
-        ]
+        [(true, CHANGE_MESSAGE), (false, CHANGE_MESSAGE), (true, CHANGE_MESSAGE),]
     );
 }
 
@@ -774,10 +737,7 @@ fn factory_slots_and_null_binding_are_literal_and_unsupported_numeric_inputs_are
         Err(Error::NotInitialized)
     );
     m.init(v, false, false).unwrap();
-    assert_eq!(
-        m.add_decal_binding(None, [0.0; 2], 0.0, 0.0),
-        Ok(Handle::NONE)
-    );
+    assert_eq!(m.add_decal_binding(None, [0.0; 2], 0.0, 0.0), Ok(Handle::NONE));
     for lookup in [BindingLookup::Slot6, BindingLookup::Slot5] {
         assert_eq!(
             m.add_decal_key(7, [0.0; 2], 0.0, 0.0, lookup),
@@ -830,10 +790,7 @@ fn no_binding_from_factory_returns_none_and_retains_no_new_resource() {
     let mut m = OverlayManager::new();
     m.init(v, false, false).unwrap();
     for lookup in [BindingLookup::Slot5, BindingLookup::Slot6] {
-        assert_eq!(
-            m.add_decal_key(7, [0.0; 2], 0.0, 0.0, lookup),
-            Ok(Handle::NONE)
-        );
+        assert_eq!(m.add_decal_key(7, [0.0; 2], 0.0, 0.0, lookup), Ok(Handle::NONE));
     }
 }
 
@@ -845,25 +802,16 @@ fn static_visible_cells_deduplicate_overlays_and_apply_shown_part_snapshot_flags
     seed(&mut m, overlay(flag::SHOWN));
     seed(&mut m, overlay(flag::PART));
     let visible = [[1, 1], [2, 2], [1, 1], [8, 4]];
-    assert_eq!(
-        m.select_frame(FRAME, &visible).unwrap().decals,
-        [a.index(), b.index()]
-    );
+    assert_eq!(m.select_frame(FRAME, &visible).unwrap().decals, [a.index(), b.index()]);
     assert!(m.select_frame(FRAME, &[[0, 0]]).unwrap().decals.is_empty());
     let snapshot = FrameOptions {
         snapshot: true,
         ..FRAME
     };
-    assert_eq!(
-        m.select_frame(snapshot, &visible).unwrap().decals,
-        [b.index()]
-    );
+    assert_eq!(m.select_frame(snapshot, &visible).unwrap().decals, [b.index()]);
     m.remove(a).unwrap();
     assert_eq!(m.select_frame(FRAME, &visible).unwrap().decals, [b.index()]);
-    assert_eq!(
-        m.draw(FRAME, &visible),
-        Err(Error::Gap(ContractGap::DrawingDetailsOv8))
-    );
+    assert_eq!(m.draw(FRAME, &visible), Err(Error::Gap(ContractGap::DrawingDetailsOv8)));
     assert_eq!(m.stats_string(), "0 decals, 0 shadows");
 }
 
@@ -873,22 +821,11 @@ fn dynamic_selection_visits_all_and_respects_decal_toggle_and_shadow_quality_pat
     seed(&mut m, overlay(flag::SHOWN | flag::PART));
     assert_eq!(m.select_frame(FRAME, &[]).unwrap().decals, [0]);
     assert!(m
-        .select_frame(
-            FrameOptions {
-                decals: false,
-                ..FRAME
-            },
-            &[]
-        )
+        .select_frame(FrameOptions { decals: false, ..FRAME }, &[])
         .unwrap()
         .decals
         .is_empty());
-    for (quality, stage, rough) in [
-        (0, true, true),
-        (2, true, true),
-        (3, true, false),
-        (4, false, true),
-    ] {
+    for (quality, stage, rough) in [(0, true, true), (2, true, true), (3, true, false), (4, false, true)] {
         m.shadow_quality = quality;
         assert_eq!(
             m.select_frame(
@@ -912,10 +849,7 @@ fn draw_state_table_covers_all_five_public_states() {
         assert!(state.color_write && state.depth_test && state.blending);
         assert_eq!(state.textures, 1);
     }
-    assert_eq!(
-        DRAW_STATES.map(|s| s.depth_write),
-        [false, false, false, false, true]
-    );
+    assert_eq!(DRAW_STATES.map(|s| s.depth_write), [false, false, false, false, true]);
     assert_eq!(
         DRAW_STATES.map(|s| s.depth_function),
         [LessOrEqual, LessOrEqual, LessOrEqual, Greater, Less]
@@ -945,8 +879,11 @@ fn rectangle_clipping_and_cell_coverage_are_owned_by_core() {
     for (input, expected) in [
         (rect([1, 1], [3, 3]), rect([1, 1], [3, 3])),
         (rect([7, 3], [12, 9]), rect([7, 3], [8, 4])),
-        (rect([10, 8], [12, 9]), rect([8, 4], [8, 4])),
-        (rect([3, 2], [1, 1]), rect([3, 2], [3, 2])),
+        (rect([10, 8], [12, 9]), CellRect::ZERO),
+        (rect([8, 1], [12, 3]), rect([8, 1], [8, 3])),
+        (rect([3, 2], [1, 1]), rect([3, 2], [1, 1])),
+        (rect([-3, 2], [-1, 4]), CellRect::ZERO),
+        (rect([-3, 2], [0, 4]), rect([0, 2], [0, 4])),
     ] {
         let clipped = input.clipped([8, 4]);
         assert_eq!(clipped, expected);
@@ -985,12 +922,7 @@ fn public_model_fallback_and_secondary_literal_quarter_mapping() {
         metres: [1024.0; 2],
     };
     assert_eq!(
-        model::fallback(
-            [1.0, 0.0, -1.0],
-            [16.0, 0.0, 32.0, 48.0, 32.0, 64.0],
-            geometry
-        )
-        .unwrap(),
+        model::fallback([1.0, 0.0, -1.0], [16.0, 0.0, 32.0, 48.0, 32.0, 64.0], geometry).unwrap(),
         rect([1, 0], [5, 4])
     );
     let identity = [
@@ -1004,12 +936,7 @@ fn public_model_fallback_and_secondary_literal_quarter_mapping() {
     let extrema = model::extrema(&pairs).unwrap();
     assert_eq!(
         extrema.map(f32::to_bits),
-        [
-            0x8000_0000,
-            0x8000_0000,
-            2.0_f32.to_bits(),
-            4.0_f32.to_bits()
-        ]
+        [0x8000_0000, 0x8000_0000, 2.0_f32.to_bits(), 4.0_f32.to_bits()]
     );
 }
 
@@ -1037,12 +964,7 @@ impl ModelLighting for LightingFixture {
         pairs[1] = [2.0, 4.0];
         true
     }
-    fn terrain_rect_slot18(
-        &self,
-        _n: i32,
-        _source: GeometryToken<'_>,
-        _box: [f32; 6],
-    ) -> Option<CellRect> {
+    fn terrain_rect_slot18(&self, _n: i32, _source: GeometryToken<'_>, _box: [f32; 6]) -> Option<CellRect> {
         self.calls.lock().unwrap().push(18);
         Some(rect([1, 0], [5, 4]))
     }
@@ -1111,18 +1033,12 @@ fn public_collection_encounter_order_and_zero_stamp_wrap() {
     index.insert([4, 2], vec![2, 7]);
     let starts = [0, 0, 3, 3, 0];
     let ends = [0, 0, 7, 7, 0];
-    assert_eq!(
-        m.collect_visible_rows(2, 5, &starts, &ends).unwrap(),
-        vec![9, 2, 7]
-    );
+    assert_eq!(m.collect_visible_rows(2, 5, &starts, &ends).unwrap(), vec![9, 2, 7]);
     m.collection_stamp = u16::MAX;
     m.overlays.get_mut(ids[9].index()).unwrap().stamp = 0;
     m.overlays.get_mut(ids[2].index()).unwrap().stamp = 0;
     m.overlays.get_mut(ids[7].index()).unwrap().stamp = 0;
-    assert!(m
-        .collect_visible_rows(2, 5, &starts, &ends)
-        .unwrap()
-        .is_empty());
+    assert!(m.collect_visible_rows(2, 5, &starts, &ends).unwrap().is_empty());
     assert_eq!(m.collection_stamp, 0);
 }
 

@@ -24,26 +24,32 @@ impl Handle {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Placement(pub [f32; 9]);
 
-/// Internal half-open cell interval, not a claim about original endpoint layout
-/// (OV8). Clipping and intersection are owned by this module, not a terrain host.
+/// Raw signed half-open cell rectangle `(x0, z0, x1, z1)` (§2.2). Inverted
+/// bounds are kept as supplied; they are simply empty.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CellRect {
-    pub min: [u32; 2],
-    pub max: [u32; 2],
+    pub min: [i32; 2],
+    pub max: [i32; 2],
 }
 
 impl CellRect {
+    pub const ZERO: Self = Self {
+        min: [0, 0],
+        max: [0, 0],
+    };
+
+    /// Signed intersection with `(0, 0, nx, nz)` (`0x0048ED90`): a strictly
+    /// separated rectangle becomes all zeros, a touching edge is retained.
     pub fn clipped(self, city_cells: [u32; 2]) -> Self {
-        let min = [
-            self.min[0].min(city_cells[0]),
-            self.min[1].min(city_cells[1]),
-        ];
+        let city = city_cells.map(|v| i64::from(v));
+        let [x0, z0] = self.min.map(i64::from);
+        let [x1, z1] = self.max.map(i64::from);
+        if x1 < 0 || z1 < 0 || x0 > city[0] || z0 > city[1] {
+            return Self::ZERO;
+        }
         Self {
-            min,
-            max: [
-                self.max[0].min(city_cells[0]).max(min[0]),
-                self.max[1].min(city_cells[1]).max(min[1]),
-            ],
+            min: [x0.max(0) as i32, z0.max(0) as i32],
+            max: [x1.min(city[0]) as i32, z1.min(city[1]) as i32],
         }
     }
 
@@ -51,13 +57,12 @@ impl CellRect {
         self.min[0] >= self.max[0] || self.min[1] >= self.max[1]
     }
 
-    pub fn contains(self, cell: [u32; 2]) -> bool {
+    pub fn contains(self, cell: [i32; 2]) -> bool {
         (0..2).all(|axis| self.min[axis] <= cell[axis] && cell[axis] < self.max[axis])
     }
 
-    pub(super) fn cells(self) -> impl Iterator<Item = [u32; 2]> {
-        (self.min[1]..self.max[1])
-            .flat_map(move |z| (self.min[0]..self.max[0]).map(move |x| [x, z]))
+    pub(super) fn cells(self) -> impl Iterator<Item = [i32; 2]> {
+        (self.min[1]..self.max[1]).flat_map(move |z| (self.min[0]..self.max[0]).map(move |x| [x, z]))
     }
 }
 
