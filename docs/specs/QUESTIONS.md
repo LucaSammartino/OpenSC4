@@ -142,6 +142,7 @@ generated index: the questions live one file per spec, so read only the file for
 | TD | tools-com-director |
 | TE | text-edit |
 | TG | traffic-simulator |
+| TK | animation-tick-manager |
 | TM | timers |
 | TN | traffic-network |
 | TR | terrain |
@@ -169,6 +170,7 @@ generated index: the questions live one file per spec, so read only the file for
 | aircraft | 2 | 0 | AF3 | questions/aircraft.md |
 | animated-sprite | 9 | 0 | AS10 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
+| animation-tick-manager | 3 | 0 | TK4 | questions/animation-tick-manager.md |
 | application | 7 | 2 | AP10 | questions/application.md |
 | audio-ambience | 1 | 10 | AA12 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
@@ -302,4 +304,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **440** | **1239** | | |
+| **total** | **443** | **1239** | | |

@@ -1,8 +1,22 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-other-simulation4: animation tick manager owner specification | `Codex` / `re-other-simulation4` (RE docs lane) | blocked: REA target_unavailable, no app open; dedicated specification unpublished; no game runs or ABI export changes | 1. Coordinator must reconcile project availability before any continuation; this first invocation has stopped. |
+| re-other-simulation4: animation tick manager owner specification | `Codex` / `re-other-simulation4` (RE docs lane) | in progress: explicitly authorized original round 2/3, export/instruction study | Publish measured owner contract and unresolved questions. |
 
-## Report
+## Handoff
+
+- Goal: first dedicated animation tick manager specification; original round 2/3 only.
+- Done: dedicated `docs/specs/animation-tick-manager.md` published with measured 44-body/4286-byte inventory (46/4304 including two additional shared interface bodies), all primary slots, normal behavior and explicit partial dependencies.
+- Identity rechecked independently: version 1.1.641.0, 7524352 bytes and exact SHA-256 match below.
+- Next: run question index/check and diff check, commit publication, finalize report/queue using actual detached HEAD.
+- Questions: TK1 framework ownership/external cadence; TK2 persistence; TK3 exceptional/destructive reentrancy.
+- ABI evidence: `build-runs/abi-rows-re-other-simulation4.tsv`, 17 primary interface rows in interfaces.tsv format; shared ABI files unchanged.
+- Proposed vectors V1–V20, never native-executed. Consumer reconciliation includes effects callback misidentification; no consumer spec rewritten.
+- Prior round report below is historical, unchanged; NoApp remains real, with zero behavior credit for round 1.
+- Live REA availability remains unknown in this round. Do not repeat NoApp query or open targets.
+- No engine reads/changes, original execution, game requests, builds, shared ABI edits or other-lane edits.
+- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-other-simulation4-r2-manifest.json`.
+
+## Prior round 1 report (preserved)
 
 Stopped on 2026-10-23 under the brief's explicit project-availability condition. No dedicated specification, behavioral answer, pending ABI row, or measured body-byte coverage credit is published by this invocation. Existing consumer claims have not been changed.
 
