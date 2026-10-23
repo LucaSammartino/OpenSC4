@@ -7,6 +7,7 @@
 mod arguments;
 mod breakpoints;
 pub mod collectors;
+pub mod vm;
 mod foreign;
 pub use foreign::{Failure, Foreign, Handle, Interface, Primitive, RecordToken, StackOp, Value};
 use std::collections::BTreeMap;
