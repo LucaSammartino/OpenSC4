@@ -1,16 +1,26 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-place-lot5: place-lot owner | Codex / core-place-lot5 | in progress | Implement core owner and closure tests |
+| core-place-lot5: place-lot owner | Codex / core-place-lot5 | wip: native gate blocked | Fix CMake ABI configure hang; answer open spec questions |
 
-## Handoff
-- Goal: close city-tools-input place-lot owner sections 3 and associated conformance tests in core only.
-- Done: 55f111e1 adds place-lot owner, foreign interfaces, 12 focused tests and per-section owner closure table. Focused cargo: 12/12 passed; explicit-file fmt: PASS (4 files, 0 diff lines).
-- Questions: CT22 ring-finished handler; CT23 zoning flags/failure handling; CT24 exact four-point facing discrepancy. Existing CT2/CT16/CT17 retained explicitly open.
-- Next: run all once on corrected effects-position source 5b0336f1, using CMAKE_BUILD_TYPE=Release to avoid the generated Debug/incremental-link compiler probe; collect to terminal without tracked edits.
-- Focused q.py attempt could not start Bash (CreateFileMapping Win32 error 5); direct cargo completed successfully. Initial fmt relative paths failed lookup; corrected absolute-path fmt passed. Neither failure changed source.
-- First gate Rust: 6167 passed, 0 failed, 0 ignored summed over 32 result lines; clippy failed on two test fixture initializers. Failed evidence preserved in build-runs/qbuild-first-clippy-failed.log. Initializers corrected; original CMake operation still running (started 18:49:32 local).
-- No game run because this lane explicitly has no plugin/ABI wiring. No C++ source changed.
-- Second all gate (951e2a19, terminal session 70096): Rust 6167/0/0; strict clippy PASS, diagnostics=0. CMake compiler ABI configure probe timed out after 900 s; CTest skipped. Preserved second-configure-timeout.log. Its object file exists, but its link did not complete. Changing compiler flags alone did not resolve it.
-- Final review corrected §3.12 effect origin to foreign `lot_position(lot)`, including construction-adjusted height; both success/failure fixtures now distinguish lot height 30 from cursor height 3. Focused cargo session 43244 completed: 12 passed, 0 failed. This happened after gate #3's Rust stages; gate #3 remains an earlier-source native diagnostic, not final verification.
-- Gate #3 session 57078 terminated: Rust 6167/0/0, clippy PASS; native configure again timed out at 900 s, CTest skipped, tree changed (effects-position fix). Preserved third-configure-timeout.log. `_CL_` and `_LINK_` env alone did not resolve the CMake helper probe; scratch rule explicitly uses Debug /Zi and /debug /INCREMENTAL before project flags normalize them.
-- No game requests outstanding; no ABI or plugin changes authorized.
+## Report
+Implemented the portable place-lot owner in engine/core/src/place_lot, exported additively from core. Covers defaults, activation/pickers, lifecycle, input/messages, snapping, frontage/facing, validation/costing, commit/tutorial/funds, demolition filter, zoning, refund quirk, aura/connections and effect scheduling. Foreign services remain traits; no native owner callbacks, plugin wiring or C ABI changes. Owner closure rows and named tests are in the module README.
+
+Implementation milestones: 55f111e1 (owner/tests), 951e2a19 (clippy fixtures), c147da3d (facing question), 5b0336f1 (effects use the created lot position, including construction-adjusted height). Final cleanup changes only comment encoding; formatting passes on all four owned Rust files.
+
+## Verification
+- Focused final behavior: 12 passed, 0 failed (session 43244); included in workspace count.
+- Final-source qbuild all, session 5412, collected to terminal: cargo **6167 passed, 0 failed, 0 ignored** across 32 result lines; strict clippy **PASS, 0 diagnostics**.
+- Native gate **FAIL**: CMake compiler ABI configure timed out after **900 s**; CTest **skipped**, no plugin produced. Full logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-configure.log.
+- Earlier failed evidence retained separately: qbuild-first-clippy-failed.log and first-/second-/third-configure-timeout.log. Two fixture lint errors were fixed. Later retries followed changed source or diagnostic inputs; no duplicate gate was launched for progress.
+- Standalone linker probe passed in 2.3 s; minimal CMake with explicit Release try-compile also stalled and timed out at 45 s. Compiler/linker flags and Release environment did not resolve the native blocker. Only verified compiler children in this worktree's private build directories were cleaned up after checks terminated.
+- Game: n/a; this core-only lane has no plugin/C ABI wiring or game shadow. No requests outstanding; no ref-warning or exact-shadow claim.
+
+## Questions and remaining owner closure
+Appended **CT22, CT23, CT24** to docs/specs/questions/city-tools-input.md. Existing **CT2, CT16, CT17** remain open.
+- Sections 3.2, 3.3, 3.4, 3.7, 3.8, 3.12, 3.14: CT17 preview/model/constraint/feedback details.
+- Sections 3.7, 3.12, 3.13: CT16 toll-booth selection; section 3.7: CT2 WM slot 19; section 3.4: CT22 ring-finished handler.
+- Section 3.12: CT23 omitted zoning flags/failure handling; literal published call sequence and foreign defaults retained.
+- Section 3.11 / section 4 quirk 10: CT24 four-point equality discrepancy; detailed formula retained and tested.
+All other published place-lot behavior and the place-lot section 6 conformance cases have implementation/test rows. Open paths are explicitly recorded; complete native owner equivalence is not claimed.
+
+Next: resolve native configure environment and rerun all before landing; answer the questions and close their rows. Coordinator regenerates the questions index and reviews coverage claims. No tools/coverage-map.tsv edit, ABI bump, merge, push, or shared-ref change.

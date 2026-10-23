@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Portable place-lot input owner, city-tools-input.md Â§3. Foreign services
+//! Portable place-lot input owner, city-tools-input.md section 3. Foreign services
 //! supply data/primitive operations, never native place-lot tool methods.
 mod model;
 pub use crate::view_input_controls::{ControlHost, Pixel, Vec3};
@@ -126,7 +126,7 @@ impl PlaceLot {
                 );
                 h.effect(Effect::StoreLastBuilding(self.exemplar));
             }
-            // Literal Â§3.2: a null building choice ends here, without the
+            // Literal section 3.2: a null building choice ends here, without the
             // Shutdown explicitly required for an empty configuration set.
             if self.exemplar == 0 {
                 return false;
@@ -340,7 +340,7 @@ impl PlaceLot {
         {
             self.feedback(h, self.placeable, self.feedback_flag, point);
             self.position = point;
-            // Literal Â§3.7 compares the player rotation, not auto-facing.
+            // Literal section 3.7 compares the player rotation, not auto-facing.
             self.shown_rotation = i32::from(self.player_rotation);
         }
         h.effect(Effect::Unsupported(Open::WindowManagerCt2));
