@@ -2,6 +2,7 @@
 //!
 //! No original watercraft implementation is used as a provider.
 
+mod commands;
 mod math;
 mod movement;
 mod operations;
@@ -9,6 +10,7 @@ mod owner;
 mod record;
 mod states;
 
+pub use commands::{DriveCommand, PlayerEffects};
 pub use movement::Gear;
 pub use operations::{candidate_directions, Message, MessageDisposition};
 pub use owner::*;

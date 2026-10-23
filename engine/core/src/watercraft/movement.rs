@@ -236,8 +236,9 @@ impl Watercraft {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Gear {
+    #[default]
     Neutral,
     Reverse,
     Forward,
