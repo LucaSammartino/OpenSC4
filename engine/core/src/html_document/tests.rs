@@ -11,10 +11,48 @@ struct TestHost {
     loaded: Vec<Vec<u8>>,
     surfaces: u64,
     visited: bool,
+    retained: Vec<bool>,
+    document_refs: u32,
+    releases: u32,
+    withdrawn: Vec<(Vec<u8>, u32)>,
+    released_images: Vec<ImageHandle>,
+    forwarded: Vec<Vec<u8>>,
+    rgb_calls: u32,
+    fail_loader: bool,
+    fail_load: bool,
+    fail_write: bool,
+    reject_image: bool,
+    layout: BTreeMap<u32, u32>,
+    dbcs: bool,
 }
 
 impl HtmlHost for TestHost {
+    fn advance(&self, text: &[u8], i: usize) -> usize {
+        (i + if self.dbcs && text[i] == 0x81 { 2 } else { 1 }).min(text.len())
+    }
+    fn document_layout_word(&self, offset: u32) -> u32 {
+        self.layout.get(&offset).copied().unwrap_or(0)
+    }
+    fn retain_interfaces(&mut self, has_extra: bool) {
+        self.retained.push(has_extra);
+    }
+    fn retain_document(&mut self) {
+        self.document_refs += 1;
+    }
+    fn release_interfaces(&mut self) {
+        self.releases += 1;
+    }
+    fn withdraw_download(&mut self, url: &[u8], request: u32) {
+        self.withdrawn.push((url.to_vec(), request));
+    }
+    fn release_image(&mut self, image: ImageHandle) {
+        self.released_images.push(image);
+    }
+    fn window_set_base_url(&mut self, url: &[u8]) {
+        self.forwarded.push(url.to_vec());
+    }
     fn rgb(&mut self, r: i32, g: i32, b: i32) -> u32 {
+        self.rgb_calls += 1;
         ((r as u32 & 0xff) << 16) | ((g as u32 & 0xff) << 8) | (b as u32 & 0xff)
     }
     fn set_color(&mut self, value: &[u8], color: &mut u32) {
@@ -39,21 +77,25 @@ impl HtmlHost for TestHost {
     }
     fn deliver_image(&mut self, waiter: Option<NodeId>, image: ImageHandle) -> bool {
         self.delivered.push((waiter, image));
-        true
+        !self.reject_image
     }
     fn create_image_loader(&mut self) -> bool {
-        true
+        !self.fail_loader
     }
     fn load_image(&mut self, path: &[u8]) -> Option<ImageHandle> {
         self.loaded.push(path.to_vec());
-        Some(77)
+        if self.fail_load { None } else { Some(77) }
     }
     fn make_temp_path(&mut self) -> Vec<u8> {
         b"tmp0".to_vec()
     }
     fn write_file(&mut self, path: &[u8], data: &[u8]) -> bool {
-        self.written.push((path.to_vec(), data.to_vec()));
-        true
+        if self.fail_write {
+            false
+        } else {
+            self.written.push((path.to_vec(), data.to_vec()));
+            true
+        }
     }
     fn remove_file(&mut self, path: &[u8]) {
         self.removed.push(path.to_vec());
@@ -489,4 +531,211 @@ fn alignment_keywords() {
         .map(make_relative_to_text_alignment_style),
         [0, 1, 4, 2, 3, 4, 4]
     );
+}
+
+/// Start directly on an element token, so a return value and cursor can be tested without
+/// ParseHTMLElements discarding the body's result (§5.5).
+fn fragment(src: &str) -> (HtmlDocument<TestHost>, NodeId) {
+    let mut d = doc();
+    let root = d.new_body();
+    d.root = Some(root);
+    d.source = src.as_bytes().to_vec();
+    d.get_token(false);
+    (d, root)
+}
+
+#[test]
+fn numeric_attribute_conformance() {
+    // Every example in §7.11, plus saturation, base-detection and whitespace boundaries.
+    for (s, expected) in [
+        ("12", 12), ("12px", 12), ("7g", 7), ("1 f", 1), ("1a", 26),
+        ("12f", 303), ("1e3", 483), ("ff", 255), ("0x10", 16), ("xyz", 0),
+        ("", 0), (" 7", 7), ("+5", 5), ("-1", u32::MAX),
+        ("99999999999", u32::MAX), ("-99999999999", 1),
+        ("4294967295", u32::MAX), ("4294967296", u32::MAX),
+        ("0Xfffffffff", u32::MAX), (" 0x10", 0), ("+ff", 0),
+        ("\t\n\r\u{b}\u{c} +12", 12), ("0x", 0), ("-0", 0),
+    ] {
+        assert_eq!(convert_to_u32(s.as_bytes()), expected, "{s:?}");
+    }
+    let d = parse("<html><hr width=1a% size=0x10><img src=x width=-1 height=99999999999></html>");
+    let kids = d.children(d.root.unwrap());
+    assert!(matches!(d.kind(kids[0]), Kind::Hr(Hr {width: Some(26), size: Some(16), percent: true, ..})));
+    assert!(matches!(d.kind(kids[1]), Kind::Img(Img {width: Some(u32::MAX), height: Some(u32::MAX), ..})));
+}
+
+#[test]
+fn font_size_wrapping_and_layout() {
+    for (s, expected) in [
+        ("4", 18), ("9", 36), ("+2", 24), ("+a", 36), ("-5", 8), ("-a", 8),
+        (" -1", 123), ("4294967295", 123), ("99999999999", 123), ("+-5", 456),
+        ("--4", 0), // Open HD7: provisional zero for the first dword outside the object.
+        ("2147483648", 8), ("3221225472", 8), ("+2147483647", 12),
+        ("-4294967295", 18), ("4294967272", 14),
+    ] {
+        let (mut d, root) = fragment(&format!("<font size=\"{s}\">x</font>"));
+        d.image_loader = true;
+        d.host.layout.insert(0x1a4, 123);
+        d.host.layout.insert(0x1a0, 456);
+        assert!(d.parse_fontstyle(root), "{s}");
+        assert_eq!(texts(&d)[0].1.size, expected, "{s}");
+        assert_eq!(d.style.size, 14);
+    }
+    let mut d = doc();
+    d.host.layout.insert(0x1a4, 99);
+    assert_eq!(d.font_size_word(-1), 0); // not created yet
+    d.image_loader = true;
+    assert_eq!(d.font_size_word(-1), 99);
+    d.set_slot15_byte(0xa5);
+    d.pushback = true;
+    d.has_blink = true;
+    assert_eq!(d.font_size_word(-96), 0x1a501); // offset 0x28
+    assert_eq!(d.font_size_word(-24), 14); // current style, not table[0]
+    assert_eq!(d.font_size_word(-98), 1); // constructor constant at 0x20
+    assert_eq!(d.font_size_word(7), 0); // HD7
+}
+
+#[test]
+fn repeated_parse_preserves_only_specified_state() {
+    let mut d = doc();
+    assert!(d.parse_sgml_elements(b"old plain text with a long cursor"));
+    assert!(d.parse_sgml_elements(b"<html><body>Hi"));
+    assert_eq!(texts(&d)[0].0, "Hi"); // cursor reset
+    assert!(d.pushback);
+    let old = d.root.unwrap();
+    let html = b"<html><b>new</b></html>";
+    assert!(d.parse_sgml_elements(html));
+    assert_eq!(texts(&d)[0].0.as_bytes(), html); // stale EOF dispatches to plain text
+    assert!(!d.is_live(old)); // plain text deletes the previous root
+    assert!(!d.pushback);
+    assert!(d.parse_sgml_elements(html));
+    assert_eq!((texts(&d)[0].0.as_str(), texts(&d)[0].1.flags), ("new", BOLD));
+    // HTML parsing overwrites the root without releasing it (§5.5).
+    let old = d.root.unwrap();
+    d.pushback = false;
+    assert!(d.parse_sgml_elements(b"<html><ol><li>x</ol></html>"));
+    assert!(d.is_live(old));
+    d.pushback = false;
+    assert!(d.parse_sgml_elements(b"<html><ol><li>y</ol></html>"));
+    assert!(matches!(d.kind(d.children(d.root.unwrap())[0]), Kind::List {kind: 7, serial: 1}));
+}
+
+#[test]
+fn select_and_script_return_values() {
+    for (src, expected, kept) in [
+        ("<select><option>a</select>", true, true),
+        ("<select></select>", true, false),
+        ("<select><b>x</b></select>", true, false),
+        ("<select><option>a", false, false),
+        ("<select><optgroup><option>x</optgroup><option>y</select>", true, true),
+        ("<select><optgroup><option>x", false, false),
+    ] {
+        let (mut d, root) = fragment(src);
+        assert_eq!(d.parse_formctrl(root), expected, "{src}");
+        assert_eq!(!d.children(root).is_empty(), kept, "{src}");
+    }
+    for (src, expected) in [("<script>x</script>", true), ("<script>x", false)] {
+        let (mut d, root) = fragment(src);
+        assert_eq!(d.parse_special(root), expected);
+        assert!(d.children(root).is_empty());
+    }
+}
+
+#[test]
+fn lifetime_interfaces_and_shutdown() {
+    let mut d = HtmlDocument::new(TestHost::default());
+    assert!(d.init(true, b"base"));
+    assert!(d.init(false, b"ignored"));
+    assert_eq!(d.host.retained, [true]);
+    assert_eq!(d.host.forwarded, [b"base".to_vec()]);
+    let mut out = Some(Base::Secondary);
+    assert!(!d.query_interface_into(17, &mut out));
+    assert_eq!(out, Some(Base::Secondary));
+    assert_eq!(d.host.document_refs, 0);
+    for (iid, base) in [(1, Base::Primary), (IID_HTML_DOCUMENT, Base::Primary), (IID_MESSAGE_TARGET, Base::Secondary)] {
+        assert!(d.query_interface_into(iid, &mut out));
+        assert_eq!(out, Some(base));
+    }
+    assert_eq!(d.host.document_refs, 3);
+    d.parse_sgml_elements(b"<html><meta content=c><link href=l><p>x</p></html>");
+    let root = d.root.unwrap();
+    d.request_image(Some(root), b"pending");
+    d.request_image(None, b"complete");
+    d.resource_has_been_downloaded(&DownloadRecord {url: b"complete".to_vec(), is_path: true, data: b"f".to_vec()});
+    assert!(d.shutdown());
+    assert!(!d.is_live(root));
+    assert!(d.root.is_none() && d.base_url.is_none());
+    assert!(d.metas.is_empty() && d.links.is_empty() && d.downloads.is_empty());
+    assert!(!d.image_loader && !d.has_extra && !d.initialised);
+    assert_eq!(d.host.withdrawn, [(b"pending".to_vec(), 1)]);
+    assert_eq!(d.host.released_images, [77]);
+    assert_eq!(d.host.releases, 1);
+    assert!(d.shutdown());
+    assert_eq!(d.host.releases, 1);
+    d.init(false, b"again");
+    assert_eq!(d.host.retained, [true, false]);
+    let next = HtmlDocument::new(TestHost::default());
+    assert_eq!(next.host.rgb_calls, 0); // one-time global colours, not once per document
+}
+
+#[test]
+fn download_failures_retries_and_cached_delivery() {
+    let mut d = doc();
+    let mut image = Some(42);
+    d.host.fail_loader = true;
+    d.load_from_image_file(b"f", &mut image);
+    assert_eq!(image, Some(42));
+    assert!(!d.image_loader && d.host.loaded.is_empty());
+    let record = DownloadRecord {url: b"u".to_vec(), is_path: false, data: vec![0, 1, 0xff, 0]};
+    d.resource_has_been_downloaded(&record); // unknown URL: no temp file work
+    assert!(d.host.written.is_empty());
+    d.request_image(None, b"u");
+    d.request_image(Some(9), b"u");
+    assert_eq!(d.host.downloads.len(), 1);
+    assert!(d.do_message(MSG_RESOURCE_DOWNLOADED, 0, &record));
+    assert!(d.host.loaded.is_empty());
+    d.host.fail_write = true;
+    d.resource_has_been_downloaded(&record);
+    assert!(d.host.written.is_empty());
+    assert_eq!(d.host.removed.len(), 1); // cleanup even after open/loader failure
+    assert_eq!(d.downloads[&b"u"[..]].waiters.len(), 2);
+    d.host.fail_loader = false;
+    d.host.fail_load = true;
+    d.resource_has_been_downloaded(&record);
+    assert!(d.image_loader);
+    assert_eq!(d.downloads[&b"u"[..]].waiters.len(), 2);
+    d.host.fail_load = false;
+    d.host.fail_write = false;
+    d.resource_has_been_downloaded(&record);
+    assert_eq!(d.host.written[0].1, record.data);
+    assert_eq!(d.host.delivered, [(None, 77), (Some(9), 77)]);
+    assert!(d.downloads[&b"u"[..]].waiters.is_empty());
+    d.set_slot15_byte(0xa5);
+    d.host.reject_image = true;
+    d.request_image(None, b"u");
+    assert_eq!(d.slot15_byte, 0xa5);
+    d.host.reject_image = false;
+    d.request_image(None, b"u");
+    assert_eq!(d.slot15_byte, 0);
+    assert_eq!(d.host.downloads.len(), 1);
+}
+
+#[test]
+fn foreign_character_boundaries() {
+    let mut d = doc();
+    d.host.dbcs = true;
+    d.source = b"a\x81<b<b x=\"\x81\"v\" y=\x81 q>".to_vec();
+    d.get_token(false);
+    assert_eq!(d.pending, b"a\x81<b"); // trail '<' is not a tag
+    d.get_token(false);
+    assert_eq!(d.token, 22);
+    assert_eq!(d.find_attribute("X", true).unwrap(), b"\x81\"v");
+    assert_eq!(d.find_attribute("Y", true).unwrap(), b"\x81 q");
+    let mut s = b" \t\x81  \t".to_vec();
+    d.strip_white_space(&mut s);
+    assert_eq!(s, b"\x81 "); // trail space belongs to a non-space character
+    d.source = b"<b\x81> x>".to_vec();
+    d.pos = 0;
+    d.get_token(false);
+    assert_eq!(d.pos, d.source.len()); // trail '>' is not the tag delimiter
 }

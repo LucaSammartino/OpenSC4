@@ -7,9 +7,9 @@ impl<H: HtmlHost> HtmlDocument<H> {
 
     /// ParseSGMLElements(text) (slot 8).
     pub fn parse_sgml_elements(&mut self, text: &[u8]) -> bool {
-        // Literal reading: the spec says only "copy text into the source"; the position and
-        // the push-back flag are not reset here (question HD5).
+        // §5.1 resets the cursor, but deliberately preserves the push-back token and style.
         self.source = text.to_vec();
+        self.pos = 0;
         self.parse_cdata();
         self.get_token(false);
         match self.token {
@@ -17,6 +17,7 @@ impl<H: HtmlHost> HtmlDocument<H> {
             tok::HTML => self.parse_html_elements(),
             _ => {
                 self.pending.clear();
+                self.pos = 0;
                 self.parse_text_document()
             }
         }
@@ -265,8 +266,7 @@ impl<H: HtmlHost> HtmlDocument<H> {
         true
     }
 
-    /// ParseSELECT. Literal reading: returns true whether or not the select was kept
-    /// (the spec gives no return value; question HD6).
+    /// ParseSELECT (§7.3): only a missing close tag makes the result false.
     pub fn parse_select(&mut self, parent: NodeId) -> bool {
         let sel = self.create(Kind::Select);
         loop {
@@ -281,12 +281,13 @@ impl<H: HtmlHost> HtmlDocument<H> {
                 _ => break,
             }
         }
-        if (self.token == 78 || self.skip_until_token(78)) && self.has_children(sel) {
+        let result = self.token == 78 || self.skip_until_token(78);
+        if result && self.has_children(sel) {
             self.add(parent, sel);
         } else {
             self.delete(sel);
         }
-        true
+        result
     }
 
     pub fn parse_option(&mut self, select: NodeId) -> bool {
@@ -537,7 +538,7 @@ impl<H: HtmlHost> HtmlDocument<H> {
             if t == 149 {
                 ok = self.parse_li(list, number);
                 if kind == 7 {
-                    number += 1;
+                    number = number.wrapping_add(1);
                 }
             } else if sets::block(t) {
                 ok = self.parse_block(list);
@@ -664,6 +665,8 @@ impl<H: HtmlHost> HtmlDocument<H> {
             } else if t == tok::EOF {
                 break;
             }
+            // Literal §7.7 loop: /BODY is skipped like other non-EOF tokens. The worked
+            // example instead says it stops there; clarification requested as HD8.
             self.get_token(false);
             if !result {
                 break;
@@ -884,14 +887,12 @@ impl<H: HtmlHost> HtmlDocument<H> {
 
     fn font_attributes(&mut self) {
         if let Some(v) = self.find_attribute("SIZE", true) {
-            let idx: i64 = match v.first() {
-                Some(b'+') => (i64::from(convert_to_u32(&v[1..]) as i32) + 3).min(6),
-                Some(b'-') => (3 - i64::from(convert_to_u32(&v[1..]) as i32)).max(0),
-                _ => i64::from(convert_to_u32(&v) as i32).min(6),
+            let idx = match v.first() {
+                Some(b'+') => (convert_to_u32(&v[1..]).wrapping_add(3) as i32).min(6),
+                Some(b'-') => (3u32.wrapping_sub(convert_to_u32(&v[1..])) as i32).max(0),
+                _ => (convert_to_u32(&v) as i32).min(6),
             };
-            // A negative index would read before the table in the original; clamp to 0
-            // (unreachable without a value of 2^31 or more; question HD6).
-            self.style.size = self.font_sizes[idx.clamp(0, 6) as usize];
+            self.style.size = self.font_size_word(idx);
         }
         if let Some(v) = self.find_attribute("COLOR", true) {
             self.style.color = self.shared_color(&v);
@@ -1033,11 +1034,6 @@ impl<H: HtmlHost> HtmlDocument<H> {
                 self.host.is_visited(&u)
             });
         let anchor = self.create(Kind::Anchor(a));
-        if has_name {
-            // Appended before the anchor's fate is known; deleted anchors are skipped by
-            // FindNamedAnchor (is_live) instead of dangling.
-            self.named_anchors.push(anchor);
-        }
         self.dump_unhandled_attributes("ParseA", "A");
         self.push_style();
         self.style.link = true;
@@ -1050,7 +1046,12 @@ impl<H: HtmlHost> HtmlDocument<H> {
             };
             self.style.flags |= UNDERLINE;
         }
-        self.finish_container(parent, anchor, 55, true)
+        let kept = self.finish_container(parent, anchor, 55, true);
+        if kept && has_name {
+            // §7.11 explicitly recommends retaining only kept anchors instead of dangling entries.
+            self.named_anchors.push(anchor);
+        }
+        kept
     }
 
     // ---- images and maps (§7.12) -----------------------------------------------------------

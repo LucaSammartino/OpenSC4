@@ -246,6 +246,15 @@ pub const IID_MESSAGE_TARGET: u32 = 0x4522_94aa;
 
 /// Services the document uses from other owners. Methods with a default body are optional.
 pub trait HtmlHost {
+    /// Opaque dword of the 32-bit document layout (§7.11). Used only for FONT SIZE
+    /// reads inside the object that address foreign pointers, strings or container storage.
+    /// Scalar fields owned here are supplied by `font_size_word` instead. No native Rust
+    /// address is cast to a 32-bit game pointer. An adapter supplies its compatibility words.
+    fn document_layout_word(&self, offset: u32) -> u32;
+    /// Init's AddRefs on the owner window and, when present, the extra interface (§1.2).
+    fn retain_interfaces(&mut self, _has_extra: bool) {}
+    /// QueryInterface's AddRef through the primary base (§1.5). Lifetime is host-owned.
+    fn retain_document(&mut self) {}
     /// Shared `HTMLIsSpace(text, i)` (§2.1). Default: the C-locale `isspace` set on single
     /// bytes (literal single-byte reading; a DBCS host must supply its own).
     fn is_space(&self, text: &[u8], i: usize) -> bool {
@@ -511,6 +520,8 @@ struct BulletRecord {
 
 /// Process-wide bullet cache (00b62524), never pruned.
 static BULLETS: std::sync::Mutex<Vec<BulletRecord>> = std::sync::Mutex::new(Vec::new());
+/// §1.1: colour construction happens once per process, like the immutable tag/grammar tables.
+static DEFAULT_COLORS: std::sync::OnceLock<[u32; 4]> = std::sync::OnceLock::new();
 
 pub struct HtmlDocument<H: HtmlHost> {
     pub host: H,
@@ -522,7 +533,7 @@ pub struct HtmlDocument<H: HtmlHost> {
     /// 0x28
     pub pushback: bool,
     /// 0x29 (slot 15)
-    pub slot15_byte: bool,
+    pub slot15_byte: u8,
     /// 0x2a: the page contains blinking content.
     pub has_blink: bool,
     /// 0x30 present.
@@ -569,17 +580,15 @@ pub struct HtmlDocument<H: HtmlHost> {
 impl<H: HtmlHost> HtmlDocument<H> {
     /// Constructor (§1.1).
     pub fn new(mut host: H) -> Self {
-        let default_text = host.rgb(0, 0, 0);
-        let default_vlink = host.rgb(100, 32, 164);
-        let default_link = host.rgb(0, 0, 255);
-        let default_alink = host.rgb(192, 0, 255);
+        let [default_text, default_vlink, default_link, default_alink] = *DEFAULT_COLORS
+            .get_or_init(|| [host.rgb(0, 0, 0), host.rgb(100, 32, 164), host.rgb(0, 0, 255), host.rgb(192, 0, 255)]);
         let mut d = HtmlDocument {
             host,
             nodes: Vec::new(),
             root: None,
             initialised: false,
             pushback: false,
-            slot15_byte: false,
+            slot15_byte: 0,
             has_blink: false,
             has_extra: false,
             proportional_face: Vec::new(),
@@ -625,7 +634,7 @@ impl<H: HtmlHost> HtmlDocument<H> {
         if self.initialised {
             return true;
         }
-        self.initialised = true;
+        self.host.retain_interfaces(has_extra);
         self.has_extra = has_extra;
         self.set_base_url(base_url);
         self.style.selector = 1;
@@ -634,6 +643,7 @@ impl<H: HtmlHost> HtmlDocument<H> {
         self.style.flags = 0;
         self.style.pre = false;
         self.style.link = false;
+        self.initialised = true;
         true
     }
 
@@ -668,7 +678,7 @@ impl<H: HtmlHost> HtmlDocument<H> {
     }
 
     /// Slot 15: store the byte at 0x29.
-    pub fn set_slot15_byte(&mut self, v: bool) {
+    pub fn set_slot15_byte(&mut self, v: u8) {
         self.slot15_byte = v;
     }
 
@@ -679,6 +689,47 @@ impl<H: HtmlHost> HtmlDocument<H> {
             IID_MESSAGE_TARGET => Some(Base::Secondary),
             _ => None,
         }
+    }
+
+    /// Primary and secondary QueryInterface share this operation. A miss preserves `out`.
+    pub fn query_interface_into(&mut self, iid: u32, out: &mut Option<Base>) -> bool {
+        if let Some(base) = Self::query_interface(iid) {
+            self.host.retain_document();
+            *out = Some(base);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// §7.11: compute the 32-bit address before deciding whether it is a table entry.
+    /// Opaque layout words remain foreign; this core never dereferences arbitrary memory.
+    pub fn font_size_word(&self, index: i32) -> i32 {
+        let offset = 0x1a8u32.wrapping_add((index as u32).wrapping_mul(4));
+        let word = match offset {
+            0x1a8..=0x1c0 => return self.font_sizes[((offset - 0x1a8) / 4) as usize],
+            // HD7: an out-of-object read is undefined by the original. Provisional zero.
+            0x1c4..=u32::MAX => 0,
+            0x18 => u32::from(self.initialised),
+            0x20 => 1,
+            0x28 => u32::from(self.pushback) | (u32::from(self.slot15_byte) << 8) | (u32::from(self.has_blink) << 16),
+            0x54 => self.proportional_size as u32,
+            0x6c => self.fixed_size as u32,
+            0xe8 => self.token,
+            0x124 => self.attrs.len() as u32,
+            0x128 => self.ol_serial,
+            0x12c => self.ul_serial,
+            0x144 => self.style.selector as u32,
+            0x148 => self.style.size as u32,
+            0x14c => self.style.color,
+            0x150 => self.style.flags,
+            0x154 => u32::from(self.style.pre) | (u32::from(self.style.link) << 8),
+            0x158 => self.align,
+            0x194 => self.pos as u32,
+            0x1a4 if !self.image_loader => 0,
+            _ => self.host.document_layout_word(offset),
+        };
+        word as i32
     }
 
     /// Shutdown (§1.6); also run by the destructor when initialised.
@@ -804,7 +855,7 @@ impl<H: HtmlHost> HtmlDocument<H> {
         self.pending.clear();
         let len = self.source.len();
         while self.pos < len {
-            match find_byte(&self.source, b'<', self.pos) {
+            match find_character(&self.host, &self.source, b"<", self.pos) {
                 None => {
                     self.pending.extend_from_slice(&self.source[self.pos..]);
                     self.pos = len;
@@ -817,7 +868,7 @@ impl<H: HtmlHost> HtmlDocument<H> {
                 Some(_) => {
                     if len - self.pos >= 4 && &self.source[self.pos..self.pos + 4] == b"<!--" {
                         self.pos += 4;
-                        self.pos = find_seq(&self.source, b"-->", self.pos).map_or(len, |j| j + 3);
+                        self.pos = find_character(&self.host, &self.source, b"-->", self.pos).map_or(len, |j| j + 3);
                     } else {
                         break;
                     }
@@ -897,9 +948,16 @@ impl<H: HtmlHost> HtmlDocument<H> {
             i = self.host.advance(s, i);
         }
         s.drain(..i.min(s.len()));
-        while !s.is_empty() && self.host.is_space(s, s.len() - 1) {
-            s.pop();
+        let mut end = 0;
+        let mut i = 0;
+        while i < s.len() {
+            let next = self.host.advance(s, i).min(s.len());
+            if !self.host.is_space(s, i) {
+                end = next;
+            }
+            i = next;
         }
+        s.truncate(end);
     }
 
     /// SplitTag (§2.6).
@@ -916,7 +974,7 @@ impl<H: HtmlHost> HtmlDocument<H> {
         }
         match ws {
             Some(k) => {
-                self.attr_text = tag[k + 1..].to_vec();
+                self.attr_text = tag[self.host.advance(&tag, k)..].to_vec();
                 tag.truncate(k);
             }
             None => self.attr_text.clear(),
@@ -941,35 +999,35 @@ impl<H: HtmlHost> HtmlDocument<H> {
         let mut i = 0;
         while i < n {
             if self.host.is_space(&t, i) {
-                i += 1;
+                i = self.host.advance(&t, i);
                 continue;
             }
             let ns = i;
-            i += 1;
+            i = self.host.advance(&t, i);
             while i < n && (t[i].is_ascii_alphabetic() || t[i] == b'-' || t[i] == b'/') {
-                i += 1;
+                i = self.host.advance(&t, i);
             }
             let mut name = t[ns..i].to_vec();
             let mut j = i;
             while j < n && self.host.is_space(&t, j) {
-                j += 1;
+                j = self.host.advance(&t, j);
             }
             let value;
             if j < n && t[j] == b'=' {
                 j += 1;
                 if j < n && (t[j] == b'"' || t[j] == b'\'') {
                     let vs = j + 1;
-                    let ve = find_byte(&t, t[j], vs).unwrap_or(n);
+                    let ve = find_character(&self.host, &t, &t[j..j + 1], vs).unwrap_or(n);
                     value = t[vs..ve].to_vec();
                     i = if ve < n { ve + 1 } else { n };
                 } else {
                     let vs = j;
                     let mut k = vs;
                     if k < n {
-                        k += 1;
+                        k = self.host.advance(&t, k);
                     }
                     while k < n && !self.host.is_space(&t, k) {
-                        k += 1;
+                        k = self.host.advance(&t, k);
                     }
                     value = t[vs..k].to_vec();
                     i = k;
@@ -1053,19 +1111,16 @@ impl<H: HtmlHost> HtmlDocument<H> {
                         ..Download::default()
                     },
                 );
-                // Literal reading: the downloader (0x30) is only asked when it exists.
-                if self.has_extra {
-                    let r = self.host.request_download(url);
-                    if let Some(e) = self.downloads.get_mut(url) {
-                        e.request = r;
-                    }
+                let r = self.host.request_download(url);
+                if let Some(e) = self.downloads.get_mut(url) {
+                    e.request = r;
                 }
             }
             Some(e) => match e.image {
                 None => e.waiters.push(waiter),
                 Some(img) => {
                     if self.host.deliver_image(waiter, img) {
-                        self.set_slot15_byte(false);
+                        self.set_slot15_byte(0);
                     }
                 }
             },
@@ -1197,14 +1252,30 @@ pub fn make_relative_to_text_alignment_style(v: &[u8]) -> u32 {
     }
 }
 
-/// `RZConvertToUint32A`: literal reading (spec gives only "non-numeric -> 0"): leading
-/// decimal digits, wrapping; anything else stops the number.
+/// `RZConvertToUint32A` (§7.11): detect base before skipping whitespace/sign,
+/// then unsigned 32-bit strtoul with saturation followed by wrapping negation.
 pub fn convert_to_u32(v: &[u8]) -> u32 {
-    let mut n: u32 = 0;
-    for &c in v.iter().take_while(|c| c.is_ascii_digit()) {
-        n = n.wrapping_mul(10).wrapping_add(u32::from(c - b'0'));
+    let hex = v.starts_with(b"0x") || v.starts_with(b"0X")
+        || v.iter().skip_while(|c| c.is_ascii_digit()).next()
+            .is_some_and(|c| matches!(c, b'a'..=b'f' | b'A'..=b'F'));
+    let base = if hex { 16 } else { 10 };
+    let mut i = 0;
+    while i < v.len() && matches!(v[i], b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
+        i += 1;
     }
-    n
+    let negative = v.get(i) == Some(&b'-');
+    if matches!(v.get(i), Some(b'+' | b'-')) {
+        i += 1;
+    }
+    if hex && v.get(i) == Some(&b'0') && matches!(v.get(i + 1), Some(b'x' | b'X')) {
+        i += 2;
+    }
+    let mut n = 0u32;
+    while let Some(digit) = v.get(i).and_then(|c| (*c as char).to_digit(base)) {
+        n = n.saturating_mul(base).saturating_add(digit);
+        i += 1;
+    }
+    if negative { n.wrapping_neg() } else { n }
 }
 
 /// The text-segment whitespace rule driven by the preformatted flag (§5.4 table).
@@ -1241,9 +1312,14 @@ pub(crate) fn find_byte(s: &[u8], b: u8, from: usize) -> Option<usize> {
     s.get(from..)?.iter().position(|&c| c == b).map(|i| i + from)
 }
 
-pub(crate) fn find_seq(s: &[u8], pat: &[u8], from: usize) -> Option<usize> {
-    s.get(from..)?
-        .windows(pat.len())
-        .position(|w| w == pat)
-        .map(|i| i + from)
+/// Search only at host character boundaries (§2.1), so a DBCS trail byte is never a tag.
+fn find_character<H: HtmlHost>(host: &H, s: &[u8], pat: &[u8], mut i: usize) -> Option<usize> {
+    while i < s.len() {
+        if s[i..].starts_with(pat) {
+            return Some(i);
+        }
+        i = host.advance(s, i);
+    }
+    None
 }
+
