@@ -156,10 +156,8 @@ impl View3DWin {
                 }
             }
             0xAC08_3D7D => self.refresh(host, Refresh::Mission(a, 1)),
-            0x4A44_667F => {
-                if message.progress_interface && self.owner.lifecycle.progress.is_some() {
-                    host.message_call(MessageCall::Progress([a, b]));
-                }
+            0x4A44_667F if message.progress_interface && self.owner.lifecycle.progress.is_some() => {
+                host.message_call(MessageCall::Progress([a, b]));
             }
             _ => {}
         }

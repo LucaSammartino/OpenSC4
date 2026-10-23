@@ -45,3 +45,23 @@
   alpha 150 × remaining/1500 truncated to uint8 after the next paint; the starting alpha is kept until then.
   What happens when clearing an already hidden indicator, and to date display years at/below the start year?
   [spec gap]
+
+<!-- from: core-view3dwin5 (2026-10-23, round 2) -->
+- **VW14 - §§6a–6b failure paths and overlay lifetime:** which camera/control/renderer/script-window/helper
+  allocation or QI failures abort city/window initialization, and which skip dependent calls? The core currently
+  keeps null fields and skips dependent configuration, with balanced successful references. Also, §6b releases
+  the unstored full-size overlay creation reference immediately and omits its destruction from RemoveGUI, but
+  requires no AddGUI-created window to survive RemoveGUI. Should RemoveGUI explicitly destroy the parent-owned
+  overlay, or does that requirement apply after the city window's base teardown? [null-safe skips; retain only a
+  borrowed stable overlay handle and destroy it at RemoveGUI without releasing that borrowed handle]
+
+<!-- from: core-view3dwin5 (2026-10-23, round 2) -->
+- **VW15 - §5 PreCityShutdown:** the notification's entire specified effect is a call to `0x007E9780`.
+  What owner state, references, subscriptions and painting flags does this helper change, in which order?
+  §6a says city objects are torn down before the next city but gives no corresponding shutdown sequence.
+  [explicit foreign helper boundary pending a behavioral contract; not claimed as closed]
+
+<!-- from: core-view3dwin5 (2026-10-23, round 2) -->
+- **VW16 - §1.1 window slot 143:** what are `GZOnCommand` (`0x007E5BA0`)'s arguments, return value and effects?
+  It is listed as a city-window override but has no behavioral section in the owner spec. Is it distinct from
+  the window-message and notification command paths? [no invented override dispatch; owner closure pending]

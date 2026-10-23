@@ -90,6 +90,8 @@ impl View3DWin {
     }
 
     pub fn pre_city_init(&mut self, host: &mut impl CityHost) {
+        // VW14: null allocations skip dependent calls; successful references
+        // still follow the specified construction and ownership order.
         self.owner.lifecycle.city_initializing = true;
         self.owner.motion.city_initializing = true;
         let (width, height) = host.client_size();

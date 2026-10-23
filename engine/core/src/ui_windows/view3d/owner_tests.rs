@@ -441,6 +441,21 @@ fn gui_lifetime_removes_filters_before_destruction_and_releases_queries() {
     v.add_gui(&mut host);
     assert_eq!(v.owner.panels.current, Some(0));
     assert_eq!(v.gui_state().windows.len(), 8);
+    assert_eq!(
+        &host.ops[..6],
+        &[
+            Op::Gui(GuiCall::Script {
+                instance: 0xC973_B411,
+                id: 0x0987_B48F,
+                iid: 0x22BA_0121
+            }),
+            Op::Gui(GuiCall::Query(0x0987_B48F, 0x5386_D516)),
+            Op::Gui(GuiCall::Filter(0x0987_B48F, true)),
+            Op::Gui(GuiCall::Move(0x0987_B48F, 645, 591)),
+            Op::Gui(GuiCall::Flag(0x0987_B48F, 0x800, true)),
+            Op::Gui(GuiCall::ClearFocus(0x0987_B48F)),
+        ]
+    );
     assert!(host.ops.contains(&Op::Gui(GuiCall::Move(0x0987_B48F, 645, 591))));
     let fields = v.gui_state().fields.clone();
     let windows = v.gui_state().windows.clone();

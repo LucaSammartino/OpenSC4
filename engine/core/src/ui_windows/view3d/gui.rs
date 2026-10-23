@@ -128,6 +128,8 @@ impl View3DWin {
 
     /// There is deliberately no second-run guard (§6b). Normal lifetime is one
     /// AddGUI/RemoveGUI pair; a foreign allocation failure leaves a null field.
+    /// VW14: the spec does not settle all null-creation paths; skip dependent
+    /// configuration instead of calling through a missing foreign object.
     pub fn add_gui(&mut self, host: &mut impl GuiHost) {
         let (width, height) = host.client_size();
         if let Some(main) = self.gui_script(host, 0xC973_B411, 0x0987_B48F, 0x22BA_0121) {
@@ -135,10 +137,12 @@ impl View3DWin {
             if let Some(generator) = host.gui(GuiCall::Query(main, 0x5386_D516)) {
                 self.owner.gui.fields.insert(0x190, generator);
             }
-            self.gui_panel(host, main);
+            host.gui(GuiCall::Filter(main, true));
             let (_, panel_height) = host.window_size(main);
             let x = 5 + if width > height.saturating_mul(3) { width / 3 } else { 0 };
             host.gui(GuiCall::Move(main, x, height - panel_height + 11));
+            host.gui(GuiCall::Flag(main, 0x800, true));
+            host.gui(GuiCall::ClearFocus(main));
         }
         if let Some(restore) = host.gui(GuiCall::Create {
             class: 0x22EC_FC47,
@@ -384,6 +388,8 @@ impl View3DWin {
         self.gui_release_field(host, 0x3E0, false, false);
         self.gui_release_field(host, 0x31C, true, false);
         if let Some(overlay) = self.owner.gui.overlay.take() {
+            // VW14: honor the section's no-live-created-window requirement;
+            // the enumerated RemoveGUI steps omit this parent-owned overlay.
             host.gui(GuiCall::Destroy(overlay));
             host.gui(GuiCall::Shutdown(overlay));
             // Parent owns the only reference. Never release a borrowed handle.
