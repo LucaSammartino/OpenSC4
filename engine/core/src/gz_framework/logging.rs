@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::{Result, Unsupported};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, ThreadId};
 pub const SERVICE_ID: u32 = 0x09B69C4E;
@@ -16,8 +16,22 @@ pub trait Backend: Send + Sync {
     fn accepts(&self, category: &str, level: i32) -> bool;
     fn output(&self, router: &Log, record: &Record);
     fn set_level(&self, category: Option<&str>, level: i32);
+    fn dump(&self, stream: &dyn Stream);
+}
+pub trait Stream: Send + Sync {
+    fn write(&self, text: &str);
+}
+/// The default backend and stream rendering are foreign output-stream owners.
+pub trait BackendFactory {
+    fn create(&mut self, name: &str, stream: Option<Arc<dyn Stream>>, timestamp: u8) -> Option<Arc<dyn Backend>>;
 }
 struct State {
+    owner: Option<ThreadId>,
+    // Stable borrowed identities must survive moves of the owner/locked State.
+    #[allow(clippy::box_collection)]
+    backend_names: Option<Box<BTreeSet<String>>>,
+    #[allow(clippy::box_collection)]
+    observed_categories: Option<Box<BTreeSet<String>>>,
     backends: Vec<(String, Arc<dyn Backend>)>,
     foreign: VecDeque<Record>,
     local: VecDeque<(Record, u32)>,
@@ -31,16 +45,15 @@ pub trait Lifecycle {
     fn delete_output_helpers(&mut self);
 }
 pub struct Log {
-    owner: ThreadId,
     state: Mutex<State>,
 }
 impl Default for Log {
     fn default() -> Self {
-        // [choice, GZF10] Capture the construction thread as the owner; the
-        // platform must construct this router on its delivery thread.
         Self {
-            owner: thread::current().id(),
             state: Mutex::new(State {
+                owner: None,
+                backend_names: Some(Box::default()),
+                observed_categories: Some(Box::default()),
                 backends: Vec::new(),
                 foreign: VecDeque::new(),
                 local: VecDeque::new(),
@@ -76,21 +89,114 @@ impl Log {
     /// Native Init configuration is GZF7. A host may attach an already
     /// configured tick registration and output helpers, then mark it live.
     pub fn attach_initialized_host(&self) {
-        self.state.lock().unwrap().initialized = true;
+        let mut s = self.state.lock().unwrap();
+        if !s.initialized {
+            // Host fixture supplies the configured helpers on reinitialization;
+            // native helper allocation/configuration remains GZF7.
+            s.backend_names.get_or_insert_with(Box::default);
+            s.observed_categories.get_or_insert_with(Box::default);
+            s.owner = Some(thread::current().id());
+            s.initialized = true;
+        }
     }
     pub fn init(&self) -> Result<()> {
         Err(Unsupported("GZF7"))
     }
-    pub fn inventory_only_entry(&self) -> Result<()> {
-        Err(Unsupported("GZF11"))
+    /// Scoped borrowed set access; no cloned set or caller reference is created.
+    pub fn backend_names<R>(&self, inspect: impl FnOnce(Option<&BTreeSet<String>>) -> R) -> R {
+        inspect(self.state.lock().unwrap().backend_names.as_deref())
     }
-    pub fn add_backend(&self, name: &str, backend: Arc<dyn Backend>) -> Result<()> {
-        let mut s = self.state.lock().unwrap();
-        if s.backends.iter().any(|(n, _)| n == name) {
-            return Err(Unsupported("GZF7"));
+    pub fn observed_categories<R>(&self, inspect: impl FnOnce(Option<&BTreeSet<String>>) -> R) -> R {
+        inspect(self.state.lock().unwrap().observed_categories.as_deref())
+    }
+    pub fn add_output_stream(
+        &self,
+        factory: &mut impl BackendFactory,
+        name: &str,
+        stream: Option<Arc<dyn Stream>>,
+        timestamp: u8,
+        output: Option<&mut Option<Arc<dyn Backend>>>,
+    ) -> bool {
+        let Some(backend) = factory.create(name, stream, timestamp) else {
+            return false;
+        };
+        // A duplicate name does not fail this wrapper or replace its route.
+        let _ = self.add_backend(name, backend.clone());
+        if let Some(output) = output {
+            *output = Some(backend);
         }
+        true
+    }
+    pub fn output_formatted(
+        &self,
+        formatter: &mut impl super::formatting::Formatter,
+        category: Option<&str>,
+        format: Option<&[u8]>,
+        words: &[u32],
+    ) {
+        self.output_level_formatted(formatter, category, 0, format, words);
+    }
+    pub fn output_level_formatted(
+        &self,
+        formatter: &mut impl super::formatting::Formatter,
+        category: Option<&str>,
+        level: i32,
+        format: Option<&[u8]>,
+        words: &[u32],
+    ) {
+        let (Some(category), Some(format)) = (category, format) else {
+            return;
+        };
+        {
+            let mut s = self.state.lock().unwrap();
+            if !s.initialized {
+                return;
+            }
+            s.observed_categories
+                .as_mut()
+                .expect("live category set")
+                .insert(category.into());
+        }
+        let mut buffer = vec![0; 1024];
+        let mut status = formatter.format(format, words, &mut buffer);
+        if status >= 1024 {
+            buffer = vec![0; 1025];
+            formatter.format(format, words, &mut buffer);
+        } else {
+            while status < 0 && buffer.len() < 65536 {
+                buffer = vec![0; buffer.len() * 2];
+                status = formatter.format(format, words, &mut buffer);
+            }
+        }
+        // Even final overflow submits the last buffer; no invented safe drop.
+        let end = buffer.iter().position(|&b| b == 0).unwrap_or(buffer.len());
+        let text = formatter.decode(&buffer[..end]);
+        self.output(category, level, &text);
+    }
+    pub fn dump_output_levels(&self, stream: &dyn Stream, mut describe: impl FnMut(i32) -> String) {
+        let s = self.state.lock().unwrap();
+        stream.write("All Backends:\n");
+        stream.write("-------------\n");
+        stream.write(&format!(
+            "All unspecified groups showing {}\n",
+            describe(s.global_level)
+        ));
+        for (name, &level) in &s.categories {
+            stream.write(&format!("Group '{name}' showing {}\n", describe(level)));
+        }
+        stream.write("-------------\n");
+        for (_, backend) in &s.backends {
+            backend.dump(stream);
+        }
+    }
+    pub fn add_backend(&self, name: &str, backend: Arc<dyn Backend>) -> bool {
+        let mut s = self.state.lock().unwrap();
+        if s.backend_names.as_ref().is_some_and(|names| names.contains(name)) {
+            return false;
+        }
+        s.backend_names.as_mut().expect("live backend set").insert(name.into());
         s.backends.push((name.into(), backend));
-        Ok(())
+        true
     }
     pub fn backend(&self, name: &str) -> Option<Arc<dyn Backend>> {
         self.state
@@ -147,7 +253,7 @@ impl Log {
         };
         {
             let mut s = self.state.lock().unwrap();
-            if thread::current().id() != self.owner {
+            if Some(thread::current().id()) != s.owner {
                 s.foreign.push_back(record);
                 return;
             }
@@ -182,7 +288,7 @@ impl Log {
     }
     pub fn on_tick(&self) -> bool {
         // Only the owner may drain, otherwise records would enqueue forever.
-        if thread::current().id() != self.owner {
+        if Some(thread::current().id()) != self.state.lock().unwrap().owner {
             return true;
         }
         loop {
@@ -199,6 +305,8 @@ impl Log {
                 return true;
             }
             s.initialized = false;
+            s.backend_names = None;
+            s.observed_categories = None;
         }
         host.remove_tick_registration();
         self.remove_all_backends();
