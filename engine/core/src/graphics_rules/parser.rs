@@ -157,7 +157,7 @@ impl<'a, P: Properties> RuleParser<'a, P> {
             }
             return self.dispatch(files, path, line, &tokens);
         } else if args[0] == "sinclude" {
-            arity(&args, 2).map_err(|m| error(path, line, m))?;
+            arity(args, 2).map_err(|m| error(path, line, m))?;
             let include_path = relative_path(path, &args[1]);
             let included = files
                 .read(&include_path)
@@ -363,7 +363,7 @@ fn unsigned(s: &str) -> Result<u32, String> {
 
 fn signed(s: &str) -> Result<i32, String> {
     // §4.5: portable round-to-nearest/even profile of the native bias/bit trick.
-    // GR6: an embedding with another x87 rounding mode is unsupported.
+    // GR7: an embedding with another x87 rounding mode is unsupported.
     let biased = (real(s)? + f64::from(12582912.0f32)) as f32;
     Ok(biased.to_bits().wrapping_sub(0x4b400000) as i32)
 }
