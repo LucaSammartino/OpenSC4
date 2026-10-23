@@ -15,7 +15,9 @@ The game uses it for the in-game HTML documents (`cHTMLDocument` resolves links 
 This revision specifies **`cRZURL` completely** (section 2), **`cRZCookieManager` partly** (section 3), and
 the **cGZWWWSystem front end** (section 4, added 2026-10-22 by re-web-largest4). The latter owner's reached
 FTP bodies are included in its inventory but are not automatically covered by the front-end contract.
-Section 5 retains the HTTP-client outline. No live network request was made.
+Section 5 retains the HTTP-client outline. The dedicated [native transport contracts](network-transport.md)
+qualify socket/stream/lookup behavior separately; the owner-size row below is not behavior credit.
+No live network request was made.
 
 Tags: *[inferred]* = role named by behaviour, not by symbol. *[quirk]* = observed behaviour that looks unintended;
 an implementation must reproduce it for byte-exact parity.
