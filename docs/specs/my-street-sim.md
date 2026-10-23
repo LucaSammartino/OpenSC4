@@ -256,9 +256,8 @@ For nonnull X and L:
 
 4. Obtain descriptor D = X+0x14(). Then assign, in order, value 0 to
    `trip_on_bus`, `trip_on_foot`, **`trip_on_subway`**, `trip_in_car`,
-   `trip_on_train`, `trip_on_elevated_train`, `trip_on_monorail`. The native key
-   says subway; do not silently substitute `trip_on_subway` with `trip_on_subway`
-   alternatives such as a newly invented `trip_on_subway_train` key.
+   `trip_on_train`, `trip_on_elevated_train`, `trip_on_monorail`. The literal
+   key is `trip_on_subway`; no classification branch below sets it to 1.
 5. Store C=9. Query D+0x58(property ID) in the ordered short-circuit table
    below, testing **AL only**. The first match wins; do not query later rows.
 
