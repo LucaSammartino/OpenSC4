@@ -17,7 +17,8 @@
 - First all before/after differs: diagnostic corrections were made after Rust failure while its native stage was pending. This is not a stable final-source PASS. Terminal operation metadata and canonical-terminal logs preserve the failed evidence; partial archive is explicitly partial.
 - Diagnostic corrections: lm06 orientation/mirror literals and negative expectation target now match settled LM6; lm02/03 descriptions disclose configured-key fixtures; constructor no longer excludes published base41/top40 count-zero input, with independent F-step-water test added (44 core tests now defined).
 - Runtime journal: no kills/restarts/RPC/duplicate check. One targeted own-child CIM diagnostic denied; no retry. Read-only Toolhelp tree captured own verifier/sccache descendants. Same operation eventually completed normally after 1088.9s; no unavailable session or inferred native terminal used.
-- Next: fmt latest owned Rust edits, commit diagnostic correction, ONE justified corrected-source all gate, freeze engine files until actual terminal, archive every summary and commit final report.
+- Done: diagnostic correction eefab0a8. Owned fmt diagnosed one assertion-message layout; apply its literal one-line formatting before final gate.
+- Next: ONE justified corrected-source all gate in final-r2-all-corrected; freeze engine files until actual terminal, archive every summary and commit final report. No extra focused or quick build.
 - No full gate or game request launched. No helper/root kill or restart in this continuation. Prior provider capacity interruption is preserved as operational evidence, not a compiler diagnosis.
 - Focused q.py invocation failed before Cargo: Bash/Service/CreateInstance/E_ACCESSDENIED; evidence build-runs/q/20261023-074018-28316.log. No full gate/game requests started.
 - Numeric subset is finite nonnegative lattice coordinates <=2^24, nearest-even PC53/64 ledger arithmetic; no ambient control-word claim.

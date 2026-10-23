@@ -39,11 +39,7 @@ fn lot_model_vectors_reject_discriminating_wrong_expectations() {
     ];
     for (original, from, to) in cases {
         assert!(original.contains(from));
-        assert!(
-            run_vector_text(original).is_ok(),
-            "{:#?}",
-            run_vector_text(original)
-        );
+        assert!(run_vector_text(original).is_ok(), "{:#?}", run_vector_text(original));
         assert!(
             run_vector_text(&original.replacen(from, to, 1)).is_err(),
             "accepted wrong expectation: {from}"
