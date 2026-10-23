@@ -1,46 +1,54 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-netocc-answers5d: network and underground owner answers | Codex / `re-netocc-answers5d` (RE, detached HEAD) | in progress: NO36 and prior NO41 answered; 4 new pylon vectors; doccheck passed; ABI unchanged | Assess remaining NO33 NO40 NO43 UG5 within research allowance; enqueue verified answers READY |
+| re-netocc-answers5d: network and underground owner answers | Codex / `re-netocc-answers5d` (RE, detached HEAD) | ready: NO36 and prior NO41 answered; 6 new prose vectors this round; doccheck/questions/diff checks passed; ABI unchanged | Land verified answers; NO33 NO40 NO43 UG5 remain open for further native research |
 
 ## Report
 
-Answered NO41 in network §3.6.3/test 51 and moved its original question to the answered archive.
-The base +268 word is opaque and must round-trip; the descriptor store is adjusted primary+26C.
-Connection +68/+170/+178/+240 are active wall count, upper model anchor height, shade index and
-creation class ID. Regenerated docs/specs/QUESTIONS.md. Commit: `2869269f9`.
+Round 2 answers **NO36** and publishes another verified subset of **UG5**. The result is READY
+to land as spec work, as requested even with other questions open; it does not claim complete pole
+or underground owner closure. Prior **NO41** remains answered in network §3.6.3/test 51
+(`2869269f9`): opaque base +268, adjusted descriptor +26C and connection auxiliary fields.
 
-Network §6.2.3/tests 52–53 specify pylon Draw and all message decisions, including pass-zero-only
-dirty rebuilding, dispatch-state label suppression, unsigned tick conversion and visibility transitions.
-Commit: `cb51c38e8`. Network §4.7.2/tests 54–55 specify pole occupant bounds, unsigned destination
-comparisons and the signed-conversion/wrapping quirk (`9162e3b21`). These are partial NO33/NO36/NO43 answers.
+### Changes and evidence
 
-Validation: `python tools/doccheck.py check` and `git diff --check` passed on the final spec edits.
-No engine, plugin, capi, tools/coverage-map.tsv or ABI edits; no ABI proposals; no game runs or
-implementation tests. Evidence is the main checkout export and bounded decomp excerpts; numeric
-decisions above were checked in instruction bytes. REA was not used because the session has no binary.
-The owner closure table is inside forbidden engine paths and was not read; core-netocc-close5's
-lane report and its question entries supply the requirements instead.
+- `c617504ae`: network §6.2.4 completes pylon MySim pixel composition, number-label rasterization,
+  resource failure behavior, main/label billboard geometry, transform rounding and cached bounds.
+  Corrected +150 to call-number texture ID; MySim uses main +148. Added prose vectors 56–59,
+  archived NO36 with DIFFERS and regenerated the question index.
+- `bf981d41e`: network §3.6.4 and underground §4 specify all four connection message decisions,
+  interface-query/reference lifetime, equal-pointer reattachment, own-primary-pointer fallback,
+  lower-height updates, linked removal/Shutdown, context +4-word comparison and the −0x24C
+  bounds-wrapper adjustment. Added prose vectors 60–61 and a UG5 progress entry.
+- Retained earlier pylon Draw/messages (`cb51c38e8`, tests 52–53) and pole occupant bounds
+  (`9162e3b21`, tests 54–55). These combine with the previous setters/accessors to answer NO36.
+- Native sources: main export queries first, bounded main decomp excerpts, then instruction bytes
+  for numeric decisions at 005F12D0/005F1D00/005F20A0 and 00656C80/00654140/00654160.
+  Resource constants read from the PE at AA4F58/AA51AC/AA51B0. No decompiled text or instructions
+  appear in the specs. REA was not called: the session has no binary open.
 
-NO33, NO36, NO40, NO43 and UG5 remain open. Underground spec unchanged: its remaining requirements
-depend on the still-unfinished geometry and connection owner research. The two-thirds research
-allowance has been spent; this round is partial and must not be advertised as ready or owner-complete.
-Git commits succeeded despite an incidental packed-refs.lock permission message; detached HEAD retained.
+### Validation and limits
+
+`python tools/doccheck.py check`, `python tools/questions.py check`, and `git diff --check` passed.
+This round adds **6 prose conformance vectors**, not executable implementation tests. Cargo, clippy,
+CTest and game runs are n/a for this RE-only text change; shadow exactness n/a. ABI exports unchanged;
+no proposed ABI rows. No engine reads/edits, plugin, capi or tools/coverage-map.tsv edits. The closure
+table lives in forbidden engine paths; core-netocc-close5's lane report and the owner question entries
+were used as the requirements instead. Source and spec-only verification cannot certify implementation.
+
+No new questions filed. **NO33, NO40, NO43 and UG5 stay open**, rather than receiving guessed
+geometry or owner-result callbacks. NO36 was archived; NO41 was already archived. Research ended
+after measured context 102701 (that figure includes writing/validation); remaining allowance was
+used for specification, checks and delivery. Commits succeeded despite an incidental packed-refs.lock
+permission message; detached HEAD is retained and the supervisor publishes the reserved branch.
 
 ## Handoff
-- Goal: answer NO33, NO36, NO40, NO41, NO43 and UG5 without engine reads or edits.
-- Round 2 milestone: NO36 completed in §6.2.4/tests 56–59, archived and index regenerated; doccheck and diff check pass.
-- Done c617504ae: pylon model/MySim/label construction; next milestone: connection §3.6.4/underground §4 messages, tests 60–61; all document checks passed.
-- Research stopped after measured context 102701 (includes writing/validation); no further native queries this round.
-- Round 2 evidence: pylon 005F12D0/005F1D00/005F20A0 instruction bytes; PE constants via ignored build-runs/evidence_constants.py.
-- Correction: pylon +150 is the call-number texture ID; MySim uploads main +148.
-- Done: NO41 answered (2869269f9); pylon Draw/messages (cb51c38e8); pole bounds (9162e3b21), tests 54–55.
-- Round 2 resumed 2026-10-24 at detached c686f8eae; next: finish NO36 model/MySim/number-label composition, then NO40/UG5 geometry; finish READY for verified answers even if other questions remain open.
-- Still open: NO33/NO43 pole model/resource/transform/Pick/wire/Draw and diagonal-floor numeric order; NO40/UG5 underground geometry.
-- Pylon source: main decomp/cSC4PylonOccupant.c lines 762–978 (MySim/replacement), 1217–1363 (label), 1385–1575 (model).
-- Underground source: decomp/cSC4UndergroundOccupant.c 1076–1837; connection source 1132–2168.
-- Pole source: decomp/cSC4PowerPoleOccupant.c 495–832 (Pick/model), 1003–1166 (wire draw), 1632–1784 (Draw).
-- Caution: pole GetBoundingBox receives primary+8; pylon Draw virtual model view is primary+1C8.
-- Decompiler stack variables in label/MySim/model-load paths are unreliable; verify from asm before publishing.
-- Constraint: owner closure table is inside engine and forbidden by task; use core lane report and question text as closure requirements.
-- Sources: main checkout export/decomp only; no REA binary open. No ABI or game runs expected.
+- Delivery: READY for answered questions and verified partial contracts; no further work in this round.
+- Done: NO36 c617504ae; connection message subset bf981d41e; prior NO41 2869269f9.
+- Next research: NO40/UG5 CreatePieceModel/CreateGeometry then Draw and generated transform/bounds behavior.
+- Underground source: main decomp/cSC4UndergroundOccupant.c 1076–1837; connection 1132–2168.
+- Then NO33/NO43: pole model/resource/transform/Pick/wire/Draw and diagonal-floor arithmetic order.
+- Pole source: main decomp/cSC4PowerPoleOccupant.c 495–832, 1003–1166, 1632–1784.
+- Avoid stale export names: 00648360 is a layer query; 00654160 is attached Refresh; 00654140 adjusts −24C.
+- Ignored helper build-runs/evidence_constants.py reads PE constants only; no helper or RE output committed.
+- No pending game requests, ABI proposals, implementation checks or engine reads.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-netocc-answers5d-r2-manifest.json.

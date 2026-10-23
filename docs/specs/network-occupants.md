@@ -1599,8 +1599,8 @@ the occupant type **`0xA9B6D7DE`** at `+0x2C` (`0x005F19F9`) — not the bare ty
 | `+0x6C/+0x70/+0x74` | UI state / dispatch state / dispatch type (32-bit live enums; signed bytes on disk) |
 | `+0x78` | source occupant ref (`SetSourceOccupant` `0x005F0D30`; getter folded `0x00407AB0`) |
 | `+0x7C` | the single transform; flags at +7C/+7D, identity 3×3 at +80…+A0, zero translation +A4/+A8/+AC, scalar +B0=1 |
-| `+0xB4…+0xC8` | auxiliary scale/rotation fields (1,1,1,0,0,0) |
-| `+0xCC…+0xE0` | second auxiliary scale/rotation fields (1,1,1,0,0,0) |
+| `+0xB4…+0xC8` | cached local box, min initially (1,1,1), max initially (0,0,0) |
+| `+0xCC…+0xE0` | cached world box, min initially (1,1,1), max initially (0,0,0) |
 | `+0x134/+0x13C` | packed render states |
 | `+0x144/+0x148/+0x150` | main texture binding / main texture id / call-number texture id; all initially zero |
 | `+0x14C` | u16 call number; constructor 0; setter marks +68 dirty |
@@ -2364,7 +2364,8 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
   **5** (`PUSH 0x5` at `0x0064B01D`); `Read` rejects < 4. No question remains.
 - **NO10.** ~~The pylon's occupant type~~ — **settled while writing this spec**: the ctor writes `0xA9B6D7DE`
   at `+0x2C` (`0x005F19F9`). No question remains.
-- NO38–NO41 (re-ugbase) and NO42–NO43 (re-powerpoles), 2026-10-21, are in [questions/network-occupants.md](questions/network-occupants.md).
+- NO38–NO40 (re-ugbase) and NO42–NO43 (re-powerpoles), 2026-10-21, are in [questions/network-occupants.md](questions/network-occupants.md).
+  NO41 is answered in §3.6.3/test 51 and the answered archive.
 - NO33 remains open for complete pole owner algorithms; its partial rules and vectors are in
   §§4.1/4.6/4.7.1–4.7.2. NO36 is answered by §§6.1–6.2.4 and tests 40–42, 46–48, 52–53, 56–59.
   UG5 is tracked in
