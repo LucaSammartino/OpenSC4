@@ -318,9 +318,82 @@ Primary view-interface tables: **0x00ABB648** (path), **0x00ABB614** (marked), *
 AddRef 0x005BE3E0, Release 0x005BCB30, owner Update, Pick 0x00735290. The first three adjust this
 by +4 and forward to shared unknown/refcount methods; Pick returns false without a hit. No bounds
 or transform getter/setter appears in these interfaces. Shared zero-release destructor dispatch is
-not proved merely by these thunks. OVV6 remains open: 49 named +3 identified unnamed entries do not
-reconcile 54, and shared deletion/remaining setters are residual. No whole-owner/runtime/replacement/
-default claim follows. All vectors in this spec are instruction-derived expectations, not game runs.
+not proved merely by these thunks; §3.4 supplies the separately checked dispatch chain. OVV6 remains
+open: the historical 49 named +3 identified unnamed entries do not establish the claimed 54-entry
+inventory, and remaining setters/public-interface completeness are residual. No whole-owner/runtime/
+replacement/default claim follows. All vectors in this spec are instruction-derived expectations,
+not game runs.
+
+### 3.3 Publication qualification by owner (2026-10-23) *[compat]*
+
+This ledger qualifies the native contracts added in §§1.2, 2.2, 3.1–3.2 and
+network-overlay-views §§1.1–1.2, 2.1. **Supported** means the stated finite-input rule has primary
+instruction evidence; **partial** means only the listed portion of a method is established;
+**unknown** means no public contract for that operation is certified. These are method qualifications,
+not owner-coverage counts. Decompiler labels alone do not establish argument types or ownership.
+All proposed vectors remain **UNEXECUTED**.
+
+| Owner | Supported method contracts | Partial / unknown public surface |
+|---|---|---|
+| cSC4PathView | Constructor defaults; Init/Shutdown flag behavior; float SetThickness; selected-record SetPathTexture; packed-colour/float-priority NewPath; horizontal duplicate rejection; finite endpoint/miter/3D-arrow/UV DrawPath and ordered Update; ClearPaths resource order. §§1.2, 3.4. | Partial: allocation-failure recovery and exact nonfinite/x87 exceptional outcomes. Unknown: completeness of any additional public setters/getters. Shared QI/AddRef/Release and deletion are supported only by the explicit tables in §3.4. |
+| PathInfo | ClearPaths releases each binding before invoking 0x008EBCD0 on the deque subobject, then frees the node (0x007DDBF0–0x007DDC09). | Partial: 0x008EBCD0 destroys deque storage; its name does not prove a standalone record-destructor calling convention. Unknown: independent public construction/refcount/setters; none inferred. |
+| SC4MarkedCellView | Constructor; boolean byte setters; float size/reciprocal setter; common/outline float-reference colour conversion; packed-colour vector assignment; append/ClearCells; Init/Shutdown; finite grid/terrain/water/lot ordering and Update passes; §3.4 deletion. | Partial: AddRegionCells inclusive scan/append, not complete growth/failure behavior. Unknown: independent outline-disable API or proof of its absence (OVV4). Arbitrary unsafe terrain indices and short colour arrays are not successful-input guarantees. |
+| cSTEVertBufExtn | All seven named static helper bodies, within §3.1's caller sequence: borrowed index input, two compact copied rows, u16 rebasing, capacity equality, lock failure, flush/release distinction. | Partial: allocation failure/invalid ranges and caller use after Release. Unknown: any additional public helper surface. This process-wide helper has no established owner COM vtable or constructor. |
+| SC4PathInfoView | Constructor/Init; Update colour bytes/pulse **step**, format/state, strip cap versus full-vector arrows/bars, heights/cross/traversal/failure boundaries; §3.4 shared lifetime and deletion. | Partial: scratch alpha when fewer than three strip vertices are written. Unknown: pulse **initial value**, public filter/depth setters (NOV2). No per-instance pulse reset inferred. |
+| SC4TrainJunctionView | Constructor sentinels; Init packed state/direction table/resource calls; Shutdown; finite horizontal-chord bitmap classification, quad/UV, draw order/transparency/frame stacking/origin/model selection; §3.4 deletion dispatch. | Partial: resource-provider output initialization on failure, marker rotation-helper handedness and remaining model state. Unknown: actual cell setters, current/target identities (NOV3), additional public interface completeness. Destruction is not an implicit Shutdown. |
+
+Audit anchors for the R1 additions (these are evidence ranges, not an assembly transcript):
+
+| Contract family | Primary checks and qualification |
+|---|---|
+| Path record and state | 0x007DDC64–76 float compare/C0 branch; 0x007DCE20–5F selected binding/repeat replacement; 0x007DDD50 constructor; 0x007DDB30 horizontal rejection. Equal-newest-first supersedes the former §7 example. |
+| Ribbon, arrows, UV | 0x007DCE60 horizontal offsets; 0x007DCFF8–0x007DD09F squared miter/threshold; 0x007DD10F–188 3D length, float stores and double 4.5; DrawPath 0x007DD410 (1194 bytes), especially 0x007DD5E0–0x007DD732 projections and 0x007DD78D–0x007DD8B9 final pair/state/submission. Arithmetic descriptions state finite geometry, not a universal bit-exact floating-point emulator. |
+| Marked-cell conversion, grid, passes | 0x007DCB37–CF and 0x007DC2F0 float loads, bias/store and byte subtraction; DrawCells 0x007DC3A0, 0x007DC500–593 terrain/water/frustum before lot, 0x007DC5C3–6C7 lot flags/replacement/releases, 0x007DC7D0–8E7 grid clamp/index conversion; Update 0x007DC9F0. Constructor suppression does not answer OVV4. |
+| Row batching and failure | 0x0075C9F0, 0x0075CA30, 0x0075CA90, 0x0075CAB0, 0x0075CAD0; submission 0x0075CB50 (429 bytes), 0x0075CCAA–C1 word load/store and wrap; acquisition 0x0075CD40–0x0075CE53 division and capacity. No driver return is invented for the void submission/flush helpers. |
+| Diagnostic path view | Update 0x00542FC0 (2914 bytes, two exported ranges): pulse before manager lookup, 0x00543110–BC byte colours/25 cap, 0x00543231–0x005435FF full-vector 3D arrows, 0x00543600–0x00543A63 bar precedence/cross; Init 0x00542EE0 and constructor 0x00542F50. Static initialization remains unknown. |
+| Train view | Init 0x005633C0 (866 bytes); quad 0x005637E0–0x00563968; classifier 0x00564A60–0x00564BDF; DrawTrainJunction 0x00564BE0 (1194 bytes); Update 0x005657A0. Byte/word arguments, float/immediate transparency and .01 increment are checked independently of decompiler types. No proof of marker handedness or current/target names follows. |
+
+### 3.4 Shared view reference lifetime and owner cleanup (OVV6, bounded) *[compat]*
+
+The following applies to the **four view objects**, not PathInfo or the static vertex-buffer helper.
+Let P be the primary view pointer and U=P+4 its unknown/refcount subobject. Constructors call
+0x0090DA1E on U, setting its 32-bit count at P+8 to zero. The primary first three slots add 4
+to `this`; the secondary first three slots subtract 4 then enter those primary thunks, so the
+shared bodies receive U in both cases (0x005BCB40/50, 0x005BE3E0/0x005BE420,
+0x005BCB30/60). Names attached to folded thunks do not change their instruction-level meaning.
+
+- **QueryInterface** (0x009457C6–E0): 32-bit numeric ID and output-pointer arguments, callee removes
+  8 bytes, boolean result in AL. Only ID **1** succeeds: write U to the output, call U's AddRef slot,
+  return true. Other IDs return false without writing the output or acquiring a reference. This is
+  not proof of a separate discoverable view-interface ID; a null output on success is not guarded.
+- **AddRef** (0x00968B60–66): increment the 32-bit count and return the new count in EAX. No atomic
+  operation or overflow check is present; arithmetic wraps modulo 2³².
+- **Release** (0x0090D997–AD): when the unsigned count is greater than 1, store count−1 and return
+  it in EAX. At count **0 or 1**, call secondary slot 3 with a single 32-bit deleting-flags value 1,
+  then return EAX=0. This path does **not** first store zero to the count. Thus zero-count Release
+  reaches deletion too; it is not a decrement-to-0xFFFFFFFF rule.
+
+Constructor-installed tables and slot-3 cleanup targets were checked as original data and instructions:
+
+| Owner | Secondary table at U | Slot 3: adjust U−4, then deleting body | Cleanup before optional object free |
+|---|---|---|---|
+| Path view | 0x00ABB630 | 0x007DDDB0 → 0x007DDDC0 | ClearPaths, free circular-list sentinel, base cleanup. |
+| Marked-cell view | 0x00ABB5FC | 0x007DCC80 → 0x007DCC90 | Release nonnull lot filter through slot 2, free colour and cell storage, base cleanup. |
+| Path-info view | 0x00A99F30 | 0x00542F90 → 0x00542FA0 | Base cleanup only. No pulse reset, draw or resource acquisition. |
+| Train view | 0x00A9D95C | 0x00564A20 → 0x00564A30 | Nullable model-reference helpers for +0x48 then +0x44, base cleanup. No call to Shutdown and no release of the six bitmap bindings in this deleting body. |
+
+Each deleting body tests bit 0 of its 32-bit flags and calls GlobalHeapFree (0x005E5620) only when
+set, returning the original P and removing 4 argument bytes. Shared base cleanup 0x0046B4C0 adjusts
+to U and enters 0x0090D990, which restores the base table; it does not itself release resources.
+Train's model helper 0x004201B0 null-checks the stored pointer and dispatches the adjusted interface's
+slot 2. No validity guarantee for arbitrary corrupt model pointers is implied. Train Shutdown's
+six-binding release order remains a separate contract in network-overlay-views §2.1.
+
+This proves shared QI/AddRef/Release and the connected deletion paths individually. It does not
+prove all external callers balance references or invoke train Shutdown before deletion. The two
+newly traced unnamed train cleanup entries are evidence of dispatch, not a reconciliation of the
+historical 54-entry claim; the source membership of that claim is still missing. Public setters,
+filter/depth switches and independent outline-disable completeness remain separate open questions.
 
 ## 4. Users
 
@@ -336,12 +409,15 @@ vertex-buffer extension.
 
 ## 6. Open questions
 
-See [questions/overlay-views.md](questions/overlay-views.md) OVV1: which lot types the flags `0x304` and
-`0x100000` mean in §2.1, and where a path's repeat factor r comes from.
+See [questions/overlay-views.md](questions/overlay-views.md): OVV1 retains the lot-flag identities
+(`0x304`, `0x100000`). The repeat factor is supplied to SetPathTexture (§1.2); its unwritten
+NewPath value is not a default. OVV4 retains the independent outline-disable API/absence question;
+OVV6 retains inventory and lifecycle/setter gaps (§3.2). OVV2, OVV3, OVV5 and OVV7 have been
+answered in the archive; their instruction-derived contracts do not certify complete owners.
 
 ## 7. Conformance tests
 
-1. **Order:** paths with priorities 2, 1, 2 created in that order draw as 1, 2 (first), 2 (second).
+1. **Order:** paths with priorities 2, 1, 2 created in that order draw as 1, 2 (second), 2 (first).
 2. **Strip:** a straight path of 3 vertices draws one strip of 6 vertices, 2t wide.
 3. **Duplicate:** a vertex 1 mm from the previous one is not added.
 4. **Cells:** 100 cells of 16 m draw in one batch; 300 cells draw in two (1,200 vertices).

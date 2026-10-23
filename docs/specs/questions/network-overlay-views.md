@@ -22,6 +22,9 @@
   empty/repeated/nonfinite and scratch-alpha boundaries. Residual: pulse static initialization,
   actual public filter/depth setters and shared cleanup/refcount lifecycle. The constructor does not
   reset the process-wide pulse; no initial-draw pulse value is certified yet.
+  **Qualification 2026-10-23 (re-overlay-views-contracts4):** overlay-views §3.4 proves shared
+  QI/AddRef/Release and path-info deleting cleanup individually. NOV2 remains partial for the static
+  pulse initializer and actual public filter/depth setters; geometry vectors remain UNEXECUTED.
 
 <!-- from: core-overlay-views4 (2026-10-22) -->
 - **NOV3 - §2, SC4TrainJunctionView missing draw bodies:** publish exact Init draw state, entry-direction
@@ -37,3 +40,7 @@
   frame-wide .1+.01 stacking, first-route origin/direction, model choice, resource releases and failure
   boundaries. Residual: marker rotation-helper handedness/model-state details, actual setters and
   identification of the stored cell pairs as train current versus target, destruction/refcount integration.
+  **Qualification 2026-10-23 (re-overlay-views-contracts4):** overlay-views §3.4 proves shared
+  refcount-to-deletion dispatch and the train deleting body (models +0x48 then +0x44, base/free,
+  without Shutdown or six-binding cleanup). NOV3 remains partial for public cell setters/identities,
+  marker rotation/model state and caller Shutdown discipline. No complete-owner promotion follows.

@@ -30,4 +30,9 @@
   non-template entries plus three unnamed marked-cell wrappers, all four five-slot primary interfaces,
   and the proved/residual scope by owner. The claimed 54-entry inventory is not reconciled. Shared
   QueryInterface/AddRef/Release dispatch, zero-release destruction and remaining setters still need proof.
-
+  **Qualification 2026-10-23 (re-overlay-views-contracts4):** §3.4 now independently proves the shared
+  ID-1 QI, u32 AddRef/Release and constructor-table-to-deleting-body chain for all four views,
+  including zero-count deletion and train deletion without Shutdown. These portions are supported;
+  OVV6 remains partial for historical inventory membership, additional public setters/interface
+  completeness and caller Shutdown discipline. Two newly traced train cleanup addresses do not by
+  themselves identify the historical 54 entries. §3.3 supplies the per-owner method ledger.

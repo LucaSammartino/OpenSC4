@@ -112,8 +112,9 @@ flag even without a render service. With that service its packed-state argument 
 (`0x00542EF9–0x00542F41`). Alpha test and culling are off; depth write is off; source-alpha blend
 is on. Changing a field after Init does not itself repack. Update ignores DrawPrims results and
 acquires no resources. Destructor thunk 0x00542F90 forwards to deleting destructor 0x00542FA0:
-shared cleanup 0x0046B4C0, then free only if deleting-flags bit 0 is set. The shared cleanup/refcount
-transition, concrete public filter/depth setters and pulse static-initializer write remain residuals.
+shared cleanup 0x0046B4C0, then free only if deleting-flags bit 0 is set. Overlay-views §3.4 now
+establishes the shared refcount transition and this cleanup dispatch. Concrete public filter/depth
+setters and pulse static-initializer write remain residuals.
 Primary interfaces and coverage limits are in overlay-views §3.2.
 
 ## 2. The train-junction view (`SC4TrainJunctionView`) *[compat]*
@@ -207,8 +208,9 @@ cell pairs remain unproved; this section does not certify those methods or train
 
 Shutdown `0x00563730` is guarded by initialized; clear flag, release/null binding slots in order
 +0x34,+0x38,+0x2C,+0x30,+0x3C,+0x40, then release/null both model references. It does not flush
-draws or clear train cells. Repeated shutdown is a no-op. Destruction/refcount transitions beyond
-these resource releases remain part of OVV6/NOV3 residuals.
+draws or clear train cells. Repeated shutdown is a no-op. Overlay-views §3.4 establishes shared
+refcount/deletion dispatch, including the deleting body's model cleanup **without** a Shutdown call.
+Whether all callers ensure Shutdown before deletion remains unproved.
 
 Independent discriminators: for O=(0,7,8), entry west/exit east, terrain at (12,8)=5,
 offset=.1 and type not 7, quad xyz are (0,7.1,14),(12,7.1,14),(12,7.1,2),(0,7.1,2).
@@ -228,8 +230,11 @@ The automata manager (cheat) and the U-Drive-It player train control.
 
 ## 5. Open questions
 
-See [questions/network-overlay-views.md](questions/network-overlay-views.md) NOV1: which cheat turns the path-info
-view on, and what the path key's bytes and type nibble denote in traffic-network.md's terms.
+See [questions/network-overlay-views.md](questions/network-overlay-views.md): NOV1 retains the cheat
+and path-key meanings. NOV2 retains pulse static initialization and public filter/depth setters;
+NOV3 retains marker rotation/model-state details, cell setters/current-target identities and caller
+Shutdown discipline. The geometry/state corrections in §§1.1–1.2 and 2.1 and shared lifecycle in
+overlay-views §3.4 answer portions of these questions; NOV2 and NOV3 remain open.
 
 ## 6. Conformance tests
 

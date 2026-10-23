@@ -3,6 +3,10 @@
 | re-overlay-views-contracts4: native overlay contracts | Codex / `re-overlay-views-contracts4` (RE) | in progress | 1. Prove largest native owners and publish exact contracts. 2. Reconcile OVV2–OVV7 and NOV2–NOV3 with honest residuals. |
 
 ## Handoff
+- R2 milestone pending commit: added six-owner method qualification ledger and primary-backed shared QI/u32 refcount/zero-or-one deletion chain; traced train deletion (models only, no Shutdown). Fixed §7 equal-newest-first and narrowed open summaries/questions without closing OVV4/OVV6/NOV2/NOV3.
+- R2 resumed 2026-10-23 at c026a8e3, detached HEAD; own manifest is RE, original round 2, reserved ref re-overlay-views-contracts4 and correct worktree/base. No branch switch.
+- R2 next: audit R1 cited sources, publish supported/partial/unknown ledger and UNEXECUTED literal vectors; bounded shared-refcount/cleanup proof; reconcile summaries/questions and final docs gates.
+- Identity checked: working original FileVersion 1.1.641.0; SHA256 matches export-summary.txt (3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b).
 - Goal: exact native contract gaps for six portable overlay owners, documentation only.
 - Worktree reused at detached HEAD; initial status clean, no lane commits ahead of main.
 - Read open OVV2–OVV7 and NOV2–NOV3, public overlay/network specs and lane/merge formats.
