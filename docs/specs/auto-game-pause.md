@@ -156,3 +156,138 @@ PROPOSED / UNEXECUTED. These literal fixtures qualify the spec before any future
 production output; they are not native runs or a symbolic equivalence claim.
 The ledger below records own field/branch/acquisition/reference decisions. Foreign
 operations are individual callbacks; their internal state is not inferred.
+
+### 4.1 Fixture vocabulary and explicit reference model
+
+For compact literal traces, `G→g` is one framework acquisition. `L1→p`,
+`L2→a`, `L3→s`, `L4→u` mean one lookup on that framework with the exact
+respective key pair from §3.1 and a pointer output initialized to null by this
+helper. The fixture writes the named output and returns status 1 unless stated
+otherwise. Each lookup grants one temporary reference; `R(x)` is one Release
+on that output, consuming that temporary reference. These grant/consume rules
+are supplied foreign replies for the fixture, not an analysis of lookup bodies.
+Every pointer starts with zero temporary references. Framework, city and clock
+have separate baseline references that remain unchanged in these traces.
+
+Literal stage expansions, with D truth shown by `+` (nonzero low byte) or `−`
+(zero low byte), are:
+
+| Token | Exact ordered callbacks and own decisions | Temporary ref ledger |
+|---|---|---|
+| `P+` | zero output; `G→g1`; `L1→p`; output nonnull; D true; `p.slot48()`; `R(p)` | `p: 0→1→0` |
+| `P−` | zero output; `G→g1`; `L1→p`; output nonnull; D false; `p.slot4C()`; `R(p)` | `p: 0→1→0` |
+| `A+` | zero output; `G→g2`; `L2→a`; output nonnull; D true; `a.PauseAnimationSystem(1)`; `R(a)` | `a: 0→1→0` |
+| `A−` | zero output; `G→g2`; `L2→a`; output nonnull; D false; `a.PauseAnimationSystem(0)`; `R(a)` | `a: 0→1→0` |
+| `S+` | zero output; `G→g3`; `L3→s`; output nonnull; D true; `s.HiddenPause()`; `R(s)` | `s: 0→1→0` |
+| `S−` | zero output; `G→g3`; `L3→s`; output nonnull; D false; `s.HiddenResume()`; `R(s)` | `s: 0→1→0` |
+| `C+` | zero output; `G→g4`; `L4→u`; output nonnull; `u.GetCity()→c`; `c.Get24HourClock()→k`; both nonnull; D true; `k.HiddenPause(1)`; `R(u)` | `u: 0→1→0`; `c,k: unchanged` |
+| `C−` | zero output; `G→g4`; `L4→u`; output nonnull; `u.GetCity()→c`; `c.Get24HourClock()→k`; both nonnull; D false; `k.HiddenPause(0)`; `R(u)` | `u: 0→1→0`; `c,k: unchanged` |
+
+Tokens expand to individual operations, not a foreign whole-helper reply.
+There is no Release on `g1–g4`, `c` or `k`. All operation replies in this
+table may be arbitrary raw values; they do not decide the next callback.
+
+### 4.2 All selections and direction
+
+The following are independent direct-helper inputs with all selected lookups
+present, fresh references per invocation, and D=1. The ordered trace and Release
+count are fixed by the selection gates. No field storage is involved in a direct
+helper call. For the corresponding D=0 vector replace every `+` by `−`; the
+lookup/Release counts and order stay exactly the same.
+
+| F1,F2,F3,F4 | Literal stage trace | Releases |
+|---|---|---|
+| 0,0,0,0 | empty; no framework acquisition or output initialization | 0 |
+| 0,0,0,1 | `C+` | 1 |
+| 0,0,1,0 | `S+` | 1 |
+| 0,0,1,1 | `S+, C+` | 2 |
+| 0,1,0,0 | `A+` | 1 |
+| 0,1,0,1 | `A+, C+` | 2 |
+| 0,1,1,0 | `A+, S+` | 2 |
+| 0,1,1,1 | `A+, S+, C+` | 3 |
+| 1,0,0,0 | `P+` | 1 |
+| 1,0,0,1 | `P+, C+` | 2 |
+| 1,0,1,0 | `P+, S+` | 2 |
+| 1,0,1,1 | `P+, S+, C+` | 3 |
+| 1,1,0,0 | `P+, A+` | 2 |
+| 1,1,0,1 | `P+, A+, C+` | 3 |
+| 1,1,1,0 | `P+, A+, S+` | 3 |
+| 1,1,1,1 | `P+, A+, S+, C+` | 4 |
+
+`(0,0,1,1)` is the known popup caller selection; `(0,1,1,1)` is the known
+application selection. Their labels add no truth-table evidence beyond these
+instruction-derived gates. F1's proposed traces specify dispatch, not a claim
+that a real framework supplies the unresolved interface.
+
+### 4.3 Raw fields, lifetime pairing and return channels
+
+Use object address token `O` and initial addressed bytes `A5 A5 A5 A5`.
+The first framework callback may inspect storage but does not mutate it.
+
+| Input/lifetime | Literal field and callback ledger | Return/reference observations |
+|---|---|---|
+| Construct O with `(0,0,0,0)`; destroy O | Own stores in order: `00 A5 A5 A5`, `00 00 A5 A5`, `00 00 00 A5`, `00 00 00 00`; both helper traces empty. Destructor reads offsets `3,2,1,0` and makes its helper call even when all bytes are zero | Constructor EAX=`O`; destructor storage remains `00 00 00 00`; zero releases; no destructor status assertion |
+| Construct O with `(2,0x80,0xFFFFFFFF,0x100)`; destroy O | Stores `02`, `80`, `FF`, `00` in order. Entry helper receives full slots `(1,2,0x80,0xFFFFFFFF,0x100)` and emits `P+, A+, S+`. Destructor reads `00,FF,80,02` and sends `(0,2,128,255,0)`, emitting `P−, A−, S−` | First callback sees `02 80 FF 00`; constructor EAX=`O` regardless of last callback reply; final fields identical; 3 releases per direction |
+| Direct helper `(2,1,0,0,1)`, then `(0x80,1,0,0,1)`, then `(0xFFFFFFFF,1,0,0,1)`, then `(0x100,1,0,0,1)` | Respectively `P+, C+`; `P+, C+`; `P+, C+`; `P−, C−` | Each invocation has 2 releases; no caller-visible output or contractual AL/EAX status |
+| Direct helper `(1,1,1,0,0)` twice, without an intervening exit | `P+, A+, P+, A+`; no query or suppression on the second call | Each output independently grants/consumes one reference; no stored helper active flag |
+| Construct A `(0,0,1,1)`; construct B `(0,0,1,0)`; destroy A; destroy B | Fields A=`00 00 01 01`, B=`00 00 01 00`; ordered operations `S+, C+, S+, S−, C−, S−` | Releases after each expanded stage: 2,1,2,1; both field sets unchanged at exit. No LIFO guard; no saved state restored |
+
+The interrupted A/B sequence is serial, with every call returning before the
+next begins. In the fixture's optional foreign simulator counter starting at 0,
+the four simulator callbacks project `0→1→2→1→0`; that is a supplied per-call
+counter model, not a new native counter contract. Clock receives 1 then 0 when
+A enters/exits, with no operation for B. There is no full-owner final-state
+oracle and no real output-sentinel test: these bodies expose no output pointer.
+
+### 4.4 Every guarded absence and ignored reply
+
+These fixtures use D=1 and only the indicated Fi selected unless stated. A
+null cleanup produces no Release callback. All normally returning branches are
+also valid with D=0; absence skips the operation before direction can matter.
+
+| Fixture | Exact expected prefix, decision and cleanup | Temporary refs |
+|---|---|---|
+| F1, framework null | zero output; `G→null`; skip lookup; skip operation; null cleanup | 0 |
+| F2, framework null | zero output; `G→null`; skip lookup; skip operation; null cleanup | 0 |
+| F3, framework null | zero output; `G→null`; skip lookup; skip operation; null cleanup | 0 |
+| F4, framework null | zero output; `G→null`; skip lookup and city chain; null cleanup | 0 |
+| F1, lookup returns status 1, output remains null | zero output; `G→g1`; `L1→null`; skip operation; null cleanup | 0 |
+| F2, lookup returns status 1, output remains null | zero output; `G→g2`; `L2→null`; skip operation; null cleanup | 0 |
+| F3, lookup returns status 1, output remains null | zero output; `G→g3`; `L3→null`; skip operation; null cleanup | 0 |
+| F4, lookup returns status 1, output remains null | zero output; `G→g4`; `L4→null`; skip city chain; null cleanup | 0 |
+| F4, current city absent | zero output; `G→g4`; `L4→u`; `u.GetCity()→null`; skip clock getter and operation; `R(u)` | `u: 0→1→0` |
+| F4, clock absent | zero output; `G→g4`; `L4→u`; `u.GetCity()→c`; `c.Get24HourClock()→null`; skip operation; `R(u)` | `u: 0→1→0`; c unchanged |
+| All selected; every lookup returns raw status 0 but writes its nonnull output | `P+, A+, S+, C+`, including all four operations | `p,a,s,u` each `0→1→0`; lookup false is not observed |
+| All selected; F1 output null and status 0; other outputs present | zero output; `G→g1`; `L1→null`; null cleanup; then `A+, S+, C+` | p stays 0; a,s,u each `0→1→0` |
+| All selected; every operation returns raw EAX=0 and every Release returns raw EAX=0 | `P+, A+, S+, C+`; no early stop or compensating operation | each temporary returns to 0 under supplied Release model; reply values do not control the helper |
+| All selected; first three outputs present, app city absent | `P+, A+, S+`; zero output; `G→g4`; `L4→u`; `u.GetCity()→null`; `R(u)` | four granted/consumed refs; earlier operations remain, no inverse calls |
+
+There is no observed-false Boolean branch to invent: all tested service replies
+in these bodies are pointers. `null` is observed as a pointer; a false raw return
+from lookup is ignored even with a nonnull output. No vector supplies an invalid
+nonnull object or a throwing callback under the normal-return contract.
+
+### 4.5 Reacquisition and changed identities
+
+These are explicit fixture changes between returning calls, not assumptions
+about what a real city transition must do.
+
+| Scoped input and supplied replies | Literal expected trace | Own state/ref result |
+|---|---|---|
+| O `(0,0,1,1)`; entry simulator s1, app u1, city c1, clock k1; exit s2,u2,c2,k2 | Entry: zero output, `G→g3a`, `L3→s1`, `s1.HiddenPause()`, `R(s1)`; zero output, `G→g4a`, `L4→u1`, `u1.GetCity()→c1`, `c1.Get24HourClock()→k1`, `k1.HiddenPause(1)`, `R(u1)`. Exit: zero output, `G→g3b`, `L3→s2`, `s2.HiddenResume()`, `R(s2)`; zero output, `G→g4b`, `L4→u2`, `u2.GetCity()→c2`, `c2.Get24HourClock()→k2`, `k2.HiddenPause(0)`, `R(u2)` | O bytes remain `00 00 01 01`; s1,u1,s2,u2 each `0→1→0`; no retained old city/clock; baseline refs c1,k1,c2,k2 unchanged |
+| O `(0,0,0,1)`; entry app u with no current city; exit same u now returns c2,k2 | Entry: zero output, `G→g4a`, `L4→u`, `u.GetCity()→null`, `R(u)`. Exit: zero output, `G→g4b`, `L4→u`, `u.GetCity()→c2`, `c2.Get24HourClock()→k2`, `k2.HiddenPause(0)`, `R(u)` | O remains `00 00 00 01`; u independently `0→1→0` twice; no matching prior clock entry is required by the helper |
+| O `(0,0,1,1)`; entry all present; exit F3 framework null and F4 city null | Entry `S+, C+`. Exit: zero output, `G→null`, null cleanup; zero output, `G→g4`, `L4→u`, `u.GetCity()→null`, `R(u)` | No exit operation on the earlier simulator/clock; no fallback to saved identities; only one exit Release |
+
+## 5. Evidence limits and open work
+
+Own branch, byte-store, return-use and temporary-cleanup claims above are
+instruction-backed normal-return contracts. The independent vectors are written
+expectations only. No native game, engine, test-source or oracle comparison was
+performed. Lookup ownership rules and participant pause/counter semantics remain
+the public foreign interfaces' responsibility; the helper does not verify them.
+
+[AGP1](questions/auto-game-pause.md) is the remaining typed first-participant
+question. No defaults, native COM/factory identity, allocation protocol, exception
+recovery or unsupported lifetime behavior is supplied by analogy. No ABI rows or
+native C exports are proposed. This bounded class/helper spec does not change
+the capped families or reopen their internal algorithms.

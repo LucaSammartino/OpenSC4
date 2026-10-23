@@ -11,5 +11,7 @@
 - Milestone: auto-game-pause.md §§1–3 now specify raw byte stores, constructor this return, destructor reverse read order, independent low-byte gates, all four stages, null branches and normal Release order. AGP1 records unresolved first-participant typing.
 - PE SHA-256 matches export: 3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b; 1.1.641.0, x86, image base 00400000. F1 IID 0073283C is literal, not inferred sound typing.
 - History audit complete: no earlier dedicated complete body contract found in current path/name and all-ref scoped content/path history searches; prior published specs are caller projections.
-- Next: finish independent literal trace/reference ledgers, documentation checks and final report.
+- Done: §4 independent PROPOSED/UNEXECUTED traces cover all 16 selections in both directions, raw bytes/direction, repeat calls, interrupted A/B lifetimes, every guarded absence, ignored replies, partial effects and changed entry/exit identities.
+- Checks: local links 7/7; selection rows 16/16 unique with ordered stages/Release counts; 3 body extents; questions index/check passed; git diff --check passed. Analytic/document checks only, no native equivalence claim.
+- Next: review final bounded claims, replace handoff with full report and enqueue kind docs/abi false/game_runs [].
 - No engine, participant bodies, native execution, ABI edits, game runs, or REA calls.
