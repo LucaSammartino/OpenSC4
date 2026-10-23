@@ -1,6 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-animation-tick-manager4: portable tick manager, first substantive implementation | Codex; core-animation-tick-manager4 | wip: focused Rust passes; checker terminal pending | Collect existing quick, then run one stable committed-source all; retain TK1–TK4 boundaries. |
+| core-animation-tick-manager4: portable tick manager, first substantive implementation | Codex; core-animation-tick-manager4 | in progress | R2: run one stable committed-source all; retain TK1–TK4 boundaries. |
+
+## Handoff
+
+- Goal: finish actual final validation of the existing portable owner; no source expansion.
+- Done: implementation/tests already committed; starting R2 from clean 31a8a055.
+- Own R2 manifest verified: engine lane, expected worktree, round 2; detached HEAD retained.
+- Copied 04:38 process proof: old qbuild13056/verifier23772/stats8880 absent;
+  references/outputs/errors empty. Root did not kill them; historical quick terminal/cause UNKNOWN.
+- Fresh exact-worktree qbuild audit found no current conflicting checker.
+- Next: `python build-runs/check-animation.py all animation-final-r2`; collect its actual terminal.
+- Engine Git tree before gate: 85a62cdf7acf9604653dcabb12ee284bf76b45e4.
+- Driver SHA256 is a separate namespace; require matching before/after plus unchanged Git engine tree.
+- No game request outstanding; no source changes planned. Earlier report below is retained history.
 
 ## Implementation
 
