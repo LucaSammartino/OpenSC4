@@ -2,10 +2,6 @@
 <!-- Questions about [water-ripples.md](../water-ripples.md). Append new entries at the END; when one is answered, move it to answered/water-ripples.md. Rules: README.md. -->
 
 <!-- from: re-ripples (2026-10-19) -->
-- **WR1 - §1.1, §1.5:** the time unit of the animation tick's elapsed value, the frame period `0x491C9C07` (175000)
-  and the 2,000,000 rebuild delay (microseconds is inferred).
-
-<!-- from: re-ripples (2026-10-19) -->
 - **WR2 - §1.2:** what the terrain vertex flags `0x10` and `0x01` mean (shore and water are inferred), and which side
   of the traced shore the normal N points to.
 
@@ -16,15 +12,6 @@
 - **WR8 - owner inventory/defaults/lifecycle:** the brief counts 65 functions/15308 bytes, but the spec and public SDK do not enumerate the owner API. Publish a complete per-owner method checklist with signatures, constructor/destructor and Init/Shutdown/Cleanup semantics, initial fields/refcount/return values, repeated/failed Init behavior, tuning absent-property/type behavior, and texture/factory acquisition/release timing. [Rust Arc/Drop and explicit shutdown clean all held references; tuning retained after first successful Init. These are safe core policies, not native lifecycle claims. No complete-owner credit.]
   **PARTIAL 2026-10-23 (re-ripples-contracts4):** §§2.4–2.5 supersede the older partial note: actual vtables/reference/deleting paths, zero constructor refcount, no destructor Shutdown, process flag reset only, retained globals, unchecked required-service failures, repeated Init behavior, acquisition/release and unsafe texture failure are specified. §2.6 binds the ripple scalar callers to the already published data-formats §5.1 converter, including numeric tag/target gates, output-on-success, temporary target mutation, unsigned clamp and independent absence/reset/raw-array ledgers. §2.7 specifies bounded nested storage signatures/copy depth/alias domains/destruction order and selection record insertion/cleanup. **Remaining open:** complete owner membership and remaining helper signatures beyond that bounded ledger; 65 functions/15308 bytes versus the address-window 69/15276 attribution remains unreconciled; Pick's four semantic argument types remain opaque 32-bit words with false/no-output behavior, not a typed native-call recipe. Unproved foreign text/object/exception and allocator/error/reentrancy cases retain their typed foreign boundary; no full foreign conversion matrix, rollback or coherent-Drop guarantee is inferred. Do not archive WR8 as wholly answered or promote these contracts to complete-owner/native/runtime/byte coverage. WR1–WR3 remain open independently.
 
-<!-- from: core-terrain-ripples-contracts4 (2026-10-23) -->
-- **WR11 - §2.6 turn factor:** what are the binary32 bits of the stored degree factor at `00AA8C60`? [The core accepts this raw constant as an explicit arithmetic parameter; tests use a literal factor and do not claim a native value. No implicit PI/180 substitution.]
+  **PARTIAL 2026-10-23 (re-ripples-wr5):** §2.5 adds direct ripple argument/result/receiver checklist and reproducible inventory split (selection window 25/5838, ripple window 44/9438). RemoveLastRipple is a strip-list operation, not a ripple-object receiver method. Historical 65/15308 has no supplied membership manifest and remains unreconciled; foreign/error domains in the preceding note remain unproved. WR8 is deliberately not archived as wholly answered. WR1 and WR11–WR14 are now independently answered.
 
-<!-- from: core-ripples5 (2026-10-23) -->
-- **WR12 - §1.5 shared RNG initialization:** what initializes the shared cRZRandom state, and when? The step and scaling are specified but not its initial state. [Core process storage requires an explicit primitive RNG state before preparing a nonempty collection; absent state returns UnsetRandomState. No inferred seed or per-owner generator.]
-
-<!-- from: core-ripples5 (2026-10-23) -->
-- **WR13 - §1.3 spline arithmetic:** publish the actual intermediate spill/evaluation order for the four-point spline, derivative normalization and transcendental operations if bit-identical x87 output is required. The section identifies address ranges but gives only algebraic weights and warns that rearrangements need not match. [Core uses the literal published weights with binary32 Rust intermediates, sin and acos; exact x87 arithmetic remains unsupported rather than claimed by tolerance fixtures.]
-
-<!-- from: core-ripples5 round 2 (2026-10-23) -->
-- **WR14 - §1.5 delayed rebuild pending flag:** does the delayed tick clear pending before calling CreateRipples? The delayed sequence says clear/redetect/recreate, while CreateRipples always clears/redetects when pending; only the immediate message explicitly documents double detection. [Literal core sequence leaves pending set and therefore detects twice on delayed rebuild as well. Fixture edit_removes_all_contacts_rearms_clock_and_delayed_tick_animates_new_strips records this choice; no extra pending-clear is invented.]
 
