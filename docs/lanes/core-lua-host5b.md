@@ -8,6 +8,7 @@
 - Done: implementation milestone 021cc87e; latest focused 24/24 in build-runs/focused-20261023-211944.log; fmt 7 owned files PASS. Earlier diagnostic failures preserved separately.
 - Gate in progress: workspace 6379 passed / 0 failed / 0 ignored; clippy 0 diagnostics. Native queued as qbuild-20261023-212359-build-ctest (game regress delays it).
 - Outstanding operation: exec session 75902, qbuild all. Collect SAME operation to terminal, never duplicate. Logs build-runs/qbuild-test.log and qbuild-clippy.log.
+- Active collector: functions cell 76 is collecting session 75902 in five 60-second waits. Collect that cell first if still active; its last result may still say session 75902 running, then resume that session. Do not run a second reader concurrently.
 - Done: destructor now shuts down remaining registry even after a null-context failed main hook; regression added. Latest focused suite 25/25: build-runs/focused-20261023-213050.log.
 - Done: corrected source committed as 7c162903; final explicit fmt check passes all 7 owned Rust files; working tree clean before this handoff update.
 - First-gate cargo/clippy logs archived in build-runs/gate-before-destructor-correction/. Native source may include the correction because it was still queued; do not claim this mixed gate as final verification.
