@@ -60,6 +60,10 @@ it. The other advice classes (`cSC4CitySituationAdvice` `0x8BE3753B`, `cSC4MySim
 `cSC4MySimBalloonAdvice` `0x6B70EFAD`) and the MySim advisors (`0x4A1DBBBF`, My Street sim `0x0BF606A5`) are
 created through the same tables but belong to the city-situation and MySim specs.
 
+For **record-only** integration, `cSC4CitySituationAdvice` is covered here too: its CLSID must resolve to an
+advice supporting IID `0x8A09F5F5`, with exactly the base advice record (§11.3.1, AD17). Its additional
+city-situation interface and live behaviour still belong to the city-situation spec.
+
 Factory CLSIDs are not generally QI IIDs: the advisor's additional QI identity is `cIGZUnknown` 1; only
 CityPlanning adds its own CLSID. Non-MySim advisors reject `cISC4MySim` `0x0A1DA42F`. See §12.2 (AD14) for
 pointer adjustments, ownership and failure output.
@@ -277,6 +281,19 @@ If already initialised, only the last step runs. Otherwise:
    `PreFrameWorkInit` to the data directory + `Plugins\`, `0x00452B7B`), then `+0xDC` slot 55
    `GetSkuSpecificDirectory(cIGZString& out)` (`0x00449E20`); `advisors\` is appended to each. The data directory
    (slot 51 `+0xCC`) is **not** used. The earlier "data directory, then plugin directory" wording **DIFFERS**.
+
+   **SKU getter (AD11):** in this executable the SKU-specific string starts empty and the normal app startup
+   leaves it empty; it is not the separately populated `Sku_Data\` path. The constructor installs the app
+   interface at class +`0x0C` (`0x0044AD19`) and constructs an empty string at class +`0xC8`
+   (`0x0044AE5C`–`0x0044AE8C`). Slot 55 copies its character buffer, interface +`0xC0` = class +`0xCC`, into
+   the caller's string (`0x00449E26`–`0x00449E32`); it does not construct a directory or perform a lookup.
+   `PreFrameWorkInit` defaults the preceding string to `Sku_Data\` (`0x00452BD4`–`0x00452C2B`) and proceeds
+   to user data (`0x00452C30`), skipping the SKU-specific string. No later writer to that string is present
+   in the app's exported instruction paths (constructor/destructor only). Thus the ordinary second search
+   path is relative `advisors\` after the append, with filesystem resolution supplied by the directory helper.
+   This is a static startup result, not a measured runtime path. A replacement using the host must still call
+   slot 55 and use its returned text, including empty text; it must not substitute `Sku_Data\` or a guessed
+   absolute directory if the getter returns empty.
 
    **Native calls (AD10, verified):** a replacement may call the three helpers as they are. All are plain `cdecl`
    (callee `RET` without pop, caller pops, no `this`):
@@ -878,8 +895,25 @@ Neither localization keys nor displayed text are in the advice save record (§11
 
 Vectors: `message = "text@0x4A1B0001"` with that LTEXT present → message GUID `0x4A1B0001`, text = the detokenized
 LTEXT; `title = "Fire alert"` (no key; assuming no LTEXT with instance 0 loads) → title GUID 0, title text
-`"***_NOT_IN_TEXT_DATABASE_*** Fire alert"`. These examples assume string-valued fields; missing/non-string
-fields need the separate provider-conversion audit in AD16. Discriminating cases: §17 item 28.
+`"***_NOT_IN_TEXT_DATABASE_*** Fire alert"`. Discriminating cases: §17 items 28 and 34.
+
+**Missing/non-string fields (AD16):** Init's field reader and the rebuild use the same conversion contract:
+Lua strings supply their C-string bytes; numbers supply the runtime's `sprintf("%.14g", double)` text;
+absent/nil, boolean, table, function and userdata supply a null pointer, which the receiving string setter
+turns into empty text. There is no Lua `tostring`/`__tostring` call and booleans do not become `"true"` or
+`"false"`. Init's reader clears its reusable scratch string before each lookup, so an absent title cannot
+reuse the preceding message (`0x004079FA`–`0x00407A37`); both temporary strings are initially empty
+(`0x00409111`–`0x0040911E`) and are copied from that reader then parsed as in AD12. Rebuild independently
+clears its scratch string and assigns the `ToString(-1)` result (`0x0040938D`–`0x004093D7`). The provider
+chain is `cSCLua::ToString` `0x008802D0` → `0x008B7740` → `_lua_tostring` `0x008BABE0`; only numeric type 3
+is converted by `_luaV_tostring` (`0x008C5D98`–`0x008C5DB7`, double load and `%.14g`). String assignment
+slot 4 is `cRZString::FromChar` `0x0090F50F`: its null branch empties the destination
+(`0x0090F515`–`0x0090F53E`). Consequently each such empty field parses to instance 0, exactly like `""`;
+fresh Init with both converted fields empty sets no-text and registers neither text field (§4.5). If a rebuild
+already has registered fields, a newly nil/boolean field still goes through URL decoding, key-0 localization
+and the missing-LTEXT fallback, whose suffix is empty; it does not retain the previous field's text. Embedded
+NUL in a Lua string ends the supplied text at that byte (`FromChar` uses `strlen`). These are literal provider
+semantics, not evidence that malformed values were exercised in a native game run.
 
 ---
 
@@ -1439,6 +1473,44 @@ current list *[quirk]*. The subject is released first and read with IID `0x6A26D
 loaded byte := !error, and that is returned. The neighbour-deal advice (`0x6A3848DB`) is the one subclass with its
 own record (corrected): `u16 2`, this advice record, then `s32 dealType` (`nd_type`); its Read requires version 2
 (`Write` `0x00420F40`, `Read` `0x00420F80`; all 10,842 corpus entries; save-records.md §7.2) *[compat]*.
+
+#### 11.3.1 CitySituationAdvice record and factory identity (AD17)
+
+`cSC4CitySituationAdvice` (`0x8BE3753B`) writes **exactly** the version-4 advice record above: no subclass
+version, prefix, suffix or city-situation fields. Its serializable vtable `0x00A84508` uses the very same Write
+`0x00408090` and Read `0x004082F0` entries as plain advice's `0x00A80884`; only the CLSID getter differs
+(`0x00423000` returns `0x8BE3753B`). The constructor installs that serializable table at object +`0x10`
+(`0x0042349A`), after constructing the base advice at object +4 (`0x00423475`–`0x00423480`). Thus the identical
+serializer addresses also address the same base fields. Serializable QI adjusts back by `0x10`
+(`0x004238D0`); subclass QI delegates to base advice at +4 (`0x0042303B`–`0x00423042`). The game's COM director
+registers its own factory (`0x00423DD0`, registration in `0x00460090`), so a reference read with the advice IID
+must retain this object rather than fail resolution.
+
+A record-only implementation may register this CLSID with its plain-advice record adapter (`AdviceKind::Plain`
+in the current terminology), provided it preserves the captured CLSID and object/reference identity on output,
+supports the advice IID and uses the base Read semantics, including text dirty. Writing the object back as
+CLSID `0x8A09F5F4`, dropping it from its owner's advice list, or adding a subclass record **DIFFERS**. This
+permission covers serialization only; it does not assert that a plain advice supplies the subclass's live
+city-situation behaviour or its extra IID `0x6BEB1E8A` (`0x00423024`).
+
+#### 11.3.2 Read transitions and strict record comparison (AD18)
+
+Advice Read is a load operation, not a byte-preserving decode. It always enables `text dirty` after reading
+the subject (`0x004083F0`–`0x004083FD`, mask `0x10`, enable 1); Write persists the full 32-bit flags word
+(`0x004080BB`–`0x004080C3`). For a fresh object reading a successful version-4 record with input flags `F`, an
+immediate Write therefore contains `F OR 0x10`. When the captured advice was clean, the changed low byte at
+zero-based record offset **10** is a required load transition *[quirk]*. The loaded byte is not a stream field.
+
+For the **strict live-record shadow**, compare all captured and rewritten bytes without restoring or masking
+the dirty bit: this transition remains a reported difference, and that sample cannot be credited as exact.
+An additional **load-transition conformance** result may compare the output with the input record after
+changing just the expected flags word to `F OR 0x10`; it must check every other byte and label the result as
+transition conformance, not strict equality. A diagnostic reconstruction that restores the captured bit must
+likewise report the restoration separately and cannot turn a strict mismatch into an exact line. This is a
+comparison contract, not permission to change core Read or the native object. In particular a dirty input
+already containing `0x10` needs no adjustment and must round-trip exactly under the same fresh-object,
+version-4, reference-identity assumptions. Older input versions and reading into a non-empty effect list have
+the additional transformations already specified above and are separate conformance cases.
 
 ### 11.4 Subject (`0x6A26D049`), version 4
 
@@ -2083,3 +2155,30 @@ through `GetCellValue` (simgrid §6.4 applies to the traffic simulator, not to t
     give IDs 444 and −7; an absent key gives 0. Mutating `[1]` to 555 between ID calls changes the next result
     without reloading the lists. Save records contain neither these lists/selection nor the displayed advice text;
     a newly created object must rebuild them via Init (§11.2–§11.3), not read fictitious stream fields.
+32. **AD17 city-situation record (required vectors, not measured runs)**: construct a reference graph containing
+    a `0x4BE372CD` advisor and two distinct `0x8BE3753B` advice references, one also referenced elsewhere. Resolve
+    each with IID `0x8A09F5F5`. Give the first a base version-4 record with flags `0x12`, two effects in order and
+    a non-null subject; give the second flags `0x10`, no effects and null subject. Fresh-object Read/Write must
+    retain both list entries, the shared reference, both subclass CLSIDs, effects and subject identity, with
+    exactly the base record framing. With both input dirty bits set, all records compare byte-for-byte. Repeat
+    using a plain record adapter registered for `0x8BE3753B`: same result. An unresolved reference, a remapped
+    plain CLSID, an added version word or a dropped list entry fails.
+33. **AD18 loading versus strict equality (required vectors, not measured runs)**: use a fresh advice for each
+    version-4 input, stable reference IDs and no Init/text refresh between Read and Write. Flags `0x00000002`
+    become `0x00000012`; flags `0x80000000` become `0x80000010`. Only byte 10 changes, by `0x10`; strict result
+    is different, load-transition conformance passes. Inputs `0x00000012` and `0x80000010` remain unchanged and
+    pass both checks. Repeat for `0x8BE3753B` using its base-record adapter. Flip one priority byte as well:
+    strict and transition checks must both fail. Restore only the captured dirty bit for a diagnostic compare:
+    report that adjustment and retain the original strict mismatch verdict.
+34. **AD16 field conversions (required vectors, not measured runs)**: on fresh Init use both fields absent,
+    both `false`, and both tables with `__tostring` returning `"text@0x4A1B0001"`: each case has both converted
+    strings empty, both GUIDs 0, no-text set and an empty registered-field list; the metamethod must not run.
+    Use message `"text@0x4A1B0001"` and absent title: message key is retained, title key is 0, no-text is clear
+    and both fields register (no scratch-string carryover). Numeric message 125 and title −2.5 convert to
+    `"125"` / `"-2.5"`, both GUIDs 0 and no-text clear. After registration change message to nil and title to
+    true, rebuild with no key-0 LTEXT and no detokenizer: both display exactly
+    `"***_NOT_IN_TEXT_DATABASE_*** "`, with dirty cleared. A string `"abc\0def"` contributes only `"abc"`.
+35. **AD11 empty SKU directory (required vector, not a measured run)**: a host getter returning empty must
+    produce second lookup `advisors\`; a host getter returning `D:\Regional\` must produce
+    `D:\Regional\advisors\`. Keep the plugin lookup first and preserve the specified override precedence;
+    neither case may substitute the data directory or `Sku_Data\`.
