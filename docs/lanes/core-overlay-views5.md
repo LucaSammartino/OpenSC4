@@ -10,6 +10,7 @@
 - Focused check: 25 passed/1 failed (short test index source); corrected fixture. Evidence: build-runs/focused-overlay-evidence.md.
 - First all: tests 807 passed/1 failed (old stable-tie fixture); clippy adapter initializer diagnostic. Both corrected; full failed logs preserved in build-runs/qbuild-{test,clippy}-attempt1.log.
 - Done: 7c35c9d7d fixes earlier gate diagnostics. Corrected focused tests: 26 passed, 0 failed (session 70427 terminal).
+- Review correction after focused result: ribbon primitive must be 1 per view-utilities §7.1 (not 4). Command and assertion corrected; final gate must include this change.
 - Next: collect native step of first all (exec session 76954, queue qbuild-20261024-004412-build-ctest, delayed by game regress); run final all and required verify; final report/queue.
 - Formatting uses engine/rustfmt.toml max_width=120; apply_patch applied stdin-generated formatting diffs, no filename headers written.
 - Native verification required; pure core changes need no game run.

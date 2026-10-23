@@ -271,7 +271,8 @@ pub fn draw_path(path: &PathInfo, thickness: f32) -> Vec<Draw> {
     let pair = [points[last].plus(offset), points[last].minus(offset)];
     append_pair(&mut strip, pair, last_projection, path.colour);
     draws.push(Draw {
-        primitive: 4,
+        // view-utilities §7.1: primitive 1 is a triangle strip (4 is lines).
+        primitive: 1,
         format: 10,
         vertices: strip,
         indices: Vec::new(),

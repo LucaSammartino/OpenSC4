@@ -373,7 +373,7 @@ fn ov_l5_l6_arrows_sequence_and_stored_points() {
         view.add_path_vertex(point).unwrap();
     }
     let draws = draw_path(&view.paths()[0], 2.0);
-    assert_eq!(draws.iter().map(|d| d.primitive).collect::<Vec<_>>(), [0, 0, 4]);
+    assert_eq!(draws.iter().map(|d| d.primitive).collect::<Vec<_>>(), [0, 0, 1]);
     near(draws[0].vertices[1].position.x, 9.0);
     near(draws[1].vertices[1].position.x, 11.0);
     near(draws[2].vertices[0].position.x, 9.0);
