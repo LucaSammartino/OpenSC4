@@ -249,8 +249,7 @@ below 1: the tick returns false and the state pops.
 Request distance uses the destination station lot's reported world position, **not** its berth point; the
 comparison is strict `< p[36]`. An occupied berth while already queued returns without popping state 75,
 requesting another waiting spot, or removing the boat (`0x005704D0`). Acquiring a destination berth does not
-itself change the current-crossing record or its held-berth byte +0x274. The initial station-request flags
-and route-switch ownership remain WC7.
+itself change the current-crossing record or its held-berth byte +0x274. See §5.4.1 for reservation ownership.
 
 For docking let P be the live position, B the destination berth position, H the live heading, and D the
 destination berth direction. Initial range `d=length(P-B)` uses all three coordinates. OnLand pushes 72
@@ -291,6 +290,102 @@ with requests at both stations, the crossing restarts from the station just reac
 
 `SetNbrRouteData` (`0x0056F510`) gives the boat a neighbour route: its network occupant, its route bytes and the
 flag; the reader then skips cells while they are within 3 × the boat's radius of the occupant's position.
+
+#### 5.4.1 Route encodings and reservation ownership (WC7)
+
+The wandering direction numbering is distinct from the compressed reader's four cardinal codes:
+
+| Wandering code | Cell delta (x,z) | Horizontal heading |
+|---|---|---|
+| 0 | (-1,-1) | diagonal -x/-z |
+| 1 | (0,-1) | -z |
+| 2 | (1,-1) | diagonal +x/-z |
+| 3 | (1,0) | +x |
+| 4 | (1,1) | diagonal +x/+z |
+| 5 | (0,1) | +z |
+| 6 | (-1,1) | diagonal -x/+z |
+| 7 | (-1,0) | -x |
+
+Cell deltas are from `0x00567000–0x0056705D`, table `0x00567060`. World positions
+come from city slot 97's cell-to-world conversion; route x/z are cell indices, not raw
+world coordinates. For the heading-to-direction helper, normalize the stored current
+heading (+0x30C). With x positive, use acos(x) in degrees; with x negative use acos(-x).
+In each half-plane, angle <22.5 gives the x cardinal, [22.5,67.5) gives the diagonal
+selected by z's sign, and >=67.5 gives the z cardinal. Zero z selects the x cardinal;
+zero x selects code 5 for positive z and code 1 otherwise. Normalization includes y,
+so a tilted heading must not be treated as a normalized horizontal vector. Zero length
+has no repaired direction. Evidence: `0x00567FD0–0x005681AD`, constants 22.5/67.5 at
+`0x00A9DA88`/`0x00A9DA84`.
+
+**Compressed route consumed by this owner.** SetData references a byte vector and resets
+the reader; the owner copies route bytes before binding it, so the reader is not an owner
+of a second byte buffer. An empty vector is exhausted immediately. A nonempty stream begins
+with three bytes: low six bits of a descriptor, unsigned initial x, unsigned initial z.
+GetNext returns the current coordinate, then advances its internal coordinate for the
+following call. Coordinates are stored with 16-bit wrapping arithmetic and are consumed
+by the boat as signed 16-bit cell indices. At the end of a complete stream, the current
+endpoint is returned once with outgoing direction 0xFF; only the next call returns false.
+False does not supply a new coordinate. Evidence: `0x006D64B0–0x006D6507`,
+`0x006D6510–0x006D6567`, `0x006D66C0–0x006D66E8`.
+
+Each following descriptor's low six bits are metadata. With bit 6 set it is followed
+by an unsigned count and ceil(count/4) packed direction bytes, least-significant two-bit
+direction first. Codes 0/1/2/3 step (-1,0)/(0,-1)/(1,0)/(0,1). A zero count terminates
+at the current endpoint, returning it successfully once. With bit 6 clear the descriptor
+is followed by unsigned absolute x and z bytes; those replace the reader's next coordinate,
+with bit 7 retained as metadata. A run descriptor clears that metadata bit. The watercraft
+uses the emitted coordinates, not these metadata/direction fields, when appending travel
+points (tried mask zero, direction -1). There is no malformed-input false result distinct
+from exhaustion: the reader checks cursor equality with end only at descriptor boundaries.
+Truncated headers, absolute records or packed runs can read beyond the supplied buffer;
+they are not validated input. Do not interpret a false GetNext as a safe truncated-data
+diagnostic. Evidence: `0x006D656A–0x006D65D6`, `0x006D6681–0x006D66E8`,
+`0x00570902–0x005709C4`.
+
+On the first ferry-route fill after initialization, discard the recorded used-cell count
+of reader results (initially 2), then append further successful results and increment that
+count. Exhaustion with no buffered travel points makes picking return false; exhaustion
+with buffered points retains them and returns true after the fill attempt. There is no
+automatic removal or station switch just from reader exhaustion. The neighbor reader also
+returns false when empty; successful points are appended without the ferry used-cell count.
+The route picker tries to fill to ten points. Its signed remainder/backtracking rules are
+in §5.2. Evidence: `0x00570890–0x005709C4`, `0x00570A9D–0x00570ADC`.
+
+SetNbrRouteData retains a different nonnull occupant before releasing the old one; identical
+pointers do not change reference counts. A null occupant is allowed. It sets neighbor-route
+mode, copies the bytes, resets the neighbor reader, then consumes reader results while their
+3D distance from the occupant is <=3 times this boat's radius. The test point uses the city's
+world x/z for that cell and terrain slot 29's water height. The first result strictly beyond
+that distance is consumed too; subsequent filling starts with the next result. With no occupant
+it does no initial skipping. No unconsumed-point rewind occurs. Evidence: `0x0056F510–0x0056F667`.
+
+**Berth bookkeeping is two distinct records.** The manager's reservation belongs to the
+station lot passed to RequestBerth: the destination selected by OtherStationInformation.
+RequestBerth returns false for an absent station entry or occupied berth; otherwise it stores
+a retained boat in that station's berth slot and returns true. It does not change the boat's
+current-crossing station or held byte. Queue acquisition similarly uses the destination's
+queue slot. Thus successful destination acquisition during a crossing does not relabel the
+departure record. Docking reads the destination's stored berth position/direction; request
+and departure-clear distances use the station lot's position instead. Evidence:
+`0x0056CEC0–0x0056CF47`, `0x0056CF50–0x0056CFD7`, `0x005704D0–0x00570611`.
+
+The owner sets held-berth +0x274 to true in InitializeCurrentRoute, unconditionally, even
+without a manager acquisition call. SetStationInformation(start=true) does this for station A
+and sets docking-in-progress +0x2B0. The manager's CreateFerry separately records the new boat
+in the selected starting station's berth slot after setting station information; it is not
+an owner-side RequestBerth call (`0x00570F93–0x00571037`). At docking exit,
+SwitchActiveStation chooses the other station and reinitializes the route, making the reached
+station current and setting held-berth again. Missing either station removes the boat.
+
+ClearDockRequests requires a current station, held byte, and distance strictly greater than
+p[36]. Once outside that radius it clears +0x2B0 before checking for a manager. With a manager,
+it calls DoneDocking for the **current** station and this boat, clears held-berth, and clears
+flag 0x10000000. Without a manager it leaves held-berth and that flag unchanged. Equality
+does nothing. EndDocking has the same manager-dependent held-byte and flag clearing,
+without the distance test; it always clears +0x2B0 once its station/held gate passes.
+Its DoneDocking call likewise names the current station. These are not
+implicit releases of every berth the manager might hold for that boat. Evidence:
+`0x0056D4D0–0x0056D525`, `0x0056D530–0x0056D5EC`, `0x0056F3F0–0x0056F47C`.
 
 ### 5.5 Undocking (`DoUndockingTick`, `0x0056BD80`)
 
@@ -516,18 +611,47 @@ Evidence: `0x00508C50–0x00508CF1`, `0x0056D310–0x0056D4C7`.
 ### 6.3 Towing
 
 A tug's armed tow is used by message `0xAC400A31` (§7). A towed boat (state 77, `DoFollowingTick`, `0x005694B0`)
-keeps on the water surface and stays radius + 10 behind its tug: it turns toward the tug by at most dt × entry 38
-degrees and moves toward the point behind it when farther; it does nothing without a tug.
+returns false without a tug. With a tug it first sets live position height to terrain slot
+29's water level, and otherwise returns true, including when no translation occurs.
+
+Define a boat's back/front points as stored current position (+0x2F4) minus/plus its own
+radius times stored current heading (+0x30C). Let A be the tug's back point with y replaced
+by water height, C this boat's front point, V=A-C, L=length(V), and g=L-(this boat's radius+10).
+The desired heading is the horizontal direction from this boat's **live position** to the
+tug's stored back point. Normalize it and the live heading, then compute their acos angle
+in degrees (no dot clamp); NaN angle is replaced by zero. Only when (angle>=1 or L>=1) and
+g>0 does a motion update occur. Translate the live position by `(V/L)*g` in that single call;
+there is no dt factor and no p[39] speed cap. Then turn the live heading about Y by the signed
+minimum of angle and dt*p[38] degrees, using the cross-product sign and rotation equations
+in §5.3.1 (zero cross product chooses positive). Publish MoveTo and shift current snapshots
+to previous before recording the new live position/heading. A slack rope causes no turning
+or snapshot publication, even when heading is wrong. dt is not clamped; it affects turning
+only. Evidence: `0x00567A50–0x00567B05`, `0x005694B0–0x005698DF`.
+
+This is an endpoint-gap constraint using the **follower's** radius+10, not a target distance
+between boat centers or a movement rate. Coincident/zero direction vectors have unguarded
+normalization; no fallback heading is specified. Antiparallel finite headings use a positive
+rotation. Exiting 77 clears flag 0x10000000 and releases both tow references, but does **not**
+clear being-towed +0x2CB (`0x005701AB–0x0057021B`).
 
 ## 7. Messages (`DoMessage`, `0x00569230`) *[compat]*
 
 - `0x26D31EC1`: reload the drive parameters.
 - `0xAC400A31` while the tow is armed: disarm it; take the world point of the message's payload; when the pick
-  is valid and a manager exists, the nearest boat at that point (`0x00568C10`), not this one, in group `0x4417`, and
+  is valid and a manager exists, the first matching boat at that point (`0x00568C10`), not this one, in group `0x4417`, and
   not in state 70, 71, 72 or 73, becomes the towed boat: the tug is recorded in it, a boat that was docking, queued
   or parked (74–76) pops that state, it pushes state 77, and this boat's own tug reference is released
   *[inferred: the payload is the rope's landing point]*.
 - Anything else goes to the automaton's handler.
+
+The tow-point selector is **not a nearest-distance search**. Iterate manager-list order,
+skip null entries and the supplied exclusion pointer, and return the first boat whose 3D
+distance from the pick is strictly below twice **that candidate's** radius. Distance equality
+does not qualify. It returns a borrowed pointer or null. Group/state/self filters are applied
+by DoMessage after this selection, not used to seek another candidate. Thus a first candidate
+failing those filters prevents a later eligible candidate from being selected. Equal distances
+have no special tie handling: list order wins. Evidence: `0x00568C10–0x00568CD0`,
+constant 2 at `0x00B0A158`, caller `0x00569230–0x005694A5`.
 
 ## 8. Quirks
 
@@ -648,3 +772,26 @@ flags, channels assigned from parameters, and unchanged values.
 | WC6-08 | Shared channel previous=10/current=0; duration=2/limit=1; armed=0; timer=95/interval=100; dt=10 | Edge=1, previous=0, timer=105, armed stays 0. Next same call arms and resets timer to 0. Difference 0 or 250 gives edge=0. |
 | WC6-09 | Shared channel duration=limit=2, current=0, armed=1 | Clear armed and issue event 0x14 via slots 6 then 5. Current=-1 suppresses event. Duration=-1 uses cooldown condition instead. |
 | WC6-10 | Drive tick dt=200, both throttle/reverse=-1, v=0.1, default drag, movement allowed | Drag yields 0.09 using 200 ms; movement receives 100 ms. Owner returns true even when base drive returned false or movement is subsequently denied. |
+
+### 11.4 Route, reservation and towing vectors
+
+Byte sequences below are hexadecimal. Reader tests compare emitted cell coordinates;
+they do not pass malformed buffers to a reader lacking bounds checks.
+
+| ID | Inputs | Expected observable result |
+|---|---|---|
+| WC7-R03 | Compressed bytes `01 0A 14` | First GetNext true at (10,20), outgoing FF; next false. Empty bytes give false immediately. |
+| WC7-R04 | Bytes `01 0A 14 41 04 E4` | Emit (10,20),(9,20),(9,19),(10,19),(10,20), then false; packed directions 0,1,2,3. |
+| WC7-R05 | Bytes `01 0A 14 41 00` | Emit endpoint (10,20) once, then false; zero run count terminates without packed bytes. |
+| WC7-R06 | Bytes `01 0A 14 82 1E 28` | Emit (10,20), then absolute endpoint (30,40), then false. Bit 7 does not alter the cell coordinates. |
+| WC7-R07 | Neighbor setup, first emitted cell exactly 3 radii from occupant, second beyond | Consume both cells; next reader result is the third cell. A null occupant consumes neither. |
+| WC7-R08 | Ferry reader exhausted, travel buffer empty / nonempty | Picker returns false / true respectively; no station switch just from exhaustion. |
+| WC7-B01 | Current crossing A, requesting berth approaching B, held=0 | Manager reserves B for this boat; crossing remains A and held remains 0 until route initialization. |
+| WC7-B02 | InitializeCurrentRoute with held=0, used count=0, no acquisition call | Held=1, used count=2, started=0; reader reset and travel points cleared. Nonzero used count is preserved. |
+| WC7-B03 | Current A, held=1, distance exactly p[36] | ClearDockRequests changes nothing. Beyond radius with manager, release A, clear held, docking-in-progress and 0x10000000. |
+| WC7-B04 | Same beyond radius, no manager | Docking-in-progress clears; held and 0x10000000 remain. EndDocking has this same result without a distance gate. |
+| WC7-T01 | Selector list: candidate A distance=15/radius=10, candidate B distance=1/radius=10 | Select A despite B being nearer. At A distance=20 it fails the strict radius test and B wins. |
+| WC7-T02 | First geometric candidate fails group/state filter; next candidate passes | DoMessage does not tow the later candidate; no repeated picker search. |
+| WC7-T03 | Follower radius=5, L=25, aligned finite headings, dt=0 | g=10, translate exactly 10 along endpoint-gap direction; no turn. Tug radius only affects its back point. |
+| WC7-T04 | Same with L=15, heading wrong by 90 degrees, dt=1000 | No translation or turn, because g=0; height is still set to water level and tick returns true. |
+| WC7-T05 | No tug | Following returns false, without setting height. Exiting state 77 releases references but preserves being-towed byte. |
