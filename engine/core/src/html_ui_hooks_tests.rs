@@ -26,15 +26,13 @@ fn section_7_1_fourteen_groups() {
         assert_eq!(select_key(url.as_bytes(), &mut Hex::default()), Ok(None));
     }
     assert_eq!(test_url(b"SC4"), Ok(true));
-    assert_eq!(
-        select_key(b"SC4://html/12345678", &mut Hex::default()),
-        Ok(None)
-    );
+    assert_eq!(select_key(b"SC4://html/12345678", &mut Hex::default()), Ok(None));
     for url in ["sc4://", "sc4:////"] {
         assert_eq!(select_key(url.as_bytes(), &mut Hex::default()), Ok(None));
     }
     // Rows 6–14: the expected keys and converter inputs are independent literals.
-    let rows: &[(&str, u32, u32, &[(&str, u32)])] = &[
+    type SelectionRow<'a> = (&'a str, u32, u32, &'a [(&'a str, u32)]);
+    let rows: &[SelectionRow<'_>] = &[
         (
             "sc4://HTML/12345678",
             0x0A133FC0,
@@ -47,12 +45,7 @@ fn section_7_1_fourteen_groups() {
             0x87654321,
             &[("87654321", 0x87654321)],
         ),
-        (
-            "sc4://other/12345678",
-            0,
-            0x12345678,
-            &[("12345678", 0x12345678)],
-        ),
+        ("sc4://other/12345678", 0, 0x12345678, &[("12345678", 0x12345678)]),
         ("sc4://html/1234567", 0x0A133FC0, 0, &[]),
         ("sc4://html", 0x0A133FC0, 0, &[]),
         (
@@ -61,12 +54,7 @@ fn section_7_1_fourteen_groups() {
             0x55667788,
             &[("11223344", 0x11223344), ("55667788", 0x55667788)],
         ),
-        (
-            "sc4://image/11223344/55",
-            0x11223344,
-            0,
-            &[("11223344", 0x11223344)],
-        ),
+        ("sc4://image/11223344/55", 0x11223344, 0, &[("11223344", 0x11223344)]),
         // Conditional raw conversion outcomes, not claims about malformed hex.
         (
             "sc4://html/12345678?x",
@@ -82,10 +70,7 @@ fn section_7_1_fourteen_groups() {
         ),
     ];
     for &(url, group, instance, calls) in rows {
-        let mut hex = Hex(calls
-            .iter()
-            .map(|(s, v)| (s.as_bytes().to_vec(), *v))
-            .collect());
+        let mut hex = Hex(calls.iter().map(|(s, v)| (s.as_bytes().to_vec(), *v)).collect());
         assert_eq!(
             select_key(url.as_bytes(), &mut hex),
             Ok(Some(ResourceKey {
@@ -101,6 +86,8 @@ fn section_7_1_fourteen_groups() {
 
 #[derive(Debug, PartialEq)]
 enum LinkEvent {
+    City,
+    GetAdvisor(City),
     Action(Vec<u8>, Option<Vec<u8>>, Vec<u8>),
     Destroy,
     Advisor(Vec<u8>),
@@ -121,7 +108,16 @@ impl LinkPrimitives for Links {
     fn destroy_action_temporaries(&mut self) {
         self.events.push(LinkEvent::Destroy);
     }
-    fn advisor_do_link(&mut self, payload: &[u8]) -> Register {
+    fn city(&mut self) -> Option<City> {
+        self.events.push(LinkEvent::City);
+        Some(City(4))
+    }
+    fn get_advisor_system(&mut self, city: City) -> Option<Advisor> {
+        self.events.push(LinkEvent::GetAdvisor(city));
+        Some(Advisor(5))
+    }
+    fn advisor_do_link(&mut self, advisor: Advisor, payload: &[u8]) -> Register {
+        assert_eq!(advisor, Advisor(5));
         self.events.push(LinkEvent::Advisor(payload.to_vec()));
         Register(self.eax)
     }
@@ -172,7 +168,11 @@ fn section_7_2_nine_groups_and_full_al() {
             assert_eq!(do_url(input.as_bytes(), &mut f), Ok(al));
             assert_eq!(
                 f.events,
-                vec![LinkEvent::Advisor(payload.as_bytes().to_vec())]
+                vec![
+                    LinkEvent::City,
+                    LinkEvent::GetAdvisor(City(4)),
+                    LinkEvent::Advisor(payload.as_bytes().to_vec())
+                ]
             );
         }
     }
@@ -228,16 +228,9 @@ impl ResourcePrimitives for Reader {
         *size = self.first_size;
         self.first_eax
     }
-    fn read_bytes(
-        &mut self,
-        segment: Segment,
-        key: ResourceKey,
-        output: &mut [u8],
-        size: &mut u32,
-    ) -> u32 {
+    fn read_bytes(&mut self, segment: Segment, key: ResourceKey, output: &mut [u8], size: &mut u32) -> u32 {
         assert_eq!(key, KEY);
-        self.events
-            .push(ReadEvent::Read(segment, *size, output.to_vec()));
+        self.events.push(ReadEvent::Read(segment, *size, output.to_vec()));
         output[..self.bytes.len()].copy_from_slice(&self.bytes);
         *size = self.second_size;
         self.second_eax
@@ -255,20 +248,14 @@ fn section_7_3_seven_groups() {
         ..Reader::default()
     };
     let mut out = b"old".to_vec();
-    assert_eq!(
-        read_resource(Some(Service(7)), KEY, &mut out, &mut f),
-        Ok(false)
-    );
+    assert_eq!(read_resource(Some(Service(7)), KEY, &mut out, &mut f), Ok(false));
     assert_eq!(out, b"old");
     assert_eq!(f.events, vec![a]); // Non-null foreign output is deliberately not released.
     let mut f = Reader {
         first_eax: u32::MAX,
         ..Reader::default()
     };
-    assert_eq!(
-        read_resource(Some(Service(7)), KEY, &mut out, &mut f),
-        Ok(false)
-    );
+    assert_eq!(read_resource(Some(Service(7)), KEY, &mut out, &mut f), Ok(false));
     assert_eq!(out, b"old");
     assert_eq!(
         f.events,
@@ -280,39 +267,11 @@ fn section_7_3_seven_groups() {
     );
     // Ordinary write; out-size vs EAX; failed read; zero size; changed second size.
     for (first_size, first_eax, bytes, second_size, initial_read, expected) in [
-        (
-            0,
-            3,
-            b"ABC".as_slice(),
-            3,
-            b"old".as_slice(),
-            b"ABC".as_slice(),
-        ),
-        (
-            9,
-            3,
-            b"".as_slice(),
-            3,
-            b"old".as_slice(),
-            b"old".as_slice(),
-        ),
-        (
-            0,
-            3,
-            b"".as_slice(),
-            3,
-            b"old".as_slice(),
-            b"old".as_slice(),
-        ),
+        (0, 3, b"ABC".as_slice(), 3, b"old".as_slice(), b"ABC".as_slice()),
+        (9, 3, b"".as_slice(), 3, b"old".as_slice(), b"old".as_slice()),
+        (0, 3, b"".as_slice(), 3, b"old".as_slice(), b"old".as_slice()),
         (0, 0, b"".as_slice(), 0, b"".as_slice(), b"".as_slice()),
-        (
-            0,
-            3,
-            b"A".as_slice(),
-            1,
-            b"old".as_slice(),
-            b"Ald".as_slice(),
-        ),
+        (0, 3, b"A".as_slice(), 1, b"old".as_slice(), b"Ald".as_slice()),
     ] {
         let mut f = Reader {
             first_size,
@@ -322,10 +281,7 @@ fn section_7_3_seven_groups() {
             ..Reader::default()
         };
         let mut out = b"old".to_vec();
-        assert_eq!(
-            read_resource(Some(Service(7)), KEY, &mut out, &mut f),
-            Ok(true)
-        );
+        assert_eq!(read_resource(Some(Service(7)), KEY, &mut out, &mut f), Ok(true));
         assert_eq!(out, expected);
         assert_eq!(
             f.events,
@@ -347,10 +303,7 @@ struct Life {
 }
 impl LifecyclePrimitives for Life {
     fn lookup(&mut self, framework: Framework, class: u32, iid: u32) -> Lookup {
-        assert_eq!(
-            (framework, class, iid),
-            (Framework(3), 0x056B906E, 0x656B8EFC)
-        );
+        assert_eq!((framework, class, iid), (Framework(3), 0x056B906E, 0x656B8EFC));
         Lookup {
             result: Register(self.lookup_eax),
             service: self.lookup,
@@ -491,4 +444,175 @@ fn section_7_4_six_lifecycle_traces() {
             LifeEvent::BaseDestroy(Allocation(10))
         ]
     );
+}
+
+#[test]
+fn literal_token_and_conversion_boundaries() {
+    // No slash copies the whole token without clearing it: the same eight
+    // bytes become both label and the instance converter argument (§4).
+    let mut hex = Hex(vec![(b"12345678".to_vec(), 0x12345678)]);
+    assert_eq!(
+        select_key(b"sc4://12345678", &mut hex),
+        Ok(Some(ResourceKey {
+            resource_type: 0x856DDBAC,
+            group: 0,
+            instance: 0x12345678,
+        }))
+    );
+    assert!(hex.0.is_empty());
+    let mut hex = Hex(vec![
+        (b"11223344".to_vec(), 0x11223344),
+        (b"123456789".to_vec(), 0xAABBCCDD),
+    ]);
+    assert_eq!(
+        select_key(b"sc4:////html///11223344///123456789", &mut hex),
+        Ok(Some(ResourceKey {
+            resource_type: 0x856DDBAC,
+            group: 0x11223344,
+            instance: 0xAABBCCDD,
+        }))
+    );
+    assert!(hex.0.is_empty());
+    let mut hex = ValidHex;
+    for (input, expected) in [
+        (b"0".as_slice(), 0),
+        (b"aBcD09fF".as_slice(), 0xABCD09FF),
+        (b"FFFFFFFF".as_slice(), u32::MAX),
+    ] {
+        assert_eq!(hex.convert(input), Ok(expected));
+    }
+    for input in [b"".as_slice(), b"123456789", b"12345678?x", b"..", b"0x123456", b"12\0"] {
+        assert_eq!(hex.convert(input), Err(Unsupported::HexConversionHu1));
+    }
+    assert_eq!(test_url(b"s\xE9"), Err(Unsupported::EncodingHu1));
+    assert_eq!(
+        select_key(b"sc4://html/1234\0", &mut hex),
+        Err(Unsupported::EncodingHu1)
+    );
+}
+
+#[test]
+fn bounded_resource_growth_shrink_and_invalid_domains() {
+    for (eax, initial, expected) in [
+        (5, b"old".as_slice(), b"old\0\0".as_slice()),
+        (2, b"old".as_slice(), b"ol".as_slice()),
+    ] {
+        let mut f = Reader {
+            first_eax: eax,
+            ..Reader::default()
+        };
+        let mut out = initial.to_vec();
+        assert_eq!(read_resource(Some(Service(7)), KEY, &mut out, &mut f), Ok(true));
+        assert_eq!(out, expected);
+        assert_eq!(f.events[2], ReadEvent::Read(Segment(8), eax, expected.to_vec()));
+        assert_eq!(f.events[3], ReadEvent::Release(Segment(8)));
+    }
+    let mut f = Reader::default();
+    let mut out = b"old".to_vec();
+    assert_eq!(
+        read_resource(None, KEY, &mut out, &mut f),
+        Err(Unsupported::NullServiceHu3)
+    );
+    assert!(f.events.is_empty());
+    let mut f = Reader {
+        segment: None,
+        ..Reader::default()
+    };
+    assert_eq!(
+        read_resource(Some(Service(7)), KEY, &mut out, &mut f),
+        Err(Unsupported::NullSegmentHu3)
+    );
+    assert_eq!(f.events, vec![ReadEvent::Acquire(Service(7), KEY)]);
+    // Exact FFFFFFFF is the false sentinel; other huge sizes are unsupported,
+    // not a signed-negative rejection or a claim about native cleanup.
+    for eax in [0xFFFFFFFE, 0x80000000, MAX_BYTES as u32 + 1] {
+        let mut f = Reader {
+            first_eax: eax,
+            ..Reader::default()
+        };
+        assert_eq!(
+            read_resource(Some(Service(7)), KEY, &mut out, &mut f),
+            Err(Unsupported::AllocationHu3)
+        );
+        assert_eq!(out, b"old");
+        assert_eq!(
+            f.events,
+            vec![ReadEvent::Acquire(Service(7), KEY), ReadEvent::Size(Segment(8), 0)]
+        );
+    }
+}
+
+#[test]
+fn load_document_owns_retained_service_key_and_helper_return() {
+    let mut hook = Hook::new(Allocation(12));
+    let mut life = Life {
+        lookup: Some(Service(7)),
+        lookup_eax: 0xFFFF0000,
+        ..Life::default()
+    };
+    hook.init(Some(Framework(3)), &mut life).unwrap();
+    for (acquired, expected, bytes) in [
+        (Register(0xFFFF0000), false, b"old".as_slice()),
+        (Register(0xFFFF0080), true, b"ABC".as_slice()),
+    ] {
+        let mut f = Reader {
+            acquired,
+            bytes: b"ABC".to_vec(),
+            ..Reader::default()
+        };
+        let mut out = b"old".to_vec();
+        assert_eq!(
+            hook.load_document(b"sc4://html/12345678", &mut out, &mut ValidHex, &mut f),
+            Ok(expected)
+        );
+        assert_eq!(out, bytes);
+        assert_eq!(f.events[0], ReadEvent::Acquire(Service(7), KEY));
+    }
+    let mut f = Reader::default();
+    let mut out = b"old".to_vec();
+    assert_eq!(
+        hook.load_document(b"SC4://html/12345678", &mut out, &mut Hex::default(), &mut f),
+        Ok(false)
+    );
+    assert_eq!(out, b"old");
+    assert!(f.events.is_empty());
+}
+
+#[test]
+fn reference_zero_wrap_remove_and_second_iid() {
+    let mut hook = Hook::new(Allocation(12));
+    let sentinel = View {
+        allocation: Allocation(999),
+        kind: ViewKind::Base,
+    };
+    let mut output = sentinel;
+    assert_eq!(hook.query_interface(0, &mut output), Ok(false));
+    assert_eq!(output, sentinel);
+    assert_eq!(hook.count(), 0);
+    assert_eq!(hook.remove_ref(), Ok(0));
+    assert_eq!(hook.query_interface(0xC49B192C, &mut output), Ok(true));
+    assert_eq!(
+        output,
+        View {
+            allocation: Allocation(12),
+            kind: ViewKind::Hook
+        }
+    );
+    assert_eq!(hook.remove_ref(), Ok(0));
+    let mut life = Life::default();
+    assert_eq!(hook.release(&mut life), Ok(0));
+    assert_eq!(
+        life.events,
+        vec![
+            LifeEvent::RestoreTables,
+            LifeEvent::BaseDestroy(Allocation(12)),
+            LifeEvent::Free(Allocation(12))
+        ]
+    );
+    assert_eq!(hook.add_ref(), Err(Unsupported::DestroyedHu3));
+    // Inject only the raw numeric boundary; no host object/lifecycle oracle.
+    let mut hook = Hook::new(Allocation(13));
+    hook.count = u32::MAX;
+    assert_eq!(hook.add_ref(), Ok(0));
+    assert_eq!(hook.retained(), None);
 }

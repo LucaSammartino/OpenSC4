@@ -19,6 +19,7 @@ pub enum Unsupported {
     HexConversionHu1,
     NullServiceHu3,
     NullSegmentHu3,
+    NullAdvisorHu3,
     AllocationHu3,
     DestroyedHu3,
     ReentryOrRegistrationHu4,
@@ -86,10 +87,7 @@ impl HexPrimitive for ValidHex {
 /// input is copied as a token without clearing the source.
 fn split_token(source: &mut Vec<u8>, separator: u8) -> Option<Vec<u8>> {
     let start = source.iter().position(|&c| c != separator)?;
-    let end = source[start..]
-        .iter()
-        .position(|&c| c == separator)
-        .map(|n| n + start);
+    let end = source[start..].iter().position(|&c| c == separator).map(|n| n + start);
     let token_end = end.unwrap_or(source.len());
     let token = source[start..token_end].to_vec();
     if let Some(end) = end {
@@ -107,10 +105,7 @@ fn split_token(source: &mut Vec<u8>, separator: u8) -> Option<Vec<u8>> {
 
 /// §4: own key stores/selection; foreign conversion receives the exact token or
 /// whole remaining buffer. No scheme parsing or query/fragment normalization.
-pub fn select_key(
-    raw_full_url: &[u8],
-    hex: &mut impl HexPrimitive,
-) -> Result<Option<ResourceKey>, Unsupported> {
+pub fn select_key(raw_full_url: &[u8], hex: &mut impl HexPrimitive) -> Result<Option<ResourceKey>, Unsupported> {
     bytes_domain(raw_full_url)?;
     if !raw_full_url.starts_with(b"sc4://") {
         return Ok(None);
@@ -151,13 +146,7 @@ pub struct Acquisition {
 pub trait ResourcePrimitives {
     fn acquire(&mut self, service: Service, key: ResourceKey) -> Acquisition;
     fn read_size(&mut self, segment: Segment, key: ResourceKey, size: &mut u32) -> u32;
-    fn read_bytes(
-        &mut self,
-        segment: Segment,
-        key: ResourceKey,
-        output: &mut [u8],
-        size: &mut u32,
-    ) -> u32;
+    fn read_bytes(&mut self, segment: Segment, key: ResourceKey, output: &mut [u8], size: &mut u32) -> u32;
     fn release_segment(&mut self, segment: Segment);
 }
 
@@ -200,9 +189,16 @@ pub trait LinkPrimitives {
     /// Observation of owned action-local processing, never command execution.
     fn action_temporary(&mut self, erased: &[u8], token: Option<&[u8]>, remaining: &[u8]);
     fn destroy_action_temporaries(&mut self);
-    /// Includes raw advisor retrieval/DoLink; return full EAX for AL extraction.
-    fn advisor_do_link(&mut self, payload: &[u8]) -> Register;
+    fn city(&mut self) -> Option<City>;
+    fn get_advisor_system(&mut self, city: City) -> Option<Advisor>;
+    /// Raw DoLink return register, not the handler decision.
+    fn advisor_do_link(&mut self, advisor: Advisor, payload: &[u8]) -> Register;
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct City(pub u64);
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Advisor(pub u64);
 
 fn link_gate(input: &[u8], word: &[u8]) -> bool {
     input.len() >= 6
@@ -226,7 +222,9 @@ pub fn do_url(raw_full_url: &[u8], foreign: &mut impl LinkPrimitives) -> Result<
         return Ok(0);
     }
     if link_gate(raw_full_url, b"advice") {
-        return Ok(foreign.advisor_do_link(&raw_full_url[13..]).al());
+        let city = foreign.city().ok_or(Unsupported::NullAdvisorHu3)?;
+        let advisor = foreign.get_advisor_system(city).ok_or(Unsupported::NullAdvisorHu3)?;
+        return Ok(foreign.advisor_do_link(advisor, &raw_full_url[13..]).al());
     }
     Ok(0)
 }
@@ -335,8 +333,7 @@ impl Hook {
         foreign: &mut impl LifecyclePrimitives,
     ) -> Result<bool, Unsupported> {
         self.live()?;
-        let temporary = framework
-            .and_then(|framework| foreign.lookup(framework, 0x056B906E, 0x656B8EFC).service);
+        let temporary = framework.and_then(|framework| foreign.lookup(framework, 0x056B906E, 0x656B8EFC).service);
         if temporary != self.retained {
             if let Some(service) = temporary {
                 foreign.event(LifeEvent::AddRef(service));
@@ -353,10 +350,7 @@ impl Hook {
         }
         Ok(true)
     }
-    pub fn shutdown(
-        &mut self,
-        foreign: &mut impl LifecyclePrimitives,
-    ) -> Result<bool, Unsupported> {
+    pub fn shutdown(&mut self, foreign: &mut impl LifecyclePrimitives) -> Result<bool, Unsupported> {
         self.live()?;
         if let Some(service) = self.retained.take() {
             foreign.event(LifeEvent::Store(None));
@@ -364,11 +358,7 @@ impl Hook {
         }
         Ok(true)
     }
-    pub fn destroy(
-        &mut self,
-        flag: u32,
-        foreign: &mut impl LifecyclePrimitives,
-    ) -> Result<View, Unsupported> {
+    pub fn destroy(&mut self, flag: u32, foreign: &mut impl LifecyclePrimitives) -> Result<View, Unsupported> {
         self.live()?;
         foreign.event(LifeEvent::RestoreTables);
         if let Some(service) = self.retained {

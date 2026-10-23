@@ -20,8 +20,6 @@
 
 #![forbid(unsafe_code)]
 
-pub mod html_ui_hooks;
-
 pub mod advisors;
 pub mod audio;
 pub mod aura;
@@ -156,3 +154,5 @@ pub mod player_drive;
 pub mod legacy_control;
 pub mod map_view;
 pub mod city_input_tools;
+
+pub mod html_ui_hooks;
