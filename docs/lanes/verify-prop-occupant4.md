@@ -83,3 +83,22 @@ Initial q.py Bash launch failed E_ACCESSDENIED; subsequent reads used bounded Po
 ## Questions and next steps
 
 None filed; no differences; existing residuals untouched. ABI exports unchanged. Queue this exact clean tip for measured bounded success only. No subsequent implementation round, owner change, coverage/default/generated-table edit or natural/whole-owner qualification is authorized by these results.
+
+## Coordinator provenance and numeric-record correction
+
+At02:33:56.905879 BST root terminated ONLY exact stalled read-only stats client13832, creation1792718419.496703,
+after independent review and fresh PID/argv/cwd/parentage/service/output/source proof. Exit15; SAME validator7824
+and daemon19696 survived, proceeding to CTest15608. This occurred after native control work began; actual final
+68/68 CTest completion is later evidence tied to the same engine source, not a gate finished before OFF.
+Cache statistics unavailable/interrupted; RPC causeUNKNOWN. No daemon/compiler/source/check/cache-policy
+restart or duplicate validation. Earlier strict preflights stopped before action on report-only HEAD movement
+and an unfamiliar read-only verdict collector; unchanged-engine/collector proof resolved both. Exact own JSON
+and textual intervention notes retain the evidence. The worker's lack of process actions does not imply no
+coordinator action.
+
+Coordinator assigned OFF/ON record IDs289/290 after an exact collision-free scan across123 run directories.
+Original OFF285 duplicated accepted train108/run285; original ON286 is retired numeric metadata, not another
+execution. Unique labels and all raw outcomes remain unchanged. Command controls receive287/288; train109
+postland291 is reserved pending actual acceptance. No source, expected value, test, native call, game run,
+measured count or original1/3 budget changed. Reported2064 literal checks include four fixed release-companion
+operands;2060 meaningful literal operands retain their bounded domain, not whole-owner qualification.
