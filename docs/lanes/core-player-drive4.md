@@ -12,7 +12,10 @@
 - Current CIM denied; q.py Bash E_ACCESSDENIED reproduced. Neither is a gate result or permission to bypass qbuild.
 - Fresh 00:46:08 BST native inventory: 75 build processes, all command/creation inspected (VM reads denied on service-owned processes); old PIDs absent, no own checker/output path. Other compiler output paths belong to other worktrees. Own string appears only in lane transport and inventory itself. Full snapshot: build-runs/process-inventory-r2-preflight.json.
 - Archived all six original logs with SHA256/size manifest under build-runs/baseline-r1/ using apply_patch moves. CTest 18/68 is incomplete, terminal outcome/cause UNKNOWN, no acceptance or duplicated baseline.
-- Next: exactly one necessary quick followed by final all on unchanged committed production; preserve wrapper results, inspect 26 tests and flags/source/artifacts.
+- Source review: published drive-tool sections 1-10 and city-tools-input section 2; primitive host inventory and literal fixture decisions reviewed without changing source/expectations. No demonstrated compiler/test defect yet.
+- Current quick: qbuild PID36008 created 2026-10-22T23:49:45.780607Z, verifier25864, Rust test compiler25452; private i686 output. Source engine tree c96747fe52d09dcbd607457fd6c8a4934c60603e, no source diff. Snapshot: build-runs/source-r2-before-checks.json.
+- Serial continuation build-runs/finish-player-drive-r2.py waits that exact quick creation, requires exit0, then new-file fmt, separate shared-lib fmt, exactly one final all; no duplicate checker or process/cache action. Preserve/collect its terminal result and logs before any further gate.
+- Next: collect actual 26 fixture results, totals/flags/source/artifact hashes; commit gate result and complete report. Existing DLL dated 00:24 predates registration and is not acceptance.
 - No game request; DR1-DR8 remain; only own module/tests, necessary lib declaration, report and appended questions allowed.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-player-drive4-r2-manifest.json.
 
