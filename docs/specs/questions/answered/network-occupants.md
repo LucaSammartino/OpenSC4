@@ -1,4 +1,14 @@
 # network-occupants: answered questions (archive)
+
+<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
+- ~~**NO34 - sections 4.2-4.3 and section 13 test 17 demolition cost:** how do the control exemplar
+  properties (in particular float `0xE9A18D3F` at `0x00B46754`) update the signed int64 demolition
+  statics at `0x00B46770/74`? The published init table does not write those statics. The core can
+  return supplied low/high words verbatim, but does not invent a conversion or scaling formula.
+  [missing; exemplar-to-quote half of conformance test 17 remains open]~~
+  **ANSWERED 2026-10-23 (re-netocc-answers5):** DIFFERS — §4.3 and test 17: one-time StaticInit reads
+  signed-int64 property `0x0A2ECED8` from the control exemplar directly into the zero-initialized quote.
+  `0xE9A18D3F` is independent; there is no scaling formula. Missing/failed lookup preserves the quote.
 <!-- Archive for [network-occupants.md](../../network-occupants.md). Lanes do not read this file. Open questions are in ../network-occupants.md. -->
 
 <!-- from: re-netocc-contracts4 (2026-10-21) -->

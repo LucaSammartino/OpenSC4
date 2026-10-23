@@ -149,13 +149,6 @@ implementer of the class tables and records.
   4.1-4.3 remain open, including native pool allocation required by section 13 test 4]
 
 <!-- from: core-netocc-close5 round 2 (2026-10-23) -->
-- **NO34 - sections 4.2-4.3 and section 13 test 17 demolition cost:** how do the control exemplar
-  properties (in particular float `0xE9A18D3F` at `0x00B46754`) update the signed int64 demolition
-  statics at `0x00B46770/74`? The published init table does not write those statics. The core can
-  return supplied low/high words verbatim, but does not invent a conversion or scaling formula.
-  [missing; exemplar-to-quote half of conformance test 17 remains open]
-
-<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
 - **NO35 - section 4.4 power-pole record and live layout:** please specify the wire-point list count
   encoding, the three `0x006574A0` struct stream bodies, exact four vertex offsets/order and live-to-record
   mapping. Section 4.1 places model IDs at C0/C4 while section 4.4 writes B8/BC/C0, and GetCell reads

@@ -720,6 +720,21 @@ the three vectors (`+0xE8`, `+0xF4`, `+0x100`); `+0x54 = 0`, `+0x55 = 0`, `+0x64
 | `0x49A195C0` | `0xB46744` | 8.0 (`0x41000000`) |
 | `0x89A1E8FB` | `0xB46740` | 5 |
 
+**Demolition quote is independent of those six controls.** The signed 64-bit quote at
+`0x00B46770/74` starts at zero. In the same one-time `StaticInit`, a second lookup of the
+same control exemplar reads property **`0x0A2ECED8`** through the signed-int64 property
+helper (`0x0064CDBA–0x0064CE29`, call at `0x0064CE1B` to `0x005FD4B0`). The preceding
+property `0xE9AC43E7` updates the five-entry wire-width vector, not the quote.
+The quote is the property's signed-int64 value, without scaling, multiplication by a
+pole count, or conversion from `0xE9A18D3F`. Missing exemplar/property leaves the quote
+unchanged; failed variant conversion likewise leaves its destination unchanged
+(`0x005FD4B0`, `cRZVariant::GetValSint64(out)` `0x009177E4`). Normal SINT64 values copy
+both words exactly. Other variant types use the shared variant conversion contract.
+The getter loads the low word into EAX and high word into EDX without alteration
+(`0x0064DD60–0x0064DD6B`). Repeating `Init` does not re-read the property once
+`StaticInit` has run; `InitPowerLineControlVariables` alone only updates the six controls
+above. Thus changing `0xE9A18D3F` alone never changes this demolition quote.
+
 `GetBoundingBox` (`0x00649A00`) uses the cell-size floats `0x00B4675C`/`0x00B46760` (`Init` reads city slots
 0x16C/0x170 into them).
 
@@ -1317,8 +1332,13 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     reloads; `QueryOccupantInterface` (subway, slot 44) QIs `0xCA16374F` then `0x4A10AFC2`.
 16. **Pole record** (§4.4). A pole with two connections saves version 5; on read the pole refs resolve with IID
     `0x09C05C6A` **or** `0xC9C05C5D` (quirk 11); `InitConnectionPoints` runs again.
-17. **Pole cost** (§4.2). `GetCostOfOccupantDemolition` (slot 10) returns the `EDX:EAX` pair from the cost
-    statics `0x00B46770/0x00B46774`; changing the exemplar property `0xE9A18D3F` changes the demolition quote.
+17. **Pole cost** (§§4.2–4.3). In separate fresh static-init fixtures, omit the control exemplar,
+    supply it without `0x0A2ECED8`, or supply a non-convertible value: the quote stays zero.
+    A SINT64 `0x00000001_00000002` returns EDX=1, EAX=2; SINT64 −7 returns
+    EDX=`0xFFFFFFFF`, EAX=`0xFFFFFFF9`. Change only `0xE9A18D3F` from 16 to 32:
+    the quote is identical. After the first static init, changing `0x0A2ECED8` and
+    initializing another pole also leaves the old quote intact. Calling only the
+    six-control reload does not reset an already supplied quote.
 18. **Line slots** (§5.1). `GetConnectedPoles` returns the three refs with `AddRef`; `SetConnectedPoles` releases
     the old ones; `IsPreview`/`SetPreview` round-trip.
 19. **Pylon record** (§6.3). A pylon saves v5 with both transforms and the two refs; on read v < 4 takes the
