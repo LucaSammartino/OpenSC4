@@ -201,8 +201,11 @@ outputs. Consumers must check AL before using the result.
 `0x005BA890–0x005BAB31`: caller-cleaned pointers `A,B,normalXY,pointXY,
 extraVelocityXY`. No receiver and no specified return value. Distinct body
 records, independent read-only input pairs, finite intermediate values, and a
-strictly positive denominator are the admitted response domain. No validation
-of those preconditions is claimed.
+strictly positive denominator are the admitted response domain. For the short
+distance branch below, additionally require the stored binary32 length L and
+recomputed squared length to be strictly positive. Tiny nonzero offsets that
+underflow either quantity are outside this bounded response contract. No
+validation of those preconditions is claimed.
 
 Store the two contact offsets as `(point.x-body.x, -(point.y-body.y))` in
 binary32. Let `kA=offsetA.x*n.y+offsetA.negY*n.x`, and likewise `kB`.
@@ -251,7 +254,7 @@ Then update A velocity X,Y by `+N`, A position X,Y by `+W`, B velocity X,Y
 by `−N`, B position X,Y by `−W`, in that order
 (`0x005BAADA–0x005BAB21`). This second correction is not weighted by `m` or
 `i`; callers cannot assume a zero response multiplier prevents it. The
-coincident-centre path constructs a random object with raw seed `0xFFFFFFFF`
+zero-stored-length path (including coincident centres) constructs a random object with raw seed `0xFFFFFFFF`
 and calls foreign `RandomDirection2` (`0x005BAA3C–0x005BAA60`); its random
 contract and lifetime remain partial. No deterministic coincident-centre result
 is published. There is no rollback promise after any preceding mutation.
