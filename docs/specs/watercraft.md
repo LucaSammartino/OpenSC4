@@ -269,6 +269,86 @@ The group must have an AEMS sound set (group `+0x64`, or its parent's); otherwis
   tow (`+0x2D8`) and plays `tugropethrow` at the boat; one that tows ends the tow.
 - The speed tween is reset when |speed| changes; then the automaton's own command translation.
 
+#### 6.2.1 Command values and nonlinear speed response (WC8 correction)
+
+Let `p[k]` denote drive entry k, `dt` the command time in milliseconds, `v` the stored speed,
+and `clamp(x,a,b)=min(max(x,a),b)`. This section supersedes interpretations of the summary above
+as direct analog-speed clamping or braking in neutral. All inputs in these equations are finite;
+invalid tuning (zero denominators, reversed bounds) has no specified recovery.
+
+Commands arrive in the shared drive-state record. Forward and reverse channels are floats at
+`+0x7C` and `+0x80`; `-1` is the inactive sentinel used by the drive tick. The watercraft translator
+selects forward when forward >= p[33], otherwise reverse when reverse >= p[32], otherwise neutral.
+Thus forward wins when both qualify. It writes gear 2/1/0 and signed command `q` at `+0x28`:
+forward, minus reverse, or zero respectively. The thresholds are inclusive. This happens only after
+the automata group and its AEMS record (including parent fallback) have been found; failure to find
+either returns false before changing commands. Evidence: `0x0056E5E3–0x0056E679`.
+
+The target-speed helper at `0x00567080` is **nonlinear**. Define f32 constants
+`a=0.910000026226`, `b=1.57079637051`, `n=f32(-a*0.5)`,
+`P=f32(tan(a*b))`, `N=f32(atan(n*b))`. First let `x=clamp(q,p[30],p[31])`, then
+
+| Stage | Positive input | Zero or negative input |
+|---|---|---|
+| Normalized command `u` | `x*a/p[31]` | `x*n/p[30]` |
+| Curve `w` | gear 2 uses `tan(u*b)` for either sign of u | other gears use `atan(u*b)` for either sign of u |
+| Speed before clamping | `w*p[7]/P` when w > 0 | `w*p[6]/N` when w <= 0 |
+
+The target `t` is that speed clamped to `[p[6],p[7]]`. The curve choice uses **gear**, while the
+scaling choice uses the sign of its result. These are x87 transcendental operations with f32 stored
+constants, not a linear percentage mapping. The caller clamps the helper result to the same speed
+bounds again. Evidence: `0x0056708A–0x005671C8`, particularly `0x00567152–0x00567188`.
+
+For q != 0 set `A=f32(dt*p[10])`, `B=f32(A*p[0])`. The speed response is:
+
+| Condition on speed before this command | New speed and command-channel side effect |
+|---|---|
+| v != 0 and sign(t) differs from sign(v) | Move v toward t by at most B, snapping to t if closer. For old v > 0 write reverse channel := p[32]; for old v < 0 write forward := p[33]. |
+| Otherwise sign(q)=sign(v) and abs(t) <= abs(v) (zero has positive sign) | Keep v. Rewrite forward channel with the inverse-speed curve if v > 0, otherwise rewrite reverse channel. |
+| All other q != 0 cases | Move v toward t by at most A; use B instead when q < 0 and sign(q) differs from sign(v). |
+| q = 0 | Keep v; no neutral braking occurs in this method. |
+
+For the last movement row, the limited increment is `sign(q)*step`; the snap comparison uses
+`abs(t-v)`. Opposite-gear response is a single approach to t: it can **cross zero in one call**.
+There is no stop-at-zero rule or separate allocation of leftover time. Evidence:
+`0x0056E694–0x0056E8A0`, especially `0x0056E759–0x0056E7AD`.
+Coasting belongs to the subsequent drive tick (§6.1) and requires both channels to equal -1.
+
+The inverse curve (`0x005671D0`) uses the same a and n, but independently cached constants
+`P'=f32(tan(a*b))`, `N'=f32(tan(n*b))`. For `s=clamp(v,p[6],p[7])`, let
+`z=s*P'/p[7]` for s > 0, else `s*N'/p[6]`, and `h=atan(z)*0.63661975`.
+Return `clamp(h*p[31]/a,p[30],p[31])` for h > 0, else
+`clamp(h*p[30]/n,p[30],p[31])`. Its signed result is written directly into the selected
+channel, including the reverse-channel case; no extra absolute value is applied.
+
+#### 6.2.2 Steering channels and skier toggle (WC8 correction)
+
+The steering inputs at drive-state `+0x88` (L) and `+0x84` (R) are elapsed-input floats,
+not booleans. Negative is inactive. Let T be drive-state `+0x5C`, and
+`r=f32(f32(dt*0.001)*p[2])`. The translator applies these two ordered responses:
+
+1. If L >= 0 and T <= 0, replace L by `-T/p[1]-dt` only when T < `-p[1]*L`,
+   then set T := `-p[1]*L`. Otherwise, if T < 0, increase T toward zero by r.
+   When R > 0 in this return branch, use `max(r,r*p[5])` and clear R to zero.
+2. Using the resulting T and channels: if R >= 0 and T >= 0, replace R by
+   `T/p[1]+dt` only when `p[1]*R < T`, then set T := `p[1]*R`.
+   Otherwise, if T > 0, decrease T toward zero by r; when L > 0 in this return branch,
+   use `max(r,r*p[5])` and clear L to zero.
+
+Return-to-zero steps stop at zero. Finally clamp T to `[p[8],p[9]]`, copy it to the boat's
+turn, set drive-state `+0x23C=0`, `+0x240=6.2831855`, and `+0x238=-0.125*T`.
+Simultaneous channels do **not** select a separate neutral-steering case: the ordering above
+decides the result. The timer-rebasing terms have different signs and must be preserved.
+Evidence: `0x0056EBAE–0x0056ED5A`, `0x0056EEC2–0x0056EF1F`.
+
+For group membership 0x4409 with a skier effect, a nonzero toggle byte at drive-state +0xEB
+stops an already running effect, or starts a stopped one only when v > 0. After this toggle
+step a running effect is stopped whenever v <= 0; a running effect with v > 0 has its
+transform refreshed. This owner does **not** clear the toggle byte when stopped. A toggle
+supplied while stopped cannot start the effect in that call; if still supplied on a later
+forward-moving call, it can start it. No additional remembered arm bit exists in this method.
+Evidence: `0x0056E97D–0x0056EBAE`. Full effect placement remains part of WC6.
+
 ### 6.3 Towing
 
 A tug's armed tow is used by message `0xAC400A31` (§7). A towed boat (state 77, `DoFollowingTick`, `0x005694B0`)
@@ -300,7 +380,8 @@ speed, cell, current position and current heading.
 
 ## 10. Open questions
 
-See [questions/watercraft.md](questions/watercraft.md) (WC1–WC2).
+See [questions/watercraft.md](questions/watercraft.md) for the remaining owner-closure questions.
+WC8's proposed command choices are corrected in §6.2.1–§6.2.2.
 
 ## 11. Conformance tests
 
@@ -312,3 +393,26 @@ See [questions/watercraft.md](questions/watercraft.md) (WC1–WC2).
 4. With entry 7 = 0.3 and entry 27 = 0.5, a player boat meeting an AI boat at a relative speed of 0.12
    (0.4 of entry 7) bumps; at 0.18 (0.6 of entry 7) a crash happens.
 5. The wandering pick from a point in direction 2 tries 2, 3, 1, 4, 0, 5, 7 and never 6.
+
+### 11.1 Command conformance vectors (WC8)
+
+These are spec-side vectors for the engine lane to encode in its runner; no engine files were
+read or changed to produce them. Use default tuning unless overridden. All command tests have
+a valid group and AEMS record. Compare stored f32 values with tolerance 1e-6 except exact
+flags, channels assigned from parameters, and unchanged values.
+
+| ID | Inputs | Expected observable result |
+|---|---|---|
+| WC8-01 | F=-1, R=-1, v=0.1, dt=100 | Gear 0, q=0, v remains 0.1 in the translator. A separate coasting drive tick reduces v to 0.095. |
+| WC8-02 | F=3000, R=150, v=0, dt=100 | Forward wins: gear 2, q=3000, target 0.3, v=0.1 (A=0.1). |
+| WC8-03 | F=-1, R=2000, v=0.005, dt=100 | Gear 1, q=-2000, target -0.1, B=0.01, v=-0.005; reverse channel rewritten to 150. Speed crosses zero. |
+| WC8-04 | F=3000, R=-1, v=-0.005, dt=100 | Gear 2, q=3000, target 0.3, v=0.005; forward channel rewritten to 0. |
+| WC8-05 | F=3000, R=-1, v=0.3, dt=100 | Keep v=0.3; replace F with the inverse-speed curve (approximately 3000), rather than decelerating. |
+| WC8-06 | L=100, R=-1, T=0, dt=10 | Negative response yields T=-0.1. |
+| WC8-07 | L=-1, R=100, T=0, dt=10 | Positive response yields T=0.1. |
+| WC8-08 | L=100, R=100, T=0, dt=10 | First response T=-0.1; second response returns toward zero by 0.05 and clears L: T=-0.05. This is not neutral. |
+| WC8-09 | L=-1, R=-1, T=-0.2, dt=10 | Return step r=0.01: T=-0.19. |
+| WC8-10 | L=0, R=-1, T=-0.2, dt=10 | Rebase L to 190, then T=-0.19. With mirrored R=0, L=-1, T=0.2, R becomes 210 and T=0.21. |
+| WC8-11 | Group 0x4409, stopped skier, toggle=1, v=0 | Effect stays stopped; owner does not clear toggle. Next call with toggle=1 and v>0 can start it. |
+| WC8-12 | Group 0x4409, running skier, toggle=0, v=0 | Stop effect with argument true; no toggle-byte write. |
+| WC8-13 | Group missing, arbitrary channels and v | Return false without selecting a gear or changing speed/steering. Same for missing AEMS after parent fallback. |
