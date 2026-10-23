@@ -1,16 +1,51 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-effects-commands5c (effects parser owner closure) | Codex / `core-effects-commands5c` | in progress | Implement EF15, EF16 and EFP7; audit owner closure and run full gate |
+| core-effects-commands5c (effects parser owner closure) | Codex / `core-effects-commands5c` (detached worker HEAD) | ready; cargo 6454/0, Clippy clean, CTest 69/69; ABI unchanged | Coordinator reviews and publishes commits to reserved lane branch |
 
-## Handoff
-- Goal: close effects-parser owner rows using answered EF15/EF16/EFP7 contracts; core only, no ABI/plugin changes.
-- Done: `e8180169` implements EF15 nested owners/block state, EF16 handler equality and EFP7 extended arithmetic/NQ fixtures.
-- Audit: `7524993b` updates module README closure rows through EC305/NQ17; constructor, append, reader, error and rotation contracts rechecked. No new spec questions.
-- Focused parser runs: 88/0 then 90/0. Latest additional numeric rounding/sticky-bit fixture awaits full gate. Earlier 87/1 failure was a switch-marking test assumption, corrected; evidence `build-runs/focused-1.txt`.
-- First full gate terminal: tests 6454/0; Clippy failed manual_checked_ops and field_reassign_with_default; native build 220/220 and CTest 69/69 passed, tree-changed annotation. Full evidence preserved in `build-runs/gate-1/`.
-- Corrected both Clippy diagnostics. Numeric audit found reciprocal PC64 needed actual guard bits plus sticky; added exact extended 1/3 intermediate fixtures for all controls. Numeric focused tests 4/0; fmt 8 files clean.
-- Next: run corrected stable-source full gate once, collect terminal result, write final report and enqueue. Do not mutate files during that run.
-- Numeric control explicitly parameterized by PC24/53/64 and four RCs; masked canonical domain only. Rotation transcendental service stays foreign as §13 allows.
-- Wrapper q.py failed before compilation (Bash mapping error); focused Cargo ran directly in PowerShell. Formatting applied through apply_patch from temporary rustfmt copies.
-- No game requests outstanding. Full final gate has not run.
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-effects-commands5c-r1-manifest.json`.
+## Report
+
+Closed every EF15/EF16/EFP7 open row in
+`engine/core/src/effects_parser/README.md`. No published command-owner section
+remains open. Core-only changes; no plugin, C API, ABI exports/version, generated
+ABI entries or coverage-map changes. No new questions filed.
+
+- EF15, effects §§19.53–56: named particle/dynamic/decal/visual references,
+  auxiliary shake/flash/tint entries, chain replacement, anonymous sound/brush/
+  scrubber (four aliases)/automata/camera payloads, and select/particleSequence
+  hooks. Preserve validation order, raw names, insertion-before-options,
+  failure-prefix writes, camera's overlapping byte and select's count/tail quirks.
+- EF16, §19.52: effectGroup instance registration now equals the root instance
+  descriptor and handler literally; existing instance execution tests retained.
+- EFP7, effects-parser §14: canonical extended operands, PC24/53/64 and all four
+  rounding modes; independent scale stores and original comparisons; separate
+  probability multiply/add/store boundaries; nonfinite, signed-zero, overflow
+  and gradual-underflow results. Reciprocals retain actual guard/sticky bits.
+- Owner closure maps every answered row to code and tests through EC305/NQ17.
+  Twelve new test groups cover all 29 new EC vectors and all 17 NQ vectors,
+  plus failure prefixes and control-dependent arithmetic intermediates. Existing
+  registration, reader, error, append, directory, lifetime and rotation tests
+  were rechecked. The §17 runtime/vector coverage table remains explicit about
+  runtime owners and shipped-data censuses outside command scope.
+
+Final stable-source gate on `abcc5204`: **qbuild PASS**. Workspace Cargo
+**6454 passed, 0 failed, 0 ignored**, including **91 effects_parser tests**;
+Clippy **0 diagnostics** with `-D warnings`; native build **47/47 edges**
+(65.5 s), full CTest **69/69** (132.7 s), native total 200.1 s. Owned-file fmt
+passed for all eight edited Rust files with zero differences. Logs:
+`build-runs/qbuild-{test,clippy}.log`, `build-runs/fc4verify-{build,ctest}.log`.
+
+Earlier evidence is preserved: `build-runs/focused-1.txt` records the corrected
+switch-marking assertion; `build-runs/gate-1/` holds complete logs of the first
+full run (6454/0, two Clippy diagnostics, native 69/69, tree-changed annotation).
+The Clippy fixes and reciprocal intermediate audit are in `abcc5204`.
+Implementation and owner-audit milestones: `e8180169`, `7524993b`.
+
+Game/shadow: **n/a**. No game request or replacement/shadow switch is introduced;
+no native parser or live control-word parity is claimed. Numeric results
+stipulate canonical operands and masked exceptions. Reserved/noncanonical
+inputs have no qualified result; unmasked exception delivery and unqualified
+rotation/transcendental domains remain foreign as the spec permits. These are
+explicit qualification boundaries, not remaining EF15/EF16/EFP7 questions.
+
+Next: coordinator reviews the owner closure and publishes the actual detached
+HEAD to the reserved branch before integration. No game request is outstanding.
