@@ -12,10 +12,10 @@
 //! point at that spec. Open points are tagged `[choice]` and carry a question
 //! id (GCn) in `docs/specs/questions/command-system.md`.
 //!
-//! The command server (`cGZCommandServer`) and message server 2 are **not**
-//! implemented here: the spec lists only the slots these classes call (§5),
-//! so they are typed callback traits ([`CommandServer`],
-//! [`CommandMessageServer`]). The converting variant getters
+//! The command server is implemented in [`server`] from `gz-framework-core.md`;
+//! the original typed callback [`CommandServer`] remains the generator boundary.
+//! Message server 2 is in `gz_messages`; [`CommandMessageServer`] is its adapter.
+//! The converting variant getters
 //! (`GetValString`, `GetValSint32`, data-formats.md §5.1) are a callback trait
 //! too ([`ValueConvert`]); `fc4_formats::command_values` provides the exact
 //! one.
