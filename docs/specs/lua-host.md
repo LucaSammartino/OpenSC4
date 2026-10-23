@@ -602,7 +602,7 @@ without moving the supplied arguments. The respective texts are `Resuming Lua th
 ID: %d.`, `Lua thread %d is already running.`, and `Lua thread %d is only resumable by its parent.`
 Otherwise it moves nargs values to the child, marks it running, invokes Lua resume, clears the
 marker if still registered, moves **all** child stack values back to the source, then attempts
-automatic destruction when bit 1 is absent and Status is 0. Both yield and normal completion
+automatic destruction when mask `0x1` is absent and Status is 0. Both yield and normal completion
 with Lua resume code zero count as success; runtime errors return false. The host does not
 translate error codes into thread-status values (`0x008BD040–0x008BD16E`).
 
@@ -800,7 +800,7 @@ references are distinct.
 
 Generator Init accepts the named Lua global if a table, creates it if nil, otherwise unregisters
 its generic view and returns false (`0x008B67AF–0x008B6810`, `0x008B6847–0x008B6876`). Failed
-command registration also returns false. True status follows remaining setup (`0x008B68BE–0x008B68CE`)
+command registration also returns false. True status follows the setup in §6.3.2.1 (`0x008B68BE–0x008B68CE`)
 and does not promise later command success. The owner handles false by the clear/release and
 Lua Close sequence above. A false factory result is followed by a null-pointer test; this does
 not validate a factory reporting true with null output.
@@ -838,6 +838,118 @@ fixed-address calls or permit using the original ScriptServer as a scheduler/ada
 | Borrowed versus acquired | AsIGZCommandGenerator adds no reference; explicit QI for `0B90251F` does. Do not Release the conversion result separately. |
 | Temporary inputs | Release temporary CommandServer and destroy `sc4app` string immediately after generator Init. Successful retained thread/server references and string copy survive that cleanup. |
 | Shutdown and failure status | RemoveFromTick, KillScript loop, borrowed-view Shutdown, clear/release generator, Lua Close, clear/release Lua. False foreign Shutdown does not stop cleanup or change owner's true result. Second owner Shutdown with clear latch has no foreign calls. |
+
+##### 6.3.2.1 Command-generator construction and initialization (LH5)
+
+The generator owns the Lua binding of CommandServer commands, rather than implementing the commands.
+Construction (`0x008B6480–0x008B6520`) starts reference count zero, null main-thread/server/input-set/
+output-set references and an empty global name. It constructs 500 default command records, an empty
+free-index list and an empty ID-to-index map (bucket sizing argument 100). These records are not 500
+registered commands. Successful specialized Init clears the logical record array and both working
+collections. Reference counting is the shared Unknown rule in §6.2.1.
+
+The generic view has exactly these operations after Unknown. Vtable words at `0x00AC8BC4` establish
+their order; the exported name of the generic Init body belongs to a folded unrelated class.
+
+| Slot | Contract | Body |
+|---|---|---|
+| 3 | Generic Init(), no arguments: false, no setup | `0x00648EF0` |
+| 4 | Shutdown(), bool | `0x008B68D0` |
+| 5 | CommandRegistered(commandID, name string reference, description string reference), bool | `0x008B6A00` |
+| 6 | CommandUnregistered(commandID), bool | `0x008B5A40` |
+
+The three-argument Lua-specific Init remains the entry specified above. It registers the generic view
+before obtaining/retaining the main thread. The global lookup and one-value pop leave the previous
+stack depth unchanged; a nil global is replaced by a new table, and an existing table is preserved.
+Once accepted, retain the main-thread view and the actual **CommandServer argument**, copy the name,
+and allocate/construct two independent `0x28` CommandParameterSets, retained as input and output.
+Then clear the record array, free-index list and ID map and return true
+(`0x008B6810–0x008B68CE`). There is no subsequent command-enumeration call, callback installation,
+or initialized latch in this tail. Commands arrive through registration notifications. Registration's
+foreign callbacks occur at the earlier call boundary; no promise of deferred notification or readiness
+during a reentrant callback is added by this Init.
+
+There is no null check of the borrowed main view or of the parameter sets after assignment. A failed
+parameter-set allocation stores null and Init still returns true; later command callbacks require usable
+sets. Neither a successful Init result nor generic Init supplies a failure-recovery allocation policy.
+Invalid inputs or failed registration return false before endpoint/name/set mutation. Invalid global
+type additionally invokes UnregisterCommandGenerator and returns false, still without replacing
+previously retained state. That unregistration result is ignored.
+
+Repeated specialized Init has no already-initialized shortcut: it re-registers, revalidates the new
+global, replaces retained references/name/sets on success and clears bookkeeping. It does not first
+unregister a previous server or remove bindings from an old global table. Even using the same server
+does not repopulate records by enumerating its commands in the success tail. Callers that need a
+clean registration lifecycle use Shutdown; do not infer transactional replacement on repeated Init.
+
+##### 6.3.2.2 Command notifications and generated callbacks (LH5)
+
+Each record contains a command ID, name and description. The map selects its array index. A free
+index is reused from the front of the free-index list. If none exists, append 20 default records and
+make those indices available in ascending order, then take the first. A new CommandRegistered copies
+both strings and installs a C closure under `globalTable[name]`, capturing **index as a number**,
+**generator allocation pointer as light userdata**, and **retained main-thread view pointer as light
+userdata**, in that order (`0x008B6A00–0x008B6C28`). It saves and restores the main stack depth.
+If the global has ceased to be a table, return false after record/map insertion; there is no rollback
+of the consumed index or strings. For an existing ID with a valid matching record, return the stored
+name's equality result with the supplied name (comparison flag 1); do not update the description,
+replace a closure or inspect the global. Name collisions between different IDs overwrite the same
+Lua table field; the map remains keyed by ID.
+
+CommandUnregistered requires a map entry, in-range index and matching record ID. Missing/stale entries
+return false. Otherwise push the index onto the **front** of the free list, erase the map entry,
+look up the current global, and if it is a table assign nil at the stored name. Pop the lookup value
+and return true, even if the global was not a table (`0x008B5A40–0x008B5B62`). The array record
+and its strings remain until reuse/clear. Removal does not test that the table field still contains
+this generator's closure: it can erase a caller replacement or a colliding command's binding.
+
+The closure (`0x008B5B70–0x008B5E6A`) obtains the invoking context's thread backpointer. It accepts
+its captured generator only if non-null with a retained server, the captured main-thread pointer equals
+the generator's current retained view, and the captured index converted to integer is nonnegative and
+within the record array. It does **not** check the map, record ID against the originally registered
+ID, or whether this invocation is on the captured main thread. A saved Lua closure can therefore
+execute a removed record or, after index reuse, the new command occupying that index. The light
+userdata captures acquire no reference; calling a closure after generator destruction has no valid
+lifetime contract.
+
+On an accepted call, clear both parameter sets with Clear(0), then add each Lua argument under keys
+0, 1, …, preserving argument order. Conversion is by exact Lua type:
+
+| Lua argument | Input variant |
+|---|---|
+| Boolean | Bool |
+| Number | Float64; no intermediate Float32 |
+| String | Copied framework string |
+| Nil, table, function, userdata, light userdata, thread, any other type | Float64 zero |
+
+Dispatch CommandServer `+0x50` with `(record.commandID, inputSet, outputSet)` and push its signed
+32-bit status converted to a Lua number as the **first** result. Do not use status as a Boolean
+or suppress output on failure. Enumerate output keys using First/Next (`+0x34/+0x38`) to sentinel
+`0xFFFFFFFF`; skip key `0x2B999D2B`. For each other key push nil if lookup yields null; otherwise
+variant type 1 becomes Boolean, types 2 through 14 become a Lua number via Float64 conversion,
+and all other types become a string through the variant's string conversion. Enumeration order
+is the parameter set's order; no numeric-key sorting occurs here. Return one plus the number of
+non-skipped entries. No output keys means the sole result is command status. A failed closure
+validation instead returns exactly one Lua number **2**, without executing or clearing sets.
+Numeric widths are verified by double stores at `0x008B5CC5`, `0x008B5D31`, `0x008B5DAB`;
+the fallback double 2 is at `0x00A80AC8`, loaded at `0x008B5E40`.
+
+##### 6.3.2.3 Cleanup and failure boundaries (LH5)
+
+Shutdown unregisters the generic view from the retained server and preserves that bool as its
+result (true with no retained server). It then clears/releases server, main thread, input set,
+output set, and clears records, free list and ID map, even after false unregistration. Global
+name survives. It does **not** enumerate the records to remove Lua bindings or delete the global
+table. Any binding removals caused by foreign unregistration notifications belong to those calls;
+Shutdown itself does not synthesize them (`0x008B68D0–0x008B6992`). Repeated Shutdown with no
+retained server returns true and repeats empty collection clearing.
+
+The destructor (`0x008B61C0`, deleting dispatch `0x008B6530`) destroys name/storage and releases
+remaining server, output set, input set and main-thread references. It does **not** call Shutdown
+or UnregisterCommandGenerator. Releasing an external reference does not force destruction while
+the CommandServer still retains registration. Allocation failures, destroyed captured pointers and
+arbitrary recursive calls sharing the two working sets have no extra recovery/reentrancy guarantee.
+These are separate failure boundaries from the ordinary false returns above.
 
 #### 6.3.3 Control and inspection
 
@@ -1557,3 +1669,36 @@ The `cIGZLua5`/`cIGZLua5Thread`/`cIGZLuaScriptServer`/`cISCStringDetokenizer` vt
 18. **T18 precision.** From a 24-bit context, `DoString("x = 1/3")` then `ToNumber` of `x` →
     `0.333333333333333314829616256247…` (a double, not `0.3333333432674408`). After the call the precision is
     24-bit again.
+
+### 16.1 Thread and command-generator vectors (LH4/LH5; specified, not executed)
+
+These are independent contract vectors for implementers. Observe stack values, references, registry
+membership and endpoint call order, using controllable factory/hooks/command services. They require
+no original-host forwarding. They do not claim that executable conformance coverage already exists.
+
+| Vector | Input / initial state | Expected observation |
+|---|---|---|
+| LH4-A | Fresh concrete thread | ID -1, context/owner/user null, count 0; IsValid false, Status -1, Destroy false |
+| LH4-B | Open fresh base host; repeat base Open | First true, main ID 0 and Status 2; second false; AsIGZLua5Thread and GetThread(0) borrow |
+| LH4-C | Main stack `[lower,F]`; CreateThread flags 1, valid factory | Stack `[lower]`; owned child output ID 1; child stack `[F]`, Status 1; root and backpointer installed |
+| LH4-D | Same stack; factory false, or OnCreate false | ID -1, output null, stack `[lower]`; no record/root; release factory temporary, no OnDestroy; next ID unchanged |
+| LH4-E | Destroy ID 1; create again; then Close/Open | Next child ID 2; after reopen main ID 3; removed IDs are not recycled |
+| LH4-F | Main OnCreate override false after writing context/retaining owner | Open false; context/owner mutations survive, registry owner retained, no record/root or counter increment; no Lua close |
+| LH4-G | Successful resume, T=3, nargs=2, child returns `[A,B]` | True; main `[lower,A,B]`, count 2; child empty. With null count output main `[lower]` |
+| LH4-H | Invalid ID, T=3, nargs=2 | False; reporter gets null/code 1/error text; main retains arguments plus error, count 3; null count output leaves one lower value |
+| LH4-I | Child with flags 0 completes; then same with flags 1 | First record removed and retained wrapper invalidated; second remains with Status 0 and empty child stack |
+| LH4-J | Child yielding one value, then completion | Yield reports true and returns that value on main; child Status 1 while frame survives; completion follows flag-based removal rule |
+| LH4-K | Thread OnDestroy, user context P | Context null, owner released, ID -1, user still P; hook alone does not erase registry entry |
+| LH4-L | Attached child; requester neither child nor parent | Destroy false without mutation; null requester succeeds; parent destruction removes descendants first |
+| LH5-A | Generic Init on fresh generator | False; no registration, endpoint retention or parameter allocation |
+| LH5-B | Specialized Init with nil global and successful registration | Create table, retain thread/server, copy name, create two sets, clear bookkeeping, true; no success-tail enumeration |
+| LH5-C | Specialized Init with existing table / number global | Table identity preserved and true / register then unregister, false, original stack depth preserved |
+| LH5-D | Parameter-set allocation returns null | Specialized Init still true with null stored set; command execution is not a supported null-set path |
+| LH5-E | Register ID A/name `x`; register A/name `y` | First installs closure; second returns stored-name comparison, changes neither name nor binding/description |
+| LH5-F | Register A/`x`, B/`x`; unregister A | B overwrites `x`; removing A clears `x` despite B's live map entry |
+| LH5-G | Saved A closure; unregister A; register B reusing index | Old closure uses B's record; no original-ID validation. Saved A before reuse can still dispatch A |
+| LH5-H | Callback args `(true,1.25,"x",nil,{})`; command status -7 | Input keys 0–4 = Bool true, Float64 1.25, String x, Float64 0, Float64 0; first Lua result -7 |
+| LH5-I | Output enumeration keys `[9,0x2B999D2B,2]`, values Bool false/reserved/null | Results `[status,false,nil]`, count 3; reserved skipped, order unchanged |
+| LH5-J | No output parameters / captured main pointer mismatch | `[status]` / `[2]`; mismatch does not clear sets or call server |
+| LH5-K | False UnregisterCommandGenerator during Shutdown | False result, but all four owned endpoint/set references released and bookkeeping empty; global name survives |
+| LH5-L | Shutdown twice; then destroy | Second true with no unregister; destructor does not synthesize unregister or remove Lua globals |
