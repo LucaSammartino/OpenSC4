@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-traffic-flake5: traffic shadow interleaving | Codex, glue-traffic-flake5 | in progress | Final gate, native queue verify, then two city runs |
+| glue-traffic-flake5: traffic shadow interleaving | Codex, glue-traffic-flake5 | in progress | Diagnose remaining 18 -> 2 density divergence; not ready |
 
 ## Handoff
 - Goal: fix traffic shadow interleaving at its root with a reproducing test; two exact city runs through 2032.
@@ -13,8 +13,9 @@
 - Native: qbuild all itself queued build+ctest as qbuild-20261023-215222-build-ctest through the coordinator (same route as verify); do not submit duplicate verify while it is queued.
 - Native completed: qbuild all PASS, native build 220/220 edges (92.3 s), CTest 69/69 (152.5 s); build+ctest 249.3 s. Session 42673 was collected to its terminal exit 0. This used the coordinator native queue, not a direct MSVC build.
 - Done: traffic-flake5-4883-turbo1 reached 2032-01-01 clean, ref_warnings=0, traffic-flake5-4883-turbo1 72/72, resynced lines 0, INCOMPLETE 0 (347.047 s, 362 s wall). Record: docs/runs/traffic-flake5-4883-turbo1.md (run 330).
-- Outstanding: traffic-flake5-4883-normal1, same city/settings/DLL at normal speed (turbo=0), end_date 2032-01-01. Collect its unique verdict via build-runs/wait-game.ps1; accept an already completed verdict. No other game request outstanding.
-- Next: inspect normal verdict and exact shadow count, write its run record and final report, commit, then write ready merge-queue entry only if all shadow lines exact.
+- Done: traffic-flake5-4883-normal1 reached 2032-01-01 clean, ref_warnings=0, but SHADOW FAILED 70/73, resynced lines 1 (427.984 s, 443 s wall). Record: docs/runs/traffic-flake5-4883-normal1.md (run 331). Both wait sessions collected to terminal; no requests outstanding.
+- Remaining: train152 class reproduced on normal 2028-03-28, state 18 -> 2, units 43: 45/479920 edge-density bytes, car length sum/count, two lot trip lists, 33 volume-grid tracts differ; holder properties exact. Next-day drift and April monthly mismatch also preserved. Not verified; no merge queue entry yet.
+- Next: diagnose normal log failure before claiming root complete. Lot (31,89) trip 0 orig count 3 dest (28,55), ours count 55 dest (12,57), list lengths both 18; lot (38,106) trip 10 printed fields identical but underlying bytes differ, list lengths both 12. Need distinguish source/trip order, suspended search replay, or another after-phase input change. Sentinel fix definitively reproduces train155 counter class only; remaining cause not proven.
 - DLL SHA256: 9FCE084FAEFEC1AFAE36352DBC1B7B189363F2A76499675877FF00A2A1F01DED (19,225,600 bytes; native build 2026-10-23 22:29 BST).
 - Planned city checks: original traffic + traffic_shadow=1, turbo to 2032-01-01, then normal speed to that date. build-runs/wait-game.ps1 waits directly on a unique verdict, without qwait; always accept a verdict already present for that unique label.
 - Evidence sources: main build-runs/regress-train152-shadows.log and regress-train155-shadows.log (copy into local build-runs before reading).
