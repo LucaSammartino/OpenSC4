@@ -38,13 +38,14 @@ validation, foreign-call ordering and vectors must be published before ready.
 ## Handoff
 - Goal: publish effects-script command behavior for the engine lane; no engine edits.
 - Done: 62390a5d publishes reader/directory/lifetime; 16f94ae2 adds dispatch/error contracts. Both pass doccheck/questions checks.
-- Published total: effects-parser §§9–13 and effects §19; 73 static vectors; EFP1–EFP6 answered, EF15 and EFP7 open.
+- Published total: effects-parser §§9–13 and effects §19; 95 static vectors; EFP1–EFP6 answered, EF15 and EFP7 open.
 - Done round 2: effects-parser §13 answers EFP2: all five rotation branches, turns not degrees, asymmetric intermediate stores, six static vectors; questions/doccheck passed.
 - Done round 2: eee0dd22 closes EFP2; effects §19.4–19.6 now documents seven identifier/trigger handlers plus resource enter/exit/import, 18 further static vectors.
 - Done: 790c6cff publishes identifier/resource contracts; §19.7–19.8 adds camera and priority declarations, ten static vectors; camera span truncates/clips, priority exact-name duplicates keep first.
 - Done round 3: effects §19.11–19.12 publishes testEffect, eight static vectors EC43–EC50; instruction-verified transforms, terrain height+4, preview retention before setters, late options and failure prefixes.
-- Exact next step: publish six root definition-block entry/exit contracts and constructor defaults, starting particles 005A1A50 / 0059D9B0. DynamicParticle labels Parse/EndBlock are reversed; descriptor hooks establish roles.
-- EF15 remains open: §19 covers 14 of 21 root descriptors; testEffect and the six other definition blocks still require execution contracts, plus nested handlers and full class inventory.
+- Done round 3: effects §19.13–19.15 publishes all six root definition block entries/exits, constructor defaults, inheritance rules and EC51–EC64; doccheck/questions checks passed.
+- Exact next step: verify nested dictionary registrations and publish child contracts, starting cParticleEffectCommand::RegisterCommands 005958F0; build-runs/inventory.py is navigation only and misses folded/common handlers.
+- EF15 remains open: §19 now covers entry/exit or direct execution of all 21 root descriptors, but nested handlers and full class inventory still require publication.
 - Corrected prior spec error: AddRef/Release are F3C0/F3D0, not F3E0/F3F0; destructor 005A27F0 -> 0059F4E0.
 - Static evidence only; no game requests, no ABI changes. EFP7 deliberately outside task.
 - Ignored helpers: build-runs/peek.py (PE data/import/reference reads), inventory.py (registration navigation only).

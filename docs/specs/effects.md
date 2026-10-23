@@ -2198,3 +2198,198 @@ return without modifying their input transform.
 | EC48 | valid preliminary options; exists=false | `No such effect`; no create or late option lookup |
 | EC49 | exists=true, create=false with nonnull I; speed token invalid | no append or setter or speed conversion; normal local Release I |
 | EC50 | create=true with I; source/instance setters return; speed conversion throws | I already retained in preview list and both transforms sent; no target/hard lookup, hard list unchanged; exception propagated without rollback |
+
+### 19.13 Component definition blocks: names, defaults and inheritance
+
+These are six separate root owners, with entry/exit hooks established by the
+descriptor slots, rather than the sometimes reversed exported Parse/EndBlock
+names. They build named definitions in the collection at `P+90`; they do not
+append references to the current `effect` description. They have no owner
+guard against an already nonempty definition name and do not save an outer
+definition for restoration. Dispatch and generic block-stack rules remain
+effects-parser §12. Child algorithms remain separately required by EF15.
+
+| Literal / owner | Descriptor | Entry / exit | Live name / description | Collection inherit / publish slots |
+|---|---|---|---|---|
+| `particles` / `cParticleEffectCommand` | `00A9F960` | `005A1A50 / 0059D9B0` | `P+E0 / P+F0` | `+20 / +1C` |
+| `dynamicParticle` / `cDynamicParticleEffectCommand` | `00A9F97C` | `0059DB00 / 0059DCF0` | `P+2FC / P+30C` | `+28 / +24` |
+| `decal` / `cDecalEffectCommand` | `00A9F998` | `0059DD80 / 0059DF50` | `P+350 / P+360` | `+30 / +2C` |
+| `shake` / `cShakeEffectCommand` | `00A9F9B4` | `0059DFE0 / 0059E260` | `P+3C8 / P+3D8` | `+38 / +34` |
+| `light` / `cLightEffectCommand` | `00A9F9D0` | `0059E2F0 / 0059E4D0` | `P+404 / P+414` | `+40 / +3C` |
+| `sequence` / `cSequenceEffectCommand` | `00A9F9EC` | `0059E600 / 0059E780` | `P+480 / pointer at P+490` | no inheritance / `+44` |
+
+For the **first four blocks**, the entire token-container count must exceed
+one, otherwise entry throws `No name specified!` before changing the name or
+description. Raw record 1 is the name, including when it begins with a dash;
+the positional/switch finders are not called. Name bytes are copied with case
+preserved. Entry replaces the description with the defaults below, then checks
+the optional inheritance clause against **raw** records: if record 2 exists,
+its complete string must equal `:`, or `Expecting ':'` is thrown. Record 2
+alone is accepted as a trailing colon. If record 3 exists and the collection
+is nonnull, its string is sent to the inherit slot with the live description
+as output. A false reply throws `Unknown particle definition: %s` for
+particles, dynamicParticle **and decal**; shake uses
+`Unknown shake definition: %s`. The output is not restored on a false reply.
+With a null collection the inherit call and unknown-name error are omitted.
+Records after record 3 are not read by these owners. No inline options are
+recognized here; a dash in record 2 is a bad colon, not an option.
+
+For **light**, entry instead calls FindNonSwitchIndices with minimum one,
+ignores AL, and copies selected name 0 preserving case. It resets its
+description, then applies the same colon rule to selected record 1, if any.
+Selected record 2, if any, supplies the inherited name to collection slot +40.
+Failure throws `Unknown light definition: %s`. Further selected records are
+ignored. These selected records need not be adjacent raw records. No switch
+lookups are performed by light entry.
+
+On successful inheritance, the collection's output replaces/changes the reset
+description; defaults are not overlaid again. With no inheritance or with a
+null collection, reset values remain. Only after this work returns does entry
+invoke the generic block-entry service. Thus name assignment and reset survive
+a bad colon or failed inheritance, but no generic block is entered on those
+exception paths. The foreign collection performs the named lookup/copy;
+returning an already parsed child-command result is not an owner primitive.
+
+The **particles** entry additionally sets `P+494` to the last four-byte element
+of the description list at `P+2A8` (zero when empty), and `P+498` to binary32 1,
+after successful inheritance and before block entry. These scratch writes are
+omitted on a preceding failure. Other definition entries do not do them.
+
+The following tables specify the reset state in native field coordinates
+relative to each description, denoted D. They are logical values: lists are
+copied/cleared, not shallow-copied allocator pointers. Padding and allocation
+capacities are not conformance values. Field coordinates avoid inventing
+semantic names for fields whose child command is still being researched.
+All decimal scalar values below are binary32 unless explicitly called an
+integer, byte or word.
+
+**Dynamic particle reset:** integer `D+08=0`, empty string at `D+0C`,
+`D+18=1`, words `D+1C,+20,+24,+28,+2C,+30=0`, empty word list at `D+34`.
+The existing description's reference-count identity is retained; assignment
+does not replace it with the temporary's identity. Constructor `005836A0`
+and assignment `00583750–005837AC` establish these values.
+
+**Decal reset:** integer words `D+00,+04=0`, byte `D+08=0`, byte `D+09=1`,
+`D+0C=5`; float lists `D+10=[0]`, `D+1C=[1]`, `D+28=[1]`,
+`D+40=[1]`; vector list `D+34=[(1,1,1)]`; words `D+4C,+50,+54=0`,
+`D+58=1`, `D+5C,+60=0`. Bytes `+0A,+0B` are not assigned.
+Evidence: `00582FE0–00583123`, assignment `005833F0–00583471`, vector
+constant `00B0A214`; the list-construction helper `00581F20` uses signed
+integer-to-float conversion, so integer initializer 1 produces float 1.
+
+**Shake reset:** `D+00=5`, `D+04=1`, float list `D+08=[1]`, float list
+`D+14=[60]`, `D+20=1`, integer `D+24=0`. The lists are first cleared;
+these are single-element defaults, not appended to a previous definition.
+Evidence: `0059E09F–0059E17F` (constants `40A00000`, `3F800000`,
+`42700000`).
+
+**Light reset:** empty vector list `D+00`, empty float list `D+0C`,
+`D+18=2`. Unlike shake, these lists are populated with fallback values at
+**exit**, not entry (`0059E392–0059E3CD`).
+
+**Particles reset:** base constructor `005B0FE0–005B1527`, assignment
+`005B17F0–005B1C77`, wrapper `005B1CB0`. The scalar state is:
+
+| Field coordinates within D | Reset value |
+|---|---|
+| `+0C,+10` | 2 |
+| `+14,+34,+40,+118,+124,+154,+170,+1B0` | 1 |
+| `+20,+24,+28,+2C` | -1 |
+| `+50,+54,+58` | -1 |
+| `+5C,+60,+64` | 1 |
+| `+14C` | bit pattern `CE6E6B28` |
+| `+158,+15C` | -10000, +10000 |
+| word `+16C`, word `+16E` | integer 0, integer 1 |
+| `+174,+178`; `+17C,+180` | 5; 50 |
+| `+184,+188` | `3DCCCCCD`, `3E4CCCCD` (binary32 0.1, 0.2) |
+| `+1F0,+200` | 4 |
+| bytes `+D4,+D5` | 0 |
+
+Other **assigned scalar** words are zero: `+00,+04,+08,+18,+1C,+30,+38,
++3C,+44,+48,+4C,+68,+6C,+70,+74,+78,+7C,+80,+84,+D0,+D8,+DC,
++E0,+E4,+E8,+EC,+F0,+F4,+F8,+FC,+100,+104,+114,+11C,+120,+128,
++138,+13C,+140,+144,+148,+150,+18C,+190,+194,+198,+19C,+1A0,+1B4,
++1C4,+1D8,+1DC,+1EC`. In particular the zero vector defaults loaded from
+`00B22D54` are in the PE virtual zero-fill region. The string at `D+160`
+becomes empty. The description lists are:
+
+| List coordinate | Reset contents |
+|---|---|
+| `+88` | `[30]` |
+| `+94` | `[(1,1,1)]`, constant `00B0A5D4` |
+| `+A0,+AC,+B8` | each `[1]` |
+| `+C4` | `[0]` |
+| `+108,+12C,+1A4,+1B8,+1CC,+1E0` | each empty |
+| `+1F4` | `[400]` |
+
+Do not treat this as a byte-zeroed object: `D+1C8` is copied from an
+uninitialized temporary word, and padding at `+D6,+D7` is not assigned.
+The wrapper constructor sets its temporary `+204` to zero, but the assignment
+wrapper copies only the base; the live description's `D+204` therefore
+**retains its previous value** at entry. An implementation must not assert a
+deterministic zero for either `+1C8` or `+204` based on this reset. This
+distinguishes logical base assignment from constructing an entirely new live
+particles object.
+
+### 19.14 Definition publication and sequence ownership
+
+On normal exit, particles, dynamicParticle, decal and shake call the publish
+slot in §19.13 with `(currentName,&liveDescription)` when the collection is
+nonnull. They ignore its result, then clear their live name to empty. A null
+collection omits publication but still clears the name. The description stays
+in place; no default reset, inheritance, parent restoration or option parsing
+occurs at exit. If publication throws, the name clear is not reached. Exit
+does not itself guarantee a nonempty live name. Evidence: `0059D9B0–0059DA34`,
+`0059DCF0–0059DD74`, `0059DF50–0059DFD4`, `0059E260–0059E2E4`.
+
+**Light exit** first fills an empty float list at `D+0C` with `[1]`, then
+fills an empty vector list at `D+00` with `[(0,0,1)]`. Existing nonempty
+lists are left intact. These fallbacks occur even with a null collection.
+It then publishes/clears the name as above. Thus a publication exception leaves
+the fallback list mutations and name in place. Evidence:
+`0059E4D9–0059E590`, constant `00B0A518`, name clear `0059E590–0059E5EF`.
+
+**Sequence entry** uses FindNonSwitchIndices minimum one, ignores AL, and
+copies selected name 0, preserving case; all other positional selections are
+ignored. It does not interpret `:` or perform inheritance. It allocates a
+new 28-byte sequence description with empty element list (`+0C`) and flags
+word `+18=0` (`005BDF10–005BDF42`). It installs the new pointer at `P+490`,
+taking a reference through new object's slot +10 before the store, then
+releasing the old nonnull pointer through slot +14. Equal-pointer assignment
+omits those reference operations. It then processes presence-only switches
+`loop`, `noOverlap`, `hardStart` in that order, minimum zero values, ORing
+flags 1,2,4 respectively into the installed description. There are no owner
+range checks, positional upper bound, or automatic sequence elements. Finally
+it enters the generic block. Name assignment precedes allocation; description
+replacement precedes option lookups. Allocation failure is not a proven
+recoverable command error: it installs null, and present flags dereference that
+pointer. Do not add an inferred parse-error message for allocation failure.
+Evidence: `0059E60B–0059E6DF`, flags `0059E6DF–0059E748`, block entry
+`0059E748–0059E76F`.
+
+**Sequence exit** publishes `(currentName,currentDescriptionPointer)` to
+collection slot +44 if nonnull, ignoring its result. It clears the name, then
+clears `P+490` before invoking the old nonnull description's slot +14. With no
+collection it still clears/releases. Publication failure retains name and
+pointer. Unlike the other definition exits, a normal sequence exit does not
+retain the live description pointer (`0059E780–0059E812`). Collection-owned
+retention is the independent collection primitive's contract.
+
+### 19.15 Definition-block conformance vectors (unexecuted)
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC51 | each of particles/dynamicParticle/decal/shake with command token only | `No name specified!`; old name/description unchanged; no generic block entry |
+| EC52 | `decal Name :`; old lists populated | live name `Name`; exact decal defaults of §19.13; no inherit call; block entered |
+| EC53 | `shake Name wrong Parent` | live name assigned, shake defaults installed including `[1]` and `[60]`; `Expecting ':'`; no inherit/block entry |
+| EC54 | `dynamicParticle Name : Parent ignored`; collection inherit +28=false after writing a field | defaults then +28 called with Parent/output description; `Unknown particle definition: Parent`; foreign output mutation/name retained; no block entry |
+| EC55 | `decal Name : Missing`; null collection | defaults retained; no unknown-name error; block entered |
+| EC56 | `particles -Name`; two raw records, existing D+204=123 | name `-Name` accepted as raw string; defaults installed with D+204 still 123; D+1C8 unconstrained; P+494=0 from empty default +1B8 list, P+498=1; block entered |
+| EC57 | particles inheritance succeeds and writes rate list at P+2A8=`[2,7]` | P+494 copies final 7 bit-for-bit; P+498=1; inherited data retained; block entered |
+| EC58 | light selections `[Name,:,Parent,ignored]`, successful +40 output has empty float/vector lists | name assigned/reset then inheritance; lists remain empty until exit; no inline option lookup |
+| EC59 | light exit with null collection and empty lists | D+0C becomes `[1]`, D+00 becomes `[(0,0,1)]`; name cleared; scalar D+18 retained |
+| EC60 | light exit with nonempty float/vector lists; publish +3C throws | lists unchanged; live name/description retained; generic block not popped |
+| EC61 | each of particles/dynamicParticle/decal/shake normal exit, collection returns false | correct publish slot receives live name/description; false ignored; name cleared and description retained |
+| EC62 | `sequence Name : Parent -loop -noOverlap -hardStart`; allocation succeeds, old pointer O | no inheritance call; retain new empty description N, store N, release O; flags=7 in lookup order; positional colon/Parent ignored; generic block entered |
+| EC63 | sequence normal exit, null collection, installed N | no publication; name cleared, P+490 set null, then N+14 called |
+| EC64 | sequence +44 publication throws | name and installed pointer retained; no explicit exit release/clear |
