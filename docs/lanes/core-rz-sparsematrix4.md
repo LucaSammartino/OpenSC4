@@ -1,6 +1,17 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-rz-sparsematrix4: first portable sparse matrix | Codex; core-rz-sparsematrix4 | WIP: 21 literal tests authored, fmt passed; baseline all stalled in stats RPC; new tests unrun | Resolve owned validator stall, focused quick, canonical committed-source all; no landing yet |
+| core-rz-sparsematrix4: first portable sparse matrix | Codex; core-rz-sparsematrix4 | in progress: original R2, evidence archived; 21 tests still unexecuted | Qualify literal vectors, run focused quick, commit stable source and run canonical all |
+
+## Handoff
+
+- Goal: qualify existing bounded kernel/tests, then one stable committed-source all gate.
+- Start: clean detached b94fe174; engine f4bb6e0daecb9d7a0b248137aef2736c590ec0b6; manifest confirms engine lane, own worktree, round 2.
+- Original evidence: build-runs/r2-original-evidence/manifest.json, seven verified files, 357186 bytes; originals copied before any fixed-log overwrite.
+- Old gate predates implementation: Rust 5372/0, clippy clean, native terminal UNKNOWN, CTest unrun/unknown; no new-source pass.
+- Copied coordinator 04:37:56 proof: old PIDs absent, own 4713 listener/reference hits absent; system AccessDenied entries remain unknown. Cause unknown; root did not terminate old clients. Do not recollect absent session 83439 or rerun baseline.
+- R2 q.py read-only diagnostic failed Bash E_ACCESSDENIED; use PowerShell/Python, no repeat Bash diagnosis.
+- Next exact step: read published mutation/range/iterator/vector sections and existing new module/tests; qualify independent SM-V1–13 expectations before one qbuild quick.
+- No game request; standalone core, ABI unchanged. SM1–5 remain unresolved and excluded.
 
 ## Report
 
