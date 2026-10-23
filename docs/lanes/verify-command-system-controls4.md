@@ -10,7 +10,9 @@
 - Gate source bfb7fc14d7b70eaeba82ea9f1ee2088d9e29f761; copied gate/review says Rust5329/0, clippy clean, native190/190, CTest68/68. Historical gate evidence, not a new gate.
 - PDB manifest at02:21:48 supplies source/before/after/destination proof, superseding the earlier DLL manifest's no-PDB claim.
 - Public cmdline final report supplies enable empty / disable budget; only simulator effectively enabled; turbo1,420/600,end2032,save2031-12-01,mark2031-12-15,normal quit.
-- No outstanding request found in this worktree; no requests submitted yet.
-- Next: create lane-only provenance/queue validator and blocking waiter; hash pair before OFF, submit unique OFF request, accept existing verdict if already completed; stop on failure.
+- Initial handoff committed 3bb72280; local provenance and idle checks passed at02:27:49 BST before OFF.
+- OFF request commands-controls4-r3-off-train108-20261023-a submitted02:28 BST; outstanding; existing blocking waiter session57722 must be retained, not replaced. Results under build-runs/game-results; request under game-queue (or done).
+- Lane-only read-only validator/waiter build-runs/commands-controls-check.py; same save/mark script build-runs/commands-controls-save.txt. Actual immutable request points directly to evidence-run4/FreeCity4.dll and adjacent PDB.
+- Next: collect OFF verdict and post-completion pair hashes from existing waiter; validate full save, mark, enabled simulator only, shutdown/ref0/guards; if clean, hash again and submit ON differing only label/commands_verify.
 - Historical unavailable DLL17115a0c... is separate from train108; old R2 exact7414 and171 logical-count differences, current40/reload and disable-all stalls remain historical only. GC1-GC7 excluded; GC8 settled.
 - No engine/ABI/spec/default/tool/policy changes, no other-worktree reads, no external actions or subagents.
