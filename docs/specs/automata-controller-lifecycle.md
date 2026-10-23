@@ -412,6 +412,10 @@ Reusable foreign boundaries are **one call and its raw channels**:
 | height service +0x34 | x,z binary32 words; ST0 y | store binary32; no fallback policy |
 | automaton +0x34 | null controller pointer | return ignored; transitive automaton effects foreign |
 | controller manager +0x40 | C pointer | activation notification only; result ignored |
+| random constructor `00913A5C` / uniform `009136B1` | local receiver, seed FFFFFFFF / positive count; EAX index | range/index domain §6.1; internals foreign |
+| sound D+0x2C | five words, command layouts §6.1; raw return ignored | no returned handle stored; no start-failure rollback |
+| effect source R+0 / Q+0xB8 / R+8 | IID and pointer-output / predicate ID / no args | QI AL gates traversal; predicate AL normalized; source Release result ignored |
+| view predicate `007F7E50` | ECX=V, pointer to vec3; AL predicate | one point test; short-circuit/store logic is controller-owned |
 | queue RemoveFromQueue `005172D0` | queue entry and A | one queue operation; result ignored, transitive ownership not closed here |
 | heap allocation / free | byte count / exact allocation pointer | storage primitive only; no controller policy |
 
@@ -472,10 +476,80 @@ its call order is specified, but its full transitive effects are not predicted.
 | L7 raw boolean | initialized=1; flags=1; Activate byte=2; no overriding SetFlag; callbacks return | comparison 1 != 2; SetFlag(1,2) clears bit; nonzero request still invokes manager notification and can enable delay. A byte-1 request with flags bit already set is a no-op. Projection for owned helpers. |
 | L8 equality / wrap discriminator | flag1 set, delay clear; stored elapsed=1, lifetime=1; Tick first arg=0, other words arbitrary | sum stays 1; IsExpired returns EAX=1; tick does not call Activate(false). At elapsed=0x4F800000 (binary32 2^32), same lifetime, delta=0: same equality result, with no unsigned wrap. Lifetime=0 makes IsExpired false and tick skips lifetime addition. |
 | L9 delay crossing | flags=0x401; delay elapsed=0; template delay=0.5; lifetime elapsed=0; lifetime=2; first argument=1000 | under x87 PC=53, round-to-nearest, multiply/store delta gives binary32 1; delay clears and full delta is also added to lifetime, yielding stored 1. Delay is not subtracted. Other PC/RC settings need independent qualification. |
-| L10 asymmetric bounds | base occupant-bounds primitive yields min=(-2,7,30), max=(9,8,80); radius=4; extents x=20,z=64; height replies 11 then 22 | after expansion/clamp: min.xz=(0,26), max.xz=(13,64); call height(0,26) then height(13,64); final min=(0,11,26), max=(13,22,64). Conditional on exact finite arithmetic and stated primitive outputs. |
+| L10 asymmetric bounds | flags 0; nonnull occupant+0x28 writes min=(-2,7,30), max=(9,8,80), even with AL=false; city+0x84 returns null lot service; template radius=4; extents x=20,z=64; height replies 11 then 22 | owned GetOccupantBoundingBox calls occupant then owned GetOccupantLot (00515D20); null lot service preserves those outputs. Owned GetBoundingBox expands/clamps to min.xz=(0,26), max.xz=(13,64); call height(0,26) then height(13,64); final min=(0,11,26), max=(13,22,64). No supplied whole-controller bounds result. |
 | L11 pointer-adjusted QI | count=0; output initially DEADBEEF; call via S with ID E4FDA3D4; then unknown ID | thunk subtracts 4; hit stores S, AddRef makes count1, AL=true; miss leaves output S and count1, AL=false. Repeat direct primary IID1 gives C and another acquired ref. |
 | L12 position / grid separation | stored pos=(5,6,9); occupant reports (10,11,12); flags=0; SetPosition((1,2,3)), GetPosition(out), then set mask0x20 and get again | setter writes stored (1,2,3) only; first getter forwards occupant output (10,11,12); second copies (1,2,3). Neither setter/getter computes tracts; slot34 returns exact address C+0x24. |
 | L13 inherited versus override | initialized=0; call Shutdown on attractor versus generator | attractor enters base and calls Activate(false) before the byte test; generator override returns true without calling base. Both constructor paths enter the same C-receiver base initializer; their virtual Init/Activate paths are not interchangeable. |
+
+### 11.1. Independent literal helper composition ledger — UNEXECUTED
+
+L1 and L7 above retain their original **projection** status: their unspecified
+template, service and helper outputs do not define complete traces. The following
+new fixtures supply single foreign-call replies, not whole-helper results.
+C, S=C+4, occupant O, templates T/U, clock K0/K1/K2, city J, manager M, sound D,
+effect source R, QI output Q, view V and terrain H are distinct valid identities
+except where a row explicitly says null/equal. Template/list storage and object
+lifetimes remain valid throughout returned calls. All dispatch is inherited base;
+no generator/attractor whole-call chronology is inferred. These are source-derived
+proposals with no native Init, playback, rendering, objects or game execution.
+
+Unless overridden, C is initialized=0, flags=0x202, stored position=(12,5,28),
+elapsed lifetime=3, lifetime limit=8, delay elapsed=9, selected sound ID3333,
+empty controlled list, occupant O already
+retained and old clock K0 retained. T is borrowed, radius=4, lifetime=8,
+delay=0.5, sound words [1111,2222] (hexadecimal IDs), both trigger lists empty.
+J+0xC0 returns K1, J+0xBC returns M. Each O+0x20 output is (12,5,28), even if
+AL=false. RNG replies 0 then 1 on successive selections. D/R/V/H globals are
+nonnull; R.QI returns AL=1 and Q. D+0x2C, M+0x40, AddRef and Release may return
+zero: those channels do not alter the stated stores or next calls. Reference
+effects **inside** each foreign operation remain that operation's outputs; no
+unobserved QI acquisition/manager retention/sound handle is asserted. All floats
+in these rows are binary32. Numeric predictions use masked exceptions,
+round-to-nearest-even and x87 PC=53 unless a row states otherwise, not a measured
+runtime control word. Small integer coordinate copies/conversions and exact
+additions here also agree at PC=24/64 under that rounding mode.
+
+| Trace | Change / action | Literal required sequence and final state |
+|---|---|---|
+| N1 first Init, empty effects | common fixture; Init | store initialized=1, zero grid; K1.AddRef while old field=K0, store K1, K0.Release; no lot calls (flag0x20 clear). Activate(1): flags203, get M, M+0x40(C), select1111, store ID, O.position, D start(EA451903,1111,C,0,0), then position(CA45190F,C,12,5,28); forced-view sets flag4, delay=0, clear/set400 gives flags607. Effect QI sees empty lists: no predicates/Activate, R.Release. Final explicit PlaySFX(1) selects2222 and repeats start/position. Init AL=true, flags607, ID2222, lifetime elapsed3; O/T unchanged. |
+| N2 Init, effect disables | common fixture; T positive IDs [P1,P2], negative [N1]; Q+0xB8(P1) returns AL=0 | first Activate/start1111 as N1; QI then P1 only; Activate(0) clears bit1, gets M but no M notification, sends D stop(6A451908,C,0,0,0), forced-view, delay0/clear400; R.Release; Init still performs explicit PlaySFX(1), selecting2222 and sending start/position. Final flags206, ID2222, inactive despite final sound start; Init AL=true. No P2/N1 query, Q.Release or rollback. |
+| N3 positive then negative short-circuit | initialized1, flags206; T positive [P1,P2], negative [N1,N2]; replies AL=2,7,0,3 respectively; call Effect | query P1,P2,N1,N2 in order; p=1,1,1,0. Calls Activate(0), which is already equal to flag1=0: no sound/view/delay/manager operation. Then R.Release. Final flags206, delay unchanged. Swap P2 reply to0: query only P1,P2, same p0. |
+| N4 all conditions satisfied | initialized1, flags206; positive [P1], negative [N1,N2]; replies 2,0,0 | canonical p1; Activate(1) notifies M, selects1111, sends start/position, forced-view then delay0/clear/set400; final flags607; then R.Release, never Q.Release. With both lists empty, omit Activate entirely, preserving flags206 and delay9. |
+| N5 raw QI output alternatives | call Effect with nonempty positive list; QI AL=0 but writes Q | no predicate, Activate, R.Release or Q.Release; fields unchanged. AL=1 with Q=null and both lists empty: no Q dereference/Activate, R.Release still occurs. AL=1/Q=null with nonempty lists is unsupported unchecked dereference, not a false Effect result. |
+| N6 raw activation bytes | initialized1, flags207, delay9; Activate(2) | comparison1!=2; exact-one setter clears bit1 to206, yet manager notification and sound start1111/position occur; forced-view, delay0, clear/set400 =>606. Repeating byte2 repeats all this (flag1 remains0). Byte1 from flags207 is a complete no-op with delay9; byte0 from flags206 is likewise a no-op. Byte0 from flags207 sends stop iff ID!=0, no manager notification, view store and delay clear =>206. |
+| N7 sound early exits / ID retention | direct PlaySFX(1), old ID3333; D=null, or T=null, or T begin=end | each alternative preserves3333 and makes no sound/position/RNG call. Restore D and call PlaySFX(0): one stop, ID still3333. Repeat direct stop: same stop again. Nonzero2 with valid range selects1111/start/position. A selected sound word0 still causes start(…,0,C,0,0) and position; following stop is omitted. |
+| N8 unavailable/forced view | direct View, flags202, V=null or H=null | AL=true, flags202 unchanged; no setter or bounds/frustum calls. Both nonnull and flag200 set: SetFlag(4,1), flags206, AL=true; no bounds, position, city, terrain or frustum call. No flag1/2/400 gate. |
+| N9 complete finite view path | initialized1, flags40, T radius4, stored pos(12,5,28), nonnull V/H; inherited bounds position path; J extents64,64; city height service gives11,22; later J+188 replies false then true; H+34 gives33; all five frustum replies false | owned occupant bounds calls GetPosition twice (flag40); each forwards O.position because flag20 is clear. World bounds A=(8,11,24), B=(16,22,32). First view GetPosition P=(12,5,28); city tests (8,24),(16,32) give A.y=5 and B.y=33 (one H call only). Second GetPosition P2=(12,5,28); frustum points exactly (12,5,28),(8,5,24),(16,5,24),(16,33,32),(8,33,32). SetFlag(4,0), flags40, AL=true. |
+| N10 view short-circuit / visibility independent of result | N9 but frustum replies false,false,AL=2 | only first three points queried, SetFlag(4,1), flags44, AL=true. All-false also returns true as N9. Turning flag200 on skips all five tests and both GetPositions. |
+| N11 repeat Init and Shutdown | after N1; Init again, then Shutdown twice | repeated Init: AL=true, no calls/stores. First Shutdown expands Activate(0): flag1 clear, M lookup only, stop with ID2222 retained, forced-view, delay0/clear400 =>206; then initialized0, empty list reset, store O=null before O.Release, clock=null before K1.Release, T=null, AL=true. Second Shutdown's Activate is uninitialized no-op; no further refs/sound. elapsed remains3. |
+| N12 re-Init after cleanup | after N11; J clock now K2; no template/occupant | Init stores1, zero grid, K2.AddRef/store (old null); flag20 clear leaves stored pos; Activate1 notifies M, no sound (null T), forced-view, delay0/clear400 =>207. Effect and final sound skip null T. AL=true, ID2222 and elapsed3 preserved; no old K1/O/T Release. |
+| N13 equal/null clock and attached-after-stop refs | first Init with old clock K1 and return K1, versus old K0 and return null; other common inputs | equal: no clock AddRef/store/Release; null: store null then K0.Release, no new AddRef, still complete Init. Separately after N11 SetOccupant(O) acquires/stores O; subsequent Shutdown sees initialized0 and leaves O retained; direct destructor Releases it. |
+| N14 shutdown payload prefix after deactivation | initialized1, flags307, ID1111, controlled payloads [A,B], O and K1 retained | Activate0: stop, forced-view, delay clear, flags306. Then clear initialized; CheckFlag100, A.detach(null), A.Release; next B likewise; only then free nodes/reset count, null+Release O, null+Release K1, template=null. False detach and Release result17 do not suppress later operations; IDs/elapsed retained. Nonreturning/reentrant payload behavior is outside this trace. |
+| N15 active versus tickable and sound | flags7,3,5,6,407,207 in separate valid initialized fixtures; IsActive and IsTickable, then direct PlaySFX(1) | IsActive AL values 1,0,0,0,0,1; IsTickable forwards values 1,1,1,0,1,1. Sound selects/starts in all six fixtures; it has no active/enabled/visibility/delay gate. Flag200 forces visibility testing outcome in View, not sound suppression. |
+| N16 Init with active bit already set | initialized0, flags203, delay9; common other inputs | clock acquisition/replacement as N1; initial Activate1 does nothing because bit1 already set; Effect QI with empty lists only Releases R; final sound selects1111 and sends start/position once. Final flags203 (visibility still clear), delay9, initialized1, Init AL=true. IsActive false, IsTickable true. |
+
+This extends the original thirteen rows with sixteen independent composition
+rows; it does not convert proposed vectors into execution evidence. L10's old
+phrase “base occupant-bounds primitive” is corrected: that helper is owned, and
+its literal outputs now derive from a single occupant output call plus the
+null-lot branch (`00516EFB–00516F07`, `00515D2E–00515D4E`). L1/L7 still omit
+enough inputs to remain projections, even though the three selected helpers
+now have bounded contracts.
+
+The R2 self-audit preserves L2–L9 and L11–L13's bounded conclusions: source
+reference stores precede old Releases (`00516898–005168A4`, `00517F5D–00517F66`),
+Shutdown nulls occupant/clock before Release (`00516A72–00516A89`), and final
+Release at count0/1 dispatches slot39 without a prior count store
+(`00517F10–00517F27`). QI's S adjustment/output-before-AddRef and miss untouched
+output remain §3, with no template ref acquisition or implicit list-payload
+ownership added. Tick's ret12 and strict-exceed comparison
+(`00514E13–00514E29`) differ from IsExpired's stored greater-or-equal comparison
+(`00517EB0–00517EC5`). Exact rational evaluation of binary32 3A83126F times1000
+gives 1073741875/1073741824 before operation rounding. At PC=24/53/64 with
+nearest-even, L9's stored delta is1; upward rounding can store the next binary32
+above1. This analytic qualification is not a measurement of runtime PC/RC.
+L10's arithmetic was retained, while its formerly ambiguous owned/foreign
+boundary was corrected above. No R1 native/game result existed to reinterpret.
 
 ## 12. Body and signature ledger; unsupported domains
 
@@ -493,8 +567,8 @@ Stack sizes below are callee cleanup; AL booleans do not establish full EAX.
 | 0 QI, secondary thunk | u32 IID, writable pointer-output; AL bool; ret8 | Supported §3 |
 | 1 AddRef, secondary thunk | none; u32 EAX | Supported modulo increment |
 | 2 Release, secondary thunk | none; u32 EAX | Supported local branching; dynamic slot39 effects route-dependent |
-| 3 Init | none; AL true | Partial: owned Effect/SFX/View composition unresolved; direct state/ref/position order supported |
-| 4 Shutdown | none; AL true | Partial composition via virtual Activate; direct list/reference ledger supported |
+| 3 Init | none; AL true | Supported stated normal inherited composition §§6,11.1; overrides, exceptional/numeric residuals Partial |
+| 4 Shutdown | none; AL true | Supported stated normal inherited activation/list/reference composition; overrides/reentry Partial |
 | 5 type | base purecall | Unknown base signature beyond concrete route provenance; no base implementation |
 | 6 occupant getter | none; EAX borrowed pointer | Supported |
 | 7 template-name getter | none; EAX borrowed name-object address | Supported |
@@ -507,12 +581,13 @@ Stack sizes below are callee cleanup; AL booleans do not establish full EAX.
 | 14 SetOccupant / 15 SetTemplate | pointer; void; ret4 | Supported §4 |
 | 16 groups | base purecall | Unknown signature / derived-only operation |
 | 17 SetPosition | pointer to three words; void; ret4 | Supported local copy only |
-| 18 Activate | raw byte in four-byte slot; void; ret4 | Partial owned sound/view effects; local state/order supported |
+| 18 Activate | raw byte in four-byte slot; void; ret4 | Supported normal inherited sound/view composition §§6,11.1; overrides and unsupported domains remain separate |
 | 19 SetLifetime | binary32 word; void; ret4 | Supported bit copy |
 | 20 occupant bounds / 21 world bounds | two writable vec3 pointers; void; ret8 | Supported finite domain §8; foreign output/height semantics remain raw |
 | 22 lot facing / 23 within radius | unreconciled | Unknown numeric body/signature in this supplement |
 | 24 CheckTimeOfDay `006F7DC0` | two words popped; no defined result | Partial: empty ret8; typed parameter meanings Unknown |
-| 25 CheckEffectTriggers / 27 HandleViewChanged | no explicit args at studied calls | Partial: call provenance only; owned bodies still require contract |
+| 25 CheckEffectTriggers | no args; no defined result; ret0 | Supported §6.2 normal list/QI/activation/source-Release CFG; foreign QI retention unspecified |
+| 27 HandleViewChanged | no args; AL true; ret0 | Supported §6.3 normal outputs/predicate/store CFG and §8 finite bounds; foreign view algorithm separate |
 | 26 NotifySourceDataChanged | no args; void | Supported §6 |
 | 28 state tick / 29 enter / 30 exit | unreconciled callback arguments/channels | Unknown beyond dispatch table; decomp navigation is not a numeric contract |
 | 31 HandleRemoveAutomaton | A pointer; AL true; ret4 | Supported direct list effects and inline table lookup; foreign queue effects not closed |
@@ -522,14 +597,15 @@ Stack sizes below are callee cleanup; AL booleans do not establish full EAX.
 | 35 IsExpired | none; EAX 0/1 | Supported finite comparison |
 | 36 shared `00648F00` | no stack cleanup; AL=true | Partial: body is constant true, semantic slot name and typed argument use Unknown; not operator-new behavior |
 | 37 IsTickable | none; forwarded CheckFlag(1) | Supported |
-| 38 DoAnimationTick | first binary32 word, two untyped words; void; ret12 | Partial signature; finite local arithmetic supported; virtual deactivation composition Partial |
+| 38 DoAnimationTick | first binary32 word, two untyped words; void; ret12 | Partial signature; finite local arithmetic and stated inherited deactivation supported; overrides separate |
 | 39 deleting cleanup `00519340` | none; no defined result | Supported calls Shutdown, destructor, heap free in order; not a Write method |
 | secondary 3/4 Write/Read | S receiver, serializer | Partial: pointer view and Write field roles settled; existing record scope retained, live Read ownership not closed here |
 | secondary 5 GetGZCLSID | none; EAX 4A18672B | Supported identity, not factory admission |
-| PlaySFX `00515770`, intersection `00514E70`, CreateTemplateInstance `0051BDF0` | unreconciled | Unknown owned helper bodies; no blanket credit from public attribution metadata |
+| PlaySFX `00515770` | raw low byte in four-byte slot; no defined result; ret4 | Supported §6.1 normal range/index and exact-integer coordinate domain; foreign RNG/sound internals separate |
+| intersection `00514E70`, CreateTemplateInstance `0051BDF0` | unreconciled | Unknown owned helper bodies; no blanket credit from public attribution metadata |
 | template/occupant/automaton/clock/grid/message/queue/heap internals | single raw calls only | Foreign; do not count their code as base-controller behavior |
 
-AT22 remains partial: full owned sound/view/effect/state/behavior/template-instance
+AT22 remains partial: owned state/behavior/template-instance/intersection
 algorithms, complete callback signature proof, Read reference chronology,
 allocation/partial-failure paths, runtime position initialization, exceptional
 and reentrant behavior, broad FP/numeric domains and complete derived owner

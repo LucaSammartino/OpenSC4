@@ -227,7 +227,7 @@ Two controller classes occur in saves. Both start with the controller base recor
 | 2 | `ref` occupant | `0x26BB767E`; the occupant the controller is attached to |
 | 3 | `str` template name | empty when the controller has no template |
 | 4 | `vec3` position | |
-| 5 | `f32`, `f32` | radius and a second extent [inferred]; 0 in all corpus examples |
+| 5 | `f32`, `f32` | elapsed lifetime and lifetime limit (AT22 receiver-view correction below); 0 in all historical corpus examples |
 | 6 | `u32` | 0 in the whole corpus |
 | 7 | `u32` flags | mostly 7; `0x87` seen on `dog_make`; never contains 8 (§3.2) |
 | 8 | `u32` n, then n × `ref` automaton | `0xA9B40F05`; the automata it currently controls |
@@ -247,7 +247,7 @@ for instruction citations, ownership, predicates and numeric qualifications.
 | 5a | +0x4C | +0x50 | binary32 elapsed lifetime, incremented by scaled animation delta, not integer 1 per call |
 | 5b | +0x50 | +0x54 | binary32 lifetime limit, **saved**; not the age field |
 | — | +0x54 | +0x58 | activation-delay elapsed; not saved in this base record |
-| 6 | +0x38 | +0x3C | unnamed u32; historical corpus value 0 retained |
+| 6 | +0x38 | +0x3C | selected sound ID (§6.1 of the lifecycle contract); historical corpus value 0 retained; not a returned playback handle |
 | 7 | +0x3C | +0x40 | flags u32; historical corpus mostly 7 / dog_make 0x87 retained |
 | 8 count | +0x44 | +0x48 | controlled-automata count u32 |
 | 8 list storage | +0x40 | +0x44 | list sentinel pointer; node payload at node+8 |
@@ -256,6 +256,13 @@ CheckFlag/SetFlag therefore use the actual flags C+0x40, not the list pointer.
 IsExpired uses `lifetime > 0 && elapsed >= lifetime`; tick deactivation uses
 strict `elapsed > lifetime`. Historical corpus measurements and the CheckFlag(8)
 null-reference serialization rule of §§3.2/6.1 are unchanged.
+
+The lifecycle contract §§6.1–6.3 now expands inherited sound selection/commands,
+effect-trigger QI/predicates/source Release, and view point tests/visibility;
+§11.1 supplies sixteen further **proposed, unexecuted** composition rows.
+Init may deactivate through a false effect predicate yet still issue its final
+sound start. These bounded base rules do not close AT22's other owned helpers,
+exceptional domains, Read ownership or complete concrete controllers.
 
 **Generator** (class `0x4A1628C5`, Write `0x005183D0`, Read `0x00518450`): `u16` 4 (Read requires 4), the base
 record, `time` (period), `time` (second period), `u32`, `u32`. Corpus: 291,346 records; names `wildlife_generator`

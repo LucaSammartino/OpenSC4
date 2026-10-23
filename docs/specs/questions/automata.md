@@ -81,7 +81,17 @@ animation age uses scaled delta, not integer 1. The actual serializable identity
 4A18672B is not a registered base factory: this director registers the two
 concrete routes, whose inherited/override provenance is tabulated. Thirteen
 literal discriminators are **proposed/unexecuted**, not native output evidence.
-**Remain open:** complete owned sound/view/effect/state/behavior/template-instance
+**Partial source answer 2026-10-23 (re-automata-controller-lifecycle4, R2):**
+The same contract §§6.1–6.3 now proves PlaySFX's selected-ID store and retained
+stop ID, exact sound-command arguments, effect-list short-circuit predicates
+through QI output Q followed by Release of source R, and view outputs/terrain/
+five-point short-circuit/visibility setter. Sixteen further proposed/unexecuted
+composition rows (§11.1) distinguish raw byte2, false-with-output, safe empty-list
+true-with-null, Init's post-deactivation sound start, and repeat cleanup.
+L1/L7 retain projection status; L10 now derives bounds through owned helpers.
+No native execution or complete-owner claim follows.
+
+**Remain open:** owned state/behavior/template-instance/intersection
 algorithms and callback signatures, Read ownership, allocation/partial failures,
 runtime position initialization, reentry/exception domains and complete derived
 contracts. Slots 22–24, 28–30, 32 and 36 retain explicit signature/body limits;
