@@ -266,7 +266,10 @@ folded no-op bodies whose names are not known).
 
 ## 9. Not yet specified
 
-`ConvertStringEncoding` beyond the codes of §2 and the UTF-16 / Thai helpers; `cSCStringDetokenizer` and
+The standalone `ConvertStringEncoding` core, bridge and wrappers are specified in
+[string-encoding.md](string-encoding.md), including their counted units and partial-output behavior.
+
+Still unspecified here: the UTF-16 / Thai helpers; `cSCStringDetokenizer` and
 `gAdviceDetokenizerFunction`; which game code calls the language manager and how the startup language is chosen
 (`cSC4App::DoPreferencesChanged` reads the registry values `HKEY_LOCAL_MACHINE\Software\Maxis\SimCity 4 Deluxe\1.0\Language`,
 then `...\SimCity 4\1.0\Language`; data-formats §6.2 question 1).
