@@ -50,24 +50,24 @@ fn asymmetric_lengths_area_plane_and_unbounded_distance() {
 }
 
 #[test]
-fn separate_binary32_operations_and_first_bound_signed_zero() {
-    // GU2: these distinguish the documented provisional association from
-    // a fused cross product or a double-precision dot followed by one store.
+fn separate_binary32_operations_and_second_bound_signed_zero() {
+    // Public GU2 DIFFERS: plane sums y/z before x, rather than x first.
     let plane = point_and_vector_to_plane_equation([16_777_216., 1., -16_777_216.], [1.; 3]);
-    assert_eq!(plane[3].to_bits(), (-0.0f32).to_bits());
+    assert_eq!(plane[3].to_bits(), (-1.0f32).to_bits());
     let normal = get_normal_to_triangle([8193., 0., 8192.], [0.; 3], [8192., 0., 8191.]);
     assert_eq!(normal[1], 0.);
     let mut min = [99.; 3];
+    let mut max = [99.; 3];
     assert!(bounding_boxes_intersect(
         [-0.0; 3],
         [1.; 3],
         [0.0; 3],
         [2.; 3],
         Some(&mut min),
-        None
+        Some(&mut max)
     ));
-    // GU5: the first operand wins a tie, retaining its signed zero.
-    assert!(min.iter().all(|x| x.to_bits() == (-0.0f32).to_bits()));
+    // Public GU5 DIFFERS: second operand wins a tied/unordered comparison.
+    assert!(min.iter().all(|x| x.to_bits() == 0.0f32.to_bits()));
     // The published strict inequalities do not separately reject empty boxes.
     assert!(bounding_boxes_intersect(
         [0.; 3], [0.; 3], [-1.; 3], [1.; 3], None, None
@@ -294,7 +294,7 @@ fn published_polygon_clip_and_right_side_winding() {
 }
 
 #[test]
-fn clipping_empty_capacity_boundary_and_short_crossing_fallback() {
+fn clipping_empty_capacity_boundary_and_unsupported_short_crossing() {
     assert!(clip_polygon_to_edge_2d([0.; 2], [0., 1.], &[], 5).is_empty());
     let poly = [[-1., 2.], [1., 2.], [1., -2.], [-1., -2.]];
     let all = clip_polygon_to_edge_2d([0.; 2], [0., 1.], &poly, 10);
@@ -302,9 +302,20 @@ fn clipping_empty_capacity_boundary_and_short_crossing_fallback() {
     for cap in 0..4 {
         assert_eq!(clip_polygon_to_edge_2d([0.; 2], [0., 1.], &poly, cap), all[..cap]);
     }
+    // GU5 DIFFERS: an uninitialized failed-crossing read has no point oracle.
+    let mut backing = [[99.; 2]; 10];
+    let mut count = 0;
     assert_eq!(
-        clip_polygon_to_edge_2d([0.; 2], [0., 0.001], &[[-1., 0.], [1., 0.]], 10),
-        [[-1., 0.], [1., 0.], [1., 0.]]
+        clipping::clip_edge_signed(
+            [0.; 2],
+            [0., 0.001],
+            &[[-1., 0.], [1., 0.]],
+            2,
+            &mut backing,
+            10,
+            &mut count
+        ),
+        Err(clipping::ClipUnsupported::UninitializedCrossing)
     );
     assert_eq!(clip_polygon_to_edge_2d([0.; 2], [0., 1.], &[[0., 2.]], 10), [[0., 2.]]);
 }
@@ -374,10 +385,11 @@ fn published_builder_colour_layout_ties_and_wrap() {
         })
     );
     assert!(!builder.changed());
+    let old_bounds = builder.bounds();
     builder.reset();
     assert_eq!(builder.arrays_allocated(), (true, true));
     assert!(builder.mesh().vertices().is_empty());
-    assert_eq!(builder.bounds(), None);
+    assert_eq!(builder.bounds(), old_bounds); // GU3 DIFFERS: Reset does not write bounds.
 }
 
 #[test]

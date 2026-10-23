@@ -427,6 +427,10 @@ Only the player's tool UI withdraws money:
    3. `Reset`; `city.UIDecreaseLockCount` (city slot 107).
 
 The money is withdrawn **before** the real placement, and is **not refunded** if the real pass then fails *[compat]*.
+The dedicated [network UI contract](network-tool-ui.md#5-placement-and-payment) qualifies this partial
+description with the owner's exact branch widths, call order and cleanup. In particular the UI forwards the
+zero-extended cost to the budget; whether even a large raw amount is refused is the budget's result, and the
+neighbor predicate tests the failure result's low byte. This subsection does not cover the UI lifecycle/input owner.
 A harness that wants the player's economics must withdraw `GetCostOfSolution()` itself before calling
 `PlaceNetworkOccupants` *[choice]*.
 

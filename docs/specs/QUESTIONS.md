@@ -26,6 +26,7 @@ generated index: the questions live one file per spec, so read only the file for
 | AC | animation-coordinator |
 | AD | advisors, automata-managers |
 | AF | aircraft |
+| AGP | auto-game-pause |
 | AM | automata |
 | AN | automata-support |
 | AO | foundations |
@@ -149,6 +150,8 @@ generated index: the questions live one file per spec, so read only the file for
 | SN | snapshots |
 | SP | span-render-4444 |
 | SR | span-render-1555, span-render-565, span-render-8, span-render-8888 |
+| SSP | system-service-pointer |
+| ST | my-street-sim |
 | SV | foundations, ordinance |
 | TB | texture-bindings |
 | TD | tools-com-director |
@@ -189,6 +192,7 @@ generated index: the questions live one file per spec, so read only the file for
 | application | 7 | 2 | AP10 | questions/application.md |
 | audio-ambience | 1 | 10 | AA12 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
+| auto-game-pause | 1 | 0 | AGP2 | questions/auto-game-pause.md |
 | automata | 4 | 38 | A5, AM13, AT25 | questions/automata.md |
 | automata-managers | 4 | 0 | AD5 | questions/automata-managers.md |
 | automata-support | 2 | 0 | AN3 | questions/automata-support.md |
@@ -228,7 +232,7 @@ generated index: the questions live one file per spec, so read only the file for
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
 | game-data-registry | 5 | 0 | GDR6 | questions/game-data-registry.md |
 | game-of-life | 4 | 0 | GL5 | questions/game-of-life.md |
-| geometry-utilities | 5 | 1 | GU7 | questions/geometry-utilities.md |
+| geometry-utilities | 6 | 1 | GU8 | questions/geometry-utilities.md |
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
 | graphics-rules | 2 | 4 | GR7 | questions/graphics-rules.md |
@@ -249,7 +253,9 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-records | 2 | 9 | LR12 | questions/lot-records.md |
 | lua-host | 0 | 5 | LH4 | questions/lua-host.md |
 | map-view | 11 | 0 | QV12 | questions/map-view.md |
+| missing-plugin-reporter | 0 | 0 | - | questions/missing-plugin-reporter.md |
 | model-instances | 5 | 0 | MI14 | questions/model-instances.md |
+| my-street-sim | 5 | 0 | ST6 | questions/my-street-sim.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
 | mysims | 0 | 16 | MS17 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
@@ -260,6 +266,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 2 | 10 | NR16 | questions/network-rules.md |
+| network-tool-ui | 0 | 0 | - | questions/network-tool-ui.md |
 | network-tools | 16 | 4 | NT27 | questions/network-tools.md |
 | network-transport | 4 | 0 | Q15 | questions/network-transport.md |
 | network-type-info | 4 | 0 | TI5 | questions/network-type-info.md |
@@ -309,6 +316,7 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-8 | 3 | 3 | SR11 | questions/span-render-8.md |
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
+| system-service-pointer | 2 | 1 | SSP4 | questions/system-service-pointer.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | terrain-view | 3 | 0 | TV4 | questions/terrain-view.md |
 | text-decal-occupant | 1 | 0 | TDO2 | questions/text-decal-occupant.md |
@@ -334,4 +342,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **509** | **1262** | | |
+| **total** | **518** | **1263** | | |
