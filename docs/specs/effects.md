@@ -2452,7 +2452,7 @@ Only handlers with published sections have execution contracts here.
 | 7 | `source` | `00A9FB18` | `00597140` | `cParticleSourceCommand` |
 | 8 | `emit` | `00A9FB08` | `0059C280` | `cParticleEmitCommand` |
 | 9 | `force` | `00A9FAF8` | `0059A820` | `cParticleForceCommand` |
-| 10 | `warp` | `00A9FAE8` | `0059B680` | `cParticleWarpCommand` |
+| 10 | `warp` | `00A9FAE8` | `0059B680` | `cParticleWarpCommand`; §19.43 |
 | 11 | `randomWalk` | `00A9FAD8` | `005979B0` | `cParticleRandomWalkCommand`; §19.23 |
 | 12 | `stretch` | `00A9FAC8` | `00597C60` | unnamed; §19.18 |
 | 13 | `life` | `00A9FAB8` | `00597CD0` | `cParticleLifeCommand`; §19.18 |
@@ -3537,3 +3537,116 @@ Model fixtures have a nonempty particle live name unless specified.
 | EC206 | timed list [(A,1),(N,NaN),(B,3)]; insert X at 2 | [(A,1),(N,NaN),(X,2),(B,3)]; unordered existing N is passed |
 | EC207 | timed list [(A,1),(B,3)]; insert N at NaN | append (N,NaN); no range exception |
 | EC208 | empty particle name; timedEffect valid X,2 with unknown switch left | flag OR and (X,2) append precede generic leftover-switch error; no name guard |
+
+### 19.43 Particle `warp` *[compat]*
+
+`cParticleWarpCommand` (`0059B680`) queries only switches, in the order
+below, with no live particle-name or block-type guard. Nonswitch operands
+are not selected. Missing switches retain their corresponding fields/lists;
+this command does not reset the whole warp description. Coordinates D are
+particle-relative `P+F0`. Successful changes survive a later option error
+or generic leftover-switch error.
+
+**screw** requests minimum one argument. Its first ParseFloat is multiplied
+in x87 precision by the **binary64** constant 0.02 at `00AA02D8`, then
+rounded once to binary32 `D+104` (`P+1F4`). There is no owner numeric
+validation. Extra selected arguments are ignored. Conversion failure leaves
+the old scalar.
+
+**wiggle** requests minimum four arguments. It appends one 28-byte record
+to list `D+108` (`P+1F8`), leaving existing records in order. Let the
+record's seven binary32 fields be `w0…w6` at +00,+04,…,+18:
+
+- First ParseFloat rounds to `w2`; second ParseFloat rounds to `w0`.
+  Fields `w1,w3` are zero.
+- Third ParseFloat rounds to an amplitude A. Fourth argument passes the
+  owned ranged-float helper (§19.23), inclusive 0…1 with unordered NaN
+  accepted, and returns a rounded binary32 phase T.
+- Form angle `T × binary32(40C90FDB)` in x87 precision, without an
+  intermediate binary32 angle store. Then `w4` is binary32 of x87
+  `cos(angle) × A`, `w5=+0`, and `w6` is binary32 of the negated x87
+  `sin(angle) × A`. The native trigonometric operations are x87 FCOS/FSIN.
+
+Append occurs only after every conversion and phase check succeeds.
+Extra arguments beyond four are ignored. No frequency/amplitude sign or
+finite-value check occurs. A failed phase check leaves the old list, not a
+partial record. The range helper's error is the scalar range error in §19.23.
+
+**wiggleDir** requests minimum two arguments and appends a separate record
+to the same list after successful processing. First ParseFloat rounds to
+`w0`; ParseVector3 of the second copies its three returned words to
+`w4,w5,w6`, with no normalization. If a third selected argument exists,
+its ParseVector3 supplies `w1,w2,w3`; otherwise those three fields are
+zero. Arguments beyond the third are ignored. Failure leaves this record
+unappended but preserves an earlier wiggle append from the same command.
+Neither wiggle variant sets a model flag just by appending.
+
+**wiggleVerts** requests minimum zero and, when present, ORs `100` hex
+into model flags `D+08` (`P+F8`). No other work or flag clearing occurs.
+
+**uv** requests minimum **one**, but after parsing/storing its first
+ParseFloat at binary32 `D+114` (`P+204`) it unconditionally accesses
+the **second selected index** and passes that record to ParseVector2. A
+valid two-argument fixture copies the returned words to `D+118,+11C`
+(`P+208,+20C`), then ORs `100` hex into model flags. There is no second
+argument count check or owner validation of its numbers. A one-value
+invocation passes the declared minimum yet is outside the safely bounded
+index-access domain; do not invent a minimum-two parse error or default
+vector. Vector failure retains the new scalar and both old vector fields,
+without this option's flag OR. Extra selected arguments are ignored.
+
+**alpha** requests minimum two arguments. ParseVector3 of the first gives
+V=(x,y,z). In x87 precision compute `r=1/sqrt((x×x+y×y)+z×z)` using the
+binary32 inputs and binary32 constant 1, with no intermediate binary32 sum
+or reciprocal store. Store each `r×component` as binary32 direction
+`D+120,+124,+128` (`P+210,+214,+218`); the native store order is z,x,y.
+There is no zero-length or finite-value guard, so zero/nonfinite inputs are
+not turned into an owner validation exception. Next clear the alpha curve
+`D+12C` (`P+21C`) and process **all remaining selected arguments** as
+ParseFloat values. Each unrounded return is checked against inclusive 0…1
+before binary32 append. Ordered out-of-range throws the same scalar-range
+error as §19.36; unordered NaN passes. List order/duplicates are retained.
+After the whole curve succeeds, OR model flags with `100` hex.
+
+Alpha conversion failure before the vector result leaves direction/list
+unchanged. Failure in a later curve value leaves the new normalized
+direction and converted curve prefix; this alpha option's final flag OR
+has not occurred, although wiggleVerts or uv may already have set it.
+No runtime warp or renderer call is performed here.
+
+Evidence, instruction bytes checked: screw binary64 multiply/store
+`0059B6B6–0059B6C4`; wiggle scalar stores `0059B706/0059B731/0059B74C`,
+phase/trigonometry/append `0059B769–0059B7A2`; wiggleDir vector copies
+and optional third/default `0059B7FD–0059B880`; wiggleVerts
+`0059B885–0059B89E`; uv minimum-one and unconditional second-index access
+`0059B8A8–0059B8F4`, field stores/flag `0059B8D7–0059B918`;
+alpha normalization `0059B952–0059B9A8`, clear `0059B9B7`, range/append
+`0059B9EC–0059BA4F`, final flag `0059BA6D–0059BA79`.
+Record constructor `0059BAD0` zeros +04…+18; each variant assigns +00
+before append. Append/copy helpers `0059BB10/0059BB60` preserve all seven
+words and use native stride `1C` hex. Phase constant `00A9F384=40C90FDB`;
+normalization constant `00B0A508=3F800000`.
+
+### 19.44 Particle warp conformance vectors (unexecuted)
+
+Static predictions with stipulated reader replies; no native/game execution.
+All coordinates D are particle-relative. Valid fixtures have sufficient
+selected indices for the accesses specified above.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC209 | empty live particle name; screw first ParseFloat=50 | D+104=1 using binary64 0.02 multiply; no name guard |
+| EC210 | screw conversion throws, old D+104=7 | old 7 retained; no later options queried |
+| EC211 | wiggle returns first=2, second=3, amplitude=4,phase=0; old list [E] | append seven fields (3,0,2,0,4,0,negative zero); E retained |
+| EC212 | wiggle phase returns ordered 2; old list [E] | ranged-float exception; list [E] retained, no partial append |
+| EC213 | wiggleDir returns 3 and vector (1,2,3), no third argument | append (3,0,0,0,1,2,3); no vector normalization |
+| EC214 | wiggleDir returns 3, vector (1,2,3), third vector (4,5,6), extra fourth value | append (3,4,5,6,1,2,3); fourth ignored |
+| EC215 | wiggle succeeds; wiggleDir third-vector parse throws | first append retained; no wiggleDir record appended |
+| EC216 | wiggleVerts only, old model flags=2 | flags=102 hex, other state retained |
+| EC217 | uv first scalar=2, second ParseVector2=(3,-4); old flags=0 | D+114=2,D+118=3,D+11C=-4; flags=100 hex |
+| EC218 | uv scalar=2 succeeds, second-vector parse throws; old flags=0,vector=(7,8) | scalar=2 survives; vector=(7,8), flags=0 |
+| EC219 | uv supplies exactly one selected value | declared minimum-one succeeds; no minimum-two error/default vector; second-index access outside safely bounded fixture domain |
+| EC220 | alpha vector (0,0,2), remaining values 0,0.5,1; old flags=0 | direction (0,0,1), replacement curve [0,0.5,1], flags=100 hex |
+| EC221 | alpha vector (0,0,2), remaining values 0.5,2; old flags=0 | range exception after direction=(0,0,1) and curve prefix [0.5]; flags=0 |
+| EC222 | wiggleVerts succeeds; alpha vector (0,0,2), curve value 2 | range exception; flags already 100 hex, direction updated, old curve cleared |
+| EC223 | alpha vector (0,0,2), curve returns NaN | direction (0,0,1), curve [NaN], flags OR 100 hex; no owner range exception |
