@@ -1,19 +1,41 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-game-of-life4 (portable byte-aged simulator) | Codex / `core-game-of-life4` | in progress | Implement bounded spec and literal vectors, then canonical full gate |
+| core-game-of-life4 (portable byte-aged simulator) | Codex / `core-game-of-life4` | WIP: implementation committed; 20 own fixtures pass; quick wrapper stalled in optional stats after failed native build; full gate unrun | Collect session 1693 terminal, then one canonical full gate on stable committed source; GL4 remains partial; no merge queue |
 
-## Handoff
-- Goal: first dedicated pure Rust owner; no native/ABI/plugin/default changes.
-- Start HEAD: 8e95854d; detached worktree reserved by supervisor.
-- Read rules, contribution policy, lane format, complete spec by sections, GL1-3, copied host proof and eligibility.
-- Host proof establishes a27c3c publication ancestry and no existing family; local core search found none.
-- No pre-edit baseline: latest task explicitly requires one stable committed source full gate.
-- Implemented production game_of_life module plus 20 tests: all 17 vector groups and three conditional/safety groups.
-- Focused test log: all 20 own tests pass; core 3422/0, workspace-related summaries also present.
-- New files pass qbuild fmt. Shared lib.rs has append-only module export; no mass formatting.
-- Quick session 1693 remains nonterminal; native build failed during transient formatting-header diagnostic, since corrected.
-- Next: collect same quick session terminal, commit stable source, run ONE canonical qbuild all; never duplicate checker/cancel it.
-- Preserve logical allocation roles, mutable source ages, callback partial views, primitive-only RNG.
-- Unsupported: allocation/overflow failures beyond portable refusal, reentry, broader lifetime; foreign primitives remain foreign.
-- No game requests; core only. GL1-3 remain open; GL4 filed for unspecified relative C/P age-store order (portable C then P).
-- Manifest: main build-runs/run4-core-game-of-life4-r1-manifest.json.
+## Result and scope
+
+Source milestone **463083f7** adds `engine/core/src/game_of_life/mod.rs`, independent production-method fixtures in `tests.rs`, and one append-only export in `engine/core/src/lib.rs`. Initial handoff was ca86b0c9. Start HEAD was 8e95854da8454d89131af5b7f1735f02c7b0cae2; the reserved worktree remains detached. Copied host proof establishes publication a27c3c as main ancestry and admission as the first dedicated portable family; the local source search found no earlier implementation.
+
+Implemented byte buffers retain stable logical allocation identities across publication swaps. Generation reads mutable source bytes in the specified directional order, including repeated physical samples on tiny grids; it ages survivors in both buffers and invokes selected per-cell callbacks after stores. Callbacks receive a borrowed read-only partial view. Host inputs are individual allocation results and raw RNG construct/draw primitives, never a computed grid. Raw callback/context identities carry no native reference ownership.
+
+`new`, `wire`, `from_stage`, checked allocation/arithmetic and `Result<_, Unsupported>` are explicitly portable representations. They establish no native constructor, setter, success/fault channel, vtable, COM owner, ABI export or dimension maximum. Rust memory drop is separate from the explicit cleanup ledger. No default, plugin, SDK, CAPI, generated map, coverage ledger, native execution or whole-owner promotion is claimed.
+
+## Operation ledger and fixtures
+
+| Operation / attribution | Portable status and actual fixture evidence |
+|---|---|
+| Init (one of four owned bodies) | Supported on ordinary successful domain: independent zero defaults, destructive C/P release, P/C allocation, low-byte flag, P/C clear, wiring retention. V1–V3. V4 is only a partial null-allocation prefix plus Unsupported refusal, not native success. |
+| RandomizeCells (owned) | Supported owner loop with fresh FFFFFFFF construct and individual bound-2 draws, low-byte P/C stores. V2, raw-low-byte test, conditional zero-height test. RNG internals/exception guarantees Foreign/Unknown GL1. |
+| Direct edit (owned) | Supported valid coordinates and raw mode: C mutation even when AL false, alternate-dependent AL, unknown-mode no write, no callbacks. V5–V6. Current-nonzero readout checks C. |
+| Generation (owned) | Supported ordinary backed, representable, non-reentrant domain: swap-before-visits, directional duplicate sampling, mutable-source ages, age191 saturation, per-cell live/dead callbacks and partial publication. V7–V13, V16–V17; conditional V10/high-byte and separate 255 fixture are not ordinary reachability claims. Relative C/P age-store order Partial GL4. |
+| Inline parent zero fields / clear / tick | Bounded modeled boundaries only: V1, V13–V14. Clear P then C, preserve roles/wiring, one view clear; tick clears view even if suppressed, unused timing and normal AL=true. No parent input/picking/render/scheduling implementation. |
+| Inline Shutdown / destruction | Bounded explicit protocol ledger V15: callbacks/context nulled only for admitted initialized Shutdown, then C/null/P/null; destruction skips callback nulling. Null-free entries record calls only. Broader lifetime/repeated cleanup Unsupported GL1/GL2; ordinary Rust drop emits no ledger. |
+| Conditional injection and refusals | Three additional tests cover zero-height swap/RNG construction without draws; raw draw truncation, overflow/index/storage refusals; and 255 source mutation affecting a later sample. |
+
+**20 actual Rust tests** cover all 17 published PROPOSED vector groups plus those three groups. Expectations are literal bytes, callback selections, roles and primitive traces, not a second transition algorithm or production-sampled golden. V7 asserts both allocations after two advances; V11 asserts corner/interior read order; V12 asserts all 16 callbacks and the first two partial snapshots, plus no-op dead callbacks; V16 reaches saturation through 200 owner advances. The four owned bodies total 932 published bytes, but this is bounded behavior evidence, not a 932-byte implementation/verification numerator. Ten parent contexts (1,596 bytes), generic allocator/RNG/view bodies, AnimationTickManager, QuadGrid, region and renderer remain excluded.
+
+## Verification and runtime blocker
+
+- One focused `qbuild quick` ran. Its Rust summaries are **3422/0, 21/0, 13/0, 19/0, 0/0**: **3475 passed, 0 failed**, including all 20 own tests. Dependency compile log is retained. These tests preceded the final formatting and checked-index edit, so they are not a stable-source full-gate claim.
+- The subsequent native build failed with `unknown start of token` after a temporary filename header from my formatter helper entered source while quick was running. That diagnostic was fixed with apply_patch; final new files pass `qbuild fmt` (exit 0, two files). The source is now committed and stable. No additional quick run was started.
+- Shared `lib.rs` was checked too: rustfmt exits 1 with 203 diff lines, beginning with pre-existing `commands`/`cmdline` reorder and other existing module-list order. Only the required append-only export was changed; no mass reformat was applied.
+- Native log terminal is **`ninja: build stopped: subcommand failed.`** The quiet wrapper has not published its terminal or native return code. **Full `qbuild all`, workspace/clippy gate and full CTest are unrun.** No passing gate is inferred from test output, compiled files or links.
+- Read-only process capture at 2026-10-23T06:27:15.848419 shows qbuild PID **17928** (parent 28152; creation epoch 1792732472.5246656), fc4verify PID **33736** (parent 17928; 1792732472.5794125), and only remaining child **23364** (parent 33736; 1792732570.3029037), argv `C:/Users/tlori/.cargo/bin/sccache.EXE --show-stats --stats-format json`, port **4717**. All use this lane worktree as cwd. Existing async session is **1693**. It was collected repeatedly at <=60-second waits and remains outstanding.
+- Exact argv/cwd/creation/parent/port, native terminal and manifest are preserved in `build-runs/core-game-of-life4-stall.json`. Manifest is `C:/Users/tlori/FreeCity4/build-runs/run4-core-game-of-life4-r1-manifest.json`. No process was cancelled/killed/restarted; no cache RPC, daemon or config change, and no duplicate checker was started. CIM access was denied; successful capture used read-only psutil instead.
+- Source and log SHA256, every Rust summary, and start/end engine tree IDs are in `build-runs/core-game-of-life4-evidence.json`. Start engine tree: `27a710dc5a82c241b40f9038c8fb196375e526f3`; committed implementation engine tree: `eb54ef36dc983283b3b90ee862d05700d8a19876`. Source SHA256: module `655560af70baa6a1803caa06d895e2a9cd1b7e8c8a2d6752204812287a496ad2`; tests `4e5f22d05b0f536b1a796eceaff6f474c294a410f5c7501e0c90db1776783ffb`. No stable full-gate start/end exists.
+
+## Questions and next steps
+
+Appended **GL4** in `docs/specs/questions/game-of-life.md`: the published table requires both surviving-age stores before callbacks but does not state their relative order. Code marks portable C-then-P table order as a choice; callback-visible state is defined. GL1–GL3 remain Partial/Unknown, not closed by these fixtures. No other spec file was edited.
+
+This round stops **WIP / blocked on the outstanding wrapper**, with no merge-queue entry and no game runs (core-only task). Preserve session 1693 and its process evidence. After the existing wrapper publishes its terminal, the next authorized step is one canonical `qbuild all` against the stable committed source, collecting that same yielded session through actual terminal and recording Rust/clippy/native RC/full CTest and content/log hashes. Qualify READY and enqueue only after the required gate passes; do not promote native/default/ABI/whole-owner coverage.
