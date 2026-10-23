@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-gdriver5: DirectX 7 core driver | Codex, `core-gdriver5` | in progress | Read director integration and driver specification; implement and verify owner closure. |
+| core-gdriver5: DirectX 7 core driver | Codex, `core-gdriver5` | in progress; context handoff | Collect gate session 50064, fix Enable error preservation, finish closure audit. |
 
 ## Handoff
 - Goal: implement nSGLDX7 driver, texture and primitive managers in core with foreign device traits, conformance coverage, and owner closure.
@@ -16,7 +16,8 @@
 - Added known compressed descriptor preference/fallback; ordinary ranking/converters remain RD6.
 - Corrected precision/compressed-preference focused run: 24 passed, 0 failed (session 61784 completed).
 - Final audit corrected placeholder release, null failure write hazard, capability query in primitive Init, upload unlock cleanup, persistent discard after failed wrap lock and restore-failure capacity preservation; added tests.
-- Next: format nine owned files and run final qbuild all on stable source; collect its exact async operation; update report with measured results.
+- FINAL GATE RUNNING: exec session 50064, native label qbuild-20261023-205157-build-ctest. Collect THIS operation with write_stdin 60s; never duplicate it. Cargo 6302 passed/0 failed; clippy passed/0 diagnostics; fmt passed 9 files. Native verdict pending at 21:00 shell time. Old native log tails are not this request's terminal verdict.
+- Next source fix AFTER collecting gate: Driver::capability uses checked self.submit; a queued-draw failure can overwrite the error during Enable, contradicting spec 5.4. Use unchecked primitive flush there; add queued-failure sentinel test; rerun all for this real diagnostic. Audit other flush-result sites against explicit per-slot rules.
 - New questions RD9–RD11 appended to renderer-driver.md questions; existing RD6/RD7/RD8 explicit boundaries.
 - No game requests outstanding. No plugin/capi integration, so game checks are not applicable to this core-only draft.
-- Source is not yet compiled or owner-closed; do not enqueue ready.
+- Final source has 27 gdriver tests. Source compiled, workspace/clippy passed, but owner closure still needs the failure-path fix and RD9/RD10/RD11 gap review. Do not enqueue ready. No merge-queue entry written; ABI false. Last source commit 6e5bda0d.
