@@ -15,6 +15,7 @@
 
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
+#include "FC4Interfaces.h"
 
 #include "cGZPersistResourceKey.h"
 #include "cIGZSerializable.h"
@@ -117,12 +118,85 @@ bool WriteCapture::WriteResKey(cGZPersistResourceKey const& k) {
     return SetUint32(k.instance);
 }
 
-bool WriteCapture::WriteVariant(cIGZVariant const&) {
-    good_ = false;  // not part of the records read this way
+bool WriteCapture::WriteVariant(cIGZVariant const& value) {
+    // foundations 9.2: encode the native value through its published interface,
+    // independently of the Rust record/variant writer being compared (LR12).
+    const auto* v = AsGame(&value);
+    const uint16_t type = v->GetType();
+    const bool array = (type & 0x8000) != 0;
+    const uint16_t base = type & 0x7fff;
+    if (type == 0x10) {
+        SetUint32(0xA9BEE9AC);
+        auto* unknown = v->RefIGZUnknown();  // borrowed
+        void* view = nullptr;
+        if (!unknown || !unknown->QueryInterface(GZIID_cIGZSerializable, &view) || !view)
+            return WriteGZSerializable(nullptr);
+        auto* ser = static_cast<cIGZSerializable*>(view);
+        FC4_ACQUIRED(ser, "QueryInterface");
+        const bool ok = WriteGZSerializable(ser);
+        FC4_RELEASE(ser);
+        return ok;
+    }
+    SetUint32(0);
+    static const uint32_t tags[] = {0, 11, 1, 5, 2, 6, 3, 7, 4, 8, 9, 10, 17, 16, 12, 18, 13};
+    if (base >= sizeof(tags) / sizeof(tags[0])) { good_ = false; return false; }
+    SetUint32(tags[base] | (array ? 0x8000 : 0));
+    if (base >= 15) { good_ = false; return false; }
+    if (!array && base == 0) return good_;
+    const uint32_t count = array ? v->GetCount() : 1;
+    static const size_t sizes[] = {1, 1, 1, 1, 2, 2, 4, 4, 8, 8, 4, 8, 1, 2, 1};
+    if (count > 64u * 1024u * 1024u / sizes[base]) { good_ = false; return false; }
+    if (array) {
+        const void* data = nullptr;
+        switch (base) {
+            case 0: data = v->RefVoid(); break;
+            case 1: data = v->RefBool(); break;
+            case 2: data = v->RefUint8(); break;
+            case 3: data = v->RefSint8(); break;
+            case 4: data = v->RefUint16(); break;
+            case 5: data = v->RefSint16(); break;
+            case 6: data = v->RefUint32(); break;
+            case 7: data = v->RefSint32(); break;
+            case 8: data = v->RefUint64(); break;
+            case 9: data = v->RefSint64(); break;
+            case 10: data = v->RefFloat32(); break;
+            case 11: data = v->RefFloat64(); break;
+            case 12: data = v->RefChar(); break;
+            case 13: data = v->RefRZUnicodeChar(); break;
+            case 14: data = v->RefRZChar(); break;
+        }
+        if (count && !data) { good_ = false; return false; }
+        if (base == 14) return PutStr(static_cast<const char*>(data), count);
+        SetUint32(count);
+        if (!count) return good_;
+        if (base == 1) {
+            for (uint32_t i = 0; i < count; ++i) SetUint8(static_cast<const bool*>(data)[i] ? 1 : 0);
+            return good_;
+        }
+        return Put(data, count * sizes[base]);
+    }
+    switch (base) {
+        case 1: return SetUint8(v->GetValBool() ? 1 : 0);
+        case 2: return SetUint8(v->GetValUint8());
+        case 3: return SetSint8(v->GetValSint8());
+        case 4: return SetUint16(v->GetValUint16());
+        case 5: return SetSint16(v->GetValSint16());
+        case 6: return SetUint32(v->GetValUint32());
+        case 7: return SetSint32(v->GetValSint32());
+        case 8: return SetUint64(v->GetValUint64());
+        case 9: return SetSint64(v->GetValSint64());
+        case 10: return SetFloat32(v->GetValFloat32());
+        case 11: return SetFloat64(v->GetValFloat64());
+        case 12: return SetUint8(static_cast<uint8_t>(v->GetValChar()));
+        case 13: return SetUint16(v->GetValRZUnicodeChar());
+        case 14: return SetUint8(static_cast<uint8_t>(v->GetValRZChar()));
+    }
+    good_ = false;
     return false;
 }
 
 bool WriteCapture::Put(const void* p, size_t n) {
+    if (n == 0) return good_;
     const uint8_t* b = static_cast<const uint8_t*>(p);
     bytes_.insert(bytes_.end(), b, b + n);  // x86: already little-endian
     return good_;
