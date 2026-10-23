@@ -27,3 +27,31 @@
   [1,2.5)-second range draw. Splash uses one uniform [0,1) double narrowed to
   binary32 seconds for both fade and countdown. A nonzero loaded PullOver
   elapsed counter does not rebuild its unsaved vectors.
+
+<!-- from: core-vehicles5 (2026-10-23) -->
+- ~~**VH4 - §2/§3/§5: construction and Init.** Which flags/defaults does each
+  named owner set, what does traffic Init acquire, and in what order do failures
+  unwind? §3 says only "sets its flags". TrainCar's stated 0x10000000 is known.
+  [Reuse existing record defaults as portable staging values; Init explicitly
+  reports Unsupported rather than treating staging values as native defaults.]~~
+
+  **ANSWERED 2026-10-23 (re-vehicles-vh5b):** DIFFERS — [vehicles.md §12.3](../../vehicles.md#123-construction-and-init-vh4)
+  specifies cumulative constructors, runtime speed draws, flags and Init ordering.
+  Traffic acquires no additional city services and performs no local unwind.
+  Failed model initialization still invokes Occupant Init; derived owners retain
+  their side effects. Train Init chooses family/count; later ticks construct cars.
+
+<!-- from: core-vehicles5 (2026-10-23) -->
+- ~~**VH6 - §3/§5: crash/damage/blur.** What direction distribution and transform
+  does HandleCollision choose, how is ResolveCollision different from
+  UpdateAfterDamage, which event ID/payload is raised, how is the damaged model
+  selected, and what blur key/fade formula is used? [Resolved collision direction
+  can enter the specified final 5000ms COLLIDE; random selection, damage model
+  and blur remain Unsupported. The documented accident and damage flag are
+  available, with a partial-operation error for the missing model step.]~~
+
+  **ANSWERED 2026-10-23 (re-vehicles-vh5b):** DIFFERS — [vehicles.md §12.4](../../vehicles.md#124-collision-direction-damage-effects-and-blur-vh6)
+  defines normalized facing perturbation, damage accumulation and speed reduction,
+  health thresholds, accident `(2,30000)`, event `(11,1)` and named injury/crash
+  effects. The primary vehicle mesh is not replaced. Blur uses its existing model
+  resource key and four ring samples with successively reduced opacity.

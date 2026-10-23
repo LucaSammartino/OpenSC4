@@ -79,14 +79,14 @@ Each class has the usual `GetGZCLSID`, `Read`/`Write` (automata.md §6.4) and ad
 Plummet entry constants, splash duration and the loaded PullOver quirk are specified in §12.2;
 that clarification resolves the earlier conflicting descent descriptions in automata.md §6.5.
 
-- `Init` (`0x0055B9B0`) sets its flags and calls the traffic automaton's `Init`; `DoStateTick` adds states 14 and 21
+- `Init` (`0x0055B9B0`) has the flag/default contract in §12.3 and calls the traffic automaton's `Init`; `DoStateTick` adds states 14 and 21
   (automata.md §6.2); `DoPathTick`, `DoPlummetTick`, `DoPullOverTick` are automata.md §6.5.
 - **Collisions.** `HandleCollision` (`0x0055C8C0`) posts `0x49E64802`, picks a random direction, sets flag
   `0x10000000` and enters a 5000 ms state. `ResolveCollision` and `UpdateAfterDamage` (`0x0055F3F0`) report an
   accident to the traffic automata manager (`CreateAccident`), set flag `0x08000000`, raise an event (slot 102) and
-  replace the model by its damaged form *[summary]*.
+  select a named injury/crash effect. This does **not** replace the vehicle's primary model; see §12.4.
 - `UpdateMotionBlur` (`0x0055DD50`) loads the motion-blur model (`GetAnimatedModelFromResourceKey`) and fades it in
-  with the speed *[summary]*.
+  using the opacity tween and four staggered samples (§12.4).
 - **Player driving** (U-Drive-It, drive-tool.md): `TranslatePlayerDriveCommands` turns the commands into the
   steering and throttle tweens; `PlayerDriveUpdateSpeed` applies them; `PlayerDriveGetNetwork` finds the network the
   vehicle is on (network mask `0x40341004`); `DoPlayerDriveTick` (4.3 KB) moves it along the network, plays the AEMS
@@ -103,8 +103,8 @@ AM10) *[summary]*.
 
 The exact TrainCar and Train record contracts, including load failure and reconstruction rules, are in §12.1.
 
-- `Init` (`0x00557A20`) makes the cars (`cSC4TrainCar::Init`, flag `0x10000000`), with random lengths and
-  colours *[summary]*; `Shutdown` releases them.
+- `Init` (`0x00557A20`) chooses a car family and target count (§12.3); animation ticks subsequently create
+  missing cars (`cSC4TrainCar::Init`, flag `0x10000000`). `Shutdown` releases them.
 - `StartTrip` (`0x005588D0`) builds the trip and posts `0x0C05E4CD`; a train that cannot start reports an accident
   *[summary]*.
 - `DoAnimationTick` (2.3 KB) moves the cars behind the engine and plays random AEMS sounds; `HandleCollision`
@@ -292,3 +292,146 @@ Conformance vectors:
 | Ground contact | Removal; no random splash duration and no `car_splash` effect. |
 | PullOver elapsed 0, nonzero orientation | First tick captures/normalizes orientation and constructs its perpendicular. |
 | PullOver elapsed 250, existing unsaved vectors U and V | First tick bypasses initialization and uses U and V unchanged by load, even if occupant orientation differs. |
+
+### 12.3 Construction and Init (VH4)
+
+Construction is cumulative: Traffic → Vehicle → TrainCar → Train. Do not substitute saved-record staging
+values for constructor initialization. Traffic begins with null leader, network and path references, empty
+route and look-ahead deques, zero path index, unknown entry/exit bytes `0xFF`, zero remaining packed path
+bytes, and transport value 7 at `+0x1E4`. It also sets the inherited flag byte at `+0x33` bit `0x10`.
+Vehicle adds zeroed runtime counters/references, two unset vectors at `+0x264` and `+0x270`, drive-parameter
+storage, four null blur-model slots and ring index zero. The unset vector is `(-1,-2,-3)`, not `(0,0,0)`.
+Its sound/identity field at `+0x28` becomes `0xC7CC75F1`. A signed uniform integer draw between the configured
+vehicle speed bounds (`0x00B21BCC`, `0x00B21BD0`) is converted to float and multiplied by the **f32 bits
+`0x3991A2B5`**; the result supplies both default speed and an immediate speed-tween target.
+
+TrainCar begins with its classification byte false and its rear-point vector equal to the global unset-point
+value (`0x00B22964`); it makes a second signed integer speed draw using the train bounds
+(`0x00B21D0C`, `0x00B21D10`) and the same conversion. Thus constructing a TrainCar consumes the inherited
+vehicle draw as well as the train draw. Train adds target count/family zero, an empty owned-car vector,
+three cached-cell coordinates `-1`, null independent network reference and zero blocked-time counter.
+These runtime tuning globals are inputs; the executable's uninitialized data bytes are not tuning defaults.
+Evidence: constructors `0x005544D0`, `0x005628F0`, `0x0055B150`, `0x0055B2F0`; numeric conversion and
+unset-vector stores checked in instructions `0x0056295D–0x005629A3`, `0x005629F3–0x00562A4C`.
+
+All four Init methods return success immediately when the occupant already reports initialized. For a fresh
+object the owner additions are:
+
+| Owner | Initialization contract |
+|---|---|
+| Traffic | Run Automaton Init. Only on success and when the loaded-occupant byte `+0x3C` is clear, refresh behaviour (slot 105) unless flag `0x4000` is set, then invoke slot 134 unless flag `0x2000` is set. Return the inherited result. |
+| Vehicle | Set flag 8 to the runtime boolean at `0x00B0A0A8`; load drive parameters (slot 158), then initialize Traffic. After that call, enable slot 176 with `(true,0)` if the city option queried through `0x00B43DDC` is true or the global override `0x00B2296C` is true. Return Traffic's result. |
+| TrainCar | Initialize Vehicle; set flags `0x10000`, `0x4000`, `0x10000000` even if Vehicle returned false. Set classification byte `+0x2B8` to membership in either family `0x4217` or `0x4208`; return Vehicle's result. |
+| Train | Initialize TrainCar and clear flag `0x10000000`. Select default speed with a floating range draw between the unsigned train speed bounds after conversion to m/ms; choose family/count below; zero `+0x2F4` and clear `+0x2F8`. Return TrainCar's result. |
+
+The inherited Automaton Init (`0x005101D0`) asks slot 97 to construct/load model instances, initializes the
+effect list only if that succeeded, and calls Occupant Init **even if model creation failed**. It returns the
+model-creation result. There is no additional Traffic acquisition of city services, no local failure unwind,
+and no transactional rollback of the Vehicle/TrainCar/Train additions. Shutdown is a separate operation.
+In particular a failed fresh Init may leave an initialized occupant; a second Init can consequently return
+success without retrying model creation. *[quirk]* Owner evidence: `0x0054D790`, `0x0055B9B0`,
+`0x00556F80`, `0x00557A20`.
+
+Train Init uses the first matching family in this ordered table; no match leaves the existing car-family value:
+
+| Engine family | Car family |
+|---|---|
+| `0x4216` | `0x4203` |
+| `0x4215` | `0x4201` |
+| `0x4217` | `0x4208` |
+| `0x422C` | `0x422D` |
+| `0x422E` | `0x422F` |
+
+For a nonzero car family, choose the target count as lower byte bound plus
+`RandomUint32Uniform(upper−lower)`. Family `0x4203` uses the bounds at `0x00B21D06/07`; every other family
+uses `0x00B21D08/09`. Pass the result to slot 195. This sets a target; it does not construct the cars in Init.
+Preserve the random primitive's bound convention; do not add an extra `+1` to the argument.
+Instruction evidence: `0x00557AD6–0x00557BC4`.
+
+Conformance vectors (supply the tuning globals and random results explicitly):
+
+| Input / operation | Required observation |
+|---|---|
+| Construct Vehicle; speed integer draw returns 36 | Default/target speed is f32 `36 × bits(0x3991A2B5)`; blur slots null, ring index 0; unset vectors `(-1,-2,-3)`. |
+| Construct TrainCar | Observe two signed integer speed draws in order: vehicle bounds, then train bounds. |
+| Fresh Traffic; model creation fails | Return false; still call Occupant Init; no behaviour refresh or slot 134. No rollback. |
+| Loaded Traffic; model creation succeeds | Skip fresh-object behaviour and slot 134, preserving loaded route-related state. |
+| Fresh TrainCar; Vehicle Init fails | Return false, but all three TrainCar flags and classification are still applied. |
+| Train belongs to both `0x4216` and `0x4215`; count bounds 3 and 8, uniform result 2 | Family `0x4203`; uniform argument 5; target count 5; no car allocation by this Init. |
+| Already-initialized Train | Success; no family checks, speed draws or target-count changes. |
+
+### 12.4 Collision direction, damage effects and blur (VH6)
+
+`HandleCollision(other)` (`0x0055C8C0`) returns success without action for a null other object. Otherwise it
+posts `0x49E64802` with all six payload arguments zero, including when already in COLLIDE (20). An already
+colliding object makes no new direction draw and does not restart the timeout. For a new collision create a
+local random generator seeded `0xFFFFFFFF`, obtain a random unit direction R, and replace facing F by
+`normalize(F + 0.5 R)`. The direction primitive rejects vectors outside the unit ball or with squared length
+below `0.0001`, then normalizes; its three coordinates are uniform draws in `[-1,1]` before rejection
+([geometry-utilities.md](geometry-utilities.md) §6.3). This is a three-dimensional perturbation, not a uniform
+yaw. Set flag `0x10000000` and request final state 20 with 5000 ms timeout; return false if state creation
+fails, retaining the preceding message/direction/flag changes. There is no direct model-transform replacement
+in this method. Instruction constants and operation order: `0x0055C8C0–0x0055CA73`.
+
+`ResolveCollision` (`0x0055F7B0`) takes a collision vector V, impulse I, PlayerDrive state S and drive parameters
+P. First round `q = I/P[+0x48]` to f32. Let `m = sqrt(Vx²+Vy²+Vz²)`. If `m > 0.01` **or** `q > 2`, add
+`(m−0.01) × 2000` to the state's unsigned damage count at `+0x60`, multiplying that increment by q when
+`q >= 5`. Convert the accumulated value by truncation toward zero and store the low 32 bits. There is no
+nonnegative clamp on this increment: a small vector with a large impulse can reduce damage. *[quirk]*
+Next run UpdateAfterDamage. Finally set speed to `clamp(currentSpeed + dot(V,facing)×q, 0, currentSpeed)`;
+this is an immediate tween change. Copy it to S's raw speed `+0x2C`, and zero S's acceleration accumulator
+`+0x28` if the result is zero. Damage update precedes speed reduction. Numeric evidence:
+`0x0055F7B0–0x0055F8F7`; `0x00B0A0B4=bits(0x3C23D70A)`, `0x00B0A0B8=2000`,
+`0x00A9D170=5`.
+
+`UpdateAfterDamage` (`0x0055F3F0`) does not itself calculate damage or reduce speed. Compare the unsigned
+damage count D with the parameter health H at `P+0x5C`. Below `H/2`, do nothing. From `H/2` inclusive to H
+exclusive, request the named effect **`udriveit_injured`**. At H or above, create a traffic-manager accident
+with `(vehicle occupant,2,30000)`, store its result at `S+0x68`, set flag `0x08000000`, emit slot 102 event
+`(11,1)`, and request **`udriveit_crash`**. These operations are not guarded against repeated calls at lethal
+damage. If the effect request returns null, retain the old effect. Otherwise stop the old `S+0x74` effect with
+argument 0, release it, retain the new effect, apply a transform at the vehicle position oriented from its
+current facing with unit scale, and start it with argument 0. The selected object is an effect instance, not
+a damaged mesh selected from a family or substituted for the primary vehicle model. This corrects §3's old
+summary. Thresholds, accident arguments and event payload checked at `0x0055F413–0x0055F4DE`.
+
+`UpdateMotionBlur` (`0x0055DD50`) maintains four model instances at `+0x2A4..+0x2B0`, indexed by byte
+`+0x2B4`. If the current slot is null, request the animated model using the vehicle's resource key at
+`+0x11C`; there is no separate hard-coded blur resource key. On success retain that model in the slot.
+Place the current sample at the current position with orientation derived from facing; register a newly
+created instance with the model system, and update an existing instance there. A failed model request does
+not skip the alpha/ring updates. Let A be `min(GetCurrent(opacity tween at +0x1B0),1)`. In current-to-oldest
+ring order, set alpha to A, then repeatedly subtract the f32 value `0.33333334` and clamp the *next* value
+to at least zero. Advance the index modulo four. Thus the first sample's alpha has no lower clamp.
+This method uses the opacity tween, not the measured-speed field `+0x94`. Evidence: resource-key address
+`0x0055DD7C`, alpha loop and ring update `0x0055DE98–0x0055DF45`.
+
+Conformance vectors:
+
+| Input / operation | Required observation |
+|---|---|
+| Null collision target | Success; no message, RNG or state change. |
+| Nonnull target; already in state 20 | One all-zero `0x49E64802` post; no direction draw or new timeout. |
+| F=(1,0,0), supplied unit R=(0,1,0) | New facing approximately `(0.89442719,0.44721360,0)`; flag set before final 5000 ms state request. |
+| Damage D=49,50,99,100 with H=100 | Respectively no effect, injured, injured, crash; only the last creates accident `(2,30000)` and event `(11,1)`. |
+| D=100,H=100; effect request fails | Accident/flag/event still occur; prior effect retained. |
+| D=100,H=100; call UpdateAfterDamage twice | Two accident requests and two `(11,1)` events; no once-only latch. |
+| Current speed 0.02, V=(-0.01,0,0), F=(1,0,0), q=1 | Speed becomes 0.01; raw state speed matches. |
+| Blur ring index 2; opacity 1; all slots present | Slots 2,1,0,3 receive approximately `1,2/3,1/3,0`; next index 3. |
+| Blur opacity -0.25; current model request fails | Existing current slot absent; next three slots receive 0; ring still advances. |
+
+### 12.5 Neighbour ranking and look-ahead evidence (VH2, partial)
+
+The neighbour selector (`0x00554EA0`) ranks successful pathfinder results by **route-entry count**, not
+Euclidean distance or a random draw. Only status 1 qualifies; an equal-sized route does not replace the
+earlier winner. Clamp each candidate destination cell to the city rectangle before pathfinding. The selector
+requires the city, neighbour-connection service and pathfinder service; a missing prerequisite returns null.
+The complete path-request setup and helper contracts remain VH2's open portion; this paragraph must not be
+read as closing the owner implementation. Ranking evidence: `0x00555114–0x0055523B`.
+
+Look-ahead fill (`0x00554870`) seeds an empty deque with the current retained network reference and packed
+path word, then fills to **slot 175's count plus one**, including the seed. It stops at a terminal node. A
+failed expansion marks the preceding node terminal and returns false. The base slot 175 (`0x00504FE0`)
+returns the unsigned tuning byte at `0x00B21D28`; it is not a fixed literal count. Flag `0x40` selects the
+explicit-route expansion (slot 168, `0x005527E0`); when clear, use slot 167 (`0x00550F40`). Slot 159 is
+`SlowDown` (`0x0054DA00`), not the neighbour ranking operation.
