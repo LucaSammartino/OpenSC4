@@ -440,6 +440,71 @@ fn dx7_17_sticky_hresult_channel() {
     assert_eq!(d.error, 0);
 }
 #[test]
+fn enable_preserves_error_across_failed_queued_draw_and_device_state() {
+    for cap in [0, 1, 2, 3, 4, 6] {
+        for draw_hr in [FAIL, LOST] {
+            for state_hr in [0, FAIL, LOST] {
+                let (mut d, mut h) = fixture();
+                d.fog_capable = true;
+                d.draw_arrays(0, 0, 3, &mut h).unwrap();
+                assert_eq!(d.primitives.entries.len(), 1);
+                d.error = 6;
+                h.failures.push_back((Call::DrawBuffer, draw_hr));
+                h.failures.push_back((Call::RenderState, state_hr));
+                d.capability(cap, true, &mut h).unwrap();
+                assert_eq!(d.error, 6, "cap={cap}, draw={draw_hr:x}, state={state_hr:x}");
+                assert!(d.primitives.entries.is_empty());
+                assert!(h.failures.is_empty());
+                assert!(positions(&h, Call::DrawBuffer)[0] < positions(&h, Call::RenderState)[0]);
+            }
+        }
+    }
+}
+
+#[test]
+fn disable_replaces_error_with_state_result_after_failed_queued_draw() {
+    for cap in 0..5 {
+        for draw_hr in [FAIL, LOST] {
+            for state_hr in [0, FAIL, LOST] {
+                let (mut d, mut h) = fixture();
+                d.draw_arrays(0, 0, 3, &mut h).unwrap();
+                d.error = 6;
+                h.failures.push_back((Call::DrawBuffer, draw_hr));
+                h.failures.push_back((Call::RenderState, state_hr));
+                d.capability(cap, false, &mut h).unwrap();
+                assert_eq!(d.get_error(), u32::from(state_hr == FAIL));
+                assert!(h.failures.is_empty());
+                assert!(d.primitives.entries.is_empty());
+            }
+        }
+    }
+}
+
+#[test]
+fn capability_deferred_and_ignored_paths_preserve_queue_and_error() {
+    let (mut d, mut h) = fixture();
+    d.draw_arrays(0, 0, 3, &mut h).unwrap();
+    h.calls.clear();
+    d.error = 6;
+    for enabled in [true, false] {
+        for cap in [5, 6, 7] {
+            d.capability(cap, enabled, &mut h).unwrap();
+            assert_eq!(d.error, 6);
+            assert_eq!(d.primitives.entries.len(), 1);
+            assert!(h.calls.is_empty());
+        }
+        assert_eq!(d.stages[0].enabled, enabled);
+        assert!(d.stages[0].dirty);
+        assert!(d.stages_dirty);
+    }
+    d.lost = true;
+    for cap in 0..8 {
+        assert!(!d.is_enabled(cap, &mut h).unwrap());
+    }
+    assert!(h.calls.is_empty());
+}
+
+#[test]
 fn dx7_18_failed_setup_writes_fourth_word_after_cleanup() {
     let mut h = Recorder::default();
     let mut d = Driver::new(0x100, 0x200);
@@ -754,6 +819,7 @@ fn lifecycle_initialization_info_noop_and_known_light_fields() {
     h.write(0x7000, b"Test").unwrap();
     d.init(&mut h).unwrap();
     assert!(d.initialized);
+    assert_eq!(d.init_word, Some(7));
     assert!(d
         .driver_info()
         .starts_with(b"Maxis 3D GDriver DirectX 2.0\nTest\n1.2.3.4, GUID:"));
@@ -783,6 +849,68 @@ fn lifecycle_initialization_info_noop_and_known_light_fields() {
     d.mode_info(0, &mut mode);
     assert_eq!(mode, [0xbeef; 13]);
     assert_eq!(d.get_error(), 2);
+}
+
+#[test]
+fn initialization_failures_and_shutdown_preserve_specified_cleanup() {
+    for call in [Call::RegisterClass, Call::CreateDirectDraw, Call::AdapterInfo] {
+        let mut d = Driver::new(0x100, 0x200);
+        let mut h = Recorder::default();
+        assert_eq!(d.init_word, None);
+        d.count_modes(&mut h);
+        assert_eq!(d.modes.len(), 4);
+        h.calls.clear();
+        h.refs.clear();
+        h.failures.push_back((call, FAIL));
+        let result = d.init(&mut h);
+        assert!(d.initialized);
+        assert_eq!(d.init_word, Some(7));
+        assert_eq!(d.current.words[0], u32::MAX);
+        assert!(d.modes.is_empty());
+        if call == Call::AdapterInfo {
+            assert_eq!(result, Err(Error::Unsupported("RD9-info")));
+            assert_eq!(h.refs.len(), 1);
+            assert_eq!(h.refs[0].1, Op::Release);
+        } else {
+            assert_eq!(result, Ok(()));
+            assert_eq!(d.error, 6);
+            assert!(h.refs.is_empty());
+            assert_eq!(
+                positions(&h, Call::MessageBox).len(),
+                usize::from(call == Call::CreateDirectDraw)
+            );
+        }
+        let count = h.calls.len();
+        d.init_word = Some(99);
+        d.init(&mut h).unwrap();
+        assert_eq!(h.calls.len(), count);
+        assert_eq!(d.error, 0);
+        assert_eq!(d.init_word, Some(99));
+    }
+    let (mut d, mut h) = fixture();
+    d.initialized = true;
+    d.scene = true;
+    d.draw_arrays(0, 0, 3, &mut h).unwrap();
+    let device = d.device;
+    let buffer = d.primitives.buffer.token;
+    assert_eq!(d.shutdown(&mut h), Err(Error::Unsupported("RD9-shutdown")));
+    assert!(!d.initialized);
+    assert!(!d.ready);
+    assert!(!d.scene);
+    assert!(d.modes.is_empty());
+    assert!(d.stages.is_empty());
+    assert!(d.primitives.entries.is_empty());
+    assert_eq!(d.window, 0);
+    assert_eq!(d.current.words[0], u32::MAX);
+    // The fixture gives the context and texture manager separate device references.
+    for (token, count) in [(device, 2), (buffer, 1)] {
+        assert_eq!(h.refs.iter().filter(|r| **r == (token, Op::Release)).count(), count);
+    }
+    assert!(positions(&h, Call::EndScene)[0] < positions(&h, Call::DestroyWindow)[0]);
+    assert!(positions(&h, Call::DestroyWindow)[0] < positions(&h, Call::UnregisterClass)[0]);
+    let count = h.calls.len();
+    d.shutdown(&mut h).unwrap();
+    assert_eq!(h.calls.len(), count);
 }
 
 #[test]

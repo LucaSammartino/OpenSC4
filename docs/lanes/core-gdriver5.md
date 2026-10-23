@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-gdriver5: DirectX 7 core driver | Codex, `core-gdriver5` | in progress; context handoff | Collect gate session 50064, fix Enable error preservation, finish closure audit. |
+| core-gdriver5: DirectX 7 core driver | Codex, `core-gdriver5` | in progress; round 2 | Finish README closure audit, run final all gate, report and enqueue. |
 
 ## Handoff
 - Goal: implement nSGLDX7 driver, texture and primitive managers in core with foreign device traits, conformance coverage, and owner closure.
@@ -16,8 +16,10 @@
 - Added known compressed descriptor preference/fallback; ordinary ranking/converters remain RD6.
 - Corrected precision/compressed-preference focused run: 24 passed, 0 failed (session 61784 completed).
 - Final audit corrected placeholder release, null failure write hazard, capability query in primitive Init, upload unlock cleanup, persistent discard after failed wrap lock and restore-failure capacity preservation; added tests.
-- FINAL GATE RUNNING: exec session 50064, native label qbuild-20261023-205157-build-ctest. Collect THIS operation with write_stdin 60s; never duplicate it. Cargo 6302 passed/0 failed; clippy passed/0 diagnostics; fmt passed 9 files. Native verdict pending at 21:00 shell time. Old native log tails are not this request's terminal verdict.
-- Next source fix AFTER collecting gate: Driver::capability uses checked self.submit; a queued-draw failure can overwrite the error during Enable, contradicting spec 5.4. Use unchecked primitive flush there; add queued-failure sentinel test; rerun all for this real diagnostic. Audit other flush-result sites against explicit per-slot rules.
+- Round 2 instruction supersedes old gate collection: never collect session 50064. Prior Cargo 6302/0 and clippy/fmt passed; native was incomplete evidence.
+- Round 2 verify completed: qbuild-20261023-211813-build-ctest PASS, build 213/213, CTest 68/68. Session 15450 terminal; do not recollect.
+- Fixed Enable error preservation using unchecked primitive flush (section 5.4); matrix flush already unchecked as section 8.6 requires. Added sentinel/failure, ignored/deferred capability, Init/shutdown cleanup tests and the specified Init word=7 write (purpose RD2).
+- Corrected focused gate: 31 gdriver tests passed, zero failed (session 70182 terminal); explicit two-file fmt passed. Preserved pre-fix sentinel failure and corrected cleanup-test expectation logs in build-runs/gdriver5-r2-*.log.
 - New questions RD9–RD11 appended to renderer-driver.md questions; existing RD6/RD7/RD8 explicit boundaries.
 - No game requests outstanding. No plugin/capi integration, so game checks are not applicable to this core-only draft.
-- Final source has 27 gdriver tests. Source compiled, workspace/clippy passed, but owner closure still needs the failure-path fix and RD9/RD10/RD11 gap review. Do not enqueue ready. No merge-queue entry written; ABI false. Last source commit 6e5bda0d.
+- Next: finish per-owner/section README closure mapping (RD9-RD11 remain open), run final stable-source qbuild all once, then commit report and write ready queue with full HEAD. No merge-queue entry yet; ABI false.

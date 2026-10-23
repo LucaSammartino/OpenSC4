@@ -46,6 +46,9 @@ pub struct Driver {
     pub refs: u32,
     pub error: u32,
     pub initialized: bool,
+    /// Section 4.1 specifies the Init write, but not this word's purpose (RD2)
+    /// or its constructor value. None preserves that construction boundary.
+    pub init_word: Option<u32>,
     pub lost: bool,
     pub scene: bool,
     pub ready: bool,
@@ -84,6 +87,7 @@ impl Driver {
             refs: 0,
             error: 0,
             initialized: false,
+            init_word: None,
             lost: false,
             scene: false,
             ready: false,
@@ -189,6 +193,7 @@ impl Driver {
         }
         self.initialized = true;
         self.window = 0;
+        self.init_word = Some(7);
         self.current.words[0] = u32::MAX;
         self.modes.clear();
         let hr = host.dx(0, Call::RegisterClass, &[3], b"GDriverClass (DirectX)", &mut []);
@@ -668,7 +673,9 @@ impl Driver {
             self.stages_dirty = true;
             return Ok(());
         }
-        self.submit(host);
+        // Section 5.4: Enable never touches the error, including queue failures.
+        // Disable caps 0..4 replaces it using only the state-call result below.
+        self.primitives.flush(host);
         let state = [15, 7, 52, 22, 27, 0, 28][cap as usize];
         let value = if cap == 3 {
             if enabled {
