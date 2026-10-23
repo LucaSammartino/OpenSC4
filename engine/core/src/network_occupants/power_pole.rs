@@ -1,18 +1,24 @@
-//! Published power-pole state and initialization (network-occupants §4).
-//! Unpublished connection/render algorithms and the conflicting record layout
-//! are tracked by NO33-NO35; this is not a closed owner.
+//! Power-pole state, records, connection cleanup and published geometry (§4).
+//! Complete wire/model/render algorithms remain explicitly open in NO33/NO43.
 
 use crate::stream::ResKey;
 use crate::{automata::OccupantBase, stream::RefValue};
 
+use super::{
+    connection::read_wall_into,
+    pylon::{clear_ref, same_ref, References},
+    record::Vertex,
+    underground::write_wall,
+};
 use super::{identity::OCCUPANT_TYPE_POWER_POLE, xform::Xform};
+use crate::stream::{InStream, OutStream};
 
 /// Native pool allocation size, not the size of this portable Rust state.
 pub const POWER_POLE_POOL_OBJECT_SIZE: usize = 0x124;
 pub const PROP_POLE_MODEL: u32 = 0x2781_2821;
 pub const POLE_MODEL_RESOURCE_TYPE: u32 = 0x9AD0_E7E3;
 
-/// The selection is known, but the table's numeric vertices are not (NO33).
+/// Shared attachment-table selection (§4.6).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConnectionPointTable {
     First,
@@ -27,12 +33,22 @@ pub struct PoleConnection {
     pub wire_points: Vec<RefValue>,
     pub flags: [u8; 2],
     pub words: [u32; 2],
-    pub vertices: [Vec<[f32; 3]>; 2],
+    pub vertices: [Vec<Vec<[f32; 3]>>; 2],
 }
 
-/// State with published meanings. Unspecified constructor values are supplied
-/// by the caller rather than invented here (NO33). No native offset aliasing
-/// or live-to-record mapping is asserted (NO35).
+impl Default for PoleConnection {
+    fn default() -> Self {
+        Self {
+            pole: RefValue::Null,
+            wire_points: Vec::new(),
+            flags: [0; 2],
+            words: [0; 2],
+            vertices: Default::default(),
+        }
+    }
+}
+
+/// Live semantic fields; the saved +110 byte has no inferred role (NO42).
 #[derive(Clone, Debug)]
 pub struct PoleFields {
     pub transform: Xform,
@@ -42,8 +58,89 @@ pub struct PoleFields {
     pub distressed: u8,
     pub ignored: u8,
     pub field_118: u32,
-    pub delegate: RefValue,
     pub connections: Vec<PoleConnection>,
+}
+
+impl Default for PoleFields {
+    fn default() -> Self {
+        Self {
+            transform: Xform::default(),
+            position: [0.0; 3],
+            cell: (0, 0),
+            model_y: 0.0,
+            distressed: 0,
+            ignored: 0,
+            field_118: 0,
+            connections: Vec::new(),
+        }
+    }
+}
+
+/// Shared writable tables, including the record reader's first-four overwrite.
+#[derive(Clone, Debug)]
+pub struct AttachmentTables(pub [[[[f32; 3]; 4]; 4]; 2]);
+
+impl Default for AttachmentTables {
+    fn default() -> Self {
+        let mut tables = [[[[0.0; 3]; 4]; 4]; 2];
+        for (t, table) in tables.iter_mut().enumerate() {
+            for (r, points) in table.iter_mut().enumerate() {
+                let distance = if t == 0 {
+                    [4.8, 6.5, 4.8, 6.5][r]
+                } else {
+                    [3.3, 4.5, 4.5, 3.3][r]
+                };
+                for (i, p) in points.iter_mut().enumerate() {
+                    let sign = if i % 2 == 0 { 1.0 } else { -1.0 };
+                    *p = [0.0, if i < 2 { 31.7 } else { 38.7 }, 0.0];
+                    if t == 0 {
+                        if r < 2 {
+                            p[2] = sign * distance;
+                        } else {
+                            p[0] = -sign * distance;
+                        }
+                    } else {
+                        p[0] = -sign * distance;
+                        p[2] = if r < 2 { sign * distance } else { -sign * distance };
+                    }
+                }
+            }
+        }
+        Self(tables)
+    }
+}
+
+impl ConnectionPointTable {
+    fn index(self) -> usize {
+        match self {
+            Self::First => 0,
+            Self::Second => 1,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PoleUnsupported {
+    AttachmentInvariant,
+    DiagonalFloorNO43,
+    CellWalkNO33NO43,
+    ModelBoundsPickDrawNO33NO43,
+}
+
+/// External occupant manager, effects and reciprocal pole calls only.
+pub trait PoleHost: References {
+    fn insert_line(&mut self, line: &RefValue, argument: u32);
+    fn remove_line(&mut self, line: &RefValue, destroy: bool, argument: u32);
+    fn reciprocal_remove(&mut self, other: &RefValue, this: &RefValue, quiet: bool);
+    fn post_message(&mut self, message: u32, data: u32);
+    fn lines_to(&mut self, other: &RefValue, this: &RefValue, out: &mut Vec<(i32, i32)>) -> bool;
+    fn create_effect(&mut self, name: &str) -> RefValue;
+    fn place_effect(&mut self, effect: &RefValue, position: [f32; 3], rotation: [f32; 9], scale: f32);
+    fn start_effect(&mut self, effect: &RefValue);
+    fn stop_effect(&mut self, effect: &RefValue);
+    fn finish_effect(&mut self, effect: &RefValue);
+    fn subscription(&mut self, message: u32, subscribe: bool);
+    fn occupant_shutdown(&mut self, base: &mut OccupantBase);
 }
 
 /// Foreign primitives used by §4.3. In particular, there is no host-owned
@@ -55,9 +152,8 @@ pub trait PoleInitHost {
     fn model_resource(&mut self, resource_type: u32, model_id: u32) -> RefValue;
 }
 
-/// Shared StaticInit inputs whose derivation is outside the published text.
-/// Cost is a signed int64 assembled verbatim, never a cast from the control
-/// float: the relationship requested by conformance test 17 is missing (NO34).
+/// Shared StaticInit state. Quote conversion is foreign variant machinery;
+/// copying its signed result and the one-time guard are owned here (§4.3).
 #[derive(Clone, Debug)]
 pub struct PoleStatics {
     pub control: PowerLineControl,
@@ -65,6 +161,11 @@ pub struct PoleStatics {
     pub model_ids: [u32; 2],
     cost_words: [u32; 2],
     initialized: bool,
+    pub widths: [f32; 5],
+    pub resource_manager: RefValue,
+    pub texture_manager: RefValue,
+    pub texture_bindings: [RefValue; 4],
+    pub packed_state: u64,
 }
 
 impl PoleStatics {
@@ -75,6 +176,11 @@ impl PoleStatics {
             model_ids: [0; 2],
             cost_words: [cost_low, cost_high],
             initialized: false,
+            widths: [0.3; 5],
+            resource_manager: RefValue::Null,
+            texture_manager: RefValue::Null,
+            texture_bindings: std::array::from_fn(|_| RefValue::Null),
+            packed_state: 0,
         }
     }
 
@@ -98,6 +204,61 @@ impl PoleStatics {
     pub fn demolition_cost(&self) -> i64 {
         ((u64::from(self.cost_words[1]) << 32) | u64::from(self.cost_words[0])) as i64
     }
+
+    pub fn initialize(&mut self, host: &mut impl PoleStaticHost) {
+        if self.initialized {
+            return;
+        }
+        self.resource_manager = host.acquire_resource_manager();
+        host.register_shutdown();
+        self.texture_manager = host.acquire_texture_manager(0x1AC0_E11A, 0xFAC0_E219);
+        self.control = PowerLineControl::default();
+        if host.control_exemplar(CONTROL_EXEMPLAR) {
+            self.control = PowerLineControl::load(|id| host.float_property(id), |_| None);
+            if let Some(v) = host.uint_property(PROP_89A1E8FB) {
+                self.control.v_89a1e8fb = v;
+            }
+        }
+        if host.control_exemplar(CONTROL_EXEMPLAR) {
+            if let Some(widths) = host.width_property(0xE9AC_43E7) {
+                self.widths = widths;
+            }
+            if let Some(quote) = host.sint64_property(0x0A2E_CED8) {
+                self.cost_words = [quote as u32, (quote as u64 >> 32) as u32];
+            }
+        }
+        self.packed_state = host.pack(super::pylon::RenderStateArgs(
+            [1, 1, 1, 1, 0, 1, 0, 3, 4, 5, 4],
+            0.1,
+            [1, -1],
+        ));
+        self.initialized = true;
+    }
+    pub fn shutdown(&mut self, host: &mut impl References) {
+        for binding in &mut self.texture_bindings {
+            clear_ref(binding, host);
+        }
+    }
+}
+
+pub const POLE_TEXTURES: [u32; 4] = [0xAA9D_A78E, 0xC9AF_0FCD, 0x0912_220E, 0x0808_0004];
+
+pub trait PoleStaticHost {
+    fn acquire_resource_manager(&mut self) -> RefValue;
+    fn acquire_texture_manager(&mut self, class: u32, iid: u32) -> RefValue;
+    fn register_shutdown(&mut self);
+    fn control_exemplar(&mut self, key: ResKey) -> bool;
+    fn float_property(&self, property: u32) -> Option<f32>;
+    fn uint_property(&self, property: u32) -> Option<u32>;
+    fn width_property(&self, property: u32) -> Option<[f32; 5]>;
+    /// None includes failed variant conversion; destination stays unchanged.
+    fn sint64_property(&self, property: u32) -> Option<i64>;
+    fn pack(&mut self, args: super::pylon::RenderStateArgs) -> u64;
+}
+
+/// Foreign exemplar lookup; table selection itself stays in this owner.
+pub trait PoleRecordHost: References + PoleStaticHost {
+    fn exemplar_model_instance(&mut self, base: &OccupantBase) -> u32;
 }
 
 #[derive(Clone, Debug)]
@@ -108,15 +269,18 @@ pub struct PowerPole {
     pub model_ids: [u32; 2],
     pub model: RefValue,
     pub connection_point_table: Option<ConnectionPointTable>,
-    pub geometry: [Vec<[f32; 3]>; 3],
+    pub geometry: [Vec<Vertex>; 3],
     pub bytes_54_55: [u8; 2],
     pub scale_64: f32,
+    pub stale: bool,
+    pub subscribed: bool,
+    pub effect: RefValue,
 }
 
 impl PowerPole {
     pub fn new(mut fields: PoleFields) -> Self {
-        // The only specified matrix default is identity (§4.1). Preserve all
-        // other explicitly supplied state; undocumented ctor defaults: NO33.
+        // Explicit-state construction for fixtures/loaded state. `fresh`
+        // supplies the complete published §4.1 constructor defaults.
         fields.transform.matrix = super::xform::IDENTITY_MATRIX;
         Self {
             base: OccupantBase::new(OCCUPANT_TYPE_POWER_POLE),
@@ -128,6 +292,9 @@ impl PowerPole {
             geometry: Default::default(),
             bytes_54_55: [0; 2],
             scale_64: 1.0,
+            stale: true,
+            subscribed: false,
+            effect: RefValue::Null,
         }
     }
 
@@ -159,19 +326,22 @@ impl PowerPole {
         self.fields.field_118 = value;
     }
 
-    /// The published selection portion of InitConnectionPoints. No numeric
-    /// point coordinates or unlisted-subtype fallback is fabricated (NO33).
+    /// Unlisted subtypes retain the old table, including null (§4.6).
     pub fn select_connection_point_table(&mut self, subtype_nibble: u8) {
         self.connection_point_table = match subtype_nibble {
             1 | 2 => Some(ConnectionPointTable::First),
             3 | 4 => Some(ConnectionPointTable::Second),
-            _ => None,
+            _ => self.connection_point_table,
         };
     }
 
+    pub fn init_connection_points(&mut self, instance: u32) {
+        self.select_connection_point_table(((instance >> 8) & 15) as u8);
+    }
+
     /// §4.3's specified prefix. Caller must perform shared init_once first.
-    /// This deliberately does not masquerade as full Init: LoadModel internals,
-    /// point coordinates and SetDistressed side effects remain NO33.
+    /// This deliberately does not masquerade as full Init: full model/resource
+    /// decisions remain NO33. `set_distressed` and attachment tables are owned.
     pub fn init_published_state(
         &mut self,
         statics: &PoleStatics,
@@ -192,6 +362,398 @@ impl PowerPole {
         }
         self.bytes_54_55 = [0; 2];
         self.scale_64 = 1.0;
+    }
+
+    /// Fresh constructor, distinct from the explicit supplied-state constructor.
+    pub fn fresh() -> Self {
+        let mut pole = Self::new(PoleFields::default());
+        pole.model_ids = [u32::MAX; 2]; // cached signed rotation/zoom = -1
+        pole
+    }
+
+    pub fn set_preview(&mut self, preview: bool) {
+        self.fields.field_118 = u32::from(preview);
+    }
+    pub fn is_preview(&self) -> bool {
+        self.fields.field_118 != 0
+    }
+    pub fn set_highlight(&mut self, highlight: u8) {
+        self.bytes_54_55[1] = highlight;
+        self.bytes_54_55[0] = (self.bytes_54_55[0] & !1) | u8::from(highlight != 0);
+    }
+    pub fn sort_value(&self) -> u32 {
+        0xAA9D_A78E
+    }
+    pub fn model_instances(&mut self, instance: &RefValue, host: &mut impl References) -> [RefValue; 1] {
+        self.fields.transform.translation = self.fields.position;
+        self.fields.transform.mask |= 1;
+        self.fields.transform.counter = self.fields.transform.counter.wrapping_add(1);
+        host.add_ref(instance);
+        [instance.clone()]
+    }
+    pub fn attachment_points(
+        &self,
+        rotation: u32,
+        tables: &AttachmentTables,
+    ) -> Result<[[f32; 3]; 4], PoleUnsupported> {
+        let table = self
+            .connection_point_table
+            .ok_or(PoleUnsupported::AttachmentInvariant)?;
+        let mut points = tables.0[table.index()][rotation as usize % 4];
+        for point in &mut points {
+            for (v, offset) in point.iter_mut().zip(self.fields.position) {
+                *v += offset;
+            }
+        }
+        Ok(points)
+    }
+    pub fn insert_lines(&mut self, host: &mut impl PoleHost) {
+        for record in &mut self.fields.connections {
+            if record.flags[0] == 0 {
+                for line in &record.wire_points {
+                    host.insert_line(line, 0);
+                }
+                record.flags[0] = 1;
+            }
+        }
+    }
+    pub fn remove_connection_record(&mut self, index: usize, quiet: bool, host: &mut impl PoleHost) {
+        let record = &mut self.fields.connections[index];
+        clear_ref(&mut record.pole, host);
+        for line in record.wire_points.drain(..) {
+            host.remove_line(&line, true, 0);
+            if !matches!(line, RefValue::Null) {
+                host.release(&line);
+            }
+        }
+        record.flags[0] = 0;
+        if record.flags[1] != 0 && !quiet {
+            host.post_message(0x99EF_1145, 0);
+        }
+        self.stale = true;
+    }
+    pub fn remove_connection(&mut self, pole: &RefValue, quiet: bool, host: &mut impl PoleHost) {
+        if let Some(index) = self.fields.connections.iter().position(|r| same_ref(&r.pole, pole)) {
+            self.remove_connection_record(index, quiet, host);
+            self.fields.connections.remove(index);
+        }
+    }
+    pub fn break_all_connections(&mut self, this: &RefValue, quiet: bool, host: &mut impl PoleHost) {
+        for i in 0..self.fields.connections.len() {
+            let other = &self.fields.connections[i].pole;
+            if !matches!(other, RefValue::Null) {
+                host.reciprocal_remove(other, this, false);
+            }
+            self.remove_connection_record(i, quiet, host);
+        }
+    }
+    pub fn line_cells(
+        &self,
+        index: usize,
+        this: &RefValue,
+        out: &mut Vec<(i32, i32)>,
+        host: &mut impl PoleHost,
+    ) -> Result<bool, PoleUnsupported> {
+        let Some(record) = self.fields.connections.get(index) else {
+            return Ok(false);
+        };
+        if record.flags[1] == 0 && !matches!(record.pole, RefValue::Null) {
+            return Ok(host.lines_to(&record.pole, this, out));
+        }
+        // The precise cell walk remains explicitly open in §4.7.1/NO43.
+        Err(PoleUnsupported::CellWalkNO33NO43)
+    }
+    pub fn line_cells_to(
+        &self,
+        pole: &RefValue,
+        this: &RefValue,
+        out: &mut Vec<(i32, i32)>,
+        host: &mut impl PoleHost,
+    ) -> Result<bool, PoleUnsupported> {
+        match self.fields.connections.iter().position(|r| same_ref(&r.pole, pole)) {
+            Some(i) => self.line_cells(i, this, out, host),
+            None => Ok(false),
+        }
+    }
+    pub fn set_distressed(&mut self, distressed: bool, host: &mut impl PoleHost) {
+        self.fields.distressed = u8::from(distressed);
+        if distressed {
+            if matches!(self.effect, RefValue::Null) {
+                self.effect = host.create_effect("powerpolezap");
+                if !matches!(self.effect, RefValue::Null) {
+                    host.place_effect(&self.effect, self.fields.position, super::xform::IDENTITY_MATRIX, 1.0);
+                    host.start_effect(&self.effect);
+                }
+            }
+        } else {
+            self.stop_distress_effect(host);
+        }
+    }
+    fn stop_distress_effect(&mut self, host: &mut impl PoleHost) {
+        if !matches!(self.effect, RefValue::Null) {
+            host.stop_effect(&self.effect);
+            host.finish_effect(&self.effect);
+            clear_ref(&mut self.effect, host);
+        }
+    }
+    pub fn on_inserted_message(&mut self, message: u32, is_this: bool, host: &mut impl PoleHost) {
+        if message == 0x99EF_1142 && is_this {
+            host.subscription(message, false);
+            self.subscribed = false;
+            self.insert_lines(host);
+        }
+    }
+    pub fn shutdown(&mut self, this: &RefValue, host: &mut impl PoleHost) {
+        self.break_all_connections(this, true, host);
+        self.stale = false;
+        clear_ref(&mut self.model, host);
+        for list in &mut self.geometry {
+            list.clear();
+        }
+        if self.subscribed {
+            host.subscription(0x99EF_1142, false);
+            self.subscribed = false;
+        }
+        self.stop_distress_effect(host);
+        host.occupant_shutdown(&mut self.base);
+    }
+    pub fn create_floor(&mut self, diagonal: bool) -> Result<(), PoleUnsupported> {
+        if diagonal {
+            return Err(PoleUnsupported::DiagonalFloorNO43);
+        }
+        self.geometry[0].clear();
+        for (i, (x, z)) in [(-1.0, -1.0), (-1.0, 1.0), (1.0, 1.0), (1.0, -1.0)]
+            .into_iter()
+            .enumerate()
+        {
+            self.geometry[0].push(Vertex {
+                pos: [
+                    x * 10.0 * 0.5 + self.fields.position[0],
+                    self.fields.position[1],
+                    z * 10.0 * 0.5 + self.fields.position[2],
+                ],
+                color: u32::MAX,
+                u: [0.0, 0.0, 1.0, 1.0][i],
+                v: [0.0, 1.0, 1.0, 0.0][i],
+            });
+        }
+        Ok(())
+    }
+    pub fn wall_quad(a: Vertex, b: Vertex, bottom_y: f32) -> Vec<Vertex> {
+        [(a, false, 0.0), (a, true, 0.0), (b, true, 1.0), (b, false, 1.0)]
+            .into_iter()
+            .map(|(p, bottom, u)| {
+                let mut v = p;
+                v.color |= 0x00FF_FFFF;
+                v.u = u;
+                v.v = if bottom {
+                    ((f64::from(p.pos[1]) - f64::from(bottom_y)) * 0.0625) as f32
+                } else {
+                    0.0
+                };
+                if bottom {
+                    v.pos[1] = bottom_y;
+                }
+                v
+            })
+            .collect()
+    }
+    pub fn create_walls(&mut self, rotation: usize) {
+        let pairs = [[(2, 3), (1, 2)], [(1, 2), (0, 1)], [(0, 1), (3, 0)], [(3, 0), (2, 3)]][rotation];
+        for (i, (a, b)) in pairs.into_iter().enumerate() {
+            self.geometry[i + 1] = Self::wall_quad(self.geometry[0][a], self.geometry[0][b], self.fields.model_y);
+        }
+    }
+
+    pub fn write(&self, tables: &AttachmentTables, out: &mut dyn OutStream) -> Result<bool, PoleUnsupported> {
+        let table = self
+            .connection_point_table
+            .ok_or(PoleUnsupported::AttachmentInvariant)?;
+        out.put_u16(5);
+        if self.base.write(out) {
+            self.fields.transform.write(out);
+            write_xyz(self.fields.position, out);
+            out.put_u32(self.fields.connections.len() as u32);
+            for c in &self.fields.connections {
+                out.put_ref(&c.pole); // adapter passes pole serializable view +0xC
+                out.put_u32(c.wire_points.len() as u32);
+                for line in &c.wire_points {
+                    out.put_ref(line);
+                } // line view +8
+                for flag in c.flags {
+                    out.put_bool(flag != 0);
+                }
+                for word in c.words {
+                    out.put_u32(word);
+                }
+                for collection in &c.vertices {
+                    out.put_u32(collection.len() as u32);
+                    for points in collection {
+                        out.put_u32(points.len() as u32);
+                        for point in points {
+                            write_xyz(*point, out);
+                        }
+                    }
+                }
+            }
+            out.put_u32(self.wire_exemplar_index);
+            for word in self.model_ids {
+                out.put_u32(word);
+            }
+            out.put_u32(self.fields.cell.0 as u32);
+            out.put_u32(self.fields.cell.1 as u32);
+            for point in tables.0[table.index()][0] {
+                write_xyz(point, out);
+            }
+            for list in &self.geometry {
+                write_wall(list, out);
+            }
+            out.put_f32(self.fields.model_y);
+            out.put_bool(self.fields.ignored != 0);
+            for byte in self.bytes_54_55 {
+                out.put_u8(byte);
+            }
+            out.put_f32(self.scale_64);
+            out.put_u8(self.fields.distressed);
+        }
+        Ok(out.error() == 0)
+    }
+
+    pub fn read_into(
+        &mut self,
+        tables: &mut AttachmentTables,
+        statics: &mut PoleStatics,
+        inp: &mut dyn InStream,
+        host: &mut impl PoleRecordHost,
+    ) -> Result<bool, PoleUnsupported> {
+        statics.initialize(host);
+        let Some(version) = inp.get_u16() else {
+            return Ok(false);
+        };
+        if version < 4 {
+            return Ok(false);
+        }
+        if let Some(base) = OccupantBase::read(inp) {
+            self.base = base;
+            if version == 4 {
+                self.fields.transform.legacy_load_into(inp);
+            } else {
+                self.fields.transform.read_into(inp);
+            }
+            read_xyz(&mut self.fields.position, inp);
+            if let Some(count) = inp.get_u32() {
+                // Native resize releases old owned refs when shrinking.
+                for c in self.fields.connections.iter_mut().skip(count as usize) {
+                    clear_ref(&mut c.pole, host);
+                    for line in &mut c.wire_points {
+                        clear_ref(line, host);
+                    }
+                }
+                self.fields
+                    .connections
+                    .resize_with(count as usize, PoleConnection::default);
+                for c in &mut self.fields.connections {
+                    clear_ref(&mut c.pole, host);
+                    if let Some(v) = inp.get_ref_as(0x09C0_5C6A) {
+                        c.pole = v;
+                    }
+                    if let Some(n) = inp.get_u32() {
+                        for line in &mut c.wire_points {
+                            clear_ref(line, host);
+                        }
+                        c.wire_points.resize_with(n as usize, || RefValue::Null);
+                        for line in &mut c.wire_points {
+                            if let Some(v) = inp.get_ref_as(0xC9C0_5C5D) {
+                                *line = v;
+                            }
+                        }
+                    }
+                    for flag in &mut c.flags {
+                        if let Some(v) = inp.get_bool() {
+                            *flag = u8::from(v);
+                        }
+                    }
+                    for word in &mut c.words {
+                        if let Some(v) = inp.get_u32() {
+                            *word = v;
+                        }
+                    }
+                    for collection in &mut c.vertices {
+                        if let Some(n) = inp.get_u32() {
+                            collection.resize_with(n as usize, Vec::new);
+                            for points in collection {
+                                if let Some(n) = inp.get_u32() {
+                                    points.resize(n as usize, [0.0; 3]);
+                                    for point in points {
+                                        read_xyz(point, inp);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if let Some(v) = inp.get_u32() {
+                self.wire_exemplar_index = v;
+            }
+            for word in &mut self.model_ids {
+                if let Some(v) = inp.get_u32() {
+                    *word = v;
+                }
+            }
+            if let Some(v) = inp.get_u32() {
+                self.fields.cell.0 = v as i32;
+            }
+            if let Some(v) = inp.get_u32() {
+                self.fields.cell.1 = v as i32;
+            }
+            let instance = host.exemplar_model_instance(&self.base);
+            self.select_connection_point_table(((instance >> 8) & 15) as u8);
+            let table = self.connection_point_table;
+            if let Some(table) = table {
+                for point in &mut tables.0[table.index()][0] {
+                    read_xyz(point, inp);
+                }
+                for wall in &mut self.geometry {
+                    read_wall_into(wall, inp);
+                }
+                if let Some(v) = inp.get_f32() {
+                    self.fields.model_y = v;
+                }
+                if let Some(v) = inp.get_bool() {
+                    self.fields.ignored = u8::from(v);
+                }
+                for byte in &mut self.bytes_54_55 {
+                    if let Some(v) = inp.get_u8() {
+                        *byte = v;
+                    }
+                }
+                if let Some(v) = inp.get_f32() {
+                    self.scale_64 = v;
+                }
+                if let Some(v) = inp.get_u8() {
+                    self.fields.distressed = v;
+                }
+            }
+            clear_ref(&mut self.model, host);
+            if table.is_none() {
+                return Err(PoleUnsupported::AttachmentInvariant);
+            }
+        }
+        Ok(inp.error() == 0)
+    }
+}
+
+fn write_xyz(point: [f32; 3], out: &mut dyn OutStream) {
+    for v in point {
+        out.put_f32(v);
+    }
+}
+fn read_xyz(point: &mut [f32; 3], inp: &mut dyn InStream) {
+    for v in point {
+        if let Some(value) = inp.get_f32() {
+            *v = value;
+        }
     }
 }
 

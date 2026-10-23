@@ -1,149 +1,448 @@
-//! Published underground-connection record/shutdown, network-occupants §3.6.
-//! Drawing/model construction remains open in underground-occupants §8 UG1.
-//! Creation geometry, callback and render-state inputs are tracked by UG5.
-
-use crate::automata::OccupantBase;
-use crate::stream::{InStream, OutStream, RefValue};
-
-use super::record::Vertex;
-use super::underground::{read_wall, write_wall};
+//! Underground connection owner (§3.6/3.6.1; underground-occupants §4).
+//! Descriptor geometry, bounds, drawing and full messages remain UG5/NO40.
+use super::{
+    pylon::{clear_ref, same_ref, References, RenderStateArgs},
+    record::Vertex,
+    underground::write_wall,
+};
+use crate::{
+    automata::OccupantBase,
+    stream::{InStream, OutStream, RefValue},
+};
 
 pub const CONNECTION_RECORD_VERSION: u16 = 2;
 pub const CONNECTION_MESSAGES: [u32; 4] = [0x8B87_A974, 0x8B87_A975, 0x8B8B_2CEE, 0xA6B7_9602];
+pub const CONNECTION_RENDER_STATES: [RenderStateArgs; 3] = [
+    RenderStateArgs([1, 1, 1, 0, 0, 1, 0, 3, -1, -1, -1], -1.0, [1, -1]),
+    RenderStateArgs([1, 1, 1, 0, 1, 1, 0, 3, 4, 5, -1], -1.0, [1, -1]),
+    RenderStateArgs([1, 1, 1, 0, 1, 0, 0, 3, 4, 5, -1], -1.0, [1, -1]),
+];
+pub const NEIGHBORS: [(i32, i32); 8] = [(-1, 0), (0, -1), (1, 0), (0, 1), (-1, -1), (1, -1), (1, 1), (-1, 1)];
+pub const IDENTITY4: [f32; 16] = [
+    1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+];
 
-/// Stream fields in §3.6 order. This raw record avoids inventing a mapping
-/// between serialized +C4/+C8 views and the conflicting live references (UG5).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConnectionKind {
+    Pipe,
+    Subway,
+}
+impl ConnectionKind {
+    pub fn class_id(self) -> u32 {
+        match self {
+            Self::Pipe => 0xEA0A_5ACF,
+            Self::Subway => 0xCA15_ED6B,
+        }
+    }
+    pub fn occupant_class(self) -> u32 {
+        match self {
+            Self::Pipe => 0x49C0_5B9F,
+            Self::Subway => 0xCA16_374F,
+        }
+    }
+    pub fn network_type(self) -> u32 {
+        match self {
+            Self::Pipe => 4,
+            Self::Subway => 7,
+        }
+    }
+    pub fn occupant_type(self) -> u32 {
+        match self {
+            Self::Pipe => 0x2A18_3167,
+            Self::Subway => 0x8A13_918A,
+        }
+    }
+}
+
+/// An adjustment of a host interface view, without changing reference ownership.
+pub trait ConnectionRecordHost: References {
+    fn adjust_view(&mut self, value: RefValue, bytes: i32) -> RefValue;
+}
+
 #[derive(Clone, Debug)]
 pub struct ConnectionRecord {
-    pub version_read: u16,
     pub base: OccupantBase,
-    pub field_64: u32,
+    pub saved_68: u32,
     pub walls: [Vec<Vertex>; 7],
-    pub words_14c_150: [u32; 2],
-    pub words_15c: [u32; 4],
-    pub field_16c: u32,
-    pub field_174: u32,
-    pub flag_178: bool,
-    /// Already adjusted serializable views, not native addresses.
-    pub references: [RefValue; 2],
-    pub field_23c: u32,
-    pub words_22c: [u32; 3],
+    pub cell: (i32, i32),
+    pub heights: [f32; 4],
+    pub saved_170: f32,
+    pub saved_178: i32,
+    pub model_state: bool,
+    pub attached: RefValue,
+    pub linked: RefValue,
+    pub saved_240: u32,
+    pub position: [f32; 3],
+    pub loaded: bool,
 }
 
 impl ConnectionRecord {
-    pub fn write(&self, out: &mut dyn OutStream) -> bool {
-        out.put_u16(CONNECTION_RECORD_VERSION);
-        if !self.base.write(out) {
-            return false;
-        }
-        out.put_u32(self.field_64);
-        for wall in &self.walls {
-            write_wall(wall, out);
-        }
-        for word in self.words_14c_150 {
-            out.put_u32(word);
-        }
-        for word in self.words_15c {
-            out.put_u32(word);
-        }
-        out.put_u32(self.field_16c);
-        out.put_u32(self.field_174);
-        out.put_bool(self.flag_178);
-        for reference in &self.references {
-            out.put_ref(reference);
-        }
-        out.put_u32(self.field_23c);
-        for word in self.words_22c {
-            out.put_u32(word);
+    pub fn write(&self, out: &mut dyn OutStream, host: &mut impl ConnectionRecordHost) -> bool {
+        out.put_u16(2);
+        if self.base.write(out) {
+            out.put_u32(self.saved_68);
+            for wall in &self.walls {
+                write_wall(wall, out);
+            }
+            out.put_u32(self.cell.0 as u32);
+            out.put_u32(self.cell.1 as u32);
+            for height in self.heights {
+                out.put_f32(height);
+            }
+            out.put_f32(self.saved_170);
+            out.put_u32(self.saved_178 as u32);
+            out.put_bool(self.model_state);
+            // The adapter serializes this network occupant through its serializable interface.
+            let attached = if matches!(self.attached, RefValue::Null) {
+                RefValue::Null
+            } else {
+                host.adjust_view(self.attached.clone(), 4)
+            };
+            out.put_ref(&attached);
+            out.put_ref(&self.linked);
+            out.put_u32(self.saved_240);
+            for v in self.position {
+                out.put_f32(v);
+            }
         }
         out.error() == 0
     }
-
-    pub fn read(inp: &mut dyn InStream) -> Option<Self> {
-        // The spec says symmetric but states no version rejection predicate.
-        // Literal choice: retain the read version, no invented rejection (UG5).
-        let version_read = inp.get_u16()?;
-        let base = OccupantBase::read(inp)?;
-        let field_64 = inp.get_u32()?;
-        let mut walls: [Vec<Vertex>; 7] = Default::default();
-        for wall in &mut walls {
-            *wall = read_wall(inp)?;
+    pub fn read_into(&mut self, inp: &mut dyn InStream, host: &mut impl ConnectionRecordHost) -> bool {
+        if inp.get_u16() != Some(2) {
+            return false;
         }
-        Some(Self {
-            version_read,
-            base,
-            field_64,
-            walls,
-            words_14c_150: [inp.get_u32()?, inp.get_u32()?],
-            words_15c: [inp.get_u32()?, inp.get_u32()?, inp.get_u32()?, inp.get_u32()?],
-            field_16c: inp.get_u32()?,
-            field_174: inp.get_u32()?,
-            flag_178: inp.get_bool()?,
-            references: [inp.get_ref()?, inp.get_ref()?],
-            field_23c: inp.get_u32()?,
-            words_22c: [inp.get_u32()?, inp.get_u32()?, inp.get_u32()?],
-        })
+        if let Some(base) = OccupantBase::read(inp) {
+            self.base = base;
+            if let Some(v) = inp.get_u32() {
+                self.saved_68 = v;
+            }
+            for wall in &mut self.walls {
+                read_wall_into(wall, inp);
+            }
+            if let Some(v) = inp.get_u32() {
+                self.cell.0 = v as i32;
+            }
+            if let Some(v) = inp.get_u32() {
+                self.cell.1 = v as i32;
+            }
+            for v in &mut self.heights {
+                if let Some(n) = inp.get_f32() {
+                    *v = n;
+                }
+            }
+            if let Some(v) = inp.get_f32() {
+                self.saved_170 = v;
+            }
+            if let Some(v) = inp.get_u32() {
+                self.saved_178 = v as i32;
+            }
+            if let Some(v) = inp.get_bool() {
+                self.model_state = v;
+            }
+            clear_ref(&mut self.attached, host);
+            if let Some(v) = inp.get_ref_as(0x26BB_767E) {
+                self.attached = if matches!(v, RefValue::Null) {
+                    v
+                } else {
+                    host.adjust_view(v, -4)
+                };
+            }
+            clear_ref(&mut self.linked, host);
+            if let Some(v) = inp.get_ref_as(0x26BB_767E) {
+                self.linked = v;
+            }
+            if let Some(v) = inp.get_u32() {
+                self.saved_240 = v;
+            }
+            for v in &mut self.position {
+                if let Some(n) = inp.get_f32() {
+                    *v = n;
+                }
+            }
+            self.model_state = true;
+            self.loaded = true;
+        }
+        inp.error() == 0
     }
 }
 
-pub trait ConnectionLifecycleHost {
-    fn occupant_init(&mut self, base: &mut OccupantBase);
-    fn subscribe_message(&mut self, message: u32);
-    /// A foreign texture-binding primitive, supplied the named binding slot.
-    fn clear_texture_binding(&mut self, offset: u32);
-    fn unsubscribe_message(&mut self, message: u32);
-    fn occupant_shutdown(&mut self, base: &mut OccupantBase);
+/// Wall-helper reads retain reached mutations even on a later stream failure.
+pub(super) fn read_wall_into(wall: &mut Vec<Vertex>, inp: &mut dyn InStream) {
+    if let Some(count) = inp.get_u32() {
+        wall.resize(count as usize, Vertex::default());
+        for vertex in wall {
+            for v in &mut vertex.pos {
+                if let Some(n) = inp.get_f32() {
+                    *v = n;
+                }
+            }
+            if let Some(n) = inp.get_f32() {
+                vertex.u = n;
+            }
+            if let Some(n) = inp.get_f32() {
+                vertex.v = n;
+            }
+            for shift in [16, 8, 0, 24] {
+                if let Some(n) = inp.get_u8() {
+                    vertex.color = (vertex.color & !(255 << shift)) | (u32::from(n) << shift);
+                }
+            }
+        }
+    }
 }
 
-/// Runtime-only fields explicitly cleared by Shutdown. Unpublished defaults
-/// are supplied by the caller; no RefCell state is used for getters.
+pub trait ConnectionHost: ConnectionRecordHost {
+    fn acquire_resource_manager(&mut self) -> RefValue;
+    fn register_shutdown(&mut self);
+    fn renderer_exists(&self) -> bool;
+    fn renderer_probe(&mut self);
+    fn pack(&mut self, args: RenderStateArgs) -> u64;
+    fn occupant_init(&mut self, base: &mut OccupantBase);
+    fn occupant_shutdown(&mut self, base: &mut OccupantBase);
+    fn message(&mut self, id: u32, subscribe: bool);
+    /// Three bindings in the shutdown order, indexed 0..3; no native offsets
+    /// are inferred from the saved-word/list offsets.
+    fn clear_texture_binding(&mut self, slot: u32);
+    fn position_to_cell(&mut self, position: [f32; 3]) -> (i32, i32);
+    fn cell_origin(&mut self, cell: (i32, i32)) -> [f32; 2];
+    fn cell_extents(&mut self) -> [f32; 2];
+    fn cell_size(&mut self) -> f32;
+    fn corner_heights(&mut self, cell: (i32, i32)) -> [f32; 4];
+    /// Search results own one reference; network_interface returns a borrowed one.
+    fn find_occupant(&mut self, cell: (i32, i32), class: u32) -> RefValue;
+    fn find_connection(&mut self, cell: (i32, i32), class: u32) -> RefValue;
+    fn network_interface(&mut self, network_type: u32) -> RefValue;
+    fn begin_change(&mut self, network: &RefValue);
+    fn connect(&mut self, network: &RefValue, coordinates: [i32; 4], tail: [i32; 4]);
+    fn end_change(&mut self, network: &RefValue);
+    fn refresh(&mut self, occupant: &RefValue, propagate: bool);
+    fn remove_self(&mut self, destroy: bool, argument: u32);
+    /// Foreign QI returns a counted interface, or Null.
+    fn query_interface(&mut self, occupant: &RefValue, iid: u32) -> RefValue;
+    /// Borrowed adjusted model-instance interface, not the primary occupant.
+    fn model_instance(&mut self) -> RefValue;
+    fn post_occupant_message(&mut self, message: u32, value: u32);
+}
+
+#[derive(Clone, Debug)]
+pub struct ConnectionStatics {
+    pub latched: bool,
+    pub resource_manager: RefValue,
+    pub packed_states: [u64; 3],
+}
+impl Default for ConnectionStatics {
+    fn default() -> Self {
+        Self {
+            latched: false,
+            resource_manager: RefValue::Null,
+            packed_states: [0; 3],
+        }
+    }
+}
+impl ConnectionStatics {
+    pub fn initialize(&mut self, host: &mut impl ConnectionHost) {
+        if !self.latched {
+            self.resource_manager = host.acquire_resource_manager();
+            host.register_shutdown();
+            self.latched = true;
+        }
+    }
+    pub fn setup_packed_states(&mut self, host: &mut impl ConnectionHost) {
+        if host.renderer_exists() {
+            host.renderer_probe();
+            for (state, args) in self.packed_states.iter_mut().zip(CONNECTION_RENDER_STATES) {
+                *state = host.pack(args);
+            }
+        }
+    }
+    pub fn shutdown(&mut self, refs: &mut impl References) -> bool {
+        clear_ref(&mut self.resource_manager, refs);
+        true // The static latch deliberately stays set.
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConnectionUnsupported {
+    GeometryBoundsDrawTransformMessagesUG5NO40,
+}
+
+/// Unpublished construction inputs must be supplied; creation fills specified state.
 #[derive(Clone, Debug)]
 pub struct UndergroundConnection {
-    pub base: OccupantBase,
-    pub vectors_70: [Vec<[f32; 3]>; 4],
-    pub vector_a4: Vec<[f32; 3]>,
-    pub vector_b0: Vec<[f32; 3]>,
-    pub vector_c0: Vec<[f32; 3]>,
-    pub reference_158: RefValue,
-    pub reference_15c: RefValue,
-    pub reference_c8: RefValue,
-    pub reference_cc: RefValue,
+    pub record: ConnectionRecord,
+    pub initialized: bool,
+    pub surface: [Vertex; 4],
+    pub matrices: [[f32; 16]; 2],
+    pub bottom_y: f32,
 }
-
 impl UndergroundConnection {
-    /// The only specified GetHiddenTriangles behavior (§3.6).
     pub fn hidden_triangles(&self) -> [u32; 3] {
         [0, 1, 1]
     }
-
-    /// This is explicitly a fragment, not full Init: the one-time callback
-    /// and SetupPackedRenderState have no specified bodies (UG1/UG5).
-    pub fn init_published_subscriptions(&mut self, host: &mut impl ConnectionLifecycleHost) {
-        host.occupant_init(&mut self.base);
-        for message in CONNECTION_MESSAGES {
-            host.subscribe_message(message);
+    pub fn init(&mut self, statics: &mut ConnectionStatics, host: &mut impl ConnectionHost) -> bool {
+        statics.initialize(host);
+        if !self.initialized {
+            host.occupant_init(&mut self.record.base);
+            self.initialized = true;
+            statics.setup_packed_states(host);
+            for id in CONNECTION_MESSAGES {
+                host.message(id, true);
+            }
+        }
+        true
+    }
+    pub fn create(
+        &mut self,
+        kind: ConnectionKind,
+        statics: &mut ConnectionStatics,
+        host: &mut impl ConnectionHost,
+    ) -> Result<(), ConnectionUnsupported> {
+        self.record.base.occupant_type = kind.occupant_type();
+        statics.initialize(host);
+        if self.initialized {
+            return Ok(());
+        }
+        host.occupant_init(&mut self.record.base);
+        self.initialized = true;
+        let r = &mut self.record;
+        r.cell = host.position_to_cell(r.position);
+        let origin = host.cell_origin(r.cell);
+        let extents = host.cell_extents().map(|v| v as i32 as f32);
+        let size = host.cell_size();
+        r.saved_170 = r.position[1];
+        self.bottom_y = (f64::from(r.position[1]) - f64::from(size)) as f32;
+        r.heights = host.corner_heights(r.cell);
+        for (i, v) in self.surface.iter_mut().enumerate() {
+            v.pos = [
+                if i >= 2 { origin[0] + extents[0] } else { origin[0] },
+                (f64::from(r.heights[i]) - f64::from(size)) as f32,
+                if i == 1 || i == 2 {
+                    origin[1] + extents[1]
+                } else {
+                    origin[1]
+                },
+            ];
+            v.u = if i >= 2 { 1.0 } else { 0.0 };
+            v.v = if i == 1 || i == 2 { 1.0 } else { 0.0 };
+        }
+        self.matrices = [IDENTITY4; 2];
+        r.saved_178 = 1;
+        r.model_state = true;
+        statics.setup_packed_states(host);
+        clear_ref(&mut r.attached, host);
+        r.attached = host.find_occupant(r.cell, kind.occupant_class());
+        if matches!(r.attached, RefValue::Null) {
+            for (dx, dz) in NEIGHBORS {
+                let cell = (r.cell.0.wrapping_add(dx), r.cell.1.wrapping_add(dz));
+                let mut neighbor = host.find_occupant(cell, kind.occupant_class());
+                if matches!(neighbor, RefValue::Null) {
+                    neighbor = host.find_connection(cell, kind.class_id());
+                }
+                if !matches!(neighbor, RefValue::Null) {
+                    host.release(&neighbor);
+                    if !r.loaded {
+                        let network = host.network_interface(kind.network_type());
+                        if !matches!(network, RefValue::Null) {
+                            host.add_ref(&network);
+                            host.begin_change(&network);
+                            host.connect(&network, [r.cell.0, r.cell.1, cell.0, cell.1], [0, 0, 1, -1]);
+                            host.end_change(&network);
+                            host.release(&network);
+                        }
+                    }
+                }
+            }
+            r.attached = host.find_occupant(r.cell, kind.occupant_class());
+        }
+        if !matches!(r.attached, RefValue::Null) {
+            host.refresh(&r.attached, true);
+        }
+        // ComputeBox is still explicitly unspecified in UG5/NO40. Continue
+        // subscriptions, but expose that the creation geometry is incomplete.
+        for id in CONNECTION_MESSAGES {
+            host.message(id, true);
+        }
+        Err(ConnectionUnsupported::GeometryBoundsDrawTransformMessagesUG5NO40)
+    }
+    pub fn set_linked_occupant(&mut self, value: RefValue, host: &mut impl ConnectionHost) {
+        if same_ref(&self.record.linked, &value) {
+            return;
+        }
+        // Release while the old field is still observable to a reentrant host;
+        // unlike read cleanup, this setter must not clear it before Release.
+        if !matches!(self.record.linked, RefValue::Null) {
+            host.release(&self.record.linked);
+        }
+        self.record.linked = value;
+        if matches!(self.record.linked, RefValue::Null) {
+            host.remove_self(true, 0);
+        } else {
+            host.add_ref(&self.record.linked);
         }
     }
-
-    /// §3.6 shutdown order: bindings, vectors, four held refs, four messages,
-    /// then the foreign cSC4Occupant base. No borrowed refs are released.
-    pub fn shutdown(&mut self, host: &mut impl ConnectionLifecycleHost) {
-        for offset in [0x9C, 0x64, 0xB8] {
-            host.clear_texture_binding(offset);
+    pub fn refresh_attached(&self, host: &mut impl ConnectionHost) {
+        if !matches!(self.record.attached, RefValue::Null) {
+            host.refresh(&self.record.attached, true);
         }
-        for vector in &mut self.vectors_70 {
-            vector.clear();
+    }
+    pub fn model_state_changed(&mut self) -> Result<(), ConnectionUnsupported> {
+        if self.record.model_state {
+            return Ok(());
         }
-        self.vector_a4.clear();
-        self.vector_b0.clear();
-        self.vector_c0.clear();
-        self.reference_158 = RefValue::Null;
-        self.reference_15c = RefValue::Null;
-        self.reference_c8 = RefValue::Null;
-        self.reference_cc = RefValue::Null;
-        for message in CONNECTION_MESSAGES {
-            host.unsubscribe_message(message);
+        self.record.model_state = true;
+        // Must compute bounds before renderer notification. Do not counterfeit
+        // that owner computation with a foreign result callback (UG5/NO40).
+        Err(ConnectionUnsupported::GeometryBoundsDrawTransformMessagesUG5NO40)
+    }
+    pub fn set_position(&mut self, position: [f32; 3]) {
+        self.record.position = position;
+    }
+    pub fn position(&self) -> [f32; 3] {
+        self.record.position
+    }
+    pub fn model_instances(&self, host: &mut impl ConnectionHost) -> [RefValue; 1] {
+        let instance = host.model_instance();
+        host.add_ref(&instance);
+        [instance]
+    }
+    pub fn query_occupant_interface(
+        &self,
+        kind: ConnectionKind,
+        occupant: &RefValue,
+        host: &mut impl ConnectionHost,
+    ) -> RefValue {
+        let matched = host.query_interface(occupant, kind.occupant_class());
+        if matches!(matched, RefValue::Null) {
+            return RefValue::Null;
         }
-        host.occupant_shutdown(&mut self.base);
+        let answer = host.query_interface(occupant, 0x4A10_AFC2);
+        host.release(&matched);
+        answer
+    }
+    pub fn sort_value(&self, kind: ConnectionKind) -> u32 {
+        kind.class_id()
+    }
+    pub fn post_occupant_message(&self, message: u32, value: u32, host: &mut impl ConnectionHost) {
+        host.post_occupant_message(message, value);
+        match message {
+            0x99EF_1142 => host.post_occupant_message(0x8B87_A974, value),
+            0x99EF_1143 => host.post_occupant_message(0x8B87_A975, value),
+            _ => (),
+        }
+    }
+    pub fn shutdown(&mut self, host: &mut impl ConnectionHost) {
+        for slot in 0..3 {
+            host.clear_texture_binding(slot);
+        }
+        for wall in &mut self.record.walls {
+            wall.clear();
+        }
+        clear_ref(&mut self.record.attached, host);
+        clear_ref(&mut self.record.linked, host);
+        for id in CONNECTION_MESSAGES {
+            host.message(id, false);
+        }
+        host.occupant_shutdown(&mut self.record.base);
+        self.initialized = false;
     }
 }
