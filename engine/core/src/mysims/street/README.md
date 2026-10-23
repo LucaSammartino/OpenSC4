@@ -32,15 +32,12 @@ State snapshots use RwLock and tracking uses an atomic; no callback executes
 with a snapshot lock held. Normal callbacks return and provide valid outputs.
 General reentrancy, exceptions and list mutation remain ST5.
 
-Numeric bounds: direct real-to-int conversions accept exact binary32 dyadics
-in signed-dword range. Funding additionally requires its binary64 product by
-100 to be exactly binary32. Percentages accept zero counters for totals up to
-4096, or positive counters not exceeding such a total when a conservative
-rounding envelope proves one truncation across PC24/53/64 and RC choices.
-This proves T6/T7/T9/T11 without assuming general native/f64 equivalence.
-Ambiguous integer boundaries, nonfinite inputs, extreme values and unproved
-extended-precision values return explicit `Unsupported::NumericDomain` after
-the already-executed prefix. Invalid required pointers return a distinct
+Numeric conversions follow native `_ftol2`: truncate toward zero to a qword
+and keep the low 32 bits. Percentages use the literal order (float32 spill of
+the reciprocal, then two ordered products) evaluated at binary64, the Windows
+default x87 precision. NaN, infinity and values outside the qword range return
+`Unsupported::NumericDomain` after the already-executed prefix (ST3).
+Invalid required pointers return a distinct
 Unsupported result, never normal false or Complete. Ordinary false raw returns
 continue wherever specified, including written outputs. No rollback is added.
 

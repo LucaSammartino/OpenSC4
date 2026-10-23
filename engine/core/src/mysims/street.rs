@@ -600,7 +600,7 @@ impl StreetSim {
         let g = required(host.handle(HandleCall::CongestionGrid(traffic)), "congestion grid")?;
         let v = self.sample_word(host, g, loc) as u8;
         self.number(host, "trip_traffic_congestion", i32::from(v))?;
-        let v = exact_trunc(host.real(RealCall::TimeRatio(traffic, loc.cx, loc.cz, self.state().category)))?;
+        let v = native_trunc(host.real(RealCall::TimeRatio(traffic, loc.cx, loc.cz, self.state().category)))?;
         self.number(host, "trip_time_ratio", v)?;
         self.number(host, "trip_wait_length", 0)?;
         for (index, key) in [
@@ -626,7 +626,7 @@ impl StreetSim {
             host.education_grid(i == 1, &mut grids[i]);
             let grid = required(grids[i], "EQ/HQ grid")?;
             let (gx, gz) = self.sample(host, grid, loc);
-            let value = exact_trunc(host.real(RealCall::GridSample(grid, gx, gz)))?;
+            let value = native_trunc(host.real(RealCall::GridSample(grid, gx, gz)))?;
             self.number(host, key, value)?;
         }
         let global = required(host.handle(HandleCall::LotManagerGlobal), "lot manager global")?;
@@ -689,8 +689,8 @@ impl StreetSim {
             let holder = required(host.handle(HandleCall::PropertyHolder(u)), "landmark properties")?;
             let mut funding = 0.0f32;
             host.funding(holder, 0xAA59_670C, &mut funding);
-            // Exact dyadic product is required, not a generic Rust float cast.
-            let value = exact_trunc(f64::from(funding) * 100.0)?;
+            // float32 * float32(100) is exact in binary64.
+            let value = native_trunc(f64::from(funding) * 100.0)?;
             self.number(host, "trip_landmark_funding_p", value)?;
         } else {
             let helper = self
@@ -755,41 +755,23 @@ fn required(value: Option<Token>, name: &'static str) -> Result<Token, Unsupport
     value.ok_or(Unsupported::InvalidOutput(name))
 }
 
-/// ST3 bounded normal domain: exact binary32 inputs in signed-dword range.
-/// They are also exact at x87 PC24/53/64; truncation is independent of RC.
-/// Nonfinite, extended-precision-only and out-of-range values are Unsupported.
-fn exact_trunc(value: f64) -> Result<i32, Unsupported> {
-    if !value.is_finite() || f64::from(value as f32) != value || !(-2147483648.0..2147483648.0).contains(&value) {
+/// Native `_ftol2`: truncate toward zero to a qword and consume its low EAX.
+/// Values outside the qword range (and NaN/infinity) produce the integer
+/// indefinite under ambient x87 exception masks, which ST3 leaves open.
+fn native_trunc(value: f64) -> Result<i32, Unsupported> {
+    if !value.is_finite() || !(i64::MIN as f64..-(i64::MIN as f64)).contains(&value) {
         return Err(Unsupported::NumericDomain);
     }
-    Ok(value.trunc() as i32)
+    Ok(value.trunc() as i64 as i32)
 }
 
-/// Qualify only finite normal percentages whose truncation is invariant across
-/// the native precision/rounding choices. For 1<=t<=4096 the denominator,
-/// reciprocal, binary32 spill and two ordered products each have relative
-/// error <=2^-23 at PC>=24, including directed rounding. The conservative
-/// combined envelope 2^-19 also covers the binary64 evaluation here. If the
-/// entire envelope has one truncation, that integer is proved without assuming
-/// universal f64/x87 equivalence. Zero products are exact. ST3 remains open.
+/// §3.7.2 literal order: q = float32(1 / (signed t + epsilon)), then
+/// (signed k * q) * float32(100). Evaluated at binary64, the Windows default
+/// x87 precision control (PC53); other ambient modes are ST3.
 fn percentage(total: u32, count: u32) -> Result<i32, Unsupported> {
-    if count == 0 && total <= 4096 {
-        return Ok(0);
-    }
-    if total == 0 || total > 4096 || count > total {
-        return Err(Unsupported::NumericDomain);
-    }
     let epsilon = f64::from_bits(0x3F1A_36E2_EB1C_432D);
-    let nominal = (f64::from(count) / (f64::from(total) + epsilon)) * 100.0;
-    let low = (nominal * (1.0 - 1.0 / 524288.0)).trunc();
-    let high = (nominal * (1.0 + 1.0 / 524288.0)).trunc();
-    let q = (1.0 / (f64::from(total) + epsilon)) as f32;
-    let product = (f64::from(count) * f64::from(q)) * f64::from(100.0f32);
-    if low == high && product.trunc() == low {
-        Ok(product.trunc() as i32)
-    } else {
-        Err(Unsupported::NumericDomain)
-    }
+    let q = (1.0 / (f64::from(total as i32) + epsilon)) as f32;
+    native_trunc((f64::from(count as i32) * f64::from(q)) * f64::from(100.0f32))
 }
 
 #[cfg(test)]

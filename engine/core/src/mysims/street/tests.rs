@@ -1129,7 +1129,7 @@ fn t4_reversed_raw_rectangle_is_not_clamped_and_qi_success_configures_individual
 
 #[test]
 fn t17_numeric_and_invalid_output_stay_explicit() {
-    for value in [f64::NAN, f64::INFINITY, 2147483648.0, 1.0000000000000002] {
+    for value in [f64::NAN, f64::INFINITY, 1.0e19] {
         let mut f = Fixture {
             traffic: true,
             ratio: value,
@@ -1152,7 +1152,12 @@ fn t17_numeric_and_invalid_output_stay_explicit() {
     assert_eq!(f.log, [Event::W(WordCall::Context(t(20), 0))]);
     assert_eq!(percentage(3, 1), Ok(33));
     assert_eq!(percentage(3, 2), Ok(66));
-    assert_eq!(percentage(4096, 4096), Err(Unsupported::NumericDomain));
+    // PC53 rounds the final product to exactly 100 here (ST3).
+    assert_eq!(percentage(4096, 4096), Ok(100));
+    assert_eq!(percentage(1, 1), Ok(99));
+    assert_eq!(native_trunc(-2.75), Ok(-2));
+    assert_eq!(native_trunc(2147483648.0), Ok(i32::MIN));
+    assert_eq!(native_trunc(4294967298.5), Ok(2));
 }
 
 #[test]
