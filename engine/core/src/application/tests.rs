@@ -98,7 +98,7 @@ impl Host for TestHost {
     }
 }
 
-fn app() -> Application {
+pub(super) fn app() -> Application {
     let mut directories = Directories::default();
     directories.plugin_a4 = b"P:\\".to_vec();
     directories.user_base_11c = b"U:\\".to_vec();
@@ -282,6 +282,10 @@ fn successful_init_exact_order_includes_every_unresolved_owner_call() {
                 kind: 0xC7AA_61C6,
                 target: 1
             }),
+            Call::Effect(Effect::RegisterV2 {
+                kinds: compatibility::V2_SUBSCRIPTIONS,
+                target: 1
+            }),
             Call::Create(Object::Helper(Helper::CheatManager), 101),
             Call::Effect(Effect::RegisterCheat {
                 manager: 101,
@@ -409,7 +413,10 @@ fn all_services_register_in_published_order_and_wrap_two_gz_bases() {
             Service::LuaScript,
             Service::Language,
             Service::Unnamed2,
+            Service::GraphicsSystem,
+            Service::UnnamedBeforeFont,
             Service::Font,
+            Service::UnnamedAfterFont,
             Service::WindowControl,
             Service::Clipboard,
             Service::Unnamed3,
@@ -417,6 +424,7 @@ fn all_services_register_in_published_order_and_wrap_two_gz_bases() {
             Service::PersistResource,
             Service::Registry,
             Service::TextureBindingFactory,
+            Service::UnnamedAfterTexture,
             Service::ScriptResourceFactory,
             Service::Www,
             Service::Unnamed4,

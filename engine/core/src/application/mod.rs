@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Partial cSC4App owner from application.md sections 1-10.
+//! Portable cSC4App owner from application.md sections 1-15.
 //!
-//! No native/default/whole-owner coverage is claimed. Section 11 belongs to
-//! another assignment; AP3-AP5 and section 12 remain unresolved. The lifecycle
-//! runner stops at each unpublished app algorithm, rather than outsourcing it
-//! as a host callback. See README.md for the method map and continuation contract.
+//! See README.md for section coverage and the spec's remaining open boundaries.
+//! Foreign objects remain traits; no native ABI layout or plugin is installed.
 //! All getters use plain shared state, with no RefCell or borrowed COM releases.
 
+pub mod city;
 pub mod command_line;
+pub mod compatibility;
 pub mod directories;
 mod lifecycle;
 
@@ -57,6 +57,7 @@ pub enum Boundary {
     CityObliteration,
     ResolutionAcceptance { width: u32, height: u32, depth: u32 },
     UserDirectoryAcceptance(Vec<u8>),
+    SavePathNaming,
 }
 
 /// Opaque host failures have no inferred fallback/rollback (AP6).
@@ -108,6 +109,22 @@ pub enum Effect {
     RegisterV1 {
         kind: u32,
         target: Token,
+    },
+    RegisterV2 {
+        kinds: [u32; 9],
+        target: Token,
+    },
+    UnregisterV2 {
+        kinds: [u32; 9],
+        target: Token,
+    },
+    UnregisterV1 {
+        kind: u32,
+        target: Token,
+    },
+    UnregisterCheat {
+        manager: Token,
+        id: u32,
     },
     RegisterCheat {
         manager: Token,
@@ -203,6 +220,12 @@ pub struct Application {
     pub watchers: [Option<Token>; 2],
     pub screen_owner: Option<Token>,
     pub field_314: Option<Token>,
+    pub city_state: city::CityState,
+    pub preferences_image: compatibility::PreferencesImage,
+    pub resolved_ini_path: Option<Vec<u8>>,
+    pub startup_plugin_directories: Option<Vec<Vec<u8>>>,
+    pub(crate) instance_policy: (bool, bool),
+    pub handles: compatibility::AppHandles,
     pub app_name: Vec<u8>,
     pub mode: u32,
     pub debug_enabled: bool,
@@ -233,6 +256,12 @@ impl Application {
             watchers: [None; 2],
             screen_owner: None,
             field_314: None,
+            city_state: city::CityState::default(),
+            preferences_image: compatibility::PreferencesImage::default(),
+            resolved_ini_path: None,
+            startup_plugin_directories: None,
+            instance_policy: (false, false),
+            handles: compatibility::AppHandles::default(),
             app_name: Vec::new(),
             mode: 0,
             debug_enabled: false,
@@ -394,5 +423,7 @@ impl Application {
     }
 }
 
+#[cfg(test)]
+mod owner_tests;
 #[cfg(test)]
 mod tests;
