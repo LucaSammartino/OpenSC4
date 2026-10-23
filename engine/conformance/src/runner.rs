@@ -1272,6 +1272,7 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
             .or_else(|| crate::overlay_views::exec(host, other, op))
             .or_else(|| crate::lot_models::exec(other, op))
             .or_else(|| crate::gdrivers_director::exec(other, op))
+            .or_else(|| crate::sc_resources::exec(other, op))
             .unwrap_or_else(|| Err(format!("unknown op '{other}'"))),
     }
 }

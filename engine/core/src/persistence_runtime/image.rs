@@ -66,6 +66,11 @@ pub trait Buffer: Send {
     fn release(&mut self);
     fn query_interface(&mut self, iid: u32) -> bool;
     fn initialize(&mut self, width: u32, height: u32, format: Format) -> bool;
+    /// File/record adapter creation flags. Existing portable buffers have no
+    /// external allocation policy; foreign implementations may override it.
+    fn initialize_with_flags(&mut self, width: u32, height: u32, format: Format, _flags: u32) -> bool {
+        self.initialize(width, height, format)
+    }
     fn layout(&self) -> BufferLayout;
     fn lock(&mut self, write: bool) -> bool;
     fn unlock(&mut self);
