@@ -15,8 +15,8 @@
 - No game requests outstanding. Manifest: main build-runs/run4-glue-netocc-shadow5-r2-manifest.json.
 - 7e82f20c implemented shadow and NO13 fix. Full gate in progress on that source:
   workspace 6233 passed, 0 failed/ignored; clippy exit 0 diagnostics 0.
-- Native request qbuild-20261023-205539-build-ctest pending; collect existing session 77994.
-- Next: collect native gate, submit unique netocc-r2-2032-1 game request, wait with local event waiter (not qwait).
+- Full gate terminal PASS: native 158/158 edges, CTest 68/68; request qbuild-20261023-205539-build-ctest.
+- Next: submit unique netocc-r2-2032-1 game request, wait with local event waiter (not qwait).
 
 ## Changes
 
