@@ -596,7 +596,79 @@ but position update and those three messages still occur. A displacement below t
 An exhaustion fixture must force N projections without an earlier no-edge/history stop; its expected result
 is the original from. No general “inside after clamp” property is valid for these routines.
 
-## 7. Native owner inventory and evidence limits (CA3–CA6)
+### 6.2 Constructor storage and conversion discriminators (CA7)
+
+These are analytic contract vectors, not game captures. Compare finite integer examples exactly;
+they use identity/orthogonal synthetic view transforms to avoid trigonometric tolerance questions.
+
+| Setup / operation | Required result | Discriminates |
+|---|---|---|
+| Construct in nonzero-filled test storage, without a camera | `+0x80`…`+0xAC` all positive-zero floats; pixel/metre factors 1/1; no conversion call attempted | explicit constructor stores rather than allocator-zero assumptions; no camera-less numeric conversion guarantee |
+| Attach a fresh identity camera before Init; convert world (2,3,7), then inverse (2,3) | plane (2,3); world (2,3,0); copied control right axis and equation remain zero | live camera transform rather than provisional control basis |
+| Same pre-init origin zero; synthetic view rows X,Y,Z and scale 2 | world (2,3,7) → (4,6); plane (4,6) → (2,3,0), while pixel/metre factors remain 1/1 | conversion scale is the view-transform scale; inverse uses reciprocal |
+| A position update with differing eye and target; then another position update | current plane pair equals conversion of **eye**; pixel pair follows §2.3; previous four words equal the first update's four words | rejects a target-plane-point cache and an always-zero previous cache |
+| Detach after a valid computation | derived words survive; subsequent conversions have no valid native camera input | stale cache is not a safe conversion fallback |
+
+### 6.3 Discrete command discriminators (CA8)
+
+Unless stated otherwise use an attached camera, valid indices, finite magnification and a target which
+needs no final clamp displacement. Each delegated changed SetZoom produces the kind-2 sequence; a change
+of magnification may first produce PostViewRefresh. Isolate each row with fresh state.
+
+| Initial state / command | Required result |
+|---|---|
+| Rotation 3, z=2, m=1.25; RotateLeft | rotation 0, z=2, m=1.25; true; previous=(2,3), new=(2,0); ViewZRChange1 then CameraUpdated/ZR2/ZR3 |
+| Rotation 0; RotateRight | rotation 3, true; same kind-2 ordering and final clamp rule |
+| Camera absent, rotation 0; RotateLeft | rotation 1 and new/previous pairs written, false; no computation/messages |
+| Raw saved rotation `0x80000000`; RotateLeft | signed remainder −3; SetRotation refuses it with true; raw rotation and pair fields unchanged |
+| z=2, m=1; ZoomIn / separately ZoomOut | respectively z=3 / z=1, m=1, true |
+| z=2, m=1.5; ZoomIn / separately ZoomOut | respectively z=3 / z=1, m=1; exact threshold is not virtual zoom 3 |
+| z=2, m=1.50000011920928955078125 (next float above 1.5); ZoomIn / separately ZoomOut | respectively z=4 / z=2, m=1; the latter still returns true because magnification changed |
+| z=4, m=1.5; ZoomIn | false from delegated SetZoom(5); state/magnification untouched, no messages |
+| z=4, m=2; ZoomIn / separately ZoomOut | in: false at own boundary, m=2 retained; out: true, z=4,m=1, refresh before kind-2 sequence |
+| z=0,m=1; ZoomOut | false at own boundary; no setter, writes or messages |
+| Camera absent, z=2,m=1; ZoomIn | false **after** storing z=3 and pair changes; not a no-op |
+
+### 6.4 Kind and callback discriminators (CA9)
+
+Run the generic helper directly with a defined attached camera, a recording view-utilities callback,
+a message server which records synchronously and a bounds fixture. For each of kinds 0,1,2,3,4,5,−1:
+require exactly the §2.7 table's pre/post sequence and projection-update presence; position always updates,
+and the result is true. In particular kind 1 rebuilds nonempty bounds without messages, kind 5/−1
+preserves them without messages, and kind 3 preserves the projection while sending the target triple.
+
+| Additional fixture | Required observation |
+|---|---|
+| Empty bounds, view utilities present; repeat each kind | one bounds build after the view-utilities callback for every kind; callback observes updated position and empty old bounds |
+| Nonempty bounds, view utilities absent; kind 2 | bounds retained; pre-ZR and ZR post sequence still sent, then clamp uses retained polygon |
+| Empty bounds, view utilities absent; kinds 0…5 and −1 | no bounds build; messages still follow the table; no failed-kind return |
+| No camera, each kind | false, no pre/post messages, computations, bounds build or view-utilities callback |
+| Force target clamp displacement with valid ground hit; kind 2 / separately changed SetRotation | pre-ZR, CameraUpdated/ZR2/ZR3, then CameraUpdated/T2/T3; latter receivers observe the clamped target |
+| Same clamp fixture; kind 1,3,4,5 | no final target clamp and no extra target triple beyond kind 3's own post triple |
+| Call pre helper with 0,1,3,4,5,−1; call post helper with 1,5,−1 | no messages, independent of camera attachment |
+
+Pair-pointer identity and reuse of the post helper's single message must also satisfy vector 16.
+For kind 0 and 4 there is one post message and no preceding CameraUpdated. For kind 2 and 3 there are
+three post sends through the same object. Do not combine the separate pre-ZR object with that identity.
+
+### 6.5 Identity and destruction discriminators (CA10)
+
+Use independently allocated fixtures per destructive row, with instrumentation for vector-storage free,
+global object free and camera Release. Never dereference the returned address after object free.
+
+| Initial state / operation | Required observation |
+|---|---|
+| Fresh count 0; QueryInterface for each of 1, `0xC9C628EC`, `0xE4FDA3D4` in separate fixtures | output=this, true, count 1; all return identical object address, not an interior pointer |
+| Fresh count 0, output sentinel; unsupported IID `0xE9C6262A` (the S3D camera ID) | false, sentinel unchanged, count 0; likewise unsupported IID with null output is not dereferenced |
+| Accepted IID with slot-1 observer | output already contains this before AddRef executes |
+| Count 0; AddRef, AddRef, Release | return/count pairs 1/1, 2/2, 1/1; no destruction yet |
+| Count `0xFFFFFFFF`; AddRef | return 0, stored count 0; no implicit destruction |
+| Count `0x80000000`; Release | return and stored count `0x7FFFFFFF`, no destruction (unsigned comparison) |
+| Separate fixtures, count 0 or count 1; Release | slot 6 flags=1, return 0, vector/object frees once; ledger still holds original 0 or 1 when destructor entered |
+| Nonempty vector, camera attached; destructor flags 0,2 / separately 1,3 | all release vector backing storage once; 0/2 do not free object, 1/3 do; all return original address and none call camera Release |
+| Factory allocation failure / success | failure returns null; success is constructed with count 0, not 1 |
+
+## 7. Native owner inventory and evidence limits (CA3–CA10)
 
 This inventory accounts for the native owner bodies and shared COM entries, not just symbols containing
 the class names. Export names may be compiler-folded aliases. Addresses below are body entries; grouping
@@ -616,18 +688,18 @@ used as evidence in the 2026-10-22 reconciliation.
 
 | `cSC4CameraControl` entries | Contract / disposition |
 |---|---|
-| `0x007CB940`, `0x004BDF00`, `0x007CB920`, `0x007CBB10`, `0x007CBBA0`, `0x007CCBF0`, `0x007CCC20` | All seven vtable slots 0–6 at `0x00ABAD18`: QueryInterface, shared AddRef (+8), Release, Write, Read, class ID, deleting destructor. Release has misleading occupant-filter constructor export alias |
-| `0x007CC990`, `0x007CCC00` | Constructor and heap factory (0x160 bytes) |
+| `0x007CB940`, `0x004BDF00`, `0x007CB920`, `0x007CBB10`, `0x007CBBA0`, `0x007CCBF0`, `0x007CCC20` | All seven vtable slots 0–6 at `0x00ABAD18`: QueryInterface, shared AddRef (+8), Release, Write, Read, class ID, deleting destructor. CA10 identity, unsigned count and deleting-bit behavior: §2.1, §6.5. Release has misleading occupant-filter constructor export alias |
+| `0x007CC990`, `0x007CCC00` | Constructor and heap factory (0x160 bytes); CA7 derived equation/current/previous point words zero; conversion scale belongs to live camera ViewXform, not this object (§§2.1, 2.4, 6.2) |
 | `0x007CB970`, `0x007CD200`, `0x007CDB20` | Detach, attach, Init; no native control Shutdown slot/body identified; observed external teardown detaches then releases |
 | `0x007CB990`, `0x007CB9B0`, `0x007CB9F0`, `0x007CBA10` | Viewport get/set, clip distances, rotation corner |
 | `0x007CBC40`, `0x007624E0`, `0x007CBC60` | Virtual zoom, custom-magnification getter (outside contiguous owner region), target velocity |
 | `0x007CBCE0`, `0x007CBD70`, `0x007CBE40`, `0x007CC290` | Plane conversions, zoom/rotation computation, position computation |
 | `0x007CC000`, `0x007CC0B0`, `0x007CC5B0` | Pre-ZR, post-change and init-message helpers; synchronous server slot 3, not queued posting |
 | `0x007CC650`, `0x007CCC60`, `0x007CD000`, `0x007CD330` | Scroll clamp, bounds builder, target clamp, angle scroll |
-| `0x007CCF80` | Generic update helper (descriptive): false without camera; pre-change helper, zoom/projection except kind 3, position, optional view-utilities update, bounds for kinds 1/2 or empty, post-change helper, target clamp for kind 2; true |
-| `0x007CD540`, `0x007CD6A0`, `0x007CD6C0`, `0x007CD6E0` | Rotation, rotate left/right, custom magnification; last has stale UpdateCameraPosition export alias |
+| `0x007CCF80` | Generic update helper (descriptive): CA9 complete kind/message/guard table in §2.7, vectors §6.4; unknown kinds accepted silently, bounds work under optional view-utilities guard, kind 2 clamps after messages |
+| `0x007CD540`, `0x007CD6A0`, `0x007CD6C0`, `0x007CD6E0` | Rotation, rotate left/right (CA8 §2.6, §6.3), custom magnification; last has stale UpdateCameraPosition export alias |
 | `0x007CD810`, `0x007CDA20`, `0x007CDAA0` | Target, replacement tweak, city size |
-| `0x007CDC50`, `0x007CDE60`, `0x007CE080`, `0x007CE0E0` | Float zoom, integer pair, zoom in/out |
+| `0x007CDC50`, `0x007CDE60`, `0x007CE080`, `0x007CE0E0` | Float zoom, integer pair, zoom in/out (CA8 §2.6, §6.3: virtual-zoom stepping, strict double 1.5, delegated SetZoom boundaries) |
 | `0x007CBA90`, `0x007CC200` | Associated non-owner/shared helpers: ground-plane intersection; 8-byte element copy used by bounds-vector maintenance |
 
 Vtable words were checked directly in the native PE. Function boundaries and bytes came from the Windows
@@ -635,3 +707,8 @@ export, with the two decompilation files used only as reading aids. No REA fallb
 an entry-by-entry inventory, not a claim that every previously documented arithmetic path has received
 a fresh bit-exact audit. In particular CA3's perspective setter remains unresolved, and these contracts
 alone do not establish complete-owner implementation, shadow agreement or native replacement fidelity.
+
+The CA7–CA10 extension (2026-10-23) used native instruction bytes and targeted decompilation reads,
+with PE constants/vtable words checked independently; no REA was required. It resolves these control-owner
+contract questions, including pre-init observation limits, but does not change CA1/CA3's remaining scope
+or claim an engine implementation audit, executed conformance tests or measured game equivalence.
