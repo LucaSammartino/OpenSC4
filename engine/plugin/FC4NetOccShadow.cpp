@@ -2,17 +2,16 @@
 #include "FC4NetOccShadow.h"
 #include "FC4Config.h"
 #include "FC4Log.h"
+#include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4WriteCapture.h"
 #include "cISC4City.h"
 #include "cISC4Occupant.h"
 #include "cISC4OccupantManager.h"
-#include "cISCPropertyHolder.h"
-#include "cISCProperty.h"
-#include "cIGZVariant.h"
 #include "cIGZSerializable.h"
 #include "fc4.h"
 #include <cinttypes>
+#include <cstdio>
 
 // Private static-link verification transport, absent from the DLL export table.
 struct NetOccResult {
@@ -34,13 +33,9 @@ uint32_t ModelInstance(cIGZSerializable* object) {
     if (!object->QueryInterface(GZIID_cISC4Occupant, reinterpret_cast<void**>(&occupant)) || !occupant) return 0;
     FC4_ACQUIRED(occupant, "netocc shadow occupant QI");
     auto* holder = occupant->AsPropertyHolder(); // borrowed
-    auto* property = holder ? holder->GetProperty(0x27812821) : nullptr; // borrowed
-    const auto* value = property ? property->GetPropertyValue() : nullptr;
     uint32_t instance = 0;
-    if (value && value->GetType() == cIGZVariant::Uint32Array && value->GetCount() >= 3) {
-        const uint32_t* words = value->RefUint32();
-        if (words) instance = words[2];
-    }
+    std::vector<uint32_t> words;
+    if (props::GetU32s(holder, 0x27812821, words) && words.size() >= 3) instance = words[2];
     FC4_RELEASE(occupant);
     return instance;
 }
@@ -50,6 +45,7 @@ void Compare(const char* event, int32_t julian) {
     uint32_t records = 0, mismatches = 0, fixups = 0;
     uint64_t bytes = 0;
     uint32_t kinds[13]{};
+    uint32_t badKinds[13]{};
     // Occupant-manager §13 writes every indexed occupant reference. Reuse its
     // capture's deduplicated object table; no private layout or guessed iterator.
     WriteCapture manager;
@@ -63,7 +59,7 @@ void Compare(const char* event, int32_t julian) {
             if (kind == 13) continue;
             ++records;
             ++kinds[kind];
-            WriteCapture record;
+            WriteCapture record(true);
             auto* object = manager.SerializableAt(id); // borrowed during capture
             NetOccResult result{};
             const bool captured = record.Capture(object);
@@ -74,7 +70,7 @@ void Compare(const char* event, int32_t julian) {
             bytes += b.size();
             if (!compared || result.status != 0) {
                 ++mismatches;
-                if (mismatches <= 8) Log("netocc difference: class=%08X object=%u capture=%u status=%u at=%u expected=%02X actual=%02X lengths=%u/%u model=%08X",
+                if (++badKinds[kind] <= 2) Log("netocc difference: class=%08X object=%u capture=%u status=%u at=%u expected=%02X actual=%02X lengths=%u/%u model=%08X",
                     cls, id, captured ? 1u : 0u, compared ? result.status : 4u, result.first,
                     result.expected, result.actual, result.expectedLen, result.actualLen, model);
             }
@@ -83,10 +79,14 @@ void Compare(const char* event, int32_t julian) {
     // An empty sample must never be credited as an exact shadow.
     if (records == 0) ++mismatches;
     fc4_date date{};
-    fc4_date_from_julian(julian, &date);
-    Log("netocc shadow %s %04d-%02d-%02d: mismatches=%u fixups=%u records=%u bytes=%" PRIu64
+    char dateText[16] = "?";
+    if (julian > 0) {
+        fc4_date_from_julian(julian, &date);
+        _snprintf_s(dateText, sizeof(dateText), _TRUNCATE, "%04d-%02d-%02d", date.year, date.month, date.day_of_month);
+    }
+    Log("netocc shadow %s %s: mismatches=%u fixups=%u records=%u bytes=%" PRIu64
         " network=%u prebuilt=%u bridge=%u tunnel=%u underground=%u pipe=%u subway=%u connection=%u pipe_connection=%u subway_connection=%u pole=%u line=%u pylon=%u",
-        event, date.year, date.month, date.day_of_month, mismatches, fixups, records, bytes,
+        event, dateText, mismatches, fixups, records, bytes,
         kinds[0], kinds[1], kinds[2], kinds[3], kinds[4], kinds[5], kinds[6], kinds[7], kinds[8], kinds[9], kinds[10], kinds[11], kinds[12]);
     ++g_lines;
     if (mismatches == 0) ++g_clean;

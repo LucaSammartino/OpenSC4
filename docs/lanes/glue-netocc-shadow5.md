@@ -17,6 +17,10 @@
   workspace 6233 passed, 0 failed/ignored; clippy exit 0 diagnostics 0.
 - Full gate terminal PASS: native 158/158 edges, CTest 68/68; request qbuild-20261023-205539-build-ctest.
 - Next: submit unique netocc-r2-2032-1 game request, wait with local event waiter (not qwait).
+- netocc-r2-2032-1 completed clean to 2032-01-01, ref_warnings=0; shadow 0/73 (361 mismatches/line).
+- First failures are native capture refusals: WriteCapture rejected property variants. Added opt-in traffic-shadow variant capture.
+- Corrected pole model lookup to shared verified property helper; improved per-class diagnostics and unknown load date.
+- Next: full gate on corrected capture, then unique netocc-r2-2032-2 game request. No outstanding game requests.
 
 ## Changes
 
