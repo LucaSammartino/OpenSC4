@@ -166,14 +166,14 @@ int main(int argc, char** argv) {
     first.cls = 0x8A09F5F4;
     check("AD19 clean plain advice expected Read fixup", 0, &root);
     if (first.flags != 2) ++failures;
-    first.flags = 0x80000000;
+    first.flags = 0x80000002;  // advisor entry's active byte agrees with bit 2
     check("AD19 high flag bits preserved with Read fixup", 0, &root);
-    if (first.flags != 0x80000000) ++failures;
+    if (first.flags != 0x80000002) ++failures;
     first.extraByte = true;
-    check("AD19 never ignores other bytes with a clean flag", 1, &root);
+    check("AD19 never ignores other bytes with a clean flag", 1, static_cast<Record*>(&first));
     first.extraByte = false;
     first.version = 3;
-    check("AD19 never normalizes a rejected advice version", 1, &root);
+    check("AD19 never normalizes a rejected advice version", 1, static_cast<Record*>(&first));
     first.version = 4;
     first.flags = 0x12;
     check("AD18 already dirty advice exact", 0, &root);

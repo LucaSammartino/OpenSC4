@@ -9,7 +9,9 @@
 - Prior turbo strict 1/73 and normal strict 1/4: all differences precisely AD18; details below.
 - Coordinator permits expected-record normalization of exactly documented Read fixups, counting fixups=N; never restore native flags.
 - Done 69c5ef9f: AD19 archived; comparator accepts only complete-record AD18 fixup and logs fixups; native fixture covers clean flags, high bits, rejected versions/extra bytes, unchanged original flags.
-- Next: qbuild all on stable engine source (includes queued verify), unique-label 2032 game.
+- Gate qbuild-20261023-224153-build-ctest: cargo 6536/0, clippy 0, native build 52/52 PASS; CTest 68/69. Fixture high flags disagreed with advisor active byte; comparator correctly rejected it. Fixed high flags to 0x80000002 and test rejected advice records in isolation.
+- Failed native logs preserved as build-runs/fc4verify-{build,ctest}-ad19-initial.log.
+- Next: repeat qbuild all after this diagnosed fixture correction, then unique-label 2032 game.
 - No request outstanding. Worktree intentionally detached; do not switch refs.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-advisors-shadow5b-r2-manifest.json.
 - tools/ is forbidden: coordinator must append advisors_shadow to regress profile after exact run.
