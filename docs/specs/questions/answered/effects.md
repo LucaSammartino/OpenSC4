@@ -1,5 +1,42 @@
 # effects: answered questions (archive)
 
+- **EF15 — Effects-script command owner contracts missing from effects.md:**
+  The requested owner family is `(anonymous_namespace)::c*Command`, including
+  effect-description parser commands. Which exact classes belong to that family,
+  and which spec sections define each one's token inputs, state transitions,
+  defaults, validation, block enter/exit, foreign calls and conformance cases?
+  `effects.md` §§0–18 contains no command-class inventory or command algorithms;
+  its §17 exercises runtime effects, not script commands. The separate
+  `effects-parser.md` §6.1 supplies 21 root literal/descriptor/hook associations,
+  expressly excludes their execution algorithms, and §6.2 supplies only the
+  `sequenceEffect` normal handler, expressly excluding other nested entries.
+  Please publish the class-to-descriptor inventory, all remaining root/nested
+  handler contracts and command-specific conformance cases (including any
+  commands absent from that bounded dictionary). Distinguish these owned
+  algorithms from foreign renderer, sound, resource and generic-reader services.
+  [Retain existing registration and sequenceEffect implementation; do not infer
+  handler behavior or class names from command literals or addresses. Whole
+  command-family closure remains blocked on this publication; EFP1–EFP7 also
+  continue to bound the existing parser's supported domain.]
+  **ANSWERED 2026-10-23 (re-effects-ef5):** DIFFERS — effects.md §19 now
+  publishes the descriptor inventory and execution of all registered root and
+  nested families. §§19.53–19.56 close the residual visual-effect children,
+  aliases and select/particleSequence hooks with EC277–EC304. Class names
+  remain limited to confirmed export identities. Foreign primitive boundaries
+  and the numeric qualification of effects-parser §14 remain explicit.
+
+- **EF16 — §19.52 / EC275 conflicts with effects-parser §6.1 for instance:**
+  effects §19.52 assigns descriptor `00A9FA08` direct handler `00596980` and
+  EC275 says this is the same handler as root instance. The root inventory in
+  effects-parser §6.1 instead assigns that descriptor `0059A730`. Which is the
+  correct root and nested association? [Retain both literal registration
+  ledgers, use the settled §19.4 effect-ID algorithm for instance, and leave
+  only the claimed equal-handler part of EC275 open; no inferred correction.]
+  **ANSWERED 2026-10-23 (re-effects-ef5):** DIFFERS — §19.52's address
+  was wrong: both registrations use descriptor `00A9FA08`, whose +0C word
+  is `0059A730`. `00596980` is inside effectsResource's exit hook.
+  EC275's equal-handler assertion and §19.4's instance behavior stand.
+
 - ~~**EFP2 — Rotation instruction/store semantics:** In effects-parser.md §2/§8,
   establish x87 operations and binary32 store order for all five rotation branches,
   including key order versus text order.~~
