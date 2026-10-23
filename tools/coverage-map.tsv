@@ -426,9 +426,9 @@ nGZDrawSoftRender::cSpanRender8	2D drawing (span render 8)	renderer	span-render-
 nGZDrawSoftRender*	2D drawing and fonts	renderer	-	-	-	-
 cGZAlphaBlt	2D drawing and fonts	renderer	-	-	-	-
 cGZCanvas*	2D drawing and fonts	renderer	-	-	-	-
-CachedBitmapData	2D drawing and fonts	renderer	drawing-fonts.md	-	-	-
+CachedBitmapData	2D drawing and fonts	renderer	drawing-fonts.md	core/src/fonts	-	-
 cGZFontSys	2D drawing and fonts	renderer	drawing-fonts.md	core/src/fonts	-	-
-cGZFont*	2D drawing and fonts	renderer	drawing-fonts.md	-	-	-
+cGZFont*	2D drawing and fonts	renderer	drawing-fonts.md	core/src/fonts	-	-
 cFontCOMDirector	2D drawing and fonts	renderer	drawing-fonts.md	-	-	-
 cRZTileSetup	2D drawing and fonts	renderer	-	-	-	-
 cRZSpanList	2D drawing and fonts	renderer	-	-	-	-
