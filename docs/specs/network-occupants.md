@@ -921,12 +921,15 @@ Thirteen static records of stride `0x114` at `0x00B452C8`, constructed in a loop
 bridge types, supports map, placement parameters at `+0x50`, the four derived slope numbers at `+0x100…+0x110`) —
 **cite, do not repeat**. What this spec adds is *how the records are filled*.
 
-`ReloadNetworkTypeInfo` (`0x00623310`, called by `cSC4NetworkTool::ReloadRules` `0x0062541B` per tool) runs, in
-order:
+`ReloadNetworkTypeInfo` (`0x00623310`, called by `cSC4NetworkTool::ReloadRules` `0x0062541B` per tool) uses the
+loader family below. This is a label/property inventory, not execution order. The authoritative owned
+constructor/default, Clear/destruction, reload order and failure-publication contract is now
+[network-type-info.md](network-type-info.md). In particular Clear preserves the loaded byte and placement
+state, and failed whole-exemplar acquisition does not prevent derivation or LoadComplete.
 
 | Loader | Address | What it fills | Detail |
 |---|---|---|---|
-| `LoadPlacementParams` | `0x0063CBE0` | `+0x50` (the placement parameters) | one exemplar per type (type `0x6534284A`, group `0x084344E0`, the instances of network-geometry.md §2.4); the property list is: `0x879D12E7` → p+0x00, `0x279D1707` → p+0x04, `0x07B36C71` → p+0x08, `0xC7B36CA4` → p+0x0C, `0xC7B36CA5` → p+0x10, `0xC804DD86` → p+0x14, `0xC804DD87` → p+0x18, `0xC804DD88` → p+0x1C, `0xC804DD89` → p+0x20 (stored as read, not converted), `0xC804DD90` → p+0x24, `0xC804DD9B` → p+0x50 (default 1000), `0xC804DD92…99` → p+0x28…+0x4C, `0xE974EAA4` → p+0x54 (a vector), `0xE974EAA5` → p+0x60 (default: count of p+0x54 entries × 10.0 `0x41200000`), `0xE974EAA6` → p+0x6C (default 10.0), `0xE974EAA7` → p+0x34 (tail), `0x4A270DB0` (default 1.5), `0x4A270E94` (default 32.0), `0x4A271248` (default 0.0), `0x4A27124F` (default 1), `0x4A2D49B9` → p+0x8C (default 1), `0x8A2D49EA` (default 10), `0x8A2D49F0` (default 20), `0x6A2D49F4` (default 0.1). Angles are read in degrees and multiplied by the float constant `0.017453292` (`0x00AA8C60`) |
+| `LoadPlacementParams` | `0x0063CBE0` | `+0x50` (the placement parameters) | one exemplar per type except power line (type `0x6534284A`, group `0x084344E0`, the instances of network-geometry.md §2.4); the property list is: `0x879D12E7` → p+0x00, `0x279D1707` → p+0x04, `0x07B36C71` → p+0x08, `0xC7B36CA4` → p+0x0C, `0xC7B36CA5` → p+0x10, `0xC804DD86` → p+0x14, `0xC804DD87` → p+0x18, `0xC804DD88` → p+0x1C, `0xC804DD89` → p+0x20 (stored as read, not converted), `0xC804DD90` → p+0x24, `0xC804DD9B` → p+0x50 (default 1000), `0xC804DD92…99` → p+0x28…+0x4C, `0xE974EAA4` → p+0x54 (a vector), `0xE974EAA5` → p+0x60 (fallback: one zero word per p+0x54 entry), `0xE974EAA6` → p+0x6C (fallback: one binary32 10.0 per p+0x54 entry), `0xE974EAA7` → p+0xA0 (tail vector), `0x4A270DB0` (default 1.5), `0x4A270E94` (default 32.0), `0x4A271248` (integer default 0), `0x4A27124F` (integer default 0), `0x4A275748` → p+0x88 (integer default 1), `0x4A2D49B9` → p+0x8C (default 1), `0x8A2D49EA` (default 10), `0x8A2D49F0` (default 20), `0x6A2D49F4` (default 0.1), `0xEA86E3B5` → p+0x9C (failure writes p+0x8C=1). Angles use binary32 constant `0x3C8EFA35` at `0x00AA8C60`; see network-type-info.md §5 for admission, absent-property preservation and repeated conversion |
 | `LoadEvaluator` | `0x0063D360` | `+0x24` (the evaluator vector) | factory `0x00622A90` → `cSC4TileEvaluator`, `AddRulesFromResource`, appended to `+0x28` (network-geometry.md §8 step 3) |
 | `LoadTileConflictRules` | `0x0063D3E0` | the store `0x00B466D0` | callback `0x0063D1E0` |
 | `LoadTilePatternVerifiers` | `0x0063FAF0` | the store `0x00B466DC` | `LoadVerifiersCallback` |
@@ -935,7 +938,9 @@ order:
 | `LoadComplete` | `0x0063BF90` | `+4 = 1` | the loaded latch; `Clear` `0x006421D0`; dtor `0x00643510` |
 
 The class-object store never constructs `cSC4NetworkTypeInfo` dynamically: the 13 records are process globals.
-A replacement keeps one 13-entry array with the same stride and fills it at `ReloadRules` time.
+Internal replacement storage is a choice; native interoperability uses the established stride. The lifecycle
+spec qualifies what is cleared versus preserved at `ReloadRules` time. `LoadTileConflictRules` is not called
+inside `ReloadNetworkTypeInfo`; the table above does not imply that it is.
 
 ---
 

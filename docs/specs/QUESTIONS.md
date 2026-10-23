@@ -145,6 +145,7 @@ generated index: the questions live one file per spec, so read only the file for
 | TD | tools-com-director |
 | TE | text-edit |
 | TG | traffic-simulator |
+| TI | network-type-info |
 | TK | animation-tick-manager |
 | TM | timers |
 | TN | traffic-network |
@@ -243,6 +244,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 2 | 10 | NR16 | questions/network-rules.md |
 | network-tools | 16 | 4 | NT27 | questions/network-tools.md |
+| network-type-info | 4 | 0 | TI5 | questions/network-type-info.md |
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
 | occupant-manager | 0 | 5 | OM9 | - |
 | occupants-props | 12 | 5 | OP18 | questions/occupants-props.md |
@@ -310,4 +312,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **476** | **1241** | | |
+| **total** | **480** | **1241** | | |
