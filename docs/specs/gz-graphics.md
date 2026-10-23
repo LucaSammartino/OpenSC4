@@ -810,7 +810,7 @@ after slot 30; the following bytes are a string, not additional methods.
 | 18 | filter/repost queued keyboard input; returns discarded-message count, `0x0098CDB0` |
 | 19 | post a packaged host message, `0x0098BA60` |
 | 20 | address of stored HWND word, not HWND value, `0x00578900` |
-| 21–22 | shut down canvas and request framework exit; center window in work area, `0x0098B850`, `0x0098B8E0` |
+| 21–22 | shut down and delete canvas; center window in work area, `0x0098B850`, `0x0098B8E0` |
 | 23–24 | width, height getters `0x0098CC30`, `0x0098CC40` |
 | 25–28 | folded entries `0x0068D1C0`, `0x0081F910`, `0x006AAEB0`, `0x0040D390` (GZG4) |
 | 29–30 | input-channel enabled query; nested enable/disable, `0x0098BAC0`, `0x0098BDC0` |
@@ -930,9 +930,14 @@ Centering uses SPI_GETWORKAREA and the outer GetWindowRect size, places that
 rectangle centrally using signed integer division, and passes current visibility
 as MoveWindow's repaint argument. Failed work-area/window queries leave it alone;
 fullscreen mode skips centering (`0x0098B8E0`). Primary slot 21 first calls canvas
-Shutdown if realized, then requests framework exit with argument 1 and returns
-integer zero (`0x0098B850`). A close message instead emits event 10; it does not
-directly perform that exit request.
+Shutdown if realized, then invokes its deleting destructor with flag 1 and
+returns integer zero (`0x0098B850`). This deletes the canvas irrespective of
+outstanding reference counts: it is not an ordinary Release or an application
+quit request. The indirect call uses complete-object `+0x18`'s slot 3, whose
+thunk subtracts 24 and reaches the deleting destructor; flag bit 0 controls
+GlobalHeapFree (`0x0098B85F`–`0x0098B867`, `0x0098CC20`–`0x0098CC27`,
+`0x0098CD90`–`0x0098CDAD`). A close message instead emits event 10; it does not
+directly delete the canvas.
 
 **Adjusted interfaces and listeners.** QI for `0xE46397DB` returns complete `+4`.
 Its slots 0–2 subtract 4 before invoking primary QI/AddRef/Release; slot 3 returns
@@ -1113,6 +1118,7 @@ a vector explicitly says otherwise.
 | GZG-V75 | Slot-18 host queue contains exactly 1025 unrelated-key-down records in filter range, no releases | saves/reposts first 1024 in order, consumes last without reposting, discarded count zero |
 | GZG-V76 | WM_DESTROY, WM_CLOSE, WM_QUIT, with recording native default handler | destroy returns zero; close emits canvas event 10; quit reaches default handler; none directly calls PostQuitMessage |
 | GZG-V77 | QI Windows subinterface `0xE46397DB`; primary slot 20 and subinterface slot 4 | primary returns address of HWND storage; subinterface returns stored HWND value; getter calls do not AddRef |
+| GZG-V78 | Recording lifetime fixture invokes primary slot 21 with realized byte nonzero and outstanding references | Shutdown first, deleting destructor with flag 1 next, integer zero; no reference-count test or framework quit request; do not dereference the native canvas afterward |
 
 ## 9. Evidence limits and open questions
 

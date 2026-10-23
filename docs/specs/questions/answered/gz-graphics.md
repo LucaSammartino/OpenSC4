@@ -17,7 +17,8 @@
   Stored subtype-13 coordinates are signed client x/y pixels. Realization can
   mark itself realized on failure; the keyboard filter can consume a 1025th
   message without saving/reposting/counting it. Both quirks are contractual;
-  vectors GZG-V62–V77 cover the newly settled behavior.
+  primary slot 21 deletes the canvas rather than requesting application quit;
+  vectors GZG-V62–V78 cover the newly settled behavior.
 
 - **GZG6 — section 2.1 context destruction versus section 3.4 replacement:**
   Does final context destruction call engine Shutdown before releasing it, or
