@@ -4,6 +4,11 @@
 <!-- from: re-aircraft (2026-10-21) -->
 - **AF2 - §3.4, §4:** the airplane force model (`CalculateForces`, `UpdatePhysics`) and the helicopter rotor model
   (`NextFrame` and its four steps) in full. [as read]
+  Partial progress (re-aircraft-af5b, 2026-10-23): §3.4.1 specifies physics seconds,
+  tiny-speed/max-speed limiting, candidate integration and correction ordering;
+  §3.4.2 specifies the scalar force terms, coefficient angle/curve, rolling
+  resistance and reverse-throttle gate. Still open: complete attitude/lift frame,
+  angular update, terrain/runway/collision corrections, and the helicopter model.
 
 <!-- from: core-aircraft5 (2026-10-23) -->
 - **AF3 - §3.3 and §4, automata §6.6, AI owner closure:** please specify the complete goal switches and
