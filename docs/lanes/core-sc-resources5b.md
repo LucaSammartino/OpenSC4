@@ -6,8 +6,8 @@
 - Goal: close all answered SC resource owner boundaries in core only; no ABI/plugin changes.
 - Done: 58eaff4a implemented answered contracts. Added all SCR-V31–V68 tests, extended decimal factor precision, separate buffer allocation/lock flags, image key-based type and positive BMP/TGA dither integration. Replaced stale owner table; no open owner sections or questions.
 - Validation: focused-6.log: 82 passed, 0 failed; fmt passed seven explicit Rust files. Earlier focused-2 through focused-5 logs retain corrected diagnostics and stale assertion failures.
-- Full gate in progress at 21bcb4bf: workspace 6688 passed/0 failed; clippy found byte_char_slices at command.rs:130 (replace [b':'] with *b":"). Native build/CTest queued as qbuild-20261023-232602-build-ctest; collect existing exec session 48434 to terminal. Do not launch duplicate.
-- Next: collect native terminal result, preserve first gate logs under distinct names, fix diagnosed clippy style, run final all after changed source; then report/commit/enqueue.
+- First full gate collected to terminal: workspace 6688/0; clippy byte_char_slices (fixed); native build PASS 220/220, CTest PASS 69/69. Overall FAIL due clippy; native notes tree changed (style fix and handoff committed while queued). Test/clippy evidence preserved as gate1-test.log/gate1-clippy.log.
+- Next: preserve native logs, commit clippy correction, rerun required all on stable source with no edits until terminal; then report/commit/enqueue.
 - Wrapper attempt failed before cargo because Git Bash CreateFileMapping was denied; evidence build-runs/q/20261023-231437-5140.log. Focused checks used direct PowerShell cargo via build-runs/focused.py.
 - Main: C:/Users/tlori/FreeCity4; worktree is the reserved core-sc-resources5b directory.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-sc-resources5b-r1-manifest.json.

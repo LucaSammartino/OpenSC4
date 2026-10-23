@@ -127,7 +127,7 @@ impl CommandParser {
     fn prefix(&self, count: usize) -> Vec<u8> {
         self.namespaces[..count]
             .iter()
-            .flat_map(|n| n.iter().copied().chain([b':']))
+            .flat_map(|n| n.iter().copied().chain(*b":"))
             .collect()
     }
     pub fn get_variable(&self, name: &[u8]) -> Option<&[u8]> {
