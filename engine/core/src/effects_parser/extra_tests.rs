@@ -221,6 +221,46 @@ fn unsupported_command_and_validation_keep_precise_prefix() {
     assert!(p.pending.is_some());
     assert!(p.components.is_empty());
 }
+
+#[test]
+fn sequence_command_reads_selection_before_null_manager_append_short_circuit() {
+    // effects-parser.md §6.2 reads the selected name even though §5.1 then
+    // short-circuits on a null manager. Finder AL does not guard that read.
+    let (mut p, mut f, t) = named_fixture();
+    p.manager = None;
+    f.selected = vec![1, u32::MAX];
+    p.sequence_effect(&t, NumericPolicy::Unqualified, &mut f).unwrap();
+    assert_eq!(f.calls, ["nonswitch:1"]);
+    assert!(p.components.is_empty());
+    assert!(p.pending.is_none());
+
+    f.calls.clear();
+    f.selected = vec![u32::MAX];
+    assert_eq!(
+        p.sequence_effect(&t, NumericPolicy::Unqualified, &mut f),
+        Err(Unsupported::InvalidToken)
+    );
+    assert_eq!(f.calls, ["nonswitch:1"]);
+    assert!(p.pending.is_none());
+}
+
+#[test]
+fn sequence_command_uses_only_first_selection_and_preserves_name_case() {
+    // Literal §6.2 boundary: a second unusable scratch index is not read.
+    let (mut p, mut f, _) = named_fixture();
+    let t = tokens(&["sequenceEffect", "MiXeD"]);
+    f.selected = vec![1, u32::MAX];
+    p.sequence_effect(&t, NumericPolicy::NearestAtLeast53, &mut f).unwrap();
+    assert_eq!(p.components.len(), 1);
+    assert_eq!(p.components[0].component.name, "MiXeD");
+    assert_eq!(p.components[0].type_word, 6);
+    assert_eq!(p.components[0].component.index, u32::MAX);
+    assert_eq!(
+        &f.calls[..4],
+        ["nonswitch:1", "ctor", "validate:MiXeD:6:null", "name:MiXeD"]
+    );
+    assert_eq!(&f.calls[f.calls.len() - 2..], ["copy", "cleanup"]);
+}
 #[test]
 fn query_fallback_is_raw_and_missing_adjustment_unsupported() {
     let mut f = Fixture {
