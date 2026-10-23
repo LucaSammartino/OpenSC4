@@ -13,12 +13,12 @@ use std::rc::Rc;
 
 use fc4_core::grid::CellRect;
 use fc4_core::mysims::dispatch::{
-    set_current_commute_destination, DispatchLocation, JobSearchState, JobSearchWorld, LotAt, RecordingJobPathfinder,
-    FLAG_HAS_HOME,
+    set_current_commute_destination, world_to_cell, DispatchLocation, JobSearchState, JobSearchWorld, LotAt,
+    RecordingJobPathfinder, FLAG_HAS_HOME,
 };
 use fc4_core::mysims::pool::{
-    is_male_text, portrait_source, IniFile, MemoryPoolHost, MySimPool, MySimTemplate, PortraitSource, TemplateExemplar,
-    TemplateKey, MALE_TEXT, ZODIAC_GROUP, ZODIAC_INSTANCES,
+    is_male_text, member_face, member_key, portrait_source, IniFile, MemoryPoolHost, MySimPool, MySimTemplate,
+    PortraitSource, TemplateExemplar, TemplateKey, MALE_TEXT, ZODIAC_GROUP, ZODIAC_INSTANCES,
 };
 
 use crate::foundations::{hex_decode, hex_encode};
@@ -28,6 +28,8 @@ use crate::scalar::{arr, bool_of, check_expect, i64_of, ji, opt, str_of, u32_of,
 pub(crate) fn exec(rest: &str, op: &Json) -> Option<R<()>> {
     Some(match rest {
         "job_search" => job_search(op),
+        "location_arithmetic" => location_arithmetic(op),
+        "member_format" => member_format(op),
         "pool" => pool(op),
         "portrait" => portrait(op),
         "gender" => check_expect(
@@ -39,6 +41,61 @@ pub(crate) fn exec(rest: &str, op: &Json) -> Option<R<()>> {
         ),
         _ => return None,
     })
+}
+
+fn location_arithmetic(op: &Json) -> R<()> {
+    let cells = arr(op.get("bits").ok_or("bits")?, "bits")?
+        .iter()
+        .map(|j| {
+            let b = match j {
+                Json::Str(s) => u32::from_str_radix(s, 16).map_err(|e| e.to_string()),
+                _ => u32_of(j, "bits"),
+            }?;
+            Ok(ji(world_to_cell(f32::from_bits(b))))
+        })
+        .collect::<R<Vec<_>>>()?;
+    let (x, z) = pair(op.get("cell").ok_or("cell")?, "cell")?;
+    let mut loc = DispatchLocation {
+        occupant: Some(77),
+        by_commute: true,
+        in_city: false,
+        neighbor_city: (2, 9),
+        reserved: (3, 4),
+        ..DispatchLocation::default()
+    };
+    let before = loc;
+    loc.set_cell_position(x, z);
+    let preserved = loc.occupant == before.occupant
+        && loc.by_commute == before.by_commute
+        && loc.in_city == before.in_city
+        && loc.neighbor_city == before.neighbor_city
+        && loc.reserved == before.reserved;
+    check_expect(
+        op,
+        obj(vec![
+            ("cells", Json::Array(cells)),
+            ("cell", Json::Array(vec![ji(loc.cell.0), ji(loc.cell.1)])),
+            (
+                "world",
+                Json::Array(vec![
+                    Json::Float(f64::from(loc.world.0)),
+                    Json::Float(f64::from(loc.world.1)),
+                ]),
+            ),
+            ("preserved", Json::Bool(preserved)),
+        ]),
+    )
+}
+
+fn member_format(op: &Json) -> R<()> {
+    let k = u32_of(op.get("index").ok_or("index")?, "index")?;
+    check_expect(
+        op,
+        obj(vec![
+            ("key", Json::Str(member_key(k, "name"))),
+            ("face", Json::Str(member_face(k))),
+        ]),
+    )
 }
 
 fn pair(j: &Json, what: &str) -> R<(i32, i32)> {
@@ -89,6 +146,7 @@ struct World {
     wealth: Cell<u32>,
     cells: (i32, i32),
     home_lot: Option<CellRect>,
+    cell_lot: Option<CellRect>,
     lot: Cell<LotAt>,
     city: Cell<Option<(i32, i32)>>,
     /// The found building's `GetPosition` x, z.
@@ -113,7 +171,7 @@ impl JobSearchWorld for World {
         (occupant == HOME_OCCUPANT).then_some(self.home_lot).flatten()
     }
     fn lot_rect_at(&self, _x: i32, _z: i32) -> Option<CellRect> {
-        None
+        self.cell_lot
     }
     fn cell_is_in_bounds(&self, x: i32, z: i32) -> bool {
         x >= 0 && z >= 0 && x < self.cells.0 && z < self.cells.1
@@ -176,6 +234,24 @@ fn job_search(op: &Json) -> R<()> {
             let (x, z) = pair(h.get("cell").ok_or("home: rect or cell")?, "home.cell")?;
             st.home = DispatchLocation::by_cell(x, z);
         }
+        if let Some(c) = h.get("cell") {
+            let (x, z) = pair(c, "home.cell")?;
+            st.home.set_cell_position(x, z);
+        }
+        if opt(h, "missing_lot")
+            .map(|j| bool_of(j, "missing_lot"))
+            .transpose()?
+            .unwrap_or(false)
+        {
+            home_lot = None;
+        }
+        if opt(h, "no_occupant")
+            .map(|j| bool_of(j, "no_occupant"))
+            .transpose()?
+            .unwrap_or(false)
+        {
+            st.home.occupant = None;
+        }
     }
     if let Some(s) = opt(op, "state") {
         st.state = i64_of(s, "state")? as i32;
@@ -184,6 +260,7 @@ fn job_search(op: &Json) -> R<()> {
         wealth: Cell::new(0),
         cells,
         home_lot,
+        cell_lot: opt(op, "cell_lot").map(|j| rect(j, "cell_lot")).transpose()?,
         lot: Cell::new(LotAt::Building(END_BUILDING)),
         city: Cell::new(None),
         end_position: Cell::new((0.0, 0.0)),
@@ -393,6 +470,10 @@ fn pool(op: &Json) -> R<()> {
                     .next()
                     .map(|n| [n.strip_suffix(b".ini").unwrap_or(n), b".pub"].concat())
                     .unwrap_or_default();
+                let pub_name = match opt(fam, "listed_name") {
+                    Some(j) => bytes(j, "listed_name")?,
+                    None => pub_name,
+                };
                 h.listings.borrow_mut().entry(export).or_default().push(pub_name);
                 let mut ini = IniFile::default();
                 for e in arr(fam.get("entries").ok_or("family entries")?, "entries")? {

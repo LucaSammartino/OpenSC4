@@ -435,8 +435,8 @@ impl<H: PoolHost + ?Sized> MySimPool<H> {
     ) -> u32 {
         // `F.ini` = the Export directory + the entry name minus its last 4
         // bytes (`Left(len − 4)`) + `.ini` (MS12 d). A name shorter than 4
-        // bytes is not specified: empty stem here (question MS14 c).
-        let stem = &pub_name[..pub_name.len().saturating_sub(4)];
+        // bytes keeps the whole name: unsigned Left(len - 4), MS14 c.
+        let stem = &pub_name[..pub_name.len().checked_sub(4).unwrap_or(pub_name.len())];
         let ini_path = [export, stem, b".ini"].concat();
         let Some(ini) = self.host.read_ini(&ini_path) else {
             return 0;
@@ -450,23 +450,29 @@ impl<H: PoolHost + ?Sized> MySimPool<H> {
         // A missing family name: `ReadEntry` writes nothing, the string stays
         // empty (literal reading).
         let family = ini.get(b"FamilyInfo", b"sims_family_name").unwrap_or_default().to_vec();
-        // The `ReadNumber` result is not tested; the value of `n` after a
-        // miss is not specified: 0 here (question MS14 a).
+        // MS14 a: n is initialized to zero for each family.
         let n = ini.read_number(b"FamilyInfo", b"sims_family_nummembers").unwrap_or(0) as u32;
-        let mut written = 0;
-        for k in member_indices(&ini, n) {
-            let key = |f: &str| format!("sims_familymember{}_{f}", k as i32);
+        let mut written = 0u32;
+        // MS14: UINT_MAX never terminates; after MAX it wraps through zero.
+        // Finite loops can skip missing names because IniFile is immutable.
+        // Never exercise the nonterminating bound in a conformance import.
+        let members: Box<dyn Iterator<Item = u32>> = if n == u32::MAX {
+            Box::new((0..=u32::MAX).cycle().skip(1))
+        } else {
+            Box::new(member_indices(&ini, n).into_iter())
+        };
+        for k in members {
+            let key = |f: &str| member_key(k, f);
             let field = |f: &str| ini.get(b"FamilyInfo", key(f).as_bytes());
             let Some(first) = field("name") else { continue };
-            // A missing `_gender` / `_zodiac` is not specified: empty value
-            // (literal reading; question MS14 d).
-            let gender = field("gender").unwrap_or_default();
-            let zod = make_lower(field("zodiac").unwrap_or_default());
+            let Some(gender) = field("gender") else { continue };
+            let Some(zodiac_value) = field("zodiac") else { continue };
+            let zod = make_lower(zodiac_value);
             let Some(guid) = ini.read_number(b"FamilyInfo", key("guid").as_bytes()) else {
                 continue;
             };
             let portrait = [first, b"_", format!("{:x}", guid as u32).as_bytes()].concat();
-            let src = [pictures.as_slice(), format!("family{}_face.jpg", k as i32).as_bytes()].concat();
+            let src = [pictures.as_slice(), member_face(k).as_bytes()].concat();
             let dst = [mysim_dir, portrait.as_slice(), PORTRAIT_SUFFIX].concat();
             if !self.host.convert_image(&src, &dst) {
                 continue;
@@ -475,7 +481,7 @@ impl<H: PoolHost + ?Sized> MySimPool<H> {
             let name = [first, b" ", family.as_slice()].concat();
             self.host
                 .write_output(&encode_record(&name, is_male_text(gender, male), sign, &portrait));
-            written += 1;
+            written = written.wrapping_add(1);
         }
         self.host.delete_file(&ini_path);
         written
@@ -492,11 +498,21 @@ pub fn userdata_dir(path: &[u8], i: u32) -> Vec<u8> {
     dir
 }
 
+/// MS14: the unsigned loop index is formatted as signed int32 (`%d`).
+pub fn member_key(k: u32, field: &str) -> String {
+    format!("sims_familymember{}_{field}", k as i32)
+}
+
+/// Source portrait filename, including its extension (§4.12).
+pub fn member_face(k: u32) -> String {
+    format!("family{}_face.jpg", k as i32)
+}
+
 /// The members `k` the unsigned loop `k = 1 … n` (§4.12 step 4) reaches with
 /// a `sims_familymember<k>_name` entry, ascending. Every other `k` fails the
 /// `_name` read and is skipped without effect, so only these are visited (a
 /// negative `n` loops over 2^32 − |n| keys in the original). `k` is printed
-/// as `%d` (`k ≥ 2^31` negative; question MS14 b).
+/// as `%d` (`k ≥ 2^31` negative; MS14 b).
 fn member_indices(ini: &IniFile, n: u32) -> Vec<u32> {
     const PREFIX: &[u8] = b"sims_familymember";
     let mut ks: Vec<u32> = ini

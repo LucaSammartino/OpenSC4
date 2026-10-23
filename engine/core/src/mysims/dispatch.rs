@@ -16,9 +16,7 @@
 //!   resolved to a city lot's building or a neighbour city.
 //! - `ChangeJob(b)` sets the commute destination to building `b`; the
 //!   result is the dispatch's (§4.7.1).
-//! - `CheckCommute` pathfinds home → job (or the neighbour cell) and
-//!   reports the total time; the MySim stores `trunc(max(0, t))`, and a
-//!   failure runs `FailCommute` (§4.7).
+//! - `CheckCommute` belongs to the MySim (§4.7), not this owner.
 //! - `CheckFlags(0x100)` is the tracking flag of §4.1 step 3.
 //! - `Init` only takes and drops the clock reference (clock24.md).
 //! - the `0x2BA06B99` notification sub-IDs the MySim reacts to (§3.3):
@@ -57,9 +55,8 @@ pub const RESET_PATH_FLAGS: u32 = 0x800 | 0x1000 | 0x4000;
 /// unvalidated (§4.7.1 step 2).
 pub const STATE_STORE_UNVALIDATED: i32 = 2;
 
-// `CheckCommute`'s own pathfinder (§4.7, `0x0042D9E0`) is not configured
-// here: its slot calls are not published (§4.7 points to §7.2, which lists
-// none; question MS15). The MySim asks the host (`MySimHost::commute_time`).
+// `CheckCommute` uses a separate, fresh pathfinder owned by the MySim
+// (§4.7/4.7.2); it must not reuse this dispatch's persistent job search.
 
 /// `SetDestinationFlag` value by the MySim's `GetWealth()` (§4.7.1 step 5):
 /// 1 → `0x1`, 2 → `0x2`, 3 → `0x4`, anything else → `0x1`.
@@ -117,19 +114,27 @@ impl Default for DispatchLocation {
     }
 }
 
-/// `floor(world / 16)` in single precision (`0x00431370`). The conversion
-/// of a non-finite or out-of-`i32` quotient is not specified (question
-/// MS13); Rust's saturating `as` (NaN → 0) is used, which is defined
-/// behaviour but not claimed to match the original.
+/// MS13 world-to-cell bit arithmetic under 24-bit precision (§4.7.1).
 pub fn world_to_cell(world: f32) -> i32 {
-    (world / 16.0).floor() as i32
+    // MS13: each operation rounds to a 24-bit significand. Bit arithmetic
+    // also defines NaN/infinity and large-coordinate results, unlike casts.
+    let q = world * 0.0625;
+    let d = q - 0.5;
+    let s = d + 12_582_912.0;
+    let n = s.to_bits().wrapping_add(0xB4C0_0000) as i32;
+    let next = n.wrapping_add(1);
+    if q == next as f32 {
+        next
+    } else {
+        n
+    }
 }
 
 impl DispatchLocation {
     /// `SetByOccupant(o)` (`0x00431430`): every field reset to the default
     /// (byCommute 0, neighbour city −1), in this city, `o` held; with an
     /// occupant, world := its `GetPosition()` x, z and cell := `floor(world
-    /// / 16)`. `o` is the occupant and its position (the caller reads it
+    /// / 16)` with the MS13 rounding quirks. `o` is the occupant and its position (the caller reads it
     /// through cISC4Occupant slot 8); `None` = null (cells stay −1).
     pub fn set_by_occupant(&mut self, o: Option<(u64, (f32, f32))>) {
         *self = DispatchLocation::default();
@@ -148,11 +153,11 @@ impl DispatchLocation {
         l
     }
 
-    /// `SetCellPosition(x, z)`: the cells. §4.7.1 does not say whether it
-    /// also writes the world fields (question MS13); only the cells are
-    /// written here (literal reading).
+    /// `SetCellPosition(x, z)` (§4.7.1, MS13): cells and world fields;
+    /// shift as wrapping int32 before converting to float32.
     pub fn set_cell_position(&mut self, x: i32, z: i32) {
         self.cell = (x, z);
+        self.world = (x.wrapping_shl(4) as f32, z.wrapping_shl(4) as f32);
     }
 
     /// A default location with the in-city flag clear and a cell (test and

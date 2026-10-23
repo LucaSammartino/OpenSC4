@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "mysim_ms13_location_arithmetic",
+  "spec": ["mysims 4.7.1", "mysims 12.21"],
+  "description": "24-bit magic-number arithmetic including NaN payloads, infinities and wrapping cell shifts; SetCellPosition preserves other fields.",
+  "steps": [
+    {"op": "mysim_location_arithmetic",
+     "bits": ["432FE666", "C1000000", "C1800000", "80000000", "8DA24260", "477FFFFD", "4C800000", "4CBEBC20", "CCBEBC20", "7FC00000", "FFC00000", "7F800001", "7F800000", "FF800000"],
+     "cell": [3, 37],
+     "expect": {"cells": [10, -1, -1, 0, 0, 4095, 4194304, 5222152, -8305697, 880803840, -1266679808, 880803841, 876609536, -1270874112], "cell": [3, 37], "world": [48.0, 592.0], "preserved": true}},
+    {"op": "mysim_location_arithmetic", "bits": [], "cell": [268435457, 0],
+     "expect": {"cells": [], "cell": [268435457, 0], "world": [16.0, 0.0], "preserved": true}}
+  ]
+}

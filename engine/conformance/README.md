@@ -2,6 +2,15 @@
 
 # Conformance vectors
 
+MySim owner closure adds `mysim_location_arithmetic` (float32 `bits` as hex
+strings, target `cell`; returns converted cells, world position and preservation
+of other location fields) and `mysim_member_format` (`index`; returns signed
+member `key` and portrait `face`). `mysim_job_search` also accepts a `cell_lot`
+rectangle, and home `cell`, `missing_lot` and `no_occupant` overrides for the
+MS13 rectangle branches. Pool family `listed_name` overrides the synthetic
+`.pub` entry to exercise short-name handling. Vectors `ms12_29` through
+`ms12_31` cover mysims sections 12.21-22.
+
 Language-neutral test scenarios for the simulator (`docs/specs/simulator.md`), the shared foundations
 (`docs/specs/foundations.md`) and the budget (`docs/specs/budget.md`). Each file in
 [`vectors/`](vectors/) is a JSON document that describes a starting configuration, a script of operations, and the

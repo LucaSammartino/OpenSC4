@@ -1,2 +1,5 @@
 # mysims: open questions
 <!-- Questions about [mysims.md](../mysims.md). Append new entries at the END; when one is answered, move it to answered/mysims.md. Rules: README.md. -->
+
+<!-- from: core-mysim-dispatch5 (2026-10-23) -->
+- **MS17 - dispatch owner scope, sections 1.1, 3.3, 4.6, 4.11, 6.2, 7.2, 8, 10:** section 1.1 explicitly assigns the trip automaton to another scope and section 10 permits a stub, but a complete dispatch owner needs the trip-start/arrival transitions and notification generation, current location/destination and wait-time evolution, effects of the five dispatch tuning values, dispatch-tool/U-Drive-It behavior, dispatch RNG, and its own serialized record (including the inline version-12 dispatch in section 6.2). Where are those contracts specified? [Unsupported for those explicitly out-of-scope trip/visual behaviors and the unpublished dispatch record; the settled location, job-search, state/flag notification and template-pool contracts are implemented. No trip timing, RNG or dispatch bytes invented.]
