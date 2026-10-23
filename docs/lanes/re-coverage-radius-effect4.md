@@ -1,20 +1,112 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-coverage-radius-effect4 (coverage radius helper behavior) | `Codex` / `re-coverage-radius-effect4` (RE docs; detached HEAD) | in progress: original round 2, CRH1 lifecycle and CRH2 growth | Prove construction/receiver identity and finite growth order; preserve R1 and 30 traces. |
+| re-coverage-radius-effect4 (coverage radius helper behavior) | `Codex` / `re-coverage-radius-effect4` (RE docs; detached HEAD) | ready: bounded CRH1 lifecycle and CRH2 normal growth publication; 42 PROPOSED UNEXECUTED cases; ABI unchanged; no game runs | Coordinator review/land; residual CRH1/2 and CRH3/4 remain open. |
 
-## Handoff
+## Round 2 report (2026-10-23)
 
-- Goal: newly admitted CRH1 construction/lifecycle and CRH2 growth order, documentation only.
-- Baseline: clean detached `b63070872c97b30219c1a5e967321f4094e2744c`; R1 report below retained pending final replacement.
-- Done: `cf489316` constructor/receiver proof and L0–L2. New milestone adds full finite `004F0940`, `0079FA90`, `0051C950` transfer/selection/storage contract and actual caller obligation; table read directly from PE. L3 and G0–G7 bring new proposed UNEXECUTED cases to12, old30 preserved.
-- Next: run doc/literal/question/diff validation, inspect narrow changed prose for contradictions, finalize report and exact-tip queue.
-- Same-body provenance: public water-ripples §2.3 already proves this transfer; final round3 report supersedes historical PARKED round2. No generic-owner/body-count credit or further framework expansion. Current helper applicability independently bound at 007D1BBC.
-- Important: mask zero is stored AFTER container setup/allocation, not before first foreign call. H+0 is unwritten by the constructor body.
-- Keep old 30 trace labels/content and CRH3/4 open; no engine/native/tests/REA/subagents.
-- Round 2 q.py Bash attempt failed E_ACCESSDENIED; using local PowerShell directly. This is not a host service outage.
-- Manifest: main `build-runs/run4-re-coverage-radius-effect4-r2-manifest.json`; own ignored evidence remains under `build-runs/`.
+This is the same original round 2/3, newly admitted missing normal CRH1/CRH2
+work, starting from clean detached `b63070872c97b30219c1a5e967321f4094e2744c`
+(baseline tree `ad8d0cc78fb0dc79ae6e8d1975e359415cf646b3`). Baseline commits,
+R1 report and ignored analytical evidence remain preserved. No reset, stash,
+reconstruction, branch/ref switch, merge, rebase, push or new lane/round.
 
-## Report
+- `cf489316`: substantive embedded-constructor/default-store and receiver proof,
+  with independent L0–L2 proposed literals. Complete view B constructs window
+  interface I=B+12; constructor, Init, Shutdown and teardown all address
+  H=B+3E4=I+3D8. Actual constructor `007D26F0` zeros range/count before
+  setup request100, but selected mask is zeroed **after** setup/allocation.
+  H+0 remains unwritten; no helper factory/class ID or registration invented.
+- `69d00596`: normal shared growth/transfer contract, lifetime retention,
+  L3/G0–G7 literals and narrowed residual questions. Native capacity100→193;
+  absent-key insertion requests count+1 before node allocation/link/count.
+  Growth uses the actual 28-entry capacity ladder and unsigned lower-bound,
+  old buckets ascending, repeatedly removes old head and prepends new head.
+  Later old buckets precede earlier colliding buckets; null-effect nodes,
+  creation scalar and visited bytes survive without reference/effect calls.
+  Range stores precede freeing old bucket storage; count changes only at
+  subsequent insertion. A nonnull copied effect is stored/retained before
+  scalar/visited/link/count. Reset preserves mask/capacity; direct destruction
+  releases nodes and frees bucket storage without nulling range pointers.
+- Existing four-helper algorithms and every old branch distinction remain:
+  current versus creation scalar, retirement retaining null-effect nodes,
+  setter-store-before-callback/clear, false-with-output and reference order.
+  No whole-map or whole-effect host outcome boundary was introduced.
+
+### Evidence, scope and admission
+
+Primary canonical Windows byte-bearing instruction pages covered the full
+finite constructor `007D26F0`, setup `00829BC0`, stop/clear `007D1DB0`,
+clear/free `007D1CF0`, growth `004F0940`, selector `0079FA90`, temporary
+bucket setup `0051C950` and direct normal setup support `0045D4F0`/`004FBA20`.
+Successive pages included final returns; no assumption that --full disables
+instruction pagination. Caller slices/vtable establish enclosing identities
+and actual insertion timing, without reopening consumer algorithms. The
+capacity table was independently read from canonical PE data; seven new entry
+prefixes are checked against PE bytes. Same Windows1.1.641 source identity
+and SHA-256 as R1 below; no original code was loaded or executed.
+
+Public water-ripples §2.3 already proves the same shared transfer body.
+Its current final round3 report supersedes historical round2 PARKED status;
+that history is preserved, not represented as a live host failure or a new
+generic-owner completion. This lane binds the actual CoverageHelper call
+`007D1BBC` and compatible node layout and publishes helper-observable order.
+Shared selector/storage/transfer are intrinsic primitives, not extra exclusive
+helper-body/metadata/8-entry/2886-byte credit. No generic container framework,
+particle/emitter/manager/Rigid/region/Query/PlaceLot/View3D algorithm expansion.
+
+Used current own manifest
+`C:/Users/tlori/FreeCity4/build-runs/run4-re-coverage-radius-effect4-r2-manifest.json`
+and supplied coordinator resume/nodeps admission; no isolated preflight, REA
+request/retry/server operation or extra peer barrier. Supplied 08:39 census
+(own matches/errors/services=[], 4792 absent, known outputs absent) is present
+drain evidence, not universal/historical exit proof. Guard milestone statuses
+were within150000 (49984 then75276 context); no capacity refund or restart.
+
+### Validation and operational record
+
+`build-runs/r2-coverage-literals.py` checks PE capacity data, seven new entry
+prefixes, literal receiver/byte-count/modulo arithmetic, exact preservation of
+the original30 trace rows against b6307087, and12 unique new labels (L0–L3,
+G0–G7), total42. The new193→389 fixture has193 old nodes, explicit old chains,
+cross-old-bucket collisions and retained null effects; it distinguishes stable
+transfer, reversed final chains, sorting and map clearing. All42 cases remain
+**PROPOSED UNEXECUTED**: no native, portable-output, shadow or gate credit.
+Original doc/literal audit and diff checks passed. Initial question-index check
+failed because the baseline index lacked CRH entries; regeneration added only
+this spec's prefix/table row and corresponding totals; corrected check passed.
+No question was wholly answered/archived: CRH1/2 were narrowed to precise
+residuals, CRH3/4 unchanged. Generated QUESTIONS.md is the narrow canonical
+index addition, not a shared coordinator status edit.
+
+Round2 q.py attempt failed Bash E_ACCESSDENIED; switched to PowerShell.
+One qgrep search failed Windows cp1252 output encoding; corrected with Python
+UTF-8 mode. These are distinct failed local operations, not provider outages.
+Detached commits succeeded despite the preserved nonfatal packed-refs.lock
+permission warning; no shared-ref repair was attempted. R1 actual39 calls /
+105341 context and its REA-DOWN/npm visibility, missing-pefile→stdlib correction
+and lock warning remain historical; no old gate/native run exists to repeat.
+
+Cargo/clippy/CTest/game/shadow: n/a, documentation only. ABI false;
+game_runs=[]; no ABI proposal file. No engine/tests/SDK/private implementation
+reads or writes, native bindings, game/occupant mutation, process/cache/RPC,
+subagent, external communication, added tools or server actions.
+
+### Remaining questions and delivery
+
+CRH1: wider enclosing stop-before-destruction and notification provenance.
+CRH2: exceptional/nonreturn/overflow storage domain; no checked false/rollback
+path is invented. CRH3: individual primitive interface types/units. CRH4:
+floating-point environment and numeric domain. All remain in
+[the own question file](../specs/questions/coverage-radius-effect-helper.md).
+Normal supported contracts can land boundedREADY without closing these;
+no all-input, complete-owner, geometry/grid or global-controlword claim.
+
+Own normal docs queue is `build-runs/merge-queue/re-coverage-radius-effect4.json`
+with the actual final clean committed HEAD, abi=false and game_runs=[]. No
+further round, self-restart, native run, build or test requested. Any residual
+work requires separately authorized coordination.
+
+## Historical round 1 report (preserved; normal CRH1/2 findings superseded above)
 
 Published [coverage-radius-effect-helper.md](../specs/coverage-radius-effect-helper.md), an instruction-backed contract for four substantial named helper bodies, one jump alias and bounded shared/container/lifecycle call-site consequences. This is useful partial publication, not complete class/family or 8-entry/2886-byte coverage credit.
 

@@ -45,6 +45,7 @@ generated index: the questions live one file per spec, so read only the file for
 | CM | commercial-industrial |
 | CQ | crime |
 | CR | power |
+| CRH | coverage-radius-effect-helper |
 | CS | city-situation |
 | CT | city-tools, city-tools-input |
 | DC | draw-context |
@@ -206,6 +207,7 @@ generated index: the questions live one file per spec, so read only the file for
 | command-line | 4 | 0 | CL5 | questions/command-line.md |
 | command-system | 8 | 0 | GC9 | questions/command-system.md |
 | commercial-industrial | 1 | 12 | CM11, IN4 | questions/commercial-industrial.md |
+| coverage-radius-effect-helper | 4 | 0 | CRH5 | questions/coverage-radius-effect-helper.md |
 | crime | 0 | 24 | CQ25 | - |
 | data-formats | 4 | 56 | EX56 | questions/data-formats.md |
 | dates | 3 | 2 | DT6 | questions/dates.md |
@@ -334,4 +336,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **509** | **1262** | | |
+| **total** | **513** | **1262** | | |
