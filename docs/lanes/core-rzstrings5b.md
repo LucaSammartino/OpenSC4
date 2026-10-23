@@ -2,7 +2,15 @@
 |---|---|---|---|
 | core-rzstrings5b (RZS6 numeric formatting closure) | Codex / `core-rzstrings5b` (engine lane, detached HEAD) | WIP: source 0abd4aeff; cargo 6717/0, clippy clean, native build 220/220, CTest 69/69; RZ21–RZ40 covered with test-only finite intermediate provider; RZS7 blocks full owner closure; no ABI change or game runs | (1) Answer RZS7 and regenerate question index; (2) implement legacy finite extraction; (3) close §5.1 and review for ready. |
 
-## Changes
+## Handoff
+
+- Round 2 in progress: merged requested re-rzstrings-rzs7 at 7ca4094aa (merge succeeded despite packed-refs lock warning).
+- Next: implement §5.1.1 finite extraction with u128 limb arithmetic; replace test-only provider and cover RZ41–RZ50.
+- Then update owner closure, run full gate on stable source, commit final report and READY entry.
+- Previous results below apply only to the previous source. No game requests outstanding.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-rzstrings5b-r2-manifest.json.
+
+## Previous round changes
 
 Source milestone: `0abd4aeff`. RZS6 was already present in base `846e30a61`; no spec merge was needed.
 
