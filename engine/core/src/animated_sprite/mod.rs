@@ -31,8 +31,9 @@ pub const FLAG_SELF_LIT: u8 = 4;
 pub const BASIC_INSTANCE_IID: u32 = 0x26a6_8449;
 pub const SPRITE_INSTANCE_IID: u32 = 0xa818_edd8;
 
-/// Constructor defaults other than the draw state are unpublished (AS3).
-/// An explicit snapshot avoids claiming invented native initial values.
+/// Published constructor state, or an explicit source-level snapshot.
+/// The duplicated flags/highlight/alpha fields are authoritative on import;
+/// their bytes in the shared draw record are synchronized by the owner.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct InstanceState {
     pub playback: Playback,
@@ -62,7 +63,10 @@ pub struct AnimatedSprite<O> {
 }
 
 impl<O> AnimatedSprite<O> {
-    pub fn from_snapshot(state: InstanceState, owner: Option<Arc<O>>) -> Self {
+    pub fn from_snapshot(mut state: InstanceState, owner: Option<Arc<O>>) -> Self {
+        state.draw_attributes[0] = state.flags;
+        state.draw_attributes[1] = state.highlight as u8;
+        state.draw_attributes[16..20].copy_from_slice(&state.alpha.to_le_bytes());
         Self {
             state,
             owner,
@@ -100,6 +104,9 @@ impl<O> AnimatedSprite<O> {
     }
     pub fn set_draw_attributes(&mut self, value: [u8; 20]) {
         self.state.draw_attributes = value;
+        self.state.flags = value[0];
+        self.state.highlight = u32::from(value[1]);
+        self.state.alpha = f32::from_le_bytes(value[16..20].try_into().unwrap());
     }
     pub fn transform(&self) -> Transform {
         self.state.transform
@@ -170,6 +177,7 @@ impl<O> AnimatedSprite<O> {
             self.state.alpha = 1.0;
             self.set_flag(FLAG_FADE, false);
         }
+        self.state.draw_attributes[16..20].copy_from_slice(&self.state.alpha.to_le_bytes());
         2
     }
 
@@ -180,6 +188,7 @@ impl<O> AnimatedSprite<O> {
         // The existing u32 snapshot field is retained for source consumers;
         // its setter stores a byte, not a native-layout or ABI declaration.
         self.state.highlight = u32::from(index as u8);
+        self.state.draw_attributes[1] = index as u8;
         self.set_flag(FLAG_HIGHLIGHT, index != 0);
         2
     }
@@ -203,6 +212,7 @@ impl<O> AnimatedSprite<O> {
         } else {
             self.state.flags &= !flag;
         }
+        self.state.draw_attributes[0] = self.state.flags;
     }
 
     /// Cached-zoom convenience for ordinary source consumers. Draw uses the

@@ -186,7 +186,7 @@ impl X {
         }
         // Integer Newton iteration; accept perfect squares only.
         let n = value.n as u128;
-        let mut root = 1_u128 << ((128 - n.leading_zeros() + 1) / 2);
+        let mut root = 1_u128 << (128 - n.leading_zeros()).div_ceil(2);
         loop {
             let next = (root + n / root) / 2;
             if next >= root {

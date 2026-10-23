@@ -15,6 +15,10 @@ code, original-owner callback, computed-quad provider or guessed native success.
 zoom scales/metrics use `None`; the unpublished initial local-corner global is
 not exposed as valid geometry. The initial draw vertex block is zero/white.
 `from_snapshot` remains available for independently supplied state.
+The shared draw record aliases flags, highlight and fade alpha. Both setter
+surfaces stay synchronized; snapshot import takes the named fields as authoritative.
+Shade words default to one. The two unwritten base-record bytes use a documented
+portable zero choice and are preserved after any supplied record.
 
 ## Owner closure
 
@@ -35,7 +39,7 @@ implementation checks, never claims of native execution.
 | 3.1.2 Partial stages/CFG | `placement::stage`, `set_orientation` | `conditional_direction_conversion_and_all_zero_angle_masks`, `conditional_stage_permutations_old_sources_and_signed_zero`; open: AS6 general PC-RC schedule execution |
 | 3.1.3 Full-mask schedule | full replacement branch in `set_orientation` | `conditional_direction_conversion_and_all_zero_angle_masks`; open: AS6 nonzero primitive transients |
 | 3.1.4 Conditional analytic vectors | exact permutation/zero subdomain of `stage` | `conditional_stage_permutations_old_sources_and_signed_zero`; open: AS6 R3-C/L mode-dependent cancellations and nonzero full R3-M; no invented angle reachability |
-| 3.2 Shared interface | owner/custom/properties/attributes, bounds/world bounds, sort/resource getters | `owner_replacement_counts_and_getters_are_shared_thread_safe`, `defaults_shared_surface_copies_and_equal_position_counter_wrap`; open: AS3 exact native inventory/thunks, AS7 numeric getter qualification |
+| 3.2 Shared interface | owner/custom/properties/attributes, bounds/world bounds, sort/resource getters | `owner_replacement_counts_and_getters_are_shared_thread_safe`, `defaults_shared_surface_copies_and_equal_position_counter_wrap`, `shared_draw_record_aliases_material_fields_and_preserves_opaque_bytes`; open: AS3 exact native inventory/thunks, AS7 numeric getter qualification |
 | 3.3 Evidence inventory | no separate executable behavior | open: AS3 exact 60-function accounting; foreign camera/context bodies are not implemented here |
 | 4 Animation/clock | `Playback`, `tick`, `advance_frame`, `set_rate` | `vector_clock_raw_units_skip_and_no_skip`, `literal_reverse_single_frame_and_stopped_dirty_vectors`; open: AS5/AS6 numeric qualification; divergence returns a safe diagnostic, not a native status |
 | 4.1 Lookup/packing | `derive_metrics`, `select_angles`, `decode_entry_exact`, `convert_bin_nearest_even` | `raw_decoder_literal_packing_flips_scale_and_rejection`, `conditional_direction_conversion_and_all_zero_angle_masks`; open: AS6/AS7 general PC-RC and AS10 Draw angle-result boundaries |

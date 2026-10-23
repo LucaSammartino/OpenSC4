@@ -5,6 +5,12 @@ const IDENTITY: [f32; 9] = [1., 0., 0., 0., 1., 0., 0., 0., 1.];
 
 impl Default for InstanceState {
     fn default() -> Self {
+        // The base leaves bytes 2..3 unwritten. Zero is a portable choice for
+        // those bytes only; supplied records preserve them (model-instances §1.1).
+        let mut draw_attributes = [0; 20];
+        for offset in [4, 8, 12, 16] {
+            draw_attributes[offset..offset + 4].copy_from_slice(&1_f32.to_le_bytes());
+        }
         Self {
             playback: Playback {
                 frame: 0,
@@ -21,7 +27,7 @@ impl Default for InstanceState {
             highlight: 0,
             custom_data: 0,
             properties: 1,
-            draw_attributes: [0; 20],
+            draw_attributes,
             transform: Transform {
                 kind: 0,
                 rotation: IDENTITY,
@@ -201,6 +207,9 @@ impl<O> AnimatedSprite<O> {
         }))?;
         let right = normalize(cross(up, back))?;
         let true_up = cross(back, right);
+        if true_up.iter().any(|a| !a.is_finite()) {
+            return Err(Unsupported::Arithmetic);
+        }
         self.state.transform.rotation = std::array::from_fn(|i| [right, true_up, back][i % 3][i / 3]);
         self.state.transform.kind |= 4;
         self.state.transform.change = self.state.transform.change.wrapping_add(2);

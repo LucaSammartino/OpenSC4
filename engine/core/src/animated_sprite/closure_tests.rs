@@ -121,6 +121,39 @@ fn load_transaction_repeated_prefix_binding_and_counted_lifetimes() {
 }
 
 #[test]
+fn shared_draw_record_aliases_material_fields_and_preserves_opaque_bytes() {
+    let mut sprite = AnimatedSprite::<()>::default();
+    for offset in [4, 8, 12, 16] {
+        assert_eq!(&sprite.draw_attributes()[offset..offset + 4], &1_f32.to_le_bytes());
+    }
+    let mut record = [0x91; 20];
+    record[0] = 0x80 | FLAG_FADE | FLAG_HIGHLIGHT;
+    record[1] = 9;
+    record[16..20].copy_from_slice(&0.25_f32.to_le_bytes());
+    sprite.frame_dirty = false;
+    sprite.set_draw_attributes(record);
+    assert_eq!(
+        (sprite.state.flags, sprite.state.highlight, sprite.state.alpha),
+        (0x83, 9, 0.25)
+    );
+    assert_eq!(sprite.material().transparency, Some(0.25));
+    assert_eq!(sprite.set_highlight(9), 0);
+    assert_eq!(sprite.set_self_lit(true), 2);
+    assert_eq!(sprite.set_highlight(0x107), 2);
+    assert_eq!(sprite.set_fade(false, 0.5), 2);
+    record[0] = 0x85;
+    record[1] = 7;
+    record[16..20].copy_from_slice(&1_f32.to_le_bytes());
+    assert_eq!(sprite.draw_attributes(), &record);
+    assert!(!sprite.frame_dirty);
+    // Shared copies preserve arbitrary float words, including NaN payloads.
+    record[16..20].copy_from_slice(&0x7fc12345_u32.to_le_bytes());
+    sprite.set_draw_attributes(record);
+    assert_eq!(sprite.state.alpha.to_bits(), 0x7fc12345);
+    assert_eq!(sprite.draw_attributes(), &record);
+}
+
+#[test]
 fn defaults_shared_surface_copies_and_equal_position_counter_wrap() {
     let mut sprite = AnimatedSprite::<()>::default();
     assert_eq!(

@@ -42,8 +42,10 @@ fn setters_literal_completing_paths_and_unrelated_state() {
     ];
     for (on, input, enabled, output) in cases {
         let mut s = cached_sprite();
-        s.state.flags = 0xfa;
-        s.state.alpha = 0.375;
+        let mut attributes = *s.draw_attributes();
+        attributes[0] = 0xfa;
+        attributes[16..20].copy_from_slice(&0.375_f32.to_le_bytes());
+        s.set_draw_attributes(attributes);
         s.frame_dirty = false;
         s.cache.as_mut().unwrap().view_dirty = true;
         let cache_before = s.cache;
@@ -53,6 +55,8 @@ fn setters_literal_completing_paths_and_unrelated_state() {
         assert_eq!(s.state.flags, 0xf8 | if enabled { 2 } else { 0 });
         s.state.alpha = before.alpha;
         s.state.flags = before.flags;
+        s.state.draw_attributes[0] = before.draw_attributes[0];
+        s.state.draw_attributes[16..20].copy_from_slice(&before.draw_attributes[16..20]);
         assert_eq!(s.state, before);
         assert!(!s.frame_dirty);
         assert_eq!(s.cache, cache_before);
