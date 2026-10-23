@@ -5,8 +5,8 @@
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
 //! `cSC4MySimDispatch` (class `0xCBC14674`, read as IID `0xEB8B6F9A`), the
-//! per-MySim trip controller. mysims.md §1.1 leaves the class itself to the
-//! automata spec, but the simulation side names its contract:
+//! per-MySim trip controller. Behavior source: mysims.md §§4.6.1, 4.7,
+//! 4.11, 6.2.1 and 7.2.1. Transport handoffs remain foreign (MS18).
 //!
 //! - `FindNewJob` → `SetCurrentCommuteDestination(default loc, notify)` →
 //!   `validateCommuteLocation` (§4.7.1): one filter-0 search on the
@@ -23,20 +23,27 @@
 //!   `0x4BB2D020`/`0x4BB2CFC0` trip states, `0xEBA06BF4` job found,
 //!   `0xEBA06C12` arrival, `0xEBA06BD4`/`0x4BB71A7E` state transitions.
 //!
-//! What the spec leaves to the automata layer — the trip automaton, the
-//! walking character, balloons — is not implemented; the module drives the
-//! pathfinder through [`DispatchHost`] and the notifications through it.
-//! The default answers of the MySim host keep the shipped stub behaviour
-//! (mysims.md §10 *[choice]*: "arrived" immediately, no trip fields).
+//! Requests never manufacture arrivals. Unsettled transport branches return
+//! [`TripOutcome::UnsupportedMs18`]; the walking character and traffic stay foreign.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, VecDeque};
 use std::rc::Rc;
+use std::sync::RwLock;
 
 use crate::pathfinder::{filter, flag, result, CellRect, Pathfinder, PathfinderHost, RouteData, SharedWorkCheck};
 use crate::traffic_network::NetworkModel;
 
 use super::{JobDestination, DISPATCH_CLSID, DISPATCH_IID};
+
+mod trip;
+mod record;
+pub mod scripted;
+pub use record::DispatchRecordRefs;
+pub use trip::{DispatchTuning, TripOutcome, TripSearch, TripServices};
+
+#[cfg(test)]
+mod trip_tests;
 
 /// The commuter travel-type mask of the job search (§4.7.1 step 8: Walk,
 /// Car, Bus, Passenger train, Subway, Elevated train, Monorail; allowed
@@ -94,7 +101,7 @@ pub struct DispatchLocation {
     pub in_city: bool,
     /// `+0x1D`: "by commute".
     pub by_commute: bool,
-    /// `+0x20`, `+0x24`: copied, never read by the dispatch.
+    /// `+0x20`, `+0x24`: duration and deadline, signed bits (§4.6.1).
     pub reserved: (u32, u32),
 }
 
@@ -300,7 +307,7 @@ impl JobPathfinder for CoreJobPathfinder<'_> {
 }
 
 /// The dispatch fields the job search reads and writes.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct JobSearchState {
     /// Dispatch flags (`0x80` home set, `0x800|0x1000|0x4000` path).
     pub flags: u32,
@@ -316,6 +323,19 @@ pub struct JobSearchState {
     pub commute_destination: DispatchLocation,
     /// The route deque handed to `SetRouteInfo`.
     pub route: VecDeque<RouteData>,
+}
+
+impl Default for JobSearchState {
+    fn default() -> Self {
+        Self {
+            flags: 0,
+            state: -1,
+            prev_state: -1,
+            home: DispatchLocation::default(),
+            commute_destination: DispatchLocation::default(),
+            route: VecDeque::new(),
+        }
+    }
 }
 
 /// The dispatch flag `setState(3)` ORs in (§4.7.1).
@@ -452,7 +472,8 @@ pub fn set_current_commute_destination(
 
 /// What the dispatch reads from the game beyond the pathfinder host: the
 /// MySim's home, wealth and job lots, the city, and a way to post the
-/// notification messages. Callbacks must not call back into the dispatch.
+/// notification messages. Notifications may synchronously reenter getters or
+/// request methods; no state lock is held across an owner notification.
 pub trait DispatchHost: PathfinderHost {
     /// The home lot's bounding rectangle (`CheckCommute`).
     fn home_rect(&self, sim: i32) -> Option<CellRect>;
@@ -523,10 +544,35 @@ impl JobSearchWorld for SimWorld<'_> {
 /// One MySim's dispatch state: the job-search fields (§4.7.1), whose
 /// `state` is the trip state (§4.6). `CheckCommute`'s time is the MySim's
 /// `lastCommuteTime` (§4.7), not a dispatch field.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DispatchState {
     /// The job search's dispatch fields (§4.7.1), incl. the trip state.
     pub search: JobSearchState,
+    pub current: DispatchLocation,
+    pub destination: DispatchLocation,
+    pub queue: VecDeque<DispatchLocation>,
+    pub tuning: DispatchTuning,
+    pub auxiliary_flag: bool,
+    pub opaque_28: u32,
+    pub path_indices: (u32, u32),
+    pub change_counter: u32,
+    pub previous_change_counter: u32,
+    pub tracking_value: u32,
+    pub minutes: i32,
+    /// Stored as a full u32 in the record, including opaque upper bits.
+    pub travel_type: u32,
+    pub wait_timestamp: i32,
+    pub neighbor_retries: u32,
+    pub auxiliary_occupant: Option<u64>,
+    pub auxiliary_value: u32,
+    pub auxiliary_string: Vec<u8>,
+    pub automata_occupant: Option<u64>,
+    pub owner: Option<u64>,
+    pub simulation_service: Option<u64>,
+    pub models: BTreeMap<i32, (crate::stream::ResKey, i32)>,
+    pub route_marker: i32,
+    pub read_pending: bool,
+    pub read_succeeded: bool,
 }
 
 /// The per-MySim trip controller.
@@ -534,7 +580,7 @@ pub struct MySimDispatch {
     host: Rc<dyn DispatchHost>,
     net: Rc<NetworkModel>,
     shared: SharedWorkCheck,
-    sims: RefCell<BTreeMap<i32, DispatchState>>,
+    sims: RwLock<BTreeMap<i32, DispatchState>>,
     /// The long-lived job-search pathfinder of each dispatch (created in
     /// `Init`, §4.7.1).
     pathfinders: RefCell<BTreeMap<i32, Pathfinder>>,
@@ -546,7 +592,7 @@ impl MySimDispatch {
             host,
             net,
             shared,
-            sims: RefCell::new(BTreeMap::new()),
+            sims: RwLock::new(BTreeMap::new()),
             pathfinders: RefCell::new(BTreeMap::new()),
         })
     }
@@ -564,7 +610,7 @@ impl MySimDispatch {
     /// job-search pathfinder is created here once and kept for the
     /// dispatch's lifetime (§4.7.1).
     pub fn init(&self, sim: i32) -> bool {
-        self.sims.borrow_mut().entry(sim).or_default();
+        self.sims.write().unwrap().entry(sim).or_default();
         self.pathfinders
             .borrow_mut()
             .entry(sim)
@@ -574,7 +620,7 @@ impl MySimDispatch {
 
     /// `Shutdown` (the MySim's Shutdown and LeaveCity call it, §4.7).
     pub fn shutdown(&self, sim: i32) {
-        self.sims.borrow_mut().remove(&sim);
+        self.sims.write().unwrap().remove(&sim);
         self.pathfinders.borrow_mut().remove(&sim);
     }
 
@@ -598,10 +644,8 @@ impl MySimDispatch {
     /// `SetDefaultDestination(home)`: the home location; sets dispatch
     /// flag `0x80` (§4.7.1 step 2).
     pub fn set_default_destination(&self, sim: i32, home: DispatchLocation) {
-        let mut sims = self.sims.borrow_mut();
-        let st = &mut sims.entry(sim).or_default().search;
-        st.home = home;
-        st.flags |= FLAG_HAS_HOME;
+        self.edit(sim, |st| st.search.home = home);
+        self.change_flags(sim, |f| f | FLAG_HAS_HOME);
     }
 
     /// Dispatch `setState(s)` (§4.7.1, `0x00431C10`): the trip state
@@ -609,8 +653,11 @@ impl MySimDispatch {
     /// trip state; data (old, new) as §3.3's handler reads them).
     pub fn set_state(&self, sim: i32, s: i32) {
         let notes = {
-            let mut sims = self.sims.borrow_mut();
-            set_state(&mut sims.entry(sim).or_default().search, s)
+            let mut sims = self.sims.write().unwrap();
+            let st = sims.entry(sim).or_default();
+            let notes = set_state(&mut st.search, s);
+            st.change_counter = st.change_counter.wrapping_add(notes.len() as u32);
+            notes
         };
         for n in notes {
             match n {
@@ -628,9 +675,10 @@ impl MySimDispatch {
     /// pathfinder; a dispatch never `Init`ed has none, so a search it would
     /// run fails *[choice]* (the original always has one after `Init`).
     pub fn set_current_commute_destination(&self, sim: i32, loc: DispatchLocation, notify: bool) -> bool {
+        let old_flags = self.get_state(sim).search.flags;
         let (ok, fire) = {
             let mut pfs = self.pathfinders.borrow_mut();
-            let mut sims = self.sims.borrow_mut();
+            let mut sims = self.sims.write().unwrap();
             let st = &mut sims.entry(sim).or_default().search;
             let world = SimWorld { host: &*self.host, sim };
             match pfs.get_mut(&sim) {
@@ -649,6 +697,11 @@ impl MySimDispatch {
                 None => (false, false),
             }
         };
+        let new_flags = self.get_state(sim).search.flags;
+        if old_flags != new_flags {
+            self.edit(sim, |st| st.change_counter = st.change_counter.wrapping_add(1));
+            self.host.notify(sim, super::dispatch_note::TRIP_STATE_A, old_flags, new_flags);
+        }
         if fire {
             self.host.notify(sim, super::dispatch_note::JOB_FOUND, 0, 0);
         }
@@ -657,7 +710,7 @@ impl MySimDispatch {
 
     /// The state the simulation side reads (§4.6 trip variables).
     pub fn get_state(&self, sim: i32) -> DispatchState {
-        self.sims.borrow().get(&sim).cloned().unwrap_or_default()
+        self.sims.read().unwrap().get(&sim).cloned().unwrap_or_default()
     }
 
     /// Tests the dispatch's flags (§4.1 step 3 tracking flag): all bits of
@@ -712,9 +765,10 @@ impl MySimDispatch {
     /// (§4.7.1); this is the host's entry for the other flag writers of the
     /// trip automaton (not specified here).
     pub fn report_flags(&self, sim: i32, new_flags: u32, old_flags: u32) {
-        self.sims.borrow_mut().entry(sim).or_default().search.flags = new_flags;
-        self.host
-            .notify(sim, super::dispatch_note::TRIP_STATE_A, old_flags, new_flags);
+        // old_flags is retained for source compatibility; the authoritative old
+        // value is the dispatch's stored value (§4.6.1), not caller input.
+        let _ = old_flags;
+        self.change_flags(sim, |_| new_flags);
     }
 
     /// Posts an arrival (§3.3 `0xEBA06C12`). The trip state is written only
