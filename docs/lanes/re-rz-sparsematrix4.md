@@ -1,6 +1,60 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-rz-sparsematrix4: first sparse matrix owner contract | Codex, detached worktree `re-rz-sparsematrix4` | blocked: REA target unavailable; no behavior publication | Coordinator must restore the original Windows 1.1.641 target in the shared REA session before research resumes |
+| re-rz-sparsematrix4: first sparse matrix owner contract | Codex, detached worktree `re-rz-sparsematrix4` | blocked: round 2 full REA preflight fails; no behavior publication | Coordinator repairs configured REA entrypoint and obtains full guard/handshake pass before further research |
+
+## Round 2 report (2026-10-23)
+
+The coordinator explicitly authorized primary export/instruction research without successful live
+pseudocode. This supersedes round 1's research-method prerequisite, but does not waive the normal
+full REA guard and server handshake. Round 1 at `281dd777` remains a failure with zero behavior
+credit; its original report is preserved below, including its then-applicable resume instructions.
+
+### Blocking result
+
+Ran the normal full check, without a handshake bypass:
+`python C:/Users/tlori/FreeCity4/.claude/lane-bin/laneguard.py preflight re-rz-sparsematrix4 --kind re`.
+It reported:
+**`REA-DOWN C:\Users\tlori\AppData\Roaming\npm\node_modules\rea-agents\scripts\rea.mjs does not exist`**.
+The configured entrypoint check fails before a successful server handshake can be obtained.
+No repair, new server, target open/close, repeated NoApp query, or alternate configuration was attempted.
+This is a distinct round 2 configuration blocker, not evidence that round 1's live target was repaired.
+
+### Bounded preliminary observations; no behavior credit
+
+- Reused the reserved detached worktree, initially clean at `281dd777`.
+- The export summary identifies `SimCity 4.exe`, SHA-256
+  `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`, image base `00400000`.
+  The main working binary's version resource reports `1.1.641.0`, original filename `SimCity 4.exe`.
+  A current binary hash comparison was not completed; identity verification remains partial.
+- Queried the export name inventory first; it returns 19 matrix-named entries and one iterator-named
+  entry, plus two foreign AutoPtr entries. These names are not an audited unique-body inventory.
+- A single export instruction query for `009a5bf2` was included in the same shell invocation as
+  preflight. No contract is published from it. Attribution needs instruction/caller reconciliation;
+  a method name alone is insufficient.
+- Matrix **38 attributed functions / 3276 bytes**, iterator **1 / 82**, combined **39 / 3358** remain
+  unaudited public denominators. Named/folded/foreign/uncertain per-body classification is unfinished.
+  Completed bodies, supported behavior rules and validated literal vectors: **zero**.
+- No spec, question resolution, ABI proposal, source/test/tool changes, engine reads, builds, games,
+  subagents, restart, merge/rebase/push, branch switch or shared ref change.
+- q.py again failed Bash startup with `Bash/Service/CreateInstance/E_ACCESSDENIED`; capped reads
+  then used PowerShell. This did not cause the REA failure.
+
+### Validation and next step
+
+Documentation only: `git diff --check` is the applicable check; cargo/clippy/ctest and game/shadow
+checks are not applicable. No question was filed or answered, so no question index changes are needed.
+The ignored merge-queue entry remains `wip`.
+
+Coordinator must restore the configured REA entrypoint and obtain a full guard/handshake pass.
+Only then resume the authorized primary export workflow: complete binary identity comparison,
+audit exact bodies/aliases, establish coherent native algorithms and literal vectors, then publish
+the bounded contract and unresolved questions. Do not repeat the unchanged live NoApp query.
+This round stops here; it does not self-restart or consume the remaining round automatically.
+
+Evidence root: `C:/Users/tlori/FreeCity4`; round 2 manifest:
+`C:/Users/tlori/FreeCity4/build-runs/run4-re-rz-sparsematrix4-r2-manifest.json`.
+
+## Preserved round 1 report (281dd777)
 
 ## Report
 
