@@ -126,7 +126,10 @@ Independent geometric discriminators, with t=2 and horizontal points unless stat
 
 Lifecycle residual: Init is idempotent and succeeds even without a render service, setting its flag;
 Shutdown `0x0053C940` only clears that flag. Destruction clears paths and frees the list sentinel.
-Complete shared COM/destructor and nonfinite bit-level behavior are not certified by this section.
+Shared COM/destructor dispatch is qualified separately in §3.4. Nonfinite bit-level behavior is not
+certified by this section. ClearPaths resets sentinel links but does not reset the selected-record
+pointer at view+0x18 (0x007DDBE0–0x007DDC23). After clearing a nonempty view, mutation of the former
+selection is not a certified successful no-op; establish a new selected path before using it again.
 
 ## 2. The marked-cell view (`SC4MarkedCellView`) *[compat]*
 
@@ -415,10 +418,38 @@ NewPath value is not a default. OVV4 retains the independent outline-disable API
 OVV6 retains inventory and lifecycle/setter gaps (§3.2). OVV2, OVV3, OVV5 and OVV7 have been
 answered in the archive; their instruction-derived contracts do not certify complete owners.
 
-## 7. Conformance tests
+## 7. Conformance expectations (UNEXECUTED)
 
 1. **Order:** paths with priorities 2, 1, 2 created in that order draw as 1, 2 (second), 2 (first).
 2. **Strip:** a straight path of 3 vertices draws one strip of 6 vertices, 2t wide.
 3. **Duplicate:** a vertex 1 mm from the previous one is not added.
 4. **Cells:** 100 cells of 16 m draw in one batch; 300 cells draw in two (1,200 vertices).
 5. **Vertex buffers:** with `kUseVertexBuffers` off the extension is never made.
+
+### 7.1 Distinguishing literal vectors (static; UNEXECUTED)
+
+These expectations were derived from the primary rules in §§1.2, 2.2, 3.1 and 3.4, independently
+of implementation output. They specify observations for future conformance work; no native, game,
+shadow or replacement execution is claimed. Coordinates are (x,y,z). Approximate decimals denote
+geometry, not promises of bit-exact x87 intermediate rounding. Colour vectors assume round-to-nearest-even.
+
+| ID / input | Expected observation | Distinguishes |
+|---|---|---|
+| OV-L1: create A priority 2, B −1, C .5, D 2, each with two separated points | Draw B,C,D,A. Adding E with quiet-NaN priority bits 0x7FC00000 puts E last. | Signed-integer/unsigned-bit sorting, oldest-first ties, treating unordered as insertion stop. 0x007DDC64–76. |
+| OV-L2: NewPath colourBits=0x12345678 | Every generated ribbon/arrow vertex carries 0x12345678, without white fallback or float-channel conversion. | Treating first argument as a path ID. 0x007DD427–2C. |
+| OV-L3: t=2, repeat=4, no arrows; (0,0,0)→(6,8,0) | Pairs (0,0,−2)/(0,0,2), (6,8,−2)/(6,8,2); UVs (0,0)/(0,1), (10,0)/(10,1). | Horizontal width but **3D** longitudinal length; swapped UV axes; terrain flattening. 0x007DCE60, 0x007DD66B–0x007DD72B. |
+| OV-L4: t=2, repeat=4, no arrows; (0,0,0)→(10,0,0)→(10,0,10) | Joint pair (12,0,−2)/(8,0,2), with UVs (8,0)/(12,1). Final longitudinal coordinate 20 on both sides. | Unit-bisector joints and a single accumulated U copied to both joint vertices. 0x007DCFF8–0x007DD09F, 0x007DD6B1–0x007DD72B. |
+| OV-L5: t=5, DrawArrowhead tip (0,0,0), inward neighbor (6,8,0) | At the 3D threshold L=2t, draw triangle (0,0,0),(3,4,10),(3,4,−10); mutable tip becomes (3,4,0). | Horizontal-length reject, flattened base y, unit rather than 2t wing width. 0x007DD10F–0x007DD252. |
+| OV-L6: t=2, two points (0,0,0)→(13,0,0), both arrow flags | Start triangle base x=9, end triangle base x=11; start then end triangles precede ribbon spanning x=9..11. Stored points remain x=0 and 13. | Independent endpoint processing using original neighbors; changed stored path. 0x007DD5E0–0x007DD637, 0x007DD779 onward. |
+| OV-L7: common colour RGBA=(2,−.5,1/512,3/512), with existing per-cell colours | Packed 0x02FE8100; per-cell vector becomes empty. SetOutlineColor with the same floats packs the same value and enables outline. | Clamp, multiply/truncate by 255, half-up conversion, swapped RGBA order. 0x007DCB37–CF, 0x007DC2F0. |
+| OV-L8: W=H=4, size=(8,8), cell(7,7) | Four collapsed world x,z corners at (32,32), using terrain index (2,2); no lot query. | Rejecting outside lower corners or clamping world coordinates after multiplication. 0x007DC7D0–0x007DC8E7. |
+| OV-L9: 16m cell, all terrain heights 2, water 10, accepted lot height 3, no raising flags; frustum accepts corners at y=10 | Frustum queries before lot replacement, final quad y=3. No second water-max/frustum pass. | Max-of-all-heights and post-lot culling. 0x007DC500–0x007DC6C7. |
+| OV-L10: W=4,H=8,C=10; lock with V=4,I=0; row=2,[1,3), q=(1,2,6,2,7,6), byteFlag=1 | Six copied vertices at compact indices 4..9, appended u16=(4,5,7,5,8,7); no capacity flush. Source starts 108 bytes after borrowed index pointer. With byteFlag=0, start is 12 bytes after it. | Absolute terrain-index interpretation, row added twice, equality flush. 0x0075CB78–0x0075CCC1. |
+| OV-L11: W=4,C=10,V=0, locked; [1,3), first source q=0 | First stored u16=65535. | Repair/clamp/reject of out-of-range rebased source index. 0x0075CCAA–C1. |
+| OV-L12: locked V=8,I=12,C=10; submit n=2; next slot-6 lock returns null | Unlock once, old indexed draw count 12, relock once, then no new copy/draw; V=I=0 and lock=null. | Lazy lock success, drawing new geometry after lock failure, repeated capacity retry. 0x0075CB8C–C3, 0x0075CAD0–0x0075CB40. |
+| OV-L13: stale V=4,I=6; CreateBuffer returns null; then FlushBuffer | CreateBuffer returns false, leaves counts 4,6 and lock=null. Flush makes no driver calls and leaves counts unchanged. | Reset-on-failed-lock or unconditional flush. 0x0075C9F0–0x0075CA25, 0x0075CAD0–D7. |
+| OV-L14: valid fresh view count=0; QI ID=2 with output preset to sentinel; then QI ID=1 | First returns AL=false, sentinel unchanged/count0; second returns AL=true, output U=P+4/count1. AddRef then Release returns 2 then 1. A final Release returns 0 through deleting slot3(flags=1), without storing count0 first. | Nulling failed-QI output, returning P, unsigned underflow on zero Release, missing lifetime acquisition. §3.4. A separate fresh count0 Release also dispatches deletion. |
+
+Allocation failure, arbitrary NaN geometry, short colour arrays, unknown outline-disable operations
+and additional public setters have no successful-output vector here. Their absence is a qualification
+boundary, not a new native validation rule.

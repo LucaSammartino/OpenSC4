@@ -193,8 +193,10 @@ The draw resets transparency, sets identity model and its packed state, then dra
 in vector index order, skipping the chosen **low-16-bit** index. Plain transparency is binary32 .7
 if either stored cell pair matches, else .4. Then set transparency to .8 or .5 respectively and draw
 the chosen index last. This latter indexing has no bounds check, even for a directly supplied empty
-vector. Every successful bitmap quad uses the current offset, then increments it by binary32 .01;
-null path/bitmap skips do not increment. Offset carries across junctions within the frame.
+vector. Every route with a nonnull path and bitmap uses the current offset, then increments it by
+binary32 .01 before submission, irrespective of the draw result; null path/bitmap skips do not
+increment. Offset carries across junctions within the frame. Obtaining the first-route origin is
+earlier and has no null-path guard (0x00564C75–94); this skip rule does not make a null first route safe.
 Evidence: `0x00564C19–0x00564C75`, `0x00564D20–0x00564E78`; constants are immediate .7/.8/.4/.5
 bit patterns and .01 at `0x00A823A4`.
 
@@ -236,10 +238,33 @@ NOV3 retains marker rotation/model-state details, cell setters/current-target id
 Shutdown discipline. The geometry/state corrections in §§1.1–1.2 and 2.1 and shared lifecycle in
 overlay-views §3.4 answer portions of these questions; NOV2 and NOV3 remain open.
 
-## 6. Conformance tests
+## 6. Conformance expectations (UNEXECUTED)
 
 1. **Colour:** a path of type nibble 4 is drawn yellow with alpha 200.
 2. **Limit:** a path of 40 points draws a strip of 25 points.
 3. **Arrow choice:** entry direction e = (1, 0) and a route ending along d = (0, −1) give c = 1: the pair
    `0x6BE09921`/`0x6BE09922`; a route ending along e gives c = 0: the pair `0x6BE09925`/`0x6BE09926`.
 4. **Transparency:** away from both stored cells, plain routes draw at .4, selected/marker at .5.
+
+### 6.1 Distinguishing literal vectors (static; UNEXECUTED)
+
+These are independently derived primary-source expectations from §§1.1–1.2 and 2.1, not executed
+results. Coordinates are (x,y,z); decimal heights are geometric approximations to native float stores.
+Resource/path providers are assumed successful unless a row says otherwise. No initial pulse, marker
+rotation or current/target identity is assumed.
+
+| ID / input | Expected observation | Distinguishes |
+|---|---|---|
+| NO-L1: type nibble 1, ordinary path with at least three points | Every strip vertex BGRA bytes 80 FF 80 C8. Type nibble 3 instead gives 80 80 FF C8. With flag bit1 and pulse pre-update=250, the next Update uses RGBA (255,255,255,200); following Update uses (255,0,0,200). | Approximate green/red, channel swap, clamping the pulse at 255 or resetting it per instance. 0x00542FC6–FE7, 0x00543110–BC. The supplied pulse is a precondition, not a certified initial value. |
+| NO-L2: three-point path (0,0,0),(0,0,0),(3,4,0), no heights; occupant altitude constantly 20 | Strip y=20.5. Arrow center (3,4.5,0), wing x≈1.727208, z≈±1.272792, y=4.5; alpha 200 for all three. | x-z normalization (which gives projected wing offsets ≈2.12132), occupant-height arrow, duplicate removal. 0x00543231–0x005435FF. |
+| NO-L3: key low word=0xFFFF; full vector (0,0,0),(3,4,0),(6,8,0) | Only start bar: (0,0,−1.8)→(0,0,1.8), at stored y=0, red RGB. No end bar. | Both-bar emission, +.5 on bars, horizontal-only length (which gives half-width3). 0x00543600–0x005438A8. |
+| NO-L4: 40 points Pi=(i,0,0), i=0..39, with heights | Main strip ends at x=24 and has 25 vertices; arrow center is (39,.5,0), wings x≈36.87868,z≈±2.12132. | Arrow derived from truncated strip. 0x005431A0, 0x00543231 onward. |
+| NO-L5: cross at (10,7,20), heights present | Two opaque-red line strips, (8,7.5,20)→(12,7.5,20), then (10,7.5,18)→(10,7.5,22). | ±4 half-width, alpha200, swapped axes/order. 0x005438AD–0x00543A63. |
+| NO-L6: e=(1,0,0); route (0,0,0),(0,0,10),(10,0,−10),(10,0,0) | Last-three-point chord starts at index1, d=(1/√2,0,−1/√2), classifier c=+1/√2: bitmap pair21/22. | Last segment gives pair23/24; full-route chord gives25/26. 0x00564A60–0x00564BDF. |
+| NO-L7: e=(1,0,0); route (0,0,0),(10,0,10),(10,100,10),(10,200,10) | Last-three horizontal chord is zero, so use full-route chord: c=−1/√2, pair23/24. | A 3D-length threshold would retain the vertical chord and misclassify it. 0x00564ADF–0x00564B25. |
+| NO-L8: O=(10,7,20), e=(1,0,0), offset=.1, terrain query at (22,20) returns9, key type7 | Quad order (10,12.1,26),(22,12.1,26),(22,12.1,14),(10,12.1,14); UV=(0,0),(0,1),(1,1),(1,0); primitive6/format2/count4. | Cell-origin translation, center/corner sampling, wrong width/winding, failure to add3. 0x005637E0–0x00563968. |
+| NO-L9: one Update, junction J1 routes indices0,1,2 chosen2; index1 path is null; first route/origin and remaining bindings valid; J2 has one valid selected route | Draw J1 index0 plain at offset .1, then index2 selected at float(.1f+.01f); J2 selected at float(float(.1f+.01f)+.01f). Null index1 consumes no increment. Away from both stored pairs, transparencies .4,.5,.5. With J1 matching only pair +0x1C/+0x20, its values become .7,.8 but marker still uses model0x8BB70000. | Per-junction offset reset, increment on skip, selected-first order, matching-cell model conflation. 0x00564C19–0x00564E78, Update0x005657A0. |
+
+The marker's translation/model-selection portions can be checked separately from its unresolved
+rotation/model state. Successful bitmap lookup consumes an offset increment even when the eventual
+draw-context submission fails; no driver-result rollback is established.
