@@ -46,6 +46,17 @@ STOP checks, a substantive reviewed task, and normal new-worktree admission. Do 
 change guards or rename unchanged denied work. Specific prohibitions, including CoreNetocc NO15–17,
 remain binding. Overlay, Ripples and their reservation evidence illustrate qualified changed phases.
 
+A parent worktree already removed by the normal qualified cleanup does not need to be recreated for a
+genuinely new published phase. Audit its retained exact branch and main ancestry, recorded original
+round/history/cleanup/archive identity and manifest, and prove the relevant current main production
+tree still equals the retained source. Use a finite outside-lock census of the absent old path and
+its service, plus a bounded blind archive inventory and integrity hashes. Under the short lock,
+revalidate the fixed inventory, branch/source, cleanup record, manifest, budget, exclusivity and STOP.
+Then reserve the original remaining rounds for one normal new child forked from current main. Never
+use Git's parent-directory fallback at a missing worktree, recreate parent refs/source, invent a
+historical archive checksum, or treat unknown historical budgets as permission. The TerrainOverlays
+reservation records this audited case; full-key/dependency/peer/normal admission remains mandatory.
+
 ### Host evidence and isolated workers
 
 The host coordinator owns global process/service inspection and admission. Copy fresh, exact evidence
