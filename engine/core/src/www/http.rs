@@ -80,6 +80,9 @@ pub enum Effect {
     AddClient,
     StartWorker(u32),
     ReleaseClient,
+    CreateMessage,
+    AddMessage,
+    ReleaseMessage,
     Notify(Job, bool),
     ReleaseResource(u32),
     DeleteResource(u32),
@@ -112,6 +115,10 @@ pub struct Client {
     next_identity: u32,
 }
 impl Client {
+    pub fn init(&mut self) -> bool {
+        self.initialized = true;
+        true
+    }
     pub fn new(allocated_lookup: Option<u32>) -> Self {
         Self {
             initialized: false,
@@ -307,8 +314,13 @@ impl Client {
         }
         job.0[2] = 100;
         if self.target.is_some() {
+            host.effect(Effect::AddClient);
+            host.effect(Effect::CreateMessage);
+            host.effect(Effect::AddMessage);
             host.effect(Effect::Notify(job, job.status() == 0));
             host.notify(self, job, job.status() == 0);
+            host.effect(Effect::ReleaseMessage);
+            host.effect(Effect::ReleaseClient);
         }
         self.release_resource(host, internal)?;
         self.release_resource(host, external)?;
@@ -380,12 +392,15 @@ impl Client {
         self.active = None;
         let record = self
             .workers
-            .get(&id)
+            .remove(&id)
             .ok_or(Unsupported::NativeInputDomain("worker identity"))?;
-        // The actual close adapter 00817af0 is O: retain the boundary, don't fake it.
+        // Socket IO stays foreign; the qualified lifetime sequence is owned here.
+        host.effect(Effect::CloseSocket(record.socket));
+        host.effect(Effect::DestroySocket(record.socket));
+        host.effect(Effect::FreeWorker(id));
         host.effect(Effect::Unlock);
-        let _ = record;
-        Err(Unsupported::OwnedBody("00817af0 worker socket close"))
+        host.effect(Effect::ReleaseClient);
+        Ok(())
     }
 }
 
@@ -519,7 +534,19 @@ mod tests {
         assert!(client.queue.is_empty());
         assert!(client.workers[&old].stop);
         assert!(host.effects.contains(&Effect::CloseSocket(88)));
-        assert!(client.worker_exit(&mut host, old).is_err());
+        host.effects.clear();
+        assert_eq!(client.worker_exit(&mut host, old), Ok(()));
+        assert_eq!(
+            host.effects,
+            [
+                Effect::Lock,
+                Effect::CloseSocket(88),
+                Effect::DestroySocket(88),
+                Effect::FreeWorker(old),
+                Effect::Unlock,
+                Effect::ReleaseClient
+            ]
+        );
         assert!(client.active.is_none());
         assert!(client.workers.contains_key(&replacement));
     }

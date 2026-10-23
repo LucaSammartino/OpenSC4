@@ -65,6 +65,11 @@ pub enum Incoming<'a> {
     Unknown,
 }
 pub trait Host: http::Host {
+    /// FTP scheduler remains the open Q7 dependency; the WWW admission sequence
+    /// itself is specified. No adapter is silently replaced by a failed transfer.
+    fn ftp_submit(&mut self, _url: &[u8], _a: u32, _b: u32) -> Contract<u32> {
+        Err(Unsupported::OwnedBody("Q7 FTP scheduler admission"))
+    }
     fn effect(&mut self, effect: Effect);
     fn now(&mut self) -> u32;
     fn file_exists(&mut self, path: &[u8]) -> bool;
@@ -98,8 +103,7 @@ fn effect(host: &mut impl Host, value: Effect) {
     Host::effect(host, value);
 }
 
-/// Defaults of the published constructor, on supplied existing components. The
-/// complete constructor cannot run: its cookie constructor is P:008f9bad/Q9.
+/// Defaults of the published constructor, on supplied existing components.
 #[derive(Clone, Debug)]
 pub struct Www {
     pub initialized: bool,
@@ -129,7 +133,20 @@ impl Www {
         }
     }
     pub fn construct() -> Contract<Self> {
-        Err(Unsupported::OwnedBody("008f9bad cookie constructor, P/Q9"))
+        Ok(Self::snapshot(http::Client::new(None)))
+    }
+    /// Adapter supplies allocated component identities and constructor literals.
+    pub fn construct_with_host(host: &mut impl Host, lookup: Option<u32>, service_identity: u32) -> Self {
+        for name in ["cache", "cookie", "http", "ftp"] {
+            effect(host, Effect::Component(name, "construct"));
+            effect(host, Effect::Component(name, "retain"));
+        }
+        for name in ["http", "ftp"] {
+            effect(host, Effect::Component(name, "connect-target"));
+        }
+        let mut http = http::Client::new(lookup);
+        http.target = Some(service_identity);
+        Self::snapshot(http)
     }
     /// 008f687d unsupported QI leaves output untouched and emits no hold.
     pub fn query_interface(&mut self, host: &mut impl Host, id: u32, output: &mut u32) -> bool {
@@ -150,6 +167,9 @@ impl Www {
     pub fn post_init(&mut self, host: &mut impl Host) -> bool {
         self.init();
         for name in ["cache", "cookie", "http", "ftp"] {
+            if name == "http" {
+                self.http.init();
+            }
             effect(host, Effect::Component(name, "init"));
         }
         true
@@ -196,6 +216,9 @@ impl Www {
                 ("cookie", "shutdown"),
             ] {
                 effect(host, Effect::Component(name, action));
+                if name == "http" {
+                    self.http.target = None;
+                }
             }
             self.initialized = false;
         }
@@ -292,7 +315,20 @@ impl Www {
         match url.url_type() {
             url_type::HTTP => self.admit_http(host, job, allow_cache),
             url_type::FILE => self.local(host, url, job),
-            url_type::FTP => Err(Unsupported::OwnedBody("00817600 FTP scheduler admission")),
+            url_type::FTP => {
+                let foreign = host.ftp_submit(&job.url, 0, 0)?;
+                if foreign == 0 {
+                    return Ok(0);
+                }
+                effect(host, Effect::Lock);
+                job.id = self.allocate();
+                job.kind = 3;
+                job.foreign = foreign;
+                let id = job.id;
+                self.active.push(job);
+                effect(host, Effect::Unlock);
+                Ok(id)
+            }
             url_type::NEWS => Ok(0), // Literal published boundary: selected target hold leaks.
             _ => {
                 effect(host, Effect::ReleaseTarget(target));
@@ -749,6 +785,8 @@ mod tests {
         accept: bool,
         handler_result: bool,
         time: u32,
+        ftp_submission: Option<u32>,
+        ftp_calls: Vec<Vec<u8>>,
     }
     impl Default for Fake {
         fn default() -> Self {
@@ -773,6 +811,8 @@ mod tests {
                 accept: false,
                 handler_result: false,
                 time: 1000,
+                ftp_submission: None,
+                ftp_calls: vec![],
             }
         }
     }
@@ -783,6 +823,12 @@ mod tests {
         fn notify(&mut self, _: &mut http::Client, _: http::Job, _: bool) {}
     }
     impl Host for Fake {
+        fn ftp_submit(&mut self, url: &[u8], a: u32, b: u32) -> Contract<u32> {
+            assert_eq!((a, b), (0, 0));
+            self.ftp_calls.push(url.to_vec());
+            self.ftp_submission
+                .ok_or(Unsupported::OwnedBody("Q7 FTP scheduler admission"))
+        }
         fn effect(&mut self, value: Effect) {
             self.effects.push(value);
         }
@@ -904,6 +950,43 @@ mod tests {
         );
         assert_eq!(w.load_text(&mut h, b"http://host/x", 0, None, 0, true), Ok(0));
         assert!(h.callbacks.is_empty());
+    }
+    #[test]
+    fn constructed_components_and_ftp_admission_vectors() {
+        let mut h = Fake::default();
+        let mut w = Www::construct_with_host(&mut h, Some(80), 77);
+        assert_eq!(w.http.target, Some(77));
+        assert_eq!(w.http.lookup, Some(80));
+        assert_eq!(h.effects.len(), 10);
+        assert_eq!(
+            &h.effects[8..],
+            [
+                Effect::Component("http", "connect-target"),
+                Effect::Component("ftp", "connect-target")
+            ]
+        );
+        assert_eq!(Www::construct().unwrap().next_job, 1);
+        h.effects.clear();
+        h.ftp_submission = Some(91);
+        assert_eq!(w.load_text(&mut h, b"ftp://host/x", 3, Some(9), 0, true), Ok(2));
+        assert_eq!(w.ftp_id(2), 91);
+        assert_eq!(w.status(2), 2);
+        assert_eq!(h.ftp_calls, [b"ftp://host/x".to_vec()]);
+        assert!(w.cancel(&mut h, 2));
+        assert!(h.http_effects.is_empty());
+        assert!(!h.effects.contains(&Effect::ReleaseTarget(9))); // WWW-11
+        h.effects.clear();
+        h.ftp_submission = Some(0);
+        assert_eq!(w.load_text(&mut h, b"ftp://host/x", 0, Some(9), 0, false), Ok(0));
+        assert_eq!(h.effects, [Effect::AddTarget(9)]);
+        assert!(h.callbacks.is_empty()); // WWW-16
+        h.ftp_submission = Some(92);
+        let id = w.load_text(&mut h, b"ftp://host/x", 3, Some(9), 0, false).unwrap();
+        assert!(w.complete_ftp(&mut h, 92, true, b"received.bin"));
+        assert_eq!(w.status(id), 0);
+        assert_eq!(h.callbacks.last().unwrap().0.data, b"received.bin");
+        assert!(h.callbacks.last().unwrap().0.file);
+        assert!(h.insertions.is_empty() && h.cookies.is_empty());
     }
     #[test]
     fn handler_failure_owns_attempt_and_releases_after_callback() {
