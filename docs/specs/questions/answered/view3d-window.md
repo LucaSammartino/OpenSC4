@@ -1,6 +1,19 @@
 # view3d-window: answered questions
 <!-- Answered entries moved from ../view3d-window.md. -->
 
+<!-- from: core-view3dwin5 (2026-10-23, round 3) -->
+- **VW18 - §§1.1, 5.1, 6, 6f, 6j–6l remaining opaque contracts:** how is mission activation data1 converted
+  into UpdateMissionProgress's first argument? What payload fields select the advice-link subpanel/graph/budget,
+  and what is the terrain debug-string contract (only its slot name is given)? Do renderer/model-maker and
+  accelerator getters AddRef, or return borrowed handles? (Filter and input-control getters specify this.)
+  Which background mode is selected on zoom refresh? What are the coverage-helper recalculation arguments,
+  visibility/clear guards and spatial set operations beyond the two effect IDs/radius 32? The remaining §6l
+  constructors are named with addresses but no owner-visible setup/teardown contracts; which extra view actions
+  do they require beyond the already specified GUI lifetime? [raw MissionActivation retained without guessing a
+  derived value; advice, debug/info and opaque helper operations stay foreign/open; background mode is supplied
+  by the host, first-valid-picture selection and reference lifetime are implemented]
+  **ANSWERED 2026-10-23 (re-view3dwin-vw5):** DIFFERS — §6l: mission argument 1 is the borrowed IGZUnknown attachment, data1 remains the flag; advice uses type/data1, debug slot is empty, all three getters borrow, background mode latches, and coverage has zero-argument service-list recalculation with literal cache quirks. Auxiliary ownership/setup is specified. VW-T33–T39.
+
 <!-- from: the cSC4View3DWin window lane (re-view3dwin4, 2026-10-21) -->
 - **VW6 - §6b:** (narrowed 2026-10-21, re-view3dwin4: the `AddGUI` tail `0x007EED41`-`0x007EF1B6` and `+0x190`/`+0x194`/`+0x3D0` are now in §6b) still open: who creates `+0x2EC` and `+0x2F0` (no direct store in any `cSC4View3DWin` method; `RemoveGUI` releases them), (the object `0x00B43C9C` is the graphic system, re-view3dwin 2026-10-21: slot 3 `CreateBuffer` makes the `+0x3D0` surface, slot 12 `IsFullScreenMode` gates edge scrolling, §6c), and the per-panel extras of the five-panel loop between `0x007EE39B` and `0x007EE610` (flag `0x800` slots 23/24 calls). What settles it: a walk of `0x007EE39B`-`0x007EE610` and a search for indirect stores to `+0x2EC`/`+0x2F0`.
   **ANSWERED 2026-10-23 (re-view3dwin-vw5):** MATCHES — §6m: no owner creator for +0x2EC/+0x2F0; mayor/MySim extra children use transient 0x800 around SendToBack. VW-T26.

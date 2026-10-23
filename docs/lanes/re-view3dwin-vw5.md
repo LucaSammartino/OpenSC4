@@ -13,13 +13,14 @@
 - Numeric evidence: paint default 0 at 007F0AE1; strict elapsed > period at 007F6254; fade uses float32 0.17 and 0.13333334, not 150/1500.
 - STOP: lane guard context151k >150k. Return continue, no merge queue. Doccheck NOT RUN; index last ran at928ecdf9.
 - Round 2: moved VW6/7/8/9/12/14/17 to answered with original question text and dated verdicts; VW18 remains.
-- Exact next: finish VW18 from export/decomp evidence, add conformance vectors, move VW18; index/doccheck and final report/queue.
+- Round 2: VW18 now specified and moved; added VW-T33–T39, corrected ui-windows slot 38 and stale open summary.
+- Exact next: index/doccheck; review new §6l for contradictions, finalize report/queue with actual full HEAD.
 - Then finish VW18 from facts below, verify numeric rules with asm, add vectors, move VW18, fix stale §8 open-question summary, index/doccheck, final report and ready queue.
-- VW18 mission:007F57C9 reads message slot9 data1, passes it as INDEX to message slot32 (+0x80); UpdateMissionProgress gets slot32 result then data1. Do not cast data1 to mission identity.
+- Corrected VW18 mission: slot32 is ZERO-ARGUMENT GetIGZUnknown, body009D858F simply returns attachment; data1 push is UpdateMissionProgress argument2, not an index. First argument is borrowed attachment.
 - VW18 advice:007E7830 payload two words; selector6A5BDFCD uses second as subpanel;6A720993 uses second graph type;EA5BDFBC budget recognizes4A5BDFB8/CA5BDFB0. Verify from asm and detail shared hide/show paths.
 - VW18 getters:renderer0043FD00/model-maker007F0FE0 borrowed simple returns; accelerator getter ICF slot31 of00ABCE40 needs inspection.
 - VW18 coverage:cSC4CoverageRadiusEffectHelper.c RecalcCoverage007D20E0(wrapper007D26E0), no explicit args; clear seen flags; bits1 police/2 fire/4 health/8 education. Queries lists/radii fallback32; effects PlopMode_*_Existing; unseen effects stop-if-running/release, retain hash entries. UpdateEffectForOccupant007D1E40 transforms/visibility/clear need asm verification.
-- VW18 remaining:terrain debug string in window DoMessage; AddBackgroundImageToRenderer mode selection; auxiliary helper owner actions. Query export first, then decomp. No REA used (session has no binary).
+- VW18 terrain-debug slot006F7DC0 is empty RET8; background mode0 latches first 2D/3D success, mode1/2 retries only that kind; 3D basename appends camera zoom byte. No REA used.
 - Review VW12/VW17 latest additions before closure, especially hash collision/growth ordering and flora background. Read-only evidence helper build-runs/read-evidence.py supports function ranges/filter and raw binary table reads.
 - No engine reads/edits; owner README forbidden, used filed questions. Final report/ready queue deliberately absent until VW18 complete.
 - Evidence sources: C:/Users/tlori/FreeCity4/tools/re_query.py, ghidra/export/windows, decomp/.

@@ -257,7 +257,7 @@ nothing else happens. This is how the nine-plus command names of §3 step 2 reac
 | `0xCA1B1E64` | DisasterPeriodStarted | if the secondary menu kind (`+0x200`, ui-windows.md §3.2) is `0x49923239`, close the secondary menu (slot 59) (`0x007F5861`); then as `0xAA1B2002` |
 | `0xAA1B2002` | DisasterPeriodEnded | child window `0x8991EE08`, its slot 68 (`+0x110`) with `(2, type == 0xAA1B2002)`; then `UpdateAlertBorder` |
 | `0xAA5CF1E3` | EndGameForBudgetFailure | if modal popups are safe now (`SC4GetPopupModalDialogsSafe`): `DoBudgetFailure`; otherwise the message is queued once (a list of deferred messages; a second copy of the same type is not added) |
-| `0xAC083D7D` | mission target reached | `UpdateMissionProgress(data1, 1)` |
+| `0xAC083D7D` | mission target reached | `UpdateMissionProgress(message.IGZUnknown, 1)` |
 | `0x4A44667F` | progress report *[inferred]* | if the message carries interface `0x089B7DC8` and a progress screen exists, forward it to the progress screen (`0x00777640`) |
 
 The four types `0x6A935C34`, `0x6A935CA4`, `0x6A935CA8`, `0x6A935CAB` close the 33-entry set; they are command
@@ -267,8 +267,9 @@ messages and take the first rule.
 
 For `0x4A7FB7E2`, `0xAA7FB7E0` and `0xABBBCA64`: if a "paused" overlay object is present it is updated from the
 simulator's pause state (overlay object `0xC998BB81`, shown when paused at speed 1000 *[inferred]*); then
-`UpdateSpeedButtons` and `UpdateAlertBorder`. For `0xABBBCA64` only, `UpdateMissionProgress(data1-derived, data1)`
-follows (the mission activation flag from city-situation.md).
+`UpdateSpeedButtons` and `UpdateAlertBorder`. For `0xABBBCA64` only,
+`UpdateMissionProgress(message.IGZUnknown, message.data1)` follows: the attachment is the advice object,
+and data1 is the activation flag from city-situation.md. See §6l (VW18).
 
 ### 5.2 View-update notifications
 
@@ -1054,7 +1055,131 @@ clears `+0x408`. (This answers save-records.md Q4 for the View3D record.)
   `GetGlobalEffectTriggerState(t)` (46): present. **Corrects** prop-developer.md §4.10: the message is sent, not
   posted.
 
-## 6l. Helpers reached only from the city view *[summary]*
+## 6l. Helpers reached only from the city view *[compat]*
+
+### Mission, advice links and small interface contracts (VW18)
+
+**Mission notifications.** There is no conversion from data1 to a mission identity. Message slot 9
+(`+0x24`) returns data1; slot 32 (`+0x80`) is the **zero-argument GetIGZUnknown**, not an indexed lookup
+(foundations.md, message-slot addendum). For `0xABBBCA64`, the owner passes the borrowed attachment as
+argument 1 and data1 unchanged as argument 2 (`0x007F57C5`–`0x007F57D9`, `0x007F58B9`). For
+`0xAC083D7D` the arguments are the same attachment and literal 1 (`0x007F58AA`–`0x007F58BA`). The
+attachment getter is a simple borrowed return (`0x009D858F`, message table `0x00ACEC00` slot 32);
+the owner neither AddRefs nor Releases it for this call. `UpdateMissionProgress` requires an existing
+mission panel and situation manager, otherwise it does nothing. With an attachment and a nonzero flag,
+it gets the active situation from the manager and uses its target text/progress; it does not dereference
+the attachment to obtain those strings. A nonnull attachment with flag zero leaves those captions alone.
+A null attachment selects the localized fallback progress caption (§6j). This includes joyride activation,
+which has data1 = 1 but no advice attachment. The attachment thus gates the update, rather than naming
+the source of the displayed progress (`0x007EBB20`–`0x007EBCAD`).
+
+**Advice-link payload.** `HandleAdviceLinkMessage` takes the window-message record: its first word is
+the message type and its second word is the link selector (window-message data1). Data2/data3 do not
+select the destination. Before acting it requires the resource manager `+0x18C` and resource
+`0xC988BC79`/`0x8810`; if either is missing it does nothing. A successful resource is activated with
+`(1,1)` and released afterwards. The enclosing window handler still falls through to base `DoMessage`.
+
+| Type | Link selector and result |
+|---|---|
+| `0x6A5BDFCD` | Select mayor subpanel `0x99887755`; send two button-command messages to `+0x300`: button `0x4A32CA92`, then button equal to the selector. Both use type 3, data1 `0x287259F6`, data3 0. |
+| `0x6A720993` | Select mayor subpanel `0x15200002`; call the graphs procedure's `ShowGraphType(selector)` when present. |
+| `0xEA5BDFBC`, selector `0x4A5BDFB8` | Select budget (`+0x370 = 0x41`); dispatch button `0xAA3AC40E` to the budget procedure's window. |
+| `0xEA5BDFBC`, selector `0xCA5BDFB0` | Select budget; dispatch button `0xAA3AC40F` to that window. |
+| `0xEA5BDFBC`, any other selector | Forward it as the button ID to the budget window, with no panel-selection change. |
+
+The budget dispatch is through the city window's child-message dispatcher (window slot 147), with the
+same type-3/button envelope and zero caller data. A null budget window skips dispatch, but the budget
+procedure is required to retrieve it. For each recognized destination, if `+0x374 == 0`, hide the active
+city dialog, hide the other visible mayor panes, and show the selected pane: budget, graphs, or `+0x300`.
+Graphs/building-select visibility tests guard their hides; optional absent panes are skipped. If `+0x374`
+is nonzero, skip that hide/show group. In both cases record the selected subpanel in `+0x370`, clear
+`+0x374`, and perform the destination-specific dispatch above. This is selection, not a toggle of the
+same link (`0x007E7830`–`0x007E7C78`).
+
+**Borrowed getters and debug slot.** `GetRenderer` (`0x0043FD00`) and `GetModelMaker` (`0x007F0FE0`)
+return their stored pointer without AddRef. The keyboard-accelerator getter, view-interface slot 31,
+uses the inherited `0x0099B951` body and likewise returns its stored pointer without AddRef. Null stays
+null; callers must acquire their own reference if retaining any of these across the owner's lifetime.
+View-interface slot 38, named `DisplayTerrainPickDebugString`, is the folded empty method `0x006F7DC0`:
+it consumes two arguments and has **no observable effect**. It reads neither argument and promises no
+return value. There is no debug string, terrain query, caption update or renderer action to implement
+for that slot.
+
+**Background mode on zoom refresh.** The zoom notification uses the stored `+0x158` mode, not a host
+supplied mode and not a fresh preference on every zoom. Mode 0 tries 2D first and latches 1 on success;
+only if no 2D picture was accepted does it try 3D and latch 2. Mode 1 attempts only 2D; mode 2 attempts
+only 3D. A failed reload preserves the mode and does not call the renderer to clear its old background.
+The renderer receives a boolean **mode == 2** with an accepted picture, then the loader's picture
+reference is released (`0x007F17A8`, `0x007F190F`–`0x007F193A`, `0x007F1B70`–`0x007F1BAE`).
+The 2D basename is `Background2D`; the 3D basename is `Background3D` followed by the single byte
+`'0' + camera zoom` (the integer at camera `+0x108`, `0x007F192E`–`0x007F193A`, `0x007F19BF`). Thus
+zoom 3 in 3D mode reloads `Background3D3` with a supported image suffix; it does not switch to 2D.
+
+### Coverage helper and auxiliary ownership (VW18)
+
+The embedded helper at `+0x3E4` starts with category mask zero and an empty occupant-keyed hash table
+(`0x007D26F0`). It requests 100 buckets (the shared prime policy supplies 193). `RecalcCoverage`
+(`0x007D26E0` jump to `0x007D20E0`) takes **no explicit arguments**: no cursor position, viewport bounds,
+radius or visibility flag. It rebuilds from the stored category mask and whole service-occupant lists.
+This owner invokes it at Init; query/place-lot controls invoke it when their coverage needs change.
+It is not an extra per-paint owner operation.
+
+| Mask bit | Occupants queried | Radius query and effect name |
+|---|---|---|
+| 1 | police simulator's list (slot 21) | slot 20, factor binary32 0.5; `PlopMode_Police_Existing` |
+| 2 | fire simulator's list (slot 22) | slot 21, factor binary32 0.5; `PlopMode_Fire_Existing` |
+| 4 | health/education simulator's health list (slot 49, second argument 0) | slot 45, factor binary32 `0x3F333333` (about 0.7); `PlopMode_Health_Existing` |
+| 8 | its education list (slot 47, second argument 0) | slot 45, same factor; `PlopMode_Education_Existing` |
+
+Each radius query receives the occupant, two scratch outputs and a float radius output. On success use
+that radius; on failure use binary32 **32.0**, not the factor. Missing simulators skip their categories.
+Factors/fallback are instruction-verified at `0x007D21D1`–`0x007D21FF`, `0x007D2310`–`0x007D233E`,
+`0x007D2448`–`0x007D2479` and `0x007D2583`–`0x007D25B4`. Returned occupant references are released after
+processing. `0x3AE4BEA3`/`0x3AE4BEAB` are the framework class/interface request for the temporary list
+allocator (`0x007D224A`–`0x007D227A`), **not two coverage-effect IDs**. Effect creation uses the names above.
+
+Recalculation first clears every cached entry's seen flag. For each queried occupant, obtain its spatial
+object from the occupant manager (slot 14); a missing spatial object skips it and leaves it unseen. Read
+the spatial object's position (slot 15) and look up the cache by occupant pointer. A new entry is made
+only after effect creation succeeds. Its transform has identity orientation, the spatial position and
+uniform scale **2 × radius**, computed from binary32 radius and stored as binary32. Translation is marked
+present; scaling is marked present unless the doubled radius equals 1. Start the effect with argument 0,
+retain its reference in the entry, cache the radius and mark seen. There is no viewport/occupant-visibility
+test, spatial range intersection or spatial-set insertion/removal in this path (`0x007D1E40`–`0x007D20C7`).
+
+An existing entry is marked seen, but receives a new transform only when its requested radius differs
+from the **original cached radius** and its effect pointer is nonnull. The comparison does not refresh
+the cached radius. Equal radius therefore does not even update a moved occupant's position. After the
+service lists, unseen effects are stopped with argument 0 only if their running test succeeds, and their
+references are released and nulled. **Their hash entries remain.** A later sighting of such an entry does
+not recreate its null effect. These are literal cache quirks, not a requirement to repair the cache
+(`0x007D1EC9`–`0x007D1F84`, `0x007D2666`–`0x007D2690`).
+
+`SetCategories(mask)` stores the entire mask, stops running effects and clears **all** cached entries,
+even if the mask is unchanged; it does not itself recalculate (`0x007D1D10`). `Clear` (`0x007D1DB0`) also
+stops running effects and clears/releases the cache, preserving the category mask. Destruction releases
+cache entries/bucket storage; the owner's Shutdown explicitly clears first. Category classification
+(`0x007D1AB0`) ORs bit 1 for a police occupant, bit 2 for a fire occupant, bit 4 when property
+`0x091B42A2` can be read and bit 8 when `0x691B42B3` can be read; the property values need not be nonzero.
+
+The remaining constructor list below is a dependency inventory, not extra per-frame work for this owner.
+Demolish is created on its tool action and follows the input-control push/pop lifetime (§6e/§6g).
+Budget, building-select, graphs and panel procedures attach to their scripted windows in AddGUI and
+detach/release on their specified GUI removal paths (§6b); visible tests do not acquire references.
+The advisor tracker starts empty/inactive (`0x00762E70`) and a panel procedure starts unattached
+(`0x00774550`). The establish key filter belongs to its dialog (Tab/Enter forwarding), and progress-screen
+paint/progress callbacks belong to the progress window, which receives forwarded progress messages only
+while present (§5). Window-set helpers operate on existing children, not newly owned view objects:
+`0x0078D720` finds the deepest eligible child containing the supplied point by repeated child enumeration
+(`0x0078D670`: visible, lacks flag `0x200000`, contains point). No match returns null; the result is borrowed.
+
+One extra AddGUI setup action in that inventory is concrete: `0x0079EA40` requests graph resource
+`0x4203`/`0xCA318385` from its control's manager. If found, it sends slot 8 `(-1,0)`, slot 6, then slot 7
+for series 1–9 with packed colours `0x00FF00`, `0x44CC22`, `0x1E911E`, `0x5B81D0`, `0x3D6EB8`,
+`0x3C42AD`, `0xD0D030`, `0xC6B733`, `0xBC9F37`, and releases the resource; absence skips setup.
+The stop helper `0x0047A780` acts only when its object's active byte `+8` is set: call slot 4, call slot 5(0)
+only on success, clear that byte, return true. It is used for the dormant shutdown objects (§6m), not a
+new required allocation or a call on every helper in the inventory.
 
 **VW12: trigger representation and SizeOf parsing (§§3.1, 6k supplement).** Trigger keys and counts are
 unsigned 32-bit words. Increment wraps modulo 2³² without sending a new assertion; a present zero-count key
@@ -1107,8 +1232,8 @@ unused `+0x2C0` pair. Bus-stop/pipe IDs are in the full registry (§6g supplemen
 
 *Added 2026-10-21 (re-view3dwin).*
 
-- The coverage helper at `+0x3E4` (`0x007D26F0` constructor, a set of 100 buckets; `0x007D1DB0` clear; `0x007D1CF0`
-  destructor; recalculation `0x007D26E0`) shows coverage-radius effects (`0x3AE4BEA3`/`0x3AE4BEAB`, radius 32).
+- The coverage helper at `+0x3E4` (`0x007D26F0` constructor; `0x007D1DB0` clear; `0x007D1CF0`
+  destructor; recalculation `0x007D26E0`) shows the named coverage-radius effects described above.
 - `AddBackgroundImageToRenderer` (`0x007F1640`): the first file of a user `Background2D` or `Background3D` folder that
   loads (through `+0x150`) as a square power-of-two picture becomes the renderer's background; `+0x158` keeps the mode.
 - Window `0xEA8CAD14`'s procedure (`0x00769E90`…`0x00769F10`) subscribes to `0x26D31EC1` and `0xA6B79602` while
@@ -1228,6 +1353,29 @@ the former §5.1 description crossed the end of this function into neighboring f
 - VW-T31: C-locale SizeOf `nan`, `inf`, `0x1p4`, `5junk` supplies 0.9, 0.9, 0.9, 5.0 respectively.
 - VW-T32: buttons 0x36 and 0x8A32DDDB use the same script/kind but preserve their distinct caller-data IDs;
   0xABB27B91 has no vehicle action; 0x2B79E398 opens the generic transport catalog with null memory.
+- VW-T33: activation message data1 7 with advice attachment A calls UpdateMissionProgress(A,7), with
+  no indexed lookup or AddRef/Release of A. A null attachment with data1 1 uses the fallback caption;
+  target-reached with data1 99 still calls UpdateMissionProgress(A,1).
+- VW-T34: advice type 0x6A5BDFCD, data1 X, data2 Y sends buttons 0x4A32CA92 then X to +0x300.
+  Type 0x6A720993 selects graph X. Budget selectors 0x4A5BDFB8/0xCA5BDFB0 send buttons
+  0xAA3AC40E/0xAA3AC40F; another selector X is forwarded as X without changing panel selection.
+  Missing advice resource causes none of these actions. With +0x374 nonzero, pane hide/show is skipped,
+  but the selected ID is recorded, +0x374 is cleared and destination dispatch still occurs.
+- VW-T35: repeated renderer/model-maker/accelerator getters preserve reference counts, including null
+  results. Debug-string slot 38 with arbitrary argument words has no effects or argument dereferences.
+- VW-T36: mode 0 and valid 2D/3D candidates selects 2D and latches mode 1; another zoom retries only
+  2D. Mode 2 at zoom 3 requests Background3D3, passes renderer boolean true and keeps mode 2 on failure;
+  failure issues no renderer clear. A fresh mode 0 with no accepted 2D and accepted 3D latches mode 2.
+- VW-T37: mask 1 enumerates police only. Successful radius 12 creates PlopMode_Police_Existing at
+  the spatial position with scale 24; a failed radius query uses 32 and scale 64. Missing spatial object
+  creates nothing. Recalc has no explicit arguments and performs no viewport visibility test.
+- VW-T38: create occupant A with radius 12; move A with radius still 12: no transform update. Radius 13
+  updates to scale 26 on every recalc because the cached radius remains 12. Omit A: stop if running,
+  release effect, retain key. Reintroduce A: no recreation until Clear or SetCategories removes that key.
+  SetCategories with the unchanged mask still stops/releases and empties the cache, without recalculating.
+- VW-T39: graph setup resource absent produces no series calls; present produces the nine colours
+  above then one release. An inactive stop-helper object receives no virtual calls; an active one with
+  slot 4 false receives no slot 5 call, clears active and returns true.
 
 - VW-T19: with paint disabled and two deferred messages A, B, unsafe modal state drains neither. Safe/enabled
   paints drain and repost A with delivery argument 0, then B on the next paint; safe/disabled drains and drops
@@ -1265,6 +1413,5 @@ the former §5.1 description crossed the end of this function into neighboring f
 
 ## 8. Open questions
 
-See [questions/view3d-window.md](questions/view3d-window.md): VW1 answered (§3.1); VW2 (§3 step 8), VW3 (§6g),
-VW4 (§6h) and VW5 (§6a) answered 2026-10-21; VW6 (`AddGUI` tail objects and fields `RemoveGUI` releases), VW7 (message
-`0x470BD214`), VW8 (the objects at `+0x184`, `+0x188` and `+0x410`).
+No open VW questions remain. VW1–VW5 were answered 2026-10-21; VW6–VW18 were answered 2026-10-23.
+The dated questions and verdicts are in [answered/view3d-window.md](questions/answered/view3d-window.md).

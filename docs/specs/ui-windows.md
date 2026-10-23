@@ -218,7 +218,7 @@ EAX undefined), `x87` = `st(0)`. `ret_confidence` is `medium` unless the body wa
 | 35 | `+0x8C` | `007e7f90` | `KillKeyboardScrolling()` | 0 | 0 | `eax-or-void` |
 | 36 | `+0x90` | `007e5840` | `PickTerrain(...)` | 16 | 4 | `eax-or-void` |
 | 37 | `+0x94` | `007e5890` | `PickOccupant(...)` | 12 | 3 | `eax-or-void` |
-| 38 | `+0x98` | `006f7dc0` | `DisplayTerrainPickDebugString(...)` | 8 | 2 | `[inferred]` name folded with 8 others |
+| 38 | `+0x98` | `006f7dc0` | `DisplayTerrainPickDebugString(...)`: no effect, reads neither argument (view3d-window.md §6l, VW18) | 8 | 2 | folded empty method; no return contract |
 | 39 | `+0x9C` | `007e5900` | `GetTerrainQueryEnabled()` | 0 | 0 | `eax` (0/1) |
 | 40 | `+0xA0` | `007f5cf0` | `SetCursorText(...)` | 20 | 5 | `eax-or-void` |
 | 41 | `+0xA4` | `007ef7a0` | `ClearCursorText(...)` | 4 | 1 | `eax-or-void` |
