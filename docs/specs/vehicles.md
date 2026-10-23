@@ -452,7 +452,7 @@ object is a **network occupant at its clamped end cell**, obtained through the c
 `0x00B43D54` (slot 14), not the neighbour-connection object itself. No winning connection, missing lookup
 service, or missing cell lookup leaves the output null. This lookup does not cause another ranking/pathfinding pass. The selector neither installs
 the winning route on the automaton nor calls SlowDown. Request evidence: `0x00554F00–0x00554F59`,
-`0x0055501F–0x005550ED`, `0x0055514C–0x00555287`; pathfinder slot meanings: pathfinder.md §9.
+`0x0055501F–0x005550ED`, `0x0055514C–0x00555287`; pathfinder slot meanings: pathfinder.md §7.
 
 Look-ahead fill (`0x00554870`) seeds an empty deque with the current retained network reference and packed
 path word, then fills to **slot 175's count plus one**, including the seed. It stops at a terminal node. A
