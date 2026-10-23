@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+use super::values::*;
 use super::{Filter, Open};
 use crate::view_input_controls::{ControlHost, Pixel, Vec3};
 use std::collections::BTreeMap;
@@ -32,7 +33,8 @@ pub enum Property {
     Text(String),
     Words(Vec<u32>),
     Key(u32, u32),
-    Curve(Vec<(f64, f64)>),
+    /// Already constructed curve; property parsing/slope construction is CT19.
+    Curve(ResponseCurve),
 }
 #[derive(Clone, Debug, Default)]
 pub struct Occupant {
@@ -184,9 +186,6 @@ pub enum Read {
     PipeCount,
     Aura,
     BudgetCost(u32),
-    RatingCurve(u8, u8),
-    RatingMinimum(u8),
-    RatingMaximum(u8),
     TrafficCapacity1,
     TrafficCapacity2,
     TrafficVolumeByte,
@@ -266,7 +265,10 @@ pub enum Effect {
     Toggle(Token, bool),
     SliderProperties(Token, u32, i64, Vec<u32>),
     MoneyChild(Token, u32, String),
-    ResizeMeter(Token, f32),
+    MeterGeometry(Token, MeterWindow),
+    NeighborPlan(NeighborPlan),
+    /// Ordering trace only: unresolved writer bodies are never delegated to the host.
+    DebugPhase(DebugPhase),
     EndDialog(Token, u32),
     UnregisterPath(Token),
     ShutdownPath(Token),
@@ -286,6 +288,7 @@ pub trait World {
     fn lot(&self, id: Token) -> Lot;
     fn lot_for_occupant(&self, id: Token) -> Option<Token>;
     fn lot_at(&self, cell: Cell) -> Option<Token>;
+    fn building_at(&self, cell: Cell) -> Option<Token>;
     fn position_to_cell(&self, point: Vec3) -> Cell;
     fn read(&self, read: Read, subject: Subject) -> f64;
     fn zone(&self, cell: Cell) -> u32;
@@ -295,7 +298,18 @@ pub trait World {
     fn decimal(&self, amount: f64) -> String;
     /// Native int64 values must not pass through a floating-point conversion.
     fn money_value(&self, read: Read, subject: Subject) -> i64;
-    fn debug_query_enabled(&self) -> bool;
+    fn debug_functionality_enabled(&self) -> bool;
+    fn query_key_down(&self, key: u32) -> bool;
+    fn debug_query_enabled(&self) -> bool {
+        self.debug_functionality_enabled() && [0x10, 0x11, 0x12].iter().all(|k| self.query_key_down(*k))
+    }
+    fn building_development(&self, building_type: u32) -> Option<BuildingDevelopment>;
+    fn developer_type(&self, purpose: u32, wealth: u32) -> Option<u32>;
+    fn developer(&self, kind: u32, cell: Cell) -> Option<Developer>;
+    fn rating_input(&self, rating: u8, part: u8, cell: Cell) -> f32;
+    fn commute_sample(&self, cell: Cell) -> u8;
+    fn resource_properties(&self, key: ResourceKey) -> Option<BTreeMap<u32, Property>>;
+    fn valid_neighbor_connection(&self, cell: Cell, direction: u8, kind: u32) -> bool;
     fn city_size(&self) -> i32;
 }
 pub trait Host: World + ControlHost {
@@ -322,6 +336,9 @@ pub trait Host: World + ControlHost {
     fn control_value(&self, window: Token) -> Value;
     fn slider_properties(&self, window: Token) -> (u32, i64, Vec<u32>);
     fn child_by_id(&self, window: Token, id: u32) -> Option<Token>;
+    /// None means the meter interface is unavailable. Reference left is the
+    /// window's retained property 0x8ADC29D4, not an owner-side cache.
+    fn meter_window(&self, window: Token) -> Option<MeterWindow>;
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Script {

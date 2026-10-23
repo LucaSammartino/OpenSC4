@@ -21,7 +21,7 @@ impl Default for Readout {
 }
 
 /// Null table entries stay null even where §8.12.4 describes a zone worker.
-/// CT18: landfill 1026..1028 are dispatched only by the zone handler.
+/// §8.16.1 confirms landfill 1026..1028 are dispatched only by the zone handler.
 pub fn filler_index(id: u32) -> Option<u32> {
     if id & 0x1000 == 0 {
         return None;
@@ -81,29 +81,12 @@ pub fn mayor_percent(world: &impl World, o: Token) -> f64 {
         100.0 * sum / count as f64 / 255.0
     }
 }
-pub fn subjective_level(world: &impl World, s: Subject, i: u8) -> u32 {
-    let v = if i == 0 {
-        [0, 1, 3].iter().map(|p| world.read(Read::RatingCurve(i, *p), s)).sum()
-    } else {
-        world.read(Read::RatingCurve(i, 0), s)
-    };
-    if v < world.read(Read::RatingMinimum(i), s) {
-        0xAA5F_E249
-    } else if v >= world.read(Read::RatingMaximum(i), s) {
-        0x4A5F_E266
-    } else {
-        0x0A5F_E260
-    }
+pub fn subjective_level(world: &impl World, s: Subject, i: u8) -> Option<u32> {
+    let lot = world.lot(subject_lot(world, s)?);
+    developer_rating(world, &lot, i).map(SubjectiveRating::label)
 }
-pub fn goofy_stat(curve: &[(f64, f64)], mayor: f64) -> Option<i32> {
-    // Only the default single point is specified; response-curve interpolation
-    // belongs to the foreign curve service (CT19), not an invented linear rule.
-    if curve.len() == 1 {
-        Some(curve[0].1 as i32)
-    } else {
-        let _ = mayor;
-        None
-    }
+pub fn goofy_stat(curve: &ResponseCurve, mayor: f64) -> Option<i32> {
+    curve.evaluate(mayor as f32).map(|v| v as i32)
 }
 
 #[derive(Clone, Copy)]
@@ -148,7 +131,7 @@ fn funding_sources(f: Funding) -> (Read, Read, Write, Vec<u32>) {
             Read::HospitalStaffFunding,
             Read::HospitalStaffCost,
             Write::HospitalFunding,
-            vec![0x1023, 0x1024],
+            vec![0x1023, 0x1024, 4, 0x3F80_0000],
         ),
         Funding::HospitalBus => (
             Read::HospitalBusFunding,
@@ -228,12 +211,20 @@ pub fn fill_control(host: &mut impl Host, w: Token, id: u32, get: bool, subject:
         }
         return true;
     }
-    if matches!(i, 18 | 20) {
-        // CT19: airport noise aggregation and which shipped exemplar supplies
-        // lost-luggage data are only summaries. Do not ask a host to implement
-        // these owner algorithms or substitute the clicked building's curve.
+    if i == 18 {
+        // CT19: airport noise arithmetic remains unverified.
         host.effect(Effect::Unsettled(Open::BuildingValuesCt19));
         return true;
+    }
+    if i == 20 {
+        let Subject::Cell(cell) = s else {
+            return false;
+        };
+        if let Some(value) = airport_lost_luggage(host, cell) {
+            host.effect(Effect::Text(w, value.to_string()));
+            return true;
+        }
+        return false;
     }
     if let Some(f) = funding(i) {
         let (r, c, _, related) = funding_sources(f);
@@ -481,26 +472,48 @@ fn fill_special(host: &mut impl Host, w: Token, i: u32, s: Subject) -> bool {
             }
         }
         83 => {
-            let wealth = host.read(Read::BuildingTypeWealth, s);
-            let value = lot
-                .as_ref()
-                .map(|l| {
-                    if wealth == 0.0 {
-                        1.0
-                    } else {
-                        (f64::from(l.wealth) / wealth).min(1.0)
-                    }
-                })
-                .unwrap_or(1.0);
+            let wealth = lot.as_ref().and_then(|l| {
+                if l.building_type == 0 {
+                    Some(l.wealth)
+                } else {
+                    host.building_development(l.building_type).map(|r| r.wealth)
+                }
+            });
+            if lot.as_ref().is_some_and(|l| l.building_type != 0) && wealth.is_none() {
+                // CT19: missing development records are outside the settled domain.
+                host.effect(Effect::Unsettled(Open::BuildingValuesCt19));
+                return true;
+            }
+            let wealth = wealth.unwrap_or(0);
+            let value = if wealth == 0 {
+                1.0
+            } else {
+                (f64::from(lot.as_ref().unwrap().wealth) / f64::from(wealth)).min(1.0)
+            };
             host.effect(Effect::Meter(w, value as f32));
-            host.effect(Effect::Unsettled(Open::BuildingValuesCt19));
+            if wealth != 0 {
+                if let Some(window) = host.meter_window(w) {
+                    host.effect(Effect::MeterGeometry(w, wealth_geometry(window, wealth)));
+                }
+            }
             return true;
         }
         84 | 117 | 89 | 90 | 85 | 116 => {
-            // CT19: rating math is implemented; best-developer selection is not
-            // specified. Do not silently substitute a developer or a low label.
-            host.effect(Effect::Unsettled(Open::BuildingValuesCt19));
-            return true;
+            let rating = match i {
+                84 => 0,
+                117 => 1,
+                89 => 2,
+                90 => 3,
+                85 => 4,
+                _ => 5,
+            };
+            if let Some(value) = lot.as_ref().and_then(|l| developer_rating(host, l, rating)) {
+                loc(host, value.label())
+            } else {
+                // CT19: missing records/curves do not acquire invented ratings.
+                host.effect(Effect::Unsettled(Open::BuildingValuesCt19));
+                return true;
+            }
         }
         86 => loc(
             host,
@@ -514,8 +527,12 @@ fn fill_special(host: &mut impl Host, w: Token, i: u32, s: Subject) -> bool {
             if lot.as_ref().is_some_and(|l| l.state == 4 && l.abandon_reason == 4) {
                 loc(host, 0x0A71_FAD3)
             } else {
-                host.effect(Effect::Unsettled(Open::BuildingValuesCt19));
-                return true;
+                if let Some(value) = lot.as_ref().and_then(|l| developer_rating(host, l, 6)) {
+                    loc(host, value.label())
+                } else {
+                    host.effect(Effect::Unsettled(Open::BuildingValuesCt19));
+                    return true;
+                }
             }
         }
         88 => o
@@ -676,13 +693,12 @@ pub fn dialog_notification(host: &mut impl Host, dialog: Token, s: Subject, n: N
 
 impl QueryTool {
     pub fn do_neighbor_dialog(&self, host: &mut impl Host, id: Token) -> Result<bool, Open> {
-        let c = host.occupant(id).cell;
-        let last = host.city_size() - 1;
-        if c.x != 0 && c.z != 0 && c.x != last && c.z != last {
+        let Some(plan) = neighbor_plan(host, &host.occupant(id)) else {
             return Ok(false);
-        }
-        // CT14: kind-code mapping and looked-up windows are explicitly a
-        // summary. Preserve the published city-edge gate before stopping.
+        };
+        // Resource selection is complete; CT14 still blocks row filling and
+        // therefore opening a faithful dialog. Keep the plan, not a blank dialog.
+        host.effect(Effect::NeighborPlan(plan));
         host.effect(Effect::Unsettled(Open::NeighborDialogCt14));
         Err(Open::NeighborDialogCt14)
     }
@@ -727,6 +743,12 @@ impl QueryTool {
             return out;
         }
         let mut picked = Self::pick(host, pixel, Filter::Describe);
+        if picked.is_none() {
+            if let Some(point) = host.pick_terrain(pixel) {
+                let c = host.position_to_cell(point);
+                picked = host.lot_at(c).and_then(|l| host.lot(l).building);
+            }
+        }
         if let Some(id) = picked {
             if let Some(l) = host.lot_for_occupant(id) {
                 if let Some(b) = host.lot(l).building {
@@ -768,6 +790,9 @@ impl QueryTool {
             }
             if matches!(o.kind, Kind::Building | Kind::Network) {
                 cell = Some(host.position_to_cell(o.position));
+                if o.kind == Kind::Building {
+                    host.effect(Effect::DebugPhase(DebugPhase::ResidentialQueryData(id)));
+                }
                 // Detailed network strings require unspecified geometry/readout
                 // writer data (CT14/20); never synthesize a native description.
                 if o.kind == Kind::Network {
@@ -807,13 +832,25 @@ impl QueryTool {
             }
         }
         let lot = host.lot_at(c).map(|l| host.lot(l));
+        let cell_building = host.building_at(c);
+        if let Some(building) = cell_building {
+            for phase in [
+                DebugPhase::Building(building),
+                DebugPhase::Population(c),
+                DebugPhase::Demand(c),
+            ] {
+                host.effect(Effect::DebugPhase(phase));
+            }
+        } else {
+            host.effect(Effect::DebugPhase(DebugPhase::Demand(c)));
+        }
+        host.effect(Effect::DebugPhase(DebugPhase::EqHq(c)));
+        host.effect(Effect::DebugPhase(DebugPhase::Cell(c)));
         let name = lot
             .as_ref()
             .map(|l| format!("{}_{:08x}", l.config_name, l.config_id))
             .unwrap_or_else(|| "no lot template".into());
-        let building_name = lot
-            .as_ref()
-            .and_then(|l| l.building)
+        let building_name = cell_building
             .map(|b| host.occupant(b).name)
             .unwrap_or_else(|| "empty".into());
         out.extra2 = format!("[Building {building_name}] [Lot: {name}]\n");
