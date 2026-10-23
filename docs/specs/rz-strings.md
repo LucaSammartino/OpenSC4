@@ -1,0 +1,462 @@
+# Framework strings and token replacement
+
+Target: SimCity 4 Deluxe, Windows GOG 1.1.641. Owners: `cRZString` and
+`cSCStringDetokenizer`. Requirements below are *[compat]* unless marked otherwise.
+Addresses identify evidence in that build; they are not implementation dependencies.
+
+This spec covers byte storage and the base token replacement service. See
+[strings and language](strings-language.md#2-framework-string-encoding) for the
+framework encoding and language manager, [language utility](language-utility.md) for
+localized number/date formatting, [string encoding](string-encoding.md) for the
+counted converters and wrappers, [LTEXT records and locale](data-formats.md#6-ltext-and-locale)
+for resource decoding, and [crime names](crime.md) §7 for an existing
+`SC4LoadString` caller contract. The LTEXT loader may clear its output after a
+detokenizer failure; that is different from the detokenizer's partial-output rule here.
+[Variant storage](variant-storage.md) documents string-valued variant ownership and
+finite embedded-NUL copies. Do not replace any of these boundaries with a single
+Unicode-string abstraction.
+
+## 1. cRZString: identity, state and lifetime *[compat]*
+
+The interoperable object occupies 0x14 bytes. Its vptr is at +0x00, buffer begin at
++0x04, logical end at +0x08, allocation end at +0x0C, and unsigned reference count
+at +0x10. See [the ABI layout](../abi/layouts.md), “Game string”.
+Some callers read this layout directly, so a foreign `cIGZString` implementation
+is not interchangeable at those callers merely because it has the same methods.
+
+The logical value is the counted byte range from begin to end. There is a separate
+heap buffer, no inline storage, and a NUL byte at logical end. Interior NUL bytes
+are allowed. `Strlen` is the byte count, not a C-string scan, glyph count or UTF-16
+unit count. `ToChar` returns the borrowed buffer address. Its mutable and const
+interface entries return the same address. A caller changing those bytes does
+not automatically change the stored end pointer. Mutations may invalidate borrowed
+pointers. Independent copies own their bytes; there is no shared-buffer reference
+counting (`0x0090E4B6`, `0x009D7E63`, `0x0090F546`, `0x0044D3A0`).
+
+Default construction produces an empty, terminated buffer with eight allocated
+bytes and reference count zero (`0x00578390`–`0x005783C4`). Eight allocated bytes
+includes space for termination; do not infer eight writable characters. Ordinary
+C-string construction copies up to the first NUL and starts the count at zero
+(`0x00408480`). Its input must be non-null; this constructor scans it before
+assignment. A null-accepting setter is a different boundary. Counted construction
+and range construction preserve interior NULs; the range-buffer helper at
+`0x00408420` is not itself a complete 0x14-byte object constructor.
+
+`QueryInterface` accepts unknown IID 1 and string IID `0x089B7DC8`, writes this
+interface and adds a reference. An unsupported IID returns false without clearing
+the supplied output (`0x0090E1D1`–`0x0090E1F2`). `AddRef` increments the 32-bit
+count and returns it (`0x0094D34F`). `Release` decrements when the count is greater
+than one; otherwise it invokes the deleting destructor and returns zero
+(`0x0090E1F3`). Thus releasing at count zero also deletes. Stack/local native
+objects are destroyed directly, not by balancing a constructor reference.
+Destruction releases the character allocation.
+
+Allocation failure, invalid pointers and unrepresentable byte counts have no
+demonstrated recoverable Boolean error contract. They are not successful empty
+assignments. A portable core's internal allocation strategy is *[choice]*; the
+adapter must preserve the layout, ownership and termination contract. See RZS3
+in [open questions](questions/rz-strings.md) for overlap and failure edges.
+
+## 2. cRZString method inventory and dispatch *[compat]*
+
+Slots are zero-based. The complete table at `0x00A80810` contains 29 entries;
+offset is four times slot. Table bytes were checked against the executable and
+the shared `cRZStringResource` entries in [ABI vtables](../abi/vtables.tsv).
+Pointer/count inputs below are byte inputs. `s` denotes another string interface;
+`sensitive` is a byte Boolean, with nonzero meaning case-sensitive.
+
+| Slot | Entry address | Contract / arguments |
+|---|---|---|
+| 0 | 0x0090E1D1 | QueryInterface(iid, out) |
+| 1 | 0x0094D34F | AddRef() |
+| 2 | 0x0090E1F3 | Release() |
+| 3 | 0x0090F546 | FromChar(pointer, count) |
+| 4 | 0x0090F50F | FromChar(C string) |
+| 5, 6 | 0x009D7E63 | ToChar(), mutable / const buffer access |
+| 7 | 0x0090E4B6 | Strlen() |
+| 8 | 0x0090ED5D | IsEqual(pointer, count, sensitive) |
+| 9 | 0x0090E242 | Alias forwarding arguments to slot 10 |
+| 10 | 0x0090EC57 | IsEqual(s, sensitive) |
+| 11 | 0x0090EF5B | CompareTo(pointer, count, sensitive) |
+| 12 | 0x0090EE61 | CompareTo(s, sensitive) |
+| 13 | 0x0090E230 | Copy/assignment wrapper; invokes slot 14 and returns this |
+| 14 | 0x0090E20A | Copy(s), through receiver slot 3 |
+| 15 | 0x0090F042 | Resize(new length), zero-fill extension |
+| 16 | 0x0090F06C | Append(s) |
+| 17 | 0x0090F053 | Append(pointer, count) |
+| 18 | 0x0090F0B0 | Insert(position, s) |
+| 19 | 0x0090F093 | Insert(position, pointer, count) |
+| 20 | 0x0090FC30 | Replace(position, s) |
+| 21 | 0x0090FC13 | Replace(position, C string, erase count) |
+| 22 | 0x0090E4D8 | Erase(position, count) |
+| 23 | 0x0090F16C | Find(s, start, sensitive) |
+| 24 | 0x0090F0DB | Find(C string, start, sensitive) |
+| 25 | 0x0090F28C | RFind(s, start, sensitive) |
+| 26 | 0x0090F1FB | RFind(C string, start, sensitive) |
+| 27 | 0x0090F574 | Sprintf(format, varargs); native cdecl stack boundary |
+| 28 | 0x0044BF10 | Scalar deleting destructor, deletion flag |
+
+The misleading export label `cRZCOMDllDirector::Release` at `0x0090E242` is only
+a tail dispatch to string slot 10. It is not a reference-count operation.
+Similarly, slot 13 returns the receiver, not a newly allocated string.
+Copy obtains source slot 7 and const buffer slot 6, and calls receiver slot 3
+with the pointer and count; it does not retain the source interface.
+Append, Insert, Replace and Erase return the receiver. FromChar and Copy have
+no success Boolean. Resize exposes no reliable status result.
+
+Nonvirtual/native helpers are part of the inventory too:
+
+| Methods | Addresses | Rule / section |
+|---|---|---|
+| BeginsWith / EndsWith | 0x0090E443 / 0x0090E478 | Explicit byte prefix/suffix (§4) |
+| LTrim / RTrim / Trim | 0x0090E869 / 0x0090E887 / 0x0090E8A6 | Space and tab only (§5) |
+| MakeLower / MakeUpper | 0x0090EAC5 / 0x0090EB8E | Encoding-aware fallback (§5) |
+| Mid / Left / Right | 0x0090EA57 / 0x0090F45F / 0x0090F4B3 | Independent substrings (§5) |
+| Strcat / Strncpy | 0x0090EA42 / 0x0090F430 | C-string append / bounded copy (§3) |
+| SplitToken | 0x0090E98C | Destructive literal delimiter split (§5) |
+| SplitTokenDelimited / SplitTokenSeparated | 0x0090F335 / 0x0090F39D | Native split variants; unresolved parameter/empty-field edges RZS4 |
+| Native assignment / append entry points | 0x00408A70 / 0x004081D0 | Buffer operations underlying owned copies; not additional interface slots |
+
+Neither this owner nor the base detokenizer has a message subscription, message
+handler, renderer, draw-context method, stream load/save method or asynchronous
+completion contract. Their dispatch is synchronous method dispatch. String
+resource loading and text drawing belong to their callers. There is no implicit
+LTEXT read, language change notification or font measurement when bytes change.
+
+## 3. Assignment and edits *[compat]*
+
+`FromChar(pointer,count)` replaces the entire value with exactly count bytes.
+A null pointer clears regardless of count. `FromChar(C string)` also clears for
+null input, otherwise copies through the first NUL. Both leave a terminating NUL
+outside the logical range. `Copy(s)` uses the source's counted length and retains
+interior NULs; subsequent source changes cannot change the copy.
+
+`Resize(n)` changes logical length, truncating the suffix if n is smaller and
+appending zero bytes if n is larger. It is not merely capacity reservation. The
+new length is observable even when the new bytes are NUL (`0x0090F042` passes
+zero as the extension fill byte to `0x00442E90`).
+
+Append adds the supplied range after the old end. The object overload uses its
+counted length and mutable buffer accessor. Insert adds the supplied range before
+the byte at position, preserving the suffix; position equal to length appends.
+Position beyond length reaches a range-error path, rather than clamping to end
+(`0x0090E8B6`). Counted append/insert are not C-string operations. Do not apply
+the `0xFFFFFFFF` scan convention of comparisons to every count-bearing method.
+
+Erase removes min(count, length-position) bytes. Count `0xFFFFFFFF` therefore
+erases to end. Erasing at length does nothing; a position greater than length
+reaches the underlying string range-error path (`0x0090E4D8`, `0x004425C0`).
+
+Replace has an unusual interface: its explicit count is the number of OLD bytes
+to erase, not the number of source bytes to insert. It removes
+min(erase count, length-position), inserts the entire NUL-terminated source, and
+keeps the remaining suffix. Its object overload sets the erase count to
+source.Strlen(), but still inserts only the source's C-string prefix
+(`0x0090FC13`–`0x0090FC55`, `0x005C2EB0`). Position equal to length appends;
+position beyond length reaches a range error. For example, replacing at 1 in
+`abcdef` with `XY`, erase count 3, produces `aXYef`. Replacing at 1 with an
+object holding bytes `X 00 Y` removes three old bytes but inserts just `X`.
+
+`Strcat` scans its source for NUL before appending. `Strncpy` copies
+min(requested count, source C-string length) bytes; it neither pads to the
+requested count nor preserves source bytes after NUL. These are distinct from
+counted FromChar (`0x0090EA42`, `0x0090F430`). Null is not demonstrated as valid
+for these helpers, Append, Insert, Replace or comparison/search operands.
+
+## 4. Equality, ordering and search *[compat]*
+
+IsEqual first requires equal counted lengths. In sensitive mode it then uses a
+NUL-stopping comparison limited to that length. Thus equal-length `A 00 X` and
+`A 00 Y` compare equal through these virtual methods. In insensitive mode it
+lowers two independent counted copies and uses a full byte comparison; the same
+two inputs differ. Pointer/count equality and ordering accept count
+`0xFFFFFFFF` to mean the source C-string length (`0x0090ED5D`, `0x0090EF5B`).
+This asymmetry is intentional compatibility, not a claim that all native string
+operators behave like slot 10. Sensitive branches were verified at
+`0x0090EC57` and `0x0090ED5D`; the native count-aware equality discussed in
+[variant storage](variant-storage.md) must retain its own contract.
+
+CompareTo compares the common prefix, using the same sensitive NUL-stopping
+comparison or lowered full-byte comparison. If that result is zero, it returns
+the difference between the ORIGINAL byte lengths. Negative/zero/positive convey
+ordering; the original length difference is observable for equal prefixes.
+For example `ab` versus `abcd` returns -2, and equal-length `A 00 X` versus
+`A 00 Y` returns zero in sensitive mode (`0x0090EE61`, `0x0090EF5B`).
+
+Find returns the first byte position at or after start. RFind returns the last
+position at or before start, limited to positions where the whole needle fits.
+Failure is unsigned `0xFFFFFFFF`. Empty-needle Find returns start when
+start <= length and failure otherwise; empty-needle RFind returns
+min(start,length). Both needle overloads ultimately scan the needle to its first
+NUL: even an object needle does not use its stored length for the final search
+(`0x00442850`, `0x005C2620`). The haystack remains a counted range, so a search
+can find bytes after an interior NUL. Insensitive search lowers temporary copies
+first and reports an offset in that resulting byte string; byte-length-changing
+case conversion is not proven to preserve offsets in the original (§5/RZS2).
+
+BeginsWith(pointer,count) and EndsWith(pointer,count) compare exactly count
+bytes, without folding and without stopping at NUL. They return false if count
+exceeds the string length, and true for count zero. The suffix comparison starts
+count bytes before the counted end (`0x0090E443`–`0x0090E4B5`).
+
+## 5. Native transforms and formatting *[compat]*
+
+LTrim removes leading bytes in the set `{0x20,0x09}`. RTrim removes trailing
+bytes in the same set; Trim does both. Newline and carriage return are not trim
+characters. Empty or all-space/tab inputs become empty. The set is stored at
+`0x00ACE73C`; entries `0x0090E869`–`0x0090E8B5` pass that exact set.
+
+Mid(start,count) returns an independently owned substring, clamping count to the
+remaining bytes. Start at or beyond length returns empty, rather than invoking
+the native range-error behavior of Insert/Erase. Left(count) and Right(count)
+return at most count bytes; count >= length returns the whole value. All three
+count bytes, not characters, and may split a multibyte sequence.
+
+SplitToken(delimiter) searches for the first complete delimiter byte string.
+When found, it returns the prefix and removes prefix plus delimiter from the
+receiver. No match returns empty and leaves the receiver unchanged. A null or
+empty delimiter returns a copy of the receiver without consuming it
+(`0x0090E98C`). This is a literal substring delimiter, not a set of whitespace
+characters. The separately named Delimited/Separated variants are not aliases;
+their remaining edge contract is RZS4.
+
+MakeLower and MakeUpper transform in place. For bytes through 0x7E they use the
+runtime character classification/case mapping, giving ordinary ASCII A–Z/a–z
+folding. Encountering any byte >=0x7F switches to conversion of the whole current
+string to UTF-16, runtime wide-character case mapping of individual 16-bit units,
+and conversion back to framework encoding (`0x0090EAC5`, `0x0090EB8E`). This is
+not normalization or full Unicode case folding; do not assume expansions such as
+one character becoming two. Conversion itself follows [string encoding](string-encoding.md),
+including its nonstandard UTF-8/UTF-16 behavior and the prior MakeLower witness
+linked there. The exact non-ASCII runtime case tables and owner-level handling of
+conversion failure remain RZS2. ASCII/NUL counted transforms
+are specified; cross-platform locale-dependent replacements are not authorized
+by the name MakeLower alone.
+
+Sprintf replaces the receiver with formatted output and returns the receiver,
+not a character count. It builds output separately and assigns the completed
+byte range at `0x0090FBB1`–`0x0090FBDF`. An empty format clears the receiver.
+It parses percent conversions, supports `%%`, flags `- + space 0 #`, width and
+precision (numeric or `*`), and modifiers `h`, `l`, `ll`, `I64`. Conversion
+families include integer `d i u o x X`, floating `e E f g G`, byte `c`, string
+`s`, pointer `p` and count-store `n`. This is a custom formatter, not permission
+to substitute arbitrary host printf behavior. Floating arguments occupy eight
+bytes at the native varargs boundary, ordinary integers/pointers four.
+
+Width is based on glyph counting rather than just the emitted byte length.
+String precision limits the number of characters traversed through GetCharLength,
+so a valid multibyte character is not intentionally cut in half. No precision
+uses the source C-string length. The sign, alternate-prefix and padding machinery
+is separate from the underlying number conversion; `-` cancels zero padding and
+`+` cancels space-sign (`0x0090F64B`–`0x0090F65F`,
+`0x0090FA19`–`0x0090FB78`). Exact malformed-format, negative-width, signed-extreme,
+wide-conversion and `%n` quirks remain RZS5. The finite formatting vectors below
+specify the settled subset and are not a complete printf equivalence claim.
+
+## 6. cSCStringDetokenizer: state, interface and lifetime *[compat]*
+
+The base object holds a vptr at +0x00, unsigned reference count at +0x04, a
+case-insensitive token-to-value registry rooted at +0x08, a token-to-method
+registry rooted at +0x14, unknown-method set rooted at +0x20, and HTML-clean byte
+at +0x2C. Construction starts with count zero, all three collections empty and
+HTML cleaning off (`0x00601340`–`0x006013C5`). Values and names are copied;
+callbacks carry an unowned function pointer plus 32-bit context. No automatic
+AddRef/Release contract exists for that opaque context.
+
+QueryInterface accepts 1 and `0x8A2C3240`, returns this and AddRefs; on failure
+it leaves the output alone (`0x005FFE60`–`0x005FFE84`). AddRef increments the
+32-bit count. Release decrements if count >1, otherwise destroys and returns zero,
+including when called at count zero (`0x005FFE90`). Destruction empties all three
+registries and frees owned string storage (`0x00600F30`).
+
+The base table is `0x00AA6DFC`. The default game subclass uses `0x00A86C68` and
+overrides initialization; its city/population/year and other built-in bindings
+are outside the base registry contract. Do not create such bindings implicitly
+in a base instance.
+
+| Slot | Address | Contract |
+|---|---|---|
+| 0 | 0x005FFE60 | QueryInterface(iid,out) |
+| 1 | 0x005F47F0 | AddRef() |
+| 2 | 0x005FFE90 | Release() |
+| 3, 4 | 0x00648F00 | Base lifecycle hooks: return true, no state change |
+| 5 | 0x00601AA0 | SetTokenReplacementValue(name,value) |
+| 6 | 0x00601B80 | SetTokenReplacementMethod(name,function,context) |
+| 7 | 0x00600410 | AddUnknownTokenReplacementMethod(function,context,enable) |
+| 8 | 0x005FFEE0 | Detokenize(resource key,output string) |
+| 9 | 0x005FFEB0 | Detokenize(input string,output string), tail dispatch to slot 13 |
+| 10 | 0x005FFEC0 | SetHTMLCleanMode(byte) |
+| 11 | 0x005FFED0 | GetHTMLCleanMode(), stored byte |
+| 12 | 0x006013D0 | Deleting destructor |
+| 13 | 0x00600810 | PerformDetokenize(input,output), Boolean result |
+| 14 | 0x00600C20 | ConvertToken(trimmed token,output), Boolean result |
+
+Offsets are slot ×4. Despite its export name `operator.new`, `0x00648F00` is
+just a true-returning stub (three instruction bytes), not an allocator. Slot 9
+dispatches virtually through slot 13, and parsing dispatches virtually through
+slot 14. Overrides must therefore be observed; calling a private copy of the
+base parser/converter bypasses the interface contract.
+
+## 7. Registration and replacement dispatch *[compat]*
+
+Registry key comparison is a runtime bytewise case-insensitive comparison over
+the common counted prefix, followed by original byte-length ordering. It uses
+the runtime `strnicmp` family, not cRZString::MakeLower. For ordinary ASCII names,
+`City`, `city` and `CITY` identify the same key. Registration does not trim the
+name or strip `#`; parsing trims before lookup. Thus registering ` City ` does
+not make it match the parsed token `# City #`.
+
+SetTokenReplacementValue copies name and value through their string interfaces.
+Setting an equivalent key replaces its previous value. Setting a method copies
+the name and replaces its function/context pair. The two registries coexist:
+neither setter removes the corresponding entry from the other registry
+(`0x00601AA0`, `0x00601B80`, lookup `0x00600200`, comparator `0x006000F0`).
+
+Unknown-method registration enables or removes a record. The collection is
+ordered by the unsigned native function address, not registration order. Identity
+is the function address: re-enabling the same function with a new context does
+not replace its existing context. Disabling that function removes it regardless
+of the supplied context. This follows the shared unique-insert comparator
+(`0x00600410`, `0x004FB6C0`, comparisons at `0x004FB738`–`0x004FB73D`). A
+portable implementation can model deterministic ordered callback identities
+*[choice]*, but the native adapter must preserve native address order.
+
+ConvertToken applies the following priority:
+
+1. A stored value wins and is copied to the output; return true.
+2. Otherwise, call the named method if present. A true result accepts its output.
+3. If there is no named method, or it returns false, try unknown methods in
+   ascending function-address order. Stop at the first true result.
+4. If none accepts, replace the output with the token name alone and return false.
+
+Each callback is a synchronous native cdecl call with three arguments:
+`(token string interface, mutable output string interface, 32-bit context)`;
+its Boolean result is in AL. The same output object is passed to successive
+callbacks. A false callback is not rolled back or cleared before the next one.
+However, final unhandled fallback overwrites it with the token name. Never call
+a null function as a request to remove a named method: no null-method guard is
+present (`0x00600C8C`–`0x00600C98`). Mutation of registries from inside a callback
+has no settled reentrancy contract (RZS1).
+
+With HTML-clean mode nonzero, the selected result is cleaned after value lookup,
+accepted callback, OR unhandled fallback. Each `"` becomes `&quot;`, `&` becomes
+`&amp;`, `<` becomes `&lt;`, and `>` becomes `&gt;`; other bytes pass through.
+This is one pass over the original replacement and does not re-escape newly
+inserted entity bytes. Existing `&lt;` therefore becomes `&amp;lt;`. The cleaner
+scans to the first NUL and overwrites the output, dropping subsequent counted
+bytes (`0x00600640`–`0x006007DB`, constants `0x00AA6DBC`–`0x00AA6DD8`). Literal
+text outside tokens is never cleaned by this mode.
+
+## 8. Parsing, resource IO and failure results *[compat]*
+
+PerformDetokenize snapshots the input's counted bytes before producing output;
+the same object may be supplied as input and output. With no `#` in the input,
+it returns true and copies the original string when output is distinct, or leaves
+it in place when aliased. No callback is invoked and HTML mode does nothing.
+
+With any hash present, `##` pairs are first protected over the whole snapshot,
+before tokens are paired. Nonoverlapping pairs collapse to one protected byte.
+There is a compatibility exception to ordinary escaped-delimiter parsing: the
+position of the FIRST original hash remains the first opening position, even
+when that hash was collapsed into a protected byte. Later opening/closing
+positions are unprotected hashes. Text between opening and closing positions is
+trimmed of leading/trailing ASCII
+space and tab only, then passed to virtual ConvertToken. Both delimiters are
+discarded, whether conversion succeeds or fails. Replacement text is appended
+once; it is not scanned for more tokens. Literal spans retain their bytes.
+
+An unmatched final hash and its remaining suffix are copied literally; this is
+not a conversion failure. Every complete token is processed even if a previous
+conversion returned false. The final Boolean is true iff every complete token
+conversion returned true, or there were no complete tokens. The output is always
+the assembled result, including replacements for successful tokens and bare
+trimmed names for unresolved tokens. It is neither cleared nor rolled back on
+false (`0x00600810`–`0x00600C1C`).
+
+Protection uses an interior NUL marker. Before assigning the assembled result,
+every NUL byte in that result becomes `#`, including pre-existing interior NULs
+and NULs introduced by callbacks/values. This final restoration occurs on the
+hash-processing path only; the no-hash fast path preserves interior NULs. The
+pair erase/marker write is verified at `0x00600921`–`0x00600935`, retention of
+the first opening position at `0x0060096F`–`0x00600985`, and restoration at the
+end of `0x00600810`. Consequently `##` alone becomes `#`, but `###` forms an
+EMPTY token and, without an empty-name handler, returns false and empty output.
+Likewise `##A#` can resolve token A, because its protected initial byte still
+acts as the opening position. `#A##B#` forms one token whose name contains the protected interior NUL,
+not two adjacent tokens. Adjacent tokens require separating literal text to
+avoid this global escape rule. A marker in a token name is not restored before
+lookup or callback dispatch.
+
+The resource overload (slot 8) asks the resource manager for the supplied key as
+IID `0x089B7DC8`, with the last two retrieval arguments zero. On success it calls
+virtual PerformDetokenize with the acquired string and caller output, then
+releases the acquired interface and returns the parser result. On retrieval
+failure it releases any non-null acquired interface, returns false, and does not
+call the parser or change caller output (`0x005FFEE0`–`0x005FFF4A`, assembly
+confirms two arguments despite the incomplete pseudocode signature). It does not
+apply locale offsets, infer an LTEXT key type or clear failed output itself.
+Those policies belong to the [LTEXT and locale spec](data-formats.md#6-ltext-and-locale)
+and to `SC4LoadString` callers.
+
+All string pointers supplied to these methods must denote valid live interfaces.
+The base parser does not validate null input/output, catch callback exceptions,
+report token offsets, enforce an expansion depth limit, or persist registries.
+No callback on a resource-load failure is observable. HTML mode does not alter
+the Boolean result of an otherwise unhandled token.
+
+## 9. Conformance vectors *[compat]*
+
+These are declarative vectors for an engine lane to encode in its test format;
+this RE lane does not write files under engine/. Bytes in brackets are hexadecimal
+counted bytes; a trailing allocation terminator is not included. Unless stated,
+strings are independent, tokens are ASCII, and HTML mode is off. Callback traces
+are part of the expected result.
+
+| ID | Setup / operation | Expected |
+|---|---|---|
+| RZ01 | Default object; query Strlen and ToChar | length 0, non-null buffer beginning with 00, refcount 0 |
+| RZ02 | FromChar([41 00 42],3); Copy to second; change source byte 0 to 43 | second bytes [41 00 42], length 3 |
+| RZ03 | Nonempty; FromChar(null,123) | empty, terminated |
+| RZ04 | `ab`; Resize(4), then Resize(1) | [61 62 00 00] length 4; then [61] length 1 |
+| RZ05 | `ab`; Append([00 63],2); Insert(1,[58],1); Erase(2,0xFFFFFFFF) | intermediate [61 62 00 63], then [61 58 62 00 63], final `aX` |
+| RZ06 | `abcdef`; Replace(1,`XY`,3) | `aXYef`, returns receiver |
+| RZ07 | `abcdef`; object Replace(1,[58 00 59]) | `aXef`; old-byte erase count 3, insert count 1 |
+| RZ08 | [41 00 58] versus [41 00 59], IsEqual and CompareTo | sensitive: true, zero; insensitive: false, nonzero |
+| RZ09 | `ab`.CompareTo(`abcd`, sensitive=true) | -2 |
+| RZ10 | [61 00 62 63].Find(`bc`,0,true) | 2 |
+| RZ11 | `abcd`.Find(object [62 00 7A],0,true) | 1 (needle C prefix `b`) |
+| RZ12 | `ababa`: Find(`ba`,0,true); RFind(`ba`,0xFFFFFFFF,true); Find(`x`,0,true) | 1; 3; 0xFFFFFFFF |
+| RZ13 | `ab`: Find(empty,2,true); Find(empty,3,true); RFind(empty,99,true) | 2; failure; 2 |
+| RZ14 | ` \tA\r\n \t`; Trim | `A\r\n` |
+| RZ15 | `abcd`: Mid(2,99), Mid(4,1), Left(99), Right(2) | `cd`, empty, `abcd`, `cd` |
+| RZ16 | `a::b`; SplitToken(`::`) twice | first `a`, receiver `b`; then empty, receiver still `b` |
+| RZ17 | [41 7A 00 42]: MakeLower, then MakeUpper | [61 7A 00 62], then [41 5A 00 42] |
+| RZ18 | Nonempty; Sprintf(`x=%s %%`, `ok`); then Sprintf(empty) | `x=ok %`; then empty; both return receiver |
+| RZ19 | Sprintf(`%04u`,7); Sprintf(`%-4s`, `ab`) | `0007`; `ab  ` |
+| RZ20 | [41 00 58].BeginsWith([41 00],2); EndsWith([00 59],2) | true; false |
+| DT01 | Fresh base instance; literal `a<b` -> distinct output | true, `a<b`, no callbacks; HTML byte zero |
+| DT02 | Set value `City`=`Oak`; parse `Hi # city #!` | true, `Hi Oak!` |
+| DT03 | Set same key `CITY`=`Elm`; also named callback for `city` | true, `Elm` for `#City#`; callback not invoked |
+| DT04 | No registrations; parse `a# missing #b#tail` | false, `amissingb#tail` |
+| DT05 | Value `A`=`#B#`; value `B`=`done`; parse `#A#` | true, `#B#`; replacement is not recursive |
+| DT06 | No registrations; parse `##`, `####`, `###`, `a#tail` separately | results true, true, false, true; outputs `#`, `##`, empty, `a#tail` |
+| DT07 | Named callback N returns false after writing `x`; unknown U sees `x`, writes `y`, returns true | trace N,U; true, `y` |
+| DT08 | Two unknown callbacks with identities 0x1000 and 0x2000, registered in reverse order; both accept | only 0x1000 called |
+| DT09 | Register unknown F/context1, then F/context2; disable F with context3 | before disabling F sees context1; after disabling no F call |
+| DT10 | Callback writes `junk`, returns false; no accepting unknown | false, bare trimmed token name overwrites `junk` |
+| DT11 | HTML on; value A=`<&\"` and input `<b>#A#</b>` | true, `<b>&lt;&amp;&quot;</b>` |
+| DT12 | HTML on; unresolved token `# <x> #` | false, `&lt;x&gt;` |
+| DT13 | Value A holds [58 00 59]; parse `#A#`, HTML off / on | off: [58 23 59]; on: [58] |
+| DT14 | Input [41 00 42] versus [41 00 42 23], no registrations | first true, identical bytes; second true, [41 23 42 23] |
+| DT15 | `# A #` with stored value A=`v`, input and output same object | true, `v` |
+| DT16 | Resource retrieval fails, prefilled output `keep` | false, `keep`, no parser/callback call; release non-null returned interface |
+| DT17 | QueryInterface unknown IID with sentinel output, either owner | false, sentinel untouched |
+| DT18 | Named callback fails for token X, value A succeeds; parse `#X# / #A#` | false, `X / value-of-A`; later token still processed |
+| DT19 | Value A=`v`; parse `##A#` | true, `v` (original first-hash position remains opening) |
+
+## 10. Open boundaries
+
+[RZS1–RZS5](questions/rz-strings.md) track callback reentrancy, non-ASCII mapping,
+allocation/overlap failures, remaining native split variants and formatter edge
+behavior. They do not weaken the settled vectors above. No in-game or executable
+replacement run was performed for this documentation lane.
