@@ -136,8 +136,80 @@ signed-zero writes follow the stated operations; signaling exceptions and
 non-default processor modes are not emulated.
 
 Native cached getters 007F7A00/007F8290/007F8340 are outside the 50-row accounting;
-Rust snapshots expose their cached data. Shared constructor 0080AE60 is not a
+`get_frustum_aabb`, `get_draw_ground_corners` and `get_camera_view_angles`
+retain their contracts explicitly. The angle getter evaluates the angle rule
+from cached zoom/rotation, including before the first camera update; `angles()`
+instead inspects the stored update result. Shared constructor 0080AE60 is not a
 51st body. Geometry triangle/plane/clipping dependencies remain geometry-owned.
 No exact implemented-byte subtotal is inferred from mapped/adapted rows.
 
 No ABI, plugin, default/shadow/replacement registration or runtime claim.
+
+## Owner closure
+
+Owner: **SC4ViewUtilities**, including its attributed free rotation helper and
+reach-owned triangle iterator/helpers. The separate min/max functions are
+included in the family inventory above. All settled portable behavior has an
+implementation; **native numeric completion remains open: VU12 (§2.2 and
+arithmetic in §§2–7), VU13 (§§7.1/12 numeric index formats outside the stated
+range), VU15 (§§4.2/4.4/11.18/12 scalar block-helper input width)**. Those cases are not claimed as native-exact or silently treated as
+closed. The code comments and checked boundaries above describe the literal
+portable policy while those questions await answers. No additional native
+lifecycle, heap ABI or renderer behavior is invented by the Rust adapters.
+
+Tests named below are in `tests.rs`. Section rows describe algorithmic coverage;
+the numeric qualification in §2.2 applies to every arithmetic row.
+
+| Spec section | Code item (SC4ViewUtilities unless identified separately) | Covering test or open question |
+|---|---|---|
+| §0 Summary | `ViewUtilities`, `Frustum`, projection and picking functions | `update_copies_inputs_scales_basis_and_does_not_depend_on_borrowed_storage` |
+| §1 Object | `ViewUtilities::new`, `Default`, owned snapshots | `construction_clears_owned_fields_and_keeps_constructor_constants`; `cached_getters_can_be_shared_across_threads` |
+| §2 Camera update | `update_camera_position`, `CameraState` input adapter | `update_copies_inputs_scales_basis_and_does_not_depend_on_borrowed_storage`; `failed_update_invalidates_both_caches_without_wiping_old_frustum` |
+| §2.1 Angle helpers | `get_camera_view_angles_for_rotation`, `get_object_y_rotation_angle`, `get_city_width_from_ortho_view`, `get_zoom_and_rotation`, `viewport_units_to_world_units` | `angle_contract_vectors_and_all_zoom_table_entries`; `update_copies_inputs_scales_basis_and_does_not_depend_on_borrowed_storage` |
+| §2.2 Numeric evaluation / invalid inputs | `Vec3::normalized`, stored scales, table words and explicit checked zoom boundary | `native_minmax_angles_and_rotation_word_rules`; `invalid_zoom_fails_and_degenerate_basis_does_not_invent_valid_vectors`; open: VU12 (native mode/store graph) |
+| §3 View frustum | `Frustum::build` | `frustum_corner_order_and_plane_signs_follow_basis_not_euler_projection` |
+| §3.1 Corners and bounds | `Frustum::build`, `Aabb::from_points` | `native_perspective_reuses_previous_far_corners_and_compounds`; `native_offcentre_and_missing_camera_draw_state` |
+| §3.2 Planes and ground lines | `Plane::through`, `GroundLine`, `Frustum::build` | `frustum_corner_order_and_plane_signs_follow_basis_not_euler_projection` |
+| §3.3 City-clipped box | `city_clipped_bounds`, `get_frustum_aabb_city_clipped` | `clipped_city_polygon_is_clipped_as_a_polygon_not_as_its_aabb`; `rotated_city_clip_rejects_aabb_overlap_when_ground_polygon_misses_city` |
+| §3.4 Visibility | `Frustum::contains_box`, three `is_*_in_*_frustum` methods | `box_visibility_strict_side_boundaries_but_no_near_far_test`; `point_visibility_uses_inclusive_xy_and_strict_depth` |
+| §4 Coordinates | `project_*`, `unproject_*`, `project_bounding_box_to_viewport_rectangle` | `coordinate_axes_and_translation_have_independent_expected_values`; `viewport_contract_bounds_depth_and_2d_depth_preservation`; `bounding_rectangle_uses_selected_corners_and_ties_even` |
+| §4.1 Rays and ground | `CameraRayProvider`, `viewport_position_to_ray`, ground intersection/corner methods | `ground_ray_contract_and_checked_parallel_behind_surface_cases`; `camera_eye_ray_is_normalized_and_failures_preserve_direct_output`; `ground_corner_order_visible_area_truncation_and_cache_invalidation` |
+| §4.2 City helpers | `get_city_corner_position`, edge/clip/block helpers | `city_helpers_rotation_table_non_square_quirk_and_preserved_invalid_outputs`; `clipping_and_block_rounding_contract_vectors_and_invalid_inputs`; open: VU15 (scalar block-helper input width) |
+| §4.3 Discrete rotation | free `rotate_vector_by_view_rotation`, `get_vector_for_edge_into` | `native_signed_rotation_partial_writes_and_wrapping_centres`; `native_minmax_angles_and_rotation_word_rules` |
+| §4.4 Integer operations | `crate::x87::rhe`, block helpers / `round_block_integer`, `PixelRect::center` | `native_integer_conversion_low_words_and_checked_faults`; `native_signed_rotation_partial_writes_and_wrapping_centres`; `bounding_rectangle_uses_selected_corners_and_ties_even`; open: VU15 (scalar input width) |
+| §5 Draw frustum | `build_draw_frustum_data_from_viewport_rect`, `Frustum::build` | `draw_full_copy_narrowed_extents_and_integer_centres`; `native_offcentre_and_missing_camera_draw_state`; `every_draw_rectangle_invalidates_both_caches_and_keeps_full_view_visible_area` |
+| §6 Visible area | `get_ground_plane_visible_area_rectangle`, independent `OnceLock` caches; separate `min_of_four_floats` / `max_of_four_floats` | `ground_corner_order_visible_area_truncation_and_cache_invalidation`; `native_independent_cache_observations`; `native_minmax_angles_and_rotation_word_rules` |
+| §7 Picking and transforms | `triangle_pick`, `mesh_pick_checked`, `model_pick_checked`, `Transform` | `triangle_pick_distance_strict_improvement_winding_and_failures`; `every_transform_kind_uses_specified_order_and_ignores_inactive_fields`; `conformance_20_mesh_and_model_order_eight_then_two` |
+| §7.1 Triangle walk | `PrimitiveGroup::triangle_count`, `primitive_vertex_indices`, `TriangleIterator`, `decode_indices` | `all_primitive_tables_include_unusual_quad_walk_and_degenerate_groups`; `native_raw_iterator_and_index_formats_preserve_outputs_on_stop`; open: VU13 (numeric index extremes) |
+| §7.2 Predicates / ordering / resources | `ray_intersects_triangle`, `ray_intersects_plane`, ordered clipping, checked mesh traversal, row-dot transforms | `native_triangle_line_metric_tolerance_barycentrics_and_nan`; `native_plane_tolerance_writes_and_negative_t`; `native_clipping_order_winding_duplicates_empty_and_undefined_crossing`; `native_matrix_rows_and_checked_model_abort`; open: VU12 (remaining transform stores) |
+| §8 Users | foreign camera and instance data through `CameraRayProvider` / `ModelInstance`; renderer input through copied state | `camera_eye_ray_is_normalized_and_failures_preserve_direct_output`; `model_walk_visits_all_meshes_and_resets_transform_for_each_one` (caller wiring is outside this core task) |
+| §9 Quirks | four-side box test, checked failed-ground wrapper, corner table, truncate-first blocks, first-improvement mesh traversal | Tests for §§3.4, 4.1, 4.2, 7 above; no deterministic native failed-ground coordinate is asserted |
+| §10 Open questions | explicit numeric/checked policies in source and this README | open: VU12, VU13, VU15; no unresolved question is promoted to native-exact coverage |
+| §11 Conformance tests | public core API, 21-vector mapping below | Vector 11 uses the spec-permitted checked adapter; open: VU15 for vector 18 entry width (integer stage covered) |
+| §12 Family / ownership | 50-entry inventory above; borrowed `TriangleIterator` lifetime; explicit cached getters | `native_reachable_aabb_and_aliasing_cross_helpers`; `native_raw_iterator_and_index_formats_preserve_outputs_on_stop`; `vertex_stride_count_padding_and_owned_resource_lifetime`; `cached_getters_before_update_and_after_camera_failure`; open: VU12, VU13, VU15 as above |
+
+### Conformance vectors (§11)
+
+| Vector | Test |
+|---|---|
+| 1 Angles | `angle_contract_vectors_and_all_zoom_table_entries` |
+| 2 Ground ray | `ground_ray_contract_and_checked_parallel_behind_surface_cases` |
+| 3 Box behind camera | `box_visibility_strict_side_boundaries_but_no_near_far_test` |
+| 4 Edges | `city_helpers_rotation_table_non_square_quirk_and_preserved_invalid_outputs` |
+| 5 City corner | `city_helpers_rotation_table_non_square_quirk_and_preserved_invalid_outputs` |
+| 6 Rounding | `clipping_and_block_rounding_contract_vectors_and_invalid_inputs` |
+| 7 Clip | `clipping_and_block_rounding_contract_vectors_and_invalid_inputs` |
+| 8 Triangle strip | `all_primitive_tables_include_unusual_quad_walk_and_degenerate_groups` |
+| 9 Viewport depth | `viewport_contract_bounds_depth_and_2d_depth_preservation` |
+| 10 Signed rotation / partial writes | `native_signed_rotation_partial_writes_and_wrapping_centres` |
+| 11 Failed eye ray | `camera_eye_ray_is_normalized_and_failures_preserve_direct_output` (direct failure preserves outputs; checked ground wrapper returns false, no native coordinate claimed) |
+| 12 Independent caches | `native_independent_cache_observations` |
+| 13 Behind / nonunit triangle | `native_triangle_line_metric_tolerance_barycentrics_and_nan`; `triangle_boundaries_and_nonunit_euclidean_distance` |
+| 14 Determinant threshold | `native_triangle_line_metric_tolerance_barycentrics_and_nan` |
+| 15 Plane tolerance and writes | `native_plane_tolerance_writes_and_negative_t` |
+| 16 Rectangular city | `city_helpers_rotation_table_non_square_quirk_and_preserved_invalid_outputs` |
+| 17 Off-centre volume | `native_offcentre_and_missing_camera_draw_state` |
+| 18 Ties / overflow | `bounding_rectangle_uses_selected_corners_and_ties_even`; `native_signed_rotation_partial_writes_and_wrapping_centres`; `native_integer_conversion_low_words_and_checked_faults` (checked divide failure, no native trap test; INT_MAX covered at integer stage only, full scalar entry open: VU15) |
+| 19 Matrix rows | `native_matrix_rows_and_checked_model_abort` |
+| 20 Mesh / model ordering | `conformance_20_mesh_and_model_order_eight_then_two` |
+| 21 Ordered clipping | `native_clipping_order_winding_duplicates_empty_and_undefined_crossing` |

@@ -138,7 +138,14 @@ pub fn round_up_to_nearest_block_boundary(value: f32, block: i32) -> Option<i32>
 fn round_block(value: f32, block: i32, up: bool) -> Option<i32> {
     // Masked invalid _ftol2 conversion gives low word zero. Checked division
     // exposes native IDIV faults as None, including the second adjusted divide.
+    // VU15: scalar input width is unspecified. Retain the existing f32 adapter;
+    // the integer stage is separate so §11.18 can test n=INT_MAX without first
+    // rounding that value to 2^31 at this adapter boundary.
     let n = crate::x87::ftol32(f64::from(value));
+    round_block_integer(n, block, up)
+}
+
+fn round_block_integer(n: i32, block: i32, up: bool) -> Option<i32> {
     let remainder = n.checked_rem(block)?;
     let adjusted = if remainder != 0 && up && n >= 0 {
         n.wrapping_add(block)
@@ -237,6 +244,12 @@ impl ViewUtilities {
     pub fn angles(&self) -> ViewAngles {
         self.angles
     }
+    /// §12, 007F8340: evaluate the angle rule from cached zoom/rotation.
+    /// This also works before the first update, when the stored trig/angle
+    /// fields are still zero. Invalid zoom uses the same checked table adapter.
+    pub fn get_camera_view_angles(&self) -> Option<ViewAngles> {
+        get_camera_view_angles_for_rotation(self.camera.rotation, self.camera.zoom)
+    }
     pub fn basis(&self) -> (Vec3, Vec3, Vec3) {
         (self.forward, self.right, self.up)
     }
@@ -252,6 +265,15 @@ impl ViewUtilities {
     }
     pub fn draw_frustum(&self) -> &Frustum {
         &self.draw
+    }
+    /// §12, 007F7A00: copy cached view bounds without a validity check.
+    pub fn get_frustum_aabb(&self) -> Aabb {
+        self.view.bounds
+    }
+    /// §12, 007F8290: copy only x/z of the cached draw ground corners,
+    /// in TL, TR, BL, BR order. This getter never casts camera rays.
+    pub fn get_draw_ground_corners(&self) -> [(f32, f32); 4] {
+        self.draw.ground_points.map(|p| (p.x, p.z))
     }
     pub fn draw_rect(&self) -> PixelRect {
         self.draw_rect

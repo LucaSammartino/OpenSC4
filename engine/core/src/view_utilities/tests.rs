@@ -170,6 +170,9 @@ fn native_matrix_rows_and_checked_model_abort() {
 
 #[test]
 fn native_integer_conversion_low_words_and_checked_faults() {
+    // §11.18 gives INT_MAX, not representable by the current f32 entry adapter.
+    // Exercise the specified post-truncation integer operation pending VU15.
+    assert_eq!(round_block_integer(i32::MAX, 64, true), Some(-2_147_483_584));
     assert_eq!(round_down_to_nearest_block_boundary(4_294_967_808.0, 64), Some(512));
     assert_eq!(round_up_to_nearest_block_boundary(f32::INFINITY, 64), Some(0));
     assert_eq!(round_down_to_nearest_block_boundary(-2_147_483_648.0, -1), None);
@@ -392,6 +395,35 @@ fn construction_clears_owned_fields_and_keeps_constructor_constants() {
     assert_eq!(v.city, (0.0, 0.0));
     assert_eq!(v.basis(), (Vec3::ZERO, Vec3::ZERO, Vec3::ZERO));
     assert_eq!(v.scales(), (Vec3::ZERO, Vec3::ZERO));
+}
+
+#[test]
+fn cached_getters_before_update_and_after_camera_failure() {
+    let mut v = ViewUtilities::new();
+    assert_eq!(v.get_frustum_aabb(), Aabb::default());
+    assert_eq!(v.get_draw_ground_corners(), [(0.0, 0.0); 4]);
+    // The native cached-angle getter evaluates the table using zero cached
+    // zoom/rotation; it does not copy the constructor-zero angle fields.
+    assert_eq!(v.angles(), ViewAngles::default());
+    let angles = v.get_camera_view_angles().unwrap();
+    assert_eq!(angles.yaw.to_bits(), 0xbec9_0fdb);
+    assert_eq!(angles.pitch.to_bits(), 0x3f06_0a92);
+
+    v = owner(camera());
+    let rays = Rays::new(0.0);
+    assert!(v.build_draw_frustum_data_from_viewport_rect(PixelRect::new(20, 10, 180, 90), Some(&rays)));
+    let bounds = v.get_frustum_aabb();
+    let corners = v.get_draw_ground_corners();
+    let angles = v.get_camera_view_angles();
+    assert_eq!(bounds, v.view_frustum().bounds);
+    assert_eq!(corners, v.draw_frustum().ground_points.map(|p| (p.x, p.z)));
+    let calls = rays.calls.load(Ordering::SeqCst);
+    assert!(!v.update_camera_position(None));
+    assert!(!v.is_valid());
+    assert_eq!(v.get_frustum_aabb(), bounds);
+    assert_eq!(v.get_draw_ground_corners(), corners);
+    assert_eq!(v.get_camera_view_angles(), angles);
+    assert_eq!(rays.calls.load(Ordering::SeqCst), calls);
 }
 
 #[test]
@@ -840,6 +872,21 @@ fn draw_full_copy_narrowed_extents_and_integer_centres() {
 
 #[test]
 fn city_helpers_rotation_table_non_square_quirk_and_preserved_invalid_outputs() {
+    let mut v = owner(camera());
+    v.set_city_size(1024.0, 1024.0);
+    let mut corner = Vec3::ZERO;
+    assert!(v.get_city_corner_position(0, &mut corner));
+    assert_eq!(corner, Vec3::new(0.0, 0.0, 1024.0)); // §11.5
+    v.set_city_size(80.0, 48.0);
+    let mut c = camera();
+    c.rotation = 1;
+    assert!(v.update_camera_position(Some(&c)));
+    assert!(v.get_city_corner_position(2, &mut corner));
+    assert_eq!(corner, Vec3::new(80.0, 0.0, 80.0)); // §11.16
+    corner = Vec3::new(9.0, 8.0, 7.0);
+    assert!(!v.get_city_corner_position(99, &mut corner));
+    assert_eq!(corner, Vec3::new(9.0, 0.0, 7.0));
+
     let expected = [
         [(0.0, 512.0), (0.0, 0.0), (1024.0, 0.0), (1024.0, 512.0)],
         [(0.0, 0.0), (1024.0, 0.0), (1024.0, 512.0), (0.0, 512.0)],
@@ -903,6 +950,12 @@ fn clipping_and_block_rounding_contract_vectors_and_invalid_inputs() {
 
 #[test]
 fn bounding_rectangle_uses_selected_corners_and_ties_even() {
+    // Literal §4.4 / §11.18 ties: left subtracts one half before biasing;
+    // right does not. Neither operation is a cast or ordinary floor.
+    assert_eq!(crate::x87::rhe(2.0 - 0.5), 2);
+    assert_eq!(crate::x87::rhe(3.0 - 0.5), 2);
+    assert_eq!(crate::x87::rhe(2.5), 2);
+    assert_eq!(crate::x87::rhe(3.5), 4);
     let mut v = ViewUtilities::new();
     v.cos_negative_yaw = 1.0;
     v.cos_pitch = 1.0;
@@ -1101,6 +1154,39 @@ fn mesh_pick_stops_at_first_closer_triangle_then_can_find_later_improvement() {
     assert!(mesh_pick(&mut p, &mesh, &Transform::default()));
     assert_eq!(p.nearest_distance, 5.0);
     assert!(!mesh_pick(&mut p, &mesh, &Transform::default()));
+}
+
+/// The literal §11.20 vector distinguishes stopping within a mesh from walking
+/// every mesh, in both resource orders, with the prescribed initial bound.
+#[test]
+fn conformance_20_mesh_and_model_order_eight_then_two() {
+    struct Identity;
+    impl ModelInstance for Identity {
+        fn fill_transform(&self, _: usize, t: &mut Transform) {
+            assert_eq!(*t, Transform::default());
+        }
+    }
+    for (depths, expected) in [([8.0, 2.0], 8.0), ([2.0, 8.0], 2.0)] {
+        let mut p = pick();
+        p.nearest_distance = 10.0;
+        assert!(mesh_pick(&mut p, &triangle_mesh(&depths), &Transform::default()));
+        assert_eq!(p.nearest_distance, expected);
+
+        let model = Model {
+            meshes: depths.iter().map(|&z| triangle_mesh(&[z])).collect(),
+        };
+        p.nearest_distance = 10.0;
+        assert!(model_pick(&mut p, &Identity, &model));
+        assert_eq!(p.nearest_distance, 2.0);
+    }
+    let mut mesh = triangle_mesh(&[8.0]);
+    mesh.groups[0].kind = 1;
+    mesh.groups[0].count = 1;
+    assert_eq!(mesh.groups[0].triangle_count(), -1);
+    let mut p = pick();
+    p.nearest_distance = 10.0;
+    assert!(!mesh_pick(&mut p, &mesh, &Transform::default()));
+    assert_eq!(p.nearest_distance, 10.0);
 }
 
 #[test]
