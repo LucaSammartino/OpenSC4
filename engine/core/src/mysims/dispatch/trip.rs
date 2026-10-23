@@ -28,7 +28,6 @@ pub enum TripOutcome {
     Accepted,
     Rejected,
     UnsupportedMs18,
-    UnsupportedMs19,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -108,10 +107,11 @@ impl DispatchLocation {
         self.reserved.1 = deadline as u32;
     }
 
-    /// Literal identity/cell comparison (§4.6.1); see MS19 for mixed
-    /// occupant/cell and neighbour identity precedence, absent from §4.7.1.
+    /// Exact stored identity (§4.7.1, MS19), independent of validity,
+    /// world position and timing. Neither occupant nor locality overrides cells.
     pub fn same_location(&self, other: &Self) -> bool {
-        (self.occupant, self.cell) == (other.occupant, other.cell)
+        (self.in_city, self.occupant, self.by_commute, self.cell, self.neighbor_city)
+            == (other.in_city, other.occupant, other.by_commute, other.cell, other.neighbor_city)
     }
 }
 
@@ -501,10 +501,38 @@ impl MySimDispatch {
             3 => {
                 self.add_destination_location(sim, st.search.home, 4);
             }
-            // TeleportToCommuteLocation is not specified beyond its name (MS19).
-            1 => return TripOutcome::UnsupportedMs19,
+            1 => {
+                self.teleport_to_commute_location(sim);
+                self.add_destination_location(sim, st.search.home, 4);
+            }
             _ => {}
         }
         TripOutcome::Accepted
+    }
+
+    /// §7.2.1: unconditional copy, even for invalid commute locations. Complete
+    /// every state write before synchronous owner callbacks; no arrival/reset.
+    pub fn teleport_to_commute_location(&self, sim: i32) {
+        let notes = self.edit(sim, |st| {
+            if st.travel_type != 0xFE {
+                st.change_counter = st.change_counter.wrapping_add(1);
+            }
+            st.travel_type = 0xFE;
+            st.current = st.search.commute_destination;
+            st.current.set_deadline(st.minutes.wrapping_add(st.current.duration()));
+            st.change_counter = st.change_counter.wrapping_add(1);
+            set_state(&mut st.search, 3)
+        });
+        for note in notes {
+            match note {
+                StateNote::Flags { old, new } => self.notify_owner(sim, super::super::dispatch_note::TRIP_STATE_A, old, new),
+                StateNote::TripState { old, new } => {
+                    self.notify_owner(sim, super::super::dispatch_note::TRIP_STATE_B, old as u32, new as u32)
+                }
+            }
+            // MS19 specifies this increment after each notification attempt,
+            // including when no owner is available.
+            self.edit(sim, |st| st.change_counter = st.change_counter.wrapping_add(1));
+        }
     }
 }

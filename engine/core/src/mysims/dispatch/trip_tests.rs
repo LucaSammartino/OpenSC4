@@ -288,7 +288,7 @@ fn ms17_06_commute_requests() {
     f.d.edit(1, |st| st.search.home = location(1, true));
     f.d.dispatch_commute(1, true, 3, 8);
     assert_eq!(f.d.get_state(1).queue[0].cell.0, 1);
-    assert_eq!(f.d.dispatch_commute(1, true, 1, 8), TripOutcome::UnsupportedMs19);
+    assert_eq!(f.d.dispatch_commute(1, true, 1, 8), TripOutcome::Accepted);
 }
 
 #[test]

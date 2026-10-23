@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Executable mysims.md §12 MS17 specification vectors, not captured traces.
+//! Executable mysims.md §12 dispatch specification vectors, not captured traces.
 //! MySim-owned state/sound handling in vector 06 is outside dispatch closure.
 use fc4_core::mysims::dispatch::{
     scripted::DispatchFixture, DispatchLocation, DispatchRecordRefs, DispatchState, DispatchTuning, TripOutcome,
@@ -69,6 +69,148 @@ fn restore(f: &DispatchFixture, state: &DispatchState) {
         &Foreign::default()
     ));
     f.take();
+}
+
+#[test]
+fn ms19_01_exact_identity() {
+    let a = loc(4, true);
+    let mut b = a;
+    b.world = (f32::NAN, 999.0);
+    b.set_duration(-1);
+    b.set_deadline(99);
+    assert!(a.same_location(&b));
+    let variants = [
+        DispatchLocation { in_city: false, ..a },
+        DispatchLocation { by_commute: true, ..a },
+        DispatchLocation { occupant: Some(77), ..a },
+        DispatchLocation { cell: (5, a.cell.1), ..a },
+        DispatchLocation { cell: (a.cell.0, 5), ..a },
+        DispatchLocation { neighbor_city: (2, -1), ..a },
+        DispatchLocation { neighbor_city: (-1, 2), ..a },
+    ];
+    for b in variants {
+        assert!(!a.same_location(&b));
+        assert!(!b.same_location(&a));
+    }
+}
+
+#[test]
+fn ms19_02_null_and_neighbor() {
+    let a = DispatchLocation {
+        occupant: None,
+        in_city: false,
+        by_commute: true,
+        cell: (4, 5),
+        neighbor_city: (2, 3),
+        ..DispatchLocation::default()
+    };
+    assert!(a.same_location(&a));
+    for b in [
+        DispatchLocation { neighbor_city: (2, 4), ..a },
+        DispatchLocation { by_commute: false, ..a },
+        DispatchLocation { occupant: Some(7), ..a },
+    ] {
+        assert!(!a.same_location(&b));
+    }
+    let b = DispatchLocation { occupant: Some(7), ..a };
+    assert!(!b.same_location(&DispatchLocation { neighbor_city: (2, 4), ..b }));
+}
+
+#[test]
+fn ms19_03_teleport_ordering() {
+    let f = DispatchFixture::new();
+    let mut st = f.d.get_state(1);
+    st.search.state = 2;
+    st.travel_type = 1;
+    st.change_counter = 10;
+    st.minutes = 100;
+    st.current = loc(1, true);
+    st.search.home = loc(2, true);
+    st.destination = loc(3, true);
+    st.search.commute_destination = loc(4, true);
+    st.search.commute_destination.set_duration(7);
+    st.search.commute_destination.set_deadline(999);
+    st.queue.push_back(loc(5, true));
+    st.automata_occupant = Some(123);
+    restore(&f, &st);
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let seen_cb = seen.clone();
+    let weak = Rc::downgrade(&f.d);
+    *f.w.on_notify.borrow_mut() = Some(Rc::new(move |sim, _, _, _| {
+        seen_cb.borrow_mut().push(weak.upgrade().unwrap().get_state(sim));
+    }));
+    f.d.teleport_to_commute_location(1);
+    assert_eq!(f.take(), vec![(1, 0x4BB2D020, 0, 2), (1, 0x4BB2CFC0, 2, 3)]);
+    let got = f.d.get_state(1);
+    assert_eq!((got.search.prev_state, got.search.state, got.travel_type, got.change_counter), (2, 3, 0xFE, 14));
+    let mut expected = st.search.commute_destination;
+    expected.set_deadline(107);
+    assert_eq!(got.current, expected);
+    assert_eq!(got.destination, st.destination);
+    assert_eq!(got.search.home, st.search.home);
+    assert_eq!(got.search.commute_destination, st.search.commute_destination);
+    assert_eq!(got.queue, st.queue);
+    assert_eq!(got.automata_occupant, Some(123));
+    for (i, snapshot) in seen.borrow().iter().enumerate() {
+        assert_eq!(snapshot.current, expected);
+        assert_eq!((snapshot.search.state, snapshot.search.flags, snapshot.travel_type), (3, 2, 0xFE));
+        assert_eq!(snapshot.change_counter, 12 + i as u32);
+    }
+}
+
+#[test]
+fn ms19_04_repeated_invalid_teleport() {
+    let f = DispatchFixture::new();
+    let mut st = f.d.get_state(1);
+    st.search.state = 3;
+    st.search.flags = 2;
+    st.travel_type = 0xFE;
+    st.change_counter = 10;
+    st.minutes = 100;
+    st.search.commute_destination.set_duration(-1);
+    restore(&f, &st);
+    for count in [11, 12] {
+        f.d.teleport_to_commute_location(1);
+        let got = f.d.get_state(1);
+        assert_eq!((got.current.deadline(), got.search.prev_state, got.search.state, got.change_counter), (99, 3, 3, count));
+        assert!(f.take().is_empty());
+        f.w.absent_owners.borrow_mut().push(1);
+    }
+    st.search.state = 2;
+    st.search.flags = 0;
+    st.travel_type = 1;
+    st.minutes = i32::MIN;
+    st.change_counter = u32::MAX - 1;
+    restore(&f, &st);
+    f.d.teleport_to_commute_location(1);
+    let got = f.d.get_state(1);
+    assert_eq!((got.current.deadline(), got.change_counter), (i32::MAX, 2));
+    assert!(f.take().is_empty());
+}
+
+#[test]
+fn ms19_05_state_one_commute_request() {
+    let f = DispatchFixture::new();
+    let mut st = f.d.get_state(1);
+    st.search.state = 3;
+    st.search.flags = 2;
+    st.travel_type = 0xFE;
+    st.minutes = 100;
+    st.change_counter = 10;
+    st.search.home = loc(2, true);
+    st.search.home.set_duration(9);
+    st.search.commute_destination.set_duration(-1);
+    st.queue.push_back(loc(3, true));
+    restore(&f, &st);
+    assert_eq!(f.d.dispatch_commute(1, false, 1, 8), TripOutcome::Rejected);
+    assert_eq!(f.d.get_state(1).queue, st.queue);
+    assert_eq!(f.d.dispatch_commute(1, true, 1, 8), TripOutcome::Accepted);
+    let got = f.d.get_state(1);
+    assert_eq!(got.current.deadline(), 99);
+    assert_eq!(got.search.commute_destination, st.search.commute_destination);
+    assert_eq!(got.change_counter, 11);
+    assert_eq!(got.queue, [st.search.home]);
+    assert!(f.take().is_empty());
 }
 
 #[test]
