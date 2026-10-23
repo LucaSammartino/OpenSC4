@@ -15,7 +15,10 @@ The game uses it for the in-game HTML documents (`cHTMLDocument` resolves links 
 This revision specifies **`cRZURL` completely** (section 2), **`cRZCookieManager` partly** (section 3), and
 the **cGZWWWSystem front end** (section 4, added 2026-10-22 by re-web-largest4). The latter owner's reached
 FTP bodies are included in its inventory but are not automatically covered by the front-end contract.
-Section 5 retains the HTTP-client outline. The dedicated [native transport contracts](network-transport.md)
+Section 5 adds the HTTP-client inventory, progress and notification contract; section 6 adds the
+cache storage/IO contract, and section 7 the command-generator dispatch boundary (re-www-ww5,
+2026-10-23). These are bounded partial contracts; open wire/parser/file questions are explicit.
+The dedicated [native transport contracts](network-transport.md)
 qualify socket/stream/lookup behavior separately; the owner-size row below is not behavior credit.
 No live network request was made.
 
@@ -27,11 +30,11 @@ an implementation must reproduce it for byte-exact parity.
 | Owner | Bytes | Specified here |
 |---|---|---|
 | cGZWWWSystem (includes reached FTP bodies) | 34049 | partial, section 4; body checklist controls credit |
-| cRZHTTPClient | 15133 | no (outline 5) |
+| cRZHTTPClient | 15133 | partial, section 5 and linked lifetime contract |
 | cRZURL | 9498 | **yes, section 2** |
 | cRZCookieManager | 8137 | partly, section 3 (parse, add, lookup, eviction; file format and capacity open) |
-| NetworkFileCache | 6699 | no |
-| cRZNetSocket, cRZNetStreamSocket, cRZNetCommandGenerator, cRZNameLookup | 11671 | no |
+| NetworkFileCache | 6699 | partial, section 6; persistence/admission residuals Q11 |
+| cRZNetSocket, cRZNetStreamSocket, cRZNetCommandGenerator, cRZNameLookup | 11671 | transport contract linked; command-generator boundary section 7 |
 | HTTPMessage | 957 | no |
 
 ## 2. cRZURL — URL parser and resolver
@@ -329,7 +332,7 @@ First drop expired records (helper 008f9a07, returns the count removed *[inferre
 removed and records remain, remove the record with the smallest expiry, counting a session cookie (2) as expiring
 now *[inferred from the selection loop; the removal step was not re-read]*.
 
-### 3.6 Persistence and settings (persistence not specified)
+### 3.6 Persistence and settings (bounded persistence contract)
 
 WriteCookieDataFile / ReadCookieDataFile store records as `CookieData%05u` entries under a `CookieData` key with
 `Binary` and `Admin` settings (strings at 00accca4, 00accdc0, 00a86de8, 00accdb0); SetShouldEncryptCookieDataFile
@@ -341,6 +344,57 @@ attempts the persistence read only when the record container is empty, then sets
 true without testing that read's result (008f6a7c–008f6a99). The eviction trigger in section 3.3 therefore
 uses this constructor default unless a separate caller changes the setting. This does not specify the
 file loader's capacity handling or record format.
+
+Further lifecycle and persistence facts (re-www-ww5, 2026-10-23), *[compat]*:
+
+- Constructor `008f9bad–008f9bec`: initialized=false (+4), reference count=0 (+8), binary
+  selection=false (+0xc), capacity=16384 (+0x10), critical section +0x14, empty cookie vector
+  +0x1c..+0x24, and path +0x28 constructed from global pointer `00b16134`. That pointer's literal
+  remains unqualified here. Shutdown `008f9dda` writes then clears records and initialized only
+  when initialized; returns true. EnumCookies `008f8bc7` copies the first min(requested count,
+  stored count) records in store order, writes that count back and returns true under the lock.
+- Writer `008f7784` takes the manager lock and calls ClearCookieDataFile first, including for
+  an empty store. It writes only records whose expiration is **unsigned greater than now**:
+  session sentinel 2 is therefore normally omitted. Surviving entries are numbered densely
+  from `CookieData00000`, independent of their old indices (`008f7880–008f78a5`). Plain mode
+  writes the stored cookie text through the string conversion, rather than serializing the
+  in-memory 0x94-byte record. Binary mode writes an `Admin`/`Binary` marker, then passes text
+  through helper `008f7752` to WriteBinaryEntry. No secure encryption algorithm has been
+  established: that helper contains string-copy/assignment calls, not an established cipher.
+- Reader `008f9e2b` clears all stored records before checking file existence. A missing file
+  therefore leaves an empty store and still returns true. Presence of an `Admin`/`Binary`
+  entry selects binary reads; the read's success boolean selects the mode, not a parsed
+  boolean value of its text. Otherwise use ordinary string reads. Read sequential
+  `CookieData%05u` names, indices 0..9999 inclusive, stopping at the first failed string read
+  or zero-length binary read. Binary reads use a 16384-byte scratch buffer and the same
+  helper `008f7752`. Each obtained text is admitted through AddCookie(text, null URL), with
+  its return value ignored (`008f9ef8–008f9f86`). Read returns true after cleanup, not a count
+  of successfully accepted records. These are text re-admissions: do not restore raw pointers,
+  locks or absolute record layouts from disk. Exact encoding and helper semantics remain Q3.
+
+### 3.7 Cookie-manager dispatch inventory and distinguishing vectors
+
+Table `00accf68`, zero-based slots, address facts from the export:
+
+| Slots | Methods (entries in the same order) |
+|---|---|
+| 0–4 | destructor `008fa2fb`; Init `008f6a7c`; Shutdown `008f9dda`; AddRef `008f67a7`; Release `008f67ce` |
+| 5–7 | SetShouldEncryptCookieDataFile `008f6809`; GetCookieDataFilePath `008f807b`; SetCookieDataFilePath `008f80aa` |
+| 8–10 | AddCookie record `008fa054`; AddCookie text `008f8b5a`; RemoveAllCookies `008f9dfd` |
+| 11–14 | GetCookieTextForURL parsed URL `008f7507`; string URL `008f71ff`; EnumCookies `008f8bc7`; ParseCookieText `008f94f9` |
+| 15–19 | GetCookieDataForURL parsed URL `008f8947`; string URL `008f7240`; ClearCookieDataFile `008f683f`; ReadCookieDataFile `008f9e2b`; WriteCookieDataFile `008f7784` |
+
+The cookie store has no drawing or socket callback interface; it synchronously supplies text/data
+to WWW/HTTP and persists through INI IO. Proposed/unexecuted vectors:
+
+| ID | Fixture | Required outcome |
+|---|---|---|
+| CK01 | Existing records; ReadCookieDataFile on nonexistent path | true, records empty |
+| CK02 | Writer at now=100; expiries 2, 100, 101 | only expiry 101 is emitted, as CookieData00000 |
+| CK03 | Reader entries 00000 present, 00001 absent, 00002 present | attempts admission only for 00000; stops at gap |
+| CK04 | Three records; enumeration request count=2 | first two copied; count=2, true |
+| CK05 | Three records; enumeration request count=5 | first three copied; count=3, true |
+| CK06 | Empty store; WriteCookieDataFile | clear-file operation still occurs; true |
 
 ## 4. cGZWWWSystem — front end and owned helper boundary
 
@@ -842,7 +896,314 @@ thread activation and existing objects, not a live HTTP endpoint:
 | Unknown cancellation ID | False after unlock, without notification |
 | Request count 2 versus 1 on 00817790 | Return 1 without destruction versus deleting destructor and return 0 |
 
-## 5. cRZHTTPClient (15133 B; outline only)
+## 5. cRZHTTPClient — bounded client contract
 
 HTTP/1.x client jobs, TimeStringToSeconds (HTTP dates), DoJobFinalization (resolves redirects with
 cRZURL::ChangeURL), cookie send and receive through 3.3 and 3.4, disk cache through NetworkFileCache.
+
+### 5.1 Inventory, construction and ownership boundaries
+
+The constructor/lifetime, completion, cancellation and shutdown contracts are in
+[HTTP lifetime](web-network-http-lifetime.md), sections 1–3. Submission, queue-record copying,
+method mapping and request ownership are in section 4.14 above. These are the same reached
+HTTP objects, not a second independent WWW implementation. The raw table `00abfca8` is
+mislabelled as a particle simulator by the export: its six entries are slot 0 `00811cb0`,
+1 `004bdf00` (folded AddRef), 2 `0048c920` (folded Release), 3 `0081d030`,
+4 `008179f0` (Init association), 5 `0081cd40` (shutdown). Only the linked contract's
+qualified effects may be inferred from these entries; names alone do not qualify slots 0/3.
+
+Named nonvirtual inventory:
+
+| Entry | Method / role | Qualified behavior |
+|---|---|---|
+| `00817d80` | TimeToSeconds | conversion boundary below |
+| `00817df0` | WeekdayStringToInteger | date helper; full input contract remains Q13 |
+| `00817ed0` | SendNotification | section 5.2 |
+| `00818020` | DoJobUpdate | section 5.3 |
+| `00818490`, `00818680`, `00818bd0` | GetDateTypeFromString, ParseDateTimeString, TimeStringToSeconds | date parsing residual Q13 |
+| `008196e0` | DoJobCompletion | linked HTTP lifetime section 2 |
+| `00819800` | ReadMessage | body framing/spill residual Q13 |
+| `0081a470` | DoJobFinalization | residual Q13 |
+| `0081ba80`, `0081c9b0` | WorkerThreadFunction, static wrapper | bounded stop/completion/exit ordering in linked HTTP lifetime |
+
+Constructor defaults include timeout=15, suffix `.tmp`, null target and worker, empty request
+queue and an allocated-or-null lookup helper; exact native offsets and remaining defaults are
+in the linked lifetime section 1. It does not connect or start work. No drawing occurs here:
+the HTML owner consumes resources/results through WWW. The HTTP client exposes IO and synchronous
+notification payloads; drawing/layout belongs to HTML specs.
+
+TimeToSeconds takes weekday/day/month/year/yearday/hour/minute/second, creates runtime calendar
+fields with month/year offsets -1/-1900, weekday/yearday offsets -1, **tm_isdst=1**, and returns
+32-bit mktime result minus the global word at `00b18ba8` (`00817d80–00817de5`). Do not replace
+this with an unconditional UTC conversion: the runtime timezone and global adjustment are
+dependencies, still Q13. TimeStringToSeconds returns zero on parser failure (`00818bd0`).
+
+### 5.2 Notifications are synchronous borrowed-payload calls
+
+*[compat]* SendNotification(type, object, payload-word-2, payload-word-3) does nothing when
+the client's target +0x10 is null. Otherwise temporarily AddRef the non-null object, create and
+retain a standard message, assign type through message slot +0x14, object through +0x30,
+second payload through +0x44 and third through +0x58. Call the target's DoMessage at +0xc
+synchronously, Release the message, then Release the object (`00817ed0–00817f57`). No message
+server queue or target AddRef is introduced here. Allocation failure has no recoverable contract.
+The last two payload words are not independently retained; a pointer to a local progress tuple
+is valid only during delivery. Completion's resources remain retained until after delivery as
+specified by the linked lifetime contract.
+
+### 5.3 Progress calculation and threshold
+
+DoJobUpdate(job, received, expected, previous-percent-pointer) returns false without delivery
+unless target exists and **signed expected >2048**. Expected `0x7fffffff` means unknown length:
+report expected=0 and percent=50. Otherwise percent is unsigned division of the low 32 bits
+of received*100 by expected, capped at 100. Notify only if **unsigned (percent-previous) >=10**.
+This subtraction wraps: a falling percent can pass the threshold. On delivery, send type
+`0x789af323`, object=client, second payload=pointer to three 32-bit words
+[received, normalized-expected, percent], third payload=job; then write percent to previous
+and return true. A false return leaves previous untouched. Evidence: `00818020–008180b3`;
+IMUL/DIV at `00818058–0081805d`, unsigned threshold at `00818075–0081807a`.
+
+### 5.4 Independent vectors (PROPOSED / UNEXECUTED)
+
+| ID | Input | Required outcome |
+|---|---|---|
+| HTTP01 | expected=2048, target present | false, no callback, previous unchanged |
+| HTTP02 | received=1000, expected=10000, previous=0 | callback [1000,10000,10]; previous=10; true |
+| HTTP03 | received=1900, expected=10000, previous=10 | percent=19, false; previous=10 |
+| HTTP04 | received=2000, expected=10000, previous=10 | callback percent=20; previous=20 |
+| HTTP05 | expected=2147483647, received=123, previous=0 | callback [123,0,50] |
+| HTTP06 | received=1000, expected=10000, previous=90 | wrapped delta passes; callback percent=10 |
+| HTTP07 | received=42949673, expected=10000, previous=0 | multiplication wraps to 4; percent=0; false |
+| HTTP08 | target null; arbitrary valid notification arguments | no message allocation or temporary object hold |
+| HTTP09 | notification with non-null object and target | object AddRef; message delivery; message Release; object Release in that order |
+
+These vectors qualify helper behavior, not an entire HTTP transaction. Redirect limits,
+wire request generation, informational replies, chunk extensions/trailers, connection-close
+framing, body spill failures and finalization remain Q13. Do not silently substitute a browser's
+HTTP policy or claim full-client conformance from progress/lifetime tests.
+
+## 6. NetworkFileCache — storage and IO contract
+
+Added 2026-10-23, re-www-ww5. *[compat]* applies to the contracts below. Evidence is the
+Windows export, with numeric branches checked against instructions. There is no drawing interface:
+this owner exchanges strings, byte buffers and file paths. WWW's admission/cache policy remains
+in sections 4.6 and 4.12; the cache itself does not interpret HTTP headers. No live IO was run.
+
+### 6.1 Dispatch inventory and construction
+
+Native table `00acd418`, zero-based slots; each group below lists successive slots in order.
+These are interface facts, not a claim that every helper's behavior is settled.
+
+| Slots | Methods (entry addresses in the same order) |
+|---|---|
+| 0–4 | deleting destructor `008fd750`; Init `008fdde8`; Shutdown `008fd3d9`; AddRef `0094c4b1`; Release `008fc3ef` |
+| 5–8 | GetCacheDirectory `008fcc18`; SetCacheDirectory `008fcc2a`; GetCacheIniFileName `008fcc87`; SetCacheIniFileName `008fcc99` |
+| 9–11 | SetRAMCacheSize `00945edc`; SetFileCacheSize `00945ed0`; SetDefaultExpirationTime `0096c3cb` |
+| 12–14 | IsCachedDataPresent `008fd0dc`; IsCachedDataPresentAsRAMData `008fd145`; IsCachedDataPresentAsFileData `008fd1b4` |
+| 15–18 | GetCachedDataAsData `008fd3f6`; GetCachedDataAsFile `008fd5b0`; GetCachedFileInfo borrowed-pointer overload `008fc5b3`; copying overload `008fd227` |
+| 19–22 | ForceCachedDataIntoFile `008fc613`; GetCachedDataSize `008fc405`; GetTimeCreated `008fc426`; GetTimeNow `008fc447` |
+| 23–25 | AddNewCachedData bytes `008fd998`; AddNewCachedData source-file `008fd76c`; RemoveCachedData `008fd69c` |
+| 26–27 | GetNewCacheFileName `008fcd49`; GetNewCacheFilePath `008fceeb` |
+
+Nonvirtual support: RemoveCachedFile `008fc669`, RemoveUnusedCachedFiles `008fc6e0`,
+WriteDataToFile `008fc7d7`, GetFileLength `008fc887`, UpdateCacheIniFile `008fc9b1`,
+DoPeriodicCacheMaintenance `008fd258`, ClearCacheMap `008fd2cc`, IniFileCallbackFunction
+`008fdb0d`, ReadCacheIniFile `008fdd39`; constructor `008fd389`.
+
+Constructor defaults (`008fd38c–008fd3d5`): initialized=false (+4), reference count=0 (+8),
+empty directory string (+0xc), INI-name string (+0x20) from global pointer `00b16144`,
+empty map (+0x34), file-size setting=3,000,000 (+0x48), RAM-size setting=500,000 (+0x4c),
+default lifetime=432,000 seconds (+0x50), two operation counters=0 (+0x54/+0x58).
+The INI name's pointed-to literal is not qualified here. Setters for the three numeric settings
+store their entire 32-bit argument and return true; they perform no immediate trim, validation
+or IO (`00945ed0`, `00945edc`, `0096c3cb`). No capacity-enforcement promise follows from their names.
+
+### 6.2 Lifecycle and path settings
+
+Init is idempotent. On its first call, an empty directory is replaced by the temporary directory
+plus `Maxis Network Cache\`. It checks directory existence and attempts creation if absent,
+reads the INI, removes unused cache files, sets initialized and returns true. It ignores creation
+and read failures (`008fdde8–008fde3e`). Shutdown, only when initialized, writes the INI,
+clears the map and clears initialized; it returns true (`008fd3d9`). Thus a true lifecycle result
+does not certify a successful disk operation. No thread, callback or asynchronous message is
+created by these entries.
+
+SetCacheDirectory assigns before validation: empty returns false, leaving the empty assignment.
+A nonempty path gets a trailing backslash unless its last byte is already a path separator;
+an existing directory succeeds, otherwise return the directory-creation result. Failure does
+not restore the old directory (`008fcc2a–008fcc86`). SetCacheIniFileName first checks/removes the
+old directory+INI-name file, assigns the new name and returns true (`008fcc99`). It does not
+rename the old file or migrate cached records. Directory and INI getters return their stored strings.
+
+### 6.3 Entries, expiration and reads
+
+An entry has a key, relative filename string, optional reference-counted RAM data, byte length,
+an unsigned byte-derived attribute, lifetime, creation time, last-access time and expiration time.
+Relative to the info record these are filename +0, RAM holder +0x14, length +0x18,
+attribute +0x1c, lifetime +0x20, creation +0x24, access +0x28, expiration +0x2c.
+Offsets are interoperability facts for the borrowed/copy info methods, not a portable layout mandate.
+RAM holders contain buffer pointer +0, size +4, 16-bit reference count +8.
+
+Presence/read methods look up the key. A missing entry returns false. A found entry is live only
+when **signed 32-bit now < signed expiration**; equality is expired. On expiration they release
+the map's RAM hold, attempt to remove its file and erase the entry, returning false
+(`008fd10a–008fd133`, `008fd3f6`, `008fd5ef–008fd61b`). PresenceAsRAM additionally requires a
+non-null holder; PresenceAsFile requires a nonempty stored filename. Neither tests disk existence.
+Info getters do not perform this expiration test: borrowed lookup returns the entry address on
+success; copying lookup assigns its contents. Size/time getters use the info lookup and return
+zero on absence (`008fc405`, `008fc426`, `008fc5b3`, `008fd227`).
+
+GetCachedDataAsData(key, optional output-holder-pointer) returns true for a live record with no
+output requested, without loading its file. With an output requested, an existing RAM holder is
+retained (16-bit count increment) and returned. Otherwise read directory+filename, obtaining length
+from the file, allocate a holder and buffer and read that many bytes. Successful loading installs
+the RAM holder in the entry and gives the caller a second hold. Open failure, zero length or read
+failure removes the file and erases the entry; false leaves the caller's output untouched.
+Successful calls update last-access to the sampled now (`008fd3f6–008fd5af`). Allocation failure
+and oversized/refcount-overflow inputs have no qualified recoverable contract.
+
+GetCachedDataAsFile(key, optional output-path) differs: materialization is attempted **only when
+an output path is supplied**, the record has RAM and its filename is empty. Generate/reserve a
+filename and write the RAM bytes. A write failure clears that filename. The output is always
+assigned directory+the resulting filename for a live record; failure can therefore leave the
+directory alone in output. Update access time even if materialization failed, then return whether
+the filename is nonempty. With null output, do not generate or write: report existing filename
+state and update access (`008fd629–008fd698`). ForceCachedDataIntoFile uses a temporary output
+string and returns this same result (`008fc613`).
+
+### 6.4 Adding bytes, removal and maintenance
+
+AddNewCachedData(key, bytes, size, copy, attribute-byte, lifetime) rejects an empty key before
+changing counters or old entries. For a nonempty key, increment both counters and run periodic
+maintenance when the second is **unsigned >40**. Remove any old same-key record and file **before**
+testing bytes/size. Null bytes or zero size then returns false: this is destructive replacement,
+not a no-op (`008fd998–008fda27`).
+
+For non-null, nonempty data, create a holder. With copy=true allocate/copy the bytes; otherwise
+store the passed buffer pointer. Do not treat the latter as a const borrowed slice with automatic
+caller ownership: native holder destruction/allocator compatibility must be supplied by the
+adapter (Q11). Attribute is zero-extended from one byte. Lifetime=-1 selects the manager default;
+after substitution, any negative lifetime gives expiration `0x7fffffff`; otherwise expiration is
+32-bit now+lifetime, with creation=access=now. No saturation is performed
+(`008fda4b–008fda8d`). Insert the new entry and return true. Failed allocations are outside the
+qualified domain, rather than a promised false return.
+
+Data and file retrieval increment the same two counters before lookup, including misses.
+Periodic maintenance resets only +0x58 and erases expired entries with release/file cleanup.
+**Its comparison is unsigned now < expiration** (`008fd27f–008fd287`), unlike individual reads.
+For ordinary pre-2038 positive times the tests agree; sign-bit-set timestamps must preserve
+this distinction. No size-based eviction was established by this maintenance body.
+RemoveCachedData erases a matching record with RAM release and attempted file removal and
+returns true even on absence (`008fd69c`). File removal helper returns false for an empty
+filename, otherwise attempts deletion and returns true regardless of deletion success (`008fc669`).
+
+Persistence inventory: writer `008fc9b1` rebuilds section `Cache Entries` with sequential
+`CacheEntry%05u` keys. Its value format is `%s,%s,%u,%u,%u,%d,%d,%d`: key, filename,
+length, attribute, lifetime, creation, access, expiration. It attempts to materialize RAM-only
+entries first and omits those still lacking filenames. Writer returns true without aggregating
+individual write failures. Delimiter escaping, loader acceptance, source-file admission and
+filename allocation/collision behavior remain Q11; do not assume a CSV library or an LRU policy.
+
+### 6.5 Independent conformance vectors (PROPOSED / UNEXECUTED)
+
+Fixtures supply valid records and deterministic clock/file replies; these are spec vectors, not
+game observations. AL is the boolean channel; upper return bits are not asserted.
+
+| ID | Input / setup | Required outcome |
+|---|---|---|
+| NFC01 | Live RAM record, expiry=101, now=100; data output null | true; no file read; access=100 |
+| NFC02 | Same, now=101 | false; RAM released, file removal attempted if named, map entry erased |
+| NFC03 | Existing key K; add K with null bytes and size=10 | false; old K removed before rejection |
+| NFC04 | Existing K; add empty key with valid bytes | false; K and counters unchanged |
+| NFC05 | Add bytes at now=100 with lifetime=-1 and default=432000 | creation=access=100; expiry=432100 |
+| NFC06 | Add bytes with lifetime=-2 | expiry=2147483647 |
+| NFC07 | Live RAM-only K; file retrieval with null output | false; no filename reservation/write; access updated |
+| NFC08 | Live RAM-only K; output supplied; reserve succeeds, write fails | false; stored filename empty; output equals directory; access updated |
+| NFC09 | Counters +0x54=9, +0x58=40; data miss | +0x54=10; maintenance runs and resets +0x58=0; false |
+| NFC10 | now=`80000000`, expiry=`7fffffff` | individual presence sees live; periodic maintenance removes the same record |
+| NFC11 | Set directory to empty | false; stored directory remains empty |
+| NFC12 | Init; create-directory and INI-read both fail | initialized=true, result=true; second Init makes no retry |
+
+## 7. cRZNetSocket and cRZNetCommandGenerator
+
+### 7.1 Native socket contract and exclusions
+
+Use [native transport](network-transport.md) sections 2–3 for construction, close/bind/connect,
+stream state and transfers; sections 5–6 for error translation/readiness/available-byte count;
+section 9 for the per-body inventory, interface slots and unsupported methods. Those sections
+also hold the independent proposed socket vectors. This spec adds no second interpretation of
+the socket owner or transport errors. In particular, normal success need not clear stale errors,
+and shutdown/close state mutation may precede a failing raw OS call. Name lookup has its own
+bounded queue/cache/ownership contract in that document's section 7.
+
+### 7.2 Command-generator inventory, state and messages
+
+*[compat]* Native primary table `00ac0130`, slots 0–6: QueryInterface `0081e800`, folded
+AddRef `004664a0`, Release `0081e860`, Init `0081ea30`, Shutdown `0081e8c0`, destructor
+`0081e9e0`, FinalRelease `0081e880`. Secondary message-target table `00ac0120` at object+4;
+DoMessage entry `0081f450` receives that adjusted pointer and subtracts four before calling
+owner helpers. QI accepts IDs 1, `2bbda365`, `2bbda368` returning the primary pointer;
+ID `452294aa` returns object+4. Successful QI AddRefs the primary object; failure returns
+false without clearing the caller's output (`0081e800–0081e85b`). Null/invalid objects are outside
+the domain.
+
+Nonvirtual inventory: constructor `0081e990`, PostIdleMessageToSelf `0081e930`, ExecuteCommand
+`0081eb30`, DecodeHTTPCommandLine `0081ebd0`, ReadCommandInput `0081ef00`, WriteCommandOutput
+`0081f180`, CheckForCommands `0081f320`. Constructor initializes active byte +8=false,
+reference count +0xc=0, embedded stream socket +0x10, timer +0x70 with mode 4,
+message-server pointer +0x88=null (`0081e990–0081e9d1`). It performs no drawing or command
+execution. The socket constructor/state contract is the linked transport contract.
+
+Init sets active before trying socket creation. On socket-create success it prepares an address
+from constants `0xc364` with byte swap and zero host argument, attempts bind, and on bind
+success calls Listen(5) (`0081ea41–0081ea98`). The address/port interpretation is Q12; do not
+confuse swapped register contents with a host-order port literal. It starts the timer, acquires
+message-server service class `04fa845b` / IID `652294c7` when absent, subscribes object+4 to
+message `0bbd947b`, and posts that message. Returns true even after socket/bind/listen failure;
+active remains set, so another Init makes no retry until Shutdown.
+
+PostIdleMessageToSelf does nothing without a message server. Otherwise create/retain a standard
+message, set type `0bbd947b`, post through server slot +0x10 with flag 0, and Release it
+(`0081e930`). Allocation failure is outside the qualified domain.
+DoMessage always returns true. An unrelated type causes no timer/poll/repost action. For
+`0bbd947b`, poll only if unsigned timer elapsed **>250** (250 itself does not poll); restart
+the timer before CheckForCommands. Then repost the idle message whether or not polling ran
+(`0081f450–0081f492`). Timer units are supplied by the timer dependency; no extra sleep is implied.
+
+Shutdown, only if active, clears active, unsubscribes the adjusted target and Releases/nulls
+the message-server hold. Only if listener stream-state==3 does it call socket slot +0xec,
+Shutdown(2), then Close. Returns true; it does not wait for pending idle messages (`0081e8c0`).
+The shown DoMessage body itself does not test active, so callers must not assume late messages
+are rejected by that flag.
+
+### 7.3 Accepted-command IO boundary and failures
+
+CheckForCommands requires listener state 3 and read readiness with timeout=0. It constructs a
+temporary stream socket and calls listener Accept(temp, accepted-byte-output). Only a true
+return **and** nonzero accepted byte enter the command path. It sets send and receive timeouts
+to 5000, reads command input, and if reading succeeds executes and writes the result. It then
+Shutdown(2)/Closes the accepted socket. At most one accept is attempted per poll; there is no
+drain-until-empty loop (`0081f320–0081f406`). The export pseudocode deletes this branch as
+unreachable; the instruction branch at `0081f36f–0081f383` is the evidence for this contract.
+
+DecodeHTTPCommandLine starts after the first `=` if any, otherwise at the start; appends decoded
+text to the existing output, converts `+` to space and valid two-digit percent escapes to a byte,
+then trims the resulting output (`0081ebd0`). It does not split `&` parameters. Malformed/truncated
+escapes and the request-line/body grammar remain Q12, as do ExecuteCommand's service-result
+mapping and WriteCommandOutput's exact concatenation. Output transmission calls stream slot
++0x10c repeatedly, advances by the returned byte count and ignores the boolean result
+(`0081f180`); zero progress has no proven terminating failure path. A replacement must not claim
+this owner guarantees completion after a failed send.
+
+### 7.4 Independent dispatch vectors (PROPOSED / UNEXECUTED)
+
+| ID | Fixture | Required outcome |
+|---|---|---|
+| CMD01 | Unrelated message type | true; no poll/repost |
+| CMD02 | Idle message; elapsed=250 | true; repost, no restart/poll |
+| CMD03 | Idle message; elapsed=251 | restart, one poll, repost; true |
+| CMD04 | Init; socket creation fails | true and active set; second Init does not retry |
+| CMD05 | Listener state !=3 | poll does not check readiness or accept |
+| CMD06 | Accept returns true but accepted byte=0 | no read/execute/write |
+| CMD07 | Valid accepted connection; ReadCommandInput false | no execute/write; shutdown(2), close |
+| CMD08 | Decoder input `cmd=hello+world%21`, empty output | `hello world!` |
+| CMD09 | Decoder input `a=b&c=d`, empty output | `b&c=d` |
