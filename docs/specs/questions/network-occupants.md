@@ -164,3 +164,31 @@ implementer of the class tables and records.
   given B0 is also the connection vector end? Which reference uses which of the two class-ID IIDs,
   and what happens on failed reads? No pole record codec is fabricated. [missing; section 4.4,
   section 11 quirk 11 and section 13 test 16 remain open]
+
+  NO35 refinement: section 3.4 does define helper `0x006574A0` as a u32 count and
+  24-byte quad vertices, so that part can reuse the existing wall codec. The
+  wire-point nesting/counts and inconsistent live/record offsets still need clarification.
+
+<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
+- **NO36 - sections 6.1-6.2 pylon owner algorithms:** please publish constructor defaults beyond the
+  named matrices; SetUIState, SetBitmapInfo, dispatch type/state, SetSourceOccupant and SetPylonOwner
+  side effects; bounds/transform/position/pick; DoAnimationTick, SetVisibility, DoMessage, Draw and sort;
+  BuildMySimTexture, RebuildCurrentTexture, BuildCallNumberTexture and RebuildModel algorithms. Also
+  supply both PackRenderState descriptions and the renderer slot-0x28 result interpretation. The spec
+  names these members without behavior. The core implements only explicit lifecycle subscriptions,
+  call/drag storage and the record, with no host callbacks standing in for these owner methods.
+  [missing; sections 6.1-6.2 remain open]
+
+<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
+- **NO37 - sections 6.1-6.3 pylon offsets, Read and placement:** the record calls +5C and +70
+  transforms but also names their interior +60/+64/+68 as separate bytes and +74 as a call number.
+  How do these map to live state? Does v3 use legacy decoding for both transforms? Which IIDs are
+  requested for the two refs, what are absent-v5 tail defaults, and when is the old +6C source released
+  on Read failure? Shutdown says release +78 while the source is +6C: same resource or distinct?
+  What are the exact state bits and manager/renderer calls for PlaceInOccupantManager and PlaceInRenderer,
+  and what is the IsInitialized branch/return for repeat Init? Current literal implementation keeps
+  serialized state separate, uses legacy for both transforms, preserves absent tail state, reads generic
+  serializable refs, releases old source immediately before the replacement read, skips repeated Init,
+  and removes an inserted occupant through city-handle/manager primitives before the three unsubscriptions.
+  No unspecified renderer calls/flag masks are invented. [ambiguous; sections 6.1-6.3, conformance 19/20
+  have executable partial coverage but no whole-owner closure]

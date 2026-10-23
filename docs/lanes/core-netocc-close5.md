@@ -11,7 +11,11 @@
 - Spec names members without algorithms; pole layout aliases conflict with record offsets. Do not invent rendering/connection algorithms.
 - Pole milestone: explicit state/init contracts and signed static-word cost implemented; 3 focused tests PASS (q/20261023-122856-29052.log). First compile failed on private codec import; corrected to public re-export, failure preserved q/20261023-122714-37508.log.
 - Filed NO33-NO35: missing pole algorithms/table coordinates; missing exemplar-to-cost formula; conflicting/incomplete record layout. Pole owner remains open (sections 4.1-4.4).
-- Next: pylon record/lifecycle tests and spec questions; connection if budget remains. pylon.rs draft is not yet included in mod.rs.
+- Pole implementation milestone committed 0b6285c2.
+- Pylon: raw v5/v3-v4 record, published lifecycle and call/drag state; 6 focused tests PASS (q/20261023-123534-20004.log). Failed test fixture without SaveRegistry preserved q/20261023-123414-30300.log; corrected fixture uses reference registry.
+- Connection: seven-wall raw record, hidden triangles, published subscriptions and shutdown; 2 focused tests PASS (q/20261023-123947-13068.log).
+- Filed NO36-NO37 and UG5 for missing pylon and connection behavior. New closures: zero; model remains 1/8 overall. Per-section README tables now distinguish implemented contracts from open sections.
+- Next: explicit-file fmt, commit stable source, qbuild all exactly once, collect same operation to terminal result; report/queue wip with remaining sections.
 - No game requests or asynchronous build outstanding. Core only; ABI unchanged.
 - Final gate: qbuild all once on stable source. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-netocc-close5-r2-manifest.json.
 

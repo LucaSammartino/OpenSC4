@@ -8,14 +8,18 @@
 //!   usable message, `Init`/`Shutdown`, path connections, orientation, the
 //!   occupied cell). Not the §2.3 record, the geometry or the drawing.
 //! - [`power_line`]: §5, `cSC4PowerLineOccupant` slots and its v2 record.
-//! - [`power_pole`]: §4.3, the pole's static control variables only.
+//! - [`power_pole`]: published §4 state, controls, static-word cost and Init
+//!   state prefix; full owner remains open (NO33-NO35).
+//! - [`pylon`]: §6 record, call/drag state, published lifecycle (NO36-NO37).
+//! - [`connection`]: §3.6 record, hidden triangles and Shutdown (UG1/UG5).
 //!
 //! - [`record`], [`xform`]: the §2.3 base record v4-v8 and the transform.
 //! - [`underground`]: §3.2 behaviour and the §3.3-§3.5 records.
 //! - [`model`]: §10, `cSC4NetworkOccupantModelInstance` (deform, passes, fallback).
 //!
-//! Not here: the underground connection occupants (§3.6), the pole object (§4.1–§4.4), the
-//! pylon (§6), the type-info tables (§8), and routines other than the
+//! Not complete: connection creation/model geometry (§3.6), pole (§4), pylon
+//! (§6); see the module README's per-section owner audit. Also not here: the
+//! type-info tables (§8), and routines other than the
 //! ordinary placement-demolition helper in [`placement_demolition`].
 
 pub mod identity;
@@ -53,3 +57,13 @@ mod tests_placement_demolition;
 
 #[cfg(test)]
 mod tests_power_pole;
+
+pub mod pylon;
+
+#[cfg(test)]
+mod tests_pylon;
+
+pub mod connection;
+
+#[cfg(test)]
+mod tests_connection;
