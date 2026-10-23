@@ -134,7 +134,7 @@ generated index: the questions live one file per spec, so read only the file for
 | PT | particles |
 | PV | prop-developer |
 | PW | power |
-| Q | network-transport |
+| Q | network-transport, web-network |
 | QR | region-screen |
 | QV | map-view |
 | RB | rigid-body-2d |
@@ -195,7 +195,7 @@ generated index: the questions live one file per spec, so read only the file for
 
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
-| advisors | 0 | 18 | AD19 | questions/advisors.md |
+| advisors | 0 | 19 | AD20 | questions/advisors.md |
 | aircraft | 5 | 3 | AF9 | questions/aircraft.md |
 | animated-sprite | 5 | 6 | AS12 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
@@ -305,7 +305,7 @@ generated index: the questions live one file per spec, so read only the file for
 | pollution | 0 | 16 | PG17 | - |
 | port-developers | 0 | 12 | PD13 | questions/port-developers.md |
 | power | 0 | 12 | CR2, PW12 | - |
-| prop-developer | 0 | 14 | GLUE22, PV14 | - |
+| prop-developer | 0 | 15 | GLUE22, PV15 | questions/prop-developer.md |
 | prop-lotconfig | 8 | 8 | PL24 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
@@ -329,7 +329,7 @@ generated index: the questions live one file per spec, so read only the file for
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
 | rz-strings | 6 | 0 | RZS7 | questions/rz-strings.md |
 | sc-resources | 0 | 7 | SCR8 | questions/sc-resources.md |
-| simgrid | 2 | 0 | SG3 | questions/simgrid.md |
+| simgrid | 2 | 1 | SG4 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
 | sound-system | 12 | 0 | SS13 | questions/sound-system.md |
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
@@ -359,11 +359,11 @@ generated index: the questions live one file per spec, so read only the file for
 | view3d-window | 0 | 18 | VW19 | questions/view3d-window.md |
 | water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
 | watercraft | 3 | 5 | WC9 | questions/watercraft.md |
-| web-network | 0 | 0 | - | questions/web-network.md |
+| web-network | 1 | 0 | Q16 | questions/web-network.md |
 | widget-controls | 0 | 0 | - | questions/widget-controls.md |
 | widget-toolkit | 8 | 1 | WT10 | questions/widget-toolkit.md |
 | win-filebrowser | 5 | 1 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **585** | **1394** | | |
+| **total** | **586** | **1397** | | |

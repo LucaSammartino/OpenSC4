@@ -1,12 +1,15 @@
 //! Portable partial WWW/FTP owner, from `docs/specs/web-network*.md` only.
 //!
-//! No native glue, default replacement, cookie implementation or HTTP transport.
+//! No native glue, default replacement or HTTP transport.
 //! `Unsupported` is a contract boundary, never a native false return. Reference
 //! effects are explicit: dropping Rust storage must not silently balance native leaks.
 
+pub mod cache;
+pub mod cookies;
 pub mod ftp;
 pub mod http;
 pub mod listing;
+pub mod notification;
 pub mod service;
 pub mod worker;
 

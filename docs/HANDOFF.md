@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 333 (Seven lanes landed after bisecting out the netocc shadow; effects parser commands claimed; resumes no longer blocked by the unmerged cap (run 5).); 330 (Application directors claimed; sound, gdriver, vehicles, advisors and graphics work landed; traffic shadow back to exact (run 5).); 329 (Network manager shadow exact without resyncs; view3dwin, city-tools and effects questions answered; lot editor spec mapped (run 5).); 328 (netmgr-exact5 strict shadow, 73/73 exact, 0 resyncs, lists as run 323); 326 (advisor record shadow, clean game but 0/73 exact; AD17/AD18 block verification). See `docs/manual-checks.md`.
+- **Latest in-game run:** 335 (advisors round 2, clean 2032 run, strict shadow 1/73 with all differences explained by AD18); 334 (Advisors shadow and Lua host owners landed; web/network and grid/RNG contracts merged; traffic flake recurred (run 5).); 333 (Seven lanes landed after bisecting out the netocc shadow; effects parser commands claimed; resumes no longer blocked by the unmerged cap (run 5).); 332 (advisors AD19 record shadow, clean 2032 run, 73/73 exact with counted Read fixups); 331 (advisors normal-speed confirmation, clean, strict shadow 1/4 with all differences explained by AD18). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is

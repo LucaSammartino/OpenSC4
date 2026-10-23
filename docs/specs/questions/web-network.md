@@ -85,3 +85,18 @@ does it still convert/cache/process cookies, select waiting jobs and clear the f
 resource, or skip some/all of that suffix? The portable core removes the matched live
 entry then returns Unsupported for this exceptional snapshot; it makes no suffix
 equivalence claim. This does not request a new RE round or reopen the parked owner.
+
+<!-- from: core-www5 (2026-10-23) -->
+- **Q15 - sections 3.2, 3.4, 3.6 and 6.4 literal edge cases:** what exactly are
+  the cookie splitter's blank characters and empty-item convention, and does it trim
+  name/value separately after trimming each item? What is atol overflow behavior?
+  Do skipped first cookie attributes still cause the header's leading separator?
+  Are the cookie path/binary setters plain assignments, and what is the cookie
+  constructor path literal at `00b16134`? Does the cache writer
+  materialize records directly, or call the public file getter with its expiration,
+  counter and access effects, and in which map enumeration order? [Current core uses
+  ASCII whitespace, preserves empty semicolon items in nonempty input, trims only
+  items, uses wrapping 32-bit decimal conversion, follows literal pair indices for
+  separators, assigns cookie settings directly, and directly materializes cache
+  records in byte-key order without read-side effects. These are literal choices,
+  not measured native behavior; no new round is requested for parked Q7/Q9.]

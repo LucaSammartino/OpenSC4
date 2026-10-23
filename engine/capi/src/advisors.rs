@@ -2134,9 +2134,17 @@ pub unsafe extern "C" fn fc4_advisors_advice_object(
 /// system itself for its class), NULL for an unknown class.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_advisors_create_object(p: *mut fc4_advisors, class_id: u32) -> *mut fc4_adv_obj {
-    with_h(p, std::ptr::null_mut(), |h| match h.sys.create_object(class_id) {
-        Some(RefValue::Object(o)) => Obj::from_save(o).map_or(std::ptr::null_mut(), Obj::into_raw),
-        _ => std::ptr::null_mut(),
+    with_h(p, std::ptr::null_mut(), |h| {
+        // Section 11.3.1 (AD17): this class-store path supplies only the
+        // base record adapter, preserving CLSID/identity. It does not supply
+        // the subclass's live city-situation behaviour or extra interface.
+        if class_id == adv::clsid::CITY_SITUATION_ADVICE {
+            h.sys.register_advice_class(class_id, adv::AdviceKind::Plain);
+        }
+        match h.sys.create_object(class_id) {
+            Some(RefValue::Object(o)) => Obj::from_save(o).map_or(std::ptr::null_mut(), Obj::into_raw),
+            _ => std::ptr::null_mut(),
+        }
     })
 }
 

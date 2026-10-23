@@ -3,8 +3,10 @@
 //! `LuaApi` contains interpreter/storage primitives, never host result oracles.
 mod compat;
 pub mod generator;
+mod lifecycle;
 mod thread;
 use super::{Handle, GLOBALS, REGISTRY};
+pub use lifecycle::{Record, ThreadApi};
 pub use thread::Session;
 
 pub const LUA_IID: u32 = 0x6b2811a6;
@@ -45,6 +47,7 @@ pub enum Callback {
     Globals,
     CoroutineCreate,
     CoroutineResume,
+    Command,
 }
 
 /// Operations are Lua 5.0 C API calls, except the explicitly named storage and
@@ -54,8 +57,13 @@ pub enum Callback {
 pub enum Op {
     Open,
     Close,
-    ReserveThreadRegistry,
     SetExtraOwner(Handle),
+    ClearExtraOwner,
+    GetExtraOwner,
+    NewThread,
+    Resume(i32),
+    Yield(i32),
+    HasActivationFrame,
     OpenLibrary(Library),
     GetTop,
     SetTop(i32),
@@ -192,7 +200,7 @@ pub trait LuaApi {
     fn stderr(&mut self, message: Option<&[u8]>);
 }
 
-pub(super) fn guarded<A: LuaApi, T>(api: &mut A, f: impl FnOnce(&mut A) -> Result<T>) -> Result<T> {
+pub(super) fn guarded<A: LuaApi + ?Sized, T>(api: &mut A, f: impl FnOnce(&mut A) -> Result<T>) -> Result<T> {
     let change = api.precision() == 24;
     if change {
         api.set_precision(53);
@@ -205,15 +213,29 @@ pub(super) fn guarded<A: LuaApi, T>(api: &mut A, f: impl FnOnce(&mut A) -> Resul
 }
 
 /// Pointer identity is supplied by the eventual adapter; core has no native layout.
-/// Main-thread numeric IDs and all lifecycle decisions absent from §6 are LH4.
 #[derive(Clone, Debug)]
 pub struct Thread {
     pub identity: Handle,
-    pub context: Option<Handle>,
-    pub user_context: Option<Handle>,
-    /// Supplied only when known; constructor/main ID and allocator are open LH4.
-    pub id: Option<i32>,
     pub kind: ThreadKind,
+    state: std::sync::Arc<std::sync::Mutex<ThreadState>>,
+}
+#[derive(Default)]
+struct ThreadState {
+    context: Option<Handle>,
+    user_context: Option<Handle>,
+    id: Option<i32>,
+    owner: Option<Thread>,
+    references: u32,
+}
+impl std::fmt::Debug for ThreadState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ThreadState")
+            .field("context", &self.context)
+            .field("id", &self.id)
+            .field("owner", &self.owner.as_ref().map(|t| t.identity))
+            .field("references", &self.references)
+            .finish()
+    }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ThreadKind {
@@ -224,50 +246,62 @@ impl Thread {
     pub fn new(identity: Handle, kind: ThreadKind) -> Self {
         Self {
             identity,
-            context: None,
-            user_context: None,
-            id: None,
             kind,
+            state: std::sync::Arc::default(),
         }
     }
     pub fn supports(&self, iid: u32) -> bool {
         iid == 1 || iid == THREAD_IID || (self.kind == ThreadKind::Main && iid == LUA_IID)
     }
+    /// Borrowed adapter view of an already-existing foreign thread. Cloning a
+    /// view shares state but does not perform the native AddRef operation.
+    pub fn from_foreign_view(
+        identity: Handle,
+        kind: ThreadKind,
+        context: Handle,
+        id: i32,
+        owner: Option<Handle>,
+    ) -> Self {
+        let thread = Self::new(identity, kind);
+        {
+            let mut state = thread.state.lock().unwrap();
+            state.context = Some(context);
+            state.id = Some(id);
+            state.owner = owner.map(|identity| Self::new(identity, ThreadKind::Main));
+        }
+        thread
+    }
     pub fn session<'a, A: LuaApi>(&self, api: &'a mut A, reporter: Reporter) -> Result<Session<'a, A>> {
         Ok(Session {
             api,
-            state: self.context.ok_or(Error::InvalidContext)?,
+            state: self.context().ok_or(Error::InvalidContext)?,
             identity: self.identity,
-            thread_id: self.id,
-            reporter,
+            thread_id: Some(self.get_id()),
+            reporter: if self.owner().is_some() {
+                reporter
+            } else {
+                Reporter::Disabled
+            },
         })
     }
-    pub fn lifecycle(&mut self, _operation: ThreadLifecycle) -> Result<()> {
-        // LH4: signatures do not specify IDs, pause/status encoding or ownership.
-        Err(Error::Unsupported("LH4"))
-    }
-}
-#[derive(Clone, Copy, Debug)]
-pub enum ThreadLifecycle {
-    OnCreate,
-    OnDestroy,
-    Pause(i32),
-    GetId,
-    IsValid,
-    Destroy,
-    Status,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct LuaHost {
     pub main_thread: Thread,
     reporter: Reporter,
+    records: std::collections::BTreeMap<i32, Record>,
+    next_id: i32,
+    registry_owner: Option<Thread>,
 }
 impl LuaHost {
     pub fn new(identity: Handle) -> Self {
         Self {
             main_thread: Thread::new(identity, ThreadKind::Main),
             reporter: Reporter::Default,
+            records: std::collections::BTreeMap::new(),
+            next_id: 0,
+            registry_owner: None,
         }
     }
     pub fn set_error_reporter(&mut self, callback: Option<Handle>, use_default: bool) {
@@ -283,20 +317,34 @@ impl LuaHost {
     pub fn main<'a, A: LuaApi>(&self, api: &'a mut A) -> Result<Session<'a, A>> {
         self.main_thread.session(api, self.reporter)
     }
-    pub fn open<A: LuaApi>(&mut self, api: &mut A, flags: u32) -> Result<bool> {
-        if self.main_thread.context.is_some() {
+    pub fn open<A: ThreadApi>(&mut self, api: &mut A, flags: u32) -> Result<bool> {
+        if self.main_thread.context().is_some() {
             return Ok(false);
         }
         guarded(api, |api| {
             let Some(state) = api.invoke(None, Op::Open)?.handle()? else {
                 return Ok(false);
             };
-            self.main_thread.context = Some(state);
-            // Literal §3.1: no rollback is stated on this failure (LH4).
-            if !api.invoke(Some(state), Op::ReserveThreadRegistry)?.boolean()? {
+            let owner = self.main_thread.identity;
+            api.retain(owner);
+            self.main_thread.add_ref();
+            if let Some(old) = self.registry_owner.replace(self.main_thread.clone()) {
+                api.release(old.identity);
+                old.release(api);
+            }
+            let owner_view = self.main_thread.clone();
+            if !api.on_create(&mut self.main_thread, &owner_view, state, self.next_id)? {
                 return Ok(false);
             }
+            api.invoke(Some(state), Op::PushLightUserdata(state))?;
+            let registry = api.registry_identity(owner);
+            api.invoke(Some(state), Op::PushLightUserdata(registry))?;
+            api.invoke(Some(state), Op::RawSet(REGISTRY))?;
             api.invoke(Some(state), Op::SetExtraOwner(self.main_thread.identity))?;
+            self.main_thread.add_ref();
+            api.retain(self.main_thread.identity);
+            self.records.insert(self.next_id, Record::main(state));
+            self.next_id = self.next_id.wrapping_add(1);
             let mut s = self.main(api)?;
             s.op(Op::OpenLibrary(Library::Base))?;
             for (bit, library) in [
@@ -326,20 +374,19 @@ impl LuaHost {
                 s.op(Op::RawSet(-3))?;
             }
             s.op(Op::SetTop(-2))?;
-            s.register_inner(Callback::Alert, b"_ALERT")?;
             s.op(Op::SetTop(0))?;
             Ok(true)
         })
     }
-    pub fn close<A: LuaApi>(&mut self, api: &mut A) -> Result<()> {
-        if let Some(state) = self.main_thread.context {
+    pub fn close<A: ThreadApi>(&mut self, api: &mut A) -> Result<bool> {
+        if let Some(state) = self.main_thread.context() {
             guarded(api, |api| {
+                self.shutdown_registry(api)?;
                 api.invoke(Some(state), Op::Close)?;
                 Ok(())
             })?;
-            self.main_thread.context = None;
         }
-        Ok(())
+        Ok(true)
     }
     pub fn get_gc_count<A: LuaApi>(&self, api: &mut A) -> Result<i32> {
         self.main(api)?.execute(Op::GetGCCount)?.int()
@@ -350,17 +397,5 @@ impl LuaHost {
     pub fn set_gc_threshold<A: LuaApi>(&self, api: &mut A, value: i32) -> Result<()> {
         self.main(api)?.execute(Op::SetGCThreshold(value))?;
         Ok(())
-    }
-    pub fn create_thread(&mut self, _count: i32, _class: u32) -> Result<Thread> {
-        Err(Error::Unsupported("LH4"))
-    }
-    pub fn destroy_thread(&mut self, _id: i32) -> Result<()> {
-        Err(Error::Unsupported("LH4"))
-    }
-    pub fn get_thread(&self, _id: i32) -> Result<&Thread> {
-        Err(Error::Unsupported("LH4"))
-    }
-    pub fn resume_thread(&mut self, _id: i32, _count: i32, _results: Option<&mut i32>) -> Result<bool> {
-        Err(Error::Unsupported("LH4"))
     }
 }
