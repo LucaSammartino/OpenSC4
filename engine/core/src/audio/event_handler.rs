@@ -13,6 +13,9 @@
 
 use std::collections::BTreeSet;
 
+mod owner;
+pub use owner::*;
+
 use crate::audio::{
     EVT_SET_POSITION, EVT_START_SOUND, EVT_STOP_SOUND, HANDLER_TIMER_OFFSET, HANDLER_WINDOW_OFFSET, MSG_AUTOMATA_A,
     MSG_AUTOMATA_B, MSG_AUTOMATA_PLAY_SFX, MSG_AUTOMATA_STOP_SFX, MSG_POST_CITY_INIT, MSG_PRE_CITY_SHUTDOWN, RAND_MAX,
@@ -127,7 +130,7 @@ impl RateLimiter {
 }
 
 /// `cSC4AudioEventHandler` (§7).
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct AudioEventHandler {
     /// The set of types currently subscribed on the main target.
     pub subscribed: BTreeSet<u32>,
@@ -141,10 +144,27 @@ pub struct AudioEventHandler {
     pub events: Vec<SndSysEvent>,
     /// The sound system (`+0x14`); when null the handler releases and returns 0.
     pub snd_sys_present: bool,
+    /// The modal target has a separate subscription set (§7.2).
+    pub modal_subscribed: BTreeSet<u32>,
+    /// Required capability at +0x18; availability is supplied by the foreign host.
+    pub capability_present: bool,
+    /// The radio service at +0x10.
+    pub radio_present: bool,
+    /// Whether this handler has registered with the foreign sound system.
+    pub sound_registered: bool,
+}
+
+impl Default for AudioEventHandler {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AudioEventHandler {
-    /// A handler as constructed: not initialized, no subscriptions.
+    /// An isolated handler model: not initialized, no subscriptions.
+    ///
+    /// The legacy play/stop helpers assume a sound system for conformance
+    /// fixtures. Use `construct` and `init_with` to acquire foreign services.
     pub fn new() -> Self {
         AudioEventHandler {
             subscribed: BTreeSet::new(),
@@ -153,6 +173,10 @@ impl AudioEventHandler {
             initialized: false,
             events: Vec::new(),
             snd_sys_present: true,
+            modal_subscribed: BTreeSet::new(),
+            capability_present: false,
+            radio_present: false,
+            sound_registered: false,
         }
     }
 
@@ -161,6 +185,7 @@ impl AudioEventHandler {
         for t in init_message_types() {
             self.subscribed.insert(t);
         }
+        self.modal_subscribed.extend(MODAL_MESSAGE_TYPES);
         self.initialized = true;
         1
     }
