@@ -21,25 +21,6 @@
   no invented complete owner constructor, sprite QueryInterface, transform setter or missing method body]
 
 <!-- from: core-animated-sprites4 (2026-10-22) -->
-- **AS4 - §2 loading:** AS1 remains open; model-instances §6 identifies a 0x09ADCD75 table queried via
-  IID 0x69B6F01C, whereas §2 calls that IID a resource type. Confirm the exact Load/LoadFromResource inputs,
-  key type/group rewriting, zoom iteration order, reference ownership, missing-first/missing-later zoom return
-  values, rollback versus retained prefix, repeated-load replacement, and which fields initialize/reset.
-  [typed foreign decoded records; acquire in array order with IID 0x69B6F01C, stop at first absent zoom;
-  expose prefix/stopping reason, do not call a prefix a successful native Load or implement resource readers]
-
-<!-- from: core-animated-sprites4 (2026-10-22) -->
-- **AS5 - §3 slots 9–16, §4 clock and sequence stepping:** please specify animation-table layout/step rules,
-  SetAnimation invalid-index and state-reset behavior, SetRate(-100/-200) resolution and raw resource rate
-  field (no inferred time conversions), SetPlayMode side effects, AdvanceFrame at reverse frame 0 in every
-  mode, and single/empty-frame cases. Does clock subtraction use direction before or after reversal? What
-  are native Tick/AdvanceFrame returns when the frame does not change or playback stops? How is the literal
-  skip loop made to terminate for a single frame, negative rate/elapsed or zero direction with |position|>=1?
-  [only explicitly named unsequenced operations; raw elapsed*rate*direction, literal advance-then-subtract,
-  no-skip long-tick position=1; unresolved sentinels/reverse boundary/non-progress return errors transactionally;
-  no native success return invented and no sequence-table stepping delegated to a foreign owner]
-
-<!-- from: core-animated-sprites4 (2026-10-22) -->
 - **AS6 - §3.1, §4.1 orientation and frame selection:** what axis/sign/order is used for noncommuting
   yaw/pitch/roll, and does -100 preserve the old component or omit its rotation? Is LookAt's first vector
   a target, a direction, or a source position; which local forward axis is used? Publish camera-relative
@@ -103,8 +84,3 @@
   stages only; nonexact/degenerate LookAt and nonzero Draw angle acquisition remain Unsupported,
   also subject to AS6 whole-call PC/RC and native numeric qualification]
 
-<!-- from: core-animsprite5 (2026-10-23) -->
-- **AS11 - §2 foreign factory route:** for GetSpriteAnimFromResourceKey (type 0x5AD0E817), what IID,
-  resource-manager options, output interface and reference-transfer rules accompany the published
-  resource-manager fetch? [routing is preserved; no guessed successful foreign factory. The sprite
-  construction/load route for type 0x29A5D1EC is implemented separately.]
