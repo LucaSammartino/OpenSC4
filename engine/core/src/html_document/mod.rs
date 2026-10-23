@@ -1264,8 +1264,7 @@ pub fn convert_to_u32(v: &[u8]) -> u32 {
     let hex = v.starts_with(b"0x")
         || v.starts_with(b"0X")
         || v.iter()
-            .skip_while(|c| c.is_ascii_digit())
-            .next()
+            .find(|c| !c.is_ascii_digit())
             .is_some_and(|c| matches!(c, b'a'..=b'f' | b'A'..=b'F'));
     let base = if hex { 16 } else { 10 };
     let mut i = 0;
