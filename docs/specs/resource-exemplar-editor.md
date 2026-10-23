@@ -25,6 +25,8 @@ read from a text file, `Sys\Ingred.ini`, under the game's data directory. This s
 Out of scope: the DBPF and exemplar binary formats (data-formats.md, owned by the formats lanes), the resource
 catalog browser `cSCResourceCatalogView` / `cSCResCatBaseView` / `cSCResCatalogPickerView` and the key picker
 `cSCResKeyInputView` beyond their class IDs (§8), and the widget toolkit (ui-windows.md).
+The catalog owners now have a separate, partial native contract in [resource-catalog.md](resource-catalog.md);
+the identity-only attribution below is not whole-owner behavior credit.
 
 Subsystem size (tools/coverage.py --owners, 2026-10-21): 68985 bytes. The family specified here
 (`cSCPropertyView` 17843 + free functions 5164 + entry views and dialog about 29700) is the largest coherent part.

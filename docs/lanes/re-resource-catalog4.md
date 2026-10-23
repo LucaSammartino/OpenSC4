@@ -1,8 +1,12 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-resource-catalog4: native catalog and key picker contracts | Codex; re-resource-catalog4 (detached worktree) | blocked: required RE guard denied | Coordinator must resolve guard prerequisites before further RE; no spec published. |
+| re-resource-catalog4: native catalog and key picker contracts | Codex; re-resource-catalog4 (detached worktree) | in progress | Round 2: native catalog, selection and picker contracts; retain historical R1 denial. |
 
 ## Handoff
+- R2 admission: copied `build-runs/evidence-run4/coordinator-resource-catalog-r2-host-proof.json` records canonical host full guard exit 0; own R2 manifest matches lane, RE role and reserved path. Source clean at pinned 98e396bb. No sandbox admission rerun or live-session repair.
+- R2 binary SHA256 independently matches export metadata: 3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b. Next: trace native owner instructions and publish first substantive spec.
+- R2 milestone: first substantive `docs/specs/resource-catalog.md` now covers exact-group row filtering, duplicate/default selection, refresh failure, picker word permutation and close-result separation; linked from prior exclusion. Next: registration filters, key-input notifications and shutdown reference audit, then questions/checklist.
+- The following R1 failure and preliminary evidence are historical, not a retrospective success or behavior publication.
 - Goal: first native behavior publication for catalog/base/picker/key-input owners, docs only.
 - Done: reused reserved detached worktree; read lane/operating rules and existing scope exclusion; queried export and instructions only; no behavior publication.
 - STOP: required full guard `tools/lanes.py --repo C:/Users/tlori/FreeCity4 check re-resource-catalog4 --resume --kind re --deps re-editors4 --touches "resource and exemplar editor"` returned exit 1 on 2026-10-23.
