@@ -12875,4 +12875,26 @@ uint32_t fc4_netlot_pending_buckets(const fc4_netlot* l);
 }
 #endif
 
+/* NR16 detached record-only observation; no pointers into native tables. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef struct fc4_network_rules_capture {
+    uint32_t centre;
+    uint32_t edges[256];
+    uint8_t edge_known[256];
+    uint8_t validity[256]; /* 0 unknown, 1 false, 2 true */
+} fc4_network_rules_capture;
+/* In-order semantic stream: key, transform, condition/output counts, then
+   condition (m,value,mask) and output (id,m,orientation) triples per rule. */
+uint32_t fc4_network_rules_snapshot(const fc4_network_rules* r, uint32_t type, uint32_t index,
+                                    uint32_t* out, uint32_t cap);
+/* -3 bad arguments, -2 incomplete, -1 no match, >=0 matched output count. */
+int32_t fc4_network_rules_replay(const fc4_network_rules* r, uint32_t type, uint32_t index,
+                                const fc4_network_rules_capture* capture,
+                                fc4_network_rules_output* out, uint32_t cap);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */

@@ -242,6 +242,9 @@
 // neutral value; FreeCity4.log lists the switches that are off at each load.
 #pragma once
 
+// netrules_shadow = 0 / 1: NR16/NR17 record-only tile evaluator observer,
+// default off. Requires fingerprint and all three exact observation sites.
+
 #include <string>
 
 namespace fc4 {
