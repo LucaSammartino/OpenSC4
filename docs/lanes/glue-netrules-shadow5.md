@@ -7,7 +7,10 @@
 - Goal: default-off record-only shadow to published NR16/NR17; full gate and 2032 verdict.
 - Done: merged re-netrules-nr17 at 845060f5; includes NR16 and ABI validation bytes.
 - Git merge reported packed-refs.lock permission denied but succeeded; detached HEAD intentional.
-- Next: implement capture, epoch hooks, exact site validation, detached replay and parsed table comparison.
+- Implemented capture, epoch hooks, exact three-site validation, detached Rust replay and parsed tile table comparison (uncommitted).
+- Focused compile failed E0277 in snapshot fill; corrected Vec into_iter; preserved build-runs/focused-netrules.log.
+- Native verify queued: qbuild-20261023-233355-build-ctest, exec session 48101; collect same operation.
+- Next: focused test + fmt, collect native result, diagnose, stable-source all, unique game request to 2032.
 - Contracts: network-rules.md sections 2.2–2.5 and docs/abi/network-rules-observation.md.
 - Capture actual requests only; no native prefetch. Intersection tables explicitly unobserved.
 - No outstanding build/game operation; no round 3 question filed.

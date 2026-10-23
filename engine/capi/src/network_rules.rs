@@ -19,6 +19,125 @@ use fc4_core::network_rules::{
 
 use crate::guard;
 
+/// Detached NR16 input: one value per metaposition byte. `edge_known` is
+/// 0/1; validity is 0 (uncaptured), 1 (false), or 2 (true).
+#[repr(C)]
+pub struct fc4_network_rules_capture {
+    pub centre: u32,
+    pub edges: [u32; 256],
+    pub edge_known: [u8; 256],
+    pub validity: [u8; 256],
+}
+
+/// Semantic in-order evaluator stream: key, eligibility, condition count,
+/// output count, then condition triples (m, value, mask) and output triples
+/// (id, m, orientation). Capacity/allocation/padding are excluded (NR16).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_network_rules_snapshot(
+    r: *const fc4_network_rules,
+    t: u32,
+    index: u32,
+    out: *mut u32,
+    cap: u32,
+) -> u32 {
+    guard(0, || {
+        let Some(ev) = rules_ref(r)
+            .and_then(|r| r.evaluators.get(t as usize))
+            .and_then(|v| v.get(index as usize))
+        else {
+            return 0;
+        };
+        let mut words = Vec::new();
+        for rule in ev.rules() {
+            words.extend([
+                rule.key,
+                u32::from(rule.transform),
+                rule.conditions.len() as u32,
+                rule.outputs.len() as u32,
+            ]);
+            for c in &rule.conditions {
+                words.extend([c.m as u8 as u32, c.value, c.mask]);
+            }
+            for o in &rule.outputs {
+                words.extend([o.id, u32::from(o.m), u32::from(o.orientation)]);
+            }
+        }
+        fill(out, cap, words.into_iter())
+    })
+}
+
+/// NR16 detached replay. -3 = bad arguments, -2 = incomplete capture,
+/// -1 = no match, >=0 = matched output count (including an empty match).
+/// No native callbacks are issued; missing inputs can never earn exactness.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_network_rules_replay(
+    r: *const fc4_network_rules,
+    t: u32,
+    index: u32,
+    capture: *const fc4_network_rules_capture,
+    out: *mut fc4_network_rules_output,
+    cap: u32,
+) -> i32 {
+    use fc4_core::network_rules::Neighbourhood;
+    use std::cell::Cell;
+    struct Captured<'a> {
+        data: &'a fc4_network_rules_capture,
+        incomplete: Cell<bool>,
+    }
+    impl Neighbourhood for Captured<'_> {
+        fn centre(&self) -> u32 {
+            self.data.centre
+        }
+        fn edges(&self, m: i32) -> u32 {
+            let m = m as u8 as usize;
+            if self.data.edge_known[m] != 1 {
+                self.incomplete.set(true);
+            }
+            self.data.edges[m]
+        }
+        fn valid(&self, m: i32) -> bool {
+            match self.data.validity[m as u8 as usize] {
+                1 => false,
+                2 => true,
+                _ => {
+                    self.incomplete.set(true);
+                    false
+                }
+            }
+        }
+    }
+    guard(-3, || {
+        let (Some(ev), Some(data)) = (
+            rules_ref(r)
+                .and_then(|r| r.evaluators.get(t as usize))
+                .and_then(|v| v.get(index as usize)),
+            capture.as_ref(),
+        ) else {
+            return -3;
+        };
+        let n = Captured {
+            data,
+            incomplete: Cell::new(false),
+        };
+        let result = ev.evaluate(&n);
+        if n.incomplete.get() {
+            return -2;
+        }
+        result.map_or(-1, |outputs| {
+            fill(
+                out,
+                cap,
+                outputs.iter().map(|o| fc4_network_rules_output {
+                    id: o.id,
+                    m: o.m,
+                    orientation: o.orientation,
+                    reserved: [0; 2],
+                }),
+            ) as i32
+        })
+    })
+}
+
 #[repr(C)]
 pub struct fc4_network_rules {
     _private: [u8; 0],
