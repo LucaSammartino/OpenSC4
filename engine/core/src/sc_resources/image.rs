@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-use super::{Error, Result};
+use super::Result;
 use crate::persistence_runtime::{Buffer, BufferHandle, Format, RawStream, Resource, BUFFER_IID};
 use std::sync::{Arc, Mutex};
 
@@ -42,6 +42,7 @@ pub struct PersistBufferResource {
     buffer: Option<BufferHandle>,
     aggregator: Option<AggregatorHandle>,
     scratch: Vec<u8>,
+    create_flags: u32,
 }
 impl PersistBufferResource {
     pub fn new(target: Format, flags: u32, provider: &mut impl BufferProvider) -> Self {
@@ -68,6 +69,7 @@ impl PersistBufferResource {
             buffer,
             aggregator,
             scratch: Vec::new(),
+            create_flags: flags,
         }
     }
     pub fn buffer(&self) -> Option<BufferHandle> {
@@ -75,6 +77,7 @@ impl PersistBufferResource {
         b.lock().unwrap_or_else(|e| e.into_inner()).add_ref();
         Some(b.clone())
     }
+    pub fn resource_type(&self) -> u32 { self.base.key().ty }
     pub fn set_buffer(&mut self, new: Option<BufferHandle>) {
         if let Some(b) = &new {
             b.lock().unwrap_or_else(|e| e.into_inner()).add_ref();
@@ -125,8 +128,8 @@ impl PersistBufferResource {
         self.scratch.clear();
     }
     pub fn load_record(&mut self, raw: &mut impl RawStream) -> Result<bool> {
-        let result = self.bmp(raw, false, RecordBmpOffset::Unsettled);
-        if matches!(result, Ok(true) | Err(Error::Unsupported(_))) {
+        let result = self.bmp(raw, false, RecordBmpOffset::Sequential);
+        if matches!(result, Ok(true)) {
             return result;
         }
         if !raw.seek(0) {
@@ -135,15 +138,14 @@ impl PersistBufferResource {
         self.tga(raw, 0x8080)
     }
     pub fn load_file_bmp(&mut self, raw: &mut impl RawStream) -> Result<bool> {
-        self.bmp(raw, true, RecordBmpOffset::Unsettled)
+        self.bmp(raw, true, RecordBmpOffset::Sequential)
     }
-    /// Explicit experimental policy for SCR5, never selected by load_record.
-    /// All settled record decoding/stride/allocation behavior stays in core.
+    /// Explicit alternate cursor policy for callers; the owner uses Sequential.
     pub fn load_record_bmp_with_policy(&mut self, raw: &mut impl RawStream, policy: RecordBmpOffset) -> Result<bool> {
         self.bmp(raw, false, policy)
     }
     pub fn load_file_tga(&mut self, raw: &mut impl RawStream) -> Result<bool> {
-        self.tga(raw, 0x8040)
+        self.tga(raw, 0x8080)
     }
     fn bmp(&mut self, raw: &mut impl RawStream, file: bool, policy: RecordBmpOffset) -> Result<bool> {
         let mut header = [0; 14];
@@ -168,11 +170,8 @@ impl PersistBufferResource {
         if !bmp_translation(depth, self.target.bits) {
             return Ok(false);
         }
-        if self.target.colour_type == 7 {
-            return Err(Error::Unsupported("SCR5: 4444 dithering"));
-        }
-        if !file && policy == RecordBmpOffset::Unsettled {
-            return Err(Error::Unsupported("SCR5: record BMP offset handling"));
+        if !file && le32(&header[10..]).wrapping_add(14) < 54 {
+            return Ok(false);
         }
         let colours = if depth <= 8 {
             let n = le32(&info[32..]);
@@ -202,11 +201,24 @@ impl PersistBufferResource {
         if seek.is_some_and(|at| !raw.seek(at)) {
             return Ok(false);
         }
+        let Some(handle) = &self.buffer else { return Ok(false); };
+        let mut b = handle.lock().unwrap_or_else(|e| e.into_inner());
+        if !b.initialize_with_flags(width, height, self.target, self.create_flags) || !b.lock_with_flags(0x8040) {
+            return Ok(false);
+        }
+        let result = (|| {
         let pixels = if compression == 1 {
             if depth != 8 {
                 return Ok(false);
             }
-            let Some(p) = rle8(raw, width, height) else {
+            let size = if le32(&info[20..]) == 0 {
+                let size = le32(&header[2..]).wrapping_sub(le32(&header[10..]));
+                if !file && size >= le32(&header[2..]) { return Ok(false); }
+                size
+            } else { le32(&info[20..]) };
+            let mut compressed = vec![0; size as usize];
+            if !raw.read(&mut compressed) { return Ok(false); }
+            let Some(p) = rle8(&mut std::io::Cursor::new(compressed), width, height) else {
                 return Ok(false);
             };
             p
@@ -214,7 +226,7 @@ impl PersistBufferResource {
             let Some(stride) = bmp_stride(width, depth, file) else {
                 return Ok(false);
             };
-            // SCR5 leaves invalid bounds effects open. The 4-bpp record stride
+            // Invalid bounds have no successful contract. The 4-bpp record stride
             // quirk yields zero; reject safely instead of indexing empty rows.
             if stride == 0 {
                 return Ok(false);
@@ -248,12 +260,15 @@ impl PersistBufferResource {
             }
             pixels
         };
-        let Some(handle) = &self.buffer else {
-            return Ok(false);
-        };
-        let mut b = handle.lock().unwrap_or_else(|e| e.into_inner());
-        if !b.initialize_with_flags(width, height, self.target, if file { 0x8040 } else { 0x8080 }) || !b.lock(true) {
-            return Ok(false);
+        if depth == 24 && self.target.colour_type == 1 && b.layout().format == Format::new(7, 16) {
+            let mut rgba = Vec::with_capacity((width*height) as usize);
+            for y in (0..height as usize).rev() {
+                for x in 0..width as usize {
+                    let at = (y*width as usize+x)*3;
+                    rgba.push([pixels[at], pixels[at+1], pixels[at+2], 255]);
+                }
+            }
+            return Ok(store_4444(&mut *b, width, height, &diffuse_4444(&rgba, width as usize, false)));
         }
         let mut success = true;
         'rows: for y in 0..height {
@@ -277,8 +292,10 @@ impl PersistBufferResource {
                 }
             }
         }
-        b.unlock();
         Ok(success)
+        })();
+        b.unlock();
+        result
     }
     fn tga(&mut self, raw: &mut impl RawStream, flags: u32) -> Result<bool> {
         if !raw.seek(0) {
@@ -289,9 +306,6 @@ impl PersistBufferResource {
             return Ok(false);
         }
         let (width, height) = (u32::from(le16(&h[12..])), u32::from(le16(&h[14..])));
-        if self.target.colour_type == 7 {
-            return Err(Error::Unsupported("SCR5: 4444 dithering"));
-        }
         let palette = u64::from(le16(&h[5..])) * u64::from(h[7]).div_ceil(8);
         if !raw.seek(18 + u64::from(h[0]) + palette) {
             return Ok(false);
@@ -300,7 +314,7 @@ impl PersistBufferResource {
             return Ok(false);
         };
         let mut b = handle.lock().unwrap_or_else(|e| e.into_inner());
-        if !b.initialize_with_flags(width, height, self.target, flags) || !b.lock(true) {
+        if !b.initialize_with_flags(width, height, self.target, self.create_flags) || !b.lock_with_flags(flags) {
             return Ok(false);
         }
         // Unsupported source depth still succeeds once creation and locking did.
@@ -388,6 +402,8 @@ fn decode_tga(raw: &mut impl RawStream, buffer: &mut dyn Buffer, h: &[u8; 18], w
     let depth = usize::from(h[16] / 8);
     let total = u64::from(width) * u64::from(height);
     let mut at = 0;
+    let dither = depth == 4 && buffer.layout().format.colour_type == 7;
+    let mut rgba = if dither { vec![[0;4]; total as usize] } else { Vec::new() };
     while at < total {
         let mut packet = [0];
         if h[2] == 10 && !raw.read(&mut packet) {
@@ -431,10 +447,55 @@ fn decode_tga(raw: &mut impl RawStream, buffer: &mut dyn Buffer, h: &[u8; 18], w
             };
             let y = (at / u64::from(width)) as u32;
             let y = if h[17] & 32 == 0 { height - 1 - y } else { y };
-            if !buffer.pixel32((at % u64::from(width)) as u32, y, (a << 24) | (r << 16) | (g << 8) | b) {
+            if dither {
+                rgba[(u64::from(y)*u64::from(width)+at%u64::from(width)) as usize] = [b as u8,g as u8,r as u8,a as u8];
+            } else if !buffer.pixel32((at % u64::from(width)) as u32, y, (a << 24) | (r << 16) | (g << 8) | b) {
                 return false;
             }
             at += 1;
+        }
+    }
+    if dither { store_4444(buffer, width, height, &diffuse_4444(&rgba, width as usize, true)) } else { true }
+}
+
+/// Section 7.3: padded, serpentine low-nibble diffusion in B/G/R/A lanes.
+pub fn diffuse_4444(pixels: &[[u8;4]], width: usize, alpha: bool) -> Vec<u16> {
+    if width == 0 { return Vec::new(); }
+    let height = pixels.len()/width;
+    let mut current = vec![[0u32;4]; width+2];
+    let mut next = current.clone();
+    let mut output = vec![0; pixels.len()];
+    for y in 0..height {
+        let direction = if y%2 == 0 {1isize} else {-1};
+        for step in 0..width {
+            let x = if direction == 1 {step} else {width-1-step};
+            let cell = x+1;
+            let forward = (cell as isize+direction) as usize;
+            let backward = (cell as isize-direction) as usize;
+            let mut word = if alpha {0} else {0xf000};
+            for channel in 0..if alpha {4} else {3} {
+                let value = (u32::from(pixels[y*width+x][channel]) + current[cell][channel]/16).min(255);
+                word |= ((value >> 4) as u16) << (channel*4);
+                let error = value & 15;
+                current[forward][channel] += error*7;
+                next[backward][channel] += error*3;
+                next[cell][channel] += error*5;
+                next[forward][channel] += error;
+            }
+            output[y*width+x] = word;
+        }
+        std::mem::swap(&mut current, &mut next);
+        next.fill([0;4]);
+    }
+    output
+}
+fn store_4444(buffer: &mut dyn Buffer, width: u32, height: u32, words: &[u16]) -> bool {
+    let stride = buffer.layout().stride;
+    let bytes = buffer.bytes_mut();
+    for y in 0..height as usize {
+        for x in 0..width as usize {
+            let Some(target) = bytes.get_mut(y*stride+x*2..y*stride+x*2+2) else { return false; };
+            target.copy_from_slice(&words[y*width as usize+x].to_le_bytes());
         }
     }
     true

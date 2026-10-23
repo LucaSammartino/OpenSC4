@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::{Error, Result};
-use crate::persistence_runtime::{Key, RawStream, SerialRecord};
+use crate::persistence_runtime::{Field, Key, RawStream, SerialRecord};
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex},
@@ -16,7 +16,91 @@ pub struct Descriptor {
 }
 pub const END: Descriptor = Descriptor { id: 1, ty: 3, count: 1 };
 
-/// Twelve typed payloads, distinct from the unsettled wire-number mapping.
+fn legacy_float(value: f64, fixed: bool) -> String {
+    if value.is_finite() {
+        return if fixed { format!("{value:.6}") } else { crate::rz_streams::format_g(value, b'.') };
+    }
+    let bits = value.to_bits();
+    let fraction = bits & 0x000f_ffff_ffff_ffff;
+    let class = if fraction == 0 { "INF" } else if fraction == 0x0008_0000_0000_0000 && value.is_sign_negative() { "IND" }
+        else if fraction & 0x0008_0000_0000_0000 != 0 { "QNAN" } else { "SNAN" };
+    let mut text = format!("{}1.#{class}", if value.is_sign_negative() { "-" } else { "" });
+    if fixed { for _ in class.len()+1..6 { text.push('0'); } }
+    text
+}
+
+/// Binary boundary counters are independent of the serial stream's cursor.
+pub struct BinaryIo<'a, S: RawStream> {
+    pub record: &'a mut SerialRecord<S>,
+    pub counter: u64,
+    pub total: u64,
+}
+impl<'a, S: RawStream> BinaryIo<'a, S> {
+    pub fn new(record: &'a mut SerialRecord<S>) -> Self {
+        let total = record.raw().size();
+        Self { record, counter: 4, total }
+    }
+    fn advance(&mut self, width: u64) -> bool {
+        self.counter = self.counter.wrapping_add(width);
+        self.counter < self.total
+    }
+    pub fn read_number<T: Field>(&mut self, out: &mut T) -> bool {
+        self.advance(T::WIDTH as u64) && self.record.get(out)
+    }
+    pub fn read_definition(&mut self, out: &mut Descriptor) -> bool {
+        self.advance(8) && self.record.get(&mut out.id) && self.record.get(&mut out.ty) && self.record.get(&mut out.count)
+    }
+    pub fn read_key(&mut self, out: &mut Key) -> bool {
+        self.advance(12) && self.record.get_key(out)
+    }
+    pub fn read_string(&mut self, out: &mut Vec<u8>) -> bool {
+        if !self.record.get_string(out) { return false; }
+        self.counter = self.counter.wrapping_add(out.len() as u64 + 4);
+        self.counter <= self.total
+    }
+}
+enum Adapter<'a, S: RawStream> { Text(TextIo<'a, S>), Binary(BinaryIo<'a, S>) }
+impl<'a, S: RawStream> Adapter<'a, S> {
+    fn new(record: &'a mut SerialRecord<S>, text: bool) -> Self {
+        if text { Self::Text(TextIo::new(record)) } else { Self::Binary(BinaryIo::new(record)) }
+    }
+    fn read_definition(&mut self, out: &mut Descriptor) -> bool {
+        match self { Self::Text(io) => io.read_definition(out), Self::Binary(io) => io.read_definition(out) }
+    }
+    fn read_number<T: TextNumber>(&mut self, out: &mut T) -> bool {
+        match self { Self::Text(io) => io.read_number(out), Self::Binary(io) => io.read_number(out) }
+    }
+    fn write_number<T: TextNumber>(&mut self, value: T) -> bool {
+        match self { Self::Text(io) => io.write_number(value), Self::Binary(io) => io.record.set(&value) }
+    }
+    fn write_definition(&mut self, name: &[u8], d: Descriptor) -> bool {
+        match self { Self::Text(io) => io.write_definition(name, d),
+            Self::Binary(io) => io.record.set(&d.id) && io.record.set(&d.ty) && io.record.set(&d.count) }
+    }
+    fn read_values(&mut self, values: &mut Values) -> bool {
+        macro_rules! numbers { ($v:expr) => { $v.iter_mut().all(|v| self.read_number(v)) }; }
+        match values {
+            Values::U8(v) => numbers!(v), Values::I8(v) => numbers!(v), Values::U16(v) => numbers!(v), Values::I16(v) => numbers!(v),
+            Values::U32(v) => numbers!(v), Values::I32(v) => numbers!(v), Values::U64(v) => numbers!(v), Values::I64(v) => numbers!(v),
+            Values::F32(v) => numbers!(v), Values::F64(v) => numbers!(v),
+            Values::String(v) => v.iter_mut().all(|v| match self { Self::Text(io) => io.read_string(v), Self::Binary(io) => io.read_string(v) }),
+            Values::Key(v) => v.iter_mut().all(|v| match self { Self::Text(io) => io.read_key(v), Self::Binary(io) => io.read_key(v) }),
+        }
+    }
+    fn write_values(&mut self, values: &Values) -> bool {
+        if let Self::Text(io) = self { return io.write_values(values); }
+        macro_rules! numbers { ($v:expr) => { $v.iter().all(|v| self.write_number(*v)) }; }
+        match values {
+            Values::U8(v) => numbers!(v), Values::I8(v) => numbers!(v), Values::U16(v) => numbers!(v), Values::I16(v) => numbers!(v),
+            Values::U32(v) => numbers!(v), Values::I32(v) => numbers!(v), Values::U64(v) => numbers!(v), Values::I64(v) => numbers!(v),
+            Values::F32(v) => numbers!(v), Values::F64(v) => numbers!(v),
+            Values::String(v) => v.iter().all(|v| match self { Self::Binary(io) => io.record.set_string(v), _ => unreachable!() }),
+            Values::Key(v) => v.iter().all(|v| match self { Self::Binary(io) => io.record.set_key(*v), _ => unreachable!() }),
+        }
+    }
+}
+
+/// The twelve payloads use the wire mapping in section 5.2.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Values {
     U8(Vec<u8>),
@@ -33,6 +117,19 @@ pub enum Values {
     Key(Vec<Key>),
 }
 impl Values {
+    pub fn wire_type(&self) -> u16 {
+        match self { Self::U8(_) => 1, Self::U16(_) => 2, Self::U32(_) => 3, Self::I32(_) => 4,
+            Self::F32(_) => 5, Self::I64(_) => 6, Self::String(_) => 7, Self::Key(_) => 8,
+            Self::I8(_) => 9, Self::I16(_) => 10, Self::U64(_) => 11, Self::F64(_) => 12 }
+    }
+    fn empty(ty: u16, count: u16) -> Self {
+        let n = usize::from(count);
+        match ty { 1 => Self::U8(vec![0;n]), 2 => Self::U16(vec![0;n]), 3 => Self::U32(vec![0;n]),
+            4 => Self::I32(vec![0;n]), 5 => Self::F32(vec![0.0;n]), 6 => Self::I64(vec![0;n]),
+            7 => Self::String(vec![Vec::new();n]), 8 => Self::Key(vec![Key::default();n]),
+            9 => Self::I8(vec![0;n]), 10 => Self::I16(vec![0;n]), 11 => Self::U64(vec![0;n]),
+            12 => Self::F64(vec![0.0;n]), _ => unreachable!("validated wire type") }
+    }
     pub fn len(&self) -> usize {
         match self {
             Self::U8(v) => v.len(),
@@ -53,7 +150,8 @@ impl Values {
         self.len() == 0
     }
 }
-pub trait TextNumber: Copy + Default {
+pub trait TextNumber: Field + Default {
+    const BINARY_READ: bool = false;
     fn scan(bytes: &[u8]) -> Option<Self>;
     fn render(self) -> String;
 }
@@ -69,13 +167,22 @@ fn integer_prefix(bytes: &[u8]) -> Option<&str> {
 macro_rules! integers { ($($ty:ty),*) => { $(impl TextNumber for $ty {
     fn scan(bytes: &[u8]) -> Option<Self> {
         // Literal runtime-prefix reading; overflow wraps to caller width.
-        integer_prefix(bytes)?.parse::<i128>().ok().map(|v| v as Self)
+        let text = integer_prefix(bytes)?;
+        let negative = text.starts_with('-');
+        let n = text.bytes().filter(u8::is_ascii_digit).fold(0u64, |n,b| n.wrapping_mul(10).wrapping_add(u64::from(b-b'0')));
+        Some(if negative { n.wrapping_neg() } else { n } as Self)
     }
     fn render(self) -> String { self.to_string() }
 })* }; }
-integers!(u8, i8, u16, i16, u32, i32, u64, i64);
+integers!(u8, i8, u16, i16, u32, i32, i64);
+impl TextNumber for u64 {
+    const BINARY_READ: bool = true;
+    fn scan(bytes: &[u8]) -> Option<Self> { i64::scan(bytes).map(|v| v as u64) }
+    fn render(self) -> String { self.to_string() }
+}
 fn float_prefix(bytes: &[u8]) -> Option<f64> {
     let text = std::str::from_utf8(bytes).ok()?.trim_start();
+    if !text.as_bytes().iter().skip(usize::from(text.starts_with(['+', '-']))).next().is_some_and(|b| b.is_ascii_digit() || *b == b'.') { return None; }
     (1..=text.len())
         .rev()
         .filter(|&n| text.is_char_boundary(n))
@@ -86,7 +193,7 @@ impl TextNumber for f32 {
         float_prefix(bytes).map(|v| v as f32)
     }
     fn render(self) -> String {
-        format!("{:.6}", f64::from(self))
+        legacy_float(f64::from(self), true)
     }
 }
 impl TextNumber for f64 {
@@ -94,7 +201,7 @@ impl TextNumber for f64 {
         float_prefix(bytes)
     }
     fn render(self) -> String {
-        crate::rz_streams::format_g(self, b'.')
+        legacy_float(self, false)
     }
 }
 
@@ -149,6 +256,10 @@ impl<'a, S: RawStream> TextIo<'a, S> {
         false
     }
     pub fn read_number<T: TextNumber>(&mut self, out: &mut T) -> bool {
+        if T::BINARY_READ {
+            self.counter = self.counter.wrapping_add(T::WIDTH as u64);
+            return self.counter < self.total && self.record.get(out);
+        }
         let mut text = Vec::new();
         if !self.delimited(b',', &mut text) {
             return false;
@@ -322,27 +433,19 @@ impl<S: RawStream> TokenRecord<S> {
             return Ok(false);
         }
         self.fields.remove(&descriptor.id);
-        // SCR4: only wire type 3 is specified. Never derive it from getter slots.
-        if descriptor.ty != 3 {
-            return Err(Error::Unsupported("SCR4: wire type mapping"));
-        }
         self.fields.insert(
             descriptor.id,
             TokenField {
                 descriptor,
                 name: Vec::new(),
-                values: Values::U32(vec![0; usize::from(descriptor.count)]),
+                values: Values::empty(descriptor.ty, descriptor.count),
             },
         );
         Ok(true)
     }
     pub fn set(&mut self, id: u32, values: Values) -> Result<()> {
         let count = u16::try_from(values.len()).map_err(|_| Error::Io)?;
-        let ty = if matches!(values, Values::U32(_)) {
-            3
-        } else {
-            return Err(Error::Unsupported("SCR4: wire type mapping"));
-        };
+        let ty = values.wire_type();
         let d = Descriptor { id, ty, count };
         self.create_field(d)?;
         self.fields.get_mut(&id).expect("created field").values = values;
@@ -352,7 +455,7 @@ impl<S: RawStream> TokenRecord<S> {
         let Some(field) = self.fields.get_mut(&id) else {
             return false;
         };
-        // Literal association with the token's definition name; see SCR7.
+        // The name is independent of descriptor matching and payload.
         field.name = text.to_vec();
         true
     }
@@ -392,12 +495,9 @@ impl<S: RawStream> TokenRecord<S> {
         result
     }
     pub fn read_tokens(&mut self) -> Result<bool> {
-        if !self.text {
-            return Err(Error::Unsupported("SCR4: binary field encoding"));
-        }
         let serial = self.serial.clone().ok_or(Error::InvalidContext)?;
         let mut record = serial.lock().unwrap_or_else(|e| e.into_inner());
-        let mut io = TextIo::new(&mut record);
+        let mut io = Adapter::new(&mut record, self.text);
         loop {
             let mut d = END;
             if !io.read_definition(&mut d) {
@@ -406,27 +506,18 @@ impl<S: RawStream> TokenRecord<S> {
             if d.id == 1 {
                 return Ok(true);
             }
-            self.create_field(d)?;
+            if self.create_field(d).is_err() { return Ok(false); }
             let field = self.fields.get_mut(&d.id).expect("created field");
-            if let Values::U32(values) = &mut field.values {
-                for value in values {
-                    if !io.read_number(value) {
-                        return Ok(false);
-                    }
-                }
-            }
+            if !io.read_values(&mut field.values) { return Ok(false); }
         }
     }
     pub fn write_tokens(&mut self) -> Result<bool> {
-        if !self.text {
-            return Err(Error::Unsupported("SCR4: binary field encoding"));
-        }
         let serial = self.serial.as_ref().ok_or(Error::InvalidContext)?;
         let mut record = serial.lock().unwrap_or_else(|e| e.into_inner());
         if !record.set(&self.cookie) {
             return Ok(false);
         }
-        let mut io = TextIo::new(&mut record);
+        let mut io = Adapter::new(&mut record, self.text);
         for field in self.fields.values() {
             if !io.write_definition(&field.name, field.descriptor) || !io.write_values(&field.values) {
                 return Ok(false);
