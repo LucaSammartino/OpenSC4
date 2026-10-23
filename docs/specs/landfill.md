@@ -1325,7 +1325,49 @@ u8    isEmpty (0/1)
 ```
 
 Read requires version 3 (and 4 for the base record), sets `isEmpty := (byte = 1)`, recomputes the bounding box,
-returns `!GetError()`.
+returns `!GetError()`. The nested holder's rejection is **not** another rejection condition at the occupant
+base layer; the exact order matters for malformed records (LG33).
+
+**Reader layers and failure state** *[compat]* (LG33; instruction-checked, 2026-10-23):
+
+| Layer | Calls and acceptance | State on rejection |
+|---|---|---|
+| Landfill `Read`, `0x00477560` | Read u16; require 3. Call base `Read`; **test AL**, stop if false (`0x00477588`–`0x0047758F`). Otherwise read u32 tile, s32 orientation, three f32 position components, u8 empty; store `empty == 1`; recompute bounds; then test stream `GetError()` (`0x00477591`–`0x004775EE`). | Wrong outer version: consumes 2 bytes and changes no object state. Base rejection: keeps any base changes but makes no landfill-field or bounds changes. Tail error: keeps successful field writes and still assigns empty and recomputes bounds; no rollback. |
+| Occupant base `Read`, `0x005E8D60` | Read u16; require 4. Read removal word, highlight, flags, type, four rect bytes in that order. Store status as the **byte** `(highlight << 4) OR 2`. Call exemplar holder `0x005FF420`; **ignore its Boolean**; call stream `GetError()` and return whether it is zero (`0x005E8DD4`–`0x005E8DED`). | Wrong base version: consumes that version only and changes no base state. Later failure retains earlier writes. A holder version rejection with no stream error makes this layer return true. |
+| Exemplar holder `Read`, `0x005FF420` | Require u16 2; call plain holder and **test AL** (`0x005FF437`–`0x005FF456`). If false, stop before the parent key. Otherwise read group, type, instance into a key initially all zero, process the key, then return `GetError() == 0` (`0x005FF45C`–`0x005FF501`). | Bad exemplar version: own properties and parent unchanged. Plain-holder rejection: parent unchanged, own properties as left by plain reader. Errors during the key do not bypass key processing: an all-zero partial key clears the parent; a nonzero key still attempts resource lookup, with the existing §10.3 found/missing rules. |
+| Plain holder `Read`, `0x005FF280` | Require u16 2; read count, clear own entries, process count entries, return `GetError() == 0` (`0x005FF29B`–`0x005FF2CF`, `0x005FF39E`–`0x005FF3B6`). | Bad plain version: own entries unchanged. After accepted version, clearing is not rolled back on stream error. The parent is not part of this operation. |
+
+The return contract is Boolean **AL** for all four readers. Successful full landfill reads return EAX = 1;
+its base-rejected/error exits return EAX = 0; its bad-version exit guarantees AL = 0 only. Primitive read
+Booleans are not tested individually by the landfill/base readers. Stream virtual offset `+0x48` is
+`GetError`, not the preceding nested reader's result. A version mismatch itself does not set that error.
+These facts apply to these concrete reader bodies; foundations §10.3's strict rule still describes the
+exemplar holder itself, not every owner that embeds one.
+
+There is **no local resynchronisation** after a rejected holder. If the stream is good, landfill reads
+21 bytes immediately after the portion the holder consumed. For LG33's 57-byte input, changing only the
+exemplar version at offset 16 to 1 leaves the cursor at 18. Base returns true, then landfill reads offsets
+18–38 as its tail: tile = 2, orientation = 0, position words = `(0, 0, 0x00100000)`, empty = false (byte
+`0xF1`). With round-to-nearest, bounds become `(-8,0,-8)` … `(8,16,8)`. Return true, cursor 39,
+`GetError = 0`; bytes 39–56 remain unread. These state values are static deductions, **not** a newly
+scored native state comparison. The class store's entry-size resynchronisation (foundations §3.5) is outside
+this reader and does not repair the current object's misparsed state.
+
+Failed primitive reads leave destinations unchanged under the segment-stream contract (foundations §2.2),
+but some destinations here are reused/uninitialised stack storage, rather than object fields. In particular,
+failed version reads do not supply a defined version; a failed plain count read does not supply a bounded
+count; a failed highlight/empty read does not mean “keep the old highlight/empty”. The base still derives
+status from its byte temporary, and landfill still derives empty from its byte temporary if it reached the
+tail. Do not invent deterministic values or a safe count loop for those cases. A sticky stream error makes
+base return false **if it returns**, preventing the landfill tail; an error first occurring in the tail is
+tested only after its assignments and bounds update.
+
+Literal proposed test vectors, their exact call sequences, byte offsets, defined state, and remaining
+unknowns are in [landfill-occupant-read-vectors.md](landfill-occupant-read-vectors.md). The recorded native
+LG33 observation is true / 39 of 57 / error 0 versus the existing Rust false. Outer/base bad versions and
+final-byte truncation rejected on both sides. Own-output reload 4/4 and scalar/record comparison 8/9 do not
+establish propagation of nested rejection. Keep that observed difference; this clarification is not an
+implementation change or a new native acceptance result.
 
 **Tiles across a save and load** *[compat]* (LG8). The original **saves every tile occupant** and **does not
 rebuild tiles on load**:
@@ -1436,6 +1478,32 @@ The object also implements `cISC4Occupant` (at its second vtable; QI `0x26BB767E
 | 7 | +0x1C | `0x00477110` | `int32 GetOrientation()` | 0 | EAX | (read by the model maker) | ok |
 | 8 | +0x20 | `0x004771C0` | `bool SetOrientation(int32)` | 4 | AL = 1 | stores it | ok |
 | 9 | +0x24 | `0x00477120` | `bool IsEmptyLandfillTile()` | 0 | AL | `isEmpty` | ok |
+
+**Inherited position interface, concrete landfill body** *[compat]* (LG32). On the occupant view
+(`cISC4Occupant`, object +4, vtable `0x00A8CDA0`), slot 8 / `+0x20` is GetPosition
+`0x005B2B00`, slot 9 / `+0x24` is SetPosition `0x00477600`, and slot 10 / `+0x28` is
+GetBoundingBox `0x00477420`. All use `__thiscall`; the position methods pop 4 bytes (one vector pointer),
+GetBoundingBox pops 8 (two output pointers). The table's ported name `cSC4PowerLineOccupant::vftable_1`
+does not change the landfill constructor's actual installation of that table (`0x0047728A`).
+
+SetPosition copies the three input **32-bit float words** to position, then computes bounds as in §2.3.
+Each bound arithmetic operation loads f32, adds/subtracts the f32 constant 8 or 16, and stores f32
+(`0x00477615`–`0x00477654`; constants `0x00A8CCFC` = `0x41000000`, `0x00A8CD04` = `0x41800000`).
+There is no registration/Init check, manager notification, or success/failure branch in this body.
+
+Treat the operation as **void**: callers must not predicate success on the SDK's `bool`. Instructions
+`0x0047760F`–`0x00477612` leave the z input's raw word in EAX, and no subsequent instruction changes EAX
+before `ret 4` at `0x00477657`. This is a residual register value, not a Boolean acceptance channel.
+The shipped creation caller invokes slot 9 at `0x006BC8F4` and proceeds to Init at `0x006BC8FB` without
+testing a return. This establishes the concrete landfill contract, not a return rule for every occupant class.
+
+For `(88.5,-4,120.25)`, position words are `(0x42B10000,0xC0800000,0x42F08000)` and bounds are
+`(80.5,-4,112.25)` … `(96.5,12,128.25)`. EAX's residual word is `0x42F08000`, hence AL = 0.
+The SDK Boolean false measured in both `vlfr4-r2-on-reload-2032-20261022a` and
+`vlfr4-r2-normal-diagnostic-20261022b` is consistent with that instruction trace; it is not a rejected move.
+Their exact position/bounds and all 57 record bytes remain the recorded effect agreement. SetOrientation(-123)
+returning true and same-ID SetTileID returning its previous ID remain separate contracts. Score position
+effects through the typed outputs; retain the historical SDK return observation as unscored.
 
 ### 7.4 Notes on the SDK comparison
 
