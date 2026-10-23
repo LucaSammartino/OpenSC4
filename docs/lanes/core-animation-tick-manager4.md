@@ -10,7 +10,9 @@
 - Copied 04:38 process proof: old qbuild13056/verifier23772/stats8880 absent;
   references/outputs/errors empty. Root did not kill them; historical quick terminal/cause UNKNOWN.
 - Fresh exact-worktree qbuild audit found no current conflicting checker.
-- Next: `python build-runs/check-animation.py all animation-final-r2`; collect its actual terminal.
+- Final all started from f01e83b5: actual session93072, driver26192, qbuild24600.
+- Next: collect that same session to terminal; do not duplicate or restart it.
+- Process creation/argv/cwd/output captured in `build-runs/animation-final-r2-session.json`.
 - Engine Git tree before gate: 85a62cdf7acf9604653dcabb12ee284bf76b45e4.
 - Driver SHA256 is a separate namespace; require matching before/after plus unchanged Git engine tree.
 - No game request outstanding; no source changes planned. Earlier report below is retained history.
