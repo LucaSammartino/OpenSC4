@@ -4,8 +4,8 @@
 
 ## Handoff
 Goal: close CT2, CT16, CT17, CT22–CT24 with prose and vectors; no code changes.
-Done: 8e1a3294 answers CT2/22/23/24 in spec and moves entries to answered file; questions index regenerated; doccheck check PASS.
-Next: complete CT16/17, update coverage paragraph, regenerate index, run doccheck, commit report + queue (kind re, ready, full HEAD).
+Done: 8e1a3294 answers CT2/22/23/24; round 2 CT16 now specifies side bytes, footprint table, depth-2 search and five vectors; moved to answered and index regenerated.
+Next: complete CT17, update coverage paragraph, regenerate index, run doccheck, commit report + queue (kind re, ready, full HEAD).
 Owner closure table is in forbidden engine README; owner's docs report and question rows provide closure mapping.
 Main evidence: C:/Users/tlori/FreeCity4/decomp/cSC4ViewInputControlPlaceLot.c; function boundaries at lines 1099 Seek, 1225 toll pick, 1753 preview, 2904 constraints, 3129 feedback, 32 prop drawing.
 CT16 toll pseudocode is corrupt; ASM verified: network types priority 0,2,6,12, masked flags 0x1f4f must contain only chosen type; side bytes low2 reject 1/3, 2 connected, 0 disconnected, bit2 orientation marker; exactly two opposite connected sides. Rotation1 for sides0/2, rotation2 sides1/3.

@@ -399,13 +399,54 @@ flags, …, &cost)` (demolition.md §4.4) with flags `0x2800`, or `0x800` when `
    lot's size, which posts `0x49D5B83F` when it ends (§3.4).
 10. The result is whether the building was made.
 
-### 3.13 Toll booths (`PickTollBoothLotAndOrientation`, `0x004BFB30`) *[summary; CT16]*
+### 3.13 Toll booths (`PickTollBoothLotAndOrientation`, `0x004BFB30`) *[compat]*
 
-*Added 2026-10-22 (re-plop).* The configuration is `0xEBF9A440` with rotation 2 by default. The cell under the
-cursor must hold a network occupant of exactly one of road, highway, avenue or ground highway (types 0, 2, 6, 12)
-whose sides form a straight piece (two opposite sides connected, none half-connected); the booth's cells and
-rotation follow the piece's direction, and `SeekCompatibleNetworks` (`0x004BF6B0`) must find, within 2 steps along
-the network (mask `0x1045`), no occupant with another surface network.
+*Completed 2026-10-23 (re-citytools-ct5; CT16).* The cursor position is converted to cell `(x,z)` and
+snapped to that cell's corner `(X,Z)`. Height is retained. Before testing the network, output defaults
+are configuration `0xEBF9A440`, rotation 2, inclusive cells `(x,z,x,z+1)` and position `(X,Z+8)`.
+The network-map lookup uses mask `0x1045`, final argument true. Missing occupant fails. The first present
+network type in priority order 0, 2, 6, 12 is selected; none fails. Its flags, masked by `0x1F4F`, must
+contain no bit other than the selected type's bit. This is a masked exclusion, not a test of all flags.
+
+The network occupant's slot 38 returns four side bytes, side 0 in the least-significant byte. Sides
+0/1/2/3 correspond to −x/−z/+x/+z. In each byte, low two bits 0 mean disconnected, 2 connected;
+1 or 3 fail immediately. Exactly two opposite sides must be connected. Bit 2 is a separate alignment
+marker, including on a disconnected side; the other bits do not affect this picker.
+
+| Selected type | Configuration |
+|---|---|
+| 0 (road) | `0xEBF9A440` |
+| 2 (highway) | `0x8BF9B356` |
+| 6 (avenue) | `0xABF9A45C` |
+| 12 (ground highway) | `0x2BF9B222` |
+
+The table gives inclusive cell bounds and final position relative to the snapped corner, including
+the initial +8 z shift. These are literal 8/16 world-unit offsets, not multiples of a queried cell size.
+
+| Type | Connected sides | Alignment marker | Rotation | Cells | Position `(x,z)` in world units |
+|---|---|---|---|---|---|
+| road | 0,2 | ignored | 1 | `(x,z,x+1,z)` | `(X+8,Z)` |
+| road | 1,3 | ignored | 2 | `(x,z,x,z+1)` | `(X,Z+8)` |
+| 2/6/12 | 0,2 | side 1 bit 2 set | 1 | `(x,z-1,x+1,z)` | `(X+8,Z-8)` |
+| 2/6/12 | 0,2 | side 1 bit 2 clear | 1 | `(x,z,x+1,z+1)` | `(X+8,Z+8)` |
+| 2/6/12 | 1,3 | side 0 bit 2 set | 2 | `(x-1,z,x,z+1)` | `(X-8,Z+8)` |
+| 2/6/12 | 1,3 | side 0 bit 2 clear | 2 | `(x,z,x+1,z+1)` | `(X+8,Z-8)` |
+
+Finally `SeekCompatibleNetworks(rect, 2, type)` must succeed. For every cell in the inclusive rectangle,
+it independently follows the network's low four connection bits (occupant slot 40), with the side
+offsets above. The starting cell is depth 0; occupants at depths 0, 1 and 2 are checked, but depth 2
+does not expand. Every lookup uses mask `0x1045`, true. A missing occupant ends that branch successfully;
+there is no reciprocal-connection requirement or visited-cell suppression. An occupant fails the
+whole test when its slot 9 reports any flag in `((~(1 << type)) & 0x1FFF) | 0x400000`.
+Thus another type among bits 0–12, or flag `0x400000` itself, disqualifies a reached occupant even
+when it is the same chosen network type. This is the literal flag rule, regardless of the flag's
+name. On such a failure the already selected configuration, rotation, rectangle and position remain
+outputs; callers must honor the false result.
+
+Evidence: defaults/snapping `0x004BFB30–0x004BFBC5`; type exclusion and side decoding
+`0x004BFBD2–0x004BFC9E`; shape/position writes `0x004BFCBF–0x004BFE93` (float constants
+`0x00A8E178` = 8, `0x00A8D45C` = 16); configuration table `0x00A90650`;
+search `0x004BF6B0`, direction tables `0x00A90708`/`0x00A90718`.
 
 ### 3.14 Feedback *[summary; CT17]*
 
@@ -499,6 +540,11 @@ Place-lot closure vectors (re-citytools-ct5, 2026-10-23):
 | ID | Setup/action | Required observation |
 |---|---|---|
 | CT2-a | Move with a held WM, no terrain hit | One WM input-queue flush after feedback/text processing; handled = true. |
+| CT16-a | Road at cell (10,20), 16-unit corner (160,320), side word `0x00020002`; search clean | Config `EBF9A440`, rotation 1, cells (10,20,11,20), position (168,320). |
+| CT16-b | Avenue at that cell, side word `0x00020402`; search clean | Config `ABF9A45C`, rotation 1, cells (10,19,11,20), position (168,312); side 1 marker shifts the footprint. |
+| CT16-c | Ground highway at that cell, side word `0x02000200`; search clean | Config `2BF9B222`, rotation 2, cells (10,20,11,21), position (168,312). With side 0 byte 4, cells (9,20,10,21), position (152,328). |
+| CT16-d | Side low bits contain 1/3, adjacent connections, or three connections | Picker false. A road plus avenue in masked flags also fails. |
+| CT16-e | A reached depth-2 occupant has flag `400000`; then put the flag only at depth 3 | First search false; second true if every checked occupant is otherwise compatible. Missing branch occupants pass; do not inspect depth 3. |
 | CT2-b | Repeat an unchanged move; then move with no held WM | One flush on the repeat; no WM call with null; both handled. |
 | CT22-a | Ring-finished message, flag set, view present | Flag clears before one coverage recalculation; message result false. |
 | CT22-b | Repeat ring-finished with flag clear; then with null view | Recalculates again with view; only flag clear with null. No ring release or plop decrement. |

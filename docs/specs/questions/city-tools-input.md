@@ -40,10 +40,6 @@
   `DoesRouteCrossCell`, `GetRouteTravelTypes` and the legend's travel-type toggles in detail. [outline]
 
 <!-- from: re-plop (2026-10-22) -->
-- **CT16 - §3.13, the toll booths:** the side codes the network occupant's slot 38 gives, the booth's cells per
-  direction, and what `SeekCompatibleNetworks` (`0x004BF6B0`) tests (its flag mask `0x400000`). [summary]
-
-<!-- from: re-plop (2026-10-22) -->
 - **CT17 - §3.14, §3.2 step 6, the feedback:** the preview model (`GetBuildingPreviewModel`, `0x004C0680`), the
   constraint tiles and the colours of `SetVisualUserFeedback`, `SetConstraintFeedback` and
   `SetPropOccupantDrawAttributes`, and what the views `0xA` and `0xF2` registered with the view manager show

@@ -1,5 +1,11 @@
 # city-tools-input: answered questions
 
+- **CT16 — §3.13, toll-booth side codes, cells and compatible-network mask.**
+  **ANSWERED 2026-10-23 (re-citytools-ct5):** DIFFERS — §3.13 specifies the four byte codes,
+  alignment bit, six footprint/position cases and configuration IDs. Search checks depth 0 through 2
+  inclusive and rejects any flag in `((~(1 << type)) & 0x1FFF) | 0x400000`; the latter flag rejects
+  even a same-type occupant. Missing branches pass. CT16-a–e are conformance vectors.
+
 - **CT2 — §3.7, WM slot 19 after mouse movement: which operation?**
   **ANSWERED 2026-10-23 (re-citytools-ct5):** DIFFERS — input-message queue flush,
   identified by the identical call in SC4FlushInputMessageQueue; conditional on held WM,
