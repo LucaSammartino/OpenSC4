@@ -83,7 +83,9 @@ Getters return the field and do nothing else unless the row says otherwise. Offs
 | 23 / 24 | +0x5C / +0x60 | Get/SetPopupDialogsEnabled | byte +0x651 |
 | 27 | +0x6C | GetAppName(out) | copies string +0x68 into out |
 | 28 | +0x70 | GetAppIniFileName(out) | app name + `.ini`, only when the name is non-empty |
+| 29 | +0x74 | GetAppIniFilePath(out) | section 14.3; candidate under slot 51, otherwise slot 58 plus INI name |
 | 30 | +0x78 | GetAppPreferencesFileName(out) | app name + `.cfg`, same condition |
+| 31 | +0x7C | GetAppPreferencesFilePath(out) | slot 58 base plus preferences filename; no existence test (`0x0044C090`) |
 | 35 / 36 | +0x8C / +0x90 | GetRegion / GetRegionalCity | region getter forwards to the region object's slot +0x20 |
 | 38 | +0x98 | GetPreferences | pointer +0x3B0 |
 | 39 | +0x9C | GetNewCitySpecification | address of +0x3B4 |
@@ -95,8 +97,19 @@ Getters return the field and do nothing else unless the row says otherwise. Offs
 | 51 to 66 | +0xCC..+0x108 | directory getters | section 9 |
 | 67 / 68 | +0x10C / +0x110 | AddDynamicLibraryByName / ByPath | section 14.1 |
 
-Slots 25, 26, 32 to 34, 37 resolve to code shared with other classes (folded getters) and are not described
-here. Slots 19 and 20 are the app's own `ApplyVideoPreferences` (`0x0044A1C0`) and `GetAutoVideoPreferences`
+The folded getters return a 32-bit field without retaining it or invoking a foreign simulator.
+Their export labels describe other users of the same instructions, not app behavior:
+
+| Slot | Address | Field relative to cISC4App / whole app | App meaning where established |
+|---|---|---|---|
+| 25 | `0x0080BC00` | +0x38 / +0x44 | app mode |
+| 26 | `0x0068D1B0` | +0x40 / +0x4C | stored value; semantic name unconfirmed |
+| 32 | `0x006EFA20` | +0x308 / +0x314 | stored value; semantic name unconfirmed |
+| 33 | `0x006EFA30` | +0x30C / +0x318 | stored value; semantic name unconfirmed |
+| 34 | `0x00698CF0` | +0x48 / +0x54 | region pointer |
+| 37 | `0x0081F910` | +0x50 / +0x5C | city pointer |
+
+Slots 19 and 20 are the app's own `ApplyVideoPreferences` (`0x0044A1C0`) and `GetAutoVideoPreferences`
 (`0x0044A330`) (vtable words `0x00A86B3C`, `0x00A86B40`; section 13.3; corrected 2026-10-22, re-app).
 
 ## 3. Startup order
@@ -325,6 +338,24 @@ Plain getters copy a stored path: data +0x7C, CD data +0x90, SKU-specific +0xCC,
 slot +0xE4 +0x108, slot +0xE8 +0x11C. GetPluginDirectory (+0xD4) copies +0xA4 and, for a language
 index of 0 or more, adds a language subfolder (default name `English`).
 
+Complete slots 51–58 (*[compat]*, AP15): the plain getters assign the stored NUL-terminated
+path to the caller's output string; they do not create, validate, normalize or cache a folder.
+Offsets in this table identify stored character pointers, not embedded string headers.
+
+| Slot | Interface offset | Address | Path source (whole-app offset) / arguments |
+|---|---|---|---|
+| 51 | +0xCC | `0x00449DE0` | data, +0x7C; out |
+| 52 | +0xD0 | `0x00449E00` | CD data, +0x90; out |
+| 53 | +0xD4 | `0x0044BF90` | plugin, +0xA4; out, signed language index; negative means base only |
+| 54 | +0xD8 | `0x0044C010` | CD plugin, +0xB8; out, signed language index; same language suffix rule |
+| 55 | +0xDC | `0x00449E20` | SKU-specific, +0xCC; out |
+| 56 | +0xE0 | `0x00449E40` | user data, +0xE0; out; ordinary copy, no missing implementation |
+| 57 | +0xE4 | `0x00449E60` | stored path +0x108; out; retain offset-based identity |
+| 58 | +0xE8 | `0x00449E80` | stored user base +0x11C; out; distinct from slot 56 |
+
+The slot 57/58 semantic aliases remain AP3; callers must not exchange them merely because
+the export calls slot 58 `GetRegionsDirectory`. The table fixes dispatch independently of those names.
+
 Lazy user subfolders: on the first call (cached string empty) the getter asks slot +0xE8 for the base
 path, appends the name and a `\`, and caches it; later calls copy the cache.
 
@@ -441,6 +472,34 @@ Rebuilds the open city through a save and reload:
    original path.
 5. Restore zoom (3D view global `0x00B43DC4`, slot +0x20) and rotation (slot +0x38) when the view
    exists; shut down and release the segment; delete the temp file.
+
+**Failure contract (AP15, instruction audit `0x00454ED3`–`0x00455051`):** this is a destructive
+rebuild, with no rollback on failure to make or write the temporary file. Partial close and
+deletion of the old nonempty path still occur; a failed temporary read skips NewCity and the
+replacement save. The read segment's initialization return is ignored: path assignment and
+read-open are still attempted. Read-open failure still shuts down and releases the local segment
+and attempts temporary-file removal, but does not call its close method. On read-open success,
+the template pointer is cleared after NewCity even if no city results; close is called, and a
+replacement save is attempted only if a city exists. No template segment is registered as the
+ordinary city resource segment by this routine. Save failure is not a rollback trigger.
+
+Zoom and rotation start at zero. Missing source view leaves those zero values; a destination
+view, if present, receives both zero values even after failed rebuilding. Missing destination
+view skips both setters. These are independent singleton checks, not a requirement that both exist.
+
+`SaveCityForObliteration` (`0x00454510`) releases its segment after failed initialization;
+after successful initialization it also shuts it down, even when write-open fails. Close is
+called only following successful write-open. Its return is **always true on normal completion**
+(`0x004545BC`), regardless of initialization/open/write result. Consequently step 1's result is
+not a reliable write-success indicator. If temporary-name generation fails, the outer return
+byte is uninitialized; do not assign it a deterministic false value.
+
+An open city is a precondition for the temporary writer: its successful open path dereferences
+the city without a null check (`0x00454588`–`0x0045458E`). Thus no-city obliteration has no general
+safe false/no-op contract. The outer routine guards only the old-path read and city flag update;
+if the writer reaches that dereference without a city, the native call is invalid. Allocation
+failure likewise has no recoverable false contract. Portable implementations may reject such
+invalid invocations explicitly *[choice]*; conformance must not claim that rejection is native behavior.
 
 ### 11.7 City init message sequence (NewCity and LoadCity)
 
@@ -676,12 +735,23 @@ the graphics driver and video mode (software `0x7ACA35C6`, DirectX `0xBADB6906`)
 ### 14.1 Code plugins
 
 `AddCodePlugins(dir)` (`0x00451260`) loads every `*.dll` of the directory through GZCOM. A DLL with a `<name>.ini`
-beside it whose `[Admin] Enabled` is `false` (`cRZString::IsEqual`) or exactly `0` is skipped
+beside it whose `[Admin] Enabled` is case-insensitively `false` (`cRZString::IsEqual` with case-sensitive flag 0)
+or exactly `0` is skipped
 (`0x00451740`–`0x004518CB`). `AddDynamicLibraryByPath` (iface slot 68, `0x0044EAF0`) and `AddDynamicLibraryByName`
 (slot 67, `0x00451A10`) apply the same test to one library. `PreFrameWorkInit` runs it for the plugin directories
 (§3); a change notification from a directory watcher runs it again for that directory (§6.1).
 
 ### 14.2 Resources *[summary]*
+
+The plugin comparison above operates on the INI reader's returned value: no extra trimming,
+numeric conversion or truth-word parsing is performed. Thus `FALSE`, `False` and `0` disable;
+`00`, `no` and an absent key do not. The case-insensitive branch lowercases both strings
+(`0x0090ECCE`, `0x0090ECD6`); the separate `0` comparison is exact. By-name loading constructs
+a path using `RZ::ADir`, then invokes interface slot 68 (`0x00451BD3`), forwarding the bypass
+flag. It therefore resolves the path before the adjacent-INI test; it does not ask a foreign
+resolver to decide Enabled. By-path loading returns false before reading the INI if GZCOM is
+absent or the DLL does not exist. A nonzero bypass flag skips the Enabled test
+(`0x0044EB27`–`0x0044EB2B`).
 
 `LoadRegistry` (`0x004584A0`) reads `Sys\Resources.ini`: switches **`packedexemplars`** and **`packedtextures`**
 (`on`/`off`), and the sections `DBSegments` and `DBSegmentDirectoryFiles`, whose entries are `class;path` with
