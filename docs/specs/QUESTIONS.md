@@ -26,6 +26,7 @@ generated index: the questions live one file per spec, so read only the file for
 | AC | animation-coordinator |
 | AD | advisors, automata-managers |
 | AF | aircraft |
+| AGP | auto-game-pause |
 | AM | automata |
 | AN | automata-support |
 | AO | foundations |
@@ -189,6 +190,7 @@ generated index: the questions live one file per spec, so read only the file for
 | application | 7 | 2 | AP10 | questions/application.md |
 | audio-ambience | 1 | 10 | AA12 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
+| auto-game-pause | 1 | 0 | AGP2 | questions/auto-game-pause.md |
 | automata | 4 | 38 | A5, AM13, AT25 | questions/automata.md |
 | automata-managers | 4 | 0 | AD5 | questions/automata-managers.md |
 | automata-support | 2 | 0 | AN3 | questions/automata-support.md |
@@ -335,4 +337,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **509** | **1262** | | |
+| **total** | **510** | **1262** | | |
