@@ -5,6 +5,26 @@ was, in [docs/history/handoff-2026-10.md](../history/handoff-2026-10.md). Who re
 owner of `main`). Lanes read [docs/lanes/README.md](../lanes/README.md) and [docs/merge-train.md](../merge-train.md)
 instead: write the lane file, enqueue, stop.
 
+## Mandatory nine-worker capacity
+
+The user's 2026-10-23 instruction requires **nine actual running worker lanes**, with at most three glue
+lanes. Research, implementation, verification and tooling all count when they advance coverage. Helpers,
+reviews, queued briefs and blocked tasks do not count as running workers. The earlier research/spec-writing
+pause is lifted. The coordinator has authorization to resolve project blockers autonomously; waiting for the
+absent user to resolve routine blockers is not a recovery action.
+
+Whenever the live count drops below nine, immediately assign available helpers independent refill areas,
+prepare and peer-review useful briefs, and queue every eligible brief through the normal guarded dispatcher.
+Keep doing this until nine workers run and launchable replacements cover open slots. Maintain essential
+train acceptance in parallel so completed dependencies promptly release more work. Broaden selection to
+distinct owners and research missing contracts; repeatedly reviewing the same blocked shortlist is not refill.
+
+Treat a failed check or service error as work to resolve: inspect its actual evidence, repair the underlying
+operational or tooling fault, and repeat the normal check only after its cause changes. Preserve honest scope,
+clean-room roles, assignments, logical-family round budgets and STOP. Never satisfy capacity by disabling a
+guard, renaming exhausted work, or counting a conditional brief as launchable. Record actual lane/process
+identities and corrective action at each heartbeat; do not enter a long wait while refill work remains.
+
 ## Spawning a lane
 
 **Provider selection:** the tracked `tools/lane_launch.py` and `tools/lane_refill.py` support explicit
