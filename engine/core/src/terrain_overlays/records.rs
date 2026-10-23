@@ -2,6 +2,7 @@
 // Copyright (C) 2026 FreeCity4 contributors
 
 use super::{flag, TextureBinding, TextureSource};
+use std::collections::VecDeque;
 use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -19,27 +20,36 @@ impl Handle {
     }
 }
 
-/// Nine floats are preserved verbatim. Their meaning/order is open under OV1.
+/// cx, cz, full width, turns, stretch, repeatU, repeatV, offset, retained (§3.2).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Placement(pub [f32; 9]);
 
-/// Internal half-open cell interval, not a claim about original endpoint layout
-/// (OV8). Clipping and intersection are owned by this module, not a terrain host.
+/// Raw signed half-open cell rectangle `(x0, z0, x1, z1)` (§2.2). Inverted
+/// bounds are kept as supplied; they are simply empty.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CellRect {
-    pub min: [u32; 2],
-    pub max: [u32; 2],
+    pub min: [i32; 2],
+    pub max: [i32; 2],
 }
 
 impl CellRect {
+    pub const ZERO: Self = Self {
+        min: [0, 0],
+        max: [0, 0],
+    };
+
+    /// Signed intersection with `(0, 0, nx, nz)` (`0x0048ED90`): a strictly
+    /// separated rectangle becomes all zeros, a touching edge is retained.
     pub fn clipped(self, city_cells: [u32; 2]) -> Self {
-        let min = [self.min[0].min(city_cells[0]), self.min[1].min(city_cells[1])];
+        let city = city_cells.map(i64::from);
+        let [x0, z0] = self.min.map(i64::from);
+        let [x1, z1] = self.max.map(i64::from);
+        if x1 < 0 || z1 < 0 || x0 > city[0] || z0 > city[1] {
+            return Self::ZERO;
+        }
         Self {
-            min,
-            max: [
-                self.max[0].min(city_cells[0]).max(min[0]),
-                self.max[1].min(city_cells[1]).max(min[1]),
-            ],
+            min: [x0.max(0) as i32, z0.max(0) as i32],
+            max: [x1.min(city[0]) as i32, z1.min(city[1]) as i32],
         }
     }
 
@@ -47,11 +57,11 @@ impl CellRect {
         self.min[0] >= self.max[0] || self.min[1] >= self.max[1]
     }
 
-    pub fn contains(self, cell: [u32; 2]) -> bool {
+    pub fn contains(self, cell: [i32; 2]) -> bool {
         (0..2).all(|axis| self.min[axis] <= cell[axis] && cell[axis] < self.max[axis])
     }
 
-    pub(super) fn cells(self) -> impl Iterator<Item = [u32; 2]> {
+    pub(super) fn cells(self) -> impl Iterator<Item = [i32; 2]> {
         (self.min[1]..self.max[1]).flat_map(move |z| (self.min[0]..self.max[0]).map(move |x| [x, z]))
     }
 }
@@ -83,10 +93,14 @@ pub(super) enum Target {
 
 pub(super) struct HandleRecord {
     pub placement: Placement,
+    pub aspect: f32,
     pub target: Target,
 }
 
 pub(super) struct Overlay {
+    pub stamp: u16,
+    pub secondary: Option<[f32; 16]>,
+    pub primary: [f32; 16],
     pub flags: u32,
     pub cells: CellRect,
     pub alpha: f32,
@@ -101,6 +115,8 @@ pub(super) struct Overlay {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct OverlaySnapshot {
+    pub secondary: Option<[f32; 16]>,
+    pub primary: [f32; 16],
     pub flags: u32,
     pub cells: CellRect,
     pub alpha: f32,
@@ -114,6 +130,8 @@ pub struct OverlaySnapshot {
 impl Overlay {
     pub fn snapshot(&self) -> OverlaySnapshot {
         OverlaySnapshot {
+            secondary: self.secondary,
+            primary: self.primary,
             flags: self.flags,
             cells: self.cells,
             alpha: self.alpha,
@@ -131,28 +149,25 @@ impl Overlay {
     }
 }
 
-/// Free-list storage. [choice, OV5] Freed slots are reused LIFO; stale handles
-/// are rejected until reuse. No generation bits are invented in the public ID.
+/// FIFO free queue with retained payloads (§2.3). Portable bounds/stale checks
+/// prevent unsafe Rust access; native validation is not claimed. No generations.
 pub(super) struct Arena<T> {
     slots: Vec<Option<T>>,
-    free: Vec<u32>,
+    free: VecDeque<u32>,
 }
 
 impl<T> Default for Arena<T> {
     fn default() -> Self {
         Self {
             slots: Vec::new(),
-            free: Vec::new(),
+            free: VecDeque::new(),
         }
     }
 }
 
 impl<T> Arena<T> {
-    // Construction stays private until OV1/OV2 supply placement contracts. Tests
-    // seed records here to exercise setter logic without a fake placement host.
-    #[cfg(test)]
     pub fn insert(&mut self, value: T) -> u32 {
-        if let Some(index) = self.free.pop() {
+        if let Some(index) = self.free.pop_front() {
             self.slots[index as usize] = Some(value);
             index
         } else {
@@ -164,18 +179,27 @@ impl<T> Arena<T> {
     }
 
     pub fn get(&self, index: u32) -> Option<&T> {
+        if self.free.contains(&index) {
+            return None;
+        }
         self.slots.get(index as usize)?.as_ref()
     }
 
     pub fn get_mut(&mut self, index: u32) -> Option<&mut T> {
+        if self.free.contains(&index) {
+            return None;
+        }
+        self.slots.get_mut(index as usize)?.as_mut()
+    }
+
+    pub fn payload_mut(&mut self, index: u32) -> Option<&mut T> {
         self.slots.get_mut(index as usize)?.as_mut()
     }
 
     pub fn remove(&mut self, index: u32) {
-        if let Some(slot) = self.slots.get_mut(index as usize) {
-            if slot.take().is_some() {
-                self.free.push(index);
-            }
+        if self.get(index).is_some() {
+            // Native removal links the slot but retains payload until reuse/range destruction.
+            self.free.push_back(index);
         }
     }
 
@@ -185,9 +209,20 @@ impl<T> Arena<T> {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (u32, &T)> {
-        self.slots
-            .iter()
-            .enumerate()
-            .filter_map(|(i, o)| o.as_ref().map(|o| (i as u32, o)))
+        self.slots.iter().enumerate().filter_map(|(i, o)| {
+            if self.free.contains(&(i as u32)) {
+                None
+            } else {
+                o.as_ref().map(|o| (i as u32, o))
+            }
+        })
+    }
+}
+
+impl Drop for Overlay {
+    fn drop(&mut self) {
+        // Logical range/reuse reference protocol; allocation/reentrancy remains unqualified.
+        drop(self.source.take());
+        drop(self.binding.take());
     }
 }

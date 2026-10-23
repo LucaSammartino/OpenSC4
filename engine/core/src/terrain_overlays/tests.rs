@@ -45,6 +45,7 @@ impl TerrainProvider for Terrain {
 }
 
 struct View {
+    lighting: Option<Arc<dyn ModelLighting>>,
     terrain: Option<Arc<Terrain>>,
     factory: Option<Arc<Factory>>,
     quality: i32,
@@ -52,6 +53,9 @@ struct View {
     messages: Mutex<Vec<(bool, u32)>>,
 }
 impl ViewProvider for View {
+    fn model_lighting_slot9(&self) -> Option<Arc<dyn ModelLighting>> {
+        self.lighting.clone()
+    }
     fn terrain(&self) -> Option<Arc<dyn TerrainProvider>> {
         self.terrain.as_ref().map(|t| t.clone() as Arc<dyn TerrainProvider>)
     }
@@ -74,6 +78,7 @@ impl ViewProvider for View {
 
 fn view(quality: i32) -> Arc<View> {
     Arc::new(View {
+        lighting: None,
         terrain: Some(Arc::new(Terrain {
             cells: [8, 4],
             width: 16.0,
@@ -94,13 +99,213 @@ fn manager(dynamic: bool) -> OverlayManager {
     manager
 }
 
-fn rect(min: [u32; 2], max: [u32; 2]) -> CellRect {
+fn rect(min: [i32; 2], max: [i32; 2]) -> CellRect {
     CellRect { min, max }
+}
+
+#[test]
+fn public_ov2_rectangle_copies_every_word_without_clipping_or_handle() {
+    let mut m = manager(false);
+    let matrix = [
+        0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0,
+    ];
+    let bounds = rect([7, 3], [10, 5]);
+    assert_eq!(m.add_overlay_for_rect(None, bounds, matrix, 8), Ok(Handle::NONE));
+    let h = m
+        .add_overlay_for_rect(Some(Arc::new(Texture)), bounds, matrix, 8)
+        .unwrap();
+    assert_eq!(h, Handle(0));
+    let o = m.snapshot(h).unwrap().unwrap();
+    assert_eq!(o.flags, 9);
+    assert_eq!(o.cells, bounds);
+    assert_eq!(o.primary, matrix);
+    assert_eq!(m.handles.iter().count(), 0);
+    assert_eq!(m.take_changed_rectangles(), vec![bounds]);
+    let mut output = Placement([42.0; 9]);
+    m.get_placement(h, &mut output).unwrap();
+    assert_eq!(output, Placement([42.0; 9]));
+    m.set_placement(h, Placement([99.0; 9])).unwrap();
+    assert_eq!(m.snapshot(h).unwrap().unwrap(), o);
+}
+
+#[test]
+fn public_ov2_rectangle_keeps_signed_and_inverted_words() {
+    let mut m = manager(false);
+    for bounds in [rect([-3, 2], [1, 4]), rect([5, 3], [2, 1])] {
+        let h = m
+            .add_overlay_for_rect(Some(Arc::new(Texture)), bounds, [0.0; 16], 0)
+            .unwrap();
+        assert_eq!(m.snapshot(h).unwrap().unwrap().cells, bounds);
+    }
+    // Only the positive-area rectangle is redisplayed (§2.2 MarkChanged).
+    assert_eq!(m.take_changed_rectangles(), vec![rect([-3, 2], [1, 4])]);
+}
+
+#[test]
+fn public_ov2_city_matrix_uses_only_signed_nx() {
+    for nz in [32, 48] {
+        let mut v = view(2);
+        Arc::get_mut(&mut v).unwrap().terrain = Some(Arc::new(Terrain {
+            cells: [64, nz],
+            width: 7.0,
+        }));
+        let factory = v.factory.as_ref().unwrap().clone();
+        let mut m = OverlayManager::new();
+        m.init(v, true, false).unwrap();
+        let h = m.add_city_decal(77).unwrap();
+        let o = m.snapshot(h).unwrap().unwrap();
+        assert_eq!(o.flags, 0x13);
+        assert_eq!(o.cells, rect([0, 0], [64, nz as i32]));
+        assert_eq!(
+            o.primary,
+            [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0 / 32.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0
+            ]
+        );
+        assert_eq!(factory.calls.lock().unwrap().last(), Some(&(77, BindingLookup::Slot5)));
+        assert!(m.take_changed_rectangles().is_empty());
+        assert_eq!(m.handles.iter().count(), 0);
+    }
+}
+
+#[test]
+fn public_ov3_settings_message_is_quiet_and_copies_raw_values() {
+    let mut m = manager(false);
+    let h = seed(&mut m, overlay(flag::SHOWN));
+    let before = m.snapshot(h).unwrap();
+    let index = m.cell_index.clone();
+    assert!(m.handle_settings_message(7, [0, 7], 0));
+    assert_eq!(m.shadow_settings(), [3, 4]);
+    assert_eq!(m.selection_byte, 1);
+    assert!(m.handle_settings_message(CHANGE_MESSAGE, [0, 7], 0));
+    assert_eq!(m.shadow_settings(), [0, 7]);
+    assert_eq!(m.selection_byte, 0);
+    assert_eq!(m.snapshot(h).unwrap(), before);
+    assert_eq!(m.cell_index, index);
+    assert!(m.take_changed_rectangles().is_empty());
+}
+
+#[test]
+fn public_placement_paper_matrix_and_tolerance() {
+    let mut m = manager(false);
+    let p = Placement([32.0, 48.0, 16.0, 0.0, 1.0, 1.0, 1.0, 0.0, 99.0]);
+    let h = m
+        .add_decal_binding(Some(Arc::new(Texture)), [32.0, 48.0], 16.0, 0.0)
+        .unwrap();
+    m.set_placement(h, p).unwrap(); // texture aspect is 1/2, retained through replacement
+    assert_eq!(
+        m.snapshot(h).unwrap().unwrap().primary,
+        [
+            1.0 / 16.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0 / 8.0,
+            1.0,
+            0.0,
+            -1.5,
+            -5.5,
+            0.0,
+            1.0
+        ]
+    );
+    m.take_changed_rectangles();
+    m.set_position(h, [32.0 + 1.0 / 16384.0, 48.0]).unwrap();
+    let mut out = Placement([0.0; 9]);
+    m.get_placement(h, &mut out).unwrap();
+    assert_eq!(out, p);
+    assert!(m.take_changed_rectangles().is_empty());
+    m.set_placement(h, p).unwrap();
+    assert_eq!(m.take_changed_rectangles().len(), 1);
+}
+
+#[test]
+fn public_ov6_binary64_threshold_and_accumulation() {
+    let mut m = manager(false);
+    let h = seed(&mut m, overlay(0));
+    m.set_alpha(h, 0.0).unwrap();
+    m.take_changed_rectangles();
+    m.set_alpha(h, f32::from_bits(0x3d4c_cccc)).unwrap();
+    assert_eq!(m.alpha(h), Ok(0.0));
+    m.set_alpha(h, f32::from_bits(0x3d4c_cccd)).unwrap();
+    assert_eq!(m.alpha(h), Ok(f32::from_bits(0x3d4c_cccd)));
+    m.set_alpha(h, 0.0).unwrap();
+    m.set_alpha(h, 0.03125).unwrap();
+    assert_eq!(m.alpha(h), Ok(0.0));
+    m.set_alpha(h, 0.0625).unwrap();
+    assert_eq!(m.alpha(h), Ok(0.0625));
+    m.set_alpha(h, f32::NAN).unwrap();
+    assert_eq!(m.alpha(h), Ok(0.0625));
+}
+
+#[test]
+fn public_ov9_literal_outline_and_binary32_height20_splits() {
+    let expected = [
+        [2, 0, 14, 2],
+        [2, 14, 14, 16],
+        [0, 4, 3, 12],
+        [13, 4, 16, 12],
+        [1, 2, 5, 4],
+        [1, 12, 5, 14],
+        [11, 2, 15, 4],
+        [11, 12, 15, 14],
+    ]
+    .map(|[x0, z0, x1, z1]| rect([x0, z0], [x1, z1]));
+    assert_eq!(round::partition([0.0, 0.0, 16.0, 16.0], [64, 64]).unwrap(), expected);
+    assert!(expected.iter().all(|r| !r.contains([8, 8])));
+    let expected20 = [
+        [2, 0, 18, 3],
+        [2, 17, 18, 20],
+        [0, 5, 3, 15],
+        [17, 5, 20, 15],
+        [1, 3, 5, 5],
+        [1, 15, 5, 17],
+        [15, 3, 19, 5],
+        [15, 15, 19, 17],
+    ]
+    .map(|[x0, z0, x1, z1]| rect([x0, z0], [x1, z1]));
+    assert_eq!(round::partition([0.0, 0.0, 20.0, 20.0], [64, 64]).unwrap(), expected20);
+}
+
+#[test]
+fn public_ov9_add_retains_empty_parts_and_full_texture_matrix() {
+    let mut m = manager(false);
+    let h = m.add_round_decal(9, [128.0, 128.0], 256.0, 0.0).unwrap();
+    let parts = m.handle_indices(h).unwrap();
+    assert_eq!(parts.len(), 8);
+    assert_eq!(m.handles.iter().count(), 1);
+    assert_eq!(m.groups.iter().count(), 1);
+    let matrices: Vec<_> = parts.iter().map(|&i| m.overlays.get(i).unwrap().primary).collect();
+    assert!(matrices.iter().all(|m| *m == matrices[0]));
+    assert!(parts.iter().any(|&i| m.overlays.get(i).unwrap().cells.is_empty()));
 }
 
 /// Explicit initial state, not claimed constructor defaults.
 fn overlay(flags: u32) -> Overlay {
     Overlay {
+        stamp: 0,
+        secondary: None,
+        primary: [0.0; 16],
         flags,
         cells: rect([1, 1], [3, 3]),
         alpha: 0.75,
@@ -125,6 +330,7 @@ fn seed(manager: &mut OverlayManager, overlay: Overlay) -> Handle {
 
 fn indirect(manager: &mut OverlayManager, target: Target) -> Handle {
     let index = manager.handles.insert(HandleRecord {
+        aspect: 1.0,
         placement: Placement([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]),
         target,
     });
@@ -183,7 +389,7 @@ fn conformance_group_set_shown_hides_all_eight_and_invalidates() {
     }
     assert_eq!(m.take_changed_rectangles(), vec![rect([1, 1], [3, 3]); 8]);
     m.set_shown(g, false).unwrap();
-    assert!(m.take_changed_rectangles().is_empty());
+    assert_eq!(m.take_changed_rectangles().len(), 8);
 }
 
 #[test]
@@ -197,7 +403,10 @@ fn conformance_shadow_quality_zero_returns_none_before_factory_lookup() {
         m.check_shadow_add(false),
         Err(Error::Gap(ContractGap::ShadowAndModelConstructionOv2))
     );
-    assert!(factory.calls.lock().unwrap().is_empty());
+    assert_eq!(
+        *factory.calls.lock().unwrap(),
+        [(SHADOW_TEXTURE_KEY, BindingLookup::Slot5)]
+    );
     assert!(m.overlays.iter().next().is_none());
 }
 
@@ -205,7 +414,7 @@ fn conformance_shadow_quality_zero_returns_none_before_factory_lookup() {
 fn conformance_texture_scale_sets_flag_and_semantic_coefficients() {
     let mut m = manager(false);
     let h = seed(&mut m, overlay(flag::SHOWN));
-    // Â§9 vector plus the offset/second-axis flip from Â§3 slot21.
+    // §9 vector plus the offset/second-axis flip from §3 slot21.
     for (size, offset, expected_scale, expected_offset) in [
         (16.0, 0.0, [0.0625, -0.0625], 1.0),
         (8.0, 4.0, [0.125, -0.125], 1.5),
@@ -242,7 +451,7 @@ fn conformance_dynamic_snapshot_draws_nothing_without_changing_stats() {
 #[test]
 fn conformance_stats_format_only_not_gpu_draw_count_coverage() {
     let mut m = manager(false);
-    // Â§9.6's output format is defined; no assertion that the missing renderer
+    // §9.6's output format is defined; no assertion that the missing renderer
     // produced these counters. OV8 asks when/how they are incremented/reset.
     m.decals_drawn = 3;
     m.shadows_drawn = 2;
@@ -299,31 +508,36 @@ fn group_color_draw_state_alpha_endpoints_and_scale_fan_out() {
     m.set_draw_state(g, 4).unwrap();
     m.set_alpha(g, 0.0).unwrap();
     m.set_alpha(g, 1.0).unwrap();
-    m.set_texture_scale(g, 16.0, 0.0).unwrap();
+    assert_eq!(
+        m.set_texture_scale(g, 16.0, 0.0),
+        Err(Error::Unsupported(Unsupported::GroupTextureScale))
+    );
     for h in parts {
         assert_eq!(m.color(h), Ok(Some([0.0, 0.25, 0.5])));
         assert_eq!(m.draw_state(h), Ok(Some(4)));
         assert_eq!(m.alpha(h), Ok(1.0));
-        assert_eq!(
-            m.snapshot(h).unwrap().unwrap().texture_scale.unwrap().scale,
-            [0.0625, -0.0625]
-        );
+        assert_eq!(m.snapshot(h).unwrap().unwrap().texture_scale, None);
     }
-    assert_eq!(m.take_changed_rectangles().len(), 40);
+    assert_eq!(m.take_changed_rectangles().len(), 32);
 }
 
 #[test]
-fn static_substep_gap_is_atomic_but_dynamic_alpha_does_not_need_step() {
+fn static_alpha_uses_accepted_value_and_dynamic_alpha_skips_redisplay() {
     let mut m = manager(false);
     let h = seed(&mut m, overlay(0));
-    let before = m.snapshot(h).unwrap();
-    assert_eq!(m.set_alpha(h, 0.5), Err(Error::Gap(ContractGap::StaticAlphaStepOv6)));
-    assert_eq!(m.snapshot(h).unwrap(), before);
+    m.set_alpha(h, 0.74).unwrap();
+    assert_eq!(m.alpha(h), Ok(0.75));
     assert!(m.take_changed_rectangles().is_empty());
+    m.set_alpha(h, 0.5).unwrap();
+    assert_eq!(m.alpha(h), Ok(0.5));
+    assert_eq!(m.take_changed_rectangles().len(), 1);
     let mut d = manager(true);
     let h = seed(&mut d, overlay(0));
     d.set_alpha(h, 0.7499).unwrap();
     assert_eq!(d.alpha(h), Ok(0.7499));
+    d.set_alpha(h, f32::from_bits(0x7fc0_1234)).unwrap();
+    assert_eq!(d.alpha(h).unwrap().to_bits(), 0x7fc0_1234);
+    assert!(d.take_changed_rectangles().is_empty());
 }
 
 #[test]
@@ -336,23 +550,21 @@ fn placement_getter_copies_nine_floats_and_missing_geometry_never_mutates() {
     assert_eq!(out.0, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
     assert_eq!(
         m.set_position(alias, [16.0, 32.0]),
-        Err(Error::Gap(ContractGap::PlacementAndAddArgumentsOv1))
+        Err(Error::Unsupported(Unsupported::PlacementNumericDomain))
     );
     assert_eq!(
         m.set_placement(alias, Placement([8.0; 9])),
-        Err(Error::Gap(ContractGap::HandlePlacementOv5))
+        Err(Error::Unsupported(Unsupported::PlacementNumericDomain))
     );
     let saved = out;
     m.get_placement(alias, &mut out).unwrap();
     assert_eq!(out, saved);
-    assert_eq!(
-        m.get_placement(h, &mut out),
-        Err(Error::Gap(ContractGap::HandlePlacementOv5))
-    );
+    m.get_placement(h, &mut out).unwrap();
+    assert_eq!(out, saved);
 }
 
 #[test]
-fn removal_releases_only_owned_texture_and_source_references_and_cell_membership() {
+fn removal_retains_payload_until_fifo_reuse_and_unlinks_cells() {
     let mut m = manager(false);
     let texture = Arc::new(Texture);
     let source = Arc::new(Texture);
@@ -363,12 +575,14 @@ fn removal_releases_only_owned_texture_and_source_references_and_cell_membership
     assert_eq!(Arc::strong_count(&texture), 2);
     assert_eq!(Arc::strong_count(&source), 2);
     m.remove(h).unwrap();
+    assert_eq!(Arc::strong_count(&texture), 2);
+    assert_eq!(Arc::strong_count(&source), 2);
+    assert!(m.cell_index.as_ref().unwrap().is_empty());
+    assert_eq!(m.snapshot(h), Err(Error::Unsupported(Unsupported::InvalidHandle)));
+    assert_eq!(m.remove(h), Err(Error::Unsupported(Unsupported::InvalidHandle)));
+    assert_eq!(seed(&mut m, overlay(0)), h);
     assert_eq!(Arc::strong_count(&texture), 1);
     assert_eq!(Arc::strong_count(&source), 1);
-    assert!(m.cell_index.as_ref().unwrap().is_empty());
-    assert_eq!(m.snapshot(h), Err(Error::InvalidHandle));
-    assert_eq!(m.remove(h), Err(Error::InvalidHandle));
-    assert_eq!(seed(&mut m, overlay(0)), h);
 }
 
 #[test]
@@ -381,7 +595,7 @@ fn group_removal_cleans_eight_parts_group_and_indirect_record_then_reuses_slots(
     assert!(m.groups.iter().next().is_none());
     assert!(m.cell_index.as_ref().unwrap().is_empty());
     assert_eq!(m.take_changed_rectangles().len(), 8);
-    assert_eq!(seed(&mut m, overlay(0)), parts[7]);
+    assert_eq!(seed(&mut m, overlay(0)), parts[0]);
     m.shutdown();
     assert!(m.overlays.iter().next().is_none());
 }
@@ -394,8 +608,11 @@ fn malformed_group_is_rejected_before_any_part_changes() {
         .groups
         .insert([Some(h.index()), Some(999), None, None, None, None, None, None]);
     let g = indirect(&mut m, Target::Group(index));
-    assert_eq!(m.enable_self_lighting(g, 1), Err(Error::InvalidHandle));
-    assert_eq!(m.remove(g), Err(Error::InvalidHandle));
+    assert_eq!(
+        m.enable_self_lighting(g, 1),
+        Err(Error::Unsupported(Unsupported::InvalidHandle))
+    );
+    assert_eq!(m.remove(g), Err(Error::Unsupported(Unsupported::InvalidHandle)));
     assert_eq!(m.snapshot(h).unwrap().unwrap().flags, 0);
     assert!(m.take_changed_rectangles().is_empty());
 }
@@ -424,8 +641,8 @@ fn lifecycle_holds_acquired_references_and_unsubscribes_once_before_release() {
     assert!(!m.is_dynamic());
     assert!(m.is_water());
     assert_eq!(*v.messages.lock().unwrap(), [(true, CHANGE_MESSAGE)]);
-    assert_eq!(m.init(v.clone(), true, false), Err(Error::AlreadyInitialized));
-    assert!(m.is_water());
+    assert_eq!(m.init(v.clone(), true, false), Ok(()));
+    assert!(!m.is_water());
     m.shutdown();
     assert_eq!(Arc::strong_count(&v), 1);
     assert_eq!(Arc::strong_count(&terrain), 2);
@@ -434,12 +651,12 @@ fn lifecycle_holds_acquired_references_and_unsubscribes_once_before_release() {
     drop(m);
     assert_eq!(
         *v.messages.lock().unwrap(),
-        [(true, CHANGE_MESSAGE), (false, CHANGE_MESSAGE)]
+        [(true, CHANGE_MESSAGE), (true, CHANGE_MESSAGE), (false, CHANGE_MESSAGE)]
     );
 }
 
 #[test]
-fn drop_unsubscribes_and_shutdown_supports_clean_reinitialization() {
+fn destruction_does_not_unsubscribe_and_shutdown_supports_reinitialization() {
     let v = view(3);
     {
         let mut m = OverlayManager::new();
@@ -454,26 +671,21 @@ fn drop_unsubscribes_and_shutdown_supports_clean_reinitialization() {
     }
     assert_eq!(
         *v.messages.lock().unwrap(),
-        [
-            (true, CHANGE_MESSAGE),
-            (false, CHANGE_MESSAGE),
-            (true, CHANGE_MESSAGE),
-            (false, CHANGE_MESSAGE),
-        ]
+        [(true, CHANGE_MESSAGE), (false, CHANGE_MESSAGE), (true, CHANGE_MESSAGE),]
     );
 }
 
 #[test]
-fn initialization_failure_rolls_back_without_subscribing_or_retaining_resources() {
+fn unsupported_initialization_services_preserve_published_prefix() {
     for (terrain, factory, expected) in [
-        (None, None, Error::MissingTerrain),
+        (None, None, Error::Unsupported(Unsupported::MissingFactory)),
         (
             Some(Arc::new(Terrain {
                 cells: [8, 4],
                 width: 16.0,
             })),
             None,
-            Error::MissingFactory,
+            Error::Unsupported(Unsupported::MissingFactory),
         ),
         (
             Some(Arc::new(Terrain {
@@ -484,10 +696,11 @@ fn initialization_failure_rolls_back_without_subscribing_or_retaining_resources(
                 calls: Mutex::new(Vec::new()),
                 texture: None,
             })),
-            Error::InvalidTerrain,
+            Error::Unsupported(Unsupported::InvalidTerrain),
         ),
     ] {
         let v = Arc::new(View {
+            lighting: None,
             terrain,
             factory,
             quality: 3,
@@ -496,64 +709,72 @@ fn initialization_failure_rolls_back_without_subscribing_or_retaining_resources(
         });
         let mut m = OverlayManager::new();
         assert_eq!(m.init(v.clone(), false, false), Err(expected));
-        assert_eq!(Arc::strong_count(&v), 1);
+        assert_eq!(Arc::strong_count(&v), 2);
         if let Some(t) = &v.terrain {
-            assert_eq!(Arc::strong_count(t), 1);
+            assert_eq!(
+                Arc::strong_count(t),
+                if expected == Error::Unsupported(Unsupported::InvalidTerrain) {
+                    2
+                } else {
+                    1
+                }
+            );
         }
-        assert!(!m.is_initialized());
+        assert!(m.is_initialized());
         assert_eq!(m.geometry(), None);
         assert!(v.messages.lock().unwrap().is_empty());
     }
 }
 
 #[test]
-fn factory_slots_and_null_binding_are_literal_but_placement_is_explicitly_incomplete() {
+fn factory_slots_and_null_binding_are_literal_and_unsupported_numeric_inputs_are_explicit() {
     let v = view(3);
     let factory = v.factory.as_ref().unwrap().clone();
     let texture = factory.texture.as_ref().unwrap().clone();
     let mut m = OverlayManager::new();
-    let placement = Placement([0.0; 9]);
-    assert_eq!(m.add_decal_binding(None, placement, 0, 0), Err(Error::NotInitialized));
+    assert_eq!(
+        m.add_decal_binding(None, [0.0; 2], 0.0, 0.0),
+        Err(Error::NotInitialized)
+    );
     m.init(v, false, false).unwrap();
-    assert_eq!(m.add_decal_binding(None, placement, 0, 0), Ok(Handle::NONE));
+    assert_eq!(m.add_decal_binding(None, [0.0; 2], 0.0, 0.0), Ok(Handle::NONE));
     for lookup in [BindingLookup::Slot6, BindingLookup::Slot5] {
         assert_eq!(
-            m.add_decal_key(7, placement, 0, lookup),
-            Err(Error::Gap(ContractGap::PlacementAndAddArgumentsOv1))
+            m.add_decal_key(7, [0.0; 2], 0.0, 0.0, lookup),
+            Err(Error::Unsupported(Unsupported::PlacementNumericDomain))
         );
     }
     assert_eq!(
         *factory.calls.lock().unwrap(),
-        [(7, BindingLookup::Slot6), (7, BindingLookup::Slot5)]
+        [
+            (SHADOW_TEXTURE_KEY, BindingLookup::Slot5),
+            (7, BindingLookup::Slot6),
+            (7, BindingLookup::Slot5)
+        ]
     );
-    assert_eq!(Arc::strong_count(&texture), 2);
+    assert_eq!(Arc::strong_count(&texture), 3);
     assert_eq!(
-        m.add_decal_binding(Some(texture.clone()), placement, 0, 0),
-        Err(Error::Gap(ContractGap::PlacementAndAddArgumentsOv1))
+        m.add_decal_binding(Some(texture.clone()), [0.0; 2], 0.0, 0.0),
+        Err(Error::Unsupported(Unsupported::PlacementNumericDomain))
     );
     assert_eq!(
-        m.add_decal_source(texture.clone(), placement, 0, 0),
-        Err(Error::Gap(ContractGap::PlacementAndAddArgumentsOv1))
+        m.add_decal_source(texture.clone(), [0.0; 2], 0.0, 0.0),
+        Err(Error::Unsupported(Unsupported::PlacementNumericDomain))
     );
-    assert_eq!(Arc::strong_count(&texture), 2);
+    assert_eq!(Arc::strong_count(&texture), 3);
     assert!(m.overlays.iter().next().is_none());
     assert_eq!(
-        m.add_round_decal(7, placement),
-        Err(Error::Gap(ContractGap::RoundPartitionOv9))
+        m.add_round_decal(7, [0.0; 2], 0.0, 0.0),
+        Err(Error::Unsupported(Unsupported::PlacementNumericDomain))
     );
-    assert_eq!(
-        m.add_city_decal(7),
-        Err(Error::Gap(ContractGap::ShadowAndModelConstructionOv2))
-    );
-    assert_eq!(
-        m.on_message(CHANGE_MESSAGE),
-        Err(Error::Gap(ContractGap::ChangeMessageOv3))
-    );
+    assert_eq!(m.add_city_decal(7), Ok(Handle(0)));
+    assert_eq!(m.on_message(CHANGE_MESSAGE), Ok(()));
 }
 
 #[test]
 fn no_binding_from_factory_returns_none_and_retains_no_new_resource() {
     let v = Arc::new(View {
+        lighting: None,
         terrain: Some(Arc::new(Terrain {
             cells: [8, 4],
             width: 16.0,
@@ -569,7 +790,7 @@ fn no_binding_from_factory_returns_none_and_retains_no_new_resource() {
     let mut m = OverlayManager::new();
     m.init(v, false, false).unwrap();
     for lookup in [BindingLookup::Slot5, BindingLookup::Slot6] {
-        assert_eq!(m.add_decal_key(7, Placement([0.0; 9]), 0, lookup), Ok(Handle::NONE));
+        assert_eq!(m.add_decal_key(7, [0.0; 2], 0.0, 0.0, lookup), Ok(Handle::NONE));
     }
 }
 
@@ -658,8 +879,11 @@ fn rectangle_clipping_and_cell_coverage_are_owned_by_core() {
     for (input, expected) in [
         (rect([1, 1], [3, 3]), rect([1, 1], [3, 3])),
         (rect([7, 3], [12, 9]), rect([7, 3], [8, 4])),
-        (rect([10, 8], [12, 9]), rect([8, 4], [8, 4])),
-        (rect([3, 2], [1, 1]), rect([3, 2], [3, 2])),
+        (rect([10, 8], [12, 9]), CellRect::ZERO),
+        (rect([8, 1], [12, 3]), rect([8, 1], [8, 3])),
+        (rect([3, 2], [1, 1]), rect([3, 2], [1, 1])),
+        (rect([-3, 2], [-1, 4]), CellRect::ZERO),
+        (rect([-3, 2], [0, 4]), rect([0, 2], [0, 4])),
     ] {
         let clipped = input.clipped([8, 4]);
         assert_eq!(clipped, expected);
@@ -688,4 +912,219 @@ fn core_getters_are_send_sync_and_work_before_init_without_refcell() {
         assert_eq!(m.stats_string(), "0 decals, 0 shadows");
     });
     reader.join().unwrap();
+}
+
+#[test]
+fn public_model_fallback_and_secondary_literal_quarter_mapping() {
+    let geometry = Geometry {
+        cells: [64, 64],
+        cell_scale: 1.0 / 16.0,
+        metres: [1024.0; 2],
+    };
+    assert_eq!(
+        model::fallback([1.0, 0.0, -1.0], [16.0, 0.0, 32.0, 48.0, 32.0, 64.0], geometry).unwrap(),
+        rect([1, 0], [5, 4])
+    );
+    let identity = [
+        1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+    ];
+    assert_eq!(
+        model::secondary(identity, &[[0.0, 0.0], [2.0, 4.0]]).unwrap(),
+        [0.25, 0.0, 0.0, 0.0, 0.0, 0.125, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.25, 0.25, 0.0, 1.0]
+    );
+    let pairs = [[-0.0, -0.0], [0.0, 0.0], [2.0, 4.0], [f32::NAN, f32::NAN]];
+    let extrema = model::extrema(&pairs).unwrap();
+    assert_eq!(
+        extrema.map(f32::to_bits),
+        [0x8000_0000, 0x8000_0000, 2.0_f32.to_bits(), 4.0_f32.to_bits()]
+    );
+}
+
+struct LightingFixture {
+    calls: Mutex<Vec<u8>>,
+    projection_ok: bool,
+}
+impl ModelLighting for LightingFixture {
+    fn projection_slot17(
+        &self,
+        _n: i32,
+        _source: GeometryToken<'_>,
+        pairs: &mut [[f32; 2]],
+        _descriptor: ProjectionDescriptor<'_>,
+        primary: &mut [f32; 16],
+    ) -> bool {
+        self.calls.lock().unwrap().push(17);
+        if !self.projection_ok {
+            return false;
+        }
+        *primary = [
+            1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+        ];
+        pairs[0] = [0.0, 0.0];
+        pairs[1] = [2.0, 4.0];
+        true
+    }
+    fn terrain_rect_slot18(&self, _n: i32, _source: GeometryToken<'_>, _box: [f32; 6]) -> Option<CellRect> {
+        self.calls.lock().unwrap().push(18);
+        Some(rect([1, 0], [5, 4]))
+    }
+    fn direction_slot13(&self) -> [f32; 3] {
+        self.calls.lock().unwrap().push(13);
+        [1.0, 0.0, -1.0]
+    }
+}
+
+#[test]
+fn public_model_cached_live_quality_and_null_binding_query_order() {
+    for (cached, live, projection_ok, present, expected) in [
+        (0, 6, true, true, vec![]),
+        (2, 6, false, true, vec![17]),
+        (2, 6, true, false, vec![17, 18]),
+        (2, 2, true, false, vec![17, 13]),
+        (2, 6, true, true, vec![17, 18]),
+    ] {
+        let lighting = Arc::new(LightingFixture {
+            calls: Mutex::new(Vec::new()),
+            projection_ok,
+        });
+        let mut v = view(live);
+        Arc::get_mut(&mut v).unwrap().lighting = Some(lighting.clone());
+        let mut m = OverlayManager::new();
+        m.init(v, false, false).unwrap();
+        m.shadow_quality = cached;
+        let binding = if present {
+            Some(Arc::new(Texture) as Arc<dyn TextureBinding>)
+        } else {
+            None
+        };
+        let h = m
+            .add_model_shadow(
+                binding,
+                2,
+                GeometryToken(&[]),
+                &mut [[0.0; 2]; 2],
+                [16.0, 0.0, 32.0, 48.0, 32.0, 64.0],
+                ProjectionDescriptor(&[]),
+            )
+            .unwrap();
+        assert_eq!(*lighting.calls.lock().unwrap(), expected);
+        if cached != 0 && projection_ok && present {
+            assert_eq!(h, Handle(0));
+            let o = m.snapshot(h).unwrap().unwrap();
+            assert_eq!(o.flags, 9);
+            assert_eq!(o.secondary.unwrap()[13], 0.25);
+            assert_eq!(m.handles.iter().count(), 0);
+            assert_eq!(m.take_changed_rectangles(), vec![rect([1, 0], [5, 4])]);
+        } else {
+            assert_eq!(h, Handle::NONE);
+        }
+    }
+}
+
+#[test]
+fn public_collection_encounter_order_and_zero_stamp_wrap() {
+    let mut m = manager(false);
+    let ids: Vec<_> = (0..10)
+        .map(|_| seed(&mut m, overlay(flag::PART | flag::SHOWN)))
+        .collect();
+    let index = m.cell_index.as_mut().unwrap();
+    index.clear();
+    index.insert([3, 2], vec![9, 2]);
+    index.insert([4, 2], vec![2, 7]);
+    let starts = [0, 0, 3, 3, 0];
+    let ends = [0, 0, 7, 7, 0];
+    assert_eq!(m.collect_visible_rows(2, 5, &starts, &ends).unwrap(), vec![9, 2, 7]);
+    m.collection_stamp = u16::MAX;
+    m.overlays.get_mut(ids[9].index()).unwrap().stamp = 0;
+    m.overlays.get_mut(ids[2].index()).unwrap().stamp = 0;
+    m.overlays.get_mut(ids[7].index()).unwrap().stamp = 0;
+    assert!(m.collect_visible_rows(2, 5, &starts, &ends).unwrap().is_empty());
+    assert_eq!(m.collection_stamp, 0);
+}
+
+#[test]
+fn public_repeat_init_preserves_selection_and_shutdown_retains_groups_index_binding_stats() {
+    let mut m = manager(false);
+    let (g, _) = group(&mut m, flag::SHOWN);
+    m.handle_settings_message(CHANGE_MESSAGE, [9, 8], 0x72);
+    m.init(view(4), false, true).unwrap();
+    assert_eq!(m.selection_byte, 0x72);
+    assert_eq!(m.shadow_settings(), [4, 4]);
+    assert!(m.snapshot(g).unwrap().is_some());
+    let cells = rect([0, 0], [1, 1]);
+    m.add_overlay_for_rect(Some(Arc::new(Texture)), cells, [0.0; 16], 0)
+        .unwrap();
+    let index = m.cell_index.clone();
+    m.decals_drawn = 7;
+    m.shadows_drawn = 3;
+    m.shutdown();
+    assert_eq!(m.groups.iter().count(), 1);
+    assert_eq!(m.cell_index, index);
+    assert!(m.shadow_binding.is_some());
+    assert_eq!(m.stats_string(), "7 decals, 3 shadows");
+    assert!(!m.is_initialized());
+}
+
+struct ReleaseFixture {
+    name: &'static str,
+    log: Arc<Mutex<Vec<&'static str>>>,
+}
+impl TextureSource for ReleaseFixture {
+    fn size(&self) -> [u32; 2] {
+        [1, 1]
+    }
+}
+impl TextureBinding for ReleaseFixture {
+    fn size(&self) -> [u32; 2] {
+        [1, 1]
+    }
+}
+impl Drop for ReleaseFixture {
+    fn drop(&mut self) {
+        self.log.lock().unwrap().push(self.name);
+    }
+}
+
+#[test]
+fn public_removed_overlay_range_releases_source_before_binding() {
+    let mut m = manager(false);
+    let log = Arc::new(Mutex::new(Vec::new()));
+    let mut o = overlay(flag::SHOWN);
+    o.source = Some(Arc::new(ReleaseFixture {
+        name: "source",
+        log: log.clone(),
+    }));
+    o.binding = Some(Arc::new(ReleaseFixture {
+        name: "binding",
+        log: log.clone(),
+    }));
+    let h = seed(&mut m, o);
+    m.remove(h).unwrap();
+    assert!(log.lock().unwrap().is_empty());
+    m.shutdown();
+    assert_eq!(*log.lock().unwrap(), vec!["source", "binding"]);
+}
+
+#[test]
+fn public_position_tolerance_boundary_and_same_rectangle_keep_prepend_order() {
+    let mut m = manager(false);
+    let first = m
+        .add_decal_binding(Some(Arc::new(Texture)), [0.0, 0.0], 16.0, 0.0)
+        .unwrap();
+    m.add_decal_binding(Some(Arc::new(Texture)), [0.0, 0.0], 16.0, 0.0)
+        .unwrap();
+    let before = m.cell_index.clone();
+    m.take_changed_rectangles();
+    m.set_position(first, [1.0 / 16384.0, 0.0]).unwrap();
+    assert!(m.take_changed_rectangles().is_empty());
+    let threshold = f32::from_bits(0x38d1_b717);
+    m.set_position(first, [threshold, 0.0]).unwrap();
+    assert_eq!(m.take_changed_rectangles().len(), 1);
+    assert_eq!(m.cell_index, before);
+    let mut placement = Placement([0.0; 9]);
+    m.get_placement(first, &mut placement).unwrap();
+    assert_eq!(placement.0[0].to_bits(), 0x38d1_b717);
+    m.set_placement(first, placement).unwrap();
+    assert_eq!(m.take_changed_rectangles().len(), 1);
+    assert_eq!(m.cell_index, before);
 }
