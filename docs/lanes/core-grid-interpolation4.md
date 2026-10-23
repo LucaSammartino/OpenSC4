@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-grid-interpolation4 (two integer byte-grid kernels) | `Codex` / `core-grid-interpolation4` (engine lane) | in progress: round 2 qualification of implementation `07be0ee9`; archived real baseline failure and partial CTest; 19 tests still unrun; ABI unchanged | (1) one serial quick; (2) stable-engine canonical all; (3) report actual terminal results |
+| core-grid-interpolation4 (two integer byte-grid kernels) | `Codex` / `core-grid-interpolation4` (engine lane) | in progress: round 2 quick PASS, 19/19 grid tests and Rust 3347/0, native build PASS; stable engine `32938cf8`; historical failed baseline preserved; ABI unchanged | (1) one stable-engine canonical all; (2) report actual terminal results |
 
 ## Handoff
 
@@ -16,7 +16,10 @@
 - Root exact PID29472 creation1792725967.238675 readonly stats exit15 preserved parent28180/daemon36520 then; later disappearance has no known cause.
 - Fresh 03:49 UTC snapshot: old21192/28180/29472 absent, own named processes [], TCP4421 listeners []; not terminal proof.
 - No old session46957 collection/live assumption, no kills/cache/RPC/restart or duplicate validations.
-- Next: one wrapper serial quick (no focused-target interface advertised by --help), collect same yielded handle; then canonical all after committed stable-engine milestone.
+- Done: one serial quick terminal PASS, same exec session23546 collected: core Rust 3347/0 (3 summaries), including all 19 grid tests; dependents compile-only; native 4/4, fc4verify PASS 83.9s, qbuild PASS exit0.
+- Quick checker PID34444 creation1792727409.5641444; fc4verify37420 creation1792727409.6007826. Source remained engine32938 and owned hashes unchanged.
+- Durable quick proof build-runs/grid-r2-quick-result.json and r2-snapshot-035059.json; no source/expected/test-count change or bounded fix needed.
+- Next: ONE canonical qbuild all on committed stable engine, track actual process/session and terminal exit; no duplicate quick/all/Ct/cargo.
 - Full prior report below is historical R1, superseded where explicitly corrected above.
 
 ## Historical round 1 report
