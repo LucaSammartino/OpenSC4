@@ -402,7 +402,8 @@ preview and the constraint tiles by validity.
 
 6. Query tool: sliders apply on every move; the close-time write-back (result 0 only) applies them again
    (§8.12.2, §8.13) (re-query).
-7. Query tool: the hospital staff slider's related-id list claims four ids but holds two (§8.12.4) (re-query).
+7. Query tool: the hospital staff slider refreshes four related IDs, including two adjacent-data words that are
+   not ordinary query control IDs (§8.16.1) (re-query-ct5).
 8. Query tool: a network occupant both tries the neighbour dialog and continues to the query dialog (§8.12.1).
 9. Place-lot: after a successful click no lot is placeable while the lot's centre stays inside the placed lot's
    world rectangle (§3.6, §3.10) (re-plop).
@@ -1094,8 +1095,9 @@ nothing.
   (slider): school bus funding and cost (`+0x34`, `+0x38`); write-back as `0x1018`. `0x101A`, `0x1023` (number):
   residential slot 28 `EstimateCurrentOccupantCapacity`: the staff. `0x101B`, `0x101D`, `0x101F`, `0x1024` (number):
   the same: the capacity. `0x101C`, `0x101E` (number): school served (`+0x24`).
-- `0x1020` (meter): hospital grade. `0x1021` (slider): hospital staff funding, related ids `0x1023`, `0x1024`
-  *[quirk: the count word is 4]*; write-back slot 19. `0x1022` (slider): hospital ambulance funding; write-back slot
+- `0x1020` (meter): hospital grade. `0x1021` (slider): hospital staff funding, related ids `0x1023`, `0x1024`,
+  `0x00000004`, `0x3F800000` *[quirk: adjacent static data supplies the last two; §8.16.1]*; write-back slot 19.
+  `0x1022` (slider): hospital ambulance funding; write-back slot
   19. `0x1025` (number): hospital served.
 - `0x1026` (zone meter): landfill: `L(usage, cap)` of `GetLandfillUsage` (landfill developer slot 10). `0x1027` (zone
   number): `trunc(GetGarbageLandfilledLastMonth × GetGarbageScalingFactor)` (pollution slots 41, 48). `0x1028` (zone
@@ -1190,8 +1192,8 @@ in `DoQueryDialog` step 4). Only notifications (type 3) from the dialog window a
 - **Mayor rating percent** (`GetMayorRatingPercent`, `0x004C5490`): over the cells of the lot's rect (slot 14), `100 ×
   mean(GetAuraValue + 128) / 255` (aura slot 5).
 - **Wealth level** (`0x1053`): `w` := the wealth of the lot's building type (building development slot 39), else the
-  lot's occupant wealth; the meter is `min(occupantWealth / w, 1)`, and the meter window is resized by `min(k · w, 1)`
-  *[summary]*; without a lot or a wealth the meter is 1.0.
+  lot's occupant wealth; the meter is `min(occupantWealth / w, 1)`. Its horizontal resize uses binary32
+  `k = 0x3EAAAAAB` (approximately one third); see §8.16.3 for the geometry. Without a lot or a wealth the meter is 1.0.
 - **Subjective ratings** (`GetSubjectiveOccupantRatingString`, `0x004D3470`): the lot's centre cell, the best growth
   developer for the lot (`FindBestDeveloper`, `0x004D32D0`) and a rating function. Rating `i` reads a value at the cell
   through one of the developer's desirability curves and compares it with the developer's slot 30
@@ -1205,7 +1207,7 @@ in `DoQueryDialog` step 4). Only notifications (type 3) from the dialog window a
 | 3 | `0x004C47F0` | the hospital average grade map (residential slot 40) |
 | 4 | `0x004C4890` | the crime grid (crime slot 5) |
 | 5 | `0x004C4930` | the commercial traffic map (traffic simulator slot 9) |
-| 6 | `0x004C4A30` | the commute *[summary]* |
+| 6 | `0x004C4A30` | the unsigned commute-map byte, with 0 replaced by 255, evaluated through the developer's commute curve (§8.16.4) |
 
 ### 8.15 Route mode *[summary; CT15]*
 
@@ -1216,3 +1218,204 @@ network occupant those crossing its cell (`GetNetworkOccupantPaths`). `ShowAllRo
 (`0xEBB0F666`, `0x2BB0F616`, `0x4BB0F628`, `0xEBB0F630`, `0x4BB91326`, `0x6BB91318`, `0x2BB9131F`, `0xABB0F639`,
 `0x4C081783`, …) and draws each route that crosses the rect (`DoesRouteCrossCell`, `GetRouteTravelTypes`). The
 message `0x69247DC7` with a path view clears and redraws it for the same rect (§8.7).
+
+### 8.16 Query closure supplements (CT14, CT18–CT20) *[compat]*
+
+Added 2026-10-23 (re-query-ct5). These rules supplement the sections above. They close the individual
+subcontracts identified here; they do **not** claim complete query-owner closure. The remaining questions
+are retained in `questions/city-tools-input.md`. In particular, the traffic-tip body writers must not be
+replaced by host calls to the original query owner.
+
+#### 8.16.1 Dispatch and funding refresh lists (CT18)
+
+The occupant filler table really contains three zero pointers for `0x1026`–`0x1028` (table bytes at
+`0x00A92520`–`0x00A9252B`). They are not missing names for occupant workers. Keep the separate zone
+dispatch described in §8.13. An occupant-table walk must not acquire landfill behavior merely because
+its control ID matches a zone worker.
+
+Funding sliders carry these related-ID sequences, in addition to the separate `ID + 2` cost update in
+§8.12.4. An empty sequence means no related-ID refreshes, not an instruction to derive IDs from nearby
+controls.
+
+| Slider ID | Related IDs, in stored order | Evidence |
+|---|---|---|
+| `0x1002` (fire) | empty | `0x004C7243`–`0x004C726E` |
+| `0x1009` (police) | empty | `0x004C7453`–`0x004C747E` |
+| `0x1018` (school staff) | `0x101A`, `0x101B`, `0x101D`, `0x101F` | `0x004C7ADF`–`0x004C7B1E`; data `0x00B096DC`, count at `0x00B096EC` |
+| `0x1019` (school bus) | empty | `0x004C7C2D`–`0x004C7C55` |
+| `0x1021` (hospital staff) | `0x1023`, `0x1024`, `0x00000004`, `0x3F800000` | `0x004C7F6F`–`0x004C7FAE`; data `0x00B096F0`, count at `0x00B096F8` |
+| `0x1022` (hospital ambulance) | empty | `0x004C80AD`–`0x004C80D5` |
+
+For hospital staff the count is four, not two. Reading four dwords from the supplied list includes its
+own count word followed by a binary32-one word. Compatibility therefore requires retaining those two
+additional **integer IDs**, without interpreting the fourth as a floating-point value or substituting
+plausible hospital controls. Their eventual refresh follows the normal lookup/dispatch rules of §8.13.
+The empty-cell sound conflict is still CT18; this list correction does not settle that branch.
+
+#### 8.16.2 Best developer selection (CT19)
+
+`FindBestDeveloper` (`0x004D32D0`) selects a developer for a lot, using the lot's centre cell. It distinguishes
+a lot with a nonzero building type (lot slot 46 with false) from an undeveloped lot.
+
+For a nonzero building type, obtain its building-development record (slot 39) and the building wealth
+(`GetBuildingWealth`, `0x004D3260`). A nonzero purpose in the record determines the developer type through
+building-development slot 30 `(purpose, wealth)`; slot 32 retrieves that developer. A zero purpose returns
+no developer. This path does not compare all wealth classes or choose by demand.
+
+For a zero building type, the centre cell's zone determines this ordered candidate list. Other zone
+types return no developer.
+
+| Zone type | Developer types in comparison order | Static list |
+|---|---|---|
+| 1, 2, 3 | `0x1010`, `0x1020`, `0x1030` | `0x00B09780` |
+| 4, 5, 6 | `0x3110`, `0x3120`, `0x3130`, `0x3320`, `0x3330` | `0x00B09768` |
+| 7 | `0x4100` | `0x00B09760` |
+| 8 | `0x4400`, `0x4300` | `0x00B09754` |
+| 9 | `0x4200`, `0x4400`, `0x4300` | `0x00B09744` |
+
+Rank candidates by their signed 16-bit desirability at the centre cell (developer slot 29), then by
+the demand value from the developer's slot-18 object, that object's slot 12, converted by truncation
+toward zero. The second comparison uses the converted signed integer, so fractional differences that
+truncate to the same integer do not break a tie. Exact ties retain the earlier candidate. The initial
+comparison pair is `(-1000, -1000)`, with no selected developer: a candidate must beat that pair to be
+selected. Thus even an available candidate can leave the result empty. Evidence: `0x004D33D0`–`0x004D342B`,
+including sign extension at `0x004D33EE` and the conversion at `0x004D33FF`. The normal-domain conversion
+rule here assumes a finite representable signed result; exceptional values remain CT19.
+
+#### 8.16.3 Wealth meter size and alignment (CT19)
+
+The resize factor is `min(binary32(0x3EAAAAAB) × w, 1)`, stored as binary32. The displayed meter fraction
+is independently `min(occupantWealth / w, 1)`. The size factor uses **building wealth**, even when the
+occupant wealth has fallen. Both wealth values are treated as unsigned values for floating conversion.
+Evidence: `0x004D3552`–`0x004D35A8`, constant at `0x00A92480`.
+
+The control's window rectangle retains its right, top and bottom edges. Given reference left edge `L`,
+right edge `R`, and size factor `s`, its new left edge is
+`L + trunc((R − L) − s × (R − L))`. This is a right-aligned bar: it is not centred and its right edge
+does not move. The control uses property `0x8ADC29D4` to retain the reference left coordinate across
+refreshes; refreshing the same wealth must not repeatedly shrink an already shortened bar. The property
+and rectangle operations occur on the meter control's window (`0x004D3618`–`0x004D36DA`). Geometry conversion
+uses truncation toward zero (`0x004D36A1`–`0x004D36C8`). If the meter interface is unavailable, no geometry
+is changed. No lot or zero building wealth uses the full-value meter fallback described in §8.14.
+
+#### 8.16.4 Commute sampling (CT19)
+
+Subjective commute uses traffic simulator (`0x00B43DA8`) slot 13 to obtain a grid and grid slot 7 at the
+requested cell. Interpret the returned byte as unsigned; replace **zero** with 255. It is not a signed
+commute value and zero is not the best possible commute. Convert that substituted byte to binary32,
+evaluate the developer's curve at `+0x80`, and truncate its output toward zero before comparing it
+with the subjective thresholds for rating 6 (developer slot 30).
+
+Below the lower threshold the rating index is 2 and the auxiliary value is the negated truncated curve
+output. At or above the upper threshold the index is 0 and the auxiliary value is that output divided
+by two with integer truncation toward zero. Otherwise the index is 1. The absent-curve path also returns
+the medium index; no grid sample is needed on that path. Evidence: `0x004C4A30`–`0x004C4AC5`, especially
+the zero substitution and unsigned extension at `0x004C4A71`–`0x004C4A89`. Rating labels remain those of
+§8.14; the auxiliary value is not an alternative label selector.
+
+#### 8.16.5 Curve endpoints and airport exemplar (CT19)
+
+For an already constructed response curve with finite, strictly increasing input knots, evaluation
+clamps below the first knot to its first output, and at or above the last knot to its last output.
+Interior evaluation uses the segment containing the input, with the segment's stored binary32 slope:
+`previousOutput + (input − previousInput) × slope`. It does not extrapolate outside the endpoints.
+One knot gives a constant output. The evaluator uses x87 operations on the stored binary32 operands;
+it does not round the intermediate difference/product to binary32 after every operation. Evidence:
+`cSC4ResponseCurve::GetOutputValue`, `0x005F4250`–`0x005F42D4`, especially `0x005F4287`, `0x005F42B0` and
+`0x005F42BA`–`0x005F42CF`. Property parsing, slope construction, duplicate/unsorted knots and an empty
+property still need verification; this evaluator contract does not prescribe a parser repair policy.
+
+Lost luggage's three constants are one resource key **(type, group, instance)**:
+`(0x6534284A, 0x67CD5FA1, 0xCA270E9D)`. They are not three airport instances to choose between by airport
+size or traffic. `SetOrGetAirportLostLuggage` (`0x004CC160`) obtains that resource with interface
+`0xA52160F5`, uses its property holder, and evaluates property `0xAA60E745` through the goofy-stat helper.
+A failed resource lookup returns failure; it does not choose another exemplar. The caller supplies the
+same fixed key for every airport. The occupant wrapper merely obtains the cell coordinates and forwards
+to this worker. Airport-noise arithmetic and the exceptional numeric cases remain CT19.
+
+#### 8.16.6 Neighbour connection kinds and dialog resources (CT14)
+
+The connection kind is a neighbour-simulator kind, not the network type number. For a network occupant,
+the applicable mappings below are tested in the shown priority order: **the last successful test wins**.
+The initial kind is 1. If network QI fails, QI `0xA8C86142` chooses kind 4 when successful.
+
+| Network type tested | Connection kind |
+|---|---|
+| 11 | 10 |
+| 0 | 2 |
+| 6 | 8 |
+| 12 | 12 |
+| 2 | 3 |
+| 7 | 6 |
+| 8 | 7 |
+| 9 | 11 |
+| 1 | 1 |
+| 4 | 5 |
+
+Evidence: `0x004CC77C`–`0x004CC87E`. This matters for cells supporting more than one network type.
+The dialog includes one or two valid connection records. Zero or at least three records produces no
+dialog. Resource group is `0x96A006B0`, type is 0, and instance depends on the **number of records**:
+
+| Connection kind | One record | Two records |
+|---|---|---|
+| 1, 6, 7, 11 | `0xEA566A49` | `0x4A5E7ED3` |
+| 2, 3, 8, 10, 12 | `0xCA566F94` | `0xAA5E14CC` |
+| 4 | `0x4A566C14` | `0x8A5E7BD2` |
+| 5 | `0x4A566D6E` | `0x2A5E7490` |
+
+Kinds 4 and 5 do not perform a special global-window lookup. Their helper `0x00411D50` counts the same
+connection list used for the other kinds; its result distinguishes the one-record and two-record
+scripts (resource selection in `0x004CC6E0`). This corrects the earlier
+"looked-up window" uncertainty, not the still-open row-filler contracts.
+
+#### 8.16.7 Debug-query source and writer ordering (CT20/CT14)
+
+`IsDebugQueryEnabled` (`0x004C4700`) is a live conjunction of the application's debug-functionality
+setting and all three keys Shift (`0x10`), Ctrl (`0x11`), Alt (`0x12`). The application service is held
+at `0x00B43C94`; slot 21 is `cSC4App::GetDebugFunctionalityEnabled` (`0x004494C0`), which reads the byte
+at application offset `+0x644`. Obtain the keyboard from window-manager slot 38 and test key state with
+keyboard slot 3. Debug-functionality alone does not enable a query, and holding the three keys does not
+override a disabled setting. Evidence: `0x004C4700`–`0x004C474F`, `0x004494C0`–`0x004494C6`.
+
+The building debug branch of `DescribePick` is not a call to `DescribeBuilding`: its immediate action
+creates/destroys residential query data. The later **cell** phase finds a building in the selected cell
+and there calls `DescribeBuilding`, `DescribePopulation`, then `DescribeDemand`, in that order. The
+population and demand texts form `extra` in population-before-demand order. EQ/HQ follows, then
+`DescribeCell`. Preserve this distinction: a building pick does not by itself mean the final `text`
+is a building description. See §8.12.1 for the final three output-string formats. Evidence:
+`0x004D4B0F`–`0x004D4C8B`, enclosing `DescribePick` at `0x004D4140`.
+
+The helper bodies remain incomplete contracts. Verified content inventories, useful for checking future
+closure, are: `DescribeBuilding` (`0x004CCF60`) reports capacity and wealth, power consumed/produced,
+incinerator capacity/use, waste-to-energy capacity/use/max power, water-treatment capacity/use, water
+consumed/produced and age degradation in that order, omitting inapplicable service branches.
+`DescribeDemand` (`0x004CD820`) chooses residential, commercial or industrial output by the cell's zone
+family, ordering wealth/type rows as R$/R$$/R$$$, Cs$/Cs$$/Cs$$$/Co$$/Co$$$, and Ir/Id/Im/Iht respectively.
+`DescribePopulation` (`0x004CF2B0`) walks the lot's developer-keyed occupancy map in key order and emits
+entries of the form `%s %.0f%% (%.0f%%), `. Exact value sourcing and all labels are still CT14/CT20.
+`DescribeCell` and the `Query.txt` writer likewise remain open; these inventories must not be treated
+as complete specifications for their bodies.
+
+#### 8.16.8 Additional conformance vectors
+
+These vectors apply to the verified supplements above; none substitutes for the unresolved writer or
+traffic-tip tests.
+
+| Case | Primitive inputs | Expected behavior |
+|---|---|---|
+| QCT5-1 | Occupant filler walk reaches `0x1026`, `0x1027`, `0x1028` | No occupant filler called; zone dispatch remains separate. |
+| QCT5-2 | Hospital staff slider initialization | Store four IDs in order: `0x1023`, `0x1024`, `4`, `0x3F800000`; do not invent hospital controls for the last two. |
+| QCT5-3 | School bus or hospital ambulance slider initialization | Related sequence empty; the separately specified cost update still occurs. |
+| QCT5-4 | Undeveloped residential lot; candidates have pairs `(20,10.9)`, `(20,10.1)`, `(19,999)` | Choose `0x1010`: the first two demands both truncate to 10; the third loses on desirability. |
+| QCT5-5 | Same lot; pairs `(20,10.9)`, `(20,11.0)`, `(19,999)` | Choose `0x1020`. |
+| QCT5-6 | All candidate desirabilities below −1000 | No developer selected, regardless of demand. |
+| QCT5-7 | Empty zone 8 lot; exact equal eligible pairs for `0x4400`, `0x4300` | Select `0x4400`, preserving candidate order. |
+| QCT5-8 | Meter reference rectangle `(10,20,100,30)`, building wealth 1, occupant wealth 1 | Right edge 100 and vertical bounds 20/30 retained; left becomes 69 with the stored binary32 size factor; displayed fraction 1. Repeat refresh retains left 69. |
+| QCT5-9 | Same rectangle, building wealth 3, occupant wealth 1 | Full reference width; displayed fraction approximately one third. |
+| QCT5-10 | Commute-map samples 0, 128, 255 | Curve inputs 255, 128, 255 respectively; 128 is not converted to −128. |
+| QCT5-11 | Curve knots `(0,0)`, `(10,100)`, `(20,0)` and slopes 10, −10 | Inputs −5, 0, 5, 10, 15, 20, 25 yield 0, 0, 50, 100, 50, 0, 0. |
+| QCT5-12 | Lost-luggage queries for two different airport sizes | Both request the same complete key `(0x6534284A,0x67CD5FA1,0xCA270E9D)`. |
+| QCT5-13 | Network supports types 0 and 4; one valid neighbour connection | Kind 5 wins; script instance `0x4A566D6E`. |
+| QCT5-14 | Kind 4 with two valid records | Script instance `0x8A5E7BD2`; no special window lookup. |
+| QCT5-15 | Debug setting off and all three keys held; then setting on with only Shift+Ctrl; then setting on with all three keys | Disabled, disabled, enabled. |
+| QCT5-16 | Cell readout finds a building | Writer order building, population, demand, EQ/HQ, cell; population precedes demand in `extra`. |

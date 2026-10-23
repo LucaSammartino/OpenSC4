@@ -30,10 +30,12 @@
   must be checked again. [unknown; callout slots only]
 
 <!-- from: re-query (2026-10-21) -->
-- **CT14 - §8.13, §8.12.1, §8.12.4:** the neighbour connection dialog in detail (`0x004CC6E0`: the kind codes, the
-  looked-up window for kinds 4 and 5, the row fillers of `0x104B`–`0x104E`, `0x1066`–`0x106A`), the MySim icon
-  control `0x105B`, and the debug description writers (`DescribeBuilding`, `DescribePopulation`, `DescribeDemand`,
-  `DescribeCell`, `WriteDetailedDebugInfo`). [summary]
+- **CT14 - §8.13, §8.12.1, §8.12.4, remaining dialog/writer details:** specify the neighbour row fillers
+  `0x104B`–`0x104E`, `0x1066`–`0x106A`, all MySim icon `0x105B` branches, and the complete debug description
+  writer content/value sourcing (`DescribeBuilding`, `DescribePopulation`, `DescribeDemand`, `DescribeCell`,
+  `WriteDetailedDebugInfo`). Kind priority and all one/two-record resource choices are now §8.16.6; kinds 4/5
+  count records rather than look up another window. Writer ordering is §8.16.7. [partially answered 2026-10-23;
+  owner closure still open]
 
 <!-- from: re-query (2026-10-21) -->
 - **CT15 - §8.15:** route mode: `MakeRoutePath`, `GetBuildingOccupantPaths`, `GetNetworkOccupantPaths`,
@@ -50,10 +52,24 @@
   (*[inferred]* the water-pipe and subway layers). [summary]
 
 <!-- from: core-query-tool5 (2026-10-23) -->
-- **CT18 - §8.12.1/§8.12.3/§8.12.4, conflicting dispatch contracts:** are 0x1026–0x1028 null in the occupant table but dispatched by the zone handler only? Conformance test 10 requires a failure sound for an empty non-zone cell although DescribePick's numbered steps omit it; should that sound be emitted? What are the hospital staff slider's extra two related IDs (count word 4, only two IDs specified), and the related-ID lists for the other funding sliders? [literal implementation keeps occupant slots 0x1026–0x1028 null, enables the three zone workers, emits the conformance-required empty-cell sound, and stores only explicitly listed related IDs; no unpublished IDs are read]
+- **CT18 - §8.12.1, empty-cell sound conflict:** conformance test 10 requires a failure sound for an empty
+  non-zone cell although DescribePick's numbered steps omit it; should that sound be emitted? Occupant slots
+  `0x1026`–`0x1028` are confirmed null and the six funding-slider related sequences are now §8.16.1, including
+  hospital staff's additional IDs `4`, `0x3F800000`. [partially answered 2026-10-23; sound still open]
 
 <!-- from: core-query-tool5 (2026-10-23) -->
-- **CT19 - §8.12.4/§8.14, remaining building-value details:** specify FindBestDeveloper selection, the wealth meter resize constant k and geometry, commute desirability sampling, lot rectangle endpoint convention for aura averaging, airport noise aggregation, shipped-airport exemplar choice for lost luggage, and response-curve interpolation/extrapolation for a multi-point goofy-stat property. What happens for missing query records, zero commercial capacity, nonfinite/out-of-range numeric conversions or overflowing summed budget costs? [published math is implemented on finite representable primitive inputs; inclusive rect endpoints and zero commercial capacity -> 0 are literal portable choices; unspecified developer selection, resize, airport aggregation/exemplar choice and multipoint-curve evaluation remain explicitly Unsupported, not silently replaced with native algorithms]
+- **CT19 - §8.12.4/§8.14, remaining numeric contracts:** verify aura averaging's inclusive endpoints against
+  instructions; airport noise enumeration, signed aggregation/clamp; property-to-curve slope construction,
+  duplicate/unsorted/empty knots; missing query records, zero commercial capacity, nonfinite/out-of-range
+  numeric conversions and overflowing summed budget costs. Best-developer ranking, wealth geometry/constant,
+  commute sampling, evaluation of an already constructed finite ordered curve, and the fixed lost-luggage
+  resource key are now §8.16.2–§8.16.5. [partially answered 2026-10-23; exceptional values and remaining numeric
+  instructions still open]
 
 <!-- from: core-query-tool5 (2026-10-23) -->
-- **CT20 - §8.7/§8.10/§8.11.4/§8.12.1, omitted traffic/debug contracts:** specify GetBuildingOccupantTrafficInfo and GetNetworkOccupantTrafficInfo, IsDebugQueryEnabled's source, and the actual description writer content/ordering (including the building branch's distinction between described text and the subsequent cell readout). The network debug formats are published, but their backing interface field layouts and capacity call context are incomplete. [debug enable and copied network fields are foreign inputs; published network formats are implemented; traffic tips and unspecified writer bodies are explicitly Unsupported under CT20/CT14, with no native owner callbacks]
+- **CT20 - §8.7/§8.10/§8.11.4/§8.12.1, remaining traffic/debug contracts:** specify
+  `GetBuildingOccupantTrafficInfo`, `GetNetworkOccupantTrafficInfo`, their trip-volume helpers, network
+  debug backing fields/capacity context and complete description-writer bodies (shared with CT14).
+  Debug enable's application-byte/keyboard source and the distinction between building-pick bookkeeping
+  and subsequent cell writers are now §8.16.7. [partially answered 2026-10-23; traffic tips and writer bodies
+  remain Unsupported, with no native owner callbacks]

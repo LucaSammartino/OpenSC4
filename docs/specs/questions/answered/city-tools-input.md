@@ -1,4 +1,26 @@
 # city-tools-input: answered questions
+
+<!-- re-query-ct5: resolved portions only; residual questions retain their IDs in the open file. -->
+- **CT14 (resolved portion) — neighbour kinds/resources and writer ordering.**
+  **ANSWERED 2026-10-23 (re-query-ct5):** DIFFERS — §8.16.6 specifies last-successful network-kind priority
+  and the one/two-record scripts for every kind; kinds 4/5 count connection records rather than perform a
+  separate window lookup. §8.16.7 distinguishes the building pick from later cell-writer ordering. Row fillers,
+  MySim branches and complete writer bodies remain open under CT14.
+- **CT18 (resolved portion) — occupant null entries and funding related IDs.**
+  **ANSWERED 2026-10-23 (re-query-ct5):** DIFFERS — §8.16.1 confirms null occupant entries `0x1026`–`0x1028`
+  and gives all six funding lists. Hospital staff stores four IDs: `0x1023`, `0x1024`, `4`, `0x3F800000`;
+  truncating this to two changes the original contract. The empty-cell sound remains open under CT18.
+- **CT19 (resolved portion) — selection, geometry, commute, curve evaluation and lost-luggage resource.**
+  **ANSWERED 2026-10-23 (re-query-ct5):** DIFFERS — §8.16.2–§8.16.5 define ordered developer ranking with
+  truncated-demand ties and a `(-1000,-1000)` sentinel; right-aligned wealth geometry using `0x3EAAAAAB`;
+  unsigned commute sampling with zero mapped to 255; endpoint-clamped ordered-curve evaluation; and one
+  fixed `(type,group,instance)` airport exemplar key. The remaining numerical domains, noise and curve
+  construction stay open under CT19.
+- **CT20 (resolved portion) — debug enable source and writer phase distinction.**
+  **ANSWERED 2026-10-23 (re-query-ct5):** MATCHES — §8.16.7 requires application debug functionality plus
+  Shift/Ctrl/Alt, and separates building-pick query-data bookkeeping from the later building, population,
+  demand, EQ/HQ and cell writer sequence. Full traffic/debug helper contracts remain open under CT20.
+
 - **CT11 - §8.7, the tip display tail of `DoMessage`:** the exact callout calls (slots 4 and 14), the `SetTip`
   (`0x004C5BA0`) contract and which of 3D view slots 40/41 run on the shown and empty paths. [next RE round]
   **ANSWERED 2026-10-21 (re-querytool4):** MATCHES - §8.11.3: a non-zero icon with a callout shows the callout (slot 4 image, slot 14 secondary image or (null, 0, 0), `SetTip`, then 3D view slot 41 clears the cursor text); otherwise the callout is hidden and 3D view slot 40 sets the cursor text (key `0x2A456CB1`, 0, title, body, 0).
