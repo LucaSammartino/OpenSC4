@@ -150,9 +150,9 @@ addition and conversion `0x0082C30F`–`0x0082C31A`, minimum-one rule
 `0x0082C31F`–`0x0082C326`. Non-finite values are outside the settled contract.
 
 ClearGradient forwards `(null,0,0)` to engine slot 12; SetGradientTransform forwards
-its arguments to the same slot. These calls require an engine. The exact
-fixed-point gradient conversion is deferred in GZG1; it must not be replaced
-with the 3D packed-state gradient rules.
+its arguments to the same slot. These calls require an engine. The buffer's
+fixed-point gradient conversion is specified in §4.2; it must not be replaced
+with the 3D packed-state gradient rules. Hardware-specific conversion remains GZG2.
 
 ## 3. Context transforms, drawing and target changes
 
@@ -863,7 +863,7 @@ variant's two-rectangle mapping.
 takes mutable signed-integer source and destination rectangles. It records the
 original destination left/top and the two ratios
 `sx=source.width/destination.width`, `sy=source.height/destination.height`,
-each stored as binary32 after signed integer division through x87. It clips
+each stored as binary32 after signed integer extent loads and x87 division. It clips
 destination edges in the same order as ordinary clipping: buffer right, left
 at zero, buffer bottom, top at zero, then optional right, left, bottom, top.
 The buffer dimensions come from slots 9 and 10; it does not use an area origin.

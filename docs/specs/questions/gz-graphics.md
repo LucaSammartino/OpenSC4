@@ -19,9 +19,9 @@ Scope: [gz-graphics.md](../gz-graphics.md), Windows 1.1.641.
   polygon closure/coverage, the direct triangle fan, outline-to-cubic conversion
   and exact adaptive cubic subdivision including its N+1-segment overshoot.
   V79–V86 preserve these contracts; the earlier both-endpoints example is corrected.
-  Evidence next: helpers around `0x0082CC60`,
-  `0x0082D040`–`0x0082E130`, `0x0082F970`–`0x0082FC30`; verify float widths,
-  rounding and intermediate precision against instruction bytes.
+  Evidence next: non-AA outline helper `0x0082DB00` and general integer-line
+  helper `0x0082D040`; include diagonal ties, thin clips and clipping phase.
+  Verify float widths, rounding and intermediate precision against instruction bytes.
 - **GZG2 — section 4, hardware/SimGL and AA geometry:** finish the
   hardware extension-slot inventory, hardware base defaults/Shutdown, exact
   source bounds and texture/gradient subdivision, buffer AA edge coverage,
