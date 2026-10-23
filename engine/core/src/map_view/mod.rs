@@ -2,27 +2,30 @@
 // Copyright (C) 2026 FreeCity4 contributors
 //! Bounded portable `cSC4WinMapView` algorithms (`docs/specs/map-view.md`).
 //!
-//! This is not a complete SetDataView/Update/UpdateHighlights implementation.
-//! Nonzero selection stores coherent raw fields, then stops at unpublished
-//! owner ramp generation. None stops at QV1's default-filter boundary. No
-//! callback can supply these missing owner results. Supplied-palette, raw-grid,
-//! highlight-collection and overlay helpers remain independent partial helpers.
+//! `select_with`, `draw_with`, `tick_with` and the window commands execute the
+//! settled owner contract through foreign interfaces. The older intent-only
+//! methods remain useful for inspecting prefixes. See README.md for the exact
+//! unresolved domains; no foreign callback supplies an owner algorithm.
 //!
 //! Effects are generic primitive intents, not native calls or success reports.
 //! Partial updates never acknowledge a redraw, clear dirty, or move its clock.
 //! All state reads use ordinary shared references; no RefCell or native pointers.
 
+mod execution;
 mod exemplar;
 mod highlights;
 mod overlay;
 mod palette;
 mod source;
+mod window;
 
+pub use execution::*;
 pub use exemplar::*;
 pub use highlights::*;
 pub use overlay::*;
 pub use palette::*;
 pub use source::*;
+pub use window::*;
 
 /// Refusal of an unpublished/out-of-domain contract, not a native failure code.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -56,11 +59,17 @@ pub enum Unsupported {
     RepeatedHook,
     MissingNotificationValue,
     ClockRegression,
+    PanelsQV3,
+    GroupButtonQV3(u32),
+    LegendShape,
+    GridType,
+    OverlayGeometryQV10,
+    TrafficMarkersQV4,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AnimationPriority {
-    /// Activation specifies registration but no numeric priority (§1).
+    /// Activation specifies registration but no numeric priority (Â§1).
     UnspecifiedActivation,
     Explicit(u8),
 }
@@ -77,12 +86,14 @@ pub enum Effect {
     UseWaterAltitude,
     RegisterAnimation(AnimationPriority),
     UnregisterAnimation,
-    /// §3.1 gives the group order relative to lookup/reset, not an order
+    /// Â§3.1 gives the group order relative to lookup/reset, not an order
     /// between individual subscription releases inside this group.
     DropUpdateSubscriptions {
         subscription: Option<UpdateSubscription>,
         animation_registered: bool,
     },
+    ShutdownCustomView(u64),
+    ReleaseCustomView(u64),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -106,6 +117,7 @@ pub enum SelectionOutcome {
     CurrentView,
     /// The only specified native failure here: the exemplar was not found.
     MissingExemplar,
+    NeedsExemplar(ExemplarKey),
     Unsupported(Unsupported),
 }
 
@@ -119,7 +131,7 @@ pub struct SelectionProgress {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UpdateOutcome {
     Inactive,
-    /// §4.1's map-clear intent, without inventing bitmap dimensions/clear colour.
+    /// Â§4.1's map-clear intent, without inventing bitmap dimensions/clear colour.
     ClearMapIntent,
     /// No drawing from this source. Not a bitmap-clear or redraw acknowledgement.
     DrawNothing,
@@ -158,6 +170,11 @@ pub struct MapView {
     init_planned: bool,
     highlights: Option<HighlightCollection>,
     overlay: OverlayState,
+    palettes: Option<OwnedPalettes>,
+    custom_view: Option<u64>,
+    mode_button: Option<u32>,
+    two_way_toggle: Option<bool>,
+    overlay_enabled: bool,
 }
 
 impl MapView {
@@ -180,10 +197,15 @@ impl MapView {
             init_planned: false,
             highlights: None,
             overlay: OverlayState::default(),
+            palettes: None,
+            custom_view: None,
+            mode_button: None,
+            two_way_toggle: None,
+            overlay_enabled: false,
         }
     }
 
-    /// Ordered §1 primitive intents. No native pointer/lifetime/allocation
+    /// Ordered Â§1 primitive intents. No native pointer/lifetime/allocation
     /// is represented, and no invented Init return value is provided.
     pub fn init(&mut self) -> Result<Initialization, Unsupported> {
         if self.init_planned {
@@ -221,7 +243,7 @@ impl MapView {
         self.source
     }
 
-    /// Raw debug flag +0x9E0 (§4.1), not a host-selected developer layer.
+    /// Raw debug flag +0x9E0 (Â§4.1), not a host-selected developer layer.
     /// No additional dirty/notification behavior for its setter is published.
     pub fn set_developer_debug_flag(&mut self, enabled: bool) {
         self.developer_debug = enabled;
@@ -291,10 +313,29 @@ impl MapView {
     }
 
     /// Supported prefix only. Raw exemplar data is an external resource, not
-    /// a callback-produced configuration. No custom view is ever created by
-    /// this prefix, so no unowned pointer shutdown/release can be fabricated.
-    /// Current view is not advanced: §3.1 commits it only after missing stages.
+    /// a callback-produced configuration. Custom handles can only originate in
+    /// select_with's successful foreign creation, never from this prefix.
+    /// Current view is not advanced: Â§3.1 commits it only after missing stages.
     pub fn set_data_view(&mut self, view: u32, raw: Option<&RawExemplar>) -> SelectionProgress {
+        let mut progress = self.begin_selection(view);
+        if !matches!(progress.outcome, SelectionOutcome::NeedsExemplar(_)) {
+            return progress;
+        }
+        let Some(raw) = raw else {
+            progress.outcome = SelectionOutcome::MissingExemplar;
+            return progress;
+        };
+        match self.store_selection(raw) {
+            Ok(()) => {
+                progress.steps.push(SelectionStep::StoreFields);
+                progress.outcome = SelectionOutcome::Unsupported(Unsupported::RampGeneration);
+            }
+            Err(error) => progress.outcome = SelectionOutcome::Unsupported(error),
+        }
+        progress
+    }
+
+    fn begin_selection(&mut self, view: u32) -> SelectionProgress {
         let mut progress = SelectionProgress {
             steps: Vec::new(),
             effects: Vec::new(),
@@ -308,7 +349,12 @@ impl MapView {
             return progress;
         }
         progress.steps.push(SelectionStep::DropUpdateSubscriptions);
-        progress.effects = self.unhook_update_messages();
+        if let Some(handle) = self.custom_view.take() {
+            progress.effects.push(Effect::ShutdownCustomView(handle));
+            progress.effects.push(Effect::ReleaseCustomView(handle));
+        }
+        progress.effects.extend(self.unhook_update_messages());
+        self.palettes = None;
         self.requested_view = Some(view);
         if view == 0 {
             // [literal, QV1/QV9] The default occupant filter is the first
@@ -325,24 +371,16 @@ impl MapView {
             }
         };
         progress.steps.push(SelectionStep::ReadExemplar(key));
-        let Some(raw) = raw else {
-            progress.outcome = SelectionOutcome::MissingExemplar;
-            return progress;
-        };
-        match raw.selection_fields() {
-            Ok(fields) => {
-                // Unsupported malformed fields do not define a native partial
-                // write order. Only the complete coherent supported prefix
-                // is stored (QV6); remaining properties stay raw/uninterpreted.
-                self.source = fields.source;
-                self.config = Some(fields);
-                self.resource = Some(raw.clone());
-                progress.steps.push(SelectionStep::StoreFields);
-                progress.outcome = SelectionOutcome::Unsupported(Unsupported::RampGeneration);
-            }
-            Err(error) => progress.outcome = SelectionOutcome::Unsupported(error),
-        }
+        progress.outcome = SelectionOutcome::NeedsExemplar(key);
         progress
+    }
+
+    fn store_selection(&mut self, raw: &RawExemplar) -> Result<(), Unsupported> {
+        let fields = raw.selection_fields()?;
+        self.source = fields.source;
+        self.config = Some(fields);
+        self.resource = Some(raw.clone());
+        Ok(())
     }
 
     /// An intent or a precise unsupported stage, never a whole Update result
