@@ -48,13 +48,14 @@ Cell `from_record`, `update_vertices` and `draw_owned` are the settled path.
 changed-bit device calls, default wrap/filter/transform-clear requests and
 render overrides in section 4.3. Command errors retain the issued prefix.
 Legacy `new(record,layout)` ignores the historical layout oracle; the
-standalone layout helper remains for compatibility/conformance vectors.
+standalone layout helper remains for compatibility.
 Legacy semantic `place`/`draw` are not the ordered callback path.
 
 ## Independent fixtures
 
 The six original lm01–lm06 conformance files remain; lm01 now uses settled
-truncation. DIFFERS comments preserve the history of obsolete ceil/fallback
+truncation and lm06 uses the settled native strip table. DIFFERS comments
+preserve the history of obsolete ceil/fallback/caller-cycle
 expectations. Core fixtures include four sides times eleven height ledgers,
 raw range/query/bounds/tails, nonsquare foundation records and border order,
 zero/equal-fallback/wrapped-key lease chronology, all cell orientations,

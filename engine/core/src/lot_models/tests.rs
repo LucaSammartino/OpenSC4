@@ -1298,6 +1298,38 @@ fn foundation_border_order_exact_multiple_and_force_without_relight() {
     assert!(light.normals.is_empty());
 }
 
+#[test]
+fn foundation_literal_existing_count_zero_allows_required_count_one() {
+    // Public F-step-water: C=trunc(15/16)=0, N=trunc(31/16)=1.
+    // The former base<=top constructor guard excluded this published input.
+    let mut model = FoundationModel::<Binding>::new(
+        Footprint {
+            min: [0., 0.],
+            max: [16., 16.],
+        },
+        41.,
+        40.,
+        16.,
+        FoundationTextureKeys {
+            sides: [None; 5],
+            tops: [None; 5],
+        },
+    )
+    .unwrap();
+    let mut light = Light::default();
+    assert_eq!(
+        model
+            .adjust_height_to_terrain(&border(21., Some(25.)), false, &mut light)
+            .unwrap(),
+        HeightAdjustment {
+            base: 24.,
+            base_changed: true,
+            rebuilt: true,
+        }
+    );
+    assert!(light.normals.is_empty());
+}
+
 #[derive(Default)]
 struct Commands {
     trace: Vec<CellCommand>,

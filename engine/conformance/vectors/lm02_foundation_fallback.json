@@ -2,7 +2,7 @@
   "format": 1,
   "name": "lm02_foundation_fallback",
   "spec": ["lot-models.md §2", "lot-models.md §8.2"],
-  "description": "Absent configured foundation side/top keys at zoom 3. Successful resource primitives record the exact side-then-top requests.",
+  "description": "DIFFERS from former absent-key fallback assumption: settled LM5 zero keys disable lookup. This fixture configures the shipped zoom3 side/top keys and successful resource primitives record side-then-top requests. Failed nonzero/equal fallback attempts are independently tested in core.",
   "steps": [
     {"op": "lm_foundation_fallback", "zoom": 3, "expect_side": "0x69F20003", "expect_top": "0x09122212"}
   ]

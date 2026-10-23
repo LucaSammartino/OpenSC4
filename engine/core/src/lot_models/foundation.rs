@@ -151,7 +151,6 @@ impl<T: Texture> FoundationModel<T> {
         if !footprint.valid()
             || !base.is_finite()
             || !top.is_finite()
-            || base > top
             || !top_scale.is_finite()
             // Unsupported numeric domain, not a native zero-scale guard:
             // native unchecked division can yield nonfinite UVs (LM8).

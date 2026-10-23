@@ -2,9 +2,9 @@
   "format": 1,
   "name": "lm06_cell_orientation",
   "spec": ["lot-models.md §4", "lot-models.md §8.6"],
-  "description": "Orientation 1 is one step then u -> 1-u. Explicit test corner cycle/direction; LM6 leaves native cycle and strip order unpublished, so this is not a native strip conformance claim.",
+  "description": "DIFFERS from the former caller-supplied clockwise cycle: settled LM6 uses strip order (0,0),(1,0),(0,1),(1,1); orientation1 is (0,1),(0,0),(1,1),(1,0), then mirror replaces u with 1-u. Public analytical literals, not native executions.",
   "steps": [
-    {"op": "lm_cell_corners", "positions": [[0,0],[1,0],[1,1],[0,1]], "uv": [[0,0],[1,0],[1,1],[0,1]], "step": "forward", "orientation": 1, "mirror": false, "expect_corners": [[1,0],[1,1],[0,1],[0,0]]},
-    {"op": "lm_cell_corners", "positions": [[0,0],[1,0],[1,1],[0,1]], "uv": [[0,0],[1,0],[1,1],[0,1]], "step": "forward", "orientation": 1, "mirror": true, "expect_corners": [[0,0],[0,1],[1,1],[1,0]]}
+    {"op": "lm_cell_corners", "orientation": 1, "mirror": false, "expect_corners": [[0,1],[0,0],[1,1],[1,0]]},
+    {"op": "lm_cell_corners", "orientation": 1, "mirror": true, "expect_corners": [[1,1],[1,0],[0,1],[0,0]]}
   ]
 }
