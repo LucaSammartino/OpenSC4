@@ -9,6 +9,10 @@
 - Next: implement owner/getter inventory from simgrid sections 6.2.1/6.2.2 using fc4_simgrids_verify; inspect lot-record discovery contract.
 - All single-grid getters borrowed; residential three-output getters AddRef all outputs. Reacquire each observation.
 - No gate or game requested; no outstanding label.
+- Implemented: simgrid record-only shadow, all SG3 getters and dynamic developer walk, core op14 full typed reads with focused signed/float tests. README documents default-off key and scope.
+- LR12 filed for exhaustive lot-record scope/discovery (master lots vs every section 1 class, off-list crime lot and occupants). Per task, finish simgrid independently first; no lotrec_shadow implemented or claimed.
+- Focused cargo completed: 4 simgrids_verify tests passed (including 2 new full-walk cases). fmt passed using absolute filename (relative filename fmt failed); q.py failed due Bash mapping permissions, direct PowerShell cargo works.
+- Native verify qbuild-20261023-232536-build-ctest queued, session 69384: collect SAME operation with write_stdin; no second verify. Full all gate still required after native diagnosis.
 
 ## Prior round report
 

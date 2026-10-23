@@ -2394,3 +2394,14 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
   through a hidden result pointer; from the ABI table: `cIGZVariant` slot 41 and `cISC4Lot` slot 15 return in
   ST0, `cISC4BudgetSimulator` slots 20–23 in EAX only). Such interfaces are declared in `FC4Interfaces.h`, and the slot tests check
   the x87 stack and the stack balance: only slots the spec says return a float may leave a value there.
+
+`simgrid_shadow = 1` (environment `FC4_SIMGRID_SHADOW`, default 0) enables the
+SG3 owner/getter inventory record shadow at PostCityInit and each month. It
+reacquires every role, walks the current growth-developer map in key order,
+captures each grid's record, and compares Rust reads of its metadata and every
+typed tract against the native getters. The shipped inventory is 86 roles;
+modified developer maps change that count. `simgrid-shadow:` reports exact roles,
+mismatches, unavailable roles, cells and bytes. Missing roles and refused reads
+cannot count as exact. This verifies record reads over simgrid.md sections
+6.2.1/6.2.2, not simulation algorithms or owner-private/map-view grids. The older
+`simgrids_shadow` fixture/natural-operation switch remains separate.
