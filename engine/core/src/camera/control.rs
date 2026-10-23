@@ -7,6 +7,69 @@ use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
 pub const CAMERA_CONTROL_CLASS_ID: u32 = 0xC9C6_28EC;
 pub type CameraHandle = Arc<RwLock<S3dCamera>>;
+
+/// Stable, fallibly allocated control storage for the §2.1 lifetime contract.
+/// Rust storage replaces the native heap/layout; a borrowed CameraControl never
+/// frees itself. A destroyed object cannot be accessed again through this owner.
+/// Dropping storage drops Rust handles but never calls the camera's Release.
+#[derive(Debug)]
+pub struct CameraControlAllocation {
+    storage: Vec<CameraControl>,
+    destroyed: bool,
+}
+
+impl CameraControlAllocation {
+    pub fn try_create() -> Result<Self, std::collections::TryReserveError> {
+        Self::try_create_with(|storage| storage.try_reserve_exact(1))
+    }
+    fn try_create_with(
+        reserve: impl FnOnce(&mut Vec<CameraControl>) -> Result<(), std::collections::TryReserveError>,
+    ) -> Result<Self, std::collections::TryReserveError> {
+        let mut storage = Vec::new();
+        // Construction and AddRef must not occur on allocation failure.
+        reserve(&mut storage)?;
+        storage.push(CameraControl::new());
+        Ok(Self {
+            storage,
+            destroyed: false,
+        })
+    }
+    pub fn control(&self) -> &CameraControl {
+        assert!(!self.destroyed, "camera control has been destroyed");
+        &self.storage[0]
+    }
+    pub fn control_mut(&mut self) -> &mut CameraControl {
+        assert!(!self.destroyed, "camera control has been destroyed");
+        &mut self.storage[0]
+    }
+    pub fn release(&mut self) -> u32 {
+        self.release_with(|_, _| {})
+    }
+    fn release_with(&mut self, before_destructor: impl FnOnce(&CameraControl, u32)) -> u32 {
+        let control = self.control_mut();
+        if control.references > 1 {
+            control.references -= 1;
+            control.references
+        } else {
+            // Slot 6 observes the original 0/1 count, not a decremented ledger.
+            before_destructor(control, 1);
+            self.deleting_destructor(1);
+            0
+        }
+    }
+    /// The returned address is an identity token only; it may already be freed.
+    /// Flags other than bit 0 have no effect. No camera Detach/Release occurs.
+    pub fn deleting_destructor(&mut self, flags: u32) -> *const CameraControl {
+        let control = self.control_mut();
+        let address = control as *const CameraControl;
+        drop(std::mem::take(&mut control.bounds));
+        self.destroyed = true;
+        if flags & 1 != 0 {
+            drop(std::mem::take(&mut self.storage));
+        }
+        address
+    }
+}
 const CELL_PIXELS: [f32; 5] = [8.0, 16.0, 32.0, 73.0, 146.0];
 const PITCH_DEGREES: [f32; 5] = [30.0, 35.0, 40.0, 45.0, 45.0];
 const SCROLL_STEPS: [f32; 5] = [100.0, 50.0, 25.0, 12.5, 6.25];
@@ -98,9 +161,10 @@ pub struct CameraControl {
     velocity: Vec3,
     direction: Vec3,
     axes: [Vec3; 2],
-    view_scale: f32,
     plane: [f32; 4],
-    target_plane: Vec2,
+    eye_plane: Vec2,
+    eye_pixels: Vec2,
+    previous_eye_points: [f32; 4],
     tweak: Vec2,
     magnification: f32,
     previous: ZoomRotation,
@@ -136,11 +200,10 @@ impl Default for CameraControl {
             velocity: [0.0; 3],
             direction: [0.0; 3],
             axes: [[0.0; 3], [0.0, 1.0, 0.0]],
-            // CA7: pre-init derived conversion storage is not specified;
-            // retain unit scale and zero plane/point until a camera update.
-            view_scale: 1.0,
             plane: [0.0; 4],
-            target_plane: [0.0; 2],
+            eye_plane: [0.0; 2],
+            eye_pixels: [0.0; 2],
+            previous_eye_points: [0.0; 4],
             tweak: [0.0; 2],
             magnification: 1.0,
             previous: ZoomRotation::default(),
@@ -178,11 +241,32 @@ impl CameraControl {
     pub fn reference_count(&self) -> u32 {
         self.references
     }
-    /// Literal shared AddRef ledger (§7). CA10 blocks control-specific
-    /// QueryInterface/Release/destruction dispatch, not Rust allocation life.
+    /// Literal shared AddRef ledger (§2.1); allocation life is owned by
+    /// CameraControlAllocation, never by a borrowed control.
     pub fn add_ref(&mut self) -> u32 {
         self.references = self.references.wrapping_add(1);
         self.references
+    }
+    /// Supported IIDs require a writable output cell. Rejected IIDs leave
+    /// even an absent output untouched. All interfaces use this same address.
+    pub fn query_interface(&mut self, iid: u32, output: Option<&mut *const Self>) -> bool {
+        self.query_interface_with(iid, output, |control, _| {
+            control.add_ref();
+        })
+    }
+    fn query_interface_with(
+        &mut self,
+        iid: u32,
+        output: Option<&mut *const Self>,
+        add_ref: impl FnOnce(&mut Self, &*const Self),
+    ) -> bool {
+        if !matches!(iid, 1 | CAMERA_CONTROL_CLASS_ID | 0xE4FD_A3D4) {
+            return false;
+        }
+        let output = output.expect("supported camera-control IID requires an output cell");
+        *output = self as *const Self;
+        add_ref(self, output);
+        true
     }
     pub fn initialised(&self) -> bool {
         self.initialised
@@ -239,8 +323,18 @@ impl CameraControl {
     pub fn camera_plane_axes(&self) -> [Vec3; 2] {
         self.axes
     }
+    pub fn eye_camera_plane_point(&self) -> Vec2 {
+        self.eye_plane
+    }
+    pub fn eye_camera_plane_pixels(&self) -> Vec2 {
+        self.eye_pixels
+    }
+    pub fn previous_eye_camera_plane_points(&self) -> [f32; 4] {
+        self.previous_eye_points
+    }
+    /// Compatibility name retained for callers; §2.3 caches the eye, not target.
     pub fn target_camera_plane_point(&self) -> Vec2 {
-        self.target_plane
+        self.eye_camera_plane_point()
     }
     pub fn view_direction(&self) -> Vec3 {
         self.direction
@@ -312,6 +406,46 @@ impl CameraControl {
     pub fn send_post_view_change_message(&mut self, kind: ViewMessageKind) {
         self.send_message(&LiveViewMessage { kind });
     }
+    pub fn send_pre_view_change(&mut self, kind: u32) {
+        if kind == 2 {
+            self.send_post_view_change_message(ViewMessageKind::ViewZRChange1);
+        }
+    }
+    pub fn send_post_view_change(&mut self, kind: u32) {
+        match kind {
+            0 => self.send_post_view_change_message(ViewMessageKind::PostViewInit),
+            2 => self.send_sequence(&[
+                ViewMessageKind::CameraUpdated,
+                ViewMessageKind::ViewZRChange2,
+                ViewMessageKind::ViewZRChange3,
+            ]),
+            3 => self.send_target_changed(),
+            4 => self.send_post_view_change_message(ViewMessageKind::PostViewRefresh),
+            _ => {}
+        }
+    }
+    /// §2.7: every 32-bit kind is accepted; only absence of a camera fails.
+    pub fn update(&mut self, kind: u32) -> bool {
+        if self.camera.is_none() {
+            return false;
+        }
+        self.send_pre_view_change(kind);
+        if kind != 3 {
+            self.update_camera_zoom_and_rotation_params();
+        }
+        self.update_camera_position_params();
+        if let Some(view) = self.view_utilities.clone() {
+            view.update_camera_position(self);
+            if self.bounds.is_empty() || matches!(kind, 1 | 2) {
+                self.update_scroll_bounds();
+            }
+        }
+        self.send_post_view_change(kind);
+        if kind == 2 {
+            self.clamp_target_to_scroll_bounds();
+        }
+        true
+    }
     pub fn set_message_server(&mut self, server: Option<Arc<dyn ViewMessageServer>>) {
         self.message_server = server;
     }
@@ -358,8 +492,7 @@ impl CameraControl {
         }
         if let Some(camera) = camera.into() {
             self.attach_to_camera(camera);
-            self.update_all();
-            self.send_post_view_change_message(ViewMessageKind::PostViewInit);
+            self.update(0);
         }
         self.initialised = true;
         true
@@ -379,8 +512,7 @@ impl CameraControl {
         }
         self.camera = Some(camera);
         if self.initialised {
-            self.update_all();
-            self.send_post_view_change_message(ViewMessageKind::PostViewInit);
+            self.update(0);
         }
     }
     pub fn detach_from_camera(&mut self) {
@@ -443,7 +575,6 @@ impl CameraControl {
             let view = c.view_xform();
             self.axes = [row(&view.matrix, 0), row(&view.matrix, 1)];
             self.direction = mul(row(&view.matrix, 2), -1.0);
-            self.view_scale = view.scale;
         }
         self.plane = [
             self.direction[0],
@@ -451,28 +582,48 @@ impl CameraControl {
             self.direction[2],
             -dot(self.direction, self.eye),
         ];
-        self.target_plane = self.convert_world_point_to_camera_plane_point(self.target);
-    }
-    fn update_all(&mut self) {
-        self.update_camera_zoom_and_rotation_params();
-        self.update_camera_position_params();
-        self.update_scroll_bounds();
+        if let Some(camera) = &self.camera {
+            self.previous_eye_points = [
+                self.eye_plane[0],
+                self.eye_plane[1],
+                self.eye_pixels[0],
+                self.eye_pixels[1],
+            ];
+            self.eye_plane = self.convert_world_point_to_camera_plane_point(self.eye);
+            let offset = write_camera(camera).pixel_offset();
+            self.eye_pixels = [
+                self.pixels_per_metre * self.eye_plane[0] + offset[0],
+                self.pixels_per_metre * self.eye_plane[1] + offset[1],
+            ];
+        }
     }
     pub fn convert_world_point_to_camera_plane_point(&self, point: Vec3) -> Vec2 {
         let p = sub(point, self.plane_origin);
+        // No numeric contract without a camera (§2.4); never use stale copies.
+        let c = self
+            .camera
+            .as_ref()
+            .expect("plane conversion requires an attached camera");
+        let c = c.read().unwrap_or_else(|poison| poison.into_inner());
+        let view = c.view_xform();
         [
-            dot(p, self.axes[0]) * self.view_scale,
-            dot(p, self.axes[1]) * self.view_scale,
+            dot(p, row(&view.matrix, 0)) * view.scale,
+            dot(p, row(&view.matrix, 1)) * view.scale,
         ]
     }
     pub fn convert_camera_plane_point_to_world_point(&self, point: Vec2) -> Vec3 {
-        add(
-            self.plane_origin,
-            add(
-                mul(self.axes[0], point[0] / self.view_scale),
-                mul(self.axes[1], point[1] / self.view_scale),
-            ),
-        )
+        let c = self
+            .camera
+            .as_ref()
+            .expect("plane conversion requires an attached camera");
+        let c = c.read().unwrap_or_else(|poison| poison.into_inner());
+        let view = c.view_xform();
+        let reciprocal = 1.0 / view.scale;
+        let r = row(&view.matrix, 0);
+        let u = row(&view.matrix, 1);
+        let b = row(&view.matrix, 2);
+        // The zero-depth terms must participate even for nonfinite back rows.
+        std::array::from_fn(|i| self.plane_origin[i] + (point[0] * r[i] + point[1] * u[i] + 0.0 * b[i]) * reciprocal)
     }
 
     /// Documented foreign city-corner inputs (view-utilities §4.2), including
@@ -588,30 +739,36 @@ impl CameraControl {
             rotation,
         })
     }
+    pub fn rotate_left(&mut self) -> bool {
+        self.set_rotation(((self.current.rotation.wrapping_add(1) as i32) % 4) as u32)
+    }
+    pub fn rotate_right(&mut self) -> bool {
+        self.set_rotation(((self.current.rotation.wrapping_add(3) as i32) % 4) as u32)
+    }
+    pub fn zoom_in(&mut self) -> bool {
+        let v = self.virtual_zoom() as i32;
+        if f64::from(v) >= 5.0 {
+            return false;
+        }
+        self.set_zoom(v.wrapping_add(1) as f32)
+    }
+    pub fn zoom_out(&mut self) -> bool {
+        let v = self.virtual_zoom() as i32;
+        if v <= 0 {
+            return false;
+        }
+        self.set_zoom(v.wrapping_sub(1) as f32)
+    }
     fn change_zoom_rotation(&mut self, pair: ZoomRotation) -> bool {
         self.previous = self.current;
         self.current = pair;
         self.new = pair;
-        if self.camera.is_none() {
-            return false;
-        }
-        self.send_post_view_change_message(ViewMessageKind::ViewZRChange1);
-        self.update_all();
-        self.send_sequence(&[
-            ViewMessageKind::CameraUpdated,
-            ViewMessageKind::ViewZRChange2,
-            ViewMessageKind::ViewZRChange3,
-        ]);
-        self.clamp_target_to_scroll_bounds();
-        true
+        self.update(2)
     }
     pub fn set_custom_magnification(&mut self, m: f32) {
         if m != self.magnification && self.magnification > 0.0 && self.magnification < 1000.0 {
             self.magnification = m;
-            if self.camera.is_some() {
-                self.update_all();
-                self.send_post_view_change_message(ViewMessageKind::PostViewRefresh);
-            }
+            self.update(4);
         }
     }
     pub fn set_view_target(&mut self, target: Vec3) -> bool {
@@ -620,8 +777,7 @@ impl CameraControl {
         }
         self.target = target;
         self.velocity = [0.0; 3];
-        self.update_camera_position_params();
-        self.send_target_changed();
+        self.update(3);
         true
     }
     pub fn set_view_target_velocity(&mut self, velocity: Vec3) {
@@ -645,32 +801,20 @@ impl CameraControl {
         if let Some(hit) = terrain_hit.or_else(|| intersect_with_ground_plane(self.direction, self.target)) {
             self.target = hit;
         }
-        self.update_camera_position_params();
-        self.send_target_changed();
+        self.update(3);
         true
     }
     pub fn set_camera_position_tweak_add(&mut self, x: f32, y: f32) {
         if self.tweak != [x, y] {
             self.tweak = [x, y];
-            if self.camera.is_some() {
-                self.update_camera_zoom_and_rotation_params();
-                self.update_camera_position_params();
-                // §2.6's literal optional-view guard covers both operations.
-                // CA9 asks for the generic helper's separate guard contract.
-                if let Some(view) = self.view_utilities.clone() {
-                    view.update_camera_position(self);
-                    if self.bounds.is_empty() {
-                        self.update_scroll_bounds();
-                    }
-                }
-            }
+            self.update(5);
         }
     }
     pub fn set_city_size(&mut self, width: f32, depth: f32) {
         self.city_size = [width, depth];
         if self.initialised {
             self.bounds.clear();
-            self.update_all();
+            self.update(5);
         }
     }
     pub fn set_viewport_size(&mut self, width: i32, height: i32) {
@@ -806,6 +950,10 @@ fn clamp_polygon_observed(
 mod closure_tests;
 
 #[cfg(test)]
+#[path = "resolved_tests.rs"]
+mod resolved_tests;
+
+#[cfg(test)]
 mod ground_failure_contracts {
     use super::*;
     fn fixture() -> CameraControl {
@@ -840,8 +988,8 @@ mod ground_failure_contracts {
         let mut c = fixture();
         // §6.1 defined inverse result (7,8,9), parallel ground ray.
         c.plane_origin = [7.0, 8.0, 9.0];
-        c.axes = [[0.0; 3]; 2];
-        assert!(c.scroll_by_viewport_angle(0.0, 1.0, Some(&mut Miss)));
+        c.target = c.plane_origin;
+        assert!(c.scroll_by_viewport_angle(0.0, 0.0, Some(&mut Miss)));
         assert_eq!(c.target, [7.0, 8.0, 9.0]);
         assert_updates(&c);
     }

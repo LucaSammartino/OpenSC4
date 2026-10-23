@@ -23,7 +23,8 @@ table, or explicit corner inputs. No ABI/plugin registration is part of this mod
 | GetProjectionType / GetViewState | `projection_type`, `view_state` |
 | Project / UnProject / GetEyeRay(s) | `project`, `unproject`, `eye_ray`, `eye_rays` |
 | cSC4CameraControl constructor / identity | `CameraControl::new`, `Default`, `class_id` |
-| cSC4CameraControl shared AddRef | `add_ref`, `reference_count`; remaining COM contracts open CA10 |
+| cSC4CameraControl QueryInterface / AddRef | `query_interface`, `add_ref`, `reference_count` |
+| cSC4CameraControl factory / Release / deleting destructor | `CameraControlAllocation::try_create`, `release`, `deleting_destructor`; stable safe Rust allocation, native count/flag semantics |
 | Init / AttachToCamera / DetachFromCamera | `init` accepts an optional camera; `attach_to_camera`, `detach_from_camera`; detach retains Init, destructor does not detach the reference ledger |
 | UpdateCameraZoomAndRotationParams | `update_camera_zoom_and_rotation_params` |
 | UpdateCameraPositionParams | `update_camera_position_params` |
@@ -33,6 +34,8 @@ table, or explicit corner inputs. No ABI/plugin registration is part of this mod
 | UpdateScrollBounds | `update_scroll_bounds`, explicit foreign-input `update_scroll_bounds_with_corners` |
 | ClampScrollToBounds / ClampTargetToScrollBounds | `clamp_scroll_to_bounds`, `clamp_target_to_scroll_bounds` |
 | SetZoom / SetZoomAndRotation / SetRotation | `set_zoom`, `set_zoom_and_rotation`, `set_rotation` |
+| RotateLeft / RotateRight / ZoomIn / ZoomOut | `rotate_left`, `rotate_right`, `zoom_in`, `zoom_out` |
+| Generic update / pre helper / post helper | `update`, `send_pre_view_change`, `send_post_view_change` (raw u32 kinds) |
 | SetCustomMagnification / GetCustomMagnification | `set_custom_magnification`, `custom_magnification` |
 | SetViewTarget / SetViewTargetVelocity | `set_view_target`, `set_view_target_velocity` |
 | ScrollByViewportAngle | `scroll_by_viewport_angle` |
@@ -61,8 +64,9 @@ replacement credit is claimed.
 
 CA4–CA6 are answered DIFFERS and reconciled here using §6's independent
 discriminators, not the parent's 39 tests. CA3 constructor/look-at portions are
-resolved; its perspective entry remains blocked. **Neither class is a complete
-native owner.** No family, complete-owner, shadow or replacement credit is granted.
+resolved; its perspective entry remains blocked. CA7–CA10 are now reconciled
+against §§6.2–6.5. The control's specified owner behavior is implemented in core;
+native integration, same-process shadow and replacement remain unmeasured.
 
 | Native body group | Actual body / residual |
 |---|---|
@@ -74,47 +78,51 @@ native owner.** No family, complete-owner, shadow or replacement credit is grant
 | S3D 007FF0F0 / 007FF110 / 007FF120 / 007FF2C0 / 007FF2E0 / 007FF340 | Bias/type/state/pixel/ortho/volume bodies implemented |
 | S3D 007FF580 / 007FFEF0 | Both projection-state builders implemented; lazy counter timing not modeled; native perspective setter unidentified (CA3) |
 | S3D 007FFF10 / 00800120 / 00800340 | Project/UnProject/eye ray bodies implemented |
-| Control 007CB940 / 004BDF00 / 007CB920 / 007CBB10 / 007CBBA0 / 007CCBF0 / 007CCC20 | Read/Write/ID and literal AddRef ledger implemented; QueryInterface/Release/deleting flags open CA10; no automatic ledger detach |
-| Control 007CC990 / 007CCC00 | Documented constructor fields implemented; pre-init derived conversion defaults provisional (CA7); native heap factory absent |
+| Control 007CB940 / 004BDF00 / 007CB920 / 007CBB10 / 007CBBA0 / 007CCBF0 / 007CCC20 | Read/Write/ID/QI/AddRef implemented; allocation owner implements unsigned Release and deleting flags; no automatic camera ledger detach |
+| Control 007CC990 / 007CCC00 | Explicit positive-zero derived storage; fallible stable Rust allocation constructs only after successful reservation, at count zero |
 | Control 007CB970 / 007CD200 / 007CDB20 | Detach/attach/Init corrected, including camera-less Init and acquired-before-release ordering |
 | Control 007CB990 / 007CB9B0 / 007CB9F0 / 007CBA10 | Signed viewport, clip getters and partial-write `rotation_corner_into` implemented |
 | Control 007CBC40 / 007624E0 / 007CBC60 | Virtual zoom/magnification/velocity bodies implemented |
 | Control 007CBCE0 / 007CBD70 / 007CBE40 / 007CC290 | Conversions/zoom/position implemented; invalid zoom lookup containment is explicitly safety policy |
 | Control 007CC000 / 007CC0B0 / 007CC5B0 | Synchronous pre/post/init callbacks implemented; native message allocation/slot binding remains adapter work |
 | Control 007CC650 / 007CCC60 / 007CD000 / 007CD330 | Directed clamp/bounds/target clamp/angle scroll corrected; portable mixed float/double arithmetic is not x87 bit-exact proof |
-| Control 007CCF80 | Generic update-kind dispatch Unsupported: open CA9; inventory gives computation order but not kind-dependent pre/post messages |
-| Control 007CD540 / 007CD6A0 / 007CD6C0 / 007CD6E0 | Rotation/custom magnification implemented; separate rotate-left/right commands Unsupported: open CA8 |
+| Control 007CCF80 | All raw update kinds implemented, including silent 1/5/unknown, kind-3 projection skip, guarded bounds and kind-2 post-message clamp |
+| Control 007CD540 / 007CD6A0 / 007CD6C0 / 007CD6E0 | Rotation/custom magnification and signed-remainder rotate-left/right implemented |
 | Control 007CD810 / 007CDA20 / 007CDAA0 | Target/tweak/city-size bodies implemented; tweak notifies optional `CameraViewUtilities` after computation and builds empty bounds under the same guard |
-| Control 007CDC50 / 007CDE60 / 007CE080 / 007CE0E0 | Float zoom/integer pair implemented; separate zoom-in/out commands Unsupported: open CA8 |
+| Control 007CDC50 / 007CDE60 / 007CE080 / 007CE0E0 | Float zoom/integer pair and virtual-zoom-based zoom-in/out implemented |
 | Associated 007CBA90 / 007CC200 | Ground helper implemented; vector-copy helper uses Rust Vec storage, not an additional camera owner |
 
-Later work must finish the per-class residual bodies and native integration, then
-run independent same-process shadow and exercised replacement before promoting
-those claims. This answer-correction phase does not reset the logical phase cap.
+Native adapters must bind the foreign services and native allocation/layout,
+then run independent same-process shadow and exercised replacement before
+promoting those claims. S3D residuals remain separate work.
 
 ## Owner closure
 
 Scope: **cSC4CameraControl only**, against camera.md as read on 2026-10-23.
-The owner is **not closed**: CA7 and newly filed CA8–CA10 block a complete
-contract. Unsupported entries below have no guessed native implementation.
+CA7–CA10 are answered and implemented; no control section remains open.
 The cS3DCamera residuals above are outside this lane's owner target.
 
 | Owner / spec section | Core item | Covering test or open contract |
 |---|---|---|
-| cSC4CameraControl §2.1 state | `Default`, immutable state getters, `add_ref` | `independent_ca4_camera_less_init_detach_and_raw_read`, `tweak_optional_view_observes_computed_camera_before_empty_bounds_build`; pre-init derived storage **open: CA7** |
+| cSC4CameraControl §2.1 state | `Default`, immutable state getters | `independent_ca4_camera_less_init_detach_and_raw_read`, `ca7_constructor_positive_zeros_and_live_preinit_conversions` |
+| cSC4CameraControl §2.1 identity/lifetime | `query_interface`, `add_ref`, `CameraControlAllocation::{try_create,release,deleting_destructor}` | `ca10_query_interface_same_address_output_before_addref_and_rejected_untouched`, `ca10_unsigned_release_wrapping_addref_and_factory_failure`, `ca10_deleting_flags_free_bounds_always_object_only_bit_zero_never_camera` |
 | cSC4CameraControl §2.2 zoom/projection | `update_camera_zoom_and_rotation_params` | `published_zoom_tables_and_yaws_all_combinations`, `rotation_corners_and_clip_city_minimum` |
 | cSC4CameraControl §2.3 placement/snapping | `rotation_corner_into`, `update_camera_position_params` | `eye_offset_and_plane_equation_are_independently_constrained`, `pixel_corner_is_snapped_and_tweak_changes_it_directly`, `independent_ca4_camera_less_init_detach_and_raw_read` |
-| cSC4CameraControl §2.4 conversions | conversion methods, `intersect_with_ground_plane` | `camera_plane_conversion_has_independent_axis_and_origin_results`, `ground_intersection_has_exact_threshold_and_rejects_behind`; pre-init scale **open: CA7** |
+| cSC4CameraControl §2.4 conversions | live-camera conversion methods, `intersect_with_ground_plane` | `camera_plane_conversion_has_independent_axis_and_origin_results`, `ground_intersection_has_exact_threshold_and_rejects_behind`, `ca7_constructor_positive_zeros_and_live_preinit_conversions`, `ca7_inverse_keeps_zero_depth_terms_and_float_reciprocal` |
 | cSC4CameraControl §2.5 bounds/clamps | `update_scroll_bounds[_with_corners]`, `clamp_scroll_to_bounds`, `clamp_target_to_scroll_bounds` | `scroll_polygon_preserves_published_lift_and_six_points`, `independent_ca6_outside_boundary_fraction_and_length_discriminators`, §6.1 tests below; CA1 concerns interpretation only, formula implemented literally |
-| cSC4CameraControl §2.6 commands/lifecycle | `init`, attach/detach, setters and angle scroll | `independent_ca5_reset_order_rotation_preservation_and_float_equality`, `independent_ca5_tweak_and_signed_viewport_preserve_existing_bounds`, `tweak_optional_view_observes_computed_camera_before_empty_bounds_build`, `scrolling_uses_only_foreign_terrain_query_then_ground_fallback`, `target_validation_and_velocity_nan_only_test`, `attach_detach_init_once_and_native_destructor_does_not_detach`; extra commands named only in §7 **open: CA8**, generic helper dispatch **open: CA9** |
-| cSC4CameraControl §2.7 synchronous messages | `LiveViewMessage`, `send_sequence`, `ViewMessageServer` | `synchronous_callbacks_observe_live_fields_reentry_and_reused_message`, `rotation_message_order_and_pairs_are_exact`; generic kind mapping **open: CA9** |
+| cSC4CameraControl §2.6 commands/lifecycle | `init`, attach/detach, all setters, discrete commands and angle scroll | `independent_ca5_reset_order_rotation_preservation_and_float_equality`, `independent_ca5_tweak_and_signed_viewport_preserve_existing_bounds`, `tweak_optional_view_observes_computed_camera_before_empty_bounds_build`, `scrolling_uses_only_foreign_terrain_query_then_ground_fallback`, `target_validation_and_velocity_nan_only_test`, `attach_detach_init_once_and_native_destructor_does_not_detach`, both §6.3 tests below |
+| cSC4CameraControl §2.7 synchronous messages | `LiveViewMessage`, `send_sequence`, raw-kind pre/post helpers, `update`, `ViewMessageServer` | `synchronous_callbacks_observe_live_fields_reentry_and_reused_message`, `rotation_message_order_and_pairs_are_exact`, both §6.4 tests below |
 | cSC4CameraControl §2.8 save record | `read`, `write` | `save_bytes_exact_and_init_copies_loaded_current_pair_to_new`, `independent_ca4_failed_stream_attempts_all_destinations_without_rollback`, `record_bad_version_truncation_and_sticky_write_error` |
 | cSC4CameraControl §3 users | foreign view/terrain/message traits; core camera handle | `owners_can_be_read_on_a_second_thread`, `scrolling_uses_only_foreign_terrain_query_then_ground_fallback`; native registration/host wiring outside core scope |
 | cSC4CameraControl §4 quirks | zoom tables and projection setters | `published_zoom_tables_and_yaws_all_combinations`, `zoom_fractional_magnification_refusal_and_virtual_threshold` |
-| cSC4CameraControl §5 questions | literal §2.5 lift; provisional pre-init storage | **open: CA7**; CA1 does not block arithmetic; CA3 is another owner |
+| cSC4CameraControl §5 questions | literal §2.5 lift; resolved constructor/conversions | `scroll_polygon_preserves_published_lift_and_six_points`, `ca7_constructor_positive_zeros_and_live_preinit_conversions`; CA1 does not block arithmetic; CA3 is another owner |
 | cSC4CameraControl §6 conformance | §2 methods above | cases 1,5–9,12–16 mapped below (2–4,10–11 concern cS3DCamera, also tested) |
 | cSC4CameraControl §6.1 scroll discriminators | directed `clamp_polygon`, target clamp, angle scroll | `independent_ca6_outside_boundary_fraction_and_length_discriminators`, `scroll_clamp_disabled_empty_inside_and_outward_cut_are_exact`, `scroll_clamp_corner_reverse_winding_outside_and_short_edge`, `scroll_exhaustion_reaches_all_n_projections_before_returning_original`, `tied_scroll_crossing_projects_right_edge_before_history_stop`, `below_threshold_target_clamp_keeps_target_velocity_and_sends_nothing`, `ground_failure_contracts` |
-| cSC4CameraControl §7 native inventory | implemented method inventory above | commands **open: CA8**; generic helper **open: CA9**; QI/Release/deleting flags **open: CA10**; constructor derived fields **open: CA7** |
+| cSC4CameraControl §6.2 constructor/conversions | live camera conversions, eye plane/pixel/history getters | `ca7_constructor_positive_zeros_and_live_preinit_conversions`, `ca7_eye_and_pixel_history_survives_detach_without_conversion_fallback`, `ca7_inverse_keeps_zero_depth_terms_and_float_reciprocal` |
+| cSC4CameraControl §6.3 discrete commands | `rotate_left`, `rotate_right`, `zoom_in`, `zoom_out` | `ca8_rotation_commands_wrap_preserve_magnification_and_use_signed_remainders`, `ca8_zoom_commands_threshold_boundaries_and_false_after_mutation` |
+| cSC4CameraControl §6.4 kind/callback dispatch | `update`, raw-kind pre/post helpers, shared command dispatch | `ca9_all_kinds_guard_bounds_and_preserve_pairs_with_synchronous_order`, `ca9_helpers_without_camera_and_kind_two_clamps_after_zr_messages` |
+| cSC4CameraControl §6.5 identity/destruction | `query_interface`, `CameraControlAllocation` | three `ca10_*` tests listed under §2.1 above |
+| cSC4CameraControl §7 native inventory | all control method groups above | §§6.1–6.5 discriminators plus §6 case map below |
 
 ### Section 6 conformance coverage
 
@@ -145,6 +153,20 @@ without an edge selection and never demonstrated exhaustion.
 
 Foreign `CameraViewUtilities` supplies corner inputs and observes computed camera
 position. With no host configured, the existing documented view-utilities corner
-table remains the pure-core convenience input. Tweak's optional-view guard is
-literal: no host means no bounds rebuild there. The generic helper's host guard
-and kind dispatch await CA9. No input host, device, ABI or plugin wiring is added.
+table remains the pure-core convenience input for explicit `update_scroll_bounds`.
+All command/generic updates guard bounds generation on the optional view host;
+no host retains even empty bounds. No input host, device, ABI or plugin wiring is added.
+
+Conversions require an attached camera and read its live transform on every call;
+camera-less conversion panics as safe-core precondition enforcement, rather than
+returning a guessed number. The cached point is the eye's (§2.3), with current
+pixel and previous four-word storage. `target_camera_plane_point` remains a
+compatibility alias for that corrected eye cache.
+
+`CameraControlAllocation` holds one control at a stable address in fallibly
+reserved Rust storage (no native layout claim). Release at count 0/1 performs
+deleting destruction with flags 1 without decrementing first. All deleting flags
+release bounds storage; only bit 0 releases object storage. Flags 0/2 retain the
+allocation but invalidate access; Rust does not expose native dangling vector
+pointers after destruction. Returned addresses are identity tokens only. No
+destruction path calls the attached camera's Release; callers Detach separately.

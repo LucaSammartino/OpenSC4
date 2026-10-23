@@ -19,9 +19,26 @@ fn handle() -> CameraHandle {
 }
 fn control() -> CameraControl {
     let mut c = CameraControl::new();
+    c.set_view_utilities(Some(Arc::new(PublishedView)));
     c.init([2048.0, 0.0, 2048.0], handle());
     c.take_messages();
     c
+}
+#[derive(Debug)]
+struct PublishedView;
+impl CameraViewUtilities for PublishedView {
+    fn city_corners(&self, rotation: u32, [w, d]: Vec2) -> [Vec3; 4] {
+        // Foreign utility inputs from its published corner table.
+        let points = match rotation {
+            0 => [[0.0, d], [0.0, 0.0], [w, 0.0], [w, d]],
+            1 => [[0.0, 0.0], [w, 0.0], [w, w], [0.0, d]],
+            2 => [[w, 0.0], [w, d], [0.0, d], [0.0, 0.0]],
+            3 => [[w, d], [0.0, d], [0.0, 0.0], [w, 0.0]],
+            _ => panic!("fixture requires a valid rotation"),
+        };
+        points.map(|p| [p[0], 0.0, p[1]])
+    }
+    fn update_camera_position(&self, _: &CameraControl) {}
 }
 fn kinds(c: &CameraControl) -> Vec<ViewMessageKind> {
     c.messages().iter().map(|m| m.kind).collect()
