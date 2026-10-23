@@ -1,8 +1,12 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-traffic-flake5: traffic shadow interleaving | Codex, glue-traffic-flake5 | in progress | Diagnose remaining 18 -> 2 density divergence; not ready |
+| glue-traffic-flake5: traffic shadow interleaving | Codex, glue-traffic-flake5 | in progress | Sentinel fix queued separately; diagnose remaining density divergence |
 
 ## Handoff
+- Round 2: sentinel-only landing milestone; the remaining density hunt continues on detached HEAD. The ready queue entry at this milestone covers the sentinel fix only, not traffic verification credit.
+- Sentinel report: 4883e8c4 advances SourceIter to the sentinel before yielding the final source (zones §8.3.1); deterministic ConfirmTrips/FullTrips replay with same-day retries and an intervening append reproduces train155 before the fix. No ABI exports changed, no fields excluded.
+- Sentinel validation: focused traffic tests 91 passed; full workspace 6443 passed, clippy 0 diagnostics, native CTest 69/69. traffic-flake5-4883-turbo1 72/72, clean/ref_warnings=0 through 2032; traffic-flake5-4883-normal1 70/73, clean/ref_warnings=0 but separate density failure. Run records 330/331. Do not credit traffic verified yet.
+- Round 2 next: investigate suspended pathfinder state and source visitation around the FullTrips boundary; existing evidence does not yet establish a root cause. No request/check outstanding.
 - Goal: fix traffic shadow interleaving at its root with a reproducing test; two exact city runs through 2032.
 - Guard OVER at 150k: continue in a fresh session; write no merge-queue entry. Current work is not ready.
 - Worktree reserved with detached HEAD; commit normally, never change refs.
