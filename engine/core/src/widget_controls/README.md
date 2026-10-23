@@ -11,7 +11,9 @@ family vectors WC-L01–L15, WC-T01–T12 and WC-F01. Those tests use recording
 foreign services and establish no native-game or pixel comparison. Grid has
 sparse cell/format/size state helpers and all six incorporated vectors; its
 native dispatch/recalculation orchestration, input and painting are unfinished.
-TextEdit has not yet been implemented. FileBrowser
+TextEdit now has a byte/state stage, including encoding, composition, edits
+and history; it records unexecuted layout/view repairs and is not a native
+window implementation. FileBrowser
 has a state/string layer plus explicit file enumeration/filter/sort/installation
 with resolved column and icon inputs (`populate_files`). Automatic refresh still
 records pending work; native column sizing, drive population and restoration
@@ -43,9 +45,9 @@ widget-controls unless another spec is explicitly named.
 | Grid / 2.1 identity/inventory | `grid::Grid`, identity/table constants, `query_interface` | Constructor exercised in Grid tests; explicit query/lifetime test still needed |
 | Grid / 2.2 state/dispatch | State and sparse tables, selection/scroll/message state helpers | `grid_vectors_1_to_6_and_literal_selection_modes`; native recalculation dispatch/input still needed |
 | Grid / 2.3 mutation/paint/failures | Cell values, ownership, movement, content measurement | `grid_append_copy_window_ownership_and_place_asymmetry`, `grid_size_cache_float_fraction_and_pause_dirty_contract`; full paint and native call orchestration still needed |
-| TextEdit / 3.1 identity/inventory | Not implemented | Next implementation round; includes text-edit, layout, encoding and adapters |
-| TextEdit / 3.2 state/input/output | Not implemented | Next implementation round |
-| TextEdit / 3.3 failures | Not implemented | Next implementation round; preserve TE5/TE8 |
+| TextEdit / 3.1 identity/inventory | `text_edit::TextEdit`, constants, `with_history_limit` | `te_selection_reversed_unsigned_endpoints_and_insert_mode_vectors`; open: TE9 default; QueryInterface/lifecycle not implemented |
+| TextEdit / 3.2 state/input/output | Byte-stage methods and encoding/composition/history | Detailed rows below; layout/input adapter/painting not implemented |
+| TextEdit / 3.3 failures | `Unsupported::Precondition` for raw invalid domains; foreign conversion primitives | `te_raw_limits_invalid_domains_and_no_history_or_notify`, `te_encoding_forward_domains_and_malformed_vectors_45_47`; open: TE5/TE8 |
 | FileBrowser / 4.1 identity/defaults | `file_browser::FileBrowser::new`, raw offset facts, identity constants | `fb_c01_c05_identity_failed_navigation_and_ordered_refresh_work`, `browser_parent_directory_ids_and_shutdown_reference_order`; lifecycle construction still pending |
 | FileBrowser / 4.2 dispatch/drawing/IO | partial state/string/ownership methods | See detailed incorporated-spec rows below; population/resources still pending |
 | ListBox / 5.1 identity/inventory | `query_interface`, slot-count constants, `remove_storage`, `select` | `wc_l01_query_views_and_null_retention`, `wc_f01_storage_removal_is_not_selection`; open: WC1 adapters |
@@ -62,7 +64,7 @@ widget-controls unless another spec is explicitly named.
 | TreeView / 7 family vectors | tests WC-T01–T12 | All represented in named tests above |
 | Grid / 7 incorporated vectors | win-grid vectors 1–6 | `grid_vectors_1_to_6_and_literal_selection_modes` |
 | FileBrowser / 7 incorporated vectors | C01–C27 represented in focused tests | Known C05 automatic refresh remains incomplete; unproved branches FBQ1/2/4/5/6 |
-| TextEdit / 7 incorporated vectors | Not implemented | Next implementation round |
+| TextEdit / 7 incorporated vectors | Byte-stage distinguishing vectors | See TextEdit table; native layout/paint/clipboard/timer vectors not yet implemented |
 | All / 8 unresolved contracts | `Unsupported::Open` with question IDs | Known-domain tests plus explicit open returns; owner completion still pending |
 
 ### Grid incorporated specification progress

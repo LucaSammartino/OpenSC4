@@ -8,6 +8,7 @@
 pub mod file_browser;
 pub mod grid;
 pub mod list_box;
+pub mod text_edit;
 pub mod tree_view;
 
 pub type Handle = crate::ui_windows::win::WinToken;
