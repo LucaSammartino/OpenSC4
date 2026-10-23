@@ -30,6 +30,7 @@ mod dispatcher;
 mod generator;
 mod params;
 mod split;
+pub mod server;
 #[cfg(test)]
 mod tests;
 
