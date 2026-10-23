@@ -1,27 +1,16 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-terrain-ripples-contracts4: bounded WR8 contracts | Codex / core-terrain-ripples-contracts4 | in progress: FINAL child2/2, original family3/3; inherited evidence archived | Run one canonical all on frozen source |
-
-## Handoff
-
-- Goal: qualify existing bounded WR8 implementation; FINAL child2/2, family3/3, no further round.
-- Source: clean inherited 9731b69b; engine tree 938080c528fea6f31ce22b6a0e982045cc20c4b5.
-- R2 authority: own round2 manifest, core/engine path; codexguard within budget; copied host proof admits drained operation.
-- Preserved 26 inherited files in build-runs/inherited-r1-final-child2; sha256.json records exact content.
-- Both specified quick/native log hashes matched; old quick handle unavailable in current invocation, terminal/native RC UNKNOWN.
-- Engine content SHA256 before all: 2420031778762d81d77754778de8504a4450719cf7e331f58a37d341e5346215.
-- Canonical all session96723 reached actual terminal exit0: Rust5513/0 in26 summaries, all51 ripples ok, clippy0 diagnostics, nativePASS2/2, Ct68/68.
-- Same operation qbuild3480/created06:00:56.999592Z; no observer intervention/cache RPC/restart/cancellation.
-- Next: compare after-all engine/content/log hashes, replace inherited report with bounded qualification report and enqueue own normal ready entry.
-- No source changes, no quick rerun, no game requests; WR11 and other inherited limits stay open.
-- Below is the inherited R1 report; it is historical until replaced by the final R2 report.
+| core-terrain-ripples-contracts4: bounded WR8 contracts | Codex / core-terrain-ripples-contracts4 (engine) | ready: canonical cargo5513/0, clippy0, nativePASS2/2, Ct68/68, terminal0; WR11 open; FINAL child2/2 family3/3 exhausted | 1. Coordinator review and normal landing of bounded scope; no further lane round |
 
 ## Result and implementation
 
-Bounded substantive WR8 source is committed at `d130ebad`; measured portable
-execution is recorded at `06bff0c7`. This lane is **not ready to merge** because
-the required final gate has no terminal evidence. No whole-owner, default,
-native/runtime, game or byte-coverage credit is claimed.
+Bounded substantive WR8 source is committed at `d130ebad`; inherited portable
+execution is recorded at `06bff0c7`. This lane is **ready for bounded source
+review and landing**: the first canonical all reached actual terminal PASS on
+unchanged committed engine content. Gate evidence was committed at `1e669e8f`.
+No whole-owner, default, native/runtime equivalence, game or byte-coverage credit
+is claimed. This final invocation changed only this report; no source fix or
+algorithm expansion was needed.
 
 `retained.rs` replaces the provider-decoded/all-properties/fixed-five exemplar
 read. Core owns suffix 00..0D ordering, numeric source/target gates, shared
@@ -56,18 +45,27 @@ The older `RippleTuning` remains explicit input to isolated geometry kernels,
 not process tuning or a missing-property fallback. Full WR4/WR5 operations retain
 their named ContractGap results; this round did not add partial successful walks.
 
-## Measured verification and gate limitation
+## Measured verification
 
 | Check | Actual result |
 |---|---|
-| Quick Rust summaries | 3416 + 21 + 13 + 19 + 0 = **3469 passed, 0 failed** |
+| Canonical all Rust | **5513 passed, 0 failed, 0 ignored**, 26 summaries; workspace tests |
 | Terrain-ripples tests | **51 passed:** 37 retained tests and 14 new independent WR8 tests |
-| Owned-file fmt wrapper | **exit 0**, eight .rs files using absolute paths |
+| Clippy | **exit 0, diagnostics 0**, workspace -D warnings; declared workspace MSRV 1.75 |
+| Owned-file fmt wrapper | Inherited **exit 0**, eight .rs files using absolute paths; source unchanged |
 | Git whitespace check | **exit 0** |
-| Native CMake | Log reaches final DLL/executable link commands; terminal native RC unavailable |
-| Quick terminal result | **unavailable**, active handle 74315 blocked in post-build stats |
-| Canonical all / clippy / full CTest | **not run** while the existing quick command remains active |
+| Native CMake | fc4verify **PASS, 2/2 edges**, 1.6 seconds; successful native stage, not inferred from links |
+| Full CTest | **68/68 passed**, zero failed; log 103.68 seconds, wrapper 104.1 seconds |
+| Canonical wrapper terminal | **exit 0, qbuild PASS**, fc4verify PASS in 108.2 seconds |
+| Historical R1 quick Rust | 3416 + 21 + 13 + 19 + 0 = **3469 passed, 0 failed** |
+| Historical R1 quick terminal/native RC | **UNKNOWN**, old handle74315 unavailable in this invocation |
 | Game/shadow | n/a: core-only, manifest game=false; no requests |
+
+All 26 Rust summary pass counts, in log order:
+`540, 3, 1, 31, 27, 40, 7, 2, 1232, 3416, 21, 13, 19, 147, 0, 2, 1, 3, 1, 1, 1, 5, 0, 0, 0, 0`.
+Every summary has zero failures/ignored tests. All 51 named terrain-ripples
+outcomes end in `ok`; exact summary tuples and names are in
+`build-runs/r2-rust-results.json`.
 
 The literal expectations were written before production comparison. New cases
 cover .75-to-bool false, negative-float unsigned wrap, high-half Uint64 truth,
@@ -85,11 +83,12 @@ the corrected absolute-path wrapper check passed. The q.py formatter attempt
 could not launch Bash (E_ACCESSDENIED), so the owned files were formatted in
 place directly before the quick build. No baseline/redundant quick was run.
 
-### Exact active-client evidence for root
+### Historical R1 evidence retained without a terminal upgrade
 
-Full machine-readable proof is preserved in this worktree's
-`build-runs/quick-stats-block-proof.json`; capture script is
-`build-runs/capture-build-proof.py`. The observed chain is:
+Before canonical paths were overwritten, 26 inherited files were archived in
+`build-runs/inherited-r1-final-child2/`, including source, manifests, copied
+host admission, logs and the stall proof. Its `sha256.json` records all content.
+The historical observed chain in `quick-stats-block-proof.json` is:
 
 - qbuild PID **30108**, parent **21984**, created **2026-10-23T05:20:34.317975Z**;
 - fc4verify PID **8540**, parent **30108**, created **05:20:34.358725Z**;
@@ -97,17 +96,54 @@ Full machine-readable proof is preserved in this worktree's
   argv `C:/Users/tlori/.cargo/bin/sccache.EXE --show-stats --stats-format json`;
   cwd this worktree; TCP **127.0.0.1:55369 → 127.0.0.1:4760 ESTABLISHED**.
 
-Output evidence: `build-runs/fc4verify-quick-test.log` contains all five Rust
-summaries; `fc4verify-build.log` ends with `[216/217] Linking CXX shared library
+Archived output evidence: `fc4verify-quick-test.log` contains all five Rust
+summaries; archived `fc4verify-build.log` ends with `[216/217] Linking CXX shared library
 FreeCity4.dll` and `[217/217] Linking CXX executable fc4_plugin_load_test.exe`.
 Those link counts are **not** treated as a successful native RC or terminal gate.
-The same quick session handle **74315** was collected in <=60-second waits;
-diagnostic handle 55269 completed. No client cancellation, duplicate build,
-cache RPC, kill/restart, environment or configuration change was performed.
+The copied host proof at 06:41:03 BST found the known old processes absent,
+own port4760 services empty and six output write-sharing probes clear/absent.
+This admits a new operation; it does not establish historical exit or cause.
+Root did not interrupt old client38160. The old terminal remains UNKNOWN.
+No client cancellation, duplicate build, cache RPC, kill/restart, environment
+or configuration change was performed by this invocation.
 
 Source engine tree for quick was `4f2cced6ac62bbae891400e45d1865e8ca7d8922`
 at `d130ebad`; the later engine change is the conformance result ledger only.
-There is no claimed canonical-all before/after fingerprint because all has not run.
+The known archived quick log hash is
+`8f544565d98cbcdccd5cdff8b1a00efe557818558f533f597a07d061856e6183`;
+archived native progress log hash is
+`69176633439f1ffaf01cf4fec7b5037b97b30f65d478ada78f1768f31a8ab949`.
+Both were verified before the canonical run.
+
+### Canonical operation and stable content proof
+
+One canonical `qbuild all` ran on committed HEAD
+`d21121524a58dbaf579eeb3dc3dcf54f2958d041` (the inherited engine plus report only).
+Session **96723**, qbuild PID **3480**, parent **18676**, creation
+**2026-10-23T06:00:56.999592Z**, argv `python qbuild.py --wt <this worktree> all`,
+cwd this worktree, was collected through actual terminal exit0 with
+PowerShell `exit $LASTEXITCODE`. No observer intervention was required.
+
+`build-runs/r2-before-all.json` and `r2-after-all.json` contain all tracked
+engine file hashes, manifest hash and log hashes. Engine tree before/after:
+`938080c528fea6f31ce22b6a0e982045cc20c4b5`. Aggregate engine content SHA256:
+`2420031778762d81d77754778de8504a4450719cf7e331f58a37d341e5346215`.
+The complete file maps compare equal. Later commits change only this lane report;
+the implementation is identical to the qualified source.
+
+Canonical log SHA256 values:
+
+- `qbuild-test.log`: `e0e747a3a500c8de474538f63a905ce4078f5f2625379ef21c1a021f19f55d7b`.
+- `qbuild-clippy.log`: `0a18f3639b7256eb2158ef73080cc7c7717c535a33c64179da9437ec80578140`.
+- `fc4verify-build.log`: `c8f2a21fdcaa188bbf69b288e0abbfd25372e51942095ad8a4d6edf51a9e905f`.
+- `fc4verify-ctest.log`: `c4985a435b44acfdbeb1cdd023ed4415453cba175e04219c52bab47ea42dec7a`.
+
+`build-runs/r2-terminal.json` preserves the terminal stage results and process
+identity. An optional own-process diagnostic hit the installed psutil API's
+missing `net_connections` method; it did not affect the gate. The helper was
+corrected to `connections`, without rerunning it against the finished operation.
+Git commits succeeded despite a read-only shared `packed-refs.lock` error;
+no shared refs/config/maintenance action was attempted.
 
 ## Questions and remaining work
 
@@ -119,17 +155,20 @@ Unsupported domains. WR1–3, full WR8 catalogue/Pick semantic types, foreign
 conversion/error/allocator/reentry and PC/RC residuals remain open. The 69-vs-65
 catalogue is not reconciled or credited.
 
-Root must adjudicate the stuck stats client, collect existing quick handle 74315
-to terminal, then run **one canonical qbuild all on stable committed source**,
-record every Rust summary/clippy/native RC/full CTest/terminal and engine/content
-before-after proof. No lane-side restart or extra family round is requested.
+Coordinator review and normal bounded-source landing remain. There is no
+remaining lane gate failure. Native equivalence and game/shadow proof are n/a.
+Parent stays frozen and family3/3 is exhausted: no extra round, restart, rename,
+sibling or parent resumption is requested. Open semantic domains above remain
+open after this bounded qualification.
 
 ## Admission and scope
 
 Detached worktree reused, no branch/ref/config updates. Root's actual immutable
 reservation is copied in `build-runs/evidence-run4/`; root DRAFT review_note records
 fresh FULL canonical terrain-ripples engine BOTHdeps GO0, copied in
-`core-host-admission.md`. Own manifest is round 1, core/engine, this exact path;
-parent remains frozen at used1/limit1, child logical2of3, family ceiling3. No
+`core-host-admission.md`. The current own R2 manifest is round2, core/engine,
+this exact path; copied final host proof includes full canonical scope and both
+dependency admissions. Codexguard status remained within budget. Parent remains
+frozen at used1/limit1; FINAL child2/2 is original logical3/3, family ceiling3. No
 isolated global preflight rerun, parent/sibling resume, reset or guard change.
-No CAPI/plugin/ABI/maps/default/game/native verification or foreign-owner edits.
+No CAPI/plugin/ABI/maps/default/game/native equivalence or foreign-owner edits.
