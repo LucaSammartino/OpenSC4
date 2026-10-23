@@ -146,7 +146,8 @@ generated index: the questions live one file per spec, so read only the file for
 | SR | span-render-1555, span-render-565, span-render-8, span-render-8888 |
 | SV | foundations, ordinance |
 | TB | texture-bindings |
-| TD | text-decal-occupant, tools-com-director |
+| TD | tools-com-director |
+| TDO | text-decal-occupant |
 | TE | text-edit |
 | TG | traffic-simulator |
 | TI | network-type-info |
@@ -299,7 +300,7 @@ generated index: the questions live one file per spec, so read only the file for
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | terrain | 7 | 36 | TR44 | questions/terrain.md |
 | terrain-view | 3 | 0 | TV4 | questions/terrain-view.md |
-| text-decal-occupant | 1 | 0 | TD2 | questions/text-decal-occupant.md |
+| text-decal-occupant | 1 | 0 | TDO2 | questions/text-decal-occupant.md |
 | text-edit | 2 | 6 | TE9 | questions/text-edit.md |
 | texture-bindings | 3 | 1 | TB9 | questions/texture-bindings.md |
 | timers | 0 | 3 | TM4 | questions/timers.md |

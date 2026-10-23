@@ -1253,8 +1253,8 @@ lot trip list appended on read (§3.4); lot `Read` sets "initialised" before che
 skips Init's altitude step (§3.4); retaining-wall mask grows on load (§7); effect props lose their name while
 live (§10.2); prop and construction readers accept unknown newer versions (§9, §10.1); u8 map counts (§3.2); the lot
 configuration ID is dropped when the configuration is missing (§3.5); the crime-only lot (§14); the text-decal
-record re-writes the prop's lot tag and writes the decal-ID pair twice (§10.4); the decal's colour byte is the low
-byte of an f32 colour dword (§10.4); the signpost `SetText` skip requires both an equal string *and* an unchanged
+record writes position twice and stores only the low orientation byte (§10.4, text-decal-occupant.md §7);
+the signpost `SetText` skip requires both an equal string *and* an unchanged
 capacity pair (§10.3); construction `+0xCC` (record #8) is written as `(+0xF8 != 0)`, i.e. from the live crane
 pointer rather than a stored bool (§9.1).
 
@@ -1275,12 +1275,12 @@ Open questions:
   and u32 (§10.2).
 - **Q5** Who sets lot flag bit 7 (§3.2)?
 - **Q6** Layouts of the burnt-building, terrain-decal and automata-controller prop subclasses (absent from saves).
-- **Q7** (from re-occprops, 2026-10-20) The text-decal record fields 4/6/9 (§10.4): the decal-ID pair is written
-  twice and the second write carries `+0x84` again — which live field is record field 6? Filed as OP1/OP2 in
-  questions/occupants-props.md with the live-vs-saved conflict.
-- **Q8** (from re-occprops, 2026-10-20) The signpost record field 3 (`+0x88`, stream slot 0x3C) and the decal
-  record field 3 (`+0x5C`, the same helper): what the helper writes is not resolved from the callers alone
-  (lot-records §13.2 calls slot 0x3C "GZStr"; the signpost/decal pass u32 object addresses). Filed as OP2.
+- **Q7** Answered statically 2026-10-23: the text-decal serializable receiver is O+16. Its
+  extension writes position twice, height then size, RGB, alpha and orientation byte; no decal
+  IDs or duplicate lot tag. See text-decal-occupant.md §§1–2,7; archived OP1 and OP2-TD.
+- **Q8** TextDecal portion answered in text-decal-occupant.md §7: stream +3C is GZStr and
+  receiver +5C is O+6C text. Signpost's independent receiver/field reconciliation remains OP2
+  in questions/occupants-props.md; this correction makes no new signpost-owner claim.
 
 ---
 

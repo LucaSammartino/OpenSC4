@@ -269,6 +269,10 @@ whether the stream GetError **AL** is zero. Both functions normalize the final r
 EAX=0/1 (`005F7E3C–005F7E48`, `005F7F28–005F7F35`). They do not directly return the
 embedded prop bool. Earlier extension failures are not individually branched on; rely on the
 stream's established error semantics. There is no owner-level rollback of already read fields.
+In particular, failed primitive reads into local scratch (legacy integer height or final orientation
+byte) do not establish a default value before the later assignment. Complete valid records are the
+supported record domain here; no deterministic scratch contents or safe recovery is promised for
+truncated records. Direct-to-field primitive read guarantees remain the shared stream contract.
 
 ## 8. Coverage boundary
 
@@ -326,5 +330,5 @@ Add/Remove/Set and AddRef/Release remain foreign primitives. The owner algorithm
 must compute their arguments and order. Complete physical layout compatibility also requires
 the established embedded prop; unrelated storage masquerading as its views is unsupported,
 not a reason to fall back to plain prop behavior. Global floating-point environment proof is
-still open as **TD1**; owner status is **partial for arbitrary-input bit exactness**, with a
+still open as **TDO1**; owner status is **partial for arbitrary-input bit exactness**, with a
 coherent normal-domain contract and exact-environment-conditioned vectors.
