@@ -1,4 +1,16 @@
-# WR8 bounded portable conformance
+# Terrain ripple portable conformance
+
+Current per-section owner closure and §6 vector mapping are in
+[README.md](README.md). Round 2 resumed at `7a951a3f`; the initial focused run
+passed 64 terrain-ripples tests. The added process-sharing/empty-animation test
+and final gate counts are recorded in
+[the lane report](../../../../../docs/lanes/core-ripples5.md).
+
+Owner fixtures now cover ordered trace, partial pairs, UV/size splitting,
+configured fade, bounds, contact removal, foreign drawing and native sampling.
+The historical WR8-only execution below is retained as earlier evidence, not
+the result of this revision. Vector 21 now also has owner texture-failure/retry
+assertions in `resource_failure_retry_preserves_old_strip_and_missing_rng_is_explicit`.
 
 Source: public water-ripples §§2.4,2.6,2.7,6. These are independent literal fixtures;
 no original/native output oracle or runtime ownership credit is claimed.
@@ -28,10 +40,12 @@ Shutdown retains first-update/zoom/rebuild state. Rust Drop safely frees Rust re
 only explicit logical reference/storage events describe native chronology.
 
 Remaining domains: WR1 raw time/controlword; WR2 flag meaning; WR3 selection-byte
-meaning; WR4 ordered shore trace; WR5 complete spline/strip walk; WR8 unsafe backing,
+meaning; WR8 unsafe backing,
 foreign conversion/allocator/error/reentry, full catalogue 69 vs 65 and Pick argument
 semantics. Stored degree-factor bits are WR11: raw parameter only. Period-bound
 arithmetic is supported for period <=2^24 with exact product/floor; larger values
 and unproved inherited numeric modes remain Unsupported. Outer-vector insertion,
 allocation failure and general overlap/self-insertion are not added contracts.
-No C ABI/plugin/map/default/game/native verification changes.
+WR12 leaves the initial shared RNG seed explicit. WR13 leaves exact x87
+intermediate order unclaimed; WR14 records literal double detection on delayed
+rebuild. No C ABI/plugin/map/default/game/native verification changes.

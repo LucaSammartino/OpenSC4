@@ -109,6 +109,10 @@ impl Default for RetainedTuning {
 #[derive(Default, Debug)]
 pub struct RippleProcess {
     pub tuning: RetainedTuning,
+    /// Primitive shared RNG state supplied by the adapter; native initial seed
+    /// is not specified (WR12). Never invent a per-strip/per-instance seed.
+    pub random: Option<super::mesh::NativeRandom>,
+    pub render_state: Option<u32>,
     read: bool,
     pub events: Vec<ReadEvent>,
 }

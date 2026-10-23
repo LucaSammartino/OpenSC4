@@ -2,6 +2,8 @@
 // Copyright (C) 2026 FreeCity4 contributors
 
 use super::*;
+#[path = "tests_owner.rs"]
+mod owner;
 use std::sync::{
     atomic::{AtomicU64, AtomicUsize, Ordering},
     Arc,
@@ -102,6 +104,7 @@ struct Ground {
     counts: [u32; 2],
     flags: Vec<u32>,
     counter: AtomicU64,
+    changed_flags: std::sync::Mutex<std::collections::BTreeMap<Cell, u16>>,
 }
 impl Ground {
     fn new(counts: [u32; 2]) -> Self {
@@ -109,6 +112,7 @@ impl Ground {
             counts,
             flags: vec![0; ((counts[0] + 1) * (counts[1] + 1)) as usize],
             counter: AtomicU64::new(0),
+            changed_flags: Default::default(),
         }
     }
 }
@@ -117,7 +121,13 @@ impl TerrainProvider for Ground {
         self.counts
     }
     fn vertex_flags(&self, c: Cell) -> u32 {
-        self.flags[(c.z * (self.counts[0] + 1) + c.x) as usize]
+        self.changed_flags
+            .lock()
+            .unwrap()
+            .get(&c)
+            .copied()
+            .map(u32::from)
+            .unwrap_or(self.flags[(c.z * (self.counts[0] + 1) + c.x) as usize])
     }
     fn vertex_position(&self, c: Cell) -> Point {
         point(c.x as f32 * 16.0, c.z as f32 * 16.0)
@@ -127,6 +137,22 @@ impl TerrainProvider for Ground {
     }
     fn edit_counter(&self) -> u64 {
         self.counter.load(Ordering::SeqCst)
+    }
+    fn vertex_height(&self, _: Cell) -> Result<f32, Error> {
+        Ok(8.0)
+    }
+    fn refresh_shore_flags(&self) -> Result<(), Error> {
+        Ok(())
+    }
+    fn set_vertex_flags(&self, c: Cell, flags: u16) -> Result<(), Error> {
+        self.changed_flags.lock().unwrap().insert(c, flags);
+        Ok(())
+    }
+    fn city_extent(&self) -> Result<Point, Error> {
+        Ok(point(self.counts[0] as f32 * 16.0, self.counts[1] as f32 * 16.0))
+    }
+    fn current_zoom(&self) -> Result<Zoom, Error> {
+        Ok(zoom(0))
     }
 }
 struct Texture(u32);
@@ -486,7 +512,7 @@ fn literal_flags_all_low_byte_combinations() {
     assert!(!WaterRipple::eligible_flags(0xffff_ffff));
 }
 #[test]
-fn actual_seed_blocks_detection_without_host_trace_delegation() {
+fn actual_seed_is_traced_and_short_shores_are_rejected() {
     let mut g = Ground::new([2, 1]);
     g.flags = vec![0, 0x10, 0x11, 0x90, 0x01, 0];
     let mut w = WaterRipple::default();
@@ -499,7 +525,8 @@ fn actual_seed_blocks_detection_without_host_trace_delegation() {
     )
     .unwrap();
     assert_eq!(w.shore_seeds().unwrap(), vec![cell(1, 0), cell(0, 1)]);
-    assert_eq!(w.update(zoom(4), false), Err(Error::Gap(ContractGap::ShoreTraceWr4)));
+    assert_eq!(w.update(zoom(4), false), Ok(RippleUpdate::Empty));
+    assert!(w.shores().is_empty());
 }
 #[test]
 fn counter_threshold_then_raw_delay_exact_boundary() {
@@ -511,6 +538,7 @@ fn counter_threshold_then_raw_delay_exact_boundary() {
     assert!(state.pending());
     assert_eq!(state.elapsed(), 0);
     assert!(!state.tick(1999999, 351, 100, &tuning));
+    assert!(!state.tick(1, 351, 100, &tuning));
     assert!(state.tick(1, 351, 100, &tuning));
 }
 #[test]
@@ -519,11 +547,16 @@ fn terrain_area_and_dirty_rectangle_boundaries() {
     let mut state = RebuildState::default();
     assert!(!state.terrain_edit(rect(0, 0, 3, 4), &tuning));
     assert_eq!(state.accumulated_area(), 12);
+    assert_eq!(state.dirty_rectangle(), None);
     assert!(!state.pending());
     assert!(state.terrain_edit(rect(3, 4, 4, 5), &tuning));
-    assert!(state.pending());
+    assert!(!state.pending());
     assert_eq!(state.accumulated_area(), 0);
     let mut dirty = RebuildState::default();
+    let tuning = RippleTuning {
+        edit_area_threshold: 0,
+        ..tuning
+    };
     dirty.terrain_edit(rect(0, 0, 1, 1), &tuning);
     dirty.terrain_edit(rect(19, 19, 20, 20), &tuning);
     assert!(!dirty.pending());
@@ -532,7 +565,7 @@ fn terrain_area_and_dirty_rectangle_boundaries() {
     assert_eq!(dirty.dirty_rectangle(), Some(rect(0, 0, 21, 20)));
 }
 #[test]
-fn repeated_arm_preserves_clock_and_counter_decrease_does_not_wrap() {
+fn repeated_arm_resets_clock_and_counter_threshold_wraps() {
     let mut s = RebuildState::default();
     let t = RippleTuning::default();
     assert!(!s.tick(1, 0, u64::MAX, &t));
@@ -540,7 +573,7 @@ fn repeated_arm_preserves_clock_and_counter_decrease_does_not_wrap() {
     s.arm();
     s.tick(123, 0, 0, &t);
     s.arm();
-    assert_eq!(s.elapsed(), 123);
+    assert_eq!(s.elapsed(), 0);
 }
 #[test]
 fn rebuild_message_refreshes_counter_and_cleanup_releases_resources() {
@@ -555,7 +588,7 @@ fn rebuild_message_refreshes_counter_and_cleanup_releases_resources() {
     ground.counter.store(251, Ordering::SeqCst);
     w.do_message(RippleMessage::AnimationTick(1)).unwrap();
     assert!(w.rebuild_state().pending());
-    w.do_message(RippleMessage::AnimationTick(2000000)).unwrap();
+    w.do_message(RippleMessage::AnimationTick(2000001)).unwrap();
     assert!(!w.rebuild_state().pending());
     assert_eq!(w.remembered_counter(), 251);
     ground.counter.store(300, Ordering::SeqCst);
