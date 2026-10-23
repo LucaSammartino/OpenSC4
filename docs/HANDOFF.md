@@ -7,6 +7,32 @@ Keep §0 to the current state: what is true now, what is parked, and what is nex
 
 ## 0. Current state (2026-10-23, run4 open-ended)
 
+**Train121 acceptance correction:** LandValue actually worsened72/72 to71/72;
+`regress-train121.out` explicitly reports1worse despite clean-process PASS. Root missed
+that delta before landing. The unchanged resolver correctly withdrew27functions/6711B,
+verified19.7 to19.6; preserve this lower result. Independent diagnosis supports a temporal
+input-coherence gap, complete cause UNKNOWN; all five LV source blobs/spec/layouts are
+unchanged120-to121. Existing ABI layouts are already applied; safe native capture
+installation/lifetime remains unproved. No rerun, credit restoration or algorithm patch.
+See [the acceptance incident](ops/acceptance-incident-train121.md). Inspect every shadow
+delta before the next landing; structured worsening enforcement is under review.
+Registry pilot activation remains held until this incident is published and independently
+reviewed. Complete cause remains unresolved; future unrelated deliveries require explicit
+review of their actual shadow deltas and retain this nonexact baseline.
+
+**Capacity recovery08:13:** fresh heartbeat08:11:40 was8/9 actual workers. FireFlamesR1
+ended with a new selected-model-at-capacity error; preserve work and consumed round.
+Actual same-model AVAILABLE/exit0 probe08:12:59 archived beside the exact Codex pause;
+only that pause cleared. Prior dispatcher38700 positively ABSENT. New hidden dispatcher
+30188/Windowscreation134372132757635549 actually started08:14:35, identity/normal owner
+lock verified. Clip's explicit scheduling hold is DONE: its active AutoPause dependency still points at its
+initial baseline ancestor, so ancestry alone incorrectly calls it launchable. Encoding,
+UIfeedback and reviewed LotModels FINAL are independent normal-queued replacements;
+queued work and collaboration helpers never count toward nine actual workers.
+Train121 fresh bounded cleanup11.328s/allseven eligible/errors[] and normal cleanup
+completed: seven worktrees removed, branches and ALL ignored evidence retained;
+coordinator-train121-cleanup-complete.md records final identities and archive paths.
+
 **train121 landed 373e2400ba:** All seven bounded deliveries Sprites4be79b5b/GameLife510eac4c/Videoaa33ba6f/Ripplesc4197354/Transportc91e4510/TextDecald8b95dd3/UTF8f655a0a4 ACTUALLYlanded07:57:26. Gate5714Rust/0/0 in27summaries, Clippy33.0s/native50of50/71.5s/Ct68of68/150.6s/259.4s; regressionPASS07:56:07 bothclean2032/ref0/Release0/detach,112.563s/573.359s. Netmgr72of73/4uncompared/12resyncs/NM10=74on22 remainsnonexact. Exactgateheadb88a7e99/tree8c880164/enginecff19339 archived, normalnonFFland preserves laterdocs-onlymain09a92fed. Textmissingnormalqueue recoveredonlyafteractual5517gate/source/independentreview, CONTINUE/contextguard/rootFIVEclientactions retained; no extra check/round or gateoverride. Other priorformatter/native/MSRV/unknownterminals retained. Native0 and everyGL/VP/WR/AS/Q11-14/TDO/numeric/lifetime boundary remain, no wholeowner/default promotion. Actualrun298/next299. Mandatorynineactual+reviewedspares remains; latestfreshheartbeat9 withRadiusspare. ProviderSysPtr/AT22 capacityfailures retained with consumedrounds, actualsame-model probes0736/0748 cleared only exactpauses; newrefiller26096 afteroldpositivelyabsent. Registry3pilot provenance and staticsemanticreview matched, but ledgerstillEMPTY pending explicit reviewedpublication/normalresolver. Freshcleanup required. Coverage57.8/36.1/19.6/18.1; rounds561 (open-ended).
 
 **07:39:31 actual9/9 independently verified:** coordinator-nine-workers-os-0739.json proves exact backend creation/cwd/argv/current manifest and ONE direct primary Codex CLI for all nine; no helpers, queued work or servers counted. Geometry37952/Draw23488/Flames10072/AT2230524/MissingPlugin28560/Lot21188/Property34912/MyStreet28472/Curve38160. SysServPtr round1 interrupted by actual selected-model-at-capacity; partial work and consumed round retained. Real same-model AVAILABLE/exit0 probe07:36:23, exact pause archived/cleared without refund. Old refiller11732 positively ABSENT; new17580 hidden/owner-locked OS VERIFIED in coordinator-refiller-0738-root-proof.json. No STOP/provider pause now. Prepare useful launchable spares immediately rather than relying on this snapshot. TextDecald8b95dd3 independently5517/Clippy/native4/Ct68 stable PASS; missing normal queue recovered with exact full occupants-and-props scope, no new round/test/source/gate override. First recovery attempt safely stopped before any write on a wrong presumed scope, then used the unchanged actual original full key. TransportR2c91e5537/0/26 and UTF8R2f6555504/0/26 complete terminal/source/log acceptance CLEAR, coordinator-transport-utf8-r2-ready-review.json. Next121 includes all seven actual READY deliveries; original terminal failures and native0 retained.
