@@ -48,6 +48,21 @@
   half-texel/edge conventions. [formula-only direction lookup with round ties away from zero/Euclidean modulo,
   decoded direction-major entries and pixel-edge UV helpers; no guessed orientation or camera-relative method]
 
+  R2 partial evidence (2026-10-23, re-sprites-contracts4): §3.1 now supplies axis/sign/order, per-component
+  omission/reset/counters and target-based LookAt; §4.1 supplies camera-relative angles, conditional
+  nearest-even conversion, sequence-byte application and retained packing/UV rules. Independent proposed
+  UNEXECUTED R2-R1–R3/D1 did not close this whole question at the R2 stop: exhaustive partial-mask
+  instruction-store transcriptions and runtime numeric-mode provenance were then unestablished. AS1 controller provenance also
+  remains open. No host-trig or portable arithmetic oracle is authorized by these formulas.
+
+  **PARTIAL 2026-10-23 (re-sprites-contracts4, R3):** §§3.1.1–3.1.3 now supply the complete finite normal
+  SetOrientation mask-0..7 CFG, each x87/transient versus binary32 boundary, stage snapshots/in-place
+  assignment order, identity reset, flags/counters/untouched state and return. All trig in this body is
+  hardware FCOS/FSIN, with no foreign argument conversion/return-format gap. §3.1.4 adds conditional
+  R3-M/C/L/Z rational distinguishers, not native owner-call goldens. Geometric order and −100 omission
+  are proved; no contradiction remains in the later LookAt paragraph. Whole-call PC/RC provenance,
+  native angle-result qualification/nonfinite outcomes and AS1 controller provenance remain open.
+
 <!-- from: core-animated-sprites4 (2026-10-22) -->
 - **AS7 - §5–6 quad, cache, draw and pick:** publish corner order/winding and offset origin/sign; the
   coordinate space of cached corners, bounding box, model transform and Pick triangles; whether model rotation
@@ -58,11 +73,12 @@
   [independent metric quad and transform/pick primitives only; no fabricated complete UpdateView/Draw/Pick,
   no provider may supply computed sprite quad output or original owner decisions]
 
-<!-- from: core-animated-sprites4 (2026-10-22) -->
-- **AS8 - §3 slots 18–20 fade/highlight/self-lit:** is the accepted alpha interval closed [0,1]? When alpha
-  is invalid, are both alpha and flag unchanged, or does disabling still clear flag 2? Does SetHighlight only
-  set flag 1/index, or also dirty cached draw data? Are other flag bits preserved? [literal closed [0,1], invalid
-  alpha leaves both fields untouched; setters preserve unrelated raw flag bits, highlight does not dirty frame]
+  R2 partial evidence (2026-10-23, re-sprites-contracts4): §§5.1–6 now supply finite raw-input quad/box
+  equations, corner order/space, reset/reflected-maximum bounds, signed zoom check, dirty/cache rules,
+  outgoing draw-call order, no forced state restore and stale Pick triangles. R2-Q1–Q5 are independent
+  proposed UNEXECUTED vectors. This question remains open for malformed/nonfinite input outcomes beyond
+  explicitly described branch behavior and whole-call numeric-mode provenance; no native execution,
+  foreign computed-quad provider, complete owner or default implementation promotion is claimed.
 
 <!-- from: core-animated-sprites4 (2026-10-22) -->
 - **AS9 - public base overrides/sort:** model-instances §1 marks GetWorldBounds and GetSortValue as derived,
@@ -70,3 +86,10 @@
   methods, GetResModel's sprite override (if any), bounds getter effects before loading/drawing, and any distinct
   Draw/Pick thunk adjustments needed for the 60-function inventory. [no guessed sort key, null resource override,
   lazy bounds recomputation or successful native getters; inventory explicitly lists these as missing]
+
+  **PARTIAL 2026-10-23 (re-sprites-contracts4, R3 reconciliation):** retained R1/R2 §3.2 gives local-bound
+  copy, translated-only world bounds without lazy refresh, null-resource return, texture-table sort output
+  and undefined status for output getters; §§1.1/3.2 give defaults and dynamic thunk displacement.
+  Cited bodies include 007FE0A0–007FE0DB, 007FD680–007FD701, 007FD640–007FD670, 004E13E0,
+  007FE230 and 007FEE90. These normal rules remain published; the question's complete 60-function
+  inventory/thunk/lifetime reconciliation remains AS3, not proved by this finite-AS6 round.
