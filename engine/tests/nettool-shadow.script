@@ -5,9 +5,9 @@
 2026-02-03 network 20 4 28 12 0
 2026-02-04 network 14 4 18 8 0
 2026-02-05 network 9 4 9 12 0
-# Single cell and signed coordinate clamping.
+# Single cell and upper coordinate clamping (script grammar is nonnegative).
 2026-02-06 network 32 4 32 4 0
-2026-02-07 network -4 16 8 16 3
+2026-02-07 network 4095 16 4095 20 3
 # Rail, avenue and powerline (powerline-specific pieces remain uncovered).
 2026-02-08 network 4 24 16 24 1
 2026-02-09 network 4 28 16 28 6

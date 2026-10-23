@@ -11,6 +11,7 @@
 - Implementation commit: 8dcb23e17.
 - Stable-source qbuild all: cargo 6694 passed/0 failed/0 ignored; clippy 0 diagnostics.
 - Same operation still outstanding: exec session 59009; native build/CTest queued qbuild-20261023-235233-build-ctest. Do not duplicate verify.
+- Script grammar inspection caught unsupported negative coordinates; clamping probe corrected to 4095 (legal grammar upper bound). C++ source unchanged.
 - Next: collect session 59009 to terminal, then run game through 2032.
 - Constraints: no tools/ reads or edits; profile update must be delegated to coordinator if exact.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-nettool-shadow5-r1-manifest.json.
