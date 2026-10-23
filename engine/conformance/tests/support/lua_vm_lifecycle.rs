@@ -326,7 +326,10 @@ fn lh5_h_i_j_parameter_types_order_reserved_key_status_and_validation() {
     let child = Thread::from_foreign_view(Handle(77), ThreadKind::Standalone, Handle(200), 3, Some(Handle(10)));
     a.backpointers.insert(Handle(200), Handle(77));
     a.output_values.clear();
-    assert_eq!(g.callback(&mut a, &child, Some(Handle(40)), Handle(10), 0.0).unwrap(), 1);
+    assert_eq!(
+        g.callback(&mut a, &child, Some(Handle(40)), Handle(10), 0.0).unwrap(),
+        1
+    );
     assert_eq!(stack_at(&mut a, Handle(200)), [V::Number(-7.0)]);
     assert_eq!(a.command_ids.len(), commands + 1);
     assert_eq!(a.precision, 24);

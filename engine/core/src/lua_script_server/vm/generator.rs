@@ -297,7 +297,9 @@ impl CommandGenerator {
         captured_main: Handle,
         index: f64,
     ) -> Result<i32> {
-        guarded(api, |api| self.callback_inner(api, invoking, captured_generator, captured_main, index))
+        guarded(api, |api| {
+            self.callback_inner(api, invoking, captured_generator, captured_main, index)
+        })
     }
     fn callback_inner<A: GeneratorApi>(
         &self,
@@ -309,8 +311,17 @@ impl CommandGenerator {
     ) -> Result<i32> {
         let index = crate::x87::ftol32(index);
         let state = invoking.context().ok_or(Error::InvalidContext)?;
-        let identity = api.invoke(Some(state), Op::GetExtraOwner)?.handle()?.ok_or(Error::InvalidContext)?;
-        let mut s = Session { api, state, identity, thread_id: None, reporter: Reporter::Disabled };
+        let identity = api
+            .invoke(Some(state), Op::GetExtraOwner)?
+            .handle()?
+            .ok_or(Error::InvalidContext)?;
+        let mut s = Session {
+            api,
+            state,
+            identity,
+            thread_id: None,
+            reporter: Reporter::Disabled,
+        };
         let valid = captured_generator == Some(self.identity)
             && self.server.is_some()
             && self.retained_thread() == Some(captured_main)

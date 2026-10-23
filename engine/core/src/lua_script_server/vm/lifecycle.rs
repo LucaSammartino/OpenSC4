@@ -130,7 +130,9 @@ impl Thread {
         let Some(context) = self.context() else {
             return Ok(false);
         };
-        guarded(api, |api| Ok(self.get_id() != -1 && api.invoke(Some(context), Op::GetExtraOwner)?.handle()? == Some(self.identity)))
+        guarded(api, |api| {
+            Ok(self.get_id() != -1 && api.invoke(Some(context), Op::GetExtraOwner)?.handle()? == Some(self.identity))
+        })
     }
     pub fn pause<A: LuaApi>(&self, api: &mut A, results: i32) -> Result<i32> {
         self.session(api, Reporter::Disabled)?
@@ -157,7 +159,9 @@ impl LuaHost {
         self.records.get(&id)
     }
     /// Borrowed core object view, separate from the raw context backpointer.
-    pub fn thread_view(&self, id: i32) -> Option<&Thread> { self.thread(id) }
+    pub fn thread_view(&self, id: i32) -> Option<&Thread> {
+        self.thread(id)
+    }
     /// Borrowed: caller must explicitly retain the identity across destruction.
     pub fn get_thread<A: LuaApi>(&self, api: &mut A, id: i32) -> Result<Option<Handle>> {
         let Some(record) = self.records.get(&id) else {
