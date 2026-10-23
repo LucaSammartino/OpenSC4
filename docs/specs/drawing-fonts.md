@@ -37,7 +37,13 @@ contract, not part of this spec.
 | `cGZFontSys::FontFixedInfo` | catalogue record (§12) | 105 | fields complete (§12: +0 font list, +4 family, +0x18 style, +0x1C kind, +0x20 source type) |
 | `cGZFont` | class `0x1AA404AC`, object 0x15C bytes, interface `0x10673960` (QI also answers 1), vtable `0x00AC55D8`, 64 slots | 16 187 | complete: all 64 slots (§4.1 inventory) |
 | `cGZFont::CachedBitmapData` | two glyph caches inside the font (§7) | 56 | complete with §7 |
-| `cGZDrawFontRenderer` | class `0x08CDA30B`, object 8 bytes from the director factory `0x00895F65`; vtable `0x00AC14BC` | 4 444 | identity only, uncredited |
+| default font renderer (inherited label `cGZDrawFontRenderer`) | class `0x08CDA30B`, object 8 bytes from director factory `0x00895F65`; corrected vtable **`0x00AC55B4`** | inherited 4 444, unaudited attribution | this spec remains identity only; bounded behavior in [font-renderer.md](font-renderer.md) |
+
+Identity correction (re-font-renderer4, 2026-10-23): constructor `0x00897722` writes `0x00AC55B4`;
+QI `0x0089620D` accepts `0xA8BC2A75` and 1. The larger `0x00AC14BC` holder's constructor
+`0x00829F70` requests that class/interface into member +`0x43C`; it is not the 8-byte object.
+See [font-renderer.md §1](font-renderer.md#1-identity-ownership-and-exact-body-inventory) for the
+factory, QI, pointer-view and byte-attribution audit. Other font-owner claims and exclusions here stand.
 
 `cFontCOMDirector` (ctor and factories at `0x00895F4C`/`0x00895F65`, `CreateFontSys`) adds the classes
 `0x20673960 → new cGZFontSys (0x70 B)`, `0x1AA404AC → new cGZFont (0x15C B)`, `0x08CDA30B → new 8-byte font
@@ -526,6 +532,10 @@ Example: W 50, "Hello world" (L 11) fits 7 characters, ellipsis "..." 9 pixels: 
 "Hello" → "Hello..."; returns 11. With W 8 the same call empties the text.
 
 ## 9. Drawing text
+
+The separate [default renderer contract](font-renderer.md) specifies the 8-byte class `0x08CDA30B`
+behind these callbacks, with corrected identity, slot types, clipping and pixel effects. Renderer behavior
+remains outside this font-owner spec's coverage claim.
 
 `DrawTextLine(target, x, y, text, n, fg, bg, clip, pen)` (slot 51, `0x0089A099`), returns false only when the
 surface lock fails, else `initialised`:
