@@ -136,14 +136,285 @@ values have no claimed acceptance rule; see [open questions](questions/effects-p
 
 ## 5. Registration, commands and lifetime
 
-Pending bounded expansion. No named/anonymous collision or reference policy is
-inferred from the binary directory or from pointer storage alone.
+### 5.1 Named references: `AddDescription` (`005A2810`)
 
-## 6. Coverage statement
+This body is a **component-reference append**, not a named-description factory.
+Its four stack arguments occupy 16 bytes (normal `RET 10` hex). Argument 1 is
+the token container, argument 4 supplies the initial low flags bit (zero clears,
+nonzero sets). Arguments 2 and 3 are not read by this body: the name actually
+comes from the **current first shared scratch index**, and type is hardcoded 6.
+ECX is the main parser pointer `P`. The directly proved caller `005A3890` supplies
+the redundant name and 6 in arguments 2 and 3 (`005A390B–005A391C`).
+
+Normal sequence, with successful foreign calls and sufficient local append space:
+
+1. If `P+90` is null, return without constructing a record, looking up a name,
+   parsing options or appending. There is no false-result construction.
+2. Construct temporary record `D` using shared constructor `005997B0`.
+3. Read the indexed token's string pointer and call the object at `P+90`, vslot
+   `+48`, with `(namePointer, 6, null)`. Inspect only returned AL. Zero constructs
+   `No such description: '%s'` and enters the foreign error transport; it is
+   outside the successful normal domain (`005A2831–005A2889`).
+4. Reread the shared first index and copy that token string into `D+00` through
+   foreign string assignment `00408A70`; this is not an independently generated
+   identity. The code does not lowercase or otherwise normalize this string.
+5. Copy low 16 bits of `P+4A0` to `D+64`; set `D+0C=6`; set/clear bit 0 of
+   32-bit `D+10` according to argument 4, preserving its other bits. Call
+   `ParseDescRecOptions(P,tokens,D)` **after** those writes
+   (`005A28B9–005A28F0`), so its `respectLength`/`ignoreLength` can override that bit.
+6. Compare end pointer `P+450` with capacity pointer `P+454`. When unequal and end
+   is nonnull, invoke record copy construction `005888A0` with destination=end
+   and source=D, then increase `P+450` by `6C` hex. No name search or replacement
+   decision occurs on this local append branch. The observed unequal/null-end
+   branch skips construction and still advances end; it is not included in the
+   valid-container normal domain. When end equals capacity, call foreign vector
+   insertion `0059EDC0` on `P+44C` with `(end,&D,tagPointer,1,1)` instead; its
+   allocation and copy internals are outside this publication
+   (`005A28F5–005A2930`).
+7. After either returning append branch, if D's string-buffer pointer is nonnull,
+   pass it to the foreign cleanup at `0090CF63`. Then return
+   (`005A2935–005A2950`). No explicit object AddRef/Release call occurs here.
+
+The append is performed again for every successful invocation, even for a repeated
+name; the local owner does not replace or deduplicate components. Whether repeated
+names pass the foreign `+48` validation, or identify an existing directory object,
+is a separate contract. `D+68` retains the constructor sentinel `FFFFFFFF` on
+this named path; no returned directory index is stored here.
+
+### 5.2 Anonymous registration: `AddAnonDescription` (`005A2960`)
+
+This entry takes `(tokens,descriptionObject,initialBit)` as three stack arguments,
+ECX=P; it ends in `RET C` hex. With `P+90` null it does nothing. Otherwise:
+
+1. Construct the same temporary record. Ensure its name is empty by comparing
+   string begin/end and, if unequal, writing a terminator at begin and resetting
+   end to begin (`005A2974–005A298A`).
+2. Call `P+90` vslot `+44` with **null name and the supplied object**. Store full
+   returned EAX at `D+68`, without a sentinel/failure-result test.
+3. Call supplied object's vslot `+00` with no stack arguments; store full returned
+   EAX at `D+0C` (`005A298E–005A29AB`). This is a type/property result, not a
+   parser-side constructor/factory selection. No particular concrete class is
+   selected in this body.
+4. Copy low word `P+4A0` to `D+64`, initialize flags bit 0 from argument 3,
+   then parse options (`005A29AF–005A29E3`).
+5. Append to `P+44C` with the same end/capacity decision and `6C` stride; perform
+   the same temporary string cleanup (`005A29E8–005A2A42`).
+
+There is **no anonymous counter, synthesized name, collision test, reference-count
+adjustment on the supplied object, or check of the registration result** in this
+body. The foreign registration primitive may implement identity and reference
+transfer; those effects must not be invented here. It receives one raw object and
+returns one raw index, never a completed component or final parser verdict.
+Registration precedes option parsing and append; no rollback policy is proved
+for a later conversion, error or allocation failure.
+
+### 5.3 Shared component construction, distinguished from option defaults
+
+`005997B0` is a shared description-record constructor, not a new parser-exclusive
+body. On its successful normal return it has created an empty string with an
+8-byte buffer; `D+0C=0`, `D+10=0`, transform count/flags bytes at `+14,+15=0`,
+identity 3×3 at `+18..+38`, zero translation at `+3C..+44`, scale 1 at `+48`,
+emit and size pairs all 1 at `+54,+58,+5C,+60`, LOD bytes zero at `+4C,+4D`,
+16-bit fields `+4E=1`, `+50=16`, `+64=0`, `+66=0`, and index `+68=FFFFFFFF`
+(`005997B6–005998B7`). Earlier global-backed transform writes are overwritten
+by the final identity/zero stores. This is a list of measured field writes, not
+a guarantee that all 108 bytes, padding included, are initialized.
+
+Thus a newly appended record with no options has LOD `(1,6)`, not the constructor's
+`(0,0)`. Passing an existing record directly to the option routine has the
+retention behavior of §3, not these constructor defaults.
+
+### 5.4 Manager acquisition and same-manager behavior (`005988D0`)
+
+Use **entry-relative coordinates** here: let S be the ECX value received by this
+body, M the stack argument, H the stored pointer at `S-460` hex and K the stored
+pointer at `S-45C`. Do not pass the main-pointer offsets of `005A2810` to this
+adjusted entry. The sole exported direct caller is virtual-adjustment thunk
+`0059F490`, which subtracts the dword at incoming ECX−4 before jumping here.
+
+The body performs this ordered sequence (`005988DA–00598980`):
+
+- When M differs from H: if M nonnull, call M's `+04` AddRef slot; store M to H;
+  if old H nonnull, call its `+08` Release slot. Thus acquisition precedes store,
+  and store precedes release. When M equals H, all three operations are skipped.
+- For **any nonnull M, including the same-manager case**, initialize a local
+  output pointer to null, call M's QI slot with ID `C97CF5CE` and its address,
+  and use the resulting pointer T. The returned boolean is not inspected.
+- If T nonnull, AddRef T, then reread and Release the nonnull local QI result.
+  For returning, nonreentrant callbacks this cancels one temporary reference pair.
+- If T differs from K, AddRef nonnull T, store T to K, then Release nonnull old K.
+  If equal, skip this assignment sequence. Finally Release nonnull T once.
+- Unconditionally clear byte `S-448` to zero and return (`RET 4`). There is no
+  constructed boolean/status result.
+
+The stack-local/object-field address equality guard at `0059893F–00598945`
+is false for the normal nonoverlapping object/stack domain above. When M is null,
+the QI and **all K updates are skipped**: clearing H does not clear K. When a
+nonnull M's QI leaves its output null, the normal path replaces K with null and
+releases old K. Nothing here proves that a missing interface returns false or
+that null/non-null result pairs obey a particular QI failure convention.
+
+### 5.5 QueryInterface, factory identity and reference boundaries
+
+`00595870` has two stack arguments `(iid,out)`, a boolean in AL, and `RET 8`.
+Null out returns AL=0 without any query/ref call (`00595870–0059587A`). For IID
+`6956BABC`, it stores an adjusted interface pointer, invokes the canonical
+unknown's `+04` slot, then returns AL=1 (`0059589B–005958D5`). To retain the native
+multiple-inheritance adjustment precisely, let Q be this entry's ECX and V the
+table pointer at `Q-4D4`: for the ordinary live-object domain `Q-4D8 != 0`,
+the stored pointer is `Q-4D4 + signed32(V+0C)`, and the AddRef receiver is
+`Q-4D4 + signed32(V+04)`. These table reads precede the virtual call; do not
+replace them with an assumed main-object pointer. Other IIDs tail-delegate to
+foreign `nSCRes::cCommandParser::QueryInterface` (`00675F50`) with ECX=`Q-448`.
+No owner rule for unknown-IID output clearing is established.
+
+Factory `0059F860` allocates `4F4` hex bytes, invokes `0059EEC0` with argument 1,
+and returns the constructor result adjusted by the table at result+4 (table+4
+offset plus result+4). It makes no explicit AddRef call. The factory and constructor
+table stores (`0059EECF–0059EFA6`) positively connect the constructor labelled
+`EffectsParser::EffectsParser` with this native class; that label alone does not
+pull in the queue algorithm at `0058E4E0`. Construction zeros pointers at main
+`+90,+94` (`0059EFAF–0059EFB5`) and component begin/end/capacity at
+`+44C,+450,+454` (`0059F2A4–0059F2B0`). Whole-constructor support is not claimed.
+
+Constructor-selected virtual slots route AddRef/Release through adjustment stubs
+`0059F3E0` / `0059F3F0` to shared bodies `00676000` / `00679330`; the stubs adjust
+ECX and tail-jump, rather than implementing a parser-exclusive refcount algorithm.
+The slot via `0059F4D0` reaches `0059EBE0`, a cleanup/callback body. It is **not
+proved to be this object's destructor**, and its internal collections are outside
+this contract. Final destruction, refcount-zero cleanup and release of all held
+interfaces remain Unknown, not an inferred consequence of these pointer stores.
+
+## 6. Command registration and one concrete command path
+
+### 6.1 Root dictionary selected by the owner
+
+`RegisterCommands` (`00596200`, ECX=P, no stack arguments, no constructed result)
+first invokes foreign base registration `00678B00`, then issues the following
+**21 ordered registrations** to foreign `00676DB0`. Names are literal bytes reached
+through initialized name-pointer slots `00B0A288..00B0A2C0`, `00B0A310`,
+`00B0A380`, `00B0A394`, `00B0A3C4`, `00B0A3DC`, `00B0A3F8`. The table records
+raw descriptor/dispatch associations; symbolic handler names are not treated as
+proof of command meaning.
+
+| Order | Literal | Descriptor vptr | Direct hook `+0C`, or block hooks `+14 / +18` |
+|---:|---|---|---|
+| 1 | `renderprop` | `00A9F85C` | `00596630` |
+| 2 | `textureID` | `00A9F86C` | `0059F890` |
+| 3 | `modelID` | `00A9F87C` | `0059FE50` |
+| 4 | `soundID` | `00A9F88C` | `0059FF40` |
+| 5 | `brushID` | `00A9F89C` | `005A0030` |
+| 6 | `effectID` | `00A9F8AC` | `0059A640` |
+| 7 | `effectGroup` | `00A9F8BC` | `00596750 / 00648F10` |
+| 8 | `instance` | `00A9FA08` | `0059A730` |
+| 9 | `testEffect` | `00A9F8D8` | `0059D1D0` |
+| 10 | `messageTrigger` | `00A9F8E8` | `0059E820` |
+| 11 | `camera` | `00A9F8F8` | `0059A2A0` |
+| 12 | `setPriority` | `00A9F908` | `005A24C0` |
+| 13 | `effectsResource` | `00A9F918` | `00596810 / 00596970` |
+| 14 | `loadResource` | `00A9F934` | `00596AB0` |
+| 15 | `effect` | `00A9F944` | `005A0D40 / 0059EB50` |
+| 16 | `particles` | `00A9F960` | `005A1A50 / 0059D9B0` |
+| 17 | `dynamicParticle` | `00A9F97C` | `0059DB00 / 0059DCF0` |
+| 18 | `decal` | `00A9F998` | `0059DD80 / 0059DF50` |
+| 19 | `shake` | `00A9F9B4` | `0059DFE0 / 0059E260` |
+| 20 | `light` | `00A9F9D0` | `0059E2F0 / 0059E4D0` |
+| 21 | `sequence` | `00A9F9EC` | `0059E600 / 0059E780` |
+
+Instruction groups are `00596209–00596342` (1–8), `00596347–00596433` (9–14),
+`00596438–00596598` (15–21). Simple commands request a 4-byte allocation and write
+their vptr. Block commands request `18` hex bytes, invoke shared constructor
+`00677290`, then overwrite the vptr before registration. The ordinary normal domain
+here requires successful allocation and registration. The null-allocation branches
+pass null to the foreign registrar; they do not prove a recoverable policy.
+Registration results are not used for owner branching. Ordering is proved;
+case folding, duplicate lookup/re-registration policy and descriptor lifetime are
+foreign registrar decisions, not specified anew here. No unrelated graphics or
+runtime command algorithms are included.
+
+### 6.2 `sequenceEffect` within an effect block
+
+The nested command is positively associated: `00596D9E` selects descriptor
+`00A9FDFC`; `00596DA8–00596DB2` registers it using pointer slot `00B0A2FC`,
+whose literal is `sequenceEffect`; descriptor `+0C` is `005A3890`.
+This is distinct from the root `sequence` block above. Other nested dictionary
+entries and block execution algorithms are outside this bounded publication.
+
+`005A3890` takes a token container and parser pointer as two stack arguments;
+its own command-object ECX is unused. Its normal exit is `RET 8` without a
+constructed success value. It checks the parser's current-name string begin/end
+at `P+434,+438`; the empty-name branch constructs `Not in effects block` and
+enters foreign error transport (`005A3898–005A38EA`). For a nonempty name:
+
+1. Call foreign `FindNonSwitchIndices` (`0067A660`) with shared scratch,
+   the input container and request count 1 (`005A38EF–005A38FB`).
+2. Do not inspect returned AL. Use scratch index 0 to read the first selected
+   token string, then invoke `AddDescription(P,tokens,string,6,0)`
+   (`005A3900–005A391C`). Only that first nonswitch index is read by this command.
+3. Return after the append routine returns. There is no explicit token erase,
+   append-result check, count override, or second name conversion here.
+
+Therefore a valid primitive selection of one name builds a **type-6 reference**
+with initial ignore-length bit clear, then permits the option routine to alter
+that bit. This handler does not instantiate a concrete sequence object or choose
+a description factory; anonymous concrete-object registration is the separate
+boundary in §5.2. Behavior when the foreign finder fails to provide a usable first
+index is unsupported; do not turn the unchecked index into a guessed success rule.
+
+## 7. Registration and reference trace ledgers
+
+All rows remain **PROPOSED / UNEXECUTED**. Token fixtures have the same foreign
+no-removal stipulation as §4, so consumed=0 and remaining stream=input; a concrete
+native finder may differ. Initial component end E is nonnull with at least two
+records of free capacity unless stated. Foreign copies preserve the supplied
+record's semantic fields; their allocation mechanics are not golden outputs.
+
+| ID | Exact inputs / primitive results | Predicted owner trace and state |
+|---|---|---|
+| R1 | `sequenceEffect` input `["sequenceEffect","loopA"]`; current block name `"parent"`; nonswitch scratch `[1]`; `+48(name="loopA",type=6,out=null)` AL=1; no option hits; select state `12345678` hex | record ctor → validation → string copy → select word `5678` → type 6 → clear initial bit → options (LOD 1,6) → copy to E → end E+6C → temporary cleanup. Record name `loopA`, flags 0, index `FFFFFFFF`. Repeat same call with successful primitive validation: second copy to E+6C, end E+D8; no owner duplicate suppression |
+| R2 | `["sequenceEffect","loopA","-ignoreLength"]`; same selection and validation as R1; ignore-length lookup present | initial clear is overridden; appended flags bit 0=1; no other flags changed |
+| R3 | direct anonymous input `["soundEffect","bell"]`; object O; argument 3 nonzero; select state 0; foreign `+44(null,O)` EAX=`FFFFFFFF`; O `+00` EAX=9; all option lookups absent | ctor → ensure empty name → register → read type → initialize bit → parse → append → cleanup; record empty name, type 9, index `FFFFFFFF`, flags bit 0=1, LOD 1,6. No sentinel-result branch and no direct AddRef/Release of O |
+| R4 | same as R3 but foreign raw index `00000000`, then separate invocation raw index `FFFFFFFF`; same object and other fixtures | both raw values stored verbatim and each invocation appends; there is no observed local counter to wrap, nor any proved foreign counter boundary |
+| R5 | direct named or anonymous input as above; `P+90=null` | immediate return, no ctor/conversion/registration/append/cleanup; end unchanged; no explicit status |
+| R6 | successful named validation; end=capacity C | option mutations precede exactly one insertion call on `P+44C`, args `(C,&D,tagPointer,1,1)`; temporary cleanup after it returns; do not predict allocation size or final pointers without the foreign insertion contract |
+| M1 | S-entry manager call: H=A, K=X, input M=B; QI output T=Y; all four distinct nonnull | `B.AddRef → H=B → A.Release → B.QI(C97CF5CE) → Y.AddRef → Y.Release → Y.AddRef → K=Y → X.Release → Y.Release → resetByte=0` |
+| M2 | H=A, K=X, M=A; QI output T=X | no H acquire/store/release; `A.QI → X.AddRef → X.Release → X.Release → resetByte=0`; no K assignment. The final release balances the QI-held reference under that foreign convention |
+| M3 | H=A, K=X, M=null | `H=null → A.Release → resetByte=0`; K remains X; no QI |
+| M4 | H=A, K=X, M=A; QI output remains null | `A.QI → K=null → X.Release → resetByte=0`; no H change; QI's boolean is immaterial |
+| Q1 | `QueryInterface(Q,6956BABC,out)` with valid nonnull out and ordinary live Q | store table-adjusted pointer → canonical AddRef → AL=1; null out instead gives AL=0 without AddRef |
+
+M1–M4 describe returning nonreentrant callbacks; global reference totals also depend
+on the foreign QI's actual reference convention. No destruction trace is claimed.
+
+## 8. Individually bounded coverage statement
 
 `ParseDescRecOptions` (`005989D0`, exported size 3445 bytes) is **Partial**:
 supported no-rotation normal branches above; five rotation bodies and foreign
 reader language prevent whole-body/whole-parser support. The size is a metadata
 anchor, not a newly certified byte-coverage count. No complete inventory, default
 grammar, native validation or runtime proof is claimed. Further own-body statuses
-will be listed individually as examined.
+are measured individually below; **Supported** always means the stated normal
+domain with primitive results, not the entire language, errors or runtime.
+
+| Body / exported size | Status | Signature / result channel and boundary |
+|---|---|---|
+| `005A2810` / 321 | Supported normal owner control | ECX=P, 4 stack args, `RET 10` hex; no explicit status; named validation/append §5.1, foreign error/insertion excluded |
+| `005A2960` / 227 | Supported normal owner control | ECX=P, 3 stack args, `RET C` hex; no explicit status; raw anonymous registration result → field, append §5.2 |
+| `005988D0` / 177 | Supported normal owner control | adjusted ECX=S, one pointer arg, `RET 4`; no explicit status; nonreentrant acquisition/assignment §5.4 |
+| `00595870` / 102 | Supported owned branches; foreign fallback | adjusted ECX=Q, iid/out, `RET 8`, AL bool; null out / IID `6956BABC`; other IDs delegated §5.5 |
+| `00596200` / 921 | Supported normal registration sequence | ECX=P, no args, no explicit result; 21 descriptor registrations §6.1; foreign dictionary policy |
+| `005A3890` / 153 | Supported nonempty-block / valid-selection branch | ECX unused, tokens/P stack args, `RET 8`; no explicit result; exact append decision §6.2 |
+| `0059F860` / 44 | Partial factory identity | no stack args, EAX adjusted pointer; successful construction only, §5.5 |
+| `0059EEC0` / 1253 | Partial constructor anchors | ECX storage, one construction-mode arg, EAX storage; selected pointer/vector zero stores and factory relationship only |
+| `005997B0` / 264 | Foreign shared record constructor, measured field writes | ECX=D, EAX=D; §5.3 defaults are supporting input facts, not parser-exclusive coverage |
+| `0059F3B0`, `0059F490` / 8 each | Supported adjustment only | subtract incoming `[ECX-4]`, tail-jump to owned QI/SetManager; no separate return channel |
+| `0059F3E0`, `0059F3F0` / 14 each | Foreign shared reference operation | pointer adjustment and delegation only; no exclusive AddRef/Release implementation credited |
+| `0059F4D0` / 8; `0059EBE0` / 195 | Partial attribution / Unknown destruction role | callback path is linked; not certified as destructor; internal cleanup algorithms excluded |
+
+Generic `0067A7D0`, `0067A660`, `0067BBA0`, `0067BC70`, `0067C060`, base
+QI/registration/reference operations, string/allocator operations and vector
+copy/insertion are **Foreign**. Unexamined command hooks, rotation calculations,
+directory identity/collision rules, full destructor and complete tokenizer grammar
+are **Unknown** here. Exported sizes are function extents, never a sum of supported
+bytes or a complete parser inventory. The concrete factory, caller and descriptor
+links above establish ownership more narrowly than name metadata alone.
