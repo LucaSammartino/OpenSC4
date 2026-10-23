@@ -178,8 +178,9 @@ extern "C" {
  * 84 = merge-train batch train91 (glue-rng4, glue-portdev-union-final4, core-camera-contractfix4): merged (no C ABI history entry of its own)
  * 85 = merge-train batch train98 (glue-span8-native4): merged (no C ABI history entry of its own)
  * 86 = merge-train batch train102 (re-dispatch-completion4, re-small-renderer-contracts4, core-view-utilities-complete4, verify-fontsys4, core-networkmodel-contractfix4, verify-command-system4, core-key-accelerator4, verify-persist-manager4, verify-variants4, verify-landfill-records4): merged (no C ABI history entry of its own)
- * 87 = merge-train batch train104 (verify-language-native4, verify-cmdline-native4, tools-refill-validation4): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 87u
+ * 87 = merge-train batch train104 (verify-language-native4, verify-cmdline-native4, tools-refill-validation4): merged (no C ABI history entry of its own)
+ * 88 = merge-train batch train108 (core-player-drive4, core-persist-runtime4, verify-dbpf-native4, core-legacy-control4): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 88u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
@@ -12845,6 +12846,20 @@ void fc4_pm_destroy(fc4_pm_session* session);
 #ifdef __cplusplus
 }
 static_assert(sizeof(fc4_pm_result) == 60, "fc4_pm_result layout");
+#endif
+
+/* Independent packed-segment transport verification; production DBPF reader.
+ * entry writes 7 u32 words (T,G,I,offset,stored,logical,DIR-listed).
+ * read_record emits borrowed bytes once on success, including an empty read. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+size_t fc4_dbpf_entry_count(const fc4_dbpf* p);
+bool fc4_dbpf_entry(const fc4_dbpf* p, size_t index, uint32_t* seven_words);
+bool fc4_dbpf_read_record(const fc4_dbpf* p, uint32_t type, uint32_t group, uint32_t instance, bool raw,
+                          void (*emit)(void*, const uint8_t*, size_t), void* ctx);
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* FC4_H */
