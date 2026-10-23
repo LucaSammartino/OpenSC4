@@ -28,7 +28,11 @@ installed by the standalone variant constructor. Its slots 0/1/2 (`0x005FD6F0`,
 `0x005FD700`, `0x005FD710`) subtract four bytes from the interface pointer and dispatch
 to the containing owner's identity/reference operations. The QueryInterface owner path at
 `0x005FD030` handles its own identities and forwards other requests to the embedded variant
-interface at owner+4. No standalone-constructor route follows from the SDK name.
+interface at owner+4. The original `cSCProperty` constructor explicitly constructs the
+variant at this+4, then replaces its table with `0x00AA6788`
+(`0x005FDE54`–`0x005FDE68`). This establishes the containing class and embedded layout
+without importing property-holder algorithms. No standalone-constructor route follows
+from the SDK name.
 
 The default and copy constructors at `0x009166D4` and `0x00916712` instead install
 `0x00ACECD0`. Original PE words establish that its first 127 entries agree with
@@ -82,7 +86,7 @@ There is no element-by-element object release for an array tag.
 Erase calls Destroy and then explicitly returns true in **AL** (`0x00915592`–`0x00915599`).
 The upper EAX bytes are not a contractual boolean. The deleting destructor reinstalls the
 standalone table, calls Destroy, then frees the object itself if its flag's low bit is set
-(`0x009166F0`–`0x00916711`). No post-release alias is valid.
+(`0x009166F0`–`0x00916711`). Aliases into the variant expire on its final Release/deletion.
 
 ## 4. Copying array setters and mutable aliases
 
@@ -333,9 +337,9 @@ it explicitly continues another step. No generic SDK reading is the oracle.
 | VS-E mutable array/reuse | RefUint32 `[17,34,51]`; obtain p=RefUint32(); write p[1]=68; set same type/count from independent `[1,2,3]` | Initial write gives `[17,68,51]`; reuse preserves p's allocation; p sees `[1,2,3]` afterwards |
 | VS-F exact self alias | Non-null populated Uint32 array `[17,34,51]`; RefUint32(its own element pointer,3), then CopyFrom(self) | Both reuse the allocation and leave `[17,34,51]`; no owner allocation/free; no general promise for null-storage zero arrays |
 | VS-G replacement sequence | Scalar Uint32 17 → Uint32 array `[17,34,51]` → SetValString length 1 `51` (`Q`) → object B → Erase | Scalar disposal clears; array allocated; array freed before one string-byte allocation/copy; string allocation freed before B.AddRef; Erase calls B.Release before clearing; final Empty/count0 |
-| VS-H clone isolation | Clone populated array `[17,34,51]`; write clone middle=99; Erase source | Different variant and element allocations; clone `[17,99,51]` survives; clone own count1; source own count unchanged by cloning; release clone once when finished |
+| VS-H clone isolation | Clone populated array `[17,34,51]`; write clone middle=99; Erase source | Different variant and element allocations; clone `[17,99,51]` survives; clone own reference count 1; source own reference count unchanged by cloning; release clone once when finished |
 | VS-I distinct CopyFrom | Destination scalar 7; source array `[1,2,3]`; CopyFrom(source); mutate source first=9 | Destination owns `[1,2,3]`; source `[9,2,3]`; no variant reference-count transfer |
-| VS-J string bytes | Source original string length3 bytes `41 00 42`; SetValString; mutate source to `58 59 5A`; CreateValString with output initially null | Variant still count3 bytes `41 00 42`; extraction true, owned string count1, length3 bytes `41 00 42` plus its own terminator; changing/extracting/erasing variant does not borrow the source string |
+| VS-J string bytes | Source original string length3 bytes `41 00 42`; SetValString; mutate source to `58 59 5A`; CreateValString with output initially null | Variant still count3 bytes `41 00 42`; extraction true, owned string reference count 1, length3 bytes `41 00 42` plus its own terminator; changing/extracting/erasing variant does not borrow the source string |
 | VS-K string finite lengths | Separate RZChar arrays with count0, byte `41`, bytes `41 00 42`; CreateValString on each | Successful owned original output length0/1/3; embedded zero retained; variant unchanged. Count0 data may be null: original FromChar clears |
 | VS-L string getter failure | Empty variant; CreateValString with a separate pointer sentinel in output (sentinel's object is held elsewhere) | Prior published Empty string-getter result is false; temporary is created/AddRef'd then released; output becomes null; sentinel is not released |
 | VS-M query failure sentinel | Scalar Uint32 17, then separately type `0x10` with null; GetValUnknown(riid,&sentinel) | Both false; sentinel unchanged; no QueryInterface or ref calls |
