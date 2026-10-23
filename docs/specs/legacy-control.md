@@ -1,13 +1,16 @@
 # Legacy control (`cGZLegacyControl`): building widgets from `LEGACY` script blocks
 
-Status: partial, 45 of 57 owner functions (2026-10-21, lane re-legacycontrol4). Owner `cGZLegacyControl` in SimCity 4 Deluxe 1.1.641
+Status: owner contracts specified, with unresolved edge domains listed in §11 (2026-10-23, lane re-legacy-control5). Owner `cGZLegacyControl` in SimCity 4 Deluxe 1.1.641
 (Windows). Covered: object layout, COM surface, lifecycle, the shared vocabulary and its two lookup maps, the
 `SetParameters` build sequence, the property-list readers, and the full word tables of all 21 vocabulary
 functions. Per-control interpreter contracts (`InterpretProperties*`) are specified for the common pass (§8);
 the per-type interpreters are listed in §9 with their state.
 
-Related specs: `widget-toolkit.md` (`cGZWin`, the windows this object builds), `ui-windows.md` (`cIGZWin`,
-`cIGZWinGen`, the script loader). Interface slot names below come from `docs/abi/interfaces.tsv`.
+Related specs: [widget-toolkit.md](widget-toolkit.md) (`cGZWin`, the windows this object builds),
+[ui-windows.md](ui-windows.md) (`cIGZWin`, `cIGZWinGen`, the script loader), and
+[html-document.md](html-document.md) (HTML parsing and rendering, a separate owner).
+Interface slot names below come from `docs/abi/interfaces.tsv`. This object is a script-to-widget adapter;
+it has no paint or input-message entry point of its own (§13).
 
 ## 1. Identity
 
@@ -295,7 +298,9 @@ All take the property list in a register (not a stack argument) and scan it **li
 | `Sint32(key, out)` | `0x0094C6C7` | same scan and the same type test (6) |
 | `String(key, out)` | `0x0094CCD9` | first clears `out`; then the first pair with a non-null value of variant type `0x800E` → copies its text, true |
 
-Callers pre-initialise the out value, so "missing" means "keep the default".
+Missing values leave the destination untouched. Some callers initialise it; others do not. Only the defaults
+explicitly documented below are guaranteed; unchecked scans and uninitialised destinations are outside the
+defined-input conformance domain (§13.3).
 
 ### 7.6 Script fragment format (serialiser `0x00965F73`) (answers LC3)
 
@@ -451,7 +456,7 @@ comment list, and parameter `0x3ACA6906` = {0, 0}; second pass `SetFlag(0x2, fal
 | GZWinFolders | `0x0094D17E` | 465 | **specified** (§9.6) |
 | GZWinFlatRect | `0x0094E33B` | 475 | **specified** (§9.7) |
 | GZWinOutline | `0x00951084` | 485 | **specified** (§9.8) |
-| all other 12 | §4.1 | 492–2629 | open (LC4) |
+| GZWinText, TextEdit, ListBox, Combo, Btn, BMP, Scrollbar, LineInput, Spinner, TextTicker, SC3WinGen, OptGrp | §4.1 | 492–2629 | specified (§9.9–§9.20); malformed-input and external callback limits §13.3 |
 
 Every per-type interpreter starts the same way: `QueryInterface` the control for its own IID (§4.1); on failure
 it does nothing at all; on success it works through that interface and releases it at the end.
@@ -752,6 +757,295 @@ QueryInterface/Release. Slot names *[inferred]*.
 
 Worked example: `style=raised, style=fill, colordark=(0,0,0), node=(0,0), node=(10,0), node=(10,10)` →
 `+0x0C`(`0x24`), `+0x14`(1, 0, 0, 0), `+0x34`(3, [(0,0),(10,0),(10,10)], 1, 1).
+
+### 9.9 Interpreter notation and shared drawing inputs *[compat]*
+
+The following effect tables answer LC4. `I+offset` means a byte offset in the interface obtained by the
+interpreter's `QueryInterface`, **not** in the primary legacy-control vtable. `W+offset` means the underlying
+`cIGZWin` interface. Unnamed methods are deliberately identified by interface and offset rather than guessed
+names. `U`, `S`, `C`, `P`, `R` mean the Uint32, Sint32, colour, coordinate-pair and rectangle readers. Property
+IDs and spellings are in §4.2. Unless a row says otherwise, absent or wrong-typed properties cause no setter
+call. The order of rows is the call order within that pass. All acquired interfaces and loaded buffers are
+released after use; their setter recipients must retain what they need. A failed interface query suppresses
+the whole type-specific pass, including its metadata writes, but does not cancel the common pass.
+
+Colour setters below receive the graphics service's packed colour for the three components, using the reader's
+low-byte component conversion. A numeric font either goes directly to a font-ID setter or is resolved through
+the window-control manager, as indicated. A String font goes through the existing named-font helper
+`0x0094C255`. Both forms record font metadata with helper `0x0094C222`/`0x0094C255`, selector 0 unless stated.
+The helper's resource/parameter representation remains the convention used elsewhere in this spec; it is not
+permission to pass a font name to a numeric interface setter. Where a default `main9` is stated, resolve the
+name to an ID and then obtain its font object from the window-control manager.
+
+For image keys, `{group,instance}` is hexadecimal; image type is `0x856DDBAC`. "Record image" means the §9.4
+helper (instance plus group, selector shown), even if loading the buffer fails. A 12-byte resource parameter
+holds `(type,group,instance)`; an 8-byte pair parameter holds `(group,instance)` with variant type `0x8000`.
+The interpreter does not draw pixels while processing these properties.
+
+### 9.10 GZWinText (`0x0094E516`) *[compat]*
+
+Query IID `0x212CDC1F`.
+
+| Pass | Input | Effect |
+|---|---|---|
+| first | `notify`, `wrapped`, `opaque` (U) | `I+0x1C(mask,value!=0)` with masks 1, 2, 4 respectively; explicitly false `opaque` also enables W flag `0x20000` |
+| first | `font` | numeric: `I+0x4C(id)` and record; String: named-font helper; no default font imposed here |
+| first | `forecolor`, `bkgcolor` (C) | `I+0x24(0,colour)`, `I+0x24(1,colour)` |
+| first | `gutters` (P) | always `I+0x5C(x,y)`; absent/invalid pair gives `(0,0)` |
+| first | `textoffsets` (P) | `I+0x64(x,y)` |
+| second | `align` (U) | `I+0x54(value)`; shared word `0xF008` becomes 4, other values pass through unchanged |
+| both, after the rows above | presence of `autofit` | store W parameter `0xDACF8F9C` as numeric 1 if present, 0 otherwise; if present call `I+0x14(0,0)` |
+
+Thus `autofit=no` still requests fitting twice. `defcolor` and `dbgdrawarea` are registered but not read here.
+
+### 9.11 GZWinTextEdit (`0x0094E7C8`) *[compat]*
+
+Query IID `0x231A1C57`. First read the current flag word through `I+0x140`, alter only flags whose U property
+is present, then apply the result through `I+0x134`. A present value sets a bit **only when equal to 1**;
+every other numeric value clears it. Table at `0x00AD56C8`; helper `0x0094C719`; dispatch verified at
+`0x0094E800–0x0094E819`.
+
+| Property | Mask | Property | Mask |
+|---|---|---|---|
+| editable | `0x1` | wrapped | `0x2` |
+| hscrollbar | `0x4` | vscrollbar | `0x8` |
+| outline | `0x10` | opaque | `0x20` |
+| caretvisible | `0x40` | allowinsert | `0x80` |
+| allowundo | `0x100` | singleline | `0x200` |
+| notifyonreturn | `0x400` | notifyonchange | `0x800` |
+| notifyonlostfocus | `0x8000` | enableclipboard | `0x1000` |
+| passwordmode | `0x2000` | | |
+
+Remaining first-pass effects:
+
+| Input | Effect |
+|---|---|
+| font | numeric ID: `I+0x28(id)` and record; String: named helper; absent: no font change |
+| colorfontnormal, colorfontdisabled, colorfonthilited, colorfontnormalbkg, colorfontdisabledbkg, colorfonthilitedbkg (C) | `I+0x30(index,colour)` with indices 0, 2, 4, 1, 3, 5 in that property order |
+| caretcolor, highlightcolor (C) | `I+0x48(colour)`, `I+0x5C(colour)` |
+| outlinecolor (C) | read `outline` (U), then `I+0x94(outline!=0,colour)`; missing numeric outline leaves an indeterminate native argument (LC11) |
+| maxtext (U) | `I+0x84(value)` |
+| gutters (P) | `I+0xA0(x)` followed by `I+0xA8(y)` |
+| overwrite (U) | `I+0x100(value==0)` |
+| insertindex (U), insertpos (P) | `I+0x108(index)`, `I+0x110(x,y)` |
+| caretperiod, maxundo (U) | `I+0x120(period)`, `I+0x144(count)` |
+| hscrollimage, vscrollimage (String) | require two parsed hex components; load image, and on success call `I+0x160(buffer,rect)` or `I+0x15C(buffer,rect)`; corresponding h/v imageRect property supplies rect, otherwise `(0,0,0,0)` |
+
+For either syntactically valid image key, even if loading fails, store resource parameter `0x8B4BFEFC`
+(horizontal) or `0x8B4BFEFD` (vertical), then record image selector 0 or 1 respectively. The second pass only
+stores the numeric `autofit` presence parameter `0xDACF8F9C`; if present it calls `I+0xAC()`.
+The registered `initvalue` word is not read by this interpreter.
+
+### 9.12 GZWinListBox (`0x0094EE39`) *[compat]*
+
+Query IID `0x4132242B`.
+
+| Pass | Input | Effect |
+|---|---|---|
+| first | vscrollbar, hscrollbar (U) | always `I+0x8C(vertical,horizontal)`; defaults true/false; a supplied value enables only if equal to 1 |
+| first | font | numeric: resolve font object, `I+0x98(font)` and record; String: named helper; absent: no font change |
+| first | colorfontnormal, colorfontdisabled, colorfonthilited (C) | `I+0x9C(index,colour)`, indices 0,1,2 |
+| first | highlightcolor (C) | `I+0xA8(colour)` |
+| first | outline (U) | `I+0xCC(value==1)` |
+| first | outlinecolor (String) | require six scanned decimals in `(r,g,b)(r,g,b)`; `I+0xDC(firstColour,secondColour)`; argument count/order verified at `0x0094F0CC–0x0094F0F8` |
+| first | key `0xF00B` (U; sunken) | `I+0xD4(value==1)`; this reads the word as a key, not `style=sunken` |
+| first | scrollbargutters, gutters (P) | `I+0xE4(x,y)`, `I+0xEC(x,y)` |
+| first | drop (U) | `I+0x44(value==1)` |
+| second | every String listelement in property order | append using `I+0x1C(text,0xFFFFFFFE,0)`; preserve duplicates |
+| second | sort (U) | only value 1 invokes `I+0x38()` then `I+0x40()` |
+| second | initselection (U) | `I+0x28(index,1)` |
+| second | setlinevisible, setlineontop (U) | `I+0x6C(index)`, `I+0x74(index)` |
+| second, last | presence of autofit | store W parameter `0xDACF8F9C` as 0/1; when present call `I+0x24()`, `I+0xBC()`, `I+0xC0()` |
+
+Selection follows population and sorting. No bounds validation is added by the adapter.
+
+### 9.13 GZWinCombo (`0x0094F36D`) *[compat]*
+
+Query IID `0x412CE496`. First pass: resolve numeric `font` to an object and call `I+0x2C(font)` then record,
+or use the named helper for String font; absent font makes no change. For String `combodownarrowimage`,
+require two hex components, load it, and on success call `I+0x84(buffer,rect-or-null)` where the rectangle
+comes from `combodownarrowrect`. Record image selector 0 even if loading fails. No 12-byte resource-key
+parameter is written for this arrow. Next `buttongutter` (U) calls `I+0x94(value)` and `gutters` (P) calls
+`I+0x9C(x,y)`.
+
+Second pass: `colorfontnormal`, `colorfontdisabled`, `colorfonthilited` (C) call `I+0x30(index,colour)`,
+indices 0,1,2. Then `highlightcolor`, `outlinecolor`, `combodowncolor` (C) call `I+0x40`, `I+0x58`, `I+0x8C`
+respectively, each with one colour. `editable` (U) calls `I+0x54(value==1)`. Append every String
+`listelement` in property order with `I+0x6C(text,0xFFFFFFFE)`; then `initselection` (U) calls
+`I+0x70(index,1)`. Combo does not perform the ListBox sort or autofit steps.
+
+### 9.14 GZWinBtn (`0x0094F757`) *[compat]*
+
+Query IID `0x8810`. First-pass button flags use `I+0x14(mask,bool)` in this order:
+
+| U property | Mask | Enabled when |
+|---|---|---|
+| toggle | `0x1` | nonzero |
+| triggerondown | `0x2` | nonzero |
+| showcaption | `0x4` | nonzero |
+| fill (key `0xF00D`) | `0x10` | zero |
+| autosize | `0x20` | nonzero |
+| wrapcaption | `0x40` | nonzero |
+| shiftcaption | `0x80` | nonzero |
+| tips | `0x100` | nonzero |
+| tipsdelay | `0x200` | zero |
+| tipstimeout | `0x400` | zero |
+
+`tipsdelay` and `tipstimeout` are tested as booleans here; the adapter does not send their numeric values as
+durations. Next derive a style number from U `style`: label→1; standard/standardfixed→2;
+toggle/togglebtn/togglebtnfixed→3; checkbox/radiobtn/radiocheck→4; missing/other→0. Registered
+standardhilite/standardhilitefixed are among the unmapped values here.
+
+Then apply the following first-pass drawing and feedback inputs:
+
+| Input | Effect |
+|---|---|
+| font | numeric: `I+0x50(id)` and record; String: named helper; absent: `I+0x4C(main9 font object)` |
+| six colorfont properties in §9.11 order (C) | `I+0x5C(index,colour)` with indices 0,4,2,1,5,3 |
+| gutters (String) | one comma: scan pair and call `I+0x78(a,b)`; three commas: scan four integers and call `I+0x74(a,b,c,d)`; otherwise no call; scan count unchecked |
+| image (String) | absent: `I+0x30(styleNumber,null,null)`; present: unchecked key scan, load buffer, `I+0x30(styleNumber,buffer-or-null,full-buffer-rect-or-null)`, store resource parameter `0x2B343BEC`, record selector 0 |
+| align (U) | left→`I+0x6C(1)`, right→`I+0x6C(2)`, center→`I+0x6C(0)`; other values ignored |
+| tiptext (String) | `I+0x8C(text)` |
+| tipres (String) | unchecked hex-pair scan; if string resource loads, `I+0x8C(loaded)` overriding tiptext; always store string resource parameter `0x2B340FFE` |
+| tipoffsets (P) | `I+0xA0(x,y)` |
+| tipflag (U) | always `I+0x98(value)`; default `0x01000000` |
+| btnclicksnd, btnupsnd (String) | absent: `I+0xB4(which,0)`; present: unchecked hex pair, store 8-byte pair W parameter `0x0A5BE39D` or `0x4A5BE2F8`, then `I+0xB4(which,instance)`; which=0 or 1 |
+
+An unavailable image still installs style with null buffer/rectangle and records the requested key. The
+`imagerect` word is not read here. Second pass repeats only `showcaption`'s mask-4 update, if supplied.
+Button activation, radio grouping, tooltip timing and sound playback belong to the receiving widget.
+
+### 9.15 GZWinBMP (`0x0095002C`) *[compat]*
+
+Query IID `0xC12CEA13`. First pass applies `alpha` (U) through `I+0x18(1,a)`, where unsigned input is clamped
+to 255 and converted as specified below. Then `notify`, `transparentbkg`, `edgeimage` (U) call
+`I+0x2C(mask,value!=0)` with masks 1,2,8. For String `image`, scan hex group/instance without checking the
+count. On successful buffer load call `I+0x10(buffer)` and resize W to buffer width/height (`W+0xD4`).
+Whether or not it loads, store resource parameter `0xAB428C5D` and record image selector 0.
+
+Second pass reads `imagerect` (R); if valid call `I+0x20(rect)`. Always update `I+0x2C(0x10,rectWasValid)`.
+This does not clear the remembered rectangle when the property is absent; it clears the rectangle-enable flag.
+
+**Alpha arithmetic:** use the 32-bit unsigned minimum with 255, load the integer into x87, multiply by the
+binary32 constant bits `0x3B808081` (exact value `0.0039215688593685626983642578125`), then store the argument
+as binary32. The clamp makes all signed-to-unsigned correction branches unreachable. Do not replace the
+constant with a binary64 division by 255. Instructions: `0x00950074–0x009500A3`; constant `0x00A90BBC`.
+The same rule is used by LineInput highlight alpha at `0x009508F0–0x0095091D`.
+
+### 9.16 GZWinScrollbar (`0x009503AB`) *[compat]*
+
+Query IID `0x61325A2D`. First pass:
+
+| Input | Effect |
+|---|---|
+| minmaxvalue (P) | sort the two signed endpoints ascending, then `I+0x1C(min,max)` |
+| direction (U) | `I+0x24(2)` only for vertical (`0xC03`), otherwise `I+0x24(1)` |
+| pagesize, linesize (U) | `I+0x2C(value)`, `I+0x34(value)` |
+| linepagecount (P) | `I+0x3C(first,second)` |
+| image (String) | require two hex components; load; on success `I+0x44(rect,buffer,0)`, using imagerect (R) or full buffer rectangle; always store resource parameter `0x6B4BCBD4` and record selector 0 after a valid key |
+
+The three image arguments are verified at `0x00950509–0x0095052C`; the decompiler obscures the latter two.
+Second pass only: `initvalue` (S) → `I+0x14(value)`. Absent direction does not force horizontal.
+
+### 9.17 GZWinLineInput (`0x009505B6`) *[compat]*
+
+Query IID `0x21335C59`. First pass: numeric `font` resolves to an object for `I+0x10(font)` and records;
+String uses the named helper; missing font installs `main9` through `I+0x10`. Then:
+
+| Input | Effect |
+|---|---|
+| colorfontnormal, colorfontdisabled, colorfonthilited (C) | `I+0x14(index,colour)`, indices 0,1,2 |
+| colorlt, colorrb, colorltinside, colorrbinside (C) | `I+0x38(index,colour)`, indices 0,1,2,3 |
+| fillcolorhilite (C) | `I+0x44(colour)` |
+| fillalphahilite (U) | `I+0x4C(alpha)` using §9.15 arithmetic |
+| filled (U) | `I+0x24(value!=0)` |
+| style (U) | outline3d→`I+0x2C(2)`, outline3dex→`I+0x2C(3)`, normal→`I+0x2C(1)`; otherwise no call |
+| gutters (String) | exactly one comma: scan `(a,b)`, call `I+0x84(a,b,a,b)`; exactly three: scan `(a,b,c,d)`, call `I+0x84(a,b,c,d)`; scan count unchecked |
+
+Second pass: `caretpos` (U) → `I+0x64(value)`; `editable` (U) → `I+0x70(value!=0)`; `charlimit` (U) →
+`I+0x74(value)`; `selection` (P) → `I+0x7C(start,end-start)`. The subtraction is a 32-bit machine subtraction
+(`0x00950AD4–0x00950AE3`); reversed endpoints are not sorted or clamped.
+
+### 9.18 GZWinSpinner (`0x00950AF6`) *[compat]*
+
+Query IID `0x612CE0C3`. First pass:
+
+| Input | Effect |
+|---|---|
+| digits (U) | only 0, left, right accepted: `I+0x10(0)`, `I+0x10(1)`, `I+0x10(2)` respectively; other values ignored |
+| outline, fill, autonumber, autonumbercomma, autonumbercurrency (U) | `I+0x18(mask,value!=0)` with masks 1,2,`0x1000`,`0x2000`,`0x4000` |
+| font | numeric: resolve to font object, `I+0x4C(font)` and record; String: named helper; absent: same setter with main9 |
+| colorfontnormal, colorfontdisabled, colorfonthilited (C) | `I+0x5C(index,colour)`, indices 0,2,1 |
+| image (String) | unchecked hex-pair scan; on buffer load `I+0x38(buffer,0)`; always store resource parameter `0x8BD1333A` and record selector 0 when the String property exists |
+| align (U) | left→`I+0x6C(0)`, right→`I+0x6C(2)`, center→`I+0x6C(1)`; other values ignored |
+| gutters (P) | `I+0x74(x,y)` |
+| coloroutline, coloroutlinel, coloroutlinet, coloroutliner, coloroutlineb (C) | start all four edges at packed 0; global colour fills all edges, individual colours override L,T,R,B; call `I+0x7C(L,T,R,B)` only if at least one colour parsed |
+
+Second pass: `minmax` (P) → `I+0x28(first,second)` **without sorting**, then `stepsize` (S) →
+`I+0x30(value)`, then `initvalue` (S) → `I+0x24(value)`. Validation/clamping of these values is the spinner's
+responsibility, not this adapter's.
+
+### 9.19 GZWinTextTicker (`0x0094CE28`) *[compat]*
+
+Query IID `0x032F0B3C`; only first pass has effects. `speed`, `frequency` (U) call `I+0x20` and `I+0x24`
+respectively. Numeric `font` resolves to an object for `I+0x1C(font)` and records; String uses the named
+helper; absent font installs main9 through `I+0x1C`.
+
+Then walk the **entire property list in input order**, with current foreground colour `0xFFFFFFFF` and
+background colour 0. Each String `forecolor` (`0xF002`) or `bkgcolor` (`0xF001`) scans three decimals and
+updates that current packed colour (scan count unchecked; not the checked C reader). Each String `message`
+appends `I+0x0C(text,currentForeground,currentBackground,0,0)`. Repeated messages are preserved; a colour
+change affects only subsequent messages. Non-String entries are ignored, including messages of numeric type.
+
+### 9.20 SC3WinGen (`0x009513BC`) and GZWinOptGrp (`0x00956C46`) *[compat]*
+
+**SC3WinGen**, IID `0x5386D516`: first-pass U keys set `I+0x18(mask,bool)`:
+
+| Keys (in order) | Masks (in order) | Boolean |
+|---|---|---|
+| `0x10004`…`0x1000C` | 1,2,4,`0x10`,`0x20`,`0x40`,`0x100`,`0x200`,`0x400` | value nonzero |
+| `0x1000D`, fill, outline, `0x1000E` | `0x1000`,`0x2000`,`0x4000`,`0x8000` | value zero |
+| `0x1000F` | `0x10000` | value nonzero |
+
+Next `style`'s SC3-specific key `0x10000` (U) calls `I+0x4C(value)`. String `image` requires two hex
+components; load buffer, read image mode key `0x10001` (U, default 0), map 0→0, 2→2, all others→1.
+On load success call `I+0x34(mode,buffer)`; always store resource parameter `0xAB428C5D` and record selector
+0 after valid syntax. Then `gutters` (P) calls `I+0x68(x,y)`. Finally install a new 8-byte procedure object
+(vtable `0x00AD53EC`, initial count 0) through `I+0x1C`. Its message semantics are external to this owner
+and remain LC12; allocation failure passes null to that setter.
+
+Second pass scans String entries in property order: key `0x10002` requires `(%u,%d)` and calls
+`I+0x78(unsignedId,signedValue)`; key `0x10003` requires `(%u,%d,%d,%d,%d)` and calls
+`I+0x74(unsignedId,0,0,rectangle)`. Incomplete scans make no call.
+
+**GZWinOptGrp**, IID `0xA1336CC0`: first-pass U maincaption, itemcaption, drawfill, outline call
+`I+0x14(mask,value==1)`, masks 1,2,4,8. `gutters` (P) → `I+0x18(x,y)`. Numeric labelfont and buttonfont
+resolve to font objects for `I+0x20` and `I+0x24`, and record font selectors 0 and 1. String forms use the
+named helper with the same selectors; missing fonts make no change. Five C properties labelfontcolornormal,
+labelfontcolordisabled, buttonfontcolornormal, buttonfontcolorhilited, buttonfontcolordisabled call
+`I+0x28(index,colour)`, indices 0…4.
+
+Then String captiontextresid is scanned as an unchecked hex pair; on string load success, obtain the label
+window through `I+0x0C()` and set its caption (`W+0x128`). Store 8-byte pair W parameter `0x4A4AF4AC`
+regardless of load result. String backimage requires two hex components; on load success call `I+0x50(buffer)`;
+record image selector 0 even on load failure. String outlinecolor requires twelve scanned decimals in four
+adjacent RGB triplets; `I+0x54(c1,c2,c3,c4)` receives the four packed colours in input order.
+U autofilltype: automatic requires U autofillsize and then `I+0x70(0,size)`; missing size suppresses the call.
+Any other supplied autofilltype invokes `I+0x70(1,0)`.
+
+Second pass populates **all options before any option geometry**, then selects, then fits:
+
+- Each String option is colon-delimited: `id:caption:style:{group,instance}:(l,t,r,b)`. Scan id and style as
+  signed decimals without checking counts. The image pair must parse both components before loading; its
+  group and instance start at zero once for the whole pass, not once per option. Rectangle defaults to
+  `(0,0,1,1)` unless all four integers parse. Call `I+0x3C(id,caption,style,buffer-or-null,rect)`. Obtain the
+  resulting item through `I+0x4C(id,out)`; on success get its window via item `+0x0C(instance,0)`, record
+  image metadata there, then release item and buffer. Malformed partial image keys have scratch-state limits
+  in LC11. Argument sequence verified at `0x009573DA–0x00957427`.
+- In another property-order scan, each String optionmoveto or optionsetsize splits `id:(a,b)` at a colon;
+  id scan is unchecked, but the pair must parse both numbers. Invoke `I+0x44(id,a,b)` or `I+0x48(id,a,b)`.
+- U initselection calls `I+0x38(index)`. Finally store W `0xDACF8F9C` as the presence of autofit; when present
+  invoke `I+0x60()`.
 
 ## 10. Quirks (keep for compatibility)
 
