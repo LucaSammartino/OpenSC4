@@ -6,6 +6,7 @@
 
 - Goal: bounded AS6/AS7 publication and retained-proof reconciliation. AS2 excluded; AS1 provenance remains open.
 - Done: this milestone adds instruction-derived AS7 §§5–6 geometry/store/box/cache/draw/pick contracts and independent proposed UNEXECUTED R2-Q1/Q2/Q3 vectors.
+- Done: c588e64e is the AS7 milestone. This next milestone adds AS6 axis/order/sentinel/LookAt proof and independent proposed UNEXECUTED R2-R1/R2-R2/R2-R3/R2-D1 vectors; fixes clock/LookAt/citation contradictions. Partial-mask last-bit rounding remains qualified, not a portable oracle.
 - Identity: bin/SimCity4.exe SHA256 3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b matches export-summary.txt, base 00400000.
 - Evidence: UpdateView 007FE400–007FEA84, Draw 007FEA90–007FED4C, Pick 007FD710–007FD7C6; GetViewVolume 007FF340–007FF3BE, queried export/bytes before supporting decomp.
 - Next: verify SetOrientation mask/composition 007FC4B0–007FCC69; supporting decomp _unnamed/region_007f0000.c:2350; prove noncommuting and sentinel fixtures, reconcile LookAt target/forward.

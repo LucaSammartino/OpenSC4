@@ -58,7 +58,7 @@ Constructor entry `0x007FDCB0` establishes zero in EBX; body `0x007FDCBA–007FD
 The per-zoom scales and unused derived holder metrics are not initialized before loading; do not invent
 safe loaded defaults for them. The constructor initially fills cached local corners (+0x13C..+0x168) from
 global `0x00B4E65C`; no cached-corner validity is promised before UpdateView. Base defaults are verified at
-`0x00801CF0–007?` [see address correction below]; specifically `0x00801D2B–00801D5D`, and sprite overrides
+`0x00801CF0–00801D67`, specifically `0x00801D2B–00801D5D`, and sprite overrides
 at `0x007FDDA0–007FDF83`.
 
 AddRef increments the **u16** count modulo 65536, returns its zero-extended value, and has no overflow check.
@@ -125,7 +125,7 @@ old values. A fresh instance failing at i=0 remains empty and returns false.
 | Slot | VA | Call | Behaviour |
 |---|---|---|---|
 | 1 | `0x007FC480` | `SetPosition(p)` | the translation; the transform changes |
-| 2 | `0x007FE250` | `LookAt(from, up)` | §3.1 |
+| 2 | `0x007FE250` | `LookAt(target, up)` | §3.1 |
 | 3 | `0x007FC4B0` | `SetOrientation(yaw, pitch, roll)` | §3.1 |
 | 4–7 | `0x007FCD30`, `0x007FCC90`, `0x007FCE20`, `0x007FCDC0` | point and vector transforms | by the instance's transform and its inverse |
 | 8 | `0x007FB180` | `SetView(zoom, rotation)` | two bytes; the frame is due again when they change |
@@ -147,10 +147,67 @@ offset; null stays null. It is not QueryInterface. Slot 17 returns 0.
 
 ### 3.1 Placement
 
-- The instance keeps a transform (rotation, translation, a change counter); `0x007FE0F0` and `0x007FE190` copy it
-  out and in. `SetOrientation(yaw, pitch, roll)` (`0x007FC4B0`) builds the rotation from the angles that are not
-  −100 (−100 means "unset"); `0x007FE250` turns the instance to look from its position along a direction (an up
-  vector given); `0x007FCC90` transforms a point by it.
+The instance keeps a transform (rotation, translation, a change counter); `0x007FE0F0` and `0x007FE190` copy it
+out and in. Its row-major matrix maps column vectors. The argument labels yaw/pitch/roll do not imply the
+usual vehicle-heading convention: argument 0 rotates about **X**, argument 1 about **Y**, argument 2 about
+**Z**, with right-handed signs. In real arithmetic define the rows:
+
+| Rotation | Row 0 | Row 1 | Row 2 |
+|---|---|---|---|
+| A(a), argument 0 | (1,0,0) | (0,cos(a),−sin(a)) | (0,sin(a),cos(a)) |
+| B(p), argument 1 | (cos(p),0,sin(p)) | (0,1,0) | (−sin(p),0,cos(p)) |
+| D(r), argument 2 | (cos(r),−sin(r),0) | (sin(r),cos(r),0) | (0,0,1) |
+
+`SetOrientation` compares each input's **bits** with binary32 −100 (`0xC2C80000`), forming mask bits 1,2,4.
+Mask 0 is a complete no-op, including flags/counter, returning 0. Mask 7 overwrites the matrix with
+`A(a) B(p) D(r)`, ignoring the old matrix. Thus a point experiences Z, then Y, then X rotations.
+For masks 1–6, if transform flag 4 was set, first replace the matrix with identity, clear flag 4 and increment
+the byte counter. Otherwise use the stored matrix as it stands. Then right-multiply by the present rotations
+in argument order (A, then B, then D), skipping −100 arguments. Each applied rotation sets flag 4 and
+increments the byte counter. Translation and scale are untouched; frame/view dirty bytes are untouched.
+Every path returns 0. In particular −100 does **not** preserve a previous Euler component, and passing zero
+counts as applying a rotation. Evidence: mask dispatch `0x007FC4B0–007FC4F2`; A `0x007FC4F9–007FC611`;
+A/B `0x007FC649–007FC84D`; A/D `0x007FC882–007FC994`; B/D `0x007FC999–007FCAA7`;
+D `0x007FCAAD–007FCB9E`; full mask `0x007FCBA3–007FCC67` (single-axis B/D share tails).
+
+For full mask, put ca=cos(a), sa=sin(a), cp=cos(p), sp=sin(p), cr=cos(r), sr=sin(r). The rows are
+`(cr*cp,−sr*cp,sp)`, `(sr*ca+(sp*sa)*cr,cr*ca−(sp*sa)*sr,−cp*sa)`,
+`(sr*sa−(sp*ca)*cr,cr*sa+(sp*ca)*sr,cp*ca)`. Here ca,sa,cp are explicitly stored to binary32;
+sp,cr,sr and the shared products sp*ca,sp*sa remain x87 values before their uses. Matrix results store as
+binary32 (`0x007FCBA3–007FCC4D`). The partial-mask paths use their own staged products/stores and are not
+last-bit equivalent to evaluating this full-mask expression with omitted angles set to zero. For example A
+stores cos(a) to binary32, retains sin(a), stores the products for matrix rows 1/2 and later stores −sin(a)
+to binary32 before the other column update (`0x007FC525–007FC60E`). Numeric execution inherits PC/RC;
+these algebraic products are not permission to choose host trigonometry or a universal floating-point mode.
+
+`LookAt(target,up)` constructs back=normalize(position−target), right=normalize(up×back), trueUp=back×right;
+the matrix columns are right,trueUp,back. Thus local **−Z** points toward the first argument; it is a target
+point, not a direction or source. It preserves position/scale, ORs flag 4 and increments the byte counter by
+**2**; return 2 (`0x007FE250–007FE38D`). Differences and normalization intermediates have binary32 stores;
+normalization uses reciprocal square root length via x87 FSQRT and division (`0x007FE257–007FE2AA`,
+`0x007FE2AE–007FE310`). There is no zero-length/parallel-vector fallback. No portable NaN payload is promised.
+Frame selection reads the matrix's **+Z column** (the back vector after LookAt), not local −Z.
+
+**R2-R1, proposed UNEXECUTED noncommuting vector.** Full arguments (π/2,π/2,0), encoded as
+`(0x3FC90FDB,0x3FC90FDB,0)`, have ideal rows `(0,0,1),(1,0,0),(0,1,0)`.
+Reversing A/B gives rows `(0,1,0),(0,0,−1),(−1,0,0)` and is detectably different. Full arguments reset any
+previous matrix and increment the counter once. Ideal values are geometric expectations with component
+tolerance 0.000002 for these supplied angles under ordinary finite x87 precision/rounding, not exact-bit results.
+
+**R2-R2, proposed UNEXECUTED noncommuting vector.** Full arguments (π/6,π/3,π/4), binary32
+`(0x3F060A92,0x3F860A92,0x3F490FDB)`, have ideal rows
+`(√2/4,−√2/4,√3/2)`, `(3√6/8,√6/8,−1/4)`, `(−√2/8,5√2/8,√3/4)`.
+These follow by multiplying the three matrices above using sin(π/6)=1/2, cos(π/3)=1/2,
+cos(π/6)=sin(π/3)=√3/2, sin(π/4)=cos(π/4)=√2/2. Independent constants are
+√2≈1.4142135623730950488, √3≈1.7320508075688772935, √6≈2.4494897427831780982.
+Use the same geometric tolerance as R1; a host trig calculation is not the oracle.
+
+**R2-R3, proposed UNEXECUTED sentinel mixture.** After R1 with flag 4 set and counter c, call
+`(−100,0,π/2)`. Mask 6 resets identity and composes B(0)D(π/2); ideal rows
+`(0,−1,0),(1,0,0),(0,0,1)`, counter c+3 modulo 256. It does not retain R1's X rotation.
+Then `(−100,−100,−100)` preserves all nine matrix words, flags and counter exactly. From position
+(10,20,30), `LookAt((10,20,29),(0,1,0))` instead yields identity and counter +2; the target is one unit
+along local −Z. All of these tests are proposed, with no native or implementation execution.
 
 `SetPosition` copies three float bit patterns, ORs transform flag 1, increments the u8 change counter even
 for equal input, and returns 1 (`0x007FC480–007FC4A7`). `SetTransform` increments the destination owner's
@@ -211,8 +268,9 @@ export alias. This inventory identifies the verified surfaces; reconciliation to
   A rate of 0 does nothing. Otherwise position := position +
   elapsed × rate × direction. When |position| reaches 1: below 2, one frame is advanced (slot 13) and the direction
   subtracted; at 2 or more, frames are advanced until |position| < 1 when `+0xAA` is set *[inferred: frame
-  skipping]*, else one frame is advanced and the position set to exactly 1 *[quirk]*. It returns 2 when frames
-  advanced.
+  skipping]*, else one frame is advanced and the position set to exactly 1 *[quirk]*. Subtraction uses the
+  direction **after** advancing/reversal. Return 2 reports taking an advance path, including an unchanged
+  frame; §4.2 gives the non-progress and return boundaries.
 - Advancing (`AdvanceFrame`, slot 13): with an animation table, the table's sequence steps (`0x007FAE90`); without
   one (`0x007FB1E0`), with more than one frame, the next frame; at the end, by the play mode (`+0xA8`): 3
   loops to frame 0, 2 reverses (ping-pong, direction −1), anything else stops (direction 0, position 0). Each change
@@ -312,10 +370,21 @@ store binary32(x+12582912), reinterpret bits as u32, add `0xB4C00000` modulo 2^3
 - Entry address = entryBase + 8×(p×R+y×(P×R)), with native 32-bit integer products/sum.
 
 Temporal frame does **not** select this entry: the decoder below packs it across pages. Draw supplies
-a=asin(forward.y), b=atan2(forward.x,forward.z), rotation=context view rotation. This corrects the earlier
-single yaw formula and negative-pitch description. Active x87 precision/rounding affects transients;
+a=asin(back.y), b=atan2(back.x,back.z), where back is the owner's +Z matrix column,
+rotation=context view rotation (`0x007FEB0D–007FEB62`). The conditional single addition of K is to the
+camera-relative **yaw** b', not to a negative pitch a; the pitch-like input instead uses a+π−holder.base.
+Active x87 precision/rounding affects transients;
 do not round every operation. An absent holder pointer writes null; an allocated unloaded holder is not
 guarded against zero divisors. No zoom range check exists (`0x007FD2F0–007FD3C7`).
+Draw passes the owner's frame byte directly to the metric decoder; it does not add a sequence start a second
+time. A sequence's absolute first/current frame has already been copied to that byte by §4.3.
+
+**R2-D1, proposed UNEXECUTED rounding boundary vector.** With nearest-even RC and finite small inputs,
+the conversion B alone gives B(1/2)=0, B(3/2)=2, B(−1/2)=0, B(−3/2)=`0xFFFFFFFE`.
+With P=8, the latter takes unsigned remainder 6. These exact rational inputs isolate the stored-addition/bit
+conversion; they are not a claim that an approximate angle multiplication lands exactly on a half tie.
+Changing RC changes this expectation. Direction bins must follow the stated conversion and native unsigned
+remainders, rather than a portable ties-away rounding helper.
 
 | Entry byte | Meaning as consumed by the owner |
 |---|---|
@@ -349,7 +418,7 @@ This section describes finite inputs with nonzero denominators and valid loaded 
 safe behavior for unloaded records, null cameras, zero viewport width, or malformed camera transforms.
 `UpdateView` has no status return and no validation/failure branch for those inputs.
 
-Let the decoded metric record be `[page,W,H,ox,oy]` (§4.5). Let `C` be the camera's local transform, and
+Let the decoded metric record be `[page,W,H,ox,oy]` (§4.1). Let `C` be the camera's local transform, and
 `r=(C[+4],C[+0x10],C[+0x1C])`, `b=(C[+0x0C],C[+0x18],C[+0x24])`, `uy=C[+0x14]`.
 These are the right column, back column and up-column Y component of its row-major matrix. Camera
 translation and camera scale are not read here. `g` is custom magnification, stored to binary32 on return
@@ -382,7 +451,8 @@ Evidence: displacement `0x007FE47B–007FE507`, horizontal step `0x007FE50B–00
 
 Numeric qualification: these equations specify dependency/sign/order, not a portable last-bit oracle.
 The routine inherits x87 precision/rounding control. In particular d and t are binary32 stores
-(`0x007FE49D`, `0x007FE4AC`); each horizontal component stores `r*m` before multiplying g and storing again
+(`0x007FE49D`, `0x007FE4AC`); horizontal X stores `r.x*m` before multiplying g and storing again;
+the Y/Z products `r.component*m` stay in x87 before multiplication by g and their binary32 stores
 (`0x007FE51E–007FE564`). B.y and B.z are stored as binary32 (`0x007FE4ED`, `0x007FE4FF`), while B.x remains
 in the x87 stack. Products h.y*ox, h.z*ox, and each h.component*(W-ox) store to binary32 before their sums;
 h.x*ox remains in the stack (`0x007FE652–007FE693`). Upper-left x,z have binary32 temporary stores as well
@@ -394,7 +464,7 @@ the inverted-X test therefore yields min=max=(0,0,0). Include v0 and then v3 com
 the resulting maximum M and include the single point `(-M.x,M.y,-M.z)`. No lower corner is included.
 Thus the exact finite rule is the box of `{origin,v0,v3,(-M.x,M.y,-M.z)}`, with M taken before the last
 inclusion. It may shrink on the next UpdateView; it is not a cumulative four-corner world box.
-Equality comparisons retain the existing extrema; signed-zero payloads are not specified here.
+This finite rule describes numeric extrema; signed-zero payloads are not specified here.
 Evidence: reset/origin `0x007FE51E–007FE641`; upper-corner inclusion `0x007FE6C7–007FE92B`;
 reflected-maximum inclusion `0x007FE98D–007FEA82`. UpdateView itself does not clear either dirty byte.
 
@@ -431,7 +501,7 @@ range check: a context zoom outside the valid holder range must not be described
 
 If view-dirty is already set it remains set. Otherwise compare full context zoom/rotation integers to the
 zero-extended cached bytes, setting view-dirty when either differs. If view-dirty or frame-dirty is set,
-copy the low bytes of context zoom/rotation, refresh orientation/metrics/UVs (§4.5), call UpdateView **only if
+copy the low bytes of context zoom/rotation, refresh orientation/metrics/UVs (§4.1), call UpdateView **only if
 view-dirty**, then clear frame-dirty (`0x007FEAB3–007FEB80`). A changed record or frame alone need not rebuild
 geometry. A changed camera matrix, custom magnification or mpp alone does not participate in invalidation.
 
@@ -485,8 +555,9 @@ picks them through the two thunks; animation ticks drive the clock.
 
 ## 9. Open questions
 
-See [questions/animated-sprite.md](questions/animated-sprite.md) AS1–AS2: the sprite-animation record's layout
-(type `0x69B6F01C`) and the bytes of a frame entry; which occupants use sprite models.
+See [questions/animated-sprite.md](questions/animated-sprite.md). AS1 controller provenance and AS2 shipped
+usage remain open; AS3 inventory accounting and remaining AS4–AS9 qualifications are tracked there.
+The record consumer and IID are specified in §§2/4.1; `0x69B6F01C` is an IID, not the resource key type.
 
 ## 10. Conformance tests
 
