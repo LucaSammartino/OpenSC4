@@ -828,20 +828,27 @@ the occupant type **`0xA9B6D7DE`** at `+0x2C` (`0x005F19F9`) — not the bare ty
 
 | Offset | Meaning |
 |---|---|
-| `+0x5C` | transform (the record writes it) |
-| `+0x60/+0x64/+0x68` | bytes |
-| `+0x6C` | source occupant ref (`SetSourceOccupant` `0x005F0D30`; getter folded `0x00407AB0`) |
-| `+0x70` | second transform |
-| `+0x74` | call number (`SetCallNumber` `0x005F1A20` / `GetCallNumber` `0x005F1A40`) |
-| `+0x7C/+0x80` | drag state (`0x005F1A50`/`0x005F1A60`) |
-| `+0x84…+0xB0` | matrix (0/1) |
-| `+0xB4…+0xC8` | second matrix (1,1,1,0,0,0) |
+| `+0x68` | texture/model dirty bool; constructor sets 1 |
+| `+0x6C/+0x70/+0x74` | UI state / dispatch state / dispatch type (32-bit live enums; signed bytes on disk) |
+| `+0x78` | source occupant ref (`SetSourceOccupant` `0x005F0D30`; getter folded `0x00407AB0`) |
+| `+0x7C` | the single transform; flags at +7C/+7D, identity 3×3 at +80…+A0, zero translation +A4/+A8/+AC, scalar +B0=1 |
+| `+0xB4…+0xC8` | auxiliary scale/rotation fields (1,1,1,0,0,0) |
+| `+0xCC…+0xE0` | second auxiliary scale/rotation fields (1,1,1,0,0,0) |
 | `+0x134/+0x13C` | packed render states |
-| `+0x140` | u32 (the record's `SetUint32` field) |
-| `+0x198/+0x199` | bytes |
-| `+0x19C` | u32 |
-| `+0x1A0` | int64 |
-| `+0x1B4` | ref |
+| `+0x144/+0x148/+0x150` | texture binding / texture id / MySim texture id; all initially zero |
+| `+0x14C` | u16 call number; constructor 0; setter marks +68 dirty |
+| `+0x1A4/+0x1A5` | blink bool / drag byte; constructor zero |
+| `+0x1A8` | signed 32-bit bitmap/state field; constructor zero |
+| `+0x1AC` | embedded GZ string; constructor empty (not an int64) |
+| `+0x1C0` | owner reference; constructor null |
+
+All offsets in this layout are from the primary object. **Record methods receive the
+serializable view at primary+0xC**, so their instruction displacements must have 0xC
+added to obtain these live offsets. The serializable QI thunk subtracts 0xC
+(`0x005F1A90`); the constructor installs its table at +0xC (`0x005F1789`). In particular,
+record displacement +5C is live +68, not another transform, and record +6C is the same
+source reference that Shutdown releases at live +78. Call number and drag state are
+live +14C and +1A5, not +74 and +7C. Constructor evidence: `0x005F17C0–0x005F19F2`.
 
 ### 6.2 Slots and lifecycle *[compat]*
 
@@ -874,15 +881,76 @@ via `+4`; `cRZSysServPtr<cISC4AnimationTickManager>(0x86F9FB4D/0x86F9FB4C)` slot
 
 `Shutdown` `0x005F11A0`: `cSC4Occupant::Shutdown`; if byte `+0x37 & 1` (inserted): `PlaceInOccupantManager(0)`
 `0x005F1010`; unsubscribe the three messages; release `+0x78` (the source).
-`PlaceInOccupantManager` `0x005F1010` / `PlaceInRenderer` `0x005F10B0`: city slot 0x88 → handle; the renderer
-calls go through `[+0x40]+4` slots 0x74/0x78; the state bits live in byte `+0x37`.
+An already initialized `Init` returns true immediately, without subscriptions or render-state work
+(`0x005F093C–0x005F0941`, `0x005F0A03–0x005F0A07`). The renderer slot +0x28 result is
+discarded; it does not decide success or the packed states. With a renderer, the two
+14-argument `PackRenderState` tuples, in parameter order, are
+`(1,1,1,1,1,1,1,3,4,5,4,0,1,−1)` at +134 and
+`(1,0,0,1,1,1,1,−1,4,5,4,0,1,−1)` at +13C
+(`0x005F09B2–0x005F09FE`).
+
+#### Placement state *[compat]*
+
+Byte +37 bit 0 means inserted in the occupant manager; bit 1 means inserted in the
+renderer. The renderer receives the adjusted 3D-instance view
+`primary + 0x40 + signed32([primary+0x40]+4)`, not the primary or occupant view.
+Both placement methods first call city slot +88 (even for no-op requests); the first
+uses the result as its occupant-manager reference. For Boolean requests:
+
+| Operation | Required effect and result |
+|---|---|
+| Requested state already matches its bit | true; no insert/remove call |
+| Manager insert, bit 0 clear | Null manager: false. Otherwise manager +50(occupant-view +8, 0); only success sets bit 0 and returns true |
+| Manager remove, bit 0 set | Null manager: false, preserving bits. If bit 1 set, renderer +74(instance) when renderer exists, then clear bit 1 even if renderer absent. Manager +54(occupant-view +8, 0, 0), clear bit 0, true |
+| Renderer insert, bit 1 clear | Null renderer: false. Ensure manager insertion; require resulting bit 0, then occupant slot +80(4), then renderer +70(instance). Only success at both calls sets bit 1. Failure returns false without undoing successful manager insertion |
+| Renderer remove, bit 1 set | Null renderer: false, preserving bit 1. Otherwise renderer +74(instance), clear bit 1, true; bit 0 stays set |
+
+Other bits survive every transition. Sources: `0x005F1010–0x005F10A2`,
+`0x005F10B0–0x005F1155`. The old description's renderer +78 insertion slot was incorrect.
+
+Shutdown returns true and does nothing when uninitialized. Otherwise, after base
+Shutdown, placement removal and the three message unsubscriptions, it unsubscribes
+animation ticks (`+4` target, category 0x80); releases MySim texture +150; releases
+binding +144 if present, otherwise releases texture +148 if nonzero and the texture
+manager exists; clears/releases source +78 and owner +1C0. These are distinct refs;
+the source is not a second ref at +6C (`0x005F11A0–0x005F129A`).
 
 ### 6.3 Record *[compat]*
 
-`Write` `0x005F0A10` v5: the `cSC4Occupant` record; the transform (`+0x5C`); 3 bytes `+0x60/+0x64/+0x68`; byte
-`+0x198`; `SetUint32 +0x140`; `SC4WriteGZSerializable(+0x6C source)`; the transform (`+0x70`); byte `+0x199`;
-`SetUint32 +0x19C`; `SetInt64 +0x1A0`; `SC4WriteGZSerializable(+0x1B4)`. `Read` `0x005F0AF0` v ≥ 3: symmetric;
-v < 4 reads the legacy transform; releases `+0x6C` first; v > 4 reads `+0x19C`/`+0x1A0`/`+0x1B4`.
+`Write` `0x005F0A10` emits u16 version 5 and the base occupant record, then the following
+fields in order. Offsets below are **live primary-relative**, not serializable-relative.
+
+| Field | Stream encoding |
+|---|---|
+| dirty +68 | bool as one u8 |
+| UI +6C, dispatch state +70, dispatch type +74 | three signed bytes, taking each enum's low byte |
+| blink +1A4 | bool as one u8 |
+| call number +14C | u16 |
+| source +78 | SC4 serializable reference; on Read request IID `0x26BB767E` (occupant) |
+| transform +7C | current transform codec on Write and v4+ Read; legacy codec only on v3 Read |
+| drag +1A5 | bool as one u8 (Read normalizes any nonzero byte to 1) |
+| bitmap/state +1A8 | s32; v5+ only |
+| string +1AC | stream GZ-string codec, not a numeric scalar; v5+ only |
+| owner +1C0 | SC4 serializable reference; on Read request IID 1 (unknown), v5+ only |
+
+This is **one** transform, not two. Bool reader `0x005D9FA0` normalizes its byte;
+enum reads sign-extend each signed byte to its 32-bit live field
+(`0x005F0B43–0x005F0B78`). The call number uses stream +1C (u16), not u32;
+the string uses stream +3C (GZStr), not int64. See writer
+`0x005F0A31–0x005F0AD4`, reader `0x005F0B29–0x005F0C30`, and stream table
+`0x00AA2280` slots 7, 8, 15. The base and transform/string codecs retain their usual
+variable lengths; do not treat the tail as a fixed sequence of machine words.
+
+`Read` rejects versions below 3 before reading the base. It has no upper-version
+rejection. A successful base Read enables the body; old source +78 is cleared and
+released immediately before its replacement read, not before the version/base gates.
+For v5+, old owner +1C0 is similarly cleared/released immediately before its replacement.
+For v3/v4, the v5 tail is **untouched**, including any old owner; in a freshly constructed
+object that means bitmap/state 0, string empty and owner null. Failed reads are not
+transactions: reached fields/releases remain changed, later operations still run under
+the stream's error handling, and the final return is `GetError()==0`. The base-failure
+path skips the body and also returns that error test. There is no forced restoration or
+post-read Init/rebuild (`0x005F0AF0–0x005F0C49`).
 
 ---
 
@@ -1341,10 +1409,28 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     six-control reload does not reset an already supplied quote.
 18. **Line slots** (§5.1). `GetConnectedPoles` returns the three refs with `AddRef`; `SetConnectedPoles` releases
     the old ones; `IsPreview`/`SetPreview` round-trip.
-19. **Pylon record** (§6.3). A pylon saves v5 with both transforms and the two refs; on read v < 4 takes the
-    legacy transform path.
-20. **Pylon lifecycle** (§6.2). `Shutdown` with byte `+0x37 & 1` set calls `PlaceInOccupantManager(0)` and
-    unsubscribes the three messages.
+19. **Pylon record** (§6.3). A v5 fixture starts its derived body with dirty=1,
+    UI=−1, dispatch state=−128, dispatch type=127, blink=0, call=0x1234:
+    bytes `01 FF 80 7F 00 34 12` precede the source reference. Read produces live
+    +6C=−1, +70=−128, +74=127 and +14C=0x1234. Expect source IID 0x26BB767E
+    and owner IID 1. Exactly one transform is consumed; only v3 uses its legacy
+    form. Drag byte 0x80 reads as 1. A v4 Read into an object with bitmap/state 9,
+    string "kept" and owner O preserves all three and does not release O; on a
+    fresh object the same tail remains 0/empty/null. Version 2 rejects before the
+    base and releases no refs. Inject failure after the source replacement step:
+    old source has already been released, no rollback occurs, final result false.
+20. **Pylon lifecycle and placement** (§6.2). Second Init returns true with no
+    subscriptions/packing. Renderer +28 may return either value without changing
+    the two packing tuples or Init's result. Starting byte +37=0x80, successful
+    renderer insertion traces city+88, manager insertion (including its own
+    city+88), occupant+80(4), renderer+70; resulting byte=0x83. If the final renderer
+    insert fails it is 0x81 and result false. Removing from the renderer yields
+    0x81; removing from the manager while both inserted calls renderer+74 before
+    manager+54 and yields 0x80. With a null renderer, direct removal preserves
+    bit 1 and fails; manager removal with an available manager clears both bits.
+    Matching-state requests return true even without the associated manager or
+    renderer. Shutdown of an initialized object removes placement, unsubscribes
+    three messages and tick category 0x80, and releases source +78 and owner +1C0.
 21. **Type info load** (§8). `ReloadRules` for the road tool fills all 13 records: the widths match
     network-geometry.md §2.3, the placement parameters §2.4, `LoadComplete` sets `+4 = 1`, and the road record's
     p+0x00 slope is 35 degrees → `+0x100 = r24(tan(35°) × 16)`.

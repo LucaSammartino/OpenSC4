@@ -172,16 +172,3 @@ implementer of the class tables and records.
   call/drag storage and the record, with no host callbacks standing in for these owner methods.
   [missing; sections 6.1-6.2 remain open]
 
-<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
-- **NO37 - sections 6.1-6.3 pylon offsets, Read and placement:** the record calls +5C and +70
-  transforms but also names their interior +60/+64/+68 as separate bytes and +74 as a call number.
-  How do these map to live state? Does v3 use legacy decoding for both transforms? Which IIDs are
-  requested for the two refs, what are absent-v5 tail defaults, and when is the old +6C source released
-  on Read failure? Shutdown says release +78 while the source is +6C: same resource or distinct?
-  What are the exact state bits and manager/renderer calls for PlaceInOccupantManager and PlaceInRenderer,
-  and what is the IsInitialized branch/return for repeat Init? Current literal implementation keeps
-  serialized state separate, uses legacy for both transforms, preserves absent tail state, reads generic
-  serializable refs, releases old source immediately before the replacement read, skips repeated Init,
-  and removes an inserted occupant through city-handle/manager primitives before the three unsubscriptions.
-  No unspecified renderer calls/flag masks are invented. [ambiguous; sections 6.1-6.3, conformance 19/20
-  have executable partial coverage but no whole-owner closure]
