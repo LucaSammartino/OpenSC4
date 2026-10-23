@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-www5: web/network owner closure | Codex, core-www5 | in progress | Collect pending native request, then gate final source |
+| core-www5: web/network owner closure | Codex, core-www5 | continue; native pending | Resume session 1879, then gate final source |
 
 ## Handoff
 - Goal: close WWWSystem, HTTPClient, CookieManager and NetworkFileCache in core only.
@@ -23,3 +23,4 @@
 - 25d407e5: constructor registration committed; its focused conformance test passed (1/1), and changed-file fmt passed (2 files, zero diff).
 - Next: collect session 1879 terminal native result, then qbuild all on final layout (real source/input change).
 - No game requests; unconnected core only, no ABI/plugin changes; detached HEAD retained.
+- Context exhausted while native queue remained pending; no merge-queue entry written. Resume the existing request, never replace it for progress.
