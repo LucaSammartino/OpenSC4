@@ -1,19 +1,106 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-html-ui-hooks4: standalone HTML hook algorithms | `core-html-ui-hooks4` (engine lane, detached HEAD) | in progress R3 FINAL3/3: engine 2abc42af unchanged; R2 core 3336/0, HTML fixtures 8/8; old quick terminal/cause UNKNOWN; ABI unchanged | 1. Preserve fixed logs and source identity. 2. Run one canonical all and collect its actual terminal. 3. Record measured gate and own queue honestly. |
+| core-html-ui-hooks4: standalone HTML hook algorithms | `core-html-ui-hooks4` (engine lane, detached HEAD) | READY R3 FINAL3/3: canonical all exit 0; cargo 5380/0, clippy 0 diagnostics, native PASS 2/2 edges, ctest 68/68; HTML fixtures 8/8; engine 2abc42af and content unchanged; ABI unchanged; game n/a; HU1-HU4 open | 1. Coordinator may land bounded standalone implementation. 2. Foreign domains and native/game integration require their own contracts and qualification. |
 
-## Handoff
+## R3 final report: actual stable full qualification
 
-- Goal: initial stable full qualification of the bounded HTML implementation; original FINAL3/3, no fourth round.
-- Done: resumed clean `02319214`; verified own R3 manifest and copied 04:59 preflight.
-- Done: old 23048/25300/35180/9568/36088/34912/15368 absent per copied proof; no root HTML kill; disappearance cause and quick terminal UNKNOWN.
-- Done: R2 eight fixtures passed and core 3336/0 on unchanged engine `2abc42af3645dd5e7c1f5c72fad9f0af0a0955e4`.
-- Next: preserve old fixed logs, commit this handoff, launch exactly one canonical all on committed source, collect same session to terminal.
-- Evidence: `build-runs/coordinator-html-final-preflight.json`; new evidence will be under `build-runs/html-r3/`.
-- No source changes, new baseline/quick, cache RPC/configuration changes, kills, game requests, or ABI changes authorized.
-- Existing HU1-HU4 remain open; standalone bounded domain and historical failures are retained below.
+This is the original FINAL3/3, completing initial qualification of the new
+standalone implementation. Resumed clean `02319214`; milestone `c72fe0b6`
+records the qualification handoff. R3 changes only this report. The implementation
+and independently authored expected ledgers were unchanged throughout the run.
 
-## R2 report: current-source qualification and remaining blocker
+### Delivered bounded domain
+
+`engine/core/src/html_ui_hooks.rs` owns classification and document selection,
+resource key construction, segment acquisition/read/release order, supported
+link dispatch decisions and AL result forwarding, logical shared references,
+QI identity and lifetime ordering. Primitive seams retain raw opaque resource,
+URL, lifetime and window operations; owned decisions and ordering remain in core.
+`html_ui_hooks_tests.rs` has eight independent authored tests: the published
+14/9/7/6 trace groups and four boundary/integration fixtures. All eight executed
+successfully in this final workspace run, as well as the historical R2 quick.
+
+This qualifies the existing bounded Rust algorithms. ASCII/valid-hex or supplied
+conversion results, logical tokens/snapshots and the explicit 16 MiB resource
+allocation bound retain their documented limits. General URL normalization,
+foreign conversion/service semantics, invalid-memory/allocation/exception
+domains, registration retention and reentrancy remain HU1-HU4 boundaries.
+Unsupported domains do not acquire invented native false/cleanup semantics.
+Published attribution is nine entries / 1272 bytes, with no native-byte or
+runtime game coverage credit. No App/window integration, CAPI/plugin/ABI/default,
+CMake, registration, algorithm expansion or other-owner changes were made.
+
+### Actual final gate and terminal
+
+Exactly one canonical command was launched after preserving old fixed logs:
+`python C:/Users/tlori/FreeCity4/.claude/lane-bin/qbuild.py --wt C:/Users/tlori/FreeCity4/.claude/worktrees/core-html-ui-hooks4 all`.
+The local evidence wrapper only preserved logs/source and observed the owned
+process subtree. No new baseline, quick, focused rerun, cache configuration/RPC,
+process cancellation, duplicate checker, kill or intervention occurred.
+
+- Workspace cargo: **5380 passed, 0 failed, 0 ignored**, summed across all
+  **23** `test result:` lines; command exit **0**. All **8/8** HTML tests are `ok`.
+- Clippy with `-D warnings`: exit **0**, **0 diagnostics**, finished in **27.83s**.
+- Native build: **PASS**, **2/2 edges**, **0.5s**. This edge count is separate
+  from the actual fc4verify exit and CTest result.
+- Full CTest: **68/68 passed**, **0 failed**, reported **76.6s** (log **76.53s**).
+- fc4verify: **PASS**, **79.4s**; qbuild: **PASS**; actual terminal exit **0**.
+- SAME yielded exec session **44983** was collected to actual terminal; the
+  evidence wrapper also exited **0**. No stalled optional observer remained.
+
+Exact qbuild identity: PID **15180**, creation **1792728361.6747768**, parent
+**28956**; cwd is this worktree. Exact Python executable and argv are retained
+in `build-runs/html-r3/qbuild-process.json` and `invocation.json`. Owned
+fc4verify PID **28768**, creation **1792728471.3354423**, parent **15180**,
+and CTest PID **25480** are recorded in `observations.json` with exact argv,
+cwd, creation, parent and port (CTest inherited **4466**). Scoped snapshots had
+no observation errors. No global spawn/CIM/Git/npm preflight was repeated.
+
+### Source and log proof
+
+The actual command ran on committed HEAD
+`c72fe0b653442897ffbe94bab684bcb7113feee3`, tree
+`3e1e2aaabcb029b8e854b5a4793289e95df72f4c`. Engine tree before and after:
+`2abc42af3645dd5e7c1f5c72fad9f0af0a0955e4`. Aggregate tracked regular engine
+file content SHA256 before and after:
+`d062d7ff47524183a89b56b119859843f57295cde43d92adf4288a59b0c73dfe`.
+Both source snapshots had clean status; `terminal.json` records actual rc 0,
+`same_engine=true` and `same_content=true`. Exact per-file hashes, including
+the unchanged R1 HTML hashes below, are in `source-before.json` and
+`source-after.json`. The final report commit changes Git tree/HEAD only; it
+does not require a cosmetic qualification rerun on identical engine content.
+
+Current fixed logs under `build-runs/`, SHA256:
+
+- `qbuild-test.log`: `e31ab609cacda9b3ff06ccdcd1be56224593a8e88b06808da912c2b3c8a69d02`
+- `qbuild-clippy.log`: `c0b22ace050dc71c21bc08ac7da809e9555e81bf4dc9374510a63831d5453f34`
+- `fc4verify-build.log`: `e052e424cf5b849036087d5067c3085b9b70df2d295f7582f9d16511ef3095df`
+- `fc4verify-ctest.log`: `65ba5a57288a79f5a1a31406c374500586537618e461280f70732e284c7010c9`
+
+`html-r3/terminal.json` includes all fixed-log paths, sizes, hashes and mtimes.
+`html-r3/preserved-logs.json` and `pre-r3-*` preserve the old fixed logs before
+the canonical all. Old quick logs were unchanged and supply only R2 credit.
+
+### Historical limits and disposition
+
+The copied 04:59 preflight found old 23048/25300/35180/9568/36088/34912/15368
+absent, matches/errors empty, daemon 8644 with only conhost on the supplied
+4466 proof. Old HTML quick terminal and disappearance cause remain **UNKNOWN**.
+Root's 04:52 finite action affected Catalog/Sparse/Registry only: **no root
+HTML kill**. Old absence is not a successful gate. Historical R1 source baseline,
+formatter/path/header/check difficulties and R2 actual core 3336/0 plus eight
+fixtures remain historical evidence, retained below; this final all supplies
+the first stable full qualification of the current engine. No independent
+otherSC4classes enginecheck or native game/shadow result is claimed.
+
+New questions: **none**; existing **HU1-HU4** remain open in
+`docs/specs/questions/html-ui-hooks.md`. Game runs/shadow/ref_warnings: **n/a**
+for this standalone no-game lane (`game=false` in the manifest). ABI: unchanged.
+READY applies to the bounded implementation with this actual final gate.
+The own merge queue uses the actual final detached HEAD; the supervisor owns
+publishing the reserved branch. No fourth round or readiness override is used.
+
+## R2 historical report: then-current qualification and blocker
 
 This is the original lane's second round. Source and all eight authored fixtures
 are unchanged. No evidenced compiler/test/published-contract defect justified a
