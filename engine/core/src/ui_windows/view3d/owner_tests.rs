@@ -4,6 +4,9 @@ use crate::ui_windows::win::WinStore;
 
 #[derive(Debug, PartialEq)]
 enum Op {
+    Lifecycle(LifecycleCall),
+    Window(MessageCall),
+    Command(u32),
     Control(u32, ControlCall),
     Change(Option<u32>, Option<u32>),
     Cursor(u32),
@@ -96,6 +99,174 @@ impl Host {
             })
             .collect()
     }
+}
+
+impl LifecycleHost for Host {
+    fn lifecycle(&mut self, call: LifecycleCall) -> LifecycleReply {
+        let object = match call {
+            LifecycleCall::LoadKeyMap { .. } if self.filter_allocation => Some(11),
+            LifecycleCall::Create { class, .. } if self.filter_allocation => Some(class),
+            LifecycleCall::CreateProgress if self.filter_allocation => Some(12),
+            _ => None,
+        };
+        self.ops.push(Op::Lifecycle(call));
+        LifecycleReply { success: self.init_fail != Some(0), object }
+    }
+    fn cheat_manager_exists(&self) -> bool { true }
+    fn development_cheats(&self) -> bool { self.established }
+    fn loading_city(&self) -> bool { self.moved }
+}
+
+impl MessageHost for Host {
+    fn message_call(&mut self, call: MessageCall) { self.ops.push(Op::Window(call)); }
+    fn tutorial_message(&mut self, message: &mut WindowMessage) -> bool {
+        if let Some((kind, data)) = self.rewrite {
+            message.kind = kind as u32;
+            message.data[0] = data as u32;
+        }
+        !self.tutorial
+    }
+    fn base_message(&mut self, _: &WindowMessage) -> bool { self.changed }
+    fn open_url(&mut self, _: &str) -> bool { self.changed }
+    fn focus_loss_stops_scroll(&self) -> bool { self.changed }
+    fn accelerator(&mut self, _: u32, key: u32, _: u32, _: bool) -> Option<u32> {
+        (key == 32).then_some(0x6A93_5CAD)
+    }
+    fn post_command(&mut self, command: u32) { self.ops.push(Op::Command(command)); }
+    fn modal_safe(&self) -> bool { self.changed }
+    fn city_view_hidden(&self) -> bool { self.moved }
+    fn paused_overlay_exists(&self) -> bool { self.simulator }
+}
+
+#[test]
+fn init_orders_registration_keeps_base_failure_and_tolerates_keymap_failure() {
+    let mut host = Host { established: false, init_fail: Some(0), moved: true, ..Host::default() };
+    let mut v = view();
+    assert!(!v.init(&mut host));
+    assert_eq!(host.ops[0], Op::Lifecycle(LifecycleCall::Subscribe));
+    assert_eq!(host.ops[1], Op::Lifecycle(LifecycleCall::RegisterCommands));
+    let cheats: Vec<_> = host.ops.iter().filter_map(|op| match op {
+        Op::Lifecycle(LifecycleCall::Cheat(id, _, true)) => Some(*id), _ => None,
+    }).collect();
+    assert_eq!(cheats, CHEATS[..10].iter().map(|c| c.0).collect::<Vec<_>>());
+    assert_eq!(host.ops.last(), Some(&Op::Lifecycle(LifecycleCall::InitTail)));
+    assert_eq!(v.lifecycle_state().progress, Some(12));
+    assert!(host.ops.contains(&Op::Lifecycle(LifecycleCall::Release(11))));
+    host.init_fail = None;
+    assert!(v.init(&mut host));
+    host.ops.clear();
+    assert!(v.init(&mut host));
+    assert!(host.ops.is_empty());
+    let mut failed = view();
+    host.filter_allocation = false;
+    assert!(failed.init(&mut host));
+    assert!(!failed.lifecycle_state().objects.contains_key(&0x120));
+    assert_eq!(failed.lifecycle_state().progress, None);
+}
+
+#[test]
+fn vw_t2_shutdown_unregisters_all_cheats_and_drops_both_control_lists() {
+    let mut host = Host { established: false, ..Host::default() };
+    let mut v = view();
+    v.init(&mut host);
+    v.set_current_control(&mut host, Some(71), 0);
+    v.add_persistent_control(&mut host, 72);
+    host.ops.clear();
+    v.shutdown_helpers(&mut host);
+    v.shutdown_tail(&mut host);
+    assert_eq!(v.input_control(), None);
+    assert_eq!(v.persistent_controls(), 0);
+    let ids: Vec<_> = host.ops.iter().filter_map(|op| match op {
+        Op::Lifecycle(LifecycleCall::Cheat(id, _, false)) => Some(*id), _ => None,
+    }).collect();
+    assert_eq!(ids, CHEATS.iter().map(|c| c.0).collect::<Vec<_>>());
+    for id in [71, 72] {
+        assert!(host.ops.contains(&Op::Control(id, ControlCall::Shutdown)));
+        assert!(host.ops.contains(&Op::Control(id, ControlCall::Release)));
+    }
+    assert_eq!(host.ops.last(), Some(&Op::Lifecycle(LifecycleCall::UnregisterCommands)));
+}
+
+#[test]
+fn vw_t3_deferred_budget_deduplicates_and_command_qi_has_priority() {
+    let mut v = view();
+    let mut host = Host { changed: false, ..Host::default() };
+    let message = Notification { kind: 0xAA5C_F1E3, data: [1, 2], ..Notification::default() };
+    assert!(v.notification(&mut host, message.clone()));
+    v.notification(&mut host, message.clone());
+    assert_eq!(v.owner.deferred, vec![message.clone()]);
+    v.notification(&mut host, Notification { command_interface: true, ..message });
+    assert_eq!(v.owner.deferred.len(), 1);
+    assert!(host.ops.is_empty());
+    v.replay_deferred(&mut host);
+    assert_eq!(v.owner.deferred.len(), 1);
+    host.changed = true;
+    v.replay_deferred(&mut host);
+    assert!(v.owner.deferred.is_empty());
+    assert_eq!(host.ops, vec![Op::Window(MessageCall::BudgetFailure)]);
+}
+
+#[test]
+fn vw_t4_url_success_is_false_and_tutorial_precedes_every_window_route() {
+    let mut v = view();
+    let mut host = Host::default();
+    let message = WindowMessage { kind: 0xE4A8_5D91, text: "example".into(), ..WindowMessage::default() };
+    assert!(!v.window_message(&mut host, message.clone()));
+    host.changed = false;
+    assert!(v.window_message(&mut host, message.clone()));
+    host.tutorial = false;
+    assert!(v.window_message(&mut host, message));
+    assert!(v.filter_message(&mut host, WindowMessage::default()));
+    assert!(host.ops.is_empty());
+}
+
+#[test]
+fn window_focus_accelerator_button_filter_and_clock_routes() {
+    let mut v = view();
+    let mut host = Host::default();
+    v.init(&mut host);
+    host.ops.clear();
+    v.owner.motion.keyboard = [1, -1];
+    v.owner.motion.edge = [-1, 1];
+    assert!(v.window_message(&mut host, WindowMessage { kind: 0x10, ..WindowMessage::default() }));
+    assert_eq!(v.owner.motion.keyboard, [0, 0]);
+    assert_eq!(v.owner.motion.edge, [0, 0]);
+    assert!(host.ops.contains(&Op::Window(MessageCall::MouseExit)));
+    assert!(v.window_message(&mut host, WindowMessage { kind: 0x1B, data: [5, 32, 0], ..WindowMessage::default() }));
+    assert!(host.ops.contains(&Op::Command(0x6A93_5CAD)));
+    assert!(!v.window_message(&mut host, WindowMessage { kind: 0x1B, data: [6, 33, 0], ..WindowMessage::default() }));
+    host.ops.clear();
+    let button = WindowMessage { kind: 3, data: [0x2872_59F6, 19, 0], ..WindowMessage::default() };
+    assert!(v.window_message(&mut host, button.clone()));
+    assert!(host.ops.is_empty());
+    assert!(v.filter_message(&mut host, button));
+    assert_eq!(host.ops, vec![Op::Window(MessageCall::Button(19))]);
+    for kind in [0x13, 0x0D, 0x14] {
+        v.window_message(&mut host, WindowMessage { kind, ..WindowMessage::default() });
+    }
+    assert!(!v.owner.mouse_inside);
+}
+
+#[test]
+fn notification_view_hidden_pause_mission_and_progress_guards() {
+    let mut v = view();
+    let mut host = Host { moved: true, ..Host::default() };
+    v.notification(&mut host, Notification { kind: 0xA6B7_9602, ..Notification::default() });
+    assert!(host.ops.is_empty());
+    host.moved = false;
+    v.notification(&mut host, Notification { kind: 0xA6B7_9602, ..Notification::default() });
+    assert_eq!(&host.ops[..2], &[Op::Window(MessageCall::Refresh(Refresh::Zoom)), Op::Window(MessageCall::Refresh(Refresh::Background))]);
+    assert!(host.ops.contains(&Op::Pause));
+    host.ops.clear();
+    v.notification(&mut host, Notification { kind: 0xABBB_CA64, data: [7, 9], ..Notification::default() });
+    assert_eq!(host.ops, [Refresh::PausedOverlay, Refresh::Speed, Refresh::Alert, Refresh::Mission(7, 7)].map(|r| Op::Window(MessageCall::Refresh(r))));
+    host.ops.clear();
+    v.owner.lifecycle.progress = Some(99);
+    v.notification(&mut host, Notification { kind: 0x4A44_667F, ..Notification::default() });
+    assert!(host.ops.is_empty());
+    v.notification(&mut host, Notification { kind: 0x4A44_667F, progress_interface: true, ..Notification::default() });
+    assert_eq!(host.ops, vec![Op::Window(MessageCall::Progress([0, 0]))]);
+    assert_eq!(NOTIFICATIONS.iter().copied().collect::<std::collections::BTreeSet<_>>().len(), 33);
 }
 
 impl MotionHost for Host {

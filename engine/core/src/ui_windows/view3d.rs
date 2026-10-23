@@ -46,11 +46,15 @@ use super::win::{WinStore, WinToken};
 
 mod commands;
 mod input;
+mod lifecycle;
+mod messages;
 mod motion;
 mod state;
 mod status;
 pub use commands::{CommandHost, PanelState, QueryTool};
 pub use input::{ControlCall, ControlReply, InputEvent, InputHost, MouseContext};
+pub use lifecycle::{Lifecycle, LifecycleCall, LifecycleHost, LifecycleReply, CHEATS, NOTIFICATIONS};
+pub use messages::{MessageCall, MessageHost, Notification, Refresh, WindowMessage};
 pub use motion::{Motion, MotionHost, ViewChange};
 pub use state::{CheatHost, CheatTool, FilterInfo, StateHost, ViewState};
 pub use status::{CostDisplay, CostMode, CursorText, DisplayState, StatusHost};
@@ -69,6 +73,8 @@ pub struct OwnerState {
     pub view: ViewState,
     pub display: DisplayState,
     pub panels: PanelState,
+    pub lifecycle: Lifecycle,
+    pub deferred: Vec<Notification>,
     stack: Vec<u32>,
     persistent: Vec<u32>,
 }
