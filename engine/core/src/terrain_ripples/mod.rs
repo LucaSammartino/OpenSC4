@@ -11,8 +11,11 @@
 //! Resource lifetimes use `Arc`; getters never use interior mutability.
 
 mod geometry;
+pub mod lifecycle;
+pub mod retained;
 mod ripple;
 mod selection;
+pub mod storage;
 mod tuning;
 
 pub use geometry::{
@@ -21,7 +24,7 @@ pub use geometry::{
 };
 pub use ripple::{RebuildState, RippleMessage, RippleUpdate, WaterRipple};
 pub use selection::{Material, SelectedTerrainArea, SelectionRenderProperties, TexturedCell};
-pub use tuning::{RippleTuning, TuningSource, Zoom, RIPPLE_EXEMPLAR, RIPPLE_TEXTURE};
+pub use tuning::{RippleTuning, Zoom, RIPPLE_EXEMPLAR, RIPPLE_TEXTURE};
 
 use std::sync::Arc;
 
@@ -94,6 +97,7 @@ pub enum Error {
     InvalidGeometry,
     InvalidRandomValue,
     EmptyTexture,
+    UnsupportedTuning(retained::Unsupported),
     Gap(ContractGap),
 }
 
