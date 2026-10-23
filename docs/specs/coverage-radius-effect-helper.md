@@ -13,6 +13,7 @@ may differ in a portable implementation.
 
 - [Ownership and evidence](#ownership-and-evidence)
 - [State and primitive boundaries](#state-and-primitive-boundaries)
+- [Capacity and transfer order](#capacity-and-transfer-order)
 - [Category lookup](#category-lookup)
 - [Setting categories](#setting-categories)
 - [Refreshing coverage](#refreshing-coverage)
@@ -68,8 +69,8 @@ mask at 20. Lookup uses unsigned occupant identity modulo bucket count, then
 the next chain. Traversal follows the current chain then increasing bucket
 indices. *[choice]* A portable representation need not use these offsets, but
 must preserve externally observable order when supplied a concrete traversal
-fixture. Growth/rehash remains a foreign container primitive; do not promise
-sorted occupant order or insertion order across growth.
+fixture. Shared growth/rehash has the bounded transfer contract below;
+do not promise sorted occupant order or insertion order across growth.
 
 The following are primitive host boundaries, not permission to delegate the
 helper's category decisions, passes or reference chronology:
@@ -89,7 +90,81 @@ helper's category decisions, passes or reference chronology:
 `+04` and `+08` are called retain/release below as event names. No numeric
 reference-count result or destruction-at-zero policy is required by this spec.
 Resource lookup, effect playback, coverage scalar calculation, position geometry,
-allocator and container growth algorithms remain foreign.
+and allocator internals remain foreign. Shared container storage/transfer
+operations below are intrinsic primitives used by this helper, not additional
+helper-owned algorithms or a host-completed map/effect outcome.
+
+## Capacity and transfer order
+
+*[compat]* The insertion wrapper passes the current 32-bit count plus one
+to `004F0940` **before** looking up the destination bucket, allocating the
+20-byte node, retaining its copied nonnull effect, linking it or incrementing
+count (`007D1BB6–007D1C2D`). The ordinary nonoverflow domain is required.
+The missing-key/default-insert call path is the one already described above;
+existing-key reuse does not newly request growth. This section closes the
+helper's postgrowth order obligation; it does not research a generic container
+framework or change the existing effect algorithms.
+
+Let n=(bucket-end minus bucket-begin)/4 in the native valid pointer domain,
+and r be the unsigned request. `004F0940–004F095B` returns without allocation,
+transfer or field writes if r<=n. Otherwise `0079FA90–0079FACE` performs an
+unsigned lower-bound search of the 28 32-bit values at `00A829B0–00A82A1F`.
+Select the first value >=r; if the result pointer is the table end, use
+`FFFFFFFB` (`004F0984–004F099A`). This is a literal ladder, not a computed
+next-prime algorithm or an inferred load factor:
+
+53, 97, 193, 389, 769, 1543, 3079, 6151, 12289, 24593, 49157, 98317,
+196613, 393241, 786433, 1572869, 3145739, 6291469, 12582917, 25165843,
+50331653, 100663319, 201326611, 402653189, 805306457, 1610612741,
+3221225473, 4294967291.
+
+If the selected capacity m<=n, return unchanged even though r>n. Otherwise:
+
+1. Build a temporary bucket vector, initially three null pointers. Request
+   4*m bytes from the raw allocation primitive; record its returned begin,
+   temporary end=begin and allocation-end=begin+4*m; fill m heads with null
+   in increasing address order, then set temporary end=allocation-end
+   (`0051C950–0051C9AA`). No helper map fields are changed before that fill.
+2. Visit old buckets from index 0 through n-1. Repeatedly take the current
+   old head X, calculate unsigned32(X.key) modulo m using a zero-extended
+   32-bit numerator and 32-bit unsigned division, replace the old head with
+   X.next, replace X.next with the current new head, and replace the new head
+   with X (`004F09B9–004F09FA`). Continue until this old bucket is empty,
+   then advance the old bucket index. No node/payload allocation, copy,
+   retain, release, effect call, visited reset or count change occurs here.
+   Null-effect nodes transfer exactly like other nodes.
+3. Store helper bucket begin, end, allocation-end in that order. Only then
+   free the nonnull old bucket allocation (`004F09FC–004F0A1B`). The old
+   heads have already been emptied; this does not clear or free their nodes.
+   The helper count and selected mask retain their values throughout growth.
+
+Within a new bucket, the final chain is the **reverse of the sequence of
+nodes encountered for that destination**. Later old buckets therefore precede
+earlier old buckets when they collide in the new table. Native traversal
+remains new-bucket index ascending, then current next-chain order. Stop/clear
+and refresh retirement observe this order; transfer itself makes no effect
+calls. A subsequent insertion prepends its new node in the new table and only
+then increments count. Copied nonnull effect retain occurs after storing that
+effect in the new unlinked node, before storing scalar/visited, linking and
+incrementing count (`007D1C02–007D1C2D`). Existing nodes' scalar bits, visited
+bytes and effect references survive growth unchanged.
+
+These claims independently match the previously published same-body
+[selection transfer contract](water-ripples.md#23-drawing-update-0x007514f0).
+That contract's historical parked round is superseded by its final report;
+no new generic-owner coverage or renewed foreign-body scope is claimed here.
+The exact helper call and node layout above supply applicability. The
+constructor's request 100 selects 193 by this same table/search
+(`00829BC0–00829BFC`). For its initially null vector, reserve requests 772
+bytes, stores begin=P, end=P, allocation-end=P+772, then null fill advances
+end to P+772 (`0045D56F–0045D59F`, `004FBA47–004FBB1A`). Count is zeroed
+after setup; default mask is then zeroed by the helper constructor.
+
+No checked allocation-failure result, false return, rollback or null-allocation
+recovery exists in these normal storage paths. A null allocation for positive
+m reaches unchecked writes. Exceptions, nonreturn, huge-size arithmetic,
+bad pointers and callback mutation remain outside this specification. The
+selector's fallback value alone does not admit an overflowing allocation.
 
 ## Category lookup
 
@@ -252,8 +327,8 @@ contents zero; a runtime constant-value guarantee is not established.
 ### Construction and receiver identity
 
 *[compat]* Let B be the complete view receiver. Its constructor establishes
-the window subobject at B+12 (`007F0A72–007F0A8E`) and installs `00AB CBC0`
-(without the space: `00ABCBC0`) at that subobject (`007F0AB1`). That table's
+the window subobject at B+12 (`007F0A72–007F0A8E`) and installs `00ABCBC0`
+at that subobject (`007F0AB1`). That table's
 slots +10/+14 target Init/Shutdown. Consequently their receiver I=B+12,
 and I+`3D8` = B+`3E4` is the same helper H passed by the complete view
 constructor and teardown. These are distinct enclosing identities, not two
@@ -281,6 +356,7 @@ unchanged 30 cases below):
 | L0 | Complete receiver B=`10000000`; helper bytes initially `A5` | I=`1000000C`, H=`100003E4` both from I+`3D8` and B+`3E4`; constructor returns H. |
 | L1 | H initially filled `A5`; successful ordinary container setup | Stores H+4=0,+8=0,+12=0,+16=0; setup request=100; only after setup H+20=0. At setup entry mask remains `A5A5A5A5`; H+0 remains that value throughout this body. Empty count=0 and all allocated heads=null on return; no effect events. |
 | L2 | Constructed empty helper; manually selected mask=`8000000F`; stop/clear | No effect events; count=0, mask=`8000000F`, bucket allocation retained. Separate clear/free fixture frees nonnull bucket storage after clear, with no mask store and no bucket-pointer nulling. Neither fixture is a second constructor. |
+| L3 | Constructor allocation returns P=`20000000` normally | Request=772 bytes; before allocation H+4/+8/+12/+16=0, mask still initial bytes. Reserve stores begin=`20000000`, end=`20000000`, allocation-end=`20000304`; fill writes 193 null heads, end becomes `20000304`; count=0; only afterwards mask=0. H+0 unchanged. No effect/reference calls. |
 
 The alias call at `007E9CCB` passes the view-interface receiver plus `3D8` to
 refresh. The shutdown call at `007F14AE` passes receiver plus `3D8` to unnamed
@@ -294,14 +370,26 @@ reset interface or add this call to every refresh.
 View teardown site `007F11BB–007F11C1` passes its receiver plus `3E4` to unnamed
 `007D1CF0`. That body calls shared clear and then frees the nonnull bucket
 array (`007D1CF0–007D1D09`), with no stop traversal or mask reset. These are
-positive call-site and cleanup observations, not a complete helper destructor
-identity/registration contract: the two view receiver conventions differ by
-12 bytes (the Init caller explicitly forms a receiver-minus-12 pointer at
-`007E9915`). Constructor/default mask, registration, callable lifecycle names,
-and whether another enclosing stage already stopped effects remain unproved.
-No GZCOM factory, standalone allocation or default-enable policy is implied.
+positive embedded-helper destruction observations: constructor, Init,
+Shutdown and teardown refer to the same H as proved above. The deleting view
+destructor calls this complete-view teardown without changing its receiver
+(`007F3E30–007F3E4D`), and conditionally frees the complete view afterwards.
+No separately named helper destructor, GZCOM factory or standalone allocation
+is implied. This clear/free body does not invoke stop/clear: effect references
+are released directly by shared clear. Whether another enclosing stage already
+stopped effects, and any wider notification/registration lifecycle, remain
+unproved; no extra helper reset/notification call is invented.
 Clear/free does not null the freed bucket-array pointer; reusing such an object
 as a live helper is not within the supported domain.
+
+Shared clear retains the allocated bucket range, zeroes each head after
+releasing/freeing its chain, and zeroes count after all buckets. Stop/clear
+therefore leaves a live empty helper with the previous capacity and selected
+mask. Clear/free first performs that same release/free/count sequence, then
+frees its bucket allocation without nulling begin/end/allocation-end. The
+selected mask and H+0 are not reset by either body. Setter ordering remains
+different: it stores its new mask before the first effect callback. Destruction
+does not add an active-test or stop call inside shared clear.
 
 ## Proposed literal traces
 
@@ -388,6 +476,34 @@ raw independent binary32 values, not derived from the lookup category bits.
 | R7 | Mask=`0x8000000F`; available services, all lists empty | Collections in P, F, H, E order with separate cleanup per pass; retire old entries in map order. High bit adds no pass. With a missing P service, skip only P and retain F/H/E order. |
 | R8 | Teardown primitive `007D1CF0` with fixed live A/E, then separate empty fixture | Live fixture: E release, free A, clear count, free nonnull bucket array; **no active? or stop** in this body. Empty fixture: no effect calls, still free a nonnull bucket array. This does not claim the enclosing full destruction sequence omits stopping. |
 
+### Additional growth literals
+
+All cases G0–G7 are **PROPOSED UNEXECUTED**, instruction/public-integer
+expectations, not native runs or implementation outputs. A supplied map state
+is an analytical fixture, not a claim that construction produces 0, 1 or 2
+buckets. Keys below are raw pointer identities; no occupant is dereferenced
+by transfer. Allocations return valid distinct storage; scalar bits and visited
+bytes are arbitrary fixed values unless specified. Null effects are valid nodes,
+not absent keys. Count includes them.
+
+| Case | Supplied state / operation | Exact expected sequence/result |
+|---|---|---|
+| G0 | Zero bucket pointers, count=0; insert key 53 with null effect | Growth request=1 selects 53; temporary allocation=212 bytes, 53 null heads, then helper begin/end/allocation-end stores; no old bucket free. Count still 0. Node allocation=20 bytes; prepend key53 in bucket0, then count=1. Mask unchanged; no effect/reference calls. No modulo-zero lookup occurs before this insertion wrapper's growth call. |
+| G1 | n=1, count=0; insert key53/null, then key106/null | First request1<=1: no bucket allocation; bucket0=[53], count1. Second request2>1 selects53, allocates212 bytes, transfers53 to new bucket0, commits range, frees old bucket allocation; node106 prepends: bucket0=[106,53], count2. Two 20-byte node allocations total; no node freed/released during growth. |
+| G2 | n=2, count=1, bucket0=[106], other head=null; insert212/null, then318/null | First request2<=2: no growth, bucket0=[212,106], count2. Second request3 selects53; old head212 transfers first, then106, giving new bucket0=[106,212]. Insert318 gives [318,106,212], count3. All keys have remainder0 for both 2 and53. No effect calls. This differs from retaining the old chain or reversing the final new chain again. |
+| G3 | n=193, count192; absent-key insertion, then another absent-key insertion | Requests193 then194: first has no bucket allocation, count becomes193; second selects389 and requests1556 bytes, transfers all193 old nodes with count still193, commits range/frees old bucket allocation, then allocates20-byte node and increments to194 only after head store. New threshold is389: request389 does not grow; request390 selects769. No load-factor or per-bucket-length trigger. |
+| G4 | n=193, count193; old bucket0=[A,N], bucket3=[B,F3], bucket6=[C,F6]; Fj for every j=1..189 in its old bucket; A=75077, N=150154, B=389, C=778, Fj=j. A/B/C have EA/EB/EC; N and all Fj effects=null. Insert D=1167/null. | Old bucket0 encounters A,N, new chain [N,A]; old bucket3 contributes B, new chain [B,N,A]; old bucket6 contributes C, new chain [C,B,N,A]. Fj transfer to new bucket j. After insert, new bucket0=[D,C,B,N,A]; other nonempty heads are F1..F189 at indices1..189. Count194. Transfer has no retain/release/effect calls and preserves all scalar/visited bits. A following stop traversal with EA/EB/EC active calls EC active?/stop, EB active?/stop, EA active?/stop, skipping D,N,Fj. Shared clear then releases EC,EB,EA in that order while also freeing every null-effect node; count0, capacity389 retained. |
+| G5 | G4 snapshot after growth/insertion, before its stop/clear; A scalar bits=`3F000000`, N bits=`40000000`, both visited=1 | Same scalar bits/visited bytes survive transfer. Null-effect N remains a found key, contributes to count and chain, and a subsequent normal update of N marks it without create/recreation. A's later scalar=2 compares with creation scalar0.5 and updates with doubled4, leaving creation scalar0.5. Rehash adds no effect ownership event. |
+| G6 | Direct shared growth with r=194,n=389; separate n=0,r=0 | Both return before selector/allocation/transfer/stores, with counts/masks/heads unchanged. The zero-bucket fixture is not then used for lookup. Ladder lower-bound request100 is193, not101; request194 is389, not197. |
+| G7 | n=193,count193; allocation1556 returns P=`20001000`; insertion operand D carries nonnull ED, scalar0.5, visited1 | During bucket allocation, helper still exposes old range/count193. Temporary heads zero before any old head removal. After transfer store begin=`20001000`, end=`20001614`, allocation-end=`20001614`, then free old bucket allocation. Node allocation20 follows; store key/effectED, ED retain while node is unlinked and count193, store scalar/visited, store next=current destination head, store bucket head=new node, then count194. No release of ED or old node effects is part of this wrapper. Raw allocator numeric status/exception policy is not invented. |
+
+G4 discriminates against stable transfer, sorting by input/key/node address,
+reverse old-bucket traversal, discarding null-effect nodes and clearing the map
+on growth. Its 193 old nodes are four special identities plus exactly 189 Fj;
+75077=193*389, 150154=2*193*389, and 389/778/1167 have old remainders
+3/6/9 but new remainder0. Thus later old buckets precede earlier buckets in
+the new chain without relying on a host-provided completed map order.
+
 ## Evidence ledger
 
 | Status | Bounded claim / primary basis |
@@ -399,8 +515,9 @@ raw independent binary32 values, not derived from the lookup category bits.
 | Supported | Pointer-key lookup, no scalar replacement on reuse, no null-effect recreation, effect chronology; `007D1E40–007D20D7`, assignment `005447B0–005447DE`. |
 | Supported | Local bucket/chain traversal and insert-at-head consequences; `004B0390–004B03DD`, `007D1BB0–007D1CE7`; exclusive class ownership not claimed. |
 | Supported | Alias `007D26E0–007D26E4`; extra caller-bound stop/clear and clear/free bodies as stated in Reset and teardown evidence. |
-| Partial | Container growth/rehash is delegated by `007D1BBC` to shared `004F0940`; exact traversal after growth is not closed here. |
-| Partial | Constructor/default category and whole lifecycle/registration provenance; bounded call-site evidence only. |
+| Supported | Shared intrinsic growth, actual capacity ladder and unsigned lower-bound, ascending old-bucket/head-to-new-head transfer, null-node retention and field/free timing; `004F0940–004F0A26`, `0079FA90–0079FACE`, `0051C950–0051C9AA`; no exclusive helper-owner credit. |
+| Supported | Embedded construction/default mask and range/count setup; receiver identity; reset-versus-destruction retention; `007D26F0–007D2710`, `00829BC0–00829C29`, constructor site `007F0EB4–007F0EC0`, window table `00ABCBC0`, reset/free bodies as above. |
+| Partial | Wider enclosing registration/notification and whether another enclosing stage stops effects before destruction; exceptional allocation/overflow domain. |
 | Foreign | Single service membership, property conversion/read, scalar computation, collection contents/order/reference policy, position query, allocator, list cleanup and effect primitive internals. |
 | Unknown / unsupported | Exceptional or invalid-input paths, callbacks mutating/reentering helper, incomplete output writes, uninitialized padding, ambient floating-point controls and overflow domains; see Limits and questions. |
 

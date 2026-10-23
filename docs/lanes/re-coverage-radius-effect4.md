@@ -6,8 +6,9 @@
 
 - Goal: newly admitted CRH1 construction/lifecycle and CRH2 growth order, documentation only.
 - Baseline: clean detached `b63070872c97b30219c1a5e967321f4094e2744c`; R1 report below retained pending final replacement.
-- Done: complete `007D26F0` constructor and `00829BC0` setup instruction bodies, complete stop/clear and clear/free bodies; constructor call and vtable establish H=B+3E4=I+3D8. Three new L0–L2 PROPOSED UNEXECUTED literals published in this milestone.
-- Next: reconcile public same-body growth history before further shared-body expansion; refine lifecycle prose/questions, verify capacities and actual growth call obligations.
+- Done: `cf489316` constructor/receiver proof and L0–L2. New milestone adds full finite `004F0940`, `0079FA90`, `0051C950` transfer/selection/storage contract and actual caller obligation; table read directly from PE. L3 and G0–G7 bring new proposed UNEXECUTED cases to12, old30 preserved.
+- Next: run doc/literal/question/diff validation, inspect narrow changed prose for contradictions, finalize report and exact-tip queue.
+- Same-body provenance: public water-ripples §2.3 already proves this transfer; final round3 report supersedes historical PARKED round2. No generic-owner/body-count credit or further framework expansion. Current helper applicability independently bound at 007D1BBC.
 - Important: mask zero is stored AFTER container setup/allocation, not before first foreign call. H+0 is unwritten by the constructor body.
 - Keep old 30 trace labels/content and CRH3/4 open; no engine/native/tests/REA/subagents.
 - Round 2 q.py Bash attempt failed E_ACCESSDENIED; using local PowerShell directly. This is not a host service outage.
