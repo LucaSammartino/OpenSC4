@@ -544,7 +544,7 @@ owner counter to the cache and clear view-dirty (`0x007FEB81–007FEC62`). Equal
 
 Then call, in order (`0x007FEC69–007FED3B`):
 
-1. Context `SetModelTransform()` with **no model argument** (draw-context §5: camera view transform).
+1. Context `SetModelTransform()` with **no model argument** (draw-context §8: camera view transform).
 2. `SetModelShade(shared instance, owner RGB)` normally, or `SetSelfLitShade(owner RGB)` when flag 4 is set.
 3. `SetRenderState(owner packed state)`.
 4. If flag 2 is set: `SetTransparency(alpha)` then `SetAlphaFunc(4, binary32(alpha*double(0.5)))`.

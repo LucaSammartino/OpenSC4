@@ -1,45 +1,50 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-sprites-contracts4: animated-sprite native contracts | `re-sprites-contracts4` (RE docs lane, detached round 2) | in progress: bounded AS6/AS7 evidence and retained-proof reconciliation | Verify rotation and quad instructions; preserve explicit residuals. |
+| re-sprites-contracts4: animated-sprite native contracts | `re-sprites-contracts4` (RE docs lane, detached round 2) | WIP: bounded AS6/AS7 contracts committed; rational/doc checks passed; no native execution or ABI change | Coordinator review of bounded publication; inventory/lifetime/numeric residuals remain, no automatic further round. |
 
-## Handoff
+## Report
 
-- Goal: bounded AS6/AS7 publication and retained-proof reconciliation. AS2 excluded; AS1 provenance remains open.
-- Done: this milestone adds instruction-derived AS7 §§5–6 geometry/store/box/cache/draw/pick contracts and independent proposed UNEXECUTED R2-Q1/Q2/Q3 vectors.
-- Done: c588e64e is the AS7 milestone. This next milestone adds AS6 axis/order/sentinel/LookAt proof and independent proposed UNEXECUTED R2-R1/R2-R2/R2-R3/R2-D1 vectors; fixes clock/LookAt/citation contradictions. Partial-mask last-bit rounding remains qualified, not a portable oracle.
-- Identity: bin/SimCity4.exe SHA256 3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b matches export-summary.txt, base 00400000.
-- Evidence: UpdateView 007FE400–007FEA84, Draw 007FEA90–007FED4C, Pick 007FD710–007FD7C6; GetViewVolume 007FF340–007FF3BE, queried export/bytes before supporting decomp.
-- Next: verify SetOrientation mask/composition 007FC4B0–007FCC69; supporting decomp _unnamed/region_007f0000.c:2350; prove noncommuting and sentinel fixtures, reconcile LookAt target/forward.
-- Before ready: reconcile §1.1 citation, defaults/lifetime/interface/inventory, clock duplicate prose, and partial questions. No game/native execution, ABI proposals or coverage credit.
-- Third milestone: bounded export-size inventory separates five owner bodies (4849 bytes) and two 8-byte thunks from foreign support; no complete 60/10482 attribution. Added Q4 fallback/Q5 box-omission vectors and partial AS6/AS7 question notes; no whole questions closed.
-- Checks: exact-rational Q1–Q5/link/citation helper passed; questions index regenerated without content change, questions check passed; git diff --check passed. Cargo/clippy/ctest/game are n/a for RE docs role.
-- Remaining publication limits: full inherited numeric-mode provenance, exhaustive partial-mask store transcription, malformed/nonfinite outcomes, full owner/lifetime inventory reconciliation. No automatic further round authorized.
-- Queue: task-specific prohibition overrides generic finish queue instruction; no queue file will be written.
+Round 2 adds bounded instruction-derived AS6/AS7 text to docs/specs/animated-sprite.md. It does not promote
+the complete owner, implementation, runtime, defaults, numeric mode or coverage to verified status.
 
-## Retained R1 report (historical, not readiness)
+| Milestone | Commit | Result |
+|---|---|---|
+| AS7 quad/cache/draw/pick | c588e64e | Exact finite corner equations, box reset/reflected-maximum rule, translation/cache/state-call order |
+| AS6 rotation/LookAt | 23a5eb2d | X/Y/Z sign/order, sentinel omission/reset/counters, target/local −Z rule, conditional numeric stores |
+| Bounded inventory/questions | 831b3966 | Five owner bodies separated from two thunks/foreign support; fallback/box fixtures; partial questions retained |
 
-- Round 2 resumed 2026-10-23 under run4-re-sprites-contracts4-r2-manifest.json; historical STOP below is superseded only by the copied host admission.
-- Authority: build-runs/coordinator-sprites-r2-host-proof.json records full admission exit 0, dependency ancestor exit 0, role RE, expected round 2, unparked; runtime guard remains mandatory.
-- Current next: export/asm proof for SetOrientation, LookAt and UpdateView; reconcile contradictions before any ready publication. Historical findings below remain evidence, not readiness claims.
+### Evidence and measured results
 
-- Goal: AS1/AS3–AS9 only, cS3DModelInstanceAnimatedSprite; no engine reads/edits occurred.
-- STOP: guard denied further work: "User directed STOP RE: prioritize verified/replaced; preserve findings, commit handoff and return blocked. No further RE rounds authorized."
-- Done: 69ee90df native instruction proof for clock/reversal/returns, sequence selection/frame quirks, fade/highlight/self-lit.
-- Done: d45820c2 native load rollback, key/IID/ownership and orientation-record/atlas consumer contracts, independent worked vectors.
-- Preserved draft: owner defaults, shared-interface table, lifetime and bounds/sort getters added after d45820c2; not reconciled/reviewed before STOP.
-- IMPORTANT: draft §1.1 contains a literal unfinished citation `0x00801CF0–007?`; its following exact address range is the intended evidence. Do not publish this draft as ready.
-- Existing §3.1 and §5 still need reconciliation: LookAt first vector is target; Draw skips its boolean highlight-pass argument, not the stored highlight flag; fade threshold is alpha×0.5, not zero.
-- AS8 measured: true/−100 no-op; false always disable/alpha=1; true/−200 disables; otherwise <=binary32 0.99 accepts negatives/NaN, >0.99 disables; all return 2.
-- AS4 measured: failed acquisition rolls back only this call's successful prefix; five acquisitions plus non-null binding required for true. Frame count/scales are not rolled back.
-- AS5 measured: SetRate literal store (−100 resolves to literal −200 in Tick); subtract direction AFTER reversal; AdvanceFrame always 2; skip loop has no progress guard. SetFrame uses remainder only for n>length.
-- AS9 measured: GetBounds copies local box; WorldBounds adds position only; sort writes binding.table[metric page] or zero; GetResModel null; getters do not recompute.
-- Residual AS1: controller provenance beyond constructor/load (both leave +0x34 null), complete data-source reconciliation. AS3: exact 60-function/10482-byte accounting and remaining transform-helper details.
-- Residual AS6: noncommuting Euler composition/−100 rule. AS7: exact UpdateView quad/order/bounds math and numeric instruction verification; draw/cache/pick observations below are not yet incorporated into spec.
-- Draw proof: 0x007FEA90 skips nonzero boolean argument or signed context zoom<2, returns 1; zoom/rotation/view-dirty refresh frame, but UpdateView only when view-dirty; camera/mpp changes alone do not invalidate.
-- Draw tail 0x007FEC69–007FED4C: model transform; model/self-lit shade using RGB; packed state; if fade, transparency(alpha), alpha-func(4,float(alpha×double 0.5)); texture(binding.table[page],0); DrawPrims(2,10,4,vertex block); ResetShade then ResetTransparency. No render-state restore/failure branch.
-- Pick 0x007FD710–007FD7C6 tests cached translated vertex triangles (0,1,2), then (2,3,0); no view refresh. Thunks subtract [this−4], not fixed 4.
-- No questions moved/answered or question index regenerated before STOP. AS2 untouched. No ABI proposals, game runs, gates, implementation/runtime/default/coverage credit, or merge queue.
-- Next: none authorized; coordinator must release this parked worktree before reconciliation. Do not restart another RE round.
-- Native sources: C:/Users/tlori/FreeCity4/decomp/cS3DModelInstanceAnimatedSprite.c and tools/re_query.py in main checkout.
-- q.py cannot start Bash (E_ACCESSDENIED); use local PowerShell commands with capped output.
-- Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-sprites-contracts4-r1-manifest.json.
+- Canonical re_query/export/asm --bytes was used before supporting local decomp. No REA calls or target/session actions were needed.
+- Main bin/SimCity4.exe SHA256 is `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`, matching ghidra/export/windows/export-summary.txt; image base 00400000.
+- AS6 primary ranges: 007FC4B0–007FCC69 and 007FE250–007FE38D. Two distinct noncommuting fixtures and a mixed −100 fixture use independent literal/radical expectations, not host trig. PC/RC remains inherited and conditional.
+- AS7 primary ranges: 007FE400–007FEA84, 007FEA90–007FED4C, 007FD710–007FD7C6; fallback camera support 007FF340–007FF3BE. Lower corners alter Y only; box includes origin/top corners/reflected maximum and resets each refresh.
+- Draw skips the boolean highlight-pass argument or signed zoom<2, not stored highlight. Full zoom/rotation compare against cached bytes; lookup uses low bytes. Same-zoom camera/mpp/magnification changes alone do not invalidate. Draw calls no-argument SetModelTransform; no forced render-state restore.
+- Fade threshold is binary32(alpha×double 0.5), raw constant checked as 3FE0000000000000. Fade sentinel/threshold constants checked as C2C80000/C3480000/3F7D70A4; retained setter quirks remain in §4.4.
+- Corrected unfinished base-constructor citation to 00801CF0–00801D67; checked its default-store range and sprite constructor overrides, GetSortValue/WorldBounds/null-resource body, and the dynamic-displacement Pick/Draw thunks. Full lifetime/interface inventory was not re-audited.
+- Export-size inventory: five newly traced bodies total 4,849 bytes, two adjustment thunks total 16 bytes. These are evidence extents, not algorithm-byte/implementation credit. No subtraction from 60/10,482 or complete attribution claim.
+- R1 69ee90df/d45820c2/c3132eeb findings were retained. Coarse clock/SetFrame/fade/LookAt/draw/summary prose was reconciled with the detailed rules; successful-prefix load rollback and non-rollback of frame count remain explicit.
+
+### Validation
+
+- Independent exact-rational Q1–Q5 analysis, local-link/citation checks, questions check, and git diff --check passed. The ignored helper is build-runs/check-sprite-r2-doc.py.
+- Proposed **UNEXECUTED** vectors: R2-R1/R2-R2 (noncommuting rotations), R2-R3 (sentinels/LookAt), R2-D1 (conditional half ties), R2-Q1–Q5 (raw geometry/shrink/cache/fallback/box omission). Rational analysis is not native execution; R1 vectors were not renumbered.
+- Questions index regenerated; generated contents unchanged. No whole question moved to answered. AS6/AS7 partial evidence and exact residuals are recorded in docs/specs/questions/animated-sprite.md; AS1/AS2/AS3–AS9 remain open.
+- Cargo/clippy/ctest: n/a, RE documentation role. No engine/tests/private implementation reads, code/ABI/version/map/coverage changes, game/native runs, ABI proposals or shared-state edits.
+- Git commits succeeded on detached HEAD. Git printed a packed-refs.lock permission error during each commit, but returned success and created the commits; no ref/config repair was attempted.
+
+### Authority and residuals
+
+The own isolated manifest is C:/Users/tlori/FreeCity4/build-runs/run4-re-sprites-contracts4-r2-manifest.json:
+lane re-sprites-contracts4, kind re, round 2, correct worktree, base c3132eeb. Copied host admission is
+build-runs/coordinator-sprites-r2-host-proof.json (full guard/dependency ancestor exits 0, unparked, expected
+round 2); runtime budget/STOP guard remained active. The historical user-pause STOP is not current authority.
+
+WIP residuals: AS1 controller provenance (+0x34 remains null in constructor/load), AS3 full 60-function/10,482-byte
+inventory and complete lifetime/interface reconciliation, exhaustive partial-mask arithmetic-store transcription,
+whole-call PC/RC provenance, and malformed/nonfinite input outcomes beyond the stated branches. AS2 shipped
+usage/names remain excluded. No blanket AS1/AS3–AS9 completion or native/default/full-owner claim is made.
+
+Next action belongs to the coordinator: review the bounded spec commits with these residuals. No automatic
+third/fourth round, reset, self-restart or further RE admission is requested. No merge-queue file was written:
+the task-specific queue prohibition overrides the generic lane finish template.
