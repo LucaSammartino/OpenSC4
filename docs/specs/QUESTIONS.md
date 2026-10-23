@@ -99,6 +99,7 @@ generated index: the questions live one file per spec, so read only the file for
 | LU | language-utility |
 | LV | landvalue |
 | MI | model-instances |
+| MPR | missing-plugin-reporter |
 | MS | mysims |
 | MW | mysim-windows |
 | NB | neighbors, network-bridges |
@@ -255,7 +256,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-records | 2 | 9 | LR12 | questions/lot-records.md |
 | lua-host | 0 | 5 | LH4 | questions/lua-host.md |
 | map-view | 11 | 0 | QV12 | questions/map-view.md |
-| missing-plugin-reporter | 0 | 0 | - | questions/missing-plugin-reporter.md |
+| missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
 | model-instances | 5 | 0 | MI14 | questions/model-instances.md |
 | my-street-sim | 5 | 0 | ST6 | questions/my-street-sim.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
@@ -345,4 +346,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **522** | **1263** | | |
+| **total** | **523** | **1263** | | |
