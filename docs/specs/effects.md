@@ -2989,3 +2989,64 @@ Cases stipulating EAX test the owner branch independently of the reader.
 | EC128 | model positive finder, selected `A`, `B`, `a`; map a=7,b=0; old scalar=9 | list becomes `[7,0,7]`, old scalar remains 9; order/duplicates/zero preserved |
 | EC129 | model positive finder, selected A,Missing; map a=7 only; old scalar=9,list `[1,2]` | `No such model: 'Missing'`; scalar/list unchanged; no map insertion for missing |
 | EC130 | independently stipulated positive full EAX with empty selected list | description list becomes empty; scalar retained; no model lookup |
+
+### 19.29 Sequence child dictionary, `wait` and `play` *[compat]*
+
+The sequence registrar `00596190` installs precisely these two four-byte
+ordinary command descriptors, in order. Their class names are unresolved;
+the literals alone do not establish C++ class identity. Both descriptors use
+the ordinary nested wrapper `007E3BE0` at +04 (effects-parser §12).
+
+| Order | Literal / pointer cell | Descriptor | Direct handler (+0C) |
+|---:|---|---|---|
+| 1 | `wait` / `00B0A400` | `00A9FCC8` | `005A2400` |
+| 2 | `play` / `00B0A3FC` | `00A9FCB8` | `005A20C0` |
+
+Each successful command appends one element to the installed sequence
+description's element list at +0C, preserving earlier elements and command
+order. An element has two binary32 duration fields at +00,+04 and an owned
+effect-name string at +08 (20-byte native element stride). `wait` selects at
+least one nonswitch value and makes an element with an empty name; `play`
+selects at least two and copies the first selected string as the name,
+preserving case and without looking it up. The first duration is ParseFloat
+of the first value for `wait`, or the second for `play`. If another selected
+value exists, its ParseFloat supplies the second duration; otherwise the
+already-rounded first duration is copied bit for bit. Additional selected
+values are ignored. These are two endpoints as entered: neither sorting nor
+midpoint/radius conversion occurs. Negative, reversed and nonfinite values
+have no owner validation. Reader conversion remains a foreign contract.
+
+Both ignore the positional finder's return, consume no switches, and append
+only after all required conversions succeed. A missing minimum or conversion
+exception leaves the existing element list unchanged. A later generic
+leftover-switch exception can follow a successful append. Neither command
+checks a live block name, stack type or whether `P+490` is nonnull: successful
+operand processing requires the installed description pointer established by
+sequence entry (§19.14). A null pointer is not a recoverable `Not in sequence
+block` parse error. No effect is created or played by either command.
+
+Evidence: registration `00596190–005961F0`, descriptor words
+`00A9FCC8/00A9FCB8`; `wait` conversion/store/copy and append
+`005A2441–005A2496`; `play` string assignment `005A2100–005A2123`,
+duration stores/copy and append `005A2139–005A218E`; append helper
+`005A21C0–005A2212`. Instruction bytes confirm binary32 stores, copying
+the rounded first duration on omission, and absence of numeric predicates.
+
+### 19.30 Sequence child conformance vectors (unexecuted)
+
+Static predictions with stipulated reader results, not native/game goldens.
+Each successful fixture starts with an installed sequence description S and
+an existing element E. Unless specified, conversions succeed.
+
+| ID | Input / fixture | Required result |
+|---|---|---|
+| EC131 | registrar on empty dictionary | exactly wait/A9FCC8 then play/A9FCB8, both ordinary wrapper, no other entries |
+| EC132 | wait selects 3 | S elements `[E,(3,3,empty)]`; flags and name unchanged |
+| EC133 | wait selects 4,-2,99 | append `(4,-2,empty)`; 99 ignored; no sort |
+| EC134 | play selects `MiXeD`,2 | append `(2,2,"MiXeD")`; no name lookup or effect creation |
+| EC135 | play selects Missing,-3,7,99 | append `(-3,7,"Missing")`; fourth value ignored; no missing-effect error |
+| EC136 | wait or play; first duration converts, second throws | existing `[E]` unchanged; no partial appended element |
+| EC137 | wait first duration returns negative zero, second absent | both stored fields bits `80000000` |
+| EC138 | play name assigned; minimum satisfied; first duration returns NaN, second returns infinity | append name and returned binary32 nonfinite values; no owner range exception |
+| EC139 | live name empty but nonnull S; wait selects 1; unknown switch remains | append `(1,1,empty)` before generic leftover-switch error |
+| EC140 | sequence description pointer null, valid wait values | no owner name/null validation error; append requires nonnull pointer, outside recoverable command domain |

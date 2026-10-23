@@ -35,7 +35,8 @@ were changed. Partial work is not enqueued as ready. Resume from the Handoff.
 - Done 460e2037: §§19.22–19.24 publish collide/terrainRepel/randomWalk and ranged-float helper; EC91–EC104 static vectors; doccheck/questions passed.
 - Done 3a52f242: §§19.25–19.26 publish color/alpha/size/aspect/rotate, normalization and vector/scalar variation; EC105–EC119 static vectors; doccheck/questions passed.
 - Done 85f89542: §§19.27–19.28 verify four dynamicParticle registrations and all four child contracts; EC120–EC130; doccheck/questions passed.
-- Next exact step: publish sequence wait 005A2400 (179 bytes), then play 005A20C0 (227 bytes); query export first, locate unnamed-region pseudocode via qgrep.
+- Round 2 resumed at 21b0abd6; §§19.29–19.30 publish sequence dictionary, wait/play and EC131–EC140; doccheck/questions passed.
+- Next exact step: query remaining nested registrars (decal 00595DF0, light 00596050, game 005960F0), then publish their child contracts and remaining particle handlers.
 - Sequence registration verified but not yet published: 00596190 installs wait/B0A400/A9FCC8 then play/B0A3FC/A9FCB8; four-byte objects, wrapper 007E3BE0, handlers at +0C. Class names unresolved in export.
 - Remaining particle execution: source, emit, force, warp, texture, model, timedEffect; all other particle table rows have section contracts.
 - Appearance: size multiplies x87 return by binary32 50 before rounding; 255 suffix scales lists only after vary succeeds; NaN varies accepted by instruction predicates.
@@ -45,4 +46,4 @@ were changed. Partial work is not enqueued as ready. Resume from the Handoff.
 - Explicit engine read limited to main effects_parser/README.md: descriptor coverage remains open under EF15.
 - No game requests, REA queries, ABI changes or native execution yet.
 - Total this round: 62 new static rows EC69–EC130; 19 new direct child-owner contracts; no question closure or merge queue until EF15 complete.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-effects-commands5b-r1-manifest.json.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-effects-commands5b-r2-manifest.json.
