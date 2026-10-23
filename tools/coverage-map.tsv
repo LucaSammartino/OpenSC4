@@ -319,6 +319,7 @@ cSC4AudioSoundManager	audio	audio	audio.md	-	-	-
 cGZSndEventStd	audio	audio	audio.md	-	-	-
 cSC4AudioScapeManager	audio	audio	audio-scape.md	-	-	-
 cSC4AudioEventHandlerDisasterFire	audio	audio	audio-scape.md	-	-	-
+cSC4AudioPreferencesWinProc	windows and panels	ui	audio-preferences.md	-	-	-
 cSC4Audio*	audio	audio	-	-	-	-
 cGZSndSys	audio	audio	sound-system.md	-	-	-
 cGZSndMgr	audio	audio	sound-system.md	-	-	-
