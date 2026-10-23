@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 313 (Lua collectors claimed; DC9, final PR10 harvest, watercraft answers and sprite/ripple/effects WIP landed (run 5).); 312 (Camera answers, contributor PR harvest and watercraft spec work landed (run 5).); 311 (Config rule manager owners landed and claimed; draw context WIP and netocc spec answers landed (run 5).); 310 (MySim dispatch spec answers and camera WIP landed; no coverage claims (run 5).); 309 (GZ font owner landed and claimed (run 5).). See `docs/manual-checks.md`.
+- **Latest in-game run:** 314 (HTML document claimed; mysim dispatch and netocc poles WIP landed (run 5).); 313 (Lua collectors claimed; DC9, final PR10 harvest, watercraft answers and sprite/ripple/effects WIP landed (run 5).); 312 (Camera answers, contributor PR harvest and watercraft spec work landed (run 5).); 311 (Config rule manager owners landed and claimed; draw context WIP and netocc spec answers landed (run 5).); 310 (MySim dispatch spec answers and camera WIP landed; no coverage claims (run 5).). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
