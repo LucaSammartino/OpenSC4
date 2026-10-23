@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-www5: web/network owner closure | Codex, core-www5 | continue; native pending | Resume session 1879, then gate final source |
+| core-www5: web/network owner closure | Codex, core-www5 | in progress | Review owner closure, then gate final source |
 
 ## Handoff
 - Goal: close WWWSystem, HTTPClient, CookieManager and NetworkFileCache in core only.
@@ -13,14 +13,14 @@
 - q.py failed before cargo because Git Bash CreateFileMapping denied; direct cargo worked.
 - qbuild fmt rejected relative file inputs (runs from engine); next use absolute owned paths.
 - f4277b01: bounded owner implementations, tests and README committed; absolute-path fmt passed (8 files, zero diff).
-- First full gate still RUNNING: session 1879; cargo 6450 passed/0 failed, clippy 0 diagnostics.
-- Native queue label qbuild-20261023-213449-build-ctest outstanding; collect SAME operation before any rerun.
+- First full gate collected in round 2: cargo 6450 passed/0 failed, clippy 0 diagnostics.
+- Native label qbuild-20261023-213449-build-ctest: verdict pass, build 220/220 edges, CTest 69/69.
 - CONTRIBUTING diagnostic resolved: moved WWW, HTTP lifetime, HTTP notification, cookie and cache vectors into engine/conformance/tests/web_network_*.rs without duplicate assertions.
 - Relocation focused run: 26 passed, 0 failed; removed its two unused imports before final gate.
 - 77c7b8a2: conformance relocation committed; final fmt passes all 11 owned Rust files (zero diff).
 - Native request is still pending after repeated 60-second collects of the SAME session 1879; no duplicate check started.
 - Final contract review found WWW base service registration was absent; added the specified (0x449b1939,0) constructor effect and conformance assertion.
 - 25d407e5: constructor registration committed; its focused conformance test passed (1/1), and changed-file fmt passed (2 files, zero diff).
-- Next: collect session 1879 terminal native result, then qbuild all on final layout (real source/input change).
+- Next: review owner closure and run qbuild all on final layout (real source/input change).
 - No game requests; unconnected core only, no ABI/plugin changes; detached HEAD retained.
 - Context exhausted while native queue remained pending; no merge-queue entry written. Resume the existing request, never replace it for progress.
