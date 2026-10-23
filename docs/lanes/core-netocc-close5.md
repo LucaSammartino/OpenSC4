@@ -1,25 +1,73 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-netocc-close5: core network occupant owner closure round 2 | Codex; core-netocc-close5 (detached HEAD) | in progress | Close pole then pylon; assess connection; final full gate |
-
-## Handoff
-
-- Goal: PowerPole sections 1,4.1-4.4,11,13 then Pylon 1,6.1-6.3,11,13; connection if budget permits.
-- Preserve Round 1 model closure: implementation d1ca36d4, report 322ffb77; full gate Rust 5856 passed, clippy clean, CTest 68/68.
-- Initial HEAD 322ffb77, clean detached worktree; no branch/ref changes permitted.
-- Existing pole module only loads six static controls; pylon has identity only.
-- Spec names members without algorithms; pole layout aliases conflict with record offsets. Do not invent rendering/connection algorithms.
-- Pole milestone: explicit state/init contracts and signed static-word cost implemented; 3 focused tests PASS (q/20261023-122856-29052.log). First compile failed on private codec import; corrected to public re-export, failure preserved q/20261023-122714-37508.log.
-- Filed NO33-NO35: missing pole algorithms/table coordinates; missing exemplar-to-cost formula; conflicting/incomplete record layout. Pole owner remains open (sections 4.1-4.4).
-- Pole implementation milestone committed 0b6285c2.
-- Pylon: raw v5/v3-v4 record, published lifecycle and call/drag state; 6 focused tests PASS (q/20261023-123534-20004.log). Failed test fixture without SaveRegistry preserved q/20261023-123414-30300.log; corrected fixture uses reference registry.
-- Connection: seven-wall raw record, hidden triangles, published subscriptions and shutdown; 2 focused tests PASS (q/20261023-123947-13068.log).
-- Filed NO36-NO37 and UG5 for missing pylon and connection behavior. New closures: zero; model remains 1/8 overall. Per-section README tables now distinguish implemented contracts from open sections.
-- Next: explicit-file fmt, commit stable source, qbuild all exactly once, collect same operation to terminal result; report/queue wip with remaining sections.
-- No game requests or asynchronous build outstanding. Core only; ABI unchanged.
-- Final gate: qbuild all once on stable source. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-netocc-close5-r2-manifest.json.
+| core-netocc-close5: core network occupant owner closure round 2 | Codex; core-netocc-close5 (detached HEAD) | wip: 0 new owner closures; model remains 1/8; Rust 5867 passed, clippy clean, CTest 68/68; NO33-NO37 and UG5 filed; ABI unchanged | Answer spec gaps for pole 4.1-4.4, pylon 6.1-6.3 and connection 3.6, then complete owners |
 
 ## Report
+
+Round 2 delivers **zero additional whole-owner closures**. The Round 1 model
+closure remains **1/8 overall**, with all its commits retained. Pole, pylon and
+connection contain useful published contracts, but their required missing or
+ambiguous behavior prevents closure. The module README now gives one row per
+requested spec section, its code/tests, and every open remainder. No new
+Unsupported implementation is used to conceal a missing algorithm.
+
+### Changes
+
+- `0b6285c2`: pole semantic state and connection views, two connection-point
+  table selections, shared control initialization once, signed int64 static-word
+  demolition quote, and the published Init state/resource prefix. No fabricated
+  wire geometry, native pool, cost formula or conflicting record mapping.
+- `4feba600`: pylon v5 write/v3-v4 read with both transforms and references,
+  call/drag state, published message/tick subscriptions and shutdown order.
+  Legacy decoding and source-offset choices are explicitly literal, pending NO37.
+- `4feba600`: underground connection seven-wall record using the documented
+  24-byte vertex helper, raw scalar/reference tail, hidden triangles,
+  subscriptions and shutdown. Runtime reference fields remain separate from
+  the unresolved serialized view mapping.
+- No capi/plugin wiring, C exports, ABI version, game files or shared coverage
+  map changes. Detached HEAD commits only; supervisor publishes the reserved branch.
+
+### Validation
+
+- Focused tests: pole **3/3**, pylon **6/6**, connection **2/2** (11 new tests).
+  Logs: `build-runs/q/20261023-122856-29052.log`,
+  `20261023-123534-20004.log`, `20261023-123947-13068.log`.
+- Corrected failures remain separately preserved: private codec import in
+  `q/20261023-122714-37508.log`, and missing SaveRegistry in the pylon test fixture
+  in `q/20261023-123414-30300.log`. Both were fixed before the full gate.
+- Explicit-file formatting: **PASS**, seven Rust files. `git diff --check` clean.
+- Required `qbuild all`: **PASS**, single operation **91903**, collected to
+  terminal exit **0**. Stable engine source was `4feba600`; no source or tracked
+  documentation edits during the gate. Rust **5867 passed, 0 failed, 0 ignored**
+  across **27** result lines; clippy **0 diagnostics**, warnings denied;
+  CMake **4/4** incremental edges (66.1 s); CTest **68/68** (157.9 s).
+  Verification wrapper: **1128.1 s**. No duplicate full check was launched.
+- Full logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`,
+  `fc4verify-build.log`, `fc4verify-ctest.log`.
+- Game: **n/a**, no requests or shadows; these core contracts are not wired
+  into the game. No asynchronous operation remains outstanding.
+
+### Open sections and next steps
+
+1. **PowerPole network §§4.1-4.4 remain open.** NO33 requests constructor,
+   connection, geometry/rendering, resource and native-pool contracts; NO34 the
+   exemplar-to-int64-cost formula; NO35 the record nesting/live offsets and
+   post-read resource reconciliation. Conformance 2 has coverage, 4/16 remain
+   open, and 17 covers static words but not the missing formula.
+2. **Pylon network §§6.1-6.3 remain open.** NO36 requests state, geometry,
+   texture/rendering and setter contracts; NO37 resolves live aliases, reference
+   ownership/IIDs, legacy interpretation and placement effects. Conformance
+   2/19/20 have executable published-contract coverage, not whole-owner closure.
+3. **Connection network §3.6 remains open**, together with underground §8 UG1
+   and new **UG5**: missing creation/callback/render-state/model contracts and
+   raw/live reference reconciliation. Underground §§1,4-9 are audited in the
+   README; subclass-specific conformance is not counted as base-owner closure.
+4. Spec writers answer **NO33-NO37** in `docs/specs/questions/network-occupants.md`
+   and **UG5** in `docs/specs/questions/underground-occupants.md`; coordinator
+   regenerates the question index. Complete the open algorithms before claiming
+   any new owner in coverage. Re-enqueue this round as **wip**.
+
+## Round 1 record (retained)
 
 Delivered subset: **1/8 owners**, `cSC4NetworkOccupantModelInstance`, for the
 published network-occupants §§10–10.3 contract and §13 vector 24. The module
