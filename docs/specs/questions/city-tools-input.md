@@ -39,12 +39,6 @@
 - **CT15 - §8.15:** route mode: `MakeRoutePath`, `GetBuildingOccupantPaths`, `GetNetworkOccupantPaths`,
   `DoesRouteCrossCell`, `GetRouteTravelTypes` and the legend's travel-type toggles in detail. [outline]
 
-<!-- from: re-plop (2026-10-22) -->
-- **CT17 - §3.14, §3.2 step 6, the feedback:** the preview model (`GetBuildingPreviewModel`, `0x004C0680`), the
-  constraint tiles and the colours of `SetVisualUserFeedback`, `SetConstraintFeedback` and
-  `SetPropOccupantDrawAttributes`, and what the views `0xA` and `0xF2` registered with the view manager show
-  (*[inferred]* the water-pipe and subway layers). [summary]
-
 <!-- from: core-query-tool5 (2026-10-23) -->
 - **CT18 - §8.12.1, empty-cell sound conflict:** conformance test 10 requires a failure sound for an empty
   non-zone cell although DescribePick's numbered steps omit it; should that sound be emitted? Occupant slots

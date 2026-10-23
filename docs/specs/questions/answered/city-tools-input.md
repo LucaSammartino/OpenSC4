@@ -1,5 +1,13 @@
 # city-tools-input: answered questions
 
+- **CT17 — §3.14 / §3.2 step 6, preview models, constraints, feedback colours and views.**
+  **ANSWERED 2026-10-23 (re-citytools-ct5):** DIFFERS — §3.14 specifies preview creation/filtering,
+  transforms, coverage categories, independent visibility/validity, effect reuse and constraint cell
+  rectangles. Model highlight selectors are 3 valid / 4 invalid with white RGB and alpha 0.4;
+  constraints are blue for water/type 5, red for land/type 6 irrespective of validity. Views are
+  Water (`A`) and subway-building placement (`F2`), not subway-network placement (`F1`). CT17-a–h
+  provide conformance vectors.
+
 - **CT16 — §3.13, toll-booth side codes, cells and compatible-network mask.**
   **ANSWERED 2026-10-23 (re-citytools-ct5):** DIFFERS — §3.13 specifies the four byte codes,
   alignment bit, six footprint/position cases and configuration IDs. Search checks depth 0 through 2

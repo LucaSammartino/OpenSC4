@@ -4,8 +4,8 @@
 
 ## Handoff
 Goal: close CT2, CT16, CT17, CT22–CT24 with prose and vectors; no code changes.
-Done: 8e1a3294 answers CT2/22/23/24; round 2 CT16 now specifies side bytes, footprint table, depth-2 search and five vectors; moved to answered and index regenerated.
-Next: complete CT17, update coverage paragraph, regenerate index, run doccheck, commit report + queue (kind re, ready, full HEAD).
+Done: 8e1a3294 answers CT2/22/23/24; e84899bf closes CT16 with five vectors; CT17 now closes preview/feedback/constraints with eight vectors. Coverage updated; all six target questions moved to answered.
+Next: run doccheck, review target closure and diff, commit final report + queue (kind re, ready, full HEAD).
 Owner closure table is in forbidden engine README; owner's docs report and question rows provide closure mapping.
 Main evidence: C:/Users/tlori/FreeCity4/decomp/cSC4ViewInputControlPlaceLot.c; function boundaries at lines 1099 Seek, 1225 toll pick, 1753 preview, 2904 constraints, 3129 feedback, 32 prop drawing.
 CT16 toll pseudocode is corrupt; ASM verified: network types priority 0,2,6,12, masked flags 0x1f4f must contain only chosen type; side bytes low2 reject 1/3, 2 connected, 0 disconnected, bit2 orientation marker; exactly two opposite connected sides. Rotation1 for sides0/2, rotation2 sides1/3.
@@ -18,4 +18,4 @@ CT17 props: only cfg entries type1, flag bit0 clear, exactly one exemplar; manag
 CT17 feedback boolean2 is visibility/pick flag95; false hides grid, stops ring/footprint/arrow, hidden building draw type2 mode0 RGBwhite alpha0 and removes models; stops/clears constraint vectors. True grid at pos, hidden when terrain slot66 slot20 true; ring if radius>0 scale2radius, starts if idle. Footprint building_footprint_ok/notok recreated on validity change/missing/stopped, texture binding parameter6; arrow Lot_Direction_Arrow recreated when validity changes/missing. Final building attrs type3 mode3(valid)/4(invalid), RGBwhite alpha0.4, visible=true; cursor validity transition IDs valid417EE36B / invalid88E70B76. Need verify transform constants before specifying numerics (pseudocode rotation/locals unreliable).
 CT17 constraints cfg entries type5 selection_blue / type6 selection_red independent of validity; bounds convert local(min+8,max+8) to cells then max-=1, rotate via004BDFD0 using cfg dimensions, translate snapped lot lower cell, effect parameter C four floats(x0,z0,x1+1,z1+1), start0; reuse vectors and stop surplus effects. Read helper ASM for exact rotation.
 Scratch build-runs/ct5-evidence.py reads PE constants safely; never commit RE data. Calls use tools/re_query.py first; no REA attempted because no binary.
-Guard OVER at152k/150k; stop and resume from this Handoff. Commit succeeded despite packed-refs.lock permission diagnostic. No game/ABI changes. Detached HEAD; no ref changes. No merge queue while incomplete.
+Round 2 active; reserve remaining budget for checks/report/queue. No game/ABI changes. Detached HEAD; no ref changes. Git emits packed-refs.lock permission diagnostic but commits succeed. No merge queue until checks complete.
