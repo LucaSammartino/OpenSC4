@@ -10,7 +10,9 @@
 - Preserved 26 inherited files in build-runs/inherited-r1-final-child2; sha256.json records exact content.
 - Both specified quick/native log hashes matched; old quick handle unavailable in current invocation, terminal/native RC UNKNOWN.
 - Engine content SHA256 before all: 2420031778762d81d77754778de8504a4450719cf7e331f58a37d341e5346215.
-- Next: canonical qbuild all, retain same operation to terminal, record before/after content and log hashes.
+- Canonical all session96723 reached actual terminal exit0: Rust5513/0 in26 summaries, all51 ripples ok, clippy0 diagnostics, nativePASS2/2, Ct68/68.
+- Same operation qbuild3480/created06:00:56.999592Z; no observer intervention/cache RPC/restart/cancellation.
+- Next: compare after-all engine/content/log hashes, replace inherited report with bounded qualification report and enqueue own normal ready entry.
 - No source changes, no quick rerun, no game requests; WR11 and other inherited limits stay open.
 - Below is the inherited R1 report; it is historical until replaced by the final R2 report.
 
