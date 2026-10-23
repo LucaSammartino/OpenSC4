@@ -282,6 +282,19 @@ If already initialised, only the last step runs. Otherwise:
    `GetSkuSpecificDirectory(cIGZString& out)` (`0x00449E20`); `advisors\` is appended to each. The data directory
    (slot 51 `+0xCC`) is **not** used. The earlier "data directory, then plugin directory" wording **DIFFERS**.
 
+   **SKU getter (AD11):** in this executable the SKU-specific string starts empty and the normal app startup
+   leaves it empty; it is not the separately populated `Sku_Data\` path. The constructor installs the app
+   interface at class +`0x0C` (`0x0044AD19`) and constructs an empty string at class +`0xC8`
+   (`0x0044AE5C`–`0x0044AE8C`). Slot 55 copies its character buffer, interface +`0xC0` = class +`0xCC`, into
+   the caller's string (`0x00449E26`–`0x00449E32`); it does not construct a directory or perform a lookup.
+   `PreFrameWorkInit` defaults the preceding string to `Sku_Data\` (`0x00452BD4`–`0x00452C2B`) and proceeds
+   to user data (`0x00452C30`), skipping the SKU-specific string. No later writer to that string is present
+   in the app's exported instruction paths (constructor/destructor only). Thus the ordinary second search
+   path is relative `advisors\` after the append, with filesystem resolution supplied by the directory helper.
+   This is a static startup result, not a measured runtime path. A replacement using the host must still call
+   slot 55 and use its returned text, including empty text; it must not substitute `Sku_Data\` or a guessed
+   absolute directory if the getter returns empty.
+
    **Native calls (AD10, verified):** a replacement may call the three helpers as they are. All are plain `cdecl`
    (callee `RET` without pop, caller pops, no `this`):
    `int32 UpdateResourcesFromDirectory(uint32 group, const char* dir)` (`0x005FC510`, 8 bytes; returns the file
@@ -882,8 +895,25 @@ Neither localization keys nor displayed text are in the advice save record (§11
 
 Vectors: `message = "text@0x4A1B0001"` with that LTEXT present → message GUID `0x4A1B0001`, text = the detokenized
 LTEXT; `title = "Fire alert"` (no key; assuming no LTEXT with instance 0 loads) → title GUID 0, title text
-`"***_NOT_IN_TEXT_DATABASE_*** Fire alert"`. These examples assume string-valued fields; missing/non-string
-fields need the separate provider-conversion audit in AD16. Discriminating cases: §17 item 28.
+`"***_NOT_IN_TEXT_DATABASE_*** Fire alert"`. Discriminating cases: §17 items 28 and 34.
+
+**Missing/non-string fields (AD16):** Init's field reader and the rebuild use the same conversion contract:
+Lua strings supply their C-string bytes; numbers supply the runtime's `sprintf("%.14g", double)` text;
+absent/nil, boolean, table, function and userdata supply a null pointer, which the receiving string setter
+turns into empty text. There is no Lua `tostring`/`__tostring` call and booleans do not become `"true"` or
+`"false"`. Init's reader clears its reusable scratch string before each lookup, so an absent title cannot
+reuse the preceding message (`0x004079FA`–`0x00407A37`); both temporary strings are initially empty
+(`0x00409111`–`0x0040911E`) and are copied from that reader then parsed as in AD12. Rebuild independently
+clears its scratch string and assigns the `ToString(-1)` result (`0x0040938D`–`0x004093D7`). The provider
+chain is `cSCLua::ToString` `0x008802D0` → `0x008B7740` → `_lua_tostring` `0x008BABE0`; only numeric type 3
+is converted by `_luaV_tostring` (`0x008C5D98`–`0x008C5DB7`, double load and `%.14g`). String assignment
+slot 4 is `cRZString::FromChar` `0x0090F50F`: its null branch empties the destination
+(`0x0090F515`–`0x0090F53E`). Consequently each such empty field parses to instance 0, exactly like `""`;
+fresh Init with both converted fields empty sets no-text and registers neither text field (§4.5). If a rebuild
+already has registered fields, a newly nil/boolean field still goes through URL decoding, key-0 localization
+and the missing-LTEXT fallback, whose suffix is empty; it does not retain the previous field's text. Embedded
+NUL in a Lua string ends the supplied text at that byte (`FromChar` uses `strlen`). These are literal provider
+semantics, not evidence that malformed values were exercised in a native game run.
 
 ---
 
@@ -2140,3 +2170,15 @@ through `GetCellValue` (simgrid §6.4 applies to the traffic simulator, not to t
     pass both checks. Repeat for `0x8BE3753B` using its base-record adapter. Flip one priority byte as well:
     strict and transition checks must both fail. Restore only the captured dirty bit for a diagnostic compare:
     report that adjustment and retain the original strict mismatch verdict.
+34. **AD16 field conversions (required vectors, not measured runs)**: on fresh Init use both fields absent,
+    both `false`, and both tables with `__tostring` returning `"text@0x4A1B0001"`: each case has both converted
+    strings empty, both GUIDs 0, no-text set and an empty registered-field list; the metamethod must not run.
+    Use message `"text@0x4A1B0001"` and absent title: message key is retained, title key is 0, no-text is clear
+    and both fields register (no scratch-string carryover). Numeric message 125 and title −2.5 convert to
+    `"125"` / `"-2.5"`, both GUIDs 0 and no-text clear. After registration change message to nil and title to
+    true, rebuild with no key-0 LTEXT and no detokenizer: both display exactly
+    `"***_NOT_IN_TEXT_DATABASE_*** "`, with dirty cleared. A string `"abc\0def"` contributes only `"abc"`.
+35. **AD11 empty SKU directory (required vector, not a measured run)**: a host getter returning empty must
+    produce second lookup `advisors\`; a host getter returning `D:\Regional\` must produce
+    `D:\Regional\advisors\`. Keep the plugin lookup first and preserve the specified override precedence;
+    neither case may substitute the data directory or `Sku_Data\`.
