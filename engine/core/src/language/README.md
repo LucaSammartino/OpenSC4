@@ -59,6 +59,7 @@ the other owner rather than claiming an additional implementation.
 | cRZString | §5 transforms and formatting | trim, mid/left/right, split_token, make_lower/upper, sprintf; open: RZS2 non-ASCII mapping, RZS4 other split variants, RZS5 formatter edges | rz14–rz19, settled_format_syntax_modifiers_and_multibyte_precision, formatting_numeric_primitives_are_unpadded_and_receiver_assigned_last, open_boundaries_are_explicit_and_do_not_fabricate_results |
 | cRZString | §5.1 numeric conversion and assembly | sprintf sign/prefix/padding and integer digits; NumericPrimitives decimal rounding/layout, pointer digits, zero and special values | rz21–rz40, rounding_before_first_significant_digit_and_exponent_carry, default_legacy_provider_formats_finite_and_zero |
 | cRZString | §5.1.1 finite decimal primitive (RZS7 answered) | legacy_decimal::convert, Extended::multiply, extract; default LegacyDecimal for () | rz41–rz50: raw digits, intermediate and output; rz21–rz40 use same default provider |
+| cRZString | §5.1.2 signs, special values and owner field assembly | NumericPrimitives special markers and zero normalization; sprintf sign/field assembly | rz24–rz25, rz35–rz39, rz46_legacy_truncation_three_quarters_and_sign |
 | cRZString | §6 detokenizer lifetime | Not assigned | — |
 | cRZString | §7 detokenizer registry | Not assigned | — |
 | cRZString | §8 detokenizer parsing/resource IO | Not assigned | — |
