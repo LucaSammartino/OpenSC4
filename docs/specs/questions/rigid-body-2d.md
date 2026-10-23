@@ -1,0 +1,15 @@
+# rigid-body-2d: open questions
+<!-- Questions about [rigid-body-2d.md](../rigid-body-2d.md). Append at END; answered entries move to answered/rigid-body-2d.md. Rules: README.md. -->
+
+<!-- from: re-rigid-body-2d4 (2026-10-23) -->
+- **RB1 - §7 constructor/registration/lifetime (PARTIAL 2026-10-23):** What is the exact typed input contract of AddObject `005BBC10`, source helper `005BADA0`, and copy helper `005BAE40`; which record fields and external identities are copied, and are any references explicitly acquired/released? Independently qualify constructor/destruction callers, duplicate/same-source registration, failure, and callback lifetime. [Only constructor stores and normal deletion-call boundaries are proved; no COM retention inferred.]
+<!-- from: re-rigid-body-2d4 (2026-10-23) -->
+- **RB2 - §7 sector ownership (PARTIAL 2026-10-23):** Qualify AddToSectorMap `005BBA40`, RemoveFromSectorMap `005BB6A0`, and registration/advance coordinate arithmetic: exact packed slot mapping, boundary conversion/rounding, sector insertion/removal order, empty/single/multiple-sector candidate traces, duplicate admission, and array/list movement. [Only unsigned component-min primary predicate and advance remap-call order are published; no floor/hash policy assumed.]
+<!-- from: re-rigid-body-2d4 (2026-10-23) -->
+- **RB3 - §7 collision cycle (PARTIAL 2026-10-23):** Complete owned DoCollisions `005BAF30` and CheckAgainstInfiniteMassObjects `005BAB40`, including unnamed helper `005BA210` (214-byte export body, ownership not yet resolved), within/across-sector duplicate suppression, raw flag tests, persistent-pair ordering, retry/termination guards and any actual contact-time/tie/cap semantics. [Only the sector pair-loop prefix is qualified; support-point selection is not a time calculation.]
+<!-- from: re-rigid-body-2d4 (2026-10-23) -->
+- **RB4 - §6.2 coincident/foreign boundary (PARTIAL 2026-10-23):** What exact primitive reply/lifetime contract applies to the seed-FFFFFFFF random object and RandomDirection2 at `005BAA3C–005BAA60`? Which calls destroy its state, if any? Qualify coincident-centre response without reopening random-library internals. [Noncoincident response only; no deterministic seed/output or rollback assumed.]
+<!-- from: re-rigid-body-2d4 (2026-10-23) -->
+- **RB5 - §7.2 inner advance (PARTIAL 2026-10-23):** Complete `005BBFD0` angle wrapping, trigonometric primitive reply contract, velocity/drag stages and sector coordinate conversion; derive positive/zero/negative dt outcomes only on proved normal paths. [Wrapper and live-prefix/remap-tail are published; no whole-step or remaining-time oracle allowed.]
+<!-- from: re-rigid-body-2d4 (2026-10-23) -->
+- **RB6 - §§4–6 exceptional/numerical domain (PARTIAL 2026-10-23):** Qualify native caller-established x87 PC/RC and extent/axis/multiplier invariants, then expand exact operation-stage vectors beyond the published conditional rational examples; handle zero denominator, unordered comparisons and coincident callbacks only with positive normal-path evidence. [No global floating mode, invalid-pointer/uninitialized-output execution, or NaN Boolean outcome is claimed.]
