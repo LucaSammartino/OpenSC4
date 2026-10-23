@@ -1,25 +1,29 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-netmgr-exact5: network-lot record 11 shadow | Codex, `.claude/worktrees/glue-netmgr-exact5` | in progress | Collect native gate, then run strict shadow to 2032. |
+| glue-netmgr-exact5: network-lot record 11 shadow | Codex, `.claude/worktrees/glue-netmgr-exact5` (engine lane) | ready; cargo 6232/0/0, clippy clean, CTest 68/68; run 323 clean, netmgr 73/73, 0 resyncs; 3 C ABI additions; no questions | 1. Coordinator review and coverage credit. |
 
-## Handoff
-- Round 2 source milestone 0baa6a1f: shadow object arrays, stable nonzero config tokens, SDK family expansion and city-shutdown cleanup; RNG reload test.
-- Required qbuild all PASS: Rust 6232/0/0, clippy zero diagnostics, owned fmt clean; native build 50/50 edges, CTest 68/68 (152.7 s), qbuild PASS. Queue qbuild-20261023-204924-build-ctest, session 92935 collected to exit 0. Engine source stable at 0baa6a1f.
-- Focused object tests PASS 2/2, including RNG reload and one-ID prop draw. Operations 63326/18266 collected; no outstanding test. q.py Bash startup failed (CreateFileMapping access denied); use direct PowerShell with bounded output. fmt paths are relative to engine/.
-- Goal: fix netmgr record 11 mismatch and investigate 19 resynced lines; real-city shadow exact to 2032.
-- Done: initial handoff commit; diagnosed missing (20,103) as absent north-column walk (§6.3 NM10/NM11).
-- Implemented origin walk, SGI pending order (§8.5 NM13), captured RNG input (§17.3), exact config comparison; removed NM10 suppression and record resyncs.
-- Focused tests: first 39/40 (expected-order assertion corrected), second 40/40; new north-column/RNG reload test awaits gate.
-- Evidence copied locally: `build-runs/regress-train149-shadows.log` and `.out`; original had 72/73, 19 resyncs, 10 un-compared config choices.
-- Full `qbuild all` started on that source: Rust stopped at 740 passed/1 failed (conformance nm16_23 expected old event order), clippy failed `int_plus_one` in ordered.rs. Failed logs preserved as `build-runs/qbuild-{test,clippy}-failed-r1.log`.
-- First all terminal: native build PASS 217/217 edges; CTest 67/68 (cargo_test failed). Queue label `qbuild-20261023-195549-build-ctest`, collected session 70839 to exit 1. No game request submitted.
-- Applied diagnostic corrections: pending comparison, conformance event order, formatting, fake-city coordinates. Native failed logs preserved with `-failed-r1` suffix.
-- Corrected source milestone `cb48b856`: owned fmt PASS (6 files); workspace tests PASS 6231/0/0; clippy PASS, zero diagnostics.
-- Corrected native verdict PASS: build 50/50 edges, CTest 68/68, session 67115 collected to exit 0. Queue `qbuild-20261023-202733-build-ctest`. Tree-changed note is handoff-only commit f3c49406; engine source stayed cb48b856.
-- Real-city turbo run COMPLETED: `netmgr-exact5-r1-2032 2/73`, 0 resynced lines, verdict clean, ref_warnings=0, reached 2032-01-04 (target 2032-01-01). DLL SHA256 18B8D1ACEA857D6B0E424F910B659C1A2B6CE2298E9BA0B75C2B1E55DFEDF518. No outstanding operations/requests.
-- Root cause of remaining failures FOUND: shadow StartLot calls fc4_netlot_add_configuration_props with token=0, objects=nullptr/count=0 for ALL configs; MakeNetLotReadOnlyHost has NO object_ids callback. Native draws for prop/flora objects are omitted. March first post-message divergence next-word 322/318; April 327/319; later configurations differ. Original April lot-count gap is gone (527/527 in this run).
-- References already read: prop-lotconfig.md B3.3 lines478-510 says shared reader d=3 for network configs, all shipped version2; network-manager §8.6 says one draw per eligible prop/flora nonempty ID list. Existing replacement loader engine/plugin/cFC4NetworkLotManager.cpp:594-650 builds arrays manually; its header:60-110 explains SC4Vector ownership, but prefer Rust converter above. SDK cISC4LotConfigurationManager.h:72 and cISC4City.h:153 expose required methods.
-- R1 recorded in docs/runs/netmgr-exact5-r1-2032-322.md. NEXT: submit unique netmgr-exact5-r2-2032 with R1 request settings; wait with helper and summarize. ABI exports changed (3 prior-round additions), no questions filed, no merge queue.
-- Game wait helper: `python build-runs/wait-netmgr-result.py build-runs/game-results/<label>.verdict`, collect same operation; no qwait. Summary helper `build-runs/summarize-netmgr.py <label>` prints exact clean/total and resync count.
-- Constraints: no tools/ access; no native signature guesses; game requests unique, wait with same exec session (no qwait).
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-glue-netmgr-exact5-r2-manifest.json`.
+## Report
+
+`netmgr-exact5-r2-2032 73/73`: one load line and 72 month lines, every mismatch count zero, zero configuration differences and zero resynced lines. Konradshohe reached 2032-01-03; verdict clean, ref_warnings=0, foreign exceptions=0, stalls=0, rtc=0. Run record: [323](../runs/netmgr-exact5-r2-2032-323.md).
+
+The original April record 11 gap had two causes. The core's lot-state boundary walk omitted the north columns specified by network-manager §6.3; the pending set also needed the SGI bucket/rehash processing order in §8.5 NM13. Commit `7812f988` implemented these, captured the generator input per §17.3, compared configuration choices, and removed record resyncs and the NM10/NM11 suppression. Diagnostic corrections and updated conformance expectations are in `cb48b856`.
+
+Strict replay then exposed a shadow sampling bug: every configuration was registered with token 0 and an empty object array, and the read-only host supplied no object-ID callback. Mandatory prop/flora random draws were missing. In the first strict run March's next-word positions diverged 322/318 and April's 327/319; subsequent configuration choices diverged. April lot counts already agreed, 527/527. That run was clean but only `netmgr-exact5-r1-2032 2/73`, with zero resynced lines; [run 322](../runs/netmgr-exact5-r1-2032-322.md) preserves the failed comparison.
+
+Commit `0baa6a1f` completes the shadow input: decode kept objects through the existing Rust `fc4_lot_config_object_array` at detail 3 (prop-lotconfig §B3.3), assign stable nonzero configuration tokens, retain uniquely owned SDK object records, and expand families through the city's public `GetObjectIDArray` interface. SDK vector payloads are freed during city shutdown. No guessed native signatures or C++ simulation rules were added. The focused test verifies configuration/mandatory-prop/flora draws across an RNG reload, including a one-ID prop, optional props and empty lists.
+
+Final April line: mismatches=0, lots=527/527, zone diffs=0, wealth diffs=0, configs same=527, draws=0, incompatible=0. Record 11 has the same decoded entries; its serialized map iteration order can differ (`same entries (order differs)`). The existing comparator compares entries by key; 73/73 is that semantic comparison, not a claim of identical serialized byte order. No new exclusions or resyncs were introduced.
+
+Validation on final engine source `0baa6a1f`:
+
+- Focused object tests: 2 passed, 0 failed. Owned Rust formatting: PASS.
+- Required `qbuild all`: workspace tests 6232 passed, 0 failed, 0 ignored; clippy exit 0 with zero diagnostics.
+- Native queue `qbuild-20261023-204924-build-ctest`: build PASS 50/50 edges, CTest PASS 68/68 (152.7 s), qbuild PASS. Session 92935 collected to terminal exit 0. Later commits only record results.
+- DLL SHA256: `29012747892A86BDED77225B6113002D1AA3DDB99A44B3894BD1989CC75DBD58`.
+- Turbo request `netmgr-exact5-r2-2032`: queued 21:02:33, started 21:02:35 in slot 1, clean at 21:03:48; 58.578 simulation seconds, 81 s wall. Wait session 88372 collected to exit 0. No outstanding jobs or game requests.
+
+Evidence stays in `build-runs/`: `qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`, `build-results/qbuild-20261023-204924-build-ctest.verdict`, and `game-results/netmgr-exact5-r{1,2}-2032.{log,verdict}`. Prior diagnostic failures remain in the `*-failed-r1.log` files; the initial gate failed on an old conformance event order and clippy `int_plus_one`, both corrected before the final passing gate.
+
+No turbo-only netmgr discrepancy remains, so no normal-speed rerun was needed. There are no netmgr resyncs to correlate with train152's one-off traffic day-line difference; this run requested only the netmgr shadow. Shadows remain default-off and are enabled here only by `netmgr_shadow=1`.
+
+Questions: none. C ABI additions from the first round: `fc4_netlot_set_random_state`, `fc4_netlot_get_random_state`, `fc4_netlot_pending_buckets`; no ABI version bump. No edits to generated ABI entries, coverage maps or tools/regress.ps1. Coordinator: review the run and credit coverage; verify the shared regress profile as needed. The supervisor publishes these detached-HEAD commits to the reserved branch.
