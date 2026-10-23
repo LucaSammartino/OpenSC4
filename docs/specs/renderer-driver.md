@@ -1,6 +1,8 @@
 # Spec: the hardware 3D driver (`nSGLDX7::cGDriver`, "Maxis 3D GDriver DirectX")
 
-Status: **implementation spec (partial)**, clean-room input. This document describes *behaviour*, not code. It was
+Status: **implementation spec (interface coverage; residual questions RD1, RD3, RD4, RD6-RD8)**, clean-room input. The
+83 graphics slots have a contract or an explicit unsupported/no-op classification (§12); the owner inventory
+distinguishes auxiliary interfaces and unresolved format-selection details. This document describes *behaviour*, not code. It was
 written by the analysis team from observing the original program. Implementers must work from this spec, the public
 LGPL gzcom-dll SDK headers and general knowledge only. They must **not** consult decompiled or disassembled code
 (see [CONTRIBUTING.md](../../CONTRIBUTING.md)).
@@ -31,10 +33,10 @@ scene lifecycle), `nSGLDX7::TranslateColorToD3D` (`0x00881AB0`), the default dev
 `nSGLDX7::cTextureManager` (`0x0088A380`-`0x0088B2C0`, §9, including the internal-format selection
 `0x0088F8D0` and the converter table, §9.6; the per-routine pixel arithmetic is only sampled) with slots 24-26,
 35-39, 48, 58-61, the texture-stage records with slots 27-29, 51-57 and 62 (§10), the vertex-format slots 6-10
-(§8.5) and the matrix slots 40-42 (§8.6); slots 67-76 are §11. Named but **not yet specified** (open, §12):
-`cVertexBuffer`, `D3DLight`, `nRZSimGL` colour-key blitters, `cGZBufferSimGLCache`,
-and the presentation context's surface creation and restore (`0x0088BF50`, `0x0088BFC0`; §4.4 names what is
-known).
+(§8.5) and the matrix slots 40-42 (§8.6); slots 67-76 are §11. The remaining graphics slots and the owner inventory
+are §12, cache boundaries are §13, vertex-buffer and presentation support are §14, and independent vectors are
+§15. Auxiliary lighting/buffer interfaces, pixel-converter arithmetic and context device-selection details
+have explicit remaining boundaries (§16); their presence does not add slots to the 83-slot graphics interface.
 
 The separate `cSC4GDriversCOMDirector` registration/lifecycle contract is specified in
 [renderer-gdrivers-director.md](renderer-gdrivers-director.md); it does not extend this driver's scope.
@@ -94,7 +96,7 @@ DirectX object (the six interface slots at object `+0x218`..`+0x230`).
 1. If a scene is open, it is ended (§4.4 rule for errors) and the "scene open" flag cleared.
 2. `mode == -1`: if a mode is current and a window exists, the 3D environment is destroyed (§4.5), the window is
    destroyed and the current mode becomes -1. Return.
-3. Otherwise the fourth argument is stored (a per-mode flag, purpose open, RD1). If `mode` ≥ the mode count the error
+3. Otherwise the fourth argument's low byte is stored (request for a flipping surface chain, §14.2; caller usage remains RD1). If `mode` ≥ the mode count the error
    becomes 2 and the call returns without change.
 4. If a mode is current, the driver first calls its own slot 66 with `(-1, 0, 0, 0)`.
 5. The window procedure is remembered (`DefWindowProcA` when null). The driver fills its current-mode record from
@@ -105,8 +107,14 @@ DirectX object (the six interface slots at object `+0x218`..`+0x230`).
    class `"GDriverClass (DirectX)"`, title `"GDriverWindow (DirectX)"`. The window's user data points to the
    driver. The window is then positioned at (0,0) with that size.
 7. The 3D environment is set up (§4.3). If that fails, it is destroyed again and the window too.
-8. If no window remains: error 6, current mode index -1. Else, if `show` is non-zero, the window is shown and
+8. If no window remains: error 6 and the failure-path write described below. Else, if `show` is non-zero, the window is shown and
    updated.
+
+**Failure-path pointer hazard [quirk]:** `0x0088916E`–`0x0088917F` loads the fourth argument word and writes
+`0xFFFFFFFF` through it after cleanup. It does not write the current-mode index there. The same argument's low
+byte was used as the flip request earlier. Passing a small boolean or null can therefore fault on this path.
+The supported success path does not perform that write. An implementation must not promise a clean error-only
+return for failed setup; caller intent behind this overloaded argument remains RD1.
 
 ### 4.3 Setting up the 3D environment (`SetupViewport 0x00888E10`, `Initialize3DEnvironment 0x00887A10`)
 
@@ -123,7 +131,7 @@ DirectX object (the six interface slots at object `+0x218`..`+0x230`).
    (colour, depth and stencil, §5.3).
 7. Device properties are read; on failure set-up fails. The texture manager and the primitive manager are
    initialised against the new device, the default device state is applied (`SetDefaultD3DDeviceState
-   0x008872A0`, contents open, RD2), the window's client rectangle is stored in screen coordinates, and the
+   0x008872A0`, §7), the window's client rectangle is stored in screen coordinates, and the
    "environment ready" flag is set.
 
 The initial projection (row-major, row-vector convention, viewport width `W` and height `H` converted from
@@ -151,7 +159,7 @@ otherwise not, and the error code follows §3. It then resets every texture-stag
 `Flush` is the frame boundary:
 
 * **Device available, not lost**: the primitive manager's queued geometry is submitted (error per §3), the scene
-  is ended (`0x00887260`, §11.1; it does not present), the context's per-frame update is called *[inferred: this presents]*, the
+  is ended (`0x00887260`, §11.1; it does not present), the context presents (§14.3), the
   vertex buffer is recreated if it was lost (`0x00889260`), and a new scene is begun.
 * **Device just lost** (the cooperative-level test fails and the driver was not already lost): the driver marks
   itself lost, posts message `0xAACB92A3` (*[unlisted]*) through the message server, drops its texture surfaces
@@ -269,7 +277,7 @@ A record is 13 dwords (52 bytes) as copied out by the getters; the list stores t
 | +0x08 | height (pixels) | display mode height |
 | +0x0C | bits per pixel | display mode RGB bit count |
 | +0x20 (byte) | full screen (1) or windowed (0) | per §6.1 |
-| +0x21 (byte) | has stencil buffer (read by §5.2, §5.3) | 0; filled later *[inferred: when the environment is set up, from the device properties; RD3]* |
+| +0x21 (byte) | has stencil operations (read by §5.2, §5.3) | 0; later set from nonzero device stencil-operation capability word (§14.4) |
 | +0x22 (byte) | unknown | 1 |
 | +0x10..+0x1F, +0x23..+0x33 | unknown | 0 |
 
@@ -531,7 +539,7 @@ opaque white texture (§9.2) and is never freed.
 |---|---|
 | `+0x8` | the DirectDraw object (used to create surfaces) |
 | `+0xC` | the device; null while the device is lost (surfaces are then not created, §9.3) |
-| `+0x10` | internal-format table: 8 entries of 0x28 bytes, one per internal format 0-7 (pixel-format masks, flags, FourCC, bit count, and a converter key at entry `+0x24`), filled by `Init_PopulateInternalFormatTable` (`0x0088F8D0`) from the device's texture formats *[open: the selection rules of that 1.2 KB function]* |
+| `+0x10` | internal-format table: 8 entries of 0x28 bytes, one per internal format 0-7 (pixel-format masks, flags, FourCC, bit count, and a converter key at entry `+0x24`), filled by `Init_PopulateInternalFormatTable` (`0x0088F8D0`) from the device's texture formats (§9.6; full ranking remains RD6) |
 | `+0x150` | converter table: 15 source formats × 8 internal formats of copy routines (`0x0088F890` per source format); a null entry means "this source cannot be loaded into this internal format" |
 | `+0x330`..`+0x338` | the record array (begin, end, capacity) |
 | `+0x33C`..`+0x344` | the list of freed names (begin, end, capacity) |
@@ -658,6 +666,21 @@ Below, "current stage" is the stage selected by `TexStage` (§10.1) and "the sta
   surface (§9.3), returns the name; on failure sets error code 3 but still returns the (allocated) name.
 - `LoadTextureLevel(name, level, x, y, w, h, srcFormat, type, rowLength, pixels)` (61, `0x00883040`): flushes the
   primitive queue (§8.3), then §9.4; failure → error code 3.
+
+### 9.6 Format-selection boundary
+
+An internal format is a **request**, not a promise that the device surface uses that exact packing. Initialization
+chooses a device-format descriptor for each of the eight requests, and chooses the source converter through that
+descriptor's converter key. Surface creation and uploads must use the same choice. A replacement must not infer
+the surface bit count from the source upload format. Unsupported source/destination pairs fail the upload (§9.4),
+without invalidating the texture name.
+
+Compressed requests 5, 6 and 7 first seek descriptor converter keys 9, 11 and 13 respectively. In the absence of
+the requested key, they enter the ordinary-format selection with requests 3, 2 and 2 respectively
+(`0x0088F8D0`–`0x0088F979`). Thus absence of a compressed format does not itself prove texture creation must fail.
+The ranking of ordinary candidates, complete converter availability matrix and arithmetic of every converter
+remain RD6. The earlier scope description's claim that these were fully specified was too strong. §§9.1–9.5
+specify names, allocation, surface lifetime, lock behavior and upload addressing independently of that ranking.
 
 ## 10. Texture stages (slots 27-29, 51-57, 62; records applied at draw time)
 
@@ -788,9 +811,225 @@ The driver keeps the full-window device viewport (D3D7 layout: x, y, width, heig
 ### 11.1 Ending the scene (`0x00887260`)
 
 When a scene is open (`+0x260`) and there is a device: end the device scene (error by §3) and mark the scene
-closed. It does not present; in `Flush` (§4.4) the presentation is the context's per-frame update that follows
-*[inferred]*.
+closed. It does not present; in `Flush` (§4.4) presentation is the context call that follows (§14.3).
 
-## 12. Open contracts
+## 12. Owner inventory and remaining graphics slots
+
+### 12.1 Attribution and interface boundaries
+
+This inventory is by responsibility, not by demangled-name prefix. Shared helpers and incorrectly attributed
+OpenGL bodies must not be counted as additional DirectX implementations. It is an interface inventory, not a
+claim to have independently specified every byte in the approximate 139 KB owner group.
+
+| Owner / support object | Evidence and responsibility | Contract / remaining boundary |
+|---|---|---|
+| `nSGLDX7::cGDriver` | graphics table `0x00AC4660`, constructor `0x00885F90`; owns managers, window and context | §§2–11, §12.2; auxiliary identities below |
+| `cTextureStageData` | 0x80-byte cached stage records; constructor `0x00882090`, application `0x00884320` / `0x00884500` | §§7, 10, 13 |
+| `cTextureManager` | constructor/lifetime `0x0088A380` onward; 48-byte named records, device surfaces and converters | §9; full selection/converter arithmetic RD6 |
+| `cPrimitiveManager` / `cPrimitive` | queue and index scratch `0x00889B60`–`0x0088A380`; queue entries refer to vertex ranges and index storage | §8.3; lifetime/order obligations §13 |
+| `cVertexBuffer` | 0x30-byte value records; copy constructor `0x008895B0`, assignment `0x00889620`, recreation `0x008896B0`, reserve/unlock `0x008899B0` / `0x00889A90` | §14.1; independently exposed buffer-interface operations remain RD7 |
+| `cGDriver::D3DLight` | constructor `0x00883EC0`; auxiliary light operations reach it at `0x00886BC9` / `0x00886CD9` | D3D7 light record; initialization below; auxiliary lighting setters remain RD7 |
+| Presentation context (descriptive name) | allocation `0x0088C5F0`, initialization `0x0088BF50`, surface/device rebuild `0x0088BFC0`, presentation `0x0088C400` | §14.2–§14.3; adapter/device and depth-format selection RD8 |
+| Placeholder device | allocator `0x0088B440`; installed during lost-device handling | inactive-device sink in §4.4; its methods are not graphics-interface slots |
+| Shared vertex-format helpers / vertex copiers | `0x008891C0`, `0x00889280`, `0x0088C680` onward | graphics-formats.md and §8; not independent driver instances |
+| `nRZSimGL`, colour-key blitters, `cGZBufferSimGLCache` | third graphics table `0x00ACC4D8`, distinct from this driver's table | sibling support; see renderer-gdrivers-director-inventory.md §§5–8; no DirectX blit support is implied |
+| `cSC4GDriversCOMDirector` | class registration and factory ownership | renderer-gdrivers-director.md; separate owner |
+
+`D3DLight` initializes a D3D7 light record to type 1, zero colours/position, direction (0, 0, 10), falloff bits
+`0x3F800000`, attenuation zero, theta bits `0x3F47AE14` and phi bits `0x3FC8F5C3`. Range is the square root of
+the double constant at `0x00AC4658`, stored to a single float (`0x00883EC0`–`0x00883F2D`); the decompiler's
+folded range literal is not treated as independently verified. These record fields are floats, not doubles. This record
+does not establish a public graphics lighting API: none of graphics slots 3–82 is a light setter.
+
+### 12.2 Identity, getters and unsupported tail slot
+
+QueryInterface from graphics slot 0 adjusts from the graphics identity to the owner (`0x00886440`), then uses
+the following numeric IDs (`0x00882A00`). Success writes the output and increments the relevant reference count;
+an unsupported ID returns false and leaves the output untouched. A null output is not a supported success case.
+
+| ID | Returned identity (relative to owner) |
+|---|---|
+| `1`, `0xA4554849` | graphics interface, `+0xC` |
+| `0x669565FE` | primary interface, `+0x0` |
+| `0xE69BFE2A` | auxiliary interface, `+0x4` |
+| `0x87E2B87D` | auxiliary interface, `+0x8` |
+| `0x09CD86F9` | primitive manager (its own reference count) |
+
+Slots 1–2 use the driver's shared reference counter, not one count per interface pointer. An implementation
+may use different in-memory offsets; the aliasing and ownership are the contract.
+
+| Graphics slot | Interface-level contract | Evidence |
+|---|---|---|
+| 47 `GetBoolean(pname, out)` | no-op: does not read or write output, does not set error, does not flush; no return value is established | shared body `0x006F7DC0`, one return consuming two words |
+| 48 `GetInteger(pname, out)` | row-length query as §9.5; this is not a general render-state readback facility | `0x00881FE0` |
+| 49 `GetFloat(pname, out)` | same no-op contract as slot 47 | `0x006F7DC0` |
+| 77 `GetDriverInfo()` | returns stored driver-information text (§4.1); does not query the adapter again | `0x008870A0`, shared storage `0x00B54340` |
+| 78 `GetGZCLSID()` | returns `0xBADB6906` | `0x00886E00` |
+| 81 `IsDeviceReady()` | returns the inverse of the lost byte; does not test initialization, window existence or cooperative level; construction therefore reports true | `0x00886380`, graphics-identity offset `+0x255` = owner `+0x261` |
+| 82 (name unresolved) | consumes two argument words, returns zero, changes no state/output/error and does not flush; do not interpret the unrelated folded disaster-function name as its meaning | `0x0088B3E0` |
+
+### 12.3 Complete graphics-slot checklist
+
+| Slots | Contract location |
+|---|---|
+| 0–2 | §12.2 identity and reference ownership |
+| 3–5 | §8.1–§8.3 drawing and arrays |
+| 6–10 | §8.5 vertex formats |
+| 11–23 | §5 clear and render-state operations |
+| 24–26 | §9.5 binding, upload, unpack row length |
+| 27–29 | §10.2 texture environment and parameters |
+| 30–34 | §8.4 fog and vertex/material multipliers |
+| 35–39 | §9.5 texture names and residence |
+| 40–42 | §8.6 matrix selection and transforms |
+| 43 | §4.4 frame boundary and loss/recovery |
+| 44–46 | §5.4 capabilities |
+| 47–50 | §12.2 getters, §3 error channel |
+| 51–57 | §10 stage selection, coordinates, matrix and combine fields |
+| 58–62 | §9.5 direct texture access, §10.2 packed combiner |
+| 63–66 | §§4.2, 6 mode list, getters and selection |
+| 67–76 | §11 bias, unsupported blits and viewport |
+| 77–82 | §§4.1, 12.2 information, lifecycle, readiness and unsupported tail |
+
+## 13. Cache and ordering obligations
+
+The driver does not maintain one general render-state cache. Immediate state setters submit queued primitives
+before changing the device; deferred texture setters mutate stage records for the next draw. An implementation
+must preserve these boundaries even when it can optimize redundant device calls.
+
+| Operation class | When existing queued geometry is submitted | Where the new state takes effect |
+|---|---|---|
+| Depth, blend, alpha, stencil, fog, multiplier, matrix and viewport changes | before the change (§§5, 8, 11; retain individual unsupported/no-op exceptions) | subsequent device draws |
+| `BindTexture`, `SetTexture`, scalar `TexEnv`, sampler `TexParameter`, combine fields | no submission merely for the setter | next draw processes dirty stages after submitting older queued geometry |
+| Vector `TexEnv`, `SetCombiner`, texture coordinate/matrix | submit first | as detailed in §10.2; packed combiner still has the environment-cache quirk |
+| `TexImage2D` | no submission | updates the existing surface, including a surface that queued geometry may reference |
+| Direct `LoadTextureLevel` slot 61 | submit first | surface update follows earlier geometry |
+| `Flush` | submit, close scene, present | next scene follows presentation |
+
+There are two distinct stage-cache keys: dirty-record state and last-applied environment mode. Dirtying a record
+does not necessarily invalidate the latter. In particular, repeated `SetCombiner` in environment mode 4 can
+leave the previously applied combine operations active (§10.2). Stage selection alone is not a state application.
+The parameter-following-texture flag is driver-wide: `BindTexture` enables it, while a changing `SetTexture`
+disables it. A same-name `SetTexture` does not perform that transition (§9.5).
+
+Device restore applies defaults, not a replay of the previous immediate render states. Texture *metadata*
+survives loss; texture *contents* do not. A client reacting to restore messages must upload contents and issue
+its desired immediate states again. Neither `AreTexturesResident` nor `IsTexture` proves that pixels survived,
+or even that a surface currently exists. Name 0 is protected against public deletion but does not make all
+other names permanent. Name reuse is LIFO and retains the fields specified in §9.1.
+
+## 14. Device resources and presentation support
+
+### 14.1 Vertex-buffer lifetime
+
+The primitive manager's buffer records retain a reference to their D3D vertex buffer when copied; assignment
+acquires a different incoming buffer before releasing the outgoing one (`0x008895B0`, `0x00889620`). A buffer
+recreation forgets its cursor and mapped address and drops the previous buffer. A zero-capacity recreation is
+a successful release. A nonzero recreation first asks DirectDraw to restore all surfaces; failure returns
+`0x80004005`. A failed D3D buffer creation clears capacity and leaves no buffer (`0x008896B0`).
+
+Reservation is exclusive: an already locked record, absent buffer or request exceeding capacity returns no
+space. A request that would cross the end returns no space unless wrapping is allowed. Wrapping resets the
+cursor and makes the next lock discard contents. Lock flags are `0x1021` ordinarily and `0x2021` on discard
+(`0x008899B0`); they apply to the D3D vertex-buffer lock, not the texture-surface lock of §9.4. Surface-lost
+failure recreates and retries; other failures return no space. A successful lock with a null mapped pointer
+is unlocked and treated as no space. Unlock clears the mapped address/locked state and recreates the buffer
+on a negative unlock result (`0x00889A90`). These failures must not expose a usable stale mapping to clients.
+
+### 14.2 Context creation and mode resources
+
+`SetupD3DX` requests a context with: device selector from owner `+0x274` (initially -1), full-screen boolean
+equal to the inverse of the windowed flag, the low-byte flip-chain request, the driver window, requested
+display depth 16, requested back-buffer count 2 when current-mode byte `+0x22` is nonzero (otherwise 0), and
+the actual client width/height (`0x0088770A`–`0x0088774E`). These are the helper's inputs; mode-record RGB
+depth is not forwarded in place of the literal 16. The context allocator reserves 0x48 bytes and reports
+`0x8007000E` on allocation failure (`0x0088C5F0`).
+
+The context loads `DDRAW.DLL`, resolves `DirectDrawCreateEx`, creates DirectDraw and obtains Direct3D7.
+Missing library/entry point or an unusable DirectDraw capability result fails initialization
+(`0x0088BEC0`–`0x0088BFB3`). A failed context initialization is destroyed by its allocator. Setup failure
+then follows the window/environment cleanup of §4.2; success is not implied merely by allocating a context.
+
+Surface rebuild first releases the previous device and surfaces. Full-screen uses cooperative flags `0x11`,
+windowed uses `0x8`; full-screen also requests the supplied width, height and display bit depth
+(`0x0088BFD6`–`0x0088C020`). When full-screen and the flip-chain request is nonzero, primary-surface creation
+starts with the requested back-buffer count. Positive counts use descriptor flags `0x21`, caps `0x2218`;
+zero uses flags `1`, caps `0x2200`. A failure retries decreasing counts down through zero. A successful
+positive count requires an attached back buffer; failure to obtain one is fatal (`0x0088C0C5`–`0x0088C1A4`).
+Thus the fourth mode argument requests flipping but does not guarantee a flip chain; allocation may fall
+back to a count of zero. When either full-screen or the request is false, the context creates a primary
+surface (caps `0x200`) and a separate width-by-height 3D render target (flags `7`, caps `0x2040`), and windowed
+operation attaches a window clipper to the primary (`0x0088C1A6`–`0x0088C25D`). Device/depth-format selection
+and every selector fallback are still RD8; this section does not prescribe them from inferred names.
+
+### 14.3 Presentation
+
+The context's per-frame method is `0x0088C400`. With a successfully created positive-count flip chain it calls
+primary-surface `Flip(null, flags)` and returns that HRESULT (`0x0088C406`–`0x0088C421`). Without a flip chain,
+the separate-surface presentation path obtains the current window client rectangle, maps both corners to
+screen coordinates, then blits from the render target into that destination on the primary. Source rectangle
+is null (whole render target). Initial blit flags are `0x01000200`; on a negative result it retries once with
+`0x01000000` (`0x0088C424`–`0x0088C4C4`). The current rectangle is queried each presentation; the snapshot
+recorded during setup is not the sole source of window position.
+
+A zero-width or zero-height client rectangle returns `0x887601C2` before either blit (`0x0088C43E`–`0x0088C450`,
+`0x0088C4B1`). If neither presentation path is active, the incoming flags/result word is returned without
+presenting. The normal `Flush` caller supplies zero. This establishes presentation independently of EndScene;
+it does not establish which clients consume the device-lost message (RD4).
+
+### 14.4 Mode descriptor enrichment
+
+The enumerated list contains 56-byte internal records; only the first 52 bytes are copied by public getters.
+The private final dword (`+0x34`) is the device selector copied from owner `+0x274`, initially -1. The append
+helper used when storage is full is a vector insertion/reallocation helper, not another display-mode filter
+(`0x00887D80`, `0x008882F0`).
+
+After setup, device properties enrich the selected list record before its public portion is copied back to
+the current-mode record (`0x008886E0`–`0x00888817`, `0x00888E92` onward). The render target's pixel-format query
+supplies dwords `+0x10` = alpha mask, `+0x14` = red mask, `+0x18` = green mask, `+0x1C` = blue mask. These fields
+are zero in newly enumerated records. A query failure uses §3's HRESULT error mapping; it is not proof that
+all descriptor fields are valid.
+
+Capability enrichment (`0x00886E30`–`0x00886E8E`) sets `+0x21` from nonzero stencil-operation capabilities,
+`+0x24` to the unsigned 16-bit maximum simultaneous textures, `+0x28` to whether that number exceeds one,
+`+0x29` and `+0x30` to 1, and `+0x2A`, `+0x2D`, `+0x2E` to zero. `+0x2B` is bit 7 of the D3D7 capability
+dword at offset `+0x44`; `+0x2F` is bit 0 of the dword at `+0x5C`. The texture stage count is taken from the
+same maximum-simultaneous-textures word (`0x008886FD`–`0x00888711`). Byte `+0x2C` can be set by texture-format
+enumeration. Its full meaning and the remaining bytes remain RD3. Do not equate the stencil capability flag
+with independent proof of the allocated depth surface's stencil format.
+
+## 15. Independent conformance vectors
+
+These are interface test cases for a recording D3D7/DirectDraw backend and injected failures, not measured
+in-game results. They can be implemented without access to RE sources. Start each case with a fresh driver
+unless the setup column says otherwise. Observe calls, output sentinels, errors, resource references and messages.
+
+| ID | Setup / input | Required observations |
+|---|---|---|
+| DX7-01 | Pre-fill boolean and float outputs with nonzero sentinels; call slots 47 and 49 | Outputs unchanged; no D3D calls, no flush or new error |
+| DX7-02 | Call slot 82 with two valid sentinel words | Return zero; no output/state/device changes |
+| DX7-03 | Query readiness before Init, after loss detected by Flush, after successful restore | true, false, true; query itself never calls cooperative-level testing |
+| DX7-04 | Query unsupported interface ID with sentinel output; query graphics ID through an auxiliary identity | Failure leaves sentinel and counts unchanged; success returns the same graphics identity and adds one driver reference |
+| DX7-05 | Queue triangle A; BindTexture B; queue triangle C; Flush | A submitted before B is applied; C uses B; presentation follows submission and EndScene |
+| DX7-06 | Draw in combine mode 4; SetCombiner with different descriptor but same stage/mode; draw again | Dirty texture/sampler processing does not itself resend the environment; reset environment cache with a combine-field setter to make the next draw apply it |
+| DX7-07 | BindTexture then TexParameter; changing SetTexture then TexParameter | First parameter follows into the named record; second updates only the stage. Same-name SetTexture must not be used to trigger that transition |
+| DX7-08 | Allocate names A,B; delete A then B while ready; allocate twice | B then A are reused. A reused record resets dimensions but retains priority/format/parameters/mip count |
+| DX7-09 | Lose device with a valid uploaded texture, then restore | Name validity/residence queries remain true; surfaces are recreated from metadata; contents require upload after restore notification |
+| DX7-10 | Queue a draw using texture T, then update T by TexImage2D versus direct LoadTextureLevel | TexImage2D does not force the queued draw out; direct slot 61 submits it before modifying pixels |
+| DX7-11 | Set a nondefault depth function, force loss and successful restore | Default depth function less-equal is installed; previous function is not automatically replayed |
+| DX7-12 | Full-screen, flip requested, back-buffer count 2; inject creation failures at counts 2 and 1 | Attempts counts 2,1,0; count-zero success does not subsequently call Flip |
+| DX7-13 | Windowed client 800×600 at screen origin (50,70); present | Blit destination (50,70,850,670), whole render target source, flags `0x01000200`; first failure causes exactly one retry with `0x01000000` |
+| DX7-14 | Present a zero-width client rectangle | No Blt; context result `0x887601C2` |
+| DX7-15 | Enumerate two display modes, then query record 0 before and after setup | Four list entries in reported full-screen/windowed pairs; masks/capability fields start zero and selected record is enriched; public copy never includes private selector dword |
+| DX7-16 | Lock a vertex-buffer reservation, reserve again before unlock; then reserve across end without/with wrap | Second simultaneous reservation fails; no-wrap overflow fails; allowed wrap resets cursor and uses discard lock `0x2021` instead of `0x1021` |
+| DX7-17 | Cause surface-lost then another HRESULT failure, reading GetError twice after each | Surface-lost maps to 0; other failure maps to 1; every read consumes the stored error |
+| DX7-18 | Inject context creation failure during SetVideoMode; fourth word points to writable sentinel storage | Window/environment cleanup and error 6 precede a `0xFFFFFFFF` write through that fourth word; do not expect a current-mode-index assignment in its place (§4.2) |
+
+## 16. Remaining proof boundaries
 
 See [questions/renderer-driver.md](questions/renderer-driver.md).
+
+The checklist covers the 83-slot graphics interface, including explicit no-ops. It does not assert full
+coverage of auxiliary interfaces or every pixel conversion. RD6 covers complete internal-format ranking and
+conversion arithmetic; RD7 covers auxiliary lighting and independently exposed buffer APIs; RD8 covers context
+device/depth selection. RD1, RD3 and RD4 retain their specifically listed caller, descriptor and message gaps.
+No C ABI proposal or implementation behavior is inferred from those open items.
