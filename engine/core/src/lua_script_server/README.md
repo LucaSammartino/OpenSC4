@@ -47,6 +47,11 @@ surface; composite host wrappers have named methods. Foreign Lua errors must
 unwind to the current protected call or follow Lua's panic/exit path. Core returns
 an explicit invalid-precondition error for the native null userdata dereference.
 
+`Session::get_n` is the cSCLua-specific slot-64 convenience algorithm hosted on
+the same stack session; it is not an additional cIGZLua5Thread vtable slot.
+Similarly, the ignored reference argument is the cSCLua forwarding convention;
+the thread reference operation itself takes only the registry's top value.
+
 The adapter supplies standard Lua 5.0 `etc/compat.lua` as immutable library data;
 it executes in the foreign interpreter. Core registers and implements the seven
 tag/global callbacks, owns the process-wide atomic tag counter and overrides
@@ -86,7 +91,7 @@ explicitly excluded, so their tests are not claimed as VM/thread coverage.
 | cGZLua5Thread | §4.1–4.6 calls/errors/precision/refs | `protected_inner`, `do_inner`, `report`, `execute`, `reference`, `get_ref`, `unref` | `t13_traceback_handler_report_and_pop_preserve_prefix`, `protected_explicit_handler_disabled_reporter_and_retained_error`, `do_functions_no_traceback_alert_status_one_and_stderr_fallback`, `t18_foreign_double_result_and_precision_restore_on_success_and_failure`, `boxed_pointer_tags_and_registry_reference_lifetime` |
 | cGZLua5CommandGenerator | §4 | No generator-specific error/reporting rules assigned | open: LH5 (remaining setup/failures) |
 | cGZLua5 | §5 main-thread forwards/GC | `LuaHost::main`, GC methods; shared `Session` surface | `runtime_dobuffer_error_gc_and_load_without_execution`; cSCLua-specific slots excluded |
-| cGZLua5Thread | §5/5.1 shared wrappers | `Session::execute`, named tag/GetN/conversion/global/registry wrappers | `registry_conversion_and_ignored_arguments_and_invalid_paths`, `t10_process_tags_and_absolute_index_quirk`, `t11_getn_non_table_success_missing_and_call_failure`, `boxed_pointer_tags_and_registry_reference_lifetime` |
+| cGZLua5Thread | §5/5.1 shared wrappers | `Session::execute`, named tag/conversion/global/registry wrappers | `registry_conversion_and_ignored_arguments_and_invalid_paths`, `t10_process_tags_and_absolute_index_quirk`, `boxed_pointer_tags_and_registry_reference_lifetime`; cSCLua-specific GetN has an additional T11 helper test |
 | cGZLua5CommandGenerator | §5 | No generator behaviour assigned | Not applicable |
 | cGZLua5 | §6.1 | `LuaHost` main/GC/reporter methods; explicit lifecycle stops | `identities_and_explicit_open_lifecycle_boundaries`, `base_open_flags_repeat_failures_close_and_default_reporter`; Create/Destroy/Get/ResumeThread open: LH4 |
 | cGZLua5Thread | §6.2 | `Thread::session`, `Session`, `Op`, `ThreadLifecycle` | `identities_and_explicit_open_lifecycle_boundaries`, `registry_conversion_and_ignored_arguments_and_invalid_paths`; OnCreate/OnDestroy/Pause/GetID/IsValid/Destroy/Status and reference lifecycle open: LH4 |
@@ -113,13 +118,13 @@ explicitly excluded, so their tests are not claimed as VM/thread coverage.
 | cGZLua5Thread | §13 replaceability | Process-wide tag counter, shared wrappers | `t10_process_tags_and_absolute_index_quirk`; thread lifecycle open: LH4 |
 | cGZLua5CommandGenerator | §13 replaceability | No additional generator behaviour assigned | open: LH5 |
 | cGZLua5 | §14 quirks | Shared Session implementation; cSCLua-only quirks excluded | See thread row; main lifecycle open: LH4 |
-| cGZLua5Thread | §14 Q1–Q4/Q6/Q14 | absolute-index `new_tag`, `get_n`, boxed pointer conversion, ignored Error/Ref arguments, standalone QI, unguarded Unref | `t10_process_tags_and_absolute_index_quirk`, `t11_getn_non_table_success_missing_and_call_failure`, `registry_conversion_and_ignored_arguments_and_invalid_paths`, `identities_and_explicit_open_lifecycle_boundaries`, `t18_foreign_double_result_and_precision_restore_on_success_and_failure` |
+| cGZLua5Thread | §14 Q1/Q3/Q4/Q6/Q14 | absolute-index `new_tag`, boxed pointer conversion, ignored Error argument, standalone QI, unguarded Unref | `t10_process_tags_and_absolute_index_quirk`, `registry_conversion_and_ignored_arguments_and_invalid_paths`, `identities_and_explicit_open_lifecycle_boundaries`, `t18_foreign_double_result_and_precision_restore_on_success_and_failure`; Q2/GetN and ignored Ref argument are cSCLua convenience coverage |
 | cGZLua5CommandGenerator | §14 quirks | No generator-specific quirk assigned | Not applicable |
 | cGZLua5 | §15 open questions | Engine-log choice for default reporter; exact text unsettled | open: spec §15 Q8; missing thread ID open: LH4 |
 | cGZLua5Thread | §15 open questions | Panic belongs to foreign Lua (exit 1 regardless of panic identity); Lua version differences not relied on | `registry_conversion_and_ignored_arguments_and_invalid_paths`; open: spec §15 Q1/Q2 (no speculative panic implementation) |
 | cGZLua5CommandGenerator | §15 open questions | Additional implementation gaps filed in questions/lua-host.md | open: LH5 |
 | cGZLua5 | §16 T17/T18 | Base lifecycle and precision only | `base_open_flags_repeat_failures_close_and_default_reporter`, `t18_foreign_double_result_and_precision_restore_on_success_and_failure`; cSCLua T17 registry-subscription semantics excluded |
-| cGZLua5Thread | §16 T10/T11/T13/T18 | Actual core callbacks/wrappers against a stack/table fixture | Tests prefixed `t10`, `t11`, `t13`, `t18`; arithmetic/execution outcomes supplied by foreign fixture, not an interpreter conformance claim |
+| cGZLua5Thread | §16 T10/T13/T18 | Actual core callbacks/wrappers against a stack/table fixture | Tests prefixed `t10`, `t13`, `t18`; T11 additionally covers the cSCLua convenience helper; arithmetic/execution outcomes supplied by foreign fixture, not an interpreter conformance claim |
 | cGZLua5CommandGenerator | §16 | No generator vector specified; lifecycle discriminators added | `generator_validation_retention_and_shutdown_order`; full activation open: LH5 |
 
 No game request is needed for this portable core-only change: there is no plugin
