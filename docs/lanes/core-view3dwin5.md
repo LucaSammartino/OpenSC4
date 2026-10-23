@@ -3,6 +3,7 @@
 | core-view3dwin5: cSC4View3DWin owner closure | Codex / core-view3dwin5 | in progress | Round 3: finish buttons/catalogs/status/helpers/save references; Rust gate only; native gate: coordinator. |
 
 ## Handoff
+- Continuation commit 22942047 preserves final popup audit; follow-up commits the remaining owned state.rs formatting so the handoff has no uncommitted source changes.
 - STOP round 3: lane guard reports context 152k > 150k. Required state continue; no merge queue. Native gate remains coordinator-only; never run qbuild all/verify or native CMake/CTest here.
 - Round-3 implementation milestone committed as 63838c8e (opaque save refs, menus/buttons, widgets/lighting, helpers/picking, dialog results). Post-milestone popup no-op/caller-data audit changes are included in the continuation commit.
 - FINAL RUST GATE STILL UNCOLLECTED: exec session 1357, collector functions cell 62. Cell 62 first collects session 1357 with write_stdin, then runs fmt with explicit absolute filenames. Do not launch duplicate test/clippy checks. Session 1357 sequentially runs qbuild test, clippy, and a fmt command with a literal wildcard (likely invalid); cell 62's explicit fmt corrects that invocation. Get this operation's actual terminal result/logs if collection is available to successor.

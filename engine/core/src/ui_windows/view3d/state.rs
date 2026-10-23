@@ -124,7 +124,11 @@ impl View3DWin {
 
     pub fn set_filter(&mut self, host: &mut impl StateHost, new: Option<FilterInfo>) {
         let old = self.owner.view.filter;
-        host.send(0x06CD_B65A, old.map_or(0, |f| f.token), new.map_or(0, |f| f.token));
+        host.send(
+            0x06CD_B65A,
+            old.map_or(0, |f| f.token),
+            new.map_or(0, |f| f.token),
+        );
         if let Some(f) = new {
             host.hold_filter(f.token);
         }
@@ -234,7 +238,8 @@ impl View3DWin {
                 false
             }
             0x8AB7_30AE => {
-                self.owner.view.terrain_query = !args.get(1).is_some_and(|s| s.eq_ignore_ascii_case("off"));
+                self.owner.view.terrain_query =
+                    !args.get(1).is_some_and(|s| s.eq_ignore_ascii_case("off"));
                 true
             }
             0x88F3_D4BB | 0x88F3_D4BC => {
@@ -257,7 +262,12 @@ impl View3DWin {
         }
     }
 
-    pub fn set_render_property(&mut self, host: &mut impl CheatHost, name: &str, value: &str) -> bool {
+    pub fn set_render_property(
+        &mut self,
+        host: &mut impl CheatHost,
+        name: &str,
+        value: &str,
+    ) -> bool {
         if host.render_property(name, value) {
             host.post_render_property_change(0xC9F7_75BB);
             true
