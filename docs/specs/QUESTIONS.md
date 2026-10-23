@@ -217,7 +217,7 @@ generated index: the questions live one file per spec, so read only the file for
 | drawing-fonts | 5 | 17 | FN23 | questions/drawing-fonts.md |
 | drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
-| effects-parser | 6 | 0 | EFP7 | questions/effects-parser.md |
+| effects-parser | 7 | 0 | EFP8 | questions/effects-parser.md |
 | feature-manager | 3 | 2 | FM6 | questions/feature-manager.md |
 | fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
 | flammability | 0 | 13 | FL14 | - |
@@ -299,7 +299,7 @@ generated index: the questions live one file per spec, so read only the file for
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | resource-catalog | 5 | 0 | RC6 | questions/resource-catalog.md |
 | resource-exemplar-editor | 8 | 0 | RE9 | questions/resource-exemplar-editor.md |
-| rigid-body-2d | 6 | 0 | RB7 | questions/rigid-body-2d.md |
+| rigid-body-2d | 7 | 0 | RB8 | questions/rigid-body-2d.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
 | simgrid | 2 | 0 | SG3 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
@@ -334,4 +334,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **505** | **1262** | | |
+| **total** | **507** | **1262** | | |
