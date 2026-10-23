@@ -12,7 +12,8 @@
 - Done: 4883e8c4 core fix and tests. qbuild all workspace tests passed 6443/6443, clippy passed with 0 diagnostics.
 - Native: qbuild all itself queued build+ctest as qbuild-20261023-215222-build-ctest through the coordinator (same route as verify); do not submit duplicate verify while it is queued.
 - Native completed: qbuild all PASS, native build 220/220 edges (92.3 s), CTest 69/69 (152.5 s); build+ctest 249.3 s. Session 42673 was collected to its terminal exit 0. This used the coordinator native queue, not a direct MSVC build.
-- Next: submit traffic-flake5-4883-turbo1 to 2032-01-01, collect its unique verdict, then a normal-speed run. No request outstanding at this commit.
+- Outstanding: traffic-flake5-4883-turbo1 (Konradshohe, turbo, original traffic, traffic_shadow=1, end_date 2032-01-01). Collect the unique verdict via build-runs/wait-game.ps1, then inspect traffic lines and submit a normal-speed run only after completion.
+- DLL SHA256: 9FCE084FAEFEC1AFAE36352DBC1B7B189363F2A76499675877FF00A2A1F01DED (19,225,600 bytes; native build 2026-10-23 22:29 BST).
 - Planned city checks: original traffic + traffic_shadow=1, turbo to 2032-01-01, then normal speed to that date. build-runs/wait-game.ps1 waits directly on a unique verdict, without qwait; always accept a verdict already present for that unique label.
 - Evidence sources: main build-runs/regress-train152-shadows.log and regress-train155-shadows.log (copy into local build-runs before reading).
 - Required final checks: qbuild all; native qbuild verify through coordinator queue; game queue unique labels, direct wait without qwait.
