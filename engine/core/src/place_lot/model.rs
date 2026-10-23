@@ -178,7 +178,7 @@ pub trait Host: ControlHost {
     /// Only Some when IsTutorial and a current task both exist.
     fn tutorial_rectangle(&self) -> Option<Rect>;
     fn total_funds(&self) -> i64;
-    /// checkSlope/skipSize are the foreign PlaceZone service's defaults: Â§3.12
+    /// checkSlope/skipSize are the foreign PlaceZone service's defaults: Ã‚Â§3.12
     /// does not give explicit values (CT23). They are not guessed by this owner.
     fn place_zone(&mut self, zone: Zone);
     fn create_lot(&mut self, rect: Rect, rotation: u8, enabled: bool, water: bool, configuration: u32) -> Option<u64>;
@@ -189,5 +189,7 @@ pub trait Host: ControlHost {
         exemplar: u32,
         construction: u32,
     ) -> Option<Building>;
+    /// Current lot position, after construction/terrain work; borrowed getter.
+    fn lot_position(&mut self, lot: u64) -> Vec3;
     fn effect_running(&self, token: u64) -> bool;
 }

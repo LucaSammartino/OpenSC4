@@ -74,6 +74,13 @@ impl Default for Fake {
 fn point(x: f32, z: f32) -> Vec3 {
     Vec3 { x, y: 3.0, z }
 }
+fn lot_point() -> Vec3 {
+    Vec3 {
+        x: 48.0,
+        y: 30.0,
+        z: 48.0,
+    }
+}
 fn mouse() -> Pixel {
     Pixel { x: 10, y: 20 }
 }
@@ -215,6 +222,10 @@ impl Host for Fake {
     }
     fn effect_running(&self, token: u64) -> bool {
         token == 200
+    }
+    fn lot_position(&mut self, lot: u64) -> Vec3 {
+        assert_eq!(lot, 99);
+        lot_point()
     }
 }
 fn tool(h: &mut Fake) -> PlaceLot {
@@ -628,8 +639,8 @@ fn commit_order_money_aura_connections_and_effects() {
             Effect::Aura(2, point(49.0, 50.0)),
             Effect::InsertConnection(Connection::Pipe, 3, 3),
             Effect::InsertConnection(Connection::Subway, 3, 3),
-            Effect::PlacementEffect("placement_effects_2x2", point(48.0, 48.0)),
-            Effect::Ring(point(48.0, 48.0), [2, 2], 0x49D5_B83F)
+            Effect::PlacementEffect("placement_effects_2x2", lot_point()),
+            Effect::Ring(lot_point(), [2, 2], 0x49D5_B83F)
         ]
     );
 }
@@ -645,8 +656,8 @@ fn conformance_builder_failure_deposits_without_withdrawal_and_keeps_lot() {
         effects(&h),
         vec![
             Effect::Deposit(500),
-            Effect::PlacementEffect("placement_effects_2x2", point(48.0, 48.0)),
-            Effect::Ring(point(48.0, 48.0), [2, 2], 0x49D5_B83F)
+            Effect::PlacementEffect("placement_effects_2x2", lot_point()),
+            Effect::Ring(lot_point(), [2, 2], 0x49D5_B83F)
         ]
     );
     assert_eq!(h.calls.iter().filter(|c| matches!(c, Call::Lot(..))).count(), 1);

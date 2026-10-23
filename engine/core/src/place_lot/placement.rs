@@ -153,7 +153,7 @@ impl PlaceLot {
         if self.cost != 0 && h.total_funds() < self.cost {
             return out;
         }
-        // Literal Â§3.12: no early return for demolition/dezoning/zoning
+        // Literal Ã‚Â§3.12: no early return for demolition/dezoning/zoning
         // failure is specified. The dry run has already validated it. CT23.
         h.demolish(
             Demolition {
@@ -211,14 +211,17 @@ impl PlaceLot {
             h.effect(Effect::Deposit(self.cost));
         }
         if effects {
+            // Construction may change terrain height. Â§3.12 requires the
+            // created lot's position, not the pre-construction cursor point.
+            let position = h.lot_position(lot);
             let name = match c.rect.width().max(c.rect.height()) {
                 1 => "placement_effects_1x1",
                 2 => "placement_effects_2x2",
                 3 => "placement_effects_3x3",
                 _ => "placement_effects_4x4",
             };
-            h.effect(Effect::PlacementEffect(name, c.point));
-            h.effect(Effect::Ring(c.point, [c.rect.width(), c.rect.height()], 0x49D5_B83F));
+            h.effect(Effect::PlacementEffect(name, position));
+            h.effect(Effect::Ring(position, [c.rect.width(), c.rect.height()], 0x49D5_B83F));
         }
         out
     }
@@ -243,8 +246,8 @@ pub fn choose_facing(scores: [i32; 4], player: u8) -> u8 {
         }
     }
     let own = scores[usize::from(player)];
-    // Literal detailed §3.11 formula: exactly four more points still keeps
-    // the player rotation. The §4 shorthand disagrees at equality (CT24).
+    // Literal detailed Â§3.11 formula: exactly four more points still keeps
+    // the player rotation. The Â§4 shorthand disagrees at equality (CT24).
     if (own != 0 || scores[best] < 1) && own >= scores[best] - 4 {
         player
     } else {
