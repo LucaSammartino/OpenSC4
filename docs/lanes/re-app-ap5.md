@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-app-ap5 (AP12–AP15 application owner closure) | Codex / `re-app-ap5` | continuation needed; AP12/AP15 answered, AP13/AP14 partial; doccheck passed | Finish remaining resource/UI tables and preference ordering; rerun doccheck and enqueue only when complete |
+| re-app-ap5 (AP12–AP15 application owner closure) | Codex / `re-app-ap5` | in progress; AP12/AP15 answered, AP13/AP14 partial | Finish remaining resource/UI tables and preference ordering; rerun doccheck and enqueue when complete |
 
 ## Report
 
@@ -26,7 +26,7 @@ fixed before use; only the corrected section-table-based reads support the publi
 
 - Goal: answer AP12–AP15 in application spec; no implementation edits.
 - Done: `16700d84` getter/plugin/obliteration milestone; `3e0ee22d` video/resources/naming/vectors, AP12/AP15 archive and passing doccheck. Final consistency corrections committed after that.
-- Next: finish AP13 malformed parsing, DB directory filters/order, full font/control/cursor tables; finish AP14 DoPreferencesChanged ordering and filename allowed-character/encoding contract. Then move only fully answered questions, regenerate index, doccheck, final report and kind=re ready queue.
+- Next: finish AP13 malformed parsing, DB directory filters/order and full font/control/cursor tables. AP14 preference ordering and filename filter/cap now published; reconcile summary and archive AP14 at finish. Then regenerate index, doccheck, report and kind=re ready queue.
 - Evidence: REA batch failed 7/7 with target_unavailable (no app open); using export assembly plus available decomp only.
 - Facts: false is case-insensitive; SaveCityForObliteration always returns true on normal completion; failed temp-name leaves outer result undefined; no-city temp writer dereferences null after successful open.
 - Helper `build-runs/inspect.py`: asm ADDR --match REGEX --skip N --take N; data ADDR...; refs ADDR (correct PE sections). It calls re_query --full internally but caps output to requested <=56 lines; do not commit it.
@@ -38,5 +38,5 @@ fixed before use; only the corrected section-table-based reads support the publi
 - Save sanitizer 005F9BF0 calls MakeFileNameValid 0091917D and IsFileNameCharAllowed 009180D4; whitespace collapsing documented, allowed-char/encoding details pending.
 - Factory table and slot offsets verified in instruction bytes; no ABI rows proposed. Last doccheck and diff whitespace checks passed.
 - Main: `C:/Users/tlori/FreeCity4`; worktree: reserved detached HEAD, commit normally.
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-app-ap5-r1-manifest.json`.
+- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-app-ap5-r2-manifest.json`.
 - No game requests or ABI proposals. Engine access limited to expressly requested application README.

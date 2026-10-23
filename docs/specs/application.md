@@ -684,7 +684,7 @@ is `...\City - New.sc4` (assuming the derived name pattern), renamed is true. No
 no backup; temp is renamed to `City - New.sc4`, then `City - Old.sc4` is deleted, and the city's path
 becomes the new name. If the temp rename failed, the old file stays and the path reverts.
 
-Save-path naming supplement to section 11.16 (AP14, partial): the helper
+Save-path naming supplement to section 11.16 (AP14): the helper
 `SC4CreateSavePathForCity(base, cityName, cityID, out)` (`0x005DC400`) forms
 `City - ` + cityName + `.sc4`, sanitizes that filename, and resolves it under base.
 It does not create a file. If the candidate exists, a nonzero cityID permits reuse when
@@ -698,14 +698,24 @@ The three-argument overload (`0x005DC790`) resolves the selected region's direct
 from the global app's region pointer and then uses the same naming helper. These calls
 require the corresponding region objects; there is no null-region fallback in that overload.
 The sanitizer (`0x005F9BF0`) first uses `MakeFileNameValid`, then collapses repeated ASCII
-spaces to one and trims the result. Its platform encoding/allowed-character details remain
-unpublished here; names containing only ordinary ASCII letters/spaces do not need that boundary.
+spaces to one and trims the result. The filename filter removes each of these nine bytes:
+`<`, `>`, `:`, backslash, slash, double quote, vertical bar, `*`, `?`; it does not replace them
+with underscores, reject reserved device names, or reject other control bytes
+(`0x009180D4`–`0x00918102`). Before filtering, the platform helper round-trips the string through
+the current system encoding (conversion argument -1); its direct-string mode skips that
+conversion. Thus non-ASCII results depend on the system code page and its substitution rules,
+not a Unicode filename whitelist (`0x0091919F`–`0x009191E0`). The filtered result is capped at
+256 bytes. Only if truncation was needed, bytes are removed from the end until the encoding
+validity check (encoding argument -2) accepts the result or it is empty
+(`0x00919219`–`0x00919261`). No extension-preservation repair follows this truncation: `.sc4`
+can itself be cut off. ASCII space collapsing and trimming follow this filter/cap, before
+collision suffix selection. These are filename rules, not validation of the base directory.
 
 ## 12. Open (not specified here)
 
 SetupWinCtrlMgr, SetupFontSet, SetupResources and LoadRegistry beyond the summary of section 14.2,
-DoPreferencesChanged beyond section 13.3, the DB segment callbacks beyond section 14.2,
-SC4CreateSavePathForCity's platform filename sanitizer beyond section 11.16, the scoped object `0x005F88A0`, city
+the DB segment callbacks beyond section 14.2,
+the scoped object `0x005F88A0`, city
 vtable slots +0x1A4 (blocks saving), +0x3C, +0x30, +0x14, the message `0x26C63346` name, and the rest of
 cSC4App's 322 functions (this spec covers about 57). Not covered at all: cWinSC4App, the COM directors,
 cSC4Preferences, cSC4AutoGamePause. The distinct cSC4GameDataRegistry owner now has a
@@ -773,6 +783,50 @@ reads setting 11: values 0, 1, 2, 3 set dwords +0x10/+0x14 to 800/600, 1024/768,
 write settings 11 or 12 and does not modify the argument record. It queues message `0xC9F775BB`
 after all twelve writes when message server 2 exists; absent server skips notification only.
 Instruction evidence: `0x0044A1C6`–`0x0044A29D`, `0x0044A345`–`0x0044A47D`.
+
+#### Preference application order (AP14) *[compat]*
+
+`DoPreferencesChanged(full)` (`0x0044CE40`) applies effects in the following order. The
+argument gates language and graphics work only; it does not gate the first or last two effects.
+
+1. Apply pause-on-focus-loss from preferences byte +0x4A4, normalized to false/true, through
+   app interface slot 18. The focus/pause contract remains section 7.
+2. When full is true, clear preferences byte +0x4EB. If the language manager exists, try the
+   nonempty +0x4AC language name as an English name, then as a local name only when English-name
+   lookup fails. A resolved but unavailable name goes directly to the fallback below. On an
+   available ID, select it and store the ID at preferences +0x4A8. Fallback order is the installed
+   language registry value (Deluxe key first, original SC4 key second), then the current system
+   language; each must pass CanSwitchToLanguage before selection. The final native fallback is
+   defective: it probes the same last ID up to 44 further times, rather than enumerating IDs;
+   on a successful repeated probe it stores the probe ordinal (1–44) without selecting a new
+   language. If every probe fails, the old +0x4A8 survives. Empty names start at the fallback.
+   Evidence: `0x0044CE8F`–`0x0044CF05`, `0x0044D034`–`0x0044D0C1`; registry helper `0x005FAEF0`.
+3. Still only when full, if the graphics service exists, obtain current width/height/depth.
+   Force preferences byte +0xF17 (windowed) to 1 if current depth is neither 16 nor 32, or if
+   either current unsigned dimension is smaller than requested +0xF1C/+0xF20. Never clear
+   +0xF17 here. Request the preferred dimensions, with preferred depth +0xF24 except that zero
+   depth or fullscreen requests retain the current depth. Then enable fullscreen exactly when
+   +0xF17 is zero. These two requests occur even when the sizes already agree; their return
+   values do not abort later work (`0x0044CF2D`–`0x0044CFF2`).
+4. Query graphics interface `0xC47B747C`. If available, app driver override +0x65C selects the
+   driver and updates preference byte +0xF13: software `0x7ACA35C6` → 0, DirectX `0xBADB6906`
+   → 1, another nonzero ID → 255. A zero override instead selects software for +0xF13=0,
+   DirectX for 1, and leaves the driver alone for every other byte. Release this interface
+   after use (`0x0044D00A`–`0x0044D0FD`, `0x0044D189`–`0x0044D1B0`).
+5. Independently of full, if both city and its simulator exist, set simulator speed using
+   preferences float +0x470. Multiply the binary32 input by binary32 constant `0x3DA237C3`
+   (exactly 0.079207919538021087646484375), convert toward zero to a signed integer, clamp
+   to 0–7, and index `[5, 10, 15, 20, 30, 45, 60, 80]`. The multiply uses x87 precision with
+   no intervening binary32 store; do not round the product to binary32 before conversion
+   (`0x0044D130`–`0x0044D1C8`). Ordinary examples: -1 → 5, 50 → 20, 100 → 80. The native
+   conversion's signed-overflow/NaN sentinel clamps to index 0; it is not a saturating float cast.
+6. Independently of full and city presence, if the app command-line object exists, remove
+   all occurrences of the one-character `x` switch from that object. Other arguments retain
+   their order. This happens last (`0x0044D1CB`–`0x0044D2DB`).
+
+This call does not invoke ApplyVideoPreferences, SetupFontSet or SetupWinCtrlMgr and does not
+save the preference file. Missing language/graphics services skip their own effects; they do
+not suppress simulator speed or one-shot switch removal.
 
 ## 14. Plugins, resources and files *[compat]*
 
