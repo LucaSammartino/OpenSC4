@@ -7,7 +7,8 @@ Addresses identify evidence in that build; they are not implementation dependenc
 This spec covers byte storage and the base token replacement service. See
 [strings and language](strings-language.md#2-framework-string-encoding) for the
 framework encoding and language manager, [language utility](language-utility.md) for
-localized number/date formatting, [LTEXT records and locale](data-formats.md#6-ltext-and-locale)
+localized number/date formatting, [string encoding](string-encoding.md) for the
+counted converters and wrappers, [LTEXT records and locale](data-formats.md#6-ltext-and-locale)
 for resource decoding, and [crime names](crime.md) §7 for an existing
 `SC4LoadString` caller contract. The LTEXT loader may clear its output after a
 detokenizer failure; that is different from the detokenizer's partial-output rule here.
@@ -225,8 +226,10 @@ folding. Encountering any byte >=0x7F switches to conversion of the whole curren
 string to UTF-16, runtime wide-character case mapping of individual 16-bit units,
 and conversion back to framework encoding (`0x0090EAC5`, `0x0090EB8E`). This is
 not normalization or full Unicode case folding; do not assume expansions such as
-one character becoming two. The exact non-ASCII runtime tables, malformed-input
-result and conversion failure behavior remain RZS2. ASCII/NUL counted transforms
+one character becoming two. Conversion itself follows [string encoding](string-encoding.md),
+including its nonstandard UTF-8/UTF-16 behavior and the prior MakeLower witness
+linked there. The exact non-ASCII runtime case tables and owner-level handling of
+conversion failure remain RZS2. ASCII/NUL counted transforms
 are specified; cross-platform locale-dependent replacements are not authorized
 by the name MakeLower alone.
 
@@ -280,7 +283,7 @@ in a base instance.
 | 5 | 0x00601AA0 | SetTokenReplacementValue(name,value) |
 | 6 | 0x00601B80 | SetTokenReplacementMethod(name,function,context) |
 | 7 | 0x00600410 | AddUnknownTokenReplacementMethod(function,context,enable) |
-| 8 | 0x005FFEE0 | Detokenize(resource key,input-independent output string) |
+| 8 | 0x005FFEE0 | Detokenize(resource key,output string) |
 | 9 | 0x005FFEB0 | Detokenize(input string,output string), tail dispatch to slot 13 |
 | 10 | 0x005FFEC0 | SetHTMLCleanMode(byte) |
 | 11 | 0x005FFED0 | GetHTMLCleanMode(), stored byte |

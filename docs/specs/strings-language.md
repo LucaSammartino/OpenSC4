@@ -12,8 +12,9 @@ every language ID 0..0x2d and every index, and every string is quoted from the b
 address is SimCity 4.exe GOG 1.1.641. No modern Unicode semantics are implied: strings are byte strings.
 
 Outline: §1 language IDs; §2 framework encoding; §3 the language utility (canonical contract in
-[language-utility.md](language-utility.md), reconciliation notes here); §4 the language manager; §5..§8 the string
-object `cRZString`; §9 not yet specified.
+[language-utility.md](language-utility.md), reconciliation notes here); §4 the language manager;
+the string object `cRZString` and base `cSCStringDetokenizer` are specified in
+[rz-strings.md](rz-strings.md); §9 lists other boundaries.
 
 ## 1. Language IDs
 
@@ -269,7 +270,9 @@ folded no-op bodies whose names are not known).
 The standalone `ConvertStringEncoding` core, bridge and wrappers are specified in
 [string-encoding.md](string-encoding.md), including their counted units and partial-output behavior.
 
-Still unspecified here: the UTF-16 / Thai helpers; `cSCStringDetokenizer` and
-`gAdviceDetokenizerFunction`; which game code calls the language manager and how the startup language is chosen
+The string object and base token replacement service are specified in
+[rz-strings.md](rz-strings.md), including escaping, callback precedence and partial failures.
+Still unspecified here: the UTF-16 / Thai helpers; `gAdviceDetokenizerFunction`;
+which game code calls the language manager and how the startup language is chosen
 (`cSC4App::DoPreferencesChanged` reads the registry values `HKEY_LOCAL_MACHINE\Software\Maxis\SimCity 4 Deluxe\1.0\Language`,
 then `...\SimCity 4\1.0\Language`; data-formats §6.2 question 1).
