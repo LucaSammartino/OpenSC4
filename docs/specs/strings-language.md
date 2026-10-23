@@ -37,6 +37,11 @@ IDs 0x2D and above have no name (§4.4). The rest of the language manager is §4
 
 ## 2. Framework string encoding
 
+The standalone counted-byte helper `UTF8IsStringValid` has its own
+[validation contract](utf8-validation.md). It is a separate free-function boundary from the
+language owners, `cRZString` storage and `ConvertStringEncoding`; its accepted byte forms
+must be taken from that contract rather than inferred from the encoding label.
+
 - The framework's current code page (00940da8) is the constant **UTF-8** in this build. Encoding codes used by the
   string converter (`ConvertStringEncoding`, 00910e18): 8 = UTF-8, 0x10 = UTF-16, 0xFFFFFFFE = "the framework
   encoding" (treated as 8), 0xFFFFFFFF = "the system ANSI code page". The converter's full behaviour is §9.
