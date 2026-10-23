@@ -1,28 +1,170 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-game-data-registry4 (first portable registry core) | Codex / `core-game-data-registry4` | in progress | Read published contract; baseline; implement owned algorithms and literal tests |
+| core-game-data-registry4 (first portable registry core) | Codex / `core-game-data-registry4` | **WIP**: owned core and16 literal tests; canonical gate green at7babaf67, final source has subsequent rustfmt-only changes | Coordinator must validate formatted engine tree2226d3b64adf716a335de644960e15ce494e7d58 before ready; no automatic lane restart |
 
-## Handoff
-- Goal: first portable owned game-data registry; no App/CAPI/plugin/default/ABI changes.
-- Worktree reused, detached HEAD; initial status clean; no lane commits above main.
-- Read sections 1–7 and GDR1–4; literal ledgers fixed in build-runs/registry-literal-ledgers.md before production.
-- Baseline completed: qbuild exit0, Rust5372/0, clippy0 diagnostics, native217/217 PASS, CTest68/68.
-- Stats PID30532 caused a long delay; no lane process action taken. Request now resolved by completion.
-- Coordinator request: build-runs/coordinator-request-core-game-data-registry4-baseline.md.
-- Engine tree c30f4d9ac1d78880e81cae198b7a461307350c58 unchanged for baseline; tree-change flag was docs-only.
-- Owned core and16 literal tests moved from held drafts into engine/core/src/game_data_registry; additive lib export only.
-- GDR5 filed for anonymous leaf entry-token/raw-key collision; portable input is tagged unsupported.
-- Implementation c8b461a4: owned algorithms, borrowed views, explicit unsupported domain,16 literal tests.
-- Serial module-focused cargo run passed16/0 (3328 filtered), actual launcher exit0; log build-runs/registry-focused-cargo.log.
-- q.py could not launch Bash (Access denied); failed transport log retained in build-runs/registry-focused.log.
-- A local quiet Python adapter executed the single focused cargo run; no duplicate cargo/test/CTest run.
-- Draft formatting check passed before installation; final formatting check and one stable-source all gate next.
-- Canonical all completed at7babaf67: exit0,Rust5388/0,clippy0,native build4/4,CTest68/68; no tree-change flag.
-- Gate engine tree4f8e2f98cbca6a1222d565f43cb5197fd4acb304; no active validator remains.
-- New files inherited engine/max_width120 after installation; repository formatting failed before gate, but command continued.
-- Next: apply held formatting-only patch to NEW files, fmt-check, commit; final tip must be WIP because engine source hash changes after the one permitted canonical gate.
-- Formatting-only candidate applied to new module/tests after gate exit; no behavioral edits or repeated validator.
-- Combined fmt now reports only lib.rs module-order differences (190 lines); do not mass-sort existing exports.
-- New raw source hashes: mod.rs f60200160d8c71741adda5f065f7d6bc30fea60b1a39300f803b95689af80ffd; tests.rs c8584cea5020ab7df0d08b60e1db174ee6dee74538ce317d3751dcea203cea4e.
-- Authority: docs/specs/game-data-registry.md; safe tokens model identity only.
-- No game requests; no native or whole-owner promotion intended.
+## Owned core
+
+`engine/core/src/game_data_registry/{mod.rs,tests.rs}` and one additive lib export.
+The core owns copied names, stable opaque 32-bit record tokens, separate exact
+object/raw indexes, context/flags, parent/append-order children, validity value
+scans and borrowed logical views. Supplied successful allocation tokens simulate
+allocation identity; they are not native pointers, sequence IDs, factories or ABI.
+Token reuse, foreign/stale records, unsafe callback/node inputs, null names/keys,
+failed allocation, destructive reentry and unsupported lifecycle operations have
+tagged domain errors, distinct from defined null/miss/false results.
+
+The core resolves exact object pointers before requesting primitive IID1 QI,
+searches the canonical output itself and releases every non-null QI output before
+return. Node creation retains one key; duplicates retain nothing new. Leaves
+retain neither key, callback nor context. Immediate, FIFO BFS and LIFO replay are
+different algorithms. Removal collects first-to-last postorder; each removal
+notification observes its own entry still indexed and earlier descendants absent;
+only after that whole pass are node keys destroyed parent-before-child.
+
+Typed/message lists are independent exact-pointer lists. New subscriptions have a
+temporary search hold and net one list reference, replay only to the new target,
+ignore callback false, and unsubscribe the first equal pointer. Ordinary events
+go to typed targets only, including when the typed list is empty; message replay
+uses raw standard-message allocation/setter/delivery/release primitives. Publisher
+dispatch forwards raw keys rather than contexts, honors exchange read-only bit1,
+does not infer stored variants or conversions, and preserves publisher Booleans.
+
+Shutdown unregisters the framework before typed(1,null), clears indexes before
+child destruction, releases subscriptions, preserves allocated root/name/object
+but invalidates root membership. Destruction is separate and sends no synthetic
+shutdown event. Logical registry/system/unknown views share a zero-start count;
+ordinary Release0/1/>1 and deleting-wrapper low bit effects are modeled. Callbacks
+receive only an immutable registry view: no claimed destructive-reentry fallback.
+
+No App/Lua/GZ/Flora/CAPI/plugin/default/maps changes, game request, ABI export,
+native replacement proof, whole-owner completion or coverage/default promotion.
+
+## Measurement
+
+- Baseline qbuild all exit0: Rust5372/0, clippy0 diagnostics, native build217/217,
+  CTest68/68. The stats-only delay completed without lane intervention. Baseline
+  logs copied to build-runs/baseline/. The tree-change flag was docs-only:
+  engine tree c30f4d9ac1d78880e81cae198b7a461307350c58 stayed fixed.
+- Independent literal ledger was fixed in build-runs/registry-literal-ledgers.md
+  before production, SHA256 a3608e0632715d5cd435bf8e41c30060e50e046ccc2d926d33135006e42edc26.
+- Single serial focused run:16/0,3328 filtered, exit0; registry-focused-cargo.log.
+  The q.py Bash launch failed before cargo (Access denied); that failed transport
+  log remains registry-focused.log. A local quiet Python adapter ran cargo once.
+- Canonical qbuild all at7babaf6791b7e95307420d36c403a1d295d927c7, engine tree
+  4f8e2f98cbca6a1222d565f43cb5197fd4acb304: qbuild exit0; Rust5388/0 over23
+  result lines, clippy exit0/0 diagnostics, native build PASS4/4 edges (62.3s),
+  CTest PASS68/68 (159.4s), fc4verify PASS (417.7s). No tree-change annotation.
+  This is the original validator's completed result; the fresh final Ct log was
+  checked, not the stale baseline file observed during the stats delay.
+- Formatting: the check failed after moving files under engine/max_width120, but
+  the shell command sequence continued into the canonical gate. Source stayed
+  fixed until that validator exited. Only then commit9f4edebc applied the held
+  rustfmt-generated patch to the two NEW files. Both new files now pass qbuild fmt.
+  The required combined lib.rs/new-files check still reports190 diff lines in
+  lib.rs module ordering. Read-only stdin checks with children skipped show the
+  same preexisting first ordering difference in baseline e7b2ad83 (121 diff lines)
+  and current lib (123); the only lib edit remains the required appended export.
+  No mass sorting/reformatting of existing modules was performed.
+- **WIP, not READY:** the one permitted canonical gate measured the pre-format
+  source. Final formatted engine tree2226d3b64adf716a335de644960e15ce494e7d58
+  differs. No duplicate focused/quick/all/cargo/CTest run was launched. Coordinator
+  validation of that final source is still required. The final report commit
+  changes documentation only relative to9f4edebc, not relative to the gate source.
+- Both stats-only coordinator requests resolved by validator completion, without
+  lane process intervention; no requests/validators/game runs remain outstanding.
+  Historical PID/creation/argv/cwd/log metadata is preserved in
+  build-runs/coordinator-request-core-game-data-registry4-{baseline,final}.md.
+
+Source SHA256 (all gate-time files remained unchanged until gate exit):
+
+| File under engine/core/src/ | Canonical7babaf67 | Final formatted source |
+|---|---|---|
+|lib.rs|5fa6a8e3a0aa8031685d9e7789ba3365371cb6b68aa91f86fd18aff86a9d53c5|same|
+|game_data_registry/mod.rs|6826c7c628047c7026d2fc524c315947eea2a5c518a2d671dad43acbe2b4c83d|f60200160d8c71741adda5f065f7d6bc30fea60b1a39300f803b95689af80ffd|
+|game_data_registry/tests.rs|0d4c77cb1a39d3d89fbb7cedce47c343f7f4fa63edd3168223edcd4e3844fa60|c8584cea5020ab7df0d08b60e1db174ee6dee74538ce317d3751dcea203cea4e|
+
+Milestones: e7b2ad83 initial handoff; c4c07520 contract/baseline delay; c8b461a4
+owned core/tests/GDR5;7babaf67 focused results/canonical source; e0fb9a69 canonical
+gate result;9f4edebc formatting cleanup. All commits carry the requested attribution.
+
+Sixteen literal tests cover G1–G14, callback-false replay/broadcast versus visit
+false, raw-key versus context, copied/same names with separate indexes, full-width
+masks, QI success/failure output-release cases, 4→5→5→4 node refs, changing removal
+membership, first-equal pointer removal, borrowed outputs with no AddRef, message
+replay plus ordinary silence, shutdown root lifetime and destructor separation.
+Expected ledgers are literal public-rule outcomes, not production-generated or
+generic roundtrips. The first-equal duplicate-cell fixture is structural only;
+public duplicate registration cannot construct it in the nonmutating domain.
+
+## Published body/API inventory
+
+This retains the published37 supported bounded /5 partial /6 foreign classification
+of48 bodies/5807 bytes. It grants no blanket native-body or byte-coverage credit.
+“Tested” below means finite portable effect/return cases, not native execution.
+
+| Body | Published | Portable implementation / finite measurement |
+|---|---|---|
+|00473A40|S|Logical QI views/count; G14 tested; raw addresses unsupported|
+|00473A80|S|Framework register primitive order; destructor test|
+|00473AA0|S|Borrowed node; G8/G13 tested|
+|00473AC0|S|Borrowed raw value; G3/G8 tested|
+|00473AE0|S|Node predicate; G8/negative calls tested|
+|00473B00|S|Borrowed copied name; G1/G8/G9 tested|
+|00473B20|S|Primitive call forwarding; G7/G8 tested|
+|00473B50|S|Full-width masks; G2/G6/G8 tested|
+|00473B70|S|Context write incl0; G7/G8 tested|
+|00473B90|S|Context read; G2/G7/G8 tested|
+|00473BB0|S|Parent reads; G2/G8/G9 tested|
+|00473BD0|S|Typed replay ignores false; G4/new-target tested|
+|00473BF0|P|Raw standard-message primitive replay/release tested; allocation/accessor internals unsupported|
+|00473C60|F|Generic node-index cell free/RB layout unsupported; safe collection primitive only|
+|00473CA0|F|Generic leaf-index cell free/RB layout unsupported; safe collection primitive only|
+|00473CE0|S|Primitive exchange/read-only forwarding; G6/G8 tested|
+|00473D40|S|Typed append-order broadcast/message skip; G9/G11/G12 tested|
+|00473DF0|S|Postorder collector owned; G9 tested|
+|00473E60|S|Immediate creation-order visit/stop; G4/G5/G8 tested|
+|00473F00|S|Index value-membership scan; G8/G9/G12/G13 tested|
+|00473FB0|S|First exact typed unsubscribe; G10 tested|
+|00474020|S|Exact message unsubscribe; new-target test|
+|00474090|F|Generic node RB erasure/rebalance unsupported; safe map primitive only|
+|00474150|F|Generic unsigned key bounds unsupported as native helper; exact safe map keys only|
+|004741B0|F|Generic leaf RB erasure/rebalance unsupported; safe map primitive only|
+|00474270|S|Core exact/QI fallback search and output release; dedicated ledger|
+|00474310|F|Generic raw-pointer vector adapter unsupported; safe Vec primitive only|
+|00474350|S|Parent-first object-key release, raw leaves unretained; G9/destructor tested|
+|004743E0|S|Exchange flags/copy/key initialization; G3/G6 tested|
+|00474460|S|Call flags/copy/key initialization; G1/G6 tested|
+|00474580|P|Owned destructor effects tested; native/base/allocation teardown unsupported|
+|00474670|S|Logical shared QI view modeled; raw+4 adjusting thunk unsupported|
+|00474680|S|Logical shared QI view modeled; raw+8 adjusting thunk unsupported|
+|00474690|S|Logical deletion effect modeled; raw adjusting thunk unsupported|
+|004746A0|S|Framework-unregister/event/clear/preserved-root order; G12 tested|
+|00474780|S|Collect/notify/unindex/destroy/unlink algorithm; G9 tested|
+|004748F0|P|Logical assembly from supplied successful root tokens tested; raw allocation/partial failure unsupported|
+|00474A30|S|Logical low-bit free-allocation effect; dedicated leaf/deleting test|
+|00474A50|S|Owned node creation/duplicate unchanged; G1/G2/G13 tested|
+|00474B30|S|Owned exchange creation/duplicate null; G2/G3/G6 tested|
+|00474C50|S|Owned call creation/duplicate null; G1/G6 tested|
+|00474D70|S|Object-key lookup/removal wrapper; G9/G13 tested|
+|00474DA0|S|Raw-key lookup/removal wrapper; G11/raw-leaf tested|
+|00474DE0|S|Reverse-sibling DFS replay owned; G4/new-target tested|
+|00474F70|S|Typed hold/search/net1/replay registration; G10/new-target tested|
+|00475030|P|Message list ownership/replay primitives tested; native message accessor/allocation internals unsupported|
+|004750F0|S|FIFO including start, false before child enqueue; G4/G5/G8 tested|
+|00475630|P|Null dump no-op tested; non-null diagnostic formatting tagged unsupported GDR4|
+
+The additional node constructor004744E0 and subscription-list clear00473EC0 have
+logical owned effects covered by creation/shutdown/destructor tests; no additional
+48-body credit. Dump visitor00475330 stays unsupported. Shared AddRef/Release,
+raw lookup and root access are logical portable operations, not newly attributed
+native bodies. No private slots/layout, path lookup, name uniqueness/casefolding,
+numeric conversion, factory/native construction or Lua mirror is inferred.
+
+## Questions and next steps
+
+Filed GDR5 in docs/specs/questions/game-data-registry.md: anonymous replacement key
+collision with an existing raw leaf key. The portable model tags this unsupported
+rather than inventing overwrite/native-false semantics. GDR1–4 remain unsupported.
+Coordinator must validate final formatted engine tree before changing WIP to
+ready. The capped lane has ended without an automatic further gate or restart.
+A later authorized lane owns interoperability/wiring or further native evidence.
