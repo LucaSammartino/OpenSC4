@@ -1,8 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-netrules-shadow5: network rules record-only shadow | Codex, `glue-netrules-shadow5` (engine lane) | wip: NR16 merged; NR17 observation validation/publication follow-up | 1. Resolve NR17 and publish native ABI facts. 2. Implement default-off shadow. 3. Run gate and real-city comparison through 2032. |
+| glue-netrules-shadow5: network rules record-only shadow | Codex, `glue-netrules-shadow5` (engine lane) | in progress | Implement NR16/NR17 observer, full gate, game through 2032. |
 
-## Report
+## Handoff
+
+- Goal: default-off record-only shadow to published NR16/NR17; full gate and 2032 verdict.
+- Done: merged re-netrules-nr17 at 845060f5; includes NR16 and ABI validation bytes.
+- Git merge reported packed-refs.lock permission denied but succeeded; detached HEAD intentional.
+- Next: implement capture, epoch hooks, exact site validation, detached replay and parsed table comparison.
+- Contracts: network-rules.md sections 2.2–2.5 and docs/abi/network-rules-observation.md.
+- Capture actual requests only; no native prefetch. Intersection tables explicitly unobserved.
+- No outstanding build/game operation; no round 3 question filed.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-netrules-shadow5-r3-manifest.json.
+
+## Previous round report (superseded)
 
 Merged the requested `re-netrules-nr16` at `15a6248d`; the working record was committed at `b4940f8f`.
 The merge brought additional ancestral changes beyond the advertised docs-only scope. They were not edited
