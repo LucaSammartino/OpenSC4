@@ -31,3 +31,17 @@ Spec: [network-rules.md](network-rules.md) §14. RE-side follow-ups; nothing her
   Init, not necessarily at city load. Any native addresses/layouts used by engine glue need interface facts
   in docs/abi per CONTRIBUTING.md. [blocked: no netrules_shadow implementation or exactness claim; do not
   guess private container layouts, native signatures, or patch boundaries]
+
+<!-- from: glue-netrules-shadow5 Round 2 (2026-10-23) -->
+- **NR17 - section 2.5.5, fail-closed observer installation and ABI publication:** NR16 now specifies the
+  semantic capture layouts, Evaluate's five-byte span and ReloadRules' six-byte span. Before installing the
+  required native observer, please publish the exact expected observation-site byte sequences (including any
+  relocation handling), or an approved method for comparing loaded sites with the fingerprinted image. The
+  section requires exact site checks but provides no byte reference; existing FC4Compat Identify/CheckCode
+  checks PE identity and executable-page membership, not these instruction bytes. Engine authors cannot inspect
+  the executable to supply the missing reference. Please also specify a safe observation boundary for static
+  cleanup at 0x006232F0 (whole-instruction span/continuation and validation reference, or a supported callback
+  interception), so the required readiness invalidation does not depend on guessing its patch boundary. Publish
+  the native interoperability facts in docs/abi as required by CONTRIBUTING.md; section 2.5.5 currently says
+  that publication is still proposed for the coordinator. [blocked: no hook installed, no netrules_shadow
+  exactness claim; retain NR16's capture semantics and do not infer native instructions]
