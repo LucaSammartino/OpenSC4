@@ -1,23 +1,84 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-automata-controller-lifecycle4: inherited base controller lifecycle | Codex / `re-automata-controller-lifecycle4` (RE lane) | in progress; docs only; ABI unchanged; no game runs | 1. Validate authority/history. 2. Trace owned bodies. 3. Publish bounded contract and AT22 findings. |
+| re-automata-controller-lifecycle4: inherited base controller lifecycle | Codex / `re-automata-controller-lifecycle4` (RE lane; detached HEAD, supervisor publishes reserved branch) | ready: bounded docs publication; questions/doccheck/literal/link/table/diff checks passed; ABI unchanged; no game runs | Coordinator review/landing; AT22 remains partial for the named residuals. |
 
-## Handoff
+## Report — 2026-10-23, SAME R2of3
 
-- Goal: first substantive inherited base `cSC4AutomataController` lifecycle specification; no engine reads or edits.
-- Worktree reused at detached HEAD `d4f10281e5142598aa8ac7d661637cd9fe0982eb`; manifest lane/kind/round/path/base match; dependency `ef8e5396` is an ancestor (exit 0).
-- Read rules, CONTRIBUTING, lane format, canonical RE workspace workflow. No live/native/game actions authorized or needed.
-- Authority/history complete: copied coordinator host proof GO0 at base d4f10281, dependency ancestor exit0, own runtime role RE/round1/unparked, no prior dedicated family found in current history and git path/log audit. Old re-specs13a is record scope, not an inherited lifecycle attempt.
-- Core milestone: new spec §§1–5 covers constructor, adjusted QI/refcount, template/occupant ownership, Shutdown versus direct destructor. Primary bytes resolve S=C+4 offset conflict; slot39 export Write is actually deleting cleanup.
-- Core contract committed `4a4fc554`; initialization record committed `77321b20`.
-- Extended milestone: §§6–12 cover Init/activation, raw-byte flag predicate, binary32 scaled tick and expiry equality, position/world bounds/grid storage, first-match removal, foreign primitives, concrete dispatch, 13 proposed UNEXECUTED traces and per-body ledger. AT22 partial integrated; automata §3.5 corrected without changing historical measurements.
-- PE read-only constants SHA256 matches prior contract: 3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b. Runtime 00B227CC initialization remains unknown (virtual zero fill is not runtime proof).
-- R2 admission audited: SAME provider availability exit0 07:48:19 and host census 07:50:19 copied in build-runs/evidence-run4; prior commits/ignored evidence and sole dirty automata.md lifetime-label correction preserved. No process/build/native actions.
-- R2 goal: qualify owned PlaySFX 00515770, base slot25 CheckEffectTriggers 00516B40, base slot27 HandleViewChanged 00515870 from primary vtable 00A95D90 and instruction bytes, then literal composition/self-audit/checks.
-- R2 helper proof committed `4bc47d12`: primary-byte sound selection/commands, effect short-circuit/QI-output versus source-Release, and view output/terrain/frustum/store CFG. Commit succeeded; Git also printed packed-refs.lock permission denied (shared refs read-only); no ref workaround attempted.
-- R2 composition publication: N1–N16 proposed/unexecuted; L1/L7 remain projections, L10 now derives from occupant output through owned bounds/lot helpers; references/tick/expiry audit and preserved lifetime correction integrated. AT22 remains open.
-- Checks so far: questions index/check and doccheck passed; independent literal/links/tables check passed after correcting its own mistaken expected rational denominator (not a native failure). Self-audit caught bold R2 heading being indexed as a new question: renamed to ordinary Partial source answer; rerun pending. One patch expected-line mismatch corrected without changing native conclusions.
-- Next: rerun literal/questions/diff checks, commit this composition milestone and guard; final bounded report/clean tip/normal DOCS queue.
-- R2 admission clarifies original independent brief peer already satisfied; normal own DOCS queue allowed after actual checks. No additional worker peer/subagent required; coordinator reviews before landing.
-- Initial command quoting attempt failed in PowerShell; no command executed. Corrected manifest extraction succeeded.
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-automata-controller-lifecycle4-r2-manifest.json`; SAME R2of3, 150000 context, maxCalls 100; detached HEAD commits only, no ref changes.
+Published [the inherited base lifecycle contract](../specs/automata-controller-lifecycle.md)
+and integrated its bounded findings in [automata §3.5](../specs/automata.md).
+R1 commits `77321b20`, `4a4fc554`, `77f5168b` and all ignored evidence were
+preserved. The sole inherited dirty lifetime-field correction was audited and
+committed, retaining historical corpus values. Dependency `ef8e5396` was already
+qualified in R1; copied R2 admission, 07:48:19 same-model availability exit0 and
+07:50:19 host census are retained in `build-runs/evidence-run4/`. No process,
+server, native/build/game, branch/ref or foreign-worktree actions were taken.
+
+R1 established C versus S=C+4, QI/refcount and template/occupant ownership,
+Shutdown versus direct destruction, Init/activation local chronology, raw-byte
+flags, scaled float tick/expiry equality, finite bounds/grid storage, first-match
+removal and concrete dispatch limits. The serializable base identity 4A18672B
+does not establish a registered base factory. The copied raw global 00B227CC
+still has unknown runtime initialization. R1's previously measured PE SHA256 is
+`3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`.
+
+R2 helper proof `4bc47d12` derives primary-vtable `00A95D90` entries and byte
+paths for PlaySFX `00515770`, CheckEffectTriggers `00516B40` and HandleViewChanged
+`00515870`. PlaySFX stores the selected ID at C+0x3C before start/position
+commands, ignores their returns and does not clear it on stop. Effect predicates
+short-circuit through QI output Q, while the final Release uses source R; false
+QI with nonnull output performs no cleanup. View handles null services, forced
+visibility, repeated position/bounds/height outputs, ordered five-point tests and
+the final flag setter; normal return is true even when visibility is false.
+Foreign services remain single typed calls with raw outputs/returns/ref effects.
+No foreign service internals or derived selection/emission/motion algorithms
+were used to close these helpers. Export/asm/decomp navigation sufficed; no REA
+call or session operation was needed.
+
+Composition milestone `05adfde4` adds N1–N16 proposed, **UNEXECUTED** rows to
+the original thirteen: 29 total. Init can activate, deactivate on a failed
+effect condition, then still start sound. Raw request2 can clear activation yet
+notify/start and enable delay. Repeated Init/Shutdown, equal/null clock swaps,
+source/output identity separation, safe empty-list true-with-null Q, selected
+ID0, forced/unavailable view and ordered point coordinates are explicit.
+L1/L7 retain projections because inputs are unspecified; L10 now derives its
+outputs through owned bounds/lot helpers from one occupant output operation.
+The source/reference/tick/signature audit retains the true earlier conclusions.
+
+Validation completed:
+
+- `python tools/questions.py index`, then `check`: passed; regenerated index
+  has no net diff, no accidental new ID and no entry moved to answered.
+- `python tools/doccheck.py check`: passed.
+- `python build-runs/lifecycle-r2-literals.py`: passed. Exact rational tick
+  product is 1073741875/1073741824; PC24/53/64 nearest-even stores delta1;
+  upward rounding can store the next binary32. Runtime PC/RC was not measured.
+  Numeric subsets for L10/N1/N2/N6/N9/N15 were checked independently; controller
+  call chronologies were manually audited from primary bytes, not executed.
+  L1–L13/N1–N16 IDs are unique/ordered, relevant tables align and local
+  links in edited sections and this report resolve.
+- `git diff --check`: passed; only four public documentation paths changed
+  across the lane. Cargo, clippy and ctest: n/a for this docs-only RE lane.
+  Game labels/shadow verdicts: none; no native objects, Init, sound or render
+  execution and no portable implementation/golden outputs.
+
+Tool issues remain distinct from behavior evidence. R1 provider capacity failure
+and command/patch errors remain preserved. R2 corrected an expected-line patch
+mismatch, the analytic helper's own mistaken expected rational denominator, and
+a bold R2 heading initially misindexed as question R2. Corrected checks passed;
+none was a native behavior failure. Commits succeeded despite Git also printing
+packed-refs.lock permission denied; shared refs were left untouched.
+
+Questions: AT22 has further partial source findings in
+[questions/automata.md](../specs/questions/automata.md), and stays open. Residuals
+are owned state/behavior/template-instance/intersection helpers, complete callback
+signatures, Read ownership, runtime position initialization, allocation/exception/
+reentry/invalid-pointer and broad FP/overflow domains, plus complete derived
+contracts. AT21/AT23/AD3/AD4, parked glue/families and old warnings are unchanged.
+No ABI rows proposed, C ABI changes, 48-entry/6556-byte coverage credit, whole-owner
+completion, native route, default enablement or family admission is claimed.
+
+Ready means this coherent bounded DOCS publication can be reviewed and landed.
+R2 admission says the original independent brief peer was already satisfied;
+the coordinator independently reviews the queued exact committed tip. No extra
+worker peer or approval prerequisite was invented. Continue the named AT22
+residuals only under a separately authorized scope; no automatic further round.
