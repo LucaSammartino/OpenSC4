@@ -2459,13 +2459,13 @@ Only handlers with published sections have execution contracts here.
 | 14 | `rate` | `00A9FAA8` | `0059CA70` | `cParticleRateCommand`; §19.19 |
 | 15 | `inject` | `00A9FA98` | `0059CBB0` | `cParticleInjectCommand`; §19.19 |
 | 16 | `maintain` | `00A9FA88` | `0059CC20` | `cParticleMaintainCommand`; §19.19 |
-| 17 | `texture` | `00A9FA78` | `005A10B0` | `cParticleTextureCommand` |
-| 18 | `model` | `00A9FA68` | `005A1340` | `cParticleModelCommand` |
+| 17 | `texture` | `00A9FA78` | `005A10B0` | `cParticleTextureCommand`; §19.39 |
+| 18 | `model` | `00A9FA68` | `005A1340` | `cParticleModelCommand`; §19.40 |
 | 19 | `align` | `00A9FA58` | `00597FB0` | `cParticleAlignmentCommand`; §19.20 |
 | 20 | `collide` | `00A9FA48` | `00598120` | `cParticleCollisionCommand`; §19.22 |
 | 21 | `terrainRepel` | `00A9FA38` | `00598320` | `cParticleTerrainRepelCommand`; §19.22 |
 | 22 | `effectBase` | `00A9FA28` | `0059D8F0` | `cParticleEffectBaseCommand`; §19.16 |
-| 23 | `timedEffect` | `00A9FA18` | `005A16B0` | unnamed |
+| 23 | `timedEffect` | `00A9FA18` | `005A16B0` | unnamed; §19.41 |
 | 24 | `color255` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand`; §19.25 |
 | 25 | `colour` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand`; §19.25 |
 | 26 | `colour255` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand`; §19.25 |
@@ -3360,3 +3360,180 @@ golden execution. Coordinates D refer to the decal description.
 | EC181 | texture positive finder selects `TeX`,Missing; map tex=0 | ID becomes 0; original spelling unchanged; Missing ignored; next invocation requires name |
 | EC182 | texture light succeeds; positive finder selects `MiSs`; no map key | `No such texture: 'MiSs'`; light flag remains set, old ID retained, no missing-key insertion |
 | EC183 | texture repeat returns -3, offset returns (2,-4); old flags=1,ID=7; no name | flags=9, repeat=-3, offset=(2,-4), ID=7, no owner numeric validation |
+
+### 19.39 Particle draw options and `texture` *[compat]*
+
+Particle coordinates D are relative to `P+F0`. Owned helper
+`ParseDrawOptions` (`005A1220`) is called by particle texture and model
+with D. It queries options in this fixed order; absence retains fields.
+
+| Option | Minimum | Update after successful conversion/presence |
+|---|---:|---|
+| draw | 1 | ParseEnum with table `00B0A408`, third argument zero; store low byte at `D+D4` |
+| light | 0 | OR word `D+00` with 1 |
+| noCull | 0 | OR word `D+00` with `10` hex |
+| sortOffset | 1 | ParseFloat first argument, round/store binary32 at `D+D8` |
+
+Draw table is `decal→0`, `decalInvertDepth→1`, `decalIgnoreDepth→2`,
+`depthDecal→3`, `depthDecalMasked→4`, `additive→5`,
+`additiveIgnoreDepth→6`, `modulate→7`, then null. It differs from decal's
+table (§19.37). Enum matching/fallback/errors belong to foreign ParseEnum.
+There is no owner enum range check before byte truncation and no numeric
+validation of sortOffset. Parameterized switches use only the first selected
+argument. Failure leaves prior option writes; draw conversion failure precedes
+all later options, sortOffset failure retains its old scalar after any earlier
+flag updates. Evidence: enum store `005A1262`, flag ORs
+`005A1281/005A129D`, binary32 store `005A12CF`; table words
+`00B0A408–00B0A44C`.
+
+`cParticleTextureCommand` (`005A10B0`) has **no live particle-name guard**.
+It first executes that complete draw-options helper, then presence-only
+`vflip` and `hflip` (minimum zero), ORing respectively `40000000` and
+`20000000` hex into `D+00`. It then selects nonswitch values with minimum
+one if current scalar texture/model ID `D+D0` (`P+1C0`) is zero, otherwise
+zero. As with decal texture, a nonpositive **full signed EAX** from selection
+causes no name lookup or ID change. A positive return uses only the first
+selected string, copies it and folds that copy to lowercase, then searches
+texture map `P+AC`. A missing name throws `No such texture: '<original
+spelling>'` without changing the ID or inserting a key. A match copies its
+full 32-bit ID to `D+D0`, including zero. Additional selected names are
+ignored, so missing later names do not throw.
+
+The old ID survives name-selection or lookup failure, but all preceding
+option changes remain. No model list is cleared here, no mode byte is reset,
+and no runtime texture is loaded. Missing options retain earlier values.
+Only options above are queried; generic leftover-switch checks follow the
+completed handler. Evidence: draw helper call `005A10C7`, flips
+`005A10E6/005A1104`, ID-dependent minimum and signed finder branch
+`005A110A–005A112B`, map lookup/assignment `005A1193–005A11BD`,
+missing-name exception `005A11DE–005A1210`. Folding uses foreign
+`009F0543`, as in the other resource-name handlers.
+
+### 19.40 Particle `model` options and binding *[compat]*
+
+`cParticleModelCommand` (`005A1340`) requires the particle live name at
+`P+E0` to be nonempty, throwing `Not in particles block` before any writes
+or option selection otherwise. It does not use a generic stack-type test.
+It then ORs model flags `D+08` (`P+F8`) with 1 and writes mode **byte**
+`D+D4=3` (`P+1C4`), before running the draw-options helper (§19.39).
+A present draw option can therefore overwrite this byte; absent draw leaves
+3. Draw-helper failure retains the initial flag/mode changes and any
+completed helper updates. There is no automatic texture-ID/list reset at
+this stage.
+
+The following option lookups follow the entire helper, in table order.
+All flags are OR operations, with no clearing on omission. Parameterized
+options use only the first selected argument; binary32 speeds have no
+range, sign, finite-value or unit conversion check.
+
+| Option / lookup order | Minimum | Update |
+|---|---:|---|
+| fakePerspective | 0 | model flags `D+08` OR 2 |
+| moveEntireSlave | 0 | model flags OR 8 |
+| slaveApplyAlpha, then applyAlpha **only if slaveApplyAlpha absent** | 0 each | if either queried switch is present, model flags OR `10` hex |
+| modelSpeed | 1 | ParseFloat to binary32 `D+1DC` (`P+2CC`), **then** model flags OR `40` hex |
+| modelSpeedStatic | 1 | ParseFloat to the same `D+1DC`, without clearing or setting flag `40` |
+| sustain | 0 | model flags OR `20` hex |
+| applyLighting | 0 | model flags OR 4 |
+| noCullFaces | 0 | model flags OR `400` hex |
+
+The alias lookup short-circuits: with slaveApplyAlpha present, applyAlpha is
+not queried/consumed and can cause a later generic leftover-switch error.
+When both speed options are present, modelSpeedStatic's value wins but
+modelSpeed's flag remains set. A failing modelSpeed conversion leaves its
+old speed and does not set flag `40`; a failing modelSpeedStatic conversion
+retains the successful earlier speed/flag. All preceding state changes survive.
+
+Next select nonswitch values with minimum **zero**, even if the scalar model
+ID is zero. If the full signed EAX is nonpositive, leave scalar ID and model
+list unchanged. Otherwise resolve **all** selected names into a temporary
+ID list, in order: lowercase a copy, find in model map `P+B8`, and append
+the mapped full 32-bit ID. Missing name throws `No such model: '<original
+spelling>'`. No nonexistent key is inserted. That failure leaves both live
+ID destinations unchanged, while earlier flag/mode/speed changes survive.
+Order, duplicates and zero IDs are accepted. Input spelling is not rewritten.
+
+On complete resolution, exactly one temporary ID replaces scalar `D+D0`
+and clears the live model list `D+1E0` (`P+2D0`). For any other count,
+replace that live list and retain the old scalar ID; this includes the empty
+list in a direct fixture with independently stipulated positive finder EAX.
+These are the same scalar/list publication rules as dynamic-particle model
+(§19.28), but with this handler's distinct guard/options and coordinates.
+The ID scalar is shared with particle texture; neither successful resolution
+nor omitted names loads a model or creates a runtime effect. Generic
+leftover-switch checking occurs after these writes.
+
+Evidence, numeric operations checked against instruction bytes: guard
+`005A1361–005A13A1`, initial flags/mode/helper `005A13A1–005A13C3`,
+short-circuit alpha options `005A1412–005A1436`; speed stores and flag
+`005A1467–005A147E`, `005A14AE–005A14B3`; remaining flags
+`005A14D4/005A14F3/005A1512`; minimum-zero and signed selection
+`005A151C–005A152D`; name folding/find/temporary append
+`005A15B0–005A15EA`; scalar/list publication `005A1623–005A164A`,
+`005A1688–005A168D`; missing-name error `005A1651–005A1683`.
+
+### 19.41 Particle `timedEffect` insertion *[compat]*
+
+Handler `005A16B0` has no live-name or generic-stack guard. Before any
+selection, it ORs `80000000` hex into particle flags `D+00` (`P+F0`).
+It selects at least two nonswitch operands, ignoring the finder's return.
+The first string is copied as the effect name without case folding or
+lookup; ParseFloat of the second rounds to binary32 time. Extra selected
+values are ignored, and no switches are queried. No duration sign, range
+or finite-value validation, time-unit conversion or effect creation occurs.
+
+On successful parsing, insert one `(name,time)` record in the timed-effect
+list at `D+1CC` (`P+2BC`), native stride 16 with owned string at +00 and
+binary32 time at +0C. Scan from the existing beginning and insert immediately
+before the **first existing time ordered greater than the new rounded time**;
+if none, append. Equal times are passed, preserving insertion order among
+ties. Unordered comparisons are also passed: a new NaN reaches the end,
+while an existing NaN does not itself stop a finite insertion. This is a
+linear insertion rule, not a promise that lists containing NaNs are globally
+sorted. All existing records and names are retained, with no deduplication.
+
+Failed minimum selection or time conversion leaves the list unchanged but
+retains the initial flag OR. On success, a later generic leftover-switch
+error leaves the inserted record. Defaults are neither substituted for
+missing operands nor written on failure. Allocation failures are not assigned
+an invented parse-error contract.
+
+Evidence: initial flag `005A16B9`, selection `005A16C7–005A16CF`,
+string copy `005A1702–005A171A`, binary32 time store `005A1735`,
+ordered x87 predicate `005A1750–005A175C` (status mask `41`),
+insert/append calls `005A1767–005A1780`; element insertion helpers
+`005A17A0` and `005A1920`. No class name is established by this handler's
+literal or descriptor; its dispatch identity is §19.17.
+
+### 19.42 Particle resource/timed child conformance vectors (unexecuted)
+
+Static predictions with stipulated foreign reader replies and resource maps.
+Model fixtures have a nonempty particle live name unless specified.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC184 | draw helper with all options; ParseEnum returns 261; sortOffset returns -2; old flags=0 | D+D4 byte=5, flags=11 hex, D+D8=-2; table decal=0 through modulate=7 as §19.39 |
+| EC185 | draw helper light/noCull succeed then sortOffset conversion throws | flags OR 11 hex survives; old sortOffset retained |
+| EC186 | texture empty live name, vflip+hflip; ID=7, finder EAX=0 | flags OR 60000000 hex; no name error/lookup; old ID retained |
+| EC187 | texture ID=0; draw/light succeeds, minimum-one selection throws | earlier draw/light changes survive; ID remains 0 |
+| EC188 | texture positive finder selects `TeX`,Missing; map tex=9 | scalar D+D0=9, later name ignored; model list/mode retained apart from explicit draw changes |
+| EC189 | texture hflip succeeds; map lacks selected `MiSs` | original-spelling missing-texture error, old ID retained, hflip survives |
+| EC190 | model empty particle live name; all switches present | `Not in particles block` before flag/mode/helper/selection writes |
+| EC191 | model no operands/options; old flags=0,scalar=7,list=[1,2], mode=0 | model flags=1,mode=3; minimum-zero selection; scalar/list retained |
+| EC192 | model draw ParseEnum returns 7; no names | mode byte=7 overrides initial 3; model flag 1 retained |
+| EC193 | model slaveApplyAlpha and applyAlpha present; no names | model flags OR 11 hex; applyAlpha unqueried; generic leftover-switch error after handler |
+| EC194 | model modelSpeed=2,modelSpeedStatic=-3 | speed=-3; model flags OR 41 hex; no sign check or static flag clearing |
+| EC195 | model modelSpeed conversion throws, old flags=0,speed=7 | initial model flags=1 and mode=3 survive; speed=7, flag 40 hex unset |
+| EC196 | modelSpeed=2 succeeds then modelSpeedStatic throws | speed=2 and model flags OR 41 hex survive; no later sustain/name work |
+| EC197 | model fakePerspective,moveEntireSlave,sustain,applyLighting,noCullFaces; no names, old model flags=0 | flags=42F hex including initial 1; no name minimum or resource lookup |
+| EC198 | model selected `A`, map a=9; old scalar=7,list=[1,2] | scalar=9,list cleared |
+| EC199 | model selected A,B,a, map a=9,b=0; old scalar=7 | list=[9,0,9], scalar remains 7 |
+| EC200 | model selected A,Missing, map a=9 only; fakePerspective succeeds | original-spelling model error; scalar/list unchanged, model flags OR 3 survives |
+| EC201 | model independently stipulated positive finder EAX, empty selected list | model list cleared by empty replacement; old scalar retained; no map lookup |
+| EC202 | timedEffect minimum-two selection throws; old flags=0,list L | flags=80000000 hex, list L unchanged |
+| EC203 | timedEffect selects `MiXeD`,bad; time conversion throws | flag OR retained, list unchanged, no name lookup |
+| EC204 | timed list [(A,1),(B,3),(C,3)]; timedEffect selects `MiXeD`,3,99 | [(A,1),(B,3),(C,3),(MiXeD,3)]; extra value ignored, case preserved |
+| EC205 | same initial list as EC204; insert X at -2 | [(X,-2),(A,1),(B,3),(C,3)] with no sign check |
+| EC206 | timed list [(A,1),(N,NaN),(B,3)]; insert X at 2 | [(A,1),(N,NaN),(X,2),(B,3)]; unordered existing N is passed |
+| EC207 | timed list [(A,1),(B,3)]; insert N at NaN | append (N,NaN); no range exception |
+| EC208 | empty particle name; timedEffect valid X,2 with unknown switch left | flag OR and (X,2) append precede generic leftover-switch error; no name guard |

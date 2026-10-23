@@ -40,7 +40,9 @@ were changed. Partial work is not enqueued as ready. Resume from the Handoff.
 - Done round 2: §§19.31–19.34 publish shake/light dictionaries and all eight child handlers; EC141–EC160; doccheck/questions passed. Light length writes/clamps SHAKE fade P+3DC against SHAKE length P+3D8 (asm verified).
 - Done round 2 12289ba3: shake/light children and EC141–EC160; checks passed.
 - Done round 2: §§19.35–19.38 publish all eleven decal registrations/seven unique handlers and EC161–EC183; doccheck/questions passed. Decal size/rotate are unscaled, texture options precede name selection and survive missing-name failure.
-- Next exact step: publish remaining particle source/emit/force/warp/texture/model/timedEffect; then group/select/game nested contracts and complete class inventory. EF15 stays open.
+- Done round 2 f6c9986b: decal dictionary/children, EC161–EC183; checks passed.
+- Done round 2: §§19.39–19.42 publish particle texture/model/timedEffect and owned draw-options helper, EC184–EC208; doccheck/questions passed. Timed insertion passes equal/unordered times; model alpha alias short-circuits.
+- Next exact step: publish remaining particle source/emit/force/warp; then group/select/game nested contracts and complete class inventory. EF15 stays open.
 - Sequence registration verified but not yet published: 00596190 installs wait/B0A400/A9FCC8 then play/B0A3FC/A9FCB8; four-byte objects, wrapper 007E3BE0, handlers at +0C. Class names unresolved in export.
 - Remaining particle execution: source, emit, force, warp, texture, model, timedEffect; all other particle table rows have section contracts.
 - Appearance: size multiplies x87 return by binary32 50 before rounding; 255 suffix scales lists only after vary succeeds; NaN varies accepted by instruction predicates.
