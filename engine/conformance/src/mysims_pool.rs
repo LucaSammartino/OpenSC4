@@ -14,10 +14,10 @@ use std::rc::Rc;
 use fc4_core::grid::CellRect;
 use fc4_core::mysims::dispatch::{
     set_current_commute_destination, DispatchLocation, JobSearchState, JobSearchWorld, LotAt, RecordingJobPathfinder,
-    FLAG_HAS_HOME,
+    world_to_cell, FLAG_HAS_HOME,
 };
 use fc4_core::mysims::pool::{
-    is_male_text, portrait_source, IniFile, MemoryPoolHost, MySimPool, MySimTemplate, PortraitSource, TemplateExemplar,
+    is_male_text, member_face, member_key, portrait_source, IniFile, MemoryPoolHost, MySimPool, MySimTemplate, PortraitSource, TemplateExemplar,
     TemplateKey, MALE_TEXT, ZODIAC_GROUP, ZODIAC_INSTANCES,
 };
 
@@ -28,6 +28,8 @@ use crate::scalar::{arr, bool_of, check_expect, i64_of, ji, opt, str_of, u32_of,
 pub(crate) fn exec(rest: &str, op: &Json) -> Option<R<()>> {
     Some(match rest {
         "job_search" => job_search(op),
+        "location_arithmetic" => location_arithmetic(op),
+        "member_format" => member_format(op),
         "pool" => pool(op),
         "portrait" => portrait(op),
         "gender" => check_expect(
@@ -39,6 +41,40 @@ pub(crate) fn exec(rest: &str, op: &Json) -> Option<R<()>> {
         ),
         _ => return None,
     })
+}
+
+fn location_arithmetic(op: &Json) -> R<()> {
+    let cells = arr(op.get("bits").ok_or("bits")?, "bits")?
+        .iter()
+        .map(|j| {
+            let b = match j {
+                Json::Str(s) => u32::from_str_radix(s, 16).map_err(|e| e.to_string()),
+                _ => u32_of(j, "bits"),
+            }?;
+            Ok(ji(world_to_cell(f32::from_bits(b))))
+        })
+        .collect::<R<Vec<_>>>()?;
+    let (x, z) = pair(op.get("cell").ok_or("cell")?, "cell")?;
+    let mut loc = DispatchLocation {
+        occupant: Some(77), by_commute: true, in_city: false,
+        neighbor_city: (2, 9), reserved: (3, 4), ..DispatchLocation::default()
+    };
+    let before = loc;
+    loc.set_cell_position(x, z);
+    let preserved = loc.occupant == before.occupant && loc.by_commute == before.by_commute
+        && loc.in_city == before.in_city && loc.neighbor_city == before.neighbor_city
+        && loc.reserved == before.reserved;
+    check_expect(op, obj(vec![
+        ("cells", Json::Array(cells)),
+        ("cell", Json::Array(vec![ji(loc.cell.0), ji(loc.cell.1)])),
+        ("world", Json::Array(vec![Json::Float(f64::from(loc.world.0)), Json::Float(f64::from(loc.world.1))])),
+        ("preserved", Json::Bool(preserved)),
+    ]))
+}
+
+fn member_format(op: &Json) -> R<()> {
+    let k = u32_of(op.get("index").ok_or("index")?, "index")?;
+    check_expect(op, obj(vec![("key", Json::Str(member_key(k, "name"))), ("face", Json::Str(member_face(k)))]))
 }
 
 fn pair(j: &Json, what: &str) -> R<(i32, i32)> {
@@ -393,6 +429,10 @@ fn pool(op: &Json) -> R<()> {
                     .next()
                     .map(|n| [n.strip_suffix(b".ini").unwrap_or(n), b".pub"].concat())
                     .unwrap_or_default();
+                let pub_name = match opt(fam, "listed_name") {
+                    Some(j) => bytes(j, "listed_name")?,
+                    None => pub_name,
+                };
                 h.listings.borrow_mut().entry(export).or_default().push(pub_name);
                 let mut ini = IniFile::default();
                 for e in arr(fam.get("entries").ok_or("family entries")?, "entries")? {

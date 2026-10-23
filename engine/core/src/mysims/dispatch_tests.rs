@@ -630,6 +630,7 @@ fn t33_job_search_neighbor() {
     let d = st.commute_destination;
     assert_eq!((d.occupant, d.in_city, d.cell), (None, false, (0, 37)));
     assert_eq!((d.neighbor_city, d.by_commute), ((3, 4), true));
+    assert_eq!(d.world, (0.0, 592.0));
     // Clamped on the far side too; no city → false.
     let mut pf = found_pf((70, 64));
     set_current_commute_destination(&mut st, &mut pf, &w, find_new_job_loc(), true);
@@ -905,4 +906,38 @@ fn t39_ids() {
     let f = D::new();
     assert_eq!(f.d.class_id(), DISPATCH_CLSID);
     assert_eq!(f.d.interface_id(), DISPATCH_IID);
+}
+
+#[test]
+fn t42_ms13_arithmetic_and_home_rect() {
+    let cases = [
+        (0x432F_E666, 10), (0xC100_0000, -1), (0xC180_0000, -1),
+        (0x8000_0000, 0), (0x8DA2_4260, 0), (0x477F_FFFD, 4095),
+        (0x4C80_0000, 4_194_304), (0x4CBE_BC20, 5_222_152),
+        (0xCCBE_BC20, -8_305_697), (0x7FC0_0000, 880_803_840),
+        (0xFFC0_0000, -1_266_679_808), (0x7F80_0001, 880_803_841),
+        (0x7F80_0000, 876_609_536), (0xFF80_0000, -1_270_874_112),
+    ];
+    for (bits, cell) in cases {
+        assert_eq!(world_to_cell(f32::from_bits(bits)), cell, "{bits:08x}");
+    }
+    let mut loc = DispatchLocation { occupant: Some(77), by_commute: true,
+        in_city: false, neighbor_city: (2, 9), reserved: (3, 4), ..DispatchLocation::default() };
+    let old = loc;
+    loc.set_cell_position(3, 37);
+    assert_eq!(loc.world, (48.0, 592.0));
+    assert_eq!(loc, DispatchLocation { cell: (3, 37), world: (48.0, 592.0), ..old });
+    loc.set_cell_position(0x1000_0001, 0);
+    assert_eq!((loc.cell, loc.world), ((0x1000_0001, 0), (16.0, 0.0)));
+    let w = jw(2);
+    // Different occupant's lot covers the home cell: never fall back to it
+    // when a home occupant exists but its own lot is absent (MS13 c).
+    w.lots.borrow_mut()[0].0 = 0x999;
+    let mut st = home_state();
+    let mut pf = found_pf((1, 1));
+    set_current_commute_destination(&mut st, &mut pf, &w, find_new_job_loc(), true);
+    assert_eq!(pf.start_rect, Some(CellRect::new(10, 10, 10, 10)));
+    st.home.occupant = None;
+    set_current_commute_destination(&mut st, &mut pf, &w, find_new_job_loc(), true);
+    assert_eq!(pf.start_rect, Some(CellRect::new(10, 10, 12, 11)));
 }

@@ -69,8 +69,8 @@
         "destination": {
           "occupant": null,
           "world": [
-            -16.0,
-            -16.0
+            0.0,
+            592.0
           ],
           "cell": [
             0,

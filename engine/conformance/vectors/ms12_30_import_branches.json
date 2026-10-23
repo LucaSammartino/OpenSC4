@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "mysim_ms14_import_branches",
+  "spec": ["mysims 4.12", "mysims 12.22"],
+  "description": "Required member text reads, zero count on missing/bad number after a valid family, short listed filename, empty localized strings and signed member formatting. UINT_MAX nontermination is deliberately not executed.",
+  "steps": [
+    {"op": "mysim_member_format", "index": 2147483648,
+     "expect": {"key": "sims_familymember-2147483648_name", "face": "family-2147483648_face.jpg"}},
+    {"op": "mysim_pool", "mysim_dir": "M/",
+     "install": {"registry": {"InstallPath": "D"}, "dirs": ["D", "D\\UserData"],
+       "families": [
+         {"export": "D\\UserData\\Export\\", "ini": "D\\UserData\\Export\\abc.ini", "listed_name": "abc",
+          "entries": [["WebPages", "FamilyDescription", "P/"], ["FamilyInfo", "sims_family_nummembers", "5"], ["FamilyInfo", "sims_family_name", "F"],
+            ["FamilyInfo", "sims_familymember1_name", "A"], ["FamilyInfo", "sims_familymember1_gender", ""], ["FamilyInfo", "sims_familymember1_zodiac", ""], ["FamilyInfo", "sims_familymember1_guid", "1"],
+            ["FamilyInfo", "sims_familymember2_name", "B"], ["FamilyInfo", "sims_familymember2_zodiac", ""], ["FamilyInfo", "sims_familymember2_guid", "2"],
+            ["FamilyInfo", "sims_familymember3_name", "C"], ["FamilyInfo", "sims_familymember3_gender", ""], ["FamilyInfo", "sims_familymember3_guid", "3"],
+            ["FamilyInfo", "sims_familymember4_gender", ""], ["FamilyInfo", "sims_familymember4_zodiac", ""], ["FamilyInfo", "sims_familymember4_guid", "4"],
+            ["FamilyInfo", "sims_familymember5_name", "E"], ["FamilyInfo", "sims_familymember5_gender", ""], ["FamilyInfo", "sims_familymember5_zodiac", ""]]},
+         {"export": "D\\UserData\\Export\\", "ini": "D\\UserData\\Export\\missing.ini",
+          "entries": [["WebPages", "FamilyDescription", "P/"], ["FamilyInfo", "sims_familymember1_name", "A"], ["FamilyInfo", "sims_familymember1_gender", ""], ["FamilyInfo", "sims_familymember1_zodiac", ""], ["FamilyInfo", "sims_familymember1_guid", "1"]]},
+         {"export": "D\\UserData\\Export\\", "ini": "D\\UserData\\Export\\bad.ini",
+          "entries": [["WebPages", "FamilyDescription", "P/"], ["FamilyInfo", "sims_family_nummembers", "bad"], ["FamilyInfo", "sims_familymember1_name", "A"], ["FamilyInfo", "sims_familymember1_gender", ""], ["FamilyInfo", "sims_familymember1_zodiac", ""], ["FamilyInfo", "sims_familymember1_guid", "1"]]}
+       ]},
+     "steps": ["import", "get"],
+     "expect": {"results": [1, [{"name": "A F", "male": true, "sign": 0, "bitmap": 0, "portrait": "A_1.bmp"}]],
+       "loaded": true, "cached": 1, "installation": "D", "file_hex": "aae4324a03412046010003415f31",
+       "converted": [["D\\UserData\\Web Pages\\P\\FamilyGFX\\family1_face.jpg", "M/A_1.bmp"]],
+       "deleted": ["D\\UserData\\Export\\abc.ini", "D\\UserData\\Export\\missing.ini", "D\\UserData\\Export\\bad.ini"]}}
+  ]
+}

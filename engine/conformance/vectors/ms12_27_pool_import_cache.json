@@ -86,7 +86,8 @@
                 "FamilyInfo",
                 "sims_familymember2_guid",
                 "255"
-              ]
+              ],
+              ["FamilyInfo", "sims_familymember2_zodiac", ""]
             ]
           }
         ]
@@ -216,7 +217,8 @@
                 "FamilyInfo",
                 "sims_familymember2_guid",
                 "255"
-              ]
+              ],
+              ["FamilyInfo", "sims_familymember2_zodiac", ""]
             ]
           }
         ]
@@ -329,7 +331,8 @@
                 "FamilyInfo",
                 "sims_familymember2_guid",
                 "255"
-              ]
+              ],
+              ["FamilyInfo", "sims_familymember2_zodiac", ""]
             ]
           }
         ]

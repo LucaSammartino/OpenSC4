@@ -161,6 +161,7 @@ fn sims_host() -> Rc<MemoryPoolHost> {
             e("sims_familymember1_guid", "107307"),
             e("sims_familymember2_name", "Betty"),
             e("sims_familymember2_gender", "Female"),
+            e("sims_familymember2_zodiac", ""),
         ],
     };
     h.inis
@@ -326,6 +327,8 @@ fn p9_ms12_ini_reads() {
             e("SIMS_FAMILY_NUMMEMBERS", "3"),
             e("sims_familymember1_name", "A"),
             e("sims_familymember1_guid", "0x1F"),
+            e("sims_familymember1_gender", ""),
+            e("sims_familymember1_zodiac", ""),
             e("sims_familymember2_guid", " 42abc"),
             e("sims_familymember3_guid", "9"),
         ]);
@@ -336,8 +339,9 @@ fn p9_ms12_ini_reads() {
     let t = pool.templates();
     assert_eq!(t[0].portrait, b"A_0.bmp");
     assert_eq!(t[1].portrait, b"Betty_2a.bmp");
-    // A negative count loops unsigned: member 3 is reached; n = 0 → none.
-    for (n, want) in [("-1", 3), ("0", 0)] {
+    // A finite negative count loops unsigned: member 3 is reached.
+    // -1 never terminates (MS14); test formatting separately instead.
+    for (n, want) in [("-2", 3), ("0", 0)] {
         h.inis.borrow_mut().values_mut().for_each(|i| {
             i.entries.retain(|(_, k, _)| k != b"sims_family_nummembers");
             i.entries.retain(|(_, k, _)| k != b"SIMS_FAMILY_NUMMEMBERS");
@@ -351,6 +355,9 @@ fn p9_ms12_ini_reads() {
                 b"sims_familymember3_name".to_vec(),
                 b"C".to_vec(),
             ));
+            for f in ["gender", "zodiac"] {
+                i.entries.push((b"FamilyInfo".to_vec(), member_key(3, f).into_bytes(), Vec::new()));
+            }
         });
         assert_eq!(MySimPool::new(h.clone()).import(), want, "n = {n}");
     }
@@ -378,4 +385,45 @@ fn p10_ms12_absent_properties() {
     assert_eq!(t[0].name, b"");
     assert_eq!((t[0].bitmap_id, t[0].is_male, t[0].sign), (0, false, 7));
     assert_eq!(t[0].indeterminate, INDETERMINATE_BITMAP | INDETERMINATE_MALE);
+}
+
+#[test]
+fn p11_ms14_required_reads_and_short_names() {
+    for missing in ["sims_family_nummembers", "sims_familymember1_name",
+        "sims_familymember1_gender", "sims_familymember1_zodiac", "sims_familymember1_guid"] {
+        let h = sims_host();
+        h.inis.borrow_mut().values_mut().for_each(|i| i.entries.retain(|(_, k, _)| k != missing.as_bytes()));
+        assert_eq!(MySimPool::new(h.clone()).import(), 0, "{missing}");
+        assert!(h.converted.borrow().is_empty());
+    }
+    let h = sims_host();
+    h.inis.borrow_mut().values_mut().for_each(|i| {
+        for (_, k, v) in &mut i.entries {
+            if k == b"sims_family_nummembers" { *v = b"bad".to_vec(); }
+        }
+    });
+    assert_eq!(MySimPool::new(h).import(), 0);
+    for name in [b"abc".as_slice(), b""] {
+        let h = sims_host();
+        let ini = h.inis.borrow_mut().remove(b"D:\\Sims\\UserData2\\Export\\F.ini".as_slice()).unwrap();
+        let path = [b"D:\\Sims\\UserData2\\Export\\".as_slice(), name, b".ini"].concat();
+        h.inis.borrow_mut().insert(path.clone(), ini);
+        *h.listings.borrow_mut().values_mut().next().unwrap() = vec![name.to_vec()];
+        assert_eq!(MySimPool::new(h.clone()).import(), 1);
+        assert_eq!(*h.deleted.borrow(), vec![path]);
+    }
+    assert_eq!(member_key(0x8000_0000, "name"), "sims_familymember-2147483648_name");
+    assert_eq!(member_face(0x8000_0000), "family-2147483648_face.jpg");
+    let h = sims_host();
+    h.strings.borrow_mut().clear();
+    h.inis.borrow_mut().values_mut().for_each(|i| {
+        for (_, k, v) in &mut i.entries {
+            if k == b"sims_familymember1_gender" || k == b"sims_familymember1_zodiac" { v.clear(); }
+        }
+    });
+    let p = MySimPool::new(h);
+    assert_eq!(p.import(), 1);
+    let t = p.templates();
+    assert!(t[0].is_male);
+    assert_eq!(t[0].sign, 0);
 }
