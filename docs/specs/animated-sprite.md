@@ -183,6 +183,55 @@ stores cos(a) to binary32, retains sin(a), stores the products for matrix rows 1
 to binary32 before the other column update (`0x007FC525–007FC60E`). Numeric execution inherits PC/RC;
 these algebraic products are not permission to choose host trigonometry or a universal floating-point mode.
 
+#### 3.1.1 Finite instruction schedule: notation and mask 1
+
+This schedule specifies the normal, completing instruction path, with finite intermediates and no
+unmasked floating exception. Incoming x87 precision control **PC** (24, 53 or 64 significant bits) and
+rounding control **RC** are parameters, not inferred defaults. Write `P(x,y)`, `U(x,y)` and `V(x,y)` for
+one x87 multiply, add and subtract respectively, rounded under the current PC/RC; preserve their written
+nesting. `N(x)` changes the sign without arithmetic rounding. `B(x)` is an actual binary32 store under
+RC followed by an exact reload when used later. Each named temporary stays an x87 transient unless
+explicitly marked `B`. Matrix writes are B stores; integer copies of already stored words do not round.
+These rules do not authorize fused operations, reassociation or replacing all intermediates with doubles.
+An ordinary completing environment with unchanged PC/RC suffices for the examples; the local body does
+not establish whole-call numeric-mode provenance.
+
+For masks 1–6 the trigonometric primitives are **hardware x87 FCOS then FSIN**, each applied to an exact
+load of the same binary32 angle. There are no foreign sine/cosine calls, double argument conversions or
+foreign return formats in this body. Let `C,S` denote the actual hardware primitive transients, without
+assuming that they equal correctly rounded host sin/cos or first rounding them to binary32. In each
+partial stage cosine immediately becomes `c=B(C)`; sine initially remains `s=S`. Finite huge arguments
+outside hardware range, nonfinite values, exception behavior and hardware approximation accuracy are
+outside this normal-domain schedule; no CRT implementation is substituted. Evidence: `0x007FC525–007FC544`,
+`0x007FC675–007FC694`, `0x007FC770–007FC789`, `0x007FC8B1–007FC8D0`,
+`0x007FC9C5–007FC9DE`, `0x007FCAAD–007FCACD`.
+
+Matrix rows occupy offsets `(3C,40,44)`, `(48,4C,50)`, `(54,58,5C)` from the instance-interface pointer.
+For a stage use snapshots `u=(u0,u1,u2)` and `v=(v0,v1,v2)` of its two affected **columns**, after any
+identity reset and after preceding stages. They are old binary32 values, not newly assigned cells.
+Mask 1 uses columns 1 and 2. The following numbered arithmetic groups execute in order; within each
+group the entries execute left to right. All operations not wrapped in `B` remain transient:
+
+| Group | Mask-1 A stage, `0x007FC525–007FC60E` |
+|---|---|
+| 1 | `t0=P(v0,s)`; `t1=B(P(v1,s))`; `t2=B(P(v2,s))` |
+| 2 | `q0=P(u0,c)`; `q1=B(P(u1,c))`; `q2=B(P(u2,c))` |
+| 3 | `r0=U(t0,q0)`; `r1=U(q1,t1)`; `r2=B(U(q2,t2))` |
+| 4 | Copy r2 to m21, then store B(r0) to m01, then B(r1) to m11 |
+| 5 | `p0=B(P(v0,c))`; `p1=B(P(v1,c))`; `p2=B(P(v2,c))`; `n=B(N(s))` |
+| 6 | `h0=P(u0,n)`; `h1=B(P(u1,n))`; `h2=B(P(u2,n))` |
+| 7 | `w0=U(h0,p0)`; `w1=U(h1,p1)`; `w2=B(U(h2,p2))` |
+| 8 | Store B(w0) to m02, B(w1) to m12, then copy w2 to m22 |
+
+Column 0 is untouched by the A stage. Original u0,v0,v1 stay on the x87 stack across the column-1
+writes; u1,u2,v2 were snapshotted as raw words before those writes. Thus the column-2 update uses the
+**old** column 1 even though the owner already contains the new column 1. The negative sine is newly
+stored to binary32; it is not the unrounded negative of the sine used in group 1. Mask 1 first performs
+the flag-4-dependent identity reset described above (`0x007FC4F9–007FC522`), then this A stage, then the
+common end: OR transform flag 4, increment the byte counter once and return 0 (`0x007FCC50–007FCC69`).
+With initial counter 255, final counter is 0 without reset or 1 with reset. All unrelated flag bits,
+translation, scale and both frame/view dirty bytes are preserved. No foreign callback occurs on this path.
+
 `LookAt(target,up)` constructs back=normalize(position−target), right=normalize(up×back), trueUp=back×right;
 the matrix columns are right,trueUp,back. Thus local **−Z** points toward the first argument; it is a target
 point, not a direction or source. It preserves position/scale, ORs flag 4 and increments the byte counter by

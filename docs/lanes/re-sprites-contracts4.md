@@ -1,8 +1,19 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-sprites-contracts4: animated-sprite native contracts | `re-sprites-contracts4` (RE docs lane, detached round 2) | WIP: bounded AS6/AS7 contracts committed; rational/doc checks passed; no native execution or ABI change | Coordinator review of bounded publication; inventory/lifetime/numeric residuals remain, no automatic further round. |
+| re-sprites-contracts4: animated-sprite native contracts | `re-sprites-contracts4` (RE docs lane, detached round 3) | in progress: finite AS6 partial-mask instruction schedules | Complete branch schedules and conditional analytic vectors, reconcile AS6 prose, publish bounded docs. |
 
-## Report
+## Handoff
+
+- Goal: final original round, finite SetOrientation masks 0–7/store/mutation proof; no owner/runtime promotion.
+- Done: checked new own round-3 RE manifest/path/base; copied final host admission has full guard/dependency exit 0, expected round 3, rounds 2/limit 3, parked false.
+- Identity: native SHA256 3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b matches export-summary.txt; Windows 1.1.641 target.
+- Done: complete canonical asm --bytes range read in 56-line pages; first milestone transcribes mask-1 A arithmetic/stores/snapshots/writes/state into §3.1.1 (this commit).
+- Next: transcribe shared A/B/D stages and full-mask schedule, finite dispatch/state table and independent rational stage distinguishers; reconcile later LookAt contradiction.
+- Important: mask-1 uses hardware FCOS/FSIN, not foreign CRT calls; cosine spills B32, sine remains transient until later negative-sine spill.
+- Evidence: build-runs/evidence-run4/coordinator-sprites-final-{host-proof.json,eligibility.md}; own manifest C:/Users/tlori/FreeCity4/build-runs/run4-re-sprites-contracts4-r3-manifest.json.
+- R1/R2 evidence below remains historical. No native/game/build/test/engine reads. AS1/2/3/7 residuals retained. Own final docs merge queue explicitly permitted; no shared queue/state writes.
+
+## Previous round-2 report (retained evidence)
 
 Round 2 adds bounded instruction-derived AS6/AS7 text to docs/specs/animated-sprite.md. It does not promote
 the complete owner, implementation, runtime, defaults, numeric mode or coverage to verified status.
