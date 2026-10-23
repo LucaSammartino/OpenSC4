@@ -12,5 +12,9 @@
 - Formatting applied via apply_patch from rustfmt-generated diffs (never wrote formatter output into source).
 - q.py failed before cargo because Git Bash CreateFileMapping denied; direct cargo worked.
 - qbuild fmt rejected relative file inputs (runs from engine); next use absolute owned paths.
-- Next: absolute-path qbuild fmt, then qbuild all ONCE on stable source; inspect actual terminal result.
+- f4277b01: bounded owner implementations, tests and README committed; absolute-path fmt passed (8 files, zero diff).
+- First full gate still RUNNING: session 1879; cargo 6450 passed/0 failed, clippy 0 diagnostics.
+- Native queue label qbuild-20261023-213449-build-ctest outstanding; collect SAME operation before any rerun.
+- CONTRIBUTING requires vectors in engine/conformance; relocate the new core-vector test modules there.
+- Next: collect gate terminal result; relocate vectors without duplicating assertions, then gate final layout.
 - No game requests; unconnected core only, no ABI/plugin changes; detached HEAD retained.
