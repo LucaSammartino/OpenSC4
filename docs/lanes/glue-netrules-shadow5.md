@@ -18,6 +18,7 @@
 - Contracts: network-rules.md sections 2.2–2.5 and docs/abi/network-rules-observation.md.
 - Capture actual requests only; no native prefetch. Intersection tables explicitly unobserved.
 - Focused Rust replay/snapshot test PASS 1/1; owned Rust formatting PASS. Logs focused-netrules-2.log; original failure preserved.
+- Workspace test/clippy gate PASS: 6649 passed, 0 failed, 0 ignored; clippy 0 diagnostics (qbuild-test.log, qbuild-clippy.log).
 - No game request yet; no round 3 question filed. Native verify above remains outstanding.
 - Game draft: build-runs/game-queue/netrules-r3-2032-a.draft (not enqueued). Label netrules-r3-2032-20261023a, simulator only, turbo through 2032-02-01.
 - Single event-based game waiter prepared at build-runs/await-netrules-game.py; invoke after request submission (no qwait).
