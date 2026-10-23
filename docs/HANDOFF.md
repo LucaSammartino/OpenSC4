@@ -39,7 +39,7 @@ The stop note this replaces is archived verbatim in
 [handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
 
 <!-- BEGIN GENERATED: latest-run -->
-- **Latest in-game run:** 322 (Six new or extended specs (widgets, web, GZ graphics, SC resources, sound, particles) mapped; effect commands landed WIP (run 5).); 321 (Audio answers and the native build queue landed; automata record shadow credited (run 5).); 320 (Model registration effects claimed; Lua host WIP, aircraft and DX7 driver spec work landed (run 5).); 319 (Application, mysim dispatch, water ripple and power-line tool claimed; DX7 driver spec mapped (run 5).); 318 (Construction occupant claimed; aircraft, map view, netocc WIP and three RE lanes landed (run 5).). See `docs/manual-checks.md`.
+- **Latest in-game run:** 323 (City window, map view and place-lot tool landed partial (run 5).); 322 (Six new or extended specs (widgets, web, GZ graphics, SC resources, sound, particles) mapped; effect commands landed WIP (run 5).); 321 (Audio answers and the native build queue landed; automata record shadow credited (run 5).); 320 (Model registration effects claimed; Lua host WIP, aircraft and DX7 driver spec work landed (run 5).); 319 (Application, mysim dispatch, water ripple and power-line tool claimed; DX7 driver spec mapped (run 5).). See `docs/manual-checks.md`.
 <!-- END GENERATED -->
 
 ## Where everything else is
