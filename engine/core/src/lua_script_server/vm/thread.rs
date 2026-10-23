@@ -167,12 +167,8 @@ impl<A: LuaApi> Session<'_, A> {
                     4 => "Allocation",
                     _ => "Unknown",
                 };
-                // §15 Q8: exact formatting is unsettled. Thread numeric IDs are LH4;
-                // label a missing ID explicitly rather than invent its value.
-                let id = self
-                    .thread_id
-                    .map(|id| id.to_string())
-                    .unwrap_or_else(|| "unavailable (LH4)".into());
+                // §15 Q8: exact formatting is unsettled; use the specified parts.
+                let id = self.thread_id.map(|id| id.to_string()).unwrap_or_else(|| "-1".into());
                 let mut text = format!("GZLua5 script error: {kind}; thread {id}; ").into_bytes();
                 text.extend_from_slice(message.unwrap_or_default());
                 self.api.log(&text);
