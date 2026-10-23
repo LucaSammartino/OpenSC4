@@ -79,7 +79,7 @@ the method does **not** clear the caller's output (`0x0082BE90`).
 | 26–27 | ClearGradient, SetGradientTransform | `0x0082C350`, `0x0082C360` |
 | 28–31 | ClearBlt, SetBlt, ClearBltTiling, SetBltTiling | `0x0082C370`–`0x0082C480` |
 | 32–35 | Clear, Point, Line, Fill | `0x0082BFE0`, `0x0082C020`, `0x0082C060`, `0x0082C0C0` |
-| 36–37 | two convenience primitives sharing the exported Ellipse-labelled entry | `0x0082C100`; signatures/geometry unresolved, GZG1 |
+| 36–37 | Ellipse and FillEllipse, folded to the same four-integer operation | `0x0082C100`; both submit kind 5, see §3.2 |
 | 38–40 | Blt, BltTiled, Flush | `0x0082C530`, `0x0082C620`, `0x0082C520` |
 | 41–43 | IsSuspended, Suspend, Resume | `0x0082BFD0`, `0x0082C4E0`, `0x0082C500` |
 | 44–47 | Draw, DrawNoTransform, Lock, Unlock | `0x0082EA60`, `0x0082FC30`, `0x0082C6B0`, `0x0082C6C0` |
@@ -89,6 +89,16 @@ new owning reference. The caller must keep the context/target alive.
 `IsTargetAttached` tests the target pointer, not initialization success of the
 engine. `Release` destroys at the final reference; destruction releases both
 engine and target and frees the context's temporary vectors (`0x0082CA40`).
+**Destruction calls engine Shutdown**, just as target replacement does: with a
+non-null engine it invokes slot 4, frees the six temporary vector allocations,
+releases the engine through slot 2, then independently releases the target
+through slot 2. A null engine does not suppress release of a retained target.
+This is an explicit virtual call, not an assumed destructor side effect
+(`0x0082CA43`–`0x0082CA52`, `0x0082CAC4`–`0x0082CADA`). Consequently a context's
+final Release normally unlocks its buffer through Shutdown; the buffer engine's
+own final-Release-without-Shutdown quirk in §4.2 still applies when that engine
+is released directly. This answers GZG6 and differs from the proposed literal
+reading that destruction only releases the two interfaces.
 
 ### 2.2 Logical state and defaults
 
@@ -184,10 +194,10 @@ DrawNoTransform. DrawNoTransform does not add origin. Its kinds are:
 |---|---|
 | 0 | points |
 | 1 | independent lines |
-| 2 | connected line geometry; detailed endpoint coverage deferred in GZG1 |
+| 2 | independent cubic Bézier curves, four points per curve; trailing points ignored |
 | 3 | rectangles, two points per rectangle |
-| 4 | outline convenience geometry; detailed subdivision deferred in GZG1 |
-| 5 | remaining outline/polygon geometry; detailed closure deferred in GZG1 |
+| 4 | outline ellipses, two opposite bounding-box corners per ellipse |
+| 5 | filled ellipses, two opposite bounding-box corners per ellipse |
 | 6 | filled triangles, three vertices per triangle |
 | 7 | filled quads, four vertices per quad |
 | 8 | one filled polygon |
@@ -215,6 +225,84 @@ attributes, not an unconditional zeroing of all target bytes. Evidence:
 `0x0082BFE0`–`0x0082C0F9`; point's integer loads, float addition and float stores
 are verified at `0x0082C023`–`0x0082C046`.
 
+#### 3.2.1 Ellipse convenience calls and route-specific geometry
+
+*[compat, quirk]* Slots 36 and 37 both take **four signed 32-bit integers**
+`(x0,y0,x1,y1)`, not a rectangle pointer and not centre/radius arguments. Both
+convert those integers to four binary32 coordinates and call Draw with kind 5,
+count 2. Thus the Ellipse-labelled convenience operation fills too; requesting
+an outline requires generic kind 4. Both convenience calls receive the current
+origin exactly once. The folded names do not justify making their behavior
+different (`0x0082C100`–`0x0082C137`, including the 16-byte argument cleanup).
+
+Kinds 4 and 5 consume complete pairs of corners. Their centre is the midpoint
+of the two corners; their radii are half the absolute coordinate differences,
+so reversing either corner order leaves the same ellipse. They offer the
+original kind to engine Draw first. Result 0 is handled; result 1 selects
+tessellation, result 2 selects the generic raster route; any other result does
+nothing (`0x0082E9D0`, `0x0082FAF0`). This route distinction is observable and
+must be preserved instead of forcing one ellipse implementation on all engines.
+
+For kind 5/result 1, let `r` be the larger radius. The polygon has `4*n`
+vertices, where `n=1` for `r<=1`, otherwise `ceil(sqrt(r))`. Its angular step
+uses the original constant approximately `6.28318`, divided by the vertex count;
+the first angle is minus one step and successive angles decrease by one step.
+Vertex coordinates are centre plus radius times cosine/sine, stored as
+binary32. The angle accumulator and stored step are also binary32. The polygon
+is submitted as kind 8 through DrawNoTransform. *[quirk]* With multiple corner
+pairs, this tessellator repeatedly reads the **first** pair, rather than
+advancing to subsequent pairs, and submits that same ellipse once per complete
+pair. This is visible in the unchanged input pointer at `0x0082F470` and loop
+back from `0x0082F5B6`; it is not a rule for the result-2 raster route.
+Numeric evidence: `0x0082F473`–`0x0082F4F9`,
+`0x0082F560`–`0x0082F5AC`.
+
+For kind 5/result 2, normalize the corners to `(left,top,right,bottom)`.
+The visited integer rows run from `ceil(top-0.5)` inclusive to
+`ceil(bottom-0.5)` exclusive, intersected with the current clip's y range.
+For a row `y`, use its pixel centre `y+0.5`. With centre `(cx,cy)`, radii
+`rx,ry`, and `q=ry*ry-(y+0.5-cy)^2`, only `q>0` produces a span. The horizontal
+half-width is `sqrt(q)*(rx/ry)`; span edges are
+`ceil(cx-0.5-halfWidth)` and `ceil(cx-0.5+halfWidth)`, clipped to the context's
+left/right, with the right edge exclusive. Empty spans and zero vertical radius
+produce no output. This route advances to the next corner pair. Stored centres,
+squared vertical radius and width ratio are binary32; the x87 square-root and
+arithmetic between stores are not an invitation to round every intermediate to
+binary32. Evidence: `0x0082E130`, with row conversion verified at
+`0x0082E1E0`–`0x0082E215`; the called `0x009F0A20` is ceil, not a Lua routine.
+
+#### 3.2.2 Curves, lines and filled-polygon handoff
+
+Kind 2 is **not a connected polyline**: each complete group of four points is
+one cubic curve with endpoint, two controls, endpoint. The result-1 route
+evaluates that cubic at sixteen intervals (`t=1/16` through `1`), creates a
+stroke quad for each adjacent pair, and submits kind 7 through DrawNoTransform.
+It does not join the last endpoint of one curve to the first point of the next
+(`0x0082EFE0`). The result-2 route uses fixed-point forward differences and the
+same integer-line helper as kind 1 (`0x0082D5A0`, `0x0082E8A0`). Exact subdivision
+and diagonal tie handling in that integer route remain part of GZG1.
+
+Kind 1/result 2 consumes independent endpoint pairs, converting each component
+to signed fixed point as `floor(component*256+0.5)` before integer-line
+coverage. The product and addition use double constants, are passed to floor
+as binary64, then converted to an integer; do not use truncation or nearest-even
+rounding instead. This follows `0x0082E8A0`, with instruction evidence at
+`0x0082E8D0`–`0x0082E942`; `0x009EFF60` dispatches to the CRT floor routine.
+The line helper emits individual one-pixel, half-open spans and includes its
+terminal major-axis position, subject to clipping (`0x0082D040`). In particular
+an ordinary horizontal integer Line from `(2,3)` to `(4,3)` covers x=2,3,4.
+This does not establish identical caps for the result-1 stroke-quad route.
+
+Filled software triangles, quads and polygons use the same simple-polygon span
+builder; triangles and quads pass each complete group separately, whereas kind
+8 passes its whole point list. The resulting rows are clipped to
+`clip.top <= y < clip.bottom`; x endpoints are read as **signed 16-bit** values
+from the builder's packed record and intersected with the clip's half-open
+horizontal interval. Only nonempty intervals reach engine slot 22
+(`0x0082E430`, `0x0082E5C0`, `0x0082E740`). The builder's exact closure and
+concave/self-intersecting coverage remain unclosed GZG1 work; this handoff does
+not establish a general polygon winding rule.
+
 ### 3.3 Blit binding and suspension
 
 SetBlt supplies a source plus placement and x/y scaling to engine slot 13. The
@@ -227,7 +315,29 @@ SetBltTiling sets the tiling byte and calls engine slot 15 with the supplied
 tiling parameter. ClearBltTiling clears the byte and calls slot 14; if a blit is
 still active its bounded effective clip is re-established. Set/ClearBlt do not
 save a restorable source in PushState (`0x0082C370`–`0x0082C4DD`). Detailed
-source rectangles and Blt/BltTiled convenience argument semantics are GZG1.
+source/engine sampling details are further constrained in §4; the convenience
+arguments themselves are specified below.
+
+`Blt(source,sourceRect,destinationRect)` takes two pointers to four signed
+32-bit edges. Both rectangles must have strictly positive width and height;
+otherwise it makes no state or drawing calls. For valid rectangles it binds the
+source at `(destination.left-source.left,destination.top-source.top)` with scales
+`destination.width/source.width` and `destination.height/source.height`, clears
+tiling, fills the destination rectangle, then clears the source. The placement
+is deliberately **not** `destination.left-source.left*scaleX`. Widths,
+heights and placement differences are integer subtractions before float
+conversion; scale divisions occur in x87 and each argument is stored as
+binary32. Placement and Fill subsequently receive the context origin by their
+ordinary operations (`0x0082C530`–`0x0082C612`).
+
+`BltTiled(source,tileRect,destinationRect,offsetX,offsetY)` applies the same
+positive-rectangle test. It binds at
+`(destination.left+offsetX,destination.top+offsetY)`, using unit scales, sets
+tiling from tileRect, fills destinationRect, clears tiling, then clears the
+source (`0x0082C620`). Offsets are signed integer pixel displacements, not
+fractions or repeat counts. Neither convenience operation saves/restores an
+earlier source or tiling state; both leave source and tiling disabled. A failed
+SetBlt does not prevent their later Fill or cleanup calls.
 
 Suspend increments the nesting count on **every** call, then invokes engine
 Flush (slot 16) and Suspend (slot 17) on every call. Resume does nothing at zero;
@@ -336,6 +446,22 @@ colour type, bytes per pixel, and returns true (`0x0082FED0`). This does not
 acquire another destination lock. Engine alpha mode is reduced to `mode > 0`;
 modulation and antialiasing retain their supplied byte values. Tiling clear
 disables a flag; tiling set enables it and copies a four-word record.
+
+The buffer gradient setter takes a nullable transform pointer plus two
+binary32 anchor coordinates. A non-null transform contains three successive
+four-float rows: constants, x coefficients, y coefficients. For each of the four
+channels it scales all three coefficients by **16,711,680** (`255*65536`), stores
+each product as binary32, then converts to a signed integer with the current
+x87 integer-rounding mode (nearest-even in the default environment). Its cached
+x/y coefficients are those converted integers. Its cached constant is the
+truncation toward zero of the converted constant plus `0x8000`, less the sum of
+the converted x coefficient times anchorX and converted y coefficient times
+anchorY. The latter products and sum remain x87 intermediates until the final
+truncation; do not round those products to binary32. The constant's `+0x8000`
+is integer arithmetic before conversion back to x87. Null only disables the
+gradient flag, leaving cached coefficients intact. This is buffer-engine
+conversion, not a universal hardware-device colour rule
+(`0x0082FDD0`–`0x0082FE45`, `_ftol2` at `0x0082FE34`).
 
 When antialiasing is zero, Draw returns **2**, irrespective of primitive kind.
 With antialiasing enabled, kinds 6 and 7 handle complete groups of three and four
@@ -484,6 +610,13 @@ the screen-related object when one is available (`0x0098E070`). Driver getters
 must not be presumed to transfer ownership; callers needing ownership query or
 retain the returned interface.
 
+GetGDriverByIndex uses an **unsigned** zero-based index in the driver
+collection's ordered traversal; it returns null at or beyond the end, including
+an empty collection. GetGDriverByID performs an exact driver-ID lookup and
+returns null when absent. Both return the stored pointer without AddRef; neither
+creates a driver or substitutes the active/default driver. This settles the
+getter ownership/failure portion of GZG3 (`0x0098F0A0`, `0x0098FCB0`).
+
 Screen setting is `(width,height,bits)`. Availability requires an enumerated
 mode matching those three values and the service's current mode discriminator.
 *[quirk]* A nonzero driver ID is looked up, but the enumerated mode calls still
@@ -575,7 +708,81 @@ are GZG5. Implementers must not infer them from the unreliable pointer/local
 types in exported pseudocode. Likewise the underlying pixel formulas and
 GenericBufferClip mutation contract remain GZG5. Until settled, the 32-level
 count is a service fact, not proof of a particular divisor or endpoint rounding
-rule for every alpha method.
+rule for every alpha method. The clipping and loader details settled below do
+not close the remaining standalone pixel-kernel portion of GZG5.
+
+### 6.3 Standalone clipping and legacy-loader details
+
+`GenericBufferClip(destination,sourceRect,destinationRect,optionalClip)` mutates
+both rectangle records in place. It clips destinationRect to destination
+right/bottom obtained from buffer slot 12, but to **zero** at left/top, rather
+than to the returned area's left/top. Each removed destination edge moves the
+corresponding source edge by exactly the same signed integer displacement.
+It then applies optionalClip's right, left, bottom, top restrictions, with the
+same paired source adjustment. It does not clip against a source buffer or
+validate that sourceRect lies within one. Success requires strict positive
+destination width and height. Only the low return byte is a boolean; the upper
+24 bits are not a result contract (`0x00930BE0`–`0x00930CE7`).
+
+*[compat, quirk]* Failed clipping does **not** restore either input rectangle.
+When clipping against the buffer makes an axis empty, it can return immediately,
+before clipping later edges or applying optionalClip. The four optionalClip
+edges, when reached, are all applied before the final emptiness test. Consumers
+must not expect canonical zero rectangles after failure. The helper performs
+neither buffer locking nor reference acquisition.
+
+The ordinary clipped AlphaBlt wrapper takes alpha/source/destination inputs,
+a source rectangle, a **destination point**, and optional destination clip.
+It copies the source rectangle, builds a destination rectangle at that point
+with the source rectangle's original width/height, clips the local copies,
+and calls AlphaBltNoClip only if clipping succeeds. The caller's rectangle and
+point are unchanged, including on failure (`0x00988F60`). This must not be
+confused with GenericBufferClip's directly mutable arguments or the stretched
+variant's two-rectangle mapping.
+
+`AlphaSurfaceFromFile(filename,levels)` takes a filename pointer and an
+**unsigned 32-bit** level count. MaskSurfaceFromFile takes the filename pointer
+alone. Both obtain a new type-2, 8-bit buffer, with dimensions read as 32-bit
+words at DIB offsets 4 and 8. Both use a source stride of width rounded up to a
+multiple of four and request buffer initialization with width, height, type 2,
+pixel depth 8. Both read precisely after the fixed `14+0x428`-byte prefix;
+the BMP file's pixel-data offset and palette entries do not select or convert
+the pixel values. Successful output is bottom-up source data copied into
+top-down destination rows, **width bytes per row**, using the destination's
+actual stride (`0x00988952`–`0x00988996`, `0x00988A20`–`0x00988A5A`).
+
+For AlphaSurfaceFromFile, each source byte (including padded row bytes) is
+replaced by unsigned integer `byte / (256 / levels)`, with **two separate
+integer divisions**. This is not multiplication by levels followed by a shift.
+For levels 32, source bytes 0–7 become 0, 8–15 become 1, and 248–255 become 31.
+MaskSurfaceFromFile preserves the index bytes verbatim: it does not turn a
+nonzero index into 1, invert it, or apply palette brightness. The consumer
+determines how a mask byte is used. Numeric evidence:
+`0x009889A8`–`0x009889D5` uses 32-bit unsigned division for the level count and
+the quantization; the mask copy is `0x00988B80`–`0x00988B96`.
+
+The loaders do not validate the file signature, dimensions, header fields,
+buffer creation/initialization result, allocation result, seeks or read counts.
+Short reads therefore leave unread allocation bytes in use; no deterministic
+zero-fill, null return or valid partial image is promised. With a nonempty
+source allocation, levels 0 divides by zero in `256/levels`, and levels above
+256 produce a zero divisor for the per-byte division. Negative/overflowing
+dimensions are not a supported alternate orientation. These are unchecked
+native inputs, not additional image formats.
+
+*[compat, quirk]* Creation precedes opening the file. Open failure returns null
+without releasing the created interface. The temporary `0x428`-byte header
+allocation is not freed on the examined return paths. On successful lock,
+the loaders unlock with `0x8040`, free the source pixel allocation, close the
+file, and return the created interface without releasing it: the returned
+reference belongs to the caller. Lock failure skips unlock and does not
+release the created interface; worse, cleanup adds one source stride to the
+last-row pointer, attempting to free the **one-past-end** source address for
+positive height, before closing the file and returning the buffer. That invalid
+free can prevent normal return; it is not a reliable null-on-lock-failure API.
+No safe allocator is required to reproduce a corrupt free. Evidence:
+`0x009889E1`–`0x009889F3`, `0x00988A5D`–`0x00988A7D`,
+`0x00988B41`–`0x00988B56`, `0x00988BBD`–`0x00988BDD`.
 
 ## 7. `cGZCanvasW32`
 
@@ -733,6 +940,23 @@ a vector explicitly says otherwise.
 | GZG-V42 | Unrecognized canvas DoMessage | true; no stored-coordinate mutation |
 | GZG-V43 | Engine returns 1 for kind 6, then for kind 7 | triangle has no generic drawing; quad takes tessellation route |
 | GZG-V44 | Engine returns 2 for kinds 6/7/8 | matching generic span rasterizer invoked |
+| GZG-V45 | Final context Release with retained engine and target; recording references | engine Shutdown, temporary-vector frees, engine Release, target Release, in that order; no second target shutdown |
+| GZG-V46 | Final context Release with null engine and retained target | target Release still occurs |
+| GZG-V47 | Invoke context slots 36 and 37 with `(1,2,5,8)` and origin `(10,20)` | each submits kind 5/count 2, float points `(11,22),(15,28)`; both have identical behavior |
+| GZG-V48 | Kind 2/count 7 with engine result 1, recording subsequent draws | one complete cubic, sixteen stroke quads submitted as kind 7; final three input points ignored |
+| GZG-V49 | Kind 5/result 2, bounds `(0,0),(4,4)`, enclosing clip | spans `[1,3)` at rows 0 and 3; `[0,4)` at rows 1 and 2; twelve pixels total |
+| GZG-V50 | Same raster ellipse with corners reversed | identical spans to V49 |
+| GZG-V51 | Kind 5/result 1, two disjoint corner pairs with first bounds `(0,0),(2,2)` | two identical four-vertex polygon submissions based on the first pair; second ellipse bounds are not used |
+| GZG-V52 | Blt sourceRect `(2,3,6,5)`, destinationRect `(10,20,18,26)`, zero origin | SetBlt placement `(8,17)`, scales `(2,3)`; ClearBltTiling; Fill destinationRect; ClearBlt |
+| GZG-V53 | BltTiled tileRect `(2,3,6,5)`, destinationRect `(10,20,18,26)`, offsets `(-2,4)` | placement `(8,24)`, scales `(1,1)`; set supplied tile record; fill destination; clear tiling then source |
+| GZG-V54 | Either convenience blit with zero-width source or destination | no bind, fill or cleanup calls; prior state untouched |
+| GZG-V55 | Buffer gradient all-zero transform with arbitrary finite anchors | x/y coefficients zero, constants `0x8000`, gradient enabled; subsequent null setter disables without clearing cache |
+| GZG-V56 | GenericBufferClip, 10×10 destination, source `(0,0,8,8)`, destination `(-2,-1,6,7)`, extra clip `(1,2,5,6)` | true low byte; source `(3,3,7,7)`, destination `(1,2,5,6)` |
+| GZG-V57 | GenericBufferClip, 10×10 destination, source `(0,0,4,4)`, destination `(12,3,16,7)` | false low byte; source right becomes -2, destination right becomes 10; no rollback or canonical empty rectangle |
+| GZG-V58 | Valid indexed alpha input bytes `0,7,8,247,248,255`, levels 32 | output `0,0,1,30,31,31`; mask loader instead preserves all six values |
+| GZG-V59 | Valid indexed alpha input byte 255, levels 3 | output 3, since inner divisor is 85; no clamp to levels-1 |
+| GZG-V60 | Legacy loader lock fails, positive dimensions; recording allocator that rejects invalid frees without dereferencing | no Unlock or buffer Release; attempted pixel free uses one-past-end address; no reliable normal-return assertion |
+| GZG-V61 | Graphics driver index equals count; missing driver ID | null in both cases; no AddRef, active-driver fallback or driver creation |
 
 ## 9. Evidence limits and open questions
 
@@ -746,7 +970,7 @@ had a binary open.
 
 This spec settles the interface-level context, engine selection/initialization
 boundary, buffer dispatch and host/service rules listed above. It does **not**
-claim exact generic geometry coverage, SimGL vertex emission, all graphics
+claim all generic geometry coverage, SimGL vertex emission, all graphics
 service IO helpers, Windows event translation or standalone alpha pixel kernels.
 Those are explicit follow-up questions, not free design choices. They are filed
 as GZG1 through GZG5 in

@@ -7,6 +7,13 @@ Scope: [gz-graphics.md](../gz-graphics.md), Windows 1.1.641.
   endpoint and polygon closure/coverage, gradient conversion, and exact
   Blt/BltTiled source rectangles and scaling. Basic filled result-1/result-2
   dispatch is specified in section 3.2; full tessellation coverage remains open.
+  **Partial evidence 2026-10-23 (re-gzgraphics-gzg5):** §§3.2.1–3.2.2 now
+  settle the folded four-integer ellipse calls, kind identities, result-2 filled
+  ellipse spans, result-1 filled-ellipse subdivision/repeated-first-pair quirk,
+  curve grouping and line input conversion. §3.3 settles Blt/BltTiled arguments
+  and cleanup; §4.2 settles buffer gradient conversion. Remaining: complete
+  outline subdivision, integer-line diagonal ties and clipping, polygon closure
+  and exact coverage/tessellation. This question is not yet fully answered.
   Evidence next: helpers around `0x0082CC60`,
   `0x0082D040`–`0x0082E130`, `0x0082F970`–`0x0082FC30`; verify float widths,
   rounding and intermediate precision against instruction bytes.
@@ -23,7 +30,9 @@ Scope: [gz-graphics.md](../gz-graphics.md), Windows 1.1.641.
   Complete driver discovery/INI precedence, mode-selection and partial-init
   rollback, screen buffer allocation/format defaults, SetUIRenderingMode's
   exact render state/projection and RenderBufferToScreen copy/present rules.
-  Audit GetGDriverByIndex and ByID failure/ownership and folded driver slots
+  GetGDriverByIndex and ByID failure/ownership are settled in §5.3 (null on
+  missing/out-of-range; borrowed stored pointer, no fallback or creation).
+  Remaining audit includes folded driver slots
   17/20. Relevant owners are `cGZGraphicSystem` and `cGZGraphicSystemW32`,
   including unnamed helpers in region `0x00980000`.
 - **GZG4 — section 7, full Windows canvas event contract:** finish the unnamed
@@ -43,12 +52,9 @@ Scope: [gz-graphics.md](../gz-graphics.md), Windows 1.1.641.
   failure. Next evidence: standalone helpers in `_global.c`, especially
   `0x00930BE0`, `0x00930CF0`, `0x00985D40`, `0x009888E0`, `0x00988A80`;
   confirm numeric conversions in assembly before extending the spec.
-- **GZG6 — section 2.1 context destruction versus section 3.4 replacement:**
-  Does final context destruction call engine Shutdown before releasing it, or
-  only release the independently retained engine and target? Section 2.1 says
-  destruction releases both; section 3.4 explicitly requires Shutdown only on
-  replacement. The core follows that literal distinction: replacement invokes
-  Shutdown, destruction releases engine then target without adding a Shutdown.
-  This matters because the buffer engine's final Release does not unlock (§4.2).
-  Please settle the context-destructor call sequence; no native destructor
-  layout or implicit shutdown guarantee is assumed.
+  **Partial evidence 2026-10-23 (re-gzgraphics-gzg5):** §6.3 settles ordinary
+  GenericBufferClip mutation and low-byte return, the ordinary AlphaBlt wrapper's
+  local rectangle copies, and legacy loader argument widths, two-division
+  quantization, raw mask bytes, unchecked reads, reference leaks and invalid
+  lock-failure free. Remaining: stretch clipping and the standalone pixel
+  kernels/formats/lock contracts. This question is not yet fully answered.
