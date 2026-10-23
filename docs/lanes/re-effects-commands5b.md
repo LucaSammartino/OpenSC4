@@ -57,5 +57,6 @@ enqueued as ready; no merge-queue file was written. Resume from the Handoff.
 - Partial checkpoint near round context limit; no merge queue until EF15 complete. Preserve detached HEAD; supervisor publishes commits.
 - Round 3 resumed from abed1e64. Published §19.45–19.46 source: shapes, accumulated flags, height filters, failure prefixes; EC224–EC236. Doccheck/questions/diff checks pass.
 - Done round 3 cba33f99: source shapes/filters. Next milestone publishes emit §19.47–19.48 and EC237–EC249; all three direction algorithms have distinct checked x87 store boundaries.
-- Next exact step now: force 0059A820 (first 60 pseudocode body lines read), then remaining dictionaries and inventory. Source/emit are complete; do not redo them.
+- Done round 3 dd01c32e: emit contracts and EC237–EC249. Force §19.49–19.51 now publishes every option, attraction guards, tractor relative/timing/scaling quirks and EC250–EC271.
+- Next exact step now: remaining effect/group/select/game dictionaries and full class inventory. All 23 distinct particle child handlers now have execution contracts.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-effects-commands5b-r3-manifest.json.

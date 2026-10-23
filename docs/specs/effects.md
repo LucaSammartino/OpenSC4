@@ -2451,7 +2451,7 @@ Only handlers with published sections have execution contracts here.
 | 6 | `rotate` | `00A9FB28` | `00599B60` | `cParticleRotateCommand`; §19.25 |
 | 7 | `source` | `00A9FB18` | `00597140` | `cParticleSourceCommand`; §19.45 |
 | 8 | `emit` | `00A9FB08` | `0059C280` | `cParticleEmitCommand`; §19.47 |
-| 9 | `force` | `00A9FAF8` | `0059A820` | `cParticleForceCommand` |
+| 9 | `force` | `00A9FAF8` | `0059A820` | `cParticleForceCommand`; §§19.49–19.50 |
 | 10 | `warp` | `00A9FAE8` | `0059B680` | `cParticleWarpCommand`; §19.43 |
 | 11 | `randomWalk` | `00A9FAD8` | `005979B0` | `cParticleRandomWalkCommand`; §19.23 |
 | 12 | `stretch` | `00A9FAC8` | `00597C60` | unnamed; §19.18 |
@@ -3829,3 +3829,168 @@ or game/shadow oracle has been performed for these predictions.
 | EC247 | vel zero vector, then base | both speeds zero, both directions zero; flags A OR 20 hex |
 | EC248 | speed -2,-4 | endpoints 2,-6 without sorting or owner rejection |
 | EC249 | loop 2,5 and single without value | duration bits 3A83126F, loop count 1, as common options; existing rate retained |
+
+### 19.49 Particle `force`: acceleration and attraction *[compat]*
+
+`cParticleForceCommand::Parse` (`0059A820`) requires no positional values.
+All offsets in this and the next section are from **parser context P**,
+including description fields and the parser's cumulative tractor state.
+Flags A are P+F0 and B P+F8. Absent options retain state. Lookups and
+completed mutations occur in the order below, independent of text order.
+All switch tests use AL. Extra values beyond the specified conversions
+are ignored except where a list explicitly consumes every remaining value.
+No option tests sign, finiteness or range; there is no owner rollback.
+
+| Order | Option / minimum | Result when present |
+|---:|---|---|
+| 1 | `reset` / 0 | Zero acceleration vector P+1D0,+1D4,+1D8 and clear tractor list P+2A8. This does not reset other force fields, mode bits, attraction/explosion lists, cumulative tractor time or multiplier. |
+| 2 | `gravity` / 1 | ParseFloat first as g; acceleration.y becomes old y−g, rounded to binary32. X/Z retained. |
+| 3 | `wind` / 1 | ParseVector3 first, normalize without a zero-length guard; optional second ParseFloat scales it. Add resulting vector to existing acceleration. No ×50 scaling. |
+| 4 | `global_wind` / 1 | ParseFloat first directly to binary32 P+1DC. |
+| 5 | `screw` / 1 | ParseFloat first, multiply by **binary64** 0.02, store binary32 P+1F4 (the same field used by warp screw). |
+| 6 | `bomb` / 1 | ParseFloat first to binary32 P+1E0. If a second value exists, ParseVector3 it to P+1E4,+1E8,+1EC. Otherwise retain the old vector. |
+| 7 | `drag` / 1 | ParseFloat first to binary32 P+1F0. |
+| 8 | attraction alternatives | First present of motherDuck / 1, attractor / 1, alphaAttractor / 1, automata / 2; details below. Later alternatives are not queried or consumed. |
+| 9 | tractor alternatives | tractorRel / 2, else tractor / 2; §19.50. |
+| 10 | `tractorResetSpeed` / 1 | ParseFloat first to binary32 P+2B4. |
+| 11 | `tractorTimeScale` / 1 | Rescale tractor state and lifetime as §19.50. |
+| 12 | `terrainRepel` / 2 | Sequential ParseFloat stores to P+22C and P+230; then OR flags A with 400 hex. Optional third/fourth/fifth conversions to P+234,+238,+23C. Additional values ignored. |
+| 13 | `explosion` / 2 | ParseFloat first to binary32 P+2DC, clear float list P+2E4, then append ParseFloat of **all** remaining selected values as binary32. |
+| 14 | `explosionFront` / 2 | ParseFloat first to binary32 P+2F0, then second to P+2E0. |
+
+MotherDuck, attractor and alphaAttractor share one scalar/list operation:
+ParseFloat first to binary32 P+2A0, clear float list P+294, then append
+each remaining selected ParseFloat result as binary32. A sole scalar
+therefore leaves an empty list. On successful completion motherDuck ORs
+flags A with 08000000 hex; attractor adds no bit; alphaAttractor ORs
+flags A with 04000000 hex and flags B with 10 hex. These bits are never
+cleared by switching spellings. None of these three resets integer P+2A4.
+
+Automata is consumed even when it performs no write. It acts only when
+the attraction list is empty **or** integer P+2A4 is nonzero. If that
+condition holds, set P+2A0=1, ParseUint first to P+2A4, clear the list,
+ParseFloat second and append its binary32 value as the sole element.
+It ignores further values and adds no flags. If the list is nonempty
+and P+2A4=0, neither value is converted and every old field is retained.
+
+Wind numeric rule: from binary32 vector (x,y,z), form
+q=(x²+y²)+z² in x87 precision; f=1/sqrt(q). Round normalized X and Y
+to binary32. A binary32 copy of normalized Z is also made, but without
+the optional amplitude the unrounded Z product is used in the final add.
+With amplitude, use its unrounded ParseFloat reply, multiply the rounded
+normalized components, round scaled X/Y, and retain scaled Z extended
+until its final acceleration add. Each acceleration destination is binary32.
+Zero wind reaches division by zero and multiplication; it is not rejected
+or silently replaced by zero. Gravity's reply is likewise not rounded
+before subtraction. Other direct scalar stores are binary32.
+
+Failure prefixes are observable. A bomb vector conversion failure retains
+the new bomb scalar. Attraction scalar failure leaves the old list; a
+later element failure leaves the new scalar and successfully appended
+prefix, without the branch's final mode bits. Automata's ParseUint failure
+retains P+2A0=1 and the old list; its second conversion failure retains
+the new ID and empty list. TerrainRepel adds its bit after the second
+store, before optional stores. Explosion first failure preserves its list;
+a later failure leaves the new scalar and appended prefix. ExplosionFront
+second failure retains its new first field. Later options are unqueried
+after any exception. The handler calls no wind, terrain, automata or
+explosion runtime service; it only records description data.
+
+Evidence: reset/gravity `0059A82D–0059A8BE`; wind precision and addition
+`0059A8C4–0059A9A5`; direct scalars/bomb `0059A9AB–0059AAD0`;
+motherDuck/attractor/alphaAttractor `0059AAD9–0059AD6F`; automata
+guard and writes `0059AD74–0059AE0E`; terrainRepel `0059B153–0059B23E`;
+explosion `0059B247–0059B3EC` (tractor vector branch occupies an
+out-of-line part of this address range); explosionFront `0059B3F2–0059B43D`.
+Binary64 0.02 is at `00AA02D8`; instruction bytes verify the operand width.
+
+### 19.50 Force tractor points, cumulative time and scaling *[compat]*
+
+TractorRel wins over tractor; if present, tractor is not queried. Each
+accepts at least two selected values. A new 32-byte tractor record has
+position Vector3 at +00, tangent Vector3 at +0C, start time +18 and end
+time +1C. Construction initializes all eight binary32 words to zero.
+The list at P+2A8 appends one complete record; it is not sorted or
+searched for duplicate points. Existing records are retained.
+
+ParseVector3 first as new position p. CountArguments on the second
+selected value determines its interpretation: exactly one subargument
+uses ParseFloat, any other count uses ParseVector3 (which can itself
+reject malformed input). Read the current binary32 multiplier s=P+498
+before those conversions. With a scalar, form magnitude R(value/s),
+and a tangent direction d=p−previous record's position, or p−source
+bounds center if the list is empty. Round each difference to binary32.
+If q=(d.y²+d.z²)+d.x² is ordered positive, set tangent to
+R(d * (magnitude/sqrt(q))) componentwise; otherwise retain d unchanged.
+There is no zero-multiplier guard. With a vector v, use tangent
+R(v*(1/s)) componentwise, without normalizing it.
+
+Only **after** tangent calculation, tractorRel with a nonempty list
+adds the previous record's position to p, rounding each component.
+Thus scalar tangent calculation uses the supplied position before the
+relative addition. With an empty list both spellings use the source
+center and the supplied position is absolute. Source center is half the
+sum of bounds componentwise; X/Y sums remain extended before halving,
+whereas the Z sum is rounded before halving. The resulting center is
+binary32 (helper `0046FFC0`, half constant binary32 0.5).
+
+The new start time is the current binary32 P+494. If a third selected
+value exists, ParseFloat it as duration, compute duration*s + old P+494
+with no store between multiply and add, then store the same rounded
+result to P+494 and the record's end time. Without a third value, the
+record's end remains **zero** and P+494 is unchanged. Extra values are
+ignored. Append the record, then OR flags A with 10000000 hex. There
+is no check that end exceeds start. A duration conversion failure appends
+nothing; a later append failure can leave the newly advanced P+494
+without a new record or newly set mode bit. Earlier force mutations remain.
+
+TractorTimeScale converts its first value to binary32 t, replaces P+498
+with t, then multiplies, in order, cumulative time P+494 and lifetime
+endpoints P+FC,+100 by t, rounding each store. For every tractor record
+in list order, multiply tangent X/Y/Z by 1/t (the reciprocal remains
+extended), then multiply its start/end times by t, with binary32 stores.
+Positions are unchanged. This is a multiplication of the **current**
+state, not a ratio against the old multiplier, so repeated invocations
+compound the scaling although P+498 holds only the latest t. The same
+command's newly appended tractor is included. No zero or negative t
+validation occurs. ResetSpeed is not rescaled. Reset does not reset
+P+494 or P+498, even though it clears the tractor list.
+
+Evidence: record constructor `0059B450–0059B48F`; shape selection,
+scalar division and direction differences `0059AE13–0059AF59`;
+guarded normalization `0059AF5B–0059AF88`; relative position addition
+`0059AF8E–0059AFC0`; time/append/flag `0059AFC4–0059B017`;
+vector tangent branch `0059B2F9–0059B332`; ResetSpeed/TimeScale
+`0059B021–0059B151`; append helper `0059B4E0–0059B522` copies
+one 32-byte record or grows the list; source center `0046FFC0–0046FFF9`.
+These are owned data operations, not calls into a path-following service.
+
+### 19.51 Particle force conformance vectors (unexecuted)
+
+Primitive replies and successful list allocation are stipulated unless a
+failure is explicit. These are static predictions without a native oracle.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC250 | force without switches | no state change |
+| EC251 | reset; old acceleration (3,4,5), one tractor, attraction list [8], time 9, multiplier 2 | acceleration zero, tractor list empty; attraction list, time, multiplier and flags retained |
+| EC252 | acceleration (1,2,3); gravity 4, wind (0,3,0),6 | acceleration (1,4,3) |
+| EC253 | reset then wind zero | reset completed; masked x87 produces NaN acceleration; no owner zero-vector exception |
+| EC254 | screw 50; global_wind -2; drag -3 | P+1F4=1, P+1DC=-2, P+1F0=-3 |
+| EC255 | bomb scalar 7, vector conversion throws; drag present | P+1E0=7, old bomb vector; drag unqueried |
+| EC256 | motherDuck scalar 2 and list 3,4; attractor also present | P+2A0=2, list [3,4], flags A OR 08000000 hex; attractor unqueried |
+| EC257 | alphaAttractor scalar 5 only | P+2A0=5, empty list; flags A OR 04000000 hex, B OR 10 hex |
+| EC258 | motherDuck list conversion throws after one success | new scalar and one-element prefix; no new motherDuck bit; tractor unqueried |
+| EC259 | automata malformed values, existing nonempty attraction list and ID=0 | consumed switch; no conversions or writes |
+| EC260 | automata ID reply 23, scalar reply 6; list empty | P+2A0=1, P+2A4=23, list [6]; no mode-bit change |
+| EC261 | automata ID reply 23 then scalar throws; old ID nonzero | P+2A0=1, ID=23, empty list |
+| EC262 | terrainRepel values 2,3,4,5,6 | stores at P+22C,+230,+234,+238,+23C respectively; flags A OR 400 hex |
+| EC263 | terrainRepel first 2, second throws | P+22C=2, other repel fields retained; no new 400 hex bit |
+| EC264 | explosion first 7, remaining 2,3; explosionFront 4,5 | P+2DC=7, list [2,3], P+2F0=4, P+2E0=5 |
+| EC265 | empty tractors, source center zero, s=2, time=3; tractor (0,4,0),6,5 | append position (0,4,0), tangent (0,3,0), times 3,13; cumulative 13; flags A OR 10000000 hex |
+| EC266 | previous tractor position (10,0,0); s=1; tractorRel (2,0,0),4 | tangent (-4,0,0) computed before position addition; appended position (12,0,0); end=0 without duration |
+| EC267 | s=2, time=7; tractor (1,2,3), vector (4,6,8), no duration | tangent (2,3,4), times 7,0; cumulative stays 7 |
+| EC268 | tractorRel and tractor both present | only tractorRel consumed; one append before possible unhandled-switch post-check failure |
+| EC269 | tractorTimeScale 2; time=3, lifetime 4,6, tractor tangent (2,4,6), times 1,3 | multiplier=2, time=6, lifetime 8,12, tangent (1,2,3), times 2,6; positions/resetSpeed retained |
+| EC270 | repeat EC269 scaling with another tractorTimeScale 2 | multiplier still 2; time=12, lifetime 16,24, tangent (0.5,1,1.5), times 4,12 |
+| EC271 | time=7; successful tractor conversions except duration throws | no append, old time=7, no new tractor flag; prior force changes survive |
