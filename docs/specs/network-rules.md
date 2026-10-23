@@ -281,7 +281,8 @@ so a replacement must not invent one (no stub `CreateClass` for these owners). T
 
 This section describes a private, version-specific observation boundary, not a new GZCOM interface. All offsets
 are byte offsets, pointers and unsigned words are 32 bits, and padding is not part of a comparison. Addresses are
-preferred image addresses (image base `0x00400000`); use the loaded module base plus address minus `0x00400000`.
+preferred image addresses (image base `0x00400000`); the supported observation reference requires that exact loaded
+base (§2.5.6), with RVA equal to address minus `0x00400000`.
 The table layouts below must not be replaced with the host compiler’s STL layouts.
 
 #### 2.5.1 Evaluate arguments, result and ownership
@@ -432,8 +433,41 @@ Before using any of these addresses require a verified GOG 1.1.641 image and che
 instruction bytes against that image; fail closed for another build or a conflicting detour. The working executable
 examined here has SHA-256 `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b` (whole file,
 2026-10-23); an exact file match is a sufficient build check, with loaded-site checks still required. This does not
-make a version string alone sufficient. Native interoperability facts are proposed for ABI publication by the
-coordinator; this lane does not edit the shared ABI files.
+make a version string alone sufficient. Native interoperability facts, including the exact entry bytes and
+relocation restrictions, are published in [the observation ABI](../abi/network-rules-observation.md).
+
+#### 2.5.6 Validated observation boundaries and cleanup quirk (NR17)
+
+*[compat]* The GOG file identified above has stripped base relocations and no base-relocation directory. The
+supported observer therefore requires loaded base `0x00400000`; another base is unsupported even if the file
+fingerprint matches. [The observation ABI](../abi/network-rules-observation.md) publishes exact byte strings,
+RVAs/file offsets, whole-instruction lengths and continuations for Evaluate (5 bytes, continuation `0x006220D5`),
+ReloadRules (6 bytes, continuation `0x006253D6`) and cleanup (5 bytes, continuation `0x006232F5`). None of these
+spans has a relative operand. Cleanup's span contains an absolute address of the process flag, not a displacement
+from the instruction: copying that span to a trampoline at the supported game base retains the address unchanged.
+No bytes are wildcarded or adjusted for an imagined loader relocation. This supplies an engine-readable validation
+reference without asking an implementer to inspect the executable.
+
+*[compat]* Static cleanup is deliberately small and oddly named: for an incoming flag of zero it does not write
+the flag; for **any nonzero byte** it writes zero. In both cases it returns AL=1, not the old flag or a success
+report, and it does not free evaluators, clear rule tables, or destroy the intersection map. Thus cleanup can leave
+allocated native tables present while the lazy-load flag says unloaded. An observer must invalidate readiness on
+cleanup **entry**, even if the byte was already zero, and cannot revalidate the old epoch from the callback's
+return or the continued presence of tables. The next tool initialization supplies the normal reload/completion
+boundary from §2.5.5. Evidence is the complete callback `0x006232F0`–`0x00623302`; its address operand begins at
+`0x006232F1` and the later flag-write operand is at `0x006232FD`. This is a flag reset callback, not proof that
+borrowed objects were destroyed at that instant; the lifetime restriction still forbids carrying native pointers
+across the invalidation boundary.
+
+*[choice]* A record-only observer treats the three sites as one required observation set. Before installation,
+require both the fingerprint and the exact loaded-site bytes in the ABI table; PE timestamp, size and executable
+page membership alone are insufficient. Serialize validation and installation with original execution and any
+other patching so the checked bytes cannot change before use. A mismatch at any site, an unsupported base or a
+conflicting detour leaves this observer disabled and gives no exactness credit. On instrumentation failure,
+preserve the original operation and result and report observation unavailable. Installing hooks, preserving the
+displaced instruction effects and returning to the published continuations remain implementer responsibilities;
+this specification supplies their boundary, not a tested hook. Original-thread capture, loading epochs and
+detached replay remain as in §2.5.5.
 
 ---
 
@@ -1754,3 +1788,24 @@ and the evaluator; the others drive the named function directly.
     changed observation-site bytes, or a conflicting detour yields no native-address observation and no exactness
     credit. In a matching epoch, copy a result’s two semantic records before returning; after reload, only that copy
     may be compared or queued to another thread. Retaining a node, descriptor or neighbourhood pointer fails.
+45. **Three-site reference** (§2.5.6; ABI validation fixture). For the fingerprinted file loaded at `0x00400000`,
+    provide all three exact entry strings from the observation ABI. Validation accepts the reference, with
+    Evaluate/ReloadRules/cleanup span lengths 5/6/5 and continuations `0x006220D5`/`0x006253D6`/`0x006232F5`.
+    A fixture that displaces only five bytes of ReloadRules fails: that truncates its six-byte first instruction.
+    Acceptance is installation eligibility, not a live shadow result or permission to bypass capture completeness.
+46. **Site checks cannot be replaced by identity** (§2.5.6). Keep the correct disk fingerprint, PE fields and
+    executable-page membership, but change one loaded byte at Evaluate, then independently at ReloadRules and at
+    cleanup. Each case disables the entire observation set, produces unavailable status and earns no exactness
+    credit. Replacing an entry with a jump is also rejected; an existing hook is not silently chained.
+47. **Absolute cleanup operand** (§2.5.6). Copy the published cleanup span to a synthetic trampoline at a different
+    address while the game remains based at `0x00400000`. The copied operand still names `0x00B452A8`; no adjustment
+    for the trampoline location is permitted. Mutate only one of its four operand bytes in the loaded site: validation
+    rejects it. No relocation mask may hide that difference. This is a byte/operand fixture, not execution of a hook.
+48. **Unsupported module base** (§2.5.6). Supply the correct file fingerprint and reference strings but claim loaded
+    base `0x00500000`. Observation is unavailable: the reference image has no loader base relocations. Computing
+    base+RVA or adjusting cleanup's operand does not make this a supported image.
+49. **Cleanup with retained tables** (§2.5.6). Independently start the original callback with flag bytes 0, 1 and
+    `0x7F`, and a nonempty native rule table. All three return AL=1 and finish with flag=0; the zero case does not
+    write the flag. The table is unchanged by this callback in every case. At callback entry the observer invalidates
+    its epoch, including the zero case; neither return AL=1 nor the retained table restores readiness. Only a later
+    observed reload completion or the serialized Init-return condition in §2.5.5 can establish a new ready snapshot.

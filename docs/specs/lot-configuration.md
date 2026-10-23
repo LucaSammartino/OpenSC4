@@ -283,6 +283,13 @@ neither clamped nor filtered by detail level):
 `0x194A0000` … `0x19500000` range) ×7; absent in the lifeguard tower only. The lot developer reads it through slot
 26 (lot-developer §17.5.4).
 
+**PL23 raw-equivalence limit.** The +0x24 ID is not an exemplar-derived default: the loader fills the record
+at `0x0047A59E`–`0x0047A609` without writing that dword, and the copy at `0x0047892B`–`0x00478931`
+preserves it. Keep FreeCity4's zero choice and report any raw difference; no fixed native ID or whole-array
+exactness follows from agreeing on the defined fields. The defined +0x20 foundation type remains mandatory.
+See [prop-lotconfig.md §B3.3](prop-lotconfig.md#b33-which-lot-objects-are-kept-answers-cd1) and test 16 for the
+comparison contract and conformance cases.
+
 ## 4. Building information (filled by the manager) *[compat]*
 
 Four fields are not exemplar data. The lot configuration manager writes them for every configuration when it
