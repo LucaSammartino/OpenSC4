@@ -44,14 +44,18 @@ use super::slots::{
 };
 use super::win::{WinStore, WinToken};
 
+mod city;
 mod commands;
+mod gui;
 mod input;
 mod lifecycle;
 mod messages;
 mod motion;
 mod state;
 mod status;
+pub use city::{CityCall, CityHost, CityObject, TunableValues};
 pub use commands::{CommandHost, PanelState, QueryTool};
+pub use gui::{GuiCall, GuiHost, GuiState, HelperKind};
 pub use input::{ControlCall, ControlReply, InputEvent, InputHost, MouseContext};
 pub use lifecycle::{Lifecycle, LifecycleCall, LifecycleHost, LifecycleReply, CHEATS, NOTIFICATIONS};
 pub use messages::{MessageCall, MessageHost, Notification, Refresh, WindowMessage};
@@ -75,6 +79,7 @@ pub struct OwnerState {
     pub panels: PanelState,
     pub lifecycle: Lifecycle,
     pub deferred: Vec<Notification>,
+    pub gui: GuiState,
     stack: Vec<u32>,
     persistent: Vec<u32>,
 }

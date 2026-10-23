@@ -22,16 +22,35 @@ pub struct Notification {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refresh {
-    CityName, Budget, Clock24, ClockHover, AmbientLight, SimulationClock,
-    Population, MayorRating, Speed, Alert, PausedOverlay, Mission(u32, u32),
-    Zoom, Background, CursorPosition, Renderer,
+    CityName,
+    Budget,
+    Clock24,
+    ClockHover,
+    AmbientLight,
+    SimulationClock,
+    Population,
+    MayorRating,
+    Speed,
+    Alert,
+    PausedOverlay,
+    Mission(u32, u32),
+    Zoom,
+    Background,
+    CursorPosition,
+    Renderer,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MessageCall {
     Refresh(Refresh),
-    PreCityInit, PostCityInit, PreCityShutdown, CityEstablished, CityObliterated,
-    Load(u32), Save(u32), BudgetFailure,
+    PreCityInit,
+    PostCityInit,
+    PreCityShutdown,
+    CityEstablished,
+    CityObliterated,
+    Load(u32),
+    Save(u32),
+    BudgetFailure,
     DisasterButton { window: u32, flag: u32, enabled: bool },
     Progress([u32; 2]),
     Focus,
@@ -55,6 +74,8 @@ pub trait MessageHost: CheatHost + CommandHost + LifecycleHost {
     fn modal_safe(&self) -> bool;
     fn city_view_hidden(&self) -> bool;
     fn paused_overlay_exists(&self) -> bool;
+    fn filter_window_passthrough(&self) -> bool;
+    fn establish_city_dialog(&mut self) -> bool;
 }
 
 impl View3DWin {
@@ -63,18 +84,18 @@ impl View3DWin {
     }
 
     /// cIGZMessageTarget2: command QI wins even for a notification's type.
-    pub fn notification(&mut self, host: &mut impl MessageHost, message: Notification) -> bool {
+    pub fn notification(&mut self, host: &mut impl super::CityHost, message: Notification) -> bool {
         if message.command_interface {
             self.process_motion_panel_command(host, message.kind);
             return true;
         }
         let [a, b] = message.data;
         match message.kind {
-            0x26D3_1EC0 => host.message_call(MessageCall::PreCityInit),
-            0x26D3_1EC1 => host.message_call(MessageCall::PostCityInit),
+            0x26D3_1EC0 => self.pre_city_init(host),
+            0x26D3_1EC1 => self.post_city_init(host),
             0x26D3_1EC2 => host.message_call(MessageCall::PreCityShutdown),
-            0x26D3_1EC4 => host.message_call(MessageCall::CityEstablished),
-            0x26D3_1EC5 => host.message_call(MessageCall::CityObliterated),
+            0x26D3_1EC4 => self.city_established(host),
+            0x26D3_1EC5 => self.city_obliterated(host),
             0x26C6_3341 => host.message_call(MessageCall::Load(a)),
             0x26C6_3343 => self.remove_all_controls(host, false),
             0x26C6_3344 => host.message_call(MessageCall::Save(a)),
@@ -121,7 +142,9 @@ impl View3DWin {
                     host.close_secondary();
                 }
                 host.message_call(MessageCall::DisasterButton {
-                    window: 0x8991_EE08, flag: 2, enabled: message.kind == 0xAA1B_2002,
+                    window: 0x8991_EE08,
+                    flag: 2,
+                    enabled: message.kind == 0xAA1B_2002,
                 });
                 self.refresh(host, Refresh::Alert);
             }
@@ -145,7 +168,7 @@ impl View3DWin {
 
     /// GZPaint re-sends deferred notifications only when modal popups are safe.
     /// Drain before delivery so callbacks cannot lose newly deferred messages.
-    pub fn replay_deferred(&mut self, host: &mut impl MessageHost) {
+    pub fn replay_deferred(&mut self, host: &mut impl super::CityHost) {
         if host.modal_safe() {
             for message in std::mem::take(&mut self.owner.deferred) {
                 self.notification(host, message);
@@ -189,7 +212,12 @@ impl View3DWin {
                 if self.process_key(host, b, c, down) {
                     return true;
                 }
-                let command = self.owner.lifecycle.objects.get(&0x120).copied()
+                let command = self
+                    .owner
+                    .lifecycle
+                    .objects
+                    .get(&0x120)
+                    .copied()
                     .and_then(|token| host.accelerator(token, b, c, down));
                 if let Some(command) = command {
                     host.post_command(command);
@@ -213,7 +241,13 @@ impl View3DWin {
         if host.tutorial_message(&mut message) {
             return true;
         }
-        if message.kind != 3 && message.kind != 0x12 {
+        if host.filter_window_passthrough() {
+            return false;
+        }
+        if message.kind == 0x12 {
+            return true;
+        }
+        if message.kind != 3 {
             return false;
         }
         match message.data[0] {
@@ -222,14 +256,23 @@ impl View3DWin {
                 true
             }
             0x2872_59F7 => {
-                let command = match message.data[1] {
-                    0x8988_BC94 => 0x6A93_5CAB,
-                    0x2988_BC85 => 0x6A93_5C34,
-                    0x4988_BC6A => 0x6A93_5CA8,
-                    0xC988_BC79 => 0x6A93_5CA4,
+                let tab = message.data[1];
+                if tab == 0x2988_BC85 {
+                    self.panel_command(host, 0x6A93_5C34);
+                    return true;
+                }
+                let panel = match tab {
+                    0x8988_BC94 => 3,
+                    0x4988_BC6A => 2,
+                    0xC988_BC79 => 1,
                     _ => return false,
                 };
-                self.panel_command(host, command);
+                let on = host.tab_toggled(tab);
+                if panel == 1 && !host.city_established() && !host.establish_city_dialog() {
+                    host.toggle_tab(tab, false);
+                    return true;
+                }
+                self.apply_panel_tab(host, tab, panel, on);
                 true
             }
             _ => false,

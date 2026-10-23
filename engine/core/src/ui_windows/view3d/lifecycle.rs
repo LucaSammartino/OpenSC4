@@ -21,17 +21,43 @@ pub const CHEATS: [(u32, &str); 13] = [
 ];
 
 pub const NOTIFICATIONS: [u32; 33] = [
-    0x26D3_1EC0, 0x26D3_1EC1, 0x26D3_1EC2, 0x26D3_1EC4, 0x26D3_1EC5,
-    0x26C6_3341, 0x26C6_3343, 0x26C6_3344, 0x0AB9_9380, 0x0772_FAD4,
-    0x08DA_C3E7, 0x08DA_C3E8, 0x06CD_B65B, 0x4477_8231, 0x4477_8233,
-    0x6695_6814, 0x6695_6816, 0x4A7F_B7E9, 0x4A7F_B7E2, 0xAA7F_B7E0,
-    0xABBB_CA64, 0xA6B7_9602, 0xA6B7_9612, 0xA6B7_9621, 0xCA1B_1E64,
-    0xAA1B_2002, 0xAA5C_F1E3, 0xAC08_3D7D, 0x4A44_667F,
+    0x26D3_1EC0,
+    0x26D3_1EC1,
+    0x26D3_1EC2,
+    0x26D3_1EC4,
+    0x26D3_1EC5,
+    0x26C6_3341,
+    0x26C6_3343,
+    0x26C6_3344,
+    0x0AB9_9380,
+    0x0772_FAD4,
+    0x08DA_C3E7,
+    0x08DA_C3E8,
+    0x06CD_B65B,
+    0x4477_8231,
+    0x4477_8233,
+    0x6695_6814,
+    0x6695_6816,
+    0x4A7F_B7E9,
+    0x4A7F_B7E2,
+    0xAA7F_B7E0,
+    0xABBB_CA64,
+    0xA6B7_9602,
+    0xA6B7_9612,
+    0xA6B7_9621,
+    0xCA1B_1E64,
+    0xAA1B_2002,
+    0xAA5C_F1E3,
+    0xAC08_3D7D,
+    0x4A44_667F,
     // Subscription is a set: registration order has no specified effect (§2).
-    0x6A93_5C34, 0x6A93_5CA4, 0x6A93_5CA8, 0x6A93_5CAB,
+    0x6A93_5C34,
+    0x6A93_5CA4,
+    0x6A93_5CA8,
+    0x6A93_5CAB,
 ];
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Lifecycle {
     pub initialized: bool,
     pub city_initializing: bool,
@@ -39,6 +65,35 @@ pub struct Lifecycle {
     pub progress: Option<u32>,
     /// Absolute field offset -> owned opaque service reference.
     pub objects: BTreeMap<u32, u32>,
+    pub remembered_catalogs: BTreeMap<u32, [u32; 2]>,
+}
+
+impl Default for Lifecycle {
+    fn default() -> Self {
+        Self {
+            initialized: false,
+            city_initializing: false,
+            active: false,
+            progress: None,
+            objects: BTreeMap::new(),
+            remembered_catalogs: [
+                (0x20C, [0, 1]),
+                (0x214, [0, 4]),
+                (0x21C, [0, 7]),
+                (0x278, [0x8C32_9937, 0]),
+                (0x280, [0x31, 0]),
+                (0x288, [0x29, 0]),
+                (0x290, [0x2992_37BF, 0]),
+                (0x2A8, [0x6A33_E1BA, 0]),
+                (0x2B0, [0x2A33_E1A3, 0]),
+                (0x2B8, [0xEA35_3064, 0]),
+                (0x2C0, [0x2A31_2F97, 0]),
+                (0x2C8, [0x0A52_42DF, 0]),
+            ]
+            .into_iter()
+            .collect(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -55,9 +110,20 @@ pub enum LifecycleCall {
     VisibleEnabled,
     InitCoverage,
     StartTimer,
-    LoadKeyMap { type_id: u32, group: u32, instance: u32, iid: u32 },
-    Create { class: u32, iid: u32 },
-    FillKeyMap { resource: u32, accelerator: u32 },
+    LoadKeyMap {
+        type_id: u32,
+        group: u32,
+        instance: u32,
+        iid: u32,
+    },
+    Create {
+        class: u32,
+        iid: u32,
+    },
+    FillKeyMap {
+        resource: u32,
+        accelerator: u32,
+    },
     CreateProgress,
     InitTail,
     Release(u32),
@@ -119,13 +185,23 @@ impl View3DWin {
         host.set_cursor(0xC16C_4E1B);
         host.lifecycle(LifecycleCall::InitCoverage);
         host.lifecycle(LifecycleCall::StartTimer);
-        let resource = host.lifecycle(LifecycleCall::LoadKeyMap {
-            type_id: 0xA2E3_D533, group: 0x6A23_1EAA, instance: 0x6A93_62EF, iid: 0x42E3_EA4B,
-        }).object;
+        self.owner.motion.paint_enabled = true;
+        let resource = host
+            .lifecycle(LifecycleCall::LoadKeyMap {
+                type_id: 0xA2E3_D533,
+                group: 0x6A23_1EAA,
+                instance: 0x6A93_62EF,
+                iid: 0x42E3_EA4B,
+            })
+            .object;
         if let Some(resource) = resource {
-            if let Some(accelerator) = host.lifecycle(LifecycleCall::Create {
-                class: 0x42E9_67BE, iid: 0xE2C1_B3C4,
-            }).object {
+            if let Some(accelerator) = host
+                .lifecycle(LifecycleCall::Create {
+                    class: 0x42E9_67BE,
+                    iid: 0xE2C1_B3C4,
+                })
+                .object
+            {
                 self.owner.lifecycle.objects.insert(0x120, accelerator);
                 host.lifecycle(LifecycleCall::FillKeyMap { resource, accelerator });
             }
@@ -167,5 +243,7 @@ impl View3DWin {
         host.lifecycle(LifecycleCall::UnregisterCommands);
         self.owner.lifecycle.initialized = false;
         self.owner.lifecycle.active = false;
+        self.owner.motion.paint_enabled = false;
+        self.owner.deferred.clear();
     }
 }

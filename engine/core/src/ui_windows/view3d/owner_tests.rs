@@ -4,6 +4,8 @@ use crate::ui_windows::win::WinStore;
 
 #[derive(Debug, PartialEq)]
 enum Op {
+    City(CityCall),
+    Gui(GuiCall),
     Lifecycle(LifecycleCall),
     Window(MessageCall),
     Command(u32),
@@ -110,15 +112,26 @@ impl LifecycleHost for Host {
             _ => None,
         };
         self.ops.push(Op::Lifecycle(call));
-        LifecycleReply { success: self.init_fail != Some(0), object }
+        LifecycleReply {
+            success: self.init_fail != Some(0),
+            object,
+        }
     }
-    fn cheat_manager_exists(&self) -> bool { true }
-    fn development_cheats(&self) -> bool { self.established }
-    fn loading_city(&self) -> bool { self.moved }
+    fn cheat_manager_exists(&self) -> bool {
+        true
+    }
+    fn development_cheats(&self) -> bool {
+        self.established
+    }
+    fn loading_city(&self) -> bool {
+        self.moved
+    }
 }
 
 impl MessageHost for Host {
-    fn message_call(&mut self, call: MessageCall) { self.ops.push(Op::Window(call)); }
+    fn message_call(&mut self, call: MessageCall) {
+        self.ops.push(Op::Window(call));
+    }
     fn tutorial_message(&mut self, message: &mut WindowMessage) -> bool {
         if let Some((kind, data)) = self.rewrite {
             message.kind = kind as u32;
@@ -126,28 +139,305 @@ impl MessageHost for Host {
         }
         !self.tutorial
     }
-    fn base_message(&mut self, _: &WindowMessage) -> bool { self.changed }
-    fn open_url(&mut self, _: &str) -> bool { self.changed }
-    fn focus_loss_stops_scroll(&self) -> bool { self.changed }
+    fn base_message(&mut self, _: &WindowMessage) -> bool {
+        self.changed
+    }
+    fn open_url(&mut self, _: &str) -> bool {
+        self.changed
+    }
+    fn focus_loss_stops_scroll(&self) -> bool {
+        self.changed
+    }
     fn accelerator(&mut self, _: u32, key: u32, _: u32, _: bool) -> Option<u32> {
         (key == 32).then_some(0x6A93_5CAD)
     }
-    fn post_command(&mut self, command: u32) { self.ops.push(Op::Command(command)); }
-    fn modal_safe(&self) -> bool { self.changed }
-    fn city_view_hidden(&self) -> bool { self.moved }
-    fn paused_overlay_exists(&self) -> bool { self.simulator }
+    fn post_command(&mut self, command: u32) {
+        self.ops.push(Op::Command(command));
+    }
+    fn modal_safe(&self) -> bool {
+        self.changed
+    }
+    fn city_view_hidden(&self) -> bool {
+        self.moved
+    }
+    fn paused_overlay_exists(&self) -> bool {
+        self.simulator
+    }
+    fn filter_window_passthrough(&self) -> bool {
+        false
+    }
+    fn establish_city_dialog(&mut self) -> bool {
+        self.changed
+    }
+}
+
+impl GuiHost for Host {
+    fn gui(&mut self, call: GuiCall) -> Option<u32> {
+        let token = if self.filter_allocation {
+            match call {
+                GuiCall::Script { id, .. } => Some(id),
+                GuiCall::Create { class, .. } => Some(class),
+                GuiCall::Helper(kind) => Some(100 + kind as u32),
+                GuiCall::Query(token, iid) => Some(token.wrapping_add(iid)),
+                GuiCall::Child { id, .. } | GuiCall::RecursiveChild { id, .. } => Some(id),
+                GuiCall::Image { instance, .. } => Some(instance),
+                GuiCall::CreateBuffer => Some(200),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        self.ops.push(Op::Gui(call));
+        token
+    }
+    fn client_size(&self) -> (i32, i32) {
+        (1920, 600)
+    }
+    fn window_size(&self, _: u32) -> (i32, i32) {
+        (100, 20)
+    }
+}
+
+impl CityHost for Host {
+    fn city(&mut self, call: CityCall) -> Option<u32> {
+        let token = if self.filter_allocation {
+            match call {
+                CityCall::Create(kind) => Some(kind.class_id()),
+                CityCall::AcquireSimulator => Some(0x8695_664E),
+                CityCall::CreateSituationControl => Some(1234),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        self.ops.push(Op::City(call));
+        token
+    }
+    fn city_size(&self) -> u32 {
+        1024
+    }
+    fn tunable_values(&mut self) -> TunableValues {
+        TunableValues {
+            edge_speed: Some(0.8),
+            render_properties: vec![("trees".into(), "false".into())],
+            ..TunableValues::default()
+        }
+    }
+    fn tip_ready(&self) -> bool {
+        self.changed
+    }
+}
+
+#[test]
+fn city_pre_post_initialization_orders_camera_and_gui_then_releases_progress() {
+    let mut v = view();
+    let mut host = Host::default();
+    v.owner.lifecycle.progress = Some(99);
+    v.pre_city_init(&mut host);
+    assert!(v.owner.motion.city_initializing);
+    assert_eq!(v.owner.view.filter.unwrap().realistic_flags, Some([true; 3]));
+    assert_eq!(v.owner.motion.edge_speed, 0.8);
+    assert_eq!(
+        &host.ops[..4],
+        &[
+            Op::City(CityCall::Create(CityObject::Camera)),
+            Op::City(CityCall::Create(CityObject::CameraControl)),
+            Op::City(CityCall::Viewport(0xC9C6_28EC, 1920, 600)),
+            Op::City(CityCall::CameraInit(0xC9C6_28EC, [512.0, 0.0, 512.0])),
+        ]
+    );
+    let existing = v.owner.view.filter;
+    host.ops.clear();
+    v.post_city_init(&mut host);
+    assert!(!v.owner.motion.city_initializing);
+    assert_eq!(v.persistent_controls(), 1);
+    assert_eq!(v.lifecycle_state().progress, None);
+    assert!(host.ops.contains(&Op::City(CityCall::CitySize(0xC9C6_28EC, 1024))));
+    assert_eq!(
+        host.ops
+            .iter()
+            .filter(|op| matches!(op, Op::City(CityCall::DemandGraph { .. })))
+            .count(),
+        11
+    );
+    assert_eq!(
+        host.ops
+            .iter()
+            .filter(|op| matches!(op, Op::City(CityCall::Gauge { .. })))
+            .count(),
+        6
+    );
+    assert_eq!(
+        &host.ops[host.ops.len() - 2..],
+        &[
+            Op::Lifecycle(LifecycleCall::ProgressShutdown(99)),
+            Op::Lifecycle(LifecycleCall::Release(99)),
+        ]
+    );
+    host.ops.clear();
+    v.pre_city_init(&mut host);
+    assert_eq!(v.owner.view.filter, existing);
+    assert!(!host.ops.iter().any(|op| matches!(op, Op::CreateFilter(_))));
+}
+
+#[test]
+fn city_allocation_failures_are_null_and_obliteration_hides_panel4() {
+    let mut v = view();
+    let mut host = Host {
+        filter_allocation: false,
+        established: false,
+        ..Host::default()
+    };
+    v.pre_city_init(&mut host);
+    v.post_city_init(&mut host);
+    assert!(v.owner.lifecycle.objects.is_empty());
+    assert_eq!(v.persistent_controls(), 0);
+    assert_eq!(v.owner.view.filter, None);
+    v.owner.panels.current = Some(4);
+    v.owner.panels.panel4_shown = true;
+    v.city_obliterated(&mut host);
+    assert_eq!(v.owner.panels.current, None);
+    assert!(!v.owner.panels.panel4_shown);
+}
+
+#[test]
+fn gui_lifetime_removes_filters_before_destruction_and_releases_queries() {
+    let mut v = view();
+    let mut host = Host {
+        established: false,
+        ..Host::default()
+    };
+    v.add_gui(&mut host);
+    assert_eq!(v.owner.panels.current, Some(0));
+    assert_eq!(v.gui_state().windows.len(), 8);
+    assert!(host.ops.contains(&Op::Gui(GuiCall::Move(0x0987_B48F, 645, 591))));
+    let fields = v.gui_state().fields.clone();
+    let windows = v.gui_state().windows.clone();
+    let overlay = v.gui_state().overlay.unwrap();
+    // Creation reference released as soon as the parent owns the overlay.
+    assert!(host.ops.contains(&Op::Gui(GuiCall::Release(overlay))));
+    host.ops.clear();
+    v.remove_gui(&mut host);
+    for token in windows {
+        let filter = host
+            .ops
+            .iter()
+            .position(|o| *o == Op::Gui(GuiCall::Filter(token, false)))
+            .unwrap();
+        assert_eq!(
+            &host.ops[filter..filter + 4],
+            &[
+                Op::Gui(GuiCall::Filter(token, false)),
+                Op::Gui(GuiCall::Destroy(token)),
+                Op::Gui(GuiCall::Shutdown(token)),
+                Op::Gui(GuiCall::Release(token)),
+            ]
+        );
+    }
+    for token in fields.values() {
+        assert_eq!(
+            host.ops
+                .iter()
+                .filter(|o| **o == Op::Gui(GuiCall::Release(*token)))
+                .count(),
+            1
+        );
+    }
+    assert!(host.ops.contains(&Op::Gui(GuiCall::Destroy(overlay))));
+    assert!(!host.ops.contains(&Op::Gui(GuiCall::Release(overlay))));
+    assert!(v.gui_state().fields.is_empty());
+    assert!(v.gui_state().windows.is_empty());
+    assert!(v.gui_state().panels.iter().all(Vec::is_empty));
+    assert_eq!(v.gui_state().overlay, None);
+}
+
+#[test]
+fn gui_failed_creations_and_shutdown_progress_order() {
+    let mut v = view();
+    let mut host = Host {
+        filter_allocation: false,
+        ..Host::default()
+    };
+    v.add_gui(&mut host);
+    assert!(v.gui_state().fields.is_empty());
+    v.remove_gui(&mut host);
+    assert!(!host
+        .ops
+        .iter()
+        .any(|op| matches!(op, Op::Gui(GuiCall::Destroy(_) | GuiCall::Release(_)))));
+    host.filter_allocation = true;
+    v.init(&mut host);
+    v.add_gui(&mut host);
+    v.owner.lifecycle.progress = Some(42);
+    host.ops.clear();
+    v.shutdown(&mut host);
+    let gui_end = host.ops.iter().rposition(|o| matches!(o, Op::Gui(_))).unwrap();
+    let progress = host
+        .ops
+        .iter()
+        .position(|o| *o == Op::Lifecycle(LifecycleCall::ProgressShutdown(42)))
+        .unwrap();
+    assert!(gui_end < progress);
+    assert_eq!(host.ops.last(), Some(&Op::Lifecycle(LifecycleCall::UnregisterCommands)));
+}
+
+#[test]
+fn child_filter_uses_existing_tab_state_and_special_type12_branch() {
+    let mut v = view();
+    let mut host = Host::default();
+    host.tabs.insert(0xC988_BC79, true);
+    assert!(v.filter_message(
+        &mut host,
+        WindowMessage {
+            kind: 3,
+            data: [0x2872_59F7, 0xC988_BC79, 0],
+            ..WindowMessage::default()
+        }
+    ));
+    assert_eq!(v.owner.panels.current, Some(1));
+    assert!(host.tabs[&0xC988_BC79]);
+    host.ops.clear();
+    assert!(v.filter_message(
+        &mut host,
+        WindowMessage {
+            kind: 0x12,
+            ..WindowMessage::default()
+        }
+    ));
+    assert!(host.ops.is_empty());
+    host.established = false;
+    host.changed = false;
+    v.filter_message(
+        &mut host,
+        WindowMessage {
+            kind: 3,
+            data: [0x2872_59F7, 0xC988_BC79, 0],
+            ..WindowMessage::default()
+        },
+    );
+    assert!(!host.tabs[&0xC988_BC79]);
 }
 
 #[test]
 fn init_orders_registration_keeps_base_failure_and_tolerates_keymap_failure() {
-    let mut host = Host { established: false, init_fail: Some(0), moved: true, ..Host::default() };
+    let mut host = Host {
+        established: false,
+        init_fail: Some(0),
+        moved: true,
+        ..Host::default()
+    };
     let mut v = view();
     assert!(!v.init(&mut host));
     assert_eq!(host.ops[0], Op::Lifecycle(LifecycleCall::Subscribe));
     assert_eq!(host.ops[1], Op::Lifecycle(LifecycleCall::RegisterCommands));
-    let cheats: Vec<_> = host.ops.iter().filter_map(|op| match op {
-        Op::Lifecycle(LifecycleCall::Cheat(id, _, true)) => Some(*id), _ => None,
-    }).collect();
+    let cheats: Vec<_> = host
+        .ops
+        .iter()
+        .filter_map(|op| match op {
+            Op::Lifecycle(LifecycleCall::Cheat(id, _, true)) => Some(*id),
+            _ => None,
+        })
+        .collect();
     assert_eq!(cheats, CHEATS[..10].iter().map(|c| c.0).collect::<Vec<_>>());
     assert_eq!(host.ops.last(), Some(&Op::Lifecycle(LifecycleCall::InitTail)));
     assert_eq!(v.lifecycle_state().progress, Some(12));
@@ -166,7 +456,10 @@ fn init_orders_registration_keeps_base_failure_and_tolerates_keymap_failure() {
 
 #[test]
 fn vw_t2_shutdown_unregisters_all_cheats_and_drops_both_control_lists() {
-    let mut host = Host { established: false, ..Host::default() };
+    let mut host = Host {
+        established: false,
+        ..Host::default()
+    };
     let mut v = view();
     v.init(&mut host);
     v.set_current_control(&mut host, Some(71), 0);
@@ -176,9 +469,14 @@ fn vw_t2_shutdown_unregisters_all_cheats_and_drops_both_control_lists() {
     v.shutdown_tail(&mut host);
     assert_eq!(v.input_control(), None);
     assert_eq!(v.persistent_controls(), 0);
-    let ids: Vec<_> = host.ops.iter().filter_map(|op| match op {
-        Op::Lifecycle(LifecycleCall::Cheat(id, _, false)) => Some(*id), _ => None,
-    }).collect();
+    let ids: Vec<_> = host
+        .ops
+        .iter()
+        .filter_map(|op| match op {
+            Op::Lifecycle(LifecycleCall::Cheat(id, _, false)) => Some(*id),
+            _ => None,
+        })
+        .collect();
     assert_eq!(ids, CHEATS.iter().map(|c| c.0).collect::<Vec<_>>());
     for id in [71, 72] {
         assert!(host.ops.contains(&Op::Control(id, ControlCall::Shutdown)));
@@ -190,12 +488,25 @@ fn vw_t2_shutdown_unregisters_all_cheats_and_drops_both_control_lists() {
 #[test]
 fn vw_t3_deferred_budget_deduplicates_and_command_qi_has_priority() {
     let mut v = view();
-    let mut host = Host { changed: false, ..Host::default() };
-    let message = Notification { kind: 0xAA5C_F1E3, data: [1, 2], ..Notification::default() };
+    let mut host = Host {
+        changed: false,
+        ..Host::default()
+    };
+    let message = Notification {
+        kind: 0xAA5C_F1E3,
+        data: [1, 2],
+        ..Notification::default()
+    };
     assert!(v.notification(&mut host, message.clone()));
     v.notification(&mut host, message.clone());
     assert_eq!(v.owner.deferred, vec![message.clone()]);
-    v.notification(&mut host, Notification { command_interface: true, ..message });
+    v.notification(
+        &mut host,
+        Notification {
+            command_interface: true,
+            ..message
+        },
+    );
     assert_eq!(v.owner.deferred.len(), 1);
     assert!(host.ops.is_empty());
     v.replay_deferred(&mut host);
@@ -210,7 +521,11 @@ fn vw_t3_deferred_budget_deduplicates_and_command_qi_has_priority() {
 fn vw_t4_url_success_is_false_and_tutorial_precedes_every_window_route() {
     let mut v = view();
     let mut host = Host::default();
-    let message = WindowMessage { kind: 0xE4A8_5D91, text: "example".into(), ..WindowMessage::default() };
+    let message = WindowMessage {
+        kind: 0xE4A8_5D91,
+        text: "example".into(),
+        ..WindowMessage::default()
+    };
     assert!(!v.window_message(&mut host, message.clone()));
     host.changed = false;
     assert!(v.window_message(&mut host, message.clone()));
@@ -228,21 +543,51 @@ fn window_focus_accelerator_button_filter_and_clock_routes() {
     host.ops.clear();
     v.owner.motion.keyboard = [1, -1];
     v.owner.motion.edge = [-1, 1];
-    assert!(v.window_message(&mut host, WindowMessage { kind: 0x10, ..WindowMessage::default() }));
+    assert!(v.window_message(
+        &mut host,
+        WindowMessage {
+            kind: 0x10,
+            ..WindowMessage::default()
+        }
+    ));
     assert_eq!(v.owner.motion.keyboard, [0, 0]);
     assert_eq!(v.owner.motion.edge, [0, 0]);
     assert!(host.ops.contains(&Op::Window(MessageCall::MouseExit)));
-    assert!(v.window_message(&mut host, WindowMessage { kind: 0x1B, data: [5, 32, 0], ..WindowMessage::default() }));
+    assert!(v.window_message(
+        &mut host,
+        WindowMessage {
+            kind: 0x1B,
+            data: [5, 32, 0],
+            ..WindowMessage::default()
+        }
+    ));
     assert!(host.ops.contains(&Op::Command(0x6A93_5CAD)));
-    assert!(!v.window_message(&mut host, WindowMessage { kind: 0x1B, data: [6, 33, 0], ..WindowMessage::default() }));
+    assert!(!v.window_message(
+        &mut host,
+        WindowMessage {
+            kind: 0x1B,
+            data: [6, 33, 0],
+            ..WindowMessage::default()
+        }
+    ));
     host.ops.clear();
-    let button = WindowMessage { kind: 3, data: [0x2872_59F6, 19, 0], ..WindowMessage::default() };
+    let button = WindowMessage {
+        kind: 3,
+        data: [0x2872_59F6, 19, 0],
+        ..WindowMessage::default()
+    };
     assert!(v.window_message(&mut host, button.clone()));
     assert!(host.ops.is_empty());
     assert!(v.filter_message(&mut host, button));
     assert_eq!(host.ops, vec![Op::Window(MessageCall::Button(19))]);
     for kind in [0x13, 0x0D, 0x14] {
-        v.window_message(&mut host, WindowMessage { kind, ..WindowMessage::default() });
+        v.window_message(
+            &mut host,
+            WindowMessage {
+                kind,
+                ..WindowMessage::default()
+            },
+        );
     }
     assert!(!v.owner.mouse_inside);
 }
@@ -250,23 +595,80 @@ fn window_focus_accelerator_button_filter_and_clock_routes() {
 #[test]
 fn notification_view_hidden_pause_mission_and_progress_guards() {
     let mut v = view();
-    let mut host = Host { moved: true, ..Host::default() };
-    v.notification(&mut host, Notification { kind: 0xA6B7_9602, ..Notification::default() });
+    let mut host = Host {
+        moved: true,
+        ..Host::default()
+    };
+    v.notification(
+        &mut host,
+        Notification {
+            kind: 0xA6B7_9602,
+            ..Notification::default()
+        },
+    );
     assert!(host.ops.is_empty());
     host.moved = false;
-    v.notification(&mut host, Notification { kind: 0xA6B7_9602, ..Notification::default() });
-    assert_eq!(&host.ops[..2], &[Op::Window(MessageCall::Refresh(Refresh::Zoom)), Op::Window(MessageCall::Refresh(Refresh::Background))]);
+    v.notification(
+        &mut host,
+        Notification {
+            kind: 0xA6B7_9602,
+            ..Notification::default()
+        },
+    );
+    assert_eq!(
+        &host.ops[..2],
+        &[
+            Op::Window(MessageCall::Refresh(Refresh::Zoom)),
+            Op::Window(MessageCall::Refresh(Refresh::Background))
+        ]
+    );
     assert!(host.ops.contains(&Op::Pause));
     host.ops.clear();
-    v.notification(&mut host, Notification { kind: 0xABBB_CA64, data: [7, 9], ..Notification::default() });
-    assert_eq!(host.ops, [Refresh::PausedOverlay, Refresh::Speed, Refresh::Alert, Refresh::Mission(7, 7)].map(|r| Op::Window(MessageCall::Refresh(r))));
+    v.notification(
+        &mut host,
+        Notification {
+            kind: 0xABBB_CA64,
+            data: [7, 9],
+            ..Notification::default()
+        },
+    );
+    assert_eq!(
+        host.ops,
+        [
+            Refresh::PausedOverlay,
+            Refresh::Speed,
+            Refresh::Alert,
+            Refresh::Mission(7, 7)
+        ]
+        .map(|r| Op::Window(MessageCall::Refresh(r)))
+    );
     host.ops.clear();
     v.owner.lifecycle.progress = Some(99);
-    v.notification(&mut host, Notification { kind: 0x4A44_667F, ..Notification::default() });
+    v.notification(
+        &mut host,
+        Notification {
+            kind: 0x4A44_667F,
+            ..Notification::default()
+        },
+    );
     assert!(host.ops.is_empty());
-    v.notification(&mut host, Notification { kind: 0x4A44_667F, progress_interface: true, ..Notification::default() });
+    v.notification(
+        &mut host,
+        Notification {
+            kind: 0x4A44_667F,
+            progress_interface: true,
+            ..Notification::default()
+        },
+    );
     assert_eq!(host.ops, vec![Op::Window(MessageCall::Progress([0, 0]))]);
-    assert_eq!(NOTIFICATIONS.iter().copied().collect::<std::collections::BTreeSet<_>>().len(), 33);
+    assert_eq!(
+        NOTIFICATIONS
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        33
+    );
 }
 
 impl MotionHost for Host {

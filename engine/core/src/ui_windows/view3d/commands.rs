@@ -152,6 +152,11 @@ impl View3DWin {
         };
         let on = !host.tab_toggled(tab);
         host.toggle_tab(tab, on);
+        self.apply_panel_tab(host, tab, panel, on);
+    }
+
+    /// The child filter receives an already toggled tab, unlike ProcessCommand.
+    pub fn apply_panel_tab(&mut self, host: &mut impl CommandHost, _tab: u32, panel: u32, on: bool) {
         host.close_secondary();
         if on {
             if let Some(old) = self.owner.panels.current {
