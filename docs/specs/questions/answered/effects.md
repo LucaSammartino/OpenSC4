@@ -193,3 +193,39 @@
   (core: a caller-given life; init fails when `a >= life`, a particle dies when its remaining life reaches 0).
   (e) the curve interpolation when `P − n` is outside `[0, 1]` and for an empty curve (core: clamped, 0).
   [all marked `[choice, EF14]` / `[choice]` in engine/core/src/effects/particles.rs]~~ **ANSWERED 2026-10-21 (re-effects14-4):** DIFFERS - (a) DIFFERS: the plain emitter `0x005B3CF0` only tops the live count up to `ceil(curve[0])` (no `m` or `+0xC0` scale) once `P > n`; `n`, `w` and `c` are never touched, nothing is sub-stepped, and new particles start at age 0 with no slot-20 call. (b) MATCHES: bits 19, 20 and 21 are tested in that order and the first set bit gives `k`, `k²` or `k³`; with none set there is no factor. (c) MATCHES: the `1e-6` is a local value and `D+0x14` is never written; only `ρ` is floored. (d) DIFFERS in where life comes from: `InitEffectsParticle` draws life uniformly from `[D+0x0C, D+0x10]` per particle; slot 20 does `age += t` and returns false when `age ≥ life`, so init fails when `a ≥ life`; when flags A `& 0x18000D00`, water/terrain kills can also fail it. (e) DIFFERS: the original does not clamp (reads past the end when `P − n > 1`, reachable when `ρ > 15`) and has no empty-curve guard; clamping and treating an empty curve as 0 stay `[choice]`. effects.md 7.1.1.
+
+
+<!-- from: core-effects-parser4; questions originally in effects-parser.md -->
+- ~~**EFP1 — Foreign switch-reader language and consumption**
+  In effects-parser.md §2/§4, what exact contract does 0067A7D0 expose for
+  dash/case/delimiters, aliases, duplicates, missing/empty values, unknown options,
+  terminators and token consumption? Supply individual lookup outcomes and scratch
+  indices, not a host-produced final parser result. Present owner rules do not prove
+  these generic reader behaviors.~~
+  **ANSWERED 2026-10-23 (re-effects-commands5):** DIFFERS — effects-parser.md §9
+  establishes exact case-sensitive single-dash matching, first duplicate per lookup,
+  in-place prefix marking, retained records, minimum arity, -/+ alphabetic
+  terminators, positional-prefix collection and later unknown-switch validation.
+  Eight independent token/index vectors; effects.md §19.1 links the service.
+- ~~**EFP4 — Foreign registration identity and ownership**
+  In effects-parser.md §5.1/§5.2, establish P+90 slots +44 and +48's matching
+  interface contracts: named validation, duplicate/collision/replacement behavior,
+  null-name identity/index selection and reference transfer of the supplied object.
+  The owned bodies append locally; neither generates an anonymous name or counter.
+  Do not claim a foreign counter boundary from the raw returned-index ledgers.~~
+  **ANSWERED 2026-10-23 (re-effects-commands5):** MATCHES — effects-parser.md §11.1:
+  lowercase copied keys in separate type buckets; null names append without named
+  identities; returned indices are per-type vector positions. Named replacement
+  preserves index, retains new before releasing old; identical pointers are no-ops.
+  Lookup with null out only validates; failed lookup leaves out unchanged.
+- ~~**EFP5 — Final lifetime and shared reference operations**
+  In effects-parser.md §5.5/§8, positively identify destructor/refcount-zero cleanup
+  and held-interface release order. Linked callback 0059EBE0 is not yet proved a
+  destructor; shared AddRef/Release delegation cannot certify parser-exclusive
+  lifetime behavior. Distinguish this class's factory from the separate file queue.~~
+  **ANSWERED 2026-10-23 (re-effects-commands5):** DIFFERS — effects-parser.md §11.2:
+  actual AddRef/Release stubs are 0059F3C0/0059F3D0, not 0059F3E0/0059F3F0.
+  Final Release invokes deleting destructor 005A27F0, member cleanup 0059F4E0.
+  Held component P+490 releases first, then description/container cleanup;
+  interfaces P+A8, P+94, P+90, P+8C release in that order, followed by base
+  destruction and allocation free. Callback 0059EBE0 is distinct.

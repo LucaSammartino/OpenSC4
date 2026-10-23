@@ -39,7 +39,8 @@ host-produced completed description or parser verdict. The scratch is reread aft
 calls; neither reentrancy nor concurrent use is established.
 
 The finder owns dash recognition, case, delimiters, aliases, duplicate occurrence
-selection, insufficient-value handling, terminators, and any token marking/removal.
+selection, insufficient-value handling, terminators, and token marking; §9 now
+specifies that service at the token-record boundary.
 These are not inferred from the literal keys. There is no owner-side loop scanning
 all tokens, unknown-option rejection, explicit cursor increment or explicit erase
 in this body. Unknown or empty input for which all lookups return absent follows
@@ -59,7 +60,7 @@ The complete owner lookup order is finite:
 | 12 | `prob` | 1 | select-only weight write |
 | 13–14 | `ignoreLength`, `respectLength` | 0 each | set then clear flag |
 
-These are distinct literal keys, not established aliases. Lookup order overrides
+These are distinct literal keys. Lookup order overrides
 textual order for distinct keys. `lodRange` has priority over `lod`; both length
 keys are queried, so `respectLength` wins when both lookups report present.
 The no-rotation subdomain (all five rotation lookups absent) is the finite normal
@@ -97,8 +98,8 @@ Forbidden LOD-in-select takes an error-construction call with literal
 `00B024F4` (`00599500–00599518`, `0059957E–00599596`). Forbidden `prob` outside
 select similarly uses `-prob only valid inside a select group`
 (`005996AF–005996CB`). The latter target's export name is misleading; its unwind
-semantics have not been established here. These are error exits, not a proved
-false return, rollback or recoverable continuation. Earlier writes precede them;
+semantics are specified in §10. These are exception exits, with no owner rollback
+or recoverable continuation. Earlier writes precede them;
 this publication's supported normal domain excludes these paths.
 
 ## 4. Independent literal option ledgers
@@ -277,13 +278,13 @@ pull in the queue algorithm at `0058E4E0`. Construction zeros pointers at main
 `+90,+94` (`0059EFAF–0059EFB5`) and component begin/end/capacity at
 `+44C,+450,+454` (`0059F2A4–0059F2B0`). Whole-constructor support is not claimed.
 
-Constructor-selected virtual slots route AddRef/Release through adjustment stubs
-`0059F3E0` / `0059F3F0` to shared bodies `00676000` / `00679330`; the stubs adjust
-ECX and tail-jump, rather than implementing a parser-exclusive refcount algorithm.
-The slot via `0059F4D0` reaches `0059EBE0`, a cleanup/callback body. It is **not
-proved to be this object's destructor**, and its internal collections are outside
-this contract. Final destruction, refcount-zero cleanup and release of all held
-interfaces remain Unknown, not an inferred consequence of these pointer stores.
+The constructor-selected unknown table `00AA04D4` routes AddRef/Release through
+`0059F3C0` / `0059F3D0` to shared bodies `00675FC0` / `00675FD0`. The earlier
+identification of `0059F3E0` / `0059F3F0` as those reference operations was wrong;
+the latter entries belong to the separate parser-service table `00AA04A0`.
+The callback via `0059F4D0` reaches `0059EBE0`; it is not the destructor.
+The actual deleting destructor is `005A27F0`, with member cleanup at `0059F4E0`.
+See §11 for reference counts and held-interface release order.
 
 ## 6. Command registration and one concrete command path
 
@@ -392,7 +393,8 @@ on the foreign QI's actual reference convention. No destruction trace is claimed
 supported no-rotation normal branches above; five rotation bodies and foreign
 reader language prevent whole-body/whole-parser support. The size is a metadata
 anchor, not a newly certified byte-coverage count. No complete inventory, default
-grammar, native validation or runtime proof is claimed. Further own-body statuses
+grammar or runtime proof is claimed. §§9–11 add reader, validation and lifetime
+contracts without completing the command family. Further own-body statuses
 are measured individually below; **Supported** always means the stated normal
 domain with primitive results, not the entire language, errors or runtime.
 
@@ -408,13 +410,187 @@ domain with primitive results, not the entire language, errors or runtime.
 | `0059EEC0` / 1253 | Partial constructor anchors | ECX storage, one construction-mode arg, EAX storage; selected pointer/vector zero stores and factory relationship only |
 | `005997B0` / 264 | Foreign shared record constructor, measured field writes | ECX=D, EAX=D; §5.3 defaults are supporting input facts, not parser-exclusive coverage |
 | `0059F3B0`, `0059F490` / 8 each | Supported adjustment only | subtract incoming `[ECX-4]`, tail-jump to owned QI/SetManager; no separate return channel |
-| `0059F3E0`, `0059F3F0` / 14 each | Foreign shared reference operation | pointer adjustment and delegation only; no exclusive AddRef/Release implementation credited |
-| `0059F4D0` / 8; `0059EBE0` / 195 | Partial attribution / Unknown destruction role | callback path is linked; not certified as destructor; internal cleanup algorithms excluded |
+| `0059F3C0`, `0059F3D0` / 14 each | Shared reference operation | adjustment to `00675FC0` / `00675FD0`; §11 |
+| `0059F3E0`, `0059F3F0` / 14 each | Parser service delegation | not AddRef/Release |
+| `0059F4D0` / 8; `0059EBE0` / 195 | Reset callback | distinct from destructor; internal reset algorithms excluded |
 
-Generic `0067A7D0`, `0067A660`, `0067BBA0`, `0067BC70`, `0067C060`, base
-QI/registration/reference operations, string/allocator operations and vector
-copy/insertion are **Foreign**. Unexamined command hooks, rotation calculations,
-directory identity/collision rules, full destructor and complete tokenizer grammar
-are **Unknown** here. Exported sizes are function extents, never a sum of supported
+Generic readers, conversions, base QI/registration/reference operations,
+string/allocator operations and vector copy/insertion remain **Foreign** to the
+parser owner; §§9–11 specify several of those dependencies independently.
+Unexamined command hooks, rotation calculations and complete tokenizer grammar
+remain **Unknown** here. Exported sizes are function extents, never a sum of supported
 bytes or a complete parser inventory. The concrete factory, caller and descriptor
 links above establish ownership more narrowly than name metadata alone.
+
+## 9. Switch and positional reader contract *[compat]*
+
+This section answers EFP1 for already tokenized, mutable token records. A token
+has a byte string, a recorded length and an index; command token 0 is included.
+Lexing quotes, bracketed vectors and whitespace happens before this boundary.
+There is no additional delimiter splitting inside these readers: `-scale=2`
+is not a lookup for `scale`, and `--scale` is not `-scale`.
+
+The initialized switch-matching prefix set is the one byte `-`; the value-list
+terminator prefix set is the two bytes `-+`. Initializers `00A742F0` and
+`00A74320` copy ranges `00A9F34C..4D` and `00A9F350..352` respectively.
+Recognition is byte-exact and case-sensitive, with no alias expansion.
+`00679F20` selects the first token, starting at index 0, whose length is exactly
+one plus the key length, whose first byte is `-`, and whose remaining bytes equal
+the whole key (`00679F77–0067A02C`, equality search `004426C0`).
+
+`FindSwitchArgumentIndices` (`0067A7D0`) clears the scratch **index list** on
+every call. An absent match returns false with an empty list and no token changes.
+A match changes only its first byte from `-` to `+`, before any arity check.
+It collects every subsequent token index until EOF or a token of length greater
+than one whose first byte is `-` or `+` and whose second byte satisfies CRT
+`isalpha`. The switch's own index is not returned. The request count is a
+**minimum**, not a maximum: zero still collects values; a request for one may
+return three. Fewer than the requested number throws `Expecting at least %d
+arguments for -%s`; the marking and partial scratch list already exist.
+Otherwise it returns true (`0067A81E–0067A94F`).
+
+Neither tokens nor values are erased, and token indices and string lengths do
+not change. A second lookup of the same key can find the next duplicate because
+the first now starts with `+`. It does not select the last occurrence. Negative
+numbers such as `-2`, positive numbers such as `+3`, lone `-`/`+`, and empty
+records are values. An unknown `-word` or `+word` terminates the preceding value
+list even if no command recognizes that word. `--` is not an end-of-options
+escape: its second byte is not alphabetic, so it is a value. Alphabetic testing
+uses the native CRT locale; the examples below use ASCII.
+
+`FindNonSwitchIndices` (`0067A660`) clears its scratch list, starts at token 1,
+and collects the initial positional prefix up to the same `-`/`+` followed by
+alphabetic test. It does not resume after switches, skip marked switches, mark
+positional tokens, or enforce an exact maximum. Insufficient initial positional
+values throw `Expecting at least %d arguments` (`0067A685–0067A7C5`).
+
+Unknown switches are checked separately after a dispatched command returns by
+the generic parser (`00679120`, helpers `00679E50` and `0067A040`): an unmarked
+`-` followed by alphabetic text can cause `Unexpected switch: %s`. A marked
+`+word` does not count as an unhandled switch. There is no reader-level error for
+unused ordinary values. These rules do not make whole-command parsing atomic.
+
+### 9.1 Reader conformance vectors (static predictions, unexecuted)
+
+Every row starts with new records and a nonempty old scratch list. Indices are
+zero-based and every record, including command token 0, remains after the call.
+The explicit empty string below is an existing empty token, not a lexer claim.
+
+| ID | Token records / lookup | Reply and scratch | Mutation / failure |
+|---|---|---|---|
+| SW1 | `cmd -scale 2 -scale 3`; key `scale`, minimum 1, twice | first true `[2]`; second true `[4]` | first token 1 becomes `+scale`; then token 3 becomes `+scale` |
+| SW2 | `cmd -Scale 2 --scale 3 -scale=4`; key `scale`, minimum 1 | false `[]` | unchanged |
+| SW3 | `cmd -k -2 +3 -- - + "" -next 9`; key `k`, minimum 1 | true `[2,3,4,5,6,7]` | token 1 becomes `+k`; `-next` terminates collection |
+| SW4 | `cmd -k +next`; key `k`, minimum 1 | exception, scratch `[]` | token 1 is already `+k`; `+next` remains |
+| SW5 | `cmd -k ""`; key `k`, minimum 1 | true `[2]` | token 1 becomes `+k`; numeric conversion of empty string is a separate operation |
+| SW6 | `cmd -k 1 2 3`; key `k`, minimum 0 | true `[2,3,4]` | token 1 becomes `+k`; no truncation to minimum |
+| SW7 | `cmd first -unknown value later`; positional minimum 1 | scratch `[1]`, normal return | no mutation; later handler completion can reject unhandled `-unknown` |
+| SW8 | `cmd -k 1`; key `missing`, minimum 4 | false `[]` | absence does not trigger minimum-count error |
+
+Earlier §4 vectors intentionally inject foreign primitive replies and leave
+records unchanged. In particular P7's `[3]` alternative is not the native reader
+outcome on its first lookup. SW1 supplies the native duplicate policy.
+
+## 10. Error transport and owner failure prefix *[compat]*
+
+`009EF84F` is a C++ throw helper, despite its exported vector-constructor name.
+It calls imported `KERNEL32!RaiseException` at IAT `00A8026C`, using exception
+code `E06D7363`, flags 1 (noncontinuable), and three information words:
+`19930520`, the supplied exception-object pointer, and supplied throw metadata.
+The template is at `00AE62EC`; instructions are `009EF85A–009EF87D`.
+Effects parse errors supply metadata `00B024F4`, whose destructor entry is
+`005998C0`. No boolean error status is returned by the command bodies.
+
+The LOD-in-select errors and prob-outside-select error in §3 occur after their
+switch is marked by §9 and after all earlier successful option writes. They
+occur before any conversion or write of the rejected LOD/prob value. No local
+catch, compensation or saved-description restoration is installed in
+`005989D0`. In `AddDescription`, a failed name validation occurs before name-copy,
+option processing and append; an option error occurs before append. Normal
+temporary cleanup after append is not an exception handler. The append and later
+option lookups are not executed on these throws. Likewise a command rejected
+outside an effects block throws before positional selection.
+
+This defines the observable failure prefix, not permission to resume execution
+after the throw instruction. A caller may handle the C++ exception at a higher
+scope; the complete file-parser catch/report/recovery policy is not established
+by these owner bodies. Destruction of the transported exception is distinct
+from rollback of parser fields and token marking.
+
+| ID | Initial state and input | Predicted failure prefix (unexecuted) |
+|---|---|---|
+| ER1 | select active; fresh D; `cmd -scale 2 -lod 3`; exact finite conversions | scale stored and count incremented; both switches marked; LOD error throws before its uint conversion; no append |
+| ER2 | select inactive; `cmd -offset vector -prob 1`; vector primitive returns `(1,2,3)` | translation stored and count incremented; default LOD `(1,6)` written; prob marked; throw before probability conversion; no append |
+| ER3 | absent referenced description with nonnull collection | collection validation only, then `No such description: '%s'` throw; no options or append |
+
+## 11. Directory identity and actual final lifetime *[compat]*
+
+### 11.1 Component directory service used by commands
+
+The collection tables `00A9F040` and `00A9F198` bind slot `+44` to
+`AddComponentDescription` (`0058AC10`) and `+48` to `GetComponentDescription`
+(`00589070`). The type selects a separate component bucket: the native bucket
+stride is `20` hex, selected by `type - 3`. Valid component objects and supported
+types are required; these methods do not provide a checked invalid-type boundary.
+Keys are copies of the supplied name, transformed bytewise with CRT tolower
+(`0058909C–005890C6`, `0058ACAE` onward, helper `00586AC0`, callback `009F0543`).
+ASCII case differences identify the same entry within a type. Names of different
+types have separate namespaces. Empty nonnull name and null name are distinct.
+
+Named lookup returns false on missing key. It does not clear a nonnull output
+pointer on failure. With an existing key it returns true; a null output is a
+validation-only lookup and acquires no object reference. A nonnull output gets
+the stored pointer followed by its `+10` retain call (`005890CB–005890F8`).
+
+Registration determines the bucket by calling the supplied object's type getter
+at slot 0. A null name **always appends** to that bucket, returning the previous
+element count; it neither invents a name nor adds a key to the named dictionary.
+A new nonnull key appends and records that index. An existing nonnull key keeps
+its index and replaces the stored pointer; supplying the identical pointer makes
+no retain/release calls. Replacement retains the new pointer (`+10`) before
+publishing it, then releases the old pointer (`+14`). An append retains one net
+collection-owned reference; the caller's reference remains the caller's. In the
+direct spare-capacity anonymous path the exact calls are retain temporary,
+retain stored pointer, release temporary (`0058AC36–0058AC75`). Full-capacity
+insertion uses the same reference-holding container service; it is not a raw
+ownership transfer. The return is the per-type vector index, not a global
+anonymous counter or a text name (`0058AC10–0058AD4C`).
+
+| ID | Initial directory and operation | Predicted result (unexecuted) |
+|---|---|---|
+| DI1 | type 6 has `Mixed`→index 2/object A; register `mIXED`, type-6 B | return 2; B retained, entry becomes B, A released; bucket length unchanged |
+| DI2 | same entry; lookup `MIXED`, type 6, null out | true, no retain; type 7 lookup with no corresponding key returns false |
+| DI3 | type-6 length 4; register null name, object B twice | returns 4 then 5, each appends and holds one reference, no generated names |
+| DI4 | same named pointer registered again | same index, no retain/release |
+| DI5 | missing key with output sentinel A | false, output still A, no retain |
+
+### 11.2 Native parser final release
+
+The unknown table `00AA04D4` has QI/AddRef/Release entries
+`0059F3B0/0059F3C0/0059F3D0`. After the adjustment used by these stubs, let the
+shared receiver be S. The count lives at `S-88` hex. AddRef increments the u32
+count and returns it (`00675FC0`); Release with count greater than 1 decrements
+and returns it. With count at most 1, Release dispatches deleting destructor
+slot 0 on `S-90` with argument 1, then returns zero (`00675FD0–00675FF3`). It
+does not first store zero. This is a shared base operation, not a new parser-only
+reference-count algorithm.
+
+The parser's slot-0 deleting destructor `005A27F0` invokes `0059F4E0`; it then
+frees the allocation through `005E5620` when argument bit 0 is set. This positive
+vtable/call-chain identification separates destruction from callback `0059EBE0`.
+Member cleanup first disposes priority/name structures and the temporary
+descriptions. A held component at `P+490` is released through `+14` before the
+group-record arrays and other description storage are destroyed
+(`0059F5A0–0059F720`). After those structures and the four ID-map trees are
+disposed, it releases nonnull interfaces in this exact order:
+renderer-properties `P+A8`, current resource `P+94`, active collection `P+90`,
+manager `P+8C`, each through slot `+08`, then tail-calls base destruction
+`00679AB0` (`0059F818–0059F85D`). Aliased pointers still receive their separate
+held-reference releases. These are destructor reads/calls, not SetManager's
+acquire-before-release assignment protocol; the slots are not cleared first.
+
+| ID | Initial live parser references | Predicted calls (unexecuted) |
+|---|---|---|
+| LT1 | count 3 then Release | count 2 returned; no destructor |
+| LT2 | count 1; P+490=C, A8=R, 94=U, 90=K, 8C=M; successful returning cleanup | C.`+14`, description/container cleanup, R.Release, U.Release, K.Release, M.Release, base destruction, allocation free, Release returns 0 |
+| LT3 | final-release state as LT2 but 94 and 90 both K | K receives two releases in those positions; no alias suppression |

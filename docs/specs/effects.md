@@ -1677,3 +1677,86 @@ replacement is to survive the game's own direct field access.
 - The exact dispatch site that reaches `+0x08` before the first draw needs a runtime probe: log every call
   into the replacement after `Init` together with `this` and `this+8`, or break on `cIGZMessageTarget2`'s
   `DoMessage` in the original and record the caller.
+
+## 19. Effects-script command contracts *[compat]*
+
+This section concerns text-description commands, separate from the binary
+directory reader and the runtime components in §§3–10. Evidence is static
+Windows 1.1.641 export instructions and descriptor data, inspected 2026-10-23.
+Conformance examples are proposed, unexecuted predictions. An implementation
+must not treat this partial publication as whole-family closure of EF15.
+
+### 19.1 Shared input and service contracts
+
+The root registration inventory and descriptor/hook identities are in
+[effects-parser.md §6.1](effects-parser.md#61-root-dictionary-selected-by-the-owner).
+A handler receives a vector of 20-byte token records, including command token 0,
+and the effects parser context P. Numeric/vector conversions are individual
+foreign services; renderer, audio and resource calls are likewise separate
+services. Their successful replies must be supplied individually in owner tests.
+They must not be replaced by a foreign service returning a completed description.
+
+The switch and positional reader's concrete behavior, mutation and minimum-arity
+rules are in [effects-parser.md §9](effects-parser.md#9-switch-and-positional-reader-contract-compat).
+In particular, handled `-word` tokens become `+word`, the first duplicate wins
+each lookup, ordinary records are retained, and unknown unhandled switches can
+be rejected after a handler has already changed parser state.
+
+Error exits are C++ exceptions, with no command-local rollback; see
+[§10](effects-parser.md#10-error-transport-and-owner-failure-prefix-compat).
+The collection's named/anonymous identity, replacement and retained-reference
+contract is in [§11.1](effects-parser.md#111-component-directory-service-used-by-commands).
+The parser's positively identified final-release/destructor chain is in
+[§11.2](effects-parser.md#112-native-parser-final-release).
+These dependencies answer EFP1, EFP4 and EFP5; EFP2, EFP3's complete outer
+recovery policy and EFP6 remain open. Descriptor registration alone does not
+prove a command's execution algorithm.
+
+### 19.2 Two root command owners
+
+`cRenderPropCommand` is the descriptor `00A9F85C`, root literal `renderprop`,
+handler `00596630`. It requires exactly three records: the command, property
+name and value; too few or too many constructs a parse error before renderer
+lookup. There are no defaults. It searches the renderer-properties service at
+`P+A8` in bool, integer, then float order (lookup slots `+30,+34,+38`), accepting
+the first nonnegative index. It converts only that selected value with the
+matching ParseBool, ParseInt or ParseFloat primitive and calls the corresponding
+setter (`+24,+28,+2C`). A name present in several property categories therefore
+uses the bool category first. If all three lookups return negative indices it
+throws `Unknown render property`. This changes renderer property state, not an
+effect-description record; renderer name matching and setter validation remain
+renderer-service contracts. A live renderer-properties pointer is required.
+Evidence: `00596630–0059673D`.
+
+`cEffectGroupIDCommand` is block descriptor `00A9F8BC`, root literal
+`effectGroup`, enter hook `00596750`. It requires at least one argument after the
+command; absence throws `No ID specified!`. It converts token 1 through
+ParseUint and stores the full returned word in `P+49C` before entering the
+generic block. It does not enforce an upper argument count, create an effect
+description, or install a default ID. Its own nested registrar `005967D0`
+registers only `instance` with descriptor `00A9FA08`; this does not inherit the
+whole root command dictionary. The registered exit hook is `00648F10`.
+No restoration of the prior group-ID word is performed by the enter hook.
+The `instance` execution contract and full block dispatch are still open under
+EF15/EFP6. Evidence: `00596750–005967F8` and root registration §6.1.
+
+### 19.3 Command and dependency conformance vectors
+
+Keep these as independent expectations when adding engine vectors; none has
+been executed against the original parser in this lane. No engine files are
+part of this publication.
+
+| ID | Input / independent primitive replies | Required observable result |
+|---|---|---|
+| EC1 | `renderprop property value`; bool lookup returns 7, int/float would also recognize it; ParseBool returns true | bool lookup then bool conversion then bool setter `(7,true)` only; no int/float lookup or conversion; no description mutation |
+| EC2 | same three records; bool returns -1, int returns 2; ParseInt returns -9 | bool lookup then int lookup, integer conversion and integer setter `(2,-9)` only |
+| EC3 | `renderprop property` | arity exception before renderer lookup; no setter |
+| EC4 | three records; all three renderer category lookups return -1 | bool, int, float lookups in that order, then unknown-property exception; no value conversion or setter |
+| EC5 | `effectGroup id surplus`; ParseUint(token 1) returns `FEDCBA98` hex | P+49C becomes `FEDCBA98`, then block entry; surplus not rejected by this owner |
+| EC6 | `effectGroup` only; P+49C initially 9 | `No ID specified!` exception, no uint conversion or block entry, P+49C stays 9 |
+
+The dependency vectors SW1–SW8, ER1–ER3, DI1–DI5 and LT1–LT3 in
+effects-parser.md §§9–11 cover the first-duplicate rule, retained records,
+failure prefixes, case-folded per-type names, anonymous indices, pointer
+replacement and final lifetime. They supplement the existing runtime vectors
+in §17 rather than claiming command coverage from runtime tests.
