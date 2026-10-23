@@ -251,7 +251,7 @@ generated index: the questions live one file per spec, so read only the file for
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
 | graphics-rules | 4 | 4 | GR9 | questions/graphics-rules.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
-| gz-framework-core | 11 | 0 | GZF12 | questions/gz-framework-core.md |
+| gz-framework-core | 9 | 2 | GZF12 | questions/gz-framework-core.md |
 | gz-graphics | 5 | 1 | GZG7 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 2 | 6 | HD9 | questions/html-document.md |
@@ -282,7 +282,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-occupants | 21 | 24 | NO45 | questions/network-occupants.md |
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
-| network-rules | 2 | 10 | NR16 | questions/network-rules.md |
+| network-rules | 2 | 11 | NR17 | questions/network-rules.md |
 | network-tool-ui | 0 | 0 | - | questions/network-tool-ui.md |
 | network-tools | 16 | 4 | NT27 | questions/network-tools.md |
 | network-transport | 4 | 0 | Q15 | questions/network-transport.md |
@@ -295,7 +295,7 @@ generated index: the questions live one file per spec, so read only the file for
 | overlay-manager | 5 | 6 | OV12 | questions/overlay-manager.md |
 | overlay-views | 3 | 4 | OVV8 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
-| particles | 7 | 4 | PT12 | questions/particles.md |
+| particles | 9 | 4 | PT14 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
 | paths | 5 | 0 | PA11 | questions/paths.md |
 | pedestrians | 2 | 0 | PN3 | questions/pedestrians.md |
@@ -327,7 +327,7 @@ generated index: the questions live one file per spec, so read only the file for
 | resource-exemplar-editor | 8 | 0 | RE9 | questions/resource-exemplar-editor.md |
 | rigid-body-2d | 7 | 0 | RB8 | questions/rigid-body-2d.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
-| rz-strings | 6 | 0 | RZS7 | questions/rz-strings.md |
+| rz-strings | 5 | 1 | RZS7 | questions/rz-strings.md |
 | sc-resources | 0 | 7 | SCR8 | questions/sc-resources.md |
 | simgrid | 2 | 1 | SG4 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
@@ -366,4 +366,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **586** | **1397** | | |
+| **total** | **585** | **1401** | | |
