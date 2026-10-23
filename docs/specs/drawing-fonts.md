@@ -6,8 +6,8 @@ cache and its COM director. Written by re-drawing4 (2026-10-21) from the Ghidra 
 was checked against the instructions at the cited address unless the text says otherwise.
 
 Out of scope: the DX7 driver (re-driver4), base widgets (re-widgets4), the five `nGZDrawSoftRender::cSpanRender*`
-blitters (view3d.md §"soft span renderer" records their identity), and `cGZDrawFontRenderer` beyond its identity
-(§9). FreeType is linked statically (`FT_Get_Char_Index`, `ft_new_input_stream`); its rasteriser is a library
+blitters (view3d.md §"soft span renderer" records their identity), and the full `cGZDrawFontRenderer` cache contract
+(§15 is a summary). FreeType is linked statically (`FT_Get_Char_Index`, `ft_new_input_stream`); its rasteriser is a library
 contract, not part of this spec.
 
 ## Outline
@@ -27,6 +27,8 @@ contract, not part of this spec.
 | 11 | Thai presentation forms |
 | 12 | Font catalogue (`cGZFontSys`) |
 | 13 | Open questions |
+| 14 | MXF font files |
+| 15 | Glyph-cache holder (summary; FN23) |
 
 ## 1. Owners, identities, coverage claim
 
@@ -864,4 +866,54 @@ s = {"Tahoma", "Verdana"}; GetSubstitutions("arial", s, 2) → 0 (keys are exact
 
 FN1-FN17 are answered (FN7-FN14 by re-font-core-answers4; FN15-FN17 by re-font-final-gaps4)
 (archive: `docs/specs/questions/answered/drawing-fonts.md`); open entries, if any, are in
-`docs/specs/questions/drawing-fonts.md`.
+`docs/specs/questions/drawing-fonts.md` (FN18-FN23; FN23 is §15's).
+
+## 14. MXF font files *[compat]*
+
+*Added 2026-10-23 (re-fonts).* The game's own fonts (`Fonts\*.mxf` in the install, 19 files) are ordinary TrueType or
+Type 1 font files, lightly obfuscated:
+
+| Offset | Size | Field |
+|---|---|---|
+| 0 | 4 | magic `MXFN` |
+| 4 | 4 | L, unsigned big-endian 32-bit integer: how many payload bytes are obfuscated |
+| 8 | 1 | key k |
+| 9 | … | payload: the font file, each byte at a payload offset below L XORed with k |
+
+The font stream recognises this wrapper only in an opened file longer than 9 bytes with the initial magic `MXFN`.
+For a recognised wrapper, logical font offset zero is physical file offset 9. An unwrapped file is exposed from
+physical offset zero without XOR. A nine-byte file containing just the header is therefore not recognised as MXF.
+This stream serves `AddFont` and font creation (§12); recognition and big-endian decoding are instruction-checked
+at `0x00896D70`–`0x00896DD1` (opener `0x00896D2F`, exported as `_FT_New_Stream`).
+
+A successful read of n bytes at logical offset p returns the corresponding stored bytes, with XOR by k applied
+only to bytes whose logical offset is less than L. The transformed prefix has length min(n, L − p) when p < L,
+and zero otherwise. Reads beginning at or after L are unchanged. The read reports success or failure; a failed
+underlying read receives no XOR pass (`ReadAt`, `0x00896DDD`–`0x00896E47`). `Read` at `0x00896E4A` forwards that
+operation and returns its Boolean status. Failed-read buffer contents are not specified here.
+
+Worked boundary example: L = 2, k = `0x9D`, stored payload `9D 9C 02 03`. A four-byte read at logical offset zero
+returns `00 01 02 03`; a two-byte read at offset one returns `01 02`. L = 0 leaves every payload byte unchanged
+while still hiding the nine-byte wrapper. These examples concern successful reads within the payload.
+
+Shipped files (`SimCity 4 Deluxe\Fonts`, all 19): L = 40,000,000 (so the whole payload is obfuscated) and k = `0x9D`.
+Sixteen payloads are TrueType (`00 01 00 00`), three are Type 1 fonts in PFB segments (`80 01`: `Arta`, `Arta
+(Italic)`, `Stoclet ITC TT (Bold)`). Every file's length is a multiple of 10,000 bytes, longer than its font: the tail
+is filler that is not part of the font *[inferred]*.
+
+A writer may use L = 40,000,000 and k = `0x9D` to match the shipped convention *[choice]*. The stream contract
+also permits partial obfuscation: encode only payload offsets below L with XOR and leave the remainder unchanged.
+Neither whole-payload obfuscation nor padding to a multiple of 10,000 is a reader requirement.
+
+## 15. The glyph-cache holder (class `0x8B3255F9`, labelled `cGZDrawFontRenderer`) *[summary; FN23]*
+
+*Added 2026-10-23 (re-fonts).* Identity: [font-renderer.md
+§1](font-renderer.md#1-identity-ownership-and-exact-body-inventory) (class `0x8B3255F9`, 0x450 bytes from
+`0x0082A2B0`, constructor `0x00829F70`, vtable `0x00AC14BC`; it holds the 8-byte default renderer `0x08CDA30B` at
+`+0x43C`). Its cache, in outline: the holder keeps a cache surface and a table from glyph to its place in it. A glyph
+is added (`AddGlyphToCache`, `0x0082A2F0`) at the current pen of the current row; when it does not fit across, a new
+row starts below the tallest glyph of the row; when it does not fit down, the cache is flushed and restarted (or the
+add fails when flushing is not allowed). The glyph's coverage bytes are written through a 256-entry colour table into
+the cache surface's format (8, 16, 24 or 32 bits per pixel). Target setup also tests hardware-surface interface
+`0xAB300B2B`; its complete drawing and fallback contract remains FN23. This summary claims no whole-holder coverage
+(font-renderer.md FR3 keeps that owner's accounting open). It does not reopen the separate `cGZFont` owner.

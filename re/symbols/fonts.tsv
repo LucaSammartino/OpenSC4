@@ -1,0 +1,47 @@
+va	name	evidence	mac_x86
+00829f70	cGZDrawFontRenderer::cGZDrawFontRenderer	drawing-fonts.md §15	
+0082a2b0	GZCOM_CreatecGZDrawFontRenderer	drawing-fonts.md §15	
+0082a2f0	cGZDrawFontRenderer::AddGlyphToCache	drawing-fonts.md descriptive name, no Mac match; §15; rows, flush when full, 8/16/24/32-bit	
+0089433c	cGZFontSys::GetFontSourceTypeFromFileName	drawing-fonts.md §12; extension, else the first 32 bytes	
+00894864	cGZFontSys::AddAllFontsFromDirectory	drawing-fonts.md §12; *.tt?, *.pfb, *.mxf, *.otf	
+00894adf	cGZFontSys::FontAcquire	drawing-fonts.md §12; name, alias and style scoring	
+00895268	cGZFontSys::cGZFontSys	drawing-fonts.md §12	
+00895564	cGZFontSys::AddFont	drawing-fonts.md §12	
+008957d6	cGZFontSys::AddFont	drawing-fonts.md §12	
+0089595d	cGZFontSys::AddSubstitution	drawing-fonts.md §12	
+00895a1c	cGZFontSys::FontAcquire	drawing-fonts.md §12; name, alias and style scoring	
+00895dcf	cGZFontSys::FontSetName	drawing-fonts.md §12	
+00895e68	cGZFontSys::Init	drawing-fonts.md §12; generic families 5, 6, 9, 10	
+0089645a	cGZFont::GetSubstitutionChar	drawing-fonts.md §11; Thai positioning forms	
+00896654	cGZFont::SetAntialiasing	drawing-fonts.md §4	
+00896662	cGZFont::GetAntialiasingGammaCorrection	drawing-fonts.md §4	
+00896666	cGZFont::GetAntialiasingSharpness	drawing-fonts.md §4	
+0089666a	cGZFont::GetCodePage	drawing-fonts.md §4	
+00896678	cGZFont::SetCodePage	drawing-fonts.md §4	
+00896692	cGZFont::GetScaling	drawing-fonts.md §4	
+008966a7	cGZFont::GetAdvanceScaling	drawing-fonts.md §4; vertical 1	
+008966bb	cGZFont::GetSpacingAdjustment	drawing-fonts.md §4	
+008966d0	cGZFont::SetSpacingAdjustment	drawing-fonts.md §4	
+008966eb	cGZFont::GetLineHeight	drawing-fonts.md §5	
+008966f2	cGZFont::CharHeight	drawing-fonts.md §5	
+008966f8	cGZFont::GetSizeAboveBaseline	drawing-fonts.md §5	
+00896702	cGZFont::GetSizeBelowBaseline	drawing-fonts.md §5	
+0089671f	cGZFont::ConvertCharToUnicode	drawing-fonts.md §6	
+00896808	cGZFont::CalculateCharsToFitInWidth	drawing-fonts.md §8	
+00896886	cGZFont::CalculateNumberOfLines	drawing-fonts.md §8	
+008968eb	cGZFont::CalculateWidthOfLines	drawing-fonts.md §8.2	
+00896957	cGZFont::CalculateTextArea	drawing-fonts.md §8.2	
+00896a2d	cGZFont::FormatForEllipsis	drawing-fonts.md §8.3	
+00896ddd	cGZFontStream::ReadAt	drawing-fonts.md descriptive name, no Mac match; §14; XOR with the key below L	
+00896e4a	cGZFontStream::Read	drawing-fonts.md descriptive name, no Mac match; §14; the FreeType stream read callback	
+008972bd	cGZFont::CharWidth	drawing-fonts.md §8; x1 - x0	
+00897304	cGZFont::GetXOffset	drawing-fonts.md §8	
+00897348	cGZFont::GetAdvanceWidth	drawing-fonts.md §8; advance + spacing adjustment	
+008973d4	cGZFont::CalculateTextArea	drawing-fonts.md §8.2	
+008993bb	cGZFont::BuildAntialiasingLookupArray	drawing-fonts.md §10	
+00899987	cGZFont::SetAntialiasingGammaCorrection	drawing-fonts.md §4; [0, 10]	
+008999ce	cGZFont::SetAntialiasingSharpness	drawing-fonts.md §4; [-1, 1]	
+00899d81	cGZFont::CalculateWordsToFitInWidth	drawing-fonts.md §8.1	
+00899f71	cGZFont::GetStringWidth	drawing-fonts.md §8; sum of advances	
+0089a099	cGZFont::DrawTextLine	drawing-fonts.md §9	
+0089a35b	cGZFont::DrawTextParagraph	drawing-fonts.md §9	

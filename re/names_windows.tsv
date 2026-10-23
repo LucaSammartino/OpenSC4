@@ -10052,6 +10052,7 @@ va	name	source	confidence	note
 00829bc0	__gnu_cxx::hash_set<unsigned_long,__gnu_cxx::hash<unsigned_long>,std::equal_to<unsigned_long>,std::allocator<unsigned_long>>::hash_set	auto:B1	medium	mac 006194b8 score 0.852 support 4.0
 00829f70	cGZDrawFontRenderer::cGZDrawFontRenderer	auto:A	high	mac 00463d88 score 1.0 support 0
 0082a2b0	GZCOM_CreatecGZDrawFontRenderer	auto:B0	medium	mac 00463eae score 0.919 support 1.0
+0082a2f0	cGZDrawFontRenderer::AddGlyphToCache	manual:fonts.tsv	high	drawing-fonts.md descriptive name, no Mac match; §15; rows, flush when full, 8/16/24/32-bit
 0082abd0	GZCOM_cGZDrawContextAsBufferCLSID	auto:A	low	mac 0045fab8 score 1.0 support 0
 0082acf0	cSC4CatalogItem::GetDescription	auto:C	low	mac 006d4ac4 score 1.0 support 1
 0082ae40	cRZSysServPtr<cIGZDrawSystem,1261347763ul,3945702347ul>::~cRZSysServPtr	auto:D	medium	mac 005eeb6a score 0.5 support 1
@@ -10768,6 +10769,8 @@ va	name	source	confidence	note
 00896b8e	cGZFont::LockSurfaceForFontUse	auto:C	high	mac 002019dc score 1.0 support 1
 00896bc2	cGZFont::UnlockSurfaceForFontUse	auto:C	high	mac 00201a34 score 1.0 support 1
 00896d2f	_FT_New_Stream	auto:A	high	mac 00466aea score 1.0 support 0
+00896ddd	cGZFontStream::ReadAt	manual:fonts.tsv	high	drawing-fonts.md descriptive name, no Mac match; §14; XOR with the key below L
+00896e4a	cGZFontStream::Read	manual:fonts.tsv	high	drawing-fonts.md descriptive name, no Mac match; §14; the FreeType stream read callback
 008972a8	cGZFont::Release	auto:C	high	mac 00200c8c score 1.0 support 1
 008972bd	cGZFont::CharWidth	auto:C	high	mac 002013ae score 1.0 support 1
 00897304	cGZFont::GetXOffset	auto:C	high	mac 0020134e score 1.0 support 1
