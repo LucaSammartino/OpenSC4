@@ -80,17 +80,18 @@ cSC4DisasterInstance*	disasters	simulation	disasters.md	core/src/disasters	disas
 cSC4FireOccupant	disasters	simulation	disasters.md, fire-flames.md	core/src/disasters	-	-
 cSC4Flame	fire flames	renderer	fire-flames.md	-	-	-
 cSC4ToxicOccupant	disasters	simulation	disasters.md	core/src/disasters	-	-
+# automata_shadow (glue19, in the regress shadows list) round-trips the original's component records 40 (script system), 41 (controller manager) and 43-46 (vehicle/pedestrian/aircraft/watercraft managers) through core/src/automata each load and month: a record-only shadow, credited like citysit/demolition/dispatch (run 5)
 cSC4AutomataManager	automata (managers, records)	simulation	automata.md, automata-support.md, automata-managers.md	core/src/automata	-	-
-cSC4AutomataControllerManager	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
-cSC4AutomataScriptSystem	automata (managers, records)	simulation	automata.md	core/src/automata	-	automata
+cSC4AutomataControllerManager	automata (managers, records)	simulation	automata.md	core/src/automata	automata_shadow	automata
+cSC4AutomataScriptSystem	automata (managers, records)	simulation	automata.md	core/src/automata	automata_shadow	automata
 cSC4OccupantGroupTemplate	automata groups	simulation	occupant-groups.md	-	-	-
 tKeyEffect	automata groups	simulation	occupant-groups.md	-	-	-
 cSC4AutomataController	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
 cSC4Automaton	automata (managers, records)	simulation	automata.md	core/src/automata	-	-
-cSC4VehicleManager	automata (managers, records)	simulation	automata.md, automata-managers.md	core/src/automata	-	automata
-cSC4PedestrianManager	automata (managers, records)	simulation	automata.md, automata-managers.md	core/src/automata	-	automata
-cSC4AircraftManager	automata (managers, records)	simulation	automata.md, automata-managers.md	core/src/automata	-	automata
-cSC4WatercraftManager	automata (managers, records)	simulation	automata.md, watercraft.md, automata-managers.md	core/src/automata	-	automata
+cSC4VehicleManager	automata (managers, records)	simulation	automata.md, automata-managers.md	core/src/automata	automata_shadow	automata
+cSC4PedestrianManager	automata (managers, records)	simulation	automata.md, automata-managers.md	core/src/automata	automata_shadow	automata
+cSC4AircraftManager	automata (managers, records)	simulation	automata.md, automata-managers.md	core/src/automata	automata_shadow	automata
+cSC4WatercraftManager	automata (managers, records)	simulation	automata.md, watercraft.md, automata-managers.md	core/src/automata	automata_shadow	automata
 cSC4TrafficAutomataManager	automata (managers, records)	simulation	automata.md, automata-managers.md	core/src/automata	-	-
 cSC4OccupantManager	occupant manager	simulation	occupant-manager.md	core/src/occupant_manager	occmgr_shadow	occmgr
 cSC4NetworkManager	network manager	simulation	network-manager.md	core/src/network_manager	netmgr_shadow	netmgr
