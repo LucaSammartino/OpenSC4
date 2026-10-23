@@ -46,6 +46,8 @@
   model-to-footprint construction and sink/heel rotation/contact remain open.
   re-watercraft-wc5 round 2: §§5.7.3–5.7.4 resolve model footprint margins,
   transform projection/offset/multiplier, missing-model failure, corner scan
-  order and all 32 inanimate direction-byte cases. Exact residual: sink/heel
-  rotation axes, contact transform and publication equations; this question stays open.
+  order and all 32 inanimate direction-byte cases. re-watercraft-wc5c: §5.7.2
+  adds the sinking basis, independent roll/pitch signs, previous/current-heading
+  roles, heading feedback and publication contract. Exact residual: grounding/heel
+  rotation axes, contact transform and publication equations (0056AF90); this question stays open.
 

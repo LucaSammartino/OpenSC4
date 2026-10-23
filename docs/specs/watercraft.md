@@ -975,8 +975,55 @@ be silently changed into a positive-depth clamp.
 
 After a successful sinking transform, current heading is copied into inherited
 heading +0x58, then slots 100 `(true,true)`, 104 and 107 are called, in that order
-(`0x0056AF23–0x0056AF6F`). The axes and complete transform composition remain
-unresolved; the scalar ramps above do not close that gap.
+(`0x0056AF23–0x0056AF6F`). The sinking orientation composition is specified
+below; grounding/heel contact composition remains unresolved.
+
+**Sinking orientation and heading feedback (WC5, partial).** Use the `Rot`
+convention and right/up/forward matrix columns defined in §5.1.1. Let
+`H0` be the **previous runtime heading** +0x300, `H1` the current runtime
+heading +0x30C before this call, `Y=(0,1,0)`, and theta the newly stored
+angle a'. The two direction bytes select independent signs; any nonzero
+byte takes the nonzero case, not just the value 1.
+
+| Vector | Equation |
+|---|---|
+| Roll reference B | `normalize(Rot(normalize(H0), b)*Y)`, where b=theta for +0x2C9 zero, else -theta |
+| Pitch axis A | `normalize(H0 cross Y)` |
+| Forward F | `normalize(Rot(A,c)*H0)`, where c=-theta for +0x2C8 zero, else theta; normalize F a second time |
+| Right R | `normalize(B cross F)` |
+| Up U | `F cross R` |
+| New runtime heading | `normalize(R*H1_x + U*H1_y + F*H1_z)` |
+
+Replace the transform rotation columns with `(R,U,F)` and mark rotation
+changed (flag 4, one revision increment). Preserve the incoming transform's
+scale and translation except for the sinking translation rule above. That
+rule marks translation changed (flag 1, another revision increment) only
+strictly beyond the 0.6*A threshold. The orientation is rebuilt from H0 and
+world Y, rather than composed with the previous model's banking or bow
+rotation. The current heading is **transformed by the new basis** and
+normalized; it is not simply assigned F. This feedback differs from normal
+visual pitch, which leaves the runtime heading alone.
+
+Write the normalized current heading before the vertical displacement phase.
+Publish the resulting transform through slot 75, then copy current heading
+to inherited +0x58 and request slots 100,104,107 as above. This helper does
+not overwrite previous heading +0x300 or apply the ordinary p[18]/2 lift.
+No motion frame-time argument is consumed: the ramp uses stored crash elapsed.
+The return is a boolean in AL. No transform or effect-call result converts
+an otherwise successful tick into false.
+
+Use float vectors at the normalization/storage boundaries; the rotations
+use normalized-axis half-angle sin/cos and doubled quaternion products.
+The first H0 length and its reciprocal also pass through float storage.
+There is no zero-axis or parallel-reference repair. Thus zero/vertical H0,
+or parallel B/F, can propagate invalid components; these do not select an
+alternative finite crash pose. Evidence: axes `0x0056A449–0x0056A50C`,
+roll sign/rotation `0x0056A556–0x0056A87F`, reference normalization
+`0x0056A888–0x0056A90C`, pitch sign/rotation `0x0056A90E–0x0056AB9F`,
+forward double normalization and cross products `0x0056ABA3–0x0056AD0A`,
+heading feedback `0x0056AD10–0x0056ADDC`, publication/result
+`0x0056AF23–0x0056AF82`. Constants 0,1,-0.5 are at
+`0x00A81054`, `0x00A81228`, `0x00A949FC`.
 
 The bump rollback helper `0x0056A310` restores runtime position from previous
 position (+0x2E8), preserves the current transform's orientation, replaces its
@@ -1346,7 +1393,7 @@ untraced helper bodies still prevent a whole-owner closure claim.
 | Land, tow, city and movement gates | 00567DF0, 00567E80, 005681B0, 005698E0 | §§3.2–3.4, 5.6, 6.3; land comparison, outside-city short circuit and tow reference/reentrancy contracts included |
 | Collision and bump | 00568570, 005687C0, 005690D0, 0056C090, 0056A310 | §§5.7.0–5.7.4 give boat selection/response, SAT, rollback, footprint construction and shore corner cases; crash transforms remain WC5 |
 | Position and motion helpers | 00568230, 00569940, 00569E70, 0056C430 | §§3.3, 5.1.1 give straight/curved equations, complete normal visual basis and publication |
-| Crash motion | 0056A440, 0056AF90, 00570270 | §§5.7.1–5.7.2 give dispatch, ramps, height writes and endpoints; rotation/contact still WC5 |
+| Crash motion | 0056A440, 0056AF90, 00570270 | §§5.7.1–5.7.2 give dispatch, ramps, height writes, endpoints and sinking rotation/heading feedback; grounding/heel rotation/contact still WC5 |
 | Message and movement ticks | 00569230, 005694B0, 0056BD80, 0056D310 | §§5.5, 6.1, 6.3, 7; partial WC4/WC7 |
 | Teardown/docking helpers | 0056D0E0, 0056D4D0, 0056D530 | §§3–3.3, 5.4; docking helper signatures, distance and manager-null contracts specified; inherited teardown audit still WC3 |
 | Construction/class/destruction | 0056D9A0, 0056DC60, 0056DD00, 0056DD20 | §§1, 3.1; construction/destruction and allocation failure described |
@@ -1359,7 +1406,7 @@ untraced helper bodies still prevent a whole-owner closure claim.
 
 ### 10.2 Final owner-closure boundary for this lane
 
-This document supplies 132 individually named spec-side vectors. It does **not** certify
+This document supplies 136 individually named spec-side vectors. It does **not** certify
 complete owner closure: WC3–WC5 remain open; WC1–WC2 and WC6–WC8 are answered. In particular,
 the equations in §5.1.1 are authored behavior requirements, not permission to
 substitute an opaque provider result for missing owner computation.
@@ -1370,7 +1417,7 @@ substitute an opaque provider result for missing owner computation.
 | WC2 (answered) | §§2, 5.1.1–5.1.3 give parameter uses, unused entry 34 and the animation false-return removal request | None for this question; full AI target selection and crash contact basis remain separately in WC4/WC5. |
 | WC3 | 75-entry attribution inventory, Init/record boundaries, construction/destruction, ten adjustors, geometry/movement/docking/angular/quantization helper signatures, land/tow contracts and inherited animation dispatch | Complete tuning and debug signatures/results/failures and inherited teardown/initialization; inherited subsidiary animation/update contracts. Historical 79 is not the current measured attribution (§10.1). |
 | WC4 | Commands, routes/following/final and far docking, straight/curved integration, normal visual basis, target slew, generic inherited seeking and wake request ordering | Full AI target selection, inherited player-drive, slot-83/103 subsidiary animation computations, effect-controller and slot-104/107 effect/model computations. |
-| WC5 | Dispatch/events, boat selection/SAT/response, rollback, scalar crash ramps/heights, model footprint and inanimate corner tables | Sink/heel axes/contact/transform composition. |
+| WC5 | Dispatch/events, boat selection/SAT/response, rollback, scalar crash ramps/heights, model footprint, inanimate corner tables and sinking basis/heading feedback | Grounding/heel axes/contact/transform composition (0056AF90). |
 
 These gaps are not answered by an inventory count or by the existing summary
 sections. An engine lane can implement the newly specified arithmetic, but cannot
@@ -1607,3 +1654,16 @@ runtime heading and removal arguments are exact.
 | WC4-J01 | p[35]=100, p[37]=90, occupant-to-berth distance=91, dt=150; land test false | AI receives 100, then movement receives reference to the same local time, then collision; return true. Repeat with dt=-5: AI receives zero and all three calls still occur. |
 | WC4-J02 | Occupant P=(0,0,0), berth=(0,91,0), p[37]=90; runtime P is at berth; inherited H=(2,0,0) | Far approach selected using occupant 3D distance; no entry normalization of the already horizontal heading. Subsequent AI/motion may change it. |
 | WC4-J03 | Entry OnLand true, distance exactly p[37], inherited H=(3,4,0) | Request state 72, then flatten H to (1,0,0), then continue final approach. No far-branch AI call; state push alone does not end the docking tick. |
+
+### 11.15 Sinking orientation vectors
+
+Allow 1e-5 absolute error on finite vector components. The angle below is the
+stored ramp result; choose elapsed and p[22] so it is below the endpoint and
+below the translation threshold unless specified otherwise.
+
+| ID | Inputs | Expected observable result |
+|---|---|---|
+| WC5-K01 | H0=H1=(0,0,1), theta=pi/6, both direction bytes zero | F=(0,0.5,sqrt(3)/2); R=(3,-sqrt(3),1)/sqrt(13); U=F cross R. New runtime and inherited headings equal F. Publish rotation, no translation flag/lift, then calls 100,104,107. |
+| WC5-K02 | Same as K01, +0x2C8=2 | F=(0,-0.5,sqrt(3)/2); nonzero value 2 selects the same pitch sign as 1. Derive R/U from the unchanged roll reference B=(0.5,sqrt(3)/2,0). |
+| WC5-K03 | Same as K01, +0x2C9=1 | F unchanged from K01; roll reference B=(-0.5,sqrt(3)/2,0). R=normalize(B cross F), U=F cross R; roll sign changes the basis but not the F result for H1=(0,0,1). |
+| WC5-K04 | H0=(1,0,0), H1=(1,0,0), theta=0, incoming rotation arbitrary, scale=2 | Basis columns R=(0,0,-1), U=(0,1,0), F=(1,0,0). New runtime heading=(0,0,-1), not F; previous heading stays (1,0,0). Scale remains 2 and incoming rotation is replaced. |
