@@ -30,12 +30,3 @@
 <!-- from: re-app (2026-10-22) -->
 - **AP11 - sections 8, 13.2:** what the preferences `+0x470` (`-sim`) and `+0x498` (`-RDD`) and the render
   properties setting `0x25` (`-AutoZoomChange`) control. [as read]
-
-<!-- from: core-app5 (2026-10-23) -->
-- **AP12 - section 14.1:** is the Admin Enabled comparison to `false` case-sensitive, and does by-name lookup resolve the adjacent INI before testing? [Literal exact bytes `false` or `0`; the foreign library resolver supplies the adjacent INI value for name/path lookup.]
-<!-- from: core-app5 (2026-10-23) -->
-- **AP13 - sections 12, 14.2-14.3:** publish the Resources.ini packed-switch section and class-ID syntax, malformed-entry policy, DB directory filters/order, full resource-factory list, font/control/cursor setting tables, and GetAppIniFilePath resolution. [Implement the published enumeration/substitution summary with explicit paths/factory/packed-option inputs; preserve class bytes. Unknown details remain open, with no full resource/window setup claim.]
-<!-- from: core-app5 (2026-10-23) -->
-- **AP14 - sections 2, 11.10, 11.16, 13.3:** publish SC4CreateSavePathForCity's naming rule, slot 29/31 and folded getters' contracts, the twelve/fourteen video setting mappings and preference-application ordering. Does the SavedCity stub concatenate the global suffix or resolve under the application directory as section 14.3 summarizes? [Save requires an explicit independently resolved target and otherwise returns SavePathNaming before mutation. Keep literal section 11.10 concatenation. Video bodies and undescribed interface slots remain open under section 12.]
-<!-- from: core-app5 (2026-10-23) -->
-- **AP15 - sections 2, 9, 11.6:** give the complete 51-58 directory-slot mapping (including slot 56); and specify obliteration behavior with no city or failed temp-write, missing source/destination view managers, and cleanup after partial segment initialization. [Plain path getters follow section 9's listed order, leaving slot 56 unsupported; AP3 offset-named aliases preserved. Obliteration follows the five listed steps even when temporary writing fails, balances all known scopes and releases, and requires a resolved save target before destructive work. View effects are primitive no-ops when their foreign singleton is absent.]
