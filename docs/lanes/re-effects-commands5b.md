@@ -58,5 +58,6 @@ enqueued as ready; no merge-queue file was written. Resume from the Handoff.
 - Round 3 resumed from abed1e64. Published §19.45–19.46 source: shapes, accumulated flags, height filters, failure prefixes; EC224–EC236. Doccheck/questions/diff checks pass.
 - Done round 3 cba33f99: source shapes/filters. Next milestone publishes emit §19.47–19.48 and EC237–EC249; all three direction algorithms have distinct checked x87 store boundaries.
 - Done round 3 dd01c32e: emit contracts and EC237–EC249. Force §19.49–19.51 now publishes every option, attraction guards, tractor relative/timing/scaling quirks and EC250–EC271.
-- Next exact step now: remaining effect/group/select/game dictionaries and full class inventory. All 23 distinct particle child handlers now have execution contracts.
+- Done round 3 77a367f4: force contracts and EC250–EC271. §19.52 now verifies effect's 19 children (16 distinct descriptors), effectGroup's instance child, and EC272–EC276.
+- Next exact step now: publish group child execution, select/particleSequence blocks and full class inventory. All 23 distinct particle child handlers have execution contracts. GroupParticles first 88 body lines read; GroupDynamic first 40; neither published.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-effects-commands5b-r3-manifest.json.

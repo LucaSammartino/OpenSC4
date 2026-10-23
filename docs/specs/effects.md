@@ -3994,3 +3994,76 @@ failure is explicit. These are static predictions without a native oracle.
 | EC269 | tractorTimeScale 2; time=3, lifetime 4,6, tractor tangent (2,4,6), times 1,3 | multiplier=2, time=6, lifetime 8,12, tangent (1,2,3), times 2,6; positions/resetSpeed retained |
 | EC270 | repeat EC269 scaling with another tractorTimeScale 2 | multiplier still 2; time=12, lifetime 16,24, tangent (0.5,1,1.5), times 4,12 |
 | EC271 | time=7; successful tractor conversions except duration throws | no append, old time=7, no new tractor flag; prior force changes survive |
+
+### 19.52 Visual-effect and effect-group nested dictionaries *[compat]*
+
+The root effectGroup owner (§19.2) registers exactly one child: `instance`,
+descriptor `00A9FA08`, direct handler `00596980`, already specified in
+§19.4. Registration `005967D0–00596808` allocates four bytes and installs
+that descriptor, or passes null to the generic registrar on allocation
+failure. It does not embed a second implementation of instance.
+
+The root effect owner (§19.9) registers the following **19** children in
+this order (`cGroupEffectCommand::RegisterCommands`, `00596B70`). The
+first 17 each allocate a separate four-byte object. All 17 descriptors
+share wrapper `007E3BE0` at +04, no-op `00407990` at +08, and the direct
+handler at +0C below. Their +00 destruction entry is `007E3DB0`.
+Class names below are only names identified in the export; unnamed
+handlers remain unnamed. These registration identities do not by
+themselves supply the still-unpublished execution contracts.
+
+| Order | Literal | Descriptor | Direct handler | Identified owner / execution contract |
+|---:|---|---|---|---|
+| 1 | particleEffect | 00A9FEAC | 005A0120 | cGroupParticlesCommand; pending |
+| 2 | dynamicParticleEffect | 00A9FE9C | 005A0350 | cGroupDynamicParticleCommand; pending |
+| 3 | decalEffect | 00A9FE8C | 005A0480 | cGroupDecalCommand; pending |
+| 4 | shakeEffect | 00A9FE7C | 005A05F0 | cGroupShakeCommand; pending |
+| 5 | flashEffect | 00A9FE6C | 005A08E0 | cGroupFlashCommand; pending |
+| 6 | tintEffect | 00A9FE5C | 005A0A90 | cGroupTintCommand; pending |
+| 7 | soundEffect | 00A9FE4C | 005A2A50 | cGroupSoundCommand; pending |
+| 8 | chainEffect | 00A9FE3C | 0059D830 | unnamed; pending |
+| 9 | brushEffect | 00A9FE2C | 005A2CF0 | cGroupBrushCommand; pending |
+| 10 | scrubberEffect | 00A9FE1C | 005A30B0 | cGroupScrubberCommand; pending |
+| 11 | demolishEffect | 00A9FE1C | 005A30B0 | cGroupScrubberCommand; pending |
+| 12 | gameEffect | 00A9FE1C | 005A30B0 | cGroupScrubberCommand; pending |
+| 13 | mapEffect | 00A9FE1C | 005A30B0 | cGroupScrubberCommand; pending |
+| 14 | automataEffect | 00A9FE0C | 005A3710 | cGroupAttractorCommand; pending |
+| 15 | sequenceEffect | 00A9FDFC | 005A3890 | cGroupSequenceCommand; effects-parser §6.2, §§9–12 |
+| 16 | cameraEffect | 00A9FDEC | 005A3930 | cGroupCameraCommand; pending |
+| 17 | visualEffect | 00A9FDDC | 005A0BD0 | cGroupGroupCommand; pending |
+| 18 | select | 00A9FDC0 | enter 00596E70, exit 00596FE0 | unnamed block; pending |
+| 19 | particleSequence | 00A9FED4 | enter 00596F50, exit 00596F40 | unnamed block; pending |
+
+There are 16 distinct descriptor addresses. ScrubberEffect, demolishEffect,
+gameEffect and mapEffect have separate allocated objects but identical
+descriptors, with no alias-specific object word. Select and particleSequence
+allocate 24 bytes each and use the generic block initialization contract.
+Select calls constructor `00595850` then installs `00A9FDC0`;
+particleSequence's constructor `00596F20` calls `00677290` then installs
+`00A9FED4`. These constructor symbols have folded or unrelated export
+names; they do not prove a new source class name. Both block descriptors
+have +00=`007E3C40`, +04=`007E3B10`, +08=`00407990`, +0C=`00676B30`,
++10=`006773D0`, and enter/exit hooks +14/+18 as in the table.
+
+Every allocation failure still calls the generic registrar with null for
+that child; its validation/exception behavior is effects-parser §12.
+Registration retains/initializes each successful descriptor before
+proceeding to the next child. No collection lookup or effect creation
+occurs merely from registering this dictionary.
+
+Evidence: complete ordered registrations `00596B70–00596E6C`, literal
+pointer cells `00B0A2C4–00B0A30C`; descriptor words at the addresses
+above, especially distinct `00A9FE8C` for decalEffect and `00A9FDEC`
+for cameraEffect; block construction `00596E05–00596E66`,
+`00596F20–00596F31`; effectGroup child `005967D0–00596808` and
+literal pointer `00B0A2A4`. A scanning helper that pairs a descriptor
+with a later registration can misassign these folded/common rows; the
+table is checked against the actual registration instructions.
+
+| ID | Fixture | Required result (unexecuted) |
+|---|---|---|
+| EC272 | successful effect child registration | 19 children in table order, 16 distinct descriptor addresses; 17 four-byte allocations followed by two 24-byte allocations |
+| EC273 | compare scrubberEffect/demolishEffect/gameEffect/mapEffect | four allocated descriptor objects with the same 00A9FE1C descriptor and 005A30B0 direct handler; no per-object alias flag |
+| EC274 | compare particleEffect, decalEffect and cameraEffect | descriptors FEAC, FE8C, FDEC respectively (suffixes of table addresses); no off-by-one association |
+| EC275 | register effectGroup children successfully | one four-byte instance descriptor, same 00A9FA08 and handler as the root instance registration |
+| EC276 | register select and particleSequence | distinct block descriptors, generic wrappers shared; enter/exit hooks differ as table; registration does not itself execute enter |
