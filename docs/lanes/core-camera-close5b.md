@@ -4,8 +4,8 @@
 
 ## Handoff
 Goal: close every CA7–CA10 owner-table row using the revised camera spec.
-Done: CA7 live conversions and eye/pixel/history caches; CA8 four commands; CA9 raw-kind updates and all command dispatch; CA10 QI plus stable fallible allocation/release/destruction.
-Tests: 62 camera tests passed (10 new); explicit-file fmt passed after applying formatter check diffs with apply_patch.
-Next: finish contract/coverage review, then run the single final qbuild all and collect its terminal result.
+Done: 8a363a3a implements CA7 live conversions and eye/pixel/history caches; CA8 four commands; CA9 raw-kind updates and all command dispatch; CA10 QI plus stable fallible allocation/release/destruction.
+Tests: 64 camera tests passed (12 new); explicit-file fmt passed after applying formatter check diffs with apply_patch; contract review complete, no owner-table openings.
+Next: run the single final qbuild all and collect its terminal result.
 Facts: no ABI/plugin wiring; no game request outstanding; no questions filed; core source forbids unsafe and targets Rust 1.75.
 Evidence: q.py Bash startup failed (Win32 error 5); direct native Cargo focused test passed. Initial fmt invocation used wrong engine-relative paths, corrected to core/src; formatting diff fixed before gate.

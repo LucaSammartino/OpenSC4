@@ -434,6 +434,72 @@ fn ca10_query_interface_same_address_output_before_addref_and_rejected_untouched
 }
 
 #[test]
+fn ca9_commands_share_optional_view_and_empty_bounds_rules() {
+    for operation in 0..7 {
+        for empty in [false, true] {
+            let mut c = fixture();
+            c.bounds = if empty {
+                vec![]
+            } else {
+                vec![[-1e6, -1e6], [1e6, -1e6], [1e6, 1e6], [-1e6, 1e6]]
+            };
+            let bounds = c.bounds.clone();
+            let host = Arc::new(Host::default());
+            c.set_view_utilities(Some(host.clone()));
+            match operation {
+                0 => c.attach_to_camera(camera()),
+                1 => {
+                    c.set_view_target([1000.0, 0.0, 1000.0]);
+                }
+                2 => {
+                    c.scroll_by_viewport_angle(0.0, 0.0, None);
+                }
+                3 => c.set_custom_magnification(1.25),
+                4 => c.set_camera_position_tweak_add(2.0, 3.0),
+                5 => c.set_city_size(6000.0, 7000.0),
+                6 => {
+                    // Initial Init must also preserve a supplied nonempty polygon.
+                    c.initialised = false;
+                    c.init([2048.0, 0.0, 2048.0], camera());
+                }
+                _ => unreachable!(),
+            }
+            let events = host.0.lock().unwrap();
+            let old_len = if operation == 5 { 0 } else { bounds.len() };
+            assert!(matches!(events[0], Event::View { bounds, .. } if bounds == old_len));
+            assert_eq!(
+                events.iter().filter(|event| matches!(event, Event::Bounds)).count(),
+                usize::from(empty || operation == 5)
+            );
+            if !empty && operation != 5 {
+                assert_eq!(c.bounds, bounds);
+            }
+            let kind = match operation {
+                0 | 6 => 0,
+                1 | 2 => 3,
+                3 => 4,
+                _ => 5,
+            };
+            assert_eq!(kinds(&c), post(kind));
+        }
+    }
+}
+
+#[test]
+fn ca9_kind_two_ground_failure_still_returns_true_and_retains_velocity() {
+    let mut c = fixture();
+    // Past the fixed eye plane, position recomputation reverses view direction.
+    c.set_view_target([15000.0, 0.0, 15000.0]);
+    c.update_scroll_bounds();
+    c.take_messages();
+    c.velocity = [1.0, 2.0, 3.0];
+    assert!(c.update(2));
+    assert_eq!(c.target, [15000.0, 0.0, 15000.0]);
+    assert_eq!(c.velocity, [1.0, 2.0, 3.0]);
+    assert_eq!(kinds(&c), [sequence(2), post(3)].concat());
+}
+
+#[test]
 fn ca10_unsigned_release_wrapping_addref_and_factory_failure() {
     let mut owner = CameraControlAllocation::try_create().unwrap();
     assert_eq!(owner.control().references, 0);
