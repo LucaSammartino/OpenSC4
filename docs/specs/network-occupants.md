@@ -1537,6 +1537,43 @@ binding +144 if present, otherwise releases texture +148 if nonzero and the text
 manager exists; clears/releases source +78 and owner +1C0. These are distinct refs;
 the source is not a second ref at +6C (`0x005F11A0–0x005F129A`).
 
+#### 6.2.1 State setters, animation and position *[compat; NO36 partial]*
+
+SetUIState, SetDispatchState and SetDispatchType compare the full 32-bit value against +6C, +70 or +74.
+A changed value marks +68 dirty and clears blink +1A4; an equal value preserves both bytes, including a
+currently active blink. No range check or byte truncation occurs here (only the record uses signed bytes).
+SetBitmapInfo always stores its 32-bit first argument at +1A8, assigns its string argument to +1AC and
+marks +68 dirty, even if both values match. Sources: `0x005F0900–0x005F0928`, `0x005F0CA0–0x005F0D29`.
+
+SetSourceOccupant and SetPylonOwner use the same replacement policy for +78 and +1C0: an equal pointer
+does nothing; otherwise AddRef a nonnull new pointer, store it, then Release a nonnull old pointer.
+Neither dirties the model/texture nor changes blink (`0x005F0D30–0x005F0D5E`, `0x005F1160–0x005F1194`).
+This order differs from the connection's linked-reference setter (§3.6.1).
+
+DoAnimationTick advances the **shared u32 accumulator** at `0x00B23B80` only when this pylon's dispatch
+state is 1 or 4. Add the supplied u32 interval modulo 2³²; compare the unsigned result with 500. Below
+500 it only retains the accumulator. At or above 500 reset the accumulator to zero (discard all excess)
+and set this pylon's blink to 1 if its old byte was zero, otherwise 0, marking +68 dirty when that byte
+changes. Other pylons' blink bytes do not change, although their eligible ticks share the accumulator.
+Other dispatch states leave both the accumulator and this pylon unchanged. It is neither a per-object
+timer nor a catch-up loop (`0x005F0C50–0x005F0C9B`, unsigned comparison at `0x005F0C73`).
+
+The position is the transform translation at primary +A4/+A8/+AC. GetPosition accepts a null output as
+a no-op. SetPosition accepts a null input as a no-op; otherwise its order is removal from the occupant
+manager, removal from the renderer, translation assignment, increment the transform change byte +7C
+modulo 256, OR bit 0 into transform mask +7D, RebuildModel, insertion into the occupant manager and
+insertion into the renderer. It does not restore the old placement state or stop on a placement failure;
+even a previously unplaced object is offered for insertion. These accessors receive the occupant view
+at primary+8 (`0x005F0F00–0x005F0F3E`, `0x005F2670–0x005F26E9`).
+
+SetVisibility first forwards both arguments to the occupant base. If the resulting live +37 bit 0 says
+it is manager-inserted, call PlaceInRenderer with the requested visibility; otherwise no renderer
+placement call follows (`0x005F12A0–0x005F12C6`, also occupant-view-relative).
+
+The record/placement/packed-state rules above and these state operations answer parts of NO36. Texture
+composition, RebuildModel, Draw/Pick, complete transform/bounds/sort and message behavior still require
+their own verified rules; these setters do not substitute for those algorithms.
+
 ### 6.3 Record *[compat]*
 
 `Write` `0x005F0A10` emits u16 version 5 and the base occupant record, then the following
@@ -2125,3 +2162,19 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     `SetDistressed(false)` stops and releases it.
 39. **Break all** (§4.6). After `BreakAllConnections(true)` on a pole with two connections, `GetConnectionCount` is
     still 2, both records have no pole, and the other poles have no record of this one.
+40. **Pylon state setters and references** (§6.2.1). With dirty=0, blink=1 and UI=2, SetUIState(2) leaves
+    dirty=0/blink=1; SetUIState(3) gives dirty=1/blink=0. Repeat for dispatch type/state, including values
+    outside signed-byte range. SetBitmapInfo with equal inputs still dirties. For source and owner A→B,
+    trace AddRef(B), store B, Release(A); B→B produces no reference calls; B→null stores null before
+    Release(B). All these ref changes leave a clean dirty byte and blink untouched.
+41. **Shared pylon blink timer** (§6.2.1). With timer=0, eligible pylons P/Q blinking 0: P tick(300) gives
+    timer=300 and no blink change; Q tick(250) gives timer=0, Q blink=1/dirty=1 and P blink=0. P tick(1200)
+    toggles P only once and leaves timer=0. A state-2 pylon tick(500) changes nothing. With timer=0xFFFFFFF0,
+    an eligible tick(32) wraps to 16 and does not toggle. Reassigning Q's unchanged dispatch state preserves
+    its blink; changing it clears the blink without resetting the shared timer.
+42. **Pylon position and visibility** (§6.2.1). Null input produces no placement/model calls. From transform
+    counter 255/mask 0x80, SetPosition((4,5,6)) gives translation (4,5,6), counter 0/mask 0x81, with remove
+    manager → remove renderer → RebuildModel → insert manager → insert renderer in order. Repeat on an
+    initially unplaced object: insertion is still requested. SetVisibility on an uninserted object calls
+    only the base; on a manager-inserted object it additionally requests renderer placement matching the
+    supplied visibility, using the placement semantics in test 20.

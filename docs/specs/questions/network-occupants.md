@@ -98,6 +98,11 @@ implementer of the class tables and records.
   names these members without behavior. The core implements only explicit lifecycle subscriptions,
   call/drag storage and the record, with no host callbacks standing in for these owner methods.
   [missing; sections 6.1-6.2 remain open]
+  **Progress 2026-10-23 (re-netocc-answers5):** §6.2.1 and tests 40–42 now specify changed/equal enum
+  setters, unconditional bitmap dirtying, source/owner ref ordering, the shared u32 blink timer,
+  position/reinsertion and visibility. Existing §6.2/test 20 already supplies both packing tuples and
+  the discarded renderer +28 result. Texture/model composition, Draw/Pick, transform/bounds/sort and
+  message decisions remain open; these partial rules do not close NO36.
 
 <!-- from: re-ugbase (2026-10-20) -->
 - **NO38 - §2.1, §2.2:** what the property holder's fixed `true` for `HasProperty(0x88696402)` (`0x00619500`)
