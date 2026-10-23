@@ -229,7 +229,7 @@ fn ct6_creation_lifecycle_slots_and_holds() {
             MESSAGES
         );
         assert!(f.events.contains(&Effect::AcquireCursor(u64::from(mode.cursor()))));
-        assert_eq!(q.should_stack(), true);
+        assert!(q.should_stack());
         assert!(!q.unhandled_input());
         assert!(!q.is_self_scrolling());
         assert_eq!(
@@ -910,8 +910,10 @@ fn building_value_thresholds() {
 }
 #[test]
 fn network_describe_format() {
-    let mut f = Fake::default();
-    f.picked = Some(1);
+    let mut f = Fake {
+        picked: Some(1),
+        ..Fake::default()
+    };
     f.objects.insert(
         1,
         Occupant {
