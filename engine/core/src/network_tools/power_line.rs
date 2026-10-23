@@ -12,8 +12,8 @@
 //! (`0x0064F0F0`), `ComputePolePosition` (`0x0064EFE0`) and the reuse rule of
 //! `CreatePowerPole` (`0x00650140`).
 //!
-//! Published portable bodies are in `power-line-tool.md`. Regional operations
-//! remain assigned externally. NT18 group production, NT22 backward-split
+//! Published portable bodies are in `power-line-tool.md`. Regional services
+//! remain foreign traits. NT18 group production, NT22 backward-split
 //! reachability and NT24 inventory accounting remain explicit boundaries.
 
 mod containers;
@@ -21,6 +21,7 @@ mod geometry;
 mod lifecycle;
 mod placement;
 mod records;
+mod regional;
 mod world;
 mod zone;
 
@@ -29,6 +30,7 @@ pub use geometry::*;
 pub use lifecycle::*;
 pub use placement::*;
 pub use records::*;
+pub use regional::*;
 pub use world::*;
 pub use zone::*;
 
@@ -36,6 +38,8 @@ pub use zone::*;
 mod tests;
 #[cfg(test)]
 mod tests_lifecycle;
+#[cfg(test)]
+mod tests_regional;
 
 use crate::network_geometry::extras::power_line_cost;
 
@@ -131,6 +135,9 @@ pub struct PowerLineTool {
     pub counted_poles: u32,
     /// `+0x3A4`..`+0x3B0`.
     pub params: PowerLineParams,
+    /// Base pending vectors +0x100/+0x10C, appended by the type-5 Attempt.
+    pub pending_neighbors: Vec<RegionalRecord>,
+    pub preview_neighbors: Vec<RegionalRecord>,
 }
 
 impl PowerLineTool {
@@ -160,13 +167,8 @@ impl PowerLineTool {
     }
 }
 
-/// Only the assigned regional owners remain host calls.
-pub trait PowerLineHost: World {
-    /// `AttemptNeighborConnections`.
-    fn attempt_neighbor_connections(&mut self, run: &mut ToolRun, tool: &mut PowerLineTool) -> bool;
-    /// `PlaceNeighborConnections`.
-    fn place_neighbor_connections(&mut self, run: &mut ToolRun, tool: &mut PowerLineTool);
-}
+pub trait PowerLineHost: World + RegionalWorld {}
+impl<T: World + RegionalWorld> PowerLineHost for T {}
 
 /// Slot 53 `DoNetworkSpecificPlacement` (`0x00652980`, network-tools.md §9).
 /// Always returns true: the base solve never runs for power lines.
@@ -200,10 +202,10 @@ pub fn do_network_specific_placement(
         && run.valid_count >= run.dragged_count
         && tool.anchors.len() >= 2
         && st.failure == 0
-        && host.attempt_neighbor_connections(run, tool)
+        && attempt_neighbor_connections(run, tool, host, neighbour_mode)
         && real
     {
-        host.place_neighbor_connections(run, tool);
+        place_neighbor_connections(tool, host);
     }
     // 5. Draft mode: slot 82 (0) refreshes the preview.
     if !real {
