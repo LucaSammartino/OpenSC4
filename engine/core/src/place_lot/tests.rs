@@ -3,6 +3,9 @@ use super::placement::{cell_coverage, choose_facing, CREATION_MESSAGES};
 use super::*;
 use std::collections::{BTreeMap, VecDeque};
 
+#[path = "closure_tests.rs"]
+mod closure;
+
 #[derive(Debug, PartialEq)]
 enum Call {
     Effect(Effect),
@@ -19,6 +22,10 @@ enum Call {
     Lot(Rect, u8, bool, bool, u32),
     Build(u64, u32, u32, u32),
     Key(u32, u32, u32),
+    EffectCreate(String),
+    TollNetwork(i32, i32, u32, bool),
+    PreviewBuilding(u32),
+    PreviewProp(u32),
 }
 struct Fake {
     calls: Vec<Call>,
@@ -40,6 +47,23 @@ struct Fake {
     lot: Option<u64>,
     builder: bool,
     hidden: bool,
+    wm: bool,
+    entries: Vec<Entry>,
+    networks: BTreeMap<(i32, i32), Network>,
+    visual: bool,
+    next_effect: u64,
+    running: Vec<u64>,
+    preview: PreviewInfo,
+    radii: BTreeMap<u32, (f32, u32)>,
+    zone_results: VecDeque<bool>,
+    profile: bool,
+    candidates_building: Vec<u32>,
+    building_entry: Option<Entry>,
+    prop_allowed: bool,
+    city_hidden: bool,
+    building_creation: bool,
+    denied_props: Vec<u64>,
+    cell_width: f32,
 }
 impl Default for Fake {
     fn default() -> Self {
@@ -68,6 +92,23 @@ impl Default for Fake {
             lot: Some(99),
             builder: true,
             hidden: false,
+            wm: true,
+            entries: Vec::new(),
+            networks: BTreeMap::new(),
+            visual: false,
+            next_effect: 300,
+            running: vec![200],
+            preview: PreviewInfo::default(),
+            radii: BTreeMap::new(),
+            zone_results: VecDeque::new(),
+            profile: true,
+            candidates_building: vec![7],
+            building_entry: Some(Entry::default()),
+            prop_allowed: true,
+            city_hidden: false,
+            building_creation: true,
+            denied_props: Vec::new(),
+            cell_width: 16.0,
         }
     }
 }
@@ -94,8 +135,8 @@ fn rect() -> Rect {
 }
 impl ControlHost for Fake {
     fn lookup_cursor(&mut self, resource: u32) -> Option<u64> {
-        if resource == CURSOR {
-            Some(8)
+        if resource == CURSOR || resource == 0x417E_E36B {
+            Some(if resource == CURSOR { 8 } else { 9 })
         } else {
             None
         }
@@ -156,18 +197,19 @@ impl Host for Fake {
     fn plop_cost(&mut self, _: u32) -> Option<i64> {
         self.price
     }
-    fn building_info(&mut self, _: u32) -> BuildingInfo {
-        BuildingInfo {
-            groups: self.groups.clone(),
-            ..BuildingInfo::default()
+    fn occupant_info(&mut self, token: u64) -> BuildingInfo {
+        if token == 90 {
+            BuildingInfo {
+                groups: self.groups.clone(),
+                ..BuildingInfo::default()
+            }
+        } else {
+            self.occupant.clone()
         }
-    }
-    fn occupant_info(&mut self, _: u64) -> BuildingInfo {
-        self.occupant.clone()
     }
     fn terrain(&self) -> Terrain {
         Terrain {
-            cell_width: 16.0,
+            cell_width: self.cell_width,
             width: 32,
             height: 32,
         }
@@ -206,8 +248,9 @@ impl Host for Fake {
     fn total_funds(&self) -> i64 {
         self.funds
     }
-    fn place_zone(&mut self, zone: Zone) {
+    fn place_zone(&mut self, zone: Zone) -> bool {
         self.calls.push(Call::Zone(zone));
+        self.zone_results.pop_front().unwrap_or(true)
     }
     fn create_lot(&mut self, r: Rect, rotation: u8, enabled: bool, water: bool, cfg: u32) -> Option<u64> {
         self.calls.push(Call::Lot(r, rotation, enabled, water, cfg));
@@ -221,11 +264,71 @@ impl Host for Fake {
         })
     }
     fn effect_running(&self, token: u64) -> bool {
-        token == 200
+        self.running.contains(&token)
     }
     fn lot_position(&mut self, lot: u64) -> Vec3 {
         assert_eq!(lot, 99);
         lot_point()
+    }
+    fn has_window_manager(&self) -> bool {
+        self.wm
+    }
+    fn city_grid_hidden(&self) -> bool {
+        self.city_hidden
+    }
+    fn entries(&mut self, _: u32) -> Vec<Entry> {
+        self.entries.clone()
+    }
+    fn first_building_entry(&mut self, _: u32) -> Option<Entry> {
+        self.building_entry.clone()
+    }
+    fn building_candidates(&mut self, _: &[u32]) -> Vec<u32> {
+        self.candidates_building.clone()
+    }
+    fn has_profile(&mut self, _: u32) -> bool {
+        self.profile
+    }
+    fn create_preview_building(&mut self, exemplar: u32) -> Option<u64> {
+        self.calls.push(Call::PreviewBuilding(exemplar));
+        self.building_creation.then_some(90)
+    }
+    fn create_preview_prop(&mut self, exemplar: u32) -> Option<u64> {
+        self.calls.push(Call::PreviewProp(exemplar));
+        self.prop_allowed.then_some(u64::from(exemplar) + 1000)
+    }
+    fn preview_info(&mut self, token: u64) -> PreviewInfo {
+        let mut info = self.preview;
+        if self.denied_props.contains(&token) {
+            info.prop_preview = false;
+        }
+        info
+    }
+    fn coverage_radius(&mut self, _: u64, category: u32) -> Option<(f32, u32)> {
+        self.radii.get(&category).copied()
+    }
+    fn create_effect(&mut self, name: &str) -> Option<u64> {
+        self.calls.push(Call::EffectCreate(name.into()));
+        if !self.visual {
+            return None;
+        }
+        self.next_effect += 1;
+        Some(self.next_effect)
+    }
+    fn create_ring(&mut self) -> Option<u64> {
+        self.visual.then_some(299)
+    }
+    fn footprint_texture(&mut self, _: u32) -> Option<(u64, f32)> {
+        self.visual.then_some((500, 64.0))
+    }
+    fn position_to_cell(&self, p: f32) -> i32 {
+        (p / 16.0).floor() as i32
+    }
+    fn cell_corner(&self, x: i32, z: i32) -> (f32, f32) {
+        (x as f32 * 16.0, z as f32 * 16.0)
+    }
+    fn network(&mut self, x: i32, z: i32, mask: u32, option: bool) -> Option<Network> {
+        self.calls.push(Call::TollNetwork(x, z, mask, option));
+        self.networks.get(&(x, z)).copied()
     }
 }
 fn tool(h: &mut Fake) -> PlaceLot {
@@ -568,7 +671,7 @@ fn mouse_feedback_text_cost_exit_and_failed_coverage() {
     t.mouse_move(&mut h, mouse(), 0x100);
     assert!(t.placeable);
     assert_eq!(t.cost, 0);
-    assert!(effects(&h).contains(&Effect::Unsupported(Open::WindowManagerCt2)));
+    assert!(effects(&h).contains(&Effect::FlushInputQueue));
 }
 
 #[test]
@@ -620,13 +723,21 @@ fn commit_order_money_aura_connections_and_effects() {
                 rect: rect(),
                 kind: 0,
                 commit: true,
-                skip_funds: false
+                skip_funds: false,
+                check_slope: true,
+                skip_size: true,
+                check_lot_inside: false,
+                outputs: [None; 3]
             }),
             Call::Zone(Zone {
                 rect: rect(),
                 kind: 15,
                 commit: true,
-                skip_funds: false
+                skip_funds: true,
+                check_slope: true,
+                skip_size: true,
+                check_lot_inside: false,
+                outputs: [None; 3]
             }),
             Call::Lot(rect(), 0, true, false, 10),
             Call::Build(99, 10, 0, 123),
@@ -702,7 +813,11 @@ fn commit_guards_unknown_cost_free_zones_and_sizes() {
             rect: rect(),
             kind,
             commit: true,
-            skip_funds: true
+            skip_funds: true,
+            check_slope: true,
+            skip_size: true,
+            check_lot_inside: false,
+            outputs: [None; 3]
         })));
         assert!(!effects(&h)
             .iter()
@@ -753,20 +868,21 @@ fn messages_stop_only_running_release_both_and_open_boundaries() {
             ]
         );
         assert_eq!(t.preview_effects, [None; 2]);
-        assert!(effects(&h).contains(&Effect::Unsupported(Open::FeedbackCt17)));
+        assert!(effects(&h).iter().any(|e| matches!(e, Effect::FeedbackState(..))));
     }
     h.calls.clear();
     t.message(&mut h, 0x49D5_B83F);
-    assert_eq!(effects(&h), vec![Effect::Unsupported(Open::RingFinishedCt22)]);
+    assert_eq!(effects(&h), vec![Effect::RecalculateCoverage]);
+    assert!(!t.coverage_raised);
     h.calls.clear();
     assert!(!t.message(&mut h, 123));
     assert!(h.calls.is_empty());
     t.toll_booth = true;
     t.mouse_move(&mut h, mouse(), 0);
     assert!(!t.placeable);
-    assert!(effects(&h).contains(&Effect::Unsupported(Open::TollBoothCt16)));
+    assert!(h.calls.contains(&Call::TollNetwork(2, 2, 0x1045, true)));
     h.calls.clear();
     t.cost = 500;
     assert!(!t.place_lot(&mut h, &mut point(40.0, 40.0), 0, false).built);
-    assert_eq!(effects(&h), vec![Effect::Unsupported(Open::TollBoothCt16)]);
+    assert!(effects(&h).is_empty());
 }
