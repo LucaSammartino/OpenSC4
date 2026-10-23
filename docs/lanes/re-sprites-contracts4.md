@@ -1,21 +1,61 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-sprites-contracts4: animated-sprite native contracts | `re-sprites-contracts4` (RE docs lane, detached round 3) | in progress: finite AS6 partial-mask instruction schedules | Complete branch schedules and conditional analytic vectors, reconcile AS6 prose, publish bounded docs. |
+| re-sprites-contracts4: animated-sprite native contracts | `re-sprites-contracts4` (RE docs lane, detached round 3) | DOCS READY: finite AS6 schedules; 72 rational cases, links/questions/diff passed; AS8 answered DIFFERS; ABI unchanged; no native/game runs | Coordinator review/land bounded docs; retain AS1/2/3/6/7/9 residuals and untouched AS4/5. No automatic fourth round. |
 
-## Handoff
+## Report
 
-- Goal: final original round, finite SetOrientation masks 0–7/store/mutation proof; no owner/runtime promotion.
-- Done: checked new own round-3 RE manifest/path/base; copied final host admission has full guard/dependency exit 0, expected round 3, rounds 2/limit 3, parked false.
-- Identity: native SHA256 3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b matches export-summary.txt; Windows 1.1.641 target.
-- Done: complete canonical asm --bytes range read in 56-line pages; first milestone transcribes mask-1 A arithmetic/stores/snapshots/writes/state into §3.1.1 (this commit).
-- Done: 58d1593f complete mask-1 schedule. This milestone completes all partial A/B/D schedules and full-mask comparison, dispatch/reset/mutation table, late angle loads, and reconciles the LookAt contradiction.
-- Native jump table 007FCC6C confirmed directly: 007FC4F9, 007FC616, 007FC649, 007FC852, 007FC885, 007FC999, 007FCBA3. No foreign trig calls in any mask.
-- Done: 22e43e92 all finite branch schedules; this milestone adds independent R3-M/C/L/Z stage examples and 72 exact-rational/signed-zero checks (pass), not native goldens.
-- Done: native FileVersion 1.1.641.0; asm --bytes setter recheck supports AS8 DIFFERS archive with completing-comparison boundary; AS6/AS9 partial notes reconciled; questions index/check pass.
-- Next: final doc-link/diff/question checks and report commit, then own docs-ready merge queue with actual detached HEAD. No automatic fourth round.
-- Important: mask-1 uses hardware FCOS/FSIN, not foreign CRT calls; cosine spills B32, sine remains transient until later negative-sine spill.
-- Evidence: build-runs/evidence-run4/coordinator-sprites-final-{host-proof.json,eligibility.md}; own manifest C:/Users/tlori/FreeCity4/build-runs/run4-re-sprites-contracts4-r3-manifest.json.
-- R1/R2 evidence below remains historical. No native/game/build/test/engine reads. AS1/2/3/7 residuals retained. Own final docs merge queue explicitly permitted; no shared queue/state writes.
+The original final round adds substantive finite SetOrientation contracts to
+[animated-sprite.md](../specs/animated-sprite.md), §§3.1.1–3.1.4. **DOCS READY** means this bounded
+publication can land; it does not qualify the full owner, implementation, native runtime, default mode,
+whole-call floating environment or coverage. R1/R2 specs and the historical report below remain retained.
+
+| Milestone | Commit | Result |
+|---|---|---|
+| First complete partial-mask schedule | 58d1593f | Mask-1 A operations, binary32 versus transient boundaries, snapshots, write order and state |
+| All finite branches | 22e43e92 | Shared/composite A/B/D schedules, full-mask comparison, masks 0–7/reset/flags/counter/return table; obsolete LookAt contradiction removed |
+| Analytic vectors and reconciliation | c073101f | Conditional R3-M/C/L/Z; 72 exact-rational cases; AS8 DIFFERS archive; AS6/AS9 partial notes and questions index |
+
+### Evidence and measured results
+
+- Canonical re_query func/asm --bytes was used first; the complete 007FC4B0–007FCC69 instruction CFG was read in 56-line pages. No REA calls/session/target repair or decompiled output was needed.
+- Main executable FileVersion is **1.1.641.0**, SHA256 `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`, matching the canonical Windows export summary, image base 00400000.
+- Native jump table 007FCC6C confirms mask entries 007FC4F9/007FC616/007FC649/007FC852/007FC885/007FC999/007FCBA3. Corrected the earlier non-boundary A/D range start 007FC882 to 007FC885.
+- All trig here is hardware FCOS/FSIN; callees query reports **0 calls**. There is no foreign parameter conversion or unknown foreign return format to assume. Primitive results remain conditional hardware transients; they are not host sin/cos, assumed binary32 or assumed double returns.
+- Each arithmetic operation, actual B32 store/reload, retained transient, matrix snapshot and write order is specified. B retains a different row's sine product than A/D. Composite stages consume the preceding stage's stored matrix; omitted angles are never set to zero in a full-mask formula.
+- Finite mask table covers both initial flag-4 states and counter 255: single-axis counters 0/1, two-axis 1/2, mask 7 counter 0, mask 0 counter 255 with complete bit preservation. Unrelated flags, translation, scale, dirty bytes and cached counter remain untouched; all return 0.
+- R3-M derives all 16 mask/flag cases by independent signed permutations at PC24/53/64 RN. R3-C independently derives cancellation by exact integer/dyadic products under all four RCs. R3-L distinguishes retained sine, its later B-stored negative and wrong in-place sources. R3-Z derives conditional signed-zero results.
+- Chosen primitive pairs are expressly **conditional stage examples**, with no angle-reachability or native injectable API claim. R2 geometric/radical vectors remain tolerance/proposed UNEXECUTED; no host-trig exact bits were substituted.
+- Small setter asm --bytes recheck at 007FB340/007FB3B0/007FB410 supports AS8 DIFFERS with an explicit completing-comparison boundary, including non-closed alpha acceptance, sentinel/disable rules, raw index narrowing, returns and unrelated-bit preservation. No complete lifetime/interface inventory re-audit was attempted.
+
+### Validation and questions
+
+- `build-runs/check-sprite-r3-rational.py`: **72/72 conditional analytic cases passed** (48 mask/flag/PC, 12 cancellation/RC, 6 large/small, 6 signed-zero). This is rational/sign analysis, not original or implementation execution.
+- `build-runs/check-sprite-r3-doc.py`: **8 local links passed**, four schedule/vector sections present, obsolete geometric contradiction absent and AS8 archive consistent. `python tools/questions.py index`, `check` and `git diff --check` passed.
+- AS8 moved to [answered/animated-sprite.md](../specs/questions/answered/animated-sprite.md), dated 2026-10-23 and marked DIFFERS. AS6 and AS9 retain precise PARTIAL notes in [questions/animated-sprite.md](../specs/questions/animated-sprite.md). Index now records **8 open / 1 answered**; no new question IDs.
+- Cargo/clippy/ctest/game/shadow: **n/a**, RE docs role. No engine/tests/private implementation reads; no native/game/build/RPC/process execution, code/ABI/version/map/generated-coverage edits or ABI proposals. Helpers and commit messages stay ignored in own build-runs.
+- Commits succeeded on detached HEAD. Git again printed packed-refs.lock permission errors while returning success and creating the listed commits; no shared ref/config repair was attempted. Prior R1/R2 limitations and failure records below remain historical evidence.
+
+### Authority, publication and residuals
+
+Own new manifest `C:/Users/tlori/FreeCity4/build-runs/run4-re-sprites-contracts4-r3-manifest.json`
+was verified as lane re-sprites-contracts4, kind re, round **3**, correct worktree and base **7167dba3**.
+Copied `build-runs/evidence-run4/coordinator-sprites-final-host-proof.json` and eligibility note establish
+full admission/dependency exits 0, expected round 3, original rounds 2/limit 3 and parked false. Runtime
+STOP/park/cap/role constraints remain mandatory; measured codexguard status remained within budget.
+Historical R2 manifest hashes/global detached refs were not used as new admission requirements.
+
+The round-3 instruction explicitly supersedes the old R2 blanket queue prohibition: the **own** normal
+`build-runs/merge-queue/re-sprites-contracts4.json` is permitted/required after the clean final commit,
+kind docs, ABI false, no game runs, actual detached HEAD tip. No coordinator/refill/other-lane/shared-state
+queue or branch/ref mutation is authorized or performed.
+
+Remaining: AS1 sequence-controller provenance; AS2 usage/names; AS3 exact 60-function/10,482-byte and
+generic lifetime/interface reconciliation; untouched AS4/5 qualifications; AS6 whole-call PC/RC provenance,
+native angle/numeric qualification and controller boundary; AS7 malformed/nonfinite/whole-call mode;
+AS9 inventory reconciliation. Incoming PC/RC and actual hardware trig transients remain parameters of
+the local proof. No ambient/default mode, global CRT/trig/callback preservation or startup/thread proof
+is claimed. Next action: coordinator review and landing of bounded docs; no automatic fourth round,
+budget reset, new owner family, merge/rebase/push or further admission request.
 
 ## Previous round-2 report (retained evidence)
 
