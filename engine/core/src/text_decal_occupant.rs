@@ -164,7 +164,7 @@ impl<H: Host> Drop for Owner<H> {
 }
 
 fn normal(x: f64) -> Result<f64> {
-    if x == 0.0 || (x.is_finite() && x.abs() >= f64::from(f32::MIN_POSITIVE) && x.abs() <= f64::from(f32::MAX)) {
+    if x == 0.0 || (x.is_finite() && (f64::from(f32::MIN_POSITIVE)..=f64::from(f32::MAX)).contains(&x.abs())) {
         Ok(x)
     } else {
         Err(Unsupported::NumericDomain)
