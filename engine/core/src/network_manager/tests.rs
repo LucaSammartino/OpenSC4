@@ -1379,9 +1379,9 @@ fn lot_state_reaches_north_column_and_replays_configuration_draw() {
     use crate::rng::{FixedSeeds, RzRandomSuper};
     let configs = (1..=3).map(|id| cfg(id, 0x100, &[1])).collect();
     let (f, m, _) = lot_manager(configs);
-    f.piece(50, street(0x100, (20, 103)));
-    f.zone(19, 103, 1);
-    f.s.borrow_mut().lot_rect.insert(600, rect(21, 120, 22, 122));
+    f.piece(50, street(0x100, (20, 31)));
+    f.zone(19, 31, 1);
+    f.s.borrow_mut().lot_rect.insert(600, rect(21, 40, 22, 42));
     let mut original = RzRandomSuper::new(
         0x9e3d9501,
         &FixedSeeds {
@@ -1397,7 +1397,10 @@ fn lot_state_reaches_north_column_and_replays_configuration_draw() {
         ..NetworkLotMessage::of_type(msg::LOT_STATE_CHANGED)
     });
     // This cell lies north of the rect; the old local-border walk omitted it.
-    assert_eq!(m.get_network_lot(20, 103).unwrap().config.unwrap().id, original.uniform_u32(3) + 1);
+    assert_eq!(
+        m.get_network_lot(20, 31).unwrap().config.unwrap().id,
+        original.uniform_u32(3) + 1
+    );
     assert_eq!(m.random_state().unwrap(), original.raw_state());
     // Restoring just before a twist must preserve the stream across reload.
     for _ in 1..623 {

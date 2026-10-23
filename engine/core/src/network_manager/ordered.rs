@@ -49,7 +49,7 @@ impl PendingCells {
         if self.count + 1 > self.bucket_count {
             let next = [389, 769, 1543, 3079, 6151, 12289, 24593, 49157, 98317]
                 .into_iter()
-                .find(|&n| n >= self.count + 1)
+                .find(|&n| n > self.count)
                 .unwrap();
             let old = std::mem::take(&mut self.buckets);
             self.bucket_count = next;

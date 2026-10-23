@@ -46,8 +46,8 @@
 //! - **Ordered maps** [choice]: the original's hash maps (`lots`, `potholes`,
 //!   `configs`) iterate in bucket order. FreeCity4 keeps insertion order (an
 //!   overwritten key keeps its place), so `Read` followed by `Write` gives the
-//!   same bytes (§4.2). `ProcessUpdateList` takes keys in ascending order
-//!   (the spec's *[choice]*, §8.5).
+//!   same bytes (§4.2). `ProcessUpdateList` uses the original's SGI hash-set
+//!   order (§8.5, NM13).
 //! - **QueueRemovals order**: the host's per-occupant creation number
 //!   ([`NetworkManagerHost::creation_number`]) instead of the pointer value
 //!   (the spec's *[choice]*, §7.3).

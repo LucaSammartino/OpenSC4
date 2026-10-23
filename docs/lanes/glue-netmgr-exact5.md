@@ -10,9 +10,9 @@
 - Evidence copied locally: `build-runs/regress-train149-shadows.log` and `.out`; original had 72/73, 19 resyncs, 10 un-compared config choices.
 - Implementation milestone: `7812f988`; source unchanged while first native queue job is pending.
 - Full `qbuild all` started on that source: Rust stopped at 740 passed/1 failed (conformance nm16_23 expected old event order), clippy failed `int_plus_one` in ordered.rs. Failed logs preserved as `build-runs/qbuild-{test,clippy}-failed-r1.log`.
-- OUTSTANDING: qbuild all session `70839`, native queue label `qbuild-20261023-195549-build-ctest`; collect that SAME session to terminal before another native request. No game request submitted.
-- Next after terminal: change pending prime comparison `n >= count+1` to `n > count`; reverse nm16_23 texture expectations (0x62 then 0x60); format assertion at tests.rs:1397; new north-column test uses out-of-city coordinates (CITY=64x64), change (20,103) to (20,31) and triggering rect (21,120,22,122) to (21,40,22,42).
-- Then check owned formatting; run corrected workspace tests/clippy and `qbuild verify`; submit unique game label `netmgr-exact5-r1-2032` (draft `build-runs/netmgr-game-request.draft`).
+- First all terminal: native build PASS 217/217 edges; CTest 67/68 (cargo_test failed). Queue label `qbuild-20261023-195549-build-ctest`, collected session 70839 to exit 1. No game request submitted.
+- Applied diagnostic corrections: pending comparison, conformance event order, formatting, fake-city coordinates. Native failed logs preserved with `-failed-r1` suffix.
+- Next: check owned formatting; corrected workspace tests/clippy and `qbuild verify`; submit unique game label `netmgr-exact5-r1-2032` (draft `build-runs/netmgr-game-request.draft`).
 - Game wait helper: `python build-runs/wait-netmgr-result.py build-runs/game-results/<label>.verdict`, collect same operation; no qwait. Summary helper `build-runs/summarize-netmgr.py <label>` prints exact clean/total and resync count.
 - Constraints: no tools/ access; no native signature guesses; game requests unique, wait with same exec session (no qwait).
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-glue-netmgr-exact5-r1-manifest.json`.

@@ -15,7 +15,7 @@
     {"op": "net_clear_events"},
     {"op": "net_message", "of": "lots", "type": "LotStateChanged", "unknown": "0x9999", "expect": true},
     {"op": "net_expect_events", "filter": {"event": "texture"}, "events": [
-      {"occupant": "0x60"}, {"occupant": "0x62"}
+      {"occupant": "0x62"}, {"occupant": "0x60"}
     ]},
     {"op": "net_expect", "of": "lots", "state": {"pending": []}},
     {"op": "net_expect_refs", "refs": {"0x9999": 0}},
