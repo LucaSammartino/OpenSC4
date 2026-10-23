@@ -54,7 +54,7 @@ were not reanalyzed.
 
 `python tools/questions.py index` regenerated the index; `python tools/questions.py
 check` passed. Local documentation validation passed for three UTF-8 documents,
-seven relative links, presence of all nine attributed addresses, and absence of
+nine relative links, presence of all nine attributed addresses, and absence of
 code fences in the spec. `git diff --check` passed. All vectors are proposed
 instruction-derived expectations, with explicit foreign preconditions; none
 were executed against native objects. The proposed examples cover literal
@@ -62,7 +62,7 @@ accept/reject/case/empty/prefix/resource/path/link/failure/output/reference orde
 
 Cargo, clippy and ctest: n/a (documentation-only lane). Game labels: none;
 shadow comparison: n/a. No builds, tests of implementation behavior, game/probes,
-network actions, native calls, scripts/commands/links, browser/HTTP activity,
+network actions, native calls, execution of original links/scripts/commands, browser/HTTP activity,
 engine/tests reads, ABI table edits or version changes. No C ABI export changed;
 no ABI proposal file was necessary. No shared coverage/map/default changes.
 
