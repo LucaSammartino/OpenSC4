@@ -1,7 +1,8 @@
 # SC resource scripts and text persistence
 
 Behaviour specification for SimCity 4 Deluxe 1.1.641. Evidence: exported function
-bodies and instruction checks, recorded 2026-10-23 by `re-persist-sl5`.
+bodies and instruction checks, recorded 2026-10-23 by `re-persist-sl5` and
+`re-scres-scr5`.
 Requirements marked *[compat]* describe the original; *[choice]* identifies a
 portable implementation decision. Addresses are evidence anchors, not an
 implementation prescription. Unsettled boundaries are listed in
@@ -143,8 +144,8 @@ the integer-indefinite low word zero, not unsigned saturation
 
 `ParseInt` is not an ordinary truncate-to-integer conversion. It adds binary32
 12582912, stores the result as binary32, and subtracts `0x4B400000` from that
-stored value's bit representation. This rule is relevant within the normal
-small-integer conversion range; no saturating overflow rule is established.
+stored value's bit representation. Preserve that rule outside the normal
+small-integer range too; do not replace it with saturation or a checked cast.
 `ParseUint` instead uses the runtime floating-to-integer conversion and retains
 the low 32 bits. Instruction evidence: `0x0067B990`, `0x0067BA40`,
 `0x0067BB20`, `0x0067BC00`, `0x0067BC70`.
@@ -614,6 +615,11 @@ return false. Record stride uses four-byte alignment of width times
 ceil(width/2) before alignment for 4-bpp. RLE8 handles runs, absolute spans
 with odd-byte padding, EOL, EOB and delta escapes. Malformed compressed data
 does not have an established safe bounds contract.
+
+*[choice]* Reject truncated RLE commands and source/destination overruns
+without reproducing unsafe native memory access. Such malformed streams have
+no deterministic successful-image or rollback requirement. This does not
+change the supported RLE escapes, offset behavior or retained-state rules.
 
 TGA loading (`0x00978A69`) seeks to zero, reads an 18-byte header, skips image
 ID and color-map bytes and accepts image types 2 and 10. Both raw and packet
