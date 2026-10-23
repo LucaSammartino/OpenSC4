@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Lighting and hill shadows, implemented solely from docs/specs/lighting.md.
 //! Typed providers expose external pixels, properties and terrain, never original
-//! lighting methods. ContractGap errors identify unimplemented public-contract gaps.
+//! lighting methods. See README.md for owner closure and the LT12/LT13 numeric
+//! limits; no specified owner algorithm is delegated to a provider.
 //! Safe API errors for invalid buffers/indices replace original unchecked reads;
 //! they do not clamp valid samples or conceal missing own-class logic (LT7).
 
