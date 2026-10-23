@@ -1,58 +1,54 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-simgrid-lots-shadow5: sim grid and lot record shadows | Codex, `.claude/worktrees/glue-simgrid-lots-shadow5` (reserved detached HEAD) | in progress | Implement SG3 inventory record shadow and investigate lot record full walk. |
+| glue-simgrid-lots-shadow5: sim grid and lot record shadows | Codex, `.claude/worktrees/glue-simgrid-lots-shadow5` (reserved detached HEAD) | wip: simgrid implemented; native queue pending; LR12 | Collect queued native result, run SG3 shadow through 2032; answer lot-record inventory contract. |
 
-## Handoff
+## Report
 
-- Round 2: merged re-simgrid-sg3 as 62809139. SG3 answered: 38 fixed roles + 4 per dynamically enumerated growth developer (86 shipped).
-- Merge printed packed-refs.lock permission warning but completed with clean tree and merge commit; detached HEAD retained.
-- Next: implement owner/getter inventory from simgrid sections 6.2.1/6.2.2 using fc4_simgrids_verify; inspect lot-record discovery contract.
-- All single-grid getters borrowed; residential three-output getters AddRef all outputs. Reacquire each observation.
-- No gate or game requested; no outstanding label.
-- Implemented: simgrid record-only shadow, all SG3 getters and dynamic developer walk, core op14 full typed reads with focused signed/float tests. README documents default-off key and scope.
-- LR12 filed for exhaustive lot-record scope/discovery (master lots vs every section 1 class, off-list crime lot and occupants). Per task, finish simgrid independently first; no lotrec_shadow implemented or claimed.
-- Focused cargo completed: 4 simgrids_verify tests passed (including 2 new full-walk cases). fmt passed using absolute filename (relative filename fmt failed); q.py failed due Bash mapping permissions, direct PowerShell cargo works.
-- Native verify qbuild-20261023-232536-build-ctest queued, session 69384: collect SAME operation with write_stdin; no second verify. Full all gate still required after native diagnosis.
-- Full all session 65757 completed Rust tests 6537/6537 and clippy exit=0 diagnostics=0 (build-runs/qbuild-test.log and qbuild-clippy.log).
-- Sequencing mistake: all also queued native qbuild-20261023-233052-build-ctest while explicit verify pending. Removed that duplicate pending .req before execution. Session 65757 still waits for its removed request; preserve as incomplete wrapper, do not fabricate a verdict.
-- The ONE remaining native request is qbuild-20261023-232536-build-ctest (session 69384); await actual coordinator verdict. No game until DLL verified.
-- Removed-request all wrapper 65757 terminated via Ctrl-C with exit=1; Rust/clippy success logs remain distinct from that incomplete wrapper result.
-- Prepared game template build-runs/sg3-record-2032-r2-20261023a.request-template (not submitted), plus wait-sg3-verdict.ps1 for one blocking non-qwait wait. Label not outstanding. Submit only after native success.
+Merged `re-simgrid-sg3` as `62809139`, then implemented `simgrid_shadow` in `6458df71`.
+The new key defaults off and is separate from the existing `simgrids_shadow` fixture switch.
+At PostCityInit and each month it reacquires the 38 fixed SG3 roles, walks the current growth-developer
+map in key order, and observes four grids per developer (86 roles for the shipped twelve developers).
+No native grid is initialized, resized, modified or retained across observations.
 
-## Prior round report
+Each grid's own Write is read into an isolated Rust SimGrid; private bridge operation 14 returns its
+instance ID, complete public geometry and every typed tract in x-major order. These bytes are compared
+with the native getters. Signed values and float bits are preserved. Missing owners/grids, failed map
+access, type/geometry mismatches and read/capture failures are explicitly reported and cannot count as
+exact. Residential triple-output references are acquired/released; borrowed single-grid pointers are
+never released. This is record-read verification over SG3, not an algorithm differential or a claim
+about owner-private/map-view grids. No C ABI export or version changed.
 
-Implementation stopped at the task's missing-contract condition. No engine/plugin code, C ABI exports,
-configuration defaults, or coverage tables changed. Neither requested new shadow is implemented.
+Validation on stable implementation source:
 
-The blocker is discovery, rather than the grid's documented value/record format. Simgrid sections 5 and 6
-provide a record layout and access rules once a grid is known. Section 6.2 says original owners construct
-grids directly and map view constructs additional grids. The spec does not define a complete live-grid
-enumeration interface or exhaustive owner/getter inventory, nor bound the requested comparisons to a
-particular persisted subset. A discovered subset cannot establish that the original city's grids were all
-compared each month.
+- Focused `fc4-capi simgrids_verify::tests`: **4/4 passed**, including two new full-read tests for signed
+  bits, non-default loaded geometry, float NaN/negative-zero bits and truncated records.
+- Explicit-file fmt passed. `qbuild all` workspace tests: **6537 passed, 0 failed, 0 ignored**;
+  clippy **exit=0, diagnostics=0**. Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`.
+- Native verification remains **unmeasured**. The single queued request is
+  `build-runs/build-queue/qbuild-20261023-232536-build-ctest.req` (queued 23:25:36; still unstarted
+  at 23:38:50). Its local waiter 69384 was terminated with exit=1 after over 13 minutes waiting;
+  the request remains for the coordinator. Do not enqueue a duplicate; collect its actual result.
+- Sequencing error preserved separately: `all` also enqueued native request
+  `qbuild-20261023-233052-build-ctest` while explicit verify was pending. That duplicate `.req` was
+  removed before pickup; its wrapper 65757 was terminated with exit=1. Therefore `all` as a whole
+  is **incomplete**, despite successful Rust/clippy stages. No native success is inferred.
+- Initial relative-path fmt failed to locate the file; absolute-path fmt passed. q.py failed on Bash
+  CreateFileMapping permissions; the focused cargo check ran directly in PowerShell. Neither is a
+  source/compiler failure. Git commits completed despite packed-refs.lock permission warnings.
 
-Existing implementation evidence:
+No game request has been submitted, no game labels are outstanding, and no `<label> <clean>/<total>`
+line or run record exists. Exactness through 2032 and `ref_warnings=0` are unmeasured. Do not credit
+coverage or add the key to a regression profile yet. The prepared, unsubmitted request template is
+`build-runs/sg3-record-2032-r2-20261023a.request-template`; `wait-sg3-verdict.ps1` supplies a single
+blocking wait without qwait, accepting an already completed unique-label verdict.
 
-- `engine/plugin/FC4SimGridProbe.cpp`: `SimGridProbeNoteRead` records references from FreeCity4's stream
-  adapter; `SimGridProbeAtCityLoaded` consumes and releases that observed set.
-- `engine/plugin/FC4Streams.cpp`: only `IStreamAdapter::ReadRef` invokes that probe hook. This is not a hook
-  on original owners' reads or direct grid construction.
-- `engine/plugin/FC4SimGridsShadow.cpp`: existing default-off `simgrids_shadow` covers constructed fixtures
-  and tracked natural operations. It does not supply the requested complete live-grid inventory. The
-  requested `simgrid_shadow` key is a different spelling; no alias was introduced.
+**LR12** is filed in [questions/lot-records.md](../specs/questions/lot-records.md): define whether the
+full record walk means master-list lots or every section 1 class, and specify complete discovery of
+off-list lots/business units/occupants. The master lot list alone does not establish the latter scope.
+`lotrec_shadow` is deferred without guessing native signatures or claiming partial coverage. The
+coordinator must regenerate the questions index; this lane did not read or run tools/ scripts.
 
-Filed **SG3** in [questions/simgrid.md](../specs/questions/simgrid.md), requesting an exhaustive owner/getter
-or owner-record inventory, or a documented public enumerator with signature and reference rules, plus the
-scope of transient/map-view/replaced grids. Current choice: blocked, with no partial shadow credited as full
-coverage. Milestone commit: `375f8115`.
-
-Validation: documentation-only change; `git diff --check` checked before final commit. Cargo, clippy, CMake,
-CTest, qbuild all/verify, and game checks were not run because implementation stopped before source changes.
-No game labels outstanding, no run record, and no measured `<label> <clean>/<total>` line. Exactness through
-2032 and `ref_warnings=0` remain unmeasured. The generated QUESTIONS index needs coordinator regeneration;
-this engine lane did not access or run tools/ scripts.
-
-Next: answer SG3 or explicitly scope the comparison inventory, then resume implementation of default-off
-`simgrid_shadow` and `lotrec_shadow`, meaningful focused tests, final all/queued native verification, and a
-real-city run through 2032. Lot-record readback and full-walk implementation were not attempted after the
-grid contract blocker, as the task explicitly requires stopping on a missing spec contract.
+Next: service the existing native request, diagnose any actual compiler/CTest failure, then submit
+the unique SG3 game request through 2032. Preserve any existing verdict. Record exact/total lines,
+clean verdict and ref warnings before changing this entry to ready for simgrid alone. Resolve LR12
+before implementing lotrec_shadow. The current merge-queue entry is wip and must not land as verified.
