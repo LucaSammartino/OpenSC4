@@ -14,7 +14,9 @@
 - Name query: 18 matrix names, 1 iterator, 2 foreign AutoPtr entries; not 39 unique bodies.
 - Primary binary/export identity complete: version 1.1.641.0 and matching SHA above; export base 00400000.
 - Published substantive spec §1–9: signed coordinates, lookup, counts/ranges, bounds/replacement/alias order,
-  removal endpoint wrap, extrema/sentinel tie, fixed-column iterator, exact-entry ledger; 12 UNEXECUTED vectors.
+  removal endpoint wrap, extrema/sentinel tie, fixed-column iterator, exact-entry ledger; initial 12 UNEXECUTED vectors.
+- Commit `78ccfb31` publishes bounded contract, questions/index and exclusion link; `d2a95cfd` records admission.
+- Added full owned E insertion instruction audit (§4.3), thirteen total proposed UNEXECUTED vectors; foreign helpers remain partial.
 - Filed SM1–SM5 in docs/specs/questions/rz-sparse-matrix.md; minimal framework-rz-files link added.
 - Important: 009a5bf2 and 009a5c36 are record initializers, not lookup/end; 009a7577 is iterator equality.
 - Public 39/3358 remains unreconciled: 18 matrix labels + iterator + 2 foreign AutoPtrs are not unique-owner proof.

@@ -135,6 +135,26 @@ No remaining column is renumbered. These are removal wrappers, not grid-level De
 Cell destruction, deallocation and exceptional effects inside the shared erasers are partial.
 Do not infer that a pointer payload is freed or reference-counted merely because its node is erased.
 
+### 4.3 CellFormatExtra insertion: owned copy sequence only
+
+The complete owned wrapper at `009ac02f` applies the same signed insertion bounds and row-then-column
+lookup. Its payload is **40 bytes**, copied as ten 32-bit words. Existing-cell replacement first
+copies the old payload to a nonnull optional output, then copies input into the cell
+(`009ac089–009ac0a1`). Under the normal x86 calling convention's clear direction flag these are
+forward word copies, not overlap-safe moves. In particular, if input and old-output are the same
+independent 40-byte buffer, replacement restores the old value to the cell, just as §4.1 does
+for a single word. Count is unchanged on replacement.
+
+For a new cell in an existing row, it builds a local column-plus-ten-word record, copies that
+eleven-word record into the insertion argument, calls `009a94ca`, then increments total
+(`009ac0ab–009ac0d7`). For a missing row it first creates/copies/inserts a temporary row through
+`009a9c16`, `009ab2b6`, `009abb8d`, then builds/inserts the same cell record and increments total;
+temporary-row cleanup calls `009a9427` (`009ac0dc–009ac145`). Old output is not written on either
+new-cell branch. Normal completion returns AL=true; bounds rejection returns AL=false before input
+access (`009ac14a–009ac154`). These owned sequences are supported; foreign helper allocation,
+copy-construction, cleanup and failure guarantees remain partial. No full specialization equivalence
+or guarantee for overlapping live matrix storage is established.
+
 ## 5. Range output and extrema
 
 ### 5.1 Range records
@@ -234,6 +254,7 @@ opaque payload words `0x11`, `0x22`, `0x33`, `0x44`; no dereference is needed.
 | SM-V10 | Entries (INT_MIN,1,A), (INT_MIN,2,B), assuming bounds admit them. GetMaxUsedCol. | EAX=INT_MIN, rowOut=2, owing to the sentinel override. With maximum 5 at both rows instead, rowOut=1. |
 | SM-V11 | Two valid iterator records with record=null and different matrix/row fields. Compare via 009a7577. | AL=true. For nonnull record fields, both row and record addresses must match; matrix fields still ignored. |
 | SM-V12 | RemoveCell missing (9,9), old-output initially 0x55. | AL=false, output remains 0x55. Removing the only existing cell returns true, copies its payload, decrements total and erases its row on normal eraser return. |
+| SM-V13 | Existing E payload words are [1,2,3,4,5,6,7,8,9,10]. Input and old-output are the same independent buffer initially [11,12,13,14,15,16,17,18,19,20]. Replace that coordinate. | AL=true; buffer and stored payload both [1,2,3,4,5,6,7,8,9,10]; count unchanged. Distinguishes old-copy-first from input snapshot. |
 
 ## 9. Exact-body ledger and remaining attribution
 
@@ -266,7 +287,7 @@ as P and CellFormatExtra as E. Each row is an exact Windows entry, not an extra 
 | 009ab6b4 | 98 | P RemoveCell | P: owned branch/output/count ordering §4.2; foreign destruction/error semantics open |
 | 009ab716 | 72 | P RemoveRow | P: exact wrapped endpoint/erase scheduling §4.2; foreign eraser open |
 | 009ab75e | 136 | P RemoveCol | P: exact wrapped endpoint/successor-before-erase §4.2; foreign eraser open |
-| 009ac02f | 296 | E InsertCell | P: supporting decomp shows ten-word copy/replacement; full instruction/alias/allocation audit not completed; no complete E insertion contract |
+| 009ac02f | 296 | E InsertCell | P: instruction-verified ten-word copy/replacement and owned helper sequence, §4.3; foreign allocation/copy/error guarantees open |
 | 009ac157 | 246 | P InsertCell | P: bounds/replacement/owned helper sequence §4.1; foreign allocation/copy/error open |
 | 009a8fec | 82 | P iterator operator++ | S: advance-to-next-row with same column, §6; mutation/end misuse excluded |
 | 0095a087 | 35 | AutoPtr Release | F: foreign smart-pointer owner; not matrix credit |
