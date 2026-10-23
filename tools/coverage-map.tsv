@@ -314,14 +314,26 @@ cSC4AudioEventHandler	audio	audio	audio.md	-	-	-
 cSC4AudioSoundManager	audio	audio	audio.md	-	-	-
 cGZSndEventStd	audio	audio	audio.md	-	-	-
 cSC4Audio*	audio	audio	-	-	-	-
+cGZSndSys	audio	audio	sound-system.md	-	-	-
+cGZSndMgr	audio	audio	sound-system.md	-	-	-
 cGZSnd*	audio	audio	-	-	-	-
+cGZSoundCOMDirector	audio	audio	sound-system.md	-	-	-
 cGZSound*	audio	audio	-	-	-	-
+GZSndSysMacCOMDirector	audio	audio	sound-system.md	-	-	-
 GZSndSys*	audio	audio	-	-	-	-
+cHitTrackPlayer	audio	audio	sound-system.md	-	-	-
+cHitMan	audio	audio	sound-system.md	-	-	-
+cHitChannel	audio	audio	sound-system.md	-	-	-
+cHitIniFile	audio	audio	sound-system.md	-	-	-
+cHitPropertySetTrackResource	audio	audio	sound-system.md	-	-	-
 cHit*	audio	audio	-	-	-	-
+cFreshPlayer	audio	audio	sound-system.md	-	-	-
+cFreshCellPlayer	audio	audio	sound-system.md	-	-	-
+cFreshnessCOMDirector	audio	audio	sound-system.md	-	-	-
 cFresh*	audio	audio	-	-	-	-
 cRZRadio	audio	audio	-	-	-	-
 cRZDiskRadioStation	audio	audio	-	-	-	-
-cGZPlayList	audio	audio	-	-	-	-
+cGZPlayList	audio	audio	sound-system.md	-	-	-
 cSC4SoundDescription	audio	audio	audio.md	-	-	-
 tSound	audio	audio	-	-	-	-
 cSC4MadCowPlayerWin	audio	audio	-	-	-	-
@@ -416,15 +428,24 @@ cSC4EffectsParticle	effects (particles, decals, visuals)	renderer	particles.md	-
 cSC4ParticlesDescription	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4BrushEffect	effects	renderer	effects.md	-	-	-
 cSC4GameEffect	effects	renderer	effects.md	-	-	-
+cSC4ParticlesEffect	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
+cSC4GeometrySourcedParticlesEffect	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
+cSC4DecalEffect	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4*Effect	effects (particles, decals, visuals)	renderer	-	-	-	-
+cSC4DynamicParticleSystem	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
+cSC4ParticlesDescriptionBase	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4*Particle*	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSCParticle*	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4RigidBodySimulator2D	effects (particles, decals, visuals)	renderer	-	-	-	-
+cSC4SequenceDescription	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4*Description	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4EffectMaps	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4CoverageRadiusEffectHelper	effects (particles, decals, visuals)	renderer	-	-	-	-
+cGZGraphicSystem	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZGraphicSystem*	2D drawing and fonts	renderer	-	-	-	-
 cGZGraphicCOMDirector	2D drawing and fonts	renderer	-	-	-	-
+cGZDrawContext	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
+cGZDrawContextRenderTo*	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZDraw*	2D drawing and fonts	renderer	-	-	-	-
 # the software span renderers of cGZDrawContextRenderToBuffer, one class per buffer color type (Init 00830710).
 # The five rows come before the nGZDrawSoftRender* catch-all so that the 793 template instantiations of
@@ -435,7 +456,8 @@ nGZDrawSoftRender::cSpanRender4444	2D drawing (span render 4444)	renderer	span-r
 nGZDrawSoftRender::cSpanRender8888	2D drawing (span render 8888)	renderer	span-render-8888.md	core/src/span_render8888	span8888_shadow	-
 nGZDrawSoftRender::cSpanRender8	2D drawing (span render 8)	renderer	span-render-8.md	core/src/span_render8	span8	-
 nGZDrawSoftRender*	2D drawing and fonts	renderer	-	-	-	-
-cGZAlphaBlt	2D drawing and fonts	renderer	-	-	-	-
+cGZAlphaBlt	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
+cGZCanvasW32	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZCanvas*	2D drawing and fonts	renderer	-	-	-	-
 CachedBitmapData	2D drawing and fonts	renderer	drawing-fonts.md	core/src/fonts	-	-
 cGZFontSys	2D drawing and fonts	renderer	drawing-fonts.md	core/src/fonts	-	-
@@ -491,6 +513,11 @@ cSC4ProgressScreen	windows and panels	ui	-	-	-	-
 cSC4CatalogItem	windows and panels	ui	-	-	-	-
 nSC4UI*	windows and panels	ui	-	-	-	-
 fn:SC4DoPopup*	windows and panels	ui	-	-	-	-
+cGZWinGrid	widget toolkit	ui	widget-controls.md	-	-	-
+cGZWinTextEdit	widget toolkit	ui	widget-controls.md	-	-	-
+cGZWinListBox	widget toolkit	ui	widget-controls.md	-	-	-
+cGZWinTreeView	widget toolkit	ui	widget-controls.md	-	-	-
+cGZWinFileBrowser	widget toolkit	ui	widget-controls.md	-	-	-
 cGZWin*	widget toolkit	ui	-	-	-	-
 cGZLegacyControl	widget toolkit	ui	legacy-control.md	core/src/legacy_control	-	-
 fn:unscript	widget toolkit	ui	-	-	-	-
@@ -544,14 +571,21 @@ fn:Splitpath	paths and directories	framework	paths.md	-	-	-
 fn:SplitDirectory	paths and directories	framework	paths.md	-	-	-
 fn:RZFileFind*	paths and directories	framework	paths.md	-	-	-
 cGZPersistResourceManager	persistence and resources	framework	persistence-manager.md	core/src/persistence_manager	-	-
+cGZPersistBufferResource	persistence and resources	framework	sc-resources.md	-	-	-
+cGZPersistASCIIWriter	persistence and resources	framework	sc-resources.md	-	-	-
 cGZPersist*	persistence and resources	framework	-	-	-	-
 cGZBufferResource	persistence and resources	framework	persistence.md	-	-	-
 cGZBufferResourceFactory	persistence and resources	framework	persistence.md	-	-	-
 cGZBufferResource*	persistence and resources	framework	-	-	-	-
 cGZPropertySet*	persistence and resources	framework	-	-	-	-
 cPropertySet*	persistence and resources	framework	-	-	-	-
+cSLTokenRecord	persistence and resources	framework	sc-resources.md	-	-	-
+cSLTokenSerialRecordIO_Text	persistence and resources	framework	sc-resources.md	-	-	-
 cSL*	persistence and resources	framework	-	-	-	-
 SL	persistence and resources	framework	-	-	-	-
+nSCRes	persistence and resources	framework	sc-resources.md	-	-	-
+nSCRes::cCommandParser	persistence and resources	framework	sc-resources.md	-	-	-
+nSCRes::cFileParser	persistence and resources	framework	sc-resources.md	-	-	-
 nSCRes*	persistence and resources	framework	-	-	-	-
 cSCStringDetokenizer*	strings and language	framework	-	-	-	-
 fn:gAdviceDetokenizerFunction	strings and language	framework	-	-	-	-
@@ -561,13 +595,14 @@ cRZLanguage*	strings and language	framework	-	-	-	-
 cRZString	strings and language	framework	-	-	-	-
 fn:ConvertStringEncoding	strings and language	framework	-	-	-	-
 fn:UTF16*	strings and language	framework	-	-	-	-
-cGZWWWSystem	web and network	framework	-	-	-	-
+cGZWWWSystem	web and network	framework	web-network.md	-	-	-
+cRZHTTPClient	web and network	framework	web-network.md	-	-	-
 cRZHTTP*	web and network	framework	-	-	-	-
 cRZURL	web and network	framework	web-network.md	core/src/rzurl.rs	-	-
-cRZCookieManager	web and network	framework	-	-	-	-
+cRZCookieManager	web and network	framework	web-network.md	-	-	-
 cRZNet*	web and network	framework	-	-	-	-
 cRZName*	web and network	framework	-	-	-	-
-NetworkFileCache	web and network	framework	-	-	-	-
+NetworkFileCache	web and network	framework	web-network.md	-	-	-
 HTTPMessage	web and network	framework	-	-	-	-
 cGZMessageServer	framework services (GZ)	framework	framework-gz-services.md	-	-	-
 cGZMessageServer2	framework services (GZ)	framework	framework-gz-services.md	-	-	-
@@ -603,6 +638,7 @@ nRZ*	framework services (RZ)	framework	-	-	-	-
 fn:GZCOM_*	framework services (GZ)	framework	-	-	-	-
 cISC4*	framework services (GZ)	framework	-	-	-	-
 # ---- catch-alls
+cSC4RigidBody2DSimulator	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4*	other SC4 classes	other	-	-	-	-
 cSC*	other SC4 classes	other	-	-	-	-
 fn:*	other free functions	other	-	-	-	-
