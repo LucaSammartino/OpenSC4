@@ -89,6 +89,15 @@ Count 2 → Release stores/returns 1 → Release destroys/returns 0.
 - Loading uses model-header IID `0x29A5D1EC` and per-zoom record IID `0x69B6F01C`. The latter is an
   **interface ID**, not a resource type; its serialized type is `0x09ADCD75` (model-instances §6).
 
+The foreign `0x5AD0E817` route preserves the supplied key. Resource-manager slot 3 receives
+`(key, IID 0x9AD0E7E3, temporary-output, 0, 0)`; the temporary output starts null. Failed acquisition
+returns false without writing the caller's model output. Success calls the acquired resource's slot 4
+with `(0, caller-output)`, releases that resource exactly once, and returns slot 4's boolean. It does
+not QueryInterface the resulting model, add a reference to it, or clear the caller's output after a
+false slot-4 return. Ownership of a successful model result is the resource's creation contract; the
+wrapper transfers that result unchanged. No sprite object is allocated on this route
+(`0x007FD7D0–007FD81E`). These observations do not exchange the two export names.
+
 ### 2.1 Load transaction and ownership
 
 `Load(key)` passes the supplied key unchanged to resource-manager slot 3, requested IID `0x29A5D1EC`,
@@ -558,6 +567,22 @@ Independent examples, with no sequence controller: four frames, frame 3, directi
 rate 1, elapsed 1.25 yields frame 2, direction −1, clock **2.25**, return 2. Four frames, frame 0,
 direction −1, mode 3, clock 0, rate 1, elapsed 1.25 yields frame 3, clock −0.25, return 2.
 One frame, direction +1, skip enabled, rate 1, elapsed 2.5 keeps frame 0 and leaves clock 0.5, return 2.
+
+The frame-count comparison in NextFrame is **signed i32**: counts whose high bit is set take the
+same unchanged path as counts 0 and 1 (`0x007FB1E8–007FB1ED`). There is no native validation error.
+For counts 2 through `0x7FFFFFFF`, the temporal frame still occupies one byte: a forward interior
+step from 255 wraps to 0 even if count is 300. Reverse looping narrows count−1 to that byte.
+
+**AS5 clock boundary cases, proposed UNEXECUTED.** With no controller, clock 0, rate 1, skip nonzero:
+count 0 or 1, direction +1, elapsed 2.5 returns 2, frame unchanged, clock 0.5; count 4, frame 0,
+direction −1, mode 2, elapsed 1.25 returns 2, frame 1, direction +1, clock −2.25 (the initial
+magnitude is below 2, so it takes only one step). With count 4, frame 3, direction +1, mode 0,
+elapsed 2.5, advancing stops and clears the clock to 0; subtracting the new zero direction leaves
+0 and terminates. By contrast, direction 0 with an initial clock 2, or rate −1/direction +1 with
+elapsed 2 and looping mode, need not terminate. A safe implementation may diagnose non-progress
+*[choice]*, but must not label that diagnostic a native return. SetRate(−100) immediately stores
+−100; Tick(0) replaces it with −200, leaves zero clock and returns 0. SetRate(−200) already stores
+that literal value. Neither sentinel reads a resource rate or converts time units.
 
 ### 4.3 Sequence-controller boundary contracts
 
