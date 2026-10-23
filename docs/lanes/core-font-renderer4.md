@@ -1,6 +1,20 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-font-renderer4 (portable small renderer) | `Codex` / `core-font-renderer4` (engine lane, detached HEAD) | WIP: portable renderer and 13 integration tests; ABI unchanged; quick1 exit 1, quick2 no durable exit (3309 unit pass, 10 integration pass, 1 corrected fixture failure); final all/clippy/ctest unknown; no game/native equivalence claim; FR1-FR3 retained | (1) Observe exact quick2 ownership/telemetry and collect terminal. (2) Validate final committed source, then canonical all without overlap. (3) Review FR boundaries before landing. |
+| core-font-renderer4 (portable small renderer) | `Codex` / `core-font-renderer4` (engine lane, detached HEAD) | In progress: round 2 validation; previous failures and unknown quick2 terminal retained | Execute focused final-source test, then one canonical all; retain FR1-FR3 boundaries. |
+
+## Handoff
+
+- Goal: validate existing committed bounded renderer, with no ownership expansion.
+- Starting tip b953d8cc; engine tree f2b8a4e36c91919e12b2e1c955e9147e2381ea72.
+- Own manifest checked: core-font-renderer4, engine, correct worktree, round 2.
+- Copied coordinator review proves old quick2/checker/stats absent at 03:55; no old terminal inferred.
+- Fresh audit 2026-10-23T03:02:37Z: own_operations=[], errors=[].
+- Focused final-source integration: 13 passed / 0 failed, durable exit 0 at 03:03:32Z.
+- Cargo PID 35040, creation 1792724575.1745214; exact argv/output in build-runs/renderer-r2-focused-ownership.json.
+- Engine tree before/after unchanged; no source corrections needed.
+- q.py transport attempt failed before launch (Bash CreateInstance E_ACCESSDENIED); ran quiet retained-output Python wrapper directly.
+- Next: one canonical qbuild all, retain operation identity and collect durable terminal.
+- Historical report below is retained pending measured round 2 results.
 
 ## Implementation and boundary
 
