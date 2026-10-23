@@ -26,7 +26,7 @@ This is a distinct round 2 configuration blocker, not evidence that round 1's li
   `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`, image base `00400000`.
   The main working binary's version resource reports `1.1.641.0`, original filename `SimCity 4.exe`.
   A current binary hash comparison was not completed; identity verification remains partial.
-- Queried the export name inventory first; it returns 19 matrix-named entries and one iterator-named
+- Queried the export name inventory first; it returns 18 matrix-named entries and one iterator-named
   entry, plus two foreign AutoPtr entries. These names are not an audited unique-body inventory.
 - A single export instruction query for `009a5bf2` was included in the same shell invocation as
   preflight. No contract is published from it. Attribution needs instruction/caller reconciliation;
