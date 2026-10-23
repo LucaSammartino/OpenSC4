@@ -69,3 +69,17 @@
   boolean 11. Unilateral reset selects/clears/coordinates every stage without that gate; clear-transform
   also bypasses the gate for its explicit select/clear sequence. Mode setup above stage 1 and combiner
   submission have separate ungated paths. Property changes do not invalidate requested caches.
+
+<!-- from: core-draw-context-close5 (2026-10-23) -->
+- ~~**DC9 - sections 1.3 and 1.5, TurnOnFog:** the owner inventory attributes the fog body to
+  SC4DrawContext and publishes constructor cache sentinels, but supplies no signature, query source,
+  cache comparison/update order or driver arguments. Please specify these, including ordinary
+  returned failures and retries. [constructor cache values implemented; fog operation explicitly
+  returns ContractGap::Fog without calls or mutations; no inferred fog implementation]~~
+
+  **ANSWERED 2026-10-23 (re-draw-context-dc9):** DIFFERS — §1.5.1 specifies a void operation taking
+  enable byte, optional RGBA pointer, binary32 start and end. Renderer callers supply fields directly;
+  the context makes no property query. Enable, RGB, start and end caches advance after their own
+  driver calls return, even on ordinary returned failures. Equal finite retries are suppressed;
+  NaNs resubmit. Only RGB is compared/copied; the fourth colour cache remains untouched.
+  Scalar maximum-finite inputs leave caches unchanged. §13.3 adds DC-V27–DC-V35.
