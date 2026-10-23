@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-terrain-overlays-contracts4 (settled public overlay contracts) | Codex / core-terrain-overlays-contracts4 (reserved detached HEAD) | in progress | Literal fixtures, direct/city add and settings first; remaining settled contracts and one final gate |
+| core-terrain-overlays-contracts4 (settled public overlay contracts) | Codex / core-terrain-overlays-contracts4 (reserved detached HEAD) | in progress; continuation required; all PASS at a7514e69, fmt pending | Resume SAME phase: repository formatter settings, remaining numeric/lifetime contracts; no merge queue |
 
 ## Handoff
 - Goal: implement the new public overlay contracts in the existing terrain_overlays owner; no rendering or ABI promotion.
@@ -13,10 +13,12 @@
 - Gate: cargo 5597 passed/0 failed/0 ignored across ALL 27 summaries; Clippy RC 0, diagnostics 0; native build 217/217 edges, RC 0; CTest 68/68, RC 0; overall PASS (fc4verify 1120.1 s, build 83.8 s, CTest 131.2 s).
 - Gate source before/after EXACT: HEAD a7514e69; engine tree 05e776f2f05080c375e612263af839a3c2ea7c8a; all seven owned source SHA256 values identical (full values in journal). Logs: qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log.
 - Rust summary pass counts, in log order: 540,3,1,31,27,40,7,2,1232,3473,21,13,19,27,147,0,2,1,3,1,1,1,5,0,0,0,0 (each failed=0, ignored=0).
-- Next: explicit owned-file fmt check, then resume SAME reserved phase/manifest with nonzero rotation numeric qualification and signed rectangle ownership; keyed shadows; global message-server lifecycle independence; complete ordered logical reference/action traces. Rendering/foreign producer residuals stay open. No second all on unchanged source.
+- NEXT EXACT STEP: correct build-runs/format-owned.py to use repository formatter settings before emitting apply_patch hunks, apply only the seven owned files, then explicit qbuild fmt using ABSOLUTE paths. First fmt attempt RC 1: engine-relative paths were resolved from engine and nonexistent. Corrected absolute-path attempt RC 1: 1260 diff lines, first mismatch mod.rs re-export layout. Neither attempt changed sources. The ad hoc formatter used default settings; canonical style remains unresolved.
+- After formatting: resume SAME reserved phase/manifest with nonzero rotation numeric qualification and signed rectangle ownership; keyed shadows; global message-server lifecycle independence; complete ordered logical reference/action traces. Rendering/foreign producer residuals stay open. Canonical all at a7514e69 remains exact for current engine; repeat only after real diagnostic/source/input changes, retain first evidence.
 - Focused latest: 38 passed/0 failed, RC 0 (session 56879). Prior focused: 5/0 (83668), 20/10 historical expectation diagnostic, 30/0 (25587), 31/1 round expectation diagnostic (70232), 34/0 (73250), 37/0 (52715). No duplicates launched; all sessions terminal.
 - Earlier attempts: q wrapper Bash access denied (build-runs/q/20261023-080010-37760.log); 80927 and 75667 RC 1 compiler diagnostics, corrected. Formatting emitted apply_patch hunks only, never wrote rustfmt filename headers to sources; helper stdout encoding corrected.
 - All original 25 scenarios retained with explicit obsolete expectations reconciled; 13 additional literal/public fixtures. No game requests/native vectors executed, no C ABI/default/plugin promotion; not ready despite passing gate.
 - No native claims. Parent/archive integrity is coordinator-owned; no archive inspected.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-terrain-overlays-contracts4-r1-manifest.json.
 - Family reservation remains supervisor-owned: parent frozen, this new child phase reserved; no old worktree/ref/archive recreation, no new phase/reset requested. Main last terrain_overlays change observed 82b97b7e; no claim that blob/content hashes are the reservation's 032170 provenance identifier.
+- Context handoff near 150000 cap; no merge-queue file. Gate success is not readiness: formatting and the listed contracts remain, and there is no game/shadow verdict. Continue this same phase, do not count it as another child or recreate the parent. All checker sessions terminal.
