@@ -1,9 +1,21 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-player-drive4 (first portable drive-tool owner) | `Codex` / `core-player-drive4` (engine) | WIP: owner 26/26, Rust 3126/0 (2 rows), dependencies compile-only, native 4/4; quick blocked at own read-only stats client; fresh fmt/final all unrun; DR1-DR8 retained; ABI unchanged | (1) Collect existing quick36008/verifier25864/client37432 and continuation37316 by creation; (2) preserve actual results before any necessary further checker; (3) require bounded fmt and complete source-matched all before READY |
+| core-player-drive4 (first portable drive-tool owner) | `Codex` / `core-player-drive4` (engine) | in progress: final original round 3/3; preserved owner 26/26, Rust 3126/0, native 4/4; old quick terminal UNKNOWN; fresh fmt/final all pending; DR1-DR8 retained; ABI unchanged | (1) Archive remaining quick component logs; (2) bounded absolute-path fmt with shared drift separate; (3) ONE captured final all on unchanged committed engine source |
 
 
-## Report
+## Handoff
+
+- Goal: bounded final validation only, original round 3/3; no new algorithms/tests or production edits.
+- Start: clean detached ee407521; production eab6c1ad; engine c96747fe52d09dcbd607457fd6c8a4934c60603e unchanged.
+- Fresh 00:24:33Z process inventory: PIDs36008/25864/37432/37316 absent; no attributable old checker/compiler/continuation. Quick exit/cause remains UNKNOWN.
+- Evidence: build-runs/process-r3-preflight.json. CIM denied; native read-only enumeration recovered argv/creation/parent. Several foreign cwd reads denied (error5), classified by explicit other-worktree output paths; cache-service children target train-integration. No TCP4721 row from netstat.
+- Cache processes24128/35784 left untouched; no RPC, client/service termination, environment or policy action.
+- R2 components retain 3126/0 across2 summaries, all26 fixtures, compile-only dependents, native4/4. Do not repeat quick.
+- Baseline is incomplete and predates registration: 5142/0, clippy clean, native215/215, CTest18/68; exit/cause UNKNOWN. Root's exact old client intervention is preserved, supplies no authorization.
+- Next: archive remaining component logs, run new-file fmt and separately report shared lib order drift, commit checkpoint, then exactly ONE final qbuild all with durable terminal capture.
+- No game request outstanding; no ABI/plugin/CAPI/default/shadow promotion; DR1-DR8 retained.
+
+## Previous report (round 2)
 
 Implemented the first bounded portable player-drive owner in `engine/core/src/player_drive`, registered by the single additive declaration at the end of `engine/core/src/lib.rs`. No C API, plugin, other owner, default, map, generated index or ABI export was changed. No game/native probe or shadow was requested; game labels are not applicable.
 
