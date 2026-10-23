@@ -212,6 +212,46 @@ The manager collision search and shared footprint builder signatures/results
 and failure paths are in §5.7.3. These contracts expand the owner inventory;
 they do not certify the untraced entries in §10.1.
 
+### 3.3 Movement and docking helper results (WC3)
+
+These entries take the whole boat as receiver. `Engine_MovementPossible`
+(`0x005698E0`) takes no arguments and returns a boolean. Test flag 1 first;
+when set, return false without checking city bounds or state. Otherwise call
+IsOutsideCity (§3.2); an outside corner pushes state 72 with the ordinary
+`(72,0,-1,0,0,0,0)` state arguments, then returns false. Only an inside boat
+queries the top state: state 70 returns false after one query; otherwise query
+again and return false for 71, true for every other result. Thus this predicate
+can request removal, and the two state reads must not be replaced by a stack
+search. The inherited flag/state results are used directly; no failure recovery
+is supplied. Evidence: `0x005698E3–0x00569937`.
+
+EndDocking (`0x0056D4D0`) and Ferry_ClearDockRequests (`0x0056D530`) take no
+arguments and return void. Both require a nonnull current station and a set
+held-berth byte before doing anything. ClearDockRequests samples station slot
+15 into a vec3 and ignores its return status. Its distance is the **3D**
+Euclidean distance from inherited occupant position `+0x40` to that output,
+not runtime position `+0x2F4`, the berth point, or horizontal distance. Only
+distance strictly greater than p[36] continues. EndDocking has no distance
+gate. Both clear docking-in-progress before their manager-null branch;
+without a manager they retain held-berth, station reference and flag
+0x10000000. With a manager, call DoneDocking(current station, boat), clear
+held-berth, then clear that flag, ignoring DoneDocking's result. Neither
+releases or replaces the station reference. Missing city service is not a
+recoverable manager-null case. Evidence: `0x0056D4D3–0x0056D525`,
+`0x0056D536–0x0056D5EC`; distance arithmetic `0x0056D56F–0x0056D5A9`.
+
+The straight integrator `0x00568230` takes `(float dt, transform output,
+vec3 position output)` and returns void. It reads runtime position/heading,
+speed and p[4], writes the straight-motion result of §5.1.1 to both supplied
+outputs, and marks translation changed (flag 1, revision byte increment).
+It does not publish the transform or change runtime fields itself. The caller
+does that. All three arguments are required; horizontal zero heading has no
+fallback. There is no dt clamp, allocation, inherited getter or failure result
+inside this helper (`0x00568230–0x005682E6`). Banking helper `0x005682F0`
+takes one writable transform and returns void; its complete arithmetic and
+positive-speed-only output contract are in §5.1.1. These contracts do not
+close the remaining owner/inherited audit in §10.2.
+
 ## 4. States *[compat]*
 
 `DoStateTick` (`0x00573340`) and the enter and exit hooks extend automata.md §6.6:
@@ -243,7 +283,8 @@ sounds *[inferred]*.
 2. With `+0x2CC`, the idle budget grows by the second time; above 60,000 ms, `PushState(73)`.
 3. A non-zero speed updates the active sound (slot 78).
 4. The tow rope (`tugropeconnection`) follows the boat while it tows and stops when it does not.
-5. The automaton's step (`0x00508740`); when it fails, skip to 13.
+5. The automaton's step (`0x00508740`, §5.1.4). Its normal exits all return true;
+   the owner's false-result branch would skip to 13, but this inherited body does not take it.
 6. A negative speed adds to the time going backwards, otherwise that time is 0.
 7. **Wakes.** The boat counts as moving when its speed is not 0, or it moved at least 0.2 × the city's cell size
    (city slot 91, computed once) since the last tick, or its heading changed by at least 0.01. Moving restarts the
@@ -450,6 +491,56 @@ there is no read of that watercraft field in the exported owner/helper
 instructions. Retain it for tuning fidelity; no observed movement, collision,
 timer or effect behavior is to be invented for it. This is an export-level
 negative finding, not a guessed semantic label.
+
+### 5.1.4 Inherited animation dispatch and wake requests (WC3/WC4)
+
+The inherited step `0x00508740` takes the same two float times as the owner:
+first `t` (movement time), second `a` (animation/state time), in milliseconds.
+They are forwarded without clamping. It returns true on **every normal exit**;
+state-tick false means generic seeking is needed, not animation failure.
+Required inherited services and writable records must exist; there is no
+exception-to-false or null-service recovery. Evidence: owner forwarding at
+`0x00572E53–0x00572E60`, sole return `0x005089CB–0x005089E0`.
+
+Before state dispatch, advance the tween with start/target/duration/elapsed
+at `+0x1A0/+0x1A4/+0x1A8/+0x1AC`: only when elapsed < duration, store
+`elapsed + a*f32(0.001)`; on reaching/exceeding duration, reset elapsed and
+duration to zero and copy target to start. Then call primary slot 83 with a,
+slot 103 with a, and test flag 2 (slot 86). Only a set flag 2 invokes slot 109
+(watercraft DoStateTick) with a. A true state result suppresses generic seeking;
+false proceeds only if flag 4 (slot 87) is clear. Regardless of these gates,
+finish by notifying event `(0,0)` through slot 102. The primary table installed
+at `0x0056D9BB` is `0x00A9DBB8`; slots 86/87 test flags 2/4 at
+`0x004FAD90/0x004FADA0`. Dispatch/order: `0x00508746–0x005087E8`.
+
+Generic seeking uses inherited position P at +0x40, destination D at +0x4C
+and heading at +0x58, rather than the watercraft runtime vectors. If **any**
+destination component is negative, replace the entire destination with P.
+For `L=length(D-P) <= f32(0.01)`, set flag 4 and notify `(4,0)`; do not move
+or reset measured speed. Otherwise set inherited heading to `(D-P)/L`, sample
+speed (slot 34) and scale (slot 125), and propose
+`N=P + t*scale*(speed*heading)`. Speed-times-heading components are stored
+as floats before scaling; scaled y/z are stored before multiplying by t.
+There is no arrival clamp to D and no zero/negative-t guard. If flag 0x20000
+is clear, ask the city's slot-40 service to adjust `(P,N,0xC49)` through its
+slot 44; ignore its result. SetPositionAndDirection (slot 16) receives the
+resulting N and heading. Measured speed at +0x94 becomes `length(N-P)/t`,
+using the proposed/adjusted local N even if publication has other effects.
+The zero-t division is not repaired. Evidence: `0x0050881E–0x005089C5`.
+
+The two wake helpers take no arguments and return void. In order, each
+requests all six keys `SMLWake`, `SMLWash`, `MEDWake`, `MEDWash`,
+`LargeWake`, `LargeWash`; they do not select just the boat's size class.
+Start `0x0056F1E0` calls primary slot 44 `(key,0,0)` for each; stop
+`0x0056EFE0` calls slot 45 `(key,0)` for each. Results are ignored, so one
+failed/absent key does not suppress later requests. They make no boat-field
+writes or refcount transfers. The inherited adapters forward to the embedded
+effect controller at +0x18C, slots 12/13 respectively; stop additionally calls
+primary slot 104 after each key. Thus six stop requests imply six such update
+calls, before the owner's later effect/model updates. Evidence:
+`0x0056EFE0–0x0056F1DB`, `0x0056F1E0–0x0056F3E1`,
+`0x004FADF0–0x004FAE29`. Effect-controller internals and the full slot-104/107
+computation remain WC4; these are request and ordering contracts.
 
 ### 5.2 Picking cells (`Engine_AIPickLocation`, `0x00570620`)
 
@@ -1209,7 +1300,7 @@ untraced helper bodies still prevent a whole-owner closure claim.
 
 ### 10.2 Final owner-closure boundary for this lane
 
-This document supplies 116 individually named spec-side vectors. It does **not** certify
+This document supplies 124 individually named spec-side vectors. It does **not** certify
 complete owner closure: WC3–WC5 remain open; WC1–WC2 and WC6–WC8 are answered. In particular,
 the equations in §5.1.1 are authored behavior requirements, not permission to
 substitute an opaque provider result for missing owner computation.
@@ -1431,3 +1522,16 @@ runtime heading and removal arguments are exact.
 | WC3-G01 | Runtime P=(10,20,30), H=(2,3,4), GetRadius=5 | Rear output=(0,5,10); front output=(20,35,50). Each call samples radius once; neither normalizes H or changes boat fields. |
 | WC3-G02 | Occupant bounds min=(1,2,3), max=(4,12,8) | Extent helper returns 10, including vertical size; it does not use horizontal radius or model-footprint margins. |
 | WC3-G03 | Rectangle=(2,3,4,5); only (2,5) outside | City queries (2,3),(4,3),(2,5), then true; no fourth query and no state push. All corners inside gives false. |
+
+### 11.13 Inherited dispatch and helper boundary vectors
+
+| ID | Inputs | Expected observable result |
+|---|---|---|
+| WC3-H01 | Flag 1 set; city rectangle outside; top state 70 | MovementPossible false; no city or state query, no state push. |
+| WC3-H02 | Flag 1 clear, all corners inside, first top-state result 70 | False after one state query. A first result 0 and second 71 gives false after two; two results 0 give true. |
+| WC3-H03 | Current station held, p[36]=5, occupant P=(0,0,0), station=(0,5,0), runtime P=(100,100,100) | ClearDockRequests does nothing at equality. Station=(0,6,0) triggers cleanup; runtime P is irrelevant. |
+| WC3-H04 | Current station held, docking-in-progress set, flag 0x10000000 set, manager absent | EndDocking clears only docking-in-progress; retains held-byte, flag and station reference; no DoneDocking. |
+| WC4-I01 | Flag 2 clear; valid inherited tween elapsed=0.9, duration=1, target=8; a=200 | Tween completes (duration=elapsed=0, start=8), slots 83 and 103 receive 200, no state tick; final event (0,0), return true. |
+| WC4-I02 | Flag 2 set, flag 4 clear, state tick returns true | State tick receives a; no generic seeking; final event (0,0), return true. |
+| WC4-I03 | Flag 2 set, flag 4 clear, state tick false; P=(1,2,3), D=(-1,20,30) | Replace entire D with P, set flag 4, events (4,0) then (0,0); no position publication or measured-speed reset. |
+| WC4-I04 | Invoke wake stop; effect controller reports every key absent | All six stop requests still occur in listed order, each followed by slot 104. No start requests, field writes or early exit. |
