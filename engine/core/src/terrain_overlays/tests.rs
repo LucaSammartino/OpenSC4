@@ -98,9 +98,69 @@ fn rect(min: [u32; 2], max: [u32; 2]) -> CellRect {
     CellRect { min, max }
 }
 
+#[test]
+fn public_ov2_rectangle_copies_every_word_without_clipping_or_handle() {
+    let mut m = manager(false);
+    let matrix = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0,
+        8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0];
+    let bounds = rect([7, 3], [10, 5]);
+    assert_eq!(m.add_overlay_for_rect(None, bounds, matrix, 8), Ok(Handle::NONE));
+    let h = m.add_overlay_for_rect(Some(Arc::new(Texture)), bounds, matrix, 8).unwrap();
+    assert_eq!(h, Handle(0));
+    let o = m.snapshot(h).unwrap().unwrap();
+    assert_eq!(o.flags, 9);
+    assert_eq!(o.cells, bounds);
+    assert_eq!(o.primary, matrix);
+    assert_eq!(m.handles.iter().count(), 0);
+    assert_eq!(m.take_changed_rectangles(), vec![bounds]);
+    let mut output = Placement([42.0; 9]);
+    m.get_placement(h, &mut output).unwrap();
+    assert_eq!(output, Placement([42.0; 9]));
+    m.set_placement(h, Placement([99.0; 9])).unwrap();
+    assert_eq!(m.snapshot(h).unwrap().unwrap(), o);
+}
+
+#[test]
+fn public_ov2_city_matrix_uses_only_signed_nx() {
+    for nz in [32, 48] {
+        let mut v = view(2);
+        Arc::get_mut(&mut v).unwrap().terrain = Some(Arc::new(Terrain { cells: [64, nz], width: 7.0 }));
+        let factory = v.factory.as_ref().unwrap().clone();
+        let mut m = OverlayManager::new();
+        m.init(v, true, false).unwrap();
+        let h = m.add_city_decal(77).unwrap();
+        let o = m.snapshot(h).unwrap().unwrap();
+        assert_eq!(o.flags, 0x13);
+        assert_eq!(o.cells, rect([0, 0], [64, nz]));
+        assert_eq!(o.primary, [0.0, 0.0, 0.0, 0.0, 0.0, 1.0/32.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]);
+        assert_eq!(factory.calls.lock().unwrap().last(), Some(&(77, BindingLookup::Slot5)));
+        assert!(m.take_changed_rectangles().is_empty());
+        assert_eq!(m.handles.iter().count(), 0);
+    }
+}
+
+#[test]
+fn public_ov3_settings_message_is_quiet_and_copies_raw_values() {
+    let mut m = manager(false);
+    let h = seed(&mut m, overlay(flag::SHOWN));
+    let before = m.snapshot(h).unwrap();
+    let index = m.cell_index.clone();
+    assert!(m.handle_settings_message(7, [0, 7], 0));
+    assert_eq!(m.shadow_settings(), [3, 4]);
+    assert_eq!(m.selection_byte, 1);
+    assert!(m.handle_settings_message(CHANGE_MESSAGE, [0, 7], 0));
+    assert_eq!(m.shadow_settings(), [0, 7]);
+    assert_eq!(m.selection_byte, 0);
+    assert_eq!(m.snapshot(h).unwrap(), before);
+    assert_eq!(m.cell_index, index);
+    assert!(m.take_changed_rectangles().is_empty());
+}
+
 /// Explicit initial state, not claimed constructor defaults.
 fn overlay(flags: u32) -> Overlay {
     Overlay {
+        primary: [0.0; 16],
         flags,
         cells: rect([1, 1], [3, 3]),
         alpha: 0.75,
@@ -541,14 +601,8 @@ fn factory_slots_and_null_binding_are_literal_but_placement_is_explicitly_incomp
         m.add_round_decal(7, placement),
         Err(Error::Gap(ContractGap::RoundPartitionOv9))
     );
-    assert_eq!(
-        m.add_city_decal(7),
-        Err(Error::Gap(ContractGap::ShadowAndModelConstructionOv2))
-    );
-    assert_eq!(
-        m.on_message(CHANGE_MESSAGE),
-        Err(Error::Gap(ContractGap::ChangeMessageOv3))
-    );
+    assert_eq!(m.add_city_decal(7), Ok(Handle(0)));
+    assert_eq!(m.on_message(CHANGE_MESSAGE), Ok(()));
 }
 
 #[test]

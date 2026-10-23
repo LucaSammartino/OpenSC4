@@ -92,6 +92,7 @@ pub trait ViewProvider: Send + Sync {
     fn texture_factory(&self) -> Option<Arc<dyn TextureFactory>>;
     fn shadow_quality(&self) -> i32;
     fn shadow_debug(&self) -> i32;
+    fn selection_byte(&self) -> u8 { 1 }
     fn subscribe(&self, message: u32);
     fn unsubscribe(&self, message: u32);
 }
@@ -121,6 +122,7 @@ pub struct OverlayManager {
     water: bool,
     shadow_quality: i32,
     shadow_debug: i32,
+    selection_byte: u8,
     overlays: Arena<Overlay>,
     handles: Arena<HandleRecord>,
     groups: Arena<[Option<u32>; 8]>,
@@ -132,7 +134,7 @@ pub struct OverlayManager {
 
 impl OverlayManager {
     pub fn new() -> Self {
-        Self::default()
+        Self { shadow_quality: 2, selection_byte: 1, ..Self::default() }
     }
 
     /// Â§1. Acquire into temporaries first: failure owns no lasting references.
@@ -269,9 +271,43 @@ impl OverlayManager {
         Err(Error::Gap(ContractGap::RoundPartitionOv9))
     }
 
-    pub fn add_city_decal(&mut self, _key: u32) -> Result<Handle, Error> {
+    /// OV2 raw rectangle helper. This is an owner operation, not a host result.
+    pub fn add_overlay_for_rect(
+        &mut self,
+        binding: Option<Arc<dyn TextureBinding>>,
+        cells: CellRect,
+        primary: [f32; 16],
+        extra_flags: u32,
+    ) -> Result<Handle, Error> {
         self.require_init()?;
-        Err(Error::Gap(ContractGap::ShadowAndModelConstructionOv2))
+        let Some(binding) = binding else { return Ok(Handle::NONE) };
+        let index = self.overlays.insert(Overlay {
+            primary, cells, flags: flag::SHOWN | extra_flags,
+            alpha: 1.0, color: [1.0; 3], draw_state: 0,
+            texture_scale: None, binding: Some(binding), source: None,
+        });
+        if let Some(cell_index) = &mut self.cell_index {
+            for cell in cells.cells() {
+                cell_index.entry(cell).or_default().insert(0, index);
+            }
+            self.changed.push(cells);
+        }
+        Ok(Handle(index as i32))
+    }
+
+    pub fn add_city_decal(&mut self, key: u32) -> Result<Handle, Error> {
+        self.require_init()?;
+        let cells = self.geometry.ok_or(Error::NotInitialized)?.cells;
+        // Selected positive signed-dimension domain; no claim about native zero division.
+        if cells[0] == 0 || cells[0] > i32::MAX as u32 {
+            return Err(Error::InvalidTerrain);
+        }
+        let binding = self.resources.as_ref().unwrap().factory.binding(key, BindingLookup::Slot5);
+        let mut matrix = [0.0; 16];
+        matrix[5] = (2.0_f64 / f64::from(cells[0] as i32)) as f32;
+        matrix[10] = 1.0;
+        matrix[15] = 1.0;
+        self.add_overlay_for_rect(binding, CellRect { min: [0, 0], max: cells }, matrix, 0x12)
     }
 
     /// Slots 9â€“11 have no published complete argument contract. Only slot 10's
@@ -288,10 +324,22 @@ impl OverlayManager {
     pub fn on_message(&mut self, message: u32) -> Result<(), Error> {
         if message == CHANGE_MESSAGE {
             self.require_init()?;
-            Err(Error::Gap(ContractGap::ChangeMessageOv3))
-        } else {
-            Ok(())
+            let view = &self.resources.as_ref().unwrap().view;
+            let settings = [view.shadow_quality(), view.shadow_debug()];
+            let selection = view.selection_byte();
+            self.handle_settings_message(message, settings, selection);
         }
+        Ok(())
+    }
+
+    /// Raw individual settings values supplied by the render-properties boundary (§5).
+    pub fn handle_settings_message(&mut self, message: u32, integers: [i32; 2], selection: u8) -> bool {
+        if message == CHANGE_MESSAGE {
+            self.shadow_quality = integers[0];
+            self.shadow_debug = integers[1];
+            self.selection_byte = selection;
+        }
+        true
     }
 
     pub fn set_position(&mut self, handle: Handle, _xz: [f32; 2]) -> Result<(), Error> {
@@ -304,7 +352,7 @@ impl OverlayManager {
     }
 
     pub fn set_placement(&mut self, handle: Handle, _placement: Placement) -> Result<(), Error> {
-        if handle == Handle::NONE {
+        if handle == Handle::NONE || !handle.is_indirect() {
             return Ok(());
         }
         self.target(handle)?;
@@ -318,7 +366,7 @@ impl OverlayManager {
             return Ok(());
         }
         if !handle.is_indirect() {
-            return Err(Error::Gap(ContractGap::HandlePlacementOv5));
+            return Ok(());
         }
         *out = self.handles.get(handle.index()).ok_or(Error::InvalidHandle)?.placement;
         Ok(())

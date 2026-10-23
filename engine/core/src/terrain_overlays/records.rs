@@ -87,6 +87,7 @@ pub(super) struct HandleRecord {
 }
 
 pub(super) struct Overlay {
+    pub primary: [f32; 16],
     pub flags: u32,
     pub cells: CellRect,
     pub alpha: f32,
@@ -101,6 +102,7 @@ pub(super) struct Overlay {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct OverlaySnapshot {
+    pub primary: [f32; 16],
     pub flags: u32,
     pub cells: CellRect,
     pub alpha: f32,
@@ -114,6 +116,7 @@ pub struct OverlaySnapshot {
 impl Overlay {
     pub fn snapshot(&self) -> OverlaySnapshot {
         OverlaySnapshot {
+            primary: self.primary,
             flags: self.flags,
             cells: self.cells,
             alpha: self.alpha,
