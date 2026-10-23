@@ -12,6 +12,8 @@ image decoding, 4444 diffusion and graph output ordering stay in this module.
 Tests are in `engine/conformance/tests/sc_resources.rs`. SCR-V01–V68 all have
 named executable tests. The JSON `sc_resources_lexical.json` also runs through
 the standard runner. SCR1–SCR5 and SCR7 are answered; no section remains open.
+`builtin_float_width_and_byte_scanner` additionally covers §3.3's binary32
+promotion before formatting and §6.2's byte-oriented numeric prefix scans.
 
 | Owner / spec section | Code item | Covering tests |
 |---|---|---|

@@ -254,21 +254,24 @@ pub trait TextNumber: Field + Default {
     fn scan(bytes: &[u8]) -> Option<Self>;
     fn render(self) -> String;
 }
-fn integer_prefix(bytes: &[u8]) -> Option<&str> {
-    let text = std::str::from_utf8(bytes).ok()?.trim_start();
-    let sign = usize::from(text.starts_with(['+', '-']));
-    let digits = text.as_bytes()[sign..]
+fn scanner_start(bytes: &[u8]) -> &[u8] {
+    &bytes[bytes
         .iter()
-        .take_while(|b| b.is_ascii_digit())
-        .count();
+        .position(|b| !b.is_ascii_whitespace())
+        .unwrap_or(bytes.len())..]
+}
+fn integer_prefix(bytes: &[u8]) -> Option<&[u8]> {
+    let text = scanner_start(bytes);
+    let sign = usize::from(matches!(text.first(), Some(b'+' | b'-')));
+    let digits = text[sign..].iter().take_while(|b| b.is_ascii_digit()).count();
     (digits != 0).then_some(&text[..sign + digits])
 }
 macro_rules! integers { ($($ty:ty),*) => { $(impl TextNumber for $ty {
     fn scan(bytes: &[u8]) -> Option<Self> {
         // Literal runtime-prefix reading; overflow wraps to caller width.
         let text = integer_prefix(bytes)?;
-        let negative = text.starts_with('-');
-        let n = text.bytes().filter(u8::is_ascii_digit).fold(0u64, |n,b| n.wrapping_mul(10).wrapping_add(u64::from(b-b'0')));
+        let negative = text.starts_with(b"-");
+        let n = text.iter().copied().filter(u8::is_ascii_digit).fold(0u64, |n,b| n.wrapping_mul(10).wrapping_add(u64::from(b-b'0')));
         Some(if negative { n.wrapping_neg() } else { n } as Self)
     }
     fn render(self) -> String { self.to_string() }
@@ -284,14 +287,20 @@ impl TextNumber for u64 {
     }
 }
 fn float_prefix(bytes: &[u8]) -> Option<f64> {
-    let text = std::str::from_utf8(bytes).ok()?.trim_start();
-    if !text
-        .as_bytes()
-        .get(usize::from(text.starts_with(['+', '-'])))
+    let bytes = scanner_start(bytes);
+    if !bytes
+        .get(usize::from(matches!(bytes.first(), Some(b'+' | b'-'))))
         .is_some_and(|b| b.is_ascii_digit() || *b == b'.')
     {
         return None;
     }
+    // Only the scanner's decimal prefix needs to be ASCII; suffix bytes do
+    // not participate in the conversion and need not be valid UTF-8.
+    let end = bytes
+        .iter()
+        .position(|b| !matches!(b, b'0'..=b'9' | b'.' | b'e' | b'E' | b'+' | b'-'))
+        .unwrap_or(bytes.len());
+    let text = std::str::from_utf8(&bytes[..end]).ok()?;
     (1..=text.len())
         .rev()
         .filter(|&n| text.is_char_boundary(n))
@@ -314,7 +323,7 @@ impl TextNumber for f64 {
     }
 }
 
-/// Ã‚Â§6 adapter. Cursor is deliberately independent of the raw stream position.
+/// Ãƒâ€šÃ‚Â§6 adapter. Cursor is deliberately independent of the raw stream position.
 pub struct TextIo<'a, S: RawStream> {
     pub record: &'a mut SerialRecord<S>,
     pub counter: u64,

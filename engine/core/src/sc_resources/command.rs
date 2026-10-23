@@ -257,7 +257,10 @@ impl CommandParser {
                 let value = match name {
                     "set" => tokens[2].bytes.clone(),
                     "seti" => lexical::parse_int(&tokens[2].bytes)?.to_string().into_bytes(),
-                    "setf" => crate::rz_streams::format_g(lexical::parse_float(&tokens[2].bytes)?, b'.').into_bytes(),
+                    "setf" => {
+                        crate::rz_streams::format_g(f64::from(lexical::parse_float(&tokens[2].bytes)? as f32), b'.')
+                            .into_bytes()
+                    }
                     _ => transformed_value(name, tokens)?,
                 };
                 self.set_variable(&tokens[1].bytes, &value);

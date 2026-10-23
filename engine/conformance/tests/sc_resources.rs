@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Independent executable vectors SCR-V01Ã¢â‚¬â€œ30, docs/specs/sc-resources.md Ã‚Â§9.
+//! Independent executable vectors SCR-V01ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“30, docs/specs/sc-resources.md Ãƒâ€šÃ‚Â§9.
 use fc4_core::{
     persistence_runtime::{Buffer, BufferHandle, BufferLayout, Format, Key, RawStream, SerialRecord},
     rz_streams::{GzOStream, RzTextOStream, TextSink},
@@ -202,6 +202,16 @@ fn scr_v43_assignment_conversions() {
         p.parse(input.as_bytes()).unwrap();
         assert_eq!(p.get_variable(b"x"), Some(expected.as_bytes()));
     }
+}
+#[test]
+fn builtin_float_width_and_byte_scanner() {
+    let mut p = parser();
+    p.parse(b"setf x 1.23456499").unwrap();
+    assert_eq!(p.get_variable(b"x"), Some(b"1.23457".as_slice()));
+    assert_eq!(u32::scan(b"12\xff"), Some(12));
+    assert_eq!(f64::scan(b"12.5\xff"), Some(12.5));
+    assert_eq!(u32::scan(b"\xc2\xa012"), None);
+    assert_eq!(f64::scan(b"\xc2\xa012"), None);
 }
 #[test]
 fn scr_v44_builtin_failures_and_end() {
