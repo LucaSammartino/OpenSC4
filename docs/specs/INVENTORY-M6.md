@@ -364,7 +364,7 @@ movement on screen are not specified. Deferred to S3.
 - Fonts: `Fonts\*.mxf` in the install (19 files, magic `MXFN`, for example "Arial MT", "Arta", "CordiaUPC",
   "Courier LD"), read by `cGZFont` / `cGZFontSys` (`0x20673960`, 18 KB), with `FontStyle.ini` styles and aliases
   and fallbacks to system fonts for East-Asian languages (`ReadCommandLine` area strings `Gulim.ttc`, `mhei gb` …).
-  **Spec gap:** the MXF format.
+  The MXF format is drawing-fonts.md §14 (re-fonts, 2026-10-23).
 - Cursors: type `0xAA5C3144` (444 records: 111 cursors in each of the groups 1, 4, 8 and `0x32`, matching the
   cursor modes `bw`, `color16`, `color256`, `fullColor`), read by `cSLCursor::Load` (`0x00602D81`) and
   `cRZCursorManager` (vtable `0x00AC5290`).

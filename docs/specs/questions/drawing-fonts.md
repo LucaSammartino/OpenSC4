@@ -15,3 +15,8 @@
 
 <!-- from: core-fonts-contract-complete4 (2026-10-22) -->
 - **FN22 - sections 8.1/8.4, valid backing storage and progress domain:** Are nonnegative advances, a readable unit beyond a three-unit Thai cluster, and positive progress after Thai map-back required caller preconditions? The spec explicitly documents no bounds/progress guard; what public input domain can a bounded portable API faithfully promise, and should native nontermination/fault be exposed as a typed fault outside it? [Existing core bounds the mode-2 walk at text end, treats unavailable Thai lookahead as zero, and stops line counting on zero progress. Backing units supplied beyond logical n are honoured by thai_cluster_len. These paths remain explicit residuals, not native-owner equivalence.]
+
+<!-- from: re-fonts (2026-10-23) -->
+- **FN23 - section 15:** the glyph-cache holder (class `0x8B3255F9`, labelled `cGZDrawFontRenderer`) in full:
+  its state, the cache surface and table, the colour table per pixel format, the flush rule's caller contract and
+  the hardware-surface path (its owner accounting is font-renderer.md FR3). [summary]

@@ -915,8 +915,9 @@ windows, `cSC4WinAnimationRecorder`, `cSC4WinProcSpy`, the Game of Life easter e
 8. **UIW-8:** Whether (526,410) is the Close button's client position in UI script instance `0x4A5A89D4`, and what
    button ID that click posts (§6.2).
 9. **UIW-9:** The vtable and full slot set of `cSC4View3DWin`'s message-filter sub-object at `+0x08` (§3.2).
-10. **UIW-10:** The MXF font format (INVENTORY-M6 §4.2) and the UI script grammar (§4.1) — both still unspecified, and
-    both are on the critical path for S4.
+10. **UIW-10:** The MXF font format (INVENTORY-M6 §4.2) and the UI script grammar (§4.1). The MXF format is now
+    drawing-fonts.md §14 (re-fonts, 2026-10-23); the UI script grammar is still unspecified and on the critical
+    path for S4.
 
 ---
 

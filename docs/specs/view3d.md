@@ -39,7 +39,8 @@ What is not here:
   is here.
 - Model loading and the occupant→model pipeline (`cSC4ModelMaker`): INVENTORY-M6 §4.4; not re-specified.
 - The `cSC4ViewInputControl*` tools (cursor feedback, drag rules, cost preview): INVENTORY-M6 §4.4; not re-specified.
-- The MXF font format and the UI-script grammar (ui-windows.md UIW-10): still unspecified.
+- The UI-script grammar (ui-windows.md UIW-10): still unspecified. (The MXF font format is drawing-fonts.md §14,
+  re-fonts 2026-10-23.)
 
 Related specs (cited, not repeated):
 
@@ -950,8 +951,8 @@ answering `cISC43DRender`; where a test needs the original, it is marked.
    which save record.
 8. **V3D-8.** `cSTETerrainView3D`'s object layout beyond `+0x18`/`+0x19`/`+0x1C`/`+0x20`/`+0x24`/`+0x28` (all
    measured in `Init`). The cell-quad vector, the water-colour rect and the selection state are not yet offset.
-9. **V3D-9 (carried, ui-windows.md UIW-10).** The MXF font format and the UI-script grammar — still on the critical
-   path for S4 and out of scope here.
+9. **V3D-9 (carried, ui-windows.md UIW-10).** The UI-script grammar — still on the critical path for S4 and out of
+   scope here. (The MXF font format is drawing-fonts.md §14, re-fonts 2026-10-23.)
 10. **V3D-10.** The `cISC4View3DWin` message-filter sub-object at `+0x08` (ui-windows.md UIW-9) — not a draw-layer
     concern but adjacent.
 
