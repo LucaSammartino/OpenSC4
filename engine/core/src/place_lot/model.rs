@@ -243,7 +243,6 @@ pub trait Host: ControlHost {
     fn last_configuration(&self) -> u32;
     fn pick_list(&mut self, title: &str, rows: &[(u32, String)], initial: u32) -> Option<u32>;
     fn plop_cost(&mut self, exemplar: u32) -> Option<i64>;
-    fn building_info(&mut self, exemplar: u32) -> BuildingInfo;
     fn occupant_info(&mut self, token: u64) -> BuildingInfo;
     fn terrain(&self) -> Terrain;
     fn pick_terrain(&mut self, mouse: Pixel) -> Option<Vec3>;

@@ -256,8 +256,10 @@ impl PlaceLot {
             }
             0x49D5_B83F => {
                 self.coverage_raised = false;
-                if self.view { h.effect(Effect::RecalculateCoverage); }
-            },
+                if self.view {
+                    h.effect(Effect::RecalculateCoverage);
+                }
+            }
             0x99EF_1142 | 0x99EF_1143 if !self.coverage_raised => h.effect(Effect::RecalculateCoverage),
             0xA6B7_9602 | 0xC9F7_75BB => {
                 self.stop_previews(h);
@@ -355,7 +357,9 @@ impl PlaceLot {
             // Literal section 3.7 compares the player rotation, not auto-facing.
             self.shown_rotation = i32::from(self.player_rotation);
         }
-        if h.has_window_manager() { h.effect(Effect::FlushInputQueue); }
+        if h.has_window_manager() {
+            h.effect(Effect::FlushInputQueue);
+        }
         true
     }
 
@@ -413,10 +417,10 @@ fn pick(h: &mut impl Host, values: &[u32], initial: u32) -> u32 {
     h.pick_list("Lot Plop", &rows, initial).unwrap_or(0)
 }
 
-mod placement;
 mod feedback;
+mod placement;
 mod toll;
-pub use toll::{pick_toll, seek_compatible};
 use feedback::stop;
+pub use toll::{pick_toll, seek_compatible};
 #[cfg(test)]
 mod tests;

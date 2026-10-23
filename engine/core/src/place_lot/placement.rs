@@ -139,14 +139,20 @@ impl PlaceLot {
         };
         let c = if self.toll_booth {
             let picked = pick_toll(h, *point);
-            if !picked.coverage.valid { return out; }
+            if !picked.coverage.valid {
+                return out;
+            }
             self.change_configuration(h, picked.configuration);
-            let Some(selected) = h.configuration(self.configuration) else { return out };
+            let Some(selected) = h.configuration(self.configuration) else {
+                return out;
+            };
             cfg = selected;
             rotation = picked.rotation;
             self.rotation = rotation;
             picked.coverage
-        } else { cell_coverage(cfg.size, h.terrain(), *point, rotation) };
+        } else {
+            cell_coverage(cfg.size, h.terrain(), *point, rotation)
+        };
         *point = c.point;
         if !c.valid {
             return out;
@@ -158,16 +164,21 @@ impl PlaceLot {
         if self.cost != 0 && h.total_funds() < self.cost {
             return out;
         }
-        if !h.demolish(
-            Demolition {
-                commit: true,
-                rect: c.rect,
-                privilege: 1,
-                flags: 0x2000,
-                option: false,
-            },
-            demolish_accepts,
-        ).0 { return out; }
+        if !h
+            .demolish(
+                Demolition {
+                    commit: true,
+                    rect: c.rect,
+                    privilege: 1,
+                    flags: 0x2000,
+                    option: false,
+                },
+                demolish_accepts,
+            )
+            .0
+        {
+            return out;
+        }
         if !h.place_zone(Zone {
             rect: c.rect,
             kind: 0,
@@ -177,9 +188,14 @@ impl PlaceLot {
             skip_size: true,
             check_lot_inside: false,
             outputs: [None; 3],
-        }) { return out; }
-        let exemplar = self.resolved_building(h);
-        let info = h.building_info(exemplar);
+        }) {
+            return out;
+        }
+        let info = self
+            .previews
+            .iter()
+            .find(|p| !p.prop)
+            .map_or_else(BuildingInfo::default, |p| h.occupant_info(p.token));
         let kind = if info.groups.contains(&0x1508) {
             11
         } else if info.groups.contains(&0x1509) || cfg.water_compatible {
@@ -196,7 +212,9 @@ impl PlaceLot {
             skip_size: true,
             check_lot_inside: false,
             outputs: [None; 3],
-        }) { return out; }
+        }) {
+            return out;
+        }
         let Some(lot) = h.create_lot(c.rect, rotation, true, cfg.water_compatible, self.configuration) else {
             return out;
         };

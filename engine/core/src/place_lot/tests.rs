@@ -61,6 +61,8 @@ struct Fake {
     building_entry: Option<Entry>,
     prop_allowed: bool,
     city_hidden: bool,
+    building_creation: bool,
+    denied_props: Vec<u64>,
 }
 impl Default for Fake {
     fn default() -> Self {
@@ -103,6 +105,8 @@ impl Default for Fake {
             building_entry: Some(Entry::default()),
             prop_allowed: true,
             city_hidden: false,
+            building_creation: true,
+            denied_props: Vec::new(),
         }
     }
 }
@@ -191,14 +195,15 @@ impl Host for Fake {
     fn plop_cost(&mut self, _: u32) -> Option<i64> {
         self.price
     }
-    fn building_info(&mut self, _: u32) -> BuildingInfo {
-        BuildingInfo {
-            groups: self.groups.clone(),
-            ..BuildingInfo::default()
+    fn occupant_info(&mut self, token: u64) -> BuildingInfo {
+        if token == 90 {
+            BuildingInfo {
+                groups: self.groups.clone(),
+                ..BuildingInfo::default()
+            }
+        } else {
+            self.occupant.clone()
         }
-    }
-    fn occupant_info(&mut self, _: u64) -> BuildingInfo {
-        self.occupant.clone()
     }
     fn terrain(&self) -> Terrain {
         Terrain {
@@ -263,32 +268,65 @@ impl Host for Fake {
         assert_eq!(lot, 99);
         lot_point()
     }
-    fn has_window_manager(&self) -> bool { self.wm }
-    fn city_grid_hidden(&self) -> bool { self.city_hidden }
-    fn entries(&mut self, _: u32) -> Vec<Entry> { self.entries.clone() }
-    fn first_building_entry(&mut self, _: u32) -> Option<Entry> { self.building_entry.clone() }
-    fn building_candidates(&mut self, _: &[u32]) -> Vec<u32> { self.candidates_building.clone() }
-    fn has_profile(&mut self, _: u32) -> bool { self.profile }
+    fn has_window_manager(&self) -> bool {
+        self.wm
+    }
+    fn city_grid_hidden(&self) -> bool {
+        self.city_hidden
+    }
+    fn entries(&mut self, _: u32) -> Vec<Entry> {
+        self.entries.clone()
+    }
+    fn first_building_entry(&mut self, _: u32) -> Option<Entry> {
+        self.building_entry.clone()
+    }
+    fn building_candidates(&mut self, _: &[u32]) -> Vec<u32> {
+        self.candidates_building.clone()
+    }
+    fn has_profile(&mut self, _: u32) -> bool {
+        self.profile
+    }
     fn create_preview_building(&mut self, exemplar: u32) -> Option<u64> {
-        self.calls.push(Call::PreviewBuilding(exemplar)); Some(90)
+        self.calls.push(Call::PreviewBuilding(exemplar));
+        self.building_creation.then_some(90)
     }
     fn create_preview_prop(&mut self, exemplar: u32) -> Option<u64> {
-        self.calls.push(Call::PreviewProp(exemplar)); self.prop_allowed.then_some(u64::from(exemplar) + 1000)
+        self.calls.push(Call::PreviewProp(exemplar));
+        self.prop_allowed.then_some(u64::from(exemplar) + 1000)
     }
-    fn preview_info(&mut self, _: u64) -> PreviewInfo { self.preview }
-    fn coverage_radius(&mut self, _: u64, category: u32) -> Option<(f32, u32)> { self.radii.get(&category).copied() }
+    fn preview_info(&mut self, token: u64) -> PreviewInfo {
+        let mut info = self.preview;
+        if self.denied_props.contains(&token) {
+            info.prop_preview = false;
+        }
+        info
+    }
+    fn coverage_radius(&mut self, _: u64, category: u32) -> Option<(f32, u32)> {
+        self.radii.get(&category).copied()
+    }
     fn create_effect(&mut self, name: &str) -> Option<u64> {
         self.calls.push(Call::EffectCreate(name.into()));
-        if !self.visual { return None; }
+        if !self.visual {
+            return None;
+        }
         self.next_effect += 1;
         Some(self.next_effect)
     }
-    fn create_ring(&mut self) -> Option<u64> { self.visual.then_some(299) }
-    fn footprint_texture(&mut self, _: u32) -> Option<(u64, f32)> { self.visual.then_some((500, 64.0)) }
-    fn position_to_cell(&self, p: f32) -> i32 { (p / 16.0).floor() as i32 }
-    fn cell_corner(&self, x: i32, z: i32) -> (f32, f32) { (x as f32 * 16.0, z as f32 * 16.0) }
+    fn create_ring(&mut self) -> Option<u64> {
+        self.visual.then_some(299)
+    }
+    fn footprint_texture(&mut self, _: u32) -> Option<(u64, f32)> {
+        self.visual.then_some((500, 64.0))
+    }
+    fn position_to_cell(&self, p: f32) -> i32 {
+        (p / 16.0).floor() as i32
+    }
+    fn cell_corner(&self, x: i32, z: i32) -> (f32, f32) {
+        (x as f32 * 16.0, z as f32 * 16.0)
+    }
     fn network(&mut self, x: i32, z: i32, mask: u32, option: bool) -> Option<Network> {
-        self.calls.push(Call::TollNetwork(x, z, mask, option)); self.networks.get(&(x,z)).copied()
+        self.calls.push(Call::TollNetwork(x, z, mask, option));
+        self.networks.get(&(x, z)).copied()
     }
 }
 fn tool(h: &mut Fake) -> PlaceLot {
@@ -684,14 +722,20 @@ fn commit_order_money_aura_connections_and_effects() {
                 kind: 0,
                 commit: true,
                 skip_funds: false,
-                check_slope: true, skip_size: true, check_lot_inside: false, outputs: [None; 3]
+                check_slope: true,
+                skip_size: true,
+                check_lot_inside: false,
+                outputs: [None; 3]
             }),
             Call::Zone(Zone {
                 rect: rect(),
                 kind: 15,
                 commit: true,
                 skip_funds: true,
-                check_slope: true, skip_size: true, check_lot_inside: false, outputs: [None; 3]
+                check_slope: true,
+                skip_size: true,
+                check_lot_inside: false,
+                outputs: [None; 3]
             }),
             Call::Lot(rect(), 0, true, false, 10),
             Call::Build(99, 10, 0, 123),
@@ -768,7 +812,10 @@ fn commit_guards_unknown_cost_free_zones_and_sizes() {
             kind,
             commit: true,
             skip_funds: true,
-            check_slope: true, skip_size: true, check_lot_inside: false, outputs: [None; 3]
+            check_slope: true,
+            skip_size: true,
+            check_lot_inside: false,
+            outputs: [None; 3]
         })));
         assert!(!effects(&h)
             .iter()
