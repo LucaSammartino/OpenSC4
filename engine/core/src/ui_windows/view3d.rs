@@ -44,6 +44,26 @@ use super::slots::{
 };
 use super::win::{WinStore, WinToken};
 
+mod input;
+mod motion;
+pub use input::{ControlCall, ControlReply, InputEvent, InputHost, MouseContext};
+pub use motion::{Motion, MotionHost, ViewChange};
+
+#[cfg(test)]
+mod owner_tests;
+
+/// State owned by the city window, independent of foreign window and camera objects.
+#[derive(Debug, Default)]
+pub struct OwnerState {
+    pub modifiers: u32,
+    pub mouse_inside: bool,
+    pub right_press: (i32, i32),
+    pub dragged: bool,
+    pub motion: Motion,
+    stack: Vec<u32>,
+    persistent: Vec<u32>,
+}
+
 /// The two dwords `CloseTertiaryMenu` writes through `view+0x0208` (§4.1).
 ///
 /// Their meaning is **not established** — a scroll position, a selected item,
@@ -161,9 +181,7 @@ pub struct View3DWin {
     view_manager: Option<u64>,
     /// The current view input control (slot 24), the "tool". `Invoke*` drops
     /// it first (§4.3, quirk 3).
-    input_control: Option<u32>,
-    /// How many persistent view input controls are attached (slots 28-30).
-    persistent_controls: u32,
+    owner: OwnerState,
     /// `AddRef`/`Release` count (slots 1/2).
     refs: i32,
     /// `+0x0008` message-filter sub-object. Inline, so the catalog path passes
@@ -183,8 +201,7 @@ impl View3DWin {
             tertiary_kind: 0,
             catalog_state: None,
             view_manager: None,
-            input_control: None,
-            persistent_controls: 0,
+            owner: OwnerState::default(),
             refs: 1,
             msg_filter_offset: VIEW3D_OFF_MSG_FILTER,
         }
@@ -270,27 +287,44 @@ impl View3DWin {
 
     /// `GetCurrentViewInputControl` (slot 24): the current tool, or none.
     pub fn input_control(&self) -> Option<u32> {
-        self.input_control
+        self.owner.stack.last().copied()
     }
 
     /// `SetCurrentViewInputControl` (slot 25). Passing 0 clears the tool.
     pub fn set_input_control(&mut self, control: u32) {
-        self.input_control = (control != 0).then_some(control);
+        self.owner.stack.clear();
+        self.owner.stack.extend((control != 0).then_some(control));
     }
 
     /// `RemoveAllViewInputControls(force)` (slot 27).
     ///
-    /// `[inferred]` the argument is a "force"/"silent" flag; slot 27's body
-    /// was not read (§4.3).
+    /// Token-only catalog compatibility entry. Adapters must perform the
+    /// lifecycle operations using `remove_all_controls` instead (§6e).
     pub fn remove_all_view_input_controls(&mut self, force: u32) -> Vec<u32> {
-        let dropped = self.input_control.take().into_iter().collect::<Vec<u32>>();
-        self.persistent_controls = 0;
+        let dropped = self.owner.stack.drain(..).rev().collect();
         let _ = force;
         dropped
     }
 
     pub fn persistent_controls(&self) -> u32 {
-        self.persistent_controls
+        self.owner.persistent.len() as u32
+    }
+
+    pub fn owner_state(&self) -> &OwnerState {
+        &self.owner
+    }
+
+    /// The five supported interfaces share the window's reference count (§1).
+    pub fn query_interface(&mut self, iid: u32) -> Option<u32> {
+        let offset = match iid {
+            1 | 0xFA47_B3F9 => 0,
+            0x4522_94AA => 4,
+            0xC6AE_7085 => 8,
+            0x22BA_0121 => 12,
+            _ => return None,
+        };
+        self.add_ref();
+        Some(self.this.wrapping_add(offset))
     }
 
     pub fn add_ref(&mut self) -> u32 {
@@ -404,8 +438,8 @@ impl View3DWin {
         self.tertiary_win = None;
         self.tertiary_kind = 0;
         self.catalog_state = None;
-        self.input_control = None;
-        self.persistent_controls = 0;
+        self.owner.stack.clear();
+        self.owner.persistent.clear();
         // The references are resolved by class id; a replacement that does not
         // implement those classes must give an exact opaque round trip
         // (save-records). We keep the class ids.

@@ -11,3 +11,22 @@
 <!-- from: re-view3dwin (2026-10-21) -->
 - **VW8 - §6d, §4:** the objects at `+0x184`, `+0x188` and `+0x410` (stopped and released at `Shutdown`); no
   function read in this lane creates them. [as read]
+
+<!-- from: core-view3dwin5 (2026-10-23) -->
+- **VW9 - §3 step 2, §6g:** Init registers 104 exact `(id, name, 0)` records, but §6g groups several commands
+  without their full IDs/names (zone, network and place-lot commands), and the registry order beyond the first
+  nine is absent. Please give the complete ordered 104-record table, including records deliberately unhandled
+  here. An implementer can route typed commands literally but cannot reproduce exact registration or numeric
+  dispatch from the current inventory. [spec gap]
+
+<!-- from: core-view3dwin5 (2026-10-23) -->
+- **VW10 - view3d.md §5.1 step 14, §5/§6j:** the paint tail is described only as a child walk and calls at
+  numeric addresses. Which owner operations run, in what order and under which guards, including deferred-message
+  replay and cost/cursor/mission updates? Please specify the callback contracts and return behavior; the current
+  core exposes a foreign tail boundary rather than inventing those operations. [spec gap]
+
+<!-- from: core-view3dwin5 (2026-10-23) -->
+- **VW11 - §2, §6f and view3d.md §5.1:** what is the constructor/default paint period at `+0xFC`, its unit and
+  its exact due comparison? What does SetZoom/SetZoomLimits do with `min > max`? The core currently uses zero
+  microseconds for the unspecified period and literal sequential min/max comparisons; these are provisional
+  choices, not measured defaults. [spec gap]
