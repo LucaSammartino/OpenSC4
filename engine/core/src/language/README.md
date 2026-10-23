@@ -30,17 +30,25 @@ the receiver. Ordinary receiver identity is preserved by edit/assignment returns
 
 Sprintf parses typed arguments in core, builds output separately and assigns
 only on completion. Integer conversion, glyph-based field padding and valid
-multibyte string precision are implemented here. The exact float/pointer digit
-conversion is not stated by §5; FormatPrimitives exposes that boundary pending
-RZS6. Its test double verifies conversion selection and padding, not native
-float/pointer parity. Unvectored integer zero/precision/alternate combinations use
-the conventional literal interpretation, identified in code and RZS6. No
-whole-format host printf substitution is used.
+multibyte string precision are implemented here. RZS6 §5.1 integer prefix and
+precision rules, sign/field ordering and eight-uppercase-digit pointers are
+implemented without host printf. NumericPrimitives implements floating decimal
+rounding, fixed/exponential/general layout, the 512 precision cap, zero-sign
+normalization and the legacy infinity/NaN text (including letter rounding).
+
+Finite nonzero extraction requires a LegacyDecimal provider for the runtime's
+17-digit intermediate. The spec excludes exact binary64 conversion as an
+equivalent but omits the extended representation/scaling operations needed to
+reproduce it: open RZS7. The default provider explicitly returns Unsupported;
+the receiver remains unchanged. The exact-rational provider in numeric_tests.rs
+is test-only, exercises all finite RZS6 witnesses, and does not claim unvectored
+legacy last-digit parity. No approximation is shipped as a compatibility default.
 
 ## Owner closure
 
 Every §9 vector is an executable core unit test in rz_tests.rs; test names keep
-RZ01–RZ20 and DT01–DT19 identifiers. “Not assigned” identifies sections about
+RZ01–RZ40 and DT01–DT19 identifiers. RZ21–RZ40 live in numeric_tests.rs; finite
+intermediates there use the test-only provider described above. “Not assigned” identifies sections about
 the other owner rather than claiming an additional implementation.
 
 | Owner | Spec section | Code item / boundary | Covering test |
@@ -49,12 +57,13 @@ the other owner rather than claiming an additional implementation.
 | cRZString | §2 inventory and dispatch | Public string methods, StringSource counted copy, assign receiver return; no new native vtable | string_inventory_wrappers_and_range_errors, rz06_replace_old_count_and_identity, rz18_sprintf_assignment_and_identity |
 | cRZString | §3 assignment and edits | from_char, set_c_string, copy, resize, append, insert, replace, erase, strcat, strncpy; open: RZS3 invalid/overlapping inputs | rz02–rz07, string_inventory_wrappers_and_range_errors |
 | cRZString | §4 equality, ordering, search | is_equal, compare_to, compare_string, find/rfind and object overloads, begins_with/ends_with; open: RZS2 non-ASCII folding | rz08–rz13, rz20_prefix_suffix_counted, open_boundaries_are_explicit_and_do_not_fabricate_results |
-| cRZString | §5 transforms and formatting | trim, mid/left/right, split_token, make_lower/upper, sprintf; open: RZS2 non-ASCII mapping, RZS4 other split variants, RZS5 formatter edges, RZS6 numeric conversion details | rz14–rz19, settled_format_syntax_modifiers_and_multibyte_precision, formatting_numeric_primitives_are_unpadded_and_receiver_assigned_last, open_boundaries_are_explicit_and_do_not_fabricate_results |
+| cRZString | §5 transforms and formatting | trim, mid/left/right, split_token, make_lower/upper, sprintf; open: RZS2 non-ASCII mapping, RZS4 other split variants, RZS5 formatter edges | rz14–rz19, settled_format_syntax_modifiers_and_multibyte_precision, formatting_numeric_primitives_are_unpadded_and_receiver_assigned_last, open_boundaries_are_explicit_and_do_not_fabricate_results |
+| cRZString | §5.1 numeric conversion and assembly | sprintf sign/prefix/padding and integer digits; NumericPrimitives decimal rounding/layout, pointer digits, zero and special values; open: RZS7 finite nonzero legacy decimal intermediate | rz21–rz40 (finite witnesses use test-only exact-rational provider), rounding_before_first_significant_digit_and_exponent_carry, legacy_scaling_boundary_is_explicit_and_transactional |
 | cRZString | §6 detokenizer lifetime | Not assigned | — |
 | cRZString | §7 detokenizer registry | Not assigned | — |
 | cRZString | §8 detokenizer parsing/resource IO | Not assigned | — |
-| cRZString | §9 conformance | All RZ01–RZ20 plus both-owner DT17 | rz01–rz20, dt17_query_failure_preserves_sentinel |
-| cRZString | §10 open boundaries | RZS2–RZS5 tracked explicitly; additional §5 gap filed as RZS6 | open_boundaries_are_explicit_and_do_not_fabricate_results |
+| cRZString | §9 conformance | All RZ01–RZ40 plus both-owner DT17; RZ21–RZ40 assembly covered, finite extraction parity open RZS7 | rz01–rz40, dt17_query_failure_preserves_sentinel |
+| cRZString | §10 open boundaries | RZS2–RZS5 tracked explicitly; §5.1 finite extraction gap filed as RZS7 | open_boundaries_are_explicit_and_do_not_fabricate_results, legacy_scaling_boundary_is_explicit_and_transactional |
 | cSCStringDetokenizer | §1 string lifetime | Not assigned | — |
 | cSCStringDetokenizer | §2 string inventory | No subscriptions, rendering, persistence or async contract | Base synchronous API only |
 | cSCStringDetokenizer | §3 string edits | Not assigned | — |
