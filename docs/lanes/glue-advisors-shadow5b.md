@@ -11,8 +11,11 @@
 - AD19 filed for a possible separate live-import contract; absent that, preserve strict Read/Write differences.
 - Done: aa8ac388 implements AD17, AD18 classification/date correction and fixtures.
 - Focused ABI fixture PASS 1/1; workspace qbuild all PASS 6536/0/0; clippy 0 diagnostics.
-- Next: collect all session 13668 and native verify session 39389; then game to 2032.
-- Native jobs qbuild-20261023-221430-build-ctest and qbuild-20261023-221859-build-ctest pending.
-- The second job was inadvertently queued by all after explicit verify; collect both; never submit a third. No game request.
+- Done: both native operations reached PASS, CTest 69/69 (including advisors_shadow_test).
+- Explicit verify: 220/220 build edges, 233.0 s total; noted docs-only tree changes during run.
+- All native job: 46/46 build edges, 77.8 s total; no changed-tree note. Final logs build-runs/fc4verify-{build,ctest}.log.
+- Next: collect game watcher session 47384 for adv-shadow5b-20261023-r1-2032; classify all strict differences.
+- Game request to 2032 outstanding; turbo, advisors_shadow=1, disable=advisors,mysims.
+- DLL SHA256 f4db142b37f7379725dc531249ecbed4ee0defd37ae7e99554a27aa7550ec80f.
 - Formatting check exposed pre-existing advisors.rs weak-handle formatting; owned new test formatting fixed.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-advisors-shadow5b-r1-manifest.json.
