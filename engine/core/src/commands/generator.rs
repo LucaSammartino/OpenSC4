@@ -18,8 +18,8 @@ pub const GENERATOR_IIDS: [u32; 3] = [0x0B90_251F, 0x0B90_251E, 1];
 /// The largest capacity `ConvertStringToCommand` tries; later words are dropped (§3.4).
 pub const MAX_COMMAND_WORDS: usize = 256;
 
-/// The command server slots these classes call (§5). The server itself is not specified,
-/// so this is a typed callback; methods take `&self` because a command handler may call
+/// The command server slots these classes call (§5). The concrete server lives in
+/// [`super::server`]; methods take `&self` because a command handler may call
 /// back into the server while it runs (§4.4).
 pub trait CommandServer {
     /// Slot 12 `GetCommandID(name)`: the lowest registered ID whose name equals `name` in
