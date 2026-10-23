@@ -13,6 +13,7 @@
 use crate::effects::ComponentRecord;
 
 pub mod nested;
+pub mod numeric;
 pub mod rotation;
 pub mod script;
 
@@ -37,6 +38,7 @@ pub struct Token {
 /// Dyadic(c,e) means exactly c * 2^e. Other replies stop at the conversion.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RawFloat {
+    Extended(numeric::Extended),
     Dyadic(i32, i16),
     /// A finite binary32 value lifted exactly into the pre-store domain,
     /// including signed zero; this is not a host-provided owner field/flag.
@@ -45,7 +47,9 @@ pub enum RawFloat {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NumericPolicy {
-    /// Explicitly qualified nearest-even stores, x87 precision at least 53 bits.
+    /// Explicit valid PC/RC, canonical operands and masked exceptions (§14).
+    X87(numeric::Control),
+    /// Historical finite-fixture policy, explicitly selecting PC53/nearest.
     /// No assertion that this is the game's current control word is implied.
     NearestAtLeast53,
     Unqualified,
@@ -122,60 +126,13 @@ fn token<'a>(tokens: &'a [Token], scratch: &[Index], n: usize) -> Result<&'a Tok
     let index = scratch.get(n).ok_or(Unsupported::MissingIndex)?.0 as usize;
     tokens.get(index).ok_or(Unsupported::InvalidToken)
 }
-fn exact(raw: RawFloat, policy: NumericPolicy) -> Result<f64, Unsupported> {
-    if policy != NumericPolicy::NearestAtLeast53 {
-        return Err(Unsupported::Numeric);
-    }
-    match raw {
-        RawFloat::Binary32(bits) if f32::from_bits(bits).is_finite() => Ok(f64::from(f32::from_bits(bits))),
-        // Every i32 is exact in binary64. These powers of two and products are
-        // exact normal binary64 values. The final binary32 cast is nearest-even.
-        // This deliberately bounds the domain (EFP7); it is not general x87 emulation.
-        RawFloat::Dyadic(c, e) if (-149..=104).contains(&e) => {
-            let x = f64::from(c) * 2f64.powi(i32::from(e));
-            if (x as f32).is_finite() {
-                Ok(x)
-            } else {
-                Err(Unsupported::Numeric)
-            }
-        }
-        _ => Err(Unsupported::Numeric),
-    }
-}
 fn scalar(raw: RawFloat, policy: NumericPolicy) -> Result<f32, Unsupported> {
-    Ok(exact(raw, policy)? as f32)
+    Ok(f32::from_bits(
+        numeric::Extended::input(raw)?.store(numeric::control(policy)?),
+    ))
 }
 fn probability(raw: RawFloat, policy: NumericPolicy) -> Result<u16, Unsupported> {
-    let x = exact(raw, policy)?;
-    // Exact c*65535, then addition to 12582912, require at most 49 significant
-    // bits for 0<=x<=1 with a denominator <=2^24. Thus >=53-bit x87 arithmetic
-    // has no intermediate rounding here. Broader PC/RC/input ranges stay out.
-    let dyadic = match raw {
-        RawFloat::Binary32(bits) => {
-            let fraction = bits & 0x7FFFFF;
-            let exponent = ((bits >> 23) & 255) as i16;
-            let (c, e) = if exponent == 0 {
-                (fraction as i32, -149)
-            } else {
-                ((fraction | 0x800000) as i32, exponent - 150)
-            };
-            if c == 0 {
-                RawFloat::Dyadic(0, 0)
-            } else {
-                RawFloat::Dyadic(if bits >> 31 == 0 { c } else { -c }, e)
-            }
-        }
-        other => other,
-    };
-    match dyadic {
-        RawFloat::Dyadic(_, e) if e >= -24 && (0.0..=1.0).contains(&x) => {
-            let product = x * 65535.0;
-            let sum = product + 12582912.0;
-            let stored = sum as f32;
-            Ok(stored.to_bits() as u16)
-        }
-        _ => Err(Unsupported::Numeric),
-    }
+    Ok(numeric::probability(raw, policy)?.2 as u16)
 }
 
 /// Finite owner lookup order; no preflight, rollback, token scan or AL result.
@@ -220,9 +177,9 @@ pub fn parse_options<P: OptionPrimitives>(
         }
     }
     if host.find(tokens, "scale", 1, scratch) != 0 {
-        let original = exact(host.float(token(tokens, scratch, 0)?), numeric)?;
-        record.word(52, (original as f32).to_bits()); // store BEFORE original comparison
-        if original == 1.0 {
+        let original = numeric::Extended::input(host.float(token(tokens, scratch, 0)?))?;
+        record.word(52, original.store(numeric::control(numeric)?)); // store BEFORE original comparison
+        if original.is_one() {
             record.component.placement[1] &= !2;
         } else {
             record.component.placement[1] |= 2;
