@@ -1,24 +1,20 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-terrain-overlays-contracts4 (settled public overlay contracts) | Codex / core-terrain-overlays-contracts4 (reserved detached HEAD) | in progress; blocked by coordinator STOP 2026-10-23 09:16:47; all PASS at a7514e69, fmt pending | No new work until coordinator resumes; signed rectangles/global message server first; no merge queue |
+| core-terrain-overlays-contracts4 (settled public overlay contracts) | Codex, finished by Claude / core-terrain-overlays-contracts4 (engine lane) | **ready** (core only, no C ABI change; gate: cargo 5598/0, clippy clean, ctest 68/68) | merge train; rendering and foreign lighting/terrain producers stay open under OV7/OV8 |
 
-## Handoff
-- Goal: implement the new public overlay contracts in the existing terrain_overlays owner; no rendering or ABI promotion.
-- Worktree reused as reserved; initial git status clean, main.. empty.
-- Read rules, lane report format, question filing rules, spec outline and existing owner prefix.
-- Implemented OV2 rectangle/city direct adds and raw OV3 settings message after independent literal fixtures; all sixteen primary entries retained.
-- Done: `47a7f266` direct/city/settings; `63665660` finite unrotated ordinary placement, stored aspect, tolerance, alpha/FIFO/lifetimes.
-- Added since: raw public ordinary arguments; OV9 owned outline partition; six-argument model add with named raw lighting boundary and owned fallback/secondary transform; slot21 full matrix; part0 getters; encounter/prepend collection and stamp wrap; source-before-binding range cleanup.
-- Stable source commit: `a7514e69f3eb0b1658dbc7930da6a0951217dd3f`; ONE canonical all collected to terminal RC 0, no rerun/duplicate. Gate journal: build-runs/contracts4-all-1/journal.json; log: contracts4-all-1/operation.log. PID 18292, created 2026-10-23T07:39:52.668814Z, launcher 25752, session 22547 TERMINAL. No active operation remains.
-- Gate: cargo 5597 passed/0 failed/0 ignored across ALL 27 summaries; Clippy RC 0, diagnostics 0; native build 217/217 edges, RC 0; CTest 68/68, RC 0; overall PASS (fc4verify 1120.1 s, build 83.8 s, CTest 131.2 s).
-- Gate source before/after EXACT: HEAD a7514e69; engine tree 05e776f2f05080c375e612263af839a3c2ea7c8a; all seven owned source SHA256 values identical (full values in journal). Logs: qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log.
-- Rust summary pass counts, in log order: 540,3,1,31,27,40,7,2,1232,3473,21,13,19,27,147,0,2,1,3,1,1,1,5,0,0,0,0 (each failed=0, ignored=0).
-- NEXT EXACT STEP: correct build-runs/format-owned.py to use repository formatter settings before emitting apply_patch hunks, apply only the seven owned files, then explicit qbuild fmt using ABSOLUTE paths. First fmt attempt RC 1: engine-relative paths were resolved from engine and nonexistent. Corrected absolute-path attempt RC 1: 1260 diff lines, first mismatch mod.rs re-export layout. Neither attempt changed sources. The ad hoc formatter used default settings; canonical style remains unresolved.
-- After formatting: resume SAME reserved phase/manifest with nonzero rotation numeric qualification and signed rectangle ownership; keyed shadows; global message-server lifecycle independence; complete ordered logical reference/action traces. Rendering/foreign producer residuals stay open. Canonical all at a7514e69 remains exact for current engine; repeat only after real diagnostic/source/input changes, retain first evidence.
-- Focused latest: 38 passed/0 failed, RC 0 (session 56879). Prior focused: 5/0 (83668), 20/10 historical expectation diagnostic, 30/0 (25587), 31/1 round expectation diagnostic (70232), 34/0 (73250), 37/0 (52715). No duplicates launched; all sessions terminal.
-- Earlier attempts: q wrapper Bash access denied (build-runs/q/20261023-080010-37760.log); 80927 and 75667 RC 1 compiler diagnostics, corrected. Formatting emitted apply_patch hunks only, never wrote rustfmt filename headers to sources; helper stdout encoding corrected.
-- All original 25 scenarios retained with explicit obsolete expectations reconciled; 13 additional literal/public fixtures. No game requests/native vectors executed, no C ABI/default/plugin promotion; not ready despite passing gate.
-- No native claims. Parent/archive integrity is coordinator-owned; no archive inspected.
-- Current FINAL R2 manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-terrain-overlays-contracts4-r2-manifest.json; LAST original round (3/3), no fourth/reset. R1 evidence remains unchanged.
-- Family reservation remains supervisor-owned: parent frozen, this new child phase reserved; no old worktree/ref/archive recreation, no new phase/reset requested. Main last terrain_overlays change observed 82b97b7e; no claim that blob/content hashes are the reservation's 032170 provenance identifier.
-- STOP: guard rejected the next read at coordinator STOP 2026-10-23T09:16:47 (user stopped goal). R2 only read permitted owner/spec/report files; no source edits, tests, formatter, game requests or checker launches. Confirmed unsigned CellRect normalizes bounds and Init/Shutdown subscription uses retained view; neither fixed. Next authorized step: independent signed intersection/global-server fixtures then owner implementation. No merge queue. Prior gate qualifies incomplete a7514e69 only; all checker sessions terminal.
+## Report
+- `engine/core/src/terrain_overlays` now owns the public contracts of `docs/specs/overlay-manager.md`: the OV2
+  rectangle helper and city-wide add (raw words, flags `0x13`, `2/nx` matrix), the §5 settings notification,
+  OV9 round-decal outline partition, finite unrotated ordinary placement with stored aspect, alpha/FIFO and
+  lifetime protocols, slot 21 matrix, the six-argument model-shadow add with owned fallback bounds and
+  secondary transform, native cell-index prepend/removal order, encounter-order collection and stamp wrap.
+- `CellRect` is now signed `i32` raw `(x0,z0,x1,z1)`: the rectangle helper copies negative and inverted words
+  unchanged, and `clipped` is the §2.2 signed intersection (strictly separated becomes all zeros, touching edge
+  kept, no normalization). Round, placement and model-fallback clipping share it. Lane files rustfmt-clean.
+- Gate (qbuild all at final source): cargo 5598 passed / 0 failed / 0 ignored summed over every
+  `test result:` line; clippy -D warnings 0 diagnostics; CMake build 217/217; ctest 68/68. qbuild fmt on the
+  seven lane files: 0 diff lines.
+- Not done, deliberately: no renderer/GPU submission, camera composition or foreign lighting/terrain producers
+  (OV7/OV8 residuals); the message-server subscription stays behind `ViewProvider::subscribe`; nonzero
+  rotation numeric qualification is not claimed; nothing wired into engine/capi or engine/plugin; no C ABI
+  change; no game runs.
