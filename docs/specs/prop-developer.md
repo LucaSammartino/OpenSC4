@@ -540,6 +540,10 @@ Capture either a raw draw and apply its recorded bound in the shadow, **or** the
 consume both the wrapper result and its nested raw result as two draws. Event type, bounds, order and final
 event count must match. A missing, extra or mismatched event makes the comparison invalid; never silently
 fall back to a seed. Instrumentation must preserve the original call's arguments, return, registers and effects.
+Call/return capture may use hardware execution breakpoints or an existing execution trace: this contract does
+not require writing a trampoline, changing a native vtable, or writing native RNG/object storage. Observe the
+original operation once, collect its inputs and outputs, then replay in shadow-owned storage. Do not recursively
+run the shadow from inside a paused native selector call.
 
 For custom selectors, capture the original `SelectProp` call and its return, including zero. Record requester
 identity/index, call purpose (kept check or creation), ordered candidate IDs including duplicates, x and z, and
