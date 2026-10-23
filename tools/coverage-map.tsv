@@ -551,10 +551,14 @@ fn:convertStringToFloatValue	resource and exemplar editor	ui	-	-	-	-
 cSC4App	application	framework	application.md	core/src/application	-	-
 cWinSC4App	application	framework	-	-	-	-
 cSC4AutomataCOMDirector	application	framework	automata-managers.md	-	-	-
+cSC4ResourceLibCOMDirector	application	framework	app-directors.md	-	-	-
+cSC4COMDirector	application	framework	app-directors.md	-	-	-
 cSC4*COMDirector	application	framework	-	-	-	-
+cGZToolsCOMDirector	application	framework	app-directors.md	-	-	-
+cGZResManCOMDirector	application	framework	app-directors.md	-	-	-
 cGZ*COMDirector	application	framework	-	-	-	-
 cSC4Preferences	application	framework	-	-	-	-
-cSC4GameDataRegistry	application	framework	-	-	-	-
+cSC4GameDataRegistry	application	framework	app-directors.md	-	-	-
 cSC4AutoGamePause	application	framework	-	-	-	-
 cGZPersistDBRecord	persistence and resources	framework	persistence.md	-	-	-
 cGZPersistDBSerialRecord	persistence and resources	framework	persistence.md	-	-	-
@@ -587,12 +591,13 @@ nSCRes	persistence and resources	framework	sc-resources.md	-	-	-
 nSCRes::cCommandParser	persistence and resources	framework	sc-resources.md	-	-	-
 nSCRes::cFileParser	persistence and resources	framework	sc-resources.md	-	-	-
 nSCRes*	persistence and resources	framework	-	-	-	-
+cSCStringDetokenizer	strings and language	framework	rz-strings.md	-	-	-
 cSCStringDetokenizer*	strings and language	framework	-	-	-	-
 fn:gAdviceDetokenizerFunction	strings and language	framework	-	-	-	-
 cRZLanguageUtility	strings and language	framework	language-utility.md	core/src/language	-	-
 cRZLanguageManager	strings and language	framework	strings-language.md	core/src/language	-	-
 cRZLanguage*	strings and language	framework	-	-	-	-
-cRZString	strings and language	framework	-	-	-	-
+cRZString	strings and language	framework	rz-strings.md	-	-	-
 fn:ConvertStringEncoding	strings and language	framework	-	-	-	-
 fn:UTF16*	strings and language	framework	-	-	-	-
 cGZWWWSystem	web and network	framework	web-network.md	-	-	-
@@ -608,6 +613,14 @@ cGZMessageServer	framework services (GZ)	framework	framework-gz-services.md	-	-	
 cGZMessageServer2	framework services (GZ)	framework	framework-gz-services.md	-	-	-
 cGZMessageQueue2	framework services (GZ)	framework	framework-gz-services.md	-	-	-
 cGZMessageQueueManager2	framework services (GZ)	framework	framework-gz-services.md	core/src/gz_messages/manager.rs	-	-
+cGZFramework	framework services (GZ)	framework	gz-framework-core.md	-	-	-
+cGZCOM	framework services (GZ)	framework	gz-framework-core.md	-	-	-
+cGZCommandServer	framework services (GZ)	framework	gz-framework-core.md	-	-	-
+cGZMiscCommandSystemSupport	framework services (GZ)	framework	gz-framework-core.md	-	-	-
+cGZToolCommandSystemSupport	framework services (GZ)	framework	gz-framework-core.md	-	-	-
+cGZBuffer	framework services (GZ)	framework	gz-framework-core.md	-	-	-
+cGZFileSystem	framework services (GZ)	framework	gz-framework-core.md	-	-	-
+cGZScriptTerp	framework services (GZ)	framework	gz-framework-core.md	-	-	-
 cGZ*	framework services (GZ)	framework	-	-	-	-
 cRZFile	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_files	-	-
 cRZIniFile	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_files	-	-
@@ -632,6 +645,7 @@ cRZTextOStream	streams	framework	output-streams.md	-	-	-
 cRZNullOStream	streams	framework	output-streams.md	core/src/rz_streams/ostream.rs	-	-
 cRZOFStream	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_streams/file.rs	-	-
 cRZ*	framework services (RZ)	framework	-	-	-	-
+nGZLog::cService	framework services (GZ)	framework	gz-framework-core.md	-	-	-
 nGZ*	framework services (GZ)	framework	-	-	-	-
 cIGZ*	framework services (GZ)	framework	-	-	-	-
 nRZ*	framework services (RZ)	framework	-	-	-	-
