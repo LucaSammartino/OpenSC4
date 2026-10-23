@@ -20,6 +20,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod html_ui_hooks;
+
 pub mod advisors;
 pub mod audio;
 pub mod aura;
