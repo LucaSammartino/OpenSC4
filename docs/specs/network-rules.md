@@ -220,8 +220,9 @@ only supported places where a replacement can take over their behaviour are the 
 | `cSC4TileInfo` | not an object: free functions over static tables | `ConvertMetaToRelativePos` `0x00620D80` is cdecl (plain `RET`) and reads the byte tables `0x00B0B3D8`/`0x00B0B3F4`; `GetRotationalEquivalent` `0x00621F30` and `…OfMetaPos` `0x00621680` pop 8 | no lifecycle |
 | `nSC4Networks::cIntRule` | plain value class in the process-global hash map `0x00B452B0` (bucket vector `0x00B452B4`/`0x00B452B8`) | `Test` `0x00609A00` and `DoAutoComplete` `0x006097E0` thiscall, pop 12 | filled by `ReloadRules` (§2.1 step 4), destroyed by the CRT exit handler `0x00A7C170` |
 
-`Evaluate` (`0x006220D0`) is a thiscall on the evaluator with two stack arguments (the neighbourhood and the output
-list) and pops 8; its callers are `ApplyNetworkRules` (`0x006341EA`) and `SolveMultiTypeSeparation` (`0x0063401A`),
+`Evaluate` (`0x006220D0`) is a thiscall on the evaluator with two stack arguments (the neighbourhood pointer and the
+address of a pointer receiving a borrowed output-vector descriptor) and pops 8; it returns a boolean in **AL**,
+not a vector or a pointer in EAX (§2.5). Its callers are `ApplyNetworkRules` (`0x006341EA`) and `SolveMultiTypeSeparation` (`0x0063401A`),
 reached by a direct call, never through the vtable.
 
 #### 2.4.2 Who reaches them (the complete caller set)
@@ -270,6 +271,164 @@ so a replacement must not invent one (no stub `CreateClass` for these owners). T
    map `0x00B452B0` stays **empty** for the original puzzle-piece control, which then finds no rule (§2.1: an empty
    table means "nothing applies"). A host that replaces the network tool must also own that control's catalogue
    command, or keep the original rules loaded.
+
+---
+
+### 2.5 Native observation contract (NR16, GOG 1.1.641)
+
+This section describes a private, version-specific observation boundary, not a new GZCOM interface. All offsets
+are byte offsets, pointers and unsigned words are 32 bits, and padding is not part of a comparison. Addresses are
+preferred image addresses (image base `0x00400000`); use the loaded module base plus address minus `0x00400000`.
+The table layouts below must not be replaced with the host compiler’s STL layouts.
+
+#### 2.5.1 Evaluate arguments, result and ownership
+
+`0x006220D0`: thiscall; ECX = original evaluator base; arguments in declaration order are neighbourhood pointer,
+then pointer to a writable 4-byte result-pointer slot; callee pops 8. AL is 0 or 1; the upper 24 bits of EAX are
+unspecified. The result slot is set to null before any search (`0x006220DB`). On success it points to the matched
+rule’s output-vector **descriptor**, not its first element (`0x006220B3`–`0x006220BC`). No match returns AL=0 and
+null. A match with zero outputs returns AL=1 and a non-null descriptor whose begin equals end. Testing pointer
+truth, vector length, or the whole EAX instead of AL loses one of these distinctions.
+
+The descriptor contains `{begin, end, storageEnd}` (three pointers). Elements occupy 8 bytes: piece id u32 at +0,
+metaposition u8 at +4, packed orientation u8 at +5 (rotation low 7 bits, flip bit 7), padding at +6/+7. Preserve
+element order and the orientation byte verbatim. The descriptor and its elements belong to the evaluator; the
+caller neither destroys nor frees them. Copy semantic fields before returning from an observation. Reload,
+type-record clearing and evaluator destruction invalidate borrowed pointers. The caller owns only its result slot.
+Evidence: `0x00622088`–`0x006220BC`, `0x00622177`–`0x00622188`, native consumers at `0x0063401A` and `0x006341EA`.
+
+#### 2.5.2 Evaluator tree and rule records
+
+The evaluator’s +4 is header H and +8 is node count. H is an allocated 0x34-byte sentinel; it is not a rule.
+The ordinary nodes have this layout:
+
+| Node offset | Field |
+|---|---|
+| +0 | red/black colour byte; remaining bytes are padding |
+| +4, +8, +0xC | parent, left child, right child pointers |
+| +0x10 | unsigned map key (centre edge word) |
+| +0x14 | rule’s own centre edge word |
+| +0x18, +0x1C, +0x20 | condition vector begin, end, storageEnd |
+| +0x24, +0x28, +0x2C | output vector begin, end, storageEnd |
+| +0x30 | transform eligibility byte; remaining bytes are padding |
+
+H+4 is the root (null when empty); H+8 is the leftmost node and H+0xC the rightmost. Empty H+8 and H+0xC both
+point to H. Root’s parent is H; missing ordinary children are null, not H. Enumerate in-order from H+8 until H,
+using the child and parent links; never parse the sentinel’s payload. Keys compare **unsigned**. Evaluate considers
+the half-open interval from lower_bound(centre) to upper_bound(centre), in that same in-order traversal. Tree shape,
+colour and allocation addresses are not semantic output. The rule record at node+0x14 is **0x20 bytes** including
+its final eligibility byte and padding; the earlier “7 dwords” description in §2.4.1 describes only its key and two
+vectors and omits this tail.
+
+Each condition is 12 bytes: metaposition u8 at +0, padding +1..+3, expected edge word u32 at +4, mask u32 at +8.
+Conditions and outputs retain vector order. All three vector pointers can be null for an empty vector; an empty
+vector can also have allocated capacity. Read only [begin,end), never [end,storageEnd). Evidence: constructor
+`0x00622AB1`–`0x00622ACA`, node copies `0x00622205`–`0x0062222F` and `0x006224B9`–`0x006224EB`, tests
+`0x00622060`–`0x006220AF`, bounds and successor walk `0x006220E1`–`0x00622175`.
+
+Equal keys are significant. Bulk insertion descends right on equality, so a new equal-key rule follows the
+existing equal-key rules in traversal order (`0x00622560`–`0x0062257F`). Rebalancing does not change that order.
+The transformed temporary tree has the same equality policy (`0x00622EB0`–`0x00622ED4`); its in-order entries are
+then appended to the destination (`0x00622F32`–`0x00622F4A`). Compare the resulting sequence, including duplicate
+keys, rather than reducing it to one rule per key or sorting equal keys by output id. The raw input duplicate-key
+rejection of §3 is a separate stage and does not imply uniqueness of the expanded evaluator.
+
+#### 2.5.3 The live neighbourhood
+
+The original network neighbourhood is 0x28 bytes. It is a temporary object on the solver’s stack, not a reference-
+counted interface and not `cSC4TileNeighborhoodCompact` (the latter is only one edge word).
+
+| Offset | Field |
+|---|---|
+| +0 | vtable `0x00AA8700` |
+| +4 | centre edge word for this type |
+| +8, +0xC, +0x10 | edge-cache vector begin, end, storageEnd |
+| +0x14, +0x18 | signed 32-bit centre x, z |
+| +0x1C | original network tool base pointer |
+| +0x20 | network type index |
+| +0x24 | invalid-other-type mask: typebit XOR `0x1FFF`, or zero when the override argument is true |
+
+The constructor-like initializer `0x00627080` is thiscall with x, z, tool-base pointer, type, override-bool (five
+4-byte slots, ret 20), returns this in EAX, installs that vtable and starts an empty cache. Ordinary solving passes
+override=false; separation preview passes true. Centre key is obtained from the tool’s cell info (edge array
+at cell-info +0x18 + 4×type), or zero for no info. See `0x00627096`–`0x006270F1`, `0x00634150`, `0x0063400D`.
+
+The two neighbourhood virtual entries are slot 0 at `0x00623F40`, valid(m): thiscall, one metaposition in a
+4-byte slot (low byte meaningful), ret 4, boolean 0/1 in EAX; and slot 1 at `0x00623EE0`, read-edges(m,outWord):
+thiscall, ret 8, writes the unsigned edge word through outWord; no usable return value. Slot 1 computes the target
+position using §1.3’s signed byte offsets and asks the tool for its cell info; slot 0 uses the same position and
+tests cell-info flags at +8 against the invalid-other-type mask. Neither is a destructor. Do not AddRef/Release it.
+
+Cached edge access `0x00621D30` is thiscall on the neighbourhood, arguments m and outWord, ret 8; use outWord,
+not EAX. Cache entries are the same 12-byte shape as conditions, but only metaposition and word at +4 carry the
+cached result; +8 is not a rule mask. A first request calls slot 1 and appends, including a zero result; subsequent
+requests with the same metaposition byte reuse that word. Validity is tested through slot 0, without this cache.
+The cache buffer is game-owned temporary storage and is freed by the original caller after Evaluate. Never keep
+the neighbourhood, its tool or its cache pointer after the observation returns. Evidence: `0x00621D30`–`0x00621DDF`,
+`0x00623EE0`–`0x00623F38`, `0x00623F40`–`0x00623F97`, cleanup `0x006341F9`–`0x0063420A`.
+
+#### 2.5.4 Intersection map observation
+
+The global map at `0x00B452B0` has bucket begin at +4, bucket end at +8, capacity end at +0xC, element count at
++0x10. Buckets are 4-byte node pointers; bucket count is (end−begin)/4. A node is 0x104 bytes: next pointer at +0,
+unsigned id at +4, a 0xFC-byte cIntRule value at +8. Lookups use unsigned id modulo bucket count, followed by the
+next chain until null; zero buckets means empty and must not cause division. Read-only observers must not call
+insert-or-find `0x0062C2F0`: an unknown id creates a rule. Allocation and linking evidence: `0x0062C171`–`0x0062C1D2`;
+lookup evidence: `0x0062C2F0`–`0x0062C337` and the puzzle-piece control’s inline lookup (§2.4.2).
+
+For a structural snapshot enumerate buckets in increasing index and each next chain in order, retaining ids and
+the semantic value fields in §10. Do not mistake chain order for catalogue ordering: the four ring ids in §10.8
+define that. No duplicate map ids exist; repeated sections find and modify the existing value. Snapshot values
+by id for parsed-table comparisons. Vector fields use three pointers as above, with strides given in §10; raw
+pointer values, capacity, allocator fields, string vtables and padding are excluded. The map owns each value and
+its subordinate storage; reload, clear or process exit invalidates them. Tile/tag submaps inside a value are
+separate containers, not aliases of the global buckets. A shadow that compares only tile evaluators must report
+the intersection tables as unobserved, not claim their exactness from an evaluator match.
+
+#### 2.5.5 Observation, readiness and replay limits
+
+For this executable, a record-only observer may wrap the direct Evaluate entry and preserve the original call
+exactly once. Capture evaluator identity (type and vector ordinal), centre/type/mask, cached words, actual edge
+queries, actual validity queries, AL, and a deep copy of the result’s semantic output fields. Restore the original
+return state and result slot to its caller. The entry’s first two instructions occupy exactly 5 bytes and contain
+no relative operand (`0x006220D0`–`0x006220D4`); this is a whole-instruction detour span, with continuation
+`0x006220D5`. The only original direct call sites are `0x0063401A` and `0x006341EA` (continuations `0x0063401F`,
+`0x006341EF`). These facts permit an entry observer without inventing a solver vtable slot. They do not authorize
+calling a replacement instead of the original in record-only mode.
+
+An observation must not prefetch extra positions by calling native accessors. In particular GetCellInfo
+`0x00633220` calls ComputeAndStoreCellInfo when its world-cache lookup misses (`0x00633231`–`0x00633238`), so even
+the apparently read-only neighbourhood getters can change tool caches. Capture actual slot-1 and slot-0 requests
+and their completed outputs within the dynamic extent of Evaluate, together with any pre-existing edge-cache
+entries; do not issue extra native queries or call live Evaluate a second time. Replay the replacement against
+these copied inputs. A replacement request absent from that capture is **incomplete input**, not an exact result;
+record it separately from a mismatch and from no match. Compare boolean success and ordered output fields
+separately. An uncalled evaluator or a centre that bypassed Evaluate is not a tested sample.
+
+All capture, tree traversal and deep copying must finish synchronously on the original calling thread, with no
+tool/solver reentry, reload or application cleanup in between. There is no reference-count pin or locking protocol
+for these objects. This is a lifetime restriction, not a finding that arbitrary background traversal is safe.
+Only detached semantic copies may be sent to another thread. Preserve all native ABI state around observation,
+including return registers and floating-point state; instrumentation failures must leave the original operation
+and its return value intact. No patch or live replay was tested by this RE lane.
+
+Readiness is an **epoch**, not “city loaded” or “nonempty table”. The process byte `0x00B452A8` is written to 1
+**before** ReloadRules is called (normal Init `0x006269F9` then call `0x00626A0D`; PowerLine `0x006269A1` then
+call `0x006269B5`). It is not a completion flag. Observe entry/normal return of ReloadRules `0x006253D0` to invalidate
+the old snapshot and then mark the new epoch complete; its return value is not a loading-success status. Missing
+resources may legitimately leave empty tables. The entry’s first instruction occupies 6 bytes (continuation
+`0x006253D6`), a whole-instruction span without a relative operand. Static cleanup callback `0x006232F0` clears the
+byte and invalidates readiness; the next tool initialization reloads. Do not retain pointers across that boundary.
+For a late observer, take the first snapshot only at a serialized original tool Init return with flag set, or after
+an observed ReloadRules completion; merely polling the byte from another thread is insufficient. A live Evaluate
+proves its own evaluator is in use, not that a complete catalogue comparison has occurred.
+
+Before using any of these addresses require a verified GOG 1.1.641 image and check the exact observation-site
+instruction bytes against that image; fail closed for another build or a conflicting detour. The working executable
+examined here has SHA-256 `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b` (whole file,
+2026-10-23); an exact file match is a sufficient build check, with loaded-site checks still required. This does not
+make a version string alone sufficient. Native interoperability facts are proposed for ABI publication by the
+coordinator; this lane does not edit the shared ABI files.
 
 ---
 
