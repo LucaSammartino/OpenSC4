@@ -168,8 +168,11 @@ Thus Release at the freshly constructed zero count destroys the object; this is 
 On first Init only: set initialized true; clear pause depth and pending step; restart the main stopwatch;
 obtain the framework and call its slots 3 and 9, in that order, with the service pointer base+12
 (`00448020–00448054`). Their return values are ignored and the framework pointer has no null guard.
-**Unknown:** exact framework-side retention, registration failure handling and caller scheduling are TK1;
-the local sequence alone does not prove that the framework owns one or two references.
+The concrete framework constructor installs vtable `00A8C970` (`00472E18`); literal entries resolve Init's
+calls to `0087AC3C` / `00879BB9` and Shutdown's calls to `00879C6C` / `0087A90E`. **Unknown:** exact
+framework-side retention, registration failure handling and caller scheduling are TK1; identifying these
+targets alone does not prove that the framework owns one or two references. Their container/auto-reference
+helpers require further dependency study; they are not added to the owner byte inventory.
 
 If no reusable message exists, allocate 0x2C bytes, construct the standard message, AddRef it once, set type
 `86AD10EE`, set void1 to the base manager, and assign its retained unknown to the base manager
@@ -410,7 +413,7 @@ Init completed, stable bounds 2000/500000, no callback side effects, and no seri
 | V16 auto threshold | Enable(true,100); Pause(true); auto elapsed99 tick then elapsed100 tick | First skips; equality arms one sweep and resets timer. Subsequent elapsed0 ticks skip at interval100. Re-enable(true,0) updates interval without restart; subsequent ticks meet0>=0 and step. |
 | V17 return channel | Phase1 with bucket0 delta2000 and bucket2 delta10000; separately bucket0 delta9000 and bucket2 delta3000 | EAX10000 in first case, EAX9000 in second; never sum/min of both. Empty admitted sweep returns min; recursive or pause-skipped call returns0. |
 | V18 references and QI | Fresh factory pointer; QI(86AD10ED,out); QI(452294AA,out); unsupported IID with sentinel out; Release twice without Init | Counts0→1→2; successful pointers base and base+4. Failed QI false leaves sentinel. Releases return1 then0 and destroy. Fresh zero-count Release also destroys. |
-| V19 orderly teardown | Keep external owner reference, Init; register A in0 and1; during callback queue two operations on B, then ordinary Shutdown after tick/drain | Message holds +1 manager until Shutdown clears it. For still-live A entries Shutdown releases twice. For outstanding queued requests canceled by Shutdown (if arranged before drain), each temporary is released once, with no operation applied. Do not invoke Shutdown inside a callback as a purported safe test. |
+| V19 orderly teardown | Keep external owner reference, Init; register A in0 and1; ordinary Shutdown outside a tick. Separately consider a seeded state with two outstanding FIFO operations on B | Message holds +1 manager until Shutdown clears it. Shutdown releases A twice. In the seeded cancellation case it releases B's two temporary references without applying either request. This seeded state is a conceptual branch vector, not proof of a safe public-call sequence that preserves pending work outside a tick; callback teardown remains TK3. |
 | V20 message floats | Delivered deltas2000,100000,500000 under usual nearest rounding | data3 float32 bits `40000000`, `42C80001`, `43FA0001` (2.0, about100.0000076, about500.0000305 ms); distinguish float32 multiplier from exact double0.001. No native bit-verification credit. |
 
 For target ordering within a hash slot, test pointer identities explicitly; do not use host allocation order

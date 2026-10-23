@@ -1,20 +1,65 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-other-simulation4: animation tick manager owner specification | `Codex` / `re-other-simulation4` (RE docs lane) | in progress: explicitly authorized original round 2/3, export/instruction study | Publish measured owner contract and unresolved questions. |
+| re-other-simulation4: animation tick manager owner specification | `Codex` / `re-other-simulation4` (RE docs lane; reserved detached HEAD) | ready: first dedicated publication with bounded partial dependencies; docs checks pass; no native runs or C ABI changes | Coordinator may land docs and review 17 pending ABI rows; TK1–TK3 remain open. No automatic further round. |
 
-## Handoff
+## Report — original round 2/3, 2026-10-23
 
-- Goal: first dedicated animation tick manager specification; original round 2/3 only.
-- Done: dedicated `docs/specs/animation-tick-manager.md` published with measured 44-body/4286-byte inventory (46/4304 including two additional shared interface bodies), all primary slots, normal behavior and explicit partial dependencies.
-- Identity rechecked independently: version 1.1.641.0, 7524352 bytes and exact SHA-256 match below.
-- Next: run question index/check and diff check, commit publication, finalize report/queue using actual detached HEAD.
-- Questions: TK1 framework ownership/external cadence; TK2 persistence; TK3 exceptional/destructive reentrancy.
-- ABI evidence: `build-runs/abi-rows-re-other-simulation4.tsv`, 17 primary interface rows in interfaces.tsv format; shared ABI files unchanged.
-- Proposed vectors V1–V20, never native-executed. Consumer reconciliation includes effects callback misidentification; no consumer spec rewritten.
-- Prior round report below is historical, unchanged; NoApp remains real, with zero behavior credit for round 1.
-- Live REA availability remains unknown in this round. Do not repeat NoApp query or open targets.
-- No engine reads/changes, original execution, game requests, builds, shared ABI edits or other-lane edits.
-- Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-other-simulation4-r2-manifest.json`.
+Published [animation-tick-manager.md](../specs/animation-tick-manager.md), the first dedicated owner contract.
+Publication milestone: `8a73a6af`. A final documentation commit adds the dependency-target clarification,
+documentation validation and this report; its actual detached HEAD is the queue/result tip. Ready means the
+bounded publication can land, not that its explicitly partial dependencies have been resolved.
+
+### Measured evidence and scope
+
+- Independently rechecked original version **1.1.641.0**, size **7,524,352 bytes** and exact SHA-256 match
+  with the export summary recorded below. Export-first instruction queries were the primary workflow;
+  local decompilation served navigation only. Literal PE reads verified vtables, prime capacities and float constants.
+- Inventory: **44 distinct attributed bodies / 4,286 exported body bytes**, individually tagged:
+  **39 specified / 3,309 bytes**, **5 partial / 977 bytes**. Two additional shared interface bodies add
+  18 bytes: **46 / 4,304** when included. Tags describe the bounded contracts, not executed-byte coverage.
+  Generic dependencies are excluded. No generated/shared coverage table changed and no planning estimate
+  was converted to measured body credit.
+- Primary 17-slot interface, factory, adjusted QI interfaces, zero initial refcount, message-held manager
+  reference, orderly Shutdown versus destructor, pointer/bucket identity, duplicates, fallback single removal,
+  deferred FIFO references/suppression, recursive-tick zero return, phases, timestamp wrap/clamp, float32 message
+  values, signed pause depth, step and one-shot/reset auto timing are described with instruction addresses.
+- Existing inventory, ABI, lot-developer, re-answers30/terrain and effects consumer findings are explicitly
+  reconciled, not counted as repeat owner progress. Effects §6.1's callback call is demonstrably not this
+  manager's EnableAutoStep; the receiver and external scheduling dependency remain distinguished.
+- Twenty literal proposed vectors V1–V20 cover the full cycle, priority boundaries, reference and mutation
+  cases, wrap/clamp/equality, control sequences and float message values. None is a native execution.
+
+### Questions and ABI evidence
+
+- Filed **TK1–TK3** in `docs/specs/questions/animation-tick-manager.md`: external framework retention/failure
+  and tick scheduling; serialization/reference transfer; destructive/exceptional reentrancy. No prior question
+  was moved or claimed answered. The generated question index was regenerated with the normal tool.
+- Pending ABI: **`build-runs/abi-rows-re-other-simulation4.tsv`**, 17 rows, 12-column `interfaces.tsv` format,
+  primary slots 0–16. Return channels distinguish AL, EAX and void-facing choices; slot 10 is an integer
+  timestamp getter, and EnableAutoStep takes a time interval. Coordinator reviews/applies these; shared
+  `docs/abi/` files were not edited. **No C ABI exports changed.**
+
+### Validation and disposition
+
+- `python tools/questions.py index` and `check`: passed; `git diff --check`: passed.
+- `build-runs/validate-animation-docs.py`: passed inventory uniqueness/count/sums, pending ABI columns/slots,
+  and vector count. Independent host arithmetic checked V20 literal float bits; this is proposed-vector
+  consistency only, not native verification or implementation testing.
+- Cargo, clippy, ctest, game/shadow runs: **n/a**. No engine files were read or edited, builds run, original
+  execution requested, processes controlled, target opened, agents spawned or external communication sent.
+- Worktree remained detached as instructed. No branch/ref/config maintenance, merge, rebase or push was
+  requested. Git's publication commit printed a denied `packed-refs.lock` diagnostic but successfully created
+  `8a73a6af`; no attempt was made to change shared permissions/configuration or repair refs.
+- Normal docs queue records the final actual HEAD with `kind=docs`, `abi=false`, `game_runs=[]`, `state=ready`.
+  Ignored inspection/validation scripts and pending ABI evidence remain in this worktree's `build-runs/`.
+- This is the **second consumed original round**, not a new first; at most one further original round remains
+  if separately assigned. There is no self-restart. The first round's exact NoApp and zero behavior credit
+  remain preserved below. Export access does not establish or repair a live per-client REA target; no repeated
+  availability-only query was issued. Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-re-other-simulation4-r2-manifest.json`.
+
+Next steps: coordinator may land this bounded owner publication and review pending ABI evidence. Any further
+RE assignment should target TK1–TK3 rather than re-counting existing consumer rules or reopening availability
+alone. Engine implementation and native/game validation belong to separately authorized work.
 
 ## Prior round 1 report (preserved)
 
