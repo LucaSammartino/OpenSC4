@@ -1,6 +1,17 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-html-ui-hooks4: standalone HTML hook algorithms | `core-html-ui-hooks4` (engine lane, detached HEAD) | WIP R2: current-source core 3336/0, HTML fixtures 8/8; quick waiting on optional stats PID 15368; current full/clippy/native RC/ctest unmeasured; engine 2abc42af unchanged; ABI unchanged | 1. Coordinator reviews exact live observer request. 2. Collect same quick session 45516 to terminal. 3. One canonical all on stable source, full result/source identity. |
+| core-html-ui-hooks4: standalone HTML hook algorithms | `core-html-ui-hooks4` (engine lane, detached HEAD) | in progress R3 FINAL3/3: engine 2abc42af unchanged; R2 core 3336/0, HTML fixtures 8/8; old quick terminal/cause UNKNOWN; ABI unchanged | 1. Preserve fixed logs and source identity. 2. Run one canonical all and collect its actual terminal. 3. Record measured gate and own queue honestly. |
+
+## Handoff
+
+- Goal: initial stable full qualification of the bounded HTML implementation; original FINAL3/3, no fourth round.
+- Done: resumed clean `02319214`; verified own R3 manifest and copied 04:59 preflight.
+- Done: old 23048/25300/35180/9568/36088/34912/15368 absent per copied proof; no root HTML kill; disappearance cause and quick terminal UNKNOWN.
+- Done: R2 eight fixtures passed and core 3336/0 on unchanged engine `2abc42af3645dd5e7c1f5c72fad9f0af0a0955e4`.
+- Next: preserve old fixed logs, commit this handoff, launch exactly one canonical all on committed source, collect same session to terminal.
+- Evidence: `build-runs/coordinator-html-final-preflight.json`; new evidence will be under `build-runs/html-r3/`.
+- No source changes, new baseline/quick, cache RPC/configuration changes, kills, game requests, or ABI changes authorized.
+- Existing HU1-HU4 remain open; standalone bounded domain and historical failures are retained below.
 
 ## R2 report: current-source qualification and remaining blocker
 
