@@ -1,6 +1,21 @@
 # foundations: answered questions (archive)
 <!-- Archive for [foundations.md](../../foundations.md). Lanes do not read this file. Open questions are in ../foundations.md. -->
 
+<!-- from: verify-variants4 return-channel gate and first native run (2026-10-22) -->
+- **HG6 - section 17.1 slots 5/6/7 return channel and clone identity:** The ABI gate describes Erase,
+  CopyFrom and CreateCopy as eax-or-void. What return values, if any, are contractual? Does SDK CreateCopy
+  return a distinct COM implementation of the same published 127-slot cIGZVariant interface? The owned
+  result in vv4-original-a567f1-1820 had a different native vtable from the published borrowed source,
+  was released to zero with ref_warnings=0, and was refused before testing. [Discard nominal bool results;
+  judge CreateCopy by its independent owned non-null pointer and supported-image interface validation,
+  CopyFrom/Erase by resulting state. No unpublished clone address/layout is called or baked into code.]
+  **ANSWERED 2026-10-23 (re-variant-storage4):** DIFFERS — normal native Erase/CopyFrom/CreateCopy
+  explicitly set AL=true; upper EAX is not contractual. CreateCopy constructs a distinct standalone
+  variant whose first 127 table entries differ from the embedded source only in identity/ref slots
+  0/1/2, and publishes one owned reference after AddRef. Allocation failure is not a qualified clean
+  false/null result. Rules and original addresses are in [variant-storage §§2/5](../../variant-storage.md#5-createcopy-and-return-channels),
+  linked from foundations §§9.1/17.1. No native rerun or unpublished verifier address was added.
+
 ## From the protection fix: saved grid refs and their geometry (filed by the coordinator from the lane's report, 2026-10-14; merged)
 
 Run 70 found the fire replacement's grid at 0×0 after a load. The fire record's grid ref points to a grid whose own
