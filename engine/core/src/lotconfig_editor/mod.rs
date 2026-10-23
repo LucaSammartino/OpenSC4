@@ -14,7 +14,6 @@ mod windows;
 mod workflows;
 pub use crate::lot_config_manager::LotConfigObject;
 pub use dialogs::*;
-pub use edit_contracts::*;
 pub use geometry::*;
 pub use windows::*;
 pub use workflows::*;

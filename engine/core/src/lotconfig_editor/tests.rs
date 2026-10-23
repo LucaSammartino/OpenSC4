@@ -487,11 +487,12 @@ fn redraw_helper_remains_distinct_from_direct_draw_and_invalidate() {
 #[test]
 fn add_texture_appends_selects_old_first_and_preserves_reversed_default_bounds() {
     let (mut e, mut h) = editor();
+    e.current.as_mut().unwrap().size = [2; 2];
     let a = e.insert(object(0, [0.0; 4]), false);
     let b = e.insert(object(1, [0.0; 4]), false);
     e.mode = 5;
     e.pending_ids = vec![77];
-    let t = e.add_object_at([8.0, 8.0], 123, None, &mut h).unwrap().unwrap();
+    let t = e.add_object_at([16.0, 16.0], 123, None, &mut h).unwrap().unwrap();
     assert_eq!(
         e.current
             .as_ref()
@@ -504,7 +505,7 @@ fn add_texture_appends_selects_old_first_and_preserves_reversed_default_bounds()
     );
     assert_eq!(e.selected, Some(a));
     let texture = e.record(t).unwrap();
-    assert_eq!(bounds(texture), [16.0, 16.0, 0.0, 0.0]);
+    assert_eq!(bounds(texture), [24.0, 24.0, 8.0, 8.0]);
     assert_eq!(
         (
             texture.kind,

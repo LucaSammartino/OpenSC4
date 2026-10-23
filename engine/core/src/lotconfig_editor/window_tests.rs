@@ -18,6 +18,7 @@ struct Fake {
     confirm: u32,
     writable: bool,
     deleted: bool,
+    type_still_present: bool,
     found: Option<(u32, u32)>,
     types: Vec<(u32, String)>,
     family_reads: usize,
@@ -133,8 +134,13 @@ impl WindowHost for Fake {
         self.trace.push(Trace::Call("delete item"));
         Ok(self.deleted)
     }
-    fn unregister_type_if_present(&mut self, ty: u32) {
+    fn global_type(&mut self, ty: u32) -> Option<u64> {
         assert_eq!(ty, 5);
+        self.trace.push(Trace::Call("global type"));
+        self.type_still_present.then_some(55)
+    }
+    fn unregister_type(&mut self, configuration: u64) {
+        assert_eq!(configuration, 55);
         self.trace.push(Trace::Call("unregister if present"));
     }
     fn search_grid(&mut self, _: u64, search: &GridSearch) -> Option<(u32, u32)> {
@@ -183,6 +189,7 @@ fn chooser() -> (Chooser, Fake) {
             confirm: CONFIRM_DELETE,
             writable: true,
             deleted: true,
+            type_still_present: true,
             found: Some((0, 1)),
             ..Default::default()
         },
@@ -661,7 +668,11 @@ fn foundation_marker_lock_and_height_label_vectors() {
         };
         e.draw_current(&mut h).unwrap();
         assert_eq!(
-            h.trace.contains(&Draw::Raster(RasterPhase::FoundationMarkers(id))),
+            h.trace.contains(&Draw::Raster(RasterPhase::FoundationMarker(id, 0))),
+            marker_lock
+        );
+        assert_eq!(
+            h.trace.contains(&Draw::Raster(RasterPhase::FoundationMarker(id, 1))),
             marker_lock
         );
         assert_eq!(h.trace.contains(&Draw::Unlock(0x8400)), marker_lock);

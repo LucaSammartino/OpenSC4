@@ -58,7 +58,8 @@ pub trait WindowHost: Host {
     fn file_writable_and_exists(&mut self, path: &str) -> bool;
     /// Deletes the identified database item, never the entire backing file.
     fn delete_item(&mut self, identity: &Identity) -> Result<bool>;
-    fn unregister_type_if_present(&mut self, selected_type: u32);
+    fn global_type(&mut self, selected_type: u32) -> Option<u64>;
+    fn unregister_type(&mut self, configuration: u64);
     fn search_grid(&mut self, grid: u64, search: &GridSearch) -> Option<(u32, u32)>;
 }
 
@@ -365,7 +366,9 @@ impl Chooser {
             return Ok(());
         }
         self.remove_row(identity.id, h)?;
-        h.unregister_type_if_present(ty);
+        if let Some(configuration) = h.global_type(ty) {
+            h.unregister_type(configuration);
+        }
         Ok(())
     }
 }
@@ -438,9 +441,9 @@ impl EditorWindow {
         }
         init_flags(h);
         self.initialized = true;
-        if !self.references.contains_key(&0x134) {
+        if let std::collections::btree_map::Entry::Vacant(entry) = self.references.entry(0x134) {
             if let Some(font) = h.acquire_font("Arial", 12) {
-                self.references.insert(0x134, font);
+                entry.insert(font);
             }
         }
         let manager = h.acquire_manager();
@@ -598,7 +601,7 @@ pub fn mouse_wrapper(event: MouseEvent, point: [i32; 2], base_e0: bool, h: &mut 
 pub enum RasterPhase {
     GridOutline,
     Ordinary(RecordId),
-    FoundationMarkers(RecordId),
+    FoundationMarker(RecordId, u8),
     Fences,
 }
 pub trait EditorRenderer {
@@ -641,7 +644,9 @@ impl Editor {
                 if record.data.kind == 3 {
                     h.color([0, 72, 72]);
                     if h.lock(buffer, 0x8400) {
-                        let result = h.raster(buffer, RasterPhase::FoundationMarkers(record.id));
+                        let result = h
+                            .raster(buffer, RasterPhase::FoundationMarker(record.id, 0))
+                            .and_then(|()| h.raster(buffer, RasterPhase::FoundationMarker(record.id, 1)));
                         h.unlock(buffer, 0x8400);
                         result?;
                     }
