@@ -201,7 +201,7 @@ Subscriptions, in `Init` order: `0x99EF1142`, `0x99EF1145`, `0x99EF1143`, `0xA6B
 Dispatch notifications are **synchronous owner calls**, not broadcasts or queued message-server posts.
 They use type `0x2BA06B99`, data1 = notification ID, data2/data3 = old/new values for state or flag changes,
 data4 = 0 in the transitions specified here. No owner means no delivery. State and flags have already
-changed when the owner runs (`0x00431A30`–`0x00431B93`, `0x00431BC0`, `0x00431C10`). Do not coalesce successive
+changed when the owner runs (`0x00431A30`, `0x00431BC0`, `0x00431C10`). Do not coalesce successive
 flag changes: each changed mask is separately observable. Notification production is specified in §4.6.1.
 
 The MySim subscribes (at its Init) to `0x0B6F3E27`, `0xAB6F3E2D`, `0x4B6F3EBF`, `0x0BB04126`, `0x4BC42C48`,
@@ -1137,7 +1137,7 @@ This distinction matters: the first location is object+`0x5C`, serializer+`0x50`
 | 6 | u32, GZStr | auxiliary value `+0x100`, string `+0x104` |
 | 7 | ref | automata occupant `+0x118`, IID `0x26BB767E` |
 | 8 | ref | owner MySim `+0x11C`, IID `0x8BC01FFE`; writing passes its serializable sub-object at owner+`0xB8` (null stays null) |
-| 9 | ref | pathfinder `+0x120`, IID `0x681BD53A` |
+| 9 | ref | simulation service `+0x120`, IID `0x681BD53A` (not the transient pathfinder at `+0x124`) |
 | 10 | u32 count; count × (u8,u8,u8) | route deque, in deque order; each element is cell x, cell z, travel type. No per-element alignment |
 | 11 | u32 count; count × (s32,key,s32) | travel-type/model map, ascending signed key order. Resource key = three u32; the final s32 is model offset |
 | 12 | s32 | route/switch marker at `+0x15C` |
@@ -1313,6 +1313,9 @@ success without testing the return of `AddDestinationLocation`.
 
 Hour arithmetic is integer, verified `0x00426D56`–`0x00426D8D`. Queue insertion does not itself imply
 immediate departure (§4.6.1). Do not turn these entry points into unconditional GoTo calls.
+On a successful LeaveForWork or ReturnHome state change, copy the dispatch tracking value (`+0x3C`)
+to the MySim's last-player-trip field (`+0x150`); this is not a fresh wall-clock sample
+(`0x00426F1E`–`0x00426F27`, `0x00426F60`).
 
 **`GoTo(location)`** (`0x00437130`) copies the argument and applies the occupant-only duration minimum of
 §4.11. Outside dispatch state 2 it expires the current dwell by setting deadline = now − 1, clears the
