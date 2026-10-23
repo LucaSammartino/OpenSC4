@@ -9,8 +9,9 @@
 - Inputs: live city-name prefix, ASCII, counted NUL, empty; private mutations only.
 - Added private stateless production-core transport and two focused tests.
 - Formatting check passed; focused cargo tests passed 2/2 (session 7838 complete).
-- Final qbuild all started, collecting the same operation.
-- Next: collect final gate and queued native verify; game to 2032.
+- Final qbuild all: workspace tests 6759/6759; clippy zero diagnostics.
+- Native build/CTest queued by that same operation: qbuild-20261024-005328-build-ctest.
+- Next: collect session 83535 to terminal verdict (do not duplicate native verify); game to 2032.
 - Exclude RZS7 finite decimal extraction unless already implemented at starting HEAD.
 - No game requests outstanding.
 - Natural traffic interception, nonvirtual helpers, detokenizer and other language owners not measured.
