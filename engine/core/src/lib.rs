@@ -175,3 +175,4 @@ pub mod auto_game_pause;
 pub mod missing_plugin_reporter;
 pub mod rz_sys_serv_ptr;
 pub mod audio_ambience;
+pub mod query_tool;
