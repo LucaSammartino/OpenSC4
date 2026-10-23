@@ -15,7 +15,8 @@
 - Game a completed clean to 2032-01-05, ref_warnings=0; automata 72/72; automataowners 0/72 monthly, 0/73 incl load (docs/runs/automata-ext5-r1-2032-20261023-a.md).
 - Diagnostic: shared WriteCapture::WriteVariant was a false-return stub, stopping every automaton/construction capture in its holder; ini key missing known-key registration. Both corrected from foundations §§9.1–9.2,17.1; capture uses native getters and independently encodes disk tags/payload.
 - Corrected-source gate 7207ed6dc: Rust 6673/6673, clippy clean, native build 48/48; CTest 68/69 failed ret_channel_check for consuming GetValUnknownAs's uncertain EAX channel. Preserved full failure in build-runs/fc4verify-ctest-7207ed6dc-failed.log; changed caller to consume documented out-pointer only.
-- Next: rerun full all on corrected stable source, then distinct game to 2032. No game request outstanding. ABI exports changed; version unchanged.
+- Final stable-source full gate 35981431d PASS: Rust 6673/6673, clippy diagnostics=0, build 47/47, CTest 69/69 (qbuild-20261024-000625-build-ctest); no tree-change note.
+- Next: collect game automata-ext5-r1-2032-20261024-b, turbo to 2032, using build-runs/wait-verdict.ps1; inspect exact owner lines before profile change. ABI exports changed; version unchanged.
 - q.py cannot start Git Bash in sandbox (CreateFileMapping denied); direct native cargo works. fmt needs absolute filenames.
 - No guessed native signatures. Unknown referenced automaton/controller classes fail rather than being silently skipped.
 - Manager fields: version/max count/active/time-of-day flag/automaton refs/source-building counts, embedded in each concrete record.
