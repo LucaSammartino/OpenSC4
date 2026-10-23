@@ -6,6 +6,7 @@
 - R2 admission: copied `build-runs/evidence-run4/coordinator-resource-catalog-r2-host-proof.json` records canonical host full guard exit 0; own R2 manifest matches lane, RE role and reserved path. Source clean at pinned 98e396bb. No sandbox admission rerun or live-session repair.
 - R2 binary SHA256 independently matches export metadata: 3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b. Next: trace native owner instructions and publish first substantive spec.
 - R2 milestone: first substantive `docs/specs/resource-catalog.md` now covers exact-group row filtering, duplicate/default selection, refresh failure, picker word permutation and close-result separation; linked from prior exclusion. Next: registration filters, key-input notifications and shutdown reference audit, then questions/checklist.
+- Commit e7b2be28: first substantive publication. Second milestone adds Init descriptor wildcard/mapping, key-input text forwarding/filename/getNextID/notification effects, shutdown references and native destructor attribution corrections (00664720 is picker, 00686510 is catalog); RC1–RC5 filed separately. Next: question index, doc consistency/diff checks and final report.
 - The following R1 failure and preliminary evidence are historical, not a retrospective success or behavior publication.
 - Goal: first native behavior publication for catalog/base/picker/key-input owners, docs only.
 - Done: reused reserved detached worktree; read lane/operating rules and existing scope exclusion; queried export and instructions only; no behavior publication.

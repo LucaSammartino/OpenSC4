@@ -120,6 +120,7 @@ generated index: the questions live one file per spec, so read only the file for
 | PW | power |
 | QR | region-screen |
 | QV | map-view |
+| RC | resource-catalog |
 | RD | renderer-driver |
 | RE | resource-exemplar-editor |
 | RG | residential-education-health |
@@ -270,6 +271,7 @@ generated index: the questions live one file per spec, so read only the file for
 | renderer-gdrivers-director-inventory | 2 | 0 | GI3 | questions/renderer-gdrivers-director-inventory.md |
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
+| resource-catalog | 5 | 0 | RC6 | questions/resource-catalog.md |
 | resource-exemplar-editor | 8 | 0 | RE9 | questions/resource-exemplar-editor.md |
 | simgrid | 2 | 0 | SG3 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
@@ -302,4 +304,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **455** | **1239** | | |
+| **total** | **460** | **1239** | | |
