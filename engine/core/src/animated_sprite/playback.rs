@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Literal raw-unit clock (§4). Sequence-table stepping is unpublished (AS5),
-//! so these methods explicitly implement only the no-animation-table path.
+//! §§4/4.2/4.3. Raw-unit clock, byte frame and decoded controller state.
+use super::{numeric::X, AnimatedSprite};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Playback {
@@ -11,136 +11,169 @@ pub struct Playback {
     pub play_mode: u8,
     pub frame_skipping: bool,
 }
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlaybackError {
     EmptySequence,
     InvalidFrame,
-    InvalidDirection,
-    RateSentinel,
     NonFinite,
-    ReverseBoundaryUnspecified,
     ClockCannotProgress,
 }
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TickResult {
-    /// §4's value 2 means a frame was advanced. Other native return codes
-    /// are unpublished (AS5); do not invent a native success code for them.
     pub frame_changed: bool,
     pub advances: u64,
 }
+impl TickResult {
+    pub fn status(self) -> u32 { if self.advances != 0 { 2 } else { 0 } }
+}
+
+/// Decoded snapshot of the borrowed native controller. No load/factory invents
+/// one (AS1). Rust owns this snapshot, not the foreign controller allocation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SequenceController {
+    pub selected: u16,
+    pub count: u16,
+    pub length: u16,
+    pub starts: Vec<u16>,
+    pub current: u16,
+    pub mode: u8,
+    pub direction: i8,
+}
+
+fn step(frame: &mut u16, start: u16, count: u32, direction: &mut i8, mode: u8) -> bool {
+    if count <= 1 { return false; }
+    let end = start.wrapping_add((count - 1) as u16);
+    if *direction > 0 {
+        if *frame == end {
+            match mode {
+                3 => *frame = start,
+                2 => { *direction = -1; *frame = frame.wrapping_sub(1); }
+                _ => { *direction = 0; return true; }
+            }
+        } else { *frame = frame.wrapping_add(1); }
+    } else if *direction < 0 {
+        if *frame == start {
+            match mode {
+                3 => *frame = end,
+                2 => { *direction = 1; *frame = frame.wrapping_add(1); }
+                _ => { *direction = 0; return true; }
+            }
+        } else { *frame = frame.wrapping_sub(1); }
+    }
+    true
+}
 
 impl Playback {
-    pub fn set_frame(&mut self, frame: u32, length: u32) -> Result<(), PlaybackError> {
-        if length == 0 {
-            return Err(PlaybackError::EmptySequence);
-        }
-        self.frame = frame % length;
+    /// Length is retained for source compatibility. Without a controller the
+    /// native setter only narrows to a byte (§4.3).
+    pub fn set_frame(&mut self, frame: u32, _length: u32) -> Result<(), PlaybackError> {
+        self.frame = u32::from(frame as u8);
         Ok(())
     }
-
-    fn validate(&self, frame_count: u32) -> Result<(), PlaybackError> {
-        if frame_count == 0 {
-            return Err(PlaybackError::EmptySequence);
-        }
-        if self.frame >= frame_count {
-            return Err(PlaybackError::InvalidFrame);
-        }
-        if !(-1..=1).contains(&self.direction) {
-            return Err(PlaybackError::InvalidDirection);
-        }
-        Ok(())
+    /// Returns dirty state, not whether the frame byte changed (§4.2).
+    pub fn advance_unsequenced(&mut self, count: u32) -> Result<bool, PlaybackError> {
+        let mut frame = self.frame as u16;
+        let previous_direction = self.direction;
+        let dirty = step(&mut frame, 0, count, &mut self.direction, self.play_mode);
+        if previous_direction != 0 && self.direction == 0 { self.position = 0.; }
+        self.frame = u32::from(frame as u8);
+        Ok(dirty)
     }
-
-    /// Transactional on an unpublished reverse-end rule (AS5). No fabricated
-    /// lower-end loop/ping-pong body is used when direction is negative at 0.
-    pub fn advance_unsequenced(&mut self, frame_count: u32) -> Result<bool, PlaybackError> {
-        self.validate(frame_count)?;
-        if frame_count <= 1 || self.direction == 0 {
-            return Ok(false);
-        }
-        if self.direction < 0 {
-            if self.frame == 0 {
-                return Err(PlaybackError::ReverseBoundaryUnspecified);
-            }
-            self.frame -= 1;
-        } else if self.frame + 1 < frame_count {
-            self.frame += 1;
-        } else {
-            match self.play_mode {
-                3 => self.frame = 0,
-                2 => {
-                    self.direction = -1;
-                    self.frame -= 1;
-                }
-                _ => {
-                    self.direction = 0;
-                    self.position = 0.0;
-                    return Ok(false);
-                }
-            }
-        }
-        Ok(true)
-    }
-
-    /// No milliseconds/seconds conversion. Rate and elapsed are multiplied
-    /// exactly in the raw units supplied by §4, including negative rates.
-    pub fn tick_unsequenced(&mut self, elapsed: f32, frame_count: u32) -> Result<TickResult, PlaybackError> {
+    pub fn tick_unsequenced(&mut self, elapsed: f32, count: u32) -> Result<TickResult, PlaybackError> {
         let mut next = *self;
-        let result = next.tick_inner(elapsed, frame_count)?;
+        let result = next.tick_with(elapsed, |p| p.advance_unsequenced(count))?;
         *self = next;
         Ok(result)
     }
-
-    fn tick_inner(&mut self, elapsed: f32, frame_count: u32) -> Result<TickResult, PlaybackError> {
-        self.validate(frame_count)?;
-        if self.rate == -100.0 || self.rate == -200.0 {
-            return Err(PlaybackError::RateSentinel);
-        }
-        if !self.rate.is_finite() || !self.position.is_finite() || !elapsed.is_finite() {
+    fn tick_with(&mut self, elapsed: f32, mut advance: impl FnMut(&mut Self) -> Result<bool, PlaybackError>)
+        -> Result<TickResult, PlaybackError> {
+        if self.rate.to_bits() == 0xc2c80000 { self.rate = -200.; }
+        let mut result = TickResult { frame_changed: false, advances: 0 };
+        if self.rate == 0. { return Ok(result); }
+        if !elapsed.is_finite() || !self.rate.is_finite() || !self.position.is_finite() {
             return Err(PlaybackError::NonFinite);
         }
-        let mut result = TickResult {
-            frame_changed: false,
-            advances: 0,
-        };
-        if self.rate == 0.0 {
-            return Ok(result);
-        }
-        self.position += elapsed * self.rate * f32::from(self.direction);
-        if !self.position.is_finite() {
-            return Err(PlaybackError::NonFinite);
-        }
-        if self.position.abs() < 1.0 {
-            return Ok(result);
-        }
-        if self.position.abs() >= 2.0 && !self.frame_skipping {
-            result.frame_changed = self.advance_unsequenced(frame_count)?;
-            result.advances = u64::from(result.frame_changed);
-            self.position = 1.0;
-            return Ok(result);
-        }
-        // Below 2, exactly one advance, even if a reversal changes direction.
-        // At/above 2 with skipping, repeat until below 1. AS5 asks whether
-        // direction subtraction is before/after reversal; literal order here.
-        let repeat = self.position.abs() >= 2.0 && self.frame_skipping;
+        let raw = X::f(elapsed).mul(X::f(self.rate)).mul(X::integer(i64::from(self.direction)))
+            .add(X::f(self.position));
+        self.position = raw.store();
+        if !self.position.is_finite() { return Err(PlaybackError::NonFinite); }
+        if !raw.abs().ge(X::f(1.)) { return Ok(result); }
+        let repeat = raw.abs().ge(X::f(2.)) && self.frame_skipping;
+        let overwrite = raw.abs().ge(X::f(2.)) && !self.frame_skipping;
         loop {
             let previous = self.position;
-            let changed = self.advance_unsequenced(frame_count)?;
-            result.frame_changed |= changed;
-            result.advances += u64::from(changed);
-            self.position -= f32::from(self.direction);
-            if !repeat || self.position.abs() < 1.0 {
-                break;
-            }
-            // Raw negative rates, stopped/single-frame clips or f32 saturation
-            // can make the stated loop diverge. AS5: fail explicitly, do not
-            // hang, cap the elapsed time or silently convert its units.
-            if self.position.abs() >= previous.abs() {
-                return Err(PlaybackError::ClockCannotProgress);
-            }
+            result.frame_changed |= advance(self)?;
+            result.advances += 1;
+            if overwrite { self.position = 1.; break; }
+            self.position = X::f(self.position).sub(X::integer(i64::from(self.direction))).store();
+            if !repeat || self.position.abs() < 1. { break; }
+            // Native loops forever here; this error is a safe API diagnostic,
+            // never a fabricated successful native status.
+            if self.position.abs() >= previous.abs() { return Err(PlaybackError::ClockCannotProgress); }
         }
         Ok(result)
+    }
+}
+
+impl<O> AnimatedSprite<O> {
+    pub fn controller(&self) -> Option<&SequenceController> { self.sequence.as_ref() }
+    pub fn install_controller_snapshot(&mut self, controller: Option<SequenceController>) { self.sequence = controller; }
+    pub fn frame_count(&self) -> u32 { self.loaded.frame_count }
+    pub fn frame(&self) -> u8 { self.state.playback.frame as u8 }
+    fn copy_controller_frame(&mut self) {
+        if let Some(c) = &self.sequence {
+            self.frame_dirty |= u32::from(c.current) != self.state.playback.frame;
+            self.state.playback.frame = u32::from(c.current as u8);
+        }
+    }
+    pub fn set_animation(&mut self, index: i32) -> Result<u32, PlaybackError> {
+        let Some(c) = &mut self.sequence else { return Ok(0); };
+        if index >= i32::from(c.count) { return Ok(0); }
+        let index = usize::try_from(index).map_err(|_| PlaybackError::InvalidFrame)?;
+        let a = *c.starts.get(index).ok_or(PlaybackError::InvalidFrame)?;
+        let b = *c.starts.get(index + 1).ok_or(PlaybackError::InvalidFrame)?;
+        c.selected = index as u16;
+        c.length = b.wrapping_sub(a);
+        self.copy_controller_frame();
+        Ok(2)
+    }
+    pub fn select_frame(&mut self, mut n: i32) -> Result<u32, PlaybackError> {
+        if let Some(c) = &mut self.sequence {
+            if n > i32::from(c.length) {
+                if c.length == 0 { return Err(PlaybackError::EmptySequence); }
+                n %= i32::from(c.length);
+            }
+            let start = *c.starts.get(usize::from(c.selected)).ok_or(PlaybackError::InvalidFrame)?;
+            c.current = start.wrapping_add(n as u16);
+            self.copy_controller_frame();
+        } else {
+            self.frame_dirty |= n as u32 != self.state.playback.frame;
+            self.state.playback.frame = u32::from(n as u8);
+        }
+        Ok(2)
+    }
+    pub fn advance_frame(&mut self) -> Result<u32, PlaybackError> {
+        if let Some(c) = &mut self.sequence {
+            let start = *c.starts.get(usize::from(c.selected)).ok_or(PlaybackError::InvalidFrame)?;
+            step(&mut c.current, start, u32::from(c.length), &mut c.direction, c.mode);
+            self.copy_controller_frame();
+        } else {
+            self.frame_dirty |= self.state.playback.advance_unsequenced(self.loaded.frame_count)?;
+        }
+        Ok(2)
+    }
+    pub fn tick(&mut self, elapsed: f32) -> Result<u32, PlaybackError> {
+        let mut p = self.state.playback;
+        let result = p.tick_with(elapsed, |p| {
+            if self.sequence.is_some() {
+                let old = self.frame();
+                self.advance_frame()?;
+                p.frame = self.state.playback.frame;
+                Ok(old != self.frame())
+            } else { p.advance_unsequenced(self.loaded.frame_count) }
+        })?;
+        self.state.playback = p;
+        self.frame_dirty |= result.frame_changed;
+        Ok(result.status())
     }
 }

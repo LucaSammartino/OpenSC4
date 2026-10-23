@@ -11,13 +11,17 @@ mod cached;
 mod frames;
 mod geometry;
 mod lifetime;
+mod numeric;
+mod placement;
 mod playback;
+mod loading;
 
 pub use cached::*;
 pub use frames::*;
 pub use geometry::*;
 pub use lifetime::*;
 pub use playback::*;
+pub use loading::*;
 
 use std::sync::Arc;
 
@@ -25,6 +29,7 @@ pub const FLAG_HIGHLIGHT: u8 = 1;
 pub const FLAG_FADE: u8 = 2;
 pub const FLAG_SELF_LIT: u8 = 4;
 pub const BASIC_INSTANCE_IID: u32 = 0x26a6_8449;
+pub const SPRITE_INSTANCE_IID: u32 = 0xa818_edd8;
 
 /// Constructor defaults other than the draw state are unpublished (AS3).
 /// An explicit snapshot avoids claiming invented native initial values.
@@ -52,6 +57,8 @@ pub struct AnimatedSprite<O> {
     zooms: Vec<LoadedZoom>,
     frame_dirty: bool,
     cache: Option<SpriteCache>,
+    pub(crate) loaded: OwnerResources,
+    pub(crate) sequence: Option<SequenceController>,
 }
 
 impl<O> AnimatedSprite<O> {
@@ -62,6 +69,8 @@ impl<O> AnimatedSprite<O> {
             zooms: Vec::new(),
             frame_dirty: true,
             cache: None,
+            loaded: OwnerResources::default(),
+            sequence: None,
         }
     }
 
@@ -117,10 +126,8 @@ impl<O> AnimatedSprite<O> {
         }
     }
 
-    pub fn set_frame(&mut self, frame: u32, sequence_length: u32) -> Result<(), PlaybackError> {
-        self.state.playback.set_frame(frame, sequence_length)?;
-        self.frame_dirty = true;
-        Ok(())
+    pub fn set_frame(&mut self, frame: u32, _sequence_length: u32) -> Result<(), PlaybackError> {
+        self.select_frame(frame as i32).map(|_| ())
     }
 
     pub fn advance_unsequenced(&mut self, frame_count: u32) -> Result<bool, PlaybackError> {
@@ -139,17 +146,15 @@ impl<O> AnimatedSprite<O> {
         self.state.playback.play_mode = mode;
     }
 
-    /// Raw rate. Sentinel resolution is deliberately separate: §4 only infers
-    /// what SetRate(-200) means, and does not define the resource field (AS5).
+    /// §4.2 stores every bit, including sentinels and nonfinite inputs.
     pub fn set_explicit_rate(&mut self, rate: f32) -> Result<(), PlaybackError> {
-        if rate == -100.0 || rate == -200.0 {
-            return Err(PlaybackError::RateSentinel);
-        }
-        if !rate.is_finite() {
-            return Err(PlaybackError::NonFinite);
-        }
         self.state.playback.rate = rate;
         Ok(())
+    }
+
+    pub fn set_rate(&mut self, rate: f32) -> u32 {
+        self.state.playback.rate = rate;
+        2
     }
 
     /// §4.4, conditional on completing comparisons (no trap-mode guarantee).

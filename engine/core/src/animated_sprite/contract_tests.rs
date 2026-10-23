@@ -104,8 +104,8 @@ fn raw_decoder_literal_packing_flips_scale_and_rejection() {
         Err(Unsupported::Packing)
     );
     let mut c = camera(2.0);
-    c.matrix[1][1] = 3.0; // 2/3 is outside the exact-stage domain.
-    assert_eq!(update_view_exact(metric(), c), Err(Unsupported::Arithmetic));
+    c.matrix[1][1] = 3.0; // Inexact divisions now follow inherited x87 PC/RC.
+    assert!(update_view_exact(metric(), c).is_ok());
     c = camera(2.0);
     c.mpp = MetresPerPixel::ViewVolume {
         left: -8.0,
@@ -114,7 +114,7 @@ fn raw_decoder_literal_packing_flips_scale_and_rejection() {
     };
     assert_eq!(update_view_exact(metric(), c), Err(Unsupported::Arithmetic));
     c = camera(f32::from_bits(1));
-    assert_eq!(update_view_exact(metric(), c), Err(Unsupported::Arithmetic));
+    assert!(update_view_exact(metric(), c).is_ok());
 }
 
 #[test]
@@ -441,6 +441,7 @@ fn full_context_comparison_early_exit_and_unsupported_refresh() {
     assert!(ctx.calls.is_empty());
     input.zoom = 2;
     input.rotation = 1;
+    s.state.transform.rotation[2] = 0.5;
     assert_eq!(s.draw(input, resources, &mut ctx), Err(Unsupported::Selection));
     assert!(ctx.calls.is_empty());
 }

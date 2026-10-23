@@ -191,13 +191,12 @@ fn no_skip_exact_two_differs_from_below_two() {
 }
 
 #[test]
-fn frame_modulo_and_empty_failure_without_mutation() {
+fn frame_narrows_without_modulo_or_empty_check() {
     let mut p = playback();
     p.set_frame(14, 5).unwrap();
-    assert_eq!(p.frame, 4);
-    let before = p;
-    assert_eq!(p.set_frame(3, 0), Err(PlaybackError::EmptySequence));
-    assert_eq!(p, before);
+    assert_eq!(p.frame, 14);
+    assert_eq!(p.set_frame(259, 0), Ok(()));
+    assert_eq!(p.frame, 3);
 }
 
 #[test]
@@ -214,7 +213,7 @@ fn clock_never_converts_elapsed_and_rate_zero_does_nothing() {
 }
 
 #[test]
-fn reverse_interior_and_unpublished_endpoint() {
+fn reverse_interior_and_loop_endpoint() {
     let mut p = playback();
     p.frame = 3;
     p.direction = -1;
@@ -222,24 +221,20 @@ fn reverse_interior_and_unpublished_endpoint() {
     assert_eq!(p.frame, 2);
     assert_eq!(p.position, -0.5);
     p.frame = 0;
-    let before = p;
-    assert_eq!(
-        p.advance_unsequenced(10),
-        Err(PlaybackError::ReverseBoundaryUnspecified)
-    );
-    assert_eq!(p, before);
+    assert_eq!(p.advance_unsequenced(10), Ok(true));
+    assert_eq!(p.frame, 9);
 }
 
 #[test]
 fn stopped_and_single_frame_do_not_invent_changes() {
     let mut p = playback();
     p.direction = 0;
-    assert_eq!(p.advance_unsequenced(10), Ok(false));
+    assert_eq!(p.advance_unsequenced(10), Ok(true));
     let mut p = playback();
     assert_eq!(p.advance_unsequenced(1), Ok(false));
     p.frame = 3;
     p.play_mode = 1;
-    assert_eq!(p.advance_unsequenced(4), Ok(false));
+    assert_eq!(p.advance_unsequenced(4), Ok(true));
     assert_eq!((p.direction, p.position), (0, 0.0));
 }
 
@@ -248,9 +243,10 @@ fn sentinel_nonfinite_and_nonprogress_clock_fail_transactionally() {
     for rate in [-100.0, -200.0] {
         let mut p = playback();
         p.rate = rate;
-        let before = p;
-        assert_eq!(p.tick_unsequenced(1.0, 10), Err(PlaybackError::RateSentinel));
-        assert_eq!(p, before);
+        p.frame_skipping = false;
+        assert_eq!(p.tick_unsequenced(1.0, 10).unwrap().status(), 2);
+        assert_eq!(p.rate, -200.0);
+        assert_eq!((p.frame, p.position), (1, 1.0));
     }
     let mut p = playback();
     let before = p;
@@ -534,14 +530,19 @@ fn basic_query_addrefs_and_last_release_drops_owner_and_zooms() {
 }
 
 #[test]
-fn references_overflow_and_unknown_iid_do_not_mutate_count() {
+fn references_wrap_unknown_iid_preserves_and_zero_release_destroys() {
     let mut a = SpriteArena::default();
     let h = a.insert(sprite(), u16::MAX).unwrap();
-    assert_eq!(a.add_ref(h), Err(ReferenceError::Overflow));
-    assert_eq!(a.references(h), Some(u16::MAX));
+    assert_eq!(a.add_ref(h), Ok(0));
+    assert_eq!(a.references(h), Some(0));
     assert_eq!(a.query_basic_interface(h, 0), Err(ReferenceError::UnsupportedInterface));
-    assert_eq!(a.references(h), Some(u16::MAX));
-    assert_eq!(a.insert(sprite(), 0), Err(ReferenceError::ZeroInitialCount));
+    assert_eq!(a.references(h), Some(0));
+    assert_eq!(a.release(h), Ok(0));
+    assert!(a.get(h).is_none());
+    let zero = a.insert(sprite(), 0).unwrap();
+    assert_eq!(a.query_basic_interface(zero, SPRITE_INSTANCE_IID), Ok(zero));
+    assert_eq!(a.references(zero), Some(1));
+    assert_eq!(a.release(zero), Ok(0));
 }
 
 #[test]
