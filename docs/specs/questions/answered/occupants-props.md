@@ -107,3 +107,15 @@
   **ANSWERED 2026-10-22 (re-signposts):** row 0 is the static colour (144, 172, 190, 255), row 1 the dynamic
   (edit-time) colour (255, 255, 255, 204), bytes in memory order (`0x00AA5204` = `90 AC BE FF`, `FF FF FF CC`;
   *[inferred]* R, G, B, A); `SetDynamic(d)` copies row `d != 0` into the four corners.
+
+<!-- from: core-construction-contractfix4 (2026-10-22) -->
+- ~~**OP17:** lot-records.md §9.1 / §9.2: which code writes the world box (record #6, object `+0xA8…+0xBC`) that
+  `GetPosition` / `GetBoundingBox` read — `RebuildModel` (from the building's box, as `bbox` of ld §6.7.3), `SetLot`,
+  or only `Read`? And is it the building's box unchanged or a box derived from the scaffold? The core sets it to the
+  building's bounding box in `RebuildModel` (literal reading of "the building's bounding box" being the only box
+  `RebuildModel` reads), also on the refresh after a load.~~
+  **ANSWERED 2026-10-23 (re-construction):** `RebuildModel` writes it (`0x005CB76D`–`0x005CB799`; the constructor only
+  initialises it): the scaffold box it stores at `+0xC0…+0xD4` (the building's footprint widened by sfScaffoldGap)
+  widened again by sfPostWidth (`0x00B0A7CC`, default 1.0) in x and z, with the same heights. It is not the building's
+  box unchanged; `SetLot` writes it only through its `RebuildModel` call, and `Read` restores the saved value
+  (lot-records.md §9.1, lot-developer.md §6.7.10).

@@ -226,7 +226,7 @@ cSC4PylonOccupant	network occupants	simulation	network-occupants.md	-	-	-
 cSC4NetworkTypeInfo	network occupants	simulation	network-occupants.md	-	-	-
 cSC4NetworkRoutines	network occupants	simulation	network-occupants.md	-	-	-
 cSC4Network*	network occupants	simulation	network-occupants.md	-	-	-
-cSC4ConstructionOccupant	occupants and props	simulation	lot-records.md	-	-	-
+cSC4ConstructionOccupant	occupants and props	simulation	lot-records.md, lot-developer.md	-	-	-
 cSC4PropOccupant	occupants and props	simulation	prop-occupant.md, lot-records.md	-	-	-
 cSC4PropOccupantVisualEffect	occupants and props	simulation	prop-occupant.md, lot-records.md	-	-	-
 cSC4PropOccupant*	occupants and props	simulation	prop-occupant.md, lot-records.md	-	-	-

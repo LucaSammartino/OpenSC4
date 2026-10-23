@@ -974,7 +974,7 @@ priority **`0x80`** (every second frame, §6.7.8); last, `AddOccupantGroup(0x500
 pending flag is set; `0x06CDB65B` adds / removes the occupant from the renderer `0x00B43DD0` (slots 28 / 29) and
 toggles occupant flag 2; `0xA6B79602` sets a byte flag at +0xFC) *[inferred: their names]*. All return true.
 
-**`Shutdown`**: posts `0xC9E7B1E8` (data1 = 0) and unsubscribes.
+**`Shutdown`**: posts `0xC9E7B1E8` (data1 = 0), unsubscribes and removes everything it placed (§6.7.14).
 
 #### 6.7.2 Static tuning (`StaticInit`)
 
@@ -1161,8 +1161,8 @@ then the effect's slot 9(&pos) and slot 7(1).
 C `rand()` is shared process-wide, so the original's construction scene is not reproducible. FreeCity4 seeds the
 generator explicitly *[choice]*; conformance covers the draw **sequence and arguments** (§16 tests 23–25), not
 original scenes. Simulation results do not depend on these draws, provided the construction props, automata and lot
-texture are removed or replaced at completion *[inferred: the roof props are removed at state 3 and the base texture
-is re-picked by §6.5; the removal of ground props and automata in `Shutdown` is not traced]*.
+texture are removed or replaced at completion: the roof props are removed at state 3, the base texture is re-picked
+by §6.5 *[inferred]*, and `Shutdown` removes the props, effects and crew (§6.7.14).
 
 #### 6.7.8 Animation-tick manager (`cSC4AnimationTickManager`, service `0x86AD10EC`)
 
@@ -1185,11 +1185,92 @@ So the lot developer (`0xC0`) ticks every frame and the construction occupant (`
 | `0xC9E7B1E8` | `SetLot` (data1 = 1), `Shutdown` (data1 = 0) | as above | queued | same |
 | `0x2977AE2F` | building completion changed | IGZUnknown = the building | queued | model maker, automata manager |
 
-#### 6.7.10 Open
+#### 6.7.10 State and the save record
 
-The crane fit geometry (size tables, usable-side test), `DivideLot`'s area rectangles, the prop table contents, the
-`Read` / `Write` layout, the name of the render setting of step 4 and the cleanup in `Shutdown` are not specified.
-None of them changes the completion day.
+Every field and the record's row 14 are lot-records.md §9.1 (object-frame offsets). The world bounds there (record
+field 6, `+0xA8…+0xBC`) are written by `RebuildModel` (`0x005CB76D`–`0x005CB799`): the scaffold box `+0xC0…+0xD4`
+widened by sfPostWidth (`0x00B0A7CC`) in x and z, with the same heights (re-construction 2026-10-23, OP17).
+
+#### 6.7.11 `DivideLot(areas)` (`0x005CB9F0`)
+
+*Added 2026-10-23 (re-construction).* With the lot's cell rectangle (lot slot 14) turned into world corners `(X0, Z0)`
+and `(X1, Z1)` (city slot 96 at `(x1, z1)` and `(x2 + 1, z2 + 1)`), the building's bounding box (`bmin`, `bmax`) and
+`gap` (sfScaffoldGap): `xa := max(bmin.x − gap, X0)`, `xb := min(bmax.x + gap, X1)`, `za := max(bmin.z − gap, Z0)`,
+`zb := min(bmax.z + gap, Z1)` (a NaN compare keeps the building side). The eight areas, all with y from 0 to 1:
+
+| Area | x | z | Where |
+|---|---|---|---|
+| 0 | `xa`…`xb` | `Z0`…`za` | the −z strip |
+| 1 | `xb`…`X1` | `za`…`zb` | the +x strip |
+| 2 | `xa`…`xb` | `zb`…`Z1` | the +z strip |
+| 3 | `X0`…`xa` | `za`…`zb` | the −x strip |
+| 4 | `X0`…`xa` | `Z0`…`za` | the −x −z corner |
+| 5 | `xb`…`X1` | `Z0`…`za` | the +x −z corner |
+| 6 | `xb`…`X1` | `zb`…`Z1` | the +x +z corner |
+| 7 | `X0`…`xa` | `zb`…`Z1` | the −x +z corner |
+
+An area can be empty or inverted; the prop and crew placements skip those (width or depth not above their limits).
+
+#### 6.7.12 Cranes
+
+*Added 2026-10-23 (re-construction).* **Size tables** (`StaticInit`): for `k = 0, 1, 2` the crane model `{type
+0x5AD0E817, group 0xBADB57F1, instance 0x1C210000, 0x1C220000, 0x282A0000}` is fetched (resource manager slot 3,
+interface `0x9AD0E7E3`) and its instance's bounds read (slot 7): `width[k] := max.x − min.x` (`0x00B22F64`), `reach[k]
+:= max(|min.x|, |max.x|)` (`0x00B22F70`), `back[k] := min(|min.x|, |max.x|)` (`0x00B22F7C`). A model that does not
+load leaves its entries 0, and a size with `width = 0` is never used.
+
+**Outer crane** (`0x005CD710`). With `W := xb − xa` and `D := zb − za` from the areas, for `k = 0, 1, 2` until one
+fits:
+
+1. Skip `k` unless (`0.8 · reach[k] ≤ W` or `D ≥ 12`) and the local bounds' height (`+0xD0 − +0xC4`) is at least 12.
+2. Usable sides: all four, then side 3 is dropped if `X1 − xa < reach[k]`, side 1 if `xb − X0 < reach[k]`, side 2 if
+   `zb − Z0 < reach[k]`, side 0 if `Z1 − za < reach[k]`.
+3. `need := sfCranePostToBuildingGap + back[k] + sfCranePostWidth`; a usable side is dropped when its strip (area 0 to
+   3) is not deeper than `need` (z extent for sides 0 and 2, x extent for 1 and 3).
+4. Any side left: crane `k` fits.
+
+The side is drawn as in §6.7.7 step 1. With `f := sfCranePostWidth · 0.5 + sfCranePostToBuildingGap`, the crane stands
+at, for side 0: (the strip's middle x, `za − f`); side 1: (`xb + f`, middle z); side 2: (middle x, `zb + f`); side 3:
+(`xa − f`, middle z), facing the building. Its swing range (`+0x178`, `+0x17C`) is §6.7.6's. Then `+0x124 := k`, the
+crane is made (`CreateCrane`, `0x005CC820`), and its footprint, the square of half-size `need` around it, is cut out
+of the side's area by `RemoveRectangle`.
+
+**Inner crane** (`0x005CDDA0`). The long extent `L` of the building's box is x when the x extent is at least the z
+extent (sides 0 / 2) and z otherwise (sides 1 / 3); the side is drawn as in §6.7.7. The size is the first `k` with
+`width[k] > 0` and `back[k] + reach[k] < L`; none → no crane. The crane stands on the building, offset along the long
+axis from the middle by `(back + reach) / 2 − back`, with a swing range chosen as for the outer crane from the half of
+the short extent *[summary]*.
+
+**`RemoveRectangle(area, r)`** (`0x005CCD70`): of the four parts of `area` outside `r` (below it in z, right of it in
+x, above it in z, left of it in x, each spanning the area's full other extent) the area becomes the one with the
+largest x·z product, ties keeping the earlier one; when none is larger than 0, the area becomes empty.
+
+**`SetCraneAngle(a)`** (`0x005CBE10`): the crane model turns to `a + π`, reduced below 2π *[summary]*. During state 0
+of §6.7.6 the angle is `start + (target − start) · s`, `s := t² (3 − 2t)` with `t := acc / duration`.
+
+#### 6.7.13 Prop tables (`StaticInit`)
+
+*Added 2026-10-23 (re-construction).* The prop table (`0x00B22FA0`) holds, for each of the ground prop types
+`0x02000000`, `0x02010000`, `0x02050000`, `0x03040000`, `0x03050000` (`0x00AA1E54`) and then the roof prop types
+`0x03030000`, `0x02050000`, `0x02060000` (`0x00AA1E48`) that the prop manager knows (slot 14 `GetPropProfilePtr`), the
+entry (type, size x, size z) from the prop profile; `nGround` (`0x00B22F58`) counts the ground entries and
+`0x00B22F5C` all of them, so the roof list is the entries after `nGround`.
+
+#### 6.7.14 Shutdown cleanup
+
+*Added 2026-10-23 (re-construction).* `Shutdown` (`0x005D0CE0`), only for an initialised occupant: post `0xC9E7B1E8`
+(data1 = 0); the occupant base `Shutdown`; release the lot and the building; unsubscribe from the four messages and
+leave the animation-tick manager (its slot 6, priority `0x80`); release the texture bindings it holds (`+0x118`) and
+free the model buffers (`+0xDC`…`+0xF4`, `+0x114`); release the crane model; remove every ground prop, roof prop and
+effect, and the current effect, from the prop manager (slot 29 `RemoveProp`) and release them (the current effect is
+released without a null test *[quirk]*); remove every crew automaton from the automata manager (city slot 44, its slot
+8 with 0) and release it. So the completion's tail call (§6.7.5) removes everything the occupant placed.
+
+#### 6.7.15 Open
+
+The model geometry of `RebuildModel`, `SetScaffoldHeight` (`0x005CC020`), `CreateCrane`, `Draw` (`0x005CC410`) and
+`DoRotationChange` (`0x005CB7C0`), the inner crane's exact placement, and the name of the render setting of §6.7.7
+step 4 are not specified. None of them changes the completion day.
 
 ---
 
@@ -2042,6 +2123,15 @@ Unless stated, tuning is the shipped exemplar and the file RNG is seeded explici
 43. **Base-texture occupant lookup** (§6.6 slot 41, LD24): two base-texture occupants overlap the lot's location
     cell, the first in bucket order belonging to another lot: slot 41 returns that first one (no lot check) and
     calls `SetUsage(2)` on it; `create = false` with no occupant at the cell returns false and writes `out = null`.
+44. **DivideLot** (§6.7.11): a lot spanning x 0–48, z 0–32, a building box x 10–30, z 8–20, gap 2: `xa = 8`,
+    `xb = 32`, `za = 6`, `zb = 22`; area 0 is x 8–32, z 0–6; area 1 x 32–48, z 6–22; area 4 x 0–8, z 0–6; area 6
+    x 32–48, z 22–32; every area has y 0–1.
+45. **Crane swing** (§6.7.12): an outer crane of reach 20 on side 0 at x 24 of a lot x 0–48 has the range
+    `[π, 2π]`; at x 10 (`m = 10 < 20`) the range is `3π/2 ± asin(0.5)` = `[3π/2 − π/6, 3π/2 + π/6]`.
+46. **RemoveRectangle** (§6.7.12): area x 0–10, z 0–10 and a cut x 4–6, z 7–10: the parts are 70 (below),
+    40 (right), 0 (above) and 40 (left), so the area becomes x 0–10, z 0–7.
+47. **Construction cleanup** (§6.7.14): after completion, the occupant's ground props, roof props, effects and crew
+    automata are no longer in the prop and automata managers.
 
 ---
 

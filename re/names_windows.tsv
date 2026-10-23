@@ -4244,6 +4244,7 @@ va	name	source	confidence	note
 005cb9f0	cSC4ConstructionOccupant::DivideLot	auto:D	medium	mac 00118d9e score 0.5 support 1
 005cbc10	cSC4ConstructionOccupant::CreateDustClouds	auto:A	high	mac 00118950 score 1.0 support 0
 005cbd20	cSC4ConstructionOccupant::SendConstructionMessage	auto:B0	medium	mac 00119044 score 0.928 support 2.0
+005cbe10	cSC4ConstructionOccupant::SetCraneAngle	manual:construction-occupant.tsv	high	lot-developer.md §6.7.12
 005cc020	cSC4ConstructionOccupant::SetScaffoldHeight	auto:B1	medium	mac 00118ad8 score 0.944 support 2.5
 005cc410	cSC4ConstructionOccupant::Draw	auto:B3	medium	mac 00119100 score 0.931 support 5.0
 005cc820	cSC4ConstructionOccupant::CreateCrane	auto:B1	medium	mac 00119b22 score 0.9 support 2.5

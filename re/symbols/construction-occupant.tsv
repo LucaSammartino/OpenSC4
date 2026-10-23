@@ -1,0 +1,20 @@
+va	name	evidence	mac_x86
+005cad60	cSC4ConstructionOccupant::RebuildModel	lot-developer.md §6.7.3; lot-records.md §9.1 (+0x158, +0x15C)	
+005cb7c0	cSC4ConstructionOccupant::DoRotationChange	lot-developer.md §6.7.15	
+005cb9f0	cSC4ConstructionOccupant::DivideLot	lot-developer.md §6.7.11	
+005cbe10	cSC4ConstructionOccupant::SetCraneAngle	lot-developer.md §6.7.12	
+005cc020	cSC4ConstructionOccupant::SetScaffoldHeight	lot-developer.md §6.7.15	
+005cc410	cSC4ConstructionOccupant::Draw	lot-developer.md §6.7.15	
+005cc820	cSC4ConstructionOccupant::CreateCrane	lot-developer.md §6.7.12	
+005ccd70	cSC4ConstructionOccupant::RemoveRectangle	lot-developer.md §6.7.12	
+005cd250	cSC4ConstructionOccupant::Write	lot-developer.md §6.7.10; lot-records.md §9.1	
+005cd570	cSC4ConstructionOccupant::AnimateCrane	lot-developer.md §6.7.6, §6.7.12	
+005cd710	cSC4ConstructionOccupant::AttemptAddOuterCrane	lot-developer.md §6.7.12	
+005cdda0	cSC4ConstructionOccupant::AttemptAddInnerCrane	lot-developer.md §6.7.12	
+005ce110	cSC4ConstructionOccupant::DoAnimationTick	lot-developer.md §6.7.6	
+005ce360	cSC4ConstructionOccupant::AttemptAddCrane	lot-developer.md §6.7.7 step 1	
+005ce770	cSC4ConstructionOccupant::Read	lot-developer.md §6.7.10; lot-records.md §9.1	
+005ced80	cSC4ConstructionOccupant::StaticInit	lot-developer.md §6.7.2, §6.7.12, §6.7.13	
+005d0680	cSC4ConstructionOccupant::DoDailySim	lot-developer.md §6.7.5	
+005d0890	cSC4ConstructionOccupant::SetLot	lot-developer.md §6.7.4	
+005d0ce0	cSC4ConstructionOccupant::Shutdown	lot-developer.md §6.7.14	

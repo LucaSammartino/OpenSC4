@@ -781,7 +781,7 @@ fields. The saved fields, in Write order (object frame; the Write-coded offset i
 |---|---|---|---|
 | `+0x68`/`+0x6C` [`+0x5C`/`+0x60`] | 2 × ref | the **live** lot / building references that `SetLot` holds (there is no separate saved copy); `Read` releases the old ones and reads into the same fields | 3, 4 |
 | `+0x70` [`+0x64`] | xform | `operator<<` `0x005DA8C0`, read with `0x005DA930` (v4) or `0x005DA710` (v5) | 5 |
-| `+0xA8` [`+0x9C`] | box | world bounds; the box `GetPosition` / `GetBoundingBox` read (their frame offset `+0xA0` = object `+0xA8`) | 6 |
+| `+0xA8` [`+0x9C`] | box | world bounds; the box `GetPosition` / `GetBoundingBox` read (their frame offset `+0xA0` = object `+0xA8`); `RebuildModel` writes it as the scaffold box `+0xC0` widened by sfPostWidth in x and z (`0x005CB76D`–`0x005CB799`; OP17, re-construction 2026-10-23) | 6 |
 | `+0xC0` [`+0xB4`] | box | the scaffold box `RebuildModel` stores (x / z = building footprint ∓/± 1.0, constant `0x00B0A7D0`); used by `CreateConstructionCrew`, `AddRoofProps`, `CreateSparks` | 7 |
 | `+0x104` [`+0xF8`] → `+0xD8` [`+0xCC`] | bool | written as (live crane model pointer `+0x104` != 0; `CreateCrane` sets it); read into the load-only flag `+0xD8`, never into `+0x104`. `Read` also sets `+0xD9` = 1 (refresh pending, §9.2) | 8 |
 | `+0x108` [`+0xFC`] | vec3 | crane position (`0x005DA580`) | 9 |
