@@ -9,10 +9,13 @@
 - Verified owned SHA256: mod 655560af70baa6a1803caa06d895e2a9cd1b7e8c8a2d6752204812287a496ad2; tests 4e5f22d05b0f536b1a796eceaff6f474c294a410f5c7501e0c90db1776783ffb.
 - Archived exact failed native 5595 bytes SHA cd48dc451f5189ce89ff87a450d2569b9910ec298bd016a5582c47a7ecd8e293 and historical quick Rust 248894 bytes SHA 03ef45d2366f8e958339fdb49bd399d6a55e004ae24efa00d5a5d9565ca9df41 in build-runs/inherited-r1-core-game-of-life4-r2-20261023/.
 - Copied host proof in build-runs/evidence-run4/coordinator-game-of-life-r1-current-operation-review.json establishes old named PIDs absent and no own operation references; historical session 1693 terminal/cause/native RC stay UNKNOWN. No old handle is available in this transport. No kill/cancellation claimed.
-- Next: finish independent public-spec/source review, record before identity, run ONE canonical qbuild all and retain actual terminal/step outcomes; no quick or baseline.
+- Review complete: committed source has no filename header and uses checked index arithmetic; literal 20 fixtures fit public V1-V17 byte states, primitive inputs, roles and callback snapshots. No C/P survivor store-order assertion promotes GL4. No source changes needed.
+- Formatting: first relative-path invocation failed to find files in wrapper cwd; absolute owned paths then passed qbuild fmt exit 0 (environment canonicalize warning only). No formatter output injected into source, no shared lib reformat.
+- Next: run ONE canonical qbuild all on this clean committed source via build-runs/r2-game-of-life-evidence.py gate; preserve actual yielded operation and terminal/step outcomes, no quick/baseline.
 - R2 evidence helper: build-runs/r2-game-of-life-evidence.py; manifest C:/Users/tlori/FreeCity4/build-runs/run4-core-game-of-life4-r2-manifest.json.
 - Existing report below preserves R1 scope/evidence; GL1-GL4 remain open, C-before-P is portable GL4 choice, four bodies 932B are not whole-owner/native credit.
-- No new game requests, no current new checker, no merge queue.
+- R2 gate records before/after HEAD, engine tree, content/dirty state and log hashes; wrapper stdout, operation PID/argv/cwd and terminal JSON are build-runs/core-game-of-life4-r2-*.
+- No new game requests or merge queue. Gate starts only after this review milestone commit.
 
 ## Result and scope
 
