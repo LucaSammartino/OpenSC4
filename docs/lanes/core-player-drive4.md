@@ -17,7 +17,9 @@
 - Serial continuation build-runs/finish-player-drive-r2.py waits that exact quick creation, requires exit0, then new-file fmt, separate shared-lib fmt, exactly one final all; no duplicate checker or process/cache action. Preserve/collect its terminal result and logs before any further gate.
 - 01:02:40 BST observation: all 26 player_drive tests PASS; fc4verify-quick-test.log sums 3126 passed/0 failed across 2 summaries, compilation 11m09s. Quick dependents still compiling; no complete quick/final-all claim. Evidence: build-runs/source-r2-owner-tests-passed.json.
 - 01:07:20 BST: quick dependencies finished and native release compilation is active. Service-owned rustc38452 (parent26476), created 00:05:54Z, explicitly outputs to this worktree's private cargo/i686 release/deps; ancestry alone is not attribution. Full argv/creation/cwd evidence: build-runs/process-r2-native-inflight.json. Serial continuation PID37316 created 23:54:20Z (terminal session50365).
-- Next: collect full quick, bounded fmt, and one final-all result from that continuation; inspect source/native/CTest/artifact correspondence. Existing DLL dated 00:24 predates registration and is not acceptance.
+- Quick measured stages complete: owner 3126/0 incl. 26/26 fixtures (11m09s), dependencies compile-only 4m08s, native 4/4 (release 6m17s). Native source/artifact/log snapshot and copied build/configure logs: build-runs/quick-r2/. DLL SHA256 0dca05743ef3a34b7f7beec4fc8c9d728a652c120932bd4b27ec773841bbceff, mtime 00:12:12Z; library SHA256 02194755fa713f4df58c5cc8899f5b36a917089f9a5f96b7d9841c95bd9cc44e, mtime 00:12:09Z.
+- At 00:12:33Z quick verifier25864 waits on own sccache37432 created00:12:14.081675Z, exact argv --show-stats --stats-format json. No terminal quick result; serial continuation37316 still depends on it. No kill/RPC/cache/env/provider/policy action authorized or taken. Fresh fmt/clippy/full CTest remain unrun.
+- Next: observe/collect that exact existing operation and serial continuation; no duplicate checks or compiled-source edits. If it remains blocked, report WIP with exact identities/results and remaining budget.
 - No game request; DR1-DR8 remain; only own module/tests, necessary lib declaration, report and appended questions allowed.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-player-drive4-r2-manifest.json.
 
@@ -42,7 +44,7 @@ No real-game/native probe or shadow was requested or credited. ABI exports, nati
 
 ## Pre-implementation method audit
 
-The published attribution is 40 functions / 12400 bytes; the reported inventory is 32 entries including two foreign junction-view entries. Neither number is implementation credit. The behaviour spec names the following tool methods/handlers; inventory names absent from it cannot acquire invented contracts.
+The published attribution is 40 functions / 12400 bytes; the reported inventory is 32 entries (30 tool entries plus two foreign junction-view entries). Neither number is implemented-body/byte credit. The table records published portable method boundaries, not a claim to all inventory bodies. Inventory names absent from the behaviour spec cannot acquire invented contracts.
 
 | Method | Bounded portable source status | Published portable boundary |
 |---|---|---|
@@ -51,8 +53,8 @@ The published attribution is 40 functions / 12400 bytes; the reported inventory 
 | Shutdown | unsupported | Summary cannot establish resource/COM release ordering |
 | EnterChoosingMode | partial | Ordered cleanup, hover clear, conditional simulator pause, four manager pauses |
 | PauseEverything | supported subset | Conditional simulator pause/resume; four manager effects |
-| PickAutomaton | partial | Raw renderer/occupant query, no foreign body credit |
-| PickNetworkOccupant | partial | Raw renderer/IID query, no foreign body credit |
+| PickAutomaton | primitive boundary only | Raw renderer/occupant query, no foreign body credit |
+| PickNetworkOccupant | primitive boundary only | Raw renderer/IID query, no foreign body credit |
 | OnMouseMove | partial | Terrain/cell and hover/drive-field selection; hover reference policy unresolved |
 | OnMouseDownL | partial | Accepted network pick wins; form selection; mission/group gate |
 | EnterDrivingMode | partial | Only explicit portable subset; dashboard load, audio table, settings selection remain visible gaps |
@@ -70,7 +72,7 @@ The published attribution is 40 functions / 12400 bytes; the reported inventory 
 | Update | unsupported | DR1; gauges/tracking cadence not published |
 | DoWinProcMessage | supported subset | Four literal button/command pairs |
 | DoMessage | partial | Numeric routing; panel direction/model details unresolved |
-| AutomatonRemoved | supported subset | Matching identity only, StopTracking then EndInput prefix |
+| AutomatonRemoved | partial | Matching identity only, StopTracking then partial EndInput prefix |
 | AddCallbackTarget | partial | Ordered list, no guessed initial counts/dedup/ref policy |
 | SendCallbackMessage | partial | Literal message and supplied two values; reentrant mutation unresolved |
 | SC4TrainJunctionView construction / Shutdown | excluded | Separate owner, zero credit |
