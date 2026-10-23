@@ -9,7 +9,8 @@
 - Next: run final explicit-file fmt and required qbuild all; collect terminal result, fix diagnostics if any, update report and queue.
 - Main checkout: C:/Users/tlori/FreeCity4 (lane tools only).
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-app5-r1-manifest.json.
-- No asynchronous operations or game requests outstanding.
+- Gate 1 session 29528 terminated with Ctrl-C after CMake ABI probe stalled; terminal exit 1 collected. Workspace tests passed, clippy failed on two fixture initializers, CTest never started. Logs preserved as build-runs/gate1-*.log.
+- Corrected clippy initializers and raw preference boolean preservation; rerun final gate with _CL_=/Z7 to avoid shared compiler PDB in CMake bootstrap.
 - q.py failed before cargo (Git Bash CreateFileMapping access denied); direct cargo works.
 - Save naming remains the explicit section 12 gap; resolved target is an explicit composition input.
 - AP12-AP15 appended to docs/specs/questions/application.md. Do not regenerate QUESTIONS.md with forbidden tools; coordinator handles generated index.

@@ -44,7 +44,11 @@ impl PreferencesImage {
             (0x4EF, p.ime),
             (0xF17, p.fullscreen),
         ] {
-            self.0[offset] = u8::from(value);
+            // Raw-block persistence preserves noncanonical true bytes unless
+            // the modeled boolean actually changes.
+            if (self.0[offset] != 0) != value {
+                self.0[offset] = u8::from(value);
+            }
         }
         for (offset, value) in [
             (0x10, p.radio),
@@ -114,6 +118,7 @@ impl Application {
         self.preferences_image.overlay(&self.preferences);
         self.preferences_image.0[0x4A8] = 1;
         self.preferences_image.0[0x4AC..0x4EC].fill(0);
+        self.preferences_image.0[0x4EF] = 1;
         let path = self.preferences_path();
         host.delete_preferences_file(&path);
         host.write_preferences_record(&path, PREFERENCES_KEY, PREFERENCES_VERSION, &self.preferences_image.0)

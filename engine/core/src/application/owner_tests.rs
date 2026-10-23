@@ -527,10 +527,13 @@ fn height_field_picker_centres_truncates_and_preserves_cancelled_output() {
 #[test]
 fn preferences_preserve_unmodeled_bytes_and_clear_live_language_and_ime() {
     let mut app = app();
-    let mut h = Foreign::default();
-    h.record = Some((0x14, vec![3; PREFERENCES_SIZE]));
+    let mut h = Foreign {
+        record: Some((0x14, vec![3; PREFERENCES_SIZE])),
+        ..Foreign::default()
+    };
     assert!(!app.read_preferences(&mut h));
     let mut image = vec![0; PREFERENCES_SIZE];
+    image[4] = 0xA5;
     image[0x1000] = 0xAB;
     image[0x4AC..0x4B2].copy_from_slice(b"French");
     image[0x4EF] = 0;
@@ -542,6 +545,7 @@ fn preferences_preserve_unmodeled_bytes_and_clear_live_language_and_ime() {
     assert!(app.preferences.language.is_empty());
     assert!(app.preferences.ime);
     assert_eq!(h.written[0x1000], 0xAB);
+    assert_eq!(h.written[4], 0xA5);
     assert_eq!(h.written[0x4A8], 1);
     assert_eq!(h.written[0x4EF], 1);
     assert!(h.written[0x4AC..0x4EC].iter().all(|b| *b == 0));
@@ -550,8 +554,10 @@ fn preferences_preserve_unmodeled_bytes_and_clear_live_language_and_ime() {
 #[test]
 fn plugins_filter_disabled_libraries_and_registry_substitutes_each_occurrence() {
     let app = app();
-    let mut h = Foreign::default();
-    h.files = vec![b"a.dll".to_vec(), b"b.dll".to_vec()];
+    let mut h = Foreign {
+        files: vec![b"a.dll".to_vec(), b"b.dll".to_vec()],
+        ..Foreign::default()
+    };
     for disabled in [b"false".as_slice(), b"0"] {
         h.enabled = Some(disabled.to_vec());
         app.add_code_plugins(b"P", &mut h);
