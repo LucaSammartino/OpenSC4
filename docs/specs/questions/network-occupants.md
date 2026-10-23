@@ -148,3 +148,18 @@ implementer of the class tables and records.
 - **NO43 - §4.2, §4.6, §4.7:** the pole's floor and walls (`CreateFloor` `0x0064BFD0`, `AddWallQuad` `0x0064C2C0`,
   `CreateWalls` `0x0064C470`), `Draw` and `DrawPowerlines` (`0x0064C800`, `0x0064B750`), `GetBoundingBox`
   (`0x00649A00`), `Pick` (`0x0064A870`) and the cell walk under a wire (`0x0064A4D0`) in detail. [summary]
+
+<!-- from: glue-netocc-shadow5 (2026-10-23) -->
+- **NO45 - §2.3 byte-exact record-shadow comparison versus required Read fixups:**
+  the requested same-process shadow compares native Write bytes with core Read then Write bytes.
+  Native Write saves the live network flags unchanged, but Read must clear bits `0xE000`;
+  e.g. `0x06008000` becomes `0x06000000`. Read also forces triangle alpha to `0xFF`,
+  and transform Read can change mask 7 to 5 for scale 1.0. Thus an unconditional
+  byte-exact roundtrip is not the specified native behavior. Which comparison contract
+  should the record shadow use: a separately specified lossless record decoder that
+  does not apply live-load fixups, or comparison against an explicitly normalized native
+  record? Please specify the permitted normalization/preservation boundary, including
+  inherited underground records; the live Read behavior must remain faithful. The core
+  test `native_read_fixups_prevent_an_unconditional_byte_round_trip` supplies the flags
+  counterexample. [missing shadow contract; implementation held rather than suppressing
+  mismatches or changing native-compatible Read behavior]
