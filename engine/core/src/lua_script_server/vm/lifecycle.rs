@@ -107,10 +107,13 @@ impl Thread {
                 old.release(api);
             }
         }
-        api.invoke(Some(context), Op::PushCClosure(Callback::Alert, 0))?;
-        api.invoke(Some(context), Op::PushString(b"_ALERT".to_vec()))?;
-        api.invoke(Some(context), Op::Insert(-2))?;
-        api.invoke(Some(context), Op::SetTable(GLOBALS))?;
+        guarded(api, |api| {
+            api.invoke(Some(context), Op::PushCClosure(Callback::Alert, 0))?;
+            api.invoke(Some(context), Op::PushString(b"_ALERT".to_vec()))?;
+            api.invoke(Some(context), Op::Insert(-2))?;
+            api.invoke(Some(context), Op::SetTable(GLOBALS))?;
+            Ok(())
+        })?;
         Ok(true)
     }
     pub fn on_destroy<A: ThreadApi + ?Sized>(&mut self, api: &mut A) -> Result<bool> {
@@ -414,7 +417,20 @@ impl LuaHost {
     }
     pub fn destroy<A: ThreadApi>(&mut self, api: &mut A) -> Result<()> {
         self.close(api)?;
+        // §6.2.1: destruction destroys the registry even when a failed custom
+        // main hook left context null, making Close skip its shutdown branch.
+        self.shutdown_registry(api)?;
         self.main_thread.release(api);
+        Ok(())
+    }
+    pub(super) fn shutdown_registry<A: ThreadApi>(&mut self, api: &mut A) -> Result<()> {
+        while let Some(id) = self.records.keys().next().copied() {
+            self.destroy_from(api, id, None)?;
+        }
+        if let Some(owner) = self.registry_owner.take() {
+            api.release(owner.identity);
+            owner.release(api);
+        }
         Ok(())
     }
 }

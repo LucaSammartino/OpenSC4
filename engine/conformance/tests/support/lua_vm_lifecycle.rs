@@ -40,6 +40,7 @@ fn lh4_a_b_c_e_main_child_roots_borrowing_and_monotonic_ids() {
     let t = h.thread_view(id).unwrap().clone();
     let context = t.context().unwrap();
     assert_eq!(t.identity, view);
+    assert_eq!(t.references(), 2); // registry and owned CreateThread output
     assert_eq!(stack_at(&mut a, context), [V::String(b"F".to_vec())]);
     assert_eq!(h.status(&mut a, &t).unwrap(), 1);
     assert!(t.is_valid(&mut a).unwrap());
@@ -146,6 +147,30 @@ fn lh4_g_h_i_j_resume_results_yield_completion_rejection_and_reporting() {
     assert_eq!(a.reports.last().unwrap().1, Handle(0)); // auto-destroy precedes reporter
     assert_eq!(a.reports.last().unwrap().2, 3);
     assert!(!t.is_valid(&mut a).unwrap());
+    a.runtime_status = 0;
+    a.resume_values.clear();
+    let (completed, _) = child(&mut h, &mut a, 0);
+    assert!(h.resume_thread(&mut a, completed, 0, Some(&mut count)).unwrap());
+    assert!(h.get_thread(&mut a, completed).unwrap().is_none());
+}
+
+#[test]
+fn destructor_releases_registry_owner_after_main_hook_leaves_context_null() {
+    let mut a = Api {
+        reserve: false,
+        create_hook_writes: false,
+        ..Api::default()
+    };
+    let mut h = LuaHost::new(Handle(10));
+    assert!(!h.open(&mut a, 0).unwrap());
+    assert_eq!(h.main_thread.context(), None);
+    assert_eq!(h.main_thread.references(), 1);
+    assert!(h.close(&mut a).unwrap());
+    assert_eq!(h.main_thread.references(), 1); // Close skips registry with null context
+    h.destroy(&mut a).unwrap();
+    assert_eq!(h.main_thread.references(), 0);
+    assert_eq!(a.references, [(true, Handle(10)), (false, Handle(10))]);
+    assert!(!a.operations().contains(&Op::Close)); // failed hook did not save the VM
 }
 
 #[test]

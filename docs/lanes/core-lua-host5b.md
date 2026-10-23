@@ -8,7 +8,9 @@
 - Done: implementation milestone 021cc87e; latest focused 24/24 in build-runs/focused-20261023-211944.log; fmt 7 owned files PASS. Earlier diagnostic failures preserved separately.
 - Gate in progress: workspace 6379 passed / 0 failed / 0 ignored; clippy 0 diagnostics. Native queued as qbuild-20261023-212359-build-ctest (game regress delays it).
 - Outstanding operation: exec session 75902, qbuild all. Collect SAME operation to terminal, never duplicate. Logs build-runs/qbuild-test.log and qbuild-clippy.log.
-- Next: collect native gate. Then fix destructor cleanup when failed main hook leaves context null but registry owner retained: destroy must shut down remaining registry after Close. Add focused regression; preserve first full-gate logs before final rerun.
+- Done: destructor now shuts down remaining registry even after a null-context failed main hook; regression added. Latest focused suite 25/25: build-runs/focused-20261023-213050.log.
+- First-gate cargo/clippy logs archived in build-runs/gate-before-destructor-correction/. Native source may include the correction because it was still queued; do not claim this mixed gate as final verification.
+- Next: collect outstanding session 75902 to terminal. Then run qbuild all once on corrected stable source; no duplicate of the outstanding operation.
 - Thread views share synchronized state; explicit release/destroy methods handle foreign lifetime operations. No RefCell.
 - Only pre-existing spec §15 Q1/Q2/Q5/Q8 remain unsettled; no new questions filed.
 - No game requests; core-only task, no plugin/C ABI changes authorized.

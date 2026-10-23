@@ -200,7 +200,7 @@ pub trait LuaApi {
     fn stderr(&mut self, message: Option<&[u8]>);
 }
 
-pub(super) fn guarded<A: LuaApi, T>(api: &mut A, f: impl FnOnce(&mut A) -> Result<T>) -> Result<T> {
+pub(super) fn guarded<A: LuaApi + ?Sized, T>(api: &mut A, f: impl FnOnce(&mut A) -> Result<T>) -> Result<T> {
     let change = api.precision() == 24;
     if change {
         api.set_precision(53);
@@ -381,13 +381,7 @@ impl LuaHost {
     pub fn close<A: ThreadApi>(&mut self, api: &mut A) -> Result<bool> {
         if let Some(state) = self.main_thread.context() {
             guarded(api, |api| {
-                while let Some(id) = self.records.keys().next().copied() {
-                    self.destroy_from(api, id, None)?;
-                }
-                if let Some(owner) = self.registry_owner.take() {
-                    api.release(owner.identity);
-                    owner.release(api);
-                }
+                self.shutdown_registry(api)?;
                 api.invoke(Some(state), Op::Close)?;
                 Ok(())
             })?;
