@@ -210,6 +210,7 @@ generated index: the questions live one file per spec, so read only the file for
 | drawing-fonts | 5 | 17 | FN23 | questions/drawing-fonts.md |
 | drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
 | effects | 0 | 14 | EF15 | questions/effects.md |
+| effects-parser | 0 | 0 | - | questions/effects-parser.md |
 | feature-manager | 3 | 2 | FM6 | questions/feature-manager.md |
 | fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
 | flammability | 0 | 13 | FL14 | - |
