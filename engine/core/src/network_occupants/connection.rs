@@ -368,7 +368,11 @@ impl UndergroundConnection {
         if same_ref(&self.record.linked, &value) {
             return;
         }
-        clear_ref(&mut self.record.linked, host); // Release old BEFORE store/AddRef new.
+        // Release while the old field is still observable to a reentrant host;
+        // unlike read cleanup, this setter must not clear it before Release.
+        if !matches!(self.record.linked, RefValue::Null) {
+            host.release(&self.record.linked);
+        }
         self.record.linked = value;
         if matches!(self.record.linked, RefValue::Null) {
             host.remove_self(true, 0);
