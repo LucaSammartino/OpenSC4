@@ -7,10 +7,11 @@
 - Goal: qualify unchanged formatted engine2226d3b64adf716a335de644960e15ce494e7d58, original round2/3.
 - Prior source/report HEAD4fe93763; no engine edits this round; existing report retained below.
 - Read copied eligibility/process/action proof in build-runs/evidence-run4/.
-- Fresh 05:15:47 inspection: no port4590 listener; only command runner/shell matched own cwd.
-- CIM denied; psutil has many cross-process AccessDenied errors, so absence of live checker is not proven.
+- Fresh 05:18:46 inspection: no port4590 listener or own checker; no relevant command-line errors.
+- CIM denied and23 relevant cwd reads denied; command-line inspection separated ownership successfully.
 - Local collector build-runs/registry-r2-qualification.py; proof build-runs/registry-r2-final/.
-- Next: collect pending inspection terminal, resolve ownership before any canonical all; do not duplicate validators.
+- Sole all started05:18:46.891365 at260d6f99, collector5928/qbuild7056, terminal session65673.
+- Prior21 evidence files archived with SHA256 before logs overwritten. Next: collect same session to terminal.
 - Correct report and final request to disclose ROOT optional stats35076 termination at04:52:15.453930–04:52:16.465343 exit15.
 - Original fc4verify33964/qbuild26456/daemon35116 remained alive; cache stats unavailable/cause UNKNOWN.
 - Earlier30532 already absent/no ROOT action remains separate; no restart or upgraded outcome.
@@ -84,10 +85,20 @@ native replacement proof, whole-owner completion or coverage/default promotion.
   differs. No duplicate focused/quick/all/cargo/CTest run was launched. Coordinator
   validation of that final source is still required. The final report commit
   changes documentation only relative to9f4edebc, not relative to the gate source.
-- Both stats-only coordinator requests resolved by validator completion, without
-  lane process intervention; no requests/validators/game runs remain outstanding.
+- Historical stats provenance correction: ROOT terminated ONLY the optional
+  read-only `--show-stats` client35076 (created1792727342.7140107), at
+  04:52:15.453930–04:52:16.465343, exit15. The SAME fc4verify33964,
+  qbuild26456 and daemon35116 remained alive. No daemon/compiler/validator kill
+  or restart occurred; cache statistics were unavailable, cause UNKNOWN.
+  That same original7bab validator subsequently completed real native4/4,
+  CTest68/68, Rust5388/0 and clippy0. No outcome is upgraded by interruption.
+  Earlier baseline stats30532 was already absent and ROOT took no action on it;
+  that separate history must not be conflated with client35076. The original
+  journal/raw outputs remain unchanged in build-runs/, with a prior-evidence
+  archive under build-runs/registry-r2-final/. No lane process intervention.
   Historical PID/creation/argv/cwd/log metadata is preserved in
-  build-runs/coordinator-request-core-game-data-registry4-{baseline,final}.md.
+  build-runs/coordinator-request-core-game-data-registry4-{baseline,final}.md
+  and coordinator-optional-stats-20261023-045212.json.
 
 Source SHA256 (all gate-time files remained unchanged until gate exit):
 
