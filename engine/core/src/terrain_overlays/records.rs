@@ -3,6 +3,7 @@
 
 use super::{flag, TextureBinding, TextureSource};
 use std::sync::Arc;
+use std::collections::VecDeque;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Handle(pub i32);
@@ -83,6 +84,7 @@ pub(super) enum Target {
 
 pub(super) struct HandleRecord {
     pub placement: Placement,
+    pub aspect: f32,
     pub target: Target,
 }
 
@@ -138,14 +140,14 @@ impl Overlay {
 /// are rejected until reuse. No generation bits are invented in the public ID.
 pub(super) struct Arena<T> {
     slots: Vec<Option<T>>,
-    free: Vec<u32>,
+    free: VecDeque<u32>,
 }
 
 impl<T> Default for Arena<T> {
     fn default() -> Self {
         Self {
             slots: Vec::new(),
-            free: Vec::new(),
+            free: VecDeque::new(),
         }
     }
 }
@@ -153,9 +155,8 @@ impl<T> Default for Arena<T> {
 impl<T> Arena<T> {
     // Construction stays private until OV1/OV2 supply placement contracts. Tests
     // seed records here to exercise setter logic without a fake placement host.
-    #[cfg(test)]
     pub fn insert(&mut self, value: T) -> u32 {
-        if let Some(index) = self.free.pop() {
+        if let Some(index) = self.free.pop_front() {
             self.slots[index as usize] = Some(value);
             index
         } else {
@@ -167,18 +168,19 @@ impl<T> Arena<T> {
     }
 
     pub fn get(&self, index: u32) -> Option<&T> {
+        if self.free.contains(&index) { return None; }
         self.slots.get(index as usize)?.as_ref()
     }
 
     pub fn get_mut(&mut self, index: u32) -> Option<&mut T> {
+        if self.free.contains(&index) { return None; }
         self.slots.get_mut(index as usize)?.as_mut()
     }
 
     pub fn remove(&mut self, index: u32) {
-        if let Some(slot) = self.slots.get_mut(index as usize) {
-            if slot.take().is_some() {
-                self.free.push(index);
-            }
+        if self.get(index).is_some() {
+            // Native removal links the slot but retains payload until reuse/range destruction.
+            self.free.push_back(index);
         }
     }
 
@@ -191,6 +193,14 @@ impl<T> Arena<T> {
         self.slots
             .iter()
             .enumerate()
-            .filter_map(|(i, o)| o.as_ref().map(|o| (i as u32, o)))
+            .filter_map(|(i, o)| if self.free.contains(&(i as u32)) { None } else { o.as_ref().map(|o| (i as u32, o)) })
+    }
+}
+
+impl Drop for Overlay {
+    fn drop(&mut self) {
+        // Logical range/reuse reference protocol; allocation/reentrancy remains unqualified.
+        drop(self.source.take());
+        drop(self.binding.take());
     }
 }

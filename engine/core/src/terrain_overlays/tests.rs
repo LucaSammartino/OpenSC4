@@ -157,6 +157,43 @@ fn public_ov3_settings_message_is_quiet_and_copies_raw_values() {
     assert!(m.take_changed_rectangles().is_empty());
 }
 
+#[test]
+fn public_placement_paper_matrix_and_tolerance() {
+    let mut m = manager(false);
+    let p = Placement([32.0,48.0,16.0,0.0,1.0,1.0,1.0,0.0,99.0]);
+    let h = m.add_decal_binding(Some(Arc::new(Texture)), p, 0, 0).unwrap();
+    m.set_placement(h, p).unwrap(); // texture aspect is 1/2, retained through replacement
+    assert_eq!(m.snapshot(h).unwrap().unwrap().primary,
+        [1.0/16.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0/8.0,1.0,0.0,-1.5,-5.5,0.0,1.0]);
+    m.take_changed_rectangles();
+    m.set_position(h, [32.0 + 1.0/16384.0,48.0]).unwrap();
+    let mut out = Placement([0.0;9]);
+    m.get_placement(h, &mut out).unwrap();
+    assert_eq!(out, p);
+    assert!(m.take_changed_rectangles().is_empty());
+    m.set_placement(h, p).unwrap();
+    assert_eq!(m.take_changed_rectangles().len(), 1);
+}
+
+#[test]
+fn public_ov6_binary64_threshold_and_accumulation() {
+    let mut m = manager(false);
+    let h = seed(&mut m, overlay(0));
+    m.set_alpha(h, 0.0).unwrap();
+    m.take_changed_rectangles();
+    m.set_alpha(h, f32::from_bits(0x3d4c_cccc)).unwrap();
+    assert_eq!(m.alpha(h), Ok(0.0));
+    m.set_alpha(h, f32::from_bits(0x3d4c_cccd)).unwrap();
+    assert_eq!(m.alpha(h), Ok(f32::from_bits(0x3d4c_cccd)));
+    m.set_alpha(h, 0.0).unwrap();
+    m.set_alpha(h, 0.03125).unwrap();
+    assert_eq!(m.alpha(h), Ok(0.0));
+    m.set_alpha(h, 0.0625).unwrap();
+    assert_eq!(m.alpha(h), Ok(0.0625));
+    m.set_alpha(h, f32::NAN).unwrap();
+    assert_eq!(m.alpha(h), Ok(0.0625));
+}
+
 /// Explicit initial state, not claimed constructor defaults.
 fn overlay(flags: u32) -> Overlay {
     Overlay {
@@ -185,6 +222,7 @@ fn seed(manager: &mut OverlayManager, overlay: Overlay) -> Handle {
 
 fn indirect(manager: &mut OverlayManager, target: Target) -> Handle {
     let index = manager.handles.insert(HandleRecord {
+        aspect: 1.0,
         placement: Placement([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]),
         target,
     });

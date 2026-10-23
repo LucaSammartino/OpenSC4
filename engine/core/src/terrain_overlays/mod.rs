@@ -16,6 +16,7 @@
 
 mod records;
 mod render;
+mod placement;
 
 pub use records::{CellRect, Handle, OverlaySnapshot, Placement, TextureScale};
 pub use render::{BlendFactor, DepthFunction, DrawState, FrameOptions, RenderSelection, DRAW_STATES};
@@ -53,6 +54,7 @@ pub enum ContractGap {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Error {
+    Unsupported(Unsupported),
     NotInitialized,
     AlreadyInitialized,
     MissingTerrain,
@@ -60,6 +62,12 @@ pub enum Error {
     InvalidTerrain,
     InvalidHandle,
     Gap(ContractGap),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Unsupported {
+    PlacementNumericDomain,
+    InvalidResourceDimensions,
 }
 
 /// External resources only; no overlay placement or draw results are provided.
@@ -104,19 +112,20 @@ pub struct Geometry {
     pub metres: [f32; 2],
 }
 
+#[derive(Default)]
 struct Resources {
-    view: Arc<dyn ViewProvider>,
-    factory: Arc<dyn TextureFactory>,
-    terrain: Arc<dyn TerrainProvider>,
-    shadow_binding: Option<Arc<dyn TextureBinding>>,
+    view: Option<Arc<dyn ViewProvider>>,
+    factory: Option<Arc<dyn TextureFactory>>,
+    terrain: Option<Arc<dyn TerrainProvider>>,
 }
 
 /// `None` is a dynamic manager; static managers index internal half-open cells.
 type CellIndex = BTreeMap<[u32; 2], Vec<u32>>;
 
-#[derive(Default)]
 pub struct OverlayManager {
-    resources: Option<Resources>,
+    resources: Resources,
+    shadow_binding: Option<Arc<dyn TextureBinding>>,
+    initialized: bool,
     geometry: Option<Geometry>,
     dynamic: bool,
     water: bool,
@@ -134,18 +143,27 @@ pub struct OverlayManager {
 
 impl OverlayManager {
     pub fn new() -> Self {
-        Self { shadow_quality: 2, selection_byte: 1, ..Self::default() }
+        Self {
+            resources: Resources::default(), shadow_binding: None, initialized: false,
+            geometry: None, dynamic: false, water: false, shadow_quality: 2,
+            shadow_debug: 0, selection_byte: 1, overlays: Arena::default(),
+            handles: Arena::default(), groups: Arena::default(), cell_index: None,
+            changed: Vec::new(), decals_drawn: 0, shadows_drawn: 0,
+        }
     }
 
     /// Â§1. Acquire into temporaries first: failure owns no lasting references.
     /// [choice, OV4] Reject double Init and invalid dimensions atomically. The
     /// spec does not give failure returns, repeat-Init or missing-resource policy.
     pub fn init(&mut self, view: Arc<dyn ViewProvider>, dynamic: bool, water: bool) -> Result<(), Error> {
-        if self.is_initialized() {
-            return Err(Error::AlreadyInitialized);
-        }
-        let terrain = view.terrain().ok_or(Error::MissingTerrain)?;
+        replace_reference(&mut self.resources.view, view.clone());
+        self.dynamic = dynamic;
+        self.water = water;
+        self.initialized = true;
         let factory = view.texture_factory().ok_or(Error::MissingFactory)?;
+        replace_reference(&mut self.resources.factory, factory.clone());
+        let terrain = view.terrain().ok_or(Error::MissingTerrain)?;
+        replace_reference(&mut self.resources.terrain, terrain.clone());
         let cells = terrain.cells();
         let width = terrain.cell_width();
         let metres = [cells[0] as f32 * width, cells[1] as f32 * width];
@@ -157,52 +175,35 @@ impl OverlayManager {
         {
             return Err(Error::InvalidTerrain);
         }
-        // The binding's key is public; its factory slot is not (OV4). Do not
-        // silently select slot 5 or 6. Full shadow drawing remains gated on OV8.
-        let shadow_binding = None;
-        self.shadow_quality = view.shadow_quality();
-        self.shadow_debug = view.shadow_debug();
         self.geometry = Some(Geometry {
             cells,
             cell_scale: 1.0 / width,
             metres,
         });
-        self.dynamic = dynamic;
-        self.water = water;
-        self.cell_index = (!dynamic).then(BTreeMap::new);
+        self.decals_drawn = 0;
+        self.shadows_drawn = 0;
+        drop(self.shadow_binding.take());
+        self.shadow_binding = factory.binding(SHADOW_TEXTURE_KEY, BindingLookup::Slot5);
+        if !dynamic { self.cell_index = Some(BTreeMap::new()); }
         view.subscribe(CHANGE_MESSAGE);
-        self.resources = Some(Resources {
-            view,
-            factory,
-            terrain,
-            shadow_binding,
-        });
+        self.shadow_quality = view.shadow_quality();
+        self.shadow_debug = view.shadow_debug();
         Ok(())
     }
 
     /// Â§1. Unsubscribe while the view is alive, then drop owned references.
     pub fn shutdown(&mut self) {
-        if let Some(resources) = self.resources.take() {
-            resources.view.unsubscribe(CHANGE_MESSAGE);
-            drop(resources.view);
-            drop(resources.factory);
-            drop(resources.terrain);
-            drop(resources.shadow_binding);
-        }
+        if let Some(view) = &self.resources.view { view.unsubscribe(CHANGE_MESSAGE); }
+        drop(self.resources.view.take());
+        drop(self.resources.terrain.take());
+        drop(self.resources.factory.take());
         self.overlays.clear();
         self.handles.clear();
-        self.groups.clear();
-        self.cell_index = None;
-        self.changed.clear();
-        self.geometry = None;
-        // [choice, OV4] These core diagnostics reset on shutdown; no original
-        // constructor defaults or post-shutdown getters are specified.
-        self.decals_drawn = 0;
-        self.shadows_drawn = 0;
+        self.initialized = false;
     }
 
     pub fn is_initialized(&self) -> bool {
-        self.resources.is_some()
+        self.initialized
     }
 
     pub fn geometry(&self) -> Option<Geometry> {
@@ -224,27 +225,56 @@ impl OverlayManager {
     /// Slots 3/4. No external provider supplies this owner's missing geometry.
     pub fn add_decal_source(
         &mut self,
-        _source: Arc<dyn TextureSource>,
-        _placement: Placement,
+        source: Arc<dyn TextureSource>,
+        placement: Placement,
         _a: u32,
         _b: u32,
     ) -> Result<Handle, Error> {
         self.require_init()?;
-        Err(Error::Gap(ContractGap::PlacementAndAddArgumentsOv1))
+        let dimensions = source.size();
+        self.add_ordinary(None, Some(source), placement, dimensions)
     }
 
     pub fn add_decal_binding(
         &mut self,
         binding: Option<Arc<dyn TextureBinding>>,
-        _placement: Placement,
+        placement: Placement,
         _a: u32,
         _b: u32,
     ) -> Result<Handle, Error> {
         self.require_init()?;
-        if binding.is_none() {
-            return Ok(Handle::NONE);
+        let Some(binding) = binding else { return Ok(Handle::NONE) };
+        let dimensions = binding.size();
+        self.add_ordinary(Some(binding), None, placement, dimensions)
+    }
+
+    fn add_ordinary(&mut self, binding: Option<Arc<dyn TextureBinding>>, source: Option<Arc<dyn TextureSource>>, placement: Placement, dimensions: [u32; 2]) -> Result<Handle, Error> {
+        if dimensions.contains(&0) { return Err(Error::Unsupported(Unsupported::InvalidResourceDimensions)); }
+        let aspect = (f64::from(dimensions[1]) / f64::from(dimensions[0])) as f32;
+        // Ordinary adds consume centre/width/turns and construct the other five defaults.
+        let [cx, cz, w, turns, ..] = placement.0;
+        let placement = Placement([cx, cz, w, turns, 1.0, 1.0, 1.0, 0.0, 0.0]);
+        let (primary, cells, repeat) = placement::calculate(placement, aspect, self.geometry.ok_or(Error::NotInitialized)?)?;
+        let index = self.overlays.insert(Overlay { primary, cells, flags: 0x11 | if repeat { 2 } else { 0 }, alpha: 1.0, color: [1.0;3], draw_state: 0, texture_scale: None, binding, source });
+        self.index_and_mark(index, cells);
+        let h = self.handles.insert(HandleRecord { placement, aspect, target: Target::Overlay(index) });
+        Ok(Handle((h | 0x8000_0000) as i32))
+    }
+
+    fn index_and_mark(&mut self, overlay: u32, cells: CellRect) {
+        if let Some(index) = &mut self.cell_index {
+            // Native insertion traverses X then Z, prepending each individual entry.
+            for x in cells.min[0]..cells.max[0] {
+                for z in cells.min[1]..cells.max[1] {
+                    index.entry([x,z]).or_default().insert(0, overlay);
+                }
+            }
         }
-        Err(Error::Gap(ContractGap::PlacementAndAddArgumentsOv1))
+        self.mark(cells);
+    }
+
+    fn mark(&mut self, cells: CellRect) {
+        if !self.dynamic && !cells.is_empty() { self.changed.push(cells); }
     }
 
     /// Slots 5 and 6. Factory selection is specified, final argument forwarding
@@ -252,17 +282,18 @@ impl OverlayManager {
     pub fn add_decal_key(
         &mut self,
         key: u32,
-        _placement: Placement,
+        placement: Placement,
         _a: u32,
         lookup: BindingLookup,
     ) -> Result<Handle, Error> {
-        let resources = self.resources.as_ref().ok_or(Error::NotInitialized)?;
+        self.require_init()?;
+        let resources = &self.resources;
         if lookup == BindingLookup::ShadowSlot11 {
             return Err(Error::Gap(ContractGap::ShadowAndModelConstructionOv2));
         }
-        match resources.factory.binding(key, lookup) {
+        match resources.factory.as_ref().ok_or(Error::MissingFactory)?.binding(key, lookup) {
             None => Ok(Handle::NONE),
-            Some(_) => Err(Error::Gap(ContractGap::PlacementAndAddArgumentsOv1)),
+            Some(binding) => self.add_decal_binding(Some(binding), placement, 0, 0),
         }
     }
 
@@ -286,12 +317,7 @@ impl OverlayManager {
             alpha: 1.0, color: [1.0; 3], draw_state: 0,
             texture_scale: None, binding: Some(binding), source: None,
         });
-        if let Some(cell_index) = &mut self.cell_index {
-            for cell in cells.cells() {
-                cell_index.entry(cell).or_default().insert(0, index);
-            }
-            self.changed.push(cells);
-        }
+        self.index_and_mark(index, cells);
         Ok(Handle(index as i32))
     }
 
@@ -302,7 +328,7 @@ impl OverlayManager {
         if cells[0] == 0 || cells[0] > i32::MAX as u32 {
             return Err(Error::InvalidTerrain);
         }
-        let binding = self.resources.as_ref().unwrap().factory.binding(key, BindingLookup::Slot5);
+        let binding = self.resources.factory.as_ref().ok_or(Error::MissingFactory)?.binding(key, BindingLookup::Slot5);
         let mut matrix = [0.0; 16];
         matrix[5] = (2.0_f64 / f64::from(cells[0] as i32)) as f32;
         matrix[10] = 1.0;
@@ -324,7 +350,7 @@ impl OverlayManager {
     pub fn on_message(&mut self, message: u32) -> Result<(), Error> {
         if message == CHANGE_MESSAGE {
             self.require_init()?;
-            let view = &self.resources.as_ref().unwrap().view;
+            let view = self.resources.view.as_ref().ok_or(Error::NotInitialized)?;
             let settings = [view.shadow_quality(), view.shadow_debug()];
             let selection = view.selection_byte();
             self.handle_settings_message(message, settings, selection);
@@ -342,23 +368,33 @@ impl OverlayManager {
         true
     }
 
-    pub fn set_position(&mut self, handle: Handle, _xz: [f32; 2]) -> Result<(), Error> {
+    pub fn set_position(&mut self, handle: Handle, xz: [f32; 2]) -> Result<(), Error> {
         if handle == Handle::NONE || !handle.is_indirect() {
             return Ok(());
         }
-        self.handles.get(handle.index()).ok_or(Error::InvalidHandle)?;
-        // OV1: the positions of x/z within the nine floats are not public.
-        Err(Error::Gap(ContractGap::PlacementAndAddArgumentsOv1))
+        let mut p = self.handles.get(handle.index()).ok_or(Error::InvalidHandle)?.placement;
+        let tolerance = f32::from_bits(0x38d1_b717);
+        if (xz[0]-p.0[0]).abs() < tolerance && (xz[1]-p.0[1]).abs() < tolerance { return Ok(()); }
+        p.0[0] = xz[0]; p.0[1] = xz[1];
+        self.set_placement(handle, p)
     }
 
-    pub fn set_placement(&mut self, handle: Handle, _placement: Placement) -> Result<(), Error> {
+    pub fn set_placement(&mut self, handle: Handle, placement: Placement) -> Result<(), Error> {
         if handle == Handle::NONE || !handle.is_indirect() {
             return Ok(());
         }
-        self.target(handle)?;
-        // Do not partially update the saved placement when re-placement cannot
-        // be computed. Direct-handle behavior is also open (OV5).
-        Err(Error::Gap(ContractGap::HandlePlacementOv5))
+        let record = self.handles.get(handle.index()).ok_or(Error::InvalidHandle)?;
+        let target = record.target;
+        let (matrix, cells, repeat) = placement::calculate(placement, record.aspect, self.geometry.ok_or(Error::NotInitialized)?)?;
+        let Target::Overlay(index) = target else { return Err(Error::Gap(ContractGap::RoundPartitionOv9)) };
+        self.handles.get_mut(handle.index()).unwrap().placement = placement;
+        let old = self.overlays.get(index).ok_or(Error::InvalidHandle)?.cells;
+        if old != cells { self.unindex(index, old); self.mark(old); }
+        let overlay = self.overlays.get_mut(index).unwrap();
+        overlay.primary = matrix; overlay.cells = cells;
+        overlay.flags = (overlay.flags & !flag::REPEAT) | if repeat { flag::REPEAT } else { 0 };
+        if old != cells { self.index_and_mark(index, cells); } else { self.mark(cells); }
+        Ok(())
     }
 
     pub fn get_placement(&self, handle: Handle, out: &mut Placement) -> Result<(), Error> {
@@ -378,10 +414,11 @@ impl OverlayManager {
         }
         let target = self.target(handle)?;
         let indices = self.indices(target)?;
+        if handle.is_indirect() { self.handles.remove(handle.index()); }
         for index in indices {
             let rectangle = self.overlays.get(index).ok_or(Error::InvalidHandle)?.cells;
             self.unindex(index, rectangle);
-            self.changed.push(rectangle);
+            self.mark(rectangle);
             self.overlays.remove(index);
         }
         if let Target::Group(index) = target {
@@ -397,43 +434,30 @@ impl OverlayManager {
         self.edit(handle, true, |overlay| {
             let before = overlay.flags;
             overlay.flags = (before & !flag::SHOWN) | u32::from(shown);
-            before != overlay.flags
+            true
         })
     }
 
     pub fn set_alpha(&mut self, handle: Handle, alpha: f32) -> Result<(), Error> {
-        let indices = self.handle_indices(handle)?;
-        // OV6: threshold, rounding and last-redrawn versus last-stored comparison
-        // are unknown. Endpoint writes and dynamic writes do not need the step.
-        if !self.dynamic
-            && alpha != 0.0
-            && alpha != 1.0
-            && indices
-                .iter()
-                .any(|&i| self.overlays.get(i).is_some_and(|o| o.alpha != alpha))
-        {
-            return Err(Error::Gap(ContractGap::StaticAlphaStepOv6));
-        }
+        let dynamic = self.dynamic;
         self.edit(handle, true, |overlay| {
-            let changed = overlay.alpha != alpha;
-            overlay.alpha = alpha;
-            changed
+            let accepted = dynamic || (overlay.alpha != alpha && (alpha == 0.0 || alpha == 1.0 || (f64::from(alpha)-f64::from(overlay.alpha)).abs() > 0.05_f64));
+            if accepted { overlay.alpha = alpha; }
+            accepted
         })
     }
 
     pub fn set_color(&mut self, handle: Handle, rgb: [f32; 3]) -> Result<(), Error> {
         self.edit(handle, true, |overlay| {
-            let changed = overlay.color != rgb;
             overlay.color = rgb;
-            changed
+            true
         })
     }
 
     pub fn set_draw_state(&mut self, handle: Handle, index: u8) -> Result<(), Error> {
         self.edit(handle, true, |overlay| {
-            let changed = overlay.draw_state != index;
             overlay.draw_state = index;
-            changed
+            true
         })
     }
 
@@ -500,7 +524,7 @@ impl OverlayManager {
     }
 
     fn require_init(&self) -> Result<(), Error> {
-        self.resources.as_ref().map(|_| ()).ok_or(Error::NotInitialized)
+        if self.initialized { Ok(()) } else { Err(Error::NotInitialized) }
     }
 
     fn target(&self, handle: Handle) -> Result<Target, Error> {
@@ -546,7 +570,7 @@ impl OverlayManager {
     fn single(&self, handle: Handle) -> Result<&Overlay, Error> {
         match self.target(handle)? {
             Target::Overlay(i) => self.overlays.get(i).ok_or(Error::InvalidHandle),
-            Target::Group(_) => Err(Error::Gap(ContractGap::GetterAndDefaultsOv4)),
+            Target::Group(i) => self.groups.get(i).and_then(|g| g[0]).and_then(|i| self.overlays.get(i)).ok_or(Error::InvalidHandle),
         }
     }
 
@@ -566,7 +590,7 @@ impl OverlayManager {
     ) -> Result<(), Error> {
         for index in self.handle_indices(handle)? {
             if let Some(overlay) = self.overlays.get_mut(index) {
-                if apply(overlay) && invalidate {
+                if apply(overlay) && invalidate && !self.dynamic && !overlay.cells.is_empty() {
                     self.changed.push(overlay.cells);
                 }
             }
@@ -590,8 +614,26 @@ impl OverlayManager {
 
 impl Drop for OverlayManager {
     fn drop(&mut self) {
-        self.shutdown();
+        // Distinct destructor protocol (§1.2), deliberately no unsubscribe.
+        self.cell_index = None;
+        drop(self.shadow_binding.take());
+        self.groups.clear();
+        self.handles.clear();
+        self.overlays.clear();
+        drop(self.resources.factory.take());
+        drop(self.resources.view.take());
+        drop(self.resources.terrain.take());
     }
+}
+
+impl Default for OverlayManager {
+    fn default() -> Self { Self::new() }
+}
+
+fn replace_reference<T: ?Sized>(slot: &mut Option<Arc<T>>, value: Arc<T>) {
+    if slot.as_ref().is_some_and(|old| Arc::ptr_eq(old, &value)) { return; }
+    // Incoming Arc was acquired first; publish it before releasing the old reference.
+    drop(slot.replace(value));
 }
 
 #[cfg(test)]
