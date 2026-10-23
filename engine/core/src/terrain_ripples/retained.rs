@@ -70,9 +70,10 @@ pub enum NumericMode {
 #[derive(Clone, Copy, Debug)]
 pub struct ReadArithmetic {
     pub mode: NumericMode,
-    /// Raw stored factor, not a host-computed tuning result. WR11: bits unpublished.
-    pub degree_factor: f32,
 }
+
+/// §2.6/WR11: stored binary32 factor, not a host-computed pi/180.
+pub const DEGREE_FACTOR_BITS: u32 = 0x3C8E_FA35;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RetainedTuning {
@@ -109,8 +110,8 @@ impl Default for RetainedTuning {
 #[derive(Default, Debug)]
 pub struct RippleProcess {
     pub tuning: RetainedTuning,
-    /// Primitive shared RNG state supplied by the adapter; native initial seed
-    /// is not specified (WR12). Never invent a per-strip/per-instance seed.
+    /// `None` represents an unbound fixture, not executable startup. Use
+    /// `startup` once per process, or inject a captured native RNG state.
     pub random: Option<super::mesh::NativeRandom>,
     pub render_state: Option<u32>,
     read: bool,
@@ -118,6 +119,13 @@ pub struct RippleProcess {
 }
 
 impl RippleProcess {
+    /// §1.5: process static initialization precedes all ripple owners.
+    pub fn startup(host: &mut dyn super::mesh::RandomHost) -> Self {
+        Self {
+            random: Some(super::mesh::NativeRandom::startup(host)),
+            ..Self::default()
+        }
+    }
     pub fn was_read(&self) -> bool {
         self.read
     }
@@ -275,7 +283,7 @@ impl RetainedTuning {
                 11 => {
                     let first = self.floats[5].get_mut(..5).ok_or(Unsupported::PostTransformIndices)?;
                     for v in first {
-                        *v *= arithmetic.degree_factor;
+                        *v *= f32::from_bits(DEGREE_FACTOR_BITS);
                     }
                 }
                 _ => (),

@@ -40,39 +40,20 @@ pub struct SplinePoint {
 
 /// §1.3: uniform cubic B-spline. This evaluates a given four-point span;
 /// No endpoint padding or wrapping; complete owner traversal lives in `mesh`.
-/// Exact intermediate x87 spill/evaluation order remains open (WR13).
+/// Diagnostic projection of §1.3's ledger using portable host math. Unlike the
+/// owner pipeline, this public pair of points necessarily spills tangent z.
 pub fn spline(points: [Point; 4], t: f32) -> Result<SplinePoint, Error> {
     if !points.iter().all(|p| p.finite()) || !(0.0..=1.0).contains(&t) {
         return Err(Error::InvalidGeometry);
     }
-    let t2 = t * t;
-    let t3 = t2 * t;
-    let weights = [
-        (1.0 - 3.0 * t + 3.0 * t2 - t3) / 6.0,
-        (4.0 - 6.0 * t2 + 3.0 * t3) / 6.0,
-        (1.0 + 3.0 * t + 3.0 * t2 - 3.0 * t3) / 6.0,
-        t3 / 6.0,
-    ];
-    let derivative = [
-        (-3.0 + 6.0 * t - 3.0 * t2) / 6.0,
-        (-12.0 * t + 9.0 * t2) / 6.0,
-        (3.0 + 6.0 * t - 9.0 * t2) / 6.0,
-        3.0 * t2 / 6.0,
-    ];
-    let mut point = Point::default();
-    let mut tangent = Point::default();
-    for i in 0..4 {
-        point.x += points[i].x * weights[i];
-        point.z += points[i].z * weights[i];
-        tangent.x += points[i].x * derivative[i];
-        tangent.z += points[i].z * derivative[i];
-    }
-    if !point.finite() {
+    let sample = super::arithmetic::spline(&super::arithmetic::Portable, points, t);
+    let tangent = Point::new(sample.tx, sample.tz as f32);
+    if !sample.point.finite() || !tangent.finite() {
         return Err(Error::InvalidGeometry);
     }
     Ok(SplinePoint {
-        point,
-        tangent: tangent.unit()?,
+        point: sample.point,
+        tangent,
     })
 }
 

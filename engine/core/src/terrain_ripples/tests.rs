@@ -90,12 +90,14 @@ impl retained::RawTuningSource for Source {
 }
 
 fn arithmetic() -> retained::ReadArithmetic {
-    // Literal parameter for the unpublished stored factor; WR11, no native claim.
+    // Only the inherited conversion mode is input; WR11's factor is fixed.
     retained::ReadArithmetic {
         mode: retained::NumericMode::Published24,
-        degree_factor: 0.5,
     }
 }
+
+#[path = "tests_arithmetic.rs"]
+mod ledger;
 fn process() -> Arc<std::sync::Mutex<retained::RippleProcess>> {
     Arc::new(std::sync::Mutex::new(retained::RippleProcess::default()))
 }
