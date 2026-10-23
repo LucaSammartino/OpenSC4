@@ -4,7 +4,12 @@
 
 ## Handoff
 - Goal: close aircraft.md airplane and helicopter owner behavior in core only; no ABI/plugin changes.
-- Done: reserved detached worktree reused; clean initial status; aircraft sections 0–8 read.
-- Facts: automata module has no README yet; aircraft behavior sections contain summary-only laws.
-- Next: inspect automata module and shared contracts, then implement supported behavior and file precise gaps.
+- Done: initial handoff e6652bb7; aircraft/shared contracts read; implemented aircraft records/placement,
+  airplane parameter inheritance/defaults, altitude/bounds, phase/ammo/loiter and settled chase rules.
+- Done: 14 aircraft conformance tests and 32 existing automata tests pass; logs build-runs/focused-{aircraft,shared}.log.
+- Done: README owner-closure matrix created; AF3–AF7 filed. AF1/AF2 already open.
+- Facts: native Init/AI steering/physics/player/messages remain spec-blocked; owners are not fully closed.
+- Facts: q.py cannot start Git Bash in sandbox (CreateFileMapping error); direct Python cargo runner works.
+  Formatting applied through generated apply_patch from rustfmt stdin; no stdout written directly to source.
+- Next: finish review and remaining failure/conformance coverage, then run required qbuild all on stable source.
 - No game requests outstanding. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-aircraft5-r1-manifest.json.

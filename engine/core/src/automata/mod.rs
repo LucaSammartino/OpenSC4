@@ -77,6 +77,14 @@ mod hooks;
 mod manager;
 mod script;
 
+mod aircraft;
+pub use aircraft::{
+    aircraft_altitude, airplane_effect_names, clip_aircraft_to_world, AircraftBounds, AircraftGoalOutcome,
+    AircraftPlacementRecord, AircraftRecord, AircraftTargets, AircraftUnsupported, AircraftWorld, Airplane,
+    AirplaneDriveParameters, ChaseTarget, DriveParameterSource, FlightPhase, FlightPhaseChange, Helicopter,
+    HelicopterChaseGeometry, CLSID_AIRCRAFT, CLSID_AIRPLANE, CLSID_HELICOPTER,
+};
+
 #[cfg(test)]
 mod tests;
 
