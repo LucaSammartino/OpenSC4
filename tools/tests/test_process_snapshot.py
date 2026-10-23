@@ -32,7 +32,7 @@ class Process:
     def __init__(self, pid=10, **overrides):
         self.pid = pid
         self.values = dict(name="python.exe", username="caller", cwd=os.path.abspath("foreign"),
-                           exe=os.path.abspath("python.exe"), cmdline=["python", "-c", "secret"],
+                           exe=os.path.abspath("python.exe"), cmdline=[os.path.abspath("python.exe")],
                            create_time=100.0, ppid=1, open_files=[], is_running=True)
         self.values.update(overrides)
 
@@ -63,6 +63,7 @@ class Provider:
 
 class SnapshotTests(unittest.TestCase):
     def setUp(self):
+        (ROOT / "build-runs").mkdir(exist_ok=True)
         self.temp = tempfile.TemporaryDirectory(dir=ROOT / "build-runs")
         self.addCleanup(self.temp.cleanup)
         self.target = mod.normalized(self.temp.name)
@@ -78,7 +79,7 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(parent["children"][0]["pid"], 11)
         self.assertEqual(parent["cwd"], self.target)
         self.assertIn("psutil.cwd within target", parent["evidence"])
-        self.assertIn("+", result["capture_local"][-6:] if "+" in result["capture_local"][-6:] else "+")
+        self.assertEqual(mod.datetime.fromisoformat(result["capture_local"]).tzinfo is not None, True)
         self.assertFalse(result["authoritative"])
 
     def test_no_target_is_observation_and_foreign_commands_private(self):
@@ -108,6 +109,19 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(result["counts"]["target_related"], 0)
         self.assertEqual(result["counts"]["foreign"], 1)
 
+    def test_relative_or_embedded_argv_is_unknown_not_foreign(self):
+        for argv in (["python", "relative.py"], ["/bin/sh", "-c", "embedded command"],
+                     [os.path.abspath("python.exe"), "--option=" + self.target]):
+            result = self.capture(Process(cmdline=argv))
+            self.assertEqual(result["foreign"], [])
+            self.assertEqual(result["status"], "UNKNOWN")
+            self.assertTrue(result["unknown"][0]["opaque_argv"])
+
+    def test_target_handle_outside_build_runs_retained(self):
+        handle = SimpleNamespace(path=os.path.join(self.target, "engine", "build", "result.obj"))
+        row = self.capture(Process(open_files=[handle]))["target_related"][0]
+        self.assertEqual(row["open_output_handles"][0]["path"], handle.path)
+
     def test_denied_handles_keeps_positive_evidence_but_unknown_status(self):
         result = self.capture(Process(cwd=self.target, open_files=Denied("secret")))
         self.assertEqual(result["status"], "UNKNOWN")
@@ -119,6 +133,20 @@ class SnapshotTests(unittest.TestCase):
         result = self.capture(Process(cwd=Denied(), cmdline=Denied()))
         self.assertEqual(result["counts"]["unknown"], 1)
         self.assertEqual(result["foreign"], [])
+
+    def test_empty_scope_fields_cannot_prove_foreign(self):
+        result = self.capture(Process(cwd="", exe=""))
+        self.assertEqual(result["foreign"], [])
+        self.assertEqual(result["status"], "UNKNOWN")
+
+    def test_unreadable_custom_scope_paths_are_unknown(self):
+        result = self.capture(Process(name="custom", cwd=Denied()))
+        self.assertEqual(result["unknown"][0]["reason"], "scope_paths_unreadable")
+
+    def test_child_creation_before_parent_not_linked(self):
+        result = self.capture(Process(cwd=self.target), Process(pid=11, cwd=self.target, ppid=10,
+                                                              create_time=50.0))
+        self.assertEqual(result["target_related"][0]["children"], [])
 
     def test_unreadable_owner_custom_name_still_unknown(self):
         result = self.capture(Process(name="custom", username=Denied()))
@@ -140,7 +168,7 @@ class SnapshotTests(unittest.TestCase):
         identity = dict(pid=10, create_time=100.0, argv_sha256=mod.argv_digest(["old"]))
         self.assertEqual(self.capture(Process(), identities=[identity])["recorded"][0]["state"],
                          "argv_mismatch")
-        identity["argv_sha256"] = mod.argv_digest(["python", "-c", "secret"])
+        identity["argv_sha256"] = mod.argv_digest([os.path.abspath("python.exe")])
         self.assertEqual(self.capture(Process(), identities=[identity])["recorded"][0]["state"], "match")
 
     def test_partial_read_race_cannot_attribute_or_match(self):
@@ -173,6 +201,12 @@ class SnapshotTests(unittest.TestCase):
         result = self.capture(*(Process(pid=i, cwd=Denied()) for i in range(1, 120)))
         self.assertEqual(len(result["diagnostics"]), 100)
         self.assertGreater(result["diagnostics_omitted"], 0)
+
+    def test_inventory_limit_is_explicit_unknown(self):
+        with patch.object(mod, "MAX_PROCESSES", 1):
+            result = self.capture(Process(), Process(pid=11))
+        self.assertEqual(result["status"], "UNKNOWN")
+        self.assertTrue(any(d["kind"] == "process_limit" for d in result["diagnostics"]))
 
     def test_missing_recorded_pid_never_safe_absence(self):
         result = self.capture(Process(), identities=[dict(pid=99, create_time=20.0)])
@@ -215,6 +249,22 @@ class SnapshotTests(unittest.TestCase):
             code, _, data = self.run_main()
         self.assertEqual(code, 3)
         self.assertIn("psutil unavailable for this Python interpreter", data["error"])
+
+    def test_provider_failure_diagnostic(self):
+        class Broken(Provider):
+            def process_iter(self):
+                raise RuntimeError("do not disclose")
+        code, _, data = self.run_main(provider=Broken())
+        self.assertEqual(code, 3)
+        self.assertEqual(data["error"], "provider failed: RuntimeError")
+
+    def test_cli_bad_identity_input(self):
+        path = Path(self.temp.name) / "bad.json"
+        path.write_text("broken json", encoding="utf-8")
+        with contextlib.redirect_stdout(io.StringIO()) as buf:
+            code = mod.main(["--target", self.target, "--identities", str(path)])
+        self.assertEqual(code, 2)
+        self.assertIn("ERROR input: JSONDecodeError", buf.getvalue())
 
     def test_bad_target_diagnostic(self):
         with contextlib.redirect_stdout(io.StringIO()) as buf:

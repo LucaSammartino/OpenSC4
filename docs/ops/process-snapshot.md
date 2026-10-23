@@ -39,13 +39,16 @@ values. This is a safe projection of the actual command, not a reconstructed com
 or an executable invocation. Target paths themselves may be sensitive: keep snapshots local.
 
 `target_related` means readable cwd/exe, an absolute argv reference, or a handle
-under target/build-runs, with stable observed creation time. Evidence has explicit
-psutil provenance. A reference does not prove exclusive ownership or writer intent.
-`foreign` means a fully readable same-user build candidate without those references;
+under the target, with stable observed creation time. Evidence has explicit
+psutil provenance. Target file handles (including outputs outside build-runs) are
+retained without claiming exclusive ownership or writer intent.
+`foreign` means a fully readable same-user build candidate with only absolute argv
+operands and without those references;
 `unknown` means attribution could not be established. Parent/child links use observed
 PPID and creation order only, within the scoped inventory, and never transfer ownership.
-Relative argv paths, embedded shell commands and other opaque arguments are not parsed;
-classification is limited to the documented absolute-reference evidence.
+Relative argv paths, switches, embedded shell commands and other opaque arguments
+are not parsed; absent positive evidence, they force UNKNOWN instead of foreign.
+Classification is limited to the documented absolute-reference evidence.
 
 AccessDenied, NoSuchProcess, zombie processes and read races remain typed diagnostics
 (no exception messages); diagnostics cap at 100 with an omitted count. Inventory caps

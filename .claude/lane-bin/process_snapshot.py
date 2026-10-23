@@ -151,11 +151,14 @@ def snapshot(target, identities, ps):
             # Absolute path operands provide attribution; option values are never evidence.
             paths = [a for a in (argv or []) if os.path.isabs(a)]
             matched = [a for a in paths if within(a, target)]
+            # Do not assert foreignness for relative operands, flag values or shell
+            # programs we cannot safely interpret. Even an apparent switch may embed
+            # a target path, so only all-absolute argv permits negative classification.
+            opaque_argv = argv is None or any(not os.path.isabs(a) for a in argv)
             handles = [{"path": f.path, "fd": getattr(f, "fd", None),
                         "mode": getattr(f, "mode", "UNKNOWN"), "source": "psutil.open_files",
                         "output_intent": "UNKNOWN (handle presence does not prove writer)"}
-                       for f in (files or []) if within(f.path, target)
-                       and within(f.path, normalized(os.path.join(target, "build-runs")))]
+                       for f in (files or []) if within(f.path, target)]
             evidence = []
             if within(cwd, target):
                 evidence.append("psutil.cwd within target")
@@ -164,14 +167,17 @@ def snapshot(target, identities, ps):
             if matched:
                 evidence.append("psutil.cmdline absolute operand within target (reference, not ownership)")
             if handles:
-                evidence.append("psutil.open_files target/build-runs handle (not exclusive ownership)")
-            complete = stable and all(v is not None for v in (cwd, exe, argv, files, ppid))
+                evidence.append("psutil.open_files target handle (not exclusive ownership)")
+            complete = (stable and not opaque_argv and bool(cwd) and bool(exe)
+                        and os.path.isabs(cwd) and os.path.isabs(exe)
+                        and all(v is not None for v in (argv, files, ppid)))
             if argv is None:
                 diagnostic(pid, "cmdline", "empty_or_unreadable")
             category = "target_related" if stable and evidence else "foreign" if complete else "unknown"
             row = {"pid": pid, "create_time": start, "ppid": ppid, "name": name,
                    "owner": "same_as_caller", "stable_identity": stable,
                    "source": "psutil (sequential reads; not atomic)", "evidence": evidence,
+                   "opaque_argv": opaque_argv,
                    "children": [], "argv_sha256": digest,
                    "fields_unknown": [k for k, v in {"cwd": cwd, "exe": exe, "cmdline": argv,
                                          "open_files": files, "ppid": ppid, "create_time": start}.items()
@@ -184,7 +190,7 @@ def snapshot(target, identities, ps):
                            "display": [a if within(a, target) else "<redacted>" for a in (argv or [])],
                            "redacted": True}, open_output_handles=handles)
             else:
-                row["reason"] = "same-user build candidate; readable paths/argv/handles have no target reference"
+                row["reason"] = "same-user build candidate; readable paths/absolute argv/handles have no target reference"
             if pid in requested:
                 old = requested[pid]
                 state = ("UNKNOWN" if not stable else "stale_pid" if start != old["create_time"]
