@@ -17,6 +17,9 @@ may differ in a portable implementation.
 - [Setting categories](#setting-categories)
 - [Refreshing coverage](#refreshing-coverage)
 - [Updating one occupant](#updating-one-occupant)
+- [Reset and teardown evidence](#reset-and-teardown-evidence)
+- [Proposed literal traces](#proposed-literal-traces)
+- [Evidence ledger](#evidence-ledger)
 - [Limits](#limits)
 
 ## Ownership and evidence
@@ -24,6 +27,11 @@ may differ in a portable implementation.
 The canonical Windows export and its byte-bearing instruction queries establish
 the following attribution. Decompiled text was navigation only: its apparent
 two-argument update signature and several stack-derived values are wrong.
+The working PE SHA-256 and `ghidra/export/windows/export-summary.txt` agree:
+`3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`.
+PE machine is `014C`, image base `00400000`, fixed-file version 1.1.641.0.
+The five named entry instruction prefixes also match bytes read from that PE.
+This is source identity evidence, not execution evidence.
 
 | Entry | Finding |
 |---|---|
@@ -131,7 +139,7 @@ do not enable any additional passes.
 | 1 | P, `00B43D98` | `+54(list output)`; test full EAX | `+50(occupant, input/output A, output B, scalar output)` | A=`0x3F000000` (0.5) | `PlopMode_Police_Existing` |
 | 2 | F, `00B43D78` | `+58(list output)`; test full EAX | `+54(occupant, input/output A, output B, scalar output)` | A=`0x3F000000` (0.5) | `PlopMode_Fire_Existing` |
 | 4 | H/E, `00B43DA4` | `+C4(list output, 0)`; ignore status | `+B4(occupant, input/output A, output B, scalar output)` | A=`0x3F333333` (binary32 near 0.7) | `PlopMode_Health_Existing` |
-| 8 | H/E, `00B43DA4` | `+BC(list output, 0)`; ignore status | same `+B4` | same `0x3F333333` | Resource literal at `00ABB460` (spelling pending verification). |
+| 8 | H/E, `00B43DA4` | `+BC(list output, 0)`; ignore status | same `+B4` | same `0x3F333333` | `PlopMode_Education_Existing` (`00ABB460`) |
 
 The table's scalar is the **last** output argument, not initialized A. On a
 zero low-byte per-item status, override scalar with binary32 32 (`0x42000000`);
@@ -190,8 +198,8 @@ effect on a later refresh. Citations: `007D1E8F–007D1F8E`.
 
 ### Missing entry
 
-Initialize an identity transform with zero translation/scalar fields and an
-additional trailing binary32 1. Clear its first two control bytes. Request the
+Initialize an identity transform with zero translation and an initial scalar
+of binary32 1. Clear its first two control bytes. Request the
 named effect, passing an output-reference address. On zero low-byte create
 status, release the position object and return: do not insert, call the effect,
 or release a possibly written output reference. This is an ignored-output
@@ -225,8 +233,163 @@ suppresses reuse updates; unordered comparison takes the update path and the
 non-unit scale flag path. Signaling-NaN exceptions and unmasked floating-point
 exceptions are outside the supported normal-return domain.
 
+The observable payload fields are a control byte 2, a scale-control byte 1 or
+3, nine binary32 basis components `[1,0,0; 0,1,0; 0,0,1]`, three position
+components copied without helper arithmetic, and the doubled scalar. The
+control bytes precede the basis by four bytes; the intervening two padding
+bytes are not initialized here and are not specified as zero. This contract
+does not infer a radius disc, terrain projection, axis convention, effect class
+ID or screen geometry from the resource names. Those belong to the receiving
+effect/position primitives. The default triple source `00B4E2D4` has initial PE
+contents zero; a runtime constant-value guarantee is not established.
+
+## Reset and teardown evidence
+
+The alias call at `007E9CCB` passes the view-interface receiver plus `3D8` to
+refresh. The shutdown call at `007F14AE` passes receiver plus `3D8` to unnamed
+`007D1DB0`. This positively associates that stop/clear body with the helper
+subobject. *[compat]* `007D1DB0–007D1E35` performs the setter's complete stop
+traversal, then shared clear, **without a mask store**. Thus an explicit call
+to this body clears entries but preserves categories; an empty map has no
+effect callbacks. It is not justified to invent an independently registered
+reset interface or add this call to every refresh.
+
+View teardown site `007F11BB–007F11C1` passes its receiver plus `3E4` to unnamed
+`007D1CF0`. That body calls shared clear and then frees the nonnull bucket
+array (`007D1CF0–007D1D09`), with no stop traversal or mask reset. These are
+positive call-site and cleanup observations, not a complete helper destructor
+identity/registration contract: the two view receiver conventions differ by
+12 bytes (the Init caller explicitly forms a receiver-minus-12 pointer at
+`007E9915`). Constructor/default mask, registration, callable lifecycle names,
+and whether another enclosing stage already stopped effects remain unproved.
+No GZCOM factory, standalone allocation or default-enable policy is implied.
+
+## Proposed literal traces
+
+**PROPOSED — UNEXECUTED.** These are independent expectations derived from the
+cited instructions and public binary32 arithmetic before any portable output
+exists. They are neither native goldens nor shadow/game results. Each fixture
+supplies raw primitive results independently; the host must not return a
+precomputed category mask, completed coverage pass or effect-update outcome.
+Use ordinary nonthrowing/nonmutating callbacks, valid readable inputs, a valid
+nonzero bucket count for lookups and full output writes on successful reads.
+`retain`, `release`, `update`, `start`, `active?` and `stop(0)` mean the slots
+specified above; none implies a numeric return convention.
+
+### Category and mask cases
+
+Each lookup calls property-source, P, F, property `091B42A2`, property
+`691B42B3`, in that order; all four tests run even when the first succeeds.
+The property output values below are deliberately independent of status.
+
+| Case | Raw P/F/property1/property2 statuses | Property output values | Expected EAX |
+|---|---|---|---|
+| C0 | `0,0,0,0` | arbitrary failed outputs | `0` |
+| C1 | `1,0,0,0` | arbitrary failed outputs | `1` |
+| C2 | `0,0x80,0,0` | arbitrary failed outputs | `2` |
+| C3 | `0,0,1,0` | `0`, arbitrary | `4` |
+| C4 | `0,0,0,0x80` | arbitrary, `0` | `8` |
+| C5 | `0x100,1,0x100,1` | nonzero, `0` | `10` |
+| C6 | `1,0x80,1,1` | `0,0` | `15` |
+
+These cases are unchanged if the helper mask is zero or `0x80000000`, or if
+the queried occupant already has a live entry: category lookup never updates
+the whole view. C5 distinguishes low-byte tests from full-register truth and
+from tests of property output values.
+
+| Case | Starting state / action | Expected state and ordered events |
+|---|---|---|
+| S0 | Empty map; set `0x80000008` twice | Both calls store that exact mask and call clear; no effect calls and no refresh. |
+| S1 | Fixed map traversal A then B; A effect E1 active, B effect E2 inactive; old mask=3, set 3 | Store 3; E1 `active?`, E1 `stop(0)`, E2 `active?`; then E1 release/free A, E2 release/free B; map count=0. No equality shortcut. |
+| S2 | Same as S1, set 0 then set 0 again | First call has the same stop/release order, new mask=0; second has no effect calls. Stop callbacks can observe mask=0 while entries still exist. |
+| S3 | Fixed live A; invoke stop/clear `007D1DB0`, mask=8 | A `active?`, conditional `stop(0)`, release, free; entries empty, mask remains 8. Empty repeat has no effect callbacks. |
+
+### One-occupant cases
+
+Use occupant A=`0x1000`, a position object Q, and Q output `(1,-2,3)` unless
+specified otherwise. All successful creates return distinct nonnull effect E.
+Only a creation writes the original scalar to the entry. These traces exercise
+the helper directly and do not assume any selected category.
+
+| Case | Input / precondition | Expected state and ordered events |
+|---|---|---|
+| U0 | No entry; position lookup returns null | Only position lookup; no create, insert, visited write or release. |
+| U1 | No entry; scalar=0.5; create status low byte=1, output E | Q retain/read; create requested name; E update with position `(1,-2,3)`, identity basis, scalar=1, control bytes `(2,1)`; E start(0); insert A; visited=1 and stored scalar=0.5; E retain/store; E release; Q release. |
+| U2 | U1 entry; scalar=0.5; Q output changed to `(9,8,7)`; different name | Q retain/read/release; visited=1. No E update/start; old effect/name and stored scalar persist. Position changes alone do not trigger update. |
+| U3 | U1 entry; scalar=2; repeat twice | Each call Q retain/read; E update with doubled scalar=4 and controls `(2,3)`; visited=1; Q release. Stored scalar stays 0.5, so both calls update. No effect retain/release or start. |
+| U4 | No entry; create status low byte=0, output nonnull E | Q retain/read, create, Q release; no insert or E operation, including no E release. Same flow for status `0x100`; failed output is not adopted. |
+| U5 | Existing A, effect=null, stored scalar=0.5; scalar=2 | Q retain/read; visited=1; Q release; no create or effect update. |
+| U6 | Existing A with E, stored scalar=+0; input=-0 | Q retain/read; no effect update; visited=1; Q release. Ordered zeros compare equal. |
+| U7 | Existing A with E, stored scalar=0.5; input is quiet NaN, normal floating-point return assumed | Q retain/read; E update, controls `(2,3)`; visited=1; Q release. No NaN payload-bit promise; stored scalar stays 0.5. |
+| U8 | Missing A; scalar bits `0x3F000001`; successful create | Same events as U1, but doubled scalar bits `0x3F800001`, controls `(2,3)`, stored scalar bits `0x3F000001`. This exact finite doubling needs no rounding-mode assumption. |
+| U9 | Existing A with E, stored scalar=0.5; input=-2 | Update scalar=-4, controls `(2,3)`, stored scalar unchanged. No owned negative-scalar rejection/clamp. |
+
+Nonzero create status with null output is **not a supported normal-flow trace**:
+`007D2086` dereferences that pointer. Do not invent a null-success return or
+cleanup rule. A callback returning a failure value from E update/start does not
+change U1's following start/insert/retain/release sequence: those results are
+ignored. During update/start the new entry is absent; during the reference
+assignment retain callback its visited/scalar fields have already been stored,
+while assignment has not yet stored the new effect (`005447C7–005447CC`).
+
+### Refresh, duplicates and retirement
+
+All cases specify collection next-order explicitly. Scalar success outputs are
+raw independent binary32 values, not derived from the lookup category bits.
+
+| Case | Fixture | Expected calls/state |
+|---|---|---|
+| R0 | Mask=`0x80000000`; entries A/E1 and B/E2, fixed traversal A then B; E1 active, E2 inactive | Clear both visited bytes; no collection; E1 active?/stop(0), null A reference, E1 release; E2 active?, null B reference, E2 release. Both nodes and scalars persist. Repeat: markers cleared again, no effect calls. |
+| R1 | Mask=1; P list `[A,B]`; scalar primitive A returns false, B true with scalar=0.5; neither entry exists; all positions/creates valid | A gets scalar=32, resource Police, payload scalar=64/controls `(2,3)`; release listed A after its update chronology. Then B gets 0.5, payload scalar=1/controls `(2,1)`; release listed B. Two distinct map entries/effects, both visited. Cleanup list after both. No occupant category lookup. |
+| R2 | Mask=3; P list `[A,A]` with scalar outputs 0.5 then 2; F list `[A]` with scalar=4 | Create Police E once for first A, storing 0.5; update same E with 4 then 8 on the next two occurrences. Start once, no Fire creation or resource rename. Release listed A three times, once per occurrence. No selection of min/max/last stored scalar: stored scalar stays 0.5. |
+| R3 | Mask=1; P collection full EAX=0 but writes list `[A]`; live old A/E | No per-item scalar/update or explicit occupant-release loop; list cleanup still called. A unvisited, so retire E. Any additional cleanup's element-reference behavior remains foreign. |
+| R4 | Mask=4; H collection status=0 but writes `[A]`; scalar status=false | Process A anyway, scalar=32, resource Health, then release listed A. Distinguishes ignored H/E collection status from tested P/F status. |
+| R5 | Mask=8; only education service available; list `[B]`, scalar success=1.5 | Only Education collection, initialized A bits `0x3F333333`; use resource Education, scalar payload=3. Health is not collected merely because it shares this service. |
+| R6 | Mask=1; old A/E; list `[A]`, but position lookup null | Update returns before marking; explicit listed A release still follows. Final sweep retires E and retains the map key. Next successful refresh of A marks the null-effect entry, without recreation. A subsequent setter clears that key, permitting later creation. |
+| R7 | Mask=`0x8000000F`; available services, all lists empty | Collections in P, F, H, E order with separate cleanup per pass; retire old entries in map order. High bit adds no pass. With a missing P service, skip only P and retain F/H/E order. |
+| R8 | Teardown primitive `007D1CF0` with fixed live A/E, then separate empty fixture | Live fixture: E release, free A, clear count, free nonnull bucket array; **no active? or stop** in this body. Empty fixture: no effect calls, still free a nonnull bucket array. This does not claim the enclosing full destruction sequence omits stopping. |
+
+## Evidence ledger
+
+| Status | Bounded claim / primary basis |
+|---|---|
+| Supported | Four independent category tests and low-byte statuses, `007D1AB0–007D1B32`; zero-extended category result, `007D1B2E`. |
+| Supported | Full mask stored before stop callbacks; same-mask clear; `007D1D10–007D1DA4`, shared clear `007D1B40–007D1BA0`. |
+| Supported | Four ordered refresh passes, list-status differences, default failure scalar and per-occurrence release; `007D2145–007D262F`. |
+| Supported | Visited reset and stale-reference retirement without node erasure; `007D2101`, `007D2632–007D26DB`. |
+| Supported | Pointer-key lookup, no scalar replacement on reuse, no null-effect recreation, effect chronology; `007D1E40–007D20D7`, assignment `005447B0–005447DE`. |
+| Supported | Local bucket/chain traversal and insert-at-head consequences; `004B0390–004B03DD`, `007D1BB0–007D1CE7`; exclusive class ownership not claimed. |
+| Supported | Alias `007D26E0–007D26E4`; extra caller-bound stop/clear and clear/free bodies as stated in Reset and teardown evidence. |
+| Partial | Container growth/rehash is delegated by `007D1BBC` to shared `004F0940`; exact traversal after growth is not closed here. |
+| Partial | Constructor/default category and whole lifecycle/registration provenance; bounded call-site evidence only. |
+| Foreign | Single service membership, property conversion/read, scalar computation, collection contents/order/reference policy, position query, allocator, list cleanup and effect primitive internals. |
+| Unknown / unsupported | Exceptional or invalid-input paths, callbacks mutating/reentering helper, incomplete output writes, uninitialized padding, ambient floating-point controls and overflow domains; see Limits and questions. |
+
 ## Limits
 
-This initial publication still requires literal traces, source identity checks,
-and a final evidence/unknown ledger. It grants no complete class/family, native
-execution, shadow, default enablement, or simulator coverage credit.
+The supported domain uses valid services where not checked, valid occupants,
+proper map/list invariants, successful allocations, fully supplied successful
+primitive outputs, synchronous ordinary returns, and no helper mutation/reentry
+from callbacks. The native body does not validate these preconditions. A future
+bounded portable contract must explicitly reject or otherwise designate cases
+outside them, rather than inventing atomic rollback or “safe” native behavior.
+Failure statuses covered above are supported with their actual mutation prefixes.
+Failures of update/start/stop/reference calls are ignored as numeric outputs;
+exceptions and missing returns are not converted into status failures.
+
+There is no proven helper guard against null required services, unreadable
+occupants, zero bucket divisors, bad list nodes, uninitialized successful scalar
+outputs, allocation failure or unchecked arithmetic overflow. No exception,
+thread-safety, reentry, retention-across-mutating-callbacks or all-input numeric
+equivalence contract is established. x87 precision/rounding controls, infinities,
+overflow/underflow, signaling NaNs and foreign simulator/transcendental numeric
+domains need separately bounded admission before portable equivalence claims.
+Quiet-NaN branch expectations are conditional on ordinary floating-point return;
+they do not establish exact NaN arithmetic bytes.
+
+Open questions are recorded in
+[questions/coverage-radius-effect-helper.md](questions/coverage-radius-effect-helper.md).
+This publication grants no complete eight-entry/class/family, native execution,
+shadow, default enablement, or simulator coverage credit. It reopens none of the
+closed particle, manager/emitter, Rigid, Query, PlaceLot, View3D or geometry
+algorithm histories; caller slices establish only receivers and inputs.
