@@ -33,9 +33,20 @@ Apart from the builder and the texture, none keeps state.
   coordinates (x, z) as its two components, written (x, y) below.
 - **ε = 0.01** (`0x00A823A4`) is the tolerance below which a denominator counts as zero. It is absolute, not
   scaled by the operands' lengths *[quirk]*.
-- Output pointers may be null; a null output is skipped and the result is still returned. Results are booleans.
-- Arithmetic is the x87 sequence of each function; where an exact result matters, rounding follows foundations
-  §18 (`r24`). Comparisons are as stated: "within [a, b]" is closed, "below" is strict.
+- Nullability is per body, not a general convention. Length/distance/area results return on the x87 stack;
+  predicates return a boolean; normal/plane/vector operations and clipping mutate their specified outputs.
+  Normal, plane and clipping output/count pointers are required. Hit-pointer rules are in §4. An accessible
+  pointer containing a float NaN is distinct from an invalid pointer; the latter has no numeric contract.
+- Below, **R** means one resident x87 arithmetic result using the supplied precision control (PC) and rounding
+  control (RC); **S** means a binary32 memory store and subsequent reload, also using RC. Separate products,
+  sums and differences are separate operations, never fused. A resident result need not equal a binary32 store:
+  even PC24 retains the x87 exponent range. No universal ambient PC/RC or caller-preservation guarantee is
+  established here. Explicit PC24/nearest examples do not establish a default mode. Finite normal-range
+  arithmetic is the primary exact domain; quiet-NaN branch rules assume masked invalid exceptions and normal
+  x87 unordered status. Signaling exceptions, traps and invalid pointers are outside those rules.
+- Inputs named points/vectors are binary32 components, counts are signed 32-bit unless stated otherwise.
+  Comparisons are as stated: "within [a, b]" is closed, "below" is strict. The tolerance operand is the
+  binary32 value with bits `3C23D70A`, not exact decimal 1/100.
 
 ## 2. Lengths and distances *[compat]*
 
@@ -60,12 +71,35 @@ whole line through o *[quirk]*; d must not be zero.
 distance in y to the nearer side; when p's y is within [min.y, max.y], the distance in x; else the distance to the
 nearest corner.
 
+### 2.3 Length/area operation and store sequence
+
+For both length pairs, form each difference **b − a** as a resident subtraction, then square each difference
+separately. The 3D sum is **(z² + y²) + x²**; the 2D sum is **y² + x²**. There are no binary32 intermediate
+memory stores. The squared variants return that resident sum; the others apply one resident square root and
+return it. Storing the result to a float is the caller's additional rounding step. Evidence:
+`005D6F98–6FBE`, `005D6FC8–6FE0`, `005D7668–7690`, `005D76A8–76C2`.
+
+`TwiceTriangleArea(p,a,b)` forms u = p−a resident, and v = b−a with **v.x/v.y stored as binary32, v.z
+resident**. Its cross components are u.y v.z − u.z v.y, u.z v.x − u.x v.z, u.x v.y − u.y v.x (each two
+products then a subtraction). Cross x and y are stored/reloaded as binary32; cross z remains resident.
+Return sqrt((cross.z² + cross.y²) + cross.x²), with one rounding per indicated operation and no final
+float store in the body (`005D75DB–7653`). The cross orientation is immaterial to the magnitude, but its
+operation/store sequence is not interchangeable with a call to the normal-output routine.
+
 ## 3. Normals and planes *[compat]*
 
 - `GetNormalToTriangle(a, b, c, n)` (`0x005D6EA0`): n = (c − b) × (a − b), **not normalised**. For a = (1, 0, 0),
   b = (0, 0, 0), c = (0, 0, 1) it is (0, 1, 0).
 - `PointAndVectorToPlaneEquation(p, n, plane)` (`0x005D6F50`): plane = (n.x, n.y, n.z, −p·n), so a point q is on
   the plane when n·q + plane.w = 0.
+
+The normal body retains c−b resident on all axes. It stores/reloads (a−b).x and .y as binary32, keeps .z
+resident, forms the three two-product differences in the order x, y, z, and stores each output as binary32
+(`005D6EAB–6F05`). No normalization or degenerate-triangle branch occurs. Output is required; input/output
+aliasing is not promised by these formulas. The plane body copies n.x/y/z as 32-bit words **before** computing
+w. Its w is **−((p.y n.y + p.z n.z) + p.x n.x)**, products and additions resident, followed by one binary32
+store (`005D6F50–6F82`). It does not normalize n or validate it. These are distinct associations from the
+length sum and from an x-first dot product.
 
 ## 4. Intersection tests *[compat]*
 
@@ -114,6 +148,17 @@ hit := a1 + ua (a2 − a1), true.
   the smaller maximum per axis.
 - `PointInRectangle2D(p, min, max)` (`0x005D68B0`): min ≤ p < max on both axes (half-open).
 
+Overlap rejection compares aMin against bMax, then bMin against aMax, in x, y, z order. Only an ordered
+greater-or-equal rejects: unordered proceeds to the next comparison. On rejection neither output is written.
+On acceptance, **outMin null skips both outputs**; otherwise outMax must also be valid (no separate check).
+For each output minimum, choose aMin only for ordered aMin > bMin, otherwise bMin. For each maximum, choose
+aMax only for ordered aMax < bMax, otherwise bMax. Thus the **second box wins ties (including signed zero)
+and unordered selections**, whether the NaN is in the first or second operand. The selected operand is loaded
+and float-stored; this is a selection rule, not NaN sanitization. Evidence: rejection `005D6D84–6DEE`, output
+gate `005D6DF5–6DFB`, minima `005D6E01–6E41`, maxima `005D6E44–6E8F`. The point predicate, in contrast,
+rejects **any** unordered comparison as well as an ordered failure (`005D68BB–68EB`). These bounds rules
+do not establish the foreign vertex-array bounds helper's tie/NaN policy (§6.1).
+
 ## 5. 2D vectors and polygons *[compat]*
 
 - `ScaleVector2D(v, length)` (`0x005D76D0`): when \|v\| > ε, v := v × length ÷ \|v\|; else v is unchanged.
@@ -128,9 +173,23 @@ walked from its last vertex to its first and on: an inside vertex after an insid
 after an outside one emits the crossing and then the vertex; an outside vertex after an inside one emits the
 crossing. Nothing is written once `max` points are out; `count` is the number written.
 
-The crossing is `RaysIntersect2D(previous, current − previous, e0, e1 − e0)`. When that reports the lines as
-parallel (only possible for very short segments, by the absolute ε), the original emits an unset point
-*[quirk]*; FreeCity4 emits the current vertex instead *[choice]*.
+The crossing is `RaysIntersect2D(previous, current − previous, e0, e1 − e0)`. Edge and segment direction
+components passed to that call have binary32 stores. The previous/current vertex coordinates themselves are
+copied as words on direct-emission paths. The initial last-vertex side test uses resident edge differences
+while also storing them; later side tests recompute them resident. The two side products and subtraction
+are resident. Side ≥ 0 includes equality and both signed zeros; **unordered is outside** (`005D7834–7869`,
+`005D7888–78B2`). All loops and capacity comparisons use signed 32-bit counts.
+
+The count output is required and is set to zero first; n ≤ 0 returns immediately without reading vertices or
+edge coordinates (`005D7808–7815`). For n > 0, all vertices are still traversed when max ≤ 0 or after capacity
+is reached. Each direct/crossing emission is individually gated by count < max. For outside→inside, a single
+remaining slot gets the crossing, not the vertex. The crossing call happens **before** its capacity gate.
+Its boolean is ignored (`005D7910–7920`, `005D7984–7994`). When it fails, the shared crossing scratch retains
+its preceding value, or is uninitialized if no preceding successful crossing wrote it. With a free slot that
+scratch is loaded and emitted *[quirk]*. No deterministic coordinates are specified for an uninitialized
+read. FreeCity4's current-vertex fallback is a deliberate safe *[choice]*, not a native result. With max ≤ 0
+the emission gate avoids that scratch read. Supply accessible n-point input and sufficient output backing;
+do not use an unsafe buffer or an uninitialized-read case as an output oracle.
 
 ### 5.2 `ClipPolygonToPolygon2D(poly, n, clip, m, out, max, count)` (`0x005D79D0`)
 
@@ -138,6 +197,21 @@ parallel (only possible for very short segments, by the absolute ε), the origin
 against each edge of `clip` in turn, from its last vertex to its first and then along the polygon, through a
 40-point scratch polygon; after each edge the count is limited to `max`. A clip polygon whose inside lies on the
 right of each edge (§5.1) keeps its interior; the view-utilities clip square is such a polygon.
+
+Precisely, count := n and copy the positive-n input before testing m. This initial copy ignores max and the
+40 limit (`005D79F8–7A95`); output must hold **at least n points** for positive n. For m ≤ 0, return with that
+count and copied output even if n > max, including max ≤ 0. With n ≤ 0 and m ≤ 0, preserve n as count and
+write no point. These non-mutating point-buffer branches do not imply general safety for negative counts.
+
+For each of the m edges (m > 0), call the edge clipper with **literal capacity 40**, using the current output
+as input and a distinct fixed scratch buffer (`005D7AB3–7AD8`). If that call emits k points, set count to the
+**signed minimum of k and max**, then copy just that many points back if count > 0 (`005D7AEB–7B17`). The
+first edge can therefore read n > 40 properly backed input points but retains only the first 40 emissions.
+max > 40 cannot enlarge the retained prefix. max = 0 yields count 0 after the first edge; max < 0 yields that
+negative max, with no copy-back, and later edge calls accept the nonpositive input count and emit zero.
+The loop still visits all clip edges. For any positive n, the initial copy remains visible in the output
+tail beyond a shortened count. Initial-copy capacity and scratch capacity are different preconditions.
+No region-management or view implementation is implied by this generic polygon routine.
 
 ## 6. S3D helpers *[compat]*
 
@@ -295,3 +369,29 @@ See [questions/geometry-utilities.md](questions/geometry-utilities.md) GU1: whet
 8. **Clip:** the square (0,0), (0,4), (4,4), (4,0) clipped by the square (2,2), (2,6), (6,6), (6,2) leaves
    (2,2)–(4,4) (four points).
 9. **Text texture:** a text 30 × 12 pixels gives a 32 × 16 texture with the text at (2, 1).
+
+### 10.1 Independent distinguishing vectors (PROPOSED / UNEXECUTED)
+
+These expectations were derived before reading any implementation/test output. They are not native runs,
+portable-oracle observations or a default-mode promise. Arithmetic rows specify PC24, nearest-even RC,
+masked exceptions, finite normal operands/intermediates unless explicitly qualified. The numerical bits below
+were recomputed with integer/rational significand rounding at each operation, not host floating-point math.
+NaN rows use quiet `7FC00001` with masked invalid; only the proved branch/store outcome is promised.
+All buffers are valid and distinct unless an explicitly permitted null output is stated.
+
+| ID | Inputs / setup | Expected discriminator |
+|---|---|---|
+| N1 | Squared 3D length, a=(0,0,0), b=(4096,1,1) | z²+y²=2, then +x² gives 16777218, binary32 `4B800001`; x-first separate sums give 16777216 (`4B800000`). |
+| N2 | Plane p=(1,1,1), n=(1,16777216,−16777216) | y/z products cancel exactly, then +1 and negate: w=−1 (`BF800000`); x-first PC24 addition loses 1 and gives zero. |
+| B1 | Overlapping boxes; aMin.x=+0, bMin.x=−0, other minima 0, maxima 1 | outMin.x is second operand −0 (`80000000`), not first +0. With aMax.x=+0, bMax.x=−0 and both minima −1, outMax.x is likewise −0. |
+| B2 | aMin.x=quiet NaN, bMin.x=0; all other minima 0 and maxima 1 | Overlap accepts and stores bMin.x=0. Swap aMin.x=0, bMin.x=quiet NaN: accepts and selects/stores second NaN (no payload propagation promise). PointInRectangle with NaN p.x is false. |
+| B3 | Touching x faces, outputs seeded with finite sentinels | false, both outputs untouched. For overlapping boxes, outMin=null and valid sentinel outMax: true, outMax untouched. |
+| C1 | poly[i]=(i,0), i=0…40; n=41; clip has one point (0,0), m=1; max=100; output backing ≥41 points | All sides zero, count=40, first 40 input points retained; output slot 40 still contains the initially copied point (40,0). |
+| C2 | Same 41 backed points, m=0 or −1; max=1, 0, or −1 | count=41 and all 41 initial copies survive; neither max nor scratch limit applies without edges. |
+| C3 | C1 with max=0 or −1 | Initial 41-point copy still occurs; after edge, count=0 or −1 respectively, no copy-back. max=1 returns count=1. |
+| C4 | Edge (0,0)→(1,0), two points (0,−1/1024),(0,+1/1024), max=0, backed output seeded | Two crossing calls fail the absolute denominator test; count remains 0, output untouched; capacity gates prevent reading failed-crossing scratch. This does not predict garbage for max>0. |
+| C5 | Edge n=0 or −1, valid count pointer, output seeded; polygon n=−1,m=0 | Edge writes count=0 and no point; polygon writes count=−1 and no point. No unsafe point access is needed. |
+| M1 | Builder alpha field 65537; only the alpha conversion stage | 65537+49152=114689; stored bits `47E00080`, offset bits `00A00080`, byte=128, unlike the 256×alpha integer shortcut. Whole-call prerequisites remain §6.1. |
+
+The C1 edge is deliberately degenerate: every finite side test is zero, with no crossing-scratch dependency.
+The B1/B2 selection rules belong to the overlap body only, not the builder's foreign bounds helper.
