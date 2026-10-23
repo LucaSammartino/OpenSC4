@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-terrain-overlays-contracts4 (settled public overlay contracts) | Codex / core-terrain-overlays-contracts4 (reserved detached HEAD) | in progress; continuation required; all PASS at a7514e69, fmt pending | Resume SAME phase: repository formatter settings, remaining numeric/lifetime contracts; no merge queue |
+| core-terrain-overlays-contracts4 (settled public overlay contracts) | Codex / core-terrain-overlays-contracts4 (reserved detached HEAD) | in progress; blocked by coordinator STOP 2026-10-23 09:16:47; all PASS at a7514e69, fmt pending | No new work until coordinator resumes; signed rectangles/global message server first; no merge queue |
 
 ## Handoff
 - Goal: implement the new public overlay contracts in the existing terrain_overlays owner; no rendering or ABI promotion.
@@ -19,6 +19,6 @@
 - Earlier attempts: q wrapper Bash access denied (build-runs/q/20261023-080010-37760.log); 80927 and 75667 RC 1 compiler diagnostics, corrected. Formatting emitted apply_patch hunks only, never wrote rustfmt filename headers to sources; helper stdout encoding corrected.
 - All original 25 scenarios retained with explicit obsolete expectations reconciled; 13 additional literal/public fixtures. No game requests/native vectors executed, no C ABI/default/plugin promotion; not ready despite passing gate.
 - No native claims. Parent/archive integrity is coordinator-owned; no archive inspected.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-terrain-overlays-contracts4-r1-manifest.json.
+- Current FINAL R2 manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-terrain-overlays-contracts4-r2-manifest.json; LAST original round (3/3), no fourth/reset. R1 evidence remains unchanged.
 - Family reservation remains supervisor-owned: parent frozen, this new child phase reserved; no old worktree/ref/archive recreation, no new phase/reset requested. Main last terrain_overlays change observed 82b97b7e; no claim that blob/content hashes are the reservation's 032170 provenance identifier.
-- Context handoff near 150000 cap; no merge-queue file. Gate success is not readiness: formatting and the listed contracts remain, and there is no game/shadow verdict. Continue this same phase, do not count it as another child or recreate the parent. All checker sessions terminal.
+- STOP: guard rejected the next read at coordinator STOP 2026-10-23T09:16:47 (user stopped goal). R2 only read permitted owner/spec/report files; no source edits, tests, formatter, game requests or checker launches. Confirmed unsigned CellRect normalizes bounds and Init/Shutdown subscription uses retained view; neither fixed. Next authorized step: independent signed intersection/global-server fixtures then owner implementation. No merge queue. Prior gate qualifies incomplete a7514e69 only; all checker sessions terminal.
