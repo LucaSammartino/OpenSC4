@@ -59,7 +59,7 @@ generated index: the questions live one file per spec, so read only the file for
 | DS | disasters |
 | DT | dates |
 | EF | effects |
-| EFP | effects-parser |
+| EFP | effects, effects-parser |
 | EH | residential-education-health |
 | EX | data-formats |
 | FBQ | win-filebrowser |
@@ -225,8 +225,8 @@ generated index: the questions live one file per spec, so read only the file for
 | draw-context | 3 | 6 | DC10 | questions/draw-context.md |
 | drawing-fonts | 6 | 17 | FN24 | questions/drawing-fonts.md |
 | drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
-| effects | 1 | 14 | EF16 | questions/effects.md |
-| effects-parser | 7 | 0 | EFP8 | questions/effects-parser.md |
+| effects | 1 | 20 | EF16, EFP7 | questions/effects.md |
+| effects-parser | 1 | 0 | EFP8 | questions/effects-parser.md |
 | feature-manager | 3 | 2 | FM6 | questions/feature-manager.md |
 | fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
 | flammability | 0 | 13 | FL14 | - |
@@ -350,4 +350,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **549** | **1324** | | |
+| **total** | **543** | **1330** | | |
