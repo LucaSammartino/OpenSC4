@@ -59,6 +59,9 @@ checked for 0–3. Unknown initial UV bytes are LM2; the standalone helper start
 with explicit zero storage. Retention is tested after a known orientation.
 `CellRenderInitialization` models shared Init outputs and the absent-service
 early return; `draw_owned` uses the specified completed-Init domain.
+Cell `load_texture` returns true for a disabled zero key or successful binding,
+false for two failed requests. Draw intentionally ignores this boolean and
+uses the cached null binding, as specified in sections 4.2–4.3.
 `CellCommand::State` selects the owner tuple; the foreign context owns
 changed-bit device calls, default wrap/filter/transform-clear requests and
 render overrides in section 4.3. Command errors retain the issued prefix.

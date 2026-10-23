@@ -618,12 +618,12 @@ impl<T: Texture> CellTextureModel<T> {
         &mut self,
         zoom: Zoom,
         factory: &mut F,
-    ) -> Result<(), ContractError> {
+    ) -> Result<bool, ContractError> {
         self.zoom = Some(zoom);
         if self.record.texture_key == 0 {
             self.texture = None;
             self.texture_alpha = false;
-            return Ok(());
+            return Ok(true); // A disabled key is a successful null binding.
         }
         let instance = self.record.texture_key.wrapping_add(zoom.value());
         let key = |instance| TextureKey::Cell {
@@ -644,7 +644,7 @@ impl<T: Texture> CellTextureModel<T> {
             self.texture = replacement;
         }
         self.zoom = Some(zoom);
-        Ok(())
+        Ok(self.texture.is_some())
     }
 
     pub fn sort_value(&self) -> u32 {

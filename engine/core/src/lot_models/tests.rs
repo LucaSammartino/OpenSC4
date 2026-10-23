@@ -1094,9 +1094,9 @@ fn owned_leases_survive_draw_borrows_and_drop_once_on_reload_and_owner_drop() {
 fn failed_primary_does_not_create_or_release_a_lease() {
     let mut model = cell(record(), true);
     let mut factory = Factory::replying(&[None, Some((20, false)), None, None]);
-    model.load_texture(zoom(2), &mut factory).unwrap();
+    assert_eq!(model.load_texture(zoom(2), &mut factory), Ok(true));
     assert!(factory.drops.lock().unwrap().is_empty());
-    model.load_texture(zoom(3), &mut factory).unwrap();
+    assert_eq!(model.load_texture(zoom(3), &mut factory), Ok(false));
     assert_eq!(*factory.drops.lock().unwrap(), [20]);
     assert!(model.texture().is_none());
     drop(model);
@@ -1870,6 +1870,7 @@ fn cell_zoom_element_selection_and_fallback_zero_are_literal() {
     let mut rec = record();
     rec.texture_key = 0;
     c.set_texture(rec, zoom(0), &mut factory).unwrap();
+    assert_eq!(c.load_texture(zoom(0), &mut factory), Ok(true));
     assert_eq!(factory.calls.len(), 2);
     assert!(c.texture().is_none());
     assert_eq!(*factory.drops.lock().unwrap(), [1]);
