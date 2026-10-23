@@ -47,7 +47,7 @@ Primary vtable `0x00AD5360`:
 |---|---|---|---|---|
 | 0 | `+0x00` | `0x0094C431` | `QueryInterface(iid, out)` | §1 |
 | 1 | `+0x04` | `0x0094C47C` | `AddRef` (shared with `cGZWin::AddRef`) | `++[+0x0C]`, returns the new count |
-| 2 | `+0x08` | `0x0094C483` | `Release` | §5.3 |
+| 2 | `+0x08` | `0x0094C483` | `Release` | §5.1 |
 | 3 | `+0x0C` | `0x00957A9B` | `SetParameters(props)` | §6; returns false always |
 | 4 | `+0x10` | `0x0094C30E` | `GetControlVocabulary()` | returns the shared vocabulary pointer (no `AddRef`) |
 | 5 | `+0x14` | `0x0094C3CD` | `GetID()` | control null → 0; else the control's `GetID` (`cIGZWin` `+0xFC`), tail-called |
@@ -85,7 +85,7 @@ Legacy-control interface vtable `0x00AD5324` (sub-object at `+0x08`; slots 0–2
 | 3 | `+0x0C` | `0x009C32AC` | `GetControl()` | returns the control at object `+0x10` (no `AddRef`; ICF-shared 4-byte getter) |
 | 4 | `+0x10` | `0x0094C4D8` | `SetOwnControl(bool)` | thunk to `0x0094C314` |
 | 5 | `+0x14` | `0x0094C3A1` | `ForceControl(ptr)` | §7.2, stores into **`+0x10`** (object-relative, see §7.2) |
-| 6 | `+0x18` | `0x0094C375` | `UseWinProc(win)` | §7.2, stores into the control slot |
+| 6 | `+0x18` | `0x0094C375` | `UseWinProc(win)` | §7.2, stores into the procedure slot at object `+0x18` |
 | 7 | `+0x1C` | `0x0096638D` | `GetScriptFragment(out)` | §7.4 |
 
 ## 4. The shared vocabulary *[compat]*
@@ -1007,7 +1007,7 @@ change affects only subsequent messages. Non-String entries are ignored, includi
 | `0x1000D`, fill, outline, `0x1000E` | `0x1000`,`0x2000`,`0x4000`,`0x8000` | value zero |
 | `0x1000F` | `0x10000` | value nonzero |
 
-Next `style`'s SC3-specific key `0x10000` (U) calls `I+0x4C(value)`. String `image` requires two hex
+Next `userdata` (`0x10000`, U) calls `I+0x4C(value)`. String `image` requires two hex
 components; load buffer, read image mode key `0x10001` (U, default 0), map 0→0, 2→2, all others→1.
 On load success call `I+0x34(mode,buffer)`; always store resource parameter `0xAB428C5D` and record selector
 0 after valid syntax. Then `gutters` (P) calls `I+0x68(x,y)`. Finally install a new 8-byte procedure object
@@ -1072,8 +1072,11 @@ Second pass populates **all options before any option geometry**, then selects, 
 ## 11. Open questions
 
 - LC8. Word sets of the 19 per-type script-fragment writers (§7.6 table; not owner functions).
-- LC4. Interpreter effect tables (§8, §9).
 - LC5. Window manager slot 3 (`+0x0C`) used as the default parent: confirm it is the root/main window.
+- LC9. Portable string-byte and overflowing numeric-scan behavior.
+- LC10. TreeView duplicate map keys and Grid scratch/notifier domains.
+- LC11. Additional unchecked interpreter scans and allocation failures (§13.3).
+- LC12. SC3WinGen's installed procedure object and its external message behavior (§13.1).
 
 ## 12. Coverage of owner functions (honest)
 
@@ -1087,7 +1090,123 @@ Custom interpreter are shared bodies owned elsewhere).
 | `SetParameters` | 1 | specified (§6) |
 | `GetScriptFragment` | 1 | specified (§7.4; serialiser frame, class/interface and common words §7.6; per-type writer word sets are non-owner functions, LC8) |
 | `ControlVocabulary*` | 21 | specified (§4: every word, ID and map entry) |
-| `InterpretProperties*` | 21 | Common (§8), Slider (§9.1), TreeView (§9.2), FileBrowser (§9.3), Grid (§9.5), Folders (§9.6), FlatRect (§9.7), Outline (§9.8), Custom (shared stub) specified; 12 owned interpreters open (LC4) |
+| `InterpretProperties*` | 21 including the shared Custom stub | Common (§8), Slider (§9.1), TreeView (§9.2), FileBrowser (§9.3), Grid (§9.5), Folders (§9.6), FlatRect (§9.7), Outline (§9.8), Text, TextEdit, ListBox, Combo, Btn, BMP, Scrollbar, LineInput, Spinner, TextTicker, SC3WinGen and OptGrp (§9.9–§9.20) specified for defined inputs |
 
-Count: 45 of 57 owner functions complete (14 COM/lifecycle + `SetParameters` + `GetScriptFragment` + 21 vocabulary +
-Common, Slider, TreeView, FileBrowser, Grid, Folders, FlatRect, Outline); 12 interpreters open (LC4). No wildcard credit.
+Count: 57 of 57 owner functions have contracts (14 COM/lifecycle + `SetParameters` + `GetScriptFragment` +
+21 vocabulary + 20 owned interpreters). This counts specified adapter effects, not implementation, pixel
+equivalence, runtime verification, malformed-input equivalence or completion of the non-owner serialiser
+writers and window procedures. Those limits remain explicit in §11 and §13.3.
+
+## 13. Message, drawing and failure boundary *[compat]*
+
+### 13.1 Message handling and dispatch
+
+The three vtables in §3 contain no message-consumer or paint slot. Do not send cursor/key/paint messages to
+this adapter or invent a legacy-control message switch. It constructs and configures a `cIGZWin`; input,
+focus, capture, notification targets, z-order, invalidation and painting then follow
+[widget-toolkit.md](widget-toolkit.md) §§4–8, 14–17 and [ui-windows.md](ui-windows.md). HTML parsing and
+HTML event behavior belong to [html-document.md](html-document.md).
+
+The adapter's message-related outputs are the ordered eight comment strings (§8), widget-specific notify
+flags, sound/tip configuration (§9.14), and the procedure reference supplied with `UseWinProc`. The comment
+list is stored as metadata, including missing strings; this owner does not execute those strings while
+building the widget. `notify=0` does not suppress the common build or comment storage.
+
+For a generator, the SC3 first pass installs its default procedure (`I+0x1C`), then the common first pass
+runs, then `DoExceptions` can install the caller's pending procedure at that same generator offset before
+`Init`. Therefore a caller-supplied procedure is handed over after the default procedure, not before it.
+If the generator query fails, the pending procedure is retained until a later handoff or destruction.
+No attempt is made to reinterpret its callback result or to synthesize input messages. The default
+procedure's actual message IDs, result policy and reference handling by the generator remain LC12.
+
+### 13.2 Drawing contract at the interface level
+
+Legacy-control processing supplies geometry, colours, fonts, buffer references, clipping rectangles,
+opacity/alpha flags and parameters through the interfaces listed in §8–§9. It neither rasterizes the
+widgets nor owns their render loop. Common first-pass geometry/caption settings can supersede type-first
+effects; common second-pass private-buffer/enabled flags run after the type-second effects. In particular,
+BMP image dimensions are installed before a common explicit `area`/`size`, and Text fitting occurs both
+before and after the common caption assignment.
+
+Use recording widget interfaces to check setter order, exact arguments and ownership. Test actual pixel
+output against the receiving widget's own drawing spec. A metadata key recorded after a failed load is
+still observable through window parameters; it does not imply an image was installed. The adapter's false
+`SetParameters` return does not imply that nothing was drawn or that the widget was destroyed.
+
+### 13.3 Failure paths and portability limits
+
+| Condition | Required observable adapter result |
+|---|---|
+| unknown QueryInterface IID | false, no AddRef, out-pointer unchanged |
+| missing/wrong-type/zero clsid | false before dropping the current control or consuming the pending parent/procedure |
+| exact create fails | same-IID lowest unsigned class attempt, then Custom; requested class metadata retained on success (§6) |
+| all creates fail | false; no interpreters, Init, attach or PullToFront; do not claim rollback of a previous overwritten control |
+| per-type interface unavailable | type interpreter has no effects; common build still runs |
+| optional property absent/wrong type | no setter except the explicitly unconditional defaults, presence tests and metadata writes in §8–§9 |
+| checked scan incomplete | suppress the affected operation; continue other independent properties |
+| buffer/string load fails after a valid key | skip load-dependent setters; preserve metadata and explicit null-setter calls where the type table requires them |
+| Init/attach/setter reports failure | §6 does not branch on those results; later passes still run and return remains false |
+| GetScriptFragment without a control | false; out-pointer unchanged |
+
+Unchecked scans are **not** equivalent to checked readers. BMP/Button/Spinner image keys, button resource
+and gutter strings, ticker colours, OptGrp IDs/style and caption resource, and TextEdit outline colour
+without an accompanying numeric outline can expose stale/uninitialised native values. OptGrp image-key
+scratch starts at zero once per pass, then can be partially overwritten by a malformed later option.
+No portable deterministic native result is asserted for these inputs (LC11). Do not extrapolate the
+zero-default choices granted to Folders/Outline/area in earlier sections to every unchecked scan.
+
+*[choice]* Until LC9/LC11 are settled, a portable adapter may report unsupported malformed/overflowing
+inputs before calling a setter with indeterminate arguments; distinguish this from a faithful successful
+build. Low-memory behavior also is not generally recoverable: several temporary String/variant allocations
+are dereferenced without a null check or passed as null to a recipient. This spec does not promise safe
+recovery, transactional rollback or a usable partially constructed widget after allocation failure.
+
+## 14. Conformance vectors
+
+These are spec-side vectors for implementers; no engine files are supplied by this RE lane. They are
+predictions from static evidence, not native-game run results. Use an ordered property list, typed numeric
+variants (type 6), String variants (`0x800E`), a recording factory and recording widget interfaces. `U(k,v)`
+and `T(k,text)` below describe fixture inputs, not original-program code. A pass-only test observes the
+selected type interpreter and interface query/release; a full-build test includes §6 and both common passes.
+Unless specified, other properties are absent and resources load successfully. Compare packed colours
+through the graphics-service fixture. Every successfully obtained per-type interface is released once.
+
+| ID | Fixture/input | Expected observation |
+|---|---|---|
+| LCV01 | fresh adapter | count 0; null control, pending parent, procedure; own-control false; three interface views and vocabulary behavior §§1–4 |
+| LCV02 | QI supported IIDs 1, `0x1A356083`, `0x5A356159`, `0x9A4527CB`; then unknown IID with sentinel out | primary, primary, +4, +8 respectively, one AddRef each; unknown preserves sentinel and count |
+| LCV03 | count 2; two Releases; separately fresh count 0 Release | first returns 1; next destroys/returns 0; count-0 Release also destroys |
+| LCV04 | SetParent(legacy A), then unsupported object | first retains A's control; next releases it and leaves pending parent null; both true |
+| LCV05 | ForceControl(X) twice, then null | AddRef X once, no equal-pointer work, Release X once; own-control unchanged |
+| LCV06 | UseWinProc(P), build a generator | P retained by adapter; default procedure supplied first, then P before Init; adapter releases P and clears pending field; non-generator build retains P |
+| LCV07 | preexisting control and pending parent; missing/wrong-type/zero clsid | false; control and parent unchanged; no factory call |
+| LCV08 | known clsid, recording widget and pending parent | metadata; type-first/common-first/DoExceptions/Init/ChildAdd/PullToFront/type-second/common-second in order; parent released/cleared; own-control true; return false |
+| LCV09 | factory exact failure; two registered equal-IID alternatives; then all failures | only lowest unsigned matching class attempted, then Custom; all-failure path has no Init/attach; success stores requested clsid |
+| LCV10 | Text: U(opaque,0), U(align,`0xF008`), U(autofit,0) | first opaque mask false plus W transparency flag; zero gutters; autofit param 1 and `I+0x14(0,0)` in each pass; second alignment 4 |
+| LCV11 | TextEdit initial flags `0x80000003`; U(editable,2), U(wrapped,1), U(passwordmode,1), U(overwrite,1) | first applied flag word `0x80002002`; unrelated high bit retained; overwrite setter false; second absent-autofit parameter 0 |
+| LCV12 | TextEdit valid hscrollimage/vscrollimage keys, failed loads | no image setters; both resource parameters recorded, image selectors 0 and 1; build continues |
+| LCV13 | ListBox: T(listelement,B), T(listelement,A), U(sort,1), U(initselection,1), U(autofit,0) | first scrollbar defaults true/false; second append B then A; `+0x38`, `+0x40` before selection; then fit parameter 1 and `+0x24`, `+0xBC`, `+0xC0` |
+| LCV14 | ListBox sort=2, outline=2, drop=2 | no sorting calls; outline/drop setters false; numeric 2 is not treated as true |
+| LCV15 | Combo valid arrow image without rect; editable=2; two String elements and one numeric element | first arrow setter receives null rectangle; second editable false; append only the two Strings in order, then selection if present |
+| LCV16 | Btn tipsdelay=30, tipstimeout=0, style=togglebtn, no image/tipflag/sounds | flags `0x200=false`, `0x400=true`; style setter `(3,null,null)`; tipflag `0x01000000`; sounds `(0,0)` then `(1,0)` |
+| LCV17 | Btn tiptext=literal, valid tipres, string load fails; showcaption=0 | literal retained; string resource metadata still stored; caption flag cleared in both passes |
+| LCV18 | BMP alpha values 0,128,255,256,`0xFFFFFFFF` | float argument bits `0x00000000`, `0x3F008081`, `0x3F800000`, `0x3F800000`, `0x3F800000` respectively; selector 1 |
+| LCV19 | BMP image 40×20; common size=(90,30); imagerect absent | image setter and size 40×20 before common size 90×30; second rectangle-enable flag false, no rectangle setter |
+| LCV20 | Scrollbar minmaxvalue=(8,-2), direction=vertical, initvalue=-1 | first limits (-2,8), direction 2; second value -1; absent pagesize/linesize cause no setter |
+| LCV21 | Scrollbar valid image, imagerect=(1,2,3,4) | image call arguments `(rect,buffer,0)`; parameter `0x6B4BCBD4`, selector 0; without rect use full buffer rect |
+| LCV22 | LineInput gutters=(2,3), fillalphahilite=128, selection=(9,4) | first four gutters `(2,3,2,3)`; alpha bits `0x3F008081`; second selection `(9,-5)` |
+| LCV23 | Spinner digits=right, align=center, coloroutlinet=(1,2,3), minmax=(8,-2), stepsize=-3 | digits mode 2, align 1; edge tuple `(0,packed(1,2,3),0,0)`; second unsorted limits (8,-2), then step -3 |
+| LCV24 | Ticker ordered message=A, forecolor=(1,2,3), message=B, bkgcolor=(4,5,6), message=C | A uses foreground `0xFFFFFFFF`/background 0; B uses new foreground/0; C uses both new colours; no second-pass effects |
+| LCV25 | SC3 userdata=7, blttype=9, valid image, divider=(12,-4), incomplete bluebar | first userdata setter 7, image mode 1 and procedure install; second divider `(12,-4)`; no bluebar call |
+| LCV26 | OptGrp maincaption=2, autofilltype=automatic, no autofillsize | first caption flag false; no autofill setter; missing fonts make no change |
+| LCV27 | OptGrp geometry property precedes option in input: optionmoveto=4:(8,9), option=4:Four:2:{1,2}:(0,0,5,6), initselection=4, autofit=no | second adds option 4 before move `(4,8,9)` despite property order, then selects 4 and fits once; fit parameter 1 |
+| LCV28 | every type interpreter, QI fails | no type setters, metadata, image loads or element population; a full build still performs common passes |
+| LCV29 | common area and pos/size together; eight comments missing | only area geometry is applied; eight empty strings stored in fixed order; second enabled/private-buffer flags after attach |
+| LCV30 | destroy attached control with own-control true, then equivalent fixture false | true: remove from parent, Shutdown, Release; false: Release only; pending parent/procedure and vocabulary released in §5.2 order |
+| LCV31 | GetScriptFragment with null control and sentinel out | false; sentinel unchanged; non-null defined control follows §7.6 frame and common-word ordering, per-type writer words remain LC8 |
+| LCV32 | malformed checked key (Combo arrow or Scrollbar image) | no image load/setter/metadata for that key; independent gutters/limits still applied |
+| LCV33 | TextEdit outlinecolor without numeric outline, overflowing/partial unchecked key, or OOM | classify unsupported edge domain (LC9/LC11); do not assert a deterministic native setter argument or successful rollback |
+
+Existing Slider, TreeView, FileBrowser, Grid, Folders, FlatRect and Outline worked examples in §9.1–§9.8
+remain the corresponding test inputs for those earlier contracts. LCV01–LCV33 supplement those examples;
+they are not a claim that every combination of registered words or every external widget behavior was run.
