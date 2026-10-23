@@ -222,18 +222,16 @@ impl<D: Driver> DrawContext<D> {
 
     pub fn set_default_render_state_unilaterally(&mut self) -> Result<(), Error> {
         self.ready()?;
-        // DC5: reset driver transforms/coordinates exactly as published, but do
-        // not pretend the unpublished remaining default-cache fields are known.
         for stage in 0..self.stages.len() {
-            if self.reaches_driver(stage) {
-                self.select(stage)?;
-                self.emit(Command::TexMatrix(None))?;
-                self.emit(Command::TexCoord(0))?;
-            }
-            self.stages[stage] = Stage::unpublished_default();
-            self.stages[stage].coordinate_set = Some(0);
-            self.stages[stage].transform_known = true;
+            self.select(stage)?;
+            self.emit(Command::TexMatrix(None))?;
+            self.emit(Command::TexCoord(0))?;
         }
+        // Reconstruct only after the entire ungated driver loop (DC6/DC7).
+        for stage in 0..self.stages.len() {
+            self.stages[stage] = Stage::unpublished_default();
+        }
+        self.word = !self.default_state.value;
         self.set_render_state(self.default_state)
     }
 
@@ -242,7 +240,8 @@ impl<D: Driver> DrawContext<D> {
         if color >= self.highlights.len() {
             return Err(Error::InvalidValue);
         }
-        // DC4: no same-owner provider or fabricated bytes may complete this.
-        Err(Error::Gap(ContractGap::HighlightCombiner))
+        self.set_render_state(self.highlight_state)?;
+        self.set_tex_color(self.highlights[color])?;
+        self.set_tex_combiner(&HIGHLIGHT_COMBINER_BYTES.map(|byte| byte.unwrap()), 0)
     }
 }

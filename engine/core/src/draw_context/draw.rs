@@ -63,9 +63,6 @@ impl<D: Driver> DrawContext<D> {
         if material.textures.len() > 2 {
             return Err(Error::InvalidValue);
         }
-        if material.flags & 0x20 != 0 && material.textures.iter().any(|slot| slot.mode == 4) {
-            return Err(Error::Gap(ContractGap::DefaultCombiner));
-        }
         let bit = |n: u32| flags.bits & (1u8 << n) != 0;
         let grey = bit(3);
         let fade = bit(1) && !grey;
@@ -102,7 +99,11 @@ impl<D: Driver> DrawContext<D> {
                 self.set_tex_coord(slot.coordinate_set, stage)?;
                 self.set_tex_wrap(slot.wrap[0], slot.wrap[1], stage)?;
                 self.set_tex_filter(slot.filter[0], slot.filter[1], stage)?;
-                self.set_tex_env_mode(slot.mode as i32, stage)?;
+                if slot.mode == 4 {
+                    self.set_tex_combiner(&DEFAULT_COMBINER_BYTES.map(|byte| byte.unwrap()), stage)?;
+                } else {
+                    self.set_tex_env_mode(slot.mode as i32, stage)?;
+                }
                 if slot.flags & 1 != 0 {
                     let k = 1.0 / slot.scale;
                     let tx = self.composed.translation[0];
@@ -157,16 +158,6 @@ impl<D: Driver> DrawContext<D> {
                 return Ok(());
             }
         }
-        // Fail missing owned constants before modifying driver/model state.
-        if highlight {
-            return Err(Error::Gap(ContractGap::HighlightCombiner));
-        }
-        if meshes
-            .iter()
-            .any(|mesh| mesh.material.flags & 0x20 != 0 && mesh.material.textures.iter().any(|slot| slot.mode == 4))
-        {
-            return Err(Error::Gap(ContractGap::DefaultCombiner));
-        }
         self.set_model_transform(Some(instance.transform()?))?;
         let override_shade = flags.bits & (1 << 2) != 0;
         if override_shade {
@@ -176,7 +167,11 @@ impl<D: Driver> DrawContext<D> {
         }
         let drawing = (|| {
             for mesh in meshes {
-                self.set_material_state(&mesh.material, flags)?;
+                if highlight {
+                    self.set_highlight_material_state(&mesh.material, flags)?;
+                } else {
+                    self.set_material_state(&mesh.material, flags)?;
+                }
                 self.render_mesh(mesh)?;
                 if !self.properties.use_second_stage && mesh.material.textures.len() == 2 {
                     self.prepare_second_pass()?;

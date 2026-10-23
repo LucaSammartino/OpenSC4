@@ -94,8 +94,8 @@ impl Transform {
     }
 }
 
-/// A resource token with shared ownership. The eventual adapter owns any actual
-/// game reference inside its resource registry; the core never releases a borrow.
+/// Borrowed opaque texture identity. Arc only manages the portable token's
+/// storage; cloning/dropping it does not model native AddRef/Release.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Texture {
     pub token: u64,
@@ -286,55 +286,62 @@ pub struct Stage {
     pub texture: Option<TextureRef>,
     pub texture_known: bool,
     pub coordinate_set: Option<u32>,
-    pub wrap: [Option<u8>; 2],
-    pub filter: [Option<u8>; 2],
+    pub wrap: [Option<i32>; 2],
+    pub filter: [Option<i32>; 2],
+    pub combiner: [u8; 12],
+    pub saved_matrix: Matrix,
     pub transform: Option<Matrix>,
     pub transform_known: bool,
 }
 
 impl Stage {
     pub(super) fn unpublished_default() -> Self {
-        // DC5: numeric defaults of 0x007D3C60 are absent. None is unknown cache
-        // data, not a fabricated wrap/filter/coordinate value. First use sends it.
+        // DC5 section 1.4. The three unspecified padding bytes have no portable
+        // representation. Texture is a borrowed opaque sentinel, not null.
         Self {
-            texture: None,
-            texture_known: false,
-            coordinate_set: None,
-            wrap: [None; 2],
-            filter: [None; 2],
+            texture: Some(Arc::new(Texture { token: 0xffff_ffff })),
+            texture_known: true,
+            coordinate_set: Some(0),
+            wrap: [Some(-1); 2],
+            filter: [Some(-1); 2],
+            combiner: [1, 0, 3, 1, 1, 0, 3, 1, 0, 0, 1, 0],
+            saved_matrix: [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.],
             transform: None,
-            transform_known: false,
+            transform_known: true,
         }
     }
 }
 
-/// Published fragments of the two owned 12-byte records. Missing bytes remain
-/// missing; they are never zero-filled or supplied by a same-owner provider.
+/// Complete public DC4 tables; Option is retained for portable API compatibility.
+pub const CONSTRUCTOR_COMBINER_BYTES: [Option<u8>; 12] = [
+    Some(1), Some(0), Some(3), Some(1), Some(1), Some(0),
+    Some(3), Some(1), Some(0), Some(0), Some(0), Some(0),
+];
 pub const DEFAULT_COMBINER_BYTES: [Option<u8>; 12] = [
     Some(2),
     Some(0),
     Some(1),
-    None,
+    Some(1),
     Some(0),
     Some(1),
-    None,
-    None,
-    None,
-    None,
-    None,
-    None,
+    Some(3),
+    Some(1),
+    Some(0),
+    Some(0),
+    Some(0),
+    Some(0),
 ];
 pub const HIGHLIGHT_COMBINER_BYTES: [Option<u8>; 12] = [
     Some(2),
     Some(2),
     Some(0),
-    None,
+    Some(1),
     Some(1),
     Some(2),
     Some(0),
-    None,
-    None,
-    None,
-    None,
-    None,
+    Some(1),
+    Some(0),
+    Some(0),
+    Some(0),
+    Some(0),
 ];

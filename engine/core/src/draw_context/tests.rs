@@ -3,6 +3,29 @@
 use super::*;
 use std::sync::atomic::{AtomicI32, Ordering};
 
+#[test]
+fn settled_complete_constructor_init_and_stage_records() {
+    // Literal tables in public sections 1.2 and 1.4, independent of constants.
+    let mut c = DrawContext::new(Device::default(), props());
+    let constructor = [1, 0, 3, 1, 1, 0, 3, 1, 0, 0, 0, 0].map(Some);
+    assert_eq!(*c.default_combiner_bytes(), constructor);
+    assert_eq!(*c.highlight_combiner_bytes(), constructor);
+    assert_eq!(c.default_shade(), [1.0; 3]);
+    c.init().unwrap();
+    assert_eq!(*c.default_combiner_bytes(), [2, 0, 1, 1, 0, 1, 3, 1, 0, 0, 0, 0].map(Some));
+    assert_eq!(*c.highlight_combiner_bytes(), [2, 2, 0, 1, 1, 2, 0, 1, 0, 0, 0, 0].map(Some));
+    for stage in c.stages() {
+        assert_eq!(stage.texture.as_ref().unwrap().token, 0xffff_ffff);
+        assert!(stage.texture_known && stage.transform_known);
+        assert_eq!(stage.coordinate_set, Some(0));
+        assert_eq!(stage.wrap, [Some(-1); 2]);
+        assert_eq!(stage.filter, [Some(-1); 2]);
+        assert_eq!(stage.combiner, [1, 0, 3, 1, 1, 0, 3, 1, 0, 0, 1, 0]);
+        assert_eq!(stage.saved_matrix, [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.]);
+        assert_eq!(stage.transform, None);
+    }
+}
+
 #[derive(Default)]
 struct Device {
     commands: Vec<Command>,
