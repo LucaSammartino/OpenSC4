@@ -129,6 +129,8 @@ Fog enabled `+0xA0` and lighting enabled `+0x90` start false. Fog colour cache `
 and its two scalar caches `+0xB4`, `+0xB8` start at binary32 maximum finite `0x7F7FFFFF`
 (`0x007D6000`, `0x007D62F0`–`0x007D630B`); these are cache sentinels, not the loaded driver fog state.
 The constructor zeros the 0x38 bytes at `+0xF4` but makes no driver calls.
+Fog requests use these caches independently; in particular, the fourth colour-cache float is never
+updated by `TurnOnFog`. Its signature, caller inputs and retry rules are specified in §1.5.1 (DC9).
 
 ### 1.4 Stage storage defaults (DC5)
 
@@ -201,6 +203,71 @@ with end `+0x1F0`, and passes either owner `+0x88` or the **eight bytes at end �
 (`0x007D5200`–`0x007D5228`). It does not pop. Unilateral reset does not consult this stack. No push/pop
 signature or mutation body has been attributed by this audit; adding generic Push/Pop methods remains
 unsupported. The residual DC3 question records this precise limit.
+
+#### 1.5.1 `TurnOnFog` (`0x007D32D0`, DC9) *[compat]*
+
+The native operation returns **void** and takes four arguments: an enable byte, an optional pointer
+to a four-binary32 RGBA colour, a binary32 fog start, and a binary32 fog end, in that order.
+The receiver is the draw context in ECX; each argument occupies one four-byte stack slot, with only
+the low byte of the enable argument used. The callee removes 16 argument bytes. There is no success
+result for an implementer to propagate (`0x007D32D1`, `0x007D330C`, `0x007D3374`,
+`0x007D33B3`, `0x007D33EF`). Ordinary callers supply enable 0 or 1; the cache stores the actual
+low byte without normalizing other nonzero values.
+
+**Sources.** This method makes no camera, lighting-manager or render-property query. It uses the
+arguments and the driver link at context `+0x30`. In both renderer `Draw` and `DoTranslatedViewUpdate`,
+renderer byte `+0xE9` gates a request with enable=1, colour pointing to renderer `+0xEC`, start from
+renderer `+0x100` and end from renderer `+0x104`. Both paths later request
+enable=0, colour=null, start=end=`0x7F7FFFFF`. The receiver is renderer `+0x11C`, proving the context
+owner independently of the export's renderer label. These are argument sources, not properties
+queried by the context (`0x007CB6A7`–`0x007CB6CC`, `0x007CB86B`–`0x007CB87D`,
+`0x007CA588`–`0x007CA5AF`, `0x007CA983`–`0x007CA995`).
+
+**Requested-state caches and calls.** Evaluate the following groups in table order, even when
+enable is zero or unchanged. Driver slots are zero-based; arguments below are in logical order.
+Each cache update occurs only after its listed driver call(s) return normally, regardless of the
+values returned. Later groups see the already updated earlier caches.
+
+| Group / cached field | When to submit | Driver calls, in order | Cache update after the calls |
+|---|---|---|---|
+| Enable byte `+0xA0` | Requested byte differs from cache | Nonzero: slot 44 `Enable(6)`, then slot 31 `FogInteger(0, 2)`. Zero: slot 45 `Disable(6)` only. | Store the requested byte. Both enabling calls see the previous enable cache. |
+| Colour RGB `+0xA4`, `+0xA8`, `+0xAC` | Colour pointer nonnull and at least one of R, G, B compares unequal to its cache | Slot 30 `FogVector(1, colourPointer)`, passing the original RGBA pointer | Copy the three RGB binary32 payloads from that pointer after return; leave `+0xB0` untouched. |
+| Start `+0xB4` | Start is unequal to maximum finite binary32 and unequal to its cache | Slot 30 `FogVector(3, pointerToStartArgument)` | Store the argument's binary32 payload after return. |
+| End `+0xB8` | End is unequal to maximum finite binary32 and unequal to its cache | Slot 30 `FogVector(4, pointerToEndArgument)` | Store the argument's binary32 payload after return. |
+
+Scalar pointers refer to the respective four-byte argument values during the call, not a constructed
+colour vector. Colour forwarding includes alpha: the DX7 colour target reads four floats at
+`0x008831AD`–`0x008831CA`, although the context compares and caches only RGB. Changing only alpha
+does not resubmit colour. Null colour leaves all colour caches alone; it does not clear driver colour.
+The context neither clamps nor reorders start/end and does not require fog to be enabled to submit them.
+
+The maximum-finite scalar value is **leave unchanged**, not a request to reset a cache: executable
+data `0x00ABB4D0` has bits `0x7F7FFFFF`. Colour has no such special-value test. Therefore a freshly
+constructed context suppresses colour with all three RGB components equal to maximum finite,
+as well as start/end equal to that value; this does not prove matching driver state. The constructor
+enabled cache is false, so the first disable with null colour and both scalar sentinels makes no calls.
+
+Comparisons use floating-point equality, not payload equality. Positive and negative zero compare
+equal, and a suppressed update retains the previously cached zero's sign. An unordered comparison
+(NaN in either operand) counts as unequal. NaN scalar inputs pass the sentinel test and resubmit on
+every request, including an identical-payload retry. NaN in any RGB component likewise forces colour
+submission. No arithmetic conversion or colour packing occurs in this context operation.
+
+**Failures and retries.** There is no branch on any driver's return register, no rollback, no
+first-failure result and no implicit invalidation. An ordinary failure-valued return from `Enable(6)`
+still permits `FogInteger(0,2)`; either failure still permits the enable cache update and later colour,
+start and end groups. Each submitted parameter likewise advances its cache after an ordinary returned
+failure. A repeat request with equal finite inputs can consequently emit **no calls**, even if the
+driver never accepted the previous request. Disabling does not reset parameters; re-enabling with
+unchanged parameters repeats just `Enable(6)` and `FogInteger(0,2)`. This contract concerns returned
+failures, not exceptions or nonreturning calls; no exception cleanup guarantee is established.
+
+Instruction evidence: enable ordering `0x007D32D8`–`0x007D3306`; RGB comparisons, pointer forwarding
+and post-call copies `0x007D3310`–`0x007D3368`; scalar sentinel/equality tests, pointer calls and stores
+`0x007D336E`–`0x007D33E6`. In particular the final store caches the **end argument**, not the colour
+pointer (`0x007D33E2`–`0x007D33E6`). The equality/unordered rules follow the x87 comparisons and
+status tests at `0x007D3314`–`0x007D3347`, `0x007D336E`–`0x007D3392` and
+`0x007D33AD`–`0x007D33D1`.
 
 ## 2. The state word (`+0x80`) *[compat]*
 
@@ -735,3 +802,23 @@ returns normally, not an exception. Hex words describe binary32 bits; NaN payloa
 | DC-V24 | Raw M[0]=positive infinity, M[4]=M[8]=0, M[12]=9 | Matrix float 3 (B[3,0]) is NaN from infinity×0, rather than a copy of 9. The explicit zero product cannot be eliminated for arbitrary nonfinite input. |
 | DC-V25 | Compact view/model flags both 1; valid=true, counters 40/7; first slot-41 call returns failure, retry same model; camera supplies a nonzero-flag view on refresh | At first driver entry model counter=8, composed counter=41, completed matrix present and valid still true; after return valid=false. Retry fetches camera, increments composed to 42 without copying camera counter, then composes to 43; model counter=9. Two loads, no rollback or silent equal retry. |
 | DC-V26 | Raw valid=true, counters 40/7; first slot-41 call returns failure, retry same M | First entry retains composed counter=40/model counter=7; matrix is complete and valid still true. Return clears valid. Retry refreshes view and increments composed to 41; model counter stays 7. Two loads, no mode calls or failure cleanup. |
+
+### 13.3 Fog contract vectors (DC9)
+
+These are independent expected traces from §1.5.1, not executed replacement tests. Unless stated
+otherwise, start with the constructor caches: enable=0; four colour floats and start/end all have
+bits `7F7FFFFF`. `F` denotes that maximum-finite value. Traces name logical driver arguments;
+colour arguments retain the supplied pointer, and scalar arguments point to the respective binary32
+argument. No other owner fields change.
+
+| ID | Input / setup | Expected trace and resulting caches |
+|---|---|---|
+| DC-V27 | Request (0, null, F, F) | No calls; all caches unchanged. |
+| DC-V28 | Request (1, RGBA=(0.25,0.5,0.75,1), 10, 20), then repeat | First: slot 44 (6), slot 31 (0,2), slot 30 (1,RGBA pointer), slot 30 (3,&10), slot 30 (4,&20), in that order. Each cache is old during its own call(s), then updates; colour `+0xB0` remains F. Repeat emits no calls. |
+| DC-V29 | After DC-V28, request (1, same RGB with alpha=0, F, F), then (0,null,F,F), then (1,same RGB,10,20) | Alpha-only change and sentinels emit no calls and retain start=10/end=20. Disable emits only slot 45 (6). Re-enable emits only slot 44 (6), slot 31 (0,2); no parameter reload. |
+| DC-V30 | Fresh context; request (0, RGBA=(1,0,0,0.5), 20, 10) | Slot 30 colour selector 1, start selector 3, end selector 4, in order, despite fog disabled and start greater than end. Cache enable stays 0, RGB becomes (1,0,0), start=20/end=10, colour fourth float stays F. |
+| DC-V31 | DC-V28 first request; every driver call returns an ordinary failure value; repeat the request | All five first-request calls still occur. At slot 31, enable cache is still 0; at colour submission it is 1; start submission sees new RGB, end submission sees start=10. Final caches match DC-V28; identical retry emits no calls. No owner failure return. |
+| DC-V32 | Fresh context; request (0, RGBA=(F,F,F,0), F, F) | No calls; RGB sentinel equality suppresses colour, independently of alpha. |
+| DC-V33 | Cached RGB=(+0,+0,+0), start=end=+0; enable=0; request (0, RGBA=(-0,-0,-0,1), -0, -0) | No calls; all cached positive-zero payloads retained. |
+| DC-V34 | Fresh context; twice request (0, RGBA=(quiet NaN,0,0,1), quiet NaN, quiet NaN), using identical NaN payloads | Each request submits slot 30 selectors 1,3,4, in order. RGB and scalar caches copy payloads after return; identical NaNs do not suppress retry. Colour fourth float remains F. |
+| DC-V35 | Cached enable byte=1, finite parameters; request (2,null,F,F), then repeat | First emits slot 44 (6), slot 31 (0,2), then caches byte 2. Repeat emits no calls. Nonzero values are not normalized before byte comparison. |

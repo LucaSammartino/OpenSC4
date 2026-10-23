@@ -24,10 +24,3 @@
   Round 2: §8.4 now proves the raw-matrix receiver, pointer argument, four callers, every matrix entry,
   arithmetic grouping/spills and driver/failure/retry order. Residual: attribute any native stack mutation
   sites/signatures (or establish that the empty vector is never populated). No Push/Pop is inferred.
-
-<!-- from: core-draw-context-close5 (2026-10-23) -->
-- **DC9 - sections 1.3 and 1.5, TurnOnFog:** the owner inventory attributes the fog body to
-  SC4DrawContext and publishes constructor cache sentinels, but supplies no signature, query source,
-  cache comparison/update order or driver arguments. Please specify these, including ordinary
-  returned failures and retries. [constructor cache values implemented; fog operation explicitly
-  returns ContractGap::Fog without calls or mutations; no inferred fog implementation]
