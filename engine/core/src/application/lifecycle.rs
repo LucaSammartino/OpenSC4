@@ -33,7 +33,10 @@ pub enum Service {
     LuaScript,
     Language,
     Unnamed2,
+    GraphicsSystem,
+    UnnamedBeforeFont,
     Font,
+    UnnamedAfterFont,
     WindowControl,
     Clipboard,
     Unnamed3,
@@ -41,6 +44,7 @@ pub enum Service {
     PersistResource,
     Registry,
     TextureBindingFactory,
+    UnnamedAfterTexture,
     ScriptResourceFactory,
     Www,
     Unnamed4,
@@ -48,7 +52,7 @@ pub enum Service {
     AudioAems,
 }
 
-pub const SERVICES: [Service; 24] = [
+pub const SERVICES: [Service; 28] = [
     Service::Allocator,
     Service::Unnamed1,
     Service::FileSystem,
@@ -60,7 +64,10 @@ pub const SERVICES: [Service; 24] = [
     Service::LuaScript,
     Service::Language,
     Service::Unnamed2,
+    Service::GraphicsSystem,
+    Service::UnnamedBeforeFont,
     Service::Font,
+    Service::UnnamedAfterFont,
     Service::WindowControl,
     Service::Clipboard,
     Service::Unnamed3,
@@ -68,6 +75,7 @@ pub const SERVICES: [Service; 24] = [
     Service::PersistResource,
     Service::Registry,
     Service::TextureBindingFactory,
+    Service::UnnamedAfterTexture,
     Service::ScriptResourceFactory,
     Service::Www,
     Service::Unnamed4,

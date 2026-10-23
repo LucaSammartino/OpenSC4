@@ -9,6 +9,8 @@
 
 pub mod command_line;
 pub mod directories;
+pub mod city;
+pub mod compatibility;
 mod lifecycle;
 
 use crate::commands::parse_delimited_text;
@@ -57,6 +59,7 @@ pub enum Boundary {
     CityObliteration,
     ResolutionAcceptance { width: u32, height: u32, depth: u32 },
     UserDirectoryAcceptance(Vec<u8>),
+    SavePathNaming,
 }
 
 /// Opaque host failures have no inferred fallback/rollback (AP6).
@@ -109,6 +112,10 @@ pub enum Effect {
         kind: u32,
         target: Token,
     },
+    RegisterV2 { kinds: [u32; 9], target: Token },
+    UnregisterV2 { kinds: [u32; 9], target: Token },
+    UnregisterV1 { kind: u32, target: Token },
+    UnregisterCheat { manager: Token, id: u32 },
     RegisterCheat {
         manager: Token,
         name: &'static str,
@@ -203,6 +210,8 @@ pub struct Application {
     pub watchers: [Option<Token>; 2],
     pub screen_owner: Option<Token>,
     pub field_314: Option<Token>,
+    pub city_state: city::CityState,
+    pub preferences_image: compatibility::PreferencesImage,
     pub app_name: Vec<u8>,
     pub mode: u32,
     pub debug_enabled: bool,
@@ -233,6 +242,8 @@ impl Application {
             watchers: [None; 2],
             screen_owner: None,
             field_314: None,
+            city_state: city::CityState::default(),
+            preferences_image: compatibility::PreferencesImage::default(),
             app_name: Vec::new(),
             mode: 0,
             debug_enabled: false,
