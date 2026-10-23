@@ -1,6 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-game-of-life4 (portable byte-aged simulator) | Codex / `core-game-of-life4` | WIP: implementation committed; 20 own fixtures pass; quick wrapper stalled in optional stats after failed native build; full gate unrun | Collect session 1693 terminal, then one canonical full gate on stable committed source; GL4 remains partial; no merge queue |
+| core-game-of-life4 (portable byte-aged simulator) | Codex / `core-game-of-life4` | in progress: SAME original R2of3, stable-source qualification; R1 failure bytes archived | Review committed source and literal fixtures, then one canonical all; GL1-GL4 remain open; no queue before qualification |
+
+## Handoff
+
+- Goal: qualify original implementation on stable committed source, SAME R2of3; no algorithm expansion or new game.
+- Start: clean detached HEAD 88d555025c878cc001a4fd44aba8d6b05c3f4463; engine eb54ef36dc983283b3b90ee862d05700d8a19876.
+- Verified owned SHA256: mod 655560af70baa6a1803caa06d895e2a9cd1b7e8c8a2d6752204812287a496ad2; tests 4e5f22d05b0f536b1a796eceaff6f474c294a410f5c7501e0c90db1776783ffb.
+- Archived exact failed native 5595 bytes SHA cd48dc451f5189ce89ff87a450d2569b9910ec298bd016a5582c47a7ecd8e293 and historical quick Rust 248894 bytes SHA 03ef45d2366f8e958339fdb49bd399d6a55e004ae24efa00d5a5d9565ca9df41 in build-runs/inherited-r1-core-game-of-life4-r2-20261023/.
+- Copied host proof in build-runs/evidence-run4/coordinator-game-of-life-r1-current-operation-review.json establishes old named PIDs absent and no own operation references; historical session 1693 terminal/cause/native RC stay UNKNOWN. No old handle is available in this transport. No kill/cancellation claimed.
+- Next: finish independent public-spec/source review, record before identity, run ONE canonical qbuild all and retain actual terminal/step outcomes; no quick or baseline.
+- R2 evidence helper: build-runs/r2-game-of-life-evidence.py; manifest C:/Users/tlori/FreeCity4/build-runs/run4-core-game-of-life4-r2-manifest.json.
+- Existing report below preserves R1 scope/evidence; GL1-GL4 remain open, C-before-P is portable GL4 choice, four bodies 932B are not whole-owner/native credit.
+- No new game requests, no current new checker, no merge queue.
 
 ## Result and scope
 
