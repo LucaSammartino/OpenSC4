@@ -65,11 +65,28 @@ Apart from the builder and the texture, none keeps state.
 t = (p·d − o·d) ÷ (d·d), then the distance from p to o + t d. t is not clamped, so this is the distance to the
 whole line through o *[quirk]*; d must not be zero.
 
+The two dot products have different associations: p·d = (p.y d.y + p.z d.z) + p.x d.x;
+o·d = (o.y d.y + o.x d.x) + o.z d.z. Subtract those resident results, divide by
+(d.x² + d.y²) + d.z², and retain t resident. Each projected component is a multiply then an addition.
+Residuals are p − projected point: y and z are binary32-stored/reloaded, x stays resident. Return
+sqrt((residual.x² + residual.y²) + residual.z²), resident, with no final float store
+(`005D7204–728C`). There is no denominator/zero-direction check or clamping branch in this body.
+
 ### 2.2 `PointDistanceToRectangle(p, min, max)` (2D)
 
 0 when p is within the rectangle (closed on both axes). Otherwise, when p's x is within [min.x, max.x], the
 distance in y to the nearer side; when p's y is within [min.y, max.y], the distance in x; else the distance to the
 nearest corner.
+
+The actual branch tree first selects the low-x case only for ordered p.x < min.x, otherwise high-x only
+for ordered p.x > max.x, otherwise treats x as within. Within each x case it selects low-y only for
+ordered p.y < min.y, otherwise high-y only for ordered p.y > max.y, otherwise y is within. This specifies
+also inverted bounds and unordered comparisons: NaN comparisons do not select an outside side. If neither
+axis selects outside, return a loaded +0; if only one does, return the corresponding min−p or p−max
+resident subtraction. If both do, use the selected corner, store/reload dx = p.x−corner.x as binary32,
+retain dy = p.y−corner.y resident, and return sqrt(dy²+dx²). Evidence: branch tree `005D7294–7301`, corner
+stores/root `005D7304–7324`, scalar/+0 returns `005D7327–7356`. This differs from the unordered-rejecting
+point-in-rectangle predicate and does not sanitize arbitrary NaNs.
 
 ### 2.3 Length/area operation and store sequence
 
@@ -112,6 +129,18 @@ length sum and from an x-first dot product.
 4. On the other two axes the point o + t d must be within [min, max]; else false. The hit is that point, with the
    chosen axis set to its face value exactly; true.
 
+All face/origin classification tests select outside only on an ordered comparison; unordered classifies that
+axis as inside. A NaN d is not equal to zero. x's candidate quotient is binary32-stored **and retained
+resident**; y and z candidates are binary32-stored. The first axis selection compares resident x against
+stored y, choosing y only when x < y is ordered. Then it compares the selected **stored** value against
+stored z, choosing z only for ordered less. Subsequent t use is the stored candidate. Ties/unordered retain
+the current axis. A stored t rejects only on ordered t < 0. Each other-axis projection is multiply then add
+resident, float-stored into scratch but compared **resident** against both bounds; only ordered below/above
+rejects. Unordered projections pass. A successful hit is copied from scratch as words; the all-inside path
+copies o as words. A null hit skips only the final copy; false paths never write hit. Evidence:
+`005D6595–6679`, `005D6637–6738`, `005D673C–67BB`. Required readable inputs and nonaliasing outputs are the
+specified domain; the finite formula above is not a promise of robust handling for every malformed box.
+
 ### 4.2 `RayIntersectsTriangle(o, d, a, b, c, hit)` (`0x005D6FF0`)
 
 With e1 = b − a, e2 = c − a, p = d × e2 and det = e1·p: |det| < ε is false. Else, with s = o − a, u = (s·p) ÷ det
@@ -119,10 +148,36 @@ and q = s × e1, v = (d·q) ÷ det: true when u is within [0, 1], v ≥ 0 and u 
 t = (e2·q) ÷ det. **t is not tested**, so a triangle behind the origin is hit as well *[quirk]*. Picking (view-utilities
 §7) relies on the ray starting behind the scene.
 
+e1/e2 are all binary32-stored differences; the three p cross components are resident two-product
+differences. det = (e1.z p.z + e1.y p.y) + e1.x p.x stays resident for its absolute-tolerance comparison.
+After that passes, compute 1/det resident and **store/reload the reciprocal as binary32**. s.x/y are
+binary32-stored; s.z is float-stored too but its resident version is used for u. u's dot is
+((s.z p.z + s.y p.y) + s.x p.x), multiplied by the stored reciprocal and binary32-stored before both u bounds. q.x/y are
+binary32-stored two-product differences; q.z is float-stored while retained resident for v. v uses
+(d.z q.zResident + d.y q.yStored) + d.x q.xStored, then the stored reciprocal; **v is compared resident**
+against zero and resident uStored+v against 1. Only after acceptance, and only with a hit pointer, t uses
+(e2.z q.zStored + e2.y q.yStored) + e2.x q.xStored, times the stored reciprocal. Each hit component is
+a resident multiply and add followed by a binary32 store. No intermediate t store. Evidence:
+`005D6FFB–708E`, `005D709E–70E3`, `005D70ED–7199`, `005D719B–71D4`; the saved-register push at `005D70A4`
+is included in this argument/local attribution.
+
+The denominator rejects only ordered |det| < ε. u/v checks reject only ordered u < 0, u > 1, v < 0,
+or u+v > 1. Consequently unordered barycentric checks can pass and return true, storing NaNs if a hit is
+requested. All false paths leave hit untouched. A null hit still runs the barycentric tests and skips t/output.
+
 ### 4.3 `RayIntersectsPlane(o, d, plane, hit)` (`0x005D7360`)
 
 s = n·o + plane.w and k = n·d. When |k| ≥ ε: hit := o − (s ÷ k) d, true (again the whole line *[quirk]*). Else,
 when |s| ≥ ε (parallel, off the plane): hit := (0, 0, 0), false. Else (in the plane): hit := o, true.
+
+Precisely s = ((o.y n.y + o.z n.z) + o.x n.x) + w, and k = (d.x n.x + d.z n.z) + d.y n.y,
+with resident products and sums. k is float-stored **without discarding the resident value**; |kResident|
+is compared with ε. Ordered |k| < ε takes the parallel branch; equality **or unordered** takes the
+nonparallel branch. The latter returns true even with a null hit (no division in that case); otherwise
+divide resident s by **stored k**, negate, multiply by each d component, add o, and float-store each hit.
+In the parallel branch, ordered |s| < ε copies o as words and returns true; equality, greater **or unordered**
+writes three +0 words and returns false. A null hit skips these writes. Evidence: `005D7368–73A8`,
+`005D73AA–73E4`, `005D73E5–7414`. The failure-zero write supersedes any general failure-preserves-hit rule.
 
 ### 4.4 `RaysIntersect2D(p1, d1, p2, d2, hit)` (`0x005D7420`)
 
@@ -132,6 +187,13 @@ when |s| ≥ ε (parallel, off the plane): hit := (0, 0, 0), false. Else (in the
   differ in both components; it does not test parallelism *[quirk]*. Two crossing lines with the same x direction
   component report false.
 
+With hit, negate d2.y first, then form k as d2.x*d1.y + (−d2.y)*d1.x and the numerator as
+d2.x*(p2.y−p1.y) + (−d2.y)*(p2.x−p1.x). Differences, products, additions and the **direct division**
+remain resident; there is no reciprocal float store. A hit coordinate is multiply/add then binary32 store.
+Only ordered |k| < ε rejects; unordered proceeds and can store NaNs/return true. Without hit, both direction
+differences must be ordered and strictly greater than ε in magnitude; equality/unordered returns false.
+Evidence: `005D7429–7496`, `005D749D–74CC`. On denominator failure a nonnull hit is untouched.
+
 ### 4.5 `LinesIntersect2D(a1, a2, b1, b2, hit)` (`0x005D74D0`)
 
 Segments a1–a2 and b1–b2. With k = (b1.y − b2.y)(a2.x − a1.x) − (a2.y − a1.y)(b1.x − b2.x): |k| < ε is false
@@ -139,6 +201,16 @@ Segments a1–a2 and b1–b2. With k = (b1.y − b2.y)(a2.x − a1.x) − (a2.y 
 ua = ((b1.y − b2.y)(b1.x − a1.x) − (b1.y − a1.y)(b1.x − b2.x)) ÷ k and
 ub = ((b1.y − a1.y)(a2.x − a1.x) − (a2.y − a1.y)(b1.x − a1.x)) ÷ k must both be within [0, 1]; then
 hit := a1 + ua (a2 − a1), true.
+
+The x difference a2.x−a1.x is binary32-stored/reloaded before k and both numerators. b1.x−b2.x is retained
+resident; other differences are resident and recomputed where used. k uses the two products and subtraction
+shown above, tests |k| resident, then forms a **resident reciprocal** 1/k. Each numerator multiplies that
+reciprocal and is float-stored as ua or ub before any interval check. The checks run ua lower/upper, then
+ub lower/upper; a lower check rejects unordered as well as <0 (upper unordered is never reached for a NaN
+parameter). Hence an unordered denominator passes its local tolerance gate but NaN ua/ub fails the full call.
+On success with a hit, x uses stored dx and ua; y recomputes a2.y−a1.y resident and uses stored ua; each is
+multiply/add then float-store. Null hit skips only those final writes; **all false paths preserve hit**.
+Evidence: `005D74DD–7550`, `005D755A–759C`, `005D75A2–75C6`.
 
 ### 4.6 Boxes and rectangles
 
@@ -164,6 +236,16 @@ do not establish the foreign vertex-array bounds helper's tie/NaN policy (§6.1)
 - `ScaleVector2D(v, length)` (`0x005D76D0`): when \|v\| > ε, v := v × length ÷ \|v\|; else v is unchanged.
 - `RotatePoint2D(c, p, angle, out)` (`0x005D77A0`): with (dx, dy) = p − c,
   out = c + (cos a · dx − sin a · dy, sin a · dx + cos a · dy).
+
+Scale forms sqrt(x²+y²) resident and compares that resident length with ε; equality, less **or unordered**
+leaves both components untouched. Otherwise compute lengthArgument/magnitude resident once, then multiply
+each original component and store each binary32 (`005D76D4–7703`). No component is pre-divided/normalized.
+Rotate forms p−c resident, loads the binary32 angle independently for x87 FCOS and FSIN, and retains their
+results resident. The rotated x two-product difference is **stored/reloaded binary32 before** adding c.x;
+that translated x is stored again. Rotated y is a resident two-product sum through adding c.y, then stored
+to output. Output is required (`005D77AB–77F4`). Native trig primitive results must be supplied parameters
+for exact operation-stage vectors; host double sin/cos are not an established native oracle. No range-error
+fallback or control-word setup is present in this body.
 
 ### 5.1 `ClipPolygonToEdge2D(e0, e1, poly, n, out, max, count)` (`0x005D7800`)
 
@@ -392,6 +474,11 @@ All buffers are valid and distinct unless an explicitly permitted null output is
 | C4 | Edge (0,0)→(1,0), two points (0,−1/1024),(0,+1/1024), max=0, backed output seeded | Two crossing calls fail the absolute denominator test; count remains 0, output untouched; capacity gates prevent reading failed-crossing scratch. This does not predict garbage for max>0. |
 | C5 | Edge n=0 or −1, valid count pointer, output seeded; polygon n=−1,m=0 | Edge writes count=0 and no point; polygon writes count=−1 and no point. No unsafe point access is needed. |
 | M1 | Builder alpha field 65537; only the alpha conversion stage | 65537+49152=114689; stored bits `47E00080`, offset bits `00A00080`, byte=128, unlike the 256×alpha integer shortcut. Whole-call prerequisites remain §6.1. |
+| H1 | Plane n=(0,1,0), w=−1; o=(2,0,3), d=(1,0,0); hit sentinel (71,72,73) | Parallel/off-plane false **stores (0,0,0)**. Box o=(−1,2,0),d=(1,0,0), box [0,1]³ false preserves the same sentinel. |
+| H2 | 2D rays p1=p2=(0,0), d1=(1,0),d2=(1,1) | With hit, true and (0,0); null hit, false. Parallel d1=d2=(1,0) with a sentinel hit returns false without a write. |
+| H3 | Triangle d=(quiet NaN,−1,0); o=(0,1,0), a=(0,0,0), b=(1,0,0), c=(0,0,1) | NaN determinant/u/v comparisons pass their unordered paths: true, writes unordered coordinates with hit. No exact NaN payload promised. |
+| H4 | Segments a1=(0,0),a2=(1,0), b1=(quiet NaN,−1),b2=(0,1), finite sentinel hit | Unordered k passes the local tolerance gate, but NaN ua fails lower bound: false, hit untouched. |
+| V1 | ScaleVector2D v=(quiet NaN,1), requested length=2 | Unordered magnitude leaves both original component words untouched, including the supplied NaN bits. |
 
 The C1 edge is deliberately degenerate: every finite side test is zero, with no crossing-scratch dependency.
 The B1/B2 selection rules belong to the overlap body only, not the builder's foreign bounds helper.
