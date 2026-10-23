@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Configuration logging (§6); byte-exact unspecified layout is tracked in GR6.
+//! Byte-mode configuration logging (§6); exceptional numeric spellings remain GR6.
 
-use super::{Environment, Properties, PropertyValue, FLAGS, NUMBERS, STRINGS};
+use super::{Environment, ManagerError, Properties, PropertyValue, FLAGS, NUMBERS, STRINGS};
 
 /// File acquisition/writes, not preformatted manager output.
 pub trait LogFile {
     fn open(&mut self, path: &str) -> bool;
-    fn write(&mut self, text: &str);
-    fn close(&mut self);
+    fn is_open(&self) -> bool;
+    fn write_bytes(&mut self, bytes: &[u8]) -> bool;
+    fn close(&mut self) -> bool;
 }
 
 #[derive(Default)]
@@ -16,8 +17,15 @@ impl LogFile for NoLog {
     fn open(&mut self, _: &str) -> bool {
         false
     }
-    fn write(&mut self, _: &str) {}
-    fn close(&mut self) {}
+    fn is_open(&self) -> bool {
+        false
+    }
+    fn write_bytes(&mut self, _: &[u8]) -> bool {
+        false
+    }
+    fn close(&mut self) -> bool {
+        true
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -54,21 +62,20 @@ pub const SUMMARY: [(&str, u32, u32); 12] = [
 ];
 
 /// C's default six-significant-digit %g for finite binary32 values.
-pub fn general(value: f32) -> String {
-    // GR6: nonfinite MSVC spellings have not been published; these are portable
-    // spellings, not a claim of native byte-exact logging on injected NaNs/Infs.
+pub fn general(value: f32) -> Result<String, ManagerError> {
+    // GR6: do not silently invent native exceptional-value spellings.
     if !value.is_finite() {
-        return value.to_string();
+        return Err(ManagerError::Unsupported("GR6 nonfinite %g spelling"));
     }
     let rounded = format!("{value:.5e}");
     let (mantissa, exponent) = rounded.split_once('e').expect("scientific format");
     let exponent: i32 = exponent.parse().expect("formatted exponent");
     if !(-4..6).contains(&exponent) {
         let mantissa = trim_fraction(mantissa.to_owned());
-        format!("{mantissa}e{exponent:+03}")
+        Ok(format!("{mantissa}e{exponent:+03}"))
     } else {
         let decimals = (5 - exponent).max(0) as usize;
-        trim_fraction(format!("{value:.decimals$}"))
+        Ok(trim_fraction(format!("{value:.decimals$}")))
     }
 }
 
@@ -84,23 +91,48 @@ fn trim_fraction(mut text: String) -> String {
     text
 }
 
-pub(super) fn configuration(log: &mut impl LogFile, env: &Environment, stamp: &LogStamp) {
-    log.write(&format!(
-        "Log generated on {}, {:02}:{:02}\n\nFlags\n-----\n",
-        stamp.date, stamp.hour, stamp.minute
-    ));
+/// §6.1 WriteLine ignores failures at its callers, but skips CRLF on payload failure.
+pub(super) fn line(log: &mut impl LogFile, payload: &[u8]) -> bool {
+    log.is_open() && log.write_bytes(payload) && log.write_bytes(b"\r\n")
+}
+
+pub(super) fn text(log: &mut impl LogFile, payload: &str) {
+    // Keep each native line as a distinct two-write operation, including empty lines.
+    for payload in payload.strip_suffix('\n').unwrap_or(payload).split('\n') {
+        line(log, payload.as_bytes());
+    }
+}
+
+pub(super) fn configuration(log: &mut impl LogFile, env: &Environment, stamp: &LogStamp) -> Result<(), ManagerError> {
+    if log.is_open() {
+        line(
+            log,
+            format!("Log generated on {}, {:02}:{:02}", stamp.date, stamp.hour, stamp.minute).as_bytes(),
+        );
+    }
+    text(log, "\nFlags\n-----\n");
     for (i, name) in FLAGS.iter().enumerate() {
-        log.write(&format!("{name} = {}\n", env.flags & (1 << i) != 0));
+        if log.is_open() {
+            line(log, format!("{name} = {}", env.flags & (1 << i) != 0).as_bytes());
+        }
     }
-    log.write("\nStrings\n-------\n");
+    text(log, "\nStrings\n-------\n");
     for (name, value) in STRINGS.iter().zip(&env.strings) {
-        log.write(&format!("{name} = {value}\n"));
+        if log.is_open() {
+            line(
+                log,
+                format!("{name} = {}", value.split('\0').next().unwrap_or("")).as_bytes(),
+            );
+        }
     }
-    log.write("\nNumbers\n-------\n");
+    text(log, "\nNumbers\n-------\n");
     for (name, value) in NUMBERS.iter().zip(env.numbers) {
-        log.write(&format!("{name} = {}\n", general(value)));
+        if log.is_open() {
+            line(log, format!("{name} = {}", general(value)?).as_bytes());
+        }
     }
-    log.write("\n");
+    text(log, "\n");
+    Ok(())
 }
 
 pub(super) fn options(
@@ -108,25 +140,45 @@ pub(super) fn options(
     properties: &impl Properties,
     preferences: Option<&[u8; 12]>,
     recommended: impl Fn(u32) -> u32,
-) {
-    // GR6: the spec gives the data and ordering, not exact dump separators.
-    for (name, value) in properties.dump() {
-        let text = match value {
-            PropertyValue::Bool(v) => v.to_string(),
-            PropertyValue::Int(v) => v.to_string(),
-            PropertyValue::Float(v) => general(v),
-        };
-        log.write(&format!("{name} = {text}\n"));
-    }
+) -> Result<(), ManagerError> {
+    text(log, "Options\n-------\n");
     if let Some(preferences) = preferences {
         for ((label, group, _), current) in SUMMARY.iter().zip(preferences) {
-            // GR6: padded label width is unspecified; literal example uses 20.
-            log.write(&format!(
-                "{label:<20} current: {current:3} recommended: {:3}\n",
-                recommended(*group) as i32
-            ));
+            if !log.is_open() {
+                continue;
+            }
+            text(
+                log,
+                &format!(
+                    // GR8: the listed VariableSpeedAutomata is 21 bytes. Follow the
+                    // explicit 20-byte field/current-at-21 requirement literally.
+                    "{label:<20.20} current: {current:3} recommended: {:3}\n",
+                    recommended(*group) as i32
+                ),
+            );
         }
     }
+    text(log, "\nProperties\n-------\n");
+    let dump = properties.dump();
+    for kind in 0..3 {
+        for (name, value) in &dump {
+            if !log.is_open() {
+                continue;
+            }
+            let formatted = match (kind, value) {
+                (0, PropertyValue::Bool(v)) => v.to_string(),
+                (1, PropertyValue::Int(v)) => v.to_string(),
+                (2, PropertyValue::Float(v)) => general(*v)?,
+                _ => continue,
+            };
+            let mut payload = name[..name.iter().position(|b| *b == 0).unwrap_or(name.len())].to_vec();
+            payload.extend_from_slice(b" = ");
+            payload.extend_from_slice(formatted.as_bytes());
+            line(log, &payload);
+        }
+        text(log, "\n");
+    }
+    Ok(())
 }
 
 pub(super) fn in_directory(directory: &str, file: &str) -> String {

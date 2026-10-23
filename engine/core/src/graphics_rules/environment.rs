@@ -109,10 +109,10 @@ impl Environment {
         self.strings[..6].clone_from_slice(&m.os_strings);
         let mut fields = m.driver_description.split('\n').skip(1);
         for out in &mut self.strings[6..12] {
-            // GR6: short descriptions have no published failure contract.
+            // §2.2: exhausted LF-only remainder reads as empty; preserve CR.
             *out = fields.next().unwrap_or("").to_owned();
         }
-        // GR6: only ParseConfigFile resets cardIdentity; gather retains index 12.
+        // §2.2: only ParseConfigFile resets cardIdentity; gather retains index 12.
         let sound = m.sound_names.unwrap_or_else(|| ["Unknown".into(), "Unknown".into()]);
         self.strings[13..15].clone_from_slice(&sound);
         self.strings[15] = "Release".into();

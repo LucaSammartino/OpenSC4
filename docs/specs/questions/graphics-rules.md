@@ -25,3 +25,9 @@ Exact nonfinite `%g` output through the foreign CRT and exhaustive failure/alloc
 unclosed; do not infer them from a host formatter or turn unsafe native paths into recoverable parity.
 V11–V15 are independent source-derived discriminators, not implementation/test evidence. Parked after
 the authorized final logical RE round; no complete-owner/default/shadow/replacement promotion.
+
+<!-- from: core-config-rules5 (2026-10-23) -->
+- **GR7 — §4.5 portable floating-point profile:** Which active x87 rounding-control and precision-control profiles must the portable shared numeric readers support? The published signed-property vectors specify round-to-nearest/even, but the text also makes the bit trick depend on active rounding control. Is nearest/even with binary64 expression accumulators the required supported profile, or must callers select other profiles? [Implement the explicitly described nearest/even profile, including the binary32 bias/bit trick; do not claim parity for other active control modes. The settled precedence, unsigned truncation and signed-property vectors are implemented; GR4 still bounds the rest of the grammar.]
+
+<!-- from: core-config-rules5 (2026-10-23) -->
+- **GR8 — §6.1 preference label width contradiction:** The listed `VariableSpeedAutomata` is 21 ASCII bytes, while §6.1 calls it 20 bytes and requires every label to occupy 20 bytes plus one space with `current:` starting at byte 21. Should this row truncate the label, omit its separating space, use a different literal spelling, or start `current:` at byte 22? [Follow the explicit 20-byte field and byte-21 offset literally, truncating this one label to `VariableSpeedAutomat`; byte-exact compatibility for this row stays open pending clarification. Other eleven labels are unaffected.]
