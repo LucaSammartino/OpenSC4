@@ -317,6 +317,8 @@ cSC4AudioAmbienceManager	audio	audio	audio-ambience.md	core/src/audio_ambience	-
 cSC4AudioEventHandler	audio	audio	audio.md	-	-	-
 cSC4AudioSoundManager	audio	audio	audio.md	-	-	-
 cGZSndEventStd	audio	audio	audio.md	-	-	-
+cSC4AudioScapeManager	audio	audio	audio-scape.md	-	-	-
+cSC4AudioEventHandlerDisasterFire	audio	audio	audio-scape.md	-	-	-
 cSC4Audio*	audio	audio	-	-	-	-
 cGZSndSys	audio	audio	sound-system.md	-	-	-
 cGZSndMgr	audio	audio	sound-system.md	-	-	-

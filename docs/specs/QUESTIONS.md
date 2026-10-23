@@ -153,6 +153,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RY | regional-city |
 | RZ | framework-rz-files |
 | RZS | rz-strings |
+| SCP | audio-scape |
 | SCR | sc-resources |
 | SG | simgrid |
 | SL | strings-language |
@@ -205,6 +206,7 @@ generated index: the questions live one file per spec, so read only the file for
 | application | 10 | 6 | AP17 | questions/application.md |
 | audio | 0 | 4 | AU17 | questions/audio.md |
 | audio-ambience | 3 | 10 | AA14 | questions/audio-ambience.md |
+| audio-scape | 4 | 0 | SCP5 | questions/audio-scape.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | auto-game-pause | 1 | 0 | AGP2 | questions/auto-game-pause.md |
 | automata | 4 | 38 | A5, AM13, AT25 | questions/automata.md |
@@ -368,4 +370,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 4 | 2 | WG7 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **592** | **1438** | | |
+| **total** | **596** | **1438** | | |
