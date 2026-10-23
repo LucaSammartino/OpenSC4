@@ -29,7 +29,7 @@ validation, foreign-call ordering and vectors must be published before ready.
 
 ## Handoff
 - Goal: publish effects-script command behavior for the engine lane; no engine edits.
-- Done: 62390a5d publishes reader/directory/lifetime dependencies; following checkpoint adds dispatch/error contracts.
+- Done: 62390a5d publishes reader/directory/lifetime; 16f94ae2 adds dispatch/error contracts. Both pass doccheck/questions checks.
 - Done: effects-parser §§9–12, effects §19; 31 static vectors; EFP1/EFP3/EFP4/EFP5/EFP6 answered.
 - Next: page asm 005989D0 (3445 bytes; 56 lines/page) for five rotation branches, verify x87 intermediate stores, answer EFP2.
 - Then EF15: trace remaining root and nested handlers; current §19.2 covers ONLY renderprop and effectGroup; keep EF15 open.
@@ -38,6 +38,9 @@ validation, foreign-call ordering and vectors must be published before ready.
 - Ignored helpers: build-runs/peek.py (PE data/import/reference reads), inventory.py (registration navigation only).
 - inventory.py only handles puVar1/PTR_FUN registrations: select, particleSequence and folded generic handlers NEED manual proof; do not publish its stale descriptor guesses.
 - Dispatch evidence: generic root registrar 00676DB0; nested 00676B80; lookup 00679120; wrappers 007E3BE0/007E3B10/006773D0; end 00676110.
+- EFP2 navigation: rotateX lookup 00598A38, next rotateY 00598B70, rotateZ 00598C95. Three branches multiply ParseFloat ST0 by f32 at 00A9F384, FCOS then f32 temporary, FSIN stays x87 before product stores. Do not flatten to a host matrix multiply.
+- Last asm pages inspected: skip 96/152/208 at max 56 on 005989D0; next skip 264, but reread skip 40/56 for full X stack derivation. No numeric rotation contract published yet.
+- Guard last measured 143276/150000 before final navigation/checkpoint; continuation needed, no merge queue written.
 - Gate: doccheck check and questions check passed. No outstanding process or game label. Do not enqueue partial work as ready.
 - EFP1–EFP6 are in questions/effects-parser.md, EF15 in questions/effects.md.
 - Explicitly permitted engine read: main checkout effects_parser/README.md only.
