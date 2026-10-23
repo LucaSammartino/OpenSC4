@@ -2,22 +2,23 @@
 
 Scope: [gz-graphics.md](../gz-graphics.md), Windows 1.1.641.
 
-- **GZG-1 — sections 2–3, generic geometry and convenience blits:** settle the
+- **GZG1 — sections 2–3, generic geometry and convenience blits:** settle the
   signatures/geometry of context slots 36–37 (`0x0082C100`), kinds 2/4/5, line
   endpoint and polygon closure/coverage, gradient conversion, and exact
-  Blt/BltTiled source rectangles and scaling. Distinguish engine return values
-  1 and 2 in generic fallback. Evidence next: helpers around `0x0082CC60`,
+  Blt/BltTiled source rectangles and scaling. Basic filled result-1/result-2
+  dispatch is specified in section 3.2; full tessellation coverage remains open.
+  Evidence next: helpers around `0x0082CC60`,
   `0x0082D040`–`0x0082E130`, `0x0082F970`–`0x0082FC30`; verify float widths,
   rounding and intermediate precision against instruction bytes.
-- **GZG-2 — section 4, hardware/SimGL and AA geometry:** finish engine IID and
+- **GZG2 — section 4, hardware/SimGL and AA geometry:** finish the
   hardware extension-slot inventory, hardware base defaults/Shutdown, exact
   source bounds and texture/gradient subdivision, buffer AA edge coverage,
   SimGL Draw specialized/fallback routes and HWSetImage failures. Export
   pseudocode for `0x009922D0` and `0x00992F80` failed; use paged assembly.
   Relevant base helpers `0x00A64490`, `0x00A646F0`, `0x00A64A80`,
   `0x00A64DA0`, `0x00A660F0`; buffer AA `0x008308D0`.
-- **GZG-3 — section 5, graphics IO/presentation and startup:** name and type
-  remaining graphics-interface entries in the 65-slot table `0x00ADB050`,
+- **GZG3 — section 5, graphics IO/presentation and startup:** name and type
+  remaining graphics-interface entries in the table `0x00ADB050` (slots 0–68),
   including bitmap/file IO helpers; settle each failure/output-ownership rule.
   Complete driver discovery/INI precedence, mode-selection and partial-init
   rollback, screen buffer allocation/format defaults, SetUIRenderingMode's
@@ -25,7 +26,7 @@ Scope: [gz-graphics.md](../gz-graphics.md), Windows 1.1.641.
   Audit GetGDriverByIndex and ByID failure/ownership and folded driver slots
   17/20. Relevant owners are `cGZGraphicSystem` and `cGZGraphicSystemW32`,
   including unnamed helpers in region `0x00980000`.
-- **GZG-4 — section 7, full Windows canvas event contract:** finish the unnamed
+- **GZG4 — section 7, full Windows canvas event contract:** finish the unnamed
   primary slots and subinterface thunk mappings; settle HWND ownership, window
   creation/reconfiguration failure cleanup, event pump ordering and every
   Windows keyboard/mouse/focus/resize/quit translation. Confirm names/units of
@@ -33,7 +34,7 @@ Scope: [gz-graphics.md](../gz-graphics.md), Windows 1.1.641.
   Evidence next: `0x0098C690`, `0x0098CDB0`, `0x0098D080`, `0x0098D230`,
   `0x0098D9C0`, `0x0098DC40`–`0x0098DD70`; instructions are needed where
   adjusted-this and message locals are incorrectly typed in the export.
-- **GZG-5 — section 6, standalone alpha operations and loader details:** settle
+- **GZG5 — section 6, standalone alpha operations and loader details:** settle
   GenericBufferClip's exact rectangle/output mutation and all clipped versus
   NoClip alpha/shade/shadow/bright/stretch/half-source formulas, supported
   formats, locks, return channels and failure cleanup. Specify the legacy

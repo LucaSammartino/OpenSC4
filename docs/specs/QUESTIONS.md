@@ -82,6 +82,7 @@ generated index: the questions live one file per spec, so read only the file for
 | GT | glyph-textures |
 | GU | geometry-utilities |
 | GZ | framework-gz-services |
+| GZG | gz-graphics |
 | HD | html-document |
 | HG | foundations |
 | HU | html-ui-hooks |
@@ -243,7 +244,7 @@ generated index: the questions live one file per spec, so read only the file for
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
 | graphics-rules | 4 | 4 | GR9 | questions/graphics-rules.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
-| gz-graphics | 0 | 0 | - | questions/gz-graphics.md |
+| gz-graphics | 5 | 0 | GZG6 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 2 | 6 | HD9 | questions/html-document.md |
 | html-ui-hooks | 4 | 0 | HU5 | questions/html-ui-hooks.md |
@@ -352,4 +353,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **537** | **1351** | | |
+| **total** | **542** | **1351** | | |

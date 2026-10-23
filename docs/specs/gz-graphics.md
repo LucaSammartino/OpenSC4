@@ -79,7 +79,7 @@ the method does **not** clear the caller's output (`0x0082BE90`).
 | 26–27 | ClearGradient, SetGradientTransform | `0x0082C350`, `0x0082C360` |
 | 28–31 | ClearBlt, SetBlt, ClearBltTiling, SetBltTiling | `0x0082C370`–`0x0082C480` |
 | 32–35 | Clear, Point, Line, Fill | `0x0082BFE0`, `0x0082C020`, `0x0082C060`, `0x0082C0C0` |
-| 36–37 | two convenience primitives sharing the exported Ellipse-labelled entry | `0x0082C100`; signatures/geometry unresolved, GZG-1 |
+| 36–37 | two convenience primitives sharing the exported Ellipse-labelled entry | `0x0082C100`; signatures/geometry unresolved, GZG1 |
 | 38–40 | Blt, BltTiled, Flush | `0x0082C530`, `0x0082C620`, `0x0082C520` |
 | 41–43 | IsSuspended, Suspend, Resume | `0x0082BFD0`, `0x0082C4E0`, `0x0082C500` |
 | 44–47 | Draw, DrawNoTransform, Lock, Unlock | `0x0082EA60`, `0x0082FC30`, `0x0082C6B0`, `0x0082C6C0` |
@@ -141,7 +141,7 @@ addition and conversion `0x0082C30F`–`0x0082C31A`, minimum-one rule
 
 ClearGradient forwards `(null,0,0)` to engine slot 12; SetGradientTransform forwards
 its arguments to the same slot. These calls require an engine. The exact
-fixed-point gradient conversion is deferred in GZG-1; it must not be replaced
+fixed-point gradient conversion is deferred in GZG1; it must not be replaced
 with the 3D packed-state gradient rules.
 
 ## 3. Context transforms, drawing and target changes
@@ -184,19 +184,23 @@ DrawNoTransform. DrawNoTransform does not add origin. Its kinds are:
 |---|---|
 | 0 | points |
 | 1 | independent lines |
-| 2 | connected line geometry; detailed endpoint coverage deferred in GZG-1 |
+| 2 | connected line geometry; detailed endpoint coverage deferred in GZG1 |
 | 3 | rectangles, two points per rectangle |
-| 4 | outline convenience geometry; detailed subdivision deferred in GZG-1 |
-| 5 | remaining outline/polygon geometry; detailed closure deferred in GZG-1 |
+| 4 | outline convenience geometry; detailed subdivision deferred in GZG1 |
+| 5 | remaining outline/polygon geometry; detailed closure deferred in GZG1 |
 | 6 | filled triangles, three vertices per triangle |
 | 7 | filled quads, four vertices per quad |
 | 8 | one filled polygon |
 
 Unknown kinds do no drawing in the generic dispatcher (`0x0082FC30`). Filled
 primitives first offer the target engine an opportunity to handle them. Engine
-result zero means handled; nonzero requests generic fallback. Values 1 and 2
-are distinct native results and must be preserved at the engine boundary;
-their detailed differences in generic tessellation are GZG-1. The generic
+result zero means handled. Result 2 requests software rasterization. For filled
+quads and polygons, result 1 requests tessellation; for an already triangular
+kind-6 submission, result 1 produces no further drawing. Unrecognized result
+values also produce no further drawing in these three filled dispatchers.
+Instruction evidence for the triangle result switch is
+`0x0082EA39`–`0x0082EA48`; quad and polygon dispatch are `0x0082FB40` and
+`0x0082FB90`. The generic
 rasterizer emits clipped spans to engine slot 22; span contents and blitter
 selection are covered by the linked span specs. Direct filled-primitive
 entry points are `0x0082EA20`, `0x0082FB40`, `0x0082FB90`.
@@ -223,7 +227,7 @@ SetBltTiling sets the tiling byte and calls engine slot 15 with the supplied
 tiling parameter. ClearBltTiling clears the byte and calls slot 14; if a blit is
 still active its bounded effective clip is re-established. Set/ClearBlt do not
 save a restorable source in PushState (`0x0082C370`–`0x0082C4DD`). Detailed
-source rectangles and Blt/BltTiled convenience argument semantics are GZG-1.
+source rectangles and Blt/BltTiled convenience argument semantics are GZG1.
 
 Suspend increments the nesting count on **every** call, then invokes engine
 Flush (slot 16) and Suspend (slot 17) on every call. Resume does nothing at zero;
@@ -291,8 +295,10 @@ common first 23 slots. These engine slots are **not** the context's slots.
 | 21 | Draw(kind,points,count), result code | `0x00831000` | `0x009922D0` |
 | 22 | DrawPreclippedSpanList | `0x008302E0` | `0x006F7DC0` |
 
-The shared QueryInterface identity and hardware-only extension slots need further
-audit (GZG-2). Do not infer an IID from the table address. The hardware owner is
+The shared QueryInterface supports IID **`0x2AE78A07`** and unknown IID **1**,
+returns the same engine pointer with an added reference, and leaves the output
+unchanged on unsupported IID (`0x0082FD60`–`0x0082FD80`). Hardware-only extension
+slots need further audit (GZG2). The hardware owner is
 a common base; SimGL inherits its initialization, state and reference handling,
 with its own device hooks. These owners are not message-server subscribers at
 the drawing boundary; lifecycle is driven through the slots above.
@@ -338,7 +344,7 @@ one polygon. These handled cases return **0**. All other kinds return **1**.
 The antialiased path writes pixels directly through the buffer and bypasses the
 span renderer (`0x00831000`, `0x008308D0`); see span-render-8 section 10.5 for its
 relationship to normal span drawing. This document does not assert exact edge
-coverage for the antialiased path (GZG-2).
+coverage for the antialiased path (GZG2).
 
 ### 4.3 Hardware base and SimGL
 
@@ -352,10 +358,11 @@ Tiling maintains an enable byte plus four words (`0x00A64140`–`0x00A64280`).
 
 The common hardware Draw handles kinds **3** and **6** through rectangle and
 triangle submission. Before either it applies pending state through a device
-hook and updates a dirty coordinate transform. Other kinds return **1** for
-fallback (`0x00A666C0`). The rectangle and triangle helpers split geometry against
+hook and updates a dirty coordinate transform. Other kinds return **1**
+(`0x00A666C0`), requesting tessellation where the generic dispatcher supports it.
+The rectangle and triangle helpers split geometry against
 clip and source/tiling bounds; their exact subdivision, gradient rounding and
-device vertex values remain GZG-2. No software span blend formula is implied for
+device vertex values remain GZG2. No software span blend formula is implied for
 device rendering.
 
 SimGL construction (`0x009920E0`) builds that hardware base, clears three device
@@ -371,7 +378,7 @@ non-null source. In that route it treats the vertex count as a count of point
 pairs; no complete rectangle returns zero. Entry tests and pair count are
 verified in bytes at `0x009922DC`–`0x00992317`. Other inputs reach the later
 fallback path, whose exact delegation and specialized texture subdivision remain
-GZG-2. Its Draw and HWSetImage pseudocode are absent because export decompilation
+GZG2. Its Draw and HWSetImage pseudocode are absent because export decompilation
 failed; no claim of exact device rendering is made here.
 
 ## 5. `cGZGraphicSystem`
@@ -405,7 +412,8 @@ Entries for slots 5–16 are respectively `0x0098F0A0`, `0x0098FCB0`,
 Slots 18–19 and 21–23 are `0x0098E020`, `0x0098AD20`, `0x0098E040`,
 `0x0098AD30`, `0x00741740`.
 
-The graphics interface table `0x00ADB050` has 65 entries. The following inventory
+The graphics interface table `0x00ADB050` extends through slot 68 before the next
+service table at `0x00ADB164`. The following inventory
 preserves unnamed operations without assigning speculative public names:
 
 | Slots | Entry facts / identified contract |
@@ -422,10 +430,12 @@ preserves unnamed operations without assigning speculative public names:
 | 37–42 | `0x0098A040`, `0x00989EC0`, `0x0098A3A0`, `0x0098A1C0`, `0x0098A6D0`, `0x0098A5B0` |
 | 43–49 | `0x0098AA60`, `0x0098A870`, `0x0098AB70` twice, `0x0098ABA0`, `0x0098AC30`, `0x0098ACA0` |
 | 50–57 | `0x0098EF50`, `0x0098E840` twice, `0x00989E30`, `0x00989E50`, `0x00989E60`, `0x00989E70`, `0x00989E80` |
-| 58–64 | `0x004E13E0` three times, `0x00648F10` three times, `0x00407990` |
+| 58–60 | `0x004E13E0` three times |
+| 61–65 | `0x00648F10` four times, `0x00407990` |
+| 66–68 | pure virtual in base |
 
 The buffer/drawing/IO helper signatures and semantics not identified above are
-open in GZG-3; this inventory alone is not an implementation contract for those
+open in GZG3; this inventory alone is not an implementation contract for those
 operations. The concrete W32 subclass overrides base pure slots; it must not be
 implemented by calling a base pure stub. Service table `0x00ADB17C` has Init at
 slot 8 (`0x00990880`) and Shutdown at slot 9 (`0x0098FCE0`), with ordinary
@@ -445,7 +455,7 @@ creates the SimGL buffer cache, registers itself with the framework, and
 subscribes to message `0x8ACAA95F` through the message-server-2 service. It also
 gets canvas service class `0xA3460DEB`, IID `0x66B217A1`; a missing canvas makes
 initialization unsuccessful. Exact driver preference/INI resolution and rollback
-after each intermediate failure remain GZG-3 (`0x00990880`, LoadAllDrivers
+after each intermediate failure remain GZG3 (`0x00990880`, LoadAllDrivers
 `0x009904D0`, CallbackDriverLoad `0x00990210`).
 
 Shutdown is idempotent and returns true. When initialized it clears that state,
@@ -461,7 +471,7 @@ Other message types are ignored; the handler returns true in either case.
 The callback at `0x0098EC80` interprets canvas-event IID `0xDA1062FA`: event
 subtypes 0, 1 and 7 invoke the registered graphics listener's slots `+0x108`,
 `+0x10C` and `+0x110`. Unsupported subtypes cause no such call. Obtained message
-interfaces are released. Exact Windows procedure translation is GZG-4.
+interfaces are released. Exact Windows procedure translation is GZG4.
 OnTick (`0x0098DF90`) delegates to a graphics-service helper; no independent
 simulation timing contract is established by that method.
 
@@ -497,9 +507,9 @@ interrogate device capability (`0x0098E020`–`0x0098E036`,
 `0x0098AD20`–`0x0098AD2D`). LazyFlush sets a pending byte rather than performing
 an immediate flush. DisableScreenBuffer disables its flag. Exact presentation
 semantics, copy regions, page flipping and hardware-versus-software fallback in
-RenderBufferToScreen remain GZG-3. SetUIRenderingMode configures driver render
+RenderBufferToScreen remain GZG3. SetUIRenderingMode configures driver render
 state for 2D and a projection cached on its first setup; exact matrix, state
-ordering and viewport-change implications are also GZG-3. Do not reuse the 3D
+ordering and viewport-change implications are also GZG3. Do not reuse the 3D
 helper's default-state method as a substitute.
 
 ## 6. `cGZAlphaBlt`
@@ -561,9 +571,9 @@ the image decoder selected by the draw context or any 3D texture loader.
 These routines are not evidence for acceptance of arbitrary BMP variants,
 negative-height images or truncated files. Exact alpha quantization, mask byte
 interpretation, argument widths and allocation/short-read failure behaviour
-are GZG-5. Implementers must not infer them from the unreliable pointer/local
+are GZG5. Implementers must not infer them from the unreliable pointer/local
 types in exported pseudocode. Likewise the underlying pixel formulas and
-GenericBufferClip mutation contract remain GZG-5. Until settled, the 32-level
+GenericBufferClip mutation contract remain GZG5. Until settled, the 32-level
 count is a service fact, not proof of a particular divisor or endpoint rounding
 rule for every alpha method.
 
@@ -582,27 +592,27 @@ after slot 30; the following bytes are a string, not additional methods.
 |---|---|
 | 0–2 | QI, AddRef, Release (`0x0098B7A0`, `0x0098B820`, `0x0098B830`) |
 | 3 | store canvas type and request initial `(0,0,width,height)` bounds, `0x0098BCC0` |
-| 4 | canvas realization/configuration, `0x0098DD70` (GZG-4) |
-| 5 | folded getter `0x00680920` (GZG-4) |
+| 4 | canvas realization/configuration, `0x0098DD70` (GZG4) |
+| 5 | folded getter `0x00680920` (GZG4) |
 | 6 | Shutdown, `0x0098DDB0` |
-| 7–8 | listener attach/remove helpers, `0x0098DC40`, `0x0098DCB0` (GZG-4) |
+| 7–8 | listener attach/remove helpers, `0x0098DC40`, `0x0098DCB0` (GZG4) |
 | 9–10 | set four bounds; copy saved bounds, `0x0098BD80`, `0x0098CAB0` |
 | 11–12 | show and focus; show, `0x0098BA30`, `0x0098BA50` |
 | 13–14 | set title; forward to slot 15, `0x0098B9B0`, `0x0098CAE0` |
-| 15 | host event pump, `0x0098C690` (GZG-4) |
-| 16–17 | folded entries `0x008265C0`, `0x0068D1B0` (GZG-4) |
-| 18 | host-window procedure bridge, `0x0098CDB0` (GZG-4) |
+| 15 | host event pump, `0x0098C690` (GZG4) |
+| 16–17 | folded entries `0x008265C0`, `0x0068D1B0` (GZG4) |
+| 18 | host-window procedure bridge, `0x0098CDB0` (GZG4) |
 | 19 | post a packaged host message, `0x0098BA60` |
-| 20 | folded entry `0x00578900` (GZG-4) |
-| 21–22 | host-window helpers `0x0098B850`, `0x0098B8E0` (GZG-4) |
+| 20 | folded entry `0x00578900` (GZG4) |
+| 21–22 | host-window helpers `0x0098B850`, `0x0098B8E0` (GZG4) |
 | 23–24 | width, height getters `0x0098CC30`, `0x0098CC40` |
-| 25–28 | folded entries `0x0068D1C0`, `0x0081F910`, `0x006AAEB0`, `0x0040D390` (GZG-4) |
+| 25–28 | folded entries `0x0068D1C0`, `0x0081F910`, `0x006AAEB0`, `0x0040D390` (GZG4) |
 | 29–30 | input-channel enabled query; nested enable/disable, `0x0098BAC0`, `0x0098BDC0` |
 
 The embedded service table `0x00ADAD08` has Init at slot 8 (`0x0098BAF0`)
 and Shutdown at slot 9 (adjusting thunk `0x0098DEE0`). The ordinary service and
 primary canvas pointers are not interchangeable. Other subinterfaces supply
-message/listener plumbing; their exact thunk mapping is GZG-4.
+message/listener plumbing; their exact thunk mapping is GZG4.
 
 ### 7.2 Defaults and lifecycle
 
@@ -623,7 +633,7 @@ routine; do not combine its exported field offsets with complete-object offsets.
 Windows realization (`0x0098D9C0`) coordinates the graphics driver window/mode,
 and registers `MSWHEEL_ROLLMSG`. Registration failure stores `0xFFFFFFFF`.
 The windowed/driver-owned paths emit canvas-event subtypes **8** and **9**;
-the exact conditions and HWND ownership are GZG-4. These native host resources
+the exact conditions and HWND ownership are GZG4. These native host resources
 are *[compat-limit]*: other operating systems may use their own window system
 while preserving the canvas/listener contract.
 
@@ -666,7 +676,7 @@ DoMessage (`0x0098BD00`) returns true for all input messages. For type
 `0xFA0C6390`, it queries IID `0x1A0C615F`; subtype **13** updates two stored
 coordinate words from that message. Other types, failed QI and other subtypes
 do not update those words. The acquired interface is released. Exact payload
-coordinate names and translation into mouse/key/canvas events are GZG-4.
+coordinate names and translation into mouse/key/canvas events are GZG4.
 
 ## 8. Conformance vectors
 
@@ -703,7 +713,7 @@ a vector explicitly says otherwise.
 | GZG-V22 | Span-renderer allocation fails after supported-format lock | native Init returns true, null renderer; do not execute a native draw with this fixture |
 | GZG-V23 | Buffer Draw kind 6/count 7, AA zero | result 2, no AA polygon calls |
 | GZG-V24 | Same kind/count with AA enabled | two 3-vertex AA polygons, trailing vertex ignored, result 0 |
-| GZG-V25 | Buffer Draw kind 3, AA enabled | result 1, generic fallback requested |
+| GZG-V25 | Buffer Draw kind 3, AA enabled | result 1; direct handling declined |
 | GZG-V26 | Hardware Init QI succeeds but hardware hook fails | false; target released and cleared |
 | GZG-V27 | Hardware alpha mode 0,1,2 | state predicates `(false,false)`, `(true,false)`, `(true,true)`; dirty each time |
 | GZG-V28 | Graphics receives unrelated message then `0x8ACAA95F` | both return true; only latter calls draw-engine service slot 9 if available |
@@ -721,6 +731,8 @@ a vector explicitly says otherwise.
 | GZG-V40 | Packaged message wrong type or count 2 | false, no PostMessage |
 | GZG-V41 | Packaged type `0x8006`, count 3; host PostMessage succeeds | first three words posted unchanged; true |
 | GZG-V42 | Unrecognized canvas DoMessage | true; no stored-coordinate mutation |
+| GZG-V43 | Engine returns 1 for kind 6, then for kind 7 | triangle has no generic drawing; quad takes tessellation route |
+| GZG-V44 | Engine returns 2 for kinds 6/7/8 | matching generic span rasterizer invoked |
 
 ## 9. Evidence limits and open questions
 
@@ -737,7 +749,7 @@ boundary, buffer dispatch and host/service rules listed above. It does **not**
 claim exact generic geometry coverage, SimGL vertex emission, all graphics
 service IO helpers, Windows event translation or standalone alpha pixel kernels.
 Those are explicit follow-up questions, not free design choices. They are filed
-as GZG-1 through GZG-5 in
+as GZG1 through GZG5 in
 [questions/gz-graphics.md](questions/gz-graphics.md). An engine lane can implement
 the settled contracts and linked software kernels while leaving those unresolved
 operations outside any replacement/compatibility claim.
