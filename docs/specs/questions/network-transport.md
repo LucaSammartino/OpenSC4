@@ -19,3 +19,11 @@ getters, and option/time-limit wrappers belong uniquely to these owners? Supply 
 width/association evidence before extending support. Generic clock epoch/units and string
 normalization outside the bounded ASCII domain remain foreign dependencies; do not analyze
 excluded NetworkFileCache or HTTP/FTP algorithms to fill those dependencies.
+
+## Q14 (re-network-transport4, 2026-10-23) — worker completion scalar source
+network-transport.md §7.3: instruction 0081e25e reads the original callback-argument stack
+slot for message virtual +30, not the saved queued ID. That slot's address was passed to
+foreign string-copy construction at 0081e1aa–0081e1b7, after its original index allocation
+was freed. What is the exact normal value/ownership contract of that scalar? Keep full
+message payload equivalence unsupported until the calling convention and foreign scratch
+write contract are proved. Do not infer ID semantics from a setter name or pointer goldens.

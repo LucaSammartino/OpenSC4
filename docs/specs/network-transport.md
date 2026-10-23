@@ -70,7 +70,8 @@ passing completed/timeout, and returns that AL (`0081fb50–0081fb76`, pops 12 b
 Foreign callbacks may not be folded into a raw connect reply.
 
 The base destructor closes a valid H unless save-on-delete is nonzero; then, if a window
-record exists, destroys its first-word window handle, frees the record and clears +58;
+record exists, calls foreign cleanup through `00a804d4` on its first-word handle, frees
+the record and clears +58 (the handle's exact resource kind is not qualified here);
 then releases a nonnull target via virtual +08 and clears +50. This order is primary-proved
 at `008215d0–00821622`; general destruction/reentry semantics remain outside the domain.
 The stream deleting destructor `00821660–0082167d` calls the base destructor first, then
@@ -90,7 +91,7 @@ and returns the original Accept AL. There is no destination old-handle close or 
 
 SetSocketStyle(family,style,protocol), `0081f980–0081f999`, copies all three 32-bit
 arguments and returns AL=1 (12 bytes popped). IsSocketCreated, `0081f9a0–0081f9ab`, is
-exactly H != ffffffff, AL result, independent of S/B. SetID(u32) stores +04 and leaves that
+exactly H != ffffffff, full EAX=0/1, independent of S/B. SetID(u32) stores +04 and leaves that
 argument in EAX (`0081e7a0–0081e7a9`); SetSaveSocketOnDelete reads the low byte of its
 one argument, stores +4c and leaves that byte in AL (`0081f900–0081f909`). Neither return
 is an independently established success boolean. Both pop 4 bytes.
@@ -186,6 +187,9 @@ no boolean contract. These unnamed adapters' association is structural, not name
 For network bytes `12 34`, callers must supply raw word `3412`; the socket boundary does
 not convert a host integer `1234` into those bytes. A complete public host-port constructor
 has not been qualified here.
+SetNetworkAddress(text*) at `0081e7b0–0081e7c6` calls ConvertAddressToNumber, stores
+its full 32-bit result at address+04 and leaves it in EAX, popping 4 argument bytes.
+It does not reject ffffffff or initialize family, port or padding.
 
 ## 6. Readiness and available byte count
 
@@ -299,7 +303,8 @@ ordinary unique IDs make it a no-op. Do not invent cancellation of an in-flight 
 
 If copied target is null, destroy the local name and continue; no resolver/message or
 explicit owner-release call occurs on this branch. Otherwise allocate/construct a foreign
-message, invoke message +04, set type via +14(43544312), ID via +30(requestID), then call
+message, invoke message +04, set type via +14(43544312), then invoke message +30 with a
+32-bit value from a reused stack slot, then call
 raw gethostbyname(nameChars). Success selects exactly the first four bytes as above,
 calls message +40(address), +58(&name), then AddNameToCache(name,address,0). Null reply
 calls message +40(0) then +58(&name), with no last-error fetch or cache insertion.
@@ -312,6 +317,14 @@ use, outside the supported domain.
 On stop or surplus-worker exit, lock, if worker slot nonnull call virtual +34(1), then
 clear slot, unlock, return 0. No join or queue drain is implied. Message allocation,
 synchronization, actual threads and callbacks were not executed.
+
+**Partial payload boundary:** the value passed to message +30 is not proved to be the
+queued request ID. `0081e25e` reads the original callback-argument stack slot (entry ESP+4),
+whose address was passed to the foreign string-copy constructor at `0081e1aa–0081e1b7`;
+the saved queue ID is a different local word. Do not substitute requestID or freeze a
+native pointer/garbage value into a golden. Full message payload equivalence is unsupported
+pending Q14; the raw resolver selection, state and reference-call order above are bounded
+facts independent of that unresolved scalar. No foreign helper may supply the whole completion.
 
 RemoveLookupEntry(id:u32), `0081da00–0081da87`, caller-cleaned, full EAX=0/1: lock,
 search queue from front for first matching ID, unlink/destroy that node if found, save
@@ -339,7 +352,7 @@ units are not inferred to match. Result counts cleared slots, not completed requ
 | L8 | H=ffffffff,B=1,S=2; ShutDownSocket(2) | AL=1,S=4,H/B unchanged,no shutdown |
 | L9 | Accept handleOut=77,completed=7; raw=-1,error=10035,no peer writes | handleOut=ffffffff,completed=0,AL=1,E=8,R=10035; peer bytes untouched |
 | L10 | Accept into destination H=77,S=3; raw=89, peer writes 16 bytes | destination.H=89,S=2; completed=1; style copied after S; no close(77) |
-| L11 | stream destructor H=41,save=0,target nonnull,window record nonnull; raw close=0 | raw close(41), H invalid/B=0, destroy window, free record, clear +58, target +08, clear +50; optional object free last |
+| L11 | stream destructor H=41,save=0,target nonnull,auxiliary record nonnull; raw close=0 | raw close(41), H invalid/B=0, cleanup(record's first-word handle), free record, clear +58, target +08, clear +50; optional object free last |
 | A1 | peer record `02 00 12 34 01 23 45 67 80 81 82 83 84 85 86 87`; SetPeer then Connect timeout=0,raw=0 | same 16 bytes passed to connect; port raw word=3412,address raw word=67452301; completed=1,S=2 |
 | A2 | local record `02 00 ab cd 89 ab cd ef 90 91 92 93 94 95 96 97`; Bind raw=-1,error=10049 | local retains all 16 bytes, B=0,E=22,R=10049,H unchanged; address word=efcdab89,port=cdab |
 | A3 | port adapter input=1234 versus 3412 | raw +02 bytes=34 12 versus 12 34; no htons inferred |
@@ -359,10 +372,138 @@ units are not inferred to match. Result counts cleared slots, not completed requ
 | N7 | cache triple {efcdab89,1800,100}, raw clock=1899 then separately 1900, output sentinel | first hit copies all 12 bytes; equality miss erases and leaves output untouched |
 | N8 | triple {67452301,32,fffffff0}, raw clock=fffffff1 | wrapped expiry=00000010, unsigned miss; no elapsed-time repair |
 | N9 | nonnumeric miss,target=T,owner=O,counter=9,addrOut=deadbeef,all workers occupied awake | owner +0c, T +04, enqueue ID10, wake with no thread-start, unlock; EAX=2,idOut=10,addrOut untouched |
-| N10 | one queued ID10,T/O; worker resolver null | message type43544312,ID10,address0,name setter; T +0c(message), O +10,T +08,message +08; no last-error fetch/cache add |
+| N10 | one queued ID10,T/O; worker resolver null | message type43544312,address0,name setter; T +0c(message), O +10,T +08,message +08; no last-error fetch/cache add; +30 payload expressly unsupported (Q14) |
 | N11 | queue ID10,target=T,owner=O; RemoveLookupEntry(10) then repeat | first unlink,unlock,T +08,O +10,EAX=1; second no reference calls,EAX=0 |
 | N12 | Exit timeout=32, initial raw clock=fffffff0, one awake worker +2c nonzero, next clock=fffffff1 | deadline10; one pass,sleep(250000) before unlock, exits on unsigned comparison, stop bytes cleared,EAX=0; worker pointer retained |
 
 Additional counts: L7–L11=5, A1–A3=3, R1–R7=7, N1–N12=12 vector groups.
 Together with section 4: **40 independently derived vector groups**, all proposed/unexecuted.
 Empty resolver-list and short address storage are unsupported domains, not golden vectors.
+
+## 9. Per-body support and attribution ledger
+
+S = supported within this document's bounded raw-primitive domain; P = only the stated
+paths/outputs are supported, with a named residual. U = no behavior contract, including
+unread bodies. F = a dependency whose raw interface is used without assigning its algorithm
+to this owner. Byte lengths are export function-body lengths, **not new native/owner credit**.
+Each row's address is its primary instruction citation; sections give the corresponding
+normal-path signatures, result widths and stores. For U, the signature is unqualified.
+Multiple body names/aliases never imply multiple copies of instructions.
+
+### 9.1 Selected named candidates
+
+| Owner / body address | Bytes | Signature (32-bit stack slots unless stated) | Status / contract |
+|---|---:|---|---|
+| Socket SetID `0081e7a0` | 10 | (u32)->EAX argument | S §2 |
+| Socket SetSaveSocketOnDelete `0081f900` | 10 | (low byte)->AL argument | S §2 |
+| Socket SetSocketStyle `0081f980` | 26 | (u32,u32,u32)->AL | S §2 |
+| Socket IsSocketCreated `0081f9a0` | 12 | ()->EAX 0/1 | S §2 |
+| Socket BindSocket `0081f9b0` | 10 | ()->AL virtual result | S §5 |
+| Socket GetMyAddress `0081f9c0` | 17 | (address*)->AL | S §5 |
+| Socket GetMyPeerAddress `0081f9e0` | 17 | (address*)->AL | S §5 |
+| Socket SetMyAddress `0081fa00` | 34 | (address*)->AL | S §5 |
+| Socket SetPeerSocketAddress `0081fa30` | 34 | (address*)->AL | S §5 |
+| Socket IsReadableAndOrWritable `0081fa60` | 230 | (u32 mask,u32 ms)->EAX | S §6 |
+| Socket constructor `008201e0` | 97 | ()->EAX this | S §2; address tails unspecified |
+| Socket CreateSocket `00820410` | 58 | ()->AL | S §2 |
+| Socket BindSocket `008204e0` | 94 | (address*)->AL | S §2 |
+| Socket GetSocketAddress `00820540` | 74 | (address*,handle*)->AL | S §5 |
+| Socket GetPeerAddress `00820590` | 74 | (address*,handle*)->AL | S §5 |
+| Socket GetWaitingDataSize `008205e0` | 232 | (u32*,u32 ms)->AL | S §6 |
+| Socket IsWaitingDataAvailable `008206d0` | 140 | (u32 ms)->AL | S §6 |
+| Socket IsWritable `00820760` | 133 | (u32 ms)->AL | S §6 |
+| Socket destructor `008215d0` | 83 | ()->no promised return | P §2; auxiliary resource kind / Q12 |
+| Stream Connect `0081fb50` | 39 | (address*,byte*,u32)->AL | S §2 as dispatch adapter; target's domain still applies |
+| Stream Accept `0081fb80` | 80 | (stream*,byte*)->AL | S §2 |
+| Stream Read `00821010` | 142 | (buffer*,i32*)->AL | S §3 |
+| Stream Peek `008210a0` | 138 | (buffer*,i32*)->AL | S §3 |
+| Stream Write `00821130` | 98 | (buffer*,i32*,u32)->AL | S §3 |
+| Stream ReadOOB `008211a0` | 138 | (buffer*,i32*)->AL | S §3 |
+| Stream WriteOOB `00821230` | 101 | (buffer*,i32*,u32)->AL | S §3 |
+| Stream IsSocketConnected `008212a0` | 127 | ()->AL | S §6 |
+| Stream CloseSocket `00821320` | 72 | ()->AL | S §2 |
+| Stream ShutDownSocket `00821370` | 67 | (u32 how)->AL | S §2 |
+| Stream StartListen `008213c0` | 62 | (u32 backlog)->AL | S §2 |
+| Stream StopListen `00821400` | 65 | ()->AL | S §2 |
+| Stream Connect `00821450` | 162 | (byte*,u32 timeout)->AL | P §2; timeout=0 supported, timer scheduling foreign / Q12 |
+| Stream Accept `00821500` | 99 | (handle*,address*,byte*)->AL | S §2 |
+| Stream constructor `00821630` | 40 | ()->EAX this | S §2 |
+| Stream deleting destructor `00821660` | 30 | (u32 flags)->EAX this | P §2; base destructor boundary / Q12 |
+| Lookup ExitAllWorkerThreads `0081d7f0` | 217 | cdecl (u32 timeout)->EAX count | P §7.3; clock/sleep units foreign |
+| Lookup RemoveLookupEntry `0081da00` | 136 | cdecl (u32 ID)->EAX 0/1 | S §7.3 |
+| Lookup GetNameFromCache `0081dcb0` | 188 | cdecl (string*,triple*)->AL | S §7.2 |
+| Lookup AddNameToCache `0081e020` | 178 | cdecl (string*,u32,u32)->AL | S §7.2 |
+| Lookup WorkerThreadFunction `0081e0e0` | 624 | callback (index*)->EAX 0; ret4 | P §7.3; completion scalar / Q14 |
+| Lookup WakeWorkerThread `0081e350` | 162 | no arguments; no scalar promise | P §7.3; runtime start/failure foreign |
+| Lookup DoLookup `0081e400` | 567 | ECX owner; (string*,u32*,target*,u32*)->EAX 0/1/2 | P §7.1/7.3; initialized-state domain / Q11, queued completion Q14 |
+
+Independently counted selected ledger: **42 distinct named body addresses / 4917 B**:
+socket 19/1385 B, stream 16/1460 B, lookup 7/2072 B. S=35/3072 B; P=7/1845 B.
+These counts describe the ledger, not complete byte-level coverage of S bodies or owner totals.
+
+### 9.2 Residual named candidates (all U; signature unqualified)
+
+| Owner / body address | Bytes | Unpublished behavior |
+|---|---:|---|
+| Socket SetupWindow `0081f7d0` | 242 | Q12 |
+| Socket ShutdownWindow `0081f8d0` | 42 | Q12 |
+| Socket GetAsyncNotificationTarget `0081f910` | 4 | folded association / Q12 |
+| Socket SetAsyncNotificationTarget `0081f920` | 48 | Q12 |
+| Socket StartAsyncStandardNotification `0081f950` | 8 | Q12 |
+| Socket StartAsyncAcceptNotification `0081f960` | 8 | Q12 |
+| Socket StopAsyncNotification `0081f970` | 8 | Q12 |
+| Socket Notification `00820260` | 246 | Q12 |
+| Socket StartAsyncCustomNotification `008203a0` | 104 | Q12 |
+| Socket SetBroadcastOption `008207f0` | 73 | Q13 |
+| Socket SetDebugOption `00820840` | 73 | Q13 |
+| Socket SetLingerOption `00820890` | 93 | Q13 |
+| Socket SetRouteOption `008208f0` | 79 | Q13 |
+| Socket SetKeepAliveOption `00820940` | 73 | Q13 |
+| Socket SetOOBOption `00820990` | 76 | Q13 |
+| Socket SetReceiveBufferOption `008209e0` | 67 | Q13 |
+| Socket SetSendBufferOption `00820a30` | 67 | Q13 |
+| Socket SetReuseAddressOption `00820a80` | 73 | Q13 |
+| Socket SetSendTimeout `00820ad0` | 67 | Q13 |
+| Socket SetReceiveTimeout `00820b20` | 67 | Q13 |
+| Socket GetBroadcastOption `00820b70` | 99 | Q13 |
+| Socket GetLingerOption `00820be0` | 113 | Q13 |
+| Socket GetRouteOption `00820c60` | 99 | Q13 |
+| Socket GetKeepAliveOption `00820cd0` | 99 | Q13 |
+| Socket GetOOBOption `00820d40` | 102 | Q13 |
+| Socket GetReceiveBufferOption `00820db0` | 81 | Q13 |
+| Socket GetSendBufferOption `00820e10` | 81 | Q13 |
+| Socket GetReuseAddressOption `00820e70` | 99 | Q13 |
+| Socket GetDebugOption `00820ee0` | 99 | folded association / Q13 |
+| Socket GetSendTimeout `00820f50` | 81 | Q13 |
+| Socket GetReceiveTimeout `00820fb0` | 81 | Q13 |
+| Stream folded DoMessage `004fc900` | 5 | shared association / Q12 |
+| Stream DoMessage `00821570` | 95 | Q12 |
+
+Residual ledger: **33 addresses / 2652 B**, all U. Full name-candidate census is
+75/7569 B (socket 50/3937, stream 18/1560, lookup 7/2072), independently parsed from
+primary functions.tsv, including folded-name candidates. This differs from the prompt's
+provisional ownership attribution 4049+1700+2799=8548 B; neither total proves exclusive
+ownership, reachability or a complete family. No blanket 8548 B or native owner credit.
+
+### 9.3 Dependencies and association limits
+
+| Body / primary citation | Bytes | Disposition |
+|---|---:|---|
+| Unnamed base CloseSocket `00820450` | 65 | S §2; associated by base destructor direct call and matching handle/B stores, not by name |
+| Error translation `0081fed0` | 423 | S §5; caller-cleaned u32->u32, shared pure helper; not attributed to one owner |
+| Timed callback `008201c0` | 20 | S §2 raw captured-handle close; scheduler remains F |
+| Address constructor `0081e6c0` | 8 | S §2, only 16-bit zero store, no whole-record initialization |
+| ConvertAddressToNumber `0081e6d0` | 75 | S §7.1, caller-cleaned text*->EAX; raw parser/decimal conversion F |
+| IsAddressNumeric `0081e720` | 21 | S §7.1, caller-cleaned text*->AL |
+| Address-byte adapter `0081e740` | 18 | S §5, ECX address; (index)->AL; only index 0..3 |
+| Port-byte adapter `0081e770` | 19 | S §5, ECX address; (index)->AL; only index 0..1 |
+| Raw port store `0081e790` | 12 | S §5, ECX address; (low16)->AX; no host conversion |
+| SetNetworkAddress `0081e7b0` | 23 | S §5; ECX address; (text*)->EAX conversion |
+| Unnamed text lookup adapter `0081e640` | 128 | U; call to DoLookup proves dependency, not owner identity or full string construction contract |
+| Global/object startup and remaining folded accessors | unknown | U / Q11–Q13; never charged as another copy of a folded body |
+| Lock/unlock, raw clock, thread/message/string/container/allocation primitives | uncounted | F; only typed raw results/writes and explicit owner dispatch are inputs; no excluded owner algorithm was republished |
+
+Ten qualified non-census dependency bodies above total 684 B, separately counted and
+not added to the three owners. The text adapter's 128 B remains U. Actual unique owner
+attribution outside the concrete constructor/destructor/vtable/call links remains partial.
+Existing web-network Q1/Q3/Q7/Q9/Q10 are untouched. Q11–Q14 are this publication's residuals.
