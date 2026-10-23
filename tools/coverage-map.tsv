@@ -208,6 +208,7 @@ cSC4NetworkLayout*View	3D scene and models	renderer	-	-	-	-
 cSC4FirePlaneDispatchSource	automata (vehicles, animation)	simulation	aircraft.md	-	-	-
 cSC4PoliceHelicopterDispatchSource	automata (vehicles, animation)	simulation	aircraft.md	-	-	-
 cSC4*DispatchSource	automata (vehicles, animation)	simulation	-	-	-	-
+cSC4NetworkOccupantModelInstance	network occupants	simulation	network-occupants.md	core/src/network_occupants	-	-
 cSC4Network*Occupant*	network occupants	simulation	network-occupants.md	-	-	-
 cSC4UndergroundOccupant	network occupants	simulation	network-occupants.md	-	-	-
 cSC4UndergroundConnectionOccupant	network occupants	simulation	network-occupants.md	-	-	-
@@ -374,7 +375,7 @@ cSC4GlyphTextureManager	glyph and string textures	renderer	glyph-textures.md	-	-
 cSC4GlyphTextureInfo	glyph and string textures	renderer	glyph-textures.md	-	-	-
 cSC4StringTextureInfo	glyph and string textures	renderer	glyph-textures.md	-	-	-
 cSTETerrainView3D	3D scene and models	renderer	terrain.md, terrain-view.md	core/src/terrain	terrain_shadow	-
-cSTEOverlayManager	terrain overlays	renderer	overlay-manager.md	-	-	-
+cSTEOverlayManager	terrain overlays	renderer	overlay-manager.md	core/src/terrain_overlays	-	-
 cSTEWaterRipple	terrain ripples and selection	renderer	water-ripples.md	-	-	-
 cSTEVertBufExtn	overlay views	renderer	terrain-view.md, overlay-views.md	-	-	-
 cSTESelectedTerrainArea	terrain ripples and selection	renderer	water-ripples.md	-	-	-
