@@ -5,8 +5,8 @@
 ## Handoff
 
 - Goal: write `docs/specs/sc-resources.md` for nSCRes, token records, persist buffer resource and ASCII writer.
-- Done: round 2 drafted `sc-resources.md` sections 1–9 from saved evidence, with per-owner inventories, state, IO/dispatch/failure contracts, 21 prose conformance vectors and six grouped open questions. No engine reads/edits. First spec milestone is the commit containing this update.
-- Next: verify the remaining narrow interface/format gaps, update questions/index, run doccheck, replace saved evidence with final report and enqueue. Detached HEAD intentional; supervisor publishes commits.
+- Done: `7ccb2a06` drafted all owner sections and six question groups. Second milestone verifies enum/color/vector rules against instructions, parser tables, file watcher type 0x6AE76406, include spellings, token descriptor equality/QI/defaults and final-byte exclusion; now 27 vectors. `python tools/doccheck.py check` passed on first draft. No engine reads/edits.
+- Next: finish narrow text/writer format checks, update questions/index, rerun doccheck, write final report and enqueue. Detached HEAD intentional; supervisor publishes commits.
 - Main evidence root `C:/Users/tlori/FreeCity4`; decomp owners: `nSCRes.c`, `nSCRes/cCommandParser.c`, `nSCRes/cFileParser.c`, command subclasses, `cSLTokenRecord.c`, `cSLTokenSerialRecordIO_Text.c`, `cGZPersistBufferResource.c`, `cGZPersistASCIIWriter.c`; generic bodies in `_unnamed/region_00670000.c`, `region_00680000.c`. REA not attempted (brief says no binary open).
 - Link existing `persistence.md` sections 2-4 for serial/DBPF and base resource contracts; `effects-parser.md` section 9 (lines 425-493) already specifies switch/positional lookup completely incl vectors; `graphics-rules.md` section 3 (lines 139-179) already specifies file registration/order/optional failures/hooks; `foundations.md` section 18.2 specifies x87 precision leak. Do not duplicate those.
 - Scratch `build-runs/read-pe.py` (ignored) reads PE strings/words and immediate refs; accepts hex VA, VA:word_count, refs=VA. All scratch created via apply_patch; no original code to commit. No ABI proposals or game requests.

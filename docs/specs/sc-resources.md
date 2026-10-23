@@ -38,11 +38,11 @@ These are namespace services, not virtual methods; there are no vtable slots.
 | CountArguments | `0x0067A320` | Count script arguments under the grouping/quoting rules |
 | FindNonSwitchIndices / FindSwitchArgumentIndices | `0x0067A660` / `0x0067A7D0` | See effects-parser section 9 |
 | NextToken | `0x0067A960` | Advance through the lexical token stream |
-| ParseEnum | `0x0067AAF0` | Resolve an enumeration value; detailed unmatched-name policy remains SCR1 |
+| ParseEnum | `0x0067AAF0` | Search the primary then optional secondary name/value table |
 | SplitIntoArguments | `0x0067B3B0` | Produce command and argument tokens |
 | ParseFloat / ParseInt / ParseUint / ParseBool | `0x0067BBA0` / `0x0067BC00` / `0x0067BC70` / `0x0067BCD0` | Convert a complete expression or boolean spelling |
-| ParseColor / ParseColorAlpha | `0x0067BDE0` / `0x0067BE90` | Color conversion; component scaling remains SCR1 |
-| ParseVector2 / ParseVector3 | `0x0067BF90` / `0x0067C060` | Vector conversion; exact component grammar remains SCR1 |
+| ParseColor / ParseColorAlpha | `0x0067BDE0` / `0x0067BE90` | Three RGB expressions; RGB with optional alpha |
+| ParseVector2 / ParseVector3 | `0x0067BF90` / `0x0067C060` | Up to two/three expressions, missing coordinates zero |
 
 *[compat]* Whitespace comprises space, tab, LF and CR. `#` starts a comment.
 Both single and double quotes group a token. Brackets, parentheses and braces
@@ -76,6 +76,29 @@ The additive parser can raise x87 precision from 24 to 53 bits without
 restoring it. See foundations section 18.2 for the complete compatibility
 boundary; this is process state, not per-parser state.
 
+### 2.3 Enums, colors and vectors
+
+*[compat]* Enum names compare byte-for-byte with equal length, without case
+folding. Entries are name/value pairs ending in a null name. Search the first
+table in order and, if unmatched, the optional second table in order. Return
+the first matching entry's value; otherwise throw parse error 4, `Unknown enum`.
+This is not a numeric-expression fallback (`0x0067AAF0`–`0x0067ABC9`).
+
+Colors and vectors split their component text into arguments and apply
+`ParseFloat` to each present argument. Color requires exactly three components.
+ColorAlpha requires three or four; omitted alpha is binary32 1.0. Components
+are returned as binary32 values in input order, with no scaling to bytes,
+packing or clamping. Instruction anchors for storage and default alpha are
+`0x0067BE44`–`0x0067BE78` and `0x0067BEFE`–`0x0067BF38` (the latter loads
+`0x3F800000` from `0x00A81228`).
+
+Vector2 accepts zero through two components; Vector3 zero through three.
+Too many components throw. Missing coordinates use the zero-initialized
+binary32 scalar at `0x00B479B0`; supplied coordinates are individually stored
+as binary32. There is no replication of the first component into missing
+coordinates. Instruction anchors: `0x0067BFD3`–`0x0067C032`,
+`0x0067C0A3`–`0x0067C11E`.
+
 ## 3. nSCRes::cCommandParser
 
 ### 3.1 State and method inventory
@@ -87,13 +110,35 @@ construction. These are independent namespaces, not persistence fields.
 
 | Method | Address | Observable purpose |
 |---|---|---|
-| QueryInterface | `0x00675F50` | Interface identity; full vtable/IID audit remains SCR2 |
+| QueryInterface | `0x00675F50` | IIDs 1 and `0x095035F4`; null output pointer returns false |
 | RegisterCommand | `0x00676DB0` | Register a command name and retain its command entry |
 | SubstituteVariables | `0x00677B90` | Resolve variable references in argument tokens |
 | RegisterCommands | `0x00678B00` | Install built-in commands |
 | ParseCommandArguments | `0x00679120` | Prepare command arguments |
 | ParseCommand | `0x00679450` | Dispatch or record a command |
 | Macro instantiation | `0x00679650` | Expand a stored macro and dispatch its commands |
+
+The native layout has a separate unknown-interface table at `0x00AAEB00`
+(QI/AddRef/Release thunks `0x00678A00/10/20`), a primary table at `0x00AAEB0C`
+(destructor, RegisterCommands), and the parser method table at `0x00AAEACC`.
+The parser table has these zero-based slots; a byte offset such as +0x14 is
+slot 5, not slot 14. Unknown semantic names remain SCR2.
+
+| Slot | Native entry / settled operation |
+|---|---|
+| 0 | `0x00678A30`: Init forwards to the owner's RegisterCommands hook |
+| 1 | `0x00679620`: Shutdown clears parser-owned command entries |
+| 2 | `0x00679630`: reset parse state (`0x006793B0`) |
+| 3 | `0x00678A40`: no-op (`0x00407990`, a single return despite its symbol name) |
+| 4 | `0x00678A50`: clear active macro pointer |
+| 5 | `0x00679640`: ParseCommand |
+| 6 | `0x00679C80`: variable assignment helper (`0x00679BD0`) |
+| 7 | `0x00678A90`: helper `0x00677210`, name unsettled |
+| 8 | `0x00678A80`: pop variable namespace suffix |
+| 9 | `0x00678FE0`: helper `0x00678AB0`, name unsettled |
+| 10 | `0x00678A60`: return owning parser pointer |
+| 11 | `0x00678A70`: no-op (`0x00648F00`) |
+| 12 | `0x00678AA0`: helper `0x006772C0`, name unsettled |
 
 Built-ins are registered in this order: `end`, `version`, `list`, `trace`,
 `set`, `seti`, `setf`, `setc`, `setv3`, `eval`, `define`, `enddef`, `create`,
@@ -140,7 +185,7 @@ The main table is `0x00AAF474`; slots are zero based. QueryInterface recognizes
 | 0–2 | QueryInterface, AddRef, Release |
 | 3–5 | Init (no-op at `0x00648F00`), Shutdown, SetParser |
 | 6–8 | AddInputFilePath, ParseFiles(start,count), ParseFiles(all) |
-| 9–11 | SetModified, ErrorString, getter whose meaning remains SCR3 |
+| 9–11 | SetModified, ErrorString, GetParser (raw pointer at +0x10) |
 | 12–14 | NumInputFiles, InputFilePath, Modified |
 
 ### 4.2 Input and failure contract
@@ -149,12 +194,19 @@ File flags use bit 0 for required files and bit 1 for watching. Registration
 marks the parser modified. A watched file uses watcher CLSID `0xE953DA68`, IID
 `0xE953DA64`. File ordering, optional-open failures, and pre/post parser hooks
 are specified in graphics-rules section 3. The callback table at `0x00AAF464`
-is separate from the main interface; exact watcher message IDs remain SCR3.
+has QI/AddRef/Release at slots 0–2 and message delivery at slot 3
+(`0x006808D0`). Delivery reads message type through message slot 4. Type
+`0x6AE76406` sets modified=true and returns true; other types return false
+without changing modified. This flag is +0x30 relative to the callback
+subobject, not the main-interface pointer.
 
 `DoParseFile` (`0x00680EA0`) sends ordinary lines to the command parser's slot
-14. It recognizes two recursive include forms, each requiring exactly one
-argument. Their exact spelling and required/optional distinction remain SCR3
-until the initializer strings are audited. A false `ReadLine` result ends
+5 (byte offset +0x14). It recognizes `include` and `sinclude`, each requiring
+exactly one argument (initializers `0x00A74900`, `0x00A74940`). Both recursively
+parse the named file. `sinclude` suppresses an included-file open error
+(parse-error code 2); `include` propagates it. Other parse errors are not
+silenced by `sinclude` (`0x0068110F`–`0x00681170`). Relative path handling and
+recovery after a nested error remain SCR3. A false `ReadLine` result ends
 the file; this layer does not distinguish a read error from ordinary EOF.
 Image drawing and object-graph persistence are outside this interface.
 
@@ -179,15 +231,20 @@ The table at `0x00AD9A88` has the following zero-based slots:
 Initialization refuses an already initialized record. Successful attachment
 retains the serial record; failed read initialization shuts it down and clears
 its fields. `GetCookie` is zero when uninitialized. `GetKey` fails without a
-serial record. The QueryInterface IID and constructor reference-count default
-remain SCR4 (`0x0097EF84`). There is no message callback or drawing method.
+serial record. QueryInterface accepts IIDs 1 and `0xA2ACE662`, retains the
+returned interface, and leaves the output untouched on an unrecognized IID
+(`0x0097EF84`). Construction (`0x0097F410`) starts reference count, record,
+cookie and all three flags at zero and creates an empty map. There is no
+message callback or drawing method.
 
 ### 5.2 Field and wire contract
 
 *[compat]* Automatic read consumes a uint32 cookie. Cookies have byte spellings
 `TKT1` (text) and `TKB1` (binary), constants at `0x00B17A74` and `0x00B17A78`.
 The token descriptor is eight bytes: uint32 ID, uint16 type, uint16 count.
-Exact descriptor matching and the complete type-number mapping remain SCR4.
+Descriptors match only if ID, type and count all match, with the latter two
+compared as uint16 (`0x0097EF5B`–`0x0097EF83`, instruction verified).
+The complete type-number mapping remains SCR4.
 Do not substitute the vtable slot index for the wire type number.
 
 A missing field makes a typed getter fail without calling the typed field
@@ -196,6 +253,12 @@ count. `SetTokenString` requires an existing field. Fields are emitted in
 ascending numeric ID order, with definition before values. Definition, field
 creation, and value failures stop reading/writing; `ReadTokens`
 (`0x00980AC9`) returns false for those failures.
+
+`CreateField` rejects count zero and unsupported type codes outside 1–12.
+Wire type 3 is uint32. An existing matching descriptor is not a new creation;
+a different descriptor at the same ID causes the old map entry to be erased
+before replacement (`0x009805F8`). This is a descriptor operation, not a
+coercion between the requested typed getter and the stored type.
 
 The terminator `TK_TKR_End` has descriptor `{ID=1,type=3,count=1}` and a uint32
 zero payload. A reader stops on ID 1 before consuming that payload. In write
@@ -246,8 +309,14 @@ unconsumed suffix text is not itself a conversion failure. A failed numeric
 conversion zeroes the output; delimiter exhaustion is a distinct failure and
 does not establish that same destination rule. Resource keys are three
 successive uint32 values, assigned to the caller only after all three succeed.
-The character helper's end-boundary counter excludes the final byte in the
-inspected implementation (`0x0097EF35`); exact last-byte vectors remain SCR4.
+The character helper increments its counter before testing counter < total
+size, and only then calls the serial byte reader (`0x0097EF35`–`0x0097EF58`,
+instruction verified). With initial counter 4 and total N, at most N−5 bytes
+can be read through this helper. Thus the last physical byte of a record
+beginning with the four-byte cookie is excluded. An attempted read at the
+boundary fails without a serial read; the counter still advances. A delimiter
+in that excluded byte is not consumable. No message state or lookahead cache
+alters this rule.
 
 ## 7. cGZPersistBufferResource
 
@@ -316,7 +385,8 @@ replace it with nondithered truncation for comparison tests.
 The table at `0x00ADA288` is zero based. QueryInterface (`0x00981A8F`)
 recognizes IIDs 1 and `0x1B0AAB0E`. The writer maintains a stack of active
 surveyors; OutputStream forwards to the top surveyor's stream (+0x70).
-Constructor defaults and empty-stack behavior remain SCR6.
+Construction (`0x00983314`) starts reference count zero and initializes the
+stack container; empty-stack OutputStream behavior remains SCR6.
 
 | Slots | Methods |
 |---|---|
@@ -378,6 +448,12 @@ this documentation lane does not assert an existing executable test suite.
 | SCR-V19 | Same TGA pixels with opposite descriptor bit 0x20 | Opposite vertical row order |
 | SCR-V20 | ASCII hex word 0xAB and key words [1,2,3] | `0x000000ab`; key labels G=2, I=3, T=1 |
 | SCR-V21 | ASCII graph with dependencies and two surveyed objects | Dependencies and directory precede both bodies; body order is surveyor order |
+| SCR-V22 | ParseColorAlpha `2 -1 0.5` | Binary32 components (2, −1, 0.5, 1); no clamping |
+| SCR-V23 | ParseVector3 `7`; ParseVector2 empty; three components to Vector2 | (7,0,0); (0,0); error |
+| SCR-V24 | Same enum name in primary and secondary tables; unknown name | Primary value wins; error 4 |
+| SCR-V25 | File callback with type 0x6AE76406; then unrelated type | true and modified set; false with flag preserved |
+| SCR-V26 | Text helper counter 4, total 6 | One successful byte read possible; second attempt fails without reading byte 5 |
+| SCR-V27 | GetField descriptor matches ID and type but different count | Failure; no implicit resizing/coercion |
 
 Additional vectors for switch/positional readers and required/optional file
 ordering are normative in the linked specs. Inputs whose exact result is an
