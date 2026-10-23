@@ -185,12 +185,24 @@ qbuild all was launched. During native verification, the existing wrapper's
 cache-stats child temporarily delayed CTest. Its PID/creation/cwd/argv and own
 loopback connection were observed read-only. The first nine-minute result-file
 wait timed out; that was not a qbuild failure. The same check advanced into
-CTest at 00:38:13 UTC without intervention. The delay cause remains unknown.
+CTest at 00:38:13 UTC after a specific coordinator intervention: root terminated
+ONLY the blocked read-only statistics client8672 (creation1792715430.3681138),
+exit15 at01:38:13.238371 BST. The same validator5540 and daemon30848 remained
+alive, and the same existing validation started CTest30684. This is an
+interrupted/unavailable statistics request, not successful cache data. The
+underlying delay/RPC cause remains unknown. Exact before/after evidence is
+`coordinator-stats-client-intervention-legacy-r3.json` and the coordinator note
+`coordinator-stats-client-intervention.md` in owned build-runs; root retains
+`coordinator-legacy-r3-stats-client-interruption.json`.
 `r3-cache-blocker.md`, both correspondence snapshots and the partial measurement
 `r3-partial-measurements-003932.json` preserve the intermediate state separately
-from the passing final result. No process, cache client, compiler or service was
-killed/restarted; no cache RPC was sent by this lane outside the authorized
-wrapper, and no environment/cache/provider/wrapper policy was changed.
+from the passing final result. No daemon/compiler/check was killed or restarted,
+no duplicate gate was launched, and no source/environment/cache/provider/wrapper
+policy was changed. The worker did not terminate a process or send a cache RPC
+outside the authorized wrapper; the coordinator's exact client-only action is
+separate, recorded above, and is not general worker permission or another
+implementation round. This report-only correction reuses the completed stable
+gate; it does not rerun or relabel the original checks.
 
 ## Questions, limits and next steps
 
