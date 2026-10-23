@@ -163,3 +163,8 @@ implementer of the class tables and records.
   test `native_read_fixups_prevent_an_unconditional_byte_round_trip` supplies the flags
   counterexample. [missing shadow contract; implementation held rather than suppressing
   mismatches or changing native-compatible Read behavior]
+  **ANSWERED 2026-10-23 (coordinator's harness decision):** normalize the native
+  Write reference using only the documented Read fixups: clear flags `0xE000`,
+  force triangle alpha `0xFF`, and transform mask 7 to 5 when scale is 1.0
+  (omit the scale bytes). Count changed fields as `fixups=N` on every line;
+  every other byte must match. Archived under NO45 in answered/network-occupants.md.

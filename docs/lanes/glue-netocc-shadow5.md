@@ -1,6 +1,14 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-netocc-shadow5: network occupant record shadow | Codex / glue-netocc-shadow5 | wip | Resolve NO45, then implement the record shadow and validate through 2032. |
+| glue-netocc-shadow5: network occupant record shadow | Codex / glue-netocc-shadow5 | in progress | Implement normalized shadow, full gate, city through 2032. |
+
+## Handoff
+
+- Round 2 uses detached HEAD; commit normally without moving refs.
+- Prior milestone 2b25736f: path key codec fix; be4072e6: full gate PASS.
+- NO45 resolved by coordinator: normalize only flags E000, triangle alpha FF, transform mask 7 to 5 at scale 1.
+- Next: private record comparison transport, default-off plugin capture at load/month, focused tests.
+- No game requests outstanding. Manifest: main build-runs/run4-glue-netocc-shadow5-r2-manifest.json.
 
 ## Changes
 
