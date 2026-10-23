@@ -22,7 +22,7 @@ textured-cell modes the cell texture repeats).
 Three small model instances draw the parts of a lot that are not building models: the **foundation** box under a
 building on a slope, the **retaining walls** along a lot's edges where the terrain falls away or rises, and the
 **cell textures**, one textured square per lot cell. Each keeps its own vertices, rebuilds them when the zoom or
-rotation changes, takes its texture per zoom with a fallback key, and draws with a fixed opaque state.
+rotation changes, takes its texture per zoom with a fallback key, and selects its documented draw state.
 
 ## 1. Common behaviour *[compat]*
 
@@ -320,9 +320,9 @@ positions/UV/bounds alone. These are explicit terrain/lot/lighting inputs, not a
 - **Init** (`0x005DF100`): three draw states: opaque; alpha (alpha test "greater" at 0, blend source alpha / one
   minus source alpha); tinted (blending, no depth write, depth less); and a combiner record.
 - **Draw** (`0x005E0200`): not when highlighted. A zoom change reloads the texture; the mode is **tinted** when the
-  record's mode is set, else **alpha** when the texture has alpha or the alpha is not 255, else **opaque**; alpha and
+  record's mode is not 255 (including explicit 0), else **alpha** when the texture has alpha or the alpha is not 255, else **opaque**; alpha and
   tinted cells are skipped while the draw context's `+0x04` is 0 *[inferred: drawn in the translucent pass]*. Wrap
-  clamp. Tinted: linear filtering, the environment colour := the record's RGB × the global light ÷ 255 and
+  clamp. Tinted: linear filtering, the environment colour := the record's RGB × global-light component 0 × binary32(1/255) and
   alpha ÷ 255, the combiner with the record's mode, where mode 3 with `kNoAddSigned` becomes mode 1 at half the
   alpha. On a flat lot the model draws its own four-vertex strip; on a slope it asks the terrain view to draw the
   cell (`DrawTexturedTerrainQuad`, terrain-view.md §4.4) with its corners and alpha, forced when the draw context's
@@ -332,7 +332,7 @@ positions/UV/bounds alone. These are explicit terrain/lot/lighting inputs, not a
 
 The stored cell x and z are **unsigned bytes**, not signed world coordinates (`0x005DFA0C`,
 `0x005DFA10`). Let X = 16x and Z = 16z. Vertices are 24-byte position/colour/UV records in this order;
-the flat draw submits these four records directly as primitive type 1, format 10 (`0x005E0475–0x005E0482`).
+the flat draw submits these four records directly as primitive type 1, format 10 (`0x005E0424–0x005E0433`).
 
 | Vertex | World x,z | Terrain altitude output slot | UV orientation 0 | UV orientation 1 | UV orientation 2 | UV orientation 3 |
 |---|---|---|---|---|---|---|
@@ -379,6 +379,112 @@ the alpha flag from the factory's metadata. The loader never retains an old succ
 a failed replacement (`0x005DF020–0x005DF0FB`). Draw with no binding returns 1 before state setup;
 failed loads are cached by the zoom byte just like successful loads.
 
+### 4.3 Owned cell draw state and ordered calls (LM7)
+
+This is the owner-selected request and its typed driver boundary, not a claim that every device applies
+every requested combine operation. The initialized-state domain requires `Init` to run with the render
+service present; otherwise it returns before packing the three states (`005DF100–005DF110`). Context
+zoom/rotation comparisons use full integers against unsigned cached bytes; normal vectors use zoom 0–4,
+rotation 0–3. Do not extend the finite wall domain to other numeric or service-failure cases.
+
+**Control and return sequence** (`005E0200–005E0495`):
+
+1. Highlighted draw returns 1 immediately. No reload, recolour, state setup or geometry call.
+2. If zoom differs, perform §4.1's zoom update and texture load; cache the low zoom byte before
+   the load, even on failure (`005DFD40–005DFD7A`). If rotation differs, request colours only,
+   then cache its low byte. These updates precede both binding and pass checks.
+3. Null binding returns 1. Otherwise classify: record mode≠255 → tinted; mode=255 and
+   (binding alpha flag nonzero or record alpha<255) → alpha; otherwise opaque.
+4. Alpha/tinted with context +04=0 returns 2. Opaque proceeds regardless. Context +20=8 is
+   not inspected yet and cannot bypass return 2 (`005E0273–005E02DC`).
+5. Call context `SetModelTransform`, `ResetShade`, then `SetTexture(selected,0)`. Select binding
+   element at unsigned cached zoom if less than its element count, otherwise element 0.
+   A valid binding with no elements is outside this contract; there is no owner check for that case.
+6. Opaque/alpha: apply the corresponding packed state below, then request wrap (2,2,0).
+   Tinted: apply tinted state, request wrap (2,2,0), request filters (1,1,0), ask context +44's
+   slot 10 for three global-light floats, calculate the colour and combiner below, then call
+   `SetTexColor`, `SetTexCombiner(record,0)` in that order.
+7. Flat placement: `DrawPrims(1,10,4,storedRecords)`; Draw itself does not rewrite vertex alpha.
+   The flat recolour routine writes the original record alpha to all four records (`005DFCBD`,
+   `005DFD29`), including when mode 3 falls back. Nonflat: terrain-view slot 15 gets context,
+   unsigned cell x,z, stored corner array, original alpha×k, and boolean(context +20=8).
+   Return 1 on either path. The owner does not propagate driver/delegated return values.
+
+The three initialized packed states consist of two 32-bit words, **value, mask**, in increasing address
+order. These are runtime results of `PackRenderState`, not the executable's pre-init data bytes.
+The table follows the actual argument order verified at `005DF113–005DF186` and bit packing
+`007D2B50–007D2D15`; compare/blend meanings use [graphics-formats.md §3.8](graphics-formats.md#38-mats-compat)
+and the public D3D7 mappings already recorded in [renderer-driver.md §5.1](renderer-driver.md#51-comparison-blend-stencil-and-shading-enumerations).
+
+| State/address | Value | Mask | Explicit fields |
+|---|---|---|---|
+| opaque / 00B23090 | 020001A7 | 1E0003FF | colour/depth writes, depth test, stage0 texture on; alpha test/blend/cull/stage1 texture off; depth func 3; stage0 env 1 |
+| alpha / 00B23098 | 020A91BF | 1FFFFFFF | colour/depth writes, depth/alpha tests, blend, stage0 texture on; cull/stage1 texture off; depth func 3; blend 4,5; alpha func 4, ref 0; stage0 env 1 |
+| tinted / 00B230A0 | 000A80B5 | 101FE3FF | colour write, depth test, blend, stage0 texture on; depth write/alpha test/cull/stage1 texture off; depth func 1; blend 4,5 |
+
+Fields absent from the mask are retained: opaque retains blend factors, alpha func/reference and stage1
+env; alpha retains stage1 env; tinted retains alpha func/reference and both env fields. Thus tinted is
+not a complete replacement word. Bits: colour/depth writes 0/1; depth/alpha tests 2/3; blending 4;
+stage0 texture 5; cull 6; depth func 7–9; alpha func 10–12; source/destination blend 13–16/17–20;
+alpha reference 21–24; stage0 env 25–27; stage1 texture 28; stage1 env 29–31.
+Depth 3 is less-or-equal, 1 less; alpha 4 greater; blend 4,5 is source-alpha/one-minus-source-alpha.
+
+**Context effects and driver-call order.** For these packed states, take changed bits under the mask
+against the current context word. With any change, store `(old & ~mask) | value` and select driver
+stage 0 (slot 51), then issue only changed groups in this exact order: colour mask (15), depth mask
+(17), depth capability 1 (enable/disable 44/45), alpha capability 0, blend capability 4, texture
+capability 5, cull capability 3, depth func (16), alpha func/reference (22), blend factors (21), stage0
+env (28); finally stage1 enable/env if changed and permitted, selecting 1 then restoring 0.
+For all three owned tuples stage1 texture is explicitly off; its env is retained. Alpha/blend force
+switches can replace an enabled driver capability with disabled while the requested bits remain cached;
+stage1 calls require `kUseSecondStage`. Even if **no packed bit changes**, request wrap (3,3,0),
+filter (1,7,0), clear transform stage1 then stage0, in that order (`007D4530–007D47D7`).
+Then the owner's step 6 overrides the wrap to (2,2,0), and tinted overrides filters to (1,1,0).
+Wrap/filter setters suppress unchanged requests and apply the render-property overrides in
+[draw-context.md §§4,7](draw-context.md#7-texture-stages-compat); this is a request sequence, not an
+unconditional list of device calls. SetTexture reaches driver slot 58 for stage 0 even if equal;
+ResetShade only reaches slot 32 if its override flag was set. Model transform behaviour remains the
+existing context contract, not another lot-owned transform algorithm.
+
+**Tint arithmetic and combiner.** Let k be binary32 `3B808081`, not an exact division by 255.
+Store all three returned light floats, but use only component 0, G, for **every** RGB channel.
+Unsigned R,Grecord,B are converted to x87, each multiplied by G, then k, then stored binary32.
+Alpha is converted unsigned and multiplied by k, then stored binary32. No saturation or integer
+colour packing occurs in this owner (`005E0389–005E03E2`). If record mode=3 and the byte at
+`context[+38][+0C]+3BC` is nonzero, set effective mode=1 and shift the unsigned alpha right once
+**before** conversion; otherwise keep both. No other mode is changed. Vertex/delegated alpha remains
+the original byte, irrespective of this environment-alpha change.
+
+After completed Init the shared 12-byte combiner is
+`00 00 02 21 01 00 03 01 00 00 00 00`. Init writes bytes 0–6 (`005DF18B–005DF1B5`);
+byte 7=01 and bytes 8–11=00 come from image data `00B0A87F–00B0A883`. Each tinted draw writes
+only byte 0 to effective mode. `SetTexColor` reaches driver `TexEnv(0,1,colour)` slot 27;
+`SetTexCombiner` reaches `SetCombiner(record,0)` slot 62 unconditionally, then sets context stage0
+env bits to 4 and copies all 12 bytes into its stage record (`007D3030–007D30C3`).
+
+The small driver decoder proves this owned tuple directly (`00884A70–00884B91`): it flushes queued
+primitives, sets the selected stage's env=4 and dirty flags, and, unless byte0=255, decodes RGB op from
+byte0, alpha op from byte4; RGB sources from the low nibbles of bytes1,2,3; alpha sources from 5,6,7.
+Their high nibbles select operand tables (2,3,4,5) and (4,5,4,5), respectively. Bytes8,9 are scales.
+Bytes10,11 are context-copy padding, not additional operations. For this owner the decoded tuple is:
+
+| Fields | Exact values | Typed meaning at the already documented driver boundary |
+|---|---|---|
+| RGB op | effective mode 0,1,2,3 | select arg1, modulate, add, add-signed, respectively (scale 0) |
+| alpha op | 1 | modulate (scale 0) |
+| RGB source triple | 0,2,1 | texture, texture factor, current |
+| RGB operand triple | 2,2,4 | first two colour; third alpha replicate |
+| alpha source triple | 0,3,1 | texture, diffuse, current |
+| alpha operand triple | 4,4,4 | alpha, without complement |
+| RGB/alpha scale | 0,0 | base operation |
+
+Semantic names above follow the existing public driver contract
+[renderer-driver.md §10.3](renderer-driver.md#103-applying-a-stage-at-draw-time-0x00884320-0x00884500),
+not a guessed mapping from the record's mode labels. In particular mode0 selects texture colour despite
+entering the tinted state/setup path. Driver applied-state caching and device capability handling belong
+to that foreign boundary; these owner traces do not establish final pixels or a full renderer contract.
+Other record mode bytes remain raw operations; their intended meaning/upstream author remains LM1.
+
 ## 5. Users
 
 The building developer creates the foundation and wall occupants (building-development.md) and the lot developer
@@ -392,8 +498,8 @@ the cell textures; the model maker inserts their models; the 3D renderer draws t
 
 ## 7. Open questions
 
-See [questions/lot-models.md](questions/lot-models.md) LM1: what the cell texture record's mode values mean
-beyond 3 and who sets the colour.
+See [questions/lot-models.md](questions/lot-models.md): LM1 (upstream authors and other mode bytes),
+LM2 (remaining owner/inherited inventory and lifecycle), LM8 (exceptional/invalid numeric domains).
 
 ## 8. Conformance tests
 
@@ -402,7 +508,7 @@ beyond 3 and who sets the colour.
    a zero side key makes no request.
 3. **Wall texture:** a wall at zoom 4 with a failed nonzero key retries `0x695C00CA`; a zero key disables it.
 4. **Facing:** at rotation 1 a wall on side 1 or side 0 is drawn, one on side 2 is not.
-5. **Cell mode:** a record with alpha 128 and no mode draws with the alpha state.
+5. **Cell mode:** a record with alpha 128 and mode 255 draws with the alpha state; explicit mode 0 selects tinted.
 6. **Orientation:** orientation 1 rotates the corners one step; the mirror flag swaps u for 1 − u.
 
 The following are independent arithmetic/buffer vectors derived from the cited native operations;
@@ -421,3 +527,125 @@ they are expected results, not observations from a portable implementation or ru
 | F-zero-key | zoom 3, side key 0, successful top | no side requests; top quad still eligible |
 | W-repeat-failure | zoom 4, key already 0x695C00CA, both requests fail | two identical requests, stored key unchanged, binding null |
 | C-wrap-key | key 0xFFFFFFFE, zoom 3; first request fails | requests instances 1 then 0xFFFFFFFE; key retained |
+
+### 8.1 Independent finite wall ledgers (proposed, UNEXECUTED natively)
+
+These literal inputs/expected records are analytic consequences of the primary instructions in §3.2.
+No engine output, native execution, runtime geometry comparison or default-path promotion is claimed.
+Exact rational arithmetic with binary32 storage was used to check the hexadecimal literals; it does not
+provide a replacement wall builder. PC=53 or 64, RC=nearest-even; all input terrain/lot heights below
+are raw service results stored binary32, and raw +80 texture scale is 1/16. Use a fresh empty buffer,
+geometry+colour enabled, successful allocation, valid terrain extents and a nonflat/missing across lot
+unless the row says otherwise. Previous bounds for changed-return examples are six zero floats.
+
+The common box has x=32..48, z=80..96, and lot L=10 at inner cell (2,5). The following table is a
+literal position/UV dictionary: A(y), B(y) mean the positions shown, **not** a host-supplied final mesh.
+All four sides must be crossed with every height row below. This gives ordered records on each side
+without depending on a screen-space side convention.
+
+| Side | Terrain request sequence | A(y) | B(y) | u(A),u(B) | Across query | Lighting normal |
+|---|---|---|---|---|---|---|
+| 0 | (2,5), then (3,5) | (32,y,80) | (48,y,80) | 2,3 | (2,4) | (0,0,1) |
+| 1 | (3,5), then (3,6) | (48,y,80) | (48,y,96) | 5,6 | (3,5) | (−1,0,0) |
+| 2 | (2,6), then (3,6) | (32,y,96) | (48,y,96) | 2,3 | (2,6) | (0,0,−1) |
+| 3 | (2,5), then (2,6) | (32,y,80) | (32,y,96) | 5,6 | (1,5) | (1,0,0) |
+
+Let t=`411CCCCD`, p=`41433333`, q=`41633333`, m=`40F9999A`, n=`41233333`,
+w=`4119999A` denote stored y values 9.8,12.2,14.2,7.8,10.2,9.6 approximately, respectively.
+The corresponding **exact v words** at scale 1/16 are `3F1CCCCD`, `3F433333`, `3F633333`,
+`3EF9999A`, `3F233333`, `3F19999A`. For any row A/B determines x,z,u by the preceding table;
+y determines v by this dictionary. Repeated labels are repeated records. Semicolons delimit triangles.
+
+| Raw H0,H1 | Eligibility/split | Ordered complete fresh-buffer records | Triangle count | Reported y bounds |
+|---|---|---|---|---|
+| 12,14 | both above L | A(t),B(t),A(p); A(p),B(t),B(q) | 2 | 10..14 |
+| 10,12 | first equal L | A(t),B(t),A(n); A(n),B(t),B(p) | 2 | 10..12 |
+| 12,10 | second equal L | A(t),B(t),A(p); A(p),B(t),B(n) | 2 | 10..12 |
+| 8,12 | ascending through L and T | A(m),B(t),B(p) | 1 | 8..12 |
+| 12,8 | descending through L and T | A(t),B(m),A(p) | 1 | 8..12 |
+| t,12 | first equal T | A(w),B(t),B(p) | 1 | t..12 |
+| 12,t | second equal T | A(t),B(w),A(p) | 1 | t..12 |
+| 8,10 | below/equal L | none, no neighbour query | 0 | fallback 8..9 |
+| 10,8 | equal/below L | none, no neighbour query | 0 | fallback 10..11 |
+| 10,10 | both equal L | none, no neighbour query | 0 | fallback 10..11 |
+| 8,9 | both below L | none, no neighbour query | 0 | fallback 8..9 |
+
+For example side1, H0=8,H1=12 gives exactly `(48,m,80;5,3EF9999A)`,
+`(48,t,96;6,3F1CCCCD)`, `(48,p,96;6,3F433333)` in x,y,z;u,v notation.
+Side2, H0=12,H1=8 gives `(32,t,96;2,3F1CCCCD)`, `(48,m,96;3,3EF9999A)`,
+`(32,p,96;2,3F433333)`. Side0/3 use the same explicitly tabulated A/B expansion; their ordering
+does not reverse to match their opposite side's lighting normal.
+
+For every emitting row, reported horizontal bounds in binary32 words are:
+
+| Side | xmin,xmax | zmin,zmax |
+|---|---|---|
+| 0 | 42000106,423FFEFA | 42A00083,42A00106 |
+| 1 | 42400106,4240020C | 42A00083,42BFFF7D |
+| 2 | 42000106,423FFEFA | 42C00083,42C00106 |
+| 3 | 42000106,4200020C | 42A00083,42BFFF7D |
+
+Use raw y bounds from the height table, not m/p/t extrema. Output geometry-present=true and
+changed-return=true for these initial bounds. For a nonemitting row the builder resamples the first
+listed terrain cell: prescribe that result equal H0. Bounds then run from the listed A(H0) to
+A(H0)+(1,1,1), geometry-present=false, changed-return=false, with no lighting requests on a fresh buffer.
+
+Raw lighting inputs are intentionally asymmetric. For side s, give each distinct position in its ordered
+records a first-encounter ordinal j=0,1,2,… and prescribe output integers
+`(257+16s+3j, 514+16s+3j, 771+16s+3j)`. Repeated identical positions return the same tuple.
+Expected colour bytes in memory are `(3+16s+3j, 2+16s+3j, 1+16s+3j, 255)`.
+Thus side0's six-record above/above row has colours `03 02 01 FF`, `06 05 04 FF`,
+`09 08 07 FF`, `09 08 07 FF`, `06 05 04 FF`, `0C 0B 0A FF`, in order; sides1/2/3 add
+0x10/0x20/0x30 to each RGB byte. The low-byte rule deliberately distinguishes raw service outputs from
+already packed colours and checks that duplicates are lit as separate requests.
+
+Additional literal control cases:
+
+| Case | Inputs | Expected ordered effects |
+|---|---|---|
+| W-empty | box x=32..32,z=80..96, side0; L=10,Hstart=12 | start=end x cell2; request terrain (2,5), then fallback resample (2,5); no neighbour query/records; bounds (32,12,80)..(33,13,81), output false, return false |
+| W-narrow | x=32..34, same other inputs | same empty range/effects as W-empty despite positive box width |
+| W-tie | lower x input 8, then 24 | lower cell 0, then 2 (nearest-even); floor would give 0,1 |
+| W-flat-neighbour | side0 H0=12,H1=14; across (2,4) exists with flag bit0 set | sample both endpoints, extent queries then across lot; no append; fallback resample at (2,5), reported unit box, no fresh-buffer lighting |
+| W-reuse | first side0 above/above row, then rebuild same range H0=12,H1=8 | prefix becomes A(t),B(m),A(p); records3..5 remain A(p),B(t),B(q); stored length six; recolour visits all six, segment byte is 1 |
+
+### 8.2 Independent cell draw traces (proposed, UNEXECUTED natively)
+
+These are owner request traces, not final-state/pixel observations. Unless overridden: not highlighted,
+matching zoom/rotation caches, valid nonempty binding, alpha flag false, flat placement, pass +04=1,
+context +20=0, RGB=(64,128,192), alpha=255, global-light raw output=(1,2,3), completed Init,
+no force properties. Let P mean `SetModelTransform`, `ResetShade`, `SetTexture(element0,0)` in order.
+Let S0/S1/S2 be the opaque/alpha/tinted packed applications from §4.3 including their unconditional
+wrap/filter/transform-reset requests. Let W request wrap(2,2,0), F filters(1,1,0), L request light slot10,
+C set environment colour, K set combiner stage0, and D the flat `(1,10,4)` draw. These abbreviations
+expand to the exact calls and bits in §4.3, including conditional driver-call suppression.
+
+| Inputs/counterexample | Exact owner trace/result |
+|---|---|
+| mode255, alpha255, no binding alpha | P,S0,W,D; return1; packed 020001A7/1E0003FF; no L,C,K |
+| mode255, alpha128 | P,S1,W,D; return1; packed 020A91BF/1FFFFFFF; no L,C,K |
+| mode0, alpha255 | P,S2,W,F,L,C,K,D; return1; K bytes `00 00 02 21 01 00 03 01 00 00 00 00`; explicit zero does not choose opaque |
+| mode1, alpha255 | same tinted trace; K byte0=01, other bytes unchanged |
+| mode2, alpha255 | same tinted trace; K byte0=02, other bytes unchanged |
+| mode3, capability byte0 | same tinted trace; K byte0=03; environment alpha word 3F800000 |
+| mode3, capability byte1 | same tinted trace; K byte0=01, alpha255 shifted to127; environment alpha word 3EFEFF00, not the word for 0.5; flat vertex alpha remains FF after recolour |
+| mode0, pass0, context +20=8 | return2 before P,S2,W,F,L,C,K,D; force cannot bypass pass filtering |
+| mode255, alpha255, pass0 | P,S0,W,D; return1; opaque ignores pass0 |
+| mode255, binding alpha flag1, pass0 | return2; metadata flag changes classification even with alpha255 |
+| mode3 fallback, nonflat, context +20=8 | P,S2,W,F,L,C,K; terrain call original alpha word3F800000 and force=true; return1 |
+| highlighted, changed zoom | return1 without even zoom update or resource lookup |
+| cached zoom0→1, key100, both loads fail, pass0 | recolour-only update, cache1, requests101 then100, release old binding/clear alpha flag; rotation update if needed; null-binding return1 before pass filtering |
+| repeat preceding failed draw at zoom1 | no reload or resource requests; null-binding return1 |
+| old cached zoom255→1, binding load succeeds, mode0/pass0 | geometry+colour update, cache1, load; rotation recolour if needed; then return2; no render-state setup |
+
+For all tinted rows above, C's RGB words are **3E808081,3F008081,3F40C0C2**, despite returned light
+components1,2 being 2,3. Normal alpha255 produces 3F800000. This distinguishes G0-for-all from
+component-wise lighting and multiplication by stored k from a mathematical division by 255.
+The initialized alpha op stays 01 when byte0 varies through 00,01,02,03,01.
+
+For a literal driver sequence, start the context word at `020A91BF` with no overrides and apply S2:
+new word `020A90B5`, changed bits `0000010A`; select stage0, depth-mask(false),
+disable alpha capability0, depth-func(1), then the unconditional wrap/filter/clear requests.
+The alpha-function bits remain 4 and reference0 despite alpha testing being off; blend(4,5) is retained.
+After W,F,C,K the stage0 env field becomes4, so the requested context word is `080A90B5`.
+This is a trace of supplied literals at the driver boundary, not a native execution or host-computed oracle.
