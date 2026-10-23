@@ -1,15 +1,31 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-simgrid-lots-shadow5: sim grid and lot record shadows | Codex, `.claude/worktrees/glue-simgrid-lots-shadow5` (reserved detached HEAD) | wip: simgrid implemented; native queue pending; LR12 | Collect queued native result, run SG3 shadow through 2032; answer lot-record inventory contract. |
+| glue-simgrid-lots-shadow5: sim grid record shadow | Codex, `.claude/worktrees/glue-simgrid-lots-shadow5` (reserved detached HEAD) | blocked: existing native request unserviced; no DLL | Coordinator service native request; resume full gate and SG3 game run through 2032. |
 
-## Handoff
+## Report
 
-- Round 3 resumed at detached HEAD `5da9bbedb`; no source changes yet.
-- Existing native request `qbuild-20261023-232536-build-ctest.req` is still pending; no DLL or native verdict exists locally.
-- Next: collect that existing native request, then submit `sg3-record-2032-r3-20261023a` through 2032 using the prepared request template.
-- Round-3 blocking native verdict waiter is session 7552; collect its terminal result, do not replace it. It watches `build-runs/build-results/qbuild-20261023-232536-build-ctest.verdict` for nine minutes.
-- Do not enqueue a duplicate native verification. Lot records remain outside round-3 scope (LR12).
-- Regression profile lives in forbidden `tools/`; coordinator must apply the exact-only key addition after measured success.
+Round 3 resumed at detached HEAD `5da9bbedb`. No implementation changed: native verification is externally blocked.
+At **2026-10-23 23:52:24 +01:00**, the original request
+`build-runs/build-queue/qbuild-20261023-232536-build-ctest.req` remained unserviced (written 23:25:36).
+`engine/build-x86/FreeCity4.dll` does not exist and `build-runs/build-results/` is empty.
+
+The round-3 single blocking waiter (session 7552) reached its actual terminal result after nine minutes:
+`timeout: verdict not available`, exit 1. It watched
+`build-runs/build-results/qbuild-20261023-232536-build-ctest.verdict`.
+There are **no live local waiters and no game requests outstanding**. The original native request is preserved.
+No duplicate verify or full gate was launched while it was pending. The final `qbuild all` remains required
+after the pending request is serviced; prior-round Rust results below remain the only measured gate stages.
+
+No game run occurred, so there is no run record or `<label> <clean>/<total>` evidence. Exactness through 2032,
+native CTest, and `ref_warnings=0` remain unmeasured. A READY queue entry would be unsupported; the queue stays wip.
+No new questions or C ABI changes. Lot records remain outside round-3 scope under existing LR12.
+
+Next: coordinator service the existing native request; collect its real result and fix any diagnostic;
+run the final full gate on stable source. Submit unique label `sg3-record-2032-r3-20261023a` through 2032
+using `build-runs/sg3-record-2032-r3-20261023a.request-template`, then collect it with the existing blocking
+PowerShell waiter (no qwait). Diagnose any shadow differences and rerun with a new label. Record exact/total,
+clean verdict and ref warnings. The clean-room rule forbids this lane from opening any `tools/` file, so the
+coordinator must add `simgrid_shadow = 1` to the regression shadows profile only after measured exactness.
 
 ## Prior report
 
