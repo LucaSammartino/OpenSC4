@@ -1,5 +1,10 @@
 # Portable application owner
 
+The separate [application directors](directors/README.md) implement the bounded
+Tools, ResourceLib, ResMan and Game director owners from app-directors.md, and
+reuse `game_data_registry::Registry`. That README contains their Owner closure
+table and the AD-V1–AD-V27 conformance mapping.
+
 Source: `docs/specs/application.md` §§1–16; save ordering additionally follows
 its explicit references to `foundations.md` §§3.7 and 11.1. No native binding,
 plugin/capi wiring, ABI change, simulator or framework implementation is included.

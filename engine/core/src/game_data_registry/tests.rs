@@ -697,6 +697,23 @@ fn g14_service_shared_count_views_and_zero_one_greater_release() {
 }
 
 #[test]
+fn ad_v23_registry_qi_clears_sentinel_unlike_director() {
+    let mut h = Host::default();
+    let mut r = registry(&mut h);
+    assert_eq!(r.service_id(), 0xEBE0_E860);
+    assert_eq!(r.service_priority(), -1_000_000);
+    assert_eq!(r.tick_priority(), -1_000_000);
+    assert_eq!(r.running(), Ok(false));
+    let mut out = Some(Face::Unknown);
+    assert_eq!(r.query_interface_out(u32::MAX, &mut out), Ok(false));
+    assert_eq!(out, None);
+    assert_eq!(r.ref_count(), Ok(0));
+    assert_eq!(r.query_interface_out(REGISTRY_IID, &mut out), Ok(true));
+    assert_eq!(out, Some(Face::Registry));
+    assert_eq!(r.ref_count(), Ok(1));
+}
+
+#[test]
 fn destructor_does_not_synthesize_shutdown_and_node_release_is_preorder() {
     let mut h = Host::default();
     let mut r = tree(&mut h);
