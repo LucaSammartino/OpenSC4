@@ -2423,3 +2423,68 @@ Evidence: name guard `0059D8F8–0059D94A`, positional selection
 | EC66 | particles name `P`; `effectBase MixedCase ignored`; old binding `Old` | binding becomes `MixedCase`; second selection ignored; no foreign existence/collection call |
 | EC67 | particles name `P`; selected empty string | binding becomes empty; live particles name remains `P` |
 | EC68 | particles name `P`; `effectBase New -unknown`; nested post-check enabled | binding becomes `New`, then generic unhandled-switch error; binding survives |
+
+### 19.17 Particle child dictionary and dispatch identity
+
+`cParticleEffectCommand::RegisterCommands` (`005958F0`) installs the following
+**27 entries in this order** in the particles block's own dictionary. Each
+entry constructs a separate four-byte descriptor object; aliases share a
+descriptor address, not an allocation. All have the ordinary command wrapper
+`007E3BE0` at descriptor slot +04, no block-entry/exit override, and the direct
+handler at slot +0C below. They are not additional root commands. Allocation,
+ownership, name matching and generic post-command switch checking follow
+effects-parser §12; these rows do not imply that an owner consumes every switch.
+
+Names in the last column are the verified exported class names with the common
+`(anonymous_namespace)::` prefix omitted. `unnamed` means that this executable's
+export does not establish a class name; a name must not be invented from a
+literal. An inventory row establishes dispatch identity, not execution closure.
+Only handlers with published sections have execution contracts here.
+
+| Order | Literal | Descriptor | Direct handler | Owner / contract |
+|---:|---|---|---|---|
+| 1 | `zoom` | `00A9FB78` | `005970E0` | unnamed |
+| 2 | `color` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand` |
+| 3 | `alpha` | `00A9FB58` | `0059C060` | unnamed |
+| 4 | `size` | `00A9FB48` | `005998E0` | unnamed |
+| 5 | `aspect` | `00A9FB38` | `00599A10` | unnamed |
+| 6 | `rotate` | `00A9FB28` | `00599B60` | `cParticleRotateCommand` |
+| 7 | `source` | `00A9FB18` | `00597140` | `cParticleSourceCommand` |
+| 8 | `emit` | `00A9FB08` | `0059C280` | `cParticleEmitCommand` |
+| 9 | `force` | `00A9FAF8` | `0059A820` | `cParticleForceCommand` |
+| 10 | `warp` | `00A9FAE8` | `0059B680` | `cParticleWarpCommand` |
+| 11 | `randomWalk` | `00A9FAD8` | `005979B0` | `cParticleRandomWalkCommand` |
+| 12 | `stretch` | `00A9FAC8` | `00597C60` | unnamed |
+| 13 | `life` | `00A9FAB8` | `00597CD0` | `cParticleLifeCommand` |
+| 14 | `rate` | `00A9FAA8` | `0059CA70` | `cParticleRateCommand` |
+| 15 | `inject` | `00A9FA98` | `0059CBB0` | `cParticleInjectCommand` |
+| 16 | `maintain` | `00A9FA88` | `0059CC20` | `cParticleMaintainCommand` |
+| 17 | `texture` | `00A9FA78` | `005A10B0` | `cParticleTextureCommand` |
+| 18 | `model` | `00A9FA68` | `005A1340` | `cParticleModelCommand` |
+| 19 | `align` | `00A9FA58` | `00597FB0` | `cParticleAlignmentCommand` |
+| 20 | `collide` | `00A9FA48` | `00598120` | `cParticleCollisionCommand` |
+| 21 | `terrainRepel` | `00A9FA38` | `00598320` | `cParticleTerrainRepelCommand` |
+| 22 | `effectBase` | `00A9FA28` | `0059D8F0` | `cParticleEffectBaseCommand`; §19.16 |
+| 23 | `timedEffect` | `00A9FA18` | `005A16B0` | unnamed |
+| 24 | `color255` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand` |
+| 25 | `colour` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand` |
+| 26 | `colour255` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand` |
+| 27 | `alpha255` | `00A9FB58` | `0059C060` | unnamed |
+
+There are 23 distinct descriptor addresses. In particular, the two final
+registrations call constructors `00595D20` and `00595D30`, which only install
+`00A9FB68` and `00A9FB58` respectively. They do not install a per-instance
+normalization flag. Any alias-sensitive interpretation belongs to the handler's
+inspection of its input, not to extra descriptor state.
+
+Evidence: allocation/registration instructions `005958F0–00595D19`; literal
+pointer cells `00B0A314–00B0A37C`; direct-handler words at the listed descriptors
++0C; constructor stores `00595D22`, `00595D32`. Wrapper behavior is specified
+in effects-parser §12. This table does not close EF15's other dictionaries or
+remaining child algorithms.
+
+| ID | Fixture | Required result (unexecuted) |
+|---|---|---|
+| EC69 | construct a particles command with successful allocations | 27 registrations in table order, 23 distinct descriptor identities, one four-byte allocation per entry |
+| EC70 | compare `color`, `color255`, `colour`, `colour255` registrations | four different descriptor objects with identical descriptor address and handler; no alias-specific object field |
+| EC71 | compare `alpha` and `alpha255` registrations | different descriptor objects, both `00A9FB58` and handler `0059C060`; neither is a block command |
