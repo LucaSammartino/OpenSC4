@@ -1,18 +1,100 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-rz-sparsematrix4: bounded sparse matrix, original R2 | Codex; core-rz-sparsematrix4 | WIP: quick PASS/0; corrected-source Rust 5393/0 incl. 21 sparse tests, clippy clean; canonical all live in stats | Root decision on exact stats PID 4940; preserve/collect same all session 14747; native terminal/CTest unknown |
+| core-rz-sparsematrix4: bounded sparse matrix, original FINAL3/3 | Codex; core-rz-sparsematrix4 | READY: stable all exit 0; Rust 5393/0, 21 sparse tests, clippy 0, native PASS, CTest 68/68 | Normal merge queue; SM1–5 and attribution denominator remain open |
 
-## Handoff
+## Report
 
-- Original FINAL3/3, two rounds consumed; no fourth round or new family.
-- Goal: qualify unchanged engine `57061af0` with a genuine terminal all gate.
-- R2 report and copied eligibility/process evidence reviewed; no retained complete all verdict found.
-- Initial CIM inspection was denied; targeted psutil inspection is next. No liveness conclusion from denial.
-- Next: inspect current own checker/cache chain and retained logs; archive evidence, then run one serial canonical all only if no legitimate checker/result remains.
-- Preserve 21 tests, MSRV-safe CAS, SM1–5, unreconciled 39/21 census, native ownership limits.
-- No game request outstanding; standalone core, ABI unchanged.
+Original FINAL3/3, following two consumed rounds; no fourth round or new
+family. This round changes only this report. The bounded core implementation
+`17001ed9` and MSRV-safe checked CAS correction `4c22040f` are preserved, with
+no algorithm, test, formatting, CAPI, plugin, ABI, defaults or map expansion.
+Dependency `d060ac63` is an ancestor of the measured HEAD (exit 0).
 
-## Retained R2 report
+### Final stable-source qualification
+
+The one authorized serial canonical `qbuild all` completed **PASS, exit 0**
+on clean committed HEAD `d01cf994c4b61db584859eb92bb7ba2685dbb332`, engine tree
+`57061af0d159dc2c7803383c212fb04e8ca0c300`. The collector retained the actual
+yielded session **82154** through terminal completion. HEAD, engine tree,
+tracked status and both own Rust file hashes matched before/after; no tracked
+edit occurred during validation. Subsequent report-only commits preserve the
+qualified engine. No baseline, quick, focused tests or additional all was run
+in this round.
+
+- Workspace Rust: **5393 passed, 0 failed, 0 ignored**, 23 result summaries;
+  all **21 independent sparse tests** explicitly passed.
+- Clippy `-D warnings`: **exit 0, diagnostics 0**.
+- Native: **PASS, 2/2 edges**, 1.1 s; successful fc4verify/qbuild terminal exits
+  establish native success, not merely the last linker line.
+- CTest: **68/68 passed, 0 failed**, 133.46 s in the CTest log; fc4verify
+  **PASS** (137.0 s), then qbuild **PASS**.
+- Existing R2 fmt result remains exit 0 for both own Rust files; neither
+  source nor formatting changed in FINAL3.
+
+Durable ignored evidence: `build-runs/r3-canonical-all/result.json` includes
+command, collector/qbuild identities, start/end, actual exit, source identities,
+log byte counts/SHA-256, stability and verdict. `console.log` retains the actual
+terminal output. `prior/` archives the overwritten R2 fixed logs with hashes;
+`final/` archives this gate's logs. Independent count audit:
+`build-runs/r2-all-final3-terminal-audit.json`.
+
+| Evidence | SHA-256 |
+|---|---|
+| rz_sparse_matrix.rs | b5d8fabae2d79a27417d2671b7bbffa28885491d79d246d289fe7a067c3d7944 |
+| rz_sparse_matrix/tests.rs | 8aa5a641e588952e67bfd090a0618a1ccc1e30e39a5434954bcfb7b6831af0ce |
+| qbuild-test.log | 9723cd05fa69a808a98779e2a4c4e557cc1cc8ad9e3f1d91549a7b18af738417 |
+| qbuild-clippy.log | 0c092280d80fed98a228b6bdba89b08111c4c0b69bfb6bb0c6ca36af294c8501 |
+| fc4verify-build.log | b0325ba75883d9312ba03a822facf33b92609004bba5c2537e2cc49e66ae317f |
+| fc4verify-ctest.log | cd0f7753433cf7caae70a813ac2823cc77cfedb44f8c87ed636825269dcb22f5 |
+| terminal console.log | 0f063fda060e563044409efae3ebe73d6de2a6fefa11e6f48bb3cfe896046502 |
+
+### Why a new final gate was necessary
+
+The report-only changes after R2 `e7ed6166` did not invalidate its engine.
+However, neither copied eligibility nor retained own audits contained a genuine
+terminal result for all session14747. Its native RC/all exit remain **UNKNOWN**;
+CTest was absent/unrun. FINAL3's initial CIM query was denied; the subsequent
+read-only psutil snapshot at 04:20:00 UTC found known old backend19460,
+qbuild13496, fc29412, stats4940, daemon28648 and conhost37924 absent, no 4713
+listener and no legitimate own checker. Own hits were only this round's
+transport/shell; Codex cwd/open-files were AccessDenied. No exhaustive global
+handle assertion follows. Details: `build-runs/r3-initial-inspection.json`.
+Absence and a lost handle establish neither cause nor failure/success. Only
+after this current inspection was the single new all admitted. A later owned
+snapshot `r2-stall-r3-final.json` showed that SAME all in CTest, not stats.
+
+Coordinator action is explicitly distinguished: earlier QUICK stats33108 was
+terminated by ROOT at **04:52:14.339806–04:52:15.442573 BST**, exit15, while
+SAME fc34652/qbuild29848 and daemon28648 stayed alive. Exact evidence is
+`coordinator-optional-stats-20261023-045212.json`. Cache stats were unavailable;
+cause UNKNOWN. No daemon/compiler/validator kill or checker restart occurred.
+Earlier R1 stats21872 was already absent and ROOT **did not touch it**. Later
+R2 final stats4940 is absent with ending cause **UNKNOWN** and no proved
+intervention. The quick intervention does not establish any final-gate repair.
+This lane performed no process kill, cache RPC or daemon restart.
+
+Historical raw model rollout `thread not found` ERROR at **04:09:59 UTC** and
+the earlier duplicate-target patch-verification failure remain part of the
+original record, distinct from actual R2 raw SUCCESS/WIP and this final gate's
+PASS. No raw record was rewritten or upgraded to success.
+
+### Scope, questions and landing
+
+The 21 independently qualified literal SM-V1–13 tests, alias ordering,
+overflow, sentinels and null-identity domain are unchanged. No new tests or
+matrix family/features were added. Game/shadow **n/a** for this standalone
+core; no request was made and no real-game exactness claim follows. CTest
+success grants no native algorithm/owner/default/byte coverage credit.
+
+**SM1–5 remain open** in `docs/specs/questions/rz-sparse-matrix.md`; no new
+question was needed. Public **39/3358** versus the named **21/1948** body census
+remains **UNRECONCILED**. Foreign containers, failures and lifetime behavior
+remain unsupported; no full-owner/native/default promotion. ABI unchanged.
+Ready for the normal own merge queue with this bounded scope and the actual
+stable-source gate. No automatic fourth round; unresolved spec questions are
+future work subject to separate authorization.
+
+## Historical R2 report (state at its stop, superseded by FINAL3 above)
 
 Original round 2, not a new lane/family. Started clean at detached
 `b94fe174f1c65a9a3b2a0dac5abfa74e92b69c6d`, engine tree
