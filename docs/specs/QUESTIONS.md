@@ -138,6 +138,7 @@ generated index: the questions live one file per spec, so read only the file for
 | Q | network-transport |
 | QR | region-screen |
 | QV | map-view |
+| RA | radio |
 | RB | rigid-body-2d |
 | RC | resource-catalog |
 | RD | renderer-driver |
@@ -311,6 +312,7 @@ generated index: the questions live one file per spec, so read only the file for
 | prop-lotconfig | 8 | 8 | PL24 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
+| radio | 4 | 0 | RA5 | questions/radio.md |
 | region | 2 | 0 | RQ3 | questions/region.md |
 | region-city-dialogs | 12 | 0 | CY13 | questions/region-city-dialogs.md |
 | region-model | 13 | 1 | RM15 | questions/region-model.md |
@@ -367,4 +369,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **612** | **1359** | | |
+| **total** | **616** | **1359** | | |

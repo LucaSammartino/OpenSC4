@@ -10312,7 +10312,12 @@ va	name	source	confidence	note
 0080eba0	cSC4OrdinanceTrashPresort::Shutdown	auto:C	high	mac 00532d74 score 1.0 support 1
 0080ebe0	cSC4OrdinanceTrashPresort::GetCurrentMonthlyIncome	auto:A	high	mac 00532de6 score 1.0 support 0
 0080ec90	cSC4OrdinanceTrashPresort::CheckConditions	auto:C	high	mac 00532e94 score 1.0 support 1
+0080eea0	cSC4MadCowPlayerWin::QueryInterface	manual:radio.tsv	high	intro-video-player.md §1 (IID 0x452294AA)
+0080fb60	cSC4MadCowPlayerWin::CreateSurface	manual:radio.tsv	high	intro-video-player.md §2
+0080fc30	cSC4MadCowPlayerWin::OnAppActivate	manual:radio.tsv	high	intro-video-player.md §3
 0080ffc0	cSC4MadCowPlayerWin::SetAudioEnabled	auto:B1	low	mac 00446446 score 0.898 support 1.0
+008101b0	cSC4MadCowPlayerWin::Shutdown	manual:radio.tsv	high	intro-video-player.md §4
+008102d0	cSC4MadCowPlayerWin::StopPlayback	manual:radio.tsv	high	intro-video-player.md §4 (called by StopMovie)
 008103e0	cSC4MadCowPlayerWin::StopMovie	auto:B1	medium	mac 0044644c score 0.895 support 1.0
 008128a0	cRZURL::~cRZURL	auto:B3	medium	mac 006a885a score 0.913 support 6.0
 00813bf7	lib::Catch@00813bf7	library	medium	Function ID
@@ -11974,19 +11979,23 @@ va	name	source	confidence	note
 008d2c5f	cRZRadio::SetVolume	auto:A	high	mac 0036bb6e score 1.0 support 0
 008d2c7d	cRZRadio::OnIdle	auto:A	high	mac 0036b96a score 0.5 support 0
 008d2c96	std::find<__gnu_cxx::__normal_iterator<cIGZRadioStation**,std::vector<cIGZRadioStation*,std::allocator<cIGZRadioStation*>>>,cIGZRadioStation*>	auto:B1	medium	mac 00735e42 score 0.883 support 1.0
-008d2cfd	cRZDiskRadioStation::OnIdle	auto:C	high	mac 0036883c score 1.0 support 1
+008d2cfd	cRZDiskRadioStation::OnIdle	manual:radio.tsv	high	radio.md §3.2 (4000 ms gap)
 008d2e5f	cRZDiskRadioStation::GetStationCallSign	auto:C	high	mac 00367cea score 1.0 support 1
 008d2e88	cRZDiskRadioStation::GetStationDescription	auto:C	high	mac 00368aa2 score 1.0 support 1
-008d2eb0	cRZDiskRadioStation::IsCycleTypePresent	auto:C	high	mac 00368284 score 1.0 support 1
+008d2eb0	cRZDiskRadioStation::IsCycleTypePresent	manual:radio.tsv	high	radio.md §3.2 (option 2 for jingles)
 008d2f21	cRZRadio::TurnOn	auto:C	high	mac 003686d4 score 1.0 support 1
 008d2f97	cRZRadio::Mute	auto:C	high	mac 0036babc score 1.0 support 1
+008d2fdc	cRZRadio::SetVolumeLevel	manual:radio.tsv	high	radio.md §2.3 (cIGZRadio slot 16; clamps to 0x400)
 008d300b	cRZRadio::GetCurrentStation	auto:C	high	mac 003686a4 score 1.0 support 1
 008d3025	cRZRadio::GetCurrentStation	auto:C	high	mac 0036865a score 1.0 support 1
 008d3048	cRZRadio::SetStation	auto:C	high	mac 00368af2 score 1.0 support 1
+008d3066	cRZRadio::SelectStation	manual:radio.tsv	high	radio.md §2.6 (cIGZRadio slot 14)
 008d30c7	cRZRadio::GetStationCount	auto:C	low	mac 00368ae4 score 1.0 support 1
+008d30d1	cRZRadio::OnIdleTick	manual:radio.tsv	high	radio.md §2.6 (cIGZRadio slot 5)
 008d3122	__ZThn28_N8cRZRadio12StopPlaybackEv	auto:B0	low	mac 007376be score 0.96 support 1.0
 008d312a	__ZThn28_N8cRZRadio12PlayNextSongEb	auto:B0	low	mac 007376c8 score 0.96 support 1.0
-008d319b	cRZRadio::DoEvent	auto:A	high	mac 003683e4 score 0.882 support 0
+008d3132	cRZRadio::StartFile	manual:radio.tsv	high	radio.md §2.1 (event 0xEAB186DF)
+008d319b	cRZRadio::DoEvent	manual:radio.tsv	high	radio.md §2.1
 008d3333	std::vector<float,std::allocator<float>>::erase	auto:D	medium	mac 006ef382 score 0.5 support 1
 008d335b	std::find<__gnu_cxx::__normal_iterator<cIGZRadioStation**,std::vector<cIGZRadioStation*,std::allocator<cIGZRadioStation*>>>,cIGZRadioStation*>	auto:B0	medium	mac 00735efc score 0.939 support 2.0
 008d338f	cRZDiskRadioStation::MoveToNextPlaylistItem	auto:C	high	mac 0036832a score 1.0 support 1
@@ -12016,14 +12025,15 @@ va	name	source	confidence	note
 008d3e7e	cRZDiskRadioStation::PlayWelcome	auto:A	high	mac 0036b6f8 score 1.0 support 0
 008d3ee0	cRZDiskRadioStation::DoesFileExist	auto:B0	medium	mac 0036b454 score 0.995 support 2.0
 008d3f8e	cRZDiskRadioStation::PlayNextSelectionNotOnExclusionList	auto:C	high	mac 0036b52e score 1.0 support 1
-008d4127	cRZDiskRadioStation::StartPlayingNextSelectionOfGivenType	auto:C	high	mac 0036b154 score 1.0 support 1
+008d4127	cRZDiskRadioStation::StartPlayingNextSelectionOfGivenType	manual:radio.tsv	high	radio.md §3.3
 008d4317	cRZDiskRadioStation::ShufflePlaylist	auto:C	high	mac 0036aa32 score 1.0 support 1
 008d4579	cRZDiskRadioStation::ReadCallSignFromDisk	auto:B5	medium	mac 0036a786 score 0.939 support 6.0
 008d4687	cRZRadio::Init	auto:B1	medium	mac 0036a44a score 0.952 support 3.5
 008d484a	cRZRadio::GetStation	auto:C	high	mac 00368b7e score 1.0 support 1
 008d490b	cRZRadio::GetStation	auto:C	high	mac 003697f0 score 1.0 support 1
-008d49f8	cRZRadio::SetupDiskStations	auto:B3	medium	mac 00369a9a score 0.95 support 4.0
+008d49f8	cRZRadio::SetupDiskStations	manual:radio.tsv	high	radio.md §2.4
 008d5092	cRZRadio::GetCurrentSong	auto:C	high	mac 00369a6e score 1.0 support 1
+008d50aa	cRZRadio::SetCurrentSong	manual:radio.tsv	high	radio.md §2.1 (cIGZRadio slot 33)
 008d51db	__ZThn28_N8cRZRadio4InitEv	auto:B2	low	mac 007367fa score 0.96 support 1.0
 008d51fc	std::vector<cGZPlayListEntry,std::allocator<cGZPlayListEntry>>::~vector	auto:B0	medium	mac 0073641a score 0.897 support 2.0
 008d5409	cRZDiskRadioStation::SetModifierList	auto:C	high	mac 0036a704 score 1.0 support 1
@@ -12039,9 +12049,9 @@ va	name	source	confidence	note
 008d6196	cGZPlayList::_AddNextPathSegment	auto:B3	medium	mac 00371d86 score 0.951 support 3.0
 008d6258	cGZPlayList::_GetLine	auto:B0	medium	mac 00371f3e score 0.968 support 3.0
 008d6352	cGZPlayList::_MakeAbsolutePath	auto:B2	medium	mac 00371e5e score 0.964 support 4.0
-008d64e3	cGZPlayList::_ParseExtM3UFormat	auto:A	high	mac 00372456 score 1.0 support 0
-008d66c9	cGZPlayList::_ParseM3UFormat	auto:B1	medium	mac 0037262e score 0.986 support 3.0
-008d6824	cGZPlayList::_ParsePLSFormat	auto:A	high	mac 00372088 score 1.0 support 0
+008d64e3	cGZPlayList::_ParseExtM3UFormat	manual:radio.tsv	high	radio.md §4
+008d66c9	cGZPlayList::_ParseM3UFormat	manual:radio.tsv	high	radio.md §4
+008d6824	cGZPlayList::_ParsePLSFormat	manual:radio.tsv	high	radio.md §4
 008d6b22	cGZPlayList::Open	auto:A	high	mac 003727f0 score 1.0 support 0
 008d6cf0	RZDrawDrawCircle	auto:B2	medium	mac 004752d4 score 0.929 support 2.0
 008d8760	(anonymous_namespace)::drr_get_color	auto:B2	medium	mac 007efa04 score 0.994 support 1.0

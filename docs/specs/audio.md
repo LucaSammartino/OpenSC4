@@ -139,7 +139,7 @@ marked.
 | EA sound library (SNDSYS / AEMS) | the unnamed range `0x00864000`–`0x00879000`, `cSC4AudioAEMSEventSystem` | §10.2 |
 | Hit (sequenced music and tracks) | `cHitMan` (`0x7B1BD993`), `cHitTrackPlayer` | [hit-music.md](hit-music.md) |
 | freshness (adaptive score) | `cFreshPlayer`, `cFreshScore`, `cFreshCell` | [freshness.md](freshness.md) |
-| radio | `cRZRadio` (`0x5CFBDBBF`), `cRZDiskRadioStation` (`0x5CFBDBD5`) | §11 (boundary only) |
+| radio | `cRZRadio` (`0x5CFBDBBF`), `cRZDiskRadioStation` (`0x5CFBDBD5`) | [radio.md](radio.md) |
 | SC4 audio managers | `cSC4AudioSoundManager` and the other §1.2 classes | **§5–§9** |
 
 ---

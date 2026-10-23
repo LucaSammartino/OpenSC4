@@ -331,12 +331,12 @@ cFreshPlayer	audio	audio	sound-system.md	-	-	-
 cFreshCellPlayer	audio	audio	sound-system.md	-	-	-
 cFreshnessCOMDirector	audio	audio	sound-system.md	-	-	-
 cFresh*	audio	audio	freshness.md	-	-	-
-cRZRadio	audio	audio	-	-	-	-
-cRZDiskRadioStation	audio	audio	-	-	-	-
+cRZRadio	audio	audio	radio.md	-	-	-
+cRZDiskRadioStation	audio	audio	radio.md	-	-	-
 cGZPlayList	audio	audio	sound-system.md	-	-	-
 cSC4SoundDescription	audio	audio	audio.md	-	-	-
 tSound	audio	audio	-	-	-	-
-cSC4MadCowPlayerWin	audio	audio	-	-	-	-
+cSC4MadCowPlayerWin	audio	audio	intro-video-player.md	-	-	-
 # cGroupLayer: the sound group layer under the ambience layer (every caller is cSC4AudioAmbienceLayer)
 cGroupLayer	audio	audio	-	-	-	-
 # ---- renderer
