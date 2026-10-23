@@ -11,6 +11,9 @@ use super::*;
 #[path = "contract_tests.rs"]
 mod contract_tests;
 
+#[path = "owner_tests.rs"]
+mod owner_tests;
+
 #[derive(Clone)]
 struct MockFace {
     family: String,

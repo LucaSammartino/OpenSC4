@@ -6,6 +6,9 @@
 - Goal: close cGZFont in portable core; no plugin/capi/ABI changes.
 - Existing module: engine/core/src/fonts (14 Rust files); no module README yet.
 - Worktree reused with detached HEAD, initially clean; do not switch branches.
-- Read rules and lane reporting format; spec read through section 6.
-- Next: inspect implementation and remaining cGZFont spec sections, then implement uncovered behavior.
+- Audited cGZFont sections 1–11 and existing questions FN18–FN22. README now maps the owner by section.
+- Added seven owner tests; first focused run 6 passed / 1 failed, reproducing missing detach on Rust drop.
+- Failed evidence: build-runs/q/20261023-133322-9816.log (source before Drop fix).
+- Fixed GzFont Drop to call Shutdown before dropping foreign references; no plugin/capi/ABI changes.
+- Next: final formatting check and full qbuild all on stable source, then report residual FN18–FN22 honestly.
 - No game request outstanding. Full final qbuild all still required.
