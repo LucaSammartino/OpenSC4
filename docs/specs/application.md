@@ -716,8 +716,11 @@ collision suffix selection. These are filename rules, not validation of the base
 The internals of the font-style parser and resource factories called by section 14.2,
 the scoped object `0x005F88A0`, city
 vtable slots +0x1A4 (blocks saving), +0x3C, +0x30, +0x14, the message `0x26C63346` name, and the rest of
-cSC4App's 322 functions (this spec covers about 57). Not covered at all: cWinSC4App, the COM directors,
-cSC4Preferences, cSC4AutoGamePause. The distinct cSC4GameDataRegistry owner now has a
+cSC4App's 322 functions (this spec covers about 57). Not covered here: cWinSC4App,
+cSC4Preferences, cSC4AutoGamePause. The bootstrap COM directors now have a
+[director/registry dispatch contract](app-directors.md), including method inventories,
+class tables and lifecycle vectors; registered-service internals remain in their linked owner specs.
+The distinct cSC4GameDataRegistry owner now has a
 [first bounded contract](game-data-registry.md), including its per-body evidence and remaining unknowns;
 it is not included in this cSC4App function count. Questions: docs/specs/questions/application.md (AP3 to AP11).
 
