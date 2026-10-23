@@ -11,6 +11,11 @@
 - Focused terminal result: `focused-20261023-073119.log`, RC101, 19 pass/7 fail (old contrary assumptions); corrected expectations explicitly DIFFERS, old source retained in Git.
 - Next focused terminal result: `focused-20261023-073916.log`, RC101, private qualified_matrix method compiler error; fixed visibility, no check currently live.
 - q.py Bash wrapper failed E_ACCESSDENIED; preserved `build-runs/q/20261023-072447-16880.log`; direct cargo used for focused fixture.
-- Next: collect focused fixtures after visibility fix, finish typed explicit-stage binding/combiner calls and lifecycle, format owned files, commit stable source, ONE canonical all.
+- Second milestone `4ce63ec0`: ordered cache/typed returned status, shade, compact and raw paths with independent fixtures.
+- Focused `focused-20261023-074238.log`: RC101, 27 pass/1 fail (direct-alpha old equality assumption), corrected DIFFERS.
+- Focused `focused-20261023-075042.log`: terminal RC0, 30 owned tests passed; three integration binaries each 0 matched tests. No process outstanding.
+- Finished explicit stage texture/combiner arguments, exact signed default replay, shutdown/property-link retention, matrix-unloaded getter, constructor identity/white details, byte lighting cache, finite qualified shade/fade math.
+- Formatting: qbuild fmt nine explicit owned files passed before final scalar edits; final small formatting diagnostic applied in place.
+- Next: ONE canonical all on stable committed source; `build-runs/gate-draw.py` records own PID/creation/argv/cwd/source identities/log/terminal RC, then aggregate every test summary and native gate component.
 - No full gate or game requests launched. No ABI changes.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-draw-context-contracts4-r1-manifest.json`.

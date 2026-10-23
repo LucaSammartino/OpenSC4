@@ -5,7 +5,7 @@ impl<D: Driver> DrawContext<D> {
     pub fn set_texture(&mut self, texture: Option<TextureRef>, stage: usize) -> Result<(), Error> {
         self.stage(stage)?;
         if self.reaches_driver(stage) {
-            self.emit(Command::Texture(texture.clone()))?;
+            self.emit(Command::Texture(texture.clone(), stage))?;
         }
         self.stages[stage].texture = texture;
         self.stages[stage].texture_known = true;
@@ -73,10 +73,10 @@ impl<D: Driver> DrawContext<D> {
             self.select(stage)?;
             self.emit(Command::TexMatrix(Some(matrix)))?;
         }
-        self.stages[stage].transform = Some(matrix);
         if stage == 1 {
             self.stages[stage].saved_matrix = matrix;
         }
+        self.stages[stage].transform = Some(self.stages[stage].saved_matrix);
         self.stages[stage].transform_known = true;
         Ok(())
     }
@@ -118,14 +118,13 @@ impl<D: Driver> DrawContext<D> {
         Ok(())
     }
 
-    /// Arbitrary caller-supplied driver records are opaque. This does not stand
-    /// in for the incomplete, owned default/highlight records (DC4).
+    /// Complete twelve-byte opaque record, submitted without selection or gate.
     pub fn set_tex_combiner(&mut self, record: &[u8], stage: usize) -> Result<(), Error> {
         self.stage(stage)?;
         if record.len() != 12 {
             return Err(Error::InvalidValue);
         }
-        self.emit(Command::Combiner(record.to_vec()))?;
+        self.emit(Command::Combiner(record.to_vec(), stage))?;
         if stage <= 1 {
             let shift = if stage == 0 { 25 } else { 29 };
             self.word = (self.word & !(7 << shift)) | (4 << shift);
@@ -146,15 +145,15 @@ impl<D: Driver> DrawContext<D> {
             return Ok(());
         }
         let stage = self.stages[1].clone();
-        // DC5: copying unknown defaults cannot fabricate effective values.
+        // Portable representation checks, not native index/pointer guards.
         if !stage.texture_known || !stage.transform_known {
-            return Err(Error::Gap(ContractGap::StageDefaults));
+            return Err(Error::InvalidValue);
         }
-        let coord = stage.coordinate_set.ok_or(Error::Gap(ContractGap::StageDefaults))?;
-        let s = stage.wrap[0].ok_or(Error::Gap(ContractGap::StageDefaults))?;
-        let t = stage.wrap[1].ok_or(Error::Gap(ContractGap::StageDefaults))?;
-        let mag = stage.filter[0].ok_or(Error::Gap(ContractGap::StageDefaults))?;
-        let min = stage.filter[1].ok_or(Error::Gap(ContractGap::StageDefaults))?;
+        let coord = stage.coordinate_set.ok_or(Error::InvalidValue)?;
+        let s = stage.wrap[0].ok_or(Error::InvalidValue)?;
+        let t = stage.wrap[1].ok_or(Error::InvalidValue)?;
+        let mag = stage.filter[0].ok_or(Error::InvalidValue)?;
+        let min = stage.filter[1].ok_or(Error::InvalidValue)?;
         self.set_texture(stage.texture, 0)?;
         self.set_tex_coord(coord, 0)?;
         self.set_tex_wrap(s, t, 0)?;

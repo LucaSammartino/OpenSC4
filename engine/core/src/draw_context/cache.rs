@@ -183,28 +183,49 @@ impl<D: Driver> DrawContext<D> {
             self.emit(Command::DepthMask(target & 2 != 0))?;
         }
         if changed & 4 != 0 {
-            self.emit(Command::Capability { capability: 1, enabled: target & 4 != 0 })?;
+            self.emit(Command::Capability {
+                capability: 1,
+                enabled: target & 4 != 0,
+            })?;
         }
         if changed & 8 != 0 {
-            self.emit(Command::Capability { capability: 0, enabled: target & 8 != 0 && !self.properties.force_no_alpha_test })?;
+            self.emit(Command::Capability {
+                capability: 0,
+                enabled: target & 8 != 0 && !self.properties.force_no_alpha_test,
+            })?;
         }
         if changed & 16 != 0 {
-            self.emit(Command::Capability { capability: 4, enabled: target & 16 != 0 && !self.properties.force_no_blend })?;
+            self.emit(Command::Capability {
+                capability: 4,
+                enabled: target & 16 != 0 && !self.properties.force_no_blend,
+            })?;
         }
         if changed & 32 != 0 {
-            self.emit(Command::Capability { capability: 5, enabled: target & 32 != 0 })?;
+            self.emit(Command::Capability {
+                capability: 5,
+                enabled: target & 32 != 0,
+            })?;
         }
         if changed & 64 != 0 {
-            self.emit(Command::Capability { capability: 3, enabled: target & 64 != 0 })?;
+            self.emit(Command::Capability {
+                capability: 3,
+                enabled: target & 64 != 0,
+            })?;
         }
         if changed & (7 << 7) != 0 {
             self.emit(Command::DepthFunc(((target >> 7) & 7) as u8))?;
         }
         if changed & ((7 << 10) | (15 << 21)) != 0 {
-            self.emit(Command::AlphaFunc { function: ((target >> 10) & 7) as u8, reference: ((target >> 21) & 15) as f32 * f32::from_bits(0x3d88_8889) })?;
+            self.emit(Command::AlphaFunc {
+                function: ((target >> 10) & 7) as u8,
+                reference: ((target >> 21) & 15) as f32 * f32::from_bits(0x3d88_8889),
+            })?;
         }
         if changed & (255 << 13) != 0 {
-            self.emit(Command::BlendFunc { source: ((target >> 13) & 15) as u8, destination: ((target >> 17) & 15) as u8 })?;
+            self.emit(Command::BlendFunc {
+                source: ((target >> 13) & 15) as u8,
+                destination: ((target >> 17) & 15) as u8,
+            })?;
         }
         if changed & (7 << 25) != 0 {
             self.emit(Command::TexEnv(((target >> 25) & 7) as u8))?;
@@ -212,7 +233,10 @@ impl<D: Driver> DrawContext<D> {
         if changed & (15 << 28) != 0 && self.properties.use_second_stage {
             self.select(1)?;
             if changed & (1 << 28) != 0 {
-                self.emit(Command::Capability { capability: 5, enabled: target & (1 << 28) != 0 })?;
+                self.emit(Command::Capability {
+                    capability: 5,
+                    enabled: target & (1 << 28) != 0,
+                })?;
             }
             if changed & (7 << 29) != 0 {
                 self.emit(Command::TexEnv(((target >> 29) & 7) as u8))?;
@@ -238,7 +262,7 @@ impl<D: Driver> DrawContext<D> {
         }
         // Reconstruct only after the entire ungated driver loop (DC6/DC7).
         for stage in 0..self.stages.len() {
-            self.stages[stage] = Stage::unpublished_default();
+            self.stages[stage] = Stage::default_record();
         }
         self.word = !self.default_state.value;
         self.set_render_state(self.default_state)

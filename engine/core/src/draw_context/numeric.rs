@@ -20,7 +20,10 @@ fn dyadic(value: f64) -> Result<(i128, i32), Error> {
     if bits >> 63 != 0 {
         significand = -significand;
     }
-    Ok(normalize(significand, if exponent == 0 { -1074 } else { exponent - 1075 }))
+    Ok(normalize(
+        significand,
+        if exponent == 0 { -1074 } else { exponent - 1075 },
+    ))
 }
 
 fn normalize(mut significand: i128, mut exponent: i32) -> (i128, i32) {
@@ -45,11 +48,20 @@ fn admit(significand: i128, exponent: i32) -> Result<(), Error> {
 pub(super) fn add(a: f64, b: f64) -> Result<f64, Error> {
     let (left, le) = dyadic(a)?;
     let (right, re) = dyadic(b)?;
-    if left == 0 { return Ok(b); }
-    if right == 0 { return Ok(a); }
+    if left == 0 && right == 0 {
+        return Ok(a + b);
+    }
+    if left == 0 {
+        return Ok(b);
+    }
+    if right == 0 {
+        return Ok(a);
+    }
     let exponent = le.min(re);
     let shift = |value: i128, count: i32| {
-        1_i128.checked_shl(count as u32).and_then(|factor| value.checked_mul(factor))
+        1_i128
+            .checked_shl(count as u32)
+            .and_then(|factor| value.checked_mul(factor))
     };
     let sum = shift(left, le - exponent)
         .and_then(|l| shift(right, re - exponent).and_then(|r| l.checked_add(r)))
@@ -66,9 +78,13 @@ pub(super) fn mul(a: f64, b: f64) -> Result<f64, Error> {
 }
 
 pub(super) fn store(value: f64) -> Result<f32, Error> {
-    if !value.is_finite() { return Err(Error::UnsupportedNumeric); }
+    if !value.is_finite() {
+        return Err(Error::UnsupportedNumeric);
+    }
     let result = value as f32;
-    if !result.is_finite() { return Err(Error::UnsupportedNumeric); }
+    if !result.is_finite() {
+        return Err(Error::UnsupportedNumeric);
+    }
     Ok(result)
 }
 
@@ -79,4 +95,28 @@ pub(super) fn reciprocal(scale: f32) -> Result<f64, Error> {
         return Err(Error::UnsupportedNumeric);
     }
     Ok(1.0 / f64::from(scale))
+}
+
+pub(super) fn material_threshold(threshold: u8) -> f32 {
+    if threshold == 0 {
+        return 0.0;
+    }
+    // Public binary64 0x3F70101010101010 = 0x10101010101010 * 2^-60.
+    // The byte product has <=61 bits, hence is exact at x87 precision 64.
+    // Round that rational directly to binary32; no binary64 double rounding.
+    let product = u64::from(threshold) * 0x0010_1010_1010_1010;
+    let top = 63 - product.leading_zeros();
+    let shift = top - 23;
+    let mut significand = product >> shift;
+    let remainder = product & ((1_u64 << shift) - 1);
+    let half = 1_u64 << (shift - 1);
+    if remainder > half || (remainder == half && significand & 1 != 0) {
+        significand += 1;
+    }
+    let mut exponent = top as i32 - 60 + 127;
+    if significand == 1 << 24 {
+        significand >>= 1;
+        exponent += 1;
+    }
+    f32::from_bits(((exponent as u32) << 23) | (significand as u32 & 0x007f_ffff))
 }

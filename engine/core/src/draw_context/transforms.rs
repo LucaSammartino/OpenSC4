@@ -47,6 +47,7 @@ impl<D: Driver> DrawContext<D> {
         }
         // Complete owner stores precede the driver. No MatrixMode call here.
         self.matrix = self.composed.qualified_matrix()?;
+        self.matrix_loaded = true;
         self.emit(Command::LoadMatrix(self.matrix))?;
         self.model_view_valid = model.is_none();
         Ok(())
@@ -70,7 +71,11 @@ impl<D: Driver> DrawContext<D> {
                     mul(f64::from(self.composed.rotation[row][2]), f64::from(input[8 + col]))?,
                     mul(f64::from(self.composed.translation[row]), f64::from(input[12 + col]))?,
                 ];
-                let sum = if col == 0 { add(add(add(p[1], p[3])?, p[2])?, p[0])? } else { add(add(add(p[2], p[1])?, p[0])?, p[3])? };
+                let sum = if col == 0 {
+                    add(add(add(p[1], p[3])?, p[2])?, p[0])?
+                } else {
+                    add(add(add(p[2], p[1])?, p[0])?, p[3])?
+                };
                 matrix[4 * col + row] = store(sum)?;
             }
         }
@@ -78,13 +83,17 @@ impl<D: Driver> DrawContext<D> {
             let sum = if col == 0 {
                 add(add(f64::from(input[4]), f64::from(input[0]))?, f64::from(input[8]))?
             } else {
-                add(add(f64::from(input[col]), f64::from(input[8 + col]))?, f64::from(input[4 + col]))?
+                add(
+                    add(f64::from(input[col]), f64::from(input[8 + col]))?,
+                    f64::from(input[4 + col]),
+                )?
             };
             // Keep explicit zero multiplication; nonfinite input is outside the
             // qualified domain, never silently simplified to input[12+col].
             matrix[4 * col + 3] = store(add(mul(sum, 0.0)?, f64::from(input[12 + col]))?)?;
         }
         self.matrix = matrix;
+        self.matrix_loaded = true;
         self.emit(Command::LoadMatrix(self.matrix))?;
         self.model_view_valid = false;
         Ok(())
@@ -107,7 +116,15 @@ impl<D: Driver> DrawContext<D> {
     }
 
     pub fn set_shade(&mut self, rgb: Rgb) -> Result<(), Error> {
-        let color = std::array::from_fn(|index| rgb[index] * self.default_shade[index]);
+        self.ready()?;
+        self.qualified_numeric()?;
+        let mut color = [0.0; 3];
+        for (index, value) in color.iter_mut().enumerate() {
+            *value = numeric::store(numeric::mul(
+                f64::from(rgb[index]),
+                f64::from(self.default_shade[index]),
+            )?)?;
+        }
         self.set_self_lit_shade(color)
     }
 
@@ -134,7 +151,12 @@ impl<D: Driver> DrawContext<D> {
             None => self.default_shade,
         };
         let color = if let Some(tint) = tint {
-            std::array::from_fn(|index| light[index] * tint[index])
+            self.qualified_numeric()?;
+            let mut color = [0.0; 3];
+            for (index, value) in color.iter_mut().enumerate() {
+                *value = numeric::store(numeric::mul(f64::from(light[index]), f64::from(tint[index]))?)?;
+            }
+            color
         } else {
             light
         };
@@ -144,12 +166,18 @@ impl<D: Driver> DrawContext<D> {
     }
 
     pub fn set_lighting_enabled(&mut self, enabled: bool) -> Result<(), Error> {
+        self.turn_on_lighting(u8::from(enabled))
+    }
+
+    pub fn turn_on_lighting(&mut self, enabled: u8) -> Result<(), Error> {
         self.ready()?;
         if enabled == self.lighting_enabled {
             return Ok(());
         }
-        let color = if enabled {
-            self.default_shade = self.lighting.as_ref().ok_or(Error::MissingLighting)?.default_light()?;
+        let color = if enabled != 0 {
+            if let Some(manager) = self.lighting.as_ref() {
+                self.default_shade = manager.default_light()?;
+            }
             self.default_shade
         } else {
             [1.0; 3]

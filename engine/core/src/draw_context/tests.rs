@@ -11,9 +11,17 @@ fn settled_complete_constructor_init_and_stage_records() {
     assert_eq!(*c.default_combiner_bytes(), constructor);
     assert_eq!(*c.highlight_combiner_bytes(), constructor);
     assert_eq!(c.default_shade(), [1.0; 3]);
+    assert_eq!(c.model_transform(), Transform::IDENTITY);
+    assert_eq!(c.composed_transform(), Transform::IDENTITY);
     c.init().unwrap();
-    assert_eq!(*c.default_combiner_bytes(), [2, 0, 1, 1, 0, 1, 3, 1, 0, 0, 0, 0].map(Some));
-    assert_eq!(*c.highlight_combiner_bytes(), [2, 2, 0, 1, 1, 2, 0, 1, 0, 0, 0, 0].map(Some));
+    assert_eq!(
+        *c.default_combiner_bytes(),
+        [2, 0, 1, 1, 0, 1, 3, 1, 0, 0, 0, 0].map(Some)
+    );
+    assert_eq!(
+        *c.highlight_combiner_bytes(),
+        [2, 2, 0, 1, 1, 2, 0, 1, 0, 0, 0, 0].map(Some)
+    );
     for stage in c.stages() {
         assert_eq!(stage.texture.as_ref().unwrap().token, 0xffff_ffff);
         assert!(stage.texture_known && stage.transform_known);
@@ -21,7 +29,10 @@ fn settled_complete_constructor_init_and_stage_records() {
         assert_eq!(stage.wrap, [Some(-1); 2]);
         assert_eq!(stage.filter, [Some(-1); 2]);
         assert_eq!(stage.combiner, [1, 0, 3, 1, 1, 0, 3, 1, 0, 0, 1, 0]);
-        assert_eq!(stage.saved_matrix, [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.]);
+        assert_eq!(
+            stage.saved_matrix,
+            [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.]
+        );
         assert_eq!(stage.transform, None);
     }
 }
@@ -40,7 +51,9 @@ struct Device {
 impl Driver for Device {
     fn submit_returned(&mut self, command: Command) -> Result<NormalReturn, Error> {
         self.submit(command)?;
-        Ok(NormalReturn { register: if self.normal_failure { 99 } else { 0 } })
+        Ok(NormalReturn {
+            register: if self.normal_failure { 99 } else { 0 },
+        })
     }
     fn info(&mut self) -> Result<DriverInfo, Error> {
         self.reads += 1;
@@ -65,7 +78,14 @@ impl Driver for Device {
 
 #[test]
 fn settled_literal_cache_order_suppression_and_normal_returns() {
-    let mut c = DrawContext::new(Device { stage_count: 3, normal_failure: true, ..Device::default() }, props());
+    let mut c = DrawContext::new(
+        Device {
+            stage_count: 3,
+            normal_failure: true,
+            ..Device::default()
+        },
+        props(),
+    );
     c.init().unwrap();
     c.set_tex_coord(0, 0).unwrap();
     assert!(c.driver.commands.is_empty());
@@ -73,7 +93,15 @@ fn settled_literal_cache_order_suppression_and_normal_returns() {
     c.set_tex_coord(3, 0).unwrap();
     c.set_texture(None, 0).unwrap();
     c.set_texture(None, 0).unwrap();
-    assert_eq!(c.driver.commands, [Command::SelectStage(0), Command::TexCoord(3), Command::Texture(None), Command::Texture(None)]);
+    assert_eq!(
+        c.driver.commands,
+        [
+            Command::SelectStage(0),
+            Command::TexCoord(3),
+            Command::Texture(None, 0),
+            Command::Texture(None, 0)
+        ]
+    );
     c.driver.commands.clear();
     c.set_tex_wrap(1, 2, 2).unwrap();
     c.set_tex_filter(0, 4, 2).unwrap();
@@ -82,14 +110,30 @@ fn settled_literal_cache_order_suppression_and_normal_returns() {
     c.set_tex_filter(0, 4, 2).unwrap();
     assert!(c.driver.commands.is_empty());
     c.set_tex_wrap(1, 3, 2).unwrap();
-    assert_eq!(c.driver.commands, [Command::SelectStage(2), Command::TexParameter { parameter: 2, value: 1 }, Command::TexParameter { parameter: 3, value: 3 }]);
+    assert_eq!(
+        c.driver.commands,
+        [
+            Command::SelectStage(2),
+            Command::TexParameter { parameter: 2, value: 1 },
+            Command::TexParameter { parameter: 3, value: 3 }
+        ]
+    );
     c.driver.commands.clear();
     c.set_default_render_state_unilaterally().unwrap();
-    assert_eq!(&c.driver.commands[..9], &[
-        Command::SelectStage(0), Command::TexMatrix(None), Command::TexCoord(0),
-        Command::SelectStage(1), Command::TexMatrix(None), Command::TexCoord(0),
-        Command::SelectStage(2), Command::TexMatrix(None), Command::TexCoord(0),
-    ]);
+    assert_eq!(
+        &c.driver.commands[..9],
+        &[
+            Command::SelectStage(0),
+            Command::TexMatrix(None),
+            Command::TexCoord(0),
+            Command::SelectStage(1),
+            Command::TexMatrix(None),
+            Command::TexCoord(0),
+            Command::SelectStage(2),
+            Command::TexMatrix(None),
+            Command::TexCoord(0),
+        ]
+    );
     assert_eq!(c.state_word(), 0x230a_8587);
     assert_eq!(c.stages[2].wrap, [Some(-1); 2]);
     assert_eq!(c.stages[0].filter, [Some(1), Some(7)]);
@@ -101,7 +145,17 @@ fn settled_transform_duplicate_selection_and_suppressed_clear() {
     let matrix = [2.0; 16];
     c.set_tex_transform(matrix, 0).unwrap();
     c.set_tex_transform(matrix, 0).unwrap();
-    assert_eq!(c.driver.commands, [Command::SelectStage(0), Command::TexCoord(16), Command::SelectStage(0), Command::TexMatrix(Some(matrix)), Command::SelectStage(0), Command::TexMatrix(Some(matrix))]);
+    assert_eq!(
+        c.driver.commands,
+        [
+            Command::SelectStage(0),
+            Command::TexCoord(16),
+            Command::SelectStage(0),
+            Command::TexMatrix(Some(matrix)),
+            Command::SelectStage(0),
+            Command::TexMatrix(Some(matrix))
+        ]
+    );
     assert_eq!(c.stages[0].saved_matrix[0], 1.0);
     c.driver.commands.clear();
     c.set_tex_coord(7, 1).unwrap();
@@ -119,32 +173,72 @@ fn settled_compact_whole_flags_counters_spills_and_raw_scale() {
     c.model_view_valid = true;
     c.model_counter = 7;
     c.composed_counter = 40;
-    c.composed = Transform { scale: 7.0, translation: [10., 20., 30.], flags: 2, ..Transform::IDENTITY };
-    c.set_model_transform(Some(Transform { rotation: [[9.; 3]; 3], translation: [99.; 3], scale: 99., flags: 0 })).unwrap();
+    c.composed = Transform {
+        scale: 7.0,
+        translation: [10., 20., 30.],
+        flags: 2,
+        ..Transform::IDENTITY
+    };
+    c.set_model_transform(Some(Transform {
+        rotation: [[9.; 3]; 3],
+        translation: [99.; 3],
+        scale: 99.,
+        flags: 0,
+    }))
+    .unwrap();
     assert_eq!((c.model_counter, c.composed_counter), (8, 40));
-    assert_eq!(c.matrix, [7., 0., 0., 0., 0., 7., 0., 0., 0., 0., 7., 0., 10., 20., 30., 1.]);
+    assert_eq!(
+        c.matrix,
+        [7., 0., 0., 0., 0., 7., 0., 0., 0., 0., 7., 0., 10., 20., 30., 1.]
+    );
     assert!(!c.model_view_valid);
     c.model_view_valid = true;
-    c.set_model_matrix([1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.]).unwrap();
-    assert_eq!(c.matrix, [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 10., 20., 30., 1.]);
+    c.set_model_matrix([1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.])
+        .unwrap();
+    assert_eq!(
+        c.matrix,
+        [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 10., 20., 30., 1.]
+    );
     assert_eq!((c.model_counter, c.composed_counter), (8, 40));
     c.model_view_valid = true;
     c.composed.flags = 0;
     c.composed_counter = 255;
-    let model = Transform { rotation: [[3., 0., 0.], [0., 3., 0.], [0., 0., 3.]], translation: [4., 5., 6.], scale: 5., flags: 0x80 };
+    let model = Transform {
+        rotation: [[3., 0., 0.], [0., 3., 0.], [0., 0., 3.]],
+        translation: [4., 5., 6.],
+        scale: 5.,
+        flags: 0x80,
+    };
     c.set_model_transform(Some(model)).unwrap();
     assert_eq!(c.composed, model);
     assert_eq!(c.composed_counter, 0);
     assert_eq!(c.matrix[0], 3.0);
 
     // Public DC-V19: Di=1+2^-24; x/y spill after scaling, z before.
-    let view = Transform { rotation: [[1., 1., 0.]; 3], translation: [-3.; 3], scale: 3., flags: 1 };
-    let model = Transform { translation: [1., f32::from_bits(0x3380_0000), 0.], flags: 1, ..Transform::IDENTITY };
+    let view = Transform {
+        rotation: [[1., 1., 0.]; 3],
+        translation: [-3.; 3],
+        scale: 3.,
+        flags: 1,
+    };
+    let model = Transform {
+        translation: [1., f32::from_bits(0x3380_0000), 0.],
+        flags: 1,
+        ..Transform::IDENTITY
+    };
     let composed = view.followed_by(model).unwrap();
     assert_eq!(composed.translation.map(f32::to_bits), [0x3480_0000, 0x3480_0000, 0]);
     // DC-V21: (1+2^-23)(1-2^-24)=1+2^-24-2^-47 -> Q=1.
-    let left = Transform { scale: f32::from_bits(0x3f80_0001), flags: 2, ..Transform::IDENTITY };
-    let right = Transform { scale: f32::from_bits(0x3f7f_ffff), flags: 2, ..Transform::IDENTITY };
+    let left = Transform {
+        scale: f32::from_bits(0x3f80_0001),
+        flags: 2,
+        ..Transform::IDENTITY
+    };
+    let right = Transform {
+        scale: f32::from_bits(0x3f7f_ffff),
+        flags: 2,
+        ..Transform::IDENTITY
+    };
     assert_eq!(left.followed_by(right).unwrap().scale.to_bits(), 0x3f80_0000);
 }
 
@@ -155,7 +249,16 @@ fn settled_numeric_qualification_and_original_alpha_reference() {
     let mut c = context();
     c.set_alpha_func(1, 0.7).unwrap();
     c.set_alpha_func(1, 0.7).unwrap();
-    assert_eq!(c.driver.commands, vec![Command::AlphaFunc { function: 1, reference: 0.7 }; 2]);
+    assert_eq!(
+        c.driver.commands,
+        vec![
+            Command::AlphaFunc {
+                function: 1,
+                reference: 0.7
+            };
+            2
+        ]
+    );
     assert_eq!((c.word >> 21) & 15, 10);
     // Wider cancellation and nonfinite raw zero products are outside exact53,
     // not claimed as portable reproductions of public x87-64 vectors 18/23/24.
@@ -169,7 +272,144 @@ fn settled_numeric_qualification_and_original_alpha_reference() {
     assert_eq!(c.set_model_matrix(raw), Err(Error::UnsupportedNumeric));
     assert_eq!(c.driver.commands.len(), before);
     c.set_numeric_control(NumericControl::Unqualified);
-    assert_eq!(c.set_model_transform(Some(Transform::IDENTITY)), Err(Error::UnsupportedNumeric));
+    assert_eq!(
+        c.set_model_transform(Some(Transform::IDENTITY)),
+        Err(Error::UnsupportedNumeric)
+    );
+}
+
+#[test]
+fn settled_returned_load_failures_retry_and_lifecycle() {
+    let mut c = context();
+    camera(
+        &mut c,
+        Transform {
+            flags: 1,
+            ..Transform::IDENTITY
+        },
+    );
+    c.composed = Transform {
+        flags: 1,
+        ..Transform::IDENTITY
+    };
+    c.model_view_valid = true;
+    c.composed_counter = 40;
+    c.model_counter = 7;
+    c.driver.commands.clear();
+    c.driver.normal_failure = true;
+    c.set_model_transform(Some(Transform {
+        flags: 1,
+        ..Transform::IDENTITY
+    }))
+    .unwrap();
+    assert_eq!(
+        (c.model_counter, c.composed_counter, c.model_view_valid),
+        (8, 41, false)
+    );
+    c.set_model_transform(Some(Transform {
+        flags: 1,
+        ..Transform::IDENTITY
+    }))
+    .unwrap();
+    assert_eq!((c.model_counter, c.composed_counter), (9, 43));
+    assert_eq!(c.driver.commands.len(), 2);
+    assert!(c
+        .driver
+        .commands
+        .iter()
+        .all(|command| matches!(command, Command::LoadMatrix(_))));
+    c.driver.commands.clear();
+    c.model_view_valid = true;
+    c.model_counter = 7;
+    c.composed_counter = 40;
+    let raw = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.];
+    c.set_model_matrix(raw).unwrap();
+    assert_eq!(
+        (c.model_counter, c.composed_counter, c.model_view_valid),
+        (7, 40, false)
+    );
+    c.set_model_matrix(raw).unwrap();
+    assert_eq!((c.model_counter, c.composed_counter), (7, 41));
+    assert_eq!(c.driver.commands, [Command::LoadMatrix(raw), Command::LoadMatrix(raw)]);
+    let stages = c.stages.clone();
+    c.driver.commands.clear();
+    c.shutdown();
+    c.shutdown();
+    assert!(!c.is_initialized());
+    assert!(!c.properties_present);
+    assert_eq!(c.stages, stages);
+    assert!(c.driver.commands.is_empty());
+    assert!(context().model_view_matrix().is_none());
+}
+
+#[test]
+fn settled_shade_checked_fallback_grey_and_full_material_matrix() {
+    struct Declined;
+    impl Lighting for Declined {
+        fn model_light(&self, _: u64) -> Result<Rgb, Error> {
+            panic!("use checked AL result")
+        }
+        fn checked_model_light(&self, _: u64) -> Result<Option<Rgb>, Error> {
+            Ok(None)
+        }
+        fn default_light(&self) -> Result<Rgb, Error> {
+            Ok([0.5, 0.25, 1.0])
+        }
+    }
+    let mut c = context();
+    c.set_lighting(Some(Arc::new(Declined)));
+    c.set_lighting_enabled(true).unwrap();
+    c.set_lighting_enabled(false).unwrap();
+    assert_eq!(c.default_shade(), [0.5, 0.25, 1.]);
+    c.set_model_shade(1, Some([0.5, 2., 0.25])).unwrap();
+    assert_eq!(
+        c.driver.commands.last(),
+        Some(&Command::ColorMultiplier([0.25, 0.5, 0.25]))
+    );
+    assert!(c.shade_override());
+    c.reset_shade().unwrap();
+    assert!(!c.shade_override());
+    c.driver.commands.clear();
+    c.set_material_state(
+        &material(),
+        DrawFlags {
+            bits: 2,
+            a: 0.25,
+            ..flags()
+        },
+    )
+    .unwrap();
+    c.set_material_state(
+        &material(),
+        DrawFlags {
+            bits: 10,
+            a: 0.75,
+            ..flags()
+        },
+    )
+    .unwrap();
+    let multipliers: Vec<_> = c
+        .driver
+        .commands
+        .iter()
+        .filter(|command| matches!(command, Command::AlphaMultiplier(_)))
+        .collect();
+    assert_eq!(multipliers, [&Command::AlphaMultiplier(0.25)]);
+    assert!(!c.shade_override()); // grey never writes override
+    c.composed.translation = [3., -4., 0.];
+    let mut m = material();
+    m.flags |= 0x20;
+    let mut texture = slot(4, 3);
+    texture.flags = 1;
+    texture.scale = 2.0;
+    m.textures = vec![texture];
+    c.set_material_state(&m, flags()).unwrap();
+    assert!(c.driver.commands.contains(&Command::TexMatrix(Some([
+        0.5, 0., 0., 0., 0., -0.5, 0., 0., 0., 0., 0., 0., -1.5, -2., 0., 0.
+    ]))));
+    assert_eq!(numeric::material_threshold(1).to_bits(), 0x3b80_8081);
+    assert_eq!(numeric::material_threshold(128).to_bits(), 0x3f00_8081);
+    assert_eq!(numeric::material_threshold(255).to_bits(), 0x3f80_0000);
 }
 fn props() -> Properties {
     Properties {
@@ -300,7 +540,7 @@ fn constructor_init_once_and_dc1_bytes() {
     assert!(!c.is_initialized());
     assert_eq!(c.state_word(), 0);
     assert!(c.stages().is_empty());
-    assert_eq!(c.highlights(), &[[0.0; 4]; 11]);
+    assert_eq!(c.highlights(), &[[1.0; 4]; 11]); // published constructor vector
     assert_eq!(c.enable_depth_test(1), Err(Error::NotInitialized));
     c.init().unwrap();
     c.init().unwrap();
@@ -399,7 +639,14 @@ fn alpha_is_unrounded_on_input_and_quantized_on_replay() {
     }));
     c.driver.commands.clear();
     c.set_alpha_func(1, 0.51).unwrap(); // same quantized value
-    assert!(c.driver.commands.is_empty());
+                                        // DIFFERS DC8: direct equality compares original reference, not just q.
+    assert_eq!(
+        c.driver.commands,
+        [Command::AlphaFunc {
+            function: 1,
+            reference: 0.51
+        }]
+    );
 }
 
 #[test]
@@ -565,7 +812,7 @@ fn suppressed_stage_records_all_resources_and_second_pass_replays_them() {
     assert_eq!((c.state_word() >> 13) & 255, 2 << 4);
     assert_ne!(c.state_word() & 16, 0);
     // DIFFERS DC5/DC6: binding is an explicit-stage call without selection.
-    assert!(matches!(c.driver.commands.first(), Some(Command::Texture(_))));
+    assert!(matches!(c.driver.commands.first(), Some(Command::Texture(_, 0))));
     assert!(c.driver.commands.contains(&Command::BlendFunc {
         source: 0,
         destination: 2
@@ -711,7 +958,16 @@ fn material_fade_grey_depth_bits_and_texture_matrix() {
     assert_ne!(c.state_word() & 16, 0);
     assert_eq!((c.state_word() >> 13) & 255, 0x54);
     assert!(!c.driver.commands.contains(&Command::AlphaMultiplier(1.0))); // fade at 1 still blends, no multiplier
-    let matrix = c.stages[0].transform.unwrap();
+    let matrix = c
+        .driver
+        .commands
+        .iter()
+        .rev()
+        .find_map(|command| match command {
+            Command::TexMatrix(Some(matrix)) => Some(*matrix),
+            _ => None,
+        })
+        .unwrap();
     assert_eq!([matrix[0], matrix[5], matrix[12], matrix[13]], [0.5, -0.5, -2.0, 3.0]);
     c.set_material_state(
         &m,
@@ -910,7 +1166,10 @@ fn errors_do_not_fabricate_success_cache_or_missing_owned_constants() {
     let mut m = material();
     m.textures.push(slot(4, 0));
     c.set_material_state(&m, flags()).unwrap();
-    assert!(c.driver.commands.contains(&Command::Combiner(vec![2, 0, 1, 1, 0, 1, 3, 1, 0, 0, 0, 0])));
+    assert!(c
+        .driver
+        .commands
+        .contains(&Command::Combiner(vec![2, 0, 1, 1, 0, 1, 3, 1, 0, 0, 0, 0], 0)));
 }
 
 #[test]
@@ -1017,7 +1276,10 @@ fn model_failure_preserves_prefix_without_exception_cleanup() {
     );
     assert_eq!(result, Err(Error::Provider(99)));
     // DIFFERS DC6: cleanup belongs only to the normal loop end.
-    assert_eq!(c.driver.commands.last(), Some(&Command::ColorMultiplier([0.6, 0.7, 0.8])));
+    assert_eq!(
+        c.driver.commands.last(),
+        Some(&Command::ColorMultiplier([0.6, 0.7, 0.8]))
+    );
     assert!(c.shade_override());
     assert!(!c
         .driver

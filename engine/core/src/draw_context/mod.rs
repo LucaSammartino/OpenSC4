@@ -4,12 +4,13 @@
 //! Driver/camera/light/instance interfaces are external calls only. Packing,
 //! state transitions, composition, material decisions and mesh ordering live
 //! here. No RefCell or borrowed game reference is owned by this implementation.
-//! DC3-DC7 document missing contracts; this module is not promoted to a plugin.
+//! DC1/DC2 remain opaque and DC3 stack/lifetime boundaries remain open. This
+//! module and its qualified numeric domain are not promoted to a plugin.
 
 mod boxes;
 mod cache;
-mod numeric;
 mod draw;
+mod numeric;
 mod state;
 mod textures;
 mod transforms;
@@ -22,13 +23,8 @@ use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContractGap {
-    /// DC3: no Begin/End bodies, signatures or lifecycle contract are published.
+    /// DC3: renderer callback brackets do not establish owner Begin/End methods.
     BeginEnd,
-    /// DC4: section 1.1 elides bytes of both owned combiner records.
-    DefaultCombiner,
-    HighlightCombiner,
-    /// DC5: exact default stage-record values are not published.
-    StageDefaults,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -37,6 +33,7 @@ pub enum Error {
     MissingCamera,
     MissingLighting,
     MissingView,
+    MissingProperties,
     InvalidStage,
     InvalidValue,
     AddressOverflow,
@@ -88,6 +85,7 @@ pub struct DrawContext<D: Driver> {
     driver: D,
     initialized: bool,
     properties: Properties,
+    properties_present: bool,
     view_state: ViewState,
     camera: Option<Arc<dyn Camera>>,
     lighting: Option<Arc<dyn Lighting>>,
@@ -101,7 +99,7 @@ pub struct DrawContext<D: Driver> {
     highlight_combiner: [Option<u8>; 12],
     default_shade: Rgb,
     shade_override: bool,
-    lighting_enabled: bool,
+    lighting_enabled: u8,
     numeric_control: NumericControl,
     depth_offset: i32,
     stages: Vec<Stage>,
@@ -111,6 +109,7 @@ pub struct DrawContext<D: Driver> {
     model_transform: Transform,
     composed: Transform,
     matrix: Matrix,
+    matrix_loaded: bool,
     stack: Vec<PackedState>,
     index_base: usize,
 }
@@ -121,32 +120,34 @@ impl<D: Driver> DrawContext<D> {
             driver,
             initialized: false,
             properties,
+            properties_present: true,
             view_state: ViewState::default(),
             camera: None,
             lighting: None,
             view: None,
             driver_info: DriverInfo {
-                stage_count: 0,
+                stage_count: 1,
                 bytes: [0; 2],
             },
             word: 0,
             default_state: PackedState { value: 0, mask: 0 },
             highlight_state: PackedState { value: 0, mask: 0 },
-            highlights: [[0.0; 4]; 11],
+            highlights: [[1.0; 4]; 11],
             default_combiner: CONSTRUCTOR_COMBINER_BYTES,
             highlight_combiner: CONSTRUCTOR_COMBINER_BYTES,
             default_shade: [1.0; 3],
             shade_override: false,
-            lighting_enabled: false,
+            lighting_enabled: 0,
             numeric_control: NumericControl::Unqualified,
             depth_offset: 0,
             stages: Vec::new(),
             model_view_valid: false,
             model_counter: 0,
             composed_counter: 0,
-            model_transform: Transform::ZERO,
-            composed: Transform::ZERO,
+            model_transform: Transform::IDENTITY,
+            composed: Transform::IDENTITY,
             matrix: [0.0; 16],
+            matrix_loaded: false,
             stack: Vec::new(),
             index_base: 0,
         }
@@ -161,7 +162,7 @@ impl<D: Driver> DrawContext<D> {
         stages
             .try_reserve_exact(info.stage_count.max(2))
             .map_err(|_| Error::Allocation)?;
-        stages.resize_with(info.stage_count.max(2), Stage::unpublished_default);
+        stages.resize_with(info.stage_count.max(2), Stage::default_record);
         self.driver_info = info;
         self.stages = stages;
         self.highlights = HIGHLIGHT_COLORS;
@@ -179,6 +180,14 @@ impl<D: Driver> DrawContext<D> {
 
     pub fn end(&mut self) -> Result<(), Error> {
         Err(Error::Gap(ContractGap::BeginEnd))
+    }
+
+    /// Published normal shutdown helper, not foreign lifetime/exception closure.
+    pub fn shutdown(&mut self) {
+        if self.initialized {
+            self.initialized = false;
+            self.properties_present = false;
+        }
     }
 
     pub fn driver(&self) -> &D {
@@ -220,8 +229,8 @@ impl<D: Driver> DrawContext<D> {
     pub fn model_transform(&self) -> Transform {
         self.model_transform
     }
-    pub fn model_view_matrix(&self) -> Matrix {
-        self.matrix
+    pub fn model_view_matrix(&self) -> Option<Matrix> {
+        self.matrix_loaded.then_some(self.matrix)
     }
     pub fn shade_override(&self) -> bool {
         self.shade_override
@@ -248,6 +257,7 @@ impl<D: Driver> DrawContext<D> {
     }
     pub fn set_properties(&mut self, properties: Properties) {
         self.properties = properties;
+        self.properties_present = true;
     }
     pub fn set_lighting(&mut self, lighting: Option<Arc<dyn Lighting>>) {
         self.lighting = lighting;
@@ -280,10 +290,12 @@ impl<D: Driver> DrawContext<D> {
     }
 
     fn ready(&self) -> Result<(), Error> {
-        if self.initialized {
-            Ok(())
-        } else {
+        if !self.initialized {
             Err(Error::NotInitialized)
+        } else if !self.properties_present {
+            Err(Error::MissingProperties)
+        } else {
+            Ok(())
         }
     }
     fn emit(&mut self, command: Command) -> Result<(), Error> {

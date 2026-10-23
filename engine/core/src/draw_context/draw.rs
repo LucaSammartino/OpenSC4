@@ -60,13 +60,14 @@ impl<D: Driver> DrawContext<D> {
 
     pub fn set_material_state(&mut self, material: &Material, flags: DrawFlags) -> Result<(), Error> {
         self.ready()?;
+        self.qualified_numeric()?;
         if material.textures.len() > 2 {
             return Err(Error::InvalidValue);
         }
         let bit = |n: u32| flags.bits & (1u8 << n) != 0;
         let grey = bit(3);
         let fade = bit(1) && !grey;
-        let reference = material.alpha_threshold as f32 / 255.0;
+        let reference = numeric::material_threshold(material.alpha_threshold);
         let packed = PackedState::pack(PackInput {
             color_write: material.flags & 0x100 != 0,
             depth_write: material.flags & 0x80 != 0 && !bit(4) && !bit(5),
@@ -80,7 +81,7 @@ impl<D: Driver> DrawContext<D> {
             destination_blend: if fade { 5 } else { material.blend[1] as i32 },
             alpha_func: material.alpha_func as i32,
             alpha_reference: if fade && flags.a < 1.0 {
-                reference * flags.a
+                numeric::store(numeric::mul(f64::from(reference), f64::from(flags.a))?)?
             } else {
                 reference
             },
@@ -160,23 +161,23 @@ impl<D: Driver> DrawContext<D> {
             }
         }
         self.set_model_transform(Some(instance.transform()?))?;
-        let override_shade = flags.bits & (1 << 2) != 0;
+        let override_shade = highlight || flags.bits & (1 << 2) != 0;
         if override_shade {
             self.set_self_lit_shade(flags.color)?;
         } else {
             self.set_model_shade(instance.token(), Some(flags.color))?;
         }
         for mesh in meshes {
-                if highlight {
-                    self.set_highlight_material_state(&mesh.material, flags)?;
-                } else {
-                    self.set_material_state(&mesh.material, flags)?;
-                }
+            if highlight {
+                self.set_highlight_material_state(&mesh.material, flags)?;
+            } else {
+                self.set_material_state(&mesh.material, flags)?;
+            }
+            self.render_mesh(mesh)?;
+            if !self.properties.use_second_stage && mesh.material.textures.len() == 2 {
+                self.prepare_second_pass()?;
                 self.render_mesh(mesh)?;
-                if !self.properties.use_second_stage && mesh.material.textures.len() == 2 {
-                    self.prepare_second_pass()?;
-                    self.render_mesh(mesh)?;
-                }
+            }
         }
         // DC6: normal end-of-loop work only. Provider/nonreturn boundaries above
         // propagate immediately, preserving the completed prefix without cleanup.

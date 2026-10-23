@@ -44,8 +44,12 @@ impl Transform {
     /// Qualified DC8 composition, with whole-byte branches and distinct stores.
     pub fn followed_by(self, model: Self) -> Result<Self, Error> {
         use super::numeric::{add, mul, store};
-        if model.flags == 0 { return Ok(self); }
-        if self.flags == 0 { return Ok(model); }
+        if model.flags == 0 {
+            return Ok(self);
+        }
+        if self.flags == 0 {
+            return Ok(model);
+        }
         let a = self.rotation;
         let b = model.rotation;
         let mut rotation = [[0.0; 3]; 3];
@@ -66,7 +70,11 @@ impl Transform {
                 mul(f64::from(a[row][2]), f64::from(mt[2]))?,
             ];
             let dot = add(add(p[1], p[2])?, p[0])?;
-            let scaled = if row < 2 { f64::from(store(mul(dot, s)?)?) } else { mul(f64::from(store(dot)?), s)? };
+            let scaled = if row < 2 {
+                f64::from(store(mul(dot, s)?)?)
+            } else {
+                mul(f64::from(store(dot)?), s)?
+            };
             translation[row] = store(add(scaled, f64::from(self.translation[row]))?)?;
             for col in 0..3 {
                 let p = [
@@ -145,7 +153,7 @@ pub enum Command {
         destination: u8,
     },
     SelectStage(usize),
-    Texture(Option<TextureRef>),
+    Texture(Option<TextureRef>, usize),
     TexCoord(u32),
     TexParameter {
         parameter: u8,
@@ -153,7 +161,7 @@ pub enum Command {
     },
     TexMatrix(Option<Matrix>),
     TexEnv(u8),
-    Combiner(Vec<u8>),
+    Combiner(Vec<u8>, usize),
     TexColor(Rgba),
     MatrixMode(u8),
     LoadMatrix(Matrix),
@@ -327,8 +335,7 @@ pub trait Instance {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Stage {
-    /// DC5: None means unbound only after an explicit assignment. Before that
-    /// the separate known flag prevents replaying an invented default binding.
+    /// Borrowed identity; constructor sentinel 0xFFFFFFFF is distinct from null.
     pub texture: Option<TextureRef>,
     pub texture_known: bool,
     pub coordinate_set: Option<u32>,
@@ -341,7 +348,7 @@ pub struct Stage {
 }
 
 impl Stage {
-    pub(super) fn unpublished_default() -> Self {
+    pub(super) fn default_record() -> Self {
         // DC5 section 1.4. The three unspecified padding bytes have no portable
         // representation. Texture is a borrowed opaque sentinel, not null.
         Self {
@@ -360,8 +367,18 @@ impl Stage {
 
 /// Complete public DC4 tables; Option is retained for portable API compatibility.
 pub const CONSTRUCTOR_COMBINER_BYTES: [Option<u8>; 12] = [
-    Some(1), Some(0), Some(3), Some(1), Some(1), Some(0),
-    Some(3), Some(1), Some(0), Some(0), Some(0), Some(0),
+    Some(1),
+    Some(0),
+    Some(3),
+    Some(1),
+    Some(1),
+    Some(0),
+    Some(3),
+    Some(1),
+    Some(0),
+    Some(0),
+    Some(0),
+    Some(0),
 ];
 pub const DEFAULT_COMBINER_BYTES: [Option<u8>; 12] = [
     Some(2),
