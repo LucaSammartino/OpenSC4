@@ -4,7 +4,7 @@
 `automata::OccupantBase`, `ConstructionRecord`, the shared stream codecs,
 `RzRandom`, and `CrtRand`. No second occupant base or plugin/ABI implementation
 is introduced. Foreign lot, city, terrain, prop/automata manager, renderer and
-model services are `ConstructionHost`; resource lookups are `ConstructionSource`.
+model services are `ConstructionHost` and `ConstructionRenderer`; resource lookups are `ConstructionSource`.
 The caller supplies one process-owned `ConstructionStatics` (load once after
 base Init); its file RNG and the process CRT RNG are explicit for determinism.
 
@@ -13,7 +13,8 @@ base Init); its file RNG and the process CRT RNG are explicit for determinism.
 Only sections assigning this owner behavior are listed; other classes in these
 two specs stay foreign. `core:` names tests in `lot_records/tests_construction.rs`;
 `conformance:` names executable tests in `engine/conformance/tests/construction_owner.rs`.
-Open rows are deliberately not claims of full visual closure.
+The LD35–LD38 visual contracts are implemented. The missing-property scale default
+is the single remaining spec question (LD39); supplied scales are covered.
 
 | Spec section / owner | Code item | Coverage or open question |
 |---|---|---|
@@ -24,7 +25,7 @@ Open rows are deliberately not claims of full visual closure.
 | lot-records §2.4 Init / construction | `ConstructionOccupant::init` | core: `init_adds_occupant_group_once` |
 | lot-records §9 record / construction | `ConstructionRecord`, `CrewEntry` | core: `record_layout_and_round_trip`, `xform_read_rules_no15` |
 | lot-records §9.1 live fields / construction | `ConstructionScalars`, `rebuild_model`, `bounding_box` | core: `loaded_construction_resumes_schedule`; conformance: `world_bounds_and_visual_messages_and_uninitialised_shutdown` |
-| lot-records §9.2 lifecycle / construction | `init/set_lot/do_message/refresh/shutdown`, visual message accessors | core: `set_lot_order_and_completion_order`, `refresh_after_load_recreates_crane_once`; open: LD36, LD38 (phase interpolation, render preparation IDs) |
+| lot-records §9.2 lifecycle / construction | `init/set_lot/do_message/refresh/shutdown`, texture bindings, phase interpolation | core: `set_lot_order_and_completion_order`, `refresh_after_load_recreates_crane_once`; conformance: `ld36_phase_endpoints_divisor_zero_and_wrapping`, `ld38_bindings_effect_parameters_and_unclipped_cuts` |
 | lot-records §13.1 serializable / construction | existing `RecordObject<ConstructionRecord>` | core: `record_layout_and_round_trip` |
 | lot-records §13.2 called interfaces / construction | `ConstructionHost` boundary | conformance: `test47_completion_removes_every_manager_entry_once` |
 | lot-records §14 load resolution / construction | `read_fields`, typed reference reads | core: `record_layout_and_round_trip`, `live_refs_released_by_set_lot_read_and_shutdown` |
@@ -37,21 +38,22 @@ Open rows are deliberately not claims of full visual closure.
 | lot-records §17.4 native boundaries / construction | foreign class-factory handoff | no native seam requested; existing core factory retained |
 | lot-developer §6.3 handoff / construction | `set_lot`, `complete`; caller owns insertion | core: `set_lot_order_and_completion_order` |
 | lot-developer §6.7 owner overview / construction | `ConstructionOccupant` | core: `test21_construction_schedule` |
-| lot-developer §6.7.1 identity/Init/messages / construction | `init/do_message/visibility_test/model_available` | core: `init_adds_occupant_group_once`, `animation_tick_message_divides_by_1000`; conformance: visual message test; open: LD38 |
-| lot-developer §6.7.2 statics / construction | `ConstructionTuning::from_properties`, `ConstructionStatics::load` | core: `tuning_shipped_and_defaults`; conformance: `static_tables_filter_missing_profiles_and_reseed_plain_time` |
-| lot-developer §6.7.3 geometry / construction | `rebuild_model`, widened saved world box | core: `test20_construction_timing`; conformance: world bounds test; open: LD35 (mesh only) |
-| lot-developer §6.7.4 SetLot / construction | `set_lot`, `timing`, placement helpers | core: `set_lot_order_and_completion_order`, `set_lot_crane_initial_values`; open: LD35, LD37, LD38 (visual details) |
+| lot-developer §6.7.1 identity/Init/messages / construction | `init/do_message/visibility_test/model_available`, `texture_bindings` | core: `init_adds_occupant_group_once`, `animation_tick_message_divides_by_1000`; conformance: visual message test, `ld38_bindings_effect_parameters_and_unclipped_cuts` |
+| lot-developer §6.7.2 statics / construction | `ConstructionTuning::from_properties`, `ConstructionStatics::load`, cached mesh offsets | core: `tuning_shipped_and_defaults`; conformance: `static_tables_filter_missing_profiles_and_reseed_plain_time`, `ld35_crane_lifetime_resource_failure_and_cached_offsets`; open: LD39 (only absent texture scales) |
+| lot-developer §6.7.3 geometry / construction | `rebuild_model`, widened saved world box, `ConstructionMeshes::rebuild` | core: `test20_construction_timing`; conformance: world bounds test, `ld35_scaffold_topology_height_and_roof_propagation` |
+| lot-developer §6.7.4 SetLot / construction | `set_lot`, `timing`, placement helpers, effect requests, initial scaffold/crane pose | core: `set_lot_order_and_completion_order`, `set_lot_crane_initial_values`; conformance: `ld35_crane_lifetime_resource_failure_and_cached_offsets`, `ld37_prop_anchor_crew_flags_normalization_and_render_gate`, `ld38_bindings_effect_parameters_and_unclipped_cuts` |
 | lot-developer §6.7.5 daily phases / construction | `do_daily_sim`, `complete`, `set_building_completion` | core: `test21_construction_schedule`, `set_building_completion_posts_only_on_change`; conformance: test47 |
-| lot-developer §6.7.6 tick / construction | `animation_tick`, `animate_crane`, `crane_duration`, `swing_limits` | core: `test25_crane_pause`, `crane_duration_uses_tunable_t_and_k`; open: LD36 (phase interpolation) |
-| lot-developer §6.7.7 random placement / construction | `ground_props/roof_props/crew/place_prop/create_worker`, `lot_texture/scatter_sparks` | core: `test23_lot_texture`, `test24_spark_scatter`, `spark_counts`; conformance: test45, test47; literal open details: LD37, LD38 |
+| lot-developer §6.7.6 tick / construction | `animation_tick`, `phase_value`, `animate_crane`, `crane_duration`, `swing_limits` | core: `test25_crane_pause`, `crane_duration_uses_tunable_t_and_k`; conformance: `ld36_phase_endpoints_divisor_zero_and_wrapping` |
+| lot-developer §6.7.7 random placement / construction | `ground_props/roof_props/crew/place_prop/create_worker`, `prop_anchor/normalized_direction`, `lot_texture/scatter_sparks` | core: `test23_lot_texture`, `test24_spark_scatter`, `spark_counts`; conformance: test45, test47, `ld37_prop_anchor_crew_flags_normalization_and_render_gate`, `ld38_bindings_effect_parameters_and_unclipped_cuts` |
 | lot-developer §6.7.8 tick manager / construction | priority `0x80`, unsigned µs/1000 conversion | core: `animation_tick_message_divides_by_1000`; manager scheduling stays foreign |
 | lot-developer §6.7.9 queued messages / construction | host posts from `set_lot/do_daily_sim/complete/shutdown` | core: `set_lot_order_and_completion_order` |
 | lot-developer §6.7.10 saved state / construction | `ConstructionRecord`, world box rebuild | core: `loaded_construction_resumes_schedule`; conformance: world bounds test |
 | lot-developer §6.7.11 lot division / construction | `divide_lot` | conformance: `test44_divide_lot_and_nan_and_inverted` |
-| lot-developer §6.7.12 cranes / construction | `CraneSize`, `outer_crane`, `inner_crane_choice`, `remove_rectangle`, `swing_limits`, `crane_model_angle` | conformance: test45, test46; open: LD35 (inner pose/CreateCrane mesh), LD38 (saved y/cut clipping) |
+| lot-developer §6.7.12 cranes / construction | `CraneSize`, `outer_crane`, `inner_crane_choice/pose`, `create_crane`, `remove_rectangle`, `swing_limits`, `crane_model_angle` | conformance: test45, test46, `ld35_inner_crane_positions_swing_fit_and_angle`, `ld35_crane_lifetime_resource_failure_and_cached_offsets`, `ld38_bindings_effect_parameters_and_unclipped_cuts` |
 | lot-developer §6.7.13 prop tables / construction | `ConstructionStatics::load`, `GROUND_TYPES/ROOF_TYPES` | conformance: static tables test |
 | lot-developer §6.7.14 cleanup / construction | `shutdown`, roof-prop drain at removal | conformance: `test47_completion_removes_every_manager_entry_once`; core: `live_refs_released_by_set_lot_read_and_shutdown` |
-| lot-developer §6.7.15 explicitly open visuals / construction | `Unsupported` variants | open: LD35; detail setting passed as an opaque integer |
+| lot-developer §6.7.15 visual contract / construction | `ConstructionMeshes`, `set_scaffold_height`, `create_crane`, `draw`, `do_rotation_change`, `phase_value`, `prop_anchor`, `normalized_direction`, effect/binding requests | conformance: all `ld35_*`, `ld36_*`, `ld37_*`, `ld38_*` tests; no Unsupported operations |
+| lot-developer §6.7.16 visual conformance vectors / construction | `construction_owner/visual_vectors.rs` | conformance: all 19 vector cases grouped in seven `ld35_*`–`ld38_*` tests |
 | lot-developer §10/§12 corrections / construction | isolated file RNG, table iterators and explicit seed | core: `test24_spark_scatter`; conformance: static tables/test45 |
 | lot-developer §14 dependencies / construction | `ConstructionHost/ConstructionSource` | conformance: test47 |
 | lot-developer §16 tests 20,21,23–25 / construction | geometry/timing/schedule/texture/sparks/crane functions | core tests of matching numbers; conformance: construction owner tests |
@@ -59,10 +61,11 @@ Open rows are deliberately not claims of full visual closure.
 
 ## Limits
 
-LD35–LD38 are in `docs/specs/questions/lot-developer.md`. Exact visual mesh,
-phase interpolation, inner pose, and unharvested render/effect parameters remain
-open; numerical timing and manager cleanup do not depend on them. Literal
-choices for unspecified anchors, crew flags, and cut clipping are commented
-at the code site. `CreateCrane` and effect/resource allocation are foreign model
-service operations, never callbacks that decide crane fit or prop placement.
+LD39 asks only about absent texture-scale properties (§6.7.2's “—” defaults).
+Core retains `None` and uses explicit NaN for dependent UV/transform fields until
+specified. This does not affect supplied/shipped scale behavior or simulation.
+`CreateCrane` and effect/resource allocation are foreign model service operations;
+their requests specify resources, transforms, names, positions and effect slots.
+Mesh topology, crane fit, placement, lighting colour mapping, draw state/order and
+phase interpolation are core decisions. Renderer doubles check them without game assets.
 No real-game run is applicable without plugin wiring, which this task forbids.

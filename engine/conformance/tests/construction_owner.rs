@@ -1,8 +1,10 @@
-//! lot-developer §16 tests 44–47 and construction owner boundary tests.
+//! lot-developer §16 tests 44–47, §6.7.16 visual vectors and owner boundaries.
 use fc4_core::lot_records::construction::*;
 use fc4_core::lot_records::Bounds;
 use fc4_core::rng::{CrtRand, FixedSeeds, RzRandom};
 use fc4_core::stream::RefValue;
+
+include!("construction_owner/visual_vectors.rs");
 
 fn reference(token: u64) -> RefValue {
     RefValue::Host {
@@ -27,6 +29,8 @@ fn statics() -> ConstructionStatics {
         cranes: [CraneSize::default(); 3],
         ground: vec![],
         roof: vec![],
+        girder_plank: None,
+        crane_post_half: None,
     }
 }
 
@@ -105,9 +109,18 @@ struct Host {
     props: Vec<u64>,
     workers: Vec<u64>,
     day: u32,
-    detail: u32,
+    detail: i32,
     reject: bool,
     completion: f32,
+    policy: u8,
+    crane_fail: bool,
+    crane_requests: Vec<CraneRequest>,
+    effects: Vec<EffectRequest>,
+    positions: Vec<(u64, [f32; 3])>,
+    moved_props: Vec<(u64, [f32; 3])>,
+    moved_workers: Vec<(u64, [f32; 3])>,
+    directions: Vec<[f32; 2]>,
+    bindings: Option<[[TextureBinding; 5]; 6]>,
 }
 fn token(r: &RefValue) -> u64 {
     if let RefValue::Host { token, .. } = r {
@@ -176,7 +189,7 @@ impl ConstructionHost for Host {
         [x as f32 * 16.0, 0.0, z as f32 * 16.0]
     }
     fn crane_policy(&mut self, _: &RefValue) -> u8 {
-        0
+        self.policy
     }
     fn create_prop(&mut self, _: u32) -> Option<RefValue> {
         if self.reject {
@@ -186,33 +199,69 @@ impl ConstructionHost for Host {
         self.props.push(id);
         Some(reference(id))
     }
-    fn place_prop(&mut self, _: &RefValue, p: [f32; 3], o: u8) {
+    fn place_prop(&mut self, prop: &RefValue, p: [f32; 3], o: u8) {
         assert!(p[0].is_finite() && p[2].is_finite() && o <= 3);
+        self.positions.push((token(prop), p));
     }
-    fn render_detail(&mut self) -> u32 {
+    fn render_detail(&mut self) -> i32 {
         self.detail
     }
     fn create_automaton(&mut self, _: u32, p: [f32; 3], _: bool) -> Option<RefValue> {
         assert!(p[0].is_finite() && p[2].is_finite());
         let id = 100 + self.workers.len() as u64;
         self.workers.push(id);
+        self.positions.push((id, p));
         Some(reference(id))
     }
     fn worker_direction(&mut self, _: &RefValue, d: [f32; 2]) {
         assert!(d.iter().all(|v| (-1.0..=1.0).contains(v)));
+        self.directions.push(d);
     }
-    fn create_dust_clouds(&mut self) {}
-    fn create_sparks(&mut self, n: usize) -> Vec<RefValue> {
-        (0..n)
-            .map(|i| {
-                self.props.push(200 + i as u64);
-                reference(200 + i as u64)
-            })
-            .collect()
+    fn create_effect(&mut self, lot: &RefValue, r: EffectRequest) -> Option<RefValue> {
+        assert_eq!(token(lot), 1);
+        self.effects.push(r);
+        let id = 200 + self.props.len() as u64;
+        self.props.push(id);
+        Some(reference(id))
+    }
+    fn effect_slot8(&mut self, effect: &RefValue, enabled: bool) {
+        assert!(enabled);
+        self.events.push(format!("effect8 {}", token(effect)));
+    }
+    fn building_position(&mut self, _: &RefValue) -> [f32; 3] {
+        [0., 100., 0.]
+    }
+    fn lot_developer_building_position(&mut self, _: &RefValue) -> Option<[f32; 3]> {
+        Some([0., 100., 0.])
+    }
+    fn associate_prop(&mut self, _: &RefValue, _: &RefValue, roof: bool) {
+        self.events.push(format!("associate {roof}"));
+    }
+    fn prop_position(&mut self, prop: &RefValue) -> [f32; 3] {
+        self.positions
+            .iter()
+            .rev()
+            .find(|(id, _)| *id == token(prop))
+            .unwrap()
+            .1
+    }
+    fn move_roof_prop(&mut self, prop: &RefValue, p: [f32; 3], manager: u32, property: u32, arg: u32) {
+        assert_eq!((manager, property, arg), (0, 0x99EF1146, 0));
+        self.moved_props.push((token(prop), p));
+    }
+    fn automaton_position(&mut self, automaton: &RefValue) -> [f32; 3] {
+        self.prop_position(automaton)
+    }
+    fn move_automaton(&mut self, automaton: &RefValue, p: [f32; 3]) {
+        self.moved_workers.push((token(automaton), p));
+    }
+    fn translate_crane(&mut self, p: [f32; 3]) {
+        self.positions.push((999, p));
     }
     fn pose_crane(&mut self, _: f32) {}
-    fn create_crane(&mut self, _: f32, _: f32, _: u8) -> bool {
-        true
+    fn create_crane(&mut self, r: CraneRequest) -> bool {
+        self.crane_requests.push(r);
+        !self.crane_fail
     }
     fn spark_slot8(&mut self, _: usize, _: u32) {}
     fn place_spark(&mut self, _: usize, _: [f32; 3]) {}
@@ -248,7 +297,9 @@ impl ConstructionHost for Host {
         self.events.push(format!("worker- {}", token(r)));
         self.workers.retain(|&p| p != token(r));
     }
-    fn prepare_render_state(&mut self) {
+    fn prepare_render_state(&mut self, bindings: [[TextureBinding; 5]; 6], state: [f32; 14]) {
+        assert_eq!(state, INITIAL_RENDER_STATE);
+        self.bindings = Some(bindings);
         self.events.push("render state".into());
     }
     fn visibility_result(&mut self) -> bool {
@@ -281,8 +332,7 @@ fn test47_completion_removes_every_manager_entry_once() {
     assert!(!c.rec.ground_props.is_empty());
     assert!(!c.rec.roof_props.is_empty());
     assert!(!c.rec.crew.is_empty());
-    h.props.push(999);
-    c.rec.current_effect = reference(999);
+    assert!(!c.rec.current_effect.is_null());
     for day in 1..100 {
         h.day = day;
         c.do_daily_sim(&mut h, &mut st);
@@ -321,10 +371,13 @@ fn world_bounds_and_visual_messages_and_uninitialised_shutdown() {
     c.visibility_test(&mut h, true);
     assert_eq!(c.rec.base.flags & 2, 2);
     c.model_available(1, 1);
+    assert!(c.model_dirty); // RebuildModel already requested relighting.
+    c.model_dirty = false;
+    c.model_available(1, 1);
     assert!(!c.model_dirty);
     c.model_available(1, 2);
     assert!(c.model_dirty);
-    assert!(c.unsupported.contains(&Unsupported::ModelGeometry));
+    assert!(c.meshes.posts.is_some());
 }
 
 #[test]
