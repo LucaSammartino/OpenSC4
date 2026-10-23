@@ -20,6 +20,8 @@ pub enum Error {
 }
 pub type Result<T> = std::result::Result<T, Error>;
 pub(crate) fn parse_error(code: u32, message: impl Into<String>) -> Error {
-    Error::Parse { code, message: message.into() }
+    Error::Parse {
+        code,
+        message: message.into(),
+    }
 }
-

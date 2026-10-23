@@ -53,7 +53,10 @@ registered in the required order and return Unsupported(SCR2).
 Record BMP offset policy is explicitly open: supported record BMPs report
 Unsupported(SCR5), while invalid BMP headers can fall back to TGA after a
 successful absolute seek. Both published file/record stride formulas are
-available in bmp_stride; file BMP decoding uses the file formula. Color type
+available in bmp_stride; file BMP decoding uses the file formula. Explicit
+experimental RecordBmpOffset policies permit testing the settled record
+decoder independently of the open offset decision; load_record never picks
+one. Color type
 7 follows the existing core's 4444 mapping and rejects decoding with SCR5,
 instead of silently substituting truncation. Unsupported TGA source depth can
 succeed after creation/locking, as the spec requires. Malformed RLE is safely
