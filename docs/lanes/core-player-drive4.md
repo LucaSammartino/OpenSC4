@@ -1,27 +1,7 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-player-drive4 (first portable drive-tool owner) | `Codex` / `core-player-drive4` (engine) | in progress; round 2 resumes caa57315; prior gate incomplete, not acceptance | (1) Reconcile and archive prior operation; (2) serial quick, bounded fmt, final all on stable committed source; (3) report actual results |
+| core-player-drive4 (first portable drive-tool owner) | `Codex` / `core-player-drive4` (engine) | WIP: owner 26/26, Rust 3126/0 (2 rows), dependencies compile-only, native 4/4; quick blocked at own read-only stats client; fresh fmt/final all unrun; DR1-DR8 retained; ABI unchanged | (1) Collect existing quick36008/verifier25864/client37432 and continuation37316 by creation; (2) preserve actual results before any necessary further checker; (3) require bounded fmt and complete source-matched all before READY |
 
-## Handoff
-
-- Goal: validate existing bounded owner/26 independent fixtures, without expanding scope or changing expectations.
-- Done: read own report/source fixture boundary and copied r1 result/stderr/reconciliation; read root intervention note.
-- Production remains eab6c1ad, report caa57315; detached HEAD reused; no source edits this round.
-- Prior baseline Rust 5142/0 (22 rows), clippy clean, native 215/215 predate registration; CTest log stops 18/68 with no final verdict.
-- Copied 00:40:51 observation found no attributable prior work; terminal exit/cause UNKNOWN. Fresh identity inspection needed before replacement.
-- Current CIM denied; q.py Bash E_ACCESSDENIED reproduced. Neither is a gate result or permission to bypass qbuild.
-- Fresh 00:46:08 BST native inventory: 75 build processes, all command/creation inspected (VM reads denied on service-owned processes); old PIDs absent, no own checker/output path. Other compiler output paths belong to other worktrees. Own string appears only in lane transport and inventory itself. Full snapshot: build-runs/process-inventory-r2-preflight.json.
-- Archived all six original logs with SHA256/size manifest under build-runs/baseline-r1/ using apply_patch moves. CTest 18/68 is incomplete, terminal outcome/cause UNKNOWN, no acceptance or duplicated baseline.
-- Source review: published drive-tool sections 1-10 and city-tools-input section 2; primitive host inventory and literal fixture decisions reviewed without changing source/expectations. No demonstrated compiler/test defect yet.
-- Current quick: qbuild PID36008 created 2026-10-22T23:49:45.780607Z, verifier25864, Rust test compiler25452; private i686 output. Source engine tree c96747fe52d09dcbd607457fd6c8a4934c60603e, no source diff. Snapshot: build-runs/source-r2-before-checks.json.
-- Serial continuation build-runs/finish-player-drive-r2.py waits that exact quick creation, requires exit0, then new-file fmt, separate shared-lib fmt, exactly one final all; no duplicate checker or process/cache action. Preserve/collect its terminal result and logs before any further gate.
-- 01:02:40 BST observation: all 26 player_drive tests PASS; fc4verify-quick-test.log sums 3126 passed/0 failed across 2 summaries, compilation 11m09s. Quick dependents still compiling; no complete quick/final-all claim. Evidence: build-runs/source-r2-owner-tests-passed.json.
-- 01:07:20 BST: quick dependencies finished and native release compilation is active. Service-owned rustc38452 (parent26476), created 00:05:54Z, explicitly outputs to this worktree's private cargo/i686 release/deps; ancestry alone is not attribution. Full argv/creation/cwd evidence: build-runs/process-r2-native-inflight.json. Serial continuation PID37316 created 23:54:20Z (terminal session50365).
-- Quick measured stages complete: owner 3126/0 incl. 26/26 fixtures (11m09s), dependencies compile-only 4m08s, native 4/4 (release 6m17s). Native source/artifact/log snapshot and copied build/configure logs: build-runs/quick-r2/. DLL SHA256 0dca05743ef3a34b7f7beec4fc8c9d728a652c120932bd4b27ec773841bbceff, mtime 00:12:12Z; library SHA256 02194755fa713f4df58c5cc8899f5b36a917089f9a5f96b7d9841c95bd9cc44e, mtime 00:12:09Z.
-- At 00:12:33Z quick verifier25864 waits on own sccache37432 created00:12:14.081675Z, exact argv --show-stats --stats-format json. No terminal quick result; serial continuation37316 still depends on it. No kill/RPC/cache/env/provider/policy action authorized or taken. Fresh fmt/clippy/full CTest remain unrun.
-- Next: observe/collect that exact existing operation and serial continuation; no duplicate checks or compiled-source edits. If it remains blocked, report WIP with exact identities/results and remaining budget.
-- No game request; DR1-DR8 remain; only own module/tests, necessary lib declaration, report and appended questions allowed.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-player-drive4-r2-manifest.json.
 
 ## Report
 
@@ -29,18 +9,21 @@ Implemented the first bounded portable player-drive owner in `engine/core/src/pl
 
 Milestones: 1ebdc0a1 audited the published methods and committed independent literal fixtures before implementation; df9c801a added the owner and tests; 2c43a25c tightened literal message/domain policies; 0e117e5a recorded the non10-state/lifecycle questions; bb25fc0e made callback registration/removal carry explicit tool identity; eab6c1ad registered the module and completed the 26 fixtures. These are implementation milestones, not claims of executed conformance.
 
-### Measured validation (round 2 in progress)
+### Measured validation — round 2 WIP
 
 - Original baseline is incomplete: Rust **5142 passed / 0 failed, 22 summaries**, clippy clean in **4m32s**, native build **215/215**, CTest only **18/68 Passed**, with no final verdict. It predates module registration and supplies no final acceptance. Terminal exit/cause remains **UNKNOWN**.
 - Fresh creation/command/cwd/output inspection at 00:46:08 BST covered 75 build processes with no command-inspection denials. Old PIDs37080/19568/34900/11484 were absent. No attributable old checker or compiler output path survived; service VM reads denied where noted. The only own-path commands were lane transport and the inventory itself. Other worktree results receive no credit. The root's earlier one-client intervention authorizes no further process/cache action.
-- All six old logs were moved intact to `build-runs/baseline-r1/`; every SHA256 matches `archive-manifest.json`. Full copied timeline/result/stderr remain in `build-runs/evidence-run4/`, with the root intervention note beside it.
-- The necessary replacement quick check tests the registered source: **all 26 PlayerDrive tests passed**, Rust **3126 passed / 0 failed across 2 summaries**, compilation **11m09s**. As of 01:02:40 BST, quick dependents were compiling; no complete quick or final-all result is claimed yet.
-- Stable engine tree: `c96747fe52d09dcbd607457fd6c8a4934c60603e`, no source edits since eab6c1ad. Source, log and then-existing artifact hashes are in `build-runs/source-r2-owner-tests-passed.json`. The old DLL dated 00:24 BST predates registration and is explicitly excluded from acceptance.
-- Existing serial continuation waits the exact quick PID/creation and requires exit0 before absolute new-file fmt, separate shared-lib fmt, and exactly one final `qbuild all`. No source/fixture changes or bypasses are authorized by this sequence.
-- Native configuration remains Debug / Ninja, FC4_CHECKED=OFF, FC4_COMPILER_CACHE=ON, FC4_RUST_TARGET=i686-pc-windows-msvc. The private native cargo_test uses workspace tests, sccache and its original no-incremental/no-debug-info flags; no filters or source-check exclusions were supplied.
-- New-file fmt previously passed; fresh checks remain pending. Shared lib.rs has a known pre-existing 171-line ordering diff (173 after the sole additive declaration); it will be reported separately, never mass-formatted or called a whole-file pass. Historical wrong-configuration 985-line fmt failure and q.py Bash E_ACCESSDENIED remain historical diagnostics, not gate acceptance or provider failure.
+- All six old logs were moved intact to `build-runs/baseline-r1/`; every SHA256 matches `archive-manifest.json`. Full copied timeline/result/stderr remain in `build-runs/evidence-run4/`, with the root intervention note beside it. No unchanged baseline was rerun.
+- Exactly one necessary serial quick was launched on committed registered source. **All 26 PlayerDrive tests passed**, Rust **3126 passed / 0 failed across 2 summaries**, compilation **11m09s**. The dependent crates were compile-only (`--no-run`), finishing in **4m08s**; their tests receive no execution credit.
+- Source-matched native build completed **4/4**, release Rust **6m17s**, linking the DLL and smoke executable. Stable engine tree: `c96747fe52d09dcbd607457fd6c8a4934c60603e`; no source/expectation changes this round. Source/log/artifact hashes and copied native logs are in `build-runs/quick-r2/`. DLL mtime 00:12:12Z, SHA256 `0dca05743ef3a34b7f7beec4fc8c9d728a652c120932bd4b27ec773841bbceff`; library mtime 00:12:09Z, SHA256 `02194755fa713f4df58c5cc8899f5b36a917089f9a5f96b7d9841c95bd9cc44e`. These are new own artifacts, not the excluded 00:24 BST baseline DLL.
+- **Quick has no terminal verdict.** At 00:15:42Z (01:15:42 BST), qbuild36008 (created 23:49:45.780607Z), verifier25864 (23:49:45.817587Z) and the own read-only client37432 (00:12:14.081675Z) remained live. Exact client argv: `sccache.EXE --show-stats --stats-format json`; own-worktree cwd; CPU0, 155 handles. No own compiler/output worker remained. The wait had lasted over 3m27s. Cache statistics/RPC cause are **UNKNOWN**; no completion, failure or successful full gate is inferred. Durable snapshot: `build-runs/process-r2-stats-wait.txt`.
+- Serial continuation37316 (created 23:54:20.191952Z; terminal session50365) waits that exact quick creation. Only after exit0 will it run absolute new-file fmt, separate shared-lib fmt, and exactly one final `qbuild all`. **Those fresh formatting checks, workspace test, clippy and full CTest have not run.** No final source acceptance is claimed; the same-name queue stays WIP.
+- Native configuration: Debug / Ninja, FC4_CHECKED=OFF, FC4_COMPILER_CACHE=ON, FC4_RUST_TARGET=i686-pc-windows-msvc. Full CTest selection is 68 tests; its cargo_test command uses workspace tests, sccache, private i686 output and original no-incremental/no-debug-info flags. No filters, source-check exclusions or policy/env/cache/provider changes were supplied. The current 148-byte LastTest.log supplies no current CTest verdict.
+- Bounded fmt status: prior round's absolute checks of both new files **PASS**; fresh checks remain unrun. Shared lib.rs's prior check **FAIL**, pre-existing 171-line ordering diff, 173 after the sole additive declaration. No mass format or whole-file pass is claimed. Historical wrong-configuration 985-line fmt failure, q.py Bash E_ACCESSDENIED, CIM denial and r1 apply_patch context mismatch are preserved as distinct diagnostics; the context mismatch was not provider failure. Native limited-rights command/creation inspection succeeded.
 
-No real-game/native probe or shadow was requested or credited. ABI exports, native owners, defaults, maps, coverage and generated indices are unchanged. No process, read-only stats client, compiler, daemon or service was terminated or modified by this continuation.
+No real-game/native probe or shadow was requested or credited. ABI exports, native owners, defaults, maps, coverage and generated indices are unchanged. No process, read-only stats client, compiler, daemon or service was terminated or modified by this continuation. No cache RPC was issued for liveness.
+
+Last measured guard at milestone f1ac8868: **107376 / 150000 context, 42624 remaining**; round **2/3**, at most one continuation round remains. The final guard runs after the report commit. This is the same owner/round family, not a reset.
 
 ## Pre-implementation method audit
 
@@ -88,3 +71,11 @@ The new `engine/core/src/player_drive` owns current/hover identities, selected/h
 `fixtures.md` was committed before production implementation (1ebdc0a1). The 26 tests discriminate table/order/state decisions rather than roundtripping serialization or asking a host for an owner outcome. No new-owner native equivalence, implemented bytes, shadow measurement, replacement/default promotion or complete Init/Shutdown is claimed. This is the first bounded portion of this distinct owner; no foreign-owner bodies count toward its credit.
 
 Questions DR3-DR8 are appended only in `docs/specs/questions/drive-tool.md`; DR1 and DR2 remain open and unchanged. The generated question index is deliberately not edited or regenerated under this lane's restrictions.
+
+## Next steps
+
+1. Observe and collect the creation-bound quick/checker/client and serial continuation above before any new check. Do not duplicate an operation or edit compiled source while its attributed work survives. If a process disappears, preserve the actual terminal/log outcome; absence alone does not prove pass or explain exit.
+2. The existing continuation automatically runs the remaining fmt and one final all only on quick exit0. Collect its actual exit, all 26 tests, summed workspace Rust, strict clippy, native/full CTest, flags, hashes and source/artifact correspondence. Do not manually launch a duplicate final all while it survives or discard a completed source-matched result.
+3. If the read-only statistics wait persists, coordinator-owned tooling/service diagnosis is outside this lane. No derivative kill, cache RPC, restart, env/provider/policy bypass or manual gate override is authorized. Required final validation is unresolved; retain WIP until it is genuinely complete.
+
+Round-2 milestones: 4505c5f2 reconciled and archived the incomplete baseline; 20f38ed9 recorded literal source review; 0df953f0 recorded 26 executed fixtures; 48b90806 separated measured tests from pending integration gates; f1ac8868 recorded the own source-matched native build and statistics wait. No implementation/compiler/test defect was demonstrated and no production or fixture source was changed this round.
