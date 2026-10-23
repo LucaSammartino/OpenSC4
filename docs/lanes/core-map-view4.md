@@ -5,12 +5,16 @@
 ## Handoff
 - Goal: first pure-core MapView implementation; preserve QV1-QV4 and missing palette/ramp/grid/highlight/summary boundaries.
 - Base: detached `4706fd83`, reserved worktree reused; initial status clean.
-- Done: preimplementation inventory/questions/fixtures committed `b59d16e7`; production source first pass implemented.
+- Done: preimplementation inventory/questions/fixtures `b59d16e7`; bounded production source and 24 fixtures committed `f1c71dd6`.
 - Baseline all: cargo 5262/0, clippy 0 diagnostics, CMake 215/215 edges; CTest 67/68, cargo_test compile error u32 & i32 in new premultiply closure. Tree changed during run; not a clean baseline. Initial failure retained in baseline evidence before next gate.
-- Next: fix typed closure, expand missing decision fixtures, focused validation, commit source then serial quick/fmt/final all with frozen source.
+- Focused native-shell command via q.py direct argv passed 24/24 (3220 filtered); log `build-runs/focused-map-view.log`. A single-string Bash attempt failed E_ACCESSDENIED; retained q log.
+- Quick launched once after source commit: raw logs show i686 core 3244/0, dependents compile-only, CMake 4/4; wrapper still outstanding session 18825 (no final summary yet). Do not launch duplicate quick.
+- Formatting: first wrong paths (wrapper runs in engine) then 100-column output refused; engine/rustfmt.toml requires 120. Helper `build-runs/format-map-view.py` now uses engine cwd, emits apply_patch input only. Apply its output after quick ends. Base and current lib.rs both fail style comparison; current is exactly one additive final module declaration (audit-lib-format.py).
+- Next: finish collecting quick session, apply new-module-only 120-column format, commit; scoped fmt then frozen-source final all; retain failures, audit totals/artifact flags, final report/queue.
 - Scope: new map_view module/tests, additive lib.rs declaration, appended map-view questions, this report only.
 - No game/native probes, ABI/plugin/CAPI/default changes, subagents, branch/ref mutation, or forbidden paths.
 - Manifest: `C:/Users/tlori/FreeCity4/build-runs/run4-core-map-view4-r1-manifest.json`.
+- All initial gate logs archived by apply_patch moves in `build-runs/baseline/`. Audit helper `build-runs/audit-map-view-gate.py` reads totals, source hashes and DLL/staticlib flags; extend for fc4verify-quick-test.log if needed.
 - Owner accounting: 87 functions / 31396 bytes is context only; named operations and unknown body sizes will be recorded independently.
 
 ## Preimplementation owner-method inventory (2026-10-23, before production source)
