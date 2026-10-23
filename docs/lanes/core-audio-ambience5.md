@@ -4,7 +4,10 @@
 
 ## Handoff
 - Goal: close cSC4AudioAmbienceManager §§1–7; foreign layer interface §8.
-- Spec §§1–7, §8 manager boundary, §9 and §10 read. Existing audio/ambience.rs and tests cover much of owner; migrate with compatibility re-export.
-- Audit gaps: budget can stall without visiting a block, no explicit null event, timer/filter hooks absent, stale AA4/AA11 comments, AA10 guesses a no-clock value.
-- Next: migrate module, close these gaps, extend focused tests and owner table. AA10 remains explicitly Unsupported.
+- Implemented: migrated existing owner to engine/core/src/audio_ambience with compatibility re-export; foreign layer interface, timer/filter/process startup hooks, guaranteed block progress, null guards, safe tuning, explicit AA10 Unsupported.
+- Owner closure table and all manager §10 vectors mapped in module README; layer-only vectors 9–18 outside owner.
+- Focused tests: 44 passed, 0 failed (build-runs/q/20261023-115959-43812.log). fmt owned files passed.
+- Earlier focused result 41/1 retained in build-runs/q/20261023-115552-41184.log; fixed old cell/world and missing-margin expectations. Initial relative-path fmt invocation failed; absolute-path fmt passed.
+- Questions appended: AA12 BeginUpdate coordinate type, AA13 duplicate alarm removal, docs/specs/questions/audio-ambience.md. Existing AA10 remains open for absent clock only.
+- Next: run mandatory qbuild all once on stable source, inspect terminal result, report and enqueue.
 - No game requests; no ABI/plugin changes authorized by scope.
