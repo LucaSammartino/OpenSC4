@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-effects-commands5b: nested effects-script command contracts | `re-effects-commands5b` (RE lane; detached worktree) | in progress: round 2 checkpoint | Resume source/emit/force, remaining nested families and class inventory; EF15 stays open. |
+| re-effects-commands5b: nested effects-script command contracts | `re-effects-commands5b` (RE lane; detached worktree) | in progress: round 3 | Verify source/emit/force, remaining nested families and class inventory; EF15 stays open until complete. |
 
 ## Report
 
@@ -55,4 +55,6 @@ enqueued as ready; no merge-queue file was written. Resume from the Handoff.
 - No native/game/shadow oracle, game request, REA query or ABI change. All new vectors are static predictions.
 - Gate: doccheck check, questions check and git diff --check pass; cargo/clippy/CTest n/a.
 - Partial checkpoint near round context limit; no merge queue until EF15 complete. Preserve detached HEAD; supervisor publishes commits.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-effects-commands5b-r2-manifest.json.
+- Round 3 resumed from abed1e64. Published §19.45–19.46 source: shapes, accumulated flags, height filters, failure prefixes; EC224–EC236. Doccheck/questions/diff checks pass.
+- Next exact step now: emit 0059C280, force 0059A820, then remaining dictionaries and inventory. Source is complete; do not redo it.
+- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-effects-commands5b-r3-manifest.json.

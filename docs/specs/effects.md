@@ -2449,7 +2449,7 @@ Only handlers with published sections have execution contracts here.
 | 4 | `size` | `00A9FB48` | `005998E0` | unnamed; §19.25 |
 | 5 | `aspect` | `00A9FB38` | `00599A10` | unnamed; §19.25 |
 | 6 | `rotate` | `00A9FB28` | `00599B60` | `cParticleRotateCommand`; §19.25 |
-| 7 | `source` | `00A9FB18` | `00597140` | `cParticleSourceCommand` |
+| 7 | `source` | `00A9FB18` | `00597140` | `cParticleSourceCommand`; §19.45 |
 | 8 | `emit` | `00A9FB08` | `0059C280` | `cParticleEmitCommand` |
 | 9 | `force` | `00A9FAF8` | `0059A820` | `cParticleForceCommand` |
 | 10 | `warp` | `00A9FAE8` | `0059B680` | `cParticleWarpCommand`; §19.43 |
@@ -3650,3 +3650,95 @@ selected indices for the accesses specified above.
 | EC221 | alpha vector (0,0,2), remaining values 0.5,2; old flags=0 | range exception after direction=(0,0,1) and curve prefix [0.5]; flags=0 |
 | EC222 | wiggleVerts succeeds; alpha vector (0,0,2), curve value 2 | range exception; flags already 100 hex, direction updated, old curve cleared |
 | EC223 | alpha vector (0,0,2), curve returns NaN | direction (0,0,1), curve [NaN], flags OR 100 hex; no owner range exception |
+
+### 19.45 Particle `source` *[compat]*
+
+`cParticleSourceCommand::Parse` (`00597140`) chooses a source shape, writes
+the two source-bound vectors, then applies the independent options below.
+It does not require positional values or a nonempty particle name. Here P
+is the parser context, D=P+F0 is the live particle description. Source bounds
+are D+50 (lower) and D+5C (upper); flags A are D+00, flags B D+08.
+Every invocation starts with local bounds (-1,0,-1), (1,0,1), irrespective
+of previous bounds. Omitted secondary options preserve their old fields.
+
+The following shape lookups short-circuit in table order. Only the first
+present shape is consumed. `min` is the finder's minimum argument count;
+additional selected arguments beyond those specified are ignored.
+
+| Shape / min | Bounds and additional changes |
+|---|---|
+| `point` / 0 | Both bounds (0,0,0); if any selected value, ParseVector3 first and use it for both bounds. |
+| `square` / 1 | ParseFloat first as r; lower (-r,0,-r), upper (r,0,r). If a second value exists, ParseVector3 it as center and add it to each bound. |
+| `quad` / 1 | ParseVector2 first as (a,b); lower (-a,0,-b), upper (a,0,b); optional second value is a Vector3 center added to both. |
+| `cube` / 1 | ParseFloat first as r; lower (-r,-r,-r), upper (r,r,r); optional second value is a Vector3 center added to both. |
+| `box` / 1 | ParseVector3 first as (a,b,c); lower (-a,-b,-c), upper (a,b,c); optional second value is a Vector3 center added to both. |
+| `dice` / 1 | ParseFloat first directly to D+1D8, then set both bounds to the shared zero vector. No center is read. |
+| `model` / 0 | OR flags A with 40 hex; retain the local default bounds. No value is converted. |
+| `modelBase` / 0 | OR flags A with 80 hex; retain the local default bounds. No value is converted. |
+| `city` / 0 | OR flags A with 1000 hex; if values exist, the endpoint-pair helper (§19.19) supplies lower.y and upper.y. X/Z retain the local defaults. |
+| `cityWindySide` / 0 | OR flags A first with 1000 hex, then with 2000 hex; optional endpoint pair changes Y as for city. |
+| none | Use the local default bounds. |
+
+There is no positivity, ordering, finiteness or overlap test. Negative extents
+can produce reversed bounds. Scalar radii are stored as binary32 before
+center addition; vector components and each resulting sum are binary32.
+Negation uses the parsed value, with binary32 stores before center addition.
+Neither dimensions nor centers are multiplied by 50. Shape flags accumulate;
+choosing point after model does not clear the model bit. A failed shape
+conversion leaves old destination bounds intact; a city endpoint failure can
+leave its already-set mode bits. Dice writes D+1D8 before bound publication.
+
+After shape completion, all six bound components are published before the
+first secondary lookup. These lookups are independent and occur in this
+order, regardless of text order. Masks below are hexadecimal.
+
+| Option / min | Result when present |
+|---|---|
+| `scaleParticles` / 0 | OR flags A with 400000. |
+| `pinToTerrain` / 0 | OR flags A with 4000. |
+| `pinToWater` / 0 | OR flags A with 8000. |
+| `terrainOnly` / 0 | OR flags A with 10000; set lower height D+158 to zero. |
+| `waterOnly` / 0 | OR flags A with 10000; set upper height D+15C to zero. |
+| `seaOnly` / 0 | Same upper-height write as waterOnly; then OR flags A with 20000. |
+| `lakeOnly` / 0 | Same upper-height write as waterOnly; then OR flags A with 40000. |
+| `belowHeight` / 1 | OR flags A with 10000, then ParseFloat first to upper height D+15C. |
+| `aboveHeight` / 1 | OR flags A with 10000, then ParseFloat first to lower height D+158. |
+| `heightRange` / 2 | OR flags A with 10000; ParseFloat first to lower height, then second to upper height. |
+| `killOutsideCity` / 0 | OR flags A with 800. |
+| `resetIncoming` / 0 | OR flags B with 200. |
+
+Zero-minimum flags ignore values. Height options ignore values beyond the
+listed count and do not reorder or validate endpoints. HeightRange overrides
+earlier completed height writes. A second heightRange conversion failure
+keeps its new lower endpoint and old upper endpoint. Every later failure
+retains bounds, flags, consumed switches and earlier completed writes. Shape
+alternatives left unconsumed remain subject to the nested post-check (§19.1).
+No renderer, terrain or city service is called by this handler.
+
+Evidence: shape defaults/point `00597159–0059721D`; square/quad
+`00597222–005973E1`; cube/box `005973E6–005975B7`; dice and model
+`005975BC–0059764E`; bound stores `00597652–0059768C`; secondary options
+`00597692–005978AE`; modelBase/city/cityWindySide `005978B9–005979A6`.
+Instruction bytes distinguish 32-bit stores and mode ORs. Shared zero at
+`00B22CC0` is in the PE virtual zero-fill region.
+
+### 19.46 Particle source conformance vectors (unexecuted)
+
+Each fixture supplies successful reader/conversion services except where
+explicitly failing. These are static predictions, not native observations.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC224 | source without options; old bounds arbitrary | bounds (-1,0,-1), (1,0,1); unrelated state retained |
+| EC225 | point (2,3,7) | both bounds (2,3,7) |
+| EC226 | square 2 with center (10,20,30) | lower (8,20,28), upper (12,20,32) |
+| EC227 | quad (2,5), center (10,20,30) | lower (8,20,25), upper (12,20,35) |
+| EC228 | cube -2 | lower (2,2,2), upper (-2,-2,-2); no rejection |
+| EC229 | box (2,3,5), center (10,20,30) | lower (8,17,25), upper (12,23,35) |
+| EC230 | point present together with malformed square | only point lookup is consumed; square not converted; later post-check may reject it after point bounds written |
+| EC231 | dice 4 | D+1D8=4, both bounds zero |
+| EC232 | cityWindySide with endpoints 8,-3 | flags A OR 3000 hex; bounds (-1,8,-1), (1,-3,1) |
+| EC233 | existing model flag; source point without value | zero bounds; model flag retained |
+| EC234 | terrainOnly, waterOnly, seaOnly, lakeOnly, belowHeight 4, aboveHeight 3, heightRange 9,2 | height endpoints 9,2; flags A OR 70000 hex; every listed option consumed |
+| EC235 | heightRange first conversion 9, second throws; killOutsideCity present | new lower height 9, old upper; flags A OR 10000 hex; new default source bounds retained; killOutsideCity unqueried |
+| EC236 | scaleParticles, pinToTerrain, pinToWater, killOutsideCity, resetIncoming | flags A OR 40C800 hex; flags B OR 200 hex; default bounds |
