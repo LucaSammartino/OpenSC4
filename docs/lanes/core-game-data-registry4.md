@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-game-data-registry4 (first portable registry core) | Codex / `core-game-data-registry4` (engine lane) | **WIP**, original round2/3: unchanged final engine2226d3b6; sole all pending optional stats27548, Rust5388/0 and clippy0 logged; current CTest not started; GDR1–5 retained; ABI unchanged | 1. Coordinator adjudicate own r2 request. 2. Collect same qbuild7056/fc4verify22544 to terminal and qualify final source before READY; no duplicate validator |
+| core-game-data-registry4 (first portable registry core) | Codex / `core-game-data-registry4` (engine lane) | **READY**, original round2/3: exact final engine2226d3b6 qualified; sole all exit0, Rust5388/0, clippy0, native4/4, CTest68/68; GDR1–5 retained; ABI unchanged; no game/native-owner credit | - |
 
 ## Round2 final-source qualification
 
@@ -22,7 +22,7 @@ R1 final/baseline/focused/failure evidence files were copied under
 `build-runs/registry-r2-final/prior-evidence/` with `archive-sha256.json`.
 Unmodified original raw journal and other failures remain available.
 
-The same live pipeline is collector5928 → qbuild7056 → fc4verify22544 → optional
+The sole pipeline was collector5928 → qbuild7056 → fc4verify22544 → optional
 read-only stats27548. Exact creation/cwd/argv/parent and log-source evidence is in
 `build-runs/coordinator-request-core-game-data-registry4-r2.md` and timestamped
 `registry-r2-final/fresh-process-proof-*.json`. At05:24:05 stats27548 was still
@@ -30,26 +30,45 @@ alive, created1792729312.4687445, running `sccache.EXE --show-stats --stats-form
 json` with parent22544 and this worktree cwd. Listener4590 belongs to daemon8408
 (created1792729246.0032012, parent26616, cargo/bin cwd); its only observed child
 was conhost23824. No daemon/compiler/validator kill, cache RPC, restart or
-duplicate validator was performed by this lane. The coordinator request is
-pending; cache-statistics cause UNKNOWN.
+duplicate validator was performed by this lane.
 
-Current logs measure23 Rust result lines,5388 passed/0 failed, clippy0 diagnostics.
-The actual terminal stream says `fc4verify build: PASS 4/4 edges (64.8 s)`;
-native overall return code and the full command's end/exit remain unavailable.
-The native log SHA256 is
-3d63fe3a18e0c541bb6b2e0e3c12287ddfacbf51cde8554d3f363609c3802219.
-CTest has NOT started: its04:54:55 log is the prior source's68/68, not a result
-for this source. Neither Ninja completion nor the old CTest result qualifies
-the current all. `pending-summary.json` records end/exit/nativeRC/CTest as null.
+ROOT then terminated ONLY optional read-only stats27548, created1792729312.4687445,
+at05:24:16.413447–05:24:18.018816, exit15. The SAME fc4verify22544 and daemon8408
+remained alive; qbuild7056 continued its original run. No daemon/compiler/validator
+kill or restart occurred. Cache statistics unavailable; cause UNKNOWN. Copied
+action proof `build-runs/coordinator-optional-stats-20261023-052416.json` retains
+the exact process identity, parent/service continuity, no open outputs/writers
+and unchanged native-log hash. This is separate from the round1 action on35076
+and the earlier absent30532. No outcome was upgraded by optional-client termination.
 
-The collector retains command, start, before HEAD/engine/file SHA256 in
-`registry-r2-final/qualification.json`; it will record actual end/exit, after
-HEAD/engine/file SHA256 and log hashes when that same command reaches terminal.
-`terminal.log` retains stdout; original terminal handle is session65673.
-Engine and all three file hashes match the final-formatted column below in the
-05:24:05 snapshot; later changes are report-only. No second all is justified by
-documentation changes. Until actual terminal current-source qualification this
-lane remains WIP. Collect this pipeline rather than restart it.
+The SAME original validator subsequently completed real native4/4 (64.8s),
+CTest68/68 (135.0s), fc4verify PASS (349.5s); qbuild reports Rust exit0 with5388
+passed/0 failed over23 result lines, clippy exit0/0 diagnostics, and overall PASS.
+Collector terminal exit0 was retained at2026-10-23T05:26:33.200024+01:00.
+This is the current source's fresh CTest result, not the prior04:54:55 log.
+`pending-summary.json` preserves the earlier unqualified observation separately;
+`summary.json` contains the actual terminal result. No duplicate gate/test was run.
+
+`registry-r2-final/qualification.json` retains exact command/start/end/exit,
+before HEAD260d6f992265b481db5d241b82700c8793bf4d4e and after
+HEAD3fc08ce14f1b60f23faac83df303675a72c36c9b, engine/file SHA256 before/after,
+and log hashes. Both engine trees are2226d3b64adf716a335de644960e15ce494e7d58;
+all three file hashes match the final-formatted column below; both engine diffs
+are empty and both source snapshots are clean. The collector confirms
+`engine_equal=true`; the summary rechecks all log hashes unchanged.
+The fc4verify tree-change annotation is explained by report-only commits, not
+engine changes. Subsequent final-report edits also leave engine untouched.
+`terminal.log` retains session65673 through terminal;05:26:38 process proof
+shows no remaining own checker. The daemon listener remains; no shutdown was
+requested. Exact final source is qualified; no second all for documentation.
+
+Final SHA256 evidence (full configure/list hashes also in qualification.json):
+
+- Rust log:0f8a4c120c486a9f48793a1bf0804f03f7f28574ef1b368c248a09ea6e95b1fa.
+- Clippy log:d0c8d121b2745753559474b9b71f3073e3f3cb53bf6119d4aa711f00ef2ff81b.
+- Native log:3d63fe3a18e0c541bb6b2e0e3c12287ddfacbf51cde8554d3f363609c3802219.
+- CTest log:e96218a9d39785be01ab026a5a8d38ea3b858171eb57d09a9e6e082deb19a0e3.
+- Terminal log:6ecf1a641cb027aa4be5f0f3126d09cbc0c0dca714d11962701de1cd0d82d3ad.
 
 ## Owned core
 
@@ -228,7 +247,7 @@ numeric conversion, factory/native construction or Lua mirror is inferred.
 Filed GDR5 in docs/specs/questions/game-data-registry.md: anonymous replacement key
 collision with an existing raw leaf key. The portable model tags this unsupported
 rather than inventing overwrite/native-false semantics. GDR1–4 remain unsupported.
-Coordinator must obtain the sole round2 validator's actual final-source terminal
-result before changing WIP to ready; the optional stats request is pending.
+The sole round2 validator's actual terminal result qualifies the final formatted
+source. Own normal merge queue is ready; no outstanding checker/game request.
 No automatic third/fourth round, new tests, native/game probes or owner expansion.
 A later authorized lane owns interoperability/wiring or further native evidence.
