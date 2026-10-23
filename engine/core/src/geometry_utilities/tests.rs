@@ -294,7 +294,7 @@ fn published_polygon_clip_and_right_side_winding() {
 }
 
 #[test]
-fn clipping_empty_capacity_boundary_and_short_crossing_fallback() {
+fn clipping_empty_capacity_boundary_and_unsupported_short_crossing() {
     assert!(clip_polygon_to_edge_2d([0.; 2], [0., 1.], &[], 5).is_empty());
     let poly = [[-1., 2.], [1., 2.], [1., -2.], [-1., -2.]];
     let all = clip_polygon_to_edge_2d([0.; 2], [0., 1.], &poly, 10);
@@ -302,10 +302,11 @@ fn clipping_empty_capacity_boundary_and_short_crossing_fallback() {
     for cap in 0..4 {
         assert_eq!(clip_polygon_to_edge_2d([0.; 2], [0., 1.], &poly, cap), all[..cap]);
     }
-    assert_eq!(
-        clip_polygon_to_edge_2d([0.; 2], [0., 0.001], &[[-1., 0.], [1., 0.]], 10),
-        [[-1., 0.], [1., 0.], [1., 0.]]
-    );
+    // GU5 DIFFERS: an uninitialized failed-crossing read has no point oracle.
+    let mut backing = [[99.; 2]; 10];
+    let mut count = 0;
+    assert_eq!(clipping::clip_edge_signed([0.; 2], [0., 0.001], &[[-1., 0.], [1., 0.]], 2,
+        &mut backing, 10, &mut count), Err(clipping::ClipUnsupported::UninitializedCrossing));
     assert_eq!(clip_polygon_to_edge_2d([0.; 2], [0., 1.], &[[0., 2.]], 10), [[0., 2.]]);
 }
 
@@ -374,10 +375,11 @@ fn published_builder_colour_layout_ties_and_wrap() {
         })
     );
     assert!(!builder.changed());
+    let old_bounds = builder.bounds();
     builder.reset();
     assert_eq!(builder.arrays_allocated(), (true, true));
     assert!(builder.mesh().vertices().is_empty());
-    assert_eq!(builder.bounds(), None);
+    assert_eq!(builder.bounds(), old_bounds); // GU3 DIFFERS: Reset does not write bounds.
 }
 
 #[test]

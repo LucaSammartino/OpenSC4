@@ -8,7 +8,10 @@
 
 mod mesh;
 mod texture;
-pub use mesh::{add_box_mesh, box_corners, Bounds, MeshBuilder, Primitive, Vertex};
+pub mod raw_texture;
+pub mod clipping;
+pub mod pc24;
+pub use mesh::{add_box_mesh, box_corners, Bounds, BuilderUnsupported, MeshBuilder, Primitive, Vertex};
 pub use texture::{create_texture_from_text, Surface, TextFont, TextureHost, TextureImage};
 
 pub type Vec2 = [f32; 2];
@@ -48,11 +51,11 @@ fn closed(value: f32, lo: f32, hi: f32) -> bool {
 
 pub fn length_of_line_squared(a: Vec3, b: Vec3) -> f32 {
     let d = sub(b, a);
-    dot(d, d)
+    (d[2] * d[2] + d[1] * d[1]) + d[0] * d[0]
 }
 pub fn length_of_line_squared_2d(a: Vec2, b: Vec2) -> f32 {
     let d = sub(b, a);
-    dot(d, d)
+    d[1] * d[1] + d[0] * d[0]
 }
 pub fn length_of_line(a: Vec3, b: Vec3) -> f32 {
     length_of_line_squared(a, b).sqrt()
@@ -93,7 +96,7 @@ pub fn get_normal_to_triangle(a: Vec3, b: Vec3, c: Vec3) -> Vec3 {
     cross(sub(c, b), sub(a, b))
 }
 pub fn point_and_vector_to_plane_equation(p: Vec3, n: Vec3) -> Plane {
-    [n[0], n[1], n[2], -dot(p, n)]
+    [n[0], n[1], n[2], -((p[1] * n[1] + p[2] * n[2]) + p[0] * n[0])]
 }
 
 pub fn ray_intersects_bounding_box(o: Vec3, d: Vec3, min: Vec3, max: Vec3, hit: Option<&mut Vec3>) -> bool {
@@ -216,11 +219,11 @@ pub fn bounding_boxes_intersect(
         }
     }
     if let Some(out_min) = out_min {
-        // GU5: first operand wins ties/unordered comparisons, not f32::min/max.
-        *out_min = std::array::from_fn(|i| if b_min[i] > a_min[i] { b_min[i] } else { a_min[i] });
+        // §4.6 selects the second operand on ties and unordered comparisons.
+        *out_min = std::array::from_fn(|i| if a_min[i] > b_min[i] { a_min[i] } else { b_min[i] });
         store(
             out_max,
-            std::array::from_fn(|i| if b_max[i] < a_max[i] { b_max[i] } else { a_max[i] }),
+            std::array::from_fn(|i| if a_max[i] < b_max[i] { a_max[i] } else { b_max[i] }),
         );
     }
     true
@@ -241,38 +244,23 @@ pub fn rotate_point_2d(c: Vec2, p: Vec2, angle: f32) -> Vec2 {
     [c[0] + (co * dx - s * dy), c[1] + (s * dx + co * dy)]
 }
 pub fn clip_polygon_to_edge_2d(e0: Vec2, e1: Vec2, poly: &[Vec2], max: usize) -> Vec<Vec2> {
-    let inside = |p: Vec2| (p[0] - e0[0]) * (e1[1] - e0[1]) - (p[1] - e0[1]) * (e1[0] - e0[0]) >= 0.0;
-    let mut out = Vec::new();
-    let Some(&last) = poly.last() else { return out };
-    let mut previous = last;
-    let mut previous_inside = inside(previous);
-    for &current in poly {
-        let current_inside = inside(current);
-        if current_inside != previous_inside {
-            let mut crossing = current;
-            // §5.1's explicit FreeCity4 fallback for near-parallel crossings.
-            rays_intersect_2d(previous, sub(current, previous), e0, sub(e1, e0), Some(&mut crossing));
-            if out.len() < max {
-                out.push(crossing);
-            }
-        }
-        if current_inside && out.len() < max {
-            out.push(current);
-        }
-        previous = current;
-        previous_inside = current_inside;
-    }
+    // Qualified adapter: count and max must fit signed words; use the signed
+    // API for explicit errors, nonpositive counts and observable backing tails.
+    let n = i32::try_from(poly.len()).expect("signed polygon count");
+    let max = i32::try_from(max).expect("signed capacity");
+    let mut out = vec![[0.; 2]; poly.len().saturating_mul(2).min(max as usize)];
+    let mut count = 0;
+    clipping::clip_edge_signed(e0, e1, poly, n, &mut out, max, &mut count).expect("defined PC24 clipping domain");
+    out.truncate(count as usize);
     out
 }
 pub fn clip_polygon_to_polygon_2d(poly: &[Vec2], clip: &[Vec2], max: usize) -> Vec<Vec2> {
-    let mut out = poly.to_vec(); // Initial copy is explicitly not capped (§5.2).
-    let Some(&last) = clip.last() else { return out };
-    let mut previous = last;
-    for &current in clip {
-        // GU5: safe model of the published 40-point intermediate scratch.
-        out = clip_polygon_to_edge_2d(previous, current, &out, max.min(40));
-        previous = current;
-    }
+    let mut out = vec![[0.; 2]; poly.len().max(40)];
+    let mut count = 0;
+    clipping::clip_polygon_signed(poly, i32::try_from(poly.len()).expect("signed count"), clip,
+        i32::try_from(clip.len()).expect("signed count"), &mut out, i32::try_from(max).expect("signed capacity"), &mut count)
+        .expect("defined PC24 clipping domain");
+    out.truncate(count as usize);
     out
 }
 
@@ -315,3 +303,6 @@ pub fn random_direction_3(random: &mut impl DirectionRandom) -> Vec3 {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod contract_tests;

@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-use super::{dot, Vec3};
+use super::{pc24, Vec3};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BuilderUnsupported {
+    MissingVertexArray,
+    Numeric(pc24::NumericUnsupported),
+}
 
 /// Standard vertex format 1 (graphics-formats §3.5), position then BGRA.
 #[repr(C)]
@@ -32,6 +38,7 @@ pub struct MeshBuilder {
     alpha: f32,
     changed: bool,
     bounds: Option<Bounds>,
+    vertex_count: u16,
 }
 impl MeshBuilder {
     pub fn new() -> Self {
@@ -44,9 +51,9 @@ impl MeshBuilder {
         if let Some(primitives) = &mut self.primitives {
             primitives.clear();
         }
-        // GU3: retain arrays, invalidate the empty bounds and mark changed.
-        self.bounds = None;
-        self.changed = true;
+        self.vertex_count = 0;
+        // §6.1: Reset writes neither changed nor bounds. Vec backing retention
+        // is a Rust container choice, not a foreign resize guarantee.
     }
     pub fn set_light_direction(&mut self, light: Vec3) {
         self.light = light;
@@ -62,7 +69,8 @@ impl MeshBuilder {
         self.alpha = alpha;
     }
     pub fn begin_primitive(&mut self, primitive_type: u32) {
-        let first = self.vertices.get_or_insert_with(Vec::new).len();
+        self.vertices.get_or_insert_with(Vec::new);
+        let first = usize::from(self.vertex_count);
         self.primitives.get_or_insert_with(Vec::new).push(Primitive {
             primitive_type,
             first,
@@ -72,25 +80,36 @@ impl MeshBuilder {
     }
     /// §6.2 closes the last primitive. GU3: no-op when none exists.
     pub fn end_primitive(&mut self) {
-        let count = self.vertices().len();
+        let count = u32::from(self.vertex_count);
         if let Some(primitive) = self.primitives.as_mut().and_then(|p| p.last_mut()) {
-            primitive.count = count - primitive.first;
-            self.changed = true;
+            primitive.count = count.wrapping_sub(primitive.first as u32) as usize;
         }
     }
     pub fn add_vertex(&mut self, position: Vec3) {
-        let k = 0.3 + 0.7 * dot(self.light, self.normal);
-        let [r, g, b] = self.colour.map(|c| colour_byte(k * c));
+        self.try_add_vertex(position).expect("AddVertex requires a vertex array and PC24 normal numeric domain");
+    }
+    pub fn try_add_vertex(&mut self, position: Vec3) -> Result<(), BuilderUnsupported> {
         let vertex = Vertex {
             position,
-            colour: [b, g, r, colour_byte(self.alpha)],
+            colour: pc24::lit_colour(self.light, self.normal, self.colour, self.alpha)
+                .map_err(BuilderUnsupported::Numeric)?,
         };
-        // GU3: a standalone AddVertex creates no implicit primitive.
-        self.vertices.get_or_insert_with(Vec::new).push(vertex);
-        self.changed = true;
+        let vertices = self.vertices.as_mut().ok_or(BuilderUnsupported::MissingVertexArray)?;
+        let slot = usize::from(self.vertex_count);
+        if slot == vertices.len() {
+            vertices.push(vertex);
+        } else {
+            vertices[slot] = vertex;
+        }
+        self.vertex_count = self.vertex_count.wrapping_add(1);
+        // Neither dirty nor primitive count is written by this body.
+        Ok(())
+    }
+    pub fn vertex_count(&self) -> u16 {
+        self.vertex_count
     }
     pub fn mesh(&mut self) -> &Self {
-        if self.changed {
+        if self.changed && self.vertices.is_some() {
             self.recompute_bounds();
             self.changed = false;
         }
@@ -133,24 +152,6 @@ impl MeshBuilder {
         }
         self.bounds = bounds;
     }
-}
-
-fn colour_byte(value: f32) -> u8 {
-    let scaled = f64::from(value * 256.0);
-    let floor = scaled.floor();
-    let fraction = scaled - floor;
-    let rounded = if fraction > 0.5 || (fraction == 0.5 && floor % 2.0 != 0.0) {
-        floor + 1.0
-    } else {
-        floor
-    };
-    // GU2: integer width/nonfinite behaviour unpublished; x87 i32 indefinite.
-    let c = if rounded.is_finite() && (f64::from(i32::MIN)..=f64::from(i32::MAX)).contains(&rounded) {
-        rounded as i32
-    } else {
-        i32::MIN
-    };
-    c.wrapping_sub(c >> 8) as u8
 }
 
 pub fn box_corners(min: Vec3, max: Vec3) -> [Vec3; 8] {

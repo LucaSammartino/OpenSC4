@@ -7,7 +7,11 @@
 - Reserved detached worktree reused; initial tree clean, main.. empty.
 - Task-specific instruction says no pre-edit baseline or redundant quick; run one stable committed-source all gate.
 - Public 26-vector ledger recorded below before comparisons. Historical tests retained except documented public differences.
-- Next: add primitive GU4 contract API with explicit unsupported domains, then focused tests.
+- Implemented raw GU4 primitive host, byte-NUL layout, common epilogue, format/plain/compressed helpers.
+- Implemented signed clipping backing/count API and PC24 bounded length/plane/lighting/colour model.
+- Updated builder local u16 count, dirty/reset and wrapped inline closure; foreign bounds algorithm unchanged.
+- Added independent public vector tests. First focused qbuild quick is outstanding (transport handle 18).
+- Next: fix focused failures, commit stable source, run the one canonical all gate and fmt check.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-geometry-utilities-contracts4-r1-manifest.json.
 - No game requests. No agents. GU1/2/3/5/6 residuals remain open.
 
