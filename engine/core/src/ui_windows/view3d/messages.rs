@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! The two message interfaces and child-window filter (§§5–6).
-use super::{CheatHost, CommandHost, LifecycleHost, View3DWin};
+use super::{LifecycleHost, View3DWin};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct WindowMessage {
@@ -62,7 +62,7 @@ pub enum MessageCall {
 
 /// These are foreign window/dispatcher/URL/tutorial services. The owner decides
 /// routing, precedence, guards, deduplication and return values.
-pub trait MessageHost: CheatHost + CommandHost + LifecycleHost {
+pub trait MessageHost: super::ActionHost + LifecycleHost {
     fn message_call(&mut self, call: MessageCall);
     /// Return true when tutorial consumes a message; it may also rewrite it.
     fn tutorial_message(&mut self, message: &mut WindowMessage) -> bool;
@@ -86,7 +86,7 @@ impl View3DWin {
     /// cIGZMessageTarget2: command QI wins even for a notification's type.
     pub fn notification(&mut self, host: &mut impl super::CityHost, message: Notification) -> bool {
         if message.command_interface {
-            self.process_motion_panel_command(host, message.kind);
+            self.process_command(host, message.kind, message.data);
             return true;
         }
         let [a, b] = message.data;
@@ -188,7 +188,7 @@ impl View3DWin {
             }
             3 if a == 0x49D9_93D4 => {
                 host.message_call(MessageCall::Focus);
-                host.message_call(MessageCall::InvokeCatalog(b, c));
+                self.invoke_catalog_item(host, b, c, false);
                 true
             }
             0x13 | 0x14 | 0x0D => {

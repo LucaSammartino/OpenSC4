@@ -6,12 +6,12 @@
 - Goal: close cSC4View3DWin core owner; foreign window/renderer/camera/simulator traits; no C ABI or plugin changes.
 - Worktree reused at reserved detached HEAD; initial working tree clean.
 - Existing module: engine/core/src/ui_windows/view3d.rs. Do not duplicate.
-- Round 2 milestones: be6919b0 Init/shutdown/message entry points (41 tests passed); GUI/city orchestration now 46 focused tests passed, exact filter tab behavior corrected. Owner closure incomplete, no merge queue.
+- Round 2 milestones: be6919b0 Init/messages (41 tests passed); 297fac15 GUI/city (46 passed); identified command and catalog-item tool dispatch added. Two mock Close(bool) expectations corrected after 47/49 focused result; production routing unchanged.
 - Done commits: 4235510b input/motion; a65fad4f cheats/state/save/status; ac87b033 panels/commands; 384d472c legacy save compatibility.
 - FINAL corrected full gate: cargo 6110 passed/0 failed/0 ignored; clippy exit=0 diagnostics=0; CMake compiler-ABI configure TIMEOUT 900 s; CTest skipped (0 run). Overall FAIL, stable source/HEAD.
 - Both full checks collected to terminal: sessions 50209 and 27109. No checks outstanding. Failed first-gate logs preserved under build-runs/evidence-gate-1/; corrected logs build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-configure.log.
 - Private _MSPDBSRV_ENDPOINT_=fc4lane-core-view3dwin5 did not fix compiler-ABI timeout; approved coord-verify-lane.ps1 uses this convention. Probe invokes cl.exe without sccache. Do not duplicate a pending check (none now).
-- Exact next implementation: finish remaining command/button/catalog/status/helper/save-reference adapter rows. GUI and city lifecycle implemented with foreign traits. T2–T4 now tested (shutdown primitives, dedupe, inverted URL).
+- Next: collect stable final full gate (round 2), then remaining button/catalog popup/status/helper/save-reference rows. Formatting passed eight owned Rust files. Full gate uses _CL_=/Z7 to avoid pre-project /Zi PDB probe hang; prior logs preserved build-runs/evidence-round2.
 - Existing tests cover VW-T1, T5–T18; source compatibility preserved: legacy View3DSave unchanged, full core body View3DRecord + save_record/load_record. Foreign opaque reference identity/resolution adapter still pending.
 - Coverage: engine/core/src/ui_windows/view3d/README.md; pending rows are NOT closure claims. Split grouped rows further for final per-section coverage.
 - Filed VW9–VW13 in docs/specs/questions/view3d-window.md. Existing VW6–VW8 remain open. No game requests, game/shadow validation, plugin/C API edits, or ABI export changes.

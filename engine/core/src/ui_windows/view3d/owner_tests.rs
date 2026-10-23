@@ -4,6 +4,8 @@ use crate::ui_windows::win::WinStore;
 
 #[derive(Debug, PartialEq)]
 enum Op {
+    Action(ActionCall),
+    Tool(ToolSpec),
     City(CityCall),
     Gui(GuiCall),
     Lifecycle(LifecycleCall),
@@ -226,6 +228,135 @@ impl CityHost for Host {
     fn tip_ready(&self) -> bool {
         self.changed
     }
+}
+
+impl ActionHost for Host {
+    fn action(&mut self, call: ActionCall) {
+        self.ops.push(Op::Action(call));
+    }
+    fn create_tool(&mut self, spec: ToolSpec) -> Option<u32> {
+        self.ops.push(Op::Tool(spec));
+        self.filter_allocation.then_some(90)
+    }
+    fn expanded_tooltips(&self) -> bool {
+        self.changed
+    }
+    fn signs_shown(&self) -> bool {
+        self.changed
+    }
+    fn animation_paused(&self) -> bool {
+        self.changed
+    }
+    fn main_panel_visible(&self) -> bool {
+        self.changed
+    }
+    fn alt_down(&self, modifiers: u32) -> bool {
+        modifiers == 4
+    }
+    fn cursor_in_view(&self) -> (i32, i32) {
+        (50, 60)
+    }
+    fn disaster_properties(&mut self, _: u32) -> DisasterProperties {
+        if self.changed {
+            DisasterProperties {
+                effect_group: Some(42),
+                manager: 12,
+                ..DisasterProperties::default()
+            }
+        } else {
+            DisasterProperties::default()
+        }
+    }
+}
+
+#[test]
+fn command_save_quit_and_animation_guards_preserve_parameters() {
+    let mut v = view();
+    let mut host = Host::default();
+    v.owner.modifiers = 4;
+    assert!(!v.process_command(&mut host, 0x6A93_5E36, [0, 9]));
+    assert!(!v.process_command(&mut host, 0x6A93_5E3C, [2, 9]));
+    v.process_command(&mut host, 0x6A97_53EA, [0, 0]);
+    assert_eq!(
+        host.ops,
+        vec![
+            Op::Action(ActionCall::Save {
+                prompt: true,
+                quick: true
+            }),
+            Op::Action(ActionCall::Quit {
+                prompt: false,
+                parameter1: 9
+            })
+        ]
+    );
+    v.owner.view.animation_debug = true;
+    v.process_command(&mut host, 0x6A97_53EA, [0, 0]);
+    v.process_command(&mut host, 0x6A97_53ED, [0, 0]);
+    assert_eq!(
+        &host.ops[2..],
+        &[
+            Op::Action(ActionCall::AnimationPause(false)),
+            Op::Action(ActionCall::AnimationStep)
+        ]
+    );
+    host.ops.clear();
+    v.process_command(&mut host, 0x6A93_5E2D, [0, 0]);
+    assert_eq!(
+        host.ops,
+        vec![
+            Op::Action(ActionCall::GraphicOptions),
+            Op::Action(ActionCall::FocusView)
+        ]
+    );
+}
+
+#[test]
+fn catalog_item_guards_network_intersections_lot_move_and_null_allocation() {
+    let mut v = view();
+    let mut host = Host {
+        established: false,
+        ..Host::default()
+    };
+    v.invoke_catalog_item(&mut host, 0x4A2B_2467, 0x8C32_9937, false);
+    v.invoke_zoning_tool(&mut host, 15);
+    assert!(host.ops.is_empty());
+    host.established = true;
+    v.invoke_zoning_tool(&mut host, 16);
+    assert!(host.ops.is_empty());
+    v.invoke_catalog_item(&mut host, 0x4A2B_2467, 0x6A47_1234, true);
+    assert_eq!(host.ops[0], Op::Close(true));
+    assert_eq!(host.ops[1], Op::Tool(ToolSpec::Intersection(0x1234)));
+    host.ops.clear();
+    v.owner.mouse_inside = true;
+    v.invoke_catalog_item(&mut host, 0x6A2B_245F, 42, false);
+    let movement = Op::Control(90, ControlCall::Event(InputEvent::Move(50, 60, 0)));
+    assert!(host.ops.contains(&movement));
+    assert_eq!(host.ops.last(), Some(&Op::Control(90, ControlCall::Release)));
+    host.filter_allocation = false;
+    host.ops.clear();
+    v.invoke_zoning_tool(&mut host, 1);
+    assert_eq!(v.input_control(), None);
+    assert!(!host.ops.contains(&movement));
+}
+
+#[test]
+fn disaster_properties_and_global_terrain_close_level_are_literal() {
+    let mut v = view();
+    let mut host = Host {
+        changed: false,
+        ..Host::default()
+    };
+    v.invoke_disaster(&mut host, 42);
+    assert!(host.ops.is_empty());
+    v.invoke_catalog_item(&mut host, 0x6A5A_C478, 6, true);
+    assert_eq!(
+        host.ops,
+        vec![Op::Close(false), Op::Action(ActionCall::GlobalTerrain(6))]
+    );
+    host.ops.clear();
+    v.invoke_disaster(&mut host, 0xA9DE_8784);
+    assert_eq!(host.ops[0], Op::Tool(ToolSpec::Torch));
 }
 
 #[test]

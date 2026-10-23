@@ -44,6 +44,7 @@ use super::slots::{
 };
 use super::win::{WinStore, WinToken};
 
+mod actions;
 mod city;
 mod commands;
 mod gui;
@@ -53,6 +54,7 @@ mod messages;
 mod motion;
 mod state;
 mod status;
+pub use actions::{ActionCall, ActionHost, DisasterProperties, ToolSpec};
 pub use city::{CityCall, CityHost, CityObject, TunableValues};
 pub use commands::{CommandHost, PanelState, QueryTool};
 pub use gui::{GuiCall, GuiHost, GuiState, HelperKind};
