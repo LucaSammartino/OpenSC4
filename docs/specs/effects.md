@@ -2250,8 +2250,9 @@ a bad colon or failed inheritance, but no generic block is entered on those
 exception paths. The foreign collection performs the named lookup/copy;
 returning an already parsed child-command result is not an owner primitive.
 
-The **particles** entry additionally sets `P+494` to the last four-byte element
-of the description list at `P+2A8` (zero when empty), and `P+498` to binary32 1,
+The **particles** entry additionally sets `P+494` to the four-byte word
+immediately before the end pointer of the description list at `P+2A8` (zero
+when empty), and `P+498` to binary32 1,
 after successful inheritance and before block entry. These scratch writes are
 omitted on a preceding failure. Other definition entries do not do them.
 
@@ -2385,7 +2386,7 @@ retention is the independent collection primitive's contract.
 | EC54 | `dynamicParticle Name : Parent ignored`; collection inherit +28=false after writing a field | defaults then +28 called with Parent/output description; `Unknown particle definition: Parent`; foreign output mutation/name retained; no block entry |
 | EC55 | `decal Name : Missing`; null collection | defaults retained; no unknown-name error; block entered |
 | EC56 | `particles -Name`; two raw records, existing D+204=123 | name `-Name` accepted as raw string; defaults installed with D+204 still 123; D+1C8 unconstrained; P+494=0 from empty default +1B8 list, P+498=1; block entered |
-| EC57 | particles inheritance succeeds and writes rate list at P+2A8=`[2,7]` | P+494 copies final 7 bit-for-bit; P+498=1; inherited data retained; block entered |
+| EC57 | particles inheritance succeeds; list at P+2A8 is nonempty and word at end-4 has binary32 7 | P+494 copies that word bit-for-bit; P+498=1; inherited data retained; block entered |
 | EC58 | light selections `[Name,:,Parent,ignored]`, successful +40 output has empty float/vector lists | name assigned/reset then inheritance; lists remain empty until exit; no inline option lookup |
 | EC59 | light exit with null collection and empty lists | D+0C becomes `[1]`, D+00 becomes `[(0,0,1)]`; name cleared; scalar D+18 retained |
 | EC60 | light exit with nonempty float/vector lists; publish +3C throws | lists unchanged; live name/description retained; generic block not popped |
@@ -2393,3 +2394,32 @@ retention is the independent collection primitive's contract.
 | EC62 | `sequence Name : Parent -loop -noOverlap -hardStart`; allocation succeeds, old pointer O | no inheritance call; retain new empty description N, store N, release O; flags=7 in lookup order; positional colon/Parent ignored; generic block entered |
 | EC63 | sequence normal exit, null collection, installed N | no publication; name cleared, P+490 set null, then N+14 called |
 | EC64 | sequence +44 publication throws | name and installed pointer retained; no explicit exit release/clear |
+
+### 19.16 Particle `effectBase` string binding
+
+Particles' nested registrar associates literal `effectBase` with descriptor
+`00A9FA28`, direct handler `0059D8F0`, owner `cParticleEffectBaseCommand`
+(`00595C2D–00595C40`, literal pointer `00B0A378` to `00A9F500`).
+The handler first requires the live particles name at `P+E0` to be nonempty;
+otherwise it throws `Not in particles block` before positional selection.
+It does not check the generic block stack or the current `effect` name.
+
+For a nonempty particles name it requests at least one nonswitch value,
+ignores the returned AL, and copies selected value 0 into the particles
+description's string at `P+250` (`D+160` in §19.13), preserving case.
+Additional selected values are ignored. There is no owner option lookup,
+collection lookup, existence check, component creation or change to the live
+particles name. Empty string is a valid primitive value when the reader
+supplies it. A returning assignment replaces the previous binding; a later
+generic unhandled-switch error does not roll back that change. Missing-value
+failure follows the shared reader's exception contract.
+
+Evidence: name guard `0059D8F8–0059D94A`, positional selection
+`0059D94F–0059D95B`, selected string assignment `0059D960–0059D994`.
+
+| ID | Fixture | Required result (unexecuted) |
+|---|---|---|
+| EC65 | empty particles name; `effectBase` without a value | `Not in particles block` precedes minimum-value error; binding unchanged |
+| EC66 | particles name `P`; `effectBase MixedCase ignored`; old binding `Old` | binding becomes `MixedCase`; second selection ignored; no foreign existence/collection call |
+| EC67 | particles name `P`; selected empty string | binding becomes empty; live particles name remains `P` |
+| EC68 | particles name `P`; `effectBase New -unknown`; nested post-check enabled | binding becomes `New`, then generic unhandled-switch error; binding survives |
