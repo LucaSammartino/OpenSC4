@@ -1189,6 +1189,12 @@ bucket, visits each linked node from head to tail, then searches higher bucket i
 unsigned key modulo the **current bucket count**, not sorted key or insertion order. The constructor requests
 100 buckets; the prime table at `0x00A829B0` rounds that up to **193** (53,97,193,389,…).
 The serialized pair count is the number of present keys, even when a wrapped count is zero.
+New keys prepend to their bucket, so inserting 1 then 194 into the initial table saves 194 before 1.
+Before inserting a new key, grow if the resulting number of keys exceeds the bucket count: choose the
+first table prime at least that number (the 194th distinct key grows 193 to 389). Rehash scans old buckets
+in increasing order and their chains head-to-tail, prepending each node to its new bucket; insert the new
+key at its bucket head afterwards (`0x00750C35`–`0x00750C89`, `0x004F0955`–`0x004F0A0F`). Thus growth
+can reverse colliding-node order; saving does not normalize it. Count changes on existing keys do not grow.
 `RZAtofA` (`0x0090FC5B`) delegates to the bundled CRT `strtod`, discarding the end pointer. It uses the runtime
 locale's decimal-point byte (`0x00B19C60`), rather than requiring a literal dot. Its numeric recognizer
 `0x00A0342B` accepts decimal digits, sign, decimal separator and decimal exponent (including D/d); it has
@@ -1234,8 +1240,9 @@ unused `+0x2C0` pair. Bus-stop/pipe IDs are in the full registry (§6g supplemen
 
 - The coverage helper at `+0x3E4` (`0x007D26F0` constructor; `0x007D1DB0` clear; `0x007D1CF0`
   destructor; recalculation `0x007D26E0`) shows the named coverage-radius effects described above.
-- `AddBackgroundImageToRenderer` (`0x007F1640`): the first file of a user `Background2D` or `Background3D` folder that
-  loads (through `+0x150`) as a square power-of-two picture becomes the renderer's background; `+0x158` keeps the mode.
+- `AddBackgroundImageToRenderer` (`0x007F1640`): an accepted user background image, loaded through `+0x150`,
+  becomes the renderer's background; dimensions must be equal with `(width & (width - 1)) == 0`.
+  Mode and basename selection are specified above; `+0x158` keeps the selected mode.
 - Window `0xEA8CAD14`'s procedure (`0x00769E90`…`0x00769F10`) subscribes to `0x26D31EC1` and `0xA6B79602` while
   attached (`0xA2BF8AD5`/`0xA2BF8AD6`) and toggles the child buttons after it to show the view's rotation.
 - Constructors and small members of other UI classes that only the view calls: the demolish tool (`0x004B9070`), the
@@ -1350,6 +1357,8 @@ the former §5.1 description crossed the end of this function into neighboring f
 - VW-T30: a present trigger count 0xFFFFFFFF asserted once becomes zero without another on message;
   retract then removes it and sends off. A second retract sends nothing. Distinct buckets save by increasing
   key modulo 193, not key order (e.g. keys 193 then 1 save in that order).
+  Colliding new keys 1 then 194 save as 194 then 1; inserting the 194th distinct key grows to 389 buckets,
+  rehashing by the rule in §6l before that new key is prepended.
 - VW-T31: C-locale SizeOf `nan`, `inf`, `0x1p4`, `5junk` supplies 0.9, 0.9, 0.9, 5.0 respectively.
 - VW-T32: buttons 0x36 and 0x8A32DDDB use the same script/kind but preserve their distinct caller-data IDs;
   0xABB27B91 has no vehicle action; 0x2B79E398 opens the generic transport catalog with null memory.

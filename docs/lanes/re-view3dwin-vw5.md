@@ -1,27 +1,52 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-view3dwin-vw5: VW6–VW18 owner contracts | Codex / re-view3dwin-vw5 | in progress | Continue: finish VW18, move remaining answered entries, index/doccheck and enqueue. |
+| re-view3dwin-vw5: VW6–VW18 owner contracts | `Codex` / `re-view3dwin-vw5` (re lane) | ready; VW6–VW18 answered; index 0 open / 18 answered; doccheck passed; no ABI changes or game runs | 1. Land the queued tip. 2. core-view3dwin5 can consume the closed contracts and vectors. |
+
+## Report
+
+Closed all 13 requested VW6–VW18 questions in [view3d-window.md](../specs/view3d-window.md), with dated
+MATCHES/DIFFERS verdicts preserving the questions in
+[answered/view3d-window.md](../specs/questions/answered/view3d-window.md). Regenerated the questions index:
+**0 open, 18 answered**, next ID VW19. No new questions filed.
+
+The specification now covers the complete ordered 104-record command registry; dormant fields and per-panel
+extras; erosion messages; allocation/QI failure boundaries and parent-owned overlay lifetime; save-trigger
+overflow, collision/bucket/rehash order and the bundled decimal parser; remaining menu identities and
+caller data; paint timing/tail behaviour, status ordering/fading, shutdown and the empty command callback.
+VW-T19–VW-T39 provide 21 additional conformance vectors across this lane's two rounds. These are specified
+vectors for implementers, not runtime test results.
+
+Round 2 closes the remaining opaque contracts in §6l: mission argument 1 is the message's borrowed
+IGZUnknown attachment, while data1 remains the activation flag. The old handoff's indexed-getter assumption
+was incorrect: message slot 32 is zero-argument GetIGZUnknown. Advice links use the window-message type and
+data1, with exact panel/graph/budget dispatch and guards. Renderer/model-maker/accelerator getters borrow;
+the terrain debug-string slot is empty. Background mode latches 2D/3D selection and 3D filenames append the
+camera zoom byte. Coverage recalculates whole service lists without explicit arguments and retains the
+original's stale-radius/null-effect cache quirks. The two old coverage “effect IDs” actually request the
+temporary-list allocator; effects are created by name. Auxiliary lifetime and graph setup calls are stated.
+
+Also corrected [ui-windows.md](../specs/ui-windows.md) slot 38 to the empty-method contract and the earlier
+[view3d.md](../specs/view3d.md) paint-tail boundary. Removed the stale open-question summary.
+
+Evidence: main checkout's read-only `tools/re_query.py`, exported instructions and `decomp/`; numeric
+coverage factors, transform scale and dispatch widths checked against instructions with byte output.
+No REA calls were made: this round was explicitly told its REA session has no binary. Earlier q.py Bash
+startup failed with CreateFileMapping error 5; bounded native PowerShell queries completed the work.
+No engine/, plugin, capi, docs/abi/, coverage-map, HANDOFF or README edits. The requested owner closure
+README is inside forbidden engine/; its filed VW questions supplied the closure requirements instead.
+
+Validation: `python tools/questions.py index` completed; `python tools/doccheck.py check` **passed**;
+`git diff --check` **passed** after removing blank-only question-file residue. Cargo/clippy/ctest and game
+runs: n/a for this specification-only change. No shadow measurements, C ABI exports or proposed ABI rows.
+Git reported inability to lock packed-refs during commits, but each detached-HEAD commit itself succeeded;
+no shared refs/config were changed.
+
+Milestones: `928ecdf9` paint/status/shutdown closures; `bb0fbeda` registry and GUI failure/lifetime contract;
+`9390fc49` parser/menu continuation; `5fb18000` moved VW6/7/8/9/12/14/17; `f8d9b747` VW18 contracts and
+VW-T33–VW-T39. This final commit adds save collision/growth detail, clean question stub and this report.
 
 ## Handoff
-- Goal: answer VW6–VW18 in view3d-window.md; spec text only, no engine reads/edits.
-- Worktree reused at detached HEAD as instructed; initial status clean.
-- Read rules, lane format, question inventory and core-view3dwin5 lane handoff. Owner closure README is under forbidden engine/; use its filed VW questions as closure requirements.
-- q.py cannot start Bash (CreateFileMapping error 5); use bounded native PowerShell commands instead.
-- Done: commit 928ecdf9 closes VW10/VW11/VW13/VW15/VW16 and adds VW-T19–T25; corrected view3d.md paint-tail boundary.
-- Done: bb0fbeda adds full registry, dormant fields/panel extras, erosion message, required/optional creation and parent-owned overlay contract.
-- Current commit preserves VW12 hash/parser, VW17 remaining menus, vectors VW-T26–T32. Only VW10/11/13/15/16 have moved to answered; remaining movements failed before edits.
-- Numeric evidence: paint default 0 at 007F0AE1; strict elapsed > period at 007F6254; fade uses float32 0.17 and 0.13333334, not 150/1500.
-- STOP: lane guard context151k >150k. Return continue, no merge queue. Doccheck NOT RUN; index last ran at928ecdf9.
-- Round 2: moved VW6/7/8/9/12/14/17 to answered with original question text and dated verdicts; VW18 remains.
-- Round 2: VW18 now specified and moved; added VW-T33–T39, corrected ui-windows slot 38 and stale open summary.
-- Exact next: index/doccheck; review new §6l for contradictions, finalize report/queue with actual full HEAD.
-- Then finish VW18 from facts below, verify numeric rules with asm, add vectors, move VW18, fix stale §8 open-question summary, index/doccheck, final report and ready queue.
-- Corrected VW18 mission: slot32 is ZERO-ARGUMENT GetIGZUnknown, body009D858F simply returns attachment; data1 push is UpdateMissionProgress argument2, not an index. First argument is borrowed attachment.
-- VW18 advice:007E7830 payload two words; selector6A5BDFCD uses second as subpanel;6A720993 uses second graph type;EA5BDFBC budget recognizes4A5BDFB8/CA5BDFB0. Verify from asm and detail shared hide/show paths.
-- VW18 getters:renderer0043FD00/model-maker007F0FE0 borrowed simple returns; accelerator getter ICF slot31 of00ABCE40 needs inspection.
-- VW18 coverage:cSC4CoverageRadiusEffectHelper.c RecalcCoverage007D20E0(wrapper007D26E0), no explicit args; clear seen flags; bits1 police/2 fire/4 health/8 education. Queries lists/radii fallback32; effects PlopMode_*_Existing; unseen effects stop-if-running/release, retain hash entries. UpdateEffectForOccupant007D1E40 transforms/visibility/clear need asm verification.
-- VW18 terrain-debug slot006F7DC0 is empty RET8; background mode0 latches first 2D/3D success, mode1/2 retries only that kind; 3D basename appends camera zoom byte. No REA used.
-- Review VW12/VW17 latest additions before closure, especially hash collision/growth ordering and flora background. Read-only evidence helper build-runs/read-evidence.py supports function ranges/filter and raw binary table reads.
-- No engine reads/edits; owner README forbidden, used filed questions. Final report/ready queue deliberately absent until VW18 complete.
-- Evidence sources: C:/Users/tlori/FreeCity4/tools/re_query.py, ghidra/export/windows, decomp/.
-- No game runs or ABI rows planned. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-view3dwin-vw5-r1-manifest.json.
+
+- No remaining RE question work for this lane. Coordinator publishes the actual detached HEAD to the reserved branch.
+- Queue: `build-runs/merge-queue/re-view3dwin-vw5.json`, kind re, ready, full actual HEAD.
+- Engine follow-up: implement the closed contracts and exercise the prose conformance vectors; no game verdict is claimed here.
