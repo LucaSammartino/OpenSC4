@@ -6,9 +6,14 @@
 #include "FC4Interfaces.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
+#include "FC4Watchdog.h"
 #include "compat/FC4Compat.h"
 #include "cISCProperty.h"
 #include "cFC4Variant.h"
+#include "cIGZFrameWork.h"
+#include "cIGZApp.h"
+#include "cISC4App.h"
+#include "cISC4City.h"
 
 namespace fc4 {
 namespace variant_shadow {
@@ -32,6 +37,25 @@ struct Totals {
         }
     }
 };
+
+inline void Report(const Totals& t) {
+    int32_t julian = static_cast<int32_t>(PublishedJulian());
+    cIGZFrameWork* fw = RZGetFrameWork();
+    cIGZApp* app = fw ? fw->Application() : nullptr;
+    cISC4App* sc4 = nullptr;
+    if (app && app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) && sc4) {
+        FC4_ACQUIRED(sc4, "variant report app QI");
+        cISC4City* city = sc4->GetCity();  // borrowed, reporting only
+        auto* sim = city ? AsGame(city->GetSimulator()) : nullptr;
+        if (sim) julian = sim->GetSimDateNumber();
+        FC4_RELEASE(sc4);
+    }
+    fc4_date date{};
+    fc4_date_from_julian(julian, &date);
+    Log("variant shadow %04d-%02d-%02d cases: cases=%u checks=%u exact=%u failures=%u refusals=%u; mismatches=%u",
+        date.year, date.month, date.day_of_month, t.cases, t.checks, t.exact, t.failures, t.refusals,
+        t.failures + t.refusals);
+}
 
 class ProductionCopy {
 public:
@@ -248,11 +272,15 @@ inline void Run() {
     Totals t;
     if (gVariantGetCount != fc4_variant_get_count) {
         Log("variant shadow: REFUSED production Rust GetCount hook absent; fallback=1 resync=0");
+        t.refusals = 1;
+        Report(t);
         return;
     }
     Log("variant shadow: bounded literal native experiment; no 127-method owner or native serialization claim");
     if (!compat::IdentifiedVersion() || ExemplarFactoryActive()) {
         Log("variant shadow: refused unsupported image or replacement exemplar factory; cases=0 refusals=1");
+        t.refusals = 1;
+        Report(t);
         return;
     }
     props::Exemplar exemplar;
@@ -260,6 +288,8 @@ inline void Run() {
     // source, never any expected value or mutable live game state.
     if (!exemplar.Load(0x6534284A, 0xE7E2C2DB, 0xA8F41EE3) || !exemplar.Holder()) {
         Log("variant shadow: refused missing SDK exemplar; cases=0 refusals=1");
+        t.refusals = 1;
+        Report(t);
         return;
     }
     const cFC4IGZVariant* borrowed = nullptr;
@@ -274,6 +304,8 @@ inline void Run() {
     }
     if (!borrowed) {
         Log("variant shadow: refused no native numeric clone source; cases=0 refusals=1");
+        t.refusals = 1;
+        Report(t);
         return;
     }
     {
@@ -306,6 +338,7 @@ inline void Run() {
         "excluded=conversions,string-operations,objects,pointers,reference-alias,serialization (HG4/HG5)",
         t.cases, t.checks, t.exact, t.failures, t.refusals, t.clones,
         t.scalarShapeFailures, t.failures - t.scalarShapeFailures);
+    Report(t);
     Log("variant shadow: production core_native_count_calls=%u core_set_typed_calls=%u core_write_variant_calls=%u "
         "production_clones=%u production_clone_refusals=%u fallback=0 resync=0; typed getters/copies use production SDK storage",
         t.coreCountCalls, t.coreSetCalls, t.coreWriteCalls, t.productionClones, t.productionCloneRefusals);
