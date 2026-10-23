@@ -520,7 +520,7 @@ fn:getDefaultValue	resource and exemplar editor	ui	-	-	-	-
 fn:getUnquotedString	resource and exemplar editor	ui	-	-	-	-
 fn:convertStringToFloatValue	resource and exemplar editor	ui	-	-	-	-
 # ---- framework
-cSC4App	application	framework	-	-	-	-
+cSC4App	application	framework	application.md	-	-	-
 cWinSC4App	application	framework	-	-	-	-
 cSC4AutomataCOMDirector	application	framework	automata-managers.md	-	-	-
 cSC4*COMDirector	application	framework	-	-	-	-

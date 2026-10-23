@@ -8,7 +8,7 @@ Game code, the denominator (every function outside the library and compiler buck
 
 | Status | Meaning | Bytes | % of game bytes | Functions | % of game functions |
 |---|---|---:|---:|---:|---:|
-| **specified** | a spec in docs/specs covers its owner | 3,414,824 | **61.1%** | 15,202 | 51.5% |
+| **specified** | a spec in docs/specs covers its owner | 3,501,670 | **62.7%** | 15,523 | 52.6% |
 | **implemented** | a clean-room module in engine/ implements its owner | 2,168,639 | **38.8%** | 9,581 | 32.4% |
 | **verified** | its same-process shadow is exact in the run that measured it | 1,099,871 | **19.7%** | 4,324 | 14.6% |
 | **replaced** | our class runs instead of the original in the regress replace run | 1,012,498 | **18.1%** | 3,897 | 13.2% |
@@ -32,7 +32,7 @@ Each status cell is the share of the area's bytes, then (in brackets) of its fun
 | Area | Functions | Bytes | % of game | Specified | Implemented | Verified | Replaced |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | simulation | 8,713 | 1,973,494 | 35.3% | 98.8% (98.2%) | 76.5% (72.8%) | 44.9% (40.7%) | 51.3% (44.7%) |
-| framework | 4,872 | 632,260 | 11.3% | 36.6% (41.8%) | 24.9% (25.8%) | 0.7% (0.6%) | 0.0% (0.0%) |
+| framework | 4,872 | 632,260 | 11.3% | 50.3% (48.4%) | 24.9% (25.8%) | 0.7% (0.6%) | 0.0% (0.0%) |
 | renderer | 5,177 | 1,213,397 | 21.7% | 63.6% (62.4%) | 40.5% (37.2%) | 17.2% (14.5%) | 0.0% (0.0%) |
 | ui | 5,093 | 1,104,753 | 19.8% | 31.5% (17.7%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | audio | 1,965 | 223,456 | 4.0% | 12.8% (8.4%) | 5.1% (2.9%) | 0.0% (0.0%) | 0.0% (0.0%) |
@@ -40,7 +40,7 @@ Each status cell is the share of the area's bytes, then (in brackets) of its fun
 | other | 448 | 48,740 | 0.9% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | shared | 2,020 | 190,905 | 3.4% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | unattributed | 833 | 86,111 | 1.5% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| **all game code** | **29,536** | **5,584,842** | 100.0% | **61.1%** (51.5%) | **38.8%** (32.4%) | **19.7%** (14.6%) | **18.1%** (13.2%) |
+| **all game code** | **29,536** | **5,584,842** | 100.0% | **62.7%** (52.6%) | **38.8%** (32.4%) | **19.7%** (14.6%) | **18.1%** (13.2%) |
 
 ## By subsystem
 
@@ -279,7 +279,7 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | tools/coverage-libs.tsv | de557a391ec04b04 | |
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
 | tools/coverage-noncode-refs.tsv | b4c00fa8a9729a29 | |
-| tools/coverage-map.tsv | 17b0274c8e52a84e | |
+| tools/coverage-map.tsv | def8bf6c621dba88 | |
 | tools/coverage-shadows.tsv | 9731b2ec2a260629 | |
 | tools/regress.ps1 | b0d5f185df98ccf4 | |
 | engine/plugin/FC4Subsystems.cpp | b315a0a4b162abfc | |
