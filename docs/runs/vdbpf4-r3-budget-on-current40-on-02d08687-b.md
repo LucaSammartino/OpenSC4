@@ -1,5 +1,6 @@
 tag: vdbpf4-r3-budget-on-current40-on-02d08687-b
-run_number_status: held for coordinator assignment; unique tag is authoritative
+run: 282
+run_number_status: coordinator assigned; original unique tag retained
 date: 2026-10-23
 lane: verify-dbpf-native4
 dll: build-runs/dbpf-r2-frozen-02d08687/FreeCity4.dll (SHA256 3d1eee0c6a7d55b992484c71a7373def98edc30364431198ce649a0bf21966d4; matching readonly PDB bc8ceb0de7490779087d30af0993071a208f9cfdfa6edbba61310160d74e00ad)
