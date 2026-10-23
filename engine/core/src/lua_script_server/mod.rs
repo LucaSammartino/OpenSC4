@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Pure Rust cGZLuaScriptServer (§6.3) and extension collectors (§8).
+//! Pure Rust Lua host owners, ScriptServer (§6.3) and extension collectors (§8).
 //! Behaviour source: docs/specs/lua-host.md.
-//! No VM execution, command generator, parser or message delivery is implemented here.
+//! VM execution, parser and message delivery remain foreign. See `vm` for the
+//! specified command-generator lifecycle and explicit open owner boundaries.
 //! Successful paths require valid foreign interfaces and available storage. Explicit
 //! failures mark native undefined paths; they promise neither recovery nor rollback.
 mod arguments;
