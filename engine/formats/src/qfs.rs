@@ -29,6 +29,18 @@
 
 use crate::error::{corrupt, Error, Result};
 
+/// Narrow adapter for the portable persistence runtime. Resource header,
+/// format dispatch, decoded-size validation and row layout stay in core.
+pub struct PersistenceQfs;
+impl fc4_core::persistence_runtime::ImageCodec for PersistenceQfs {
+    fn decompress(&self, bytes: &[u8]) -> Option<Vec<u8>> {
+        decompress(bytes).ok()
+    }
+    fn compress(&self, bytes: &[u8]) -> Option<Vec<u8>> {
+        compress(bytes).ok()
+    }
+}
+
 /// Length of the shortest SimCity 4 QFS header (4-byte prefix, 2-byte signature, 3-byte uncompressed size).
 /// The `11 FB` form is 3 bytes longer (see [`header_len`]).
 pub const HEADER_LEN: usize = 9;
