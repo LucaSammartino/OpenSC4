@@ -13,7 +13,9 @@
 - Literal qualification completed before execution: build-runs/r2-test-qualification.md maps SM-V1–13 to independent tables/traces across all 21 tests. No expectation or production changes needed.
 - First actual new-source result: fc4verify-quick-test.log 3349 passed/0 failed/0 ignored, 21 sparse tests explicitly ok; dependencies compile complete. qbuild quick handle 49758 still running native build; collect same handle, no duplicate quick/all.
 - Measurement at 03:46:32 UTC: build-runs/r2-quick-progress-measurement.json; own listener 4713 PID 28648; own qbuild/fc4verify/native chain retained there. Not a terminal native result. Old qbuild-test/clippy logs still baseline, not new-source evidence.
-- Next exact step: collect same quick handle and measure terminal; stable engine remains f4bb6e0d. Then one canonical all on committed source, preserving before/after hashes and actual terminal evidence.
+- Actual warning correction: replaced deprecated fetch_update with equivalent relaxed compare_exchange_weak loop, preserving Rust 1.75 MSRV and opaque nonwrapping identities. No algorithm or expectation changes. Both files qbuild fmt exit 0 after correction; correction not yet executed.
+- NEW owned stats wait at 03:49:18 UTC: quick 29848 -> fc4verify 34652 -> stats 33108; own 4713 server 28648, conhost 37924. Exact creation/cwd/argv/children/log/source proof and scoped output limits: build-runs/r2-stall-first.json and coordinator-request-core-rz-sparsematrix4-r2.md. Native link progress is not terminal success.
+- Next exact step: preserve/collect SAME quick handle 49758 (<=60-second waits) after root's case-specific stats decision. No cancellation/duplicate quick/all. Then execute corrected source and one canonical committed-source all, recording before/after engine and true Rust/clippy/native/CTest terminal.
 - No game request; standalone core, ABI unchanged. SM1–5 remain unresolved and excluded.
 
 ## Report

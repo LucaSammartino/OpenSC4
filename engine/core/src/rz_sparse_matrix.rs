@@ -141,11 +141,16 @@ impl<const W: usize> SparseMatrix<W> {
         if bounds.column_min > bounds.column_max || bounds.row_min > bounds.row_max {
             return Err(DomainError::InvalidBounds);
         }
-        let identity = MatrixIdentity(
-            NEXT_MATRIX
-                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
-                .map_err(|_| DomainError::IdentityExhausted)?,
-        );
+        // Keep Rust 1.75 compatibility: try_update, the replacement for the
+        // deprecated fetch_update, is newer than the workspace's MSRV.
+        let mut next = NEXT_MATRIX.load(Ordering::Relaxed);
+        let identity = loop {
+            let successor = next.checked_add(1).ok_or(DomainError::IdentityExhausted)?;
+            match NEXT_MATRIX.compare_exchange_weak(next, successor, Ordering::Relaxed, Ordering::Relaxed) {
+                Ok(_) => break MatrixIdentity(next),
+                Err(observed) => next = observed,
+            }
+        };
         let mut matrix = Self {
             bounds,
             identity,
