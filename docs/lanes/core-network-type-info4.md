@@ -9,8 +9,9 @@ Done: admitted clean HEAD 0997f540762523ea1751e730d0b2dc96e1513e8b, engine 40116
 Prior session 85444 handle is unavailable in this resumed transport; its terminal/exit/cause remain UNKNOWN. Earlier 3340 unit + 13 doc/native 4/4 are earlier-source progress, not wrapper PASS.
 Read both copied engine briefs/admission/process proof and both coordinator optional-stats action records. Root terminated exact earlier stats clients 28696 (05:16:35) and 21412 (05:32:21 action, 05:32:22 exit), each exit 15; parents/daemon survived, cache unavailable, Ninja failure preserved. Root did not interrupt latest 26980.
 Archived current logs/report and clean source identity before any new checker at build-runs/type-info-r2-qualification/before/; original baseline-evidence untouched.
-Next: ONE canonical qbuild all on committed engine 401165; retain yielded handle if needed, collect actual terminal, archive after identities/summaries/log SHA, then final report and own queue.
-No Rust edits in R2; prior fmt 3-file PASS retained. Historical baseline72044 RC1 mixed-source and quick25431 RC1 filename-header failures remain failures.
+Canonical qbuild all launched clean 8e1f82d1 / unchanged engine 401165 at 05:00:07 UTC, retained session 3486. Workspace test summaries pass; actual clippy incompatible_msrv at type_info.rs:692: repeat_n is stable 1.82 but declared MSRV is 1.75. Native/ctest/terminal pending; do not edit source or duplicate while it runs.
+Next: collect SAME session terminal and archive after identities/log SHA, then replace only repeat_n with equivalent repeat(...).take(...) for the actual diagnostic; commit and qualify corrected stable engine with all. No retroactive pass for engine 401165.
+No Rust edits yet in R2; prior fmt 3-file PASS retained. Historical baseline72044 RC1 mixed-source and quick25431 RC1 filename-header failures remain failures. Current observed log contains 12 named TypeInfo Rust tests; the inherited report's thirteen-test wording is not silently converted into an owner/test claim.
 Bounds remain 18 native bodies = 10 specified / 8 partial; thirteen records are not thirteen owners; TI1–TI4 Unsupported/foreign; no ABI/plugin/game/default/coverage changes.
 
 ## Report
