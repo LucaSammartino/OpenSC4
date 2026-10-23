@@ -288,10 +288,17 @@ coverage. The product and addition use double constants, are passed to floor
 as binary64, then converted to an integer; do not use truncation or nearest-even
 rounding instead. This follows `0x0082E8A0`, with instruction evidence at
 `0x0082E8D0`–`0x0082E942`; `0x009EFF60` dispatches to the CRT floor routine.
-The line helper emits individual one-pixel, half-open spans and includes its
-terminal major-axis position, subject to clipping (`0x0082D040`). In particular
-an ordinary horizontal integer Line from `(2,3)` to `(4,3)` covers x=2,3,4.
-This does not establish identical caps for the result-1 stroke-quad route.
+The line helper emits individual one-pixel, half-open spans (`0x0082D040`).
+Its endpoint tests are directional; the inclusive loop limit alone does not
+mean that both submitted endpoints are covered. An ordinary horizontal integer
+Line from `(2,3)` to `(4,3)` covers x=2,3; reversing that call covers x=3,4.
+An integer Line with identical endpoints produces no span. These examples use
+an enclosing clip at least two pixels wide and high and the convenience call's
+half-pixel shift. Instruction evidence: the fixed-point low bits are forced
+odd at `0x0082D051`–`0x0082D068`; the endpoint diamond tests compare with 128
+at `0x0082D18A`–`0x0082D27E`; rejected start/end columns are removed at
+`0x0082D2C0`–`0x0082D2E5`. This corrects the previous inclusive-terminal
+example. It does not establish identical caps for result-1 stroke quads.
 
 Filled software triangles, quads and polygons use the same simple-polygon span
 builder; triangles and quads pass each complete group separately, whereas kind
@@ -299,9 +306,120 @@ builder; triangles and quads pass each complete group separately, whereas kind
 `clip.top <= y < clip.bottom`; x endpoints are read as **signed 16-bit** values
 from the builder's packed record and intersected with the clip's half-open
 horizontal interval. Only nonempty intervals reach engine slot 22
-(`0x0082E430`, `0x0082E5C0`, `0x0082E740`). The builder's exact closure and
-concave/self-intersecting coverage remain unclosed GZG1 work; this handoff does
-not establish a general polygon winding rule.
+(`0x0082E430`, `0x0082E5C0`, `0x0082E740`). The builder's closure and coverage
+are specified below; it does not implement a general polygon winding rule.
+
+#### 3.2.3 Polygon closure, ordering and fixed-point coverage
+
+For result 1, kind 8 is a **triangle fan**, with triangles
+`(p0,p1,p2), (p0,p2,p3), …, (p0,p[n-2],p[n-1])`. The vertices are copied
+unchanged, then submitted directly to engine Draw as kind 6/count `3*(n-2)`.
+There is no ear selection, intersection detection, winding correction or second
+software fallback based on the return from that final engine call. The last
+triangle closes the boundary to p0 without requiring a repeated first vertex.
+For a concave or self-intersecting input, the contract is this fan, even when
+its triangles overlap or extend outside the intended outline. Counts below
+three are unchecked allocation inputs to this route, not a supported empty
+polygon convention (`0x0082F810`, final call `0x0082F943`–`0x0082F95A`).
+
+For result 2, SetPolygonSimple emits nothing for fewer than three points.
+Otherwise it rotates the input order to start at the **first** vertex having
+the lowest y; equal minima do not replace that vertex. It implicitly connects
+the last vertex to the first. One boundary follows increasing input indices,
+the other decreasing indices, starting from that minimum. The forward boundary
+supplies the left edge and the backward boundary the right edge. They are not
+sorted or exchanged when reversed. Consequently `(0,0),(0,4),(4,4),(4,0)`
+covers the 4×4 square, while reversing that order produces no nonempty spans.
+Repeating the first point is unnecessary; equal-height/duplicate vertices are
+skipped when seeking the next edge with a strictly higher ending row.
+Evidence: `0x00932700` and `0x00932450`.
+
+The coverage contract is two ordered chains, **one interval per visited row**.
+It is not even-odd filling, nonzero-winding filling, or sorting all scanline
+intersections. A chain advances through successive vertices only while their
+ending rows equal the current row. The forward walk ends drawing when it runs
+out of vertices. The backward walk ends drawing if a later ending row falls
+below the current row. Thus concave outlines with multiple row intersections,
+local downward turns and self intersections must retain this chain behavior;
+they are not repaired into a general polygon. Only intervals whose ordered
+left edge is strictly less than their right edge survive context clipping.
+
+Pixel centres select rows. Each vertex has saved binary32 coordinates
+`X=x-0.5`, `Y=y-0.5`, and ending row `ceil(y-0.5)`. The ceil argument is stored
+as binary64 from the x87 subtraction **before** rounding through the saved
+binary32 Y; these are distinct conversion paths. The first visited row is the
+minimum vertex's ending row; an edge is active up to but excluding its ending
+row. For an edge from saved coordinates `(Xa,Ya)` to `(Xb,Yb)`, let
+`s=(Xb-Xa)/(Yb-Ya)`, stored as binary64. At an edge's first row r, its signed
+16.16 accumulator is
+`floor(((r-Ya)*s+Xa)*65536+0.5)+65535`, and its per-row increment is
+`floor(s*65536+0.5)`. The edge x is the accumulator's arithmetic right shift
+by 16. Both accumulators advance once per row. There is no fresh division
+per row, so accumulated fixed-point error is observable. Intermediate x87
+operations between stores retain their native precision; this is not a series
+of binary32 arithmetic operations. The selected x is narrowed to 16 bits and
+later sign-extended by the context before clipping. Numeric evidence:
+`0x00932870`–`0x00932897`, `0x0093122D`–`0x0093128F`,
+`0x00932549`–`0x0093256E`, `0x00932636`–`0x0093265A`.
+
+#### 3.2.4 Outline ellipses through the cubic route
+
+Kind 4/result 2 converts each corner pair into four independent cubics, then
+submits them together through DrawNoTransform as kind 2, with sixteen points
+per ellipse (`0x0082E9F4`–`0x0082EA07`, `0x0082CC60`). Result 1 also takes
+this route when antialiasing is enabled; its non-AA outline-quad construction
+remains a separate boundary. Unlike the filled-ellipse result-1 quirk, this
+conversion advances to each subsequent corner pair. Trailing unmatched
+corners are ignored. With centre `(cx,cy)`, radii `(rx,ry)`, and
+`k=0.552284777164459228515625` (binary32 constant `0x00AC1788`), the cubic
+control records, in order, are:
+
+| Arc | Start; control 1; control 2; end |
+|---|---|
+| Right to bottom | `(cx+rx,cy); (cx+rx,cy+k*ry); (cx+k*rx,cy+ry); (cx,cy+ry)` |
+| Bottom to left | `(cx,cy+ry); (cx-k*rx,cy+ry); (cx-rx,cy+k*ry); (cx-rx,cy)` |
+| Left to top | `(cx-rx,cy); (cx-rx,cy-k*ry); (cx-k*rx,cy-ry); (cx,cy-ry)` |
+| Top to right | `(cx,cy-ry); (cx+k*rx,cy-ry); (cx+rx,cy-k*ry); (cx+rx,cy)` |
+
+The radius and `k*radius` temporaries are binary32; the centre arithmetic stays
+in x87 until output stores. Each output coordinate is binary32. Shared endpoint
+records are repeated, rather than using a connected-curve convention.
+Instruction evidence: `0x0082CC90`–`0x0082CDB5`. This route changes geometry
+kind and therefore offers kind 2 to the engine again; its resulting route must
+not be inferred solely from the earlier kind-4 response.
+
+#### 3.2.5 Cubic raster subdivision and overshoot
+
+Kind 2/result 2 quantizes all eight components of each complete cubic to
+signed 24.8 coordinates using `floor(value*256+0.5)`. For each coordinate
+independently, denote those four integers by P0…P3 and define
+`A=P3-3*P2+3*P1-P0`, `B=3*(P2-2*P1+P0)`, `C=3*(P1-P0)`.
+The curvature bound is the maximum of `abs(2*B)` and `abs(2*(B+3*A))`
+across x and y. N is the smallest power of two, starting at 1 and capped at
+1024, for which `4*N*N` reaches that bound. This is adaptive subdivision,
+unlike the sixteen-interval result-1 route (`0x0082D5A0`).
+
+The polynomial `P(t)=P0+C*t+B*t*t+A*t*t*t` is sampled in signed 64-bit
+fixed arithmetic. Write `H1=2^30/N`, `H2=2^30/N^2`, `H3=2^30/N^3`.
+The initial position is `P0*2^30+2^29`; the first, second and third forward
+differences are respectively `C*H1+B*H2+A*H3`, `2*B*H2+6*A*H3`,
+and `6*A*H3`. All three scale factors are exact integers for the supported N.
+Each new position adds the first difference, the first difference then adds
+the second, and the second then adds the third. Arithmetic right shift by 30
+selects the next 24.8 endpoint; adjacent endpoints feed the ordinary integer
+line helper. Coefficient arithmetic before widening is 32-bit; forward
+differences and their additions use 64-bit words. This does not use a floating
+point Bézier evaluator after input quantization.
+
+*[compat, quirk]* There are **N+1 segments**, not N. The samples run through
+`t=(N+1)/N`, one step beyond the final control point. There is no final clamp
+to P3. For the exactly straight cubic `(0.5,0.5),(1.5,0.5),(2.5,0.5),(3.5,0.5)`,
+the bound is zero, N=1, and its two helper calls end at `(3.5,0.5)` and
+`(6.5,0.5)`. This is a native overshoot, not a connected-polyline segment.
+Evidence: subdivision `0x0082D7E4`–`0x0082D818`; scale/multiply/add widths
+`0x0082D818`–`0x0082D9E9`; count increment, updates, arithmetic shifts and
+calls `0x0082D9EC`–`0x0082DAB1`. The misleadingly named `0x009F0D10`
+is the CRT 64-bit multiplication helper, confirmed by its instructions.
 
 ### 3.3 Blit binding and suspension
 
@@ -739,6 +857,46 @@ point are unchanged, including on failure (`0x00988F60`). This must not be
 confused with GenericBufferClip's directly mutable arguments or the stretched
 variant's two-rectangle mapping.
 
+#### 6.3.1 Stretch clipping and source mutation
+
+`GenericBufferClipStretch(destinationBuffer,sourceRect,destinationRect,optionalClip)`
+takes mutable signed-integer source and destination rectangles. It records the
+original destination left/top and the two ratios
+`sx=source.width/destination.width`, `sy=source.height/destination.height`,
+each stored as binary32 after signed integer division through x87. It clips
+destination edges in the same order as ordinary clipping: buffer right, left
+at zero, buffer bottom, top at zero, then optional right, left, bottom, top.
+The buffer dimensions come from slots 9 and 10; it does not use an area origin.
+Source bounds are not inspected. Unlike ordinary clipping, no source edge is
+changed during that destination intersection (`0x00930CF0`–`0x00930E64`).
+
+Failure from an empty buffer intersection can stop before later destination
+edges are changed. Failure after optional clipping leaves all four optional
+edge changes in place. In either case sourceRect is unchanged. If destination
+needs no edge change, positive width and height suffice for success: sourceRect
+is left completely unchanged too. *[quirk]* When an edge did change, the helper
+returns false, without changing sourceRect, if **either** `sx==0.5` and the
+remaining destination width is 1, **or** `sy==0.5` and the remaining height is 1.
+This special rejection does not occur on the unchanged-destination path
+(`0x00930E41`–`0x00930EA1`).
+
+For successful changed destinations, source left/top become their old values
+plus `trunc((newDestinationEdge-oldDestinationEdge)*ratio)` on each changed
+left/top edge. Source right is then `trunc(newSourceLeft+newDestinationWidth*sx)`;
+bottom is `trunc(newSourceTop+newDestinationHeight*sy)`. The latter truncations
+include the source origin in the expression, rather than truncating an extent
+and adding an origin afterward. Products/additions stay in x87 until the
+truncating conversion; the stored ratios are binary32. If the resulting source
+edges on an axis are equal, a zero left/top makes right/bottom increase by one;
+any nonzero left/top makes left/top decrease by one instead. This is an
+equality repair, not validation or clipping against a source surface.
+The helper returns a boolean only in the low byte, locks neither buffer and
+acquires no references. It has no initial guard against zero destination
+extent before ratio division. Numeric/conversion evidence:
+`0x00930D14`–`0x00930D69`, `0x00930EA1`–`0x00930F59`.
+
+#### 6.3.2 Indexed-file conversion and ownership
+
 `AlphaSurfaceFromFile(filename,levels)` takes a filename pointer and an
 **unsigned 32-bit** level count. MaskSurfaceFromFile takes the filename pointer
 alone. Both obtain a new type-2, 8-bit buffer, with dimensions read as 32-bit
@@ -1119,6 +1277,27 @@ a vector explicitly says otherwise.
 | GZG-V76 | WM_DESTROY, WM_CLOSE, WM_QUIT, with recording native default handler | destroy returns zero; close emits canvas event 10; quit reaches default handler; none directly calls PostQuitMessage |
 | GZG-V77 | QI Windows subinterface `0xE46397DB`; primary slot 20 and subinterface slot 4 | primary returns address of HWND storage; subinterface returns stored HWND value; getter calls do not AddRef |
 | GZG-V78 | Recording lifetime fixture invokes primary slot 21 with realized byte nonzero and outstanding references | Shutdown first, deleting destructor with flag 1 next, integer zero; no reference-count test or framework quit request; do not dereference the native canvas afterward |
+
+### 8.1 Additional native geometry and stretch-clip vectors
+
+These are declarative expectations from native instructions, not game-run
+measurements. All geometry vectors use a recording engine and enclosing clip
+unless another clip is specified.
+
+| ID | Input / observation boundary | Expected behavior |
+|---|---|---|
+| GZG-V79 | Integer convenience Line `(2,3)` to `(4,3)`, result 2, clip `(0,0,10,10)` | two one-pixel spans, at `(2,3)` and `(3,3)`; no `(4,3)` |
+| GZG-V80 | Reverse V79, then identical endpoints `(2,3)` to `(2,3)` | reverse covers `(3,3),(4,3)` in increasing x order; identical endpoints emit nothing |
+| GZG-V81 | Kind 8/result 1, five vertices p0…p4 | one direct engine kind-6 submission with nine points: p0,p1,p2,p0,p2,p3,p0,p3,p4; final response does not trigger another fallback |
+| GZG-V82 | Kind 8/result 2, vertices `(0,0),(0,4),(4,4),(4,0)` | span `[0,4)` on rows 0,1,2,3 |
+| GZG-V83 | Reverse the vertex order of V82 | no nonempty spans; boundaries are not exchanged to fix winding |
+| GZG-V84 | Append `(0,0)` to V82; separately submit only two points with result 2 | repeated first vertex preserves V82; two-point polygon emits no spans |
+| GZG-V85 | Kind 4/result 2, two different ellipse corner pairs; engine handles following kind 2 | one kind-2 submission/count 32: four cubics for each ellipse, with repeated endpoints; second pair is used |
+| GZG-V86 | Kind 2/result 2, straight cubic `(0.5,0.5),(1.5,0.5),(2.5,0.5),(3.5,0.5)` | N=1; line helper receives endpoints at x=0.5,3.5,6.5, y=0.5 throughout; overshoot is retained |
+| GZG-V87 | Stretch clip, buffer 10×10, source `(2,4,6,8)`, destination `(-2,-2,6,6)`, no extra clip | true low byte; destination `(0,0,6,6)`, source `(3,5,6,8)` |
+| GZG-V88 | Stretch clip, buffer 10×10, source `(0,0,2,2)`, destination `(9,0,13,4)` | false low byte; destination `(9,0,10,4)`, source unchanged because sx=0.5 and clipped width=1 |
+| GZG-V89 | Stretch clip, source `(0,0,1,1)`, destination `(0,0,2,2)`, extra clip `(0,0,1,2)` | false low byte and source unchanged; same call without extra clip succeeds with both rectangles unchanged |
+| GZG-V90 | Stretch clip, source `(5,7,6,8)`, destination `(9,9,13,13)`, buffer 10×10 | true; destination `(9,9,10,10)`; extent truncation collapses source axes, then equality repair gives source `(4,6,5,7)` |
 
 ## 9. Evidence limits and open questions
 

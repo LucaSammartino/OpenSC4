@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-gzgraphics-gzg5b: GZG1–GZG5 behavior closure | Codex / `re-gzgraphics-gzg5b` (detached HEAD) | wip: GZG4 answered; doccheck passed; GZG1–GZG3/GZG5 remain | Resume remaining RE questions before landing the full closure task |
+| re-gzgraphics-gzg5b: GZG1–GZG5 behavior closure | Codex / `re-gzgraphics-gzg5b` (detached HEAD), RE | in progress: round 2 native-evidence audit; GZG4 already answered | Resolve remaining boundaries and queue answered work READY, listing residual questions |
 
 ## Report
 
@@ -46,6 +46,9 @@ unverified behavior for the other four questions.
 
 ## Handoff
 
+- Round 2 resumed 2026-10-24: READY is authorized for answered work even with residual questions.
+- Round-2 geometry/stretch milestone: §§3.2.2–3.2.5 and 6.3.1, twelve new vectors V79–V90; corrected directional line cap, settled chain/fan polygons, cubic overshoot and stretch mutations.
+- Native numeric instructions checked; GZG1 residual is non-AA outline quads and general line ties/clipping; GZG5 residual is standalone kernels/formats/locks.
 - Goal: answer GZG1–GZG5 in gz-graphics.md with behavior and vectors; no engine edits or reads.
 - Done: GZG4 milestone `475e79821`; §§7.1–7.4, answered question, regenerated index; final review adds deleting-slot correction and vector V78.
 - Owner closure: core lane report mirrors open rows for §§2–7; actual table is in engine/, forbidden by task, so use mirrored list.
