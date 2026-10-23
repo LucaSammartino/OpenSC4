@@ -6,8 +6,10 @@
 - Goal: continue commands5 without repeating its published sections; spec text only.
 - Baseline: effects §19.1–19.16; EFP1–EFP6 answered; EF15 remains open.
 - Done 46c18ac3: effects §19.17 verifies all 27 particle dictionary entries, including constructor-folded colour255/alpha255, and EC69–EC71 static vectors; doccheck/questions passed.
-- Done: §§19.18–19.21 publish zoom/stretch/life/rate/inject/maintain/align and common endpoint/rate-option helpers; EC72–EC90 static vectors; doccheck/questions passed.
-- Next: particle collide/terrainRepel/randomWalk and appearance children, then remaining dictionaries/large handlers; +0C is the direct handler, +04 the wrapper.
+- Done 411a61bd: §§19.18–19.21 publish zoom/stretch/life/rate/inject/maintain/align and common endpoint/rate-option helpers; EC72–EC90 static vectors; doccheck/questions passed.
+- Done: §§19.22–19.24 publish collide/terrainRepel/randomWalk and ranged-float helper; EC91–EC104 static vectors; doccheck/questions passed.
+- Next: particle appearance children, then remaining dictionaries/large handlers; +0C is the direct handler, +04 the wrapper.
+- Ranged-float helper 00597BF0 accepts unordered NaN but rejects ordered values outside inclusive bounds before float rounding; randomWalk delay is midpoint/radius, rate delay endpoints.
 - Numeric findings: zoom discards uint; life midpoint rounds first; rate tests full EAX from positional finder; inject/maintain resize before conversion; windBank OR precedes conversions.
 - Read prior lane Handoff; commands5b engine lane report absent in both worktree and main checkout.
 - Explicit engine read limited to main effects_parser/README.md: descriptor coverage remains open under EF15.

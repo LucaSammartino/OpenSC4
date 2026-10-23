@@ -2453,7 +2453,7 @@ Only handlers with published sections have execution contracts here.
 | 8 | `emit` | `00A9FB08` | `0059C280` | `cParticleEmitCommand` |
 | 9 | `force` | `00A9FAF8` | `0059A820` | `cParticleForceCommand` |
 | 10 | `warp` | `00A9FAE8` | `0059B680` | `cParticleWarpCommand` |
-| 11 | `randomWalk` | `00A9FAD8` | `005979B0` | `cParticleRandomWalkCommand` |
+| 11 | `randomWalk` | `00A9FAD8` | `005979B0` | `cParticleRandomWalkCommand`; §19.23 |
 | 12 | `stretch` | `00A9FAC8` | `00597C60` | unnamed; §19.18 |
 | 13 | `life` | `00A9FAB8` | `00597CD0` | `cParticleLifeCommand`; §19.18 |
 | 14 | `rate` | `00A9FAA8` | `0059CA70` | `cParticleRateCommand`; §19.19 |
@@ -2462,8 +2462,8 @@ Only handlers with published sections have execution contracts here.
 | 17 | `texture` | `00A9FA78` | `005A10B0` | `cParticleTextureCommand` |
 | 18 | `model` | `00A9FA68` | `005A1340` | `cParticleModelCommand` |
 | 19 | `align` | `00A9FA58` | `00597FB0` | `cParticleAlignmentCommand`; §19.20 |
-| 20 | `collide` | `00A9FA48` | `00598120` | `cParticleCollisionCommand` |
-| 21 | `terrainRepel` | `00A9FA38` | `00598320` | `cParticleTerrainRepelCommand` |
+| 20 | `collide` | `00A9FA48` | `00598120` | `cParticleCollisionCommand`; §19.22 |
+| 21 | `terrainRepel` | `00A9FA38` | `00598320` | `cParticleTerrainRepelCommand`; §19.22 |
 | 22 | `effectBase` | `00A9FA28` | `0059D8F0` | `cParticleEffectBaseCommand`; §19.16 |
 | 23 | `timedEffect` | `00A9FA18` | `005A16B0` | unnamed |
 | 24 | `color255` | `00A9FB68` | `0059BDC0` | `cParticleColorCommand` |
@@ -2667,3 +2667,126 @@ Generic reader and post-check behavior is as in effects-parser §§9,12.
 | EC88 | name P; raw `align dirZ ignored`; ParseEnum returns 4; damp/bank/windBank absent | byte `D+D5=4`; all three float fields and wind flag retained |
 | EC89 | name P; align returns 1; damp=2; bank=(3,4), windBank present | byte 1, damp 2, bank fields 3,4; windBank unqueried; no newly set wind flag; later post-check can fail |
 | EC90 | name P; bank absent; windBank selected values 3,bad; second conversion throws | wind flag OR 80 and first bank field 3 survive; second bank field retained |
+
+### 19.22 Particle collision and terrain repulsion
+
+`cParticleCollisionCommand` (`00598120`) requires the live particles name
+at `P+E0` to be nonempty; an empty name throws `Not in particles block`
+before changing the description or querying options. There is no positional
+count or selection requirement. With a nonempty name, OR `D+00` with `100`
+before the first option lookup. Then process these options in table order.
+All flag ORs preserve existing bits, and absent options retain their fields
+except for the bounce-zero default.
+
+| Order | Option / minimum | Behavior |
+|---:|---|---|
+| 1 | `bounce` / 1 | Present: ParseFloat first value to binary32 `D+138` (`P+228`), without range validation. Absent: replace the existing value with bits `3E99999A` (binary32 0.3) **only if it compares equal to zero**; this includes negative zero but excludes NaN. Retain any other value. |
+| 2 | `sticky` / 0 | If present OR `D+00` with `200`. |
+| 3 | `killOutsideCity` / 0 | If present OR `D+00` with `800`. |
+| 4 | `effect` / **0** | If present, ParseFloat first selected value to `D+150` (`P+240`), with no range check. This is a scalar write, not an effect-name lookup. |
+| 5 | `death` / 1 | If present, ranged-float conversion with bounds 0,1, then binary32 store to the **same** `D+150`, replacing a completed effect write. |
+| 6 | `deathByWater` / 1 | If present, ranged-float conversion with bounds 0,1, then binary32 store to `D+154` (`P+244`). |
+| 7 | `destroyBuildings` / 0 | If present OR `D+04` with 1. |
+
+Extra supplied option values are not converted. There is no runtime collision,
+terrain or building-service call here. The base collide bit survives a later
+reader/conversion failure. A failed death conversion preserves an earlier
+effect write. Omission does not clear sticky, kill or destroy flags.
+
+The owned **ranged-float helper** `00597BF0` calls ParseFloat, then compares
+the returned x87 value against the binary32 bounds **before rounding the result
+to a destination float**. An ordered value below the lower bound or above the
+upper bound throws
+`argument out of range: expecting [%g..%g], got %g`, formatting the lower,
+upper and returned value as doubles. Bounds are inclusive. The instruction
+tests also accept an **unordered (NaN)** return; do not replace them with a
+predicate that rejects all nonfinite values. Infinities outside finite bounds
+are rejected. Success returns the unrounded x87 result to the caller's store.
+The normal service domain assumes exception transport on error, not a boolean
+or clamped numeric return.
+
+The zero minimum for `effect` is intentional: after a successful lookup the
+owner reads the first scratch index without checking the selected count. No
+default value or owner missing-argument error exists for a zero-value successful
+lookup. A usable first selected record is required for the normal conversion
+contract; empty selections lie outside that domain and must not be modeled as
+effect zero. This also applies to `preferDir` below.
+
+`cParticleTerrainRepelCommand` (`00598320`) has **no** live-name guard.
+It first ORs `D+00` with `400`, then selects at least two nonswitch values,
+ignoring the finder's return value. ParseFloat first value to `D+13C`
+(`P+22C`), then second to `D+140` (`P+230`), both binary32. Ignore later
+selected values. It then independently looks up `scout`, `vertical`,
+`killHeight`, each with minimum one, in that order. Convert the first value
+of each present option with ParseFloat to binary32 `D+144` (`P+234`),
+`D+148` (`P+238`), `D+14C` (`P+23C`) respectively. Absent options retain
+the old values. No positivity, ordering, range or finite-value check is added.
+The repel bit survives even the minimum-two reader exception; the first
+positional store survives failure converting the second. No rollback occurs.
+
+Evidence: collision guard/initial flag `00598120–0059818D`; bounce stores
+and x87 zero comparison `005981A2–005981E4`; flag/option sequence
+`005981EE–00598303`; effect minimum zero `00598234`, death/water bound
+arguments `0059828F–005982DC`; ranged helper comparisons/status-bit tests
+`00597BFD–00597C14`, error formatting `00597C16–00597C48`; zero data
+`00A81054`; terrain initial flag and separate operand stores
+`00598326–00598373`, options/stores `00598379–00598418`.
+
+### 19.23 Particle random walk
+
+`cParticleRandomWalkCommand` (`005979B0`) ORs `D+00` with `00800000`
+before its first lookup. It has no particles-name guard, positional selection
+or positional count requirement. It changes a description only; it does not
+sample random numbers or perform a simulation step. Options are queried in
+the order below. Absent options retain all their associated fields; no existing
+flag is cleared.
+
+| Order | Option / minimum | Result when present |
+|---:|---|---|
+| 1 | `delay` / 1 | Midpoint/radius result at `D+174,+178` (`P+264,+268`). |
+| 2 | `strength` / 1 | Midpoint/radius result at `D+17C,+180` (`P+26C,+270`). |
+| 3 | `turn` / 1 | Ranged-float first value with bounds 0,1 to binary32 `D+184` (`P+274`); second value if supplied, separately ranged 0,1 to `D+188` (`P+278`), otherwise store zero at `D+188`. Values are endpoints, not midpoint/radius, and are not reordered. |
+| 4 | `wait` / 0 | OR `D+00` with `01000000`. |
+| 5 | `preferSea` / 0 | OR `D+00` with `02000000`. |
+| 6 | `preferDir` / **0** | ParseVector3 of the first selected value, then copy its three binary32 words in component order to `D+18C,+190,+194` (`P+27C,+280,+284`). No normalization, length test or extra preference flag. A zero-value successful selection has the unchecked-first-index limitation in §19.22. |
+
+For delay and strength, convert the first value with ParseFloat and round it
+to binary32 midpoint `m`. Convert the second value with ParseFloat to x87
+radius `r` if supplied, otherwise use zero. Store `m-r`, then `r+m`, each
+rounded to binary32. There is no bound, positivity or order test; a negative
+radius reverses the bounds. Values after the second are ignored. This is
+**different from** the endpoint-pair helper used by rate delay (§19.19).
+A second-value conversion failure precedes both destination writes for
+delay/strength, while a second-value turn failure follows the first turn
+write. Ranged-float acceptance, including unordered returns, is §19.22.
+All earlier writes and the initial walk flag survive a later failure.
+
+Evidence: initial flag `005979BD–005979D5`; delay first rounding and x87
+arithmetic `005979F7–00597A44`; strength `00597A74–00597AC1`; turn
+bounded calls/separate stores/default zero `00597AC7–00597B3E`; flag
+lookups/ORs `00597B44–00597B80`; preferDir minimum zero, vector call and
+ordered word stores `00597B8A–00597BD5`. Literal cells point to `turn`
+at `00A96DCC`, `wait` at `00A9F474` and `preferSea` at `00AA0000`.
+
+### 19.24 Particle collision/random-walk conformance vectors (unexecuted)
+
+Fixtures use the independent primitive replies of §19.21. Ranged helper
+fixtures stipulate the conversion return itself; they do not assert that a
+particular text spelling is accepted for NaN or extended-precision values.
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EC91 | empty particles name; collide with malformed bounce | name error before any flag, option lookup or conversion |
+| EC92 | live name P; collide with no options; bounce is negative zero | OR flags with 100; bounce becomes bits `3E99999A`; no positional selection |
+| EC93 | collide bounce absent; old bounce is NaN | bounce remains NaN; no 0.3 replacement |
+| EC94 | collide: effect converts to 9, death converts to 0.25, deathByWater converts to 1; all flag options present | `D+150=0.25`, `D+154=1`; flags OR `B00` at `D+00`, OR 1 at `D+04`; scalar effect lookup minimum is zero |
+| EC95 | collide effect=9; death conversion returns 1.25 | range error; new effect value 9 and collide bit survive; no water/destroy lookup |
+| EC96 | ranged-float helper, bounds 0,1; stipulated NaN result | returns unordered value without range error; caller may store NaN |
+| EC97 | ranged-float helper, bounds 0,1; return `1+2^-30` in x87 precision | range error even though binary32 rounding would give 1; no destination store |
+| EC98 | empty live name; terrainRepel lacks its second nonswitch value | repel bit 400 already set when reader throws minimum-two error; no name error |
+| EC99 | terrainRepel selected 2,bad; second conversion throws | repel bit and `D+13C=2` survive; `D+140` and optional fields retained |
+| EC100 | terrainRepel selected -2,4,99; scout=5, vertical=6, killHeight=7 | first two scalar fields -2,4; extra value ignored; optional fields 5,6,7; no ordering/clamp or runtime service |
+| EC101 | empty live name; randomWalk with no options | only OR `D+00` with `00800000`; all scalar/vector state retained; no RNG call |
+| EC102 | randomWalk delay=(5,2); strength=(5,-2); turn=(0.75) | delay 3,7; strength 7,3; turn fields 0.75,0; no reorder |
+| EC103 | randomWalk turn=(0.25,2); second ranged conversion fails | first turn field 0.25 and walk flag survive; second turn field retained; wait/preferSea/preferDir unqueried |
+| EC104 | randomWalk wait/preferSea present; preferDir successful lookup supplies vector `(0,3,4)` | flags OR `03800000`; vector stored unchanged `(0,3,4)`; no vector normalization; lookup minimum zero |
