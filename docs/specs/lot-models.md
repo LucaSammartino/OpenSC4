@@ -179,12 +179,10 @@ Both side and top use four-vertex primitive type 6, format 10. Buffer assignment
 
 - Constructor `0x005E17C0`; destructor body `0x005E1A60`. `Init(box, side, lot)` (`0x005E2780`): the wall's cell
   range along the side (0–3) of the lot's box (`SetupVerticesFromBBoxAndWallEdge`, `0x005E1520`), then its vertices.
-- **Shape** (`SetupVertices`, `0x005E1BC0`): the lot's flat altitude (the lot at the wall's inner cell, lot slot 16)
-  against the terrain altitude at each vertex along the edge (terrain slot 14). For each 16 m segment the wall
-  fills the gap between the lot level and the terrain, above or below, as triangles (position, colour, texture
-  coordinates) set 0.001–0.002 m out from the edge, with the top and bottom carried 0.2 m past the lot level and the
-  terrain to close the seams, and v = height × the wall's texture scale; segments where the terrain meets the lot
-  level get nothing.
+- **Shape** (`SetupVertices`, `0x005E1BC0`): compare the lot altitude with consecutive terrain samples.
+  Only segments with at least one terrain endpoint strictly above the lot altitude are eligible.
+  The branch-specific triangles and reported bounds are specified in §3.2; the 0.001/0.002 constants
+  change bounds, not vertex positions. A generic wall quad does not reproduce these branches.
 - **Textures** (`SetupTextures`, `0x005E1620`; `DoZoomChange`, `0x005E1710`): the zoom's key from FSH group
   `0x891B0E1A`; a missing key falls back to `0x695C00C6 + zoom` — the five shipped wall textures `0x695C00C6`–
   `0x695C00CA` of the Terrain Properties exemplar's `0x295961F2` (terrain-view.md §1).
@@ -202,6 +200,111 @@ clears its old binding. A zero key makes no resource request. A nonzero key requ
 it overwrites that key with `0x695C00C6 + newZoom` and makes one more request, even if identical to
 the first. A second null result stays null (`0x005E1620–0x005E16CD`). Draw skips a null binding
 (`0x005E2851–0x005E2856`); it does not construct geometry through an external owner to recover it.
+
+### 3.2 Finite wall range and ordered construction (LM4)
+
+Evidence identity for this audit: the original Windows image SHA-256 is
+`3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`, identical to
+`ghidra/export/windows/export-summary.txt` (image base `00400000`, 2,193,251 instructions).
+The following rules were checked against its instruction bytes and constant data, not a portable mesh.
+They cover valid sides 0–3, finite ordered samples, successful allocation and available services. Arithmetic
+must remain finite; signed cell shifts must not overflow, each 16 m traversal step must remain representable,
+and the emitting-segment count must stay below 256. Invalid/unordered/overflow cases remain LM8.
+
+**Arithmetic boundary.** Constants e, d, D, r and b are binary32 words `3E4CCCCD`, `3A83126F`,
+`3B03126F`, `3D800000`, `4B400000` (approximately 0.2, 0.001, 0.002, exactly 1/16 and
+12582912). The range bias c is `3F666666` (approximately 0.9). Native arithmetic uses the externally
+supplied x87 precision/rounding control; this owner does not set it. Evaluate each multiply/add/subtract
+in its written order at that precision; each position, UV, sampled altitude and local T is stored to
+binary32. Do not silently use floor or reassociate. The literal ledgers in §8.1 assume round-to-nearest,
+ties-to-even and x87 precision 53 or 64 bits; they do not establish the process's control word.
+
+For box `(xmin,ymin,zmin,xmax,ymax,zmax)`, define lower(q) by multiplying q by r, adding b,
+storing binary32, interpreting the stored word as an integer and subtracting `4B400000` modulo 2^32.
+Define upper(q) by multiplying by r, subtracting c, adding b, storing binary32, then subtracting
+`4B400000` and adding 1 as integer operations. The helper evaluates zmax, xmax, zmin, xmin in that
+order (`005E1527–005E159A`). Under the ledger controls, for nonnegative q no greater than 2^24 these
+are nearby-integer(q/16) and nearby-integer(q/16−c)+1; neither is generally floor/ceil.
+
+| Side | Start cell (a,b) | End cell (exclusive along the varying axis) | Inner lot cell | Across-edge cell for segment (i,j) | Traversal |
+|---|---|---|---|---|---|
+| 0 | lower(xmin),lower(zmin) | upper(xmax),b | a,b | i,j−1 | increasing x |
+| 1 | upper(xmax),lower(zmin) | a,upper(zmax) | a−1,b | i,j | increasing z |
+| 2 | lower(xmin),upper(zmax) | upper(xmax),b | a,b−1 | i,j | increasing x |
+| 3 | lower(xmin),lower(zmin) | a,upper(zmax) | a,b | i−1,j | increasing z |
+
+These are the actual side switch and lot-query offsets (`005E159F–005E1611`, `005E1BF0–005E1C2E`).
+A missing inner lot resets the emitting count to zero but leaves geometry/bounds untouched and goes
+to the optional recolour phase. Otherwise obtain L from lot slot 16, store binary32, then sample terrain
+slot 14 at (a,b), even if the range is empty. Initial world x,z are signed `(cell << 4)` converted to
+binary32, not coordinates displaced off the edge (`005E1C45–005E1C82`).
+
+At each increasing segment sample the next terrain endpoint first, storing H1; H0 is the preceding
+sample (including skipped segments). Stop when the varying cell index reaches the exclusive end.
+The test order is H0>L, then if false H1>L. If both fail, advance without a neighbour query.
+Only an eligible segment calls the across-edge flat test. That test asks terrain slots 7 then 8 for the
+cell extents, adjusts the cell as in the table, checks signed bounds, queries lot slot 6 with final
+argument 0, and returns flag bit 0 from lot slot 12. Missing/out-of-range/nonflat means false; true
+skips construction. There is no neighbour-altitude comparison (`005E1240–005E12B3`,
+`005E1D20–005E1D96`). Sampling and traversal still advance on either skip.
+
+For an eligible, non-suppressed segment, store T=L−e. Let A(y) be the current endpoint position with
+height y and B(y) the next endpoint, exactly 16 m farther along the varying axis. Append records in
+the following order; each consecutive triple is one triangle, with no index buffer or vertex sharing.
+
+| Endpoint tests (after eligibility) | Ordered records | Triangles | Bounds y update from initial [L,L] |
+|---|---|---|---|
+| H0>T and H1>T | A(T), B(T), A(H0+e); A(H0+e), B(T), B(H1+e) | 2; diagonal A(H0+e) to B(T) | maximum with raw H0, then raw H1; minimum unchanged |
+| H0>T and H1≤T | A(T), B(H1−e), A(H0+e) | 1 | maximum with raw H0; minimum with raw H1 |
+| H0≤T and H1>T | A(H0−e), B(T), B(H1+e) | 1 | minimum with raw H0; maximum with raw H1 |
+| H0≤T and H1≤T | none | 0 | unchanged (unreachable after finite eligibility) |
+
+Evidence: tests `005E1D9C–005E1DDB`; six-record path `005E1E05–005E2030`; descending
+path `005E2105–005E2207`; ascending path `005E22FA–005E2410`. Equality with **L** is not the
+split test: H0=L,H1>L still uses six records. Equality with **T** selects the ≤ branch. A segment
+entirely at or below L emits nothing, even if one endpoint is above T. Crossing is not interpolated.
+All three emitted patterns have geometric cross-product normal +z on sides 0/2 and −x on sides 1/3
+when the positive-height spans survive rounding. Ordering does not reverse on opposite sides.
+The lighting normal is separately side-dependent below. There is no area/duplicate-vertex rejection:
+rounded zero spans, or T=H+e after rounding, can produce degenerate triangles without reducing count.
+
+Each record is 24 bytes: x,y,z; four colour bytes; u,v. For sides 0/2, u=stored x×scale; for 1/3,
+u=stored z×scale. In every case v=stored y×scale, stored binary32 after multiplication.
+The origin is world coordinate zero, not the box or segment origin; there is no fractional wrap or
+per-segment reset (`005E1E2B–005E1E59` and corresponding stores on the other two paths).
+
+**Reported bounds are not the seam-vertex extrema.** Initialize varying-axis minimum/maximum to
+largest finite binary32 / its negative, perpendicular minimum to stored start coordinate+d and
+maximum to start coordinate+D, and y to [L,L] (`005E1CA4–005E1D08`). Each emitting branch updates
+the varying minimum with the current coordinate and maximum with current+16; skipped segments update
+neither. Y updates use the raw samples in the table, without ±e (`005E2033–005E20D2`,
+`005E220A–005E22A9`, `005E2413–005E2477`). Thus the box can exclude seam vertices.
+After at least one emitting segment, add d to the varying minimum and subtract d from its maximum;
+leave the perpendicular offsets and y unchanged. Compare previous bounds to this candidate, component
+order xmax,ymax,zmax,xmin,ymin,zmin; return-change is true if any absolute difference exceeds binary32
+`38D1B717` (approximately 0.0001), then replace the bounds regardless (`005E1400–005E148C`,
+`005E24B5–005E25B5`). Output geometry-present is true. The local bounds become [0,0,0] to
+stored(max−min); world bounds retain the candidate. Subtractions use the stored
+candidate endpoints in native order.
+
+If no segment emits, including an empty or reversed range with an inner lot, resample terrain at
+(a,b) and replace reported world/local bounds with `(16a,Hstart,16b)` to that point+(1,1,1), output
+geometry-present false. The return-change flag stays false; the candidate comparison is not called
+(`005E25BD–005E2642`). This does not apply to the earlier missing-inner-lot exit.
+
+The byte count at +66 counts emitting **segments**, not triangles. The builder only grows the stored
+record sequence when too short; it does not shorten it after a smaller rebuild. Consequently the table
+defines the newly written prefix. On a fresh empty buffer it defines the entire sequence; on reuse an
+old tail survives. Draw submits the full stored record count, not three/six times the segment byte
+(`005E1DD2–005E1E00`, `005E1B30–005E1BBF`, `005E287A–005E289E`). No-emission does not clear it.
+
+If recolouring is requested and the stored sequence is nonempty, visit **all stored records**, including
+any retained tail, in record order. Request lighting slot 19 at each position with the negative of the
+edge vector: sides 0..3 use (0,0,+1), (−1,0,0), (0,0,−1), (+1,0,0). Output integer arguments 0,1,2
+contribute their low bytes to record offsets 14,13,12; offset 15 is always 255. There is no clamp.
+Geometry-only calls leave existing colour bytes; grown records start zeroed. Recolour-only calls leave
+positions/UV/bounds alone. These are explicit terrain/lot/lighting inputs, not a host-provided final mesh
+(`007F6D10–007F6D5D` with table `007F6D60`, `005E2646–005E275C`).
 
 ## 4. Cell textures (`cSC4CellTextureModel`) *[compat]*
 
