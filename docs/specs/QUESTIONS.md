@@ -82,6 +82,7 @@ generated index: the questions live one file per spec, so read only the file for
 | GT | glyph-textures |
 | GU | geometry-utilities |
 | GZ | framework-gz-services |
+| GZG | gz-graphics |
 | HD | html-document |
 | HG | foundations |
 | HU | html-ui-hooks |
@@ -148,12 +149,14 @@ generated index: the questions live one file per spec, so read only the file for
 | RS | residential |
 | RY | regional-city |
 | RZ | framework-rz-files |
+| SCR | sc-resources |
 | SG | simgrid |
 | SL | strings-language |
 | SM | rz-sparse-matrix |
 | SN | snapshots |
 | SP | span-render-4444 |
 | SR | span-render-1555, span-render-565, span-render-8, span-render-8888 |
+| SS | sound-system |
 | SSP | system-service-pointer |
 | ST | my-street-sim |
 | SV | foundations, ordinance |
@@ -226,7 +229,7 @@ generated index: the questions live one file per spec, so read only the file for
 | draw-context | 3 | 6 | DC10 | questions/draw-context.md |
 | drawing-fonts | 6 | 17 | FN24 | questions/drawing-fonts.md |
 | drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
-| effects | 1 | 20 | EF16, EFP7 | questions/effects.md |
+| effects | 2 | 20 | EF17, EFP7 | questions/effects.md |
 | effects-parser | 1 | 0 | EFP8 | questions/effects-parser.md |
 | feature-manager | 3 | 2 | FM6 | questions/feature-manager.md |
 | fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
@@ -243,6 +246,7 @@ generated index: the questions live one file per spec, so read only the file for
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
 | graphics-rules | 4 | 4 | GR9 | questions/graphics-rules.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
+| gz-graphics | 5 | 0 | GZG6 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 2 | 6 | HD9 | questions/html-document.md |
 | html-ui-hooks | 4 | 0 | HU5 | questions/html-ui-hooks.md |
@@ -316,8 +320,10 @@ generated index: the questions live one file per spec, so read only the file for
 | resource-exemplar-editor | 8 | 0 | RE9 | questions/resource-exemplar-editor.md |
 | rigid-body-2d | 7 | 0 | RB8 | questions/rigid-body-2d.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
+| sc-resources | 5 | 1 | SCR7 | questions/sc-resources.md |
 | simgrid | 2 | 0 | SG3 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
+| sound-system | 11 | 0 | SS12 | questions/sound-system.md |
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 3 | 4 | SP8 | questions/span-render-4444.md |
 | span-render-565 | 6 | 2 | SR566 | questions/span-render-565.md |
@@ -352,4 +358,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **541** | **1356** | | |
+| **total** | **563** | **1357** | | |
