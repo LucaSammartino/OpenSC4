@@ -125,7 +125,7 @@ impl Host for Fixture {
     fn word(&mut self, call: WordCall) -> u32 {
         self.log.push(Event::W(call.clone()));
         match call {
-            WordCall::IsGroup(o, group) if group == 0x150A => self
+            WordCall::IsGroup(o, 0x150A) => self
                 .lot_data
                 .iter()
                 .find(|(_, j, _, _, _)| *j == Some(o))
