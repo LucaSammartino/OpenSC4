@@ -18,7 +18,9 @@
 - Added status methods for clock/cost/cursor/rating/alerts/speed/mission. Filed VW12–VW13 for bucket/parse and cursor/fade ambiguities.
 - Focused clippy found manual_clamp in SizeOf; corrected to f32::clamp (preserves NaN).
 - Added panel state, fully identified motion/panel/query command dispatch and VW-T14/T15 tests after a65fad4f.
-- Full qbuild all started on stable source; collect SAME exec session 50209 to terminal result. No duplicate gate.
+- Full gate 1 terminal FAIL: test/clippy could not compile legacy C API/conformance View3DSave literals; CMake compiler-ABI probe timed out at 900 s, CTest skipped. Session 50209 collected to terminal.
+- Failed logs preserved in build-runs/evidence-gate-1/. Corrected core-only compatibility by restoring View3DSave fields and adding View3DRecord + save_record/load_record for the full body.
+- Approved coord-verify-lane.ps1 sets a private _MSPDBSRV_ENDPOINT_ to prevent parallel PDB hangs; corrected gate will use fc4lane-core-view3dwin5 after observed compiler-ABI timeout (probe has no sccache launcher).
 - Final qbuild fmt: exit=0 files=7 diff_lines=0 (all owned Rust files).
-- Next immediate: collect gate, fix diagnostics if any; owner remains incomplete (README pending rows).
+- Next immediate: run/collect corrected full gate without committing during the run (gate 1 also detected changed HEAD); then continue incomplete owner rows. No merge queue until closure.
 - No game requests outstanding. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-view3dwin5-r1-manifest.json.

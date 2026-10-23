@@ -691,21 +691,21 @@ fn vw_t16_trigger_transitions_and_four_reference_save_roundtrip() {
     v.assert_global_trigger(&mut h, 123);
     let refs = [0xC9C6_28EC, 0xE9C6_22D8, 0xA9C7_41B3, 0x8695_664E].map(SaveRef::of);
     v.view_state_mut().references = refs;
-    let record = v.do_save();
+    let record = v.save_record();
     assert_eq!(record.triggers, [(123, 2)]);
     let mut loaded = view();
-    loaded.do_load(&record).unwrap();
+    loaded.load_record(&record).unwrap();
     assert_eq!(loaded.owner_state().view.references, refs);
     assert!(!loaded.owner_state().view.not_loaded);
-    assert_eq!(loaded.do_save(), record);
+    assert_eq!(loaded.save_record(), record);
     for version in 0..5 {
         let mut older = record.clone();
-        older.version = version;
-        assert!(loaded.do_load(&older).is_ok());
+        older.header.version = version;
+        assert!(loaded.load_record(&older).is_ok());
     }
     let mut newer = record;
-    newer.version = 5;
-    assert!(loaded.do_load(&newer).is_err());
+    newer.header.version = 5;
+    assert!(loaded.load_record(&newer).is_err());
 }
 
 #[test]

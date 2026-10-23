@@ -115,12 +115,9 @@ impl SaveRef {
     }
 }
 
-/// The View3D save record (§3.3a): the only thing the window layer persists.
-///
-/// The four references are camera control, renderer (`obj + 8`), model maker
-/// (`obj + 4`) and simulator; the logical trigger count/pairs follow them
-/// (view3d-window §6k). Original bucket traversal remains open as VW12.
-#[derive(Clone, PartialEq, Eq, Debug)]
+/// Legacy header/two-reference projection used by existing callers. The full
+/// core-owned logical body is [`View3DRecord`]; this projection stays compatible.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct View3DSave {
     /// The record header's group.
     pub group: u32,
@@ -135,6 +132,13 @@ pub struct View3DSave {
     pub ref_f0: SaveRef,
     /// `this+0x00F4`, written as `obj + 8` when non-null else null.
     pub ref_f4: SaveRef,
+}
+
+/// Four-reference version-4 logical record (view3d-window §6k), without UI
+/// state. Original serialized bucket traversal remains open as VW12.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct View3DRecord {
+    pub header: View3DSave,
     pub model_maker: SaveRef,
     pub simulator: SaveRef,
     /// Logical trigger pairs. Exact serialized bucket order is open (VW12).
@@ -425,10 +429,24 @@ impl View3DWin {
             // non-null, else null).
             ref_f0: self.owner.view.references[0],
             ref_f4: self.owner.view.references[1],
+        }
+    }
+
+    pub fn save_record(&self) -> View3DRecord {
+        View3DRecord {
+            header: self.do_save(),
             model_maker: self.owner.view.references[2],
             simulator: self.owner.view.references[3],
             triggers: self.owner.view.triggers.iter().map(|(&t, &count)| (t, count)).collect(),
         }
+    }
+
+    pub fn load_record(&mut self, record: &View3DRecord) -> Result<(), String> {
+        self.do_load(&record.header)?;
+        self.owner.view.references[2] = record.model_maker;
+        self.owner.view.references[3] = record.simulator;
+        self.owner.view.triggers = record.triggers.iter().copied().collect();
+        Ok(())
     }
 
     /// `DoLoad` (`0x007E_BFB0`): retain the references by class id and leave
@@ -454,10 +472,12 @@ impl View3DWin {
         self.catalog_state = None;
         self.owner.stack.clear();
         self.owner.persistent.clear();
-        // Reference resolution/serialization is foreign. Retain all four
-        // class-bound references and the logical trigger pairs in the owner.
-        self.owner.view.references = [record.ref_f0, record.ref_f4, record.model_maker, record.simulator];
-        self.owner.view.triggers = record.triggers.iter().copied().collect();
+        self.owner.display = DisplayState::default();
+        self.owner.panels = PanelState::default();
+        // The legacy projection supplies two references. Full core callers use
+        // load_record; foreign reference resolution/serialization is not here.
+        self.owner.view.references[0] = record.ref_f0;
+        self.owner.view.references[1] = record.ref_f4;
         self.owner.view.not_loaded = false;
         Ok(())
     }
@@ -559,9 +579,6 @@ mod tests {
             version: 4,
             ref_f0: SaveRef::null(),
             ref_f4: SaveRef::null(),
-            model_maker: SaveRef::null(),
-            simulator: SaveRef::null(),
-            triggers: Vec::new(),
         };
         assert!(v.do_load(&bad).is_err());
     }

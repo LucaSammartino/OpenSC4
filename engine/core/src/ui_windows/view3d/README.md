@@ -29,20 +29,20 @@ qualified with a module. `pending` means implementation work remains.
 | §6h panels | `PanelState`, panel/minimize methods | VW-T14; tab/filter establishment path, established/obliterated callbacks, budget failure and GUI object integration pending; mayor visibility bookkeeping needs audit |
 | §6i buttons/catalogs | existing `catalog` module | existing catalog tests cover script toggle/create/close; new button/catalog-kind routing pending; open: VW7 for external message meaning |
 | §6j displays | `DisplayState`, `StatusHost`, status methods | VW-T17/T18, rating/alert/mission/speed tests; date/funds/population/name widgets, ambient light and full callback integration pending; cursor ordering/fade exactness open: VW13 |
-| §6k save/triggers | `do_save`, `do_load`, trigger methods | VW-T16 four class references and logical trigger pairs; versions 0–4 accepted, not-loaded cleared; opaque reference identity/resolution adapter pending; byte bucket ordering open: VW12 |
+| §6k save/triggers | `View3DRecord`, `save_record`, `load_record`, trigger methods | VW-T16 four class references and logical trigger pairs; versions 0–4 accepted, not-loaded cleared; legacy two-reference View3DSave kept compatible; opaque reference identity/resolution adapter pending; byte bucket ordering open: VW12 |
 | §6l helpers | pending | owner-called helper interfaces remain foreign |
 | §6m quirks | `keyboard_scroll`, `recalc_scroll_velocity`, `set_zoom_limits` | VW-T11/12/13; command-result/rotation/save-parameter quirks pending |
 | §7 conformance | `owner_tests` | VW-T1, T5–T18 implemented; T2–T4 pending |
 | §8 open questions | questions file | VW6–VW13 |
 | ui-windows §2 window model | existing `win` / `message` modules | existing window-model tests; no new foreign window implementation |
 | ui-windows §3.1–§3.3 owner identity/layout/slots | `View3DWin`, `slots` | existing layout/slot tests and VW-T1 |
-| ui-windows §3.3a save | `do_save`, `do_load` | four class-bound references and logical trigger pairs; original opaque identity/resolution adapter pending |
+| ui-windows §3.3a save | `save_record`, `load_record` | four class-bound references and logical trigger pairs; original opaque identity/resolution adapter pending |
 | ui-windows §4 catalog menus | existing `catalog` | existing catalog tests; host-aware control teardown still pending |
 | ui-windows §7 drawing | `paint`, `MotionHost` | `paint_gates_preserve_tail_and_write_time_before_draw` |
 | ui-windows §10 quirks, §11 conformance | existing `catalog`, `view3d::tests`, `owner_tests` | existing catalog/identity tests; game-dependent contracts unmeasured |
 | view3d §5.1 paint | `paint` | gate, timer, dt clamp, scrolling, draw-time order tests; post-draw tail details open: VW10 |
 | view3d §5.2 fields | `Motion` | paint/hidden-pause tests |
-| view3d §5.3 save | `do_save`, `do_load` | four-reference logical model; foreign serialization/resolution adapter pending |
+| view3d §5.3 save | `save_record`, `load_record` | four-reference logical model; foreign serialization/resolution adapter pending |
 | view3d §10 quirks, §11 conformance (window-owned portions) | `paint`, `do_save` | tests 13–15, 20, 25 covered by paint/hidden-pause/reference tests; effects sweep test 19 requires foreign renderer integration |
 
 The legacy `set_input_control` and `remove_all_view_input_controls` APIs import
