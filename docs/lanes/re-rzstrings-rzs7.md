@@ -1,0 +1,12 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| re-rzstrings-rzs7: string owner closure | Codex / `re-rzstrings-rzs7` (RE lane) | in progress | Locate RZS7 and owner closure rows; verify export and add rules/vectors. |
+
+## Handoff
+- Goal: answer RZS7 blockers for core-rzstrings5b with prose and conformance vectors.
+- Worktree is reserved and detached; commit normally without moving refs.
+- Located RZS7 and blocker report in core-rzstrings5b worktree docs; absent from main/base.
+- Blocker: complete finite binary64 to 17-digit LegacyDecimal primitive; all subsequent assembly covered.
+- Export routines: __fltout2 0x00A0277B, dtold 0x00A026C1, I10_OUTPUT 0x00A04942, ld12mul 0x00A04D88, multtenpow12 0x00A04FBA.
+- Next: extract scaling table constants from read-only binary; verify 80-bit multiplication/truncation and derive boundary vectors.
+- Read only original export/decomp from main; no engine reads or edits.
