@@ -7,13 +7,15 @@
 - Goal: default-off record-only shadow to published NR16/NR17; full gate and 2032 verdict.
 - Done: merged re-netrules-nr17 at 845060f5; includes NR16 and ABI validation bytes.
 - Git merge reported packed-refs.lock permission denied but succeeded; detached HEAD intentional.
-- Implemented capture, epoch hooks, exact three-site validation, detached Rust replay and parsed tile table comparison (uncommitted).
+- Implemented capture, epoch hooks, exact three-site validation, detached Rust replay and parsed tile table comparison at 1e9ada803.
+- Owner-thread rejection and non-vacuous exactness guards added; NR17 fixture asserts active under NDEBUG.
 - Focused compile failed E0277 in snapshot fill; corrected Vec into_iter; preserved build-runs/focused-netrules.log.
 - Native verify queued: qbuild-20261023-233355-build-ctest, exec session 48101; collect same operation.
 - Next: focused test + fmt, collect native result, diagnose, stable-source all, unique game request to 2032.
 - Contracts: network-rules.md sections 2.2–2.5 and docs/abi/network-rules-observation.md.
 - Capture actual requests only; no native prefetch. Intersection tables explicitly unobserved.
-- No outstanding build/game operation; no round 3 question filed.
+- Focused Rust replay/snapshot test PASS 1/1; owned Rust formatting PASS. Logs focused-netrules-2.log; original failure preserved.
+- No game request yet; no round 3 question filed. Native verify above remains outstanding.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-netrules-shadow5-r3-manifest.json.
 
 ## Previous round report (superseded)

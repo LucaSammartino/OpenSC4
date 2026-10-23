@@ -30,6 +30,7 @@ using namespace netrules;
 constexpr uint32_t kLimit = 1000000;
 bool g_enabled = false, g_installed = false;
 DWORD g_thread = 0;
+volatile LONG g_foreignBoundary = 0;
 Epoch g_epoch;
 fc4_network_rules* g_rules = nullptr;
 struct Identity { uint32_t type, ordinal; };
@@ -220,6 +221,9 @@ void __fastcall Edges(void* n, void*, uint32_t meta, uint32_t* out) {
 }
 __declspec(naked) void EvalAfter();
 void __cdecl EvalBegin(uint32_t* saved) noexcept {
+    // The contract permits only synchronous owner-thread traversal. A foreign
+    // boundary permanently disables observation without touching borrowed data.
+    if (GetCurrentThreadId() != g_thread) { InterlockedExchange(&g_foreignBoundary, 1); return; }
     try {
         // pushad layout: EDI,ESI,EBP,ESP,EBX,EDX,ECX,EAX,flags,ret,args.
         std::unique_ptr<Frame> f(new Frame);
@@ -227,7 +231,7 @@ void __cdecl EvalBegin(uint32_t* saved) noexcept {
         f->neighbourhood = saved[10]; f->resultSlot = saved[11];
         f->previous = g_frame; f->epoch = g_epoch.number;
         const auto id = g_ids.find(f->evaluator);
-        if (g_thread == GetCurrentThreadId() && g_epoch.ready && id != g_ids.end()) {
+        if (!InterlockedCompareExchange(&g_foreignBoundary, 0, 0) && g_epoch.ready && id != g_ids.end()) {
             const auto n = f->neighbourhood;
             f->originalVtable = Word(n);
             if (f->originalVtable != 0x00AA8700) throw std::runtime_error("neighbourhood vtable");
@@ -281,7 +285,8 @@ __declspec(thread) uintptr_t g_reloadReturn = 0;
 __declspec(naked) void ReloadAfter();
 void __cdecl ReloadBegin(uint32_t* saved) noexcept {
     // Recursive/concurrent reload is not a supported observation lifetime.
-    if (GetCurrentThreadId() != g_thread || g_reloadReturn) { ++g_unavailable; return; }
+    if (GetCurrentThreadId() != g_thread) { InterlockedExchange(&g_foreignBoundary, 1); return; }
+    if (g_reloadReturn) { ++g_unavailable; return; }
     Invalidate(); g_reloadReturn = saved[9]; saved[9] = reinterpret_cast<uintptr_t>(&ReloadAfter);
 }
 uintptr_t __cdecl ReloadEnd(uint32_t*) noexcept {
@@ -291,7 +296,10 @@ uintptr_t __cdecl ReloadEnd(uint32_t*) noexcept {
     } catch (...) { ++g_unavailable; Invalidate(); }
     return target;
 }
-void __cdecl CleanupBegin(uint32_t*) noexcept { Invalidate(); }
+void __cdecl CleanupBegin(uint32_t*) noexcept {
+    if (GetCurrentThreadId() != g_thread) { InterlockedExchange(&g_foreignBoundary, 1); return; }
+    Invalidate();
+}
 
 // Integer/flags and full x87/SSE state are restored around every observer.
 // Return interception leaves the original argument slots and ECX untouched;
@@ -443,13 +451,15 @@ bool Install() {
 void Report(const char* stage, int32_t julian) {
     if (!g_enabled) return;
     fc4_date d{}; fc4_date_from_julian(julian, &d);
-    const bool exact = g_installed && g_epoch.ready && g_tables && !g_tableMismatches &&
-                       !g_mismatches && !g_incomplete && !g_unavailable;
+    const uint64_t unavailable = g_unavailable + (InterlockedCompareExchange(&g_foreignBoundary, 0, 0) ? 1 : 0);
+    const bool ready = g_epoch.ready && !InterlockedCompareExchange(&g_foreignBoundary, 0, 0);
+    const bool exact = g_installed && ready && g_tables && g_evaluations && !g_tableMismatches &&
+                       !g_mismatches && !g_incomplete && !unavailable;
     ++g_lines; if (exact) ++g_clean;
     Log("netrules shadow (%s) %04d-%02d-%02d: mismatches=%llu table_mismatches=%llu incomplete=%llu unavailable=%llu evaluations=%llu new_evaluations=%llu tables=%llu epoch=%u ready=%u exact=%u intersections=unobserved",
         stage, d.year, d.month, d.day_of_month, g_mismatches, g_tableMismatches, g_incomplete,
-        g_unavailable, g_evaluations, g_evaluations - g_lastEvaluations, g_tables, g_epoch.number,
-        g_epoch.ready, exact);
+        unavailable, g_evaluations, g_evaluations - g_lastEvaluations, g_tables, g_epoch.number,
+        ready, exact);
     g_lastEvaluations = g_evaluations;
 }
 } // namespace
