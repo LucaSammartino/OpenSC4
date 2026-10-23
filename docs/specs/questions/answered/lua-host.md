@@ -5,6 +5,10 @@
 - **LH1** — **ANSWERED 2026-10-22 (re-lua-nativebinding4):** DIFFERS — §§1.2, 1.4.1, 6.3.2 identify CLSID `CBD101A9`, factory `008B10D0`, IID `4BD10129`, service `4BD10133`, signed priority `-999999`. Factory-first creation precedes fallback, service QI/registration and Releases; Init is a later priority pass. Factory dispatch exists, but no guaranteed early plugin-callback installation or safe retained-service substitution recipe is established. Duplicate service insertion fails.
 - **LH2** — **ANSWERED 2026-10-22 (re-lua-nativebinding4):** DIFFERS — §6.3.2 identifies public CommandServer acquisition `EB903A32/CB90253A`, typed Lua-generator Init(CommandServer pointer, Lua5 pointer, const string reference), borrowed generic-view conversion and bool Shutdown, with retention, cleanup and failure contracts. The Lua-specific interface lacks an SDK declaration; its native slots are specified. Owner insertion timing remains subject to LH1; no activation claim.
 
+<!-- from: lua-host legacy Q7; re-game-data-registry4 (2026-10-23) -->
+- ~~**LH3 - section 9.1, legacy Q7:** Whether the game-data registry replays existing entries to a newly added notification target. This matters for instance 2 and 3, which subscribe late.~~
+  **ANSWERED 2026-10-23 (re-game-data-registry4):** DIFFERS — new targets receive synchronous type-3 replay including root, in depth-first reverse-sibling insertion order; duplicates return false without replay. Native bodies `00474F70`, `00475030`, `00474DE0`, `00473BD0`; rule in lua-host §9.1 and game-data-registry §5. No snapshot or safe arbitrary mutation guarantee.
+
 ## Original entries
 
 <!-- from: glue-lua-scriptserver4 (2026-10-22) -->

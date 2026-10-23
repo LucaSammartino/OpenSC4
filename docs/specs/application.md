@@ -606,4 +606,6 @@ AddDynamicLibrary*, ReadPreferences/SavePreferences/DoPreferencesChanged bodies,
 callbacks, LoadRegistry, SC4CreateSavePathForCity (`0x005DC790`) naming rule, the scoped object `0x005F88A0`, city
 vtable slots +0x1A4 (blocks saving), +0x3C, +0x30, +0x14, the message `0x26C63346` name, and the rest of
 cSC4App's 322 functions (this spec covers about 57). Not covered at all: cWinSC4App, the COM directors,
-cSC4Preferences, cSC4GameDataRegistry, cSC4AutoGamePause. Questions: docs/specs/questions/application.md (AP1 to AP5).
+cSC4Preferences, cSC4AutoGamePause. The distinct cSC4GameDataRegistry owner now has a
+[first bounded contract](game-data-registry.md), including its per-body evidence and remaining unknowns;
+it is not included in this cSC4App function count. Questions: docs/specs/questions/application.md (AP1 to AP5).

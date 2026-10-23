@@ -68,6 +68,7 @@ generated index: the questions live one file per spec, so read only the file for
 | FS | graphics-formats |
 | GC | command-system |
 | GD | renderer-gdrivers-director |
+| GDR | game-data-registry |
 | GF | graphics-formats |
 | GI | renderer-gdrivers-director-inventory |
 | GLUE | lot-configuration, prop-developer |
@@ -212,6 +213,7 @@ generated index: the questions live one file per spec, so read only the file for
 | foundations | 8 | 8 | AO4, HG8, RN6, SV2 | questions/foundations.md |
 | framework-gz-services | 3 | 7 | GZ11 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
+| game-data-registry | 4 | 0 | GDR5 | questions/game-data-registry.md |
 | geometry-utilities | 6 | 0 | GU7 | questions/geometry-utilities.md |
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
@@ -228,7 +230,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-developer | 2 | 32 | LD35 | questions/lot-developer.md |
 | lot-models | 8 | 0 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 9 | LR12 | questions/lot-records.md |
-| lua-host | 0 | 4 | LH3 | questions/lua-host.md |
+| lua-host | 0 | 5 | LH4 | questions/lua-host.md |
 | map-view | 11 | 0 | QV12 | questions/map-view.md |
 | model-instances | 5 | 0 | MI14 | questions/model-instances.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
@@ -308,4 +310,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **467** | **1241** | | |
+| **total** | **471** | **1242** | | |

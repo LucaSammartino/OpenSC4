@@ -54,10 +54,13 @@ established for an additional private path facility.
 ## 2. Service identity and lifetime
 
 Construction (`004748F0`) constructs the system-service face at object +4 with
-class ID `0xEBE0E860` and service ID `0xFFF0BDC0`; installs the registry face at
+service ID `0xEBE0E860` and signed priority -1000000 (`0xFFF0BDC0`); installs the registry face at
 +0 and another framework face at +8. The app directly calls this constructor
 at `004507AE` during AddSystemServices. This is evidence of app construction,
-not proof of a separately callable registry factory.
+not proof of a separately callable registry factory. The SDK also names
+`0xEBE0E860` as CLSID; factory registration is not proved by that label. The base
+constructor `0091DE0F` stores the first word as service ID and the second as
+both service and tick priority, and initializes the running byte to false.
 
 QI (`00473A40`) first zeroes the required output pointer, recognizes registry IID
 `0xE898ED03`, writes the +0 face and AddRefs it, returning true. Other requests
@@ -66,7 +69,13 @@ delegate to the system-service QI on +4. The +4 and +8 QI thunks (`00474670`,
 +4 and then delegate to the system-service implementation, whose refcount face
 is another +4. The shared bodies are not draw-system-owned behavior merely because
 the export names them after a draw-system method. Exact base-class deletion and
-unsupported-IID policy remain delegated, not newly specified here.
+unsupported-IID policy follow the base bodies: QI recognizes system-service IID
+`0x287FB697` at +4, then IID 1 at +8 (`0091DD67`, `009457C6`), retaining the
+returned face; unsupported IDs return false with the wrapper’s output still null.
+AddRef increments the 32-bit counter at registry +0x0C and returns it (`00968B60`).
+Release decrements/returns a count greater than 1; at count 0 or 1 it invokes
+the +8 face’s deleting slot with argument 1 and returns zero (`0090D997`). The
++8 deleting thunk `00474690` adjusts back to the allocation.
 
 The constructor creates two empty ordered key indexes (+0x24 node, +0x30 leaf)
 and two empty target lists (+0x3C typed, +0x40 message). It allocates an 8-byte
@@ -290,4 +299,75 @@ completion claim. The per-body reconciliation and exact status are maintained
 below; shared library helpers, thunks and diagnostic visitors must not acquire
 new tree semantics just from proximity or a recovered name.
 
-Pending final inventory reconciliation in this first research milestone.
+The contiguous export interval `00473A40` through `00475630` contains 51 bodies,
+6794 bytes. Removing the separately attributed nested-entry constructor
+`004744E0` (159), shared list clear `00473EC0` (60), and dump visitor `00475330`
+(768) reproduces **exactly 48 bodies / 5807 bytes**. This reconciles the public
+total without treating all 48 as distinct owner algorithms.
+
+S = supported bounded behavior in the cited section; P = partial body or
+delegated helper contract; F = generic/foreign primitive, not an additional
+registry algorithm. None promises arbitrary reentry or invalid-pointer safety.
+Bytes are export body sizes, excluding gaps.
+
+| Body | Bytes | Status | Contract |
+|---|---:|---|---|
+| `00473A40` | 54 | S | QI, §2 |
+| `00473A80` | 27 | S | framework registration hook, §2 |
+| `00473AA0` | 25 | S | GetNode, §3.2 |
+| `00473AC0` | 25 | S | GetValue, §3.2 |
+| `00473AE0` | 27 | S | IsNodeEntry, §3.2 |
+| `00473B00` | 19 | S | GetEntryName, §3.2 |
+| `00473B20` | 42 | S | call forwarding, §3.3 |
+| `00473B50` | 32 | S | full-width flag mask, §3.2 |
+| `00473B70` | 25 | S | context write, §3.2 |
+| `00473B90` | 19 | S | context read, §3.2 |
+| `00473BB0` | 19 | S | parent read, §3.2 |
+| `00473BD0` | 27 | S | typed replay adapter, §5 |
+| `00473BF0` | 108 | P | message replay; allocation failure unsafe, accessor types delegated |
+| `00473C60` | 51 | F | recursive node-index RB-tree cell free; does not destroy entries |
+| `00473CA0` | 51 | F | corresponding leaf-index cell free |
+| `00473CE0` | 82 | S | exchange forwarding, §3.3 |
+| `00473D40` | 165 | S | typed broadcast and skipped message branch, §5 |
+| `00473DF0` | 108 | S | removal postorder traversal, §4 |
+| `00473E60` | 88 | S | immediate visit, §4 |
+| `00473F00` | 175 | S | membership scan, §3.2 |
+| `00473FB0` | 106 | S | typed unsubscribe, §5 |
+| `00474020` | 106 | S | message unsubscribe, §5 |
+| `00474090` | 189 | F | node-index range erasure; generic RB-tree rebalance delegated |
+| `00474150` | 83 | F | unsigned 32-bit key equal-range bounds used by removal |
+| `004741B0` | 189 | F | corresponding leaf-index range erasure |
+| `00474270` | 152 | S | object lookup/canonical QI fallback, §3.2 |
+| `00474310` | 54 | F | raw-pointer vector append adapter used for removal |
+| `00474350` | 143 | S | entry destruction, §2 |
+| `004743E0` | 114 | S | exchange leaf constructor, §3 |
+| `00474460` | 114 | S | call leaf constructor, §3 |
+| `00474580` | 230 | P | registry destructor; base teardown delegated |
+| `00474670` | 8 | S | +4 QI adjustment, §2 |
+| `00474680` | 8 | S | +8 QI adjustment, §2 |
+| `00474690` | 8 | S | +8 deleting adjustment, §2 |
+| `004746A0` | 213 | S | shutdown hook, §2 |
+| `00474780` | 356 | S | subtree removal, §4 |
+| `004748F0` | 316 | P | service/root construction; root-key initial reference unresolved |
+| `00474A30` | 30 | S | deleting wrapper, §2 |
+| `00474A50` | 212 | S | node creation, §3.1 |
+| `00474B30` | 288 | S | exchange creation, §3.1 |
+| `00474C50` | 287 | S | call creation, §3.1 |
+| `00474D70` | 37 | S | object-key removal wrapper, §4 |
+| `00474DA0` | 58 | S | raw-key removal wrapper, §4 |
+| `00474DE0` | 385 | S | LIFO replay traversal, §4 |
+| `00474F70` | 183 | S | typed registration/replay, §5 |
+| `00475030` | 183 | P | message registration; standard-message accessor types delegated |
+| `004750F0` | 555 | S | FIFO breadth-first visit, §4 |
+| `00475630` | 31 | P | null no-op; otherwise LIFO visit with dump visitor; output unknown |
+
+Additional bodies outside the 48: `004744E0` supports node construction (§3);
+`00473EC0` is generic target-list clear (releases non-null targets, frees cells,
+resets sentinel); `00475330` diagnostic formatting remains unknown. Shared slot
+bodies `00800C30`, `00800C40`, `0080E040`, `004ED900` are specified above but
+not newly attributed owner functions. The export labels “GetOrdinanceByID” and
+“GetTractCountX” at the last two do not change their compiled registry role.
+
+Precise unknowns are in [questions/game-data-registry.md](questions/game-data-registry.md).
+No runtime tests, engine source, Lua mirror outputs or Rust collection behavior
+were used as an oracle.
