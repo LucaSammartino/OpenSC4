@@ -344,7 +344,7 @@ fn:GZCOM_cS3DTextureBindingFactoryCLSID	textures and materials	renderer	texture-
 fn:GZCOM_CreatecS3DMaterialManager	textures and materials	renderer	texture-bindings.md	-	-	-
 fn:GZCOM_cS3DMaterialManagerCLSID	textures and materials	renderer	texture-bindings.md	-	-	-
 fn:NextPowerOfTwo	textures and materials	renderer	texture-bindings.md	-	-	-
-cS3DModelInstanceAnimatedSprite	animated sprites	renderer	animated-sprite.md	-	-	-
+cS3DModelInstanceAnimatedSprite	animated sprites	renderer	animated-sprite.md	core/src/animated_sprite	-	-
 fn:GetAnimatedModelFromResourceKey	animated sprites	renderer	animated-sprite.md	-	-	-
 fn:GetMeshAnimFromResourceKey	animated sprites	renderer	animated-sprite.md	-	-	-
 fn:GetSpriteAnimFromResourceKey	animated sprites	renderer	animated-sprite.md	-	-	-
@@ -469,7 +469,7 @@ cSC4ViewInputControlZone	city tools and input	ui	zone-tool.md	-	-	-
 cSC4ViewInputControlDemolish	city tools and input	ui	bulldozer-tool.md	-	-	-
 cSC4DemolishFilter	city tools and input	ui	bulldozer-tool.md	-	-	-
 cSC4ViewInputControlPlayerDrive	city tools and input	ui	drive-tool.md	-	-	-
-cSC4ViewInputControlQuery	city tools and input	ui	city-tools-input.md	-	-	-
+cSC4ViewInputControlQuery	city tools and input	ui	city-tools-input.md	core/src/query_tool	-	-
 cSC4ViewInputControlPlaceLot	city tools and input	ui	city-tools-input.md	-	-	-
 cSC4ViewInputControl*	city tools and input	ui	-	-	-	-
 cSC4MySimInputControl*	city tools and input	ui	-	-	-	-
@@ -491,7 +491,7 @@ cSC4CatalogItem	windows and panels	ui	-	-	-	-
 nSC4UI*	windows and panels	ui	-	-	-	-
 fn:SC4DoPopup*	windows and panels	ui	-	-	-	-
 cGZWin*	widget toolkit	ui	-	-	-	-
-cGZLegacyControl	widget toolkit	ui	legacy-control.md	-	-	-
+cGZLegacyControl	widget toolkit	ui	legacy-control.md	core/src/legacy_control	-	-
 fn:unscript	widget toolkit	ui	-	-	-	-
 fn:script_tag_*	widget toolkit	ui	-	-	-	-
 fn:GetGZWinFont	widget toolkit	ui	-	-	-	-
