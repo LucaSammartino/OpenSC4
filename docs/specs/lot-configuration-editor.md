@@ -1152,3 +1152,322 @@ bodies are exactly `0x00478360` (64 bytes), `0x00604920` (169),
 `0x006049D4`/`0x00604A67` are interior fragments, not two extra bodies.
 No ownership reassignment or byte restoration follows from the callers alone.
 No fourth lane round is requested by this stopping inventory.
+
+## 19. Window-owner integration and slot inventory *[compat]*
+
+Added 2026-10-23, re-lotcfg-editor5. Sections 1–18 and the
+[exact editor body inventory](lot-configuration-editor-inventory.md) remain
+the detailed editor contracts and the historical stopping assessment. This
+addition specifies the companion chooser and further window integration;
+it does not turn that earlier partial coverage into complete-owner credit.
+The data model, exemplar properties and configuration interface belong to
+[lot-configuration](lot-configuration.md); family/prop identity dependencies
+belong to [prop-lotconfig](prop-lotconfig.md). Do not implement a second
+configuration format for these windows.
+
+The following are **zero-based primary-window slots** in the 1.1.641 image.
+They were checked against the executable's table words, rather than inferred
+from export names: editor table `0x00A8D888`, chooser `0x00A8D4E0`.
+Folded function names in the export do not establish an unrelated interface.
+Unlisted slots through 151 are inherited window behavior; there is no chooser
+extension after slot 151. Editor extension slots are 152–159.
+
+| Slot / byte offset | Editor target and contract | Chooser target and contract |
+|---|---|---|
+| 0 / `+0x00` | `0x0047A830`, QueryInterface, §7 | `0x0049A1E0`, base-window QueryInterface thunk |
+| 1 / `+0x04`; 2 / `+0x08` | Shared AddRef `0x008AE960`, Release `0x008AE970` | Same shared entries |
+| 3 / `+0x0C` | `0x0047BA80`, main DoMessage, §7 | `0x00489490`, §20.2 |
+| 4 / `+0x10`; 5 / `+0x14` | Init `0x004892B0`, Shutdown `0x0047C510`, §7 | Init `0x0047A7B0`, Shutdown `0x0047C2D0`, §20.1 |
+| 130 / `+0x208` | Key down `0x00485710`, §11 | Inherited |
+| 134 / `+0x218`; 135 / `+0x21C` | Left/right down `0x00487100` / `0x004895A0`, §21 | Inherited |
+| 136 / `+0x220`; 138 / `+0x228` | Left up `0x0047AD40` / move `0x00486690`, §21 | Inherited |
+| 148 / `+0x250` | Deleting destructor `0x0047E5D0`, §21.1 | Deleting destructor `0x0047CA40`, §20.1 |
+| 152 / `+0x260` | Save As entry `0x00485390`, §8.2 | — |
+| 153 / `+0x264` | Close `0x004865D0`, §8.3 | — |
+| 154 / `+0x268` | Persistence helper `0x0047AB70`, §8.2 | — |
+| 155 / `+0x26C`; 156 / `+0x270` | Create new `0x00483B20` / read exemplar `0x00483C80`, §8.1 | — |
+| 157 / `+0x274` | Default path `0x0047EFF0`, §8.2 | — |
+| 158 / `+0x278` | Edit-area menu `0x004871B0`, §2 | — |
+| 159 / `+0x27C` | 3D refresh `0x0047BE20`, unresolved internals LE5 | — |
+
+The editor's dialog callback at object `+0x128` has its own adjusted-this
+contract (§12.1); `0x0047DD60` is not primary-window slot 3. The auxiliary
+window interface is at `+0xD8` for both owners. These offsets describe native
+adapter boundaries, not a portable core layout requirement.
+
+### 19.1 Chooser method inventory
+
+These are the chooser-specific bodies, including helpers identified by their
+table installation/use. Generic containers and inherited window methods are
+dependencies, not additional chooser methods. This list is separate from
+the editor-only historical byte inventory.
+
+| Entry | Method / responsibility | Contract |
+|---|---|---|
+| `0x0047C990` | Constructor (unnamed export) | §20.1 |
+| `0x0047A7B0` | Init | §20.1 |
+| `0x00480460` | PostInit | §20.1; service-discovery residual LE7 |
+| `0x00489490` | DoMessage | §20.2 |
+| `0x0047AAF0` | Set sort column/options (unnamed export) | §20.2 |
+| `0x0047EBB0` | SetupLotConfigurationList | §20.3 |
+| `0x0049A7F0` | GetSelectedLotConfigurationType | §20.3 |
+| `0x0047E580` | GetSelectedLotConfigurationKey | §20.3 |
+| `0x0047D940` | IsSelectedLotBeingEdited | §20.4 |
+| `0x00486D30` | DoRequestEditLotConfiguration | §20.4 |
+| `0x0047ED90` | DoRequestDeleteLotConfiguration | §20.5 |
+| `0x0047D9C0` | RemoveLotConfigurationTypeFromGrid | §20.5 |
+| `0x0047C4B0` | DoLotConfigurationEditorClosed | §20.4 |
+| `0x0047C150` | User close request (unnamed export) | §20.1 |
+| `0x0047C2D0` | Shutdown | §20.1 |
+| `0x0047C1F0`; `0x0047CA40` | Destruction / deleting wrapper | §20.1 |
+| `0x0049A1E0` | QueryInterface folded entry | Primary-window base delegation |
+
+## 20. Lot configuration chooser *[compat]*
+
+### 20.1 State, construction and lifecycle
+
+Construction first constructs the generic window, then installs the chooser
+tables. Its owner/controller reference (`+0x128`), grid (`+0x12C`) and
+configuration manager (`+0x130`) start null. Two native ordered sets start
+empty, with separate allocated sentinels: service references at `+0x134`
+(count `+0x138`) and open editor pointers at `+0x140` (count `+0x144`).
+Sort column `+0x14C` and option `+0x150` both start zero. Allocation of the
+sentinels is followed by unchecked stores; no recoverable out-of-memory
+return is established (`0x0047C990..0x0047CA3C`).
+
+On the first Init, set primary flag `0x10000` true and auxiliary interface
+flags `1` and `0x10` true, `0x100` and `4` false. Invoke base Init and post
+`0x0920B687` to this window with three zero payloads. Repeated Init skips
+this block and returns true. These are raw flag contracts; semantic names
+for the masks are not established. The editor uses the same flag requests
+in its own Init (§7).
+
+PostInit resolves child `0x091C91BA` as grid IID `0xDAA6B9BE` if absent,
+then calls its `+0x78` with `(2,1,0)`. The returned grid is used without
+checking lookup success. If the chooser manager is absent, acquire the
+global lot configuration manager if available, retaining it. A separate
+service enumeration queries IID `0x856C8CF7` and retains service interfaces
+in the first set; the precise interface roles/ownership acquisition remain
+LE7 because stack recovery in that block is unreliable. PostInit always
+rebuilds the list (§20.3). A missing manager yields an empty list; a missing
+grid is not a supported empty-state fallback.
+
+User close (`0x0047C150`) asks the first tracked editor to Close with
+`(true,true)` and repeats while editors remain. An editor returning false
+stops the operation immediately: remaining editors and the chooser stay
+open. Already closed editors are not restored. After the set is empty,
+invoke controller `+0x14` with false if a controller is present. This relies
+on each successful editor close removing its registration; it is not a
+snapshot iteration that ignores close callbacks.
+
+Shutdown instead asks tracked editors to Close with `(false,false)`. It
+rechecks membership after each close and explicitly Releases/removes an
+editor if the callback did not already do so. It then Releases service-set
+members, clears that set, clears/releases controller, grid and manager in
+that order, and invokes base Shutdown (`0x0047C2D0..0x0047C4AE`).
+This is not the cancelable user-close operation. The body destructor
+`0x0047C1F0` disposes the two set trees/sentinels, Releases remaining manager,
+grid and controller references and invokes the base destructor. It does not
+replace Shutdown's editor-close/service-release protocol. The deleting
+wrapper `0x0047CA40` additionally frees this object when argument bit 0 is set.
+
+### 20.2 Messages and sorting
+
+All category-3 messages return true, even unknown commands or controls.
+For category 3, only command `0x287259F6` dispatches the controls below.
+Message `0x0920B687` invokes PostInit and returns true; other categories
+delegate to the base window (`0x00489490..0x00489599`).
+
+| Control ID | Action |
+|---|---|
+| `0x091C91BB` | Request edit with new-configuration option true |
+| `0x091C91BC` | Request edit with new-configuration option false |
+| `0x091C91BD` | Request deletion |
+| `0x0942D1CB` | Set sort column 0 |
+| `0x0942D1CC` | Set sort column 1 |
+| `0x42B7C353` | Cancelable chooser close (§20.1) |
+
+For either sort control the option is true if key `0x11` or key `0x10`
+is down, false otherwise. If grid is null, the sort helper does nothing,
+including no state update. Otherwise it stores column and option and calls
+grid `+0x20C` with `(column,option,1,0)` (`0x0047AAF0..0x0047AB22`).
+Rebuilding the list reapplies the stored pair. Direction/collation meaning
+is a grid dependency, not established by the option's boolean value.
+
+### 20.3 Rows, selected type and exemplar key
+
+Rebuild clears the grid with `+0x188` before checking manager availability.
+With a manager it enumerates through manager `+0x24` with option false,
+placing each returned configuration type's ID (`+0x0C`) in column 0 as
+`0x%08x`, and its name (`+0x10`) in column 1. Rows start at zero and are
+appended in enumeration order, followed by the stored sort request.
+The enumeration container is a hash set; no numeric or alphabetical
+pre-sort is promised (`0x0047EBB0`, row writes `0x0047EC7E..0x0047ECF6`).
+
+Selected-type lookup asks grid `+0xA8` for its current cell. Failure gives
+type zero. Success reads **column 0 of the selected row**, regardless of
+the selected column, and converts its text with `RZAtoUint32HexA`
+(`0x0049A7F0`). Thus visible row text, not the displayed name or row index,
+is the selection identity. Malformed text behavior belongs to that parser.
+
+Selected-key lookup fails for type zero, absent global manager or an
+unresolvable type. On success it writes key words `(0x6534284A,
+0xA8FBD372,resolvedIdentityID)`, where the last word is the manager-resolved
+type object's `+0x0C` result. Failure does not initialize the caller's key
+(`0x0047E580..0x0047E5C1`). The selected type and resolved identity ID must
+not silently be assumed identical by a service adapter.
+
+### 20.4 Opening and editor registration
+
+A request first requires a nonzero selected type, including the true/new
+option. With no selection, even this option creates nothing. An existing
+tracked editor whose stored type at editor `+0x164` equals the selected type
+blocks the request. Show title `No can do` and text `The lot you are trying
+to edit is already open for editing.`; do not focus/reuse that editor.
+
+The false option requires successful selected-key resolution; failure ends
+silently. The true option bypasses key lookup and supplies an all-zero key
+to editor Open (the new-configuration route in §8.1). Create the editor
+from script key `(0,0x96A006B0,0x09234182)` with window ID `0xC9235387`.
+Creation failure is silent. On success retain the chooser in the editor,
+copy its controller reference and perform window-manager `+0x94` before
+calling Open. Successful Open retains/registers the editor in the pointer
+set and relinquishes the temporary creation reference. A failed Open shows
+`Unable to open the lot for editing.` with title `No can do`, removes the
+window through creator `+0x3C`, calls editor Shutdown and Releases it
+(`0x00486D30`). No failed editor is registered.
+
+Registration is by editor pointer, not selected ID. IsSelectedLotBeingEdited
+compares the current selected type against each editor's stored type
+(`0x0047D940`); a newly created editor may therefore cease to block the
+original selected type. The close notification `0x0047C4B0` Releases and
+erases only a registered pointer, decrementing the count. An unknown pointer
+does nothing, so repeated notifications do not Release twice.
+
+### 20.5 Deleting and failure ordering
+
+No selected type means no operation. A type open for editing shows title
+`No can do` and text `The lot you are trying to delete is currently open
+for editing.` before identity or filesystem work. Otherwise resolve its
+identity (§8.4); failure ends silently. Ask `Are you sure you want to delete
+the selected item?` with title `Are you sure`. Only result `0x5301814A`
+continues.
+
+Deletion requires the identity's backing file to exist and be writable.
+Otherwise show the native non-existent/write-protected error (native text
+spells it `non-existant`), with title `No can do`. A failed backing-store
+delete (`+0x6C`) shows `Unknown error trying to delete item.` with that title.
+Neither failure removes a row or unregisters a manager type. On success,
+remove the row identified by the identity ID, then ask the global manager
+for the selected type and unregister it (`+0x1C`) only if still present
+(`0x0047ED90`). Exact backing-store interface identity remains LE7; this
+does not establish deletion of the whole containing database file.
+
+Row removal formats the supplied ID as `0x%08x` and searches through grid
+`+0x214` with raw arguments
+`(text,length,0,1,0,0x7FFFFFFF,&row,&column,1)`. If found, remove one row with
+`+0x194(row,1,0)`. Whether found or absent, this helper returns false in AL;
+callers must not treat that return as a successful-deletion indicator
+(`0x0047DA1D..0x0047DA7D`). The grid's search-range interpretation is a
+dependency; the raw `1` is not proof that visible row zero is excluded.
+
+## 21. Editor host drawing and input boundary *[compat]*
+
+The host supplies the generic window, child view, buffer/font/cursor services,
+modal UI, configuration manager and persistence services. Portable core
+state may use its own layout *[choice]*, but host requests, cancellation,
+selection, dirty-state and reference effects must follow these contracts.
+There is no separately proved editor-owned disk format: §8 uses the
+configuration/exemplar services described in [lot-configuration](lot-configuration.md).
+
+Left/right button down convert incoming window coordinates into the edit
+child's coordinates and use the half-open region `0 <= x < width`,
+`0 <= y < height`. Inside invokes the corresponding edit handler. Outside
+left down converts back and delegates to generic-window left down; outside
+right down opens the outside-area menu. Left up and mouse move use the
+same region test and generic fallback. For those two handlers, nonzero
+base field `+0xE0` bypasses edit dispatch and returns the base handler's
+result. Otherwise the wrapper returns true after either route
+(`0x0047AD40`, `0x00486690`, `0x00487100`, `0x004895A0`). Do not infer from
+drag capture alone that every outside mouse-up reaches DoEditMouseUpL.
+The edit-level keyboard/drag/capture rules remain §11; geometry/hit testing
+remain §9 and §17.1 with their explicit numeric residuals.
+
+Drawing obtains an edit-view buffer through view `+0x14` with request
+`0x20732180`. Only successful acquisition runs the drawing phases.
+Background uses RGB `(192,192,192)`, native conversion through window
+`+0x1B0`, buffer access `+0x18(0x8001)`, fill `+0x48(color,0)`, and unlock
+`+0x1C(0x8001)`. A failed lock skips the fill. Grid/outline use a separate
+access `0x8004`; failure skips that phase, not the object pass. Objects are
+drawn in reverse record order (§13). Fence overlays follow the objects and
+have their own `0x8004` access. Buffer ownership is relinquished at the end
+of the draw routine. The output begins null and the final Release is
+**unconditional even when acquisition returns false**
+(`0x0047E514..0x0047E51A`). Failure leaving a null output therefore has an
+unchecked null dereference; it is not a safe no-op result. An adapter must
+honor the service's output/reference preconditions. Remaining raster geometry
+is LE5. The fence phase calls unlock even after its access request fails
+(`0x0047E3A6..0x0047E3A8`, `0x0047E4B0..0x0047E4BB`).
+Evidence: `0x0047E060..0x0047E0E5`, object pass
+`0x0047E33D..0x0047E36D`, fence access `0x0047E39A..0x0047E3A8`.
+
+`TriggerLotConfigurationRedraw` calls DrawCurrentLotConfiguration and then
+window virtual `+0x170` after the draw routine returns
+(`0x0047E870..0x0047E882`). Raster generation and presentation invalidation
+are separate host effects. Do not replace the trigger with only a dirty
+flag. If drawing faults on invalid host output, no subsequent invalidation
+is guaranteed. Full 3D preparation/refresh and name fallbacks remain LE5/LE4.
+
+### 21.1 Editor lifetime and static resources: further facts
+
+StaticInit sets its once flag **before** reading `FamilyNames.ini`. It
+enumerates `PropFamilies`, `BuildingFamilies` and `FloraFamilies` through
+three callbacks (`0x00486F20`), so a missing/unreadable file is not retried
+by the next Init merely because the resources are empty. Exact path
+composition, callback name collision/fallback rules and error reporting
+remain LE5; absence of a returned error here is not a promise of loaded names.
+
+The editor body destructor is `0x0047DC20`, called by deleting wrapper
+`0x0047E5D0`. It frees the storage blocks based at `+0x1D0`, `+0x1C4` and
+`+0x1A0`, Releases current configuration `+0x190`, frees the string storage
+at `+0x178`, Releases manager `+0x160`, chooser `+0x15C` and cursor/service
+references at `+0x158,+0x154,+0x150,+0x14C,+0x148,+0x144,+0x140,+0x13C,
++0x138,+0x134`, then invokes the base destructor. Null references/storage
+are skipped. It does not perform Shutdown's per-element Release loop on
+the owned reference array: callers must execute the lifecycle protocol,
+not substitute raw destruction for Shutdown. The deleting wrapper frees
+the editor object only when argument bit 0 is set. These effects complement,
+rather than contradict, §7's observation that Shutdown itself does not
+release the current configuration (`0x0047DC20..0x0047DD5D`,
+`0x0047E5D0..0x0047E5ED`).
+
+## 22. Window integration conformance vectors
+
+Use recording host/service doubles; these expected outputs follow native
+evidence, not a current core implementation. Numeric residuals are not given
+invented NaN/overflow expectations.
+
+| ID | Initial state and action | Expected effects |
+|---|---|---|
+| LEW01 | Construct chooser, then Init twice | Null controller/grid/manager; empty sets; sort `(0,0)`. First Init requests the five flags and posts one `0x0920B687`; second posts none. |
+| LEW02 | Chooser receives unknown category-3 command/control | True; no base dispatch. Other category, except PostInit message, delegates. |
+| LEW03 | Sort column 1 with Control up, Shift down | Stored `(1,true)`; grid call `(1,true,1,0)`. With both up, false. With grid absent, stored values unchanged. |
+| LEW04 | Rebuild after sort `(1,true)`, manager absent | Grid cleared; no rows or sort request. With manager present, append ID/name rows then reapply sort. |
+| LEW05 | Select column 1, row whose column 0 is `0x000000ab` | Selected type `0xAB`. Failed current-cell query returns zero. |
+| LEW06 | Selected type 5 resolves to identity ID 9 | Selected key `(0x6534284A,0xA8FBD372,9)`. Missing manager returns false and leaves output sentinel unchanged. |
+| LEW07 | No selection; request either edit option | No key lookup, window creation or error UI. |
+| LEW08 | Tracked editor stores selected type; request edit/delete | Correct already-open error; no editor creation or delete confirmation. |
+| LEW09 | Selected type exists; true/new option | Skip key lookup; create editor and Open with zero key. False option with key-resolution failure creates nothing. |
+| LEW10 | Editor creation succeeds, Open fails | Error, creator removal, Shutdown, Release; tracked-editor set unchanged. |
+| LEW11 | Registered editor notifies close twice | First notification Releases/removes once; second has no effect. |
+| LEW12 | Two tracked editors; first closes, second refuses user close | First remains closed; second and chooser remain open; controller close not invoked. |
+| LEW13 | Delete confirmation canceled, or file absent/read-only, or delete service fails | No row removal or manager unregister; failure UI only for the latter two conditions. |
+| LEW14 | Row removal search succeeds / fails | Success requests one-row removal; absent makes no removal request; AL false in both cases. |
+| LEW15 | Child size 100 by 50; button down at `(99,49)` vs `(100,49)` | First reaches edit handler; second takes left base fallback or right outside menu. Negative coordinates are outside too. |
+| LEW16 | Draw buffer fill lock fails; later phases available | No fill/unlock for failed fill lock; later drawing proceeds. Trigger invokes window `+0x170` after draw returns. False acquisition with null output is an unsafe native call, not a passing null-buffer vector. |
+| LEW17 | Shutdown then destroy editor holding current configuration | Shutdown's array element releases precede storage free; current configuration released by destructor, not by Shutdown. |
+| LEW18 | First StaticInit cannot read family file; Init again | Once flag remains set; no second static-resource attempt. |
+
+Unresolved questions are in [the question file](questions/lot-configuration-editor.md).
+This addition does not claim complete numeric/raster contracts, game verdicts,
+ABI exports or ownership of shared decoding helpers.

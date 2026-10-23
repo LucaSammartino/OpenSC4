@@ -262,7 +262,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lighting | 6 | 7 | LT14 | questions/lighting.md |
 | local-grid-helper | 1 | 0 | LGH2 | questions/local-grid-helper.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
-| lot-configuration-editor | 4 | 2 | LE7 | questions/lot-configuration-editor.md |
+| lot-configuration-editor | 5 | 2 | LE8 | questions/lot-configuration-editor.md |
 | lot-developer | 3 | 36 | LD40 | questions/lot-developer.md |
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 9 | LR12 | questions/lot-records.md |
@@ -364,4 +364,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **599** | **1359** | | |
+| **total** | **600** | **1359** | | |
