@@ -336,17 +336,23 @@ fn power_line_record_round_trip() {
     let rec = PowerLineRecord {
         version: POWER_LINE_RECORD_VERSION,
         base: OccupantBase::new(OCCUPANT_TYPE_POWER_LINE),
-        field_30: 0xDEAD_BEEF,
         position_bits: [168.0f32.to_bits(), 4.5f32.to_bits(), 56.0f32.to_bits()],
-        field_40: 10,
-        refs: [RefValue::Null, RefValue::Null, RefValue::Null],
+        cell: [10, -3],
+        flag: true,
+        refs: [RefValue::Null, RefValue::Null],
     };
     let mut w = ByteWriter::new();
     assert!(write_power_line_record(&rec, &mut w));
     let bytes = w.into_bytes();
     assert_eq!(&bytes[..2], &[2, 0]);
-    // Tail: field_30, 3 position words, field_40, three null refs.
-    assert_eq!(bytes.len() - 2 - base_len(), 4 * 5 + 4 * 3);
+    // NO13: three floats, two signed cells, one bool, two null refs.
+    let tail = &bytes[2 + base_len()..];
+    assert_eq!(tail.len(), 29);
+    assert_eq!(&tail[..4], &168.0f32.to_le_bytes());
+    assert_eq!(&tail[12..16], &10i32.to_le_bytes());
+    assert_eq!(&tail[16..20], &(-3i32).to_le_bytes());
+    assert_eq!(tail[20], 1);
+    assert_eq!(&tail[21..], &[0; 8]);
     let mut r = ByteReader::new(&bytes);
     let back = read_power_line_record(&mut r).expect("read");
     assert_eq!(back.version, 2);
@@ -354,13 +360,18 @@ fn power_line_record_round_trip() {
     assert_eq!(back.base.occupant_type, rec.base.occupant_type);
     assert_eq!(back.base.flags, rec.base.flags);
     assert_eq!(back.base.status, 2);
-    assert_eq!(back.field_30, rec.field_30);
     assert_eq!(back.position_bits, rec.position_bits);
-    assert_eq!(back.field_40, 10);
+    assert_eq!(back.cell, [10, -3]);
+    assert!(back.flag);
     assert!(back.refs.iter().all(|r| r.is_null()));
     // Truncated input fails.
     let mut r = ByteReader::new(&bytes[..bytes.len() - 1]);
     assert!(read_power_line_record(&mut r).is_none());
+    let mut wrong_version = bytes;
+    wrong_version[0] = 3;
+    let mut input = ByteReader::new(&wrong_version);
+    assert!(read_power_line_record(&mut input).is_none());
+    assert_eq!(input.position(), 2);
 }
 
 fn base_len() -> usize {
