@@ -13,4 +13,9 @@
 - Filed VW9–VW11 (exact command registration IDs/order, unspecified paint tail, paint default/reversed limits).
 - Next: finish lifecycle/notifications/messages/cheats, GUI/panels/command routing, displays/save/triggers; integrate catalog teardown with host-aware controls; add conformance T2–T6, T14–T18.
 - Full gate not yet run: implementation is incomplete; run once when stable final source is ready. No plugin/ABI edits.
+- Milestone 4235510b: input/motion owner and 21 focused tests passing.
+- Added cheats/filter/level/contours, four-reference logical save and trigger counts; focused run before status additions: 28 passed.
+- Added status methods for clock/cost/cursor/rating/alerts/speed/mission. Filed VW12–VW13 for bucket/parse and cursor/fade ambiguities.
+- Focused clippy found manual_clamp in SizeOf; corrected to f32::clamp (preserves NaN).
+- Next immediate: run required full qbuild all on this stable milestone, fix any diagnostics, record evidence; owner remains incomplete (see README pending rows).
 - No game requests outstanding. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-view3dwin5-r1-manifest.json.

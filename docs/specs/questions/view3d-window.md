@@ -30,3 +30,18 @@
   its exact due comparison? What does SetZoom/SetZoomLimits do with `min > max`? The core currently uses zero
   microseconds for the unspecified period and literal sequential min/max comparisons; these are provisional
   choices, not measured defaults. [spec gap]
+
+<!-- from: core-view3dwin5 (2026-10-23) -->
+- **VW12 - §3.1, §6k:** which hash/bucket traversal determines trigger pair order in the version-4 save record?
+  What are the overflow/absent-retraction rules for trigger counts? The logical core uses wrapping uint32
+  increment and absent retract as no-op, and preserves pairs without claiming original byte ordering. Also,
+  does SizeOf's `RZAtofA` support a locale-specific decimal separator or hex floats? The provisional parser uses
+  dot-decimal prefix semantics and NaN/Inf. [spec gap]
+
+<!-- from: core-view3dwin5 (2026-10-23) -->
+- **VW13 - §6j:** does cursor text sort ascending or descending priority, and how are equal priorities ordered?
+  The core provisionally sorts ascending with stable ties. What exact alpha range and integer rounding does the
+  1500-ms cost fade use, especially when clearing a red alpha-255 indicator? The provisional fade uses white
+  alpha 150 × remaining/1500 truncated to uint8 after the next paint; the starting alpha is kept until then.
+  What happens when clearing an already hidden indicator, and to date display years at/below the start year?
+  [spec gap]

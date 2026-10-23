@@ -37,17 +37,21 @@
 //! with a catalog popup open loads with it closed, by design.
 
 use super::slots::{
-    as_igzwin, RetChannel, SlotInfo, CLASS_MODEL_MAKER, VIEW3D_OFF_CATALOG_STATE, VIEW3D_OFF_MSG_FILTER,
-    VIEW3D_OFF_PRIMARY_VPTR, VIEW3D_OFF_SECONDARY_KIND, VIEW3D_OFF_SECONDARY_WIN, VIEW3D_OFF_TERTIARY_KIND,
-    VIEW3D_OFF_TERTIARY_WIN, VIEW3D_OFF_VIEW_MANAGER, VIEW3D_OFF_WIN, VIEW3D_SAVE_GROUP, VIEW3D_SAVE_INSTANCE,
-    VIEW3D_SAVE_TYPE, VIEW3D_SAVE_VERSION, VIEW3D_SLOTS,
+    as_igzwin, RetChannel, SlotInfo, VIEW3D_OFF_CATALOG_STATE, VIEW3D_OFF_MSG_FILTER, VIEW3D_OFF_PRIMARY_VPTR,
+    VIEW3D_OFF_SECONDARY_KIND, VIEW3D_OFF_SECONDARY_WIN, VIEW3D_OFF_TERTIARY_KIND, VIEW3D_OFF_TERTIARY_WIN,
+    VIEW3D_OFF_VIEW_MANAGER, VIEW3D_OFF_WIN, VIEW3D_SAVE_GROUP, VIEW3D_SAVE_INSTANCE, VIEW3D_SAVE_TYPE,
+    VIEW3D_SAVE_VERSION, VIEW3D_SLOTS,
 };
 use super::win::{WinStore, WinToken};
 
 mod input;
 mod motion;
+mod state;
+mod status;
 pub use input::{ControlCall, ControlReply, InputEvent, InputHost, MouseContext};
 pub use motion::{Motion, MotionHost, ViewChange};
+pub use state::{CheatHost, CheatTool, FilterInfo, StateHost, ViewState};
+pub use status::{CostDisplay, CostMode, CursorText, DisplayState, StatusHost};
 
 #[cfg(test)]
 mod owner_tests;
@@ -60,6 +64,8 @@ pub struct OwnerState {
     pub right_press: (i32, i32),
     pub dragged: bool,
     pub motion: Motion,
+    pub view: ViewState,
+    pub display: DisplayState,
     stack: Vec<u32>,
     persistent: Vec<u32>,
 }
@@ -108,12 +114,10 @@ impl SaveRef {
 
 /// The View3D save record (§3.3a): the only thing the window layer persists.
 ///
-/// The first two things written are **references**, not values: `this+0x00F0`
-/// and `this+0x00F4` (the latter written as `obj + 8` when non-null, else null).
-/// Those are the camera control / renderer / model maker / simulator
-/// references INVENTORY-M6 §4.4 and save-records.md describe. The lists that
-/// follow them are save-records §2 / Q4 and are **not** specified here.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+/// The four references are camera control, renderer (`obj + 8`), model maker
+/// (`obj + 4`) and simulator; the logical trigger count/pairs follow them
+/// (view3d-window §6k). Original bucket traversal remains open as VW12.
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct View3DSave {
     /// The record header's group.
     pub group: u32,
@@ -128,6 +132,10 @@ pub struct View3DSave {
     pub ref_f0: SaveRef,
     /// `this+0x00F4`, written as `obj + 8` when non-null else null.
     pub ref_f4: SaveRef,
+    pub model_maker: SaveRef,
+    pub simulator: SaveRef,
+    /// Logical trigger pairs. Exact serialized bucket order is open (VW12).
+    pub triggers: Vec<(u32, u32)>,
 }
 
 impl View3DSave {
@@ -412,12 +420,15 @@ impl View3DWin {
             version,
             // `this+0x00F0` and `this+0x00F4` (the latter as `obj + 8` when
             // non-null, else null).
-            ref_f0: SaveRef::of(CLASS_MODEL_MAKER),
-            ref_f4: SaveRef::null(),
+            ref_f0: self.owner.view.references[0],
+            ref_f4: self.owner.view.references[1],
+            model_maker: self.owner.view.references[2],
+            simulator: self.owner.view.references[3],
+            triggers: self.owner.view.triggers.iter().map(|(&t, &count)| (t, count)).collect(),
         }
     }
 
-    /// `DoLoad` (`0x007E_BFB0`): resolve the references by class id and leave
+    /// `DoLoad` (`0x007E_BFB0`): retain the references by class id and leave
     /// every UI field clear.
     ///
     /// Quirk 13 / conformance test 25: a catalog popup open at save time is
@@ -425,7 +436,7 @@ impl View3DWin {
     /// `+0x0208`, so a load that leaves them set would be inventing state.
     pub fn do_load(&mut self, record: &View3DSave) -> Result<(), String> {
         let want = View3DSave::header();
-        if (record.group, record.type_id, record.instance, record.version) != want {
+        if (record.group, record.type_id, record.instance) != (want.0, want.1, want.2) || record.version >= 5 {
             return Err(format!(
                 "View3D record identity {:#010x}/{:#010x}/{}/{} is not {:#010x}/{:#010x}/{}/{}",
                 record.group, record.type_id, record.instance, record.version, want.0, want.1, want.2, want.3
@@ -440,11 +451,11 @@ impl View3DWin {
         self.catalog_state = None;
         self.owner.stack.clear();
         self.owner.persistent.clear();
-        // The references are resolved by class id; a replacement that does not
-        // implement those classes must give an exact opaque round trip
-        // (save-records). We keep the class ids.
-        let _ = record.ref_f0;
-        let _ = record.ref_f4;
+        // Reference resolution/serialization is foreign. Retain all four
+        // class-bound references and the logical trigger pairs in the owner.
+        self.owner.view.references = [record.ref_f0, record.ref_f4, record.model_maker, record.simulator];
+        self.owner.view.triggers = record.triggers.iter().copied().collect();
+        self.owner.view.not_loaded = false;
         Ok(())
     }
 }
@@ -545,6 +556,9 @@ mod tests {
             version: 4,
             ref_f0: SaveRef::null(),
             ref_f4: SaveRef::null(),
+            model_maker: SaveRef::null(),
+            simulator: SaveRef::null(),
+            triggers: Vec::new(),
         };
         assert!(v.do_load(&bad).is_err());
     }

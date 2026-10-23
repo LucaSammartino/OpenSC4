@@ -23,6 +23,20 @@ enum Op {
     Time(f32),
     Draw,
     Tail,
+    Send(u32, u32, u32),
+    HoldFilter(u32),
+    ReleaseFilter(u32),
+    CreateFilter([bool; 3]),
+    Size(f32),
+    Property(String, String),
+    Recorder(bool),
+    Contour(bool, u32),
+    CostDisplay(CostDisplay),
+    Clock(u32, u32, u32),
+    Rating(i32, i32),
+    Alert(Option<u32>),
+    Speed(u32, bool, bool),
+    Mission(String, bool),
 }
 
 struct Host {
@@ -39,6 +53,8 @@ struct Host {
     scroll_control: Option<u32>,
     occupant: Option<[f32; 3]>,
     terrain: Option<[f32; 3]>,
+    recorder_exists: bool,
+    filter_allocation: bool,
 }
 
 impl Default for Host {
@@ -57,6 +73,8 @@ impl Default for Host {
             scroll_control: None,
             occupant: None,
             terrain: Some([10.0, 20.0, 30.0]),
+            recorder_exists: false,
+            filter_allocation: true,
         }
     }
 }
@@ -461,4 +479,370 @@ fn failed_view_change_does_not_pause_and_no_simulator_does_not_own_pause() {
     v.temporary_hidden_pause(&mut h);
     assert!(!v.owner_state().motion.hidden_paused);
     assert!(!h.ops.contains(&Op::Pause));
+}
+
+impl StateHost for Host {
+    fn send(&mut self, m: u32, a: u32, b: u32) {
+        self.ops.push(Op::Send(m, a, b));
+    }
+    fn hold_filter(&mut self, t: u32) {
+        self.ops.push(Op::HoldFilter(t));
+    }
+    fn release_filter(&mut self, t: u32) {
+        self.ops.push(Op::ReleaseFilter(t));
+    }
+    fn add_contour_layer(&mut self, t: u32) -> Option<i32> {
+        self.ops.push(Op::Contour(true, t));
+        Some(42)
+    }
+    fn remove_contour_layer(&mut self, id: i32) {
+        self.ops.push(Op::Contour(false, id as u32));
+    }
+}
+
+impl CheatHost for Host {
+    fn create_cheat_control(&mut self, _: CheatTool) -> Option<u32> {
+        self.scroll_control
+    }
+    fn create_realistic_filter(&mut self, flags: [bool; 3]) -> Option<FilterInfo> {
+        self.ops.push(Op::CreateFilter(flags));
+        self.filter_allocation.then_some(FilterInfo {
+            token: 9,
+            realistic_flags: Some(flags),
+        })
+    }
+    fn camera_size(&mut self, size: f32) {
+        self.ops.push(Op::Size(size));
+    }
+    fn render_property(&mut self, name: &str, value: &str) -> bool {
+        self.ops.push(Op::Property(name.into(), value.into()));
+        self.changed
+    }
+    fn post_render_property_change(&mut self, m: u32) {
+        self.ops.push(Op::Message(m));
+    }
+    fn recorder_child_exists(&self) -> bool {
+        self.recorder_exists
+    }
+    fn create_recorder_child(&mut self, id: u32, path: &str) {
+        assert_eq!(id, 0xA802_B4EB);
+        assert_eq!(path, "RecordedAnimations/");
+        self.recorder_exists = true;
+        self.ops.push(Op::Recorder(true));
+    }
+    fn remove_recorder_child(&mut self, id: u32) {
+        assert_eq!(id, 0xA802_B4EB);
+        self.recorder_exists = false;
+        self.ops.push(Op::Recorder(false));
+    }
+}
+
+#[test]
+fn vw_t5_sizeof_clamps_arguments_and_needs_one() {
+    let mut v = view();
+    let mut h = Host::default();
+    for arg in ["100", "0.5", "abc", "5", "12junk", "2e1tail", "3e+"] {
+        assert!(v.process_cheat(&mut h, 0xCA7B_C5B5, &["SizeOf", arg, "ignored"]));
+    }
+    assert!(!v.process_cheat(&mut h, 0xCA7B_C5B5, &["SizeOf"]));
+    assert_eq!(
+        h.ops,
+        [
+            Op::Size(64.0),
+            Op::Size(0.9),
+            Op::Size(0.9),
+            Op::Size(5.0),
+            Op::Size(12.0),
+            Op::Size(20.0),
+            Op::Size(3.0)
+        ]
+    );
+}
+
+#[test]
+fn vw_t6_filter_cheat_false_results_and_terrain_query() {
+    let mut v = view();
+    let mut h = Host::default();
+    v.set_filter(
+        &mut h,
+        Some(FilterInfo {
+            token: 1,
+            realistic_flags: Some([true, true, true]),
+        }),
+    );
+    assert!(!v.process_cheat(&mut h, 0xAA7A_2746, &["TastyZots"]));
+    assert_eq!(
+        v.owner_state().view.filter.unwrap().realistic_flags,
+        Some([true, false, true])
+    );
+    assert!(!v.process_cheat(&mut h, 0xAA7A_2746, &["TastyZots"]));
+    assert_eq!(
+        v.owner_state().view.filter.unwrap().realistic_flags,
+        Some([true, true, true])
+    );
+    assert!(!v.process_cheat(&mut h, 0x6A7A_276E, &["Zoneria"]));
+    assert_eq!(
+        v.owner_state().view.filter.unwrap().realistic_flags,
+        Some([false, true, false])
+    );
+    assert!(v.process_cheat(&mut h, 0x8AB7_30AE, &["TerrainQuery", "OFF"]));
+    assert!(!v.owner_state().view.terrain_query);
+    assert!(v.process_cheat(&mut h, 0x8AB7_30AE, &["TerrainQuery"]));
+    assert!(v.owner_state().view.terrain_query);
+}
+
+#[test]
+fn filter_messages_and_reference_order_are_synchronous() {
+    let mut v = view();
+    let mut h = Host::default();
+    v.set_filter(
+        &mut h,
+        Some(FilterInfo {
+            token: 1,
+            realistic_flags: None,
+        }),
+    );
+    h.ops.clear();
+    v.set_filter(
+        &mut h,
+        Some(FilterInfo {
+            token: 2,
+            realistic_flags: None,
+        }),
+    );
+    assert_eq!(
+        h.ops,
+        [
+            Op::Send(0x06CD_B65A, 1, 2),
+            Op::HoldFilter(2),
+            Op::ReleaseFilter(1),
+            Op::Send(0x06CD_B65B, 0, 0)
+        ]
+    );
+    h.ops.clear();
+    assert_eq!(v.get_filter(&mut h).unwrap().token, 2);
+    assert_eq!(h.ops, [Op::HoldFilter(2)]);
+    h.filter_allocation = false;
+    assert!(!v.process_cheat(&mut h, 0xAA7A_2746, &["TastyZots"]));
+    assert_eq!(v.owner_state().view.filter.unwrap().token, 2);
+}
+
+#[test]
+fn render_cheat_recorder_and_debug_flags_keep_their_quirks() {
+    let mut v = view();
+    let mut h = Host::default();
+    assert!(!v.process_cheat(&mut h, 0x88F3_D4BB, &["RP"]));
+    assert!(h.ops.is_empty());
+    assert!(v.process_cheat(&mut h, 0x88F3_D4BC, &["RP", "property"]));
+    assert_eq!(
+        h.ops,
+        [Op::Property("property".into(), "".into()), Op::Message(0xC9F7_75BB)]
+    );
+    h.ops.clear();
+    h.changed = false;
+    assert!(v.process_cheat(&mut h, 0x88F3_D4BB, &["RenderProp", "unknown", "1"]));
+    assert_eq!(h.ops, [Op::Property("unknown".into(), "1".into())]);
+    h.ops.clear();
+    v.recorder(&mut h, true);
+    v.recorder(&mut h, true);
+    v.recorder(&mut h, false);
+    v.recorder(&mut h, false);
+    assert_eq!(h.ops, [Op::Recorder(true), Op::Recorder(false)]);
+    assert!(v.process_cheat(&mut h, 0x4A97_2F37, &["WatchMeMove"]));
+    assert!(v.process_cheat(&mut h, 0x4A82_253E, &["You don't deserve it"]));
+    assert!(v.owner_state().view.animation_debug);
+    assert!(v.owner_state().view.all_rewards);
+    assert!(!v.process_cheat(&mut h, 0, &["unknown"]));
+}
+
+#[test]
+fn cheat_control_allocation_failure_still_replaces_stack() {
+    let (mut v, mut h) = controls();
+    assert!(v.process_cheat(&mut h, 0x8973_A69C, &["GOL"]));
+    assert_eq!(v.input_control(), None);
+    assert_eq!(v.persistent_controls(), 2);
+    h.scroll_control = Some(7);
+    assert!(v.process_cheat(&mut h, 0x4AC0_96CA, &["BuildingPlop"]));
+    assert_eq!(v.input_control(), Some(7));
+    assert_eq!(h.ops.last(), Some(&Op::Control(7, ControlCall::Release)));
+}
+
+#[test]
+fn vw_t16_trigger_transitions_and_four_reference_save_roundtrip() {
+    let mut v = view();
+    let mut h = Host::default();
+    v.assert_global_trigger(&mut h, 123);
+    v.assert_global_trigger(&mut h, 123);
+    v.retract_global_trigger(&mut h, 123);
+    v.retract_global_trigger(&mut h, 123);
+    v.retract_global_trigger(&mut h, 123);
+    assert_eq!(h.ops, [Op::Send(0xAA37_5FE8, 123, 1), Op::Send(0xAA37_5FE8, 123, 0)]);
+    assert!(!v.global_trigger_state(123));
+    v.assert_global_trigger(&mut h, 123);
+    v.assert_global_trigger(&mut h, 123);
+    let refs = [0xC9C6_28EC, 0xE9C6_22D8, 0xA9C7_41B3, 0x8695_664E].map(SaveRef::of);
+    v.view_state_mut().references = refs;
+    let record = v.do_save();
+    assert_eq!(record.triggers, [(123, 2)]);
+    let mut loaded = view();
+    loaded.do_load(&record).unwrap();
+    assert_eq!(loaded.owner_state().view.references, refs);
+    assert!(!loaded.owner_state().view.not_loaded);
+    assert_eq!(loaded.do_save(), record);
+    for version in 0..5 {
+        let mut older = record.clone();
+        older.version = version;
+        assert!(loaded.do_load(&older).is_ok());
+    }
+    let mut newer = record;
+    newer.version = 5;
+    assert!(loaded.do_load(&newer).is_err());
+}
+
+#[test]
+fn level_only_notifies_changes_and_contour_pair_removes_returned_layer() {
+    let mut v = view();
+    let mut h = Host::default();
+    v.set_view_level(&mut h, 1);
+    assert!(h.ops.is_empty());
+    v.set_view_level(&mut h, 3);
+    assert_eq!(h.ops, [Op::Send(0xC6CD_BF1A, 0, 0), Op::Send(0xC6CD_BF1B, 0, 0)]);
+    h.ops.clear();
+    v.toggle_contours(&mut h);
+    v.toggle_contours(&mut h);
+    assert_eq!(h.ops, [Op::Contour(true, 0x07F9_4205), Op::Contour(false, 42)]);
+    assert_eq!(v.owner_state().view.contour_layer, None);
+}
+
+impl StatusHost for Host {
+    fn funds(&self) -> i32 {
+        100
+    }
+    fn draw_cost(&mut self, display: CostDisplay) {
+        self.ops.push(Op::CostDisplay(display));
+    }
+    fn cursor_callout(&mut self, _: Option<&CursorText>, _: (i32, i32)) {}
+    fn project(&mut self, point: [f32; 3]) -> (i32, i32) {
+        (point[0] as i32, point[2] as i32)
+    }
+    fn clock_time(&self) -> (u32, u32) {
+        (3, 15)
+    }
+    fn clock_widgets(&mut self, h: u32, m: u32, f: u32) {
+        self.ops.push(Op::Clock(h, m, f));
+    }
+    fn clock_hover(&mut self) {}
+    fn rating_widgets(&mut self, col: i32, delta: i32) {
+        self.ops.push(Op::Rating(col, delta));
+    }
+    fn alert_picture(&mut self, picture: Option<u32>) {
+        self.ops.push(Op::Alert(picture));
+    }
+    fn speed_button(&mut self, id: u32, toggle: bool, lower: bool) {
+        self.ops.push(Op::Speed(id, toggle, lower));
+    }
+    fn create_mission_panel(&mut self, id: u32, margin: i32) -> Option<u32> {
+        assert_eq!(margin, 8);
+        Some(id)
+    }
+    fn delete_mission_panel(&mut self, _: u32) {}
+    fn mission_text(&mut self, _: u32, time: &str, red: bool, _: &str) {
+        self.ops.push(Op::Mission(time.into(), red));
+    }
+}
+
+#[test]
+fn vw_t17_clock_frame_and_out_of_range_hour_fallback() {
+    let v = view();
+    let mut h = Host::default();
+    v.update_24hour_clock(&mut h, 13, 45);
+    v.update_24hour_clock(&mut h, 24, 59);
+    assert_eq!(h.ops, [Op::Clock(13, 45, 27), Op::Clock(3, 15, 6)]);
+}
+
+#[test]
+fn vw_t18_cost_red_when_above_funds_fades_frozen_for_1500ms() {
+    let mut v = view();
+    let mut h = Host::default();
+    v.update_cursor_position(&mut h, 100, 200);
+    v.set_cost_indicator(&mut h, -200, 101);
+    let cost = v.owner_state().display.cost;
+    assert_eq!(cost.colour, [255, 40, 40]);
+    assert_eq!(cost.alpha, 255);
+    assert_eq!(cost.position, (85, 185));
+    let old_len = h.ops.len();
+    v.set_cost_indicator(&mut h, -200, 101);
+    assert_eq!(h.ops.len(), old_len);
+    v.clear_cost_indicator(&mut h, true);
+    v.update_cursor_position(&mut h, 300, 400);
+    v.update_cost_indicator(&mut h, 0.75);
+    let halfway = v.owner_state().display.cost;
+    assert_eq!(halfway.mode, CostMode::Fading);
+    assert_eq!(halfway.position, (85, 185));
+    assert_eq!(halfway.colour, [255; 3]);
+    assert!(halfway.alpha < cost.alpha);
+    v.update_cost_indicator(&mut h, 0.75);
+    assert_eq!(v.owner_state().display.cost.mode, CostMode::Hidden);
+    assert_eq!(v.owner_state().display.cost.alpha, 0);
+    v.set_cost_amount(&mut h, 100);
+    assert_eq!(v.owner_state().display.cost.alpha, 150);
+}
+
+#[test]
+fn rating_clamps_and_alert_priority_disaster_situation_pause() {
+    let mut v = view();
+    let mut h = Host::default();
+    v.update_mayor_rating(&mut h, 127, 100);
+    v.update_mayor_rating(&mut h, -128, 100);
+    v.update_mayor_rating(&mut h, 0, 0);
+    assert_eq!(h.ops, [Op::Rating(99, 21), Op::Rating(0, -21)]);
+    h.ops.clear();
+    v.update_alert_border(&mut h, true, true, true);
+    v.update_alert_border(&mut h, false, true, true);
+    v.update_alert_border(&mut h, false, false, true);
+    v.update_alert_border(&mut h, false, false, false);
+    assert_eq!(
+        h.ops,
+        [
+            Op::Alert(Some(0x1431_5E60)),
+            Op::Alert(Some(0x1431_5E62)),
+            Op::Alert(Some(0x1431_5E61)),
+            Op::Alert(None)
+        ]
+    );
+}
+
+#[test]
+fn mission_warning_thresholds_and_speed_paused_picture_half() {
+    let mut v = view();
+    let mut h = Host::default();
+    v.show_mission_status_panel(&mut h, 42);
+    v.show_mission_status_panel(&mut h, 43);
+    assert_eq!(v.owner_state().display.mission_panel, Some(42));
+    for seconds in [60, 59, 21, 20, 19, 0] {
+        v.update_mission_status_panel(&mut h, seconds, "target");
+    }
+    assert_eq!(
+        h.ops,
+        [
+            Op::Mission("01:00".into(), false),
+            Op::Mission("00:59".into(), true),
+            Op::Mission("00:21".into(), true),
+            Op::Mission("00:20".into(), false),
+            Op::Mission("00:19".into(), true),
+            Op::Mission("00:00".into(), false)
+        ]
+    );
+    v.hide_mission_status_panel(&mut h);
+    assert_eq!(v.owner_state().display.mission_panel, None);
+    h.ops.clear();
+    v.update_speed_buttons(&mut h, 1, true);
+    assert_eq!(
+        h.ops,
+        [
+            Op::Speed(0x6A4F_BB31, false, true),
+            Op::Speed(0x4A4F_BB60, true, true),
+            Op::Speed(0x8998_BBDF, false, true)
+        ]
+    );
 }
