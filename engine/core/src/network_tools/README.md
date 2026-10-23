@@ -15,7 +15,10 @@ construction values for spacing/clearance are not exposed as uninitialised Rust 
 
 | Owner / spec section | Code item | Test / boundary |
 |---|---|---|
-| cSC4PowerLineTool / network-tools §1 identity, §2 state | `ToolState::new(5)`, `PowerLineTool`, `init` | `construction_and_deleting_destructor_are_structural_not_preview_undo`, `pl_l1_l2_l3_defaults_reinit_and_once_only_resource_failure` |
+| cSC4PowerLineTool / network-tools §1 identity | `ToolState::new(5)`, `PowerLineTool` | `construction_and_deleting_destructor_are_structural_not_preview_undo` |
+| cSC4PowerLineTool / network-tools §2 state | `PowerLineTool`, `init` | `pl_l1_l2_l3_defaults_reinit_and_once_only_resource_failure` |
+| cSC4PowerLineTool / network-tools §6 power-line commit | Power-line override bypasses base solve/commit; `place_poles` creates its poles/wires | `pl_p1_u1_u2_preview_ownership_and_manager_null_asymmetry`, `literal_fresh_axis_pivots_preserve_nt26_and_native_release_pass_skips_wire_vector_zero` |
+| cSC4PowerLineTool / network-tools §8 solution cost | `cost_of_solution`; budget withdrawal remains the foreign player-tool caller | `cost_of_solution_shipped_values` |
 | cSC4PowerLineTool / network-tools §9 override | `do_network_specific_placement`, `check_for_reserved_tiles` | `pl_n1_n2_n3_wrapper_attempt_and_real_success_gate`, `reserved_tiles_*`, `reserved_tiles_zoned_does_not_stop`, `pl_r3_reserved_unknown_result_updates_previous_without_updating_last` |
 | cSC4PowerLineTool / network-tools §18 conformance | Shared road/pipe tests belong to base/occupant owners; power-line override uses the portable vectors below | Power-line-specific §18.12 is road demolition of a pole, owned by base commit, not this tool; `t18_12_power_pole` in `tests.rs` |
 | cSC4PowerLineTool / network-geometry §11 cost/position/reserved walk | `cost_of_solution`, `compute_pole_position`, `check_for_reserved_tiles` | `cost_of_solution_shipped_values`, `reserved_tiles_*`, `pl_g5_g6_sentinel_nan_and_special_height` |
