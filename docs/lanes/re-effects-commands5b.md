@@ -1,8 +1,46 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-effects-commands5b: nested effects-script command contracts | `re-effects-commands5b` (RE lane; detached worktree) | in progress: round 3 | Verify source/emit/force, remaining nested families and class inventory; EF15 stays open until complete. |
+| re-effects-commands5b: nested effects-script command contracts | `re-effects-commands5b` (RE lane; detached worktree) | in progress: round 3 checkpoint | Publish group child execution and select/particleSequence blocks, then complete class inventory; EF15 stays open. |
 
 ## Report
+
+Round 3 publishes effects §§19.45–19.52 and 53 static conformance rows
+EC224–EC276. Source, emit and force complete execution coverage of all
+23 distinct particle child descriptors. Source specifies shape precedence,
+default bounds, accumulated mode flags and ordered height filters. Emit
+specifies the three distinct direction/velocity numeric paths. Force
+specifies attraction guards/list prefixes and tractor position, tangent,
+cumulative time and repeated scaling. The effect dictionary is verified:
+19 ordered registrations, 16 distinct descriptor addresses, including the
+shared scrubber/demolish/game/map descriptor and two block commands.
+EffectGroup's sole instance child reuses the already published contract.
+
+Measured instruction facts include: wind/velocity normalize without a
+zero-vector guard; dir and vel use guarded but different rounding paths;
+force screw multiplies by binary64 0.02; tractorRel computes scalar tangent
+before adding the previous position; omitted duration leaves end time zero;
+tractorTimeScale multiplies existing state repeatedly, not by an old/new
+ratio. Numeric claims were checked against instruction bytes and PE data.
+
+Across three rounds this lane publishes §§19.17–19.52, 43 direct child
+handler contracts and 208 static rows EC69–EC276, plus helpers and
+dictionary identity tables. These are unexecuted predictions. EF15 remains
+open because group child execution, select/particleSequence and the full
+class inventory remain incomplete. EFP1–EFP6 were answered by commands5;
+no question was moved or newly filed in this round. No game/native/shadow
+run or request, ABI rows/exports, REA query, or engine edits. The core lane
+report remains absent; main effects_parser/README.md was the only engine
+file read, as explicitly permitted.
+
+Round 3 validation: doccheck check, questions check and git diff --check
+passed at all four spec milestones (cba33f99, dd01c32e, 77a367f4, f2d0d618).
+Cargo/clippy/CTest n/a (spec-only). Git again reported packed-refs.lock
+permission diagnostics while successfully creating detached commits;
+no refs/config were changed. A PE helper print of descriptor words failed
+with cp1252 UnicodeEncodeError; raw dword reads then supplied those facts.
+Partial work is not enqueued as ready. Continue from the Handoff below.
+
+Earlier-round reports:
 
 Round 2 publishes effects §§19.29–19.44: sequence wait/play, all shake,
 light and decal child handlers, particle texture/model/timedEffect/warp,
