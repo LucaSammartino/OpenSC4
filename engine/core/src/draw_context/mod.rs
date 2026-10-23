@@ -8,6 +8,7 @@
 
 mod boxes;
 mod cache;
+mod numeric;
 mod draw;
 mod state;
 mod textures;
@@ -40,8 +41,17 @@ pub enum Error {
     InvalidValue,
     AddressOverflow,
     Allocation,
+    /// Outside the declared portable numeric/control qualification.
+    UnsupportedNumeric,
     Provider(u32),
     Gap(ContractGap),
+}
+
+/// Caller qualification, never an inference about the game's ambient x87 word.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NumericControl {
+    Unqualified,
+    NearestEven64Gradual,
 }
 
 pub const HIGHLIGHT_COLORS: [Rgba; 11] = [
@@ -91,9 +101,13 @@ pub struct DrawContext<D: Driver> {
     highlight_combiner: [Option<u8>; 12],
     default_shade: Rgb,
     shade_override: bool,
+    lighting_enabled: bool,
+    numeric_control: NumericControl,
     depth_offset: i32,
     stages: Vec<Stage>,
     model_view_valid: bool,
+    model_counter: u8,
+    composed_counter: u8,
     model_transform: Transform,
     composed: Transform,
     matrix: Matrix,
@@ -123,9 +137,13 @@ impl<D: Driver> DrawContext<D> {
             highlight_combiner: CONSTRUCTOR_COMBINER_BYTES,
             default_shade: [1.0; 3],
             shade_override: false,
+            lighting_enabled: false,
+            numeric_control: NumericControl::Unqualified,
             depth_offset: 0,
             stages: Vec::new(),
             model_view_valid: false,
+            model_counter: 0,
+            composed_counter: 0,
             model_transform: Transform::ZERO,
             composed: Transform::ZERO,
             matrix: [0.0; 16],
@@ -240,6 +258,17 @@ impl<D: Driver> DrawContext<D> {
     pub fn set_default_shade(&mut self, shade: Rgb) {
         self.default_shade = shade;
     }
+    pub fn set_numeric_control(&mut self, control: NumericControl) {
+        self.numeric_control = control;
+    }
+
+    fn qualified_numeric(&self) -> Result<(), Error> {
+        if self.numeric_control == NumericControl::NearestEven64Gradual {
+            Ok(())
+        } else {
+            Err(Error::UnsupportedNumeric)
+        }
+    }
 
     /// Core stack storage helpers. The spec names the stack but does not publish
     /// original push/pop entry points or underflow return channels (DC3).
@@ -258,7 +287,7 @@ impl<D: Driver> DrawContext<D> {
         }
     }
     fn emit(&mut self, command: Command) -> Result<(), Error> {
-        self.driver.submit(command)
+        self.driver.submit_returned(command).map(|_ignored_register| ())
     }
     fn stage(&self, stage: usize) -> Result<&Stage, Error> {
         self.ready()?;

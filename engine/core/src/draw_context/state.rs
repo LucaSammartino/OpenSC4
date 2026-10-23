@@ -41,12 +41,14 @@ pub struct PackInput {
 }
 
 pub(super) fn quantize(reference: f32) -> Result<u32, Error> {
-    // DC6: the spec only defines the normalized domain. Reject other inputs,
-    // rather than inventing clamping, NaN conversion, or a wrapping conversion.
+    // Qualified nearest/even64 domain: exact53 intermediate arithmetic, one
+    // binary32 bias store, then the low nibble. No half-up integer conversion.
     if !reference.is_finite() || !(0.0..=1.0).contains(&reference) {
         return Err(Error::InvalidValue);
     }
-    Ok((reference * 15.0).round() as u32)
+    let product = super::numeric::mul(f64::from(reference), 15.0)?;
+    let biased = super::numeric::add(product, 12_582_912.0)?;
+    Ok(super::numeric::store(biased)?.to_bits() & 15)
 }
 
 impl PackedState {
@@ -93,6 +95,6 @@ impl PackedState {
     }
 
     pub fn apply_to(self, word: u32) -> u32 {
-        (word & !self.mask) | (self.value & self.mask)
+        (word & !self.mask) | self.value
     }
 }

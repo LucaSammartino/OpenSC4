@@ -22,9 +22,9 @@ impl<D: Driver> DrawContext<D> {
         Ok(())
     }
 
-    pub fn set_tex_wrap(&mut self, s: u8, t: u8, stage: usize) -> Result<(), Error> {
+    pub fn set_tex_wrap(&mut self, s: i32, t: i32, stage: usize) -> Result<(), Error> {
         self.stage(stage)?;
-        if self.stages[stage].wrap == [Some(i32::from(s)), Some(i32::from(t))] {
+        if self.stages[stage].wrap == [Some(s), Some(t)] {
             return Ok(());
         }
         let requested = if self.properties.force_repeat { [3, 3] } else { [s, t] };
@@ -37,13 +37,13 @@ impl<D: Driver> DrawContext<D> {
                 })?;
             }
         }
-        self.stages[stage].wrap = [Some(i32::from(s)), Some(i32::from(t))];
+        self.stages[stage].wrap = [Some(s), Some(t)];
         Ok(())
     }
 
-    pub fn set_tex_filter(&mut self, mag: u8, min: u8, stage: usize) -> Result<(), Error> {
+    pub fn set_tex_filter(&mut self, mag: i32, min: i32, stage: usize) -> Result<(), Error> {
         self.stage(stage)?;
-        if self.stages[stage].filter == [Some(i32::from(mag)), Some(i32::from(min))] {
+        if self.stages[stage].filter == [Some(mag), Some(min)] {
             return Ok(());
         }
         let requested = if self.properties.force_point {
@@ -62,7 +62,7 @@ impl<D: Driver> DrawContext<D> {
                 })?;
             }
         }
-        self.stages[stage].filter = [Some(i32::from(mag)), Some(i32::from(min))];
+        self.stages[stage].filter = [Some(mag), Some(min)];
         Ok(())
     }
 
@@ -157,9 +157,8 @@ impl<D: Driver> DrawContext<D> {
         let min = stage.filter[1].ok_or(Error::Gap(ContractGap::StageDefaults))?;
         self.set_texture(stage.texture, 0)?;
         self.set_tex_coord(coord, 0)?;
-        // Portable u8 setters cannot represent unchecked negative enum domains.
-        self.set_tex_wrap(u8::try_from(s).map_err(|_| Error::InvalidValue)?, u8::try_from(t).map_err(|_| Error::InvalidValue)?, 0)?;
-        self.set_tex_filter(u8::try_from(mag).map_err(|_| Error::InvalidValue)?, u8::try_from(min).map_err(|_| Error::InvalidValue)?, 0)?;
+        self.set_tex_wrap(s, t, 0)?;
+        self.set_tex_filter(mag, min, 0)?;
         if let Some(matrix) = stage.transform {
             self.set_tex_transform(matrix, 0)?;
         } else {

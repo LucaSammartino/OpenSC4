@@ -88,7 +88,7 @@ impl<D: Driver> DrawContext<D> {
             stage1_mode: material.textures.get(1).map_or(-1, |slot| slot.mode as i32),
         })?;
         if grey {
-            self.set_self_lit_shade([flags.a; 3])?;
+            self.emit(Command::ColorMultiplier([flags.a; 3]))?;
         } else if fade && flags.a < 1.0 {
             self.set_transparency(flags.a)?;
         }
@@ -97,22 +97,23 @@ impl<D: Driver> DrawContext<D> {
             for (stage, slot) in material.textures.iter().enumerate() {
                 self.set_texture(slot.texture.clone(), stage)?;
                 self.set_tex_coord(slot.coordinate_set, stage)?;
-                self.set_tex_wrap(slot.wrap[0], slot.wrap[1], stage)?;
-                self.set_tex_filter(slot.filter[0], slot.filter[1], stage)?;
+                self.set_tex_wrap(i32::from(slot.wrap[0]), i32::from(slot.wrap[1]), stage)?;
+                self.set_tex_filter(i32::from(slot.filter[0]), i32::from(slot.filter[1]), stage)?;
                 if slot.mode == 4 {
                     self.set_tex_combiner(&DEFAULT_COMBINER_BYTES.map(|byte| byte.unwrap()), stage)?;
                 } else {
                     self.set_tex_env_mode(slot.mode as i32, stage)?;
                 }
                 if slot.flags & 1 != 0 {
-                    let k = 1.0 / slot.scale;
+                    self.qualified_numeric()?;
+                    let k = numeric::reciprocal(slot.scale)?;
                     let tx = self.composed.translation[0];
                     let ty = self.composed.translation[1];
-                    let mut matrix = Transform::IDENTITY.matrix();
-                    matrix[0] = k;
-                    matrix[5] = -k;
-                    matrix[12] = -k * tx;
-                    matrix[13] = k * ty;
+                    let mut matrix = [0.0; 16];
+                    matrix[0] = numeric::store(k)?;
+                    matrix[5] = numeric::store(-k)?;
+                    matrix[12] = numeric::store(numeric::mul(-k, f64::from(tx))?)?;
+                    matrix[13] = numeric::store(numeric::mul(k, f64::from(ty))?)?;
                     self.set_tex_transform(matrix, stage)?;
                 } else {
                     self.clear_tex_transform(stage)?;
@@ -127,8 +128,8 @@ impl<D: Driver> DrawContext<D> {
         if let Some(slot) = material.textures.first() {
             self.set_texture(slot.texture.clone(), 0)?;
             self.set_tex_coord(slot.coordinate_set, 0)?;
-            self.set_tex_wrap(slot.wrap[0], slot.wrap[1], 0)?;
-            self.set_tex_filter(slot.filter[0], slot.filter[1], 0)?;
+            self.set_tex_wrap(i32::from(slot.wrap[0]), i32::from(slot.wrap[1]), 0)?;
+            self.set_tex_filter(i32::from(slot.filter[0]), i32::from(slot.filter[1]), 0)?;
         }
         Ok(())
     }
@@ -165,8 +166,7 @@ impl<D: Driver> DrawContext<D> {
         } else {
             self.set_model_shade(instance.token(), Some(flags.color))?;
         }
-        let drawing = (|| {
-            for mesh in meshes {
+        for mesh in meshes {
                 if highlight {
                     self.set_highlight_material_state(&mesh.material, flags)?;
                 } else {
@@ -177,17 +177,10 @@ impl<D: Driver> DrawContext<D> {
                     self.prepare_second_pass()?;
                     self.render_mesh(mesh)?;
                 }
-            }
-            Ok(())
-        })();
-        // DC6: attempt cleanup after an external failure; preserve the first
-        // failure. Successful prefixes remain cached, with no fictional rollback.
-        let shade = if override_shade || self.shade_override {
-            self.reset_shade()
-        } else {
-            Ok(())
-        };
-        let alpha = self.reset_transparency();
-        drawing.and(shade).and(alpha)
+        }
+        // DC6: normal end-of-loop work only. Provider/nonreturn boundaries above
+        // propagate immediately, preserving the completed prefix without cleanup.
+        self.reset_shade()?;
+        self.reset_transparency()
     }
 }

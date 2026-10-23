@@ -33,14 +33,6 @@ impl Transform {
         flags: 0,
     };
 
-    fn active_rotation(self) -> [[f32; 3]; 3] {
-        if self.flags & 4 == 0 {
-            Self::IDENTITY.rotation
-        } else {
-            self.rotation
-        }
-    }
-
     fn active_scale(self) -> f32 {
         if self.flags & 2 == 0 {
             1.0
@@ -49,38 +41,54 @@ impl Transform {
         }
     }
 
-    fn active_translation(self) -> [f32; 3] {
-        if self.flags & 1 == 0 {
-            [0.0; 3]
-        } else {
-            self.translation
-        }
-    }
-
-    pub fn followed_by(self, model: Self) -> Self {
-        let a = self.active_rotation();
-        let b = model.active_rotation();
+    /// Qualified DC8 composition, with whole-byte branches and distinct stores.
+    pub fn followed_by(self, model: Self) -> Result<Self, Error> {
+        use super::numeric::{add, mul, store};
+        if model.flags == 0 { return Ok(self); }
+        if self.flags == 0 { return Ok(model); }
+        let a = self.rotation;
+        let b = model.rotation;
         let mut rotation = [[0.0; 3]; 3];
-        let mut translation = self.active_translation();
-        let mt = model.active_translation();
-        let s = self.active_scale();
+        let mut translation = self.translation;
+        let mt = model.translation;
+        let s = f64::from(self.scale);
+        // Literal grouping table from section 8.3, independently exercised by
+        // fixtures; never replace it with a generic matrix multiplication.
+        let orders = [
+            [[0, 2, 1], [2, 0, 1], [1, 0, 2]],
+            [[0, 2, 1], [1, 0, 2], [1, 2, 0]],
+            [[2, 1, 0], [0, 2, 1], [2, 0, 1]],
+        ];
         for row in 0..3 {
+            let p = [
+                mul(f64::from(a[row][0]), f64::from(mt[0]))?,
+                mul(f64::from(a[row][1]), f64::from(mt[1]))?,
+                mul(f64::from(a[row][2]), f64::from(mt[2]))?,
+            ];
+            let dot = add(add(p[1], p[2])?, p[0])?;
+            let scaled = if row < 2 { f64::from(store(mul(dot, s)?)?) } else { mul(f64::from(store(dot)?), s)? };
+            translation[row] = store(add(scaled, f64::from(self.translation[row]))?)?;
             for col in 0..3 {
-                rotation[row][col] = a[row][0] * b[0][col] + a[row][1] * b[1][col] + a[row][2] * b[2][col];
+                let p = [
+                    mul(f64::from(a[row][0]), f64::from(b[0][col]))?,
+                    mul(f64::from(a[row][1]), f64::from(b[1][col]))?,
+                    mul(f64::from(a[row][2]), f64::from(b[2][col]))?,
+                ];
+                let [x, y, z] = orders[row][col];
+                rotation[row][col] = store(add(add(p[x], p[y])?, p[z])?)?;
             }
-            translation[row] += s * (a[row][0] * mt[0] + a[row][1] * mt[1] + a[row][2] * mt[2]);
         }
-        Self {
+        Ok(Self {
             rotation,
             translation,
-            scale: s * model.active_scale(),
+            scale: store(mul(s, f64::from(model.scale))?)?,
             flags: self.flags | model.flags,
-        }
+        })
     }
 
     pub fn matrix(self) -> Matrix {
-        let r = self.active_rotation();
-        let t = self.active_translation();
+        let r = self.rotation;
+        let t = self.translation;
         let s = self.active_scale();
         let mut m = [0.0; 16];
         for row in 0..3 {
@@ -91,6 +99,23 @@ impl Transform {
         }
         m[15] = 1.0;
         m
+    }
+
+    pub(super) fn qualified_matrix(self) -> Result<Matrix, Error> {
+        use super::numeric::{mul, store};
+        let mut matrix = [0.0; 16];
+        for row in 0..3 {
+            for col in 0..3 {
+                matrix[col * 4 + row] = if self.flags & 2 != 0 {
+                    store(mul(f64::from(self.rotation[row][col]), f64::from(self.scale))?)?
+                } else {
+                    store(f64::from(self.rotation[row][col]))?
+                };
+            }
+            matrix[12 + row] = store(f64::from(self.translation[row]))?;
+        }
+        matrix[15] = 1.0;
+        Ok(matrix)
     }
 }
 
@@ -124,7 +149,7 @@ pub enum Command {
     TexCoord(u32),
     TexParameter {
         parameter: u8,
-        value: u8,
+        value: i32,
     },
     TexMatrix(Option<Matrix>),
     TexEnv(u8),
@@ -168,6 +193,18 @@ pub struct DriverInfo {
 pub trait Driver {
     fn info(&mut self) -> Result<DriverInfo, Error>;
     fn submit(&mut self, command: Command) -> Result<(), Error>;
+
+    /// A normal foreign return, including a failure-valued register, is distinct
+    /// from an adapter/provider boundary error. The owner does not test this
+    /// register. Err propagates and supplies no exception-cleanup guarantee.
+    fn submit_returned(&mut self, command: Command) -> Result<NormalReturn, Error> {
+        self.submit(command).map(|()| NormalReturn { register: 0 })
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NormalReturn {
+    pub register: u32,
 }
 
 pub trait Camera: Send + Sync {
@@ -178,6 +215,15 @@ pub trait Camera: Send + Sync {
 
 pub trait Lighting: Send + Sync {
     fn model_light(&self, instance: u64) -> Result<Rgb, Error>;
+
+    /// None is the explicitly checked false AL result, not a provider error.
+    fn checked_model_light(&self, instance: u64) -> Result<Option<Rgb>, Error> {
+        self.model_light(instance).map(Some)
+    }
+
+    fn default_light(&self) -> Result<Rgb, Error> {
+        Err(Error::MissingLighting)
+    }
 }
 
 pub trait View: Send + Sync {
