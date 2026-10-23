@@ -75,3 +75,12 @@ runner; the owner tests below exercise the foreign boundary directly.
 
 Other §16 tests concern event/pool objects, automata, effects, data, leaf classes
 or directors, rather than this owner. Their existing implementations are retained.
+
+## Lower sound-system owners
+
+The `sound_system` submodule extends this audio core with the confirmed HIT,
+freshness, framework sound, director and playlist contracts of
+`docs/specs/sound-system.md`. Its [Owner closure table](sound_system/README.md)
+maps each assigned owner/section and all 24 conformance vectors to code/tests,
+and identifies the spec's SS1–SS11 open algorithms. It does not change this
+README's separate event-handler closure assessment.

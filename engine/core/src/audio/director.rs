@@ -47,28 +47,28 @@ pub const GZ_SOUND_DIRECTOR: Director = Director {
     detailed: true,
 };
 
-/// `cHitManCOMDirector` (§1.1): 10 classes — a boundary (**AU8**).
+/// `cHitManCOMDirector` (§1.1): 10 classes; HIT owners in `sound_system`.
 pub const HIT_MAN_DIRECTOR: Director = Director {
     id: 0x9B2D_3D2F,
     name: "cHitManCOMDirector",
     class_count: 10,
-    detailed: false,
+    detailed: true,
 };
 
-/// `cFreshnessCOMDirector` (§1.1): 5 classes — a boundary (**AU8**).
+/// `cFreshnessCOMDirector` (§1.1): 5 classes; owners in `sound_system`.
 pub const FRESHNESS_DIRECTOR: Director = Director {
     id: 0xFD53_FF17,
     name: "cFreshnessCOMDirector",
     class_count: 5,
-    detailed: false,
+    detailed: true,
 };
 
 /// `cGZSndSysMacCOMDirector` (§1.1): added by `cSC4AudioCOMDirector::OnStart`.
 pub const GZ_SND_SYS_MAC_DIRECTOR: Director = Director {
-    id: 0,
+    id: 0xE9D3_A016,
     name: "cGZSndSysMacCOMDirector",
-    class_count: 0,
-    detailed: false,
+    class_count: 5,
+    detailed: true,
 };
 
 /// `cSC4AudioCOMDirector::OnStart` (`0x004EB1B0`) registers the
