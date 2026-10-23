@@ -1,63 +1,15 @@
-# core-rz-system-service-pointer4 — round 2 stopped
-
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-rz-system-service-pointer4 — system-service pointer utility | Codex / core-rz-system-service-pointer4 | blocked: coordinator STOP | Await coordinator authorization; implementation remains unstarted |
+| core-rz-system-service-pointer4 (system-service pointer utility, system-service-pointer.md §§2–4) | coordinator (Claude) / `core-rz-system-service-pointer4` (engine lane) | ready: `fc4_core::rz_sys_serv_ptr`, 14 tests transcribing §5 traces; gate cargo 5740/0, clippy clean, ctest 68/68 | - |
 
-## Handoff
+## Report
 
-- Goal: original same-family round 2 of 3, implement the bounded public pointer utility and 32 independent literal traces, then one stable full gate.
-- Entry HEAD: eef1d5a7697ac5f5f74bca539cc78f78073f7774; clean worktree observed.
-- Completed: required bootstrap git command, exit 0; read lane rules, lane format and public spec through the start of section 2.2.
-- No production edits, algorithms, fixtures, formatting, tests, builds, native or game runs were performed.
-- The next read was denied by the lane guard: coordinator STOP since 2026-10-23T09:16:47, reason "User stopped the goal on 2026-10-23; halt new work and report status".
-- Stopped immediately; no checker or game request is outstanding. No merge-queue file was written.
-- Next: only after coordinator clears STOP, inspect current own admission/manifest and finish reading public sections 2–5 before implementation. Do not run a baseline gate.
-- Preserve all existing round 1 evidence and the failure report below; no refund, new family, READY, ABI or coverage claim.
-
-## Preserved round 1 failure report
-
-| Field | Actual result |
-|---|---|
-| Status | Failed / unstarted implementation; not READY |
-| Original family budget | One round consumed of at most three; no refund |
-| Reserved source baseline | b5e4b7c30bc5d0b288d93e511de37d6b6b87fd0b |
-| Provider / model | Codex / gpt-6.1-sol; unchanged |
-| Session | 01a167c9-829d-7b23-90f8-9a1c5ff33b98 |
-| Actual completed tool commands | One |
-| Production, fixtures, gates, native execution | None |
-
-The actual round started at 09:03:43 BST on 2026-10-23. Its sole completed
-command was `git -C "<own worktree>" rev-parse --show-toplevel`, exit 0,
-returning this worktree. The actual event stream then contains both an error
-and turn.failed with "Selected model is at capacity. Please try a different model."
-The final result is an error. This was an upstream provider capacity failure
-after the first command, not a compiler, contract, guard or native mismatch.
-
-The status records bootstrap_done=true, tool_calls=1 and last hook 09:03:52.
-No implementation, algorithm analysis, test execution or validation was delivered.
-The earlier 09:03:15 availability probe predates this failure and does not
-qualify its recovery. The later same-model probe actually ran 09:07:45–09:07:53,
-returned AVAILABLE with exit 0, and qualified the coordinator's recovery of
-this exact pause. It does not erase the interrupted round or promise future
-provider availability.
-
-This report is coordinator metadata completion explicitly authorized after
-the failure. The existing worktree and source baseline were clean. A finite
-09:11:05 host census observed no worktree process references, no own-port4870
-service or connection, no inspection errors, and all six known outputs absent.
-These observations do not prove a historical exit cause or future lifetime.
-The actual missing report is published using the original backend
-prepare_codex_git/publish_codex_git compare-and-swap against the reserved
-baseline; no source, spec, guard, model, budget or reconstructed reference changes.
-
-The public system-service-pointer contract and SSP2/SSP3 boundaries remain
-unchanged. No supported-body, whole-owner, native, shadow, default or coverage
-credit follows from this report. A genuine same-family second round may perform
-the original owned utility implementation only after normal full-scope admission,
-current manifest checks and peer review.
-
-Evidence retained in ignored build-runs: the original r1 manifest, events,
-result and status; provider-pauses/probe-20261023-0908.json; coordinator-sysptr-core-r2-census.json;
-coordinator-sysptr-core-r1-failure-report-publication.json.
-
+- `engine/core/src/rz_sys_serv_ptr/`: the stored wrapper (construct by framework lookup, status ignored), the
+  §3.1 release that keeps the field, the §3.2 clear-then-release that returns the field for a foreign output,
+  the §3.3 add-then-release-then-store assignment, the §4.1 temporary lookup helpers, and the §2.2 identity
+  table (19 C40 + 3 C37) plus the two temporary identities. `Framework` and `References` are the foreign calls;
+  `References` is told the field's contents during each call, which is what the spec orders.
+- Tests: S01–S06 (with Registry, WWW and WinIME words), A01–A05 with the synthetic counter fixture, L01–L09,
+  D01–D04, R01–R03.
+- Not done: D05–D07 and R04/R05 belong to their callers' owners (cGZWin, WinIME, HitChannel), which are not
+  implemented here. Not wired into the plugin. SSP2 (source attribution) and SSP3 (exceptions/reentry) stay open.
