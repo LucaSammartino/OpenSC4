@@ -6,7 +6,8 @@
 - Goal: public-only qualification audit; at least eight recently delivered owners and three feasible verifier briefs.
 - Scope: own tracked report and ignored build-runs artifacts only; no engine, tools, specs, coverage or game changes.
 - Done: 0dcd2a6b initialized handoff; read coverage policy, recent owner reports and copied train108 gate/regress reviews.
-- Next: finish machine-readable ledger, rank safe typed record controls, check draft/reference consistency and finalize report.
+- Done: drafted ignored ledger with25 portable-owner/group entries and8 bounded-native comparators; three ranked typed record briefs and seven contract-first research briefs.
+- Next: run report/reference/vector consistency checks; correct any bad paths/claims, hash local evidence documents and finalize report.
 - Facts: HEAD starts at 640ba764 (train108); no commits ahead of main initially.
 - q.py Bash fallback failed with Bash/Service/CreateInstance/E_ACCESSDENIED; use native PowerShell, capped output.
 - Preserve capped family budgets, failures, unknowns and region exclusions; no original/private RE, other worktrees or game install.
@@ -23,3 +24,5 @@ Incomplete: PlayerDrive; DBRecord, DBSerialRecord, PersistResource, PersistResou
 Unknown: unprovided raw logs/artifacts in other worktrees are not independently inspectable here. Published historical incomplete gates retain unknown terminal causes. Neither train108 profile scripts a save, and a supplied-save parser check is not a lane-produced full-save/fresh-reload roundtrip. Reported DLL/source hashes are provenance assertions until independently matched to accessible bytes; this lane hashes only local public documents/copied reviews.
 
 Preserved exceptions: DBPF EX55 empty-list false and missing DIR keys; EX54 failure semantics; netmgr 72/73 with 6 configuration draws uncompared, 15 resyncs and NM10 77 differences on 23 lines; aura 71/71 with copied transient state/wall-clock RNG exclusions; traffic 72/72 with undefined new-trip fields excluded. Harness PASS alone is not equivalence. DBPF/Language/CommandLine original 3/3 caps and exhausted implementation families are not reset by proposing a new verification owner.
+
+Draft artifacts: `build-runs/native-owner-evidence-ledger.json` distinguishes25 portable owner/group entries (not25 new coverage owners) from8 existing bounded-native comparators. `build-runs/native-verifier-draft-briefs.md` ranks B1 valid typed serial reads, B2 bounded record metadata/references, B3 alias-cursor/fresh-open isolation. B1/B3 share one new first DBSerialRecord verifier owner; B2 is the separate first DBRecord verifier. None is a DBPF/runtime implementation restart. Three briefs are not three independent owner budgets. Seven contract-first research briefs route unsafe/missing endpoints to existing published questions. Actual saved-city reload evidence in FontSys/Variants/Landfill/CommandSystem remains supported within their original domains; it is not generalized to other owners.
