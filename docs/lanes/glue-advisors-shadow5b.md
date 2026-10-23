@@ -8,7 +8,8 @@
 - Prior tip 30c2cf74: AD17 adapter and date fixed; cargo 6536/0, clippy clean, CTest 69/69.
 - Prior turbo strict 1/73 and normal strict 1/4: all differences precisely AD18; details below.
 - Coordinator permits expected-record normalization of exactly documented Read fixups, counting fixups=N; never restore native flags.
-- Next: archive AD19, update comparator/native fixture, qbuild all (includes queued verify), unique-label 2032 game.
+- Done 69c5ef9f: AD19 archived; comparator accepts only complete-record AD18 fixup and logs fixups; native fixture covers clean flags, high bits, rejected versions/extra bytes, unchanged original flags.
+- Next: qbuild all on stable engine source (includes queued verify), unique-label 2032 game.
 - No request outstanding. Worktree intentionally detached; do not switch refs.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-advisors-shadow5b-r2-manifest.json.
 - tools/ is forbidden: coordinator must append advisors_shadow to regress profile after exact run.
