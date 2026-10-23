@@ -11,8 +11,8 @@
 - Focused gate: 91 traffic tests passed; explicit fmt check on state.rs/tests.rs/shadow_tests.rs passed. q.py cannot launch Git Bash in this sandbox; direct cargo evidence in build-runs/traffic-focused.log.
 - Done: 4883e8c4 core fix and tests. qbuild all workspace tests passed 6443/6443, clippy passed with 0 diagnostics.
 - Native: qbuild all itself queued build+ctest as qbuild-20261023-215222-build-ctest through the coordinator (same route as verify); do not submit duplicate verify while it is queued.
-- At 22:10 BST, the native .req was still unclaimed (queued 21:52); no DLL exists. The all operation remains live in exec session 42673: collect that same session with write_stdin, not a new check.
-- Next: collect qbuild all session 42673 to terminal, then submit first unique traffic_shadow city run to 2032. No game request submitted yet.
+- Native completed: qbuild all PASS, native build 220/220 edges (92.3 s), CTest 69/69 (152.5 s); build+ctest 249.3 s. Session 42673 was collected to its terminal exit 0. This used the coordinator native queue, not a direct MSVC build.
+- Next: submit traffic-flake5-4883-turbo1 to 2032-01-01, collect its unique verdict, then a normal-speed run. No request outstanding at this commit.
 - Planned city checks: original traffic + traffic_shadow=1, turbo to 2032-01-01, then normal speed to that date. build-runs/wait-game.ps1 waits directly on a unique verdict, without qwait; always accept a verdict already present for that unique label.
 - Evidence sources: main build-runs/regress-train152-shadows.log and regress-train155-shadows.log (copy into local build-runs before reading).
 - Required final checks: qbuild all; native qbuild verify through coordinator queue; game queue unique labels, direct wait without qwait.
