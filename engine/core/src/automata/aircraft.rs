@@ -88,6 +88,8 @@ pub fn initialize_fire_plane_station_units(
 #[derive(Clone, Debug, PartialEq)]
 pub struct AirplaneDriveParameters(pub [f32; 18]);
 
+// aircraft.md §3.1 gives these rounded decimal constants explicitly.
+#[allow(clippy::approx_constant)]
 impl Default for AirplaneDriveParameters {
     fn default() -> Self {
         Self([

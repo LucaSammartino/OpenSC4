@@ -142,6 +142,7 @@ impl DriveParameterSource for Exemplar<'_> {
 }
 
 #[test]
+#[allow(clippy::approx_constant)] // Check the spec's decimal constants exactly.
 fn airplane_default_and_explicit_speed_parameters() {
     // aircraft §8 test 1. No list uses the printed defaults, not ×1000.
     let defaults = AirplaneDriveParameters::load(None).0;

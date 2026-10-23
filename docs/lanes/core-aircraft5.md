@@ -14,5 +14,11 @@
 - Facts: native Init/AI steering/physics/player/messages remain spec-blocked; owners are not fully closed.
 - Facts: q.py cannot start Git Bash in sandbox (CreateFileMapping error); direct Python cargo runner works.
   Formatting applied through generated apply_patch from rustfmt stdin; no stdout written directly to source.
-- Next: run required qbuild all on stable source, collect actual terminal result, record gate and final WIP report.
+- Done: d15d487a conformance/stream-failure milestone; fmt all 4 touched Rust files clean.
+- Gate attempt 1: workspace 6087/0/0; clippy failed 4 approx_constant diagnostics. Narrow allowances
+  preserve the spec's decimal defaults (core and conformance expected-values test).
+- Native configure stalled 533 s at compiler ABI probe (cmake -> ninja, no compiler child).
+  Terminated only this lane's configure probe/child; collected same qbuild operation to terminal FAIL.
+  CTest skipped. Full failed evidence: build-runs/attempt1-*.log and attempt1-verdict.txt.
+- Next: run final-source qbuild all after the actual lint correction; collect its terminal result.
 - No game requests outstanding. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-aircraft5-r1-manifest.json.

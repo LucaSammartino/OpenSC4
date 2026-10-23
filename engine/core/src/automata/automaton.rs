@@ -509,7 +509,8 @@ impl AutomatonBase {
             return false;
         };
         if top.base.is_final && top.state_type != state_type::RIOT_END {
-            self.states.push(SetStateArgs::default().to_state(state_type::RIOT_END, RefValue::Null));
+            self.states
+                .push(SetStateArgs::default().to_state(state_type::RIOT_END, RefValue::Null));
         } else {
             self.states.pop();
         }
