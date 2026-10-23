@@ -8,7 +8,10 @@
 - Done: AD17 adapter in C ABI saved-object factory (no export change); fixed load date via simulator.
 - Done: AD18 strict mismatches retained, separate transition classification; native graph and ABI fixtures added.
 - AD18 explicitly forbids masking/restoration for exact credit; clean native advice cannot round-trip strictly.
-- Next: collect focused test session 51565, all session 13668 and native verify session 39389; then game to 2032.
-- Native job qbuild-20261023-221430-build-ctest is pending; no game request.
+- Done: aa8ac388 implements AD17, AD18 classification/date correction and fixtures.
+- Focused ABI fixture PASS 1/1; workspace qbuild all PASS 6536/0/0; clippy 0 diagnostics.
+- Next: collect all session 13668 and native verify session 39389; then game to 2032.
+- Native jobs qbuild-20261023-221430-build-ctest and qbuild-20261023-221859-build-ctest pending.
+- The second job was inadvertently queued by all after explicit verify; collect both; never submit a third. No game request.
 - Formatting check exposed pre-existing advisors.rs weak-handle formatting; owned new test formatting fixed.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-advisors-shadow5b-r1-manifest.json.
