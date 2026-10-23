@@ -1,28 +1,62 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-overlay-views-contracts4: native overlay contracts | Codex / `re-overlay-views-contracts4` (RE) | in progress | 1. Prove largest native owners and publish exact contracts. 2. Reconcile OVV2–OVV7 and NOV2–NOV3 with honest residuals. |
+| re-overlay-views-contracts4: qualified native overlay contracts | Codex / `re-overlay-views-contracts4` (RE, detached publication) | ready: six-owner method ledger, shared lifetime dispatch, 23 UNEXECUTED literal vectors; questions index/check and diff --check pass; no ABI/game/runtime promotion | 1. Land qualified docs. 2. Retain OVV4/OVV6/NOV2/NOV3 residuals and historical inventory discrepancy. |
 
-## Handoff
-- R2 milestone 5d1bfa77: added six-owner method qualification ledger and primary-backed shared QI/u32 refcount/zero-or-one deletion chain; traced train deletion (models only, no Shutdown). Fixed §7 equal-newest-first and narrowed open summaries/questions without closing OVV4/OVV6/NOV2/NOV3.
-- R2 next milestone: 23 new literal vectors (all UNEXECUTED), ClearPaths stale-selection boundary and first-route null-origin qualification; reconcile/check docs and finish report/queue.
-- R2 resumed 2026-10-23 at c026a8e3, detached HEAD; own manifest is RE, original round 2, reserved ref re-overlay-views-contracts4 and correct worktree/base. No branch switch.
-- R2 next: audit R1 cited sources, publish supported/partial/unknown ledger and UNEXECUTED literal vectors; bounded shared-refcount/cleanup proof; reconcile summaries/questions and final docs gates.
-- Identity checked: working original FileVersion 1.1.641.0; SHA256 matches export-summary.txt (3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b).
-- Goal: exact native contract gaps for six portable overlay owners, documentation only.
-- Worktree reused at detached HEAD; initial status clean, no lane commits ahead of main.
-- Read open OVV2–OVV7 and NOV2–NOV3, public overlay/network specs and lane/merge formats.
-- Native export queried first: train largest bodies Init 0x5633C0 (866), DrawTrainJunction 0x564BE0 (1194); path-info Update 0x542FC0 (2914).
-- Native contract milestone: overlay §3.1 exact u16 row-relative batching/lock/failure rules; network §1.1 exact colours, 3D chords, full-vector arrows/bars, 4m cross and scratch-alpha boundary.
-- Done: 0a9ae1ef commits first native contract milestone. Added exact path record/float-priority/miter/arrow/UV and marked-cell conversion/grid/height order, train quad/transparency/stacking/resource rules.
-- Done: 7575404b commits ribbon/marked/train native contract sections. Published checklist: 49 named non-template +3 unnamed marked wrappers; four primary 5-slot interfaces. 54-entry claim remains unreconciled.
-- Reconciled overviews and archived OVV2/OVV3/OVV5/OVV7 as DIFFERS; OVV4/OVV6/NOV2/NOV3 narrowed with explicit residual evidence.
-- Done: b20206bb archives OVV2/OVV3/OVV5/OVV7 as DIFFERS; questions.py index/check passed. No owner/runtime/default credit; no ABI changes or game/shadow runs; no REA needed.
-- STOP: guard denied final cleanup/report edit at measured context 151k/150k. Denied patch made no changes; no merge-queue file written. Return continue after this committed handoff.
-- Exact next step: correct overlay-views §7 order vector to 1,2(second),2(first), matching proved equal-newest-first §1.2; remove extra blank EOF from questions/overlay-views.md; update both specs' open-question summaries; rerun index/check and diff --check.
-- Then finish lane report and commit; queue only if permitted by a subsequent authorized round. Last diff --check found the blank EOF warning; do not report a clean final whitespace gate yet.
-- Residual OVV4: independent outline-disable API/absence proof; OVV6: reconcile 49 named +3 unnamed with claimed54 and shared COM/deletion/setters; NOV2: pulse initializer, concrete setters/shared lifecycle; NOV3: marker rotation/model state, train cell setters/current-target identity/destruction. No generic guesses or complete-owner credit.
-- Corrections: NewPath colourBits is vertex colour, priority float/equal-newest-first (unordered continues); repeat uninitialized until SetPathTexture(key,repeat). Non16m lookup floors/clamps grid before scaling. Train plain transparency .7/.4 versus selected .8/.5.
-- Evidence scratch: build-runs/native-542fc0.txt, native-5637e0.txt, native-75cb50.txt; read-native-data.py handles PE raw/zero-filled sections. No native outputs committed.
-- Main read source: C:/Users/tlori/FreeCity4; never read engine or foreign implementations/tests.
-- Guard manifest: C:/Users/tlori/FreeCity4/build-runs/run4-re-overlay-views-contracts4-r1-manifest.json.
-- No game runs, ABI changes or runtime/coverage claims authorized by this work.
+## Report
+
+R2 resumed the original lane at c026a8e3 and completes its qualified documentation publication.
+Own manifest was verified as lane re-overlay-views-contracts4, kind RE, original round 2, correct
+worktree and reserved ref. HEAD remained detached; no branch/ref/config maintenance was requested.
+
+R1 milestones retained: 0a9ae1ef (vertex-buffer/path-info contracts), 7575404b (ribbon/marked/train
+contracts), b20206bb (checklist and four archived answers), c026a8e3 (exact guard-stop handoff).
+R2 milestones: 5d1bfa77 (per-owner qualification and shared lifecycle proof), aaa5fb7f (23 literal
+vectors and unsafe-input boundaries). The final documentation commit reconciles the checklist,
+archive/open summaries and this report.
+
+The publication is in docs/specs/overlay-views.md and docs/specs/network-overlay-views.md. The audit
+ledger qualifies all R1 contract families against their cited native bodies, separating supported
+finite-input methods, partial failure/lifecycle domains and unknown public operations. It includes
+the largest draw bodies: path DrawPath 1194 bytes, path-info Update 2914 bytes, train Init 866 bytes
+and DrawTrainJunction 1194 bytes. Instructions/bytes and original data govern widths, ordering,
+constants and dispatch; decompiler types were not accepted as numeric evidence.
+
+New bounded evidence establishes ID-1 QueryInterface, u32 AddRef and Release, initial count zero,
+and the four constructor-installed secondary tables through deleting slot 3. Release at count zero
+or one dispatches deletion with flags=1, without first storing zero. Train deletion cleans model
+references +0x48 then +0x44 and base/free; it does not call Shutdown or release six bitmap bindings.
+ClearPaths does not reset the selected-record pointer. A later train null-path skip does not protect
+the earlier first-route origin lookup. These findings qualify caller obligations without claiming
+all callers satisfy them.
+
+There are 14 new OV-L and nine NO-L literal vectors, all **UNEXECUTED**. They independently
+distinguish float priority/equal-newest-first order, packed/bit-converted colour, u16 row-relative
+rebasing and lock failure, 3D ribbon/arrow/UV geometry, chord selection, quad winding/height/UV,
+stacking/transparency and shared lifetime. No implementation output was used to fit expectations.
+No engine code/tests, game/shadow runs, ABI rows/exports or owner/runtime/default promotions occur.
+Terrain-overlay families and the parked original core lane are unchanged.
+
+Primary source identity: working original FileVersion 1.1.641.0, SHA256
+3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b, identical to Windows
+export-summary.txt. Export queries were first; main original/export/decomp were read by absolute
+path. Own prior native scratch was reused. No REA query/session change was required; no live-readiness
+claim or tool widening was made. No engine or other contributor worktree source was read.
+
+Questions: OVV2/OVV3/OVV5/OVV7 remain archived DIFFERS, with an added qualification note. OVV1
+retains lot-flag meanings while its repeat-source subpart is answered in §1.2 and the open file.
+OVV4 remains open for independent outline-disable API/absence. OVV6 remains partial for historical
+inventory membership, public-surface completeness and caller cleanup discipline. The historical
+49 named +3 unnamed list is not proof of the claimed 54; two traced train cleanup addresses are
+not used to manufacture reconciliation. NOV2 remains open for pulse initialization and public
+filter/depth setters. NOV3 remains open for marker rotation/model state, actual cell setters,
+current/target identities and caller Shutdown discipline. No new question IDs were allocated.
+
+Verification: questions.py index/check and git diff --check pass after reconciliation. The old
+extra blank EOF is removed; the R1 whitespace warning is not represented as an earlier pass.
+No doccheck runner was found under tools/ or .claude/lane-bin; Rust/C++/game gates are n/a for this
+RE-only task. Git commit printed a packed-refs.lock permission error but successfully created the
+detached commits shown above; no shared-ref repair was attempted.
+
+Next: land the qualified docs through the normal own merge queue. Future evidence work should
+target the precisely retained question inputs, without using this publication as complete-owner
+or runtime coverage credit.

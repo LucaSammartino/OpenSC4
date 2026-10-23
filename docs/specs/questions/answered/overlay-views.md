@@ -1,5 +1,10 @@
 # overlay-views: answered questions
 
+Qualification 2026-10-23 (re-overlay-views-contracts4): the four answers below remain finite-input
+native contracts, as audited in overlay-views §3.3. The literal discriminators in §7.1 and
+network-overlay-views §6.1 are **UNEXECUTED**. These answers do not close the distinct OVV4
+outline-disable or OVV6 inventory/public-surface questions retained in the open file.
+
 <!-- from: core-overlay-views4 (2026-10-22) -->
 - ~~**OVV2 - §1, cSC4PathView::PathInfo initialization and input contract:** publish the exact constructor,
   NewPath and PathInfo fields/defaults (including colour, repeat factor, priority signedness and opaque ID),

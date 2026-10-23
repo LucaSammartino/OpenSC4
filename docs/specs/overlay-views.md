@@ -301,12 +301,12 @@ unnamed marked-cell wrappers are also identified. Library list/deque helpers are
 
 | Owner | Named methods and addresses | Proved scope / residual |
 |---|---|---|
-| cSC4PathView (15) | ctor 0x007DDD50; Init 0x007DCD90; Shutdown 0x0053C940; SetThickness 0x008B6DE0; SetPathTexture 0x007DCE20; NewPath 0x007DDC50; AddPathVertex 0x007DDB30; ClearPaths 0x007DDBE0; Update 0x007DD9B0; GetEndOffsets 0x007DCE60; GetJointOffsets 0x007DCF20; DrawArrowhead 0x007DD0D0; DrawPath 0x007DD410; destructor thunk 0x007DDDB0; deleting destructor 0x007DDDC0 | §1.2 inputs/finite geometry; full shared-reference lifecycle residual |
+| cSC4PathView (15) | ctor 0x007DDD50; Init 0x007DCD90; Shutdown 0x0053C940; SetThickness 0x008B6DE0; SetPathTexture 0x007DCE20; NewPath 0x007DDC50; AddPathVertex 0x007DDB30; ClearPaths 0x007DDBE0; Update 0x007DD9B0; GetEndOffsets 0x007DCE60; GetJointOffsets 0x007DCF20; DrawArrowhead 0x007DD0D0; DrawPath 0x007DD410; destructor thunk 0x007DDDB0; deleting destructor 0x007DDDC0 | §1.2 inputs/finite geometry; §3.4 shared lifetime; allocation/caller discipline partial |
 | cSC4PathView::PathInfo (1) | destructor-labelled helper 0x008EBCD0 | Called on point-deque subobject; no separate full-record constructor/destructor ABI inferred from label |
 | SC4MarkedCellView (14) | AddRegionCells 0x004B9250; SetShouldIgnoreDepthBuffer 0x007DC1A0; SetShouldUseWaterAltitude 0x007DC1B0; SetCellSize 0x007DC1D0; Init 0x007DC200; Shutdown 0x007DC2C0; SetOutlineColor 0x007DC2F0; DrawCells 0x007DC3A0; Update 0x007DC9F0; SetCellColor 0x007DCB30; ctor 0x007DCC10; destructor thunk 0x007DCC80; deleting destructor 0x007DCC90; ClearCells 0x007DCD00 | §2.2; complete region allocation/failure and independent outline-disable residual |
 | cSTEVertBufExtn (7) | CreateBuffer 0x0075C9F0; CopyTerrainRow 0x0075CA30; ReleaseVertexBufferExtension 0x0075CA90; SetIndexBuffer 0x0075CAB0; FlushBuffer 0x0075CAD0; DrawPrimsIndexedUsingVertBuf 0x0075CB50; GetVertexBufferExtension 0x0075CD40 | §3.1 covers all seven mapped static helper bodies; no invented COM ctor |
-| SC4PathInfoView (5) | Init 0x00542EE0; ctor 0x00542F50; destructor thunk 0x00542F90; deleting destructor 0x00542FA0; Update 0x00542FC0 | network-overlay-views §§1.1–1.2; setter/static-init/shared-reference residuals |
-| SC4TrainJunctionView (7) | Init 0x005633C0; Shutdown 0x00563730; GetArrowBitmapQuad 0x005637E0; ctor 0x005649D0; GetPathBitmap 0x00564A60; DrawTrainJunction 0x00564BE0; Update 0x005657A0 | network-overlay-views §2.1; marker rotation, cell setters/destructors residual |
+| SC4PathInfoView (5) | Init 0x00542EE0; ctor 0x00542F50; destructor thunk 0x00542F90; deleting destructor 0x00542FA0; Update 0x00542FC0 | network-overlay-views §§1.1–1.2 and §3.4 below; setter/static-init residuals |
+| SC4TrainJunctionView (7) | Init 0x005633C0; Shutdown 0x00563730; GetArrowBitmapQuad 0x005637E0; ctor 0x005649D0; GetPathBitmap 0x00564A60; DrawTrainJunction 0x00564BE0; Update 0x005657A0 | network-overlay-views §2.1; §3.4 below adds unnamed deletion chain; marker rotation, cell setters/caller discipline residual |
 
 Additional unnamed wrappers: marked-cell use-lots byte store 0x007DC1C0; packed-colour vector
 assignment 0x007DCCF0; append cell(x,z) 0x007DCD30. AddRegionCells scans signed inclusive x outer,
@@ -335,6 +335,11 @@ instruction evidence; **partial** means only the listed portion of a method is e
 **unknown** means no public contract for that operation is certified. These are method qualifications,
 not owner-coverage counts. Decompiler labels alone do not establish argument types or ownership.
 All proposed vectors remain **UNEXECUTED**.
+
+Source identity for this audit: Windows GOG FileVersion **1.1.641.0**, image base 0x00400000;
+original SHA256 **3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b**,
+matching the Windows export's recorded executable hash. Instructions/bytes and original data are
+primary for numeric widths, dispatch and constants; decompilation supplies navigation only.
 
 | Owner | Supported method contracts | Partial / unknown public surface |
 |---|---|---|
