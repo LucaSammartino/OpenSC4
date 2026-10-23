@@ -73,16 +73,26 @@ int main(int argc, char** argv) {
     advisor.child = &subject;
     subject.child = &external;
     int failures = 0;
-    if (seam(kFC4SeamAdvisorsShadow, &root, nullptr) != 0) ++failures;
+    auto check = [&](const char* name, intptr_t expected, void* object) {
+        const intptr_t actual = seam(kFC4SeamAdvisorsShadow, object, nullptr);
+        if (actual != expected) {
+            std::printf("%s: expected %ld mismatches, got %ld\n", name, static_cast<long>(expected), static_cast<long>(actual));
+            ++failures;
+        }
+    };
+    check("valid graph", 0, &root);
     if (root.writes != 1 || advisor.writes != 1 || subject.writes != 1 || external.writes != 0) ++failures;
     root.version = 2;
-    if (seam(kFC4SeamAdvisorsShadow, &root, nullptr) != 1) ++failures;
+    check("bad system version", 1, &root);
     root.version = 1;
     subject.version = 3;
-    if (seam(kFC4SeamAdvisorsShadow, &root, nullptr) != 1) ++failures;
-    if (seam(kFC4SeamAdvisorsShadow, nullptr, nullptr) != 1) ++failures;
+    check("bad subject version", 1, &root);
+    check("missing system", 1, nullptr);
     for (Record* r : {&root, &advisor, &subject, &external}) {
-        if (r->refs != 1 || r->reads != 0) ++failures;
+        if (r->refs != 1 || r->reads != 0) {
+            std::printf("class=%08X refs=%u native_reads=%u\n", r->cls, r->refs, r->reads);
+            ++failures;
+        }
     }
     FreeLibrary(dll);
     std::printf("advisor record graph: %d failures\n", failures);

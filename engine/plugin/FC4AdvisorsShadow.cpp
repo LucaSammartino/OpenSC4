@@ -218,7 +218,17 @@ Result RoundTrip(cIGZUnknown* original) {
         ++records;
         bytes += n.capture.Bytes().size();
         const auto found = outputs.find(&n);
-        const bool written = found != outputs.end() && n.read && fc4_adv_obj_write(n.core, found->second->Get());
+        bool written = false;
+        if (found != outputs.end() && n.read) {
+            fc4_ostream api = *found->second->Get();
+            // fc4_ostream.put_str receives the payload only (COut does not
+            // prefix its length). Keep this correction local to our stream.
+            api.put_str = [](void* u, const uint8_t* data, size_t len) {
+                auto* out = static_cast<ShadowOStream*>(u);
+                return out->SetUint32(static_cast<uint32_t>(len)) && out->SetVoid(data, static_cast<uint32_t>(len));
+            };
+            written = fc4_adv_obj_write(n.core, &api);
+        }
         const bool exact = written && found->second->UnknownRefs() == 0 && found->second->Bytes() == n.capture.Bytes();
         if (!exact) {
             ++mismatches;
