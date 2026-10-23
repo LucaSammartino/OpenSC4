@@ -1,29 +1,18 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-lot-models-contracts4: settled LM3–7 | Codex, `core-lot-models-contracts4` | in progress | Implement settled owner contracts and literal fixtures; one stable all gate. |
+| core-lot-models-contracts4: settled LM3–7 | Codex then Claude, `core-lot-models-contracts4` | ready (gated) | Merge train; LM1/LM2/LM8 stay open in questions/lot-models.md. |
 
-## Handoff
-- Goal: implement public lot-models LM3–7 in the existing owner module; LM1/2/8 remain bounded.
-- Reserved detached worktree reused; no branch/ref changes; initial tracked status clean.
-- Done: substantive LM4 wall implementation: bias ranges, raw query order, three ordered branches, world UVs, raw bounds, retained tails and BGRA recolouring; four-side literal height fixture added before implementation.
-- Final continuation: preserve c857c6dd and all seven inherited dirty production/test/conformance files; no reset or fourth round.
-- Preserved focus-wall-foundation and focus-settled-owners operation logs: both terminal RC101; latter actual 30 PASS / 1 FAIL at old tests.rs:721 side binding assertion. Prior E_ACCESSDENIED and unknown session are not compiler verdicts.
-- Current source already contains subsequent literal wall query/tail and foundation records/resource/cell state work; inspecting before further edits.
-- LM5 literal chronology: zoom0 side=lease1, top=lease2; zoom1 releases1, side null then equal-key retry null, releases2, top=lease3; borrow releases nothing; owner drop releases3. Add explicit attempt/drop assertions rather than weakening ownership.
-- Done: final continuation finishes bounded owner records/resource/cell commands, preserves smaller wall tails, reconciles stale README/gap variants, adds independent border/orientation/state/pass/force/lease/partial-prefix fixtures.
-- Focused recovery: build-runs/final-r2-focused-recovery/operation.json + output.log; actual RC0, stable before/after HEAD+engine+owned hashes; 43 PASS / 0 FAIL (plus four zero-test integration summaries). Historical 30/1 failure remains preserved separately.
-- Formatting: qbuild fmt absolute owned file paths PASS, six files; initial relative paths resolved under engine and failed as nonexistent (no source edits), preserved formatter diagnostic. rustfmt canonicalize-parent warning only.
-- Done: source milestone 2760a9d3; first all operation final-r2-all collected session89854 to actual RC1. Rust 543 PASS/1 FAIL (all 3 summaries preserved), Clippy RC0/0 diagnostics; native build PASS217/217; complete CTest67/68, cargo_test failed on old lm06 caller-cycle literals.
-- First all before/after differs: diagnostic corrections were made after Rust failure while its native stage was pending. This is not a stable final-source PASS. Terminal operation metadata and canonical-terminal logs preserve the failed evidence; partial archive is explicitly partial.
-- Diagnostic corrections: lm06 orientation/mirror literals and negative expectation target now match settled LM6; lm02/03 descriptions disclose configured-key fixtures; constructor no longer excludes published base41/top40 count-zero input, with independent F-step-water test added (44 core tests now defined).
-- Runtime journal: no kills/restarts/RPC/duplicate check. One targeted own-child CIM diagnostic denied; no retry. Read-only Toolhelp tree captured own verifier/sccache descendants. Same operation eventually completed normally after 1088.9s; no unavailable session or inferred native terminal used.
-- Done: diagnostic correction eefab0a8. Owned fmt diagnosed one assertion-message layout; apply its literal one-line formatting before final gate.
-- STOP: coordinator halted all lanes at 2026-10-23T09:16:47; no further source edits/checks/queue. Source tip before this handoff is 2b3063be25b37726aaaa30e875f4467e9158a5b0; all substantive source committed.
-- Second all: final-r2-all-corrected, session76485 collected to actual terminal RC1, before/after stable=true; Clippy RC0/0 diagnostics. Rust log has exactly 3 summaries: 540/0, 3/0, 0/1 => 543 PASS/1 FAIL. Native/complete CTest detail not re-read before STOP; do not infer it from build edges.
-- Exact second diagnostic: conformance/tests/lot_models.rs:42 prints step0 lm_cell_mode expected Alpha, got Tinted. lm05 fixture still uses mode0 as absent mode; settled LM7 sentinel is255, explicit0 tinted. Correction NOT applied. Earlier attribution of the first silent assertion solely to lm06 was premature; lm06 mismatch was real but not the only stale fixture.
-- Completed-operation evidence: build-runs/final-r2-all-corrected/operation.json and output.log plus current canonical qbuild-test.log/qbuild-clippy.log/fc4verify logs; no operation outstanding. Attempt to archive second terminal logs was denied by STOP before execution, so preserve these before any future checker overwrites them.
-- Next only if coordinator authorizes: review lm05 absent-mode literals and explicit-zero tinted counterexample; no third all was launched. This is the final inherited worker round, no fourth/parent resume. No merge-queue file written; no ABI/game changes or new questions.
-- No full gate or game request launched. No helper/root kill or restart in this continuation. Prior provider capacity interruption is preserved as operational evidence, not a compiler diagnosis.
-- Focused q.py invocation failed before Cargo: Bash/Service/CreateInstance/E_ACCESSDENIED; evidence build-runs/q/20261023-074018-28316.log. No full gate/game requests started.
-- Numeric subset is finite nonnegative lattice coordinates <=2^24, nearest-even PC53/64 ledger arithmetic; no ambient control-word claim.
-- Authority: canonical docs/specs/lot-models.md and answered LM3–7 only; no research permitted.
+## Report
+- Module: `engine/core/src/lot_models/` implements the settled LM3–7 contracts of `docs/specs/lot-models.md`
+  in the existing foundation, retaining-wall and cell-texture owners: foundation quads, border enumeration,
+  fallback keys and BGRA recolour; wall biased cell ranges, raw query order, three emit branches, world UVs,
+  retained tails and recolour; cell strip/orientation tables, zoom/rotation updates, mode classification
+  (mode 255 = no mode; any other byte, including 0, is tinted), packed states and the modes 0–3 combiner bytes.
+- Resource leases are Rust-owned: borrowing releases nothing, replacement/drop releases once.
+- Conformance vectors lm01–lm06 corrected to the settled spec; lm05 now uses mode 255 as the absent mode and
+  has an explicit mode-0 tinted step (this was the earlier gate failure).
+- Gate (qbuild all, final source): cargo 5598 passed / 0 failed; clippy -D warnings 0 diagnostics; native build
+  217/217; ctest 67/68 with `plugin_ini_turbo_test` failing on wall-clock pacing under parallel-lane load
+  (lane touches no plugin code); that test passed on an isolated rerun. qbuild fmt: 7 files, 0 diff lines.
+- Not done: LM1 (upstream authors, other mode bytes), LM2 (object/base/QI/pool/lifetime), LM8 residual
+  arithmetic; no ABI, plugin or capi wiring; no in-game run; no native/GPU equivalence claim.
