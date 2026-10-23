@@ -12,6 +12,7 @@
 - Original owned qbuild PID28140 created2026-10-23T02:56:18.209986Z, fc4verify38668, stats13508; read-only audit established exit before collecting original handle. No kill/restart/RPC or overlapping build.
 - Own module/tests absolute-path qbuild fmt passes. Shared lib fmt fails existing list reordering; no mass reformat. First relative-path fmt invocation failed path lookup.
 - TK4 filed: fixed193 portable table, no inferred native growth order. Public SC4HashSet header does not identify owner-specific growth rules.
-- Next: focused quick and ONE stable-source canonical all. Driver build-runs/check-animation.py records PID/times/exit and before/after engine SHA256. Source committed at e2bef109 (engine tree85a62cdf7acf9604653dcabb12ee284bf76b45e4).
-- No new module test execution or final all yet. No native/game/default/whole-owner coverage claimed.
+- Focused quick PID13056 created2026-10-23T03:20:20.565438Z, session70309; driver build-runs/animation-focused.json/log. Core3310/3310 plus integration21/21 passed (includes own one unit and21 integration functions); native incremental4/4 completed. Quick terminal not collected yet; do not overlap all.
+- Next: collect SAME quick terminal, then ONE canonical all on committed source. Driver build-runs/check-animation.py records PID/times/exit and before/after engine SHA256. Source e2bef109 (engine tree85a62cdf7acf9604653dcabb12ee284bf76b45e4).
+- Driver engine_before SHA256=7b83e4ad490a677f1653eb4d9bdfce5ea44f3be7d7ae5d66ea41403b0ef1d762. No final all yet. No native/game/default/whole-owner coverage claimed.
 - No game requests: portable core only, no C ABI/plugin wiring.
