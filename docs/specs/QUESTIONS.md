@@ -34,7 +34,7 @@ generated index: the questions live one file per spec, so read only the file for
 | AQ | flora, residential-education-health |
 | AS | animated-sprite |
 | AT | automata |
-| AU | aura |
+| AU | audio, aura |
 | BQ | budget |
 | BT | bulldozer-tool |
 | BW | budget-window |
@@ -189,11 +189,12 @@ generated index: the questions live one file per spec, so read only the file for
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
 | advisors | 2 | 14 | AD17 | questions/advisors.md |
-| aircraft | 8 | 0 | AF9 | questions/aircraft.md |
+| aircraft | 5 | 3 | AF9 | questions/aircraft.md |
 | animated-sprite | 5 | 6 | AS12 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
-| application | 9 | 6 | AP16 | questions/application.md |
+| application | 10 | 6 | AP17 | questions/application.md |
+| audio | 4 | 0 | AU17 | questions/audio.md |
 | audio-ambience | 3 | 10 | AA14 | questions/audio-ambience.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | auto-game-pause | 1 | 0 | AGP2 | questions/auto-game-pause.md |
@@ -350,4 +351,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **535** | **1348** | | |
+| **total** | **537** | **1351** | | |
