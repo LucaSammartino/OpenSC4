@@ -3,6 +3,9 @@
 | re-ripples-contracts4: exact ripple and selection contracts | Codex / `re-ripples-contracts4` (RE spec lane; reserved detached worktree) | in progress: original final round 3 | Publish finite WR8 caller conversion/state and nested storage contracts. |
 
 ## Handoff
+- Done milestone 1 `2e5c3c7d`: tuning conversion/state contract §2.6; numeric/array ledgers are independent and UNEXECUTED.
+- Done milestone 2: §2.7 nested geometry ownership/signatures, capacity/alias domains, destruction/reference order and P/F evidence ledger. Corrects misleading historical helper roles (60630 strip assignment; 60740 insertion; 60790 erase; 61630 range assignment).
+- Next: independent analytic script checks; reconcile WR8 partial note/WR7 overview and append proposed vector references; bounded docs validation then final report/own normal queue.
 - Round 3 milestone 1: §2.6 positively binds scalar helper slots, target temporaries and numeric range gates; raw-array copy versus conversion, absence/reset/re-Init ledger published. No native execution.
 - Evidence identity: working exe 1.1.641.0 SHA256 `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b` equals export-summary executable SHA256.
 - Next: finish instruction-backed nested storage contracts at `00760480–007607E6` and `00761590–00761789`; reconcile current question text and overview without archiving WR8 whole.

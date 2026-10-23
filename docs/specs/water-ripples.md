@@ -597,6 +597,144 @@ cause another transform of retained arrays. A missing whole exemplar returns bef
 posttransform, unlike a present exemplar with missing properties. A successful present exemplar releases
 its acquired reference only after the last property call. Earlier mutations are not transactional.
 
+### 2.7 Owned geometry storage operations (WR8)
+
+These are owner-instantiated storage operations, not additional public owner methods. The contracts below
+require valid container invariants, non-overflowing sizes, valid iterator ranges and ordinary allocation
+success. Constructors require distinct uninitialized destination storage; assignment permits exact
+self-assignment where explicitly stated, or distinct independently owned containers. Arbitrarily overlapping
+backing stores, foreign allocator failures/exceptions and payload reentrancy are outside these contracts.
+They imply neither rollback nor a universal coherent-Drop guarantee.
+
+**Record layout and copy depth.** A strip payload occupies `0x4C` bytes. Its first `0x0C` is a vector
+descriptor (begin/end/capacity-end) for `0x18`-byte vertex records; `+0C..+14` are three copied words,
+`+18..+27` a copied four-word record; `+28..+33` is a second owned vector descriptor, for `0x10`-byte
+contact rectangles; `+34..+4B` are six more copied words. A strip list node is `0x54` bytes:
+next/previous links at 0/4, payload at +8. These widths follow the allocation sizes, increments and literal
+loads/stores, not the folded template names (`007605B0–007606A2`, `00760754–0076077F`).
+
+A shore record is `0x38` bytes: an owned vector of `0x08`-byte control points at +0, a strip-list sentinel
+pointer at +0C, then a copied four-word record at +10 and six copied words at +20..+37.
+Shore copy construction allocates a separate control-point buffer and a separate `0x54`-byte sentinel,
+then deep-copies source strips in forward list order before copying the tail words
+(`00761590–00761624`, point-vector constructor `007CED60–007CEDD5`). Strip copy construction separately
+allocates/copies its vertex and contact-rectangle buffers (`00A6CB50–00A6CBBC`, `004B00B0–004B010B`).
+The copied records are literal two-, four- or six-word values, not borrowed geometry-buffer pointers.
+These paths perform no payload AddRef/Release. They do not copy or retain the owner's terrain/texture
+binding; those references follow §2.4 instead.
+
+**Literal operation channels.** “Receiver” means ECX; listed stack arguments are in increasing stack
+order after the return address. Names here describe the evidenced payload/iterator role, not an inferred
+SDK signature. Ignored allocator/tag slots are opaque words, not callable recipes for invalid inputs.
+
+| Body | Inputs actually used; result | Normal-domain effects |
+|---|---|---|
+| `00760480` | receiver vertex-vector descriptor; stack source descriptor; EAX=receiver | Exact descriptor self-assignment is a no-op. Otherwise copy all source `0x18`-byte records. If source count exceeds destination capacity, allocate exactly count records, copy before freeing old buffer, then replace begin/capacity/end. Otherwise reuse buffer: overwrite existing prefix, copy-construct any growing tail, set end to new count, retain capacity. Shrinking does not free the buffer. |
+| `007605B0` | receiver uninitialized strip; stack source strip; EAX=receiver | Deep-construct vertices first, copy +0C..+27, deep-construct rectangles at +28, copy +34..+4B. |
+| `00760630` | receiver live strip; stack source strip; EAX=receiver | Assign vertex vector first, copy +0C..+27, assign rectangle vector at +28, copy +34..+4B. Exact same-strip assignment is safe through the nested descriptor self-checks; distinct overlapping buffer ownership is unsupported. |
+| `007606B0` | receiver strip-list header (pointer to sentinel), no stack input used; no specified result | Remove sentinel.previous, unlink it, free rectangle buffer, vertex buffer, then node. Requires a nonempty list; there is no empty-list guard in this helper. Despite its exported RemoveLastRipple name, receiver is shore+0C, not the ripple owner. |
+| `007606F0` | receiver strip-list header; no specified result | Visit nodes forward, remembering next before freeing rectangle buffer, vertex buffer and node; finally set sentinel.next and sentinel.previous back to sentinel. Retain sentinel. Empty list is supported. |
+| `00760740` | stack insertion-position node, source first node, source end node, ignored word; no specified result | Walk source `[first,end)` forward; allocate/copy one `0x54`-byte node at a time and link each immediately before the fixed insertion position. Source order is preserved; prefix already inserted is not undone by any local rollback path. Range must remain traversable to end; do not generalize this to self-insertion. |
+| `00760790` | stack output iterator-word address, first node, end node; EAX=output address | Unlink/free `[first,end)` forward in rectangle/vertex/node order. Write end node to the output word, including for an empty range. Receiver is unused. Retain sentinel. |
+| `00761590` | receiver uninitialized shore; stack source shore; EAX=receiver | Deep-copy points, construct new empty sentinel, invoke `00760740` before that sentinel for every source strip, then copy +10..+37. |
+| `00761630` | stack first shore, end shore, live destination shore; EAX=advanced destination | Assign `(end−first)/0x38` records forward: points via `00611B00`, list via `00760930`, then +10..+37 word copies. Empty range returns the unchanged destination. Observed callers pass two additional unused opaque words. This is a range-assignment primitive, not vector replacement/allocation. |
+| `007616E0` | stack first shore, end shore, uninitialized destination shore, ignored word; EAX=advanced destination | Deep-copy-construct each shore via `00761590`, advance source and destination by `0x38`. Empty range returns unchanged destination. Null destination is not supported backing for a nonempty range. |
+| `00761710` | stack first shore, end shore, ignored word; no specified result | Destroy shores forward: clear strip list, free its sentinel, free control-point buffer. Does not deallocate the outer shore array or zero destroyed descriptors. Empty range is supported. |
+| `00761760` | receiver shore-vector descriptor; no specified result | Destroy `[begin,end)` through `00761710`, then free outer begin if nonnull. Does not reset descriptor fields, so repeated destruction of the same live descriptor is unsupported. |
+
+Vertex copying is six literal 32-bit words per element, via `0082C140` for construction and `006240D0`
+for assignment. Rectangle copying is four literal words via `00637E20`/`007257C0`. The latter folded
+helper names containing “clear” do **not** prove clear semantics. Point assignment's `00611B00`
+self-check, capacity branch and `007CEC30`/`00463DF0`/`0063BFF0` callees similarly copy two-word records.
+Rectangle vector assignment `00727D70` has the same self/capacity/reuse shape as the vertex vector, with
+`0x10`-byte elements. These specific primitive uses establish copy depth; they are not a specification of
+all generic vector/allocator behavior.
+
+**List assignment and outer storage.** `00760930–007609AE` returns its receiver list descriptor.
+Exact descriptor self-assignment returns immediately. Otherwise, while both lists have nodes, it assigns
+their payloads through `00760630` in forward order. If source ends first, it erases the remaining destination
+suffix through `00760790`. If destination ends first, it copies the source suffix before destination sentinel
+through `00760740`. Existing common-prefix nodes and sentinel survive; nested buffers may change according
+to their own capacities. Shore range assignment invokes this operation at shore+0C.
+
+The actual callers of `00761630` in shore-vector clear `00761870` and rebuild `00761CF0` pass **end,end,begin**:
+the assignment range is empty. They then destroy `[begin,oldEnd)` and set end=begin, retaining outer capacity.
+The nonempty assignment branch is specified from its own instructions, not falsely reported as executed
+by those clear callers. Outer growth `007618B0–007619C3` allocates a new block, deep-copies prefix and
+inserted records, and (unless its final byte flag is set) deep-copies the suffix; only then destroys old
+shores and frees old outer storage before installing the new descriptor. This is a copy, not transfer of
+the old nested buffers. Its capacity arithmetic and exceptional paths are not a complete generic insertion
+contract here.
+
+**Destruction and reference order.** For a shore with strips A then B, ordinary destruction frees
+A.rectangles, A.vertices, A.node, then B.rectangles, B.vertices, B.node, then the shore sentinel, then
+shore control points. The next shore follows; the outer array is freed last (`00761710`, `00761760`).
+No texture/terrain Release appears in these storage paths. Ripple Shutdown instead Releases terrain then
+binding (§2.4); direct deleting destruction visits nested geometry and does not call Shutdown. The last-strip
+caller checks list nonempty and last vertex count <8 before calling `007606B0`
+(`0076152F–00761563`); that caller guard does not make empty pop safe in the primitive.
+
+**Selection storage boundary.** `00750BC0` takes a table receiver and a stack source record, calls the same
+`004F0940` growth helper proved in §2.3, hashes the source key with unsigned remainder by bucket count,
+allocates `0x2C` bytes and prepends it. EAX points at node+4 (the copied record), and table+10 increments.
+`00750B60–00750BB2` copies the `0x28`-byte record's words at +00,+04,+08,+0C,+14,+18,+1C,+20,+24 and
+bytes +10,+11,+12; byte +13 is padding and is not copied. There is no reference acquisition in this copy.
+Plain insertion `00750C30` uses the same growth/remainder/prepend sequence, a `0x0C`-byte node and two
+copied payload words; EAX=node+4. Neither insertion primitive itself searches for duplicates: owner marking
+performs its lookup/update decision before insertion. The folded find_or_insert name is insufficient evidence
+for another duplicate gate.
+
+Both selection tables are destroyed through `0058F3A0`: clear via `008EBA60` visits buckets in ascending
+order, frees each forward-chain node, nulls the bucket, then zeros count; the wrapper frees bucket storage.
+There is no per-record virtual Release. Deleting selection destruction visits table+ A0, then table+8C,
+then base destruction and optional object free (`00751C40–00751C75`); Shutdown's terrain/factory Release
+sequence is separate. This says nothing about reentrant foreign payloads or allocator errors.
+
+**Independent storage ledgers (proposed, unexecuted).** Copy a shore with two control points and two
+strips, each with nonempty vertex and rectangle vectors: destination point buffer, sentinel, both nodes
+and all four nested buffers are distinct allocations with equal record bits and the same A,B order.
+Changing source point/vertex/rectangle bits afterward leaves the copied geometry unchanged. Destroying
+source leaves destination geometry alive and produces no geometry-triggered texture Release.
+For list assignment destination `[X,Y,Z]` from `[A,B]`, the X/Y nodes survive with A/B payloads; Z's
+rectangle buffer, vertex buffer and node are freed in that order, and destination sentinel survives.
+For destination `[X]` from `[A,B,C]`, X survives with A, then new B and C nodes are appended in order.
+For exact list/vertex-descriptor self-assignment, pointer identities/counts/capacities remain unchanged.
+For vertex source count 2 and destination size 3/capacity 4, reuse storage, copy two records and set end
+to begin+48 while retaining capacity 4; source count 5 instead allocates 120 bytes before freeing old storage.
+
+**Evidence ledger, not owner coverage.** S means a fully supported body/domain, P a bounded path contract
+with explicit residuals, F a foreign dependency beyond this owner's contract. Every owner-instantiated body
+below remains **P**, even where all its ordinary control-flow branches were inspected: allocation failure,
+invalid alias/range and exceptional behavior have not been promoted to a total contract. Ranges are inclusive;
+sizes are export body bytes, not attribution totals.
+
+| Body range | Bytes | Status / published operation |
+|---|---:|---|
+| `00760480–007605A5` | 294 | P: vertex assignment, all three ordinary size/capacity cases |
+| `007605B0–0076062A` | 123 | P: strip copy construction |
+| `00760630–007606A2` | 115 | P: strip assignment |
+| `007606B0–007606EA` | 59 | P: nonempty pop |
+| `007606F0–0076073F` | 80 | P: list clear |
+| `00760740–00760789` | 74 | P: list range copy insertion; **not list destruction** |
+| `00760790–007607E6` | 87 | P: list range erase; **not shore destruction** |
+| `00760930–007609AE` | 127 | P: list assignment |
+| `00761590–00761624` | 149 | P: shore copy construction |
+| `00761630–007616DC` | 173 | P: shore range assignment; **not vector replacement** |
+| `007616E0–0076170E` | 47 | P: shore range construction |
+| `00761710–00761752` | 67 | P: shore range destruction |
+| `00761760–00761789` | 42 | P: shore-vector destruction |
+| `00761870–007618A3` | 52 | P: shore-vector clear, retained capacity |
+| `007618B0–007619C3` | 276 | P: normal nested-copy/release order; full insertion contract residual |
+| `00750B60–00750BB2` | 83 | P: textured record copy, padding excluded |
+| `00750BC0–00750C2E` | 111 | P: textured node insertion |
+| `00750C30–00750C95` | 102 | P: plain node insertion |
+
+`0090CF54/0090CF63` forward to shared allocation/free infrastructure despite their folded constructor/string
+names. Their foreign error/exception policies are F here; they are not ripple or selection owner methods.
+The shared conversion, allocation and container primitives retain their own ownership attribution. The
+brief's 65/15308 versus the address-window inventory's 69/15276 remains **unreconciled**: these positive
+body contracts do not manufacture owner membership by subtraction or promote the historical A/R counts.
+
 ## 3. Users
 
 The terrain's 3D view creates both (terrain.md §15); the tools mark selections (zone, lot and terrain tools); the
