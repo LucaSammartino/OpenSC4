@@ -371,6 +371,8 @@ do not add one. ZoomIn returns false without any setter if `v` is not less than 
 `+0xFC` (default 5); otherwise it calls **SetZoom(float(v+1))**. ZoomOut returns false without any setter
 if signed `v ≤ 0`; otherwise it calls **SetZoom(float(v−1))**. Add/subtract are 32-bit, and the final word
 is converted as a signed integer to float for SetZoom (`0x007CE0A5–0x007CE0D4`, `0x007CE0FF–0x007CE122`).
+The ZoomIn boundary comparison likewise interprets the wrapped `v` word as signed via x87 integer load;
+the commands do not first repair a malformed saved zoom index.
 There is no fractional zoom interpolation or separate magnification stepping in these commands.
 
 Consequently all successful valid-state steps request integer zooms 0…4 with magnification 1. At z=4,
