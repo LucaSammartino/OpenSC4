@@ -32,6 +32,7 @@ impl Foreign for Fixture {
                 Reply::Token(Some(Token(self.next)))
             }
             Primitive::ConstructEvaluator { allocation } => Reply::Token(Some(allocation)),
+            Primitive::PlacementProperties(Token(800)) => Reply::Token(Some(Token(700))),
             Primitive::AcquirePlacement { .. } => Reply::Acquired {
                 success: self.acquired,
                 // False acquisition deliberately leaves a raw out token too.
@@ -495,6 +496,21 @@ fn ti_v16_v18_v20_v21_getter_order_plane_and_typed_geometry_view() {
         },
     );
     owner.load_placement(0, &mut f).unwrap();
+    assert_eq!(
+        f.trace
+            .iter()
+            .filter(|op| **op == Primitive::PlacementProperties(Token(800)))
+            .count(),
+        1
+    );
+    assert!(f
+        .trace
+        .iter()
+        .filter_map(|op| match op {
+            Primitive::Property { holder, .. } => Some(*holder),
+            _ => None,
+        })
+        .all(|holder| holder == Token(700)));
     let p = owner.record(0).placement();
     assert_eq!(p.word(0), 0x3fc90fdb);
     assert_eq!(p.word(0x20), 0x420c0000);

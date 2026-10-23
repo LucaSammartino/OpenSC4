@@ -112,8 +112,10 @@ pub enum Primitive {
         interface: u32,
         zeros: [u32; 2],
     },
+    /// Resource slot +0x1C returns a borrowed holder; no invented AddRef/Release.
+    PlacementProperties(Token),
     Property {
-        resource: Token,
+        holder: Token,
         id: u32,
     },
     ReleasePlacement(Token),
@@ -592,13 +594,13 @@ impl TypeRecords {
     fn property(
         &mut self,
         record: usize,
-        resource: Token,
+        holder: Token,
         id: u32,
         offset: u8,
         vector: bool,
         f: &mut impl Foreign,
     ) -> Result<bool, Unsupported> {
-        let Reply::Property(property) = f.call(Primitive::Property { resource, id })? else {
+        let Reply::Property(property) = f.call(Primitive::Property { holder, id })? else {
             return Err(Unsupported::PrimitiveReply);
         };
         match property {
@@ -634,6 +636,7 @@ impl TypeRecords {
             return Ok(false);
         }
         let resource = resource.ok_or(Unsupported::NonreturningPrimitive)?;
+        let holder = token(f.call(Primitive::PlacementProperties(resource))?)?.ok_or(Unsupported::PropertyVariant)?;
         for (offset, id) in [
             (0, 0x879d12e7),
             (4, 0x279d1707),
@@ -646,7 +649,7 @@ impl TypeRecords {
             (0x20, 0xc804dd89),
             (0x24, 0xc804dd90),
         ] {
-            self.property(record, resource, id, offset, false, f)?;
+            self.property(record, holder, id, offset, false, f)?;
             if [0, 4, 8, 0x18, 0x1c].contains(&offset) {
                 let p = &mut self.records[record].placement;
                 let angle = f32::from_bits(p.word(offset));
@@ -660,10 +663,10 @@ impl TypeRecords {
             }
         }
         self.records[record].placement.store(0x25, 0);
-        if !self.property(record, resource, 0xc804dd9b, 0x50, false, f)? {
+        if !self.property(record, holder, 0xc804dd9b, 0x50, false, f)? {
             self.records[record].placement.store(0x50, 1000);
         }
-        self.property(record, resource, 0xc804dd92, 0x28, true, f)?;
+        self.property(record, holder, 0xc804dd92, 0x28, true, f)?;
         for (offset, id) in [
             (0x34, 0xc804dd93),
             (0x38, 0xc804dd94),
@@ -673,7 +676,7 @@ impl TypeRecords {
             (0x48, 0xc804dd98),
             (0x4c, 0xc804dd99),
         ] {
-            self.property(record, resource, id, offset, false, f)?;
+            self.property(record, holder, id, offset, false, f)?;
         }
         for (offset, id) in [
             (0x54, 0xe974eaa4),
@@ -682,7 +685,7 @@ impl TypeRecords {
             (0xa0, 0xe974eaa7),
         ] {
             self.records[record].placement.set_vector(record, offset, Vec::new());
-            let success = self.property(record, resource, id, offset, true, f)?;
+            let success = self.property(record, holder, id, offset, true, f)?;
             if !success && [0x60, 0x6c].contains(&offset) {
                 let p = &mut self.records[record].placement;
                 let mut words = p.vector_words(offset);
@@ -701,7 +704,7 @@ impl TypeRecords {
             (0x88, 0x4a275748, 1),
         ] {
             self.records[record].placement.store(offset, initial);
-            self.property(record, resource, id, offset, false, f)?;
+            self.property(record, holder, id, offset, false, f)?;
         }
         for (offset, id, default) in [
             (0x8c, 0x4a2d49b9, 1),
@@ -709,11 +712,11 @@ impl TypeRecords {
             (0x94, 0x8a2d49f0, 20),
             (0x98, 0x6a2d49f4, 0x3dcccccd),
         ] {
-            if !self.property(record, resource, id, offset, false, f)? {
+            if !self.property(record, holder, id, offset, false, f)? {
                 self.records[record].placement.store(offset, default);
             }
         }
-        if !self.property(record, resource, 0xea86e3b5, 0x9c, false, f)? {
+        if !self.property(record, holder, 0xea86e3b5, 0x9c, false, f)? {
             self.records[record].placement.store(0x8c, 1);
         }
         f.call(Primitive::ReleasePlacement(resource))?;
