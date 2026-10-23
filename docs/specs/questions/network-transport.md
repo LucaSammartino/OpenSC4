@@ -1,0 +1,21 @@
+# Open questions: network-transport.md
+
+## Q11 (re-network-transport4, 2026-10-23) — lookup initialization and owner identity
+network-transport.md §7 contracts normal initialized globals only. Which primary construction/
+startup bodies initialize the lookup object's interface/refcount and the global critical section,
+queue, cache, counter and worker flags, and which are uniquely attributable to this owner?
+Adjacent unnamed constructors are not sufficient evidence. No reopening of capped web owners.
+
+## Q12 (re-network-transport4, 2026-10-23) — notification and timer boundary
+network-transport.md §§2/6: qualify socket SetupWindow/ShutdownWindow, Notification,
+StartAsyncCustomNotification and stream DoMessage state/callback order, including actual
+message ABI and target replacement ownership. Timer setup and raw callback are specified;
+timer scheduling/cancellation and racing close semantics remain foreign, not assumed rollback.
+
+## Q13 (re-network-transport4, 2026-10-23) — residual adapters and public address construction
+network-transport.md §5 specifies transparent raw 16-byte records and adjacent raw address/port
+adapters. Which public host-order address/port constructors and getters, folded handle/error
+getters, and option/time-limit wrappers belong uniquely to these owners? Supply primary
+width/association evidence before extending support. Generic clock epoch/units and string
+normalization outside the bounded ASCII domain remain foreign dependencies; do not analyze
+excluded NetworkFileCache or HTTP/FTP algorithms to fill those dependencies.
