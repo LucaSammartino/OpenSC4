@@ -32,6 +32,8 @@ struct TLayer {
     id: u32,
     ok: bool,
     log: Log,
+    rect: Option<WorldRect>,
+    last_update: Option<(u32, [f32; 3], [f32; 3])>,
 }
 
 impl TLayer {
@@ -57,10 +59,12 @@ impl AmbienceLayer for TLayer {
     fn handle_occupant(&mut self, o: OccupantRef) {
         self.rec("occ", o as i64, 0);
     }
-    fn begin_update(&mut self, r: CellRect) {
+    fn begin_update(&mut self, r: WorldRect) {
+        self.rect = Some(r);
         self.rec("begin", r.x0 as i64, r.x1 as i64);
     }
-    fn update(&mut self, e: u32, _p: [f32; 3], _v: [f32; 3]) {
+    fn update(&mut self, e: u32, p: [f32; 3], v: [f32; 3]) {
+        self.last_update = Some((e, p, v));
         self.rec("update", e as i64, 0);
     }
     fn end_update(&mut self) {
@@ -89,6 +93,12 @@ struct Host {
     lot_cond: u8,
     lot_occ: Vec<LotOccupant>,
     on_off: Option<u32>,
+    first_rect_update: bool,
+    timer_restarts: usize,
+    filters_created: usize,
+    fail_init: Option<usize>,
+    init_calls: Vec<&'static str>,
+    preference_reads: usize,
 }
 
 impl Host {
@@ -103,7 +113,7 @@ impl Host {
             cells: (64, 64),
             zoom: 4,
             listener: [512.0, 0.0, 512.0],
-            clock: None,
+            clock: Some((0, 0)),
             next_id: 100,
             init_walk: vec![],
             cell_occ: vec![],
@@ -111,10 +121,20 @@ impl Host {
             lot_cond: 0,
             lot_occ: vec![],
             on_off: Some(0x55),
+            first_rect_update: true,
+            timer_restarts: 0,
+            filters_created: 0,
+            fail_init: None,
+            init_calls: vec![],
+            preference_reads: 0,
         }
     }
     fn push(&self, c: Call) {
         self.log.borrow_mut().push(c);
+    }
+    fn init_step(&mut self, name: &'static str, step: usize) -> bool {
+        self.init_calls.push(name);
+        self.fail_init != Some(step)
     }
     fn take(&self) -> Vec<Call> {
         std::mem::take(&mut *self.log.borrow_mut())
@@ -133,18 +153,18 @@ impl Host {
 impl AmbienceHost for Host {
     type Layer = TLayer;
     fn framework_init(&mut self) -> bool {
-        true
+        self.init_step("framework", 0)
     }
     fn acquire_scape_manager(&mut self) -> bool {
-        self.services
+        self.init_step("scape", 1) && self.services
     }
     fn acquire_snd_sys(&mut self) -> bool {
-        true
+        self.init_step("sound", 2)
     }
     fn register_event_target(&mut self) {}
     fn unregister_event_target(&mut self) {}
     fn acquire_message_server(&mut self) -> bool {
-        true
+        self.init_step("messages", 3)
     }
     fn subscribe(&mut self, t: u32) {
         self.push(Call::Sub(t));
@@ -153,7 +173,16 @@ impl AmbienceHost for Host {
         self.push(Call::Unsub(t));
     }
     fn create_tracked_set(&mut self) -> bool {
-        self.tracked_ok
+        self.init_step("tracked", 4) && self.tracked_ok
+    }
+    fn restart_tick_timer(&mut self) {
+        self.timer_restarts += 1;
+    }
+    fn create_occupant_filter(&mut self) {
+        self.filters_created += 1;
+    }
+    fn take_first_attention_update(&mut self) -> bool {
+        std::mem::replace(&mut self.first_rect_update, false)
     }
     fn release_services(&mut self) {}
     fn add_to_tick_list(&mut self) {
@@ -173,6 +202,7 @@ impl AmbienceHost for Host {
         self.tuning.clone()
     }
     fn audio_preferences(&mut self) -> Option<(bool, u32)> {
+        self.preference_reads += 1;
         self.prefs
     }
     fn create_layer(&mut self, id: u32) -> TLayer {
@@ -180,6 +210,8 @@ impl AmbienceHost for Host {
             id,
             ok: !self.failing_layers.contains(&id),
             log: self.log.clone(),
+            rect: None,
+            last_update: None,
         }
     }
     fn log(&mut self, line: &str) {
@@ -315,7 +347,23 @@ fn init_subscribes_twelve_in_order() {
             _ => None,
         })
         .collect();
-    assert_eq!(subs, SUBSCRIBED_MESSAGES.to_vec());
+    assert_eq!(
+        subs,
+        [
+            0x26D3_1EC1,
+            0x26D3_1EC2,
+            0x8A4A_69C7,
+            0x99EF_1142,
+            0x99EF_1146,
+            0x99EF_1143,
+            0xE99B_3D4D,
+            0xE8BD_A2E7,
+            0x09D9_2FC3,
+            0xC53D_10AA,
+            0x8A87_8385,
+            0x4348_B111,
+        ]
+    );
     assert!(subs.contains(&MSG_EXEMPLAR_CHANGED));
     assert_eq!(subs.len(), 12);
 }
@@ -533,12 +581,14 @@ fn on_off_alarm_22_to_6() {
 fn no_clock_no_alarms() {
     let mut h = Host::new();
     let mut m = ready(&mut h);
+    h.clock = None;
     let mut o = occ(1);
     o.alarm_times = Some(vec![1.0]);
     o.one_shot_alarm_sound = Some(1);
     ins(&mut m, &mut h, &o, MSG_INSERT_OCCUPANT);
     m.update_alarms(&mut h);
-    assert_eq!(m.alarms[0].last, 0.0);
+    assert!(m.alarms.is_empty());
+    assert_eq!(m.unsupported, Some(Unsupported::AlarmCreationWithoutClock));
 }
 
 // §10.5
@@ -906,7 +956,7 @@ fn stage_update_cell_order_and_stages() {
     assert_eq!(
         h.take(),
         vec![
-            Call::Layer(1, "begin", 2, 2),
+            Call::Layer(1, "begin", 35, 55),
             Call::Walk(2, 2),
             Call::Walk(3, 2),
             Call::Walk(2, 3),
@@ -970,7 +1020,7 @@ fn budget_spreads_walk_over_ticks() {
     assert_eq!(seen.len(), 16);
     assert_eq!(m.stage, Stage::Begin1);
     m.on_tick(&mut h, 1, || false);
-    assert!(h.take().contains(&Call::Layer(1, "begin", 0, 6)));
+    assert!(h.take().contains(&Call::Layer(1, "begin", 24, 104)));
     assert_eq!(m.stage, Stage::Walk);
 }
 
@@ -1070,7 +1120,7 @@ fn focus_pauses_layers_and_exemplar_rereads_tuning() {
     assert_eq!(h.take(), vec![Call::Layer(1, "pause", 0, 0)]);
     assert_eq!(m.stage, Stage::Begin1);
     m.on_tick(&mut h, 5, || false);
-    let r = m.current;
+    let r = m.attention_world;
     assert_eq!(h.take()[0], Call::Layer(1, "begin", r.x0 as i64, r.x1 as i64));
     // AA6: absent properties keep the vectors; present ones give n values.
     let saved = h.tuning.clone();
@@ -1082,7 +1132,7 @@ fn focus_pauses_layers_and_exemplar_rereads_tuning() {
     assert_eq!(m.margins.len(), 7);
     h.tuning.margins = None;
     m.read_tuning(&mut h);
-    assert_eq!(m.margins, vec![70.0, 70.0, 70.0, 70.0, 70.0, 3.0, 3.0]);
+    assert_eq!(m.margins, vec![70.0; 5]);
     assert_eq!(m.layer_ids, vec![1]);
     h.tuning.margins = Some(vec![9.0, 8.0]);
     h.tuning.layer_ids = Some(vec![]);
@@ -1315,4 +1365,247 @@ fn lot_condition_update_rows() {
     h.lot_cond = 0;
     ins(&mut m, &mut h, &b, MSG_INSERT_OCCUPANT);
     assert_eq!(h.posts(), vec![stop(0x9020), start(0x9010, 0x10), setp(0x9010)]);
+}
+
+#[test]
+fn zero_budget_still_finishes_every_block_before_end() {
+    let mut h = Host::new();
+    h.tuning.layer_ids = Some(vec![1, 2]);
+    let mut m = ready(&mut h);
+    m.current = CellRect {
+        x0: 0,
+        z0: 0,
+        x1: 2,
+        z1: 0,
+    };
+    let mut blocks = 0;
+    for tick in 0..3 {
+        m.on_tick(&mut h, 17, || false);
+        let calls = h.take();
+        let cells: Vec<_> = calls
+            .iter()
+            .filter_map(|call| match call {
+                Call::Layer(id, "cell", x, z) => Some((*id, *x, *z)),
+                _ => None,
+            })
+            .collect();
+        if tick < 2 {
+            blocks += 1;
+            assert_eq!(cells.len(), 8);
+            for cell in cells.chunks_exact(2) {
+                assert_eq!(cell[0].0, 1);
+                assert_eq!(cell[1].0, 2);
+                assert_eq!((cell[0].1, cell[0].2), (cell[1].1, cell[1].2));
+            }
+            assert!(!calls.contains(&Call::Layer(1, "end", 0, 0)));
+        } else {
+            assert!(cells.is_empty());
+            assert!(calls.contains(&Call::Layer(1, "end", 0, 0)));
+        }
+        assert!(calls.contains(&Call::Layer(1, "update", 17, 0)));
+    }
+    assert_eq!(blocks, 2);
+    assert_eq!(m.stage, Stage::Begin1);
+}
+
+#[test]
+fn lifecycle_hooks_and_process_first_rectangle() {
+    let mut h = Host::new();
+    let mut m = ready(&mut h);
+    assert_eq!(h.timer_restarts, 1);
+    assert_eq!(h.filters_created, 1);
+    assert_eq!(m.previous, m.current);
+    m.on_tick(&mut h, 10, || false);
+    assert_eq!(h.timer_restarts, 2);
+    assert!(m.handle_city_shutdown(&mut h));
+    m.on_tick(&mut h, 10, || true);
+    assert_eq!(h.timer_restarts, 2, "disabled tick never restarts timer");
+    let second = ready(&mut h);
+    assert_eq!(
+        second.previous,
+        CellRect::default(),
+        "process flag was consumed by first manager"
+    );
+    assert_eq!(h.filters_created, 2);
+}
+
+#[test]
+fn tuning_vectors_replace_pad_and_retain_ids() {
+    let mut h = Host::new();
+    let mut m = M::new();
+    h.tuning.margins = Some(vec![1.0, 2.0]);
+    h.tuning.layer_ids = Some(vec![10, 20]);
+    m.read_tuning(&mut h);
+    assert_eq!(m.margins, vec![1.0, 2.0, 70.0, 70.0, 70.0]);
+    h.tuning.margins = Some(vec![5.0; 7]);
+    h.tuning.layer_ids = None;
+    m.read_tuning(&mut h);
+    assert_eq!(m.margins.len(), 7);
+    assert_eq!(m.layer_ids, vec![10, 20]);
+    h.tuning.margins = None;
+    m.read_tuning(&mut h);
+    assert_eq!(m.margins, vec![70.0; 5]);
+    h.tuning.margins = Some(vec![]);
+    h.tuning.layer_ids = Some(vec![]);
+    m.read_tuning(&mut h);
+    assert_eq!(m.margins, vec![70.0; 5]);
+    assert!(m.layer_ids.is_empty());
+}
+
+#[test]
+fn invalid_view_keeps_rectangles_and_null_event_is_unhandled() {
+    let mut h = Host::new();
+    let mut m = ready(&mut h);
+    let rects = (m.current, m.previous, m.attention_world);
+    h.zoom = 99;
+    h.listener = [100.0; 3];
+    m.update_attention_rect(&mut h);
+    assert_eq!((m.current, m.previous, m.attention_world), rects);
+    assert_eq!(m.listener_pos, [100.0; 3]);
+    assert!(!m.do_optional_event(&mut h, None));
+    assert!(h.take().is_empty());
+}
+
+#[test]
+fn move_posts_are_independent_and_need_sound_system() {
+    let mut h = Host::new();
+    let mut m = ready(&mut h);
+    for ambient in [None, Some(0)] {
+        for condition in [None, Some(0)] {
+            let mut o = occ(42);
+            o.ambient_sound = ambient;
+            o.condition_sound_a = condition;
+            for snd in [false, true] {
+                m.snd_sys = snd;
+                ins(&mut m, &mut h, &o, MSG_MOVE_OCCUPANT);
+                let count = if snd {
+                    usize::from(ambient.is_some()) + usize::from(condition.is_some())
+                } else {
+                    0
+                };
+                assert_eq!(
+                    h.posts(),
+                    vec![
+                        SndRequest::SetPosition {
+                            instance_id: 42,
+                            position: [1, 2, -3]
+                        };
+                        count
+                    ]
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn on_off_rereads_sound_and_preserves_state_without_property() {
+    let mut h = Host::new();
+    let mut m = ready(&mut h);
+    let mut o = occ(1000);
+    o.alarm_times = Some(vec![22.0, 6.0]);
+    o.on_off_alarm_sound = Some(10);
+    ins(&mut m, &mut h, &o, MSG_INSERT_OCCUPANT);
+    h.clock = Some((22, 0));
+    h.on_off = Some(20);
+    m.update_alarms(&mut h);
+    assert!(matches!(
+        h.posts()[0],
+        SndRequest::Start {
+            sound_id: 20,
+            instance_id: 1020,
+            ..
+        }
+    ));
+    h.on_off = None;
+    h.clock = Some((6, 0));
+    m.update_alarms(&mut h);
+    assert!(h.posts().is_empty());
+    assert!(m.alarms[0].on);
+    h.on_off = Some(30);
+    m.update_alarms(&mut h);
+    assert_eq!(h.posts(), vec![SndRequest::Stop { instance_id: 1030 }]);
+    assert!(!m.alarms[0].on);
+}
+
+#[test]
+fn null_sound_occupants_are_rejected() {
+    let mut h = Host::new();
+    let mut m = ready(&mut h);
+    let mut o = occ(0);
+    o.is_automaton = true;
+    assert!(!m.add_occupant_snd_instance(&mut h, &o, 9, true));
+    assert!(!m.remove_occupant_snd_instance(&mut h, &o, 9));
+    assert!(!m.add_alarm(&mut h, &o, 9, &[1.0], AlarmKind::OneShot));
+    assert!(h.take().is_empty());
+    assert!(m.alarms.is_empty());
+}
+
+#[test]
+fn duplicate_alarm_removal_uses_first_kind_match() {
+    let mut h = Host::new();
+    let mut m = ready(&mut h);
+    let o = occ(42);
+    assert!(m.add_alarm(&mut h, &o, 10, &[1.0], AlarmKind::OneShot));
+    assert!(m.add_alarm(&mut h, &o, 20, &[2.0], AlarmKind::OneShot));
+    assert!(m.add_alarm(&mut h, &o, 30, &[3.0], AlarmKind::OnOff));
+    m.remove_alarm(42, AlarmKind::OneShot);
+    assert_eq!(m.alarms.iter().map(|a| a.sound_id).collect::<Vec<_>>(), vec![20, 30]);
+}
+
+#[test]
+fn every_init_failure_short_circuits_in_order() {
+    let steps = ["framework", "scape", "sound", "messages", "tracked"];
+    for failed in 0..steps.len() {
+        let mut h = Host::new();
+        h.fail_init = Some(failed);
+        let mut m = M::new();
+        assert!(!m.init(&mut h));
+        assert_eq!(h.init_calls, steps[..=failed]);
+        assert_eq!(h.timer_restarts, 0);
+        assert!(!m.running);
+        assert!(m.tracked.is_none());
+    }
+}
+
+#[test]
+fn layer_receives_world_rectangle_and_exact_listener_vectors() {
+    let mut h = Host::new();
+    h.listener = [512.5, 33.25, 200.75];
+    h.tuning.margins = Some(vec![2.25; 5]);
+    h.tuning.layer_ids = Some(vec![1]);
+    let mut m = ready(&mut h);
+    m.on_tick(&mut h, 41, || true);
+    assert_eq!(m.layers[0].rect, Some(m.attention_world));
+    assert_eq!(m.layers[0].rect.unwrap().x0, 510.25);
+    assert_eq!(m.layers[0].last_update, Some((41, h.listener, [0.0, 0.0, 1.0])));
+}
+
+#[test]
+fn preferences_are_read_for_each_successful_layer_only() {
+    let mut h = Host::new();
+    h.tuning.layer_ids = Some(vec![10, 11, 12]);
+    h.failing_layers = vec![11];
+    let m = ready(&mut h);
+    assert_eq!(m.layers.len(), 2);
+    assert_eq!(h.preference_reads, 2);
+    let mut h = Host::new();
+    h.tuning.layer_ids = Some(vec![11]);
+    h.failing_layers = vec![11];
+    let m = ready(&mut h);
+    assert!(m.layers.is_empty());
+    assert_eq!(h.preference_reads, 0);
+}
+
+#[test]
+fn extra_margins_do_not_admit_non_city_zoom() {
+    let mut h = Host::new();
+    h.tuning.margins = Some(vec![3.0; 7]);
+    let mut m = ready(&mut h);
+    let before = (m.current, m.previous, m.attention_world);
+    h.zoom = 5;
+    h.listener = [0.0; 3];
+    m.update_attention_rect(&mut h);
+    assert_eq!((m.current, m.previous, m.attention_world), before);
+    assert_eq!(m.zoom, 5);
 }
