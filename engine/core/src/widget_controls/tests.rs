@@ -113,6 +113,222 @@ impl grid::GridForeign for Recording {
     }
 }
 
+impl grid::GridDataForeign for Recording {
+    fn object_query(&mut self, object: Handle, _: u32, output: &mut Option<Handle>) -> bool {
+        if object == 99 {
+            return false;
+        }
+        *output = Some(object + 1000);
+        self.add_ref(object + 1000);
+        true
+    }
+    fn copy_text(&mut self, _: Handle, output: &mut Vec<u8>) -> bool {
+        *output = b"window".to_vec();
+        true
+    }
+    fn window_id(&mut self, window: Handle) -> u32 {
+        self.child_ops.push(("id", window));
+        window as u32 + 7
+    }
+}
+
+#[test]
+fn grid_identity_clear_result_extra_queries_owner_draw_and_window_text() {
+    use grid::*;
+    let mut g = Grid::new(100, 0);
+    let mut f = Recording::default();
+    let mut output = Some(777);
+    assert!(g.query_interface(IID, &mut output, &mut f));
+    assert_eq!(output, Some(100));
+    assert_eq!(f.refs, [(true, 100)]);
+    assert!(!g.query_interface(0, &mut output, &mut f));
+    assert!(g.clear_cell((500, 500), &mut f)); // even when nothing exists
+    g.cells.insert(
+        (1, 2),
+        Cell {
+            extra: 12,
+            value: Value::Text(b"text".to_vec()),
+            ..Cell::default()
+        },
+    );
+    assert_eq!(g.cell_extra((1, 2)), 12);
+    assert_eq!(g.cell_extra((0, 0)), 0);
+    g.extra_mode = 42;
+    assert!(!g.cell_extra_object((0, 0), IID, &mut output, &mut f));
+    assert_eq!(g.extra_mode, 2);
+    assert_eq!(output, Some(100)); // null data leaves output untouched
+    assert!(g.cell_extra_object((1, 2), IID, &mut output, &mut f));
+    assert_eq!(output, Some(1012));
+    f.release(output.take().unwrap());
+    g.extra = 11;
+    assert!(g.extra_object(IID, &mut output, &mut f));
+    assert_eq!(output, Some(1011));
+    f.release(output.take().unwrap());
+    g.extra = 0;
+    assert!(!g.extra_object(IID, &mut output, &mut f));
+    assert!(g.set_owner_draw(Some(8), &mut f));
+    assert!(g.set_owner_draw(Some(8), &mut f));
+    assert_eq!(&f.refs[f.refs.len() - 3..], [(true, 8), (true, 8), (false, 8)]);
+    assert!(g.make_drop_down());
+    assert_ne!(g.flags & 0x40000, 0);
+    let mut text = b"sentinel".to_vec();
+    assert!(g.cell_text_value((1, 2), &mut text, &mut f));
+    assert_eq!(text, b"text");
+    g.cells.insert(
+        (2, 3),
+        Cell {
+            value: Value::Window {
+                handle: 40,
+                keep_width: false,
+                keep_height: false,
+            },
+            ..Cell::default()
+        },
+    );
+    assert!(g.cell_text_value((2, 3), &mut text, &mut f));
+    assert_eq!(text, b"window");
+    assert_eq!(&f.refs[f.refs.len() - 2..], [(true, 1040), (false, 1040)]);
+    assert!(!g.cell_text_value((0, 0), &mut text, &mut f));
+    assert_eq!(text, b"window");
+    g.cells.insert(
+        (3, 3),
+        Cell {
+            value: Value::Window {
+                handle: 99,
+                keep_width: false,
+                keep_height: false,
+            },
+            ..Cell::default()
+        },
+    );
+    assert!(!g.cell_text_value((3, 3), &mut text, &mut f));
+    let mut cell = (-1, -1);
+    assert!(g.is_cell_window(Some(40), 999, &mut cell, &mut f));
+    assert_eq!(cell, (2, 3));
+    assert!(f.child_ops.is_empty()); // nonnull pointer ignores id
+    assert!(g.is_cell_window(None, 106, &mut cell, &mut f));
+    assert_eq!(cell, (3, 3));
+    assert_eq!(f.child_ops, [("id", 40), ("id", 99)]);
+}
+
+#[test]
+fn grid_text_search_rectangles_lengths_null_and_order() {
+    let mut g = grid::Grid::new(100, 0);
+    let mut f = Recording::default();
+    g.set_text((2, 0), Some(b"needle"), 0, 1, &mut f).unwrap();
+    g.set_text((1, 4), Some(b"a needle b"), 0, 1, &mut f).unwrap();
+    g.set_text((0, 9), Some(b"needle"), 0, 1, &mut f).unwrap();
+    let mut cell = (-1, -1);
+    assert_eq!(g.find_text(None, 0, (0, 0), (99, 99), &mut cell, false), Ok(false));
+    assert_eq!(cell, (-1, -1));
+    assert_eq!(
+        g.find_text(Some(b"needle\0tail"), 0, (0, 0), (i32::MAX, 5), &mut cell, false),
+        Ok(true)
+    );
+    assert_eq!(cell, (1, 4)); // matrix key order, not row-major display order
+    assert_eq!(
+        g.find_text(Some(b"needle"), -1, (0, 0), (99, 5), &mut cell, true),
+        Ok(true)
+    );
+    assert_eq!(cell, (2, 0));
+    assert_eq!(
+        g.find_text(Some(b"needle"), 6, (1, 0), (1, 4), &mut cell, false),
+        Ok(false)
+    );
+    assert_eq!(cell, (2, 0)); // failure does not overwrite
+    assert_eq!(g.find_text(Some(b""), 0, (0, 0), (99, 99), &mut cell, false), Ok(true));
+    assert_eq!(cell, (0, 9));
+}
+
+#[test]
+fn grid_copy_axis_overlap_holes_headings_extras_and_move_order() {
+    use grid::*;
+    let mut g = Grid::new(100, 0);
+    let mut f = Recording::default();
+    for column in 0..4 {
+        g.set_text((column, 0), Some(&[b'A' + column as u8]), 1, 1, &mut f)
+            .unwrap();
+        g.extra_maps[0].insert(column, column as u32 + 10);
+        g.set_heading(0, column, &[b'a' + column as u8]);
+    }
+    g.copy_columns(0, 1, 3, false, &mut f).unwrap();
+    let values: Vec<_> = (0..4).map(|c| g.cells[&(c, 0)].value.clone()).collect();
+    assert_eq!(values, (*b"AABC").map(|b| Value::Text(vec![b])));
+    assert_eq!(
+        [g.extra_maps[0][&1], g.extra_maps[0][&2], g.extra_maps[0][&3]],
+        [10, 11, 12]
+    );
+    assert_eq!(g.heading(0, 3), b"c");
+    g.copy_columns(1, 0, 3, true, &mut f).unwrap();
+    assert_eq!(g.cells[&(0, 0)].value, Value::Text(b"A".to_vec()));
+    assert_eq!(g.cells[&(2, 0)].value, Value::Text(b"C".to_vec()));
+    assert!(!g.cells.contains_key(&(3, 0)));
+    assert!(!g.extra_maps[0].contains_key(&3));
+    assert!(!g.headings[0].contains_key(&3));
+    // A missing source row between its own min/max clears the destination.
+    g.set_text((5, 0), Some(b"top"), 0, 1, &mut f).unwrap();
+    g.set_text((5, 2), Some(b"bottom"), 0, 1, &mut f).unwrap();
+    g.set_text((6, 1), Some(b"remove"), 0, 1, &mut f).unwrap();
+    g.copy_columns(5, 6, 1, false, &mut f).unwrap();
+    assert!(!g.cells.contains_key(&(6, 1)));
+    // Row variant uses the orthogonal map and resets column caches.
+    g.set_heading(1, 0, b"row");
+    g.extra_maps[1].insert(0, 77);
+    g.copy_rows(0, 4, 1, false, &mut f).unwrap();
+    assert_eq!(g.heading(1, 4), b"row");
+    assert_eq!(g.extra_maps[1][&4], 77);
+    assert_eq!(g.cells[&(0, 4)].value, g.cells[&(0, 0)].value);
+}
+
+#[test]
+fn grid_delete_axis_modes_and_default_per_cell_format_ownership() {
+    use grid::*;
+    let mut g = Grid::new(100, 0);
+    let mut f = Recording::default();
+    for column in 0..4 {
+        g.set_text((column, 0), Some(&[b'A' + column as u8]), 1, 1, &mut f)
+            .unwrap();
+    }
+    assert!(!g.delete_columns(0, -1, 0, &mut f));
+    assert!(g.delete_columns(1, 0, 0, &mut f));
+    assert!(g.delete_columns(1, 1, 0, &mut f));
+    assert_eq!(g.cells[&(1, 0)].value, Value::Text(b"C".to_vec()));
+    assert_eq!(g.cells[&(2, 0)].value, Value::Text(b"D".to_vec()));
+    assert!(g.delete_columns(0, 1, 999, &mut f)); // invalid mode -> no shifting
+    assert!(!g.cells.contains_key(&(0, 0)) && g.cells.contains_key(&(1, 0)));
+    g.copy_rows(0, 1, 1, false, &mut f).unwrap();
+    assert!(g.delete_rows(0, 1, 0, &mut f));
+    assert!(g.cells.contains_key(&(1, 0)) && !g.cells.contains_key(&(1, 1)));
+    assert!(!g.make_room_for_row(0, 1, 2, &mut f));
+    assert!(!g.make_room_for_column(0, 1, 3, &mut f));
+    let format = Format {
+        font: Some(123),
+        words: [7; 8],
+    };
+    g.dirty = false;
+    assert_eq!(g.set_cell_format_state((-1, -1), &format, &mut f), Ok(true));
+    assert!(!g.dirty);
+    assert_eq!(g.set_cell_format_state((-1, -1), &format, &mut f), Ok(true));
+    assert_eq!(&f.refs[f.refs.len() - 2..], [(true, 123), (false, 123)]);
+    assert_eq!(
+        g.set_cell_format_state((-1, 0), &format, &mut f),
+        Err(Unsupported::Open("WG6"))
+    );
+    assert_eq!(g.set_cell_format_state((5, 5), &format, &mut f), Ok(true));
+    assert!(g.dirty);
+    assert_eq!(g.cells[&(5, 5)].format, Some(format));
+    g.clear_cell((5, 5), &mut f);
+    assert_eq!(f.refs.last(), Some(&(false, 123)));
+    let no_font = Format {
+        font: None,
+        words: [2; 8],
+    };
+    g.set_cell_format_state((1, 0), &no_font, &mut f).unwrap();
+    g.dirty = false;
+    g.set_cell_format_state((1, 0), &no_font, &mut f).unwrap();
+    assert!(!g.dirty); // no font ownership change with already allocated format
+}
+
 #[test]
 fn grid_vectors_1_to_6_and_literal_selection_modes() {
     let mut g = grid::Grid::new(100, 0);

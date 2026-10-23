@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! cGZWinGrid state, selection and sparse size/format tables (win-grid §§1–5).
+mod data;
 use super::*;
+pub use data::GridDataForeign;
 use std::collections::BTreeMap;
 
 pub const IID: u32 = 0xdaa6_b9be;
@@ -523,12 +525,12 @@ impl Grid {
     }
 
     pub fn clear_cell(&mut self, cell: Coordinate, f: &mut impl GridForeign) -> bool {
-        let deselected = self.add_selection(cell, false);
+        self.add_selection(cell, false);
         if let Some(record) = self.cells.remove(&cell) {
             self.dispose(cell, record, f);
             self.dirty = true;
         }
-        deselected
+        true
     }
 
     pub fn resolve_append(&self, mut cell: Coordinate) -> Coordinate {

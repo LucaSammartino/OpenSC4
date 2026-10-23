@@ -82,15 +82,16 @@ pub struct TextEdit {
 }
 
 impl TextEdit {
-    /// The constructor's max-undo default is not assigned in the incorporated
-    /// contract. This state-stage constructor requires a resolved value instead
-    /// of inventing a native constructor default (TE9).
-    pub fn with_history_limit(
+    /// Max-undo and preferred-X constructor defaults are not assigned in the
+    /// incorporated contract. Require resolved values, rather than inventing
+    /// native constructor defaults (TE9).
+    pub fn with_resolved_defaults(
         window: Handle,
         text_view: Handle,
         flags: u32,
         encoding: Encoding,
         history_limit: u32,
+        preferred_x: u32,
     ) -> Self {
         Self {
             window,
@@ -104,7 +105,7 @@ impl TextEdit {
             history_limit,
             undo: Vec::new(),
             redo: Vec::new(),
-            preferred_x: u32::MAX,
+            preferred_x,
             pending: Vec::new(),
             gutters: [5, 0],
             first_visible_line: 0,

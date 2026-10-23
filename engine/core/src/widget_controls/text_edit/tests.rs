@@ -48,7 +48,7 @@ fn encoding(selector: i32) -> Encoding {
 }
 
 fn editor(selector: i32, flags: u32) -> TextEdit {
-    TextEdit::with_history_limit(1, 2, flags, encoding(selector), 8)
+    TextEdit::with_resolved_defaults(1, 2, flags, encoding(selector), 8, u32::MAX)
 }
 
 /// Already-resolved line starts, not a replacement font layout algorithm.
@@ -79,6 +79,7 @@ fn te_encoding_forward_domains_and_malformed_vectors_45_47() {
     assert_eq!(encoding(-2).char_length(&[0xc3, 0xa9], 2), Ok(2));
     assert_eq!(encoding(-1).char_length(&[0x81, b'A'], 2), Ok(2));
     for selector in [0, 16] {
+        assert_eq!(encoding(selector).char_length(&[], 1), Ok(1));
         assert_eq!(encoding(selector).char_length(&[0xff], 1), Ok(1));
         assert_eq!(encoding(selector).glyph_count(&[0x80, 0x80]), 2);
     }

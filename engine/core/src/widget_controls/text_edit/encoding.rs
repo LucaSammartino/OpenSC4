@@ -37,6 +37,9 @@ impl Encoding {
         if logical_len == 0 {
             return Ok(0);
         }
+        if matches!(self.resolved(), 0 | 16) {
+            return Ok(1); // Native single-byte branches do not read the buffer.
+        }
         let first = *readable.first().ok_or(Unsupported::Precondition("TE1 first byte"))?;
         match self.resolved() {
             0 | 16 => Ok(1),
