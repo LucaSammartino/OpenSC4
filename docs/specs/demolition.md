@@ -510,6 +510,7 @@ to and the caller releases.
 | power simulator (power.md) | nuclear-free zone `DemolishLots(true, list, 0, 1, false, null, null, 0)`; hard failure `(true, [lot], 0, destroy | 0x300, false, null, null, 0)` |
 | building development (building-development.md) | `DemolishLots(true, queued, 0, 1, true, null, &cost, null)` |
 | legalize-gambling ordinance `SetOn` (`0x0080C483`) | `DemolishLots(true, list, 0, 1, false, null, null, null)` |
+| network placement helper (`0x0061FB87`) | `DemolishRegion(false, region, 1, 0x2001, false, temporaryFilter, cost, demolished, null, 0, 0)`; selected bitmap cells and separate placement/demolition filters: [network-routines.md](network-routines.md) §§4–6 |
 | network tool `ClearNetworkOccsFromCell` (`0x0062746A`) | `DemolishOccupant(true, o, 1, 0x2001, null, false, null)` |
 
 ## 10. Quirks (reproduced)

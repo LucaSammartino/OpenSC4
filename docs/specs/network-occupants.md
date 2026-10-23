@@ -945,16 +945,19 @@ One body: `ComputeDemolitionRegionForPlacementCells` `0x0061F7C0` (1 004 bytes).
 `cIntRule::Test` `0x00609DDE`, `UpdateOccupantHighlights` `0x00629C53`, `InsertIsolatedHighwayIntersection`
 `0x0062D189` — the caller contract is network-rules.md §10 (cite, do not repeat).
 
-Measured behaviour:
+The canonical typed contract, instruction citations, lifetime table and proposed vectors are in
+[network-routines.md](network-routines.md). Corrections to the earlier summary:
 
-1. Builds an `SC4CellRegion<long>` from the input list of u32 x/z pairs; min/max +1 per cell; each cell's lot (city
-   slot 0x18 `GetLot`) rect is merged via the lot's slot 0x38.
-2. For each region cell, the zone manager `0x00B43D14` slot 0x30 gives the zone type; zone ≠ 0 → the demolition
-   utility (`DAT_00b43d0c` slot 0x80) decides; a failure marks the region bitmap and the zone-type mask bit.
-3. If any zone-type bit within `0xFC00` is set → return 0.
-4. Otherwise it builds a `cSC4OccupantFilter`-shaped filter (vtables `0x00AA825C`/`0x00AA8244`) and calls the
-   demolition manager (`DAT_00b43d00`) slot 0x18 (`DemolishRegion`, flags `0x2001`) over the region; returns its
-   bool.
+1. The five-argument helper reads contiguous 32-bit x/z pairs using signed coordinate comparisons. City slot 33
+   supplies the lot manager; its slot 6 gets each input's lot, whose slot 14 supplies an inclusive rect. Bounds
+   include inputs and whole lots, with an extra high border; the bitmap starts entirely clear.
+2. It scans only collected lot rects (duplicates retained), x outer/z inner. For each nonzero zone, occupant
+   manager `0x00B43D0C` slot 32, **not a demolition utility**, looks for an occupant accepted by the caller's
+   placement filter. A **miss** sets the cell bit and zone-type bit. Set bits select cells for demolition.
+3. After all rects, `typeMask & 0xFC00` rejects before cost initialization; a high zone alone does not reject.
+4. Otherwise the temporary filter rejects occupants answering QI `0xA9764C8C`; it has no caller-filter state.
+   `DemolishRegion(false, region, 1, 0x2001, false, temporaryFilter, cost, demolished, null, 0, 0)` is a preview.
+   Its AL is returned; the output region remains caller-owned on either constructed-region exit.
 
 ---
 
