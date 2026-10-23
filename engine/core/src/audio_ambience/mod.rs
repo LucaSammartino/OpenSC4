@@ -289,8 +289,8 @@ pub struct SndEventIn {
     pub value2: u32,
     /// The data object (slot `+0x18`, then `+0x80`) answers [`IID_FRESH_PLAYER`].
     pub fresh_player: bool,
-    /// Payload type/group/instance (`0x2A2C0384`); `None` = the payload does
-    /// not answer [`IID_MESSAGE_PAYLOAD`].
+    /// Event type/group/instance (`0x2A2C0384`); `None` = the event itself
+    /// does not answer [`IID_MESSAGE_PAYLOAD`] (AA9b).
     pub score_tgi: Option<(u32, u32, u32)>,
 }
 
@@ -631,8 +631,8 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
         true
     }
 
-    /// `_ReadTuningValues` (§4.1, AA6). Absent properties leave the vectors as
-    /// they were; present ones give exactly their `n` values.
+    /// `_ReadTuningValues` (§4.1, AA6). Absent IDs retain their vector;
+    /// absent/short margins use the spec's safe replacement policy.
     pub fn read_tuning<H: AmbienceHost<Layer = L>>(&mut self, host: &mut H) {
         let t = host.read_tuning();
         match t.margins {
@@ -655,17 +655,17 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
     pub fn handle_city_init<H: AmbienceHost<Layer = L>>(&mut self, host: &mut H) -> bool {
         self.read_tuning(host);
         let ids = self.layer_ids.clone();
-        let volume = match host.audio_preferences() {
-            Some((true, v)) => v,
-            // Absent preferences: treated as a clear byte (**AA6**) *[choice]*.
-            _ => 0,
-        };
         for id in ids {
             let mut layer = host.create_layer(id);
             if !layer.init() {
                 host.log(&layer_init_failure_message(id));
                 continue;
             }
+            let volume = match host.audio_preferences() {
+                Some((true, v)) => v,
+                // Absent preferences: volume 0, the §2.2 replacement choice.
+                _ => 0,
+            };
             layer.set_score_master_volume(volume);
             self.layers.push(layer);
         }
@@ -713,6 +713,11 @@ impl<L: AmbienceLayer> AmbienceManager<L> {
             return;
         };
         self.zoom = zoom;
+        // §4.2's safe replacement policy admits only city-view zooms 0–4,
+        // even when a tuning property contains more than five margins.
+        if zoom >= MARGIN_COUNT as u32 {
+            return;
+        }
         let Some(m) = self.margins.get(zoom as usize).copied() else {
             return;
         };

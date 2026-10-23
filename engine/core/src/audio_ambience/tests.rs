@@ -98,6 +98,7 @@ struct Host {
     filters_created: usize,
     fail_init: Option<usize>,
     init_calls: Vec<&'static str>,
+    preference_reads: usize,
 }
 
 impl Host {
@@ -125,6 +126,7 @@ impl Host {
             filters_created: 0,
             fail_init: None,
             init_calls: vec![],
+            preference_reads: 0,
         }
     }
     fn push(&self, c: Call) {
@@ -200,6 +202,7 @@ impl AmbienceHost for Host {
         self.tuning.clone()
     }
     fn audio_preferences(&mut self) -> Option<(bool, u32)> {
+        self.preference_reads += 1;
         self.prefs
     }
     fn create_layer(&mut self, id: u32) -> TLayer {
@@ -344,7 +347,23 @@ fn init_subscribes_twelve_in_order() {
             _ => None,
         })
         .collect();
-    assert_eq!(subs, SUBSCRIBED_MESSAGES.to_vec());
+    assert_eq!(
+        subs,
+        [
+            0x26D3_1EC1,
+            0x26D3_1EC2,
+            0x8A4A_69C7,
+            0x99EF_1142,
+            0x99EF_1146,
+            0x99EF_1143,
+            0xE99B_3D4D,
+            0xE8BD_A2E7,
+            0x09D9_2FC3,
+            0xC53D_10AA,
+            0x8A87_8385,
+            0x4348_B111,
+        ]
+    );
     assert!(subs.contains(&MSG_EXEMPLAR_CHANGED));
     assert_eq!(subs.len(), 12);
 }
@@ -1560,4 +1579,33 @@ fn layer_receives_world_rectangle_and_exact_listener_vectors() {
     assert_eq!(m.layers[0].rect, Some(m.attention_world));
     assert_eq!(m.layers[0].rect.unwrap().x0, 510.25);
     assert_eq!(m.layers[0].last_update, Some((41, h.listener, [0.0, 0.0, 1.0])));
+}
+
+#[test]
+fn preferences_are_read_for_each_successful_layer_only() {
+    let mut h = Host::new();
+    h.tuning.layer_ids = Some(vec![10, 11, 12]);
+    h.failing_layers = vec![11];
+    let m = ready(&mut h);
+    assert_eq!(m.layers.len(), 2);
+    assert_eq!(h.preference_reads, 2);
+    let mut h = Host::new();
+    h.tuning.layer_ids = Some(vec![11]);
+    h.failing_layers = vec![11];
+    let m = ready(&mut h);
+    assert!(m.layers.is_empty());
+    assert_eq!(h.preference_reads, 0);
+}
+
+#[test]
+fn extra_margins_do_not_admit_non_city_zoom() {
+    let mut h = Host::new();
+    h.tuning.margins = Some(vec![3.0; 7]);
+    let mut m = ready(&mut h);
+    let before = (m.current, m.previous, m.attention_world);
+    h.zoom = 5;
+    h.listener = [0.0; 3];
+    m.update_attention_rect(&mut h);
+    assert_eq!((m.current, m.previous, m.attention_world), before);
+    assert_eq!(m.zoom, 5);
 }

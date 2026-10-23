@@ -30,7 +30,7 @@ Test names below are in `tests.rs`.
 |---|---|---|
 | §1 Object | `new`, constants, `Stage`, `AlarmEntry` | `constructor_values`, `instance_id_wraps` |
 | §2.1 Init | `init`, `SUBSCRIBED_MESSAGES` | `init_subscribes_twelve_in_order`, `init_failures_return_false`, `every_init_failure_short_circuits_in_order`, `lifecycle_hooks_and_process_first_rectangle` |
-| §2.2 City init | `handle_city_init`, host filter/layer factory | `city_init_creates_layers_and_drops_failures`, `preference_clear_gives_zero_volume`, `init_walk_starts_no_sound` |
+| §2.2 City init | `handle_city_init`, host filter/layer factory | `city_init_creates_layers_and_drops_failures`, `preference_clear_gives_zero_volume`, `preferences_are_read_for_each_successful_layer_only`, `init_walk_starts_no_sound` |
 | §2.3 City shutdown | `handle_city_shutdown`, `release_layers` | `city_shutdown_stops_ticking_and_clears`, `lifecycle_hooks_and_process_first_rectangle` |
 | §2.4 Shutdown | `shutdown`, Rust layer drop after `shutdown` | `shutdown_unsubscribes_same_set_and_releases` |
 | §3 Sound helpers | `add_occupant_snd_instance`, `remove_occupant_snd_instance` | `snd_instance_needs_flags`, `null_sound_occupants_are_rejected`, `preview_occupant_is_silent` |
@@ -41,7 +41,7 @@ Test names below are in `tests.rs`.
 | §3.5 Automata/crossing | `handle_automaton`, `play_occupant_sound`, `handle_crossing` | `automata_codes`, `railway_crossing` |
 | §3.6 Alarms | `add_alarm`, `update_alarms`, `time_of_day` | `alarm_created_at_current_hour`, `alarm_creation_flags_and_order`, `time_of_day_drops_minutes`, `on_off_alarm_22_to_6`, `on_off_rereads_sound_and_preserves_state_without_property`; open: AA10 only for absent creation clock (`no_clock_no_alarms`) |
 | §4.1 Tuning | `read_tuning` | `missing_margins_default_to_70`, `tuning_vectors_replace_pad_and_retain_ids` |
-| §4.2 Attention | `update_attention_rect` | `attention_rect_clamps_and_rounds_even`, `invalid_view_keeps_rectangles_and_null_event_is_unhandled`, `lifecycle_hooks_and_process_first_rectangle` |
+| §4.2 Attention | `update_attention_rect` | `attention_rect_clamps_and_rounds_even`, `invalid_view_keeps_rectangles_and_null_event_is_unhandled`, `extra_margins_do_not_admit_non_city_zoom`, `lifecycle_hooks_and_process_first_rectangle` |
 | §5 Tick/block walk | `on_tick`, `do_stage_update`, `seed_iterator`, shared `CellIterator` | `stage_update_cell_order_and_stages`, `zero_budget_still_finishes_every_block_before_end`, `budget_spreads_walk_over_ticks`, `prime_step_block_order`, `iterator_current_carries_over`, `ticking_disabled_does_nothing`; clarification AA12 |
 | §6 Events/focus | `do_event`, `do_optional_event`, `do_message(AppFocus)` | `events_master_volume_and_fresh_player`, `invalid_view_keeps_rectangles_and_null_event_is_unhandled`, `focus_pauses_layers_and_exemplar_rereads_tuning` |
 | §7 Dispatch | `do_message`, `AmbienceMessage` | `non_payload_message_returns_zero`, occupant/condition/automaton/focus tests |
