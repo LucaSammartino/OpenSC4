@@ -1,21 +1,105 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-automata-controller-lifecycle4: inherited base controller lifecycle | Codex / `re-automata-controller-lifecycle4` (RE lane; detached HEAD, supervisor publishes reserved branch) | in progress: final R3 native proof; ABI unchanged; no game runs | Prove secondary Read and base geometry, then state/behavior local branches. |
+| re-automata-controller-lifecycle4: inherited base controller lifecycle | Codex / `re-automata-controller-lifecycle4` (RE lane; detached HEAD, supervisor publishes reserved branch) | blocked: coordinator STOP before final publication; two proof milestones committed; ABI unchanged; no game runs | Preserve commits and uncommitted final fixture refinements; no queue written. |
 
 ## Handoff
 
-- Goal: final authorized R3, two bounded native proof milestones; no fourth round.
-- Preserved R1 `77321b20`/`4a4fc554`/`77f5168b` and R2 through `3991b3b3`, with ignored evidence.
-- Ownership checked first: base table 00A95D90 slots22/23/28–30/32; attractor overrides29/30, generator inherits these but overrides activation/template/radius.
-- Done: milestone `d1f28698` proves Read local chronology and finite facing/radius rejection, with R1–R7 proposed/unexecuted fixtures; commit succeeded despite packed-refs lock denial.
-- Done: second proof: optional-distance/intersection orchestration, base state/behavior bodies, R8–R17 (46 total proposed/unexecuted fixtures); AT22 partial note narrowed.
-- Gate: R3 rational/UTF8/no-BOM/link/table/fixture checks, questions check, doccheck check and diff check passed; x bits337FFFFE versus z00000000 independently derived.
-- Next: commit second milestone, finalize report and exact clean committed DOCS queue; no further research round.
-- No original execution, portable/build/game/process/provider operations; AT22 stays partial.
-- q.py Bash backend returned Access denied before commands ran; using direct PowerShell read/query calls. This is tooling evidence only.
-- Historical R2 report below remains intact until final report replacement.
+- STOP enforced 2026-10-23 09:16:47: user stopped goal; halt new work and report status.
+- Real proof commits: `d1f28698` Read/facing/radius and `7e373dd3` optional distance/intersection/state/behavior, 17 new proposed/unexecuted fixtures.
+- Existing R1/R2 commits and ignored evidence remain preserved; AT22 stays partial.
+- After second milestone, R8/R9 coordinates refined to exact 3–4–5 / 5–12–13 distances in the spec; those spec edits remain uncommitted at STOP.
+- Last completed checks after those refinements: R3 rational/UTF8/link/table checks, questions check, doccheck check and diff check passed.
+- Final report patch applied; final validation/commit command was blocked before execution. Only this lane report is committed for STOP.
+- Ignored `build-runs/lifecycle-r3-literals.py` includes those extra distance checks. Final message file5 exists but its commit never ran.
+- No merge-queue entry written in this round. Do not treat the report below as clean-tip admission.
+- Next only if coordinator explicitly resumes: inspect dirty spec diff, rerun final report validation, commit and decide publication; no automatic fourth research round.
+- No original/game/build/portable execution, ABI rows, factory/default or whole-owner claim.
 
-## Report — 2026-10-23, SAME R2of3
+## Research report — 2026-10-23, SAME FINAL R3of3 (publication interrupted)
+
+Published two substantive native proof milestones in
+[the owned lifecycle supplement](../specs/automata-controller-lifecycle.md),
+§§11.2–11.5, narrowing its §12 ledger and
+[AT22's partial answer](../specs/questions/automata.md). Only these public files
+and this lane report changed in R3. Existing automata §3.5 already links the
+supplement and needed no edit. R1 `77321b20`/`4a4fc554`/`77f5168b`, R2 helper
+`4bc47d12`, composition `05adfde4`, publication `3991b3b3` and ignored evidence
+remain preserved. R2 was bounded publication, not complete-owner proof.
+
+Ownership was checked before body credit: base primary `00A95D90`, secondary
+`00A95D74` and S=C+4, attractor `00A95E48`, generator `00A95F00`. Attractor
+29/30 are overrides; generator inherits the newly studied state/geometry entries
+but overrides other inputs such as radius/template/activation. The matching PE
+SHA256 was remeasured as
+`3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`.
+Export queries came first; primary instruction bytes establish numeric association,
+pointer adjustments, widths and branch order. No REA/session action was needed.
+
+Milestone `d1f28698` ADDS Read's actual local chronology: old occupant null-store
+then Release before incoming reference primitive; raw field destinations;
+unconditional continuation after intermediate status failures; list append without
+clear or count increment; final full-EAX inverse of status AL. Helper retention
+stays callee-supplied. Same/null/replaced references and partial-output/repeated
+Read fixtures are explicit and independently kept alive. It also proves finite
+base22 direction midpoints and base23 expanded-rectangle rejection/equality and
+height threshold, rather than assuming a circular radius or angle conversion.
+
+Milestone `7e373dd3` ADDS nonnull distance-output composition and directly needed
+owned intersection edge-call order, base28–30 selector4 entry/exit/tick branching,
+queue lookup versus create request, false/true AL distinctions, full-pointer
+nonnull test, tick scale clamp and product-store association; base32's ordered
+0x7C-byte row scan, threshold comparisons and local selector4 distance test.
+Foreign segment/length/queue-point/manager algorithms remain individual raw calls.
+No derived internals or CreateTemplateInstance body were studied. Final review
+chose exact 3–4–5 and 5–12–13 coordinates for the distance call fixtures.
+
+Seventeen new R1–R17 fixtures are **PROPOSED / UNEXECUTED**, bringing the corpus
+to 46. The earlier L1–L13/N1–N16 remain UNRUN, with L1/L7 still projections.
+Fixtures independently supply stream/reference IDs, primitive output identities,
+partial mutations and raw return channels; no completed Read/radius/state oracle
+is supplied. R14 derives an exact product of 1+2^−24−2^−47 under PC53 nearest:
+x's unspilled product/add yields binary32 bits337FFFFE, while z's product spill
+then add gives positive zero. This is an analytic discriminator, not an observed
+original or portable run. Runtime PC/RC and copied-global initialization are
+unmeasured.
+
+Validation passed: `python tools/questions.py check`, `python tools/doccheck.py
+check`, `python build-runs/lifecycle-r3-literals.py`, and `git diff --check`.
+The R3 helper checks independent exact rational/integer literals, strict UTF8/no
+BOM, local file links, table widths and unique ordered L13+N16+R17 fixture IDs.
+Call chronologies were audited manually against the cited instructions, not
+executed by the analytic helper. AT22 remains one open question; no complete
+entry was answered/moved, no new ID was filed and the shared generated question
+index was not written. Cargo/clippy/ctest and game/shadow verdicts are n/a.
+
+R3 tooling issues: q.py's Bash service returned Access denied before commands
+ran; subsequent read/query work used direct PowerShell. Both proof commits
+succeeded despite Git printing packed-refs.lock Permission denied. Shared refs
+were untouched. The R1 provider capacity failure and R2 patch mismatch, analytic
+denominator correction, question-index heading misread and commit warning remain
+preserved below/in ignored history; none is native behavior evidence. No old
+admission or R2 qualification was rerun.
+
+Residuals: AT22 remains partial for CreateTemplateInstance, foreign reference
+acquisition/stream/segment/length/queue-point semantics, complete callback typing
+(state tick's third word and animation tick's trailing two words), global
+00B227CC runtime initialization, allocation/exception/reentry/invalid-pointer/
+unwind domains, broad FP/trap/payload/overflow and complete derived/factory
+lifetime contracts. No zero-position default, standalone base factory, whole
+48-entry/6556-byte closure, native wrapper/ABI route or family completion follows.
+AT21/AT23/AD3/AD4 and parked glue/caps remain unchanged. No ABI rows were proposed.
+
+This bounded research is useful for review, but STOP interrupted final publication;
+the final spec refinements are not a clean committed DOCS tip and are not queued.
+No native objects, process/provider/server actions, builds, game
+execution, portable engine tests, foreign-worktree/oracle access, branch/ref
+changes, merge/rebase/push or subagents were used. This round stops with the
+handoff above; no fourth round or automatic continuation is requested.
+
+## Preserved historical report — 2026-10-23, SAME R2of3
+
+This is the prior bounded report, not a new execution/qualification. Its old
+residual list and 29-row total are superseded only by the narrow R3 findings above.
 
 Published [the inherited base lifecycle contract](../specs/automata-controller-lifecycle.md)
 and integrated its bounded findings in [automata §3.5](../specs/automata.md).
