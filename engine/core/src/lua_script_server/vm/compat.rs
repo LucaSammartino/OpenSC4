@@ -130,8 +130,11 @@ impl<A: LuaApi> Session<'_, A> {
                 self.op(Op::PushValue(1))?;
                 Ok(1)
             }
-            Callback::CoroutineCreate | Callback::CoroutineResume => Err(Error::Unsupported("LH4")),
-            Callback::Foreign(_) => Err(Error::BadPrimitiveResult),
+            // These callbacks require the registry/generator owner, not a stack
+            // Session. The adapter routes them to create_from/resume_from/callback.
+            Callback::CoroutineCreate | Callback::CoroutineResume | Callback::Command | Callback::Foreign(_) => {
+                Err(Error::BadPrimitiveResult)
+            }
         }
     }
 }

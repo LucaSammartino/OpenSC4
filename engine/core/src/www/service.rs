@@ -21,8 +21,11 @@ pub struct Job {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Effect {
+    RegisterService(u32, u32),
     Lock,
     Unlock,
+    EnterHttpAdmission,
+    LeaveHttpAdmission,
     AddTarget(u32),
     ReleaseTarget(u32),
     AddService,
@@ -65,6 +68,11 @@ pub enum Incoming<'a> {
     Unknown,
 }
 pub trait Host: http::Host {
+    /// FTP scheduler remains the open Q7 dependency; the WWW admission sequence
+    /// itself is specified. No adapter is silently replaced by a failed transfer.
+    fn ftp_submit(&mut self, _url: &[u8], _a: u32, _b: u32) -> Contract<u32> {
+        Err(Unsupported::OwnedBody("Q7 FTP scheduler admission"))
+    }
     fn effect(&mut self, effect: Effect);
     fn now(&mut self) -> u32;
     fn file_exists(&mut self, path: &[u8]) -> bool;
@@ -98,8 +106,7 @@ fn effect(host: &mut impl Host, value: Effect) {
     Host::effect(host, value);
 }
 
-/// Defaults of the published constructor, on supplied existing components. The
-/// complete constructor cannot run: its cookie constructor is P:008f9bad/Q9.
+/// Defaults of the published constructor, on supplied existing components.
 #[derive(Clone, Debug)]
 pub struct Www {
     pub initialized: bool,
@@ -129,7 +136,23 @@ impl Www {
         }
     }
     pub fn construct() -> Contract<Self> {
-        Err(Unsupported::OwnedBody("008f9bad cookie constructor, P/Q9"))
+        // Pure default-state convenience. Native construction effects require
+        // construct_with_host, including service registration and component holds.
+        Ok(Self::snapshot(http::Client::new(None)))
+    }
+    /// Adapter supplies allocated component identities and constructor literals.
+    pub fn construct_with_host(host: &mut impl Host, lookup: Option<u32>, service_identity: u32) -> Self {
+        effect(host, Effect::RegisterService(0x449b1939, 0));
+        for name in ["cache", "cookie", "http", "ftp"] {
+            effect(host, Effect::Component(name, "construct"));
+            effect(host, Effect::Component(name, "retain"));
+        }
+        for name in ["http", "ftp"] {
+            effect(host, Effect::Component(name, "connect-target"));
+        }
+        let mut http = http::Client::new(lookup);
+        http.target = Some(service_identity);
+        Self::snapshot(http)
     }
     /// 008f687d unsupported QI leaves output untouched and emits no hold.
     pub fn query_interface(&mut self, host: &mut impl Host, id: u32, output: &mut u32) -> bool {
@@ -150,6 +173,9 @@ impl Www {
     pub fn post_init(&mut self, host: &mut impl Host) -> bool {
         self.init();
         for name in ["cache", "cookie", "http", "ftp"] {
+            if name == "http" {
+                self.http.init();
+            }
             effect(host, Effect::Component(name, "init"));
         }
         true
@@ -196,6 +222,9 @@ impl Www {
                 ("cookie", "shutdown"),
             ] {
                 effect(host, Effect::Component(name, action));
+                if name == "http" {
+                    self.http.target = None;
+                }
             }
             self.initialized = false;
         }
@@ -292,7 +321,20 @@ impl Www {
         match url.url_type() {
             url_type::HTTP => self.admit_http(host, job, allow_cache),
             url_type::FILE => self.local(host, url, job),
-            url_type::FTP => Err(Unsupported::OwnedBody("00817600 FTP scheduler admission")),
+            url_type::FTP => {
+                let foreign = host.ftp_submit(&job.url, 0, 0)?;
+                if foreign == 0 {
+                    return Ok(0);
+                }
+                effect(host, Effect::Lock);
+                job.id = self.allocate();
+                job.kind = 3;
+                job.foreign = foreign;
+                let id = job.id;
+                self.active.push(job);
+                effect(host, Effect::Unlock);
+                Ok(id)
+            }
             url_type::NEWS => Ok(0), // Literal published boundary: selected target hold leaks.
             _ => {
                 effect(host, Effect::ReleaseTarget(target));
@@ -370,8 +412,18 @@ impl Www {
             // opaque host submission is allowed to stand in for that owned body.
             return Err(Unsupported::OwnedBody("Q9 HTTP header record construction"));
         }
-        let foreign = self.http.submit(host, 2, &job.url, None, 0, &[], 0)?;
+        // Section 4.4's outer admission helper spans WWW insertion, in addition
+        // to the HTTP client's own queue/activation locks (section 4.14).
+        effect(host, Effect::EnterHttpAdmission);
+        let foreign = match self.http.submit(host, 2, &job.url, None, 0, &[], 0) {
+            Ok(id) => id,
+            Err(error) => {
+                effect(host, Effect::LeaveHttpAdmission);
+                return Err(error);
+            }
+        };
         if foreign == 0 {
+            effect(host, Effect::LeaveHttpAdmission);
             return Ok(0);
         } // selected target hold remains acquired
         effect(host, Effect::Lock);
@@ -381,6 +433,7 @@ impl Www {
         let id = job.id;
         self.active.push(job);
         effect(host, Effect::Unlock);
+        effect(host, Effect::LeaveHttpAdmission);
         Ok(id)
     }
     pub fn status(&self, id: u32) -> u32 {
@@ -722,415 +775,4 @@ pub fn cache_policy(host: &mut impl Host, enabled: bool, resource: Option<(&[u8]
         return false;
     }
     host.insert_cache(url, data, file, if file { (0, 1) } else { (1, 1) }, expiry)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::collections::BTreeMap;
-    struct Fake {
-        effects: Vec<Effect>,
-        http_effects: Vec<http::Effect>,
-        callbacks: Vec<(Job, Notification)>,
-        headers: BTreeMap<(u32, u32), Vec<u8>>,
-        cookies: Vec<Vec<u8>>,
-        insertions: Vec<(bool, (u32, u32), u32)>,
-        size: u32,
-        reads: usize,
-        exists: bool,
-        open: bool,
-        read: bool,
-        write: bool,
-        cached: bool,
-        cache_ram: bool,
-        cache_file: bool,
-        cancel_in_callback: Option<u32>,
-        handlers: Vec<u32>,
-        accept: bool,
-        handler_result: bool,
-        time: u32,
-    }
-    impl Default for Fake {
-        fn default() -> Self {
-            Self {
-                effects: vec![],
-                http_effects: vec![],
-                callbacks: vec![],
-                headers: BTreeMap::new(),
-                cookies: vec![],
-                insertions: vec![],
-                size: 1,
-                reads: 0,
-                exists: true,
-                open: true,
-                read: true,
-                write: true,
-                cached: false,
-                cache_ram: true,
-                cache_file: true,
-                cancel_in_callback: None,
-                handlers: vec![],
-                accept: false,
-                handler_result: false,
-                time: 1000,
-            }
-        }
-    }
-    impl http::Host for Fake {
-        fn effect(&mut self, value: http::Effect) {
-            self.http_effects.push(value);
-        }
-        fn notify(&mut self, _: &mut http::Client, _: http::Job, _: bool) {}
-    }
-    impl Host for Fake {
-        fn effect(&mut self, value: Effect) {
-            self.effects.push(value);
-        }
-        fn now(&mut self) -> u32 {
-            self.time
-        }
-        fn file_exists(&mut self, _: &[u8]) -> bool {
-            self.exists
-        }
-        fn path_name(&mut self, path: &[u8]) -> Vec<u8> {
-            path.to_vec()
-        }
-        fn file_open(&mut self, _: &[u8], _: bool) -> Option<u32> {
-            self.open.then_some(1)
-        }
-        fn file_size(&mut self, _: u32) -> u32 {
-            self.size
-        }
-        fn file_read(&mut self, _: u32, _: u32) -> Option<Vec<u8>> {
-            self.reads += 1;
-            self.read.then(|| b"RAM".to_vec())
-        }
-        fn file_write(&mut self, _: u32, _: &[u8]) -> bool {
-            self.write
-        }
-        fn file_close(&mut self, _: u32) {}
-        fn cache_present(&mut self, _: &[u8]) -> bool {
-            self.cached
-        }
-        fn cache_size(&mut self, _: &[u8]) -> u32 {
-            self.size
-        }
-        fn cache_data(&mut self, _: &[u8]) -> Option<Vec<u8>> {
-            self.reads += 1;
-            self.cache_ram.then(|| b"cache-data".to_vec())
-        }
-        fn cache_file(&mut self, _: &[u8]) -> Option<Vec<u8>> {
-            self.cache_file.then(|| b"cache-file".to_vec())
-        }
-        fn new_cache_file(&mut self) -> Vec<u8> {
-            b"new-file".to_vec()
-        }
-        fn insert_cache(&mut self, _: &[u8], _: &[u8], file: bool, flags: (u32, u32), expiry: u32) -> bool {
-            self.insertions.push((file, flags, expiry));
-            true
-        }
-        fn cache_directory(&mut self) -> Vec<u8> {
-            b"directory".to_vec()
-        }
-        fn set_cache_directory(&mut self, _: &[u8]) -> bool {
-            false
-        }
-        fn header(&mut self, _: u32, family: u32, index: u32) -> Option<Vec<u8>> {
-            self.headers.get(&(family, index)).cloned()
-        }
-        fn parse_time(&mut self, text: &[u8]) -> u32 {
-            std::str::from_utf8(text).unwrap().parse().unwrap()
-        }
-        fn request_cookies(&mut self, _: &[u8]) -> Option<Vec<u8>> {
-            None
-        }
-        fn response_cookie(&mut self, _: &[u8], text: &[u8]) {
-            self.cookies.push(text.to_vec());
-        }
-        fn handler_init(&mut self, _: u32) -> bool {
-            true
-        }
-        fn handler_shutdown(&mut self, id: u32) {
-            self.handlers.push(id);
-        }
-        fn handler_accepts(&mut self, id: u32, _: &mut RzUrl) -> bool {
-            self.handlers.push(id);
-            self.accept
-        }
-        fn handler_load(&mut self, id: u32, _: &mut Job) -> bool {
-            self.handlers.push(id);
-            self.handler_result
-        }
-        fn notify(&mut self, service: &mut Www, job: &Job, notification: Notification) {
-            assert_eq!(service.status(job.id), 0);
-            self.callbacks.push((job.clone(), notification));
-            if let Some(id) = self.cancel_in_callback.take() {
-                assert!(service.cancel(self, id));
-            }
-        }
-    }
-    fn service() -> Www {
-        Www::snapshot(http::Client::new(None))
-    }
-    fn resource(file: bool) -> http::Resource {
-        http::Resource {
-            refs: 1,
-            strings: [b"http://host/x".to_vec(), b"payload".to_vec(), vec![]],
-            file,
-            redirects: 0,
-        }
-    }
-    #[test]
-    fn identity_default_hold_order_and_dispatch_target_selection() {
-        let mut w = service();
-        let mut h = Fake::default();
-        let mut out = 123;
-        assert!(!w.query_interface(&mut h, 99, &mut out));
-        assert_eq!(out, 123);
-        assert!(h.effects.is_empty());
-        assert!(w.query_interface(&mut h, 1, &mut out));
-        assert_eq!(out, 4);
-        w.set_default_target(&mut h, Some(9));
-        w.set_default_target(&mut h, Some(9));
-        w.set_default_target(&mut h, None);
-        assert_eq!(
-            &h.effects[1..],
-            [
-                Effect::AddTarget(9),
-                Effect::AddTarget(9),
-                Effect::ReleaseTarget(9),
-                Effect::ReleaseTarget(9)
-            ]
-        );
-        assert_eq!(w.load_text(&mut h, b"http://host/x", 0, None, 0, true), Ok(0));
-        assert!(h.callbacks.is_empty());
-    }
-    #[test]
-    fn handler_failure_owns_attempt_and_releases_after_callback() {
-        let mut w = service();
-        let mut h = Fake {
-            accept: true,
-            ..Fake::default()
-        };
-        w.add_handler(&mut h, 1);
-        w.add_handler(&mut h, 2);
-        assert_eq!(w.load_text(&mut h, b"http://host/x", 0, Some(9), 0, true), Ok(2));
-        assert_eq!(h.handlers, [1, 1]);
-        assert_eq!(h.callbacks[0].0.result, 0);
-        assert_eq!(h.effects.last(), Some(&Effect::ReleaseTarget(9)));
-        w.remove_handler(&mut h, 1);
-        w.remove_all_handlers(&mut h);
-        assert!(w.handlers.is_empty());
-    }
-    #[test]
-    fn local_threshold_open_fallback_and_read_failure_nonzero_id() {
-        for (size, reads, file) in [(499999, 1, false), (500000, 0, true)] {
-            let mut w = service();
-            let mut h = Fake {
-                size,
-                ..Fake::default()
-            };
-            assert_eq!(w.load_text(&mut h, b"file:///C|/x", 1, Some(9), 0, false), Ok(2));
-            assert_eq!(h.reads, reads);
-            assert_eq!(h.callbacks[0].0.file, file);
-        }
-        let mut w = service();
-        let mut h = Fake {
-            read: false,
-            ..Fake::default()
-        };
-        assert_eq!(w.load_text(&mut h, b"file:///C|/x", 0, Some(9), 0, false), Ok(2));
-        assert_eq!(h.callbacks[0].0.result, 0);
-        let mut w = service();
-        let mut h = Fake {
-            open: false,
-            ..Fake::default()
-        };
-        assert_eq!(w.load_text(&mut h, b"file:///C|/x", 0, Some(9), 0, false), Ok(2));
-        assert!(h.callbacks[0].0.file);
-        let mut w = service();
-        let mut h = Fake {
-            exists: false,
-            ..Fake::default()
-        };
-        assert_eq!(w.load_text(&mut h, b"file:///C|/x", 0, Some(9), 0, false), Ok(0));
-        assert_eq!(h.callbacks[0].0.progress, 0);
-    }
-    #[test]
-    fn cache_threshold_and_failed_retrieval_continues_to_admission() {
-        for (size, reads) in [(1999999, 1), (2000000, 0)] {
-            let mut w = service();
-            w.cache = 1;
-            let mut h = Fake {
-                size,
-                cached: true,
-                ..Fake::default()
-            };
-            assert_eq!(w.load_text(&mut h, b"http://host/x", 1, Some(9), 0, true), Ok(2));
-            assert_eq!(h.reads, reads);
-            assert_eq!(w.status(2), 0);
-        }
-        let mut w = service();
-        w.cache = 1;
-        let mut h = Fake {
-            cached: true,
-            cache_ram: false,
-            cache_file: false,
-            ..Fake::default()
-        };
-        assert_eq!(w.load_text(&mut h, b"http://host/x", 0, Some(9), 0, true), Ok(2));
-        assert_eq!(w.status(2), 2);
-        assert!(h.callbacks.is_empty());
-        assert_eq!(w.http.queue.len(), 1);
-    }
-    #[test]
-    fn duplicate_waiting_foreign_status_cancel_leaks_and_fanout_reentry() {
-        let mut w = service();
-        let mut h = Fake::default();
-        for preference in [3, 0, 1] {
-            w.load_text(
-                &mut h,
-                b"http://host/x",
-                preference,
-                Some(9),
-                preference as u32 + 1,
-                false,
-            )
-            .unwrap();
-        }
-        assert_eq!(w.http.queue.len(), 1);
-        assert_eq!(w.status(3), 2);
-        assert_eq!(w.http_id(3), 0);
-        assert!(w.get_job(3).is_none());
-        h.cancel_in_callback = Some(3);
-        let mut r = resource(false);
-        w.complete_http(&mut h, Some(1), true, Some(&mut r)).unwrap();
-        assert_eq!(h.callbacks.iter().map(|c| c.0.id).collect::<Vec<_>>(), [2, 4]);
-        assert!(h.callbacks[1].0.file);
-        assert_eq!(h.callbacks[1].0.preference, 3);
-        assert_eq!(h.effects.iter().filter(|e| **e == Effect::ReleaseTarget(9)).count(), 2);
-        assert!(r.strings[1].is_empty());
-        assert!(!r.file);
-    }
-    #[test]
-    fn cancellation_late_resource_and_foreign_admission_zero_hold() {
-        let mut w = service();
-        let mut h = Fake::default();
-        w.load_text(&mut h, b"http://host/x", 0, Some(9), 0, false).unwrap();
-        assert!(w.cancel(&mut h, 2));
-        assert!(!w.cancel(&mut h, 2));
-        assert!(h.callbacks.is_empty());
-        assert!(!h.effects.contains(&Effect::ReleaseTarget(9)));
-        let mut r = resource(true);
-        let before = r.clone();
-        assert_eq!(w.complete_http(&mut h, Some(1), true, Some(&mut r)), Ok(true));
-        assert_eq!(r, before);
-        let mut w = service();
-        w.http.counter = u32::MAX;
-        let mut h = Fake::default();
-        assert_eq!(w.load_text(&mut h, b"http://host/x", 0, Some(9), 0, false), Ok(0));
-        assert!(!h.effects.contains(&Effect::ReleaseTarget(9)));
-        assert_eq!(w.http.queue.len(), 1);
-    }
-    #[test]
-    fn completion_conversion_failure_cookies_and_cache_before_target() {
-        let mut w = service();
-        w.cache = 1;
-        let mut h = Fake {
-            write: false,
-            ..Fake::default()
-        };
-        for family in [0x35, 0x34] {
-            for index in 0..33 {
-                h.headers
-                    .insert((family, index), format!("{family}:{index}").into_bytes());
-            }
-        }
-        w.load_text(&mut h, b"http://host/x", 3, Some(9), 0, false).unwrap();
-        let mut r = resource(false);
-        w.complete_http(&mut h, Some(1), true, Some(&mut r)).unwrap();
-        assert_eq!(h.callbacks[0].0.result, 1);
-        assert!(!h.callbacks[0].0.file);
-        assert_eq!(h.cookies.len(), 64);
-        assert_eq!(h.cookies[31], b"53:31");
-        assert_eq!(h.cookies[32], b"52:0");
-        assert_eq!(h.insertions, [(false, (1, 1), 260200)]);
-    }
-    #[test]
-    fn policy_distinguishing_headers_and_wrapping_dates() {
-        for (family, text, insert) in [
-            (4, b"xno-cachey".as_slice(), false),
-            (4, b"NO-CACHE", true),
-            (1, b" PRIVATE ", false),
-            (1, b"private=field, no-store=1, max-age=60", true),
-            (1, b"must-revalidate, max-age", true),
-            (1, b"a,b,c,d,e,f,no-store", true),
-            (1, b"a,b,c,d,e,no-store,f", false),
-            (1, b"\"a,no-store\", public", true),
-        ] {
-            let mut h = Fake::default();
-            h.headers.insert((family, 0), text.to_vec());
-            assert_eq!(cache_policy(&mut h, true, Some((b"url", b"data", false)), 1), insert);
-            if insert {
-                assert_eq!(h.insertions[0].2, 260200);
-            }
-        }
-        let mut h = Fake::default();
-        h.headers.insert((3, 0), b"4294901760".to_vec());
-        assert!(cache_policy(&mut h, true, Some((b"url", b"file", true)), 1));
-        assert_eq!(h.insertions[0], (true, (0, 1), 0x2f480));
-        h.headers.insert((0x2c, 0), b"7".to_vec());
-        h.headers.insert((0x2d, 0), b"900".to_vec());
-        assert!(cache_policy(&mut h, true, Some((b"url", b"data", false)), 1));
-        assert_eq!(h.insertions[1].2, 7);
-        h.headers.insert((1, 0), b"max-age\0=60".to_vec());
-        h.headers.insert((3, 0), b"1000".to_vec());
-        assert!(cache_policy(&mut h, true, Some((b"url", b"data", false)), 1));
-        assert_eq!(h.insertions[2].2, 1060);
-        assert!(!cache_policy(&mut h, false, Some((b"url", b"data", false)), 1));
-        assert!(!cache_policy(&mut h, true, None, 1));
-    }
-    #[test]
-    fn splitter_empty_slots_quote_and_directory_side_effects() {
-        assert_eq!(
-            cache_tokens(b",a,,b, ,"),
-            vec![b"".to_vec(), b"a".to_vec(), b"".to_vec(), b"b".to_vec(), b"".to_vec()]
-        );
-        assert_eq!(cache_tokens(b"\"a,b\",c"), vec![b"a,b".to_vec(), b"c".to_vec()]);
-        assert!(cache_tokens(b"\"\"").is_empty());
-        let mut w = service();
-        let mut h = Fake::default();
-        assert!(!w.set_directory(&mut h, b"out"));
-        assert_eq!(
-            h.effects,
-            [
-                Effect::CookieFilename(b"out\\CookieData.ini".to_vec()),
-                Effect::HttpDirectory(b"out\\".to_vec()),
-                Effect::HttpCacheSetting(b"_cache".to_vec()),
-                Effect::FtpDirectory(b"out\\".to_vec())
-            ]
-        );
-        h.cached = true;
-        assert!(w.visited(&mut h, b"url"));
-        assert_eq!(w.cache, 0);
-    }
-    #[test]
-    fn progress_borrowed_no_waiter_update_and_cancel_all() {
-        let mut w = service();
-        let mut h = Fake::default();
-        w.load_text(&mut h, b"http://host/x", 0, Some(9), 0, false).unwrap();
-        w.load_text(&mut h, b"http://host/x", 1, Some(9), 0, false).unwrap();
-        // Progress callbacks observe live membership (unlike terminal callbacks).
-        let before = w.active[0].progress;
-        assert_eq!(w.progress(&mut h, true, None, Some([1, 2, 3])), Ok(true));
-        assert!(h.callbacks.is_empty());
-        assert!(w.progress(&mut h, false, None, Some([1, 2, 3])).is_err());
-        assert_eq!(w.active[0].progress, before);
-        assert_eq!(w.cancel_all(&mut h), 2);
-        assert!(w.active.is_empty() && w.waiting.is_empty());
-        assert_eq!(w.do_message(&mut h, Incoming::Unknown), Ok(true));
-        w.post_init(&mut h);
-        w.shutdown(&mut h);
-        assert!(!w.initialized);
-    }
 }

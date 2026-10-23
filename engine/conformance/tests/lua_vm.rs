@@ -5,14 +5,17 @@
 use fc4_core::lua_script_server::vm::{generator::*, *};
 use fc4_core::lua_script_server::{Handle, GLOBALS, REGISTRY};
 use std::collections::{BTreeMap, VecDeque};
+include!("support/lua_vm_lifecycle.rs");
 
 #[derive(Clone, Debug, PartialEq)]
 enum V {
     Nil,
+    Bool(bool),
     Number(f64),
     String(Vec<u8>),
     Table(usize),
     Function(Callback),
+    Closure(Callback, Vec<V>),
     Chunk(i32, Vec<V>),
     Pointer(Handle),
 }
@@ -20,10 +23,11 @@ impl V {
     fn kind(&self) -> i32 {
         match self {
             Self::Nil => 0,
+            Self::Bool(_) => 1,
             Self::Number(_) => 3,
             Self::String(_) => 4,
             Self::Table(_) => 5,
-            Self::Function(_) | Self::Chunk(_, _) => 6,
+            Self::Function(_) | Self::Closure(_, _) | Self::Chunk(_, _) => 6,
             Self::Pointer(_) => 7,
         }
     }
@@ -31,6 +35,7 @@ impl V {
         match self {
             Self::String(s) => format!("s:{}", String::from_utf8_lossy(s)),
             Self::Number(n) => format!("n:{n}"),
+            Self::Pointer(p) => format!("p:{}", p.0),
             _ => panic!("invalid key {self:?}"),
         }
     }
@@ -55,6 +60,24 @@ struct Api {
     generator_trace: Vec<String>,
     register: bool,
     unregister: bool,
+    active: Handle,
+    stacks: BTreeMap<Handle, Vec<V>>,
+    backpointers: BTreeMap<Handle, Handle>,
+    frames: BTreeMap<Handle, bool>,
+    next_context: u64,
+    factory: bool,
+    destroy_hook: bool,
+    create_hook_writes: bool,
+    deny_destroy: Option<Handle>,
+    destroy_hooks: Vec<Handle>,
+    references: Vec<(bool, Handle)>,
+    resume_values: Vec<V>,
+    resume_frame: bool,
+    params: BTreeMap<Handle, Vec<(u32, Parameter)>>,
+    output_values: Vec<(u32, Option<(u32, Parameter)>)>,
+    command_ids: Vec<u32>,
+    command_status: i32,
+    allocate_parameters: bool,
 }
 type Report = (Handle, Handle, i32, Option<Vec<u8>>);
 impl Default for Api {
@@ -79,6 +102,24 @@ impl Default for Api {
             generator_trace: vec![],
             register: true,
             unregister: true,
+            active: Handle(20),
+            stacks: BTreeMap::new(),
+            backpointers: BTreeMap::from([(Handle(20), Handle(10))]),
+            frames: BTreeMap::new(),
+            next_context: 100,
+            factory: true,
+            destroy_hook: true,
+            create_hook_writes: true,
+            deny_destroy: None,
+            destroy_hooks: vec![],
+            references: vec![],
+            resume_values: vec![],
+            resume_frame: false,
+            params: BTreeMap::new(),
+            output_values: vec![],
+            command_ids: vec![],
+            command_status: 0,
+            allocate_parameters: true,
         };
         a.global(b"_ALERT", V::Function(Callback::Alert));
         a
@@ -155,10 +196,7 @@ impl Api {
     }
 }
 fn thread() -> Thread {
-    let mut t = Thread::new(Handle(10), ThreadKind::Main);
-    t.context = Some(Handle(20));
-    t.id = Some(7);
-    t
+    Thread::from_foreign_view(Handle(10), ThreadKind::Main, Handle(20), 7, Some(Handle(10)))
 }
 impl LuaApi for Api {
     fn precision(&mut self) -> u32 {
@@ -181,20 +219,54 @@ impl LuaApi for Api {
     fn stderr(&mut self, message: Option<&[u8]>) {
         self.stderr.push(message.map(<[u8]>::to_vec));
     }
-    fn invoke(&mut self, _state: Option<Handle>, op: Op) -> Result<Output> {
+    fn invoke(&mut self, state: Option<Handle>, op: Op) -> Result<Output> {
+        if let Some(state) = state {
+            if self.active != state {
+                let stack = std::mem::take(&mut self.stack);
+                self.stacks.insert(self.active, stack);
+                self.stack = self.stacks.remove(&state).unwrap_or_default();
+                self.active = state;
+            }
+        }
         self.trace.push((op.clone(), self.precision));
         if self.fail.as_ref() == Some(&op) {
             return Err(Error::Foreign("injected".into()));
         }
         Ok(match op {
             Op::Open => Output::Handle(self.open.then_some(Handle(20))),
-            Op::ReserveThreadRegistry => Output::Bool(self.reserve),
+            Op::SetExtraOwner(view) => {
+                self.backpointers.insert(self.active, view);
+                Output::None
+            }
+            Op::ClearExtraOwner => {
+                self.backpointers.remove(&self.active);
+                Output::None
+            }
+            Op::GetExtraOwner => Output::Handle(self.backpointers.get(&self.active).copied()),
+            Op::NewThread => {
+                let context = Handle(self.next_context);
+                self.next_context += 1;
+                self.stack.push(V::Pointer(context));
+                Output::Handle(Some(context))
+            }
+            Op::Move(destination, count) => {
+                let values = self.stack.split_off(self.stack.len() - count as usize);
+                self.stacks.entry(destination).or_default().extend(values);
+                Output::None
+            }
+            Op::HasActivationFrame => Output::Bool(self.frames.get(&self.active).copied().unwrap_or(false)),
+            Op::Resume(_) => {
+                self.stack = self.resume_values.clone();
+                self.frames.insert(self.active, self.resume_frame);
+                Output::Int(self.runtime_status)
+            }
+            Op::Yield(n) => Output::Int(n),
             Op::OpenLibrary(Library::Coroutine) => {
                 let table = self.new_table();
                 self.global(b"coroutine", table);
                 Output::None
             }
-            Op::SetExtraOwner(_) | Op::Close | Op::OpenLibrary(_) => Output::None,
+            Op::Close | Op::OpenLibrary(_) => Output::None,
             Op::GetGCCount => Output::Int(25),
             Op::GetGCThreshold => Output::Int(self.gc_threshold),
             Op::SetGCThreshold(value) => {
@@ -215,16 +287,30 @@ impl LuaApi for Api {
                 self.stack.push(V::Nil);
                 Output::None
             }
+            Op::PushBoolean(value) => {
+                self.stack.push(V::Bool(value));
+                Output::None
+            }
+            Op::ToBoolean(index) => Output::Bool(!matches!(self.value(index), V::Nil | V::Bool(false))),
             Op::PushNumber(n) => {
                 self.stack.push(V::Number(n));
+                Output::None
+            }
+            Op::PushLightUserdata(pointer) => {
+                self.stack.push(V::Pointer(pointer));
                 Output::None
             }
             Op::PushString(s) | Op::PushLString(s) => {
                 self.stack.push(V::String(s));
                 Output::None
             }
-            Op::PushCClosure(c, 0) => {
-                self.stack.push(V::Function(c));
+            Op::PushCClosure(c, count) => {
+                if count == 0 {
+                    self.stack.push(V::Function(c));
+                } else {
+                    let values = self.stack.split_off(self.stack.len() - count as usize);
+                    self.stack.push(V::Closure(c, values));
+                }
                 Output::None
             }
             Op::PushValue(i) => {
@@ -382,6 +468,61 @@ impl LuaApi for Api {
     }
 }
 impl GeneratorApi for Api {
+    fn create_parameters(&mut self) -> Option<Handle> {
+        self.generator_trace.push("create ParameterSet".into());
+        if !self.allocate_parameters {
+            return None;
+        }
+        let handle = Handle(500 + self.params.len() as u64);
+        self.params.insert(handle, vec![]);
+        Some(handle)
+    }
+    fn clear_parameters(&mut self, set: Handle, flags: u32) {
+        assert_eq!(flags, 0);
+        self.params.get_mut(&set).unwrap().clear();
+    }
+    fn set_parameter(&mut self, set: Handle, key: u32, value: Parameter) {
+        self.params.get_mut(&set).unwrap().push((key, value));
+    }
+    fn command(&mut self, _: Handle, id: u32, _: Handle, _: Handle) -> i32 {
+        self.command_ids.push(id);
+        self.command_status
+    }
+    fn first_parameter(&mut self, _: Handle) -> u32 {
+        self.output_values.first().map(|v| v.0).unwrap_or(u32::MAX)
+    }
+    fn next_parameter(&mut self, _: Handle, key: u32) -> u32 {
+        let index = self.output_values.iter().position(|v| v.0 == key).unwrap();
+        self.output_values.get(index + 1).map(|v| v.0).unwrap_or(u32::MAX)
+    }
+    fn parameter(&mut self, _: Handle, key: u32) -> Option<Handle> {
+        let index = self.output_values.iter().position(|v| v.0 == key).unwrap();
+        self.output_values[index].1.as_ref().map(|_| Handle(index as u64))
+    }
+    fn variant_type(&mut self, value: Handle) -> u32 {
+        self.output_values[value.0 as usize].1.as_ref().unwrap().0
+    }
+    fn variant_bool(&mut self, value: Handle) -> bool {
+        if let Parameter::Bool(v) = self.output_values[value.0 as usize].1.as_ref().unwrap().1 {
+            v
+        } else {
+            panic!("not bool")
+        }
+    }
+    fn variant_number(&mut self, value: Handle) -> f64 {
+        if let Parameter::Number(v) = self.output_values[value.0 as usize].1.as_ref().unwrap().1 {
+            v
+        } else {
+            panic!("not number")
+        }
+    }
+    fn variant_string(&mut self, value: Handle) -> Vec<u8> {
+        if let Parameter::String(v) = &self.output_values[value.0 as usize].1.as_ref().unwrap().1 {
+            v.clone()
+        } else {
+            panic!("not string")
+        }
+    }
     fn register_generator(&mut self, _: Handle, _: Handle) -> bool {
         self.generator_trace.push("register".into());
         self.register
@@ -394,11 +535,45 @@ impl GeneratorApi for Api {
         self.generator_trace.push("main borrowed".into());
         Ok(thread())
     }
-    fn add_ref(&mut self, e: Endpoint, _: Handle) {
+    fn add_ref_endpoint(&mut self, e: Endpoint, _: Handle) {
         self.generator_trace.push(format!("acquire {e:?}"));
     }
-    fn release(&mut self, e: Endpoint, _: Handle) {
+    fn release_endpoint(&mut self, e: Endpoint, _: Handle) {
         self.generator_trace.push(format!("release {e:?}"));
+    }
+}
+
+impl ThreadApi for Api {
+    fn registry_identity(&mut self, _: Handle) -> Handle {
+        Handle(21)
+    }
+    fn factory_thread(&mut self, class: u32, iid: u32) -> Result<Option<Thread>> {
+        assert_eq!(class, THREAD_CLASS);
+        assert_eq!(iid, THREAD_IID);
+        Ok(self.factory.then(|| {
+            let thread = Thread::new(Handle(self.next_context + 1000), ThreadKind::Standalone);
+            thread.add_ref();
+            thread
+        }))
+    }
+    fn retain(&mut self, object: Handle) {
+        self.references.push((true, object));
+    }
+    fn release(&mut self, object: Handle) {
+        self.references.push((false, object));
+    }
+    fn on_create(&mut self, thread: &mut Thread, owner: &Thread, context: Handle, id: i32) -> Result<bool> {
+        if self.create_hook_writes {
+            thread.on_create(self, owner, context, id)?;
+        }
+        Ok(self.reserve)
+    }
+    fn on_destroy(&mut self, thread: &mut Thread) -> Result<bool> {
+        self.destroy_hooks.push(thread.context().unwrap());
+        if !self.destroy_hook || self.deny_destroy == thread.context() {
+            return Ok(false);
+        }
+        thread.on_destroy(self)
     }
 }
 
@@ -574,15 +749,20 @@ fn base_open_flags_repeat_failures_close_and_default_reporter() {
     assert!(!host.open(&mut a, 0).unwrap());
     assert_eq!(a.trace.len(), before);
     host.close(&mut a).unwrap();
-    assert_eq!(host.main_thread.context, None);
+    assert_eq!(host.main_thread.context(), None);
     a.open = false;
     assert!(!host.open(&mut a, 0).unwrap());
     a.open = true;
     a.reserve = false;
     assert!(!host.open(&mut a, 0).unwrap());
-    assert_eq!(host.main_thread.context, Some(Handle(20))); // literal no rollback; LH4
+    assert_eq!(host.main_thread.context(), Some(Handle(20))); // false hook mutations survive
     host.close(&mut a).unwrap();
     a.reserve = true;
+    // A custom false hook inserted no main record, so Close has no OnDestroy
+    // that would invalidate its mutated context. Start a fresh concrete owner.
+    assert_eq!(host.main_thread.context(), Some(Handle(20)));
+    host.destroy(&mut a).unwrap();
+    let mut host = LuaHost::new(Handle(10));
     a.trace.clear();
     assert!(host.open(&mut a, 1).unwrap());
     assert_eq!(
@@ -622,22 +802,17 @@ fn registry_conversion_and_ignored_arguments_and_invalid_paths() {
 
 #[test]
 fn identities_and_explicit_open_lifecycle_boundaries() {
-    let mut host = LuaHost::new(Handle(1));
-    let mut child = Thread::new(Handle(2), ThreadKind::Standalone);
+    let host = LuaHost::new(Handle(1));
+    let child = Thread::new(Handle(2), ThreadKind::Standalone);
     assert!(child.supports(1));
     assert!(child.supports(THREAD_IID));
     assert!(!child.supports(LUA_IID));
     assert!(!child.supports(0xea10c4a2));
     assert!(host.main_thread.supports(LUA_IID));
-    assert_eq!(
-        host.create_thread(1, THREAD_CLASS).unwrap_err(),
-        Error::Unsupported("LH4")
-    );
-    assert_eq!(host.resume_thread(7, 0, None), Err(Error::Unsupported("LH4")));
-    assert_eq!(
-        child.lifecycle(ThreadLifecycle::OnCreate),
-        Err(Error::Unsupported("LH4"))
-    );
+    assert_eq!(child.get_id(), -1);
+    assert_eq!(child.references(), 0);
+    assert_eq!(child.owner(), None);
+    assert_eq!(child.user_context(), None);
     assert!(CommandGenerator::supports(GENERATOR_IID));
     assert!(CommandGenerator::supports(COMMAND_GENERATOR_IID));
 }
@@ -658,10 +833,7 @@ fn generator_validation_retention_and_shutdown_order() {
     assert_eq!(a.generator_trace, ["register", "main borrowed", "unregister"]);
     a.global(b"x", V::Nil);
     a.generator_trace.clear();
-    assert_eq!(
-        g.init(&mut a, Some(Handle(2)), Some(Handle(1)), b"x"),
-        Err(Error::Unsupported("LH5"))
-    );
+    assert_eq!(g.init(&mut a, Some(Handle(2)), Some(Handle(1)), b"x"), Ok(true));
     assert_eq!(g.retained_thread(), Some(Handle(10)));
     assert_eq!(g.retained_server(), Some(Handle(2)));
     assert_eq!(g.name(), b"x");
@@ -672,7 +844,9 @@ fn generator_validation_retention_and_shutdown_order() {
             "register",
             "main borrowed",
             "acquire MainThread",
-            "acquire CommandServer"
+            "acquire CommandServer",
+            "create ParameterSet",
+            "create ParameterSet"
         ]
     );
     a.generator_trace.clear();
@@ -680,7 +854,13 @@ fn generator_validation_retention_and_shutdown_order() {
     assert!(!g.shutdown(&mut a));
     assert_eq!(
         a.generator_trace,
-        ["unregister", "release CommandServer", "release MainThread"]
+        [
+            "unregister",
+            "release CommandServer",
+            "release MainThread",
+            "release ParameterSet",
+            "release ParameterSet"
+        ]
     );
     assert_eq!(g.retained_server(), None);
     assert_eq!(g.retained_thread(), None);
@@ -754,7 +934,7 @@ fn runtime_dobuffer_error_gc_and_load_without_execution() {
     assert_eq!(a.session().load_string(b"source\0tail").unwrap(), 0);
     assert!(!a.operations().iter().any(|op| matches!(op, Op::PCall(..))));
     let mut host = LuaHost::new(Handle(10));
-    host.main_thread.context = Some(Handle(20));
+    host.main_thread = Thread::from_foreign_view(Handle(10), ThreadKind::Main, Handle(20), 7, Some(Handle(10)));
     assert_eq!(host.get_gc_count(&mut a).unwrap(), 25);
     assert_eq!(host.get_gc_threshold(&mut a).unwrap(), 100);
     host.set_gc_threshold(&mut a, 200).unwrap();

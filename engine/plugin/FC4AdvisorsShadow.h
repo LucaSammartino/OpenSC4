@@ -8,6 +8,6 @@ void AdvisorsShadowStartup();
 void AdvisorsShadowCityLoaded(cISC4City* city, int32_t julian);
 void AdvisorsShadowMonth(int32_t julian);
 void AdvisorsShadowCityShutdown();
-// Existing test-seam dispatcher; returns the strict record mismatch count.
+// Existing test-seam dispatcher; returns mismatches after AD19 Read fixups.
 uint32_t AdvisorsShadowTest(cIGZUnknown* original);
 }

@@ -1,4 +1,25 @@
 # prop-lotconfig: answered questions (archive)
+
+<!-- from: verify-propcfg4 native comparison (2026-10-22) -->
+- **PL23 - A3.2 profile padding and lot-configuration §3.7 foundation IDs, raw comparison evidence:**
+  `vpc4-r2-native-20261022a` (immutable DLL SHA256 prefix `04b93bd7`, native city owners, clean2032/ref0)
+  reports 1544/1544 prop profiles differing only in the three unspecified bytes after wealth, and 1908/1909
+  complete configuration arrays differing (1908 appended foundations; the six printed first differences are
+  the final record). The published contracts explicitly leave these bytes/IDs unwritten and choose zero in
+  FreeCity4. What deterministic raw-equivalence contract, if any, can apply to these fields without copying
+  native bytes or filtering mismatches? [none inferred: retain every raw difference and no whole-owner exact
+  credit; do not change algorithms or defaults to match unspecified native memory; other array differences
+  have not been ruled out by a field-by-field diagnostic]
+
+  **ANSWERED 2026-10-23 (re-proplot-pl23):** MATCHES — no deterministic exemplar-derived raw-equivalence
+  contract exists for the ordinary profile's +0x15..+0x17 bytes or the appended foundation's +0x24 ID. The
+  original preserves prior stack contents and copies them into its output (profile byte write/read
+  `0x004A3E52`/`0x004A3E5A`, seven-dword copy `0x004A3FDE`–`0x004A3FE7`; foundation construction
+  `0x0047A59E`–`0x0047A609`, ID copy `0x0047892B`–`0x00478931`). Keep FreeCity4's explicit zeros, every
+  raw difference, and the restriction on whole-owner exact credit. Defined-field comparisons must report
+  their narrower scope and inspect every field; six final-record first differences do not exclude other
+  array differences. Rules: prop-lotconfig §A3.2, §B3.3 and test 16; lot-configuration §3.7. This closes the
+  behaviour question without claiming that the supplied raw comparisons now pass.
 <!-- Archive for [prop-lotconfig.md](../../prop-lotconfig.md). Lanes do not read this file. Open questions are in ../prop-lotconfig.md. -->
 
 ## From the prop manager, lot configuration manager and tutorial cores (filed by the coordinator from the `cores15` lane's report, 2026-10-16; merged `03e2dcf`)

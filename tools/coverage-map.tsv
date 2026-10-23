@@ -136,9 +136,9 @@ cSC4Demolition	demolition	simulation	demolition.md	core/src/demolition	demolitio
 cSC4DemolitionOccupantFilter	demolition	simulation	demolition.md	core/src/demolition	-	-
 cSC4DispatchManager	dispatch	simulation	dispatch.md	core/src/dispatch	dispatch_shadow	dispatch
 cSC4Advisor*WinProc	windows and panels	ui	-	-	-	-
-cSC4AdvisorSystem	advisors	simulation	advisors.md	core/src/advisors	-	-
-cSC4Advisor*	advisors	simulation	advisors.md	core/src/advisors	-	-
-cSC4Advice*	advisors	simulation	advisors.md	core/src/advisors	-	-
+cSC4AdvisorSystem	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	-
+cSC4Advisor*	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	-
+cSC4Advice*	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	-
 cSC4RewardAdvice	advisors	simulation	advisors.md	core/src/advisors	-	-
 cSC4CitySituationAdvice	advisors	simulation	advisors.md	core/src/advisors	-	-
 cSC4MySimAgentSimulator	mysims	simulation	mysims.md	core/src/mysims	-	-
@@ -300,7 +300,7 @@ cS3DFSHTextureFactory	graphics formats (FSH, S3D)	renderer	graphics-formats.md	f
 cS3DResModel*	graphics formats (FSH, S3D)	renderer	graphics-formats.md	formats/src/s3d	-	-
 cS3DShapeFile	graphics formats (FSH, S3D)	renderer	graphics-formats.md	formats/src/fsh	-	-
 cSCLua*	Lua host	framework	lua-host.md	-	-	-
-cGZLua5*	Lua host	framework	lua-host.md	-	-	-
+cGZLua5*	Lua host	framework	lua-host.md	core/src/lua_script_server	-	-
 cGZLuaScriptServer	Lua host	framework	lua-host.md	core/src/lua_script_server	-	-
 SCLuaHelp	Lua host	framework	lua-host.md	-	-	-
 cLUAExtensionsCollector*	Lua host	framework	lua-host.md	core/src/lua_script_server	-	-
