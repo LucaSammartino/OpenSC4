@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-netocc-answers5 (network owner questions) | Codex / detached `re-netocc-answers5` | blocked: coordinator STOP for reboot | Resume owner traces from the round-2 Handoff; no merge queue written |
+| re-netocc-answers5 (network owner questions) | Codex / detached `re-netocc-answers5` | in progress | Round 3: validate harvest; extend NO33/NO36/UG5 with verified vectors |
 
 ## Report
 
@@ -41,7 +41,8 @@ NO14 and NO29–NO32 were not reached. Work was bounded to finish and land verif
 answers within the measured lane budget rather than declaring these wider questions answered.
 
 ## Handoff
-- STOP received 2026-10-23: coordinator reboot (logon-session leak). No merge-queue entry written; resume only when released.
+- Round 3 resumed 2026-10-23 at detached HEAD 05313cf6; new manifest run4-re-netocc-answers5-r3-manifest.json.
+- Harvest validation repeated: doccheck check and questions check PASS. Clean-room review uses CONTRIBUTING.md: state, formats, constants and prose algorithms only; no listings or decompiler-local structure.
 - Goal: harvest PR10, then answer NO33/NO36/UG5 with prose conformance vectors; those three broad questions remain OPEN, with no round-2 vectors yet added.
 - Done: `3393a1a2` harvests a8b30439; `36a3a300` harvests a33fa02e; amarret authorship retained. `c2b2f5ce` reconciles the harvested tree. The second harvest briefly contained conflict text after failed UTF-8 patch generation; use c2b2f5ce or later, not that intermediate tree.
 - Reconciliation: keep existing NO34/35/37 answers and vectors; retain new PR material; PR question IDs NO32-37 become NO38-43. Re/names_windows.tsv unions addresses with pre-round rows winning duplicates; contributor symbol files added. Coverage additions set spec only, with core/shadow/replace '-'. No engine/plugin/capi or ABI edits.
