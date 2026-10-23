@@ -1683,8 +1683,9 @@ replacement is to survive the game's own direct field access.
 This section concerns text-description commands, separate from the binary
 directory reader and the runtime components in §§3–10. Evidence is static
 Windows 1.1.641 export instructions and descriptor data, inspected 2026-10-23.
-Conformance examples are proposed, unexecuted predictions. An implementation
-must not treat this partial publication as whole-family closure of EF15.
+Conformance examples are proposed, unexecuted predictions. Sections 19.1–19.56
+cover the registered command-owner family (EF15); foreign service and numeric
+qualification boundaries remain explicit.
 
 ### 19.1 Shared input and service contracts
 
@@ -1742,7 +1743,7 @@ registers only `instance` with descriptor `00A9FA08`; generic dispatch can still
 fall back to outer-block and root dictionaries (§19.1). The registered exit hook
 is `00648F10`, a return-only hook.
 No restoration of the prior group-ID word is performed by the enter hook.
-The `instance` execution contract is still open under EF15. Evidence:
+The `instance` execution contract is §19.4. Evidence:
 `00596750–005967F8` and root registration §6.1.
 
 ### 19.3 Command and dependency conformance vectors
@@ -4016,30 +4017,29 @@ first 17 each allocate a separate four-byte object. All 17 descriptors
 share wrapper `007E3BE0` at +04, no-op `00407990` at +08, and the direct
 handler at +0C below. Their +00 destruction entry is `007E3DB0`.
 Class names below are only names identified in the export; unnamed
-handlers remain unnamed. These registration identities do not by
-themselves supply the still-unpublished execution contracts.
+handlers remain unnamed. Execution contracts follow in §§19.53–19.56.
 
 | Order | Literal | Descriptor | Direct handler | Identified owner / execution contract |
 |---:|---|---|---|---|
-| 1 | particleEffect | 00A9FEAC | 005A0120 | cGroupParticlesCommand; pending |
-| 2 | dynamicParticleEffect | 00A9FE9C | 005A0350 | cGroupDynamicParticleCommand; pending |
-| 3 | decalEffect | 00A9FE8C | 005A0480 | cGroupDecalCommand; pending |
-| 4 | shakeEffect | 00A9FE7C | 005A05F0 | cGroupShakeCommand; pending |
-| 5 | flashEffect | 00A9FE6C | 005A08E0 | cGroupFlashCommand; pending |
-| 6 | tintEffect | 00A9FE5C | 005A0A90 | cGroupTintCommand; pending |
-| 7 | soundEffect | 00A9FE4C | 005A2A50 | cGroupSoundCommand; pending |
-| 8 | chainEffect | 00A9FE3C | 0059D830 | unnamed; pending |
-| 9 | brushEffect | 00A9FE2C | 005A2CF0 | cGroupBrushCommand; pending |
-| 10 | scrubberEffect | 00A9FE1C | 005A30B0 | cGroupScrubberCommand; pending |
-| 11 | demolishEffect | 00A9FE1C | 005A30B0 | cGroupScrubberCommand; pending |
-| 12 | gameEffect | 00A9FE1C | 005A30B0 | cGroupScrubberCommand; pending |
-| 13 | mapEffect | 00A9FE1C | 005A30B0 | cGroupScrubberCommand; pending |
-| 14 | automataEffect | 00A9FE0C | 005A3710 | cGroupAttractorCommand; pending |
+| 1 | particleEffect | 00A9FEAC | 005A0120 | cGroupParticlesCommand; §19.53 |
+| 2 | dynamicParticleEffect | 00A9FE9C | 005A0350 | cGroupDynamicParticleCommand; §19.53 |
+| 3 | decalEffect | 00A9FE8C | 005A0480 | cGroupDecalCommand; §19.53 |
+| 4 | shakeEffect | 00A9FE7C | 005A05F0 | cGroupShakeCommand; §19.54 |
+| 5 | flashEffect | 00A9FE6C | 005A08E0 | cGroupFlashCommand; §19.54 |
+| 6 | tintEffect | 00A9FE5C | 005A0A90 | cGroupTintCommand; §19.54 |
+| 7 | soundEffect | 00A9FE4C | 005A2A50 | cGroupSoundCommand; §19.55 |
+| 8 | chainEffect | 00A9FE3C | 0059D830 | unnamed; §19.54 |
+| 9 | brushEffect | 00A9FE2C | 005A2CF0 | cGroupBrushCommand; §19.55 |
+| 10 | scrubberEffect | 00A9FE1C | 005A30B0 | cGroupScrubberCommand; §19.55 |
+| 11 | demolishEffect | 00A9FE1C | 005A30B0 | cGroupScrubberCommand; §19.55 |
+| 12 | gameEffect | 00A9FE1C | 005A30B0 | cGroupScrubberCommand; §19.55 |
+| 13 | mapEffect | 00A9FE1C | 005A30B0 | cGroupScrubberCommand; §19.55 |
+| 14 | automataEffect | 00A9FE0C | 005A3710 | cGroupAttractorCommand; §19.55 |
 | 15 | sequenceEffect | 00A9FDFC | 005A3890 | cGroupSequenceCommand; effects-parser §6.2, §§9–12 |
-| 16 | cameraEffect | 00A9FDEC | 005A3930 | cGroupCameraCommand; pending |
-| 17 | visualEffect | 00A9FDDC | 005A0BD0 | cGroupGroupCommand; pending |
-| 18 | select | 00A9FDC0 | enter 00596E70, exit 00596FE0 | unnamed block; pending |
-| 19 | particleSequence | 00A9FED4 | enter 00596F50, exit 00596F40 | unnamed block; pending |
+| 16 | cameraEffect | 00A9FDEC | 005A3930 | cGroupCameraCommand; §19.55 |
+| 17 | visualEffect | 00A9FDDC | 005A0BD0 | cGroupGroupCommand; §19.53 |
+| 18 | select | 00A9FDC0 | enter 00596E70, exit 00596FE0 | unnamed block; §19.56 |
+| 19 | particleSequence | 00A9FED4 | enter 00596F50, exit 00596F40 | unnamed block; §19.56 |
 
 There are 16 distinct descriptor addresses. ScrubberEffect, demolishEffect,
 gameEffect and mapEffect have separate allocated objects but identical
@@ -4074,3 +4074,296 @@ table is checked against the actual registration instructions.
 | EC274 | compare particleEffect, decalEffect and cameraEffect | descriptors FEAC, FE8C, FDEC respectively (suffixes of table addresses); no off-by-one association |
 | EC275 | register effectGroup children successfully | one four-byte instance descriptor, same 00A9FA08 and handler as the root instance registration |
 | EC276 | register select and particleSequence | distinct block descriptors, generic wrappers shared; enter/exit hooks differ as table; registration does not itself execute enter |
+
+### 19.53 Nested named component references *[compat]*
+
+All nested direct handlers in §§19.53–19.55 first require a nonempty current
+effect name (`P+434`, the string belonging to the effect under construction).
+Otherwise they throw `Not in effects block`, before positional or option
+selection. This is a name-state test, not a test of generic block-stack depth.
+The generic dispatcher may reach them through outer dictionaries (§19.1).
+Positional selection excludes switches according to effects-parser §9.
+Unless explicitly stated, extra positional arguments are ignored by the owner;
+unhandled switches are still subject to the generic post-handler check.
+
+These four commands require at least one positional name and use its original
+bytes without local case folding. With a nonnull collection at `P+90`, validate
+through the table's lookup slot, passing `(name,0)`; a false return throws the
+listed error before record creation. With a null collection, validation is
+skipped and a local record is still appended. The descriptions themselves are
+not fetched/copied here.
+
+| Literal / handler | Collection slot | Failure text | Record type at D+0C |
+|---|---|---|---:|
+| particleEffect / 005A0120 | +20 | Unknown particle definition: %s | 0 |
+| dynamicParticleEffect / 005A0350 | none, even with a collection | none | 16 |
+| decalEffect / 005A0480 | +30 | Unknown decal definition: %s | 1 |
+| visualEffect / 005A0BD0 | +18 | Unknown visual effect: %s | 2 |
+
+Each constructs a fresh 108-byte description record, copies the name, sets
+the type and copies low 16 bits of `P+4A0` to select-group word `D+64`, then
+applies all common options (effects-parser §§3,13,14) before appending one copy
+to the local component list `P+44C/450/454`. Only particleEffect and
+dynamicParticleEffect set/clear bit 2 of flags `D+10` from byte `P+4AC`;
+decalEffect and visualEffect retain their fresh flags. There is no renderer
+creation or collection insertion. Normal completion destroys the temporary
+name after copying it into the list. Failure in validation/options prevents
+append; earlier token marks and parser changes survive, as in §19.1.
+
+Fresh-record defaults, verified at `005997B0–005998B7`: empty name, type 0,
+flags/count/transform marks 0, identity 3×3 rotation, translation (0,0,0),
+scale 1, emitScale (1,1), sizeScale (1,1), LOD bytes (0,0), select group
+and weight 0, shells words `D+4E=1`, `D+50=16`, anonymous index `D+68=FFFFFFFF`.
+Common options supply default LOD (1,6) even when no option occurs.
+
+ParticleEffect additionally processes `shells` **after** common options,
+minimum one value. The first ParseUint supplies low 16 bits to `D+4E`.
+If a second value exists, let x be its raw ParseFloat return. Compute
+0.5+x, then add 12582912, each at active x87 precision/rounding, then
+store binary32 t. Interpret t's raw bits as a 32-bit word and subtract
+`4B400000` modulo 2^32 to obtain j. Compare the original x with the
+signed integer j−1 loaded through the x87 integer-load operation. Ordered
+equality selects j−1; otherwise select j. Store its low 16 bits at `D+50`.
+This is the literal biased-rounding algorithm, not a saturating uint cast.
+No range check or conversion of a third value occurs. The default second
+word remains 16 when only one value is supplied.
+
+Evidence: handlers `005A0120–005A0345`, `005A0350–005A0478`,
+`005A0480–005A05E9`, `005A0BD0–005A0D39`; particle flag/options
+`005A0210–005A0241`, shells conversion and binary32/integer comparison
+`005A0274–005A02E1`. The x87 comparison retains x across the temporary store.
+
+| ID | Fixture | Required result (unexecuted) |
+|---|---|---|
+| EC277 | each of the four names, live effect, collection accepts, no options, select ID 65538, particleSequence byte 1 | append one record with table type, name unchanged, group 2, LOD (1,6); flags 2 only for particle/dynamic |
+| EC278 | dynamicParticleEffect with absent definition in a nonnull collection | no validation lookup; append type 16 |
+| EC279 | particle/decal/visual collection rejects name | table error; no common options or append |
+| EC280 | no current effect; any nested command | context error precedes even positional selection |
+| EC281 | particle shells returns uint 65538 and exact float 3; nearest-even PC53 | D+4E=2, D+50=3; raw t=4B400004, j=4, equality with j−1 selects 3 |
+| EC282 | particle shells only first value | D+50 remains 16; no second ParseFloat |
+
+### 19.54 Nested light/shake references and chain name *[compat]*
+
+ShakeEffect, flashEffect and tintEffect each require one positional name.
+With a collection they validate `(name,0)` through +38 (shake) or +40
+(flash/tint); rejection throws `unknown shake definition: %s` or
+`unknown light definition: %s`. Null collection skips validation.
+Each appends a separate 24-byte entry to `P+458/45C/460`, **not** a common
+108-byte component record: initial flags 0, empty string at +4, +10 word 0,
++14 word FFFFFFFF. It then sets flags and copies the name without folding.
+Thus subsequent option failure leaves the already appended entry.
+
+| Command | Flags ORed into the appended entry | Additional lookups in order |
+|---|---:|---|
+| shakeEffect | 1 | noEpicentre (minimum 0), else noEpicenter (minimum 0); if neither present, OR 2 |
+| flashEffect | 4 | epicentre (minimum 0), else epicenter (minimum 0); if present, OR 2 and set +10 binary32 to first returned float, or 1000 (`447A0000`) when its index list is empty |
+| tintEffect | 8 | none |
+
+The second spelling is not queried when the first is present. These commands
+do not apply common transform/probability options, copy the current select
+group, or use particleSequence. Each call creates another entry; the three
+commands do not merge records by name. Shake with no option has flags 3;
+flash with no option has flags 4 and +10 remains zero; tint has flags 8.
+
+ChainEffect (`0059D830`) requires one positional value, copies it verbatim
+into the parser's chain-name string at `P+470`, replacing its prior contents,
+and stops. It neither validates through the collection nor creates a component
+or an auxiliary entry. Common options are not applied.
+
+Evidence: `005A05F0–005A075F`, `005A08E0–005A0A88`,
+`005A0A90–005A0BC8`, append helper `005A0760`, 24-byte entry copy
+`00588D90`, and chain `0059D830–0059D8E5`. Flash's binary32 store/default
+are `005A0A61` and `005A0A72`; shake's short-circuit lookups are
+`005A071B–005A0753`.
+
+| ID | Fixture | Required result (unexecuted) |
+|---|---|---|
+| EC283 | shake A, flash B, tint C; no options, live collection accepts | three entries, flags 3,4,8; original names; no 108-byte records |
+| EC284 | shake with both noEpicentre and noEpicenter | flags 1; second spelling unqueried/unmarked by this handler |
+| EC285 | flash -epicenter with no values | flags 6, +10 bits 447A0000 |
+| EC286 | flash epicentre present but conversion throws | appended named entry with flags 6 survives, +10 remains 0 |
+| EC287 | chainEffect MixedCase then chainEffect Other | chain string Other; zero collection calls and appends |
+
+### 19.55 Anonymous nested components *[compat]*
+
+These commands first apply the same current-effect guard as §19.53. They
+ask the positional reader for minimum zero values. SoundEffect uniquely
+rejects any returned positional value with `sound description unimplemented`;
+the other anonymous handlers ignore selected positional values. They allocate
+and retain a fresh typed description, process the options below in the listed
+order, call the shared anonymous insertion helper, and release their local
+reference on normal return. They do not inherit a named definition. Allocation
+failure is not translated into a recoverable parse status; no success path
+with a missing typed object is promised.
+
+`AddAnonDescription` (`005A2960–005A2A42`) does nothing when collection
+`P+90` is null, including skipping common options and local append. With a
+collection, it creates the fresh §19.53 record with an empty name, calls
+collection +44 `(0,typedDescription)` and saves the returned index at `D+68`,
+queries the typed description's +00 type into `D+0C`, copies low 16 bits of
+current select ID to `D+64`, sets/clears flags bit 1 according to the helper's
+boolean argument, applies common options, then appends one local record.
+It does not examine the collection insertion result for failure. Collection
+insertion precedes options: an option exception can leave an anonymous
+collection entry with no local record. Other flags retain fresh defaults;
+particleSequence has no special effect here. Collection ownership and type
+identity are effects-parser §11.1; this helper does not delegate option
+processing or record construction to that service.
+
+**SoundEffect** (`005A2A50`): fresh payload has +0C=0, sound ID +10=0,
+location update interval +14=0.5, length +18=0 (floats stored binary32).
+Require `name` (minimum 1), copy and lowercase its first value using the same
+CRT service as §19.4, and resolve the sound map `P+C4` exactly; no suffix
+fallback. Missing option throws `Need at least -name for anonymous soundEffect`;
+missing map entry throws `Unknown sound %s`. Set sound ID from the map.
+Then `locationUpdateRate` (1): ParseFloat x; if ordered x>0, store 1/x at
++14 using the active x87 arithmetic and binary32 store, otherwise store +0.
+Then `length` (1) stores its ParseFloat at +18. Helper boolean is true
+exactly when the **stored length** compares ordered equal to zero (either
+sign); a NaN is false. It is not the location rate and is not always true.
+Evidence: constructor `005BE300–005BE336`, reciprocal `005A2C02–005A2C2B`,
+length/store/comparison `005A2C57–005A2C7A`.
+
+**BrushEffect** (`005A2CF0`): fresh fields are brush ID +0C=7, rate +10=1,
+length +14=0, apply byte +18=0, zoom word +1C=FFFFFFFF, strength pair
++20/+24=(1,1), width pair +28/+2C=(1,1), level +30=100. Require `name`
+(1), lowercase it, resolve brush map `P+D0` first by that key, then by
+that key with `brush` appended. If neither exists throw `No such brush: '%s'`;
+if name is absent throw `need at least -name for an anonymous brush effect`.
+Set +0C from the map. Options in order: `rate` (1) stores binary32 +10;
+`apply` (1) overwrites the same rate and sets apply byte 1; `length` (1)
+stores +14; `zoom` (1) ParseInt must be 1..5 inclusive and stores value−1
+at +1C; `strength` (1), then `width` (1) use §19.1's ParseFloatRange
+pair service (single value repeated, two values preserved, no endpoint sort);
+`level` (1) stores +30. Helper boolean is false. Float stores do not clamp.
+Evidence: `005812F0–00581345`, `005A2CF0–005A30A4`.
+
+**ScrubberEffect and all three aliases** (`005A30B0`): no alias changes
+defaults or semantics. Fresh +0C flags and +10/+14/+1C/+20/+24/+28/+2C/
++30/+34/+38 words are zero; +18=1, +3C float=16, +40/+44 copy the
+same shared word `00B22E48`, +48/+4C=0. The shared word is a constructor
+input, not inferred zero from an executable-file image. Process this table
+in order; absent options retain the corresponding fresh values.
+
+| Option (minimum values) | Typed payload mutation |
+|---|---|
+| demolish (1), burn (1), toxic (1) | ParseFloat then CRT _ftol2, low 32-bit result at +14,+24,+28 respectively; these are integer conversions, not float stores |
+| extinguishFire (1) | ParseUint at +2C |
+| pauseSim (0), pauseSimHidden (0), pauseClock (0) | OR +0C flags 10,20,40 hex respectively; if an optional first value exists, store its ParseFloat binary32 at +4C (later option wins) |
+| message (1) | first ParseUint to +30; optional second ParseUint to +34 |
+| blob (3) | ParseInt first in 1..8 to +38; float second to +3C, third to +40 **and** +44, optional fourth to +48 |
+| rect (4) | ParseInt first in 1..8 to +38; float second to +3C, third to +40, fourth to +44, optional fifth to +48; overrides blob fields when both present |
+| noNetworks (0), noFlora (0), dezone (0), single (0) | OR +0C with 1,2,4,8 respectively |
+| explode (0), createRubble (0), createBurntRubble (0) | initialize upper portion to 0 and low portion to 1; explode sets upper 1300 hex and low 2; createRubble sets upper 1300 hex; createBurntRubble ORs upper with 0300 hex |
+| demolishEffectID (0) | when present convert first selected value with ParseUint and mask FF, replacing low portion; combine upper and low portions by OR at +18 |
+| minDemolishSize (1), maxDemolishSize (1) | float stores +1C,+20 |
+
+At least one of demolish/burn/toxic/extinguishFire/pauseSim/pauseSimHidden/
+pauseClock/message/blob/rect must be present; otherwise throw
+`Need some options for anonymous scrubber effect` **before** querying
+noNetworks and subsequent options. Modifiers such as single or minDemolishSize
+alone do not satisfy this. The positional minimum on demolishEffectID really
+is zero although the present branch dereferences the first returned index;
+empty results have no defined successful conversion, not a default ID.
+Helper boolean is true. Integer range failures use the §19.1 range error,
+before subsequent conversions and helper insertion. `_ftol2` is a separate
+CRT numeric service (call `009EEF04`), supplied independently in owner tests;
+in its finite signed-integer domain it truncates toward zero. No owner
+clamp validates the other fields. Evidence: constructor `005BC9D0–005BCA3F`;
+handler `005A30B0–005A3707`, especially conversion calls/stores
+`005A316F–005A31F4` and admission check before `005A34EA`.
+
+**AutomataEffect** (`005A3710`, cGroupAttractorCommand): fresh payload
+has empty string +0C and group byte +18=0. Query `name` (1) first; if present
+copy its first token's original bytes. Otherwise query `group` (1) and copy
+that token and set group byte 1; absence of both throws
+`Need at least -name or -group for anonymous attractor effect`. When both
+occur, group is unqueried and can remain an unknown switch for the generic
+check. No map lookup or case folding. Helper boolean true. Evidence:
+`00580F10–00580F5C`, `005A3710–005A3889`.
+
+**CameraEffect** (`005A3930`): fresh flags +0C=0, bytes +10/+11=0,
+attach radius float +14=0. Options: `target` (0) OR flags 4; `attachRadius`
+(1) float store +14; `zoom` (1) ParseInt 1..5, store value−1 in byte +10
+and OR flags 1; `rotation` (1) ParseInt 0..3, store value in **the same
+byte +10**, then OR flags 2. Byte +11 remains zero: do not repair the
+overwriting store. Range checks precede each store/flag. Helper boolean true.
+Evidence: `00581C10–00581C42`, `005A3930–005A3B2A`; overlapping byte
+stores `005A3A71/005A3AB2`.
+
+| ID | Fixture | Required result (unexecuted) |
+|---|---|---|
+| EC288 | sound named positional argument, live effect | sound description unimplemented; no allocation/insertion |
+| EC289 | sound map beep=9; name BEEP, rate 4, length −0, exact arithmetic | typed ID 9, interval bits 3E800000, length 80000000; record flags bit 1 set |
+| EC290 | brush map only oakbrush=12; name OAK, rate 2, apply 3, zoom 5 | ID 12, rate 3, apply 1, zoom word 4; record flags bit 1 clear |
+| EC291 | scrubber aliases, only -single | all throw admission error before single is queried; no insertion |
+| EC292 | scrubber -demolish 2.75; CRT returns 2, explode, ID 511 | integer +14=2, +18=000013FF; helper boolean true |
+| EC293 | scrubber pauseSim=2 and pauseClock=3; blob (2,4,5,6), rect (3,7,8,9,10) | flags 50 hex; +4C=3; shape fields +38=3,+3C=7,+40=8,+44=9,+48=10 |
+| EC294 | automata name MiXeD and group Other | payload string MiXeD, group byte 0; group unqueried |
+| EC295 | camera target, zoom 5, rotation 2 | flags 7, byte +10=2, +11=0; no separate stored zoom 4 |
+| EC296 | anonymous helper, null collection, valid typed payload | no type query, common options or local append; local reference released normally |
+| EC297 | live collection accepts anonymous payload; common LOD option throws in select | collection insertion retained; no local 108-byte append or normal local-release continuation |
+
+### 19.56 Select and particleSequence block state *[compat]*
+
+Select entry (`00596E70`) requires the current effect name, then increments
+32-bit counter `P+4A4` modulo 2^32, copies that new word to active select ID
+`P+4A0`, and saves the **current component count** at `P+4A8`. It then
+calls its inherited +0C block-parser hook; no positional arity or local
+option processing is imposed before that call. Entry mutations survive a
+throw from that hook. Generic block push occurs only after entry returns.
+
+Select exit (`00596FE0`) first clears active select ID to zero. Consider all
+108-byte component records from saved index `P+4A8` to current end. Let Z
+be the number with zero 16-bit weight at +66 and A the **count** of those
+with positive weight. A is not the sum of weights. If Z>0 compute unsigned
+32-bit q=(65536−A)/Z with integer truncation, assign low 16 bits of q to
+every formerly zero weight, and add q modulo 2^32 to A for each such record.
+Existing positive weights are untouched in this pass. Finally, if the entire
+component vector is nonempty, add low 16 bits of (65535−A) to its **last
+record's** weight, modulo 65536. This final adjustment occurs even if the
+saved range is empty, and even if Z=0. There is no probability clamp,
+normalization by sum, rejection of empty select, or remainder redistribution
+to any earlier record. Auxiliary shake/light entries do not participate.
+
+Nested select blocks have no owner nesting guard or saved stack of IDs/start
+indices: inner entry overwrites `P+4A0/4A8`; inner exit clears ID to zero,
+and outer exit uses the overwritten start. Do not restore outer select state.
+Counter wrap to zero likewise has literal consequences for prob/LOD options.
+Evidence: entry writes `00596EC2–00596EF7`; exit count/unsigned division
+`00597033–00597060`, replacement `00597075–00597088`, final whole-list
+tail adjustment `005970B4–005970CD`.
+
+ParticleSequence entry (`00596F50`) requires the current effect name, sets
+byte `P+4AC=1`, then calls the inherited +0C hook. Exit `00596F40` simply
+sets that byte to zero. No nesting guard, prior-value restoration, select-ID
+change or automatic list insertion occurs. Thus inner exit also disables
+an outer particleSequence. Its effect on newly appended particle/dynamic
+records is §19.53; it does not retroactively rewrite older records.
+
+These hooks register no private child dictionary: they use the generic
+lookup/fallback and push/pop timing in effects-parser §12. Their constructor
+identities remain unnamed (§19.52); do not invent a source class name from
+the literal or folded export name.
+
+| ID | Fixture | Required result (unexecuted) |
+|---|---|---|
+| EC298 | enter select with counter FFFFFFFF and component count 3 | counter and active ID 0; saved start 3; prob subsequently fails as outside select |
+| EC299 | select range weights [0,0] | q=32768, A after filling=65536; final [32768,32767] |
+| EC300 | select range weights [100,200] | Z=0,A=2; final [100,197], not normalized by the sum |
+| EC301 | select range [0] | q=65536 stores 0; A=65536; final tail weight 65535 |
+| EC302 | empty select after an older component of weight 9 | old last weight becomes 8; empty whole vector stays empty |
+| EC303 | outer select then inner select; inner closes then outer closes | inner ID/start overwrite outer; both exits clear ID; both use inner saved start, each makes its own tail adjustment |
+| EC304 | nested particleSequence, inner exits, then particleEffect | particleSequence byte 0; new particle record flags bit 2 clear |
+
+EF15 closure inventory: root owners/descriptors map to §§19.2–19.16 and
+effects-parser §6.1; particle child descriptors to §§19.17–19.28,
+19.39–19.51; sequence to §§19.29–19.30; shake/light to §§19.31–19.34;
+decal to §§19.35–19.38; visual-effect/effectGroup nested descriptors to
+§§19.52–19.56. The descriptor tables in those sections define the inventory,
+including unnamed registered owners, aliases, constructors and block hooks;
+only positively identified export class names are assigned. This closes the
+registered `(anonymous_namespace)::c*Command` execution publication requested
+by EF15. Generic reader/registrar/error transport, numeric conversions,
+collection, renderer, audio and resource primitives remain the individually
+specified service boundaries, not an unimplemented command-family catch-all.

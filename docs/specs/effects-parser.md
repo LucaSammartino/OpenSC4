@@ -65,7 +65,8 @@ textual order for distinct keys. `lodRange` has priority over `lod`; both length
 keys are queried, so `respectLength` wins when both lookups report present.
 The no-rotation subdomain is described in §3. Section 13 extends this with the
 five rotation branches, including their intermediate binary32 stores. It does
-not determine the process-wide x87 control word or every nonfinite input (EFP7).
+uses the caller's x87 control word; §14 qualifies scale/probability beyond
+exact finite inputs without assuming one process-wide setting (EFP7).
 
 ## 3. Supported non-rotation option state transitions
 
@@ -757,7 +758,7 @@ establish the asymmetries above.
 This is an instruction/store contract parameterized by x87 control state,
 not a certification of the process's PC/RC setting, transcendental accuracy
 on every CPU, or nonfinite/overflow handling. Those qualifications remain
-EFP7; an implementation may expose Unsupported outside its qualified numeric
+§14; an implementation may expose Unsupported outside its qualified numeric
 domain, retaining the already-established mutation prefix. EFP2's operation
 order no longer requires excluding every rotation option.
 
@@ -781,3 +782,121 @@ RO5/RO6 are arithmetic-stage assertions, not arbitrary injected trigonometric
 results represented as a successful script parse. Supply the actual angle and
 x87 results when adding a native numeric oracle. A host golden generated solely
 from flags, probability, or final transforms cannot establish these store rules.
+
+## 14. Scale/probability numeric qualification *[compat]*
+
+EFP7 is answered by a **control-state-parameterized** contract, not a claim
+that every parser call runs under one measured control word. Neither branch
+sets PC, RC or exception masks. Use the control word in force when the foreign
+ParseFloat returns. Valid PC encodings 00,10,11 select significand precision
+24,53,64 bits for arithmetic; PC=01 is reserved and has no qualified result.
+RC=00 means nearest with ties to even, 01 toward −infinity, 10 toward
++infinity, 11 toward zero. Precision control does not round an existing ST0
+merely because it is returned, compared or stored; a binary32 store uses RC
+and the destination's precision/range, independently of PC. All four RC
+modes and the three valid PCs therefore have a specified owner operation
+sequence, rather than an implicit nearest-even binary64 substitution.
+
+The CRT contains a default-precision helper setting its abstract precision
+mask to 53 bits (`009F6C30–009F6C41`, `__controlfp(10000,30000)` hex).
+That helper's existence is not evidence of the live control word at a given
+parser invocation. Host/native parity claims must record the actual control
+state or explicitly stipulate it at the primitive boundary. No default PC/RC
+or floating exception recovery policy is inferred from this helper.
+
+The input to these numeric fixtures is **the raw returned ST0**, not a decimal
+token and not a value reconstructed from flags, weight, or final binary32.
+ParseFloat `0067BBA0–0067BBF3` returns the expression evaluator's ST0 without
+a binary32 store on its success path. It checks complete consumption; its
+error path discards ST0 and throws. Which spellings the expression evaluator
+accepts is a separate conversion-service question; fixtures below do not
+assert that strings such as `nan` or these hexadecimal encodings are tokens.
+
+For scale, preserve raw x for comparison with 1 while storing x at D+48.
+There is no preliminary arithmetic, integer conversion, finite check, clamp,
+or reread of the store. Thus every canonical finite extended input is in the
+instruction contract, including values that overflow binary32 or become
+subnormal/zero there. The pre-store comparison remains unequal even if the
+store rounds to 1. Both signs of zero compare unequal to 1. Canonical
+infinities compare unequal; quiet NaNs compare unordered, which sets the
+same flag as inequality. Normal completion increments the count once.
+
+For probability define m as the result of multiplying raw x by exactly
+65535, rounded at PC/RC in x87 extended exponent range; a is the result of
+adding exactly 12582912 to m, again rounded at PC/RC. Store a to binary32 t
+under RC and take t's **raw low 16 bits**. No intermediate binary32 store
+of x or m occurs; a host implementation must retain these boundaries and
+must not fuse the two operations. Finite values outside [0,1], infinities
+and NaNs are not rejected by the owner. For example x=−1 gives weight 1
+under nearest-even, not zero; x=2 gives FFFE, not saturation at FFFF.
+The domain is canonical extended operands, not arbitrary unsupported x87
+encodings (unnormals, pseudo-infinities/NaNs or reserved precision state).
+
+The following completed-result predictions stipulate **all x87 exceptions
+masked**, no pending unmasked exception, and canonical inputs. Arithmetic
+and stores follow gradual underflow, overflow rounding and NaN propagation
+of x87; there is no SSE flush-to-zero step. A signaling NaN is quieted on
+conversion/arithmetic and raises invalid status when masked. Its original
+ST0 is not rewritten by scale's non-popping store. Unsupported encodings
+are not certified as successful ParseFloat returns. With unmasked exceptions
+one cannot assert the subsequent integer copy/flag/count writes complete:
+floating traps follow x87 delivery timing, not a new owner parse error or
+rollback. Earlier independent stores/token marks remain the failure prefix.
+
+### 14.1 Independent numeric vectors (unexecuted)
+
+Extended inputs/results below use `sign/exponent:64-bit-significand` in
+hex (the significand includes the explicit integer bit), not host memory
+byte order. Binary32 words are hex. These are predictions derived from the
+verified instructions and exact binary operands, **not game-run captures**.
+Every fixture must check the raw conversion return independently before
+checking the listed intermediate/store words. Stipulating a primitive reply
+is not evidence that the real token converter produces it for a spelling.
+
+For scale vectors, PC may be 24,53 or 64; it does not affect the store of an
+already supplied ST0. RC columns are nearest, down, up, zero respectively.
+
+| ID | Raw ParseFloat ST0 / value | Binary32 D+48 under RC N,D,U,Z | Pre-store comparison |
+|---|---|---|---|
+| NQ1 | 3FFF:8000004000000000 / 1+2^-25 | 3F800000,3F800000,3F800001,3F800000 | unequal for every RC, even when stored 1 |
+| NQ2 | 0000:0000000000000000 / +0 | 00000000 in all modes | unequal |
+| NQ3 | 8000:0000000000000000 / −0 | 80000000 in all modes | unequal; do not canonicalize to +0 |
+| NQ4 | 407F:8000000000000000 / 2^128 | 7F800000,7F7FFFFF,7F800000,7F7FFFFF | unequal; overflow does not clamp identically across RC |
+| NQ5 | 3F69:8000000000000000 / 2^-150 | 00000000,00000000,00000001,00000000 | unequal; ties-to-even gives zero |
+| NQ6 | BF69:8000000000000000 / −2^-150 | 80000000,80000001,80000000,80000000 | unequal |
+| NQ7 | 7FFF:8000000000000000 / +infinity | 7F800000 in all modes | unequal |
+| NQ8 | 7FFF:C000000000000000 / quiet NaN | 7FC00000 in all modes | unordered |
+
+For probability fixtures NQ9–NQ14, set PC=53 or 64 and RC=nearest-even;
+all exceptions remain masked. The m/a columns expose the actual primitive
+arithmetic domain independently of the extracted weight.
+
+| ID | Raw ParseFloat ST0 / value | m | a before binary32 store | t bits / low word |
+|---|---|---|---|---|
+| NQ9 | 3FFE:8000000000000000 / 0.5 | 32767.5 exactly | 12615679.5 exactly | 4B408000 / 8000 |
+| NQ10 | BFFF:8000000000000000 / −1 | −65535 exactly | 12517377 exactly | 4B3F0001 / 0001 |
+| NQ11 | 4000:8000000000000000 / 2 | 131070 exactly | 12713982 exactly | 4B41FFFE / FFFE |
+| NQ12 | 8000:0000000000000000 / −0 | −0 | 12582912 exactly | 4B400000 / 0000 |
+| NQ13 | 7FFF:8000000000000000 / +infinity | +infinity | +infinity | 7F800000 / 0000 |
+| NQ14 | 7FFF:C000000000000000 / quiet NaN | same canonical quiet NaN | same canonical quiet NaN | 7FC00000 / 0000 |
+
+NQ15: repeat NQ9 for PC24/53/64 and all four RCs. The multiply is exact
+in each PC. PC24 rounds a immediately to 12615680 for N/U and 12615679
+for D/Z; PC53/64 retain exact a=12615679.5 until the binary32 store.
+Final t is `4B408000` for N/U, `4B407FFF` for D/Z. The equal final bits
+do not excuse omitting the different pre-store intermediate value.
+
+NQ16: probability x=`407F:8000000000000000` (2^128), PC53/64, nearest:
+m=`408E:FFFF000000000000` (65535×2^128); addition rounds back to that
+same m at either PC. Binary32 store overflows to `7F800000`, low word 0.
+NQ17: substitute negative infinity for NQ13 (raw exponent/sign FFFF and
+significand 8000000000000000): m and a remain negative infinity, t=`FF800000`,
+low word 0. These are numeric bit checks, not probability range checks.
+
+Evidence: scale store before comparison `005994AE–005994D6`, especially
+non-popping binary32 store `005994B3` and unordered/equality decision
+`005994C1–005994D1`; probability multiply/add/store/raw-word copy
+`005996E1–005996FE`; constants at `00AA0174=477FFF00` and
+`00A9F378=4B400000`. Qualified implementations may expose Unsupported for
+unimplemented control states/operand domains, but must report that as an
+implementation boundary; the original has no such owner-side rejection.

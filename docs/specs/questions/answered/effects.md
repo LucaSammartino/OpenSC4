@@ -1,5 +1,30 @@
 # effects: answered questions (archive)
 
+- **EF15 — Effects-script command owner contracts missing from effects.md:**
+  The requested owner family is `(anonymous_namespace)::c*Command`, including
+  effect-description parser commands. Which exact classes belong to that family,
+  and which spec sections define each one's token inputs, state transitions,
+  defaults, validation, block enter/exit, foreign calls and conformance cases?
+  `effects.md` §§0–18 contains no command-class inventory or command algorithms;
+  its §17 exercises runtime effects, not script commands. The separate
+  `effects-parser.md` §6.1 supplies 21 root literal/descriptor/hook associations,
+  expressly excludes their execution algorithms, and §6.2 supplies only the
+  `sequenceEffect` normal handler, expressly excluding other nested entries.
+  Please publish the class-to-descriptor inventory, all remaining root/nested
+  handler contracts and command-specific conformance cases (including any
+  commands absent from that bounded dictionary). Distinguish these owned
+  algorithms from foreign renderer, sound, resource and generic-reader services.
+  [Retain existing registration and sequenceEffect implementation; do not infer
+  handler behavior or class names from command literals or addresses. Whole
+  command-family closure remains blocked on this publication; EFP1–EFP7 also
+  continue to bound the existing parser's supported domain.]
+  **ANSWERED 2026-10-23 (re-effects-ef5):** DIFFERS — effects.md §19 now
+  publishes the descriptor inventory and execution of all registered root and
+  nested families. §§19.53–19.56 close the residual visual-effect children,
+  aliases and select/particleSequence hooks with EC277–EC304. Class names
+  remain limited to confirmed export identities. Foreign primitive boundaries
+  and the numeric qualification of effects-parser §14 remain explicit.
+
 - **EF16 — §19.52 / EC275 conflicts with effects-parser §6.1 for instance:**
   Which root/nested handler belongs to descriptor `00A9FA08`?
   **ANSWERED 2026-10-23 (re-effects-ef5):** DIFFERS — §19.52's address
