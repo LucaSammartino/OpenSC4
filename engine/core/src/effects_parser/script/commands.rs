@@ -6,6 +6,7 @@ use super::*;
 use crate::effects::{EffectDescription, DIRECTORY_GROUP, DIRECTORY_TYPE};
 
 pub mod children;
+pub mod components;
 pub mod definitions;
 pub mod motion;
 pub mod particle;
@@ -32,12 +33,18 @@ pub struct Visual {
     /// Constructor words +24/+28 are indeterminate until assigned. Payload
     /// placeholders in EffectDescription are never conformance values.
     pub message_known: [bool; 3],
+    pub components: Vec<components::Component>,
+    pub auxiliary: Vec<components::Auxiliary>,
+    pub chain: Vec<u8>,
 }
 impl Default for Visual {
     fn default() -> Self {
         Self {
             description: EffectDescription::new(1, Vec::new()),
             message_known: [true, false, false],
+            components: Vec::new(),
+            auxiliary: Vec::new(),
+            chain: Vec::new(),
         }
     }
 }
@@ -70,6 +77,12 @@ impl Transform {
 /// Independent returning primitives at the effects-command boundary.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Call {
+    ValidateNested(Identity, u32, Vec<u8>),
+    AllocateNested(components::Kind),
+    InsertNested(Identity, Identity, Description),
+    NestedType(Identity),
+    InheritedBlock,
+    Ftoll(crate::effects_parser::RawFloat),
     Inherit(Identity, DefinitionKind, Vec<u8>, Description),
     PublishDefinition(Identity, DefinitionKind, Vec<u8>, Description),
     AllocateSequence,
@@ -112,6 +125,7 @@ pub enum Call {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub enum Reply {
+    RawFloat(crate::effects_parser::RawFloat),
     Inherited(bool, Description),
     Void,
     Uint(u32),
@@ -131,6 +145,9 @@ pub enum Reply {
 }
 pub trait Services {
     fn call(&mut self, call: Call) -> Result<Reply>;
+    fn rotation_arithmetic(&mut self) -> Option<&mut dyn crate::effects_parser::rotation::Arithmetic> {
+        None
+    }
 }
 fn uint(host: &mut impl Services, bytes: &[u8]) -> Result<u32> {
     match host.call(Call::Uint(bytes.to_vec()))? {
@@ -214,6 +231,7 @@ pub struct Commands {
     pub byte_4ac: u8,
     pub previews: Vec<Identity>,
     pub hard: Vec<u32>,
+    pub pending_nested: Option<(Identity, components::Kind, Description)>,
 }
 impl Commands {
     fn positional(&mut self, tokens: &[ScriptToken], count: usize, locale: &mut impl CharacterRules) -> Result<()> {

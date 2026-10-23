@@ -35,3 +35,29 @@ These questions belong to [gz-framework-core](../gz-framework-core.md). Filed
   vocabulary and AddToken overload semantics; numeric textual syntax/overflow,
   unassigned-parameter default variant, final/error callbacks, short reads and
   embedded NUL behavior. Confirm malformed quoted/tagged EOF cases with vectors.
+
+<!-- from: core-gzframework5 (2026-10-23) -->
+- **GZF10 — Closure details in §§2, 5–8:** Please specify buffer QI IIDs,
+  initial color-key state/output-write rules and buffer reference lifetime;
+  support QI IIDs/final-release behavior; framework accessor reference ownership;
+  which thread establishes log delivery ownership; and reconcile Unlock clearing
+  all flags (§6 and span-render-8 §10.4) versus clearing only supplied flags
+  (span-render-4444 bridge). Is ordered registration ascending? Does a failed
+  directory setter invalidate an already valid cache? [Core fixture uses the
+  construction thread for log delivery, ascending order for distinct ordered
+  participants, all-flags clear per this spec, and preserves prior cache validity
+  on setter failure. Buffer color-key/QI and unspecified identity/accessor
+  lifetime entries remain Unsupported; support Release uses the existing command
+  RefCount and guarded Shutdown. No native defaults are claimed for these gaps.]
+
+<!-- from: core-gzframework5 (2026-10-23) -->
+- **GZF11 — Inventory-only entry contracts (§§2–4, 7):** Several named entries
+  have targets but no complete behavioral contract: framework stream setters,
+  stream operation/SetStream and propagated debug setting; COM SetServiceRunning
+  and enumeration; command service QI/base lifetime, formatted execution and
+  generator registration replay/return contracts; logging AddOutputStream,
+  DumpOutputLevels, Output versus OutputLevel and unnamed accessors. Please give
+  signatures, null/error/output-write behavior and ownership, or explicitly mark
+  these entries open. [Only described behavior is implemented; inventory-only
+  entries have no claimed native implementation. Formatted bytes can already
+  pass through execute_text; no native varargs format policy is guessed.]

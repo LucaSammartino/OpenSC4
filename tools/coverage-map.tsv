@@ -423,7 +423,7 @@ cSC4BrushDescription	effects	renderer	effects.md	core/src/effects	-	-
 cSC4ScrubberDescription	effects	renderer	effects.md	core/src/effects	-	-
 EffectsParser	effects	renderer	effects.md	-	-	-
 EffectsBootstrap	effects	renderer	effects.md	-	-	-
-(anonymous_namespace)::c*Command	effects	renderer	effects.md	-	-	-
+(anonymous_namespace)::c*Command	effects	renderer	effects.md	core/src/effects_parser	-	-
 cSC4EffectsParticle	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4ParticlesDescription	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4BrushEffect	effects	renderer	effects.md	-	-	-
@@ -553,14 +553,14 @@ fn:convertStringToFloatValue	resource and exemplar editor	ui	-	-	-	-
 cSC4App	application	framework	application.md	core/src/application	-	-
 cWinSC4App	application	framework	-	-	-	-
 cSC4AutomataCOMDirector	application	framework	automata-managers.md	-	-	-
-cSC4ResourceLibCOMDirector	application	framework	app-directors.md	-	-	-
-cSC4COMDirector	application	framework	app-directors.md	-	-	-
+cSC4ResourceLibCOMDirector	application	framework	app-directors.md	core/src/application/directors	-	-
+cSC4COMDirector	application	framework	app-directors.md	core/src/application/directors	-	-
 cSC4*COMDirector	application	framework	-	-	-	-
-cGZToolsCOMDirector	application	framework	app-directors.md	-	-	-
-cGZResManCOMDirector	application	framework	app-directors.md	-	-	-
+cGZToolsCOMDirector	application	framework	app-directors.md	core/src/application/directors	-	-
+cGZResManCOMDirector	application	framework	app-directors.md	core/src/application/directors	-	-
 cGZ*COMDirector	application	framework	-	-	-	-
 cSC4Preferences	application	framework	-	-	-	-
-cSC4GameDataRegistry	application	framework	app-directors.md	-	-	-
+cSC4GameDataRegistry	application	framework	app-directors.md	core/src/game_data_registry	-	-
 cSC4AutoGamePause	application	framework	-	-	-	-
 cGZPersistDBRecord	persistence and resources	framework	persistence.md	-	-	-
 cGZPersistDBSerialRecord	persistence and resources	framework	persistence.md	-	-	-

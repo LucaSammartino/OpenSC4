@@ -125,17 +125,17 @@ fn raw_binary32_and_exact_probability_domain() {
     );
     // 12582912 + 32767.5 rounds nearest-even to bits 4B408000.
     assert_eq!(r.component.select_weight, 0x8000);
-    for raw in [
-        RawFloat::Binary32(0x7FC00000),
-        RawFloat::Dyadic(1, -25),
-        RawFloat::Dyadic(2, 0),
+    for (raw, weight) in [
+        (RawFloat::Binary32(0x7FC00000), 0),
+        (RawFloat::Dyadic(1, -25), 0),
+        (RawFloat::Dyadic(2, 0), 0xfffe),
     ] {
         let mut f = Fixture::default();
         f.hits.insert("prob", vec![0]);
         f.floats.insert(0, raw);
         let mut r = asymmetric();
-        assert_eq!(run(&mut f, &["raw"], 7, &mut r), Err(Unsupported::Numeric));
-        assert_eq!(r.component.select_weight, 0x1234);
+        run(&mut f, &["raw"], 7, &mut r).unwrap();
+        assert_eq!(r.component.select_weight, weight);
     }
 }
 #[test]

@@ -263,6 +263,13 @@ impl Message2CommandDispatcher {
 
     /// Slot 5 `ExecuteCommand(id, in, out)` (§4.4).
     pub fn execute_command(&mut self, id: u32, input: Option<&SetRef>, output: Option<&SetRef>) -> i32 {
+        self.execute_shared(id, input, output)
+    }
+
+    /// Shared server delegation preserves the reusable message during reentry.
+    /// No dispatcher member is mutated by execution; message/set mutation already
+    /// lives in the existing shared objects.
+    pub fn execute_shared(&self, id: u32, input: Option<&SetRef>, output: Option<&SetRef>) -> i32 {
         let Some(server) = self.server.clone() else { return 2 };
         let (Some(message), Some(din), Some(dout)) =
             (self.message.clone(), self.default_in.clone(), self.default_out.clone())

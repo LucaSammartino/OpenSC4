@@ -121,7 +121,7 @@ impl PlaceLot {
         }
     }
 
-    pub fn place_lot(&mut self, h: &mut impl Host, point: &mut Vec3, rotation: u8, effects: bool) -> Placement {
+    pub fn place_lot(&mut self, h: &mut impl Host, point: &mut Vec3, mut rotation: u8, effects: bool) -> Placement {
         let mut out = Placement {
             rect: Rect::INVALID,
             built: false,
@@ -134,14 +134,25 @@ impl PlaceLot {
                 return out;
             }
         }
-        let Some(cfg) = h.configuration(self.configuration) else {
+        let Some(mut cfg) = h.configuration(self.configuration) else {
             return out;
         };
-        if self.toll_booth {
-            h.effect(Effect::Unsupported(Open::TollBoothCt16));
-            return out;
-        }
-        let c = cell_coverage(cfg.size, h.terrain(), *point, rotation);
+        let c = if self.toll_booth {
+            let picked = pick_toll(h, *point);
+            if !picked.coverage.valid {
+                return out;
+            }
+            self.change_configuration(h, picked.configuration);
+            let Some(selected) = h.configuration(self.configuration) else {
+                return out;
+            };
+            cfg = selected;
+            rotation = picked.rotation;
+            self.rotation = rotation;
+            picked.coverage
+        } else {
+            cell_coverage(cfg.size, h.terrain(), *point, rotation)
+        };
         *point = c.point;
         if !c.valid {
             return out;
@@ -153,26 +164,38 @@ impl PlaceLot {
         if self.cost != 0 && h.total_funds() < self.cost {
             return out;
         }
-        // Literal section 3.12: no early return for demolition/dezoning/zoning
-        // failure is specified. The dry run has already validated it. CT23.
-        h.demolish(
-            Demolition {
-                commit: true,
-                rect: c.rect,
-                privilege: 1,
-                flags: 0x2000,
-                option: false,
-            },
-            demolish_accepts,
-        );
-        h.place_zone(Zone {
+        if !h
+            .demolish(
+                Demolition {
+                    commit: true,
+                    rect: c.rect,
+                    privilege: 1,
+                    flags: 0x2000,
+                    option: false,
+                },
+                demolish_accepts,
+            )
+            .0
+        {
+            return out;
+        }
+        if !h.place_zone(Zone {
             rect: c.rect,
             kind: 0,
             commit: true,
             skip_funds: self.cost == 0,
-        });
-        let exemplar = self.resolved_building(h);
-        let info = h.building_info(exemplar);
+            check_slope: true,
+            skip_size: true,
+            check_lot_inside: false,
+            outputs: [None; 3],
+        }) {
+            return out;
+        }
+        let info = self
+            .previews
+            .iter()
+            .find(|p| !p.prop)
+            .map_or_else(BuildingInfo::default, |p| h.occupant_info(p.token));
         let kind = if info.groups.contains(&0x1508) {
             11
         } else if info.groups.contains(&0x1509) || cfg.water_compatible {
@@ -180,12 +203,18 @@ impl PlaceLot {
         } else {
             15
         };
-        h.place_zone(Zone {
+        if !h.place_zone(Zone {
             rect: c.rect,
             kind,
             commit: true,
-            skip_funds: self.cost == 0,
-        });
+            skip_funds: true,
+            check_slope: true,
+            skip_size: true,
+            check_lot_inside: false,
+            outputs: [None; 3],
+        }) {
+            return out;
+        }
         let Some(lot) = h.create_lot(c.rect, rotation, true, cfg.water_compatible, self.configuration) else {
             return out;
         };
@@ -246,8 +275,7 @@ pub fn choose_facing(scores: [i32; 4], player: u8) -> u8 {
         }
     }
     let own = scores[usize::from(player)];
-    // Literal detailed section 3.11 formula: exactly four more points still keeps
-    // the player rotation. The section 4 shorthand disagrees at equality (CT24).
+    // CT24: equality at four more points keeps the player's rotation.
     if (own != 0 || scores[best] < 1) && own >= scores[best] - 4 {
         player
     } else {

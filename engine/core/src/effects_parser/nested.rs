@@ -77,7 +77,7 @@ pub const DECAL: [Registration; 11] = [
 ];
 // Literal §19.52 association. effects-parser §6.1 gives this same descriptor
 // a different root handler; do not silently reconcile conflicting specs (EF16).
-pub const EFFECT_GROUP: [Registration; 1] = [direct("instance", 0x00a9fa08, 0x00596980)];
+pub const EFFECT_GROUP: [Registration; 1] = [direct("instance", 0x00a9fa08, 0x0059a730)];
 pub const EFFECT: [Registration; 19] = [
     direct("particleEffect", 0x00a9feac, 0x005a0120),
     direct("dynamicParticleEffect", 0x00a9fe9c, 0x005a0350),
@@ -281,9 +281,9 @@ mod tests {
             EFFECT_GROUP[0].descriptor,
             crate::effects_parser::ROOT_COMMANDS[7].descriptor
         );
-        // EC275's claim of equal handlers is unsettled: EF16 records the
-        // conflict with effects-parser §6.1. Both literal ledgers are retained.
-        assert_eq!(EFFECT_GROUP[0].hooks, Hooks::Direct(0x00596980));
+        // EF16 confirms EC275: both dictionaries use the root instance owner.
+        assert_eq!(EFFECT_GROUP[0].hooks, Hooks::Direct(0x0059a730));
+        assert_eq!(EFFECT_GROUP[0], super::super::ROOT_COMMANDS[7]);
         assert_eq!(crate::effects_parser::ROOT_COMMANDS[7].hooks, Hooks::Direct(0x0059a730));
     }
 }

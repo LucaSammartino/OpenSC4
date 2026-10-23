@@ -1,7 +1,8 @@
 # SC resource scripts and text persistence
 
 Behaviour specification for SimCity 4 Deluxe 1.1.641. Evidence: exported function
-bodies and instruction checks, recorded 2026-10-23 by `re-persist-sl5`.
+bodies and instruction checks, recorded 2026-10-23 by `re-persist-sl5` and
+`re-scres-scr5`.
 Requirements marked *[compat]* describe the original; *[choice]* identifies a
 portable implementation decision. Addresses are evidence anchors, not an
 implementation prescription. Unsettled boundaries are listed in
@@ -49,21 +50,102 @@ Both single and double quotes group a token. Brackets, parentheses and braces
 pair with `]`, `)` and `}` respectively. Outer quote/group delimiters are
 removed from the resulting argument. An unterminated quote reports error 5;
 an unterminated group reports error 6. These delimiter sets are established by
-initializers `0x00A74350`–`0x00A74410`. Mixed nesting and escape syntax remain
-SCR1; applications must not assume shell-style escaping.
+initializers `0x00A74350`–`0x00A74410`.
+
+*[compat]* The first `#` limits the entire input, including quoted/grouped
+text. There is no backslash escape. A quote closes at the next identical quote;
+the other quote character is ordinary content. Adjacent unquoted and quoted
+pieces concatenate into one argument (`a"b c"d` gives `ab cd`). A group is
+special when it begins an argument: it becomes one argument and its closer
+ends that argument even without following whitespace. Only occurrences of its
+own opener and closer affect nesting; quotes and other kinds of brackets
+inside it are literal. Thus `([)]` gives arguments `[` and `]`, whereas
+`(a(b)c)` gives `a(b)c`. Quotes inside a group do not protect a closing bracket.
+These are the literal CountArguments/SplitIntoArguments rules, not a balanced
+mixed-bracket grammar (`0x0067A320`, `0x0067B3B0`).
 
 ### 2.2 Numeric conversion
 
 *[compat]* Numeric conversion requires a complete expression: empty input,
 invalid terms and unconsumed trailing text are errors. Product-level operators
-`*`, `/`, `%` bind more tightly than `+` and `-`. The repeated arithmetic
-accumulators are stored in binary64 after each iteration. Operand grammar and
-the exact remainder operation remain SCR1.
+`*`, `/`, `%` bind more tightly than `+` and `-`; each tier associates left.
+The repeated arithmetic accumulators are stored in binary64 after each
+iteration. `%` is **a − floor(a / b) × b**, not integer remainder or fmod:
+its quotient is stored as binary64 before floor, and both operands are
+binary64 for the multiply/subtract (`0x0067BA0F`–`0x0067BA2F`; floor dispatch
+`0x009EFF60`). For example, `-5%3=1` and `5%-3=-1`.
+
+The next tighter tier is right-associative power `^`. Its operands are signed
+factors, so unary signs bind *more tightly* than power: `-2^2=4`, `2^3^2=512`,
+`2^-2=0.25`. Any sequence of unary `+` and `-`, with whitespace between them,
+is accepted. A factor is a number, a parenthesized full expression, `pi`, `e`,
+or a named function. Identifiers begin with a letter, continue with letters,
+digits or underscore and compare case-sensitively. Unknown identifiers throw;
+there is no implicit variable lookup or multiplication in this evaluator
+(`0x0067AC30`, `0x0067AC60`, `0x0067B360`, `0x0067B920`).
+
+| Name | Arguments / result |
+|---|---|
+| `pi`, `e` | Constants, without parentheses; pi is binary32 `0x40490FDB` promoted to double; e is exp(1) |
+| `sqrt`, `exp`, `log`, `abs`, `floor`, `ceil`, `sqr` | One parenthesized expression; log is natural logarithm; sqr multiplies its binary64 argument by itself |
+| `sin`, `cos`, `tan`, `asin`, `acos`, `atan` | One parenthesized expression; radians |
+| `sind`, `cosd`, `tand` | One expression in degrees, multiplied by binary32 `0x3C8EFA35` promoted to the evaluation precision |
+| `dasin`, `dacos`, `datan` | One expression; inverse-radian result multiplied by binary32 `0x42652EE1` |
+| `pow`, `atan2`, `datan2` | Two full expressions separated by comma inside parentheses; power(a,b), atan2(a,b), and degree atan2(a,b) respectively |
+
+Function arguments may contain whitespace and nested arithmetic. No optional
+arguments, aliases such as `dsin`, or extra commas are accepted. Ordinary
+function results are stored as binary64 before returning; `sqr` reloads its
+binary64 operand for the multiplication, and the three forward degree trig
+functions return their x87 result directly after loading a binary64 argument.
+Constants and widths are checked at `0x0067AD39`–`0x0067AD3F`,
+`0x0067AD7D`–`0x0067AD95`, `0x0067B000`–`0x0067B0A8`,
+`0x0067B0B3`–`0x0067B2A8`; data `0x00AAEBFC`, `0x00AAEC00`, `0x00B0D09C`.
+
+Decimal operands must start with a digit or `.`. Numeric value conversion uses
+the game's English decimal helper, but cursor advancement is a separate permissive scan:
+consume all digits and dots, then at most one `e`/`E`, its optional sign and
+all following digits. It does not require exponent digits or only one dot.
+Consequently `.` yields zero, `1.2.3` yields 1.2 and `1e+` yields 1; `1e+x`
+fails for trailing `x`. Leading-zero decimal is decimal. Only a literal
+lowercase `0x` selects unsigned 32-bit base-autodetect strtoul conversion;
+`0X10` does not select that branch and fails for trailing text. The hex result
+is converted as unsigned (high-bit values gain 4294967296 after signed load).
+No finite/domain check is added: arithmetic overflow, division by zero and
+invalid math can return infinities/NaNs under the normal masked floating-point
+environment. Bare `inf`/`nan` are unknown function names, not decimal literals
+(`0x00679D00`, `0x00679DA0`, `0x0067BB20`).
+
+The English helper is **not** a correctly rounded host `strtod`. It builds the
+integer part by multiply-by-ten/add-digit, storing binary64 after each digit.
+Fractional digits use successive multiplication of an x87 factor by binary64
+0.1, add digit times factor, and store binary64 after each addition. Exponent
+digits accumulate modulo 2^32. The power-of-ten helper uses integer repeated
+squaring with every product modulo 2^32; interpret the final word as signed
+before conversion to floating point. A negative signed exponent passed to
+that helper takes integer reciprocal of its positive-magnitude power. An
+explicit minus sign after `e` then takes a *floating* reciprocal of the helper
+result. Multiply the mantissa by that result and store binary64. Thus `1e10`
+is 1410065408, `1e12` is -727379968, `1e32` is zero and `1e-32` is positive
+infinity, under masked exceptions. These are compatibility quirks, not range
+errors (`0x00910426`–`0x00910529`, `0x009103DA`–`0x00910425`). Integer division
+by zero in the helper for a wrapped negative exponent has no successful
+numeric-result contract; a portable reader may reject that input.
+
+The lowercase-hex branch saturates unsigned overflow at 0xFFFFFFFF rather
+than wrapping (`0x009F01CC`, especially `0x009F0319`–`0x009F0364`). `ParseInt`
+retains its bit-conversion rule even outside the small-integer range: float
+infinity becomes 0x34400000 after the modular subtraction, negative infinity
+0xB4400000; NaN results depend on the stored NaN bits. Under the usual masked
+x87 environment, `ParseUint` truncates through signed 64-bit `_ftol2`, retaining
+only the low word. Values outside that signed range, infinity and NaN produce
+the integer-indefinite low word zero, not unsigned saturation
+(`0x0067BC26`–`0x0067BC61`, `0x0067BC8A`, `0x009EEF04`–`0x009EEF78`).
 
 `ParseInt` is not an ordinary truncate-to-integer conversion. It adds binary32
 12582912, stores the result as binary32, and subtracts `0x4B400000` from that
-stored value's bit representation. This rule is relevant within the normal
-small-integer conversion range; no saturating overflow rule is established.
+stored value's bit representation. Preserve that rule outside the normal
+small-integer range too; do not replace it with saturation or a checked cast.
 `ParseUint` instead uses the runtime floating-to-integer conversion and retains
 the low 32 bits. Instruction evidence: `0x0067B990`, `0x0067BA40`,
 `0x0067BB20`, `0x0067BC00`, `0x0067BC70`.
@@ -122,7 +204,7 @@ The native layout has a separate unknown-interface table at `0x00AAEB00`
 (QI/AddRef/Release thunks `0x00678A00/10/20`), a primary table at `0x00AAEB0C`
 (destructor, RegisterCommands), and the parser method table at `0x00AAEACC`.
 The parser table has these zero-based slots; a byte offset such as +0x14 is
-slot 5, not slot 14. Unknown semantic names remain SCR2.
+slot 5, not slot 14. Names below describe behavior, including unnamed exports.
 
 | Slot | Native entry / settled operation |
 |---|---|
@@ -133,17 +215,22 @@ slot 5, not slot 14. Unknown semantic names remain SCR2.
 | 4 | `0x00678A50`: clear active macro pointer |
 | 5 | `0x00679640`: ParseCommand |
 | 6 | `0x00679C80`: variable assignment helper (`0x00679BD0`) |
-| 7 | `0x00678A90`: helper `0x00677210`, name unsettled |
+| 7 | `0x00678A90`: PushNamespace (`0x00677210`) |
 | 8 | `0x00678A80`: pop variable namespace suffix |
-| 9 | `0x00678FE0`: helper `0x00678AB0`, name unsettled |
+| 9 | `0x00678FE0`: RemoveVariable by exact stored key (`0x00678AB0`) |
 | 10 | `0x00678A60`: return owning parser pointer |
 | 11 | `0x00678A70`: no-op (`0x00648F00`) |
-| 12 | `0x00678AA0`: helper `0x006772C0`, name unsettled |
+| 12 | `0x00678AA0`: GetVariable (`0x006772C0`), null when absent |
 
 Built-ins are registered in this order: `end`, `version`, `list`, `trace`,
 `set`, `seti`, `setf`, `setc`, `setv3`, `eval`, `define`, `enddef`, `create`,
-`arrayCreate`, `namespace`. `list` reports an exception (`0x00676030`). Detailed
-argument contracts for the remaining scalar/set/namespace commands are SCR2.
+`arrayCreate`, `namespace`. Construction starts version=1, with empty command,
+variable and macro registries, empty namespace prefix/stacks and no active
+macro (`0x006788B9`–`0x006789F2`). Init invokes RegisterCommands; construction
+alone does not install them. Reset sets version=0, empties the namespace
+prefix/stack and destroys published macros; it preserves variables and
+registered commands (`0x006793B0`, `0x00678FF0`). Slot 4 clears the active
+macro pointer; do not conflate it with variable removal or reset.
 
 ### 3.2 Dispatch, variables and macros
 
@@ -153,10 +240,33 @@ global command registry. Unknown commands throw. Completion of a nested
 handler checks for unmarked switches; use the switch contract in
 effects-parser section 9 rather than silently accepting unused options.
 
-Variable references begin with `$`, with `${name}` also supported. Names use
-letters, digits, underscore and colon. Substitution resolves against the
-parser's variable state. The exact inserted-parenthesis boundary rule remains
-SCR2 and must not be guessed from a conventional shell syntax.
+Variable references begin with `$`, with `${name}` also supported, anywhere
+inside an argument, including the command token. Names greedily consume
+letters, digits, underscore and colon, with no first-character restriction.
+Braces merely stop name consumption: a following `}` is skipped if present;
+its absence does not itself throw. Unknown names throw. Replacement text is
+inserted once, without rescanning it for further references.
+
+Assignment always stores current-prefix plus name. PushNamespace saves the
+old prefix length and appends name plus colon. Pop truncates to that saved
+length (empty-stack pop has no valid native contract). GetVariable first
+tries the entire current prefix plus supplied name, then parent prefixes
+newest first, ending with the unqualified name. A colon in a supplied name
+does not bypass prefix search. RemoveVariable instead erases the exact
+stored key supplied, without prefixing it; it is not ClearVariables
+(`0x00677210`, `0x00676380`, `0x006772C0`, `0x00679BD0`, `0x00678AB0`).
+
+Parentheses insertion is unusual: for an **unbraced** reference, wrap the
+replacement only when its left edge is the start or follows whitespace, and
+its right edge is the end or precedes whitespace, **except** a reference
+occupying the entire argument is left unwrapped. The whitespace set is space,
+tab, LF, CR. Embedded arithmetic punctuation is not a wrapping boundary.
+Braced references remain unwrapped. With x=`1+2`, `$x` becomes `1+2`, `$x*3`
+becomes `1+2*3`, and `a $x b` becomes `a (1+2) b`. Macro `%name`/`%{name}`
+substitution uses the same name and boundary rules, matching formal names
+against the actual-argument list; it is not whole-token substitution
+(`0x00677B90`, `0x00678000`; boundary-set initializer `0x00A74200` uses
+`0x00A9F358`–`0x00A9F35C`).
 
 During macro definition commands are recorded rather than executed, except
 for the literal `enddef` terminator. `define` rejects nested definitions and
@@ -167,6 +277,44 @@ command, macro name, actual-parameter list. The actual and formal counts must
 match. Expansion clones the stored commands, substitutes `%` parameters and
 dispatches them in stored order. An unknown parameter throws. There is no
 direct window-message or drawing callback in this command execution path.
+
+### 3.3 Built-in argument and formatting contracts
+
+Counts below include the command token. Failed counts throw a parse error;
+conversion failures propagate. Set commands require at least three tokens,
+use token 2 as name and token 3 as value, and do not concatenate extra
+positionals (`0x00677510`). All assignments obey section 3.2 namespaces.
+
+| Command | Behavior |
+|---|---|
+| `end` | Requires a nonempty block stack, calls its top handler's EndBlock hook and pops it; does not enforce an argument count (`0x00676110`) |
+| `version` | Exactly two tokens; decimal `atol` prefix conversion of the second, stored as the version. Not expression parsing (`0x00676170`) |
+| `list` | Always throws `unimplemented` (`0x00676030`) |
+| `trace` | Exactly two tokens; otherwise throws. Successful body has no output or state effect (`0x006771C0`) |
+| `set` | Stores the third token literally after ordinary substitution |
+| `seti` | ParseInt, then signed decimal formatting |
+| `setf` | ParseFloat, then DToStrEnglish |
+| `setv3` | ParseVector3; apply optional `-scale` scalar, `-mult` vector, `-add` vector in that order, independent of switch order; emit three space-separated numbers |
+| `setc` | ParseColorAlpha, then the component quirks below; accepts `-scale`, `-mult`, `-add`, `-alpha` in that fixed order |
+| `eval` | Exactly two tokens; split the second into arguments and dispatch those arguments through this parser, including substitution (`0x00679A20`) |
+| `namespace` | Exactly two tokens; enter this block and push its name; EndBlock pops the namespace (`0x00677B10`, `0x00677AF0`) |
+| `arrayCreate` | Exactly three tokens: macro name and ParseInt count. Execute `create name [index count]` for indices 0 through count−1. Zero executes none; count is compared unsigned, so a negative parsed count is not treated as zero (`0x006798D0`) |
+
+Vector/color intermediates are stored as binary32 after each component
+operation. DToStrEnglish formats promoted binary32 values with `%g` (default
+six significant digits) and changes the first decimal comma to a dot
+(`0x00679E00`). No clamping is added.
+
+For `setc`, call the four parsed storage components R,G,B,A. `-scale` scales
+**G,B,A**, leaving R unchanged. `-mult` and `-add` parse ColorAlpha and act
+componentwise on R,G,B,A. Thus a three-component multiplier has A=1 and a
+three-component addend adds 1 to A. `-alpha` then overwrites **G**. Emit G,B,A
+in that order and append R only if R<1 (unordered/NaN does not pass). This
+rotation is literal behavior, not ordinary RGBA semantics. Evidence:
+destination base `0x00677644`, scale `0x0067767B`–`0x00677698`, multiply/add
+`0x006776D0`–`0x00677764`, override `0x00677795`, output `0x006777CC` and
+optional fourth `0x00677801`–`0x00677839`. The separate ParseColorAlpha service
+still returns components in input order as specified in section 2.3.
 
 ## 4. nSCRes::cFileParser
 
@@ -205,8 +353,23 @@ subobject, not the main-interface pointer.
 exactly one argument (initializers `0x00A74900`, `0x00A74940`). Both recursively
 parse the named file. `sinclude` suppresses an included-file open error
 (parse-error code 2); `include` propagates it. Other parse errors are not
-silenced by `sinclude` (`0x0068110F`–`0x00681170`). Relative path handling and
-recovery after a nested error remain SCR3. A false `ReadLine` result ends
+silenced by `sinclude` (`0x0068110F`–`0x00681170`). Relative includes are joined
+to the parent directory of the file containing the directive, recursively at
+each nesting level. A leading slash/backslash or a colon in character position
+2 classifies a path as absolute; it is used unchanged. This is lexical joining,
+without dot-segment canonicalization, existence probing or a search-path
+fallback (`0x00680B20`, `0x006810DD`).
+
+An included open failure (code 2) is suppressed by `sinclude`; `include`
+promotes it to code 3. Other nested errors propagate for both directives.
+Unwinding closes each opened file and appends its filename and line context
+to the error; parsing does not resume at the next line of the enclosing file
+(`0x0068110F`, `0x00681273`). At the top-level registered-file loop, processing
+continues with the next registered file. An optional file's open failure is
+ignored; other optional errors are recorded without making the aggregate
+result false. Required-file errors make that result false. The post hook runs
+after the loop regardless; the success hook runs only when the aggregate
+result is true (`0x006813A2`–`0x006813ED`). A false `ReadLine` result ends
 the file; this layer does not distinguish a read error from ordinary EOF.
 Image drawing and object-graph persistence are outside this interface.
 
@@ -244,8 +407,28 @@ message callback or drawing method.
 The token descriptor is eight bytes: uint32 ID, uint16 type, uint16 count.
 Descriptors match only if ID, type and count all match, with the latter two
 compared as uint16 (`0x0097EF5B`–`0x0097EF83`, instruction verified).
-The complete type-number mapping remains SCR4.
-Do not substitute the vtable slot index for the wire type number.
+Do not substitute the vtable slot index for the wire type number. The wire
+numbers select the following payloads (CreateField `0x009805F8`, constructors
+`0x0097F9DF`–`0x00980293`, field Read adapter dispatches):
+
+| Wire type | Payload | Bytes per binary element |
+|---|---|---|
+| 1 | uint8 | 1 |
+| 2 | uint16 | 2 |
+| 3 | uint32 | 4 |
+| 4 | sint32 | 4 |
+| 5 | float32 | 4 |
+| 6 | sint64 | 8 |
+| 7 | string | uint32 byte length followed by bytes |
+| 8 | resource key | 12 |
+| 9 | sint8 | 1 |
+| 10 | sint16 | 2 |
+| 11 | uint64 | 8 |
+| 12 | float64 | 8 |
+
+In particular type 6 is signed integer, not double. Field readers for types
+5/6/11/12 call adapter byte offsets `0x14/0x18/0x1C/0x10` respectively
+(`0x0097FE36`, `0x0097FD60`, `0x0098022B`, `0x009802BF`).
 
 A missing field makes a typed getter fail without calling the typed field
 reader. Setters find or create the field and delegate the typed values and
@@ -259,6 +442,23 @@ Wire type 3 is uint32. An existing matching descriptor is not a new creation;
 a different descriptor at the same ID causes the old map entry to be erased
 before replacement (`0x009805F8`). This is a descriptor operation, not a
 coercion between the requested typed getter and the stored type.
+
+`SetTokenString` changes the existing field's definition name, stored at field
++0xC; it does not set a string payload or create a field (`0x00980F3A`). Names
+are emitted by the text definition writer but are not part of a binary
+descriptor and do not participate in descriptor matching.
+
+The binary adapter table is `0x00AD9978`. It writes descriptor ID/type/count
+through the serial record's uint32/uint16/uint16 methods and payload elements
+through the corresponding typed methods, in count order, without text names
+or comma delimiters. Serial byte order and string/key representation are the
+contracts in persistence section 3. Fixed-width reads add the width to their
+counter *before* requiring counter < total size, then delegate; equality
+fails without a serial read. A descriptor adds eight once before its three
+reads; a key adds twelve once. A string instead delegates its length-prefixed
+read first, adds returned byte length plus four, and fails only if counter >
+total. These distinct boundary rules must not be normalized (`0x0097EBA0`,
+`0x0097EBE6`–`0x0097ECD5`, `0x0097ECDE`, `0x0097ED17`, `0x0097ED30`).
 
 The terminator `TK_TKR_End` has descriptor `{ID=1,type=3,count=1}` and a uint32
 zero payload. A reader stops on ID 1 before consuming that payload. In write
@@ -283,8 +483,12 @@ cursor counter +8 initially 4, and total size +0xC.
 | 14–16 | WriteTokenDef, Write resource key, Write string |
 | 17–26 | Write f64, f32, s64, u64, s32, u32, s16, u16, s8, u8 |
 
-Some integer reads share base implementations. This does not change the
-caller's width or signedness contract. No messages or drawing are supported.
+The uint64 read slot 7 inherits the **binary** base implementation at
+`0x0097EC7A`: it reads eight serial bytes with the strict binary counter rule,
+not a comma-delimited `%I64u` value. Its text writer still emits decimal text.
+The small integer read slots narrow a uint32 text result to 8/16 bits; signed
+and unsigned overloads share those low bits. These table-sharing quirks must
+not be replaced by a uniform text scanner. No messages or drawing are supported.
 
 ### 6.2 Text format and failures
 
@@ -295,6 +499,15 @@ argument promoted to double, f64 `%g, `, and strings `%s, `. Strings are raw,
 unquoted text, so commas are not protected by a quoting layer. Output uses the
 serial record's `SetFieldString`; see persistence section 3 for that IO
 contract (`0x0097F54D`, `0x0097F5B7`, `0x0097F5E4`–`0x0097F93A`).
+
+There is no fragment-unwrapping layer on text input. With the concrete serial
+record, every output fragment has its own four-byte length prefix; the raw
+delimiter reader consumes those bytes as ordinary characters too. It ignores
+everything through `[` when finding a definition, so a preceding length word
+can be skipped incidentally. A length word before a numeric value can prevent
+conversion, including when its first byte is a control byte or NUL. Preserve
+these independent read/write contracts; this interface does not promise that
+its concrete length-prefixed output roundtrips through the raw text reader.
 
 The delimiter reader (`0x00980A41`) clears its text destination, discards
 semicolon comments through CR, drops LF, converts CR and tab to spaces, and
@@ -309,6 +522,31 @@ unconsumed suffix text is not itself a conversion failure. A failed numeric
 conversion zeroes the output; delimiter exhaustion is a distinct failure and
 does not establish that same destination rule. Resource keys are three
 successive uint32 values, assigned to the caller only after all three succeed.
+
+The uint32 reader and definition components use decimal `%u`: optional sign,
+decimal digits, no expression or hexadecimal-prefix interpretation. Accumulation
+wraps modulo 2^32, including negation; sint32 shares those bits. Small reads
+then retain 8/16 bits. The signed64 text reader uses `%I64d` and accumulates
+modulo 2^64, with optional modular negation. Overflow still counts as successful
+conversion (`0x00980B19`, `0x00980B80`, `0x00980D81`–`0x00980DDA`;
+runtime accumulation `0x009F83DB`–`0x009F8460`, `0x009F8518`–`0x009F856F`).
+This differs from the saturated hex-expression path in section 2.2.
+
+Float text input scans a decimal prefix using `%lf`, then stores as binary64
+or narrows to binary32. It accepts decimal exponents rather than the game's
+wrapping exponent helper. Overflow can yield infinity without changing the
+successful assignment count; narrowing a finite double can likewise overflow
+to float infinity. Bare `inf`/`nan` fail and zero the output. The reader scans
+only decimal digits, decimal point and exponent, so `1.#INF` reads the numeric
+prefix 1, not infinity (`0x009F7D46`–`0x009F7EDA`, `0x00980BEA`,
+`0x00980C59`). Output uses the bundled CRT's legacy nonfinite forms, whose
+significand strings are `1#INF`, `1#QNAN`, `1#IND`, `1#SNAN`; formatting inserts
+the decimal point after the initial 1 and preserves sign. For example `%g`
+positive infinity is `1.#INF`, with the text writer's `, ` suffix. `%f` uses
+its six fractional positions (positive infinity `1.#INF00, `). Negative
+indefinite and other NaN payload classes must not all be respelled modern
+`nan` (`0x00A049CA`–`0x00A04A40`, strings `0x00AECFF0`–`0x00AED008`).
+
 The character helper increments its counter before testing counter < total
 size, and only then calls the serial byte reader (`0x0097EF35`–`0x0097EF58`,
 instruction verified). With initial counter 4 and total N, at most N−5 bytes
@@ -345,13 +583,28 @@ slot 12 (`0x009781D3`). The embedded buffer-resource table at `0x00AD8F10` is:
 Drawing/locking/pixel access are delegated to `cIGZBuffer`. There is no
 resource-level drawing command or message handler in the audited interface.
 
+The resource's base type getter returns its resource key's type member; the
+base constructor zeroes that member. Therefore a fresh unkeyed image resource
+reports type zero, and assigning a key with type T makes it report T. It has
+no independent hardcoded image type, nor does its pixel color type select the
+resource-key type (`0x00975633`, getter `0x009CEDE1`, primary table
+`0x00AD8F28`).
+
 ### 7.2 BMP and TGA input
 
 *[compat]* Record loading (`0x00979171`) first tries BMP at the current cursor.
 If that fails it seeks to absolute zero and tries TGA; a failed seek aborts.
-The file BMP loader (`0x0097878C`) seeks to `bfOffBits`. Record-side offset
-handling remains SCR5. Failed loading must not be treated as a decoded image;
-post-failure buffer contents are not established.
+The file BMP loader (`0x0097878C`) seeks to `bfOffBits`. The record loader never
+seeks to that offset: pixels are read at the cursor following the headers and
+any palette. It merely requires unsigned 32-bit `(bfOffBits + 14) >= 54`.
+For RLE with zero image-size field it uses `bfSize − bfOffBits` as compressed
+length, rejecting length >= bfSize; otherwise it uses the declared image size.
+An extra gap before the declared pixel position is therefore decoded as pixel
+data on the record path (`0x00978EF5`–`0x00978F39`). Failed loading must not be
+treated as a decoded image. Failures before buffer creation retain its prior
+state; failure after creation/lock/conversion can leave changed dimensions or
+partially written pixels. There is no rollback or buffer replacement on this
+path. A subsequent TGA attempt can change the same retained buffer again.
 
 BMP accepts a 14-byte `BM` header and 40-byte information header. Header
 validation permits compression values 0 and 1 and depths 4, 8 and 24
@@ -363,6 +616,11 @@ ceil(width/2) before alignment for 4-bpp. RLE8 handles runs, absolute spans
 with odd-byte padding, EOL, EOB and delta escapes. Malformed compressed data
 does not have an established safe bounds contract.
 
+*[choice]* Reject truncated RLE commands and source/destination overruns
+without reproducing unsafe native memory access. Such malformed streams have
+no deterministic successful-image or rollback requirement. This does not
+change the supported RLE escapes, offset behavior or retained-state rules.
+
 TGA loading (`0x00978A69`) seeks to zero, reads an 18-byte header, skips image
 ID and color-map bytes and accepts image types 2 and 10. Both raw and packet
 RLE paths support 16/24/32-bit conversion. Descriptor bit `0x20` controls
@@ -373,10 +631,36 @@ the declared number of most-significant alpha bits. Unsupported pixel depth
 can still report success after buffer creation and locking, so success alone
 does not validate that unsupported input.
 
-Loaders create then lock/unlock the destination buffer (file flags `0x8040`,
-record flags `0x8080`). The specialized 4444 dithering path and exact numeric
-diffusion rule require instruction verification; see SCR5. Do not silently
-replace it with nondithered truncation for comparison tests.
+Loaders create the destination using the configured create flags. Both BMP
+paths lock/unlock with `0x8040`; TGA uses `0x8080` (`0x0097909D`,
+`0x00978A69`). These are lock flags, distinct from creation flags.
+The specialized BMP 24-to-4444 path is selected only
+when requested color type is 1, destination depth is 16 and the buffer's
+reported color type is **7** (`0x0097868A`). The TGA 32-bit path similarly
+tests reported color type 7 before calling the ARGB8 dither routine
+(`0x00978CCA`–`0x00978CDF`).
+
+### 7.3 Exact 4444 diffusion
+
+*[compat]* Both dither routines start with zero integer error storage and scan
+the first output row left-to-right, the next right-to-left, alternating each
+row. BMP source starts at its last stored row and moves backwards by aligned
+source stride; ARGB8 uses its supplied starting row and signed source pitch.
+Per channel, add floor(accumulated weighted error / 16) to the source byte,
+clamp only above 255, emit the high nibble, and retain the low nibble as error.
+Send that error with weights 7 to the next pixel in the scan direction, 3 to
+the next row's pixel opposite the scan direction, 5 directly below and 1 to
+the next row's pixel in the scan direction. Off-image contributions go to
+padding cells and do not wrap around. There is no half-unit rounding bias,
+negative error, floating arithmetic or division by 17.
+
+Errors are packed in uint32 byte lanes B/G/R/(A). Each lane holds a sum of
+weighted low nibbles, so extracting bits 4–7 of each lane is the division by
+16, with no cross-channel carry for valid byte inputs. The 24-bit version
+diffuses B/G/R only and emits alpha nibble F; the ARGB8 version diffuses alpha
+too. Destination words are A:R:G:B in descending nibbles. Both use unsigned
+byte loads, shifts, unsigned upper clamps and 16-bit output stores, verified
+at `0x00978325`–`0x009783DF` and `0x00978571`–`0x00978605`.
 
 ## 8. cGZPersistASCIIWriter
 
@@ -500,6 +784,44 @@ this documentation lane does not assert an existing executable test suite.
 | SCR-V28 | ASCII bool array name flags, values true/false | `      bool flags[2] = true, false, ` followed by LF |
 | SCR-V29 | ASCII zero-count bool array name flags | `      bool flags[0] = ` followed by LF |
 | SCR-V30 | ASCII inline null object with any field name | `      Object GZCLSID: 0x00000000` and LF; no braces/name |
+| SCR-V31 | Split `([)]`, `(a(b)c)`, `a"b c"d` | Respectively `[`, `]`; `a(b)c`; `ab cd` |
+| SCR-V32 | Split quoted text containing `#` before its closing quote | Comment truncation occurs first; unterminated-quote error 5 |
+| SCR-V33 | ParseFloat `-2^2`, `2^3^2`, `2^-2`, `-5%3`, `5%-3` | 4, 512, 0.25, 1, -1 |
+| SCR-V34 | ParseFloat `.`, `1.2.3`, `1e+`, `1e+x`, `0X10` | Zero, approximately 1.2, 1, error, error |
+| SCR-V35 | ParseFloat `1e10`, `1e12`, `1e32`, `1e-32` | 1410065408, -727379968, zero, positive infinity |
+| SCR-V36 | ParseFloat `0x100000000`, `inf`, `nan`, `sqrt(-1)` | 4294967295, error, error, NaN under masked exceptions |
+| SCR-V37 | ParseFloat `pow(2,3)`, `dsin(90)`, `sin(0,1)` | 8, unknown-function error, argument-syntax error |
+| SCR-V38 | Fresh command parser, then Init, then set variable and Reset | Initial version 1 and no registrations; Init installs ordered builtins; Reset version 0, variable and registrations retained, prefix/namespace stack and published macros cleared |
+| SCR-V39 | Root x=`root`; namespace a x=`parent`; namespace b x=`child`; lookup x before/after each pop | `child`, `parent`, `root`; missing name returns null |
+| SCR-V40 | In namespace a, assign x and remove exact key `x`, then `a:x` | First removal leaves `a:x`; second removes it |
+| SCR-V41 | Substitute x=`1+2` into `$x`, `$x*3`, `a $x b`, `${x}*3`, `${x` | `1+2`, `1+2*3`, `a (1+2) b`, `1+2*3`, `1+2` |
+| SCR-V42 | Macro formal x, actual `1+2`; body arguments `%x*3` and `a %x b` | `1+2*3` and `a (1+2) b`; unknown formal throws |
+| SCR-V43 | `set x first ignored`, `seti x [2+3]`, `setf x [1/2]` | x becomes `first`, `5`, `0.5` in sequence |
+| SCR-V44 | `version 12suffix`, `trace anything`, `trace`, `list`, `end` outside block | Version 12; trace succeeds silently; last three throw |
+| SCR-V45 | `setv3 v [1 2 3] -add [1 1 1] -scale 2 -mult [3 4 5]` | v=`7 17 31`; operations are scale then mult then add |
+| SCR-V46 | `setc c [1 2 3 4]`; same with `-alpha 9`; same with `-scale 2` | `2 3 4`; `9 3 4`; `4 6 8` |
+| SCR-V47 | `setc c [0.5 2 3]` | `2 3 1 0.5`: fourth component is the stored R, omitted default A was 1 |
+| SCR-V48 | `eval [set x hello]`; macro m with two formals, `arrayCreate m 2` | x=`hello`; two expansions with actual lists `0 2` then `1 2` |
+| SCR-V49 | File `dir/a.txt` includes `sub/b.txt`, which includes `../c.txt` | Requests `dir/sub/b.txt` then `dir/sub/../c.txt`; no canonicalization at this layer |
+| SCR-V50 | `sinclude missing` versus `include missing`; nested syntax error in either | Missing open suppressed versus code 3; syntax errors unwind both files without resuming parent lines |
+| SCR-V51 | Optional top-level syntax failure, then valid required file | Error recorded, later file parsed, aggregate success, post and success hooks run |
+| SCR-V52 | Required syntax failure, then valid required file | Later file still parsed; aggregate failure; post hook runs, success hook omitted |
+| SCR-V53 | Binary fields of types 1–12, count 1 | Payload width/order follows section 5.2 table, including type 6 sint64 and type 12 float64 |
+| SCR-V54 | Binary width-4 read, counter 4, total 8 versus 9 | Equality fails without serial IO; total 9 permits read; counter becomes 8 in both cases |
+| SCR-V55 | Binary empty string read, initial counter 4, total 8 | Delegates uint32 length read first and succeeds with counter=8; unlike fixed-width equality |
+| SCR-V56 | Existing field renamed by SetTokenString | Text definition name changes; ID/type/count and payload unchanged; nonexistent ID fails |
+| SCR-V57 | Concrete SetFieldString fragment `42, ` at raw reader cursor | Length bytes `04 00 00 00` are raw input; no fragment unwrap; numeric conversion fails and zeroes output |
+| SCR-V58 | Raw uint32 text `4294967296, `, `-1, `, `0x10, ` | Success with 0, 4294967295, 0 (decimal prefix only) |
+| SCR-V59 | Raw small-integer text `257, ` into uint8/sint8, `65535, ` into sint16 | Success with 1, 1, -1 |
+| SCR-V60 | Raw sint64 text `18446744073709551616, `; text adapter uint64 read | Sint64 succeeds with zero; uint64 instead delegates eight binary bytes, with strict binary boundary |
+| SCR-V61 | Raw float text `1e9999, `, `inf, `, `1.#INF, ` | Successful positive infinity; failure/zero; successful 1 |
+| SCR-V62 | Write positive infinity as f64 and f32 text | `1.#INF, ` and `1.#INF00, ` respectively; no promised text roundtrip |
+| SCR-V63 | Unkeyed image; then assign resource key type T | Base type getter yields zero, then T; color type does not affect this |
+| SCR-V64 | Record BMP with valid offset check and gap after palette | Gap bytes are pixel input; file BMP instead seeks declared offset |
+| SCR-V65 | Record BMP rejects before destination creation; fails after destination creation | First retains old buffer state; second may leave resized/partially modified retained buffer; no rollback |
+| SCR-V66 | 24-bit dither, one row of three pixels B=G=R=15, source rows/padding valid | Output words F000, F111, F111; second pixel receives floor(15×7/16)=6 |
+| SCR-V67 | ARGB8 dither, one row of three pixels A=R=G=B=15 | Output words 0000, 1111, 1111; alpha diffuses too |
+| SCR-V68 | 24-bit BMP, requested type 1, 16-bit destination, reported color type 7 versus another type | Select 4444 dither only for type 7; ordinary translator otherwise |
 
 Additional vectors for switch/positional readers and required/optional file
 ordering are normative in the linked specs. Inputs whose exact result is an

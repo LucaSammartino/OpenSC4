@@ -5,13 +5,11 @@ owner decisions using foreign primitive replies, not a text lexer or native
 command interpreter. Renderer, sound, resource, conversion and generic command
 library services remain foreign. No plugin or C ABI integration is provided.
 
-Settled command owners are implemented through effects §19.52/EC276. The
-initial registration inventory below is retained as
-metadata coverage; its historical EF15 execution annotations are superseded by
-the settled-owner table below. EFP1–EFP6 are answered, not remaining spec gaps.
-Only EF15 residual unpublished families, EFP7 numeric qualification and the
-EF16 instance-handler identity conflict stay open in the specification. Known
-class names are used only where published.
+Command owners are implemented through effects §19.56/EC305 and effects-parser
+§14/NQ17. EF15, EF16 and EFP7 are answered and implemented. The registration
+inventory and owner tables below cover the published command boundary. Known
+class names are used only where published. Conversion spelling, lexing, native
+exception delivery and rotation transcendental accuracy remain foreign services.
 
 ## Owner closure
 
@@ -45,14 +43,14 @@ their order, allocation size and block construction. All test items below are in
 | `00A9F9EC`; `sequence` | effects-parser §6.1 | `ROOT_COMMANDS[20]`, `register_commands`; root test | registration covered; execution table below |
 | `00A9FDFC`; `sequenceEffect` | effects-parser §6.2 registration | `SEQUENCE_EFFECT`, `register_sequence_effect`; `nested_registration_and_allocation_boundary_are_separate` | published association covered |
 | `00A9FDFC`; `sequenceEffect` | effects-parser §6.2 execution | `Parser::sequence_effect`; `r1_sequence_named_repeat_append`, `r2_options_override_initial_clear`, `unsupported_command_and_validation_keep_precise_prefix`, `sequence_command_reads_selection_before_null_manager_append_short_circuit`, `sequence_command_uses_only_first_selection_and_preserves_name_case` | normal primitive-input domain covered; logical failure prefix covered; native exception ABI stays foreign |
-| Residual unpublished nested command owners | effects-parser §6.2 exclusion; effects §§0–18 | open: EF15 | no inferred class names or handlers |
+| Nested command owners | effects §§19.53–19.56 | `script::commands::components`; owner rows below | EC277–EC305 covered |
 
 ### Shared parser operations used by commands
 
 | Owner / spec section | Code item | Tests / remaining open domain |
 |---|---|---|
 | Parser option selection; effects-parser §2 | `parse_options`, `OptionPrimitives` | `p1_absent_retains_asymmetric_fields`, `p7_duplicate_alternatives_are_distinct_foreign_fixtures`; concrete reader and rotation instruction backend covered below |
-| Parser nonrotation options; effects-parser §§3–4 | `parse_options`, `scalar`, `probability` | `p1_*` through `p8_*`, `scale_compares_original_after_rounded_store`, `forbidden_lod_and_probability_stop_at_error_boundary`; failure prefix covered; numeric qualification open: EFP7 |
+| Parser nonrotation options; effects-parser §§3–4 | `parse_options`, `scalar`, `probability` | `p1_*` through `p8_*`, `scale_compares_original_after_rounded_store`, `forbidden_lod_and_probability_stop_at_error_boundary`; numeric qualification in §14 rows below |
 | Parser named append; effects-parser §5.1 | `Parser::add_named`, `Parser::finish` | `r1_sequence_named_repeat_append`, `r2_options_override_initial_clear`, `r5_null_manager_short_circuits_both_paths`, `r6_capacity_branch_is_after_mutation`, `named_rereads_shared_first_index_after_validation`; directory identity covered below |
 | Parser anonymous append; effects-parser §5.2 | `Parser::add_anonymous` | `r3_anonymous_sentinel_is_success_and_full_type_retained`, `r4_anonymous_raw_index_has_no_local_counter`, `r5_null_manager_short_circuits_both_paths`; directory identity covered below |
 | Shared record constructor; effects-parser §5.3 | `Record::shared_constructor_projection` | `shared_constructor_projection_is_not_direct_option_initialization` |
@@ -64,16 +62,15 @@ their order, allocation size and block construction. All test items below are in
 
 ## Owner closure: settled command follow-up
 
-This table records executable owner work from commands5b. It supersedes the
-old EFP1–EFP6 open annotations above for the newly implemented dependencies.
+This table records executable owner work from commands5b and commands5c.
 Particle execution (§§19.18–26,19.39–51), decal children (§§19.35–38), and
-visual-effect/group dictionaries (§19.52) are covered below, except the
-contradictory instance handler association (EF16, EC275). Whole-family
-closure remains bounded by EF15 residual unpublished execution families and
-EFP7 numeric qualification. Float primitives carry independent f64 replies;
-these tests qualify the stated finite fixtures, not arbitrary x87 control
-states or a complete extended-precision emulator. Warp sine/cosine are separate
-primitive calls. Ordinary allocation and valid selected-index domains apply;
+visual-effect/group dictionaries and execution (§§19.52–56) are covered below.
+New nested float primitives accept canonical raw extended replies; legacy f64
+and binary32 replies are lifted exactly. Numeric control is explicit PC24/53/64
+and nearest/down/up/zero, with all exceptions masked. The historical
+`NearestAtLeast53` fixture policy explicitly selects PC53/nearest; no live game
+control word is inferred. Warp sine/cosine remain separate primitive calls.
+Ordinary allocation and valid selected-index domains apply;
 an unchecked empty selection is Unsupported rather than an invented parser error.
 
 | Owner / spec section | Code item | Tests |
@@ -99,7 +96,9 @@ an unchecked empty selection is Unsupported rather than an invented parser error
 | setPriority descriptor 00A9F908, effects §19.7 | Commands::priority | ec31_through_ec42_priorities_visual_reset_flags_and_failure_prefixes |
 | cGroupEffectCommand, effects §19.9 | Commands::enter_visual, exit_visual; existing effects::EffectDescription payload | ec31_through_ec42_priorities_visual_reset_flags_and_failure_prefixes |
 | cTestEffectCommand, effects §19.11 | Commands::preview | ec43_ec44_ec45_ec46_preview_defaults_positions_and_ordered_setters; ec47_ec48_ec49_ec50_preview_failure_gates_and_late_error_prefix |
-| Rotation option owner, effects-parser §13 | parse_options; rotation::apply, compose; Arithmetic backend | ro1_each_zero_axis_preserves_matrix_and_wraps_marks; ro2_all_keys_have_fixed_axis_conversion_order_and_nine_marks; ro3_ro4_compound_failures_retain_only_completed_axes; ro5_ro6_arithmetic_stage_sine_store_asymmetries; open: EFP7 for unqualified backend domains |
+| Rotation option owner, effects-parser §13 | parse_options; rotation::apply, compose; Arithmetic backend | ro1_each_zero_axis_preserves_matrix_and_wraps_marks; ro2_all_keys_have_fixed_axis_conversion_order_and_nine_marks; ro3_ro4_compound_failures_retain_only_completed_axes; ro5_ro6_arithmetic_stage_sine_store_asymmetries; Unsupported without a qualified backend, explicitly permitted by §13 |
+| Scale/probability numeric owner, effects-parser §14 | `numeric::Extended`, `Control`, `probability`; `parse_options` raw scale comparison | `numeric::tests::nq1_through_nq8_raw_scale_store_and_original_comparison`, `nq9_through_nq17_probability_intermediates_and_store`, `masked_signaling_nan_canonical_domain_and_extreme_exponents`, `arithmetic_rounding_is_distinct_from_store_and_preserves_distant_sticky_bits`; parser `scale_compares_original_after_rounded_store`, `raw_binary32_and_exact_probability_domain` |
+| Numeric conformance, effects-parser §14.1 | same numeric operations, exposed m/a/store boundaries | NQ1–NQ17 in the two `nq*` tests; every raw reply checked independently before expected intermediate/store bits |
 | cParticleEffectCommand, effects §19.13 | Commands::enter_definition(Particles); Description::reset | ec51_ec52_ec53_ec54_ec55_definition_defaults_and_inherit_failure; ec56_ec57_particle_retained_word_indeterminate_word_and_scratch_tail |
 | cParticleEffectCommand, effects §19.14 | Commands::exit_definition(Particles) | ec58_ec59_ec60_ec61_light_exit_fallbacks_and_definition_publication |
 | cParticleEffectCommand, effects §19.17 | nested::PARTICLES, nested::register | ec69_ec70_ec71_particle_registration_order_and_distinct_alias_allocations |
@@ -162,24 +161,24 @@ an unchecked empty selection is Unsupported rather than an invented parser error
 | cParticleEmitCommand, §19.47 | `Commands::particle_emit`, `particle_rate_options` | `motion::tests::ec237_through_ec242_emit_rates_and_velocity`; `ec243_through_ec249_emit_direction_shapes_and_overrides` |
 | cParticleForceCommand, §19.49 | `Commands::particle_force`, `force_list` | `motion::tests::ec250_through_ec258_force_acceleration_and_attraction_failure_prefix`; `ec259_through_ec264_force_automata_terrain_and_explosion` |
 | cParticleForceCommand, §19.50 | `Commands::tractor`, `particle_force`, `Description::tractors` | `motion::tests::ec265_through_ec271_force_tractor_geometry_time_and_compounding`; definition EC57 inherited tail fixture |
-| cEffectGroupIDCommand, §19.52 | `nested::EFFECT_GROUP` (same instance algorithm) | nested EC275 test; equal-handler identity open: EF16 |
+| cEffectGroupIDCommand, §19.52 | `nested::EFFECT_GROUP`, `Commands::effect_id(true)` | nested EC275 test checks literal equality with `ROOT_COMMANDS[7]`; existing EC5–15 execution tests |
 | cGroupEffectCommand, §19.52 | `nested::EFFECT`, `nested::register` | nested EC272–276 test |
-| cGroupParticlesCommand, §19.52 | `nested::EFFECT[0]` | nested EC272–276 registration test; execution open: EF15 |
-| cGroupDynamicParticleCommand, §19.52 | `nested::EFFECT[1]` | same registration test; execution open: EF15 |
-| cGroupDecalCommand, §19.52 | `nested::EFFECT[2]` | same registration test; execution open: EF15 |
-| cGroupShakeCommand, §19.52 | `nested::EFFECT[3]` | same registration test; execution open: EF15 |
-| cGroupFlashCommand, §19.52 | `nested::EFFECT[4]` | same registration test; execution open: EF15 |
-| cGroupTintCommand, §19.52 | `nested::EFFECT[5]` | same registration test; execution open: EF15 |
-| cGroupSoundCommand, §19.52 | `nested::EFFECT[6]` | same registration test; execution open: EF15 |
-| chainEffect descriptor 00A9FE3C, §19.52 | `nested::EFFECT[7]` | same registration test; execution open: EF15 |
-| cGroupBrushCommand, §19.52 | `nested::EFFECT[8]` | same registration test; execution open: EF15 |
-| cGroupScrubberCommand (four aliases), §19.52 | `nested::EFFECT[9..13]` | same registration test; execution open: EF15 |
-| cGroupAttractorCommand, §19.52 | `nested::EFFECT[13]` | same registration test; execution open: EF15 |
+| cGroupParticlesCommand, §§19.52–53 | `nested::EFFECT[0]`, `Commands::named_component(Particle)` | nested EC272–276; `components::tests::ec277_through_ec282_named_context_validation_shells_and_flags`, `named_common_options_keep_store_order_and_zero_shell_comparison` |
+| cGroupDynamicParticleCommand, §§19.52–53 | `nested::EFFECT[1]`, `Commands::named_component(Dynamic)` | same EC277–282 and common-option tests |
+| cGroupDecalCommand, §§19.52–53 | `nested::EFFECT[2]`, `Commands::named_component(Decal)` | same EC277–282 tests |
+| cGroupShakeCommand, §§19.52,19.54 | `nested::EFFECT[3]`, `Commands::auxiliary_component(Shake)` | `ec283_through_ec287_auxiliary_order_alias_short_circuit_and_failure_prefix` |
+| cGroupFlashCommand, §§19.52,19.54 | `nested::EFFECT[4]`, `Commands::auxiliary_component(Flash)` | same EC283–287 tests |
+| cGroupTintCommand, §§19.52,19.54 | `nested::EFFECT[5]`, `Commands::auxiliary_component(Tint)` | same EC283–287 tests |
+| cGroupSoundCommand, §§19.52,19.55 | `nested::EFFECT[6]`, `Commands::anonymous_component(Sound)`, `sound_payload` | `ec288_through_ec290_sound_brush_maps_and_stored_length`, `anonymous_failure_prefix_ranges_missing_names_and_nonfinite_lengths` |
+| chainEffect descriptor 00A9FE3C, §§19.52,19.54 | `nested::EFFECT[7]`, `Commands::chain_component` | EC283–287 tests |
+| cGroupBrushCommand, §§19.52,19.55 | `nested::EFFECT[8]`, `Commands::anonymous_component(Brush)`, `brush_payload` | EC288–290 and anonymous failure-prefix tests |
+| cGroupScrubberCommand (four aliases), §§19.52,19.55 | `nested::EFFECT[9..13]`, `Commands::anonymous_component(Scrubber)`, `scrubber_payload` | `ec291_through_ec293_scrubber_aliases_crt_and_shape_overrides`; all four literal aliases also checked by registration tests |
+| cGroupAttractorCommand, §§19.52,19.55 | `nested::EFFECT[13]`, `Commands::anonymous_component(Automata)` | `ec294_through_ec297_ec305_automata_camera_and_anonymous_insertion_prefix` |
 | cGroupSequenceCommand, §19.52 | `nested::EFFECT[14]`, `Parser::sequence_effect` | nested registration test; effects-parser §6.2 execution tests above |
-| cGroupCameraCommand, §19.52 | `nested::EFFECT[15]` | same registration test; execution open: EF15 |
-| cGroupGroupCommand, §19.52 | `nested::EFFECT[16]` | same registration test; execution open: EF15 |
-| select block descriptor 00A9FDC0, §19.52 | `nested::EFFECT[17]` | same registration test; enter/exit execution open: EF15 |
-| particleSequence block descriptor 00A9FED4, §19.52 | `nested::EFFECT[18]` | same registration test; enter/exit execution open: EF15 |
+| cGroupCameraCommand, §§19.52,19.55 | `nested::EFFECT[15]`, `Commands::anonymous_component(Camera)` | EC294–297/305 and anonymous failure-prefix tests |
+| cGroupGroupCommand, §§19.52–53 | `nested::EFFECT[16]`, `Commands::named_component(Visual)` | EC277–282 tests |
+| select block descriptor 00A9FDC0, §§19.52,19.56 | `nested::EFFECT[17]`, `Commands::enter_select`, `exit_select` | `ec298_through_ec304_select_counts_tail_wrap_nesting_and_hooks` |
+| particleSequence block descriptor 00A9FED4, §§19.52,19.56 | `nested::EFFECT[18]`, `Commands::enter_particle_sequence`, `exit_particle_sequence` | same EC298–304 tests |
 
 The conformance sections map to the test groups above without interpreting them
 as native golden runs: §19.3 EC1–6; §19.6 EC7–24; §19.8 EC25–34;
@@ -188,7 +187,8 @@ as native golden runs: §19.3 EC1–6; §19.6 EC7–24; §19.8 EC25–34;
 §19.28 EC120–130; §19.30 EC131–140; §19.34 EC141–160;
 §19.38 EC161–183; §19.42 EC184–208; §19.44 EC209–223;
 §19.46 EC224–236; §19.48 EC237–249; §19.51 EC250–271;
-§19.52 EC272–276. Shared input contract §19.1 uses the reader, error and
+§19.52 EC272–276; §19.53 EC277–282; §19.54 EC283–287;
+§19.55 EC288–297/305; §19.56 EC298–304. Shared input contract §19.1 uses the reader, error and
 dispatch fixtures from effects-parser §§9–12 above. Typed timed-effect,
 wiggle and tractor lists clone on inheritance and clear on description reset;
 the generic integer lists are not used to encode their payloads.
@@ -204,8 +204,9 @@ primitive-input option ledgers; neither introduces lexing or catch/recovery.
 
 §17 assigns runtime behavior to the manager, brush and particle owners, not the
 script command classes. Existing coverage is recorded here so runtime vectors
-are not mistaken for command conformance. Nothing in this table establishes the
-unpublished script that produces a runtime description (open: EF15).
+are not mistaken for command conformance. Nested script construction is now
+covered independently by §§19.53–56 above; runtime/data census assertions remain
+outside the command owners.
 
 | effects §17 item | Existing code | Existing test/vector |
 |---|---|---|

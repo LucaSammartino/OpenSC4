@@ -141,6 +141,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RC | resource-catalog |
 | RD | renderer-driver |
 | RE | resource-exemplar-editor |
+| REV | resource-editor-views |
 | RG | residential-education-health |
 | RM | region-model |
 | RN | foundations |
@@ -216,7 +217,7 @@ generated index: the questions live one file per spec, so read only the file for
 | city-detail | 3 | 5 | CD9 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
 | city-tools | 7 | 0 | CT18 | questions/city-tools.md |
-| city-tools-input | 12 | 16 | CT25 | questions/city-tools-input.md |
+| city-tools-input | 14 | 16 | CT27 | questions/city-tools-input.md |
 | civic-buildings | 0 | 19 | CB20 | - |
 | clock24 | 0 | 22 | CK23 | - |
 | command-line | 4 | 0 | CL5 | questions/command-line.md |
@@ -250,7 +251,7 @@ generated index: the questions live one file per spec, so read only the file for
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
 | graphics-rules | 4 | 4 | GR9 | questions/graphics-rules.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
-| gz-framework-core | 9 | 0 | GZF10 | questions/gz-framework-core.md |
+| gz-framework-core | 11 | 0 | GZF12 | questions/gz-framework-core.md |
 | gz-graphics | 5 | 1 | GZG7 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
 | html-document | 2 | 6 | HD9 | questions/html-document.md |
@@ -262,7 +263,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lighting | 6 | 7 | LT14 | questions/lighting.md |
 | local-grid-helper | 1 | 0 | LGH2 | questions/local-grid-helper.md |
 | lot-configuration | 0 | 1 | GLUE22 | - |
-| lot-configuration-editor | 5 | 2 | LE8 | questions/lot-configuration-editor.md |
+| lot-configuration-editor | 6 | 2 | LE9 | questions/lot-configuration-editor.md |
 | lot-developer | 3 | 36 | LD40 | questions/lot-developer.md |
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 9 | LR12 | questions/lot-records.md |
@@ -281,7 +282,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-occupants | 21 | 24 | NO45 | questions/network-occupants.md |
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
-| network-rules | 2 | 10 | NR16 | questions/network-rules.md |
+| network-rules | 2 | 11 | NR17 | questions/network-rules.md |
 | network-tool-ui | 0 | 0 | - | questions/network-tool-ui.md |
 | network-tools | 16 | 4 | NT27 | questions/network-tools.md |
 | network-transport | 4 | 0 | Q15 | questions/network-transport.md |
@@ -322,11 +323,12 @@ generated index: the questions live one file per spec, so read only the file for
 | residential | 0 | 17 | RS18 | - |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | resource-catalog | 5 | 0 | RC6 | questions/resource-catalog.md |
+| resource-editor-views | 6 | 0 | REV7 | questions/resource-editor-views.md |
 | resource-exemplar-editor | 8 | 0 | RE9 | questions/resource-exemplar-editor.md |
 | rigid-body-2d | 7 | 0 | RB8 | questions/rigid-body-2d.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
-| rz-strings | 5 | 0 | RZS6 | questions/rz-strings.md |
-| sc-resources | 6 | 1 | SCR8 | questions/sc-resources.md |
+| rz-strings | 6 | 0 | RZS7 | questions/rz-strings.md |
+| sc-resources | 0 | 7 | SCR8 | questions/sc-resources.md |
 | simgrid | 2 | 0 | SG3 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
 | sound-system | 12 | 0 | SS13 | questions/sound-system.md |
@@ -364,4 +366,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **579** | **1388** | | |
+| **total** | **585** | **1395** | | |

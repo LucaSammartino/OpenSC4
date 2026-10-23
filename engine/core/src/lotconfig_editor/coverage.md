@@ -1,5 +1,13 @@
 # Portable lot editor coverage audit
 
+This is the historical pre-window-integration body audit. Its per-body portable
+classifications/counts below describe that snapshot, not the new window shell.
+For current section-by-section owner closure, chooser coverage, LEW01–18 tests
+and the remaining explicit LE3–LE8 boundaries, use `README.md`. Added kernels
+include editor window lifecycle/draw/input orchestration, chooser policy, size
+dialog requests, insertion and selector-commit postludes. No byte-total or
+complete-native-window claim is inferred from these additions.
+
 Inventory: **109 current bodies / 52,646 bytes**; published C44/20,550 B, P20/20,334 B, O40/11,335 B, R5/427 B.
 
 Complete below means a focused portable algorithm within its stated domain, never a whole-owner claim. Partial entries retain dependency barriers. Unsupported entries have no implementation credit. Foreign entries are shared/dependency bodies and receive no exclusive editor credit. Supplemental Save As prefix is accounted with its corrected workflow, not a new body.
