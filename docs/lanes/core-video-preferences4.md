@@ -11,7 +11,10 @@
 - Implemented qualified actions, messages, EndDialog, modal chronology, shared slots, explicit redraw/show slices. Full redraw, valid-P Auto/redraw and unknown event branches reject before unqualified work.
 - Refcounts: EndDialog/QI emit the published virtual AddRef/Release effects; separate direct Release accepts explicit raw count snapshot because AddRef arithmetic/initial count are VP3 unknowns.
 - First-redraw slice transfers retained interface at 0079020d; no fabricated final Release/whole-method success.
-- Next: commit stable code, run focused quick wrapper and one canonical all; report actual counts and terminal evidence.
+- Code/tests milestone: 1244c283 (all Rust sources formatted in place with absolute filenames).
+- Focused quick Rust PASS: 3429 + 21 + 13 + 19 + 0 = 3482 passed, zero failed; dependent compile Finished. Evidence: build-runs/fc4verify-quick-test.log and fc4verify-quick-deps.log.
+- Outstanding SAME quick operation: exec session 82127, launched qbuild.py quick; native CMake has 217 steps, observed progressing. Do not cancel/restart/duplicate.
+- Next: collect terminal quick result from session 82127; fmt-check absolute owned .rs paths; run ONE canonical qbuild all with engine source tree hash before/after. No all run yet.
 - q.py cannot start Bash (E_ACCESSDENIED); use bounded PowerShell output and approved qbuild wrapper.
 - Task explicitly says no pre-edit baseline; run one canonical all after focused checks.
 - No game requests; no native owner launch or complete redraw/default claims.
