@@ -385,6 +385,13 @@ subscribes to the source's message:
 updated (a change marks it dirty) and a dirty map is redrawn once at least **1000 ms** have passed since the last
 redraw (**250 ms**, and always dirty, for source 76). `0xA6B79602` with a changed value marks it dirty.
 
+There is no bitmap-update success code for this tick handler to propagate: `Update` returns void. In
+particular, a normally returning custom-view slot-5 result is ignored; when the common update tail is reached,
+the last-redraw clock is stored after that call (`0x007A4855`–`0x007A486F`). No foreign error causes an owner
+rollback of the selection. The clock/dirty rules for individual early exits remain QV9; the ordinary false
+results and local skip behavior specified in §§1, 3, 5 and 6 must not be replaced by a universal stop-on-error
+policy.
+
 ## 8. Quirks
 
 1. The zones view and the four generic desirability views draw nothing (§4.1).

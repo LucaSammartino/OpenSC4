@@ -58,4 +58,3 @@
   and 4 distinguished beyond both selecting slot 13, and what is the layout/geometry/iteration rule for the
   slot-11 entries used to construct the layer-6 debug grid multiplied by 12? [default/unknown layers refused;
   preserve selected layer 3/4 in the raw request; debug selects layer 6 but does not construct its grid]
-
