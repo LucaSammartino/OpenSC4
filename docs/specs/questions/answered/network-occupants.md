@@ -1,4 +1,51 @@
 # network-occupants: answered questions (archive)
+
+<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
+- ~~**NO35 - section 4.4 power-pole record and live layout:** please specify the wire-point list count
+  encoding, the three `0x006574A0` struct stream bodies, exact four vertex offsets/order and live-to-record
+  mapping. Section 4.1 places model IDs at C0/C4 while section 4.4 writes B8/BC/C0, and GetCell reads
+  C8/CC although layout says C8 is bbox dirty and CC/D0 are cells. Position and vector offsets likewise
+  overlap the record's unrelated words. Which is authoritative? What is released at B0 after Read,
+  given B0 is also the connection vector end? Which reference uses which of the two class-ID IIDs,
+  and what happens on failed reads? No pole record codec is fabricated. [missing; section 4.4,
+  section 11 quirk 11 and section 13 test 16 remain open]~~
+
+  NO35 refinement: section 3.4 does define helper `0x006574A0` as a u32 count and
+  24-byte quad vertices, so that part can reuse the existing wall codec. The
+  wire-point nesting/counts and inconsistent live/record offsets still need clarification.
+  **ANSWERED 2026-10-23 (re-netocc-answers5):** DIFFERS — §§4.1/4.4, quirk 11 and test 16:
+  record offsets are serializable-view relative (+C to get primary); cleanup releases live +BC delegate.
+  Destination pole IID is 0x09C05C6A; counted linked list uses line IID 0xC9C05C5D. Both geometry
+  collections contain counted inner xyz lists. Four xyz triples go through the selected shared +E4
+  pointer. Three wall lists are count + (xyz, uv, RGBA) per vertex. Reached-body failure has no rollback.
+
+<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
+- ~~**NO37 - sections 6.1-6.3 pylon offsets, Read and placement:** the record calls +5C and +70
+  transforms but also names their interior +60/+64/+68 as separate bytes and +74 as a call number.
+  How do these map to live state? Does v3 use legacy decoding for both transforms? Which IIDs are
+  requested for the two refs, what are absent-v5 tail defaults, and when is the old +6C source released
+  on Read failure? Shutdown says release +78 while the source is +6C: same resource or distinct?
+  What are the exact state bits and manager/renderer calls for PlaceInOccupantManager and PlaceInRenderer,
+  and what is the IsInitialized branch/return for repeat Init? Current literal implementation keeps
+  serialized state separate, uses legacy for both transforms, preserves absent tail state, reads generic
+  serializable refs, releases old source immediately before the replacement read, skips repeated Init,
+  and removes an inserted occupant through city-handle/manager primitives before the three unsubscriptions.
+  No unspecified renderer calls/flag masks are invented. [ambiguous; sections 6.1-6.3, conformance 19/20
+  have executable partial coverage but no whole-owner closure]~~
+  **ANSWERED 2026-10-23 (re-netocc-answers5):** DIFFERS — §§6.1–6.3, tests 19/20: serializable-view
+  offsets require +C; first field is bool, only one transform exists (live +7C); call is u16 +14C;
+  the alleged int64 is GZStr +1AC. Source IID 0x26BB767E, owner IID 1; v3/v4 preserve absent tail.
+  Full placement transition/result table and repeat-Init true/no-op are specified; renderer insertion is +70.
+
+<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
+- ~~**NO34 - sections 4.2-4.3 and section 13 test 17 demolition cost:** how do the control exemplar
+  properties (in particular float `0xE9A18D3F` at `0x00B46754`) update the signed int64 demolition
+  statics at `0x00B46770/74`? The published init table does not write those statics. The core can
+  return supplied low/high words verbatim, but does not invent a conversion or scaling formula.
+  [missing; exemplar-to-quote half of conformance test 17 remains open]~~
+  **ANSWERED 2026-10-23 (re-netocc-answers5):** DIFFERS — §4.3 and test 17: one-time StaticInit reads
+  signed-int64 property `0x0A2ECED8` from the control exemplar directly into the zero-initialized quote.
+  `0xE9A18D3F` is independent; there is no scaling formula. Missing/failed lookup preserves the quote.
 <!-- Archive for [network-occupants.md](../../network-occupants.md). Lanes do not read this file. Open questions are in ../network-occupants.md. -->
 
 <!-- from: re-netocc-contracts4 (2026-10-21) -->
@@ -54,3 +101,94 @@
   start height at -FLT_MAX, replace only by strictly greater ordered corners, add 0.5, store float32.
   All-sentinel corners return y=-FLT_MAX; no failure/skipped pole. NaN corners are ignored. Evidence
   `0x0064F00B`, `0x0064F061–0x0064F0BB`; `0x00AA9F0C=0xFF7FFFFF`.
+
+<!-- from: the network occupants spec (2026-10-20) -->
+- ~~**NO1 - network flag 0x40 vs the intersection bit:** the meaning of network flag `0x40` tested by
+  `IsIntersection` (primary slot 55, `0x0061BD80`) versus the `0x100000` intersection bit used elsewhere
+  (network-manager.md §5). [inferred: `0x40` is a styling/presentation bit; the slot checks it before the
+  highway-intersection piece-id lookup at `0x00B4528C`]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** DIFFERS — `0x40` is `1 << 6`, the avenue network type bit (`IsOfType(6)`,
+  §1.4), not a styling bit: `IsIntersection` (slot 55) is true for an avenue piece whose piece id is in the 13-entry
+  set `StaticInit` fills from `0x00AA7D40` (network-occupants.md §2.4, §2.5).
+
+<!-- from: the network occupants spec (2026-10-20) -->
+- ~~**NO3 - the underground occupant's type:** does `cSC4UndergroundOccupant` ever carry a distinct occupant type?
+  Its base ctor leaves `0x74758925`; the demolition dispatcher never names an underground type. [inferred:
+  underground pieces are dispatched as `0xC772BF98` through their `cISC4NetworkOccupant` interface]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** DIFFERS — the underground constructor `0x0065C330` runs the network constructor
+  first (`0x0065C354`), which writes `0xC772BF98` at `+0x28`; nothing later changes it (§3.2; quirk 1).
+
+<!-- from: the network occupants spec (2026-10-20) -->
+- ~~**NO5 - the 0x4835C6A7-AC property family:** SDK names of the property-ID family `0x4835C6A7` (edge types),
+  `0x4835C6A8` (passage ceiling), `0x4835C6AA` (one-way), `0x4835C6AB` (anchor), `0x4835C6AC` (retrofit) stored
+  in the occupant's own property holder. [unknown]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** the SDK names the slots that read them: `0x4835C6A7`
+  Get/SetConnectionNodeEdgeTypes (13, 14), `0x4835C6A8` Get/SetPassageCeiling (67, 68), `0x4835C6A9`
+  Get/SetConnectionPathIDOverride (15, 16), `0x4835C6AA` Get/SetOneWayDirections (69, 70), `0x4835C6AB`
+  Get/SetComplexPieceOrigin (71, 72), `0x4835C6AC` CheckForRetrofit / SetRetrofitFlag (6, 7) (§2.2 "Properties").
+
+<!-- from: the network occupants spec (2026-10-20) -->
+- ~~**NO7 - GetSortValue's stored field:** which field holds the sort value of an underground occupant when flag
+  `0x6000000` is set (§3.2); the negative displacement (`−0x178`/`−0x274`) in the decomp is ambiguous.
+  [not specified]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** the piece id `+0xFC`: `GetSortValue` runs on the drawable at the virtual base
+  `+0x274`, so `[this − 0x178]` is object `+0xFC`; without flags `0x06000000` it answers `0x4A10AFC2` (§3.1).
+
+<!-- from: the network occupants spec (2026-10-20) -->
+- ~~**NO8 - the connection registration strings:** the strings `0x00B0B6D0`/`0x00B0C388` passed with the class IDs
+  to helper `0x00654710` by the pipe/subway-connection `Init` (§3.6): GZCOM class names? [unknown]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** they are not strings but the classes' static model descriptors (`0x00B0B6D0`
+  begins with the IDs `0x095A8D70`, `0xE95A8D8D`, …, pointers and counts), the second argument of the connection's
+  `Init(classID, descriptor)`, main slot 34, which begins at `0x00654710` (§3.6).
+
+<!-- from: core-netocc4 (engine lane, 2026-10-21) -->
+- ~~**NO9 - IsManagedGlobally for the underground family:** §2.7 gives slot 5 for the plain class (false) and the
+  prebuilt/bridge/tunnel primaries (true) but not for `cSC4UndergroundOccupant`/pipe/subway (`0x00AAAD40`,
+  `0x00AA97B8`, `0x00AAA3C8`). The core answers false (inherited plain body). Which body do those vtables hold?
+  (Numbered NO9 per QUESTIONS.md; §12 also uses NO9/NO10 for two settled notes.) [not specified]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** MATCHES — slot 5 of `0x00AAAD40`, `0x00AA97B8` and `0x00AAA3C8` is the shared
+  `0x00648EF0`, false (§2.7).
+
+<!-- from: core-netocc4 (engine lane, 2026-10-21) -->
+- ~~**NO12 - the path-connection table shape and the wildcard count:** §2.6 addresses `[+0x144 + exit*4 + type]` and
+  `[+0x144 + type]` (a 4 × 8 byte region that also contains the saved `+0x15C` u32), traffic-network.md §7.2 says
+  `(pathType, entry, exit)` with a bit per path type. Which index is entry/exit, how many bytes per row, and with
+  `0xFF` wildcards what is counted (matching entry/exit cells, or path-type bits too)? The core keeps
+  `[entry][exit]` path-type bit bytes and counts (type, entry, exit) triples. [ambiguous]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** DIFFERS — 8 rows of 4 bytes: byte `+0x144 + type·4 + entry` holds a bit per
+  exit side (`AddPathConnection` `0x00619790` ORs `1 << exit` there and into row 0, byte `+0x144 + entry`). With
+  `0xFF` wildcards `PathConnectionExists` counts set exit bits: both wild over the row's 4 bytes, `entry` wild the
+  bytes with bit `exit`, `exit` wild the bits of byte `entry` (§2.6).
+
+<!-- from: core-netocc4 (engine lane, 2026-10-21) -->
+- ~~**NO14 - conformance test 6's slot:** §13 test 6 says "`SetRotation(2)` then slot 24 returns 2", but §2.4 maps
+  slot 24 to `GetFlip` (slots 26/24/25 = orientation/flip/rotation). Is the test's slot 25 (`GetRotation`)? The
+  core tests `GetRotation`. [ambiguous]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** slot 24 is `GetRotation` (SDK order; `+0x104 & 0x7F`), 25 `GetFlip`, 26
+  `GetRotationAndFlip`; slot 27 is `SetVariation`, and the rotation is set by slot 30 or 74. Test 6 now uses
+  `SetRotationAndFlip` (slot 74) and `GetRotation` (slot 24) (§2.4, §13).
+
+<!-- from: core-netocc-records4 (engine lane, 2026-10-21) -->
+- ~~**NO20 - `IsImaginaryConnection` with dir > 3:** the offset table `0x00B0CFE8` has four (dx, dz) pairs; what does
+  a direction above 3 read (the bytes after the table, or a guard)? The core returns false. [missing]~~
+  **ANSWERED 2026-10-21 (re-ugbase):** DIFFERS — there is no guard: the side indexes the table directly, so a side
+  above 3 reads the bytes after it (quirk 19). The core's false is a choice for an input the game never passes (§3.2).
+
+<!-- from: the network occupants spec (2026-10-20) -->
+- ~~**NO2 - the power pole's delegate interface:** the identity of the delegate interface `0x26A68448` answered by
+  the power pole via `+0xBC` (jump-table dispatch; likely a UI/drag helper). Probe: dump the `[+0xBC]` vtables on
+  a live pole. [unknown]~~
+  **ANSWERED 2026-10-21 (re-powerpoles):** `+0xBC` is the pole's model instance and `0x26A68448` is a model instance's
+  mesh-container interface (model-instances.md): `QueryInterface` forwards that IID to the instance's own
+  `QueryInterface` and fails when the pole has no instance (network-occupants.md §4.1).
+
+<!-- from: core-netocc4 (engine lane, 2026-10-21) -->
+- ~~**NO13 - the power line's field offsets and record:** §5.1's layout puts the cell at `+0x40/+0x44` and three
+  poles at `+0x48/+0x4C/+0x50`; its slot table reads `GetCell` from `+0x44/+0x48` and `GetConnectedPoles` from
+  `+0x4C/+0x50` plus byte `+0x54`; §5.2 writes u32 `+0x30…+0x40` then references from `+0x4C`, `+0x44`, `+0x48`.
+  Which live field is each record word/reference, is the cell z saved, does `Read` check the version (only "v2"
+  is stated), and does `SetPosition`'s float→int helper truncate or round? The core keeps the record as a literal
+  field list and truncates. [ambiguous]~~
+  **ANSWERED 2026-10-21 (re-powerpoles):** with object offsets: position `+0x38` (3 × f32), cell `+0x44`/`+0x48`, the
+  two poles `+0x4C`/`+0x50`, the bool `+0x54`, preview `+0x55` (the earlier table was 4 low). The record
+  (`0x0064A310`) is u16 2, the occupant record, 3 × f32, 2 × s32, a u8 and two refs (network-occupants.md §5.1, §5.2).

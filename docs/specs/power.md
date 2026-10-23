@@ -261,7 +261,7 @@ simulator itself does not read `data1`.
 Dispatch on `occ.GetType()` (occupant slot 7):
 
 - **Power pole** `0x2890D4DE`: QI `cISC4PowerPoleOccupant` (`0xA8C86142`). If pole slot 13 returns true, ignore
-  the pole entirely *[inferred: a preview or temporary pole]*. Else: cell := `pole.GetCell` (slot 8); set the wire
+  the pole entirely (slot 13 is `IsPreview`, network-occupants.md §4.2). Else: cell := `pole.GetCell` (slot 8); set the wire
   bits of the cell's neighbourhood; keep the reference in the pole list; poleCount += 1; costBase += int64
   property `0x09132DE8` of the pole; recompute := true.
 - **Power line** `0x0990B2EA`: QI `cISC4PowerLineOccupant` (`0xC98F3B24`). If `IsPreview()` ignore. Else wire the
@@ -1060,8 +1060,10 @@ reproduced; `Read` ignores stream errors (§9; FreeCity4 fails cleanly instead).
 
 ## 13. Open questions
 
-1. Meaning of pole slot 13 (a byte flag that makes power ignore the pole) and of network flags `0x40000` and
-   `0x80000000`.
+1. ~~Meaning of pole slot 13 (a byte flag that makes power ignore the pole) and of network flags `0x40000` and
+   `0x80000000`.~~ **Answered 2026-10-21 (re-powerpoles):** slot 13 is `IsPreview` (the byte `+0x118` that slot
+   14 sets; network-occupants.md §4.2); `0x40000` is the bridge-step flag and `0x80000000` the draft flag
+   (network-manager.md §5).
 2. ~~Who posts ConnectionsReady `0x6AC284F3`, and whether it always arrives after a load (otherwise a loaded city
    never recomputes power).~~ **Answered 2026-10-14 in foundations.md §11.6.**
    - The poster is `cSC4RegionalCity::CreateSymmetricConnections`, on TerrainReconciliation.

@@ -1,0 +1,78 @@
+va	name	evidence	mac_x86
+0061f4c0	cSC4PowerPoleOccupant::GetDirection	power-line-tool.md §5.3; also called by the power line tool	
+00649190	cSC4PowerPoleOccupant::GetOwner	network-occupants.md §4.1; model instance slot 3	
+006491e0	cSC4PowerPoleOccupant::SetHighlight	network-occupants.md §4.2	
+00649200	cSC4PowerPoleOccupant::GetSortValue	network-occupants.md §4.2	
+00649210	cSC4PowerPoleOccupant::GetCell	network-occupants.md §4.2 slot 8	
+00649230	cSC4PowerPoleOccupant::IsDistressed	network-occupants.md §4.2 slot 11	
+00649240	cSC4PowerPoleOccupant::IsPreview	network-occupants.md §4.2 slot 13; power.md §5.1	
+00649250	cSC4PowerPoleOccupant::SetPreview	network-occupants.md §4.2 slot 14	
+006493b0	cSC4PowerPoleOccupant::EvaluateBezier	power-line-tool.md §5.5	
+006499b0	cSC4PowerPoleOccupant::GetConnectedPole	network-occupants.md §4.2 slot 7	
+00649a00	cSC4PowerPoleOccupant::GetBoundingBox	network-occupants.md §4.2	
+00649b30	cSC4PowerPoleOccupant::InitConnectionPoints	network-occupants.md §4.6	
+00649ba0	cSC4PowerPoleOccupant::GetAttachmentPoints	network-occupants.md §4.6	
+00649d00	cSC4PowerPoleOccupant::GetModelInstances	network-occupants.md §4.2 slot 17	
+00649d80	cSC4PowerPoleOccupant::GetConnectionCount	network-occupants.md §4.2 slot 4	
+00649da0	cSC4PowerPoleOccupant::GetPosition	network-occupants.md §4.7	
+00649dd0	cSC4PowerPoleOccupant::GetLineCellsTo	network-occupants.md §4.2 slot 16	
+00649fa0	cSC4PowerPoleOccupant::Init	network-occupants.md §4.3 occupant slot 3	
+0064a030	cSC4PowerPoleOccupant::QueryInterface	network-occupants.md §4.1	
+0064a0f0	cSC4PowerPoleOccupant::OnOccupantInserted	network-occupants.md §4.3	
+0064a140	cSC4PowerPoleOccupant::DoMessage	network-occupants.md §4.3 message target slot 3	
+0064a170	cSC4PowerPoleOccupant::InitPowerLineControlVariables	network-occupants.md §4.3	
+0064a4d0	cSC4PowerPoleOccupant::WalkLineCells	network-occupants.md §4.6	
+0064a560	cSC4PowerPoleOccupant::RemoveConnection	network-occupants.md §4.6 (record overload)	
+0064a650	cSC4PowerPoleOccupant::InsertLines	network-occupants.md §4.2 slot 9	
+0064a6c0	cSC4PowerPoleOccupant::GetControlPoints	power-line-tool.md §5.5	
+0064a870	cSC4PowerPoleOccupant::Pick	network-occupants.md §4.2	
+0064aa40	cSC4PowerPoleOccupant::SetDistressed	network-occupants.md §4.7	
+0064ac70	cSC4PowerPoleOccupant::SetModelPosition	network-occupants.md §4.7	
+0064ad90	cSC4PowerPoleOccupant::LoadModel	network-occupants.md §4.7	
+0064b010	cSC4PowerPoleOccupant::Write	network-occupants.md §4.4	
+0064b6e0	cSC4PowerPoleOccupant::AttachLines	power-line-tool.md §5.3 step 4; was attributed to the power line tool by reach	
+0064b750	cSC4PowerPoleOccupant::DrawPowerlines	network-occupants.md §4.7	
+0064bc80	cSC4PowerPoleOccupant::Shutdown	network-occupants.md §4.3	
+0064bd80	cSC4PowerPoleOccupant::StaticShutdown	network-occupants.md §4.3	
+0064be50	cSC4PowerPoleOccupant::GetLineCells	network-occupants.md §4.6 slot 5	
+0064bfd0	cSC4PowerPoleOccupant::CreateFloor	network-occupants.md §4.7	
+0064c2c0	cSC4PowerPoleOccupant::AddWallQuad	network-occupants.md §4.7	
+0064c470	cSC4PowerPoleOccupant::CreateWalls	network-occupants.md §4.7	
+0064c540	cSC4PowerPoleOccupant::SetPosition	network-occupants.md §4.7	
+0064c6c0	cSC4PowerPoleOccupant::ChangeZoomLevel	network-occupants.md §4.7 slot 18	
+0064c800	cSC4PowerPoleOccupant::Draw	network-occupants.md §4.7	
+0064cc20	cSC4PowerPoleOccupant::StaticInit	network-occupants.md §4.3	
+0064ce40	cSC4PowerPoleOccupant::Init	network-occupants.md §4.3 main slot 15	
+0064d510	cSC4PowerPoleOccupant::RebuildWires	network-occupants.md §4.3	
+0064d910	cSC4PowerPoleOccupant::SetDefaultExemplar	network-occupants.md §4.3	
+0064da00	cSC4PowerPoleOccupant::RemoveConnection	network-occupants.md §4.6 (pole overload); power.md §11.2	
+0064db30	cSC4PowerPoleOccupant::cSC4PowerPoleOccupant	network-occupants.md §4.1	
+0064dd50	cSC4PowerPoleOccupant::GetGZCLSID	network-occupants.md §4.1	
+0064dd60	cSC4PowerPoleOccupant::GetCostOfDemolition	network-occupants.md §4.2 slot 10	
+0064e340	GZCOM_CreatecSC4PowerPoleOccupant	network-occupants.md §4.1	
+0064e380	cSC4PowerPoleOccupant::~cSC4PowerPoleOccupant	network-occupants.md §4.1	
+0064e3e0	cSC4PowerPoleOccupant::AddConnection	power-line-tool.md §5.3; called by the power line tool, was attributed to it by reach	
+0064ea00	cSC4PowerPoleOccupant::Read	network-occupants.md §4.4	
+005b2b00	cSC4PowerLineOccupant::GetPosition	network-occupants.md §5.1 occupant slot 8	
+005dea50	cSC4PowerLineOccupant::Init	network-occupants.md §5.1 occupant slot 3	
+00649260	cSC4PowerLineOccupant::GetGZCLSID	network-occupants.md §5.1	
+00649270	cSC4PowerLineOccupant::Shutdown	network-occupants.md §5.1 occupant slot 4	
+00649290	cSC4PowerLineOccupant::GetConnectedPoles	network-occupants.md §5.1 main slot 3	
+006492d0	cSC4PowerLineOccupant::SetConnectedPoles	network-occupants.md §5.1 main slot 4	
+00649330	cSC4PowerLineOccupant::GetCell	network-occupants.md §5.1 main slot 5	
+00649350	cSC4PowerLineOccupant::QueryInterface	network-occupants.md §5.1	
+00649390	cSC4PowerLineOccupant::IsPreview	network-occupants.md §5.1 main slot 6	
+006493a0	cSC4PowerLineOccupant::SetPreview	network-occupants.md §5.1 main slot 7	
+0064a270	cSC4PowerLineOccupant::cSC4PowerLineOccupant	network-occupants.md §5.1	
+0064a310	cSC4PowerLineOccupant::Write	network-occupants.md §5.1	
+0064a3a0	cSC4PowerLineOccupant::Read	network-occupants.md §5.1	
+0064a460	cSC4PowerLineOccupant::SetPosition	network-occupants.md §5.1 occupant slot 9	
+0064a4a0	cSC4PowerLineOccupant::GetBoundingBox	network-occupants.md §5.1 occupant slot 10	
+0064ab70	GZCOM_CreatecSC4PowerLineOccupant	network-occupants.md §5.1	
+00477220	cSC4LandfillOccupant::Init (thunk)	slot 3 of vtable 0x00A8CDA0, set by the landfill occupant constructor 0x00477270	
+00477420	cSC4LandfillOccupant::GetBoundingBox	slot 10 of vtable 0x00A8CDA0 (landfill occupant)	
+00477600	cSC4LandfillOccupant::SetPosition	slot 9 of vtable 0x00A8CDA0 (landfill occupant)	
+005e29a0	cSC4LotRetainingWallOccupant::QueryInterface (thunk)	slot 0 of vtable 0x00AA2FF8, set by the retaining wall constructor 0x005E2F40	
+005e2a80	cSC4LotRetainingWallOccupant::Shutdown	slot 4 of vtable 0x00AA2FF8 (lot retaining wall occupant)	
+005e2c10	cSC4LotRetainingWallOccupant::SetPosition	slot 9 of vtable 0x00AA2FF8 (lot retaining wall occupant)	
+005e2c30	cSC4LotRetainingWallOccupant::GetBoundingBox	slot 10 of vtable 0x00AA2FF8 (lot retaining wall occupant)	

@@ -20,8 +20,8 @@ underground refit), [traffic-network.md](traffic-network.md) (§7.2, network occ
 ## 0. Summary
 
 The four classes are thin layers over the underground network occupant (`cSC4UndergroundOccupant`) and the
-underground connection occupant (`cSC4UndergroundConnectionOccupant`), whose behaviour is **not** specified here
-(UG1). Each layer supplies its identity (class ID, network type, model instance offset, a static model descriptor),
+underground connection occupant (`cSC4UndergroundConnectionOccupant`), whose behaviour is specified in
+[network-occupants.md](network-occupants.md) §3. Each layer supplies its identity (class ID, network type, model instance offset, a static model descriptor),
 its save-record version, and a few behaviours: a pipe remembers whether it is watered and is drawn tinted red when it
 is not; a subway puts its paths and its altitude on the floor of its tunnel. The connection occupants only identify
 themselves and accept their own network's occupants.
@@ -66,13 +66,13 @@ folded names.
 | occupant slot 3 `Init()` | `0x00648BC0` | static set-up once; unless initialised, the base's other `Init` (`0x0065C070`) and then the base's static set-up (`0x0065AE80`); true |
 | main slot 103 `GetTint(out)` | `0x006488A0` | `out :=` the RGB float triple at `0x00B0BE88 + 12 × watered`: dry (0.8, 0.23, 0.23), watered (1, 1, 1). The base's version (`0x0065B020`) gives (1, 1, 1); the base's `Draw` uses it |
 | `SetWateredState(bool w)` (non-virtual) | `0x00648540` | if `(watered = 1)` equals `w`, nothing; else `watered := w ? 1 : 0` and main slot 100 (`0x0065AF10`, a base refresh) is called with 0 |
-| `GetSortValue(out)` (the drawable virtual base's slot 17) | `0x00648500` | if network flags `+0x13C` have any of the bits `0x06000000` (UG2), `out :=` the piece id `+0xFC`; otherwise `out := 0x49C05B9F` |
+| `GetSortValue(out)` (the drawable virtual base's slot 17) | `0x00648500` | if network flags `+0x13C` have any of the bits `0x06000000` (the surface quad's halves, network-occupants.md §2.11), `out :=` the piece id `+0xFC`; otherwise `out := 0x49C05B9F` |
 
 ### 2.3 Save record (serialisable sub-object `+8`; `Write` `0x00648800`, `Read` `0x00648840`)
 
 1. u16 version **3**.
 2. The underground occupant's record (`0x0065B140` / `0x0065E510`; it starts with its own u16 3 and the network
-   occupant's record, UG1).
+   occupant's record, network-occupants.md §3.4).
 3. u32 `watered`.
 
 `Write` writes all three (the third only when the base succeeded) and returns true unless the stream reports an
@@ -97,8 +97,8 @@ From the pipe-corner geometry table (24-byte points at `0x00B0BA68`, x at +0 and
 - `0x00B46720`…: `L1/(L1+L4)`, `L2/(L2+L3)`, `L3/(L2+L3)`, `L4/(L1+L4)`.
 
 With the shipped table: `L = (11.31371, 7.33553, 6.35335, 4.96035, 3.97818)`, so the ratios are 0.648375,
-0.5615625, 0.4384375 and 0.351625. The descriptor (§1) points at these tables; how the base uses them is UG1
-(*[inferred]*: the texture spans of the diagonal pieces). Finally, unless the base's static set-up already ran
+0.5615625, 0.4384375 and 0.351625. The descriptor (§1) points at these tables; the base recomputes them in `Init`
+(network-occupants.md §3.2); how they enter the vertices is NO40. Finally, unless the base's static set-up already ran
 (`0x00B45250`), it runs it and returns its result; otherwise true. A second call returns false and does nothing.
 
 ## 3. Subway occupant *[compat]*
@@ -168,7 +168,7 @@ The pipe's algorithm (§2.5) on the subway's tables: points `0x00B0C960`, `a` at
 
 | Where | Pipe connection | Subway connection | Behaviour |
 |---|---|---|---|
-| main slot 3 `Init()` | `0x00648050` | `0x00652A80` | `+0x24 :=` `0x2A183167` (pipe) or `0x8A13918A` (subway) (UG4), then the base `Init(classID, descriptor)` (`0x00654710`, shared body) |
+| main slot 3 `Init()` | `0x00648050` | `0x00652A80` | `+0x24 :=` `0x2A183167` (pipe) or `0x8A13918A` (subway) (the occupant type, network-occupants.md §3.6), then the base `Init(classID, descriptor)` (`0x00654710`, shared body) |
 | main slot 37 | `0x00648040` | `0x00652A70` | the connection's class ID |
 | main slot 38 | `0x00648F40` | `0x00653D90` | the class ID of the matching network occupant (`0x49C05B9F` / `0xCA16374F`) *[inferred]* (a body shared with that occupant's `GetGZCLSID`) |
 | main slot 39 | `0x00580F60` | `0x00505070` | the network type (4 / 7) |
@@ -178,6 +178,20 @@ The pipe's algorithm (§2.5) on the subway's tables: points `0x00B0C960`, `a` at
 
 They have no record of their own: the base's is written (save-records.md §3.2 counts four pipe-connection saves and
 one subway-connection save in the corpus).
+
+*[compat; UG5 partial, 2026-10-23]* The shared base contract is network-occupants.md §3.6 and §3.6.1.
+In particular connection Read accepts **only u16 version 2**, before invoking the occupant base. The seven
+wall lists each use that spec's §3.4 u32-count/24-byte-vertex helper. Both references request occupant IID
+`0x26BB767E`; serializable-view +C4/+C8 are live primary +C8/+CC, and only the attached nonnull result is
+adjusted by −4. The creation path searches the own cell before all eight neighbors, releases neighbor hits,
+requests network changes only for fresh objects and reacquires the own-cell occupant afterward. This is
+not permission to retain a neighbor as the attached occupant.
+
+The static resource callback Releases/nulls its manager but leaves the latch set. The three packed-state
+tuples and renderer +28's discarded result are in §3.6.1. Main slot 40 is SetLinkedOccupant, not a
+view-dependent-model predicate; main slot 41 reloads zoom-dependent textures, not model enumeration.
+Main slot 36 enumerates one adjusted model-instance pointer with one AddRef. SetPosition copies position
+only. Geometry/drawing, remaining message/view/transform decisions and descriptor interpretation remain UG5.
 
 ## 5. Vtables and thunks
 
@@ -223,13 +237,17 @@ occupants' vtables.
 
 ## 8. Open questions
 
-- **UG1:** the underground occupant and underground connection occupant base classes (`0x0065A080` …,
-  `0x00654030` …): their records, `Draw`, model building and the use of the descriptors and ratio tables.
-- **UG2:** the meaning of network flag bits `0x02000000` and `0x04000000` (`+0x13C`) that switch the sort value to
-  the piece id.
+- ~~**UG1:**~~ answered 2026-10-21 (re-ugbase): the base classes are network-occupants.md §3.1–§3.6; the model
+  builders' geometry is NO40.
+- ~~**UG2:**~~ answered 2026-10-21 (re-ugbase): they draw the surface quad's two triangles (network-occupants.md
+  §2.11).
 - **UG3:** subway pieces `0x300` and `0x4B00` (the ones whose floor comes from the second vertex list), and what the
   zipper piece type answer selects.
-- **UG4:** the IDs `0x2A183167` and `0x8A13918A` written to a connection's `+0x24` by `Init`.
+- ~~**UG4:**~~ answered 2026-10-21 (re-ugbase): they are the connections' occupant types (network-occupants.md §3.6).
+- **UG5:** connection owner closure remains partial; §4 and network-occupants.md §3.6.1 now specify record
+  validation/refs, creation inputs and neighbor decisions, static cleanup, packed states, model enumeration,
+  position copying and linked-reference/model-state changes. Full geometry, drawing and view/message behavior
+  still require a trace.
 
 ## 9. Conformance tests
 
@@ -251,3 +269,26 @@ occupants' vtables.
    `0x4A10AFC2` for a pipe occupant; both connections' `GetSortValue` give their class IDs.
 8. **Static set-up:** with the shipped tables the pipe ratios are 0.648375, 0.5615625, 0.4384375, 0.351625 and the
    subway ratios 0.8709375, 0.6539375, 0.3460625, 0.1290625.
+9. **Connection record/ref views:** u16 1 and 3 reject before any occupant-base read; u16 2 reaches the base.
+   Give the seven lists counts `(0,1,2,0,1,0,3)` with distinct vertices: exactly seven counts and seven
+   groups in that order round-trip through the §3.4 helper. Resolve attached ref to address A and linked ref
+   to L under IID `0x26BB767E`: live +C8 becomes A−4, live +CC becomes L; null A becomes zero. On successful
+   row completion saved +17C=false nevertheless becomes true and +244 becomes true.
+10. **Connection creation searches:** with own cell `(10,20)` missing and every neighbor missing, query in
+    order `(9,20),(10,19),(11,20),(10,21),(9,19),(11,19),(11,21),(9,21)` and then query `(10,20)` again.
+    At every missing occupant try a connection. Let `(11,20)` contain an occupant and `(9,21)` only a
+    connection: release both results and, for a fresh object, make two network requests with matching own/
+    neighbor cells and tail `(0,0,1,−1)`. A loaded object makes the same queries/releases but no network
+    requests. An initial own-cell hit refreshes once without any neighbor queries.
+11. **Connection surface inputs:** city cell origin `(32,64)`, extents `(16,16)`, S=16 and heights
+    `(20,21,22,23)` produce positions `(32,4,64),(32,5,80),(48,6,80),(48,7,64)` and UVs
+    `(0,0),(0,1),(1,1),(1,0)`. Position y=12 gives +170=12 and +174=−4. Both matrices reset to identity.
+12. **Connection notification and refs:** +17C=false and invisible gives one bounds calculation and no
+    renderer call; a repeat gives neither. Reset false and make visible: one bounds calculation then
+    renderer +7C(instance,3). Changing linked A→B traces Release(A), store B, AddRef(B); B→B does nothing;
+    B→null traces Release(B), store null, manager +54(this,1,0); null→null does nothing.
+13. **Connection statics and enumeration:** a null renderer preserves all three prefilled packed states;
+    with a renderer returning either value from +28, the three §3.6.1 tuples are identical. Callback twice
+    Releases the static manager only once, returns true twice and preserves the latch. Enumeration writes
+    count 1 and one adjusted instance pointer with one AddRef, never consuming a save stream. SetPosition
+    changes only the three position words, leaving cell, geometry and renderer trace unchanged.

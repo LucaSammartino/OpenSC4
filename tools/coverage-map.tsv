@@ -212,8 +212,18 @@ cSC4NetworkOccupantModelInstance	network occupants	simulation	network-occupants.
 cSC4Network*Occupant*	network occupants	simulation	network-occupants.md	-	-	-
 cSC4UndergroundOccupant	network occupants	simulation	network-occupants.md	-	-	-
 cSC4UndergroundConnectionOccupant	network occupants	simulation	network-occupants.md	-	-	-
+# the network occupant's edge store, factory and record helpers (network-occupants.md §2.1, §2.3, §2.10)
+cSC4EdgeConnectionStore	network occupants	simulation	network-occupants.md	-	-	-
+fn:GZCOM_CreatecSC4NetworkOccupant	network occupants	simulation	network-occupants.md	-	-	-
+fn:SC4WriteGZPersistRef	network occupants	simulation	network-occupants.md	-	-	-
+fn:SC4ReadGZPersistRef	network occupants	simulation	network-occupants.md	-	-	-
+(anonymous_namespace)::ConvertV5FlagsToCurrentFlags	network occupants	simulation	network-occupants.md	-	-	-
 cSC4PowerPoleOccupant	network occupants	simulation	network-occupants.md	-	-	-
 cSC4PowerLineOccupant	network occupants	simulation	network-occupants.md	-	-	-
+# the pole's connection records and the two factories (network-occupants.md §4, §5)
+cSC4PowerPoleOccupant::tConnection	network occupants	simulation	network-occupants.md	-	-	-
+fn:GZCOM_CreatecSC4PowerPoleOccupant	network occupants	simulation	network-occupants.md	-	-	-
+fn:GZCOM_CreatecSC4PowerLineOccupant	network occupants	simulation	network-occupants.md	-	-	-
 cSC4PipeOccupant	network occupants	simulation	network-occupants.md	-	-	-
 cSC4SubwayOccupant	network occupants	simulation	network-occupants.md	-	-	-
 cSC4PipeConnectionOccupant	network occupants	simulation	underground-occupants.md	-	-	-
