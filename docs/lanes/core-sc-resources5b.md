@@ -1,8 +1,11 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-sc-resources5b (SC resources owner closure) | Codex / core-sc-resources5b | in progress | Implement answered SCR1-SCR5/SCR7 and validate owner coverage |
+| core-sc-resources5b (SC resources owner closure) | Codex / core-sc-resources5b | in progress | Run merged-source full gate and enqueue READY |
 
 ## Handoff
+- Round 2 supersedes the outstanding-operation instructions below: main merged without conflicts at 57e5b0524, detached HEAD retained. Git emitted a packed-refs.lock permission diagnostic after the successful merge; HEAD and clean status confirm success.
+- Round 2 next: preserve round-one logs and run qbuild all on merged stable source, collect to terminal, then finalize report and READY entry. No new scope, game runs, or ABI changes.
+- Round 2 manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-sc-resources5b-r2-manifest.json.
 - Goal: close all answered SC resource owner boundaries in core only; no ABI/plugin changes.
 - Done: 58eaff4a implemented answered contracts. Added all SCR-V31–V68 tests, extended decimal factor precision, separate buffer allocation/lock flags, image key-based type and positive BMP/TGA dither integration. Replaced stale owner table; no open owner sections or questions.
 - Validation: focused-8.log: 83 passed, 0 failed; fmt passed all touched Rust files. Earlier focused-2 through focused-7 logs retain corrected diagnostics, including the final-audit setf width failure.
