@@ -181,11 +181,9 @@ impl StripWalk {
                 return;
             }
             let direction = arithmetic::direction(a, self.positions[side], vertex.position);
-            if self.followups != 0 {
-                if arithmetic::turn_exceeds(a, self.directions[side], direction, p.turn_radians) {
-                    self.new_start = true;
-                    return;
-                }
+            if self.followups != 0 && arithmetic::turn_exceeds(a, self.directions[side], direction, p.turn_radians) {
+                self.new_start = true;
+                return;
             }
             self.push(vertex);
             self.positions[side] = vertex.position;
@@ -221,7 +219,6 @@ pub fn traverse(
     traverse_with_arithmetic(&Portable, points, phase, water, extent, p, acquire)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn traverse_with_arithmetic<A: Arithmetic>(
     a: &A,
     points: &[Point],
