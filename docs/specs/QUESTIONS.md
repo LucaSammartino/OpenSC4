@@ -243,7 +243,7 @@ generated index: the questions live one file per spec, so read only the file for
 | graphics-rules | 4 | 4 | GR9 | questions/graphics-rules.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
 | history | 0 | 17 | HW18 | - |
-| html-document | 1 | 6 | HD8 | questions/html-document.md |
+| html-document | 2 | 6 | HD9 | questions/html-document.md |
 | html-ui-hooks | 4 | 0 | HU5 | questions/html-ui-hooks.md |
 | landfill | 1 | 38 | LF7, LG34 | questions/landfill.md |
 | landvalue | 3 | 6 | LV8 | questions/landvalue.md |
@@ -263,12 +263,12 @@ generated index: the questions live one file per spec, so read only the file for
 | model-maker | 2 | 0 | MM3 | questions/model-maker.md |
 | my-street-sim | 5 | 0 | ST6 | questions/my-street-sim.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
-| mysims | 1 | 17 | MS19 | questions/mysims.md |
+| mysims | 2 | 17 | MS20 | questions/mysims.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 7 | NG8 | - |
 | network-manager | 0 | 13 | NM14 | questions/network-manager.md |
-| network-occupants | 21 | 23 | NO44 | questions/network-occupants.md |
+| network-occupants | 22 | 23 | NO45 | questions/network-occupants.md |
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 2 | 10 | NR16 | questions/network-rules.md |
@@ -350,4 +350,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **541** | **1309** | | |
+| **total** | **544** | **1309** | | |
