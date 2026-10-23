@@ -181,8 +181,8 @@ an unchecked empty selection is Unsupported rather than an invented parser error
 | particleSequence block descriptor 00A9FED4, §19.52 | `nested::EFFECT[18]` | same registration test; enter/exit execution open: EF15 |
 
 The conformance sections map to the test groups above without interpreting them
-as native golden runs: §19.3 EC1–15; §19.6 EC16–24; §19.8 EC25–30;
-§19.10 EC31–42; §19.12 EC43–50; §19.15 EC51–64; §19.16 EC65–68;
+as native golden runs: §19.3 EC1–6; §19.6 EC7–24; §19.8 EC25–34;
+§19.10 EC35–42; §19.12 EC43–50; §19.15 EC51–64; §19.16 EC65–68;
 §19.17 EC69–71; §19.21 EC72–90; §19.24 EC91–104; §19.26 EC105–119;
 §19.28 EC120–130; §19.30 EC131–140; §19.34 EC141–160;
 §19.38 EC161–183; §19.42 EC184–208; §19.44 EC209–223;

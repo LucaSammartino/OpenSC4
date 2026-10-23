@@ -3,27 +3,16 @@
 | core-effects-commands5b: settled effects script commands | Codex / `core-effects-commands5b` | in progress | Implement settled parser owners and vectors; full gate |
 
 ## Handoff
-- Goal: close settled effects-parser sections 9–13 and effects section 19 in existing core modules, no ABI/plugin changes.
-- Done: concrete token readers, dispatch/registration dictionaries, description directory identity, explicit final lifetime in script.rs; SW1–8/DI1–5/LT1–3/DR1–6 tested (5 tests passed).
-- Next: implement particle handlers §§19.18–26 and 19.39–51 (EC72–119/EC183–276), decal §§19.35–38 (EC161 onward), and §19.52 dictionary integration; read each spec section first.
-- Open residual questions: EF15 and EFP7; verify precise scope from specs.
-- No game requests outstanding; core-only task.
-- Focused cargo test passed; fmt two new files clean. q.py cannot launch Bash (Win32 error 5); use native PowerShell; evidence build-runs/q/20261023-183457-12916.log.
-- Formatting helper build-runs/format-patch.py emits apply_patch input from rustfmt stdin (no filename headers); uses engine/rustfmt.toml.
-- Milestone be2e2dbb: readers/dispatch/directory/lifetime.
-- Root owners through effects §19.11 now implemented in script/commands.rs with EC1–50 fixtures; focused script tests 12/12 passed, fmt four files clean.
-- Owner progress table added; final closure still requires definitions/children and integration. No new questions or ABI changes.
-- Milestone 46e94dd6: root owners EC1–50; be2e2dbb: dependencies.
-- Milestone ebd8bba9: definitions/defaults/inheritance/publication and effectBase (EC51–68), particle registration (EC69–71), dynamic/sequence/shake/light children and registrars (EC120–160), rotation RO1–6.
-- Added rotation Arithmetic instruction backend and RO1–6 fixtures; legacy parse_options uses it, default absent backend returns Numeric (EFP7).
-- Latest focused parser suite 60/60 passed; fmt all 14 module .rs files clean; diff --check clean.
-- Prior gate session 83508 is not available in resumed transport (write_stdin reports unknown session); preserved logs show cargo workspace 6182 passed/0 failed, clippy clean, CMake configure incomplete at compiler ABI detection. Do not describe this as a passed full gate.
-- Gate logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-configure.log. Configure log stalled since 18:58:28 local; Get-CimInstance process inspection denied, no process killed, no duplicate build. Session 83508 MUST be collected on resume.
-- Dynamic model keeps full signed EAX and selected indices as separate primitive inputs (EC126/130); no guessed native full-register return.
-- Definitions use sparse native-coordinate maps with absent indeterminate words; reuse existing effects::EffectDescription and ComponentRecord for visual/runtime payloads.
-- Commands methods return before generic push/pop; no turnkey script interpreter/lexer wired yet. Complete settled handler routing before claiming final closure.
-- Milestone 72c9268b: particle §§19.18–26 implemented; five focused tests cover EC72–119 (5/5 passed).
-- Milestone 4f911aa1: decal §§19.35–38, particle draw/resource/model/timed §§19.39–42 implemented; EC162–208 tests 4/4 passed. Added decal/effect/effectGroup dictionaries (§19.52).
-- Current milestone: warp/source/emit/force §§19.43–51 and EC209–271 fixtures implemented. Full parser check: 78/79 passed; only failure was contradictory handler identity in EC275. Filed EF16 (effects §19.52 vs effects-parser §6.1), retained literal root/nested ledgers and marked equality open. Preserved diagnostic build-runs/parser-check-ec275-failure.txt.
-- Fixed inherited tractor tail EC57 to typed Description::tractors; all new typed lists reset/clone. Owner closure table extended through §19.52. Allocator failure remains outside ordinary native valid-object domain, as §12 explicitly says null dereferences are not graceful parser errors.
-- Next: collect SAME focused check session 59278 to terminal (79 tests after EF16 annotation and formatting). Then run final fmt explicit module files, qbuild all once on stable source, inspect results, finalize lane report/queue. No game request; core-only task.
+- Goal: close settled effects-parser §§9–13 and effects §19 in core; no ABI/plugin changes or game request.
+- Done be2e2dbb: concrete readers, dispatch dictionaries, directory identity and final lifetime; SW/DI/LT/DR fixtures.
+- Done 46e94dd6: root owners EC1–50. Done ebd8bba9: definition blocks/effectBase EC51–71, dynamic/sequence/shake/light EC120–160, rotation RO1–6.
+- Done 72c9268b: particle scalar/rate/collision/walk/appearance EC72–119. Done 4f911aa1: decal/resource/timed EC161–208 and nested dictionaries EC272–276.
+- Done 3ab5fb5e: warp/source/emit/force/tractor EC209–271 and owner table through §19.52. Typed lists reset/clone; EC57 reads inherited tractor end bits.
+- Focused final check session 59278 completed: 79/79 parser tests passed. Explicit fmt of all 20 module .rs files passed, zero diff lines.
+- Filed EF16 in docs/specs/questions/effects.md: effects §19.52 says instance handler 00596980; effects-parser §6.1 says 0059A730. Retain both literal ledgers, keep only equal-handler claim of EC275 open. Failure evidence build-runs/parser-check-ec275-failure.txt (78/79 before annotation).
+- Remaining spec domains: EF15 residual unpublished nested execution, EFP7 numeric qualification, EF16 identity conflict. No new implementation gaps known.
+- Current FULL qbuild all is session 82804, started on final source. Collect SAME operation to terminal; never launch duplicate. Functions wait cell 51 may be pending when resumed.
+- Current logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-configure.log. Prior source's gate session 83508 unavailable after restart; it was incomplete (6182 Rust passed, old clippy clean, stalled CMake), not a full pass.
+- Next: collect full gate, fix actual diagnostics if any, then final lane report/commit/merge queue. If context guard OVER commit Handoff and return continue without queue.
+- Renderer/resource/sound remain foreign primitive traits. No lexer; command enter/exit methods return before generic stack pushes/pops. Full EAX fixture inputs remain separate from selected indices.
+- Formatting helper build-runs/format-patch.py emits apply_patch input from stdin rustfmt with engine/rustfmt.toml; no filename headers. q.py Bash cannot launch here; use native PowerShell.
