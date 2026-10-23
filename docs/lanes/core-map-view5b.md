@@ -35,8 +35,10 @@ The worktree remains detached as reserved; no shared refs/config/hooks were chan
   2x1 bitmap; the new 32x24 vector exposed it. Corrected to validate dimensions against pixel count.
 - Owned-file qbuild fmt: six explicit files, pass. Initial relative-path invocation used engine-prefixed
   paths despite the formatter running in engine; subsequent absolute paths passed. Local formatting used
-  apply_patch and engine/rustfmt.toml. Diagnostics retained in build-runs/focused-failures.txt.
-- Required qbuild all was run exactly once on final Rust source and collected to its actual terminal
+  apply_patch and engine/rustfmt.toml. A final check caught one chain wrap in a test assertion; fixed with
+  apply_patch after the gate (whitespace only, no behavior/build-input change). Diagnostics retained in
+  build-runs/focused-failures.txt. The stalled full gate was not repeated for this formatting correction.
+- Required qbuild all was run exactly once on final semantic Rust source and collected to its actual terminal
   result (session 99759, exit 1). Cargo: 6231 passed, 0 failed, 0 ignored across 32 result lines. Clippy:
   exit 0, diagnostics 0. Logs: build-runs/qbuild-test.log and build-runs/qbuild-clippy.log.
 - CMake: FAIL, configure 644.5 seconds, no `Build files have been written` line; CTest: skipped, 0 tests

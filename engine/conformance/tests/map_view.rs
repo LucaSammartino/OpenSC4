@@ -828,7 +828,8 @@ fn qv12_custom_initialization_factory_and_child_false_are_local() {
         view.select_with(2, &mut res, &mut win, &mut render, &mut sims)
             .unwrap_err();
         assert_eq!(
-            win.effects.contains(&WindowEffect::Lifecycle(Effect::ReleaseCustomView(42))),
+            win.effects
+                .contains(&WindowEffect::Lifecycle(Effect::ReleaseCustomView(42))),
             !factory_false
         );
     }
