@@ -8,6 +8,9 @@
 use super::*;
 use std::sync::Mutex;
 
+#[path = "drawing_tests.rs"]
+mod drawing_tests;
+
 struct Texture;
 impl TextureBinding for Texture {
     fn size(&self) -> [u32; 2] {
@@ -25,6 +28,14 @@ struct Factory {
     texture: Option<Arc<Texture>>,
 }
 impl TextureFactory for Factory {
+    fn key_word_slot11(&self) -> u32 {
+        0x1234
+    }
+    fn shadow_binding_slot6(&self, key: [u32; 3]) -> Option<Arc<dyn TextureBinding>> {
+        assert_eq!(key[0], 0x7ab5_0e44);
+        assert_eq!(key[2], 0x1234);
+        self.binding(key[1], BindingLookup::Slot6)
+    }
     fn binding(&self, key: u32, lookup: BindingLookup) -> Option<Arc<dyn TextureBinding>> {
         self.calls.lock().unwrap().push((key, lookup));
         self.texture.as_ref().map(|b| b.clone() as Arc<dyn TextureBinding>)
@@ -398,11 +409,8 @@ fn conformance_shadow_quality_zero_returns_none_before_factory_lookup() {
     let factory = v.factory.as_ref().unwrap().clone();
     let mut m = OverlayManager::new();
     m.init(v, false, false).unwrap();
-    assert_eq!(m.check_shadow_add(true), Ok(Handle::NONE));
-    assert_eq!(
-        m.check_shadow_add(false),
-        Err(Error::Gap(ContractGap::ShadowAndModelConstructionOv2))
-    );
+    assert_eq!(m.add_shadow_group(5, [0.0; 2], 16.0, 0.0, 0), Ok(Handle::NONE));
+    assert_eq!(m.add_shadow_key([0; 3], [0.0; 2], 16.0, 0.0, 0), Ok(Handle::NONE));
     assert_eq!(
         *factory.calls.lock().unwrap(),
         [(SHADOW_TEXTURE_KEY, BindingLookup::Slot5)]
@@ -541,7 +549,7 @@ fn static_alpha_uses_accepted_value_and_dynamic_alpha_skips_redisplay() {
 }
 
 #[test]
-fn placement_getter_copies_nine_floats_and_missing_geometry_never_mutates() {
+fn placement_getter_copies_nine_floats_and_failed_conversion_never_mutates() {
     let mut m = manager(false);
     let h = seed(&mut m, overlay(0));
     let alias = indirect(&mut m, Target::Overlay(h.index()));
@@ -549,11 +557,11 @@ fn placement_getter_copies_nine_floats_and_missing_geometry_never_mutates() {
     m.get_placement(alias, &mut out).unwrap();
     assert_eq!(out.0, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
     assert_eq!(
-        m.set_position(alias, [16.0, 32.0]),
+        m.set_position(alias, [f32::INFINITY, 32.0]),
         Err(Error::Unsupported(Unsupported::PlacementNumericDomain))
     );
     assert_eq!(
-        m.set_placement(alias, Placement([8.0; 9])),
+        m.set_placement(alias, Placement([0.0; 9])),
         Err(Error::Unsupported(Unsupported::PlacementNumericDomain))
     );
     let saved = out;

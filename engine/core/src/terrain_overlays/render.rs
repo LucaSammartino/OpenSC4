@@ -86,8 +86,7 @@ pub struct RenderSelection {
 }
 
 impl OverlayManager {
-    /// §4. Static candidates are deduplicated across visible cells. [choice,
-    /// OV8] Internal order is ascending overlay ID; original draw order is open.
+    /// Diagnostic explicit-cell selection, retaining native first-encounter order.
     pub fn select_frame(
         &mut self,
         options: FrameOptions,
@@ -101,7 +100,7 @@ impl OverlayManager {
                 rough_shadows: self.shadow_quality < 3 || !options.use_second_stage,
             });
         }
-        let candidates: Vec<u32> = if !self.dynamic && self.cell_index.is_some() {
+        let candidates: Vec<u32> = if !self.dynamic && self.selection_byte != 0 && self.cell_index.is_some() {
             self.collection_stamp = self.collection_stamp.wrapping_add(1);
             self.collect_cells_at_stamp(visible_cells.iter().map(|c| [c[0] as i32, c[1] as i32]))?
         } else {
@@ -154,7 +153,7 @@ impl OverlayManager {
         ends: &[i32],
     ) -> Result<Vec<u32>, Error> {
         self.require_init()?;
-        if self.dynamic || self.cell_index.is_none() {
+        if self.dynamic || self.selection_byte == 0 || self.cell_index.is_none() {
             return Ok(self.overlays.iter().map(|(id, _)| id).collect());
         }
         self.collection_stamp = self.collection_stamp.wrapping_add(1);
@@ -179,9 +178,8 @@ impl OverlayManager {
         self.collect_cells_at_stamp(cells)
     }
 
-    /// No fake successful renderer: camera inversion, placement matrices, shadow
-    /// selection, minimum strength and array contracts are not published (OV7/8).
-    /// Dynamic snapshots are the only completely specified no-draw path.
+    /// Legacy headless diagnostic. Use draw_frame with drawing/lighting producers
+    /// for rectangle submissions; this overload has no draw-context input.
     pub fn draw(&mut self, options: FrameOptions, visible_cells: &[[u32; 2]]) -> Result<(), Error> {
         let selection = self.select_frame(options, visible_cells)?;
         if selection.skipped_snapshot {
