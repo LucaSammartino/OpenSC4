@@ -1,46 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-legacy-control4 (portable LegacyControl owner) | Codex / core-legacy-control4 (engine lane, detached HEAD) | in progress: final round 3/3; old cargo 5162/0 and owner 22/22 retained; old Clippy failed, two-line fix verified; touched-test fmt passed; old native/CTest incomplete with unknown exit; ABI unchanged; LC9/LC10 retained | (1) Run the one required stable corrected-source qbuild all; (2) inspect actual totals/artifacts and finalize bounded 45-entry report; no queue before passing gate |
-
-## Handoff
-- Goal: finish existing bounded 45-entry owner's validation/report only, final original-family round 3/3; no further round or algorithm expansion.
-- Ancestors retained: ce60e13a, fixtures 02bd46f2 before production bf469091, final source/tests d8d3da6f; round-two handoff f72643de.
-- Read own source/fixtures, copied r2 result/stderr and coordinator reconciliation; no source edits.
-- Fresh audit 2026-10-23T00:20Z: 26 candidate processes; all command lines readable, historical validator PIDs absent; no own checker/output/compiler work observed.
-- Cwd reads failed for 15 other/service processes (commands still readable); own observer cwd read successfully; no own compiler output paths or descendants found. No process/cache/service changes or cache RPCs.
-- Own cache port 4782: local netstat found no endpoint. This is observation, not proof of old disappearance cause; cause and old native/full exit remain UNKNOWN.
-- Generated evidence: build-runs/r3-preflight-audit.json; copied reconciliation in build-runs/evidence-run4/ supersedes historic still-running language below.
-- Archived four overwrite-prone r2 logs to r2-* with apply_patch; SHA256 equality verified for all four. r1-* and mixed/failure/transport evidence retained.
-- Historic r2 cargo: 5162 passed/0 failures, 22 summaries; 22 owner fixtures passed. Old Clippy failed; old native 588-byte log ends compiling core/formats/capi, no CTest or final rc.
-- Git engine diff 34dc4033..HEAD is exactly removal of let mut f=f and let mut g=g from tests.rs; fixtures/assertions/production unchanged.
-- Post-fix absolute tests.rs qbuild fmt: exit=0 files=1 diff_lines=1, canonicalize-path warning only; engine max_width=120 unchanged, no reformatting.
-- Existing 22 tests unignored; vocabulary fixture 21 headers + 393 entries; prior nine-owner-file fmt passed before fix.
-- NEXT EXACT STEP: commit this checkpoint, then run ONE required complete qbuild all on committed stable corrected source, using r3 runner evidence; no baseline/quick or focused Clippy duplicate.
-- Inspect actual Cargo aggregate, all 22 owner names, Clippy, native and full CTest expected/observed count, source/tree/config/log/artifact hashes; partial progress never PASS.
-- Scope remains 42 complete safe-domain / 3 partial of 45; LC4/LC5/LC8/LC9/LC10 withheld, no 205-row/104642B ownership promotion; no game/native/ABI/plugin/default/coverage work.
-- Finalize READY only after a complete passing stable gate; otherwise final WIP/parked with exact diagnostic, no fourth round.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-legacy-control4-r3-manifest.json. Guard OVER => commit Handoff, return continue, no queue.
-
-## Historic round-two handoff (superseded by round-three observations)
-- Goal: finish portable LegacyControl owner validation; exact 45-entry scope, no GUI/game/network/ABI/native/default/coverage work.
-- Original clean ce60e13a remains ancestor; source milestones 02bd46f2 fixtures before bf469091 production, d8d3da6f source/tests.
-- Round 2 commits: 8949db4a validator reconciliation, 34dc4033 audit/fmt, 628ec2a1 actual two-line Clippy fix and full 45-entry report below.
-- Old all/fmt did not survive; limited-query OS audit found no own validator. Old logs moved byte-identically to r1-*; failures and UTF16 q.py transport evidence preserved.
-- Exactly ONE replacement all launched on clean 34dc4033, tree 736c76bcac18bc6173e2063d2d16853fc6cf9bcb. No quick or second all launched.
-- Cargo workspace completed: 5162 passed, zero failed/ignored/measured/filtered; 22 summaries. LegacyControl 22/22 passed, exact393 vocabulary.
-- Nine-file absolute owner fmt passed before final lint cleanup: exit0 files9 diff_lines1 (path warning). Shared lib.rs not reformatted; engine configuration unchanged.
-- Actual Clippy failure: redundant_locals tests.rs:225/226, let mut f=f and let mut g=g. Removed only those two statements in 628ec2a1; all fixtures/assertions/tests/production preserved. No lint suppression.
-- Focused post-fix clippy/fmt NOT run: original all continued into native. Never overlap checks. Original failed qbuild-clippy.log retained with hash in report below.
-- Original runner PID2284 created 2026-10-22T23:30:30.413866Z, qbuild PID29620 created 23:30:30.519874Z; commands/cwd this WT. Session9365 is not liveness proof.
-- Last OS native: fc4verify PID21424 created 23:52:18.665579Z, CMake PID38668 created 23:52:22.117063Z, release core rustc PID25156 created 23:52:24.690336Z CPU25.8125s; own engine cwd.
-- Native rc/complete progress/CTest expected count/end/full wrapper rc still uncollected. Configure succeeded. No denominator or pass fabricated.
-- Functions cell42's 300-second collection completed with no output and session9365 still running at that point; report's older 'outstanding' wording is superseded here.
-- Test-only lint fix changes source bundle after failed Clippy; do not treat original all as a passing stable final-tip gate. Runner will print original qbuild rc plus before/after HEAD/tree/dirty/hashes at exit.
-- NEXT EXACT STEP: inspect actual OS liveness/creation/command/cwd and own saved all/native logs; collect surviving operation without launching duplicate. Old PID/session alone is insufficient.
-- Once it ends: preserve failed clippy log, run focused qbuild clippy and absolute touched-test fmt, then obtain authorization for required stable full all (round2 used its one replacement). Report real wrapper failures accurately.
-- Full 45-entry classification below:42 complete safe-domain,3 partial; LC4 twelve unknown interpreters Unsupported, LC5 parent opaque, LC8 nineteen unknown writers partial, LC9/LC10 remain open.
-- Source/report committed 628ec2a1; final attempted status/log/hash inspection was DENIED before execution by context guard152k/150k. No final native or clean-tip result was collected.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-legacy-control4-r2-manifest.json. Guard denial requires stop, Handoff commit, continue result, NO merge-queue file.
+| core-legacy-control4 (portable LegacyControl owner) | Codex / core-legacy-control4 (engine lane, detached HEAD) | ready: bounded 45 entries, 42 complete safe-domain / 3 partial; cargo 5162/0, owner 22/22, clippy clean, native complete, ctest 68/68; post-fix fmt passed; ABI unchanged; LC4/LC5/LC8/LC9/LC10 retained | (1) Coordinator land bounded portable scope only; no fourth round or owner restart |
 
 # Portable LegacyControl owner report
 
@@ -146,80 +106,105 @@ LC9 retains UTF8/bounded numeric and indeterminate-field choices. LC10 retains
 duplicate-map and Grid scratch/notifier limits. No question was closed, no new
 question filed in round 2, and no shared question index was edited.
 
-## Validation attribution
+## Final validation (round 3/3)
 
-The original all/fmt did not survive the round transition. OS PID/creation/command
-audit with limited-query fallback found no matching validator; no other check
-was killed. The old all/native logs end in compilation without return codes or
-test results; the mixed quick log has 3717 NUL bytes. All five overwrite-prone
-logs were moved byte-identically to r1-* names, verified by SHA256. Original
-lifetime/header failure snapshots and the UTF16 q.py pre-launch Access denied
-transport failure remain intact. Details: legacy-control-validation-reconciliation.md.
+This final round changed documentation only. The actual engine diff since
+34dc4033 is exactly the two redundant-binding deletions committed in 628ec2a1;
+production, literal fixture expectations, assertions and all 22 tests are
+unchanged. Explicit UTF-8 comparison confirmed that identity. No additional
+quick, baseline, focused Clippy check, suppression or tolerance change was used.
 
-Replacement fmt: qbuild fmt, nine absolute owner paths, exit=0, files=9,
-diff_lines=1 (canonicalize-path warning only). Engine max_width=120; shared lib.rs
-was not mass-formatted. Original 22 test functions remain unignored and exercise
-production algorithms; the vocabulary fixture has 21 header rows + 393 entries.
+The one necessary corrected-source `qbuild all` ran on clean committed HEAD
+`e948a309d0140c7b294894442fa4d411f5ff73fc`, tree `658d662f7653058422e9bf823a0c2e0ee1fd2be3`. Original qbuild exit was **0**. Before/after HEAD,
+tree, clean status and all source/configuration hashes matched. The final report
+commit changes only this lane file; it does not require another stable gate.
+Full evidence: `build-runs/r3-gate-before.json`, `r3-gate-result.json`,
+`r3-final-measurements.json` and `r3-qbuild-all-console.log`.
 
-One replacement all was launched by legacy-control-final-gate.py on clean
-HEAD 34dc40338ed4c4c5520781bc1f8d83b156421fd8,
-tree 736c76bcac18bc6173e2063d2d16853fc6cf9bcb.
-Source bundle SHA256: 200e916d47a25e750903c43a52c9e558cb97a588130d8f84e7d02fbf6d6dd1e0.
-Attribution: qbuild PID 29620, created 2026-10-22T23:30:30.519874Z,
-parent runner PID 2284, created 2026-10-22T23:30:30.413866Z; both commands/cwd
-match this worktree. Rustc PIDs 33708/29016 compile this worktree's core.
+- Host Cargo: **5162 passed**, 0 failed/ignored/measured/filtered, 22 summaries.
+- Existing owner fixtures: **22/22**, every original name matched, none ignored.
+- Vocabulary: **393 exact ordered entries**, 21 headers, 20 class/interpreter maps.
+- Clippy: completed under the unchanged workspace/all-targets `-D warnings` gate;
+  no compiler or Clippy diagnostics. The path canonicalization warning remains.
+- Native: the build completed, with final Ninja output **[172/172]**.
+- CTest: **68 expected / 68 observed / 68 passed**, 0 failures; every generated
+  registered name matched its result. No disabled tests, subdirectories or filter.
+- CTest's x86 Cargo case independently recorded **5162/0**, 22 summaries and all
+  **22 owner fixtures**; native LastTest.log preserves their complete output.
+- Post-fix absolute tests.rs `qbuild fmt`: exit 0, files 1, diff_lines 1 (path
+  warning only). Prior nine-owner-file fmt passed before the two deletions.
+  Engine max_width=120 is unchanged; shared lib.rs was not mass-formatted.
 
-Workspace test phase completed: 5162 passed, 0 failed, 0 ignored, 0 measured,
-0 filtered, across 22 Cargo summary rows. LegacyControl tests 22/22 passed.
-qbuild-test.log: 312613 bytes, no NULs, SHA256
-1eddbeade616bf9a85366eaf94fa78943dd8fcb414dea643236bbc9d4e693a35.
-No Rust diagnostics in that log. Clippy processes 29416/27140 were created
-2026-10-22T23:45:20Z, cwd this worktree/engine. Clippy **failed** under -D warnings
-with clippy::redundant_locals at tests.rs:225/226: `let mut f = f;` and
-`let mut g = g;`. Both original bindings were already mutable. Removed these two
-statements only. Focused Clippy and touched-test fmt after the fix remain pending:
-the original all is still in native compilation, so no overlapping check ran.
-The original failed qbuild-clippy.log remains unchanged: 1568 bytes, no NULs,
-SHA256 09a5622612bb0f79045ed3efe2582999c19eae12180c55e063a15c7b855bf3ae.
+### Saved final logs
 
-CMake configured/generated successfully (0.2s/0.1s); configure log SHA256
-23b704df9201df16e5e48025e1f225f0e16cdf4ed6974357e53d7f57f5b63990.
-Native build at last OS sample was compiling release core: fc4verify PID 21424,
-created 2026-10-22T23:52:18.665579Z; CMake PID 38668, created
-2026-10-22T23:52:22.117063Z; rustc PID 25156, created
-2026-10-22T23:52:24.690336Z, CPU 25.8125 seconds, cwd own engine. No other check
-was killed. No original native rc, completed Ninja progress/full denominator,
-CTest N/N/end or full wrapper return code is yet available. CTest had not started.
+| File in build-runs | Bytes | SHA256 |
+|---|---:|---|
+| qbuild-test.log | 312139 | `1c882ecd086abce005f20042567e5467bbcc08f1510872f6597cfea70675087c` |
+| qbuild-clippy.log | 217 | `084cd228946765d4335e509b0fcd3ae451d42590758d643a67c13eb794da4abf` |
+| fc4verify-configure.log | 564 | `d079052c50f6160eb82d7c4580306f4a28ec60c31e44c9c913d4111f4ce4ca34` |
+| fc4verify-build.log | 17549 | `9d9cbf216a4806c47c1009d5cb8a3cccbff89d42f3189366abf8240273826e20` |
+| fc4verify-ctest-list.log | 3027 | `c4afaa9fb5f1ee251baf0adb7060232f93091c2a34ee98b43d8b7e931d8d49a1` |
+| fc4verify-ctest.log | 8690 | `dc06912f66f23f0b803a5b4b618855fd93c85645c2d1778ea2333f6b6a66f16b` |
 
-The full gate was launched on clean 34dc4033; its completed after snapshot is
-pending. The final test-only lint fix changes the source bundle after the failed
-Clippy phase. Production and vocabulary fixture hashes remain unchanged. Never
-use this operation as a passing stable final-tip gate. The runner will print
-original qbuild rc and its before/after head/tree/dirty/source hashes on exit.
-Session 9365 has an outstanding collection in functions cell 42; neither ID
-proves liveness or completion. Recheck OS PID/creation/command/cwd before adoption.
+### Configuration and artifacts
 
-WIP: this round consumed its one replacement full all, which already failed
-Clippy; no second all or duplicate quick was launched, and no wrapper gate was
-overridden. Actual independent owner tests and workspace totals passed before
-the lint-only fix, whose assertions/expected effects remain identical.
+The existing engine configuration remains Debug CMake, Ninja, MSVC x86,
+FC4_CHECKED=OFF, FC4_COMPILER_CACHE=ON and i686-pc-windows-msvc for native Cargo.
+Static CRT flags and CMake's CARGO_INCREMENTAL=0 / dev/test debug=0 settings
+remain unchanged. The observed CTest Cargo/compiler argv, cwd and output paths
+point to this worktree's engine and engine/build-x86/cargo. CMake always invokes
+the release CAPI Cargo target from engine, and links its matching x86 library.
+`r3-final-correspondence.json` retains that running CTest attribution, including
+service-owned compiler paths. Per-source and configuration hashes are in the
+before/after snapshots; generated CMake/CTest/Ninja and LastTest hashes are in
+the measurements. These are build/test artifacts, not native owner coverage.
 
-## Next steps
+| Artifact | Bytes | SHA256 |
+|---|---:|---|
+| engine/build-x86/FreeCity4.dll | 18082304 | `16039658c7779e677b7f4389457cbe68c0da42d90a1ac91ab302e08c75e32e18` |
+| engine/build-x86/cargo/i686-pc-windows-msvc/release/fc4_capi.lib | 79014274 | `11e2a085f6d97c1c5b3a37635f90d9cd4242949dc3bc7c481fcc666d179e0b3c` |
+| engine/build-x86/fc4_capi_smoke.exe | 11023360 | `7f5c3c5df37cc8e280515a334303870de876f4b3fbf39a72ea877e7d4bcdf624` |
 
-1. Collect the existing qbuild all PID 29620 / runner PID 2284 and native operation
-   after verifying current creation/command/cwd. Preserve all logs and original
-   rc; successful Ninja restat may have partial predicted progress. Do not infer
-   success from a progress denominator or start overlapping checks.
-2. Once it ends, preserve the failed clippy log before a focused qbuild clippy
-   rerun; run qbuild fmt on the absolute touched test path. No fixture/assertion
-   rewrite is needed. Do not change tools, parsers or caches.
-3. Obtain an authorized passing stable full all on a clean final tip before
-   ready. Coordinator regenerates the shared question index. LC4/LC5/LC8/LC9/LC10
-   and all native/default/whole-UI exclusions remain; no question was closed.
+### Preserved failures and operation lifetime
 
-Relative to original base 82feac1f, shared lib.rs only adds the final module
-declaration; engine rustfmt configuration is unchanged. This round does not
-claim a passing gate or a complete native/default/whole-owner implementation.
+The original round-one/round-two checks remain historical evidence, not final
+passes. Fresh round-three OS audit read all 26 candidate command lines; the old
+validator PIDs were absent and no own checker/compiler/output work was observed.
+Cwd reads for 15 other/service processes were denied; own observer cwd was read.
+Old native/full exit and disappearance cause remain **UNKNOWN**, with no claim
+of a provider-reset kill. Four overwrite-prone round-two logs were moved to
+`r2-*` names and verified SHA256-identical: the 5162/0 Cargo result, the failed
+redundant_locals Clippy log, 588-byte incomplete native log and configure log.
+Their original hashes are in `r3-preflight-audit.json`. Round-one `r1-*`, mixed
+NUL-containing quick evidence, prior failures and transport logs remain intact.
 
-No GUI/game/network run, C ABI/export/version/default/coverage/native glue
-change, imported widget answers, whole-UI/pixel equivalence or whole-owner credit.
+The new gate's runner first stopped before qbuild at a UTF-8/default-Windows
+decoding identity assertion; helper decoding alone was corrected. That prelaunch
+failure is preserved in `r3-runner-preflight-failure.txt`; only one actual new
+qbuild all was launched. During native verification, the existing wrapper's
+cache-stats child temporarily delayed CTest. Its PID/creation/cwd/argv and own
+loopback connection were observed read-only. The first nine-minute result-file
+wait timed out; that was not a qbuild failure. The same check advanced into
+CTest at 00:38:13 UTC without intervention. The delay cause remains unknown.
+`r3-cache-blocker.md`, both correspondence snapshots and the partial measurement
+`r3-partial-measurements-003932.json` preserve the intermediate state separately
+from the passing final result. No process, cache client, compiler or service was
+killed/restarted; no cache RPC was sent by this lane outside the authorized
+wrapper, and no environment/cache/provider/wrapper policy was changed.
+
+## Questions, limits and next steps
+
+No new question was filed or answered in this final round. LC4/LC5/LC8/LC9/LC10
+remain in docs/specs/questions/legacy-control.md. The report remains **42 complete
+safe-domain / 3 partial of the 45 named entries**, separately from the broader
+205-row/104642-byte attribution. No whole-owner/native/layout/default or UI
+equivalence credit follows from a passing build. Twelve unknown interpreters,
+opaque parent identity, nineteen unknown writers and the malformed/duplicate/
+scratch limits remain as described above, preserving reached effects.
+
+No GUI/game/network/live-user-file run, C ABI/export/version change, native glue,
+plugin/default/maps/coverage/region change or imported widget contract. Shared
+lib.rs still only adds the final module declaration relative to base 82feac1f.
+The coordinator may land this bounded portable implementation with its passing
+source-corresponding gate. This exhausts original-family round 3/3: no fourth
+round, new family or owner restart is requested.
