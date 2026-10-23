@@ -502,6 +502,7 @@ cSC4ViewInputControl*	city tools and input	ui	-	-	-	-
 cSC4MySimInputControl*	city tools and input	ui	-	-	-	-
 cSC4MyStreetSimInputControl	city tools and input	ui	-	-	-	-
 cSC4SubBudgetWindow	windows and panels	ui	budget-window.md, budget-window-bodies.md	core/src/budget_window	-	-
+cSC4BudgetUIWinProc	windows and panels	ui	budget-window.md, budget-window-bodies.md	-	-	-
 cSC4BudgetUI*	windows and panels	ui	-	-	-	-
 cSC4WinSnapshotAlbum	windows and panels	ui	snapshots.md	-	-	-
 cSC4WinSnapshotTaker	windows and panels	ui	snapshots.md	-	-	-
