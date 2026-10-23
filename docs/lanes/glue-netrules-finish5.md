@@ -12,8 +12,9 @@
 - Diagnosis: copied prior logs to build-runs/prior-netrules-a.log and prior-netrules-b.log. b starts funds=834, ends funds=-103615 on 2028-08-01 immediately before unexpected shutdown; bankruptcy evidence, no shadow mismatch.
 - Spandau TERMINAL clean/ref0, timeout at 2019-03-29 after 600.969 s, emergency=1. Run 342: netrules-finish5-spandau-2032-20261024a 212/212 mismatch-clean, 101/212 exact, evaluations=24. No 2032 credit; dated script not reached.
 - Watcher 69334 timed out (not a game verdict); 61720 printed valid verdict then cleanup failed. Helper corrected to unregister events only, with Renamed notification added. No game outstanding at this commit.
-- Game OUTSTANDING: Konradshohe, label netrules-finish5-konrad-2032-20261024b, broader 39-provider fixture (run270 profile minus netmgr/netlot/nettool), same script/end date; close_dialogs=1. Native network ownership retained for observation.
-- Next: collect event-based waiter session 2405 to terminal using write_stdin; corrected helper build-runs/await-game.ps1. Then inspect exact netrules counts/date and write run record using next free ID on main.
+- Konrad b TERMINAL headline clean/ref0 to 2032-02-01, but full log has 14 caught placement SEH plus later foreign shutdown exception; not accepted. Run343: netrules-finish5-konrad-2032-20261024b 75/75 mismatch-clean, 74/75 exact, evaluations=54/tables=24.
+- Own DLL PDB resolves DC1FF1/DC1551 to RegionToC / cFC4Demolition::DemolishRegion. No shadow source defect demonstrated; change inputs only, leave demolition native too.
+- No game outstanding at this commit; session2405 collected to exit0. Next: request netrules-finish5-konrad-2032-20261024c, same profile minus demolition (38 providers), same script/end date; wait using build-runs/await-game.ps1 and inspect full log after verdict.
 - Keep profile key out unless every shadow line exact. Existing load line exact=0 is a limitation, not a matched observation.
 - ABI inherited from prior lane adds fc4_network_rules_snapshot and fc4_network_rules_replay; report abi=true for this lane's merge queue.
 - Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-glue-netrules-finish5-r1-manifest.json.
