@@ -1,5 +1,20 @@
 # city-tools-input: answered questions
 
+- **CT2 — §3.7, WM slot 19 after mouse movement: which operation?**
+  **ANSWERED 2026-10-23 (re-citytools-ct5):** DIFFERS — input-message queue flush,
+  identified by the identical call in SC4FlushInputMessageQueue; conditional on held WM,
+  unconditional with respect to pick/feedback changes. §3.7 and §6 give the rule/vectors.
+- **CT22 — §3.4, body of DoPlopRingEffectFinished.**
+  **ANSWERED 2026-10-23 (re-citytools-ct5):** DIFFERS — clear the overlay flag, then
+  recalculate coverage if a 3D view is held; no ring release or placeability change. §3.4/§6.
+- **CT23 — §3.12, explicit zoning flags and clearing failures.**
+  **ANSWERED 2026-10-23 (re-citytools-ct5):** DIFFERS — slope check and skip-size both
+  true, checkLotInside false, commit true on both zoning calls; dezoning skipFunds = zero
+  tool cost, zoning skipFunds true. Every clearing stage gates the next; no rollback. §3.12/§6.
+- **CT24 — §3.11 versus §4, equality at a four-point frontage improvement.**
+  **ANSWERED 2026-10-23 (re-citytools-ct5):** MATCHES — detailed formula governs:
+  own 3 / best 7 keeps player rotation; own 3 / best 8 changes it. Corrected quirk 10. §3.11/§6.
+
 <!-- re-query-ct5: resolved portions only; residual questions retain their IDs in the open file. -->
 - **CT14 (resolved portion) — neighbour kinds/resources and writer ordering.**
   **ANSWERED 2026-10-23 (re-query-ct5):** DIFFERS — §8.16.6 specifies last-successful network-kind priority

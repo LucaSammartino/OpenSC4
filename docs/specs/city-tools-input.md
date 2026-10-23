@@ -232,6 +232,12 @@ Always returns false (the message is not consumed).
 | `0x99EF1142`, `0x99EF1143` | unless `+0x118` is set: recalc the 3D view's coverage helper |
 | `0xA6B79602`, `0xC9F775BB` | stop and release the two preview effects `+0xDC`, `+0xE0` (stop with slot 4(0) when slot 5 says running), then `SetVisualUserFeedback(+0x94, +0x95, +0x88)` to rebuild them |
 
+`DoPlopRingEffectFinished` clears `+0x118` unconditionally. With a held 3D view it obtains
+the coverage helper (view slot 49) and recalculates coverage, even if the flag was already clear;
+without a view it only clears the flag. It neither stops nor releases the ring and does not change
+placeability, categories, configuration or the number of plops left. Evidence: `0x004BE0A0–0x004BE0BD`
+(instruction-verified; CT22, re-citytools-ct5, 2026-10-23).
+
 ### 3.5 OnKeyDown(vkey, modifiers) (`0x004C3060`) *[compat]*
 
 Handled only while the tool is on top (§2.6) and the 3D view has a key accelerator (slot 31). The accelerator's
@@ -279,7 +285,12 @@ Returns the `PlaceLot` result (false when it was not called).
 4. If the cursor text changed (`0x00454BB0` compare), show it with key `0xE9C877FA` (3D view slot 40 `+0xA0`).
 5. When placeable, flag, any coordinate of the position (by more than `1e-4`, float `0x00A90688`) or the shown
    rotation (`+0x40` vs `+0x38`) changed: `SetVisualUserFeedback(placeable, flag, pos)` and store the new values.
-6. Window manager slot 19 (`+0x4C`) (Q CT2); return true.
+6. If the held window manager exists, request an **input-message queue flush** through slot 19
+   (`+0x4C`); ignore its result and return true. This request also occurs for a failed terrain pick
+   and for a move that leaves feedback unchanged. The named `SC4FlushInputMessageQueue` wrapper
+   (`0x005F8610–0x005F8620`) makes exactly this same null-guarded call; the move's call is
+   `0x004C369C–0x004C36A5`. This is an input-queue operation, with no additional tool state change
+   or explicit redraw/cursor-refresh request (CT2, re-citytools-ct5, 2026-10-23).
 
 ### 3.8 OnMouseExit (`0x004C36C0`) *[compat]*
 
@@ -334,6 +345,10 @@ flags, …, &cost)` (demolition.md §4.4) with flags `0x2800`, or `0x800` when `
   street count below, otherwise −8. The best rotation is the first with the highest score. The player's rotation
   (`+0x38`) is kept when (its score ≠ 0 or the best score < 1) and its score ≥ best − 4; otherwise the best one is
   taken. The rectangle and centre are the chosen rotation's; the result is whether any rotation was placeable.
+  Equality at four points keeps the player's rotation: own 3 / best 7 keeps it, own 3 / best 8
+  changes it. The separate zero-frontage exception still changes own 0 / best 1. This follows the
+  signed greater-or-equal comparison at `0x004BED15–0x004BED2E`, not an inclusive four-point
+  improvement threshold (CT24, re-citytools-ct5, 2026-10-23).
 - **Street count** (`GetLotFacingStreetCount`, `0x004BE5D0`): along the row of cells just outside the lot on its
   facing side (rotation 0: `z0 − 1`, 1: `x1 + 1`, 2: `z1 + 1`, 3: `x0 − 1`), for each cell inside the city, the
   network occupant of a road, street, avenue or one-way road (traffic network map slot 8, mask `0x449`) adds 4 for
@@ -355,11 +370,21 @@ flags, …, &cost)` (demolition.md §4.4) with flags `0x2800`, or `0x800` when `
    the cost.
 5. **Clearing:** `DemolishRegion(true, cells, privilege 1, 0x2000, false, filter, …)` with the tool's filter
    `cSC4PlaceLotDemolishFilter` (`0x004BDF70`; its type test `0x004BDFB0` leaves power poles `0x2890D4DE` and power
-   lines `0x0990B2EA` standing); then `PlaceZone(cells, 0, commit, skipFunds := cost is 0, checkSlope, skipSize, …)`
+   lines `0x0990B2EA` standing); then `PlaceZone(cells, 0, true, skipFunds := cost is 0, true, true, false, null, null, null)`
    (dezoning, zones.md §6).
 6. **Zoning:** the zone type is 15 (plopped); 11 when the preview building is in occupant group `0x1508`; 12 when it
    is in group `0x1509` or the configuration is compatible with water (configuration slot 14) *[inferred: airports,
-   seaports]*. `PlaceZone(cells, type, commit, skipFunds, checkSlope, skipSize, …)`.
+   seaports]*. `PlaceZone(cells, type, true, true, true, true, false, null, null, null)`.
+   Both calls explicitly enable `checkSlope`, skip the size check and disable `checkLotInside`;
+   their last three output pointers are null (signature in zones.md §6). The first skips funds only
+   for a zero tool cost; the second always skips funds. Each region contains all cells in the rectangle.
+   Demolition must succeed before dezoning, dezoning before zoning, and zoning before lot creation.
+   A false result prevents the later calls and returns placement failure when no lot exists. The
+   tool makes no rollback call for earlier successful clearing/zoning. These mutations are committed
+   even when the tool's `effects` argument is false; that argument controls visual effects, not a dry run.
+   Evidence: demolition gate `0x004C1A44–0x004C1A6B`, dezoning arguments/gate
+   `0x004C1A71–0x004C1A98`, zoning arguments/gate `0x004C1AFE–0x004C1B1B`,
+   null-lot exit `0x004C1B93–0x004C1B99` (CT23, re-citytools-ct5, 2026-10-23).
 7. **The lot:** `CreateLotIfPossible(x0, z0, w, h, rotation, &lot, true, water-compatible, cfg)` (lot manager slot 22).
 8. **The building:** the lot developer's `ConstructDefaultLot(lot, cfg, +0x34, cfg slot 20)` (its slot 7,
    lot-developer.md §6.4). On success: the cost is withdrawn (`WithdrawFunds`, budget slot 8) when it is not 0; the
@@ -407,8 +432,9 @@ preview and the constraint tiles by validity.
 8. Query tool: a network occupant both tries the neighbour dialog and continues to the query dialog (§8.12.1).
 9. Place-lot: after a successful click no lot is placeable while the lot's centre stays inside the placed lot's
    world rectangle (§3.6, §3.10) (re-plop).
-10. Place-lot: the automatic facing keeps the player's rotation unless another has at least 4 more street points
-    (§3.11) (re-plop).
+10. Place-lot: the automatic facing keeps the player's rotation at exactly four fewer street points;
+    an improvement greater than four changes it, subject to §3.11's zero-frontage exception
+    (corrected CT24, re-citytools-ct5).
 11. Place-lot: a building that fails after its lot was made credits the city with the lot's cost (§3.12)
     *[quirk]* (re-plop).
 
@@ -467,6 +493,19 @@ Place-lot tool (re-plop, 2026-10-22):
 - A plop on cells (2, 2)–(3, 3) with 16 m cells stores (32, 32, 64, 64); a placement centred at (48, 48) then
   fails (§3.6, §3.10).
 - A builder that fails on a lot costing 500 deposits 500 and withdraws nothing (§3.12).
+
+Place-lot closure vectors (re-citytools-ct5, 2026-10-23):
+
+| ID | Setup/action | Required observation |
+|---|---|---|
+| CT2-a | Move with a held WM, no terrain hit | One WM input-queue flush after feedback/text processing; handled = true. |
+| CT2-b | Repeat an unchanged move; then move with no held WM | One flush on the repeat; no WM call with null; both handled. |
+| CT22-a | Ring-finished message, flag set, view present | Flag clears before one coverage recalculation; message result false. |
+| CT22-b | Repeat ring-finished with flag clear; then with null view | Recalculates again with view; only flag clear with null. No ring release or plop decrement. |
+| CT23-a | Nonzero cost, effects false; services succeed | Dezoning flags `(commit,skipFunds,checkSlope,skipSize,checkLotInside)` = `(true,false,true,true,false)`; zoning = `(true,true,true,true,false)`; all three output pointers null. |
+| CT23-b | Zero cost; services succeed | Both zoning calls use `(true,true,true,true,false)`. |
+| CT23-c | Demolition false / dezoning false / zoning false, separately | Respectively no zoning calls / no second zoning or lot creation / no lot creation. No rollback call, construction, refund or placement effects. |
+| CT24-a | Own frontage 3; best 6, 7, then 8 | Keep, keep, change, respectively. Own 0 / best 1 changes despite the small gap. |
 
 ## 7. Coverage
 
