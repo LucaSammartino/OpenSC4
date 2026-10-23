@@ -94,3 +94,14 @@
   native bytes or filtering mismatches? [none inferred: retain every raw difference and no whole-owner exact
   credit; do not change algorithms or defaults to match unspecified native memory; other array differences
   have not been ruled out by a field-by-field diagnostic]
+
+  Follow-up evidence (glue-dormant-shadows5, 2026-10-23): combined native-owner run
+  `dormant5-all-2032-20261023-r1a`, DLL SHA256
+  `e1944d66d824d1178f3f64b3bd7ca4c1f5cb5c60a4568ae612c3b3668b8d362d`,
+  clean at 2032-01-01, ref_warnings=0, reproduces all 1544 padding-only profile
+  differences (keysDiffering=0, validDiffering=0, profilesDiffering=0, padOnly=1544)
+  and 1908/1909 configuration-array differences with 1908 foundations. Prop shadow
+  lines are 219/220 clean, lotcfg 292/293, with zero incomplete or resynced lines.
+  No defaults or comparison filters were changed; both keys remain ineligible for
+  an exact shadows profile pending this contract. This adds evidence to PL23,
+  rather than creating a duplicate question.

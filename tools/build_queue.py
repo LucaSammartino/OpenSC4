@@ -143,15 +143,15 @@ def main():
                 return 0
             time.sleep(a.poll)
             continue
-        waiting = False
+        heads = []  # each root's oldest request; served oldest first across roots so no worktree starves
         for r in roots(a.roots):
             reqs = sorted((r / "build-runs" / "build-queue").glob("*.req"), key=lambda p: p.stat().st_mtime)
-            if not reqs:
+            if reqs:
+                heads.append((reqs[0].stat().st_mtime, r, reqs[0]))
+        waiting = bool(heads)
+        for _, r, req in sorted(heads, key=lambda h: h[0]):
+            if r in busy or len(busy) >= (1 if game_running() else a.jobs):  # one build may overlap a game run
                 continue
-            waiting = True
-            if r in busy or len(busy) >= a.jobs or game_running():
-                continue
-            req = reqs[0]
             parsed, err = parse(req)
             if err:
                 finish(r, req, req.stem if LABEL.match(req.stem) else "rejected", "rejected", err + "\n")

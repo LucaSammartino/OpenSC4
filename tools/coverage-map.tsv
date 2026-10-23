@@ -105,7 +105,7 @@ cSC4NetworkLotConfiguration	network manager	simulation	network-manager.md	core/s
 cSTETerrain	terrain	simulation	terrain.md	core/src/terrain	terrain_shadow	-
 cSTESurfaceWater	terrain	simulation	terrain.md	core/src/terrain	terrain_shadow	-
 cSTEVolcanoLava	terrain	simulation	terrain.md	core/src/terrain	-	-
-cSC4CityDetailManager	city detail	simulation	city-detail.md	core/src/city_detail	-	citydetail
+cSC4CityDetailManager	city detail	simulation	city-detail.md	core/src/city_detail	citydetail_shadow	citydetail
 cSC4PortDeveloper	port developers	simulation	port-developers.md	core/src/port_developer	ports_shadow	ports
 cSC4AirportDeveloper	port developers	simulation	port-developers.md	core/src/port_developer	ports_shadow	ports
 cSC4SeaportDeveloper	port developers	simulation	port-developers.md	core/src/port_developer	ports_shadow	ports
@@ -130,7 +130,7 @@ fn:ReadIntersection*	network rules	simulation	network-rules.md	core/src/network_
 cSC4PropManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/prop_manager	-	propmgr
 cSC4LotConfigurationManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/lot_config_manager	-	lotcfg
 cSC4LotConfiguration	lot configuration	simulation	lot-configuration.md	core/src/lot_config_manager	-	-
-cSC4TutorialSystem	tutorial	simulation	tutorial.md	core/src/tutorial	-	-
+cSC4TutorialSystem	tutorial	simulation	tutorial.md	core/src/tutorial	tutorial_shadow	-
 cSC4CitySituationManager	city situation	simulation	city-situation.md	core/src/city_situation	citysit_shadow	citysit
 cSC4Demolition	demolition	simulation	demolition.md	core/src/demolition	demolition_shadow	demolition
 cSC4DemolitionOccupantFilter	demolition	simulation	demolition.md	core/src/demolition	-	-
@@ -615,14 +615,14 @@ cGZMessageServer	framework services (GZ)	framework	framework-gz-services.md	-	-	
 cGZMessageServer2	framework services (GZ)	framework	framework-gz-services.md	-	-	-
 cGZMessageQueue2	framework services (GZ)	framework	framework-gz-services.md	-	-	-
 cGZMessageQueueManager2	framework services (GZ)	framework	framework-gz-services.md	core/src/gz_messages/manager.rs	-	-
-cGZFramework	framework services (GZ)	framework	gz-framework-core.md	-	-	-
-cGZCOM	framework services (GZ)	framework	gz-framework-core.md	-	-	-
-cGZCommandServer	framework services (GZ)	framework	gz-framework-core.md	-	-	-
-cGZMiscCommandSystemSupport	framework services (GZ)	framework	gz-framework-core.md	-	-	-
-cGZToolCommandSystemSupport	framework services (GZ)	framework	gz-framework-core.md	-	-	-
-cGZBuffer	framework services (GZ)	framework	gz-framework-core.md	-	-	-
-cGZFileSystem	framework services (GZ)	framework	gz-framework-core.md	-	-	-
-cGZScriptTerp	framework services (GZ)	framework	gz-framework-core.md	-	-	-
+cGZFramework	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
+cGZCOM	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
+cGZCommandServer	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
+cGZMiscCommandSystemSupport	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
+cGZToolCommandSystemSupport	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
+cGZBuffer	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
+cGZFileSystem	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
+cGZScriptTerp	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
 cGZ*	framework services (GZ)	framework	-	-	-	-
 cRZFile	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_files	-	-
 cRZIniFile	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_files	-	-
@@ -647,7 +647,7 @@ cRZTextOStream	streams	framework	output-streams.md	-	-	-
 cRZNullOStream	streams	framework	output-streams.md	core/src/rz_streams/ostream.rs	-	-
 cRZOFStream	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_streams/file.rs	-	-
 cRZ*	framework services (RZ)	framework	-	-	-	-
-nGZLog::cService	framework services (GZ)	framework	gz-framework-core.md	-	-	-
+nGZLog::cService	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
 nGZ*	framework services (GZ)	framework	-	-	-	-
 cIGZ*	framework services (GZ)	framework	-	-	-	-
 nRZ*	framework services (RZ)	framework	-	-	-	-

@@ -126,3 +126,24 @@
   queries and replay copied data, reporting absent inputs separately. Written into
   [network-rules.md](../../network-rules.md) §2.5 and §15 vectors 36–44. ABI publication proposals are named in
   [the lane report](../../../lanes/re-netrules-nr16.md); shared docs/abi promotion is for the coordinator.
+
+<!-- from: glue-netrules-shadow5 Round 2 (2026-10-23); archived by re-netrules-nr17 before that lane's filing lands -->
+- **NR17 - section 2.5.5, fail-closed observer installation and ABI publication:** NR16 now specifies the
+  semantic capture layouts, Evaluate's five-byte span and ReloadRules' six-byte span. Before installing the
+  required native observer, please publish the exact expected observation-site byte sequences (including any
+  relocation handling), or an approved method for comparing loaded sites with the fingerprinted image. The
+  section requires exact site checks but provides no byte reference; existing FC4Compat Identify/CheckCode
+  checks PE identity and executable-page membership, not these instruction bytes. Engine authors cannot inspect
+  the executable to supply the missing reference. Please also specify a safe observation boundary for static
+  cleanup at 0x006232F0 (whole-instruction span/continuation and validation reference, or a supported callback
+  interception), so the required readiness invalidation does not depend on guessing its patch boundary. Publish
+  the native interoperability facts in docs/abi as required by CONTRIBUTING.md; section 2.5.5 currently says
+  that publication is still proposed for the coordinator. [blocked: no hook installed, no netrules_shadow
+  exactness claim; retain NR16's capture semantics and do not infer native instructions]
+  **ANSWERED 2026-10-23 (re-netrules-nr17):** DIFFERS — exact entry bytes, whole-instruction 5/6/5-byte spans and
+  continuations are published in [the observation ABI](../../../abi/network-rules-observation.md), together with
+  NR16's native call/layout contracts. The fingerprinted image has no base relocations and requires loaded base
+  0x00400000; cleanup's absolute flag operand remains unchanged in a trampoline. All loaded bytes must match,
+  without masking. Spec §2.5.6 describes fail-closed validation and cleanup's quirk: it resets a nonzero flag,
+  always returns AL=1, and leaves tables allocated; readiness is invalidated on entry even for flag zero.
+  Written into [network-rules.md](../../network-rules.md) §2.5.6 and §15 vectors 45–49. No hook/game result is claimed.

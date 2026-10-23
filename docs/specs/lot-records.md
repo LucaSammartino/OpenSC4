@@ -1189,6 +1189,83 @@ the zone developer (`zones.md` §1.2).
 
 ---
 
+### 14.1 Load/month record observation inventory (LR12)
+
+**Scope [choice].** `lotrec_shadow` means **all current master-list `cSC4Lot` records**, not all
+classes in §1. Its denominator at each PostCityInit/month observation is the lot manager's current
+master-list size. Each lot contributes one complete §3.2 record: all 27 fields, including the plain
+property holder and every inline §3.3 trip. A business-unit or travel-designate reference contributes
+its nullness and identity, not the referenced object's payload. The section-1 catalogue describes save
+formats; it is not a promise that the lot manager enumerates all those objects. This choice defines a
+record-only shadow, not complete-owner replacement (§15), save-file validation (§17.1), or a test of
+simulation mutations. No original game option named `lotrec_shadow` is implied.
+
+**Discovery and native boundary [compat].** Use the current city's lot-manager view and its registered
+safe iterator; do not reconstruct membership by spatial probing, occupant lookup or following references.
+The interface calls below use x86 `__thiscall` (ECX is the indicated interface pointer). Slot numbers
+are zero-based. The caller runs synchronously on the simulation thread, without yielding or invoking
+simulation mutations, and finishes and releases the iterator within the observation.
+
+| Receiver / operation | Native signature and result | Ownership |
+|---|---|---|
+| `cISC4City`, slot 33, `0x00472E70` | `GetLotManager()`, no stack arguments, EAX = `cISC4LotManager*` | Borrowed, no AddRef; reacquire for each observation. |
+| `cISC4LotManager`, slot 16, `0x00809250` | `GetLotCount()`, no stack arguments, EAX = 32-bit master-list count | Scalar; use the count before and after the walk to detect an inconsistent observation. |
+| Same manager, slot 15, `0x00734850` | `GetSafeLotIterator()`, no stack arguments, EAX = iterator pointer | Caller owns the non-COM iterator; acquisition registers it, but does not AddRef any lot. |
+| Borrowed `cISC4Lot*`, slot 0, `0x006BF190` | `QueryInterface(u32 iid, void** out)`, callee pops 8; test AL; IID `0xE4FDA3D4` gives the Serializable view | Successful QI AddRefs once; release that view once on every subsequent exit path. Initialize out to null before the call. |
+| Acquired `cIGZSerializable*`, slot 3, `0x006C0080` | `Write(cIGZOStream&)`, callee pops 4; success is AL only (§13.1) | Borrows the stream; no ownership transfer. Use the actual interface, not a cast of the lot pointer. |
+
+The city getter is a single pointer load with no retain (`0x00472E70–00472E76`). Count is a dword
+load (`0x00809250–00809253`); its unrelated folded export name does not change this use. Iterator
+acquisition allocates 8 bytes and registers the result (`0x00734860–007348AA`). Its public native
+interoperation contract is the nonvirtual layout in `zones.md` §8.3.1: `{node, list}` at offsets 0/4;
+list points to a one-pointer sentinel holder; nodes contain `{next, prev, lot}` at offsets 0/4/8.
+End is node equal to the sentinel. Advance the cursor to the next node before using the current
+node's borrowed lot. No reference is acquired by reading a node. The manager owns membership's lot
+reference; QI's temporary reference protects only the individual capture. Neither retain that borrowed
+pointer across observations nor Release it as though enumeration had transferred a reference.
+
+Destroy the iterator on success **and** on early failure: `cSC4SafeListIterator<cISC4Lot*>::Release`
+at `0x0045D5B0` is a **nonvirtual** `__thiscall` with no stack arguments and no required return value.
+It unregisters from the list's iterator registry when list is nonnull, then frees the iterator with
+the C allocator (`0x0045D5B4–0045D5D7`); it is not COM slot 2. The equivalent unregister/free sequence
+is specified in `zones.md` §8.3.1. QI's Serializable adjustment is +4 and its AddRef is proved at
+`0x006BF1BC–006BF1D0`; this is evidence for using QI, not permission to forward native methods on
+replacement layouts. No factory installation, owner replacement or native `Read`/`Init` is required.
+
+**Capture and comparison [choice].** For each enumerated lot, capture its own native Write payload in
+an isolated memory stream implementing the existing stream/reference contracts (foundations §2.2/§2.7).
+Reference writes record stable per-observation `(classID, objectID)` identities and do not recursively
+serialize their targets. Preserve aliases; zero stays null; different objects must not collapse to one
+identity. Keep the same identity mapping for expected and replacement observations. Feed the complete
+payload to an isolated record reader, require successful acceptance and exact byte consumption, and
+compare every §3.2 field and nested value, preserving float bits, map/vector/list order, property types,
+and reference identities. A byte re-encoding comparison may implement this check provided it preserves
+record metadata (including configuration ID) and uses that same reference mapping. Calling native Init
+or resolving references into live replacement simulation objects is not part of this check. In particular,
+do not compare a pre-Init Read object's Write with native Write after Init and call the configuration-ID
+difference a codec failure: §3.5 describes the native distinction. No entry CRC or class-store header is
+part of this per-object payload comparison.
+
+An observation reports expected count N, visited distinct lots, successful full captures and exact
+records separately. It is exact only if the walk ends normally, both counts are N, exactly N distinct
+nonnull lots were visited, and all N records were captured/read/compared successfully. Missing city or
+manager, failed iterator/QI/Write, stream error, malformed/null/duplicate node value, count discrepancy,
+reader rejection, trailing bytes or any unequal field is an explicit incomplete/error/mismatch outcome;
+never drop a failing lot from the denominator. An available empty manager is a valid `0/0` observation,
+reported as empty, and supplies no evidence of nonempty record correctness. Equal counts alone are not
+evidence of stable membership under mutation; the synchronous no-mutation requirement still applies.
+
+**Objects outside this inventory.** The crime-only lot in §14 is intentionally absent unless it is also
+in the current master list; its saved existence does not enlarge N. A unit reached from a lot, another
+lot reached as travel designate, and an off-list lot reached through either remain reference identities
+only. Buildings, base textures, retaining walls, foundations, construction, all prop types (including
+signposts/decals), wild flora and bare occupants are outside this shadow, even when spatially on a lot.
+There is no business-unit or occupant discovery pass in this contract. The three unspecified prop
+subclasses listed in §1 must therefore be reported as outside scope, never as successfully parsed,
+substituted with their base record, or silently included in an all-class exactness claim. A future
+all-class shadow requires a separately named inventory and discovery contract; a save-class record
+walk can validate saved off-list objects (§17.1), but is not equivalent to this live master-list walk.
+
 ## 15. Replaceability
 
 ### 15.1 New-object paths bypass the class registry (LR8)
@@ -1517,3 +1594,19 @@ rather than a repaired fraction. For any matching C index without a correspondin
 successful result is specified: the native unchecked index has no defined container semantics. These
 invalid shapes do not justify an inferred map-creation rule. No remaining LR10/LR11 gap is needed for
 valid native container invariants; these vectors specify behavior, not a runtime or coverage verdict.
+
+### 17.6 Master-list record observation vectors (LR12)
+
+These are normative shadow-harness cases for §14.1, not measured game runs. A/B/C identify native
+objects, not cell coordinates; use T1 as a valid base payload and vary the named fields as needed.
+
+| Vector | Inventory / capture inputs | Required observation |
+|---|---|---|
+| T58 | Master list [A,B]; A covers four cells, B one; counts before/after = 2 | N=2, two captures in list order, two exact records; A is not counted four times. Iterator unregistered/freed; each successful QI's reference released. |
+| T59 | Master [A]; A references unit U and off-list designate C; crime also owns off-list D; occupant manager owns building, construction, wild flora, signpost and an unspecified burnt-building subclass | N=1; capture only A. Preserve U/C reference identity; do not recurse to U/C/D or occupants. Report scope as master lots, never all §1 classes. |
+| T60 | Master [A,B]; both refer to U, A designates B, B designates A | N=2; both unit handles equal, designate handles identify B/A respectively; no recursive loop and no extra record or retain from reference traversal. |
+| T61 | Available manager, empty sentinel list, counts 0/0; separately repeat with unavailable manager | First: empty 0/0, iterator cleaned up, no record correctness evidence. Second: unavailable/incomplete, not empty/exact. |
+| T62 | Master [A,B], counts 2/2; A QI succeeds, Write fails after a partial payload; B compares exactly | N=2, visited=2, full captures=1, exact=1; incomplete/error. Release A's acquired Serializable even on failure. No 1/1 exact claim. |
+| T63 | Master [A]; payload otherwise T1, but strategy differs in replacement, or last inline trip field differs, or property's variant type differs | N=1, captures=1, exact=0, mismatch for each independent variation. Neither scalar-only comparison nor skipping nested fields is sufficient. |
+| T64 | Counts 2/3; or counts 2/2 but walk yields A twice; or a node's lot is null | Incomplete/error in every variant; record success cannot repair inventory failure. Iterator and all acquired Serializable views still cleaned up. |
+| T65 | A's stream reference mapping identifies U, replacement produces a different nonnull unit identity V; separately supply a valid record plus one trailing byte | First: reference mismatch despite equal nullness. Second: exact-consumption failure despite successful Read. Neither is exact. |
