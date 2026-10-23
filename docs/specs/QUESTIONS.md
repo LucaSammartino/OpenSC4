@@ -282,7 +282,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-occupants | 21 | 24 | NO45 | questions/network-occupants.md |
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
-| network-rules | 2 | 11 | NR17 | questions/network-rules.md |
+| network-rules | 2 | 12 | NR18 | questions/network-rules.md |
 | network-tool-ui | 0 | 0 | - | questions/network-tool-ui.md |
 | network-tools | 16 | 4 | NT27 | questions/network-tools.md |
 | network-transport | 4 | 0 | Q15 | questions/network-transport.md |
@@ -306,7 +306,7 @@ generated index: the questions live one file per spec, so read only the file for
 | port-developers | 0 | 12 | PD13 | questions/port-developers.md |
 | power | 0 | 12 | CR2, PW12 | - |
 | prop-developer | 0 | 15 | GLUE22, PV15 | questions/prop-developer.md |
-| prop-lotconfig | 8 | 8 | PL24 | questions/prop-lotconfig.md |
+| prop-lotconfig | 8 | 9 | PL24 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
 | region | 2 | 0 | RQ3 | questions/region.md |
@@ -347,7 +347,7 @@ generated index: the questions live one file per spec, so read only the file for
 | timers | 0 | 3 | TM4 | questions/timers.md |
 | tools-com-director | 2 | 2 | TD5 | questions/tools-com-director.md |
 | traffic-network | 0 | 29 | TN30 | - |
-| traffic-simulator | 0 | 93 | TG27, TS68 | questions/traffic-simulator.md |
+| traffic-simulator | 0 | 94 | TG27, TS69 | questions/traffic-simulator.md |
 | tutorial | 0 | 6 | TU10 | questions/tutorial.md |
 | ui-feedback-owners | 0 | 0 | - | questions/ui-feedback-owners.md |
 | underground-occupants | 2 | 3 | UG6 | questions/underground-occupants.md |
@@ -366,4 +366,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 2 | WG5 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **585** | **1401** | | |
+| **total** | **585** | **1404** | | |
