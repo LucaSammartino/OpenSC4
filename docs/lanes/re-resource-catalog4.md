@@ -1,8 +1,22 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-resource-catalog4: native catalog and key picker contracts | Codex; re-resource-catalog4 (detached worktree) | in progress | Round 2: native catalog, selection and picker contracts; retain historical R1 denial. |
+| re-resource-catalog4: native catalog and key picker contracts | Codex; re-resource-catalog4 (detached worktree) | ready: partial native contracts published | Coordinator may land docs; RC1–RC5 remain explicit boundaries, no whole-owner promotion. |
 
-## Handoff
+## Report
+
+- Published [resource-catalog.md](../specs/resource-catalog.md), the first substantive native behavior contract for this catalog family, linked from the existing scope exclusion and honest owner row. Commits e7b2be28 and dd5b4d09 contain the two substantive milestones; this final update completes attribution and reporting.
+- Contracts cover descriptor wildcard filtering/selector mapping, row exact-group filtering, append/name-fallback/data effects, post-order first/default/last-duplicate selection, key read/conditional refresh, picker G/T permutation and close-result/caller separation, key-input text/filename/instance search/notifications, and scoped shutdown/reference/deleting effects. There are 23 independent literal vectors, derived from instructions, not executed tests or game verdicts.
+- Identity: class IDs 1A368ED8/671E9725, factories 00664280/00664750 and interface adjustments confirmed. Actual 00664720 is picker destruction despite its catalog export name; actual 00686510 is catalog destruction despite its vector export name. Base/key-input tables forward QI and reference operations to shared cGZWin bodies. Exact disjoint body attribution and limits are in spec §8; no native/default/whole-owner/16686-byte completion credit follows.
+- RC1–RC5 filed in `docs/specs/questions/resource-catalog.md`; question index regenerated. Existing RE1–RE8 were neither answered nor reopened. Unknowns include enumeration lifetime, ordering/name primitive, registration/empty-filter failure, add-resource/variant validity and text conversion/QI/export-split boundaries. Next research requires separate authorization within the retained original-round/owner caps.
+- Validation: `questions.py check` and `git diff --check` passed. Binary SHA256 independently matched native export metadata. Instruction bytes, callers and original PE tables/literals support the contracts. Cargo/clippy/ctest/build/game/native execution: n/a, none run. No engine/tests, ABI exports/proposals/version, coverage map, tools or shared source edits.
+- R2 authority: immutable copied proof `build-runs/evidence-run4/coordinator-resource-catalog-r2-host-proof.json` records canonical coordinator full RE guard exit 0; own manifest matches lane, RE role, round 2 and path; source clean at pinned 98e396bb. Historical R1 hash/guard identity was not required to match R2. No sandbox admission rerun, global-ref repair or live-session repair attempted.
+- REA: no live query attempted; known NoApp/live session remains UNKNOWN. Local pseudocode often fails on structure fields; native export/instructions supply the contracts. Optional undecoded-thunk fallback failed because Python capstone is absent, so those thunks remain unknown. Python pefile is absent too; a worktree-local standard-library PE reader supplied literal data. No guard failure was bypassed.
+- Commits succeeded on detached HEAD, although Git also printed `Unable to create .../.git/packed-refs.lock: Permission denied`. No shared refs/config were repaired. Supervisor publishes the detached commits to the reserved branch. Ready for normal docs queue; no game runs or ABI proposals.
+
+## Historical milestone notes and R1 handoff
+
+The following notes retain the exact R1 local script/ref/detached mismatch failure. They are historical, not
+a retrospective passing guard or earlier behavior publication. Current outcomes are those in the report above.
 - R2 admission: copied `build-runs/evidence-run4/coordinator-resource-catalog-r2-host-proof.json` records canonical host full guard exit 0; own R2 manifest matches lane, RE role and reserved path. Source clean at pinned 98e396bb. No sandbox admission rerun or live-session repair.
 - R2 binary SHA256 independently matches export metadata: 3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b. Next: trace native owner instructions and publish first substantive spec.
 - R2 milestone: first substantive `docs/specs/resource-catalog.md` now covers exact-group row filtering, duplicate/default selection, refresh failure, picker word permutation and close-result separation; linked from prior exclusion. Next: registration filters, key-input notifications and shutdown reference audit, then questions/checklist.

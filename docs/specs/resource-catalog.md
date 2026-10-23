@@ -27,6 +27,13 @@ catalog QI at picker+4. Output pointers must be valid; neither success branch nu
 Catalog AddRef/Release (`00762470/00762480`) adjust +4 and delegate; picker AddRef/Release
 (`00664660/00664670`) adjust +4 again. These are forwarding bodies, not independent counters.
 The exported name at the shared Release destination is not evidence that an editor-dialog constructor runs.
+Base-view table `00AAE630` and key-input table `00AAF510` both start with shared forwarding bodies
+`00682050/007BE160/007BE170`: QI/AddRef/Release delegate without adjustment. They add no owner-specific QI ID.
+For these delegations, native cGZWin QI `0099B774` recognizes `00000001`, `22BA0121`, `E98B2F57`, writes
+the window pointer and AddRefs; failure returns false without writing the output. AddRef `0094C47C` increments
+the window's 32-bit count at +`0C`. Release `0099B7A3` decrements only when the unsigned count exceeds one;
+otherwise it invokes virtual deleting slot `250` with flag 1 and returns zero. These shared facts explain
+the reference effects at these owners' boundaries; they do not grant whole-widget or editor-dialog coverage.
 
 For offsets, C denotes the catalog interface, W=C+4 its window interface, and P=C−4 the enclosing picker when
 present. Window methods such as Init, Shutdown, DoMessage and GZOnCommand receive W, not C. This distinction is
@@ -278,7 +285,7 @@ bodies remain unknown even when one branch is specified above.
 |---|---|---|
 | Supported | `00664630/40/50`, `006855E0`, `006857E0`, `00685CF0`, `006759B0`, `00675A00`, `00675A60`, `00664680`, `00682290`, `006823D0`, `00682230`, `00683130`, `00685D30`, `00664700`, `006866C0`, `00675AF0/DC0` | Owned rules under the explicit primitive/precondition boundaries above; not foreign internals. `00664680` writes `FFFFFFFF` to its output word and returns; no modal meaning inferred. |
 | Partial | `00664280`, `00664750`, `006645F0`, `00686450`, `00682330`, `00685AE0`, `00685840`, `006861F0`, `00685780`, `00686310`, `00686D30`, `00687890`, `00686510`, `00664720`, `00682060`, `006826E0`, `00675B00`, `00682590` with continuation `0068263D–006826DC` | Allocation/identity, row/preview/close algorithms, descriptor filtering/mapping, shutdown/reference effects, key input; remaining widget/allocator/registration and export-split boundaries are not covered. |
-| Folded/forwarding | `00664660/70/90`, `00762470/80`, `006759F0`, `006864F0`, `00675C80`, `0098AD30` | Adjusting thunks, inherited initialization/shutdown, and shared byte setter. No independent foreign implementation credit. Undecoded neighboring thunks are unknown below. |
+| Folded/forwarding | `00664660/70/90`, `00762470/80`, `006759F0`, `006864F0`, `00686500`, `00675C80`, `0098AD30`, `00682050`, `007BE160/170`, `0099B774`, `0094C47C`, `0099B7A3` | Adjusting thunks, inherited initialization/shutdown, shared QI/reference count and byte setter; `00686500` adjusts W−4 to the catalog deleting wrapper. No independent foreign implementation credit. Undecoded neighboring thunks are unknown below. |
 | Foreign | cGZWin lifetime/QI/widget state; resource service slots `48`, enumeration `24/28`; name helper `006695A0`; list ordering `20C`; variant storage/assignment; modal loop | Only call boundary effects described; not owner callbacks returning a whole catalog outcome. |
 | Unknown | Catalog `00685610/60/B0/C0`, `006858E0`, `006859B0`, `00685D70`, `00686410`, `006865B0`, `006866E0`, `00686B90`, `0079B0E0`; picker undecoded `006646A0/B0/C0/D0/E0`; base `00675C90/DF0`; key-input `00682140/F0`, `006824A0`, `00682730`; alleged function start `00682632` | No behavior coverage, even if read during discovery. Registration grammar, remaining UI construction/paint/geometry, add-resource, container helper internals and undecoded thunks remain unsupported. `00682632` is not accepted as an independent owner body. |
 
