@@ -12,5 +12,7 @@
 - Focused run 1: 35/36 passed, `${name}` lexer bug diagnosed and fixed; evidence build-runs/sc-resources-focused-1.md. Corrected run 2 terminal PASS 41/41.
 - Done: explicit experimental record-BMP offset policy keeps settled record decoder/stride/flags testable while default remains SCR5; provider aggregation QI names IID 0x12f. Added a 42nd focused test for record flags/pixels.
 - Formatting: qbuild fmt PASS, 10 owned files, diff_lines=0. Applied all formatting with apply_patch; no shared-file mass formatting.
-- Next: collect required qbuild all terminal result, fix only diagnosed failures, then final report/queue.
+- Final qbuild all Rust phases PASS: workspace 6318 passed / 0 failed / 0 ignored; clippy exit=0, diagnostics=0.
+- Native phase queued as qbuild-20261023-204304-build-ctest; same qbuild operation session 69097 remains outstanding. Do not launch a duplicate.
+- Next: collect session 69097 to terminal CMake/CTest result, then final report/queue.
 - No game request outstanding. Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-sc-resources5-r1-manifest.json.
